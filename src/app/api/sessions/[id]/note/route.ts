@@ -15,7 +15,7 @@ export async function POST(
 
     const { id } = await params;
     const body = await request.json();
-    const { content, isPrivate } = body;
+    const { content, isPrivate, aiAnalysis } = body;
 
     // Verify session belongs to therapist
     const therapySession = await prisma.therapySession.findFirst({
@@ -43,6 +43,7 @@ export async function POST(
         sessionId: id,
         content,
         isPrivate: isPrivate || false,
+        aiAnalysis: aiAnalysis || null,
       },
     });
 
@@ -81,7 +82,7 @@ export async function PUT(
 
     const { id } = await params;
     const body = await request.json();
-    const { content, isPrivate } = body;
+    const { content, isPrivate, aiAnalysis } = body;
 
     // Verify session belongs to therapist
     const therapySession = await prisma.therapySession.findFirst({
@@ -105,6 +106,7 @@ export async function PUT(
       data: {
         content: content !== undefined ? content : undefined,
         isPrivate: isPrivate !== undefined ? isPrivate : undefined,
+        aiAnalysis: aiAnalysis !== undefined ? aiAnalysis : undefined,
       },
     });
 

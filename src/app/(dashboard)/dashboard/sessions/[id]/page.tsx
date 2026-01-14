@@ -44,6 +44,7 @@ interface SessionData {
     id: string;
     content: string;
     isPrivate: boolean;
+    aiAnalysis: NoteAnalysis | null;
   } | null;
   recordings: {
     id: string;
@@ -84,6 +85,10 @@ export default function SessionDetailPage({
           setSession(data);
           setNoteContent(data.sessionNote?.content || "");
           setStatus(data.status);
+          // Load saved AI analysis if exists
+          if (data.sessionNote?.aiAnalysis) {
+            setNoteAnalysis(data.sessionNote.aiAnalysis);
+          }
         } else {
           toast.error("פגישה לא נמצאה");
           router.push("/dashboard/sessions");
@@ -110,7 +115,10 @@ export default function SessionDetailPage({
       const response = await fetch(`/api/sessions/${id}/note`, {
         method: session?.sessionNote ? "PUT" : "POST",
         headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ content: noteContent }),
+        body: JSON.stringify({ 
+          content: noteContent,
+          aiAnalysis: noteAnalysis || null,
+        }),
       });
 
       if (!response.ok) throw new Error();

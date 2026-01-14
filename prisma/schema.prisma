@@ -150,11 +150,12 @@ enum SessionType {
 }
 
 model SessionNote {
-  id        String   @id @default(cuid())
-  content   String   @db.Text
-  isPrivate Boolean  @default(false)
-  createdAt DateTime @default(now())
-  updatedAt DateTime @updatedAt
+  id         String   @id @default(cuid())
+  content    String   @db.Text
+  isPrivate  Boolean  @default(false)
+  aiAnalysis Json?    // Stores AI analysis of the note
+  createdAt  DateTime @default(now())
+  updatedAt  DateTime @updatedAt
 
   sessionId String         @unique
   session   TherapySession @relation(fields: [sessionId], references: [id], onDelete: Cascade)
