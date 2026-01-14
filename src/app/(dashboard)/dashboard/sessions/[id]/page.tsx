@@ -8,11 +8,25 @@ import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/com
 import { Badge } from "@/components/ui/badge";
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
-import { ArrowRight, Calendar, Clock, User, Mic, FileText, Save, Loader2, Sparkles } from "lucide-react";
+import { ArrowRight, Calendar, Clock, User, Mic, FileText, Save, Loader2, Sparkles, Brain, TrendingUp, TrendingDown, Minus, AlertTriangle, MessageCircleQuestion, Lightbulb } from "lucide-react";
 import { format } from "date-fns";
 import { he } from "date-fns/locale";
 import { toast } from "sonner";
 import { RichTextEditor } from "@/components/rich-text-editor";
+
+interface NoteAnalysis {
+  summary: string;
+  keyThemes: string[];
+  clinicalObservations: string[];
+  progressIndicators: {
+    area: string;
+    status: "improving" | "stable" | "concerning";
+    notes: string;
+  }[];
+  suggestedInterventions: string[];
+  questionsForNextSession: string[];
+  riskFactors: string[];
+}
 
 interface SessionData {
   id: string;
@@ -58,6 +72,8 @@ export default function SessionDetailPage({
   const [isSaving, setIsSaving] = useState(false);
   const [noteContent, setNoteContent] = useState("");
   const [status, setStatus] = useState("");
+  const [noteAnalysis, setNoteAnalysis] = useState<NoteAnalysis | null>(null);
+  const [isAnalyzing, setIsAnalyzing] = useState(false);
 
   useEffect(() => {
     const fetchSession = async () => {
@@ -153,6 +169,36 @@ export default function SessionDetailPage({
       toast.error("שגיאה ביצירת הסיכום");
     } finally {
       setIsSaving(false);
+    }
+  };
+
+  const handleAnalyzeNote = async () => {
+    if (!noteContent || noteContent.trim().length < 10) {
+      toast.error("נא לכתוב סיכום מפורט יותר לפני הניתוח");
+      return;
+    }
+
+    setIsAnalyzing(true);
+
+    try {
+      const response = await fetch("/api/analyze/note", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ 
+          noteContent,
+          clientName: session?.client?.name 
+        }),
+      });
+
+      if (!response.ok) throw new Error();
+
+      const { analysis } = await response.json();
+      setNoteAnalysis(analysis);
+      toast.success("הניתוח הושלם בהצלחה");
+    } catch {
+      toast.error("שגיאה בניתוח הסיכום");
+    } finally {
+      setIsAnalyzing(false);
     }
   };
 
@@ -277,6 +323,19 @@ export default function SessionDetailPage({
                 </CardDescription>
               </div>
               <div className="flex gap-2">
+                <Button variant="outline" onClick={handleAnalyzeNote} disabled={isAnalyzing || !noteContent.trim()}>
+                  {isAnalyzing ? (
+                    <>
+                      <Loader2 className="ml-2 h-4 w-4 animate-spin" />
+                      מנתח...
+                    </>
+                  ) : (
+                    <>
+                      <Brain className="ml-2 h-4 w-4" />
+                      ניתוח AI
+                    </>
+                  )}
+                </Button>
                 {hasTranscription && (
                   <Button variant="outline" onClick={handleGenerateSummary} disabled={isSaving}>
                     <Sparkles className="ml-2 h-4 w-4" />
@@ -298,12 +357,156 @@ export default function SessionDetailPage({
                 </Button>
               </div>
             </CardHeader>
-            <CardContent>
+            <CardContent className="space-y-6">
               <RichTextEditor
                 content={noteContent}
                 onChange={setNoteContent}
                 placeholder="כתוב כאן את סיכום הפגישה..."
               />
+              
+              {/* AI Analysis Results */}
+              {noteAnalysis && (
+                <div className="border-t pt-6 space-y-4">
+                  <h3 className="text-lg font-semibold flex items-center gap-2">
+                    <Brain className="h-5 w-5 text-primary" />
+                    ניתוח AI של הסיכום
+                  </h3>
+                  
+                  {/* Summary */}
+                  <Card className="bg-primary/5 border-primary/20">
+                    <CardContent className="pt-4">
+                      <p className="text-sm">{noteAnalysis.summary}</p>
+                    </CardContent>
+                  </Card>
+
+                  <div className="grid gap-4 md:grid-cols-2">
+                    {/* Key Themes */}
+                    <Card>
+                      <CardHeader className="pb-2">
+                        <CardTitle className="text-sm font-medium">נושאים מרכזיים</CardTitle>
+                      </CardHeader>
+                      <CardContent>
+                        <div className="flex flex-wrap gap-2">
+                          {noteAnalysis.keyThemes?.map((theme, i) => (
+                            <Badge key={i} variant="secondary">{theme}</Badge>
+                          ))}
+                        </div>
+                      </CardContent>
+                    </Card>
+
+                    {/* Clinical Observations */}
+                    <Card>
+                      <CardHeader className="pb-2">
+                        <CardTitle className="text-sm font-medium">תצפיות קליניות</CardTitle>
+                      </CardHeader>
+                      <CardContent>
+                        <ul className="text-sm space-y-1">
+                          {noteAnalysis.clinicalObservations?.map((obs, i) => (
+                            <li key={i} className="flex items-start gap-2">
+                              <span className="text-primary mt-1">•</span>
+                              {obs}
+                            </li>
+                          ))}
+                        </ul>
+                      </CardContent>
+                    </Card>
+                  </div>
+
+                  {/* Progress Indicators */}
+                  {noteAnalysis.progressIndicators?.length > 0 && (
+                    <Card>
+                      <CardHeader className="pb-2">
+                        <CardTitle className="text-sm font-medium">מדדי התקדמות</CardTitle>
+                      </CardHeader>
+                      <CardContent>
+                        <div className="space-y-3">
+                          {noteAnalysis.progressIndicators.map((indicator, i) => (
+                            <div key={i} className="flex items-start gap-3 p-2 rounded-lg bg-muted/50">
+                              {indicator.status === "improving" && (
+                                <TrendingUp className="h-5 w-5 text-green-600 mt-0.5" />
+                              )}
+                              {indicator.status === "stable" && (
+                                <Minus className="h-5 w-5 text-yellow-600 mt-0.5" />
+                              )}
+                              {indicator.status === "concerning" && (
+                                <TrendingDown className="h-5 w-5 text-red-600 mt-0.5" />
+                              )}
+                              <div>
+                                <p className="font-medium text-sm">{indicator.area}</p>
+                                <p className="text-sm text-muted-foreground">{indicator.notes}</p>
+                              </div>
+                            </div>
+                          ))}
+                        </div>
+                      </CardContent>
+                    </Card>
+                  )}
+
+                  <div className="grid gap-4 md:grid-cols-2">
+                    {/* Suggested Interventions */}
+                    <Card>
+                      <CardHeader className="pb-2">
+                        <CardTitle className="text-sm font-medium flex items-center gap-2">
+                          <Lightbulb className="h-4 w-4" />
+                          התערבויות מומלצות
+                        </CardTitle>
+                      </CardHeader>
+                      <CardContent>
+                        <ul className="text-sm space-y-1">
+                          {noteAnalysis.suggestedInterventions?.map((intervention, i) => (
+                            <li key={i} className="flex items-start gap-2">
+                              <span className="text-primary mt-1">•</span>
+                              {intervention}
+                            </li>
+                          ))}
+                        </ul>
+                      </CardContent>
+                    </Card>
+
+                    {/* Questions for Next Session */}
+                    <Card>
+                      <CardHeader className="pb-2">
+                        <CardTitle className="text-sm font-medium flex items-center gap-2">
+                          <MessageCircleQuestion className="h-4 w-4" />
+                          שאלות לפגישה הבאה
+                        </CardTitle>
+                      </CardHeader>
+                      <CardContent>
+                        <ul className="text-sm space-y-1">
+                          {noteAnalysis.questionsForNextSession?.map((question, i) => (
+                            <li key={i} className="flex items-start gap-2">
+                              <span className="text-primary mt-1">•</span>
+                              {question}
+                            </li>
+                          ))}
+                        </ul>
+                      </CardContent>
+                    </Card>
+                  </div>
+
+                  {/* Risk Factors */}
+                  {noteAnalysis.riskFactors?.length > 0 && noteAnalysis.riskFactors[0] !== "" && (
+                    <Card className="border-red-200 bg-red-50/50">
+                      <CardHeader className="pb-2">
+                        <CardTitle className="text-sm font-medium flex items-center gap-2 text-red-700">
+                          <AlertTriangle className="h-4 w-4" />
+                          גורמי סיכון
+                        </CardTitle>
+                      </CardHeader>
+                      <CardContent>
+                        <ul className="text-sm space-y-1 text-red-700">
+                          {noteAnalysis.riskFactors.map((risk, i) => (
+                            <li key={i} className="flex items-start gap-2">
+                              <span className="mt-1">•</span>
+                              {risk}
+                            </li>
+                          ))}
+                        </ul>
+                      </CardContent>
+                    </Card>
+                  )}
+                </div>
+              )}
             </CardContent>
           </Card>
         </TabsContent>
