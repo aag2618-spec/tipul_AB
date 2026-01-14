@@ -26,16 +26,22 @@ export async function POST(
       return NextResponse.json({ message: "פגישה לא נמצאה" }, { status: 404 });
     }
 
-    // Check if note already exists
+    // Check if note already exists - if so, update it instead of creating
     const existingNote = await prisma.sessionNote.findUnique({
       where: { sessionId: id },
     });
 
     if (existingNote) {
-      return NextResponse.json(
-        { message: "סיכום כבר קיים לפגישה זו" },
-        { status: 400 }
-      );
+      // Update existing note
+      const note = await prisma.sessionNote.update({
+        where: { sessionId: id },
+        data: {
+          content,
+          isPrivate: isPrivate || false,
+          aiAnalysis: aiAnalysis || null,
+        },
+      });
+      return NextResponse.json(note);
     }
 
     const note = await prisma.sessionNote.create({
