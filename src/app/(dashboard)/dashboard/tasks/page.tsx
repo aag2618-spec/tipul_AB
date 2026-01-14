@@ -9,8 +9,16 @@ import { format } from "date-fns";
 import { he } from "date-fns/locale";
 
 async function getTasks(userId: string) {
+  const now = new Date();
   return prisma.task.findMany({
-    where: { userId },
+    where: {
+      userId,
+      // Only show WRITE_SUMMARY tasks for sessions that already happened
+      OR: [
+        { type: { not: "WRITE_SUMMARY" } },
+        { type: "WRITE_SUMMARY", dueDate: { lte: now } },
+      ],
+    },
     orderBy: [
       { priority: "desc" },
       { dueDate: "asc" },
