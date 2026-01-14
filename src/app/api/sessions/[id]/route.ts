@@ -104,6 +104,28 @@ export async function PUT(
       },
     });
 
+    // אם הפגישה הסתיימה, ניצור תשלום ממתין אם אין כזה
+    if ((status === "COMPLETED" || therapySession.status === "COMPLETED") && therapySession.price && therapySession.clientId) {
+      // בדוק אם כבר קיים תשלום ממתין או שולם לפגישה זו
+      const existingPayment = await prisma.payment.findFirst({
+        where: {
+          sessionId: therapySession.id,
+          status: { in: ["PENDING", "PAID"] },
+        },
+      });
+      if (!existingPayment) {
+        await prisma.payment.create({
+          data: {
+            clientId: therapySession.clientId,
+            sessionId: therapySession.id,
+            amount: therapySession.price,
+            method: "CASH",
+            status: "PENDING",
+            notes: null,
+          },
+        });
+      }
+    }
     return NextResponse.json(therapySession);
   } catch (error) {
     console.error("Update session error:", error);

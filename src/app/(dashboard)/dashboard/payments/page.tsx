@@ -48,7 +48,7 @@ async function getPaymentStats(userId: string) {
         status: "PENDING",
       },
       _sum: { amount: true },
-      _count: true,
+      _count: { _all: true },
     }),
     prisma.payment.aggregate({
       where: {
@@ -63,7 +63,7 @@ async function getPaymentStats(userId: string) {
     thisMonth: Number(thisMonth._sum.amount) || 0,
     lastMonth: Number(lastMonth._sum.amount) || 0,
     pending: Number(pending._sum.amount) || 0,
-    pendingCount: pending._count || 0,
+    pendingCount: pending._count?._all || 0,
     total: Number(total._sum.amount) || 0,
   };
 }
@@ -187,14 +187,16 @@ export default async function PaymentsPage() {
                   {pendingPayments.map((payment) => (
                     <div
                       key={payment.id}
-                      className="flex items-center justify-between p-4 rounded-lg bg-amber-50 border border-amber-200"
+                      className={`flex items-center justify-between p-4 rounded-lg border ${payment.session ? "bg-amber-50 border-amber-200" : "bg-red-50 border-red-200"}`}
                     >
                       <div>
                         <p className="font-medium">{payment.client.name}</p>
                         <p className="text-sm text-muted-foreground">
                           {format(new Date(payment.createdAt), "dd/MM/yyyy")}
-                          {payment.session && (
+                          {payment.session ? (
                             <> • פגישה מ-{format(new Date(payment.session.startTime), "dd/MM")}</>
+                          ) : (
+                            <span className="text-red-500 ml-2">(ללא פגישה משויכת)</span>
                           )}
                         </p>
                       </div>
@@ -204,6 +206,9 @@ export default async function PaymentsPage() {
                           <Link href={`/dashboard/payments/${payment.id}/mark-paid`}>
                             סמן כשולם
                           </Link>
+                        </Button>
+                        <Button size="sm" variant="outline" asChild>
+                          <Link href={`/dashboard/clients/${payment.client.id}`}>תיק מטופל</Link>
                         </Button>
                       </div>
                     </div>

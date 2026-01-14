@@ -51,16 +51,11 @@ async function getDashboardStats(userId: string) {
         status: { not: "CANCELLED" }
       },
     }),
-    // Count completed sessions without paid payment
-    prisma.therapySession.count({
+    // Count actual pending payments
+    prisma.payment.count({
       where: {
-        therapistId: userId,
-        status: "COMPLETED",
-        endTime: { lt: new Date() }, // Only past sessions
-        OR: [
-          { payment: null }, // No payment record
-          { payment: { status: { not: "PAID" } } }, // Payment exists but not paid
-        ],
+        client: { therapistId: userId },
+        status: "PENDING",
       },
     }),
     prisma.task.count({

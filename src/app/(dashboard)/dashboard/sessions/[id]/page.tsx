@@ -147,6 +147,19 @@ export default function SessionDetailPage({
 
       setStatus(newStatus);
       toast.success("סטטוס עודכן בהצלחה");
+
+      // אם הושלם, נאתר תשלום ממתין וננווט אליו
+      if (newStatus === "COMPLETED") {
+        // ננסה לאתר תשלום ממתין לפגישה זו
+        const paymentsRes = await fetch(`/api/payments`);
+        if (paymentsRes.ok) {
+          const payments = await paymentsRes.json();
+          const pendingPayment = payments.find((p: any) => p.session?.id === id && p.status === "PENDING");
+          if (pendingPayment) {
+            router.push(`/dashboard/payments/${pendingPayment.id}/mark-paid`);
+          }
+        }
+      }
     } catch {
       toast.error("שגיאה בעדכון הסטטוס");
     }
