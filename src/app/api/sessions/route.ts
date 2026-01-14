@@ -6,24 +6,13 @@ import prisma from "@/lib/prisma";
 // Helper function to parse datetime-local as Israel time
 function parseIsraelTime(datetimeLocal: string): Date {
   // datetime-local format: "2024-01-15T08:00"
-  // We need to interpret this as Israel time (Asia/Jerusalem)
-  // Israel is UTC+2 (winter) or UTC+3 (summer/DST)
-
-  // Create a date object to check if DST is active
-  const tempDate = new Date(datetimeLocal + "Z"); // Parse as UTC first
-
-  // Check if this date is in Israel DST
-  // Israel DST: Last Friday of March to last Sunday of October
-  const month = tempDate.getUTCMonth();
-  const isLikelyDST = month >= 2 && month <= 9; // March to October (rough estimate)
-
-  // Israel offset: +02:00 (winter) or +03:00 (summer)
-  const offsetHours = isLikelyDST ? 3 : 2;
-
-  // Subtract the offset to convert Israel local time to UTC
-  const utcDate = new Date(tempDate.getTime() - (offsetHours * 60 * 60 * 1000));
-
-  return utcDate;
+  // The input represents the local time the user selected (Israel time)
+  // We need to store it as-is without timezone conversion
+  
+  // Simply create a Date from the local datetime string
+  // This will be interpreted as local time on the server
+  const date = new Date(datetimeLocal);
+  return date;
 }
 
 export async function GET(request: NextRequest) {
