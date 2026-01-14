@@ -1,0 +1,16 @@
+{
+  "permissions": {
+    "allow": [
+      "Bash(git add:*)",
+      "Bash(git commit -m \"$\\(cat <<''EOF''\nUpdate to Gemini 3 Pro and various improvements\n\n- Upgrade transcription model from gemini-2.5-pro-preview to gemini-3-pro-preview\n- CRM integration improvements\n- Dashboard and UI updates\n- API route enhancements\n\n🤖 Generated with [Claude Code]\\(https://claude.com/claude-code\\)\n\nCo-Authored-By: Claude Opus 4.5 <noreply@anthropic.com>\nEOF\n\\)\")",
+      "Bash(git push)",
+      "Bash(git commit -m \"$\\(cat <<''EOF''\nSwitch analysis from Claude to Gemini\n\n- Move all analysis functions to google-ai.ts using Gemini 3 Pro\n- Remove dependency on Anthropic API for analysis\n- Update analyze routes to import from google-ai\n\n🤖 Generated with [Claude Code]\\(https://claude.com/claude-code\\)\n\nCo-Authored-By: Claude Opus 4.5 <noreply@anthropic.com>\nEOF\n\\)\")",
+      "Bash(git commit:*)",
+      "Bash(cat:*)",
+      "Bash(curl:*)",
+      "Bash(npx prisma db push)",
+      "Bash(npx prisma generate:*)",
+      "Bash(git push:*)"
+    ]
+  }
+}

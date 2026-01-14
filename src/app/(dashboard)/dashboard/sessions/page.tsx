@@ -1,0 +1,446 @@
+import { getServerSession } from "next-auth";
+import { authOptions } from "@/lib/auth";
+import prisma from "@/lib/prisma";
+import { Button } from "@/components/ui/button";
+import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
+import { Badge } from "@/components/ui/badge";
+import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
+import { FileText, Calendar, CheckCircle, AlertCircle } from "lucide-react";
+import Link from "next/link";
+import { format } from "date-fns";
+import { he } from "date-fns/locale";
+
+async function getSessions(userId: string) {
+  const today = new Date();
+  today.setHours(0, 0, 0, 0);
+
+  return prisma.therapySession.findMany({
+    where: { therapistId: userId },
+    orderBy: { startTime: "desc" },
+    take: 50,
+    include: {
+      client: { select: { id: true, name: true } },
+      sessionNote: true,
+      payment: true,
+    },
+  });
+}
+
+export default async function SessionsPage() {
+  const session = await getServerSession(authOptions);
+  if (!session?.user?.id) return null;
+
+  const sessions = await getSessions(session.user.id);
+
+  const now = new Date();
+  const today = new Date();
+  today.setHours(0, 0, 0, 0);
+
+  const tomorrow = new Date(today);
+  tomorrow.setDate(tomorrow.getDate() + 1);
+
+  const dayAfterTomorrow = new Date(today);
+  dayAfterTomorrow.setDate(dayAfterTomorrow.getDate() + 2);
+
+  const weekEnd = new Date(today);
+  weekEnd.setDate(weekEnd.getDate() + (7 - weekEnd.getDay()));
+
+  const monthEnd = new Date(today.getFullYear(), today.getMonth() + 1, 0, 23, 59, 59);
+
+  const completedWithNotes = sessions.filter(
+    (s) => s.status === "COMPLETED" && s.sessionNote
+  );
+
+  // Only count sessions that have already passed (endTime < now)
+  const completedWithoutNotes = sessions.filter(
+    (s) => s.status === "COMPLETED" && !s.sessionNote && new Date(s.endTime) < now
+  );
+
+  // Filter upcoming sessions only until end of month
+  const allUpcoming = sessions.filter(
+    (s) => s.status === "SCHEDULED" && new Date(s.startTime) <= monthEnd
+  );
+
+  // Categorize upcoming sessions
+  const todaySessions = allUpcoming.filter((s) => {
+    const startTime = new Date(s.startTime);
+    return startTime >= today && startTime < tomorrow;
+  });
+
+  const tomorrowSessions = allUpcoming.filter((s) => {
+    const startTime = new Date(s.startTime);
+    return startTime >= tomorrow && startTime < dayAfterTomorrow;
+  });
+
+  const thisWeekSessions = allUpcoming.filter((s) => {
+    const startTime = new Date(s.startTime);
+    return startTime >= dayAfterTomorrow && startTime <= weekEnd;
+  });
+
+  const thisMonthSessions = allUpcoming.filter((s) => {
+    const startTime = new Date(s.startTime);
+    return startTime > weekEnd && startTime <= monthEnd;
+  });
+
+  return (
+    <div className="space-y-6 animate-fade-in">
+      <div className="flex items-center justify-between">
+        <div>
+          <h1 className="text-2xl font-bold tracking-tight">פגישות וסיכומים</h1>
+          <p className="text-muted-foreground">
+            ניהול פגישות וכתיבת סיכומי טיפול
+          </p>
+        </div>
+      </div>
+
+      {/* Quick Stats */}
+      <div className="grid gap-4 md:grid-cols-3">
+        <Card>
+          <CardContent className="pt-6">
+            <div className="flex items-center gap-3">
+              <div className="flex h-10 w-10 items-center justify-center rounded-lg bg-primary/10">
+                <CheckCircle className="h-5 w-5 text-primary" />
+              </div>
+              <div>
+                <p className="text-2xl font-bold">{completedWithNotes.length}</p>
+                <p className="text-sm text-muted-foreground">עם סיכום</p>
+              </div>
+            </div>
+          </CardContent>
+        </Card>
+        <Card>
+          <CardContent className="pt-6">
+            <div className="flex items-center gap-3">
+              <div className="flex h-10 w-10 items-center justify-center rounded-lg bg-amber-100">
+                <AlertCircle className="h-5 w-5 text-amber-600" />
+              </div>
+              <div>
+                <p className="text-2xl font-bold">{completedWithoutNotes.length}</p>
+                <p className="text-sm text-muted-foreground">ממתינים לסיכום</p>
+              </div>
+            </div>
+          </CardContent>
+        </Card>
+        <Card>
+          <CardContent className="pt-6">
+            <div className="flex items-center gap-3">
+              <div className="flex h-10 w-10 items-center justify-center rounded-lg bg-blue-100">
+                <Calendar className="h-5 w-5 text-blue-600" />
+              </div>
+              <div>
+                <p className="text-2xl font-bold">{allUpcoming.length}</p>
+                <p className="text-sm text-muted-foreground">פגישות קרובות (עד סוף החודש)</p>
+              </div>
+            </div>
+          </CardContent>
+        </Card>
+      </div>
+
+      <Tabs defaultValue="pending" className="w-full">
+        <TabsList>
+          <TabsTrigger value="pending" className="gap-2">
+            <AlertCircle className="h-4 w-4" />
+            ממתינים לסיכום ({completedWithoutNotes.length})
+          </TabsTrigger>
+          <TabsTrigger value="completed" className="gap-2">
+            <CheckCircle className="h-4 w-4" />
+            עם סיכום ({completedWithNotes.length})
+          </TabsTrigger>
+          <TabsTrigger value="upcoming" className="gap-2">
+            <Calendar className="h-4 w-4" />
+            קרובות ({allUpcoming.length})
+          </TabsTrigger>
+        </TabsList>
+
+        <TabsContent value="pending" className="mt-6">
+          <Card>
+            <CardHeader>
+              <CardTitle>פגישות ממתינות לסיכום</CardTitle>
+              <CardDescription>
+                פגישות שהסתיימו וטרם נכתב להן סיכום
+              </CardDescription>
+            </CardHeader>
+            <CardContent>
+              {completedWithoutNotes.length > 0 ? (
+                <div className="space-y-3">
+                  {completedWithoutNotes.map((therapySession) => (
+                    <div
+                      key={therapySession.id}
+                      className="flex items-center justify-between p-4 rounded-lg bg-amber-50 border border-amber-200"
+                    >
+                      <div className="flex items-center gap-4">
+                        <div className="text-center min-w-[50px]">
+                          <div className="text-xl font-bold">
+                            {format(new Date(therapySession.startTime), "d")}
+                          </div>
+                          <div className="text-xs text-muted-foreground">
+                            {format(new Date(therapySession.startTime), "MMM", { locale: he })}
+                          </div>
+                        </div>
+                        <div>
+                          <p className="font-medium">{therapySession.client.name}</p>
+                          <p className="text-sm text-muted-foreground">
+                            {format(new Date(therapySession.startTime), "HH:mm")} -{" "}
+                            {format(new Date(therapySession.endTime), "HH:mm")}
+                          </p>
+                        </div>
+                      </div>
+                      <Button asChild>
+                        <Link href={`/dashboard/sessions/${therapySession.id}`}>
+                          <FileText className="ml-2 h-4 w-4" />
+                          כתוב סיכום
+                        </Link>
+                      </Button>
+                    </div>
+                  ))}
+                </div>
+              ) : (
+                <div className="text-center py-8 text-muted-foreground">
+                  <CheckCircle className="mx-auto h-12 w-12 mb-3 text-primary opacity-50" />
+                  <p>כל הפגישות מסוכמות!</p>
+                </div>
+              )}
+            </CardContent>
+          </Card>
+        </TabsContent>
+
+        <TabsContent value="completed" className="mt-6">
+          <Card>
+            <CardHeader>
+              <CardTitle>פגישות עם סיכום</CardTitle>
+            </CardHeader>
+            <CardContent>
+              {completedWithNotes.length > 0 ? (
+                <div className="space-y-3">
+                  {completedWithNotes.map((therapySession) => (
+                    <div
+                      key={therapySession.id}
+                      className="flex items-center justify-between p-4 rounded-lg bg-muted/50"
+                    >
+                      <div className="flex items-center gap-4">
+                        <div className="text-center min-w-[50px]">
+                          <div className="text-xl font-bold">
+                            {format(new Date(therapySession.startTime), "d")}
+                          </div>
+                          <div className="text-xs text-muted-foreground">
+                            {format(new Date(therapySession.startTime), "MMM", { locale: he })}
+                          </div>
+                        </div>
+                        <div>
+                          <p className="font-medium">{therapySession.client.name}</p>
+                          <p className="text-sm text-muted-foreground line-clamp-1">
+                            {therapySession.sessionNote?.content.slice(0, 100)}...
+                          </p>
+                        </div>
+                      </div>
+                      <Button variant="outline" asChild>
+                        <Link href={`/dashboard/sessions/${therapySession.id}`}>
+                          צפה וערוך
+                        </Link>
+                      </Button>
+                    </div>
+                  ))}
+                </div>
+              ) : (
+                <div className="text-center py-8 text-muted-foreground">
+                  <FileText className="mx-auto h-12 w-12 mb-3 opacity-50" />
+                  <p>אין פגישות עם סיכום עדיין</p>
+                </div>
+              )}
+            </CardContent>
+          </Card>
+        </TabsContent>
+
+        <TabsContent value="upcoming" className="mt-6">
+          <div className="space-y-6">
+            {/* Today's Sessions */}
+            {todaySessions.length > 0 && (
+              <Card>
+                <CardHeader className="pb-3">
+                  <CardTitle className="text-lg flex items-center gap-2">
+                    <span className="bg-primary text-primary-foreground px-2 py-1 rounded text-sm">היום</span>
+                    <span className="text-muted-foreground font-normal text-sm">({todaySessions.length})</span>
+                  </CardTitle>
+                </CardHeader>
+                <CardContent>
+                  <div className="space-y-3">
+                    {todaySessions.map((therapySession) => (
+                      <div
+                        key={therapySession.id}
+                        className="flex items-center justify-between p-4 rounded-lg bg-primary/5 border border-primary/20"
+                      >
+                        <div className="flex items-center gap-4">
+                          <div className="text-center min-w-[50px]">
+                            <div className="text-xl font-bold text-primary">
+                              {format(new Date(therapySession.startTime), "HH:mm")}
+                            </div>
+                          </div>
+                          <div>
+                            <p className="font-medium">{therapySession.client.name}</p>
+                            <p className="text-sm text-muted-foreground">
+                              {therapySession.type === "ONLINE" ? "אונליין" : "פרונטלי"}
+                            </p>
+                          </div>
+                        </div>
+                        <Badge variant="default">היום</Badge>
+                      </div>
+                    ))}
+                  </div>
+                </CardContent>
+              </Card>
+            )}
+
+            {/* Tomorrow's Sessions */}
+            {tomorrowSessions.length > 0 && (
+              <Card>
+                <CardHeader className="pb-3">
+                  <CardTitle className="text-lg flex items-center gap-2">
+                    <span className="bg-blue-500 text-white px-2 py-1 rounded text-sm">מחר</span>
+                    <span className="text-muted-foreground font-normal text-sm">({tomorrowSessions.length})</span>
+                  </CardTitle>
+                </CardHeader>
+                <CardContent>
+                  <div className="space-y-3">
+                    {tomorrowSessions.map((therapySession) => (
+                      <div
+                        key={therapySession.id}
+                        className="flex items-center justify-between p-4 rounded-lg bg-blue-50 border border-blue-200"
+                      >
+                        <div className="flex items-center gap-4">
+                          <div className="text-center min-w-[50px]">
+                            <div className="text-xl font-bold text-blue-600">
+                              {format(new Date(therapySession.startTime), "HH:mm")}
+                            </div>
+                          </div>
+                          <div>
+                            <p className="font-medium">{therapySession.client.name}</p>
+                            <p className="text-sm text-muted-foreground">
+                              {therapySession.type === "ONLINE" ? "אונליין" : "פרונטלי"}
+                            </p>
+                          </div>
+                        </div>
+                        <Badge variant="secondary">מחר</Badge>
+                      </div>
+                    ))}
+                  </div>
+                </CardContent>
+              </Card>
+            )}
+
+            {/* This Week's Sessions */}
+            {thisWeekSessions.length > 0 && (
+              <Card>
+                <CardHeader className="pb-3">
+                  <CardTitle className="text-lg flex items-center gap-2">
+                    <span className="bg-amber-500 text-white px-2 py-1 rounded text-sm">השבוע</span>
+                    <span className="text-muted-foreground font-normal text-sm">({thisWeekSessions.length})</span>
+                  </CardTitle>
+                </CardHeader>
+                <CardContent>
+                  <div className="space-y-3">
+                    {thisWeekSessions.map((therapySession) => (
+                      <div
+                        key={therapySession.id}
+                        className="flex items-center justify-between p-4 rounded-lg bg-amber-50 border border-amber-200"
+                      >
+                        <div className="flex items-center gap-4">
+                          <div className="text-center min-w-[50px]">
+                            <div className="text-xl font-bold">
+                              {format(new Date(therapySession.startTime), "d")}
+                            </div>
+                            <div className="text-xs text-muted-foreground">
+                              {format(new Date(therapySession.startTime), "EEE", { locale: he })}
+                            </div>
+                          </div>
+                          <div>
+                            <p className="font-medium">{therapySession.client.name}</p>
+                            <p className="text-sm text-muted-foreground">
+                              {format(new Date(therapySession.startTime), "HH:mm")}
+                              {" • "}
+                              {therapySession.type === "ONLINE" ? "אונליין" : "פרונטלי"}
+                            </p>
+                          </div>
+                        </div>
+                        <Badge variant="outline">השבוע</Badge>
+                      </div>
+                    ))}
+                  </div>
+                </CardContent>
+              </Card>
+            )}
+
+            {/* This Month's Sessions */}
+            {thisMonthSessions.length > 0 && (
+              <Card>
+                <CardHeader className="pb-3">
+                  <CardTitle className="text-lg flex items-center gap-2">
+                    <span className="bg-gray-500 text-white px-2 py-1 rounded text-sm">החודש</span>
+                    <span className="text-muted-foreground font-normal text-sm">({thisMonthSessions.length})</span>
+                  </CardTitle>
+                </CardHeader>
+                <CardContent>
+                  <div className="space-y-3">
+                    {thisMonthSessions.map((therapySession) => (
+                      <div
+                        key={therapySession.id}
+                        className="flex items-center justify-between p-4 rounded-lg bg-muted/50"
+                      >
+                        <div className="flex items-center gap-4">
+                          <div className="text-center min-w-[50px]">
+                            <div className="text-xl font-bold">
+                              {format(new Date(therapySession.startTime), "d")}
+                            </div>
+                            <div className="text-xs text-muted-foreground">
+                              {format(new Date(therapySession.startTime), "MMM", { locale: he })}
+                            </div>
+                          </div>
+                          <div>
+                            <p className="font-medium">{therapySession.client.name}</p>
+                            <p className="text-sm text-muted-foreground">
+                              {format(new Date(therapySession.startTime), "EEEE HH:mm", { locale: he })}
+                              {" • "}
+                              {therapySession.type === "ONLINE" ? "אונליין" : "פרונטלי"}
+                            </p>
+                          </div>
+                        </div>
+                        <Badge variant="outline">החודש</Badge>
+                      </div>
+                    ))}
+                  </div>
+                </CardContent>
+              </Card>
+            )}
+
+            {/* No sessions message */}
+            {allUpcoming.length === 0 && (
+              <Card>
+                <CardContent className="pt-6">
+                  <div className="text-center py-8 text-muted-foreground">
+                    <Calendar className="mx-auto h-12 w-12 mb-3 opacity-50" />
+                    <p>אין פגישות קרובות</p>
+                    <Button variant="link" asChild className="mt-2">
+                      <Link href="/dashboard/calendar">קבע פגישה</Link>
+                    </Button>
+                  </div>
+                </CardContent>
+              </Card>
+            )}
+          </div>
+        </TabsContent>
+      </Tabs>
+    </div>
+  );
+}
+
+
+
+
+
+
+
+
+
+
+
+
+
