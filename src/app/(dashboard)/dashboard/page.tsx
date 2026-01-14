@@ -4,7 +4,7 @@ import prisma from "@/lib/prisma";
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
-import { Users, Calendar, CreditCard, Mic, Clock, Plus, UserPlus, CalendarPlus } from "lucide-react";
+import { Users, Calendar, CreditCard, Clock, Plus, UserPlus, CalendarPlus } from "lucide-react";
 import Link from "next/link";
 import { format } from "date-fns";
 import { he } from "date-fns/locale";
@@ -33,7 +33,6 @@ async function getDashboardStats(userId: string) {
     pendingPayments,
     pendingTasks,
     todaySessions,
-    recentRecordings,
     waitingClients,
   ] = await Promise.all([
     prisma.client.count({ where: { therapistId: userId } }),
@@ -75,12 +74,6 @@ async function getDashboardStats(userId: string) {
       include: { client: true },
       orderBy: { startTime: "asc" },
     }),
-    prisma.recording.findMany({
-      where: { client: { therapistId: userId } },
-      orderBy: { createdAt: "desc" },
-      take: 5,
-      include: { client: true, transcription: true },
-    }),
     prisma.client.findMany({
       where: { therapistId: userId, status: "WAITING" },
       orderBy: { createdAt: "desc" },
@@ -96,7 +89,6 @@ async function getDashboardStats(userId: string) {
     pendingPayments,
     pendingTasks,
     todaySessions,
-    recentRecordings,
     waitingClients,
   };
 }
@@ -243,7 +235,7 @@ export default async function DashboardPage() {
         </Card>
       )}
 
-      <div className="grid gap-6 lg:grid-cols-2">
+      <div className="grid gap-6">
         {/* Today's Sessions */}
         <Card>
           <CardHeader className="flex flex-row items-center justify-between">
@@ -311,70 +303,6 @@ export default async function DashboardPage() {
                 <p>אין פגישות מתוכננות להיום</p>
                 <Button variant="link" asChild className="mt-2">
                   <Link href="/dashboard/calendar">קבע פגישה חדשה</Link>
-                </Button>
-              </div>
-            )}
-          </CardContent>
-        </Card>
-
-        {/* Recent Recordings */}
-        <Card>
-          <CardHeader className="flex flex-row items-center justify-between">
-            <div>
-              <CardTitle>הקלטות אחרונות</CardTitle>
-              <CardDescription>הקלטות שהועלו לאחרונה</CardDescription>
-            </div>
-            <Button variant="outline" size="sm" asChild>
-              <Link href="/dashboard/recordings">כל ההקלטות</Link>
-            </Button>
-          </CardHeader>
-          <CardContent>
-            {stats.recentRecordings.length > 0 ? (
-              <div className="space-y-3">
-                {stats.recentRecordings.map((recording) => (
-                  <div
-                    key={recording.id}
-                    className="flex items-center justify-between p-3 rounded-lg bg-muted/50"
-                  >
-                    <div className="flex items-center gap-3">
-                      <div className="flex items-center justify-center w-10 h-10 rounded-lg bg-primary/10">
-                        <Mic className="h-4 w-4 text-primary" />
-                      </div>
-                      <div>
-                        <p className="font-medium">{recording.client?.name || "לא משויך"}</p>
-                        <p className="text-sm text-muted-foreground">
-                          {format(new Date(recording.createdAt), "d/M/yyyy HH:mm")}
-                        </p>
-                      </div>
-                    </div>
-                    <Badge
-                      variant={
-                        recording.status === "ANALYZED"
-                          ? "default"
-                          : recording.status === "ERROR"
-                          ? "destructive"
-                          : "secondary"
-                      }
-                    >
-                      {recording.status === "PENDING"
-                        ? "ממתין"
-                        : recording.status === "TRANSCRIBING"
-                        ? "מתמלל"
-                        : recording.status === "TRANSCRIBED"
-                        ? "תומלל"
-                        : recording.status === "ANALYZED"
-                        ? "נותח"
-                        : "שגיאה"}
-                    </Badge>
-                  </div>
-                ))}
-              </div>
-            ) : (
-              <div className="text-center py-8 text-muted-foreground">
-                <Mic className="mx-auto h-12 w-12 mb-3 opacity-50" />
-                <p>אין הקלטות עדיין</p>
-                <Button variant="link" asChild className="mt-2">
-                  <Link href="/dashboard/recordings/new">הקלט שיחה חדשה</Link>
                 </Button>
               </div>
             )}
