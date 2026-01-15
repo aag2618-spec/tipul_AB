@@ -1,10 +1,12 @@
+import Link from "next/link";
 import { getServerSession } from "next-auth";
 import { authOptions } from "@/lib/auth";
 import prisma from "@/lib/prisma";
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
 import { Badge } from "@/components/ui/badge";
 import { Checkbox } from "@/components/ui/checkbox";
-import { ListTodo, Clock, AlertTriangle, CheckCircle } from "lucide-react";
+import { Button } from "@/components/ui/button";
+import { ListTodo, Clock, AlertTriangle, CheckCircle, History } from "lucide-react";
 import { format } from "date-fns";
 import { he } from "date-fns/locale";
 
@@ -86,6 +88,12 @@ export default async function TasksPage() {
             {pendingTasks.length} משימות ממתינות לטיפול
           </p>
         </div>
+        <Link href="#history">
+          <Button variant="outline" className="gap-2">
+            <History className="h-4 w-4" />
+            משימות והיסטוריה
+          </Button>
+        </Link>
       </div>
 
       {/* Stats */}
@@ -202,17 +210,22 @@ export default async function TasksPage() {
         </CardContent>
       </Card>
 
-      {/* Completed Tasks - Last 30 days */}
-      {completedTasks.length > 0 && (
-        <Card className="border-green-200/50">
-          <CardHeader className="pb-2">
-            <CardTitle className="text-base flex items-center gap-2">
-              <CheckCircle className="h-4 w-4 text-green-500" />
-              היסטוריית משימות (30 יום אחרונים)
-            </CardTitle>
-            <CardDescription>{completedTasks.length} משימות הושלמו</CardDescription>
-          </CardHeader>
-          <CardContent>
+      {/* History Section - Always visible */}
+      <Card className="border-green-200/50" id="history">
+        <CardHeader className="pb-2">
+          <CardTitle className="text-base flex items-center gap-2">
+            <CheckCircle className="h-4 w-4 text-green-500" />
+            משימות והיסטוריה
+          </CardTitle>
+          <CardDescription>
+            {completedTasks.length > 0 
+              ? `${completedTasks.length} משימות הושלמו ב-30 יום אחרונים`
+              : "אין משימות שהושלמו ב-30 יום אחרונים"
+            }
+          </CardDescription>
+        </CardHeader>
+        <CardContent>
+          {completedTasks.length > 0 ? (
             <div className="space-y-2 max-h-[300px] overflow-y-auto">
               {completedTasks.map((task) => (
                 <div
@@ -229,9 +242,14 @@ export default async function TasksPage() {
                 </div>
               ))}
             </div>
-          </CardContent>
-        </Card>
-      )}
+          ) : (
+            <div className="text-center py-6 text-muted-foreground">
+              <Clock className="mx-auto h-8 w-8 mb-2 opacity-30" />
+              <p className="text-sm">משימות שתשלים יופיעו כאן</p>
+            </div>
+          )}
+        </CardContent>
+      </Card>
     </div>
   );
 }
