@@ -5,7 +5,7 @@ import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/com
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
 import { Checkbox } from "@/components/ui/checkbox";
-import { ListTodo, Bell, Loader2 } from "lucide-react";
+import { ListTodo, Bell, Loader2, History, CheckCircle, Clock } from "lucide-react";
 import { format } from "date-fns";
 import { he } from "date-fns/locale";
 import { toast } from "sonner";
@@ -21,14 +21,18 @@ interface Task {
   dueDate: string | null;
   reminderAt: string | null;
   createdAt: string;
+  updatedAt?: string;
 }
 
 export function PersonalTasksWidget() {
   const [tasks, setTasks] = useState<Task[]>([]);
+  const [completedTasks, setCompletedTasks] = useState<Task[]>([]);
   const [isLoading, setIsLoading] = useState(true);
+  const [showHistory, setShowHistory] = useState(false);
 
   const fetchTasks = useCallback(async () => {
     try {
+      // Fetch pending custom tasks
       const response = await fetch("/api/tasks?status=PENDING");
       if (response.ok) {
         const data = await response.json();
@@ -37,6 +41,19 @@ export function PersonalTasksWidget() {
           .filter((t: Task) => t.type === "CUSTOM")
           .slice(0, 5);
         setTasks(customTasks);
+      }
+      
+      // Fetch completed custom tasks (last 30 days)
+      const completedResponse = await fetch("/api/tasks?status=COMPLETED&type=CUSTOM");
+      if (completedResponse.ok) {
+        const completedData = await completedResponse.json();
+        // Filter to only CUSTOM tasks completed in last 30 days
+        const thirtyDaysAgo = new Date();
+        thirtyDaysAgo.setDate(thirtyDaysAgo.getDate() - 30);
+        const recentCompleted = completedData
+          .filter((t: Task) => t.type === "CUSTOM" && new Date(t.updatedAt || t.createdAt) >= thirtyDaysAgo)
+          .slice(0, 20);
+        setCompletedTasks(recentCompleted);
       }
     } catch (error) {
       console.error("Failed to fetch tasks:", error);
@@ -162,10 +179,55 @@ export function PersonalTasksWidget() {
             </CardDescription>
           </div>
         </div>
-        <AddCustomTask onTaskAdded={fetchTasks} />
+        <div className="flex items-center gap-2">
+          <Button 
+            variant={showHistory ? "secondary" : "outline"} 
+            size="sm"
+            onClick={() => setShowHistory(!showHistory)}
+            className="gap-1"
+          >
+            <History className="h-4 w-4" />
+            היסטוריה
+          </Button>
+          <AddCustomTask onTaskAdded={fetchTasks} />
+        </div>
       </CardHeader>
 
       <CardContent>
+        {/* History Section */}
+        {showHistory && (
+          <div className="mb-4 p-3 rounded-lg bg-green-50/50 border border-green-200/50">
+            <div className="flex items-center gap-2 mb-2">
+              <CheckCircle className="h-4 w-4 text-green-500" />
+              <span className="text-sm font-medium">היסטוריה (30 יום אחרונים)</span>
+            </div>
+            {completedTasks.length > 0 ? (
+              <div className="space-y-1 max-h-[200px] overflow-y-auto">
+                {completedTasks.map((task) => (
+                  <div
+                    key={task.id}
+                    className="flex items-center justify-between gap-2 py-1 text-sm"
+                  >
+                    <div className="flex items-center gap-2">
+                      <CheckCircle className="h-3 w-3 text-green-500 shrink-0" />
+                      <span className="text-muted-foreground line-through">{task.title}</span>
+                    </div>
+                    <span className="text-xs text-muted-foreground shrink-0">
+                      {format(new Date(task.updatedAt || task.createdAt), "d/M/yy")}
+                    </span>
+                  </div>
+                ))}
+              </div>
+            ) : (
+              <div className="text-center py-3 text-muted-foreground text-sm">
+                <Clock className="mx-auto h-6 w-6 mb-1 opacity-30" />
+                <p>מטלות אישיות שתשלים יופיעו כאן</p>
+              </div>
+            )}
+          </div>
+        )}
+
+        {/* Pending Tasks */}
         {tasks.length > 0 ? (
           <div className="space-y-3">
             {tasks.map((task) => (
