@@ -177,11 +177,15 @@ export default function SessionDetailPage({
         const paymentsRes = await fetch(`/api/payments`);
         if (paymentsRes.ok) {
           const payments = await paymentsRes.json();
-          const pendingPayment = payments.find((p: any) => p.session?.id === id && p.status === "PENDING");
-          if (pendingPayment) {
-            router.push(`/dashboard/payments/${pendingPayment.id}/mark-paid`);
+          // מחפש תשלום לפגישה זו - PENDING או כל סטטוס אחר
+          const sessionPayment = payments.find((p: any) => p.session?.id === id);
+          if (sessionPayment) {
+            router.push(`/dashboard/payments/${sessionPayment.id}/mark-paid`);
+            return;
           }
         }
+        // אם אין תשלום קיים, ננווט לדף יצירת תשלום חדש
+        toast.info("לא נמצא תשלום לפגישה זו");
       }
     } catch {
       toast.error("שגיאה בעדכון הסטטוס");
@@ -189,10 +193,13 @@ export default function SessionDetailPage({
   };
 
   const handleChargeConfirm = async (shouldCharge: boolean) => {
-    setShowChargeDialog(false);
     if (pendingStatus) {
+      // קודם לסגור את הדיאלוג ואז לעדכן
+      setShowChargeDialog(false);
       await updateStatusAndNavigate(pendingStatus, shouldCharge);
       setPendingStatus(null);
+    } else {
+      setShowChargeDialog(false);
     }
   };
 
