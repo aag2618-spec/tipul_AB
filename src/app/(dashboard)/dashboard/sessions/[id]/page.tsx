@@ -8,6 +8,16 @@ import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/com
 import { Badge } from "@/components/ui/badge";
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
+import {
+  AlertDialog,
+  AlertDialogAction,
+  AlertDialogCancel,
+  AlertDialogContent,
+  AlertDialogDescription,
+  AlertDialogFooter,
+  AlertDialogHeader,
+  AlertDialogTitle,
+} from "@/components/ui/alert-dialog";
 import { ArrowRight, Calendar, Clock, User, Mic, FileText, Save, Loader2, Sparkles, Brain, TrendingUp, TrendingDown, Minus, AlertTriangle, MessageCircleQuestion, Lightbulb } from "lucide-react";
 import { format } from "date-fns";
 import { he } from "date-fns/locale";
@@ -75,6 +85,8 @@ export default function SessionDetailPage({
   const [status, setStatus] = useState("");
   const [noteAnalysis, setNoteAnalysis] = useState<NoteAnalysis | null>(null);
   const [isAnalyzing, setIsAnalyzing] = useState(false);
+  const [showChargeDialog, setShowChargeDialog] = useState(false);
+  const [pendingStatus, setPendingStatus] = useState<string | null>(null);
 
   useEffect(() => {
     const fetchSession = async () => {
@@ -136,6 +148,17 @@ export default function SessionDetailPage({
   };
 
   const handleStatusChange = async (newStatus: string) => {
+    // עבור ביטול או לא הגיע - שואלים האם לחייב
+    if (newStatus === "CANCELLED" || newStatus === "NO_SHOW") {
+      setPendingStatus(newStatus);
+      setShowChargeDialog(true);
+      return;
+    }
+
+    await updateStatusAndNavigate(newStatus, newStatus === "COMPLETED");
+  };
+
+  const updateStatusAndNavigate = async (newStatus: string, shouldNavigateToPayment: boolean) => {
     try {
       const response = await fetch(`/api/sessions/${id}`, {
         method: "PUT",
@@ -148,8 +171,8 @@ export default function SessionDetailPage({
       setStatus(newStatus);
       toast.success("סטטוס עודכן בהצלחה");
 
-      // אם הושלם, נאתר תשלום ממתין וננווט אליו
-      if (newStatus === "COMPLETED") {
+      // אם צריך לנווט לתשלום
+      if (shouldNavigateToPayment) {
         // ננסה לאתר תשלום ממתין לפגישה זו
         const paymentsRes = await fetch(`/api/payments`);
         if (paymentsRes.ok) {
@@ -162,6 +185,14 @@ export default function SessionDetailPage({
       }
     } catch {
       toast.error("שגיאה בעדכון הסטטוס");
+    }
+  };
+
+  const handleChargeConfirm = async (shouldCharge: boolean) => {
+    setShowChargeDialog(false);
+    if (pendingStatus) {
+      await updateStatusAndNavigate(pendingStatus, shouldCharge);
+      setPendingStatus(null);
     }
   };
 
@@ -621,6 +652,28 @@ export default function SessionDetailPage({
           </Card>
         </TabsContent>
       </Tabs>
+
+      {/* דיאלוג אישור חיוב לביטול/לא הגיע */}
+      <AlertDialog open={showChargeDialog} onOpenChange={setShowChargeDialog}>
+        <AlertDialogContent>
+          <AlertDialogHeader>
+            <AlertDialogTitle>האם לחייב את המטופל?</AlertDialogTitle>
+            <AlertDialogDescription>
+              {pendingStatus === "CANCELLED" 
+                ? "הפגישה בוטלה. האם ברצונך לחייב את המטופל בתשלום?"
+                : "המטופל לא הגיע לפגישה. האם ברצונך לחייב אותו בתשלום?"}
+            </AlertDialogDescription>
+          </AlertDialogHeader>
+          <AlertDialogFooter className="flex-row-reverse gap-2">
+            <AlertDialogAction onClick={() => handleChargeConfirm(true)}>
+              כן, לחייב
+            </AlertDialogAction>
+            <AlertDialogCancel onClick={() => handleChargeConfirm(false)}>
+              לא, לא לחייב
+            </AlertDialogCancel>
+          </AlertDialogFooter>
+        </AlertDialogContent>
+      </AlertDialog>
     </div>
   );
 }
