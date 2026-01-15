@@ -1,58 +1,132 @@
+"use client";
+
+import { useEffect, useState } from "react";
 import Link from "next/link";
-import { getServerSession } from "next-auth";
-import { authOptions } from "@/lib/auth";
-import prisma from "@/lib/prisma";
+import { useRouter } from "next/navigation";
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
 import { Badge } from "@/components/ui/badge";
 import { Checkbox } from "@/components/ui/checkbox";
 import { Button } from "@/components/ui/button";
-import { ListTodo, Clock, AlertTriangle, CheckCircle, History } from "lucide-react";
+import { ListTodo, Clock, AlertTriangle, CheckCircle, History, Loader2, ExternalLink } from "lucide-react";
 import { format } from "date-fns";
 import { he } from "date-fns/locale";
+import { toast } from "sonner";
 
-async function getTasks(userId: string) {
-  const now = new Date();
-  return prisma.task.findMany({
-    where: {
-      userId,
-      status: { in: ["PENDING", "IN_PROGRESS"] },
-      // Only show WRITE_SUMMARY tasks for sessions that already happened
-      OR: [
-        { type: { not: "WRITE_SUMMARY" } },
-        { type: "WRITE_SUMMARY", dueDate: { lte: now } },
-      ],
-    },
-    orderBy: [
-      { priority: "desc" },
-      { dueDate: "asc" },
-      { createdAt: "desc" },
-    ],
-  });
+interface Task {
+  id: string;
+  type: string;
+  title: string;
+  description: string | null;
+  status: string;
+  priority: string;
+  dueDate: string | null;
+  relatedEntityId: string | null;
+  relatedEntity: string | null;
+  createdAt: string;
+  updatedAt: string;
 }
 
-async function getCompletedTasks(userId: string) {
-  const thirtyDaysAgo = new Date();
-  thirtyDaysAgo.setDate(thirtyDaysAgo.getDate() - 30);
-  
-  return prisma.task.findMany({
-    where: {
-      userId,
-      status: "COMPLETED",
-      updatedAt: { gte: thirtyDaysAgo },
-    },
-    orderBy: { updatedAt: "desc" },
-    take: 20,
-  });
-}
+type FilterType = "all" | "urgent" | "overdue" | "completed";
 
-export default async function TasksPage() {
-  const session = await getServerSession(authOptions);
-  if (!session?.user?.id) return null;
+export default function TasksPage() {
+  const router = useRouter();
+  const [pendingTasks, setPendingTasks] = useState<Task[]>([]);
+  const [completedTasks, setCompletedTasks] = useState<Task[]>([]);
+  const [isLoading, setIsLoading] = useState(true);
+  const [filter, setFilter] = useState<FilterType>("all");
 
-  const [pendingTasks, completedTasks] = await Promise.all([
-    getTasks(session.user.id),
-    getCompletedTasks(session.user.id),
-  ]);
+  useEffect(() => {
+    fetchTasks();
+  }, []);
+
+  const fetchTasks = async () => {
+    try {
+      const [pendingRes, completedRes] = await Promise.all([
+        fetch("/api/tasks?status=PENDING"),
+        fetch("/api/tasks?status=COMPLETED"),
+      ]);
+
+      if (pendingRes.ok) {
+        const data = await pendingRes.json();
+        const now = new Date();
+        const filtered = data.filter((t: Task) => 
+          t.type !== "WRITE_SUMMARY" || (t.dueDate && new Date(t.dueDate) <= now)
+        );
+        setPendingTasks(filtered);
+      }
+
+      if (completedRes.ok) {
+        const data = await completedRes.json();
+        const thirtyDaysAgo = new Date();
+        thirtyDaysAgo.setDate(thirtyDaysAgo.getDate() - 30);
+        const recent = data.filter((t: Task) => new Date(t.updatedAt) >= thirtyDaysAgo).slice(0, 20);
+        setCompletedTasks(recent);
+      }
+    } catch (error) {
+      console.error("Failed to fetch tasks:", error);
+    } finally {
+      setIsLoading(false);
+    }
+  };
+
+  const handleComplete = async (taskId: string, e: React.MouseEvent) => {
+    e.stopPropagation();
+    try {
+      const response = await fetch(`/api/tasks/${taskId}`, {
+        method: "PATCH",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ status: "COMPLETED" }),
+      });
+
+      if (response.ok) {
+        const task = pendingTasks.find(t => t.id === taskId);
+        if (task) {
+          setPendingTasks(prev => prev.filter(t => t.id !== taskId));
+          setCompletedTasks(prev => [{ ...task, status: "COMPLETED", updatedAt: new Date().toISOString() }, ...prev]);
+        }
+        toast.success("המשימה הושלמה");
+      }
+    } catch {
+      toast.error("שגיאה בעדכון המשימה");
+    }
+  };
+
+  const getTaskUrl = (task: Task): string | null => {
+    switch (task.type) {
+      case "WRITE_SUMMARY":
+        if (task.relatedEntityId && task.relatedEntity === "session") {
+          return `/dashboard/sessions/${task.relatedEntityId}`;
+        }
+        break;
+      case "COLLECT_PAYMENT":
+        if (task.relatedEntityId && task.relatedEntity === "client") {
+          return `/dashboard/clients/${task.relatedEntityId}?tab=payments`;
+        }
+        return "/dashboard/payments";
+      case "SCHEDULE_SESSION":
+        if (task.relatedEntityId && task.relatedEntity === "client") {
+          return `/dashboard/clients/${task.relatedEntityId}`;
+        }
+        return "/dashboard/calendar";
+      case "SIGN_DOCUMENT":
+        return "/dashboard/documents";
+      case "REVIEW_TRANSCRIPTION":
+        return "/dashboard/recordings";
+      case "FOLLOW_UP":
+        if (task.relatedEntityId && task.relatedEntity === "client") {
+          return `/dashboard/clients/${task.relatedEntityId}`;
+        }
+        break;
+    }
+    return null;
+  };
+
+  const handleTaskClick = (task: Task) => {
+    const url = getTaskUrl(task);
+    if (url) {
+      router.push(url);
+    }
+  };
 
   const getTypeLabel = (type: string) => {
     switch (type) {
@@ -79,6 +153,34 @@ export default async function TasksPage() {
     }
   };
 
+  // Calculate stats
+  const urgentCount = pendingTasks.filter(t => t.priority === "URGENT" || t.priority === "HIGH").length;
+  const overdueCount = pendingTasks.filter(t => t.dueDate && new Date(t.dueDate) < new Date()).length;
+
+  // Filter tasks based on selected filter
+  const getFilteredTasks = () => {
+    switch (filter) {
+      case "urgent":
+        return pendingTasks.filter(t => t.priority === "URGENT" || t.priority === "HIGH");
+      case "overdue":
+        return pendingTasks.filter(t => t.dueDate && new Date(t.dueDate) < new Date());
+      case "completed":
+        return completedTasks;
+      default:
+        return pendingTasks;
+    }
+  };
+
+  const filteredTasks = getFilteredTasks();
+
+  if (isLoading) {
+    return (
+      <div className="flex items-center justify-center py-20">
+        <Loader2 className="h-8 w-8 animate-spin text-muted-foreground" />
+      </div>
+    );
+  }
+
   return (
     <div className="space-y-6 animate-fade-in">
       <div className="flex items-center justify-between">
@@ -88,65 +190,73 @@ export default async function TasksPage() {
             {pendingTasks.length} משימות ממתינות לטיפול
           </p>
         </div>
-        <Link href="#history">
-          <Button variant="outline" className="gap-2">
-            <History className="h-4 w-4" />
-            משימות והיסטוריה
-          </Button>
-        </Link>
-      </div>
-
-      {/* Stats */}
-      <div className="grid gap-4 md:grid-cols-4">
-        <Card>
-          <CardContent className="pt-6">
-            <div className="flex items-center gap-3">
-              <div className="flex h-10 w-10 items-center justify-center rounded-lg bg-primary/10">
-                <ListTodo className="h-5 w-5 text-primary" />
+        {/* סטטיסטיקות לחיצות */}
+        <div className="grid gap-4 md:grid-cols-4">
+          <Card 
+            className={`cursor-pointer transition-all hover:shadow-md ${filter === "all" ? "ring-2 ring-primary" : ""}`}
+            onClick={() => setFilter("all")}
+          >
+            <CardContent className="pt-6">
+              <div className="flex items-center gap-3">
+                <div className="flex h-10 w-10 items-center justify-center rounded-lg bg-primary/10">
+                  <ListTodo className="h-5 w-5 text-primary" />
+                </div>
+                <div>
+                  <p className="text-2xl font-bold">{pendingTasks.length}</p>
+                  <p className="text-sm text-muted-foreground">ממתינות</p>
+                </div>
               </div>
-              <div>
-                <p className="text-2xl font-bold">{pendingTasks.length}</p>
-                <p className="text-sm text-muted-foreground">ממתינות</p>
+            </CardContent>
+          </Card>
+          <Card 
+            className={`cursor-pointer transition-all hover:shadow-md ${filter === "urgent" ? "ring-2 ring-amber-500" : ""}`}
+            onClick={() => setFilter("urgent")}
+          >
+            <CardContent className="pt-6">
+              <div className="flex items-center gap-3">
+                <div className="flex h-10 w-10 items-center justify-center rounded-lg bg-amber-100">
+                  <AlertTriangle className="h-5 w-5 text-amber-600" />
+                </div>
+                <div>
+                  <p className="text-2xl font-bold">{pendingTasks.filter((t) => t.priority === "URGENT" || t.priority === "HIGH").length}</p>
+                  <p className="text-sm text-muted-foreground">דחxxxx</p>
+                </div>
               </div>
-            </div>
-          </CardContent>
-        </Card>
-        <Card>
-          <CardContent className="pt-6">
-            <div className="flex items-center gap-3">
-              <div className="flex h-10 w-10 items-center justify-center rounded-lg bg-amber-100">
-                <AlertTriangle className="h-5 w-5 text-amber-600" />
+            </CardContent>
+          </Card>
+          <Card 
+            className={`cursor-pointer transition-all hover:shadow-md ${filter === "overdue" ? "ring-2 ring-blue-500" : ""}`}
+            onClick={() => setFilter("overdue")}
+          >
+            <CardContent className="pt-6">
+              <div className="flex items-center gap-3">
+                <div className="flex h-10 w-10 items-center justify-center rounded-lg bg-blue-100">
+                  <Clock className="h-5 w-5 text-blue-600" />
+                </div>
+                <div>
+                  <p className="text-2xl font-bold">{pendingTasks.filter((t) => t.dueDate && new Date(t.dueDate) < new Date()).length}</p>
+                  <p className="text-sm text-muted-foreground">באיחור</p>
+                </div>
               </div>
-              <div>
-                <p className="text-2xl font-bold">
-                  {pendingTasks.filter((t) => t.priority === "URGENT" || t.priority === "HIGH").length}
-                </p>
-                <p className="text-sm text-muted-foreground">דחופות</p>
+            </CardContent>
+          </Card>
+          <Card 
+            className={`cursor-pointer transition-all hover:shadow-md ${filter === "completed" ? "ring-2 ring-green-500" : ""}`}
+            onClick={() => setFilter("completed")}
+          >
+            <CardContent className="pt-6">
+              <div className="flex items-center gap-3">
+                <div className="flex h-10 w-10 items-center justify-center rounded-lg bg-green-100">
+                  <CheckCircle className="h-5 w-5 text-green-600" />
+                </div>
+                <div>
+                  <p className="text-2xl font-bold">{completedTasks.length}</p>
+                  <p className="text-sm text-muted-foreground">הושלמו</p>
+                </div>
               </div>
-            </div>
-          </CardContent>
-        </Card>
-        <Card>
-          <CardContent className="pt-6">
-            <div className="flex items-center gap-3">
-              <div className="flex h-10 w-10 items-center justify-center rounded-lg bg-blue-100">
-                <Clock className="h-5 w-5 text-blue-600" />
-              </div>
-              <div>
-                <p className="text-2xl font-bold">
-                  {pendingTasks.filter((t) => t.dueDate && new Date(t.dueDate) < new Date()).length}
-                </p>
-                <p className="text-sm text-muted-foreground">באיחור</p>
-              </div>
-            </div>
-          </CardContent>
-        </Card>
-        <Card>
-          <CardContent className="pt-6">
-            <div className="flex items-center gap-3">
-              <div className="flex h-10 w-10 items-center justify-center rounded-lg bg-green-100">
-                <CheckCircle className="h-5 w-5 text-green-600" />
-              </div>
+            </CardContent>
+          </Card>
+        </div>
               <div>
                 <p className="text-2xl font-bold">{completedTasks.length}</p>
                 <p className="text-sm text-muted-foreground">הושלמו</p>
@@ -156,55 +266,105 @@ export default async function TasksPage() {
         </Card>
       </div>
 
-      {/* Pending Tasks */}
+      {/* רשימת משימות מסוננת */}
       <Card>
         <CardHeader>
-          <CardTitle>משימות פתוחות</CardTitle>
+          <CardTitle>
+            {filter === "all" && "משימות פתוחות"}
+            {filter === "urgent" && "משימות דחxxxx"}
+            {filter === "overdue" && "משימות באיחור"}
+            {filter === "completed" && "משימות שהושלמו"}
+          </CardTitle>
           <CardDescription>
-            משימות שממתינות לטיפול
+            {filter === "completed" 
+              ? "משימות שהושלמו ב-30 יום אחרונים"
+              : "לחץ על משימה כדי לעבור לביצועה"
+            }
           </CardDescription>
         </CardHeader>
         <CardContent>
-          {pendingTasks.length > 0 ? (
+          {filteredTasks.length > 0 ? (
             <div className="space-y-3">
-              {pendingTasks.map((task) => (
-                <div
-                  key={task.id}
-                  className={`flex items-start gap-4 p-4 rounded-lg ${
-                    task.priority === "URGENT"
-                      ? "bg-destructive/10 border border-destructive/20"
-                      : task.priority === "HIGH"
-                      ? "bg-amber-50 border border-amber-200"
-                      : "bg-muted/50"
-                  }`}
-                >
-                  <Checkbox className="mt-1" />
-                  <div className="flex-1">
-                    <div className="flex items-center gap-2">
-                      <p className="font-medium">{task.title}</p>
-                      {getPriorityBadge(task.priority)}
-                    </div>
-                    <div className="flex items-center gap-3 mt-1 text-sm text-muted-foreground">
-                      <Badge variant="outline">{getTypeLabel(task.type)}</Badge>
-                      {task.dueDate && (
-                        <span className={new Date(task.dueDate) < new Date() ? "text-destructive" : ""}>
-                          עד {format(new Date(task.dueDate), "d בMMMM", { locale: he })}
-                        </span>
+              {filteredTasks.map((task) => {
+                const taskUrl = getTaskUrl(task);
+                const isClickable = !!taskUrl && filter !== "completed";
+                
+                return (
+                  <div
+                    key={task.id}
+                    onClick={() => isClickable && handleTaskClick(task)}
+                    className={`flex items-start gap-4 p-4 rounded-lg transition-all ${
+                      filter === "completed"
+                        ? "bg-green-50/50"
+                        : task.priority === "URGENT"
+                        ? "bg-destructive/10 border border-destructive/20"
+                        : task.priority === "HIGH"
+                        ? "bg-amber-50 border border-amber-200"
+                        : "bg-muted/50"
+                    } ${isClickable ? "cursor-pointer hover:shadow-md hover:scale-[1.01]" : ""}`}
+                  >
+                    {filter !== "completed" ? (
+                      <Checkbox 
+                        className="mt-1" 
+                        onClick={(e) => handleComplete(task.id, e)}
+                      />
+                    ) : (
+                      <CheckCircle className="h-5 w-5 text-green-500 mt-1 shrink-0" />
+                    )}
+                    <div className="flex-1">
+                      <div className="flex items-center gap-2">
+                        <p className={`font-medium ${filter === "completed" ? "line-through text-muted-foreground" : ""}`}>
+                          {task.title}
+                        </p>
+                        {filter !== "completed" && getPriorityBadge(task.priority)}
+                        {isClickable && (
+                          <ExternalLink className="h-4 w-4 text-muted-foreground" />
+                        )}
+                      </div>
+                      <div className="flex items-center gap-3 mt-1 text-sm text-muted-foreground">
+                        <Badge variant="outline">{getTypeLabel(task.type)}</Badge>
+                        {task.dueDate && filter !== "completed" && (
+                          <span className={new Date(task.dueDate) < new Date() ? "text-destructive" : ""}>
+                            עד {format(new Date(task.dueDate), "d בMMMM", { locale: he })}
+                          </span>
+                        )}
+                        {filter === "completed" && (
+                          <span>הושלם {format(new Date(task.updatedAt), "d/M/yy")}</span>
+                        )}
+                      </div>
+                      {task.description && filter !== "completed" && (
+                        <p className="mt-2 text-sm text-muted-foreground">
+                          {task.description}
+                        </p>
                       )}
                     </div>
-                    {task.description && (
-                      <p className="mt-2 text-sm text-muted-foreground">
-                        {task.description}
-                      </p>
-                    )}
                   </div>
-                </div>
-              ))}
+                );
+              })}
             </div>
           ) : (
             <div className="text-center py-8 text-muted-foreground">
-              <CheckCircle className="mx-auto h-12 w-12 mb-3 text-green-500 opacity-50" />
-              <p>כל המשימות הושלמו! 🎉</p>
+              {filter === "completed" ? (
+                <>
+                  <Clock className="mx-auto h-12 w-12 mb-3 opacity-30" />
+                  <p>אין משימות שהושלמו ב-30 יום אחרונים</p>
+                </>
+              ) : filter === "urgent" ? (
+                <>
+                  <CheckCircle className="mx-auto h-12 w-12 mb-3 text-green-500 opacity-50" />
+                  <p>אין משימות דחxxxx!</p>
+                </>
+              ) : filter === "overdue" ? (
+                <>
+                  <CheckCircle className="mx-auto h-12 w-12 mb-3 text-green-500 opacity-50" />
+                  <p>אין משימות באיחור! 🎉</p>
+                </>
+              ) : (
+                <>
+                  <CheckCircle className="mx-auto h-12 w-12 mb-3 text-green-500 opacity-50" />
+                  <p>כל המשימות הושלמו! 🎉</p>
+                </>
+              )}
             </div>
           )}
         </CardContent>
