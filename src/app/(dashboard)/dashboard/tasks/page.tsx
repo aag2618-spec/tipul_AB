@@ -13,6 +13,7 @@ async function getTasks(userId: string) {
   return prisma.task.findMany({
     where: {
       userId,
+      status: { in: ["PENDING", "IN_PROGRESS"] },
       // Only show WRITE_SUMMARY tasks for sessions that already happened
       OR: [
         { type: { not: "WRITE_SUMMARY" } },
@@ -27,14 +28,29 @@ async function getTasks(userId: string) {
   });
 }
 
+async function getCompletedTasks(userId: string) {
+  const thirtyDaysAgo = new Date();
+  thirtyDaysAgo.setDate(thirtyDaysAgo.getDate() - 30);
+  
+  return prisma.task.findMany({
+    where: {
+      userId,
+      status: "COMPLETED",
+      updatedAt: { gte: thirtyDaysAgo },
+    },
+    orderBy: { updatedAt: "desc" },
+    take: 20,
+  });
+}
+
 export default async function TasksPage() {
   const session = await getServerSession(authOptions);
   if (!session?.user?.id) return null;
 
-  const tasks = await getTasks(session.user.id);
-  
-  const pendingTasks = tasks.filter((t) => t.status === "PENDING" || t.status === "IN_PROGRESS");
-  const completedTasks = tasks.filter((t) => t.status === "COMPLETED").slice(0, 10);
+  const [pendingTasks, completedTasks] = await Promise.all([
+    getTasks(session.user.id),
+    getCompletedTasks(session.user.id),
+  ]);
 
   const getTypeLabel = (type: string) => {
     switch (type) {
@@ -186,21 +202,30 @@ export default async function TasksPage() {
         </CardContent>
       </Card>
 
-      {/* Completed Tasks */}
+      {/* Completed Tasks - Last 30 days */}
       {completedTasks.length > 0 && (
-        <Card>
-          <CardHeader>
-            <CardTitle>משימות שהושלמו</CardTitle>
+        <Card className="border-green-200/50">
+          <CardHeader className="pb-2">
+            <CardTitle className="text-base flex items-center gap-2">
+              <CheckCircle className="h-4 w-4 text-green-500" />
+              היסטוריית משימות (30 יום אחרונים)
+            </CardTitle>
+            <CardDescription>{completedTasks.length} משימות הושלמו</CardDescription>
           </CardHeader>
           <CardContent>
-            <div className="space-y-2">
+            <div className="space-y-2 max-h-[300px] overflow-y-auto">
               {completedTasks.map((task) => (
                 <div
                   key={task.id}
-                  className="flex items-center gap-4 p-3 rounded-lg bg-muted/30 opacity-60"
+                  className="flex items-center justify-between gap-4 p-2 rounded-lg bg-green-50/50 text-sm"
                 >
-                  <CheckCircle className="h-5 w-5 text-green-500" />
-                  <p className="line-through">{task.title}</p>
+                  <div className="flex items-center gap-2">
+                    <CheckCircle className="h-4 w-4 text-green-500 shrink-0" />
+                    <span className="text-muted-foreground line-through">{task.title}</span>
+                  </div>
+                  <span className="text-xs text-muted-foreground shrink-0">
+                    {format(new Date(task.updatedAt), "d/M/yy")}
+                  </span>
                 </div>
               ))}
             </div>

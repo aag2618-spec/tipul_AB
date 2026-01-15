@@ -3,6 +3,25 @@ import { getServerSession } from "next-auth";
 import { authOptions } from "@/lib/auth";
 import prisma from "@/lib/prisma";
 
+// Helper function to parse datetime-local as Israel time
+function parseIsraelTime(datetimeLocal: string): Date {
+  // datetime-local format: "2024-01-15T08:00"
+  // We need to interpret this as Israel time (Asia/Jerusalem)
+  const tempDate = new Date(datetimeLocal + "Z"); // Parse as UTC first
+
+  // Check if this date is in Israel DST (rough estimate)
+  const month = tempDate.getUTCMonth();
+  const isLikelyDST = month >= 2 && month <= 9; // March to October
+
+  // Israel offset: +02:00 (winter) or +03:00 (summer)
+  const offsetHours = isLikelyDST ? 3 : 2;
+
+  // Subtract the offset to convert Israel local time to UTC
+  const utcDate = new Date(tempDate.getTime() - (offsetHours * 60 * 60 * 1000));
+
+  return utcDate;
+}
+
 export async function GET(request: NextRequest) {
   try {
     const session = await getServerSession(authOptions);
@@ -80,8 +99,8 @@ export async function POST(request: NextRequest) {
         title,
         description: description || null,
         priority: priority || "MEDIUM",
-        dueDate: dueDate ? new Date(dueDate) : null,
-        reminderAt: reminderAt ? new Date(reminderAt) : null,
+        dueDate: dueDate ? parseIsraelTime(dueDate) : null,
+        reminderAt: reminderAt ? parseIsraelTime(reminderAt) : null,
         relatedEntityId: relatedEntityId || null,
         relatedEntity: relatedEntity || null,
         status: "PENDING",
