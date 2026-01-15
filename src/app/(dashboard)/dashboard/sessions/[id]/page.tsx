@@ -163,7 +163,11 @@ export default function SessionDetailPage({
       const response = await fetch(`/api/sessions/${id}`, {
         method: "PUT",
         headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ status: newStatus }),
+        body: JSON.stringify({ 
+          status: newStatus,
+          // אם צריך לחייב על ביטול/לא הגיע, נבקש מה-API ליצור תשלום
+          createPayment: shouldNavigateToPayment && (newStatus === "CANCELLED" || newStatus === "NO_SHOW"),
+        }),
       });
 
       if (!response.ok) throw new Error();
@@ -173,6 +177,9 @@ export default function SessionDetailPage({
 
       // אם צריך לנווט לתשלום
       if (shouldNavigateToPayment) {
+        // נמתין קצת כדי שהתשלום ייווצר ואז נחפש אותו
+        await new Promise(resolve => setTimeout(resolve, 500));
+        
         // ננסה לאתר תשלום ממתין לפגישה זו
         const paymentsRes = await fetch(`/api/payments`);
         if (paymentsRes.ok) {
@@ -184,7 +191,7 @@ export default function SessionDetailPage({
             return;
           }
         }
-        // אם אין תשלום קיים, ננווט לדף יצירת תשלום חדש
+        // אם אין תשלום קיים
         toast.info("לא נמצא תשלום לפגישה זו");
       }
     } catch {

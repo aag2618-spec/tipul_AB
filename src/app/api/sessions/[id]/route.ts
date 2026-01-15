@@ -77,7 +77,7 @@ export async function PUT(
 
     const { id } = await params;
     const body = await request.json();
-    const { startTime, endTime, type, price, location, notes, status } = body;
+    const { startTime, endTime, type, price, location, notes, status, createPayment } = body;
 
     const existingSession = await prisma.therapySession.findFirst({
       where: { id, therapistId: session.user.id },
@@ -104,8 +104,12 @@ export async function PUT(
       },
     });
 
-    // אם הפגישה הסתיימה, ניצור תשלום ממתין אם אין כזה
-    if ((status === "COMPLETED" || therapySession.status === "COMPLETED") && therapySession.price && therapySession.clientId) {
+    // יצירת תשלום אם צריך (הושלם, או ביטול/לא הגיע עם בקשה לחיוב)
+    const shouldCreatePayment = 
+      (status === "COMPLETED" || therapySession.status === "COMPLETED") ||
+      (createPayment && (status === "CANCELLED" || status === "NO_SHOW"));
+    
+    if (shouldCreatePayment && therapySession.price && therapySession.clientId) {
       // בדוק אם כבר קיים תשלום ממתין או שולם לפגישה זו
       const existingPayment = await prisma.payment.findFirst({
         where: {
