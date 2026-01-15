@@ -665,12 +665,12 @@ export default function SessionDetailPage({
             </AlertDialogDescription>
           </AlertDialogHeader>
           <AlertDialogFooter className="flex-row-reverse gap-2">
-            <AlertDialogAction onClick={() => handleChargeConfirm(true)}>
+            <Button onClick={() => handleChargeConfirm(true)}>
               כן, לחייב
-            </AlertDialogAction>
-            <AlertDialogCancel onClick={() => handleChargeConfirm(false)}>
+            </Button>
+            <Button variant="outline" onClick={() => handleChargeConfirm(false)}>
               לא, לא לחייב
-            </AlertDialogCancel>
+            </Button>
           </AlertDialogFooter>
         </AlertDialogContent>
       </AlertDialog>
