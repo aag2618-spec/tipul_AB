@@ -297,7 +297,7 @@ export default async function ClientPage({
                             </p>
                           </div>
                         </div>
-                        <div className="flex items-center gap-3" onClick={(e) => e.stopPropagation()}>
+                        <div className="flex items-center gap-3">
                           {session.sessionNote && (
                             <Badge variant="outline">יש סיכום</Badge>
                           )}

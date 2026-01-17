@@ -103,7 +103,12 @@ export function QuickMarkPaid({
   return (
     <Dialog open={isOpen} onOpenChange={setIsOpen}>
       <DialogTrigger asChild>
-        <Button variant="outline" size="sm" className="gap-1">
+        <Button 
+          variant="outline" 
+          size="sm" 
+          className="gap-1"
+          onClick={(e) => e.stopPropagation()}
+        >
           <CreditCard className="h-3 w-3" />
           {existingPayment?.status === "PENDING" ? "סמן שולם" : "הוסף תשלום"}
         </Button>
