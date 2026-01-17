@@ -266,66 +266,77 @@ export default async function ClientPage({
               {client.therapySessions.length > 0 ? (
                 <div className="space-y-3">
                   {client.therapySessions.map((session) => (
-                    <div
+                    <Link
                       key={session.id}
-                      className="flex items-center justify-between p-4 rounded-lg bg-muted/50"
+                      href={`/dashboard/sessions/${session.id}`}
+                      className="block"
                     >
-                      <div className="flex items-center gap-4">
-                        <div className="text-center">
-                          <div className="text-2xl font-bold">
-                            {format(new Date(session.startTime), "d")}
+                      <div className="flex items-center justify-between p-4 rounded-lg bg-muted/50 hover:bg-muted/80 transition-colors cursor-pointer">
+                        <div className="flex items-center gap-4">
+                          <div className="text-center">
+                            <div className="text-2xl font-bold">
+                              {format(new Date(session.startTime), "d")}
+                            </div>
+                            <div className="text-xs text-muted-foreground">
+                              {format(new Date(session.startTime), "MMM", {
+                                locale: he,
+                              })}
+                            </div>
                           </div>
-                          <div className="text-xs text-muted-foreground">
-                            {format(new Date(session.startTime), "MMM", {
-                              locale: he,
-                            })}
+                          <div>
+                            <p className="font-medium">
+                              {format(new Date(session.startTime), "HH:mm")} -{" "}
+                              {format(new Date(session.endTime), "HH:mm")}
+                            </p>
+                            <p className="text-sm text-muted-foreground">
+                              {session.type === "ONLINE"
+                                ? "אונליין"
+                                : session.type === "PHONE"
+                                ? "טלפון"
+                                : "פרונטלי"}
+                            </p>
                           </div>
                         </div>
-                        <div>
-                          <p className="font-medium">
-                            {format(new Date(session.startTime), "HH:mm")} -{" "}
-                            {format(new Date(session.endTime), "HH:mm")}
-                          </p>
-                          <p className="text-sm text-muted-foreground">
-                            {session.type === "ONLINE"
-                              ? "אונליין"
-                              : session.type === "PHONE"
-                              ? "טלפון"
-                              : "פרונטלי"}
-                          </p>
-                        </div>
-                      </div>
-                      <div className="flex items-center gap-3">
-                        {session.sessionNote && (
-                          <Badge variant="outline">יש סיכום</Badge>
-                        )}
-                        {session.status === "COMPLETED" && (
-                          <QuickMarkPaid
-                            sessionId={session.id}
-                            clientId={client.id}
-                            amount={Number(session.price)}
-                            existingPayment={session.payment}
-                          />
-                        )}
-                        <Badge
-                          variant={
-                            session.status === "COMPLETED"
-                              ? "default"
+                        <div className="flex items-center gap-3" onClick={(e) => e.stopPropagation()}>
+                          {session.sessionNote && (
+                            <Badge variant="outline">יש סיכום</Badge>
+                          )}
+                          {/* הצג כפתור תשלום אם יש תשלום ממתין */}
+                          {session.payment && session.payment.status === "PENDING" && (
+                            <QuickMarkPaid
+                              sessionId={session.id}
+                              clientId={client.id}
+                              amount={Number(session.price)}
+                              existingPayment={session.payment}
+                            />
+                          )}
+                          {/* הצג סימן וי ירוק אם שולם */}
+                          {session.payment && session.payment.status === "PAID" && (
+                            <Badge className="bg-green-100 text-green-700 border-green-200">
+                              <CheckCircle className="h-3 w-3 ml-1" />
+                              שולם
+                            </Badge>
+                          )}
+                          <Badge
+                            variant={
+                              session.status === "COMPLETED"
+                                ? "default"
+                                : session.status === "CANCELLED"
+                                ? "destructive"
+                                : "secondary"
+                            }
+                          >
+                            {session.status === "SCHEDULED"
+                              ? "מתוכנן"
+                              : session.status === "COMPLETED"
+                              ? "הושלם"
                               : session.status === "CANCELLED"
-                              ? "destructive"
-                              : "secondary"
-                          }
-                        >
-                          {session.status === "SCHEDULED"
-                            ? "מתוכנן"
-                            : session.status === "COMPLETED"
-                            ? "הושלם"
-                            : session.status === "CANCELLED"
-                            ? "בוטל"
-                            : "לא הגיע"}
-                        </Badge>
+                              ? "בוטל"
+                              : "לא הגיע"}
+                          </Badge>
+                        </div>
                       </div>
-                    </div>
+                    </Link>
                   ))}
                 </div>
               ) : (
