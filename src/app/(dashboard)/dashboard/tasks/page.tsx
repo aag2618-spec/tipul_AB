@@ -2,10 +2,10 @@ import { getServerSession } from "next-auth";
 import { authOptions } from "@/lib/auth";
 import prisma from "@/lib/prisma";
 import { Badge } from "@/components/ui/badge";
-import { Checkbox } from "@/components/ui/checkbox";
 import { ListTodo, Clock, AlertTriangle, CheckCircle } from "lucide-react";
 import { format } from "date-fns";
 import { he } from "date-fns/locale";
+import { TaskList } from "@/components/tasks/task-list";
 
 async function getTasks(userId: string) {
   const now = new Date();
@@ -50,31 +50,6 @@ export default async function TasksPage() {
     getTasks(session.user.id),
     getCompletedTasks(session.user.id),
   ]);
-
-  const getTypeLabel = (type: string) => {
-    switch (type) {
-      case "WRITE_SUMMARY": return "כתיבת סיכום";
-      case "COLLECT_PAYMENT": return "גביית תשלום";
-      case "SIGN_DOCUMENT": return "חתימת מסמך";
-      case "SCHEDULE_SESSION": return "קביעת פגישה";
-      case "REVIEW_TRANSCRIPTION": return "סקירת תמלול";
-      case "FOLLOW_UP": return "מעקב";
-      default: return "משימה";
-    }
-  };
-
-  const getPriorityBadge = (priority: string) => {
-    switch (priority) {
-      case "URGENT":
-        return <Badge variant="destructive">דחוף</Badge>;
-      case "HIGH":
-        return <Badge className="bg-amber-500">גבוה</Badge>;
-      case "MEDIUM":
-        return <Badge variant="secondary">רגיל</Badge>;
-      default:
-        return <Badge variant="outline">נמוך</Badge>;
-    }
-  };
 
   return (
     <div className="space-y-6 animate-fade-in">
@@ -152,48 +127,7 @@ export default async function TasksPage() {
             <h2 className="text-lg font-semibold">משימות פתוחות</h2>
             <p className="text-sm text-muted-foreground">משימות שממתינות לטיפול</p>
           </div>
-          {pendingTasks.length > 0 ? (
-            <div className="space-y-3 mt-4">
-              {pendingTasks.map((task) => (
-                <div
-                  key={task.id}
-                  className={`flex items-start gap-4 p-4 rounded-lg ${
-                    task.priority === "URGENT"
-                      ? "bg-destructive/10 border border-destructive/20"
-                      : task.priority === "HIGH"
-                      ? "bg-amber-50 border border-amber-200"
-                      : "bg-muted/50"
-                  }`}
-                >
-                  <Checkbox className="mt-1" />
-                  <div className="flex-1">
-                    <div className="flex items-center gap-2">
-                      <p className="font-medium">{task.title}</p>
-                      {getPriorityBadge(task.priority)}
-                    </div>
-                    <div className="flex items-center gap-3 mt-1 text-sm text-muted-foreground">
-                      <Badge variant="outline">{getTypeLabel(task.type)}</Badge>
-                      {task.dueDate && (
-                        <span className={new Date(task.dueDate) < new Date() ? "text-destructive" : ""}>
-                          עד {format(new Date(task.dueDate), "d בMMMM", { locale: he })}
-                        </span>
-                      )}
-                    </div>
-                    {task.description && (
-                      <p className="mt-2 text-sm text-muted-foreground">
-                        {task.description}
-                      </p>
-                    )}
-                  </div>
-                </div>
-              ))}
-            </div>
-          ) : (
-            <div className="text-center py-8 text-muted-foreground mt-4">
-              <CheckCircle className="mx-auto h-12 w-12 mb-3 text-green-500 opacity-50" />
-              <p>כל המשימות הושלמו! 🎉</p>
-            </div>
-          )}
+          <TaskList initialTasks={pendingTasks} />
         </div>
       </div>
 
