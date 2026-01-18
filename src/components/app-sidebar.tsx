@@ -3,6 +3,7 @@
 import Link from "next/link";
 import { usePathname } from "next/navigation";
 import { useSession } from "next-auth/react";
+import { useState, useEffect } from "react";
 import {
   Sidebar,
   SidebarContent,
@@ -16,6 +17,7 @@ import {
   SidebarGroupContent,
 } from "@/components/ui/sidebar";
 import { Avatar, AvatarFallback, AvatarImage } from "@/components/ui/avatar";
+import { Badge } from "@/components/ui/badge";
 import {
   LayoutDashboard,
   Users,
@@ -30,6 +32,7 @@ import {
   ListTodo,
   Leaf,
   Shield,
+  XCircle,
 } from "lucide-react";
 
 interface AppSidebarProps {
@@ -86,6 +89,12 @@ const managementItems = [
     icon: ListTodo,
   },
   {
+    title: "בקשות ביטול",
+    href: "/dashboard/cancellation-requests",
+    icon: XCircle,
+    hasBadge: true,
+  },
+  {
     title: "דוחות",
     href: "/dashboard/reports",
     icon: BarChart3,
@@ -109,6 +118,27 @@ export function AppSidebar({ user }: AppSidebarProps) {
   const pathname = usePathname();
   const { data: session } = useSession();
   const isAdmin = session?.user?.role === "ADMIN";
+  const [pendingCancellations, setPendingCancellations] = useState(0);
+
+  // Fetch pending cancellation requests count
+  useEffect(() => {
+    const fetchPendingCount = async () => {
+      try {
+        const res = await fetch('/api/cancellation-requests?status=PENDING&countOnly=true');
+        if (res.ok) {
+          const data = await res.json();
+          setPendingCancellations(data.count || 0);
+        }
+      } catch (error) {
+        console.error('Error fetching pending cancellations:', error);
+      }
+    };
+
+    fetchPendingCount();
+    // Refresh every minute
+    const interval = setInterval(fetchPendingCount, 60000);
+    return () => clearInterval(interval);
+  }, []);
 
   const isActive = (href: string) => {
     if (href === "/dashboard") {
@@ -180,9 +210,16 @@ export function AppSidebar({ user }: AppSidebarProps) {
                     isActive={isActive(item.href)}
                     tooltip={item.title}
                   >
-                    <Link href={item.href}>
-                      <item.icon className="h-4 w-4" />
-                      <span>{item.title}</span>
+                    <Link href={item.href} className="flex items-center justify-between w-full">
+                      <div className="flex items-center gap-2">
+                        <item.icon className="h-4 w-4" />
+                        <span>{item.title}</span>
+                      </div>
+                      {item.hasBadge && pendingCancellations > 0 && (
+                        <Badge variant="destructive" className="h-5 min-w-[20px] px-1.5 text-xs">
+                          {pendingCancellations}
+                        </Badge>
+                      )}
                     </Link>
                   </SidebarMenuButton>
                 </SidebarMenuItem>

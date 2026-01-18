@@ -30,7 +30,7 @@ export async function sendEmail({ to, subject, html, text }: EmailOptions) {
 
   try {
     const { data, error } = await resend.emails.send({
-      from: process.env.EMAIL_FROM || 'מערכת ניהול טיפולים <noreply@tipul.app>',
+      from: process.env.EMAIL_FROM || 'Tipul App <onboarding@resend.dev>',
       to,
       subject,
       html,

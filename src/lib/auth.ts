@@ -1,5 +1,6 @@
 import { NextAuthOptions } from "next-auth";
 import CredentialsProvider from "next-auth/providers/credentials";
+import GoogleProvider from "next-auth/providers/google";
 import { PrismaAdapter } from "@auth/prisma-adapter";
 import bcrypt from "bcryptjs";
 import prisma from "./prisma";
@@ -7,6 +8,17 @@ import prisma from "./prisma";
 export const authOptions: NextAuthOptions = {
   adapter: PrismaAdapter(prisma) as NextAuthOptions["adapter"],
   providers: [
+    GoogleProvider({
+      clientId: process.env.GOOGLE_CLIENT_ID || "",
+      clientSecret: process.env.GOOGLE_CLIENT_SECRET || "",
+      authorization: {
+        params: {
+          scope: "openid email profile https://www.googleapis.com/auth/calendar",
+          access_type: "offline",
+          prompt: "consent",
+        },
+      },
+    }),
     CredentialsProvider({
       name: "credentials",
       credentials: {
@@ -55,10 +67,15 @@ export const authOptions: NextAuthOptions = {
     newUser: "/register",
   },
   callbacks: {
-    async jwt({ token, user }) {
+    async jwt({ token, user, account }) {
       if (user) {
         token.id = user.id;
         token.role = user.role;
+      }
+      // Save Google tokens for calendar access
+      if (account?.provider === "google") {
+        token.accessToken = account.access_token;
+        token.refreshToken = account.refresh_token;
       }
       return token;
     },

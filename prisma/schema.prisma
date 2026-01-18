@@ -65,18 +65,21 @@ model User {
   createdAt     DateTime  @default(now())
   updatedAt     DateTime  @updatedAt
 
-  accounts             Account[]
-  sessions             Session[]
-  clients              Client[]
-  therapySessions      TherapySession[]
-  documents            Document[]
-  notifications        Notification[]
-  tasks                Task[]
-  notificationSettings NotificationSetting[]
-  recurringPatterns    RecurringPattern[]
-  intakeTemplates      IntakeTemplate[]
-  apiUsageLogs         ApiUsageLog[]
-  subscriptionPayments SubscriptionPayment[]
+  accounts              Account[]
+  sessions              Session[]
+  clients               Client[]
+  therapySessions       TherapySession[]
+  documents             Document[]
+  notifications         Notification[]
+  tasks                 Task[]
+  notificationSettings  NotificationSetting[]
+  recurringPatterns     RecurringPattern[]
+  intakeTemplates       IntakeTemplate[]
+  apiUsageLogs          ApiUsageLog[]
+  subscriptionPayments  SubscriptionPayment[]
+  reviewedCancellations CancellationRequest[]
+  communicationLogs     CommunicationLog[]
+  communicationSetting  CommunicationSetting?
 }
 
 model Client {
@@ -98,11 +101,13 @@ model Client {
   therapistId String
   therapist   User   @relation(fields: [therapistId], references: [id], onDelete: Cascade)
 
-  therapySessions   TherapySession[]
-  payments          Payment[]
-  documents         Document[]
-  recordings        Recording[]
-  recurringPatterns RecurringPattern[]
+  therapySessions      TherapySession[]
+  payments             Payment[]
+  documents            Document[]
+  recordings           Recording[]
+  recurringPatterns    RecurringPattern[]
+  cancellationRequests CancellationRequest[]
+  communicationLogs    CommunicationLog[]
 }
 
 enum ClientStatus {
@@ -122,8 +127,15 @@ model TherapySession {
   notes       String?       @db.Text
   location    String?
   isRecurring Boolean       @default(false)
-  createdAt   DateTime      @default(now())
-  updatedAt   DateTime      @updatedAt
+
+  // Cancellation fields
+  cancellationReason      String?   @db.Text
+  cancellationRequestedAt DateTime?
+  cancelledAt             DateTime?
+  cancelledBy             String? // 'CLIENT', 'THERAPIST', 'SYSTEM'
+
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
 
   therapistId String
   therapist   User   @relation(fields: [therapistId], references: [id], onDelete: Cascade)
@@ -131,15 +143,18 @@ model TherapySession {
   clientId String
   client   Client @relation(fields: [clientId], references: [id], onDelete: Cascade)
 
-  sessionNote SessionNote?
-  payment     Payment?
-  recordings  Recording[]
+  sessionNote          SessionNote?
+  payment              Payment?
+  recordings           Recording[]
+  cancellationRequests CancellationRequest[]
+  communicationLogs    CommunicationLog[]
 }
 
 enum SessionStatus {
   SCHEDULED
   COMPLETED
   CANCELLED
+  PENDING_CANCELLATION
   NO_SHOW
 }
 
@@ -153,7 +168,7 @@ model SessionNote {
   id         String   @id @default(cuid())
   content    String   @db.Text
   isPrivate  Boolean  @default(false)
-  aiAnalysis Json?    // Stores AI analysis of the note
+  aiAnalysis Json? // Stores AI analysis of the note
   createdAt  DateTime @default(now())
   updatedAt  DateTime @updatedAt
 
@@ -226,20 +241,20 @@ model Analysis {
 // ==================== Payments ====================
 
 model Payment {
-  id          String        @id @default(cuid())
-  amount      Decimal       @db.Decimal(10, 2)
-  method      PaymentMethod
-  status      PaymentStatus @default(PENDING)
-  receiptUrl  String?
-  notes       String?
-  paidAt      DateTime?
-  createdAt   DateTime      @default(now())
-  updatedAt   DateTime      @updatedAt
+  id         String        @id @default(cuid())
+  amount     Decimal       @db.Decimal(10, 2)
+  method     PaymentMethod
+  status     PaymentStatus @default(PENDING)
+  receiptUrl String?
+  notes      String?
+  paidAt     DateTime?
+  createdAt  DateTime      @default(now())
+  updatedAt  DateTime      @updatedAt
 
   clientId String
   client   Client @relation(fields: [clientId], references: [id], onDelete: Cascade)
 
-  sessionId String?        @unique
+  sessionId String?         @unique
   session   TherapySession? @relation(fields: [sessionId], references: [id], onDelete: SetNull)
 }
 
@@ -364,10 +379,10 @@ model NotificationSetting {
   id                 String   @id @default(cuid())
   channel            String
   enabled            Boolean  @default(true)
-  eveningTime        String?  // Format: "HH:mm"
-  morningTime        String?  // Format: "HH:mm"
+  eveningTime        String? // Format: "HH:mm"
+  morningTime        String? // Format: "HH:mm"
   debtThresholdDays  Int      @default(30)
-  monthlyReminderDay Int?     // 1-31, day of month for payment reminder
+  monthlyReminderDay Int? // 1-31, day of month for payment reminder
   createdAt          DateTime @default(now())
   updatedAt          DateTime @updatedAt
 
@@ -379,16 +394,16 @@ model NotificationSetting {
 
 model RecurringPattern {
   id        String   @id @default(cuid())
-  dayOfWeek Int      // 0-6 (Sunday-Saturday)
-  time      String   // Format: "HH:mm"
+  dayOfWeek Int // 0-6 (Sunday-Saturday)
+  time      String // Format: "HH:mm"
   duration  Int      @default(50) // minutes
   isActive  Boolean  @default(true)
   createdAt DateTime @default(now())
   updatedAt DateTime @updatedAt
 
-  userId   String
-  user     User    @relation(fields: [userId], references: [id], onDelete: Cascade)
-  
+  userId String
+  user   User   @relation(fields: [userId], references: [id], onDelete: Cascade)
+
   clientId String?
   client   Client? @relation(fields: [clientId], references: [id], onDelete: SetNull)
 }
@@ -398,7 +413,7 @@ model RecurringPattern {
 model IntakeTemplate {
   id        String   @id @default(cuid())
   name      String
-  questions Json     // Array of question objects
+  questions Json // Array of question objects
   isDefault Boolean  @default(false)
   createdAt DateTime @default(now())
   updatedAt DateTime @updatedAt
@@ -410,15 +425,15 @@ model IntakeTemplate {
 // ==================== Admin: API Usage Logging ====================
 
 model ApiUsageLog {
-  id          String   @id @default(cuid())
-  endpoint    String   // e.g., "/api/transcribe", "/api/analyze"
-  method      String   // e.g., "POST"
-  tokensUsed  Int?     // Estimated tokens used for AI calls
-  cost        Decimal? @db.Decimal(10, 4) // Estimated cost in dollars
-  success     Boolean  @default(true)
-  errorMessage String? @db.Text
-  durationMs  Int?     // Request duration in milliseconds
-  createdAt   DateTime @default(now())
+  id           String   @id @default(cuid())
+  endpoint     String // e.g., "/api/transcribe", "/api/analyze"
+  method       String // e.g., "POST"
+  tokensUsed   Int? // Estimated tokens used for AI calls
+  cost         Decimal? @db.Decimal(10, 4) // Estimated cost in dollars
+  success      Boolean  @default(true)
+  errorMessage String?  @db.Text
+  durationMs   Int? // Request duration in milliseconds
+  createdAt    DateTime @default(now())
 
   userId String
   user   User   @relation(fields: [userId], references: [id], onDelete: Cascade)
@@ -449,4 +464,99 @@ enum SubscriptionPaymentStatus {
   OVERDUE
   CANCELLED
   REFUNDED
+}
+
+// ==================== Cancellation Requests ====================
+
+model CancellationRequest {
+  id         String                    @id @default(cuid())
+  reason     String?                   @db.Text
+  status     CancellationRequestStatus @default(PENDING)
+  adminNotes String?                   @db.Text
+  reviewedAt DateTime?
+  createdAt  DateTime                  @default(now())
+  updatedAt  DateTime                  @updatedAt
+
+  sessionId String
+  session   TherapySession @relation(fields: [sessionId], references: [id], onDelete: Cascade)
+
+  clientId String
+  client   Client @relation(fields: [clientId], references: [id], onDelete: Cascade)
+
+  reviewedById String?
+  reviewedBy   User?   @relation(fields: [reviewedById], references: [id], onDelete: SetNull)
+}
+
+enum CancellationRequestStatus {
+  PENDING
+  APPROVED
+  REJECTED
+}
+
+// ==================== Communication Log ====================
+
+model CommunicationLog {
+  id           String               @id @default(cuid())
+  type         CommunicationType
+  channel      CommunicationChannel @default(EMAIL)
+  recipient    String
+  subject      String?
+  content      String               @db.Text
+  status       CommunicationStatus  @default(PENDING)
+  errorMessage String?              @db.Text
+  sentAt       DateTime?
+  createdAt    DateTime             @default(now())
+
+  sessionId String?
+  session   TherapySession? @relation(fields: [sessionId], references: [id], onDelete: SetNull)
+
+  clientId String?
+  client   Client? @relation(fields: [clientId], references: [id], onDelete: SetNull)
+
+  userId String?
+  user   User?   @relation(fields: [userId], references: [id], onDelete: SetNull)
+}
+
+enum CommunicationType {
+  SESSION_CONFIRMATION
+  REMINDER_24H
+  REMINDER_2H
+  CANCELLATION_REQUEST_TO_CLIENT
+  CANCELLATION_REQUEST_TO_THERAPIST
+  CANCELLATION_APPROVED
+  CANCELLATION_REJECTED
+  CUSTOM
+}
+
+enum CommunicationChannel {
+  EMAIL
+  SMS
+  WHATSAPP
+}
+
+enum CommunicationStatus {
+  PENDING
+  SENT
+  FAILED
+}
+
+// ==================== Communication Settings ====================
+
+model CommunicationSetting {
+  id String @id @default(cuid())
+
+  // Session notifications
+  sendConfirmationEmail Boolean @default(true)
+  send24hReminder       Boolean @default(true)
+  send2hReminder        Boolean @default(false)
+
+  // Cancellation policy
+  allowClientCancellation Boolean @default(true)
+  minCancellationHours    Int     @default(24)
+
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+
+  userId String @unique
+  user   User   @relation(fields: [userId], references: [id], onDelete: Cascade)
 }
