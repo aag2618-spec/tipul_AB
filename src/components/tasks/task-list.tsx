@@ -57,20 +57,39 @@ export function TaskList({ initialTasks }: TaskListProps) {
 
   const getTaskLink = (task: Task): string | null => {
     // Return the appropriate link based on task type and related entity
-    if (task.type === "WRITE_SUMMARY" && task.relatedEntityId) {
-      return `/dashboard/sessions/${task.relatedEntityId}`;
+    if (task.type === "WRITE_SUMMARY") {
+      if (task.relatedEntityId) {
+        return `/dashboard/sessions/${task.relatedEntityId}`;
+      }
+      // Fallback: link to sessions page
+      return `/dashboard/sessions`;
     }
-    if (task.type === "COLLECT_PAYMENT" && task.relatedEntityId) {
-      return `/dashboard/payments?highlight=${task.relatedEntityId}`;
+    if (task.type === "COLLECT_PAYMENT") {
+      if (task.relatedEntityId) {
+        return `/dashboard/payments?highlight=${task.relatedEntityId}`;
+      }
+      return `/dashboard/payments`;
     }
-    if (task.type === "SIGN_DOCUMENT" && task.relatedEntityId) {
-      return `/dashboard/documents/${task.relatedEntityId}`;
+    if (task.type === "SIGN_DOCUMENT") {
+      if (task.relatedEntityId) {
+        return `/dashboard/documents/${task.relatedEntityId}`;
+      }
+      return `/dashboard/documents`;
     }
-    if (task.type === "SCHEDULE_SESSION" && task.relatedEntityId) {
-      return `/dashboard/calendar?client=${task.relatedEntityId}`;
+    if (task.type === "SCHEDULE_SESSION") {
+      if (task.relatedEntityId) {
+        return `/dashboard/calendar?client=${task.relatedEntityId}`;
+      }
+      return `/dashboard/calendar`;
     }
-    if (task.type === "REVIEW_TRANSCRIPTION" && task.relatedEntityId) {
-      return `/dashboard/recordings/${task.relatedEntityId}`;
+    if (task.type === "REVIEW_TRANSCRIPTION") {
+      if (task.relatedEntityId) {
+        return `/dashboard/recordings/${task.relatedEntityId}`;
+      }
+      return `/dashboard/recordings`;
+    }
+    if (task.type === "FOLLOW_UP") {
+      return `/dashboard/clients`;
     }
     return null;
   };
