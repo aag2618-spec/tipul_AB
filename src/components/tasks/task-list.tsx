@@ -57,7 +57,7 @@ export function TaskList({ initialTasks }: TaskListProps) {
 
   const getTaskLink = (task: Task): string | null => {
     // Return the appropriate link based on task type and related entity
-    if (task.type === "WRITE_SUMMARY" && task.relatedEntityId && task.relatedEntity === "session") {
+    if (task.type === "WRITE_SUMMARY" && task.relatedEntityId) {
       return `/dashboard/sessions/${task.relatedEntityId}`;
     }
     if (task.type === "COLLECT_PAYMENT" && task.relatedEntityId) {
@@ -146,13 +146,13 @@ export function TaskList({ initialTasks }: TaskListProps) {
         return (
           <div
             key={task.id}
-            className={`flex items-start gap-4 p-4 rounded-lg ${
+            className={`flex items-start gap-4 p-4 rounded-lg transition-all ${
               task.priority === "URGENT"
                 ? "bg-destructive/10 border border-destructive/20"
                 : task.priority === "HIGH"
                 ? "bg-amber-50 border border-amber-200"
                 : "bg-muted/50"
-            }`}
+            } ${taskLink ? "hover:shadow-md cursor-pointer" : ""}`}
           >
             <Checkbox 
               className="mt-1" 
@@ -161,7 +161,7 @@ export function TaskList({ initialTasks }: TaskListProps) {
             {taskLink ? (
               <Link 
                 href={taskLink}
-                className="flex-1 hover:opacity-80 transition-opacity cursor-pointer"
+                className="flex-1 hover:text-primary transition-colors"
               >
                 {TaskContent}
               </Link>
