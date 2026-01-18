@@ -5,7 +5,7 @@ import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/com
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
 import { Checkbox } from "@/components/ui/checkbox";
-import { ListTodo, Bell, Loader2, History, CheckCircle, Clock } from "lucide-react";
+import { ListTodo, Bell, Loader2, History, CheckCircle, Clock, Trash2 } from "lucide-react";
 import { format } from "date-fns";
 import { he } from "date-fns/locale";
 import { toast } from "sonner";
@@ -124,6 +124,21 @@ export function PersonalTasksWidget() {
       }
     } catch {
       toast.error("שגיאה בעדכון המשימה");
+    }
+  };
+
+  const handleDelete = async (taskId: string) => {
+    try {
+      const response = await fetch(`/api/tasks/${taskId}`, {
+        method: "DELETE",
+      });
+
+      if (response.ok) {
+        setTasks((prev) => prev.filter((t) => t.id !== taskId));
+        toast.success("המשימה נמחקה");
+      }
+    } catch {
+      toast.error("שגיאה במחיקת המשימה");
     }
   };
 
@@ -263,6 +278,14 @@ export function PersonalTasksWidget() {
                     </p>
                   )}
                 </div>
+                <Button
+                  variant="ghost"
+                  size="icon"
+                  className="h-8 w-8 text-muted-foreground hover:text-destructive hover:bg-destructive/10"
+                  onClick={() => handleDelete(task.id)}
+                >
+                  <Trash2 className="h-4 w-4" />
+                </Button>
               </div>
             ))}
           </div>
