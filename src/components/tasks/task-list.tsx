@@ -121,6 +121,28 @@ export function TaskList({ initialTasks }: TaskListProps) {
       {tasks.map((task) => {
         const taskLink = getTaskLink(task);
         
+        const TaskContent = (
+          <>
+            <div className="flex items-center gap-2">
+              <span className="font-medium">{task.title}</span>
+              {getPriorityBadge(task.priority)}
+            </div>
+            <div className="flex items-center gap-3 mt-1 text-sm text-muted-foreground">
+              <Badge variant="outline">{getTypeLabel(task.type)}</Badge>
+              {task.dueDate && (
+                <span className={new Date(task.dueDate) < new Date() ? "text-destructive" : ""}>
+                  עד {format(new Date(task.dueDate), "d בMMMM", { locale: he })}
+                </span>
+              )}
+            </div>
+            {task.description && (
+              <p className="mt-2 text-sm text-muted-foreground">
+                {task.description}
+              </p>
+            )}
+          </>
+        );
+        
         return (
           <div
             key={task.id}
@@ -136,34 +158,18 @@ export function TaskList({ initialTasks }: TaskListProps) {
               className="mt-1" 
               onCheckedChange={() => handleComplete(task.id)}
             />
-            <div className="flex-1">
-              <div className="flex items-center gap-2">
-                {taskLink ? (
-                  <Link 
-                    href={taskLink}
-                    className="font-medium hover:text-primary hover:underline transition-colors"
-                  >
-                    {task.title}
-                  </Link>
-                ) : (
-                  <p className="font-medium">{task.title}</p>
-                )}
-                {getPriorityBadge(task.priority)}
+            {taskLink ? (
+              <Link 
+                href={taskLink}
+                className="flex-1 hover:opacity-80 transition-opacity cursor-pointer"
+              >
+                {TaskContent}
+              </Link>
+            ) : (
+              <div className="flex-1">
+                {TaskContent}
               </div>
-              <div className="flex items-center gap-3 mt-1 text-sm text-muted-foreground">
-                <Badge variant="outline">{getTypeLabel(task.type)}</Badge>
-                {task.dueDate && (
-                  <span className={new Date(task.dueDate) < new Date() ? "text-destructive" : ""}>
-                    עד {format(new Date(task.dueDate), "d בMMMM", { locale: he })}
-                  </span>
-                )}
-              </div>
-              {task.description && (
-                <p className="mt-2 text-sm text-muted-foreground">
-                  {task.description}
-                </p>
-              )}
-            </div>
+            )}
             <Button
               variant="ghost"
               size="icon"
