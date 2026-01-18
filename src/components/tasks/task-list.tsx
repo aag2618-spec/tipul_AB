@@ -4,7 +4,7 @@ import { useState } from "react";
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
 import { Checkbox } from "@/components/ui/checkbox";
-import { Trash2, CheckCircle } from "lucide-react";
+import { Trash2, CheckCircle, ExternalLink } from "lucide-react";
 import { format } from "date-fns";
 import { he } from "date-fns/locale";
 import { toast } from "sonner";
@@ -126,6 +126,9 @@ export function TaskList({ initialTasks }: TaskListProps) {
             <div className="flex items-center gap-2">
               <span className="font-medium">{task.title}</span>
               {getPriorityBadge(task.priority)}
+              {taskLink && (
+                <ExternalLink className="h-4 w-4 text-primary" />
+              )}
             </div>
             <div className="flex items-center gap-3 mt-1 text-sm text-muted-foreground">
               <Badge variant="outline">{getTypeLabel(task.type)}</Badge>
