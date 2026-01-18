@@ -4,7 +4,7 @@ import prisma from "@/lib/prisma";
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
-import { Users, Calendar, CreditCard, Clock, Plus, UserPlus, CalendarPlus } from "lucide-react";
+import { Users, Calendar, CreditCard, Clock, Plus } from "lucide-react";
 import Link from "next/link";
 import { format } from "date-fns";
 import { he } from "date-fns/locale";
@@ -36,7 +36,6 @@ async function getDashboardStats(userId: string) {
     pendingPayments,
     pendingTasks,
     todaySessions,
-    waitingClients,
   ] = await Promise.all([
     prisma.client.count({ where: { therapistId: userId } }),
     prisma.client.count({ where: { therapistId: userId, status: "ACTIVE" } }),
@@ -83,11 +82,6 @@ async function getDashboardStats(userId: string) {
       include: { client: true },
       orderBy: { startTime: "asc" },
     }),
-    prisma.client.findMany({
-      where: { therapistId: userId, status: "WAITING" },
-      orderBy: { createdAt: "desc" },
-      take: 10,
-    }),
   ]);
 
   return {
@@ -101,7 +95,6 @@ async function getDashboardStats(userId: string) {
     pendingPayments,
     pendingTasks,
     todaySessions,
-    waitingClients,
   };
 }
 
@@ -215,53 +208,6 @@ export default async function DashboardPage() {
           </Link>
         ))}
       </div>
-
-      {/* Waiting List Widget */}
-      {stats.waitingClients.length > 0 && (
-        <Card className="border-amber-200 bg-amber-50/50">
-          <CardHeader className="flex flex-row items-center justify-between pb-2">
-            <div className="flex items-center gap-3">
-              <div className="flex h-10 w-10 items-center justify-center rounded-lg bg-amber-100">
-                <UserPlus className="h-5 w-5 text-amber-600" />
-              </div>
-              <div>
-                <CardTitle className="text-lg">רשימת המתנה</CardTitle>
-                <CardDescription>
-                  {stats.waitingClients.length} מטופלים ממתינים לפגישה ראשונה
-                </CardDescription>
-              </div>
-            </div>
-          </CardHeader>
-          <CardContent>
-            <div className="space-y-3">
-              {stats.waitingClients.map((client) => (
-                <div
-                  key={client.id}
-                  className="flex items-center justify-between p-3 rounded-lg bg-white border border-amber-100"
-                >
-                  <div>
-                    <Link
-                      href={`/dashboard/clients/${client.id}`}
-                      className="font-medium hover:text-primary hover:underline transition-colors"
-                    >
-                      {client.name}
-                    </Link>
-                    <p className="text-sm text-muted-foreground">
-                      ממתין מאז {format(new Date(client.createdAt), "d/M/yyyy")}
-                    </p>
-                  </div>
-                  <Button size="sm" asChild>
-                    <Link href={`/dashboard/calendar?client=${client.id}`}>
-                      <CalendarPlus className="ml-2 h-4 w-4" />
-                      קבע פגישה
-                    </Link>
-                  </Button>
-                </div>
-              ))}
-            </div>
-          </CardContent>
-        </Card>
-      )}
 
       <div className="grid gap-6">
         {/* Today's Sessions */}
