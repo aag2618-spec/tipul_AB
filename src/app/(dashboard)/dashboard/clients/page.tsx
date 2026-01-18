@@ -2,11 +2,10 @@ import { getServerSession } from "next-auth";
 import { authOptions } from "@/lib/auth";
 import prisma from "@/lib/prisma";
 import { Button } from "@/components/ui/button";
-import { Input } from "@/components/ui/input";
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
 import { Badge } from "@/components/ui/badge";
 import { Avatar, AvatarFallback } from "@/components/ui/avatar";
-import { Plus, Search, Phone, Mail, MoreVertical } from "lucide-react";
+import { Plus, Phone, Mail, MoreVertical, Users } from "lucide-react";
 import Link from "next/link";
 import {
   DropdownMenu,
@@ -16,9 +15,14 @@ import {
 } from "@/components/ui/dropdown-menu";
 import { format } from "date-fns";
 
-async function getClients(userId: string) {
+type ClientStatus = "ACTIVE" | "WAITING" | "INACTIVE" | "ARCHIVED";
+
+async function getClients(userId: string, status?: ClientStatus) {
   return prisma.client.findMany({
-    where: { therapistId: userId },
+    where: { 
+      therapistId: userId,
+      ...(status && { status }),
+    },
     orderBy: { name: "asc" },
     include: {
       _count: {
@@ -28,11 +32,61 @@ async function getClients(userId: string) {
   });
 }
 
-export default async function ClientsPage() {
+async function getClientCounts(userId: string) {
+  const [active, waiting, inactive, archived, total] = await Promise.all([
+    prisma.client.count({ where: { therapistId: userId, status: "ACTIVE" } }),
+    prisma.client.count({ where: { therapistId: userId, status: "WAITING" } }),
+    prisma.client.count({ where: { therapistId: userId, status: "INACTIVE" } }),
+    prisma.client.count({ where: { therapistId: userId, status: "ARCHIVED" } }),
+    prisma.client.count({ where: { therapistId: userId } }),
+  ]);
+  return { active, waiting, inactive, archived, total };
+}
+
+const statusConfig: Record<ClientStatus, { label: string; bgColor: string; textColor: string; borderColor: string }> = {
+  ACTIVE: { 
+    label: "פעילים", 
+    bgColor: "bg-emerald-100", 
+    textColor: "text-emerald-700", 
+    borderColor: "border-emerald-300" 
+  },
+  WAITING: { 
+    label: "ממתינים", 
+    bgColor: "bg-amber-100", 
+    textColor: "text-amber-700", 
+    borderColor: "border-amber-300" 
+  },
+  INACTIVE: { 
+    label: "לא פעילים", 
+    bgColor: "bg-slate-100", 
+    textColor: "text-slate-700", 
+    borderColor: "border-slate-300" 
+  },
+  ARCHIVED: { 
+    label: "ארכיון", 
+    bgColor: "bg-purple-100", 
+    textColor: "text-purple-700", 
+    borderColor: "border-purple-300" 
+  },
+};
+
+interface PageProps {
+  searchParams: Promise<{ status?: string }>;
+}
+
+export default async function ClientsPage({ searchParams }: PageProps) {
   const session = await getServerSession(authOptions);
   if (!session?.user?.id) return null;
 
-  const clients = await getClients(session.user.id);
+  const params = await searchParams;
+  const statusFilter = params.status as ClientStatus | undefined;
+  const validStatuses: ClientStatus[] = ["ACTIVE", "WAITING", "INACTIVE", "ARCHIVED"];
+  const activeStatus = validStatuses.includes(statusFilter as ClientStatus) ? statusFilter : undefined;
+
+  const [clients, counts] = await Promise.all([
+    getClients(session.user.id, activeStatus),
+    getClientCounts(session.user.id),
+  ]);
 
   const getInitials = (name: string) => {
     return name
@@ -45,7 +99,9 @@ export default async function ClientsPage() {
   const getStatusBadge = (status: string) => {
     switch (status) {
       case "ACTIVE":
-        return <Badge variant="default">פעיל</Badge>;
+        return <Badge className="bg-emerald-100 text-emerald-700 hover:bg-emerald-200">פעיל</Badge>;
+      case "WAITING":
+        return <Badge className="bg-amber-100 text-amber-700 hover:bg-amber-200">ממתין</Badge>;
       case "INACTIVE":
         return <Badge variant="secondary">לא פעיל</Badge>;
       case "ARCHIVED":
@@ -55,13 +111,18 @@ export default async function ClientsPage() {
     }
   };
 
+  const getStatusTitle = () => {
+    if (!activeStatus) return "כל המטופלים";
+    return statusConfig[activeStatus].label;
+  };
+
   return (
     <div className="space-y-6 animate-fade-in">
       <div className="flex items-center justify-between">
         <div>
           <h1 className="text-2xl font-bold tracking-tight">מטופלים</h1>
           <p className="text-muted-foreground">
-            {clients.length} מטופלים במערכת
+            {counts.total} מטופלים במערכת
           </p>
         </div>
         <Button asChild>
@@ -72,11 +133,52 @@ export default async function ClientsPage() {
         </Button>
       </div>
 
-      {/* Search */}
-      <div className="relative max-w-md">
-        <Search className="absolute right-3 top-1/2 -translate-y-1/2 h-4 w-4 text-muted-foreground" />
-        <Input placeholder="חפש מטופל..." className="pr-10" />
+      {/* Status Filter Tabs */}
+      <div className="flex flex-wrap gap-2">
+        <Link href="/dashboard/clients">
+          <Badge 
+            variant={!activeStatus ? "default" : "outline"}
+            className={`cursor-pointer text-sm py-1.5 px-3 ${!activeStatus ? "" : "hover:bg-muted"}`}
+          >
+            <Users className="h-3.5 w-3.5 ml-1" />
+            הכל ({counts.total})
+          </Badge>
+        </Link>
+        {(Object.keys(statusConfig) as ClientStatus[]).map((status) => {
+          const config = statusConfig[status];
+          const count = status === "ACTIVE" ? counts.active 
+            : status === "WAITING" ? counts.waiting 
+            : status === "INACTIVE" ? counts.inactive 
+            : counts.archived;
+          const isActive = activeStatus === status;
+          
+          return (
+            <Link key={status} href={`/dashboard/clients?status=${status}`}>
+              <Badge 
+                className={`cursor-pointer text-sm py-1.5 px-3 transition-colors ${
+                  isActive 
+                    ? `${config.bgColor} ${config.textColor} ${config.borderColor} border` 
+                    : `${config.bgColor}/50 ${config.textColor} hover:${config.bgColor}`
+                }`}
+              >
+                {config.label} ({count})
+              </Badge>
+            </Link>
+          );
+        })}
       </div>
+
+      {/* Current filter indicator */}
+      {activeStatus && (
+        <div className={`flex items-center gap-2 p-3 rounded-lg ${statusConfig[activeStatus].bgColor} ${statusConfig[activeStatus].borderColor} border`}>
+          <span className={`font-medium ${statusConfig[activeStatus].textColor}`}>
+            מציג: {statusConfig[activeStatus].label} ({clients.length})
+          </span>
+          <Link href="/dashboard/clients" className={`${statusConfig[activeStatus].textColor} hover:underline mr-auto text-sm`}>
+            הצג הכל
+          </Link>
+        </div>
+      )}
 
       {/* Clients Grid */}
       {clients.length > 0 ? (

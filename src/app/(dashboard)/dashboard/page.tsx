@@ -28,6 +28,9 @@ async function getDashboardStats(userId: string) {
   const [
     totalClients,
     activeClients,
+    waitingClientsCount,
+    inactiveClients,
+    archivedClients,
     sessionsThisWeek,
     sessionsThisMonth,
     pendingPayments,
@@ -37,6 +40,9 @@ async function getDashboardStats(userId: string) {
   ] = await Promise.all([
     prisma.client.count({ where: { therapistId: userId } }),
     prisma.client.count({ where: { therapistId: userId, status: "ACTIVE" } }),
+    prisma.client.count({ where: { therapistId: userId, status: "WAITING" } }),
+    prisma.client.count({ where: { therapistId: userId, status: "INACTIVE" } }),
+    prisma.client.count({ where: { therapistId: userId, status: "ARCHIVED" } }),
     prisma.therapySession.count({
       where: {
         therapistId: userId,
@@ -87,6 +93,9 @@ async function getDashboardStats(userId: string) {
   return {
     totalClients,
     activeClients,
+    waitingClientsCount,
+    inactiveClients,
+    archivedClients,
     sessionsThisWeek,
     sessionsThisMonth,
     pendingPayments,
@@ -102,15 +111,47 @@ export default async function DashboardPage() {
 
   const stats = await getDashboardStats(session.user.id);
 
-  const statCards = [
+  // Client status boxes with colors
+  const clientStatusBoxes = [
     {
-      title: "מטופלים פעילים",
+      status: "ACTIVE",
+      label: "פעילים",
       value: stats.activeClients,
-      description: `מתוך ${stats.totalClients} סה״כ`,
-      icon: Users,
-      href: "/dashboard/clients",
-      subBox: null,
+      bgColor: "bg-emerald-100",
+      textColor: "text-emerald-700",
+      borderColor: "border-emerald-200",
+      hoverBg: "hover:bg-emerald-200",
     },
+    {
+      status: "WAITING",
+      label: "ממתינים",
+      value: stats.waitingClientsCount,
+      bgColor: "bg-amber-100",
+      textColor: "text-amber-700",
+      borderColor: "border-amber-200",
+      hoverBg: "hover:bg-amber-200",
+    },
+    {
+      status: "INACTIVE",
+      label: "לא פעילים",
+      value: stats.inactiveClients,
+      bgColor: "bg-slate-100",
+      textColor: "text-slate-700",
+      borderColor: "border-slate-200",
+      hoverBg: "hover:bg-slate-200",
+    },
+    {
+      status: "ARCHIVED",
+      label: "ארכיון",
+      value: stats.archivedClients,
+      bgColor: "bg-purple-100",
+      textColor: "text-purple-700",
+      borderColor: "border-purple-200",
+      hoverBg: "hover:bg-purple-200",
+    },
+  ];
+
+  const statCards = [
     {
       title: "פגישות השבוע",
       value: stats.sessionsThisWeek,
@@ -161,8 +202,42 @@ export default async function DashboardPage() {
         </div>
       </div>
 
+      {/* Clients Status Card */}
+      <Card>
+        <CardHeader className="flex flex-row items-center justify-between pb-2">
+          <div className="flex items-center gap-2">
+            <Users className="h-5 w-5 text-muted-foreground" />
+            <CardTitle className="text-lg">מטופלים</CardTitle>
+          </div>
+          <Link href="/dashboard/clients" className="text-sm text-primary hover:underline">
+            צפה בכל המטופלים
+          </Link>
+        </CardHeader>
+        <CardContent>
+          <div className="grid grid-cols-2 md:grid-cols-4 gap-3">
+            {clientStatusBoxes.map((box) => (
+              <Link 
+                key={box.status} 
+                href={`/dashboard/clients?status=${box.status}`}
+                className={`${box.bgColor} ${box.borderColor} ${box.hoverBg} border rounded-lg p-4 text-center transition-colors cursor-pointer`}
+              >
+                <div className={`text-2xl font-bold ${box.textColor}`}>
+                  {box.value}
+                </div>
+                <p className={`text-sm font-medium ${box.textColor}`}>
+                  {box.label}
+                </p>
+              </Link>
+            ))}
+          </div>
+          <div className="mt-3 text-center text-sm text-muted-foreground">
+            סה״כ {stats.totalClients} מטופלים במערכת
+          </div>
+        </CardContent>
+      </Card>
+
       {/* Stats Grid */}
-      <div className="grid gap-4 md:grid-cols-2 lg:grid-cols-4">
+      <div className="grid gap-4 md:grid-cols-2 lg:grid-cols-3">
         {statCards.map((stat) => (
           <Link key={stat.title} href={stat.href}>
             <Card className="hover:bg-muted/50 transition-colors cursor-pointer">
