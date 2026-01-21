@@ -178,7 +178,7 @@ export default async function SessionsPage() {
                           </div>
                         </div>
                         <div>
-                          <p className="font-medium">{therapySession.client.name}</p>
+                          <p className="font-medium">{therapySession.client?.name || "🌊 הפסקה"}</p>
                           <p className="text-sm text-muted-foreground">
                             {format(new Date(therapySession.startTime), "HH:mm")} -{" "}
                             {format(new Date(therapySession.endTime), "HH:mm")}
@@ -227,7 +227,7 @@ export default async function SessionsPage() {
                           </div>
                         </div>
                         <div>
-                          <p className="font-medium">{therapySession.client.name}</p>
+                          <p className="font-medium">{therapySession.client?.name || "🌊 הפסקה"}</p>
                           <p className="text-sm text-muted-foreground line-clamp-1">
                             {therapySession.sessionNote?.content.slice(0, 100)}...
                           </p>
@@ -276,9 +276,9 @@ export default async function SessionsPage() {
                             </div>
                           </div>
                           <div>
-                            <p className="font-medium">{therapySession.client.name}</p>
+                            <p className="font-medium">{therapySession.client?.name || "🌊 הפסקה"}</p>
                             <p className="text-sm text-muted-foreground">
-                              {therapySession.type === "ONLINE" ? "אונליין" : "פרונטלי"}
+                              {therapySession.type === "BREAK" ? "הפסקה" : therapySession.type === "ONLINE" ? "אונליין" : "פרונטלי"}
                             </p>
                           </div>
                         </div>
@@ -313,9 +313,9 @@ export default async function SessionsPage() {
                             </div>
                           </div>
                           <div>
-                            <p className="font-medium">{therapySession.client.name}</p>
+                            <p className="font-medium">{therapySession.client?.name || "🌊 הפסקה"}</p>
                             <p className="text-sm text-muted-foreground">
-                              {therapySession.type === "ONLINE" ? "אונליין" : "פרונטלי"}
+                              {therapySession.type === "BREAK" ? "הפסקה" : therapySession.type === "ONLINE" ? "אונליין" : "פרונטלי"}
                             </p>
                           </div>
                         </div>
@@ -353,11 +353,11 @@ export default async function SessionsPage() {
                             </div>
                           </div>
                           <div>
-                            <p className="font-medium">{therapySession.client.name}</p>
+                            <p className="font-medium">{therapySession.client?.name || "🌊 הפסקה"}</p>
                             <p className="text-sm text-muted-foreground">
                               {format(new Date(therapySession.startTime), "HH:mm")}
                               {" • "}
-                              {therapySession.type === "ONLINE" ? "אונליין" : "פרונטלי"}
+                              {therapySession.type === "BREAK" ? "הפסקה" : therapySession.type === "ONLINE" ? "אונליין" : "פרונטלי"}
                             </p>
                           </div>
                         </div>
@@ -395,11 +395,11 @@ export default async function SessionsPage() {
                             </div>
                           </div>
                           <div>
-                            <p className="font-medium">{therapySession.client.name}</p>
+                            <p className="font-medium">{therapySession.client?.name || "🌊 הפסקה"}</p>
                             <p className="text-sm text-muted-foreground">
                               {format(new Date(therapySession.startTime), "EEEE HH:mm", { locale: he })}
                               {" • "}
-                              {therapySession.type === "ONLINE" ? "אונליין" : "פרונטלי"}
+                              {therapySession.type === "BREAK" ? "הפסקה" : therapySession.type === "ONLINE" ? "אונליין" : "פרונטלי"}
                             </p>
                           </div>
                         </div>

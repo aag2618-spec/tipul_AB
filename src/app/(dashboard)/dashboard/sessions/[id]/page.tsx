@@ -293,7 +293,7 @@ export default function SessionDetailPage({
           </Button>
           <div>
             <h1 className="text-2xl font-bold tracking-tight">
-              פגישה עם {session.client.name}
+              {session.type === "BREAK" ? "🌊 הפסקה" : `פגישה עם ${session.client?.name || "מטופל"}`}
             </h1>
             <p className="text-muted-foreground flex items-center gap-2">
               <Calendar className="h-4 w-4" />
@@ -315,12 +315,14 @@ export default function SessionDetailPage({
               <SelectItem value="NO_SHOW">לא הגיע</SelectItem>
             </SelectContent>
           </Select>
-          <Button variant="outline" asChild>
-            <Link href={`/dashboard/clients/${session.client.id}`}>
-              <User className="ml-2 h-4 w-4" />
-              תיק מטופל
-            </Link>
-          </Button>
+          {session.client && (
+            <Button variant="outline" asChild>
+              <Link href={`/dashboard/clients/${session.client.id}`}>
+                <User className="ml-2 h-4 w-4" />
+                תיק מטופל
+              </Link>
+            </Button>
+          )}
         </div>
       </div>
 
@@ -620,12 +622,14 @@ export default function SessionDetailPage({
                   {session.recordings?.length || 0} הקלטות
                 </CardDescription>
               </div>
-              <Button asChild>
-                <Link href={`/dashboard/recordings/new?session=${session.id}&client=${session.client.id}`}>
-                  <Mic className="ml-2 h-4 w-4" />
-                  הקלטה חדשה
-                </Link>
-              </Button>
+              {session.client && (
+                <Button asChild>
+                  <Link href={`/dashboard/recordings/new?session=${session.id}&client=${session.client.id}`}>
+                    <Mic className="ml-2 h-4 w-4" />
+                    הקלטה חדשה
+                  </Link>
+                </Button>
+              )}
             </CardHeader>
             <CardContent>
               {session.recordings?.length > 0 ? (

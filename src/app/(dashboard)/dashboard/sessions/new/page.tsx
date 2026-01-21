@@ -162,7 +162,7 @@ function NewSessionNoteContent() {
                     {filteredSessions.length > 0 ? (
                       filteredSessions.map((session) => (
                         <SelectItem key={session.id} value={session.id}>
-                          {session.client.name} - {new Date(session.startTime).toLocaleDateString("he-IL")}
+                          {session.client?.name || "🌊 הפסקה"} - {new Date(session.startTime).toLocaleDateString("he-IL")}
                         </SelectItem>
                       ))
                     ) : (

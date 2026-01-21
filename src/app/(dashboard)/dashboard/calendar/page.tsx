@@ -152,7 +152,7 @@ export default function CalendarPage() {
 
   const events: CalendarEvent[] = sessions.map((session) => ({
     id: session.id,
-    title: session.type === "BREAK" ? "🌊 הפסקה" : session.client.name,
+    title: session.type === "BREAK" ? "🌊 הפסקה" : (session.client?.name || "ללא שם"),
     start: new Date(session.startTime),
     end: new Date(session.endTime),
     backgroundColor:
@@ -172,7 +172,7 @@ export default function CalendarPage() {
         ? "var(--destructive)"
         : "var(--primary)",
     extendedProps: {
-      clientId: session.client.id,
+      clientId: session.client?.id || "",
       status: session.status,
       type: session.type,
     },

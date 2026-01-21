@@ -240,14 +240,18 @@ export default async function DashboardPage() {
                         </span>
                       </div>
                       <div>
-                        <Link 
-                          href={`/dashboard/clients/${therapySession.client.id}`}
-                          className="font-medium hover:text-primary hover:underline transition-colors"
-                        >
-                          {therapySession.client.name}
-                        </Link>
+                        {therapySession.client ? (
+                          <Link 
+                            href={`/dashboard/clients/${therapySession.client.id}`}
+                            className="font-medium hover:text-primary hover:underline transition-colors"
+                          >
+                            {therapySession.client.name}
+                          </Link>
+                        ) : (
+                          <span className="font-medium">🌊 הפסקה</span>
+                        )}
                         <p className="text-sm text-muted-foreground">
-                          {therapySession.type === "ONLINE" ? "אונליין" : "פרונטלי"}
+                          {therapySession.type === "BREAK" ? "הפסקה" : therapySession.type === "ONLINE" ? "אונליין" : "פרונטלי"}
                         </p>
                       </div>
                     </div>
