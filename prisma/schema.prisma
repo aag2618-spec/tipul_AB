@@ -1,0 +1,669 @@
+// Prisma schema for Therapy Practice Management System
+generator client {
+  provider = "prisma-client-js"
+}
+
+datasource db {
+  provider = "postgresql"
+}
+
+// ==================== Authentication ====================
+
+model Account {
+  id                String  @id @default(cuid())
+  userId            String
+  type              String
+  provider          String
+  providerAccountId String
+  refresh_token     String? @db.Text
+  access_token      String? @db.Text
+  expires_at        Int?
+  token_type        String?
+  scope             String?
+  id_token          String? @db.Text
+  session_state     String?
+
+  user User @relation(fields: [userId], references: [id], onDelete: Cascade)
+
+  @@unique([provider, providerAccountId])
+}
+
+model Session {
+  id           String   @id @default(cuid())
+  sessionToken String   @unique
+  userId       String
+  expires      DateTime
+  user         User     @relation(fields: [userId], references: [id], onDelete: Cascade)
+}
+
+model VerificationToken {
+  identifier String
+  token      String   @unique
+  expires    DateTime
+
+  @@unique([identifier, token])
+}
+
+// ==================== Core Models ====================
+
+enum Role {
+  USER
+  ADMIN
+}
+
+model User {
+  id            String    @id @default(cuid())
+  name          String?
+  email         String?   @unique
+  emailVerified DateTime?
+  image         String?
+  password      String?
+  phone         String?
+  license       String?
+  role          Role      @default(USER)
+  isBlocked     Boolean   @default(false)
+  createdAt     DateTime  @default(now())
+  updatedAt     DateTime  @updatedAt
+
+  accounts              Account[]
+  sessions              Session[]
+  clients               Client[]
+  therapySessions       TherapySession[]
+  documents             Document[]
+  notifications         Notification[]
+  tasks                 Task[]
+  notificationSettings  NotificationSetting[]
+  recurringPatterns     RecurringPattern[]
+  intakeTemplates       IntakeTemplate[]
+  apiUsageLogs          ApiUsageLog[]
+  subscriptionPayments  SubscriptionPayment[]
+  reviewedCancellations CancellationRequest[]
+  communicationLogs     CommunicationLog[]
+  communicationSetting  CommunicationSetting?
+  couponUsages          CouponUsage[]
+  questionnaireResponses QuestionnaireResponse[]
+}
+
+model Client {
+  id                  String       @id @default(cuid())
+  name                String
+  phone               String?
+  email               String?
+  birthDate           DateTime?
+  address             String?
+  status              ClientStatus @default(ACTIVE)
+  defaultSessionPrice Decimal?     @db.Decimal(10, 2)
+  medicalHistory      Json?
+  notes               String?      @db.Text
+  initialDiagnosis    String?      @db.Text
+  intakeNotes         String?      @db.Text
+  createdAt           DateTime     @default(now())
+  updatedAt           DateTime     @updatedAt
+
+  therapistId String
+  therapist   User   @relation(fields: [therapistId], references: [id], onDelete: Cascade)
+
+  therapySessions      TherapySession[]
+  payments             Payment[]
+  documents            Document[]
+  recordings           Recording[]
+  recurringPatterns    RecurringPattern[]
+  cancellationRequests CancellationRequest[]
+  communicationLogs    CommunicationLog[]
+  questionnaireResponses QuestionnaireResponse[]
+}
+
+enum ClientStatus {
+  ACTIVE
+  WAITING
+  INACTIVE
+  ARCHIVED
+}
+
+model TherapySession {
+  id          String        @id @default(cuid())
+  startTime   DateTime
+  endTime     DateTime
+  status      SessionStatus @default(SCHEDULED)
+  type        SessionType   @default(IN_PERSON)
+  price       Decimal       @db.Decimal(10, 2)
+  notes       String?       @db.Text
+  location    String?
+  isRecurring Boolean       @default(false)
+
+  // Cancellation fields
+  cancellationReason      String?   @db.Text
+  cancellationRequestedAt DateTime?
+  cancelledAt             DateTime?
+  cancelledBy             String? // 'CLIENT', 'THERAPIST', 'SYSTEM'
+
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+
+  therapistId String
+  therapist   User   @relation(fields: [therapistId], references: [id], onDelete: Cascade)
+
+  clientId String
+  client   Client @relation(fields: [clientId], references: [id], onDelete: Cascade)
+
+  sessionNote          SessionNote?
+  payment              Payment?
+  recordings           Recording[]
+  cancellationRequests CancellationRequest[]
+  communicationLogs    CommunicationLog[]
+}
+
+enum SessionStatus {
+  SCHEDULED
+  COMPLETED
+  CANCELLED
+  PENDING_CANCELLATION
+  NO_SHOW
+}
+
+enum SessionType {
+  IN_PERSON
+  ONLINE
+  PHONE
+}
+
+model SessionNote {
+  id         String   @id @default(cuid())
+  content    String   @db.Text
+  isPrivate  Boolean  @default(false)
+  aiAnalysis Json? // Stores AI analysis of the note
+  createdAt  DateTime @default(now())
+  updatedAt  DateTime @updatedAt
+
+  sessionId String         @unique
+  session   TherapySession @relation(fields: [sessionId], references: [id], onDelete: Cascade)
+}
+
+// ==================== Recording & AI ====================
+
+model Recording {
+  id              String          @id @default(cuid())
+  audioUrl        String
+  durationSeconds Int
+  type            RecordingType
+  status          RecordingStatus @default(PENDING)
+  createdAt       DateTime        @default(now())
+  updatedAt       DateTime        @updatedAt
+
+  clientId String?
+  client   Client? @relation(fields: [clientId], references: [id], onDelete: SetNull)
+
+  sessionId String?
+  session   TherapySession? @relation(fields: [sessionId], references: [id], onDelete: SetNull)
+
+  transcription Transcription?
+}
+
+enum RecordingType {
+  INTAKE
+  SESSION
+}
+
+enum RecordingStatus {
+  PENDING
+  TRANSCRIBING
+  TRANSCRIBED
+  ANALYZED
+  ERROR
+}
+
+model Transcription {
+  id         String   @id @default(cuid())
+  content    String   @db.Text
+  language   String   @default("he")
+  confidence Float?
+  timestamps Json?
+  createdAt  DateTime @default(now())
+  updatedAt  DateTime @updatedAt
+
+  recordingId String    @unique
+  recording   Recording @relation(fields: [recordingId], references: [id], onDelete: Cascade)
+
+  analysis Analysis?
+}
+
+model Analysis {
+  id               String   @id @default(cuid())
+  summary          String   @db.Text
+  keyTopics        Json?
+  emotionalMarkers Json?
+  recommendations  Json?
+  nextSessionNotes String?  @db.Text
+  createdAt        DateTime @default(now())
+  updatedAt        DateTime @updatedAt
+
+  transcriptionId String        @unique
+  transcription   Transcription @relation(fields: [transcriptionId], references: [id], onDelete: Cascade)
+}
+
+// ==================== Payments ====================
+
+model Payment {
+  id         String        @id @default(cuid())
+  amount     Decimal       @db.Decimal(10, 2)
+  method     PaymentMethod
+  status     PaymentStatus @default(PENDING)
+  receiptUrl String?
+  notes      String?
+  paidAt     DateTime?
+  createdAt  DateTime      @default(now())
+  updatedAt  DateTime      @updatedAt
+
+  clientId String
+  client   Client @relation(fields: [clientId], references: [id], onDelete: Cascade)
+
+  sessionId String?         @unique
+  session   TherapySession? @relation(fields: [sessionId], references: [id], onDelete: SetNull)
+}
+
+enum PaymentMethod {
+  CASH
+  CREDIT_CARD
+  BANK_TRANSFER
+  CHECK
+  OTHER
+}
+
+enum PaymentStatus {
+  PENDING
+  PAID
+  CANCELLED
+  REFUNDED
+}
+
+// ==================== Documents ====================
+
+model Document {
+  id        String       @id @default(cuid())
+  name      String
+  type      DocumentType
+  fileUrl   String
+  signed    Boolean      @default(false)
+  signedAt  DateTime?
+  createdAt DateTime     @default(now())
+  updatedAt DateTime     @updatedAt
+
+  therapistId String
+  therapist   User   @relation(fields: [therapistId], references: [id], onDelete: Cascade)
+
+  clientId String?
+  client   Client? @relation(fields: [clientId], references: [id], onDelete: SetNull)
+}
+
+enum DocumentType {
+  CONSENT_FORM
+  INTAKE_FORM
+  TREATMENT_PLAN
+  REPORT
+  OTHER
+}
+
+// ==================== Notifications & Tasks ====================
+
+model Notification {
+  id           String             @id @default(cuid())
+  type         NotificationType
+  title        String
+  content      String             @db.Text
+  status       NotificationStatus @default(PENDING)
+  scheduledFor DateTime?
+  sentAt       DateTime?
+  readAt       DateTime?
+  createdAt    DateTime           @default(now())
+
+  userId String
+  user   User   @relation(fields: [userId], references: [id], onDelete: Cascade)
+}
+
+enum NotificationType {
+  MORNING_SUMMARY
+  EVENING_SUMMARY
+  PENDING_TASKS
+  PAYMENT_REMINDER
+  SESSION_REMINDER
+  EMAIL_SENT
+  CANCELLATION_REQUEST
+  CUSTOM
+}
+
+enum NotificationStatus {
+  PENDING
+  SENT
+  READ
+  DISMISSED
+}
+
+model Task {
+  id              String     @id @default(cuid())
+  type            TaskType
+  title           String
+  description     String?    @db.Text
+  status          TaskStatus @default(PENDING)
+  priority        Priority   @default(MEDIUM)
+  dueDate         DateTime?
+  reminderAt      DateTime?
+  relatedEntityId String?
+  relatedEntity   String?
+  createdAt       DateTime   @default(now())
+  updatedAt       DateTime   @updatedAt
+
+  userId String
+  user   User   @relation(fields: [userId], references: [id], onDelete: Cascade)
+}
+
+enum TaskType {
+  WRITE_SUMMARY
+  COLLECT_PAYMENT
+  SIGN_DOCUMENT
+  SCHEDULE_SESSION
+  REVIEW_TRANSCRIPTION
+  FOLLOW_UP
+  CUSTOM
+}
+
+enum TaskStatus {
+  PENDING
+  IN_PROGRESS
+  COMPLETED
+  CANCELLED
+}
+
+enum Priority {
+  LOW
+  MEDIUM
+  HIGH
+  URGENT
+}
+
+model NotificationSetting {
+  id                 String   @id @default(cuid())
+  channel            String
+  enabled            Boolean  @default(true)
+  eveningTime        String? // Format: "HH:mm"
+  morningTime        String? // Format: "HH:mm"
+  debtThresholdDays  Int      @default(30)
+  monthlyReminderDay Int? // 1-31, day of month for payment reminder
+  createdAt          DateTime @default(now())
+  updatedAt          DateTime @updatedAt
+
+  userId String
+  user   User   @relation(fields: [userId], references: [id], onDelete: Cascade)
+}
+
+// ==================== Recurring Sessions ====================
+
+model RecurringPattern {
+  id        String   @id @default(cuid())
+  dayOfWeek Int // 0-6 (Sunday-Saturday)
+  time      String // Format: "HH:mm"
+  duration  Int      @default(50) // minutes
+  isActive  Boolean  @default(true)
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+
+  userId String
+  user   User   @relation(fields: [userId], references: [id], onDelete: Cascade)
+
+  clientId String?
+  client   Client? @relation(fields: [clientId], references: [id], onDelete: SetNull)
+}
+
+// ==================== Intake Templates ====================
+
+model IntakeTemplate {
+  id        String   @id @default(cuid())
+  name      String
+  questions Json // Array of question objects
+  isDefault Boolean  @default(false)
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+
+  userId String
+  user   User   @relation(fields: [userId], references: [id], onDelete: Cascade)
+}
+
+// ==================== Admin: API Usage Logging ====================
+
+model ApiUsageLog {
+  id           String   @id @default(cuid())
+  endpoint     String // e.g., "/api/transcribe", "/api/analyze"
+  method       String // e.g., "POST"
+  tokensUsed   Int? // Estimated tokens used for AI calls
+  cost         Decimal? @db.Decimal(10, 4) // Estimated cost in dollars
+  success      Boolean  @default(true)
+  errorMessage String?  @db.Text
+  durationMs   Int? // Request duration in milliseconds
+  createdAt    DateTime @default(now())
+
+  userId String
+  user   User   @relation(fields: [userId], references: [id], onDelete: Cascade)
+}
+
+// ==================== Admin: Subscription Payments ====================
+
+model SubscriptionPayment {
+  id          String                    @id @default(cuid())
+  amount      Decimal                   @db.Decimal(10, 2)
+  currency    String                    @default("ILS")
+  status      SubscriptionPaymentStatus @default(PENDING)
+  description String?
+  invoiceUrl  String?
+  periodStart DateTime?
+  periodEnd   DateTime?
+  paidAt      DateTime?
+  createdAt   DateTime                  @default(now())
+  updatedAt   DateTime                  @updatedAt
+
+  userId String
+  user   User   @relation(fields: [userId], references: [id], onDelete: Cascade)
+}
+
+enum SubscriptionPaymentStatus {
+  PENDING
+  PAID
+  OVERDUE
+  CANCELLED
+  REFUNDED
+}
+
+// ==================== Cancellation Requests ====================
+
+model CancellationRequest {
+  id         String                    @id @default(cuid())
+  reason     String?                   @db.Text
+  status     CancellationRequestStatus @default(PENDING)
+  adminNotes String?                   @db.Text
+  reviewedAt DateTime?
+  createdAt  DateTime                  @default(now())
+  updatedAt  DateTime                  @updatedAt
+
+  sessionId String
+  session   TherapySession @relation(fields: [sessionId], references: [id], onDelete: Cascade)
+
+  clientId String
+  client   Client @relation(fields: [clientId], references: [id], onDelete: Cascade)
+
+  reviewedById String?
+  reviewedBy   User?   @relation(fields: [reviewedById], references: [id], onDelete: SetNull)
+}
+
+enum CancellationRequestStatus {
+  PENDING
+  APPROVED
+  REJECTED
+}
+
+// ==================== Communication Log ====================
+
+model CommunicationLog {
+  id           String               @id @default(cuid())
+  type         CommunicationType
+  channel      CommunicationChannel @default(EMAIL)
+  recipient    String
+  subject      String?
+  content      String               @db.Text
+  status       CommunicationStatus  @default(PENDING)
+  errorMessage String?              @db.Text
+  sentAt       DateTime?
+  createdAt    DateTime             @default(now())
+
+  sessionId String?
+  session   TherapySession? @relation(fields: [sessionId], references: [id], onDelete: SetNull)
+
+  clientId String?
+  client   Client? @relation(fields: [clientId], references: [id], onDelete: SetNull)
+
+  userId String?
+  user   User?   @relation(fields: [userId], references: [id], onDelete: SetNull)
+}
+
+enum CommunicationType {
+  SESSION_CONFIRMATION
+  REMINDER_24H
+  REMINDER_2H
+  CANCELLATION_REQUEST_TO_CLIENT
+  CANCELLATION_REQUEST_TO_THERAPIST
+  CANCELLATION_APPROVED
+  CANCELLATION_REJECTED
+  CUSTOM
+}
+
+enum CommunicationChannel {
+  EMAIL
+  SMS
+  WHATSAPP
+}
+
+enum CommunicationStatus {
+  PENDING
+  SENT
+  FAILED
+}
+
+// ==================== Communication Settings ====================
+
+model CommunicationSetting {
+  id String @id @default(cuid())
+
+  // Session notifications
+  sendConfirmationEmail Boolean @default(true)
+  send24hReminder       Boolean @default(true)
+  send2hReminder        Boolean @default(false)
+
+  // Cancellation policy
+  allowClientCancellation Boolean @default(true)
+  minCancellationHours    Int     @default(24)
+
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+
+  userId String @unique
+  user   User   @relation(fields: [userId], references: [id], onDelete: Cascade)
+}
+
+// ==================== Coupon System ====================
+
+enum CouponType {
+  SINGLE_USE     // קופון חד-פעמי - לקוח ספציפי
+  LIMITED        // מוגבל למספר שימושים
+  UNLIMITED      // ללא הגבלה
+}
+
+model Coupon {
+  id          String      @id @default(cuid())
+  code        String      @unique // הקוד עצמו
+  name        String      // שם לתיאור (לנוחות ניהול)
+  type        CouponType  @default(LIMITED)
+  
+  maxUses     Int?        // מקסימום שימושים (null = ללא הגבלה)
+  usedCount   Int         @default(0) // כמה פעמים השתמשו
+  
+  discount    Int         @default(0) // אחוז הנחה (לעתיד)
+  trialDays   Int         @default(30) // ימי ניסיון
+  
+  validFrom   DateTime    @default(now()) // תחילת תוקף
+  validUntil  DateTime?   // תאריך תפוגה (null = ללא תפוגה)
+  
+  isActive    Boolean     @default(true) // האם פעיל
+  
+  createdAt   DateTime    @default(now())
+  updatedAt   DateTime    @updatedAt
+  
+  // מי השתמש בקופון
+  usages      CouponUsage[]
+}
+
+model CouponUsage {
+  id        String   @id @default(cuid())
+  couponId  String
+  userId    String
+  usedAt    DateTime @default(now())
+  
+  coupon    Coupon   @relation(fields: [couponId], references: [id], onDelete: Cascade)
+  user      User     @relation(fields: [userId], references: [id], onDelete: Cascade)
+  
+  @@unique([couponId, userId]) // משתמש יכול להשתמש בקופון פעם אחת
+}
+
+// ==================== Questionnaires ====================
+
+model QuestionnaireTemplate {
+  id          String   @id @default(cuid())
+  code        String   @unique // e.g., "BDI2", "PCL5", "HAMA"
+  name        String   // e.g., "מדד דיכאון בק"
+  nameEn      String?  // e.g., "Beck Depression Inventory"
+  description String?  @db.Text
+  category    String?  // e.g., "דיכאון", "חרדה", "טראומה"
+  testType    TestType @default(SELF_REPORT) // סוג המבחן
+  questions   Json     // Array of questions with options
+  scoring     Json?    // Scoring instructions
+  stimuli     Json?    // For projective tests - images/cards
+  subtests    Json?    // For intelligence tests - subtests
+  isActive    Boolean  @default(true)
+  createdAt   DateTime @default(now())
+  updatedAt   DateTime @updatedAt
+  
+  responses   QuestionnaireResponse[]
+}
+
+enum TestType {
+  SELF_REPORT      // שאלון דיווח עצמי (BDI, PCL-5)
+  CLINICIAN_RATED  // הערכה קלינית (HAM-A)
+  PROJECTIVE       // מבחן השלכתי (רורשאך, TAT)
+  INTELLIGENCE     // מבחן אינטליגנציה (וקסלר)
+  NEUROPSYCH       // מבחן נוירופסיכולוגי (Bender)
+  INTERVIEW        // ראיון מובנה (SCID)
+}
+
+model QuestionnaireResponse {
+  id            String   @id @default(cuid())
+  answers       Json     // Array of answers
+  totalScore    Int?     // Calculated total score
+  subscores     Json?    // Category/criterion scores
+  aiAnalysis    String?  @db.Text // AI analysis of results
+  status        QuestionnaireStatus @default(IN_PROGRESS)
+  startedAt     DateTime @default(now())
+  completedAt   DateTime?
+  createdAt     DateTime @default(now())
+  updatedAt     DateTime @updatedAt
+  
+  templateId    String
+  template      QuestionnaireTemplate @relation(fields: [templateId], references: [id], onDelete: Cascade)
+  
+  clientId      String
+  client        Client @relation(fields: [clientId], references: [id], onDelete: Cascade)
+  
+  therapistId   String
+  therapist     User   @relation(fields: [therapistId], references: [id], onDelete: Cascade)
+}
+
+enum QuestionnaireStatus {
+  IN_PROGRESS
+  COMPLETED
+  ANALYZED
+}
