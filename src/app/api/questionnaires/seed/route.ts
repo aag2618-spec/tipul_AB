@@ -689,6 +689,571 @@ const questionnaires = [
       { id: 12, section: "social", title: "מערכות יחסים", type: "text", options: [] }
     ],
     scoring: {}
+  },
+  // OCI-R - Obsessive Compulsive Inventory
+  {
+    code: "OCIR",
+    name: "שאלון OCD מקוצר",
+    nameEn: "Obsessive-Compulsive Inventory - Revised",
+    description: "שאלון ל-18 פריטים להערכת תסמיני הפרעה טורדנית-כפייתית",
+    category: "OCD",
+    testType: "SELF_REPORT",
+    questions: [
+      { id: 1, section: "washing", title: "אני מרגיש שהידיים שלי מלוכלכות כשאני נוגע בכסף", options: [
+        { value: 0, text: "בכלל לא" }, { value: 1, text: "קצת" }, { value: 2, text: "במידה בינונית" }, { value: 3, text: "הרבה" }, { value: 4, text: "מאוד" }
+      ]},
+      { id: 2, section: "washing", title: "אני רוחץ ידיים יותר ויותר זמן מהרגיל", options: [
+        { value: 0, text: "בכלל לא" }, { value: 1, text: "קצת" }, { value: 2, text: "במידה בינונית" }, { value: 3, text: "הרבה" }, { value: 4, text: "מאוד" }
+      ]},
+      { id: 3, section: "washing", title: "אני מודאג מאוד מניקיון", options: [
+        { value: 0, text: "בכלל לא" }, { value: 1, text: "קצת" }, { value: 2, text: "במידה בינונית" }, { value: 3, text: "הרבה" }, { value: 4, text: "מאוד" }
+      ]},
+      { id: 4, section: "checking", title: "אני בודק דברים יותר מהנדרש", options: [
+        { value: 0, text: "בכלל לא" }, { value: 1, text: "קצת" }, { value: 2, text: "במידה בינונית" }, { value: 3, text: "הרבה" }, { value: 4, text: "מאוד" }
+      ]},
+      { id: 5, section: "checking", title: "אני בודק שוב ושוב דלתות, חלונות וכו'", options: [
+        { value: 0, text: "בכלל לא" }, { value: 1, text: "קצת" }, { value: 2, text: "במידה בינונית" }, { value: 3, text: "הרבה" }, { value: 4, text: "מאוד" }
+      ]},
+      { id: 6, section: "checking", title: "אני בודק גז/ברזים/מתגים שוב ושוב", options: [
+        { value: 0, text: "בכלל לא" }, { value: 1, text: "קצת" }, { value: 2, text: "במידה בינונית" }, { value: 3, text: "הרבה" }, { value: 4, text: "מאוד" }
+      ]},
+      { id: 7, section: "ordering", title: "אני צריך שדברים יהיו מסודרים בצורה מסוימת", options: [
+        { value: 0, text: "בכלל לא" }, { value: 1, text: "קצת" }, { value: 2, text: "במידה בינונית" }, { value: 3, text: "הרבה" }, { value: 4, text: "מאוד" }
+      ]},
+      { id: 8, section: "ordering", title: "אני מוטרד כשדברים לא במקומם", options: [
+        { value: 0, text: "בכלל לא" }, { value: 1, text: "קצת" }, { value: 2, text: "במידה בינונית" }, { value: 3, text: "הרבה" }, { value: 4, text: "מאוד" }
+      ]},
+      { id: 9, section: "ordering", title: "אני מרגיש צורך לסדר דברים", options: [
+        { value: 0, text: "בכלל לא" }, { value: 1, text: "קצת" }, { value: 2, text: "במידה בינונית" }, { value: 3, text: "הרבה" }, { value: 4, text: "מאוד" }
+      ]},
+      { id: 10, section: "obsessing", title: "מחשבות לא נעימות נכנסות לי לראש בעל כורחי", options: [
+        { value: 0, text: "בכלל לא" }, { value: 1, text: "קצת" }, { value: 2, text: "במידה בינונית" }, { value: 3, text: "הרבה" }, { value: 4, text: "מאוד" }
+      ]},
+      { id: 11, section: "obsessing", title: "אני לא יכול להפסיק לחשוב על מחשבות מטרידות", options: [
+        { value: 0, text: "בכלל לא" }, { value: 1, text: "קצת" }, { value: 2, text: "במידה בינונית" }, { value: 3, text: "הרבה" }, { value: 4, text: "מאוד" }
+      ]},
+      { id: 12, section: "obsessing", title: "יש לי מחשבות לא נעימות על פגיעה באחרים", options: [
+        { value: 0, text: "בכלל לא" }, { value: 1, text: "קצת" }, { value: 2, text: "במידה בינונית" }, { value: 3, text: "הרבה" }, { value: 4, text: "מאוד" }
+      ]},
+      { id: 13, section: "hoarding", title: "אני אוסף דברים שאני לא צריך", options: [
+        { value: 0, text: "בכלל לא" }, { value: 1, text: "קצת" }, { value: 2, text: "במידה בינונית" }, { value: 3, text: "הרבה" }, { value: 4, text: "מאוד" }
+      ]},
+      { id: 14, section: "hoarding", title: "קשה לי לזרוק דברים", options: [
+        { value: 0, text: "בכלל לא" }, { value: 1, text: "קצת" }, { value: 2, text: "במידה בינונית" }, { value: 3, text: "הרבה" }, { value: 4, text: "מאוד" }
+      ]},
+      { id: 15, section: "hoarding", title: "הבית שלי עמוס בדברים מיותרים", options: [
+        { value: 0, text: "בכלל לא" }, { value: 1, text: "קצת" }, { value: 2, text: "במידה בינונית" }, { value: 3, text: "הרבה" }, { value: 4, text: "מאוד" }
+      ]},
+      { id: 16, section: "neutralizing", title: "אני מרגיש צורך לספור בזמן שאני עושה דברים", options: [
+        { value: 0, text: "בכלל לא" }, { value: 1, text: "קצת" }, { value: 2, text: "במידה בינונית" }, { value: 3, text: "הרבה" }, { value: 4, text: "מאוד" }
+      ]},
+      { id: 17, section: "neutralizing", title: "אני מרגיש צורך לחזור על מספרים מסוימים", options: [
+        { value: 0, text: "בכלל לא" }, { value: 1, text: "קצת" }, { value: 2, text: "במידה בינונית" }, { value: 3, text: "הרבה" }, { value: 4, text: "מאוד" }
+      ]},
+      { id: 18, section: "neutralizing", title: "יש לי טקסים שאני חייב לעשות", options: [
+        { value: 0, text: "בכלל לא" }, { value: 1, text: "קצת" }, { value: 2, text: "במידה בינונית" }, { value: 3, text: "הרבה" }, { value: 4, text: "מאוד" }
+      ]}
+    ],
+    scoring: {
+      maxScore: 72,
+      cutoff: 21,
+      subscales: {
+        washing: { items: [1,2,3], name: "רחיצה" },
+        checking: { items: [4,5,6], name: "בדיקה" },
+        ordering: { items: [7,8,9], name: "סידור" },
+        obsessing: { items: [10,11,12], name: "אובססיות" },
+        hoarding: { items: [13,14,15], name: "אגירה" },
+        neutralizing: { items: [16,17,18], name: "ניטרול" }
+      }
+    }
+  },
+  // AUDIT - Alcohol Use Disorders
+  {
+    code: "AUDIT",
+    name: "שאלון שימוש באלכוהול",
+    nameEn: "Alcohol Use Disorders Identification Test",
+    description: "שאלון ל-10 פריטים לזיהוי בעיות שימוש באלכוהול",
+    category: "התמכרויות",
+    testType: "SELF_REPORT",
+    questions: [
+      { id: 1, title: "באיזו תדירות אתה שותה משקאות אלכוהוליים?", options: [
+        { value: 0, text: "אף פעם" }, { value: 1, text: "פעם בחודש או פחות" }, { value: 2, text: "2-4 פעמים בחודש" }, { value: 3, text: "2-3 פעמים בשבוע" }, { value: 4, text: "4+ פעמים בשבוע" }
+      ]},
+      { id: 2, title: "כמה מנות אלכוהול אתה שותה ביום טיפוסי?", options: [
+        { value: 0, text: "1-2" }, { value: 1, text: "3-4" }, { value: 2, text: "5-6" }, { value: 3, text: "7-9" }, { value: 4, text: "10+" }
+      ]},
+      { id: 3, title: "באיזו תדירות אתה שותה 6+ מנות באירוע אחד?", options: [
+        { value: 0, text: "אף פעם" }, { value: 1, text: "פחות מפעם בחודש" }, { value: 2, text: "פעם בחודש" }, { value: 3, text: "פעם בשבוע" }, { value: 4, text: "כמעט כל יום" }
+      ]},
+      { id: 4, title: "בשנה האחרונה, כמה פעמים לא יכולת להפסיק לשתות אחרי שהתחלת?", options: [
+        { value: 0, text: "אף פעם" }, { value: 1, text: "פחות מפעם בחודש" }, { value: 2, text: "פעם בחודש" }, { value: 3, text: "פעם בשבוע" }, { value: 4, text: "כמעט כל יום" }
+      ]},
+      { id: 5, title: "בשנה האחרונה, כמה פעמים לא עשית מה שהיה צפוי ממך בגלל שתייה?", options: [
+        { value: 0, text: "אף פעם" }, { value: 1, text: "פחות מפעם בחודש" }, { value: 2, text: "פעם בחודש" }, { value: 3, text: "פעם בשבוע" }, { value: 4, text: "כמעט כל יום" }
+      ]},
+      { id: 6, title: "בשנה האחרונה, כמה פעמים הזדקקת למשקה בבוקר כדי להתחיל לתפקד?", options: [
+        { value: 0, text: "אף פעם" }, { value: 1, text: "פחות מפעם בחודש" }, { value: 2, text: "פעם בחודש" }, { value: 3, text: "פעם בשבוע" }, { value: 4, text: "כמעט כל יום" }
+      ]},
+      { id: 7, title: "בשנה האחרונה, כמה פעמים הרגשת אשמה או חרטה אחרי שתייה?", options: [
+        { value: 0, text: "אף פעם" }, { value: 1, text: "פחות מפעם בחודש" }, { value: 2, text: "פעם בחודש" }, { value: 3, text: "פעם בשבוע" }, { value: 4, text: "כמעט כל יום" }
+      ]},
+      { id: 8, title: "בשנה האחרונה, כמה פעמים לא זכרת מה קרה בלילה הקודם בגלל שתייה?", options: [
+        { value: 0, text: "אף פעם" }, { value: 1, text: "פחות מפעם בחודש" }, { value: 2, text: "פעם בחודש" }, { value: 3, text: "פעם בשבוע" }, { value: 4, text: "כמעט כל יום" }
+      ]},
+      { id: 9, title: "האם נפגעת או מישהו אחר נפגע כתוצאה מהשתייה שלך?", options: [
+        { value: 0, text: "לא" }, { value: 2, text: "כן, אבל לא בשנה האחרונה" }, { value: 4, text: "כן, בשנה האחרונה" }
+      ]},
+      { id: 10, title: "האם קרוב משפחה, חבר או איש מקצוע הביע דאגה לגבי השתייה שלך?", options: [
+        { value: 0, text: "לא" }, { value: 2, text: "כן, אבל לא בשנה האחרונה" }, { value: 4, text: "כן, בשנה האחרונה" }
+      ]}
+    ],
+    scoring: {
+      maxScore: 40,
+      ranges: [
+        { min: 0, max: 7, label: "סיכון נמוך", description: "שתייה בסיכון נמוך" },
+        { min: 8, max: 15, label: "סיכון בינוני", description: "שתייה מזיקה" },
+        { min: 16, max: 19, label: "סיכון גבוה", description: "שתייה מזיקה - מומלץ ייעוץ" },
+        { min: 20, max: 40, label: "תלות", description: "תלות באלכוהול - נדרש טיפול" }
+      ]
+    }
+  },
+  // BAI - Beck Anxiety Inventory
+  {
+    code: "BAI",
+    name: "מדד חרדה בק",
+    nameEn: "Beck Anxiety Inventory",
+    description: "שאלון ל-21 פריטים למדידת חומרת תסמיני חרדה",
+    category: "חרדה",
+    testType: "SELF_REPORT",
+    questions: [
+      { id: 1, title: "נימול או עקצוץ", options: [
+        { value: 0, text: "כלל לא" }, { value: 1, text: "מעט" }, { value: 2, text: "במידה בינונית" }, { value: 3, text: "הרבה" }
+      ]},
+      { id: 2, title: "תחושת חום", options: [
+        { value: 0, text: "כלל לא" }, { value: 1, text: "מעט" }, { value: 2, text: "במידה בינונית" }, { value: 3, text: "הרבה" }
+      ]},
+      { id: 3, title: "רעד ברגליים", options: [
+        { value: 0, text: "כלל לא" }, { value: 1, text: "מעט" }, { value: 2, text: "במידה בינונית" }, { value: 3, text: "הרבה" }
+      ]},
+      { id: 4, title: "חוסר יכולת להירגע", options: [
+        { value: 0, text: "כלל לא" }, { value: 1, text: "מעט" }, { value: 2, text: "במידה בינונית" }, { value: 3, text: "הרבה" }
+      ]},
+      { id: 5, title: "פחד שהגרוע מכל יקרה", options: [
+        { value: 0, text: "כלל לא" }, { value: 1, text: "מעט" }, { value: 2, text: "במידה בינונית" }, { value: 3, text: "הרבה" }
+      ]},
+      { id: 6, title: "סחרחורת או חוסר יציבות", options: [
+        { value: 0, text: "כלל לא" }, { value: 1, text: "מעט" }, { value: 2, text: "במידה בינונית" }, { value: 3, text: "הרבה" }
+      ]},
+      { id: 7, title: "דפיקות לב מואצות", options: [
+        { value: 0, text: "כלל לא" }, { value: 1, text: "מעט" }, { value: 2, text: "במידה בינונית" }, { value: 3, text: "הרבה" }
+      ]},
+      { id: 8, title: "חוסר יציבות", options: [
+        { value: 0, text: "כלל לא" }, { value: 1, text: "מעט" }, { value: 2, text: "במידה בינונית" }, { value: 3, text: "הרבה" }
+      ]},
+      { id: 9, title: "פחד מאובדן שליטה", options: [
+        { value: 0, text: "כלל לא" }, { value: 1, text: "מעט" }, { value: 2, text: "במידה בינונית" }, { value: 3, text: "הרבה" }
+      ]},
+      { id: 10, title: "פחד למות", options: [
+        { value: 0, text: "כלל לא" }, { value: 1, text: "מעט" }, { value: 2, text: "במידה בינונית" }, { value: 3, text: "הרבה" }
+      ]},
+      { id: 11, title: "בהלה", options: [
+        { value: 0, text: "כלל לא" }, { value: 1, text: "מעט" }, { value: 2, text: "במידה בינונית" }, { value: 3, text: "הרבה" }
+      ]},
+      { id: 12, title: "בעיות עיכול", options: [
+        { value: 0, text: "כלל לא" }, { value: 1, text: "מעט" }, { value: 2, text: "במידה בינונית" }, { value: 3, text: "הרבה" }
+      ]},
+      { id: 13, title: "חיוורון", options: [
+        { value: 0, text: "כלל לא" }, { value: 1, text: "מעט" }, { value: 2, text: "במידה בינונית" }, { value: 3, text: "הרבה" }
+      ]},
+      { id: 14, title: "סומק פנים", options: [
+        { value: 0, text: "כלל לא" }, { value: 1, text: "מעט" }, { value: 2, text: "במידה בינונית" }, { value: 3, text: "הרבה" }
+      ]},
+      { id: 15, title: "הזעה (לא מחום)", options: [
+        { value: 0, text: "כלל לא" }, { value: 1, text: "מעט" }, { value: 2, text: "במידה בינונית" }, { value: 3, text: "הרבה" }
+      ]},
+      { id: 16, title: "עצבנות", options: [
+        { value: 0, text: "כלל לא" }, { value: 1, text: "מעט" }, { value: 2, text: "במידה בינונית" }, { value: 3, text: "הרבה" }
+      ]},
+      { id: 17, title: "תחושת חנק", options: [
+        { value: 0, text: "כלל לא" }, { value: 1, text: "מעט" }, { value: 2, text: "במידה בינונית" }, { value: 3, text: "הרבה" }
+      ]},
+      { id: 18, title: "רעד בידיים", options: [
+        { value: 0, text: "כלל לא" }, { value: 1, text: "מעט" }, { value: 2, text: "במידה בינונית" }, { value: 3, text: "הרבה" }
+      ]},
+      { id: 19, title: "רעד כללי", options: [
+        { value: 0, text: "כלל לא" }, { value: 1, text: "מעט" }, { value: 2, text: "במידה בינונית" }, { value: 3, text: "הרבה" }
+      ]},
+      { id: 20, title: "קשיי נשימה", options: [
+        { value: 0, text: "כלל לא" }, { value: 1, text: "מעט" }, { value: 2, text: "במידה בינונית" }, { value: 3, text: "הרבה" }
+      ]},
+      { id: 21, title: "פחד משיגעון", options: [
+        { value: 0, text: "כלל לא" }, { value: 1, text: "מעט" }, { value: 2, text: "במידה בינונית" }, { value: 3, text: "הרבה" }
+      ]}
+    ],
+    scoring: {
+      maxScore: 63,
+      ranges: [
+        { min: 0, max: 7, label: "מינימלי", description: "חרדה מינימלית" },
+        { min: 8, max: 15, label: "קל", description: "חרדה קלה" },
+        { min: 16, max: 25, label: "בינוני", description: "חרדה בינונית" },
+        { min: 26, max: 63, label: "חמור", description: "חרדה חמורה" }
+      ]
+    }
+  },
+  // MDQ - Mood Disorder Questionnaire (Bipolar)
+  {
+    code: "MDQ",
+    name: "שאלון הפרעות מצב רוח",
+    nameEn: "Mood Disorder Questionnaire",
+    description: "שאלון סקר להפרעה דו-קוטבית",
+    category: "מצב רוח",
+    testType: "SELF_REPORT",
+    questions: [
+      { id: 1, title: "הרגשת כל כך טוב או היפר שאחרים חשבו שאתה לא בסדר?", options: [
+        { value: 0, text: "לא" }, { value: 1, text: "כן" }
+      ]},
+      { id: 2, title: "היית כל כך עצבני שצעקת על אנשים או התחלת מריבות?", options: [
+        { value: 0, text: "לא" }, { value: 1, text: "כן" }
+      ]},
+      { id: 3, title: "הרגשת בטוח בעצמך הרבה יותר מהרגיל?", options: [
+        { value: 0, text: "לא" }, { value: 1, text: "כן" }
+      ]},
+      { id: 4, title: "ישנת הרבה פחות מהרגיל ועדיין לא הרגשת עייף?", options: [
+        { value: 0, text: "לא" }, { value: 1, text: "כן" }
+      ]},
+      { id: 5, title: "היית יותר דברן מהרגיל או דיברת מהר מאוד?", options: [
+        { value: 0, text: "לא" }, { value: 1, text: "כן" }
+      ]},
+      { id: 6, title: "מחשבות רצו לך בראש במהירות?", options: [
+        { value: 0, text: "לא" }, { value: 1, text: "כן" }
+      ]},
+      { id: 7, title: "הוסחת כל כך בקלות שהתקשית להתרכז?", options: [
+        { value: 0, text: "לא" }, { value: 1, text: "כן" }
+      ]},
+      { id: 8, title: "היה לך הרבה יותר אנרגיה מהרגיל?", options: [
+        { value: 0, text: "לא" }, { value: 1, text: "כן" }
+      ]},
+      { id: 9, title: "היית הרבה יותר פעיל או עשית הרבה יותר דברים מהרגיל?", options: [
+        { value: 0, text: "לא" }, { value: 1, text: "כן" }
+      ]},
+      { id: 10, title: "היית הרבה יותר חברותי מהרגיל?", options: [
+        { value: 0, text: "לא" }, { value: 1, text: "כן" }
+      ]},
+      { id: 11, title: "היית מעוניין במין הרבה יותר מהרגיל?", options: [
+        { value: 0, text: "לא" }, { value: 1, text: "כן" }
+      ]},
+      { id: 12, title: "עשית דברים יוצאי דופן או שאחרים חשבו שמוגזמים?", options: [
+        { value: 0, text: "לא" }, { value: 1, text: "כן" }
+      ]},
+      { id: 13, title: "הוצאת כסף שגרם לך או למשפחתך לצרות?", options: [
+        { value: 0, text: "לא" }, { value: 1, text: "כן" }
+      ]},
+      { id: 14, title: "האם כמה מהדברים הללו קרו באותה תקופה?", options: [
+        { value: 0, text: "לא" }, { value: 1, text: "כן" }
+      ]},
+      { id: 15, title: "כמה בעיות גרמו לך התנהגויות אלה?", options: [
+        { value: 0, text: "אין בעיה" }, { value: 1, text: "בעיה קטנה" }, { value: 2, text: "בעיה בינונית" }, { value: 3, text: "בעיה רצינית" }
+      ]}
+    ],
+    scoring: {
+      positiveScreen: { minYes: 7, requiresConcurrence: true, requiresProblems: true }
+    }
+  },
+  // ASRS - Adult ADHD Self-Report
+  {
+    code: "ASRS",
+    name: "שאלון דיווח עצמי ל-ADHD במבוגרים",
+    nameEn: "Adult ADHD Self-Report Scale",
+    description: "שאלון סקר ל-18 פריטים להערכת ADHD במבוגרים",
+    category: "קשב וריכוז",
+    testType: "SELF_REPORT",
+    questions: [
+      { id: 1, title: "כמה פעמים יש לך קושי לסיים פרטים אחרונים בפרויקט?", options: [
+        { value: 0, text: "אף פעם" }, { value: 1, text: "לעתים רחוקות" }, { value: 2, text: "לפעמים" }, { value: 3, text: "לעתים קרובות" }, { value: 4, text: "לעתים קרובות מאוד" }
+      ]},
+      { id: 2, title: "כמה פעמים יש לך קושי לסדר דברים כשצריך לעשות משימה מאורגנת?", options: [
+        { value: 0, text: "אף פעם" }, { value: 1, text: "לעתים רחוקות" }, { value: 2, text: "לפעמים" }, { value: 3, text: "לעתים קרובות" }, { value: 4, text: "לעתים קרובות מאוד" }
+      ]},
+      { id: 3, title: "כמה פעמים יש לך קושי לזכור פגישות או התחייבויות?", options: [
+        { value: 0, text: "אף פעם" }, { value: 1, text: "לעתים רחוקות" }, { value: 2, text: "לפעמים" }, { value: 3, text: "לעתים קרובות" }, { value: 4, text: "לעתים קרובות מאוד" }
+      ]},
+      { id: 4, title: "כמה פעמים אתה נמנע או מתעכב להתחיל במשימה שדורשת חשיבה רבה?", options: [
+        { value: 0, text: "אף פעם" }, { value: 1, text: "לעתים רחוקות" }, { value: 2, text: "לפעמים" }, { value: 3, text: "לעתים קרובות" }, { value: 4, text: "לעתים קרובות מאוד" }
+      ]},
+      { id: 5, title: "כמה פעמים אתה מנקר בידיים או מתנדנד כשיושב לזמן ארוך?", options: [
+        { value: 0, text: "אף פעם" }, { value: 1, text: "לעתים רחוקות" }, { value: 2, text: "לפעמים" }, { value: 3, text: "לעתים קרובות" }, { value: 4, text: "לעתים קרובות מאוד" }
+      ]},
+      { id: 6, title: "כמה פעמים אתה מרגיש פעיל יתר או מונע לעשות דברים?", options: [
+        { value: 0, text: "אף פעם" }, { value: 1, text: "לעתים רחוקות" }, { value: 2, text: "לפעמים" }, { value: 3, text: "לעתים קרובות" }, { value: 4, text: "לעתים קרובות מאוד" }
+      ]},
+      { id: 7, title: "כמה פעמים אתה עושה טעויות רשלניות בעבודה משעממת?", options: [
+        { value: 0, text: "אף פעם" }, { value: 1, text: "לעתים רחוקות" }, { value: 2, text: "לפעמים" }, { value: 3, text: "לעתים קרובות" }, { value: 4, text: "לעתים קרובות מאוד" }
+      ]},
+      { id: 8, title: "כמה פעמים יש לך קושי לשמור על קשב בעבודה משעממת?", options: [
+        { value: 0, text: "אף פעם" }, { value: 1, text: "לעתים רחוקות" }, { value: 2, text: "לפעמים" }, { value: 3, text: "לעתים קרובות" }, { value: 4, text: "לעתים קרובות מאוד" }
+      ]},
+      { id: 9, title: "כמה פעמים יש לך קושי להתרכז במה שמישהו אומר לך?", options: [
+        { value: 0, text: "אף פעם" }, { value: 1, text: "לעתים רחוקות" }, { value: 2, text: "לפעמים" }, { value: 3, text: "לעתים קרובות" }, { value: 4, text: "לעתים קרובות מאוד" }
+      ]},
+      { id: 10, title: "כמה פעמים אתה שם דברים במקום לא נכון או מתקשה למצוא אותם?", options: [
+        { value: 0, text: "אף פעם" }, { value: 1, text: "לעתים רחוקות" }, { value: 2, text: "לפעמים" }, { value: 3, text: "לעתים קרובות" }, { value: 4, text: "לעתים קרובות מאוד" }
+      ]},
+      { id: 11, title: "כמה פעמים אתה מוסח ברעש או פעילות סביבך?", options: [
+        { value: 0, text: "אף פעם" }, { value: 1, text: "לעתים רחוקות" }, { value: 2, text: "לפעמים" }, { value: 3, text: "לעתים קרובות" }, { value: 4, text: "לעתים קרובות מאוד" }
+      ]},
+      { id: 12, title: "כמה פעמים אתה עוזב את מקומך בישיבות או במצבים אחרים?", options: [
+        { value: 0, text: "אף פעם" }, { value: 1, text: "לעתים רחוקות" }, { value: 2, text: "לפעמים" }, { value: 3, text: "לעתים קרובות" }, { value: 4, text: "לעתים קרובות מאוד" }
+      ]},
+      { id: 13, title: "כמה פעמים אתה מרגיש חוסר מנוחה?", options: [
+        { value: 0, text: "אף פעם" }, { value: 1, text: "לעתים רחוקות" }, { value: 2, text: "לפעמים" }, { value: 3, text: "לעתים קרובות" }, { value: 4, text: "לעתים קרובות מאוד" }
+      ]},
+      { id: 14, title: "כמה פעמים יש לך קושי להירגע בזמן פנוי?", options: [
+        { value: 0, text: "אף פעם" }, { value: 1, text: "לעתים רחוקות" }, { value: 2, text: "לפעמים" }, { value: 3, text: "לעתים קרובות" }, { value: 4, text: "לעתים קרובות מאוד" }
+      ]},
+      { id: 15, title: "כמה פעמים אתה מדבר יותר מדי במצבים חברתיים?", options: [
+        { value: 0, text: "אף פעם" }, { value: 1, text: "לעתים רחוקות" }, { value: 2, text: "לפעמים" }, { value: 3, text: "לעתים קרובות" }, { value: 4, text: "לעתים קרובות מאוד" }
+      ]},
+      { id: 16, title: "כמה פעמים אתה מסיים משפטים של אנשים לפני שהם סיימו?", options: [
+        { value: 0, text: "אף פעם" }, { value: 1, text: "לעתים רחוקות" }, { value: 2, text: "לפעמים" }, { value: 3, text: "לעתים קרובות" }, { value: 4, text: "לעתים קרובות מאוד" }
+      ]},
+      { id: 17, title: "כמה פעמים יש לך קושי לחכות לתורך כשצריך לחכות?", options: [
+        { value: 0, text: "אף פעם" }, { value: 1, text: "לעתים רחוקות" }, { value: 2, text: "לפעמים" }, { value: 3, text: "לעתים קרובות" }, { value: 4, text: "לעתים קרובות מאוד" }
+      ]},
+      { id: 18, title: "כמה פעמים אתה מפריע לאחרים כשהם עסוקים?", options: [
+        { value: 0, text: "אף פעם" }, { value: 1, text: "לעתים רחוקות" }, { value: 2, text: "לפעמים" }, { value: 3, text: "לעתים קרובות" }, { value: 4, text: "לעתים קרובות מאוד" }
+      ]}
+    ],
+    scoring: {
+      maxScore: 72,
+      partA: { items: [1,2,3,4,5,6], cutoff: 4 },
+      subscales: {
+        inattention: { items: [1,2,3,4,7,8,9,10,11], name: "חוסר קשב" },
+        hyperactivity: { items: [5,6,12,13,14,15,16,17,18], name: "היפראקטיביות/אימפולסיביות" }
+      }
+    }
+  },
+  // DES - Dissociative Experiences Scale
+  {
+    code: "DES",
+    name: "סולם חוויות דיסוציאטיביות",
+    nameEn: "Dissociative Experiences Scale",
+    description: "שאלון ל-28 פריטים להערכת חוויות דיסוציאטיביות",
+    category: "דיסוציאציה",
+    testType: "SELF_REPORT",
+    questions: [
+      { id: 1, title: "נסעתי במכונית ופתאום הבנתי שלא זכרתי מה קרה בחלק מהנסיעה", options: [
+        { value: 0, text: "0%" }, { value: 10, text: "10%" }, { value: 20, text: "20%" }, { value: 30, text: "30%" }, { value: 40, text: "40%" }, { value: 50, text: "50%" }, { value: 60, text: "60%" }, { value: 70, text: "70%" }, { value: 80, text: "80%" }, { value: 90, text: "90%" }, { value: 100, text: "100%" }
+      ]},
+      { id: 2, title: "מישהו דיבר אליי ולא שמעתי חלק או כל מה שאמר", options: [
+        { value: 0, text: "0%" }, { value: 10, text: "10%" }, { value: 20, text: "20%" }, { value: 30, text: "30%" }, { value: 40, text: "40%" }, { value: 50, text: "50%" }, { value: 60, text: "60%" }, { value: 70, text: "70%" }, { value: 80, text: "80%" }, { value: 90, text: "90%" }, { value: 100, text: "100%" }
+      ]},
+      { id: 3, title: "מצאתי את עצמי במקום ולא ידעתי איך הגעתי לשם", options: [
+        { value: 0, text: "0%" }, { value: 10, text: "10%" }, { value: 20, text: "20%" }, { value: 30, text: "30%" }, { value: 40, text: "40%" }, { value: 50, text: "50%" }, { value: 60, text: "60%" }, { value: 70, text: "70%" }, { value: 80, text: "80%" }, { value: 90, text: "90%" }, { value: 100, text: "100%" }
+      ]},
+      { id: 4, title: "מצאתי את עצמי לבוש בבגדים שלא זכרתי שלבשתי", options: [
+        { value: 0, text: "0%" }, { value: 10, text: "10%" }, { value: 20, text: "20%" }, { value: 30, text: "30%" }, { value: 40, text: "40%" }, { value: 50, text: "50%" }, { value: 60, text: "60%" }, { value: 70, text: "70%" }, { value: 80, text: "80%" }, { value: 90, text: "90%" }, { value: 100, text: "100%" }
+      ]},
+      { id: 5, title: "מצאתי דברים חדשים בין החפצים שלי ולא זכרתי שקניתי אותם", options: [
+        { value: 0, text: "0%" }, { value: 10, text: "10%" }, { value: 20, text: "20%" }, { value: 30, text: "30%" }, { value: 40, text: "40%" }, { value: 50, text: "50%" }, { value: 60, text: "60%" }, { value: 70, text: "70%" }, { value: 80, text: "80%" }, { value: 90, text: "90%" }, { value: 100, text: "100%" }
+      ]},
+      { id: 6, title: "אנשים ניגשו אליי וקראו לי בשם אחר או טענו שהם מכירים אותי", options: [
+        { value: 0, text: "0%" }, { value: 10, text: "10%" }, { value: 20, text: "20%" }, { value: 30, text: "30%" }, { value: 40, text: "40%" }, { value: 50, text: "50%" }, { value: 60, text: "60%" }, { value: 70, text: "70%" }, { value: 80, text: "80%" }, { value: 90, text: "90%" }, { value: 100, text: "100%" }
+      ]},
+      { id: 7, title: "הרגשתי שאני עומד ליד עצמי או צופה בעצמי עושה משהו", options: [
+        { value: 0, text: "0%" }, { value: 10, text: "10%" }, { value: 20, text: "20%" }, { value: 30, text: "30%" }, { value: 40, text: "40%" }, { value: 50, text: "50%" }, { value: 60, text: "60%" }, { value: 70, text: "70%" }, { value: 80, text: "80%" }, { value: 90, text: "90%" }, { value: 100, text: "100%" }
+      ]},
+      { id: 8, title: "לא הכרתי חברים או בני משפחה", options: [
+        { value: 0, text: "0%" }, { value: 10, text: "10%" }, { value: 20, text: "20%" }, { value: 30, text: "30%" }, { value: 40, text: "40%" }, { value: 50, text: "50%" }, { value: 60, text: "60%" }, { value: 70, text: "70%" }, { value: 80, text: "80%" }, { value: 90, text: "90%" }, { value: 100, text: "100%" }
+      ]},
+      { id: 9, title: "לא זכרתי אירועים חשובים בחיי", options: [
+        { value: 0, text: "0%" }, { value: 10, text: "10%" }, { value: 20, text: "20%" }, { value: 30, text: "30%" }, { value: 40, text: "40%" }, { value: 50, text: "50%" }, { value: 60, text: "60%" }, { value: 70, text: "70%" }, { value: 80, text: "80%" }, { value: 90, text: "90%" }, { value: 100, text: "100%" }
+      ]},
+      { id: 10, title: "הואשמתי בשקר כשלא שיקרתי", options: [
+        { value: 0, text: "0%" }, { value: 10, text: "10%" }, { value: 20, text: "20%" }, { value: 30, text: "30%" }, { value: 40, text: "40%" }, { value: 50, text: "50%" }, { value: 60, text: "60%" }, { value: 70, text: "70%" }, { value: 80, text: "80%" }, { value: 90, text: "90%" }, { value: 100, text: "100%" }
+      ]}
+    ],
+    scoring: {
+      maxScore: 100,
+      cutoff: 30,
+      ranges: [
+        { min: 0, max: 10, label: "נורמלי", description: "חוויות דיסוציאטיביות בטווח הנורמלי" },
+        { min: 11, max: 30, label: "מוגבר", description: "חוויות דיסוציאטיביות מוגברות" },
+        { min: 31, max: 100, label: "קליני", description: "רמה קלינית - מומלץ אבחון נוסף" }
+      ]
+    }
+  },
+  // ACE - Adverse Childhood Experiences
+  {
+    code: "ACE",
+    name: "שאלון חוויות ילדות שליליות",
+    nameEn: "Adverse Childhood Experiences Questionnaire",
+    description: "שאלון ל-10 פריטים להערכת חוויות טראומטיות בילדות",
+    category: "טראומה",
+    testType: "SELF_REPORT",
+    questions: [
+      { id: 1, title: "האם הורה או מבוגר אחר בבית לעתים קרובות קילל, העליב או השפיל אותך?", options: [
+        { value: 0, text: "לא" }, { value: 1, text: "כן" }
+      ]},
+      { id: 2, title: "האם הורה או מבוגר בבית לעתים קרובות דחף, חבט, סטר או זרק עליך דברים?", options: [
+        { value: 0, text: "לא" }, { value: 1, text: "כן" }
+      ]},
+      { id: 3, title: "האם מבוגר אי פעם נגע בך או ליטף אותך באופן מיני?", options: [
+        { value: 0, text: "לא" }, { value: 1, text: "כן" }
+      ]},
+      { id: 4, title: "האם הרגשת שאף אחד במשפחה לא אוהב אותך או חושב שאתה חשוב?", options: [
+        { value: 0, text: "לא" }, { value: 1, text: "כן" }
+      ]},
+      { id: 5, title: "האם לא היה לך מספיק אוכל, נאלצת ללבוש בגדים מלוכלכים, או לא היה לך מי שיגן עליך?", options: [
+        { value: 0, text: "לא" }, { value: 1, text: "כן" }
+      ]},
+      { id: 6, title: "האם ההורים שלך אי פעם התגרשו או נפרדו?", options: [
+        { value: 0, text: "לא" }, { value: 1, text: "כן" }
+      ]},
+      { id: 7, title: "האם אמא שלך או אמא חורגת הותקפה לעתים קרובות על ידי בן הזוג?", options: [
+        { value: 0, text: "לא" }, { value: 1, text: "כן" }
+      ]},
+      { id: 8, title: "האם גרת עם מישהו שהיה שיכור, השתמש בסמים או היה מכור?", options: [
+        { value: 0, text: "לא" }, { value: 1, text: "כן" }
+      ]},
+      { id: 9, title: "האם בן משפחה היה מדוכא, חולה נפש או ניסה להתאבד?", options: [
+        { value: 0, text: "לא" }, { value: 1, text: "כן" }
+      ]},
+      { id: 10, title: "האם בן משפחה היה בכלא?", options: [
+        { value: 0, text: "לא" }, { value: 1, text: "כן" }
+      ]}
+    ],
+    scoring: {
+      maxScore: 10,
+      ranges: [
+        { min: 0, max: 0, label: "ללא", description: "ללא חוויות ילדות שליליות" },
+        { min: 1, max: 3, label: "נמוך-בינוני", description: "1-3 חוויות שליליות" },
+        { min: 4, max: 10, label: "גבוה", description: "4+ חוויות - סיכון מוגבר לבעיות בריאות" }
+      ]
+    }
+  },
+  // Edinburgh Postnatal Depression Scale
+  {
+    code: "EPDS",
+    name: "סולם אדינבורו לדיכאון לאחר לידה",
+    nameEn: "Edinburgh Postnatal Depression Scale",
+    description: "שאלון ל-10 פריטים לסקר דיכאון אחרי לידה",
+    category: "דיכאון",
+    testType: "SELF_REPORT",
+    questions: [
+      { id: 1, title: "יכולתי לצחוק ולראות את הצד המצחיק של הדברים", options: [
+        { value: 0, text: "כמו תמיד" }, { value: 1, text: "קצת פחות מתמיד" }, { value: 2, text: "הרבה פחות מתמיד" }, { value: 3, text: "בכלל לא" }
+      ]},
+      { id: 2, title: "הסתכלתי קדימה עם הנאה לדברים", options: [
+        { value: 0, text: "כמו תמיד" }, { value: 1, text: "קצת פחות מתמיד" }, { value: 2, text: "הרבה פחות מתמיד" }, { value: 3, text: "בכלל לא" }
+      ]},
+      { id: 3, title: "האשמתי את עצמי שלא לצורך כשדברים השתבשו", options: [
+        { value: 3, text: "כן, רוב הזמן" }, { value: 2, text: "כן, לפעמים" }, { value: 1, text: "לא לעתים קרובות" }, { value: 0, text: "לא, אף פעם" }
+      ]},
+      { id: 4, title: "הייתי חרדה או מודאגת ללא סיבה טובה", options: [
+        { value: 0, text: "לא, בכלל לא" }, { value: 1, text: "כמעט לא" }, { value: 2, text: "כן, לפעמים" }, { value: 3, text: "כן, לעתים קרובות מאוד" }
+      ]},
+      { id: 5, title: "הרגשתי פחד או פאניקה ללא סיבה טובה", options: [
+        { value: 3, text: "כן, די הרבה" }, { value: 2, text: "כן, לפעמים" }, { value: 1, text: "לא, לא הרבה" }, { value: 0, text: "לא, בכלל לא" }
+      ]},
+      { id: 6, title: "דברים הציפו אותי", options: [
+        { value: 3, text: "כן, רוב הזמן לא יכולתי להתמודד" }, { value: 2, text: "כן, לפעמים לא הסתדרתי כרגיל" }, { value: 1, text: "לא, רוב הזמן הסתדרתי טוב" }, { value: 0, text: "לא, הסתדרתי כמו תמיד" }
+      ]},
+      { id: 7, title: "הייתי כל כך אומללה שהיה לי קשה לישון", options: [
+        { value: 3, text: "כן, רוב הזמן" }, { value: 2, text: "כן, לפעמים" }, { value: 1, text: "לא לעתים קרובות" }, { value: 0, text: "לא, בכלל לא" }
+      ]},
+      { id: 8, title: "הרגשתי עצובה או אומללה", options: [
+        { value: 3, text: "כן, רוב הזמן" }, { value: 2, text: "כן, לעתים קרובות" }, { value: 1, text: "לא לעתים קרובות" }, { value: 0, text: "לא, בכלל לא" }
+      ]},
+      { id: 9, title: "הייתי כל כך אומללה שבכיתי", options: [
+        { value: 3, text: "כן, רוב הזמן" }, { value: 2, text: "כן, לעתים קרובות" }, { value: 1, text: "רק מדי פעם" }, { value: 0, text: "לא, אף פעם" }
+      ]},
+      { id: 10, title: "המחשבה לפגוע בעצמי עלתה בי", isCritical: true, options: [
+        { value: 3, text: "כן, לעתים קרובות" }, { value: 2, text: "לפעמים" }, { value: 1, text: "כמעט אף פעם" }, { value: 0, text: "אף פעם" }
+      ]}
+    ],
+    scoring: {
+      maxScore: 30,
+      cutoff: 10,
+      criticalItems: [10],
+      ranges: [
+        { min: 0, max: 9, label: "תקין", description: "סיכון נמוך לדיכאון" },
+        { min: 10, max: 12, label: "בסיכון", description: "אפשרי דיכאון - מומלץ מעקב" },
+        { min: 13, max: 30, label: "גבוה", description: "סביר דיכאון - נדרשת הערכה" }
+      ]
+    }
+  },
+  // Social Phobia Inventory
+  {
+    code: "SPIN",
+    name: "מדד פוביה חברתית",
+    nameEn: "Social Phobia Inventory",
+    description: "שאלון ל-17 פריטים להערכת חרדה חברתית",
+    category: "חרדה",
+    testType: "SELF_REPORT",
+    questions: [
+      { id: 1, title: "אני מפחד מאנשים בעמדות סמכות", options: [
+        { value: 0, text: "כלל לא" }, { value: 1, text: "קצת" }, { value: 2, text: "במידה מסוימת" }, { value: 3, text: "הרבה" }, { value: 4, text: "מאוד" }
+      ]},
+      { id: 2, title: "מפריע לי להסמיק בפני אנשים", options: [
+        { value: 0, text: "כלל לא" }, { value: 1, text: "קצת" }, { value: 2, text: "במידה מסוימת" }, { value: 3, text: "הרבה" }, { value: 4, text: "מאוד" }
+      ]},
+      { id: 3, title: "מסיבות ואירועים חברתיים מפחידים אותי", options: [
+        { value: 0, text: "כלל לא" }, { value: 1, text: "קצת" }, { value: 2, text: "במידה מסוימת" }, { value: 3, text: "הרבה" }, { value: 4, text: "מאוד" }
+      ]},
+      { id: 4, title: "אני נמנע מלדבר עם אנשים שאני לא מכיר", options: [
+        { value: 0, text: "כלל לא" }, { value: 1, text: "קצת" }, { value: 2, text: "במידה מסוימת" }, { value: 3, text: "הרבה" }, { value: 4, text: "מאוד" }
+      ]},
+      { id: 5, title: "להיות ביקורת מפחיד אותי מאוד", options: [
+        { value: 0, text: "כלל לא" }, { value: 1, text: "קצת" }, { value: 2, text: "במידה מסוימת" }, { value: 3, text: "הרבה" }, { value: 4, text: "מאוד" }
+      ]},
+      { id: 6, title: "אני נמנע מלעשות דברים או לדבר עם אנשים מפחד למבוכה", options: [
+        { value: 0, text: "כלל לא" }, { value: 1, text: "קצת" }, { value: 2, text: "במידה מסוימת" }, { value: 3, text: "הרבה" }, { value: 4, text: "מאוד" }
+      ]},
+      { id: 7, title: "להזיע בפני אנשים גורם לי מצוקה", options: [
+        { value: 0, text: "כלל לא" }, { value: 1, text: "קצת" }, { value: 2, text: "במידה מסוימת" }, { value: 3, text: "הרבה" }, { value: 4, text: "מאוד" }
+      ]},
+      { id: 8, title: "אני נמנע ממסיבות", options: [
+        { value: 0, text: "כלל לא" }, { value: 1, text: "קצת" }, { value: 2, text: "במידה מסוימת" }, { value: 3, text: "הרבה" }, { value: 4, text: "מאוד" }
+      ]},
+      { id: 9, title: "אני נמנע מפעילויות שבהן אני במרכז תשומת הלב", options: [
+        { value: 0, text: "כלל לא" }, { value: 1, text: "קצת" }, { value: 2, text: "במידה מסוימת" }, { value: 3, text: "הרבה" }, { value: 4, text: "מאוד" }
+      ]},
+      { id: 10, title: "לדבר עם זרים מפחיד אותי", options: [
+        { value: 0, text: "כלל לא" }, { value: 1, text: "קצת" }, { value: 2, text: "במידה מסוימת" }, { value: 3, text: "הרבה" }, { value: 4, text: "מאוד" }
+      ]},
+      { id: 11, title: "אני נמנע מלדבר בפני קהל", options: [
+        { value: 0, text: "כלל לא" }, { value: 1, text: "קצת" }, { value: 2, text: "במידה מסוימת" }, { value: 3, text: "הרבה" }, { value: 4, text: "מאוד" }
+      ]},
+      { id: 12, title: "אני אעשה כל דבר כדי להימנע מביקורת", options: [
+        { value: 0, text: "כלל לא" }, { value: 1, text: "קצת" }, { value: 2, text: "במידה מסוימת" }, { value: 3, text: "הרבה" }, { value: 4, text: "מאוד" }
+      ]},
+      { id: 13, title: "דפיקות לב מטרידות אותי כשאני עם אנשים", options: [
+        { value: 0, text: "כלל לא" }, { value: 1, text: "קצת" }, { value: 2, text: "במידה מסוימת" }, { value: 3, text: "הרבה" }, { value: 4, text: "מאוד" }
+      ]},
+      { id: 14, title: "אני מפחד לעשות דברים כשאנשים מסתכלים", options: [
+        { value: 0, text: "כלל לא" }, { value: 1, text: "קצת" }, { value: 2, text: "במידה מסוימת" }, { value: 3, text: "הרבה" }, { value: 4, text: "מאוד" }
+      ]},
+      { id: 15, title: "להיות מביך או להיראות טיפש הם מהפחדים הגדולים שלי", options: [
+        { value: 0, text: "כלל לא" }, { value: 1, text: "קצת" }, { value: 2, text: "במידה מסוימת" }, { value: 3, text: "הרבה" }, { value: 4, text: "מאוד" }
+      ]},
+      { id: 16, title: "אני נמנע מלדבר עם מישהו בסמכות", options: [
+        { value: 0, text: "כלל לא" }, { value: 1, text: "קצת" }, { value: 2, text: "במידה מסוימת" }, { value: 3, text: "הרבה" }, { value: 4, text: "מאוד" }
+      ]},
+      { id: 17, title: "לרעוד או לרטוט בפני אחרים מציק לי", options: [
+        { value: 0, text: "כלל לא" }, { value: 1, text: "קצת" }, { value: 2, text: "במידה מסוימת" }, { value: 3, text: "הרבה" }, { value: 4, text: "מאוד" }
+      ]}
+    ],
+    scoring: {
+      maxScore: 68,
+      cutoff: 19,
+      ranges: [
+        { min: 0, max: 20, label: "ללא", description: "ללא חרדה חברתית משמעותית" },
+        { min: 21, max: 30, label: "קל", description: "חרדה חברתית קלה" },
+        { min: 31, max: 40, label: "בינוני", description: "חרדה חברתית בינונית" },
+        { min: 41, max: 50, label: "חמור", description: "חרדה חברתית חמורה" },
+        { min: 51, max: 68, label: "חמור מאוד", description: "חרדה חברתית חמורה מאוד" }
+      ]
+    }
   }
 ];
 

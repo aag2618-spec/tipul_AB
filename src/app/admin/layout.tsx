@@ -19,6 +19,7 @@ import {
   X,
   Shield,
   ArrowLeft,
+  Ticket,
 } from "lucide-react";
 
 const adminNavItems = [
@@ -31,6 +32,11 @@ const adminNavItems = [
     href: "/admin/users",
     label: "ניהול משתמשים",
     icon: Users,
+  },
+  {
+    href: "/admin/coupons",
+    label: "קופונים",
+    icon: Ticket,
   },
   {
     href: "/admin/api-usage",
