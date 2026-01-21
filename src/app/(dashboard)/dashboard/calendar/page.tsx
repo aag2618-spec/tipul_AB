@@ -10,7 +10,7 @@ import { Label } from "@/components/ui/label";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
 import { Switch } from "@/components/ui/switch";
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
-import { Plus, Loader2, Calendar, Repeat, Settings } from "lucide-react";
+import { Plus, Loader2, Calendar, Repeat, Settings, Waves } from "lucide-react";
 import { format, addWeeks } from "date-fns";
 import { toast } from "sonner";
 import type { EventClickArg } from "@fullcalendar/core";
@@ -152,17 +152,21 @@ export default function CalendarPage() {
 
   const events: CalendarEvent[] = sessions.map((session) => ({
     id: session.id,
-    title: session.client.name,
+    title: session.type === "BREAK" ? "🌊 הפסקה" : session.client.name,
     start: new Date(session.startTime),
     end: new Date(session.endTime),
     backgroundColor:
-      session.status === "COMPLETED"
+      session.type === "BREAK"
+        ? "var(--chart-2)"
+        : session.status === "COMPLETED"
         ? "var(--primary)"
         : session.status === "CANCELLED"
         ? "var(--destructive)"
         : "var(--accent)",
     borderColor:
-      session.status === "COMPLETED"
+      session.type === "BREAK"
+        ? "var(--chart-2)"
+        : session.status === "COMPLETED"
         ? "var(--primary)"
         : session.status === "CANCELLED"
         ? "var(--destructive)"
@@ -201,8 +205,14 @@ export default function CalendarPage() {
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
     
-    if (!formData.clientId || !formData.startTime || !formData.endTime) {
+    // Skip client validation for BREAK type
+    if (formData.type !== "BREAK" && (!formData.clientId || !formData.startTime || !formData.endTime)) {
       toast.error("נא למלא את כל השדות");
+      return;
+    }
+    
+    if (formData.type === "BREAK" && (!formData.startTime || !formData.endTime)) {
+      toast.error("נא למלא את שעות ההפסקה");
       return;
     }
 
@@ -409,34 +419,36 @@ export default function CalendarPage() {
           </DialogHeader>
           
           <form onSubmit={handleSubmit} className="space-y-4">
-            <div className="space-y-2">
-              <Label htmlFor="clientId">מטופל</Label>
-              <Select
-                value={formData.clientId}
-                onValueChange={(value) => {
-                  const selectedClient = clients.find((c) => c.id === value);
-                  setFormData((prev) => ({
-                    ...prev,
-                    clientId: value,
-                    // Auto-populate price from client's default if available
-                    price: selectedClient?.defaultSessionPrice 
-                      ? String(selectedClient.defaultSessionPrice) 
-                      : prev.price,
-                  }));
-                }}
-              >
-                <SelectTrigger>
-                  <SelectValue placeholder="בחר מטופל" />
-                </SelectTrigger>
-                <SelectContent>
-                  {clients.map((client) => (
-                    <SelectItem key={client.id} value={client.id}>
-                      {client.name}
-                    </SelectItem>
-                  ))}
-                </SelectContent>
-              </Select>
-            </div>
+            {formData.type !== "BREAK" && (
+              <div className="space-y-2">
+                <Label htmlFor="clientId">מטופל</Label>
+                <Select
+                  value={formData.clientId}
+                  onValueChange={(value) => {
+                    const selectedClient = clients.find((c) => c.id === value);
+                    setFormData((prev) => ({
+                      ...prev,
+                      clientId: value,
+                      // Auto-populate price from client's default if available
+                      price: selectedClient?.defaultSessionPrice 
+                        ? String(selectedClient.defaultSessionPrice) 
+                        : prev.price,
+                    }));
+                  }}
+                >
+                  <SelectTrigger>
+                    <SelectValue placeholder="בחר מטופל" />
+                  </SelectTrigger>
+                  <SelectContent>
+                    {clients.map((client) => (
+                      <SelectItem key={client.id} value={client.id}>
+                        {client.name}
+                      </SelectItem>
+                    ))}
+                  </SelectContent>
+                </Select>
+              </div>
+            )}
 
             <div className="grid grid-cols-2 gap-4">
               <div className="space-y-2">
@@ -490,6 +502,12 @@ export default function CalendarPage() {
                   <SelectTrigger>
                     <SelectValue />
                   </SelectTrigger>
+                    <SelectItem value="BREAK">
+                      <div className="flex items-center gap-2">
+                        <Waves className="h-4 w-4" />
+                        הפסקה
+                      </div>
+                    </SelectItem>
                   <SelectContent>
                     <SelectItem value="IN_PERSON">פרונטלי</SelectItem>
                     <SelectItem value="ONLINE">אונליין</SelectItem>

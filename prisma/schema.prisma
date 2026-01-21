@@ -159,8 +159,8 @@ model TherapySession {
   therapistId String
   therapist   User   @relation(fields: [therapistId], references: [id], onDelete: Cascade)
 
-  clientId String
-  client   Client @relation(fields: [clientId], references: [id], onDelete: Cascade)
+  clientId String?
+  client   Client? @relation(fields: [clientId], references: [id], onDelete: Cascade)
 
   sessionNote          SessionNote?
   payment              Payment?
@@ -181,6 +181,7 @@ enum SessionType {
   IN_PERSON
   ONLINE
   PHONE
+  BREAK
 }
 
 model SessionNote {

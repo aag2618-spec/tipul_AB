@@ -166,7 +166,7 @@
   input[type="button"]:hover:not(:disabled),
   input[type="submit"]:hover:not(:disabled),
   input[type="reset"]:hover:not(:disabled) {
-    @apply brightness-95 scale-[1.02];
+    @apply brightness-110 scale-[1.03] shadow-md bg-accent/80;
   }
   
   button:active:not(:disabled),
@@ -175,11 +175,19 @@
     @apply scale-[0.98];
   }
   
-  /* Card hover effects */
+  /* Card hover effects - Enhanced */
   .hover\:shadow-md:hover,
   [class*="Card"]:hover,
   [data-card]:hover {
-    @apply shadow-lg;
+    @apply shadow-2xl ring-2 ring-primary/20 scale-[1.02];
+  }
+  
+  /* Navigation tabs hover - Strong highlight */
+  nav button:hover,
+  nav a:hover,
+  [role="tab"]:hover,
+  [role="navigation"] button:hover {
+    @apply bg-primary/20 shadow-lg ring-2 ring-primary/30;
   }
   
   /* Disabled state */

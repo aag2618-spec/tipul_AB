@@ -87,23 +87,33 @@ export async function POST(request: NextRequest) {
     const body = await request.json();
     const { clientId, startTime, endTime, type, price, location, notes, isRecurring } = body;
 
-    if (!clientId || !startTime || !endTime) {
+    // For BREAK type, we don't require a client
+    if (type !== "BREAK" && (!clientId || !startTime || !endTime)) {
       return NextResponse.json(
         { message: "נא למלא את כל השדות הנדרשים" },
         { status: 400 }
       );
     }
-
-    // Verify client belongs to therapist
-    const client = await prisma.client.findFirst({
-      where: { id: clientId, therapistId: session.user.id },
-    });
-
-    if (!client) {
+    
+    if (type === "BREAK" && (!startTime || !endTime)) {
       return NextResponse.json(
-        { message: "מטופל לא נמצא" },
-        { status: 404 }
+        { message: "נא למלא את שעות ההפסקה" },
+        { status: 400 }
       );
+    }
+
+    // Verify client belongs to therapist (skip for BREAK)
+    if (type !== "BREAK") {
+      const client = await prisma.client.findFirst({
+        where: { id: clientId, therapistId: session.user.id },
+      });
+
+      if (!client) {
+        return NextResponse.json(
+          { message: "מטופל לא נמצא" },
+          { status: 404 }
+        );
+      }
     }
 
     // Parse times using Israel timezone
@@ -148,11 +158,11 @@ export async function POST(request: NextRequest) {
     const therapySession = await prisma.therapySession.create({
       data: {
         therapistId: session.user.id,
-        clientId,
+        clientId: type === "BREAK" ? null : clientId,
         startTime: parsedStartTime,
         endTime: parsedEndTime,
         type: type || "IN_PERSON",
-        price: price || 0,
+        price: type === "BREAK" ? 0 : (price || 0),
         location: location || null,
         notes: notes || null,
         isRecurring: isRecurring || false,
@@ -164,19 +174,27 @@ export async function POST(request: NextRequest) {
       },
     });
 
-    // Create a task to write summary after session
-    await prisma.task.create({
-      data: {
-        userId: session.user.id,
-        type: "WRITE_SUMMARY",
-        title: `כתוב סיכום לפגישה עם ${client.name}`,
-        status: "PENDING",
-        priority: "MEDIUM",
-        dueDate: parsedEndTime,
-        relatedEntityId: therapySession.id,
-        relatedEntity: "TherapySession",
-      },
-    });
+    // Create a task to write summary after session (skip for BREAK)
+    if (type !== "BREAK") {
+      const client = await prisma.client.findUnique({
+        where: { id: clientId },
+      });
+      
+      if (client) {
+        await prisma.task.create({
+          data: {
+            userId: session.user.id,
+            type: "WRITE_SUMMARY",
+            title: `כתוב סיכום לפגישה עם ${client.name}`,
+            status: "PENDING",
+            priority: "MEDIUM",
+            dueDate: parsedEndTime,
+            relatedEntityId: therapySession.id,
+            relatedEntity: "TherapySession",
+          },
+        });
+      }
+    }
 
     return NextResponse.json(therapySession, { status: 201 });
   } catch (error) {
