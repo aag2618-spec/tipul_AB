@@ -146,6 +146,49 @@
     scroll-behavior: smooth;
   }
   
+  /* Hover effects for interactive elements */
+  button,
+  a,
+  [role="button"],
+  [role="link"],
+  .cursor-pointer,
+  input[type="button"],
+  input[type="submit"],
+  input[type="reset"] {
+    @apply cursor-pointer transition-all duration-200;
+  }
+  
+  button:hover:not(:disabled),
+  a:hover,
+  [role="button"]:hover:not([aria-disabled="true"]),
+  [role="link"]:hover,
+  .cursor-pointer:hover,
+  input[type="button"]:hover:not(:disabled),
+  input[type="submit"]:hover:not(:disabled),
+  input[type="reset"]:hover:not(:disabled) {
+    @apply brightness-95 scale-[1.02];
+  }
+  
+  button:active:not(:disabled),
+  a:active,
+  [role="button"]:active:not([aria-disabled="true"]) {
+    @apply scale-[0.98];
+  }
+  
+  /* Card hover effects */
+  .hover\:shadow-md:hover,
+  [class*="Card"]:hover,
+  [data-card]:hover {
+    @apply shadow-lg;
+  }
+  
+  /* Disabled state */
+  button:disabled,
+  [aria-disabled="true"],
+  .disabled {
+    @apply cursor-not-allowed opacity-50;
+  }
+  
   /* Custom scrollbar */
   ::-webkit-scrollbar {
     width: 8px;
@@ -183,6 +226,16 @@
   
   .animate-pulse-subtle {
     animation: pulseSublte 2s ease-in-out infinite;
+  }
+  
+  /* Clickable card utility */
+  .clickable-card {
+    @apply cursor-pointer transition-all duration-200 hover:shadow-lg hover:scale-[1.01] active:scale-[0.99];
+  }
+  
+  /* Interactive item utility */
+  .interactive-item {
+    @apply cursor-pointer transition-all duration-200 hover:bg-accent/50 hover:shadow-sm;
   }
 }
 
