@@ -72,6 +72,22 @@ export const authOptions: NextAuthOptions = {
         token.id = user.id;
         token.role = user.role;
       }
+      
+      // Refresh role from database on each request to catch role changes
+      if (token.id) {
+        const dbUser = await prisma.user.findUnique({
+          where: { id: token.id as string },
+          select: { role: true, isBlocked: true },
+        });
+        if (dbUser) {
+          token.role = dbUser.role;
+          // Block access if user is blocked
+          if (dbUser.isBlocked) {
+            token.isBlocked = true;
+          }
+        }
+      }
+      
       // Save Google tokens for calendar access
       if (account?.provider === "google") {
         token.accessToken = account.access_token;
