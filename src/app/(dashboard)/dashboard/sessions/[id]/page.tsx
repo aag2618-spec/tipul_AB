@@ -49,7 +49,7 @@ interface SessionData {
   client: {
     id: string;
     name: string;
-  };
+  } | null;
   sessionNote: {
     id: string;
     content: string;

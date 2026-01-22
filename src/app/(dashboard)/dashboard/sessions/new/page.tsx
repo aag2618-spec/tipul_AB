@@ -19,7 +19,7 @@ interface Client {
 interface Session {
   id: string;
   startTime: string;
-  client: { id: string; name: string };
+  client: { id: string; name: string } | null;
 }
 
 function NewSessionNoteContent() {

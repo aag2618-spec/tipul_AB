@@ -39,7 +39,7 @@ interface Session {
   status: string;
   type: string;
   price: number;
-  client: Client;
+  client: Client | null;
 }
 
 interface CalendarEvent {
