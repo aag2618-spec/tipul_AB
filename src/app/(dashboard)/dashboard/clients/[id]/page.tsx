@@ -24,7 +24,8 @@ import {
   Search,
   FolderOpen,
   Download,
-  CheckCircle
+  CheckCircle,
+  ClipboardList
 } from "lucide-react";
 import { Input } from "@/components/ui/input";
 import Link from "next/link";
@@ -53,8 +54,14 @@ async function getClient(clientId: string, userId: string) {
       documents: {
         orderBy: { createdAt: "desc" },
       },
+      questionnaireResponses: {
+        orderBy: { completedAt: "desc" },
+        include: {
+          template: true,
+        },
+      },
       _count: {
-        select: { therapySessions: true, payments: true, recordings: true },
+        select: { therapySessions: true, payments: true, recordings: true, questionnaireResponses: true },
       },
     },
   });
@@ -223,7 +230,7 @@ export default async function ClientPage({
 
       {/* Tabs */}
       <Tabs defaultValue="sessions" className="w-full">
-        <TabsList className="grid w-full grid-cols-7 max-w-3xl">
+        <TabsList className="grid w-full grid-cols-8 max-w-4xl">
           <TabsTrigger value="sessions" className="gap-2">
             <Calendar className="h-4 w-4" />
             פגישות
@@ -235,6 +242,10 @@ export default async function ClientPage({
           <TabsTrigger value="diagnosis" className="gap-2">
             <Stethoscope className="h-4 w-4" />
             אבחון
+          </TabsTrigger>
+          <TabsTrigger value="questionnaires" className="gap-2">
+            <ClipboardList className="h-4 w-4" />
+            שאלונים
           </TabsTrigger>
           <TabsTrigger value="documents" className="gap-2">
             <FolderOpen className="h-4 w-4" />
@@ -484,6 +495,93 @@ export default async function ClientPage({
               </CardContent>
             </Card>
           </div>
+        </TabsContent>
+
+        <TabsContent value="questionnaires" className="mt-6">
+          <Card>
+            <CardHeader>
+              <div className="flex items-center justify-between">
+                <div>
+                  <CardTitle>שאלונים פסיכולוגיים</CardTitle>
+                  <CardDescription>
+                    {client._count.questionnaireResponses} שאלונים ממולאים
+                  </CardDescription>
+                </div>
+                <Button asChild>
+                  <Link href={`/dashboard/questionnaires/new?client=${client.id}`}>
+                    <Plus className="ml-2 h-4 w-4" />
+                    שאלון חדש
+                  </Link>
+                </Button>
+              </div>
+            </CardHeader>
+            <CardContent>
+              {client.questionnaireResponses.length > 0 ? (
+                <div className="space-y-3">
+                  {client.questionnaireResponses.map((response) => (
+                    <Link
+                      key={response.id}
+                      href={`/dashboard/questionnaires/${response.id}`}
+                      className="block"
+                    >
+                      <div className="flex items-center justify-between p-4 rounded-lg border hover:bg-muted/50 transition-colors">
+                        <div className="flex items-center gap-4">
+                          <div className="flex h-10 w-10 items-center justify-center rounded-lg bg-primary/10">
+                            <ClipboardList className="h-5 w-5 text-primary" />
+                          </div>
+                          <div>
+                            <p className="font-medium">{response.template.name}</p>
+                            <p className="text-sm text-muted-foreground">
+                              {response.completedAt
+                                ? format(new Date(response.completedAt), "dd/MM/yyyy HH:mm")
+                                : "בתהליך"}
+                            </p>
+                          </div>
+                        </div>
+                        <div className="flex items-center gap-3">
+                          <Badge
+                            variant={
+                              response.status === "COMPLETED"
+                                ? "default"
+                                : response.status === "ANALYZED"
+                                ? "secondary"
+                                : "outline"
+                            }
+                          >
+                            {response.status === "COMPLETED"
+                              ? "הושלם"
+                              : response.status === "ANALYZED"
+                              ? "נותח"
+                              : "בתהליך"}
+                          </Badge>
+                          {response.totalScore !== null && (
+                            <Badge variant="outline">
+                              ציון: {response.totalScore}
+                            </Badge>
+                          )}
+                          <ArrowRight className="h-4 w-4 text-muted-foreground" />
+                        </div>
+                      </div>
+                    </Link>
+                  ))}
+                </div>
+              ) : (
+                <div className="text-center py-12 text-muted-foreground">
+                  <ClipboardList className="mx-auto h-16 w-16 mb-4 opacity-50" />
+                  <p className="text-lg mb-2">אין שאלונים ממולאים</p>
+                  <p className="text-sm mb-4">
+                    שאלונים מסייעים באבחון ומעקב אחר התקדמות הטיפול
+                  </p>
+                  <Button asChild>
+                    <Link href={`/dashboard/questionnaires/new?client=${client.id}`}>
+                      <Plus className="ml-2 h-4 w-4" />
+                      מלא שאלון ראשון
+                    </Link>
+                  </Button>
+                </div>
+              )}
+            </CardContent>
+          </Card>
         </TabsContent>
 
         <TabsContent value="documents" className="mt-6">
