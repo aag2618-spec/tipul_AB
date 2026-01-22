@@ -163,7 +163,7 @@ ${i + 1}. תאריך: ${format(new Date(p.createdAt), "dd/MM/yyyy")}
     }
 
     // Generate ZIP
-    const zipBuffer = await zip.generateAsync({ type: "nodebuffer" });
+    const zipBuffer = await zip.generateAsync({ type: "uint8array" });
 
     // Return as downloadable file
     return new Response(zipBuffer, {
