@@ -502,13 +502,13 @@ export default function CalendarPage() {
                   <SelectTrigger>
                     <SelectValue />
                   </SelectTrigger>
+                  <SelectContent>
                     <SelectItem value="BREAK">
                       <div className="flex items-center gap-2">
                         <Waves className="h-4 w-4" />
                         הפסקה
                       </div>
                     </SelectItem>
-                  <SelectContent>
                     <SelectItem value="IN_PERSON">פרונטלי</SelectItem>
                     <SelectItem value="ONLINE">אונליין</SelectItem>
                     <SelectItem value="PHONE">טלפון</SelectItem>
