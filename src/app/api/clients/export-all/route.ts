@@ -33,7 +33,7 @@ export async function GET() {
         },
         recordings: {
           include: {
-            transcriptions: true,
+            transcription: true,
           },
           orderBy: { createdAt: "desc" },
         },
@@ -104,19 +104,18 @@ ${session.sessionNote?.content ? `\nסיכום:\n${session.sessionNote.content}`
         const transcFolder = clientFolder.folder("תמלולים");
         
         client.recordings.forEach((recording) => {
-          if (recording.transcriptions.length > 0) {
-            recording.transcriptions.forEach((trans) => {
-              transcFolder?.file(
-                `תמלול-${format(new Date(trans.createdAt), "yyyy-MM-dd-HHmm")}.txt`,
-                `תמלול הקלטה
-תאריך: ${format(new Date(trans.createdAt), "dd/MM/yyyy HH:mm")}
-מודל: ${trans.model || "לא צוין"}
+          if (recording.transcription) {
+            transcFolder?.file(
+              `תמלול-${format(new Date(recording.transcription.createdAt), "yyyy-MM-dd-HHmm")}.txt`,
+              `תמלול הקלטה
+תאריך: ${format(new Date(recording.transcription.createdAt), "dd/MM/yyyy HH:mm")}
+סוג: ${recording.type}
+סטטוס: ${recording.status}
 
 תוכן:
-${trans.content}
+${recording.transcription.content}
 `
-              );
-            });
+            );
           }
         });
       }
