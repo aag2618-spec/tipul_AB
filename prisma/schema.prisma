@@ -83,6 +83,8 @@ model User {
   couponUsages          CouponUsage[]
   questionnaireResponses QuestionnaireResponse[]
   passwordResets        PasswordReset[]
+  smsSettings           SMSSettings?
+  consentForms          ConsentForm[]
 }
 
 // ==================== Password Reset ====================
@@ -127,6 +129,7 @@ model Client {
   cancellationRequests CancellationRequest[]
   communicationLogs    CommunicationLog[]
   questionnaireResponses QuestionnaireResponse[]
+  consentForms         ConsentForm[]
 }
 
 enum ClientStatus {
@@ -167,6 +170,7 @@ model TherapySession {
   recordings           Recording[]
   cancellationRequests CancellationRequest[]
   communicationLogs    CommunicationLog[]
+  smsReminders         SMSReminder[]
 }
 
 enum SessionStatus {
@@ -683,4 +687,77 @@ enum QuestionnaireStatus {
   IN_PROGRESS
   COMPLETED
   ANALYZED
+}
+
+// ==================== SMS Reminders ====================
+
+model SMSReminder {
+  id            String   @id @default(cuid())
+  phoneNumber   String
+  message       String   @db.Text
+  scheduledFor  DateTime
+  sentAt        DateTime?
+  status        SMSStatus @default(PENDING)
+  errorMessage  String?  @db.Text
+  createdAt     DateTime @default(now())
+  updatedAt     DateTime @updatedAt
+
+  sessionId String
+  session   TherapySession @relation(fields: [sessionId], references: [id], onDelete: Cascade)
+
+  @@index([scheduledFor])
+  @@index([status])
+}
+
+enum SMSStatus {
+  PENDING
+  SENT
+  FAILED
+  CANCELLED
+}
+
+model SMSSettings {
+  id                    String   @id @default(cuid())
+  enabled               Boolean  @default(false)
+  hoursBeforeReminder   Int      @default(24) // Hours before session to send reminder
+  customMessage         String?  @db.Text
+  sendOnWeekends        Boolean  @default(true)
+  createdAt             DateTime @default(now())
+  updatedAt             DateTime @updatedAt
+
+  therapistId String @unique
+  therapist   User   @relation(fields: [therapistId], references: [id], onDelete: Cascade)
+}
+
+// ==================== Consent Forms ====================
+
+model ConsentForm {
+  id            String   @id @default(cuid())
+  type          ConsentType
+  title         String
+  content       String   @db.Text // HTML content of the form
+  isTemplate    Boolean  @default(false) // Is this a reusable template?
+  signedAt      DateTime?
+  signatureData String?  @db.Text // Base64 signature image
+  createdAt     DateTime @default(now())
+  updatedAt     DateTime @updatedAt
+
+  clientId String?
+  client   Client? @relation(fields: [clientId], references: [id], onDelete: Cascade)
+
+  therapistId String
+  therapist   User   @relation(fields: [therapistId], references: [id], onDelete: Cascade)
+
+  @@index([type])
+  @@index([clientId])
+}
+
+enum ConsentType {
+  TREATMENT_AGREEMENT    // הסכם טיפול
+  INFORMED_CONSENT       // הסכמה מדעת
+  CONFIDENTIALITY        // הסכם סודיות
+  RECORDING_CONSENT      // הסכמה להקלטה
+  TELEHEALTH_CONSENT     // הסכמה לטיפול מרחוק
+  PARENTAL_CONSENT       // הסכמת הורים (קטינים)
+  CUSTOM                 // טופס מותאם אישית
 }

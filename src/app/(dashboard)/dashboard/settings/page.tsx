@@ -6,7 +6,7 @@ import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/com
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import { Separator } from "@/components/ui/separator";
-import { Loader2, Save, User, Bell, Shield, Mail, Link as LinkIcon } from "lucide-react";
+import { Loader2, Save, User, Bell, Shield, Mail, Link as LinkIcon, MessageSquare } from "lucide-react";
 import { toast } from "sonner";
 import Link from "next/link";
 
@@ -108,6 +108,12 @@ export default function SettingsPage() {
           <Link href="/dashboard/settings/integrations">
             <LinkIcon className="h-4 w-4" />
             אינטגרציות
+          </Link>
+        </Button>
+        <Button variant="outline" size="sm" asChild className="gap-2">
+          <Link href="/dashboard/settings/sms">
+            <MessageSquare className="h-4 w-4" />
+            תזכורות SMS
           </Link>
         </Button>
         <Button variant="outline" size="sm" className="gap-2">
