@@ -76,11 +76,11 @@ ${client.initialDiagnosis || "לא הוזן"}
 הערות תשאול:
 ${client.intakeNotes || "אין הערות"}
 
-רקע רפואי:
-${client.medicalHistory || "לא צוין"}
+היסטוריה רפואית:
+${client.medicalHistory ? JSON.stringify(client.medicalHistory, null, 2) : "לא צוין"}
 
-תרופות:
-${client.medications || "לא צוינו"}
+הערות נוספות:
+${client.notes || "אין הערות"}
     `.trim();
 
     zip.file("פרטי-מטופל.txt", clientInfo);
