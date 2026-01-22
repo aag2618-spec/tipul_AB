@@ -27,16 +27,33 @@ export async function PATCH(
     const transcription = await prisma.transcription.findFirst({
       where: { 
         id,
-        recording: {
-          therapistId: session.user.id
-        }
       },
+      include: {
+        recording: {
+          include: {
+            client: true,
+            session: true,
+          }
+        }
+      }
     });
 
     if (!transcription) {
       return NextResponse.json(
         { message: "תמלול לא נמצא" },
         { status: 404 }
+      );
+    }
+
+    // Check ownership via client or session
+    const isOwner = 
+      transcription.recording.client?.therapistId === session.user.id ||
+      transcription.recording.session?.therapistId === session.user.id;
+
+    if (!isOwner) {
+      return NextResponse.json(
+        { message: "אין הרשאה" },
+        { status: 403 }
       );
     }
 
