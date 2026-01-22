@@ -21,7 +21,10 @@ export function ExportAllClientsButton() {
       const url = window.URL.createObjectURL(blob);
       const a = document.createElement("a");
       a.href = url;
-      a.download = `כל-המטופלים-${new Date().toLocaleDateString("he-IL")}.zip`;
+      // Get filename from Content-Disposition header or use default
+      const contentDisposition = response.headers.get('Content-Disposition');
+      const filenameMatch = contentDisposition?.match(/filename="(.+)"/);
+      a.download = filenameMatch?.[1] || `כל-המטופלים-${new Date().toLocaleDateString("he-IL")}.zip`;
       document.body.appendChild(a);
       a.click();
       window.URL.revokeObjectURL(url);

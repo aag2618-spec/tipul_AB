@@ -162,15 +162,24 @@ ${i + 1}. תאריך: ${format(new Date(p.createdAt), "dd/MM/yyyy")}
       zip.file("תשלומים.txt", paymentsSummary);
     }
 
-    // Generate ZIP
-    const zipBlob = await zip.generateAsync({ type: "blob" });
+    // Generate ZIP with Unicode support for Hebrew filenames
+    const zipBlob = await zip.generateAsync({ 
+      type: "blob",
+      compression: "DEFLATE",
+      compressionOptions: {
+        level: 6
+      }
+    });
     const zipBuffer = await zipBlob.arrayBuffer();
+
+    // Use ASCII-safe filename in header
+    const safeFilename = `client-${client.id}-${format(new Date(), "yyyy-MM-dd")}.zip`;
 
     // Return as downloadable file
     return new Response(zipBuffer, {
       headers: {
         "Content-Type": "application/zip",
-        "Content-Disposition": `attachment; filename="${client.name}-תיק-מטופל.zip"`,
+        "Content-Disposition": `attachment; filename="${safeFilename}"`,
       },
     });
   } catch (error) {

@@ -26,7 +26,10 @@ export function ExportClientButton({ clientId, clientName }: ExportClientButtonP
       const url = window.URL.createObjectURL(blob);
       const a = document.createElement('a');
       a.href = url;
-      a.download = `${clientName}-תיק-מטופל.zip`;
+      // Get filename from Content-Disposition header or use default
+      const contentDisposition = response.headers.get('Content-Disposition');
+      const filenameMatch = contentDisposition?.match(/filename="(.+)"/);
+      a.download = filenameMatch?.[1] || `${clientName}-תיק-מטופל.zip`;
       document.body.appendChild(a);
       a.click();
       window.URL.revokeObjectURL(url);

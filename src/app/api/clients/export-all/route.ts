@@ -160,14 +160,23 @@ ${p.notes ? `הערות: ${p.notes}` : ""}
       }
     }
 
-    // Generate ZIP as blob and convert to ArrayBuffer
-    const zipBlob = await zip.generateAsync({ type: "blob" });
+    // Generate ZIP as blob with Unicode support for Hebrew filenames
+    const zipBlob = await zip.generateAsync({ 
+      type: "blob",
+      compression: "DEFLATE",
+      compressionOptions: {
+        level: 6
+      }
+    });
     const arrayBuffer = await zipBlob.arrayBuffer();
 
+    // Use ASCII-safe filename in header
+    const filename = `clients-export-${format(new Date(), "yyyy-MM-dd")}.zip`;
+    
     return new Response(arrayBuffer, {
       headers: {
         "Content-Type": "application/zip",
-        "Content-Disposition": `attachment; filename="כל-המטופלים-${format(new Date(), "yyyy-MM-dd")}.zip"`,
+        "Content-Disposition": `attachment; filename="${filename}"`,
       },
     });
   } catch (error) {
