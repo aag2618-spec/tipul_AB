@@ -27,7 +27,7 @@ export async function GET() {
         },
         questionnaireResponses: {
           include: {
-            questionnaire: true,
+            template: true,
           },
           orderBy: { createdAt: "desc" },
         },
@@ -126,19 +126,19 @@ ${trans.content}
         const questFolder = clientFolder.folder("שאלונים");
         
         client.questionnaireResponses.forEach((response) => {
-          const questText = `שאלון: ${response.questionnaire.name}
+          const questText = `שאלון: ${response.template.name}
 תאריך מילוי: ${format(new Date(response.createdAt), "dd/MM/yyyy HH:mm")}
 סטטוס: ${response.status}
-${response.score !== null ? `ציון: ${response.score}` : ""}
+${response.totalScore !== null ? `ציון: ${response.totalScore}` : ""}
 
 תשובות:
 ${JSON.stringify(response.answers, null, 2)}
 
-${response.analysis ? `\nניתוח AI:\n${response.analysis}` : ""}
+${response.aiAnalysis ? `\nניתוח AI:\n${response.aiAnalysis}` : ""}
 `;
           
           questFolder?.file(
-            `${response.questionnaire.name}-${format(new Date(response.createdAt), "yyyy-MM-dd")}.txt`,
+            `${response.template.name}-${format(new Date(response.createdAt), "yyyy-MM-dd")}.txt`,
             questText
           );
         });
