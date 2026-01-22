@@ -81,6 +81,15 @@ export async function POST(request: NextRequest) {
     const buffer = Buffer.from(await file.arrayBuffer());
     await writeFile(filePath, buffer);
 
+    // Validate document type
+    const validTypes = ["CONSENT_FORM", "INTAKE_FORM", "TREATMENT_PLAN", "REPORT", "OTHER"];
+    if (!validTypes.includes(type)) {
+      return NextResponse.json(
+        { message: "סוג מסמך לא תקין" },
+        { status: 400 }
+      );
+    }
+
     // Create document record
     const document = await prisma.document.create({
       data: {
@@ -88,7 +97,7 @@ export async function POST(request: NextRequest) {
         clientId: clientId || null,
         name,
         type: type as "CONSENT_FORM" | "INTAKE_FORM" | "TREATMENT_PLAN" | "REPORT" | "OTHER",
-        fileUrl: `/uploads/documents/${fileName}`,
+        fileUrl: `/api/uploads/documents/${fileName}`,
         signed: false,
       },
       include: {
