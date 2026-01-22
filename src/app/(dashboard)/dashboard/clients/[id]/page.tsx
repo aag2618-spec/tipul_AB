@@ -30,6 +30,7 @@ import {
 import { Input } from "@/components/ui/input";
 import Link from "next/link";
 import { QuickMarkPaid } from "@/components/payments/quick-mark-paid";
+import { ExportClientButton } from "@/components/clients/export-client-button";
 import { format } from "date-fns";
 import { he } from "date-fns/locale";
 
@@ -149,6 +150,7 @@ export default async function ClientPage({
           </div>
         </div>
         <div className="flex gap-2">
+          <ExportClientButton clientId={client.id} clientName={client.name} />
           <Button variant="outline" asChild>
             <Link href={`/dashboard/clients/${client.id}/edit`}>
               <Edit className="ml-2 h-4 w-4" />
