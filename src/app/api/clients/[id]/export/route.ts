@@ -153,7 +153,7 @@ ${client.payments
 ${i + 1}. תאריך: ${format(new Date(p.createdAt), "dd/MM/yyyy")}
    סכום: ₪${p.amount}
    מצב: ${p.status === "PAID" ? "שולם" : "ממתין"}
-   ${p.description || ""}
+   ${p.notes || ""}
 `)
   .join("\n")}
 
