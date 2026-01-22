@@ -28,7 +28,7 @@ export function SignaturePad({ onSave, onCancel }: SignaturePadProps) {
   };
 
   const handleSave = () => {
-    if (!sigCanvas.current?.isEmpty()) {
+    if (sigCanvas.current && !sigCanvas.current.isEmpty()) {
       const dataURL = sigCanvas.current.toDataURL();
       onSave(dataURL);
     }
