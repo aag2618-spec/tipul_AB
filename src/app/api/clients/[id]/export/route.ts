@@ -166,7 +166,7 @@ ${i + 1}. תאריך: ${format(new Date(p.createdAt), "dd/MM/yyyy")}
     const zipBuffer = await zip.generateAsync({ type: "nodebuffer" });
 
     // Return as downloadable file
-    return new NextResponse(zipBuffer, {
+    return new Response(zipBuffer, {
       headers: {
         "Content-Type": "application/zip",
         "Content-Disposition": `attachment; filename="${client.name}-תיק-מטופל.zip"`,
