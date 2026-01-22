@@ -36,8 +36,6 @@ export default function RootLayout({
           href="https://fonts.googleapis.com/css2?family=Heebo:wght@300;400;500;600;700&display=swap"
           rel="stylesheet"
         />
-        <link rel="icon" href="/icon-192.png" />
-        <link rel="apple-touch-icon" href="/icon-192.png" />
         <meta name="theme-color" content="#0f172a" />
       </head>
       <body className="min-h-screen bg-background antialiased font-sans">
