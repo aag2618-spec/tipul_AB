@@ -17,7 +17,10 @@ export async function GET() {
       where: { therapistId: session.user.id },
       include: {
         therapySessions: {
-          orderBy: { sessionDate: "desc" },
+          orderBy: { startTime: "desc" },
+          include: {
+            sessionNote: true,
+          },
         },
         payments: {
           orderBy: { createdAt: "desc" },
@@ -77,19 +80,18 @@ export async function GET() {
 
         client.therapySessions.forEach((session, index) => {
           const sessionText = `פגישה #${client.therapySessions.length - index}
-תאריך: ${format(new Date(session.sessionDate), "dd/MM/yyyy HH:mm")}
+תאריך: ${format(new Date(session.startTime), "dd/MM/yyyy HH:mm")}
 סוג: ${session.type}
 סטטוס: ${session.status}
-${session.notes ? `\nסיכום:\n${session.notes}` : ""}
-${session.diagnosis ? `\nאבחנה:\n${session.diagnosis}` : ""}
-${session.treatmentPlan ? `\nתכנית טיפול:\n${session.treatmentPlan}` : ""}
+${session.notes ? `\nהערות:\n${session.notes}` : ""}
+${session.sessionNote?.content ? `\nסיכום:\n${session.sessionNote.content}` : ""}
 `;
           
           allSessionsSummary += sessionText + "\n" + "=".repeat(50) + "\n\n";
           
           // Individual session file
           sessionsFolder?.file(
-            `פגישה-${format(new Date(session.sessionDate), "yyyy-MM-dd")}.txt`,
+            `פגישה-${format(new Date(session.startTime), "yyyy-MM-dd")}.txt`,
             sessionText
           );
         });
