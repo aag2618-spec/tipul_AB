@@ -85,6 +85,8 @@ model User {
   passwordResets        PasswordReset[]
   smsSettings           SMSSettings?
   consentForms          ConsentForm[]
+  insurerSettings       InsurerSettings?
+  insurerReports        InsurerReport[]
 }
 
 // ==================== Password Reset ====================
@@ -171,6 +173,7 @@ model TherapySession {
   cancellationRequests CancellationRequest[]
   communicationLogs    CommunicationLog[]
   smsReminders         SMSReminder[]
+  insurerReports       InsurerReport[]
 }
 
 enum SessionStatus {
@@ -760,4 +763,76 @@ enum ConsentType {
   TELEHEALTH_CONSENT     // הסכמה לטיפול מרחוק
   PARENTAL_CONSENT       // הסכמת הורים (קטינים)
   CUSTOM                 // טופס מותאם אישית
+}
+
+// ==================== Health Insurance Integration ====================
+
+model InsurerSettings {
+  id          String   @id @default(cuid())
+  enabled     Boolean  @default(false)
+  
+  // Clalit - כללית
+  clalitEnabled    Boolean @default(false)
+  clalitApiKey     String?
+  clalitFacilityId String?
+  
+  // Maccabi - מכבי
+  maccabiEnabled    Boolean @default(false)
+  maccabiApiKey     String?
+  maccabiProviderId String?
+  
+  // Meuhedet - מאוחדת
+  meuhedetEnabled  Boolean @default(false)
+  meuhedetUsername String?
+  meuhedetPassword String?
+  
+  // Leumit - לאומית
+  leumitEnabled   Boolean @default(false)
+  leumitApiKey    String?
+  leumitClinicCode String?
+  
+  autoSubmit      Boolean @default(false) // Auto-submit reports after session
+  createdAt       DateTime @default(now())
+  updatedAt       DateTime @updatedAt
+
+  therapistId String @unique
+  therapist   User   @relation(fields: [therapistId], references: [id], onDelete: Cascade)
+}
+
+model InsurerReport {
+  id              String   @id @default(cuid())
+  insurer         HealthInsurer
+  reportData      String   @db.Text // JSON formatted report
+  status          ReportStatus @default(DRAFT)
+  submittedAt     DateTime?
+  confirmationCode String?
+  errorMessage    String?  @db.Text
+  createdAt       DateTime @default(now())
+  updatedAt       DateTime @updatedAt
+
+  sessionId String
+  session   TherapySession @relation(fields: [sessionId], references: [id], onDelete: Cascade)
+
+  therapistId String
+  therapist   User   @relation(fields: [therapistId], references: [id], onDelete: Cascade)
+
+  @@index([insurer])
+  @@index([status])
+  @@index([sessionId])
+}
+
+enum HealthInsurer {
+  CLALIT
+  MACCABI
+  MEUHEDET
+  LEUMIT
+}
+
+enum ReportStatus {
+  DRAFT
+  PENDING
+  SUBMITTED
+  CONFIRMED
+  REJECTED
+  ERROR
 }

@@ -1,16 +1,17 @@
 "use client";
 
-import { useRef, useState } from "react";
+import { useRef, useState, ComponentType } from "react";
 import dynamic from "next/dynamic";
 import { Button } from "@/components/ui/button";
 import { Card } from "@/components/ui/card";
 import { Eraser, Check } from "lucide-react";
+import type ReactSignatureCanvas from "react-signature-canvas";
 
 // Dynamic import to avoid SSR issues
 const SignatureCanvas = dynamic(
-  () => import("react-signature-canvas").then((mod) => mod.default),
+  () => import("react-signature-canvas"),
   { ssr: false }
-);
+) as ComponentType<any>;
 
 interface SignaturePadProps {
   onSave: (signature: string) => void;
@@ -18,7 +19,7 @@ interface SignaturePadProps {
 }
 
 export function SignaturePad({ onSave, onCancel }: SignaturePadProps) {
-  const sigCanvas = useRef<any>(null);
+  const sigCanvas = useRef<ReactSignatureCanvas>(null);
   const [isEmpty, setIsEmpty] = useState(true);
 
   const handleClear = () => {
@@ -42,7 +43,7 @@ export function SignaturePad({ onSave, onCancel }: SignaturePadProps) {
       <Card className="p-4">
         <div className="border-2 border-dashed border-muted-foreground/20 rounded-lg bg-white">
           <SignatureCanvas
-            ref={sigCanvas}
+            ref={sigCanvas as any}
             canvasProps={{
               className: "w-full h-48 cursor-crosshair",
             }}

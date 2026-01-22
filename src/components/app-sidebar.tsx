@@ -35,6 +35,8 @@ import {
   XCircle,
   ClipboardList,
   FileSignature,
+  Building2,
+  MessageSquare,
 } from "lucide-react";
 
 interface AppSidebarProps {
@@ -118,6 +120,16 @@ const settingsItems = [
     title: "התראות",
     href: "/dashboard/settings/notifications",
     icon: Bell,
+  },
+  {
+    title: "תזכורות SMS",
+    href: "/dashboard/settings/sms",
+    icon: MessageSquare,
+  },
+  {
+    title: "קופות חולים",
+    href: "/dashboard/settings/health-insurers",
+    icon: Building2,
   },
   {
     title: "הגדרות",
