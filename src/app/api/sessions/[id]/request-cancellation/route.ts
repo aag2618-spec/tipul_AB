@@ -43,6 +43,14 @@ export async function POST(
       );
     }
 
+    // BREAK sessions cannot be cancelled by clients (no client exists)
+    if (!therapySession.client || therapySession.type === "BREAK") {
+      return NextResponse.json(
+        { success: false, message: "לא ניתן לבטל פגישה זו" },
+        { status: 400 }
+      );
+    }
+
     // Verify the session belongs to this client
     if (therapySession.clientId !== clientId) {
       return NextResponse.json(
