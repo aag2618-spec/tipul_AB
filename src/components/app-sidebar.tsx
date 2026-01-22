@@ -55,28 +55,33 @@ const mainNavItems = [
     icon: LayoutDashboard,
   },
   {
-    title: "מטופלים",
-    href: "/dashboard/clients",
-    icon: Users,
-  },
-  {
     title: "יומן",
     href: "/dashboard/calendar",
     icon: Calendar,
   },
   {
-    title: "פגישות וסיכומים",
+    title: "מטופלים",
+    href: "/dashboard/clients",
+    icon: Users,
+  },
+  {
+    title: "פגישות",
     href: "/dashboard/sessions",
     icon: FileText,
   },
+  {
+    title: "משימות",
+    href: "/dashboard/tasks",
+    icon: ListTodo,
+  },
+];
+
+const clinicalItems = [
   {
     title: "הקלטות",
     href: "/dashboard/recordings",
     icon: Mic,
   },
-];
-
-const managementItems = [
   {
     title: "שאלונים",
     href: "/dashboard/questionnaires",
@@ -88,19 +93,17 @@ const managementItems = [
     icon: FileSignature,
   },
   {
-    title: "תשלומים",
-    href: "/dashboard/payments",
-    icon: CreditCard,
-  },
-  {
     title: "מסמכים",
     href: "/dashboard/documents",
     icon: FolderOpen,
   },
+];
+
+const businessItems = [
   {
-    title: "משימות",
-    href: "/dashboard/tasks",
-    icon: ListTodo,
+    title: "תשלומים",
+    href: "/dashboard/payments",
+    icon: CreditCard,
   },
   {
     title: "בקשות ביטול",
@@ -132,7 +135,7 @@ const settingsItems = [
     icon: Building2,
   },
   {
-    title: "הגדרות",
+    title: "הגדרות כלליות",
     href: "/dashboard/settings",
     icon: Settings,
   },
@@ -201,8 +204,9 @@ export function AppSidebar({ user }: AppSidebarProps) {
       </SidebarHeader>
 
       <SidebarContent>
+        {/* Main Navigation */}
         <SidebarGroup>
-          <SidebarGroupLabel>ראשי</SidebarGroupLabel>
+          <SidebarGroupLabel>ניווט ראשי</SidebarGroupLabel>
           <SidebarGroupContent>
             <SidebarMenu>
               {mainNavItems.map((item) => (
@@ -223,11 +227,35 @@ export function AppSidebar({ user }: AppSidebarProps) {
           </SidebarGroupContent>
         </SidebarGroup>
 
+        {/* Clinical Tools */}
         <SidebarGroup>
-          <SidebarGroupLabel>ניהול</SidebarGroupLabel>
+          <SidebarGroupLabel>כלים קליניים</SidebarGroupLabel>
           <SidebarGroupContent>
             <SidebarMenu>
-              {managementItems.map((item) => (
+              {clinicalItems.map((item) => (
+                <SidebarMenuItem key={item.href}>
+                  <SidebarMenuButton
+                    asChild
+                    isActive={isActive(item.href)}
+                    tooltip={item.title}
+                  >
+                    <Link href={item.href}>
+                      <item.icon className="h-4 w-4" />
+                      <span>{item.title}</span>
+                    </Link>
+                  </SidebarMenuButton>
+                </SidebarMenuItem>
+              ))}
+            </SidebarMenu>
+          </SidebarGroupContent>
+        </SidebarGroup>
+
+        {/* Business Management */}
+        <SidebarGroup>
+          <SidebarGroupLabel>ניהול עסקי</SidebarGroupLabel>
+          <SidebarGroupContent>
+            <SidebarMenu>
+              {businessItems.map((item) => (
                 <SidebarMenuItem key={item.href}>
                   <SidebarMenuButton
                     asChild
@@ -252,6 +280,7 @@ export function AppSidebar({ user }: AppSidebarProps) {
           </SidebarGroupContent>
         </SidebarGroup>
 
+        {/* Settings */}
         <SidebarGroup>
           <SidebarGroupLabel>הגדרות</SidebarGroupLabel>
           <SidebarGroupContent>
