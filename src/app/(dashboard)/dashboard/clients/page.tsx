@@ -14,6 +14,7 @@ import {
   DropdownMenuTrigger,
 } from "@/components/ui/dropdown-menu";
 import { format } from "date-fns";
+import { ExportAllClientsButton } from "@/components/clients/export-all-clients-button";
 
 type ClientStatus = "ACTIVE" | "WAITING" | "INACTIVE" | "ARCHIVED";
 
@@ -125,12 +126,15 @@ export default async function ClientsPage({ searchParams }: PageProps) {
             {counts.total} מטופלים במערכת
           </p>
         </div>
-        <Button asChild>
-          <Link href="/dashboard/clients/new">
-            <Plus className="ml-2 h-4 w-4" />
-            מטופל חדש
-          </Link>
-        </Button>
+        <div className="flex items-center gap-2">
+          {counts.total > 0 && <ExportAllClientsButton />}
+          <Button asChild>
+            <Link href="/dashboard/clients/new">
+              <Plus className="ml-2 h-4 w-4" />
+              מטופל חדש
+            </Link>
+          </Button>
+        </div>
       </div>
 
       {/* Status Filter Tabs */}
