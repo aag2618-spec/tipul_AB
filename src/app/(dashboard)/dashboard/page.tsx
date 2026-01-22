@@ -290,43 +290,6 @@ export default async function DashboardPage() {
 
       {/* Personal Tasks Widget */}
       <PersonalTasksWidget />
-
-      {/* Quick Access to Questionnaires */}
-      <Card>
-        <CardHeader className="flex flex-row items-center justify-between">
-          <div>
-            <CardTitle className="flex items-center gap-2">
-              <ClipboardList className="h-5 w-5" />
-              שאלונים פסיכולוגיים
-            </CardTitle>
-            <CardDescription>
-              הערכה פסיכולוגית עם ניתוח בינה מלאכותית
-            </CardDescription>
-          </div>
-          <Button asChild>
-            <Link href="/dashboard/questionnaires">
-              <Plus className="ml-2 h-4 w-4" />
-              שאלון חדש
-            </Link>
-          </Button>
-        </CardHeader>
-        <CardContent>
-          <div className="grid gap-3 md:grid-cols-3">
-            <Link href="/dashboard/questionnaires?type=SELF_REPORT" className="p-4 rounded-lg border hover:bg-muted/50 transition-colors">
-              <div className="font-medium">דיווח עצמי</div>
-              <p className="text-sm text-muted-foreground">BDI-2, PCL-5, GAD-7, PHQ-9</p>
-            </Link>
-            <Link href="/dashboard/questionnaires?type=CLINICIAN_RATED" className="p-4 rounded-lg border hover:bg-muted/50 transition-colors">
-              <div className="font-medium">הערכה קלינית</div>
-              <p className="text-sm text-muted-foreground">HAM-A, CAPS-5</p>
-            </Link>
-            <Link href="/dashboard/questionnaires" className="p-4 rounded-lg border hover:bg-muted/50 transition-colors">
-              <div className="font-medium">כל השאלונים</div>
-              <p className="text-sm text-muted-foreground">צפה בכל הכלים הזמינים</p>
-            </Link>
-          </div>
-        </CardContent>
-      </Card>
     </div>
   );
 }

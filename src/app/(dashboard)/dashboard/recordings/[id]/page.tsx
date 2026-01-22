@@ -7,7 +7,8 @@ import { Button } from "@/components/ui/button";
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
 import { Badge } from "@/components/ui/badge";
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
-import { ArrowRight, Loader2, Mic, Clock, User, Play, FileText, Brain, AlertCircle, Download, Trash2, RefreshCw } from "lucide-react";
+import { RichTextEditor } from "@/components/rich-text-editor";
+import { ArrowRight, Loader2, Mic, Clock, User, Play, FileText, Brain, AlertCircle, Download, Trash2, RefreshCw, Pencil, Save } from "lucide-react";
 import {
   AlertDialog,
   AlertDialogAction,
@@ -56,6 +57,9 @@ export default function RecordingPage({ params }: { params: Promise<{ id: string
   const [isTranscribing, setIsTranscribing] = useState(false);
   const [isAnalyzing, setIsAnalyzing] = useState(false);
   const [isDeleting, setIsDeleting] = useState(false);
+  const [isEditingTranscript, setIsEditingTranscript] = useState(false);
+  const [editedTranscript, setEditedTranscript] = useState("");
+  const [isSavingTranscript, setIsSavingTranscript] = useState(false);
 
   useEffect(() => {
     fetchRecording();
@@ -389,18 +393,86 @@ export default function RecordingPage({ params }: { params: Promise<{ id: string
           <TabsContent value="transcription" className="mt-6">
             <Card>
               <CardHeader>
-                <CardTitle>תמלול</CardTitle>
-                {recording.transcription?.confidence && (
-                  <CardDescription>
-                    רמת ביטחון: {Math.round(recording.transcription.confidence * 100)}%
-                  </CardDescription>
-                )}
+                <div className="flex items-start justify-between">
+                  <div>
+                    <CardTitle>תמלול</CardTitle>
+                    {recording.transcription?.confidence && (
+                      <CardDescription>
+                        רמת ביטחון: {Math.round(recording.transcription.confidence * 100)}%
+                      </CardDescription>
+                    )}
+                  </div>
+                  {recording.transcription && !isEditingTranscript && (
+                    <Button
+                      variant="outline"
+                      size="sm"
+                      onClick={() => {
+                        setIsEditingTranscript(true);
+                        setEditedTranscript(recording.transcription!.content);
+                      }}
+                      className="gap-2"
+                    >
+                      <Pencil className="h-4 w-4" />
+                      ערוך
+                    </Button>
+                  )}
+                </div>
               </CardHeader>
               <CardContent>
                 {recording.transcription ? (
-                  <div className="prose prose-sm max-w-none dark:prose-invert whitespace-pre-wrap">
-                    {recording.transcription.content}
-                  </div>
+                  isEditingTranscript ? (
+                    <div className="space-y-4">
+                      <RichTextEditor
+                        content={editedTranscript}
+                        onChange={setEditedTranscript}
+                        placeholder="ערוך את התמלול..."
+                      />
+                      <div className="flex gap-2 justify-end">
+                        <Button
+                          variant="outline"
+                          onClick={() => {
+                            setIsEditingTranscript(false);
+                            setEditedTranscript("");
+                          }}
+                        >
+                          ביטול
+                        </Button>
+                        <Button
+                          onClick={async () => {
+                            setIsSavingTranscript(true);
+                            try {
+                              const response = await fetch(`/api/transcribe/${recording.transcription!.id}`, {
+                                method: "PATCH",
+                                headers: { "Content-Type": "application/json" },
+                                body: JSON.stringify({ content: editedTranscript }),
+                              });
+                              if (!response.ok) throw new Error("שגיאה בשמירה");
+                              toast.success("התמלול עודכן בהצלחה");
+                              setIsEditingTranscript(false);
+                              fetchRecording();
+                            } catch (error) {
+                              toast.error("שגיאה בעדכון התמלול");
+                            } finally {
+                              setIsSavingTranscript(false);
+                            }
+                          }}
+                          disabled={isSavingTranscript}
+                          className="gap-2"
+                        >
+                          {isSavingTranscript ? (
+                            <Loader2 className="h-4 w-4 animate-spin" />
+                          ) : (
+                            <Save className="h-4 w-4" />
+                          )}
+                          שמור
+                        </Button>
+                      </div>
+                    </div>
+                  ) : (
+                    <div className="prose prose-sm max-w-none dark:prose-invert whitespace-pre-wrap">
+                      {recording.transcription.content}
+                    </div>
+                  )
                 ) : (
                   <p className="text-muted-foreground">אין תמלול זמין</p>
                 )}
