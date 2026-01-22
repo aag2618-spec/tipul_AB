@@ -44,8 +44,8 @@ export async function GET(request: NextRequest) {
     const errors: string[] = [];
 
     for (const session of upcomingSessions) {
-      // Skip if client has no email
-      if (!session.client.email) continue;
+      // Skip if client is null (BREAK session) or has no email
+      if (!session.client || !session.client.email) continue;
 
       // Check if therapist has 2h reminders enabled
       const settings = session.therapist.communicationSetting;

@@ -52,7 +52,8 @@ export async function GET(request: NextRequest) {
 
       if (todaySessions.length > 0) {
         const sessionsList = todaySessions
-          .map((s) => `• ${s.client.name} - ${new Date(s.startTime).toLocaleTimeString("he-IL", { hour: "2-digit", minute: "2-digit" })}`)
+          .filter((s) => s.client) // Filter out BREAK sessions
+          .map((s) => `• ${s.client!.name} - ${new Date(s.startTime).toLocaleTimeString("he-IL", { hour: "2-digit", minute: "2-digit" })}`)
           .join("\n");
 
         await prisma.notification.create({
@@ -91,7 +92,8 @@ export async function GET(request: NextRequest) {
 
       if (tomorrowSessions.length > 0 || pendingTasks.length > 0) {
         const sessionsList = tomorrowSessions
-          .map((s) => `• ${s.client.name} - ${new Date(s.startTime).toLocaleTimeString("he-IL", { hour: "2-digit", minute: "2-digit" })}`)
+          .filter((s) => s.client) // Filter out BREAK sessions
+          .map((s) => `• ${s.client!.name} - ${new Date(s.startTime).toLocaleTimeString("he-IL", { hour: "2-digit", minute: "2-digit" })}`)
           .join("\n");
 
         const tasksList = pendingTasks

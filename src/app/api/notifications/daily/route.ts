@@ -62,7 +62,8 @@ export async function POST() {
       // Create evening summary notification (for tomorrow)
       if (tomorrowSessions.length > 0 || pendingTasks.length > 0) {
         const sessionsList = tomorrowSessions
-          .map((s) => `• ${s.client.name} - ${new Date(s.startTime).toLocaleTimeString("he-IL", { hour: "2-digit", minute: "2-digit" })}`)
+          .filter((s) => s.client) // Filter out BREAK sessions
+          .map((s) => `• ${s.client!.name} - ${new Date(s.startTime).toLocaleTimeString("he-IL", { hour: "2-digit", minute: "2-digit" })}`)
           .join("\n");
 
         const tasksList = pendingTasks
