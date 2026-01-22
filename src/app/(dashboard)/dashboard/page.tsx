@@ -10,6 +10,19 @@ import { format } from "date-fns";
 import { he } from "date-fns/locale";
 import { PersonalTasksWidget } from "@/components/tasks/personal-tasks-widget";
 
+// Helper to convert UTC time to Israel time for display
+function toIsraelTime(utcDate: Date): Date {
+  const date = new Date(utcDate);
+  // Check if in DST (roughly late March to late October)
+  const month = date.getUTCMonth() + 1;
+  const isDST = month >= 3 && month <= 10;
+  const offsetHours = isDST ? 3 : 2;
+  
+  // Add Israel offset to UTC time
+  date.setUTCHours(date.getUTCHours() + offsetHours);
+  return date;
+}
+
 async function getDashboardStats(userId: string) {
   const today = new Date();
   today.setHours(0, 0, 0, 0);
@@ -236,7 +249,7 @@ export default async function DashboardPage() {
                     <div className="flex items-center gap-3">
                       <div className="flex flex-col items-center justify-center w-12 h-12 rounded-lg bg-primary/10 text-primary">
                         <span className="text-sm font-bold">
-                          {format(new Date(therapySession.startTime), "HH:mm")}
+                          {format(toIsraelTime(new Date(therapySession.startTime)), "HH:mm")}
                         </span>
                       </div>
                       <div>
