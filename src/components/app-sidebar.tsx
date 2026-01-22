@@ -34,6 +34,7 @@ import {
   Shield,
   XCircle,
   ClipboardList,
+  FileSignature,
 } from "lucide-react";
 
 interface AppSidebarProps {
@@ -78,6 +79,11 @@ const managementItems = [
     title: "שאלונים",
     href: "/dashboard/questionnaires",
     icon: ClipboardList,
+  },
+  {
+    title: "טפסי הסכמה",
+    href: "/dashboard/consent-forms",
+    icon: FileSignature,
   },
   {
     title: "תשלומים",
