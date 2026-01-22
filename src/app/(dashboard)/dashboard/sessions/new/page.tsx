@@ -59,7 +59,7 @@ function NewSessionNoteContent() {
 
   // Filter sessions by selected client
   const filteredSessions = selectedClient
-    ? sessions.filter((s) => s.client.id === selectedClient)
+    ? sessions.filter((s) => s.client?.id === selectedClient)
     : sessions;
 
   const handleSubmit = async (e: React.FormEvent) => {
