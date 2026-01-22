@@ -12,9 +12,9 @@ export const env = {
   DATABASE_URL: process.env.DATABASE_URL!,
   NEXTAUTH_SECRET: process.env.NEXTAUTH_SECRET!,
   NEXTAUTH_URL: process.env.NEXTAUTH_URL || 'http://localhost:3000',
-  GOOGLE_AI_API_KEY: process.env.GOOGLE_AI_API_KEY!,
-  ANTHROPIC_API_KEY: process.env.ANTHROPIC_API_KEY, // Optional - no longer used
-  RESEND_API_KEY: process.env.RESEND_API_KEY,
+  GOOGLE_AI_API_KEY: process.env.GOOGLE_AI_API_KEY || process.env.GOOGLE_GENERATIVE_AI_API_KEY || '',
+  ANTHROPIC_API_KEY: process.env.ANTHROPIC_API_KEY || '', // Optional - no longer used
+  RESEND_API_KEY: process.env.RESEND_API_KEY || '',
 } as const;
 
 
