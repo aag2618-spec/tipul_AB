@@ -54,15 +54,14 @@ export async function GET() {
 
       // Client info
       const clientInfo = `פרטי מטופל: ${client.name}
-תעודת זהות: ${client.idNumber || "לא צוין"}
 טלפון: ${client.phone || "לא צוין"}
 אימייל: ${client.email || "לא צוין"}
 תאריך לידה: ${client.birthDate ? format(new Date(client.birthDate), "dd/MM/yyyy") : "לא צוין"}
 כתובת: ${client.address || "לא צוין"}
 סטטוס: ${client.status}
 הערות: ${client.notes || "אין"}
-אבחנות: ${client.diagnoses || "לא צוין"}
-תרופות: ${client.medications || "לא צוין"}
+אבחנה ראשונית: ${client.initialDiagnosis || "לא צוין"}
+הערות קבלה: ${client.intakeNotes || "אין"}
 היסטוריה רפואית: ${client.medicalHistory ? JSON.stringify(client.medicalHistory, null, 2) : "אין"}
 
 תאריך יצירה: ${format(new Date(client.createdAt), "dd/MM/yyyy HH:mm")}
