@@ -24,7 +24,6 @@ import { Badge } from "@/components/ui/badge";
 import { CreditCard, Loader2, Check, ChevronDown, ChevronUp } from "lucide-react";
 import { toast } from "sonner";
 import { useRouter } from "next/navigation";
-import { Collapsible, CollapsibleContent, CollapsibleTrigger } from "@/components/ui/collapsible";
 
 interface QuickMarkPaidProps {
   sessionId: string;
@@ -188,14 +187,19 @@ export function QuickMarkPaid({
           </div>
 
           {/* Advanced Options */}
-          <Collapsible open={showAdvanced} onOpenChange={setShowAdvanced}>
-            <CollapsibleTrigger asChild>
-              <Button variant="ghost" size="sm" className="w-full justify-between">
-                <span>אופציות מתקדמות</span>
-                {showAdvanced ? <ChevronUp className="h-4 w-4" /> : <ChevronDown className="h-4 w-4" />}
-              </Button>
-            </CollapsibleTrigger>
-            <CollapsibleContent className="space-y-3 pt-3">
+          <div className="space-y-3">
+            <Button 
+              type="button"
+              variant="ghost" 
+              size="sm" 
+              className="w-full justify-between"
+              onClick={() => setShowAdvanced(!showAdvanced)}
+            >
+              <span>אופציות מתקדמות</span>
+              {showAdvanced ? <ChevronUp className="h-4 w-4" /> : <ChevronDown className="h-4 w-4" />}
+            </Button>
+            {showAdvanced && (
+              <div className="space-y-3 pt-3">
               <div className="space-y-2 rounded-lg border p-3">
                 <Label>סוג תשלום</Label>
                 <div className="grid gap-2">
@@ -269,8 +273,8 @@ export function QuickMarkPaid({
                         onChange={(e) => setPartialAmount(e.target.value)}
                         min={0}
                         step="0.01"
-                      />
-                    </div>
+            )}
+          </diviv>
                   )}
                 </div>
               </div>

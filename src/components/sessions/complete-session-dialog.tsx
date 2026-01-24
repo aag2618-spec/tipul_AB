@@ -25,7 +25,6 @@ import { Badge } from "@/components/ui/badge";
 import { CheckCircle, Loader2, FileText, ChevronDown, ChevronUp } from "lucide-react";
 import { toast } from "sonner";
 import { useRouter } from "next/navigation";
-import { Collapsible, CollapsibleContent, CollapsibleTrigger } from "@/components/ui/collapsible";
 
 interface CompleteSessionDialogProps {
   sessionId: string;
@@ -264,14 +263,19 @@ export function CompleteSessionDialog({
                   </div>
 
                   {/* Advanced Options */}
-                  <Collapsible open={showAdvanced} onOpenChange={setShowAdvanced}>
-                    <CollapsibleTrigger asChild>
-                      <Button variant="ghost" size="sm" className="w-full justify-between">
-                        <span>אופציות מתקדמות</span>
-                        {showAdvanced ? <ChevronUp className="h-4 w-4" /> : <ChevronDown className="h-4 w-4" />}
-                      </Button>
-                    </CollapsibleTrigger>
-                    <CollapsibleContent className="space-y-2 pt-2">
+                  <div className="space-y-3">
+                    <Button 
+                      type="button"
+                      variant="ghost" 
+                      size="sm" 
+                      className="w-full justify-between"
+                      onClick={() => setShowAdvanced(!showAdvanced)}
+                    >
+                      <span>אופציות מתקדמות</span>
+                      {showAdvanced ? <ChevronUp className="h-4 w-4" /> : <ChevronDown className="h-4 w-4" />}
+                    </Button>
+                    {showAdvanced && (
+                      <div className="space-y-2 pt-2">
                       <div className="grid gap-2">
                         <Button
                           type="button"
@@ -338,8 +342,8 @@ export function CompleteSessionDialog({
                               value={partialAmount}
                               onChange={(e) => setPartialAmount(e.target.value)}
                               min={0}
-                              step="0.01"
-                            />
+                    )}
+                  </div>
                           </div>
                         )}
                       </div>
