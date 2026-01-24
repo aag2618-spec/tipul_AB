@@ -32,6 +32,7 @@ import {
 import { Input } from "@/components/ui/input";
 import Link from "next/link";
 import { QuickMarkPaid } from "@/components/payments/quick-mark-paid";
+import { CompleteSessionDialog } from "@/components/sessions/complete-session-dialog";
 import { ExportClientButton } from "@/components/clients/export-client-button";
 import { format } from "date-fns";
 import { he } from "date-fns/locale";
@@ -357,6 +358,19 @@ export default async function ClientPage({
                           </div>
                         </div>
                         <div className="flex items-center gap-3">
+                          {/* כפתור סיום מפגש - רק אם המפגש הסתיים והחסר סיכום או תשלום */}
+                          {session.status === "COMPLETED" && (!session.sessionNote || !session.payment || session.payment.status !== "PAID") && (
+                            <CompleteSessionDialog
+                              sessionId={session.id}
+                              clientId={client.id}
+                              clientName={client.name}
+                              sessionDate={format(new Date(session.startTime), "d/M/yyyy HH:mm")}
+                              defaultAmount={Number(session.price)}
+                              hasNote={!!session.sessionNote}
+                              hasPayment={session.payment?.status === "PAID"}
+                            />
+                          )}
+
                           {session.sessionNote && (
                             <Badge variant="outline">יש סיכום</Badge>
                           )}
