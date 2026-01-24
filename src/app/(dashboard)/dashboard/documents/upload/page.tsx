@@ -200,14 +200,13 @@ function UploadDocumentContent() {
             <div className="space-y-2">
               <Label>קשר למטופל (אופציונלי)</Label>
               <Select
-                value={formData.clientId}
+                value={formData.clientId || undefined}
                 onValueChange={(v) => setFormData({ ...formData, clientId: v })}
               >
                 <SelectTrigger>
                   <SelectValue placeholder="ללא מטופל" />
                 </SelectTrigger>
                 <SelectContent>
-                  <SelectItem value="">ללא מטופל</SelectItem>
                   {clients.map((client) => (
                     <SelectItem key={client.id} value={client.id}>
                       {client.name}
