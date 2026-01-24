@@ -314,8 +314,14 @@ export default async function ClientPage({
                           {session.sessionNote && (
                             <Badge variant="outline">יש סיכום</Badge>
                           )}
-                          {/* הצג כפתור תשלום אם יש תשלום ממתין */}
-                          {session.payment && session.payment.status === "PENDING" && (
+                          
+                          {/* תשלום - הצג כפתור/סטטוס לפי מצב */}
+                          {session.payment?.status === "PAID" ? (
+                            <Badge className="bg-green-100 text-green-700 border-green-200">
+                              <CheckCircle className="h-3 w-3 ml-1" />
+                              שולם
+                            </Badge>
+                          ) : (
                             <QuickMarkPaid
                               sessionId={session.id}
                               clientId={client.id}
@@ -323,13 +329,7 @@ export default async function ClientPage({
                               existingPayment={session.payment}
                             />
                           )}
-                          {/* הצג סימן וי ירוק אם שולם */}
-                          {session.payment && session.payment.status === "PAID" && (
-                            <Badge className="bg-green-100 text-green-700 border-green-200">
-                              <CheckCircle className="h-3 w-3 ml-1" />
-                              שולם
-                            </Badge>
-                          )}
+                          
                           <Badge
                             variant={
                               session.status === "COMPLETED"
