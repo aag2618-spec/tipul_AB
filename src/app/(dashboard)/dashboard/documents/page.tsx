@@ -77,14 +77,9 @@ export default async function DocumentsPage() {
               {documents.map((doc) => (
                 <div
                   key={doc.id}
-                  className="flex items-center justify-between p-4 rounded-lg bg-muted/50 hover:bg-muted transition-colors"
+                  className="flex items-center justify-between p-4 rounded-lg border border-border bg-background"
                 >
-                  <a 
-                    href={doc.fileUrl} 
-                    target="_blank" 
-                    rel="noopener noreferrer"
-                    className="flex items-center gap-4 flex-1"
-                  >
+                  <div className="flex items-center gap-4 flex-1">
                     <div className="flex h-12 w-12 items-center justify-center rounded-lg bg-primary/10">
                       <FileText className="h-6 w-6 text-primary" />
                     </div>
@@ -101,12 +96,20 @@ export default async function DocumentsPage() {
                         <span>{format(new Date(doc.createdAt), "dd/MM/yyyy")}</span>
                       </div>
                     </div>
-                  </a>
-                  <Button variant="ghost" size="icon" asChild>
-                    <a href={doc.fileUrl} download target="_blank" rel="noopener noreferrer">
-                      <Download className="h-4 w-4" />
-                    </a>
-                  </Button>
+                  </div>
+                  <div className="flex items-center gap-2">
+                    <Button variant="outline" size="sm" asChild>
+                      <a href={doc.fileUrl} target="_blank" rel="noopener noreferrer">
+                        <FileText className="h-4 w-4 ml-2" />
+                        פתח
+                      </a>
+                    </Button>
+                    <Button variant="ghost" size="icon" asChild>
+                      <a href={doc.fileUrl} download target="_blank" rel="noopener noreferrer">
+                        <Download className="h-4 w-4" />
+                      </a>
+                    </Button>
+                  </div>
                 </div>
               ))}
             </div>

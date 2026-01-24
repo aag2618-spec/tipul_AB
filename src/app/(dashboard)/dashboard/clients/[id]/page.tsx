@@ -610,7 +610,12 @@ export default async function ClientPage({
                       key={doc.id}
                       className="flex items-center justify-between p-4 rounded-lg bg-muted/50"
                     >
-                      <div className="flex items-center gap-3">
+                      <a 
+                        href={doc.fileUrl} 
+                        target="_blank" 
+                        rel="noopener noreferrer"
+                        className="flex items-center gap-3 flex-1"
+                      >
                         <div className="flex h-10 w-10 items-center justify-center rounded-lg bg-primary/10">
                           <FileText className="h-5 w-5 text-primary" />
                         </div>
@@ -620,22 +625,12 @@ export default async function ClientPage({
                             {format(new Date(doc.createdAt), "d/M/yyyy")}
                           </p>
                         </div>
-                      </div>
-                      <div className="flex items-center gap-2">
-                        {doc.signed ? (
-                          <Badge variant="default" className="gap-1">
-                            <CheckCircle className="h-3 w-3" />
-                            חתום
-                          </Badge>
-                        ) : (
-                          <Badge variant="secondary">ממתין</Badge>
-                        )}
-                        <Button variant="ghost" size="icon" asChild>
-                          <a href={`/api${doc.fileUrl}`} target="_blank" rel="noopener noreferrer">
-                            <Download className="h-4 w-4" />
-                          </a>
-                        </Button>
-                      </div>
+                      </a>
+                      <Button variant="ghost" size="icon" asChild>
+                        <a href={doc.fileUrl} download target="_blank" rel="noopener noreferrer">
+                          <Download className="h-4 w-4" />
+                        </a>
+                      </Button>
                     </div>
                   ))}
                 </div>
