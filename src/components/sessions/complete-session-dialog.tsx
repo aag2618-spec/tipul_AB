@@ -21,9 +21,11 @@ import {
 import { Label } from "@/components/ui/label";
 import { Textarea } from "@/components/ui/textarea";
 import { Input } from "@/components/ui/input";
-import { CheckCircle, Loader2, FileText } from "lucide-react";
+import { Badge } from "@/components/ui/badge";
+import { CheckCircle, Loader2, FileText, ChevronDown, ChevronUp } from "lucide-react";
 import { toast } from "sonner";
 import { useRouter } from "next/navigation";
+import { Collapsible, CollapsibleContent, CollapsibleTrigger } from "@/components/ui/collapsible";
 
 interface CompleteSessionDialogProps {
   sessionId: string;
@@ -31,6 +33,7 @@ interface CompleteSessionDialogProps {
   clientName: string;
   sessionDate: string;
   defaultAmount: number;
+  creditBalance?: number;
   hasNote?: boolean;
   hasPayment?: boolean;
 }
@@ -41,6 +44,7 @@ export function CompleteSessionDialog({
   clientName,
   sessionDate,
   defaultAmount,
+  creditBalance = 0,
   hasNote = false,
   hasPayment = false,
 }: CompleteSessionDialogProps) {
@@ -50,6 +54,9 @@ export function CompleteSessionDialog({
   const [paymentMethod, setPaymentMethod] = useState<string>("CASH");
   const [amount, setAmount] = useState(defaultAmount.toString());
   const [includePayment, setIncludePayment] = useState(!hasPayment);
+  const [showAdvanced, setShowAdvanced] = useState(false);
+  const [paymentType, setPaymentType] = useState<"FULL" | "PARTIAL" | "ADVANCE" | "CREDIT">("FULL");
+  const [partialAmount, setPartialAmount] = useState<string>("");
   const router = useRouter();
 
   const handleComplete = async () => {
@@ -73,17 +80,58 @@ export function CompleteSessionDialog({
 
       // הוסף תשלום אם נבחר
       if (includePayment && !hasPayment) {
+        let actualAmount = parseFloat(amount);
+        let actualPaymentType: "FULL" | "PARTIAL" | "ADVANCE" = "FULL";
+        let useCredit = false;
+
+        if (paymentType === "PARTIAL") {
+          actualAmount = parseFloat(partialAmount) || 0;
+          actualPaymentType = "PARTIAL";
+          if (actualAmount <= 0 || actualAmount > defaultAmount) {
+            toast.error("סכום חלקי לא תקין");
+            setIsLoading(false);
+            return;
+          }
+        } else if (paymentType === "CREDIT") {
+          if (creditBalance < defaultAmount) {
+            toast.error("אין מספיק קרדיט");
+            setIsLoading(false);
+            return;
+          }
+          useCredit = true;
+        } else if (paymentType === "ADVANCE") {
+          actualPaymentType = "ADVANCE";
+          actualAmount = parseFloat(partialAmount) || 0;
+        }
+
         updates.push(
           fetch("/api/payments", {
             method: "POST",
             headers: { "Content-Type": "application/json" },
             body: JSON.stringify({
               clientId,
-              sessionId,
-              amount: parseFloat(amount),
+              sessionId: paymentType === "ADVANCE" ? null : sessionId,
+              amount: actualAmount,
+              expectedAmount: paymentType === "PARTIAL" ? defaultAmount : undefined,
+              paymentType: actualPaymentType,
               method: paymentMethod,
               status: "PAID",
             }),
+          }).then(async (res) => {
+            if (!res.ok) throw new Error("Payment failed");
+            // If using credit, update payment
+            if (useCredit) {
+              const paymentData = await res.json();
+              return fetch(`/api/payments/${paymentData.id}`, {
+                method: "PUT",
+                headers: { "Content-Type": "application/json" },
+                body: JSON.stringify({
+                  status: "PAID",
+                  useCredit: true,
+                }),
+              });
+            }
+            return res;
           })
         );
       }
@@ -103,6 +151,10 @@ export function CompleteSessionDialog({
 
       toast.success("המפגש הושלם בהצלחה!");
       setIsOpen(false);
+      setSummary("");
+      setShowAdvanced(false);
+      setPaymentType("FULL");
+      setPartialAmount("");
       router.refresh();
     } catch (error) {
       toast.error("שגיאה בסיום המפגש");
@@ -125,13 +177,20 @@ export function CompleteSessionDialog({
           סיים מפגש
         </Button>
       </DialogTrigger>
-      <DialogContent className="sm:max-w-[500px]">
+      <DialogContent className="sm:max-w-[550px] max-h-[90vh] overflow-y-auto">
         <DialogHeader>
           <DialogTitle className="flex items-center gap-2">
             <CheckCircle className="h-5 w-5 text-primary" />
             סיום מפגש - {clientName}
           </DialogTitle>
-          <DialogDescription>{sessionDate}</DialogDescription>
+          <DialogDescription>
+            <div>{sessionDate}</div>
+            {creditBalance > 0 && (
+              <Badge variant="secondary" className="mt-1">
+                קרדיט זמין: ₪{creditBalance}
+              </Badge>
+            )}
+          </DialogDescription>
         </DialogHeader>
 
         <div className="space-y-4 py-4">
@@ -168,39 +227,125 @@ export function CompleteSessionDialog({
               </div>
 
               {includePayment && (
-                <div className="grid grid-cols-2 gap-3">
-                  <div className="space-y-2">
-                    <Label htmlFor="amount">סכום</Label>
-                    <div className="relative">
-                      <Input
-                        id="amount"
-                        type="number"
-                        value={amount}
-                        onChange={(e) => setAmount(e.target.value)}
-                        className="pl-8"
-                      />
-                      <span className="absolute left-3 top-1/2 -translate-y-1/2 text-sm text-muted-foreground">
-                        ₪
-                      </span>
+                <>
+                  <div className="grid grid-cols-2 gap-3">
+                    <div className="space-y-2">
+                      <Label htmlFor="amount">סכום</Label>
+                      <div className="relative">
+                        <Input
+                          id="amount"
+                          type="number"
+                          value={amount}
+                          onChange={(e) => setAmount(e.target.value)}
+                          className="pl-8"
+                          disabled={paymentType !== "FULL"}
+                        />
+                        <span className="absolute left-3 top-1/2 -translate-y-1/2 text-sm text-muted-foreground">
+                          ₪
+                        </span>
+                      </div>
+                    </div>
+
+                    <div className="space-y-2">
+                      <Label htmlFor="method">אמצעי תשלום</Label>
+                      <Select value={paymentMethod} onValueChange={setPaymentMethod}>
+                        <SelectTrigger>
+                          <SelectValue />
+                        </SelectTrigger>
+                        <SelectContent>
+                          <SelectItem value="CASH">מזומן</SelectItem>
+                          <SelectItem value="CREDIT_CARD">אשראי</SelectItem>
+                          <SelectItem value="BANK_TRANSFER">העברה</SelectItem>
+                          <SelectItem value="CHECK">צ׳ק</SelectItem>
+                          <SelectItem value="OTHER">אחר</SelectItem>
+                        </SelectContent>
+                      </Select>
                     </div>
                   </div>
 
-                  <div className="space-y-2">
-                    <Label htmlFor="method">אמצעי תשלום</Label>
-                    <Select value={paymentMethod} onValueChange={setPaymentMethod}>
-                      <SelectTrigger>
-                        <SelectValue />
-                      </SelectTrigger>
-                      <SelectContent>
-                        <SelectItem value="CASH">מזומן</SelectItem>
-                        <SelectItem value="CREDIT_CARD">אשראי</SelectItem>
-                        <SelectItem value="BANK_TRANSFER">העברה</SelectItem>
-                        <SelectItem value="CHECK">צ׳ק</SelectItem>
-                        <SelectItem value="OTHER">אחר</SelectItem>
-                      </SelectContent>
-                    </Select>
-                  </div>
-                </div>
+                  {/* Advanced Options */}
+                  <Collapsible open={showAdvanced} onOpenChange={setShowAdvanced}>
+                    <CollapsibleTrigger asChild>
+                      <Button variant="ghost" size="sm" className="w-full justify-between">
+                        <span>אופציות מתקדמות</span>
+                        {showAdvanced ? <ChevronUp className="h-4 w-4" /> : <ChevronDown className="h-4 w-4" />}
+                      </Button>
+                    </CollapsibleTrigger>
+                    <CollapsibleContent className="space-y-2 pt-2">
+                      <div className="grid gap-2">
+                        <Button
+                          type="button"
+                          variant={paymentType === "FULL" ? "default" : "outline"}
+                          size="sm"
+                          onClick={() => setPaymentType("FULL")}
+                        >
+                          תשלום מלא (₪{defaultAmount})
+                        </Button>
+                        
+                        {creditBalance >= defaultAmount && (
+                          <Button
+                            type="button"
+                            variant={paymentType === "CREDIT" ? "default" : "outline"}
+                            size="sm"
+                            onClick={() => setPaymentType("CREDIT")}
+                          >
+                            משיכה מקרדיט (₪{creditBalance} זמין)
+                          </Button>
+                        )}
+                        
+                        <Button
+                          type="button"
+                          variant={paymentType === "PARTIAL" ? "default" : "outline"}
+                          size="sm"
+                          onClick={() => setPaymentType("PARTIAL")}
+                        >
+                          תשלום חלקי
+                        </Button>
+                        
+                        {paymentType === "PARTIAL" && (
+                          <div className="pr-4 space-y-1">
+                            <Input
+                              type="number"
+                              placeholder="הכנס סכום"
+                              value={partialAmount}
+                              onChange={(e) => setPartialAmount(e.target.value)}
+                              max={defaultAmount}
+                              min={0}
+                              step="0.01"
+                            />
+                            {partialAmount && parseFloat(partialAmount) < defaultAmount && (
+                              <p className="text-xs text-muted-foreground">
+                                נותר לתשלום: ₪{defaultAmount - parseFloat(partialAmount)}
+                              </p>
+                            )}
+                          </div>
+                        )}
+                        
+                        <Button
+                          type="button"
+                          variant={paymentType === "ADVANCE" ? "default" : "outline"}
+                          size="sm"
+                          onClick={() => setPaymentType("ADVANCE")}
+                        >
+                          תשלום מראש (הוספה לקרדיט)
+                        </Button>
+                        
+                        {paymentType === "ADVANCE" && (
+                          <div className="pr-4">
+                            <Input
+                              type="number"
+                              placeholder="הכנס סכום לקרדיט"
+                              value={partialAmount}
+                              onChange={(e) => setPartialAmount(e.target.value)}
+                              min={0}
+                              step="0.01"
+                            />
+                          </div>
+                        )}
+                      </div>
+                    </CollapsibleContent>
+                  </Collapsible>
+                </>
               )}
             </div>
           )}

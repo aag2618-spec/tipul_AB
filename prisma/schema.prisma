@@ -113,6 +113,7 @@ model Client {
   address             String?
   status              ClientStatus @default(ACTIVE)
   defaultSessionPrice Decimal?     @db.Decimal(10, 2)
+  creditBalance       Decimal      @default(0) @db.Decimal(10, 2) // יתרת קרדיט
   medicalHistory      Json?
   notes               String?      @db.Text
   initialDiagnosis    String?      @db.Text
@@ -268,15 +269,17 @@ model Analysis {
 // ==================== Payments ====================
 
 model Payment {
-  id         String        @id @default(cuid())
-  amount     Decimal       @db.Decimal(10, 2)
-  method     PaymentMethod
-  status     PaymentStatus @default(PENDING)
-  receiptUrl String?
-  notes      String?
-  paidAt     DateTime?
-  createdAt  DateTime      @default(now())
-  updatedAt  DateTime      @updatedAt
+  id             String        @id @default(cuid())
+  amount         Decimal       @db.Decimal(10, 2) // הסכום ששולם בפועל
+  expectedAmount Decimal?      @db.Decimal(10, 2) // הסכום המלא שהיה צריך להשתלם
+  paymentType    PaymentType   @default(FULL) // סוג התשלום
+  method         PaymentMethod
+  status         PaymentStatus @default(PENDING)
+  receiptUrl     String?
+  notes          String?
+  paidAt         DateTime?
+  createdAt      DateTime      @default(now())
+  updatedAt      DateTime      @updatedAt
 
   clientId String
   client   Client @relation(fields: [clientId], references: [id], onDelete: Cascade)
@@ -298,6 +301,12 @@ enum PaymentStatus {
   PAID
   CANCELLED
   REFUNDED
+}
+
+enum PaymentType {
+  FULL     // תשלום מלא
+  PARTIAL  // תשלום חלקי
+  ADVANCE  // תשלום מראש (קרדיט)
 }
 
 // ==================== Documents ====================

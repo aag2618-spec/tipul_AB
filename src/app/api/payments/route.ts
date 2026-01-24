@@ -37,7 +37,15 @@ export async function POST(request: NextRequest) {
     }
 
     const body = await request.json();
-    const { clientId, sessionId, amount, method, notes } = body;
+    const { 
+      clientId, 
+      sessionId, 
+      amount, 
+      expectedAmount,
+      paymentType = 'FULL',
+      method, 
+      notes 
+    } = body;
 
     if (!clientId || !amount) {
       return NextResponse.json(
@@ -55,11 +63,14 @@ export async function POST(request: NextRequest) {
       return NextResponse.json({ message: "מטופל לא נמצא" }, { status: 404 });
     }
 
+    // Create payment
     const payment = await prisma.payment.create({
       data: {
         clientId,
         sessionId: sessionId || null,
         amount,
+        expectedAmount: expectedAmount || amount,
+        paymentType,
         method: method || "CASH",
         status: "PENDING",
         notes: notes || null,
@@ -69,18 +80,33 @@ export async function POST(request: NextRequest) {
       },
     });
 
-    // Create task for payment collection
-    await prisma.task.create({
-      data: {
-        userId: session.user.id,
-        type: "COLLECT_PAYMENT",
-        title: `גבה תשלום מ-${client.name} - ₪${amount}`,
-        status: "PENDING",
-        priority: "MEDIUM",
-        relatedEntityId: payment.id,
-        relatedEntity: "Payment",
-      },
-    });
+    // Handle credit balance for ADVANCE payments
+    if (paymentType === 'ADVANCE') {
+      await prisma.client.update({
+        where: { id: clientId },
+        data: {
+          creditBalance: {
+            increment: amount
+          }
+        }
+      });
+    }
+
+    // Create task for payment collection (only for partial or unpaid)
+    if (paymentType === 'PARTIAL') {
+      const remaining = (expectedAmount || amount) - amount;
+      await prisma.task.create({
+        data: {
+          userId: session.user.id,
+          type: "COLLECT_PAYMENT",
+          title: `גבה יתרת תשלום מ-${client.name} - ₪${remaining}`,
+          status: "PENDING",
+          priority: "MEDIUM",
+          relatedEntityId: payment.id,
+          relatedEntity: "Payment",
+        },
+      });
+    }
 
     return NextResponse.json(payment, { status: 201 });
   } catch (error) {

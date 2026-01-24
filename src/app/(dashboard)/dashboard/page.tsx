@@ -95,7 +95,13 @@ async function getDashboardStats(userId: string) {
         startTime: { gte: today, lt: tomorrow },
       },
       include: { 
-        client: true,
+        client: {
+          select: {
+            id: true,
+            name: true,
+            creditBalance: true,
+          }
+        },
         sessionNote: true,
         payment: true,
       },
@@ -298,6 +304,7 @@ export default async function DashboardPage() {
                           clientName={therapySession.client.name}
                           sessionDate={format(new Date(therapySession.startTime), "d/M/yyyy HH:mm")}
                           defaultAmount={Number(therapySession.price)}
+                          creditBalance={Number(therapySession.client.creditBalance || 0)}
                           hasNote={!!therapySession.sessionNote}
                           hasPayment={therapySession.payment?.status === "PAID"}
                         />
@@ -307,7 +314,9 @@ export default async function DashboardPage() {
                         <QuickMarkPaid
                           sessionId={therapySession.id}
                           clientId={therapySession.client.id}
+                          clientName={therapySession.client.name}
                           amount={Number(therapySession.price)}
+                          creditBalance={Number(therapySession.client.creditBalance || 0)}
                           existingPayment={therapySession.payment}
                         />
                       )}

@@ -223,14 +223,17 @@ export default async function ClientPage({
         <Card>
           <CardContent className="pt-6">
             <div className="flex items-center gap-3">
-              <div className="flex h-10 w-10 items-center justify-center rounded-lg bg-primary/10">
-                <CreditCard className="h-5 w-5 text-primary" />
+              <div className="flex h-10 w-10 items-center justify-center rounded-lg bg-green-500/10">
+                <CreditCard className="h-5 w-5 text-green-600" />
               </div>
-              <div>
-                <p className="text-sm text-muted-foreground">חוב פתוח</p>
-                <p className="font-medium">
-                  {totalDebt > 0 ? `₪${totalDebt}` : "אין חוב"}
+              <div className="flex-1">
+                <p className="text-sm text-muted-foreground">יתרת קרדיט</p>
+                <p className="font-medium text-green-600">
+                  {client.creditBalance > 0 ? `₪${client.creditBalance}` : "₪0"}
                 </p>
+                {totalDebt > 0 && (
+                  <p className="text-xs text-destructive">חוב: ₪{totalDebt}</p>
+                )}
               </div>
             </div>
           </CardContent>
@@ -366,6 +369,7 @@ export default async function ClientPage({
                               clientName={client.name}
                               sessionDate={format(new Date(session.startTime), "d/M/yyyy HH:mm")}
                               defaultAmount={Number(session.price)}
+                              creditBalance={Number(client.creditBalance)}
                               hasNote={!!session.sessionNote}
                               hasPayment={session.payment?.status === "PAID"}
                             />
@@ -385,7 +389,9 @@ export default async function ClientPage({
                             <QuickMarkPaid
                               sessionId={session.id}
                               clientId={client.id}
+                              clientName={client.name}
                               amount={Number(session.price)}
+                              creditBalance={Number(client.creditBalance)}
                               existingPayment={session.payment}
                             />
                           )}

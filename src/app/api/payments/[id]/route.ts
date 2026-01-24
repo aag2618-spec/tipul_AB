@@ -49,14 +49,38 @@ export async function PUT(
 
     const { id } = await params;
     const body = await request.json();
-    const { status, method, notes, paidAt } = body;
+    const { status, method, notes, paidAt, useCredit } = body;
 
     const existingPayment = await prisma.payment.findFirst({
       where: { id, client: { therapistId: session.user.id } },
+      include: { client: true }
     });
 
     if (!existingPayment) {
       return NextResponse.json({ message: "תשלום לא נמצא" }, { status: 404 });
+    }
+
+    // Handle credit usage
+    if (useCredit && status === "PAID") {
+      const client = existingPayment.client;
+      const paymentAmount = Number(existingPayment.amount);
+      
+      if (client.creditBalance >= paymentAmount) {
+        // Deduct from credit balance
+        await prisma.client.update({
+          where: { id: client.id },
+          data: {
+            creditBalance: {
+              decrement: paymentAmount
+            }
+          }
+        });
+      } else {
+        return NextResponse.json(
+          { message: "אין מספיק קרדיט" },
+          { status: 400 }
+        );
+      }
     }
 
     const payment = await prisma.payment.update({
