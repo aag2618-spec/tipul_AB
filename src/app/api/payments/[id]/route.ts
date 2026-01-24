@@ -65,7 +65,7 @@ export async function PUT(
       const client = existingPayment.client;
       const paymentAmount = Number(existingPayment.amount);
       
-      if (client.creditBalance >= paymentAmount) {
+      if (Number(client.creditBalance) >= paymentAmount) {
         // Deduct from credit balance
         await prisma.client.update({
           where: { id: client.id },
