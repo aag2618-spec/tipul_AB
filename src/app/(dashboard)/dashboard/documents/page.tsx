@@ -24,9 +24,6 @@ export default async function DocumentsPage() {
 
   const documents = await getDocuments(session.user.id);
   
-  const signedDocs = documents.filter((d) => d.signed);
-  const pendingDocs = documents.filter((d) => !d.signed);
-
   const getTypeLabel = (type: string) => {
     switch (type) {
       case "CONSENT_FORM": return "טופס הסכמה";
@@ -55,47 +52,19 @@ export default async function DocumentsPage() {
       </div>
 
       {/* Stats */}
-      <div className="grid gap-4 md:grid-cols-3">
-        <Card>
-          <CardContent className="pt-6">
-            <div className="flex items-center gap-3">
-              <div className="flex h-10 w-10 items-center justify-center rounded-lg bg-primary/10">
-                <FileText className="h-5 w-5 text-primary" />
-              </div>
-              <div>
-                <p className="text-2xl font-bold">{documents.length}</p>
-                <p className="text-sm text-muted-foreground">סה״כ מסמכים</p>
-              </div>
+      <Card>
+        <CardContent className="pt-6">
+          <div className="flex items-center gap-3">
+            <div className="flex h-10 w-10 items-center justify-center rounded-lg bg-primary/10">
+              <FileText className="h-5 w-5 text-primary" />
             </div>
-          </CardContent>
-        </Card>
-        <Card>
-          <CardContent className="pt-6">
-            <div className="flex items-center gap-3">
-              <div className="flex h-10 w-10 items-center justify-center rounded-lg bg-green-100">
-                <CheckCircle className="h-5 w-5 text-green-600" />
-              </div>
-              <div>
-                <p className="text-2xl font-bold">{signedDocs.length}</p>
-                <p className="text-sm text-muted-foreground">חתומים</p>
-              </div>
+            <div>
+              <p className="text-2xl font-bold">{documents.length}</p>
+              <p className="text-sm text-muted-foreground">סה״כ מסמכים במערכת</p>
             </div>
-          </CardContent>
-        </Card>
-        <Card>
-          <CardContent className="pt-6">
-            <div className="flex items-center gap-3">
-              <div className="flex h-10 w-10 items-center justify-center rounded-lg bg-amber-100">
-                <Clock className="h-5 w-5 text-amber-600" />
-              </div>
-              <div>
-                <p className="text-2xl font-bold">{pendingDocs.length}</p>
-                <p className="text-sm text-muted-foreground">ממתינים לחתימה</p>
-              </div>
-            </div>
-          </CardContent>
-        </Card>
-      </div>
+          </div>
+        </CardContent>
+      </Card>
 
       {/* Documents List */}
       {documents.length > 0 ? (
@@ -108,9 +77,14 @@ export default async function DocumentsPage() {
               {documents.map((doc) => (
                 <div
                   key={doc.id}
-                  className="flex items-center justify-between p-4 rounded-lg bg-muted/50"
+                  className="flex items-center justify-between p-4 rounded-lg bg-muted/50 hover:bg-muted transition-colors"
                 >
-                  <div className="flex items-center gap-4">
+                  <a 
+                    href={doc.fileUrl} 
+                    target="_blank" 
+                    rel="noopener noreferrer"
+                    className="flex items-center gap-4 flex-1"
+                  >
                     <div className="flex h-12 w-12 items-center justify-center rounded-lg bg-primary/10">
                       <FileText className="h-6 w-6 text-primary" />
                     </div>
@@ -127,22 +101,12 @@ export default async function DocumentsPage() {
                         <span>{format(new Date(doc.createdAt), "dd/MM/yyyy")}</span>
                       </div>
                     </div>
-                  </div>
-                  <div className="flex items-center gap-2">
-                    {doc.signed ? (
-                      <Badge variant="default" className="gap-1">
-                        <CheckCircle className="h-3 w-3" />
-                        חתום
-                      </Badge>
-                    ) : (
-                      <Badge variant="secondary">ממתין לחתימה</Badge>
-                    )}
-                    <Button variant="ghost" size="icon" asChild>
-                      <a href={`/api${doc.fileUrl}`} target="_blank" rel="noopener noreferrer">
-                        <Download className="h-4 w-4" />
-                      </a>
-                    </Button>
-                  </div>
+                  </a>
+                  <Button variant="ghost" size="icon" asChild>
+                    <a href={doc.fileUrl} download target="_blank" rel="noopener noreferrer">
+                      <Download className="h-4 w-4" />
+                    </a>
+                  </Button>
                 </div>
               ))}
             </div>
