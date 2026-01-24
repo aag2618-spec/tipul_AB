@@ -25,7 +25,9 @@ import {
   FolderOpen,
   Download,
   CheckCircle,
-  ClipboardList
+  ClipboardList,
+  Repeat,
+  Clock,
 } from "lucide-react";
 import { Input } from "@/components/ui/input";
 import Link from "next/link";
@@ -38,6 +40,10 @@ async function getClient(clientId: string, userId: string) {
   return prisma.client.findFirst({
     where: { id: clientId, therapistId: userId },
     include: {
+      recurringPatterns: {
+        where: { isActive: true },
+        orderBy: { dayOfWeek: "asc" },
+      },
       therapySessions: {
         orderBy: { startTime: "desc" },
         take: 20,
@@ -268,6 +274,46 @@ export default async function ClientPage({
         </TabsList>
 
         <TabsContent value="sessions" className="mt-6">
+          {/* Recurring Pattern Card */}
+          {client.recurringPatterns && client.recurringPatterns.length > 0 && (
+            <Card className="mb-4 border-primary/20 bg-primary/5">
+              <CardHeader>
+                <div className="flex items-center justify-between">
+                  <div className="flex items-center gap-2">
+                    <Repeat className="h-5 w-5 text-primary" />
+                    <CardTitle className="text-lg">מפגש קבוע</CardTitle>
+                  </div>
+                  <Button variant="outline" size="sm" asChild>
+                    <Link href={`/dashboard/calendar?client=${client.id}`}>
+                      <Edit className="h-3 w-3 ml-1" />
+                      ערוך
+                    </Link>
+                  </Button>
+                </div>
+              </CardHeader>
+              <CardContent className="space-y-2">
+                {client.recurringPatterns.map((pattern) => {
+                  const days = ['ראשון', 'שני', 'שלישי', 'רביעי', 'חמישי', 'שישי', 'שבת'];
+                  return (
+                    <div key={pattern.id} className="flex items-center gap-3 p-3 rounded-lg bg-background">
+                      <Clock className="h-4 w-4 text-muted-foreground" />
+                      <div className="flex-1">
+                        <p className="font-medium">כל יום {days[pattern.dayOfWeek]}</p>
+                        <p className="text-sm text-muted-foreground">
+                          שעה {pattern.time} • {pattern.duration} דקות
+                        </p>
+                      </div>
+                      <Badge variant="secondary" className="gap-1">
+                        <Repeat className="h-3 w-3" />
+                        פעיל
+                      </Badge>
+                    </div>
+                  );
+                })}
+              </CardContent>
+            </Card>
+          )}
+
           <Card>
             <CardHeader>
               <CardTitle>היסטוריית פגישות</CardTitle>
