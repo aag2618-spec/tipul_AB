@@ -4,11 +4,13 @@ import prisma from "@/lib/prisma";
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
-import { Users, Calendar, CreditCard, Clock, Plus, ClipboardList } from "lucide-react";
+import { Users, Calendar, CreditCard, Clock, Plus, ClipboardList, CheckCircle } from "lucide-react";
 import Link from "next/link";
 import { format } from "date-fns";
 import { he } from "date-fns/locale";
 import { PersonalTasksWidget } from "@/components/tasks/personal-tasks-widget";
+import { CompleteSessionDialog } from "@/components/sessions/complete-session-dialog";
+import { QuickMarkPaid } from "@/components/payments/quick-mark-paid";
 
 // Helper to convert UTC time to Israel time for display
 function toIsraelTime(utcDate: Date): Date {
@@ -92,7 +94,11 @@ async function getDashboardStats(userId: string) {
         therapistId: userId,
         startTime: { gte: today, lt: tomorrow },
       },
-      include: { client: true },
+      include: { 
+        client: true,
+        sessionNote: true,
+        payment: true,
+      },
       orderBy: { startTime: "asc" },
     }),
   ]);
@@ -244,47 +250,86 @@ export default async function DashboardPage() {
                 {stats.todaySessions.map((therapySession) => (
                   <div
                     key={therapySession.id}
-                    className="flex items-center justify-between p-3 rounded-lg bg-muted/50"
+                    className="flex items-center justify-between p-4 rounded-lg border border-border bg-background"
                   >
-                    <div className="flex items-center gap-3">
-                      <div className="flex flex-col items-center justify-center w-12 h-12 rounded-lg bg-primary/10 text-primary">
-                        <span className="text-sm font-bold">
+                    <div className="flex items-center gap-3 flex-1">
+                      <div className="flex flex-col items-center justify-center w-14 h-14 rounded-lg bg-primary/10 text-primary">
+                        <span className="text-base font-bold">
                           {format(toIsraelTime(new Date(therapySession.startTime)), "HH:mm")}
                         </span>
+                        <span className="text-xs text-muted-foreground">
+                          {Math.round((new Date(therapySession.endTime).getTime() - new Date(therapySession.startTime).getTime()) / 60000)} דק'
+                        </span>
                       </div>
-                      <div>
+                      <div className="flex-1">
                         {therapySession.client ? (
                           <Link 
                             href={`/dashboard/clients/${therapySession.client.id}`}
-                            className="font-medium hover:text-primary hover:underline transition-colors"
+                            className="font-medium hover:text-primary hover:underline transition-colors text-base"
                           >
                             {therapySession.client.name}
                           </Link>
                         ) : (
                           <span className="font-medium">🌊 הפסקה</span>
                         )}
-                        <p className="text-sm text-muted-foreground">
-                          {therapySession.type === "BREAK" ? "הפסקה" : therapySession.type === "ONLINE" ? "אונליין" : "פרונטלי"}
-                        </p>
+                        <div className="flex items-center gap-2 mt-1">
+                          <p className="text-sm text-muted-foreground">
+                            {therapySession.type === "BREAK" ? "הפסקה" : therapySession.type === "ONLINE" ? "אונליין" : therapySession.type === "PHONE" ? "טלפון" : "פרונטלי"}
+                          </p>
+                          {therapySession.sessionNote && (
+                            <Badge variant="outline" className="text-xs">יש סיכום</Badge>
+                          )}
+                          {therapySession.payment?.status === "PAID" && (
+                            <Badge className="bg-green-100 text-green-700 border-green-200 text-xs">
+                              <CheckCircle className="h-3 w-3 ml-1" />
+                              שולם
+                            </Badge>
+                          )}
+                        </div>
                       </div>
                     </div>
-                    <Badge
-                      variant={
-                        therapySession.status === "COMPLETED"
-                          ? "default"
+                    
+                    <div className="flex items-center gap-2">
+                      {/* כפתורי פעולה מהירה */}
+                      {therapySession.client && therapySession.status === "COMPLETED" && (!therapySession.sessionNote || !therapySession.payment || therapySession.payment.status !== "PAID") && (
+                        <CompleteSessionDialog
+                          sessionId={therapySession.id}
+                          clientId={therapySession.client.id}
+                          clientName={therapySession.client.name}
+                          sessionDate={format(new Date(therapySession.startTime), "d/M/yyyy HH:mm")}
+                          defaultAmount={Number(therapySession.price)}
+                          hasNote={!!therapySession.sessionNote}
+                          hasPayment={therapySession.payment?.status === "PAID"}
+                        />
+                      )}
+                      
+                      {therapySession.client && therapySession.payment?.status !== "PAID" && (
+                        <QuickMarkPaid
+                          sessionId={therapySession.id}
+                          clientId={therapySession.client.id}
+                          amount={Number(therapySession.price)}
+                          existingPayment={therapySession.payment}
+                        />
+                      )}
+                      
+                      <Badge
+                        variant={
+                          therapySession.status === "COMPLETED"
+                            ? "default"
+                            : therapySession.status === "CANCELLED"
+                            ? "destructive"
+                            : "secondary"
+                        }
+                      >
+                        {therapySession.status === "SCHEDULED"
+                          ? "מתוכנן"
+                          : therapySession.status === "COMPLETED"
+                          ? "הושלם"
                           : therapySession.status === "CANCELLED"
-                          ? "destructive"
-                          : "secondary"
-                      }
-                    >
-                      {therapySession.status === "SCHEDULED"
-                        ? "מתוכנן"
-                        : therapySession.status === "COMPLETED"
-                        ? "הושלם"
-                        : therapySession.status === "CANCELLED"
-                        ? "בוטל"
-                        : "לא הגיע"}
-                    </Badge>
+                          ? "בוטל"
+                          : "לא הגיע"}
+                      </Badge>
+                    </div>
                   </div>
                 ))}
               </div>
