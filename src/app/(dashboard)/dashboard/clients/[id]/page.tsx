@@ -229,7 +229,7 @@ export default async function ClientPage({
               <div className="flex-1">
                 <p className="text-sm text-muted-foreground">יתרת קרדיט</p>
                 <p className="font-medium text-green-600">
-                  {client.creditBalance > 0 ? `₪${client.creditBalance}` : "₪0"}
+                  {Number(client.creditBalance) > 0 ? `₪${client.creditBalance}` : "₪0"}
                 </p>
                 {totalDebt > 0 && (
                   <p className="text-xs text-destructive">חוב: ₪{totalDebt}</p>
