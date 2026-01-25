@@ -342,13 +342,13 @@ export function CompleteSessionDialog({
                               value={partialAmount}
                               onChange={(e) => setPartialAmount(e.target.value)}
                               min={0}
-                    )}
-                  </div>
+                              step="0.01"
+                            />
                           </div>
                         )}
                       </div>
-                    </CollapsibleContent>
-                  </Collapsible>
+                    )}
+                  </div>
                 </>
               )}
             </div>

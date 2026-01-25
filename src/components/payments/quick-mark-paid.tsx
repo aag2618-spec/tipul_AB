@@ -273,13 +273,13 @@ export function QuickMarkPaid({
                         onChange={(e) => setPartialAmount(e.target.value)}
                         min={0}
                         step="0.01"
-            )}
-          </diviv>
+                      />
+                    </div>
                   )}
                 </div>
               </div>
-            </CollapsibleContent>
-          </Collapsible>
+            )}
+          </div>
         </div>
 
         <DialogFooter>
