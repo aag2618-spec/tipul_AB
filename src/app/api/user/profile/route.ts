@@ -19,6 +19,7 @@ export async function GET() {
         phone: true,
         license: true,
         image: true,
+        defaultSessionDuration: true,
       },
     });
 
@@ -40,7 +41,7 @@ export async function PUT(request: NextRequest) {
     }
 
     const body = await request.json();
-    const { name, phone, license } = body;
+    const { name, phone, license, defaultSessionDuration } = body;
 
     const user = await prisma.user.update({
       where: { id: session.user.id },
@@ -48,6 +49,7 @@ export async function PUT(request: NextRequest) {
         name: name || undefined,
         phone: phone || null,
         license: license || null,
+        defaultSessionDuration: defaultSessionDuration ? parseInt(defaultSessionDuration) : undefined,
       },
       select: {
         id: true,
@@ -55,6 +57,7 @@ export async function PUT(request: NextRequest) {
         email: true,
         phone: true,
         license: true,
+        defaultSessionDuration: true,
       },
     });
 

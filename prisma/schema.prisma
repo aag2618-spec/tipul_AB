@@ -52,18 +52,19 @@ enum Role {
 }
 
 model User {
-  id            String    @id @default(cuid())
-  name          String?
-  email         String?   @unique
-  emailVerified DateTime?
-  image         String?
-  password      String?
-  phone         String?
-  license       String?
-  role          Role      @default(USER)
-  isBlocked     Boolean   @default(false)
-  createdAt     DateTime  @default(now())
-  updatedAt     DateTime  @updatedAt
+  id                      String    @id @default(cuid())
+  name                    String?
+  email                   String?   @unique
+  emailVerified           DateTime?
+  image                   String?
+  password                String?
+  phone                   String?
+  license                 String?
+  role                    Role      @default(USER)
+  isBlocked               Boolean   @default(false)
+  defaultSessionDuration  Int       @default(50) // משך פגישה סטנדרטית בדקות
+  createdAt               DateTime  @default(now())
+  updatedAt               DateTime  @updatedAt
 
   accounts              Account[]
   sessions              Session[]

@@ -15,6 +15,7 @@ interface UserProfile {
   email: string;
   phone: string;
   license: string;
+  defaultSessionDuration: number;
 }
 
 export default function SettingsPage() {
@@ -23,6 +24,7 @@ export default function SettingsPage() {
     email: "",
     phone: "",
     license: "",
+    defaultSessionDuration: 50,
   });
   const [isLoading, setIsLoading] = useState(true);
   const [isSaving, setIsSaving] = useState(false);
@@ -38,6 +40,7 @@ export default function SettingsPage() {
             email: data.email || "",
             phone: data.phone || "",
             license: data.license || "",
+            defaultSessionDuration: data.defaultSessionDuration || 50,
           });
         }
       } catch (error) {
@@ -177,6 +180,25 @@ export default function SettingsPage() {
                   className="text-left"
                 />
               </div>
+            </div>
+
+            <Separator />
+
+            <div className="space-y-2">
+              <Label htmlFor="sessionDuration">משך פגישה סטנדרטית (בדקות)</Label>
+              <Input
+                id="sessionDuration"
+                type="number"
+                min="15"
+                max="180"
+                step="5"
+                value={profile.defaultSessionDuration}
+                onChange={(e) => setProfile({ ...profile, defaultSessionDuration: parseInt(e.target.value) || 50 })}
+                disabled={isSaving}
+              />
+              <p className="text-xs text-muted-foreground">
+                משך זמן ברירת מחדל לפגישות חדשות ביומן. ממולץ: 45-50 דקות.
+              </p>
             </div>
           </CardContent>
         </Card>

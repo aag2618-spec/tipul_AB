@@ -104,6 +104,7 @@ export default function CalendarPage() {
   const [clients, setClients] = useState<Client[]>([]);
   const [recurringPatterns, setRecurringPatterns] = useState<RecurringPattern[]>([]);
   const [isLoading, setIsLoading] = useState(true);
+  const [defaultSessionDuration, setDefaultSessionDuration] = useState(50);
   const [isDialogOpen, setIsDialogOpen] = useState(false);
   const [isRecurringDialogOpen, setIsRecurringDialogOpen] = useState(false);
   const [selectedDate, setSelectedDate] = useState<Date | null>(null);
@@ -119,17 +120,18 @@ export default function CalendarPage() {
   const [recurringFormData, setRecurringFormData] = useState({
     dayOfWeek: 0,
     time: "09:00",
-    duration: 50,
+    duration: defaultSessionDuration,
     clientId: "",
   });
   const [isSubmitting, setIsSubmitting] = useState(false);
 
   const fetchData = useCallback(async () => {
     try {
-      const [sessionsRes, clientsRes, patternsRes] = await Promise.all([
+      const [sessionsRes, clientsRes, patternsRes, profileRes] = await Promise.all([
         fetch("/api/sessions"),
         fetch("/api/clients"),
         fetch("/api/recurring-patterns"),
+        fetch("/api/user/profile"),
       ]);
       
       if (sessionsRes.ok && clientsRes.ok) {
@@ -143,6 +145,11 @@ export default function CalendarPage() {
         const patternsData = await patternsRes.json();
         setRecurringPatterns(patternsData);
       }
+
+      if (profileRes.ok) {
+        const profileData = await profileRes.json();
+        setDefaultSessionDuration(profileData.defaultSessionDuration || 50);
+      }
     } catch (error) {
       console.error("Failed to fetch data:", error);
       toast.error("שגיאה בטעינת הנתונים");
@@ -154,6 +161,11 @@ export default function CalendarPage() {
   useEffect(() => {
     fetchData();
   }, [fetchData]);
+
+  // עדכן duration כשמשך הפגישה הסטנדרטי משתנה
+  useEffect(() => {
+    setRecurringFormData(prev => ({ ...prev, duration: defaultSessionDuration }));
+  }, [defaultSessionDuration]);
 
   // סינון פגישות מבוטלות מהיומן
   const events: CalendarEvent[] = sessions
@@ -189,7 +201,7 @@ export default function CalendarPage() {
     const dateStr = format(info.date, "yyyy-MM-dd");
     const timeStr = format(info.date, "HH:mm");
     const endTime = new Date(info.date);
-    endTime.setMinutes(endTime.getMinutes() + 50);
+    endTime.setMinutes(endTime.getMinutes() + defaultSessionDuration);
     
     setFormData({
       clientId: "",
