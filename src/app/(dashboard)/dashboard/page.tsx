@@ -215,20 +215,10 @@ export default async function DashboardPage() {
                     <p className="text-xs text-muted-foreground">{stat.description}</p>
                   </div>
                   {stat.subBox && (
-                    stat.subBox.href ? (
-                      <Link 
-                        href={stat.subBox.href} 
-                        className={`${stat.subBox.bgColor || 'bg-primary/10'} rounded-lg px-3 py-2 text-center hover:opacity-80 transition-opacity`}
-                      >
-                        <div className={`text-lg font-bold ${stat.subBox.textColor || 'text-primary'}`}>{stat.subBox.value}</div>
-                        <p className={`text-xs ${stat.subBox.textColor ? stat.subBox.textColor + '/70' : 'text-primary/70'}`}>{stat.subBox.label}</p>
-                      </Link>
-                    ) : (
-                      <div className="bg-primary/10 rounded-lg px-3 py-2 text-center">
-                        <div className="text-lg font-bold text-primary">{stat.subBox.value}</div>
-                        <p className="text-xs text-primary/70">{stat.subBox.label}</p>
-                      </div>
-                    )
+                    <div className={`${stat.subBox.bgColor || 'bg-primary/10'} rounded-lg px-3 py-2 text-center`}>
+                      <div className={`text-lg font-bold ${stat.subBox.textColor || 'text-primary'}`}>{stat.subBox.value}</div>
+                      <p className={`text-xs ${stat.subBox.textColor ? stat.subBox.textColor + '/70' : 'text-primary/70'}`}>{stat.subBox.label}</p>
+                    </div>
                   )}
                 </div>
               </CardContent>
