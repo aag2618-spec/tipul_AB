@@ -306,7 +306,6 @@ export default async function DashboardPage() {
                       
                       {therapySession.sessionNote && (
                         <Badge className="bg-green-100 text-green-700 border-green-200">
-                          <CheckCircle className="h-3 w-3 ml-1" />
                           סוכם
                         </Badge>
                       )}
