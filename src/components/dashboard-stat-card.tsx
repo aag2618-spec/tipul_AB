@@ -30,8 +30,8 @@ export function DashboardStatCard({
   subBox,
 }: DashboardStatCardProps) {
   return (
-    <Card className="hover:bg-muted/50 transition-colors cursor-pointer">
-      <Link href={href}>
+    <Card className="hover:bg-muted/50 transition-colors cursor-pointer relative">
+      <Link href={href} className="block">
         <CardHeader className="flex flex-row items-center justify-between pb-2">
           <CardTitle className="text-sm font-medium text-muted-foreground">
             {title}
@@ -54,16 +54,16 @@ export function DashboardStatCard({
         </CardContent>
       </Link>
       {subBox && subBox.href && (
-        <Link href={subBox.href} onClick={(e) => e.stopPropagation()}>
-          <CardContent className="pt-0">
-            <div className="flex justify-end">
-              <div className={`${subBox.bgColor || 'bg-primary/10'} rounded-lg px-3 py-2 text-center hover:opacity-80 transition-opacity`}>
+        <CardContent className="pt-0">
+          <div className="flex justify-end">
+            <Link href={subBox.href}>
+              <div className={`${subBox.bgColor || 'bg-primary/10'} rounded-lg px-3 py-2 text-center hover:opacity-80 transition-opacity relative z-10`}>
                 <div className={`text-lg font-bold ${subBox.textColor || 'text-primary'}`}>{subBox.value}</div>
                 <p className={`text-xs ${subBox.textColor ? subBox.textColor + '/70' : 'text-primary/70'}`}>{subBox.label}</p>
               </div>
-            </div>
-          </CardContent>
-        </Link>
+            </Link>
+          </div>
+        </CardContent>
       )}
     </Card>
   );
