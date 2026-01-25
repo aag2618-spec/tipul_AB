@@ -329,65 +329,71 @@ export default async function ClientPage({
               {client.therapySessions.length > 0 ? (
                 <div className="space-y-3">
                   {client.therapySessions.map((session) => (
-                    <Link
+                    <div
                       key={session.id}
-                      href={`/dashboard/sessions/${session.id}`}
-                      className="block"
+                      className="flex items-center justify-between p-4 rounded-lg bg-muted/50 border"
                     >
-                      <div className="flex items-center justify-between p-4 rounded-lg bg-muted/50 hover:bg-muted/80 transition-colors cursor-pointer">
-                        <div className="flex items-center gap-4">
-                          <div className="text-center">
-                            <div className="text-2xl font-bold">
-                              {format(new Date(session.startTime), "d")}
-                            </div>
-                            <div className="text-xs text-muted-foreground">
-                              {format(new Date(session.startTime), "MMM", {
-                                locale: he,
-                              })}
-                            </div>
+                      <div className="flex items-center gap-4">
+                        <div className="text-center">
+                          <div className="text-2xl font-bold">
+                            {format(new Date(session.startTime), "d")}
                           </div>
-                          <div>
-                            <p className="font-medium">
-                              {format(new Date(session.startTime), "HH:mm")} -{" "}
-                              {format(new Date(session.endTime), "HH:mm")}
-                            </p>
-                            <p className="text-sm text-muted-foreground">
-                              {session.type === "ONLINE"
-                                ? "אונליין"
-                                : session.type === "PHONE"
-                                ? "טלפון"
-                                : "פרונטלי"}
-                            </p>
+                          <div className="text-xs text-muted-foreground">
+                            {format(new Date(session.startTime), "MMM", {
+                              locale: he,
+                            })}
                           </div>
                         </div>
-                        <div className="flex items-center gap-3">
-                          {/* כפתור סיום מפגש - רק אם המפגש הסתיים והחסר סיכום או תשלום */}
-                          {session.status === "COMPLETED" && (!session.sessionNote || !session.payment || session.payment.status !== "PAID") && (
-                            <CompleteSessionDialog
-                              sessionId={session.id}
-                              clientId={client.id}
-                              clientName={client.name}
-                              sessionDate={format(new Date(session.startTime), "d/M/yyyy HH:mm")}
-                              defaultAmount={Number(session.price)}
-                              creditBalance={Number(client.creditBalance)}
-                              hasNote={!!session.sessionNote}
-                              hasPayment={session.payment?.status === "PAID"}
-                            />
-                          )}
+                        <div>
+                          <p className="font-medium">
+                            {format(new Date(session.startTime), "HH:mm")} -{" "}
+                            {format(new Date(session.endTime), "HH:mm")}
+                          </p>
+                          <p className="text-sm text-muted-foreground">
+                            {session.type === "ONLINE"
+                              ? "אונליין"
+                              : session.type === "PHONE"
+                              ? "טלפון"
+                              : "פרונטלי"}
+                          </p>
+                        </div>
+                      </div>
+                      <div className="flex items-center gap-3">
+                        {/* כפתור סיכום פגישה */}
+                        <Button variant="outline" size="sm" asChild>
+                          <Link href={`/dashboard/sessions/${session.id}`}>
+                            <FileText className="h-4 w-4 ml-1" />
+                            סיכום פגישה
+                          </Link>
+                        </Button>
+                        
+                        {/* כפתור סיום מפגש - רק אם המפגש הסתיים והחסר סיכום או תשלום */}
+                        {session.status === "COMPLETED" && (!session.sessionNote || !session.payment || session.payment.status !== "PAID") && (
+                          <CompleteSessionDialog
+                            sessionId={session.id}
+                            clientId={client.id}
+                            clientName={client.name}
+                            sessionDate={format(new Date(session.startTime), "d/M/yyyy HH:mm")}
+                            defaultAmount={Number(session.price)}
+                            creditBalance={Number(client.creditBalance)}
+                            hasNote={!!session.sessionNote}
+                            hasPayment={session.payment?.status === "PAID"}
+                          />
+                        )}
 
-                          {session.sessionNote && (
-                            <Badge variant="outline">יש סיכום</Badge>
-                          )}
-                          
-                          {/* תשלום - הצג כפתור/סטטוס לפי מצב */}
-                          {session.payment?.status === "PAID" ? (
-                            <Badge className="bg-green-100 text-green-700 border-green-200">
-                              <CheckCircle className="h-3 w-3 ml-1" />
-                              שולם
-                            </Badge>
-                          ) : (
-                            <QuickMarkPaid
-                              sessionId={session.id}
+                        {session.sessionNote && (
+                          <Badge variant="outline">יש סיכום</Badge>
+                        )}
+                        
+                        {/* תשלום - הצג כפתור/סטטוס לפי מצב */}
+                        {session.payment?.status === "PAID" ? (
+                          <Badge className="bg-green-100 text-green-700 border-green-200">
+                            <CheckCircle className="h-3 w-3 ml-1" />
+                            שולם
+                          </Badge>
+                        ) : (
+                          <QuickMarkPaid
+                            sessionId={session.id}
                               clientId={client.id}
                               clientName={client.name}
                               amount={Number(session.price)}
@@ -415,7 +421,6 @@ export default async function ClientPage({
                           </Badge>
                         </div>
                       </div>
-                    </Link>
                   ))}
                 </div>
               ) : (

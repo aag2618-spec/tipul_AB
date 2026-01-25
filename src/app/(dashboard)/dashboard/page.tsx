@@ -4,15 +4,13 @@ import prisma from "@/lib/prisma";
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
-import { Users, Calendar, CreditCard, Clock, Plus, ClipboardList, CheckCircle } from "lucide-react";
+import { Users, Calendar, CreditCard, Clock, Plus, ClipboardList, CheckCircle, User, FileText } from "lucide-react";
 import Link from "next/link";
 import { format } from "date-fns";
 import { he } from "date-fns/locale";
 import { PersonalTasksWidget } from "@/components/tasks/personal-tasks-widget";
 import { CompleteSessionDialog } from "@/components/sessions/complete-session-dialog";
 import { QuickMarkPaid } from "@/components/payments/quick-mark-paid";
-import { SessionCardClickable } from "@/components/sessions/session-card-clickable";
-import { ClientNameLink } from "@/components/clients/client-name-link";
 import { ActionButtonsWrapper } from "@/components/sessions/action-buttons-wrapper";
 
 // Helper to convert UTC time to Israel time for display
@@ -247,7 +245,7 @@ export default async function DashboardPage() {
             {stats.todaySessions.length > 0 ? (
               <div className="space-y-3">
                 {stats.todaySessions.map((therapySession) => (
-                  <SessionCardClickable key={therapySession.id} sessionId={therapySession.id}>
+                  <div key={therapySession.id} className="flex items-center justify-between p-4 rounded-lg border border-border bg-background">
                     <div className="flex items-center gap-3 flex-1">
                       <div className="flex flex-col items-center justify-center w-14 h-14 rounded-lg bg-primary/10 text-primary">
                         <span className="text-base font-bold">
@@ -259,10 +257,7 @@ export default async function DashboardPage() {
                       </div>
                       <div className="flex-1">
                         {therapySession.client ? (
-                          <ClientNameLink 
-                            clientId={therapySession.client.id}
-                            clientName={therapySession.client.name}
-                          />
+                          <span className="font-medium">{therapySession.client.name}</span>
                         ) : (
                           <span className="font-medium">🌊 הפסקה</span>
                         )}
@@ -284,6 +279,52 @@ export default async function DashboardPage() {
                     </div>
                     
                     <div className="flex items-center gap-2">
+                      {/* כפתורי ניווט */}
+                      {therapySession.client && (
+                        <>
+                          <Button variant="outline" size="sm" asChild>
+                            <Link href={`/dashboard/clients/${therapySession.client.id}`}>
+                              <User className="h-4 w-4 ml-1" />
+                              תיקית מטופל
+                            </Link>
+                          </Button>
+                          <Button variant="outline" size="sm" asChild>
+                            <Link href={`/dashboard/sessions/${therapySession.id}`}>
+                              <FileText className="h-4 w-4 ml-1" />
+                              סיכום פגישה
+                            </Link>
+                          </Button>
+                        </>
+                      )}
+                      
+                      {/* כפתורי פעולה מהירה */}
+                      <ActionButtonsWrapper>
+                        {therapySession.client && therapySession.status === "COMPLETED" && (!therapySession.sessionNote || !therapySession.payment || therapySession.payment.status !== "PAID") && (
+                          <CompleteSessionDialog
+                            sessionId={therapySession.id}
+                            clientId={therapySession.client.id}
+                            clientName={therapySession.client.name}
+                            sessionDate={format(new Date(therapySession.startTime), "d/M/yyyy HH:mm")}
+                            defaultAmount={Number(therapySession.price)}
+                            creditBalance={Number(therapySession.client.creditBalance || 0)}
+                            hasNote={!!therapySession.sessionNote}
+                            hasPayment={therapySession.payment?.status === "PAID"}
+                          />
+                        )}
+                        
+                        {therapySession.client && therapySession.payment?.status !== "PAID" && (
+                          <QuickMarkPaid
+                            sessionId={therapySession.id}
+                            clientId={therapySession.client.id}
+                            clientName={therapySession.client.name}
+                            amount={Number(therapySession.price)}
+                            creditBalance={Number(therapySession.client.creditBalance || 0)}
+                            existingPayment={therapySession.payment}
+                          />
+                        )}
+                      </ActionButtonsWrapper>
+                      
+                      <div className="flex items-center gap-2">
                       {/* כפתורי פעולה מהירה */}
                       <ActionButtonsWrapper>
                         {therapySession.client && therapySession.status === "COMPLETED" && (!therapySession.sessionNote || !therapySession.payment || therapySession.payment.status !== "PAID") && (

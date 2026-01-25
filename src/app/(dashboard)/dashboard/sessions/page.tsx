@@ -5,7 +5,7 @@ import { Button } from "@/components/ui/button";
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
 import { Badge } from "@/components/ui/badge";
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
-import { FileText, Calendar, CheckCircle, AlertCircle } from "lucide-react";
+import { FileText, Calendar, CheckCircle, AlertCircle, User } from "lucide-react";
 import Link from "next/link";
 import { format } from "date-fns";
 import { he } from "date-fns/locale";
@@ -282,7 +282,25 @@ export default async function SessionsPage() {
                             </p>
                           </div>
                         </div>
-                        <Badge variant="default">היום</Badge>
+                        <div className="flex items-center gap-2">
+                          {therapySession.client && (
+                            <>
+                              <Button variant="outline" size="sm" asChild>
+                                <Link href={`/dashboard/clients/${therapySession.client.id}`}>
+                                  <User className="h-4 w-4 ml-1" />
+                                  תיקית מטופל
+                                </Link>
+                              </Button>
+                              <Button variant="outline" size="sm" asChild>
+                                <Link href={`/dashboard/sessions/${therapySession.id}`}>
+                                  <FileText className="h-4 w-4 ml-1" />
+                                  סיכום פגישה
+                                </Link>
+                              </Button>
+                            </>
+                          )}
+                          <Badge variant="default">היום</Badge>
+                        </div>
                       </div>
                     ))}
                   </div>
@@ -319,7 +337,25 @@ export default async function SessionsPage() {
                             </p>
                           </div>
                         </div>
-                        <Badge variant="secondary">מחר</Badge>
+                        <div className="flex items-center gap-2">
+                          {therapySession.client && (
+                            <>
+                              <Button variant="outline" size="sm" asChild>
+                                <Link href={`/dashboard/clients/${therapySession.client.id}`}>
+                                  <User className="h-4 w-4 ml-1" />
+                                  תיקית מטופל
+                                </Link>
+                              </Button>
+                              <Button variant="outline" size="sm" asChild>
+                                <Link href={`/dashboard/sessions/${therapySession.id}`}>
+                                  <FileText className="h-4 w-4 ml-1" />
+                                  סיכום פגישה
+                                </Link>
+                              </Button>
+                            </>
+                          )}
+                          <Badge variant="secondary">מחר</Badge>
+                        </div>
                       </div>
                     ))}
                   </div>
@@ -361,7 +397,25 @@ export default async function SessionsPage() {
                             </p>
                           </div>
                         </div>
-                        <Badge variant="outline">השבוע</Badge>
+                        <div className="flex items-center gap-2">
+                          {therapySession.client && (
+                            <>
+                              <Button variant="outline" size="sm" asChild>
+                                <Link href={`/dashboard/clients/${therapySession.client.id}`}>
+                                  <User className="h-4 w-4 ml-1" />
+                                  תיקית מטופל
+                                </Link>
+                              </Button>
+                              <Button variant="outline" size="sm" asChild>
+                                <Link href={`/dashboard/sessions/${therapySession.id}`}>
+                                  <FileText className="h-4 w-4 ml-1" />
+                                  סיכום פגישה
+                                </Link>
+                              </Button>
+                            </>
+                          )}
+                          <Badge variant="outline">השבוע</Badge>
+                        </div>
                       </div>
                     ))}
                   </div>
@@ -403,7 +457,25 @@ export default async function SessionsPage() {
                             </p>
                           </div>
                         </div>
-                        <Badge variant="outline">החודש</Badge>
+                        <div className="flex items-center gap-2">
+                          {therapySession.client && (
+                            <>
+                              <Button variant="outline" size="sm" asChild>
+                                <Link href={`/dashboard/clients/${therapySession.client.id}`}>
+                                  <User className="h-4 w-4 ml-1" />
+                                  תיקית מטופל
+                                </Link>
+                              </Button>
+                              <Button variant="outline" size="sm" asChild>
+                                <Link href={`/dashboard/sessions/${therapySession.id}`}>
+                                  <FileText className="h-4 w-4 ml-1" />
+                                  סיכום פגישה
+                                </Link>
+                              </Button>
+                            </>
+                          )}
+                          <Badge variant="outline">החודש</Badge>
+                        </div>
                       </div>
                     ))}
                   </div>
