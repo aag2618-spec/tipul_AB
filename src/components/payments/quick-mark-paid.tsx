@@ -279,6 +279,7 @@ export function QuickMarkPaid({
               </div>
             )}
           </div>
+        </div>
 
         <DialogFooter>
           <Button
