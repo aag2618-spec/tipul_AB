@@ -289,8 +289,8 @@ export default async function DashboardPage() {
                         </Button>
                       )}
                       
-                      {/* כפתור תשלום */}
-                      {therapySession.client && (!therapySession.sessionNote || !therapySession.payment || therapySession.payment.status !== "PAID") && (
+                      {/* כפתור סיום ותשלום / הוסף תשלום */}
+                      {therapySession.client && (!therapySession.payment || therapySession.payment.status !== "PAID") && (
                         <CompleteSessionDialog
                           sessionId={therapySession.id}
                           clientId={therapySession.client.id}
@@ -300,19 +300,7 @@ export default async function DashboardPage() {
                           creditBalance={Number(therapySession.client.creditBalance || 0)}
                           hasNote={!!therapySession.sessionNote}
                           hasPayment={therapySession.payment?.status === "PAID"}
-                          buttonText="תשלום"
-                        />
-                      )}
-                      
-                      {therapySession.client && therapySession.payment?.status !== "PAID" && therapySession.sessionNote && (
-                        <QuickMarkPaid
-                          sessionId={therapySession.id}
-                          clientId={therapySession.client.id}
-                          clientName={therapySession.client.name}
-                          amount={Number(therapySession.price)}
-                          creditBalance={Number(therapySession.client.creditBalance || 0)}
-                          existingPayment={therapySession.payment}
-                          buttonText="תשלום"
+                          buttonText={therapySession.status === "COMPLETED" ? "הוסף תשלום" : "סיום ותשלום"}
                         />
                       )}
                       
