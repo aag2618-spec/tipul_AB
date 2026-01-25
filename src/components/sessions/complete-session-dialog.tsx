@@ -162,7 +162,6 @@ export function CompleteSessionDialog({
           className="gap-1"
           onClick={(e) => e.stopPropagation()}
         >
-          <CheckCircle className="h-3 w-3" />
           {buttonText}
         </Button>
       </DialogTrigger>
