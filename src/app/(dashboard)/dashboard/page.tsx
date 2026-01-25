@@ -199,8 +199,8 @@ export default async function DashboardPage() {
       {/* Stats Grid */}
       <div className="grid gap-4 md:grid-cols-2 lg:grid-cols-4">
         {statCards.map((stat) => (
-          <Link key={stat.title} href={stat.href}>
-            <Card className="hover:bg-muted/50 transition-colors cursor-pointer">
+          <Card key={stat.title} className="hover:bg-muted/50 transition-colors cursor-pointer relative">
+            <Link href={stat.href}>
               <CardHeader className="flex flex-row items-center justify-between pb-2">
                 <CardTitle className="text-sm font-medium text-muted-foreground">
                   {stat.title}
@@ -219,21 +219,21 @@ export default async function DashboardPage() {
                       <p className={`text-xs ${stat.subBox.textColor ? stat.subBox.textColor + '/70' : 'text-primary/70'}`}>{stat.subBox.label}</p>
                     </div>
                   )}
-                  {stat.subBox && stat.subBox.href && (
-                    <div onClick={(e) => e.preventDefault()}>
-                      <SubBoxLink
-                        href={stat.subBox.href}
-                        value={stat.subBox.value}
-                        label={stat.subBox.label}
-                        bgColor={stat.subBox.bgColor}
-                        textColor={stat.subBox.textColor}
-                      />
-                    </div>
-                  )}
                 </div>
               </CardContent>
-            </Card>
-          </Link>
+            </Link>
+            {stat.subBox && stat.subBox.href && (
+              <div className="absolute bottom-6 left-6">
+                <SubBoxLink
+                  href={stat.subBox.href}
+                  value={stat.subBox.value}
+                  label={stat.subBox.label}
+                  bgColor={stat.subBox.bgColor}
+                  textColor={stat.subBox.textColor}
+                />
+              </div>
+            )}
+          </Card>
         ))}
       </div>
 
