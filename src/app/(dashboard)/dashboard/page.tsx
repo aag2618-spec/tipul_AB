@@ -278,22 +278,14 @@ export default async function DashboardPage() {
                     </div>
                     
                     <div className="flex items-center gap-2">
-                      {/* כפתורי ניווט */}
+                      {/* כפתורי ניווט - רק תיקית מטופל */}
                       {therapySession.client && (
-                        <>
-                          <Button variant="outline" size="sm" asChild>
-                            <Link href={`/dashboard/clients/${therapySession.client.id}`}>
-                              <User className="h-4 w-4 ml-1" />
-                              תיקית מטופל
-                            </Link>
-                          </Button>
-                          <Button variant="outline" size="sm" asChild>
-                            <Link href={`/dashboard/sessions/${therapySession.id}`}>
-                              <FileText className="h-4 w-4 ml-1" />
-                              סיכום פגישה
-                            </Link>
-                          </Button>
-                        </>
+                        <Button variant="outline" size="sm" asChild>
+                          <Link href={`/dashboard/clients/${therapySession.client.id}`}>
+                            <User className="h-4 w-4 ml-1" />
+                            תיקית מטופל
+                          </Link>
+                        </Button>
                       )}
                       
                       {/* כפתור סיום ותשלום */}
