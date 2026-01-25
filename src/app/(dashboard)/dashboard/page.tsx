@@ -264,15 +264,6 @@ export default async function DashboardPage() {
                           <p className="text-sm text-muted-foreground">
                             {therapySession.type === "BREAK" ? "הפסקה" : therapySession.type === "ONLINE" ? "אונליין" : therapySession.type === "PHONE" ? "טלפון" : "פרונטלי"}
                           </p>
-                          {therapySession.sessionNote && (
-                            <Badge variant="outline" className="text-xs">יש סיכום</Badge>
-                          )}
-                          {therapySession.payment?.status === "PAID" && (
-                            <Badge className="bg-green-100 text-green-700 border-green-200 text-xs">
-                              <CheckCircle className="h-3 w-3 ml-1" />
-                              שולם
-                            </Badge>
-                          )}
                         </div>
                       </div>
                     </div>
@@ -288,7 +279,7 @@ export default async function DashboardPage() {
                         </Button>
                       )}
                       
-                      {/* כפתור סיום ותשלום */}
+                      {/* כפתור תשלום */}
                       {therapySession.client && (!therapySession.sessionNote || !therapySession.payment || therapySession.payment.status !== "PAID") && (
                         <CompleteSessionDialog
                           sessionId={therapySession.id}
@@ -299,7 +290,7 @@ export default async function DashboardPage() {
                           creditBalance={Number(therapySession.client.creditBalance || 0)}
                           hasNote={!!therapySession.sessionNote}
                           hasPayment={therapySession.payment?.status === "PAID"}
-                          buttonText="סיום ותשלום"
+                          buttonText="תשלום"
                         />
                       )}
                       
