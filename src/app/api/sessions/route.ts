@@ -103,6 +103,7 @@ export async function POST(request: NextRequest) {
     }
 
     // Verify client belongs to therapist (skip for BREAK)
+    let clientDefaultPrice = 0;
     if (type !== "BREAK") {
       const client = await prisma.client.findFirst({
         where: { id: clientId, therapistId: session.user.id },
@@ -114,6 +115,9 @@ export async function POST(request: NextRequest) {
           { status: 404 }
         );
       }
+      
+      // Use client's default session price if no price provided
+      clientDefaultPrice = Number(client.defaultSessionPrice || 0);
     }
 
     // Parse times using Israel timezone
@@ -162,7 +166,7 @@ export async function POST(request: NextRequest) {
         startTime: parsedStartTime,
         endTime: parsedEndTime,
         type: type || "IN_PERSON",
-        price: type === "BREAK" ? 0 : (price || 0),
+        price: type === "BREAK" ? 0 : (price || clientDefaultPrice),
         location: location || null,
         notes: notes || null,
         isRecurring: isRecurring || false,

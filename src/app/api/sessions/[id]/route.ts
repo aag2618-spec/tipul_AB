@@ -81,11 +81,25 @@ export async function PUT(
 
     const existingSession = await prisma.therapySession.findFirst({
       where: { id, therapistId: session.user.id },
+      include: {
+        client: {
+          select: {
+            defaultSessionPrice: true,
+          },
+        },
+      },
     });
 
     if (!existingSession) {
       return NextResponse.json({ message: "פגישה לא נמצאה" }, { status: 404 });
     }
+
+    // If no price provided, use client's default price
+    const finalPrice = price !== undefined 
+      ? price 
+      : (existingSession.client?.defaultSessionPrice 
+          ? Number(existingSession.client.defaultSessionPrice) 
+          : undefined);
 
     const therapySession = await prisma.therapySession.update({
       where: { id },
@@ -93,7 +107,7 @@ export async function PUT(
         startTime: startTime ? parseIsraelTime(startTime) : undefined,
         endTime: endTime ? parseIsraelTime(endTime) : undefined,
         type: type || undefined,
-        price: price !== undefined ? price : undefined,
+        price: finalPrice,
         location: location !== undefined ? location : undefined,
         notes: notes !== undefined ? notes : undefined,
         status: status || undefined,
