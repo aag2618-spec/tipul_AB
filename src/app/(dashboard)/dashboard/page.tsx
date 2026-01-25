@@ -11,7 +11,6 @@ import { he } from "date-fns/locale";
 import { PersonalTasksWidget } from "@/components/tasks/personal-tasks-widget";
 import { CompleteSessionDialog } from "@/components/sessions/complete-session-dialog";
 import { QuickMarkPaid } from "@/components/payments/quick-mark-paid";
-import { ActionButtonsWrapper } from "@/components/sessions/action-buttons-wrapper";
 
 // Helper to convert UTC time to Israel time for display
 function toIsraelTime(utcDate: Date): Date {
@@ -298,31 +297,29 @@ export default async function DashboardPage() {
                       )}
                       
                       {/* כפתורי פעולה מהירה */}
-                      <ActionButtonsWrapper>
-                        {therapySession.client && therapySession.status === "COMPLETED" && (!therapySession.sessionNote || !therapySession.payment || therapySession.payment.status !== "PAID") && (
-                          <CompleteSessionDialog
-                            sessionId={therapySession.id}
-                            clientId={therapySession.client.id}
-                            clientName={therapySession.client.name}
-                            sessionDate={format(new Date(therapySession.startTime), "d/M/yyyy HH:mm")}
-                            defaultAmount={Number(therapySession.price)}
-                            creditBalance={Number(therapySession.client.creditBalance || 0)}
-                            hasNote={!!therapySession.sessionNote}
-                            hasPayment={therapySession.payment?.status === "PAID"}
-                          />
-                        )}
-                        
-                        {therapySession.client && therapySession.payment?.status !== "PAID" && (
-                          <QuickMarkPaid
-                            sessionId={therapySession.id}
-                            clientId={therapySession.client.id}
-                            clientName={therapySession.client.name}
-                            amount={Number(therapySession.price)}
-                            creditBalance={Number(therapySession.client.creditBalance || 0)}
-                            existingPayment={therapySession.payment}
-                          />
-                        )}
-                      </ActionButtonsWrapper>
+                      {therapySession.client && therapySession.status === "COMPLETED" && (!therapySession.sessionNote || !therapySession.payment || therapySession.payment.status !== "PAID") && (
+                        <CompleteSessionDialog
+                          sessionId={therapySession.id}
+                          clientId={therapySession.client.id}
+                          clientName={therapySession.client.name}
+                          sessionDate={format(new Date(therapySession.startTime), "d/M/yyyy HH:mm")}
+                          defaultAmount={Number(therapySession.price)}
+                          creditBalance={Number(therapySession.client.creditBalance || 0)}
+                          hasNote={!!therapySession.sessionNote}
+                          hasPayment={therapySession.payment?.status === "PAID"}
+                        />
+                      )}
+                      
+                      {therapySession.client && therapySession.payment?.status !== "PAID" && (
+                        <QuickMarkPaid
+                          sessionId={therapySession.id}
+                          clientId={therapySession.client.id}
+                          clientName={therapySession.client.name}
+                          amount={Number(therapySession.price)}
+                          creditBalance={Number(therapySession.client.creditBalance || 0)}
+                          existingPayment={therapySession.payment}
+                        />
+                      )}
                       
                       <Badge
                         variant={
