@@ -274,7 +274,9 @@ export default async function DashboardPage() {
                             onClick={(e) => {
                               e.preventDefault();
                               e.stopPropagation();
-                              window.location.href = `/dashboard/clients/${therapySession.client.id}`;
+                              if (therapySession.client) {
+                                window.location.href = `/dashboard/clients/${therapySession.client.id}`;
+                              }
                             }}
                             className="font-medium hover:text-primary hover:underline transition-colors text-base cursor-pointer"
                           >
