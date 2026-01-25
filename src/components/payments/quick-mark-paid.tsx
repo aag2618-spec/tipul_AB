@@ -199,7 +199,6 @@ export function QuickMarkPaid({
               {showAdvanced ? <ChevronUp className="h-4 w-4" /> : <ChevronDown className="h-4 w-4" />}
             </Button>
             {showAdvanced && (
-              <div className="space-y-3 pt-3">
               <div className="space-y-2 rounded-lg border p-3">
                 <Label>סוג תשלום</Label>
                 <div className="grid gap-2">
