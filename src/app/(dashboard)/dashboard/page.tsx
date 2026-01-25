@@ -13,6 +13,7 @@ import { CompleteSessionDialog } from "@/components/sessions/complete-session-di
 import { QuickMarkPaid } from "@/components/payments/quick-mark-paid";
 import { SessionCardClickable } from "@/components/sessions/session-card-clickable";
 import { ClientNameLink } from "@/components/clients/client-name-link";
+import { ActionButtonsWrapper } from "@/components/sessions/action-buttons-wrapper";
 
 // Helper to convert UTC time to Israel time for display
 function toIsraelTime(utcDate: Date): Date {
@@ -294,7 +295,7 @@ export default async function DashboardPage() {
                     
                     <div className="flex items-center gap-2">
                       {/* כפתורי פעולה מהירה */}
-                      <div onClick={(e) => { e.preventDefault(); e.stopPropagation(); }}>
+                      <ActionButtonsWrapper>
                         {therapySession.client && therapySession.status === "COMPLETED" && (!therapySession.sessionNote || !therapySession.payment || therapySession.payment.status !== "PAID") && (
                           <CompleteSessionDialog
                             sessionId={therapySession.id}
@@ -318,7 +319,7 @@ export default async function DashboardPage() {
                             existingPayment={therapySession.payment}
                           />
                         )}
-                      </div>
+                      </ActionButtonsWrapper>
                       
                       <Badge
                         variant={
