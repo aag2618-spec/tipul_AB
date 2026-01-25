@@ -344,7 +344,7 @@ export default async function DashboardPage() {
             ) : (
               <div className="text-center py-8 text-muted-foreground">
                 <Calendar className="mx-auto h-12 w-12 mb-3 opacity-50" />
-                <p>אSessionCardClickableפגישות מתוכננות להיום</p>
+                <p>אין פגישות מתוכננות להיום</p>
                 <Button variant="link" asChild className="mt-2">
                   <Link href="/dashboard/calendar">קבע פגישה חדשה</Link>
                 </Button>
