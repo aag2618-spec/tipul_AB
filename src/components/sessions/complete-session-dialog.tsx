@@ -184,7 +184,7 @@ export function CompleteSessionDialog({
           <div className="space-y-2">
             <Button
               variant="outline"
-              className="w-full"
+              className="w-full font-bold text-base"
               onClick={async () => {
                 setIsLoading(true);
                 try {
@@ -212,7 +212,7 @@ export function CompleteSessionDialog({
           {!hasPayment && (
             <div className="space-y-3 p-4 rounded-lg border bg-muted/30">
               <div className="flex items-center justify-between">
-                <Label className="text-base font-semibold">סיום ותשלום 💰</Label>
+                <Label className="text-lg font-bold">סיום ותשלום 💰</Label>
               </div>
 
               <div className="grid grid-cols-2 gap-3">
