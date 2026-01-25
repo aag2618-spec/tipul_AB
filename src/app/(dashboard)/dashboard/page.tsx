@@ -254,9 +254,10 @@ export default async function DashboardPage() {
             {stats.todaySessions.length > 0 ? (
               <div className="space-y-3">
                 {stats.todaySessions.map((therapySession) => (
-                  <div
+                  <Link
                     key={therapySession.id}
-                    className="flex items-center justify-between p-4 rounded-lg border border-border bg-background"
+                    href={`/dashboard/sessions/${therapySession.id}`}
+                    className="flex items-center justify-between p-4 rounded-lg border border-border bg-background hover:bg-accent/50 transition-colors cursor-pointer"
                   >
                     <div className="flex items-center gap-3 flex-1">
                       <div className="flex flex-col items-center justify-center w-14 h-14 rounded-lg bg-primary/10 text-primary">
@@ -269,12 +270,16 @@ export default async function DashboardPage() {
                       </div>
                       <div className="flex-1">
                         {therapySession.client ? (
-                          <Link 
-                            href={`/dashboard/clients/${therapySession.client.id}`}
-                            className="font-medium hover:text-primary hover:underline transition-colors text-base"
+                          <span 
+                            onClick={(e) => {
+                              e.preventDefault();
+                              e.stopPropagation();
+                              window.location.href = `/dashboard/clients/${therapySession.client.id}`;
+                            }}
+                            className="font-medium hover:text-primary hover:underline transition-colors text-base cursor-pointer"
                           >
                             {therapySession.client.name}
-                          </Link>
+                          </span>
                         ) : (
                           <span className="font-medium">🌊 הפסקה</span>
                         )}
@@ -297,29 +302,31 @@ export default async function DashboardPage() {
                     
                     <div className="flex items-center gap-2">
                       {/* כפתורי פעולה מהירה */}
-                      {therapySession.client && therapySession.status === "COMPLETED" && (!therapySession.sessionNote || !therapySession.payment || therapySession.payment.status !== "PAID") && (
-                        <CompleteSessionDialog
-                          sessionId={therapySession.id}
-                          clientId={therapySession.client.id}
-                          clientName={therapySession.client.name}
-                          sessionDate={format(new Date(therapySession.startTime), "d/M/yyyy HH:mm")}
-                          defaultAmount={Number(therapySession.price)}
-                          creditBalance={Number(therapySession.client.creditBalance || 0)}
-                          hasNote={!!therapySession.sessionNote}
-                          hasPayment={therapySession.payment?.status === "PAID"}
-                        />
-                      )}
-                      
-                      {therapySession.client && therapySession.payment?.status !== "PAID" && (
-                        <QuickMarkPaid
-                          sessionId={therapySession.id}
-                          clientId={therapySession.client.id}
-                          clientName={therapySession.client.name}
-                          amount={Number(therapySession.price)}
-                          creditBalance={Number(therapySession.client.creditBalance || 0)}
-                          existingPayment={therapySession.payment}
-                        />
-                      )}
+                      <div onClick={(e) => { e.preventDefault(); e.stopPropagation(); }}>
+                        {therapySession.client && therapySession.status === "COMPLETED" && (!therapySession.sessionNote || !therapySession.payment || therapySession.payment.status !== "PAID") && (
+                          <CompleteSessionDialog
+                            sessionId={therapySession.id}
+                            clientId={therapySession.client.id}
+                            clientName={therapySession.client.name}
+                            sessionDate={format(new Date(therapySession.startTime), "d/M/yyyy HH:mm")}
+                            defaultAmount={Number(therapySession.price)}
+                            creditBalance={Number(therapySession.client.creditBalance || 0)}
+                            hasNote={!!therapySession.sessionNote}
+                            hasPayment={therapySession.payment?.status === "PAID"}
+                          />
+                        )}
+                        
+                        {therapySession.client && therapySession.payment?.status !== "PAID" && (
+                          <QuickMarkPaid
+                            sessionId={therapySession.id}
+                            clientId={therapySession.client.id}
+                            clientName={therapySession.client.name}
+                            amount={Number(therapySession.price)}
+                            creditBalance={Number(therapySession.client.creditBalance || 0)}
+                            existingPayment={therapySession.payment}
+                          />
+                        )}
+                      </div>
                       
                       <Badge
                         variant={
@@ -339,7 +346,7 @@ export default async function DashboardPage() {
                           : "לא הגיע"}
                       </Badge>
                     </div>
-                  </div>
+                  </Link>
                 ))}
               </div>
             ) : (
