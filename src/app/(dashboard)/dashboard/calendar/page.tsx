@@ -1,6 +1,7 @@
 "use client";
 
 import { useEffect, useState, useCallback } from "react";
+import { useSearchParams } from "next/navigation";
 import dynamic from "next/dynamic";
 import { Button } from "@/components/ui/button";
 import { Card, CardContent } from "@/components/ui/card";
@@ -95,6 +96,10 @@ const DAYS_OF_WEEK = [
 ];
 
 export default function CalendarPage() {
+  const searchParams = useSearchParams();
+  const viewParam = searchParams.get('view');
+  const initialCalendarView = viewParam === 'month' ? 'dayGridMonth' : 'timeGridWeek';
+  
   const [sessions, setSessions] = useState<Session[]>([]);
   const [clients, setClients] = useState<Client[]>([]);
   const [recurringPatterns, setRecurringPatterns] = useState<RecurringPattern[]>([]);
@@ -372,7 +377,7 @@ export default function CalendarPage() {
         <CardContent className="p-4">
           <FullCalendar
             plugins={[dayGridPlugin, timeGridPlugin, interactionPlugin]}
-            initialView="timeGridWeek"
+            initialView={initialCalendarView}
             locale="he"
             direction="rtl"
             headerToolbar={{

@@ -154,7 +154,7 @@ export default async function DashboardPage() {
       subBox: {
         value: stats.sessionsThisMonth,
         label: "החודש",
-        href: "/dashboard/calendar",
+        href: "/dashboard/calendar?view=month",
       },
     },
     {
@@ -199,7 +199,7 @@ export default async function DashboardPage() {
       {/* Stats Grid */}
       <div className="grid gap-4 md:grid-cols-2 lg:grid-cols-4">
         {statCards.map((stat) => (
-          <Card key={stat.title} className="hover:bg-muted/50 transition-colors cursor-pointer relative">
+          <Card key={stat.title} className="cursor-pointer relative">
             <Link href={stat.href}>
               <CardHeader className="flex flex-row items-center justify-between pb-2">
                 <CardTitle className="text-sm font-medium text-muted-foreground">
