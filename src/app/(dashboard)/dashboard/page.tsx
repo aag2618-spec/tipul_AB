@@ -296,7 +296,7 @@ export default async function DashboardPage() {
                         </>
                       )}
                       
-                      {/* כפתורי פעולה מהירה */}
+                      {/* כפתור סיום ותשלום */}
                       {therapySession.client && therapySession.status === "COMPLETED" && (!therapySession.sessionNote || !therapySession.payment || therapySession.payment.status !== "PAID") && (
                         <CompleteSessionDialog
                           sessionId={therapySession.id}
@@ -307,10 +307,11 @@ export default async function DashboardPage() {
                           creditBalance={Number(therapySession.client.creditBalance || 0)}
                           hasNote={!!therapySession.sessionNote}
                           hasPayment={therapySession.payment?.status === "PAID"}
+                          buttonText="סיום ותשלום"
                         />
                       )}
                       
-                      {therapySession.client && therapySession.payment?.status !== "PAID" && (
+                      {therapySession.client && therapySession.payment?.status !== "PAID" && therapySession.sessionNote && (
                         <QuickMarkPaid
                           sessionId={therapySession.id}
                           clientId={therapySession.client.id}
@@ -318,7 +319,22 @@ export default async function DashboardPage() {
                           amount={Number(therapySession.price)}
                           creditBalance={Number(therapySession.client.creditBalance || 0)}
                           existingPayment={therapySession.payment}
+                          buttonText="תשלום"
                         />
+                      )}
+                      
+                      {therapySession.sessionNote && (
+                        <Badge className="bg-green-100 text-green-700 border-green-200">
+                          <CheckCircle className="h-3 w-3 ml-1" />
+                          סוכם
+                        </Badge>
+                      )}
+                      
+                      {therapySession.payment?.status === "PAID" && (
+                        <Badge className="bg-blue-100 text-blue-700 border-blue-200">
+                          <CheckCircle className="h-3 w-3 ml-1" />
+                          שולם
+                        </Badge>
                       )}
                       
                       <Badge

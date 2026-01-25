@@ -35,6 +35,7 @@ interface CompleteSessionDialogProps {
   creditBalance?: number;
   hasNote?: boolean;
   hasPayment?: boolean;
+  buttonText?: string;
 }
 
 export function CompleteSessionDialog({
@@ -46,6 +47,7 @@ export function CompleteSessionDialog({
   creditBalance = 0,
   hasNote = false,
   hasPayment = false,
+  buttonText = "סיים מפגש",
 }: CompleteSessionDialogProps) {
   const [isOpen, setIsOpen] = useState(false);
   const [isLoading, setIsLoading] = useState(false);
@@ -175,7 +177,7 @@ export function CompleteSessionDialog({
           onClick={(e) => e.stopPropagation()}
         >
           <CheckCircle className="h-3 w-3" />
-          סיים מפגש
+          {buttonText}
         </Button>
       </DialogTrigger>
       <DialogContent className="sm:max-w-[550px] max-h-[90vh] overflow-y-auto">

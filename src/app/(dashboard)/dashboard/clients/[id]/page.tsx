@@ -367,7 +367,7 @@ export default async function ClientPage({
                           </Link>
                         </Button>
                         
-                        {/* כפתור סיום מפגש - רק אם המפגש הסתיים והחסר סיכום או תשלום */}
+                        {/* כפתור סיום ותשלום - רק אם המפגש הסתיים והחסר סיכום או תשלום */}
                         {session.status === "COMPLETED" && (!session.sessionNote || !session.payment || session.payment.status !== "PAID") && (
                           <CompleteSessionDialog
                             sessionId={session.id}
@@ -378,49 +378,57 @@ export default async function ClientPage({
                             creditBalance={Number(client.creditBalance)}
                             hasNote={!!session.sessionNote}
                             hasPayment={session.payment?.status === "PAID"}
+                            buttonText="סיום ותשלום"
+                          />
+                        )}
+                        
+                        {/* כפתור תשלום בלבד - אם יש סיכום אבל אין תשלום */}
+                        {session.payment?.status !== "PAID" && session.sessionNote && (
+                          <QuickMarkPaid
+                            sessionId={session.id}
+                            clientId={client.id}
+                            clientName={client.name}
+                            amount={Number(session.price)}
+                            creditBalance={Number(client.creditBalance)}
+                            existingPayment={session.payment}
+                            buttonText="תשלום"
                           />
                         )}
 
                         {session.sessionNote && (
-                          <Badge variant="outline">יש סיכום</Badge>
+                          <Badge className="bg-green-100 text-green-700 border-green-200">
+                            <CheckCircle className="h-3 w-3 ml-1" />
+                            סוכם
+                          </Badge>
                         )}
                         
                         {/* תשלום - הצג כפתור/סטטוס לפי מצב */}
-                        {session.payment?.status === "PAID" ? (
-                          <Badge className="bg-green-100 text-green-700 border-green-200">
+                        {session.payment?.status === "PAID" && (
+                          <Badge className="bg-blue-100 text-blue-700 border-blue-200">
                             <CheckCircle className="h-3 w-3 ml-1" />
                             שולם
                           </Badge>
-                        ) : (
-                          <QuickMarkPaid
-                            sessionId={session.id}
-                              clientId={client.id}
-                              clientName={client.name}
-                              amount={Number(session.price)}
-                              creditBalance={Number(client.creditBalance)}
-                              existingPayment={session.payment}
-                            />
-                          )}
-                          
-                          <Badge
-                            variant={
-                              session.status === "COMPLETED"
-                                ? "default"
-                                : session.status === "CANCELLED"
-                                ? "destructive"
-                                : "secondary"
-                            }
-                          >
-                            {session.status === "SCHEDULED"
-                              ? "מתוכנן"
-                              : session.status === "COMPLETED"
-                              ? "הושלם"
+                        )}
+                        
+                        <Badge
+                          variant={
+                            session.status === "COMPLETED"
+                              ? "default"
                               : session.status === "CANCELLED"
-                              ? "בוטל"
-                              : "לא הגיע"}
-                          </Badge>
-                        </div>
+                              ? "destructive"
+                              : "secondary"
+                          }
+                        >
+                          {session.status === "SCHEDULED"
+                            ? "מתוכנן"
+                            : session.status === "COMPLETED"
+                            ? "הושלם"
+                            : session.status === "CANCELLED"
+                            ? "בוטל"
+                            : "לא הגיע"}
+                        </Badge>
                       </div>
+                    </div>
                   ))}
                 </div>
               ) : (

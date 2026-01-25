@@ -36,6 +36,7 @@ interface QuickMarkPaidProps {
     status: string;
     method?: string;
   } | null;
+  buttonText?: string;
 }
 
 export function QuickMarkPaid({
@@ -45,6 +46,7 @@ export function QuickMarkPaid({
   amount,
   creditBalance = 0,
   existingPayment,
+  buttonText = "סמן כשולם",
 }: QuickMarkPaidProps) {
   const [isOpen, setIsOpen] = useState(false);
   const [isLoading, setIsLoading] = useState(false);
@@ -151,7 +153,7 @@ export function QuickMarkPaid({
           onClick={(e) => e.stopPropagation()}
         >
           <CreditCard className="h-3 w-3" />
-          {existingPayment?.status === "PENDING" ? "סמן שולם" : "הוסף תשלום"}
+          {buttonText}
         </Button>
       </DialogTrigger>
       <DialogContent className="sm:max-w-[450px]">
