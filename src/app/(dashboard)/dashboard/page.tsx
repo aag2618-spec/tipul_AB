@@ -153,6 +153,7 @@ export default async function DashboardPage() {
       subBox: {
         value: stats.sessionsThisMonth,
         label: "החודש",
+        href: "/dashboard/sessions",
       },
     },
     {
@@ -197,8 +198,8 @@ export default async function DashboardPage() {
       {/* Stats Grid */}
       <div className="grid gap-4 md:grid-cols-2 lg:grid-cols-4">
         {statCards.map((stat) => (
-          <Link key={stat.title} href={stat.href}>
-            <Card className="hover:bg-muted/50 transition-colors cursor-pointer">
+          <Card key={stat.title} className="hover:bg-muted/50 transition-colors cursor-pointer">
+            <Link href={stat.href}>
               <CardHeader className="flex flex-row items-center justify-between pb-2">
                 <CardTitle className="text-sm font-medium text-muted-foreground">
                   {stat.title}
@@ -211,7 +212,7 @@ export default async function DashboardPage() {
                     <div className="text-3xl font-bold">{stat.value}</div>
                     <p className="text-xs text-muted-foreground">{stat.description}</p>
                   </div>
-                  {stat.subBox && (
+                  {stat.subBox && !stat.subBox.href && (
                     <div className={`${stat.subBox.bgColor || 'bg-primary/10'} rounded-lg px-3 py-2 text-center`}>
                       <div className={`text-lg font-bold ${stat.subBox.textColor || 'text-primary'}`}>{stat.subBox.value}</div>
                       <p className={`text-xs ${stat.subBox.textColor ? stat.subBox.textColor + '/70' : 'text-primary/70'}`}>{stat.subBox.label}</p>
@@ -219,8 +220,20 @@ export default async function DashboardPage() {
                   )}
                 </div>
               </CardContent>
-            </Card>
-          </Link>
+            </Link>
+            {stat.subBox && stat.subBox.href && (
+              <Link href={stat.subBox.href} onClick={(e) => e.stopPropagation()}>
+                <CardContent className="pt-0">
+                  <div className="flex justify-end">
+                    <div className={`${stat.subBox.bgColor || 'bg-primary/10'} rounded-lg px-3 py-2 text-center hover:opacity-80 transition-opacity`}>
+                      <div className={`text-lg font-bold ${stat.subBox.textColor || 'text-primary'}`}>{stat.subBox.value}</div>
+                      <p className={`text-xs ${stat.subBox.textColor ? stat.subBox.textColor + '/70' : 'text-primary/70'}`}>{stat.subBox.label}</p>
+                    </div>
+                  </div>
+                </CardContent>
+              </Link>
+            )}
+          </Card>
         ))}
       </div>
 
