@@ -354,25 +354,30 @@ export function CompleteSessionDialog({
           )}
         </div>
 
-        <DialogFooter>
+        <DialogFooter className="gap-2">
           <Button
             variant="outline"
             onClick={() => setIsOpen(false)}
             disabled={isLoading}
+            className="font-medium"
           >
             ביטול
           </Button>
           {!hasPayment && (
-            <Button onClick={handleComplete} disabled={isLoading}>
+            <Button 
+              onClick={handleComplete} 
+              disabled={isLoading}
+              className="gap-2 font-bold bg-green-600 hover:bg-green-700"
+            >
               {isLoading ? (
                 <>
-                  <Loader2 className="ml-2 h-4 w-4 animate-spin" />
+                  <Loader2 className="h-4 w-4 animate-spin" />
                   שומר...
                 </>
               ) : (
                 <>
-                  <CheckCircle className="ml-2 h-4 w-4" />
-                  סיים ושלם
+                  <CheckCircle className="h-4 w-4" />
+                  סיום ושלם
                 </>
               )}
             </Button>

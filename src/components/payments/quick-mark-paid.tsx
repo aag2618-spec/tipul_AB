@@ -147,7 +147,7 @@ export function QuickMarkPaid({
     <Dialog open={isOpen} onOpenChange={setIsOpen}>
       <DialogTrigger asChild>
         <Button 
-          variant="outline" 
+          variant="default" 
           size="sm" 
           className="gap-1"
           onClick={(e) => e.stopPropagation()}
@@ -156,12 +156,14 @@ export function QuickMarkPaid({
           {buttonText}
         </Button>
       </DialogTrigger>
-      <DialogContent className="sm:max-w-[450px]">
+      <DialogContent className="sm:max-w-[550px] max-h-[90vh] overflow-y-auto">
         <DialogHeader>
-          <DialogTitle>סימון תשלום</DialogTitle>
+          <DialogTitle className="flex items-center gap-2">
+            <CreditCard className="h-5 w-5 text-primary" />
+            תשלום - {clientName || "מטופל"}
+          </DialogTitle>
           <DialogDescription>
-            {clientName && <div className="mb-1">מטופל: {clientName}</div>}
-            <div className="font-semibold">סכום מפגש: ₪{amount}</div>
+            <div className="font-semibold">סכום: ₪{amount}</div>
             {creditBalance > 0 && (
               <Badge variant="secondary" className="mt-1">
                 קרדיט זמין: ₪{creditBalance}
@@ -171,25 +173,47 @@ export function QuickMarkPaid({
         </DialogHeader>
 
         <div className="space-y-4 py-4">
-          {/* Default: Full Payment */}
-          <div className="space-y-2">
-            <Label htmlFor="method">אמצעי תשלום</Label>
-            <Select value={method} onValueChange={setMethod}>
-              <SelectTrigger>
-                <SelectValue placeholder="בחר אמצעי תשלום" />
-              </SelectTrigger>
-              <SelectContent>
-                <SelectItem value="CASH">מזומן</SelectItem>
-                <SelectItem value="CREDIT_CARD">כרטיס אשראי</SelectItem>
-                <SelectItem value="BANK_TRANSFER">העברה בנקאית</SelectItem>
-                <SelectItem value="CHECK">צ׳ק</SelectItem>
-                <SelectItem value="OTHER">אחר</SelectItem>
-              </SelectContent>
-            </Select>
-          </div>
+          {/* תשלום */}
+          <div className="space-y-3 p-4 rounded-lg border bg-muted/30">
+            <div className="flex items-center justify-between">
+              <Label className="text-lg font-bold">רישום תשלום 💰</Label>
+            </div>
 
-          {/* Advanced Options */}
-          <div className="space-y-3">
+            <div className="grid grid-cols-2 gap-3">
+              <div className="space-y-2">
+                <Label htmlFor="amount-display">סכום</Label>
+                <div className="relative">
+                  <Input
+                    id="amount-display"
+                    type="number"
+                    value={amount}
+                    disabled
+                    className="pl-8"
+                  />
+                  <span className="absolute left-3 top-1/2 -translate-y-1/2 text-sm text-muted-foreground">
+                    ₪
+                  </span>
+                </div>
+              </div>
+
+              <div className="space-y-2">
+                <Label htmlFor="method">אמצעי תשלום</Label>
+                <Select value={method} onValueChange={setMethod}>
+                  <SelectTrigger>
+                    <SelectValue />
+                  </SelectTrigger>
+                  <SelectContent>
+                    <SelectItem value="CASH">מזומן</SelectItem>
+                    <SelectItem value="CREDIT_CARD">אשראי</SelectItem>
+                    <SelectItem value="BANK_TRANSFER">העברה</SelectItem>
+                    <SelectItem value="CHECK">צ׳ק</SelectItem>
+                    <SelectItem value="OTHER">אחר</SelectItem>
+                  </SelectContent>
+                </Select>
+              </div>
+            </div>
+
+            {/* Advanced Options */}
             <Button 
               type="button"
               variant="ghost" 
@@ -283,24 +307,29 @@ export function QuickMarkPaid({
           </div>
         </div>
 
-        <DialogFooter>
+        <DialogFooter className="gap-2">
           <Button
             variant="outline"
             onClick={() => setIsOpen(false)}
             disabled={isLoading}
+            className="font-medium"
           >
             ביטול
           </Button>
-          <Button onClick={handleMarkPaid} disabled={isLoading}>
+          <Button 
+            onClick={handleMarkPaid} 
+            disabled={isLoading}
+            className="gap-2 font-bold bg-green-600 hover:bg-green-700"
+          >
             {isLoading ? (
               <>
-                <Loader2 className="ml-2 h-4 w-4 animate-spin" />
+                <Loader2 className="h-4 w-4 animate-spin" />
                 מעדכן...
               </>
             ) : (
               <>
-                <Check className="ml-2 h-4 w-4" />
-                {paymentType === "ADVANCE" ? "הוסף לקרדיט" : "סמן כשולם"}
+                <Check className="h-4 w-4" />
+                {paymentType === "ADVANCE" ? "הוסף לקרדיט" : "סיום ושלם"}
               </>
             )}
           </Button>
