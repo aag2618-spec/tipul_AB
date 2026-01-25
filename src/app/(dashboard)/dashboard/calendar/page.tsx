@@ -155,19 +155,20 @@ export default function CalendarPage() {
     fetchData();
   }, [fetchData]);
 
-  const events: CalendarEvent[] = sessions.map((session) => ({
-    id: session.id,
-    title: session.type === "BREAK" ? "🌊 הפסקה" : (session.client?.name || "ללא שם"),
-    start: new Date(session.startTime),
-    end: new Date(session.endTime),
-    backgroundColor:
-      session.type === "BREAK"
-        ? "var(--chart-2)"
-        : session.status === "COMPLETED"
-        ? "var(--primary)"
-        : session.status === "CANCELLED"
-        ? "var(--destructive)"
-        : "var(--accent)",
+  // סינון פגישות מבוטלות מהיומן
+  const events: CalendarEvent[] = sessions
+    .filter((session) => session.status !== "CANCELLED")
+    .map((session) => ({
+      id: session.id,
+      title: session.type === "BREAK" ? "🌊 הפסקה" : (session.client?.name || "ללא שם"),
+      start: new Date(session.startTime),
+      end: new Date(session.endTime),
+      backgroundColor:
+        session.type === "BREAK"
+          ? "var(--chart-2)"
+          : session.status === "COMPLETED"
+          ? "var(--primary)"
+          : "var(--accent)",
     borderColor:
       session.type === "BREAK"
         ? "var(--chart-2)"
