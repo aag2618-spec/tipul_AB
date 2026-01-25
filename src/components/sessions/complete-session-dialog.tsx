@@ -65,20 +65,6 @@ export function CompleteSessionDialog({
     try {
       const updates: any[] = [];
 
-      // הוסף סיכום אם נכתב
-      if (summary.trim() && !hasNote) {
-        updates.push(
-          fetch("/api/sessions/notes", {
-            method: "POST",
-            headers: { "Content-Type": "application/json" },
-            body: JSON.stringify({
-              sessionId,
-              content: summary,
-            }),
-          })
-        );
-      }
-
       // הוסף תשלום אם נבחר
       if (includePayment && !hasPayment) {
         let actualAmount = parseFloat(amount);
@@ -197,24 +183,6 @@ export function CompleteSessionDialog({
         </DialogHeader>
 
         <div className="space-y-4 py-4">
-          {/* סיכום */}
-          {!hasNote && (
-            <div className="space-y-2">
-              <Label htmlFor="summary" className="flex items-center gap-2">
-                <FileText className="h-4 w-4" />
-                סיכום מפגש (אופציונלי)
-              </Label>
-              <Textarea
-                id="summary"
-                value={summary}
-                onChange={(e) => setSummary(e.target.value)}
-                placeholder="סכם את המפגש בקצרה..."
-                rows={4}
-                className="resize-none"
-              />
-            </div>
-          )}
-
           {/* תשלום */}
           {!hasPayment && (
             <div className="space-y-3 p-4 rounded-lg border bg-muted/30">

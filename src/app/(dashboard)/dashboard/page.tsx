@@ -279,6 +279,16 @@ export default async function DashboardPage() {
                         </Button>
                       )}
                       
+                      {/* כפתור סיכום */}
+                      {therapySession.client && (
+                        <Button variant="outline" size="sm" asChild>
+                          <Link href={`/dashboard/sessions/${therapySession.id}`}>
+                            <FileText className="h-4 w-4 ml-1" />
+                            סיכום
+                          </Link>
+                        </Button>
+                      )}
+                      
                       {/* כפתור תשלום */}
                       {therapySession.client && (!therapySession.sessionNote || !therapySession.payment || therapySession.payment.status !== "PAID") && (
                         <CompleteSessionDialog
