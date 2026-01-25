@@ -304,17 +304,29 @@ export default function SessionDetailPage({
           </div>
         </div>
         <div className="flex items-center gap-3">
-          <Select value={status} onValueChange={handleStatusChange}>
-            <SelectTrigger className="w-[140px]">
-              <SelectValue />
-            </SelectTrigger>
-            <SelectContent>
-              <SelectItem value="SCHEDULED">מתוכנן</SelectItem>
-              <SelectItem value="COMPLETED">הושלם</SelectItem>
-              <SelectItem value="CANCELLED">בוטל</SelectItem>
-              <SelectItem value="NO_SHOW">לא הגיע</SelectItem>
-            </SelectContent>
-          </Select>
+          <Card className="bg-gradient-to-br from-blue-50 to-indigo-50 dark:from-blue-950 dark:to-indigo-950 border-2 border-blue-200 dark:border-blue-800 shadow-md">
+            <CardContent className="p-4">
+              <div className="flex flex-col gap-2">
+                <div className="flex items-center gap-2">
+                  <div className="h-2 w-2 rounded-full bg-blue-500 animate-pulse" />
+                  <p className="text-xs font-semibold text-blue-700 dark:text-blue-300 uppercase tracking-wide">
+                    עדכון סטטוס פגישה
+                  </p>
+                </div>
+                <Select value={status} onValueChange={handleStatusChange}>
+                  <SelectTrigger className="w-[180px] h-11 bg-white dark:bg-gray-900 border-2 border-blue-300 dark:border-blue-700 font-medium text-base shadow-sm hover:border-blue-400 dark:hover:border-blue-600 transition-colors">
+                    <SelectValue />
+                  </SelectTrigger>
+                  <SelectContent>
+                    <SelectItem value="SCHEDULED" className="font-medium">📅 מתוכנן</SelectItem>
+                    <SelectItem value="COMPLETED" className="font-medium">✅ הושלם</SelectItem>
+                    <SelectItem value="CANCELLED" className="font-medium">❌ בוטל</SelectItem>
+                    <SelectItem value="NO_SHOW" className="font-medium">⚠️ לא הגיע</SelectItem>
+                  </SelectContent>
+                </Select>
+              </div>
+            </CardContent>
+          </Card>
           {session.client && (
             <Button variant="outline" asChild>
               <Link href={`/dashboard/clients/${session.client.id}`}>
