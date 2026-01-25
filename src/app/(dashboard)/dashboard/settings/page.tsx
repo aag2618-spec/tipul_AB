@@ -6,7 +6,7 @@ import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/com
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import { Separator } from "@/components/ui/separator";
-import { Loader2, Save, User, Bell, Shield, Mail, Link as LinkIcon, MessageSquare } from "lucide-react";
+import { Loader2, Save, User, Bell, Shield, Mail, Link as LinkIcon, MessageSquare, Calendar } from "lucide-react";
 import { toast } from "sonner";
 import Link from "next/link";
 
@@ -125,7 +125,8 @@ export default function SettingsPage() {
         </Button>
       </div>
 
-      <form onSubmit={handleSubmit}>
+      <form onSubmit={handleSubmit} className="space-y-6">
+        {/* פרטים אישיים */}
         <Card>
           <CardHeader>
             <CardTitle>פרטים אישיים</CardTitle>
@@ -181,39 +182,61 @@ export default function SettingsPage() {
                 />
               </div>
             </div>
+          </CardContent>
+        </Card>
 
-            <Separator />
-
+        {/* הגדרות יומן ופגישות */}
+        <Card className="border-primary/20 bg-gradient-to-br from-blue-50/50 to-indigo-50/50 dark:from-blue-950/20 dark:to-indigo-950/20">
+          <CardHeader>
+            <div className="flex items-center gap-2">
+              <Calendar className="h-5 w-5 text-primary" />
+              <CardTitle>הגדרות יומן ופגישות</CardTitle>
+            </div>
+            <CardDescription>
+              הגדרות כלליות החלות על כל היומן וכל הפגישות עם כלל המטופלים
+            </CardDescription>
+          </CardHeader>
+          <CardContent className="space-y-4">
             <div className="space-y-2">
-              <Label htmlFor="sessionDuration">משך פגישה סטנדרטית (בדקות)</Label>
-              <Input
-                id="sessionDuration"
-                type="number"
-                min="15"
-                max="180"
-                step="5"
-                value={profile.defaultSessionDuration}
-                onChange={(e) => setProfile({ ...profile, defaultSessionDuration: parseInt(e.target.value) || 50 })}
-                disabled={isSaving}
-              />
-              <p className="text-xs text-muted-foreground">
-                משך זמן ברירת מחדל לפגישות חדשות ביומן. ממולץ: 45-50 דקות.
-              </p>
+              <Label htmlFor="sessionDuration" className="text-base font-semibold">
+                משך זמן ברירת מחדל לפגישה
+              </Label>
+              <div className="flex items-center gap-3">
+                <Input
+                  id="sessionDuration"
+                  type="number"
+                  min="15"
+                  max="180"
+                  step="5"
+                  value={profile.defaultSessionDuration}
+                  onChange={(e) => setProfile({ ...profile, defaultSessionDuration: parseInt(e.target.value) || 50 })}
+                  disabled={isSaving}
+                  className="max-w-[120px] text-lg font-semibold"
+                />
+                <span className="text-muted-foreground">דקות</span>
+              </div>
+              <div className="bg-blue-50 dark:bg-blue-950/30 p-3 rounded-lg border border-blue-200 dark:border-blue-800">
+                <p className="text-sm text-blue-900 dark:text-blue-100">
+                  ⏱️ זהו משך הזמן שיוגדר אוטומטית לכל פגישה חדשה שתיצור ביומן, עבור כל המטופלים.
+                  <br />
+                  <span className="font-semibold">מומלץ: 45-50 דקות</span> (משך טיפול סטנדרטי)
+                </p>
+              </div>
             </div>
           </CardContent>
         </Card>
 
-        <div className="flex justify-end mt-6">
-          <Button type="submit" disabled={isSaving}>
+        <div className="flex justify-end">
+          <Button type="submit" disabled={isSaving} size="lg" className="gap-2">
             {isSaving ? (
               <>
-                <Loader2 className="ml-2 h-4 w-4 animate-spin" />
-                שומר...
+                <Loader2 className="h-5 w-5 animate-spin" />
+                שומר שינויים...
               </>
             ) : (
               <>
-                <Save className="ml-2 h-4 w-4" />
-                שמור שינויים
+                <Save className="h-5 w-5" />
+                שמור את כל ההגדרות
               </>
             )}
           </Button>
