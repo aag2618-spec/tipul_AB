@@ -338,7 +338,7 @@ export default async function DashboardPage() {
                           : "לא הגיע"}
                       </Badge>
                     </div>
-                  </div>
+                  </SessionCardClickable>
                 ))}
               </div>
             ) : (
