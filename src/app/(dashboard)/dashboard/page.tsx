@@ -11,6 +11,7 @@ import { he } from "date-fns/locale";
 import { PersonalTasksWidget } from "@/components/tasks/personal-tasks-widget";
 import { CompleteSessionDialog } from "@/components/sessions/complete-session-dialog";
 import { QuickMarkPaid } from "@/components/payments/quick-mark-paid";
+import { DashboardStatCard } from "@/components/dashboard-stat-card";
 
 // Helper to convert UTC time to Israel time for display
 function toIsraelTime(utcDate: Date): Date {
@@ -198,42 +199,15 @@ export default async function DashboardPage() {
       {/* Stats Grid */}
       <div className="grid gap-4 md:grid-cols-2 lg:grid-cols-4">
         {statCards.map((stat) => (
-          <Card key={stat.title} className="hover:bg-muted/50 transition-colors cursor-pointer">
-            <Link href={stat.href}>
-              <CardHeader className="flex flex-row items-center justify-between pb-2">
-                <CardTitle className="text-sm font-medium text-muted-foreground">
-                  {stat.title}
-                </CardTitle>
-                <stat.icon className="h-4 w-4 text-muted-foreground" />
-              </CardHeader>
-              <CardContent>
-                <div className="flex items-end justify-between">
-                  <div>
-                    <div className="text-3xl font-bold">{stat.value}</div>
-                    <p className="text-xs text-muted-foreground">{stat.description}</p>
-                  </div>
-                  {stat.subBox && !stat.subBox.href && (
-                    <div className={`${stat.subBox.bgColor || 'bg-primary/10'} rounded-lg px-3 py-2 text-center`}>
-                      <div className={`text-lg font-bold ${stat.subBox.textColor || 'text-primary'}`}>{stat.subBox.value}</div>
-                      <p className={`text-xs ${stat.subBox.textColor ? stat.subBox.textColor + '/70' : 'text-primary/70'}`}>{stat.subBox.label}</p>
-                    </div>
-                  )}
-                </div>
-              </CardContent>
-            </Link>
-            {stat.subBox && stat.subBox.href && (
-              <Link href={stat.subBox.href} onClick={(e) => e.stopPropagation()}>
-                <CardContent className="pt-0">
-                  <div className="flex justify-end">
-                    <div className={`${stat.subBox.bgColor || 'bg-primary/10'} rounded-lg px-3 py-2 text-center hover:opacity-80 transition-opacity`}>
-                      <div className={`text-lg font-bold ${stat.subBox.textColor || 'text-primary'}`}>{stat.subBox.value}</div>
-                      <p className={`text-xs ${stat.subBox.textColor ? stat.subBox.textColor + '/70' : 'text-primary/70'}`}>{stat.subBox.label}</p>
-                    </div>
-                  </div>
-                </CardContent>
-              </Link>
-            )}
-          </Card>
+          <DashboardStatCard
+            key={stat.title}
+            title={stat.title}
+            value={stat.value}
+            description={stat.description}
+            icon={stat.icon}
+            href={stat.href}
+            subBox={stat.subBox}
+          />
         ))}
       </div>
 
