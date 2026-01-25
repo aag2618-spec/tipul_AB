@@ -1,5 +1,3 @@
-"use client";
-
 import { getServerSession } from "next-auth";
 import { authOptions } from "@/lib/auth";
 import prisma from "@/lib/prisma";
@@ -13,6 +11,8 @@ import { he } from "date-fns/locale";
 import { PersonalTasksWidget } from "@/components/tasks/personal-tasks-widget";
 import { CompleteSessionDialog } from "@/components/sessions/complete-session-dialog";
 import { QuickMarkPaid } from "@/components/payments/quick-mark-paid";
+import { SessionCardClickable } from "@/components/sessions/session-card-clickable";
+import { ClientNameLink } from "@/components/clients/client-name-link";
 
 // Helper to convert UTC time to Israel time for display
 function toIsraelTime(utcDate: Date): Date {
@@ -256,13 +256,7 @@ export default async function DashboardPage() {
             {stats.todaySessions.length > 0 ? (
               <div className="space-y-3">
                 {stats.todaySessions.map((therapySession) => (
-                  <div
-                    key={therapySession.id}
-                    onClick={() => {
-                      window.location.href = `/dashboard/sessions/${therapySession.id}`;
-                    }}
-                    className="flex items-center justify-between p-4 rounded-lg border border-border bg-background hover:bg-accent/50 transition-colors cursor-pointer"
-                  >
+                  <SessionCardClickable key={therapySession.id} sessionId={therapySession.id}>
                     <div className="flex items-center gap-3 flex-1">
                       <div className="flex flex-col items-center justify-center w-14 h-14 rounded-lg bg-primary/10 text-primary">
                         <span className="text-base font-bold">
@@ -274,18 +268,10 @@ export default async function DashboardPage() {
                       </div>
                       <div className="flex-1">
                         {therapySession.client ? (
-                          <span 
-                            onClick={(e) => {
-                              e.preventDefault();
-                              e.stopPropagation();
-                              if (therapySession.client) {
-                                window.location.href = `/dashboard/clients/${therapySession.client.id}`;
-                              }
-                            }}
-                            className="font-medium hover:text-primary hover:underline transition-colors text-base cursor-pointer"
-                          >
-                            {therapySession.client.name}
-                          </span>
+                          <ClientNameLink 
+                            clientId={therapySession.client.id}
+                            clientName={therapySession.client.name}
+                          />
                         ) : (
                           <span className="font-medium">🌊 הפסקה</span>
                         )}
@@ -358,7 +344,7 @@ export default async function DashboardPage() {
             ) : (
               <div className="text-center py-8 text-muted-foreground">
                 <Calendar className="mx-auto h-12 w-12 mb-3 opacity-50" />
-                <p>אין פגישות מתוכננות להיום</p>
+                <p>אSessionCardClickableפגישות מתוכננות להיום</p>
                 <Button variant="link" asChild className="mt-2">
                   <Link href="/dashboard/calendar">קבע פגישה חדשה</Link>
                 </Button>
