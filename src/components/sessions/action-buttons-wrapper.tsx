@@ -8,7 +8,7 @@ interface ActionButtonsWrapperProps {
 
 export function ActionButtonsWrapper({ children }: ActionButtonsWrapperProps) {
   return (
-    <div onClick={(e) => { e.preventDefault(); e.stopPropagation(); }}>
+    <div onClick={(e) => e.stopPropagation()}>
       {children}
     </div>
   );
