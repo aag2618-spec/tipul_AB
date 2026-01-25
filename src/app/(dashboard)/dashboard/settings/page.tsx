@@ -1,6 +1,6 @@
 "use client";
 
-import { useState, useEffect } from "react";
+import { useState, useEffect, useRef } from "react";
 import { Button } from "@/components/ui/button";
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
 import { Input } from "@/components/ui/input";
@@ -28,6 +28,8 @@ export default function SettingsPage() {
   });
   const [isLoading, setIsLoading] = useState(true);
   const [isSaving, setIsSaving] = useState(false);
+  const [activeTab, setActiveTab] = useState("profile");
+  const calendarSettingsRef = useRef<HTMLDivElement>(null);
 
   useEffect(() => {
     const fetchProfile = async () => {
@@ -52,6 +54,11 @@ export default function SettingsPage() {
 
     fetchProfile();
   }, []);
+
+  const scrollToCalendarSettings = () => {
+    setActiveTab("calendar");
+    calendarSettingsRef.current?.scrollIntoView({ behavior: "smooth", block: "start" });
+  };
 
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
@@ -91,9 +98,23 @@ export default function SettingsPage() {
 
       {/* Navigation */}
       <div className="flex gap-2 flex-wrap">
-        <Button variant="default" size="sm" className="gap-2">
+        <Button 
+          variant={activeTab === "profile" ? "default" : "outline"} 
+          size="sm" 
+          className="gap-2"
+          onClick={() => setActiveTab("profile")}
+        >
           <User className="h-4 w-4" />
           פרופיל
+        </Button>
+        <Button 
+          variant={activeTab === "calendar" ? "default" : "outline"} 
+          size="sm" 
+          className="gap-2"
+          onClick={scrollToCalendarSettings}
+        >
+          <Calendar className="h-4 w-4" />
+          הגדרות יומן
         </Button>
         <Button variant="outline" size="sm" asChild className="gap-2">
           <Link href="/dashboard/settings/notifications">
@@ -186,7 +207,10 @@ export default function SettingsPage() {
         </Card>
 
         {/* הגדרות יומן ופגישות */}
-        <Card className="border-primary/20 bg-gradient-to-br from-blue-50/50 to-indigo-50/50 dark:from-blue-950/20 dark:to-indigo-950/20">
+        <Card 
+          ref={calendarSettingsRef}
+          className="border-primary/20 bg-gradient-to-br from-blue-50/50 to-indigo-50/50 dark:from-blue-950/20 dark:to-indigo-950/20 scroll-mt-6"
+        >
           <CardHeader>
             <div className="flex items-center gap-2">
               <Calendar className="h-5 w-5 text-primary" />
