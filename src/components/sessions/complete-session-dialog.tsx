@@ -276,76 +276,77 @@ export function CompleteSessionDialog({
                     </Button>
                     {showAdvanced && (
                       <div className="space-y-2 pt-2">
-                      <div className="grid gap-2">
-                        <Button
-                          type="button"
-                          variant={paymentType === "FULL" ? "default" : "outline"}
-                          size="sm"
-                          onClick={() => setPaymentType("FULL")}
-                        >
-                          תשלום מלא (₪{defaultAmount})
-                        </Button>
-                        
-                        {creditBalance >= defaultAmount && (
+                        <div className="grid gap-2">
                           <Button
                             type="button"
-                            variant={paymentType === "CREDIT" ? "default" : "outline"}
+                            variant={paymentType === "FULL" ? "default" : "outline"}
                             size="sm"
-                            onClick={() => setPaymentType("CREDIT")}
+                            onClick={() => setPaymentType("FULL")}
                           >
-                            משיכה מקרדיט (₪{creditBalance} זמין)
+                            תשלום מלא (₪{defaultAmount})
                           </Button>
-                        )}
-                        
-                        <Button
-                          type="button"
-                          variant={paymentType === "PARTIAL" ? "default" : "outline"}
-                          size="sm"
-                          onClick={() => setPaymentType("PARTIAL")}
-                        >
-                          תשלום חלקי
-                        </Button>
-                        
-                        {paymentType === "PARTIAL" && (
-                          <div className="pr-4 space-y-1">
-                            <Input
-                              type="number"
-                              placeholder="הכנס סכום"
-                              value={partialAmount}
-                              onChange={(e) => setPartialAmount(e.target.value)}
-                              max={defaultAmount}
-                              min={0}
-                              step="0.01"
-                            />
-                            {partialAmount && parseFloat(partialAmount) < defaultAmount && (
-                              <p className="text-xs text-muted-foreground">
-                                נותר לתשלום: ₪{defaultAmount - parseFloat(partialAmount)}
-                              </p>
-                            )}
-                          </div>
-                        )}
-                        
-                        <Button
-                          type="button"
-                          variant={paymentType === "ADVANCE" ? "default" : "outline"}
-                          size="sm"
-                          onClick={() => setPaymentType("ADVANCE")}
-                        >
-                          תשלום מראש (הוספה לקרדיט)
-                        </Button>
-                        
-                        {paymentType === "ADVANCE" && (
-                          <div className="pr-4">
-                            <Input
-                              type="number"
-                              placeholder="הכנס סכום לקרדיט"
-                              value={partialAmount}
-                              onChange={(e) => setPartialAmount(e.target.value)}
-                              min={0}
-                              step="0.01"
-                            />
-                          </div>
-                        )}
+                          
+                          {creditBalance >= defaultAmount && (
+                            <Button
+                              type="button"
+                              variant={paymentType === "CREDIT" ? "default" : "outline"}
+                              size="sm"
+                              onClick={() => setPaymentType("CREDIT")}
+                            >
+                              משיכה מקרדיט (₪{creditBalance} זמין)
+                            </Button>
+                          )}
+                          
+                          <Button
+                            type="button"
+                            variant={paymentType === "PARTIAL" ? "default" : "outline"}
+                            size="sm"
+                            onClick={() => setPaymentType("PARTIAL")}
+                          >
+                            תשלום חלקי
+                          </Button>
+                          
+                          {paymentType === "PARTIAL" && (
+                            <div className="pr-4 space-y-1">
+                              <Input
+                                type="number"
+                                placeholder="הכנס סכום"
+                                value={partialAmount}
+                                onChange={(e) => setPartialAmount(e.target.value)}
+                                max={defaultAmount}
+                                min={0}
+                                step="0.01"
+                              />
+                              {partialAmount && parseFloat(partialAmount) < defaultAmount && (
+                                <p className="text-xs text-muted-foreground">
+                                  נותר לתשלום: ₪{defaultAmount - parseFloat(partialAmount)}
+                                </p>
+                              )}
+                            </div>
+                          )}
+                          
+                          <Button
+                            type="button"
+                            variant={paymentType === "ADVANCE" ? "default" : "outline"}
+                            size="sm"
+                            onClick={() => setPaymentType("ADVANCE")}
+                          >
+                            תשלום מראש (הוספה לקרדיט)
+                          </Button>
+                          
+                          {paymentType === "ADVANCE" && (
+                            <div className="pr-4">
+                              <Input
+                                type="number"
+                                placeholder="הכנס סכום לקרדיט"
+                                value={partialAmount}
+                                onChange={(e) => setPartialAmount(e.target.value)}
+                                min={0}
+                                step="0.01"
+                              />
+                            </div>
+                          )}
+                        </div>
                       </div>
                     )}
                   </div>
