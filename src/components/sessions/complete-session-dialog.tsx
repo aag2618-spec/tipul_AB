@@ -126,7 +126,7 @@ export function CompleteSessionDialog({
       // עדכן סטטוס המפגש להושלם
       updates.push(
         fetch(`/api/sessions/${sessionId}`, {
-          method: "PATCH",
+          method: "PUT",
           headers: { "Content-Type": "application/json" },
           body: JSON.stringify({
             status: "COMPLETED",
