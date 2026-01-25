@@ -154,7 +154,9 @@ export function CompleteSessionDialog({
       setShowAdvanced(false);
       setPaymentType("FULL");
       setPartialAmount("");
-      router.refresh();
+      
+      // Navigate to session summary page
+      router.push(`/dashboard/sessions/${sessionId}`);
     } catch (error) {
       toast.error("שגיאה בסיום המפגש");
       console.error(error);
