@@ -302,7 +302,7 @@ export default async function SessionsPage() {
                             </>
                           )}
                           
-                          {therapySession.client && therapySession.status === "COMPLETED" && (!therapySession.sessionNote || !therapySession.payment || therapySession.payment.status !== "PAID") && (
+                          {therapySession.client && (!therapySession.sessionNote || !therapySession.payment || therapySession.payment.status !== "PAID") && (
                             <CompleteSessionDialog
                               sessionId={therapySession.id}
                               clientId={therapySession.client.id}
@@ -398,7 +398,7 @@ export default async function SessionsPage() {
                             </>
                           )}
                           
-                          {therapySession.client && therapySession.status === "COMPLETED" && (!therapySession.sessionNote || !therapySession.payment || therapySession.payment.status !== "PAID") && (
+                          {therapySession.client && (!therapySession.sessionNote || !therapySession.payment || therapySession.payment.status !== "PAID") && (
                             <CompleteSessionDialog
                               sessionId={therapySession.id}
                               clientId={therapySession.client.id}
@@ -499,7 +499,7 @@ export default async function SessionsPage() {
                             </>
                           )}
                           
-                          {therapySession.client && therapySession.status === "COMPLETED" && (!therapySession.sessionNote || !therapySession.payment || therapySession.payment.status !== "PAID") && (
+                          {therapySession.client && (!therapySession.sessionNote || !therapySession.payment || therapySession.payment.status !== "PAID") && (
                             <CompleteSessionDialog
                               sessionId={therapySession.id}
                               clientId={therapySession.client.id}
@@ -600,7 +600,7 @@ export default async function SessionsPage() {
                             </>
                           )}
                           
-                          {therapySession.client && therapySession.status === "COMPLETED" && (!therapySession.sessionNote || !therapySession.payment || therapySession.payment.status !== "PAID") && (
+                          {therapySession.client && (!therapySession.sessionNote || !therapySession.payment || therapySession.payment.status !== "PAID") && (
                             <CompleteSessionDialog
                               sessionId={therapySession.id}
                               clientId={therapySession.client.id}

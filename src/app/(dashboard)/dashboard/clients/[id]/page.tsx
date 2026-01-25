@@ -367,8 +367,8 @@ export default async function ClientPage({
                           </Link>
                         </Button>
                         
-                        {/* כפתור סיום ותשלום - רק אם המפגש הסתיים והחסר סיכום או תשלום */}
-                        {session.status === "COMPLETED" && (!session.sessionNote || !session.payment || session.payment.status !== "PAID") && (
+                        {/* כפתור סיום ותשלום */}
+                        {(!session.sessionNote || !session.payment || session.payment.status !== "PAID") && (
                           <CompleteSessionDialog
                             sessionId={session.id}
                             clientId={client.id}

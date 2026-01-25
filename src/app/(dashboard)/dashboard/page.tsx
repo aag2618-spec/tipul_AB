@@ -297,7 +297,7 @@ export default async function DashboardPage() {
                       )}
                       
                       {/* כפתור סיום ותשלום */}
-                      {therapySession.client && therapySession.status === "COMPLETED" && (!therapySession.sessionNote || !therapySession.payment || therapySession.payment.status !== "PAID") && (
+                      {therapySession.client && (!therapySession.sessionNote || !therapySession.payment || therapySession.payment.status !== "PAID") && (
                         <CompleteSessionDialog
                           sessionId={therapySession.id}
                           clientId={therapySession.client.id}
