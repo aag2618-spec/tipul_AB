@@ -324,34 +324,6 @@ export default async function DashboardPage() {
                         )}
                       </ActionButtonsWrapper>
                       
-                      <div className="flex items-center gap-2">
-                      {/* כפתורי פעולה מהירה */}
-                      <ActionButtonsWrapper>
-                        {therapySession.client && therapySession.status === "COMPLETED" && (!therapySession.sessionNote || !therapySession.payment || therapySession.payment.status !== "PAID") && (
-                          <CompleteSessionDialog
-                            sessionId={therapySession.id}
-                            clientId={therapySession.client.id}
-                            clientName={therapySession.client.name}
-                            sessionDate={format(new Date(therapySession.startTime), "d/M/yyyy HH:mm")}
-                            defaultAmount={Number(therapySession.price)}
-                            creditBalance={Number(therapySession.client.creditBalance || 0)}
-                            hasNote={!!therapySession.sessionNote}
-                            hasPayment={therapySession.payment?.status === "PAID"}
-                          />
-                        )}
-                        
-                        {therapySession.client && therapySession.payment?.status !== "PAID" && (
-                          <QuickMarkPaid
-                            sessionId={therapySession.id}
-                            clientId={therapySession.client.id}
-                            clientName={therapySession.client.name}
-                            amount={Number(therapySession.price)}
-                            creditBalance={Number(therapySession.client.creditBalance || 0)}
-                            existingPayment={therapySession.payment}
-                          />
-                        )}
-                      </ActionButtonsWrapper>
-                      
                       <Badge
                         variant={
                           therapySession.status === "COMPLETED"
@@ -370,7 +342,7 @@ export default async function DashboardPage() {
                           : "לא הגיע"}
                       </Badge>
                     </div>
-                  </SessionCardClickable>
+                  </div>
                 ))}
               </div>
             ) : (
