@@ -1,3 +1,5 @@
+"use client";
+
 import { getServerSession } from "next-auth";
 import { authOptions } from "@/lib/auth";
 import prisma from "@/lib/prisma";
@@ -254,9 +256,11 @@ export default async function DashboardPage() {
             {stats.todaySessions.length > 0 ? (
               <div className="space-y-3">
                 {stats.todaySessions.map((therapySession) => (
-                  <Link
+                  <div
                     key={therapySession.id}
-                    href={`/dashboard/sessions/${therapySession.id}`}
+                    onClick={() => {
+                      window.location.href = `/dashboard/sessions/${therapySession.id}`;
+                    }}
                     className="flex items-center justify-between p-4 rounded-lg border border-border bg-background hover:bg-accent/50 transition-colors cursor-pointer"
                   >
                     <div className="flex items-center gap-3 flex-1">
@@ -348,7 +352,7 @@ export default async function DashboardPage() {
                           : "לא הגיע"}
                       </Badge>
                     </div>
-                  </Link>
+                  </div>
                 ))}
               </div>
             ) : (
