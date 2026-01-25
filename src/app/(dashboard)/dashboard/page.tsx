@@ -154,7 +154,7 @@ export default async function DashboardPage() {
       subBox: {
         value: stats.sessionsThisMonth,
         label: "החודש",
-        href: "/dashboard/sessions",
+        href: "/dashboard/calendar",
       },
     },
     {
