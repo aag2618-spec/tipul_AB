@@ -65,63 +65,61 @@ export function CompleteSessionDialog({
     try {
       const updates: any[] = [];
 
-      // הוסף תשלום אם נבחר
-      if (includePayment && !hasPayment) {
-        let actualAmount = parseFloat(amount);
-        let actualPaymentType: "FULL" | "PARTIAL" | "ADVANCE" = "FULL";
-        let useCredit = false;
+      // הוסף תשלום
+      let actualAmount = parseFloat(amount);
+      let actualPaymentType: "FULL" | "PARTIAL" | "ADVANCE" = "FULL";
+      let useCredit = false;
 
-        if (paymentType === "PARTIAL") {
-          actualAmount = parseFloat(partialAmount) || 0;
-          actualPaymentType = "PARTIAL";
-          if (actualAmount <= 0 || actualAmount > defaultAmount) {
-            toast.error("סכום חלקי לא תקין");
-            setIsLoading(false);
-            return;
-          }
-        } else if (paymentType === "CREDIT") {
-          if (creditBalance < defaultAmount) {
-            toast.error("אין מספיק קרדיט");
-            setIsLoading(false);
-            return;
-          }
-          useCredit = true;
-        } else if (paymentType === "ADVANCE") {
-          actualPaymentType = "ADVANCE";
-          actualAmount = parseFloat(partialAmount) || 0;
+      if (paymentType === "PARTIAL") {
+        actualAmount = parseFloat(partialAmount) || 0;
+        actualPaymentType = "PARTIAL";
+        if (actualAmount <= 0 || actualAmount > defaultAmount) {
+          toast.error("סכום חלקי לא תקין");
+          setIsLoading(false);
+          return;
         }
-
-        updates.push(
-          fetch("/api/payments", {
-            method: "POST",
-            headers: { "Content-Type": "application/json" },
-            body: JSON.stringify({
-              clientId,
-              sessionId: paymentType === "ADVANCE" ? null : sessionId,
-              amount: actualAmount,
-              expectedAmount: paymentType === "PARTIAL" ? defaultAmount : undefined,
-              paymentType: actualPaymentType,
-              method: paymentMethod,
-              status: "PAID",
-            }),
-          }).then(async (res) => {
-            if (!res.ok) throw new Error("Payment failed");
-            // If using credit, update payment
-            if (useCredit) {
-              const paymentData = await res.json();
-              return fetch(`/api/payments/${paymentData.id}`, {
-                method: "PUT",
-                headers: { "Content-Type": "application/json" },
-                body: JSON.stringify({
-                  status: "PAID",
-                  useCredit: true,
-                }),
-              });
-            }
-            return res;
-          })
-        );
+      } else if (paymentType === "CREDIT") {
+        if (creditBalance < defaultAmount) {
+          toast.error("אין מספיק קרדיט");
+          setIsLoading(false);
+          return;
+        }
+        useCredit = true;
+      } else if (paymentType === "ADVANCE") {
+        actualPaymentType = "ADVANCE";
+        actualAmount = parseFloat(partialAmount) || 0;
       }
+
+      updates.push(
+        fetch("/api/payments", {
+          method: "POST",
+          headers: { "Content-Type": "application/json" },
+          body: JSON.stringify({
+            clientId,
+            sessionId: paymentType === "ADVANCE" ? null : sessionId,
+            amount: actualAmount,
+            expectedAmount: paymentType === "PARTIAL" ? defaultAmount : undefined,
+            paymentType: actualPaymentType,
+            method: paymentMethod,
+            status: "PAID",
+          }),
+        }).then(async (res) => {
+          if (!res.ok) throw new Error("Payment failed");
+          // If using credit, update payment
+          if (useCredit) {
+            const paymentData = await res.json();
+            return fetch(`/api/payments/${paymentData.id}`, {
+              method: "PUT",
+              headers: { "Content-Type": "application/json" },
+              body: JSON.stringify({
+                status: "PAID",
+                useCredit: true,
+              }),
+            });
+          }
+          return res;
+        })
+      );
 
       // עדכן סטטוס המפגש להושלם
       updates.push(
@@ -182,69 +180,88 @@ export function CompleteSessionDialog({
         </DialogHeader>
 
         <div className="space-y-4 py-4">
+          {/* כפתור סיום ללא תשלום */}
+          <div className="space-y-2">
+            <Button
+              variant="outline"
+              className="w-full"
+              onClick={async () => {
+                setIsLoading(true);
+                try {
+                  await fetch(`/api/sessions/${sessionId}`, {
+                    method: "PUT",
+                    headers: { "Content-Type": "application/json" },
+                    body: JSON.stringify({ status: "COMPLETED" }),
+                  });
+                  toast.success("המפגש הושלם ללא תשלום");
+                  setIsOpen(false);
+                  router.push(`/dashboard/sessions/${sessionId}`);
+                } catch {
+                  toast.error("שגיאה בסיום המפגש");
+                } finally {
+                  setIsLoading(false);
+                }
+              }}
+              disabled={isLoading}
+            >
+              סיום ללא תשלום
+            </Button>
+          </div>
+
           {/* תשלום */}
           {!hasPayment && (
             <div className="space-y-3 p-4 rounded-lg border bg-muted/30">
               <div className="flex items-center justify-between">
-                <Label className="text-base font-medium">💰 תשלום</Label>
-                <Button
-                  variant={includePayment ? "default" : "outline"}
-                  size="sm"
-                  onClick={() => setIncludePayment(!includePayment)}
-                >
-                  {includePayment ? "כולל תשלום" : "ללא תשלום"}
-                </Button>
+                <Label className="text-base font-semibold">סיום ותשלום 💰</Label>
               </div>
 
-              {includePayment && (
-                <>
-                  <div className="grid grid-cols-2 gap-3">
-                    <div className="space-y-2">
-                      <Label htmlFor="amount">סכום</Label>
-                      <div className="relative">
-                        <Input
-                          id="amount"
-                          type="number"
-                          value={amount}
-                          onChange={(e) => setAmount(e.target.value)}
-                          className="pl-8"
-                          disabled={paymentType !== "FULL"}
-                        />
-                        <span className="absolute left-3 top-1/2 -translate-y-1/2 text-sm text-muted-foreground">
-                          ₪
-                        </span>
-                      </div>
-                    </div>
-
-                    <div className="space-y-2">
-                      <Label htmlFor="method">אמצעי תשלום</Label>
-                      <Select value={paymentMethod} onValueChange={setPaymentMethod}>
-                        <SelectTrigger>
-                          <SelectValue />
-                        </SelectTrigger>
-                        <SelectContent>
-                          <SelectItem value="CASH">מזומן</SelectItem>
-                          <SelectItem value="CREDIT_CARD">אשראי</SelectItem>
-                          <SelectItem value="BANK_TRANSFER">העברה</SelectItem>
-                          <SelectItem value="CHECK">צ׳ק</SelectItem>
-                          <SelectItem value="OTHER">אחר</SelectItem>
-                        </SelectContent>
-                      </Select>
-                    </div>
+              <div className="grid grid-cols-2 gap-3">
+                <div className="space-y-2">
+                  <Label htmlFor="amount">סכום</Label>
+                  <div className="relative">
+                    <Input
+                      id="amount"
+                      type="number"
+                      value={amount}
+                      onChange={(e) => setAmount(e.target.value)}
+                      className="pl-8"
+                      disabled={paymentType !== "FULL"}
+                    />
+                    <span className="absolute left-3 top-1/2 -translate-y-1/2 text-sm text-muted-foreground">
+                      ₪
+                    </span>
                   </div>
+                </div>
 
-                  {/* Advanced Options */}
-                  <div className="space-y-3">
-                    <Button 
-                      type="button"
-                      variant="ghost" 
-                      size="sm" 
-                      className="w-full justify-between"
-                      onClick={() => setShowAdvanced(!showAdvanced)}
-                    >
-                      <span>אופציות מתקדמות</span>
-                      {showAdvanced ? <ChevronUp className="h-4 w-4" /> : <ChevronDown className="h-4 w-4" />}
-                    </Button>
+                <div className="space-y-2">
+                  <Label htmlFor="method">אמצעי תשלום</Label>
+                  <Select value={paymentMethod} onValueChange={setPaymentMethod}>
+                    <SelectTrigger>
+                      <SelectValue />
+                    </SelectTrigger>
+                    <SelectContent>
+                      <SelectItem value="CASH">מזומן</SelectItem>
+                      <SelectItem value="CREDIT_CARD">אשראי</SelectItem>
+                      <SelectItem value="BANK_TRANSFER">העברה</SelectItem>
+                      <SelectItem value="CHECK">צ׳ק</SelectItem>
+                      <SelectItem value="OTHER">אחר</SelectItem>
+                    </SelectContent>
+                  </Select>
+                </div>
+              </div>
+
+              {/* Advanced Options */}
+              <div className="space-y-3">
+                <Button 
+                  type="button"
+                  variant="ghost" 
+                  size="sm" 
+                  className="w-full justify-between font-semibold"
+                  onClick={() => setShowAdvanced(!showAdvanced)}
+                >
+                  <span className="font-bold">אופציות מתקדמות</span>
+                  {showAdvanced ? <ChevronUp className="h-4 w-4" /> : <ChevronDown className="h-4 w-4" />}
+                </Button>
                     {showAdvanced && (
                       <div className="space-y-2 pt-2">
                         <div className="grid gap-2">
@@ -321,10 +338,8 @@ export function CompleteSessionDialog({
                       </div>
                     )}
                   </div>
-                </>
+                </div>
               )}
-            </div>
-          )}
 
           {hasNote && (
             <p className="text-sm text-muted-foreground">
@@ -347,19 +362,21 @@ export function CompleteSessionDialog({
           >
             ביטול
           </Button>
-          <Button onClick={handleComplete} disabled={isLoading}>
-            {isLoading ? (
-              <>
-                <Loader2 className="ml-2 h-4 w-4 animate-spin" />
-                שומר...
-              </>
-            ) : (
-              <>
-                <CheckCircle className="ml-2 h-4 w-4" />
-                סיים והשלם
-              </>
-            )}
-          </Button>
+          {!hasPayment && (
+            <Button onClick={handleComplete} disabled={isLoading}>
+              {isLoading ? (
+                <>
+                  <Loader2 className="ml-2 h-4 w-4 animate-spin" />
+                  שומר...
+                </>
+              ) : (
+                <>
+                  <CheckCircle className="ml-2 h-4 w-4" />
+                  סיים ושלם
+                </>
+              )}
+            </Button>
+          )}
         </DialogFooter>
       </DialogContent>
     </Dialog>
