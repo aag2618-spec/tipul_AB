@@ -137,6 +137,8 @@ export default async function DashboardPage() {
       description: `מתוך ${stats.totalClients} סה״כ`,
       icon: Users,
       href: "/dashboard/clients?status=ACTIVE",
+      bgColor: "bg-gradient-to-br from-blue-50 to-blue-100 dark:from-blue-950 dark:to-blue-900",
+      iconColor: "text-blue-600 dark:text-blue-400",
       subBox: stats.waitingClientsCount > 0 ? {
         value: stats.waitingClientsCount,
         label: "ממתינים",
@@ -151,6 +153,8 @@ export default async function DashboardPage() {
       description: "פגישות בשבוע הנוכחי",
       icon: Calendar,
       href: "/dashboard/calendar",
+      bgColor: "bg-gradient-to-br from-purple-50 to-purple-100 dark:from-purple-950 dark:to-purple-900",
+      iconColor: "text-purple-600 dark:text-purple-400",
       subBox: {
         value: stats.sessionsThisMonth,
         label: "החודש",
@@ -163,6 +167,8 @@ export default async function DashboardPage() {
       description: "לגבייה",
       icon: CreditCard,
       href: "/dashboard/payments",
+      bgColor: "bg-gradient-to-br from-green-50 to-green-100 dark:from-green-950 dark:to-green-900",
+      iconColor: "text-green-600 dark:text-green-400",
       subBox: null,
     },
     {
@@ -171,6 +177,8 @@ export default async function DashboardPage() {
       description: "ממתינות לטיפול",
       icon: Clock,
       href: "/dashboard/tasks",
+      bgColor: "bg-gradient-to-br from-orange-50 to-orange-100 dark:from-orange-950 dark:to-orange-900",
+      iconColor: "text-orange-600 dark:text-orange-400",
       subBox: null,
     },
   ];
@@ -199,13 +207,13 @@ export default async function DashboardPage() {
       {/* Stats Grid */}
       <div className="grid gap-4 md:grid-cols-2 lg:grid-cols-4">
         {statCards.map((stat) => (
-          <Card key={stat.title} className="cursor-pointer relative overflow-hidden bg-gradient-to-br from-card to-card/50 hover:shadow-lg transition-all duration-300 border-muted">
+          <Card key={stat.title} className={`cursor-pointer relative overflow-hidden ${stat.bgColor} hover:shadow-lg transition-all duration-300 border-muted`}>
             <Link href={stat.href}>
               <CardHeader className="flex flex-row items-center justify-between pb-2">
-                <CardTitle className="text-sm font-medium text-muted-foreground">
+                <CardTitle className="text-sm font-medium text-foreground/70">
                   {stat.title}
                 </CardTitle>
-                <stat.icon className="h-4 w-4 text-muted-foreground" />
+                <stat.icon className={`h-5 w-5 ${stat.iconColor}`} />
               </CardHeader>
               <CardContent>
                 <div className="flex items-end justify-between">
