@@ -21,9 +21,11 @@ export async function GET(request: NextRequest) {
 
     const clients = await prisma.client.findMany({
       where,
-      orderBy: { name: "asc" },
+      orderBy: { lastName: "asc" },
       select: {
         id: true,
+        firstName: true,
+        lastName: true,
         name: true,
         phone: true,
         email: true,
@@ -62,11 +64,11 @@ export async function POST(request: NextRequest) {
     }
 
     const body = await request.json();
-    const { name, phone, email, birthDate, address, notes, status, defaultSessionPrice } = body;
+    const { firstName, lastName, phone, email, birthDate, address, notes, status, defaultSessionPrice } = body;
 
-    if (!name) {
+    if (!firstName || !lastName) {
       return NextResponse.json(
-        { message: "שם המטופל הוא שדה חובה" },
+        { message: "שם פרטי ושם משפחה הם שדות חובה" },
         { status: 400 }
       );
     }
@@ -74,7 +76,9 @@ export async function POST(request: NextRequest) {
     const client = await prisma.client.create({
       data: {
         therapistId: session.user.id,
-        name,
+        firstName,
+        lastName,
+        name: `${firstName} ${lastName}`,
         phone: phone || null,
         email: email || null,
         birthDate: birthDate ? new Date(birthDate) : null,

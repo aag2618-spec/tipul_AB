@@ -64,7 +64,7 @@ export async function PUT(
 
     const { id } = await params;
     const body = await request.json();
-    const { name, phone, email, birthDate, address, notes, status, initialDiagnosis, intakeNotes, defaultSessionPrice } = body;
+    const { firstName, lastName, phone, email, birthDate, address, notes, status, initialDiagnosis, intakeNotes, defaultSessionPrice } = body;
 
     // Verify ownership
     const existingClient = await prisma.client.findFirst({
@@ -78,7 +78,9 @@ export async function PUT(
     const client = await prisma.client.update({
       where: { id },
       data: {
-        name: name?.trim() || existingClient.name,
+        firstName: firstName?.trim() || existingClient.firstName,
+        lastName: lastName?.trim() || existingClient.lastName,
+        name: (firstName && lastName) ? `${firstName.trim()} ${lastName.trim()}` : existingClient.name,
         phone: phone?.trim() || null,
         email: email?.trim() || null,
         birthDate: birthDate ? new Date(birthDate) : null,

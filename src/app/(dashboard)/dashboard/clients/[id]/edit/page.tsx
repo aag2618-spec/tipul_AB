@@ -14,7 +14,9 @@ import { toast } from "sonner";
 
 interface Client {
   id: string;
-  name: string;
+  firstName: string;
+  lastName: string;
+  name?: string | null;
   phone: string | null;
   email: string | null;
   birthDate: string | null;
@@ -33,7 +35,8 @@ export default function EditClientPage({ params }: { params: Promise<{ id: strin
   const [isLoading, setIsLoading] = useState(true);
   const [isSaving, setIsSaving] = useState(false);
   const [formData, setFormData] = useState({
-    name: "",
+    firstName: "",
+    lastName: "",
     phone: "",
     email: "",
     birthDate: "",
@@ -52,7 +55,8 @@ export default function EditClientPage({ params }: { params: Promise<{ id: strin
           const data = await response.json();
           setClient(data);
           setFormData({
-            name: data.name || "",
+            firstName: data.firstName || "",
+            lastName: data.lastName || "",
             phone: data.phone || "",
             email: data.email || "",
             birthDate: data.birthDate ? data.birthDate.split("T")[0] : "",
@@ -76,8 +80,8 @@ export default function EditClientPage({ params }: { params: Promise<{ id: strin
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
 
-    if (!formData.name.trim()) {
-      toast.error("נא להזין שם מטופל");
+    if (!formData.firstName.trim() || !formData.lastName.trim()) {
+      toast.error("נא להזין שם פרטי ושם משפחה");
       return;
     }
 
@@ -137,7 +141,7 @@ export default function EditClientPage({ params }: { params: Promise<{ id: strin
         </Button>
         <div>
           <h1 className="text-2xl font-bold tracking-tight">עריכת מטופל</h1>
-          <p className="text-muted-foreground">{client.name}</p>
+          <p className="text-muted-foreground">{client.firstName} {client.lastName}</p>
         </div>
       </div>
 
@@ -151,16 +155,27 @@ export default function EditClientPage({ params }: { params: Promise<{ id: strin
           <CardContent className="space-y-4">
             <div className="grid grid-cols-2 gap-4">
               <div className="space-y-2">
-                <Label htmlFor="name">שם מלא *</Label>
+                <Label htmlFor="firstName">שם פרטי *</Label>
                 <Input
-                  id="name"
-                  value={formData.name}
-                  onChange={(e) => setFormData({ ...formData, name: e.target.value })}
-                  placeholder="שם המטופל"
+                  id="firstName"
+                  value={formData.firstName}
+                  onChange={(e) => setFormData({ ...formData, firstName: e.target.value })}
+                  placeholder="שם פרטי"
                 />
               </div>
 
               <div className="space-y-2">
+                <Label htmlFor="lastName">שם משפחה *</Label>
+                <Input
+                  id="lastName"
+                  value={formData.lastName}
+                  onChange={(e) => setFormData({ ...formData, lastName: e.target.value })}
+                  placeholder="שם משפחה"
+                />
+              </div>
+            </div>
+
+            <div className="grid grid-cols-2 gap-4">
                 <Label htmlFor="phone">טלפון</Label>
                 <Input
                   id="phone"

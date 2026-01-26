@@ -90,7 +90,7 @@ export default async function DocumentsPage() {
                         {doc.client && (
                           <span className="flex items-center gap-1">
                             <User className="h-3.5 w-3.5" />
-                            {doc.client.name}
+                            {doc.client.firstName} {doc.client.lastName}
                           </span>
                         )}
                         <span>{format(new Date(doc.createdAt), "dd/MM/yyyy")}</span>

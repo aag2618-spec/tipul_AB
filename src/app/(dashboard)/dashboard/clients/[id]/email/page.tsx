@@ -110,7 +110,7 @@ export default function SendEmailPage({ params }: { params: Promise<{ id: string
           </Link>
         </Button>
         <div>
-          <h1 className="text-2xl font-bold tracking-tight">שלח מייל ל{client.name}</h1>
+          <h1 className="text-2xl font-bold tracking-tight">שלח מייל ל{client.firstName} {client.lastName}</h1>
           <p className="text-muted-foreground">{client.email}</p>
         </div>
       </div>

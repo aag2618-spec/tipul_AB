@@ -278,7 +278,7 @@ export default async function DashboardPage() {
                       </div>
                       <div className="flex-1">
                         {therapySession.client ? (
-                          <span className="font-medium">{therapySession.client.name}</span>
+                          <span className="font-medium">{therapySession.client.firstName} {therapySession.client.lastName}</span>
                         ) : (
                           <span className="font-medium">🌊 הפסקה</span>
                         )}
@@ -316,7 +316,7 @@ export default async function DashboardPage() {
                         <CompleteSessionDialog
                           sessionId={therapySession.id}
                           clientId={therapySession.client.id}
-                          clientName={therapySession.client.name}
+                          clientName={`${therapySession.client.firstName} ${therapySession.client.lastName}`}
                           sessionDate={format(new Date(therapySession.startTime), "d/M/yyyy HH:mm")}
                           defaultAmount={Number(therapySession.price)}
                           creditBalance={Number(therapySession.client.creditBalance || 0)}

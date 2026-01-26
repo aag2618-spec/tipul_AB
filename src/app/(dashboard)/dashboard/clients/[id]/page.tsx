@@ -90,12 +90,8 @@ export default async function ClientPage({
     notFound();
   }
 
-  const getInitials = (name: string) => {
-    return name
-      .split(" ")
-      .map((n) => n[0])
-      .join("")
-      .slice(0, 2);
+  const getInitials = (firstName: string, lastName: string) => {
+    return `${firstName[0] || ''}${lastName[0] || ''}`;
   };
 
   const age = client.birthDate
@@ -123,12 +119,12 @@ export default async function ClientPage({
           </Button>
           <Avatar className="h-16 w-16">
             <AvatarFallback className="bg-primary/10 text-primary text-xl font-medium">
-              {getInitials(client.name)}
+              {getInitials(client.firstName, client.lastName)}
             </AvatarFallback>
           </Avatar>
           <div>
             <div className="flex items-center gap-3">
-              <h1 className="text-2xl font-bold tracking-tight">{client.name}</h1>
+              <h1 className="text-2xl font-bold tracking-tight">{client.firstName} {client.lastName}</h1>
               <Badge
                 variant={
                   client.status === "ACTIVE"
@@ -157,7 +153,7 @@ export default async function ClientPage({
           </div>
         </div>
         <div className="flex gap-2">
-          <ExportClientButton clientId={client.id} clientName={client.name} />
+          <ExportClientButton clientId={client.id} clientName={`${client.firstName} ${client.lastName}`} />
           <Button variant="outline" asChild>
             <Link href={`/dashboard/clients/${client.id}/edit`}>
               <Edit className="ml-2 h-4 w-4" />
@@ -372,7 +368,7 @@ export default async function ClientPage({
                           <CompleteSessionDialog
                             sessionId={session.id}
                             clientId={client.id}
-                            clientName={client.name}
+                            clientName={`${client.firstName} ${client.lastName}`}
                             sessionDate={format(new Date(session.startTime), "d/M/yyyy HH:mm")}
                             defaultAmount={Number(session.price)}
                             creditBalance={Number(client.creditBalance)}
@@ -387,7 +383,7 @@ export default async function ClientPage({
                           <QuickMarkPaid
                             sessionId={session.id}
                             clientId={client.id}
-                            clientName={client.name}
+                            clientName={`${client.firstName} ${client.lastName}`}
                             amount={Number(session.price)}
                             creditBalance={Number(client.creditBalance)}
                             existingPayment={session.payment}

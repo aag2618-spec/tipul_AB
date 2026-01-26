@@ -24,7 +24,7 @@ async function getClients(userId: string, status?: ClientStatus) {
       therapistId: userId,
       ...(status && { status }),
     },
-    orderBy: { name: "asc" },
+    orderBy: { lastName: "asc" },
     include: {
       _count: {
         select: { therapySessions: true, payments: true },
@@ -89,12 +89,8 @@ export default async function ClientsPage({ searchParams }: PageProps) {
     getClientCounts(session.user.id),
   ]);
 
-  const getInitials = (name: string) => {
-    return name
-      .split(" ")
-      .map((n) => n[0])
-      .join("")
-      .slice(0, 2);
+  const getInitials = (firstName: string, lastName: string) => {
+    return `${firstName[0] || ''}${lastName[0] || ''}`;
   };
 
   const getStatusBadge = (status: string) => {
@@ -193,7 +189,7 @@ export default async function ClientsPage({ searchParams }: PageProps) {
                 <div className="flex items-center gap-3">
                   <Avatar className="h-12 w-12">
                     <AvatarFallback className="bg-primary/10 text-primary font-medium">
-                      {getInitials(client.name)}
+                      {getInitials(client.firstName, client.lastName)}
                     </AvatarFallback>
                   </Avatar>
                   <div>
@@ -201,7 +197,7 @@ export default async function ClientsPage({ searchParams }: PageProps) {
                       href={`/dashboard/clients/${client.id}`}
                       className="font-semibold hover:underline"
                     >
-                      {client.name}
+                      {client.firstName} {client.lastName}
                     </Link>
                     <div className="mt-1">{getStatusBadge(client.status)}</div>
                   </div>

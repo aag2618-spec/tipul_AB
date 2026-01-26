@@ -190,7 +190,7 @@ export default async function PaymentsPage() {
                       className={`flex items-center justify-between p-4 rounded-lg border ${payment.session ? "bg-amber-50 border-amber-200" : "bg-red-50 border-red-200"}`}
                     >
                       <div>
-                        <p className="font-medium">{payment.client.name}</p>
+                        <p className="font-medium">{payment.client.firstName} {payment.client.lastName}</p>
                         <p className="text-sm text-muted-foreground">
                           {format(new Date(payment.createdAt), "dd/MM/yyyy")}
                           {payment.session ? (
@@ -238,7 +238,7 @@ export default async function PaymentsPage() {
                       className="flex items-center justify-between p-4 rounded-lg bg-muted/50"
                     >
                       <div>
-                        <p className="font-medium">{payment.client.name}</p>
+                        <p className="font-medium">{payment.client.firstName} {payment.client.lastName}</p>
                         <p className="text-sm text-muted-foreground">
                           {payment.paidAt && format(new Date(payment.paidAt), "dd/MM/yyyy")}
                           {" • "}

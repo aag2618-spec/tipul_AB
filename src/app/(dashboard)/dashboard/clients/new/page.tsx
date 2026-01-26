@@ -16,7 +16,8 @@ export default function NewClientPage() {
   const router = useRouter();
   const [isLoading, setIsLoading] = useState(false);
   const [formData, setFormData] = useState({
-    name: "",
+    firstName: "",
+    lastName: "",
     phone: "",
     email: "",
     birthDate: "",
@@ -39,8 +40,8 @@ export default function NewClientPage() {
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
 
-    if (!formData.name.trim()) {
-      toast.error("נא להזין שם מטופל");
+    if (!formData.firstName.trim() || !formData.lastName.trim()) {
+      toast.error("נא להזין שם פרטי ושם משפחה");
       return;
     }
 
@@ -90,17 +91,32 @@ export default function NewClientPage() {
             <CardDescription>מלא את הפרטים הבסיסיים של המטופל</CardDescription>
           </CardHeader>
           <CardContent className="space-y-4">
-            <div className="space-y-2">
-              <Label htmlFor="name">שם מלא *</Label>
-              <Input
-                id="name"
-                name="name"
-                placeholder="ישראל ישראלי"
-                value={formData.name}
-                onChange={handleChange}
-                required
-                disabled={isLoading}
-              />
+            <div className="grid grid-cols-2 gap-4">
+              <div className="space-y-2">
+                <Label htmlFor="firstName">שם פרטי *</Label>
+                <Input
+                  id="firstName"
+                  name="firstName"
+                  placeholder="ישראל"
+                  value={formData.firstName}
+                  onChange={handleChange}
+                  required
+                  disabled={isLoading}
+                />
+              </div>
+
+              <div className="space-y-2">
+                <Label htmlFor="lastName">שם משפחה *</Label>
+                <Input
+                  id="lastName"
+                  name="lastName"
+                  placeholder="ישראלי"
+                  value={formData.lastName}
+                  onChange={handleChange}
+                  required
+                  disabled={isLoading}
+                />
+              </div>
             </div>
 
             <div className="grid grid-cols-2 gap-4">
