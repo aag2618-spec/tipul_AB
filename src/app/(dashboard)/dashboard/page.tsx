@@ -207,31 +207,32 @@ export default async function DashboardPage() {
       {/* Stats Grid */}
       <div className="grid gap-4 md:grid-cols-2 lg:grid-cols-4">
         {statCards.map((stat) => (
-          <Card key={stat.title} className={`relative overflow-hidden ${stat.bgColor} border-muted`}>
-            <Link href={stat.href} className="block hover:shadow-lg transition-all duration-300">
-              <CardHeader className="flex flex-row items-center justify-between pb-2">
-                <CardTitle className="text-sm font-medium text-foreground/70">
-                  {stat.title}
-                </CardTitle>
-                <stat.icon className={`h-5 w-5 ${stat.iconColor}`} />
-              </CardHeader>
-              <CardContent>
-                <div className="flex items-end justify-between">
-                  <div>
-                    <div className="text-3xl font-bold">{stat.value}</div>
-                    <p className="text-xs text-muted-foreground">{stat.description}</p>
-                  </div>
-                  {stat.subBox && !stat.subBox.href && (
-                    <div className={`${stat.subBox.bgColor || 'bg-primary/10'} rounded-lg px-3 py-2 text-center`}>
-                      <div className={`text-lg font-bold ${stat.subBox.textColor || 'text-primary'}`}>{stat.subBox.value}</div>
-                      <p className={`text-xs ${stat.subBox.textColor ? stat.subBox.textColor + '/70' : 'text-primary/70'}`}>{stat.subBox.label}</p>
-                    </div>
-                  )}
-                </div>
-              </CardContent>
+          <Card key={stat.title} className={`group relative overflow-hidden ${stat.bgColor} border-muted cursor-pointer transition-all duration-300 hover:brightness-95 dark:hover:brightness-110 hover:scale-[1.02]`}>
+            <Link href={stat.href} className="absolute inset-0 z-10">
+              <span className="sr-only">{stat.title}</span>
             </Link>
+            <CardHeader className="flex flex-row items-center justify-between pb-2 relative z-0">
+              <CardTitle className="text-sm font-medium text-foreground/70">
+                {stat.title}
+              </CardTitle>
+              <stat.icon className={`h-5 w-5 ${stat.iconColor}`} />
+            </CardHeader>
+            <CardContent className="relative z-0">
+              <div className="flex items-end justify-between">
+                <div>
+                  <div className="text-3xl font-bold">{stat.value}</div>
+                  <p className="text-xs text-muted-foreground">{stat.description}</p>
+                </div>
+                {stat.subBox && !stat.subBox.href && (
+                  <div className={`${stat.subBox.bgColor || 'bg-primary/10'} rounded-lg px-3 py-2 text-center`}>
+                    <div className={`text-lg font-bold ${stat.subBox.textColor || 'text-primary'}`}>{stat.subBox.value}</div>
+                    <p className={`text-xs ${stat.subBox.textColor ? stat.subBox.textColor + '/70' : 'text-primary/70'}`}>{stat.subBox.label}</p>
+                  </div>
+                )}
+              </div>
+            </CardContent>
             {stat.subBox && stat.subBox.href && (
-              <div className="absolute bottom-6 left-6">
+              <div className="absolute bottom-6 left-6 z-20">
                 <SubBoxLink
                   href={stat.subBox.href}
                   value={stat.subBox.value}
