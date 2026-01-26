@@ -78,8 +78,8 @@ export async function PUT(
     const client = await prisma.client.update({
       where: { id },
       data: {
-        firstName: firstName?.trim() || existingClient.firstName,
-        lastName: lastName?.trim() || existingClient.lastName,
+        firstName: firstName?.trim() || existingClient.firstName || "",
+        lastName: lastName?.trim() || existingClient.lastName || "",
         name: (firstName && lastName) ? `${firstName.trim()} ${lastName.trim()}` : existingClient.name,
         phone: phone?.trim() || null,
         email: email?.trim() || null,

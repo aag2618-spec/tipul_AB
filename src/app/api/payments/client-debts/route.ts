@@ -48,12 +48,16 @@ export async function GET(request: NextRequest) {
         0
       );
       const creditBalance = Number(client.creditBalance);
+      
+      // Handle legacy clients without firstName/lastName
+      const firstName = client.firstName || client.name?.split(" ")[0] || "לא";
+      const lastName = client.lastName || client.name?.split(" ").slice(1).join(" ") || "ידוע";
 
       return {
         id: client.id,
-        firstName: client.firstName,
-        lastName: client.lastName,
-        fullName: `${client.firstName} ${client.lastName}`,
+        firstName,
+        lastName,
+        fullName: `${firstName} ${lastName}`,
         totalDebt,
         creditBalance,
         unpaidSessionsCount: client.payments.length,

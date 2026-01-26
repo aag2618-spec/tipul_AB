@@ -76,9 +76,9 @@ export async function POST(request: NextRequest) {
     const client = await prisma.client.create({
       data: {
         therapistId: session.user.id,
-        firstName,
-        lastName,
-        name: `${firstName} ${lastName}`,
+        firstName: firstName.trim(),
+        lastName: lastName.trim(),
+        name: `${firstName.trim()} ${lastName.trim()}`,
         phone: phone || null,
         email: email || null,
         birthDate: birthDate ? new Date(birthDate) : null,

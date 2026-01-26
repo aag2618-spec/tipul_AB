@@ -107,8 +107,8 @@ model PasswordReset {
 
 model Client {
   id                  String       @id @default(cuid())
-  firstName           String       @default("")
-  lastName            String       @default("")
+  firstName           String?
+  lastName            String?
   name                String?      // Deprecated - for backward compatibility
   phone               String?
   email               String?

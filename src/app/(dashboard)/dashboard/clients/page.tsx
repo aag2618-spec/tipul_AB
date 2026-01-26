@@ -89,8 +89,11 @@ export default async function ClientsPage({ searchParams }: PageProps) {
     getClientCounts(session.user.id),
   ]);
 
-  const getInitials = (firstName: string, lastName: string) => {
-    return `${firstName[0] || ''}${lastName[0] || ''}`;
+  const getInitials = (firstName: string | null, lastName: string | null) => {
+    const first = firstName || "";
+    const last = lastName || "";
+    return `${first[0] || ''}${last[0] || ''}`;
+  };
   };
 
   const getStatusBadge = (status: string) => {

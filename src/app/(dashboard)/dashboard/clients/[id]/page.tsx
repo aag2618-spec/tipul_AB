@@ -90,8 +90,11 @@ export default async function ClientPage({
     notFound();
   }
 
-  const getInitials = (firstName: string, lastName: string) => {
-    return `${firstName[0] || ''}${lastName[0] || ''}`;
+  const getInitials = (firstName: string | null, lastName: string | null) => {
+    const first = firstName || "";
+    const last = lastName || "";
+    return `${first[0] || ''}${last[0] || ''}`;
+  };
   };
 
   const age = client.birthDate
