@@ -13,7 +13,7 @@ async function getDocuments(userId: string) {
     where: { therapistId: userId },
     orderBy: { createdAt: "desc" },
     include: {
-      client: { select: { id: true, name: true } },
+      client: { select: { id: true, firstName: true, lastName: true, name: true } },
     },
   });
 }
