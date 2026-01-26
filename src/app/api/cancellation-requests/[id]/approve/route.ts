@@ -31,10 +31,18 @@ export async function POST(
         session: {
           include: {
             client: true,
-            therapist: true,
+            the true,
           },
         },
-        client: true,
+        client: {
+          select: {
+            id: true,
+            firstName: true,
+            lastName: true,
+            name: true,
+            email: true,
+          },
+        },
       },
     });
 
@@ -87,7 +95,7 @@ export async function POST(
     // Send approval email to client
     if (cancellationRequest.client.email) {
       const approvalEmail = createCancellationApprovedEmail({
-        clientName: cancellationRequest.client.name,
+        clientName: `${cancellationRequest.client.firstName} ${cancellationRequest.client.lastName}`,
         therapistName,
         date,
         time,
