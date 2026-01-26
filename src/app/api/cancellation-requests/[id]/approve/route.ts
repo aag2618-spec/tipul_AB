@@ -31,7 +31,7 @@ export async function POST(
         session: {
           include: {
             client: true,
-            the true,
+            the,
           },
         },
         client: {
