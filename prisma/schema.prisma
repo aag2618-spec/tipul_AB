@@ -107,6 +107,8 @@ model PasswordReset {
 
 model Client {
   id                  String       @id @default(cuid())
+  firstName           String?
+  lastName            String?
   name                String
   phone               String?
   email               String?
