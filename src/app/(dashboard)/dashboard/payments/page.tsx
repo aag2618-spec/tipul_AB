@@ -177,6 +177,28 @@ export default function PaymentsPage() {
                       </p>
                     )}
                   </div>
+
+                  <div className="flex gap-2">
+                    <Button
+                      variant="outline"
+                      size="sm"
+                      asChild
+                    >
+                      <Link href={`/dashboard/clients/${client.id}?tab=payments`}>
+                        היסטוריה
+                      </Link>
+                    </Button>
+                    {client.totalDebt > 0 && (
+                      <Button
+                        size="sm"
+                        asChild
+                      >
+                        <Link href={`/dashboard/clients/${client.id}?tab=payments`}>
+                          פירוט ותשלום
+                        </Link>
+                      </Button>
+                    )}
+                  </div>
                 </div>
               </CardContent>
             </Card>
