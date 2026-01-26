@@ -51,6 +51,8 @@ export async function GET() {
 
       const totalDebt = unpaidSessions.reduce((sum, session) => sum + session.amount, 0);
 
+      console.log(`Client ${client.firstName} ${client.lastName}: ${client.payments.length} payments, totalDebt: ${totalDebt}`);
+
       return {
         id: client.id,
         firstName: client.firstName || "",
@@ -64,6 +66,8 @@ export async function GET() {
         unpaidSessions,
       };
     });
+
+    console.log(`Total clients with debts/credits: ${clientDebts.filter(c => c.totalDebt > 0 || c.creditBalance > 0).length}`);
 
     // Filter out clients with no debt and no credit
     const relevantClients = clientDebts.filter(
