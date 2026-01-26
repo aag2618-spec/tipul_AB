@@ -77,7 +77,7 @@ export async function PUT(
 
     const { id } = await params;
     const body = await request.json();
-    const { startTime, endTime, type, price, location, notes, status, createPayment } = body;
+    const { startTime, endTime, type, price, location, notes, status, createPayment, markAsPaid } = body;
 
     const existingSession = await prisma.therapySession.findFirst({
       where: { id, therapistId: session.user.id },
@@ -136,11 +136,12 @@ export async function PUT(
           data: {
             clientId: therapySession.clientId,
             sessionId: therapySession.id,
-            amount: Number(therapySession.price),
+            amount: markAsPaid ? Number(therapySession.price) : 0,
             expectedAmount: Number(therapySession.price),
             method: "CASH",
-            status: "PENDING",
-            paymentType: "FULL",
+            status: markAsPaid ? "PAID" : "PENDING",
+            paymentType: markAsPaid ? "FULL" : "FULL",
+            paidAt: markAsPaid ? new Date() : null,
             notes: null,
           },
         });

@@ -128,6 +128,7 @@ export function CompleteSessionDialog({
           headers: { "Content-Type": "application/json" },
           body: JSON.stringify({
             status: "COMPLETED",
+            markAsPaid: true,
           }),
         })
       );
