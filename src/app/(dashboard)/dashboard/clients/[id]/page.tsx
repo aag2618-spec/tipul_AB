@@ -107,7 +107,7 @@ export default async function ClientPage({
 
   const pendingPayments = client.payments.filter((p) => p.status === "PENDING");
   const totalDebt = pendingPayments.reduce(
-    (sum, p) => sum + Number(p.amount),
+    (sum, p) => sum + (Number(p.expectedAmount) - Number(p.amount)),
     0
   );
 
@@ -222,19 +222,29 @@ export default async function ClientPage({
         </Card>
         <Card>
           <CardContent className="pt-6">
-            <div className="flex items-center gap-3">
-              <div className="flex h-10 w-10 items-center justify-center rounded-lg bg-green-500/10">
-                <CreditCard className="h-5 w-5 text-green-600" />
+            <div className="flex items-center justify-between gap-3">
+              <div className="flex items-center gap-3">
+                <div className="flex h-10 w-10 items-center justify-center rounded-lg bg-green-500/10">
+                  <CreditCard className="h-5 w-5 text-green-600" />
+                </div>
+                <div className="flex-1">
+                  <p className="text-sm text-muted-foreground">יתרת קרדיט</p>
+                  <p className="font-medium text-green-600">
+                    {Number(client.creditBalance) > 0 ? `₪${client.creditBalance}` : "₪0"}
+                  </p>
+                  {totalDebt > 0 && (
+                    <p className="text-xs text-destructive font-semibold">חוב: ₪{totalDebt}</p>
+                  )}
+                </div>
               </div>
-              <div className="flex-1">
-                <p className="text-sm text-muted-foreground">יתרת קרדיט</p>
-                <p className="font-medium text-green-600">
-                  {Number(client.creditBalance) > 0 ? `₪${client.creditBalance}` : "₪0"}
-                </p>
-                {totalDebt > 0 && (
-                  <p className="text-xs text-destructive">חוב: ₪{totalDebt}</p>
-                )}
-              </div>
+              {totalDebt > 0 && (
+                <Button size="sm" variant="default" asChild>
+                  <Link href="/dashboard/payments">
+                    <CreditCard className="h-4 w-4 ml-2" />
+                    פירוט ותשלום
+                  </Link>
+                </Button>
+              )}
             </div>
           </CardContent>
         </Card>
