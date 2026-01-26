@@ -44,7 +44,7 @@ export async function GET() {
     const clientDebts = clients.map((client) => {
       const unpaidSessions = client.payments.map((payment) => ({
         paymentId: payment.id,
-        amount: payment.expectedAmount - payment.amount,
+        amount: Number(payment.expectedAmount) - Number(payment.amount),
         date: payment.createdAt,
         sessionId: payment.sessionId,
       }));
