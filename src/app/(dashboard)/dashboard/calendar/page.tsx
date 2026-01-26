@@ -107,6 +107,8 @@ export default function CalendarPage() {
   const [defaultSessionDuration, setDefaultSessionDuration] = useState(50);
   const [isDialogOpen, setIsDialogOpen] = useState(false);
   const [isRecurringDialogOpen, setIsRecurringDialogOpen] = useState(false);
+  const [isSessionDialogOpen, setIsSessionDialogOpen] = useState(false);
+  const [selectedSession, setSelectedSession] = useState<Session | null>(null);
   const [selectedDate, setSelectedDate] = useState<Date | null>(null);
   const [formData, setFormData] = useState({
     clientId: "",
@@ -218,8 +220,11 @@ export default function CalendarPage() {
   };
 
   const handleEventClick = (info: EventClickArg) => {
-    // Navigate to session details
-    window.location.href = `/dashboard/sessions/${info.event.id}`;
+    const session = sessions.find(s => s.id === info.event.id);
+    if (session) {
+      setSelectedSession(session);
+      setIsSessionDialogOpen(true);
+    }
   };
 
   const handleSubmit = async (e: React.FormEvent) => {
@@ -791,6 +796,144 @@ export default function CalendarPage() {
               </form>
             </TabsContent>
           </Tabs>
+        </DialogContent>
+      </Dialog>
+
+      {/* Session Detail Dialog */}
+      <Dialog open={isSessionDialogOpen} onOpenChange={setIsSessionDialogOpen}>
+        <DialogContent className="sm:max-w-[500px]">
+          <DialogHeader>
+            <DialogTitle>פרטי פגישה</DialogTitle>
+            {selectedSession && (
+              <DialogDescription>
+                {selectedSession.client?.name || "הפסקה"} • {format(new Date(selectedSession.startTime), "d/M/yyyy HH:mm")}
+              </DialogDescription>
+            )}
+          </DialogHeader>
+          
+          {selectedSession && (
+            <div className="space-y-4">
+              <div className="grid grid-cols-2 gap-4">
+                <div>
+                  <p className="text-sm text-muted-foreground">סוג</p>
+                  <p className="font-medium">
+                    {selectedSession.type === "ONLINE" ? "אונליין" : 
+                     selectedSession.type === "PHONE" ? "טלפון" : 
+                     selectedSession.type === "BREAK" ? "הפסקה" : "פרונטלי"}
+                  </p>
+                </div>
+                <div>
+                  <p className="text-sm text-muted-foreground">מחיר</p>
+                  <p className="font-medium">₪{selectedSession.price}</p>
+                </div>
+              </div>
+              
+              <div className="flex flex-col gap-2">
+                {selectedSession.status === "SCHEDULED" && (
+                  <>
+                    <Button
+                      onClick={async () => {
+                        try {
+                          await fetch(`/api/sessions/${selectedSession.id}`, {
+                            method: "PUT",
+                            headers: { "Content-Type": "application/json" },
+                            body: JSON.stringify({ status: "COMPLETED", markAsPaid: true }),
+                          });
+                          toast.success("הפגישה הושלמה ושולמה");
+                          setIsSessionDialogOpen(false);
+                          fetchData();
+                        } catch {
+                          toast.error("שגיאה בעדכון הפגישה");
+                        }
+                      }}
+                      className="w-full"
+                    >
+                      ✅ סיום ושלם
+                    </Button>
+                    
+                    <Button
+                      onClick={async () => {
+                        try {
+                          await fetch(`/api/sessions/${selectedSession.id}`, {
+                            method: "PUT",
+                            headers: { "Content-Type": "application/json" },
+                            body: JSON.stringify({ status: "COMPLETED" }),
+                          });
+                          toast.success("הפגישה הושלמה ללא תשלום");
+                          setIsSessionDialogOpen(false);
+                          fetchData();
+                        } catch {
+                          toast.error("שגיאה בעדכון הפגישה");
+                        }
+                      }}
+                      variant="outline"
+                      className="w-full"
+                    >
+                      סיום ללא תשלום
+                    </Button>
+                    
+                    <Button
+                      onClick={async () => {
+                        try {
+                          await fetch(`/api/sessions/${selectedSession.id}`, {
+                            method: "PUT",
+                            headers: { "Content-Type": "application/json" },
+                            body: JSON.stringify({ status: "CANCELLED" }),
+                          });
+                          toast.success("הפגישה בוטלה");
+                          setIsSessionDialogOpen(false);
+                          fetchData();
+                        } catch {
+                          toast.error("שגיאה בעדכון הפגישה");
+                        }
+                      }}
+                      variant="outline"
+                      className="w-full"
+                    >
+                      ❌ ביטול
+                    </Button>
+                    
+                    <Button
+                      onClick={async () => {
+                        try {
+                          await fetch(`/api/sessions/${selectedSession.id}`, {
+                            method: "PUT",
+                            headers: { "Content-Type": "application/json" },
+                            body: JSON.stringify({ status: "NO_SHOW" }),
+                          });
+                          toast.success("הפגישה סומנה כלא הגיע");
+                          setIsSessionDialogOpen(false);
+                          fetchData();
+                        } catch {
+                          toast.error("שגיאה בעדכון הפגישה");
+                        }
+                      }}
+                      variant="outline"
+                      className="w-full"
+                    >
+                      ⚠️ לא הגיע
+                    </Button>
+                  </>
+                )}
+                
+                <Button
+                  onClick={() => {
+                    window.location.href = `/dashboard/sessions/${selectedSession.id}`;
+                  }}
+                  variant="secondary"
+                  className="w-full mt-2"
+                >
+                  📝 פתח דף פגישה מלא
+                </Button>
+              </div>
+            </div>
+          )}
+          
+          <DialogFooter>
+            <Button variant="outline" onClick={() => setIsSessionDialogOpen(false)}>
+              סגור
+            </Button>
+          </DialogFooter>
         </DialogContent>
       </Dialog>
     </div>
