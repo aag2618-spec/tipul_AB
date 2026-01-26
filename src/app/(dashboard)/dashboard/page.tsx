@@ -207,12 +207,12 @@ export default async function DashboardPage() {
       {/* Stats Grid */}
       <div className="grid gap-4 md:grid-cols-2 lg:grid-cols-4">
         {statCards.map((stat) => (
-          <Card key={stat.title} className={`group relative overflow-hidden ${stat.bgColor} border-muted cursor-pointer transition-all duration-200 hover:scale-[1.02] hover:brightness-[1.3]`}>
+          <Card key={stat.title} className={`group relative overflow-hidden ${stat.bgColor} border-muted cursor-pointer transition-all duration-200 hover:scale-[1.02] hover:brightness-110`}>
             <Link href={stat.href} className="absolute inset-0 z-10">
               <span className="sr-only">{stat.title}</span>
             </Link>
             <CardHeader className="flex flex-row items-center justify-between pb-2 relative z-0">
-              <CardTitle className="text-sm font-medium text-foreground/70">
+              <CardTitle className="text-sm font-medium text-gray-700 dark:text-gray-300">
                 {stat.title}
               </CardTitle>
               <stat.icon className={`h-5 w-5 ${stat.iconColor}`} />
@@ -220,8 +220,8 @@ export default async function DashboardPage() {
             <CardContent className="relative z-0">
               <div className="flex items-end justify-between">
                 <div>
-                  <div className="text-3xl font-bold">{stat.value}</div>
-                  <p className="text-xs text-muted-foreground">{stat.description}</p>
+                  <div className="text-3xl font-bold text-gray-900 dark:text-gray-100">{stat.value}</div>
+                  <p className="text-xs text-gray-600 dark:text-gray-400">{stat.description}</p>
                 </div>
                 {stat.subBox && !stat.subBox.href && (
                   <div className={`${stat.subBox.bgColor || 'bg-primary/10'} rounded-lg px-3 py-2 text-center`}>
