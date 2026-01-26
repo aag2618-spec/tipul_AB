@@ -13,6 +13,7 @@ import {
 } from "@/components/ui/select";
 import { Loader2, AlertCircle, CheckCircle } from "lucide-react";
 import { toast } from "sonner";
+import Link from "next/link";
 
 interface ClientDebt {
   id: string;
