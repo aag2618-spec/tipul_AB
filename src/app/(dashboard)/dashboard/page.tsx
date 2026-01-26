@@ -99,6 +99,8 @@ async function getDashboardStats(userId: string) {
         client: {
           select: {
             id: true,
+            firstName: true,
+            lastName: true,
             name: true,
             creditBalance: true,
           }
