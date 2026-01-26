@@ -237,14 +237,22 @@ export default async function ClientPage({
                   )}
                 </div>
               </div>
-              {totalDebt > 0 && (
-                <Button size="sm" variant="default" asChild>
-                  <Link href="/dashboard/payments">
+              <div className="flex gap-2">
+                <Button size="sm" variant="outline" asChild>
+                  <Link href={`/dashboard/clients/${client.id}?tab=payments`}>
                     <CreditCard className="h-4 w-4 ml-2" />
-                    פירוט ותשלום
+                    היסטוריה
                   </Link>
                 </Button>
-              )}
+                {totalDebt > 0 && (
+                  <Button size="sm" variant="default" asChild>
+                    <Link href="/dashboard/payments">
+                      <CreditCard className="h-4 w-4 ml-2" />
+                      פירוט ותשלום
+                    </Link>
+                  </Button>
+                )}
+              </div>
             </div>
           </CardContent>
         </Card>
