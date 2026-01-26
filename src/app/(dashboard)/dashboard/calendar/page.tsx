@@ -198,9 +198,11 @@ export default function CalendarPage() {
 
   const handleDateClick = (info: DateClickArg) => {
     setSelectedDate(info.date);
-    const dateStr = format(info.date, "yyyy-MM-dd");
-    const timeStr = format(info.date, "HH:mm");
-    const endTime = new Date(info.date);
+    // השתמש בזמן המדויק שנלחץ (כולל דקות)
+    const clickedTime = info.date;
+    const dateStr = format(clickedTime, "yyyy-MM-dd");
+    const timeStr = format(clickedTime, "HH:mm");
+    const endTime = new Date(clickedTime);
     endTime.setMinutes(endTime.getMinutes() + defaultSessionDuration);
     
     setFormData({
@@ -480,7 +482,7 @@ export default function CalendarPage() {
                     if (startValue) {
                       const start = new Date(startValue);
                       const end = new Date(start);
-                      end.setMinutes(end.getMinutes() + 50);
+                      end.setMinutes(end.getMinutes() + defaultSessionDuration);
                       setFormData((prev) => ({
                         ...prev,
                         startTime: startValue,
