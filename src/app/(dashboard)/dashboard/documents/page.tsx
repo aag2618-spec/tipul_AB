@@ -13,7 +13,7 @@ async function getDocuments(userId: string) {
     where: { therapistId: userId },
     orderBy: { createdAt: "desc" },
     include: {
-      client: { select: { id: true, firstName: true, lastName: true, name: true } },
+      client: { select: { id: true, name: true } },
     },
   });
 }
@@ -90,7 +90,7 @@ export default async function DocumentsPage() {
                         {doc.client && (
                           <span className="flex items-center gap-1">
                             <User className="h-3.5 w-3.5" />
-                            {doc.client.firstName} {doc.client.lastName}
+                            {doc.client.name}
                           </span>
                         )}
                         <span>{format(new Date(doc.createdAt), "dd/MM/yyyy")}</span>
