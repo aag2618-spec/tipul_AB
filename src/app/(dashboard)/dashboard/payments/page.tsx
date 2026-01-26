@@ -11,10 +11,8 @@ import {
   SelectTrigger,
   SelectValue,
 } from "@/components/ui/select";
-import { Loader2, AlertCircle, CheckCircle, History, CreditCard } from "lucide-react";
+import { Loader2, AlertCircle, CheckCircle } from "lucide-react";
 import { toast } from "sonner";
-import { BulkPaymentDialog } from "@/components/payments/bulk-payment-dialog";
-import { PaymentHistoryDialog } from "@/components/payments/payment-history-dialog";
 
 interface ClientDebt {
   id: string;
@@ -39,9 +37,6 @@ export default function PaymentsPage() {
   const [filteredClients, setFilteredClients] = useState<ClientDebt[]>([]);
   const [isLoading, setIsLoading] = useState(true);
   const [filter, setFilter] = useState<FilterType>("debts");
-  const [selectedClient, setSelectedClient] = useState<ClientDebt | null>(null);
-  const [showPaymentDialog, setShowPaymentDialog] = useState(false);
-  const [showHistoryDialog, setShowHistoryDialog] = useState(false);
 
   useEffect(() => {
     fetchClientDebts();
@@ -79,13 +74,6 @@ export default function PaymentsPage() {
     }
 
     setFilteredClients(filtered);
-  };
-
-  const handlePaymentSuccess = () => {
-    setShowPaymentDialog(false);
-    setSelectedClient(null);
-    fetchClientDebts();
-    toast.success("התשלום עודכן בהצלחה");
   };
 
   if (isLoading) {
@@ -189,64 +177,12 @@ export default function PaymentsPage() {
                       </p>
                     )}
                   </div>
-
-                  <div className="flex gap-2">
-                    <Button
-                      variant="outline"
-                      size="sm"
-                      onClick={() => {
-                        setSelectedClient(client);
-                        setShowHistoryDialog(true);
-                      }}
-                    >
-                      <History className="h-4 w-4 ml-2" />
-                      היסטוריה
-                    </Button>
-                    {client.totalDebt > 0 && (
-                      <Button
-                        size="sm"
-                        onClick={() => {
-                          setSelectedClient(client);
-                          setShowPaymentDialog(true);
-                        }}
-                      >
-                        <CreditCard className="h-4 w-4 ml-2" />
-                        פירוט ותשלום
-                      </Button>
-                    )}
-                  </div>
                 </div>
               </CardContent>
             </Card>
           ))
         )}
       </div>
-
-      {/* Bulk Payment Dialog */}
-      {selectedClient && showPaymentDialog && (
-        <BulkPaymentDialog
-          client={selectedClient}
-          open={showPaymentDialog}
-          onClose={() => {
-            setShowPaymentDialog(false);
-            setSelectedClient(null);
-          }}
-          onSuccess={handlePaymentSuccess}
-        />
-      )}
-
-      {/* Payment History Dialog */}
-      {selectedClient && showHistoryDialog && (
-        <PaymentHistoryDialog
-          clientId={selectedClient.id}
-          clientName={selectedClient.fullName}
-          open={showHistoryDialog}
-          onClose={() => {
-            setShowHistoryDialog(false);
-            setSelectedClient(null);
-          }}
-        />
-      )}
     </div>
   );
 }
