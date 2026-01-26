@@ -18,7 +18,7 @@ async function getRecordings(userId: string) {
     },
     orderBy: { createdAt: "desc" },
     include: {
-      client: { select: { id: true, name: true } },
+      client: { select: { id: true, firstName: true, lastName: true, name: true } },
       session: { select: { id: true, startTime: true } },
       transcription: {
         include: { analysis: true },
