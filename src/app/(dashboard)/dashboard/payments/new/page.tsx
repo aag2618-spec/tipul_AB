@@ -67,6 +67,8 @@ function NewPaymentContent() {
         body: JSON.stringify({
           clientId: formData.clientId,
           amount: parseFloat(formData.amount),
+          expectedAmount: parseFloat(formData.amount),
+          paymentType: "FULL",
           method: formData.method,
           notes: formData.notes,
           status: formData.status,

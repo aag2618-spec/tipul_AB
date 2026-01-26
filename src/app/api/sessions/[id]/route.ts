@@ -136,9 +136,11 @@ export async function PUT(
           data: {
             clientId: therapySession.clientId,
             sessionId: therapySession.id,
-            amount: therapySession.price,
+            amount: Number(therapySession.price),
+            expectedAmount: Number(therapySession.price),
             method: "CASH",
             status: "PENDING",
+            paymentType: "FULL",
             notes: null,
           },
         });

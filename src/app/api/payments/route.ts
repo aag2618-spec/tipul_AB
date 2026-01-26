@@ -43,7 +43,8 @@ export async function POST(request: NextRequest) {
       amount, 
       expectedAmount,
       paymentType = 'FULL',
-      method, 
+      method,
+      status,
       notes 
     } = body;
 
@@ -72,7 +73,8 @@ export async function POST(request: NextRequest) {
         expectedAmount: expectedAmount || amount,
         paymentType,
         method: method || "CASH",
-        status: "PENDING",
+        status: status || "PENDING",
+        paidAt: status === "PAID" ? new Date() : null,
         notes: notes || null,
       },
       include: {
