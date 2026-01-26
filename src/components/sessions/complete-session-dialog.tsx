@@ -27,11 +27,24 @@ import { toast } from "sonner";
 import { useRouter } from "next/navigation";
 
 interface CompleteSessionDialogProps {
-  sessionId: string;
-  clientId: string;
-  clientName: string;
-  sessionDate: string;
-  defaultAmount: number;
+  session?: {
+    id: string;
+    startTime: string;
+    endTime: string;
+    price: number;
+    client: {
+      id: string;
+      name: string;
+      creditBalance?: number;
+    } | null;
+  };
+  onSuccess?: () => void;
+  // Legacy props for backward compatibility
+  sessionId?: string;
+  clientId?: string;
+  clientName?: string;
+  sessionDate?: string;
+  defaultAmount?: number;
   creditBalance?: number;
   hasNote?: boolean;
   hasPayment?: boolean;
@@ -39,16 +52,27 @@ interface CompleteSessionDialogProps {
 }
 
 export function CompleteSessionDialog({
-  sessionId,
-  clientId,
-  clientName,
-  sessionDate,
-  defaultAmount,
-  creditBalance = 0,
+  session,
+  onSuccess,
+  // Legacy props
+  sessionId: legacySessionId,
+  clientId: legacyClientId,
+  clientName: legacyClientName,
+  sessionDate: legacySessionDate,
+  defaultAmount: legacyDefaultAmount,
+  creditBalance: legacyCreditBalance = 0,
   hasNote = false,
   hasPayment = false,
   buttonText = "סיים מפגש",
 }: CompleteSessionDialogProps) {
+  // Support both new and legacy props
+  const sessionId = session?.id || legacySessionId || "";
+  const clientId = session?.client?.id || legacyClientId || "";
+  const clientName = session?.client?.name || legacyClientName || "";
+  const sessionDate = session ? new Date(session.startTime).toLocaleString("he-IL") : (legacySessionDate || "");
+  const defaultAmount = session?.price || legacyDefaultAmount || 0;
+  const creditBalance = session?.client?.creditBalance || legacyCreditBalance || 0;
+
   const [isOpen, setIsOpen] = useState(false);
   const [isLoading, setIsLoading] = useState(false);
   const [summary, setSummary] = useState("");
@@ -142,8 +166,12 @@ export function CompleteSessionDialog({
       setPaymentType("FULL");
       setPartialAmount("");
       
-      // Navigate to session summary page
-      router.push(`/dashboard/sessions/${sessionId}`);
+      // Call onSuccess callback if provided, otherwise navigate
+      if (onSuccess) {
+        onSuccess();
+      } else {
+        router.push(`/dashboard/sessions/${sessionId}`);
+      }
     } catch (error) {
       toast.error("שגיאה בסיום המפגש");
       console.error(error);
@@ -196,7 +224,13 @@ export function CompleteSessionDialog({
                   });
                   toast.success("המפגש הושלם ללא תשלום");
                   setIsOpen(false);
-                  router.push(`/dashboard/sessions/${sessionId}`);
+                  
+                  // Call onSuccess callback if provided, otherwise navigate
+                  if (onSuccess) {
+                    onSuccess();
+                  } else {
+                    router.push(`/dashboard/sessions/${sessionId}`);
+                  }
                 } catch {
                   toast.error("שגיאה בסיום המפגש");
                 } finally {
