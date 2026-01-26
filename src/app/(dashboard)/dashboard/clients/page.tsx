@@ -94,7 +94,6 @@ export default async function ClientsPage({ searchParams }: PageProps) {
     const last = lastName || "";
     return `${first[0] || ''}${last[0] || ''}`;
   };
-  };
 
   const getStatusBadge = (status: string) => {
     switch (status) {
