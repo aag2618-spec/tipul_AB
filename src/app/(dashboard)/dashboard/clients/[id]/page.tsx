@@ -222,48 +222,30 @@ export default async function ClientPage({
         </Card>
         <Card>
           <CardContent className="pt-6">
-            <div className="flex items-center justify-between gap-3">
-              <div className="flex items-center gap-3">
-                <div className={`flex h-10 w-10 items-center justify-center rounded-lg ${
-                  totalDebt > 0 ? "bg-red-500/10" : "bg-green-500/10"
-                }`}>
-                  <CreditCard className={`h-5 w-5 ${
-                    totalDebt > 0 ? "text-red-600" : "text-green-600"
-                  }`} />
-                </div>
-                <div className="flex-1">
-                  {totalDebt > 0 ? (
-                    <>
-                      <p className="text-sm text-muted-foreground">חוב</p>
-                      <p className="font-bold text-red-600 text-lg">₪{totalDebt}</p>
-                      {Number(client.creditBalance) > 0 && (
-                        <p className="text-xs text-green-600">קרדיט זמין: ₪{Number(client.creditBalance)}</p>
-                      )}
-                    </>
-                  ) : (
-                    <>
-                      <p className="text-sm text-muted-foreground">קרדיט</p>
-                      <p className="font-bold text-green-600 text-lg">
-                        {Number(client.creditBalance) > 0 ? `₪${Number(client.creditBalance)}` : "₪0"}
-                      </p>
-                    </>
-                  )}
-                </div>
+            <div className="flex items-center gap-3">
+              <div className={`flex h-10 w-10 items-center justify-center rounded-lg ${
+                totalDebt > 0 ? "bg-red-500/10" : "bg-green-500/10"
+              }`}>
+                <CreditCard className={`h-5 w-5 ${
+                  totalDebt > 0 ? "text-red-600" : "text-green-600"
+                }`} />
               </div>
-              <div className="flex gap-2">
-                <Button size="sm" variant="outline" asChild>
-                  <Link href={`/dashboard/clients/${client.id}?tab=payments`}>
-                    <CreditCard className="h-4 w-4 ml-2" />
-                    היסטוריה
-                  </Link>
-                </Button>
-                {totalDebt > 0 && (
-                  <Button size="sm" variant="default" asChild>
-                    <Link href="/dashboard/payments">
-                      <CreditCard className="h-4 w-4 ml-2" />
-                      פירוט ותשלום
-                    </Link>
-                  </Button>
+              <div className="flex-1">
+                {totalDebt > 0 ? (
+                  <>
+                    <p className="text-sm text-muted-foreground">חוב</p>
+                    <p className="font-bold text-red-600 text-lg">₪{totalDebt}</p>
+                    {Number(client.creditBalance) > 0 && (
+                      <p className="text-xs text-green-600">קרדיט זמין: ₪{Number(client.creditBalance)}</p>
+                    )}
+                  </>
+                ) : (
+                  <>
+                    <p className="text-sm text-muted-foreground">קרדיט</p>
+                    <p className="font-bold text-green-600 text-lg">
+                      {Number(client.creditBalance) > 0 ? `₪${Number(client.creditBalance)}` : "₪0"}
+                    </p>
+                  </>
                 )}
               </div>
             </div>
