@@ -109,6 +109,8 @@ export default function CalendarPage() {
   const [isRecurringDialogOpen, setIsRecurringDialogOpen] = useState(false);
   const [isSessionDialogOpen, setIsSessionDialogOpen] = useState(false);
   const [selectedSession, setSelectedSession] = useState<Session | null>(null);
+  const [isChargeDialogOpen, setIsChargeDialogOpen] = useState(false);
+  const [pendingAction, setPendingAction] = useState<"CANCELLED" | "NO_SHOW" | null>(null);
   const [selectedDate, setSelectedDate] = useState<Date | null>(null);
   const [formData, setFormData] = useState({
     clientId: "",
@@ -834,14 +836,17 @@ export default function CalendarPage() {
                     <Button
                       onClick={async () => {
                         try {
-                          await fetch(`/api/sessions/${selectedSession.id}`, {
+                          const response = await fetch(`/api/sessions/${selectedSession.id}`, {
                             method: "PUT",
                             headers: { "Content-Type": "application/json" },
                             body: JSON.stringify({ status: "COMPLETED", markAsPaid: true }),
                           });
-                          toast.success("הפגישה הושלמה ושולמה");
-                          setIsSessionDialogOpen(false);
-                          fetchData();
+                          if (response.ok) {
+                            toast.success("הפגישה הושלמה ושולמה");
+                            setIsSessionDialogOpen(false);
+                            // Navigate to payments page to complete payment
+                            window.location.href = `/dashboard/payments`;
+                          }
                         } catch {
                           toast.error("שגיאה בעדכון הפגישה");
                         }
@@ -873,19 +878,9 @@ export default function CalendarPage() {
                     </Button>
                     
                     <Button
-                      onClick={async () => {
-                        try {
-                          await fetch(`/api/sessions/${selectedSession.id}`, {
-                            method: "PUT",
-                            headers: { "Content-Type": "application/json" },
-                            body: JSON.stringify({ status: "CANCELLED" }),
-                          });
-                          toast.success("הפגישה בוטלה");
-                          setIsSessionDialogOpen(false);
-                          fetchData();
-                        } catch {
-                          toast.error("שגיאה בעדכון הפגישה");
-                        }
+                      onClick={() => {
+                        setPendingAction("CANCELLED");
+                        setIsChargeDialogOpen(true);
                       }}
                       variant="outline"
                       className="w-full"
@@ -894,19 +889,9 @@ export default function CalendarPage() {
                     </Button>
                     
                     <Button
-                      onClick={async () => {
-                        try {
-                          await fetch(`/api/sessions/${selectedSession.id}`, {
-                            method: "PUT",
-                            headers: { "Content-Type": "application/json" },
-                            body: JSON.stringify({ status: "NO_SHOW" }),
-                          });
-                          toast.success("הפגישה סומנה כלא הגיע");
-                          setIsSessionDialogOpen(false);
-                          fetchData();
-                        } catch {
-                          toast.error("שגיאה בעדכון הפגישה");
-                        }
+                      onClick={() => {
+                        setPendingAction("NO_SHOW");
+                        setIsChargeDialogOpen(true);
                       }}
                       variant="outline"
                       className="w-full"
@@ -932,6 +917,75 @@ export default function CalendarPage() {
           <DialogFooter>
             <Button variant="outline" onClick={() => setIsSessionDialogOpen(false)}>
               סגור
+            </Button>
+          </DialogFooter>
+        </DialogContent>
+      </Dialog>
+
+      {/* Charge Confirmation Dialog */}
+      <Dialog open={isChargeDialogOpen} onOpenChange={setIsChargeDialogOpen}>
+        <DialogContent>
+          <DialogHeader>
+            <DialogTitle>האם לחייב את המטופל?</DialogTitle>
+            <DialogDescription>
+              {pendingAction === "CANCELLED" 
+                ? "הפגישה בוטלה. האם ברצונך לחייב את המטופל בתשלום?"
+                : "המטופל לא הגיע לפגישה. האם ברצונך לחייב אותו בתשלום?"}
+            </DialogDescription>
+          </DialogHeader>
+          <DialogFooter className="flex-row-reverse gap-2">
+            <Button
+              onClick={async () => {
+                if (!selectedSession || !pendingAction) return;
+                try {
+                  // Update session status and create payment
+                  await fetch(`/api/sessions/${selectedSession.id}`, {
+                    method: "PUT",
+                    headers: { "Content-Type": "application/json" },
+                    body: JSON.stringify({ 
+                      status: pendingAction,
+                      markAsPaid: true,
+                    }),
+                  });
+                  
+                  setIsChargeDialogOpen(false);
+                  setIsSessionDialogOpen(false);
+                  setPendingAction(null);
+                  
+                  toast.success(pendingAction === "CANCELLED" ? "הפגישה בוטלה ונוצר חיוב" : "נרשם כלא הגיע ונוצר חיוב");
+                  
+                  // Navigate to payments page
+                  window.location.href = `/dashboard/payments`;
+                } catch {
+                  toast.error("שגיאה בעדכון הפגישה");
+                }
+              }}
+            >
+              כן, לחייב
+            </Button>
+            <Button
+              variant="outline"
+              onClick={async () => {
+                if (!selectedSession || !pendingAction) return;
+                try {
+                  await fetch(`/api/sessions/${selectedSession.id}`, {
+                    method: "PUT",
+                    headers: { "Content-Type": "application/json" },
+                    body: JSON.stringify({ status: pendingAction }),
+                  });
+                  
+                  setIsChargeDialogOpen(false);
+                  setIsSessionDialogOpen(false);
+                  setPendingAction(null);
+                  
+                  toast.success(pendingAction === "CANCELLED" ? "הפגישה בוטלה ללא חיוב" : "נרשם כלא הגיע ללא חיוב");
+                  fetchData();
+                } catch {
+                  toast.error("שגיאה בעדכון הפגישה");
+                }
+              }}
+            >
+              לא, לא לחייב
             </Button>
           </DialogFooter>
         </DialogContent>
