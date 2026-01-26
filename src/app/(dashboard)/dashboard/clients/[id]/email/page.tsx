@@ -13,7 +13,9 @@ import { toast } from "sonner";
 
 interface Client {
   id: string;
-  name: string;
+  firstName: string;
+  lastName: string;
+  name?: string | null;
   email: string | null;
 }
 
