@@ -23,6 +23,7 @@ import { format } from "date-fns";
 import { he } from "date-fns/locale";
 import { toast } from "sonner";
 import { RichTextEditor } from "@/components/rich-text-editor";
+import { CompleteSessionDialog } from "@/components/sessions/complete-session-dialog";
 
 interface NoteAnalysis {
   summary: string;
@@ -85,8 +86,6 @@ export default function SessionDetailPage({
   const [status, setStatus] = useState("");
   const [noteAnalysis, setNoteAnalysis] = useState<NoteAnalysis | null>(null);
   const [isAnalyzing, setIsAnalyzing] = useState(false);
-  const [showChargeDialog, setShowChargeDialog] = useState(false);
-  const [pendingStatus, setPendingStatus] = useState<string | null>(null);
 
   useEffect(() => {
     const fetchSession = async () => {
@@ -147,66 +146,16 @@ export default function SessionDetailPage({
     }
   };
 
-  const handleStatusChange = async (newStatus: string) => {
-    // עבור ביטול או לא הגיע - שואלים האם לחייב
-    if (newStatus === "CANCELLED" || newStatus === "NO_SHOW") {
-      setPendingStatus(newStatus);
-      setShowChargeDialog(true);
-      return;
-    }
-
-    await updateStatusAndNavigate(newStatus, newStatus === "COMPLETED");
-  };
-
-  const updateStatusAndNavigate = async (newStatus: string, shouldNavigateToPayment: boolean) => {
+  const refreshSession = async () => {
     try {
-      const response = await fetch(`/api/sessions/${id}`, {
-        method: "PUT",
-        headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ 
-          status: newStatus,
-          // אם צריך לחייב על ביטול/לא הגיע, נבקש מה-API ליצור תשלום
-          createPayment: shouldNavigateToPayment && (newStatus === "CANCELLED" || newStatus === "NO_SHOW"),
-        }),
-      });
-
-      if (!response.ok) throw new Error();
-
-      setStatus(newStatus);
-      toast.success("סטטוס עודכן בהצלחה");
-
-      // אם צריך לנווט לתשלום
-      if (shouldNavigateToPayment) {
-        // נמתין קצת כדי שהתשלום ייווצר ואז נחפש אותו
-        await new Promise(resolve => setTimeout(resolve, 500));
-        
-        // ננסה לאתר תשלום ממתין לפגישה זו
-        const paymentsRes = await fetch(`/api/payments`);
-        if (paymentsRes.ok) {
-          const payments = await paymentsRes.json();
-          // מחפש תשלום לפגישה זו - PENDING או כל סטטוס אחר
-          const sessionPayment = payments.find((p: any) => p.session?.id === id);
-          if (sessionPayment) {
-            router.push(`/dashboard/payments/${sessionPayment.id}/mark-paid`);
-            return;
-          }
-        }
-        // אם אין תשלום קיים
-        toast.info("לא נמצא תשלום לפגישה זו");
+      const response = await fetch(`/api/sessions/${id}`);
+      if (response.ok) {
+        const data = await response.json();
+        setSession(data);
+        setStatus(data.status);
       }
     } catch {
-      toast.error("שגיאה בעדכון הסטטוס");
-    }
-  };
-
-  const handleChargeConfirm = async (shouldCharge: boolean) => {
-    if (pendingStatus) {
-      // קודם לסגור את הדיאלוג ואז לעדכן
-      setShowChargeDialog(false);
-      await updateStatusAndNavigate(pendingStatus, shouldCharge);
-      setPendingStatus(null);
-    } else {
-      setShowChargeDialog(false);
+      toast.error("שגיאה ברענון הפגישה");
     }
   };
 
@@ -304,29 +253,31 @@ export default function SessionDetailPage({
           </div>
         </div>
         <div className="flex items-center gap-3">
-          <Card className="bg-gradient-to-br from-blue-50 to-indigo-50 dark:from-blue-950 dark:to-indigo-950 border-2 border-blue-200 dark:border-blue-800 shadow-md">
-            <CardContent className="p-4">
-              <div className="flex flex-col gap-2">
-                <div className="flex items-center gap-2">
-                  <div className="h-2 w-2 rounded-full bg-blue-500 animate-pulse" />
-                  <p className="text-xs font-semibold text-blue-700 dark:text-blue-300 uppercase tracking-wide">
-                    עדכון סטטוס פגישה
-                  </p>
-                </div>
-                <Select value={status} onValueChange={handleStatusChange}>
-                  <SelectTrigger className="w-[180px] h-11 bg-white dark:bg-gray-900 border-2 border-blue-300 dark:border-blue-700 font-medium text-base shadow-sm hover:border-blue-400 dark:hover:border-blue-600 transition-colors">
-                    <SelectValue />
-                  </SelectTrigger>
-                  <SelectContent>
-                    <SelectItem value="SCHEDULED" className="font-medium">📅 מתוכנן</SelectItem>
-                    <SelectItem value="COMPLETED" className="font-medium">✅ הושלם</SelectItem>
-                    <SelectItem value="CANCELLED" className="font-medium">❌ בוטל</SelectItem>
-                    <SelectItem value="NO_SHOW" className="font-medium">⚠️ לא הגיע</SelectItem>
-                  </SelectContent>
-                </Select>
-              </div>
-            </CardContent>
-          </Card>
+          {session.status === "SCHEDULED" && (
+            <CompleteSessionDialog
+              session={{
+                id: session.id,
+                startTime: session.startTime,
+                endTime: session.endTime,
+                client: session.client,
+                price: session.price,
+              }}
+              onSuccess={refreshSession}
+            />
+          )}
+          {session.status !== "SCHEDULED" && (
+            <Card className="bg-gradient-to-br from-blue-50 to-indigo-50 dark:from-blue-950 dark:to-indigo-950 border-2 border-blue-200 dark:border-blue-800 shadow-md">
+              <CardContent className="p-4">
+                <Badge variant={
+                  status === "COMPLETED" ? "default" :
+                  status === "CANCELLED" ? "destructive" : "secondary"
+                } className="text-base px-4 py-2">
+                  {status === "COMPLETED" ? "✅ הושלם" :
+                   status === "CANCELLED" ? "❌ בוטל" : "⚠️ לא הגיע"}
+                </Badge>
+              </CardContent>
+            </Card>
+          )}
           {session.client && (
             <Button variant="outline" asChild>
               <Link href={`/dashboard/clients/${session.client.id}`}>
@@ -683,27 +634,7 @@ export default function SessionDetailPage({
         </TabsContent>
       </Tabs>
 
-      {/* דיאלוג אישור חיוב לביטול/לא הגיע */}
-      <AlertDialog open={showChargeDialog} onOpenChange={setShowChargeDialog}>
-        <AlertDialogContent>
-          <AlertDialogHeader>
-            <AlertDialogTitle>האם לחייב את המטופל?</AlertDialogTitle>
-            <AlertDialogDescription>
-              {pendingStatus === "CANCELLED" 
-                ? "הפגישה בוטלה. האם ברצונך לחייב את המטופל בתשלום?"
-                : "המטופל לא הגיע לפגישה. האם ברצונך לחייב אותו בתשלום?"}
-            </AlertDialogDescription>
-          </AlertDialogHeader>
-          <AlertDialogFooter className="flex-row-reverse gap-2">
-            <Button onClick={() => handleChargeConfirm(true)}>
-              כן, לחייב
-            </Button>
-            <Button variant="outline" onClick={() => handleChargeConfirm(false)}>
-              לא, לא לחייב
-            </Button>
-          </AlertDialogFooter>
-        </AlertDialogContent>
-      </AlertDialog>
+
     </div>
   );
 }
