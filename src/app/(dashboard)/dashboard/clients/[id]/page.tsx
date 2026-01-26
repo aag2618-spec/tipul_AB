@@ -224,16 +224,29 @@ export default async function ClientPage({
           <CardContent className="pt-6">
             <div className="flex items-center justify-between gap-3">
               <div className="flex items-center gap-3">
-                <div className="flex h-10 w-10 items-center justify-center rounded-lg bg-green-500/10">
-                  <CreditCard className="h-5 w-5 text-green-600" />
+                <div className={`flex h-10 w-10 items-center justify-center rounded-lg ${
+                  totalDebt > 0 ? "bg-red-500/10" : "bg-green-500/10"
+                }`}>
+                  <CreditCard className={`h-5 w-5 ${
+                    totalDebt > 0 ? "text-red-600" : "text-green-600"
+                  }`} />
                 </div>
                 <div className="flex-1">
-                  <p className="text-sm text-muted-foreground">יתרת קרדיט</p>
-                  <p className="font-medium text-green-600">
-                    {Number(client.creditBalance) > 0 ? `₪${client.creditBalance}` : "₪0"}
-                  </p>
-                  {totalDebt > 0 && (
-                    <p className="text-xs text-destructive font-semibold">חוב: ₪{totalDebt}</p>
+                  {totalDebt > 0 ? (
+                    <>
+                      <p className="text-sm text-muted-foreground">חוב</p>
+                      <p className="font-bold text-red-600 text-lg">₪{totalDebt}</p>
+                      {Number(client.creditBalance) > 0 && (
+                        <p className="text-xs text-green-600">קרדיט זמין: ₪{client.creditBalance}</p>
+                      )}
+                    </>
+                  ) : (
+                    <>
+                      <p className="text-sm text-muted-foreground">קרדיט</p>
+                      <p className="font-bold text-green-600 text-lg">
+                        {Number(client.creditBalance) > 0 ? `₪${client.creditBalance}` : "₪0"}
+                      </p>
+                    </>
                   )}
                 </div>
               </div>
