@@ -21,7 +21,7 @@ async function getSessions(userId: string) {
     orderBy: { startTime: "desc" },
     take: 50,
     include: {
-      client: { select: { id: true, name: true, creditBalance: true } },
+      client: { select: { id: true, firstName: true, lastName: true, name: true, creditBalance: true } },
       sessionNote: true,
       payment: true,
     },
@@ -306,7 +306,7 @@ export default async function SessionsPage() {
                             <CompleteSessionDialog
                               sessionId={therapySession.id}
                               clientId={therapySession.client.id}
-                              clientName={therapySession.client.name}
+                              clientName={`${therapySession.client.firstName} ${therapySession.client.lastName}`}
                               sessionDate={format(new Date(therapySession.startTime), "d/M/yyyy HH:mm")}
                               defaultAmount={Number(therapySession.price)}
                               creditBalance={Number(therapySession.client.creditBalance || 0)}
@@ -320,7 +320,7 @@ export default async function SessionsPage() {
                             <QuickMarkPaid
                               sessionId={therapySession.id}
                               clientId={therapySession.client.id}
-                              clientName={therapySession.client.name}
+                              clientName={`${therapySession.client.firstName} ${therapySession.client.lastName}`}
                               amount={Number(therapySession.price)}
                               creditBalance={Number(therapySession.client.creditBalance || 0)}
                               existingPayment={therapySession.payment}
@@ -402,7 +402,7 @@ export default async function SessionsPage() {
                             <CompleteSessionDialog
                               sessionId={therapySession.id}
                               clientId={therapySession.client.id}
-                              clientName={therapySession.client.name}
+                              clientName={`${therapySession.client.firstName} ${therapySession.client.lastName}`}
                               sessionDate={format(new Date(therapySession.startTime), "d/M/yyyy HH:mm")}
                               defaultAmount={Number(therapySession.price)}
                               creditBalance={Number(therapySession.client.creditBalance || 0)}
@@ -416,7 +416,7 @@ export default async function SessionsPage() {
                             <QuickMarkPaid
                               sessionId={therapySession.id}
                               clientId={therapySession.client.id}
-                              clientName={therapySession.client.name}
+                              clientName={`${therapySession.client.firstName} ${therapySession.client.lastName}`}
                               amount={Number(therapySession.price)}
                               creditBalance={Number(therapySession.client.creditBalance || 0)}
                               existingPayment={therapySession.payment}
@@ -503,7 +503,7 @@ export default async function SessionsPage() {
                             <CompleteSessionDialog
                               sessionId={therapySession.id}
                               clientId={therapySession.client.id}
-                              clientName={therapySession.client.name}
+                              clientName={`${therapySession.client.firstName} ${therapySession.client.lastName}`}
                               sessionDate={format(new Date(therapySession.startTime), "d/M/yyyy HH:mm")}
                               defaultAmount={Number(therapySession.price)}
                               creditBalance={Number(therapySession.client.creditBalance || 0)}
@@ -517,7 +517,7 @@ export default async function SessionsPage() {
                             <QuickMarkPaid
                               sessionId={therapySession.id}
                               clientId={therapySession.client.id}
-                              clientName={therapySession.client.name}
+                              clientName={`${therapySession.client.firstName} ${therapySession.client.lastName}`}
                               amount={Number(therapySession.price)}
                               creditBalance={Number(therapySession.client.creditBalance || 0)}
                               existingPayment={therapySession.payment}
@@ -604,7 +604,7 @@ export default async function SessionsPage() {
                             <CompleteSessionDialog
                               sessionId={therapySession.id}
                               clientId={therapySession.client.id}
-                              clientName={therapySession.client.name}
+                              clientName={`${therapySession.client.firstName} ${therapySession.client.lastName}`}
                               sessionDate={format(new Date(therapySession.startTime), "d/M/yyyy HH:mm")}
                               defaultAmount={Number(therapySession.price)}
                               creditBalance={Number(therapySession.client.creditBalance || 0)}
@@ -618,7 +618,7 @@ export default async function SessionsPage() {
                             <QuickMarkPaid
                               sessionId={therapySession.id}
                               clientId={therapySession.client.id}
-                              clientName={therapySession.client.name}
+                              clientName={`${therapySession.client.firstName} ${therapySession.client.lastName}`}
                               amount={Number(therapySession.price)}
                               creditBalance={Number(therapySession.client.creditBalance || 0)}
                               existingPayment={therapySession.payment}
@@ -669,6 +669,7 @@ export default async function SessionsPage() {
     </div>
   );
 }
+
 
 
 
