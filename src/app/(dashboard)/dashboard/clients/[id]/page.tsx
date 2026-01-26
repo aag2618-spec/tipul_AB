@@ -237,14 +237,14 @@ export default async function ClientPage({
                       <p className="text-sm text-muted-foreground">חוב</p>
                       <p className="font-bold text-red-600 text-lg">₪{totalDebt}</p>
                       {Number(client.creditBalance) > 0 && (
-                        <p className="text-xs text-green-600">קרדיט זמין: ₪{client.creditBalance}</p>
+                        <p className="text-xs text-green-600">קרדיט זמין: ₪{Number(client.creditBalance)}</p>
                       )}
                     </>
                   ) : (
                     <>
                       <p className="text-sm text-muted-foreground">קרדיט</p>
                       <p className="font-bold text-green-600 text-lg">
-                        {Number(client.creditBalance) > 0 ? `₪${client.creditBalance}` : "₪0"}
+                        {Number(client.creditBalance) > 0 ? `₪${Number(client.creditBalance)}` : "₪0"}
                       </p>
                     </>
                   )}
