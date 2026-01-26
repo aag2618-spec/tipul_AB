@@ -95,7 +95,6 @@ export default async function ClientPage({
     const last = lastName || "";
     return `${first[0] || ''}${last[0] || ''}`;
   };
-  };
 
   const age = client.birthDate
     ? Math.floor(
