@@ -212,16 +212,16 @@ export default async function DashboardPage() {
               <span className="sr-only">{stat.title}</span>
             </Link>
             <CardHeader className="flex flex-row items-center justify-between pb-2 relative z-0">
-              <CardTitle className="text-sm font-medium text-gray-700 dark:text-gray-300">
+              <CardTitle className="text-sm font-medium text-gray-700 dark:text-gray-300 group-hover:text-gray-900 dark:group-hover:text-white group-hover:font-bold transition-all duration-300">
                 {stat.title}
               </CardTitle>
-              <stat.icon className={`h-5 w-5 ${stat.iconColor}`} />
+              <stat.icon className={`h-5 w-5 ${stat.iconColor} group-hover:scale-110 transition-transform duration-300`} />
             </CardHeader>
             <CardContent className="relative z-0">
               <div className="flex items-end justify-between">
                 <div>
-                  <div className="text-3xl font-bold text-gray-900 dark:text-gray-100">{stat.value}</div>
-                  <p className="text-xs text-gray-600 dark:text-gray-400">{stat.description}</p>
+                  <div className="text-3xl font-bold text-gray-900 dark:text-gray-100 group-hover:text-black dark:group-hover:text-white group-hover:scale-110 transition-all duration-300">{stat.value}</div>
+                  <p className="text-xs text-gray-600 dark:text-gray-400 group-hover:text-gray-800 dark:group-hover:text-gray-200 group-hover:font-semibold transition-all duration-300">{stat.description}</p>
                 </div>
                 {stat.subBox && !stat.subBox.href && (
                   <div className={`${stat.subBox.bgColor || 'bg-primary/10'} rounded-lg px-3 py-2 text-center`}>
