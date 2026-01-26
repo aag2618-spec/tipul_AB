@@ -26,8 +26,9 @@ import { CheckCircle, Loader2, FileText, ChevronDown, ChevronUp } from "lucide-r
 import { toast } from "sonner";
 import { useRouter } from "next/navigation";
 
-interface CompleteSessionDialogProps {
-  session?: {
+// New interface with session object
+interface NewCompleteSessionDialogProps {
+  session: {
     id: string;
     startTime: string;
     endTime: string;
@@ -39,39 +40,37 @@ interface CompleteSessionDialogProps {
     } | null;
   };
   onSuccess?: () => void;
-  // Legacy props for backward compatibility
-  sessionId?: string;
-  clientId?: string;
-  clientName?: string;
-  sessionDate?: string;
-  defaultAmount?: number;
+  buttonText?: string;
+}
+
+// Legacy interface with individual props
+interface LegacyCompleteSessionDialogProps {
+  sessionId: string;
+  clientId: string;
+  clientName: string;
+  sessionDate: string;
+  defaultAmount: number;
   creditBalance?: number;
   hasNote?: boolean;
   hasPayment?: boolean;
   buttonText?: string;
 }
 
-export function CompleteSessionDialog({
-  session,
-  onSuccess,
-  // Legacy props
-  sessionId: legacySessionId,
-  clientId: legacyClientId,
-  clientName: legacyClientName,
-  sessionDate: legacySessionDate,
-  defaultAmount: legacyDefaultAmount,
-  creditBalance: legacyCreditBalance = 0,
-  hasNote = false,
-  hasPayment = false,
-  buttonText = "סיים מפגש",
-}: CompleteSessionDialogProps) {
+type CompleteSessionDialogProps = NewCompleteSessionDialogProps | LegacyCompleteSessionDialogProps;
+
+export function CompleteSessionDialog(props: CompleteSessionDialogProps) {
   // Support both new and legacy props
-  const sessionId = session?.id || legacySessionId || "";
-  const clientId = session?.client?.id || legacyClientId || "";
-  const clientName = session?.client?.name || legacyClientName || "";
-  const sessionDate = session ? new Date(session.startTime).toLocaleString("he-IL") : (legacySessionDate || "");
-  const defaultAmount = session?.price || legacyDefaultAmount || 0;
-  const creditBalance = session?.client?.creditBalance || legacyCreditBalance || 0;
+  const session = 'session' in props ? props.session : undefined;
+  const onSuccess = 'onSuccess' in props ? props.onSuccess : undefined;
+  const sessionId = session?.id || ('sessionId' in props ? props.sessionId : "");
+  const clientId = session?.client?.id || ('clientId' in props ? props.clientId : "");
+  const clientName = session?.client?.name || ('clientName' in props ? props.clientName : "");
+  const sessionDate = session ? new Date(session.startTime).toLocaleString("he-IL") : ('sessionDate' in props ? props.sessionDate : "");
+  const defaultAmount = session?.price || ('defaultAmount' in props ? props.defaultAmount : 0);
+  const creditBalance = session?.client?.creditBalance || ('creditBalance' in props ? props.creditBalance || 0 : 0);
+  const hasNote = 'hasNote' in props ? props.hasNote || false : false;
+  const hasPayment = 'hasPayment' in props ? props.hasPayment || false : false;
+  const buttonText = props.buttonText || "סיים מפגש";
 
   const [isOpen, setIsOpen] = useState(false);
   const [isLoading, setIsLoading] = useState(false);
