@@ -63,6 +63,7 @@ async function getClient(clientId: string, userId: string) {
       payments: {
         orderBy: { createdAt: "desc" },
         take: 10,
+        include: { session: true },
       },
       recordings: {
         orderBy: { createdAt: "desc" },
@@ -890,16 +891,28 @@ export default async function ClientPage({
                     >
                       <div>
                         <p className="font-medium">₪{Number(payment.amount)}</p>
-                        <p className="text-sm text-muted-foreground">
-                          {format(new Date(payment.createdAt), "d/M/yyyy")} •{" "}
-                          {payment.method === "CASH"
-                            ? "מזומן"
-                            : payment.method === "CREDIT_CARD"
-                            ? "אשראי"
-                            : payment.method === "BANK_TRANSFER"
-                            ? "העברה"
-                            : "צ׳ק"}
-                        </p>
+                        <div className="text-sm text-muted-foreground space-y-1">
+                          {payment.session && (
+                            <p>
+                              תאריך פגישה: {format(new Date(payment.session.startTime), "d/M/yyyy HH:mm")}
+                            </p>
+                          )}
+                          {payment.status === "PAID" && payment.paidAt && (
+                            <p>
+                              תאריך תשלום: {format(new Date(payment.paidAt), "d/M/yyyy HH:mm")} •{" "}
+                              {payment.method === "CASH"
+                                ? "מזומן"
+                                : payment.method === "CREDIT_CARD"
+                                ? "אשראי"
+                                : payment.method === "BANK_TRANSFER"
+                                ? "העברה"
+                                : "צ׳ק"}
+                            </p>
+                          )}
+                          {payment.status !== "PAID" && (
+                            <p>נוצר: {format(new Date(payment.createdAt), "d/M/yyyy")}</p>
+                          )}
+                        </div>
                       </div>
                       <Badge
                         variant={
