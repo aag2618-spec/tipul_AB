@@ -109,8 +109,8 @@ export async function POST(request: NextRequest) {
             type: "EMAIL_RECEIVED",
             title: `תשובה חדשה מ-${originalEmail.client?.name || "מטופל"} 📧`,
             content: `נושא: ${subject || "ללא נושא"}`,
-            link: `/dashboard/clients/${originalEmail.clientId}?tab=correspondence`,
-            isRead: false,
+            status: "SENT",
+            sentAt: new Date(),
           },
         });
 
