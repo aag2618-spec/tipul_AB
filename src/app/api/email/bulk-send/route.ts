@@ -79,7 +79,7 @@ export async function POST(request: NextRequest) {
         // Log communication
         await prisma.communicationLog.create({
           data: {
-            type: "BULK_EMAIL",
+            type: "CUSTOM",
             channel: "EMAIL",
             recipient: client.email!.toLowerCase(),
             subject: emailSubject,
