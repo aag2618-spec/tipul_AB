@@ -435,32 +435,49 @@ export default async function ClientPage({
                             : "לא הגיע"}
                         </Badge>
 
-                        {/* כפתור ראשי - משתנה לפי מצב */}
-                        {!session.sessionNote ? (
-                          <Button size="sm" asChild>
-                            <Link href={`/dashboard/sessions/${session.id}`}>
-                              <FileText className="h-4 w-4 ml-1" />
-                              כתוב סיכום
-                            </Link>
-                          </Button>
-                        ) : session.payment?.status !== "PAID" ? (
-                          <QuickMarkPaid
-                            sessionId={session.id}
-                            clientId={client.id}
-                            clientName={client.name}
-                            amount={Number(session.price)}
-                            creditBalance={Number(client.creditBalance)}
-                            existingPayment={session.payment}
-                            buttonText="תשלום"
-                          />
-                        ) : (
-                          <Button variant="outline" size="sm" asChild>
-                            <Link href={`/dashboard/sessions/${session.id}`}>
-                              <Eye className="h-4 w-4 ml-1" />
-                              צפה
-                            </Link>
-                          </Button>
-                        )}
+                        {/* כפתורי פעולה */}
+                        <div className="flex gap-2">
+                          {/* כפתור ראשי */}
+                          {session.status === "SCHEDULED" ? (
+                            <CompleteSessionDialog
+                              session={{
+                                id: session.id,
+                                startTime: session.startTime,
+                                price: Number(session.price),
+                                client: {
+                                  id: client.id,
+                                  name: client.name,
+                                  creditBalance: Number(client.creditBalance),
+                                },
+                              }}
+                              buttonText="סיים פגישה"
+                            />
+                          ) : !session.sessionNote ? (
+                            <Button size="sm" asChild>
+                              <Link href={`/dashboard/sessions/${session.id}`}>
+                                <FileText className="h-4 w-4 ml-1" />
+                                כתוב סיכום
+                              </Link>
+                            </Button>
+                          ) : session.payment?.status !== "PAID" ? (
+                            <QuickMarkPaid
+                              sessionId={session.id}
+                              clientId={client.id}
+                              clientName={client.name}
+                              amount={Number(session.price)}
+                              creditBalance={Number(client.creditBalance)}
+                              existingPayment={session.payment}
+                              buttonText="תשלום"
+                            />
+                          ) : (
+                            <Button variant="outline" size="sm" asChild>
+                              <Link href={`/dashboard/sessions/${session.id}`}>
+                                <Eye className="h-4 w-4 ml-1" />
+                                צפה
+                              </Link>
+                            </Button>
+                          )}
+                        </div>
                       </div>
                     </div>
                   ))}
