@@ -146,9 +146,6 @@ export async function PUT(request: NextRequest) {
         sentAt: new Date(),
         clientId: originalLog.clientId,
         userId: session.user.id,
-        metadata: {
-          replyTo: originalLog.id,
-        }
       },
     });
 
