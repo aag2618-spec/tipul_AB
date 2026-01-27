@@ -113,12 +113,15 @@ export default function FillQuestionnairePage() {
 
   // Keyboard navigation
   useEffect(() => {
+    if (!response) return;
+    
     const handleKeyDown = (e: KeyboardEvent) => {
       // Don't trigger if user is typing in an input
       if (e.target instanceof HTMLInputElement || e.target instanceof HTMLTextAreaElement) {
         return;
       }
 
+      const questions = response.template.questions;
       const currentQuestion = questions[currentIndex];
       
       switch(e.key) {
@@ -157,11 +160,11 @@ export default function FillQuestionnairePage() {
       }
     };
 
-    if (!loading && response) {
+    if (!loading) {
       window.addEventListener("keydown", handleKeyDown);
       return () => window.removeEventListener("keydown", handleKeyDown);
     }
-  }, [currentIndex, questions, answers, loading, response]);
+  }, [currentIndex, answers, loading, response]);
 
   const fetchResponse = async () => {
     try {
