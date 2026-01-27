@@ -667,26 +667,128 @@ const questionnaires = [
     category: "הערכה מקיפה",
     testType: "INTERVIEW",
     questions: [
-      { id: 1, section: "bio", title: "היסטוריה פסיכיאטרית משפחתית", type: "text", options: [] },
-      { id: 2, section: "bio", title: "מחלות כרוניות", type: "text", options: [] },
-      { id: 3, section: "bio", title: "תרופות נוכחיות", type: "text", options: [] },
-      { id: 4, section: "bio", title: "בעיות שינה", options: [
-        { value: 0, text: "אין" }, { value: 1, text: "קושי להירדם" }, { value: 2, text: "יקיצות ליליות" }, { value: 3, text: "יקיצה מוקדמת" }
-      ]},
-      { id: 5, section: "psych", title: "היסטוריה פסיכיאטרית", type: "text", options: [] },
-      { id: 6, section: "psych", title: "טיפולים קודמים", type: "text", options: [] },
-      { id: 7, section: "psych", title: "אירועי חיים משמעותיים", type: "text", options: [] },
-      { id: 8, section: "psych", title: "רמת תפקוד נוכחית", options: [
-        { value: 0, text: "תקין" }, { value: 1, text: "ירידה קלה" }, { value: 2, text: "ירידה בינונית" }, { value: 3, text: "ירידה חמורה" }
-      ]},
-      { id: 9, section: "social", title: "מערכות תמיכה", type: "text", options: [] },
-      { id: 10, section: "social", title: "מצב תעסוקתי", options: [
-        { value: 0, text: "עובד" }, { value: 1, text: "לא עובד - מחפש" }, { value: 2, text: "לא עובד - לא מחפש" }, { value: 3, text: "פנסיונר" }
-      ]},
-      { id: 11, section: "social", title: "מצב כלכלי", options: [
-        { value: 0, text: "טוב" }, { value: 1, text: "מספיק" }, { value: 2, text: "קושי" }, { value: 3, text: "קושי חמור" }
-      ]},
-      { id: 12, section: "social", title: "מערכות יחסים", type: "text", options: [] }
+      { 
+        id: 1, 
+        section: "bio", 
+        title: "היסטוריה פסיכיאטרית משפחתית", 
+        instruction: "פרט את ההיסטוריה הפסיכיאטרית של קרובי משפחה מדרגה ראשונה ושנייה - דיכאון, חרדה, הפרעה דו-קוטבית, סכיזופרניה, ADHD, התמכרויות וכו'",
+        fields: [
+          { name: "family_history", type: "textarea", label: "היסטוריה משפחתית" }
+        ]
+      },
+      { 
+        id: 2, 
+        section: "bio", 
+        title: "מחלות כרוניות ותרופות", 
+        instruction: "פרט מחלות כרוניות קיימות (סוכרת, לחץ דם, מחלות לב, בלוטת התריס וכו') ותרופות נוכחיות",
+        fields: [
+          { name: "chronic_diseases", type: "textarea", label: "מחלות כרוניות" },
+          { name: "medications", type: "textarea", label: "תרופות נוכחיות (כולל מינון)" }
+        ]
+      },
+      { 
+        id: 3, 
+        section: "bio", 
+        title: "שינה ופעילות גופנית",
+        fields: [
+          { name: "sleep_hours", type: "number", label: "שעות שינה ממוצעות בלילה" },
+          { name: "sleep_quality", type: "select", label: "איכות שינה", options: ["מעולה", "טובה", "בינונית", "גרועה", "מאוד גרועה"] },
+          { name: "sleep_problems", type: "textarea", label: "בעיות שינה (אם יש)" },
+          { name: "exercise_frequency", type: "select", label: "תדירות פעילות גופנית", options: ["אף פעם", "פעם בשבוע", "2-3 פעמים בשבוע", "4+ פעמים בשבוע", "יומית"] }
+        ]
+      },
+      { 
+        id: 4, 
+        section: "bio", 
+        title: "שימוש בחומרים",
+        fields: [
+          { name: "smoking", type: "select", label: "עישון", options: ["לא מעשן", "מעשן לשעבר", "מעשן נוכחי"] },
+          { name: "alcohol", type: "select", label: "צריכת אלכוהול", options: ["לא שותה", "לעתים רחוקות", "1-2 פעמים בשבוע", "3+ פעמים בשבוע", "יומית"] },
+          { name: "drugs", type: "textarea", label: "שימוש בסמים/קנאביס (אם רלוונטי)" }
+        ]
+      },
+      { 
+        id: 5, 
+        section: "psych", 
+        title: "היסטוריה פסיכיאטרית אישית",
+        instruction: "פרט אבחונים קודמים, אשפוזים פסיכיאטריים, ניסיונות התאבדות וכו'",
+        fields: [
+          { name: "psychiatric_history", type: "textarea", label: "היסטוריה פסיכיאטרית" }
+        ]
+      },
+      { 
+        id: 6, 
+        section: "psych", 
+        title: "טיפולים קודמים", 
+        instruction: "פרט טיפולים פסיכולוגיים ופסיכיאטריים קודמים - סוג הטיפול, משך, יעילות",
+        fields: [
+          { name: "previous_treatments", type: "textarea", label: "טיפולים קודמים" },
+          { name: "medications_history", type: "textarea", label: "תרופות פסיכיאטריות קודמות - יעילות ותופעות לוואי" }
+        ]
+      },
+      { 
+        id: 7, 
+        section: "psych", 
+        title: "טראומות ואירועי חיים משמעותיים",
+        instruction: "פרט אירועים טראומטיים, אובדנים משמעותיים, התעללות, הזנחה וכו'",
+        fields: [
+          { name: "trauma_history", type: "textarea", label: "היסטוריה טראומטית" },
+          { name: "life_events", type: "textarea", label: "אירועי חיים משמעותיים בשנה האחרונה" }
+        ]
+      },
+      { 
+        id: 8, 
+        section: "psych", 
+        title: "רמת תפקוד נוכחית", 
+        instruction: "עבודה, לימודים, טיפול בעצמי, מערכות יחסים",
+        options: [
+          { value: 0, text: "תקין - מתפקד היטב בכל התחומים" }, 
+          { value: 1, text: "ירידה קלה - קשיים מסוימים אך מתפקד" }, 
+          { value: 2, text: "ירידה בינונית - קשיים משמעותיים בתפקוד" }, 
+          { value: 3, text: "ירידה חמורה - לא מסוגל לתפקד במרבית התחומים" }
+        ]
+      },
+      { 
+        id: 9, 
+        section: "social", 
+        title: "משפחה ומערכות יחסים",
+        fields: [
+          { name: "marital_status", type: "select", label: "מצב משפחתי", options: ["רווק/ה", "בזוגיות", "נשוי/אה", "גרוש/ה", "אלמן/ה"] },
+          { name: "children", type: "text", label: "ילדים (מספר וגילאים)" },
+          { name: "family_relationships", type: "textarea", label: "איכות יחסים משפחתיים" },
+          { name: "social_support", type: "textarea", label: "חברים ותמיכה חברתית" }
+        ]
+      },
+      { 
+        id: 10, 
+        section: "social", 
+        title: "תעסוקה ולימודים",
+        fields: [
+          { name: "employment_status", type: "select", label: "מצב תעסוקתי", options: ["עובד/ת במשרה מלאה", "עובד/ת במשרה חלקית", "מובטל/ת - מחפש עבודה", "מובטל/ת - לא מחפש", "סטודנט/ית", "פנסיונר/ית", "נכות"] },
+          { name: "occupation", type: "text", label: "עיסוק/מקצוע" },
+          { name: "job_satisfaction", type: "select", label: "שביעות רצון מעבודה/לימודים", options: ["גבוהה מאוד", "גבוהה", "בינונית", "נמוכה", "נמוכה מאוד", "לא רלוונטי"] }
+        ]
+      },
+      { 
+        id: 11, 
+        section: "social", 
+        title: "מצב כלכלי ומגורים",
+        fields: [
+          { name: "financial_status", type: "select", label: "מצב כלכלי סובייקטיבי", options: ["משגשג", "נוח", "מספיק לצרכים בסיסיים", "קושי כלכלי", "קושי כלכלי חמור"] },
+          { name: "housing", type: "textarea", label: "מצב מגורים (עם מי, איכות, בעיות)" }
+        ]
+      },
+      { 
+        id: 12, 
+        section: "summary", 
+        title: "סיכום והערכה כוללת",
+        instruction: "סכם את הגורמים הביולוגיים, פסיכולוגיים וסוציאליים המשפיעים על מצב המטופל. פרט גורמי סיכון וגורמי הגנה",
+        fields: [
+          { name: "risk_factors", type: "textarea", label: "גורמי סיכון עיקריים" },
+          { name: "protective_factors", type: "textarea", label: "גורמי הגנה וחוזקות" },
+          { name: "treatment_recommendations", type: "textarea", label: "המלצות טיפוליות" }
+        ]
+      }
     ],
     scoring: {}
   },
