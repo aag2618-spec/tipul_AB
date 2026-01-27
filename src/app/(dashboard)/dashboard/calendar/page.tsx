@@ -1034,7 +1034,10 @@ export default function CalendarPage() {
                 clientName={paymentData.clientName}
                 totalDebt={paymentData.amount}
                 creditBalance={paymentData.creditBalance}
-                unpaidPayments={[]}
+                unpaidPayments={[{
+                  paymentId: "temp-" + Date.now(),
+                  amount: paymentData.amount
+                }]}
                 onPaymentComplete={() => {
                   setShowPaymentDialog(false);
                   setPaymentData(null);
