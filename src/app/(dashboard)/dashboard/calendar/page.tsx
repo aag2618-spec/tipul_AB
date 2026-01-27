@@ -838,17 +838,31 @@ export default function CalendarPage() {
                   <>
                     <Button
                       onClick={async () => {
+                        if (!selectedSession.client) return;
                         try {
+                          // Update session status to COMPLETED
                           const response = await fetch(`/api/sessions/${selectedSession.id}`, {
                             method: "PUT",
                             headers: { "Content-Type": "application/json" },
-                            body: JSON.stringify({ status: "COMPLETED", markAsPaid: true }),
+                            body: JSON.stringify({ status: "COMPLETED", markAsPaid: false }),
                           });
+                          
                           if (response.ok) {
-                            toast.success("הפגישה הושלמה ושולמה");
+                            // Get client credit balance
+                            const clientRes = await fetch(`/api/clients/${selectedSession.client.id}`);
+                            const clientData = await clientRes.json();
+                            
                             setIsSessionDialogOpen(false);
-                            // Navigate to payments page to complete payment
-                            window.location.href = `/dashboard/payments`;
+                            toast.success("הפגישה הושלמה, עבור לתשלום");
+                            
+                            // Open payment dialog instead of navigating
+                            setPaymentData({
+                              clientId: selectedSession.client.id,
+                              clientName: selectedSession.client.name,
+                              amount: selectedSession.price,
+                              creditBalance: clientData.creditBalance || 0
+                            });
+                            setShowPaymentDialog(true);
                           }
                         } catch {
                           toast.error("שגיאה בעדכון הפגישה");
