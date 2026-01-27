@@ -95,62 +95,15 @@ export default async function SessionsPage() {
         </div>
       </div>
 
-      {/* Quick Stats */}
-      <div className="grid gap-4 md:grid-cols-3">
-        <Card>
-          <CardContent className="pt-6">
-            <div className="flex items-center gap-3">
-              <div className="flex h-10 w-10 items-center justify-center rounded-lg bg-primary/10">
-                <CheckCircle className="h-5 w-5 text-primary" />
-              </div>
-              <div>
-                <p className="text-2xl font-bold">{completedWithNotes.length}</p>
-                <p className="text-sm text-muted-foreground">עם סיכום</p>
-              </div>
-            </div>
-          </CardContent>
-        </Card>
-        <Card>
-          <CardContent className="pt-6">
-            <div className="flex items-center gap-3">
-              <div className="flex h-10 w-10 items-center justify-center rounded-lg bg-amber-100">
-                <AlertCircle className="h-5 w-5 text-amber-600" />
-              </div>
-              <div>
-                <p className="text-2xl font-bold">{completedWithoutNotes.length}</p>
-                <p className="text-sm text-muted-foreground">ממתינים לסיכום</p>
-              </div>
-            </div>
-          </CardContent>
-        </Card>
-        <Card>
-          <CardContent className="pt-6">
-            <div className="flex items-center gap-3">
-              <div className="flex h-10 w-10 items-center justify-center rounded-lg bg-blue-100">
-                <Calendar className="h-5 w-5 text-blue-600" />
-              </div>
-              <div>
-                <p className="text-2xl font-bold">{allUpcoming.length}</p>
-                <p className="text-sm text-muted-foreground">פגישות קרובות (עד סוף החודש)</p>
-              </div>
-            </div>
-          </CardContent>
-        </Card>
-      </div>
-
       <Tabs defaultValue="pending" className="w-full">
-        <TabsList>
+        <TabsList className="grid w-full grid-cols-2">
           <TabsTrigger value="pending" className="gap-2">
             <AlertCircle className="h-4 w-4" />
-            ממתינים לסיכום ({completedWithoutNotes.length})
+            ממתינים לטיפול ({completedWithoutNotes.length})
           </TabsTrigger>
-          <TabsTrigger value="completed" className="gap-2">
+          <TabsTrigger value="history" className="gap-2">
             <CheckCircle className="h-4 w-4" />
-            עם סיכום ({completedWithNotes.length})
-          </TabsTrigger>
-          <TabsTrigger value="upcoming" className="gap-2">
-            <Calendar className="h-4 w-4" />
-            קרובות ({allUpcoming.length})
+            היסטוריה ({completedWithNotes.length + allUpcoming.length})
           </TabsTrigger>
         </TabsList>
 
@@ -206,7 +159,7 @@ export default async function SessionsPage() {
           </Card>
         </TabsContent>
 
-        <TabsContent value="completed" className="mt-6">
+        <TabsContent value="history" className="mt-6">
           <Card>
             <CardHeader>
               <CardTitle>פגישות עם סיכום</CardTitle>
@@ -253,7 +206,8 @@ export default async function SessionsPage() {
           </Card>
         </TabsContent>
 
-        <TabsContent value="upcoming" className="mt-6">
+        {/* Upcoming sessions moved to history tab */}
+        <TabsContent value="history-upcoming" className="mt-6">
           <div className="space-y-6">
             {/* Today's Sessions */}
             {todaySessions.length > 0 && (
