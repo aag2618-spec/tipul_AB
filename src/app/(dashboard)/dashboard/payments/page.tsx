@@ -138,6 +138,8 @@ export default function PaymentsPage() {
       clientId: client.id,
       clientName: client.fullName,
       creditBalance: client.creditBalance,
+      totalDebt: client.totalDebt,
+      allUnpaidSessions: client.unpaidSessions,
     }))
   );
 
@@ -203,14 +205,14 @@ export default function PaymentsPage() {
         {/* Pending Payments Tab */}
         <TabsContent value="payments" className="mt-6">
           {/* Search and Sort Controls */}
-          <div className="flex gap-4 mb-4 flex-wrap">
+          <div className="flex gap-4 mb-4 flex-wrap items-center">
             <div className="relative flex-1 min-w-[200px]">
-              <Search className="absolute right-3 top-1/2 -translate-y-1/2 h-4 w-4 text-muted-foreground" />
+              <Search className="absolute right-3 top-1/2 -translate-y-1/2 h-4 w-4 text-muted-foreground pointer-events-none" />
               <Input
                 placeholder="חפש לפי שם מטופל..."
                 value={searchTerm}
                 onChange={(e) => setSearchTerm(e.target.value)}
-                className="pr-10"
+                className="pr-10 text-right"
               />
             </div>
             <Select value={sortBy} onValueChange={(value) => setSortBy(value as SortType)}>
@@ -268,6 +270,14 @@ export default function PaymentsPage() {
                         </div>
                       </div>
                       <div className="flex gap-2 mr-4">
+                        <PayClientDebts
+                          clientId={payment.clientId}
+                          clientName={payment.clientName}
+                          totalDebt={payment.totalDebt}
+                          creditBalance={payment.creditBalance}
+                          unpaidPayments={payment.allUnpaidSessions}
+                          onPaymentComplete={fetchClientDebts}
+                        />
                         <Button variant="outline" size="sm" asChild>
                           <Link href={`/dashboard/clients/${payment.clientId}?tab=payments`}>
                             פרטים
