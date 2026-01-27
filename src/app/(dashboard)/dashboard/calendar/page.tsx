@@ -14,6 +14,7 @@ import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
 import { Plus, Loader2, Calendar, Repeat, Settings, Waves } from "lucide-react";
 import { format, addWeeks } from "date-fns";
 import { toast } from "sonner";
+import { PayClientDebts } from "@/components/payments/pay-client-debts";
 import type { EventClickArg } from "@fullcalendar/core";
 import type { DateClickArg } from "@fullcalendar/interaction";
 
@@ -111,6 +112,8 @@ export default function CalendarPage() {
   const [selectedSession, setSelectedSession] = useState<Session | null>(null);
   const [isChargeDialogOpen, setIsChargeDialogOpen] = useState(false);
   const [pendingAction, setPendingAction] = useState<"CANCELLED" | "NO_SHOW" | null>(null);
+  const [showPaymentDialog, setShowPaymentDialog] = useState(false);
+  const [paymentData, setPaymentData] = useState<{clientId: string; clientName: string; amount: number; creditBalance: number} | null>(null);
   const [selectedDate, setSelectedDate] = useState<Date | null>(null);
   const [formData, setFormData] = useState({
     clientId: "",
@@ -936,7 +939,7 @@ export default function CalendarPage() {
           <DialogFooter className="flex-row-reverse gap-2">
             <Button
               onClick={async () => {
-                if (!selectedSession || !pendingAction) return;
+                if (!selectedSession || !pendingAction || !selectedSession.client) return;
                 try {
                   // Update session status and create payment
                   await fetch(`/api/sessions/${selectedSession.id}`, {
@@ -944,18 +947,28 @@ export default function CalendarPage() {
                     headers: { "Content-Type": "application/json" },
                     body: JSON.stringify({ 
                       status: pendingAction,
-                      markAsPaid: true,
+                      markAsPaid: false, // Don't auto-mark as paid, let user choose payment method
                     }),
                   });
                   
+                  // Get client credit balance
+                  const clientRes = await fetch(`/api/clients/${selectedSession.client.id}`);
+                  const clientData = await clientRes.json();
+                  
                   setIsChargeDialogOpen(false);
                   setIsSessionDialogOpen(false);
+                  
+                  toast.success(pendingAction === "CANCELLED" ? "הפגישה בוטלה, עבור לתשלום" : "נרשם כלא הגיע, עבור לתשלום");
+                  
+                  // Open payment dialog instead of navigating
+                  setPaymentData({
+                    clientId: selectedSession.client.id,
+                    clientName: selectedSession.client.name,
+                    amount: selectedSession.price,
+                    creditBalance: clientData.creditBalance || 0
+                  });
+                  setShowPaymentDialog(true);
                   setPendingAction(null);
-                  
-                  toast.success(pendingAction === "CANCELLED" ? "הפגישה בוטלה ונוצר חיוב" : "נרשם כלא הגיע ונוצר חיוב");
-                  
-                  // Navigate to payments page
-                  window.location.href = `/dashboard/payments`;
                 } catch {
                   toast.error("שגיאה בעדכון הפגישה");
                 }
@@ -990,6 +1003,35 @@ export default function CalendarPage() {
           </DialogFooter>
         </DialogContent>
       </Dialog>
+
+      {/* Payment Dialog */}
+      {paymentData && showPaymentDialog && (
+        <Dialog open={showPaymentDialog} onOpenChange={setShowPaymentDialog}>
+          <DialogContent className="sm:max-w-[500px]">
+            <DialogHeader>
+              <DialogTitle>תשלום עבור הפגישה</DialogTitle>
+              <DialogDescription>
+                בחר אמצעי תשלום ואופן התשלום עבור {paymentData.clientName}
+              </DialogDescription>
+            </DialogHeader>
+            <div className="flex justify-center p-4">
+              <PayClientDebts
+                clientId={paymentData.clientId}
+                clientName={paymentData.clientName}
+                totalDebt={paymentData.amount}
+                creditBalance={paymentData.creditBalance}
+                unpaidPayments={[]}
+                onPaymentComplete={() => {
+                  setShowPaymentDialog(false);
+                  setPaymentData(null);
+                  fetchData();
+                  toast.success("התשלום בוצע בהצלחה!");
+                }}
+              />
+            </div>
+          </DialogContent>
+        </Dialog>
+      )}
     </div>
   );
 }

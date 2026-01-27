@@ -52,6 +52,8 @@ export function PayClientDebts({
   const [paymentMode, setPaymentMode] = useState<"FULL" | "PARTIAL">("FULL");
   const [method, setMethod] = useState<string>("CASH");
   const [partialAmount, setPartialAmount] = useState<string>("");
+  const [useCredit, setUseCredit] = useState(false);
+  const [showAdvanced, setShowAdvanced] = useState(false);
   const router = useRouter();
 
   // Reset form when dialog closes
@@ -62,6 +64,8 @@ export function PayClientDebts({
       setPaymentMode("FULL");
       setMethod("CASH");
       setPartialAmount("");
+      setUseCredit(false);
+      setShowAdvanced(false);
     }
   };
 
