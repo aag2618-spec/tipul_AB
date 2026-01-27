@@ -77,10 +77,7 @@ export async function POST(request: NextRequest) {
         sentAt: new Date(),
         clientId: client.id,
         userId: client.therapistId,
-        metadata: {
-          originalMessageId,
-          replyTo: recentLog?.id,
-        }
+        // metadata will be added in future update after schema sync
       },
     });
 
