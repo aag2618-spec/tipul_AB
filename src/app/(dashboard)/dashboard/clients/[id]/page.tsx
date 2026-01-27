@@ -167,97 +167,123 @@ export default async function ClientPage({
           </div>
         </div>
         <div className="flex gap-2">
-          <ExportClientButton clientId={client.id} clientName={client.name} />
-          <Button variant="outline" asChild>
-            <Link href={`/dashboard/clients/${client.id}/edit`}>
-              <Edit className="ml-2 h-4 w-4" />
-              עריכה
-            </Link>
-          </Button>
-          <Button asChild>
-            <Link href={`/dashboard/calendar?client=${client.id}`}>
-              <Plus className="ml-2 h-4 w-4" />
-              קבע פגישה
-            </Link>
-          </Button>
+          {/* כפתור פעולות מהירות */}
+          <DropdownMenu>
+            <DropdownMenuTrigger asChild>
+              <Button>
+                <MoreVertical className="ml-2 h-4 w-4" />
+                פעולות מהירות
+              </Button>
+            </DropdownMenuTrigger>
+            <DropdownMenuContent align="end" className="w-56">
+              <DropdownMenuItem asChild>
+                <Link href={`/dashboard/calendar?client=${client.id}`}>
+                  <Calendar className="h-4 w-4 ml-2" />
+                  קבע פגישה
+                </Link>
+              </DropdownMenuItem>
+              <DropdownMenuItem asChild>
+                <Link href={`/dashboard/sessions/new?client=${client.id}`}>
+                  <FileText className="h-4 w-4 ml-2" />
+                  כתוב סיכום
+                </Link>
+              </DropdownMenuItem>
+              {totalDebt > 0 && (
+                <DropdownMenuItem asChild>
+                  <Link href={`/dashboard/clients/${client.id}?tab=payments`}>
+                    <CreditCard className="h-4 w-4 ml-2" />
+                    רשום תשלום
+                  </Link>
+                </DropdownMenuItem>
+              )}
+              <DropdownMenuSeparator />
+              <DropdownMenuItem asChild>
+                <Link href={`/dashboard/clients/${client.id}/email`}>
+                  <Send className="h-4 w-4 ml-2" />
+                  שלח מייל
+                </Link>
+              </DropdownMenuItem>
+              <DropdownMenuItem asChild>
+                <Link href={`/dashboard/clients/${client.id}/edit`}>
+                  <Edit className="h-4 w-4 ml-2" />
+                  ערוך פרטים
+                </Link>
+              </DropdownMenuItem>
+              <DropdownMenuSeparator />
+              <DropdownMenuItem asChild>
+                <div>
+                  <ExportClientButton clientId={client.id} clientName={client.name} />
+                </div>
+              </DropdownMenuItem>
+            </DropdownMenuContent>
+          </DropdownMenu>
         </div>
       </div>
 
-      {/* Quick Info Cards */}
-      <div className="grid gap-4 md:grid-cols-4">
+      {/* Quick Info Cards - מצומצם */}
+      <div className="grid gap-4 md:grid-cols-2">
         <Card>
           <CardContent className="pt-6">
-            <div className="flex items-center gap-3">
-              <div className="flex h-10 w-10 items-center justify-center rounded-lg bg-primary/10">
-                <Phone className="h-5 w-5 text-primary" />
+            <div className="flex items-center justify-between">
+              <div className="flex items-center gap-3">
+                <div className="flex h-10 w-10 items-center justify-center rounded-lg bg-primary/10">
+                  <Phone className="h-5 w-5 text-primary" />
+                </div>
+                <div>
+                  <p className="text-sm text-muted-foreground">טלפון</p>
+                  <p className="font-medium" dir="ltr">
+                    {client.phone || "לא צוין"}
+                  </p>
+                </div>
               </div>
-              <div>
-                <p className="text-sm text-muted-foreground">טלפון</p>
-                <p className="font-medium" dir="ltr">
-                  {client.phone || "לא צוין"}
-                </p>
-              </div>
+              {client.phone && (
+                <Button size="sm" variant="outline" asChild>
+                  <a href={`tel:${client.phone}`}>
+                    <Phone className="h-4 w-4" />
+                  </a>
+                </Button>
+              )}
             </div>
           </CardContent>
         </Card>
-        <Card>
+        <Card className={totalDebt > 0 ? "border-red-200 bg-red-50/50" : "border-green-200 bg-green-50/50"}>
           <CardContent className="pt-6">
-            <div className="flex items-center gap-3">
-              <div className="flex h-10 w-10 items-center justify-center rounded-lg bg-primary/10">
-                <Mail className="h-5 w-5 text-primary" />
+            <div className="flex items-center justify-between">
+              <div className="flex items-center gap-3">
+                <div className={`flex h-10 w-10 items-center justify-center rounded-lg ${
+                  totalDebt > 0 ? "bg-red-500/10" : "bg-green-500/10"
+                }`}>
+                  <CreditCard className={`h-5 w-5 ${
+                    totalDebt > 0 ? "text-red-600" : "text-green-600"
+                  }`} />
+                </div>
+                <div className="flex-1">
+                  {totalDebt > 0 ? (
+                    <>
+                      <p className="text-sm text-muted-foreground">חוב</p>
+                      <p className="font-bold text-red-600 text-xl">₪{totalDebt}</p>
+                      {Number(client.creditBalance) > 0 && (
+                        <p className="text-xs text-green-600">קרדיט זמין: ₪{Number(client.creditBalance)}</p>
+                      )}
+                    </>
+                  ) : (
+                    <>
+                      <p className="text-sm text-muted-foreground">קרדיט</p>
+                      <p className="font-bold text-green-600 text-xl">
+                        {Number(client.creditBalance) > 0 ? `₪${Number(client.creditBalance)}` : "₪0"}
+                      </p>
+                    </>
+                  )}
+                </div>
               </div>
-              <div>
-                <p className="text-sm text-muted-foreground">אימייל</p>
-                <p className="font-medium truncate" dir="ltr">
-                  {client.email || "לא צוין"}
-                </p>
-              </div>
-            </div>
-          </CardContent>
-        </Card>
-        <Card>
-          <CardContent className="pt-6">
-            <div className="flex items-center gap-3">
-              <div className="flex h-10 w-10 items-center justify-center rounded-lg bg-primary/10">
-                <Cake className="h-5 w-5 text-primary" />
-              </div>
-              <div>
-                <p className="text-sm text-muted-foreground">גיל</p>
-                <p className="font-medium">
-                  {age ? `${age} שנים` : "לא צוין"}
-                </p>
-              </div>
-            </div>
-          </CardContent>
-        </Card>
-        <Card>
-          <CardContent className="pt-6">
-            <div className="flex items-center gap-3">
-              <div className={`flex h-10 w-10 items-center justify-center rounded-lg ${
-                totalDebt > 0 ? "bg-red-500/10" : "bg-green-500/10"
-              }`}>
-                <CreditCard className={`h-5 w-5 ${
-                  totalDebt > 0 ? "text-red-600" : "text-green-600"
-                }`} />
-              </div>
-              <div className="flex-1">
-                {totalDebt > 0 ? (
-                  <>
-                    <p className="text-sm text-muted-foreground">חוב</p>
-                    <p className="font-bold text-red-600 text-lg">₪{totalDebt}</p>
-                    {Number(client.creditBalance) > 0 && (
-                      <p className="text-xs text-green-600">קרדיט זמין: ₪{Number(client.creditBalance)}</p>
-                    )}
-                  </>
-                ) : (
-                  <>
-                    <p className="text-sm text-muted-foreground">קרדיט</p>
-                    <p className="font-bold text-green-600 text-lg">
-                      {Number(client.creditBalance) > 0 ? `₪${Number(client.creditBalance)}` : "₪0"}
-                    </p>
-                  </>
-                )}
-              </div>
+              {totalDebt > 0 && (
+                <Button size="sm" asChild>
+                  <Link href={`/dashboard/clients/${client.id}?tab=payments`}>
+                    <CreditCard className="h-4 w-4 ml-1" />
+                    שלם
+                  </Link>
+                </Button>
+              )}
             </div>
           </CardContent>
         </Card>
@@ -265,30 +291,18 @@ export default async function ClientPage({
 
       {/* Tabs */}
       <Tabs defaultValue="sessions" className="w-full">
-        <TabsList className="grid w-full grid-cols-8 max-w-4xl">
+        <TabsList className="grid w-full grid-cols-5">
           <TabsTrigger value="sessions" className="gap-2">
             <Calendar className="h-4 w-4" />
-            פגישות
-          </TabsTrigger>
-          <TabsTrigger value="notes" className="gap-2">
-            <FileText className="h-4 w-4" />
-            סיכומים
+            פגישות וסיכומים
           </TabsTrigger>
           <TabsTrigger value="diagnosis" className="gap-2">
             <Stethoscope className="h-4 w-4" />
-            אבחון
+            אבחון וטיפול
           </TabsTrigger>
-          <TabsTrigger value="questionnaires" className="gap-2">
-            <ClipboardList className="h-4 w-4" />
-            שאלונים
-          </TabsTrigger>
-          <TabsTrigger value="documents" className="gap-2">
+          <TabsTrigger value="files" className="gap-2">
             <FolderOpen className="h-4 w-4" />
-            מסמכים
-          </TabsTrigger>
-          <TabsTrigger value="recordings" className="gap-2">
-            <Mic className="h-4 w-4" />
-            הקלטות
+            קבצים
           </TabsTrigger>
           <TabsTrigger value="payments" className="gap-2">
             <CreditCard className="h-4 w-4" />
@@ -300,6 +314,7 @@ export default async function ClientPage({
           </TabsTrigger>
         </TabsList>
 
+        {/* טאב פגישות וסיכומים - משולב */}
         <TabsContent value="sessions" className="mt-6">
           {/* Recurring Pattern Card */}
           {client.recurringPatterns && client.recurringPatterns.length > 0 && (
@@ -492,9 +507,9 @@ export default async function ClientPage({
               )}
             </CardContent>
           </Card>
-        </TabsContent>
 
-        <TabsContent value="notes" className="mt-6">
+          {/* סיכומי טיפול - בתוך אותו טאב */}
+          <div className="mt-6">
           <Card>
             <CardHeader className="flex flex-row items-center justify-between">
               <div>
@@ -572,8 +587,10 @@ export default async function ClientPage({
               )}
             </CardContent>
           </Card>
+          </div>
         </TabsContent>
 
+        {/* טאב אבחון וטיפול - משולב */}
         <TabsContent value="diagnosis" className="mt-6">
           <div className="grid gap-6 lg:grid-cols-2">
             <Card>
@@ -624,9 +641,9 @@ export default async function ClientPage({
               </CardContent>
             </Card>
           </div>
-        </TabsContent>
 
-        <TabsContent value="questionnaires" className="mt-6">
+          {/* שאלונים פסיכולוגיים - בתוך אותו טאב */}
+          <div className="mt-6">
           <Card>
             <CardHeader>
               <div className="flex items-center justify-between">
@@ -711,9 +728,11 @@ export default async function ClientPage({
               )}
             </CardContent>
           </Card>
+          </div>
         </TabsContent>
 
-        <TabsContent value="documents" className="mt-6">
+        {/* טאב קבצים - משולב */}
+        <TabsContent value="files" className="mt-6">
           <Card>
             <CardHeader className="flex flex-row items-center justify-between">
               <div>
@@ -777,9 +796,9 @@ export default async function ClientPage({
               )}
             </CardContent>
           </Card>
-        </TabsContent>
 
-        <TabsContent value="recordings" className="mt-6">
+          {/* הקלטות - בתוך אותו טאב */}
+          <div className="mt-6">
           <Card>
             <CardHeader className="flex flex-row items-center justify-between">
               <div>
@@ -864,6 +883,7 @@ export default async function ClientPage({
               )}
             </CardContent>
           </Card>
+          </div>
         </TabsContent>
 
         <TabsContent value="payments" className="mt-6">
