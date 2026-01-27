@@ -4,7 +4,14 @@ import prisma from "@/lib/prisma";
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
-import { Users, Calendar, CreditCard, Clock, Plus, ClipboardList, CheckCircle, User, FileText } from "lucide-react";
+import { Users, Calendar, CreditCard, Clock, Plus, ClipboardList, CheckCircle, User, FileText, MoreVertical } from "lucide-react";
+import {
+  DropdownMenu,
+  DropdownMenuContent,
+  DropdownMenuItem,
+  DropdownMenuTrigger,
+  DropdownMenuSeparator,
+} from "@/components/ui/dropdown-menu";
 import Link from "next/link";
 import { format } from "date-fns";
 import { he } from "date-fns/locale";
@@ -291,50 +298,65 @@ export default async function DashboardPage() {
                     </div>
                     
                     <div className="flex items-center gap-2">
-                      {/* כפתורי ניווט - רק תיקית מטופל */}
-                      {therapySession.client && (
-                        <Button variant="outline" size="sm" asChild>
-                          <Link href={`/dashboard/clients/${therapySession.client.id}`}>
-                            <User className="h-4 w-4 ml-1" />
-                            תיקית מטופל
-                          </Link>
-                        </Button>
-                      )}
-                      
-                      {/* כפתור סיכום */}
-                      {therapySession.client && (
-                        <Button variant="outline" size="sm" asChild>
-                          <Link href={`/dashboard/sessions/${therapySession.id}`}>
-                            <FileText className="h-4 w-4 ml-1" />
-                            סיכום
-                          </Link>
-                        </Button>
-                      )}
-                      
-                      {/* כפתור תשלום - רק אם יש חוב (לא שולם) */}
-                      {therapySession.client && therapySession.payment?.status !== "PAID" && (
-                        <QuickMarkPaid
-                          sessionId={therapySession.id}
-                          clientId={therapySession.client.id}
-                          clientName={therapySession.client.name}
-                          amount={Number(therapySession.price)}
-                          creditBalance={Number(therapySession.client.creditBalance || 0)}
-                          existingPayment={therapySession.payment}
-                          buttonText="תשלום"
-                        />
-                      )}
-                      
+                      {/* סטטוס badges */}
                       {therapySession.sessionNote && (
-                        <Badge className="bg-green-100 text-green-700 border-green-200">
+                        <Badge variant="outline" className="bg-green-50 text-green-700 border-green-200">
+                          <CheckCircle className="h-3 w-3 ml-1" />
                           סוכם
                         </Badge>
                       )}
                       
                       {therapySession.payment?.status === "PAID" && (
-                        <Badge className="bg-blue-100 text-blue-700 border-blue-200">
+                        <Badge variant="outline" className="bg-blue-50 text-blue-700 border-blue-200">
                           <CheckCircle className="h-3 w-3 ml-1" />
                           שולם
                         </Badge>
+                      )}
+                      
+                      {/* כפתור פעולות אחד */}
+                      {therapySession.client && (
+                        <DropdownMenu>
+                          <DropdownMenuTrigger asChild>
+                            <Button variant="outline" size="sm">
+                              פעולות
+                              <MoreVertical className="h-4 w-4 mr-1" />
+                            </Button>
+                          </DropdownMenuTrigger>
+                          <DropdownMenuContent align="end" className="w-48">
+                            <DropdownMenuItem asChild>
+                              <Link href={`/dashboard/clients/${therapySession.client.id}`} className="cursor-pointer">
+                                <User className="h-4 w-4 ml-2" />
+                                תיקית מטופל
+                              </Link>
+                            </DropdownMenuItem>
+                            
+                            <DropdownMenuItem asChild>
+                              <Link href={`/dashboard/sessions/${therapySession.id}`} className="cursor-pointer">
+                                <FileText className="h-4 w-4 ml-2" />
+                                {therapySession.sessionNote ? "צפה בסיכום" : "כתוב סיכום"}
+                              </Link>
+                            </DropdownMenuItem>
+                            
+                            {therapySession.payment?.status !== "PAID" && (
+                              <>
+                                <DropdownMenuSeparator />
+                                <DropdownMenuItem asChild>
+                                  <div className="cursor-pointer">
+                                    <QuickMarkPaid
+                                      sessionId={therapySession.id}
+                                      clientId={therapySession.client.id}
+                                      clientName={therapySession.client.name}
+                                      amount={Number(therapySession.price)}
+                                      creditBalance={Number(therapySession.client.creditBalance || 0)}
+                                      existingPayment={therapySession.payment}
+                                      buttonText="רשום תשלום"
+                                    />
+                                  </div>
+                                </DropdownMenuItem>
+                              </>
+                            )}
+                          </DropdownMenuContent>
+                        </DropdownMenu>
                       )}
                       
                       <Badge

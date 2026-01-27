@@ -135,39 +135,55 @@ export default async function ClientsPage({ searchParams }: PageProps) {
         </div>
       </div>
 
-      {/* Status Filter Tabs */}
+      {/* Status Filter Tabs - פשוט ונקי */}
       <div className="flex flex-wrap gap-2">
         <Link href="/dashboard/clients">
           <Badge 
             variant={!activeStatus ? "default" : "outline"}
-            className={`cursor-pointer text-sm py-1.5 px-3 ${!activeStatus ? "" : "hover:bg-muted"}`}
+            className={`cursor-pointer text-sm py-2 px-4 ${!activeStatus ? "" : "hover:bg-muted"}`}
           >
             <Users className="h-3.5 w-3.5 ml-1" />
             הכל ({counts.total})
           </Badge>
         </Link>
-        {(Object.keys(statusConfig) as ClientStatus[]).map((status) => {
-          const config = statusConfig[status];
-          const count = status === "ACTIVE" ? counts.active 
-            : status === "WAITING" ? counts.waiting 
-            : status === "INACTIVE" ? counts.inactive 
-            : counts.archived;
-          const isActive = activeStatus === status;
-          
-          return (
-            <Link key={status} href={`/dashboard/clients?status=${status}`}>
-              <Badge 
-                className={`cursor-pointer text-sm py-1.5 px-3 transition-colors ${
-                  isActive 
-                    ? `${config.bgColor} ${config.textColor} ${config.borderColor} border` 
-                    : `${config.bgColor}/50 ${config.textColor} hover:${config.bgColor}`
-                }`}
-              >
-                {config.label} ({count})
-              </Badge>
-            </Link>
-          );
-        })}
+        
+        <Link href="/dashboard/clients?status=ACTIVE">
+          <Badge 
+            variant={activeStatus === "ACTIVE" ? "default" : "outline"}
+            className={`cursor-pointer text-sm py-2 px-4 ${activeStatus === "ACTIVE" ? "bg-emerald-600" : "hover:bg-muted"}`}
+          >
+            פעילים ({counts.active})
+          </Badge>
+        </Link>
+        
+        <DropdownMenu>
+          <DropdownMenuTrigger asChild>
+            <Badge 
+              variant="outline"
+              className="cursor-pointer text-sm py-2 px-4 hover:bg-muted"
+            >
+              אחרים ({counts.waiting + counts.inactive + counts.archived})
+              <MoreVertical className="h-3 w-3 mr-1" />
+            </Badge>
+          </DropdownMenuTrigger>
+          <DropdownMenuContent align="start">
+            <DropdownMenuItem asChild>
+              <Link href="/dashboard/clients?status=WAITING" className="cursor-pointer">
+                ממתינים ({counts.waiting})
+              </Link>
+            </DropdownMenuItem>
+            <DropdownMenuItem asChild>
+              <Link href="/dashboard/clients?status=INACTIVE" className="cursor-pointer">
+                לא פעילים ({counts.inactive})
+              </Link>
+            </DropdownMenuItem>
+            <DropdownMenuItem asChild>
+              <Link href="/dashboard/clients?status=ARCHIVED" className="cursor-pointer">
+                ארכיון ({counts.archived})
+              </Link>
+            </DropdownMenuItem>
+          </DropdownMenuContent>
+        </DropdownMenu>
       </div>
 
       {/* Current filter indicator */}
@@ -186,49 +202,23 @@ export default async function ClientsPage({ searchParams }: PageProps) {
       {clients.length > 0 ? (
         <div className="grid gap-4 md:grid-cols-2 lg:grid-cols-3">
           {clients.map((client) => (
-            <Card key={client.id} className="hover:bg-muted/30 transition-colors">
-              <CardHeader className="flex flex-row items-start justify-between pb-3">
-                <div className="flex items-center gap-3">
-                  <Avatar className="h-12 w-12">
-                    <AvatarFallback className="bg-primary/10 text-primary font-medium">
-                      {getInitials(client.firstName, client.lastName)}
-                    </AvatarFallback>
-                  </Avatar>
-                  <div>
-                    <Link
-                      href={`/dashboard/clients/${client.id}`}
-                      className="font-semibold hover:underline"
-                    >
-                      {client.firstName} {client.lastName}
-                    </Link>
-                    <div className="mt-1">{getStatusBadge(client.status)}</div>
+            <Link key={client.id} href={`/dashboard/clients/${client.id}`}>
+              <Card className="hover:shadow-md hover:border-primary/50 transition-all cursor-pointer h-full">
+                <CardHeader className="pb-3">
+                  <div className="flex items-center gap-3">
+                    <Avatar className="h-12 w-12">
+                      <AvatarFallback className="bg-primary/10 text-primary font-medium">
+                        {getInitials(client.firstName, client.lastName)}
+                      </AvatarFallback>
+                    </Avatar>
+                    <div className="flex-1">
+                      <h3 className="font-semibold text-base">
+                        {client.firstName} {client.lastName}
+                      </h3>
+                      <div className="mt-1">{getStatusBadge(client.status)}</div>
+                    </div>
                   </div>
-                </div>
-                <DropdownMenu>
-                  <DropdownMenuTrigger asChild>
-                    <Button variant="ghost" size="icon" className="h-8 w-8">
-                      <MoreVertical className="h-4 w-4" />
-                    </Button>
-                  </DropdownMenuTrigger>
-                  <DropdownMenuContent align="start">
-                    <DropdownMenuItem asChild>
-                      <Link href={`/dashboard/clients/${client.id}`}>
-                        צפה בתיק
-                      </Link>
-                    </DropdownMenuItem>
-                    <DropdownMenuItem asChild>
-                      <Link href={`/dashboard/clients/${client.id}/edit`}>
-                        ערוך פרטים
-                      </Link>
-                    </DropdownMenuItem>
-                    <DropdownMenuItem asChild>
-                      <Link href={`/dashboard/calendar?client=${client.id}`}>
-                        קבע פגישה
-                      </Link>
-                    </DropdownMenuItem>
-                  </DropdownMenuContent>
-                </DropdownMenu>
-              </CardHeader>
+                </CardHeader>
               <CardContent className="space-y-3">
                 <div className="flex flex-col gap-1.5 text-sm">
                   {client.phone && (
@@ -254,6 +244,7 @@ export default async function ClientsPage({ searchParams }: PageProps) {
                 </div>
               </CardContent>
             </Card>
+            </Link>
           ))}
         </div>
       ) : (
