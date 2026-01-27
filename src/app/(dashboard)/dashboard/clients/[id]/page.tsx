@@ -380,23 +380,8 @@ export default async function ClientPage({
                           </Link>
                         </Button>
                         
-                        {/* כפתור סיום ותשלום */}
-                        {(!session.sessionNote || !session.payment || session.payment.status !== "PAID") && (
-                          <CompleteSessionDialog
-                            sessionId={session.id}
-                            clientId={client.id}
-                            clientName={client.name}
-                            sessionDate={format(new Date(session.startTime), "d/M/yyyy HH:mm")}
-                            defaultAmount={Number(session.price)}
-                            creditBalance={Number(client.creditBalance)}
-                            hasNote={!!session.sessionNote}
-                            hasPayment={session.payment?.status === "PAID"}
-                            buttonText="סיום ותשלום"
-                          />
-                        )}
-                        
-                        {/* כפתור תשלום בלבד - אם יש סיכום אבל אין תשלום */}
-                        {session.payment?.status !== "PAID" && session.sessionNote && (
+                        {/* כפתור תשלום - רק אם לא שולם */}
+                        {session.payment?.status !== "PAID" && (
                           <QuickMarkPaid
                             sessionId={session.id}
                             clientId={client.id}
@@ -415,7 +400,7 @@ export default async function ClientPage({
                           </Badge>
                         )}
                         
-                        {/* תשלום - הצג כפתור/סטטוס לפי מצב */}
+                        {/* badge שולם - רק אם שולם */}
                         {session.payment?.status === "PAID" && (
                           <Badge className="bg-blue-100 text-blue-700 border-blue-200">
                             <CheckCircle className="h-3 w-3 ml-1" />
