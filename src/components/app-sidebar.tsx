@@ -37,6 +37,7 @@ import {
   FileSignature,
   Building2,
   MessageSquare,
+  Mail,
 } from "lucide-react";
 
 interface AppSidebarProps {
@@ -104,6 +105,11 @@ const businessItems = [
     title: "תשלומים",
     href: "/dashboard/payments",
     icon: CreditCard,
+  },
+  {
+    title: "היסטוריית תקשורת",
+    href: "/dashboard/communications",
+    icon: Mail,
   },
   {
     title: "בקשות ביטול",

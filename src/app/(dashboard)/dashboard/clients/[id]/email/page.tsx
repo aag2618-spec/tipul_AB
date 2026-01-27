@@ -8,8 +8,10 @@ import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/com
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import { Textarea } from "@/components/ui/textarea";
-import { ArrowRight, Loader2, Send } from "lucide-react";
+import { ArrowRight, Loader2, Send, Eye, FileText, Sparkles } from "lucide-react";
 import { toast } from "sonner";
+import { Dialog, DialogContent, DialogDescription, DialogHeader, DialogTitle } from "@/components/ui/dialog";
+import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
 
 interface Client {
   id: string;
@@ -19,16 +21,63 @@ interface Client {
   email: string | null;
 }
 
+// תבניות מיילים מוכנות
+const EMAIL_TEMPLATES = [
+  {
+    id: "custom",
+    name: "מייל חופשי",
+    subject: "",
+    content: "",
+  },
+  {
+    id: "reminder",
+    name: "תזכורת לפגישה",
+    subject: "תזכורת לפגישה הקרובה",
+    content: "שלום {name},\n\nרציתי להזכיר לך את הפגישה הקרובה שלנו.\n\nאשמח לראותך!\n\nבברכה",
+  },
+  {
+    id: "thankyou",
+    name: "תודה על הפגישה",
+    subject: "תודה על הפגישה",
+    content: "שלום {name},\n\nתודה על הפגישה היום. היה נעים לראותך.\n\nנתראה בפגישה הבאה!\n\nבברכה",
+  },
+  {
+    id: "cancellation",
+    name: "ביטול פגישה",
+    subject: "ביטול פגישה",
+    content: "שלום {name},\n\nלצערי, אצטרך לבטל את הפגישה שלנו.\n\nאשמח לתאם מועד חלופי בהקדם.\n\nסליחה על אי הנוחות,\nבברכה",
+  },
+  {
+    id: "resources",
+    name: "שליחת משאבים",
+    subject: "משאבים שדיברנו עליהם",
+    content: "שלום {name},\n\nכפי שהבטחתי, הנה החומרים שדיברנו עליהם בפגישה.\n\nאשמח לשמוע את המחשבות שלך.\n\nבברכה",
+  },
+  {
+    id: "followup",
+    name: "מעקב אחרי פגישה",
+    subject: "איך אתה מרגיש?",
+    content: "שלום {name},\n\nרציתי לשאול איך אתה מרגיש אחרי הפגישה שלנו.\n\nאם יש משהו שתרצה לשתף או לדון בו, אני כאן.\n\nבברכה",
+  },
+];
+
 export default function SendEmailPage({ params }: { params: Promise<{ id: string }> }) {
   const { id } = use(params);
   const router = useRouter();
   const [client, setClient] = useState<Client | null>(null);
   const [isLoading, setIsLoading] = useState(true);
   const [isSending, setIsSending] = useState(false);
+  const [showPreview, setShowPreview] = useState(false);
+  const [selectedTemplate, setSelectedTemplate] = useState("custom");
   const [formData, setFormData] = useState({
     subject: "",
     content: "",
   });
+
+  // החלפת {name} בשם המטופל
+  const replaceVariables = (text: string) => {
+    return text.replace(/{name}/g, client?.firstName || "");
+  };
 
   useEffect(() => {
     const fetchClient = async () => {
@@ -47,6 +96,18 @@ export default function SendEmailPage({ params }: { params: Promise<{ id: string
 
     fetchClient();
   }, [id]);
+
+  // טעינת תבנית
+  const handleTemplateChange = (templateId: string) => {
+    setSelectedTemplate(templateId);
+    const template = EMAIL_TEMPLATES.find(t => t.id === templateId);
+    if (template) {
+      setFormData({
+        subject: template.subject,
+        content: template.content,
+      });
+    }
+  };
 
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
@@ -120,10 +181,36 @@ export default function SendEmailPage({ params }: { params: Promise<{ id: string
       <form onSubmit={handleSubmit}>
         <Card>
           <CardHeader>
-            <CardTitle>כתוב הודעה</CardTitle>
-            <CardDescription>המייל ישלח ישירות למטופל</CardDescription>
+            <CardTitle className="flex items-center gap-2">
+              <FileText className="h-5 w-5" />
+              כתוב הודעה
+            </CardTitle>
+            <CardDescription>המייל ישלח ישירות למטופל - {client.email}</CardDescription>
           </CardHeader>
           <CardContent className="space-y-4">
+            {/* בחירת תבנית */}
+            <div className="space-y-2">
+              <Label htmlFor="template" className="flex items-center gap-2">
+                <Sparkles className="h-4 w-4" />
+                תבניות מוכנות
+              </Label>
+              <Select value={selectedTemplate} onValueChange={handleTemplateChange}>
+                <SelectTrigger id="template">
+                  <SelectValue placeholder="בחר תבנית" />
+                </SelectTrigger>
+                <SelectContent>
+                  {EMAIL_TEMPLATES.map((template) => (
+                    <SelectItem key={template.id} value={template.id}>
+                      {template.name}
+                    </SelectItem>
+                  ))}
+                </SelectContent>
+              </Select>
+              <p className="text-xs text-muted-foreground">
+                💡 טיפ: השתמש ב-{"{name}"} כדי להוסיף את שם המטופל
+              </p>
+            </div>
+
             <div className="space-y-2">
               <Label htmlFor="subject">נושא</Label>
               <Input
@@ -141,20 +228,31 @@ export default function SendEmailPage({ params }: { params: Promise<{ id: string
                 value={formData.content}
                 onChange={(e) => setFormData({ ...formData, content: e.target.value })}
                 placeholder="כתוב את ההודעה כאן..."
-                rows={10}
+                rows={12}
+                className="font-mono"
               />
             </div>
 
             <div className="flex gap-3 pt-4">
-              <Button type="submit" disabled={isSending} className="flex-1">
+              <Button 
+                type="button" 
+                variant="outline" 
+                onClick={() => setShowPreview(true)}
+                disabled={!formData.subject || !formData.content}
+                className="gap-2"
+              >
+                <Eye className="h-4 w-4" />
+                תצוגה מקדימה
+              </Button>
+              <Button type="submit" disabled={isSending} className="flex-1 gap-2">
                 {isSending ? (
                   <>
-                    <Loader2 className="ml-2 h-4 w-4 animate-spin" />
+                    <Loader2 className="h-4 w-4 animate-spin" />
                     שולח...
                   </>
                 ) : (
                   <>
-                    <Send className="ml-2 h-4 w-4" />
+                    <Send className="h-4 w-4" />
                     שלח מייל
                   </>
                 )}
@@ -166,6 +264,52 @@ export default function SendEmailPage({ params }: { params: Promise<{ id: string
           </CardContent>
         </Card>
       </form>
+
+      {/* Preview Dialog */}
+      <Dialog open={showPreview} onOpenChange={setShowPreview}>
+        <DialogContent className="max-w-2xl max-h-[80vh] overflow-y-auto">
+          <DialogHeader>
+            <DialogTitle>תצוגה מקדימה - כך המייל ייראה</DialogTitle>
+            <DialogDescription>
+              מוודא שהכל נראה טוב לפני השליחה
+            </DialogDescription>
+          </DialogHeader>
+          <div className="space-y-4 p-4 bg-slate-50 rounded-lg border">
+            <div className="space-y-2">
+              <div className="text-sm text-muted-foreground">אל:</div>
+              <div className="font-medium">{client.email}</div>
+            </div>
+            <div className="space-y-2">
+              <div className="text-sm text-muted-foreground">נושא:</div>
+              <div className="font-bold text-lg">{replaceVariables(formData.subject)}</div>
+            </div>
+            <div className="border-t pt-4">
+              <div className="text-sm text-muted-foreground mb-2">תוכן:</div>
+              <div 
+                className="bg-white p-4 rounded border whitespace-pre-wrap font-sans leading-relaxed"
+                dir="rtl"
+              >
+                {replaceVariables(formData.content)}
+              </div>
+            </div>
+          </div>
+          <div className="flex gap-2 pt-4">
+            <Button onClick={() => setShowPreview(false)} variant="outline" className="flex-1">
+              חזור לעריכה
+            </Button>
+            <Button 
+              onClick={() => {
+                setShowPreview(false);
+                handleSubmit(new Event('submit') as any);
+              }} 
+              className="flex-1 gap-2"
+            >
+              <Send className="h-4 w-4" />
+              נראה מצוין, שלח!
+            </Button>
+          </div>
+        </DialogContent>
+      </Dialog>
     </div>
   );
 }

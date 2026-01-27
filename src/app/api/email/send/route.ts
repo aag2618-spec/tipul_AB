@@ -55,6 +55,22 @@ export async function POST(request: NextRequest) {
       replyTo: user?.email?.toLowerCase() || undefined, // תשובות יגיעו למטפל
     });
 
+    // Log communication (both success and failure)
+    const communicationLog = await prisma.communicationLog.create({
+      data: {
+        type: "CUSTOM",
+        channel: "EMAIL",
+        recipient: client.email.toLowerCase(),
+        subject: emailSubject,
+        content: html,
+        status: result.success ? "SENT" : "FAILED",
+        errorMessage: result.success ? null : String(result.error),
+        sentAt: result.success ? new Date() : null,
+        clientId: client.id,
+        userId: session.user.id,
+      },
+    });
+
     if (!result.success) {
       console.error("Email send failed:", result.error);
       return NextResponse.json(
@@ -68,13 +84,17 @@ export async function POST(request: NextRequest) {
       data: {
         userId: session.user.id,
         type: "EMAIL_SENT",
-        title: `מייל נשלח ל${client.name}`,
+        title: `מייל נשלח ל-${client.name} ✅`,
         content: `נושא: ${subject}`,
-        status: "PENDING",
+        status: "SENT",
+        sentAt: new Date(),
       },
     });
 
-    return NextResponse.json({ message: "המייל נשלח בהצלחה" });
+    return NextResponse.json({ 
+      message: "המייל נשלח בהצלחה",
+      logId: communicationLog.id
+    });
   } catch (error) {
     console.error("Send email error:", error);
     return NextResponse.json(
