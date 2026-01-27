@@ -364,6 +364,78 @@ export default async function ClientPage({
             </Card>
           )}
 
+          {/* פגישות שעברו ולא עודכנו */}
+          {client.therapySessions.filter(s => {
+            const sessionDate = new Date(s.startTime);
+            const today = new Date();
+            today.setHours(0, 0, 0, 0);
+            sessionDate.setHours(0, 0, 0, 0);
+            return s.status === "SCHEDULED" && sessionDate < today;
+          }).length > 0 && (
+            <Card className="mb-6 border-orange-200 bg-orange-50/50">
+              <CardHeader>
+                <CardTitle className="flex items-center gap-2 text-orange-700">
+                  <Clock className="h-5 w-5" />
+                  פגישות לעדכון
+                </CardTitle>
+                <CardDescription>
+                  פגישות שעברו וממתינות לעדכון סטטוס
+                </CardDescription>
+              </CardHeader>
+              <CardContent>
+                <div className="space-y-3">
+                  {client.therapySessions
+                    .filter(s => {
+                      const sessionDate = new Date(s.startTime);
+                      const today = new Date();
+                      today.setHours(0, 0, 0, 0);
+                      sessionDate.setHours(0, 0, 0, 0);
+                      return s.status === "SCHEDULED" && sessionDate < today;
+                    })
+                    .map((session) => (
+                      <div
+                        key={session.id}
+                        className="flex items-center justify-between p-4 rounded-lg bg-white border border-orange-200"
+                      >
+                        <div className="flex items-center gap-4 flex-1">
+                          <div className="text-center">
+                            <div className="text-2xl font-bold text-orange-700">
+                              {format(new Date(session.startTime), "d")}
+                            </div>
+                            <div className="text-xs text-muted-foreground">
+                              {format(new Date(session.startTime), "MMM", { locale: he })}
+                            </div>
+                          </div>
+                          <div>
+                            <p className="font-medium">
+                              {format(new Date(session.startTime), "HH:mm")} - {format(new Date(session.endTime), "HH:mm")}
+                            </p>
+                            <p className="text-sm text-muted-foreground">
+                              {session.type === "ONLINE" ? "אונליין" : session.type === "PHONE" ? "טלפון" : "פרונטלי"}
+                            </p>
+                          </div>
+                        </div>
+                        <CompleteSessionDialog
+                          session={{
+                            id: session.id,
+                            startTime: new Date(session.startTime).toISOString(),
+                            endTime: new Date(session.endTime).toISOString(),
+                            price: Number(session.price),
+                            client: {
+                              id: client.id,
+                              name: client.name,
+                              creditBalance: Number(client.creditBalance),
+                            },
+                          }}
+                          buttonText="עדכן פגישה"
+                        />
+                      </div>
+                    ))}
+                </div>
+              </CardContent>
+            </Card>
+          )}
+
           <Card>
             <CardHeader>
               <CardTitle>היסטוריית פגישות</CardTitle>
@@ -884,66 +956,6 @@ export default async function ClientPage({
         </TabsContent>
 
         <TabsContent value="payments" className="mt-6">
-          {/* פגישות שעברו ולא עודכנו */}
-          {client.therapySessions.filter(s => 
-            s.status === "SCHEDULED" && new Date(s.startTime) < new Date()
-          ).length > 0 && (
-            <Card className="mb-6">
-              <CardHeader>
-                <CardTitle className="flex items-center gap-2">
-                  <Clock className="h-5 w-5 text-orange-500" />
-                  פגישות לעדכון
-                </CardTitle>
-              </CardHeader>
-              <CardContent>
-                <div className="space-y-3">
-                  {client.therapySessions
-                    .filter(s => s.status === "SCHEDULED" && new Date(s.startTime) < new Date())
-                    .map((session) => (
-                      <div
-                        key={session.id}
-                        className="flex items-center justify-between p-4 rounded-lg bg-orange-50 border border-orange-200"
-                      >
-                        <div className="flex items-center gap-4 flex-1">
-                          <div className="text-center">
-                            <div className="text-2xl font-bold">
-                              {format(new Date(session.startTime), "d")}
-                            </div>
-                            <div className="text-xs text-muted-foreground">
-                              {format(new Date(session.startTime), "MMM", { locale: he })}
-                            </div>
-                          </div>
-                          <div>
-                            <p className="font-medium">
-                              {format(new Date(session.startTime), "HH:mm")} - {format(new Date(session.endTime), "HH:mm")}
-                            </p>
-                            <p className="text-sm text-muted-foreground">
-                              {session.type === "ONLINE" ? "אונליין" : session.type === "PHONE" ? "טלפון" : "פרונטלי"}
-                            </p>
-                          </div>
-                        </div>
-                        <CompleteSessionDialog
-                          session={{
-                            id: session.id,
-                            startTime: new Date(session.startTime).toISOString(),
-                            endTime: new Date(session.endTime).toISOString(),
-                            price: Number(session.price),
-                            client: {
-                              id: client.id,
-                              name: client.name,
-                              creditBalance: Number(client.creditBalance),
-                            },
-                          }}
-                          buttonText="עדכן פגישה"
-                        />
-                      </div>
-                    ))}
-                </div>
-              </CardContent>
-            </Card>
-          )}
-
-          {/* היסטוריית תשלומים */}
           <Card>
             <CardHeader>
               <CardTitle>היסטוריית תשלומים</CardTitle>
