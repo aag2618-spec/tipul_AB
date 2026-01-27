@@ -453,14 +453,7 @@ export default async function ClientPage({
                               }}
                               buttonText="סיים פגישה"
                             />
-                          ) : !session.sessionNote ? (
-                            <Button size="sm" asChild>
-                              <Link href={`/dashboard/sessions/${session.id}`}>
-                                <FileText className="h-4 w-4 ml-1" />
-                                כתוב סיכום
-                              </Link>
-                            </Button>
-                          ) : session.payment?.status !== "PAID" ? (
+                          ) : session.status === "COMPLETED" && session.payment?.status !== "PAID" ? (
                             <QuickMarkPaid
                               sessionId={session.id}
                               clientId={client.id}
@@ -468,8 +461,15 @@ export default async function ClientPage({
                               amount={Number(session.price)}
                               creditBalance={Number(client.creditBalance)}
                               existingPayment={session.payment}
-                              buttonText="תשלום"
+                              buttonText="שלם"
                             />
+                          ) : !session.sessionNote ? (
+                            <Button size="sm" asChild>
+                              <Link href={`/dashboard/sessions/${session.id}`}>
+                                <FileText className="h-4 w-4 ml-1" />
+                                כתוב סיכום
+                              </Link>
+                            </Button>
                           ) : (
                             <Button variant="outline" size="sm" asChild>
                               <Link href={`/dashboard/sessions/${session.id}`}>
