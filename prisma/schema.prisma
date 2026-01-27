@@ -547,6 +547,7 @@ model CommunicationLog {
   errorMessage String?              @db.Text
   sentAt       DateTime?
   createdAt    DateTime             @default(now())
+  metadata     Json?                // Additional data (e.g., originalMessageId, replyTo)
 
   sessionId String?
   session   TherapySession? @relation(fields: [sessionId], references: [id], onDelete: SetNull)
