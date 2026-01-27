@@ -859,8 +859,8 @@ export default function CalendarPage() {
                             setPaymentData({
                               clientId: selectedSession.client.id,
                               clientName: selectedSession.client.name,
-                              amount: selectedSession.price,
-                              creditBalance: clientData.creditBalance || 0
+                              amount: Number(selectedSession.price) || 0,
+                              creditBalance: Number(clientData.creditBalance) || 0
                             });
                             setShowPaymentDialog(true);
                           }
@@ -978,8 +978,8 @@ export default function CalendarPage() {
                   setPaymentData({
                     clientId: selectedSession.client.id,
                     clientName: selectedSession.client.name,
-                    amount: selectedSession.price,
-                    creditBalance: clientData.creditBalance || 0
+                    amount: Number(selectedSession.price) || 0,
+                    creditBalance: Number(clientData.creditBalance) || 0
                   });
                   setShowPaymentDialog(true);
                   setPendingAction(null);

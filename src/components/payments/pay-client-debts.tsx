@@ -72,7 +72,7 @@ export function PayClientDebts({
   const handlePayment = async () => {
     setIsLoading(true);
     try {
-      let amountToPay = totalDebt;
+      let amountToPay = Number(totalDebt) || 0;
       
       if (paymentMode === "PARTIAL") {
         amountToPay = parseFloat(partialAmount) || 0;
@@ -138,7 +138,10 @@ export function PayClientDebts({
     }
   };
 
-  if (totalDebt <= 0) {
+  const safeDebt = Number(totalDebt) || 0;
+  const safeCredit = Number(creditBalance) || 0;
+
+  if (safeDebt <= 0) {
     return null;
   }
 
@@ -161,12 +164,12 @@ export function PayClientDebts({
             <div className="space-y-2 mt-2">
               <div className="flex items-center justify-between">
                 <span>סה״כ חוב:</span>
-                <span className="font-bold text-red-600 text-lg">₪{totalDebt.toFixed(0)}</span>
+                <span className="font-bold text-red-600 text-lg">₪{safeDebt.toFixed(0)}</span>
               </div>
-              {creditBalance > 0 && (
+              {safeCredit > 0 && (
                 <Badge variant="secondary" className="w-full justify-between">
                   <span>קרדיט זמין:</span>
-                  <span className="font-bold">₪{creditBalance.toFixed(0)}</span>
+                  <span className="font-bold">₪{safeCredit.toFixed(0)}</span>
                 </Badge>
               )}
               <p className="text-xs text-muted-foreground">
@@ -190,7 +193,7 @@ export function PayClientDebts({
               >
                 <div className="text-right w-full">
                   <div className="font-bold">תשלום מלא</div>
-                  <div className="text-xs opacity-80">תשלום כל החוב (₪{totalDebt.toFixed(0)})</div>
+                  <div className="text-xs opacity-80">תשלום כל החוב (₪{safeDebt.toFixed(0)})</div>
                 </div>
               </Button>
               
@@ -218,7 +221,7 @@ export function PayClientDebts({
                     placeholder="הכנס סכום"
                     value={partialAmount}
                     onChange={(e) => setPartialAmount(e.target.value)}
-                    max={totalDebt}
+                    max={safeDebt}
                     min={0}
                     step="1"
                     className="pl-8"
@@ -227,9 +230,9 @@ export function PayClientDebts({
                     ₪
                   </span>
                 </div>
-                {partialAmount && parseFloat(partialAmount) < totalDebt && parseFloat(partialAmount) > 0 && (
+                {partialAmount && parseFloat(partialAmount) < safeDebt && parseFloat(partialAmount) > 0 && (
                   <p className="text-xs text-muted-foreground">
-                    נותר לתשלום: ₪{(totalDebt - parseFloat(partialAmount)).toFixed(0)}
+                    נותר לתשלום: ₪{(safeDebt - parseFloat(partialAmount)).toFixed(0)}
                   </p>
                 )}
               </div>
@@ -276,7 +279,7 @@ export function PayClientDebts({
               <>
                 <Check className="h-4 w-4" />
                 {paymentMode === "FULL" 
-                  ? `שלם ₪${totalDebt.toFixed(0)}` 
+                  ? `שלם ₪${safeDebt.toFixed(0)}` 
                   : `שלם ₪${partialAmount || "0"}`
                 }
               </>
