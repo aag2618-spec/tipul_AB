@@ -207,8 +207,8 @@ export default async function DashboardPage() {
       {/* Stats Grid */}
       <div className="grid gap-4 md:grid-cols-2 lg:grid-cols-4">
         {statCards.map((stat) => (
-          <Card key={stat.title} className={`group relative overflow-hidden ${stat.bgColor} border-2 border-transparent hover:border-current cursor-pointer transition-all duration-300 hover:scale-105 hover:shadow-2xl`}>
-            <Link href={stat.href} className="absolute inset-0 z-10">
+          <Card key={stat.title} className={`group relative overflow-hidden ${stat.bgColor} border-2 border-transparent hover:border-current cursor-pointer transition-all duration-300 hover:scale-105 hover:shadow-2xl hover:brightness-100! hover:bg-transparent!`}>
+            <Link href={stat.href} className="absolute inset-0 z-10 hover:brightness-100! hover:bg-transparent! hover:shadow-none! hover:scale-100!">
               <span className="sr-only">{stat.title}</span>
             </Link>
             <CardHeader className="flex flex-row items-center justify-between pb-2 relative z-0">
