@@ -5,12 +5,19 @@ import { Button } from "@/components/ui/button";
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
 import { Badge } from "@/components/ui/badge";
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
-import { FileText, Calendar, CheckCircle, AlertCircle, User } from "lucide-react";
+import { FileText, Calendar, CheckCircle, AlertCircle, User, MoreVertical, Eye } from "lucide-react";
 import Link from "next/link";
 import { format } from "date-fns";
 import { he } from "date-fns/locale";
 import { CompleteSessionDialog } from "@/components/sessions/complete-session-dialog";
 import { QuickMarkPaid } from "@/components/payments/quick-mark-paid";
+import {
+  DropdownMenu,
+  DropdownMenuContent,
+  DropdownMenuItem,
+  DropdownMenuTrigger,
+  DropdownMenuSeparator,
+} from "@/components/ui/dropdown-menu";
 
 async function getSessions(userId: string) {
   const today = new Date();
@@ -103,7 +110,7 @@ export default async function SessionsPage() {
           </TabsTrigger>
           <TabsTrigger value="history" className="gap-2">
             <CheckCircle className="h-4 w-4" />
-            היסטוריה ({completedWithNotes.length + allUpcoming.length})
+            היסטוריה ({completedWithNotes.length})
           </TabsTrigger>
         </TabsList>
 
@@ -123,7 +130,7 @@ export default async function SessionsPage() {
                       key={therapySession.id}
                       className="flex items-center justify-between p-4 rounded-lg bg-amber-50 border border-amber-200"
                     >
-                      <div className="flex items-center gap-4">
+                      <div className="flex items-center gap-4 flex-1">
                         <div className="text-center min-w-[50px]">
                           <div className="text-xl font-bold">
                             {format(new Date(therapySession.startTime), "d")}
@@ -132,20 +139,64 @@ export default async function SessionsPage() {
                             {format(new Date(therapySession.startTime), "MMM", { locale: he })}
                           </div>
                         </div>
-                        <div>
+                        <div className="flex-1">
                           <p className="font-medium">{therapySession.client?.name || "🌊 הפסקה"}</p>
                           <p className="text-sm text-muted-foreground">
                             {format(new Date(therapySession.startTime), "HH:mm")} -{" "}
                             {format(new Date(therapySession.endTime), "HH:mm")}
                           </p>
                         </div>
+                        <div className="flex items-center gap-2">
+                          {therapySession.payment?.status === "PAID" ? (
+                            <Badge className="bg-green-100 text-green-700 border-green-200">
+                              <CheckCircle className="h-3 w-3 ml-1" />
+                              שולם
+                            </Badge>
+                          ) : therapySession.payment ? (
+                            <Badge variant="secondary">ממתין לתשלום</Badge>
+                          ) : null}
+                        </div>
                       </div>
-                      <Button asChild>
-                        <Link href={`/dashboard/sessions/${therapySession.id}`}>
-                          <FileText className="ml-2 h-4 w-4" />
-                          כתוב סיכום
-                        </Link>
-                      </Button>
+                      
+                      <div className="flex items-center gap-2">
+                        {/* כפתור ראשי - כתיבת סיכום */}
+                        <Button asChild>
+                          <Link href={`/dashboard/sessions/${therapySession.id}`}>
+                            <FileText className="ml-2 h-4 w-4" />
+                            כתוב סיכום
+                          </Link>
+                        </Button>
+
+                        {/* תפריט אופציות נוספות */}
+                        {therapySession.client && (
+                          <DropdownMenu>
+                            <DropdownMenuTrigger asChild>
+                              <Button variant="ghost" size="icon">
+                                <MoreVertical className="h-4 w-4" />
+                              </Button>
+                            </DropdownMenuTrigger>
+                            <DropdownMenuContent align="end">
+                              <DropdownMenuItem asChild>
+                                <Link href={`/dashboard/clients/${therapySession.client.id}`}>
+                                  <User className="h-4 w-4 ml-2" />
+                                  תיקית מטופל
+                                </Link>
+                              </DropdownMenuItem>
+                              {therapySession.payment?.status !== "PAID" && (
+                                <>
+                                  <DropdownMenuSeparator />
+                                  <DropdownMenuItem asChild>
+                                    <Link href={`/dashboard/clients/${therapySession.client.id}?tab=payments`}>
+                                      <CheckCircle className="h-4 w-4 ml-2" />
+                                      סמן כשולם
+                                    </Link>
+                                  </DropdownMenuItem>
+                                </>
+                              )}
+                            </DropdownMenuContent>
+                          </DropdownMenu>
+                        )}
+                      </div>
                     </div>
                   ))}
                 </div>
@@ -170,9 +221,9 @@ export default async function SessionsPage() {
                   {completedWithNotes.map((therapySession) => (
                     <div
                       key={therapySession.id}
-                      className="flex items-center justify-between p-4 rounded-lg bg-muted/50"
+                      className="flex items-center justify-between p-4 rounded-lg bg-muted/50 border"
                     >
-                      <div className="flex items-center gap-4">
+                      <div className="flex items-center gap-4 flex-1">
                         <div className="text-center min-w-[50px]">
                           <div className="text-xl font-bold">
                             {format(new Date(therapySession.startTime), "d")}
@@ -181,18 +232,82 @@ export default async function SessionsPage() {
                             {format(new Date(therapySession.startTime), "MMM", { locale: he })}
                           </div>
                         </div>
-                        <div>
+                        <div className="flex-1">
                           <p className="font-medium">{therapySession.client?.name || "🌊 הפסקה"}</p>
                           <p className="text-sm text-muted-foreground line-clamp-1">
                             {therapySession.sessionNote?.content.slice(0, 100)}...
                           </p>
                         </div>
+                        <div className="flex items-center gap-2">
+                          {/* Badges */}
+                          {therapySession.payment?.status === "PAID" ? (
+                            <Badge className="bg-green-100 text-green-700 border-green-200">
+                              <CheckCircle className="h-3 w-3 ml-1" />
+                              שולם
+                            </Badge>
+                          ) : therapySession.payment ? (
+                            <Badge variant="secondary">ממתין לתשלום</Badge>
+                          ) : null}
+                        </div>
                       </div>
-                      <Button variant="outline" asChild>
-                        <Link href={`/dashboard/sessions/${therapySession.id}`}>
-                          צפה וערוך
-                        </Link>
-                      </Button>
+                      
+                      <div className="flex items-center gap-2">
+                        {/* כפתור ראשי - משתנה לפי מצב */}
+                        {therapySession.client && therapySession.payment?.status !== "PAID" ? (
+                          <QuickMarkPaid
+                            sessionId={therapySession.id}
+                            clientId={therapySession.client.id}
+                            clientName={therapySession.client.name}
+                            amount={Number(therapySession.price)}
+                            creditBalance={Number(therapySession.client.creditBalance || 0)}
+                            existingPayment={therapySession.payment}
+                            buttonText="תשלום מהיר"
+                          />
+                        ) : (
+                          <Button variant="outline" asChild>
+                            <Link href={`/dashboard/sessions/${therapySession.id}`}>
+                              <Eye className="h-4 w-4 ml-1" />
+                              צפה
+                            </Link>
+                          </Button>
+                        )}
+
+                        {/* תפריט אופציות נוספות */}
+                        {therapySession.client && (
+                          <DropdownMenu>
+                            <DropdownMenuTrigger asChild>
+                              <Button variant="ghost" size="icon">
+                                <MoreVertical className="h-4 w-4" />
+                              </Button>
+                            </DropdownMenuTrigger>
+                            <DropdownMenuContent align="end">
+                              <DropdownMenuItem asChild>
+                                <Link href={`/dashboard/sessions/${therapySession.id}`}>
+                                  <FileText className="h-4 w-4 ml-2" />
+                                  ערוך סיכום
+                                </Link>
+                              </DropdownMenuItem>
+                              <DropdownMenuItem asChild>
+                                <Link href={`/dashboard/clients/${therapySession.client.id}`}>
+                                  <User className="h-4 w-4 ml-2" />
+                                  תיקית מטופל
+                                </Link>
+                              </DropdownMenuItem>
+                              {therapySession.payment?.status !== "PAID" && (
+                                <>
+                                  <DropdownMenuSeparator />
+                                  <DropdownMenuItem asChild>
+                                    <Link href={`/dashboard/clients/${therapySession.client.id}?tab=payments`}>
+                                      <CheckCircle className="h-4 w-4 ml-2" />
+                                      סמן כשולם
+                                    </Link>
+                                  </DropdownMenuItem>
+                                </>
+                              )}
+                            </DropdownMenuContent>
+                          </DropdownMenu>
+                        )}
+                      </div>
                     </div>
                   ))}
                 </div>

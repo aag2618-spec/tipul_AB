@@ -28,12 +28,22 @@ import {
   ClipboardList,
   Repeat,
   Clock,
+  MoreVertical,
+  Eye,
+  User as UserIcon,
 } from "lucide-react";
 import { Input } from "@/components/ui/input";
 import Link from "next/link";
 import { QuickMarkPaid } from "@/components/payments/quick-mark-paid";
 import { CompleteSessionDialog } from "@/components/sessions/complete-session-dialog";
 import { ExportClientButton } from "@/components/clients/export-client-button";
+import {
+  DropdownMenu,
+  DropdownMenuContent,
+  DropdownMenuItem,
+  DropdownMenuTrigger,
+  DropdownMenuSeparator,
+} from "@/components/ui/dropdown-menu";
 import { format } from "date-fns";
 import { he } from "date-fns/locale";
 
@@ -371,28 +381,8 @@ export default async function ClientPage({
                           </p>
                         </div>
                       </div>
-                      <div className="flex items-center gap-3">
-                        {/* כפתור סיכום פגישה */}
-                        <Button variant="outline" size="sm" asChild>
-                          <Link href={`/dashboard/sessions/${session.id}`}>
-                            <FileText className="h-4 w-4 ml-1" />
-                            סיכום פגישה
-                          </Link>
-                        </Button>
-                        
-                        {/* כפתור תשלום - רק אם לא שולם */}
-                        {session.payment?.status !== "PAID" && (
-                          <QuickMarkPaid
-                            sessionId={session.id}
-                            clientId={client.id}
-                            clientName={client.name}
-                            amount={Number(session.price)}
-                            creditBalance={Number(client.creditBalance)}
-                            existingPayment={session.payment}
-                            buttonText="תשלום"
-                          />
-                        )}
-
+                      <div className="flex items-center gap-2">
+                        {/* Badges קומפקטיים */}
                         {session.sessionNote && (
                           <Badge className="bg-green-100 text-green-700 border-green-200">
                             <CheckCircle className="h-3 w-3 ml-1" />
@@ -400,7 +390,6 @@ export default async function ClientPage({
                           </Badge>
                         )}
                         
-                        {/* badge שולם - רק אם שולם */}
                         {session.payment?.status === "PAID" && (
                           <Badge className="bg-blue-100 text-blue-700 border-blue-200">
                             <CheckCircle className="h-3 w-3 ml-1" />
@@ -425,6 +414,67 @@ export default async function ClientPage({
                             ? "בוטל"
                             : "לא הגיע"}
                         </Badge>
+
+                        {/* כפתור ראשי - משתנה לפי מצב */}
+                        {!session.sessionNote ? (
+                          <Button size="sm" asChild>
+                            <Link href={`/dashboard/sessions/${session.id}`}>
+                              <FileText className="h-4 w-4 ml-1" />
+                              כתוב סיכום
+                            </Link>
+                          </Button>
+                        ) : session.payment?.status !== "PAID" ? (
+                          <QuickMarkPaid
+                            sessionId={session.id}
+                            clientId={client.id}
+                            clientName={client.name}
+                            amount={Number(session.price)}
+                            creditBalance={Number(client.creditBalance)}
+                            existingPayment={session.payment}
+                            buttonText="תשלום"
+                          />
+                        ) : (
+                          <Button variant="outline" size="sm" asChild>
+                            <Link href={`/dashboard/sessions/${session.id}`}>
+                              <Eye className="h-4 w-4 ml-1" />
+                              צפה
+                            </Link>
+                          </Button>
+                        )}
+
+                        {/* תפריט אופציות */}
+                        <DropdownMenu>
+                          <DropdownMenuTrigger asChild>
+                            <Button variant="ghost" size="sm">
+                              <MoreVertical className="h-4 w-4" />
+                            </Button>
+                          </DropdownMenuTrigger>
+                          <DropdownMenuContent align="end">
+                            <DropdownMenuItem asChild>
+                              <Link href={`/dashboard/sessions/${session.id}`}>
+                                <FileText className="h-4 w-4 ml-2" />
+                                {session.sessionNote ? "ערוך סיכום" : "כתוב סיכום"}
+                              </Link>
+                            </DropdownMenuItem>
+                            <DropdownMenuItem asChild>
+                              <Link href={`/dashboard/calendar?session=${session.id}`}>
+                                <Calendar className="h-4 w-4 ml-2" />
+                                שנה זמן
+                              </Link>
+                            </DropdownMenuItem>
+                            {session.payment?.status !== "PAID" && (
+                              <>
+                                <DropdownMenuSeparator />
+                                <DropdownMenuItem asChild>
+                                  <Link href={`/dashboard/clients/${client.id}?tab=payments`}>
+                                    <CreditCard className="h-4 w-4 ml-2" />
+                                    פרטי תשלום
+                                  </Link>
+                                </DropdownMenuItem>
+                              </>
+                            )}
+                          </DropdownMenuContent>
+                        </DropdownMenu>
                       </div>
                     </div>
                   ))}
