@@ -54,7 +54,7 @@ interface CommunicationLog {
   } | null;
 }
 
-type FilterType = "all" | "SENT" | "FAILED" | "PENDING";
+type FilterType = "all" | "SENT" | "FAILED" | "PENDING" | "RECEIVED";
 type ChannelType = "all" | "EMAIL" | "SMS" | "WHATSAPP";
 
 export default function CommunicationsPage() {
@@ -127,6 +127,8 @@ export default function CommunicationsPage() {
         return <XCircle className="h-4 w-4 text-red-500" />;
       case "PENDING":
         return <Clock className="h-4 w-4 text-yellow-500" />;
+      case "RECEIVED":
+        return <Mail className="h-4 w-4 text-blue-500" />;
       default:
         return <Mail className="h-4 w-4" />;
     }
@@ -137,14 +139,16 @@ export default function CommunicationsPage() {
       SENT: "default",
       FAILED: "destructive",
       PENDING: "secondary",
+      RECEIVED: "outline",
     };
     const labels: Record<string, string> = {
       SENT: "נשלח",
       FAILED: "נכשל",
       PENDING: "ממתין",
+      RECEIVED: "התקבל מהמטופל",
     };
     return (
-      <Badge variant={variants[status] || "outline"}>
+      <Badge variant={variants[status] || "outline"} className={status === "RECEIVED" ? "bg-blue-50 text-blue-700 border-blue-200" : ""}>
         {labels[status] || status}
       </Badge>
     );
@@ -175,6 +179,7 @@ export default function CommunicationsPage() {
     sent: logs.filter((l) => l.status === "SENT").length,
     failed: logs.filter((l) => l.status === "FAILED").length,
     pending: logs.filter((l) => l.status === "PENDING").length,
+    received: logs.filter((l) => l.status === "RECEIVED").length,
   };
 
   return (
@@ -193,7 +198,7 @@ export default function CommunicationsPage() {
       </div>
 
       {/* Stats */}
-      <div className="grid gap-4 md:grid-cols-4">
+      <div className="grid gap-4 md:grid-cols-5">
         <Card>
           <CardHeader className="flex flex-row items-center justify-between space-y-0 pb-2">
             <CardTitle className="text-sm font-medium">סה"כ הודעות</CardTitle>
@@ -230,6 +235,15 @@ export default function CommunicationsPage() {
             <div className="text-2xl font-bold text-yellow-600">{stats.pending}</div>
           </CardContent>
         </Card>
+        <Card>
+          <CardHeader className="flex flex-row items-center justify-between space-y-0 pb-2">
+            <CardTitle className="text-sm font-medium">תגובות מהמטופלים</CardTitle>
+            <Mail className="h-4 w-4 text-blue-500" />
+          </CardHeader>
+          <CardContent>
+            <div className="text-2xl font-bold text-blue-600">{stats.received}</div>
+          </CardContent>
+        </Card>
       </div>
 
       {/* Filters */}
@@ -250,6 +264,7 @@ export default function CommunicationsPage() {
           <SelectContent>
             <SelectItem value="all">הכל</SelectItem>
             <SelectItem value="SENT">נשלחו</SelectItem>
+            <SelectItem value="RECEIVED">תגובות מהמטופלים</SelectItem>
             <SelectItem value="FAILED">נכשלו</SelectItem>
             <SelectItem value="PENDING">ממתינים</SelectItem>
           </SelectContent>

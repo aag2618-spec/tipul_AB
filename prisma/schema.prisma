@@ -567,6 +567,7 @@ enum CommunicationType {
   CANCELLATION_APPROVED
   CANCELLATION_REJECTED
   CUSTOM
+  INCOMING_EMAIL
 }
 
 enum CommunicationChannel {
@@ -579,6 +580,7 @@ enum CommunicationStatus {
   PENDING
   SENT
   FAILED
+  RECEIVED
 }
 
 // ==================== Communication Settings ====================
