@@ -35,6 +35,7 @@ interface PayClientDebtsProps {
     amount: number;
   }>;
   onPaymentComplete?: () => void;
+  onOptimisticUpdate?: (amountPaid: number) => void;
 }
 
 export function PayClientDebts({
@@ -44,6 +45,7 @@ export function PayClientDebts({
   creditBalance,
   unpaidPayments,
   onPaymentComplete,
+  onOptimisticUpdate,
 }: PayClientDebtsProps) {
   const [isOpen, setIsOpen] = useState(false);
   const [isLoading, setIsLoading] = useState(false);
@@ -51,6 +53,17 @@ export function PayClientDebts({
   const [method, setMethod] = useState<string>("CASH");
   const [partialAmount, setPartialAmount] = useState<string>("");
   const router = useRouter();
+
+  // Reset form when dialog closes
+  const handleDialogOpenChange = (open: boolean) => {
+    setIsOpen(open);
+    if (!open) {
+      // Reset all fields when closing
+      setPaymentMode("FULL");
+      setMethod("CASH");
+      setPartialAmount("");
+    }
+  };
 
   const handlePayment = async () => {
     setIsLoading(true);
@@ -64,6 +77,22 @@ export function PayClientDebts({
           setIsLoading(false);
           return;
         }
+      }
+
+      // Confirmation for large amounts
+      if (amountToPay > 1000 && method === "CASH") {
+        const confirmed = window.confirm(
+          `האם אתה בטוח שברצונך לרשום תשלום של ₪${amountToPay.toFixed(0)} במזומן?`
+        );
+        if (!confirmed) {
+          setIsLoading(false);
+          return;
+        }
+      }
+
+      // Optimistic update - update UI immediately
+      if (onOptimisticUpdate) {
+        onOptimisticUpdate(amountToPay);
       }
 
       // Pay all debts (or partial amount distributed across debts)
@@ -91,8 +120,6 @@ export function PayClientDebts({
       
       toast.success(successMessage);
       setIsOpen(false);
-      setPaymentMode("FULL");
-      setPartialAmount("");
       
       if (onPaymentComplete) {
         onPaymentComplete();
@@ -112,7 +139,7 @@ export function PayClientDebts({
   }
 
   return (
-    <Dialog open={isOpen} onOpenChange={setIsOpen}>
+    <Dialog open={isOpen} onOpenChange={handleDialogOpenChange}>
       <DialogTrigger asChild>
         <Button size="sm" className="gap-2">
           <CreditCard className="h-4 w-4" />

@@ -11,13 +11,14 @@ import {
   SelectTrigger,
   SelectValue,
 } from "@/components/ui/select";
-import { Loader2, AlertCircle, CheckCircle, Calendar } from "lucide-react";
+import { Loader2, AlertCircle, CheckCircle, Calendar, Search, ArrowUpDown } from "lucide-react";
 import { toast } from "sonner";
 import Link from "next/link";
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
 import { format } from "date-fns";
 import { he } from "date-fns/locale";
 import { PayClientDebts } from "@/components/payments/pay-client-debts";
+import { Input } from "@/components/ui/input";
 
 interface ClientDebt {
   id: string;
@@ -37,6 +38,7 @@ interface ClientDebt {
 
 type FilterType = "all" | "debts" | "credits";
 type ViewType = "clients" | "payments";
+type SortType = "date" | "amount" | "name";
 
 export default function PaymentsPage() {
   const [clients, setClients] = useState<ClientDebt[]>([]);
@@ -44,6 +46,25 @@ export default function PaymentsPage() {
   const [isLoading, setIsLoading] = useState(true);
   const [filter, setFilter] = useState<FilterType>("debts");
   const [view, setView] = useState<ViewType>("clients");
+  const [searchTerm, setSearchTerm] = useState("");
+  const [sortBy, setSortBy] = useState<SortType>("date");
+  const [currentPage, setCurrentPage] = useState(1);
+  const itemsPerPage = 20;
+
+  // Optimistic update handler
+  const handleOptimisticUpdate = (clientId: string, amountPaid: number) => {
+    setClients(prevClients => 
+      prevClients.map(client => {
+        if (client.id === clientId) {
+          return {
+            ...client,
+            totalDebt: Math.max(0, client.totalDebt - amountPaid),
+          };
+        }
+        return client;
+      })
+    );
+  };
 
   useEffect(() => {
     fetchClientDebts();
@@ -51,7 +72,12 @@ export default function PaymentsPage() {
 
   useEffect(() => {
     applyFilter();
-  }, [clients, filter]);
+  }, [clients, filter, searchTerm]);
+
+  useEffect(() => {
+    // Reset to page 1 when search or filter changes
+    setCurrentPage(1);
+  }, [searchTerm, filter, sortBy]);
 
   const fetchClientDebts = async () => {
     try {
@@ -74,10 +100,21 @@ export default function PaymentsPage() {
   const applyFilter = () => {
     let filtered = clients;
 
+    // Apply filter type
     if (filter === "debts") {
       filtered = clients.filter((c) => c.totalDebt > 0);
     } else if (filter === "credits") {
       filtered = clients.filter((c) => c.creditBalance > 0);
+    }
+
+    // Apply search
+    if (searchTerm) {
+      const search = searchTerm.toLowerCase();
+      filtered = filtered.filter((c) => 
+        c.fullName.toLowerCase().includes(search) ||
+        c.firstName.toLowerCase().includes(search) ||
+        c.lastName.toLowerCase().includes(search)
+      );
     }
 
     setFilteredClients(filtered);
@@ -95,14 +132,50 @@ export default function PaymentsPage() {
   const totalPendingPayments = clients.reduce((sum, client) => sum + client.unpaidSessionsCount, 0);
 
   // Get all pending payments with client info
-  const allPendingPayments = clients.flatMap(client => 
+  let allPendingPayments = clients.flatMap(client => 
     client.unpaidSessions.map(session => ({
       ...session,
       clientId: client.id,
       clientName: client.fullName,
       creditBalance: client.creditBalance,
     }))
-  ).sort((a, b) => new Date(b.date).getTime() - new Date(a.date).getTime());
+  );
+
+  // Apply search to payments
+  if (searchTerm) {
+    const search = searchTerm.toLowerCase();
+    allPendingPayments = allPendingPayments.filter(p => 
+      p.clientName.toLowerCase().includes(search)
+    );
+  }
+
+  // Apply sorting
+  allPendingPayments = allPendingPayments.sort((a, b) => {
+    switch (sortBy) {
+      case "date":
+        return new Date(b.date).getTime() - new Date(a.date).getTime();
+      case "amount":
+        return b.amount - a.amount;
+      case "name":
+        return a.clientName.localeCompare(b.clientName, "he");
+      default:
+        return 0;
+    }
+  });
+
+  // Apply pagination to payments
+  const totalPaymentPages = Math.ceil(allPendingPayments.length / itemsPerPage);
+  const paginatedPayments = allPendingPayments.slice(
+    (currentPage - 1) * itemsPerPage,
+    currentPage * itemsPerPage
+  );
+
+  // Apply pagination to clients
+  const totalClientPages = Math.ceil(filteredClients.length / itemsPerPage);
+  const paginatedClients = filteredClients.slice(
+    (currentPage - 1) * itemsPerPage,
+    currentPage * itemsPerPage
+  );
 
   return (
     <div className="space-y-6 animate-fade-in">
@@ -129,16 +202,42 @@ export default function PaymentsPage() {
 
         {/* Pending Payments Tab */}
         <TabsContent value="payments" className="mt-6">
+          {/* Search and Sort Controls */}
+          <div className="flex gap-4 mb-4 flex-wrap">
+            <div className="relative flex-1 min-w-[200px]">
+              <Search className="absolute right-3 top-1/2 -translate-y-1/2 h-4 w-4 text-muted-foreground" />
+              <Input
+                placeholder="חפש לפי שם מטופל..."
+                value={searchTerm}
+                onChange={(e) => setSearchTerm(e.target.value)}
+                className="pr-10"
+              />
+            </div>
+            <Select value={sortBy} onValueChange={(value) => setSortBy(value as SortType)}>
+              <SelectTrigger className="w-[180px]">
+                <ArrowUpDown className="h-4 w-4 ml-2" />
+                <SelectValue />
+              </SelectTrigger>
+              <SelectContent>
+                <SelectItem value="date">מיון לפי תאריך</SelectItem>
+                <SelectItem value="amount">מיון לפי סכום</SelectItem>
+                <SelectItem value="name">מיון לפי שם</SelectItem>
+              </SelectContent>
+            </Select>
+          </div>
+
           <div className="grid gap-3">
-            {allPendingPayments.length === 0 ? (
+            {paginatedPayments.length === 0 ? (
               <Card>
                 <CardContent className="flex flex-col items-center justify-center py-12">
                   <CheckCircle className="h-16 w-16 text-green-500 mb-4 opacity-50" />
-                  <p className="text-lg font-medium">אין תשלומים ממתינים! 🎉</p>
+                  <p className="text-lg font-medium">
+                    {searchTerm ? "לא נמצאו תוצאות לחיפוש" : "אין תשלומים ממתינים! 🎉"}
+                  </p>
                 </CardContent>
               </Card>
             ) : (
-              allPendingPayments.map((payment) => (
+              paginatedPayments.map((payment) => (
                 <Card key={payment.paymentId} className="hover:shadow-md transition-shadow">
                   <CardContent className="p-4">
                     <div className="flex items-center justify-between">
@@ -181,11 +280,46 @@ export default function PaymentsPage() {
               ))
             )}
           </div>
+
+          {/* Pagination for Payments */}
+          {totalPaymentPages > 1 && (
+            <div className="flex items-center justify-center gap-2 mt-6">
+              <Button
+                variant="outline"
+                size="sm"
+                onClick={() => setCurrentPage(p => Math.max(1, p - 1))}
+                disabled={currentPage === 1}
+              >
+                הקודם
+              </Button>
+              <span className="text-sm text-muted-foreground">
+                עמוד {currentPage} מתוך {totalPaymentPages}
+              </span>
+              <Button
+                variant="outline"
+                size="sm"
+                onClick={() => setCurrentPage(p => Math.min(totalPaymentPages, p + 1))}
+                disabled={currentPage === totalPaymentPages}
+              >
+                הבא
+              </Button>
+            </div>
+          )}
         </TabsContent>
 
         {/* Clients Summary Tab */}
         <TabsContent value="clients" className="mt-6">
-          <div className="mb-4">
+          {/* Search and Filter Controls */}
+          <div className="flex gap-4 mb-4 flex-wrap">
+            <div className="relative flex-1 min-w-[200px]">
+              <Search className="absolute right-3 top-1/2 -translate-y-1/2 h-4 w-4 text-muted-foreground" />
+              <Input
+                placeholder="חפש לפי שם מטופל..."
+                value={searchTerm}
+                onChange={(e) => setSearchTerm(e.target.value)}
+                className="pr-10"
+              />
+            </div>
             <Select value={filter} onValueChange={(value) => setFilter(value as FilterType)}>
               <SelectTrigger className="w-[180px]">
                 <SelectValue />
@@ -203,19 +337,20 @@ export default function PaymentsPage() {
           </div>
 
           <div className="grid gap-4">
-        {filteredClients.length === 0 ? (
+        {paginatedClients.length === 0 ? (
           <Card>
             <CardContent className="flex flex-col items-center justify-center py-12">
               <CheckCircle className="h-16 w-16 text-green-500 mb-4 opacity-50" />
               <p className="text-lg font-medium">
-                {filter === "debts" && "אין חובות פתוחים! 🎉"}
-                {filter === "credits" && "אין מטופלים עם קרדיט זמין"}
-                {filter === "all" && "אין מטופלים במערכת"}
+                {searchTerm ? "לא נמצאו תוצאות לחיפוש" : 
+                  filter === "debts" ? "אין חובות פתוחים! 🎉" :
+                  filter === "credits" ? "אין מטופלים עם קרדיט זמין" :
+                  "אין מטופלים במערכת"}
               </p>
             </CardContent>
           </Card>
         ) : (
-          filteredClients.map((client) => (
+          paginatedClients.map((client) => (
             <Card key={client.id} className="hover:shadow-md transition-shadow">
               <CardContent className="p-6">
                 <div className="flex items-center justify-between">
@@ -291,6 +426,7 @@ export default function PaymentsPage() {
                         creditBalance={client.creditBalance}
                         unpaidPayments={client.unpaidSessions}
                         onPaymentComplete={fetchClientDebts}
+                        onOptimisticUpdate={(amount) => handleOptimisticUpdate(client.id, amount)}
                       />
                     )}
                   </div>
@@ -300,6 +436,31 @@ export default function PaymentsPage() {
           ))
         )}
           </div>
+
+          {/* Pagination for Clients */}
+          {totalClientPages > 1 && (
+            <div className="flex items-center justify-center gap-2 mt-6">
+              <Button
+                variant="outline"
+                size="sm"
+                onClick={() => setCurrentPage(p => Math.max(1, p - 1))}
+                disabled={currentPage === 1}
+              >
+                הקודם
+              </Button>
+              <span className="text-sm text-muted-foreground">
+                עמוד {currentPage} מתוך {totalClientPages}
+              </span>
+              <Button
+                variant="outline"
+                size="sm"
+                onClick={() => setCurrentPage(p => Math.min(totalClientPages, p + 1))}
+                disabled={currentPage === totalClientPages}
+              >
+                הבא
+              </Button>
+            </div>
+          )}
         </TabsContent>
       </Tabs>
     </div>
