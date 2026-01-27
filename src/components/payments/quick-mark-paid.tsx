@@ -134,7 +134,9 @@ export function QuickMarkPaid({
       setShowAdvanced(false);
       setPaymentType("FULL");
       setPartialAmount("");
-      router.refresh();
+      
+      // Force a hard refresh to update credit balance
+      window.location.reload();
     } catch (error) {
       toast.error("שגיאה בעדכון התשלום");
       console.error(error);

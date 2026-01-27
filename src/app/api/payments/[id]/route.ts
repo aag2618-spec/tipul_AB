@@ -51,6 +51,8 @@ export async function PUT(
     const body = await request.json();
     const { status, method, notes, paidAt, useCredit } = body;
 
+    console.log("Payment update request:", { id, status, method, useCredit, paidAt });
+
     const existingPayment = await prisma.payment.findFirst({
       where: { id, client: { therapistId: session.user.id } },
       include: { client: true }
@@ -60,8 +62,16 @@ export async function PUT(
       return NextResponse.json({ message: "תשלום לא נמצא" }, { status: 404 });
     }
 
+    console.log("Existing payment:", { 
+      id: existingPayment.id, 
+      amount: existingPayment.amount,
+      currentStatus: existingPayment.status,
+      clientCredit: existingPayment.client.creditBalance 
+    });
+
     // Handle credit usage
     if (useCredit && status === "PAID") {
+      console.log("Processing credit payment...");
       const client = existingPayment.client;
       const paymentAmount = Number(existingPayment.amount);
       
