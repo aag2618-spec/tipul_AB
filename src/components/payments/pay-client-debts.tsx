@@ -73,6 +73,7 @@ export function PayClientDebts({
     setIsLoading(true);
     try {
       let amountToPay = Number(totalDebt) || 0;
+      let creditUsed = 0;
       
       if (paymentMode === "PARTIAL") {
         amountToPay = parseFloat(partialAmount) || 0;
@@ -81,6 +82,12 @@ export function PayClientDebts({
           setIsLoading(false);
           return;
         }
+      }
+
+      // חישוב שימוש בקרדיט
+      if (useCredit && safeCredit > 0) {
+        creditUsed = Math.min(amountToPay, safeCredit);
+        amountToPay = amountToPay - creditUsed;
       }
 
       // Confirmation for large amounts
@@ -106,9 +113,10 @@ export function PayClientDebts({
         body: JSON.stringify({
           clientId,
           paymentIds: unpaidPayments.map(p => p.paymentId),
-          totalAmount: amountToPay,
+          totalAmount: amountToPay + creditUsed, // Total amount including credit
           method,
           paymentMode,
+          creditUsed, // Amount paid from credit
         }),
       });
 
@@ -117,10 +125,16 @@ export function PayClientDebts({
         throw new Error(error.message || "Failed to process payment");
       }
 
-      const successMessage = 
-        paymentMode === "PARTIAL" 
-          ? `תשלום חלקי של ₪${amountToPay} נרשם בהצלחה`
+      let successMessage = "";
+      if (creditUsed > 0 && amountToPay > 0) {
+        successMessage = `נרשם תשלום של ₪${amountToPay.toFixed(0)} + קרדיט ₪${creditUsed.toFixed(0)}`;
+      } else if (creditUsed > 0) {
+        successMessage = `נרשם תשלום מקרדיט ₪${creditUsed.toFixed(0)}`;
+      } else {
+        successMessage = paymentMode === "PARTIAL" 
+          ? `תשלום חלקי של ₪${amountToPay.toFixed(0)} נרשם בהצלחה`
           : "כל החובות שולמו בהצלחה";
+      }
       
       toast.success(successMessage);
       setIsOpen(false);
@@ -180,80 +194,128 @@ export function PayClientDebts({
         </DialogHeader>
 
         <div className="space-y-4 py-4">
-          {/* בחירת סוג תשלום */}
-          <div className="space-y-3">
-            <Label className="text-base font-semibold">סוג תשלום</Label>
-            <div className="grid gap-2">
-              <Button
-                type="button"
-                variant={paymentMode === "FULL" ? "default" : "outline"}
-                size="sm"
-                onClick={() => setPaymentMode("FULL")}
-                className="justify-start h-auto py-3"
-              >
-                <div className="text-right w-full">
-                  <div className="font-bold">תשלום מלא</div>
-                  <div className="text-xs opacity-80">תשלום כל החוב (₪{safeDebt.toFixed(0)})</div>
+          {/* תיבת רישום תשלום */}
+          <div className="border rounded-lg p-4 bg-orange-50 border-orange-200">
+            <h3 className="text-center font-bold text-lg mb-4 flex items-center justify-center gap-2">
+              💰 רישום תשלום
+            </h3>
+            
+            <div className="space-y-4">
+              {/* סכום */}
+              <div className="grid grid-cols-2 gap-4 items-center">
+                <Label className="text-right">סכום</Label>
+                <div className="text-left">
+                  <div className="text-2xl font-bold">
+                    {paymentMode === "PARTIAL" && partialAmount 
+                      ? `₪${partialAmount}` 
+                      : `₪${safeDebt.toFixed(0)}`
+                    }
+                  </div>
                 </div>
-              </Button>
-              
-              <Button
-                type="button"
-                variant={paymentMode === "PARTIAL" ? "default" : "outline"}
-                size="sm"
-                onClick={() => setPaymentMode("PARTIAL")}
-                className="justify-start h-auto py-3"
-              >
-                <div className="text-right w-full">
-                  <div className="font-bold">תשלום חלקי</div>
-                  <div className="text-xs opacity-80">תשלום חלק מהחוב</div>
-                </div>
-              </Button>
-            </div>
-
-            {paymentMode === "PARTIAL" && (
-              <div className="space-y-2 pr-4 pt-2">
-                <Label htmlFor="partial-amount">סכום לתשלום</Label>
-                <div className="relative">
-                  <Input
-                    id="partial-amount"
-                    type="number"
-                    placeholder="הכנס סכום"
-                    value={partialAmount}
-                    onChange={(e) => setPartialAmount(e.target.value)}
-                    max={safeDebt}
-                    min={0}
-                    step="1"
-                    className="pl-8"
-                  />
-                  <span className="absolute left-3 top-1/2 -translate-y-1/2 text-sm text-muted-foreground">
-                    ₪
-                  </span>
-                </div>
-                {partialAmount && parseFloat(partialAmount) < safeDebt && parseFloat(partialAmount) > 0 && (
-                  <p className="text-xs text-muted-foreground">
-                    נותר לתשלום: ₪{(safeDebt - parseFloat(partialAmount)).toFixed(0)}
-                  </p>
-                )}
               </div>
-            )}
-          </div>
 
-          {/* אמצעי תשלום */}
-          <div className="space-y-2">
-            <Label htmlFor="payment-method">אמצעי תשלום</Label>
-            <Select value={method} onValueChange={setMethod}>
-              <SelectTrigger id="payment-method">
-                <SelectValue />
-              </SelectTrigger>
-              <SelectContent>
-                <SelectItem value="CASH">מזומן</SelectItem>
-                <SelectItem value="CREDIT_CARD">אשראי</SelectItem>
-                <SelectItem value="BANK_TRANSFER">העברה בנקאית</SelectItem>
-                <SelectItem value="CHECK">צ׳ק</SelectItem>
-                <SelectItem value="OTHER">אחר</SelectItem>
-              </SelectContent>
-            </Select>
+              {/* אמצעי תשלום */}
+              <div className="grid grid-cols-2 gap-4 items-center">
+                <Label htmlFor="payment-method" className="text-right">אמצעי תשלום</Label>
+                <Select value={method} onValueChange={setMethod}>
+                  <SelectTrigger id="payment-method" className="bg-white">
+                    <SelectValue />
+                  </SelectTrigger>
+                  <SelectContent>
+                    <SelectItem value="CASH">מזומן</SelectItem>
+                    <SelectItem value="CREDIT_CARD">אשראי</SelectItem>
+                    <SelectItem value="BANK_TRANSFER">העברה בנקאית</SelectItem>
+                    <SelectItem value="CHECK">צ׳ק</SelectItem>
+                    <SelectItem value="OTHER">אחר</SelectItem>
+                  </SelectContent>
+                </Select>
+              </div>
+
+              {/* כפתור אופציות מתקדמות */}
+              <Button
+                type="button"
+                variant="ghost"
+                size="sm"
+                onClick={(e) => {
+                  e.preventDefault();
+                  e.stopPropagation();
+                  setShowAdvanced(!showAdvanced);
+                }}
+                className="w-full justify-between hover:bg-orange-100"
+              >
+                <span>אופציות מתקדמות</span>
+                <ChevronDown className={`h-4 w-4 transition-transform ${showAdvanced ? 'rotate-180' : ''}`} />
+              </Button>
+
+              {/* אופציות מתקדמות - מתרחב */}
+              {showAdvanced && (
+                <div className="space-y-4 pt-2 border-t animate-in slide-in-from-top-2">
+                  {/* תשלום חלקי */}
+                  <div className="space-y-2">
+                    <div className="flex items-center gap-2">
+                      <input
+                        type="checkbox"
+                        id="partial-payment"
+                        checked={paymentMode === "PARTIAL"}
+                        onChange={(e) => {
+                          setPaymentMode(e.target.checked ? "PARTIAL" : "FULL");
+                          if (!e.target.checked) setPartialAmount("");
+                        }}
+                        className="h-4 w-4"
+                      />
+                      <Label htmlFor="partial-payment" className="cursor-pointer">
+                        תשלום חלקי
+                      </Label>
+                    </div>
+                    
+                    {paymentMode === "PARTIAL" && (
+                      <div className="space-y-2 pr-6">
+                        <Label htmlFor="partial-amount" className="text-sm">סכום לתשלום</Label>
+                        <div className="relative">
+                          <Input
+                            id="partial-amount"
+                            type="number"
+                            placeholder="הכנס סכום"
+                            value={partialAmount}
+                            onChange={(e) => setPartialAmount(e.target.value)}
+                            max={safeDebt}
+                            min={0}
+                            step="1"
+                            className="pl-8 bg-white"
+                          />
+                          <span className="absolute left-3 top-1/2 -translate-y-1/2 text-sm text-muted-foreground">
+                            ₪
+                          </span>
+                        </div>
+                        {partialAmount && parseFloat(partialAmount) < safeDebt && parseFloat(partialAmount) > 0 && (
+                          <p className="text-xs text-muted-foreground">
+                            נותר לתשלום: ₪{(safeDebt - parseFloat(partialAmount)).toFixed(0)}
+                          </p>
+                        )}
+                      </div>
+                    )}
+                  </div>
+
+                  {/* שימוש בקרדיט */}
+                  {safeCredit > 0 && (
+                    <div className="space-y-2">
+                      <div className="flex items-center gap-2">
+                        <input
+                          type="checkbox"
+                          id="use-credit"
+                          checked={useCredit}
+                          onChange={(e) => setUseCredit(e.target.checked)}
+                          className="h-4 w-4"
+                        />
+                        <Label htmlFor="use-credit" className="cursor-pointer">
+                          השתמש בקרדיט (זמין: ₪{safeCredit.toFixed(0)})
+                        </Label>
+                      </div>
+                    </div>
+                  )}
+                </div>
+              )}
+            </div>
           </div>
         </div>
 
@@ -278,10 +340,19 @@ export function PayClientDebts({
             ) : (
               <>
                 <Check className="h-4 w-4" />
-                {paymentMode === "FULL" 
-                  ? `שלם ₪${safeDebt.toFixed(0)}` 
-                  : `שלם ₪${partialAmount || "0"}`
-                }
+                {(() => {
+                  const totalAmount = paymentMode === "FULL" ? safeDebt : (parseFloat(partialAmount) || 0);
+                  const creditToUse = useCredit ? Math.min(totalAmount, safeCredit) : 0;
+                  const cashAmount = totalAmount - creditToUse;
+                  
+                  if (creditToUse > 0 && cashAmount > 0) {
+                    return `סיים ושלם (₪${cashAmount.toFixed(0)} + קרדיט ₪${creditToUse.toFixed(0)})`;
+                  } else if (creditToUse > 0) {
+                    return `סיים ושלם (קרדיט ₪${creditToUse.toFixed(0)})`;
+                  } else {
+                    return `סיים ושלם (₪${cashAmount.toFixed(0)})`;
+                  }
+                })()}
               </>
             )}
           </Button>

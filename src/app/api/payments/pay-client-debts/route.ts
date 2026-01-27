@@ -10,7 +10,7 @@ export async function POST(req: NextRequest) {
       return NextResponse.json({ message: "לא מורשה" }, { status: 401 });
     }
 
-    const { clientId, paymentIds, totalAmount, method, paymentMode } = await req.json();
+    const { clientId, paymentIds, totalAmount, method, paymentMode, creditUsed = 0 } = await req.json();
 
     // Enhanced validation
     if (!clientId || !paymentIds || !totalAmount || !method) {
@@ -98,17 +98,17 @@ export async function POST(req: NextRequest) {
         console.warn(`Warning: Full payment had remaining amount: ${remainingAmount}`);
       }
 
-      // If payment was made with CREDIT, deduct from client's credit balance
+      // If credit was used, deduct from client's credit balance
       const totalPaid = totalAmount - remainingAmount;
-      if (method === "CREDIT" && totalPaid > 0) {
+      if (creditUsed > 0) {
         const currentCredit = Number(client.creditBalance);
         
         // Validate sufficient credit
-        if (currentCredit < totalPaid) {
-          throw new Error(`אין מספיק זכות. זמין: ₪${currentCredit.toFixed(0)}, נדרש: ₪${totalPaid.toFixed(0)}`);
+        if (currentCredit < creditUsed) {
+          throw new Error(`אין מספיק קרדיט. זמין: ₪${currentCredit.toFixed(0)}, מבוקש: ₪${creditUsed.toFixed(0)}`);
         }
         
-        const newCreditBalance = currentCredit - totalPaid;
+        const newCreditBalance = currentCredit - creditUsed;
         
         await tx.client.update({
           where: { id: clientId },
@@ -117,7 +117,7 @@ export async function POST(req: NextRequest) {
           },
         });
 
-        console.log(`Credit updated: ${currentCredit} -> ${newCreditBalance} (paid: ${totalPaid})`);
+        console.log(`Credit updated: ${currentCredit} -> ${newCreditBalance} (used: ${creditUsed})`);
       }
 
       return {
