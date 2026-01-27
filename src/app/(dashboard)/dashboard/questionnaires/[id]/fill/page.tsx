@@ -362,7 +362,7 @@ export default function FillQuestionnairePage() {
 
         <CardContent>
           {/* Standard multiple choice */}
-          {currentQuestion.options && (
+          {currentQuestion.options && currentQuestion.options.length > 0 && (
             <RadioGroup
               value={answers[currentIndex]?.value?.toString()}
               onValueChange={(value: string) => {
@@ -515,7 +515,7 @@ export default function FillQuestionnairePage() {
           )}
 
           {/* Free text answer - for open-ended questions */}
-          {!currentQuestion.options && !currentQuestion.fields && (
+          {(!currentQuestion.options || currentQuestion.options.length === 0) && !currentQuestion.fields && (
             <div className="space-y-2">
               <Label>תשובה חופשית</Label>
               <Textarea

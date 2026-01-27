@@ -138,8 +138,6 @@ export default function PaymentsPage() {
       clientId: client.id,
       clientName: client.fullName,
       creditBalance: client.creditBalance,
-      totalDebt: client.totalDebt,
-      allUnpaidSessions: client.unpaidSessions,
     }))
   );
 
@@ -205,14 +203,14 @@ export default function PaymentsPage() {
         {/* Pending Payments Tab */}
         <TabsContent value="payments" className="mt-6">
           {/* Search and Sort Controls */}
-          <div className="flex gap-4 mb-4 flex-wrap items-center">
+          <div className="flex gap-4 mb-4 flex-wrap">
             <div className="relative flex-1 min-w-[200px]">
-              <Search className="absolute right-3 top-1/2 -translate-y-1/2 h-4 w-4 text-muted-foreground pointer-events-none" />
+              <Search className="absolute right-3 top-1/2 -translate-y-1/2 h-4 w-4 text-muted-foreground" />
               <Input
                 placeholder="חפש לפי שם מטופל..."
                 value={searchTerm}
                 onChange={(e) => setSearchTerm(e.target.value)}
-                className="pr-10 text-right"
+                className="pr-10"
               />
             </div>
             <Select value={sortBy} onValueChange={(value) => setSortBy(value as SortType)}>
@@ -270,14 +268,12 @@ export default function PaymentsPage() {
                         </div>
                       </div>
                       <div className="flex gap-2 mr-4">
-                        <PayClientDebts
-                          clientId={payment.clientId}
-                          clientName={payment.clientName}
-                          totalDebt={payment.totalDebt}
-                          creditBalance={payment.creditBalance}
-                          unpaidPayments={payment.allUnpaidSessions}
-                          onPaymentComplete={fetchClientDebts}
-                        />
+                        <Button variant="default" size="sm" asChild className="gap-2 bg-green-600 hover:bg-green-700">
+                          <Link href={`/dashboard/payments/pay/${payment.clientId}`}>
+                            <CreditCard className="h-4 w-4" />
+                            שלם עכשיו
+                          </Link>
+                        </Button>
                         <Button variant="outline" size="sm" asChild>
                           <Link href={`/dashboard/clients/${payment.clientId}?tab=payments`}>
                             פרטים
