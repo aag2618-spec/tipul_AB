@@ -277,17 +277,38 @@ export default function QuestionnairesPage() {
         </TabsContent>
 
         <TabsContent value="responses" className="space-y-4">
-          {responses.length === 0 ? (
+          {/* Search for responses */}
+          <div className="relative">
+            <Search className="absolute right-3 top-1/2 -translate-y-1/2 h-4 w-4 text-muted-foreground" />
+            <Input
+              placeholder="חפש לפי שם מטופל או שאלון..."
+              value={searchTerm}
+              onChange={(e) => setSearchTerm(e.target.value)}
+              className="pr-10"
+            />
+          </div>
+
+          {responses.filter(r => 
+            !searchTerm || 
+            r.client.name.includes(searchTerm) || 
+            r.template.name.includes(searchTerm)
+          ).length === 0 ? (
             <Card className="p-8 text-center">
               <FileText className="h-12 w-12 mx-auto text-muted-foreground mb-4" />
-              <h3 className="text-lg font-medium">אין תשובות לשאלונים</h3>
+              <h3 className="text-lg font-medium">
+                {searchTerm ? "לא נמצאו תוצאות" : "אין תשובות לשאלונים"}
+              </h3>
               <p className="text-muted-foreground mb-4">
-                התחל בהעברת שאלון למטופל
+                {searchTerm ? "נסה מונח חיפוש אחר" : "התחל בהעברת שאלון למטופל"}
               </p>
             </Card>
           ) : (
             <div className="space-y-3">
-              {responses.map((response) => (
+              {responses.filter(r => 
+                !searchTerm || 
+                r.client.name.includes(searchTerm) || 
+                r.template.name.includes(searchTerm)
+              ).map((response) => (
                 <Card 
                   key={response.id}
                   className="hover:shadow-md transition-shadow cursor-pointer"

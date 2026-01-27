@@ -87,6 +87,82 @@ export default function FillQuestionnairePage() {
     fetchResponse();
   }, [responseId]);
 
+  // Auto-save every 30 seconds
+  useEffect(() => {
+    if (!response || Object.keys(answers).length === 0) return;
+    
+    const interval = setInterval(() => {
+      saveProgress(false); // Silent save
+    }, 30000); // 30 seconds
+
+    return () => clearInterval(interval);
+  }, [answers, response]);
+
+  // Confirm before leaving if there are unsaved changes
+  useEffect(() => {
+    const handleBeforeUnload = (e: BeforeUnloadEvent) => {
+      if (Object.keys(answers).length > 0 && response?.status !== "COMPLETED") {
+        e.preventDefault();
+        e.returnValue = "";
+      }
+    };
+
+    window.addEventListener("beforeunload", handleBeforeUnload);
+    return () => window.removeEventListener("beforeunload", handleBeforeUnload);
+  }, [answers, response]);
+
+  // Keyboard navigation
+  useEffect(() => {
+    const handleKeyDown = (e: KeyboardEvent) => {
+      // Don't trigger if user is typing in an input
+      if (e.target instanceof HTMLInputElement || e.target instanceof HTMLTextAreaElement) {
+        return;
+      }
+
+      const currentQuestion = questions[currentIndex];
+      
+      switch(e.key) {
+        case "ArrowLeft":
+        case "ArrowUp":
+          e.preventDefault();
+          if (currentIndex > 0) {
+            setCurrentIndex(currentIndex - 1);
+          }
+          break;
+        case "ArrowRight":
+        case "ArrowDown":
+          e.preventDefault();
+          if (currentIndex < questions.length - 1) {
+            setCurrentIndex(currentIndex + 1);
+          }
+          break;
+        case " ": // Space bar - select/deselect radio
+          if (currentQuestion?.options && currentQuestion.options.length > 0) {
+            e.preventDefault();
+            // Toggle between options or select first if none selected
+            const currentValue = answers[currentIndex]?.value;
+            const currentOptionIndex = currentQuestion.options.findIndex(o => o.value === currentValue);
+            const nextIndex = currentOptionIndex + 1 < currentQuestion.options.length ? currentOptionIndex + 1 : 0;
+            const nextOption = currentQuestion.options[nextIndex];
+            handleAnswer(currentIndex, { value: nextOption.value, text: nextOption.text });
+          }
+          break;
+        case "s":
+        case "S":
+          if (e.ctrlKey || e.metaKey) {
+            e.preventDefault();
+            saveProgress();
+          }
+          break;
+      }
+    };
+
+    if (!loading && response) {
+      window.addEventListener("keydown", handleKeyDown);
+      return () => window.removeEventListener("keydown", handleKeyDown);
+    }
+  }, [currentIndex, questions, answers, loading, response]);
+
   const fetchResponse = async () => {
     try {
       const res = await fetch(`/api/questionnaires/responses/${responseId}`);
@@ -128,7 +204,7 @@ export default function FillQuestionnairePage() {
     }
   };
 
-  const saveProgress = async () => {
+  const saveProgress = async (showToast = true) => {
     if (!response) return;
     
     setSaving(true);
@@ -140,11 +216,13 @@ export default function FillQuestionnairePage() {
         body: JSON.stringify({ answers: answersArray }),
       });
 
-      if (res.ok) {
+      if (res.ok && showToast) {
         toast.success("ההתקדמות נשמרה");
       }
     } catch (error) {
-      toast.error("שגיאה בשמירה");
+      if (showToast) {
+        toast.error("שגיאה בשמירה");
+      }
     } finally {
       setSaving(false);
     }
@@ -212,8 +290,8 @@ export default function FillQuestionnairePage() {
 
   const questions = response.template.questions;
   const currentQuestion = questions[currentIndex];
-  const progress = ((currentIndex + 1) / questions.length) * 100;
   const answeredCount = Object.keys(answers).length;
+  const progress = (answeredCount / questions.length) * 100; // Fixed: based on answered questions
   const isStandardQuestionnaire = response.template.testType === "SELF_REPORT" || 
                                    response.template.testType === "CLINICIAN_RATED";
 
@@ -242,9 +320,13 @@ export default function FillQuestionnairePage() {
         <div className="space-y-2">
           <div className="flex justify-between text-sm">
             <span>שאלה {currentIndex + 1} מתוך {questions.length}</span>
-            <span>{answeredCount} נענו</span>
+            <span className="font-medium">{answeredCount}/{questions.length} נענו ({Math.round(progress)}%)</span>
           </div>
           <Progress value={progress} className="h-2" />
+          <div className="flex justify-between text-xs text-muted-foreground">
+            <span>קיצורי מקלדת: חיצים לניווט | רווח לבחירה | Ctrl+S לשמירה</span>
+            <span>שמירה אוטומטית: כל 30 שניות</span>
+          </div>
         </div>
       </div>
 
@@ -312,7 +394,7 @@ export default function FillQuestionnairePage() {
             </RadioGroup>
           )}
 
-          {/* Dynamic fields for projective/intelligence tests */}
+          {/* Dynamic fields for projective/intelligence/diagnostic tests */}
           {currentQuestion.fields && (
             <div className="space-y-4">
               {currentQuestion.fields.map((field) => (
@@ -327,6 +409,7 @@ export default function FillQuestionnairePage() {
                         [field.name]: e.target.value
                       })}
                       rows={4}
+                      placeholder={`הכנס ${field.label.toLowerCase()}...`}
                     />
                   )}
                   
@@ -337,6 +420,7 @@ export default function FillQuestionnairePage() {
                         ...answers[currentIndex],
                         [field.name]: e.target.value
                       })}
+                      placeholder={`הכנס ${field.label.toLowerCase()}...`}
                     />
                   )}
                   
@@ -347,6 +431,18 @@ export default function FillQuestionnairePage() {
                       onChange={(e) => handleAnswer(currentIndex, {
                         ...answers[currentIndex],
                         [field.name]: parseFloat(e.target.value)
+                      })}
+                      placeholder="0"
+                    />
+                  )}
+                  
+                  {field.type === "date" && (
+                    <Input
+                      type="date"
+                      value={answers[currentIndex]?.[field.name] || ""}
+                      onChange={(e) => handleAnswer(currentIndex, {
+                        ...answers[currentIndex],
+                        [field.name]: e.target.value
                       })}
                     />
                   )}
@@ -366,8 +462,68 @@ export default function FillQuestionnairePage() {
                       ))}
                     </select>
                   )}
+                  
+                  {field.type === "table" && field.options && (
+                    <div className="border rounded-lg overflow-hidden">
+                      <table className="w-full">
+                        <thead className="bg-muted">
+                          <tr>
+                            {(field.options as any).headers?.map((header: string, i: number) => (
+                              <th key={i} className="p-2 text-right text-sm font-medium">
+                                {header}
+                              </th>
+                            ))}
+                          </tr>
+                        </thead>
+                        <tbody>
+                          {(field.options as any).rows?.map((row: any, rowIndex: number) => (
+                            <tr key={rowIndex} className="border-t">
+                              {row.map((cell: any, cellIndex: number) => (
+                                <td key={cellIndex} className="p-2">
+                                  {cell.type === "input" ? (
+                                    <Input
+                                      value={answers[currentIndex]?.[field.name]?.[rowIndex]?.[cellIndex] || ""}
+                                      onChange={(e) => {
+                                        const newTableData = answers[currentIndex]?.[field.name] || [];
+                                        newTableData[rowIndex] = newTableData[rowIndex] || [];
+                                        newTableData[rowIndex][cellIndex] = e.target.value;
+                                        handleAnswer(currentIndex, {
+                                          ...answers[currentIndex],
+                                          [field.name]: newTableData
+                                        });
+                                      }}
+                                      className="w-full"
+                                      placeholder={cell.placeholder || ""}
+                                    />
+                                  ) : (
+                                    <span className="text-sm">{cell.text || cell}</span>
+                                  )}
+                                </td>
+                              ))}
+                            </tr>
+                          ))}
+                        </tbody>
+                      </table>
+                    </div>
+                  )}
                 </div>
               ))}
+            </div>
+          )}
+
+          {/* Free text answer - for open-ended questions */}
+          {!currentQuestion.options && !currentQuestion.fields && (
+            <div className="space-y-2">
+              <Label>תשובה חופשית</Label>
+              <Textarea
+                value={answers[currentIndex]?.text || ""}
+                onChange={(e) => handleAnswer(currentIndex, {
+                  ...answers[currentIndex],
+                  text: e.target.value
+                })}
+                rows={6}
+                placeholder="כתוב את תשובתך כאן..."
+              />
             </div>
           )}
         </CardContent>
@@ -423,20 +579,46 @@ export default function FillQuestionnairePage() {
         </CardContent>
       </Card>
 
-      {/* Complete Dialog */}
+      {/* Complete Dialog with Summary */}
       <AlertDialog open={showCompleteDialog} onOpenChange={setShowCompleteDialog}>
-        <AlertDialogContent>
+        <AlertDialogContent className="max-w-2xl max-h-[80vh] overflow-y-auto">
           <AlertDialogHeader>
-            <AlertDialogTitle>סיום השאלון</AlertDialogTitle>
+            <AlertDialogTitle>סיכום וסיום השאלון</AlertDialogTitle>
             <AlertDialogDescription>
-              ענית על {answeredCount} מתוך {questions.length} שאלות.
-              {answeredCount < questions.length && (
-                <span className="text-orange-600 block mt-2">
-                  שים לב: לא כל השאלות נענו.
-                </span>
-              )}
+              סקור את התשובות שלך לפני סיום:
             </AlertDialogDescription>
           </AlertDialogHeader>
+          
+          <div className="space-y-3 my-4">
+            <div className="p-3 bg-muted rounded-lg">
+              <div className="flex justify-between items-center mb-2">
+                <span className="font-medium">סטטיסטיקה</span>
+                <Badge variant={answeredCount === questions.length ? "default" : "secondary"}>
+                  {answeredCount}/{questions.length} נענו
+                </Badge>
+              </div>
+              {answeredCount < questions.length && (
+                <p className="text-sm text-orange-600">
+                  שים לב: {questions.length - answeredCount} שאלות לא נענו
+                </p>
+              )}
+            </div>
+
+            <div className="space-y-2 max-h-[300px] overflow-y-auto">
+              <p className="text-sm font-medium">שאלות שלא נענו:</p>
+              {questions.map((q, idx) => !answers[idx] && (
+                <div key={idx} className="p-2 bg-amber-50 rounded text-sm border border-amber-200">
+                  שאלה {idx + 1}: {q.title.substring(0, 60)}...
+                </div>
+              )).filter(Boolean).slice(0, 10)}
+              {questions.filter((_, idx) => !answers[idx]).length > 10 && (
+                <p className="text-xs text-muted-foreground">
+                  ו-{questions.filter((_, idx) => !answers[idx]).length - 10} נוספות...
+                </p>
+              )}
+            </div>
+          </div>
+
           <AlertDialogFooter>
             <AlertDialogCancel>חזור לשאלון</AlertDialogCancel>
             <AlertDialogAction onClick={completeQuestionnaire} disabled={saving}>
