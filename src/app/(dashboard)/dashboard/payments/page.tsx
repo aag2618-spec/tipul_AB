@@ -11,9 +11,12 @@ import {
   SelectTrigger,
   SelectValue,
 } from "@/components/ui/select";
-import { Loader2, AlertCircle, CheckCircle } from "lucide-react";
+import { Loader2, AlertCircle, CheckCircle, Calendar } from "lucide-react";
 import { toast } from "sonner";
 import Link from "next/link";
+import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
+import { format } from "date-fns";
+import { he } from "date-fns/locale";
 import { PayClientDebts } from "@/components/payments/pay-client-debts";
 
 interface ClientDebt {
@@ -33,12 +36,14 @@ interface ClientDebt {
 }
 
 type FilterType = "all" | "debts" | "credits";
+type ViewType = "clients" | "payments";
 
 export default function PaymentsPage() {
   const [clients, setClients] = useState<ClientDebt[]>([]);
   const [filteredClients, setFilteredClients] = useState<ClientDebt[]>([]);
   const [isLoading, setIsLoading] = useState(true);
   const [filter, setFilter] = useState<FilterType>("debts");
+  const [view, setView] = useState<ViewType>("clients");
 
   useEffect(() => {
     fetchClientDebts();
@@ -86,30 +91,118 @@ export default function PaymentsPage() {
     );
   }
 
+  // Calculate total pending payments count
+  const totalPendingPayments = clients.reduce((sum, client) => sum + client.unpaidSessionsCount, 0);
+
+  // Get all pending payments with client info
+  const allPendingPayments = clients.flatMap(client => 
+    client.unpaidSessions.map(session => ({
+      ...session,
+      clientId: client.id,
+      clientName: client.fullName,
+      creditBalance: client.creditBalance,
+    }))
+  ).sort((a, b) => new Date(b.date).getTime() - new Date(a.date).getTime());
+
   return (
     <div className="space-y-6 animate-fade-in">
       <div className="flex items-center justify-between">
         <div>
           <h1 className="text-2xl font-bold tracking-tight">תשלומים וחובות</h1>
-          <p className="text-muted-foreground">סיכום חובות וקרדיט לפי מטופל</p>
+          <p className="text-muted-foreground">
+            {totalPendingPayments} תשלומים ממתינים מ-{clients.filter(c => c.totalDebt > 0).length} מטופלים
+          </p>
         </div>
-        <Select value={filter} onValueChange={(value) => setFilter(value as FilterType)}>
-          <SelectTrigger className="w-[180px]">
-            <SelectValue />
-          </SelectTrigger>
-          <SelectContent>
-            <SelectItem value="all">הצג הכל ({clients.length})</SelectItem>
-            <SelectItem value="debts">
-              רק חובות ({clients.filter((c) => c.totalDebt > 0).length})
-            </SelectItem>
-            <SelectItem value="credits">
-              רק קרדיט ({clients.filter((c) => c.creditBalance > 0).length})
-            </SelectItem>
-          </SelectContent>
-        </Select>
       </div>
 
-      <div className="grid gap-4">
+      <Tabs value={view} onValueChange={(value) => setView(value as ViewType)} className="w-full">
+        <TabsList className="grid w-full grid-cols-2">
+          <TabsTrigger value="payments" className="gap-2">
+            <AlertCircle className="h-4 w-4" />
+            תשלומים ממתינים ({totalPendingPayments})
+          </TabsTrigger>
+          <TabsTrigger value="clients" className="gap-2">
+            <CheckCircle className="h-4 w-4" />
+            סיכום לפי מטופל ({clients.filter(c => c.totalDebt > 0).length})
+          </TabsTrigger>
+        </TabsList>
+
+        {/* Pending Payments Tab */}
+        <TabsContent value="payments" className="mt-6">
+          <div className="grid gap-3">
+            {allPendingPayments.length === 0 ? (
+              <Card>
+                <CardContent className="flex flex-col items-center justify-center py-12">
+                  <CheckCircle className="h-16 w-16 text-green-500 mb-4 opacity-50" />
+                  <p className="text-lg font-medium">אין תשלומים ממתינים! 🎉</p>
+                </CardContent>
+              </Card>
+            ) : (
+              allPendingPayments.map((payment) => (
+                <Card key={payment.paymentId} className="hover:shadow-md transition-shadow">
+                  <CardContent className="p-4">
+                    <div className="flex items-center justify-between">
+                      <div className="flex items-center gap-4 flex-1">
+                        <div className="text-center min-w-[60px]">
+                          <div className="text-lg font-bold">
+                            {format(new Date(payment.date), "d")}
+                          </div>
+                          <div className="text-xs text-muted-foreground">
+                            {format(new Date(payment.date), "MMM", { locale: he })}
+                          </div>
+                        </div>
+                        <div className="flex-1">
+                          <h3 className="font-semibold">{payment.clientName}</h3>
+                          <p className="text-sm text-muted-foreground">
+                            פגישה מתאריך {format(new Date(payment.date), "dd/MM/yyyy")}
+                          </p>
+                        </div>
+                        <div className="text-left">
+                          <div className="text-xl font-bold text-red-600">
+                            ₪{payment.amount.toFixed(0)}
+                          </div>
+                          {payment.creditBalance > 0 && (
+                            <p className="text-xs text-green-600">
+                              קרדיט: ₪{payment.creditBalance.toFixed(0)}
+                            </p>
+                          )}
+                        </div>
+                      </div>
+                      <div className="flex gap-2 mr-4">
+                        <Button variant="outline" size="sm" asChild>
+                          <Link href={`/dashboard/clients/${payment.clientId}?tab=payments`}>
+                            פרטים
+                          </Link>
+                        </Button>
+                      </div>
+                    </div>
+                  </CardContent>
+                </Card>
+              ))
+            )}
+          </div>
+        </TabsContent>
+
+        {/* Clients Summary Tab */}
+        <TabsContent value="clients" className="mt-6">
+          <div className="mb-4">
+            <Select value={filter} onValueChange={(value) => setFilter(value as FilterType)}>
+              <SelectTrigger className="w-[180px]">
+                <SelectValue />
+              </SelectTrigger>
+              <SelectContent>
+                <SelectItem value="all">הצג הכל ({clients.length})</SelectItem>
+                <SelectItem value="debts">
+                  רק חובות ({clients.filter((c) => c.totalDebt > 0).length})
+                </SelectItem>
+                <SelectItem value="credits">
+                  רק קרדיט ({clients.filter((c) => c.creditBalance > 0).length})
+                </SelectItem>
+              </SelectContent>
+            </Select>
+          </div>
+
+          <div className="grid gap-4">
         {filteredClients.length === 0 ? (
           <Card>
             <CardContent className="flex flex-col items-center justify-center py-12">
@@ -206,13 +299,12 @@ export default function PaymentsPage() {
             </Card>
           ))
         )}
-      </div>
+          </div>
+        </TabsContent>
+      </Tabs>
     </div>
   );
 }
-
-
-
 
 
 
