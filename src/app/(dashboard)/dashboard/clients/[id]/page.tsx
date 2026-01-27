@@ -37,6 +37,7 @@ import Link from "next/link";
 import { QuickMarkPaid } from "@/components/payments/quick-mark-paid";
 import { CompleteSessionDialog } from "@/components/sessions/complete-session-dialog";
 import { ExportClientButton } from "@/components/clients/export-client-button";
+import { PayDebtButton } from "@/components/clients/pay-debt-button";
 import {
   DropdownMenu,
   DropdownMenuContent,
@@ -278,12 +279,18 @@ export default async function ClientPage({
                 </div>
               </div>
               {totalDebt > 0 && (
-                <Button size="sm" asChild>
-                  <Link href={`/dashboard/clients/${client.id}?tab=payments`}>
-                    <CreditCard className="h-4 w-4 ml-1" />
-                    שלם
-                  </Link>
-                </Button>
+                <PayDebtButton
+                  clientId={client.id}
+                  clientName={client.name}
+                  totalDebt={totalDebt}
+                  creditBalance={Number(client.creditBalance)}
+                  unpaidPayments={client.payments
+                    .filter((p: any) => p.status === "PENDING")
+                    .map((p: any) => ({
+                      paymentId: p.id,
+                      amount: Number(p.amount),
+                    }))}
+                />
               )}
             </div>
           </CardContent>
