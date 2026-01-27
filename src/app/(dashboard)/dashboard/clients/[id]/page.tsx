@@ -38,6 +38,7 @@ import { QuickMarkPaid } from "@/components/payments/quick-mark-paid";
 import { CompleteSessionDialog } from "@/components/sessions/complete-session-dialog";
 import { ExportClientButton } from "@/components/clients/export-client-button";
 import { PayDebtButton } from "@/components/clients/pay-debt-button";
+import { CorrespondenceTab } from "@/components/clients/correspondence-tab";
 import {
   DropdownMenu,
   DropdownMenuContent,
@@ -65,6 +66,10 @@ async function getClient(clientId: string, userId: string) {
         orderBy: { createdAt: "desc" },
         take: 10,
         include: { session: true },
+      },
+      communicationLogs: {
+        orderBy: { createdAt: "desc" },
+        take: 50,
       },
       recordings: {
         orderBy: { createdAt: "desc" },
@@ -299,10 +304,19 @@ export default async function ClientPage({
 
       {/* Tabs */}
       <Tabs defaultValue="sessions" className="w-full">
-        <TabsList className="grid w-full grid-cols-5">
+        <TabsList className="grid w-full grid-cols-6">
           <TabsTrigger value="sessions" className="gap-2">
             <Calendar className="h-4 w-4" />
             פגישות וסיכומים
+          </TabsTrigger>
+          <TabsTrigger value="correspondence" className="gap-2">
+            <Mail className="h-4 w-4" />
+            התכתבויות
+            {client.communicationLogs?.filter((log: any) => log.type === "INCOMING_EMAIL" && !log.isRead).length > 0 && (
+              <span className="mr-1 flex h-5 w-5 items-center justify-center rounded-full bg-red-500 text-xs text-white">
+                {client.communicationLogs.filter((log: any) => log.type === "INCOMING_EMAIL" && !log.isRead).length}
+              </span>
+            )}
           </TabsTrigger>
           <TabsTrigger value="diagnosis" className="gap-2">
             <Stethoscope className="h-4 w-4" />
@@ -953,6 +967,20 @@ export default async function ClientPage({
             </CardContent>
           </Card>
           </div>
+        </TabsContent>
+
+        {/* Correspondence Tab */}
+        <TabsContent value="correspondence" className="mt-6">
+          <CorrespondenceTab
+            clientId={client.id}
+            clientName={client.name}
+            communicationLogs={client.communicationLogs.map(log => ({
+              ...log,
+              sentAt: log.sentAt ? new Date(log.sentAt) : null,
+              createdAt: new Date(log.createdAt),
+              readAt: log.readAt ? new Date(log.readAt) : null,
+            }))}
+          />
         </TabsContent>
 
         <TabsContent value="payments" className="mt-6">

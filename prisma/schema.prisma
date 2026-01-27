@@ -547,6 +547,12 @@ model CommunicationLog {
   errorMessage String?              @db.Text
   sentAt       DateTime?
   createdAt    DateTime             @default(now())
+  
+  // Email tracking fields
+  messageId    String?              // Resend message ID for tracking replies
+  inReplyTo    String?              // ID of the message this is replying to
+  isRead       Boolean              @default(false) // Has therapist read this reply?
+  readAt       DateTime?            // When was it read?
 
   sessionId String?
   session   TherapySession? @relation(fields: [sessionId], references: [id], onDelete: SetNull)

@@ -26,7 +26,7 @@ export async function sendEmail({ to, subject, html, text, replyTo }: EmailOptio
   
   if (!resend) {
     console.warn('RESEND_API_KEY not set, skipping email');
-    return { success: false, error: 'API key not configured' };
+    return { success: false, error: 'API key not configured', messageId: null };
   }
 
   // המרה לאותיות קטנות - חובה עבור Resend Sandbox
@@ -45,13 +45,14 @@ export async function sendEmail({ to, subject, html, text, replyTo }: EmailOptio
 
     if (error) {
       console.error('Resend error:', error);
-      return { success: false, error: error.message };
+      return { success: false, error: error.message, messageId: null };
     }
 
-    return { success: true, data };
+    // Return the message ID for tracking
+    return { success: true, data, messageId: data?.id || null };
   } catch (error) {
     console.error('Send email error:', error);
-    return { success: false, error: 'Failed to send email' };
+    return { success: false, error: 'Failed to send email', messageId: null };
   }
 }
 

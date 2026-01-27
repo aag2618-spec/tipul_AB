@@ -66,6 +66,7 @@ export async function POST(request: NextRequest) {
         status: result.success ? "SENT" : "FAILED",
         errorMessage: result.success ? null : String(result.error),
         sentAt: result.success ? new Date() : null,
+        messageId: result.messageId, // Save Resend message ID for tracking replies
         clientId: client.id,
         userId: session.user.id,
       },
