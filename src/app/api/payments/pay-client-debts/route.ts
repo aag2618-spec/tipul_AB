@@ -82,13 +82,29 @@ export async function POST(req: NextRequest) {
       console.warn(`Warning: Full payment had remaining amount: ${remainingAmount}`);
     }
 
+    // If payment was made with CREDIT, deduct from client's credit balance
+    const totalPaid = totalAmount - remainingAmount;
+    if (method === "CREDIT" && totalPaid > 0) {
+      const currentCredit = Number(client.creditBalance);
+      const newCreditBalance = Math.max(0, currentCredit - totalPaid);
+      
+      await prisma.client.update({
+        where: { id: clientId },
+        data: {
+          creditBalance: newCreditBalance,
+        },
+      });
+
+      console.log(`Credit updated: ${currentCredit} -> ${newCreditBalance} (paid: ${totalPaid})`);
+    }
+
     return NextResponse.json({
       success: true,
       message: paymentMode === "PARTIAL" 
         ? `תשלום חלקי של ₪${totalAmount} בוצע בהצלחה`
         : "כל החובות שולמו בהצלחה",
       updatedPayments: updatedPayments.length,
-      totalPaid: totalAmount - remainingAmount,
+      totalPaid,
     });
   } catch (error) {
     console.error("Pay client debts error:", error);
