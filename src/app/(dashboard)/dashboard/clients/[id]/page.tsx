@@ -405,10 +405,15 @@ export default async function ClientPage({
                           </Badge>
                         )}
                         
-                        {session.payment?.status === "PAID" && (
+                        {session.payment?.status === "PAID" ? (
                           <Badge className="bg-blue-100 text-blue-700 border-blue-200">
                             <CheckCircle className="h-3 w-3 ml-1" />
                             שולם
+                          </Badge>
+                        ) : session.status === "COMPLETED" && (
+                          <Badge className="bg-red-100 text-red-700 border-red-200">
+                            <CreditCard className="h-3 w-3 ml-1" />
+                            ממתין לתשלום
                           </Badge>
                         )}
                         

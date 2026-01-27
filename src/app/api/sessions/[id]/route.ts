@@ -147,7 +147,17 @@ export async function PUT(
         });
       }
     }
-    return NextResponse.json(therapySession);
+    
+    // Fetch updated session with payment info
+    const updatedSession = await prisma.therapySession.findUnique({
+      where: { id: therapySession.id },
+      include: {
+        client: true,
+        payment: true,
+      },
+    });
+    
+    return NextResponse.json(updatedSession);
   } catch (error) {
     console.error("Update session error:", error);
     return NextResponse.json(

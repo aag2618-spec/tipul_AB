@@ -113,7 +113,7 @@ export default function CalendarPage() {
   const [isChargeDialogOpen, setIsChargeDialogOpen] = useState(false);
   const [pendingAction, setPendingAction] = useState<"CANCELLED" | "NO_SHOW" | null>(null);
   const [showPaymentDialog, setShowPaymentDialog] = useState(false);
-  const [paymentData, setPaymentData] = useState<{clientId: string; clientName: string; amount: number; creditBalance: number} | null>(null);
+  const [paymentData, setPaymentData] = useState<{clientId: string; clientName: string; amount: number; creditBalance: number; paymentId?: string} | null>(null);
   const [selectedDate, setSelectedDate] = useState<Date | null>(null);
   const [formData, setFormData] = useState({
     clientId: "",
@@ -848,6 +848,10 @@ export default function CalendarPage() {
                           });
                           
                           if (response.ok) {
+                            // Get session with payment info
+                            const sessionRes = await fetch(`/api/sessions/${selectedSession.id}`);
+                            const sessionData = await sessionRes.json();
+                            
                             // Get client credit balance
                             const clientRes = await fetch(`/api/clients/${selectedSession.client.id}`);
                             const clientData = await clientRes.json();
@@ -860,7 +864,8 @@ export default function CalendarPage() {
                               clientId: selectedSession.client.id,
                               clientName: selectedSession.client.name,
                               amount: Number(selectedSession.price) || 0,
-                              creditBalance: Number(clientData.creditBalance) || 0
+                              creditBalance: Number(clientData.creditBalance) || 0,
+                              paymentId: sessionData.payment?.id || undefined
                             });
                             setShowPaymentDialog(true);
                           }
@@ -965,6 +970,10 @@ export default function CalendarPage() {
                     }),
                   });
                   
+                  // Get session with payment info
+                  const sessionRes = await fetch(`/api/sessions/${selectedSession.id}`);
+                  const sessionData = await sessionRes.json();
+                  
                   // Get client credit balance
                   const clientRes = await fetch(`/api/clients/${selectedSession.client.id}`);
                   const clientData = await clientRes.json();
@@ -979,7 +988,8 @@ export default function CalendarPage() {
                     clientId: selectedSession.client.id,
                     clientName: selectedSession.client.name,
                     amount: Number(selectedSession.price) || 0,
-                    creditBalance: Number(clientData.creditBalance) || 0
+                    creditBalance: Number(clientData.creditBalance) || 0,
+                    paymentId: sessionData.payment?.id || undefined
                   });
                   setShowPaymentDialog(true);
                   setPendingAction(null);
@@ -1034,10 +1044,10 @@ export default function CalendarPage() {
                 clientName={paymentData.clientName}
                 totalDebt={paymentData.amount}
                 creditBalance={paymentData.creditBalance}
-                unpaidPayments={[{
-                  paymentId: "temp-" + Date.now(),
+                unpaidPayments={paymentData.paymentId ? [{
+                  paymentId: paymentData.paymentId,
                   amount: paymentData.amount
-                }]}
+                }] : []}
                 onPaymentComplete={() => {
                   setShowPaymentDialog(false);
                   setPaymentData(null);
