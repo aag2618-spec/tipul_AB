@@ -14,6 +14,7 @@ import {
 import { Loader2, AlertCircle, CheckCircle } from "lucide-react";
 import { toast } from "sonner";
 import Link from "next/link";
+import { PayClientDebts } from "@/components/payments/pay-client-debts";
 
 interface ClientDebt {
   id: string;
@@ -190,14 +191,14 @@ export default function PaymentsPage() {
                       </Link>
                     </Button>
                     {client.totalDebt > 0 && (
-                      <Button
-                        size="sm"
-                        asChild
-                      >
-                        <Link href={`/dashboard/clients/${client.id}?tab=payments`}>
-                          פירוט ותשלום
-                        </Link>
-                      </Button>
+                      <PayClientDebts
+                        clientId={client.id}
+                        clientName={client.fullName}
+                        totalDebt={client.totalDebt}
+                        creditBalance={client.creditBalance}
+                        unpaidPayments={client.unpaidSessions}
+                        onPaymentComplete={fetchClientDebts}
+                      />
                     )}
                   </div>
                 </div>
