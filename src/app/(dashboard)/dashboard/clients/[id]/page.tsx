@@ -456,40 +456,6 @@ export default async function ClientPage({
                             </Link>
                           </Button>
                         )}
-
-                        {/* תפריט אופציות */}
-                        <DropdownMenu>
-                          <DropdownMenuTrigger asChild>
-                            <Button variant="ghost" size="sm">
-                              <MoreVertical className="h-4 w-4" />
-                            </Button>
-                          </DropdownMenuTrigger>
-                          <DropdownMenuContent align="end">
-                            <DropdownMenuItem asChild>
-                              <Link href={`/dashboard/sessions/${session.id}`}>
-                                <FileText className="h-4 w-4 ml-2" />
-                                {session.sessionNote ? "ערוך סיכום" : "כתוב סיכום"}
-                              </Link>
-                            </DropdownMenuItem>
-                            <DropdownMenuItem asChild>
-                              <Link href={`/dashboard/calendar?session=${session.id}`}>
-                                <Calendar className="h-4 w-4 ml-2" />
-                                שנה זמן
-                              </Link>
-                            </DropdownMenuItem>
-                            {session.payment?.status !== "PAID" && (
-                              <>
-                                <DropdownMenuSeparator />
-                                <DropdownMenuItem asChild>
-                                  <Link href={`/dashboard/clients/${client.id}?tab=payments`}>
-                                    <CreditCard className="h-4 w-4 ml-2" />
-                                    פרטי תשלום
-                                  </Link>
-                                </DropdownMenuItem>
-                              </>
-                            )}
-                          </DropdownMenuContent>
-                        </DropdownMenu>
                       </div>
                     </div>
                   ))}
