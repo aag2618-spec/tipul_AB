@@ -221,12 +221,53 @@ export default function PayClientPage({ params }: { params: Promise<{ clientId: 
         </div>
       </div>
 
+      {/* Quick Payment Card - Pay All */}
+      <Card className="border-2 border-green-200 bg-green-50/50">
+        <CardContent className="p-6">
+          <div className="flex items-center justify-between">
+            <div className="space-y-1">
+              <h3 className="text-lg font-bold flex items-center gap-2">
+                <CreditCard className="h-5 w-5 text-green-600" />
+                תשלום מהיר על כל החובות
+              </h3>
+              <p className="text-sm text-muted-foreground">
+                שלם את כל {client.unpaidSessions.length} הפגישות ביחד
+              </p>
+              <div className="flex items-center gap-2 mt-2">
+                <span className="text-2xl font-bold text-green-600">
+                  ₪{client.totalDebt.toFixed(0)}
+                </span>
+                {client.creditBalance > 0 && (
+                  <Badge className="bg-blue-100 text-blue-700 border-blue-200">
+                    קרדיט: ₪{client.creditBalance.toFixed(0)}
+                  </Badge>
+                )}
+              </div>
+            </div>
+            <PayClientDebts
+              clientId={client.id}
+              clientName={client.name}
+              totalDebt={client.totalDebt}
+              creditBalance={client.creditBalance}
+              unpaidPayments={client.unpaidSessions.map(s => ({
+                paymentId: s.paymentId,
+                amount: s.expectedAmount - s.amount
+              }))}
+              onPaymentComplete={() => {
+                toast.success("התשלום בוצע בהצלחה!");
+                router.push("/dashboard/payments");
+              }}
+            />
+          </div>
+        </CardContent>
+      </Card>
+
       {/* Selection Mode Card */}
       <Card>
         <CardHeader>
           <CardTitle className="flex items-center gap-2">
             <DollarSign className="h-5 w-5" />
-            בחר אופן תשלום
+            או בחר אופן תשלום מותאם אישית
           </CardTitle>
           <CardDescription>
             בחר כמה פגישות תרצה לשלם או לפי סכום מסוים
@@ -440,9 +481,25 @@ export default function PayClientPage({ params }: { params: Promise<{ clientId: 
                   </p>
                 </div>
 
-                <div className="text-left">
-                  <p className="text-xl font-bold text-red-600">₪{debt.toFixed(0)}</p>
-                  <p className="text-xs text-muted-foreground">לתשלום</p>
+                <div className="flex items-center gap-3">
+                  <div className="text-left">
+                    <p className="text-xl font-bold text-red-600">₪{debt.toFixed(0)}</p>
+                    <p className="text-xs text-muted-foreground">לתשלום</p>
+                  </div>
+                  <PayClientDebts
+                    clientId={client.id}
+                    clientName={client.name}
+                    totalDebt={debt}
+                    creditBalance={client.creditBalance}
+                    unpaidPayments={[{
+                      paymentId: session.paymentId,
+                      amount: debt
+                    }]}
+                    onPaymentComplete={() => {
+                      toast.success("התשלום בוצע בהצלחה!");
+                      fetchClientData();
+                    }}
+                  />
                 </div>
               </div>
             );
