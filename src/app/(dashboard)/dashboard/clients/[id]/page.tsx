@@ -442,7 +442,8 @@ export default async function ClientPage({
                             <CompleteSessionDialog
                               session={{
                                 id: session.id,
-                                startTime: session.startTime,
+                                startTime: new Date(session.startTime).toISOString(),
+                                endTime: new Date(session.endTime).toISOString(),
                                 price: Number(session.price),
                                 client: {
                                   id: client.id,
