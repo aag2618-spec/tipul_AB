@@ -314,7 +314,7 @@ export default function FillQuestionnairePage() {
               </p>
             </div>
           </div>
-          <Button variant="outline" size="sm" onClick={saveProgress} disabled={saving}>
+          <Button variant="outline" size="sm" onClick={() => saveProgress()} disabled={saving}>
             <Save className="h-4 w-4 ml-2" />
             שמור
           </Button>
