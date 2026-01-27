@@ -7,7 +7,10 @@ import { Button } from "@/components/ui/button";
 import { Card, CardContent, CardHeader, CardTitle, CardDescription } from "@/components/ui/card";
 import { Badge } from "@/components/ui/badge";
 import { Checkbox } from "@/components/ui/checkbox";
-import { ArrowRight, Loader2, CreditCard, Calendar, DollarSign, User } from "lucide-react";
+import { Input } from "@/components/ui/input";
+import { Label } from "@/components/ui/label";
+import { RadioGroup, RadioGroupItem } from "@/components/ui/radio-group";
+import { ArrowRight, Loader2, CreditCard, Calendar, DollarSign, User, Hash, Banknote } from "lucide-react";
 import { toast } from "sonner";
 import { format } from "date-fns";
 import { he } from "date-fns/locale";
@@ -31,12 +34,17 @@ interface ClientData {
   totalDebt: number;
 }
 
+type SelectionMode = "all" | "sessions" | "amount" | "manual";
+
 export default function PayClientPage({ params }: { params: Promise<{ clientId: string }> }) {
   const { clientId } = use(params);
   const router = useRouter();
   const [client, setClient] = useState<ClientData | null>(null);
   const [selectedPayments, setSelectedPayments] = useState<Set<string>>(new Set());
   const [isLoading, setIsLoading] = useState(true);
+  const [selectionMode, setSelectionMode] = useState<SelectionMode>("all");
+  const [numSessions, setNumSessions] = useState<string>("1");
+  const [targetAmount, setTargetAmount] = useState<string>("");
 
   useEffect(() => {
     fetchClientData();
@@ -80,6 +88,66 @@ export default function PayClientPage({ params }: { params: Promise<{ clientId: 
       setSelectedPayments(new Set(client?.unpaidSessions.map(s => s.paymentId)));
     }
   };
+
+  const handleSelectionModeChange = (mode: SelectionMode) => {
+    setSelectionMode(mode);
+    if (!client) return;
+
+    switch (mode) {
+      case "all":
+        // Select all sessions
+        setSelectedPayments(new Set(client.unpaidSessions.map(s => s.paymentId)));
+        break;
+      case "sessions":
+        // Select first N sessions
+        selectFirstNSessions(parseInt(numSessions) || 1);
+        break;
+      case "amount":
+        // Select sessions up to target amount
+        selectByAmount(parseFloat(targetAmount) || 0);
+        break;
+      case "manual":
+        // Clear selection for manual selection
+        setSelectedPayments(new Set());
+        break;
+    }
+  };
+
+  const selectFirstNSessions = (n: number) => {
+    if (!client) return;
+    const firstN = client.unpaidSessions.slice(0, n);
+    setSelectedPayments(new Set(firstN.map(s => s.paymentId)));
+  };
+
+  const selectByAmount = (amount: number) => {
+    if (!client) return;
+    let accumulated = 0;
+    const selected = new Set<string>();
+
+    for (const session of client.unpaidSessions) {
+      const debt = session.expectedAmount - session.amount;
+      if (accumulated + debt <= amount) {
+        selected.add(session.paymentId);
+        accumulated += debt;
+      } else {
+        break;
+      }
+    }
+
+    setSelectedPayments(selected);
+  };
+
+  useEffect(() => {
+    if (selectionMode === "sessions") {
+      selectFirstNSessions(parseInt(numSessions) || 1);
+    }
+  }, [numSessions]);
+
+  useEffect(() => {
+    if (selectionMode === "amount") {
+      selectByAmount(parseFloat(targetAmount) || 0);
+    }
+  }, [targetAmount]);
 
   const calculateSelectedTotal = () => {
     if (!client) return 0;
@@ -153,6 +221,116 @@ export default function PayClientPage({ params }: { params: Promise<{ clientId: 
         </div>
       </div>
 
+      {/* Selection Mode Card */}
+      <Card>
+        <CardHeader>
+          <CardTitle className="flex items-center gap-2">
+            <DollarSign className="h-5 w-5" />
+            בחר אופן תשלום
+          </CardTitle>
+          <CardDescription>
+            בחר כמה פגישות תרצה לשלם או לפי סכום מסוים
+          </CardDescription>
+        </CardHeader>
+        <CardContent className="space-y-4">
+          <RadioGroup value={selectionMode} onValueChange={(value) => handleSelectionModeChange(value as SelectionMode)}>
+            {/* All Sessions */}
+            <div className="flex items-center space-x-2 space-x-reverse p-3 border rounded-lg hover:bg-slate-50 transition-colors">
+              <RadioGroupItem value="all" id="all" />
+              <Label htmlFor="all" className="flex-1 cursor-pointer">
+                <div className="flex items-center justify-between">
+                  <div>
+                    <p className="font-medium">תשלום על כל הפגישות</p>
+                    <p className="text-sm text-muted-foreground">
+                      שלם את כל {client.unpaidSessions.length} הפגישות ביחד
+                    </p>
+                  </div>
+                  <Badge variant="secondary">₪{client.totalDebt.toFixed(0)}</Badge>
+                </div>
+              </Label>
+            </div>
+
+            {/* By Number of Sessions */}
+            <div className="flex items-center space-x-2 space-x-reverse p-3 border rounded-lg hover:bg-slate-50 transition-colors">
+              <RadioGroupItem value="sessions" id="sessions" />
+              <Label htmlFor="sessions" className="flex-1 cursor-pointer">
+                <div className="space-y-2">
+                  <div className="flex items-center gap-2">
+                    <Hash className="h-4 w-4" />
+                    <p className="font-medium">תשלום לפי מספר פגישות</p>
+                  </div>
+                  <div className="flex items-center gap-2" onClick={(e) => e.stopPropagation()}>
+                    <Input
+                      type="number"
+                      min="1"
+                      max={client.unpaidSessions.length}
+                      value={numSessions}
+                      onChange={(e) => {
+                        setNumSessions(e.target.value);
+                        if (selectionMode === "sessions") {
+                          selectFirstNSessions(parseInt(e.target.value) || 1);
+                        }
+                      }}
+                      className="w-24"
+                      disabled={selectionMode !== "sessions"}
+                    />
+                    <span className="text-sm text-muted-foreground">
+                      פגישות ראשונות (לפי תאריך)
+                    </span>
+                  </div>
+                </div>
+              </Label>
+            </div>
+
+            {/* By Amount */}
+            <div className="flex items-center space-x-2 space-x-reverse p-3 border rounded-lg hover:bg-slate-50 transition-colors">
+              <RadioGroupItem value="amount" id="amount" />
+              <Label htmlFor="amount" className="flex-1 cursor-pointer">
+                <div className="space-y-2">
+                  <div className="flex items-center gap-2">
+                    <Banknote className="h-4 w-4" />
+                    <p className="font-medium">תשלום לפי סכום</p>
+                  </div>
+                  <div className="flex items-center gap-2" onClick={(e) => e.stopPropagation()}>
+                    <Input
+                      type="number"
+                      min="0"
+                      max={client.totalDebt}
+                      value={targetAmount}
+                      onChange={(e) => {
+                        setTargetAmount(e.target.value);
+                        if (selectionMode === "amount") {
+                          selectByAmount(parseFloat(e.target.value) || 0);
+                        }
+                      }}
+                      className="w-32"
+                      placeholder="0"
+                      disabled={selectionMode !== "amount"}
+                    />
+                    <span className="text-sm text-muted-foreground">
+                      ₪ (ישלם על פגישות עד לסכום זה)
+                    </span>
+                  </div>
+                </div>
+              </Label>
+            </div>
+
+            {/* Manual Selection */}
+            <div className="flex items-center space-x-2 space-x-reverse p-3 border rounded-lg hover:bg-slate-50 transition-colors">
+              <RadioGroupItem value="manual" id="manual" />
+              <Label htmlFor="manual" className="flex-1 cursor-pointer">
+                <div>
+                  <p className="font-medium">בחירה ידנית</p>
+                  <p className="text-sm text-muted-foreground">
+                    בחר באופן ידני אילו פגישות לשלם (בחירה מהרשימה למטה)
+                  </p>
+                </div>
+              </Label>
+            </div>
+          </RadioGroup>
+        </CardContent>
+      </Card>
+
       {/* Summary Card */}
       <Card>
         <CardHeader>
@@ -193,35 +371,46 @@ export default function PayClientPage({ params }: { params: Promise<{ clientId: 
         <CardHeader className="flex flex-row items-center justify-between space-y-0">
           <div>
             <CardTitle>פגישות לתשלום</CardTitle>
-            <CardDescription>מסודר לפי תאריך - הישנות ביותר קודם</CardDescription>
+            <CardDescription>
+              {selectionMode === "manual" 
+                ? "לחץ על פגישה לבחור/לבטל - הישנות ביותר קודם" 
+                : "הפגישות שנבחרו לתשלום - לפי הבחירה למעלה"
+              }
+            </CardDescription>
           </div>
-          <Button
-            variant="outline"
-            size="sm"
-            onClick={toggleAll}
-          >
-            {selectedPayments.size === client.unpaidSessions.length ? "בטל הכל" : "בחר הכל"}
-          </Button>
+          {selectionMode === "manual" && (
+            <Button
+              variant="outline"
+              size="sm"
+              onClick={toggleAll}
+            >
+              {selectedPayments.size === client.unpaidSessions.length ? "בטל הכל" : "בחר הכל"}
+            </Button>
+          )}
         </CardHeader>
         <CardContent className="space-y-3">
           {client.unpaidSessions.map((session, index) => {
             const debt = session.expectedAmount - session.amount;
             const isSelected = selectedPayments.has(session.paymentId);
+            const isManualMode = selectionMode === "manual";
             
             return (
               <div
                 key={session.paymentId}
-                className={`flex items-center gap-4 p-4 rounded-lg border-2 transition-all cursor-pointer ${
+                className={`flex items-center gap-4 p-4 rounded-lg border-2 transition-all ${
+                  isManualMode ? 'cursor-pointer' : 'cursor-default'
+                } ${
                   isSelected 
                     ? 'border-primary bg-primary/5' 
                     : 'border-border hover:border-primary/50'
                 }`}
-                onClick={() => togglePayment(session.paymentId)}
+                onClick={() => isManualMode && togglePayment(session.paymentId)}
               >
                 <Checkbox
                   checked={isSelected}
-                  onCheckedChange={() => togglePayment(session.paymentId)}
+                  onCheckedChange={() => isManualMode && togglePayment(session.paymentId)}
                   onClick={(e) => e.stopPropagation()}
+                  disabled={!isManualMode}
                 />
                 
                 <div className="text-center min-w-[60px]">

@@ -34,13 +34,10 @@ export async function GET(
     }
 
     // Get all unpaid or partially paid sessions
-    const unpaidPayments = await prisma.payment.findMany({
+    const allPayments = await prisma.payment.findMany({
       where: {
         clientId,
         status: "PENDING",
-        amount: {
-          lt: prisma.payment.fields.expectedAmount,
-        },
       },
       orderBy: {
         createdAt: "asc", // Oldest first - pay in order
@@ -54,6 +51,11 @@ export async function GET(
         status: true,
       },
     });
+
+    // Filter to only include payments where amount < expectedAmount
+    const unpaidPayments = allPayments.filter(
+      payment => Number(payment.amount) < Number(payment.expectedAmount)
+    );
 
     // Calculate total debt
     const totalDebt = unpaidPayments.reduce(
