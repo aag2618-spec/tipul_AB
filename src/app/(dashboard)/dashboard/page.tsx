@@ -69,14 +69,16 @@ async function getDashboardStats(userId: string) {
       where: {
         therapistId: userId,
         startTime: { gte: weekStart, lt: weekEnd },
-        status: { not: "CANCELLED" }
+        status: { not: "CANCELLED" },
+        type: { not: "BREAK" }
       },
     }),
     prisma.therapySession.count({
       where: {
         therapistId: userId,
         startTime: { gte: monthStart, lte: monthEnd },
-        status: { not: "CANCELLED" }
+        status: { not: "CANCELLED" },
+        type: { not: "BREAK" }
       },
     }),
     // Count actual pending payments

@@ -23,6 +23,7 @@ async function getReportData(userId: string) {
               therapistId: userId,
               startTime: { gte: monthStart, lte: monthEnd },
               status: "COMPLETED",
+              type: { not: "BREAK" },
             },
           }),
           prisma.payment.aggregate({
@@ -54,7 +55,7 @@ async function getReportData(userId: string) {
     const [totalClients, totalSessions, totalIncome, totalRecordings] = await Promise.all([
       prisma.client.count({ where: { therapistId: userId } }),
       prisma.therapySession.count({
-        where: { therapistId: userId, startTime: { gte: yearStart }, status: "COMPLETED" },
+        where: { therapistId: userId, startTime: { gte: yearStart }, status: "COMPLETED", type: { not: "BREAK" } },
       }),
       prisma.payment.aggregate({
         where: {

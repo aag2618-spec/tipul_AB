@@ -27,7 +27,10 @@ async function getClients(userId: string, status?: ClientStatus) {
     orderBy: { lastName: "asc" },
     include: {
       _count: {
-        select: { therapySessions: true, payments: true },
+        select: { 
+          therapySessions: { where: { type: { not: "BREAK" } } }, 
+          payments: true 
+        },
       },
     },
   });
