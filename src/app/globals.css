@@ -385,19 +385,9 @@
   animation-delay: 0.5s;
 }
 
-/* Break event card hover effect */
+/* Break event card - no animations */
 .break-event-card {
-  transition: all 0.3s ease;
   cursor: pointer;
-}
-
-.break-event-card:hover {
-  transform: translateY(-3px) scale(1.03);
-  box-shadow: 0 12px 24px rgba(0, 100, 150, 0.3);
-}
-
-.break-event-card:hover .animate-gradient-flow {
-  animation: gradient-flow 5s ease infinite;
 }
 
 /* FullCalendar event styling for breaks */
