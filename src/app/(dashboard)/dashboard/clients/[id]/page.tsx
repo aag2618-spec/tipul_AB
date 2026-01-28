@@ -64,6 +64,7 @@ async function getClient(clientId: string, userId: string) {
       payments: {
         orderBy: { createdAt: "desc" },
         take: 10,
+        include: { session: true },
       },
       recordings: {
         orderBy: { createdAt: "desc" },
@@ -360,13 +361,18 @@ export default async function ClientPage({
                               ) : isCompleted ? (
                                 <>
                                   <span className="text-green-600">✓ הושלם</span>
-                                  <span className="text-muted-foreground">•</span>
+                                  <span className="text-muted-foreground">|</span>
                                   {hasNote ? (
                                     <span className="text-green-600">✓ מסוכם</span>
                                   ) : (
-                                    <span className="text-amber-600">⚠️ חסר סיכום</span>
+                                    <Link 
+                                      href={`/dashboard/sessions/${session.id}`}
+                                      className="text-amber-600 hover:underline cursor-pointer"
+                                    >
+                                      ⚠️ חסר סיכום
+                                    </Link>
                                   )}
-                                  <span className="text-muted-foreground">•</span>
+                                  <span className="text-muted-foreground">|</span>
                                   {isPaid ? (
                                     <span className="text-green-600">✓ שולם</span>
                                   ) : (
@@ -382,17 +388,26 @@ export default async function ClientPage({
                           </div>
                         </div>
 
-                        {/* פעולות - רק מה שצריך */}
+                        {/* פעולות - כל הפונקציות מהדשבורד */}
                         <div className="flex items-center gap-2">
                           {isScheduled ? (
-                            // פגישה מתוכננת - כפתורי סטטוס
-                            <QuickSessionStatus
-                              sessionId={session.id}
-                              clientId={client.id}
-                              currentStatus={session.status}
-                            />
+                            // פגישה מתוכננת - כפתור סטטוס + כתוב סיכום
+                            <>
+                              <QuickSessionStatus
+                                sessionId={session.id}
+                                clientId={client.id}
+                                currentStatus={session.status}
+                              />
+                              <CompleteSessionDialog
+                                sessionId={session.id}
+                                clientId={client.id}
+                                clientName={client.name}
+                                sessionDate={session.startTime}
+                                defaultAmount={Number(session.price)}
+                              />
+                            </>
                           ) : isCompleted ? (
-                            // פגישה שהושלמה - הצג רק מה שחסר
+                            // פגישה שהושלמה - הצג מה שחסר
                             <>
                               {!hasNote && (
                                 <Button size="sm" variant="default" asChild>
@@ -423,13 +438,19 @@ export default async function ClientPage({
                               )}
                             </>
                           ) : (
-                            // פגישה מבוטלת/לא הגיע
-                            <Button size="sm" variant="outline" asChild>
-                              <Link href={`/dashboard/sessions/${session.id}`}>
-                                <Eye className="h-3 w-3 ml-1" />
-                                צפה
-                              </Link>
-                            </Button>
+                            // פגישה מבוטלת/לא הגיע - אפשרות לשנות סטטוס
+                            <>
+                              <QuickSessionStatus
+                                sessionId={session.id}
+                                clientId={client.id}
+                                currentStatus={session.status}
+                              />
+                              {session.payment && (
+                                <Badge variant={session.payment.status === "PAID" ? "default" : "secondary"} className="text-xs">
+                                  {session.payment.status === "PAID" ? "חויב" : "לא חויב"}
+                                </Badge>
+                              )}
+                            </>
                           )}
                           
                           {/* תפריט נוסף */}
@@ -877,10 +898,10 @@ export default async function ClientPage({
                       key={payment.id}
                       className="flex items-center justify-between p-4 rounded-lg bg-muted/50"
                     >
-                      <div>
+                      <div className="flex-1">
                         <p className="font-medium">₪{Number(payment.amount)}</p>
                         <p className="text-sm text-muted-foreground">
-                          {format(new Date(payment.createdAt), "d/M/yyyy")} •{" "}
+                          תשלום ב- {format(new Date(payment.createdAt), "d/M/yyyy")} |{" "}
                           {payment.method === "CASH"
                             ? "מזומן"
                             : payment.method === "CREDIT_CARD"
@@ -889,24 +910,43 @@ export default async function ClientPage({
                             ? "העברה"
                             : "צ׳ק"}
                         </p>
+                        {payment.session && (
+                          <p className="text-xs text-muted-foreground mt-1">
+                            פגישה ב- {format(new Date(payment.session.startTime), "d/M/yyyy HH:mm")}
+                          </p>
+                        )}
                       </div>
-                      <Badge
-                        variant={
-                          payment.status === "PAID"
-                            ? "default"
+                      <div className="flex items-center gap-2">
+                        {payment.session && (
+                          <Button
+                            size="sm"
+                            variant="ghost"
+                            className="h-7 px-2"
+                            asChild
+                          >
+                            <Link href={`/dashboard/sessions/${payment.sessionId}`}>
+                              <ArrowRight className="h-3 w-3" />
+                            </Link>
+                          </Button>
+                        )}
+                        <Badge
+                          variant={
+                            payment.status === "PAID"
+                              ? "default"
+                              : payment.status === "PENDING"
+                              ? "secondary"
+                              : "destructive"
+                          }
+                        >
+                          {payment.status === "PAID"
+                            ? "שולם ✓"
                             : payment.status === "PENDING"
-                            ? "secondary"
-                            : "destructive"
-                        }
-                      >
-                        {payment.status === "PAID"
-                          ? "שולם"
-                          : payment.status === "PENDING"
-                          ? "ממתין"
-                          : payment.status === "CANCELLED"
-                          ? "בוטל"
-                          : "הוחזר"}
-                      </Badge>
+                            ? "ממתין"
+                            : payment.status === "CANCELLED"
+                            ? "בוטל"
+                            : "הוחזר"}
+                        </Badge>
+                      </div>
                     </div>
                   ))}
                 </div>
