@@ -232,6 +232,51 @@ export default function CalendarPage() {
     }
   };
 
+  // פתיחת דיאלוג פגישה חדשה מיד אחרי פגישה קיימת
+  const handleAddSessionAfter = (session: Session) => {
+    const endTime = new Date(session.endTime);
+    const dateStr = format(endTime, "yyyy-MM-dd");
+    const timeStr = format(endTime, "HH:mm");
+    const newEndTime = new Date(endTime);
+    newEndTime.setMinutes(newEndTime.getMinutes() + defaultSessionDuration);
+    
+    setFormData({
+      clientId: session.client?.id || "",
+      startTime: `${dateStr}T${timeStr}`,
+      endTime: `${dateStr}T${format(newEndTime, "HH:mm")}`,
+      type: session.type,
+      price: session.client?.defaultSessionPrice?.toString() || "",
+      isRecurring: false,
+      weeksToRepeat: 4,
+    });
+    setIsDialogOpen(true);
+  };
+
+  // Custom event content with "+" button
+  const renderEventContent = (eventInfo: any) => {
+    const session = sessions.find(s => s.id === eventInfo.event.id);
+    if (!session) return null;
+
+    return (
+      <div className="flex items-center justify-between w-full px-1 group">
+        <div className="flex-1 overflow-hidden">
+          <div className="font-semibold text-xs truncate">{eventInfo.event.title}</div>
+          <div className="text-xs opacity-90">{eventInfo.timeText}</div>
+        </div>
+        <button
+          onClick={(e) => {
+            e.stopPropagation();
+            handleAddSessionAfter(session);
+          }}
+          className="opacity-0 group-hover:opacity-100 transition-opacity bg-white hover:bg-green-50 text-green-600 rounded-full w-6 h-6 flex items-center justify-center text-lg font-bold shadow-sm ml-1"
+          title="הוסף פגישה מיד אחרי"
+        >
+          +
+        </button>
+      </div>
+    );
+  };
+
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
     
@@ -423,6 +468,7 @@ export default function CalendarPage() {
             events={events}
             dateClick={handleDateClick}
             eventClick={handleEventClick}
+            eventContent={renderEventContent}
             height="auto"
             eventTimeFormat={{
               hour: "2-digit",
