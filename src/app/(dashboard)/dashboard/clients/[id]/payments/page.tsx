@@ -191,18 +191,18 @@ export default function ClientPaymentsPage() {
           <Button
             onClick={handleSendReminder}
             disabled={sendingReminder}
-            variant="outline"
-            className="gap-2"
+            className="gap-2 bg-blue-600 hover:bg-blue-700 text-white shadow-lg"
+            size="lg"
           >
             {sendingReminder ? (
               <>
-                <Loader2 className="h-4 w-4 animate-spin" />
-                שולח...
+                <Loader2 className="h-5 w-5 animate-spin" />
+                שולח תזכורת...
               </>
             ) : (
               <>
-                <Mail className="h-4 w-4" />
-                שלח תזכורת למטופל
+                <Mail className="h-5 w-5" />
+                שלח תזכורת חוב למטופל
               </>
             )}
           </Button>
