@@ -1022,7 +1022,47 @@ export default function CalendarPage() {
               </div>
               
               <div className="flex flex-col gap-2">
-                {selectedSession.status === "SCHEDULED" && (
+                {/* Different buttons for BREAK vs regular sessions */}
+                {selectedSession.type === "BREAK" ? (
+                  <>
+                    <Button
+                      onClick={() => {
+                        setIsSessionDialogOpen(false);
+                        setIsFormOpen(true);
+                        setFormData({
+                          ...formData,
+                          startTime: format(new Date(selectedSession.startTime), "yyyy-MM-dd'T'HH:mm"),
+                          endTime: format(new Date(selectedSession.endTime), "yyyy-MM-dd'T'HH:mm"),
+                          type: "IN_PERSON"
+                        });
+                      }}
+                      className="w-full"
+                    >
+                      📅 הקבע פגישה במקום ההפסקה
+                    </Button>
+                    
+                    <Button
+                      onClick={async () => {
+                        if (confirm("האם אתה בטוח שברצונך למחוק את ההפסקה?")) {
+                          try {
+                            await fetch(`/api/sessions/${selectedSession.id}`, {
+                              method: "DELETE",
+                            });
+                            setIsSessionDialogOpen(false);
+                            toast.success("ההפסקה נמחקה בהצלחה");
+                            fetchData();
+                          } catch {
+                            toast.error("שגיאה במחיקת ההפסקה");
+                          }
+                        }
+                      }}
+                      variant="destructive"
+                      className="w-full"
+                    >
+                      🗑️ מחק הפסקה
+                    </Button>
+                  </>
+                ) : selectedSession.status === "SCHEDULED" && (
                   <>
                     <Button
                       onClick={async () => {
