@@ -402,7 +402,7 @@ export default async function ClientPage({
                                 sessionId={session.id}
                                 clientId={client.id}
                                 clientName={client.name}
-                                sessionDate={session.startTime}
+                                sessionDate={String(session.startTime)}
                                 defaultAmount={Number(session.price)}
                               />
                             </>
