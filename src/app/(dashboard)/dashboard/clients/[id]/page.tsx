@@ -387,7 +387,7 @@ export default async function ClientPage({
                               ) : session.status === "CANCELLED" ? (
                                 <span className="text-red-600">✗ בוטל</span>
                               ) : (
-                                <span className="text-red-600">✗ לא הגיע</span>
+                                <span className="text-red-600">✗ אי הופעה</span>
                               )}
                             </div>
                           </div>
@@ -434,7 +434,7 @@ export default async function ClientPage({
                               )}
                             </>
                           ) : (
-                            // פגישה מבוטלת/לא הגיע
+                            // פגישה מבוטלת/אי הופעה
                             <Button size="sm" variant="outline" asChild>
                               <Link href={`/dashboard/sessions/${session.id}`}>
                                 <Eye className="h-3 w-3 ml-1" />
