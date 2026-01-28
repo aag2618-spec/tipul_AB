@@ -17,7 +17,6 @@ import {
 import {
   ArrowRight,
   CreditCard,
-  DollarSign,
   Calendar,
   CheckCircle,
   AlertCircle,
@@ -198,11 +197,13 @@ export default function ClientPaymentsPage() {
       <Card className="border-primary">
         <CardHeader>
           <CardTitle className="flex items-center gap-2">
-            <DollarSign className="h-5 w-5" />
+            <CreditCard className="h-5 w-5" />
             תשלום כללי
           </CardTitle>
           <CardDescription>
-            הזן סכום שהמטופל שילם - המערכת תקזז אוטומטית לפי סדר הפגישות
+            הזן סכום שהמטופל שילם - המערכת תקזז אוטומטית לפי סדר הפגישות.
+            <br />
+            <span className="text-green-600 font-medium">💡 תשלום עודף יתווסף אוטומטית ליתרת הקרדיט של הלקוח</span>
           </CardDescription>
         </CardHeader>
         <CardContent>

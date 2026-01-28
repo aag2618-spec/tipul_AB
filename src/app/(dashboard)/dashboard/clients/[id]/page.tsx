@@ -236,25 +236,21 @@ export default async function ClientPage({
                   <CreditCard className={`h-6 w-6 ${
                     totalDebt > 0 ? "text-red-600" : "text-green-600"
                   }`} />
-                  <div>
-                    {totalDebt > 0 ? (
-                      <>
-                        <p className="text-sm text-muted-foreground">חוב</p>
-                        <p className="text-2xl font-bold text-red-600">₪{totalDebt}</p>
-                        {Number(client.creditBalance) > 0 && (
-                          <p className="text-xs text-green-600">
-                            קרדיט זמין: ₪{Number(client.creditBalance)}
-                          </p>
-                        )}
-                      </>
-                    ) : (
-                      <>
-                        <p className="text-sm text-muted-foreground">קרדיט</p>
-                        <p className="text-2xl font-bold text-green-600">
-                          ₪{Number(client.creditBalance) > 0 ? Number(client.creditBalance) : 0}
-                        </p>
-                      </>
-                    )}
+                  <div className="space-y-1">
+                    {/* חוב */}
+                    <div>
+                      <p className="text-xs text-muted-foreground">חוב</p>
+                      <p className={`text-xl font-bold ${totalDebt > 0 ? "text-red-600" : "text-gray-400"}`}>
+                        ₪{totalDebt}
+                      </p>
+                    </div>
+                    {/* קרדיט */}
+                    <div>
+                      <p className="text-xs text-muted-foreground">קרדיט</p>
+                      <p className={`text-xl font-bold ${Number(client.creditBalance) > 0 ? "text-green-600" : "text-gray-400"}`}>
+                        ₪{Number(client.creditBalance)}
+                      </p>
+                    </div>
                   </div>
                 </div>
                 <ArrowRight className="h-5 w-5 text-muted-foreground" />
