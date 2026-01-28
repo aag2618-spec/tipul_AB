@@ -131,6 +131,8 @@ export default function CalendarPage() {
     clientId: "",
   });
   const [isSubmitting, setIsSubmitting] = useState(false);
+  const [showDurationCustomizer, setShowDurationCustomizer] = useState(false);
+  const [customDuration, setCustomDuration] = useState(defaultSessionDuration);
 
   const fetchData = useCallback(async () => {
     try {
@@ -221,6 +223,8 @@ export default function CalendarPage() {
       isRecurring: false,
       weeksToRepeat: 4,
     });
+    setCustomDuration(defaultSessionDuration);
+    setShowDurationCustomizer(false);
     setIsDialogOpen(true);
   };
 
@@ -250,6 +254,20 @@ export default function CalendarPage() {
       weeksToRepeat: 4,
     });
     setIsDialogOpen(true);
+  };
+
+  // עדכון משך פגישה והחישוב מחדש של שעת סיום
+  const handleDurationChange = (minutes: number) => {
+    setCustomDuration(minutes);
+    if (formData.startTime) {
+      const start = new Date(formData.startTime);
+      const end = new Date(start);
+      end.setMinutes(end.getMinutes() + minutes);
+      setFormData((prev) => ({
+        ...prev,
+        endTime: format(end, "yyyy-MM-dd'T'HH:mm")
+      }));
+    }
   };
 
   // Custom event content with "+" button
@@ -564,6 +582,53 @@ export default function CalendarPage() {
                   dir="ltr"
                 />
               </div>
+            </div>
+
+            {/* Duration Customizer */}
+            <div className="space-y-2">
+              <Button
+                type="button"
+                variant="ghost"
+                size="sm"
+                onClick={() => setShowDurationCustomizer(!showDurationCustomizer)}
+                className="w-full text-sm text-muted-foreground hover:text-primary"
+              >
+                <Settings className="h-4 w-4 ml-2" />
+                התאם משך פגישה
+              </Button>
+              
+              {showDurationCustomizer && (
+                <div className="border rounded-lg p-3 bg-slate-50 space-y-3 animate-in slide-in-from-top-2">
+                  <div className="flex items-center gap-2">
+                    <Label htmlFor="customDuration" className="text-sm whitespace-nowrap">
+                      משך (דקות):
+                    </Label>
+                    <Input
+                      id="customDuration"
+                      type="number"
+                      min="5"
+                      max="180"
+                      value={customDuration}
+                      onChange={(e) => handleDurationChange(parseInt(e.target.value) || defaultSessionDuration)}
+                      className="w-20 bg-white"
+                    />
+                  </div>
+                  <div className="flex flex-wrap gap-2">
+                    {[15, 30, 45, 60].map((minutes) => (
+                      <Button
+                        key={minutes}
+                        type="button"
+                        variant={customDuration === minutes ? "default" : "outline"}
+                        size="sm"
+                        onClick={() => handleDurationChange(minutes)}
+                        className="text-xs"
+                      >
+                        {minutes} דק׳
+                      </Button>
+                    ))}
+                  </div>
+                </div>
+              )}
             </div>
 
             <div className="grid grid-cols-2 gap-4">
