@@ -210,7 +210,7 @@ export default function ClientPaymentsPage() {
       </div>
 
       {/* Summary Card */}
-      <div className="grid gap-4 md:grid-cols-2">
+      <div className="grid gap-6 grid-cols-1">
         <Card className="border-red-200 bg-red-50/50">
           <CardContent className="py-6">
             <div className="flex items-center gap-3">
