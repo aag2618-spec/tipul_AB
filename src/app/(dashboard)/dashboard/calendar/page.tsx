@@ -1065,90 +1065,99 @@ export default function CalendarPage() {
                   </>
                 ) : selectedSession.status === "SCHEDULED" && (
                   <>
-                    <Button
-                      onClick={async () => {
-                        if (!selectedSession.client) return;
-                        try {
-                          // Update session status to COMPLETED
-                          const response = await fetch(`/api/sessions/${selectedSession.id}`, {
-                            method: "PUT",
-                            headers: { "Content-Type": "application/json" },
-                            body: JSON.stringify({ status: "COMPLETED", markAsPaid: false }),
-                          });
-                          
-                          if (response.ok) {
-                            // Get session with payment info
-                            const sessionRes = await fetch(`/api/sessions/${selectedSession.id}`);
-                            const sessionData = await sessionRes.json();
-                            
-                            // Get client credit balance
-                            const clientRes = await fetch(`/api/clients/${selectedSession.client.id}`);
-                            const clientData = await clientRes.json();
-                            
-                            setIsSessionDialogOpen(false);
-                            toast.success("הפגישה הושלמה, עבור לתשלום");
-                            
-                            // Open payment dialog instead of navigating
-                            setPaymentData({
-                              clientId: selectedSession.client.id,
-                              clientName: selectedSession.client.name,
-                              amount: Number(selectedSession.price) || 0,
-                              creditBalance: Number(clientData.creditBalance) || 0,
-                              paymentId: sessionData.payment?.id || undefined
+                    <div className="border rounded-lg divide-y">
+                      <p className="text-sm font-medium text-center py-2 bg-muted/50">בחר פעולה:</p>
+                      
+                      {/* 1. סיים ושלם */}
+                      <button
+                        onClick={async () => {
+                          if (!selectedSession.client) return;
+                          try {
+                            // Update session status to COMPLETED
+                            const response = await fetch(`/api/sessions/${selectedSession.id}`, {
+                              method: "PUT",
+                              headers: { "Content-Type": "application/json" },
+                              body: JSON.stringify({ status: "COMPLETED", markAsPaid: false }),
                             });
-                            setShowPaymentDialog(true);
+                            
+                            if (response.ok) {
+                              // Get session with payment info
+                              const sessionRes = await fetch(`/api/sessions/${selectedSession.id}`);
+                              const sessionData = await sessionRes.json();
+                              
+                              // Get client credit balance
+                              const clientRes = await fetch(`/api/clients/${selectedSession.client.id}`);
+                              const clientData = await clientRes.json();
+                              
+                              setIsSessionDialogOpen(false);
+                              toast.success("הפגישה הושלמה, עבור לתשלום");
+                              
+                              // Open payment dialog instead of navigating
+                              setPaymentData({
+                                clientId: selectedSession.client.id,
+                                clientName: selectedSession.client.name,
+                                amount: Number(selectedSession.price) || 0,
+                                creditBalance: Number(clientData.creditBalance) || 0,
+                                paymentId: sessionData.payment?.id || undefined
+                              });
+                              setShowPaymentDialog(true);
+                            }
+                          } catch {
+                            toast.error("שגיאה בעדכון הפגישה");
                           }
-                        } catch {
-                          toast.error("שגיאה בעדכון הפגישה");
-                        }
-                      }}
-                      className="w-full"
-                    >
-                      ✅ סיום ושלם
-                    </Button>
-                    
-                    <Button
-                      onClick={async () => {
-                        try {
-                          await fetch(`/api/sessions/${selectedSession.id}`, {
-                            method: "PUT",
-                            headers: { "Content-Type": "application/json" },
-                            body: JSON.stringify({ status: "COMPLETED" }),
-                          });
-                          toast.success("הפגישה הושלמה ללא תשלום");
-                          setIsSessionDialogOpen(false);
-                          fetchData();
-                        } catch {
-                          toast.error("שגיאה בעדכון הפגישה");
-                        }
-                      }}
-                      variant="outline"
-                      className="w-full"
-                    >
-                      סיום ללא תשלום
-                    </Button>
-                    
-                    <Button
-                      onClick={() => {
-                        setPendingAction("CANCELLED");
-                        setIsChargeDialogOpen(true);
-                      }}
-                      variant="outline"
-                      className="w-full"
-                    >
-                      ❌ ביטול
-                    </Button>
-                    
-                    <Button
-                      onClick={() => {
-                        setPendingAction("NO_SHOW");
-                        setIsChargeDialogOpen(true);
-                      }}
-                      variant="outline"
-                      className="w-full"
-                    >
-                      ⚠️ לא הגיע
-                    </Button>
+                        }}
+                        className="w-full py-3 px-4 text-right hover:bg-green-50 transition-colors flex items-center gap-3"
+                      >
+                        <span className="flex items-center justify-center w-7 h-7 rounded-full bg-green-600 text-white text-sm font-bold">1</span>
+                        <span className="flex-1 font-medium">✅ סיים ושלם</span>
+                      </button>
+                      
+                      {/* 2. סיים ללא תשלום */}
+                      <button
+                        onClick={async () => {
+                          try {
+                            await fetch(`/api/sessions/${selectedSession.id}`, {
+                              method: "PUT",
+                              headers: { "Content-Type": "application/json" },
+                              body: JSON.stringify({ status: "COMPLETED" }),
+                            });
+                            toast.success("הפגישה הושלמה ללא תשלום");
+                            setIsSessionDialogOpen(false);
+                            fetchData();
+                          } catch {
+                            toast.error("שגיאה בעדכון הפגישה");
+                          }
+                        }}
+                        className="w-full py-3 px-4 text-right hover:bg-blue-50 transition-colors flex items-center gap-3"
+                      >
+                        <span className="flex items-center justify-center w-7 h-7 rounded-full bg-blue-600 text-white text-sm font-bold">2</span>
+                        <span className="flex-1 font-medium">סיים ללא תשלום</span>
+                      </button>
+                      
+                      {/* 3. אי הופעה */}
+                      <button
+                        onClick={() => {
+                          setPendingAction("NO_SHOW");
+                          setIsChargeDialogOpen(true);
+                        }}
+                        className="w-full py-3 px-4 text-right hover:bg-red-50 transition-colors flex items-center gap-3"
+                      >
+                        <span className="flex items-center justify-center w-7 h-7 rounded-full bg-red-600 text-white text-sm font-bold">3</span>
+                        <span className="flex-1 font-medium">🚫 אי הופעה (לא הגיע)</span>
+                      </button>
+                      
+                      {/* 4. ביטול */}
+                      <button
+                        onClick={() => {
+                          setPendingAction("CANCELLED");
+                          setIsChargeDialogOpen(true);
+                        }}
+                        className="w-full py-3 px-4 text-right hover:bg-orange-50 transition-colors flex items-center gap-3"
+                      >
+                        <span className="flex items-center justify-center w-7 h-7 rounded-full bg-orange-600 text-white text-sm font-bold">4</span>
+                        <span className="flex-1 font-medium">❌ ביטול פגישה</span>
+                      </button>
+                    </div>
                   </>
                 )}
               </div>
