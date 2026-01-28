@@ -275,6 +275,30 @@ export default function CalendarPage() {
     const session = sessions.find(s => s.id === eventInfo.event.id);
     if (!session) return null;
 
+    const isBreak = session.type === "BREAK";
+
+    if (isBreak) {
+      return (
+        <div className="relative w-full h-full overflow-hidden group break-event-card">
+          {/* Gradient Background */}
+          <div className="absolute inset-0 bg-gradient-to-br from-sky-200 via-cyan-200 to-teal-200 opacity-90 animate-gradient"></div>
+          
+          {/* Content */}
+          <div className="relative z-10 flex flex-col items-center justify-center h-full text-center px-2 py-1">
+            <div className="text-2xl mb-1 animate-float">🏞️</div>
+            <div className="font-bold text-sm text-slate-700">🌊 הפסקה</div>
+            <div className="text-xs text-slate-600 opacity-80">{eventInfo.timeText}</div>
+            <div className="text-xs text-slate-500 mt-1 italic">זמן לנשום...</div>
+          </div>
+
+          {/* Decorative waves */}
+          <div className="absolute bottom-0 left-0 right-0 h-4 opacity-30">
+            <div className="wave-animation text-xs">🌊 🌊 🌊</div>
+          </div>
+        </div>
+      );
+    }
+
     return (
       <div className="flex items-center justify-between w-full px-1 group">
         <div className="flex-1 overflow-hidden">

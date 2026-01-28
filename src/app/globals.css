@@ -330,3 +330,51 @@
   @apply text-muted-foreground pointer-events-none float-right h-0;
   content: attr(data-placeholder);
 }
+
+/* Break Event Card Animations */
+@keyframes gradient {
+  0% { background-position: 0% 50%; }
+  50% { background-position: 100% 50%; }
+  100% { background-position: 0% 50%; }
+}
+
+@keyframes float {
+  0%, 100% { transform: translateY(0px); }
+  50% { transform: translateY(-5px); }
+}
+
+@keyframes wave {
+  0% { transform: translateX(0); }
+  100% { transform: translateX(-20px); }
+}
+
+.animate-gradient {
+  background-size: 200% 200%;
+  animation: gradient 8s ease infinite;
+}
+
+.animate-float {
+  animation: float 3s ease-in-out infinite;
+}
+
+.wave-animation {
+  display: inline-block;
+  animation: wave 3s linear infinite;
+}
+
+/* Break event card hover effect */
+.break-event-card {
+  transition: all 0.3s ease;
+  cursor: pointer;
+}
+
+.break-event-card:hover {
+  transform: translateY(-2px) scale(1.02);
+  box-shadow: 0 8px 16px rgba(0, 150, 150, 0.2);
+}
+
+/* FullCalendar event styling for breaks */
+.fc-event.fc-event-break {
+  border: none !important;
+  box-shadow: 0 4px 6px rgba(0, 150, 150, 0.15);
+}
