@@ -364,13 +364,7 @@
 
 .wave-animation {
   display: inline-block;
-  animation: wave 4s linear infinite;
   white-space: nowrap;
-}
-
-/* Enhanced wave animation on hover */
-.break-event-card:hover .wave-animation {
-  animation: wave 2s linear infinite;
 }
 
 /* Duck swimming animations */

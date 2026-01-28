@@ -64,7 +64,6 @@ async function getClient(clientId: string, userId: string) {
       payments: {
         orderBy: { createdAt: "desc" },
         take: 10,
-        include: { session: true },
       },
       recordings: {
         orderBy: { createdAt: "desc" },
@@ -191,64 +190,79 @@ export default async function ClientPage({
       </div>
 
       {/* Quick Info Bar - Compact */}
-      <Card>
-        <CardContent className="py-4">
-          <div className="flex items-center justify-between gap-6 flex-wrap">
-            {/* Phone */}
-            <div className="flex items-center gap-2">
-              <Phone className="h-4 w-4 text-muted-foreground" />
-              <span className="text-sm font-medium" dir="ltr">
-                {client.phone || "לא צוין"}
-              </span>
-            </div>
+      <div className="grid gap-4 md:grid-cols-2">
+        <Card>
+          <CardContent className="py-4">
+            <div className="flex items-center justify-between gap-6 flex-wrap">
+              {/* Phone */}
+              <div className="flex items-center gap-2">
+                <Phone className="h-4 w-4 text-muted-foreground" />
+                <span className="text-sm font-medium" dir="ltr">
+                  {client.phone || "לא צוין"}
+                </span>
+              </div>
 
-            <div className="h-4 w-px bg-border" />
+              <div className="h-4 w-px bg-border" />
 
-            {/* Email */}
-            <div className="flex items-center gap-2">
-              <Mail className="h-4 w-4 text-muted-foreground" />
-              <span className="text-sm font-medium truncate max-w-[200px]" dir="ltr">
-                {client.email || "לא צוין"}
-              </span>
-            </div>
+              {/* Email */}
+              <div className="flex items-center gap-2">
+                <Mail className="h-4 w-4 text-muted-foreground" />
+                <span className="text-sm font-medium truncate max-w-[200px]" dir="ltr">
+                  {client.email || "לא צוין"}
+                </span>
+              </div>
 
-            <div className="h-4 w-px bg-border" />
+              <div className="h-4 w-px bg-border" />
 
-            {/* Age */}
-            <div className="flex items-center gap-2">
-              <Cake className="h-4 w-4 text-muted-foreground" />
-              <span className="text-sm font-medium">
-                {age ? `${age} שנים` : "לא צוין"}
-              </span>
-            </div>
-
-            <div className="h-4 w-px bg-border" />
-
-            {/* Credit/Debt */}
-            <div className="flex items-center gap-2">
-              <CreditCard className={`h-4 w-4 ${
-                totalDebt > 0 ? "text-red-600" : "text-green-600"
-              }`} />
-              <div>
-                {totalDebt > 0 ? (
-                  <span className="text-sm font-bold text-red-600">
-                    חוב: ₪{totalDebt}
-                    {Number(client.creditBalance) > 0 && (
-                      <span className="text-xs text-green-600 mr-2">
-                        (קרדיט: ₪{Number(client.creditBalance)})
-                      </span>
-                    )}
-                  </span>
-                ) : (
-                  <span className="text-sm font-bold text-green-600">
-                    קרדיט: {Number(client.creditBalance) > 0 ? `₪${Number(client.creditBalance)}` : "₪0"}
-                  </span>
-                )}
+              {/* Age */}
+              <div className="flex items-center gap-2">
+                <Cake className="h-4 w-4 text-muted-foreground" />
+                <span className="text-sm font-medium">
+                  {age ? `${age} שנים` : "לא צוין"}
+                </span>
               </div>
             </div>
-          </div>
-        </CardContent>
-      </Card>
+          </CardContent>
+        </Card>
+
+        {/* Credit/Debt Card - Clickable */}
+        <Link href={`/dashboard/clients/${client.id}/payments`}>
+          <Card className={`cursor-pointer transition-all hover:shadow-lg hover:scale-[1.02] ${
+            totalDebt > 0 ? "border-red-200 bg-red-50/50" : "border-green-200 bg-green-50/50"
+          }`}>
+            <CardContent className="py-4">
+              <div className="flex items-center justify-between">
+                <div className="flex items-center gap-3">
+                  <CreditCard className={`h-6 w-6 ${
+                    totalDebt > 0 ? "text-red-600" : "text-green-600"
+                  }`} />
+                  <div>
+                    {totalDebt > 0 ? (
+                      <>
+                        <p className="text-sm text-muted-foreground">חוב</p>
+                        <p className="text-2xl font-bold text-red-600">₪{totalDebt}</p>
+                        {Number(client.creditBalance) > 0 && (
+                          <p className="text-xs text-green-600">
+                            קרדיט זמין: ₪{Number(client.creditBalance)}
+                          </p>
+                        )}
+                      </>
+                    ) : (
+                      <>
+                        <p className="text-sm text-muted-foreground">קרדיט</p>
+                        <p className="text-2xl font-bold text-green-600">
+                          ₪{Number(client.creditBalance) > 0 ? Number(client.creditBalance) : 0}
+                        </p>
+                      </>
+                    )}
+                  </div>
+                </div>
+                <ArrowRight className="h-5 w-5 text-muted-foreground" />
+              </div>
+            </CardContent>
+          </Card>
+        </Link>
+      </div>
 
       {/* Tabs - Simplified */}
       <Tabs defaultValue="sessions" className="w-full">
@@ -361,18 +375,13 @@ export default async function ClientPage({
                               ) : isCompleted ? (
                                 <>
                                   <span className="text-green-600">✓ הושלם</span>
-                                  <span className="text-muted-foreground">|</span>
+                                  <span className="text-muted-foreground">•</span>
                                   {hasNote ? (
                                     <span className="text-green-600">✓ מסוכם</span>
                                   ) : (
-                                    <Link 
-                                      href={`/dashboard/sessions/${session.id}`}
-                                      className="text-amber-600 hover:underline cursor-pointer"
-                                    >
-                                      ⚠️ חסר סיכום
-                                    </Link>
+                                    <span className="text-amber-600">⚠️ חסר סיכום</span>
                                   )}
-                                  <span className="text-muted-foreground">|</span>
+                                  <span className="text-muted-foreground">•</span>
                                   {isPaid ? (
                                     <span className="text-green-600">✓ שולם</span>
                                   ) : (
@@ -388,26 +397,17 @@ export default async function ClientPage({
                           </div>
                         </div>
 
-                        {/* פעולות - כל הפונקציות מהדשבורד */}
+                        {/* פעולות - רק מה שצריך */}
                         <div className="flex items-center gap-2">
                           {isScheduled ? (
-                            // פגישה מתוכננת - כפתור סטטוס + כתוב סיכום
-                            <>
-                              <QuickSessionStatus
-                                sessionId={session.id}
-                                clientId={client.id}
-                                currentStatus={session.status}
-                              />
-                              <CompleteSessionDialog
-                                sessionId={session.id}
-                                clientId={client.id}
-                                clientName={client.name}
-                                sessionDate={String(session.startTime)}
-                                defaultAmount={Number(session.price)}
-                              />
-                            </>
+                            // פגישה מתוכננת - כפתורי סטטוס
+                            <QuickSessionStatus
+                              sessionId={session.id}
+                              clientId={client.id}
+                              currentStatus={session.status}
+                            />
                           ) : isCompleted ? (
-                            // פגישה שהושלמה - הצג מה שחסר
+                            // פגישה שהושלמה - הצג רק מה שחסר
                             <>
                               {!hasNote && (
                                 <Button size="sm" variant="default" asChild>
@@ -438,19 +438,13 @@ export default async function ClientPage({
                               )}
                             </>
                           ) : (
-                            // פגישה מבוטלת/לא הגיע - אפשרות לשנות סטטוס
-                            <>
-                              <QuickSessionStatus
-                                sessionId={session.id}
-                                clientId={client.id}
-                                currentStatus={session.status}
-                              />
-                              {session.payment && (
-                                <Badge variant={session.payment.status === "PAID" ? "default" : "secondary"} className="text-xs">
-                                  {session.payment.status === "PAID" ? "חויב" : "לא חויב"}
-                                </Badge>
-                              )}
-                            </>
+                            // פגישה מבוטלת/לא הגיע
+                            <Button size="sm" variant="outline" asChild>
+                              <Link href={`/dashboard/sessions/${session.id}`}>
+                                <Eye className="h-3 w-3 ml-1" />
+                                צפה
+                              </Link>
+                            </Button>
                           )}
                           
                           {/* תפריט נוסף */}
@@ -898,10 +892,10 @@ export default async function ClientPage({
                       key={payment.id}
                       className="flex items-center justify-between p-4 rounded-lg bg-muted/50"
                     >
-                      <div className="flex-1">
+                      <div>
                         <p className="font-medium">₪{Number(payment.amount)}</p>
                         <p className="text-sm text-muted-foreground">
-                          תשלום ב- {format(new Date(payment.createdAt), "d/M/yyyy")} |{" "}
+                          {format(new Date(payment.createdAt), "d/M/yyyy")} •{" "}
                           {payment.method === "CASH"
                             ? "מזומן"
                             : payment.method === "CREDIT_CARD"
@@ -910,43 +904,24 @@ export default async function ClientPage({
                             ? "העברה"
                             : "צ׳ק"}
                         </p>
-                        {payment.session && (
-                          <p className="text-xs text-muted-foreground mt-1">
-                            פגישה ב- {format(new Date(payment.session.startTime), "d/M/yyyy HH:mm")}
-                          </p>
-                        )}
                       </div>
-                      <div className="flex items-center gap-2">
-                        {payment.session && (
-                          <Button
-                            size="sm"
-                            variant="ghost"
-                            className="h-7 px-2"
-                            asChild
-                          >
-                            <Link href={`/dashboard/sessions/${payment.sessionId}`}>
-                              <ArrowRight className="h-3 w-3" />
-                            </Link>
-                          </Button>
-                        )}
-                        <Badge
-                          variant={
-                            payment.status === "PAID"
-                              ? "default"
-                              : payment.status === "PENDING"
-                              ? "secondary"
-                              : "destructive"
-                          }
-                        >
-                          {payment.status === "PAID"
-                            ? "שולם ✓"
+                      <Badge
+                        variant={
+                          payment.status === "PAID"
+                            ? "default"
                             : payment.status === "PENDING"
-                            ? "ממתין"
-                            : payment.status === "CANCELLED"
-                            ? "בוטל"
-                            : "הוחזר"}
-                        </Badge>
-                      </div>
+                            ? "secondary"
+                            : "destructive"
+                        }
+                      >
+                        {payment.status === "PAID"
+                          ? "שולם"
+                          : payment.status === "PENDING"
+                          ? "ממתין"
+                          : payment.status === "CANCELLED"
+                          ? "בוטל"
+                          : "הוחזר"}
+                      </Badge>
                     </div>
                   ))}
                 </div>
