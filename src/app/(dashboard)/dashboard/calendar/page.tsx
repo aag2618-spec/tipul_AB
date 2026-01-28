@@ -228,9 +228,45 @@ export default function CalendarPage() {
     setIsDialogOpen(true);
   };
 
+  // Play wave sound using Web Audio API
+  const playWaveSound = () => {
+    try {
+      const audioContext = new (window.AudioContext || (window as any).webkitAudioContext)();
+      const duration = 3;
+      
+      // Create multiple oscillators for a richer wave sound
+      const frequencies = [200, 300, 400];
+      frequencies.forEach((freq, index) => {
+        const oscillator = audioContext.createOscillator();
+        const gainNode = audioContext.createGain();
+        
+        oscillator.type = 'sine';
+        oscillator.frequency.setValueAtTime(freq, audioContext.currentTime);
+        oscillator.frequency.exponentialRampToValueAtTime(freq * 0.7, audioContext.currentTime + duration);
+        
+        // Fade in and out
+        gainNode.gain.setValueAtTime(0, audioContext.currentTime);
+        gainNode.gain.linearRampToValueAtTime(0.03 / (index + 1), audioContext.currentTime + 0.1);
+        gainNode.gain.linearRampToValueAtTime(0, audioContext.currentTime + duration);
+        
+        oscillator.connect(gainNode);
+        gainNode.connect(audioContext.destination);
+        
+        oscillator.start(audioContext.currentTime);
+        oscillator.stop(audioContext.currentTime + duration);
+      });
+    } catch (error) {
+      console.log('Audio not available:', error);
+    }
+  };
+
   const handleEventClick = (info: EventClickArg) => {
     const session = sessions.find(s => s.id === info.event.id);
     if (session) {
+      // Play wave sound if it's a break session
+      if (session.type === "BREAK") {
+        playWaveSound();
+      }
       setSelectedSession(session);
       setIsSessionDialogOpen(true);
     }
@@ -280,20 +316,37 @@ export default function CalendarPage() {
     if (isBreak) {
       return (
         <div className="relative w-full h-full overflow-hidden group break-event-card">
-          {/* Gradient Background */}
-          <div className="absolute inset-0 bg-gradient-to-br from-sky-200 via-cyan-200 to-teal-200 opacity-90 animate-gradient"></div>
+          {/* Mountain-to-River Gradient Background */}
+          <div className="absolute inset-0 bg-gradient-to-b from-amber-800/70 via-emerald-600/60 to-cyan-400/80 opacity-90 animate-gradient-flow"></div>
+          
+          {/* Mountains and Trees - Top */}
+          <div className="absolute top-1 left-0 right-0 z-10 flex justify-around px-2 text-xs opacity-70">
+            <span>🏔️</span>
+            <span>🌲</span>
+            <span>🌲</span>
+            <span>🏔️</span>
+          </div>
+
+          {/* Ducks - Appear on hover */}
+          <div className="absolute top-1/3 left-0 right-0 z-10 opacity-0 group-hover:opacity-100 transition-opacity duration-500">
+            <div className="ducks-swimming text-sm flex justify-center gap-2">
+              <span className="duck-1">🦆</span>
+              <span className="duck-2">🦆</span>
+            </div>
+          </div>
           
           {/* Content */}
           <div className="relative z-10 flex flex-col items-center justify-center h-full text-center px-2 py-1">
-            <div className="text-2xl mb-1 animate-float">🏞️</div>
-            <div className="font-bold text-sm text-slate-700">🌊 הפסקה</div>
-            <div className="text-xs text-slate-600 opacity-80">{eventInfo.timeText}</div>
-            <div className="text-xs text-slate-500 mt-1 italic">זמן לנשום...</div>
+            <div className="font-bold text-sm text-white drop-shadow-md">🌊 הפסקה</div>
+            <div className="text-xs text-white/90 drop-shadow">{eventInfo.timeText}</div>
+            <div className="text-xs text-white/80 mt-1 italic font-light">זמן לנשום...</div>
           </div>
 
-          {/* Decorative waves */}
-          <div className="absolute bottom-0 left-0 right-0 h-4 opacity-30">
-            <div className="wave-animation text-xs">🌊 🌊 🌊</div>
+          {/* Enhanced waves - more prominent on hover */}
+          <div className="absolute bottom-0 left-0 right-0 h-6 z-10">
+            <div className="wave-animation text-sm opacity-60 group-hover:opacity-100 transition-opacity duration-300">
+              🌊 🌊 🌊 🌊 🌊 🌊
+            </div>
           </div>
         </div>
       );

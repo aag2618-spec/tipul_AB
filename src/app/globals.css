@@ -332,34 +332,57 @@
 }
 
 /* Break Event Card Animations */
-@keyframes gradient {
-  0% { background-position: 0% 50%; }
-  50% { background-position: 100% 50%; }
-  100% { background-position: 0% 50%; }
-}
-
-@keyframes float {
-  0%, 100% { transform: translateY(0px); }
-  50% { transform: translateY(-5px); }
+@keyframes gradient-flow {
+  0% { background-position: 0% 0%; }
+  50% { background-position: 100% 100%; }
+  100% { background-position: 0% 0%; }
 }
 
 @keyframes wave {
   0% { transform: translateX(0); }
-  100% { transform: translateX(-20px); }
+  100% { transform: translateX(-30px); }
 }
 
-.animate-gradient {
+@keyframes duck-swim-1 {
+  0%, 100% { transform: translateX(0) translateY(0); }
+  25% { transform: translateX(10px) translateY(-2px); }
+  50% { transform: translateX(20px) translateY(0); }
+  75% { transform: translateX(10px) translateY(2px); }
+}
+
+@keyframes duck-swim-2 {
+  0%, 100% { transform: translateX(0) translateY(0); }
+  25% { transform: translateX(-8px) translateY(2px); }
+  50% { transform: translateX(-16px) translateY(0); }
+  75% { transform: translateX(-8px) translateY(-2px); }
+}
+
+.animate-gradient-flow {
   background-size: 200% 200%;
-  animation: gradient 8s ease infinite;
-}
-
-.animate-float {
-  animation: float 3s ease-in-out infinite;
+  animation: gradient-flow 10s ease infinite;
 }
 
 .wave-animation {
   display: inline-block;
-  animation: wave 3s linear infinite;
+  animation: wave 4s linear infinite;
+  white-space: nowrap;
+}
+
+/* Enhanced wave animation on hover */
+.break-event-card:hover .wave-animation {
+  animation: wave 2s linear infinite;
+}
+
+/* Duck swimming animations */
+.ducks-swimming .duck-1 {
+  display: inline-block;
+  animation: duck-swim-1 4s ease-in-out infinite;
+}
+
+.ducks-swimming .duck-2 {
+  display: inline-block;
+  animation: duck-swim-2 5s ease-in-out infinite;
+  animation-delay: 0.5s;
 }
 
 /* Break event card hover effect */
@@ -369,8 +392,12 @@
 }
 
 .break-event-card:hover {
-  transform: translateY(-2px) scale(1.02);
-  box-shadow: 0 8px 16px rgba(0, 150, 150, 0.2);
+  transform: translateY(-3px) scale(1.03);
+  box-shadow: 0 12px 24px rgba(0, 100, 150, 0.3);
+}
+
+.break-event-card:hover .animate-gradient-flow {
+  animation: gradient-flow 5s ease infinite;
 }
 
 /* FullCalendar event styling for breaks */
