@@ -37,6 +37,7 @@ import Link from "next/link";
 import { QuickMarkPaid } from "@/components/payments/quick-mark-paid";
 import { CompleteSessionDialog } from "@/components/sessions/complete-session-dialog";
 import { ExportClientButton } from "@/components/clients/export-client-button";
+import { QuickSessionStatus } from "@/components/sessions/quick-session-status";
 import {
   DropdownMenu,
   DropdownMenuContent,
@@ -188,119 +189,87 @@ export default async function ClientPage({
         </div>
       </div>
 
-      {/* Quick Info Cards */}
-      <div className="grid gap-4 md:grid-cols-4">
-        <Card>
-          <CardContent className="pt-6">
-            <div className="flex items-center gap-3">
-              <div className="flex h-10 w-10 items-center justify-center rounded-lg bg-primary/10">
-                <Phone className="h-5 w-5 text-primary" />
-              </div>
-              <div>
-                <p className="text-sm text-muted-foreground">טלפון</p>
-                <p className="font-medium" dir="ltr">
-                  {client.phone || "לא צוין"}
-                </p>
-              </div>
+      {/* Quick Info Bar - Compact */}
+      <Card>
+        <CardContent className="py-4">
+          <div className="flex items-center justify-between gap-6 flex-wrap">
+            {/* Phone */}
+            <div className="flex items-center gap-2">
+              <Phone className="h-4 w-4 text-muted-foreground" />
+              <span className="text-sm font-medium" dir="ltr">
+                {client.phone || "לא צוין"}
+              </span>
             </div>
-          </CardContent>
-        </Card>
-        <Card>
-          <CardContent className="pt-6">
-            <div className="flex items-center gap-3">
-              <div className="flex h-10 w-10 items-center justify-center rounded-lg bg-primary/10">
-                <Mail className="h-5 w-5 text-primary" />
-              </div>
-              <div>
-                <p className="text-sm text-muted-foreground">אימייל</p>
-                <p className="font-medium truncate" dir="ltr">
-                  {client.email || "לא צוין"}
-                </p>
-              </div>
+
+            <div className="h-4 w-px bg-border" />
+
+            {/* Email */}
+            <div className="flex items-center gap-2">
+              <Mail className="h-4 w-4 text-muted-foreground" />
+              <span className="text-sm font-medium truncate max-w-[200px]" dir="ltr">
+                {client.email || "לא צוין"}
+              </span>
             </div>
-          </CardContent>
-        </Card>
-        <Card>
-          <CardContent className="pt-6">
-            <div className="flex items-center gap-3">
-              <div className="flex h-10 w-10 items-center justify-center rounded-lg bg-primary/10">
-                <Cake className="h-5 w-5 text-primary" />
-              </div>
-              <div>
-                <p className="text-sm text-muted-foreground">גיל</p>
-                <p className="font-medium">
-                  {age ? `${age} שנים` : "לא צוין"}
-                </p>
-              </div>
+
+            <div className="h-4 w-px bg-border" />
+
+            {/* Age */}
+            <div className="flex items-center gap-2">
+              <Cake className="h-4 w-4 text-muted-foreground" />
+              <span className="text-sm font-medium">
+                {age ? `${age} שנים` : "לא צוין"}
+              </span>
             </div>
-          </CardContent>
-        </Card>
-        <Card>
-          <CardContent className="pt-6">
-            <div className="flex items-center gap-3">
-              <div className={`flex h-10 w-10 items-center justify-center rounded-lg ${
-                totalDebt > 0 ? "bg-red-500/10" : "bg-green-500/10"
-              }`}>
-                <CreditCard className={`h-5 w-5 ${
-                  totalDebt > 0 ? "text-red-600" : "text-green-600"
-                }`} />
-              </div>
-              <div className="flex-1">
+
+            <div className="h-4 w-px bg-border" />
+
+            {/* Credit/Debt */}
+            <div className="flex items-center gap-2">
+              <CreditCard className={`h-4 w-4 ${
+                totalDebt > 0 ? "text-red-600" : "text-green-600"
+              }`} />
+              <div>
                 {totalDebt > 0 ? (
-                  <>
-                    <p className="text-sm text-muted-foreground">חוב</p>
-                    <p className="font-bold text-red-600 text-lg">₪{totalDebt}</p>
+                  <span className="text-sm font-bold text-red-600">
+                    חוב: ₪{totalDebt}
                     {Number(client.creditBalance) > 0 && (
-                      <p className="text-xs text-green-600">קרדיט זמין: ₪{Number(client.creditBalance)}</p>
+                      <span className="text-xs text-green-600 mr-2">
+                        (קרדיט: ₪{Number(client.creditBalance)})
+                      </span>
                     )}
-                  </>
+                  </span>
                 ) : (
-                  <>
-                    <p className="text-sm text-muted-foreground">קרדיט</p>
-                    <p className="font-bold text-green-600 text-lg">
-                      {Number(client.creditBalance) > 0 ? `₪${Number(client.creditBalance)}` : "₪0"}
-                    </p>
-                  </>
+                  <span className="text-sm font-bold text-green-600">
+                    קרדיט: {Number(client.creditBalance) > 0 ? `₪${Number(client.creditBalance)}` : "₪0"}
+                  </span>
                 )}
               </div>
             </div>
-          </CardContent>
-        </Card>
-      </div>
+          </div>
+        </CardContent>
+      </Card>
 
-      {/* Tabs */}
+      {/* Tabs - Simplified */}
       <Tabs defaultValue="sessions" className="w-full">
-        <TabsList className="grid w-full grid-cols-8 max-w-4xl">
+        <TabsList className="grid w-full grid-cols-5 max-w-3xl">
           <TabsTrigger value="sessions" className="gap-2">
             <Calendar className="h-4 w-4" />
             פגישות
           </TabsTrigger>
           <TabsTrigger value="notes" className="gap-2">
             <FileText className="h-4 w-4" />
-            סיכומים
-          </TabsTrigger>
-          <TabsTrigger value="diagnosis" className="gap-2">
-            <Stethoscope className="h-4 w-4" />
-            אבחון
+            תיעוד
           </TabsTrigger>
           <TabsTrigger value="questionnaires" className="gap-2">
             <ClipboardList className="h-4 w-4" />
-            שאלונים
+            הערכה
           </TabsTrigger>
-          <TabsTrigger value="documents" className="gap-2">
+          <TabsTrigger value="files" className="gap-2">
             <FolderOpen className="h-4 w-4" />
-            מסמכים
-          </TabsTrigger>
-          <TabsTrigger value="recordings" className="gap-2">
-            <Mic className="h-4 w-4" />
-            הקלטות
-          </TabsTrigger>
-          <TabsTrigger value="payments" className="gap-2">
-            <CreditCard className="h-4 w-4" />
-            תשלומים
+            קבצים
           </TabsTrigger>
           <TabsTrigger value="info" className="gap-2">
-            <MapPin className="h-4 w-4" />
+            <UserIcon className="h-4 w-4" />
             פרטים
           </TabsTrigger>
         </TabsList>
@@ -355,134 +324,140 @@ export default async function ClientPage({
             </CardHeader>
             <CardContent>
               {client.therapySessions.length > 0 ? (
-                <div className="space-y-3">
-                  {client.therapySessions.map((session) => (
-                    <div
-                      key={session.id}
-                      className="flex items-center justify-between p-4 rounded-lg bg-muted/50 border"
-                    >
-                      <div className="flex items-center gap-4">
-                        <div className="text-center">
-                          <div className="text-2xl font-bold">
-                            {format(new Date(session.startTime), "d")}
+                <div className="space-y-2">
+                  {client.therapySessions.map((session) => {
+                    const hasNote = !!session.sessionNote;
+                    const isPaid = session.payment?.status === "PAID";
+                    const isCompleted = session.status === "COMPLETED";
+                    const isScheduled = session.status === "SCHEDULED";
+                    
+                    return (
+                      <div
+                        key={session.id}
+                        className="flex items-center justify-between p-3 rounded-lg border hover:bg-muted/50 transition-colors"
+                      >
+                        {/* תאריך ושעה */}
+                        <div className="flex items-center gap-3 flex-1">
+                          <div className="text-center min-w-[50px]">
+                            <div className="text-lg font-bold">
+                              {format(new Date(session.startTime), "d/M")}
+                            </div>
                           </div>
-                          <div className="text-xs text-muted-foreground">
-                            {format(new Date(session.startTime), "MMM", {
-                              locale: he,
-                            })}
+                          <div className="flex-1">
+                            <div className="flex items-center gap-2">
+                              <span className="text-sm font-medium">
+                                {format(new Date(session.startTime), "HH:mm")}
+                              </span>
+                              <span className="text-xs text-muted-foreground">
+                                {session.type === "ONLINE" ? "אונליין" : session.type === "PHONE" ? "טלפון" : "פרונטלי"}
+                              </span>
+                            </div>
+                            
+                            {/* סטטוס קומפקטי */}
+                            <div className="flex items-center gap-2 mt-1 text-xs">
+                              {isScheduled ? (
+                                <span className="text-muted-foreground">⭕ מתוכננת</span>
+                              ) : isCompleted ? (
+                                <>
+                                  <span className="text-green-600">✓ הושלם</span>
+                                  <span className="text-muted-foreground">•</span>
+                                  {hasNote ? (
+                                    <span className="text-green-600">✓ מסוכם</span>
+                                  ) : (
+                                    <span className="text-amber-600">⚠️ חסר סיכום</span>
+                                  )}
+                                  <span className="text-muted-foreground">•</span>
+                                  {isPaid ? (
+                                    <span className="text-green-600">✓ שולם</span>
+                                  ) : (
+                                    <span className="text-red-600">⚠️ לא שולם ₪{Number(session.price)}</span>
+                                  )}
+                                </>
+                              ) : session.status === "CANCELLED" ? (
+                                <span className="text-red-600">✗ בוטל</span>
+                              ) : (
+                                <span className="text-red-600">✗ לא הגיע</span>
+                              )}
+                            </div>
                           </div>
                         </div>
-                        <div>
-                          <p className="font-medium">
-                            {format(new Date(session.startTime), "HH:mm")} -{" "}
-                            {format(new Date(session.endTime), "HH:mm")}
-                          </p>
-                          <p className="text-sm text-muted-foreground">
-                            {session.type === "ONLINE"
-                              ? "אונליין"
-                              : session.type === "PHONE"
-                              ? "טלפון"
-                              : "פרונטלי"}
-                          </p>
-                        </div>
-                      </div>
-                      <div className="flex items-center gap-2">
-                        {/* Badges קומפקטיים */}
-                        {session.sessionNote && (
-                          <Badge className="bg-green-100 text-green-700 border-green-200">
-                            <CheckCircle className="h-3 w-3 ml-1" />
-                            סוכם
-                          </Badge>
-                        )}
-                        
-                        {session.payment?.status === "PAID" && (
-                          <Badge className="bg-blue-100 text-blue-700 border-blue-200">
-                            <CheckCircle className="h-3 w-3 ml-1" />
-                            שולם
-                          </Badge>
-                        )}
-                        
-                        <Badge
-                          variant={
-                            session.status === "COMPLETED"
-                              ? "default"
-                              : session.status === "CANCELLED"
-                              ? "destructive"
-                              : "secondary"
-                          }
-                        >
-                          {session.status === "SCHEDULED"
-                            ? "מתוכנן"
-                            : session.status === "COMPLETED"
-                            ? "הושלם"
-                            : session.status === "CANCELLED"
-                            ? "בוטל"
-                            : "לא הגיע"}
-                        </Badge>
 
-                        {/* כפתור ראשי - משתנה לפי מצב */}
-                        {!session.sessionNote ? (
-                          <Button size="sm" asChild>
-                            <Link href={`/dashboard/sessions/${session.id}`}>
-                              <FileText className="h-4 w-4 ml-1" />
-                              כתוב סיכום
-                            </Link>
-                          </Button>
-                        ) : session.payment?.status !== "PAID" ? (
-                          <QuickMarkPaid
-                            sessionId={session.id}
-                            clientId={client.id}
-                            clientName={client.name}
-                            amount={Number(session.price)}
-                            creditBalance={Number(client.creditBalance)}
-                            existingPayment={session.payment}
-                            buttonText="תשלום"
-                          />
-                        ) : (
-                          <Button variant="outline" size="sm" asChild>
-                            <Link href={`/dashboard/sessions/${session.id}`}>
-                              <Eye className="h-4 w-4 ml-1" />
-                              צפה
-                            </Link>
-                          </Button>
-                        )}
-
-                        {/* תפריט אופציות */}
-                        <DropdownMenu>
-                          <DropdownMenuTrigger asChild>
-                            <Button variant="ghost" size="sm">
-                              <MoreVertical className="h-4 w-4" />
-                            </Button>
-                          </DropdownMenuTrigger>
-                          <DropdownMenuContent align="end">
-                            <DropdownMenuItem asChild>
-                              <Link href={`/dashboard/sessions/${session.id}`}>
-                                <FileText className="h-4 w-4 ml-2" />
-                                {session.sessionNote ? "ערוך סיכום" : "כתוב סיכום"}
-                              </Link>
-                            </DropdownMenuItem>
-                            <DropdownMenuItem asChild>
-                              <Link href={`/dashboard/calendar?session=${session.id}`}>
-                                <Calendar className="h-4 w-4 ml-2" />
-                                שנה זמן
-                              </Link>
-                            </DropdownMenuItem>
-                            {session.payment?.status !== "PAID" && (
-                              <>
-                                <DropdownMenuSeparator />
-                                <DropdownMenuItem asChild>
-                                  <Link href={`/dashboard/clients/${client.id}?tab=payments`}>
-                                    <CreditCard className="h-4 w-4 ml-2" />
-                                    פרטי תשלום
+                        {/* פעולות - רק מה שצריך */}
+                        <div className="flex items-center gap-2">
+                          {isScheduled ? (
+                            // פגישה מתוכננת - כפתורי סטטוס
+                            <QuickSessionStatus
+                              sessionId={session.id}
+                              clientId={client.id}
+                              currentStatus={session.status}
+                            />
+                          ) : isCompleted ? (
+                            // פגישה שהושלמה - הצג רק מה שחסר
+                            <>
+                              {!hasNote && (
+                                <Button size="sm" variant="default" asChild>
+                                  <Link href={`/dashboard/sessions/${session.id}`}>
+                                    <FileText className="h-3 w-3 ml-1" />
+                                    כתוב סיכום
                                   </Link>
-                                </DropdownMenuItem>
-                              </>
-                            )}
-                          </DropdownMenuContent>
-                        </DropdownMenu>
+                                </Button>
+                              )}
+                              {!isPaid && (
+                                <QuickMarkPaid
+                                  sessionId={session.id}
+                                  clientId={client.id}
+                                  clientName={client.name}
+                                  amount={Number(session.price)}
+                                  creditBalance={Number(client.creditBalance)}
+                                  existingPayment={session.payment}
+                                  buttonText="סמן כשולם"
+                                />
+                              )}
+                              {hasNote && isPaid && (
+                                <Button size="sm" variant="outline" asChild>
+                                  <Link href={`/dashboard/sessions/${session.id}`}>
+                                    <Eye className="h-3 w-3 ml-1" />
+                                    צפה
+                                  </Link>
+                                </Button>
+                              )}
+                            </>
+                          ) : (
+                            // פגישה מבוטלת/לא הגיע
+                            <Button size="sm" variant="outline" asChild>
+                              <Link href={`/dashboard/sessions/${session.id}`}>
+                                <Eye className="h-3 w-3 ml-1" />
+                                צפה
+                              </Link>
+                            </Button>
+                          )}
+                          
+                          {/* תפריט נוסף */}
+                          <DropdownMenu>
+                            <DropdownMenuTrigger asChild>
+                              <Button variant="ghost" size="sm" className="h-7 w-7 p-0">
+                                <MoreVertical className="h-3 w-3" />
+                              </Button>
+                            </DropdownMenuTrigger>
+                            <DropdownMenuContent align="end">
+                              <DropdownMenuItem asChild>
+                                <Link href={`/dashboard/sessions/${session.id}`}>
+                                  <FileText className="h-4 w-4 ml-2" />
+                                  {hasNote ? "ערוך סיכום" : "כתוב סיכום"}
+                                </Link>
+                              </DropdownMenuItem>
+                              <DropdownMenuItem asChild>
+                                <Link href={`/dashboard/calendar?session=${session.id}`}>
+                                  <Calendar className="h-4 w-4 ml-2" />
+                                  שנה זמן
+                                </Link>
+                              </DropdownMenuItem>
+                            </DropdownMenuContent>
+                          </DropdownMenu>
+                        </div>
                       </div>
-                    </div>
-                  ))}
+                    );
+                  })}
                 </div>
               ) : (
                 <div className="text-center py-8 text-muted-foreground">
@@ -500,21 +475,28 @@ export default async function ClientPage({
         </TabsContent>
 
         <TabsContent value="notes" className="mt-6">
-          <Card>
-            <CardHeader className="flex flex-row items-center justify-between">
-              <div>
-                <CardTitle>סיכומי טיפול</CardTitle>
-                <CardDescription>
-                  {client.therapySessions.filter((s) => s.sessionNote).length} סיכומים
-                </CardDescription>
-              </div>
-              <Button asChild>
-                <Link href={`/dashboard/sessions/new?client=${client.id}`}>
-                  <Plus className="ml-2 h-4 w-4" />
-                  סיכום חדש
-                </Link>
-              </Button>
-            </CardHeader>
+          <Tabs defaultValue="summaries" className="w-full">
+            <TabsList>
+              <TabsTrigger value="summaries">סיכומים</TabsTrigger>
+              <TabsTrigger value="diagnosis">אבחון</TabsTrigger>
+            </TabsList>
+
+            <TabsContent value="summaries" className="mt-4">
+              <Card>
+                <CardHeader className="flex flex-row items-center justify-between">
+                  <div>
+                    <CardTitle>סיכומי טיפול</CardTitle>
+                    <CardDescription>
+                      {client.therapySessions.filter((s) => s.sessionNote).length} סיכומים
+                    </CardDescription>
+                  </div>
+                  <Button asChild>
+                    <Link href={`/dashboard/sessions/new?client=${client.id}`}>
+                      <Plus className="ml-2 h-4 w-4" />
+                      סיכום חדש
+                    </Link>
+                  </Button>
+                </CardHeader>
             <CardContent className="space-y-4">
               {/* Search */}
               <div className="relative">
@@ -577,10 +559,10 @@ export default async function ClientPage({
               )}
             </CardContent>
           </Card>
-        </TabsContent>
+            </TabsContent>
 
-        <TabsContent value="diagnosis" className="mt-6">
-          <div className="grid gap-6 lg:grid-cols-2">
+            <TabsContent value="diagnosis" className="mt-4">
+              <div className="grid gap-6 lg:grid-cols-2">
             <Card>
               <CardHeader>
                 <CardTitle>אבחון ראשוני</CardTitle>
@@ -629,6 +611,8 @@ export default async function ClientPage({
               </CardContent>
             </Card>
           </div>
+            </TabsContent>
+          </Tabs>
         </TabsContent>
 
         <TabsContent value="questionnaires" className="mt-6">
@@ -718,22 +702,29 @@ export default async function ClientPage({
           </Card>
         </TabsContent>
 
-        <TabsContent value="documents" className="mt-6">
-          <Card>
-            <CardHeader className="flex flex-row items-center justify-between">
-              <div>
-                <CardTitle>מסמכים</CardTitle>
-                <CardDescription>
-                  {client.documents.length} מסמכים
-                </CardDescription>
-              </div>
-              <Button asChild>
-                <Link href={`/dashboard/documents/upload?client=${client.id}`}>
-                  <Plus className="ml-2 h-4 w-4" />
-                  העלה מסמך
-                </Link>
-              </Button>
-            </CardHeader>
+        <TabsContent value="files" className="mt-6">
+          <Tabs defaultValue="documents" className="w-full">
+            <TabsList>
+              <TabsTrigger value="documents">מסמכים</TabsTrigger>
+              <TabsTrigger value="recordings">הקלטות</TabsTrigger>
+            </TabsList>
+
+            <TabsContent value="documents" className="mt-4">
+              <Card>
+                <CardHeader className="flex flex-row items-center justify-between">
+                  <div>
+                    <CardTitle>מסמכים</CardTitle>
+                    <CardDescription>
+                      {client.documents.length} מסמכים
+                    </CardDescription>
+                  </div>
+                  <Button asChild>
+                    <Link href={`/dashboard/documents/upload?client=${client.id}`}>
+                      <Plus className="ml-2 h-4 w-4" />
+                      העלה מסמך
+                    </Link>
+                  </Button>
+                </CardHeader>
             <CardContent>
               {client.documents.length > 0 ? (
                 <div className="space-y-3">
@@ -782,24 +773,24 @@ export default async function ClientPage({
               )}
             </CardContent>
           </Card>
-        </TabsContent>
+            </TabsContent>
 
-        <TabsContent value="recordings" className="mt-6">
-          <Card>
-            <CardHeader className="flex flex-row items-center justify-between">
-              <div>
-                <CardTitle>הקלטות</CardTitle>
-                <CardDescription>
-                  {client._count.recordings} הקלטות בסך הכל
-                </CardDescription>
-              </div>
-              <Button asChild>
-                <Link href={`/dashboard/recordings/new?client=${client.id}`}>
-                  <Mic className="ml-2 h-4 w-4" />
-                  הקלטה חדשה
-                </Link>
-              </Button>
-            </CardHeader>
+            <TabsContent value="recordings" className="mt-4">
+              <Card>
+                <CardHeader className="flex flex-row items-center justify-between">
+                  <div>
+                    <CardTitle>הקלטות</CardTitle>
+                    <CardDescription>
+                      {client._count.recordings} הקלטות בסך הכל
+                    </CardDescription>
+                  </div>
+                  <Button asChild>
+                    <Link href={`/dashboard/recordings/new?client=${client.id}`}>
+                      <Mic className="ml-2 h-4 w-4" />
+                      הקלטה חדשה
+                    </Link>
+                  </Button>
+                </CardHeader>
             <CardContent>
               {client.recordings.length > 0 ? (
                 <div className="space-y-3">
@@ -869,6 +860,8 @@ export default async function ClientPage({
               )}
             </CardContent>
           </Card>
+            </TabsContent>
+          </Tabs>
         </TabsContent>
 
         <TabsContent value="payments" className="mt-6">
@@ -928,11 +921,18 @@ export default async function ClientPage({
         </TabsContent>
 
         <TabsContent value="info" className="mt-6">
-          <div className="grid gap-6 lg:grid-cols-2">
-            <Card>
-              <CardHeader>
-                <CardTitle>פרטים נוספים</CardTitle>
-              </CardHeader>
+          <Tabs defaultValue="details" className="w-full">
+            <TabsList>
+              <TabsTrigger value="details">פרטים אישיים</TabsTrigger>
+              <TabsTrigger value="payments">תשלומים</TabsTrigger>
+            </TabsList>
+
+            <TabsContent value="details" className="mt-4">
+              <div className="grid gap-6 lg:grid-cols-2">
+                <Card>
+                  <CardHeader>
+                    <CardTitle>פרטים נוספים</CardTitle>
+                  </CardHeader>
               <CardContent className="space-y-4">
                 {client.address && (
                   <div>
@@ -990,6 +990,64 @@ export default async function ClientPage({
               </CardContent>
             </Card>
           </div>
+            </TabsContent>
+
+            <TabsContent value="payments" className="mt-4">
+              <Card>
+                <CardHeader>
+                  <CardTitle>היסטוריית תשלומים</CardTitle>
+                </CardHeader>
+                <CardContent>
+                  {client.payments.length > 0 ? (
+                    <div className="space-y-3">
+                      {client.payments.map((payment) => (
+                        <div
+                          key={payment.id}
+                          className="flex items-center justify-between p-4 rounded-lg bg-muted/50"
+                        >
+                          <div>
+                            <p className="font-medium">₪{Number(payment.amount)}</p>
+                            <p className="text-sm text-muted-foreground">
+                              {format(new Date(payment.createdAt), "d/M/yyyy")} •{" "}
+                              {payment.method === "CASH"
+                                ? "מזומן"
+                                : payment.method === "CREDIT_CARD"
+                                ? "אשראי"
+                                : payment.method === "BANK_TRANSFER"
+                                ? "העברה"
+                                : "צ׳ק"}
+                            </p>
+                          </div>
+                          <Badge
+                            variant={
+                              payment.status === "PAID"
+                                ? "default"
+                                : payment.status === "PENDING"
+                                ? "secondary"
+                                : "destructive"
+                            }
+                          >
+                            {payment.status === "PAID"
+                              ? "שולם"
+                              : payment.status === "PENDING"
+                              ? "ממתין"
+                              : payment.status === "CANCELLED"
+                              ? "בוטל"
+                              : "הוחזר"}
+                          </Badge>
+                        </div>
+                      ))}
+                    </div>
+                  ) : (
+                    <div className="text-center py-8 text-muted-foreground">
+                      <CreditCard className="mx-auto h-12 w-12 mb-3 opacity-50" />
+                      <p>אין תשלומים עדיין</p>
+                    </div>
+                  )}
+                </CardContent>
+              </Card>
+            </TabsContent>
+          </Tabs>
         </TabsContent>
       </Tabs>
     </div>

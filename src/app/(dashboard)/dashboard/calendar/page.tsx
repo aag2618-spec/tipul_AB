@@ -1028,7 +1028,7 @@ export default function CalendarPage() {
                     <Button
                       onClick={() => {
                         setIsSessionDialogOpen(false);
-                        setIsFormOpen(true);
+                        setIsDialogOpen(true);
                         setFormData({
                           ...formData,
                           startTime: format(new Date(selectedSession.startTime), "yyyy-MM-dd'T'HH:mm"),
