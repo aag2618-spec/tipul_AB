@@ -263,6 +263,10 @@ export default function CalendarPage() {
   const handleEventClick = (info: EventClickArg) => {
     const session = sessions.find(s => s.id === info.event.id);
     if (session) {
+      // Play wave sound if it's a break session
+      if (session.type === "BREAK") {
+        playWaveSound();
+      }
       setSelectedSession(session);
       setIsSessionDialogOpen(true);
     }
@@ -313,7 +317,7 @@ export default function CalendarPage() {
       return (
         <div className="relative w-full h-full overflow-hidden group break-event-card">
           {/* Mountain-to-River Gradient Background */}
-          <div className="absolute inset-0 bg-gradient-to-b from-amber-800/70 via-emerald-600/60 to-cyan-400/80 opacity-90"></div>
+          <div className="absolute inset-0 bg-gradient-to-b from-amber-800/70 via-emerald-600/60 to-cyan-400/80 opacity-90 animate-gradient-flow"></div>
           
           {/* Mountains and Trees - Top */}
           <div className="absolute top-1 left-0 right-0 z-10 flex justify-around px-2 text-xs opacity-70">
@@ -322,30 +326,25 @@ export default function CalendarPage() {
             <span>🌲</span>
             <span>🏔️</span>
           </div>
+
+          {/* Ducks - Appear on hover */}
+          <div className="absolute top-1/3 left-0 right-0 z-10 opacity-0 group-hover:opacity-100 transition-opacity duration-500">
+            <div className="ducks-swimming text-sm flex justify-center gap-2">
+              <span className="duck-1">🦆</span>
+              <span className="duck-2">🦆</span>
+            </div>
+          </div>
           
           {/* Content */}
-          <div className="relative z-10 flex items-center justify-between w-full h-full px-2 py-1">
-            <div className="flex-1 flex flex-col items-center justify-center text-center">
-              <div className="font-bold text-sm text-white drop-shadow-md">🌊 הפסקה</div>
-              <div className="text-xs text-white/90 drop-shadow">{eventInfo.timeText}</div>
-              <div className="text-xs text-white/80 mt-1 italic font-light">זמן לנשום...</div>
-            </div>
-            
-            <button
-              onClick={(e) => {
-                e.stopPropagation();
-                handleAddSessionAfter(session);
-              }}
-              className="opacity-0 group-hover:opacity-100 bg-white hover:bg-green-50 text-green-600 rounded-full w-6 h-6 flex items-center justify-center text-lg font-bold shadow-sm"
-              title="הוסף פגישה מיד אחרי"
-            >
-              +
-            </button>
+          <div className="relative z-10 flex flex-col items-center justify-center h-full text-center px-2 py-1">
+            <div className="font-bold text-sm text-white drop-shadow-md">🌊 הפסקה</div>
+            <div className="text-xs text-white/90 drop-shadow">{eventInfo.timeText}</div>
+            <div className="text-xs text-white/80 mt-1 italic font-light">זמן לנשום...</div>
           </div>
 
-          {/* Waves - static, no animation */}
+          {/* Enhanced waves - more prominent on hover */}
           <div className="absolute bottom-0 left-0 right-0 h-6 z-10">
-            <div className="text-sm opacity-60">
+            <div className="wave-animation text-sm opacity-60 group-hover:opacity-100 transition-opacity duration-300">
               🌊 🌊 🌊 🌊 🌊 🌊
             </div>
           </div>
