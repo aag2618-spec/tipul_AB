@@ -323,10 +323,10 @@ export default function ClientPaymentsPage() {
                 return (
                   <div
                     key={session.id}
-                    className="flex items-center justify-between p-4 rounded-lg border hover:bg-muted/50 transition-colors"
+                    className="flex flex-col gap-4 p-4 rounded-lg border hover:bg-muted/50 transition-colors"
                   >
                     {/* Session Info */}
-                    <div className="flex items-center gap-4 flex-1">
+                    <div className="flex items-center gap-4">
                       <div className="flex items-center gap-2">
                         <Calendar className="h-5 w-5 text-muted-foreground" />
                         <div>
@@ -345,9 +345,11 @@ export default function ClientPaymentsPage() {
                           </p>
                         </div>
                       </div>
+                    </div>
 
-                      {/* Payment Status */}
-                      <div className="flex items-center gap-3 mr-auto">
+                    {/* Payment Status and Button */}
+                    <div className="flex items-center justify-between gap-6">
+                      <div className="flex items-center gap-3">
                         {paid > 0 && debt > 0 ? (
                           <>
                             <Badge variant="secondary" className="gap-1">
@@ -367,15 +369,15 @@ export default function ClientPaymentsPage() {
                           </Badge>
                         )}
                       </div>
-                    </div>
 
-                    {/* Payment Button */}
-                    <Button variant="default" size="sm" asChild className="gap-2">
-                      <Link href={`/dashboard/payments/pay/${clientId}?session=${session.id}`}>
-                        <CreditCard className="h-4 w-4" />
-                        {paid > 0 ? "השלם תשלום" : "שלם"}
-                      </Link>
-                    </Button>
+                      {/* Payment Button */}
+                      <Button variant="default" size="sm" asChild className="gap-2">
+                        <Link href={`/dashboard/payments/pay/${clientId}?session=${session.id}`}>
+                          <CreditCard className="h-4 w-4" />
+                          {paid > 0 ? "השלם תשלום" : "שלם"}
+                        </Link>
+                      </Button>
+                    </div>
                   </div>
                 );
               })}
