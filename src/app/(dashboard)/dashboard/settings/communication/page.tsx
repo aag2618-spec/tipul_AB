@@ -7,7 +7,7 @@ import { Switch } from '@/components/ui/switch';
 import { Input } from '@/components/ui/input';
 import { Label } from '@/components/ui/label';
 import { toast } from 'sonner';
-import { Mail, Bell, Clock, Shield, Save, DollarSign } from 'lucide-react';
+import { Mail, Bell, Clock, Shield, Save, CreditCard } from 'lucide-react';
 import {
   Select,
   SelectContent,
@@ -222,7 +222,7 @@ export default function CommunicationSettingsPage() {
         <Card>
           <CardHeader>
             <div className="flex items-center gap-2">
-              <DollarSign className="h-5 w-5 text-primary" />
+              <CreditCard className="h-5 w-5 text-primary" />
               <CardTitle>תזכורות חוב אוטומטיות</CardTitle>
             </div>
             <CardDescription>
