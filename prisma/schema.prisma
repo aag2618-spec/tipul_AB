@@ -604,6 +604,11 @@ model CommunicationSetting {
   allowClientCancellation Boolean @default(true)
   minCancellationHours    Int     @default(24)
 
+  // Debt reminders
+  sendDebtReminders       Boolean @default(false) // שליחת תזכורות חוב אוטומטיות
+  debtReminderDayOfMonth  Int     @default(1)     // יום בחודש (1-28)
+  debtReminderMinAmount   Decimal @default(50)    // סכום מינימלי לשליחת תזכורת
+
   createdAt DateTime @default(now())
   updatedAt DateTime @updatedAt
 

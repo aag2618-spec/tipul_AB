@@ -24,6 +24,9 @@ export async function GET() {
           send2hReminder: false,
           allowClientCancellation: true,
           minCancellationHours: 24,
+          sendDebtReminders: false,
+          debtReminderDayOfMonth: 1,
+          debtReminderMinAmount: 50,
         },
       });
     }
@@ -35,6 +38,9 @@ export async function GET() {
         send2hReminder: settings.send2hReminder,
         allowClientCancellation: settings.allowClientCancellation,
         minCancellationHours: settings.minCancellationHours,
+        sendDebtReminders: settings.sendDebtReminders,
+        debtReminderDayOfMonth: settings.debtReminderDayOfMonth,
+        debtReminderMinAmount: Number(settings.debtReminderMinAmount),
       },
     });
   } catch (error) {
@@ -61,10 +67,19 @@ export async function PUT(request: NextRequest) {
       send2hReminder,
       allowClientCancellation,
       minCancellationHours,
+      sendDebtReminders,
+      debtReminderDayOfMonth,
+      debtReminderMinAmount,
     } = body;
 
     // Validate minCancellationHours
     const validMinHours = Math.max(1, Math.min(168, minCancellationHours || 24));
+    
+    // Validate debtReminderDayOfMonth (1-28)
+    const validDayOfMonth = Math.max(1, Math.min(28, debtReminderDayOfMonth || 1));
+    
+    // Validate debtReminderMinAmount (0+)
+    const validMinAmount = Math.max(0, debtReminderMinAmount || 50);
 
     const settings = await prisma.communicationSetting.upsert({
       where: { userId: session.user.id },
@@ -74,6 +89,9 @@ export async function PUT(request: NextRequest) {
         send2hReminder: send2hReminder ?? false,
         allowClientCancellation: allowClientCancellation ?? true,
         minCancellationHours: validMinHours,
+        sendDebtReminders: sendDebtReminders ?? false,
+        debtReminderDayOfMonth: validDayOfMonth,
+        debtReminderMinAmount: validMinAmount,
       },
       create: {
         userId: session.user.id,
@@ -82,6 +100,9 @@ export async function PUT(request: NextRequest) {
         send2hReminder: send2hReminder ?? false,
         allowClientCancellation: allowClientCancellation ?? true,
         minCancellationHours: validMinHours,
+        sendDebtReminders: sendDebtReminders ?? false,
+        debtReminderDayOfMonth: validDayOfMonth,
+        debtReminderMinAmount: validMinAmount,
       },
     });
 
@@ -93,6 +114,9 @@ export async function PUT(request: NextRequest) {
         send2hReminder: settings.send2hReminder,
         allowClientCancellation: settings.allowClientCancellation,
         minCancellationHours: settings.minCancellationHours,
+        sendDebtReminders: settings.sendDebtReminders,
+        debtReminderDayOfMonth: settings.debtReminderDayOfMonth,
+        debtReminderMinAmount: Number(settings.debtReminderMinAmount),
       },
     });
   } catch (error) {

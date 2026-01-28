@@ -21,6 +21,7 @@ import {
   CheckCircle,
   AlertCircle,
   Loader2,
+  Mail,
 } from "lucide-react";
 import Link from "next/link";
 import { format } from "date-fns";
@@ -60,6 +61,7 @@ export default function ClientPaymentsPage() {
   const [bulkAmount, setBulkAmount] = useState("");
   const [paymentMethod, setPaymentMethod] = useState<string>("CASH");
   const [processing, setProcessing] = useState(false);
+  const [sendingReminder, setSendingReminder] = useState(false);
 
   useEffect(() => {
     fetchClientData();
@@ -126,6 +128,27 @@ export default function ClientPaymentsPage() {
     }, 0);
   };
 
+  const handleSendReminder = async () => {
+    try {
+      setSendingReminder(true);
+      const res = await fetch(`/api/clients/${clientId}/send-debt-reminder`, {
+        method: "POST",
+      });
+
+      if (!res.ok) {
+        const error = await res.json();
+        throw new Error(error.message || "שגיאה בשליחת התזכורת");
+      }
+
+      toast.success("תזכורת נשלחה בהצלחה למייל המטופל!");
+    } catch (error: any) {
+      toast.error(error.message || "שגיאה בשליחת התזכורת");
+      console.error(error);
+    } finally {
+      setSendingReminder(false);
+    }
+  };
+
   if (loading) {
     return (
       <div className="flex items-center justify-center min-h-[400px]">
@@ -162,6 +185,28 @@ export default function ClientPaymentsPage() {
             </p>
           </div>
         </div>
+        
+        {/* Send Reminder Button */}
+        {client.sessions.length > 0 && (
+          <Button
+            onClick={handleSendReminder}
+            disabled={sendingReminder}
+            variant="outline"
+            className="gap-2"
+          >
+            {sendingReminder ? (
+              <>
+                <Loader2 className="h-4 w-4 animate-spin" />
+                שולח...
+              </>
+            ) : (
+              <>
+                <Mail className="h-4 w-4" />
+                שלח תזכורת למטופל
+              </>
+            )}
+          </Button>
+        )}
       </div>
 
       {/* Summary Card */}

@@ -7,7 +7,14 @@ import { Switch } from '@/components/ui/switch';
 import { Input } from '@/components/ui/input';
 import { Label } from '@/components/ui/label';
 import { toast } from 'sonner';
-import { Mail, Bell, Clock, Shield, Save } from 'lucide-react';
+import { Mail, Bell, Clock, Shield, Save, DollarSign } from 'lucide-react';
+import {
+  Select,
+  SelectContent,
+  SelectItem,
+  SelectTrigger,
+  SelectValue,
+} from '@/components/ui/select';
 
 interface CommunicationSettings {
   sendConfirmationEmail: boolean;
@@ -15,6 +22,9 @@ interface CommunicationSettings {
   send2hReminder: boolean;
   allowClientCancellation: boolean;
   minCancellationHours: number;
+  sendDebtReminders: boolean;
+  debtReminderDayOfMonth: number;
+  debtReminderMinAmount: number;
 }
 
 export default function CommunicationSettingsPage() {
@@ -24,6 +34,9 @@ export default function CommunicationSettingsPage() {
     send2hReminder: false,
     allowClientCancellation: true,
     minCancellationHours: 24,
+    sendDebtReminders: false,
+    debtReminderDayOfMonth: 1,
+    debtReminderMinAmount: 50,
   });
   const [loading, setLoading] = useState(true);
   const [saving, setSaving] = useState(false);
@@ -202,6 +215,96 @@ export default function CommunicationSettingsPage() {
                 מטופלים לא יוכלו לבקש ביטול פחות מ-{settings.minCancellationHours} שעות לפני הפגישה
               </p>
             </div>
+          </CardContent>
+        </Card>
+
+        {/* Debt Reminders */}
+        <Card>
+          <CardHeader>
+            <div className="flex items-center gap-2">
+              <DollarSign className="h-5 w-5 text-primary" />
+              <CardTitle>תזכורות חוב אוטומטיות</CardTitle>
+            </div>
+            <CardDescription>
+              שלח תזכורות חוב אוטומטיות למטופלים בעלי חובות
+            </CardDescription>
+          </CardHeader>
+          <CardContent className="space-y-6">
+            <div className="flex items-center justify-between">
+              <div className="space-y-0.5">
+                <Label htmlFor="debtReminders">הפעל תזכורות חוב אוטומטיות</Label>
+                <p className="text-sm text-muted-foreground">
+                  המערכת תשלח מייל אוטומטי למטופלים עם חובות
+                </p>
+              </div>
+              <Switch
+                id="debtReminders"
+                checked={settings.sendDebtReminders}
+                onCheckedChange={(checked) =>
+                  setSettings({ ...settings, sendDebtReminders: checked })
+                }
+              />
+            </div>
+
+            {settings.sendDebtReminders && (
+              <>
+                <div className="space-y-2">
+                  <Label htmlFor="dayOfMonth">יום בחודש לשליחה</Label>
+                  <Select
+                    value={settings.debtReminderDayOfMonth.toString()}
+                    onValueChange={(value) =>
+                      setSettings({
+                        ...settings,
+                        debtReminderDayOfMonth: parseInt(value),
+                      })
+                    }
+                  >
+                    <SelectTrigger id="dayOfMonth">
+                      <SelectValue />
+                    </SelectTrigger>
+                    <SelectContent>
+                      {Array.from({ length: 28 }, (_, i) => i + 1).map((day) => (
+                        <SelectItem key={day} value={day.toString()}>
+                          {day} לחודש
+                        </SelectItem>
+                      ))}
+                    </SelectContent>
+                  </Select>
+                  <p className="text-sm text-muted-foreground">
+                    בחר איזה יום בחודש לשלוח את התזכורות (1-28)
+                  </p>
+                </div>
+
+                <div className="space-y-2">
+                  <Label htmlFor="minAmount">סכום מינימלי לשליחה (₪)</Label>
+                  <Input
+                    id="minAmount"
+                    type="number"
+                    min={0}
+                    step={10}
+                    value={settings.debtReminderMinAmount}
+                    onChange={(e) =>
+                      setSettings({
+                        ...settings,
+                        debtReminderMinAmount: parseFloat(e.target.value) || 0,
+                      })
+                    }
+                    className="w-32"
+                  />
+                  <p className="text-sm text-muted-foreground">
+                    שלח תזכורת רק למטופלים עם חוב מעל ₪{settings.debtReminderMinAmount}
+                  </p>
+                </div>
+
+                <div className="bg-blue-50 border border-blue-200 rounded-lg p-4">
+                  <p className="text-sm text-blue-800">
+                    <strong>💡 מה יקרה:</strong> ב-{settings.debtReminderDayOfMonth} לכל חודש, המערכת תשלח מייל אוטומטי
+                    לכל מטופל עם חוב מעל ₪{settings.debtReminderMinAmount}. המייל יכלול פירוט של כל הפגישות שטרם שולמו,
+                    התאריכים, הסטטוס (הופיע/ביטל/לא הופיע), והסכום הכולל.
+                  </p>
+                </div>
+              </>
+            )}
           </CardContent>
         </Card>
 
