@@ -1150,16 +1150,6 @@ export default function CalendarPage() {
                     </Button>
                   </>
                 )}
-                
-                <Button
-                  onClick={() => {
-                    window.location.href = `/dashboard/sessions/${selectedSession.id}`;
-                  }}
-                  variant="secondary"
-                  className="w-full mt-2"
-                >
-                  📝 פתח דף פגישה מלא
-                </Button>
               </div>
             </div>
           )}
