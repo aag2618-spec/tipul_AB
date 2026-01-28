@@ -190,7 +190,7 @@ export default async function ClientPage({
       </div>
 
       {/* Quick Info Bar - Compact */}
-      <div className="grid gap-4 md:grid-cols-2">
+      <div className="grid gap-6 grid-cols-1">
         <Card>
           <CardContent className="py-4">
             <div className="flex items-center justify-between gap-6 flex-wrap">
