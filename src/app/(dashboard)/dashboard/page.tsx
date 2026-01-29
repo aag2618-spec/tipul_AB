@@ -26,8 +26,26 @@ function toIsraelTime(utcDate: Date): Date {
 }
 
 async function getDashboardStats(userId: string) {
-  const today = new Date();
-  today.setHours(0, 0, 0, 0);
+  // Get Israel timezone offset (UTC+2 winter, UTC+3 summer DST)
+  const now = new Date();
+  const month = now.getUTCMonth() + 1;
+  const isDST = month >= 3 && month <= 10;
+  const israelOffsetHours = isDST ? 3 : 2;
+  
+  // Calculate "today" in Israel time
+  // Step 1: Get current time in Israel
+  const nowInIsrael = new Date(now.getTime() + israelOffsetHours * 60 * 60 * 1000);
+  
+  // Step 2: Get midnight of today in Israel (as UTC)
+  const today = new Date(Date.UTC(
+    nowInIsrael.getUTCFullYear(),
+    nowInIsrael.getUTCMonth(),
+    nowInIsrael.getUTCDate(),
+    0, 0, 0, 0
+  ));
+  // Step 3: Convert back to UTC by subtracting Israel offset
+  today.setHours(today.getHours() - israelOffsetHours);
+  
   const tomorrow = new Date(today);
   tomorrow.setDate(tomorrow.getDate() + 1);
   
