@@ -102,7 +102,11 @@ async function getDashboardStats(userId: string) {
         type: true,
         price: true,
         status: true,
-        sessionNote: true,
+        sessionNote: {
+          select: {
+            id: true,
+          },
+        },
         client: {
           select: {
             id: true,
@@ -270,8 +274,13 @@ export default async function DashboardPage() {
                   <TodaySessionCard 
                     key={therapySession.id} 
                     session={{
-                      ...therapySession,
+                      id: therapySession.id,
+                      startTime: therapySession.startTime,
+                      endTime: therapySession.endTime,
+                      type: therapySession.type,
+                      status: therapySession.status,
                       price: Number(therapySession.price),
+                      sessionNote: therapySession.sessionNote ? therapySession.sessionNote.id : null,
                       payment: therapySession.payment ? {
                         id: therapySession.payment.id,
                         status: therapySession.payment.status,
