@@ -109,6 +109,7 @@ export function TodaySessionCard({ session }: TodaySessionCardProps) {
         headers: { "Content-Type": "application/json" },
         body: JSON.stringify({ 
           status: pendingAction,
+          createPayment: shouldCharge,  // ← יוצר payment record אם בוחרים לחייב
           markAsPaid: false,
         }),
       });
@@ -121,7 +122,7 @@ export function TodaySessionCard({ session }: TodaySessionCardProps) {
       setPendingAction(null);
 
       if (shouldCharge) {
-        toast.success(pendingAction === "CANCELLED" ? "הפגישה בוטלה, מעבר לדף תשלום..." : "נרשם כאי הופעה, מעבר לדף תשלום...");
+        toast.success(pendingAction === "CANCELLED" ? "הפגישה בוטלה וחויבה, מעבר לדף תשלום..." : "נרשם כאי הופעה וחויב, מעבר לדף תשלום...");
         // Navigate to payment page
         setTimeout(() => {
           window.location.href = `/dashboard/payments/pay/${session.client.id}`;
