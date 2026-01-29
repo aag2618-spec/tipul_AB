@@ -1,6 +1,6 @@
 "use client";
 
-import { useState, useEffect, use } from "react";
+import { useState, useEffect, use, useCallback } from "react";
 import { useRouter } from "next/navigation";
 import Link from "next/link";
 import { Button } from "@/components/ui/button";
@@ -113,13 +113,13 @@ export default function PayClientPage({ params }: { params: Promise<{ clientId: 
     }
   };
 
-  const selectFirstNSessions = (n: number) => {
+  const selectFirstNSessions = useCallback((n: number) => {
     if (!client) return;
     const firstN = client.unpaidSessions.slice(0, n);
     setSelectedPayments(new Set(firstN.map(s => s.paymentId)));
-  };
+  }, [client]);
 
-  const selectByAmount = (amount: number) => {
+  const selectByAmount = useCallback((amount: number) => {
     if (!client) return;
     let accumulated = 0;
     const selected = new Set<string>();
@@ -142,19 +142,19 @@ export default function PayClientPage({ params }: { params: Promise<{ clientId: 
     }
 
     setSelectedPayments(selected);
-  };
+  }, [client]);
 
   useEffect(() => {
-    if (selectionMode === "sessions") {
+    if (selectionMode === "sessions" && client) {
       selectFirstNSessions(parseInt(numSessions) || 1);
     }
-  }, [numSessions]);
+  }, [numSessions, client, selectionMode, selectFirstNSessions]);
 
   useEffect(() => {
-    if (selectionMode === "amount") {
+    if (selectionMode === "amount" && client) {
       selectByAmount(parseFloat(targetAmount) || 0);
     }
-  }, [targetAmount]);
+  }, [targetAmount, client, selectionMode, selectByAmount]);
 
   const calculateSelectedTotal = () => {
     if (!client) return 0;
