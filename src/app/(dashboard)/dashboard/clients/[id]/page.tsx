@@ -490,93 +490,53 @@ export default async function ClientPage({
         </TabsContent>
 
         <TabsContent value="summaries" className="mt-6">
-          <div className="grid gap-6">
-            {/* פגישות ללא סיכום */}
-            <Card>
-              <CardHeader>
-                <CardTitle className="flex items-center gap-2">
-                  <Clock className="h-5 w-5 text-orange-600" />
-                  פגישות ללא סיכום
-                </CardTitle>
-                <CardDescription>
-                  {client.therapySessions.filter((s) => !s.sessionNote && s.type !== "BREAK").length} פגישות ממתינות לסיכום
-                </CardDescription>
-              </CardHeader>
-              <CardContent>
-                {client.therapySessions.filter((s) => !s.sessionNote && s.type !== "BREAK").length > 0 ? (
-                  <div className="space-y-3">
-                    {client.therapySessions
-                      .filter((s) => !s.sessionNote && s.type !== "BREAK")
-                      .map((session) => (
-                        <div
-                          key={session.id}
-                          className="flex items-center justify-between p-4 border rounded-lg bg-orange-50/50 hover:bg-orange-50 transition-colors"
-                        >
-                          <div className="flex items-center gap-3">
-                            <Calendar className="h-5 w-5 text-orange-600" />
-                            <div>
-                              <p className="font-medium">
-                                {format(new Date(session.startTime), "EEEE, d בMMMM yyyy", { locale: he })}
-                              </p>
-                              <p className="text-sm text-muted-foreground">
-                                {format(new Date(session.startTime), "HH:mm")} - {format(new Date(session.endTime), "HH:mm")}
-                              </p>
-                            </div>
-                          </div>
-                          <Button asChild size="sm">
-                            <Link href={`/dashboard/sessions/${session.id}`}>
-                              <Plus className="h-4 w-4 ml-2" />
-                              סכם פגישה
-                            </Link>
-                          </Button>
-                        </div>
-                      ))}
-                  </div>
-                ) : (
-                  <div className="text-center py-8 text-muted-foreground">
-                    <CheckCircle className="mx-auto h-12 w-12 mb-3 opacity-50 text-green-600" />
-                    <p>כל הפגישות סוכמו! 🎉</p>
-                  </div>
-                )}
-              </CardContent>
-            </Card>
+          <Tabs defaultValue="unsummarized" className="w-full">
+            <div className="flex items-center justify-between mb-4">
+              <TabsList>
+                <TabsTrigger value="unsummarized" className="gap-2">
+                  <Clock className="h-4 w-4" />
+                  ללא סיכום ({client.therapySessions.filter((s) => !s.sessionNote && s.type !== "BREAK").length})
+                </TabsTrigger>
+                <TabsTrigger value="summarized" className="gap-2">
+                  <CheckCircle className="h-4 w-4" />
+                  מסוכמות ({client.therapySessions.filter((s) => s.sessionNote).length})
+                </TabsTrigger>
+              </TabsList>
+              
+              {client.therapySessions.filter((s) => s.sessionNote).length > 0 && (
+                <Button variant="outline" asChild>
+                  <Link href={`/dashboard/clients/${client.id}/summaries/all`}>
+                    <Eye className="h-4 w-4 ml-2" />
+                    צפה בכל הסיכומים ברצף
+                  </Link>
+                </Button>
+              )}
+            </div>
 
-            {/* פגישות מסוכמות */}
-            <Card>
-              <CardHeader>
-                <div className="flex items-center justify-between">
-                  <div>
-                    <CardTitle className="flex items-center gap-2">
-                      <FileText className="h-5 w-5 text-green-600" />
-                      פגישות מסוכמות
-                    </CardTitle>
-                    <CardDescription>
-                      {client.therapySessions.filter((s) => s.sessionNote).length} סיכומים
-                    </CardDescription>
-                  </div>
-                  {client.therapySessions.filter((s) => s.sessionNote).length > 0 && (
-                    <Button variant="outline" asChild>
-                      <Link href={`/dashboard/clients/${client.id}/summaries/all`}>
-                        <Eye className="h-4 w-4 ml-2" />
-                        צפה בכל הסיכומים
-                      </Link>
-                    </Button>
-                  )}
-                </div>
-              </CardHeader>
-              <CardContent>
-                {client.therapySessions.filter((s) => s.sessionNote).length > 0 ? (
-                  <div className="space-y-3">
-                    {client.therapySessions
-                      .filter((s) => s.sessionNote)
-                      .map((session) => (
-                        <div
-                          key={session.id}
-                          className="flex items-center justify-between p-4 border rounded-lg hover:bg-slate-50 transition-colors"
-                        >
-                          <div className="flex-1">
-                            <div className="flex items-center gap-3 mb-2">
-                              <Calendar className="h-5 w-5 text-green-600" />
+            {/* פגישות ללא סיכום */}
+            <TabsContent value="unsummarized" className="mt-0">
+              <Card>
+                <CardHeader>
+                  <CardTitle className="flex items-center gap-2">
+                    <Clock className="h-5 w-5 text-orange-600" />
+                    פגישות ללא סיכום
+                  </CardTitle>
+                  <CardDescription>
+                    {client.therapySessions.filter((s) => !s.sessionNote && s.type !== "BREAK").length} פגישות ממתינות לסיכום
+                  </CardDescription>
+                </CardHeader>
+                <CardContent>
+                  {client.therapySessions.filter((s) => !s.sessionNote && s.type !== "BREAK").length > 0 ? (
+                    <div className="space-y-3">
+                      {client.therapySessions
+                        .filter((s) => !s.sessionNote && s.type !== "BREAK")
+                        .map((session) => (
+                          <div
+                            key={session.id}
+                            className="flex items-center justify-between p-4 border rounded-lg bg-orange-50/50 hover:bg-orange-50 transition-colors"
+                          >
+                            <div className="flex items-center gap-3">
+                              <Calendar className="h-5 w-5 text-orange-600" />
                               <div>
                                 <p className="font-medium">
                                   {format(new Date(session.startTime), "EEEE, d בMMMM yyyy", { locale: he })}
@@ -586,30 +546,84 @@ export default async function ClientPage({
                                 </p>
                               </div>
                             </div>
-                            {session.sessionNote && (
-                              <p className="text-sm text-muted-foreground line-clamp-2 mr-8">
-                                {session.sessionNote.content}
-                              </p>
-                            )}
+                            <Button asChild size="sm">
+                              <Link href={`/dashboard/sessions/${session.id}`}>
+                                <Plus className="h-4 w-4 ml-2" />
+                                סכם פגישה
+                              </Link>
+                            </Button>
                           </div>
-                          <Button variant="outline" size="sm" asChild>
-                            <Link href={`/dashboard/sessions/${session.id}`}>
-                              <Eye className="h-4 w-4 ml-2" />
-                              צפה
-                            </Link>
-                          </Button>
-                        </div>
-                      ))}
-                  </div>
-                ) : (
-                  <div className="text-center py-8 text-muted-foreground">
-                    <FileText className="mx-auto h-12 w-12 mb-3 opacity-50" />
-                    <p>אין סיכומים עדיין</p>
-                  </div>
-                )}
-              </CardContent>
-            </Card>
-          </div>
+                        ))}
+                    </div>
+                  ) : (
+                    <div className="text-center py-8 text-muted-foreground">
+                      <CheckCircle className="mx-auto h-12 w-12 mb-3 opacity-50 text-green-600" />
+                      <p>כל הפגישות סוכמו! 🎉</p>
+                    </div>
+                  )}
+                </CardContent>
+              </Card>
+            </TabsContent>
+
+            {/* פגישות מסוכמות */}
+            <TabsContent value="summarized" className="mt-0">
+              <Card>
+                <CardHeader>
+                  <CardTitle className="flex items-center gap-2">
+                    <FileText className="h-5 w-5 text-green-600" />
+                    פגישות מסוכמות
+                  </CardTitle>
+                  <CardDescription>
+                    {client.therapySessions.filter((s) => s.sessionNote).length} סיכומים
+                  </CardDescription>
+                </CardHeader>
+                <CardContent>
+                  {client.therapySessions.filter((s) => s.sessionNote).length > 0 ? (
+                    <div className="space-y-3">
+                      {client.therapySessions
+                        .filter((s) => s.sessionNote)
+                        .map((session) => (
+                          <div
+                            key={session.id}
+                            className="flex items-center justify-between p-4 border rounded-lg hover:bg-slate-50 transition-colors"
+                          >
+                            <div className="flex-1">
+                              <div className="flex items-center gap-3 mb-2">
+                                <Calendar className="h-5 w-5 text-green-600" />
+                                <div>
+                                  <p className="font-medium">
+                                    {format(new Date(session.startTime), "EEEE, d בMMMM yyyy", { locale: he })}
+                                  </p>
+                                  <p className="text-sm text-muted-foreground">
+                                    {format(new Date(session.startTime), "HH:mm")} - {format(new Date(session.endTime), "HH:mm")}
+                                  </p>
+                                </div>
+                              </div>
+                              {session.sessionNote && (
+                                <p className="text-sm text-muted-foreground line-clamp-2 mr-8">
+                                  {session.sessionNote.content}
+                                </p>
+                              )}
+                            </div>
+                            <Button variant="outline" size="sm" asChild>
+                              <Link href={`/dashboard/sessions/${session.id}`}>
+                                <Eye className="h-4 w-4 ml-2" />
+                                צפה
+                              </Link>
+                            </Button>
+                          </div>
+                        ))}
+                    </div>
+                  ) : (
+                    <div className="text-center py-8 text-muted-foreground">
+                      <FileText className="mx-auto h-12 w-12 mb-3 opacity-50" />
+                      <p>אין סיכומים עדיין</p>
+                    </div>
+                  )}
+                </CardContent>
+              </Card>
+            </TabsContent>
+          </Tabs>
         </TabsContent>
 
         <TabsContent value="notes" className="mt-6">
