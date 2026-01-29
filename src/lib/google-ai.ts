@@ -247,6 +247,26 @@ ${transcription}
   }
 }
 
+// Generic text analysis function
+export async function analyzeText(prompt: string): Promise<string> {
+  try {
+    const model = getGenAI().getGenerativeModel({ model: 'gemini-3-pro-preview' });
+
+    const result = await model.generateContent([
+      {
+        text: prompt,
+      },
+    ]);
+
+    const response = await result.response;
+    return response.text();
+  } catch (error) {
+    const errorMessage = error instanceof Error ? error.message : String(error);
+    console.error('Text analysis error:', errorMessage, error);
+    throw new Error(`Failed to analyze text: ${errorMessage}`);
+  }
+}
+
 
 
 
