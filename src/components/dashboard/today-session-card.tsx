@@ -48,13 +48,25 @@ interface TodaySessionCardProps {
   };
 }
 
+// Helper to convert UTC to Israel time
 function toIsraelTime(utcDate: Date): Date {
   const date = new Date(utcDate);
   const month = date.getUTCMonth() + 1;
   const isDST = month >= 3 && month <= 10;
-  const offsetHours = isDST ? 3 : 2;
-  date.setUTCHours(date.getUTCHours() + offsetHours);
-  return date;
+  const offsetMs = (isDST ? 3 : 2) * 60 * 60 * 1000;
+  return new Date(date.getTime() + offsetMs);
+}
+
+// Helper to format Israel time
+function formatIsraelTime(utcDate: Date, formatStr: string): string {
+  const israelDate = toIsraelTime(utcDate);
+  if (formatStr === "HH:mm") {
+    const hours = String(israelDate.getUTCHours()).padStart(2, '0');
+    const minutes = String(israelDate.getUTCMinutes()).padStart(2, '0');
+    return `${hours}:${minutes}`;
+  }
+  // For date formats, use regular format with UTC
+  return format(israelDate, formatStr, { locale: he });
 }
 
 export function TodaySessionCard({ session }: TodaySessionCardProps) {
@@ -154,7 +166,7 @@ export function TodaySessionCard({ session }: TodaySessionCardProps) {
           <div className="flex items-center gap-2">
             <div className="flex flex-col items-center justify-center w-12 h-12 rounded-lg bg-primary/10 text-primary">
               <span className="text-sm font-bold">
-                {format(toIsraelTime(new Date(session.startTime)), "HH:mm")}
+                {formatIsraelTime(new Date(session.startTime), "HH:mm")}
               </span>
               <span className="text-xs text-muted-foreground">
                 {Math.round((new Date(session.endTime).getTime() - new Date(session.startTime).getTime()) / 60000)} דק'
@@ -162,7 +174,7 @@ export function TodaySessionCard({ session }: TodaySessionCardProps) {
             </div>
             <div>
               <p className="text-sm text-muted-foreground">
-                {format(toIsraelTime(new Date(session.startTime)), "EEEE, d בMMMM", { locale: he })}
+                {formatIsraelTime(new Date(session.startTime), "EEEE, d בMMMM")}
               </p>
               <p className="text-sm text-muted-foreground">
                 {session.type === "BREAK" ? "הפסקה" : session.type === "ONLINE" ? "אונליין" : session.type === "PHONE" ? "טלפון" : "פרונטלי"}
