@@ -21,10 +21,16 @@ interface Payment {
   client: { id: string; name: string };
 }
 
+interface ClientDebtInfo {
+  totalDebt: number;
+  unpaidSessionsCount: number;
+}
+
 export default function MarkPaidPage({ params }: { params: Promise<{ id: string }> }) {
   const { id } = use(params);
   const router = useRouter();
   const [payment, setPayment] = useState<Payment | null>(null);
+  const [clientDebt, setClientDebt] = useState<ClientDebtInfo | null>(null);
   const [isLoading, setIsLoading] = useState(true);
   const [isSaving, setIsSaving] = useState(false);
   const [method, setMethod] = useState("CASH");
@@ -37,6 +43,18 @@ export default function MarkPaidPage({ params }: { params: Promise<{ id: string 
           const data = await response.json();
           setPayment(data);
           setMethod(data.method);
+          
+          // Fetch client's total debt info
+          if (data.client?.id) {
+            const debtResponse = await fetch(`/api/payments/client-debt/${data.client.id}`);
+            if (debtResponse.ok) {
+              const debtData = await debtResponse.json();
+              setClientDebt({
+                totalDebt: debtData.totalDebt,
+                unpaidSessionsCount: debtData.unpaidSessions.length
+              });
+            }
+          }
         }
       } catch (error) {
         console.error("Failed to fetch payment:", error);
@@ -167,6 +185,25 @@ export default function MarkPaidPage({ params }: { params: Promise<{ id: string 
               ביטול
             </Button>
           </div>
+
+          {/* Show "Pay All Debt" button only if there are additional unpaid sessions */}
+          {clientDebt && clientDebt.unpaidSessionsCount > 1 && (
+            <div className="pt-4 border-t mt-4">
+              <p className="text-sm text-muted-foreground mb-3">
+                למטופל יש עוד {clientDebt.unpaidSessionsCount - 1} פגישות ממתינות לתשלום
+                (סה"כ חוב: ₪{clientDebt.totalDebt.toFixed(0)})
+              </p>
+              <Button 
+                variant="outline" 
+                className="w-full" 
+                asChild
+              >
+                <Link href={`/dashboard/payments/pay/${payment.client.id}`}>
+                  שלם את כל החוב
+                </Link>
+              </Button>
+            </div>
+          )}
         </CardContent>
       </Card>
     </div>

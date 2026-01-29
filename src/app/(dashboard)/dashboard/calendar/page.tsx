@@ -1180,7 +1180,7 @@ export default function CalendarPage() {
                         onClick={async () => {
                           if (!selectedSession.client) return;
                           try {
-                            // Update session status to COMPLETED
+                            // Update session status to COMPLETED (this will auto-create payment)
                             const response = await fetch(`/api/sessions/${selectedSession.id}`, {
                               method: "PUT",
                               headers: { "Content-Type": "application/json" },
@@ -1188,11 +1188,17 @@ export default function CalendarPage() {
                             });
                             
                             if (response.ok) {
+                              const updatedSession = await response.json();
                               setIsSessionDialogOpen(false);
                               toast.success("הפגישה הושלמה, מעבר לדף תשלום...");
                               
-                              // Navigate directly to payment page
-                              window.location.href = `/dashboard/payments/pay/${selectedSession.client.id}`;
+                              // Navigate to simple payment page with payment ID
+                              if (updatedSession.payment?.id) {
+                                window.location.href = `/dashboard/payments/${updatedSession.payment.id}/mark-paid`;
+                              } else {
+                                // Fallback to full payment page if no payment created
+                                window.location.href = `/dashboard/payments/pay/${selectedSession.client.id}`;
+                              }
                             }
                           } catch {
                             toast.error("שגיאה בעדכון הפגישה");
@@ -1281,11 +1287,12 @@ export default function CalendarPage() {
                 if (!selectedSession || !pendingAction || !selectedSession.client) return;
                 try {
                   // Update session status and create payment
-                  await fetch(`/api/sessions/${selectedSession.id}`, {
+                  const response = await fetch(`/api/sessions/${selectedSession.id}`, {
                     method: "PUT",
                     headers: { "Content-Type": "application/json" },
                     body: JSON.stringify({ 
                       status: pendingAction,
+                      createPayment: true, // Create payment for cancelled/no-show
                       markAsPaid: false, // Don't auto-mark as paid, let user choose payment method
                     }),
                   });
@@ -1294,10 +1301,18 @@ export default function CalendarPage() {
                   setIsSessionDialogOpen(false);
                   setPendingAction(null);
                   
-                  toast.success(pendingAction === "CANCELLED" ? "הפגישה בוטלה, מעבר לדף תשלום..." : "נרשם כאי הופעה, מעבר לדף תשלום...");
-                  
-                  // Navigate directly to payment page
-                  window.location.href = `/dashboard/payments/pay/${selectedSession.client.id}`;
+                  if (response.ok) {
+                    const updatedSession = await response.json();
+                    toast.success(pendingAction === "CANCELLED" ? "הפגישה בוטלה, מעבר לדף תשלום..." : "נרשם כאי הופעה, מעבר לדף תשלום...");
+                    
+                    // Navigate to simple payment page with payment ID
+                    if (updatedSession.payment?.id) {
+                      window.location.href = `/dashboard/payments/${updatedSession.payment.id}/mark-paid`;
+                    } else {
+                      // Fallback to full payment page if no payment created
+                      window.location.href = `/dashboard/payments/pay/${selectedSession.client.id}`;
+                    }
+                  }
                 } catch {
                   toast.error("שגיאה בעדכון הפגישה");
                 }
