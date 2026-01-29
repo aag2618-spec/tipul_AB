@@ -126,7 +126,8 @@ export default function PayClientPage({ params }: { params: Promise<{ clientId: 
 
     for (const session of client.unpaidSessions) {
       const debt = session.expectedAmount - session.amount;
-      if (accumulated + debt <= amount) {
+      // בחר פגישות עד שמגיעים לסכום או עוברים אותו
+      if (accumulated < amount) {
         selected.add(session.paymentId);
         accumulated += debt;
       } else {
