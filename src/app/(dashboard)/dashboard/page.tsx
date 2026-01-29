@@ -11,7 +11,7 @@ import { PersonalTasksWidget } from "@/components/tasks/personal-tasks-widget";
 import { TodaySessionCard } from "@/components/dashboard/today-session-card";
 import { SubBoxLink } from "@/components/dashboard-stat-card";
 
-// Helper to convert UTC time to Israel time for display
+// Helper to convert UTC time to Israel time for display  
 function toIsraelTime(utcDate: Date): Date {
   const date = new Date(utcDate);
   // Check if in DST (roughly late March to late October)
