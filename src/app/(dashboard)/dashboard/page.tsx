@@ -32,22 +32,26 @@ async function getDashboardStats(userId: string) {
   const isDST = month >= 3 && month <= 10;
   const israelOffsetHours = isDST ? 3 : 2;
   
-  // Calculate "today" in Israel time
-  // Step 1: Get current time in Israel
-  const nowInIsrael = new Date(now.getTime() + israelOffsetHours * 60 * 60 * 1000);
+  // Calculate "today" range in UTC that represents "today" in Israel
+  // Example: If now is 29/1/2026 10:00 Israel (= 29/1 08:00 UTC)
+  // Then today should be: 28/1 22:00 UTC to 29/1 22:00 UTC
   
-  // Step 2: Get midnight of today in Israel (as UTC)
-  const today = new Date(Date.UTC(
-    nowInIsrael.getUTCFullYear(),
-    nowInIsrael.getUTCMonth(),
-    nowInIsrael.getUTCDate(),
-    0, 0, 0, 0
-  ));
-  // Step 3: Convert back to UTC by subtracting Israel offset
-  today.setHours(today.getHours() - israelOffsetHours);
+  // Step 1: Get current UTC time
+  const utcNow = new Date();
   
-  const tomorrow = new Date(today);
-  tomorrow.setDate(tomorrow.getDate() + 1);
+  // Step 2: Calculate what "today midnight" is in Israel, expressed as UTC
+  // Get the Israel date components
+  const israelNow = new Date(utcNow.getTime() + israelOffsetHours * 60 * 60 * 1000);
+  const israelYear = israelNow.getUTCFullYear();
+  const israelMonth = israelNow.getUTCMonth();
+  const israelDay = israelNow.getUTCDate();
+  
+  // Create midnight Israel time as a UTC date
+  const israelMidnightAsUTC = new Date(Date.UTC(israelYear, israelMonth, israelDay, 0, 0, 0));
+  
+  // Step 3: Convert Israel midnight back to actual UTC by subtracting offset
+  const today = new Date(israelMidnightAsUTC.getTime() - israelOffsetHours * 60 * 60 * 1000);
+  const tomorrow = new Date(today.getTime() + 24 * 60 * 60 * 1000);
   
   const weekStart = new Date(today);
   weekStart.setDate(weekStart.getDate() - weekStart.getDay());
