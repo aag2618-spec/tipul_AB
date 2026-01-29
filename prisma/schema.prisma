@@ -155,6 +155,7 @@ model TherapySession {
   notes       String?       @db.Text
   location    String?
   isRecurring Boolean       @default(false)
+  skipSummary Boolean       @default(false) // האם להסתיר מרשימת "ללא סיכום"
 
   // Cancellation fields
   cancellationReason      String?   @db.Text

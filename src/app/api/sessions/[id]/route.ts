@@ -167,6 +167,45 @@ export async function PUT(
   }
 }
 
+export async function PATCH(
+  request: NextRequest,
+  { params }: { params: Promise<{ id: string }> }
+) {
+  try {
+    const session = await getServerSession(authOptions);
+    if (!session?.user?.id) {
+      return NextResponse.json({ message: "לא מורשה" }, { status: 401 });
+    }
+
+    const { id } = await params;
+    const body = await request.json();
+    const { skipSummary } = body;
+
+    const existingSession = await prisma.therapySession.findFirst({
+      where: { id, therapistId: session.user.id },
+    });
+
+    if (!existingSession) {
+      return NextResponse.json({ message: "פגישה לא נמצאה" }, { status: 404 });
+    }
+
+    const updatedSession = await prisma.therapySession.update({
+      where: { id },
+      data: {
+        skipSummary: skipSummary !== undefined ? skipSummary : undefined,
+      },
+    });
+
+    return NextResponse.json(updatedSession);
+  } catch (error) {
+    console.error("Patch session error:", error);
+    return NextResponse.json(
+      { message: "אירעה שגיאה בעדכון הפגישה" },
+      { status: 500 }
+    );
+  }
+}
+
 export async function DELETE(
   request: NextRequest,
   { params }: { params: Promise<{ id: string }> }

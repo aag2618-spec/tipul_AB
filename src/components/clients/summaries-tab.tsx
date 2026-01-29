@@ -32,6 +32,7 @@ interface Session {
   startTime: Date;
   endTime: Date;
   type: string;
+  skipSummary?: boolean;
   sessionNote: {
     content: string;
   } | null;
@@ -87,24 +88,43 @@ export function SummariesTab({ clientId, sessions }: SummariesTabProps) {
   };
 
   const unsummarizedSessions = getFilteredBySearch(
-    getFilteredByDate(sessions.filter((s) => !s.sessionNote && s.type !== "BREAK"))
+    getFilteredByDate(sessions.filter((s) => !s.sessionNote && s.type !== "BREAK" && !s.skipSummary))
   );
   const summarizedSessions = getFilteredBySearch(
     getFilteredByDate(sessions.filter((s) => s.sessionNote))
   );
 
-  const handleDeleteSession = async (sessionId: string) => {
-    if (!confirm("האם אתה בטוח שברצונך למחוק את הפגישה?")) {
+  // הסרת פגישה מרשימת "ללא סיכום" (מסמן skipSummary = true)
+  const handleHideSession = async (sessionId: string) => {
+    if (!confirm("האם להסיר פגישה זו מהרשימה? (הפגישה תישאר ביומן)")) {
       return;
     }
 
     try {
       await fetch(`/api/sessions/${sessionId}`, {
+        method: "PATCH",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ skipSummary: true }),
+      });
+      window.location.reload();
+    } catch (error) {
+      console.error("Error hiding session:", error);
+    }
+  };
+
+  // מחיקת סיכום בלבד (לא את הפגישה עצמה)
+  const handleDeleteSummary = async (sessionId: string) => {
+    if (!confirm("האם למחוק את הסיכום? (הפגישה תישאר ביומן ותחזור לרשימת 'ללא סיכום')")) {
+      return;
+    }
+
+    try {
+      await fetch(`/api/sessions/${sessionId}/summary`, {
         method: "DELETE",
       });
       window.location.reload();
     } catch (error) {
-      console.error("Error deleting session:", error);
+      console.error("Error deleting summary:", error);
     }
   };
 
@@ -217,11 +237,11 @@ export function SummariesTab({ clientId, sessions }: SummariesTabProps) {
                         </DropdownMenuTrigger>
                         <DropdownMenuContent align="end">
                           <DropdownMenuItem
-                            className="text-red-600 focus:text-red-600"
-                            onClick={() => handleDeleteSession(session.id)}
+                            className="text-orange-600 focus:text-orange-600"
+                            onClick={() => handleHideSession(session.id)}
                           >
                             <Trash2 className="h-4 w-4 ml-2" />
-                            מחק פגישה
+                            הסר מהרשימה
                           </DropdownMenuItem>
                         </DropdownMenuContent>
                       </DropdownMenu>
@@ -295,10 +315,10 @@ export function SummariesTab({ clientId, sessions }: SummariesTabProps) {
                         <DropdownMenuContent align="end">
                           <DropdownMenuItem
                             className="text-red-600 focus:text-red-600"
-                            onClick={() => handleDeleteSession(session.id)}
+                            onClick={() => handleDeleteSummary(session.id)}
                           >
                             <Trash2 className="h-4 w-4 ml-2" />
-                            מחק פגישה וסיכום
+                            מחק סיכום
                           </DropdownMenuItem>
                         </DropdownMenuContent>
                       </DropdownMenu>
