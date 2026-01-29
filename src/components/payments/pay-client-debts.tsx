@@ -233,23 +233,26 @@ export function PayClientDebts({
 
               {/* כפתור אופציות מתקדמות */}
               <div
+                role="button"
+                tabIndex={0}
                 onClick={(e) => {
                   e.preventDefault();
                   e.stopPropagation();
                   setShowAdvanced(!showAdvanced);
                 }}
                 onPointerDown={(e) => e.stopPropagation()}
-                className="w-full"
+                onMouseDown={(e) => e.stopPropagation()}
+                onKeyDown={(e) => {
+                  if (e.key === 'Enter' || e.key === ' ') {
+                    e.preventDefault();
+                    e.stopPropagation();
+                    setShowAdvanced(!showAdvanced);
+                  }
+                }}
+                className="w-full flex items-center justify-between px-4 py-2 text-sm rounded-md cursor-pointer hover:bg-orange-100 transition-colors"
               >
-                <Button
-                  type="button"
-                  variant="ghost"
-                  size="sm"
-                  className="w-full justify-between hover:bg-orange-100"
-                >
-                  <span>אופציות מתקדמות</span>
-                  <ChevronDown className={`h-4 w-4 transition-transform ${showAdvanced ? 'rotate-180' : ''}`} />
-                </Button>
+                <span>אופציות מתקדמות</span>
+                <ChevronDown className={`h-4 w-4 transition-transform ${showAdvanced ? 'rotate-180' : ''}`} />
               </div>
 
               {/* אופציות מתקדמות - מתרחב */}
