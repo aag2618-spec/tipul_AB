@@ -344,8 +344,10 @@ export function TodaySessionCard({ session }: TodaySessionCardProps) {
                   </>
                 )}
 
-                {/* רשום תשלום - אם לא שולם */}
-                {session.payment?.status !== "PAID" && (
+                {/* רשום תשלום - רק אם דיווחת על הפגישה ויש חוב */}
+                {(session.status === "COMPLETED" || session.status === "NO_SHOW" || session.status === "CANCELLED") && 
+                 session.payment && 
+                 session.payment.status !== "PAID" && (
                   <>
                     <DropdownMenuSeparator />
                     <DropdownMenuItem asChild>
