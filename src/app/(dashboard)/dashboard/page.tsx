@@ -376,22 +376,100 @@ export default async function DashboardPage() {
                         <div className="flex items-center gap-2">
                           <span className="text-muted-foreground">💵 תשלום:</span>
                           {therapySession.payment?.status === "PAID" ? (
-                            <span className="text-green-600 font-medium">✓ חויב</span>
+                            <span className="text-green-600 font-medium">✓ שולם</span>
+                          ) : therapySession.payment ? (
+                            <span className="text-orange-600 font-medium">⏳ חויב - לא שולם</span>
                           ) : (
-                            <span className="text-gray-600 font-medium">⏳ פטור</span>
+                            <span className="text-gray-600 font-medium">✓ פטור מתשלום</span>
                           )}
                         </div>
                       </div>
                     )}
 
-                    {/* שורה 4: כפתור דווח סיום (רק לפגישות מתוכננות) */}
-                    {therapySession.status === "SCHEDULED" && therapySession.client && (
-                      <div className="flex justify-center pt-2">
-                        <Button variant="default" size="lg" asChild>
-                          <Link href={`/dashboard/sessions/${therapySession.id}`}>
-                            📊 דווח סיום
-                          </Link>
-                        </Button>
+                    {/* שורה 4: תפריט פעולות */}
+                    {therapySession.client && (
+                      <div className="flex justify-center pt-2 border-t">
+                        <DropdownMenu>
+                          <DropdownMenuTrigger asChild>
+                            <Button variant="outline" size="default" className="gap-2">
+                              פעולות
+                              <MoreVertical className="h-4 w-4" />
+                            </Button>
+                          </DropdownMenuTrigger>
+                          <DropdownMenuContent align="center" className="w-56">
+                            {/* תיקית מטופל - תמיד */}
+                            <DropdownMenuItem asChild>
+                              <Link href={`/dashboard/clients/${therapySession.client.id}`} className="cursor-pointer">
+                                <User className="h-4 w-4 ml-2" />
+                                תיקית מטופל
+                              </Link>
+                            </DropdownMenuItem>
+
+                            {/* אופציות לפגישה מתוכננת */}
+                            {therapySession.status === "SCHEDULED" && (
+                              <>
+                                <DropdownMenuSeparator />
+                                <DropdownMenuItem asChild>
+                                  <Link href={`/dashboard/sessions/${therapySession.id}`} className="cursor-pointer">
+                                    <CheckCircle className="h-4 w-4 ml-2 text-green-600" />
+                                    סיים ושלם
+                                  </Link>
+                                </DropdownMenuItem>
+                                <DropdownMenuItem asChild>
+                                  <Link href={`/dashboard/sessions/${therapySession.id}`} className="cursor-pointer">
+                                    <CheckCircle className="h-4 w-4 ml-2 text-blue-600" />
+                                    סיים ללא תשלום
+                                  </Link>
+                                </DropdownMenuItem>
+                                <DropdownMenuItem asChild>
+                                  <Link href={`/dashboard/sessions/${therapySession.id}`} className="cursor-pointer">
+                                    <ClipboardList className="h-4 w-4 ml-2 text-red-600" />
+                                    אי הופעה
+                                  </Link>
+                                </DropdownMenuItem>
+                                <DropdownMenuItem asChild>
+                                  <Link href={`/dashboard/sessions/${therapySession.id}`} className="cursor-pointer">
+                                    <Clock className="h-4 w-4 ml-2 text-orange-600" />
+                                    ביטול
+                                  </Link>
+                                </DropdownMenuItem>
+                              </>
+                            )}
+
+                            {/* כתוב/צפה בסיכום - רק אם הושלם */}
+                            {therapySession.status === "COMPLETED" && (
+                              <>
+                                <DropdownMenuSeparator />
+                                <DropdownMenuItem asChild>
+                                  <Link href={`/dashboard/sessions/${therapySession.id}`} className="cursor-pointer">
+                                    <FileText className="h-4 w-4 ml-2" />
+                                    {therapySession.sessionNote ? "צפה/ערוך סיכום" : "כתוב סיכום"}
+                                  </Link>
+                                </DropdownMenuItem>
+                              </>
+                            )}
+
+                            {/* רשום תשלום - אם לא שולם */}
+                            {therapySession.payment?.status !== "PAID" && (
+                              <>
+                                <DropdownMenuSeparator />
+                                <DropdownMenuItem asChild>
+                                  <div className="cursor-pointer">
+                                    <QuickMarkPaid
+                                      sessionId={therapySession.id}
+                                      clientId={therapySession.client.id}
+                                      clientName={therapySession.client.name}
+                                      amount={Number(therapySession.price)}
+                                      creditBalance={Number(therapySession.client.creditBalance || 0)}
+                                      existingPayment={therapySession.payment}
+                                      buttonText="רשום תשלום"
+                                    />
+                                  </div>
+                                </DropdownMenuItem>
+                              </>
+                            )}
+                          </DropdownMenuContent>
+                        </DropdownMenu>
                       </div>
                     )}
                   </div>
