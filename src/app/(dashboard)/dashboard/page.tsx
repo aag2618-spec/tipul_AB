@@ -26,37 +26,22 @@ function toIsraelTime(utcDate: Date): Date {
 }
 
 async function getDashboardStats(userId: string) {
-  // Calculate "today" in Israel timezone for DB query
-  // Sessions are stored as UTC in DB after conversion from Israel time
-  
+  // SIMPLE SOLUTION: Use a wide time range to catch all sessions
+  // This avoids complex timezone calculations
   const now = new Date();
   
-  // Israel offset: UTC+2 (winter) or UTC+3 (summer DST, roughly March-October)
-  const month = now.getUTCMonth() + 1;
-  const isDST = month >= 3 && month <= 10;
-  const israelOffsetHours = isDST ? 3 : 2;
+  // Get yesterday at 00:00 UTC
+  const today = new Date(now);
+  today.setUTCHours(0, 0, 0, 0);
+  today.setUTCDate(today.getUTCDate() - 1);
   
-  // Calculate "today midnight" in Israel, converted to UTC
-  // Step 1: Add Israel offset to current UTC time to get Israel time
-  const nowIsraelMs = now.getTime() + (israelOffsetHours * 60 * 60 * 1000);
-  const nowIsrael = new Date(nowIsraelMs);
-  
-  // Step 2: Get midnight of today in "Israel time" (but as UTC numbers)
-  const midnightIsraelAsUTC = new Date(Date.UTC(
-    nowIsrael.getUTCFullYear(),
-    nowIsrael.getUTCMonth(),
-    nowIsrael.getUTCDate(),
-    0, 0, 0, 0
-  ));
-  
-  // Step 3: Subtract offset to convert "Israel midnight" back to actual UTC
-  const today = new Date(midnightIsraelAsUTC.getTime() - (israelOffsetHours * 60 * 60 * 1000));
-  const tomorrow = new Date(today.getTime() + (24 * 60 * 60 * 1000));
+  // Get tomorrow at 23:59 UTC (48 hour window)
+  const tomorrow = new Date(today);
+  tomorrow.setUTCDate(tomorrow.getUTCDate() + 3);
   
   // DEBUG: Log the calculated range
   console.log('🔍 Dashboard timezone debug:', {
     now: now.toISOString(),
-    israelOffset: israelOffsetHours,
     todayUTC: today.toISOString(),
     tomorrowUTC: tomorrow.toISOString()
   });
@@ -157,8 +142,28 @@ async function getDashboardStats(userId: string) {
     }),
   ]);
 
+  // Filter sessions to only show TODAY in Israel time
+  const filteredTodaySessions = todaySessions.filter(session => {
+    // Convert session startTime to Israel time
+    const sessionDate = new Date(session.startTime);
+    const month = sessionDate.getUTCMonth() + 1;
+    const isDST = month >= 3 && month <= 10;
+    const offsetMs = (isDST ? 3 : 2) * 60 * 60 * 1000;
+    
+    const sessionIsraelTime = new Date(sessionDate.getTime() + offsetMs);
+    const nowIsraelTime = new Date(now.getTime() + offsetMs);
+    
+    // Check if same day
+    return (
+      sessionIsraelTime.getUTCFullYear() === nowIsraelTime.getUTCFullYear() &&
+      sessionIsraelTime.getUTCMonth() === nowIsraelTime.getUTCMonth() &&
+      sessionIsraelTime.getUTCDate() === nowIsraelTime.getUTCDate()
+    );
+  });
+
   // DEBUG: Log found sessions
-  console.log('📅 Found today sessions:', todaySessions.map(s => ({
+  console.log('📅 All sessions in range:', todaySessions.length);
+  console.log('📅 Filtered today sessions:', filteredTodaySessions.map(s => ({
     id: s.id,
     client: s.client?.name,
     startTime: s.startTime.toISOString(),
@@ -174,7 +179,7 @@ async function getDashboardStats(userId: string) {
     sessionsThisMonth,
     pendingPayments,
     pendingTasks,
-    todaySessions,
+    todaySessions: filteredTodaySessions,
   };
 }
 
