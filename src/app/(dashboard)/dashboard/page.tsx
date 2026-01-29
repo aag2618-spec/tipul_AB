@@ -387,15 +387,11 @@ export default async function DashboardPage() {
                     {/* שורה 4: כפתור דווח סיום (רק לפגישות מתוכננות) */}
                     {therapySession.status === "SCHEDULED" && therapySession.client && (
                       <div className="flex justify-center pt-2">
-                        <CompleteSessionDialog
-                          sessionId={therapySession.id}
-                          clientId={therapySession.client.id}
-                          clientName={therapySession.client.name}
-                          sessionDate={therapySession.startTime}
-                          defaultAmount={Number(therapySession.price)}
-                          creditBalance={Number(therapySession.client.creditBalance || 0)}
-                          buttonText="📊 דווח סיום"
-                        />
+                        <Button variant="default" size="lg" asChild>
+                          <Link href={`/dashboard/sessions/${therapySession.id}`}>
+                            📊 דווח סיום
+                          </Link>
+                        </Button>
                       </div>
                     )}
                   </div>
