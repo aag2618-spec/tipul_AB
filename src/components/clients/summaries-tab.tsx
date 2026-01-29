@@ -32,6 +32,7 @@ interface Session {
   startTime: Date;
   endTime: Date;
   type: string;
+  status: string;
   skipSummary?: boolean;
   sessionNote: {
     content: string;
@@ -88,7 +89,13 @@ export function SummariesTab({ clientId, sessions }: SummariesTabProps) {
   };
 
   const unsummarizedSessions = getFilteredBySearch(
-    getFilteredByDate(sessions.filter((s) => !s.sessionNote && s.type !== "BREAK" && !s.skipSummary && new Date(s.startTime) < new Date()))
+    getFilteredByDate(sessions.filter((s) => 
+      !s.sessionNote && 
+      s.type !== "BREAK" && 
+      !s.skipSummary && 
+      new Date(s.startTime) < new Date() &&
+      (s.status === "SCHEDULED" || s.status === "COMPLETED")
+    ))
   );
   const summarizedSessions = getFilteredBySearch(
     getFilteredByDate(sessions.filter((s) => s.sessionNote))
