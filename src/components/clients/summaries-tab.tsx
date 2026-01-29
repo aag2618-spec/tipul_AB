@@ -88,7 +88,7 @@ export function SummariesTab({ clientId, sessions }: SummariesTabProps) {
   };
 
   const unsummarizedSessions = getFilteredBySearch(
-    getFilteredByDate(sessions.filter((s) => !s.sessionNote && s.type !== "BREAK" && !s.skipSummary))
+    getFilteredByDate(sessions.filter((s) => !s.sessionNote && s.type !== "BREAK" && !s.skipSummary && new Date(s.startTime) < new Date()))
   );
   const summarizedSessions = getFilteredBySearch(
     getFilteredByDate(sessions.filter((s) => s.sessionNote))
