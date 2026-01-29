@@ -49,9 +49,7 @@ export async function PUT(
 
     const { id } = await params;
     const body = await request.json();
-    const { status, method, notes, paidAt, useCredit } = body;
-
-    console.log("Payment update request:", { id, status, method, useCredit, paidAt });
+    const { status, method, notes, paidAt, amount, paymentMode, creditUsed } = body;
 
     const existingPayment = await prisma.payment.findFirst({
       where: { id, client: { therapistId: session.user.id } },
@@ -62,26 +60,18 @@ export async function PUT(
       return NextResponse.json({ message: "תשלום לא נמצא" }, { status: 404 });
     }
 
-    console.log("Existing payment:", { 
-      id: existingPayment.id, 
-      amount: existingPayment.amount,
-      currentStatus: existingPayment.status,
-      clientCredit: existingPayment.client.creditBalance 
-    });
-
-    // Handle credit usage
-    if (useCredit && status === "PAID") {
-      console.log("Processing credit payment...");
+    // Handle credit usage if specified
+    if (creditUsed && Number(creditUsed) > 0) {
       const client = existingPayment.client;
-      const paymentAmount = Number(existingPayment.amount);
+      const creditAmount = Number(creditUsed);
       
-      if (Number(client.creditBalance) >= paymentAmount) {
+      if (Number(client.creditBalance) >= creditAmount) {
         // Deduct from credit balance
         await prisma.client.update({
           where: { id: client.id },
           data: {
             creditBalance: {
-              decrement: paymentAmount
+              decrement: creditAmount
             }
           }
         });
@@ -93,18 +83,28 @@ export async function PUT(
       }
     }
 
+    // Determine payment status based on amount
+    let finalStatus = status;
+    if (amount !== undefined) {
+      const newAmount = Number(amount);
+      const expectedAmount = Number(existingPayment.expectedAmount);
+      finalStatus = newAmount >= expectedAmount ? "PAID" : "PENDING";
+    }
+
     const payment = await prisma.payment.update({
       where: { id },
       data: {
-        status: status || undefined,
+        status: finalStatus || undefined,
         method: method || undefined,
+        amount: amount !== undefined ? Number(amount) : undefined,
+        paymentType: paymentMode || undefined,
         notes: notes !== undefined ? notes : undefined,
-        paidAt: status === "PAID" ? paidAt || new Date() : undefined,
+        paidAt: finalStatus === "PAID" ? paidAt || new Date() : undefined,
       },
     });
 
     // Complete related task if paid
-    if (status === "PAID") {
+    if (finalStatus === "PAID") {
       await prisma.task.updateMany({
         where: {
           userId: session.user.id,
