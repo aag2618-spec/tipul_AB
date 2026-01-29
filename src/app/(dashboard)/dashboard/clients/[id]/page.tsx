@@ -48,6 +48,7 @@ import {
   DropdownMenuSeparator,
 } from "@/components/ui/dropdown-menu";
 import { SummariesTab } from "@/components/clients/summaries-tab";
+import { TodaySessionCard } from "@/components/dashboard/today-session-card";
 import { format } from "date-fns";
 import { he } from "date-fns/locale";
 
@@ -342,140 +343,31 @@ export default async function ClientPage({
             </CardHeader>
             <CardContent>
               {client.therapySessions.length > 0 ? (
-                <div className="space-y-2">
-                  {client.therapySessions.map((session) => {
-                    const hasNote = !!session.sessionNote;
-                    const isPaid = session.payment?.status === "PAID";
-                    const isCompleted = session.status === "COMPLETED";
-                    const isScheduled = session.status === "SCHEDULED";
-                    
-                    return (
-                      <div
-                        key={session.id}
-                        className="flex items-center justify-between p-3 rounded-lg border hover:bg-muted/50 transition-colors"
-                      >
-                        {/* תאריך ושעה */}
-                        <div className="flex items-center gap-3 flex-1">
-                          <div className="text-center min-w-[50px]">
-                            <div className="text-lg font-bold">
-                              {format(new Date(session.startTime), "d/M")}
-                            </div>
-                          </div>
-                          <div className="flex-1">
-                            <div className="flex items-center gap-2">
-                              <span className="text-sm font-medium">
-                                {format(new Date(session.startTime), "HH:mm")}
-                              </span>
-                              <span className="text-xs text-muted-foreground">
-                                {session.type === "ONLINE" ? "אונליין" : session.type === "PHONE" ? "טלפון" : "פרונטלי"}
-                              </span>
-                            </div>
-                            
-                            {/* סטטוס קומפקטי */}
-                            <div className="flex items-center gap-2 mt-1 text-xs">
-                              {isScheduled ? (
-                                <span className="text-muted-foreground">⭕ מתוכננת</span>
-                              ) : isCompleted ? (
-                                <>
-                                  <span className="text-green-600">✓ הושלם</span>
-                                  <span className="text-muted-foreground">•</span>
-                                  {hasNote ? (
-                                    <span className="text-green-600">✓ מסוכם</span>
-                                  ) : (
-                                    <span className="text-amber-600">⚠️ חסר סיכום</span>
-                                  )}
-                                  <span className="text-muted-foreground">•</span>
-                                  {isPaid ? (
-                                    <span className="text-green-600">✓ שולם</span>
-                                  ) : (
-                                    <span className="text-red-600">⚠️ לא שולם ₪{Number(session.price)}</span>
-                                  )}
-                                </>
-                              ) : session.status === "CANCELLED" ? (
-                                <span className="text-red-600">✗ בוטל</span>
-                              ) : (
-                                <span className="text-red-600">✗ אי הופעה</span>
-                              )}
-                            </div>
-                          </div>
-                        </div>
-
-                        {/* פעולות - רק מה שצריך */}
-                        <div className="flex items-center gap-2">
-                          {isScheduled ? (
-                            // פגישה מתוכננת - כפתורי סטטוס
-                            <QuickSessionStatus
-                              sessionId={session.id}
-                              clientId={client.id}
-                              currentStatus={session.status}
-                            />
-                          ) : isCompleted ? (
-                            // פגישה שהושלמה - הצג רק מה שחסר
-                            <>
-                              {!hasNote && (
-                                <Button size="sm" variant="default" asChild>
-                                  <Link href={`/dashboard/sessions/${session.id}`}>
-                                    <FileText className="h-3 w-3 ml-1" />
-                                    כתוב סיכום
-                                  </Link>
-                                </Button>
-                              )}
-                              {!isPaid && (
-                                <QuickMarkPaid
-                                  sessionId={session.id}
-                                  clientId={client.id}
-                                  clientName={client.name}
-                                  amount={Number(session.price)}
-                                  creditBalance={Number(client.creditBalance)}
-                                  existingPayment={session.payment}
-                                  buttonText="סמן כשולם"
-                                />
-                              )}
-                              {hasNote && isPaid && (
-                                <Button size="sm" variant="outline" asChild>
-                                  <Link href={`/dashboard/sessions/${session.id}`}>
-                                    <Eye className="h-3 w-3 ml-1" />
-                                    צפה
-                                  </Link>
-                                </Button>
-                              )}
-                            </>
-                          ) : (
-                            // פגישה מבוטלת/אי הופעה
-                            <Button size="sm" variant="outline" asChild>
-                              <Link href={`/dashboard/sessions/${session.id}`}>
-                                <Eye className="h-3 w-3 ml-1" />
-                                צפה
-                              </Link>
-                            </Button>
-                          )}
-                          
-                          {/* תפריט נוסף */}
-                          <DropdownMenu>
-                            <DropdownMenuTrigger asChild>
-                              <Button variant="ghost" size="sm" className="h-7 w-7 p-0">
-                                <MoreVertical className="h-3 w-3" />
-                              </Button>
-                            </DropdownMenuTrigger>
-                            <DropdownMenuContent align="end">
-                              <DropdownMenuItem asChild>
-                                <Link href={`/dashboard/sessions/${session.id}`}>
-                                  <FileText className="h-4 w-4 ml-2" />
-                                  {hasNote ? "ערוך סיכום" : "כתוב סיכום"}
-                                </Link>
-                              </DropdownMenuItem>
-                              <DropdownMenuItem asChild>
-                                <Link href={`/dashboard/calendar?session=${session.id}`}>
-                                  <Calendar className="h-4 w-4 ml-2" />
-                                  שנה זמן
-                                </Link>
-                              </DropdownMenuItem>
-                            </DropdownMenuContent>
-                          </DropdownMenu>
-                        </div>
-                      </div>
-                    );
-                  })}
+                <div className="space-y-4">
+                  {client.therapySessions.map((session) => (
+                    <TodaySessionCard 
+                      key={session.id} 
+                      session={{
+                        id: session.id,
+                        startTime: session.startTime,
+                        endTime: session.endTime,
+                        type: session.type as string,
+                        status: session.status as string,
+                        price: Number(session.price),
+                        sessionNote: session.sessionNote ? "exists" : null,
+                        payment: session.payment ? {
+                          id: session.payment.id,
+                          status: session.payment.status as string,
+                          amount: Number(session.payment.amount),
+                        } : null,
+                        client: {
+                          id: client.id,
+                          name: client.name,
+                          creditBalance: Number(client.creditBalance),
+                        },
+                      }} 
+                    />
+                  ))}
                 </div>
               ) : (
                 <div className="text-center py-8 text-muted-foreground">
