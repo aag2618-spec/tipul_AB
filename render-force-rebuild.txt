@@ -1,4 +1,5 @@
-FORCE REBUILD - 2026-01-29 01:25:00
+FORCE REBUILD - 2026-01-29 01:28:00
 This file forces Render to ignore all caches and rebuild from scratch.
-Build timestamp: 20260129012500
+Build timestamp: 20260129012800
 Previous builds had TypeScript cache issues.
+Latest commit should include clientId variable extraction for null safety.
