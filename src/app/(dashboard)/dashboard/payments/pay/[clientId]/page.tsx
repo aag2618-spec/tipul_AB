@@ -35,7 +35,7 @@ interface ClientData {
   totalDebt: number;
 }
 
-type SelectionMode = "all" | "sessions" | "amount" | "manual";
+type SelectionMode = "sessions" | "amount" | "manual";
 
 export default function PayClientPage({ params }: { params: Promise<{ clientId: string }> }) {
   const { clientId } = use(params);
@@ -43,7 +43,7 @@ export default function PayClientPage({ params }: { params: Promise<{ clientId: 
   const [client, setClient] = useState<ClientData | null>(null);
   const [selectedPayments, setSelectedPayments] = useState<Set<string>>(new Set());
   const [isLoading, setIsLoading] = useState(true);
-  const [selectionMode, setSelectionMode] = useState<SelectionMode>("all");
+  const [selectionMode, setSelectionMode] = useState<SelectionMode>("manual");
   const [numSessions, setNumSessions] = useState<string>("1");
   const [targetAmount, setTargetAmount] = useState<string>("");
 
@@ -58,8 +58,8 @@ export default function PayClientPage({ params }: { params: Promise<{ clientId: 
       if (response.ok) {
         const data = await response.json();
         setClient(data);
-        // Select all payments by default
-        setSelectedPayments(new Set(data.unpaidSessions.map((s: UnpaidSession) => s.paymentId)));
+        // Start with empty selection in manual mode
+        setSelectedPayments(new Set());
       } else {
         toast.error("שגיאה בטעינת נתונים");
         router.push("/dashboard/payments");
@@ -95,10 +95,6 @@ export default function PayClientPage({ params }: { params: Promise<{ clientId: 
     if (!client) return;
 
     switch (mode) {
-      case "all":
-        // Select all sessions
-        setSelectedPayments(new Set(client.unpaidSessions.map(s => s.paymentId)));
-        break;
       case "sessions":
         // Select first N sessions
         selectFirstNSessions(parseInt(numSessions) || 1);
@@ -305,26 +301,6 @@ export default function PayClientPage({ params }: { params: Promise<{ clientId: 
         </CardHeader>
         <CardContent className="space-y-4">
           <RadioGroup value={selectionMode} onValueChange={(value) => handleSelectionModeChange(value as SelectionMode)}>
-            {/* All Sessions */}
-            <div className={`flex items-center space-x-2 space-x-reverse p-3 border-2 rounded-lg transition-all ${
-              selectionMode === "all" 
-                ? "border-primary bg-primary/5 shadow-md" 
-                : "border-border hover:bg-slate-50"
-            }`}>
-              <RadioGroupItem value="all" id="all" />
-              <Label htmlFor="all" className="flex-1 cursor-pointer">
-                <div className="flex items-center justify-between">
-                  <div>
-                    <p className="font-medium">תשלום על כל הפגישות</p>
-                    <p className="text-sm text-muted-foreground">
-                      שלם את כל {client.unpaidSessions.length} הפגישות ביחד
-                    </p>
-                  </div>
-                  <Badge variant="secondary">₪{client.totalDebt.toFixed(0)}</Badge>
-                </div>
-              </Label>
-            </div>
-
             {/* By Number of Sessions */}
             <div className={`flex items-center space-x-2 space-x-reverse p-3 border-2 rounded-lg transition-all ${
               selectionMode === "sessions" 
@@ -532,25 +508,9 @@ export default function PayClientPage({ params }: { params: Promise<{ clientId: 
                   </p>
                 </div>
 
-                <div className="flex items-center gap-3">
-                  <div className="text-left">
-                    <p className="text-xl font-bold text-red-600">₪{debt.toFixed(0)}</p>
-                    <p className="text-xs text-muted-foreground">לתשלום</p>
-                  </div>
-                  <PayClientDebts
-                    clientId={client.id}
-                    clientName={client.name}
-                    totalDebt={debt}
-                    creditBalance={client.creditBalance}
-                    unpaidPayments={[{
-                      paymentId: session.paymentId,
-                      amount: debt
-                    }]}
-                    onPaymentComplete={() => {
-                      toast.success("התשלום בוצע בהצלחה!");
-                      fetchClientData();
-                    }}
-                  />
+                <div className="text-left">
+                  <p className="text-xl font-bold text-red-600">₪{debt.toFixed(0)}</p>
+                  <p className="text-xs text-muted-foreground">לתשלום</p>
                 </div>
               </div>
             );
