@@ -48,25 +48,39 @@ interface TodaySessionCardProps {
   };
 }
 
-// Helper to convert UTC to Israel time
-function toIsraelTime(utcDate: Date): Date {
+// Helper to get Israel time components from UTC
+function getIsraelTime(utcDate: Date) {
   const date = new Date(utcDate);
   const month = date.getUTCMonth() + 1;
   const isDST = month >= 3 && month <= 10;
   const offsetMs = (isDST ? 3 : 2) * 60 * 60 * 1000;
-  return new Date(date.getTime() + offsetMs);
+  
+  const israelTimeMs = date.getTime() + offsetMs;
+  const israelDate = new Date(israelTimeMs);
+  
+  return {
+    hours: israelDate.getUTCHours(),
+    minutes: israelDate.getUTCMinutes(),
+    date: israelDate.getUTCDate(),
+    month: israelDate.getUTCMonth() + 1,
+    year: israelDate.getUTCFullYear(),
+    dayOfWeek: israelDate.getUTCDay(),
+  };
 }
 
-// Helper to format Israel time
-function formatIsraelTime(utcDate: Date, formatStr: string): string {
-  const israelDate = toIsraelTime(utcDate);
-  if (formatStr === "HH:mm") {
-    const hours = String(israelDate.getUTCHours()).padStart(2, '0');
-    const minutes = String(israelDate.getUTCMinutes()).padStart(2, '0');
-    return `${hours}:${minutes}`;
-  }
-  // For date formats, use regular format with UTC
-  return format(israelDate, formatStr, { locale: he });
+// Helper to format time as HH:mm
+function formatTimeHHMM(utcDate: Date): string {
+  const { hours, minutes } = getIsraelTime(utcDate);
+  return `${String(hours).padStart(2, '0')}:${String(minutes).padStart(2, '0')}`;
+}
+
+// Helper to format date in Hebrew
+function formatDateHebrew(utcDate: Date): string {
+  const { date, month, dayOfWeek } = getIsraelTime(utcDate);
+  const days = ['ראשון', 'שני', 'שלישי', 'רביעי', 'חמישי', 'שישי', 'שבת'];
+  const months = ['ינואר', 'פברואר', 'מרץ', 'אפריל', 'מאי', 'יוני', 'יולי', 'אוגוסט', 'ספטמבר', 'אוקטובר', 'נובמבר', 'דצמבר'];
+  
+  return `יום ${days[dayOfWeek]}, ${date} ב${months[month - 1]}`;
 }
 
 export function TodaySessionCard({ session }: TodaySessionCardProps) {
@@ -166,7 +180,7 @@ export function TodaySessionCard({ session }: TodaySessionCardProps) {
           <div className="flex items-center gap-2">
             <div className="flex flex-col items-center justify-center w-12 h-12 rounded-lg bg-primary/10 text-primary">
               <span className="text-sm font-bold">
-                {formatIsraelTime(new Date(session.startTime), "HH:mm")}
+                {formatTimeHHMM(new Date(session.startTime))}
               </span>
               <span className="text-xs text-muted-foreground">
                 {Math.round((new Date(session.endTime).getTime() - new Date(session.startTime).getTime()) / 60000)} דק'
@@ -174,7 +188,7 @@ export function TodaySessionCard({ session }: TodaySessionCardProps) {
             </div>
             <div>
               <p className="text-sm text-muted-foreground">
-                {formatIsraelTime(new Date(session.startTime), "EEEE, d בMMMM")}
+                {formatDateHebrew(new Date(session.startTime))}
               </p>
               <p className="text-sm text-muted-foreground">
                 {session.type === "BREAK" ? "הפסקה" : session.type === "ONLINE" ? "אונליין" : session.type === "PHONE" ? "טלפון" : "פרונטלי"}
