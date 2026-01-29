@@ -11,7 +11,7 @@ import { Label } from "@/components/ui/label";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
 import { Switch } from "@/components/ui/switch";
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
-import { Plus, Loader2, Calendar, Repeat, Settings, Waves, ChevronLeft, ChevronRight, Trash2 } from "lucide-react";
+import { Plus, Loader2, Calendar, Repeat, Settings, Waves, Trash2 } from "lucide-react";
 import { format, addWeeks } from "date-fns";
 import { toast } from "sonner";
 import type { EventClickArg } from "@fullcalendar/core";
@@ -492,41 +492,6 @@ export default function CalendarPage() {
       toast.error("שגיאה בהחלת התבניות");
     } finally {
       setIsSubmitting(false);
-    }
-  };
-
-  // פונקציה להזזת זמן פגישה
-  const handleAdjustSessionTime = async (minutesToAdd: number) => {
-    if (!selectedSession) return;
-    
-    try {
-      const currentStart = new Date(selectedSession.startTime);
-      const currentEnd = new Date(selectedSession.endTime);
-      
-      currentStart.setMinutes(currentStart.getMinutes() + minutesToAdd);
-      currentEnd.setMinutes(currentEnd.getMinutes() + minutesToAdd);
-      
-      const response = await fetch(`/api/sessions/${selectedSession.id}`, {
-        method: "PUT",
-        headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({
-          startTime: currentStart.toISOString(),
-          endTime: currentEnd.toISOString(),
-        }),
-      });
-      
-      if (!response.ok) {
-        throw new Error("שגיאה בעדכון הזמן");
-      }
-      
-      toast.success("הזמן עודכן בהצלחה");
-      fetchData();
-      
-      // עדכן את הפגישה המוצגת
-      const updatedSession = await response.json();
-      setSelectedSession(updatedSession);
-    } catch {
-      toast.error("שגיאה בעדכון זמן הפגישה");
     }
   };
 
@@ -1080,97 +1045,73 @@ export default function CalendarPage() {
                 </div>
               </div>
 
-              {/* Time Adjustment Controls - Show for future sessions */}
+              {/* Time Editor - Show for future sessions */}
               {selectedSession.status === "SCHEDULED" && new Date(selectedSession.startTime) > new Date() && (
                 <div className="border rounded-lg p-4 bg-slate-50 space-y-3">
-                  <div className="flex items-center justify-between">
-                    <p className="text-sm font-medium">התאמת זמן פגישה</p>
-                    <p className="text-xs text-muted-foreground">
-                      {format(new Date(selectedSession.startTime), "HH:mm")}
-                    </p>
-                  </div>
+                  <p className="text-sm font-medium mb-3">עריכת זמן פגישה</p>
                   
-                  <div className="space-y-2">
-                    <p className="text-xs text-muted-foreground">דקות:</p>
-                    <div className="grid grid-cols-4 gap-2">
-                      <Button
-                        size="sm"
-                        variant="outline"
-                        onClick={() => handleAdjustSessionTime(-15)}
-                        className="text-xs"
-                      >
-                        <ChevronRight className="h-3 w-3 ml-1" />
-                        -15
-                      </Button>
-                      <Button
-                        size="sm"
-                        variant="outline"
-                        onClick={() => handleAdjustSessionTime(-30)}
-                        className="text-xs"
-                      >
-                        <ChevronRight className="h-3 w-3 ml-1" />
-                        -30
-                      </Button>
-                      <Button
-                        size="sm"
-                        variant="outline"
-                        onClick={() => handleAdjustSessionTime(15)}
-                        className="text-xs"
-                      >
-                        +15
-                        <ChevronLeft className="h-3 w-3 mr-1" />
-                      </Button>
-                      <Button
-                        size="sm"
-                        variant="outline"
-                        onClick={() => handleAdjustSessionTime(30)}
-                        className="text-xs"
-                      >
-                        +30
-                        <ChevronLeft className="h-3 w-3 mr-1" />
-                      </Button>
+                  <div className="grid grid-cols-2 gap-4">
+                    <div className="space-y-2">
+                      <Label htmlFor="edit-startTime" className="text-xs">שעת התחלה</Label>
+                      <Input
+                        id="edit-startTime"
+                        type="datetime-local"
+                        value={format(new Date(selectedSession.startTime), "yyyy-MM-dd'T'HH:mm")}
+                        onChange={(e) => {
+                          const newStartTime = new Date(e.target.value);
+                          const duration = new Date(selectedSession.endTime).getTime() - new Date(selectedSession.startTime).getTime();
+                          const newEndTime = new Date(newStartTime.getTime() + duration);
+                          
+                          fetch(`/api/sessions/${selectedSession.id}`, {
+                            method: "PUT",
+                            headers: { "Content-Type": "application/json" },
+                            body: JSON.stringify({
+                              startTime: newStartTime.toISOString(),
+                              endTime: newEndTime.toISOString(),
+                            }),
+                          }).then(res => {
+                            if (res.ok) {
+                              toast.success("הזמן עודכן בהצלחה");
+                              fetchData();
+                              res.json().then(updated => setSelectedSession(updated));
+                            } else {
+                              toast.error("שגיאה בעדכון הזמן");
+                            }
+                          });
+                        }}
+                        dir="ltr"
+                        className="text-sm"
+                      />
                     </div>
-                  </div>
-                  
-                  <div className="space-y-2">
-                    <p className="text-xs text-muted-foreground">שעות:</p>
-                    <div className="grid grid-cols-4 gap-2">
-                      <Button
-                        size="sm"
-                        variant="outline"
-                        onClick={() => handleAdjustSessionTime(-60)}
-                        className="text-xs"
-                      >
-                        <ChevronRight className="h-3 w-3 ml-1" />
-                        -1 שעה
-                      </Button>
-                      <Button
-                        size="sm"
-                        variant="outline"
-                        onClick={() => handleAdjustSessionTime(-120)}
-                        className="text-xs"
-                      >
-                        <ChevronRight className="h-3 w-3 ml-1" />
-                        -2 שעות
-                      </Button>
-                      <Button
-                        size="sm"
-                        variant="outline"
-                        onClick={() => handleAdjustSessionTime(60)}
-                        className="text-xs"
-                      >
-                        +1 שעה
-                        <ChevronLeft className="h-3 w-3 mr-1" />
-                      </Button>
-                      <Button
-                        size="sm"
-                        variant="outline"
-                        onClick={() => handleAdjustSessionTime(120)}
-                        className="text-xs"
-                      >
-                        +2 שעות
-                        <ChevronLeft className="h-3 w-3 mr-1" />
-                      </Button>
+                    
+                    <div className="space-y-2">
+                      <Label htmlFor="edit-endTime" className="text-xs">שעת סיום</Label>
+                      <Input
+                        id="edit-endTime"
+                        type="datetime-local"
+                        value={format(new Date(selectedSession.endTime), "yyyy-MM-dd'T'HH:mm")}
+                        onChange={(e) => {
+                          const newEndTime = new Date(e.target.value);
+                          
+                          fetch(`/api/sessions/${selectedSession.id}`, {
+                            method: "PUT",
+                            headers: { "Content-Type": "application/json" },
+                            body: JSON.stringify({
+                              endTime: newEndTime.toISOString(),
+                            }),
+                          }).then(res => {
+                            if (res.ok) {
+                              toast.success("הזמן עודכן בהצלחה");
+                              fetchData();
+                              res.json().then(updated => setSelectedSession(updated));
+                            } else {
+                              toast.error("שגיאה בעדכון הזמן");
+                            }
+                          });
+                        }}
+                        dir="ltr"
+                        className="text-sm"
+                      />
                     </div>
                   </div>
                 </div>
