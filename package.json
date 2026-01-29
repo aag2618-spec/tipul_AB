@@ -4,7 +4,7 @@
   "private": true,
   "scripts": {
     "dev": "next dev",
-    "build": "rm -rf .next && prisma generate && prisma db push && node --max-old-space-size=4096 ./node_modules/.bin/next build",
+    "build": "rm -rf .next && prisma generate && node --max-old-space-size=4096 ./node_modules/.bin/next build",
     "postinstall": "prisma generate",
     "start": "next start",
     "lint": "eslint",
