@@ -102,9 +102,9 @@ async function getDashboardStats(userId: string) {
         type: true,
         price: true,
         status: true,
-        sessionNote: {
+        _count: {
           select: {
-            id: true,
+            sessionNote: true,
           },
         },
         client: {
@@ -280,7 +280,7 @@ export default async function DashboardPage() {
                       type: therapySession.type as string,
                       status: therapySession.status as string,
                       price: Number(therapySession.price),
-                      sessionNote: therapySession.sessionNote ? therapySession.sessionNote.id : null,
+                      sessionNote: therapySession._count.sessionNote > 0 ? "exists" : null,
                       payment: therapySession.payment ? {
                         id: therapySession.payment.id,
                         status: therapySession.payment.status as string,
