@@ -1117,8 +1117,8 @@ export default function CalendarPage() {
                 </div>
               )}
               
-              {/* Delete Button - Show for future sessions */}
-              {selectedSession.status === "SCHEDULED" && new Date(selectedSession.startTime) > new Date() && (
+              {/* Delete Button - Show for future sessions (but not for breaks) */}
+              {selectedSession.status === "SCHEDULED" && new Date(selectedSession.startTime) > new Date() && selectedSession.type !== "BREAK" && (
                 <Button
                   onClick={handleDeleteSession}
                   variant="destructive"
