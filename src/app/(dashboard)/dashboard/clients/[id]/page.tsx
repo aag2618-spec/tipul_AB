@@ -34,6 +34,7 @@ import {
   Trash2,
 } from "lucide-react";
 import { Input } from "@/components/ui/input";
+import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
 import Link from "next/link";
 import { QuickMarkPaid } from "@/components/payments/quick-mark-paid";
 import { CompleteSessionDialog } from "@/components/sessions/complete-session-dialog";
@@ -492,30 +493,92 @@ export default async function ClientPage({
 
         <TabsContent value="summaries" className="mt-6">
           <Tabs defaultValue="unsummarized" className="w-full">
-            <div className="flex items-center justify-between mb-4">
-              <TabsList>
-                <TabsTrigger value="unsummarized" className="gap-2">
-                  <Clock className="h-4 w-4" />
-                  ללא סיכום ({client.therapySessions.filter((s) => !s.sessionNote && s.type !== "BREAK").length})
-                </TabsTrigger>
-                <TabsTrigger value="summarized" className="gap-2">
-                  <CheckCircle className="h-4 w-4" />
-                  מסוכמות ({client.therapySessions.filter((s) => s.sessionNote).length})
-                </TabsTrigger>
-              </TabsList>
-              
-              {client.therapySessions.filter((s) => s.sessionNote).length > 0 && (
-                <Button 
-                  size="lg"
-                  className="gap-2 bg-gradient-to-r from-blue-600 to-purple-600 hover:from-blue-700 hover:to-purple-700 text-white shadow-lg hover:shadow-xl transition-all"
-                  asChild
-                >
-                  <Link href={`/dashboard/clients/${client.id}/summaries/all`}>
-                    <Eye className="h-5 w-5 ml-2" />
-                    צפה בכל הסיכומים ברצף
-                  </Link>
-                </Button>
-              )}
+            <div className="space-y-4 mb-4">
+              <div className="flex items-center justify-between">
+                <TabsList>
+                  <TabsTrigger value="unsummarized" className="gap-2">
+                    <Clock className="h-4 w-4" />
+                    ללא סיכום ({client.therapySessions.filter((s) => !s.sessionNote && s.type !== "BREAK").length})
+                  </TabsTrigger>
+                  <TabsTrigger value="summarized" className="gap-2">
+                    <CheckCircle className="h-4 w-4" />
+                    מסוכמות ({client.therapySessions.filter((s) => s.sessionNote).length})
+                  </TabsTrigger>
+                </TabsList>
+                
+                <div className="flex items-center gap-2">
+                  {client.therapySessions.filter((s) => s.sessionNote).length > 0 && (
+                    <>
+                      <DropdownMenu>
+                        <DropdownMenuTrigger asChild>
+                          <Button variant="outline" size="lg" className="gap-2">
+                            <Download className="h-4 w-4" />
+                            ייצא
+                          </Button>
+                        </DropdownMenuTrigger>
+                        <DropdownMenuContent align="end">
+                          <DropdownMenuItem asChild>
+                            <Link href={`/dashboard/clients/${client.id}/summaries/export?format=pdf`}>
+                              <FileText className="h-4 w-4 ml-2" />
+                              ייצא ל-PDF
+                            </Link>
+                          </DropdownMenuItem>
+                          <DropdownMenuItem asChild>
+                            <Link href={`/dashboard/clients/${client.id}/summaries/export?format=word`}>
+                              <FileText className="h-4 w-4 ml-2" />
+                              ייצא ל-Word
+                            </Link>
+                          </DropdownMenuItem>
+                          <DropdownMenuSeparator />
+                          <DropdownMenuItem asChild>
+                            <Link href={`/dashboard/clients/${client.id}/summaries/export?format=email`}>
+                              <Send className="h-4 w-4 ml-2" />
+                              שלח במייל
+                            </Link>
+                          </DropdownMenuItem>
+                        </DropdownMenuContent>
+                      </DropdownMenu>
+                      
+                      <Button 
+                        size="lg"
+                        className="gap-2 bg-gradient-to-r from-blue-600 to-purple-600 hover:from-blue-700 hover:to-purple-700 text-white shadow-lg hover:shadow-xl transition-all"
+                        asChild
+                      >
+                        <Link href={`/dashboard/clients/${client.id}/summaries/all`}>
+                          <Eye className="h-5 w-5 ml-2" />
+                          צפה בכל הסיכומים ברצף
+                        </Link>
+                      </Button>
+                    </>
+                  )}
+                </div>
+              </div>
+
+              {/* Search and Filter Bar */}
+              <div className="flex items-center gap-3">
+                <div className="relative flex-1">
+                  <Search className="absolute right-3 top-1/2 -translate-y-1/2 h-4 w-4 text-muted-foreground" />
+                  <Input
+                    type="text"
+                    placeholder="חפש בסיכומים..."
+                    className="pr-10"
+                    id="summaries-search"
+                  />
+                </div>
+                <Select defaultValue="all">
+                  <SelectTrigger className="w-[180px]">
+                    <SelectValue placeholder="סנן לפי תאריך" />
+                  </SelectTrigger>
+                  <SelectContent>
+                    <SelectItem value="all">כל התקופות</SelectItem>
+                    <SelectItem value="week">שבוע אחרון</SelectItem>
+                    <SelectItem value="month">חודש אחרון</SelectItem>
+                    <SelectItem value="3months">3 חודשים</SelectItem>
+                    <SelectItem value="6months">6 חודשים</SelectItem>
+                    <SelectItem value="year">שנה אחרונה</SelectItem>
+                  </SelectContent>
+                </Select>
+              </div>
             </div>
 
             {/* פגישות ללא סיכום */}
