@@ -391,8 +391,10 @@ export default async function DashboardPage() {
                           sessionId={therapySession.id}
                           clientId={therapySession.client.id}
                           clientName={therapySession.client.name}
-                          sessionPrice={Number(therapySession.price)}
+                          sessionDate={therapySession.startTime}
+                          defaultAmount={Number(therapySession.price)}
                           creditBalance={Number(therapySession.client.creditBalance || 0)}
+                          buttonText="📊 דווח סיום"
                         />
                       </div>
                     )}
