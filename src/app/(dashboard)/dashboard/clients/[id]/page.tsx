@@ -49,6 +49,7 @@ import {
 } from "@/components/ui/dropdown-menu";
 import { SummariesTab } from "@/components/clients/summaries-tab";
 import { TodaySessionCard } from "@/components/dashboard/today-session-card";
+import { AddCreditDialog } from "@/components/clients/add-credit-dialog";
 import { format } from "date-fns";
 import { he } from "date-fns/locale";
 
@@ -229,39 +230,48 @@ export default async function ClientPage({
           </CardContent>
         </Card>
 
-        {/* Credit/Debt Card - Clickable */}
-        <Link href={`/dashboard/clients/${client.id}/payments`}>
-          <Card className={`cursor-pointer transition-all hover:shadow-lg hover:scale-[1.02] ${
-            totalDebt > 0 ? "border-red-200 bg-red-50/50" : "border-green-200 bg-green-50/50"
-          }`}>
-            <CardContent className="py-4">
-              <div className="flex items-center justify-between">
-                <div className="flex items-center gap-3">
-                  <CreditCard className={`h-6 w-6 ${
-                    totalDebt > 0 ? "text-red-600" : "text-green-600"
-                  }`} />
-                  <div className="space-y-1">
-                    {/* חוב */}
-                    <div>
-                      <p className="text-xs text-muted-foreground">חוב</p>
-                      <p className={`text-xl font-bold ${totalDebt > 0 ? "text-red-600" : "text-gray-400"}`}>
-                        ₪{totalDebt}
-                      </p>
-                    </div>
-                    {/* קרדיט */}
-                    <div>
-                      <p className="text-xs text-muted-foreground">קרדיט</p>
-                      <p className={`text-xl font-bold ${Number(client.creditBalance) > 0 ? "text-green-600" : "text-gray-400"}`}>
-                        ₪{Number(client.creditBalance)}
-                      </p>
-                    </div>
+        {/* Credit/Debt Card */}
+        <Card className={`transition-all ${
+          totalDebt > 0 ? "border-red-200 bg-red-50/50" : "border-green-200 bg-green-50/50"
+        }`}>
+          <CardContent className="py-4">
+            <div className="flex items-center justify-between">
+              <div className="flex items-center gap-3 flex-1">
+                <CreditCard className={`h-6 w-6 ${
+                  totalDebt > 0 ? "text-red-600" : "text-green-600"
+                }`} />
+                <div className="space-y-1">
+                  {/* חוב */}
+                  <div>
+                    <p className="text-xs text-muted-foreground">חוב</p>
+                    <p className={`text-xl font-bold ${totalDebt > 0 ? "text-red-600" : "text-gray-400"}`}>
+                      ₪{totalDebt}
+                    </p>
+                  </div>
+                  {/* קרדיט */}
+                  <div>
+                    <p className="text-xs text-muted-foreground">קרדיט</p>
+                    <p className={`text-xl font-bold ${Number(client.creditBalance) > 0 ? "text-green-600" : "text-gray-400"}`}>
+                      ₪{Number(client.creditBalance)}
+                    </p>
                   </div>
                 </div>
-                <ArrowRight className="h-5 w-5 text-muted-foreground" />
               </div>
-            </CardContent>
-          </Card>
-        </Link>
+              <div className="flex flex-col gap-2">
+                <AddCreditDialog
+                  clientId={client.id}
+                  clientName={client.name}
+                  currentCredit={Number(client.creditBalance)}
+                />
+                <Button variant="ghost" size="sm" asChild>
+                  <Link href={`/dashboard/clients/${client.id}/payments`}>
+                    <ArrowRight className="h-4 w-4" />
+                  </Link>
+                </Button>
+              </div>
+            </div>
+          </CardContent>
+        </Card>
       </div>
 
       {/* Tabs - Simplified */}
@@ -826,7 +836,14 @@ export default async function ClientPage({
             <TabsContent value="payments" className="mt-4">
               <Card>
                 <CardHeader>
-                  <CardTitle>היסטוריית תשלומים</CardTitle>
+                  <div className="flex items-center justify-between">
+                    <CardTitle>היסטוריית תשלומים</CardTitle>
+                    <AddCreditDialog
+                      clientId={client.id}
+                      clientName={client.name}
+                      currentCredit={Number(client.creditBalance)}
+                    />
+                  </div>
                 </CardHeader>
                 <CardContent>
                   {client.payments.length > 0 ? (
@@ -846,6 +863,8 @@ export default async function ClientPage({
                                 ? "אשראי"
                                 : payment.method === "BANK_TRANSFER"
                                 ? "העברה"
+                                : payment.method === "CREDIT"
+                                ? "קרדיט"
                                 : "צ׳ק"}
                             </p>
                           </div>

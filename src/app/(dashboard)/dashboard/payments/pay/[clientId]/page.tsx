@@ -15,6 +15,7 @@ import { toast } from "sonner";
 import { format } from "date-fns";
 import { he } from "date-fns/locale";
 import { PayClientDebts } from "@/components/payments/pay-client-debts";
+import { AddCreditDialog } from "@/components/clients/add-credit-dialog";
 
 interface UnpaidSession {
   paymentId: string;
@@ -220,21 +221,34 @@ export default function PayClientPage({ params }: { params: Promise<{ clientId: 
 
   return (
     <div className="space-y-6 animate-fade-in max-w-4xl mx-auto">
-      <div className="flex items-center gap-4">
-        <Button variant="ghost" size="icon" asChild>
-          <Link href="/dashboard/payments">
-            <ArrowRight className="h-5 w-5" />
-          </Link>
-        </Button>
-        <div>
-          <h1 className="text-2xl font-bold tracking-tight flex items-center gap-2">
-            <CreditCard className="h-6 w-6" />
-            תשלום חובות - {client.name}
-          </h1>
-          <p className="text-muted-foreground">
-            {client.unpaidSessions.length} פגישות ממתינות לתשלום
-          </p>
+      <div className="flex items-center justify-between gap-4">
+        <div className="flex items-center gap-4">
+          <Button variant="ghost" size="icon" asChild>
+            <Link href="/dashboard/payments">
+              <ArrowRight className="h-5 w-5" />
+            </Link>
+          </Button>
+          <div>
+            <h1 className="text-2xl font-bold tracking-tight flex items-center gap-2">
+              <CreditCard className="h-6 w-6" />
+              תשלום חובות - {client.name}
+            </h1>
+            <p className="text-muted-foreground">
+              {client.unpaidSessions.length} פגישות ממתינות לתשלום
+            </p>
+          </div>
         </div>
+        <AddCreditDialog
+          clientId={client.id}
+          clientName={client.name}
+          currentCredit={client.creditBalance}
+          trigger={
+            <Button variant="outline" className="gap-2">
+              <Wallet className="h-4 w-4" />
+              הוסף קרדיט
+            </Button>
+          }
+        />
       </div>
 
       {/* Quick Payment Card - Pay All */}
