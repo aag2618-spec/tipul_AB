@@ -10,7 +10,7 @@ import { Checkbox } from "@/components/ui/checkbox";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import { RadioGroup, RadioGroupItem } from "@/components/ui/radio-group";
-import { ArrowRight, Loader2, CreditCard, Calendar, DollarSign, User, Hash, Banknote } from "lucide-react";
+import { ArrowRight, Loader2, CreditCard, Calendar, User, Hash, Banknote, Wallet } from "lucide-react";
 import { toast } from "sonner";
 import { format } from "date-fns";
 import { he } from "date-fns/locale";
@@ -266,7 +266,7 @@ export default function PayClientPage({ params }: { params: Promise<{ clientId: 
       <Card>
         <CardHeader>
           <CardTitle className="flex items-center gap-2">
-            <DollarSign className="h-5 w-5" />
+            <Wallet className="h-5 w-5" />
             או בחר אופן תשלום מותאם אישית
           </CardTitle>
           <CardDescription>

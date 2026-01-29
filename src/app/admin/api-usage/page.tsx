@@ -11,7 +11,7 @@ import {
   TableHeader,
   TableRow,
 } from "@/components/ui/table";
-import { Loader2, Activity, TrendingUp, TrendingDown, DollarSign, Clock, Zap } from "lucide-react";
+import { Loader2, Activity, TrendingUp, TrendingDown, Wallet, Clock, Zap } from "lucide-react";
 import { format } from "date-fns";
 
 interface ApiLog {
@@ -125,7 +125,7 @@ export default function AdminApiUsagePage() {
         <Card className="bg-slate-900 border-slate-800">
           <CardHeader className="flex flex-row items-center justify-between pb-2">
             <CardTitle className="text-sm font-medium text-slate-400">עלות משוערת</CardTitle>
-            <DollarSign className="h-4 w-4 text-green-500" />
+            <Wallet className="h-4 w-4 text-green-500" />
           </CardHeader>
           <CardContent>
             <div className="text-2xl font-bold text-white">

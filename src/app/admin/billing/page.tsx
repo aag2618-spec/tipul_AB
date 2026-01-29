@@ -35,7 +35,7 @@ import {
   Loader2, 
   Plus, 
   CreditCard,
-  DollarSign,
+  Wallet,
   AlertCircle,
   CheckCircle2,
   Clock,

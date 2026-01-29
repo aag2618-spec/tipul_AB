@@ -273,93 +273,29 @@ export default async function DashboardPage() {
           </CardHeader>
           <CardContent>
             {stats.todaySessions.length > 0 ? (
-              <div className="space-y-3">
+              <div className="space-y-4">
                 {stats.todaySessions.map((therapySession) => (
-                  <div key={therapySession.id} className="flex items-center justify-between p-4 rounded-lg border border-border bg-background">
-                    <div className="flex items-center gap-3 flex-1">
-                      <div className="flex flex-col items-center justify-center w-14 h-14 rounded-lg bg-primary/10 text-primary">
-                        <span className="text-base font-bold">
-                          {format(toIsraelTime(new Date(therapySession.startTime)), "HH:mm")}
-                        </span>
-                        <span className="text-xs text-muted-foreground">
-                          {Math.round((new Date(therapySession.endTime).getTime() - new Date(therapySession.startTime).getTime()) / 60000)} דק'
-                        </span>
-                      </div>
-                      <div className="flex-1">
-                        {therapySession.client ? (
-                          <span className="font-medium">{therapySession.client.name}</span>
-                        ) : (
-                          <span className="font-medium">🌊 הפסקה</span>
-                        )}
-                        <div className="flex items-center gap-2 mt-1">
+                  <div key={therapySession.id} className="p-4 rounded-lg border border-border bg-background space-y-3">
+                    {/* שורה 1: זמן + סוג פגישה */}
+                    <div className="flex items-center justify-between">
+                      <div className="flex items-center gap-3">
+                        <div className="flex flex-col items-center justify-center w-14 h-14 rounded-lg bg-primary/10 text-primary">
+                          <span className="text-base font-bold">
+                            {format(toIsraelTime(new Date(therapySession.startTime)), "HH:mm")}
+                          </span>
+                          <span className="text-xs text-muted-foreground">
+                            {Math.round((new Date(therapySession.endTime).getTime() - new Date(therapySession.startTime).getTime()) / 60000)} דק'
+                          </span>
+                        </div>
+                        <div>
+                          <p className="text-sm text-muted-foreground">
+                            {format(toIsraelTime(new Date(therapySession.startTime)), "EEEE, d בMMMM", { locale: he })}
+                          </p>
                           <p className="text-sm text-muted-foreground">
                             {therapySession.type === "BREAK" ? "הפסקה" : therapySession.type === "ONLINE" ? "אונליין" : therapySession.type === "PHONE" ? "טלפון" : "פרונטלי"}
                           </p>
                         </div>
                       </div>
-                    </div>
-                    
-                    <div className="flex items-center gap-2">
-                      {/* סטטוס badges */}
-                      {therapySession.sessionNote && (
-                        <Badge variant="outline" className="bg-green-50 text-green-700 border-green-200">
-                          <CheckCircle className="h-3 w-3 ml-1" />
-                          סוכם
-                        </Badge>
-                      )}
-                      
-                      {therapySession.payment?.status === "PAID" && (
-                        <Badge variant="outline" className="bg-blue-50 text-blue-700 border-blue-200">
-                          <CheckCircle className="h-3 w-3 ml-1" />
-                          שולם
-                        </Badge>
-                      )}
-                      
-                      {/* כפתור פעולות אחד */}
-                      {therapySession.client && (
-                        <DropdownMenu>
-                          <DropdownMenuTrigger asChild>
-                            <Button variant="outline" size="sm">
-                              פעולות
-                              <MoreVertical className="h-4 w-4 mr-1" />
-                            </Button>
-                          </DropdownMenuTrigger>
-                          <DropdownMenuContent align="end" className="w-48">
-                            <DropdownMenuItem asChild>
-                              <Link href={`/dashboard/clients/${therapySession.client.id}`} className="cursor-pointer">
-                                <User className="h-4 w-4 ml-2" />
-                                תיקית מטופל
-                              </Link>
-                            </DropdownMenuItem>
-                            
-                            <DropdownMenuItem asChild>
-                              <Link href={`/dashboard/sessions/${therapySession.id}`} className="cursor-pointer">
-                                <FileText className="h-4 w-4 ml-2" />
-                                {therapySession.sessionNote ? "צפה בסיכום" : "כתוב סיכום"}
-                              </Link>
-                            </DropdownMenuItem>
-                            
-                            {therapySession.payment?.status !== "PAID" && (
-                              <>
-                                <DropdownMenuSeparator />
-                                <DropdownMenuItem asChild>
-                                  <div className="cursor-pointer">
-                                    <QuickMarkPaid
-                                      sessionId={therapySession.id}
-                                      clientId={therapySession.client.id}
-                                      clientName={therapySession.client.name}
-                                      amount={Number(therapySession.price)}
-                                      creditBalance={Number(therapySession.client.creditBalance || 0)}
-                                      existingPayment={therapySession.payment}
-                                      buttonText="רשום תשלום"
-                                    />
-                                  </div>
-                                </DropdownMenuItem>
-                              </>
-                            )}
-                          </DropdownMenuContent>
-                        </DropdownMenu>
-                      )}
                       
                       <Badge
                         variant={
@@ -367,18 +303,99 @@ export default async function DashboardPage() {
                             ? "default"
                             : therapySession.status === "CANCELLED"
                             ? "destructive"
+                            : therapySession.status === "NO_SHOW"
+                            ? "destructive"
                             : "secondary"
                         }
                       >
                         {therapySession.status === "SCHEDULED"
-                          ? "מתוכנן"
+                          ? "✅ מתוכנן"
                           : therapySession.status === "COMPLETED"
-                          ? "הושלם"
+                          ? "✅ הושלם"
                           : therapySession.status === "CANCELLED"
-                          ? "בוטל"
-                          : "לא הגיע"}
+                          ? "🚫 בוטל"
+                          : "❌ אי הופעה"}
                       </Badge>
                     </div>
+
+                    {/* שורה 2: שם מטופל - קליקבלי */}
+                    {therapySession.client ? (
+                      <div>
+                        <Link 
+                          href={`/dashboard/clients/${therapySession.client.id}`}
+                          className="text-lg font-semibold hover:text-primary hover:underline transition-colors cursor-pointer inline-block"
+                        >
+                          👤 {therapySession.client.name}
+                        </Link>
+                      </div>
+                    ) : (
+                      <div className="text-lg font-semibold text-muted-foreground">
+                        🌊 הפסקה
+                      </div>
+                    )}
+
+                    {/* שורה 3: אינדיקטורים (רק לפגישות שהושלמו) */}
+                    {therapySession.status === "COMPLETED" && therapySession.client && (
+                      <div className="flex items-center gap-4 text-sm pt-2 border-t">
+                        {/* אינדיקטור תשלום */}
+                        <div className="flex items-center gap-2">
+                          <span className="text-muted-foreground">💵 תשלום:</span>
+                          {therapySession.payment?.status === "PAID" ? (
+                            <span className="text-green-600 font-medium">✓ שולם</span>
+                          ) : (
+                            <span className="text-orange-600 font-medium">⏳ לא שולם</span>
+                          )}
+                        </div>
+
+                        {/* אינדיקטור סיכום */}
+                        <div className="flex items-center gap-2">
+                          <span className="text-muted-foreground">📝 סיכום:</span>
+                          {therapySession.sessionNote ? (
+                            <Link 
+                              href={`/dashboard/sessions/${therapySession.id}`}
+                              className="text-green-600 font-medium hover:text-green-700 hover:underline transition-colors"
+                            >
+                              ✓ נכתב
+                            </Link>
+                          ) : (
+                            <Link 
+                              href={`/dashboard/sessions/${therapySession.id}`}
+                              className="text-blue-600 font-medium hover:text-blue-700 hover:underline transition-colors"
+                            >
+                              כתוב סיכום
+                            </Link>
+                          )}
+                        </div>
+                      </div>
+                    )}
+
+                    {/* שורה 3: אינדיקטורים (רק לאי הופעה/ביטול) */}
+                    {(therapySession.status === "NO_SHOW" || therapySession.status === "CANCELLED") && therapySession.client && (
+                      <div className="flex items-center gap-4 text-sm pt-2 border-t">
+                        {/* אינדיקטור תשלום */}
+                        <div className="flex items-center gap-2">
+                          <span className="text-muted-foreground">💵 תשלום:</span>
+                          {therapySession.payment?.status === "PAID" ? (
+                            <span className="text-green-600 font-medium">✓ חויב</span>
+                          ) : (
+                            <span className="text-gray-600 font-medium">⏳ פטור</span>
+                          )}
+                        </div>
+                      </div>
+                    )}
+
+                    {/* שורה 4: כפתור דווח סיום (רק לפגישות מתוכננות) */}
+                    {therapySession.status === "SCHEDULED" && therapySession.client && (
+                      <div className="flex justify-center pt-2">
+                        <CompleteSessionDialog
+                          sessionId={therapySession.id}
+                          clientId={therapySession.client.id}
+                          clientName={therapySession.client.name}
+                          sessionPrice={Number(therapySession.price)}
+                          creditBalance={Number(therapySession.client.creditBalance || 0)}
+                        />
+                      </div>
+                    )}
                   </div>
                 ))}
               </div>
