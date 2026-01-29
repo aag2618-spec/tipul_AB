@@ -16,8 +16,7 @@ import Link from "next/link";
 import { format } from "date-fns";
 import { he } from "date-fns/locale";
 import { PersonalTasksWidget } from "@/components/tasks/personal-tasks-widget";
-import { CompleteSessionDialog } from "@/components/sessions/complete-session-dialog";
-import { QuickMarkPaid } from "@/components/payments/quick-mark-paid";
+import { TodaySessionCard } from "@/components/dashboard/today-session-card";
 import { SubBoxLink } from "@/components/dashboard-stat-card";
 
 // Helper to convert UTC time to Israel time for display
@@ -275,9 +274,8 @@ export default async function DashboardPage() {
             {stats.todaySessions.length > 0 ? (
               <div className="space-y-4">
                 {stats.todaySessions.map((therapySession) => (
-                  <div key={therapySession.id} className="p-4 rounded-lg border border-border bg-background space-y-3">
-                    {/* שורה 1: זמן + סוג פגישה */}
-                    <div className="flex items-center justify-between">
+                  <TodaySessionCard key={therapySession.id} session={therapySession} />
+                ))}
                       <div className="flex items-center gap-3">
                         <div className="flex flex-col items-center justify-center w-14 h-14 rounded-lg bg-primary/10 text-primary">
                           <span className="text-base font-bold">
