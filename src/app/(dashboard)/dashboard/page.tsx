@@ -128,6 +128,13 @@ async function getDashboardStats(userId: string) {
             id: true,
             name: true,
             creditBalance: true,
+            payments: {
+              where: { status: "PENDING" },
+              select: {
+                expectedAmount: true,
+                amount: true,
+              },
+            },
           },
         },
         payment: {
@@ -313,30 +320,41 @@ export default async function DashboardPage() {
           <CardContent>
             {stats.todaySessions.length > 0 ? (
               <div className="space-y-4">
-                {stats.todaySessions.map((therapySession) => (
-                  <TodaySessionCard 
-                    key={therapySession.id} 
-                    session={{
-                      id: therapySession.id,
-                      startTime: therapySession.startTime,
-                      endTime: therapySession.endTime,
-                      type: therapySession.type as string,
-                      status: therapySession.status as string,
-                      price: Number(therapySession.price),
-                      sessionNote: therapySession.sessionNote ? "exists" : null,
-                      payment: therapySession.payment ? {
-                        id: therapySession.payment.id,
-                        status: therapySession.payment.status as string,
-                        amount: Number(therapySession.payment.amount),
-                      } : null,
-                      client: therapySession.client ? {
-                        id: therapySession.client.id,
-                        name: therapySession.client.name,
-                        creditBalance: Number(therapySession.client.creditBalance),
-                      } : null,
-                    }} 
-                  />
-                ))}
+                {stats.todaySessions.map((therapySession) => {
+                  // Calculate total debt and unpaid sessions count for client
+                  const totalDebt = therapySession.client?.payments.reduce(
+                    (sum, p) => sum + (Number(p.expectedAmount) - Number(p.amount)),
+                    0
+                  ) || 0;
+                  const unpaidSessionsCount = therapySession.client?.payments.length || 0;
+
+                  return (
+                    <TodaySessionCard 
+                      key={therapySession.id} 
+                      session={{
+                        id: therapySession.id,
+                        startTime: therapySession.startTime,
+                        endTime: therapySession.endTime,
+                        type: therapySession.type as string,
+                        status: therapySession.status as string,
+                        price: Number(therapySession.price),
+                        sessionNote: therapySession.sessionNote ? "exists" : null,
+                        payment: therapySession.payment ? {
+                          id: therapySession.payment.id,
+                          status: therapySession.payment.status as string,
+                          amount: Number(therapySession.payment.amount),
+                        } : null,
+                        client: therapySession.client ? {
+                          id: therapySession.client.id,
+                          name: therapySession.client.name,
+                          creditBalance: Number(therapySession.client.creditBalance),
+                          totalDebt: totalDebt,
+                          unpaidSessionsCount: unpaidSessionsCount,
+                        } : null,
+                      }} 
+                    />
+                  );
+                })}
               </div>
             ) : (
               <div className="text-center py-8 text-muted-foreground">

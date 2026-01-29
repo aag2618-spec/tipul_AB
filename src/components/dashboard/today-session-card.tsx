@@ -44,6 +44,8 @@ interface TodaySessionCardProps {
       id: string;
       name: string;
       creditBalance: number;
+      totalDebt?: number;
+      unpaidSessionsCount?: number;
     } | null;
   };
 }
@@ -373,6 +375,8 @@ export function TodaySessionCard({ session }: TodaySessionCardProps) {
                           creditBalance={Number(session.client.creditBalance || 0)}
                           existingPayment={session.payment}
                           buttonText="רשום תשלום"
+                          totalClientDebt={session.client.totalDebt}
+                          unpaidSessionsCount={session.client.unpaidSessionsCount}
                         />
                       </div>
                     </DropdownMenuItem>

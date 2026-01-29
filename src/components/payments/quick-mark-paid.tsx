@@ -21,9 +21,10 @@ import {
 import { Label } from "@/components/ui/label";
 import { Input } from "@/components/ui/input";
 import { Badge } from "@/components/ui/badge";
-import { CreditCard, Loader2, Check, ChevronDown, ChevronUp } from "lucide-react";
+import { CreditCard, Loader2, Check, ChevronDown, ChevronUp, Wallet } from "lucide-react";
 import { toast } from "sonner";
 import { useRouter } from "next/navigation";
+import Link from "next/link";
 
 interface QuickMarkPaidProps {
   sessionId: string;
@@ -37,6 +38,8 @@ interface QuickMarkPaidProps {
     method?: string;
   } | null;
   buttonText?: string;
+  totalClientDebt?: number;
+  unpaidSessionsCount?: number;
 }
 
 export function QuickMarkPaid({
@@ -47,6 +50,8 @@ export function QuickMarkPaid({
   creditBalance = 0,
   existingPayment,
   buttonText = "סמן כשולם",
+  totalClientDebt,
+  unpaidSessionsCount,
 }: QuickMarkPaidProps) {
   const [isOpen, setIsOpen] = useState(false);
   const [isLoading, setIsLoading] = useState(false);
@@ -336,6 +341,26 @@ export function QuickMarkPaid({
             )}
           </Button>
         </DialogFooter>
+
+        {/* Show "Pay All Debt" button only if there are additional unpaid sessions */}
+        {unpaidSessionsCount && unpaidSessionsCount > 1 && totalClientDebt && (
+          <div className="pt-4 border-t mt-4">
+            <p className="text-sm text-muted-foreground mb-3 text-center">
+              למטופל יש עוד {unpaidSessionsCount - 1} פגישות ממתינות לתשלום
+              (סה"כ חוב: ₪{totalClientDebt.toFixed(0)})
+            </p>
+            <Button 
+              variant="outline" 
+              className="w-full gap-2" 
+              asChild
+            >
+              <Link href={`/dashboard/payments/pay/${clientId}`} onClick={() => setIsOpen(false)}>
+                <Wallet className="h-4 w-4" />
+                שלם את כל החוב
+              </Link>
+            </Button>
+          </div>
+        )}
       </DialogContent>
     </Dialog>
   );
