@@ -1,6 +1,7 @@
 import { getServerSession } from "next-auth";
 import { authOptions } from "@/lib/auth";
 import prisma from "@/lib/prisma";
+import { Prisma } from "@prisma/client";
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
@@ -266,7 +267,23 @@ export default async function DashboardPage() {
             {stats.todaySessions.length > 0 ? (
               <div className="space-y-4">
                 {stats.todaySessions.map((therapySession) => (
-                  <TodaySessionCard key={therapySession.id} session={therapySession} />
+                  <TodaySessionCard 
+                    key={therapySession.id} 
+                    session={{
+                      ...therapySession,
+                      price: Number(therapySession.price),
+                      payment: therapySession.payment ? {
+                        id: therapySession.payment.id,
+                        status: therapySession.payment.status,
+                        amount: Number(therapySession.payment.amount),
+                      } : null,
+                      client: therapySession.client ? {
+                        id: therapySession.client.id,
+                        name: therapySession.client.name,
+                        creditBalance: Number(therapySession.client.creditBalance),
+                      } : null,
+                    }} 
+                  />
                 ))}
               </div>
             ) : (
