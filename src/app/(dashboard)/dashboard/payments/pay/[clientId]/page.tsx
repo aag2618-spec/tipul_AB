@@ -126,10 +126,18 @@ export default function PayClientPage({ params }: { params: Promise<{ clientId: 
 
     for (const session of client.unpaidSessions) {
       const debt = session.expectedAmount - session.amount;
-      // בחר פגישות רק אם הסכום המצטבר לא עובר את הסכום המבוקש
+      
       if (accumulated + debt <= amount) {
+        // יש מספיק כסף לשלם את הפגישה במלואה
         selected.add(session.paymentId);
         accumulated += debt;
+      } else if (accumulated < amount) {
+        // לא מספיק לפגישה מלאה, אבל יש עוד כסף - תשלום חלקי
+        selected.add(session.paymentId);
+        accumulated = amount; // השתמש בכל הכסף שנשאר
+        break;
+      } else {
+        break;
       }
     }
 
