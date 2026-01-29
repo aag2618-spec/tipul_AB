@@ -124,9 +124,14 @@ export function TodaySessionCard({ session }: TodaySessionCardProps) {
       if (shouldCharge) {
         toast.success(pendingAction === "CANCELLED" ? "הפגישה בוטלה וחויבה, מעבר לדף תשלום..." : "נרשם כאי הופעה וחויב, מעבר לדף תשלום...");
         // Navigate to payment page
-        setTimeout(() => {
-          window.location.href = `/dashboard/payments/pay/${session.client.id}`;
-        }, 500);
+        if (session.client?.id) {
+          setTimeout(() => {
+            window.location.href = `/dashboard/payments/pay/${session.client.id}`;
+          }, 500);
+        } else {
+          toast.error("שגיאה: לא נמצא מזהה מטופל");
+          setIsProcessing(false);
+        }
       } else {
         toast.success(pendingAction === "CANCELLED" ? "הפגישה בוטלה ללא חיוב" : "נרשם כאי הופעה ללא חיוב");
         setIsProcessing(false);
