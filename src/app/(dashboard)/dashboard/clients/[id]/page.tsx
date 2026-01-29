@@ -336,39 +336,106 @@ export default async function ClientPage({
 
           <Card>
             <CardHeader>
-              <CardTitle>היסטוריית פגישות</CardTitle>
+              <CardTitle>פגישות</CardTitle>
               <CardDescription>
                 {client._count.therapySessions} פגישות בסך הכל
               </CardDescription>
             </CardHeader>
             <CardContent>
               {client.therapySessions.length > 0 ? (
-                <div className="space-y-4">
-                  {client.therapySessions.map((session) => (
-                    <TodaySessionCard 
-                      key={session.id} 
-                      session={{
-                        id: session.id,
-                        startTime: session.startTime,
-                        endTime: session.endTime,
-                        type: session.type as string,
-                        status: session.status as string,
-                        price: Number(session.price),
-                        sessionNote: session.sessionNote ? "exists" : null,
-                        payment: session.payment ? {
-                          id: session.payment.id,
-                          status: session.payment.status as string,
-                          amount: Number(session.payment.amount),
-                        } : null,
-                        client: {
-                          id: client.id,
-                          name: client.name,
-                          creditBalance: Number(client.creditBalance),
-                        },
-                      }} 
-                    />
-                  ))}
-                </div>
+                <Tabs defaultValue="past" className="w-full">
+                  <TabsList className="grid w-full grid-cols-2 mb-6">
+                    <TabsTrigger value="past">
+                      פגישות שעבר זמנן ({client.therapySessions.filter(s => new Date(s.startTime) < new Date()).length})
+                    </TabsTrigger>
+                    <TabsTrigger value="upcoming">
+                      פגישות עתידיות ({client.therapySessions.filter(s => new Date(s.startTime) >= new Date()).length})
+                    </TabsTrigger>
+                  </TabsList>
+
+                  {/* פגישות שעבר זמנן */}
+                  <TabsContent value="past">
+                    {client.therapySessions.filter(s => new Date(s.startTime) < new Date()).length > 0 ? (
+                      <div className="space-y-4">
+                        {client.therapySessions
+                          .filter(s => new Date(s.startTime) < new Date())
+                          .map((session) => (
+                            <TodaySessionCard 
+                              key={session.id} 
+                              session={{
+                                id: session.id,
+                                startTime: session.startTime,
+                                endTime: session.endTime,
+                                type: session.type as string,
+                                status: session.status as string,
+                                price: Number(session.price),
+                                sessionNote: session.sessionNote ? "exists" : null,
+                                payment: session.payment ? {
+                                  id: session.payment.id,
+                                  status: session.payment.status as string,
+                                  amount: Number(session.payment.amount),
+                                } : null,
+                                client: {
+                                  id: client.id,
+                                  name: client.name,
+                                  creditBalance: Number(client.creditBalance),
+                                },
+                              }} 
+                            />
+                          ))}
+                      </div>
+                    ) : (
+                      <div className="text-center py-8 text-muted-foreground">
+                        <Calendar className="mx-auto h-12 w-12 mb-3 opacity-50" />
+                        <p>אין פגישות קודמות</p>
+                      </div>
+                    )}
+                  </TabsContent>
+
+                  {/* פגישות עתידיות */}
+                  <TabsContent value="upcoming">
+                    {client.therapySessions.filter(s => new Date(s.startTime) >= new Date()).length > 0 ? (
+                      <div className="space-y-4">
+                        {client.therapySessions
+                          .filter(s => new Date(s.startTime) >= new Date())
+                          .map((session) => (
+                            <TodaySessionCard 
+                              key={session.id} 
+                              session={{
+                                id: session.id,
+                                startTime: session.startTime,
+                                endTime: session.endTime,
+                                type: session.type as string,
+                                status: session.status as string,
+                                price: Number(session.price),
+                                sessionNote: session.sessionNote ? "exists" : null,
+                                payment: session.payment ? {
+                                  id: session.payment.id,
+                                  status: session.payment.status as string,
+                                  amount: Number(session.payment.amount),
+                                } : null,
+                                client: {
+                                  id: client.id,
+                                  name: client.name,
+                                  creditBalance: Number(client.creditBalance),
+                                },
+                              }} 
+                            />
+                          ))}
+                      </div>
+                    ) : (
+                      <div className="text-center py-8 text-muted-foreground">
+                        <Calendar className="mx-auto h-12 w-12 mb-3 opacity-50" />
+                        <p>אין פגישות עתידיות מתוכננות</p>
+                        <Button variant="link" asChild className="mt-2">
+                          <Link href={`/dashboard/calendar?client=${client.id}`}>
+                            קבע פגישה חדשה
+                          </Link>
+                        </Button>
+                      </div>
+                    )}
+                  </TabsContent>
+                </Tabs>
               ) : (
                 <div className="text-center py-8 text-muted-foreground">
                   <Calendar className="mx-auto h-12 w-12 mb-3 opacity-50" />
