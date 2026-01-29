@@ -277,13 +277,13 @@ export default async function DashboardPage() {
                       id: therapySession.id,
                       startTime: therapySession.startTime,
                       endTime: therapySession.endTime,
-                      type: therapySession.type,
-                      status: therapySession.status,
+                      type: therapySession.type as string,
+                      status: therapySession.status as string,
                       price: Number(therapySession.price),
                       sessionNote: therapySession.sessionNote ? therapySession.sessionNote.id : null,
                       payment: therapySession.payment ? {
                         id: therapySession.payment.id,
-                        status: therapySession.payment.status,
+                        status: therapySession.payment.status as string,
                         amount: Number(therapySession.payment.amount),
                       } : null,
                       client: therapySession.client ? {
