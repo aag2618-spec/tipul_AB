@@ -11,7 +11,7 @@ import { Label } from "@/components/ui/label";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
 import { Switch } from "@/components/ui/switch";
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
-import { Plus, Loader2, Calendar, Repeat, Settings, Waves } from "lucide-react";
+import { Plus, Loader2, Calendar, Repeat, Settings, Waves, ChevronLeft, ChevronRight, Trash2 } from "lucide-react";
 import { format, addWeeks } from "date-fns";
 import { toast } from "sonner";
 import type { EventClickArg } from "@fullcalendar/core";
@@ -492,6 +492,67 @@ export default function CalendarPage() {
       toast.error("שגיאה בהחלת התבניות");
     } finally {
       setIsSubmitting(false);
+    }
+  };
+
+  // פונקציה להזזת זמן פגישה
+  const handleAdjustSessionTime = async (minutesToAdd: number) => {
+    if (!selectedSession) return;
+    
+    try {
+      const currentStart = new Date(selectedSession.startTime);
+      const currentEnd = new Date(selectedSession.endTime);
+      
+      currentStart.setMinutes(currentStart.getMinutes() + minutesToAdd);
+      currentEnd.setMinutes(currentEnd.getMinutes() + minutesToAdd);
+      
+      const response = await fetch(`/api/sessions/${selectedSession.id}`, {
+        method: "PUT",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({
+          startTime: currentStart.toISOString(),
+          endTime: currentEnd.toISOString(),
+        }),
+      });
+      
+      if (!response.ok) {
+        throw new Error("שגיאה בעדכון הזמן");
+      }
+      
+      toast.success("הזמן עודכן בהצלחה");
+      fetchData();
+      
+      // עדכן את הפגישה המוצגת
+      const updatedSession = await response.json();
+      setSelectedSession(updatedSession);
+    } catch {
+      toast.error("שגיאה בעדכון זמן הפגישה");
+    }
+  };
+
+  // פונקציה למחיקת פגישה
+  const handleDeleteSession = async () => {
+    if (!selectedSession) return;
+    
+    if (!confirm("האם אתה בטוח שברצונך למחוק את הפגישה?")) {
+      return;
+    }
+    
+    try {
+      const response = await fetch(`/api/sessions/${selectedSession.id}`, {
+        method: "DELETE",
+      });
+      
+      if (!response.ok) {
+        throw new Error("שגיאה במחיקת הפגישה");
+      }
+      
+      toast.success("הפגישה נמחקה בהצלחה");
+      setIsSessionDialogOpen(false);
+      setSelectedSession(null);
+      fetchData();
+    } catch {
+      toast.error("שגיאה במחיקת הפגישה");
     }
   };
 
@@ -1018,7 +1079,115 @@ export default function CalendarPage() {
                   <p className="font-medium">₪{selectedSession.price}</p>
                 </div>
               </div>
+
+              {/* Time Adjustment Controls - Show for future sessions */}
+              {selectedSession.status === "SCHEDULED" && new Date(selectedSession.startTime) > new Date() && (
+                <div className="border rounded-lg p-4 bg-slate-50 space-y-3">
+                  <div className="flex items-center justify-between">
+                    <p className="text-sm font-medium">התאמת זמן פגישה</p>
+                    <p className="text-xs text-muted-foreground">
+                      {format(new Date(selectedSession.startTime), "HH:mm")}
+                    </p>
+                  </div>
+                  
+                  <div className="space-y-2">
+                    <p className="text-xs text-muted-foreground">דקות:</p>
+                    <div className="grid grid-cols-4 gap-2">
+                      <Button
+                        size="sm"
+                        variant="outline"
+                        onClick={() => handleAdjustSessionTime(-15)}
+                        className="text-xs"
+                      >
+                        <ChevronRight className="h-3 w-3 ml-1" />
+                        -15
+                      </Button>
+                      <Button
+                        size="sm"
+                        variant="outline"
+                        onClick={() => handleAdjustSessionTime(-30)}
+                        className="text-xs"
+                      >
+                        <ChevronRight className="h-3 w-3 ml-1" />
+                        -30
+                      </Button>
+                      <Button
+                        size="sm"
+                        variant="outline"
+                        onClick={() => handleAdjustSessionTime(15)}
+                        className="text-xs"
+                      >
+                        +15
+                        <ChevronLeft className="h-3 w-3 mr-1" />
+                      </Button>
+                      <Button
+                        size="sm"
+                        variant="outline"
+                        onClick={() => handleAdjustSessionTime(30)}
+                        className="text-xs"
+                      >
+                        +30
+                        <ChevronLeft className="h-3 w-3 mr-1" />
+                      </Button>
+                    </div>
+                  </div>
+                  
+                  <div className="space-y-2">
+                    <p className="text-xs text-muted-foreground">שעות:</p>
+                    <div className="grid grid-cols-4 gap-2">
+                      <Button
+                        size="sm"
+                        variant="outline"
+                        onClick={() => handleAdjustSessionTime(-60)}
+                        className="text-xs"
+                      >
+                        <ChevronRight className="h-3 w-3 ml-1" />
+                        -1 שעה
+                      </Button>
+                      <Button
+                        size="sm"
+                        variant="outline"
+                        onClick={() => handleAdjustSessionTime(-120)}
+                        className="text-xs"
+                      >
+                        <ChevronRight className="h-3 w-3 ml-1" />
+                        -2 שעות
+                      </Button>
+                      <Button
+                        size="sm"
+                        variant="outline"
+                        onClick={() => handleAdjustSessionTime(60)}
+                        className="text-xs"
+                      >
+                        +1 שעה
+                        <ChevronLeft className="h-3 w-3 mr-1" />
+                      </Button>
+                      <Button
+                        size="sm"
+                        variant="outline"
+                        onClick={() => handleAdjustSessionTime(120)}
+                        className="text-xs"
+                      >
+                        +2 שעות
+                        <ChevronLeft className="h-3 w-3 mr-1" />
+                      </Button>
+                    </div>
+                  </div>
+                </div>
+              )}
               
+              {/* Delete Button - Show for future sessions */}
+              {selectedSession.status === "SCHEDULED" && new Date(selectedSession.startTime) > new Date() && (
+                <Button
+                  onClick={handleDeleteSession}
+                  variant="destructive"
+                  className="w-full gap-2"
+                >
+                  <Trash2 className="h-4 w-4" />
+                  מחק פגישה
+                </Button>
+              )}
+
               <div className="flex flex-col gap-2">
                 {/* Different buttons for BREAK vs regular sessions */}
                 {selectedSession.type === "BREAK" ? (
