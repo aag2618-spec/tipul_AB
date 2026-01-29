@@ -31,6 +31,7 @@ import {
   MoreVertical,
   Eye,
   User as UserIcon,
+  Trash2,
 } from "lucide-react";
 import { Input } from "@/components/ui/input";
 import Link from "next/link";
@@ -504,9 +505,13 @@ export default async function ClientPage({
               </TabsList>
               
               {client.therapySessions.filter((s) => s.sessionNote).length > 0 && (
-                <Button variant="outline" asChild>
+                <Button 
+                  size="lg"
+                  className="gap-2 bg-gradient-to-r from-blue-600 to-purple-600 hover:from-blue-700 hover:to-purple-700 text-white shadow-lg hover:shadow-xl transition-all"
+                  asChild
+                >
                   <Link href={`/dashboard/clients/${client.id}/summaries/all`}>
-                    <Eye className="h-4 w-4 ml-2" />
+                    <Eye className="h-5 w-5 ml-2" />
                     צפה בכל הסיכומים ברצף
                   </Link>
                 </Button>
@@ -533,7 +538,7 @@ export default async function ClientPage({
                         .map((session) => (
                           <div
                             key={session.id}
-                            className="flex items-center justify-between p-4 border rounded-lg bg-orange-50/50 hover:bg-orange-50 transition-colors"
+                            className="flex items-center justify-between p-4 border rounded-lg bg-orange-50/50 hover:bg-orange-50 transition-colors group"
                           >
                             <div className="flex items-center gap-3">
                               <Calendar className="h-5 w-5 text-orange-600" />
@@ -546,12 +551,45 @@ export default async function ClientPage({
                                 </p>
                               </div>
                             </div>
-                            <Button asChild size="sm">
-                              <Link href={`/dashboard/sessions/${session.id}`}>
-                                <Plus className="h-4 w-4 ml-2" />
-                                סכם פגישה
-                              </Link>
-                            </Button>
+                            <div className="flex items-center gap-2">
+                              <Button asChild size="sm">
+                                <Link href={`/dashboard/sessions/${session.id}`}>
+                                  <Plus className="h-4 w-4 ml-2" />
+                                  סכם פגישה
+                                </Link>
+                              </Button>
+                              <DropdownMenu>
+                                <DropdownMenuTrigger asChild>
+                                  <Button 
+                                    variant="ghost" 
+                                    size="sm" 
+                                    className="h-8 w-8 p-0 opacity-0 group-hover:opacity-100 transition-opacity"
+                                  >
+                                    <MoreVertical className="h-4 w-4" />
+                                  </Button>
+                                </DropdownMenuTrigger>
+                                <DropdownMenuContent align="end">
+                                  <DropdownMenuItem
+                                    className="text-red-600 focus:text-red-600"
+                                    onClick={async () => {
+                                      if (confirm("האם אתה בטוח שברצונך למחוק את הפגישה?")) {
+                                        try {
+                                          await fetch(`/api/sessions/${session.id}`, {
+                                            method: "DELETE",
+                                          });
+                                          window.location.reload();
+                                        } catch (error) {
+                                          console.error("Error deleting session:", error);
+                                        }
+                                      }
+                                    }}
+                                  >
+                                    <Trash2 className="h-4 w-4 ml-2" />
+                                    מחק פגישה
+                                  </DropdownMenuItem>
+                                </DropdownMenuContent>
+                              </DropdownMenu>
+                            </div>
                           </div>
                         ))}
                     </div>
@@ -585,7 +623,7 @@ export default async function ClientPage({
                         .map((session) => (
                           <div
                             key={session.id}
-                            className="flex items-center justify-between p-4 border rounded-lg hover:bg-slate-50 transition-colors"
+                            className="flex items-center justify-between p-4 border rounded-lg hover:bg-slate-50 transition-colors group"
                           >
                             <div className="flex-1">
                               <div className="flex items-center gap-3 mb-2">
@@ -605,12 +643,45 @@ export default async function ClientPage({
                                 </p>
                               )}
                             </div>
-                            <Button variant="outline" size="sm" asChild>
-                              <Link href={`/dashboard/sessions/${session.id}`}>
-                                <Eye className="h-4 w-4 ml-2" />
-                                צפה
-                              </Link>
-                            </Button>
+                            <div className="flex items-center gap-2">
+                              <Button variant="outline" size="sm" asChild>
+                                <Link href={`/dashboard/sessions/${session.id}`}>
+                                  <Eye className="h-4 w-4 ml-2" />
+                                  צפה
+                                </Link>
+                              </Button>
+                              <DropdownMenu>
+                                <DropdownMenuTrigger asChild>
+                                  <Button 
+                                    variant="ghost" 
+                                    size="sm" 
+                                    className="h-8 w-8 p-0 opacity-0 group-hover:opacity-100 transition-opacity"
+                                  >
+                                    <MoreVertical className="h-4 w-4" />
+                                  </Button>
+                                </DropdownMenuTrigger>
+                                <DropdownMenuContent align="end">
+                                  <DropdownMenuItem
+                                    className="text-red-600 focus:text-red-600"
+                                    onClick={async () => {
+                                      if (confirm("האם אתה בטוח שברצונך למחוק את הפגישה והסיכום?")) {
+                                        try {
+                                          await fetch(`/api/sessions/${session.id}`, {
+                                            method: "DELETE",
+                                          });
+                                          window.location.reload();
+                                        } catch (error) {
+                                          console.error("Error deleting session:", error);
+                                        }
+                                      }
+                                    }}
+                                  >
+                                    <Trash2 className="h-4 w-4 ml-2" />
+                                    מחק פגישה וסיכום
+                                  </DropdownMenuItem>
+                                </DropdownMenuContent>
+                              </DropdownMenu>
+                            </div>
                           </div>
                         ))}
                     </div>
