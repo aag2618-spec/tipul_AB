@@ -158,9 +158,18 @@ export default function PayClientPage({ params }: { params: Promise<{ clientId: 
 
   const calculateSelectedTotal = () => {
     if (!client) return 0;
-    return client.unpaidSessions
+    
+    const totalDebt = client.unpaidSessions
       .filter(s => selectedPayments.has(s.paymentId))
       .reduce((sum, s) => sum + (s.expectedAmount - s.amount), 0);
+    
+    // אם במצב תשלום לפי סכום - הצג את הסכום שהוזן (או את החוב אם קטן יותר)
+    if (selectionMode === "amount" && targetAmount) {
+      const amount = parseFloat(targetAmount);
+      return Math.min(amount, totalDebt);
+    }
+    
+    return totalDebt;
   };
 
   if (isLoading) {
