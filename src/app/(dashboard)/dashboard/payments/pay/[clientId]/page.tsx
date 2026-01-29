@@ -276,7 +276,11 @@ export default function PayClientPage({ params }: { params: Promise<{ clientId: 
         <CardContent className="space-y-4">
           <RadioGroup value={selectionMode} onValueChange={(value) => handleSelectionModeChange(value as SelectionMode)}>
             {/* All Sessions */}
-            <div className="flex items-center space-x-2 space-x-reverse p-3 border rounded-lg hover:bg-slate-50 transition-colors">
+            <div className={`flex items-center space-x-2 space-x-reverse p-3 border-2 rounded-lg transition-all ${
+              selectionMode === "all" 
+                ? "border-primary bg-primary/5 shadow-md" 
+                : "border-border hover:bg-slate-50"
+            }`}>
               <RadioGroupItem value="all" id="all" />
               <Label htmlFor="all" className="flex-1 cursor-pointer">
                 <div className="flex items-center justify-between">
@@ -292,7 +296,11 @@ export default function PayClientPage({ params }: { params: Promise<{ clientId: 
             </div>
 
             {/* By Number of Sessions */}
-            <div className="flex items-center space-x-2 space-x-reverse p-3 border rounded-lg hover:bg-slate-50 transition-colors">
+            <div className={`flex items-center space-x-2 space-x-reverse p-3 border-2 rounded-lg transition-all ${
+              selectionMode === "sessions" 
+                ? "border-primary bg-primary/5 shadow-md" 
+                : "border-border hover:bg-slate-50"
+            }`}>
               <RadioGroupItem value="sessions" id="sessions" />
               <Label htmlFor="sessions" className="flex-1 cursor-pointer">
                 <div className="space-y-2">
@@ -324,7 +332,11 @@ export default function PayClientPage({ params }: { params: Promise<{ clientId: 
             </div>
 
             {/* By Amount */}
-            <div className="flex items-center space-x-2 space-x-reverse p-3 border rounded-lg hover:bg-slate-50 transition-colors">
+            <div className={`flex items-center space-x-2 space-x-reverse p-3 border-2 rounded-lg transition-all ${
+              selectionMode === "amount" 
+                ? "border-primary bg-primary/5 shadow-md" 
+                : "border-border hover:bg-slate-50"
+            }`}>
               <RadioGroupItem value="amount" id="amount" />
               <Label htmlFor="amount" className="flex-1 cursor-pointer">
                 <div className="space-y-2">
@@ -357,14 +369,23 @@ export default function PayClientPage({ params }: { params: Promise<{ clientId: 
             </div>
 
             {/* Manual Selection */}
-            <div className="flex items-center space-x-2 space-x-reverse p-3 border rounded-lg hover:bg-slate-50 transition-colors">
+            <div className={`flex items-center space-x-2 space-x-reverse p-3 border-2 rounded-lg transition-all ${
+              selectionMode === "manual" 
+                ? "border-primary bg-primary/5 shadow-md" 
+                : "border-border hover:bg-slate-50"
+            }`}>
               <RadioGroupItem value="manual" id="manual" />
               <Label htmlFor="manual" className="flex-1 cursor-pointer">
                 <div>
                   <p className="font-medium">בחירה ידנית</p>
                   <p className="text-sm text-muted-foreground">
-                    בחר באופן ידני אילו פגישות לשלם (בחירה מהרשימה למטה)
+                    בחר באופן ידני אילו פגישות לשלם (לחץ על הפגישות למטה)
                   </p>
+                  {selectionMode === "manual" && (
+                    <p className="text-sm text-primary font-medium mt-2 animate-pulse">
+                      ← עכשיו לחץ על הפגישות שתרצה לשלם מהרשימה למטה
+                    </p>
+                  )}
                 </div>
               </Label>
             </div>
