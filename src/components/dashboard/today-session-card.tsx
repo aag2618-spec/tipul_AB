@@ -123,10 +123,11 @@ export function TodaySessionCard({ session }: TodaySessionCardProps) {
 
       if (shouldCharge) {
         toast.success(pendingAction === "CANCELLED" ? "הפגישה בוטלה וחויבה, מעבר לדף תשלום..." : "נרשם כאי הופעה וחויב, מעבר לדף תשלום...");
-        // Navigate to payment page
-        if (session.client?.id) {
+        // Navigate to payment page with null safety check
+        const clientId = session.client?.id;
+        if (clientId) {
           setTimeout(() => {
-            window.location.href = `/dashboard/payments/pay/${session.client.id}`;
+            window.location.href = `/dashboard/payments/pay/${clientId}`;
           }, 500);
         } else {
           toast.error("שגיאה: לא נמצא מזהה מטופל");
