@@ -129,7 +129,7 @@ export default function AdminApiUsagePage() {
           </CardHeader>
           <CardContent>
             <div className="text-2xl font-bold text-white">
-              ${(stats?.totalCost || 0).toFixed(2)}
+              {(stats?.totalCost || 0).toFixed(2)} USD
             </div>
           </CardContent>
         </Card>
@@ -261,7 +261,7 @@ export default function AdminApiUsagePage() {
                       {log.tokensUsed?.toLocaleString() || "-"}
                     </TableCell>
                     <TableCell className="text-slate-300">
-                      {log.cost ? `$${log.cost.toFixed(4)}` : "-"}
+                      {log.cost ? `${log.cost.toFixed(4)} USD` : "-"}
                     </TableCell>
                     <TableCell className="text-slate-300">
                       {log.durationMs ? `${log.durationMs}ms` : "-"}
