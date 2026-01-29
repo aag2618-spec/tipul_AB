@@ -131,11 +131,6 @@ export default async function ClientPage({
     (sum, p) => sum + (Number(p.expectedAmount) - Number(p.amount)),
     0
   );
-  
-  // Find the oldest unpaid session for simple payment
-  const oldestUnpaidPayment = pendingPayments.sort((a, b) => 
-    new Date(a.createdAt).getTime() - new Date(b.createdAt).getTime()
-  )[0];
 
   return (
     <div className="space-y-6 animate-fade-in">
@@ -268,25 +263,12 @@ export default async function ClientPage({
                   clientName={client.name}
                   currentCredit={Number(client.creditBalance)}
                 />
-                {totalDebt > 0 && oldestUnpaidPayment && (
-                  <>
-                    {/* תשלום פשוט - פגישה אחת */}
-                    <Button variant="outline" size="sm" asChild>
-                      <Link href={`/dashboard/payments/${oldestUnpaidPayment.id}/mark-paid`}>
-                        <CreditCard className="h-4 w-4 ml-2" />
-                        תשלום
-                      </Link>
-                    </Button>
-                    {/* תשלום מלא - כל החובות */}
-                    {pendingPayments.length > 1 && (
-                      <Button variant="ghost" size="sm" asChild>
-                        <Link href={`/dashboard/payments/pay/${client.id}`}>
-                          <ArrowRight className="h-4 w-4 ml-2" />
-                          כל החוב
-                        </Link>
-                      </Button>
-                    )}
-                  </>
+                {totalDebt > 0 && (
+                  <Button variant="outline" size="sm" asChild>
+                    <Link href={`/dashboard/payments/pay/${client.id}`}>
+                      תשלום
+                    </Link>
+                  </Button>
                 )}
               </div>
             </div>
