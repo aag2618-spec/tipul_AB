@@ -104,7 +104,7 @@ export function TodaySessionCard({ session }: TodaySessionCardProps) {
     if (!session.client || !pendingAction) return;
     setIsProcessing(true);
     try {
-      await fetch(`/api/sessions/${session.id}`, {
+      const response = await fetch(`/api/sessions/${session.id}`, {
         method: "PUT",
         headers: { "Content-Type": "application/json" },
         body: JSON.stringify({ 
@@ -113,19 +113,29 @@ export function TodaySessionCard({ session }: TodaySessionCardProps) {
         }),
       });
 
+      if (!response.ok) {
+        throw new Error("Failed to update session");
+      }
+
       setIsChargeDialogOpen(false);
       setPendingAction(null);
 
       if (shouldCharge) {
         toast.success(pendingAction === "CANCELLED" ? "הפגישה בוטלה, מעבר לדף תשלום..." : "נרשם כאי הופעה, מעבר לדף תשלום...");
-        window.location.href = `/dashboard/payments/pay/${session.client.id}`;
+        // Navigate to payment page
+        setTimeout(() => {
+          window.location.href = `/dashboard/payments/pay/${session.client.id}`;
+        }, 500);
       } else {
         toast.success(pendingAction === "CANCELLED" ? "הפגישה בוטלה ללא חיוב" : "נרשם כאי הופעה ללא חיוב");
+        setIsProcessing(false);
         router.refresh();
       }
-    } catch {
+    } catch (error) {
       toast.error("שגיאה בעדכון הפגישה");
       setIsProcessing(false);
+      setIsChargeDialogOpen(false);
+      setPendingAction(null);
     }
   };
 
