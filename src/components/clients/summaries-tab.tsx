@@ -11,20 +11,17 @@ import {
   DropdownMenu,
   DropdownMenuContent,
   DropdownMenuItem,
-  DropdownMenuSeparator,
   DropdownMenuTrigger,
 } from "@/components/ui/dropdown-menu";
 import {
   Calendar,
   CheckCircle,
   Clock,
-  Download,
   Eye,
   FileText,
   MoreVertical,
   Plus,
   Search,
-  Send,
   Trash2,
 } from "lucide-react";
 import { format } from "date-fns";
@@ -49,8 +46,52 @@ export function SummariesTab({ clientId, sessions }: SummariesTabProps) {
   const [searchQuery, setSearchQuery] = useState("");
   const [dateFilter, setDateFilter] = useState("all");
 
-  const unsummarizedSessions = sessions.filter((s) => !s.sessionNote && s.type !== "BREAK");
-  const summarizedSessions = sessions.filter((s) => s.sessionNote);
+  // Apply date filter
+  const getFilteredByDate = (sessionsList: Session[]) => {
+    if (dateFilter === "all") return sessionsList;
+    
+    const now = new Date();
+    const filterDate = new Date();
+    
+    switch (dateFilter) {
+      case "week":
+        filterDate.setDate(now.getDate() - 7);
+        break;
+      case "month":
+        filterDate.setMonth(now.getMonth() - 1);
+        break;
+      case "3months":
+        filterDate.setMonth(now.getMonth() - 3);
+        break;
+      case "6months":
+        filterDate.setMonth(now.getMonth() - 6);
+        break;
+      case "year":
+        filterDate.setFullYear(now.getFullYear() - 1);
+        break;
+    }
+    
+    return sessionsList.filter(s => new Date(s.startTime) >= filterDate);
+  };
+
+  // Apply search filter
+  const getFilteredBySearch = (sessionsList: Session[]) => {
+    if (!searchQuery.trim()) return sessionsList;
+    
+    const query = searchQuery.toLowerCase();
+    return sessionsList.filter(s => {
+      const dateStr = format(new Date(s.startTime), "EEEE, d בMMMM yyyy", { locale: he }).toLowerCase();
+      const noteContent = s.sessionNote?.content?.toLowerCase() || "";
+      return dateStr.includes(query) || noteContent.includes(query);
+    });
+  };
+
+  const unsummarizedSessions = getFilteredBySearch(
+    getFilteredByDate(sessions.filter((s) => !s.sessionNote && s.type !== "BREAK"))
+  );
+  const summarizedSessions = getFilteredBySearch(
+    getFilteredByDate(sessions.filter((s) => s.sessionNote))
+  );
 
   const handleDeleteSession = async (sessionId: string) => {
     if (!confirm("האם אתה בטוח שברצונך למחוק את הפגישה?")) {
@@ -84,48 +125,16 @@ export function SummariesTab({ clientId, sessions }: SummariesTabProps) {
 
           <div className="flex items-center gap-2">
             {summarizedSessions.length > 0 && (
-              <>
-                <DropdownMenu>
-                  <DropdownMenuTrigger asChild>
-                    <Button variant="outline" size="lg" className="gap-2">
-                      <Download className="h-4 w-4" />
-                      ייצא
-                    </Button>
-                  </DropdownMenuTrigger>
-                  <DropdownMenuContent align="end">
-                    <DropdownMenuItem asChild>
-                      <Link href={`/dashboard/clients/${clientId}/summaries/export?format=pdf`}>
-                        <FileText className="h-4 w-4 ml-2" />
-                        ייצא ל-PDF
-                      </Link>
-                    </DropdownMenuItem>
-                    <DropdownMenuItem asChild>
-                      <Link href={`/dashboard/clients/${clientId}/summaries/export?format=word`}>
-                        <FileText className="h-4 w-4 ml-2" />
-                        ייצא ל-Word
-                      </Link>
-                    </DropdownMenuItem>
-                    <DropdownMenuSeparator />
-                    <DropdownMenuItem asChild>
-                      <Link href={`/dashboard/clients/${clientId}/summaries/export?format=email`}>
-                        <Send className="h-4 w-4 ml-2" />
-                        שלח במייל
-                      </Link>
-                    </DropdownMenuItem>
-                  </DropdownMenuContent>
-                </DropdownMenu>
-
-                <Button
-                  size="lg"
-                  className="gap-2 bg-gradient-to-r from-blue-600 to-purple-600 hover:from-blue-700 hover:to-purple-700 text-white shadow-lg hover:shadow-xl transition-all"
-                  asChild
-                >
-                  <Link href={`/dashboard/clients/${clientId}/summaries/all`}>
-                    <Eye className="h-5 w-5 ml-2" />
-                    צפה בכל הסיכומים ברצף
-                  </Link>
-                </Button>
-              </>
+              <Button
+                size="lg"
+                className="gap-2 bg-gradient-to-r from-blue-600 to-purple-600 hover:from-blue-700 hover:to-purple-700 text-white shadow-lg hover:shadow-xl transition-all"
+                asChild
+              >
+                <Link href={`/dashboard/clients/${clientId}/summaries/all`}>
+                  <Eye className="h-5 w-5 ml-2" />
+                  צפה בכל הסיכומים ברצף
+                </Link>
+              </Button>
             )}
           </div>
         </div>
