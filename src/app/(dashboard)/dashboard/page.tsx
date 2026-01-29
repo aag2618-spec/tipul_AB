@@ -94,9 +94,28 @@ async function getDashboardStats(userId: string) {
         therapistId: userId,
         startTime: { gte: today, lt: tomorrow },
       },
-      include: {
-        client: true,
-        payment: true,
+      select: {
+        id: true,
+        startTime: true,
+        endTime: true,
+        type: true,
+        price: true,
+        status: true,
+        sessionNote: true,
+        client: {
+          select: {
+            id: true,
+            name: true,
+            creditBalance: true,
+          },
+        },
+        payment: {
+          select: {
+            id: true,
+            status: true,
+            amount: true,
+          },
+        },
       },
       orderBy: { startTime: "asc" },
     }),
