@@ -131,12 +131,12 @@ export function TodaySessionCard({ session }: TodaySessionCardProps) {
 
   return (
     <>
-      <div className="p-4 rounded-lg border border-border bg-background space-y-3">
+      <div className="p-3 rounded-lg border border-border bg-background space-y-2">
         {/* שורה 1: זמן + סוג פגישה */}
         <div className="flex items-center justify-between">
-          <div className="flex items-center gap-3">
-            <div className="flex flex-col items-center justify-center w-14 h-14 rounded-lg bg-primary/10 text-primary">
-              <span className="text-base font-bold">
+          <div className="flex items-center gap-2">
+            <div className="flex flex-col items-center justify-center w-12 h-12 rounded-lg bg-primary/10 text-primary">
+              <span className="text-sm font-bold">
                 {format(toIsraelTime(new Date(session.startTime)), "HH:mm")}
               </span>
               <span className="text-xs text-muted-foreground">
@@ -179,20 +179,20 @@ export function TodaySessionCard({ session }: TodaySessionCardProps) {
           <div>
             <Link
               href={`/dashboard/clients/${session.client.id}`}
-              className="text-lg font-semibold hover:text-primary hover:underline transition-colors cursor-pointer inline-block"
+              className="text-base font-semibold hover:text-primary hover:underline transition-colors cursor-pointer inline-block"
             >
               👤 {session.client.name}
             </Link>
           </div>
         ) : (
-          <div className="text-lg font-semibold text-muted-foreground">🌊 הפסקה</div>
+          <div className="text-base font-semibold text-muted-foreground">🌊 הפסקה</div>
         )}
 
         {/* שורה 3: אינדיקטורים (רק לפגישות שהושלמו) */}
         {session.status === "COMPLETED" && session.client && (
-          <div className="flex items-center gap-4 text-sm pt-2 border-t">
+          <div className="flex items-center gap-3 text-xs pt-1.5 border-t">
             {/* אינדיקטור תשלום */}
-            <div className="flex items-center gap-2">
+            <div className="flex items-center gap-1.5">
               <span className="text-muted-foreground">💵 תשלום:</span>
               {session.payment?.status === "PAID" ? (
                 <span className="text-green-600 font-medium">✓ שולם</span>
@@ -202,7 +202,7 @@ export function TodaySessionCard({ session }: TodaySessionCardProps) {
             </div>
 
             {/* אינדיקטור סיכום */}
-            <div className="flex items-center gap-2">
+            <div className="flex items-center gap-1.5">
               <span className="text-muted-foreground">📝 סיכום:</span>
               {session.sessionNote ? (
                 <Link
@@ -225,9 +225,9 @@ export function TodaySessionCard({ session }: TodaySessionCardProps) {
 
         {/* שורה 3: אינדיקטורים (רק לאי הופעה/ביטול) */}
         {(session.status === "NO_SHOW" || session.status === "CANCELLED") && session.client && (
-          <div className="flex items-center gap-4 text-sm pt-2 border-t">
+          <div className="flex items-center gap-3 text-xs pt-1.5 border-t">
             {/* אינדיקטור תשלום */}
-            <div className="flex items-center gap-2">
+            <div className="flex items-center gap-1.5">
               <span className="text-muted-foreground">💵 תשלום:</span>
               {session.payment?.status === "PAID" ? (
                 <span className="text-green-600 font-medium">✓ שולם</span>
@@ -242,7 +242,7 @@ export function TodaySessionCard({ session }: TodaySessionCardProps) {
 
         {/* שורה 4: תפריט פעולות */}
         {session.client && (
-          <div className="flex justify-center pt-2 border-t">
+          <div className="flex justify-center pt-1.5 border-t">
             <DropdownMenu>
               <DropdownMenuTrigger asChild>
                 <Button variant="outline" size="default" className="gap-2" disabled={isProcessing}>
