@@ -614,6 +614,15 @@ model CommunicationSetting {
   // Payment receipts
   sendPaymentReceipt      Boolean @default(false) // שליחת קבלה אוטומטית אחרי תשלום
 
+  // Email customization
+  paymentInstructions     String? @db.Text // הוראות תשלום מותאמות אישית
+  paymentLink             String? // קישור לתשלום ישיר (ביט/פייבוקס וכו')
+  emailSignature          String? @db.Text // חתימה אישית
+  logoUrl                 String? // URL ללוגו
+  customGreeting          String? // ברכת פתיחה מותאמת (למשל: "היי {שם}, מקווה שהשבוע עבר בטוב")
+  customClosing           String? // ברכת סיום מותאמת (למשל: "תודה ומחכה לראותך")
+  businessHours           String? // שעות פעילות (טקסט חופשי)
+
   createdAt DateTime @default(now())
   updatedAt DateTime @updatedAt
 

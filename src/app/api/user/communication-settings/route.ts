@@ -28,6 +28,13 @@ export async function GET() {
           debtReminderDayOfMonth: 1,
           debtReminderMinAmount: 50,
           sendPaymentReceipt: false,
+          paymentInstructions: null,
+          paymentLink: null,
+          emailSignature: null,
+          logoUrl: null,
+          customGreeting: null,
+          customClosing: null,
+          businessHours: null,
         },
       });
     }
@@ -43,6 +50,13 @@ export async function GET() {
         debtReminderDayOfMonth: settings.debtReminderDayOfMonth,
         debtReminderMinAmount: Number(settings.debtReminderMinAmount),
         sendPaymentReceipt: settings.sendPaymentReceipt,
+        paymentInstructions: settings.paymentInstructions,
+        paymentLink: settings.paymentLink,
+        emailSignature: settings.emailSignature,
+        logoUrl: settings.logoUrl,
+        customGreeting: settings.customGreeting,
+        customClosing: settings.customClosing,
+        businessHours: settings.businessHours,
       },
     });
   } catch (error) {
@@ -73,6 +87,13 @@ export async function PUT(request: NextRequest) {
       debtReminderDayOfMonth,
       debtReminderMinAmount,
       sendPaymentReceipt,
+      paymentInstructions,
+      paymentLink,
+      emailSignature,
+      logoUrl,
+      customGreeting,
+      customClosing,
+      businessHours,
     } = body;
 
     // Validate minCancellationHours
@@ -96,6 +117,13 @@ export async function PUT(request: NextRequest) {
         debtReminderDayOfMonth: validDayOfMonth,
         debtReminderMinAmount: validMinAmount,
         sendPaymentReceipt: sendPaymentReceipt ?? false,
+        paymentInstructions: paymentInstructions !== undefined ? paymentInstructions : undefined,
+        paymentLink: paymentLink !== undefined ? paymentLink : undefined,
+        emailSignature: emailSignature !== undefined ? emailSignature : undefined,
+        logoUrl: logoUrl !== undefined ? logoUrl : undefined,
+        customGreeting: customGreeting !== undefined ? customGreeting : undefined,
+        customClosing: customClosing !== undefined ? customClosing : undefined,
+        businessHours: businessHours !== undefined ? businessHours : undefined,
       },
       create: {
         userId: session.user.id,
@@ -108,6 +136,13 @@ export async function PUT(request: NextRequest) {
         debtReminderDayOfMonth: validDayOfMonth,
         debtReminderMinAmount: validMinAmount,
         sendPaymentReceipt: sendPaymentReceipt ?? false,
+        paymentInstructions: paymentInstructions || null,
+        paymentLink: paymentLink || null,
+        emailSignature: emailSignature || null,
+        logoUrl: logoUrl || null,
+        customGreeting: customGreeting || null,
+        customClosing: customClosing || null,
+        businessHours: businessHours || null,
       },
     });
 
@@ -123,6 +158,13 @@ export async function PUT(request: NextRequest) {
         debtReminderDayOfMonth: settings.debtReminderDayOfMonth,
         debtReminderMinAmount: Number(settings.debtReminderMinAmount),
         sendPaymentReceipt: settings.sendPaymentReceipt,
+        paymentInstructions: settings.paymentInstructions,
+        paymentLink: settings.paymentLink,
+        emailSignature: settings.emailSignature,
+        logoUrl: settings.logoUrl,
+        customGreeting: settings.customGreeting,
+        customClosing: settings.customClosing,
+        businessHours: settings.businessHours,
       },
     });
   } catch (error) {
