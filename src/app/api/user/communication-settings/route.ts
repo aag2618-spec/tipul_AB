@@ -27,6 +27,7 @@ export async function GET() {
           sendDebtReminders: false,
           debtReminderDayOfMonth: 1,
           debtReminderMinAmount: 50,
+          sendPaymentReceipt: false,
         },
       });
     }
@@ -41,6 +42,7 @@ export async function GET() {
         sendDebtReminders: settings.sendDebtReminders,
         debtReminderDayOfMonth: settings.debtReminderDayOfMonth,
         debtReminderMinAmount: Number(settings.debtReminderMinAmount),
+        sendPaymentReceipt: settings.sendPaymentReceipt,
       },
     });
   } catch (error) {
@@ -70,6 +72,7 @@ export async function PUT(request: NextRequest) {
       sendDebtReminders,
       debtReminderDayOfMonth,
       debtReminderMinAmount,
+      sendPaymentReceipt,
     } = body;
 
     // Validate minCancellationHours
@@ -92,6 +95,7 @@ export async function PUT(request: NextRequest) {
         sendDebtReminders: sendDebtReminders ?? false,
         debtReminderDayOfMonth: validDayOfMonth,
         debtReminderMinAmount: validMinAmount,
+        sendPaymentReceipt: sendPaymentReceipt ?? false,
       },
       create: {
         userId: session.user.id,
@@ -103,6 +107,7 @@ export async function PUT(request: NextRequest) {
         sendDebtReminders: sendDebtReminders ?? false,
         debtReminderDayOfMonth: validDayOfMonth,
         debtReminderMinAmount: validMinAmount,
+        sendPaymentReceipt: sendPaymentReceipt ?? false,
       },
     });
 
@@ -117,6 +122,7 @@ export async function PUT(request: NextRequest) {
         sendDebtReminders: settings.sendDebtReminders,
         debtReminderDayOfMonth: settings.debtReminderDayOfMonth,
         debtReminderMinAmount: Number(settings.debtReminderMinAmount),
+        sendPaymentReceipt: settings.sendPaymentReceipt,
       },
     });
   } catch (error) {

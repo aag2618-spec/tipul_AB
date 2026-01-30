@@ -25,6 +25,7 @@ interface CommunicationSettings {
   sendDebtReminders: boolean;
   debtReminderDayOfMonth: number;
   debtReminderMinAmount: number;
+  sendPaymentReceipt: boolean;
 }
 
 export default function CommunicationSettingsPage() {
@@ -37,6 +38,7 @@ export default function CommunicationSettingsPage() {
     sendDebtReminders: false,
     debtReminderDayOfMonth: 1,
     debtReminderMinAmount: 50,
+    sendPaymentReceipt: false,
   });
   const [loading, setLoading] = useState(true);
   const [saving, setSaving] = useState(false);
@@ -304,6 +306,50 @@ export default function CommunicationSettingsPage() {
                   </p>
                 </div>
               </>
+            )}
+          </CardContent>
+        </Card>
+
+        {/* Payment Receipt Email */}
+        <Card>
+          <CardHeader>
+            <div className="flex items-center gap-2">
+              <Mail className="h-5 w-5 text-primary" />
+              <CardTitle>קבלות תשלום אוטומטיות</CardTitle>
+            </div>
+            <CardDescription>
+              שלח מייל קבלה למטופל אחרי כל תשלום
+            </CardDescription>
+          </CardHeader>
+          <CardContent className="space-y-6">
+            <div className="flex items-center justify-between">
+              <div className="space-y-0.5">
+                <Label htmlFor="paymentReceipt">שלח קבלה אוטומטית במייל</Label>
+                <p className="text-sm text-muted-foreground">
+                  כאשר תרשום תשלום, המטופל יקבל מייל עם קבלה
+                </p>
+              </div>
+              <Switch
+                id="paymentReceipt"
+                checked={settings.sendPaymentReceipt}
+                onCheckedChange={(checked) =>
+                  setSettings({ ...settings, sendPaymentReceipt: checked })
+                }
+              />
+            </div>
+
+            {settings.sendPaymentReceipt && (
+              <div className="bg-blue-50 border border-blue-200 rounded-lg p-4">
+                <p className="text-sm text-blue-800">
+                  <strong>💡 מה יקרה:</strong> כאשר תרשום תשלום במערכת, המטופל יקבל מייל אוטומטי עם:
+                </p>
+                <ul className="text-sm text-blue-800 mt-2 mr-4 space-y-1">
+                  <li>✓ סכום התשלום ואמצעי התשלום</li>
+                  <li>✓ תאריך ושעת הפגישה</li>
+                  <li>✓ פירוט יתרת חוב (אם קיימת)</li>
+                  <li>✓ קרדיט זמין (אם קיים)</li>
+                </ul>
+              </div>
             )}
           </CardContent>
         </Card>
