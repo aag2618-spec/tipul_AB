@@ -15,8 +15,26 @@ function createDebtReminderEmail(
     status: string;
     debt: number;
   }>,
-  totalDebt: number
+  totalDebt: number,
+  customization?: {
+    paymentInstructions?: string | null;
+    paymentLink?: string | null;
+    emailSignature?: string | null;
+    customGreeting?: string | null;
+    customClosing?: string | null;
+    businessHours?: string | null;
+  }
 ) {
+  // Use custom greeting or default
+  const greeting = customization?.customGreeting
+    ? customization.customGreeting.replace(/{שם}/g, clientName)
+    : `שלום ${clientName}`;
+
+  // Use custom closing or default
+  const closing = customization?.customClosing || "בברכה";
+
+  // Use custom signature or default
+  const signature = customization?.emailSignature || therapistName;
   const sessionsHtml = sessions
     .map((session) => {
       const dateStr = format(new Date(session.date), "EEEE, d בMMMM yyyy • HH:mm", {
@@ -74,7 +92,7 @@ function createDebtReminderEmail(
         
         <!-- Content -->
         <div style="background: #ffffff; padding: 30px; border-radius: 0 0 12px 12px; box-shadow: 0 4px 6px rgba(0, 0, 0, 0.1);">
-          <h2 style="color: #111827; margin-top: 0; font-size: 20px;">שלום ${clientName},</h2>
+          <h2 style="color: #111827; margin-top: 0; font-size: 20px;">${greeting},</h2>
           
           <p style="color: #4b5563; line-height: 1.6; font-size: 15px;">
             רצינו להזכיר לך כי קיים יתרת חוב עבור הפגישות הבאות:
@@ -91,14 +109,44 @@ function createDebtReminderEmail(
           
           ${sessionsHtml}
 
+          ${
+            customization?.paymentLink
+              ? `
+          <!-- Payment Link -->
+          <div style="background: #f0f9ff; border: 1px solid #bae6fd; border-radius: 8px; padding: 20px; margin: 20px 0; text-align: center;">
+            <p style="margin: 0 0 12px 0; color: #075985; font-weight: 600; font-size: 15px;">💳 תשלום מהיר</p>
+            <a href="${customization.paymentLink}" style="display: inline-block; background: #0ea5e9; color: #ffffff; padding: 12px 24px; border-radius: 6px; text-decoration: none; font-weight: 600; font-size: 14px;">
+              שלם עכשיו בקליק
+            </a>
+            <p style="margin: 12px 0 0 0; color: #0369a1; font-size: 12px;">או השתמש באחת מהאפשרויות למטה</p>
+          </div>
+          `
+              : ""
+          }
+
           <!-- Payment Info -->
           <div style="background: #f0fdf4; border: 1px solid #86efac; border-radius: 10px; padding: 20px; margin-top: 30px;">
             <p style="margin: 0; color: #166534; font-weight: 600; font-size: 15px;">💳 אפשרויות תשלום</p>
-            <p style="margin: 8px 0 0 0; color: #15803d; font-size: 14px; line-height: 1.6;">
-              ניתן לשלם באמצעות העברה בנקאית, אשראי, מזומן או צ'ק.<br/>
-              לתיאום תשלום, נא ליצור קשר.
+            <p style="margin: 8px 0 0 0; color: #15803d; font-size: 14px; line-height: 1.6; white-space: pre-wrap;">
+              ${
+                customization?.paymentInstructions
+                  ? customization.paymentInstructions
+                  : "ניתן לשלם באמצעות העברה בנקאית, אשראי, מזומן או צ'ק.\nלתיאום תשלום, נא ליצור קשר."
+              }
             </p>
           </div>
+
+          ${
+            customization?.businessHours
+              ? `
+          <!-- Business Hours -->
+          <div style="background: #fef3c7; border-right: 4px solid #f59e0b; border-radius: 6px; padding: 15px; margin-top: 15px;">
+            <p style="margin: 0 0 4px 0; color: #92400e; font-weight: 600; font-size: 13px;">⏰ שעות פעילות</p>
+            <p style="margin: 0; color: #92400e; font-size: 13px; line-height: 1.5; white-space: pre-wrap;">${customization.businessHours}</p>
+          </div>
+          `
+              : ""
+          }
 
           <!-- Note -->
           <div style="margin-top: 25px; padding: 15px; background: #fef3c7; border-right: 4px solid #f59e0b; border-radius: 6px;">
@@ -112,9 +160,9 @@ function createDebtReminderEmail(
             <p style="color: #6b7280; font-size: 14px; line-height: 1.6; margin: 0;">
               במידה ויש שאלות או צורך לתיאום תשלום, אנא פנה אליי ישירות.
             </p>
-            <p style="color: #374151; font-size: 15px; margin: 20px 0 0 0;">
-              בברכה,<br/>
-              <strong>${therapistName}</strong>
+            <p style="color: #374151; font-size: 15px; margin: 20px 0 0 0; white-space: pre-wrap;">
+              ${closing},<br/>
+              <strong>${signature}</strong>
             </p>
           </div>
         </div>
@@ -210,12 +258,25 @@ export async function POST(
 
     const totalDebt = sessionsWithDebt.reduce((sum, s) => sum + s.debt, 0);
 
+    // Get communication settings for customization
+    const commSettings = await prisma.communicationSetting.findUnique({
+      where: { userId: session.user.id },
+    });
+
     // Create email
     const { subject, html } = createDebtReminderEmail(
       client.name,
       user?.name || "המטפל/ת שלך",
       sessionsWithDebt,
-      totalDebt
+      totalDebt,
+      {
+        paymentInstructions: commSettings?.paymentInstructions,
+        paymentLink: commSettings?.paymentLink,
+        emailSignature: commSettings?.emailSignature,
+        customGreeting: commSettings?.customGreeting,
+        customClosing: commSettings?.customClosing,
+        businessHours: commSettings?.businessHours,
+      }
     );
 
     // Send email

@@ -159,6 +159,14 @@ export async function PUT(
               remainingDebt,
               credit: Number(existingPayment.client.creditBalance),
             },
+            customization: {
+              paymentInstructions: commSettings?.paymentInstructions,
+              paymentLink: commSettings?.paymentLink,
+              emailSignature: commSettings?.emailSignature,
+              customGreeting: commSettings?.customGreeting,
+              customClosing: commSettings?.customClosing,
+              businessHours: commSettings?.businessHours,
+            },
           });
 
           await sendEmail({

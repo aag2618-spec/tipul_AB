@@ -18,6 +18,14 @@ interface PaymentReceiptEmailProps {
     remainingDebt: number;
     credit: number;
   };
+  customization?: {
+    paymentInstructions?: string | null;
+    paymentLink?: string | null;
+    emailSignature?: string | null;
+    customGreeting?: string | null;
+    customClosing?: string | null;
+    businessHours?: string | null;
+  };
 }
 
 export function createPaymentReceiptEmail({
@@ -25,7 +33,18 @@ export function createPaymentReceiptEmail({
   therapistName,
   payment,
   clientBalance,
+  customization,
 }: PaymentReceiptEmailProps) {
+  // Use custom greeting or default
+  const greeting = customization?.customGreeting
+    ? customization.customGreeting.replace(/{שם}/g, clientName)
+    : `שלום ${clientName}`;
+
+  // Use custom closing or default
+  const closing = customization?.customClosing || "בברכה";
+
+  // Use custom signature or default
+  const signature = customization?.emailSignature || therapistName;
   const paymentDate = format(new Date(payment.paidAt), "d בMMMM yyyy • HH:mm", {
     locale: he,
   });
@@ -80,7 +99,7 @@ export function createPaymentReceiptEmail({
         
         <!-- Content -->
         <div style="background: #ffffff; padding: 30px; border-radius: 0 0 12px 12px; box-shadow: 0 4px 6px rgba(0, 0, 0, 0.1);">
-          <h2 style="color: #111827; margin-top: 0; font-size: 20px;">שלום ${clientName},</h2>
+          <h2 style="color: #111827; margin-top: 0; font-size: 20px;">${greeting},</h2>
           
           <p style="color: #4b5563; line-height: 1.6; font-size: 15px;">
             תודה על התשלום! להלן פרטי הקבלה:
@@ -170,14 +189,52 @@ export function createPaymentReceiptEmail({
           `
           }
 
+          ${
+            customization?.paymentLink
+              ? `
+          <!-- Payment Link -->
+          <div style="background: #f0f9ff; border: 1px solid #bae6fd; border-radius: 8px; padding: 20px; margin: 20px 0; text-align: center;">
+            <p style="margin: 0 0 12px 0; color: #075985; font-weight: 600; font-size: 15px;">💳 תשלום מהיר</p>
+            <a href="${customization.paymentLink}" style="display: inline-block; background: #0ea5e9; color: #ffffff; padding: 12px 24px; border-radius: 6px; text-decoration: none; font-weight: 600; font-size: 14px;">
+              שלם עכשיו בקליק
+            </a>
+          </div>
+          `
+              : ""
+          }
+
+          ${
+            customization?.paymentInstructions
+              ? `
+          <!-- Payment Instructions -->
+          <div style="background: #f0fdf4; border: 1px solid #86efac; border-radius: 10px; padding: 20px; margin: 20px 0;">
+            <p style="margin: 0 0 8px 0; color: #166534; font-weight: 600; font-size: 15px;">💳 אפשרויות תשלום</p>
+            <p style="margin: 0; color: #15803d; font-size: 14px; line-height: 1.6; white-space: pre-wrap;">${customization.paymentInstructions}</p>
+          </div>
+          `
+              : ""
+          }
+
+          ${
+            customization?.businessHours
+              ? `
+          <!-- Business Hours -->
+          <div style="background: #fef3c7; border-right: 4px solid #f59e0b; border-radius: 6px; padding: 15px; margin: 20px 0;">
+            <p style="margin: 0 0 4px 0; color: #92400e; font-weight: 600; font-size: 13px;">⏰ שעות פעילות</p>
+            <p style="margin: 0; color: #92400e; font-size: 13px; line-height: 1.5; white-space: pre-wrap;">${customization.businessHours}</p>
+          </div>
+          `
+              : ""
+          }
+
           <!-- Footer -->
           <div style="margin-top: 35px; padding-top: 25px; border-top: 1px solid #e5e7eb;">
             <p style="color: #6b7280; font-size: 14px; line-height: 1.6; margin: 0;">
               קבלה זו נשלחה אוטומטית. במידה ויש שאלות או בעיות, אנא פנה אליי ישירות.
             </p>
-            <p style="color: #374151; font-size: 15px; margin: 20px 0 0 0;">
-              בברכה,<br/>
-              <strong>${therapistName}</strong>
+            <p style="color: #374151; font-size: 15px; margin: 20px 0 0 0; white-space: pre-wrap;">
+              ${closing},<br/>
+              <strong>${signature}</strong>
             </p>
           </div>
         </div>

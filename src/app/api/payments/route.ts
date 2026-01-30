@@ -175,6 +175,14 @@ export async function POST(request: NextRequest) {
               remainingDebt,
               credit: Number(payment.client.creditBalance),
             },
+            customization: {
+              paymentInstructions: commSettings?.paymentInstructions,
+              paymentLink: commSettings?.paymentLink,
+              emailSignature: commSettings?.emailSignature,
+              customGreeting: commSettings?.customGreeting,
+              customClosing: commSettings?.customClosing,
+              businessHours: commSettings?.businessHours,
+            },
           });
 
           await sendEmail({
