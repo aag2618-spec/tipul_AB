@@ -2,6 +2,8 @@ import { NextRequest, NextResponse } from "next/server";
 import { getServerSession } from "next-auth";
 import { authOptions } from "@/lib/auth";
 import prisma from "@/lib/prisma";
+import { sendEmail } from "@/lib/resend";
+import { createPaymentReceiptEmail } from "@/lib/email-templates/payment-receipt";
 
 export async function POST(req: NextRequest) {
   try {
@@ -123,8 +125,88 @@ export async function POST(req: NextRequest) {
       return {
         updatedPayments,
         totalPaid,
+        clientEmail: client.email,
       };
     });
+
+    // Send payment receipt email if enabled and payment is complete
+    try {
+      const commSettings = await prisma.communicationSetting.findUnique({
+        where: { userId: session.user.id },
+      });
+
+      if (commSettings?.sendPaymentReceipt && result.clientEmail) {
+        // Get therapist details
+        const therapist = await prisma.user.findUnique({
+          where: { id: session.user.id },
+        });
+
+        // Get updated client data
+        const updatedClient = await prisma.client.findUnique({
+          where: { id: clientId },
+        });
+
+        // Calculate remaining debt
+        const allPayments = await prisma.payment.findMany({
+          where: {
+            clientId,
+            status: "PENDING",
+          },
+        });
+
+        const remainingDebt = allPayments.reduce(
+          (sum, p) => sum + (Number(p.expectedAmount) - Number(p.amount)),
+          0
+        );
+
+        // Send email for each fully paid payment
+        for (const payment of result.updatedPayments.filter(p => p.status === "PAID")) {
+          // Get session info if exists
+          const paymentWithSession = await prisma.payment.findUnique({
+            where: { id: payment.id },
+            include: { session: true },
+          });
+
+          const { subject, html } = createPaymentReceiptEmail({
+            clientName: client.name,
+            therapistName: therapist?.name || "המטפל/ת שלך",
+            payment: {
+              amount: Number(payment.amount),
+              expectedAmount: Number(payment.expectedAmount || payment.amount),
+              method: payment.method,
+              paidAt: payment.paidAt || new Date(),
+              session: paymentWithSession?.session || undefined,
+            },
+            clientBalance: {
+              remainingDebt,
+              credit: Number(updatedClient?.creditBalance || 0),
+            },
+          });
+
+          await sendEmail({
+            to: result.clientEmail,
+            subject,
+            html,
+            replyTo: therapist?.email || undefined,
+          });
+
+          // Log communication
+          await prisma.communicationLog.create({
+            data: {
+              type: "CUSTOM",
+              channel: "EMAIL",
+              recipient: result.clientEmail.toLowerCase(),
+              subject,
+              content: html,
+              status: "SENT",
+              sentAt: new Date(),
+            },
+          });
+        }
+      }
+    } catch (emailError) {
+      console.error("Error sending payment receipt email:", emailError);
+    }
 
     return NextResponse.json({
       success: true,
