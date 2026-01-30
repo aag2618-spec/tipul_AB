@@ -57,7 +57,7 @@ export function QuickMarkPaid({
   const [isLoading, setIsLoading] = useState(false);
   const [method, setMethod] = useState<string>("CASH");
   const [showAdvanced, setShowAdvanced] = useState(false);
-  const [paymentType, setPaymentType] = useState<"FULL" | "PARTIAL" | "ADVANCE" | "CREDIT">("FULL");
+  const [paymentType, setPaymentType] = useState<"FULL" | "PARTIAL" | "CREDIT">("FULL");
   const [partialAmount, setPartialAmount] = useState<string>("");
   const router = useRouter();
 
@@ -74,40 +74,6 @@ export function QuickMarkPaid({
   const handleMarkPaid = async () => {
     setIsLoading(true);
     try {
-      // Handle ADVANCE payment (add to credit)
-      if (paymentType === "ADVANCE") {
-        const advanceAmount = parseFloat(partialAmount) || 0;
-        if (advanceAmount <= 0) {
-          toast.error("נא להכניס סכום תקין");
-          setIsLoading(false);
-          return;
-        }
-
-        const response = await fetch("/api/payments", {
-          method: "POST",
-          headers: { "Content-Type": "application/json" },
-          body: JSON.stringify({
-            clientId,
-            sessionId: null,
-            amount: advanceAmount,
-            expectedAmount: advanceAmount,
-            paymentType: "ADVANCE",
-            method,
-            status: "PAID",
-          }),
-        });
-
-        if (!response.ok) throw new Error("Failed to create advance payment");
-        
-        toast.success("תשלום מראש נוסף לקרדיט");
-        setIsOpen(false);
-        setShowAdvanced(false);
-        setPaymentType("FULL");
-        setPartialAmount("");
-        window.location.reload();
-        return;
-      }
-
       // Calculate payment amounts
       let totalAmount = amount;
       if (paymentType === "PARTIAL") {
@@ -221,10 +187,7 @@ export function QuickMarkPaid({
                 <Label className="text-right">סכום</Label>
                 <div className="text-left">
                   <div className="text-2xl font-bold">
-                    {paymentType === "PARTIAL" && partialAmount 
-                      ? `₪${partialAmount}` 
-                      : `₪${amount}`
-                    }
+                    ₪{paymentType === "PARTIAL" && partialAmount ? partialAmount : amount}
                   </div>
                 </div>
               </div>
@@ -333,46 +296,6 @@ export function QuickMarkPaid({
                       </div>
                     </div>
                   )}
-
-                  {/* תשלום מראש */}
-                  <div className="space-y-2">
-                    <div className="flex items-center gap-2">
-                      <input
-                        type="checkbox"
-                        id="advance-payment-quick"
-                        checked={paymentType === "ADVANCE"}
-                        onChange={(e) => {
-                          setPaymentType(e.target.checked ? "ADVANCE" : "FULL");
-                          if (!e.target.checked) setPartialAmount("");
-                        }}
-                        className="h-4 w-4"
-                      />
-                      <Label htmlFor="advance-payment-quick" className="cursor-pointer">
-                        תשלום מראש (הוספה לקרדיט)
-                      </Label>
-                    </div>
-                    
-                    {paymentType === "ADVANCE" && (
-                      <div className="space-y-2 pr-6">
-                        <Label htmlFor="advance-amount-quick" className="text-sm">סכום לקרדיט</Label>
-                        <div className="relative">
-                          <Input
-                            id="advance-amount-quick"
-                            type="number"
-                            placeholder="הכנס סכום לקרדיט"
-                            value={partialAmount}
-                            onChange={(e) => setPartialAmount(e.target.value)}
-                            min={0}
-                            step="1"
-                            className="pl-8 bg-white"
-                          />
-                          <span className="absolute left-3 top-1/2 -translate-y-1/2 text-sm text-muted-foreground">
-                            ₪
-                          </span>
-                        </div>
-                      </div>
-                    )}
-                  </div>
                 </div>
               )}
             </div>
@@ -402,10 +325,6 @@ export function QuickMarkPaid({
               <>
                 <Check className="h-4 w-4" />
                 {(() => {
-                  if (paymentType === "ADVANCE") {
-                    return `הוסף לקרדיט (₪${partialAmount || 0})`;
-                  }
-                  
                   const totalAmount = paymentType === "PARTIAL" ? (parseFloat(partialAmount) || 0) : amount;
                   const creditToUse = paymentType === "CREDIT" ? Math.min(totalAmount, creditBalance) : 0;
                   const cashAmount = totalAmount - creditToUse;
