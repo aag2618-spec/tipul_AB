@@ -7,7 +7,8 @@ import { Switch } from '@/components/ui/switch';
 import { Input } from '@/components/ui/input';
 import { Label } from '@/components/ui/label';
 import { toast } from 'sonner';
-import { Mail, Bell, Clock, Shield, Save, CreditCard } from 'lucide-react';
+import { Mail, Bell, Clock, Shield, Save, CreditCard, FileText, Sparkles } from 'lucide-react';
+import { Textarea } from '@/components/ui/textarea';
 import {
   Select,
   SelectContent,
@@ -26,6 +27,13 @@ interface CommunicationSettings {
   debtReminderDayOfMonth: number;
   debtReminderMinAmount: number;
   sendPaymentReceipt: boolean;
+  paymentInstructions: string | null;
+  paymentLink: string | null;
+  emailSignature: string | null;
+  logoUrl: string | null;
+  customGreeting: string | null;
+  customClosing: string | null;
+  businessHours: string | null;
 }
 
 export default function CommunicationSettingsPage() {
@@ -39,9 +47,17 @@ export default function CommunicationSettingsPage() {
     debtReminderDayOfMonth: 1,
     debtReminderMinAmount: 50,
     sendPaymentReceipt: false,
+    paymentInstructions: null,
+    paymentLink: null,
+    emailSignature: null,
+    logoUrl: null,
+    customGreeting: null,
+    customClosing: null,
+    businessHours: null,
   });
   const [loading, setLoading] = useState(true);
   const [saving, setSaving] = useState(false);
+  const [showExamples, setShowExamples] = useState(false);
 
   useEffect(() => {
     fetchSettings();
@@ -351,6 +367,173 @@ export default function CommunicationSettingsPage() {
                 </ul>
               </div>
             )}
+          </CardContent>
+        </Card>
+
+        {/* Email Customization Card */}
+        <Card>
+          <CardHeader>
+            <div className="flex items-center gap-2">
+              <Sparkles className="h-5 w-5 text-primary" />
+              <CardTitle>התאמה אישית של מיילים</CardTitle>
+            </div>
+            <CardDescription>
+              התאם אישית את תוכן המיילים - הכל אופציונלי
+            </CardDescription>
+          </CardHeader>
+          <CardContent className="space-y-6">
+            {/* Payment Instructions */}
+            <div className="space-y-2">
+              <div className="flex items-center justify-between">
+                <Label htmlFor="paymentInstructions">💳 הוראות תשלום מותאמות</Label>
+                <Button
+                  variant="ghost"
+                  size="sm"
+                  onClick={() => setShowExamples(!showExamples)}
+                  className="text-xs"
+                >
+                  <FileText className="h-3 w-3 ml-1" />
+                  {showExamples ? 'הסתר דוגמאות' : 'הצג דוגמאות'}
+                </Button>
+              </div>
+              <Textarea
+                id="paymentInstructions"
+                placeholder="השאר ריק לטקסט סטנדרטי, או הוסף הוראות משלך..."
+                value={settings.paymentInstructions || ''}
+                onChange={(e) =>
+                  setSettings({ ...settings, paymentInstructions: e.target.value || null })
+                }
+                rows={4}
+                className="resize-none"
+              />
+              <p className="text-xs text-muted-foreground">
+                הוראות אלו יופיעו במיילי תזכורת חוב וקבלות תשלום
+              </p>
+
+              {/* Examples */}
+              {showExamples && (
+                <div className="bg-blue-50 border border-blue-200 rounded-lg p-4 space-y-3">
+                  <p className="text-sm font-semibold text-blue-900">💡 דוגמאות:</p>
+                  
+                  <div className="space-y-2">
+                    <button
+                      onClick={() => setSettings({ ...settings, paymentInstructions: 'להעברה בנקאית:\nבנק לאומי, סניף 123, חשבון 456789\nנא לציין את שמך בהעברה' })}
+                      className="w-full text-right bg-white p-3 rounded border hover:border-blue-400 text-xs"
+                    >
+                      <strong className="block text-blue-900 mb-1">העברה בנקאית:</strong>
+                      <span className="text-gray-700">להעברה בנקאית:<br/>בנק לאומי, סניף 123, חשבון 456789<br/>נא לציין את שמך בהעברה</span>
+                    </button>
+
+                    <button
+                      onClick={() => setSettings({ ...settings, paymentInstructions: 'תשלום מהיר:\n• ביט: 050-1234567\n• פייבוקס: bit.ly/pay-therapist\n• מזומן בפגישה' })}
+                      className="w-full text-right bg-white p-3 rounded border hover:border-blue-400 text-xs"
+                    >
+                      <strong className="block text-blue-900 mb-1">אפשרויות מרובות:</strong>
+                      <span className="text-gray-700">תשלום מהיר:<br/>• ביט: 050-1234567<br/>• פייבוקס: bit.ly/pay<br/>• מזומן בפגישה</span>
+                    </button>
+
+                    <button
+                      onClick={() => setSettings({ ...settings, paymentInstructions: 'מקבל תשלום במזומן בלבד\nבסיום כל פגישה' })}
+                      className="w-full text-right bg-white p-3 rounded border hover:border-blue-400 text-xs"
+                    >
+                      <strong className="block text-blue-900 mb-1">מזומן בלבד:</strong>
+                      <span className="text-gray-700">מקבל תשלום במזומן בלבד<br/>בסיום כל פגישה</span>
+                    </button>
+                  </div>
+                </div>
+              )}
+            </div>
+
+            {/* Payment Link */}
+            <div className="space-y-2">
+              <Label htmlFor="paymentLink">🔗 קישור לתשלום ישיר (אופציונלי)</Label>
+              <Input
+                id="paymentLink"
+                type="url"
+                placeholder="https://bit.ly/pay-therapist או קישור ביט/פייבוקס"
+                value={settings.paymentLink || ''}
+                onChange={(e) =>
+                  setSettings({ ...settings, paymentLink: e.target.value || null })
+                }
+              />
+              <p className="text-xs text-muted-foreground">
+                קישור לתשלום מקוון - יופיע כפתור במיילים
+              </p>
+            </div>
+
+            {/* Email Signature */}
+            <div className="space-y-2">
+              <Label htmlFor="emailSignature">✍️ חתימה אישית (אופציונלי)</Label>
+              <Textarea
+                id="emailSignature"
+                placeholder="ד״ר שרה כהן&#10;פסיכולוגית קלינית&#10;050-1234567"
+                value={settings.emailSignature || ''}
+                onChange={(e) =>
+                  setSettings({ ...settings, emailSignature: e.target.value || null })
+                }
+                rows={3}
+                className="resize-none"
+              />
+              <p className="text-xs text-muted-foreground">
+                תחליף את החתימה הסטנדרטית בשמך
+              </p>
+            </div>
+
+            {/* Custom Greeting */}
+            <div className="space-y-2">
+              <Label htmlFor="customGreeting">👋 ברכת פתיחה מותאמת (אופציונלי)</Label>
+              <Input
+                id="customGreeting"
+                placeholder='ברירת מחדל: "שלום {שם},"'
+                value={settings.customGreeting || ''}
+                onChange={(e) =>
+                  setSettings({ ...settings, customGreeting: e.target.value || null })
+                }
+              />
+              <p className="text-xs text-muted-foreground">
+                השתמש ב-{"{שם}"} לשם המטופל. דוגמה: "היי {"{שם}"}, מקווה שהשבוע עבר עליך בטוב"
+              </p>
+            </div>
+
+            {/* Custom Closing */}
+            <div className="space-y-2">
+              <Label htmlFor="customClosing">🙏 ברכת סיום מותאמת (אופציונלי)</Label>
+              <Input
+                id="customClosing"
+                placeholder='ברירת מחדל: "בברכה,"'
+                value={settings.customClosing || ''}
+                onChange={(e) =>
+                  setSettings({ ...settings, customClosing: e.target.value || null })
+                }
+              />
+              <p className="text-xs text-muted-foreground">
+                דוגמה: "תודה ומחכה לראותך" או "בחום,"
+              </p>
+            </div>
+
+            {/* Business Hours */}
+            <div className="space-y-2">
+              <Label htmlFor="businessHours">⏰ שעות פעילות (אופציונלי)</Label>
+              <Textarea
+                id="businessHours"
+                placeholder="ראשון-חמישי: 9:00-20:00&#10;שישי: 9:00-13:00"
+                value={settings.businessHours || ''}
+                onChange={(e) =>
+                  setSettings({ ...settings, businessHours: e.target.value || null })
+                }
+                rows={2}
+                className="resize-none"
+              />
+              <p className="text-xs text-muted-foreground">
+                יופיע במיילים - למשל "מענה טלפוני: א׳-ה׳ 9:00-20:00"
+              </p>
+            </div>
+
+            <div className="bg-gray-50 border border-gray-200 rounded-lg p-4">
+              <p className="text-sm text-gray-700">
+                <strong>📌 שים לב:</strong> כל השדות אופציונליים. אם תשאיר ריק, המערכת תשתמש בטקסט הסטנדרטי.
+              </p>
+            </div>
           </CardContent>
         </Card>
 
