@@ -287,10 +287,14 @@ export default async function ClientPage({
 
       {/* Tabs - Simplified */}
       <Tabs defaultValue="sessions" className="w-full">
-        <TabsList className="grid w-full grid-cols-4 max-w-4xl">
+        <TabsList className="grid w-full grid-cols-5 max-w-5xl">
           <TabsTrigger value="sessions" className="gap-2">
             <Calendar className="h-4 w-4" />
             פגישות
+          </TabsTrigger>
+          <TabsTrigger value="payments" className="gap-2">
+            <CreditCard className="h-4 w-4" />
+            תשלומים
           </TabsTrigger>
           <TabsTrigger value="summaries" className="gap-2">
             <FileText className="h-4 w-4" />
@@ -464,6 +468,192 @@ export default async function ClientPage({
           </Card>
         </TabsContent>
 
+        {/* Payments Tab */}
+        <TabsContent value="payments" className="mt-6">
+          <Tabs defaultValue="pending" className="w-full">
+            <TabsList>
+              <TabsTrigger value="pending">⏳ ממתינים לתשלום</TabsTrigger>
+              <TabsTrigger value="history">📊 היסטוריית תשלומים</TabsTrigger>
+            </TabsList>
+
+            {/* Pending Payments */}
+            <TabsContent value="pending" className="mt-4">
+              <div className="space-y-4">
+                {/* Quick Actions */}
+                <div className="flex gap-2 justify-end">
+                  {totalDebt > 0 && (
+                    <>
+                      <SendReminderButton
+                        clientId={client.id}
+                        clientName={client.name}
+                        size="default"
+                      />
+                      <Button asChild className="gap-2">
+                        <Link href={`/dashboard/payments/pay/${client.id}`}>
+                          <CreditCard className="h-4 w-4" />
+                          תשלום מהיר על הכל
+                        </Link>
+                      </Button>
+                    </>
+                  )}
+                </div>
+
+                {/* Unpaid Sessions List */}
+                <Card>
+                  <CardHeader>
+                    <CardTitle>פגישות שטרם שולמו</CardTitle>
+                    <CardDescription>
+                      {unpaidSessions.length} פגישות • סה"כ חוב: ₪{totalDebt}
+                    </CardDescription>
+                  </CardHeader>
+                  <CardContent>
+                    {unpaidSessions.length > 0 ? (
+                      <div className="space-y-3">
+                        {unpaidSessions.map((session) => {
+                          const sessionPrice = Number(session.price);
+                          const alreadyPaid = session.payment ? Number(session.payment.amount) : 0;
+                          const debt = sessionPrice - alreadyPaid;
+
+                          return (
+                            <div
+                              key={session.id}
+                              className="flex items-center justify-between p-4 rounded-lg border bg-card"
+                            >
+                              <div className="flex-1">
+                                <div className="flex items-center gap-3 mb-2">
+                                  <Calendar className="h-4 w-4 text-muted-foreground" />
+                                  <p className="font-medium">
+                                    {format(new Date(session.startTime), "EEEE, d בMMMM yyyy", {
+                                      locale: he,
+                                    })}
+                                  </p>
+                                  <Badge variant="outline">
+                                    {session.type === "ONLINE"
+                                      ? "אונליין"
+                                      : session.type === "PHONE"
+                                      ? "טלפון"
+                                      : "פרונטלי"}
+                                  </Badge>
+                                  <Badge
+                                    variant={
+                                      session.status === "COMPLETED"
+                                        ? "default"
+                                        : session.status === "CANCELLED"
+                                        ? "destructive"
+                                        : "secondary"
+                                    }
+                                  >
+                                    {session.status === "COMPLETED"
+                                      ? "הושלם"
+                                      : session.status === "CANCELLED"
+                                      ? "בוטל"
+                                      : "לא הגיע"}
+                                  </Badge>
+                                </div>
+                                <div className="flex items-center gap-4 text-sm text-muted-foreground">
+                                  <span>מחיר: ₪{sessionPrice}</span>
+                                  {alreadyPaid > 0 && <span>שולם: ₪{alreadyPaid}</span>}
+                                  <span className="font-bold text-red-600">חוב: ₪{debt}</span>
+                                </div>
+                              </div>
+                              <div className="flex gap-2">
+                                {session.payment && (
+                                  <Button variant="default" size="sm" asChild>
+                                    <Link href={`/dashboard/payments/${session.payment.id}/mark-paid`}>
+                                      <CreditCard className="h-4 w-4 ml-2" />
+                                      שלם
+                                    </Link>
+                                  </Button>
+                                )}
+                              </div>
+                            </div>
+                          );
+                        })}
+                      </div>
+                    ) : (
+                      <div className="text-center py-12 text-muted-foreground">
+                        <CheckCircle className="mx-auto h-16 w-16 mb-4 text-green-500 opacity-50" />
+                        <p className="text-lg font-medium mb-2">כל התשלומים שולמו! 🎉</p>
+                        <p className="text-sm">אין חובות פתוחים למטופל זה</p>
+                      </div>
+                    )}
+                  </CardContent>
+                </Card>
+              </div>
+            </TabsContent>
+
+            {/* Payment History */}
+            <TabsContent value="history" className="mt-4">
+              <Card>
+                <CardHeader>
+                  <div className="flex items-center justify-between">
+                    <div>
+                      <CardTitle>היסטוריית תשלומים</CardTitle>
+                      <CardDescription>כל התשלומים שנרשמו במערכת</CardDescription>
+                    </div>
+                    <AddCreditDialog
+                      clientId={client.id}
+                      clientName={client.name}
+                      currentCredit={Number(client.creditBalance)}
+                    />
+                  </div>
+                </CardHeader>
+                <CardContent>
+                  {client.payments.length > 0 ? (
+                    <div className="space-y-3">
+                      {client.payments.map((payment) => (
+                        <div
+                          key={payment.id}
+                          className="flex items-center justify-between p-4 rounded-lg bg-muted/50"
+                        >
+                          <div>
+                            <p className="font-medium">₪{Number(payment.amount)}</p>
+                            <p className="text-sm text-muted-foreground">
+                              {format(new Date(payment.createdAt), "d/M/yyyy HH:mm")} •{" "}
+                              {payment.method === "CASH"
+                                ? "מזומן"
+                                : payment.method === "CREDIT_CARD"
+                                ? "אשראי"
+                                : payment.method === "BANK_TRANSFER"
+                                ? "העברה בנקאית"
+                                : payment.method === "CREDIT"
+                                ? "קרדיט"
+                                : "צ׳ק"}
+                            </p>
+                          </div>
+                          <Badge
+                            variant={
+                              payment.status === "PAID"
+                                ? "default"
+                                : payment.status === "PENDING"
+                                ? "secondary"
+                                : "destructive"
+                            }
+                          >
+                            {payment.status === "PAID"
+                              ? "שולם"
+                              : payment.status === "PENDING"
+                              ? "ממתין"
+                              : payment.status === "CANCELLED"
+                              ? "בוטל"
+                              : "הוחזר"}
+                          </Badge>
+                        </div>
+                      ))}
+                    </div>
+                  ) : (
+                    <div className="text-center py-12 text-muted-foreground">
+                      <CreditCard className="mx-auto h-16 w-16 mb-4 opacity-50" />
+                      <p className="text-lg mb-2">אין תשלומים עדיין</p>
+                      <p className="text-sm">תשלומים שתרשום יופיעו כאן</p>
+                    </div>
+                  )}
+                </CardContent>
+              </Card>
+            </TabsContent>
+          </Tabs>
+        </TabsContent>
+
         <TabsContent value="summaries" className="mt-6">
           <SummariesTab clientId={client.id} sessions={client.therapySessions} />
         </TabsContent>
@@ -635,7 +825,6 @@ export default async function ClientPage({
             <TabsList>
               <TabsTrigger value="details">פרטים אישיים</TabsTrigger>
               <TabsTrigger value="questionnaires">שאלונים ואבחון</TabsTrigger>
-              <TabsTrigger value="payments">תשלומים</TabsTrigger>
             </TabsList>
 
             <TabsContent value="details" className="mt-4">
@@ -844,70 +1033,6 @@ export default async function ClientPage({
               </div>
             </TabsContent>
 
-            <TabsContent value="payments" className="mt-4">
-              <Card>
-                <CardHeader>
-                  <div className="flex items-center justify-between">
-                    <CardTitle>היסטוריית תשלומים</CardTitle>
-                    <AddCreditDialog
-                      clientId={client.id}
-                      clientName={client.name}
-                      currentCredit={Number(client.creditBalance)}
-                    />
-                  </div>
-                </CardHeader>
-                <CardContent>
-                  {client.payments.length > 0 ? (
-                    <div className="space-y-3">
-                      {client.payments.map((payment) => (
-                        <div
-                          key={payment.id}
-                          className="flex items-center justify-between p-4 rounded-lg bg-muted/50"
-                        >
-                          <div>
-                            <p className="font-medium">₪{Number(payment.amount)}</p>
-                            <p className="text-sm text-muted-foreground">
-                              {format(new Date(payment.createdAt), "d/M/yyyy")} •{" "}
-                              {payment.method === "CASH"
-                                ? "מזומן"
-                                : payment.method === "CREDIT_CARD"
-                                ? "אשראי"
-                                : payment.method === "BANK_TRANSFER"
-                                ? "העברה"
-                                : payment.method === "CREDIT"
-                                ? "קרדיט"
-                                : "צ׳ק"}
-                            </p>
-                          </div>
-                          <Badge
-                            variant={
-                              payment.status === "PAID"
-                                ? "default"
-                                : payment.status === "PENDING"
-                                ? "secondary"
-                                : "destructive"
-                            }
-                          >
-                            {payment.status === "PAID"
-                              ? "שולם"
-                              : payment.status === "PENDING"
-                              ? "ממתין"
-                              : payment.status === "CANCELLED"
-                              ? "בוטל"
-                              : "הוחזר"}
-                          </Badge>
-                        </div>
-                      ))}
-                    </div>
-                  ) : (
-                    <div className="text-center py-8 text-muted-foreground">
-                      <CreditCard className="mx-auto h-12 w-12 mb-3 opacity-50" />
-                      <p>אין תשלומים עדיין</p>
-                    </div>
-                  )}
-                </CardContent>
-              </Card>
-            </TabsContent>
           </Tabs>
         </TabsContent>
       </Tabs>
