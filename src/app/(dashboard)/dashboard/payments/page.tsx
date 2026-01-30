@@ -274,6 +274,28 @@ export default function PaymentsPage() {
                             שלם עכשיו
                           </Link>
                         </Button>
+                        <Button 
+                          variant="outline" 
+                          size="sm"
+                          onClick={async () => {
+                            try {
+                              const res = await fetch(`/api/clients/${payment.clientId}/send-debt-reminder`, {
+                                method: "POST",
+                              });
+                              if (!res.ok) {
+                                const error = await res.json();
+                                throw new Error(error.error || "שגיאה בשליחת התזכורת");
+                              }
+                              toast.success("תזכורת נשלחה בהצלחה למייל המטופל!");
+                            } catch (error: any) {
+                              toast.error(error.message || "שגיאה בשליחת התזכורת");
+                            }
+                          }}
+                          className="gap-2"
+                        >
+                          <Mail className="h-4 w-4" />
+                          שלח תזכורת
+                        </Button>
                         <Button variant="outline" size="sm" asChild>
                           <Link href={`/dashboard/clients/${payment.clientId}?tab=payments`}>
                             פרטים
@@ -425,15 +447,39 @@ export default function PaymentsPage() {
                       </Link>
                     </Button>
                     {client.totalDebt > 0 && (
-                      <PayClientDebts
-                        clientId={client.id}
-                        clientName={client.fullName}
-                        totalDebt={client.totalDebt}
-                        creditBalance={client.creditBalance}
-                        unpaidPayments={client.unpaidSessions}
-                        onPaymentComplete={fetchClientDebts}
-                        onOptimisticUpdate={(amount) => handleOptimisticUpdate(client.id, amount)}
-                      />
+                      <>
+                        <Button 
+                          variant="outline" 
+                          size="sm"
+                          onClick={async () => {
+                            try {
+                              const res = await fetch(`/api/clients/${client.id}/send-debt-reminder`, {
+                                method: "POST",
+                              });
+                              if (!res.ok) {
+                                const error = await res.json();
+                                throw new Error(error.error || "שגיאה בשליחת התזכורת");
+                              }
+                              toast.success(`תזכורת נשלחה בהצלחה ל-${client.fullName}!`);
+                            } catch (error: any) {
+                              toast.error(error.message || "שגיאה בשליחת התזכורת");
+                            }
+                          }}
+                          className="gap-2"
+                        >
+                          <Mail className="h-4 w-4" />
+                          שלח תזכורת
+                        </Button>
+                        <PayClientDebts
+                          clientId={client.id}
+                          clientName={client.fullName}
+                          totalDebt={client.totalDebt}
+                          creditBalance={client.creditBalance}
+                          unpaidPayments={client.unpaidSessions}
+                          onPaymentComplete={fetchClientDebts}
+                          onOptimisticUpdate={(amount) => handleOptimisticUpdate(client.id, amount)}
+                        />
+                      </>
                     )}
                   </div>
                 </div>
