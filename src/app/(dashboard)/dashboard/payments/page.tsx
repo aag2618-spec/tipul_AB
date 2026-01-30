@@ -11,7 +11,7 @@ import {
   SelectTrigger,
   SelectValue,
 } from "@/components/ui/select";
-import { Loader2, AlertCircle, CheckCircle, Calendar, Search, ArrowUpDown, CreditCard } from "lucide-react";
+import { Loader2, AlertCircle, CheckCircle, Calendar, Search, ArrowUpDown, CreditCard, Mail } from "lucide-react";
 import { toast } from "sonner";
 import Link from "next/link";
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
