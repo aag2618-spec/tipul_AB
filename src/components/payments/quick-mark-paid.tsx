@@ -74,26 +74,53 @@ export function QuickMarkPaid({
   const handleMarkPaid = async () => {
     setIsLoading(true);
     try {
-      let actualAmount = amount;
-      let actualPaymentType: "FULL" | "PARTIAL" | "ADVANCE" = "FULL";
-      let useCredit = false;
+      // Handle ADVANCE payment (add to credit)
+      if (paymentType === "ADVANCE") {
+        const advanceAmount = parseFloat(partialAmount) || 0;
+        if (advanceAmount <= 0) {
+          toast.error("נא להכניס סכום תקין");
+          setIsLoading(false);
+          return;
+        }
 
+        const response = await fetch("/api/payments", {
+          method: "POST",
+          headers: { "Content-Type": "application/json" },
+          body: JSON.stringify({
+            clientId,
+            sessionId: null,
+            amount: advanceAmount,
+            expectedAmount: advanceAmount,
+            paymentType: "ADVANCE",
+            method,
+            status: "PAID",
+          }),
+        });
+
+        if (!response.ok) throw new Error("Failed to create advance payment");
+        
+        toast.success("תשלום מראש נוסף לקרדיט");
+        setIsOpen(false);
+        setShowAdvanced(false);
+        setPaymentType("FULL");
+        setPartialAmount("");
+        window.location.reload();
+        return;
+      }
+
+      // Calculate payment amounts
+      let totalAmount = amount;
       if (paymentType === "PARTIAL") {
-        actualAmount = parseFloat(partialAmount) || 0;
-        actualPaymentType = "PARTIAL";
-        if (actualAmount <= 0 || actualAmount > amount) {
+        totalAmount = parseFloat(partialAmount) || 0;
+        if (totalAmount <= 0 || totalAmount > amount) {
           toast.error("סכום חלקי לא תקין");
           setIsLoading(false);
           return;
         }
-      } else if (paymentType === "CREDIT") {
-        if (creditBalance < amount) {
-          toast.error("אין מספיק קרדיט");
-          setIsLoading(false);
-          return;
-        }
-        useCredit = true;
       }
+
+      const creditToUse = paymentType === "CREDIT" ? Math.min(totalAmount, creditBalance) : 0;
+      const cashAmount = totalAmount - creditToUse;
 
       if (existingPayment) {
         // Update existing payment
@@ -101,27 +128,29 @@ export function QuickMarkPaid({
           method: "PUT",
           headers: { "Content-Type": "application/json" },
           body: JSON.stringify({
-            status: "PAID",
+            amount: totalAmount,
+            paymentMode: paymentType === "PARTIAL" ? "PARTIAL" : "FULL",
+            creditUsed: creditToUse,
             method,
             paidAt: new Date().toISOString(),
-            useCredit,
           }),
         });
 
         if (!response.ok) throw new Error("Failed to update payment");
       } else {
-        // Create new payment and mark as paid
+        // Create new payment
         const response = await fetch("/api/payments", {
           method: "POST",
           headers: { "Content-Type": "application/json" },
           body: JSON.stringify({
             clientId,
-            sessionId: paymentType === "ADVANCE" ? null : sessionId,
-            amount: paymentType === "ADVANCE" ? parseFloat(partialAmount) || 0 : actualAmount,
-            expectedAmount: paymentType === "PARTIAL" ? amount : undefined,
-            paymentType: paymentType === "ADVANCE" ? "ADVANCE" : actualPaymentType,
+            sessionId,
+            amount: totalAmount,
+            expectedAmount: amount,
+            paymentType: paymentType === "PARTIAL" ? "PARTIAL" : "FULL",
             method,
             status: "PAID",
+            creditUsed: creditToUse,
           }),
         });
 
@@ -129,9 +158,9 @@ export function QuickMarkPaid({
       }
 
       const successMessage = 
-        paymentType === "CREDIT" ? "התשלום נוכה מהקרדיט" :
+        creditToUse > 0 && cashAmount > 0 ? `התשלום נרשם (₪${cashAmount.toFixed(0)} + קרדיט ₪${creditToUse.toFixed(0)})` :
+        creditToUse > 0 ? "התשלום נוכה מהקרדיט" :
         paymentType === "PARTIAL" ? "תשלום חלקי נרשם" :
-        paymentType === "ADVANCE" ? "תשלום מראש נוסף לקרדיט" :
         "התשלום סומן כשולם";
       
       toast.success(successMessage);
@@ -180,137 +209,173 @@ export function QuickMarkPaid({
         </DialogHeader>
 
         <div className="space-y-4 py-4">
-          {/* תשלום */}
-          <div className="space-y-3 p-4 rounded-lg border bg-muted/30">
-            <div className="flex items-center justify-between">
-              <Label className="text-lg font-bold">רישום תשלום 💰</Label>
-            </div>
-
-            <div className="grid grid-cols-2 gap-3">
-              <div className="space-y-2">
-                <Label htmlFor="amount-display">סכום</Label>
-                <div className="relative">
-                  <Input
-                    id="amount-display"
-                    type="number"
-                    value={amount}
-                    disabled
-                    className="pl-8"
-                  />
-                  <span className="absolute left-3 top-1/2 -translate-y-1/2 text-sm text-muted-foreground">
-                    ₪
-                  </span>
+          {/* תיבת רישום תשלום - עיצוב זהה ליומן */}
+          <div className="border rounded-lg p-4 bg-orange-50 border-orange-200">
+            <h3 className="text-center font-bold text-lg mb-4 flex items-center justify-center gap-2">
+              💰 רישום תשלום
+            </h3>
+            
+            <div className="space-y-4">
+              {/* סכום */}
+              <div className="grid grid-cols-2 gap-4 items-center">
+                <Label className="text-right">סכום</Label>
+                <div className="text-left">
+                  <div className="text-2xl font-bold">
+                    {paymentType === "PARTIAL" && partialAmount 
+                      ? `₪${partialAmount}` 
+                      : `₪${amount}`
+                    }
+                  </div>
                 </div>
               </div>
 
-              <div className="space-y-2">
-                <Label htmlFor="method">אמצעי תשלום</Label>
+              {/* אמצעי תשלום */}
+              <div className="grid grid-cols-2 gap-4 items-center">
+                <Label htmlFor="payment-method" className="text-right">אמצעי תשלום</Label>
                 <Select value={method} onValueChange={setMethod}>
-                  <SelectTrigger>
+                  <SelectTrigger id="payment-method" className="bg-white">
                     <SelectValue />
                   </SelectTrigger>
                   <SelectContent>
                     <SelectItem value="CASH">מזומן</SelectItem>
                     <SelectItem value="CREDIT_CARD">אשראי</SelectItem>
-                    <SelectItem value="BANK_TRANSFER">העברה</SelectItem>
+                    <SelectItem value="BANK_TRANSFER">העברה בנקאית</SelectItem>
                     <SelectItem value="CHECK">צ׳ק</SelectItem>
                     <SelectItem value="OTHER">אחר</SelectItem>
                   </SelectContent>
                 </Select>
               </div>
-            </div>
 
-            {/* Advanced Options */}
-            <Button 
-              type="button"
-              variant="ghost" 
-              size="sm" 
-              className="w-full justify-between"
-              onClick={() => setShowAdvanced(!showAdvanced)}
-            >
-              <span>אופציות מתקדמות</span>
-              {showAdvanced ? <ChevronUp className="h-4 w-4" /> : <ChevronDown className="h-4 w-4" />}
-            </Button>
-            {showAdvanced && (
-              <div className="space-y-2 rounded-lg border p-3">
-                <Label>סוג תשלום</Label>
-                <div className="grid gap-2">
-                  <Button
-                    type="button"
-                    variant={paymentType === "FULL" ? "default" : "outline"}
-                    size="sm"
-                    onClick={() => setPaymentType("FULL")}
-                    className="justify-start"
-                  >
-                    תשלום מלא (₪{amount})
-                  </Button>
-                  
-                  {creditBalance >= amount && (
-                    <Button
-                      type="button"
-                      variant={paymentType === "CREDIT" ? "default" : "outline"}
-                      size="sm"
-                      onClick={() => setPaymentType("CREDIT")}
-                      className="justify-start"
-                    >
-                      משיכה מקרדיט (₪{creditBalance} זמין)
-                    </Button>
-                  )}
-                  
-                  <Button
-                    type="button"
-                    variant={paymentType === "PARTIAL" ? "default" : "outline"}
-                    size="sm"
-                    onClick={() => setPaymentType("PARTIAL")}
-                    className="justify-start"
-                  >
-                    תשלום חלקי
-                  </Button>
-                  
-                  {paymentType === "PARTIAL" && (
-                    <div className="pr-4">
-                      <Input
-                        type="number"
-                        placeholder="הכנס סכום"
-                        value={partialAmount}
-                        onChange={(e) => setPartialAmount(e.target.value)}
-                        max={amount}
-                        min={0}
-                        step="0.01"
-                      />
-                      {partialAmount && parseFloat(partialAmount) < amount && (
-                        <p className="text-xs text-muted-foreground mt-1">
-                          נותר לתשלום: ₪{amount - parseFloat(partialAmount)}
-                        </p>
-                      )}
-                    </div>
-                  )}
-                  
-                  <Button
-                    type="button"
-                    variant={paymentType === "ADVANCE" ? "default" : "outline"}
-                    size="sm"
-                    onClick={() => setPaymentType("ADVANCE")}
-                    className="justify-start"
-                  >
-                    תשלום מראש (הוספה לקרדיט)
-                  </Button>
-                  
-                  {paymentType === "ADVANCE" && (
-                    <div className="pr-4">
-                      <Input
-                        type="number"
-                        placeholder="הכנס סכום לקרדיט"
-                        value={partialAmount}
-                        onChange={(e) => setPartialAmount(e.target.value)}
-                        min={0}
-                        step="0.01"
-                      />
-                    </div>
-                  )}
-                </div>
+              {/* כפתור אופציות מתקדמות - תיקון הבאג */}
+              <div
+                role="button"
+                tabIndex={0}
+                onClick={(e) => {
+                  e.preventDefault();
+                  e.stopPropagation();
+                  setShowAdvanced(!showAdvanced);
+                }}
+                onKeyDown={(e) => {
+                  if (e.key === 'Enter' || e.key === ' ') {
+                    e.preventDefault();
+                    setShowAdvanced(!showAdvanced);
+                  }
+                }}
+                className="w-full flex items-center justify-between px-4 py-2 text-sm rounded-md cursor-pointer hover:bg-orange-100 transition-colors"
+              >
+                <span>אופציות מתקדמות</span>
+                <ChevronDown className={`h-4 w-4 transition-transform ${showAdvanced ? 'rotate-180' : ''}`} />
               </div>
-            )}
+
+              {/* אופציות מתקדמות - מתרחב */}
+              {showAdvanced && (
+                <div className="space-y-4 pt-2 border-t animate-in slide-in-from-top-2">
+                  {/* תשלום חלקי */}
+                  <div className="space-y-2">
+                    <div className="flex items-center gap-2">
+                      <input
+                        type="checkbox"
+                        id="partial-payment-quick"
+                        checked={paymentType === "PARTIAL"}
+                        onChange={(e) => {
+                          setPaymentType(e.target.checked ? "PARTIAL" : "FULL");
+                          if (!e.target.checked) setPartialAmount("");
+                        }}
+                        className="h-4 w-4"
+                      />
+                      <Label htmlFor="partial-payment-quick" className="cursor-pointer">
+                        תשלום חלקי
+                      </Label>
+                    </div>
+                    
+                    {paymentType === "PARTIAL" && (
+                      <div className="space-y-2 pr-6">
+                        <Label htmlFor="partial-amount-quick" className="text-sm">סכום לתשלום</Label>
+                        <div className="relative">
+                          <Input
+                            id="partial-amount-quick"
+                            type="number"
+                            placeholder="הכנס סכום"
+                            value={partialAmount}
+                            onChange={(e) => setPartialAmount(e.target.value)}
+                            max={amount}
+                            min={0}
+                            step="1"
+                            className="pl-8 bg-white"
+                          />
+                          <span className="absolute left-3 top-1/2 -translate-y-1/2 text-sm text-muted-foreground">
+                            ₪
+                          </span>
+                        </div>
+                        {partialAmount && parseFloat(partialAmount) < amount && parseFloat(partialAmount) > 0 && (
+                          <p className="text-xs text-muted-foreground">
+                            נותר לתשלום: ₪{(amount - parseFloat(partialAmount)).toFixed(0)}
+                          </p>
+                        )}
+                      </div>
+                    )}
+                  </div>
+
+                  {/* שימוש בקרדיט */}
+                  {creditBalance > 0 && (
+                    <div className="space-y-2">
+                      <div className="flex items-center gap-2">
+                        <input
+                          type="checkbox"
+                          id="use-credit-quick"
+                          checked={paymentType === "CREDIT"}
+                          onChange={(e) => setPaymentType(e.target.checked ? "CREDIT" : "FULL")}
+                          className="h-4 w-4"
+                        />
+                        <Label htmlFor="use-credit-quick" className="cursor-pointer">
+                          השתמש בקרדיט (זמין: ₪{creditBalance.toFixed(0)})
+                        </Label>
+                      </div>
+                    </div>
+                  )}
+
+                  {/* תשלום מראש */}
+                  <div className="space-y-2">
+                    <div className="flex items-center gap-2">
+                      <input
+                        type="checkbox"
+                        id="advance-payment-quick"
+                        checked={paymentType === "ADVANCE"}
+                        onChange={(e) => {
+                          setPaymentType(e.target.checked ? "ADVANCE" : "FULL");
+                          if (!e.target.checked) setPartialAmount("");
+                        }}
+                        className="h-4 w-4"
+                      />
+                      <Label htmlFor="advance-payment-quick" className="cursor-pointer">
+                        תשלום מראש (הוספה לקרדיט)
+                      </Label>
+                    </div>
+                    
+                    {paymentType === "ADVANCE" && (
+                      <div className="space-y-2 pr-6">
+                        <Label htmlFor="advance-amount-quick" className="text-sm">סכום לקרדיט</Label>
+                        <div className="relative">
+                          <Input
+                            id="advance-amount-quick"
+                            type="number"
+                            placeholder="הכנס סכום לקרדיט"
+                            value={partialAmount}
+                            onChange={(e) => setPartialAmount(e.target.value)}
+                            min={0}
+                            step="1"
+                            className="pl-8 bg-white"
+                          />
+                          <span className="absolute left-3 top-1/2 -translate-y-1/2 text-sm text-muted-foreground">
+                            ₪
+                          </span>
+                        </div>
+                      </div>
+                    )}
+                  </div>
+                </div>
+              )}
+            </div>
           </div>
         </div>
 
@@ -325,18 +390,34 @@ export function QuickMarkPaid({
           </Button>
           <Button 
             onClick={handleMarkPaid} 
-            disabled={isLoading}
+            disabled={isLoading || (paymentType === "PARTIAL" && (!partialAmount || parseFloat(partialAmount) <= 0))}
             className="gap-2 font-bold bg-green-600 hover:bg-green-700"
           >
             {isLoading ? (
               <>
                 <Loader2 className="h-4 w-4 animate-spin" />
-                מעדכן...
+                מעבד...
               </>
             ) : (
               <>
                 <Check className="h-4 w-4" />
-                {paymentType === "ADVANCE" ? "הוסף לקרדיט" : "סיום ושלם"}
+                {(() => {
+                  if (paymentType === "ADVANCE") {
+                    return `הוסף לקרדיט (₪${partialAmount || 0})`;
+                  }
+                  
+                  const totalAmount = paymentType === "PARTIAL" ? (parseFloat(partialAmount) || 0) : amount;
+                  const creditToUse = paymentType === "CREDIT" ? Math.min(totalAmount, creditBalance) : 0;
+                  const cashAmount = totalAmount - creditToUse;
+                  
+                  if (creditToUse > 0 && cashAmount > 0) {
+                    return `סיים ושלם (₪${cashAmount.toFixed(0)} + קרדיט ₪${creditToUse.toFixed(0)})`;
+                  } else if (creditToUse > 0) {
+                    return `סיים ושלם (קרדיט ₪${creditToUse.toFixed(0)})`;
+                  } else {
+                    return `סיים ושלם (₪${cashAmount.toFixed(0)})`;
+                  }
+                })()}
               </>
             )}
           </Button>

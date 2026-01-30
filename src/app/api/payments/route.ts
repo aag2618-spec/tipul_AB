@@ -45,7 +45,8 @@ export async function POST(request: NextRequest) {
       paymentType = 'FULL',
       method,
       status,
-      notes 
+      notes,
+      creditUsed
     } = body;
 
     if (!clientId || !amount) {
@@ -62,6 +63,28 @@ export async function POST(request: NextRequest) {
 
     if (!client) {
       return NextResponse.json({ message: "מטופל לא נמצא" }, { status: 404 });
+    }
+
+    // Handle credit usage if specified
+    if (creditUsed && Number(creditUsed) > 0) {
+      const creditAmount = Number(creditUsed);
+      
+      if (Number(client.creditBalance) >= creditAmount) {
+        // Deduct from credit balance
+        await prisma.client.update({
+          where: { id: clientId },
+          data: {
+            creditBalance: {
+              decrement: creditAmount
+            }
+          }
+        });
+      } else {
+        return NextResponse.json(
+          { message: "אין מספיק קרדיט" },
+          { status: 400 }
+        );
+      }
     }
 
     // Create payment
