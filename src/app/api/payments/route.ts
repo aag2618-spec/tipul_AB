@@ -2,6 +2,8 @@ import { NextRequest, NextResponse } from "next/server";
 import { getServerSession } from "next-auth";
 import { authOptions } from "@/lib/auth";
 import prisma from "@/lib/prisma";
+import { sendEmail } from "@/lib/resend";
+import { createPaymentReceiptEmail } from "@/lib/email-templates/payment-receipt";
 
 export async function GET() {
   try {
@@ -101,7 +103,8 @@ export async function POST(request: NextRequest) {
         notes: notes || null,
       },
       include: {
-        client: { select: { id: true, name: true } },
+        client: true,
+        session: true,
       },
     });
 
@@ -131,6 +134,72 @@ export async function POST(request: NextRequest) {
           relatedEntity: "Payment",
         },
       });
+    }
+
+    // Send payment receipt email if status is PAID
+    if (status === "PAID") {
+      try {
+        const commSettings = await prisma.communicationSetting.findUnique({
+          where: { userId: session.user.id },
+        });
+
+        if (commSettings?.sendPaymentReceipt && payment.client.email) {
+          const therapist = await prisma.user.findUnique({
+            where: { id: session.user.id },
+          });
+
+          // Calculate remaining debt
+          const allPayments = await prisma.payment.findMany({
+            where: {
+              clientId: payment.client.id,
+              status: "PENDING",
+            },
+          });
+
+          const remainingDebt = allPayments.reduce(
+            (sum, p) => sum + (Number(p.expectedAmount) - Number(p.amount)),
+            0
+          );
+
+          const { subject, html } = createPaymentReceiptEmail({
+            clientName: payment.client.name,
+            therapistName: therapist?.name || "המטפל/ת שלך",
+            payment: {
+              amount: Number(payment.amount),
+              expectedAmount: Number(payment.expectedAmount || payment.amount),
+              method: payment.method,
+              paidAt: payment.paidAt || new Date(),
+              session: payment.session || undefined,
+            },
+            clientBalance: {
+              remainingDebt,
+              credit: Number(payment.client.creditBalance),
+            },
+          });
+
+          await sendEmail({
+            to: payment.client.email,
+            subject,
+            html,
+            replyTo: therapist?.email || undefined,
+          });
+
+          // Log communication
+          await prisma.communicationLog.create({
+            data: {
+              type: "CUSTOM",
+              channel: "EMAIL",
+              recipient: payment.client.email.toLowerCase(),
+              subject,
+              content: html,
+              status: "SENT",
+              sentAt: new Date(),
+            },
+          });
+        }
+      } catch (emailError) {
+        console.error("Error sending payment receipt email:", emailError);
+      }
     }
 
     return NextResponse.json(payment, { status: 201 });
