@@ -51,6 +51,7 @@ import { SummariesTab } from "@/components/clients/summaries-tab";
 import { SendReminderButton } from "@/components/clients/send-reminder-button";
 import { TodaySessionCard } from "@/components/dashboard/today-session-card";
 import { AddCreditDialog } from "@/components/clients/add-credit-dialog";
+import { PaymentHistoryItem } from "@/components/payments/payment-history-item";
 import { format } from "date-fns";
 import { he } from "date-fns/locale";
 
@@ -70,6 +71,7 @@ async function getClient(clientId: string, userId: string) {
       payments: {
         orderBy: { createdAt: "desc" },
         take: 10,
+        include: { session: true },
       },
       recordings: {
         orderBy: { createdAt: "desc" },
@@ -610,43 +612,16 @@ export default async function ClientPage({
                   {client.payments.length > 0 ? (
                     <div className="space-y-3">
                       {client.payments.map((payment) => (
-                        <div
+                        <PaymentHistoryItem
                           key={payment.id}
-                          className="flex items-center justify-between p-4 rounded-lg bg-muted/50"
-                        >
-                          <div>
-                            <p className="font-medium">₪{Number(payment.amount)}</p>
-                            <p className="text-sm text-muted-foreground">
-                              {format(new Date(payment.createdAt), "d/M/yyyy HH:mm")} •{" "}
-                              {payment.method === "CASH"
-                                ? "מזומן"
-                                : payment.method === "CREDIT_CARD"
-                                ? "אשראי"
-                                : payment.method === "BANK_TRANSFER"
-                                ? "העברה בנקאית"
-                                : payment.method === "CREDIT"
-                                ? "קרדיט"
-                                : "צ׳ק"}
-                            </p>
-                          </div>
-                          <Badge
-                            variant={
-                              payment.status === "PAID"
-                                ? "default"
-                                : payment.status === "PENDING"
-                                ? "secondary"
-                                : "destructive"
-                            }
-                          >
-                            {payment.status === "PAID"
-                              ? "שולם"
-                              : payment.status === "PENDING"
-                              ? "ממתין"
-                              : payment.status === "CANCELLED"
-                              ? "בוטל"
-                              : "הוחזר"}
-                          </Badge>
-                        </div>
+                          payment={{
+                            ...payment,
+                            amount: Number(payment.amount),
+                            expectedAmount: payment.expectedAmount ? Number(payment.expectedAmount) : null,
+                            createdAt: payment.createdAt,
+                            session: payment.session,
+                          }}
+                        />
                       ))}
                     </div>
                   ) : (
