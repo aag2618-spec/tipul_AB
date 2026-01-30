@@ -48,6 +48,7 @@ import {
   DropdownMenuSeparator,
 } from "@/components/ui/dropdown-menu";
 import { SummariesTab } from "@/components/clients/summaries-tab";
+import { SendReminderButton } from "@/components/clients/send-reminder-button";
 import { TodaySessionCard } from "@/components/dashboard/today-session-card";
 import { AddCreditDialog } from "@/components/clients/add-credit-dialog";
 import { format } from "date-fns";
@@ -264,11 +265,19 @@ export default async function ClientPage({
                   currentCredit={Number(client.creditBalance)}
                 />
                 {totalDebt > 0 && (
-                  <Button variant="outline" size="sm" asChild>
-                    <Link href={`/dashboard/payments/pay/${client.id}`}>
-                      תשלום
-                    </Link>
-                  </Button>
+                  <>
+                    <Button variant="outline" size="sm" asChild>
+                      <Link href={`/dashboard/payments/pay/${client.id}`}>
+                        תשלום
+                      </Link>
+                    </Button>
+                    <SendReminderButton
+                      clientId={client.id}
+                      clientName={client.name}
+                      variant="outline"
+                      size="sm"
+                    />
+                  </>
                 )}
               </div>
             </div>
