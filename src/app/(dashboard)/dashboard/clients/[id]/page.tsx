@@ -133,6 +133,14 @@ export default async function ClientPage({
     0
   );
 
+  // Get unpaid sessions for the Payments tab
+  const unpaidSessions = client.therapySessions.filter(
+    (session) =>
+      session.payment &&
+      session.payment.status === "PENDING" &&
+      Number(session.payment.expectedAmount) > Number(session.payment.amount)
+  );
+
   return (
     <div className="space-y-6 animate-fade-in">
       {/* Header */}
