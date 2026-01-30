@@ -275,7 +275,6 @@ export default function PaymentsPage() {
                           </Link>
                         </Button>
                         <Button 
-                          variant="outline" 
                           size="sm"
                           onClick={async () => {
                             try {
@@ -291,10 +290,10 @@ export default function PaymentsPage() {
                               toast.error(error.message || "שגיאה בשליחת התזכורת");
                             }
                           }}
-                          className="gap-2"
+                          className="gap-2 bg-blue-600 hover:bg-blue-700 text-white"
                         >
                           <Mail className="h-4 w-4" />
-                          שלח תזכורת
+                          תזכורת
                         </Button>
                         <Button variant="outline" size="sm" asChild>
                           <Link href={`/dashboard/clients/${payment.clientId}?tab=payments`}>
@@ -449,7 +448,6 @@ export default function PaymentsPage() {
                     {client.totalDebt > 0 && (
                       <>
                         <Button 
-                          variant="outline" 
                           size="sm"
                           onClick={async () => {
                             try {
@@ -465,10 +463,10 @@ export default function PaymentsPage() {
                               toast.error(error.message || "שגיאה בשליחת התזכורת");
                             }
                           }}
-                          className="gap-2"
+                          className="gap-2 bg-blue-600 hover:bg-blue-700 text-white"
                         >
                           <Mail className="h-4 w-4" />
-                          שלח תזכורת
+                          תזכורת
                         </Button>
                         <PayClientDebts
                           clientId={client.id}

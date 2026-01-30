@@ -18,7 +18,7 @@ export function SendReminderButton({
   clientName,
   variant = "outline",
   size = "sm",
-  className,
+  className = "",
 }: SendReminderButtonProps) {
   const [sending, setSending] = useState(false);
 
@@ -48,16 +48,16 @@ export function SendReminderButton({
       size={size}
       onClick={handleSend}
       disabled={sending}
-      className={className}
+      className={`gap-2 bg-blue-600 hover:bg-blue-700 text-white shadow-md ${className}`}
     >
       {sending ? (
         <>
-          <Loader2 className="h-4 w-4 animate-spin ml-2" />
+          <Loader2 className="h-4 w-4 animate-spin" />
           שולח...
         </>
       ) : (
         <>
-          <Mail className="h-4 w-4 ml-2" />
+          <Mail className="h-4 w-4" />
           שלח תזכורת
         </>
       )}
