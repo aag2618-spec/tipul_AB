@@ -6,7 +6,7 @@ interface PaymentHistoryItem {
   amount: number;
   expectedAmount: number;
   method: string;
-  paidAt: Date;
+  paidAt: Date | null;
   session?: {
     startTime: Date;
     type: string;
@@ -58,9 +58,11 @@ export function createPaymentHistoryEmail({
   // Generate payment rows
   const paymentRows = payments
     .map((payment) => {
-      const paymentDate = format(new Date(payment.paidAt), "dd/MM/yyyy", {
-        locale: he,
-      });
+      const paymentDate = format(
+        payment.paidAt ? new Date(payment.paidAt) : new Date(),
+        "dd/MM/yyyy",
+        { locale: he }
+      );
 
       const methodLabel =
         payment.method === "CASH"
