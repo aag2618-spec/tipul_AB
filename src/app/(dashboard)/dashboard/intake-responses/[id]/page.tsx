@@ -18,7 +18,7 @@ interface Question {
   options?: string[];
 }
 
-interface QuestionnaireResponse {
+interface IntakeResponse {
   id: string;
   filledAt: string;
   responses: Record<string, string>;
@@ -34,24 +34,24 @@ interface QuestionnaireResponse {
   };
 }
 
-export default function ViewQuestionnaireResponsePage({
+export default function ViewIntakeResponsePage({
   params,
 }: {
-  params: Promise<{ responseId: string }>;
+  params: Promise<{ id: string }>;
 }) {
-  const { responseId } = use(params);
+  const { id } = use(params);
   const router = useRouter();
   const [loading, setLoading] = useState(true);
-  const [response, setResponse] = useState<QuestionnaireResponse | null>(null);
+  const [response, setResponse] = useState<IntakeResponse | null>(null);
 
   useEffect(() => {
     fetchResponse();
-  }, [responseId]);
+  }, [id]);
 
   const fetchResponse = async () => {
     try {
       setLoading(true);
-      const res = await fetch(`/api/questionnaires/responses/${responseId}`);
+      const res = await fetch(`/api/intake-questionnaires/responses/${id}`);
       if (res.ok) {
         const data = await res.json();
         setResponse(data);

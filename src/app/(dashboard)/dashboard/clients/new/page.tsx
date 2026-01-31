@@ -58,7 +58,7 @@ export default function NewClientPage() {
   const fetchDefaultQuestionnaire = async () => {
     try {
       setLoadingQuestionnaire(true);
-      const response = await fetch("/api/questionnaires");
+      const response = await fetch("/api/intake-questionnaires");
       if (response.ok) {
         const templates = await response.json();
         const defaultTemplate = templates.find((t: QuestionnaireTemplate) => t.isDefault);
@@ -125,7 +125,7 @@ export default function NewClientPage() {
 
       // 2. Save questionnaire responses if not skipped
       if (!skipQuestionnaire && defaultQuestionnaire && Object.keys(questionnaireResponses).length > 0) {
-        await fetch("/api/questionnaires/responses", {
+        await fetch("/api/intake-questionnaires/responses", {
           method: "POST",
           headers: { "Content-Type": "application/json" },
           body: JSON.stringify({

@@ -135,7 +135,7 @@ export default function NewQuestionnairePage() {
     setSaving(true);
 
     try {
-      const response = await fetch("/api/questionnaires", {
+      const response = await fetch("/api/intake-questionnaires", {
         method: "POST",
         headers: { "Content-Type": "application/json" },
         body: JSON.stringify({
@@ -366,3 +366,4 @@ export default function NewQuestionnairePage() {
     </div>
   );
 }
+

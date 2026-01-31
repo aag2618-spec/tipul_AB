@@ -16,7 +16,6 @@ export async function POST(
 
     const { id } = await params;
 
-    // מצא את השאלון המקורי
     const original = await prisma.intakeQuestionnaire.findFirst({
       where: {
         id,
@@ -28,20 +27,19 @@ export async function POST(
       return NextResponse.json({ error: "Template not found" }, { status: 404 });
     }
 
-    // צור עותק
     const duplicate = await prisma.intakeQuestionnaire.create({
       data: {
         userId: session.user.id,
         name: `${original.name} (עותק)`,
         description: original.description,
         questions: original.questions,
-        isDefault: false, // עותק לעולם לא ברירת מחדל
+        isDefault: false,
       },
     });
 
     return NextResponse.json(duplicate);
   } catch (error) {
-    console.error("Error duplicating questionnaire template:", error);
+    console.error("Error duplicating intake questionnaire:", error);
     return NextResponse.json(
       { error: "Failed to duplicate template" },
       { status: 500 }

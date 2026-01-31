@@ -31,7 +31,7 @@ export default function QuestionnairesPage() {
   const fetchTemplates = async () => {
     try {
       setLoading(true);
-      const response = await fetch("/api/questionnaires");
+      const response = await fetch("/api/intake-questionnaires");
       if (response.ok) {
         const data = await response.json();
         setTemplates(data);
@@ -48,7 +48,7 @@ export default function QuestionnairesPage() {
 
   const handleDuplicate = async (id: string) => {
     try {
-      const response = await fetch(`/api/questionnaires/${id}/duplicate`, {
+      const response = await fetch(`/api/intake-questionnaires/${id}/duplicate`, {
         method: "POST",
       });
 
@@ -69,7 +69,7 @@ export default function QuestionnairesPage() {
       const template = templates.find((t) => t.id === id);
       if (!template) return;
 
-      const response = await fetch(`/api/questionnaires/${id}`, {
+      const response = await fetch(`/api/intake-questionnaires/${id}`, {
         method: "PUT",
         headers: { "Content-Type": "application/json" },
         body: JSON.stringify({
@@ -96,7 +96,7 @@ export default function QuestionnairesPage() {
     }
 
     try {
-      const response = await fetch(`/api/questionnaires/${id}`, {
+      const response = await fetch(`/api/intake-questionnaires/${id}`, {
         method: "DELETE",
       });
 

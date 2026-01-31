@@ -34,7 +34,7 @@ export async function GET(
 
     return NextResponse.json(template);
   } catch (error) {
-    console.error("Error fetching questionnaire template:", error);
+    console.error("Error fetching intake questionnaire:", error);
     return NextResponse.json(
       { error: "Failed to fetch template" },
       { status: 500 }
@@ -57,7 +57,6 @@ export async function PUT(
     const body = await req.json();
     const { name, description, questions, isDefault } = body;
 
-    // אם זה ברירת מחדל, עדכן את כל השאלונים האחרים
     if (isDefault) {
       await prisma.intakeQuestionnaire.updateMany({
         where: {
@@ -83,7 +82,7 @@ export async function PUT(
 
     return NextResponse.json(template);
   } catch (error) {
-    console.error("Error updating questionnaire template:", error);
+    console.error("Error updating intake questionnaire:", error);
     return NextResponse.json(
       { error: "Failed to update template" },
       { status: 500 }
@@ -104,19 +103,16 @@ export async function DELETE(
 
     const { id } = await params;
 
-    // בדוק אם יש תשובות לשאלון
     const responseCount = await prisma.intakeResponse.count({
       where: { templateId: id },
     });
 
     if (responseCount > 0) {
-      // אם יש תשובות, סמן כלא פעיל במקום למחוק
       await prisma.intakeQuestionnaire.update({
         where: { id },
         data: { isActive: false },
       });
     } else {
-      // אם אין תשובות, אפשר למחוק
       await prisma.intakeQuestionnaire.delete({
         where: { id },
       });
@@ -124,7 +120,7 @@ export async function DELETE(
 
     return NextResponse.json({ success: true });
   } catch (error) {
-    console.error("Error deleting questionnaire template:", error);
+    console.error("Error deleting intake questionnaire:", error);
     return NextResponse.json(
       { error: "Failed to delete template" },
       { status: 500 }

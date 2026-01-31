@@ -158,7 +158,7 @@ export function TodaySessionCard({ session }: TodaySessionCardProps) {
 
       if (shouldCharge) {
         const updatedSession = await response.json();
-        toast.success(pendingAction === "CANCELLED" ? "הפגישה בוטלה וחויבה, מעבר לדף תשלום..." : "נרשם כאי הופעה וחויב, מעבר לדף תשלום...");
+        toast.success(pendingAction === "CANCELLED" ? "הפגישה בוטלה וחויבה. מעבר לדף תשלום..." : "דווחה אי הופעה וחויב. מעבר לדף תשלום...");
         // Navigate to simple payment page with payment ID
         const clientId = session.client?.id;
         if (clientId) {
@@ -175,7 +175,7 @@ export function TodaySessionCard({ session }: TodaySessionCardProps) {
           setIsProcessing(false);
         }
       } else {
-        toast.success(pendingAction === "CANCELLED" ? "הפגישה בוטלה ללא חיוב" : "נרשם כאי הופעה ללא חיוב");
+        toast.success(pendingAction === "CANCELLED" ? "הפגישה בוטלה ללא חיוב" : "דווחה אי הופעה ללא חיוב");
         setIsProcessing(false);
         router.refresh();
       }
@@ -353,7 +353,7 @@ export function TodaySessionCard({ session }: TodaySessionCardProps) {
                     <DropdownMenuItem asChild>
                       <Link href={`/dashboard/sessions/${session.id}`} className="cursor-pointer">
                         <FileText className="h-4 w-4 ml-2" />
-                        {session.sessionNote ? "צפה/ערוך סיכום" : "כתוב סיכום"}
+                        {session.sessionNote ? "צפייה/עריכת סיכום" : "כתיבת סיכום"}
                       </Link>
                     </DropdownMenuItem>
                   </>
@@ -396,7 +396,7 @@ export function TodaySessionCard({ session }: TodaySessionCardProps) {
             <DialogDescription>
               {pendingAction === "CANCELLED"
                 ? "הפגישה בוטלה. האם ברצונך לחייב את המטופל בתשלום?"
-                : "המטופל לא הגיע לפגישה. האם ברצונך לחייב אותו בתשלום?"}
+                : "המטופל לא הופיע לפגישה. האם ברצונך לחייב אותו בתשלום?"}
             </DialogDescription>
           </DialogHeader>
           <DialogFooter className="gap-2">

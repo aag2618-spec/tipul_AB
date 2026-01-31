@@ -884,6 +884,50 @@ export default async function ClientPage({
 
             <TabsContent value="questionnaires" className="mt-4">
               <div className="space-y-6">
+                {/* תשאול ראשוני */}
+                <Card>
+                  <CardHeader>
+                    <div className="flex items-center justify-between">
+                      <div>
+                        <CardTitle>תשאול ראשוני</CardTitle>
+                        <CardDescription>
+                          {client._count.intakeResponses} שאלונים ממולאים
+                        </CardDescription>
+                      </div>
+                    </div>
+                  </CardHeader>
+                  <CardContent>
+                    {client.intakeResponses && client.intakeResponses.length > 0 ? (
+                      <div className="space-y-3">
+                        {client.intakeResponses.map((response: any) => (
+                          <div
+                            key={response.id}
+                            className="p-4 rounded-lg border bg-card"
+                          >
+                            <div className="flex items-center justify-between">
+                              <div>
+                                <p className="font-medium">{response.template.name}</p>
+                                <p className="text-sm text-muted-foreground">
+                                  {format(new Date(response.filledAt), "dd/MM/yyyy HH:mm")}
+                                </p>
+                              </div>
+                              <Button variant="outline" size="sm" asChild>
+                                <Link href={`/dashboard/intake-responses/${response.id}`}>
+                                  צפה
+                                </Link>
+                              </Button>
+                            </div>
+                          </div>
+                        ))}
+                      </div>
+                    ) : (
+                      <div className="text-center py-8 text-muted-foreground">
+                        <p>לא מולא תשאול ראשוני</p>
+                      </div>
+                    )}
+                  </CardContent>
+                </Card>
+
                 {/* שאלונים פסיכולוגיים */}
                 <Card>
                   <CardHeader>

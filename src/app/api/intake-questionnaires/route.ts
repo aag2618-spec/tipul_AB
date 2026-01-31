@@ -17,7 +17,7 @@ export async function GET() {
         isActive: true,
       },
       orderBy: [
-        { isDefault: "desc" }, // ברירת מחדל קודם
+        { isDefault: "desc" },
         { createdAt: "desc" },
       ],
       include: {
@@ -29,7 +29,7 @@ export async function GET() {
 
     return NextResponse.json(templates);
   } catch (error) {
-    console.error("Error fetching questionnaire templates:", error);
+    console.error("Error fetching intake questionnaires:", error);
     return NextResponse.json(
       { error: "Failed to fetch templates" },
       { status: 500 }
@@ -48,7 +48,6 @@ export async function POST(req: NextRequest) {
     const body = await req.json();
     const { name, description, questions, isDefault } = body;
 
-    // אם זה ברירת מחדל, עדכן את כל השאלונים האחרים לשלא יהיו
     if (isDefault) {
       await prisma.intakeQuestionnaire.updateMany({
         where: {
@@ -73,7 +72,7 @@ export async function POST(req: NextRequest) {
 
     return NextResponse.json(template);
   } catch (error) {
-    console.error("Error creating questionnaire template:", error);
+    console.error("Error creating intake questionnaire:", error);
     return NextResponse.json(
       { error: "Failed to create template" },
       { status: 500 }

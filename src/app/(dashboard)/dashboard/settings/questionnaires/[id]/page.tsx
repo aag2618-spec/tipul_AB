@@ -48,7 +48,7 @@ export default function EditQuestionnairePage({
   const fetchTemplate = async () => {
     try {
       setLoading(true);
-      const response = await fetch(`/api/questionnaires/${id}`);
+      const response = await fetch(`/api/intake-questionnaires/${id}`);
       if (response.ok) {
         const data = await response.json();
         setName(data.name);
@@ -134,7 +134,7 @@ export default function EditQuestionnairePage({
     setSaving(true);
 
     try {
-      const response = await fetch(`/api/questionnaires/${id}`, {
+      const response = await fetch(`/api/intake-questionnaires/${id}`, {
         method: "PUT",
         headers: { "Content-Type": "application/json" },
         body: JSON.stringify({

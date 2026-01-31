@@ -3,7 +3,7 @@ import { getServerSession } from "next-auth";
 import { authOptions } from "@/lib/auth";
 import prisma from "@/lib/prisma";
 
-// POST - שמור תשובות לשאלון
+// POST - שמור תשובות
 export async function POST(req: NextRequest) {
   try {
     const session = await getServerSession(authOptions);
@@ -14,7 +14,6 @@ export async function POST(req: NextRequest) {
     const body = await req.json();
     const { clientId, templateId, responses } = body;
 
-    // בדוק שהלקוח שייך למטפל
     const client = await prisma.client.findFirst({
       where: {
         id: clientId,
@@ -26,21 +25,20 @@ export async function POST(req: NextRequest) {
       return NextResponse.json({ error: "Client not found" }, { status: 404 });
     }
 
-      // שמור את התשובות
-      const response = await prisma.intakeResponse.create({
-        data: {
-          clientId,
-          templateId,
-          responses,
-        },
-        include: {
-          template: true,
-        },
-      });
+    const response = await prisma.intakeResponse.create({
+      data: {
+        clientId,
+        templateId,
+        responses,
+      },
+      include: {
+        template: true,
+      },
+    });
 
     return NextResponse.json(response);
   } catch (error) {
-    console.error("Error saving questionnaire response:", error);
+    console.error("Error saving intake response:", error);
     return NextResponse.json(
       { error: "Failed to save response" },
       { status: 500 }
@@ -63,7 +61,6 @@ export async function GET(req: NextRequest) {
       return NextResponse.json({ error: "Client ID required" }, { status: 400 });
     }
 
-    // בדוק שהלקוח שייך למטפל
     const client = await prisma.client.findFirst({
       where: {
         id: clientId,
@@ -75,19 +72,19 @@ export async function GET(req: NextRequest) {
       return NextResponse.json({ error: "Client not found" }, { status: 404 });
     }
 
-      const responses = await prisma.intakeResponse.findMany({
-        where: { clientId },
-        include: {
-          template: true,
-        },
-        orderBy: {
-          filledAt: "desc",
-        },
-      });
+    const responses = await prisma.intakeResponse.findMany({
+      where: { clientId },
+      include: {
+        template: true,
+      },
+      orderBy: {
+        filledAt: "desc",
+      },
+    });
 
     return NextResponse.json(responses);
   } catch (error) {
-    console.error("Error fetching questionnaire responses:", error);
+    console.error("Error fetching intake responses:", error);
     return NextResponse.json(
       { error: "Failed to fetch responses" },
       { status: 500 }
