@@ -22,9 +22,11 @@ interface Question {
   order: number;
 }
 
-interface QuestionnaireTemplate {
+interface IntakeQuestionnaireTemplate {
   id: string;
   name: string;
+  description?: string;
+  isDefault: boolean;
   questions: {
     questions: Question[];
   };
@@ -34,7 +36,7 @@ export default function NewClientPage() {
   const router = useRouter();
   const [isLoading, setIsLoading] = useState(false);
   const [loadingQuestionnaire, setLoadingQuestionnaire] = useState(true);
-  const [defaultQuestionnaire, setDefaultQuestionnaire] = useState<QuestionnaireTemplate | null>(null);
+  const [defaultQuestionnaire, setDefaultQuestionnaire] = useState<IntakeQuestionnaireTemplate | null>(null);
   const [skipQuestionnaire, setSkipQuestionnaire] = useState(false);
   
   const [formData, setFormData] = useState({
@@ -61,7 +63,7 @@ export default function NewClientPage() {
       const response = await fetch("/api/intake-questionnaires");
       if (response.ok) {
         const templates = await response.json();
-        const defaultTemplate = templates.find((t: QuestionnaireTemplate) => t.isDefault);
+        const defaultTemplate = templates.find((t: IntakeQuestionnaireTemplate) => t.isDefault);
         setDefaultQuestionnaire(defaultTemplate || null);
       }
     } catch (error) {

@@ -124,9 +124,9 @@ export function QuickMarkPaid({
       }
 
       const successMessage = 
-        creditToUse > 0 && cashAmount > 0 ? `התשלום נרשם (₪${cashAmount.toFixed(0)} + קרדיט ₪${creditToUse.toFixed(0)})` :
+        creditToUse > 0 && cashAmount > 0 ? `התשלום בוצע (₪${cashAmount.toFixed(0)} + קרדיט ₪${creditToUse.toFixed(0)})` :
         creditToUse > 0 ? "התשלום נוכה מהקרדיט" :
-        paymentType === "PARTIAL" ? "תשלום חלקי נרשם" :
+        paymentType === "PARTIAL" ? "תשלום חלקי בוצע" :
         "התשלום סומן כשולם";
       
       toast.success(successMessage);
@@ -201,9 +201,9 @@ export function QuickMarkPaid({
                   </SelectTrigger>
                   <SelectContent>
                     <SelectItem value="CASH">מזומן</SelectItem>
-                    <SelectItem value="CREDIT_CARD">אשראי</SelectItem>
+                    <SelectItem value="CREDIT_CARD">כרטיס אשראי</SelectItem>
                     <SelectItem value="BANK_TRANSFER">העברה בנקאית</SelectItem>
-                    <SelectItem value="CHECK">צ׳ק</SelectItem>
+                    <SelectItem value="CHECK">המחאה</SelectItem>
                     <SelectItem value="OTHER">אחר</SelectItem>
                   </SelectContent>
                 </Select>
@@ -258,7 +258,7 @@ export function QuickMarkPaid({
                           <Input
                             id="partial-amount-quick"
                             type="number"
-                            placeholder="הכנס סכום"
+                            placeholder="הזן סכום"
                             value={partialAmount}
                             onChange={(e) => setPartialAmount(e.target.value)}
                             max={amount}
@@ -272,7 +272,7 @@ export function QuickMarkPaid({
                         </div>
                         {partialAmount && parseFloat(partialAmount) < amount && parseFloat(partialAmount) > 0 && (
                           <p className="text-xs text-muted-foreground">
-                            נותר לתשלום: ₪{(amount - parseFloat(partialAmount)).toFixed(0)}
+                            נותר: ₪{(amount - parseFloat(partialAmount)).toFixed(0)}
                           </p>
                         )}
                       </div>

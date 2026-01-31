@@ -12,7 +12,7 @@ export async function GET(
   try {
     const session = await getServerSession(authOptions);
     if (!session?.user?.id) {
-      return NextResponse.json({ message: "לא מורשה" }, { status: 401 });
+      return NextResponse.json({ message: "אין הרשאה" }, { status: 401 });
     }
 
     const { id } = await params;
@@ -33,7 +33,7 @@ export async function GET(
   } catch (error) {
     console.error("Get payment error:", error);
     return NextResponse.json(
-      { message: "אירעה שגיאה בטעינת התשלום" },
+      { message: "שגיאה בטעינת התשלום" },
       { status: 500 }
     );
   }
@@ -46,7 +46,7 @@ export async function PUT(
   try {
     const session = await getServerSession(authOptions);
     if (!session?.user?.id) {
-      return NextResponse.json({ message: "לא מורשה" }, { status: 401 });
+      return NextResponse.json({ message: "אין הרשאה" }, { status: 401 });
     }
 
     const { id } = await params;
@@ -199,7 +199,7 @@ export async function PUT(
   } catch (error) {
     console.error("Update payment error:", error);
     return NextResponse.json(
-      { message: "אירעה שגיאה בעדכון התשלום" },
+      { message: "שגיאה בעדכון התשלום" },
       { status: 500 }
     );
   }

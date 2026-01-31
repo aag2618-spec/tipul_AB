@@ -9,7 +9,7 @@ export async function POST(req: NextRequest) {
   try {
     const session = await getServerSession(authOptions);
     if (!session?.user?.id) {
-      return NextResponse.json({ message: "לא מורשה" }, { status: 401 });
+      return NextResponse.json({ message: "אין הרשאה" }, { status: 401 });
     }
 
     const { clientId, paymentIds, totalAmount, method, paymentMode, creditUsed = 0 } = await req.json();
@@ -17,7 +17,7 @@ export async function POST(req: NextRequest) {
     // Enhanced validation
     if (!clientId || !paymentIds || !totalAmount || !method) {
       return NextResponse.json(
-        { message: "חסרים פרמטרים נדרשים" },
+        { message: "חסרים פרמטרים" },
         { status: 400 }
       );
     }
@@ -33,7 +33,7 @@ export async function POST(req: NextRequest) {
     // Validate paymentIds is an array
     if (!Array.isArray(paymentIds) || paymentIds.length === 0) {
       return NextResponse.json(
-        { message: "לא נמצאו תשלומים לעדכון" },
+        { message: "אין תשלומים לעדכון" },
         { status: 400 }
       );
     }
@@ -65,7 +65,7 @@ export async function POST(req: NextRequest) {
       });
 
       if (pendingPayments.length === 0) {
-        throw new Error("לא נמצאו תשלומים ממתינים");
+        throw new Error("אין תשלומים ממתינים");
       }
 
       let remainingAmount = totalAmount;
@@ -228,7 +228,7 @@ export async function POST(req: NextRequest) {
     console.error("Pay client debts error:", error);
     
     // Return more specific error messages
-    const errorMessage = error instanceof Error ? error.message : "אירעה שגיאה בעיבוד התשלום";
+    const errorMessage = error instanceof Error ? error.message : "שגיאה בעיבוד התשלום";
     
     return NextResponse.json(
       { message: errorMessage },

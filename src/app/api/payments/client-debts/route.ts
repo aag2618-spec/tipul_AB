@@ -7,7 +7,7 @@ export async function GET() {
   try {
     const session = await getServerSession(authOptions);
     if (!session?.user?.id) {
-      return NextResponse.json({ message: "לא מורשה" }, { status: 401 });
+      return NextResponse.json({ message: "אין הרשאה" }, { status: 401 });
     }
 
     // Get all clients with their payment data
@@ -78,7 +78,7 @@ export async function GET() {
   } catch (error) {
     console.error("Get client debts error:", error);
     return NextResponse.json(
-      { message: "אירעה שגיאה בטעינת החובות" },
+      { message: "שגיאה בטעינת החובות" },
       { status: 500 }
     );
   }

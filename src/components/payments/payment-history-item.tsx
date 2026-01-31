@@ -45,10 +45,10 @@ export function PaymentHistoryItem({ payment }: PaymentHistoryItemProps) {
   const getMethodText = (method: string) => {
     switch (method) {
       case 'CASH': return 'מזומן';
-      case 'CREDIT_CARD': return 'אשראי';
+      case 'CREDIT_CARD': return 'כרטיס אשראי';
       case 'BANK_TRANSFER': return 'העברה בנקאית';
       case 'CREDIT': return 'קרדיט';
-      case 'CHECK': return 'צ׳ק';
+      case 'CHECK': return 'המחאה';
       default: return 'אחר';
     }
   };
@@ -190,7 +190,7 @@ export function PaymentHistoryItem({ payment }: PaymentHistoryItemProps) {
                 <div className="text-sm text-yellow-700 space-y-1">
                   <div>סכום מלא: ₪{expectedAmount}</div>
                   <div>שולם: ₪{amount}</div>
-                  <div className="font-semibold">נותר לתשלום: ₪{remaining}</div>
+                  <div className="font-semibold">נותר: ₪{remaining}</div>
                 </div>
               </div>
             )}

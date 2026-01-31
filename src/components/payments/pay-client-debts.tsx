@@ -127,12 +127,12 @@ export function PayClientDebts({
 
       let successMessage = "";
       if (creditUsed > 0 && amountToPay > 0) {
-        successMessage = `נרשם תשלום של ₪${amountToPay.toFixed(0)} + קרדיט ₪${creditUsed.toFixed(0)}`;
+        successMessage = `בוצע תשלום של ₪${amountToPay.toFixed(0)} + קרדיט ₪${creditUsed.toFixed(0)}`;
       } else if (creditUsed > 0) {
-        successMessage = `נרשם תשלום מקרדיט ₪${creditUsed.toFixed(0)}`;
+        successMessage = `בוצע תשלום מקרדיט ₪${creditUsed.toFixed(0)}`;
       } else {
         successMessage = paymentMode === "PARTIAL" 
-          ? `תשלום חלקי של ₪${amountToPay.toFixed(0)} נרשם בהצלחה`
+          ? `תשלום חלקי של ₪${amountToPay.toFixed(0)} בוצע בהצלחה`
           : "כל החובות שולמו בהצלחה";
       }
       
@@ -177,12 +177,12 @@ export function PayClientDebts({
           <DialogDescription>
             <div className="space-y-2 mt-2">
               <div className="flex items-center justify-between">
-                <span>סה״כ חוב:</span>
+                <span>סה״כ חוב</span>
                 <span className="font-bold text-red-600 text-lg">₪{safeDebt.toFixed(0)}</span>
               </div>
               {safeCredit > 0 && (
                 <Badge variant="secondary" className="w-full justify-between">
-                  <span>קרדיט זמין:</span>
+                  <span>קרדיט זמין</span>
                   <span className="font-bold">₪{safeCredit.toFixed(0)}</span>
                 </Badge>
               )}
@@ -223,9 +223,9 @@ export function PayClientDebts({
                   </SelectTrigger>
                   <SelectContent>
                     <SelectItem value="CASH">מזומן</SelectItem>
-                    <SelectItem value="CREDIT_CARD">אשראי</SelectItem>
+                    <SelectItem value="CREDIT_CARD">כרטיס אשראי</SelectItem>
                     <SelectItem value="BANK_TRANSFER">העברה בנקאית</SelectItem>
-                    <SelectItem value="CHECK">צ׳ק</SelectItem>
+                    <SelectItem value="CHECK">המחאה</SelectItem>
                     <SelectItem value="OTHER">אחר</SelectItem>
                   </SelectContent>
                 </Select>
@@ -283,7 +283,7 @@ export function PayClientDebts({
                           <Input
                             id="partial-amount"
                             type="number"
-                            placeholder="הכנס סכום"
+                            placeholder="הזן סכום"
                             value={partialAmount}
                             onChange={(e) => setPartialAmount(e.target.value)}
                             max={safeDebt}
@@ -297,7 +297,7 @@ export function PayClientDebts({
                         </div>
                         {partialAmount && parseFloat(partialAmount) < safeDebt && parseFloat(partialAmount) > 0 && (
                           <p className="text-xs text-muted-foreground">
-                            נותר לתשלום: ₪{(safeDebt - parseFloat(partialAmount)).toFixed(0)}
+                            נותר: ₪{(safeDebt - parseFloat(partialAmount)).toFixed(0)}
                           </p>
                         )}
                       </div>
@@ -343,7 +343,7 @@ export function PayClientDebts({
             {isLoading ? (
               <>
                 <Loader2 className="h-4 w-4 animate-spin" />
-                מעבד...
+                מתבצע...
               </>
             ) : (
               <>

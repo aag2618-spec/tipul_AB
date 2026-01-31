@@ -10,7 +10,7 @@ export async function GET(
   try {
     const session = await getServerSession(authOptions);
     if (!session?.user?.id) {
-      return NextResponse.json({ message: "לא מורשה" }, { status: 401 });
+      return NextResponse.json({ message: "אין הרשאה" }, { status: 401 });
     }
 
     const { clientId } = await params;
