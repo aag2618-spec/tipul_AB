@@ -292,6 +292,13 @@ model Payment {
 
   sessionId String?         @unique
   session   TherapySession? @relation(fields: [sessionId], references: [id], onDelete: SetNull)
+
+  // Parent-Child relation for partial payments
+  parentPaymentId String?
+  parentPayment   Payment?  @relation("PaymentChildren", fields: [parentPaymentId], references: [id], onDelete: Cascade)
+  childPayments   Payment[] @relation("PaymentChildren")
+
+  @@index([parentPaymentId])
 }
 
 enum PaymentMethod {

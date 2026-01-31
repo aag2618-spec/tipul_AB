@@ -70,9 +70,15 @@ async function getClient(clientId: string, userId: string) {
         include: { sessionNote: true, payment: true },
       },
       payments: {
+        where: { parentPaymentId: null }, // Only get parent payments
         orderBy: { createdAt: "desc" },
         take: 10,
-        include: { session: true },
+        include: { 
+          session: true,
+          childPayments: {
+            orderBy: { paidAt: "asc" },
+          },
+        },
       },
       recordings: {
         orderBy: { createdAt: "desc" },
