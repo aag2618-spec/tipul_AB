@@ -641,6 +641,11 @@ export default async function ClientPage({
                             expectedAmount: payment.expectedAmount ? Number(payment.expectedAmount) : null,
                             createdAt: payment.createdAt,
                             session: payment.session,
+                            childPayments: payment.childPayments?.map((child) => ({
+                              ...child,
+                              amount: Number(child.amount),
+                              paidAt: child.paidAt || child.createdAt,
+                            })),
                           }}
                         />
                       ))}
