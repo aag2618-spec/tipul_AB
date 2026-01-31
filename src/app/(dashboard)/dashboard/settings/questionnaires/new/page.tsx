@@ -16,7 +16,13 @@ import {
 } from "@/components/ui/select";
 import { Checkbox } from "@/components/ui/checkbox";
 import { Separator } from "@/components/ui/separator";
-import { Loader2, Plus, Trash2, ArrowUp, ArrowDown, Save, X } from "lucide-react";
+import {
+  Tooltip,
+  TooltipContent,
+  TooltipProvider,
+  TooltipTrigger,
+} from "@/components/ui/tooltip";
+import { Loader2, Plus, Trash2, ArrowUp, ArrowDown, Save, X, HelpCircle } from "lucide-react";
 import { toast } from "sonner";
 
 interface Question {
@@ -276,7 +282,31 @@ export default function NewQuestionnairePage() {
 
               <div className="grid grid-cols-2 gap-4">
                 <div className="space-y-2">
-                  <Label>סוג שאלה</Label>
+                  <div className="flex items-center gap-2">
+                    <Label>סוג שאלה</Label>
+                    <TooltipProvider>
+                      <Tooltip>
+                        <TooltipTrigger asChild>
+                          <HelpCircle className="h-4 w-4 text-muted-foreground cursor-help" />
+                        </TooltipTrigger>
+                        <TooltipContent side="top" className="max-w-xs">
+                          <div className="space-y-2 text-sm">
+                            <p className="font-semibold">💡 רשימה נפתחת - מה זה?</p>
+                            <p>המטופל יראה רשימה עם האופציות שהגדרת, וצריך רק ללחוץ ולבחור אחת מהן.</p>
+                            <div className="space-y-1">
+                              <p className="font-medium">✅ יתרונות:</p>
+                              <ul className="list-disc list-inside space-y-0.5 text-xs">
+                                <li>מהיר - לא צריך לכתוב</li>
+                                <li>אחיד - כולם עונים אותן מילים</li>
+                                <li>נוח לניתוח - קל לסנן ולראות נתונים</li>
+                              </ul>
+                            </div>
+                            <p className="text-xs text-muted-foreground">📝 כתוב כל אופציה בשורה חדשה (לחץ Enter)</p>
+                          </div>
+                        </TooltipContent>
+                      </Tooltip>
+                    </TooltipProvider>
+                  </div>
                   <Select
                     value={question.type}
                     onValueChange={(value: any) =>
@@ -289,7 +319,7 @@ export default function NewQuestionnairePage() {
                     <SelectContent>
                       <SelectItem value="TEXT">טקסט קצר (שורה אחת)</SelectItem>
                       <SelectItem value="TEXTAREA">טקסט חופשי (מספר שורות)</SelectItem>
-                      <SelectItem value="SELECT">רשימה (רב-בררה)</SelectItem>
+                      <SelectItem value="SELECT">בחירה מרשימה נפתחת</SelectItem>
                     </SelectContent>
                   </Select>
                 </div>
@@ -312,21 +342,41 @@ export default function NewQuestionnairePage() {
 
               {question.type === "SELECT" && (
                 <div className="space-y-2">
-                  <Label>אופציות (שורה אחת לכל אופציה) *</Label>
+                  <Label>
+                    אופציות (לחץ Enter אחרי כל אופציה) *
+                    <span className="text-xs text-muted-foreground mr-2">
+                      💡 כל שורה = אופציה אחת
+                    </span>
+                  </Label>
                   <Textarea
-                    placeholder="רווק&#10;נשוי&#10;גרוש&#10;אלמן"
-                    value={question.options?.join("\n") || ""}
+                    placeholder="אופציה 1: רווק&#10;אופציה 2: נשוי&#10;אופציה 3: גרוש&#10;אופציה 4: אלמן"
+                    value={
+                      question.options
+                        ? question.options.map((opt, i) => `אופציה ${i + 1}: ${opt}`).join("\n")
+                        : ""
+                    }
                     onChange={(e) => {
                       const options = e.target.value
                         .split("\n")
-                        .map((opt) => opt.trim())
+                        .map((line) => {
+                          // Remove "אופציה X: " prefix if exists
+                          const match = line.match(/^אופציה \d+:\s*(.+)$/);
+                          return match ? match[1].trim() : line.trim();
+                        })
                         .filter((opt) => opt.length > 0);
                       updateQuestion(question.id, { options });
                     }}
-                    rows={4}
+                    onKeyDown={(e) => {
+                      if (e.key === 'Enter') {
+                        e.stopPropagation();
+                      }
+                    }}
+                    rows={6}
+                    className="font-mono text-sm"
                   />
-                  <p className="text-xs text-muted-foreground">
-                    {question.options?.length || 0} אופציות
+                  <p className="text-xs text-muted-foreground bg-muted/30 p-2 rounded">
+                    💡 <strong>{question.options?.length || 0} אופציות</strong> • 
+                    המטופל יראה רשימה נפתחת ויבחר אחת מהן
                   </p>
                 </div>
               )}

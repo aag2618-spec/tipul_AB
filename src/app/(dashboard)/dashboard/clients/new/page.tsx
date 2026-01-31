@@ -36,7 +36,9 @@ export default function NewClientPage() {
   const router = useRouter();
   const [isLoading, setIsLoading] = useState(false);
   const [loadingQuestionnaire, setLoadingQuestionnaire] = useState(true);
+  const [allQuestionnaires, setAllQuestionnaires] = useState<IntakeQuestionnaireTemplate[]>([]);
   const [defaultQuestionnaire, setDefaultQuestionnaire] = useState<IntakeQuestionnaireTemplate | null>(null);
+  const [selectedQuestionnaire, setSelectedQuestionnaire] = useState<IntakeQuestionnaireTemplate | null>(null);
   const [skipQuestionnaire, setSkipQuestionnaire] = useState(false);
   
   const [formData, setFormData] = useState({
@@ -63,8 +65,10 @@ export default function NewClientPage() {
       const response = await fetch("/api/intake-questionnaires");
       if (response.ok) {
         const templates = await response.json();
+        setAllQuestionnaires(templates);
         const defaultTemplate = templates.find((t: IntakeQuestionnaireTemplate) => t.isDefault);
-        setDefaultQuestionnaire(defaultTemplate || null);
+        setDefaultQuestionnaire(defaultTemplate || templates[0] || null);
+        setSelectedQuestionnaire(defaultTemplate || templates[0] || null);
       }
     } catch (error) {
       console.error("Error fetching questionnaire:", error);
