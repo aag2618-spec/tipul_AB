@@ -6,7 +6,7 @@ interface PaymentHistoryItem {
   amount: number;
   expectedAmount: number;
   method: string;
-  paidAt: Date | null;
+  paidAt: Date;
   session?: {
     startTime: Date;
     type: string;

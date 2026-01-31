@@ -112,7 +112,7 @@ export async function POST(
         amount: typeof p.amount === 'number' ? p.amount : Number(p.amount),
         expectedAmount: typeof p.expectedAmount === 'number' ? p.expectedAmount : Number(p.expectedAmount),
         method: p.method,
-        paidAt: p.paidAt || p.createdAt,
+        paidAt: p.paidAt || p.createdAt || new Date(),
         session: p.session
           ? {
               startTime: p.session.startTime,
