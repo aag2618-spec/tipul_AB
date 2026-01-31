@@ -17,7 +17,7 @@ export async function POST(
     const { id } = await params;
 
     // מצא את השאלון המקורי
-    const original = await prisma.questionnaireTemplate.findFirst({
+    const original = await prisma.intakeQuestionnaire.findFirst({
       where: {
         id,
         userId: session.user.id,
@@ -29,7 +29,7 @@ export async function POST(
     }
 
     // צור עותק
-    const duplicate = await prisma.questionnaireTemplate.create({
+    const duplicate = await prisma.intakeQuestionnaire.create({
       data: {
         userId: session.user.id,
         name: `${original.name} (עותק)`,

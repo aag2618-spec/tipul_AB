@@ -83,7 +83,7 @@ model User {
   communicationSetting  CommunicationSetting?
   couponUsages          CouponUsage[]
   questionnaireResponses QuestionnaireResponse[]
-  questionnaireTemplates QuestionnaireTemplate[]
+  intakeQuestionnaires  IntakeQuestionnaire[] @relation("intakeQuestionnaires")
   passwordResets        PasswordReset[]
   smsSettings           SMSSettings?
   consentForms          ConsentForm[]
@@ -136,6 +136,7 @@ model Client {
   cancellationRequests CancellationRequest[]
   communicationLogs    CommunicationLog[]
   questionnaireResponses QuestionnaireResponse[]
+  intakeResponses      IntakeResponse[] @relation("intakeResponses")
   consentForms         ConsentForm[]
 }
 
@@ -733,6 +734,43 @@ enum QuestionnaireStatus {
   ANALYZED
 }
 
+// ==================== Intake Questionnaires (Simple) ====================
+
+model IntakeQuestionnaire {
+  id          String   @id @default(cuid())
+  userId      String
+  user        User     @relation("intakeQuestionnaires", fields: [userId], references: [id], onDelete: Cascade)
+  
+  name        String   // "תשאול ראשוני"
+  description String?  // תיאור קצר
+  isDefault   Boolean  @default(false)  // ברירת מחדל?
+  isActive    Boolean  @default(true)   // פעיל?
+  questions   Json     // מערך שאלות פשוטות
+  
+  createdAt   DateTime @default(now())
+  updatedAt   DateTime @updatedAt
+  
+  responses   IntakeResponse[]
+  
+  @@index([userId])
+  @@index([userId, isDefault])
+}
+
+model IntakeResponse {
+  id         String   @id @default(cuid())
+  clientId   String
+  client     Client   @relation("intakeResponses", fields: [clientId], references: [id], onDelete: Cascade)
+  templateId String
+  template   IntakeQuestionnaire @relation(fields: [templateId], references: [id], onDelete: Cascade)
+  
+  responses  Json     // התשובות (key-value pairs)
+  filledAt   DateTime @default(now())
+  updatedAt  DateTime @updatedAt
+  
+  @@index([clientId])
+  @@index([templateId])
+}
+
 // ==================== SMS Reminders ====================
 
 model SMSReminder {
@@ -876,41 +914,4 @@ enum ReportStatus {
   CONFIRMED
   REJECTED
   ERROR
-}
-
-// ==================== Questionnaires ====================
-
-model QuestionnaireTemplate {
-  id          String   @id @default(cuid())
-  userId      String
-  user        User     @relation(fields: [userId], references: [id], onDelete: Cascade)
-  
-  name        String   // "תשאול ראשוני - אברהם נטפרי"
-  description String?  // תיאור קצר
-  isDefault   Boolean  @default(false)  // ברירת מחדל?
-  isActive    Boolean  @default(true)   // פעיל?
-  questions   Json     // מערך שאלות
-  
-  createdAt   DateTime @default(now())
-  updatedAt   DateTime @updatedAt
-  
-  responses   QuestionnaireResponse[]
-  
-  @@index([userId])
-  @@index([userId, isDefault])
-}
-
-model QuestionnaireResponse {
-  id         String   @id @default(cuid())
-  clientId   String
-  client     Client   @relation(fields: [clientId], references: [id], onDelete: Cascade)
-  templateId String
-  template   QuestionnaireTemplate @relation(fields: [templateId], references: [id], onDelete: Cascade)
-  
-  responses  Json     // התשובות (key-value pairs)
-  filledAt   DateTime @default(now())
-  updatedAt  DateTime @updatedAt
-  
-  @@index([clientId])
-  @@index([templateId])
 }

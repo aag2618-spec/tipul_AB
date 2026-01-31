@@ -11,7 +11,7 @@ export async function GET() {
       return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
     }
 
-    const templates = await prisma.questionnaireTemplate.findMany({
+    const templates = await prisma.intakeQuestionnaire.findMany({
       where: {
         userId: session.user.id,
         isActive: true,
@@ -50,7 +50,7 @@ export async function POST(req: NextRequest) {
 
     // אם זה ברירת מחדל, עדכן את כל השאלונים האחרים לשלא יהיו
     if (isDefault) {
-      await prisma.questionnaireTemplate.updateMany({
+      await prisma.intakeQuestionnaire.updateMany({
         where: {
           userId: session.user.id,
           isDefault: true,
@@ -61,7 +61,7 @@ export async function POST(req: NextRequest) {
       });
     }
 
-    const template = await prisma.questionnaireTemplate.create({
+    const template = await prisma.intakeQuestionnaire.create({
       data: {
         userId: session.user.id,
         name,

@@ -82,6 +82,12 @@ async function getClient(clientId: string, userId: string) {
         orderBy: { createdAt: "desc" },
       },
       questionnaireResponses: {
+        orderBy: { completedAt: "desc" },
+        include: {
+          template: true,
+        },
+      },
+      intakeResponses: {
         orderBy: { filledAt: "desc" },
         include: {
           template: true,
@@ -92,7 +98,8 @@ async function getClient(clientId: string, userId: string) {
           therapySessions: { where: { type: { not: "BREAK" } } }, 
           payments: true, 
           recordings: true, 
-          questionnaireResponses: true 
+          questionnaireResponses: true,
+          intakeResponses: true
         },
       },
     },

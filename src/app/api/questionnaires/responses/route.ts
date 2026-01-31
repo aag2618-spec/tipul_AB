@@ -26,17 +26,17 @@ export async function POST(req: NextRequest) {
       return NextResponse.json({ error: "Client not found" }, { status: 404 });
     }
 
-    // שמור את התשובות
-    const response = await prisma.questionnaireResponse.create({
-      data: {
-        clientId,
-        templateId,
-        responses,
-      },
-      include: {
-        template: true,
-      },
-    });
+      // שמור את התשובות
+      const response = await prisma.intakeResponse.create({
+        data: {
+          clientId,
+          templateId,
+          responses,
+        },
+        include: {
+          template: true,
+        },
+      });
 
     return NextResponse.json(response);
   } catch (error) {
@@ -75,15 +75,15 @@ export async function GET(req: NextRequest) {
       return NextResponse.json({ error: "Client not found" }, { status: 404 });
     }
 
-    const responses = await prisma.questionnaireResponse.findMany({
-      where: { clientId },
-      include: {
-        template: true,
-      },
-      orderBy: {
-        filledAt: "desc",
-      },
-    });
+      const responses = await prisma.intakeResponse.findMany({
+        where: { clientId },
+        include: {
+          template: true,
+        },
+        orderBy: {
+          filledAt: "desc",
+        },
+      });
 
     return NextResponse.json(responses);
   } catch (error) {

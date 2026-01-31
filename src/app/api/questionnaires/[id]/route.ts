@@ -16,7 +16,7 @@ export async function GET(
 
     const { id } = await params;
 
-    const template = await prisma.questionnaireTemplate.findFirst({
+    const template = await prisma.intakeQuestionnaire.findFirst({
       where: {
         id,
         userId: session.user.id,
@@ -59,7 +59,7 @@ export async function PUT(
 
     // אם זה ברירת מחדל, עדכן את כל השאלונים האחרים
     if (isDefault) {
-      await prisma.questionnaireTemplate.updateMany({
+      await prisma.intakeQuestionnaire.updateMany({
         where: {
           userId: session.user.id,
           isDefault: true,
@@ -71,7 +71,7 @@ export async function PUT(
       });
     }
 
-    const template = await prisma.questionnaireTemplate.update({
+    const template = await prisma.intakeQuestionnaire.update({
       where: { id },
       data: {
         name,
@@ -105,19 +105,19 @@ export async function DELETE(
     const { id } = await params;
 
     // בדוק אם יש תשובות לשאלון
-    const responseCount = await prisma.questionnaireResponse.count({
+    const responseCount = await prisma.intakeResponse.count({
       where: { templateId: id },
     });
 
     if (responseCount > 0) {
       // אם יש תשובות, סמן כלא פעיל במקום למחוק
-      await prisma.questionnaireTemplate.update({
+      await prisma.intakeQuestionnaire.update({
         where: { id },
         data: { isActive: false },
       });
     } else {
       // אם אין תשובות, אפשר למחוק
-      await prisma.questionnaireTemplate.delete({
+      await prisma.intakeQuestionnaire.delete({
         where: { id },
       });
     }

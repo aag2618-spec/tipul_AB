@@ -16,7 +16,7 @@ export async function GET(
 
     const { responseId } = await params;
 
-    const response = await prisma.questionnaireResponse.findFirst({
+    const response = await prisma.intakeResponse.findFirst({
       where: { id: responseId },
       include: {
         template: true,
