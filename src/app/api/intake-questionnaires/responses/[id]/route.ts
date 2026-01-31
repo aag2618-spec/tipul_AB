@@ -17,13 +17,15 @@ export async function GET(
     const { id } = await params;
 
     const response = await prisma.intakeResponse.findFirst({
-      where: { id },
+      where: { 
+        id,
+        client: {
+          therapistId: session.user.id,
+        },
+      },
       include: {
         template: true,
         client: {
-          where: {
-            therapistId: session.user.id,
-          },
           select: {
             id: true,
             name: true,
@@ -32,7 +34,7 @@ export async function GET(
       },
     });
 
-    if (!response || !response.client) {
+    if (!response) {
       return NextResponse.json({ error: "Response not found" }, { status: 404 });
     }
 
