@@ -83,6 +83,7 @@ model User {
   communicationSetting  CommunicationSetting?
   couponUsages          CouponUsage[]
   questionnaireResponses QuestionnaireResponse[]
+  questionnaireTemplates QuestionnaireTemplate[]
   passwordResets        PasswordReset[]
   smsSettings           SMSSettings?
   consentForms          ConsentForm[]
@@ -875,4 +876,41 @@ enum ReportStatus {
   CONFIRMED
   REJECTED
   ERROR
+}
+
+// ==================== Questionnaires ====================
+
+model QuestionnaireTemplate {
+  id          String   @id @default(cuid())
+  userId      String
+  user        User     @relation(fields: [userId], references: [id], onDelete: Cascade)
+  
+  name        String   // "תשאול ראשוני - אברהם נטפרי"
+  description String?  // תיאור קצר
+  isDefault   Boolean  @default(false)  // ברירת מחדל?
+  isActive    Boolean  @default(true)   // פעיל?
+  questions   Json     // מערך שאלות
+  
+  createdAt   DateTime @default(now())
+  updatedAt   DateTime @updatedAt
+  
+  responses   QuestionnaireResponse[]
+  
+  @@index([userId])
+  @@index([userId, isDefault])
+}
+
+model QuestionnaireResponse {
+  id         String   @id @default(cuid())
+  clientId   String
+  client     Client   @relation(fields: [clientId], references: [id], onDelete: Cascade)
+  templateId String
+  template   QuestionnaireTemplate @relation(fields: [templateId], references: [id], onDelete: Cascade)
+  
+  responses  Json     // התשובות (key-value pairs)
+  filledAt   DateTime @default(now())
+  updatedAt  DateTime @updatedAt
+  
+  @@index([clientId])
+  @@index([templateId])
 }

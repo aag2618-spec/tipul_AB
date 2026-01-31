@@ -6,7 +6,7 @@ import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/com
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import { Separator } from "@/components/ui/separator";
-import { Loader2, Save, User, Bell, Shield, Mail, Link as LinkIcon, MessageSquare, Calendar } from "lucide-react";
+import { Loader2, Save, User, Bell, Shield, Mail, Link as LinkIcon, MessageSquare, Calendar, FileText } from "lucide-react";
 import { toast } from "sonner";
 import Link from "next/link";
 
@@ -126,6 +126,12 @@ export default function SettingsPage() {
           <Link href="/dashboard/settings/communication">
             <Mail className="h-4 w-4" />
             תקשורת וביטולים
+          </Link>
+        </Button>
+        <Button variant="outline" size="sm" asChild className="gap-2">
+          <Link href="/dashboard/settings/questionnaires">
+            <FileText className="h-4 w-4" />
+            שאלונים
           </Link>
         </Button>
         <Button variant="outline" size="sm" asChild className="gap-2">

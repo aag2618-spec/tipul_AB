@@ -3,80 +3,18 @@ import { getServerSession } from "next-auth";
 import { authOptions } from "@/lib/auth";
 import prisma from "@/lib/prisma";
 
-// GET - Get all responses for a client or current user
-export async function GET(request: NextRequest) {
+// POST - שמור תשובות לשאלון
+export async function POST(req: NextRequest) {
   try {
     const session = await getServerSession(authOptions);
     if (!session?.user?.id) {
       return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
     }
 
-    const { searchParams } = new URL(request.url);
-    const clientId = searchParams.get("clientId");
+    const body = await req.json();
+    const { clientId, templateId, responses } = body;
 
-    const responses = await prisma.questionnaireResponse.findMany({
-      where: {
-        therapistId: session.user.id,
-        ...(clientId && { clientId }),
-      },
-      include: {
-        template: {
-          select: {
-            code: true,
-            name: true,
-            category: true,
-          },
-        },
-        client: {
-          select: {
-            id: true,
-            name: true,
-          },
-        },
-      },
-      orderBy: { createdAt: "desc" },
-    });
-
-    return NextResponse.json(responses);
-  } catch (error) {
-    console.error("Error fetching questionnaire responses:", error);
-    return NextResponse.json(
-      { error: "Failed to fetch questionnaire responses" },
-      { status: 500 }
-    );
-  }
-}
-
-// POST - Create a new questionnaire response
-export async function POST(request: NextRequest) {
-  try {
-    const session = await getServerSession(authOptions);
-    if (!session?.user?.id) {
-      return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
-    }
-
-    const { templateId, clientId } = await request.json();
-
-    if (!templateId || !clientId) {
-      return NextResponse.json(
-        { error: "Template ID and Client ID are required" },
-        { status: 400 }
-      );
-    }
-
-    // Verify template exists
-    const template = await prisma.questionnaireTemplate.findUnique({
-      where: { id: templateId },
-    });
-
-    if (!template) {
-      return NextResponse.json(
-        { error: "Questionnaire template not found" },
-        { status: 404 }
-      );
-    }
-
-    // Verify client belongs to therapist
+    // בדוק שהלקוח שייך למטפל
     const client = await prisma.client.findFirst({
       where: {
         id: clientId,
@@ -85,31 +23,73 @@ export async function POST(request: NextRequest) {
     });
 
     if (!client) {
-      return NextResponse.json(
-        { error: "Client not found" },
-        { status: 404 }
-      );
+      return NextResponse.json({ error: "Client not found" }, { status: 404 });
     }
 
-    // Create new response
+    // שמור את התשובות
     const response = await prisma.questionnaireResponse.create({
       data: {
-        templateId,
         clientId,
-        therapistId: session.user.id,
-        answers: [],
-        status: "IN_PROGRESS",
+        templateId,
+        responses,
       },
       include: {
         template: true,
       },
     });
 
-    return NextResponse.json(response, { status: 201 });
+    return NextResponse.json(response);
   } catch (error) {
-    console.error("Error creating questionnaire response:", error);
+    console.error("Error saving questionnaire response:", error);
     return NextResponse.json(
-      { error: "Failed to create questionnaire response" },
+      { error: "Failed to save response" },
+      { status: 500 }
+    );
+  }
+}
+
+// GET - קבל תשובות של לקוח
+export async function GET(req: NextRequest) {
+  try {
+    const session = await getServerSession(authOptions);
+    if (!session?.user?.id) {
+      return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
+    }
+
+    const { searchParams } = new URL(req.url);
+    const clientId = searchParams.get("clientId");
+
+    if (!clientId) {
+      return NextResponse.json({ error: "Client ID required" }, { status: 400 });
+    }
+
+    // בדוק שהלקוח שייך למטפל
+    const client = await prisma.client.findFirst({
+      where: {
+        id: clientId,
+        therapistId: session.user.id,
+      },
+    });
+
+    if (!client) {
+      return NextResponse.json({ error: "Client not found" }, { status: 404 });
+    }
+
+    const responses = await prisma.questionnaireResponse.findMany({
+      where: { clientId },
+      include: {
+        template: true,
+      },
+      orderBy: {
+        filledAt: "desc",
+      },
+    });
+
+    return NextResponse.json(responses);
+  } catch (error) {
+    console.error("Error fetching questionnaire responses:", error);
+    return NextResponse.json(
+      { error: "Failed to fetch responses" },
       { status: 500 }
     );
   }

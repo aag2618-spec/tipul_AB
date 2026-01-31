@@ -82,7 +82,7 @@ async function getClient(clientId: string, userId: string) {
         orderBy: { createdAt: "desc" },
       },
       questionnaireResponses: {
-        orderBy: { completedAt: "desc" },
+        orderBy: { filledAt: "desc" },
         include: {
           template: true,
         },
