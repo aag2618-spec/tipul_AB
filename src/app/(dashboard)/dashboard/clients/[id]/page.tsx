@@ -49,6 +49,7 @@ import {
 } from "@/components/ui/dropdown-menu";
 import { SummariesTab } from "@/components/clients/summaries-tab";
 import { SendReminderButton } from "@/components/clients/send-reminder-button";
+import { SendPaymentHistoryButton } from "@/components/clients/send-payment-history-button";
 import { TodaySessionCard } from "@/components/dashboard/today-session-card";
 import { AddCreditDialog } from "@/components/clients/add-credit-dialog";
 import { PaymentHistoryItem } from "@/components/payments/payment-history-item";
@@ -608,11 +609,18 @@ export default async function ClientPage({
                       <CardTitle>היסטוריית תשלומים</CardTitle>
                       <CardDescription>כל התשלומים שנרשמו במערכת</CardDescription>
                     </div>
-                    <AddCreditDialog
-                      clientId={client.id}
-                      clientName={client.name}
-                      currentCredit={Number(client.creditBalance)}
-                    />
+                    <div className="flex items-center gap-2">
+                      <SendPaymentHistoryButton
+                        clientId={client.id}
+                        clientEmail={client.email}
+                        hasPayments={client.payments.length > 0}
+                      />
+                      <AddCreditDialog
+                        clientId={client.id}
+                        clientName={client.name}
+                        currentCredit={Number(client.creditBalance)}
+                      />
+                    </div>
                   </div>
                 </CardHeader>
                 <CardContent>
