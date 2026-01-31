@@ -232,7 +232,7 @@ export default function PaymentsPage() {
                 <CardContent className="flex flex-col items-center justify-center py-12">
                   <CheckCircle className="h-16 w-16 text-green-500 mb-4 opacity-50" />
                   <p className="text-lg font-medium">
-                    {searchTerm ? "לא נמצאו תוצאות לחיפוש" : "אין תשלומים ממתינים! 🎉"}
+                    {searchTerm ? "לא נמצאו תוצאות לחיפוש" : "אין תשלומים ממתינים"}
                   </p>
                 </CardContent>
               </Card>
@@ -253,7 +253,7 @@ export default function PaymentsPage() {
                         <div className="flex-1">
                           <h3 className="font-semibold">{payment.clientName}</h3>
                           <p className="text-sm text-muted-foreground">
-                            פגישה מתאריך {format(new Date(payment.date), "dd/MM/yyyy")}
+                            פגישה מ-{format(new Date(payment.date), "dd/MM/yyyy")}
                           </p>
                         </div>
                         <div className="text-left">
@@ -262,7 +262,7 @@ export default function PaymentsPage() {
                           </div>
                           {payment.creditBalance > 0 && (
                             <p className="text-xs text-green-600">
-                              קרדיט: ₪{payment.creditBalance.toFixed(0)}
+                              קרדיט זמין: ₪{payment.creditBalance.toFixed(0)}
                             </p>
                           )}
                         </div>
@@ -354,10 +354,10 @@ export default function PaymentsPage() {
               <SelectContent>
                 <SelectItem value="all">הצג הכל ({clients.length})</SelectItem>
                 <SelectItem value="debts">
-                  רק חובות ({clients.filter((c) => c.totalDebt > 0).length})
+                  חובות בלבד ({clients.filter((c) => c.totalDebt > 0).length})
                 </SelectItem>
                 <SelectItem value="credits">
-                  רק קרדיט ({clients.filter((c) => c.creditBalance > 0).length})
+                  קרדיט בלבד ({clients.filter((c) => c.creditBalance > 0).length})
                 </SelectItem>
               </SelectContent>
             </Select>
@@ -370,8 +370,8 @@ export default function PaymentsPage() {
               <CheckCircle className="h-16 w-16 text-green-500 mb-4 opacity-50" />
               <p className="text-lg font-medium">
                 {searchTerm ? "לא נמצאו תוצאות לחיפוש" : 
-                  filter === "debts" ? "אין חובות פתוחים! 🎉" :
-                  filter === "credits" ? "אין מטופלים עם קרדיט זמין" :
+                  filter === "debts" ? "אין חובות פתוחים" :
+                  filter === "credits" ? "אין מטופלים עם קרדיט" :
                   "אין מטופלים במערכת"}
               </p>
             </CardContent>
@@ -424,13 +424,13 @@ export default function PaymentsPage() {
 
                     {client.unpaidSessionsCount > 0 && (
                       <p className="text-sm text-muted-foreground">
-                        {client.unpaidSessionsCount} פגישות שטרם שולמו
+                        {client.unpaidSessionsCount} פגישות שלא שולמו
                         {client.creditBalance > 0 &&
                           client.totalDebt > 0 &&
                           ` (ניתן לשלם ₪${Math.min(
                             client.creditBalance,
                             client.totalDebt
-                          ).toFixed(0)} בקרדיט)`}
+                          ).toFixed(0)} מקרדיט זמין)`}
                       </p>
                     )}
                   </div>

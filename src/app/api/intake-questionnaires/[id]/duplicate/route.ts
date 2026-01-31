@@ -2,6 +2,7 @@ import { NextRequest, NextResponse } from "next/server";
 import { getServerSession } from "next-auth";
 import { authOptions } from "@/lib/auth";
 import prisma from "@/lib/prisma";
+import { Prisma } from "@prisma/client";
 
 // POST - שכפל שאלון
 export async function POST(
@@ -32,7 +33,7 @@ export async function POST(
         userId: session.user.id,
         name: `${original.name} (עותק)`,
         description: original.description,
-        questions: original.questions,
+        questions: original.questions as Prisma.InputJsonValue,
         isDefault: false,
       },
     });

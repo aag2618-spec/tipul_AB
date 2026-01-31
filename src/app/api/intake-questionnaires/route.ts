@@ -2,6 +2,7 @@ import { NextRequest, NextResponse } from "next/server";
 import { getServerSession } from "next-auth";
 import { authOptions } from "@/lib/auth";
 import prisma from "@/lib/prisma";
+import { Prisma } from "@prisma/client";
 
 // GET - קבל את כל השאלונים של המטפל
 export async function GET() {
@@ -65,7 +66,7 @@ export async function POST(req: NextRequest) {
         userId: session.user.id,
         name,
         description,
-        questions,
+        questions: questions as Prisma.InputJsonValue,
         isDefault: isDefault || false,
       },
     });
