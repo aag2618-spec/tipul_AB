@@ -11,7 +11,7 @@ interface ChildPayment {
   id: string;
   amount: number | { toNumber: () => number };
   method: string;
-  paidAt: Date | string;
+  paidAt: Date | string | null;
 }
 
 interface Payment {
@@ -90,7 +90,7 @@ export function PaymentHistoryItem({ payment }: PaymentHistoryItemProps) {
       : 'createdAt' in payment 
         ? payment.createdAt 
         : new Date();
-    return new Date(date);
+    return date ? new Date(date) : new Date();
   };
 
   const getPercentage = (amt: number) => {
