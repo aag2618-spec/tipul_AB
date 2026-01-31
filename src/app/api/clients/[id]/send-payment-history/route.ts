@@ -91,7 +91,10 @@ export async function POST(
     }
 
     // Calculate total
-    const totalPaid = payments.reduce((sum, p) => sum + p.amount, 0);
+    const totalPaid = payments.reduce((sum, p) => {
+      const amount = typeof p.amount === 'number' ? p.amount : Number(p.amount);
+      return sum + amount;
+    }, 0);
 
     // Get therapist communication settings
     const communicationSettings = await prisma.communicationSetting.findUnique(
@@ -106,8 +109,8 @@ export async function POST(
       therapistName: session.user.name || "המטפל/ת",
       payments: payments.map((p) => ({
         id: p.id,
-        amount: p.amount,
-        expectedAmount: p.expectedAmount,
+        amount: typeof p.amount === 'number' ? p.amount : Number(p.amount),
+        expectedAmount: typeof p.expectedAmount === 'number' ? p.expectedAmount : Number(p.expectedAmount),
         method: p.method,
         paidAt: p.paidAt,
         session: p.session
