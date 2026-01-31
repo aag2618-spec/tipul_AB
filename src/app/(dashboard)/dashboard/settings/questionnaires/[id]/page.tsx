@@ -322,7 +322,8 @@ export default function EditQuestionnairePage({
                     onChange={(e) => {
                       const options = e.target.value
                         .split("\n")
-                        .filter((opt) => opt.trim());
+                        .map((opt) => opt.trim())
+                        .filter((opt) => opt.length > 0);
                       updateQuestion(question.id, { options });
                     }}
                     rows={4}
