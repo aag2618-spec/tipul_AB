@@ -175,28 +175,32 @@ export default function IntegrationsPage() {
     }
   };
 
-  const providerInfo: Record<string, { name: string; description: string; icon: any; features: string[] }> = {
+  const providerInfo: Record<string, { name: string; description: string; logo?: string; icon: any; features: string[] }> = {
     MESHULAM: {
       name: 'Meshulam',
       description: 'סליקת אשראי + הנפקת קבלות',
+      logo: 'https://www.meshulam.co.il/wp-content/uploads/2021/03/logo.svg',
       icon: CreditCard,
       features: ['💳 סליקת אשראי', '🧾 קבלות אוטומטיות', '🔗 תשלום בקישור'],
     },
     ICOUNT: {
       name: 'iCount',
       description: 'הנפקת קבלות (יש תוכנית חינמית!)',
+      logo: 'https://www.icount.co.il/images/logo.svg',
       icon: FileText,
       features: ['🧾 קבלות מקצועיות', '📊 דוחות', '✅ חינמי עד 25/חודש'],
     },
     GREEN_INVOICE: {
       name: 'חשבונית ירוקה',
       description: 'הנפקת קבלות (ממשק יפה)',
+      logo: 'https://www.greeninvoice.co.il/wp-content/themes/greeninvoice/images/logo.svg',
       icon: FileText,
       features: ['🧾 קבלות מעוצבות', '📱 ממשק נוח', '🎨 הכי יפה'],
     },
     SUMIT: {
       name: 'Sumit',
       description: 'קבלות + סליקה במקום אחד',
+      logo: 'https://sumit.co.il/wp-content/uploads/2022/08/logo.svg',
       icon: CreditCard,
       features: ['💳 סליקה', '🧾 קבלות', '🔧 Developer Friendly'],
     },
@@ -357,8 +361,22 @@ export default function IntegrationsPage() {
                   <CardHeader>
                     <div className="flex items-center justify-between">
                       <div className="flex items-center gap-3">
-                        <div className="h-10 w-10 rounded-lg bg-primary/10 flex items-center justify-center">
-                          <Icon className="h-5 w-5 text-primary" />
+                        <div className="h-12 w-12 rounded-lg bg-white dark:bg-slate-800 border border-slate-200 dark:border-slate-700 flex items-center justify-center p-2">
+                          {info.logo ? (
+                            <img 
+                              src={info.logo} 
+                              alt={info.name}
+                              className="w-full h-full object-contain"
+                              onError={(e) => {
+                                // Fallback to icon if logo fails to load
+                                const target = e.target as HTMLImageElement;
+                                target.style.display = 'none';
+                                const icon = target.nextSibling as HTMLElement;
+                                if (icon) icon.style.display = 'block';
+                              }}
+                            />
+                          ) : null}
+                          <Icon className={`h-5 w-5 text-primary ${info.logo ? 'hidden' : ''}`} />
                         </div>
                         <div>
                           <CardTitle className="text-base flex items-center gap-2">
