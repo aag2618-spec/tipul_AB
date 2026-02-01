@@ -11,7 +11,7 @@ import { Label } from "@/components/ui/label";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
 import { Switch } from "@/components/ui/switch";
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
-import { Plus, Loader2, Calendar, Repeat, Settings, Waves, Trash2 } from "lucide-react";
+import { Plus, Loader2, Calendar, Repeat, Settings, Waves, Trash2, User, FileText, Clock } from "lucide-react";
 import { format, addWeeks } from "date-fns";
 import { toast } from "sonner";
 import type { EventClickArg } from "@fullcalendar/core";
