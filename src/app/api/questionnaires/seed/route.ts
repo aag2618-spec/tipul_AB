@@ -2,8 +2,9 @@ import { NextRequest, NextResponse } from "next/server";
 import { getServerSession } from "next-auth";
 import { authOptions } from "@/lib/auth";
 import prisma from "@/lib/prisma";
+import { additionalQuestionnaires } from "@/lib/additional-questionnaires";
 
-// Questionnaire definitions
+// Questionnaire definitions - ORIGINAL + NEW
 const questionnaires = [
   {
     code: "BDI2",
@@ -1356,7 +1357,10 @@ const questionnaires = [
         { min: 51, max: 68, label: "חמור מאוד", description: "חרדה חברתית חמורה מאוד" }
       ]
     }
-  }
+  },
+  
+  // ==================== ADDITIONAL QUESTIONNAIRES ====================
+  ...additionalQuestionnaires
 ];
 
 // POST - Seed questionnaires to database
