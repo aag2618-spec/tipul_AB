@@ -188,6 +188,8 @@ export default function CalendarPage() {
           ? "var(--primary)"
           : session.status === "NO_SHOW"
           ? "#FED7AA"
+          : session.status === "SCHEDULED" && new Date(session.endTime) < new Date()
+          ? "#FEF3C7"
           : "var(--accent)",
     borderColor:
       session.type === "BREAK"
@@ -196,6 +198,8 @@ export default function CalendarPage() {
         ? "var(--primary)"
         : session.status === "NO_SHOW"
         ? "#DC2626"
+        : session.status === "SCHEDULED" && new Date(session.endTime) < new Date()
+        ? "#F59E0B"
         : session.status === "CANCELLED"
         ? "var(--destructive)"
         : "var(--primary)",
@@ -1261,7 +1265,96 @@ export default function CalendarPage() {
                       </button>
                     </div>
                   </>
-                )}
+                ) : selectedSession.status === "COMPLETED" ? (
+                  <>
+                    {/* כפתורים לפגישה שהושלמה */}
+                    <div className="space-y-2">
+                      <Button
+                        onClick={() => {
+                          setIsSessionDialogOpen(false);
+                          window.location.href = `/dashboard/clients/${selectedSession.client?.id}`;
+                        }}
+                        className="w-full gap-2"
+                      >
+                        <User className="h-4 w-4" />
+                        תיקית מטופל
+                      </Button>
+                      <Button
+                        onClick={() => {
+                          setIsSessionDialogOpen(false);
+                          window.location.href = `/dashboard/sessions/${selectedSession.id}`;
+                        }}
+                        className="w-full gap-2"
+                        variant="outline"
+                      >
+                        <FileText className="h-4 w-4" />
+                        סיכום פגישה
+                      </Button>
+                      {/* כפתור תשלום דינמי */}
+                      <Button
+                        onClick={() => {
+                          setIsSessionDialogOpen(false);
+                          if (selectedSession.client) {
+                            if (selectedSession.payment?.id) {
+                              window.location.href = `/dashboard/payments/${selectedSession.payment.id}/mark-paid`;
+                            } else {
+                              window.location.href = `/dashboard/payments/pay/${selectedSession.client.id}`;
+                            }
+                          }
+                        }}
+                        className="w-full gap-2"
+                        variant="outline"
+                      >
+                        <Clock className="h-4 w-4" />
+                        רשום תשלום / הצג קבלה
+                      </Button>
+                    </div>
+                  </>
+                ) : selectedSession.status === "NO_SHOW" ? (
+                  <>
+                    {/* כפתורים לאי הופעה */}
+                    <div className="space-y-2">
+                      <Button
+                        onClick={() => {
+                          setIsSessionDialogOpen(false);
+                          window.location.href = `/dashboard/clients/${selectedSession.client?.id}`;
+                        }}
+                        className="w-full gap-2"
+                      >
+                        <User className="h-4 w-4" />
+                        תיקית מטופל
+                      </Button>
+                      <Button
+                        onClick={() => {
+                          setIsSessionDialogOpen(false);
+                          window.location.href = `/dashboard/sessions/${selectedSession.id}`;
+                        }}
+                        className="w-full gap-2"
+                        variant="outline"
+                      >
+                        <FileText className="h-4 w-4" />
+                        הוסף הערה
+                      </Button>
+                      {selectedSession.client && (
+                        <Button
+                          onClick={() => {
+                            setIsSessionDialogOpen(false);
+                            if (selectedSession.payment?.id) {
+                              window.location.href = `/dashboard/payments/${selectedSession.payment.id}/mark-paid`;
+                            } else {
+                              window.location.href = `/dashboard/payments/pay/${selectedSession.client.id}`;
+                            }
+                          }}
+                          className="w-full gap-2"
+                          variant="outline"
+                        >
+                          <Clock className="h-4 w-4" />
+                          רשום תשלום
+                        </Button>
+                      )}
+                    </div>
+                  </>
+                ) : null}
               </div>
             </div>
           )}

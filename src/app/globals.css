@@ -407,3 +407,11 @@
   box-shadow: 0 2px 8px rgba(220, 38, 38, 0.3) !important;
   font-weight: 600 !important;
 }
+
+/* FullCalendar overdue sessions (past date, not reported) - yellow dashed border */
+.fc-event[style*="border-color: rgb(245, 158, 11)"],
+.fc-event[style*="border-color:#F59E0B"] {
+  border-width: 2px !important;
+  border-style: dashed !important;
+  box-shadow: 0 2px 6px rgba(245, 158, 11, 0.25) !important;
+}
