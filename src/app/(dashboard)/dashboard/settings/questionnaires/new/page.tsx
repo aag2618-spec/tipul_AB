@@ -366,17 +366,12 @@ export default function NewQuestionnairePage() {
                         .filter((opt) => opt.length > 0);
                       updateQuestion(question.id, { options });
                     }}
-                    onKeyDown={(e) => {
-                      if (e.key === 'Enter') {
-                        e.stopPropagation();
-                      }
-                    }}
                     rows={6}
                     className="font-mono text-sm"
                   />
                   <p className="text-xs text-muted-foreground bg-muted/30 p-2 rounded">
                     💡 <strong>{question.options?.length || 0} אופציות</strong> • 
-                    המטופל יראה רשימה נפתחת ויבחר אחת מהן
+                    תראה רשימה נפתחת ותבחר אחת מהן במילוי השאלון
                   </p>
                 </div>
               )}
