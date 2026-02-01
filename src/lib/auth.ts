@@ -102,7 +102,7 @@ export const authOptions: NextAuthOptions = {
     async session({ session, token }) {
       if (session.user) {
         session.user.id = token.id as string;
-        session.user.role = token.role as "USER" | "ADMIN";
+        session.user.role = token.role as "USER" | "MANAGER" | "ADMIN";
       }
       return session;
     },
@@ -112,7 +112,7 @@ export const authOptions: NextAuthOptions = {
 // Extend NextAuth types
 declare module "next-auth" {
   interface User {
-    role?: "USER" | "ADMIN";
+    role?: "USER" | "MANAGER" | "ADMIN";
   }
   
   interface Session {
@@ -121,7 +121,7 @@ declare module "next-auth" {
       name?: string | null;
       email?: string | null;
       image?: string | null;
-      role: "USER" | "ADMIN";
+      role: "USER" | "MANAGER" | "ADMIN";
     };
   }
 }
@@ -129,6 +129,6 @@ declare module "next-auth" {
 declare module "next-auth/jwt" {
   interface JWT {
     id: string;
-    role?: "USER" | "ADMIN";
+    role?: "USER" | "MANAGER" | "ADMIN";
   }
 }
