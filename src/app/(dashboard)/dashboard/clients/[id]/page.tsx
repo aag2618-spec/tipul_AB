@@ -185,7 +185,15 @@ export default async function ClientPage({
                     ? "outline"
                     : "outline"
                 }
-                className={client.status === "WAITING" ? "bg-amber-100 text-amber-800" : ""}
+                className={
+                  client.status === "ACTIVE" 
+                    ? "bg-emerald-50 text-emerald-900 font-semibold border border-emerald-200" 
+                    : client.status === "WAITING" 
+                    ? "bg-amber-50 text-amber-900 font-semibold border border-amber-200" 
+                    : client.status === "INACTIVE"
+                    ? "bg-slate-50 text-slate-900 font-semibold border border-slate-200"
+                    : "bg-purple-50 text-purple-900 font-semibold border border-purple-200"
+                }
               >
                 {client.status === "ACTIVE"
                   ? "פעיל"

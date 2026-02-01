@@ -264,7 +264,7 @@ export default function PayClientPage({ params }: { params: Promise<{ clientId: 
                   ₪{client.totalDebt.toFixed(0)}
                 </span>
                 {client.creditBalance > 0 && (
-                  <Badge className="bg-blue-100 text-blue-700 border-blue-200">
+                  <Badge className="bg-blue-50 text-blue-900 font-semibold border border-blue-200">
                     קרדיט: ₪{client.creditBalance.toFixed(0)}
                   </Badge>
                 )}
@@ -405,7 +405,7 @@ export default function PayClientPage({ params }: { params: Promise<{ clientId: 
           <CardTitle className="flex items-center justify-between">
             <span>סיכום חוב</span>
             {client.creditBalance > 0 && (
-              <Badge className="bg-green-100 text-green-700 border-green-200">
+              <Badge className="bg-green-50 text-green-900 font-semibold border border-green-200">
                 קרדיט זמין: ₪{client.creditBalance.toFixed(0)}
               </Badge>
             )}

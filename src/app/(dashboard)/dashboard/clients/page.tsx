@@ -50,27 +50,27 @@ async function getClientCounts(userId: string) {
 const statusConfig: Record<ClientStatus, { label: string; bgColor: string; textColor: string; borderColor: string }> = {
   ACTIVE: { 
     label: "פעילים", 
-    bgColor: "bg-emerald-100", 
-    textColor: "text-emerald-700", 
-    borderColor: "border-emerald-300" 
+    bgColor: "bg-emerald-50", 
+    textColor: "text-emerald-900 font-semibold", 
+    borderColor: "border-emerald-200" 
   },
   WAITING: { 
     label: "ממתינים", 
-    bgColor: "bg-amber-100", 
-    textColor: "text-amber-700", 
-    borderColor: "border-amber-300" 
+    bgColor: "bg-amber-50", 
+    textColor: "text-amber-900 font-semibold", 
+    borderColor: "border-amber-200" 
   },
   INACTIVE: { 
     label: "לא פעילים", 
-    bgColor: "bg-slate-100", 
-    textColor: "text-slate-700", 
-    borderColor: "border-slate-300" 
+    bgColor: "bg-slate-50", 
+    textColor: "text-slate-900 font-semibold", 
+    borderColor: "border-slate-200" 
   },
   ARCHIVED: { 
     label: "ארכיון", 
-    bgColor: "bg-purple-100", 
-    textColor: "text-purple-700", 
-    borderColor: "border-purple-300" 
+    bgColor: "bg-purple-50", 
+    textColor: "text-purple-900 font-semibold", 
+    borderColor: "border-purple-200" 
   },
 };
 
@@ -101,13 +101,13 @@ export default async function ClientsPage({ searchParams }: PageProps) {
   const getStatusBadge = (status: string) => {
     switch (status) {
       case "ACTIVE":
-        return <Badge className="bg-emerald-100 text-emerald-700 hover:bg-emerald-200">פעיל</Badge>;
+        return <Badge className="bg-emerald-50 text-emerald-900 font-semibold hover:bg-emerald-100 border border-emerald-200">פעיל</Badge>;
       case "WAITING":
-        return <Badge className="bg-amber-100 text-amber-700 hover:bg-amber-200">ממתין</Badge>;
+        return <Badge className="bg-amber-50 text-amber-900 font-semibold hover:bg-amber-100 border border-amber-200">ממתין</Badge>;
       case "INACTIVE":
-        return <Badge variant="secondary">לא פעיל</Badge>;
+        return <Badge className="bg-slate-50 text-slate-900 font-semibold hover:bg-slate-100 border border-slate-200">לא פעיל</Badge>;
       case "ARCHIVED":
-        return <Badge variant="outline">בארכיון</Badge>;
+        return <Badge className="bg-purple-50 text-purple-900 font-semibold hover:bg-purple-100 border border-purple-200">בארכיון</Badge>;
       default:
         return null;
     }

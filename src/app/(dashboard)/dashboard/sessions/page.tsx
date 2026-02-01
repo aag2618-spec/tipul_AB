@@ -148,7 +148,7 @@ export default async function SessionsPage() {
                         </div>
                         <div className="flex items-center gap-2">
                           {therapySession.payment?.status === "PAID" ? (
-                            <Badge className="bg-green-100 text-green-700 border-green-200">
+                            <Badge className="bg-green-50 text-green-900 font-semibold border border-green-200">
                               <CheckCircle className="h-3 w-3 ml-1" />
                               שולם
                             </Badge>
@@ -241,7 +241,7 @@ export default async function SessionsPage() {
                         <div className="flex items-center gap-2">
                           {/* Badges */}
                           {therapySession.payment?.status === "PAID" ? (
-                            <Badge className="bg-green-100 text-green-700 border-green-200">
+                            <Badge className="bg-green-50 text-green-900 font-semibold border border-green-200">
                               <CheckCircle className="h-3 w-3 ml-1" />
                               שולם
                             </Badge>
@@ -398,14 +398,14 @@ export default async function SessionsPage() {
                           )}
                           
                           {therapySession.sessionNote && (
-                            <Badge className="bg-green-100 text-green-700 border-green-200">
+                            <Badge className="bg-green-50 text-green-900 font-semibold border border-green-200">
                               <CheckCircle className="h-3 w-3 ml-1" />
                               סוכם
                             </Badge>
                           )}
                           
                           {therapySession.payment?.status === "PAID" && (
-                            <Badge className="bg-blue-100 text-blue-700 border-blue-200">
+                            <Badge className="bg-blue-50 text-blue-900 font-semibold border border-blue-200">
                               <CheckCircle className="h-3 w-3 ml-1" />
                               שולם
                             </Badge>
@@ -494,14 +494,14 @@ export default async function SessionsPage() {
                           )}
                           
                           {therapySession.sessionNote && (
-                            <Badge className="bg-green-100 text-green-700 border-green-200">
+                            <Badge className="bg-green-50 text-green-900 font-semibold border border-green-200">
                               <CheckCircle className="h-3 w-3 ml-1" />
                               סוכם
                             </Badge>
                           )}
                           
                           {therapySession.payment?.status === "PAID" && (
-                            <Badge className="bg-blue-100 text-blue-700 border-blue-200">
+                            <Badge className="bg-blue-50 text-blue-900 font-semibold border border-blue-200">
                               <CheckCircle className="h-3 w-3 ml-1" />
                               שולם
                             </Badge>
@@ -595,14 +595,14 @@ export default async function SessionsPage() {
                           )}
                           
                           {therapySession.sessionNote && (
-                            <Badge className="bg-green-100 text-green-700 border-green-200">
+                            <Badge className="bg-green-50 text-green-900 font-semibold border border-green-200">
                               <CheckCircle className="h-3 w-3 ml-1" />
                               סוכם
                             </Badge>
                           )}
                           
                           {therapySession.payment?.status === "PAID" && (
-                            <Badge className="bg-blue-100 text-blue-700 border-blue-200">
+                            <Badge className="bg-blue-50 text-blue-900 font-semibold border border-blue-200">
                               <CheckCircle className="h-3 w-3 ml-1" />
                               שולם
                             </Badge>
@@ -696,14 +696,14 @@ export default async function SessionsPage() {
                           )}
                           
                           {therapySession.sessionNote && (
-                            <Badge className="bg-green-100 text-green-700 border-green-200">
+                            <Badge className="bg-green-50 text-green-900 font-semibold border border-green-200">
                               <CheckCircle className="h-3 w-3 ml-1" />
                               סוכם
                             </Badge>
                           )}
                           
                           {therapySession.payment?.status === "PAID" && (
-                            <Badge className="bg-blue-100 text-blue-700 border-blue-200">
+                            <Badge className="bg-blue-50 text-blue-900 font-semibold border border-blue-200">
                               <CheckCircle className="h-3 w-3 ml-1" />
                               שולם
                             </Badge>

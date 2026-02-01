@@ -278,7 +278,7 @@ export function PaymentHistoryItem({ payment }: PaymentHistoryItemProps) {
                     return (
                       <div key={child.id} className="flex items-center justify-between text-sm bg-white rounded p-2">
                         <div className="flex items-center gap-2">
-                          <span className={`${isLast ? 'bg-green-100 text-green-700' : 'bg-yellow-100 text-yellow-700'} font-semibold px-2 py-0.5 rounded text-xs`}>
+                          <span className={`${isLast ? 'bg-green-50 text-green-900 border border-green-200' : 'bg-yellow-50 text-yellow-900 border border-yellow-200'} font-semibold px-2 py-0.5 rounded text-xs`}>
                             #{index + 2}
                           </span>
                           <span className={isLast ? 'text-green-700' : 'text-yellow-700'}>

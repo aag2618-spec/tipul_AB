@@ -393,7 +393,7 @@ export default function PaymentsPage() {
                         </Badge>
                       )}
                       {client.creditBalance > 0 && (
-                        <Badge className="bg-green-100 text-green-700 border-green-200">
+                        <Badge className="bg-green-50 text-green-900 font-semibold border border-green-200">
                           <CheckCircle className="h-3 w-3 ml-1" />
                           קרדיט
                         </Badge>
