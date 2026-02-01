@@ -150,7 +150,7 @@ const settingsItems = [
 export function AppSidebar({ user }: AppSidebarProps) {
   const pathname = usePathname();
   const { data: session } = useSession();
-  const isAdmin = session?.user?.role === "ADMIN";
+  const isAdmin = session?.user?.role === "ADMIN" || session?.user?.role === "MANAGER";
   const [pendingCancellations, setPendingCancellations] = useState(0);
 
   // Fetch pending cancellation requests count

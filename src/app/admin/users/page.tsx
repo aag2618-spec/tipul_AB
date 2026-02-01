@@ -60,7 +60,7 @@ interface User {
   name: string | null;
   email: string | null;
   phone: string | null;
-  role: "USER" | "ADMIN";
+  role: "USER" | "MANAGER" | "ADMIN";
   isBlocked: boolean;
   createdAt: string;
   _count: {
@@ -82,7 +82,7 @@ export default function AdminUsersPage() {
     email: "",
     password: "",
     phone: "",
-    role: "USER" as "USER" | "ADMIN",
+    role: "USER" as "USER" | "MANAGER" | "ADMIN",
   });
   const [isSaving, setIsSaving] = useState(false);
 
@@ -271,7 +271,7 @@ export default function AdminUsersPage() {
                 <Label>תפקיד</Label>
                 <Select
                   value={formData.role}
-                  onValueChange={(value: "USER" | "ADMIN") => 
+                  onValueChange={(value: "USER" | "MANAGER" | "ADMIN") => 
                     setFormData({ ...formData, role: value })
                   }
                 >
@@ -280,7 +280,8 @@ export default function AdminUsersPage() {
                   </SelectTrigger>
                   <SelectContent>
                     <SelectItem value="USER">משתמש</SelectItem>
-                    <SelectItem value="ADMIN">מנהל</SelectItem>
+                    <SelectItem value="MANAGER">מנהל (ניהול)</SelectItem>
+                    <SelectItem value="ADMIN">מנהל מלא</SelectItem>
                   </SelectContent>
                 </Select>
               </div>
@@ -363,11 +364,19 @@ export default function AdminUsersPage() {
                     </TableCell>
                     <TableCell>
                       <Badge 
-                        variant={user.role === "ADMIN" ? "default" : "secondary"}
-                        className={user.role === "ADMIN" ? "bg-amber-500/20 text-amber-500" : ""}
+                        variant={user.role === "ADMIN" ? "default" : user.role === "MANAGER" ? "secondary" : "outline"}
+                        className={
+                          user.role === "ADMIN" 
+                            ? "bg-amber-500/20 text-amber-500" 
+                            : user.role === "MANAGER"
+                            ? "bg-blue-500/20 text-blue-500"
+                            : ""
+                        }
                       >
                         {user.role === "ADMIN" ? (
-                          <><Shield className="ml-1 h-3 w-3" /> מנהל</>
+                          <><Shield className="ml-1 h-3 w-3" /> מנהל מלא</>
+                        ) : user.role === "MANAGER" ? (
+                          <><Shield className="ml-1 h-3 w-3" /> ניהול</>
                         ) : (
                           <><UserIcon className="ml-1 h-3 w-3" /> משתמש</>
                         )}
