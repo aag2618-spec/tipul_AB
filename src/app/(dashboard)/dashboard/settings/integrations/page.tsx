@@ -5,9 +5,41 @@ import { signIn } from 'next-auth/react';
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/components/ui/card';
 import { Button } from '@/components/ui/button';
 import { Badge } from '@/components/ui/badge';
+import { Input } from '@/components/ui/input';
+import { Label } from '@/components/ui/label';
+import { Switch } from '@/components/ui/switch';
 import { toast } from 'sonner';
-import { Calendar, Mail, Link as LinkIcon, Unlink, CheckCircle, AlertCircle } from 'lucide-react';
+import { 
+  Calendar, 
+  Mail, 
+  Link as LinkIcon, 
+  Unlink, 
+  CheckCircle, 
+  AlertCircle, 
+  CreditCard,
+  FileText,
+  Settings as SettingsIcon,
+  Eye,
+  EyeOff
+} from 'lucide-react';
 import Link from 'next/link';
+import {
+  Dialog,
+  DialogContent,
+  DialogDescription,
+  DialogFooter,
+  DialogHeader,
+  DialogTitle,
+} from '@/components/ui/dialog';
+
+interface BillingProvider {
+  id: string;
+  provider: string;
+  displayName: string;
+  isActive: boolean;
+  isPrimary: boolean;
+  lastSyncAt: string | null;
+}
 
 export default function IntegrationsPage() {
   const [googleConnected, setGoogleConnected] = useState(false);
@@ -15,8 +47,19 @@ export default function IntegrationsPage() {
   const [loading, setLoading] = useState(true);
   const [disconnecting, setDisconnecting] = useState(false);
 
+  // Billing providers state
+  const [billingProviders, setBillingProviders] = useState<BillingProvider[]>([]);
+  const [showBillingDialog, setShowBillingDialog] = useState(false);
+  const [selectedProvider, setSelectedProvider] = useState<string | null>(null);
+  const [apiKey, setApiKey] = useState('');
+  const [apiSecret, setApiSecret] = useState('');
+  const [showApiKey, setShowApiKey] = useState(false);
+  const [showApiSecret, setShowApiSecret] = useState(false);
+  const [saving, setSaving] = useState(false);
+
   useEffect(() => {
     checkGoogleConnection();
+    fetchBillingProviders();
   }, []);
 
   const checkGoogleConnection = async () => {
@@ -31,6 +74,18 @@ export default function IntegrationsPage() {
       console.error('Error checking Google connection:', error);
     } finally {
       setLoading(false);
+    }
+  };
+
+  const fetchBillingProviders = async () => {
+    try {
+      const res = await fetch('/api/integrations/billing');
+      if (res.ok) {
+        const data = await res.json();
+        setBillingProviders(data);
+      }
+    } catch (error) {
+      console.error('Error fetching billing providers:', error);
     }
   };
 
@@ -58,6 +113,97 @@ export default function IntegrationsPage() {
     } finally {
       setDisconnecting(false);
     }
+  };
+
+  const openBillingDialog = (provider: string) => {
+    setSelectedProvider(provider);
+    setApiKey('');
+    setApiSecret('');
+    setShowApiKey(false);
+    setShowApiSecret(false);
+    setShowBillingDialog(true);
+  };
+
+  const saveBillingProvider = async () => {
+    if (!selectedProvider || !apiKey) {
+      toast.error('יש למלא את כל השדות');
+      return;
+    }
+
+    setSaving(true);
+    try {
+      const res = await fetch('/api/integrations/billing', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({
+          provider: selectedProvider,
+          apiKey,
+          apiSecret: apiSecret || null,
+        }),
+      });
+
+      if (res.ok) {
+        toast.success('הספק נוסף בהצלחה!');
+        setShowBillingDialog(false);
+        fetchBillingProviders();
+      } else {
+        const error = await res.json();
+        toast.error(error.error || 'שגיאה בשמירה');
+      }
+    } catch (error) {
+      console.error('Error saving billing provider:', error);
+      toast.error('שגיאה בשמירה');
+    } finally {
+      setSaving(false);
+    }
+  };
+
+  const disconnectBillingProvider = async (id: string) => {
+    if (!confirm('האם אתה בטוח שברצונך לנתק את הספק?')) return;
+
+    try {
+      const res = await fetch(`/api/integrations/billing/${id}`, { method: 'DELETE' });
+      if (res.ok) {
+        toast.success('הספק נותק בהצלחה');
+        fetchBillingProviders();
+      } else {
+        toast.error('שגיאה בניתוק');
+      }
+    } catch (error) {
+      console.error('Error disconnecting billing provider:', error);
+      toast.error('שגיאה בניתוק');
+    }
+  };
+
+  const providerInfo: Record<string, { name: string; description: string; icon: any; features: string[] }> = {
+    MESHULAM: {
+      name: 'Meshulam',
+      description: 'סליקת אשראי + הנפקת קבלות',
+      icon: CreditCard,
+      features: ['💳 סליקת אשראי', '🧾 קבלות אוטומטיות', '🔗 תשלום בקישור'],
+    },
+    ICOUNT: {
+      name: 'iCount',
+      description: 'הנפקת קבלות (יש תוכנית חינמית!)',
+      icon: FileText,
+      features: ['🧾 קבלות מקצועיות', '📊 דוחות', '✅ חינמי עד 25/חודש'],
+    },
+    GREEN_INVOICE: {
+      name: 'חשבונית ירוקה',
+      description: 'הנפקת קבלות (ממשק יפה)',
+      icon: FileText,
+      features: ['🧾 קבלות מעוצבות', '📱 ממשק נוח', '🎨 הכי יפה'],
+    },
+    SUMIT: {
+      name: 'Sumit',
+      description: 'קבלות + סליקה במקום אחד',
+      icon: CreditCard,
+      features: ['💳 סליקה', '🧾 קבלות', '🔧 Developer Friendly'],
+    },
+  };
+
+  const connectedProvider = (providerType: string) => {
+    return billingProviders.find(p => p.provider === providerType && p.isActive);
   };
 
   if (loading) {
@@ -113,7 +259,7 @@ export default function IntegrationsPage() {
                   <CardTitle className="flex items-center gap-2">
                     Google Calendar
                     {googleConnected ? (
-                      <Badge variant="default" className="bg-green-100 text-green-800">
+                      <Badge variant="default" className="bg-emerald-50 text-emerald-900 font-semibold border border-emerald-200">
                         <CheckCircle className="h-3 w-3 ml-1" />
                         מחובר
                       </Badge>
@@ -190,6 +336,117 @@ export default function IntegrationsPage() {
           </CardContent>
         </Card>
 
+        {/* Billing & Receipt Providers */}
+        <div className="space-y-4">
+          <div className="flex items-center justify-between">
+            <div>
+              <h2 className="text-xl font-semibold">חיוב וקבלות</h2>
+              <p className="text-sm text-muted-foreground">
+                חבר את המערכת שלך להנפקת קבלות וסליקת אשראי
+              </p>
+            </div>
+          </div>
+
+          <div className="grid gap-4 md:grid-cols-2">
+            {Object.entries(providerInfo).map(([key, info]) => {
+              const connected = connectedProvider(key);
+              const Icon = info.icon;
+              
+              return (
+                <Card key={key} className="relative">
+                  <CardHeader>
+                    <div className="flex items-center justify-between">
+                      <div className="flex items-center gap-3">
+                        <div className="h-10 w-10 rounded-lg bg-primary/10 flex items-center justify-center">
+                          <Icon className="h-5 w-5 text-primary" />
+                        </div>
+                        <div>
+                          <CardTitle className="text-base flex items-center gap-2">
+                            {info.name}
+                            {connected ? (
+                              <Badge className="bg-emerald-50 text-emerald-900 font-semibold border border-emerald-200">
+                                <CheckCircle className="h-3 w-3 ml-1" />
+                                מחובר
+                              </Badge>
+                            ) : (
+                              <Badge variant="outline" className="text-xs">
+                                לא מחובר
+                              </Badge>
+                            )}
+                          </CardTitle>
+                          <CardDescription className="text-xs">
+                            {info.description}
+                          </CardDescription>
+                        </div>
+                      </div>
+                    </div>
+                  </CardHeader>
+                  <CardContent>
+                    <div className="space-y-3">
+                      <ul className="text-sm space-y-1">
+                        {info.features.map((feature, idx) => (
+                          <li key={idx} className="text-muted-foreground">{feature}</li>
+                        ))}
+                      </ul>
+                      
+                      {connected ? (
+                        <div className="flex gap-2 pt-2">
+                          <Button
+                            variant="outline"
+                            size="sm"
+                            className="flex-1"
+                            onClick={() => openBillingDialog(key)}
+                          >
+                            <SettingsIcon className="h-3 w-3 ml-1" />
+                            הגדרות
+                          </Button>
+                          <Button
+                            variant="outline"
+                            size="sm"
+                            className="text-destructive hover:text-destructive"
+                            onClick={() => disconnectBillingProvider(connected.id)}
+                          >
+                            <Unlink className="h-3 w-3 ml-1" />
+                            נתק
+                          </Button>
+                        </div>
+                      ) : (
+                        <Button
+                          className="w-full"
+                          size="sm"
+                          onClick={() => openBillingDialog(key)}
+                        >
+                          <LinkIcon className="h-3 w-3 ml-1" />
+                          התחבר
+                        </Button>
+                      )}
+                    </div>
+                  </CardContent>
+                </Card>
+              );
+            })}
+          </div>
+
+          <Card className="bg-blue-50 border-blue-200 dark:bg-blue-950/20">
+            <CardContent className="pt-6">
+              <div className="flex gap-3">
+                <AlertCircle className="h-5 w-5 text-blue-600 mt-0.5" />
+                <div className="text-sm space-y-1">
+                  <p className="font-semibold text-blue-900 dark:text-blue-300">
+                    💡 חשוב לדעת:
+                  </p>
+                  <ul className="text-blue-800 dark:text-blue-400 space-y-1 mr-4">
+                    <li>• כל ספק דורש פתיחת חשבון אצלו (רוב מציעים ניסיון חינם)</li>
+                    <li>• ה-API Key נשמר מוצפן ומאובטח במערכת</li>
+                    <li>• התשלומים והקבלות מנוהלים ישירות מהחשבון שלך</li>
+                    <li>• אתה יכול להחליף ספק בכל עת</li>
+                  </ul>
+                </div>
+              </div>
+            </CardContent>
+          </Card>
+        </div>
+
         {/* Email Integration Info */}
         <Card>
           <CardHeader>
@@ -228,6 +485,109 @@ export default function IntegrationsPage() {
           </CardContent>
         </Card>
       </div>
+
+      {/* Billing Provider Dialog */}
+      <Dialog open={showBillingDialog} onOpenChange={setShowBillingDialog}>
+        <DialogContent className="max-w-md">
+          <DialogHeader>
+            <DialogTitle>
+              חיבור {selectedProvider && providerInfo[selectedProvider]?.name}
+            </DialogTitle>
+            <DialogDescription>
+              הזן את פרטי ה-API שלך. המידע נשמר מוצפן ומאובטח.
+            </DialogDescription>
+          </DialogHeader>
+
+          <div className="space-y-4 py-4">
+            <div className="space-y-2">
+              <Label htmlFor="apiKey">API Key *</Label>
+              <div className="relative">
+                <Input
+                  id="apiKey"
+                  type={showApiKey ? 'text' : 'password'}
+                  value={apiKey}
+                  onChange={(e) => setApiKey(e.target.value)}
+                  placeholder="הדבק את ה-API Key שלך"
+                  className="pl-10"
+                />
+                <Button
+                  type="button"
+                  variant="ghost"
+                  size="sm"
+                  className="absolute left-0 top-0 h-full px-3"
+                  onClick={() => setShowApiKey(!showApiKey)}
+                >
+                  {showApiKey ? <EyeOff className="h-4 w-4" /> : <Eye className="h-4 w-4" />}
+                </Button>
+              </div>
+            </div>
+
+            {(selectedProvider === 'MESHULAM' || selectedProvider === 'SUMIT') && (
+              <div className="space-y-2">
+                <Label htmlFor="apiSecret">API Secret</Label>
+                <div className="relative">
+                  <Input
+                    id="apiSecret"
+                    type={showApiSecret ? 'text' : 'password'}
+                    value={apiSecret}
+                    onChange={(e) => setApiSecret(e.target.value)}
+                    placeholder="הדבק את ה-API Secret (אופציונלי)"
+                    className="pl-10"
+                  />
+                  <Button
+                    type="button"
+                    variant="ghost"
+                    size="sm"
+                    className="absolute left-0 top-0 h-full px-3"
+                    onClick={() => setShowApiSecret(!showApiSecret)}
+                  >
+                    {showApiSecret ? <EyeOff className="h-4 w-4" /> : <Eye className="h-4 w-4" />}
+                  </Button>
+                </div>
+              </div>
+            )}
+
+            <div className="bg-blue-50 border border-blue-200 rounded-lg p-3 text-sm dark:bg-blue-950/20 dark:border-blue-800">
+              <p className="font-semibold text-blue-900 dark:text-blue-300 mb-2">
+                📖 איך למצוא את ה-API Key?
+              </p>
+              {selectedProvider === 'MESHULAM' && (
+                <ol className="text-blue-800 dark:text-blue-400 space-y-1 mr-4 list-decimal">
+                  <li>היכנס ל-<a href="https://secure.meshulam.co.il" target="_blank" className="underline">Meshulam</a></li>
+                  <li>לחץ על "הגדרות" → "API"</li>
+                  <li>העתק את ה-"Page Code" או "API Key"</li>
+                  <li>הדבק כאן</li>
+                </ol>
+              )}
+              {selectedProvider === 'ICOUNT' && (
+                <ol className="text-blue-800 dark:text-blue-400 space-y-1 mr-4 list-decimal">
+                  <li>היכנס ל-<a href="https://www.icount.co.il" target="_blank" className="underline">iCount</a></li>
+                  <li>לחץ על "הגדרות" → "API"</li>
+                  <li>צור API Token חדש</li>
+                  <li>העתק והדבק כאן</li>
+                </ol>
+              )}
+              {selectedProvider === 'GREEN_INVOICE' && (
+                <ol className="text-blue-800 dark:text-blue-400 space-y-1 mr-4 list-decimal">
+                  <li>היכנס ל-<a href="https://www.greeninvoice.co.il" target="_blank" className="underline">חשבונית ירוקה</a></li>
+                  <li>הגדרות → אינטגרציות → API</li>
+                  <li>צור מפתח חדש</li>
+                  <li>העתק והדבק כאן</li>
+                </ol>
+              )}
+            </div>
+          </div>
+
+          <DialogFooter>
+            <Button variant="outline" onClick={() => setShowBillingDialog(false)}>
+              ביטול
+            </Button>
+            <Button onClick={saveBillingProvider} disabled={!apiKey || saving}>
+              {saving ? 'שומר...' : 'שמור וחבר'}
+            </Button>
+          </DialogFooter>
+        </DialogContent>
+      </Dialog>
     </div>
   );
 }

@@ -27,6 +27,9 @@ interface CommunicationSettings {
   debtReminderDayOfMonth: number;
   debtReminderMinAmount: number;
   sendPaymentReceipt: boolean;
+  sendReceiptToClient: boolean;
+  sendReceiptToTherapist: boolean;
+  receiptEmailTemplate: string | null;
   paymentInstructions: string | null;
   paymentLink: string | null;
   emailSignature: string | null;
@@ -47,6 +50,9 @@ export default function CommunicationSettingsPage() {
     debtReminderDayOfMonth: 1,
     debtReminderMinAmount: 50,
     sendPaymentReceipt: false,
+    sendReceiptToClient: true,
+    sendReceiptToTherapist: false,
+    receiptEmailTemplate: null,
     paymentInstructions: null,
     paymentLink: null,
     emailSignature: null,
@@ -355,16 +361,73 @@ export default function CommunicationSettingsPage() {
             </div>
 
             {settings.sendPaymentReceipt && (
-              <div className="bg-blue-50 border border-blue-200 rounded-lg p-4">
-                <p className="text-sm text-blue-800">
-                  <strong>💡 מה יקרה:</strong> כאשר תרשום תשלום במערכת, המטופל יקבל מייל אוטומטי עם:
-                </p>
-                <ul className="text-sm text-blue-800 mt-2 mr-4 space-y-1">
-                  <li>✓ סכום התשלום ואמצעי התשלום</li>
-                  <li>✓ תאריך ושעת הפגישה</li>
-                  <li>✓ פירוט יתרת חוב (אם קיימת)</li>
-                  <li>✓ קרדיט זמין (אם קיים)</li>
-                </ul>
+              <div className="space-y-4">
+                <div className="bg-blue-50 border border-blue-200 rounded-lg p-4 dark:bg-blue-950/20 dark:border-blue-800">
+                  <p className="text-sm text-blue-800 dark:text-blue-300">
+                    <strong>💡 מה יקרה:</strong> כאשר תרשום תשלום במערכת (מזומן/אשראי/העברה), המערכת תשלח קבלה אוטומטית:
+                  </p>
+                </div>
+
+                {/* שליחה למטופל */}
+                <div className="flex items-center justify-between p-3 bg-muted rounded-lg">
+                  <div className="flex items-center gap-3">
+                    <Mail className="h-4 w-4 text-muted-foreground" />
+                    <div>
+                      <Label htmlFor="sendReceiptToClient" className="font-medium cursor-pointer">
+                        שלח קבלה למטופל
+                      </Label>
+                      <p className="text-xs text-muted-foreground">
+                        המטופל יקבל קבלה למייל שלו
+                      </p>
+                    </div>
+                  </div>
+                  <Switch
+                    id="sendReceiptToClient"
+                    checked={settings.sendReceiptToClient}
+                    onCheckedChange={(checked) =>
+                      setSettings({ ...settings, sendReceiptToClient: checked })
+                    }
+                  />
+                </div>
+
+                {/* עותק למטפל */}
+                <div className="flex items-center justify-between p-3 bg-muted rounded-lg">
+                  <div className="flex items-center gap-3">
+                    <Mail className="h-4 w-4 text-muted-foreground" />
+                    <div>
+                      <Label htmlFor="sendReceiptToTherapist" className="font-medium cursor-pointer">
+                        שלח עותק אלי (למטפל)
+                      </Label>
+                      <p className="text-xs text-muted-foreground">
+                        תקבל עותק של הקבלה למייל שלך
+                      </p>
+                    </div>
+                  </div>
+                  <Switch
+                    id="sendReceiptToTherapist"
+                    checked={settings.sendReceiptToTherapist}
+                    onCheckedChange={(checked) =>
+                      setSettings({ ...settings, sendReceiptToTherapist: checked })
+                    }
+                  />
+                </div>
+
+                {/* תבנית מותאמת אישית */}
+                <div className="space-y-2">
+                  <Label htmlFor="receiptEmailTemplate">תבנית מייל קבלה (אופציונלי)</Label>
+                  <Textarea
+                    id="receiptEmailTemplate"
+                    value={settings.receiptEmailTemplate || ''}
+                    onChange={(e) =>
+                      setSettings({ ...settings, receiptEmailTemplate: e.target.value })
+                    }
+                    placeholder="תודה רבה על התשלום!\n\nמצורפת קבלה על סך {סכום}.\n\nבברכה,\n{שם_מטפל}"
+                    rows={5}
+                  />
+                  <p className="text-xs text-muted-foreground">
+                    משתנים זמינים: {'{שם_מטופל}'}, {'{סכום}'}, {'{תאריך}'}, {'{שם_מטפל}'}
+                  </p>
+                </div>
               </div>
             )}
           </CardContent>

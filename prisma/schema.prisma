@@ -90,6 +90,7 @@ model User {
   consentForms          ConsentForm[]
   insurerSettings       InsurerSettings?
   insurerReports        InsurerReport[]
+  billingProviders      BillingProvider[]
 }
 
 // ==================== Password Reset ====================
@@ -623,6 +624,9 @@ model CommunicationSetting {
 
   // Payment receipts
   sendPaymentReceipt      Boolean @default(false) // שליחת קבלה אוטומטית אחרי תשלום
+  sendReceiptToClient     Boolean @default(true)  // שלח קבלה למטופל
+  sendReceiptToTherapist  Boolean @default(false) // שלח עותק למטפל
+  receiptEmailTemplate    String? @db.Text        // תבנית מותאמת אישית לקבלה
 
   // Email customization
   paymentInstructions     String? @db.Text // הוראות תשלום מותאמות אישית
@@ -638,6 +642,50 @@ model CommunicationSetting {
 
   userId String @unique
   user   User   @relation(fields: [userId], references: [id], onDelete: Cascade)
+}
+
+// ==================== Billing & Payment Integration ====================
+
+enum BillingProviderType {
+  MESHULAM      // משולם - סליקה + קבלות
+  ICOUNT        // iCount - קבלות בלבד
+  GREEN_INVOICE // חשבונית ירוקה - קבלות בלבד
+  SUMIT         // סאמיט - קבלות + סליקה
+  PAYPLUS       // PayPlus - סליקה בלבד
+  CARDCOM       // CardCom - סליקה בלבד
+  TRANZILA      // טרנזילה - סליקה בלבד
+}
+
+model BillingProvider {
+  id            String              @id @default(cuid())
+  provider      BillingProviderType
+  displayName   String              // שם להצגה (למשל: "Meshulam - חשבון ראשי")
+  
+  // API Credentials (מוצפן!)
+  apiKey        String              @db.Text // ENCRYPTED
+  apiSecret     String?             @db.Text // ENCRYPTED (אופציונלי)
+  webhookSecret String?             @db.Text // לאימות Webhooks
+  
+  // הגדרות נוספות
+  isActive      Boolean             @default(true)
+  isPrimary     Boolean             @default(false) // האם זה הספק הראשי
+  
+  // הגדרות התנהגות
+  settings      Json?               // { discreteMode: true, defaultDescription: "ייעוץ", autoSendReceipt: true }
+  
+  // מטא-דאטה
+  lastSyncAt    DateTime?           // מתי התבצע סנכרון אחרון
+  lastError     String?             @db.Text
+  createdAt     DateTime            @default(now())
+  updatedAt     DateTime            @updatedAt
+  
+  // קשר למשתמש
+  userId        String
+  user          User                @relation(fields: [userId], references: [id], onDelete: Cascade)
+  
+  @@index([userId])
+  @@index([provider])
+  @@index([userId, isPrimary])
 }
 
 // ==================== Coupon System ====================
