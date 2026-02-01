@@ -349,20 +349,12 @@ export default function NewQuestionnairePage() {
                     </span>
                   </Label>
                   <Textarea
-                    placeholder="אופציה 1: רווק&#10;אופציה 2: נשוי&#10;אופציה 3: גרוש&#10;אופציה 4: אלמן"
-                    value={
-                      question.options
-                        ? question.options.map((opt, i) => `אופציה ${i + 1}: ${opt}`).join("\n")
-                        : ""
-                    }
+                    placeholder="רווק&#10;נשוי&#10;גרוש&#10;אלמן"
+                    value={question.options?.join("\n") || ""}
                     onChange={(e) => {
                       const options = e.target.value
                         .split("\n")
-                        .map((line) => {
-                          // Remove "אופציה X: " prefix if exists
-                          const match = line.match(/^אופציה \d+:\s*(.+)$/);
-                          return match ? match[1].trim() : line.trim();
-                        })
+                        .map((line) => line.trim())
                         .filter((opt) => opt.length > 0);
                       updateQuestion(question.id, { options });
                     }}
