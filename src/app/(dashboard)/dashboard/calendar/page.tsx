@@ -186,12 +186,16 @@ export default function CalendarPage() {
           ? "var(--chart-2)"
           : session.status === "COMPLETED"
           ? "var(--primary)"
+          : session.status === "NO_SHOW"
+          ? "#FED7AA"
           : "var(--accent)",
     borderColor:
       session.type === "BREAK"
         ? "var(--chart-2)"
         : session.status === "COMPLETED"
         ? "var(--primary)"
+        : session.status === "NO_SHOW"
+        ? "#DC2626"
         : session.status === "CANCELLED"
         ? "var(--destructive)"
         : "var(--primary)",

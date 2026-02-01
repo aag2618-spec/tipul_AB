@@ -398,3 +398,12 @@
   border: none !important;
   box-shadow: 0 4px 6px rgba(0, 150, 150, 0.15);
 }
+
+/* FullCalendar NO_SHOW events - bold red border */
+.fc-event[style*="border-color: rgb(220, 38, 38)"],
+.fc-event[style*="border-color:#DC2626"] {
+  border-width: 3px !important;
+  border-style: solid !important;
+  box-shadow: 0 2px 8px rgba(220, 38, 38, 0.3) !important;
+  font-weight: 600 !important;
+}
