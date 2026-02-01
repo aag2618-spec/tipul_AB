@@ -1178,7 +1178,7 @@ export default function CalendarPage() {
                       🗑️ מחק הפסקה
                     </Button>
                   </>
-                ) : selectedSession.status === "SCHEDULED" && (
+                ) : selectedSession.status === "SCHEDULED" ? (
                   <>
                     <div className="border rounded-lg divide-y">
                       <p className="text-sm font-medium text-center py-2 bg-muted/50">בחר פעולה:</p>
