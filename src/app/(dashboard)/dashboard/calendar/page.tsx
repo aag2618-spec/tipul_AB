@@ -1038,6 +1038,28 @@ export default function CalendarPage() {
           
           {selectedSession && (
             <div className="space-y-4">
+              {/* Status Badge */}
+              <div className="flex items-center gap-2 pb-2 border-b">
+                <p className="text-sm text-muted-foreground">סטטוס:</p>
+                <span className={`inline-flex items-center px-3 py-1 rounded-full text-sm font-medium ${
+                  selectedSession.status === "COMPLETED" 
+                    ? "bg-green-100 text-green-800" 
+                    : selectedSession.status === "NO_SHOW"
+                    ? "bg-red-100 text-red-800"
+                    : selectedSession.status === "CANCELLED"
+                    ? "bg-gray-100 text-gray-800"
+                    : "bg-blue-100 text-blue-800"
+                }`}>
+                  {selectedSession.status === "COMPLETED" 
+                    ? "✅ הושלם" 
+                    : selectedSession.status === "NO_SHOW"
+                    ? "⚠️ אי הופעה"
+                    : selectedSession.status === "CANCELLED"
+                    ? "❌ בוטל"
+                    : "🕐 מתוכנן"}
+                </span>
+              </div>
+
               <div className="grid grid-cols-2 gap-4">
                 <div>
                   <p className="text-sm text-muted-foreground">סוג</p>
