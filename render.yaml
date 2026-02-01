@@ -25,3 +25,45 @@ services:
         sync: false
       - key: UPLOADS_DIR
         value: /opt/render/project/uploads
+      - key: CRON_SECRET
+        sync: false
+
+  # Cron job for 24-hour session reminders (runs every hour)
+  - type: cron
+    name: session-reminders-24h
+    runtime: node
+    region: frankfurt
+    plan: free
+    schedule: "0 * * * *"  # Every hour at minute 0
+    buildCommand: echo "No build needed"
+    startCommand: |
+      curl -X GET "$RENDER_EXTERNAL_URL/api/cron/reminders" \
+        -H "Authorization: Bearer $CRON_SECRET"
+    envVars:
+      - key: RENDER_EXTERNAL_URL
+        fromService:
+          type: web
+          name: tipul-app
+          property: url
+      - key: CRON_SECRET
+        sync: false
+
+  # Cron job for 2-hour session reminders (runs every 15 minutes)
+  - type: cron
+    name: session-reminders-2h
+    runtime: node
+    region: frankfurt
+    plan: free
+    schedule: "*/15 * * * *"  # Every 15 minutes
+    buildCommand: echo "No build needed"
+    startCommand: |
+      curl -X GET "$RENDER_EXTERNAL_URL/api/cron/reminders-2h" \
+        -H "Authorization: Bearer $CRON_SECRET"
+    envVars:
+      - key: RENDER_EXTERNAL_URL
+        fromService:
+          type: web
+          name: tipul-app
+          property: url
+      - key: CRON_SECRET
+        sync: false
