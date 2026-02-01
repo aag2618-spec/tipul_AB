@@ -352,9 +352,10 @@ export default function EditQuestionnairePage({
                     </span>
                   </Label>
                   <Textarea
-                    placeholder="רווק&#10;נשוי&#10;גרוש&#10;אלמן"
-                    value={question.options?.join("\n") || ""}
+                    placeholder="כתוב כל אופציה בשורה נפרדת:&#10;רווק&#10;נשוי&#10;גרוש&#10;אלמן"
+                    defaultValue={question.options?.join("\n") || ""}
                     onChange={(e) => {
+                      // עדכון רק כשיוצאים מהשדה
                       const options = e.target.value
                         .split("\n")
                         .map((line) => line.trim())
