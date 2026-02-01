@@ -363,8 +363,9 @@ export default function NewQuestionnairePage() {
                     className="font-mono text-sm"
                   />
                   <p className="text-xs text-muted-foreground bg-muted/30 p-2 rounded">
-                    💡 <strong>{question.options?.length || 0} אופציות</strong> • 
-                    תראה רשימה נפתחת ותבחר אחת מהן במילוי השאלון
+                    💡 <strong>{question.options?.length || 0} תשובות אפשריות לשאלה זו</strong>
+                    <br />
+                    כשתמלא את השאלון, תבחר אחת מהן
                   </p>
                 </div>
               )}
