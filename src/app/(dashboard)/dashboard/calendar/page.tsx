@@ -1294,7 +1294,7 @@ export default function CalendarPage() {
                       <Button
                         onClick={() => {
                           setIsSessionDialogOpen(false);
-                          if (selectedSession.client) {
+                          if (selectedSession.client?.id) {
                             window.location.href = `/dashboard/payments/pay/${selectedSession.client.id}`;
                           }
                         }}
@@ -1335,7 +1335,9 @@ export default function CalendarPage() {
                         <Button
                           onClick={() => {
                             setIsSessionDialogOpen(false);
-                            window.location.href = `/dashboard/payments/pay/${selectedSession.client.id}`;
+                            if (selectedSession.client?.id) {
+                              window.location.href = `/dashboard/payments/pay/${selectedSession.client.id}`;
+                            }
                           }}
                           className="w-full gap-2"
                           variant="outline"
