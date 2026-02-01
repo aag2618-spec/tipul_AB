@@ -1295,11 +1295,7 @@ export default function CalendarPage() {
                         onClick={() => {
                           setIsSessionDialogOpen(false);
                           if (selectedSession.client) {
-                            if (selectedSession.payment?.id) {
-                              window.location.href = `/dashboard/payments/${selectedSession.payment.id}/mark-paid`;
-                            } else {
-                              window.location.href = `/dashboard/payments/pay/${selectedSession.client.id}`;
-                            }
+                            window.location.href = `/dashboard/payments/pay/${selectedSession.client.id}`;
                           }
                         }}
                         className="w-full gap-2"
@@ -1339,11 +1335,7 @@ export default function CalendarPage() {
                         <Button
                           onClick={() => {
                             setIsSessionDialogOpen(false);
-                            if (selectedSession.payment?.id) {
-                              window.location.href = `/dashboard/payments/${selectedSession.payment.id}/mark-paid`;
-                            } else {
-                              window.location.href = `/dashboard/payments/pay/${selectedSession.client.id}`;
-                            }
+                            window.location.href = `/dashboard/payments/pay/${selectedSession.client.id}`;
                           }}
                           className="w-full gap-2"
                           variant="outline"
