@@ -364,7 +364,7 @@ export default function FillQuestionnairePage() {
           {/* Standard multiple choice */}
           {currentQuestion.options && currentQuestion.options.length > 0 && (
             <RadioGroup
-              value={answers[currentIndex]?.value?.toString()}
+              value={answers[currentIndex]?.value?.toString() || ""}
               onValueChange={(value: string) => {
                 const numValue = parseInt(value);
                 const option = currentQuestion.options?.find(o => o.value === numValue);
@@ -567,17 +567,26 @@ export default function FillQuestionnairePage() {
         </CardHeader>
         <CardContent className="pb-4">
           <div className="flex flex-wrap gap-2">
-            {questions.map((q, index) => (
-              <Button
-                key={index}
-                variant={currentIndex === index ? "default" : answers[index] ? "secondary" : "outline"}
-                size="sm"
-                className="w-8 h-8 p-0"
-                onClick={() => setCurrentIndex(index)}
-              >
-                {index + 1}
-              </Button>
-            ))}
+            {questions.map((q, index) => {
+              const isAnswered = answers[index] !== undefined;
+              const isCurrent = currentIndex === index;
+              
+              return (
+                <Button
+                  key={index}
+                  variant={isCurrent ? "default" : isAnswered ? "secondary" : "outline"}
+                  size="sm"
+                  className={`w-8 h-8 p-0 ${
+                    !isAnswered && !isCurrent 
+                      ? "border-2 border-orange-400 bg-orange-50 hover:bg-orange-100 text-orange-700 font-bold" 
+                      : ""
+                  }`}
+                  onClick={() => setCurrentIndex(index)}
+                >
+                  {index + 1}
+                </Button>
+              );
+            })}
           </div>
         </CardContent>
       </Card>
