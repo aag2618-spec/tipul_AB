@@ -84,19 +84,19 @@ const testTypeLabels: Record<string, string> = {
 };
 
 const categoryColors: Record<string, string> = {
-  "דיכאון": "bg-blue-500 text-white",
-  "חרדה": "bg-yellow-500 text-white",
-  "טראומה": "bg-red-500 text-white",
-  "השלכתי": "bg-purple-500 text-white",
-  "אינטליגנציה": "bg-green-500 text-white",
-  "נוירופסיכולוגי": "bg-orange-500 text-white",
-  "ילדים": "bg-pink-500 text-white",
-  "הורים": "bg-indigo-500 text-white",
-  "הפרעות אכילה": "bg-rose-500 text-white",
-  "שינה": "bg-cyan-500 text-white",
-  "הפרעות אישיות": "bg-violet-500 text-white",
-  "העברות בין-דוריות": "bg-amber-500 text-white",
-  "נוספים": "bg-slate-500 text-white",
+  "דיכאון": "bg-slate-700 text-white border-slate-600",
+  "חרדה": "bg-blue-700 text-white border-blue-600",
+  "טראומה": "bg-red-800 text-white border-red-700",
+  "השלכתי": "bg-purple-800 text-white border-purple-700",
+  "אינטליגנציה": "bg-emerald-700 text-white border-emerald-600",
+  "נוירופסיכולוגי": "bg-orange-700 text-white border-orange-600",
+  "ילדים": "bg-teal-700 text-white border-teal-600",
+  "הורים": "bg-indigo-800 text-white border-indigo-700",
+  "הפרעות אכילה": "bg-rose-800 text-white border-rose-700",
+  "שינה": "bg-sky-800 text-white border-sky-700",
+  "הפרעות אישיות": "bg-violet-800 text-white border-violet-700",
+  "העברות בין-דוריות": "bg-amber-800 text-white border-amber-700",
+  "נוספים": "bg-gray-700 text-white border-gray-600",
 };
 
 export default function QuestionnairesPage() {
@@ -229,15 +229,15 @@ export default function QuestionnairesPage() {
 
           {Object.entries(groupedTemplates).map(([category, categoryTemplates]) => (
             <div key={category} className="space-y-4 mb-8">
-              {/* Category Header - מודגש יותר */}
-              <div className="flex items-center gap-3 pb-3 border-b-2 border-primary/20">
+              {/* Category Header - מקצועי ומעודן */}
+              <div className="flex items-center gap-3 pb-2 border-b border-slate-200 dark:border-slate-700">
                 <Badge 
-                  className={`text-base font-bold py-2 px-4 ${categoryColors[category] || "bg-gray-100 text-gray-800"}`}
+                  className={`text-sm font-semibold py-1.5 px-4 shadow-sm ${categoryColors[category] || "bg-gray-700 text-white border-gray-600"}`}
                 >
                   {category}
                 </Badge>
-                <span className="text-base font-medium text-muted-foreground">
-                  ({categoryTemplates.length} שאלונים)
+                <span className="text-sm text-slate-600 dark:text-slate-400">
+                  {categoryTemplates.length} שאלונים
                 </span>
               </div>
 
