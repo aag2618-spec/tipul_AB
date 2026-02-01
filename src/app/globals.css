@@ -136,9 +136,18 @@
     font-feature-settings: "kern" 1;
   }
   
+  /* Force RTL text alignment for Hebrew content */
+  .prose,
+  .whitespace-pre-wrap,
+  p, div, span, li, td, th {
+    text-align: right;
+    direction: rtl;
+  }
+  
   /* RTL adjustments */
   [dir="ltr"] {
     direction: ltr;
+    text-align: left;
   }
   
   /* Smooth scrolling */
