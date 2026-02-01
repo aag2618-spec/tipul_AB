@@ -20,6 +20,7 @@ import {
   Shield,
   ArrowLeft,
   Ticket,
+  ClipboardList,
 } from "lucide-react";
 
 const adminNavItems = [
@@ -32,6 +33,11 @@ const adminNavItems = [
     href: "/admin/users",
     label: "ניהול משתמשים",
     icon: Users,
+  },
+  {
+    href: "/admin/questionnaires",
+    label: "שאלונים",
+    icon: ClipboardList,
   },
   {
     href: "/admin/coupons",

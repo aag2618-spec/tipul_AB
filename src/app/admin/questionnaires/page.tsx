@@ -96,7 +96,7 @@ export default function AdminQuestionnairesPage() {
   }
 
   return (
-    <div className="container mx-auto py-8" dir="rtl">
+    <div className="space-y-6 animate-fade-in">
       <div className="max-w-3xl mx-auto">
         <h1 className="text-3xl font-bold mb-2">ניהול שאלונים</h1>
         <p className="text-muted-foreground mb-8">
