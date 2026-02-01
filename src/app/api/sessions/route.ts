@@ -173,10 +173,23 @@ export async function POST(request: NextRequest) {
       },
       include: {
         client: {
-          select: { id: true, name: true },
+          select: { id: true, name: true, email: true },
         },
       },
     });
+
+    // Send confirmation email (skip for BREAK and if client has no email)
+    if (type !== "BREAK" && therapySession.client?.email) {
+      // Fire and forget - don't wait for email to send
+      fetch(`${request.nextUrl.origin}/api/sessions/send-confirmation`, {
+        method: "POST",
+        headers: {
+          "Content-Type": "application/json",
+          cookie: request.headers.get("cookie") || "",
+        },
+        body: JSON.stringify({ sessionId: therapySession.id }),
+      }).catch((err) => console.error("Failed to send confirmation:", err));
+    }
 
     // Create a task to write summary after session (skip for BREAK)
     if (type !== "BREAK") {
