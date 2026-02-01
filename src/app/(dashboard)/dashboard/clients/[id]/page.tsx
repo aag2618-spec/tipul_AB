@@ -579,7 +579,7 @@ export default async function ClientPage({
                                       ? "הושלם"
                                       : session.status === "CANCELLED"
                                       ? "בוטל"
-                                      : "לא הגיע"}
+                                      : "אי הופעה"}
                                   </Badge>
                                 </div>
                                 <div className="flex items-center gap-4 text-sm text-muted-foreground">

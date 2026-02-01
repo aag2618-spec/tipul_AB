@@ -273,7 +273,7 @@ export default function SessionDetailPage({
                   status === "CANCELLED" ? "destructive" : "secondary"
                 } className="text-base px-4 py-2">
                   {status === "COMPLETED" ? "✅ הושלם" :
-                   status === "CANCELLED" ? "❌ בוטל" : "⚠️ לא הגיע"}
+                   status === "CANCELLED" ? "❌ בוטל" : "⚠️ אי הופעה"}
                 </Badge>
               </CardContent>
             </Card>
@@ -314,7 +314,7 @@ export default function SessionDetailPage({
             } className="mt-1">
               {status === "SCHEDULED" ? "מתוכנן" :
                status === "COMPLETED" ? "הושלם" :
-               status === "CANCELLED" ? "בוטל" : "לא הגיע"}
+               status === "CANCELLED" ? "בוטל" : "אי הופעה"}
             </Badge>
           </CardContent>
         </Card>

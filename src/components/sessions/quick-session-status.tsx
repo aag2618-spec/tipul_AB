@@ -40,7 +40,7 @@ export function QuickSessionStatus({
           status === "COMPLETED"
             ? "הפגישה סומנה כהושלמה"
             : status === "NO_SHOW"
-            ? "סומן כ'לא הגיע'"
+            ? "סומן כ'אי הופעה'"
             : "הפגישה בוטלה"
         );
         router.refresh();
@@ -87,13 +87,13 @@ export function QuickSessionStatus({
             disabled={isLoading}
           >
             <XCircle className="h-3 w-3 ml-1" />
-            לא הגיע
+            אי הופעה
           </Button>
         </DropdownMenuTrigger>
         <DropdownMenuContent align="end">
           <DropdownMenuItem onClick={() => updateSessionStatus("NO_SHOW")}>
             <XCircle className="h-4 w-4 ml-2" />
-            לא הגיע לפגישה
+            אי הופעה לפגישה
           </DropdownMenuItem>
           <DropdownMenuItem onClick={() => updateSessionStatus("CANCELLED")}>
             <PauseCircle className="h-4 w-4 ml-2" />

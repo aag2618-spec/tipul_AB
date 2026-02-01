@@ -1278,7 +1278,7 @@ export default function CalendarPage() {
             <DialogDescription>
               {pendingAction === "CANCELLED" 
                 ? "הפגישה בוטלה. האם ברצונך לחייב את המטופל בתשלום?"
-                : "המטופל לא הגיע לפגישה. האם ברצונך לחייב אותו בתשלום?"}
+                : "המטופל נעדר מהפגישה. האם ברצונך לחייב אותו בתשלום?"}
             </DialogDescription>
           </DialogHeader>
           <DialogFooter className="flex-row-reverse gap-2">
@@ -1335,7 +1335,7 @@ export default function CalendarPage() {
                   setIsSessionDialogOpen(false);
                   setPendingAction(null);
                   
-                  toast.success(pendingAction === "CANCELLED" ? "הפגישה בוטלה ללא חיוב" : "נרשם כלא הגיע ללא חיוב");
+                  toast.success(pendingAction === "CANCELLED" ? "הפגישה בוטלה ללא חיוב" : "נרשמה אי הופעה ללא חיוב");
                   fetchData();
                 } catch {
                   toast.error("שגיאה בעדכון הפגישה");

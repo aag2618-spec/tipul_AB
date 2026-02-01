@@ -87,7 +87,7 @@ export function SessionCancellationCard({
       case 'COMPLETED':
         return <Badge variant="outline">הושלם</Badge>;
       case 'NO_SHOW':
-        return <Badge variant="destructive">לא הגיע</Badge>;
+        return <Badge variant="destructive">אי הופעה</Badge>;
       default:
         return <Badge variant="outline">{session.status}</Badge>;
     }

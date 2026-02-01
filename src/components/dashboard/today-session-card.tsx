@@ -396,7 +396,7 @@ export function TodaySessionCard({ session }: TodaySessionCardProps) {
             <DialogDescription>
               {pendingAction === "CANCELLED"
                 ? "הפגישה בוטלה. האם ברצונך לחייב את המטופל בתשלום?"
-                : "המטופל לא הופיע לפגישה. האם ברצונך לחייב אותו בתשלום?"}
+                : "המטופל נעדר מהפגישה. האם ברצונך לחייב אותו בתשלום?"}
             </DialogDescription>
           </DialogHeader>
           <DialogFooter className="gap-2">

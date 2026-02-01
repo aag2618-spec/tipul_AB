@@ -324,7 +324,7 @@ export default function CommunicationSettingsPage() {
                   <p className="text-sm text-blue-800">
                     <strong>💡 מה יקרה:</strong> ב-{settings.debtReminderDayOfMonth} לכל חודש, המערכת תשלח מייל אוטומטי
                     לכל מטופל עם חוב מעל ₪{settings.debtReminderMinAmount}. המייל יכלול פירוט של כל הפגישות שטרם שולמו,
-                    התאריכים, הסטטוס (הופיע/ביטל/לא הופיע), והסכום הכולל.
+                    התאריכים, הסטטוס (הופיע/ביטל/אי הופעה), והסכום הכולל.
                   </p>
                 </div>
               </>

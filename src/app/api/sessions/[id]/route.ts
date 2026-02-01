@@ -118,7 +118,7 @@ export async function PUT(
       },
     });
 
-    // יצירת תשלום אם צריך (הושלם, או ביטול/לא הגיע עם בקשה לחיוב)
+    // יצירת תשלום אם צריך (הושלם, או ביטול/אי הופעה עם בקשה לחיוב)
     const shouldCreatePayment = 
       (status === "COMPLETED" || therapySession.status === "COMPLETED") ||
       (createPayment && (status === "CANCELLED" || status === "NO_SHOW"));
