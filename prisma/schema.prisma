@@ -48,6 +48,7 @@ model VerificationToken {
 
 enum Role {
   USER
+  MANAGER  // משתמש עם הרשאות ניהול
   ADMIN
 }
 

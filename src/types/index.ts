@@ -1,5 +1,7 @@
 // Type definitions for the application
 
+export type UserRole = 'USER' | 'MANAGER' | 'ADMIN';
+
 export interface User {
   id: string;
   name: string | null;
@@ -7,6 +9,7 @@ export interface User {
   image: string | null;
   phone: string | null;
   license: string | null;
+  role?: UserRole;
 }
 
 export interface Client {

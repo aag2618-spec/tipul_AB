@@ -1366,7 +1366,7 @@ const questionnaires = [
 // POST - Seed questionnaires to database
 export async function POST(request: NextRequest) {
   try {
-    // Allow with secret key or session
+    // Allow with secret key or session with ADMIN/MANAGER role
     const secretKey = request.headers.get("x-seed-key");
     const validSecret = process.env.SEED_SECRET || "tipul-seed-2024";
     
@@ -1374,6 +1374,12 @@ export async function POST(request: NextRequest) {
       const session = await getServerSession(authOptions);
       if (!session?.user?.id) {
         return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
+      }
+      
+      // בדיקת הרשאות - רק ADMIN או MANAGER
+      const userRole = (session.user as any)?.role;
+      if (userRole !== "ADMIN" && userRole !== "MANAGER") {
+        return NextResponse.json({ error: "Forbidden - requires ADMIN or MANAGER role" }, { status: 403 });
       }
     }
 

@@ -1,14 +1,34 @@
 "use client";
 
-import { useState } from "react";
+import { useState, useEffect } from "react";
+import { useSession } from "next-auth/react";
+import { useRouter } from "next/navigation";
 import { Button } from "@/components/ui/button";
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
-import { Upload, CheckCircle, XCircle, Loader2 } from "lucide-react";
+import { Upload, CheckCircle, XCircle, Loader2, ShieldAlert } from "lucide-react";
 import { toast } from "sonner";
 
 export default function AdminQuestionnairesPage() {
+  const { data: session, status } = useSession();
+  const router = useRouter();
   const [loading, setLoading] = useState(false);
   const [result, setResult] = useState<any>(null);
+
+  // בדיקת הרשאות - רק ADMIN או MANAGER
+  useEffect(() => {
+    if (status === "loading") return;
+    
+    if (!session) {
+      router.push("/auth/signin");
+      return;
+    }
+
+    const userRole = (session.user as any)?.role;
+    if (userRole !== "ADMIN" && userRole !== "MANAGER") {
+      toast.error("אין לך הרשאה לגשת לדף זה");
+      router.push("/dashboard");
+    }
+  }, [session, status, router]);
 
   const loadQuestionnaires = async () => {
     try {
@@ -39,6 +59,41 @@ export default function AdminQuestionnairesPage() {
       setLoading(false);
     }
   };
+
+  // טוען בזמן בדיקת הרשאות
+  if (status === "loading") {
+    return (
+      <div className="container mx-auto py-8 flex items-center justify-center min-h-[400px]" dir="rtl">
+        <div className="text-center">
+          <Loader2 className="h-8 w-8 animate-spin mx-auto mb-4 text-primary" />
+          <p className="text-muted-foreground">טוען...</p>
+        </div>
+      </div>
+    );
+  }
+
+  // אין הרשאה
+  const userRole = (session?.user as any)?.role;
+  if (userRole !== "ADMIN" && userRole !== "MANAGER") {
+    return (
+      <div className="container mx-auto py-8 flex items-center justify-center min-h-[400px]" dir="rtl">
+        <Card className="max-w-md">
+          <CardContent className="pt-6">
+            <div className="text-center">
+              <ShieldAlert className="h-12 w-12 text-red-500 mx-auto mb-4" />
+              <h2 className="text-xl font-bold mb-2">אין הרשאת גישה</h2>
+              <p className="text-muted-foreground mb-4">
+                דף זה מיועד למשתמשים עם הרשאות ניהול בלבד
+              </p>
+              <Button onClick={() => router.push("/dashboard")}>
+                חזרה לדשבורד
+              </Button>
+            </div>
+          </CardContent>
+        </Card>
+      </div>
+    );
+  }
 
   return (
     <div className="container mx-auto py-8" dir="rtl">
