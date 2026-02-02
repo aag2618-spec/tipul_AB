@@ -21,8 +21,8 @@ async function main() {
   const result = await prisma.user.updateMany({
     where: {
       OR: [
-        { aiTier: null },
-        { maxActiveClients: null },
+        { aiTier: { equals: null } },
+        { maxActiveClients: { equals: null } },
       ]
     },
     data: {
