@@ -1,6 +1,6 @@
 "use client";
 
-import { useEffect, useState, useCallback, useRef } from "react";
+import { useEffect, useState, useCallback } from "react";
 import { useSearchParams } from "next/navigation";
 import dynamic from "next/dynamic";
 import { Button } from "@/components/ui/button";
@@ -102,7 +102,6 @@ export default function CalendarPage() {
   const searchParams = useSearchParams();
   const viewParam = searchParams.get('view');
   const initialCalendarView = viewParam === 'month' ? 'dayGridMonth' : 'timeGridWeek';
-  const calendarRef = useRef<any>(null);
   
   const [sessions, setSessions] = useState<Session[]>([]);
   const [clients, setClients] = useState<Client[]>([]);
@@ -230,9 +229,8 @@ export default function CalendarPage() {
 
   const handleDateClick = (info: DateClickArg) => {
     // אם בתצוגת חודש, עבור לתצוגת שבוע של אותו תאריך
-    const calendarApi = calendarRef.current?.getApi();
-    if (calendarApi && calendarApi.view.type === 'dayGridMonth') {
-      calendarApi.changeView('timeGridWeek', info.date);
+    if (info.view.type === 'dayGridMonth') {
+      info.view.calendar.changeView('timeGridWeek', info.date);
       return;
     }
     
@@ -599,7 +597,6 @@ export default function CalendarPage() {
       <Card>
         <CardContent className="p-4">
           <FullCalendar
-            ref={calendarRef}
             plugins={[dayGridPlugin, timeGridPlugin, interactionPlugin]}
             initialView={initialCalendarView}
             locale="he"
