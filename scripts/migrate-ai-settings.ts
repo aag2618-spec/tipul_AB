@@ -17,16 +17,12 @@ const prisma = new PrismaClient();
 async function main() {
   console.log('🚀 Starting migration...\n');
 
-  // Update all users without aiTier
+  // Update all users without maxActiveClients
   const result = await prisma.user.updateMany({
     where: {
-      OR: [
-        { aiTier: { equals: null } },
-        { maxActiveClients: { equals: null } },
-      ]
+      maxActiveClients: null,
     },
     data: {
-      aiTier: 'ESSENTIAL',
       maxActiveClients: 40,
       analysisStyle: 'professional',
       aiTone: 'formal',
