@@ -14,10 +14,10 @@ export function SubBoxLink({ href, value, label, bgColor, textColor }: SubBoxLin
   return (
     <Link 
       href={href}
-      className={`${bgColor || 'bg-primary/10'} rounded-lg px-3 py-2 text-center relative z-10 block hover:scale-105 transition-transform duration-200`}
+      className={`${bgColor || 'bg-primary/10'} rounded-lg px-3 py-2 text-center relative z-10 block hover:scale-110 transition-all duration-200 shadow-lg hover:shadow-xl border-2 border-white/30`}
     >
       <div className={`text-lg font-bold ${textColor || 'text-primary'}`}>{value}</div>
-      <p className={`text-xs ${textColor ? textColor + '/70' : 'text-primary/70'}`}>{label}</p>
+      <p className={`text-xs font-semibold ${textColor ? textColor : 'text-primary/70'}`}>{label}</p>
     </Link>
   );
 }

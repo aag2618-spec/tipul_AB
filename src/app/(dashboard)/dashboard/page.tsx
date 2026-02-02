@@ -227,8 +227,8 @@ export default async function DashboardPage() {
       subBox: {
         value: stats.sessionsThisMonth,
         label: "תצוגת חודש",
-        bgColor: "bg-green-100/50 dark:bg-green-900/50",
-        textColor: "text-green-700 dark:text-green-300",
+        bgColor: "bg-gradient-to-br from-green-500 to-green-600 dark:from-green-600 dark:to-green-700",
+        textColor: "text-white dark:text-white",
         href: "/dashboard/calendar?view=month",
       },
     },
