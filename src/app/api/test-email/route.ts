@@ -1,44 +1,23 @@
-import { NextResponse } from 'next/server';
-import { sendEmail } from '@/lib/resend';
+import { NextRequest, NextResponse } from "next/server";
+import { getServerSession } from "next-auth";
+import { authOptions } from "@/lib/auth";
 
-export async function POST(request: Request) {
-  try {
-    const { email } = await request.json();
-    
-    if (!email) {
-      return NextResponse.json(
-        { error: 'Email is required' },
-        { status: 400 }
-      );
-    }
-
-    const result = await sendEmail({
-      to: email,
-      subject: '🎉 בדיקת מייל - המערכת עובדת!',
-      html: `
-        <div dir="rtl" style="font-family: Arial, sans-serif; max-width: 600px; margin: 0 auto; padding: 20px;">
-          <h1 style="color: #10b981;">✅ המייל הגיע בהצלחה!</h1>
-          <p style="font-size: 16px; color: #374151;">
-            אם אתה רואה את ההודעה הזו, מערכת המיילים עובדת כמו שצריך.
-          </p>
-          <hr style="border: 1px solid #e5e7eb; margin: 20px 0;" />
-          <p style="font-size: 14px; color: #6b7280;">
-            נשלח מ-Tipul App באמצעות Resend
-          </p>
-        </div>
-      `,
-    });
-
-    return NextResponse.json({ 
-      success: true, 
-      message: 'Email sent successfully',
-      result 
-    });
-  } catch (error) {
-    console.error('Test email error:', error);
-    return NextResponse.json(
-      { error: 'Failed to send email', details: String(error) },
-      { status: 500 }
-    );
+// Test endpoint to check email configuration
+export async function GET(request: NextRequest) {
+  const session = await getServerSession(authOptions);
+  if (!session?.user?.id) {
+    return NextResponse.json({ message: "Unauthorized" }, { status: 401 });
   }
+
+  const hasResendKey = !!process.env.RESEND_API_KEY;
+  const emailFrom = process.env.EMAIL_FROM || "Not set";
+  
+  return NextResponse.json({
+    resendConfigured: hasResendKey,
+    resendKeyLength: hasResendKey ? process.env.RESEND_API_KEY?.length : 0,
+    emailFrom,
+    message: hasResendKey 
+      ? "✅ Resend is configured" 
+      : "❌ RESEND_API_KEY is missing - emails will NOT be sent",
+  });
 }
