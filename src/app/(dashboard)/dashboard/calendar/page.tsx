@@ -605,8 +605,8 @@ export default function CalendarPage() {
               week: "שבוע",
               day: "יום",
             }}
-            slotMinTime="07:00:00"
-            slotMaxTime="22:00:00"
+            slotMinTime="00:00:00"
+            slotMaxTime="24:00:00"
             allDaySlot={false}
             slotDuration="00:30:00"
             events={events}
