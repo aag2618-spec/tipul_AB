@@ -17,31 +17,24 @@ const prisma = new PrismaClient();
 async function main() {
   console.log('🚀 Starting migration...\n');
 
-  // Update all users without maxActiveClients
-  const result = await prisma.user.updateMany({
-    where: {
-      maxActiveClients: null,
-    },
-    data: {
-      maxActiveClients: 40,
-      analysisStyle: 'professional',
-      aiTone: 'formal',
-      therapeuticApproaches: [],
-    }
-  });
+  // Note: All User fields have @default values in schema, so no need to update existing users
+  console.log('ℹ️  All User model fields have default values - skipping user updates');
 
-  console.log(`✅ Updated ${result.count} users with default AI settings`);
+  // Count users by tier (for info)
+  const totalUsers = await prisma.user.count();
+  console.log(`📊 Total users in system: ${totalUsers}`);
 
-  // Count users by tier
-  const tierCounts = await prisma.user.groupBy({
-    by: ['aiTier'],
-    _count: true,
-  });
+  if (totalUsers > 0) {
+    const tierCounts = await prisma.user.groupBy({
+      by: ['aiTier'],
+      _count: true,
+    });
 
-  console.log('\n📊 Current user distribution:');
-  tierCounts.forEach(({ aiTier, _count }) => {
-    console.log(`   ${aiTier}: ${_count} users`);
-  });
+    console.log('\n📊 Current user distribution:');
+    tierCounts.forEach(({ aiTier, _count }) => {
+      console.log(`   ${aiTier}: ${_count} users`);
+    });
+  }
 
   // Create default GlobalAISettings if not exists
   const existingSettings = await prisma.globalAISettings.findFirst();
