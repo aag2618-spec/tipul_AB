@@ -16,6 +16,7 @@ import { format, addWeeks } from "date-fns";
 import { toast } from "sonner";
 import type { EventClickArg } from "@fullcalendar/core";
 import type { DateClickArg } from "@fullcalendar/interaction";
+import { QuickMarkPaid } from "@/components/payments/quick-mark-paid";
 
 // Dynamic import for FullCalendar to avoid SSR issues
 const FullCalendar = dynamic(
@@ -41,6 +42,8 @@ interface Session {
   type: string;
   price: number;
   client: Client | null;
+  payment?: { id: string; status: string } | null;
+  sessionNote?: string | null;
 }
 
 interface CalendarEvent {
@@ -111,6 +114,13 @@ export default function CalendarPage() {
   const [selectedSession, setSelectedSession] = useState<Session | null>(null);
   const [isChargeDialogOpen, setIsChargeDialogOpen] = useState(false);
   const [pendingAction, setPendingAction] = useState<"CANCELLED" | "NO_SHOW" | null>(null);
+  const [isPaymentDialogOpen, setIsPaymentDialogOpen] = useState(false);
+  const [paymentData, setPaymentData] = useState<{
+    sessionId: string;
+    clientId: string;
+    amount: number;
+    paymentId?: string;
+  } | null>(null);
   const [selectedDate, setSelectedDate] = useState<Date | null>(null);
   const [formData, setFormData] = useState({
     clientId: "",
@@ -143,7 +153,14 @@ export default function CalendarPage() {
       if (sessionsRes.ok && clientsRes.ok) {
         const sessionsData = await sessionsRes.json();
         const clientsData = await clientsRes.json();
-        setSessions(sessionsData);
+        
+        // Map sessionNote.content to sessionNote for easier access
+        const mappedSessions = sessionsData.map((session: any) => ({
+          ...session,
+          sessionNote: session.sessionNote?.content || null,
+        }));
+        
+        setSessions(mappedSessions);
         setClients(clientsData);
       }
 
@@ -1218,17 +1235,9 @@ export default function CalendarPage() {
                             });
                             
                             if (response.ok) {
-                              const updatedSession = await response.json();
                               setIsSessionDialogOpen(false);
-                              toast.success("הפגישה הושלמה, מעבר לדף תשלום...");
-                              
-                              // Navigate to simple payment page with payment ID
-                              if (updatedSession.payment?.id) {
-                                window.location.href = `/dashboard/payments/${updatedSession.payment.id}/mark-paid`;
-                              } else {
-                                // Fallback to full payment page if no payment created
-                                window.location.href = `/dashboard/payments/pay/${selectedSession.client.id}`;
-                              }
+                              toast.success("הפגישה הושלמה בהצלחה!");
+                              fetchData(); // Refresh data
                             }
                           } catch {
                             toast.error("שגיאה בעדכון הפגישה");
@@ -1312,20 +1321,47 @@ export default function CalendarPage() {
                         <FileText className="h-4 w-4" />
                         סיכום פגישה
                       </Button>
-                      {/* כפתור תשלום דינמי */}
-                      <Button
-                        onClick={() => {
-                          setIsSessionDialogOpen(false);
-                          if (selectedSession.client?.id) {
-                            window.location.href = `/dashboard/payments/pay/${selectedSession.client.id}`;
-                          }
-                        }}
-                        className="w-full gap-2"
-                        variant="outline"
-                      >
-                        <Clock className="h-4 w-4" />
-                        רשום תשלום / הצג קבלה
-                      </Button>
+                      {/* כפתור תשלום דינמי - רק אם יש payment record */}
+                      {selectedSession.payment && selectedSession.client ? (
+                        <QuickMarkPaid
+                          sessionId={selectedSession.id}
+                          clientId={selectedSession.client.id}
+                          clientName={selectedSession.client.name}
+                          amount={selectedSession.price}
+                          creditBalance={0}
+                          existingPayment={selectedSession.payment}
+                          buttonText="רשום תשלום / הצג קבלה"
+                        />
+                      ) : (
+                        <div className="space-y-2">
+                          <div className="w-full py-3 px-4 text-center rounded-lg bg-emerald-50 dark:bg-emerald-950 border-2 border-emerald-200 dark:border-emerald-800">
+                            <p className="text-sm font-semibold text-emerald-700 dark:text-emerald-300">💚 פטור מתשלום</p>
+                            <p className="text-xs text-emerald-600 dark:text-emerald-400 mt-1">לא מחייב</p>
+                          </div>
+                          {/* הערה קטנה להסבר */}
+                          <div className="space-y-1">
+                            <label className="text-xs text-muted-foreground">הערה (אופציונלי):</label>
+                            <textarea
+                              placeholder="למה לא מחייב? (למשל: מטופל ביטל מראש, חופש, וכו')"
+                              defaultValue={selectedSession.sessionNote || ""}
+                              className="w-full text-xs p-2 rounded border resize-none"
+                              rows={2}
+                              onBlur={async (e) => {
+                                try {
+                                  await fetch(`/api/sessions/${selectedSession.id}/note`, {
+                                    method: "PUT",
+                                    headers: { "Content-Type": "application/json" },
+                                    body: JSON.stringify({ note: e.target.value }),
+                                  });
+                                  toast.success("הערה נשמרה");
+                                } catch {
+                                  toast.error("שגיאה בשמירת הערה");
+                                }
+                              }}
+                            />
+                          </div>
+                        </div>
+                      )}
                     </div>
                   </>
                 ) : selectedSession.status === "NO_SHOW" ? (
@@ -1354,19 +1390,46 @@ export default function CalendarPage() {
                         הוסף הערה
                       </Button>
                       {selectedSession.client && (
-                        <Button
-                          onClick={() => {
-                            setIsSessionDialogOpen(false);
-                            if (selectedSession.client?.id) {
-                              window.location.href = `/dashboard/payments/pay/${selectedSession.client.id}`;
-                            }
-                          }}
-                          className="w-full gap-2"
-                          variant="outline"
-                        >
-                          <Clock className="h-4 w-4" />
-                          רשום תשלום
-                        </Button>
+                        selectedSession.payment ? (
+                          <QuickMarkPaid
+                            sessionId={selectedSession.id}
+                            clientId={selectedSession.client.id}
+                            clientName={selectedSession.client.name}
+                            amount={selectedSession.price}
+                            creditBalance={0}
+                            existingPayment={selectedSession.payment}
+                            buttonText="רשום תשלום"
+                          />
+                        ) : (
+                          <div className="space-y-2">
+                            <div className="w-full py-3 px-4 text-center rounded-lg bg-emerald-50 dark:bg-emerald-950 border-2 border-emerald-200 dark:border-emerald-800">
+                              <p className="text-sm font-semibold text-emerald-700 dark:text-emerald-300">💚 פטור מתשלום</p>
+                              <p className="text-xs text-emerald-600 dark:text-emerald-400 mt-1">לא מחייב</p>
+                            </div>
+                            {/* הערה קטנה להסבר */}
+                            <div className="space-y-1">
+                              <label className="text-xs text-muted-foreground">הערה (אופציונלי):</label>
+                              <textarea
+                                placeholder="למה לא מחייב? (למשל: מטופל ביטל מראש, חופש, וכו')"
+                                defaultValue={selectedSession.sessionNote || ""}
+                                className="w-full text-xs p-2 rounded border resize-none"
+                                rows={2}
+                                onBlur={async (e) => {
+                                  try {
+                                    await fetch(`/api/sessions/${selectedSession.id}/note`, {
+                                      method: "PUT",
+                                      headers: { "Content-Type": "application/json" },
+                                      body: JSON.stringify({ note: e.target.value }),
+                                    });
+                                    toast.success("הערה נשמרה");
+                                  } catch {
+                                    toast.error("שגיאה בשמירת הערה");
+                                  }
+                                }}
+                              />
+                            </div>
+                          </div>
+                        )
                       )}
                     </div>
                   </>
@@ -1415,16 +1478,11 @@ export default function CalendarPage() {
                   setPendingAction(null);
                   
                   if (response.ok) {
-                    const updatedSession = await response.json();
-                    toast.success(pendingAction === "CANCELLED" ? "הפגישה בוטלה, מעבר לדף תשלום..." : "נרשם כאי הופעה, מעבר לדף תשלום...");
-                    
-                    // Navigate to simple payment page with payment ID
-                    if (updatedSession.payment?.id) {
-                      window.location.href = `/dashboard/payments/${updatedSession.payment.id}/mark-paid`;
-                    } else {
-                      // Fallback to full payment page if no payment created
-                      window.location.href = `/dashboard/payments/pay/${selectedSession.client.id}`;
-                    }
+                    toast.success(pendingAction === "CANCELLED" ? "הפגישה בוטלה וחויבה" : "נרשם כאי הופעה וחויב");
+                    setIsChargeDialogOpen(false);
+                    setIsSessionDialogOpen(false);
+                    setPendingAction(null);
+                    fetchData(); // Refresh data
                   }
                 } catch {
                   toast.error("שגיאה בעדכון הפגישה");
@@ -1444,18 +1502,20 @@ export default function CalendarPage() {
                     body: JSON.stringify({ status: pendingAction }),
                   });
                   
+                  toast.success(pendingAction === "CANCELLED" ? "הפגישה בוטלה ללא חיוב - פטור מתשלום" : "נרשמה אי הופעה ללא חיוב - פטור מתשלום");
+                  
                   setIsChargeDialogOpen(false);
                   setIsSessionDialogOpen(false);
                   setPendingAction(null);
                   
-                  toast.success(pendingAction === "CANCELLED" ? "הפגישה בוטלה ללא חיוב" : "נרשמה אי הופעה ללא חיוב");
-                  fetchData();
+                  // Refresh data to get updated session without payment
+                  await fetchData();
                 } catch {
                   toast.error("שגיאה בעדכון הפגישה");
                 }
               }}
             >
-              לא, לא לחייב
+              לא, פטור מתשלום
             </Button>
           </DialogFooter>
         </DialogContent>
