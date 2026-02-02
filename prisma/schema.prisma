@@ -162,6 +162,11 @@ model Client {
   notes               String?      @db.Text
   initialDiagnosis    String?      @db.Text
   intakeNotes         String?      @db.Text
+  
+  // AI Settings - client-specific therapeutic approaches (override therapist defaults)
+  therapeuticApproaches String[]   @default([]) // Override therapist's default approaches
+  approachNotes         String?    @db.Text     // Special notes about therapeutic approach for this client
+  
   createdAt           DateTime     @default(now())
   updatedAt           DateTime     @updatedAt
 

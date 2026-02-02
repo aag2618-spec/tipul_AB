@@ -1,4 +1,5 @@
 import OpenAI from 'openai';
+import { getApproachPrompts, getApproachById } from './therapeutic-approaches';
 
 // Lazy initialization
 let openai: OpenAI | null = null;
@@ -124,11 +125,18 @@ export async function generateSessionPrep(
   // Build system prompt based on approaches
   let systemPrompt = `אתה AI assistant מקצועי למטפל/ת נפש.`;
   
+  // Use new comprehensive approach system
   if (input.therapeuticApproaches.length > 0) {
     systemPrompt += `\n\nהמטפל/ת עובד/ת בגישות הטיפוליות הבאות:\n`;
-    input.therapeuticApproaches.forEach(approach => {
-      systemPrompt += APPROACH_PROMPTS[approach as keyof typeof APPROACH_PROMPTS] || '';
-    });
+    const prompts = getApproachPrompts(input.therapeuticApproaches);
+    if (prompts) {
+      systemPrompt += prompts;
+    } else {
+      // Fallback to old system if approach not found in new list
+      input.therapeuticApproaches.forEach(approach => {
+        systemPrompt += APPROACH_PROMPTS[approach as keyof typeof APPROACH_PROMPTS] || '';
+      });
+    }
   }
   
   if (input.approachDescription) {

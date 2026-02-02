@@ -6,7 +6,6 @@ import { Button } from "@/components/ui/button";
 import { Label } from "@/components/ui/label";
 import { Textarea } from "@/components/ui/textarea";
 import { Badge } from "@/components/ui/badge";
-import { Checkbox } from "@/components/ui/checkbox";
 import {
   Select,
   SelectContent,
@@ -14,25 +13,10 @@ import {
   SelectTrigger,
   SelectValue,
 } from "@/components/ui/select";
+import { ApproachSelector } from "@/components/ai/approach-selector";
 import { toast } from "sonner";
 import { Loader2, Save, Brain, Sparkles, Lock } from "lucide-react";
 import Link from "next/link";
-
-const THERAPEUTIC_APPROACHES = [
-  { value: 'CBT', label: 'CBT - קוגניטיבית התנהגותית', description: 'מחשבות, רגשות והתנהגויות' },
-  { value: 'Psychodynamic', label: 'פסיכודינמית / פסיכואנליטית', description: 'תהליכים לא מודעים ודפוסים' },
-  { value: 'ACT', label: 'ACT - Acceptance & Commitment', description: 'ערכים, קבלה ומיינדפולנס' },
-  { value: 'DBT', label: 'DBT - דיאלקטית התנהגותית', description: 'רגולציה רגשית ומיומנויות' },
-  { value: 'Solution-Focused', label: 'ממוקדת פתרונות', description: 'חוזקות ופתרונות' },
-  { value: 'Humanistic', label: 'הומניסטית (רוג\'רס)', description: 'קבלה ללא תנאי ואמפתיה' },
-  { value: 'Systemic', label: 'מערכתית / משפחתית', description: 'דינמיקות ומערכות יחסים' },
-  { value: 'EMDR', label: 'EMDR', description: 'עיבוד טראומות' },
-  { value: 'Mindfulness', label: 'מיינדפולנס / מבוססת-מודעות', description: 'קבלה ונוכחות' },
-  { value: 'Gestalt', label: 'גשטלט', description: 'כאן ועכשיו, מודעות' },
-  { value: 'Existential', label: 'אקזיסטנציאלית', description: 'משמעות, חירות, אחריות' },
-  { value: 'Coaching', label: 'קוצ\'ינג / NLP', description: 'מטרות ותוצאות' },
-  { value: 'Eclectic', label: 'אקלקטית / אינטגרטיבית', description: 'שילוב גישות' },
-];
 
 export default function AIAssistantSettingsPage() {
   const [isLoading, setIsLoading] = useState(true);
@@ -91,14 +75,6 @@ export default function AIAssistantSettingsPage() {
       toast.error('שגיאה בשמירת ההגדרות');
     } finally {
       setIsSaving(false);
-    }
-  };
-
-  const toggleApproach = (approach: string) => {
-    if (selectedApproaches.includes(approach)) {
-      setSelectedApproaches(selectedApproaches.filter(a => a !== approach));
-    } else {
-      setSelectedApproaches([...selectedApproaches, approach]);
     }
   };
 
@@ -225,43 +201,17 @@ export default function AIAssistantSettingsPage() {
       {/* Therapeutic Approaches */}
       <Card>
         <CardHeader>
-          <CardTitle>🧠 הגישות הטיפוליות שלך</CardTitle>
-          <CardDescription>בחר אחת או יותר גישות שבהן אתה עובד</CardDescription>
+          <CardTitle>🧠 הגישות הטיפוליות שלך (ברירת מחדל)</CardTitle>
+          <CardDescription>
+            בחר אחת או יותר גישות שבהן אתה בדרך כלל עובד. תוכל לשנות את זה עבור
+            מטופלים ספציפיים בעמוד המטופל.
+          </CardDescription>
         </CardHeader>
-        <CardContent className="space-y-4">
-          <div className="grid gap-3 md:grid-cols-2">
-            {THERAPEUTIC_APPROACHES.map((approach) => (
-              <div
-                key={approach.value}
-                className={`p-3 border-2 rounded-lg cursor-pointer transition-all hover:shadow-md ${
-                  selectedApproaches.includes(approach.value)
-                    ? 'border-primary bg-primary/5'
-                    : 'border-border bg-background'
-                }`}
-                onClick={() => toggleApproach(approach.value)}
-              >
-                <div className="flex items-start gap-2">
-                  <Checkbox
-                    checked={selectedApproaches.includes(approach.value)}
-                    onCheckedChange={() => toggleApproach(approach.value)}
-                    className="mt-0.5"
-                  />
-                  <div className="flex-1">
-                    <p className="font-medium text-sm">{approach.label}</p>
-                    <p className="text-xs text-muted-foreground">{approach.description}</p>
-                  </div>
-                </div>
-              </div>
-            ))}
-          </div>
-
-          {selectedApproaches.length > 0 && (
-            <div className="p-3 bg-green-50 border border-green-200 rounded-lg">
-              <p className="text-sm font-medium text-green-900">
-                נבחרו {selectedApproaches.length} גישות
-              </p>
-            </div>
-          )}
+        <CardContent>
+          <ApproachSelector
+            value={selectedApproaches}
+            onChange={setSelectedApproaches}
+          />
         </CardContent>
       </Card>
 

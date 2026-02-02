@@ -120,13 +120,20 @@ export async function POST(request: NextRequest) {
     // Determine model based on tier
     const model = user.aiTier === 'ENTERPRISE' ? 'gpt-4o' : 'gpt-4o-mini';
 
+    // **SMART LOGIC**: Check client-specific approaches first, fallback to therapist defaults
+    const therapeuticApproaches = (client.therapeuticApproaches && client.therapeuticApproaches.length > 0)
+      ? client.therapeuticApproaches
+      : (user.therapeuticApproaches || []);
+
+    const approachDescription = client.approachNotes || user.approachDescription || undefined;
+
     // Generate session prep
     const result = await generateSessionPrep({
       clientName: client.name,
       recentNotes,
       sessionDate: sessionDate || format(new Date(), 'dd/MM/yyyy', { locale: he }),
-      therapeuticApproaches: user.therapeuticApproaches || [],
-      approachDescription: user.approachDescription || undefined,
+      therapeuticApproaches,
+      approachDescription,
       analysisStyle: user.analysisStyle,
       tone: user.aiTone,
       customInstructions: user.customAIInstructions || undefined,
