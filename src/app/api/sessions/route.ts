@@ -175,20 +175,70 @@ export async function POST(request: NextRequest) {
         client: {
           select: { id: true, name: true, email: true },
         },
+        therapist: {
+          include: {
+            communicationSetting: true,
+          },
+        },
       },
     });
 
     // Send confirmation email (skip for BREAK and if client has no email)
     if (type !== "BREAK" && therapySession.client?.email) {
-      // Fire and forget - don't wait for email to send
-      fetch(`${request.nextUrl.origin}/api/sessions/send-confirmation`, {
-        method: "POST",
-        headers: {
-          "Content-Type": "application/json",
-          cookie: request.headers.get("cookie") || "",
-        },
-        body: JSON.stringify({ sessionId: therapySession.id }),
-      }).catch((err) => console.error("Failed to send confirmation:", err));
+      // Check if therapist has confirmation emails enabled
+      const settings = therapySession.therapist.communicationSetting;
+      if (!settings || settings.sendConfirmationEmail) {
+        // Send email directly without HTTP request
+        const { sendEmail } = await import("@/lib/resend");
+        const { createSessionConfirmationEmail, formatSessionDateTime } = await import("@/lib/email-templates");
+        
+        // Format session date/time for confirmation email
+        const { date, time } = formatSessionDateTime(therapySession.startTime);
+        // Store email in variable for type safety (validated in line 187)
+        const clientEmail = therapySession.client.email;
+        const { subject, html } = createSessionConfirmationEmail({
+          clientName: therapySession.client.name,
+          therapistName: therapySession.therapist.name || "המטפל/ת שלך",
+          date,
+          time,
+          address: therapySession.location || undefined,
+        });
+
+        // Send email asynchronously
+        sendEmail({
+          to: clientEmail,
+          subject,
+          html,
+          replyTo: therapySession.therapist.email || undefined,
+        })
+          .then(async (result) => {
+            // Log communication
+            await prisma.communicationLog.create({
+              data: {
+                type: "SESSION_CONFIRMATION",
+                channel: "EMAIL",
+                recipient: clientEmail,
+                subject,
+                content: html,
+                status: result.success ? "SENT" : "FAILED",
+                errorMessage: result.success ? null : String(result.error),
+                sentAt: result.success ? new Date() : null,
+                sessionId: therapySession.id,
+                clientId: therapySession.clientId,
+                userId: therapySession.therapistId,
+                messageId: result.messageId,
+              },
+            });
+            
+            // Log result
+            if (result.success) {
+              console.log(`✅ Confirmation email sent to ${clientEmail}`);
+            } else {
+              console.error(`❌ Failed to send confirmation to ${clientEmail}:`, result.error);
+            }
+          })
+          .catch((err) => console.error("Failed to send confirmation:", err));
+      }
     }
 
     // Create a task to write summary after session (skip for BREAK)
@@ -213,7 +263,11 @@ export async function POST(request: NextRequest) {
       }
     }
 
-    return NextResponse.json(therapySession, { status: 201 });
+    // Return session without therapist data (clean response)
+    return NextResponse.json({
+      ...therapySession,
+      therapist: undefined,
+    }, { status: 201 });
   } catch (error) {
     console.error("Create session error:", error);
     return NextResponse.json(
