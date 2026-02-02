@@ -270,35 +270,35 @@ export default async function AdminAIUsagePage() {
 
       {/* Quick Actions */}
       <div className="grid gap-4 md:grid-cols-3">
-        <Card className="cursor-pointer hover:shadow-lg transition-shadow" asChild>
-          <Link href="/admin/ai-usage/users">
+        <Link href="/admin/ai-usage/users">
+          <Card className="cursor-pointer hover:shadow-lg transition-shadow h-full">
             <CardHeader>
               <Users className="h-8 w-8 mb-2 text-primary" />
               <CardTitle>ניהול משתמשים</CardTitle>
               <CardDescription>צפה ונהל משתמשים ושימוש</CardDescription>
             </CardHeader>
-          </Link>
-        </Card>
+          </Card>
+        </Link>
 
-        <Card className="cursor-pointer hover:shadow-lg transition-shadow" asChild>
-          <Link href="/admin/ai-usage/settings">
+        <Link href="/admin/ai-usage/settings">
+          <Card className="cursor-pointer hover:shadow-lg transition-shadow h-full">
             <CardHeader>
               <Settings className="h-8 w-8 mb-2 text-primary" />
               <CardTitle>הגדרות גלובליות</CardTitle>
               <CardDescription>מגבלות, תקציב, והתנהגות</CardDescription>
             </CardHeader>
-          </Link>
-        </Card>
+          </Card>
+        </Link>
 
-        <Card className="cursor-pointer hover:shadow-lg transition-shadow" asChild>
-          <Link href="/admin/ai-usage/reports">
+        <Link href="/admin/ai-usage/reports">
+          <Card className="cursor-pointer hover:shadow-lg transition-shadow h-full">
             <CardHeader>
               <BarChart3 className="h-8 w-8 mb-2 text-primary" />
               <CardTitle>דוחות ואנליטיקס</CardTitle>
               <CardDescription>גרפים, מגמות, ותובנות</CardDescription>
             </CardHeader>
-          </Link>
-        </Card>
+          </Card>
+        </Link>
       </div>
     </div>
   );
