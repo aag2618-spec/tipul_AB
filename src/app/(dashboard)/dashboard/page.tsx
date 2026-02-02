@@ -224,6 +224,13 @@ export default async function DashboardPage() {
       href: "/dashboard/calendar",
       bgColor: "bg-gradient-to-br from-green-50 to-green-100 dark:from-green-950/30 dark:to-green-900/30",
       iconColor: "text-green-600",
+      subBox: {
+        value: stats.sessionsThisMonth,
+        label: "תצוגת חודש",
+        bgColor: "bg-green-100/50 dark:bg-green-900/50",
+        textColor: "text-green-700 dark:text-green-300",
+        href: "/dashboard/calendar?view=month",
+      },
     },
     {
       title: "תשלומים ממתינים",
