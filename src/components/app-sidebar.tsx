@@ -18,6 +18,7 @@ import {
 } from "@/components/ui/sidebar";
 import { Avatar, AvatarFallback, AvatarImage } from "@/components/ui/avatar";
 import { Badge } from "@/components/ui/badge";
+import { UserTierBadge } from "@/components/user-tier-badge";
 import {
   LayoutDashboard,
   Users,
@@ -38,6 +39,7 @@ import {
   Building2,
   MessageSquare,
   Mail,
+  Brain,
 } from "lucide-react";
 
 interface AppSidebarProps {
@@ -78,6 +80,11 @@ const mainNavItems = [
 ];
 
 const clinicalItems = [
+  {
+    title: "AI Session Prep",
+    href: "/dashboard/ai-prep",
+    icon: Brain,
+  },
   {
     title: "הקלטות",
     href: "/dashboard/recordings",
@@ -125,6 +132,11 @@ const businessItems = [
 ];
 
 const settingsItems = [
+  {
+    title: "AI Assistant",
+    href: "/dashboard/settings/ai-assistant",
+    icon: Brain,
+  },
   {
     title: "התראות",
     href: "/dashboard/settings/notifications",
@@ -344,8 +356,11 @@ export function AppSidebar({ user }: AppSidebarProps) {
                     {getInitials(user.name)}
                   </AvatarFallback>
                 </Avatar>
-                <div className="flex flex-col overflow-hidden">
-                  <span className="truncate font-medium text-sm">{user.name}</span>
+                <div className="flex flex-col overflow-hidden flex-1">
+                  <div className="flex items-center gap-2">
+                    <span className="truncate font-medium text-sm">{user.name}</span>
+                    <UserTierBadge />
+                  </div>
                   <span className="truncate text-xs text-muted-foreground">{user.email}</span>
                 </div>
               </Link>

@@ -64,6 +64,26 @@ model User {
   role                    Role      @default(USER)
   isBlocked               Boolean   @default(false)
   defaultSessionDuration  Int       @default(50) // משך פגישה סטנדרטית בדקות
+  
+  // AI & Billing Settings
+  aiTier                  AITier    @default(ESSENTIAL) // Essential, Pro, Enterprise
+  therapeuticApproaches   String[]  @default([]) // Array of approaches: ["CBT", "Psychodynamic", etc.]
+  approachDescription     String?   @db.Text // Custom description for eclectic approach
+  analysisStyle           String    @default("professional") // professional, practical, emotional
+  aiTone                  String    @default("formal") // formal, warm, direct
+  customAIInstructions    String?   @db.Text // Custom instructions for AI
+  
+  // Billing
+  stripeCustomerId        String?   @unique // Stripe customer ID
+  stripeSubscriptionId    String?   @unique // Stripe subscription ID
+  subscriptionStatus      SubscriptionStatus @default(ACTIVE)
+  subscriptionStartedAt   DateTime?
+  subscriptionEndsAt      DateTime?
+  trialEndsAt             DateTime?
+  
+  // Usage limits
+  maxActiveClients        Int       @default(40) // Maximum active clients allowed
+  
   createdAt               DateTime  @default(now())
   updatedAt               DateTime  @updatedAt
 
@@ -91,6 +111,24 @@ model User {
   insurerSettings       InsurerSettings?
   insurerReports        InsurerReport[]
   billingProviders      BillingProvider[]
+  aiUsageStats          AIUsageStats?
+  sessionPreps          SessionPrep[]
+}
+
+// ==================== AI Tiers ====================
+
+enum AITier {
+  ESSENTIAL  // 100₪ - No AI
+  PRO        // 120₪ - GPT-4o-mini
+  ENTERPRISE // 150₪ - GPT-4o
+}
+
+enum SubscriptionStatus {
+  ACTIVE
+  TRIALING
+  PAST_DUE
+  CANCELLED
+  PAUSED
 }
 
 // ==================== Password Reset ====================
@@ -970,4 +1008,86 @@ enum ReportStatus {
   CONFIRMED
   REJECTED
   ERROR
+}
+
+// ==================== AI Usage Tracking ====================
+
+model AIUsageStats {
+  id                String   @id @default(cuid())
+  userId            String   @unique
+  user              User     @relation(fields: [userId], references: [id], onDelete: Cascade)
+  
+  // Current month stats
+  currentMonthCalls   Int      @default(0)
+  currentMonthTokens  Int      @default(0)
+  currentMonthCost    Decimal  @default(0) @db.Decimal(10, 4)
+  
+  // Daily stats (reset every day)
+  dailyCalls          Int      @default(0)
+  lastResetDate       DateTime @default(now())
+  
+  // All-time stats
+  totalCalls          Int      @default(0)
+  totalCost           Decimal  @default(0) @db.Decimal(10, 4)
+  
+  createdAt           DateTime @default(now())
+  updatedAt           DateTime @updatedAt
+  
+  @@index([userId])
+}
+
+model SessionPrep {
+  id                String   @id @default(cuid())
+  userId            String
+  user              User     @relation(fields: [userId], references: [id], onDelete: Cascade)
+  
+  clientId          String
+  sessionDate       DateTime
+  
+  // AI Analysis content
+  content           String   @db.Text
+  insights          Json?    // Structured insights
+  recommendations   Json?    // Structured recommendations
+  
+  // Metadata
+  aiModel           String   // "gpt-4o", "gpt-4o-mini", "gemini-1.5-flash"
+  tokensUsed        Int
+  cost              Decimal  @db.Decimal(10, 4)
+  generatedAt       DateTime @default(now())
+  
+  createdAt         DateTime @default(now())
+  
+  @@index([userId, sessionDate])
+  @@index([clientId])
+}
+
+// ==================== Admin Global Settings ====================
+
+model GlobalAISettings {
+  id                    String   @id @default(cuid())
+  
+  // Rate limits
+  dailyLimitEssential   Int      @default(0)    // 0 = no AI
+  dailyLimitPro         Int      @default(30)   // 30 calls/day
+  dailyLimitEnterprise  Int      @default(100)  // 100 calls/day
+  
+  monthlyLimitEssential Int      @default(0)    // 0 = no AI
+  monthlyLimitPro       Int      @default(600)  // 600 calls/month
+  monthlyLimitEnterprise Int     @default(2000) // 2000 calls/month
+  
+  // Cost controls
+  maxMonthlyCostBudget  Decimal  @default(5000) @db.Decimal(10, 2) // Total budget cap
+  alertThreshold        Decimal  @default(4000) @db.Decimal(10, 2) // Alert at 80%
+  
+  // Behavior on limit exceed
+  blockOnExceed         Boolean  @default(false) // Block user or just alert
+  alertAdminOnExceed    Boolean  @default(true)
+  
+  // Feature flags
+  enableCache           Boolean  @default(true)  // Cache identical requests
+  compressPrompts       Boolean  @default(true)  // Compress long prompts
+  
+  updatedAt             DateTime @updatedAt
+  
+  @@map("global_ai_settings")
 }
