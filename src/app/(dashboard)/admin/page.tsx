@@ -34,8 +34,8 @@ export default async function AdminPage() {
       </div>
 
       <div className="grid gap-6 md:grid-cols-2 lg:grid-cols-3">
-        <Card className="cursor-pointer hover:shadow-lg transition-shadow border-2 border-primary" asChild>
-          <Link href="/admin/ai-usage">
+        <Link href="/admin/ai-usage">
+          <Card className="cursor-pointer hover:shadow-lg transition-shadow border-2 border-primary h-full">
             <CardHeader>
               <Brain className="h-12 w-12 mb-3 text-primary" />
               <CardTitle>🤖 AI Usage Dashboard</CardTitle>
@@ -51,8 +51,8 @@ export default async function AdminPage() {
                 <li>• הגדרות גלובליות</li>
               </ul>
             </CardContent>
-          </Link>
-        </Card>
+          </Card>
+        </Link>
 
         <Card className="opacity-50">
           <CardHeader>
