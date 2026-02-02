@@ -4,118 +4,56 @@ import { authOptions } from "@/lib/auth";
 import prisma from "@/lib/prisma";
 import bcrypt from "bcryptjs";
 
-export async function GET(
-  request: NextRequest,
-  { params }: { params: Promise<{ id: string }> }
-) {
-  try {
-    const session = await getServerSession(authOptions);
-    if (!session?.user?.id || session.user.role !== "ADMIN") {
-      return NextResponse.json({ message: "לא מורשה" }, { status: 403 });
-    }
-
-    const { id } = await params;
-
-    const user = await prisma.user.findUnique({
-      where: { id },
-      select: {
-        id: true,
-        name: true,
-        email: true,
-        phone: true,
-        license: true,
-        role: true,
-        isBlocked: true,
-        createdAt: true,
-        updatedAt: true,
-        _count: {
-          select: {
-            clients: true,
-            therapySessions: true,
-            documents: true,
-            apiUsageLogs: true,
-            subscriptionPayments: true,
-          },
-        },
-      },
-    });
-
-    if (!user) {
-      return NextResponse.json({ message: "משתמש לא נמצא" }, { status: 404 });
-    }
-
-    return NextResponse.json(user);
-  } catch (error) {
-    console.error("Get user error:", error);
-    return NextResponse.json(
-      { message: "אירעה שגיאה בטעינת המשתמש" },
-      { status: 500 }
-    );
-  }
-}
-
 export async function PUT(
   request: NextRequest,
   { params }: { params: Promise<{ id: string }> }
 ) {
   try {
     const session = await getServerSession(authOptions);
-    if (!session?.user?.id || session.user.role !== "ADMIN") {
-      return NextResponse.json({ message: "לא מורשה" }, { status: 403 });
+    if (!session?.user?.id) {
+      return NextResponse.json({ message: "Unauthorized" }, { status: 401 });
+    }
+
+    // Check if admin
+    const adminUser = await prisma.user.findUnique({
+      where: { id: session.user.id }
+    });
+
+    if (adminUser?.role !== 'ADMIN') {
+      return NextResponse.json({ message: "Forbidden" }, { status: 403 });
     }
 
     const { id } = await params;
     const body = await request.json();
-    const { name, email, password, phone, role, isBlocked } = body;
+    const { name, email, password, phone, role } = body;
 
-    const existingUser = await prisma.user.findUnique({
-      where: { id },
-    });
+    // Build update data
+    const updateData: any = {
+      name,
+      email,
+      phone,
+      role,
+    };
 
-    if (!existingUser) {
-      return NextResponse.json({ message: "משתמש לא נמצא" }, { status: 404 });
+    // Only update password if provided
+    if (password) {
+      updateData.password = await bcrypt.hash(password, 10);
     }
 
-    // Check if email is being changed and already exists
-    if (email && email !== existingUser.email) {
-      const emailExists = await prisma.user.findUnique({
-        where: { email },
-      });
-      if (emailExists) {
-        return NextResponse.json(
-          { message: "אימייל זה כבר בשימוש" },
-          { status: 400 }
-        );
-      }
-    }
-
-    const updateData: Record<string, unknown> = {};
-    if (name !== undefined) updateData.name = name;
-    if (email !== undefined) updateData.email = email;
-    if (phone !== undefined) updateData.phone = phone;
-    if (role !== undefined) updateData.role = role;
-    if (isBlocked !== undefined) updateData.isBlocked = isBlocked;
-    if (password) updateData.password = await bcrypt.hash(password, 12);
-
-    const user = await prisma.user.update({
+    // Update user
+    const updatedUser = await prisma.user.update({
       where: { id },
       data: updateData,
-      select: {
-        id: true,
-        name: true,
-        email: true,
-        phone: true,
-        role: true,
-        isBlocked: true,
-        updatedAt: true,
-      },
     });
 
-    return NextResponse.json(user);
+    return NextResponse.json({
+      message: "User updated successfully",
+      user: { ...updatedUser, password: undefined }
+    });
   } catch (error) {
-    console.error("Update user error:", error);
+    console.error('Error updating user:', error);
     return NextResponse.json(
-      { message: "אירעה שגיאה בעדכון המשתמש" },
+      { message: "Internal server error" },
       { status: 500 }
     );
   }
@@ -127,37 +65,83 @@ export async function DELETE(
 ) {
   try {
     const session = await getServerSession(authOptions);
-    if (!session?.user?.id || session.user.role !== "ADMIN") {
-      return NextResponse.json({ message: "לא מורשה" }, { status: 403 });
+    if (!session?.user?.id) {
+      return NextResponse.json({ message: "Unauthorized" }, { status: 401 });
+    }
+
+    // Check if admin
+    const adminUser = await prisma.user.findUnique({
+      where: { id: session.user.id }
+    });
+
+    if (adminUser?.role !== 'ADMIN') {
+      return NextResponse.json({ message: "Forbidden" }, { status: 403 });
     }
 
     const { id } = await params;
 
-    // Prevent deleting yourself
+    // Prevent deleting self
     if (id === session.user.id) {
       return NextResponse.json(
-        { message: "לא ניתן למחוק את המשתמש שלך" },
+        { message: "אי אפשר למחוק את עצמך" },
         { status: 400 }
       );
     }
 
-    const user = await prisma.user.findUnique({
-      where: { id },
+    // Delete user
+    await prisma.user.delete({
+      where: { id }
     });
 
-    if (!user) {
-      return NextResponse.json({ message: "משתמש לא נמצא" }, { status: 404 });
+    return NextResponse.json({
+      message: "User deleted successfully"
+    });
+  } catch (error) {
+    console.error('Error deleting user:', error);
+    return NextResponse.json(
+      { message: "Internal server error" },
+      { status: 500 }
+    );
+  }
+}
+
+export async function PATCH(
+  request: NextRequest,
+  { params }: { params: Promise<{ id: string }> }
+) {
+  try {
+    const session = await getServerSession(authOptions);
+    if (!session?.user?.id) {
+      return NextResponse.json({ message: "Unauthorized" }, { status: 401 });
     }
 
-    await prisma.user.delete({
-      where: { id },
+    // Check if admin
+    const adminUser = await prisma.user.findUnique({
+      where: { id: session.user.id }
     });
 
-    return NextResponse.json({ message: "המשתמש נמחק בהצלחה" });
+    if (adminUser?.role !== 'ADMIN') {
+      return NextResponse.json({ message: "Forbidden" }, { status: 403 });
+    }
+
+    const { id } = await params;
+    const body = await request.json();
+    const { isBlocked } = body;
+
+    // Update user block status
+    const updatedUser = await prisma.user.update({
+      where: { id },
+      data: { isBlocked },
+    });
+
+    return NextResponse.json({
+      message: isBlocked ? "המשתמש נחסם" : "המשתמש שוחרר",
+      user: updatedUser
+    });
   } catch (error) {
-    console.error("Delete user error:", error);
+    console.error('Error updating user block status:', error);
     return NextResponse.json(
-      { message: "אירעה שגיאה במחיקת המשתמש" },
+      { message: "Internal server error" },
       { status: 500 }
     );
   }
