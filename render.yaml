@@ -4,7 +4,7 @@ services:
     runtime: node
     region: frankfurt
     plan: free
-    buildCommand: npm install && npx prisma generate && npx prisma db push && npm run build
+    buildCommand: npm install && npx prisma generate && npx prisma db push && rm -rf .next node_modules/.cache && npm run build
     startCommand: npm start
     envVars:
       - key: NODE_ENV
