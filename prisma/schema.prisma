@@ -113,6 +113,16 @@ model User {
   billingProviders      BillingProvider[]
   aiUsageStats          AIUsageStats?
   sessionPreps          SessionPrep[]
+  
+  // AI Insights Relations
+  aiInsights            AIInsight[]
+  therapeuticGoals      TherapeuticGoal[]
+  emotionLogs           EmotionLog[]
+  
+  // AI Analysis Relations
+  questionnaireAnalyses QuestionnaireAnalysis[]
+  sessionAnalyses       SessionAnalysis[]
+  monthlyUsages         MonthlyUsage[]
 }
 
 // ==================== AI Tiers ====================
@@ -183,6 +193,9 @@ model Client {
   questionnaireResponses QuestionnaireResponse[]
   intakeResponses      IntakeResponse[] @relation("intakeResponses")
   consentForms         ConsentForm[]
+  
+  // AI Analysis Relations
+  questionnaireAnalyses QuestionnaireAnalysis[]
 }
 
 enum ClientStatus {
@@ -226,6 +239,9 @@ model TherapySession {
   communicationLogs    CommunicationLog[]
   smsReminders         SMSReminder[]
   insurerReports       InsurerReport[]
+  
+  // AI Analysis
+  sessionAnalysis      SessionAnalysis?
 }
 
 enum SessionStatus {
@@ -825,6 +841,9 @@ model QuestionnaireResponse {
   
   therapistId   String
   therapist     User   @relation(fields: [therapistId], references: [id], onDelete: Cascade)
+  
+  // AI Analysis Relations
+  questionnaireAnalyses QuestionnaireAnalysis[]
 }
 
 enum QuestionnaireStatus {
@@ -1095,4 +1114,220 @@ model GlobalAISettings {
   updatedAt             DateTime @updatedAt
   
   @@map("global_ai_settings")
+}
+
+// ==================== AI Insights System ====================
+
+model AIInsight {
+  id          String       @id @default(cuid())
+  userId      String
+  user        User         @relation(fields: [userId], references: [id], onDelete: Cascade)
+  clientId    String
+  client      Client       @relation(fields: [clientId], references: [id], onDelete: Cascade)
+  
+  type        InsightType  // Type of insight
+  title       String       // Short title
+  content     String       @db.Text // Full content
+  confidence  Float        // 0-1, how confident the AI is
+  
+  metadata    Json?        // Additional structured data
+  
+  // Caching and validity
+  validUntil  DateTime     // When this insight expires
+  isStale     Boolean      @default(false)
+  
+  createdAt   DateTime     @default(now())
+  updatedAt   DateTime     @updatedAt
+  
+  @@index([clientId, type])
+  @@index([userId, createdAt])
+  @@index([validUntil])
+}
+
+enum InsightType {
+  PATTERN           // Behavioral patterns
+  EMOTION_TREND     // Emotional tracking
+  GOAL_PROGRESS     // Goal achievement
+  TECHNIQUE_REC     // Technique recommendations
+  OPEN_ISSUE        // Unresolved topics
+  RELATIONSHIP_MAP  // Key relationships
+  RISK_FLAG         // Warning signs
+}
+
+model TherapeuticGoal {
+  id            String   @id @default(cuid())
+  userId        String
+  user          User     @relation(fields: [userId], references: [id], onDelete: Cascade)
+  clientId      String
+  client        Client   @relation(fields: [clientId], references: [id], onDelete: Cascade)
+  
+  title         String   // Goal description
+  category      String?  // e.g., "anxiety", "depression", "relationships"
+  
+  // Progress tracking
+  startValue    Int      // Initial score (e.g., 8/10)
+  targetValue   Int      // Target score (e.g., 3/10)
+  currentValue  Int      // Current score
+  unit          String   @default("scale") // "scale", "frequency", "percentage"
+  
+  // Calculated
+  progress      Float    // Percentage progress (0-100)
+  trend         String   // "improving", "stable", "declining"
+  
+  // Timeline
+  startDate     DateTime @default(now())
+  targetDate    DateTime?
+  lastUpdated   DateTime @updatedAt
+  status        GoalStatus @default(ACTIVE)
+  
+  createdAt     DateTime @default(now())
+  
+  @@index([clientId, status])
+  @@index([userId])
+}
+
+enum GoalStatus {
+  ACTIVE
+  COMPLETED
+  PAUSED
+  ABANDONED
+}
+
+model EmotionLog {
+  id          String   @id @default(cuid())
+  userId      String
+  user        User     @relation(fields: [userId], references: [id], onDelete: Cascade)
+  clientId    String
+  client      Client   @relation(fields: [clientId], references: [id], onDelete: Cascade)
+  sessionId   String?
+  session     TherapySession? @relation(fields: [sessionId], references: [id], onDelete: Cascade)
+  
+  // Emotion data
+  emotion     String   // Primary emotion detected
+  intensity   Int      // 1-10
+  valence     String   // "positive", "negative", "neutral"
+  
+  // Context
+  context     String?  @db.Text
+  triggers    Json?    // Array of trigger keywords
+  
+  // Source
+  source      String   @default("ai_analysis") // "ai_analysis", "manual", "questionnaire"
+  
+  recordedAt  DateTime @default(now())
+  
+  @@index([clientId, recordedAt])
+  @@index([userId])
+}
+
+// ==================== Questionnaire Analysis ====================
+
+model QuestionnaireAnalysis {
+  id                String   @id @default(cuid())
+  userId            String
+  user              User     @relation(fields: [userId], references: [id], onDelete: Cascade)
+  clientId          String
+  client            Client   @relation(fields: [clientId], references: [id], onDelete: Cascade)
+  
+  // Analysis type
+  analysisType      QuestionnaireAnalysisType
+  
+  // Single questionnaire analysis
+  responseId        String?
+  response          QuestionnaireResponse? @relation(fields: [responseId], references: [id], onDelete: Cascade)
+  
+  // Combined analysis - multiple questionnaires
+  responseIds       String[] // Array of response IDs if combined analysis
+  
+  // Progress report - questionnaires + session summaries
+  sessionIds        String[] // Array of session IDs if progress report
+  dateFrom          DateTime?
+  dateTo            DateTime?
+  
+  // Analysis content
+  content           String   @db.Text
+  insights          Json?    // Structured insights
+  recommendations   Json?    // Structured recommendations
+  
+  // Metadata
+  aiModel           String   // "gpt-4o", "gpt-4o-mini", "gemini-1.5-flash"
+  tokensUsed        Int
+  cost              Decimal  @db.Decimal(10, 4)
+  
+  createdAt         DateTime @default(now())
+  
+  @@index([userId, clientId])
+  @@index([clientId, createdAt])
+  @@index([analysisType])
+}
+
+enum QuestionnaireAnalysisType {
+  SINGLE           // Single questionnaire
+  COMBINED         // All questionnaires for a client
+  PROGRESS_REPORT  // Questionnaires + session summaries over time
+}
+
+// ==================== Session Analysis (Detailed/Concise) ====================
+
+model SessionAnalysis {
+  id          String   @id @default(cuid())
+  userId      String
+  user        User     @relation(fields: [userId], references: [id], onDelete: Cascade)
+  sessionId   String   @unique
+  session     TherapySession @relation(fields: [sessionId], references: [id], onDelete: Cascade)
+  
+  // Analysis type
+  analysisType AnalysisType
+  
+  // Content
+  content     String   @db.Text
+  insights    Json?    // Structured insights
+  
+  // Metadata
+  aiModel     String   // "gpt-4o", "gemini-1.5-flash"
+  tokensUsed  Int
+  cost        Decimal  @db.Decimal(10, 4)
+  
+  createdAt   DateTime @default(now())
+  
+  @@index([userId, sessionId])
+  @@index([analysisType])
+}
+
+enum AnalysisType {
+  CONCISE   // Short analysis (0.5 pages)
+  DETAILED  // Detailed analysis (2-3 pages)
+}
+
+// ==================== Monthly Usage Tracking ====================
+
+model MonthlyUsage {
+  id                        String   @id @default(cuid())
+  userId                    String
+  user                      User     @relation(fields: [userId], references: [id], onDelete: Cascade)
+  
+  month                     Int      // 1-12
+  year                      Int      // 2024, 2025, etc.
+  
+  // Session Prep (daily automatic)
+  sessionPrepCount          Int      @default(0)
+  
+  // Session Analysis
+  conciseAnalysisCount      Int      @default(0)  // Unlimited (1 per session)
+  detailedAnalysisCount     Int      @default(0)  // Enterprise: 10/month
+  
+  // Questionnaire Analysis
+  singleQuestionnaireCount  Int      @default(0)  // Pro: 60, Enterprise: 80
+  combinedQuestionnaireCount Int     @default(0)  // Pro: 30, Enterprise: 40
+  progressReportCount       Int      @default(0)  // Pro: 15, Enterprise: 20
+  
+  // Total costs
+  totalCost                 Decimal  @default(0) @db.Decimal(10, 4)
+  totalTokens               Int      @default(0)
+  
+  createdAt                 DateTime @default(now())
+  updatedAt                 DateTime @updatedAt
+  
+  @@unique([userId, month, year])
+  @@index([userId, year, month])
 }
