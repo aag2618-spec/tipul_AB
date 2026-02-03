@@ -31,19 +31,14 @@ const adminNavItems = [
     icon: LayoutDashboard,
   },
   {
-    href: "/admin/users",
-    label: "ניהול משתמשים",
-    icon: Users,
+    href: "/admin/ai-dashboard",
+    label: "ניהול AI ומשתמשים",
+    icon: Brain,
   },
   {
     href: "/admin/questionnaires",
     label: "שאלונים",
     icon: ClipboardList,
-  },
-  {
-    href: "/admin/ai-usage",
-    label: "ניהול AI",
-    icon: Brain,
   },
   {
     href: "/admin/coupons",
