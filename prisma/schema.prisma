@@ -196,6 +196,11 @@ model Client {
   
   // AI Analysis Relations
   questionnaireAnalyses QuestionnaireAnalysis[]
+  
+  // AI Insights Relations
+  aiInsights            AIInsight[]
+  therapeuticGoals      TherapeuticGoal[]
+  emotionLogs           EmotionLog[]
 }
 
 enum ClientStatus {
@@ -242,6 +247,7 @@ model TherapySession {
   
   // AI Analysis
   sessionAnalysis      SessionAnalysis?
+  emotionLogs          EmotionLog[]
 }
 
 enum SessionStatus {
