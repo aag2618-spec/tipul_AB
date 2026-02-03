@@ -118,8 +118,8 @@ export async function POST(req: NextRequest) {
 
     // Get therapeutic approaches for this client (or user default)
     const approaches =
-      therapySession.client?.therapeuticApproaches.length > 0
-        ? therapySession.client.therapeuticApproaches
+      (therapySession.client?.therapeuticApproaches?.length ?? 0) > 0
+        ? therapySession.client!.therapeuticApproaches
         : user.therapeuticApproaches;
 
     const approachPrompts = getApproachPrompts(approaches);
