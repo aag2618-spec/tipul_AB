@@ -26,9 +26,7 @@ services:
       - key: UPLOADS_DIR
         value: /opt/render/project/uploads
       - key: CRON_SECRET
-        sync: false
-
-  # Cron job for 24-hour session reminders (runs every hour)
+        sync: false  # Cron job for 24-hour session reminders (runs every hour)
   - type: cron
     name: session-reminders-24h
     runtime: node
