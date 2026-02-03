@@ -388,7 +388,7 @@ export default function AdminAIDashboard() {
                           <div className="text-sm">
                             <div>{user.aiUsage.currentMonthCalls} קריאות</div>
                             <div className="text-xs text-muted-foreground">
-                              ₪{user.aiUsage.currentMonthCost.toFixed(2)}
+                              ₪{Number(user.aiUsage.currentMonthCost).toFixed(2)}
                             </div>
                           </div>
                         ) : (
