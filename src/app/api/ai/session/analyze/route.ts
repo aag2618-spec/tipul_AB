@@ -118,7 +118,7 @@ export async function POST(req: NextRequest) {
 
     // Get therapeutic approaches for this client (or user default)
     const approaches =
-      therapySession.client.therapeuticApproaches.length > 0
+      therapySession.client?.therapeuticApproaches.length > 0
         ? therapySession.client.therapeuticApproaches
         : user.therapeuticApproaches;
 
@@ -130,7 +130,7 @@ export async function POST(req: NextRequest) {
     if (analysisType === "CONCISE") {
       prompt = `אתה פסיכולוג מומחה המנתח סיכום פגישה טיפולית.
 
-מטופל: ${therapySession.client.name}
+מטופל: ${therapySession.client?.name || "לא ידוע"}
 תאריך: ${therapySession.startTime.toLocaleDateString("he-IL")}
 סוג פגישה: ${therapySession.type === "IN_PERSON" ? "פנים אל פנים" : therapySession.type === "ONLINE" ? "אונליין" : "טלפון"}
 
@@ -162,14 +162,14 @@ ${therapySession.sessionNote.content}
       // DETAILED
       prompt = `אתה פסיכולוג מומחה המנתח לעומק סיכום פגישה טיפולית.
 
-מטופל: ${therapySession.client.name}
+מטופל: ${therapySession.client?.name || "לא ידוע"}
 תאריך: ${therapySession.startTime.toLocaleDateString("he-IL")}
 סוג פגישה: ${therapySession.type === "IN_PERSON" ? "פנים אל פנים" : therapySession.type === "ONLINE" ? "אונליין" : "טלפון"}
 
 גישות טיפוליות שבהן אתה עובד:
 ${approachPrompts || "גישה אקלקטית"}
 
-${therapySession.client.approachNotes ? `הערות על הגישה למטופל זה:\n${therapySession.client.approachNotes}\n` : ""}
+${therapySession.client?.approachNotes ? `הערות על הגישה למטופל זה:\n${therapySession.client.approachNotes}\n` : ""}
 
 סיכום הפגישה:
 ${therapySession.sessionNote.content}
