@@ -25,7 +25,7 @@ export async function PUT(
 
     const { id } = await params;
     const body = await request.json();
-    const { name, email, password, phone, role } = body;
+    const { name, email, password, phone, role, aiTier } = body;
 
     // Build update data
     const updateData: any = {
@@ -34,6 +34,11 @@ export async function PUT(
       phone,
       role,
     };
+
+    // Add aiTier if provided
+    if (aiTier !== undefined) {
+      updateData.aiTier = aiTier;
+    }
 
     // Only update password if provided
     if (password) {
@@ -126,16 +131,20 @@ export async function PATCH(
 
     const { id } = await params;
     const body = await request.json();
-    const { isBlocked } = body;
+    const { isBlocked, aiTier } = body;
 
-    // Update user block status
+    const updateData: any = {};
+    if (isBlocked !== undefined) updateData.isBlocked = isBlocked;
+    if (aiTier !== undefined) updateData.aiTier = aiTier;
+
+    // Update user
     const updatedUser = await prisma.user.update({
       where: { id },
-      data: { isBlocked },
+      data: updateData,
     });
 
     return NextResponse.json({
-      message: isBlocked ? "המשתמש נחסם" : "המשתמש שוחרר",
+      message: "עודכן בהצלחה",
       user: updatedUser
     });
   } catch (error) {
