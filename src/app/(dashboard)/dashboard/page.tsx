@@ -6,7 +6,7 @@ import { Prisma } from "@prisma/client";
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
-import { Users, Calendar, CreditCard, Clock, Plus } from "lucide-react";
+import { Users, Calendar, CreditCard, Clock, Plus, Brain } from "lucide-react";
 import Link from "next/link";
 import { PersonalTasksWidget } from "@/components/tasks/personal-tasks-widget";
 import { TodaySessionCard } from "@/components/dashboard/today-session-card";
@@ -312,8 +312,9 @@ export default async function DashboardPage() {
         ))}
       </div>
 
-      {/* Today's Sessions */}
+      {/* Today's Sessions & AI Prep */}
       <div className="grid gap-6 lg:grid-cols-2">
+        {/* Today's Sessions */}
         <Card>
           <CardHeader className="flex flex-row items-center justify-between">
             <div>
@@ -370,6 +371,86 @@ export default async function DashboardPage() {
                 <Button variant="link" asChild className="mt-2">
                   <Link href="/dashboard/calendar">קבע פגישה חדשה</Link>
                 </Button>
+              </div>
+            )}
+          </CardContent>
+        </Card>
+
+        {/* AI Session Prep - What to work on today */}
+        <Card className="bg-gradient-to-br from-purple-50 to-blue-50 dark:from-purple-950/30 dark:to-blue-900/30 border-purple-200">
+          <CardHeader className="flex flex-row items-center justify-between">
+            <div>
+              <CardTitle className="flex items-center gap-2">
+                <Brain className="h-5 w-5 text-purple-600" />
+                AI - מה לעבוד היום
+              </CardTitle>
+              <CardDescription>הכנה חכמה לפגישות שלך</CardDescription>
+            </div>
+            <Button variant="outline" size="sm" asChild>
+              <Link href="/dashboard/ai-prep">פרטים מלאים</Link>
+            </Button>
+          </CardHeader>
+          <CardContent>
+            {stats.todaySessions.length > 0 ? (
+              <div className="space-y-4">
+                {stats.todaySessions
+                  .filter(s => s.client) // Only sessions with clients
+                  .slice(0, 3) // Show max 3
+                  .map((session) => (
+                    <div 
+                      key={session.id}
+                      className="p-4 bg-white dark:bg-slate-800 rounded-lg border border-purple-100 dark:border-purple-800"
+                    >
+                      <div className="flex items-center justify-between mb-2">
+                        <h4 className="font-semibold text-sm">
+                          {session.client?.name}
+                        </h4>
+                        <Badge variant="outline" className="text-xs">
+                          {new Date(session.startTime).toLocaleTimeString('he-IL', { 
+                            hour: '2-digit', 
+                            minute: '2-digit' 
+                          })}
+                        </Badge>
+                      </div>
+                      <div className="space-y-2 text-sm text-muted-foreground">
+                        <div className="flex items-start gap-2">
+                          <span className="text-purple-600">•</span>
+                          <span>סקור סיכומים אחרונים</span>
+                        </div>
+                        <div className="flex items-start gap-2">
+                          <span className="text-blue-600">•</span>
+                          <span>המשך מהפגישה הקודמת</span>
+                        </div>
+                        <div className="flex items-start gap-2">
+                          <span className="text-green-600">•</span>
+                          <span>בדוק שאלונים ממתינים</span>
+                        </div>
+                      </div>
+                      <Button 
+                        variant="link" 
+                        size="sm" 
+                        className="mt-2 p-0 h-auto text-purple-600" 
+                        asChild
+                      >
+                        <Link href={`/dashboard/clients/${session.client?.id}`}>
+                          הצג הכנה מלאה →
+                        </Link>
+                      </Button>
+                    </div>
+                  ))}
+                {stats.todaySessions.filter(s => s.client).length > 3 && (
+                  <Button variant="outline" size="sm" className="w-full" asChild>
+                    <Link href="/dashboard/ai-prep">
+                      עוד {stats.todaySessions.filter(s => s.client).length - 3} פגישות →
+                    </Link>
+                  </Button>
+                )}
+              </div>
+            ) : (
+              <div className="text-center py-8 text-muted-foreground">
+                <Brain className="mx-auto h-12 w-12 mb-3 opacity-50" />
+                <p>אין פגישות מתוכננות להיום</p>
+                <p className="text-xs mt-2">כשיהיו פגישות, תראה כאן המלצות AI מותאמות אישית</p>
               </div>
             )}
           </CardContent>
