@@ -2,42 +2,57 @@ import { NextRequest, NextResponse } from "next/server";
 import { getServerSession } from "next-auth";
 import { authOptions } from "@/lib/auth";
 import { prisma } from "@/lib/prisma";
-import OpenAI from "openai";
 import { GoogleGenerativeAI } from "@google/generative-ai";
 
-const openai = new OpenAI({ apiKey: process.env.OPENAI_API_KEY });
+// שימוש ב-Gemini 2.0 Flash בלבד
 const genAI = new GoogleGenerativeAI(process.env.GOOGLE_AI_API_KEY || "");
+const GEMINI_MODEL = "gemini-2.0-flash-exp";
+
+// עלויות למיליון טוקנים
+const COSTS_PER_1M_TOKENS = {
+  input: 0.10,
+  output: 0.40
+};
 
 /**
  * POST /api/ai/questionnaire/progress-report
- * Generate monthly progress report combining questionnaires and session summaries
+ * יצירת דוח התקדמות חודשי משולב שאלונים וסיכומי פגישות
+ * 
+ * תוכניות:
+ * - ESSENTIAL: אין גישה
+ * - PROFESSIONAL: עד 15 דוחות בחודש
+ * - ENTERPRISE: עד 20 דוחות בחודש
  */
 export async function POST(req: NextRequest) {
   try {
     const session = await getServerSession(authOptions);
     if (!session?.user?.id) {
-      return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
+      return NextResponse.json({ error: "לא מורשה" }, { status: 401 });
     }
 
     const { clientId, dateFrom, dateTo } = await req.json();
 
-    // Get user and check plan
+    // קבלת פרטי המשתמש
     const user = await prisma.user.findUnique({
       where: { id: session.user.id },
     });
 
     if (!user) {
-      return NextResponse.json({ error: "User not found" }, { status: 404 });
+      return NextResponse.json({ error: "משתמש לא נמצא" }, { status: 404 });
     }
 
+    // תוכנית בסיסית - אין גישה
     if (user.aiTier === "ESSENTIAL") {
       return NextResponse.json(
-        { error: "AI features not available in Essential plan" },
+        { 
+          error: "תכונות AI אינן זמינות בתוכנית הבסיסית",
+          upgradeLink: "/dashboard/settings/billing"
+        },
         { status: 403 }
       );
     }
 
-    // Get current month usage
+    // בדיקת מכסה חודשית
     const now = new Date();
     const monthlyUsage = await prisma.monthlyUsage.findUnique({
       where: {
@@ -49,9 +64,9 @@ export async function POST(req: NextRequest) {
       },
     });
 
-    // Check limits
+    // מגבלות לפי תוכנית
     const limits = {
-      PRO: 15,
+      PROFESSIONAL: 15,
       ENTERPRISE: 20,
     };
 
@@ -61,26 +76,26 @@ export async function POST(req: NextRequest) {
     if (currentCount >= limit) {
       return NextResponse.json(
         {
-          error: `Monthly limit reached (${limit}). Upgrade your plan for more reports.`,
+          error: `הגעת למכסה החודשית (${limit} דוחות). שדרג את התוכנית שלך לעוד דוחות.`,
         },
         { status: 429 }
       );
     }
 
-    // Parse dates
+    // המרת תאריכים
     const fromDate = new Date(dateFrom);
     const toDate = new Date(dateTo);
 
-    // Get client info
+    // קבלת פרטי המטופל
     const client = await prisma.client.findUnique({
       where: { id: clientId },
     });
 
     if (!client || client.therapistId !== user.id) {
-      return NextResponse.json({ error: "Client not found" }, { status: 404 });
+      return NextResponse.json({ error: "מטופל לא נמצא" }, { status: 404 });
     }
 
-    // Get questionnaires in date range
+    // קבלת שאלונים בטווח התאריכים
     const questionnaires = await prisma.questionnaireResponse.findMany({
       where: {
         clientId: clientId,
@@ -99,7 +114,7 @@ export async function POST(req: NextRequest) {
       },
     });
 
-    // Get sessions in date range
+    // קבלת פגישות בטווח התאריכים
     const sessions = await prisma.therapySession.findMany({
       where: {
         clientId: clientId,
@@ -120,93 +135,89 @@ export async function POST(req: NextRequest) {
 
     if (questionnaires.length === 0 && sessions.length === 0) {
       return NextResponse.json(
-        { error: "No data found in the specified date range" },
+        { error: "לא נמצאו נתונים בטווח התאריכים שנבחר" },
         { status: 404 }
       );
     }
 
-    // Prepare questionnaires summary
+    // הכנת סיכום שאלונים
     const questionnairesSummary = questionnaires
       .map((r) => {
-        return `${r.completedAt?.toLocaleDateString("he-IL")}: ${r.template.name} - ציון: ${r.totalScore || "N/A"}`;
+        return `${r.completedAt?.toLocaleDateString("he-IL")}: ${r.template.name} - ציון: ${r.totalScore || "לא זמין"}`;
       })
       .join("\n");
 
-    // Prepare sessions summary
+    // הכנת סיכום פגישות
     const sessionsSummary = sessions
       .map((s) => {
         return `${s.startTime.toLocaleDateString("he-IL")}: ${s.sessionNote?.content?.substring(0, 200) || "אין סיכום"}...`;
       })
       .join("\n\n");
 
-    // Prepare prompt
-    const prompt = `אתה פסיכולוג מומחה המכין דו"ח התקדמות מקיף למטופל.
+    // בניית ה-prompt
+    const prompt = `אתה פסיכולוג מומחה המכין דוח התקדמות מקיף למטופל.
 
-מטופל: ${client.name}
-תקופה: ${fromDate.toLocaleDateString("he-IL")} - ${toDate.toLocaleDateString("he-IL")}
-מספר פגישות: ${sessions.length}
-מספר שאלונים: ${questionnaires.length}
+## פרטים:
+- מטופל: ${client.name}
+- תקופה: ${fromDate.toLocaleDateString("he-IL")} - ${toDate.toLocaleDateString("he-IL")}
+- מספר פגישות: ${sessions.length}
+- מספר שאלונים: ${questionnaires.length}
 
-שאלונים שמולאו:
+## שאלונים שמולאו:
 ${questionnairesSummary || "אין שאלונים בתקופה זו"}
 
-סיכומי פגישות:
+## סיכומי פגישות:
 ${sessionsSummary || "אין סיכומי פגישות"}
 
-בצע ניתוח מקיף של ההתקדמות:
+---
 
-1. **סיכום ביצועים** (2-3 שורות)
-   - כמה פגישות? כמה שאלונים?
-   - רמת מעורבות והתמדה
+## הנחיות:
+בצע ניתוח מקיף של ההתקדמות (400-600 מילים).
 
-2. **התקדמות בשאלונים** (3-4 נקודות)
-   - שינויים בציונים לאורך זמן
-   - מגמות (שיפור/החמרה/יציבות)
-   - תחומים שהשתפרו/החמירו
+### מבנה התשובה:
 
-3. **תובנות מסיכומי פגישות** (3-4 נקודות)
-   - נושאים מרכזיים שעלו
-   - דפוסים חוזרים
-   - שינויים בדינמיקה הטיפולית
+**1. סיכום ביצועים:**
+(2-3 שורות - כמה פגישות? כמה שאלונים? רמת מעורבות והתמדה)
 
-4. **ניתוח התקדמות משולב** (3-4 נקודות)
-   - קשרים בין שאלונים לפגישות
-   - התאמה/אי-התאמה בין מדדים אובייקטיביים לחוויה הסובייקטיבית
-   - יעדים שהושגו
+**2. התקדמות בשאלונים:**
+• שינויים בציונים לאורך זמן
+• מגמות - שיפור, החמרה, או יציבות
+• תחומים שהשתפרו או החמירו
 
-5. **המלצות להמשך טיפול** (3-4 נקודות)
-   - המשך דרך נוכחית או שינוי כיוון?
-   - מוקדים לתקופה הבאה
-   - יעדים להמשך
+**3. תובנות מסיכומי פגישות:**
+• נושאים מרכזיים שעלו
+• דפוסים חוזרים
+• שינויים בדינמיקה הטיפולית
 
-כתוב בעברית, בסגנון מקצועי ומעמיק. זה דו"ח חשוב!`;
+**4. ניתוח התקדמות משולב:**
+• קשרים בין שאלונים לפגישות
+• התאמה או אי-התאמה בין מדדים אובייקטיביים לחוויה הסובייקטיבית
+• יעדים שהושגו
 
-    let analysis: string;
-    let aiModel: string;
-    let estimatedTokens: number;
-    let cost: number;
+**5. המלצות להמשך טיפול:**
+• המשך דרך נוכחית או שינוי כיוון?
+• מוקדים לתקופה הבאה
+• יעדים להמשך
 
-    // Enterprise uses GPT-4o, Pro uses Gemini
-    if (user.aiTier === "ENTERPRISE") {
-      const completion = await openai.chat.completions.create({
-        model: "gpt-4o",
-        messages: [{ role: "user", content: prompt }],
-        temperature: 0.7,
-      });
-      analysis = completion.choices[0].message.content || "";
-      aiModel = "gpt-4o";
-      estimatedTokens = completion.usage?.total_tokens || 0;
-      cost = (estimatedTokens / 1000) * 0.015;
-    } else {
-      const model = genAI.getGenerativeModel({ model: "gemini-1.5-flash" });
-      const result = await model.generateContent(prompt);
-      analysis = result.response.text();
-      aiModel = "gemini-1.5-flash";
-      estimatedTokens = Math.round((prompt.length + analysis.length) / 4);
-      cost = (estimatedTokens / 1000) * 0.00015;
-    }
+---
 
-    // Save analysis
+כתוב בעברית, בסגנון מקצועי ומעמיק. זה דוח חשוב!`;
+
+    // קריאה ל-Gemini 2.0 Flash
+    const model = genAI.getGenerativeModel({ model: GEMINI_MODEL });
+    const result = await model.generateContent(prompt);
+    const analysis = result.response.text();
+
+    // חישוב עלויות
+    const estimatedInputTokens = Math.round(prompt.length / 4);
+    const estimatedOutputTokens = Math.round(analysis.length / 4);
+    const totalTokens = estimatedInputTokens + estimatedOutputTokens;
+    
+    const inputCost = (estimatedInputTokens / 1_000_000) * COSTS_PER_1M_TOKENS.input;
+    const outputCost = (estimatedOutputTokens / 1_000_000) * COSTS_PER_1M_TOKENS.output;
+    const cost = inputCost + outputCost;
+
+    // שמירת הניתוח
     const savedAnalysis = await prisma.questionnaireAnalysis.create({
       data: {
         userId: user.id,
@@ -217,13 +228,13 @@ ${sessionsSummary || "אין סיכומי פגישות"}
         dateFrom: fromDate,
         dateTo: toDate,
         content: analysis,
-        aiModel: aiModel,
-        tokensUsed: Math.round(estimatedTokens),
+        aiModel: GEMINI_MODEL,
+        tokensUsed: totalTokens,
         cost: cost,
       },
     });
 
-    // Update monthly usage
+    // עדכון סטטיסטיקות שימוש חודשיות
     await prisma.monthlyUsage.upsert({
       where: {
         userId_month_year: {
@@ -238,18 +249,19 @@ ${sessionsSummary || "אין סיכומי פגישות"}
         year: now.getFullYear(),
         progressReportCount: 1,
         totalCost: cost,
-        totalTokens: Math.round(estimatedTokens),
+        totalTokens: totalTokens,
       },
       update: {
         progressReportCount: { increment: 1 },
         totalCost: { increment: cost },
-        totalTokens: { increment: Math.round(estimatedTokens) },
+        totalTokens: { increment: totalTokens },
       },
     });
 
     return NextResponse.json({
       success: true,
       analysis: savedAnalysis,
+      model: GEMINI_MODEL,
       usage: {
         current: currentCount + 1,
         limit: limit,
@@ -257,9 +269,9 @@ ${sessionsSummary || "אין סיכומי פגישות"}
       },
     });
   } catch (error) {
-    console.error("Error generating progress report:", error);
+    console.error("שגיאה ביצירת דוח התקדמות:", error);
     return NextResponse.json(
-      { error: "Failed to generate progress report" },
+      { error: "שגיאה ביצירת דוח ההתקדמות" },
       { status: 500 }
     );
   }

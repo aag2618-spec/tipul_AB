@@ -183,7 +183,7 @@ export default async function AdminAIUsagePage() {
                   <span className="text-2xl">🥉</span>
                 </div>
                 <div>
-                  <p className="font-medium">Essential (100₪)</p>
+                  <p className="font-medium">בסיסי - Essential (117₪)</p>
                   <p className="text-sm text-muted-foreground">ללא AI</p>
                 </div>
               </div>
@@ -199,8 +199,8 @@ export default async function AdminAIUsagePage() {
                   <span className="text-2xl">🥈</span>
                 </div>
                 <div>
-                  <p className="font-medium">Professional (120₪)</p>
-                  <p className="text-sm text-muted-foreground">GPT-4o-mini</p>
+                  <p className="font-medium">מקצועי - Professional (145₪)</p>
+                  <p className="text-sm text-muted-foreground">Gemini 2.0 Flash - תמציתי</p>
                 </div>
               </div>
               <div className="text-left">
@@ -215,8 +215,8 @@ export default async function AdminAIUsagePage() {
                   <span className="text-2xl">🥇</span>
                 </div>
                 <div>
-                  <p className="font-medium">Enterprise (150₪)</p>
-                  <p className="text-sm text-muted-foreground">GPT-4o Premium</p>
+                  <p className="font-medium">ארגוני - Enterprise (220₪)</p>
+                  <p className="text-sm text-muted-foreground">Gemini 2.0 Flash - מפורט עם גישות</p>
                 </div>
               </div>
               <div className="text-left">

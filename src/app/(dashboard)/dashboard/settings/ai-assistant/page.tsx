@@ -130,24 +130,24 @@ export default function AIAssistantSettingsPage() {
 
               <div className="grid gap-4 md:grid-cols-2 pt-4">
                 <div className="p-4 border-2 border-blue-200 rounded-lg bg-blue-50/50">
-                  <h3 className="font-semibold mb-2">🥈 Professional</h3>
-                  <p className="text-2xl font-bold mb-1">120₪/חודש</p>
-                  <p className="text-sm text-muted-foreground mb-3">GPT-4o-mini - איכות מצוינת</p>
+                  <h3 className="font-semibold mb-2">🥈 מקצועי (Professional)</h3>
+                  <p className="text-2xl font-bold mb-1">145₪/חודש</p>
+                  <p className="text-sm text-muted-foreground mb-3">Gemini 2.0 - ניתוח תמציתי</p>
                   <ul className="text-xs space-y-1 mb-3">
-                    <li>✅ Session Prep יומי</li>
-                    <li>✅ ניתוח מתקדם</li>
-                    <li>✅ כל הגישות הטיפוליות</li>
+                    <li>✅ הכנה לפגישות</li>
+                    <li>✅ ניתוח תמציתי</li>
+                    <li>✅ ניתוח שאלונים</li>
                   </ul>
                 </div>
 
                 <div className="p-4 border-2 border-purple-200 rounded-lg bg-purple-50/50">
-                  <h3 className="font-semibold mb-2">🥇 Enterprise</h3>
-                  <p className="text-2xl font-bold mb-1">150₪/חודש</p>
-                  <p className="text-sm text-muted-foreground mb-3">GPT-4o - הטוב ביותר!</p>
+                  <h3 className="font-semibold mb-2">🥇 ארגוני (Enterprise)</h3>
+                  <p className="text-2xl font-bold mb-1">220₪/חודש</p>
+                  <p className="text-sm text-muted-foreground mb-3">Gemini 2.0 - ניתוח מפורט עם גישות</p>
                   <ul className="text-xs space-y-1 mb-3">
-                    <li>✅ ניתוח עמוק ביותר</li>
-                    <li>✅ Deep Analysis שבועי</li>
-                    <li>✅ תחזיות ודוחות</li>
+                    <li>✅ ניתוח מפורט לפי גישה</li>
+                    <li>✅ דוחות התקדמות</li>
+                    <li>✅ מכסות מורחבות</li>
                   </ul>
                 </div>
               </div>
@@ -174,7 +174,7 @@ export default function AIAssistantSettingsPage() {
           </p>
         </div>
         <Badge variant={userTier === 'ENTERPRISE' ? 'default' : 'secondary'} className="text-sm">
-          {userTier === 'ENTERPRISE' ? '🥇 Enterprise' : '🥈 Professional'}
+          {userTier === 'ENTERPRISE' ? '🥇 ארגוני' : '🥈 מקצועי'}
         </Badge>
       </div>
 
@@ -185,12 +185,12 @@ export default function AIAssistantSettingsPage() {
             <Brain className="h-8 w-8 text-primary" />
             <div>
               <p className="font-semibold">
-                {userTier === 'ENTERPRISE' ? 'GPT-4o Premium' : 'GPT-4o-mini Pro'}
+                Gemini 2.0 Flash - {userTier === 'ENTERPRISE' ? 'ניתוח מפורט' : 'ניתוח תמציתי'}
               </p>
               <p className="text-sm text-muted-foreground">
                 {userTier === 'ENTERPRISE' 
-                  ? 'המודל החכם והמתקדם ביותר - ניתוח עמוק ביותר'
-                  : 'מודל מתקדם ויעיל - איכות מצוינת במחיר משתלם'
+                  ? 'ניתוח מעמיק לפי גישות טיפוליות ספציפיות'
+                  : 'ניתוח תמציתי ויעיל - מושלם לשימוש יומיומי'
                 }
               </p>
             </div>

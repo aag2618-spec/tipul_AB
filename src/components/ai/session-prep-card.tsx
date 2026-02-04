@@ -4,7 +4,7 @@ import { useState } from "react";
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
 import { Badge } from "@/components/ui/badge";
-import { Brain, Loader2, RefreshCw, Sparkles } from "lucide-react";
+import { Brain, Loader2, RefreshCw, Sparkles, Lock } from "lucide-react";
 import { toast } from "sonner";
 
 interface SessionPrepCardProps {
@@ -14,8 +14,15 @@ interface SessionPrepCardProps {
     clientName: string;
     startTime: Date;
   };
-  userTier: 'ESSENTIAL' | 'PRO' | 'ENTERPRISE';
+  userTier: 'ESSENTIAL' | 'PROFESSIONAL' | 'ENTERPRISE';
 }
+
+// תרגום שמות תוכניות
+const TIER_NAMES = {
+  ESSENTIAL: { he: 'בסיסי', en: 'Essential' },
+  PROFESSIONAL: { he: 'מקצועי', en: 'Professional' },
+  ENTERPRISE: { he: 'ארגוני', en: 'Enterprise' }
+};
 
 export function SessionPrepCard({ session, userTier }: SessionPrepCardProps) {
   const [isLoading, setIsLoading] = useState(false);
@@ -24,7 +31,7 @@ export function SessionPrepCard({ session, userTier }: SessionPrepCardProps) {
 
   const handleGenerate = async () => {
     if (userTier === 'ESSENTIAL') {
-      toast.error('Session Prep זמין רק בתוכניות Pro ו-Enterprise');
+      toast.error('הכנה לפגישה זמינה רק בתוכניות מקצועי וארגוני');
       return;
     }
 
@@ -41,35 +48,39 @@ export function SessionPrepCard({ session, userTier }: SessionPrepCardProps) {
 
       if (!response.ok) {
         const error = await response.json();
-        throw new Error(error.message || 'Failed to generate prep');
+        throw new Error(error.message || 'שגיאה ביצירת הכנה לפגישה');
       }
 
       const data = await response.json();
       
       if (!data.content) {
-        toast.info(data.message || 'אין מספיק נתונים ליצירת briefing');
+        toast.info(data.message || 'אין מספיק נתונים ליצירת הכנה');
         return;
       }
 
       setPrep(data);
       setIsExpanded(true);
-      toast.success('Session Prep נוצר בהצלחה! ✨');
+      toast.success('ההכנה לפגישה נוצרה בהצלחה!');
     } catch (error: any) {
-      console.error('Session prep error:', error);
-      toast.error(error.message || 'שגיאה ביצירת Session Prep');
+      console.error('שגיאה בהכנה לפגישה:', error);
+      toast.error(error.message || 'שגיאה ביצירת הכנה לפגישה');
     } finally {
       setIsLoading(false);
     }
   };
 
+  // תוכנית בסיסית - הצגת אפשרות שדרוג
   if (userTier === 'ESSENTIAL') {
     return (
       <Card className="border-2 border-dashed border-primary/30 bg-gradient-to-br from-blue-50/50 to-purple-50/50">
         <CardHeader>
           <div className="flex items-center gap-2">
             <Brain className="h-5 w-5 text-primary" />
-            <CardTitle className="text-lg">🤖 AI Session Prep</CardTitle>
-            <Badge variant="outline" className="mr-auto">Premium Feature</Badge>
+            <CardTitle className="text-lg">🤖 הכנה לפגישה</CardTitle>
+            <Badge variant="outline" className="mr-auto">
+              <Lock className="h-3 w-3 ml-1" />
+              תכונה מתקדמת
+            </Badge>
           </div>
           <CardDescription>הכנה חכמה ומקצועית לכל פגישה</CardDescription>
         </CardHeader>
@@ -94,7 +105,7 @@ export function SessionPrepCard({ session, userTier }: SessionPrepCardProps) {
             </div>
             <Button className="w-full" asChild>
               <a href="/dashboard/settings/billing">
-                ⬆️ שדרג ל-Professional
+                ⬆️ שדרג לתוכנית מקצועית
               </a>
             </Button>
           </div>
@@ -103,14 +114,19 @@ export function SessionPrepCard({ session, userTier }: SessionPrepCardProps) {
     );
   }
 
+  // קבלת שם התוכנית לתצוגה
+  const tierDisplay = userTier === 'ENTERPRISE' 
+    ? 'ארגוני - מפורט' 
+    : 'מקצועי - תמציתי';
+
   return (
     <Card className="border-2 border-primary/20 bg-gradient-to-br from-blue-50/30 to-purple-50/30">
       <CardHeader>
         <div className="flex items-center justify-between">
           <div className="flex items-center gap-2">
             <Brain className="h-5 w-5 text-primary" />
-            <CardTitle className="text-lg">🤖 AI Session Prep</CardTitle>
-            <Badge variant="secondary">{userTier === 'ENTERPRISE' ? 'GPT-4o' : 'GPT-4o-mini'}</Badge>
+            <CardTitle className="text-lg">🤖 הכנה לפגישה</CardTitle>
+            <Badge variant="secondary">{tierDisplay}</Badge>
           </div>
           {prep && (
             <Button 
@@ -118,6 +134,7 @@ export function SessionPrepCard({ session, userTier }: SessionPrepCardProps) {
               size="sm"
               onClick={handleGenerate}
               disabled={isLoading}
+              title="יצירה מחדש"
             >
               <RefreshCw className="h-4 w-4" />
             </Button>
@@ -126,6 +143,7 @@ export function SessionPrepCard({ session, userTier }: SessionPrepCardProps) {
         <CardDescription>{session.clientName}</CardDescription>
       </CardHeader>
       <CardContent>
+        {/* מצב ראשוני - לפני יצירה */}
         {!prep && !isLoading && (
           <div className="text-center py-6">
             <Brain className="h-12 w-12 mx-auto mb-3 text-muted-foreground opacity-50" />
@@ -134,20 +152,22 @@ export function SessionPrepCard({ session, userTier }: SessionPrepCardProps) {
             </p>
             <Button onClick={handleGenerate} disabled={isLoading}>
               <Sparkles className="h-4 w-4 ml-2" />
-              צור Session Prep
+              צור הכנה לפגישה
             </Button>
           </div>
         )}
 
+        {/* מצב טעינה */}
         {isLoading && (
           <div className="text-center py-6">
             <Loader2 className="h-8 w-8 mx-auto mb-3 animate-spin text-primary" />
             <p className="text-sm text-muted-foreground">
-              {userTier === 'ENTERPRISE' ? 'GPT-4o מנתח...' : 'GPT-4o-mini מנתח...'}
+              מנתח את הפגישות האחרונות...
             </p>
           </div>
         )}
 
+        {/* תוצאת ההכנה */}
         {prep && (
           <div className="space-y-4">
             <div 
@@ -157,6 +177,7 @@ export function SessionPrepCard({ session, userTier }: SessionPrepCardProps) {
               <div className="whitespace-pre-wrap">{prep.content}</div>
             </div>
             
+            {/* כפתור הרחבה */}
             {!isExpanded && prep.content.length > 300 && (
               <Button 
                 variant="ghost" 
@@ -168,6 +189,7 @@ export function SessionPrepCard({ session, userTier }: SessionPrepCardProps) {
               </Button>
             )}
             
+            {/* כפתור כיווץ */}
             {isExpanded && (
               <Button 
                 variant="ghost" 
@@ -179,10 +201,11 @@ export function SessionPrepCard({ session, userTier }: SessionPrepCardProps) {
               </Button>
             )}
 
+            {/* פרטי שימוש */}
             <div className="flex items-center justify-between pt-3 border-t text-xs text-muted-foreground">
-              <span>🧠 {prep.tokensUsed.toLocaleString()} tokens</span>
-              <span>💰 {prep.cost.toFixed(4)}₪</span>
-              <span>⚡ {userTier === 'ENTERPRISE' ? 'GPT-4o' : 'GPT-4o-mini'}</span>
+              <span>🧠 {prep.tokensUsed?.toLocaleString() || 0} טוקנים</span>
+              <span>💰 {(prep.cost || 0).toFixed(4)}₪</span>
+              <span>⚡ Gemini 2.0</span>
             </div>
           </div>
         )}

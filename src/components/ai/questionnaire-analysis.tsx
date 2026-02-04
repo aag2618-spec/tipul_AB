@@ -318,7 +318,7 @@ export function QuestionnaireAnalysis({
             📊 נתח את כל השאלונים
             {userTier === "ENTERPRISE" && (
               <Badge variant="secondary" className="mr-2">
-                GPT-4o
+                Gemini 2.0
               </Badge>
             )}
           </Button>
@@ -337,7 +337,7 @@ export function QuestionnaireAnalysis({
             📈 דו"ח התקדמות (30 יום)
             {userTier === "ENTERPRISE" && (
               <Badge variant="secondary" className="mr-2">
-                GPT-4o
+                Gemini 2.0
               </Badge>
             )}
           </Button>

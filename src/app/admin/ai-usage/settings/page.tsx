@@ -92,7 +92,7 @@ export default function AdminAISettingsPage() {
         <CardContent className="space-y-6">
           {/* Pro Limits */}
           <div className="space-y-4 p-4 bg-blue-50 rounded-lg">
-            <h3 className="font-semibold text-lg">🥈 Professional (120₪)</h3>
+            <h3 className="font-semibold text-lg">🥈 מקצועי (145₪)</h3>
             <div className="grid gap-4 md:grid-cols-2">
               <div className="space-y-2">
                 <Label>מכסה יומית</Label>
@@ -117,7 +117,7 @@ export default function AdminAISettingsPage() {
 
           {/* Enterprise Limits */}
           <div className="space-y-4 p-4 bg-purple-50 rounded-lg">
-            <h3 className="font-semibold text-lg">🥇 Enterprise (150₪)</h3>
+            <h3 className="font-semibold text-lg">🥇 ארגוני (220₪)</h3>
             <div className="grid gap-4 md:grid-cols-2">
               <div className="space-y-2">
                 <Label>מכסה יומית</Label>

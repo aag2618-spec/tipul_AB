@@ -1,4 +1,5 @@
 import { GoogleGenerativeAI } from '@google/generative-ai';
+import { getApproachPrompts } from './therapeutic-approaches';
 
 // Lazy initialization to ensure environment variable is available
 let genAI: GoogleGenerativeAI | null = null;
@@ -13,6 +14,9 @@ function getGenAI(): GoogleGenerativeAI {
   }
   return genAI;
 }
+
+// Updated model to Gemini 2.0 Flash (33x cheaper than Gemini 3 Pro!)
+const DEFAULT_MODEL = 'gemini-2.0-flash-exp';
 
 export async function transcribeAudio(audioBase64: string, mimeType: string): Promise<{
   text: string;
@@ -29,7 +33,7 @@ export async function transcribeAudio(audioBase64: string, mimeType: string): Pr
   console.log('API Key prefix:', apiKey.substring(0, 10) + '...');
   
   try {
-    const model = getGenAI().getGenerativeModel({ model: 'gemini-3-pro-preview' });
+    const model = getGenAI().getGenerativeModel({ model: DEFAULT_MODEL });
 
     const result = await model.generateContent([
       {
@@ -70,7 +74,7 @@ export async function transcribeAudioWithTimestamps(
   segments: { start: number; end: number; text: string; speaker?: string }[];
 }> {
   try {
-    const model = getGenAI().getGenerativeModel({ model: 'gemini-3-pro-preview' });
+    const model = getGenAI().getGenerativeModel({ model: DEFAULT_MODEL });
 
     const result = await model.generateContent([
       {
@@ -112,46 +116,199 @@ export async function transcribeAudioWithTimestamps(
   }
 }
 
-// Session Analysis Types
+// Session Analysis Types - Enhanced for approach-specific analysis
 export interface SessionAnalysis {
+  // Basic summary
   summary: string;
-  keyTopics: string[];
+  approachUsed: string[];
+  
+  // Pattern identification
+  patterns: {
+    emotional: {
+      pattern: string;
+      evidence: string[];
+      significance: string;
+    }[];
+    behavioral: {
+      pattern: string;
+      evidence: string[];
+      significance: string;
+    }[];
+    relational: {
+      pattern: string;
+      evidence: string[];
+      significance: string;
+    }[];
+    cognitive?: {
+      pattern: string;
+      evidence: string[];
+      significance: string;
+    }[];
+  };
+  
+  // Core issue identified
+  coreIssue: {
+    description: string;
+    approachPerspective: string;
+    severity: 'mild' | 'moderate' | 'severe';
+  };
+  
+  // Emotional markers (kept for backwards compatibility)
   emotionalMarkers: {
     emotion: string;
     intensity: 'low' | 'medium' | 'high';
     context: string;
   }[];
-  recommendations: string[];
+  
+  // Strengths identified
+  strengths: string[];
+  
+  // Key topics
+  keyTopics: string[];
+  
+  // Approach-specific analysis (dynamic based on approach)
+  approachAnalysis: Record<string, unknown>;
+  
+  // Recommendations with rationale
+  recommendations: {
+    recommendation: string;
+    rationale: string;
+    priority: 'high' | 'medium' | 'low';
+  }[];
+  
+  // Next session focus
+  nextSessionFocus: {
+    topics: string[];
+    goals: string[];
+    techniques: string[];
+  };
+  
+  // Legacy field for backwards compatibility
   nextSessionNotes: string;
 }
 
-export async function analyzeSession(transcription: string): Promise<SessionAnalysis> {
+export async function analyzeSession(
+  transcription: string,
+  approachIds: string[] = []
+): Promise<SessionAnalysis> {
   try {
-    const model = getGenAI().getGenerativeModel({ model: 'gemini-3-pro-preview' });
+    const model = getGenAI().getGenerativeModel({ model: DEFAULT_MODEL });
+
+    // Build approach-specific prompts
+    let approachGuidance = '';
+    let approachNames = 'כללי';
+    
+    if (approachIds.length > 0) {
+      const approachPrompts = getApproachPrompts(approachIds);
+      approachNames = approachIds.join(', ');
+      approachGuidance = `
+אתה מתמחה בגישות הטיפוליות הבאות בלבד:
+
+${approachPrompts}
+
+===== הוראות קריטיות =====
+1. השתמש אך ורק במושגים, כלים וטכניקות של הגישות שצוינו למעלה.
+2. אסור לך להשתמש במונחים מגישות אחרות!
+3. כל הניתוח, הדפוסים, ההמלצות והערות לפגישה הבאה חייבים להיות בהתאם לגישות שנבחרו בלבד.
+4. אם נבחרו מספר גישות - שלב ביניהן, אבל אל תוסיף גישות שלא נבחרו.
+==============================
+`;
+    }
 
     const result = await model.generateContent([
       {
-        text: `אתה פסיכולוג קליני מנוסה. נתח את תמלול הפגישה הטיפולית הבא והחזר ניתוח מובנה.
+        text: `אתה פסיכולוג קליני מנוסה עם מומחיות עמוקה. ${approachGuidance}
+
+נתח את תמלול הפגישה הטיפולית הבא והחזר ניתוח מקצועי מעמיק${approachIds.length > 0 ? ' בהתאם לגישות שצוינו בלבד' : ''}.
 
 תמלול הפגישה:
 ${transcription}
 
-החזר את התשובה בפורמט JSON עם המבנה הבא:
+החזר את התשובה בפורמט JSON עם המבנה המפורט הבא:
 {
-  "summary": "סיכום קצר של הפגישה (2-3 משפטים)",
-  "keyTopics": ["נושא 1", "נושא 2", ...],
+  "summary": "סיכום מקצועי של הפגישה (3-4 משפטים) לפי הגישה/ות שנבחרו",
+  "approachUsed": ${JSON.stringify(approachIds.length > 0 ? approachIds : ['general'])},
+  
+  "patterns": {
+    "emotional": [
+      {
+        "pattern": "תיאור הדפוס הרגשי שזוהה",
+        "evidence": ["ראיה 1 מהטקסט", "ראיה 2"],
+        "significance": "משמעות הדפוס לפי הגישה הטיפולית"
+      }
+    ],
+    "behavioral": [
+      {
+        "pattern": "תיאור הדפוס ההתנהגותי שזוהה",
+        "evidence": ["ראיה 1 מהטקסט", "ראיה 2"],
+        "significance": "משמעות הדפוס לפי הגישה הטיפולית"
+      }
+    ],
+    "relational": [
+      {
+        "pattern": "תיאור הדפוס היחסי/בין-אישי שזוהה",
+        "evidence": ["ראיה 1 מהטקסט", "ראיה 2"],
+        "significance": "משמעות הדפוס לפי הגישה הטיפולית"
+      }
+    ]${approachIds.some(id => id.includes('cbt') || id.includes('beck') || id.includes('ellis')) ? `,
+    "cognitive": [
+      {
+        "pattern": "מחשבה אוטומטית / עיוות קוגניטיבי / אמונה",
+        "evidence": ["ראיה 1 מהטקסט", "ראיה 2"],
+        "significance": "משמעות לפי CBT"
+      }
+    ]` : ''}
+  },
+  
+  "coreIssue": {
+    "description": "תיאור הבעיה/קונפליקט המרכזי שעולה מהפגישה",
+    "approachPerspective": "פרשנות לפי הגישה הטיפולית שנבחרה",
+    "severity": "mild/moderate/severe"
+  },
+  
   "emotionalMarkers": [
     {
       "emotion": "שם הרגש",
-      "intensity": "low" | "medium" | "high",
+      "intensity": "low/medium/high",
       "context": "ההקשר בו הרגש הופיע"
     }
   ],
-  "recommendations": ["המלצה 1", "המלצה 2", ...],
-  "nextSessionNotes": "נקודות לדיון בפגישה הבאה"
+  
+  "strengths": ["חוזקה 1 שזוהתה", "חוזקה 2"],
+  
+  "keyTopics": ["נושא מרכזי 1", "נושא מרכזי 2"],
+  
+  "approachAnalysis": {
+    // ניתוח ספציפי לפי הגישה שנבחרה
+    // אם נבחרה CBT: כלול automaticThoughts, cognitiveDistortions, coreBeliefs, maintenanceCycle
+    // אם נבחרה Mahler: כלול developmentalStage, separationIssues, objectConstancy
+    // אם נבחרה Bowlby: כלול attachmentStyle, internalWorkingModels
+    // אם נבחרה Klein: כלול position, splitting, projectiveIdentification
+    // אם נבחרה Yalom: כלול existentialConcerns, authenticityLevel
+    // וכו' - התאם לגישה הספציפית!
+  },
+  
+  "recommendations": [
+    {
+      "recommendation": "המלצה ספציפית לפי הגישה",
+      "rationale": "למה זה יעזור - הסבר תיאורטי",
+      "priority": "high/medium/low"
+    }
+  ],
+  
+  "nextSessionFocus": {
+    "topics": ["נושא לעבודה בפגישה הבאה"],
+    "goals": ["מטרה לפגישה הבאה"],
+    "techniques": ["טכניקה מומלצת מהגישה שנבחרה"]
+  },
+  
+  "nextSessionNotes": "סיכום קצר של נקודות לפגישה הבאה"
 }
 
-החזר רק את ה-JSON, בלי הסברים נוספים.`,
+חשוב מאוד:
+- החזר רק JSON תקין, בלי הסברים נוספים.
+- וודא שכל הניתוח מבוסס על הגישה/ות שנבחרו בלבד: ${approachNames}
+- אל תערבב מונחים מגישות אחרות!`,
       },
     ]);
 
@@ -161,7 +318,26 @@ ${transcription}
     // Parse JSON from response
     const jsonMatch = content.match(/\{[\s\S]*\}/);
     if (jsonMatch) {
-      return JSON.parse(jsonMatch[0]);
+      const parsed = JSON.parse(jsonMatch[0]);
+      
+      // Ensure backwards compatibility - convert new format to include legacy fields if missing
+      if (!parsed.nextSessionNotes && parsed.nextSessionFocus) {
+        parsed.nextSessionNotes = parsed.nextSessionFocus.topics?.join(', ') || '';
+      }
+      
+      // Convert recommendations to legacy format if needed for backwards compatibility
+      if (parsed.recommendations && parsed.recommendations[0]?.recommendation) {
+        // New format - keep as is
+      } else if (parsed.recommendations && typeof parsed.recommendations[0] === 'string') {
+        // Legacy format - convert
+        parsed.recommendations = parsed.recommendations.map((rec: string) => ({
+          recommendation: rec,
+          rationale: '',
+          priority: 'medium' as const
+        }));
+      }
+      
+      return parsed;
     }
 
     throw new Error('No valid JSON in response');
@@ -172,13 +348,31 @@ ${transcription}
   }
 }
 
-export async function generateSessionSummary(transcription: string): Promise<string> {
+export async function generateSessionSummary(
+  transcription: string,
+  approachIds: string[] = []
+): Promise<string> {
   try {
-    const model = getGenAI().getGenerativeModel({ model: 'gemini-3-pro-preview' });
+    const model = getGenAI().getGenerativeModel({ model: DEFAULT_MODEL });
+
+    // Build approach-specific prompts
+    let approachGuidance = '';
+    if (approachIds.length > 0) {
+      const approachPrompts = getApproachPrompts(approachIds);
+      approachGuidance = `
+אתה מתמחה בגישות הטיפוליות הבאות:
+
+${approachPrompts}
+
+חשוב: כתוב את הסיכום בהתאם לגישות שצוינו, תוך שימוש במושגים והמסגרת המקצועית שלהן.
+`;
+    }
 
     const result = await model.generateContent([
       {
-        text: `אתה פסיכולוג קליני מנוסה. כתוב סיכום מקצועי קצר של הפגישה הטיפולית הבאה.
+        text: `אתה פסיכולוג קליני מנוסה. ${approachGuidance}
+
+כתוב סיכום מקצועי קצר של הפגישה הטיפולית הבאה.
 הסיכום צריך להיות בגוף שלישי, מקצועי, ומתאים לתיעוד רפואי.
 
 תמלול הפגישה:
@@ -207,7 +401,7 @@ export async function analyzeIntake(transcription: string): Promise<{
   riskFactors: string[];
 }> {
   try {
-    const model = getGenAI().getGenerativeModel({ model: 'gemini-3-pro-preview' });
+    const model = getGenAI().getGenerativeModel({ model: DEFAULT_MODEL });
 
     const result = await model.generateContent([
       {
@@ -250,7 +444,7 @@ ${transcription}
 // Generic text analysis function
 export async function analyzeText(prompt: string): Promise<string> {
   try {
-    const model = getGenAI().getGenerativeModel({ model: 'gemini-3-pro-preview' });
+    const model = getGenAI().getGenerativeModel({ model: DEFAULT_MODEL });
 
     const result = await model.generateContent([
       {

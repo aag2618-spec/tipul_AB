@@ -5,22 +5,22 @@ import { prisma } from "@/lib/prisma";
 
 /**
  * GET /api/ai/usage
- * Get current month AI usage stats and limits
+ * קבלת סטטיסטיקות שימוש ב-AI לחודש הנוכחי
  */
 export async function GET(req: NextRequest) {
   try {
     const session = await getServerSession(authOptions);
     if (!session?.user?.id) {
-      return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
+      return NextResponse.json({ error: "לא מורשה" }, { status: 401 });
     }
 
-    // Get user
+    // קבלת פרטי המשתמש
     const user = await prisma.user.findUnique({
       where: { id: session.user.id },
     });
 
     if (!user) {
-      return NextResponse.json({ error: "User not found" }, { status: 404 });
+      return NextResponse.json({ error: "משתמש לא נמצא" }, { status: 404 });
     }
 
     // Get current month usage
@@ -35,7 +35,7 @@ export async function GET(req: NextRequest) {
       },
     });
 
-    // Define limits based on plan
+    // מגבלות לפי תוכנית
     const limits = {
       ESSENTIAL: {
         detailedAnalysis: 0,
@@ -43,14 +43,14 @@ export async function GET(req: NextRequest) {
         combinedQuestionnaire: 0,
         progressReport: 0,
       },
-      PRO: {
-        detailedAnalysis: 0, // Not available
+      PROFESSIONAL: {
+        detailedAnalysis: 0, // לא זמין בתוכנית מקצועית
         singleQuestionnaire: 60,
         combinedQuestionnaire: 30,
         progressReport: 15,
       },
       ENTERPRISE: {
-        detailedAnalysis: 10,
+        detailedAnalysis: 20, // מוגבל לתוכנית ארגונית
         singleQuestionnaire: 80,
         combinedQuestionnaire: 40,
         progressReport: 20,
@@ -103,9 +103,9 @@ export async function GET(req: NextRequest) {
       year: now.getFullYear(),
     });
   } catch (error) {
-    console.error("Error fetching AI usage:", error);
+    console.error("שגיאה בקבלת נתוני שימוש:", error);
     return NextResponse.json(
-      { error: "Failed to fetch AI usage" },
+      { error: "שגיאה בקבלת נתוני השימוש ב-AI" },
       { status: 500 }
     );
   }

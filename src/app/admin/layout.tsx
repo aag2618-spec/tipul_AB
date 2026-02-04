@@ -22,44 +22,24 @@ import {
   Ticket,
   ClipboardList,
   Brain,
+  Bell,
+  Settings,
 } from "lucide-react";
 
+// תפריט ניהול - מאורגן לפי חשיבות
 const adminNavItems = [
-  {
-    href: "/admin",
-    label: "דשבורד",
-    icon: LayoutDashboard,
-  },
-  {
-    href: "/admin/ai-dashboard",
-    label: "ניהול AI ומשתמשים",
-    icon: Brain,
-  },
-  {
-    href: "/admin/questionnaires",
-    label: "שאלונים",
-    icon: ClipboardList,
-  },
-  {
-    href: "/admin/coupons",
-    label: "קופונים",
-    icon: Ticket,
-  },
-  {
-    href: "/admin/api-usage",
-    label: "שימוש ב-API",
-    icon: Activity,
-  },
-  {
-    href: "/admin/billing",
-    label: "תשלומים",
-    icon: CreditCard,
-  },
-  {
-    href: "/admin/storage",
-    label: "אחסון",
-    icon: HardDrive,
-  },
+  // --- ראשי ---
+  { href: "/admin", label: "דשבורד", icon: LayoutDashboard },
+  { href: "/admin/alerts", label: "התראות", icon: Bell },
+  
+  // --- משתמשים וכסף ---
+  { href: "/admin/ai-dashboard", label: "משתמשים", icon: Users },
+  { href: "/admin/billing", label: "תשלומים", icon: CreditCard },
+  
+  // --- הגדרות ---
+  { href: "/admin/tier-settings", label: "תוכניות ומחירים", icon: Settings },
+  { href: "/admin/coupons", label: "קופונים", icon: Ticket },
+  { href: "/admin/questionnaires", label: "שאלונים", icon: ClipboardList },
 ];
 
 function AdminLayoutContent({ children }: { children: React.ReactNode }) {

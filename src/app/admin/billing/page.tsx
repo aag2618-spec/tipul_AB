@@ -370,7 +370,16 @@ export default function AdminBillingPage() {
                     <TableCell>
                       <div>
                         <p className="font-medium text-white">{payment.user.name || "ללא שם"}</p>
-                        <p className="text-sm text-slate-500">{payment.user.email}</p>
+                        {payment.user.email ? (
+                          <a 
+                            href={`mailto:${payment.user.email}`}
+                            className="text-sm text-blue-400 hover:text-blue-300 hover:underline"
+                          >
+                            {payment.user.email}
+                          </a>
+                        ) : (
+                          <p className="text-sm text-slate-500">ללא מייל</p>
+                        )}
                       </div>
                     </TableCell>
                     <TableCell className="font-medium text-white">

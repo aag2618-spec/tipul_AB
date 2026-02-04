@@ -128,9 +128,9 @@ model User {
 // ==================== AI Tiers ====================
 
 enum AITier {
-  ESSENTIAL  // 100₪ - No AI
-  PRO        // 120₪ - GPT-4o-mini
-  ENTERPRISE // 150₪ - GPT-4o
+  ESSENTIAL    // 117₪ - ללא AI
+  PRO          // 145₪ - Gemini 2.0 Flash (תמציתי) - מוצג כ"מקצועי" בממשק
+  ENTERPRISE   // 220₪ - Gemini 2.0 Flash (מפורט עם גישות) - מוצג כ"ארגוני" בממשק
 }
 
 enum SubscriptionStatus {
@@ -139,6 +139,73 @@ enum SubscriptionStatus {
   PAST_DUE
   CANCELLED
   PAUSED
+}
+
+// ==================== Admin Alerts System ====================
+
+model AdminAlert {
+  id            String          @id @default(cuid())
+  type          AdminAlertType
+  priority      AlertPriority   @default(MEDIUM)
+  status        AlertStatus     @default(PENDING)
+  
+  // Alert details
+  title         String
+  message       String          @db.Text
+  
+  // Related entities (optional)
+  userId        String?
+  
+  // Action tracking
+  actionRequired String?        // מה צריך לעשות
+  actionTaken   String?         @db.Text // מה נעשה
+  resolvedAt    DateTime?
+  resolvedBy    String?         // Admin ID who resolved
+  
+  // Scheduling for reminders
+  scheduledFor  DateTime?       // מתי להציג/לשלוח
+  emailSent     Boolean         @default(false)
+  emailSentAt   DateTime?
+  
+  // Metadata
+  metadata      Json?           // Additional data (payment IDs, amounts, etc.)
+  
+  createdAt     DateTime        @default(now())
+  updatedAt     DateTime        @updatedAt
+  
+  @@index([type, status])
+  @@index([userId])
+  @@index([scheduledFor])
+  @@index([priority, status])
+}
+
+enum AdminAlertType {
+  PAYMENT_DUE           // תשלום קרב
+  PAYMENT_OVERDUE       // תשלום באיחור
+  PAYMENT_FAILED        // תשלום נכשל
+  SUBSCRIPTION_EXPIRING // מנוי עומד לפוג
+  SUBSCRIPTION_EXPIRED  // מנוי פג
+  HIGH_AI_USAGE         // שימוש גבוה ב-AI
+  NEW_USER              // משתמש חדש נרשם
+  USER_BLOCKED          // משתמש נחסם
+  TIER_CHANGE_REQUEST   // בקשה לשינוי תוכנית
+  MANUAL_REMINDER       // תזכורת ידנית
+  SYSTEM                // התראת מערכת
+}
+
+enum AlertPriority {
+  LOW
+  MEDIUM
+  HIGH
+  URGENT
+}
+
+enum AlertStatus {
+  PENDING     // טרם טופל
+  IN_PROGRESS // בטיפול
+  RESOLVED    // טופל
+  DISMISSED   // נדחה
+  SNOOZED     // נדחה לזמן מאוחר
 }
 
 // ==================== Password Reset ====================
@@ -1303,6 +1370,70 @@ model SessionAnalysis {
 enum AnalysisType {
   CONCISE   // Short analysis (0.5 pages)
   DETAILED  // Detailed analysis (2-3 pages)
+}
+
+// ==================== Tier Usage Limits ====================
+
+model TierLimits {
+  id                    String   @id @default(cuid())
+  tier                  AITier   @unique
+  
+  // הכנות לפגישה
+  sessionPrepLimit      Int      @default(0)      // 0 = ללא הגבלה, -1 = חסום
+  
+  // ניתוחי פגישה
+  conciseAnalysisLimit  Int      @default(0)      // תמציתי
+  detailedAnalysisLimit Int      @default(0)      // מפורט
+  
+  // ניתוחי שאלונים
+  singleQuestionnaireLimit  Int  @default(0)      // שאלון בודד
+  combinedQuestionnaireLimit Int @default(0)      // ניתוח משולב
+  progressReportLimit       Int  @default(0)      // דוח התקדמות
+  
+  // תיאור התוכנית
+  displayNameHe         String   @default("")     // שם בעברית
+  displayNameEn         String   @default("")     // שם באנגלית
+  priceMonthly          Int      @default(0)      // מחיר חודשי בשקלים
+  description           String?  @db.Text         // תיאור התוכנית
+  
+  createdAt             DateTime @default(now())
+  updatedAt             DateTime @updatedAt
+  
+  @@map("tier_limits")
+}
+
+// ==================== Admin Email Templates ====================
+
+model AdminEmailTemplate {
+  id            String            @id @default(cuid())
+  type          EmailTemplateType
+  
+  // Email content
+  subject       String
+  bodyHtml      String            @db.Text
+  bodyText      String?           @db.Text
+  
+  // Placeholders documentation
+  placeholders  Json?             // { "{name}": "שם המשתמש", "{amount}": "סכום" }
+  
+  isActive      Boolean           @default(true)
+  
+  createdAt     DateTime          @default(now())
+  updatedAt     DateTime          @updatedAt
+  
+  @@unique([type])
+  @@map("admin_email_templates")
+}
+
+enum EmailTemplateType {
+  PAYMENT_REMINDER        // תזכורת תשלום
+  PAYMENT_OVERDUE         // תשלום באיחור
+  SUBSCRIPTION_EXPIRING   // מנוי עומד לפוג
+  SUBSCRIPTION_EXPIRED    // מנוי פג
+  WELCOME_NEW_USER        // ברוך הבא
+  TIER_UPGRADE            // שדרוג תוכנית
+  TIER_DOWNGRADE          // שנמוך תוכנית
+  CUSTOM                  // מותאם אישית
 }
 
 // ==================== Monthly Usage Tracking ====================

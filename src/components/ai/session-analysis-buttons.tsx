@@ -103,7 +103,7 @@ export function SessionAnalysisButtons({
             📚 ניתוח מפורט
             <Badge variant="secondary" className="mr-2">
               <Sparkles className="h-3 w-3 ml-1" />
-              GPT-4o
+              Gemini 2.0
             </Badge>
           </Button>
         )}
@@ -132,7 +132,7 @@ export function SessionAnalysisButtons({
                   <BookOpen className="h-5 w-5" />
                   ניתוח מפורט
                   <Badge variant="secondary" className="mr-2">
-                    GPT-4o
+                    Gemini 2.0
                   </Badge>
                 </>
               )}

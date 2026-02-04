@@ -2,44 +2,58 @@ import { NextRequest, NextResponse } from "next/server";
 import { getServerSession } from "next-auth";
 import { authOptions } from "@/lib/auth";
 import { prisma } from "@/lib/prisma";
-import OpenAI from "openai";
 import { GoogleGenerativeAI } from "@google/generative-ai";
 
-const openai = new OpenAI({ apiKey: process.env.OPENAI_API_KEY });
+// שימוש ב-Gemini 2.0 Flash בלבד
 const genAI = new GoogleGenerativeAI(process.env.GOOGLE_AI_API_KEY || "");
+const GEMINI_MODEL = "gemini-2.0-flash-exp";
+
+// עלויות למיליון טוקנים
+const COSTS_PER_1M_TOKENS = {
+  input: 0.10,
+  output: 0.40
+};
 
 /**
  * POST /api/ai/questionnaire/analyze-single
- * Analyze a single questionnaire response
+ * ניתוח שאלון בודד
+ * 
+ * תוכניות:
+ * - ESSENTIAL: אין גישה
+ * - PROFESSIONAL: עד 60 ניתוחים בחודש
+ * - ENTERPRISE: עד 80 ניתוחים בחודש
  */
 export async function POST(req: NextRequest) {
   try {
     const session = await getServerSession(authOptions);
     if (!session?.user?.id) {
-      return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
+      return NextResponse.json({ error: "לא מורשה" }, { status: 401 });
     }
 
     const { responseId } = await req.json();
 
-    // Get user and check plan
+    // קבלת פרטי המשתמש
     const user = await prisma.user.findUnique({
       where: { id: session.user.id },
       include: { aiUsageStats: true },
     });
 
     if (!user) {
-      return NextResponse.json({ error: "User not found" }, { status: 404 });
+      return NextResponse.json({ error: "משתמש לא נמצא" }, { status: 404 });
     }
 
-    // Check if user has AI enabled
+    // תוכנית בסיסית - אין גישה
     if (user.aiTier === "ESSENTIAL") {
       return NextResponse.json(
-        { error: "AI features not available in Essential plan" },
+        { 
+          error: "תכונות AI אינן זמינות בתוכנית הבסיסית",
+          upgradeLink: "/dashboard/settings/billing"
+        },
         { status: 403 }
       );
     }
 
-    // Get current month usage
+    // בדיקת מכסה חודשית
     const now = new Date();
     const monthlyUsage = await prisma.monthlyUsage.findUnique({
       where: {
@@ -51,9 +65,9 @@ export async function POST(req: NextRequest) {
       },
     });
 
-    // Check limits
+    // מגבלות לפי תוכנית
     const limits = {
-      PRO: 60,
+      PROFESSIONAL: 60,
       ENTERPRISE: 80,
     };
 
@@ -63,13 +77,13 @@ export async function POST(req: NextRequest) {
     if (currentCount >= limit) {
       return NextResponse.json(
         {
-          error: `Monthly limit reached (${limit}). Upgrade your plan for more analyses.`,
+          error: `הגעת למכסה החודשית (${limit} ניתוחים). שדרג את התוכנית שלך לעוד ניתוחים.`,
         },
         { status: 429 }
       );
     }
 
-    // Get questionnaire response
+    // קבלת תשובות השאלון
     const response = await prisma.questionnaireResponse.findUnique({
       where: { id: responseId },
       include: {
@@ -80,14 +94,14 @@ export async function POST(req: NextRequest) {
 
     if (!response) {
       return NextResponse.json(
-        { error: "Response not found" },
+        { error: "תשובות השאלון לא נמצאו" },
         { status: 404 }
       );
     }
 
-    // Verify ownership
+    // וידוא בעלות
     if (response.therapistId !== user.id) {
-      return NextResponse.json({ error: "Forbidden" }, { status: 403 });
+      return NextResponse.json({ error: "אין הרשאה" }, { status: 403 });
     }
 
     // Prepare prompt
@@ -118,16 +132,21 @@ ${response.subscores ? `ציוני משנה: ${JSON.stringify(response.subscores
 
 כתוב בעברית, בסגנון מקצועי אך ברור.`;
 
-    // Generate analysis using Gemini (cheap for single questionnaire)
-    const model = genAI.getGenerativeModel({ model: "gemini-1.5-flash" });
+    // קריאה ל-Gemini 2.0 Flash
+    const model = genAI.getGenerativeModel({ model: GEMINI_MODEL });
     const result = await model.generateContent(prompt);
     const analysis = result.response.text();
 
-    // Calculate cost (Gemini Flash: ~0.00015 per 1K tokens)
-    const estimatedTokens = prompt.length / 4 + analysis.length / 4;
-    const cost = (estimatedTokens / 1000) * 0.00015;
+    // חישוב עלויות
+    const estimatedInputTokens = Math.round(prompt.length / 4);
+    const estimatedOutputTokens = Math.round(analysis.length / 4);
+    const totalTokens = estimatedInputTokens + estimatedOutputTokens;
+    
+    const inputCost = (estimatedInputTokens / 1_000_000) * COSTS_PER_1M_TOKENS.input;
+    const outputCost = (estimatedOutputTokens / 1_000_000) * COSTS_PER_1M_TOKENS.output;
+    const cost = inputCost + outputCost;
 
-    // Save analysis
+    // שמירת הניתוח
     const savedAnalysis = await prisma.questionnaireAnalysis.create({
       data: {
         userId: user.id,
@@ -135,13 +154,13 @@ ${response.subscores ? `ציוני משנה: ${JSON.stringify(response.subscores
         analysisType: "SINGLE",
         responseId: response.id,
         content: analysis,
-        aiModel: "gemini-1.5-flash",
-        tokensUsed: Math.round(estimatedTokens),
+        aiModel: GEMINI_MODEL,
+        tokensUsed: totalTokens,
         cost: cost,
       },
     });
 
-    // Update monthly usage
+    // עדכון סטטיסטיקות שימוש חודשיות
     await prisma.monthlyUsage.upsert({
       where: {
         userId_month_year: {
@@ -156,12 +175,12 @@ ${response.subscores ? `ציוני משנה: ${JSON.stringify(response.subscores
         year: now.getFullYear(),
         singleQuestionnaireCount: 1,
         totalCost: cost,
-        totalTokens: Math.round(estimatedTokens),
+        totalTokens: totalTokens,
       },
       update: {
         singleQuestionnaireCount: { increment: 1 },
         totalCost: { increment: cost },
-        totalTokens: { increment: Math.round(estimatedTokens) },
+        totalTokens: { increment: totalTokens },
       },
     });
 
@@ -175,9 +194,9 @@ ${response.subscores ? `ציוני משנה: ${JSON.stringify(response.subscores
       },
     });
   } catch (error) {
-    console.error("Error analyzing questionnaire:", error);
+    console.error("שגיאה בניתוח שאלון:", error);
     return NextResponse.json(
-      { error: "Failed to analyze questionnaire" },
+      { error: "שגיאה בניתוח השאלון" },
       { status: 500 }
     );
   }

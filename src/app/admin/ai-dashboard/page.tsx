@@ -122,7 +122,7 @@ export default function AdminAIDashboard() {
       0
     );
 
-    const prices = { ESSENTIAL: 117, PRO: 145, ENTERPRISE: 220 };
+    const prices: Record<string, number> = { ESSENTIAL: 117, PRO: 145, ENTERPRISE: 220 };
     const revenue =
       essential * prices.ESSENTIAL +
       pro * prices.PRO +
@@ -197,11 +197,11 @@ export default function AdminAIDashboard() {
   const getTierBadge = (tier: string) => {
     switch (tier) {
       case "ESSENTIAL":
-        return <Badge variant="outline">Essential 117₪</Badge>;
+        return <Badge variant="outline">🥉 בסיסי 117₪</Badge>;
       case "PRO":
-        return <Badge className="bg-blue-500">Pro 145₪</Badge>;
+        return <Badge className="bg-blue-500">🥈 מקצועי 145₪</Badge>;
       case "ENTERPRISE":
-        return <Badge className="bg-purple-500">Enterprise 220₪</Badge>;
+        return <Badge className="bg-purple-500">🥇 ארגוני 220₪</Badge>;
       default:
         return <Badge>{tier}</Badge>;
     }
@@ -277,14 +277,14 @@ export default function AdminAIDashboard() {
 
         <Card>
           <CardHeader className="flex flex-row items-center justify-between space-y-0 pb-2">
-            <CardTitle className="text-sm font-medium">רווח נטו</CardTitle>
+            <CardTitle className="text-sm font-medium">רווח נטו (משוער)</CardTitle>
             <TrendingUp className="h-4 w-4 text-muted-foreground" />
           </CardHeader>
           <CardContent>
             <div className="text-2xl font-bold text-green-600">
-              {(stats.totalUsers * 100).toLocaleString()}₪
+              {(stats.totalRevenue * 0.9).toLocaleString()}₪
             </div>
-            <p className="text-xs text-muted-foreground mt-1">100₪ למשתמש</p>
+            <p className="text-xs text-muted-foreground mt-1">~90% מההכנסות</p>
           </CardContent>
         </Card>
       </div>
@@ -374,9 +374,19 @@ export default function AdminAIDashboard() {
                       <TableCell>
                         <div>
                           <div className="font-medium">{user.name || "ללא שם"}</div>
-                          <div className="text-xs text-muted-foreground">
-                            {user.email || user.phone || "ללא פרטי קשר"}
-                          </div>
+                          {user.email ? (
+                            <a 
+                              href={`mailto:${user.email}`}
+                              className="text-xs text-blue-500 hover:text-blue-400 hover:underline"
+                              onClick={(e) => e.stopPropagation()}
+                            >
+                              {user.email}
+                            </a>
+                          ) : (
+                            <div className="text-xs text-muted-foreground">
+                              {user.phone || "ללא פרטי קשר"}
+                            </div>
+                          )}
                         </div>
                       </TableCell>
                       <TableCell>{getTierBadge(user.aiTier)}</TableCell>
@@ -452,9 +462,9 @@ export default function AdminAIDashboard() {
                   <SelectValue />
                 </SelectTrigger>
                 <SelectContent>
-                  <SelectItem value="ESSENTIAL">Essential - 117₪</SelectItem>
-                  <SelectItem value="PRO">Pro - 145₪</SelectItem>
-                  <SelectItem value="ENTERPRISE">Enterprise - 220₪</SelectItem>
+                  <SelectItem value="ESSENTIAL">🥉 בסיסי (Essential) - 117₪</SelectItem>
+                  <SelectItem value="PRO">🥈 מקצועי (Professional) - 145₪</SelectItem>
+                  <SelectItem value="ENTERPRISE">🥇 ארגוני (Enterprise) - 220₪</SelectItem>
                 </SelectContent>
               </Select>
             </div>

@@ -82,7 +82,7 @@ export default async function AIPrepPage() {
         <div className="flex items-center gap-3">
           {isAIEnabled && (
             <Badge variant={user.aiTier === 'ENTERPRISE' ? 'default' : 'secondary'} className="text-sm">
-              {user.aiTier === 'ENTERPRISE' ? '🥇 GPT-4o' : '🥈 GPT-4o-mini'}
+              {user.aiTier === 'ENTERPRISE' ? '🥇 ארגוני' : '🥈 מקצועי'} - Gemini 2.0
             </Badge>
           )}
           <Button variant="outline" size="sm" asChild>
@@ -123,9 +123,9 @@ export default async function AIPrepPage() {
             </div>
             <div className="grid gap-3 md:grid-cols-2 pt-3">
               <div className="p-3 border rounded-lg bg-white">
-                <p className="font-semibold mb-1">🥈 Professional</p>
-                <p className="text-2xl font-bold mb-1">120₪</p>
-                <p className="text-xs text-muted-foreground mb-2">GPT-4o-mini</p>
+                <p className="font-semibold mb-1">🥈 מקצועי (Professional)</p>
+                <p className="text-2xl font-bold mb-1">145₪</p>
+                <p className="text-xs text-muted-foreground mb-2">Gemini 2.0 - תמציתי</p>
                 <Button className="w-full" size="sm" asChild>
                   <Link href="/dashboard/settings/billing">
                     שדרג
@@ -133,9 +133,9 @@ export default async function AIPrepPage() {
                 </Button>
               </div>
               <div className="p-3 border-2 border-primary rounded-lg bg-white">
-                <p className="font-semibold mb-1">🥇 Enterprise</p>
-                <p className="text-2xl font-bold mb-1">150₪</p>
-                <p className="text-xs text-muted-foreground mb-2">GPT-4o Premium</p>
+                <p className="font-semibold mb-1">🥇 ארגוני (Enterprise)</p>
+                <p className="text-2xl font-bold mb-1">220₪</p>
+                <p className="text-xs text-muted-foreground mb-2">Gemini 2.0 - מפורט עם גישות</p>
                 <Button className="w-full" size="sm" asChild>
                   <Link href="/dashboard/settings/billing">
                     שדרג

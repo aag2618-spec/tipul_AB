@@ -102,22 +102,22 @@ export default function AdminUsersPage() {
   const getTierBadge = (tier: string) => {
     switch (tier) {
       case 'ENTERPRISE':
-        return <Badge>🥇 Enterprise</Badge>;
+        return <Badge>🥇 ארגוני</Badge>;
       case 'PRO':
-        return <Badge variant="secondary">🥈 Pro</Badge>;
+        return <Badge variant="secondary">🥈 מקצועי</Badge>;
       default:
-        return <Badge variant="outline">🥉 Essential</Badge>;
+        return <Badge variant="outline">🥉 בסיסי</Badge>;
     }
   };
 
   const getTierPrice = (tier: string) => {
     switch (tier) {
       case 'ENTERPRISE':
-        return '150₪';
+        return '220₪';
       case 'PRO':
-        return '120₪';
+        return '145₪';
       default:
-        return '100₪';
+        return '117₪';
     }
   };
 
@@ -130,7 +130,7 @@ export default function AdminUsersPage() {
   }
 
   const totalRevenue = users.reduce((sum, u) => {
-    const price = u.aiTier === 'ENTERPRISE' ? 150 : u.aiTier === 'PRO' ? 120 : 100;
+    const price = u.aiTier === 'ENTERPRISE' ? 220 : u.aiTier === 'PRO' ? 145 : 117;
     return sum + price;
   }, 0);
 
@@ -279,15 +279,25 @@ export default function AdminUsersPage() {
                     const monthCalls = user.aiUsageStats?.currentMonthCalls || 0;
                     const dailyCalls = user.aiUsageStats?.dailyCalls || 0;
                     const cost = Number(user.aiUsageStats?.currentMonthCost || 0);
-                    const revenue = user.aiTier === 'ENTERPRISE' ? 150 : user.aiTier === 'PRO' ? 120 : 100;
+                    const revenue = user.aiTier === 'ENTERPRISE' ? 220 : user.aiTier === 'PRO' ? 145 : 117;
                     const profit = revenue - cost;
 
                     return (
                       <TableRow key={user.id} className="cursor-pointer hover:bg-muted/50">
                         <TableCell>
                           <div>
-                            <p className="font-medium">{user.name}</p>
-                            <p className="text-xs text-muted-foreground">{user.email}</p>
+                            <p className="font-medium">{user.name || "ללא שם"}</p>
+                            {user.email ? (
+                              <a 
+                                href={`mailto:${user.email}`}
+                                className="text-xs text-blue-500 hover:text-blue-400 hover:underline"
+                                onClick={(e) => e.stopPropagation()}
+                              >
+                                {user.email}
+                              </a>
+                            ) : (
+                              <p className="text-xs text-muted-foreground">ללא מייל</p>
+                            )}
                           </div>
                         </TableCell>
                         <TableCell>
