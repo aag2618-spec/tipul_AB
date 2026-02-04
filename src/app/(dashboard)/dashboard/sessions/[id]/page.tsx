@@ -24,6 +24,7 @@ import { he } from "date-fns/locale";
 import { toast } from "sonner";
 import { RichTextEditor } from "@/components/rich-text-editor";
 import { CompleteSessionDialog } from "@/components/sessions/complete-session-dialog";
+import { SessionPrepCard } from "@/components/ai/session-prep-card";
 
 interface NoteAnalysis {
   summary: string;
@@ -86,6 +87,7 @@ export default function SessionDetailPage({
   const [status, setStatus] = useState("");
   const [noteAnalysis, setNoteAnalysis] = useState<NoteAnalysis | null>(null);
   const [isAnalyzing, setIsAnalyzing] = useState(false);
+  const [userTier, setUserTier] = useState<'ESSENTIAL' | 'PRO' | 'ENTERPRISE'>('ESSENTIAL');
 
   useEffect(() => {
     const fetchSession = async () => {
@@ -111,7 +113,20 @@ export default function SessionDetailPage({
       }
     };
 
+    const fetchUserTier = async () => {
+      try {
+        const response = await fetch('/api/user/tier');
+        if (response.ok) {
+          const data = await response.json();
+          setUserTier(data.tier || 'ESSENTIAL');
+        }
+      } catch {
+        console.error('Failed to fetch user tier');
+      }
+    };
+
     fetchSession();
+    fetchUserTier();
   }, [id, router]);
 
   const handleSaveNote = async () => {
@@ -325,6 +340,19 @@ export default function SessionDetailPage({
           </CardContent>
         </Card>
       </div>
+
+      {/* AI Session Prep - הכנה לפגישה */}
+      {session.client && session.type !== "BREAK" && (
+        <SessionPrepCard
+          session={{
+            id: session.id,
+            clientId: session.client.id,
+            clientName: session.client.name,
+            startTime: new Date(session.startTime),
+          }}
+          userTier={userTier}
+        />
+      )}
 
       <Tabs defaultValue="note" className="w-full">
         <TabsList>
