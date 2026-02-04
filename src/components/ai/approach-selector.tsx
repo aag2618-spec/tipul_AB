@@ -189,7 +189,7 @@ export function ApproachSelector({
                               {approach.nameEn}
                             </div>
                             <div className="text-xs text-muted-foreground mt-1">
-                              {approach.description}
+                              {approach.descriptionHe}
                             </div>
                           </div>
                         </div>
