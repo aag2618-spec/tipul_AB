@@ -66,6 +66,7 @@ async function getDashboardStats(userId: string) {
     pendingPayments,
     pendingTasks,
     todaySessions,
+    todaySessionPreps,
   ] = await Promise.all([
     prisma.client.count({ where: { therapistId: userId } }),
     prisma.client.count({ where: { therapistId: userId, status: "ACTIVE" } }),
@@ -135,18 +136,6 @@ async function getDashboardStats(userId: string) {
                 amount: true,
               },
             },
-            // בדיקה אם קיימת הכנה למטופל היום
-            sessionPreps: {
-              where: {
-                createdAt: { gte: today, lt: tomorrow },
-              },
-              select: {
-                id: true,
-                createdAt: true,
-              },
-              take: 1,
-              orderBy: { createdAt: 'desc' },
-            },
           },
         },
         payment: {
@@ -158,6 +147,18 @@ async function getDashboardStats(userId: string) {
         },
       },
       orderBy: { startTime: "asc" },
+    }),
+    // הכנות לפגישות שנוצרו היום
+    prisma.sessionPrep.findMany({
+      where: {
+        userId,
+        createdAt: { gte: today, lt: tomorrow },
+      },
+      select: {
+        id: true,
+        clientId: true,
+        createdAt: true,
+      },
     }),
   ]);
 
@@ -188,6 +189,17 @@ async function getDashboardStats(userId: string) {
     startTime: s.startTime.toISOString(),
   })));
 
+  // יצירת מפת הכנות לפי clientId
+  const prepsByClientId = new Map(
+    todaySessionPreps.map(prep => [prep.clientId, prep])
+  );
+
+  // הוספת מידע על הכנות לפגישות
+  const sessionsWithPreps = filteredTodaySessions.map(session => ({
+    ...session,
+    hasPrep: session.client ? prepsByClientId.has(session.client.id) : false,
+  }));
+
   return {
     totalClients,
     activeClients,
@@ -198,7 +210,7 @@ async function getDashboardStats(userId: string) {
     sessionsThisMonth,
     pendingPayments,
     pendingTasks,
-    todaySessions: filteredTodaySessions,
+    todaySessions: sessionsWithPreps,
   };
 }
 
@@ -409,7 +421,7 @@ export default async function DashboardPage() {
                   .filter(s => s.client) // Only sessions with clients
                   .slice(0, 3) // Show max 3
                   .map((session) => {
-                    const hasPrep = (session.client?.sessionPreps?.length ?? 0) > 0;
+                    const hasPrep = session.hasPrep;
                     return (
                       <div 
                         key={session.id}
