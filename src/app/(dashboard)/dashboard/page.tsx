@@ -414,26 +414,26 @@ export default async function DashboardPage() {
                       </div>
                       <div className="space-y-2 text-sm text-muted-foreground">
                         <div className="flex items-start gap-2">
-                          <span className="text-purple-600">•</span>
-                          <span>סקור סיכומים אחרונים</span>
+                          <span className="text-purple-600">🧠</span>
+                          <span>הכנה חכמה לפגישה עם {session.client?.name}</span>
                         </div>
                         <div className="flex items-start gap-2">
-                          <span className="text-blue-600">•</span>
-                          <span>המשך מהפגישה הקודמת</span>
+                          <span className="text-blue-600">📋</span>
+                          <span>ניתוח הפגישות האחרונות וזיהוי דפוסים</span>
                         </div>
                         <div className="flex items-start gap-2">
-                          <span className="text-green-600">•</span>
-                          <span>בדוק שאלונים ממתינים</span>
+                          <span className="text-green-600">💡</span>
+                          <span>המלצות ושאלות מותאמות לפגישה</span>
                         </div>
                       </div>
                       <Button 
-                        variant="link" 
+                        variant="default" 
                         size="sm" 
-                        className="mt-2 p-0 h-auto text-purple-600" 
+                        className="mt-3 bg-purple-600 hover:bg-purple-700" 
                         asChild
                       >
-                        <Link href={`/dashboard/clients/${session.client?.id}`}>
-                          הצג הכנה מלאה →
+                        <Link href={`/dashboard/sessions/${session.id}`}>
+                          צור הכנה לפגישה 🤖
                         </Link>
                       </Button>
                     </div>
