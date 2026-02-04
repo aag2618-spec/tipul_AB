@@ -40,7 +40,7 @@ export function ApproachSelector({
       (a) =>
         a.nameHe.toLowerCase().includes(query) ||
         a.nameEn.toLowerCase().includes(query) ||
-        a.description.toLowerCase().includes(query)
+        a.descriptionHe.toLowerCase().includes(query)
     );
   }, [searchQuery]);
 
