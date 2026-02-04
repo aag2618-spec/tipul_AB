@@ -5,15 +5,15 @@ import { prisma } from "@/lib/prisma";
 import { GoogleGenerativeAI } from "@google/generative-ai";
 import { getApproachPrompts, getApproachById } from "@/lib/therapeutic-approaches";
 
-// שימוש ב-Gemini 1.5 Flash לכל הניתוחים (זול ומהיר!)
+// שימוש ב-Gemini Pro לכל הניתוחים
 const genAI = new GoogleGenerativeAI(process.env.GOOGLE_AI_API_KEY || "");
-const DEFAULT_MODEL = "gemini-1.5-flash";
+const DEFAULT_MODEL = "gemini-pro";
 
 // עלויות למיליון טוקנים
 const COSTS_PER_1M_TOKENS = {
-  "gemini-1.5-flash": {
-    input: 0.075,  // $0.075 per 1M input tokens
-    output: 0.30   // $0.30 per 1M output tokens
+  "gemini-pro": {
+    input: 0.50,   // $0.50 per 1M input tokens
+    output: 1.50   // $1.50 per 1M output tokens
   }
 };
 
