@@ -27,17 +27,21 @@ import { CompleteSessionDialog } from "@/components/sessions/complete-session-di
 import { SessionPrepCard } from "@/components/ai/session-prep-card";
 
 interface NoteAnalysis {
-  summary: string;
-  keyThemes: string[];
-  clinicalObservations: string[];
-  progressIndicators: {
+  // Plain text analysis (from SessionAnalysis model)
+  content?: string;
+  analysisType?: string;
+  // Structured analysis (legacy format)
+  summary?: string;
+  keyThemes?: string[];
+  clinicalObservations?: string[];
+  progressIndicators?: {
     area: string;
     status: "improving" | "stable" | "concerning";
     notes: string;
   }[];
-  suggestedInterventions: string[];
-  questionsForNextSession: string[];
-  riskFactors: string[];
+  suggestedInterventions?: string[];
+  questionsForNextSession?: string[];
+  riskFactors?: string[];
 }
 
 interface SessionData {
@@ -57,6 +61,12 @@ interface SessionData {
     content: string;
     isPrivate: boolean;
     aiAnalysis: NoteAnalysis | null;
+  } | null;
+  sessionAnalysis: {
+    id: string;
+    content: string;
+    analysisType: string;
+    createdAt: string;
   } | null;
   recordings: {
     id: string;
@@ -98,8 +108,10 @@ export default function SessionDetailPage({
           setSession(data);
           setNoteContent(data.sessionNote?.content || "");
           setStatus(data.status);
-          // Load saved AI analysis if exists
-          if (data.sessionNote?.aiAnalysis) {
+          // Load saved AI analysis if exists (from sessionAnalysis table or legacy aiAnalysis field)
+          if (data.sessionAnalysis?.content) {
+            setNoteAnalysis({ content: data.sessionAnalysis.content, analysisType: data.sessionAnalysis.analysisType });
+          } else if (data.sessionNote?.aiAnalysis) {
             setNoteAnalysis(data.sessionNote.aiAnalysis);
           }
         } else {
@@ -454,112 +466,139 @@ export default function SessionDetailPage({
                     <CardTitle className="flex items-center gap-2">
                       <Brain className="h-5 w-5 text-primary" />
                       ניתוח AI
+                      {noteAnalysis.analysisType && (
+                        <Badge variant="outline" className="text-xs">
+                          {noteAnalysis.analysisType === 'CONCISE' ? 'תמציתי' : 'מפורט'}
+                        </Badge>
+                      )}
                     </CardTitle>
                     <CardDescription>ניתוח אוטומטי של סיכום הפגישה</CardDescription>
                   </CardHeader>
                   <CardContent className="space-y-4 max-h-[600px] overflow-y-auto">
-                    {/* Summary */}
-                    <div className="p-3 rounded-lg bg-primary/5 border border-primary/20">
-                      <p className="text-sm">{noteAnalysis.summary}</p>
-                    </div>
-
-                    {/* Key Themes */}
-                    <div>
-                      <h4 className="text-sm font-medium mb-2">נושאים מרכזיים</h4>
-                      <div className="flex flex-wrap gap-2">
-                        {noteAnalysis.keyThemes?.map((theme, i) => (
-                          <Badge key={i} variant="secondary">{theme}</Badge>
-                        ))}
-                      </div>
-                    </div>
-
-                    {/* Clinical Observations */}
-                    <div>
-                      <h4 className="text-sm font-medium mb-2">תצפיות קליניות</h4>
-                      <ul className="text-sm space-y-1">
-                        {noteAnalysis.clinicalObservations?.map((obs, i) => (
-                          <li key={i} className="flex items-start gap-2">
-                            <span className="text-primary mt-0.5">•</span>
-                            {obs}
-                          </li>
-                        ))}
-                      </ul>
-                    </div>
-
-                    {/* Progress Indicators */}
-                    {noteAnalysis.progressIndicators?.length > 0 && (
-                      <div>
-                        <h4 className="text-sm font-medium mb-2">מדדי התקדמות</h4>
-                        <div className="space-y-2">
-                          {noteAnalysis.progressIndicators.map((indicator, i) => (
-                            <div key={i} className="flex items-start gap-2 p-2 rounded bg-muted/50">
-                              {indicator.status === "improving" && (
-                                <TrendingUp className="h-4 w-4 text-green-600 mt-0.5 shrink-0" />
-                              )}
-                              {indicator.status === "stable" && (
-                                <Minus className="h-4 w-4 text-yellow-600 mt-0.5 shrink-0" />
-                              )}
-                              {indicator.status === "concerning" && (
-                                <TrendingDown className="h-4 w-4 text-red-600 mt-0.5 shrink-0" />
-                              )}
-                              <div>
-                                <p className="font-medium text-sm">{indicator.area}</p>
-                                <p className="text-xs text-muted-foreground">{indicator.notes}</p>
-                              </div>
-                            </div>
-                          ))}
+                    {/* Plain text content (new format) */}
+                    {noteAnalysis.content ? (
+                      <div className="prose prose-sm max-w-none">
+                        <div className="whitespace-pre-wrap text-sm leading-relaxed">
+                          {noteAnalysis.content}
                         </div>
                       </div>
-                    )}
+                    ) : (
+                      /* Structured format (legacy) */
+                      <>
+                        {/* Summary */}
+                        {noteAnalysis.summary && (
+                          <div className="p-3 rounded-lg bg-primary/5 border border-primary/20">
+                            <p className="text-sm">{noteAnalysis.summary}</p>
+                          </div>
+                        )}
 
-                    {/* Suggested Interventions */}
-                    <div>
-                      <h4 className="text-sm font-medium mb-2 flex items-center gap-2">
-                        <Lightbulb className="h-4 w-4" />
-                        התערבויות מומלצות
-                      </h4>
-                      <ul className="text-sm space-y-1">
-                        {noteAnalysis.suggestedInterventions?.map((intervention, i) => (
-                          <li key={i} className="flex items-start gap-2">
-                            <span className="text-primary mt-0.5">•</span>
-                            {intervention}
-                          </li>
-                        ))}
-                      </ul>
-                    </div>
+                        {/* Key Themes */}
+                        {noteAnalysis.keyThemes && noteAnalysis.keyThemes.length > 0 && (
+                          <div>
+                            <h4 className="text-sm font-medium mb-2">נושאים מרכזיים</h4>
+                            <div className="flex flex-wrap gap-2">
+                              {noteAnalysis.keyThemes.map((theme, i) => (
+                                <Badge key={i} variant="secondary">{theme}</Badge>
+                              ))}
+                            </div>
+                          </div>
+                        )}
 
-                    {/* Questions for Next Session */}
-                    <div>
-                      <h4 className="text-sm font-medium mb-2 flex items-center gap-2">
-                        <MessageCircleQuestion className="h-4 w-4" />
-                        שאלות לפגישה הבאה
-                      </h4>
-                      <ul className="text-sm space-y-1">
-                        {noteAnalysis.questionsForNextSession?.map((question, i) => (
-                          <li key={i} className="flex items-start gap-2">
-                            <span className="text-primary mt-0.5">•</span>
-                            {question}
-                          </li>
-                        ))}
-                      </ul>
-                    </div>
+                        {/* Clinical Observations */}
+                        {noteAnalysis.clinicalObservations && noteAnalysis.clinicalObservations.length > 0 && (
+                          <div>
+                            <h4 className="text-sm font-medium mb-2">תצפיות קליניות</h4>
+                            <ul className="text-sm space-y-1">
+                              {noteAnalysis.clinicalObservations.map((obs, i) => (
+                                <li key={i} className="flex items-start gap-2">
+                                  <span className="text-primary mt-0.5">•</span>
+                                  {obs}
+                                </li>
+                              ))}
+                            </ul>
+                          </div>
+                        )}
 
-                    {/* Risk Factors */}
-                    {noteAnalysis.riskFactors?.length > 0 && noteAnalysis.riskFactors[0] !== "" && (
-                      <div className="p-3 rounded-lg bg-red-50 border border-red-200">
-                        <h4 className="text-sm font-medium mb-2 flex items-center gap-2 text-red-700">
-                          <AlertTriangle className="h-4 w-4" />
-                          גורמי סיכון
-                        </h4>
-                        <ul className="text-sm space-y-1 text-red-700">
-                          {noteAnalysis.riskFactors.map((risk, i) => (
-                            <li key={i} className="flex items-start gap-2">
-                              <span className="mt-0.5">•</span>
-                              {risk}
-                            </li>
-                          ))}
-                        </ul>
-                      </div>
+                        {/* Progress Indicators */}
+                        {noteAnalysis.progressIndicators && noteAnalysis.progressIndicators.length > 0 && (
+                          <div>
+                            <h4 className="text-sm font-medium mb-2">מדדי התקדמות</h4>
+                            <div className="space-y-2">
+                              {noteAnalysis.progressIndicators.map((indicator, i) => (
+                                <div key={i} className="flex items-start gap-2 p-2 rounded bg-muted/50">
+                                  {indicator.status === "improving" && (
+                                    <TrendingUp className="h-4 w-4 text-green-600 mt-0.5 shrink-0" />
+                                  )}
+                                  {indicator.status === "stable" && (
+                                    <Minus className="h-4 w-4 text-yellow-600 mt-0.5 shrink-0" />
+                                  )}
+                                  {indicator.status === "concerning" && (
+                                    <TrendingDown className="h-4 w-4 text-red-600 mt-0.5 shrink-0" />
+                                  )}
+                                  <div>
+                                    <p className="font-medium text-sm">{indicator.area}</p>
+                                    <p className="text-xs text-muted-foreground">{indicator.notes}</p>
+                                  </div>
+                                </div>
+                              ))}
+                            </div>
+                          </div>
+                        )}
+
+                        {/* Suggested Interventions */}
+                        {noteAnalysis.suggestedInterventions && noteAnalysis.suggestedInterventions.length > 0 && (
+                          <div>
+                            <h4 className="text-sm font-medium mb-2 flex items-center gap-2">
+                              <Lightbulb className="h-4 w-4" />
+                              התערבויות מומלצות
+                            </h4>
+                            <ul className="text-sm space-y-1">
+                              {noteAnalysis.suggestedInterventions.map((intervention, i) => (
+                                <li key={i} className="flex items-start gap-2">
+                                  <span className="text-primary mt-0.5">•</span>
+                                  {intervention}
+                                </li>
+                              ))}
+                            </ul>
+                          </div>
+                        )}
+
+                        {/* Questions for Next Session */}
+                        {noteAnalysis.questionsForNextSession && noteAnalysis.questionsForNextSession.length > 0 && (
+                          <div>
+                            <h4 className="text-sm font-medium mb-2 flex items-center gap-2">
+                              <MessageCircleQuestion className="h-4 w-4" />
+                              שאלות לפגישה הבאה
+                            </h4>
+                            <ul className="text-sm space-y-1">
+                              {noteAnalysis.questionsForNextSession.map((question, i) => (
+                                <li key={i} className="flex items-start gap-2">
+                                  <span className="text-primary mt-0.5">•</span>
+                                  {question}
+                                </li>
+                              ))}
+                            </ul>
+                          </div>
+                        )}
+
+                        {/* Risk Factors */}
+                        {noteAnalysis.riskFactors && noteAnalysis.riskFactors.length > 0 && noteAnalysis.riskFactors[0] !== "" && (
+                          <div className="p-3 rounded-lg bg-red-50 border border-red-200">
+                            <h4 className="text-sm font-medium mb-2 flex items-center gap-2 text-red-700">
+                              <AlertTriangle className="h-4 w-4" />
+                              גורמי סיכון
+                            </h4>
+                            <ul className="text-sm space-y-1 text-red-700">
+                              {noteAnalysis.riskFactors.map((risk, i) => (
+                                <li key={i} className="flex items-start gap-2">
+                                  <span className="mt-0.5">•</span>
+                                  {risk}
+                                </li>
+                              ))}
+                            </ul>
+                          </div>
+                        )}
+                      </>
                     )}
                   </CardContent>
                 </>

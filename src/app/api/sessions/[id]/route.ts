@@ -40,6 +40,7 @@ export async function GET(
       include: {
         client: true,
         sessionNote: true,
+        sessionAnalysis: true,
         payment: true,
         recordings: {
           include: {
