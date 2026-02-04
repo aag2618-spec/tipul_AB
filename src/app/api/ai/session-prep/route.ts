@@ -68,11 +68,11 @@ export async function POST(request: NextRequest) {
     const globalSettings = await prisma.globalAISettings.findFirst();
     
     if (globalSettings) {
-      const dailyLimit = user.aiTier === 'PROFESSIONAL' 
+      const dailyLimit = user.aiTier === 'PRO' 
         ? globalSettings.dailyLimitPro 
         : globalSettings.dailyLimitEnterprise;
       
-      const monthlyLimit = user.aiTier === 'PROFESSIONAL'
+      const monthlyLimit = user.aiTier === 'PRO'
         ? globalSettings.monthlyLimitPro
         : globalSettings.monthlyLimitEnterprise;
       

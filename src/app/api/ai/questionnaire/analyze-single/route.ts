@@ -66,8 +66,8 @@ export async function POST(req: NextRequest) {
     });
 
     // מגבלות לפי תוכנית
-    const limits = {
-      PROFESSIONAL: 60,
+    const limits: Record<string, number> = {
+      PRO: 60,
       ENTERPRISE: 80,
     };
 

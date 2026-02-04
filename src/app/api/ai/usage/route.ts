@@ -43,7 +43,7 @@ export async function GET(req: NextRequest) {
         combinedQuestionnaire: 0,
         progressReport: 0,
       },
-      PROFESSIONAL: {
+      PRO: {
         detailedAnalysis: 0, // לא זמין בתוכנית מקצועית
         singleQuestionnaire: 60,
         combinedQuestionnaire: 30,
@@ -55,7 +55,7 @@ export async function GET(req: NextRequest) {
         combinedQuestionnaire: 40,
         progressReport: 20,
       },
-    };
+    } as const;
 
     const planLimits = limits[user.aiTier as keyof typeof limits] || limits.ESSENTIAL;
 
