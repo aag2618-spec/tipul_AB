@@ -170,12 +170,16 @@ export async function POST(req: NextRequest) {
 
     if (analysisType === "CONCISE") {
       // ניתוח תמציתי - גישות רק לארגוני!
+      // עבור ארגוני - כולל גם prompt מפורט של הגישות
+      const approachPrompts = user.aiTier === 'ENTERPRISE' ? getApproachPrompts(approaches) : '';
+      
       prompt = buildConcisePrompt(
         therapySession.client?.name || "לא ידוע",
         therapySession.startTime,
         therapySession.type,
         therapySession.sessionNote.content,
-        user.aiTier === 'ENTERPRISE' ? approachNames : undefined
+        user.aiTier === 'ENTERPRISE' ? approachNames : undefined,
+        user.aiTier === 'ENTERPRISE' ? approachPrompts : undefined
       );
     } else {
       // ניתוח מפורט - רק לתוכנית ארגונית
@@ -288,7 +292,8 @@ function buildConcisePrompt(
   sessionDate: Date,
   sessionType: string,
   noteContent: string,
-  approachNames?: string
+  approachNames?: string,
+  approachPrompts?: string
 ): string {
   const sessionTypeHe = sessionType === "IN_PERSON" 
     ? "פנים אל פנים" 
@@ -296,17 +301,24 @@ function buildConcisePrompt(
       ? "מקוון" 
       : "טלפוני";
 
-  const approachSection = approachNames 
-    ? `גישות טיפוליות מוגדרות: ${approachNames}
+  // בניית הנחיות לפי גישה - עם הפרומפט המפורט
+  let approachSection = '';
+  if (approachNames) {
+    approachSection = `
+=== גישות טיפוליות מוגדרות: ${approachNames} ===
 
-חשוב מאוד - כל הניתוח חייב להיות מבוסס על המסגרת התיאורטית של ${approachNames}:
-• השתמש במושגים ובשפה של הגישה/ות
-• נתח את הדינמיקה דרך עדשת הגישה
-• המלצות חייבות להיות מבוססות על הגישה
-• ציין בפירוש מושגים מהגישה (עם תרגום עברי אם באנגלית)
+חובה לנתח את הפגישה לפי הגישה/ות הבאות. השתמש במושגים הספציפיים של הגישה!
 
-`
-    : '';
+${approachPrompts || ''}
+
+הנחיות חיוניות לניתוח:
+• כל הניתוח חייב להיות דרך העדשה של ${approachNames}
+• ציין מושגים ספציפיים מהגישה (עם תרגום עברי אם באנגלית)
+• המלצות חייבות להתבסס על הטכניקות של הגישה
+• זהה דפוסים רלוונטיים לפי המסגרת התיאורטית
+
+`;
+  }
 
   return `חשוב מאוד - כללי פורמט (חובה לציית):
 - כתוב טקסט רגיל בלבד, ללא שום עיצוב
