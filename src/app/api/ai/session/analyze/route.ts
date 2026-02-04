@@ -7,11 +7,11 @@ import { getApproachPrompts, getApproachById } from "@/lib/therapeutic-approache
 
 // שימוש ב-Gemini Pro לכל הניתוחים
 const genAI = new GoogleGenerativeAI(process.env.GOOGLE_AI_API_KEY || "");
-const DEFAULT_MODEL = "gemini-pro";
+const DEFAULT_MODEL = "gemini-1.0-pro";
 
 // עלויות למיליון טוקנים
 const COSTS_PER_1M_TOKENS = {
-  "gemini-pro": {
+  "gemini-1.0-pro": {
     input: 0.50,   // $0.50 per 1M input tokens
     output: 1.50   // $1.50 per 1M output tokens
   }

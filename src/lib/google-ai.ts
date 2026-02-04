@@ -16,7 +16,7 @@ function getGenAI(): GoogleGenerativeAI {
 }
 
 // Updated model to Gemini 2.0 Flash (33x cheaper than Gemini 3 Pro!)
-const DEFAULT_MODEL = 'gemini-pro';
+const DEFAULT_MODEL = 'gemini-1.0-pro';
 
 export async function transcribeAudio(audioBase64: string, mimeType: string): Promise<{
   text: string;
