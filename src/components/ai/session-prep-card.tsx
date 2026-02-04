@@ -14,13 +14,13 @@ interface SessionPrepCardProps {
     clientName: string;
     startTime: Date;
   };
-  userTier: 'ESSENTIAL' | 'PROFESSIONAL' | 'ENTERPRISE';
+  userTier: 'ESSENTIAL' | 'PRO' | 'ENTERPRISE';
 }
 
 // תרגום שמות תוכניות
-const TIER_NAMES = {
+const TIER_NAMES: Record<string, { he: string; en: string }> = {
   ESSENTIAL: { he: 'בסיסי', en: 'Essential' },
-  PROFESSIONAL: { he: 'מקצועי', en: 'Professional' },
+  PRO: { he: 'מקצועי', en: 'Professional' },
   ENTERPRISE: { he: 'ארגוני', en: 'Enterprise' }
 };
 
