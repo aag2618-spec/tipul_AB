@@ -85,11 +85,12 @@ const clinicalItems = [
     href: "/dashboard/ai-prep",
     icon: Brain,
   },
-  {
-    title: "הקלטות",
-    href: "/dashboard/recordings",
-    icon: Mic,
-  },
+  // הקלטות - מוסתר לעת עתה
+  // {
+  //   title: "הקלטות",
+  //   href: "/dashboard/recordings",
+  //   icon: Mic,
+  // },
   {
     title: "שאלונים",
     href: "/dashboard/questionnaires",

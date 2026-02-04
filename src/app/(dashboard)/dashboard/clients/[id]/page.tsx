@@ -679,7 +679,9 @@ export default async function ClientPage({
           <Tabs defaultValue="documents" className="w-full">
             <TabsList>
               <TabsTrigger value="documents">מסמכים</TabsTrigger>
+              {/* הקלטות - מוסתר לעת עתה
               <TabsTrigger value="recordings">הקלטות</TabsTrigger>
+              */}
             </TabsList>
 
             <TabsContent value="documents" className="mt-4">
@@ -748,6 +750,7 @@ export default async function ClientPage({
           </Card>
             </TabsContent>
 
+            {/* הקלטות TabsContent - מוסתר לעת עתה
             <TabsContent value="recordings" className="mt-4">
               <Card>
                 <CardHeader className="flex flex-row items-center justify-between">
@@ -834,6 +837,7 @@ export default async function ClientPage({
             </CardContent>
           </Card>
             </TabsContent>
+            */}
           </Tabs>
         </TabsContent>
 

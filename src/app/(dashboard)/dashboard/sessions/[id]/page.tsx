@@ -333,12 +333,14 @@ export default function SessionDetailPage({
             </Badge>
           </CardContent>
         </Card>
+        {/* הקלטות - מוסתר לעת עתה
         <Card>
           <CardContent className="pt-6">
             <p className="text-sm text-muted-foreground">הקלטות</p>
             <p className="text-lg font-medium">{session.recordings?.length || 0}</p>
           </CardContent>
         </Card>
+        */}
       </div>
 
       <Tabs defaultValue="prep" className="w-full">
@@ -353,6 +355,7 @@ export default function SessionDetailPage({
             <FileText className="h-4 w-4" />
             סיכום טיפול
           </TabsTrigger>
+          {/* הקלטות - מוסתר לעת עתה
           {hasTranscription && (
             <TabsTrigger value="analysis" className="gap-2">
               <Sparkles className="h-4 w-4" />
@@ -363,6 +366,7 @@ export default function SessionDetailPage({
             <Mic className="h-4 w-4" />
             הקלטות
           </TabsTrigger>
+          */}
         </TabsList>
 
         {/* AI Session Prep Tab */}
@@ -612,6 +616,7 @@ export default function SessionDetailPage({
           </TabsContent>
         )}
 
+        {/* הקלטות TabsContent - מוסתר לעת עתה
         <TabsContent value="recordings" className="mt-6">
           <Card>
             <CardHeader className="flex flex-row items-center justify-between">
@@ -668,6 +673,7 @@ export default function SessionDetailPage({
             </CardContent>
           </Card>
         </TabsContent>
+        */}
       </Tabs>
 
 

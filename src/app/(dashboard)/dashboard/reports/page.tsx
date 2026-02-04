@@ -179,6 +179,7 @@ export default async function ReportsPage() {
             </div>
           </CardContent>
         </Card>
+        {/* הקלטות - מוסתר לעת עתה
         <Card>
           <CardContent className="pt-6">
             <div className="flex items-center gap-3">
@@ -192,6 +193,7 @@ export default async function ReportsPage() {
             </div>
           </CardContent>
         </Card>
+        */}
       </div>
 
       <Tabs defaultValue="income" className="w-full">

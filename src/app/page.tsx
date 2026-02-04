@@ -58,7 +58,7 @@ export default async function HomePage() {
           <p className="text-xl text-muted-foreground mb-8 leading-relaxed">
             מערכת ניהול מודרנית ומאובטחת לפרקטיקה טיפולית.
             <br />
-            נהלו מטופלים, פגישות, תשלומים והקלטות במקום אחד.
+            נהלו מטופלים, פגישות ותשלומים במקום אחד.
           </p>
           
           <div className="flex items-center justify-center gap-4">
