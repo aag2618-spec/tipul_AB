@@ -134,7 +134,7 @@ export function SessionPrepCard({ session, userTier }: SessionPrepCardProps) {
               </div>
             </div>
             <Button className="w-full" asChild>
-              <a href="/dashboard/settings/billing">
+              <a href="/dashboard/settings/ai-assistant">
                 ⬆️ שדרג לתוכנית מקצועית
               </a>
             </Button>

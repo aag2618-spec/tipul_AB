@@ -118,7 +118,7 @@ export default function SessionDetailPage({
         const response = await fetch('/api/user/tier');
         if (response.ok) {
           const data = await response.json();
-          setUserTier(data.tier || 'ESSENTIAL');
+          setUserTier(data.aiTier || 'ESSENTIAL');
         }
       } catch {
         console.error('Failed to fetch user tier');
