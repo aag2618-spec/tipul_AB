@@ -3,6 +3,7 @@ import { getServerSession } from "next-auth";
 import { authOptions } from "@/lib/auth";
 import { prisma } from "@/lib/prisma";
 import { GoogleGenerativeAI } from "@google/generative-ai";
+import { getApproachById } from "@/lib/therapeutic-approaches";
 
 // שימוש ב-Gemini 2.0 Flash בלבד
 const genAI = new GoogleGenerativeAI(process.env.GOOGLE_AI_API_KEY || "");
@@ -154,6 +155,26 @@ export async function POST(req: NextRequest) {
       })
       .join("\n\n");
 
+    // קבלת גישות טיפוליות (של המטופל או ברירת מחדל)
+    const therapeuticApproaches = (client.therapeuticApproaches && client.therapeuticApproaches.length > 0)
+      ? client.therapeuticApproaches
+      : (user.therapeuticApproaches || []);
+
+    const approachNames = therapeuticApproaches
+      .map(id => {
+        const approach = getApproachById(id);
+        return approach ? approach.nameHe : null;
+      })
+      .filter(Boolean)
+      .join(", ");
+
+    const approachSection = approachNames 
+      ? `גישות טיפוליות: ${approachNames}
+חשוב: נתח את כל ההתקדמות דרך עדשת הגישות הטיפוליות שהוגדרו. השתמש במושגים ובמסגרת התיאורטית של גישות אלו.
+
+`
+      : '';
+
     // בניית ה-prompt
     const prompt = `חשוב מאוד - כללי פורמט (חובה לציית):
 - כתוב טקסט רגיל בלבד, ללא שום עיצוב
@@ -163,7 +184,7 @@ export async function POST(req: NextRequest) {
 - להפרדה: שורה ריקה בין סעיפים
 
 אתה פסיכולוג מומחה המכין דוח התקדמות מקיף למטופל.
-
+${approachSection}
 פרטים:
 • מטופל: ${client.name}
 • תקופה: ${fromDate.toLocaleDateString("he-IL")} - ${toDate.toLocaleDateString("he-IL")}
@@ -177,7 +198,7 @@ ${questionnairesSummary || "אין שאלונים בתקופה זו"}
 ${sessionsSummary || "אין סיכומי פגישות"}
 
 הנחיות:
-בצע ניתוח מקיף של ההתקדמות (400-600 מילים).
+בצע ניתוח מקיף של ההתקדמות (400-600 מילים)${approachNames ? ` לפי גישות: ${approachNames}` : ''}.
 
 מבנה התשובה:
 
@@ -190,7 +211,7 @@ ${sessionsSummary || "אין סיכומי פגישות"}
 • תחומים שהשתפרו או החמירו
 
 3. תובנות מסיכומי פגישות:
-• נושאים מרכזיים שעלו
+• נושאים מרכזיים שעלו${approachNames ? ` (לפי המסגרת התיאורטית של ${approachNames})` : ''}
 • דפוסים חוזרים
 • שינויים בדינמיקה הטיפולית
 
@@ -200,7 +221,7 @@ ${sessionsSummary || "אין סיכומי פגישות"}
 • יעדים שהושגו
 
 5. המלצות להמשך טיפול:
-• המשך דרך נוכחית או שינוי כיוון?
+• המשך דרך נוכחית או שינוי כיוון?${approachNames ? ` (בהתאם לגישות ${approachNames})` : ''}
 • מוקדים לתקופה הבאה
 • יעדים להמשך
 

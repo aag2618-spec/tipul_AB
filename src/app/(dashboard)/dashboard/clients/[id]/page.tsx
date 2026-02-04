@@ -48,6 +48,7 @@ import {
   DropdownMenuSeparator,
 } from "@/components/ui/dropdown-menu";
 import { SummariesTab } from "@/components/clients/summaries-tab";
+import { ClientApproachEditor } from "@/components/clients/client-approach-editor";
 import { SendReminderButton } from "@/components/clients/send-reminder-button";
 import { SendPaymentHistoryButton } from "@/components/clients/send-payment-history-button";
 import { TodaySessionCard } from "@/components/dashboard/today-session-card";
@@ -908,6 +909,27 @@ export default async function ClientPage({
                     </Button>
                   </div>
                 )}
+              </CardContent>
+            </Card>
+
+            {/* גישות טיפוליות למטופל */}
+            <Card className="lg:col-span-2">
+              <CardHeader>
+                <CardTitle className="flex items-center gap-2">
+                  <Stethoscope className="h-5 w-5" />
+                  גישה טיפולית
+                </CardTitle>
+                <CardDescription>
+                  הגדר גישות טיפוליות ספציפיות למטופל זה (אופציונלי)
+                </CardDescription>
+              </CardHeader>
+              <CardContent>
+                <ClientApproachEditor
+                  clientId={client.id}
+                  clientName={client.name}
+                  currentApproaches={client.therapeuticApproaches || []}
+                  currentNotes={client.approachNotes}
+                />
               </CardContent>
             </Card>
           </div>

@@ -147,16 +147,35 @@ export async function POST(req: NextRequest) {
         ? therapySession.client!.therapeuticApproaches
         : user.therapeuticApproaches;
 
+    // Debug logging
+    console.log('🔍 Session Analysis Debug:', {
+      userTier: user.aiTier,
+      analysisType,
+      userApproaches: user.therapeuticApproaches,
+      clientApproaches: therapySession.client?.therapeuticApproaches,
+      selectedApproaches: approaches,
+    });
+
+    // קבלת שמות הגישות לתצוגה
+    const approachNames = (approaches || [])
+      .map(id => {
+        const approach = getApproachById(id);
+        return approach ? approach.nameHe : null;
+      })
+      .filter(Boolean)
+      .join(", ");
+
     // בניית ה-prompt לפי סוג הניתוח
     let prompt: string;
 
     if (analysisType === "CONCISE") {
-      // ניתוח תמציתי - לתוכנית מקצועית וארגונית
+      // ניתוח תמציתי - לתוכנית מקצועית וארגונית (עם גישות!)
       prompt = buildConcisePrompt(
         therapySession.client?.name || "לא ידוע",
         therapySession.startTime,
         therapySession.type,
-        therapySession.sessionNote.content
+        therapySession.sessionNote.content,
+        approachNames
       );
     } else {
       // ניתוח מפורט - רק לתוכנית ארגונית
@@ -268,13 +287,22 @@ function buildConcisePrompt(
   clientName: string,
   sessionDate: Date,
   sessionType: string,
-  noteContent: string
+  noteContent: string,
+  approachNames?: string
 ): string {
   const sessionTypeHe = sessionType === "IN_PERSON" 
     ? "פנים אל פנים" 
     : sessionType === "ONLINE" 
       ? "מקוון" 
       : "טלפוני";
+
+  const approachSection = approachNames 
+    ? `גישות טיפוליות: ${approachNames}
+
+חשוב: נתח את הפגישה דרך עדשת הגישות הטיפוליות שהוגדרו. השתמש במושגים ובמסגרת התיאורטית של גישות אלו.
+
+`
+    : '';
 
   return `חשוב מאוד - כללי פורמט (חובה לציית):
 - כתוב טקסט רגיל בלבד, ללא שום עיצוב
@@ -289,17 +317,18 @@ function buildConcisePrompt(
 מטופל: ${clientName}
 תאריך: ${sessionDate.toLocaleDateString("he-IL")}
 סוג פגישה: ${sessionTypeHe}
-
+${approachSection}
 סיכום הפגישה:
 ${noteContent}
 
 הנחיות לניתוח:
 בצע ניתוח תמציתי ומקצועי (200-300 מילים).
+${approachNames ? `חשוב: השתמש במסגרת התיאורטית של ${approachNames} בניתוח.` : ''}
 
 מבנה התשובה:
 
 סיכום מרכזי:
-(2-3 שורות - מה עלה בפגישה?)
+(2-3 שורות - מה עלה בפגישה? נתח לפי הגישות הטיפוליות שהוגדרו)
 
 נושאים מרכזיים:
 • נושא 1
@@ -311,7 +340,7 @@ ${noteContent}
 • רגש 2
 
 המלצות למפגש הבא:
-• המלצה 1
+• המלצה 1 (בהתאם לגישה הטיפולית)
 • המלצה 2
 • המלצה 3
 

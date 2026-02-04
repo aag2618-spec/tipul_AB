@@ -209,6 +209,14 @@ export async function POST(request: NextRequest) {
       ? client.therapeuticApproaches
       : (user.therapeuticApproaches || []);
 
+    // Debug logging
+    console.log('🔍 Session Prep Debug:', {
+      userTier: user.aiTier,
+      userApproaches: user.therapeuticApproaches,
+      clientApproaches: client.therapeuticApproaches,
+      selectedApproaches: therapeuticApproaches,
+    });
+
     // בניית ה-prompt לפי התוכנית
     let prompt: string;
     
@@ -222,6 +230,11 @@ export async function POST(request: NextRequest) {
         })
         .filter(Boolean)
         .join(", ");
+      
+      console.log('🔍 Enterprise Prompt Debug:', {
+        approachNames,
+        approachPromptsLength: approachPrompts.length,
+      });
       
       prompt = buildEnterprisePrompt(
         client.name,

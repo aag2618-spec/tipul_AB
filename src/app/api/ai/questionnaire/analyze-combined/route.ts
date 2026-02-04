@@ -3,6 +3,7 @@ import { getServerSession } from "next-auth";
 import { authOptions } from "@/lib/auth";
 import { prisma } from "@/lib/prisma";
 import { GoogleGenerativeAI } from "@google/generative-ai";
+import { getApproachById } from "@/lib/therapeutic-approaches";
 
 // שימוש ב-Gemini 2.0 Flash בלבד
 const genAI = new GoogleGenerativeAI(process.env.GOOGLE_AI_API_KEY || "");
@@ -126,6 +127,26 @@ ${r.subscores ? `ציוני משנה: ${JSON.stringify(r.subscores)}` : ""}
       })
       .join("\n---\n");
 
+    // קבלת גישות טיפוליות (של המטופל או ברירת מחדל)
+    const therapeuticApproaches = (client.therapeuticApproaches && client.therapeuticApproaches.length > 0)
+      ? client.therapeuticApproaches
+      : (user.therapeuticApproaches || []);
+
+    const approachNames = therapeuticApproaches
+      .map(id => {
+        const approach = getApproachById(id);
+        return approach ? approach.nameHe : null;
+      })
+      .filter(Boolean)
+      .join(", ");
+
+    const approachSection = approachNames 
+      ? `גישות טיפוליות: ${approachNames}
+חשוב: נתח את כל השאלונים דרך עדשת הגישות הטיפוליות שהוגדרו. השתמש במושגים ובמסגרת התיאורטית של גישות אלו.
+
+`
+      : '';
+
     // בניית ה-prompt
     const prompt = `חשוב מאוד - כללי פורמט (חובה לציית):
 - כתוב טקסט רגיל בלבד, ללא שום עיצוב
@@ -135,7 +156,7 @@ ${r.subscores ? `ציוני משנה: ${JSON.stringify(r.subscores)}` : ""}
 - להפרדה: שורה ריקה בין סעיפים
 
 אתה פסיכולוג מומחה המנתח סט מלא של שאלונים למטופל אחד.
-
+${approachSection}
 פרטים:
 • מטופל: ${client.name}
 • מספר שאלונים: ${responses.length}
@@ -144,15 +165,15 @@ ${r.subscores ? `ציוני משנה: ${JSON.stringify(r.subscores)}` : ""}
 ${questionnairesSummary}
 
 הנחיות:
-בצע ניתוח מקיף ומשולב (400-500 מילים).
+בצע ניתוח מקיף ומשולב (400-500 מילים)${approachNames ? ` לפי גישות: ${approachNames}` : ''}.
 
 מבנה התשובה:
 
 1. תמונה קלינית כוללת:
-(3-4 שורות - מה עולה מכלל השאלונים? איזו תמונה קלינית מתקבלת?)
+(3-4 שורות - מה עולה מכלל השאלונים? איזו תמונה קלינית מתקבלת?${approachNames ? ` נתח לפי ${approachNames}` : ''})
 
 2. דפוסים משמעותיים:
-• דפוסים בולטים בין שאלונים שונים
+• דפוסים בולטים בין שאלונים שונים${approachNames ? ` (לפי המסגרת התיאורטית של ${approachNames})` : ''}
 • קשרים והשלמה בין התוצאות
 • תחומים בולטים - דיכאון, חרדה, טראומה, ועוד
 
@@ -165,7 +186,7 @@ ${questionnairesSummary}
 • סדר עדיפויות
 
 5. המלצות טיפוליות:
-• מוקדי טיפול מומלצים
+• מוקדי טיפול מומלצים${approachNames ? ` בהתאם לגישות ${approachNames}` : ''}
 • טכניקות והתערבויות ספציפיות
 • סדר עדיפויות לטיפול
 

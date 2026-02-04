@@ -3,6 +3,7 @@ import { getServerSession } from "next-auth";
 import { authOptions } from "@/lib/auth";
 import { prisma } from "@/lib/prisma";
 import { GoogleGenerativeAI } from "@google/generative-ai";
+import { getApproachById } from "@/lib/therapeutic-approaches";
 
 // שימוש ב-Gemini 2.0 Flash בלבד
 const genAI = new GoogleGenerativeAI(process.env.GOOGLE_AI_API_KEY || "");
@@ -104,6 +105,26 @@ export async function POST(req: NextRequest) {
       return NextResponse.json({ error: "אין הרשאה" }, { status: 403 });
     }
 
+    // קבלת גישות טיפוליות (של המטופל או ברירת מחדל)
+    const therapeuticApproaches = (response.client?.therapeuticApproaches && response.client.therapeuticApproaches.length > 0)
+      ? response.client.therapeuticApproaches
+      : (user.therapeuticApproaches || []);
+
+    const approachNames = therapeuticApproaches
+      .map(id => {
+        const approach = getApproachById(id);
+        return approach ? approach.nameHe : null;
+      })
+      .filter(Boolean)
+      .join(", ");
+
+    const approachSection = approachNames 
+      ? `
+גישות טיפוליות: ${approachNames}
+חשוב: נתח את תוצאות השאלון דרך עדשת הגישות הטיפוליות שהוגדרו. השתמש במושגים ובמסגרת התיאורטית של גישות אלו.
+`
+      : '';
+
     // Prepare prompt
     const prompt = `חשוב מאוד - כללי פורמט (חובה לציית):
 - כתוב טקסט רגיל בלבד, ללא שום עיצוב
@@ -113,7 +134,7 @@ export async function POST(req: NextRequest) {
 - להפרדה: שורה ריקה בין סעיפים
 
 אתה פסיכולוג מומחה המנתח תוצאות שאלונים.
-
+${approachSection}
 שאלון: ${response.template.name} (${response.template.nameEn || ""})
 קטגוריה: ${response.template.category || "כללי"}
 תאריך מילוי: ${response.completedAt?.toLocaleDateString("he-IL") || "לא הושלם"}
@@ -123,17 +144,17 @@ export async function POST(req: NextRequest) {
 תשובות: ${JSON.stringify(response.answers)}
 ${response.subscores ? `ציוני משנה: ${JSON.stringify(response.subscores)}` : ""}
 
-בצע ניתוח מקצועי וממוקד:
+בצע ניתוח מקצועי וממוקד${approachNames ? ` לפי גישות: ${approachNames}` : ''}:
 
 1. פירוש התוצאות:
 (2-3 שורות - מה משמעות הציון? האם בטווח נורמלי/קל/בינוני/חמור?)
 
 2. נקודות מרכזיות:
 • ממצאים חשובים בתשובות
-• דפוסים בולטים
+• דפוסים בולטים${approachNames ? ` (לפי המסגרת התיאורטית של ${approachNames})` : ''}
 
 3. המלצות טיפוליות:
-• המלצות קונקרטיות למטפל
+• המלצות קונקרטיות למטפל${approachNames ? ` בהתאם לגישות ${approachNames}` : ''}
 • טכניקות מומלצות
 
 כתוב בעברית, בסגנון מקצועי אך ברור.`;
