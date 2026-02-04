@@ -3,7 +3,7 @@ import { getServerSession } from "next-auth";
 import { authOptions } from "@/lib/auth";
 import { prisma } from "@/lib/prisma";
 import { GoogleGenerativeAI } from "@google/generative-ai";
-import { getApproachById } from "@/lib/therapeutic-approaches";
+import { getApproachById, getApproachPrompts } from "@/lib/therapeutic-approaches";
 
 // שימוש ב-Gemini 2.0 Flash בלבד
 const genAI = new GoogleGenerativeAI(process.env.GOOGLE_AI_API_KEY || "");
@@ -122,10 +122,22 @@ export async function POST(req: NextRequest) {
         .filter(Boolean)
         .join(", ");
 
+      // קבלת ה-prompt המפורט של הגישות
+      const approachPrompts = getApproachPrompts(therapeuticApproaches);
+
       approachSection = approachNames 
         ? `
-גישות טיפוליות: ${approachNames}
-חשוב: נתח את תוצאות השאלון דרך עדשת הגישות הטיפוליות שהוגדרו. השתמש במושגים ובמסגרת התיאורטית של גישות אלו.
+=== גישות טיפוליות מוגדרות: ${approachNames} ===
+
+חובה לנתח את השאלון לפי הגישה/ות הבאות. השתמש במושגים הספציפיים של הגישה!
+
+${approachPrompts}
+
+הנחיות חיוניות:
+• כל הניתוח חייב להיות דרך העדשה של ${approachNames}
+• ציין מושגים ספציפיים מהגישה (עם תרגום עברי אם באנגלית)
+• המלצות חייבות להתבסס על הטכניקות של הגישה
+
 `
         : '';
     }
