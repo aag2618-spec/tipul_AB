@@ -1,6 +1,6 @@
 import { NextRequest, NextResponse } from "next/server";
 import prisma from "@/lib/prisma";
-import { AdminAlertType, AlertPriority } from "@prisma/client";
+import { AdminAlertType, AlertPriority, Prisma } from "@prisma/client";
 
 // API Route for generating automatic admin alerts
 // This can be called by a cron job (e.g., daily at 8:00 AM)
@@ -16,15 +16,7 @@ export async function GET(req: NextRequest) {
     }
 
     const now = new Date();
-    const alerts: Array<{
-      type: AdminAlertType;
-      priority: AlertPriority;
-      title: string;
-      message: string;
-      userId?: string;
-      actionRequired?: string;
-      metadata?: Record<string, unknown>;
-    }> = [];
+    const alerts: Prisma.AdminAlertCreateManyInput[] = [];
 
     // 1. Check for overdue payments
     const overduePayments = await prisma.subscriptionPayment.findMany({
@@ -269,10 +261,7 @@ export async function GET(req: NextRequest) {
     // Create all alerts
     if (alerts.length > 0) {
       await prisma.adminAlert.createMany({
-        data: alerts.map((alert) => ({
-          ...alert,
-          metadata: alert.metadata || undefined,
-        })),
+        data: alerts,
       });
     }
 
