@@ -135,6 +135,18 @@ async function getDashboardStats(userId: string) {
                 amount: true,
               },
             },
+            // בדיקה אם קיימת הכנה למטופל היום
+            sessionPreps: {
+              where: {
+                createdAt: { gte: today, lt: tomorrow },
+              },
+              select: {
+                id: true,
+                createdAt: true,
+              },
+              take: 1,
+              orderBy: { createdAt: 'desc' },
+            },
           },
         },
         payment: {
@@ -396,48 +408,79 @@ export default async function DashboardPage() {
                 {stats.todaySessions
                   .filter(s => s.client) // Only sessions with clients
                   .slice(0, 3) // Show max 3
-                  .map((session) => (
-                    <div 
-                      key={session.id}
-                      className="p-4 bg-white dark:bg-slate-800 rounded-lg border border-purple-100 dark:border-purple-800"
-                    >
-                      <div className="flex items-center justify-between mb-2">
-                        <h4 className="font-semibold text-sm">
-                          {session.client?.name}
-                        </h4>
-                        <Badge variant="outline" className="text-xs">
-                          {new Date(session.startTime).toLocaleTimeString('he-IL', { 
-                            hour: '2-digit', 
-                            minute: '2-digit' 
-                          })}
-                        </Badge>
-                      </div>
-                      <div className="space-y-2 text-sm text-muted-foreground">
-                        <div className="flex items-start gap-2">
-                          <span className="text-purple-600">🧠</span>
-                          <span>הכנה חכמה לפגישה עם {session.client?.name}</span>
-                        </div>
-                        <div className="flex items-start gap-2">
-                          <span className="text-blue-600">📋</span>
-                          <span>ניתוח הפגישות האחרונות וזיהוי דפוסים</span>
-                        </div>
-                        <div className="flex items-start gap-2">
-                          <span className="text-green-600">💡</span>
-                          <span>המלצות ושאלות מותאמות לפגישה</span>
-                        </div>
-                      </div>
-                      <Button 
-                        variant="default" 
-                        size="sm" 
-                        className="mt-3 bg-purple-600 hover:bg-purple-700" 
-                        asChild
+                  .map((session) => {
+                    const hasPrep = (session.client?.sessionPreps?.length ?? 0) > 0;
+                    return (
+                      <div 
+                        key={session.id}
+                        className={`p-4 bg-white dark:bg-slate-800 rounded-lg border ${
+                          hasPrep 
+                            ? 'border-green-200 dark:border-green-800' 
+                            : 'border-purple-100 dark:border-purple-800'
+                        }`}
                       >
-                        <Link href={`/dashboard/sessions/${session.id}`}>
-                          הצג הכנה לפגישה →
-                        </Link>
-                      </Button>
-                    </div>
-                  ))}
+                        <div className="flex items-center justify-between mb-2">
+                          <h4 className="font-semibold text-sm">
+                            {session.client?.name}
+                          </h4>
+                          <div className="flex items-center gap-2">
+                            {hasPrep && (
+                              <Badge variant="secondary" className="text-xs bg-green-100 text-green-700">
+                                ✓ הכנה מוכנה
+                              </Badge>
+                            )}
+                            <Badge variant="outline" className="text-xs">
+                              {new Date(session.startTime).toLocaleTimeString('he-IL', { 
+                                hour: '2-digit', 
+                                minute: '2-digit' 
+                              })}
+                            </Badge>
+                          </div>
+                        </div>
+                        {hasPrep ? (
+                          <div className="space-y-2 text-sm text-muted-foreground">
+                            <div className="flex items-start gap-2">
+                              <span className="text-green-600">✓</span>
+                              <span>הכנה מוכנה לפגישה עם {session.client?.name}</span>
+                            </div>
+                            <div className="flex items-start gap-2">
+                              <span className="text-green-600">📋</span>
+                              <span>לחץ לצפייה בהמלצות ושאלות</span>
+                            </div>
+                          </div>
+                        ) : (
+                          <div className="space-y-2 text-sm text-muted-foreground">
+                            <div className="flex items-start gap-2">
+                              <span className="text-purple-600">🧠</span>
+                              <span>הכנה חכמה לפגישה עם {session.client?.name}</span>
+                            </div>
+                            <div className="flex items-start gap-2">
+                              <span className="text-blue-600">📋</span>
+                              <span>ניתוח הפגישות האחרונות וזיהוי דפוסים</span>
+                            </div>
+                            <div className="flex items-start gap-2">
+                              <span className="text-green-600">💡</span>
+                              <span>המלצות ושאלות מותאמות לפגישה</span>
+                            </div>
+                          </div>
+                        )}
+                        <Button 
+                          variant="default" 
+                          size="sm" 
+                          className={`mt-3 ${
+                            hasPrep 
+                              ? 'bg-green-600 hover:bg-green-700' 
+                              : 'bg-purple-600 hover:bg-purple-700'
+                          }`}
+                          asChild
+                        >
+                          <Link href={`/dashboard/sessions/${session.id}`}>
+                            {hasPrep ? '📖 הצג הכנה לפגישה' : '🤖 צור הכנה לפגישה'}
+                          </Link>
+                        </Button>
+                      </div>
+                    );
+                  })}
                 {stats.todaySessions.filter(s => s.client).length > 3 && (
                   <Button variant="outline" size="sm" className="w-full" asChild>
                     <Link href="/dashboard/ai-prep">
