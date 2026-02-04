@@ -80,19 +80,19 @@ const ALERT_TYPES = {
   SYSTEM: { label: "מערכת", icon: AlertCircle, color: "text-gray-400" },
 };
 
-const PRIORITY_BADGES = {
-  URGENT: { label: "דחוף", variant: "destructive" as const },
-  HIGH: { label: "גבוה", variant: "default" as const, className: "bg-orange-500" },
-  MEDIUM: { label: "בינוני", variant: "secondary" as const },
-  LOW: { label: "נמוך", variant: "outline" as const },
+const PRIORITY_BADGES: Record<string, { label: string; variant: "destructive" | "default" | "secondary" | "outline"; className?: string }> = {
+  URGENT: { label: "דחוף", variant: "destructive", className: "" },
+  HIGH: { label: "גבוה", variant: "default", className: "bg-orange-500" },
+  MEDIUM: { label: "בינוני", variant: "secondary", className: "" },
+  LOW: { label: "נמוך", variant: "outline", className: "" },
 };
 
-const STATUS_BADGES = {
-  PENDING: { label: "ממתין", variant: "destructive" as const },
-  IN_PROGRESS: { label: "בטיפול", variant: "default" as const, className: "bg-blue-500" },
-  RESOLVED: { label: "טופל", variant: "secondary" as const, className: "bg-green-500 text-white" },
-  DISMISSED: { label: "נדחה", variant: "outline" as const },
-  SNOOZED: { label: "נדחה לאחר", variant: "outline" as const },
+const STATUS_BADGES: Record<string, { label: string; variant: "destructive" | "default" | "secondary" | "outline"; className?: string }> = {
+  PENDING: { label: "ממתין", variant: "destructive", className: "" },
+  IN_PROGRESS: { label: "בטיפול", variant: "default", className: "bg-blue-500" },
+  RESOLVED: { label: "טופל", variant: "secondary", className: "bg-green-500 text-white" },
+  DISMISSED: { label: "נדחה", variant: "outline", className: "" },
+  SNOOZED: { label: "נדחה לאחר", variant: "outline", className: "" },
 };
 
 export default function AdminAlertsPage() {
