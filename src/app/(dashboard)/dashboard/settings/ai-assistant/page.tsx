@@ -198,25 +198,41 @@ export default function AIAssistantSettingsPage() {
         </CardContent>
       </Card>
 
-      {/* Therapeutic Approaches */}
-      <Card>
+      {/* Therapeutic Approaches - זמין לכולם, אבל לסמן רק בארגוני */}
+      <Card className={userTier !== 'ENTERPRISE' ? 'border-dashed border-amber-300/50' : ''}>
         <CardHeader>
-          <CardTitle>🧠 הגישות הטיפוליות שלך (ברירת מחדל)</CardTitle>
-          <CardDescription>
-            בחר אחת או יותר גישות שבהן אתה בדרך כלל עובד. תוכל לשנות את זה עבור
-            מטופלים ספציפיים בעמוד המטופל.
-          </CardDescription>
+          <div className="flex items-center justify-between">
+            <div>
+              <CardTitle className="flex items-center gap-2">
+                🧠 הגישות הטיפוליות שלך
+                {userTier !== 'ENTERPRISE' && <Lock className="h-4 w-4 text-amber-500" />}
+              </CardTitle>
+              <CardDescription>
+                {userTier === 'ENTERPRISE' 
+                  ? 'בחר אחת או יותר גישות שבהן אתה בדרך כלל עובד. תוכל לשנות את זה עבור מטופלים ספציפיים בעמוד המטופל.'
+                  : 'עיין בגישות הזמינות. לחץ על גישה כדי לשדרג ולהפעיל ניתוח מותאם!'
+                }
+              </CardDescription>
+            </div>
+            {userTier !== 'ENTERPRISE' && (
+              <Badge className="bg-gradient-to-r from-amber-400 to-orange-400 text-white border-0">
+                <Sparkles className="h-3 w-3 ml-1" />
+                שדרג לארגוני
+              </Badge>
+            )}
+          </div>
         </CardHeader>
         <CardContent>
           <ApproachSelector
             value={selectedApproaches}
             onChange={setSelectedApproaches}
+            disabled={userTier !== 'ENTERPRISE'}
           />
         </CardContent>
       </Card>
 
-      {/* Custom Description */}
-      {selectedApproaches.length > 1 && (
+      {/* Custom Description - רק לארגוני עם מספר גישות */}
+      {userTier === 'ENTERPRISE' && selectedApproaches.length > 1 && (
         <Card>
           <CardHeader>
             <CardTitle>✍️ תאר את הגישה האקלקטית שלך</CardTitle>

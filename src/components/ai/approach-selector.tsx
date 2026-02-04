@@ -1,7 +1,7 @@
 "use client";
 
 import { useState, useMemo } from "react";
-import { Search, ChevronDown, ChevronUp, X } from "lucide-react";
+import { Search, ChevronDown, ChevronUp, X, Lock, Sparkles } from "lucide-react";
 import { Input } from "@/components/ui/input";
 import { Button } from "@/components/ui/button";
 import { Badge } from "@/components/ui/badge";
@@ -11,12 +11,21 @@ import {
   APPROACH_CATEGORIES,
   type TherapeuticApproach,
 } from "@/lib/therapeutic-approaches";
+import {
+  Dialog,
+  DialogContent,
+  DialogDescription,
+  DialogHeader,
+  DialogTitle,
+} from "@/components/ui/dialog";
+import Link from "next/link";
 
 interface ApproachSelectorProps {
   value: string[]; // Selected approach IDs
   onChange: (approaches: string[]) => void;
   placeholder?: string;
   maxHeight?: string;
+  disabled?: boolean; // For PRO tier - show but don't allow selection
 }
 
 export function ApproachSelector({
@@ -24,8 +33,10 @@ export function ApproachSelector({
   onChange,
   placeholder = "חפש גישה או תאורטיקן...",
   maxHeight = "400px",
+  disabled = false,
 }: ApproachSelectorProps) {
   const [searchQuery, setSearchQuery] = useState("");
+  const [showUpgradeDialog, setShowUpgradeDialog] = useState(false);
   const [expandedCategories, setExpandedCategories] = useState<string[]>([
     "psychodynamic",
     "cbt",
@@ -64,6 +75,10 @@ export function ApproachSelector({
   };
 
   const toggleApproach = (approachId: string) => {
+    if (disabled) {
+      setShowUpgradeDialog(true);
+      return;
+    }
     onChange(
       value.includes(approachId)
         ? value.filter((id) => id !== approachId)
@@ -214,8 +229,66 @@ export function ApproachSelector({
       {!searchQuery && filteredApproaches.length > 0 && (
         <div className="text-xs text-muted-foreground text-center">
           {filteredApproaches.length} גישות וכיוונים זמינים
+          {disabled && " • שדרג לארגוני לבחירת גישות"}
         </div>
       )}
+
+      {/* Upgrade Dialog for PRO users */}
+      <Dialog open={showUpgradeDialog} onOpenChange={setShowUpgradeDialog}>
+        <DialogContent className="sm:max-w-md">
+          <DialogHeader>
+            <DialogTitle className="flex items-center gap-2 text-xl">
+              <Sparkles className="h-6 w-6 text-amber-500" />
+              שדרג לתוכנית ארגוני
+            </DialogTitle>
+            <DialogDescription className="text-base pt-2">
+              רוצה שה-AI ינתח לפי הגישה הטיפולית שלך?
+            </DialogDescription>
+          </DialogHeader>
+          
+          <div className="space-y-4 py-4">
+            <div className="bg-gradient-to-r from-amber-50 to-orange-50 rounded-lg p-4 border border-amber-200">
+              <p className="font-semibold text-amber-900 mb-2">🧠 בתוכנית ארגוני תוכל:</p>
+              <ul className="space-y-2 text-sm text-amber-800">
+                <li className="flex items-start gap-2">
+                  <span className="text-green-600 font-bold">✓</span>
+                  לבחור גישות כמו CBT, פסיכודינמית, בולבי, מאהלר ועוד
+                </li>
+                <li className="flex items-start gap-2">
+                  <span className="text-green-600 font-bold">✓</span>
+                  לקבל ניתוחים מותאמים עם מושגים מהגישה שבחרת
+                </li>
+                <li className="flex items-start gap-2">
+                  <span className="text-green-600 font-bold">✓</span>
+                  להגדיר גישות שונות למטופלים שונים
+                </li>
+                <li className="flex items-start gap-2">
+                  <span className="text-green-600 font-bold">✓</span>
+                  ניתוח מפורט ודוחות התקדמות AI
+                </li>
+              </ul>
+            </div>
+            
+            <div className="flex gap-3">
+              <Button
+                variant="outline"
+                className="flex-1"
+                onClick={() => setShowUpgradeDialog(false)}
+              >
+                אולי אחר כך
+              </Button>
+              <Button
+                asChild
+                className="flex-1 bg-gradient-to-r from-amber-500 to-orange-500 hover:from-amber-600 hover:to-orange-600"
+              >
+                <Link href="/dashboard/settings/ai-assistant">
+                  שדרג עכשיו ⬆️
+                </Link>
+              </Button>
+            </div>
+          </div>
+        </DialogContent>
+      </Dialog>
     </div>
   );
 }

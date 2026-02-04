@@ -25,6 +25,7 @@ interface ClientApproachEditorProps {
   currentApproaches: string[];
   currentNotes?: string | null;
   onSuccess?: () => void;
+  disabled?: boolean; // For PRO tier - show but don't allow editing
 }
 
 export function ClientApproachEditor({
@@ -33,6 +34,7 @@ export function ClientApproachEditor({
   currentApproaches,
   currentNotes,
   onSuccess,
+  disabled = false,
 }: ClientApproachEditorProps) {
   const [open, setOpen] = useState(false);
   const [approaches, setApproaches] = useState<string[]>(currentApproaches);
@@ -112,24 +114,26 @@ export function ClientApproachEditor({
           {/* Approach Selector */}
           <div className="space-y-2">
             <Label>בחר גישות טיפוליות</Label>
-            <ApproachSelector value={approaches} onChange={setApproaches} />
+            <ApproachSelector value={approaches} onChange={setApproaches} disabled={disabled} />
           </div>
 
           {/* Notes */}
-          <div className="space-y-2">
-            <Label htmlFor="notes">הערות נוספות (אופציונלי)</Label>
-            <Textarea
-              id="notes"
-              placeholder="הערות ספציפיות על הגישה הטיפולית עם מטופל זה..."
-              value={notes}
-              onChange={(e) => setNotes(e.target.value)}
-              rows={4}
-              className="resize-none"
-            />
-          </div>
+          {!disabled && (
+            <div className="space-y-2">
+              <Label htmlFor="notes">הערות נוספות (אופציונלי)</Label>
+              <Textarea
+                id="notes"
+                placeholder="הערות ספציפיות על הגישה הטיפולית עם מטופל זה..."
+                value={notes}
+                onChange={(e) => setNotes(e.target.value)}
+                rows={4}
+                className="resize-none"
+              />
+            </div>
+          )}
 
           {/* Clear Button */}
-          {(approaches.length > 0 || notes) && (
+          {!disabled && (approaches.length > 0 || notes) && (
             <Button
               variant="ghost"
               size="sm"
@@ -144,11 +148,13 @@ export function ClientApproachEditor({
 
         <DialogFooter>
           <Button variant="outline" onClick={() => setOpen(false)}>
-            ביטול
+            {disabled ? "סגור" : "ביטול"}
           </Button>
-          <Button onClick={handleSave} disabled={saving}>
-            {saving ? "שומר..." : "שמור"}
-          </Button>
+          {!disabled && (
+            <Button onClick={handleSave} disabled={saving}>
+              {saving ? "שומר..." : "שמור"}
+            </Button>
+          )}
         </DialogFooter>
       </DialogContent>
     </Dialog>

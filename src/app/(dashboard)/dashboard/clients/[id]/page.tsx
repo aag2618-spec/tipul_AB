@@ -32,6 +32,7 @@ import {
   Eye,
   User as UserIcon,
   Trash2,
+  Lock,
 } from "lucide-react";
 import { Input } from "@/components/ui/input";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
@@ -123,6 +124,13 @@ export default async function ClientPage({
   if (!session?.user?.id) return null;
 
   const { id } = await params;
+  
+  // קבלת פרטי המשתמש כולל tier
+  const user = await prisma.user.findUnique({
+    where: { id: session.user.id },
+    select: { aiTier: true }
+  });
+  
   const client = await getClient(id, session.user.id);
 
   if (!client) {
@@ -913,15 +921,28 @@ export default async function ClientPage({
             </Card>
 
             {/* גישות טיפוליות למטופל */}
-            <Card className="lg:col-span-2">
+            <Card className={`lg:col-span-2 ${user?.aiTier !== 'ENTERPRISE' ? 'border-dashed border-amber-300/50' : ''}`}>
               <CardHeader>
-                <CardTitle className="flex items-center gap-2">
-                  <Stethoscope className="h-5 w-5" />
-                  גישה טיפולית
-                </CardTitle>
-                <CardDescription>
-                  הגדר גישות טיפוליות ספציפיות למטופל זה (אופציונלי)
-                </CardDescription>
+                <div className="flex items-center justify-between">
+                  <div>
+                    <CardTitle className="flex items-center gap-2">
+                      <Stethoscope className="h-5 w-5" />
+                      גישה טיפולית למטופל
+                      {user?.aiTier !== 'ENTERPRISE' && <Lock className="h-4 w-4 text-amber-500" />}
+                    </CardTitle>
+                    <CardDescription>
+                      {user?.aiTier === 'ENTERPRISE' 
+                        ? 'הגדר גישות טיפוליות ספציפיות למטופל זה (אופציונלי)'
+                        : 'לחץ על גישה כדי לשדרג ולהפעיל ניתוח מותאם!'
+                      }
+                    </CardDescription>
+                  </div>
+                  {user?.aiTier !== 'ENTERPRISE' && (
+                    <Badge className="bg-gradient-to-r from-amber-400 to-orange-400 text-white border-0 text-xs">
+                      שדרג לארגוני
+                    </Badge>
+                  )}
+                </div>
               </CardHeader>
               <CardContent>
                 <ClientApproachEditor
@@ -929,6 +950,7 @@ export default async function ClientPage({
                   clientName={client.name}
                   currentApproaches={client.therapeuticApproaches || []}
                   currentNotes={client.approachNotes}
+                  disabled={user?.aiTier !== 'ENTERPRISE'}
                 />
               </CardContent>
             </Card>

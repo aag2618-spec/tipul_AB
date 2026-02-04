@@ -169,13 +169,13 @@ export async function POST(req: NextRequest) {
     let prompt: string;
 
     if (analysisType === "CONCISE") {
-      // ניתוח תמציתי - לתוכנית מקצועית וארגונית (עם גישות!)
+      // ניתוח תמציתי - גישות רק לארגוני!
       prompt = buildConcisePrompt(
         therapySession.client?.name || "לא ידוע",
         therapySession.startTime,
         therapySession.type,
         therapySession.sessionNote.content,
-        approachNames
+        user.aiTier === 'ENTERPRISE' ? approachNames : undefined
       );
     } else {
       // ניתוח מפורט - רק לתוכנית ארגונית
@@ -297,9 +297,13 @@ function buildConcisePrompt(
       : "טלפוני";
 
   const approachSection = approachNames 
-    ? `גישות טיפוליות: ${approachNames}
+    ? `גישות טיפוליות מוגדרות: ${approachNames}
 
-חשוב: נתח את הפגישה דרך עדשת הגישות הטיפוליות שהוגדרו. השתמש במושגים ובמסגרת התיאורטית של גישות אלו.
+חשוב מאוד - כל הניתוח חייב להיות מבוסס על המסגרת התיאורטית של ${approachNames}:
+• השתמש במושגים ובשפה של הגישה/ות
+• נתח את הדינמיקה דרך עדשת הגישה
+• המלצות חייבות להיות מבוססות על הגישה
+• ציין בפירוש מושגים מהגישה (עם תרגום עברי אם באנגלית)
 
 `
     : '';
@@ -322,16 +326,21 @@ ${approachSection}
 ${noteContent}
 
 הנחיות לניתוח:
-בצע ניתוח תמציתי ומקצועי (200-300 מילים).
-${approachNames ? `חשוב: השתמש במסגרת התיאורטית של ${approachNames} בניתוח.` : ''}
+בצע ניתוח תמציתי ומקצועי (250-350 מילים).
+${approachNames ? `חשוב מאוד: כל הניתוח חייב להיות מבוסס על המסגרת התיאורטית של ${approachNames}. השתמש במושגים ספציפיים מהגישה!` : ''}
 
 מבנה התשובה:
 
 סיכום מרכזי:
-(2-3 שורות - מה עלה בפגישה? נתח לפי הגישות הטיפוליות שהוגדרו)
+(2-3 שורות - מה עלה בפגישה?${approachNames ? ` נתח דרך עדשת ${approachNames}` : ''})
 
-נושאים מרכזיים:
-• נושא 1
+${approachNames ? `ניתוח לפי הגישה (${approachNames}):
+• מושג/תופעה מהגישה שזוהתה בפגישה
+• דינמיקה שניתן להבין דרך הגישה
+• תובנה ספציפית לפי המסגרת התיאורטית
+
+` : ''}נושאים מרכזיים:
+• נושא 1${approachNames ? ` (לפי ${approachNames})` : ''}
 • נושא 2
 • נושא 3
 
@@ -340,7 +349,7 @@ ${approachNames ? `חשוב: השתמש במסגרת התיאורטית של ${a
 • רגש 2
 
 המלצות למפגש הבא:
-• המלצה 1 (בהתאם לגישה הטיפולית)
+• המלצה 1${approachNames ? ` (מבוססת על ${approachNames})` : ''}
 • המלצה 2
 • המלצה 3
 

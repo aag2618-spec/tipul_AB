@@ -40,7 +40,7 @@ export async function GET(request: NextRequest) {
     }
 
     // חיפוש הכנה קיימת למטופל ולתאריך הספציפי
-    // מחפשים הכנה שנוצרה באותו יום
+    // מחפשים הכנה לפי sessionDate (תאריך הפגישה)
     const targetDate = sessionDate ? new Date(sessionDate) : new Date();
     const startOfDay = new Date(targetDate);
     startOfDay.setHours(0, 0, 0, 0);
@@ -51,7 +51,7 @@ export async function GET(request: NextRequest) {
       where: {
         clientId,
         userId: session.user.id,
-        createdAt: {
+        sessionDate: {
           gte: startOfDay,
           lte: endOfDay
         }
@@ -217,19 +217,23 @@ export async function POST(request: NextRequest) {
       selectedApproaches: therapeuticApproaches,
     });
 
+    // בניית שמות הגישות (לשימוש בכל התוכניות)
+    const approachNames = therapeuticApproaches
+      .map(id => {
+        const approach = getApproachById(id);
+        return approach ? approach.nameHe : null;
+      })
+      .filter(Boolean)
+      .join(", ");
+
+    console.log('🔍 Session Prep - Approach Names:', approachNames);
+
     // בניית ה-prompt לפי התוכנית
     let prompt: string;
     
     if (user.aiTier === 'ENTERPRISE') {
       // תוכנית ארגונית - הכנה מפורטת עם גישות
       const approachPrompts = getApproachPrompts(therapeuticApproaches);
-      const approachNames = therapeuticApproaches
-        .map(id => {
-          const approach = getApproachById(id);
-          return approach ? approach.nameHe : null;
-        })
-        .filter(Boolean)
-        .join(", ");
       
       console.log('🔍 Enterprise Prompt Debug:', {
         approachNames,
@@ -245,7 +249,7 @@ export async function POST(request: NextRequest) {
         client.approachNotes
       );
     } else {
-      // תוכנית מקצועית - הכנה תמציתית
+      // תוכנית מקצועית - הכנה תמציתית (בלי גישות!)
       prompt = buildProfessionalPrompt(
         client.name,
         sessionDate || format(new Date(), 'dd/MM/yyyy', { locale: he }),
@@ -334,7 +338,7 @@ export async function POST(request: NextRequest) {
 }
 
 /**
- * בניית prompt לתוכנית מקצועית (תמציתי)
+ * בניית prompt לתוכנית מקצועית (תמציתי - בלי גישות)
  */
 function buildProfessionalPrompt(
   clientName: string,

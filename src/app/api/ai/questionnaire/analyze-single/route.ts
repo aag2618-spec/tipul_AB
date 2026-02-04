@@ -105,25 +105,30 @@ export async function POST(req: NextRequest) {
       return NextResponse.json({ error: "אין הרשאה" }, { status: 403 });
     }
 
-    // קבלת גישות טיפוליות (של המטופל או ברירת מחדל)
-    const therapeuticApproaches = (response.client?.therapeuticApproaches && response.client.therapeuticApproaches.length > 0)
-      ? response.client.therapeuticApproaches
-      : (user.therapeuticApproaches || []);
+    // קבלת גישות טיפוליות - רק לארגוני!
+    let approachNames = '';
+    let approachSection = '';
+    
+    if (user.aiTier === 'ENTERPRISE') {
+      const therapeuticApproaches = (response.client?.therapeuticApproaches && response.client.therapeuticApproaches.length > 0)
+        ? response.client.therapeuticApproaches
+        : (user.therapeuticApproaches || []);
 
-    const approachNames = therapeuticApproaches
-      .map(id => {
-        const approach = getApproachById(id);
-        return approach ? approach.nameHe : null;
-      })
-      .filter(Boolean)
-      .join(", ");
+      approachNames = therapeuticApproaches
+        .map(id => {
+          const approach = getApproachById(id);
+          return approach ? approach.nameHe : null;
+        })
+        .filter(Boolean)
+        .join(", ");
 
-    const approachSection = approachNames 
-      ? `
+      approachSection = approachNames 
+        ? `
 גישות טיפוליות: ${approachNames}
 חשוב: נתח את תוצאות השאלון דרך עדשת הגישות הטיפוליות שהוגדרו. השתמש במושגים ובמסגרת התיאורטית של גישות אלו.
 `
-      : '';
+        : '';
+    }
 
     // Prepare prompt
     const prompt = `חשוב מאוד - כללי פורמט (חובה לציית):
