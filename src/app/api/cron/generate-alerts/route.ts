@@ -1,5 +1,6 @@
 import { NextRequest, NextResponse } from "next/server";
 import prisma from "@/lib/prisma";
+import { AdminAlertType, AlertPriority } from "@prisma/client";
 
 // API Route for generating automatic admin alerts
 // This can be called by a cron job (e.g., daily at 8:00 AM)
@@ -16,8 +17,8 @@ export async function GET(req: NextRequest) {
 
     const now = new Date();
     const alerts: Array<{
-      type: string;
-      priority: string;
+      type: AdminAlertType;
+      priority: AlertPriority;
       title: string;
       message: string;
       userId?: string;
@@ -52,8 +53,8 @@ export async function GET(req: NextRequest) {
 
       if (!existingAlert) {
         alerts.push({
-          type: "PAYMENT_OVERDUE",
-          priority: "HIGH",
+          type: AdminAlertType.PAYMENT_OVERDUE,
+          priority: AlertPriority.HIGH,
           title: `תשלום באיחור - ${payment.user.name || payment.user.email}`,
           message: `תשלום בסכום ₪${payment.amount} ממתין יותר מ-7 ימים.`,
           userId: payment.userId,
@@ -100,8 +101,8 @@ export async function GET(req: NextRequest) {
         );
         
         alerts.push({
-          type: "SUBSCRIPTION_EXPIRING",
-          priority: daysLeft <= 3 ? "HIGH" : "MEDIUM",
+          type: AdminAlertType.SUBSCRIPTION_EXPIRING,
+          priority: daysLeft <= 3 ? AlertPriority.HIGH : AlertPriority.MEDIUM,
           title: `מנוי עומד לפוג - ${user.name || user.email}`,
           message: `למשתמש נותרו ${daysLeft} ימים עד לפקיעת המנוי (${user.aiTier}).`,
           userId: user.id,
@@ -143,8 +144,8 @@ export async function GET(req: NextRequest) {
 
       if (!existingAlert) {
         alerts.push({
-          type: "SUBSCRIPTION_EXPIRED",
-          priority: "URGENT",
+          type: AdminAlertType.SUBSCRIPTION_EXPIRED,
+          priority: AlertPriority.URGENT,
           title: `מנוי פג תוקף - ${user.name || user.email}`,
           message: `המנוי של המשתמש פג ב-${user.subscriptionEndsAt?.toLocaleDateString("he-IL")}. יש לטפל מיידית.`,
           userId: user.id,
@@ -208,8 +209,8 @@ export async function GET(req: NextRequest) {
 
           if (!existingAlert) {
             alerts.push({
-              type: "HIGH_AI_USAGE",
-              priority: percentage >= 95 ? "HIGH" : "MEDIUM",
+              type: AdminAlertType.HIGH_AI_USAGE,
+              priority: percentage >= 95 ? AlertPriority.HIGH : AlertPriority.MEDIUM,
               title: `שימוש גבוה ב-AI - ${usage.user.name || usage.user.email}`,
               message: `המשתמש הגיע ל-${Math.round(percentage)}% מהמכסה החודשית (${feature.name}).`,
               userId: usage.userId,
@@ -252,8 +253,8 @@ export async function GET(req: NextRequest) {
 
       if (!existingAlert) {
         alerts.push({
-          type: "NEW_USER",
-          priority: "LOW",
+          type: AdminAlertType.NEW_USER,
+          priority: AlertPriority.LOW,
           title: `משתמש חדש נרשם - ${user.name || user.email}`,
           message: `משתמש חדש נרשם למערכת בתוכנית ${user.aiTier}.`,
           userId: user.id,
