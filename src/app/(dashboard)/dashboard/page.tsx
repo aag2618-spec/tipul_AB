@@ -433,7 +433,7 @@ export default async function DashboardPage() {
                         asChild
                       >
                         <Link href={`/dashboard/sessions/${session.id}`}>
-                          צור הכנה לפגישה 🤖
+                          הצג הכנה לפגישה →
                         </Link>
                       </Button>
                     </div>
