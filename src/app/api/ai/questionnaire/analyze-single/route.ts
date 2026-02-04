@@ -6,7 +6,7 @@ import { GoogleGenerativeAI } from "@google/generative-ai";
 
 // שימוש ב-Gemini 2.0 Flash בלבד
 const genAI = new GoogleGenerativeAI(process.env.GOOGLE_AI_API_KEY || "");
-const GEMINI_MODEL = "gemini-1.0-pro";
+const GEMINI_MODEL = "gemini-2.0-flash";
 
 // עלויות למיליון טוקנים
 const COSTS_PER_1M_TOKENS = {
