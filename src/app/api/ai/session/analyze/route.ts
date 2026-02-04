@@ -147,14 +147,20 @@ export async function POST(req: NextRequest) {
         ? therapySession.client!.therapeuticApproaches
         : user.therapeuticApproaches;
 
-    // Debug logging
-    console.log('🔍 Session Analysis Debug:', {
+    // Debug logging - מפורט יותר
+    console.log('🔍 Session Analysis Debug - FULL:', {
       userTier: user.aiTier,
       analysisType,
       userApproaches: user.therapeuticApproaches,
+      userApproachesLength: user.therapeuticApproaches?.length || 0,
       clientApproaches: therapySession.client?.therapeuticApproaches,
+      clientApproachesLength: therapySession.client?.therapeuticApproaches?.length || 0,
       selectedApproaches: approaches,
+      selectedApproachesLength: approaches?.length || 0,
+      isEnterprise: user.aiTier === 'ENTERPRISE',
     });
+    
+    console.log('🔍 Approach Names:', approachNames);
 
     // קבלת שמות הגישות לתצוגה
     const approachNames = (approaches || [])
@@ -196,6 +202,10 @@ export async function POST(req: NextRequest) {
       );
     }
 
+    // Debug - הדפסת התחלת ה-prompt
+    console.log('🔍 Prompt Preview (first 500 chars):', prompt.substring(0, 500));
+    console.log('🔍 Prompt contains approach section:', prompt.includes('גישות טיפוליות'));
+    
     // קריאה ל-Gemini 2.0 Flash
     const model = genAI.getGenerativeModel({ model: DEFAULT_MODEL });
     const result = await model.generateContent(prompt);
