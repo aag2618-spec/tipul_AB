@@ -43,9 +43,23 @@ export async function POST(req: NextRequest) {
       );
     }
 
-    // בדיקת משתמש ותוכנית
+    // בדיקת משתמש ותוכנית - כולל גישות טיפוליות
     const user = await prisma.user.findUnique({
       where: { id: session.user.id },
+      select: {
+        id: true,
+        name: true,
+        email: true,
+        aiTier: true,
+        therapeuticApproaches: true,
+        approachDescription: true,
+      }
+    });
+    
+    console.log('🔍 User fetched:', {
+      id: user?.id,
+      aiTier: user?.aiTier,
+      therapeuticApproaches: user?.therapeuticApproaches,
     });
 
     if (!user) {
@@ -107,9 +121,21 @@ export async function POST(req: NextRequest) {
     const therapySession = await prisma.therapySession.findUnique({
       where: { id: sessionId },
       include: {
-        client: true,
+        client: {
+          select: {
+            id: true,
+            name: true,
+            therapeuticApproaches: true,
+            approachNotes: true,
+          }
+        },
         sessionNote: true,
       },
+    });
+    
+    console.log('🔍 TherapySession client:', {
+      clientName: therapySession?.client?.name,
+      clientApproaches: therapySession?.client?.therapeuticApproaches,
     });
 
     if (!therapySession) {
