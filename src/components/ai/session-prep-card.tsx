@@ -1,6 +1,6 @@
 "use client";
 
-import { useState } from "react";
+import { useState, useEffect } from "react";
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
 import { Badge } from "@/components/ui/badge";
@@ -26,8 +26,38 @@ const TIER_NAMES: Record<string, { he: string; en: string }> = {
 
 export function SessionPrepCard({ session, userTier }: SessionPrepCardProps) {
   const [isLoading, setIsLoading] = useState(false);
+  const [isLoadingExisting, setIsLoadingExisting] = useState(true);
   const [prep, setPrep] = useState<any>(null);
   const [isExpanded, setIsExpanded] = useState(false);
+
+  // טעינת הכנה קיימת
+  useEffect(() => {
+    if (userTier === 'ESSENTIAL') {
+      setIsLoadingExisting(false);
+      return;
+    }
+
+    const loadExistingPrep = async () => {
+      try {
+        const response = await fetch(
+          `/api/ai/session-prep?clientId=${session.clientId}&sessionDate=${session.startTime}`
+        );
+        
+        if (response.ok) {
+          const data = await response.json();
+          if (data.content) {
+            setPrep(data);
+          }
+        }
+      } catch (error) {
+        console.error('שגיאה בטעינת הכנה קיימת:', error);
+      } finally {
+        setIsLoadingExisting(false);
+      }
+    };
+
+    loadExistingPrep();
+  }, [session.clientId, session.startTime, userTier]);
 
   const handleGenerate = async () => {
     if (userTier === 'ESSENTIAL') {
@@ -143,8 +173,18 @@ export function SessionPrepCard({ session, userTier }: SessionPrepCardProps) {
         <CardDescription>{session.clientName}</CardDescription>
       </CardHeader>
       <CardContent>
+        {/* טעינת הכנה קיימת */}
+        {isLoadingExisting && (
+          <div className="text-center py-6">
+            <Loader2 className="h-8 w-8 mx-auto mb-3 animate-spin text-muted-foreground" />
+            <p className="text-sm text-muted-foreground">
+              בודק אם קיימת הכנה...
+            </p>
+          </div>
+        )}
+
         {/* מצב ראשוני - לפני יצירה */}
-        {!prep && !isLoading && (
+        {!prep && !isLoading && !isLoadingExisting && (
           <div className="text-center py-6">
             <Brain className="h-12 w-12 mx-auto mb-3 text-muted-foreground opacity-50" />
             <p className="text-sm text-muted-foreground mb-4">
@@ -206,6 +246,9 @@ export function SessionPrepCard({ session, userTier }: SessionPrepCardProps) {
               <span>🧠 {prep.tokensUsed?.toLocaleString() || 0} טוקנים</span>
               <span>💰 {(prep.cost || 0).toFixed(4)}₪</span>
               <span>⚡ Gemini 2.0</span>
+              {prep.createdAt && (
+                <span>📅 {new Date(prep.createdAt).toLocaleTimeString('he-IL', { hour: '2-digit', minute: '2-digit' })}</span>
+              )}
             </div>
           </div>
         )}

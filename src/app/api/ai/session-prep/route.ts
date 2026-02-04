@@ -18,6 +18,70 @@ const COSTS_PER_1M_TOKENS = {
 };
 
 /**
+ * GET /api/ai/session-prep
+ * קבלת הכנה קיימת לפגישה
+ */
+export async function GET(request: NextRequest) {
+  try {
+    const session = await getServerSession(authOptions);
+    if (!session?.user?.id) {
+      return NextResponse.json({ message: "לא מורשה" }, { status: 401 });
+    }
+
+    const { searchParams } = new URL(request.url);
+    const clientId = searchParams.get('clientId');
+    const sessionDate = searchParams.get('sessionDate');
+
+    if (!clientId) {
+      return NextResponse.json(
+        { message: "נדרש מזהה מטופל" },
+        { status: 400 }
+      );
+    }
+
+    // חיפוש הכנה קיימת למטופל ולתאריך הספציפי
+    // מחפשים הכנה שנוצרה באותו יום
+    const targetDate = sessionDate ? new Date(sessionDate) : new Date();
+    const startOfDay = new Date(targetDate);
+    startOfDay.setHours(0, 0, 0, 0);
+    const endOfDay = new Date(targetDate);
+    endOfDay.setHours(23, 59, 59, 999);
+
+    const existingPrep = await prisma.sessionPrep.findFirst({
+      where: {
+        clientId,
+        userId: session.user.id,
+        createdAt: {
+          gte: startOfDay,
+          lte: endOfDay
+        }
+      },
+      orderBy: {
+        createdAt: 'desc'
+      }
+    });
+
+    if (!existingPrep) {
+      return NextResponse.json({ content: null }, { status: 200 });
+    }
+
+    return NextResponse.json({
+      id: existingPrep.id,
+      content: existingPrep.content,
+      tokensUsed: existingPrep.tokensUsed,
+      cost: existingPrep.cost,
+      createdAt: existingPrep.createdAt
+    });
+  } catch (error: unknown) {
+    console.error("שגיאה בקבלת הכנה לפגישה:", error);
+    return NextResponse.json(
+      { message: "שגיאה בקבלת הכנה לפגישה" },
+      { status: 500 }
+    );
+  }
+}
+
+/**
  * POST /api/ai/session-prep
  * הכנה לפגישה באמצעות AI
  * 
