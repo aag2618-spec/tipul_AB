@@ -341,21 +341,14 @@ export default function SessionDetailPage({
         </Card>
       </div>
 
-      {/* AI Session Prep - הכנה לפגישה */}
-      {session.client && session.type !== "BREAK" && (
-        <SessionPrepCard
-          session={{
-            id: session.id,
-            clientId: session.client.id,
-            clientName: session.client.name,
-            startTime: new Date(session.startTime),
-          }}
-          userTier={userTier}
-        />
-      )}
-
-      <Tabs defaultValue="note" className="w-full">
+      <Tabs defaultValue="prep" className="w-full">
         <TabsList>
+          {session.client && session.type !== "BREAK" && (
+            <TabsTrigger value="prep" className="gap-2">
+              <Brain className="h-4 w-4" />
+              הכנה לפגישה
+            </TabsTrigger>
+          )}
           <TabsTrigger value="note" className="gap-2">
             <FileText className="h-4 w-4" />
             סיכום טיפול
@@ -371,6 +364,21 @@ export default function SessionDetailPage({
             הקלטות
           </TabsTrigger>
         </TabsList>
+
+        {/* AI Session Prep Tab */}
+        {session.client && session.type !== "BREAK" && (
+          <TabsContent value="prep" className="mt-6">
+            <SessionPrepCard
+              session={{
+                id: session.id,
+                clientId: session.client.id,
+                clientName: session.client.name,
+                startTime: new Date(session.startTime),
+              }}
+              userTier={userTier}
+            />
+          </TabsContent>
+        )}
 
         <TabsContent value="note" className="mt-6">
           <div className="grid gap-6 lg:grid-cols-2">
