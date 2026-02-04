@@ -126,8 +126,8 @@ export async function checkUsageLimit(
     });
   }
 
-  const usageField = `${feature}Count` as keyof typeof monthlyUsage;
-  const currentUsage = (monthlyUsage as Record<string, number>)[usageField] ?? 0;
+  const usageField = `${feature}Count`;
+  const currentUsage = (monthlyUsage as unknown as Record<string, number>)[usageField] ?? 0;
   const remaining = Math.max(0, limit - currentUsage);
   const percentage = Math.round((currentUsage / limit) * 100);
 
