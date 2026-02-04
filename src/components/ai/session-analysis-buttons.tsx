@@ -10,7 +10,7 @@ import {
   DialogTitle,
 } from "@/components/ui/dialog";
 import { Badge } from "@/components/ui/badge";
-import { FileText, BookOpen, Loader2, Sparkles } from "lucide-react";
+import { FileText, BookOpen, Loader2, Sparkles, RefreshCw } from "lucide-react";
 import { toast } from "sonner";
 
 interface SessionAnalysisButtonsProps {
@@ -29,7 +29,7 @@ export function SessionAnalysisButtons({
   const [analysisResult, setAnalysisResult] = useState<string | null>(null);
   const [dialogOpen, setDialogOpen] = useState(false);
 
-  const handleAnalyze = async (type: "CONCISE" | "DETAILED") => {
+  const handleAnalyze = async (type: "CONCISE" | "DETAILED", forceRegenerate: boolean = false) => {
     setLoading(true);
     setAnalysisType(type);
 
@@ -40,6 +40,7 @@ export function SessionAnalysisButtons({
         body: JSON.stringify({
           sessionId,
           analysisType: type,
+          force: forceRegenerate,
         }),
       });
 
@@ -162,6 +163,24 @@ export function SessionAnalysisButtons({
               }}
             >
               📋 העתק
+            </Button>
+            <Button
+              variant="outline"
+              onClick={() => {
+                setDialogOpen(false);
+                if (analysisType) {
+                  handleAnalyze(analysisType, true);
+                }
+              }}
+              disabled={loading}
+              className="gap-2"
+            >
+              {loading ? (
+                <Loader2 className="h-4 w-4 animate-spin" />
+              ) : (
+                <RefreshCw className="h-4 w-4" />
+              )}
+              צור מחדש
             </Button>
             <Button onClick={() => setDialogOpen(false)}>סגור</Button>
           </div>

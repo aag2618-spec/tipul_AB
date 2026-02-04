@@ -33,7 +33,7 @@ export async function POST(req: NextRequest) {
       return NextResponse.json({ error: "לא מורשה" }, { status: 401 });
     }
 
-    const { sessionId, analysisType } = await req.json();
+    const { sessionId, analysisType, force } = await req.json();
 
     // סוג ניתוח: תמציתי או מפורט
     if (!["CONCISE", "DETAILED"].includes(analysisType)) {
@@ -128,12 +128,12 @@ export async function POST(req: NextRequest) {
       );
     }
 
-    // בדיקה אם כבר קיים ניתוח מאותו סוג
+    // בדיקה אם כבר קיים ניתוח מאותו סוג (אלא אם ביקשו יצירה מחדש)
     const existingAnalysis = await prisma.sessionAnalysis.findUnique({
       where: { sessionId: sessionId },
     });
 
-    if (existingAnalysis && existingAnalysis.analysisType === analysisType) {
+    if (!force && existingAnalysis && existingAnalysis.analysisType === analysisType) {
       return NextResponse.json({
         success: true,
         analysis: existingAnalysis,
