@@ -60,6 +60,13 @@ export async function POST(request: NextRequest) {
       }
     });
 
+    console.log('🔍 ANALYZE NOTE - User data:', {
+      userId: user?.id,
+      aiTier: user?.aiTier,
+      therapeuticApproaches: user?.therapeuticApproaches,
+      clientIdReceived: clientId,
+    });
+
     if (!user) {
       return NextResponse.json({ message: "משתמש לא נמצא" }, { status: 404 });
     }
@@ -72,10 +79,20 @@ export async function POST(request: NextRequest) {
         where: { id: clientId },
         select: { therapeuticApproaches: true }
       });
+      console.log('🔍 ANALYZE NOTE - Client data:', {
+        clientId,
+        clientApproaches: client?.therapeuticApproaches,
+      });
       if (client?.therapeuticApproaches && client.therapeuticApproaches.length > 0) {
         therapeuticApproaches = client.therapeuticApproaches;
       }
     }
+
+    console.log('🔍 ANALYZE NOTE - Final approaches:', {
+      therapeuticApproaches,
+      isEnterprise: user.aiTier === 'ENTERPRISE',
+      willUseApproaches: user.aiTier === 'ENTERPRISE' && therapeuticApproaches.length > 0,
+    });
 
     // בניית section של גישות טיפוליות - רק ל-ENTERPRISE
     let approachSection = '';
