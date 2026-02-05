@@ -3,6 +3,7 @@ import { getServerSession } from "next-auth";
 import { authOptions } from "@/lib/auth";
 import prisma from "@/lib/prisma";
 import { GoogleGenerativeAI } from "@google/generative-ai";
+import { getApproachById, getApproachPrompts } from "@/lib/therapeutic-approaches";
 
 // POST - Analyze questionnaire with AI
 export async function POST(
@@ -17,7 +18,7 @@ export async function POST(
 
     const { id } = await params;
 
-    // Get response with template
+    // Get response with template and client approaches
     const response = await prisma.questionnaireResponse.findFirst({
       where: {
         id,
@@ -30,9 +31,19 @@ export async function POST(
             id: true,
             name: true,
             birthDate: true,
+            therapeuticApproaches: true,
           },
         },
       },
+    });
+    
+    // Get user with tier and approaches
+    const user = await prisma.user.findUnique({
+      where: { id: session.user.id },
+      select: {
+        aiTier: true,
+        therapeuticApproaches: true,
+      }
     });
 
     if (!response) {
@@ -60,6 +71,40 @@ export async function POST(
     const genAI = new GoogleGenerativeAI(apiKey);
     const model = genAI.getGenerativeModel({ model: "gemini-2.0-flash" });
 
+    // Build approach section for ENTERPRISE tier
+    let approachSection = '';
+    if (user?.aiTier === 'ENTERPRISE') {
+      const therapeuticApproaches = (response.client?.therapeuticApproaches && response.client.therapeuticApproaches.length > 0)
+        ? response.client.therapeuticApproaches
+        : (user.therapeuticApproaches || []);
+      
+      if (therapeuticApproaches.length > 0) {
+        const approachNames = therapeuticApproaches
+          .map((id: string) => {
+            const approach = getApproachById(id);
+            return approach ? approach.nameHe : null;
+          })
+          .filter(Boolean)
+          .join(", ");
+        
+        const approachPrompts = getApproachPrompts(therapeuticApproaches);
+        
+        approachSection = `
+=== גישות טיפוליות מוגדרות: ${approachNames} ===
+
+חובה לנתח את השאלון לפי הגישה/ות הבאות. השתמש במושגים הספציפיים של הגישה!
+
+${approachPrompts}
+
+הנחיות חיוניות:
+• כל הניתוח חייב להיות דרך העדשה של ${approachNames}
+• ציין מושגים ספציפיים מהגישה (עם תרגום עברי אם באנגלית)
+• ההמלצות חייבות להתבסס על הטכניקות של הגישה
+
+`;
+      }
+    }
+
     // Build analysis prompt based on test type
     const template = response.template;
     const testType = (template as any).testType || "SELF_REPORT";
@@ -77,7 +122,14 @@ export async function POST(
         return `${q.id}. ${q.title}: ${selectedOption?.text || answer?.value || "לא נענה"} (ציון: ${answer?.value || 0})`;
       }).join("\n");
 
-      prompt = `אתה פסיכולוג קליני מומחה באבחון פסיכולוגי. נתח את תוצאות השאלון הבא:
+      prompt = `חשוב מאוד - כללי פורמט (חובה לציית):
+- כתוב טקסט רגיל בלבד, ללא שום עיצוב
+- אסור להשתמש ב-Markdown: ללא #, ללא **, ללא *, ללא _
+- לכותרות: כתוב את הכותרת בשורה נפרדת עם נקודתיים בסוף
+- לרשימות: השתמש בסימן • בלבד
+
+אתה פסיכולוג קליני מומחה באבחון פסיכולוגי. נתח את תוצאות השאלון הבא:
+${approachSection}
 
 שאלון: ${template.name} (${template.nameEn || template.code})
 קטגוריה: ${template.category || "כללי"}
@@ -106,7 +158,14 @@ ${JSON.stringify(scoring, null, 2)}` : ""}
 
     } else if (testType === "PROJECTIVE") {
       // Projective test analysis
-      prompt = `אתה פסיכולוג קליני מומחה במבחנים השלכתיים. נתח את תוצאות המבחן הבא:
+      prompt = `חשוב מאוד - כללי פורמט (חובה לציית):
+- כתוב טקסט רגיל בלבד, ללא שום עיצוב
+- אסור להשתמש ב-Markdown: ללא #, ללא **, ללא *, ללא _
+- לכותרות: כתוב את הכותרת בשורה נפרדת עם נקודתיים בסוף
+- לרשימות: השתמש בסימן • בלבד
+
+אתה פסיכולוג קליני מומחה במבחנים השלכתיים. נתח את תוצאות המבחן הבא:
+${approachSection}
 
 מבחן: ${template.name} (${template.nameEn || template.code})
 
@@ -133,7 +192,14 @@ ${JSON.stringify(scoring, null, 2)}` : ""}
 
     } else if (testType === "INTELLIGENCE") {
       // Intelligence test analysis
-      prompt = `אתה נוירופסיכולוג קליני מומחה במבחני אינטליגנציה. נתח את תוצאות המבחן הבא:
+      prompt = `חשוב מאוד - כללי פורמט (חובה לציית):
+- כתוב טקסט רגיל בלבד, ללא שום עיצוב
+- אסור להשתמש ב-Markdown: ללא #, ללא **, ללא *, ללא _
+- לכותרות: כתוב את הכותרת בשורה נפרדת עם נקודתיים בסוף
+- לרשימות: השתמש בסימן • בלבד
+
+אתה נוירופסיכולוג קליני מומחה במבחני אינטליגנציה. נתח את תוצאות המבחן הבא:
+${approachSection}
 
 מבחן: ${template.name} (${template.nameEn || template.code})
 
@@ -162,8 +228,14 @@ ${JSON.stringify(scoring, null, 2)}` : ""}
 
     } else {
       // Generic analysis
-      prompt = `אתה פסיכולוג קליני. נתח את תוצאות ההערכה הבאה:
+      prompt = `חשוב מאוד - כללי פורמט (חובה לציית):
+- כתוב טקסט רגיל בלבד, ללא שום עיצוב
+- אסור להשתמש ב-Markdown: ללא #, ללא **, ללא *, ללא _
+- לכותרות: כתוב את הכותרת בשורה נפרדת עם נקודתיים בסוף
+- לרשימות: השתמש בסימן • בלבד
 
+אתה פסיכולוג קליני. נתח את תוצאות ההערכה הבאה:
+${approachSection}
 כלי: ${template.name}
 נתונים: ${JSON.stringify(answers, null, 2)}
 

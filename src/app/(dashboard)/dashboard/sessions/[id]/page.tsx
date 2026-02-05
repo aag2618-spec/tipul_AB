@@ -228,7 +228,8 @@ export default function SessionDetailPage({
         headers: { "Content-Type": "application/json" },
         body: JSON.stringify({ 
           noteContent,
-          clientName: session?.client?.name 
+          clientName: session?.client?.name,
+          clientId: session?.client?.id 
         }),
       });
 
