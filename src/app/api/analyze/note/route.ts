@@ -158,6 +158,7 @@ ${approachPrompts}
 
 /**
  * בניית prompt מפורט לתוכנית ארגונית - עם ניתוח עמוק לפי הגישה
+ * מיקוד: סיכום והבנה של מה שהיה בפגישה (לא הכנה לעתיד)
  */
 function buildEnterpriseAnalysisPrompt(
   clientName: string | undefined,
@@ -173,15 +174,19 @@ function buildEnterpriseAnalysisPrompt(
 - להפרדה: שורה ריקה בין סעיפים
 - מונחים באנגלית: הוסף תרגום עברי בסוגריים
 
-אתה פסיכולוג קליני מומחה ברמה אקדמית גבוהה. בצע ניתוח מעמיק של סיכום הפגישה.
+אתה פסיכולוג קליני מומחה ברמה אקדמית גבוהה. 
+המשימה: סיכום וניתוח מעמיק של פגישה טיפולית שכבר התקיימה.
+
+חשוב: זהו סיכום אחרי פגישה - לא הכנה לפגישה!
+המיקוד הוא על הבנה עמוקה של מה שקרה, לא על תכנון עתידי.
 
 ${clientName ? `שם המטופל: ${clientName}` : ""}
 ${approachSection}
 
-סיכום הפגישה שנכתב:
+סיכום הפגישה שנכתב על ידי המטפל:
 ${noteContent}
 
-=== הנחיות לניתוח מעמיק ===
+=== הנחיות לסיכום וניתוח מעמיק ===
 
 חובה: כל הניתוח חייב להיות דרך העדשה של ${approachNames}. 
 השתמש במושגים הספציפיים של הגישה בכל סעיף!
@@ -189,8 +194,21 @@ ${noteContent}
 החזר את התשובה בפורמט JSON בלבד (ללא markdown או הסברים) עם המבנה הבא:
 
 {
-  "summary": "סיכום מקיף של הפגישה (4-5 משפטים) - מה עלה ומה המשמעות לפי ${approachNames}",
+  "summary": "סיכום מקיף ומפורט של הפגישה (5-7 משפטים) - מה עלה, מה נחקר, ומה המשמעות הטיפולית לפי ${approachNames}",
   
+  "therapeuticStage": {
+    "currentStage": "באיזה שלב התפתחותי/טיפולי נמצא המטופל כעת לפי ${approachNames} (למשל: שלב המעבר, עמדה דיכאונית, שלב האמון וכו')",
+    "stageIndicators": "מה בפגישה מעיד על השלב הזה",
+    "stageProgress": "האם יש תנועה בין שלבים או התבססות בשלב הנוכחי"
+  },
+  
+  "sessionDeepAnalysis": {
+    "whatActuallyHappened": "תיאור מפורט של מה שקרה בפגישה מבחינה טיפולית - לא רק העובדות, אלא התהליך הפנימי",
+    "therapeuticMoments": "רגעים טיפוליים משמעותיים שקרו בפגישה",
+    "patientExperience": "מה נראה שהמטופל חווה במהלך הפגישה לפי ${approachNames}",
+    "relationshipDynamics": "איך התפתח הקשר הטיפולי בפגישה זו"
+  },
+
   "keyThemes": ["נושא מרכזי 1 (עם פרשנות לפי הגישה)", "נושא 2", "נושא 3"],
   
   "approachAnalysis": {
@@ -203,6 +221,12 @@ ${noteContent}
     ],
     "newInsights": "מה התחדש בהבנת המטופל בפגישה זו שלא היה ידוע קודם - לפי מסגרת ${approachNames}",
     "progressInApproach": "באיזה מושגים/תחומים של ${approachNames} יש התקדמות או שינוי"
+  },
+  
+  "therapistBlindSpots": {
+    "possibleMisses": ["דבר שייתכן שהמטפל לא שם לב אליו בפגישה לפי ${approachNames}"],
+    "unexploredAreas": ["תחום שעלה אבל לא נחקר מספיק"],
+    "alternativeInterpretations": "פרשנות אחרת אפשרית למה שקרה לפי הגישה"
   },
   
   "transferenceAnalysis": {
@@ -235,19 +259,25 @@ ${noteContent}
     }
   ],
   
-  "clinicalObservations": ["תצפית 1 (לפי הגישה)", "תצפית 2"],
+  "clinicalObservations": ["תצפית קלינית 1 (לפי הגישה)", "תצפית 2"],
+  
+  "recommendationsForTherapist": {
+    "keyTakeaways": ["מסקנה חשובה 1 מהפגישה", "מסקנה 2"],
+    "attentionPoints": ["נקודה לתשומת לב בהמשך הטיפול"],
+    "therapeuticDirection": "המלצה לכיוון הטיפולי לפי ${approachNames}"
+  },
   
   "questionsForNextSession": [
     {
       "question": "השאלה עצמה",
       "purpose": "מה אנחנו רוצים לברר",
-      "approachStyle": "איך לשאול את זה לפי סגנון ${approachNames} - הטון, הגישה, העיתוי"
+      "approachStyle": "איך לשאול את זה לפי סגנון ${approachNames}"
     }
   ],
   
   "suggestedInterventions": [
     {
-      "intervention": "ההתערבות המומלצת",
+      "intervention": "ההתערבות המומלצת להמשך",
       "rationale": "למה זה מתאים לפי ${approachNames}",
       "howTo": "איך לבצע בפועל"
     }
@@ -255,7 +285,7 @@ ${noteContent}
   
   "approachToPatient": {
     "recommendedStance": "העמדה הטיפולית המומלצת לפי ${approachNames}",
-    "whatToExplore": "מה כדאי לחקור יותר לעומק",
+    "whatToExplore": "מה כדאי לחקור יותר לעומק בהמשך",
     "whatToAvoid": "ממה להיזהר או להימנע",
     "timing": "מתי ואיך לגשת לנושאים רגישים"
   },

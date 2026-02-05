@@ -52,6 +52,27 @@ interface NoteAnalysis {
   })[];
   riskFactors?: string[];
   // שדות חדשים לניתוח מפורט (Enterprise)
+  therapeuticStage?: {
+    currentStage: string;
+    stageIndicators: string;
+    stageProgress: string;
+  };
+  sessionDeepAnalysis?: {
+    whatActuallyHappened: string;
+    therapeuticMoments: string;
+    patientExperience: string;
+    relationshipDynamics: string;
+  };
+  therapistBlindSpots?: {
+    possibleMisses?: string[];
+    unexploredAreas?: string[];
+    alternativeInterpretations?: string;
+  };
+  recommendationsForTherapist?: {
+    keyTakeaways?: string[];
+    attentionPoints?: string[];
+    therapeuticDirection?: string;
+  };
   approachAnalysis?: {
     conceptsObserved?: {
       concept: string;
@@ -536,6 +557,87 @@ export default function SessionDetailPage({
                           </div>
                         )}
 
+                        {/* Therapeutic Stage - Enterprise */}
+                        {noteAnalysis.therapeuticStage && (
+                          <div className="p-3 rounded-lg bg-indigo-50 border border-indigo-200">
+                            <h4 className="text-sm font-medium mb-3 flex items-center gap-2 text-indigo-700">
+                              <Target className="h-4 w-4" />
+                              השלב הטיפולי הנוכחי
+                            </h4>
+                            <div className="space-y-2 text-sm">
+                              <p><strong>שלב:</strong> {noteAnalysis.therapeuticStage.currentStage}</p>
+                              <p className="text-muted-foreground text-xs">מה מעיד על כך: {noteAnalysis.therapeuticStage.stageIndicators}</p>
+                              <p className="text-muted-foreground text-xs">התקדמות: {noteAnalysis.therapeuticStage.stageProgress}</p>
+                            </div>
+                          </div>
+                        )}
+
+                        {/* Session Deep Analysis - Enterprise */}
+                        {noteAnalysis.sessionDeepAnalysis && (
+                          <div className="p-3 rounded-lg bg-cyan-50 border border-cyan-200">
+                            <h4 className="text-sm font-medium mb-3 flex items-center gap-2 text-cyan-700">
+                              <Brain className="h-4 w-4" />
+                              ניתוח עמוק של הפגישה
+                            </h4>
+                            <div className="space-y-3 text-sm">
+                              <div>
+                                <p className="font-medium text-cyan-600">מה באמת קרה:</p>
+                                <p>{noteAnalysis.sessionDeepAnalysis.whatActuallyHappened}</p>
+                              </div>
+                              <div>
+                                <p className="font-medium text-cyan-600">רגעים טיפוליים משמעותיים:</p>
+                                <p>{noteAnalysis.sessionDeepAnalysis.therapeuticMoments}</p>
+                              </div>
+                              <div>
+                                <p className="font-medium text-cyan-600">חוויית המטופל:</p>
+                                <p>{noteAnalysis.sessionDeepAnalysis.patientExperience}</p>
+                              </div>
+                              <div>
+                                <p className="font-medium text-cyan-600">דינמיקת הקשר:</p>
+                                <p>{noteAnalysis.sessionDeepAnalysis.relationshipDynamics}</p>
+                              </div>
+                            </div>
+                          </div>
+                        )}
+
+                        {/* Therapist Blind Spots - Enterprise */}
+                        {noteAnalysis.therapistBlindSpots && (
+                          <div className="p-3 rounded-lg bg-orange-50 border border-orange-200">
+                            <h4 className="text-sm font-medium mb-3 flex items-center gap-2 text-orange-700">
+                              <AlertTriangle className="h-4 w-4" />
+                              נקודות עיוורות אפשריות
+                            </h4>
+                            <div className="space-y-2 text-sm">
+                              {noteAnalysis.therapistBlindSpots.possibleMisses && noteAnalysis.therapistBlindSpots.possibleMisses.length > 0 && (
+                                <div>
+                                  <p className="font-medium text-orange-600">דברים שייתכן שלא שמת לב:</p>
+                                  <ul className="list-disc list-inside">
+                                    {noteAnalysis.therapistBlindSpots.possibleMisses.map((m, i) => (
+                                      <li key={i}>{m}</li>
+                                    ))}
+                                  </ul>
+                                </div>
+                              )}
+                              {noteAnalysis.therapistBlindSpots.unexploredAreas && noteAnalysis.therapistBlindSpots.unexploredAreas.length > 0 && (
+                                <div>
+                                  <p className="font-medium text-orange-600">תחומים שלא נחקרו:</p>
+                                  <ul className="list-disc list-inside">
+                                    {noteAnalysis.therapistBlindSpots.unexploredAreas.map((a, i) => (
+                                      <li key={i}>{a}</li>
+                                    ))}
+                                  </ul>
+                                </div>
+                              )}
+                              {noteAnalysis.therapistBlindSpots.alternativeInterpretations && (
+                                <div>
+                                  <p className="font-medium text-orange-600">פרשנות אחרת אפשרית:</p>
+                                  <p>{noteAnalysis.therapistBlindSpots.alternativeInterpretations}</p>
+                                </div>
+                              )}
+                            </div>
+                          </div>
+                        )}
+
                         {/* Key Themes */}
                         {noteAnalysis.keyThemes && noteAnalysis.keyThemes.length > 0 && (
                           <div>
@@ -688,6 +790,44 @@ export default function SessionDetailPage({
                               <p><strong>מה לחקור:</strong> {noteAnalysis.approachToPatient.whatToExplore}</p>
                               <p><strong>ממה להיזהר:</strong> {noteAnalysis.approachToPatient.whatToAvoid}</p>
                               <p><strong>עיתוי:</strong> {noteAnalysis.approachToPatient.timing}</p>
+                            </div>
+                          </div>
+                        )}
+
+                        {/* Recommendations for Therapist - Enterprise */}
+                        {noteAnalysis.recommendationsForTherapist && (
+                          <div className="p-3 rounded-lg bg-teal-50 border border-teal-200">
+                            <h4 className="text-sm font-medium mb-3 flex items-center gap-2 text-teal-700">
+                              <Lightbulb className="h-4 w-4" />
+                              המלצות למטפל
+                            </h4>
+                            <div className="space-y-2 text-sm">
+                              {noteAnalysis.recommendationsForTherapist.keyTakeaways && noteAnalysis.recommendationsForTherapist.keyTakeaways.length > 0 && (
+                                <div>
+                                  <p className="font-medium text-teal-600">מסקנות מרכזיות:</p>
+                                  <ul className="list-disc list-inside">
+                                    {noteAnalysis.recommendationsForTherapist.keyTakeaways.map((t, i) => (
+                                      <li key={i}>{t}</li>
+                                    ))}
+                                  </ul>
+                                </div>
+                              )}
+                              {noteAnalysis.recommendationsForTherapist.attentionPoints && noteAnalysis.recommendationsForTherapist.attentionPoints.length > 0 && (
+                                <div>
+                                  <p className="font-medium text-teal-600">נקודות לתשומת לב:</p>
+                                  <ul className="list-disc list-inside">
+                                    {noteAnalysis.recommendationsForTherapist.attentionPoints.map((p, i) => (
+                                      <li key={i}>{p}</li>
+                                    ))}
+                                  </ul>
+                                </div>
+                              )}
+                              {noteAnalysis.recommendationsForTherapist.therapeuticDirection && (
+                                <div>
+                                  <p className="font-medium text-teal-600">כיוון טיפולי מומלץ:</p>
+                                  <p>{noteAnalysis.recommendationsForTherapist.therapeuticDirection}</p>
+                                </div>
+                              )}
                             </div>
                           </div>
                         )}
