@@ -18,7 +18,7 @@ import {
   AlertDialogHeader,
   AlertDialogTitle,
 } from "@/components/ui/alert-dialog";
-import { ArrowRight, Calendar, Clock, User, Mic, FileText, Save, Loader2, Sparkles, Brain, TrendingUp, TrendingDown, Minus, AlertTriangle, MessageCircleQuestion, Lightbulb } from "lucide-react";
+import { ArrowRight, Calendar, Clock, User, Mic, FileText, Save, Loader2, Sparkles, Brain, TrendingUp, TrendingDown, Minus, AlertTriangle, MessageCircleQuestion, Lightbulb, Shield, Target, Users } from "lucide-react";
 import { format } from "date-fns";
 import { he } from "date-fns/locale";
 import { toast } from "sonner";
@@ -39,9 +39,52 @@ interface NoteAnalysis {
     status: "improving" | "stable" | "concerning";
     notes: string;
   }[];
-  suggestedInterventions?: string[];
-  questionsForNextSession?: string[];
+  // תמיכה בפורמט ישן (string[]) וחדש (object[])
+  suggestedInterventions?: (string | {
+    intervention: string;
+    rationale: string;
+    howTo: string;
+  })[];
+  questionsForNextSession?: (string | {
+    question: string;
+    purpose: string;
+    approachStyle: string;
+  })[];
   riskFactors?: string[];
+  // שדות חדשים לניתוח מפורט (Enterprise)
+  approachAnalysis?: {
+    conceptsObserved?: {
+      concept: string;
+      observation: string;
+      significance: string;
+    }[];
+    newInsights?: string;
+    progressInApproach?: string;
+  };
+  transferenceAnalysis?: {
+    transference?: {
+      type: string;
+      manifestation: string;
+      meaning: string;
+    };
+    countertransference?: {
+      feelings: string;
+      meaning: string;
+      recommendation: string;
+    };
+  };
+  defensesMechanisms?: {
+    defense: string;
+    approachPerspective: string;
+    manifestation: string;
+    therapeuticApproach: string;
+  }[];
+  approachToPatient?: {
+    recommendedStance: string;
+    whatToExplore: string;
+    whatToAvoid: string;
+    timing: string;
+  };
 }
 
 interface SessionData {
@@ -546,6 +589,109 @@ export default function SessionDetailPage({
                           </div>
                         )}
 
+                        {/* Approach Analysis - Enterprise */}
+                        {noteAnalysis.approachAnalysis && (
+                          <div className="p-3 rounded-lg bg-purple-50 border border-purple-200">
+                            <h4 className="text-sm font-medium mb-3 flex items-center gap-2 text-purple-700">
+                              <Brain className="h-4 w-4" />
+                              ניתוח לפי גישה טיפולית
+                            </h4>
+                            
+                            {noteAnalysis.approachAnalysis.newInsights && (
+                              <div className="mb-3">
+                                <p className="text-xs font-medium text-purple-600 mb-1">תובנות חדשות:</p>
+                                <p className="text-sm">{noteAnalysis.approachAnalysis.newInsights}</p>
+                              </div>
+                            )}
+
+                            {noteAnalysis.approachAnalysis.progressInApproach && (
+                              <div className="mb-3">
+                                <p className="text-xs font-medium text-purple-600 mb-1">התקדמות לפי הגישה:</p>
+                                <p className="text-sm">{noteAnalysis.approachAnalysis.progressInApproach}</p>
+                              </div>
+                            )}
+                            
+                            {noteAnalysis.approachAnalysis.conceptsObserved && noteAnalysis.approachAnalysis.conceptsObserved.length > 0 && (
+                              <div>
+                                <p className="text-xs font-medium text-purple-600 mb-2">מושגים שזוהו:</p>
+                                <div className="space-y-2">
+                                  {noteAnalysis.approachAnalysis.conceptsObserved.map((c, i) => (
+                                    <div key={i} className="p-2 bg-white/50 rounded text-sm">
+                                      <p className="font-medium">{c.concept}</p>
+                                      <p className="text-xs text-muted-foreground">תצפית: {c.observation}</p>
+                                      <p className="text-xs text-muted-foreground">משמעות: {c.significance}</p>
+                                    </div>
+                                  ))}
+                                </div>
+                              </div>
+                            )}
+                          </div>
+                        )}
+
+                        {/* Transference Analysis - Enterprise */}
+                        {noteAnalysis.transferenceAnalysis && (
+                          <div className="p-3 rounded-lg bg-blue-50 border border-blue-200">
+                            <h4 className="text-sm font-medium mb-3 flex items-center gap-2 text-blue-700">
+                              <Users className="h-4 w-4" />
+                              העברה והעברה נגדית
+                            </h4>
+                            
+                            {noteAnalysis.transferenceAnalysis.transference && (
+                              <div className="mb-3 p-2 bg-white/50 rounded">
+                                <p className="text-xs font-medium text-blue-600 mb-1">העברה (Transference):</p>
+                                <p className="text-sm"><strong>סוג:</strong> {noteAnalysis.transferenceAnalysis.transference.type}</p>
+                                <p className="text-xs text-muted-foreground">ביטוי: {noteAnalysis.transferenceAnalysis.transference.manifestation}</p>
+                                <p className="text-xs text-muted-foreground">משמעות: {noteAnalysis.transferenceAnalysis.transference.meaning}</p>
+                              </div>
+                            )}
+
+                            {noteAnalysis.transferenceAnalysis.countertransference && (
+                              <div className="p-2 bg-white/50 rounded">
+                                <p className="text-xs font-medium text-blue-600 mb-1">העברה נגדית (Countertransference):</p>
+                                <p className="text-sm"><strong>תחושות:</strong> {noteAnalysis.transferenceAnalysis.countertransference.feelings}</p>
+                                <p className="text-xs text-muted-foreground">משמעות: {noteAnalysis.transferenceAnalysis.countertransference.meaning}</p>
+                                <p className="text-xs text-muted-foreground">המלצה: {noteAnalysis.transferenceAnalysis.countertransference.recommendation}</p>
+                              </div>
+                            )}
+                          </div>
+                        )}
+
+                        {/* Defense Mechanisms - Enterprise */}
+                        {noteAnalysis.defensesMechanisms && noteAnalysis.defensesMechanisms.length > 0 && (
+                          <div className="p-3 rounded-lg bg-amber-50 border border-amber-200">
+                            <h4 className="text-sm font-medium mb-3 flex items-center gap-2 text-amber-700">
+                              <Shield className="h-4 w-4" />
+                              מנגנוני הגנה
+                            </h4>
+                            <div className="space-y-2">
+                              {noteAnalysis.defensesMechanisms.map((d, i) => (
+                                <div key={i} className="p-2 bg-white/50 rounded text-sm">
+                                  <p className="font-medium">{d.defense}</p>
+                                  <p className="text-xs text-muted-foreground">לפי הגישה: {d.approachPerspective}</p>
+                                  <p className="text-xs text-muted-foreground">ביטוי: {d.manifestation}</p>
+                                  <p className="text-xs text-muted-foreground">גישה טיפולית: {d.therapeuticApproach}</p>
+                                </div>
+                              ))}
+                            </div>
+                          </div>
+                        )}
+
+                        {/* Approach to Patient - Enterprise */}
+                        {noteAnalysis.approachToPatient && (
+                          <div className="p-3 rounded-lg bg-green-50 border border-green-200">
+                            <h4 className="text-sm font-medium mb-3 flex items-center gap-2 text-green-700">
+                              <Target className="h-4 w-4" />
+                              גישה מומלצת למטופל
+                            </h4>
+                            <div className="space-y-2 text-sm">
+                              <p><strong>עמדה מומלצת:</strong> {noteAnalysis.approachToPatient.recommendedStance}</p>
+                              <p><strong>מה לחקור:</strong> {noteAnalysis.approachToPatient.whatToExplore}</p>
+                              <p><strong>ממה להיזהר:</strong> {noteAnalysis.approachToPatient.whatToAvoid}</p>
+                              <p><strong>עיתוי:</strong> {noteAnalysis.approachToPatient.timing}</p>
+                            </div>
+                          </div>
+                        )}
+
                         {/* Suggested Interventions */}
                         {noteAnalysis.suggestedInterventions && noteAnalysis.suggestedInterventions.length > 0 && (
                           <div>
@@ -553,11 +699,19 @@ export default function SessionDetailPage({
                               <Lightbulb className="h-4 w-4" />
                               התערבויות מומלצות
                             </h4>
-                            <ul className="text-sm space-y-1">
-                              {noteAnalysis.suggestedInterventions.map((intervention, i) => (
+                            <ul className="text-sm space-y-2">
+                              {noteAnalysis.suggestedInterventions.map((item, i) => (
                                 <li key={i} className="flex items-start gap-2">
                                   <span className="text-primary mt-0.5">•</span>
-                                  {intervention}
+                                  {typeof item === 'string' ? (
+                                    <span>{item}</span>
+                                  ) : (
+                                    <div className="space-y-1">
+                                      <div className="font-medium">{item.intervention}</div>
+                                      <div className="text-muted-foreground text-xs">נימוק: {item.rationale}</div>
+                                      <div className="text-muted-foreground text-xs">איך לבצע: {item.howTo}</div>
+                                    </div>
+                                  )}
                                 </li>
                               ))}
                             </ul>
@@ -571,11 +725,19 @@ export default function SessionDetailPage({
                               <MessageCircleQuestion className="h-4 w-4" />
                               שאלות לפגישה הבאה
                             </h4>
-                            <ul className="text-sm space-y-1">
-                              {noteAnalysis.questionsForNextSession.map((question, i) => (
+                            <ul className="text-sm space-y-2">
+                              {noteAnalysis.questionsForNextSession.map((item, i) => (
                                 <li key={i} className="flex items-start gap-2">
                                   <span className="text-primary mt-0.5">•</span>
-                                  {question}
+                                  {typeof item === 'string' ? (
+                                    <span>{item}</span>
+                                  ) : (
+                                    <div className="space-y-1">
+                                      <div className="font-medium">{item.question}</div>
+                                      <div className="text-muted-foreground text-xs">מטרה: {item.purpose}</div>
+                                      <div className="text-muted-foreground text-xs">סגנון: {item.approachStyle}</div>
+                                    </div>
+                                  )}
                                 </li>
                               ))}
                             </ul>
