@@ -185,8 +185,6 @@ export async function POST(req: NextRequest) {
       selectedApproachesLength: approaches?.length || 0,
       isEnterprise: user.aiTier === 'ENTERPRISE',
     });
-    
-    console.log('🔍 Approach Names:', approachNames);
 
     // קבלת שמות הגישות לתצוגה
     const approachNames = (approaches || [])
@@ -196,6 +194,8 @@ export async function POST(req: NextRequest) {
       })
       .filter(Boolean)
       .join(", ");
+    
+    console.log('🔍 Approach Names:', approachNames);
 
     // בניית ה-prompt לפי סוג הניתוח
     let prompt: string;
