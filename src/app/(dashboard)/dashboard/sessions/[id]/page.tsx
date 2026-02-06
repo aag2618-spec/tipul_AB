@@ -357,19 +357,6 @@ export default function SessionDetailPage({
               onSuccess={refreshSession}
             />
           )}
-          {session.status !== "SCHEDULED" && (
-            <Card className="bg-gradient-to-br from-blue-50 to-indigo-50 dark:from-blue-950 dark:to-indigo-950 border-2 border-blue-200 dark:border-blue-800 shadow-md">
-              <CardContent className="p-4">
-                <Badge variant={
-                  status === "COMPLETED" ? "default" :
-                  status === "CANCELLED" ? "destructive" : "secondary"
-                } className="text-base px-4 py-2">
-                  {status === "COMPLETED" ? "✅ הושלם" :
-                   status === "CANCELLED" ? "❌ בוטל" : "⚠️ אי הופעה"}
-                </Badge>
-              </CardContent>
-            </Card>
-          )}
           {session.client && (
             <Button variant="outline" asChild>
               <Link href={`/dashboard/clients/${session.client.id}`}>
@@ -381,87 +368,24 @@ export default function SessionDetailPage({
         </div>
       </div>
 
-      {/* Session Info */}
-      <div className="grid gap-4 md:grid-cols-4">
-        <Card>
-          <CardContent className="pt-6">
-            <p className="text-sm text-muted-foreground">סוג פגישה</p>
-            <p className="text-lg font-medium">
-              {session.type === "ONLINE" ? "אונליין" : session.type === "PHONE" ? "טלפון" : "פרונטלי"}
-            </p>
-          </CardContent>
-        </Card>
-        <Card>
-          <CardContent className="pt-6">
-            <p className="text-sm text-muted-foreground">מחיר</p>
-            <p className="text-lg font-medium">₪{session.price}</p>
-          </CardContent>
-        </Card>
-        <Card>
-          <CardContent className="pt-6">
-            <p className="text-sm text-muted-foreground">סטטוס</p>
-            <Badge variant={
-              status === "COMPLETED" ? "default" :
-              status === "CANCELLED" ? "destructive" : "secondary"
-            } className="mt-1">
-              {status === "SCHEDULED" ? "מתוכנן" :
-               status === "COMPLETED" ? "הושלם" :
-               status === "CANCELLED" ? "בוטל" : "אי הופעה"}
-            </Badge>
-          </CardContent>
-        </Card>
-        {/* הקלטות - מוסתר לעת עתה
-        <Card>
-          <CardContent className="pt-6">
-            <p className="text-sm text-muted-foreground">הקלטות</p>
-            <p className="text-lg font-medium">{session.recordings?.length || 0}</p>
-          </CardContent>
-        </Card>
-        */}
-      </div>
 
-      <Tabs defaultValue="prep" className="w-full">
-        <TabsList>
-          {session.client && session.type !== "BREAK" && (
-            <TabsTrigger value="prep" className="gap-2">
-              <Brain className="h-4 w-4" />
-              הכנה לפגישה
-            </TabsTrigger>
-          )}
-          <TabsTrigger value="note" className="gap-2">
-            <FileText className="h-4 w-4" />
-            סיכום טיפול
-          </TabsTrigger>
-          {/* הקלטות - מוסתר לעת עתה
-          {hasTranscription && (
-            <TabsTrigger value="analysis" className="gap-2">
-              <Sparkles className="h-4 w-4" />
-              ניתוח AI
-            </TabsTrigger>
-          )}
-          <TabsTrigger value="recordings" className="gap-2">
-            <Mic className="h-4 w-4" />
-            הקלטות
-          </TabsTrigger>
-          */}
-        </TabsList>
+      {/* הכנה לפגישה - מוצג תמיד בראש הדף */}
+      {session.client && session.type !== "BREAK" && (
+        <div className="mb-6">
+          <SessionPrepCard
+            session={{
+              id: session.id,
+              clientId: session.client.id,
+              clientName: session.client.name,
+              startTime: new Date(session.startTime),
+            }}
+            userTier={userTier}
+          />
+        </div>
+      )}
 
-        {/* AI Session Prep Tab */}
-        {session.client && session.type !== "BREAK" && (
-          <TabsContent value="prep" className="mt-6">
-            <SessionPrepCard
-              session={{
-                id: session.id,
-                clientId: session.client.id,
-                clientName: session.client.name,
-                startTime: new Date(session.startTime),
-              }}
-              userTier={userTier}
-            />
-          </TabsContent>
-        )}
-
-        <TabsContent value="note" className="mt-6">
+      {/* סיכום טיפול + ניתוח AI */}
+      <div className="mt-6">
           <div className="grid gap-6 lg:grid-cols-2">
             {/* Left side - Note Editor */}
             <Card>
@@ -915,108 +839,7 @@ export default function SessionDetailPage({
               )}
             </Card>
           </div>
-        </TabsContent>
-
-        {hasTranscription && analysis && (
-          <TabsContent value="analysis" className="mt-6">
-            <div className="grid gap-4 md:grid-cols-2">
-              <Card>
-                <CardHeader>
-                  <CardTitle>סיכום</CardTitle>
-                </CardHeader>
-                <CardContent>
-                  <p>{analysis.summary}</p>
-                </CardContent>
-              </Card>
-              
-              <Card>
-                <CardHeader>
-                  <CardTitle>נושאים מרכזיים</CardTitle>
-                </CardHeader>
-                <CardContent>
-                  <div className="flex flex-wrap gap-2">
-                    {analysis.keyTopics?.map((topic, i) => (
-                      <Badge key={i} variant="secondary">{topic}</Badge>
-                    ))}
-                  </div>
-                </CardContent>
-              </Card>
-              
-              <Card className="md:col-span-2">
-                <CardHeader>
-                  <CardTitle>המלצות</CardTitle>
-                </CardHeader>
-                <CardContent>
-                  <ul className="list-disc list-inside space-y-1">
-                    {analysis.recommendations?.map((rec, i) => (
-                      <li key={i}>{rec}</li>
-                    ))}
-                  </ul>
-                </CardContent>
-              </Card>
-            </div>
-          </TabsContent>
-        )}
-
-        {/* הקלטות TabsContent - מוסתר לעת עתה
-        <TabsContent value="recordings" className="mt-6">
-          <Card>
-            <CardHeader className="flex flex-row items-center justify-between">
-              <div>
-                <CardTitle>הקלטות הפגישה</CardTitle>
-                <CardDescription>
-                  {session.recordings?.length || 0} הקלטות
-                </CardDescription>
-              </div>
-              {session.client && (
-                <Button asChild>
-                  <Link href={`/dashboard/recordings/new?session=${session.id}&client=${session.client.id}`}>
-                    <Mic className="ml-2 h-4 w-4" />
-                    הקלטה חדשה
-                  </Link>
-                </Button>
-              )}
-            </CardHeader>
-            <CardContent>
-              {session.recordings?.length > 0 ? (
-                <div className="space-y-3">
-                  {session.recordings.map((recording) => (
-                    <div
-                      key={recording.id}
-                      className="flex items-center justify-between p-4 rounded-lg bg-muted/50"
-                    >
-                      <div className="flex items-center gap-3">
-                        <div className="flex h-10 w-10 items-center justify-center rounded-lg bg-primary/10">
-                          <Mic className="h-5 w-5 text-primary" />
-                        </div>
-                        <div>
-                          <p className="font-medium">
-                            {Math.floor(recording.durationSeconds / 60)} דקות
-                          </p>
-                          <p className="text-sm text-muted-foreground">
-                            {recording.transcription ? "תומלל" : "ממתין לתמלול"}
-                          </p>
-                        </div>
-                      </div>
-                      <Button variant="outline" asChild>
-                        <Link href={`/dashboard/recordings/${recording.id}`}>
-                          צפה
-                        </Link>
-                      </Button>
-                    </div>
-                  ))}
-                </div>
-              ) : (
-                <div className="text-center py-8 text-muted-foreground">
-                  <Mic className="mx-auto h-12 w-12 mb-3 opacity-50" />
-                  <p>אין הקלטות לפגישה זו</p>
-                </div>
-              )}
-            </CardContent>
-          </Card>
-        </TabsContent>
-        */}
-      </Tabs>
+        </div>
 
 
     </div>
