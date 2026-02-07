@@ -1336,8 +1336,13 @@ export default function CalendarPage() {
                       {selectedSession.payment && selectedSession.client ? (
                         <Button
                           onClick={() => {
+                            const clientId = selectedSession.client?.id;
+                            if (!clientId) {
+                              toast.error("שגיאה: לא נמצא מזהה מטופל");
+                              return;
+                            }
                             setIsSessionDialogOpen(false);
-                            window.location.href = `/dashboard/payments/pay/${selectedSession.client.id}`;
+                            window.location.href = `/dashboard/payments/pay/${clientId}`;
                           }}
                           className="w-full gap-2"
                           variant="outline"
@@ -1406,8 +1411,13 @@ export default function CalendarPage() {
                         selectedSession.payment ? (
                           <Button
                             onClick={() => {
+                              const clientId = selectedSession.client?.id;
+                              if (!clientId) {
+                                toast.error("שגיאה: לא נמצא מזהה מטופל");
+                                return;
+                              }
                               setIsSessionDialogOpen(false);
-                              window.location.href = `/dashboard/payments/pay/${selectedSession.client.id}`;
+                              window.location.href = `/dashboard/payments/pay/${clientId}`;
                             }}
                             className="w-full gap-2"
                             variant="outline"
