@@ -5,12 +5,11 @@ import { Button } from "@/components/ui/button";
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
 import { Badge } from "@/components/ui/badge";
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
-import { FileText, Calendar, CheckCircle, AlertCircle, User, MoreVertical, Eye } from "lucide-react";
+import { FileText, Calendar, CheckCircle, AlertCircle, User, MoreVertical, Eye, CreditCard } from "lucide-react";
 import Link from "next/link";
 import { format } from "date-fns";
 import { he } from "date-fns/locale";
 import { CompleteSessionDialog } from "@/components/sessions/complete-session-dialog";
-import { QuickMarkPaid } from "@/components/payments/quick-mark-paid";
 import {
   DropdownMenu,
   DropdownMenuContent,
@@ -254,15 +253,12 @@ export default async function SessionsPage() {
                       <div className="flex items-center gap-2">
                         {/* כפתור ראשי - משתנה לפי מצב */}
                         {therapySession.client && therapySession.payment?.status !== "PAID" ? (
-                          <QuickMarkPaid
-                            sessionId={therapySession.id}
-                            clientId={therapySession.client.id}
-                            clientName={therapySession.client.name}
-                            amount={Number(therapySession.price)}
-                            creditBalance={Number(therapySession.client.creditBalance || 0)}
-                            existingPayment={therapySession.payment}
-                            buttonText="תשלום מהיר"
-                          />
+                          <Button variant="outline" asChild>
+                            <Link href={`/dashboard/payments/pay/${therapySession.client.id}`}>
+                              <CreditCard className="h-4 w-4 ml-1" />
+                              תשלום
+                            </Link>
+                          </Button>
                         ) : (
                           <Button variant="outline" asChild>
                             <Link href={`/dashboard/sessions/${therapySession.id}`}>
@@ -386,15 +382,12 @@ export default async function SessionsPage() {
                           )}
                           
                           {therapySession.client && therapySession.payment?.status !== "PAID" && therapySession.sessionNote && (
-                            <QuickMarkPaid
-                              sessionId={therapySession.id}
-                              clientId={therapySession.client.id}
-                              clientName={therapySession.client.name}
-                              amount={Number(therapySession.price)}
-                              creditBalance={Number(therapySession.client.creditBalance || 0)}
-                              existingPayment={therapySession.payment}
-                              buttonText="תשלום"
-                            />
+                            <Button variant="outline" size="sm" asChild>
+                              <Link href={`/dashboard/payments/pay/${therapySession.client.id}`}>
+                                <CreditCard className="h-4 w-4 ml-1" />
+                                תשלום
+                              </Link>
+                            </Button>
                           )}
                           
                           {therapySession.sessionNote && (
@@ -482,15 +475,12 @@ export default async function SessionsPage() {
                           )}
                           
                           {therapySession.client && therapySession.payment?.status !== "PAID" && therapySession.sessionNote && (
-                            <QuickMarkPaid
-                              sessionId={therapySession.id}
-                              clientId={therapySession.client.id}
-                              clientName={therapySession.client.name}
-                              amount={Number(therapySession.price)}
-                              creditBalance={Number(therapySession.client.creditBalance || 0)}
-                              existingPayment={therapySession.payment}
-                              buttonText="תשלום"
-                            />
+                            <Button variant="outline" size="sm" asChild>
+                              <Link href={`/dashboard/payments/pay/${therapySession.client.id}`}>
+                                <CreditCard className="h-4 w-4 ml-1" />
+                                תשלום
+                              </Link>
+                            </Button>
                           )}
                           
                           {therapySession.sessionNote && (
@@ -583,15 +573,12 @@ export default async function SessionsPage() {
                           )}
                           
                           {therapySession.client && therapySession.payment?.status !== "PAID" && therapySession.sessionNote && (
-                            <QuickMarkPaid
-                              sessionId={therapySession.id}
-                              clientId={therapySession.client.id}
-                              clientName={therapySession.client.name}
-                              amount={Number(therapySession.price)}
-                              creditBalance={Number(therapySession.client.creditBalance || 0)}
-                              existingPayment={therapySession.payment}
-                              buttonText="תשלום"
-                            />
+                            <Button variant="outline" size="sm" asChild>
+                              <Link href={`/dashboard/payments/pay/${therapySession.client.id}`}>
+                                <CreditCard className="h-4 w-4 ml-1" />
+                                תשלום
+                              </Link>
+                            </Button>
                           )}
                           
                           {therapySession.sessionNote && (
@@ -684,15 +671,12 @@ export default async function SessionsPage() {
                           )}
                           
                           {therapySession.client && therapySession.payment?.status !== "PAID" && therapySession.sessionNote && (
-                            <QuickMarkPaid
-                              sessionId={therapySession.id}
-                              clientId={therapySession.client.id}
-                              clientName={therapySession.client.name}
-                              amount={Number(therapySession.price)}
-                              creditBalance={Number(therapySession.client.creditBalance || 0)}
-                              existingPayment={therapySession.payment}
-                              buttonText="תשלום"
-                            />
+                            <Button variant="outline" size="sm" asChild>
+                              <Link href={`/dashboard/payments/pay/${therapySession.client.id}`}>
+                                <CreditCard className="h-4 w-4 ml-1" />
+                                תשלום
+                              </Link>
+                            </Button>
                           )}
                           
                           {therapySession.sessionNote && (
