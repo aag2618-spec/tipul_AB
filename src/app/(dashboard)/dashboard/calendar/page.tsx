@@ -11,11 +11,12 @@ import { Label } from "@/components/ui/label";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
 import { Switch } from "@/components/ui/switch";
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
-import { Plus, Loader2, Calendar, Repeat, Settings, Waves, Trash2, User, FileText, Clock, CreditCard } from "lucide-react";
+import { Plus, Loader2, Calendar, Repeat, Settings, Waves, Trash2, User, FileText, Clock } from "lucide-react";
 import { format, addWeeks } from "date-fns";
 import { toast } from "sonner";
 import type { EventClickArg } from "@fullcalendar/core";
 import type { DateClickArg } from "@fullcalendar/interaction";
+import { QuickMarkPaid } from "@/components/payments/quick-mark-paid";
 
 // Dynamic import for FullCalendar to avoid SSR issues
 const FullCalendar = dynamic(
@@ -656,8 +657,8 @@ export default function CalendarPage() {
                       ...prev,
                       clientId: value,
                       // Auto-populate price from client's default if available
-                      price: selectedClient?.defaultSessionPrice != null
-                        ? String(selectedClient.defaultSessionPrice)
+                      price: selectedClient?.defaultSessionPrice 
+                        ? String(selectedClient.defaultSessionPrice) 
                         : prev.price,
                     }));
                   }}
@@ -1081,11 +1082,6 @@ export default function CalendarPage() {
                     ? "❌ בוטל"
                     : "🕐 מתוכנן"}
                 </span>
-                {selectedSession.sessionNote && (
-                  <span className="inline-flex items-center px-3 py-1 rounded-full text-sm font-medium bg-emerald-50 text-emerald-800">
-                    ✅ סוכם
-                  </span>
-                )}
               </div>
 
               <div className="grid grid-cols-2 gap-4">
@@ -1247,8 +1243,8 @@ export default function CalendarPage() {
                             
                             if (response.ok) {
                               setIsSessionDialogOpen(false);
-                              toast.success("הפגישה הושלמה, מעבר לדף תשלום...");
-                              window.location.href = `/dashboard/payments/pay/${selectedSession.client.id}`;
+                              toast.success("הפגישה הושלמה בהצלחה!");
+                              fetchData(); // Refresh data
                             }
                           } catch {
                             toast.error("שגיאה בעדכון הפגישה");
@@ -1330,21 +1326,19 @@ export default function CalendarPage() {
                         variant="outline"
                       >
                         <FileText className="h-4 w-4" />
-                        {selectedSession.sessionNote ? "צפה בסיכום" : "סיכום פגישה"}
+                        סיכום פגישה
                       </Button>
                       {/* כפתור תשלום דינמי - רק אם יש payment record */}
                       {selectedSession.payment && selectedSession.client ? (
-                        <Button
-                          onClick={() => {
-                            setIsSessionDialogOpen(false);
-                            window.location.href = `/dashboard/payments/pay/${selectedSession.client.id}`;
-                          }}
-                          className="w-full gap-2"
-                          variant="outline"
-                        >
-                          <CreditCard className="h-4 w-4" />
-                          רשום תשלום / הצג קבלה
-                        </Button>
+                        <QuickMarkPaid
+                          sessionId={selectedSession.id}
+                          clientId={selectedSession.client.id}
+                          clientName={selectedSession.client.name}
+                          amount={selectedSession.price}
+                          creditBalance={0}
+                          existingPayment={selectedSession.payment}
+                          buttonText="רשום תשלום / הצג קבלה"
+                        />
                       ) : (
                         <div className="space-y-2">
                           <div className="w-full py-3 px-4 text-center rounded-lg bg-emerald-50 dark:bg-emerald-950 border-2 border-emerald-200 dark:border-emerald-800">
@@ -1404,17 +1398,15 @@ export default function CalendarPage() {
                       </Button>
                       {selectedSession.client && (
                         selectedSession.payment ? (
-                          <Button
-                            onClick={() => {
-                              setIsSessionDialogOpen(false);
-                              window.location.href = `/dashboard/payments/pay/${selectedSession.client.id}`;
-                            }}
-                            className="w-full gap-2"
-                            variant="outline"
-                          >
-                            <CreditCard className="h-4 w-4" />
-                            רשום תשלום
-                          </Button>
+                          <QuickMarkPaid
+                            sessionId={selectedSession.id}
+                            clientId={selectedSession.client.id}
+                            clientName={selectedSession.client.name}
+                            amount={selectedSession.price}
+                            creditBalance={0}
+                            existingPayment={selectedSession.payment}
+                            buttonText="רשום תשלום"
+                          />
                         ) : (
                           <div className="space-y-2">
                             <div className="w-full py-3 px-4 text-center rounded-lg bg-emerald-50 dark:bg-emerald-950 border-2 border-emerald-200 dark:border-emerald-800">
@@ -1493,8 +1485,11 @@ export default function CalendarPage() {
                   setPendingAction(null);
                   
                   if (response.ok) {
-                    toast.success(pendingAction === "CANCELLED" ? "הפגישה בוטלה וחויבה, מעבר לדף תשלום..." : "נרשם כאי הופעה וחויב, מעבר לדף תשלום...");
-                    window.location.href = `/dashboard/payments/pay/${selectedSession.client.id}`;
+                    toast.success(pendingAction === "CANCELLED" ? "הפגישה בוטלה וחויבה" : "נרשם כאי הופעה וחויב");
+                    setIsChargeDialogOpen(false);
+                    setIsSessionDialogOpen(false);
+                    setPendingAction(null);
+                    fetchData(); // Refresh data
                   }
                 } catch {
                   toast.error("שגיאה בעדכון הפגישה");

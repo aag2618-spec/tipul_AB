@@ -20,7 +20,8 @@ import {
   DialogHeader,
   DialogTitle,
 } from "@/components/ui/dialog";
-import { CheckCircle, ClipboardList, Clock, FileText, MoreVertical, User, CreditCard } from "lucide-react";
+import { CheckCircle, ClipboardList, Clock, FileText, MoreVertical, User } from "lucide-react";
+import { QuickMarkPaid } from "@/components/payments/quick-mark-paid";
 import { toast } from "sonner";
 import { format } from "date-fns";
 import { he } from "date-fns/locale";
@@ -364,15 +365,20 @@ export function TodaySessionCard({ session }: TodaySessionCardProps) {
                  session.payment.status !== "PAID" && (
                   <>
                     <DropdownMenuSeparator />
-                    <DropdownMenuItem
-                      onClick={() => {
-                        if (session.client?.id) {
-                          router.push(`/dashboard/payments/pay/${session.client.id}`);
-                        }
-                      }}
-                    >
-                      <CreditCard className="h-4 w-4 ml-2" />
-                      רשום תשלום
+                    <DropdownMenuItem asChild>
+                      <div className="cursor-pointer">
+                        <QuickMarkPaid
+                          sessionId={session.id}
+                          clientId={session.client.id}
+                          clientName={session.client.name}
+                          amount={Number(session.price)}
+                          creditBalance={Number(session.client.creditBalance || 0)}
+                          existingPayment={session.payment}
+                          buttonText="רשום תשלום"
+                          totalClientDebt={session.client.totalDebt}
+                          unpaidSessionsCount={session.client.unpaidSessionsCount}
+                        />
+                      </div>
                     </DropdownMenuItem>
                   </>
                 )}
