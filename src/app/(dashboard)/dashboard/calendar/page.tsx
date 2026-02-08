@@ -1243,13 +1243,15 @@ export default function CalendarPage() {
                             
                             if (response.ok) {
                               const updatedSession = await response.json();
-                              // Update selectedSession with new data so QuickMarkPaid appears
-                              setSelectedSession({
-                                ...selectedSession,
-                                status: "COMPLETED",
-                                payment: updatedSession.payment || { id: "", status: "PENDING" },
+                              // סגור את דיאלוג הפגישה ופתח את דיאלוג התשלום
+                              setIsSessionDialogOpen(false);
+                              setPaymentData({
+                                sessionId: selectedSession.id,
+                                clientId: selectedSession.client.id,
+                                amount: selectedSession.price,
+                                paymentId: updatedSession.payment?.id,
                               });
-                              toast.success("הפגישה הושלמה - כעת בחר אמצעי תשלום");
+                              setIsPaymentDialogOpen(true);
                               fetchData(); // Refresh data in background
                             }
                           } catch {
@@ -1488,15 +1490,17 @@ export default function CalendarPage() {
                   
                   if (response.ok) {
                     const updatedSession = await response.json();
-                    // Update selectedSession with new data so QuickMarkPaid appears
-                    setSelectedSession({
-                      ...selectedSession,
-                      status: pendingAction,
-                      payment: updatedSession.payment || { id: "", status: "PENDING" },
-                    });
+                    // סגור את הדיאלוגים ופתח את דיאלוג התשלום
                     setIsChargeDialogOpen(false);
+                    setIsSessionDialogOpen(false);
                     setPendingAction(null);
-                    toast.success(pendingAction === "CANCELLED" ? "הפגישה בוטלה - כעת בחר אמצעי תשלום" : "נרשמה אי הופעה - כעת בחר אמצעי תשלום");
+                    setPaymentData({
+                      sessionId: selectedSession.id,
+                      clientId: selectedSession.client.id,
+                      amount: selectedSession.price,
+                      paymentId: updatedSession.payment?.id,
+                    });
+                    setIsPaymentDialogOpen(true);
                     fetchData(); // Refresh data in background
                   }
                 } catch {
@@ -1535,6 +1539,27 @@ export default function CalendarPage() {
           </DialogFooter>
         </DialogContent>
       </Dialog>
+
+      {/* דיאלוג תשלום מהיר - נפתח אחרי סיום פגישה */}
+      {paymentData && (
+        <QuickMarkPaid
+          sessionId={paymentData.sessionId}
+          clientId={paymentData.clientId}
+          clientName={selectedSession?.client?.name}
+          amount={paymentData.amount}
+          creditBalance={0}
+          existingPayment={paymentData.paymentId ? { id: paymentData.paymentId, status: "PENDING" } : null}
+          buttonText="תשלום"
+          open={isPaymentDialogOpen}
+          onOpenChange={(open) => {
+            setIsPaymentDialogOpen(open);
+            if (!open) {
+              setPaymentData(null);
+            }
+          }}
+          hideButton={true}
+        />
+      )}
 
     </div>
   );

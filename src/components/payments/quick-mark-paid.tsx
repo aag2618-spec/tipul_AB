@@ -40,6 +40,10 @@ interface QuickMarkPaidProps {
   buttonText?: string;
   totalClientDebt?: number;
   unpaidSessionsCount?: number;
+  // אפשרות לשליטה מבחוץ (אופציונלי - לשימוש ביומן)
+  open?: boolean;
+  onOpenChange?: (open: boolean) => void;
+  hideButton?: boolean; // להסתיר את הכפתור ולהציג רק את הדיאלוג
 }
 
 export function QuickMarkPaid({
@@ -52,8 +56,21 @@ export function QuickMarkPaid({
   buttonText = "סמן כשולם",
   totalClientDebt,
   unpaidSessionsCount,
+  open,
+  onOpenChange,
+  hideButton = false,
 }: QuickMarkPaidProps) {
-  const [isOpen, setIsOpen] = useState(false);
+  const [internalOpen, setInternalOpen] = useState(false);
+  
+  // שימוש בשליטה חיצונית אם קיימת, אחרת שליטה פנימית
+  const isOpen = open !== undefined ? open : internalOpen;
+  const setIsOpen = (value: boolean) => {
+    if (onOpenChange) {
+      onOpenChange(value);
+    } else {
+      setInternalOpen(value);
+    }
+  };
   const [isLoading, setIsLoading] = useState(false);
   const [method, setMethod] = useState<string>("CASH");
   const [showAdvanced, setShowAdvanced] = useState(false);
@@ -175,17 +192,19 @@ export function QuickMarkPaid({
 
   return (
     <Dialog open={isOpen} onOpenChange={setIsOpen}>
-      <DialogTrigger asChild>
-        <Button 
-          variant="default" 
-          size="sm" 
-          className="gap-1"
-          onClick={(e) => e.stopPropagation()}
-        >
-          <CreditCard className="h-3 w-3" />
-          {buttonText}
-        </Button>
-      </DialogTrigger>
+      {!hideButton && (
+        <DialogTrigger asChild>
+          <Button 
+            variant="default" 
+            size="sm" 
+            className="gap-1"
+            onClick={(e) => e.stopPropagation()}
+          >
+            <CreditCard className="h-3 w-3" />
+            {buttonText}
+          </Button>
+        </DialogTrigger>
+      )}
       <DialogContent className="sm:max-w-[550px] max-h-[90vh] overflow-y-auto">
         <DialogHeader>
           <DialogTitle className="flex items-center gap-2">
