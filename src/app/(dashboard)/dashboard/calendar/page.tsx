@@ -1238,13 +1238,19 @@ export default function CalendarPage() {
                             const response = await fetch(`/api/sessions/${selectedSession.id}`, {
                               method: "PUT",
                               headers: { "Content-Type": "application/json" },
-                              body: JSON.stringify({ status: "COMPLETED", markAsPaid: false }),
+                              body: JSON.stringify({ status: "COMPLETED", createPayment: true, markAsPaid: false }),
                             });
                             
                             if (response.ok) {
-                              setIsSessionDialogOpen(false);
-                              toast.success("הפגישה הושלמה בהצלחה!");
-                              fetchData(); // Refresh data
+                              const updatedSession = await response.json();
+                              // Update selectedSession with new data so QuickMarkPaid appears
+                              setSelectedSession({
+                                ...selectedSession,
+                                status: "COMPLETED",
+                                payment: updatedSession.payment || { id: "", status: "PENDING" },
+                              });
+                              toast.success("הפגישה הושלמה - כעת בחר אמצעי תשלום");
+                              fetchData(); // Refresh data in background
                             }
                           } catch {
                             toast.error("שגיאה בעדכון הפגישה");
@@ -1480,16 +1486,18 @@ export default function CalendarPage() {
                     }),
                   });
                   
-                  setIsChargeDialogOpen(false);
-                  setIsSessionDialogOpen(false);
-                  setPendingAction(null);
-                  
                   if (response.ok) {
-                    toast.success(pendingAction === "CANCELLED" ? "הפגישה בוטלה וחויבה" : "נרשם כאי הופעה וחויב");
+                    const updatedSession = await response.json();
+                    // Update selectedSession with new data so QuickMarkPaid appears
+                    setSelectedSession({
+                      ...selectedSession,
+                      status: pendingAction,
+                      payment: updatedSession.payment || { id: "", status: "PENDING" },
+                    });
                     setIsChargeDialogOpen(false);
-                    setIsSessionDialogOpen(false);
                     setPendingAction(null);
-                    fetchData(); // Refresh data
+                    toast.success(pendingAction === "CANCELLED" ? "הפגישה בוטלה - כעת בחר אמצעי תשלום" : "נרשמה אי הופעה - כעת בחר אמצעי תשלום");
+                    fetchData(); // Refresh data in background
                   }
                 } catch {
                   toast.error("שגיאה בעדכון הפגישה");
