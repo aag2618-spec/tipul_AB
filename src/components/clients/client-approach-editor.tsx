@@ -24,6 +24,7 @@ interface ClientApproachEditorProps {
   clientName: string;
   currentApproaches: string[];
   currentNotes?: string | null;
+  currentCulturalContext?: string | null;
   onSuccess?: () => void;
   disabled?: boolean; // For PRO tier - show but don't allow editing
 }
@@ -33,12 +34,14 @@ export function ClientApproachEditor({
   clientName,
   currentApproaches,
   currentNotes,
+  currentCulturalContext,
   onSuccess,
   disabled = false,
 }: ClientApproachEditorProps) {
   const [open, setOpen] = useState(false);
   const [approaches, setApproaches] = useState<string[]>(currentApproaches);
   const [notes, setNotes] = useState(currentNotes || "");
+  const [culturalContext, setCulturalContext] = useState(currentCulturalContext || "");
   const [saving, setSaving] = useState(false);
 
   const handleSave = async () => {
@@ -50,6 +53,7 @@ export function ClientApproachEditor({
         body: JSON.stringify({
           therapeuticApproaches: approaches,
           approachNotes: notes || null,
+          culturalContext: culturalContext || null,
         }),
       });
 
@@ -72,6 +76,7 @@ export function ClientApproachEditor({
   const handleClear = () => {
     setApproaches([]);
     setNotes("");
+    setCulturalContext("");
   };
 
   const selectedApproachsObjects = approaches
@@ -126,7 +131,25 @@ export function ClientApproachEditor({
                 placeholder="הערות ספציפיות על הגישה הטיפולית עם מטופל זה..."
                 value={notes}
                 onChange={(e) => setNotes(e.target.value)}
-                rows={4}
+                rows={3}
+                className="resize-none"
+              />
+            </div>
+          )}
+
+          {/* Cultural Context */}
+          {!disabled && (
+            <div className="space-y-2">
+              <Label htmlFor="cultural-context">הקשר תרבותי (אופציונלי)</Label>
+              <p className="text-xs text-muted-foreground">
+                שורה-שתיים על הרקע התרבותי של המטופל. עוזר ל-AI לא לפרש התנהגות נורמטיבית כפתולוגיה.
+              </p>
+              <Textarea
+                id="cultural-context"
+                placeholder="לדוגמה: מטופל מרקע שמרני, מעורבות משפחתית גבוהה היא נורמטיבית..."
+                value={culturalContext}
+                onChange={(e) => setCulturalContext(e.target.value)}
+                rows={2}
                 className="resize-none"
               />
             </div>
