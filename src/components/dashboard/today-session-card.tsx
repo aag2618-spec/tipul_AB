@@ -21,6 +21,7 @@ import {
   DialogTitle,
 } from "@/components/ui/dialog";
 import { CheckCircle, ClipboardList, Clock, FileText, MoreVertical, User, CreditCard } from "lucide-react";
+import { QuickMarkPaid } from "@/components/payments/quick-mark-paid";
 import { toast } from "sonner";
 import { format } from "date-fns";
 import { he } from "date-fns/locale";
