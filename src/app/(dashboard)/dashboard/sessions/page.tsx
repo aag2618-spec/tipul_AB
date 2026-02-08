@@ -5,12 +5,11 @@ import { Button } from "@/components/ui/button";
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
 import { Badge } from "@/components/ui/badge";
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
-import { FileText, Calendar, CheckCircle, AlertCircle, User, MoreVertical, Eye } from "lucide-react";
+import { FileText, Calendar, CheckCircle, AlertCircle, User, MoreVertical, Eye, CreditCard } from "lucide-react";
 import Link from "next/link";
 import { format } from "date-fns";
 import { he } from "date-fns/locale";
 import { CompleteSessionDialog } from "@/components/sessions/complete-session-dialog";
-import { QuickMarkPaid } from "@/components/payments/quick-mark-paid";
 import {
   DropdownMenu,
   DropdownMenuContent,
@@ -261,7 +260,7 @@ export default async function SessionsPage() {
                             amount={Number(therapySession.price)}
                             creditBalance={Number(therapySession.client.creditBalance || 0)}
                             existingPayment={therapySession.payment}
-                            buttonText="תשלום מהיר"
+                            buttonText="תשלום"
                           />
                         ) : (
                           <Button variant="outline" asChild>

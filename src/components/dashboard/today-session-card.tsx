@@ -20,8 +20,7 @@ import {
   DialogHeader,
   DialogTitle,
 } from "@/components/ui/dialog";
-import { CheckCircle, ClipboardList, Clock, FileText, MoreVertical, User } from "lucide-react";
-import { QuickMarkPaid } from "@/components/payments/quick-mark-paid";
+import { CheckCircle, ClipboardList, Clock, FileText, MoreVertical, User, CreditCard } from "lucide-react";
 import { toast } from "sonner";
 import { format } from "date-fns";
 import { he } from "date-fns/locale";
@@ -362,7 +361,8 @@ export function TodaySessionCard({ session }: TodaySessionCardProps) {
                 {/* רשום תשלום - רק אם דיווחת על הפגישה ויש חוב */}
                 {(session.status === "COMPLETED" || session.status === "NO_SHOW" || session.status === "CANCELLED") && 
                  session.payment && 
-                 session.payment.status !== "PAID" && (
+                 session.payment.status !== "PAID" && 
+                 session.client && (
                   <>
                     <DropdownMenuSeparator />
                     <DropdownMenuItem asChild>

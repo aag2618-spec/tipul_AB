@@ -1,6 +1,6 @@
 "use client";
 
-import { useState } from "react";
+import { useState, useEffect } from "react";
 import { Button } from "@/components/ui/button";
 import {
   Dialog,
@@ -60,6 +60,34 @@ export function QuickMarkPaid({
   const [paymentType, setPaymentType] = useState<"FULL" | "PARTIAL" | "CREDIT">("FULL");
   const [partialAmount, setPartialAmount] = useState<string>("");
   const router = useRouter();
+  
+  // State for auto-fetched debt info
+  const [fetchedDebt, setFetchedDebt] = useState<number | null>(null);
+  const [fetchedUnpaidCount, setFetchedUnpaidCount] = useState<number | null>(null);
+  
+  // Use provided props or fetched values
+  const effectiveDebt = totalClientDebt ?? fetchedDebt;
+  const effectiveUnpaidCount = unpaidSessionsCount ?? fetchedUnpaidCount;
+  
+  // Fetch debt info when dialog opens if not provided
+  useEffect(() => {
+    if (isOpen && clientId && (totalClientDebt === undefined || unpaidSessionsCount === undefined)) {
+      fetch(`/api/payments/client-debt/${clientId}`)
+        .then((res) => res.json())
+        .then((data) => {
+          if (data.totalDebt !== undefined) {
+            setFetchedDebt(Number(data.totalDebt));
+          }
+          // API returns unpaidSessions array, get count from length
+          if (data.unpaidSessions !== undefined) {
+            setFetchedUnpaidCount(data.unpaidSessions.length);
+          }
+        })
+        .catch((err) => {
+          console.error("Failed to fetch client debt info:", err);
+        });
+    }
+  }, [isOpen, clientId, totalClientDebt, unpaidSessionsCount]);
 
   // If already paid, show badge
   if (existingPayment?.status === "PAID") {
@@ -343,11 +371,11 @@ export function QuickMarkPaid({
         </DialogFooter>
 
         {/* Show "Pay All Debt" button only if there are additional unpaid sessions */}
-        {unpaidSessionsCount && unpaidSessionsCount > 1 && totalClientDebt && (
+        {effectiveUnpaidCount && effectiveUnpaidCount > 1 && effectiveDebt && (
           <div className="pt-4 border-t mt-4">
             <p className="text-sm text-muted-foreground mb-3 text-center">
-              למטופל יש עוד {unpaidSessionsCount - 1} פגישות ממתינות לתשלום
-              (סה"כ חוב: ₪{totalClientDebt.toFixed(0)})
+              למטופל יש עוד {effectiveUnpaidCount - 1} פגישות ממתינות לתשלום
+              (סה"כ חוב: ₪{effectiveDebt.toFixed(0)})
             </p>
             <Button 
               variant="outline" 

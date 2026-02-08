@@ -37,7 +37,6 @@ import {
 import { Input } from "@/components/ui/input";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
 import Link from "next/link";
-import { QuickMarkPaid } from "@/components/payments/quick-mark-paid";
 import { CompleteSessionDialog } from "@/components/sessions/complete-session-dialog";
 import { ExportClientButton } from "@/components/clients/export-client-button";
 import { QuickSessionStatus } from "@/components/sessions/quick-session-status";
@@ -55,6 +54,7 @@ import { SendPaymentHistoryButton } from "@/components/clients/send-payment-hist
 import { TodaySessionCard } from "@/components/dashboard/today-session-card";
 import { AddCreditDialog } from "@/components/clients/add-credit-dialog";
 import { PaymentHistoryItem } from "@/components/payments/payment-history-item";
+import { QuestionnaireAnalysis } from "@/components/ai/questionnaire-analysis";
 import { format } from "date-fns";
 import { he } from "date-fns/locale";
 
@@ -599,12 +599,20 @@ export default async function ClientPage({
                               </div>
                               <div className="flex gap-2">
                                 {session.payment && (
-                                  <Button variant="default" size="sm" asChild>
-                                    <Link href={`/dashboard/payments/${session.payment.id}/mark-paid`}>
-                                      <CreditCard className="h-4 w-4 ml-2" />
-                                      שלם
-                                    </Link>
-                                  </Button>
+                                  <QuickMarkPaid
+                                    sessionId={session.id}
+                                    clientId={client.id}
+                                    clientName={client.name}
+                                    amount={debt}
+                                    creditBalance={Number(client.creditBalance || 0)}
+                                    existingPayment={{
+                                      id: session.payment.id,
+                                      status: session.payment.status,
+                                    }}
+                                    buttonText="שלם"
+                                    totalClientDebt={totalDebt}
+                                    unpaidSessionsCount={unpaidSessions.length}
+                                  />
                                 )}
                               </div>
                             </div>
@@ -950,6 +958,7 @@ export default async function ClientPage({
                   clientName={client.name}
                   currentApproaches={client.therapeuticApproaches || []}
                   currentNotes={client.approachNotes}
+                  currentCulturalContext={client.culturalContext}
                   disabled={user?.aiTier !== 'ENTERPRISE'}
                 />
               </CardContent>
@@ -1088,6 +1097,16 @@ export default async function ClientPage({
                     )}
                   </CardContent>
                 </Card>
+
+                {/* ניתוח AI לשאלונים */}
+                {client.questionnaireResponses && client.questionnaireResponses.length > 0 && (
+                  <QuestionnaireAnalysis
+                    clientId={client.id}
+                    clientName={client.name}
+                    questionnaires={client.questionnaireResponses}
+                    userTier={(user?.aiTier as "ESSENTIAL" | "PRO" | "ENTERPRISE") || "ESSENTIAL"}
+                  />
+                )}
 
                 {/* אבחון והערות */}
                 <div className="grid gap-6 lg:grid-cols-2">
