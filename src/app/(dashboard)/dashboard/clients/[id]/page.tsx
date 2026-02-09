@@ -55,6 +55,7 @@ import { SendPaymentHistoryButton } from "@/components/clients/send-payment-hist
 import { TodaySessionCard } from "@/components/dashboard/today-session-card";
 import { AddCreditDialog } from "@/components/clients/add-credit-dialog";
 import { PaymentHistoryItem } from "@/components/payments/payment-history-item";
+import { PaymentHistoryGrid } from "@/components/payments/payment-history-grid";
 import { QuestionnaireAnalysis } from "@/components/ai/questionnaire-analysis";
 import { format } from "date-fns";
 import { he } from "date-fns/locale";
@@ -658,56 +659,23 @@ export default async function ClientPage({
                   </div>
                 </div>
 
-                {/* סינון רק תשלומים שהושלמו במלואם */}
-                {(() => {
-                  const fullyPaidPayments = client.payments.filter((payment) => {
-                    if (payment.status !== "PAID") return false;
-                    
-                    const amount = Number(payment.amount);
-                    const expectedAmount = payment.expectedAmount ? Number(payment.expectedAmount) : amount;
-                    const childPaymentsTotal = payment.childPayments?.reduce(
-                      (sum, child) => sum + Number(child.amount), 0
-                    ) || 0;
-                    const totalPaid = amount + childPaymentsTotal;
-                    
-                    // רק תשלומים שהושלמו במלואם
-                    return totalPaid >= expectedAmount;
-                  });
-
-                  if (fullyPaidPayments.length === 0) {
-                    return (
-                      <Card>
-                        <CardContent className="flex flex-col items-center justify-center py-12">
-                          <CreditCard className="h-16 w-16 text-muted-foreground mb-4 opacity-50" />
-                          <p className="text-lg font-medium">אין תשלומים שהושלמו</p>
-                          <p className="text-sm text-muted-foreground">תשלומים שיושלמו במלואם יופיעו כאן</p>
-                        </CardContent>
-                      </Card>
-                    );
-                  }
-
-                  return (
-                    <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-4">
-                      {fullyPaidPayments.map((payment) => (
-                        <PaymentHistoryItem
-                          key={payment.id}
-                          payment={{
-                            ...payment,
-                            amount: Number(payment.amount),
-                            expectedAmount: payment.expectedAmount ? Number(payment.expectedAmount) : null,
-                            createdAt: payment.createdAt,
-                            session: payment.session,
-                            childPayments: payment.childPayments?.map((child) => ({
-                              ...child,
-                              amount: Number(child.amount),
-                              paidAt: child.paidAt || child.createdAt,
-                            })),
-                          }}
-                        />
-                      ))}
-                    </div>
-                  );
-                })()}
+                {/* רשימת תשלומים עם אפשרות סינון לפי תאריך */}
+                <PaymentHistoryGrid
+                  payments={client.payments.map((payment) => ({
+                    ...payment,
+                    amount: Number(payment.amount),
+                    expectedAmount: payment.expectedAmount ? Number(payment.expectedAmount) : null,
+                    createdAt: payment.createdAt,
+                    paidAt: payment.paidAt,
+                    session: payment.session,
+                    childPayments: payment.childPayments?.map((child) => ({
+                      ...child,
+                      amount: Number(child.amount),
+                      paidAt: child.paidAt,
+                      createdAt: child.createdAt,
+                    })),
+                  }))}
+                />
               </div>
             </TabsContent>
           </Tabs>
