@@ -636,33 +636,59 @@ export default async function ClientPage({
               </div>
             </TabsContent>
 
-            {/* Payment History */}
+            {/* Payment History - רק תשלומים ששולמו במלואם */}
             <TabsContent value="history" className="mt-4">
-              <Card>
-                <CardHeader>
-                  <div className="flex items-center justify-between">
-                    <div>
-                      <CardTitle>היסטוריית תשלומים</CardTitle>
-                      <CardDescription>כל התשלומים שנרשמו במערכת</CardDescription>
-                    </div>
-                    <div className="flex items-center gap-2">
-                      <SendPaymentHistoryButton
-                        clientId={client.id}
-                        clientEmail={client.email}
-                        hasPayments={client.payments.length > 0}
-                      />
-                      <AddCreditDialog
-                        clientId={client.id}
-                        clientName={client.name}
-                        currentCredit={Number(client.creditBalance)}
-                      />
-                    </div>
+              <div className="space-y-4">
+                <div className="flex items-center justify-between">
+                  <div>
+                    <h3 className="text-lg font-semibold">היסטוריית תשלומים</h3>
+                    <p className="text-sm text-muted-foreground">תשלומים שהושלמו במלואם</p>
                   </div>
-                </CardHeader>
-                <CardContent>
-                  {client.payments.length > 0 ? (
-                    <div className="space-y-3">
-                      {client.payments.map((payment) => (
+                  <div className="flex items-center gap-2">
+                    <SendPaymentHistoryButton
+                      clientId={client.id}
+                      clientEmail={client.email}
+                      hasPayments={client.payments.filter(p => p.status === "PAID").length > 0}
+                    />
+                    <AddCreditDialog
+                      clientId={client.id}
+                      clientName={client.name}
+                      currentCredit={Number(client.creditBalance)}
+                    />
+                  </div>
+                </div>
+
+                {/* סינון רק תשלומים שהושלמו במלואם */}
+                {(() => {
+                  const fullyPaidPayments = client.payments.filter((payment) => {
+                    if (payment.status !== "PAID") return false;
+                    
+                    const amount = Number(payment.amount);
+                    const expectedAmount = payment.expectedAmount ? Number(payment.expectedAmount) : amount;
+                    const childPaymentsTotal = payment.childPayments?.reduce(
+                      (sum, child) => sum + Number(child.amount), 0
+                    ) || 0;
+                    const totalPaid = amount + childPaymentsTotal;
+                    
+                    // רק תשלומים שהושלמו במלואם
+                    return totalPaid >= expectedAmount;
+                  });
+
+                  if (fullyPaidPayments.length === 0) {
+                    return (
+                      <Card>
+                        <CardContent className="flex flex-col items-center justify-center py-12">
+                          <CreditCard className="h-16 w-16 text-muted-foreground mb-4 opacity-50" />
+                          <p className="text-lg font-medium">אין תשלומים שהושלמו</p>
+                          <p className="text-sm text-muted-foreground">תשלומים שיושלמו במלואם יופיעו כאן</p>
+                        </CardContent>
+                      </Card>
+                    );
+                  }
+
+                  return (
+                    <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-4">
+                      {fullyPaidPayments.map((payment) => (
                         <PaymentHistoryItem
                           key={payment.id}
                           payment={{
@@ -680,15 +706,9 @@ export default async function ClientPage({
                         />
                       ))}
                     </div>
-                  ) : (
-                    <div className="text-center py-12 text-muted-foreground">
-                      <CreditCard className="mx-auto h-16 w-16 mb-4 opacity-50" />
-                      <p className="text-lg mb-2">אין תשלומים עדיין</p>
-                      <p className="text-sm">תשלומים שתרשום יופיעו כאן</p>
-                    </div>
-                  )}
-                </CardContent>
-              </Card>
+                  );
+                })()}
+              </div>
             </TabsContent>
           </Tabs>
         </TabsContent>
