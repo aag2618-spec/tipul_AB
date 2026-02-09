@@ -3,7 +3,7 @@ import { getServerSession } from "next-auth";
 import { authOptions } from "@/lib/auth";
 import { prisma } from "@/lib/prisma";
 import { GoogleGenerativeAI } from "@google/generative-ai";
-import { getApproachPrompts, getApproachById } from "@/lib/therapeutic-approaches";
+import { getApproachPrompts, getApproachById, buildIntegrationSection, getScalesPrompt, getUniversalPrompts } from "@/lib/therapeutic-approaches";
 
 // שימוש ב-Gemini Pro לכל הניתוחים
 const genAI = new GoogleGenerativeAI(process.env.GOOGLE_AI_API_KEY || "");
@@ -127,6 +127,7 @@ export async function POST(req: NextRequest) {
             name: true,
             therapeuticApproaches: true,
             approachNotes: true,
+            culturalContext: true,
           }
         },
         sessionNote: true,
@@ -211,7 +212,9 @@ export async function POST(req: NextRequest) {
         therapySession.type,
         therapySession.sessionNote.content,
         user.aiTier === 'ENTERPRISE' ? approachNames : undefined,
-        user.aiTier === 'ENTERPRISE' ? approachPrompts : undefined
+        user.aiTier === 'ENTERPRISE' ? approachPrompts : undefined,
+        user.aiTier === 'ENTERPRISE' ? approaches : undefined,
+        therapySession.client?.culturalContext
       );
     } else {
       // ניתוח מפורט - רק לתוכנית ארגונית
@@ -224,7 +227,8 @@ export async function POST(req: NextRequest) {
         therapySession.sessionNote.content,
         approachPrompts,
         approaches,
-        therapySession.client?.approachNotes
+        therapySession.client?.approachNotes,
+        therapySession.client?.culturalContext
       );
     }
 
@@ -329,7 +333,9 @@ function buildConcisePrompt(
   sessionType: string,
   noteContent: string,
   approachNames?: string,
-  approachPrompts?: string
+  approachPrompts?: string,
+  approachIds?: string[],
+  culturalContext?: string | null
 ): string {
   const sessionTypeHe = sessionType === "IN_PERSON" 
     ? "פנים אל פנים" 
@@ -337,60 +343,57 @@ function buildConcisePrompt(
       ? "מקוון" 
       : "טלפוני";
 
-  // בניית הנחיות לפי גישה - עם הפרומפט המפורט
+  // בניית section גישות טיפוליות
   let approachSection = '';
-  if (approachNames) {
+  if (approachNames && approachPrompts) {
     approachSection = `
-=== גישות טיפוליות מוגדרות: ${approachNames} ===
+=== גישות טיפוליות: ${approachNames} ===
 
-חובה לנתח את הפגישה לפי הגישה/ות הבאות. השתמש במושגים הספציפיים של הגישה!
-
-${approachPrompts || ''}
-
-הנחיות חיוניות לניתוח:
-• כל הניתוח חייב להיות דרך העדשה של ${approachNames}
-• ציין מושגים ספציפיים מהגישה (עם תרגום עברי אם באנגלית)
-• המלצות חייבות להתבסס על הטכניקות של הגישה
-• זהה דפוסים רלוונטיים לפי המסגרת התיאורטית
-
+${approachPrompts}
+${approachIds && approachIds.length > 1 ? buildIntegrationSection(approachIds) : ''}
 `;
   }
 
-  return `חשוב מאוד - כללי פורמט (חובה לציית):
-- כתוב טקסט רגיל בלבד, ללא שום עיצוב
-- אסור להשתמש ב-Markdown: ללא #, ללא **, ללא *, ללא _
-- לכותרות: כתוב את הכותרת בשורה נפרדת עם נקודתיים בסוף
-- לרשימות: השתמש בסימן • בלבד
-- להפרדה: שורה ריקה בין סעיפים
+  return `כללי פורמט (חובה):
+- כתוב בעברית בלבד, מימין לשמאל
+- מונחים מקצועיים: כתוב קודם בעברית, אנגלית בסוגריים. דוגמה: "הזדהות השלכתית (Projective Identification)"
+- ללא Markdown: ללא #, ללא **, ללא *, ללא _
+- כותרות: בשורה נפרדת עם נקודתיים
+- רשימות: סימן • בלבד
+- הפרדה: שורה ריקה בין סעיפים
 
-אתה פסיכולוג מומחה המנתח סיכום פגישה טיפולית.
+אתה פסיכולוג קליני מומחה המנתח סיכום פגישה טיפולית.
 
 פרטי הפגישה:
 מטופל: ${clientName}
 תאריך: ${sessionDate.toLocaleDateString("he-IL")}
 סוג פגישה: ${sessionTypeHe}
 ${approachSection}
+${culturalContext ? `הקשר תרבותי חשוב:\n${culturalContext}\nשים לב: אל תפרש התנהגות שהיא נורמטיבית בהקשר התרבותי של המטופל כפתולוגיה.\n` : ''}
 סיכום הפגישה:
 ${noteContent}
 
-הנחיות לניתוח:
-בצע ניתוח תמציתי ומקצועי (250-350 מילים).
-${approachNames ? `חשוב מאוד: כל הניתוח חייב להיות מבוסס על המסגרת התיאורטית של ${approachNames}. השתמש במושגים ספציפיים מהגישה!` : ''}
+${approachNames ? `חשוב מאוד: כל הניתוח חייב להיות דרך העדשה של ${approachNames}. השתמש במושגים ספציפיים מהגישה!` : ''}
+
+בצע ניתוח תמציתי ומקצועי (250-400 מילים).
 
 מבנה התשובה:
 
 סיכום מרכזי:
-(2-3 שורות - מה עלה בפגישה?${approachNames ? ` נתח דרך עדשת ${approachNames}` : ''})
+(2-3 שורות - מה עלה בפגישה?${approachNames ? ` תאר דרך עדשת ${approachNames}` : ''})
 
 ${approachNames ? `ניתוח לפי הגישה (${approachNames}):
-• מושג/תופעה מהגישה שזוהתה בפגישה
-• דינמיקה שניתן להבין דרך הגישה
-• תובנה ספציפית לפי המסגרת התיאורטית
+• מושג מהגישה שזוהה בפגישה (כתוב בעברית ואנגלית בסוגריים)
+• דינמיקה שניתן להבין דרך המסגרת התיאורטית
+• תובנה ייחודית שרק הגישה הזו מאפשרת
 
 ` : ''}נושאים מרכזיים:
-• נושא 1${approachNames ? ` (לפי ${approachNames})` : ''}
+• נושא 1${approachNames ? ` (מנוסח במושגי ${approachNames})` : ''}
 • נושא 2
 • נושא 3
+
+רגע חשוב בפגישה:
+(זהה רגע אחד משמעותי - מעבר נושא, שתיקה, או ביטוי רגשי - ופרש אותו)
 
 רגשות דומיננטיים:
 • רגש 1
@@ -401,7 +404,7 @@ ${approachNames ? `ניתוח לפי הגישה (${approachNames}):
 • המלצה 2
 • המלצה 3
 
-כתוב בעברית, בסגנון מקצועי ותמציתי.`;
+כתוב בעברית מקצועית ובהירה. כל מונח אנגלי - הוסף לידו תרגום עברי.`;
 }
 
 /**
@@ -415,7 +418,8 @@ function buildDetailedPrompt(
   noteContent: string,
   approachPrompts: string,
   approachIds: string[],
-  clientApproachNotes?: string | null
+  clientApproachNotes?: string | null,
+  culturalContext?: string | null
 ): string {
   const sessionTypeHe = sessionType === "IN_PERSON" 
     ? "פנים אל פנים" 
@@ -423,7 +427,6 @@ function buildDetailedPrompt(
       ? "מקוון" 
       : "טלפוני";
 
-  // קבלת שמות הגישות בעברית
   const approachNames = approachIds
     .map(id => {
       const approach = getApproachById(id);
@@ -432,15 +435,27 @@ function buildDetailedPrompt(
     .filter(Boolean)
     .join(", ");
 
-  return `חשוב מאוד - כללי פורמט (חובה לציית):
-- כתוב טקסט רגיל בלבד, ללא שום עיצוב
-- אסור להשתמש ב-Markdown: ללא #, ללא **, ללא *, ללא _
-- לכותרות: כתוב את הכותרת בשורה נפרדת עם נקודתיים בסוף
-- לרשימות: השתמש בסימן • בלבד
-- להפרדה: שורה ריקה בין סעיפים
-- מונחים באנגלית: הוסף תרגום עברי בסוגריים
+  // בניית section אינטגרציה אם נבחרו מספר גישות
+  const integrationSection = buildIntegrationSection(approachIds);
 
-אתה פסיכולוג מומחה ברמה אקדמית גבוהה המנתח לעומק סיכום פגישה טיפולית.
+  // בניית section סולמות הערכה
+  const scalesSection = getScalesPrompt(approachIds);
+
+  // הנחיות קליניות אוניברסליות
+  const universalSection = getUniversalPrompts();
+
+  return `כללי פורמט (חובה):
+- כתוב בעברית בלבד, מימין לשמאל
+- מונחים מקצועיים: כתוב קודם בעברית, אנגלית בסוגריים. דוגמה: "פיצול (Splitting)"
+- ללא Markdown: ללא #, ללא **, ללא *, ללא _
+- כותרות: בשורה נפרדת עם נקודתיים
+- רשימות: סימן • בלבד
+- הפרדה: שורה ריקה בין סעיפים
+
+הנחיה חשובה: תתעלם מהתשובה ה"מובנת מאליה" וחפש את הפרדוקס.
+בטיפול, הפרדוקסים הם המקום שבו קורה השינוי.
+
+אתה פסיכולוג קליני ברמה אקדמית גבוהה. בצע ניתוח מעמיק ברמה של פסיכולוג בכיר.
 
 פרטי הפגישה:
 מטופל: ${clientName}
@@ -448,54 +463,70 @@ function buildDetailedPrompt(
 סוג פגישה: ${sessionTypeHe}
 גישות טיפוליות: ${approachNames || "גישה אקלקטית"}
 
-${clientApproachNotes ? `הערות על הגישה למטופל זה:\n${clientApproachNotes}\n` : ""}
-
+${clientApproachNotes ? `הערות ספציפיות על הגישה למטופל זה:\n${clientApproachNotes}\n` : ""}
+${culturalContext ? `הקשר תרבותי חשוב:\n${culturalContext}\nשים לב: אל תפרש התנהגות שהיא נורמטיבית בהקשר התרבותי של המטופל כפתולוגיה. התאם את הניתוח בהתאם.\n` : ""}
 סיכום הפגישה:
 ${noteContent}
 
-הנחיות מפורטות לפי הגישות הטיפוליות:
+=== מאגר ידע קליני - גישות טיפוליות ===
 ${approachPrompts || "השתמש בגישה אקלקטית-אינטגרטיבית."}
 
-הנחיות לניתוח מעמיק:
-בצע ניתוח מעמיק ברמה אקדמית גבוהה (600-900 מילים).
+${integrationSection}
+
+${universalSection}
+
+=== הנחיות לניתוח מעמיק ===
+
+בצע ניתוח מעמיק (600-1000 מילים). חשוב: אל תסתפק בתיאור מה שקרה - חפש את מה שלא נאמר,
+את מה שמתחבא מתחת, ואת הפרדוקסים.
 
 מבנה התשובה:
 
 1. סיכום הפגישה:
-(4-5 שורות - סקירה מקיפה של מה שקרה)
+(4-5 שורות - לא רק העובדות, אלא התהליך הפנימי שקרה. נתח דרך עדשת ${approachNames || "הגישה הטיפולית"})
 
-2. ניתוח תוכן:
-• נושא מרכזי 1 - פירוט
-• נושא מרכזי 2 - פירוט
-• קונפליקטים שעלו
+2. ניתוח תוכן ונושאים:
+• נושא מרכזי 1 - מנותח לפי ${approachNames || "הגישה"}
+• נושא מרכזי 2 - מנותח לפי ${approachNames || "הגישה"}
+• קונפליקטים שעלו (גלויים וסמויים)
 • דפוסים חוזרים או חדשים
 
-3. ניתוח דינמיקות:
-• העברה (טרנספרנס) - כיצד המטופל רואה אותך?
-• ניגוד-העברה (קאונטר-טרנספרנס) - מה עלול להתעורר אצלך?
-• דפוסי יחסים שחוזרים
-• מנגנוני הגנה בולטים
+3. מה שלא נאמר - מעברי נושא ומנגנוני הגנה:
+• מעברי נושא חשודים - מה הנושא שממנו ברח ולמה?
+• מנגנוני הגנה שזוהו (כתוב בעברית עם אנגלית בסוגריים)
+• "הפער" - מה הפער בין מה שנאמר לבין מה שנחווה?
 
-4. ניתוח רגשי:
-• רגשות ראשוניים ומשניים
-• רגולציה רגשית
-• מעברים רגשיים בפגישה
+4. ניתוח דינמיקות העברה:
+• העברה (Transference) - איך המטופל תופס את המטפל ומה זה אומר?
+• העברה נגדית (Countertransference) - מה המטפל עשוי לחוות ומה המשמעות?
+• דפוסי יחסים שחוזרים - מה הדפוס ואיפה הוא מתחיל?
 
-5. ניתוח לפי הגישה הטיפולית (${approachNames || "אקלקטית"}):
-(בחלק זה, יש להשתמש במושגים ובמסגרת הניתוח של הגישה הספציפית!)
-• מושגים מרכזיים מהגישה שרלוונטיים
-• תובנות ייחודיות לפי הגישה
-• המלצות לפי מסגרת הגישה
+5. ניתוח מעמיק לפי ${approachNames || "הגישה הטיפולית"}:
+(זהו החלק הכי חשוב! השתמש במושגים הספציפיים של הגישה/ות)
+• מושגים מהגישה שזוהו בפגישה (עם הסבר פשוט בעברית)
+• תובנות ייחודיות שרק הגישה הזו יכולה לתת
+• "סימנים מחשידים" שזוהו לפי כללי הגישה
+${approachIds.length > 1 ? `• אינטגרציה: נקודות השקה בין הגישות - איפה הן מאירות את אותו דבר מזוויות שונות?` : ''}
 
-6. התקדמות טיפולית:
-• מה השתנה?
-• התקדמות לעבר יעדים
-• אתגרים והזדמנויות
+6. ניתוח רגשי:
+• רגשות ראשוניים (מה מרגיש באמת) מול משניים (מה מציג)
+• ויסות רגשי - איך המטופל מנהל רגשות?
+• "רגע מכונן" בפגישה - הרגע הכי חשוב רגשית
 
-7. המלצות והמשך טיפול:
-• התערבויות מומלצות ספציפיות
+7. הערכה כמותית:
+${scalesSection || '• דרג את ההתקדמות הכללית בסולם 1-10 עם הסבר'}
+
+8. נקודות עיוורון אפשריות:
+• מה המטפל אולי לא שם לב אליו?
+• פרשנות חלופית למה שקרה
+• תחום שעלה אבל לא נחקר מספיק
+
+9. המלצות והמשך:
+• התערבויות ספציפיות מומלצות (לפי ${approachNames || "הגישה"})
 • מוקדים למפגשים הבאים
-• שאלות או טכניקות לשימוש
+• שאלות ספציפיות לשאול (מנוסחות לפי סגנון הגישה)
+• עמדה טיפולית מומלצת
 
-כתוב בעברית, בסגנון מקצועי ומעמיק. השתמש במושגים מהגישה הטיפולית.`;
+כתוב בעברית מקצועית ובהירה. כל מונח אנגלי חייב להופיע עם תרגום עברי לידו.
+חפש את העומק, את מה שבין השורות, ואת הפרדוקסים.`;
 }

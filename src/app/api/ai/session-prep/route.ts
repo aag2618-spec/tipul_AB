@@ -5,7 +5,7 @@ import prisma from "@/lib/prisma";
 import { GoogleGenerativeAI } from "@google/generative-ai";
 import { format } from "date-fns";
 import { he } from "date-fns/locale";
-import { getApproachPrompts, getApproachById } from "@/lib/therapeutic-approaches";
+import { getApproachPrompts, getApproachById, getUniversalPromptsLight } from "@/lib/therapeutic-approaches";
 
 // שימוש ב-Gemini 2.0 Flash בלבד
 const genAI = new GoogleGenerativeAI(process.env.GOOGLE_AI_API_KEY || "");
@@ -163,7 +163,7 @@ export async function POST(request: NextRequest) {
 
     // קבלת פרטי המטופל
     const client = await prisma.client.findUnique({
-      where: { id: clientId }
+      where: { id: clientId },
     });
 
     if (!client || client.therapistId !== session.user.id) {
@@ -203,6 +203,32 @@ export async function POST(request: NextRequest) {
         date: format(new Date(s.startTime), 'dd/MM/yyyy', { locale: he }),
         content: s.sessionNote!.content
       }));
+
+    // קבלת שאלונים אחרונים - רק מ-30 הימים האחרונים (כדי לא להטריד)
+    let recentQuestionnaires: string = '';
+    try {
+      const thirtyDaysAgo = new Date();
+      thirtyDaysAgo.setDate(thirtyDaysAgo.getDate() - 30);
+
+      const questionnaires = await prisma.questionnaireResponse.findMany({
+        where: {
+          clientId,
+          therapistId: session.user.id,
+          status: 'COMPLETED',
+          completedAt: { gte: thirtyDaysAgo },
+        },
+        include: { template: true },
+        orderBy: { completedAt: 'desc' },
+        take: 3,
+      });
+      if (questionnaires.length > 0) {
+        recentQuestionnaires = questionnaires.map(q => 
+          `• ${q.template.name}: ציון ${q.totalScore || 'לא זמין'} (${q.completedAt ? format(new Date(q.completedAt), 'dd/MM/yyyy', { locale: he }) : 'לא ידוע'})`
+        ).join('\n');
+      }
+    } catch {
+      // שאלונים אופציונליים - אם יש שגיאה ממשיכים בלעדיהם
+    }
 
     // קבלת גישות טיפוליות (של המטופל או ברירת מחדל)
     const therapeuticApproaches = (client.therapeuticApproaches && client.therapeuticApproaches.length > 0)
@@ -246,7 +272,9 @@ export async function POST(request: NextRequest) {
         recentNotes,
         approachNames,
         approachPrompts,
-        client.approachNotes
+        client.approachNotes,
+        client.culturalContext,
+        recentQuestionnaires
       );
     } else {
       // תוכנית מקצועית - הכנה תמציתית (בלי גישות!)
@@ -398,7 +426,9 @@ function buildEnterprisePrompt(
   recentNotes: Array<{date: string, content: string}>,
   approachNames: string,
   approachPrompts: string,
-  clientApproachNotes?: string | null
+  clientApproachNotes?: string | null,
+  culturalContext?: string | null,
+  recentQuestionnaires?: string
 ): string {
   const notesText = recentNotes
     .map((note, i) => `פגישה ${i + 1} (${note.date}):\n${note.content}`)
@@ -420,7 +450,8 @@ function buildEnterprisePrompt(
 גישות טיפוליות: ${approachNames || "גישה אקלקטית"}
 
 ${clientApproachNotes ? `הערות על הגישה למטופל זה:\n${clientApproachNotes}\n` : ""}
-
+${culturalContext ? `הקשר תרבותי חשוב:\n${culturalContext}\nשים לב: התאם את ההכנה וההמלצות להקשר התרבותי של המטופל.\n` : ""}
+${recentQuestionnaires ? `שאלונים אחרונים שמולאו:\n${recentQuestionnaires}\nשים לב: אם יש ציון גבוה או שינוי מציונים קודמים - ציין בהכנה.\n` : ""}
 סיכומי הפגישות האחרונות:
 ${notesText}
 
@@ -428,40 +459,35 @@ ${notesText}
 ${approachPrompts || "השתמש בגישה אקלקטית-אינטגרטיבית."}
 
 הנחיות:
-הכן הכנה מפורטת לפגישה (400-600 מילים).
+הכן הכנה מפורטת לפגישה. קצר וממוקד - רק מה שהמטפל צריך לדעת לפני שנכנס לחדר.
 
 מבנה התשובה:
 
-1. סיכום המצב הנוכחי:
-(4-5 שורות - מה עולה מהפגישות האחרונות?)
+השורה התחתונה:
+(2-3 משפטים - מה הכי חשוב שהמטפל ידע לפני הפגישה?)
 
-2. תובנות מרכזיות:
-• תובנה 1 - פירוט
-• תובנה 2 - פירוט
-• תובנה 3 - פירוט
+מה נשאר פתוח:
+• נושאים שעלו בפגישות קודמות ולא נסגרו - חייבים להמשיך
+• נושאים שנעלמו פתאום - ייתכן שהודחקו, שווה לבדוק בעדינות
+• "חוטים פתוחים" - דברים שהמטופל אמר בחצי פה
 
-3. ניתוח לפי הגישה (${approachNames || "אקלקטית"}):
-(השתמש במושגים ובמסגרת הניתוח של הגישה!)
-• נקודה 1 לפי הגישה
-• נקודה 2 לפי הגישה
-• מושגים מהגישה שרלוונטיים
+ניתוח לפי ${approachNames || "הגישה הטיפולית"}:
+• איפה המטופל נמצא לפי הגישה? (שלב, דפוס, דינמיקה)
+• מה צפוי שיעלה לפי הגישה?
+• מושגים רלוונטיים מהגישה (בעברית + אנגלית בסוגריים)
 
-4. המלצות לפגישה הקרובה:
-• המלצה 1 - מה לעשות
-• המלצה 2 - מה לעשות
-• טכניקות ספציפיות מומלצות
+המלצות לפגישה:
+• מה לעשות - טכניקות ספציפיות
+• מה לא לעשות - "זהירות מ..." (למשל: "אל תלחץ על נושא X - המטופל עדיין לא מוכן")
+• מה לחפש - סימנים חיוביים או מדאיגים
 
-5. שאלות מוצעות:
-• שאלה 1 - מתאימה לגישה
-• שאלה 2 - מתאימה לגישה
-• שאלה 3 - לחקירה
+שאלות מוצעות:
+• 3 שאלות ספציפיות שמתאימות לגישה ולמה שעולה מהפגישות האחרונות
+• לפחות שאלה אחת על מה שנשאר פתוח
 
-6. נקודות לתשומת לב:
-• על מה לשים לב בפגישה
-• סימנים חיוביים לחפש
-• אתגרים אפשריים
+כתוב בעברית, בסגנון מקצועי וחם. כל מונח אנגלי עם תרגום עברי פשוט.
 
-כתוב בעברית, בסגנון מקצועי ומעמיק. השתמש במושגים מהגישה הטיפולית.`;
+${getUniversalPromptsLight()}`;
 }
 
 /**

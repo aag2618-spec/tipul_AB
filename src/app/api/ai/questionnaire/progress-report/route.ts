@@ -3,7 +3,7 @@ import { getServerSession } from "next-auth";
 import { authOptions } from "@/lib/auth";
 import { prisma } from "@/lib/prisma";
 import { GoogleGenerativeAI } from "@google/generative-ai";
-import { getApproachById, getApproachPrompts } from "@/lib/therapeutic-approaches";
+import { getApproachById, getApproachPrompts, buildIntegrationSection, getScalesPrompt, getUniversalPrompts } from "@/lib/therapeutic-approaches";
 
 // שימוש ב-Gemini 2.0 Flash בלבד
 const genAI = new GoogleGenerativeAI(process.env.GOOGLE_AI_API_KEY || "");
@@ -90,6 +90,14 @@ export async function POST(req: NextRequest) {
     // קבלת פרטי המטופל
     const client = await prisma.client.findUnique({
       where: { id: clientId },
+      select: {
+        id: true,
+        name: true,
+        therapistId: true,
+        therapeuticApproaches: true,
+        approachNotes: true,
+        culturalContext: true,
+      },
     });
 
     if (!client || client.therapistId !== user.id) {
@@ -155,7 +163,7 @@ export async function POST(req: NextRequest) {
       })
       .join("\n\n");
 
-    // קבלת גישות טיפוליות (של המטופל או ברירת מחדל) - דוח התקדמות רק לארגוני
+    // קבלת גישות טיפוליות
     const therapeuticApproaches = (client.therapeuticApproaches && client.therapeuticApproaches.length > 0)
       ? client.therapeuticApproaches
       : (user.therapeuticApproaches || []);
@@ -168,36 +176,38 @@ export async function POST(req: NextRequest) {
       .filter(Boolean)
       .join(", ");
 
-    // קבלת ה-prompt המפורט של הגישות
     const approachPrompts = getApproachPrompts(therapeuticApproaches);
+    const integrationSection = buildIntegrationSection(therapeuticApproaches);
+    const scalesSection = getScalesPrompt(therapeuticApproaches);
 
     const approachSection = approachNames 
       ? `
-=== גישות טיפוליות מוגדרות: ${approachNames} ===
-
-חובה לנתח את ההתקדמות לפי הגישה/ות הבאות. השתמש במושגים הספציפיים של הגישה!
+=== גישות טיפוליות: ${approachNames} ===
 
 ${approachPrompts}
 
-הנחיות חיוניות:
-• כל הניתוח חייב להיות דרך העדשה של ${approachNames}
-• ציין מושגים ספציפיים מהגישה (עם תרגום עברי אם באנגלית)
-• המלצות להמשך טיפול חייבות להתבסס על הטכניקות של הגישה
-• עקוב אחר התקדמות לפי הקריטריונים של הגישה
-
+${integrationSection}
 `
       : '';
 
-    // בניית ה-prompt
-    const prompt = `חשוב מאוד - כללי פורמט (חובה לציית):
-- כתוב טקסט רגיל בלבד, ללא שום עיצוב
-- אסור להשתמש ב-Markdown: ללא #, ללא **, ללא *, ללא _
-- לכותרות: כתוב את הכותרת בשורה נפרדת עם נקודתיים בסוף
-- לרשימות: השתמש בסימן • בלבד
-- להפרדה: שורה ריקה בין סעיפים
+    const culturalSection = client.culturalContext
+      ? `\nהקשר תרבותי חשוב:\n${client.culturalContext}\nשים לב: אל תפרש התנהגות שהיא נורמטיבית בהקשר התרבותי של המטופל כפתולוגיה. התאם את הניתוח בהתאם.\n`
+      : '';
 
-אתה פסיכולוג מומחה המכין דוח התקדמות מקיף למטופל.
+    // בניית ה-prompt
+    const prompt = `כללי פורמט (חובה):
+- כתוב בעברית בלבד, מימין לשמאל
+- מונחים מקצועיים: כתוב קודם בעברית, אנגלית בסוגריים. דוגמה: "קביעות אובייקט (Object Constancy)"
+- ללא Markdown: ללא #, ללא **, ללא *, ללא _
+- כותרות: בשורה נפרדת עם נקודתיים
+- רשימות: סימן • בלבד
+- הפרדה: שורה ריקה בין סעיפים
+
+הנחיה: חפש את מה שהשתנה ואת מה שנשאר תקוע. הפרדוקסים מלמדים הכי הרבה.
+
+אתה פסיכולוג קליני ברמה אקדמית גבוהה. בצע ניתוח התקדמות ברמה של פסיכולוג בכיר.
 ${approachSection}
+${culturalSection}
 פרטים:
 • מטופל: ${client.name}
 • תקופה: ${fromDate.toLocaleDateString("he-IL")} - ${toDate.toLocaleDateString("he-IL")}
@@ -210,35 +220,41 @@ ${questionnairesSummary || "אין שאלונים בתקופה זו"}
 סיכומי פגישות:
 ${sessionsSummary || "אין סיכומי פגישות"}
 
-הנחיות:
-בצע ניתוח מקיף של ההתקדמות (400-600 מילים)${approachNames ? ` לפי גישות: ${approachNames}` : ''}.
+בצע ניתוח התקדמות מעמיק (500-700 מילים)${approachNames ? ` לפי ${approachNames}` : ''}:
 
-מבנה התשובה:
+1. סיכום ביצועים ומעורבות:
+• כמה פגישות? כמה שאלונים? רמת מעורבות
+• מה אומר רצף ההגעה/אי-הגעה על התהליך הטיפולי?
 
-1. סיכום ביצועים:
-(2-3 שורות - כמה פגישות? כמה שאלונים? רמת מעורבות והתמדה)
+2. מגמות בשאלונים:
+• שינויים בציונים לאורך זמן - עלייה, ירידה, תנודות
+• תחומים שהשתפרו ותחומים שהחמירו
+• פרדוקס: שיפור בתחום אחד עם החמרה באחר - מה המשמעות?
 
-2. התקדמות בשאלונים:
-• שינויים בציונים לאורך זמן
-• מגמות - שיפור, החמרה, או יציבות
-• תחומים שהשתפרו או החמירו
+3. תהליך טיפולי מסיכומי פגישות:
+• נושאים מרכזיים שעלו${approachNames ? ` (לפי ${approachNames})` : ''}
+• דפוסים חוזרים - מה חוזר שוב ושוב?
+• שינויים בדינמיקה הטיפולית ובברית הטיפולית (ברית טיפולית - Therapeutic Alliance)
 
-3. תובנות מסיכומי פגישות:
-• נושאים מרכזיים שעלו${approachNames ? ` (לפי המסגרת התיאורטית של ${approachNames})` : ''}
-• דפוסים חוזרים
-• שינויים בדינמיקה הטיפולית
+4. אינטגרציה: שאלונים מול פגישות:
+• התאמה או פער בין מדדים אובייקטיביים לחוויה הסובייקטיבית
+• מטופל שמדווח שיפור בשאלון אבל בפגישות עולה קושי - מה קורה?
+• מה הנתונים אומרים *ביחד* שהם לא אומרים *לחוד*?
 
-4. ניתוח התקדמות משולב:
-• קשרים בין שאלונים לפגישות
-• התאמה או אי-התאמה בין מדדים אובייקטיביים לחוויה הסובייקטיבית
-• יעדים שהושגו
+5. הערכת התקדמות${approachNames ? ` לפי ${approachNames}` : ''}:
+• יעדים שהושגו ויעדים שעדיין פתוחים
+• באיזה שלב טיפולי המטופל נמצא?
+${scalesSection ? `• הערכה כמותית:\n${scalesSection}` : ''}
 
-5. המלצות להמשך טיפול:
-• המשך דרך נוכחית או שינוי כיוון?${approachNames ? ` (בהתאם לגישות ${approachNames})` : ''}
+6. המלצות להמשך:
+• המשך באותו כיוון או שינוי?
 • מוקדים לתקופה הבאה
-• יעדים להמשך
+• טכניקות ספציפיות${approachNames ? ` מתוך ${approachNames}` : ''}
+• מה לשים לב אליו בפגישות הבאות
 
-כתוב בעברית, בסגנון מקצועי ומעמיק. זה דוח חשוב!`;
+כל מונח אנגלי חייב להופיע עם תרגום פשוט בעברית.
+
+${getUniversalPrompts()}`;
 
     // קריאה ל-Gemini 2.0 Flash
     const model = genAI.getGenerativeModel({ model: GEMINI_MODEL });

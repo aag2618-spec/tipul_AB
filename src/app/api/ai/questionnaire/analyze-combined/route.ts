@@ -3,7 +3,7 @@ import { getServerSession } from "next-auth";
 import { authOptions } from "@/lib/auth";
 import { prisma } from "@/lib/prisma";
 import { GoogleGenerativeAI } from "@google/generative-ai";
-import { getApproachById, getApproachPrompts } from "@/lib/therapeutic-approaches";
+import { getApproachById, getApproachPrompts, buildIntegrationSection, getScalesPrompt, getUniversalPromptsLight } from "@/lib/therapeutic-approaches";
 
 // שימוש ב-Gemini 2.0 Flash בלבד
 const genAI = new GoogleGenerativeAI(process.env.GOOGLE_AI_API_KEY || "");
@@ -108,6 +108,14 @@ export async function POST(req: NextRequest) {
     // קבלת פרטי המטופל
     const client = await prisma.client.findUnique({
       where: { id: clientId },
+      select: {
+        id: true,
+        name: true,
+        therapistId: true,
+        therapeuticApproaches: true,
+        approachNotes: true,
+        culturalContext: true,
+      },
     });
 
     if (!client) {
@@ -127,7 +135,7 @@ ${r.subscores ? `ציוני משנה: ${JSON.stringify(r.subscores)}` : ""}
       })
       .join("\n---\n");
 
-    // קבלת גישות טיפוליות (של המטופל או ברירת מחדל) - ניתוח משולב רק לארגוני
+    // קבלת גישות טיפוליות
     const therapeuticApproaches = (client.therapeuticApproaches && client.therapeuticApproaches.length > 0)
       ? client.therapeuticApproaches
       : (user.therapeuticApproaches || []);
@@ -140,36 +148,39 @@ ${r.subscores ? `ציוני משנה: ${JSON.stringify(r.subscores)}` : ""}
       .filter(Boolean)
       .join(", ");
 
-    // קבלת ה-prompt המפורט של הגישות
     const approachPrompts = getApproachPrompts(therapeuticApproaches);
+    const integrationSection = buildIntegrationSection(therapeuticApproaches);
+    const scalesSection = getScalesPrompt(therapeuticApproaches);
 
     const approachSection = approachNames 
       ? `
-=== גישות טיפוליות מוגדרות: ${approachNames} ===
-
-חובה לנתח את כל השאלונים לפי הגישה/ות הבאות. השתמש במושגים הספציפיים של הגישה!
+=== גישות טיפוליות: ${approachNames} ===
 
 ${approachPrompts}
 
-הנחיות חיוניות:
-• כל הניתוח חייב להיות דרך העדשה של ${approachNames}
-• ציין מושגים ספציפיים מהגישה (עם תרגום עברי אם באנגלית)
-• המלצות חייבות להתבסס על הטכניקות של הגישה
-• זהה דפוסים רלוונטיים לפי המסגרת התיאורטית
-
+${integrationSection}
 `
       : '';
 
-    // בניית ה-prompt
-    const prompt = `חשוב מאוד - כללי פורמט (חובה לציית):
-- כתוב טקסט רגיל בלבד, ללא שום עיצוב
-- אסור להשתמש ב-Markdown: ללא #, ללא **, ללא *, ללא _
-- לכותרות: כתוב את הכותרת בשורה נפרדת עם נקודתיים בסוף
-- לרשימות: השתמש בסימן • בלבד
-- להפרדה: שורה ריקה בין סעיפים
+    const culturalSection = client.culturalContext
+      ? `\nהקשר תרבותי חשוב:\n${client.culturalContext}\nשים לב: אל תפרש תשובות שמשקפות נורמות תרבותיות כפתולוגיה.\n`
+      : '';
 
-אתה פסיכולוג מומחה המנתח סט מלא של שאלונים למטופל אחד.
+    // בניית ה-prompt
+    const prompt = `כללי פורמט (חובה):
+- כתוב בעברית בלבד, מימין לשמאל
+- מונחים מקצועיים: כתוב קודם בעברית, אנגלית בסוגריים. דוגמה: "הזדהות השלכתית (Projective Identification)"
+- ללא Markdown: ללא #, ללא **, ללא *, ללא _
+- כותרות: בשורה נפרדת עם נקודתיים
+- רשימות: סימן • בלבד
+- הפרדה: שורה ריקה בין סעיפים
+
+הנחיה: תתעלם מהתשובה ה"מובנת מאליה" וחפש את הפרדוקס.
+חפש סתירות בין שאלונים שונים - שם מתחבא המידע הקליני האמיתי.
+
+אתה פסיכולוג קליני ברמה אקדמית גבוהה. בצע ניתוח משולב ברמה של פסיכולוג בכיר.
 ${approachSection}
+${culturalSection}
 פרטים:
 • מטופל: ${client.name}
 • מספר שאלונים: ${responses.length}
@@ -177,33 +188,39 @@ ${approachSection}
 שאלונים שמולאו:
 ${questionnairesSummary}
 
-הנחיות:
-בצע ניתוח מקיף ומשולב (400-500 מילים)${approachNames ? ` לפי גישות: ${approachNames}` : ''}.
-
-מבנה התשובה:
+בצע ניתוח מקיף ומשולב (500-700 מילים)${approachNames ? ` לפי ${approachNames}` : ''}:
 
 1. תמונה קלינית כוללת:
-(3-4 שורות - מה עולה מכלל השאלונים? איזו תמונה קלינית מתקבלת?${approachNames ? ` נתח לפי ${approachNames}` : ''})
+• מה עולה מכלל השאלונים? איזו תמונה מתקבלת?
+${approachNames ? `• פרשנות לפי ${approachNames}` : ''}
+• מה ה"סיפור" שהמטופל מספר דרך הציונים?
 
-2. דפוסים משמעותיים:
-• דפוסים בולטים בין שאלונים שונים${approachNames ? ` (לפי המסגרת התיאורטית של ${approachNames})` : ''}
-• קשרים והשלמה בין התוצאות
-• תחומים בולטים - דיכאון, חרדה, טראומה, ועוד
+2. סתירות ופרדוקסים בין שאלונים:
+• פערים בין שאלונים שונים (למשל: חרדה נמוכה אבל דיכאון גבוה)
+• מה הסתירות מלמדות על מנגנוני הגנה (מנגנון הגנה - Defense Mechanism)?
+• מה שה"מספרים לא אומרים"
 
-3. נקודות חוזק:
-• תחומים שבהם המטופל מתפקד טוב
-• משאבים פנימיים שניתן לזהות
+3. סימנים מחשידים (Red Flags):
+• פריטים קריטיים שדורשים תשומת לב
+• דפוסים מדאיגים בין שאלונים
 
-4. אתגרים מרכזיים:
-• תחומים הדורשים התערבות
-• סדר עדיפויות
+4. נקודות חוזק ומשאבים:
+• תחומים שבהם המטופל חזק
+• משאבים פנימיים שניתן למנף בטיפול
 
-5. המלצות טיפוליות:
-• מוקדי טיפול מומלצים${approachNames ? ` בהתאם לגישות ${approachNames}` : ''}
-• טכניקות והתערבויות ספציפיות
-• סדר עדיפויות לטיפול
+5. אתגרים וסדר עדיפויות:
+• מה הכי דחוף לטפל בו?
+• סדר עדיפויות קליני מנומק
 
-כתוב בעברית, בסגנון מקצועי ומעמיק.`;
+6. המלצות קליניות:
+• מוקדי טיפול${approachNames ? ` בהתאם ל-${approachNames}` : ''}
+• טכניקות ספציפיות
+• שאלות שכדאי לשאול בפגישה הבאה
+${scalesSection ? `\n7. הערכה כמותית:\n${scalesSection}` : ''}
+
+כל מונח אנגלי חייב להופיע עם תרגום פשוט בעברית.
+
+${getUniversalPromptsLight()}`;
 
     // קריאה ל-Gemini 2.0 Flash
     const model = genAI.getGenerativeModel({ model: GEMINI_MODEL });

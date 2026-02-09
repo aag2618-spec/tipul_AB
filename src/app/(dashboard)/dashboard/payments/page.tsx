@@ -1,6 +1,6 @@
 "use client";
 
-import { useState, useEffect } from "react";
+import { useState, useEffect, useMemo } from "react";
 import { Card, CardContent } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
@@ -14,6 +14,13 @@ import {
   DialogTitle,
   DialogTrigger,
 } from "@/components/ui/dialog";
+import {
+  Select,
+  SelectContent,
+  SelectItem,
+  SelectTrigger,
+  SelectValue,
+} from "@/components/ui/select";
 import { 
   Loader2, 
   AlertCircle, 
@@ -26,13 +33,25 @@ import {
   Wallet,
   History,
   ChevronLeft,
-  Mail
+  Mail,
+  Download,
+  TrendingUp
 } from "lucide-react";
 import { QuickMarkPaid } from "@/components/payments/quick-mark-paid";
+import { PaymentHistoryItem } from "@/components/payments/payment-history-item";
 import { toast } from "sonner";
-import { format } from "date-fns";
+import { format, startOfMonth, endOfMonth, subMonths } from "date-fns";
 import { he } from "date-fns/locale";
 import Link from "next/link";
+import {
+  LineChart,
+  Line,
+  XAxis,
+  YAxis,
+  CartesianGrid,
+  Tooltip,
+  ResponsiveContainer,
+} from "recharts";
 
 interface UnpaidSession {
   paymentId: string;
@@ -43,12 +62,30 @@ interface UnpaidSession {
   partialPaymentDate?: Date;
 }
 
-interface PaymentHistoryItem {
+interface ChildPayment {
   id: string;
-  date: Date;
   amount: number;
-  sessionDates: Date[];
-  isPartial: boolean;
+  method: string;
+  paidAt: Date | null;
+  createdAt: Date;
+}
+
+interface PaidPayment {
+  id: string;
+  clientId: string;
+  clientName: string;
+  amount: number;
+  expectedAmount: number;
+  method: string;
+  status: string;
+  paidAt: Date | null;
+  createdAt: Date;
+  session: {
+    id: string;
+    startTime: Date;
+    type: string;
+  } | null;
+  childPayments: ChildPayment[];
 }
 
 interface ClientDebt {
@@ -58,7 +95,6 @@ interface ClientDebt {
   creditBalance: number;
   unpaidSessionsCount: number;
   unpaidSessions: UnpaidSession[];
-  paymentHistory?: PaymentHistoryItem[];
 }
 
 type ViewMode = "summary" | "clients" | "clientDetail";
@@ -70,6 +106,7 @@ export default function PaymentsPage() {
   // מצבים ראשיים
   const [isLoading, setIsLoading] = useState(true);
   const [clients, setClients] = useState<ClientDebt[]>([]);
+  const [paidPayments, setPaidPayments] = useState<PaidPayment[]>([]);
   const [viewMode, setViewMode] = useState<ViewMode>("summary");
   
   // מסננים
@@ -92,6 +129,48 @@ export default function PaymentsPage() {
   // שליחת מיילים
   const [isSendingEmail, setIsSendingEmail] = useState(false);
   const [isSendingAllEmails, setIsSendingAllEmails] = useState(false);
+  
+  // סינון לפי חודש
+  const [selectedMonth, setSelectedMonth] = useState<string>("all");
+
+  // יצירת רשימת חודשים (12 חודשים אחרונים)
+  const monthOptions = useMemo(() => {
+    const months = [];
+    const now = new Date();
+    for (let i = 0; i < 12; i++) {
+      const date = subMonths(now, i);
+      const value = format(date, "yyyy-MM");
+      const label = format(date, "MMMM yyyy", { locale: he });
+      months.push({ value, label });
+    }
+    return months;
+  }, []);
+
+  // נתוני גרף - תשלומים לפי חודשים
+  const chartData = useMemo(() => {
+    const monthlyTotals: { [key: string]: number } = {};
+    
+    // אתחול 6 חודשים אחרונים
+    for (let i = 5; i >= 0; i--) {
+      const date = subMonths(new Date(), i);
+      const key = format(date, "yyyy-MM");
+      monthlyTotals[key] = 0;
+    }
+    
+    // סכימת תשלומים לפי חודש
+    paidPayments.forEach((payment) => {
+      const paymentDate = payment.paidAt ? new Date(payment.paidAt) : new Date(payment.createdAt);
+      const key = format(paymentDate, "yyyy-MM");
+      if (monthlyTotals[key] !== undefined) {
+        monthlyTotals[key] += payment.amount;
+      }
+    });
+    
+    return Object.entries(monthlyTotals).map(([month, total]) => ({
+      month: format(new Date(month + "-01"), "MMM", { locale: he }),
+      total: Math.round(total),
+    }));
+  }, [paidPayments]);
 
   useEffect(() => {
     fetchData();
@@ -121,6 +200,13 @@ export default function PaymentsPage() {
       if (monthlyResponse.ok) {
         const monthlyData = await monthlyResponse.json();
         setPaidThisMonth(monthlyData.total || 0);
+      }
+      
+      // טעינת היסטוריית תשלומים (תשלומים ששולמו)
+      const paidResponse = await fetch("/api/payments/paid-history");
+      if (paidResponse.ok) {
+        const paidData = await paidResponse.json();
+        setPaidPayments(paidData);
       }
     } catch (error) {
       console.error("Error fetching data:", error);
@@ -384,10 +470,10 @@ export default function PaymentsPage() {
           </Button>
         </div>
 
-        {/* טאבים */}
+        {/* סינון */}
         <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
-          {/* טאב 1: כל המטופלים / מטופל ספציפי */}
-          <Card>
+          {/* סינון 1: מטופל */}
+          <Card className="shadow-sm border-slate-200">
             <CardContent className="p-4">
               <Tabs value={clientFilterMode} onValueChange={(v) => setClientFilterMode(v as ClientFilterMode)}>
                 <TabsList className="w-full grid grid-cols-2">
@@ -409,8 +495,8 @@ export default function PaymentsPage() {
             </CardContent>
           </Card>
 
-          {/* טאב 2: חיפוש לפי תאריך */}
-          <Card>
+          {/* סינון 2: תאריך */}
+          <Card className="shadow-sm border-slate-200">
             <CardContent className="p-4">
               <Tabs value={dateFilterMode} onValueChange={(v) => setDateFilterMode(v as DateFilterMode)}>
                 <TabsList className="w-full grid grid-cols-2">
@@ -455,85 +541,272 @@ export default function PaymentsPage() {
               היסטוריית תשלומים
             </TabsTrigger>
           </TabsList>
-        </Tabs>
 
-        {/* רשימת מטופלים במלבנים */}
-        <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 xl:grid-cols-4 gap-4">
-          {filteredClients.length === 0 ? (
-            <Card className="col-span-full">
-              <CardContent className="flex flex-col items-center justify-center py-12">
-                <CheckCircle className="h-16 w-16 text-green-500 mb-4 opacity-50" />
-                <p className="text-lg font-medium">
-                  {searchTerm ? "לא נמצאו תוצאות לחיפוש" : "אין חובות פתוחים"}
-                </p>
-              </CardContent>
-            </Card>
-          ) : (
-            filteredClients.map((client) => {
-              // כשמסננים לפי תאריך - מציגים את מספר הפגישות המסוננות
-              const sessionsCount = dateFilterMode === "specific" && selectedDate 
-                ? client.unpaidSessions.length 
-                : client.unpaidSessionsCount;
-              
-              return (
-                <Card 
-                  key={client.id}
-                  className="cursor-pointer hover:shadow-lg transition-all hover:scale-[1.02]"
-                  onClick={() => {
-                    setSelectedClient(client);
-                    setViewMode("clientDetail");
-                  }}
-                >
-                  <CardContent className="p-4">
-                    {/* הצגת תאריך כשמסננים לפי תאריך ספציפי */}
-                    {dateFilterMode === "specific" && selectedDate && (
-                      <div className="flex items-center gap-2 mb-2 pb-2 border-b">
-                        <CalendarIcon className="h-4 w-4 text-primary" />
-                        <span className="text-sm font-medium text-primary">
-                          {format(selectedDate, "dd/MM/yyyy")}
-                        </span>
-                      </div>
-                    )}
-                    
-                    {/* מספר פגישות - רק אם יש יותר מאחת או אם לא מסננים לפי תאריך */}
-                    {(dateFilterMode !== "specific" || sessionsCount > 1) && (
-                      <div className="flex items-center gap-2 mb-3">
-                        <Clock className="h-4 w-4 text-muted-foreground" />
-                        <span className="text-sm text-muted-foreground">
-                          {sessionsCount} פגישות
-                        </span>
-                      </div>
-                    )}
-                    
-                    <h3 className="font-semibold text-lg mb-3">{client.fullName}</h3>
-                    
-                    <div className="space-y-2">
-                      {client.totalDebt > 0 && (
-                        <div className="flex justify-between items-center">
-                          <Badge variant="destructive" className="gap-1">
-                            <AlertCircle className="h-3 w-3" />
-                            חוב
-                          </Badge>
-                          <span className="font-bold text-red-600">₪{client.totalDebt.toFixed(0)}</span>
-                        </div>
-                      )}
-                      
-                      {client.creditBalance > 0 && (
-                        <div className="flex justify-between items-center">
-                          <Badge className="gap-1 bg-green-100 text-green-800">
-                            <CheckCircle className="h-3 w-3" />
-                            קרדיט
-                          </Badge>
-                          <span className="font-bold text-green-600">₪{client.creditBalance.toFixed(0)}</span>
-                        </div>
-                      )}
-                    </div>
+          {/* חובות פתוחים - רשימת מטופלים */}
+          <TabsContent value="debts" className="mt-4">
+            <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 xl:grid-cols-4 gap-4">
+              {filteredClients.length === 0 ? (
+                <Card className="col-span-full">
+                  <CardContent className="flex flex-col items-center justify-center py-12">
+                    <CheckCircle className="h-16 w-16 text-green-500 mb-4 opacity-50" />
+                    <p className="text-lg font-medium">
+                      {searchTerm ? "לא נמצאו תוצאות לחיפוש" : "אין חובות פתוחים"}
+                    </p>
                   </CardContent>
                 </Card>
+              ) : (
+                filteredClients.map((client) => {
+                  // כשמסננים לפי תאריך - מציגים את מספר הפגישות המסוננות
+                  const sessionsCount = dateFilterMode === "specific" && selectedDate 
+                    ? client.unpaidSessions.length 
+                    : client.unpaidSessionsCount;
+                  
+                  return (
+                    <Card 
+                      key={client.id}
+                      className="cursor-pointer bg-gradient-to-br from-rose-50/80 to-orange-50/50 border-rose-100 hover:shadow-lg hover:scale-[1.02] transition-all duration-200 rounded-xl"
+                      onClick={() => {
+                        setSelectedClient(client);
+                        setViewMode("clientDetail");
+                      }}
+                    >
+                      <CardContent className="p-4">
+                        {/* הצגת תאריך כשמסננים לפי תאריך ספציפי */}
+                        {dateFilterMode === "specific" && selectedDate && (
+                          <div className="flex items-center gap-2 mb-2 pb-2 border-b border-rose-100">
+                            <div className="p-1.5 bg-primary/10 rounded-full">
+                              <CalendarIcon className="h-3.5 w-3.5 text-primary" />
+                            </div>
+                            <span className="text-sm font-medium text-primary">
+                              {format(selectedDate, "dd/MM/yyyy")}
+                            </span>
+                          </div>
+                        )}
+                        
+                        {/* מספר פגישות - רק אם יש יותר מאחת או אם לא מסננים לפי תאריך */}
+                        {(dateFilterMode !== "specific" || sessionsCount > 1) && (
+                          <div className="flex items-center gap-2 mb-3">
+                            <Clock className="h-4 w-4 text-muted-foreground" />
+                            <span className="text-sm text-muted-foreground">
+                              {sessionsCount} פגישות
+                            </span>
+                          </div>
+                        )}
+                        
+                        <h3 className="font-semibold text-lg mb-3">{client.fullName}</h3>
+                        
+                        <div className="space-y-2">
+                          {client.totalDebt > 0 && (
+                            <div className="flex justify-between items-center bg-white/60 rounded-lg p-2">
+                              <Badge variant="destructive" className="gap-1">
+                                <AlertCircle className="h-3 w-3" />
+                                חוב
+                              </Badge>
+                              <span className="font-bold text-lg text-red-600">₪{client.totalDebt.toFixed(0)}</span>
+                            </div>
+                          )}
+                          
+                          {client.creditBalance > 0 && (
+                            <div className="flex justify-between items-center bg-white/60 rounded-lg p-2">
+                              <Badge className="gap-1 bg-green-100 text-green-800">
+                                <CheckCircle className="h-3 w-3" />
+                                קרדיט
+                              </Badge>
+                              <span className="font-bold text-green-600">₪{client.creditBalance.toFixed(0)}</span>
+                            </div>
+                          )}
+                        </div>
+                      </CardContent>
+                    </Card>
+                  );
+                })
+              )}
+            </div>
+          </TabsContent>
+
+          {/* היסטוריית תשלומים */}
+          <TabsContent value="history" className="mt-4 space-y-6">
+            {/* גרף קו - תשלומים לפי חודשים */}
+            <Card className="bg-gradient-to-br from-emerald-50/50 to-teal-50/30 border-emerald-200 shadow-sm">
+              <CardContent className="p-6">
+                <div className="flex items-center justify-between mb-4">
+                  <div className="flex items-center gap-2">
+                    <div className="p-2 bg-emerald-100 rounded-lg">
+                      <TrendingUp className="h-5 w-5 text-emerald-600" />
+                    </div>
+                    <h3 className="font-semibold text-emerald-900">מגמת תשלומים - 6 חודשים אחרונים</h3>
+                  </div>
+                  {/* כפתורי ייצוא */}
+                  <div className="flex gap-2">
+                    <Button 
+                      variant="outline" 
+                      size="sm" 
+                      className="gap-1.5 bg-white/80 hover:bg-white border-emerald-200 text-emerald-700 hover:text-emerald-800"
+                      onClick={() => toast.info("ייצוא ל-PDF בקרוב...")}
+                    >
+                      <Download className="h-3.5 w-3.5" />
+                      PDF
+                    </Button>
+                    <Button 
+                      variant="outline" 
+                      size="sm" 
+                      className="gap-1.5 bg-white/80 hover:bg-white border-emerald-200 text-emerald-700 hover:text-emerald-800"
+                      onClick={() => toast.info("ייצוא ל-Excel בקרוב...")}
+                    >
+                      <Download className="h-3.5 w-3.5" />
+                      Excel
+                    </Button>
+                  </div>
+                </div>
+                <div className="h-48">
+                  <ResponsiveContainer width="100%" height="100%">
+                    <LineChart data={chartData}>
+                      <CartesianGrid strokeDasharray="3 3" stroke="#e5e7eb" />
+                      <XAxis 
+                        dataKey="month" 
+                        tick={{ fontSize: 12 }}
+                        tickLine={false}
+                      />
+                      <YAxis 
+                        tick={{ fontSize: 12 }}
+                        tickLine={false}
+                        tickFormatter={(value) => `₪${value}`}
+                      />
+                      <Tooltip 
+                        formatter={(value: number) => [`₪${value}`, "סה״כ"]}
+                        labelStyle={{ fontWeight: "bold" }}
+                        contentStyle={{ 
+                          backgroundColor: "white", 
+                          border: "1px solid #e5e7eb",
+                          borderRadius: "8px",
+                          boxShadow: "0 2px 8px rgba(0,0,0,0.1)"
+                        }}
+                      />
+                      <Line 
+                        type="monotone" 
+                        dataKey="total" 
+                        stroke="#10b981" 
+                        strokeWidth={3}
+                        dot={{ fill: "#10b981", strokeWidth: 2, r: 4 }}
+                        activeDot={{ r: 6, fill: "#059669" }}
+                      />
+                    </LineChart>
+                  </ResponsiveContainer>
+                </div>
+              </CardContent>
+            </Card>
+
+            {/* סינון לפי חודש */}
+            <div className="flex items-center gap-3">
+              <Select value={selectedMonth} onValueChange={setSelectedMonth}>
+                <SelectTrigger className="w-[200px] bg-white shadow-sm">
+                  <CalendarIcon className="h-4 w-4 ml-2 text-muted-foreground" />
+                  <SelectValue placeholder="כל החודשים" />
+                </SelectTrigger>
+                <SelectContent>
+                  <SelectItem value="all">כל החודשים</SelectItem>
+                  {monthOptions.map((month) => (
+                    <SelectItem key={month.value} value={month.value}>
+                      {month.label}
+                    </SelectItem>
+                  ))}
+                </SelectContent>
+              </Select>
+              
+              {selectedMonth !== "all" && (
+                <Badge variant="secondary" className="gap-1">
+                  מסנן לפי חודש
+                </Badge>
+              )}
+            </div>
+
+            {/* רשימת תשלומים */}
+            {(() => {
+              // סינון היסטוריית תשלומים לפי מסננים
+              let filteredHistory = paidPayments;
+              
+              // סינון לפי מטופל ספציפי
+              if (searchTerm && clientFilterMode === "specific") {
+                const search = searchTerm.toLowerCase();
+                filteredHistory = filteredHistory.filter(p => 
+                  p.clientName.toLowerCase().includes(search)
+                );
+              }
+              
+              // סינון לפי תאריך ספציפי
+              if (dateFilterMode === "specific" && selectedDate) {
+                filteredHistory = filteredHistory.filter(p => {
+                  const paymentDate = p.paidAt ? new Date(p.paidAt) : new Date(p.createdAt);
+                  return (
+                    paymentDate.getDate() === selectedDate.getDate() &&
+                    paymentDate.getMonth() === selectedDate.getMonth() &&
+                    paymentDate.getFullYear() === selectedDate.getFullYear()
+                  );
+                });
+              }
+              
+              // סינון לפי חודש
+              if (selectedMonth !== "all") {
+                filteredHistory = filteredHistory.filter(p => {
+                  const paymentDate = p.paidAt ? new Date(p.paidAt) : new Date(p.createdAt);
+                  const paymentMonth = format(paymentDate, "yyyy-MM");
+                  return paymentMonth === selectedMonth;
+                });
+              }
+
+              if (filteredHistory.length === 0) {
+                return (
+                  <Card className="bg-gradient-to-br from-slate-50 to-gray-50">
+                    <CardContent className="flex flex-col items-center justify-center py-12">
+                      <History className="h-16 w-16 text-muted-foreground mb-4 opacity-50" />
+                      <p className="text-lg font-medium">
+                        {searchTerm || selectedDate || selectedMonth !== "all" 
+                          ? "לא נמצאו תשלומים לפי הסינון" 
+                          : "אין תשלומים שהושלמו"}
+                      </p>
+                    </CardContent>
+                  </Card>
+                );
+              }
+
+              return (
+                <>
+                  <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-4">
+                    {filteredHistory.map((payment) => (
+                      <div key={payment.id} className="space-y-2">
+                        {/* שם מטופל */}
+                        <div className="flex items-center gap-2 px-1">
+                          <Badge variant="outline" className="font-medium">
+                            {payment.clientName}
+                          </Badge>
+                        </div>
+                        {/* פרטי התשלום */}
+                        <PaymentHistoryItem
+                          payment={{
+                            id: payment.id,
+                            amount: payment.amount,
+                            expectedAmount: payment.expectedAmount,
+                            method: payment.method,
+                            status: payment.status,
+                            createdAt: payment.createdAt,
+                            paidAt: payment.paidAt,
+                            session: payment.session,
+                            childPayments: payment.childPayments,
+                          }}
+                        />
+                      </div>
+                    ))}
+                  </div>
+                  
+                  {/* סיכום */}
+                  <div className="text-sm text-muted-foreground text-center mt-4 py-3 bg-gradient-to-r from-transparent via-slate-100 to-transparent rounded-full">
+                    מציג {filteredHistory.length} מתוך {paidPayments.length} תשלומים
+                  </div>
+                </>
               );
-            })
-          )}
-        </div>
+            })()}
+          </TabsContent>
+        </Tabs>
       </div>
     );
   }
@@ -693,15 +966,47 @@ export default function PaymentsPage() {
           </TabsContent>
 
           <TabsContent value="history" className="mt-4">
-            {/* היסטוריית תשלומים - קישור לתיקיית המטופל */}
-            <div className="flex justify-center">
-              <Button variant="outline" className="gap-2" asChild>
-                <Link href={`/dashboard/clients/${selectedClient.id}?tab=payments`}>
-                  <History className="h-4 w-4" />
-                  צפה בהיסטוריית התשלומים המלאה
-                </Link>
-              </Button>
-            </div>
+            {(() => {
+              // סינון היסטוריית תשלומים של המטופל הנבחר
+              const clientHistory = paidPayments.filter(p => p.clientId === selectedClient.id);
+
+              if (clientHistory.length === 0) {
+                return (
+                  <Card>
+                    <CardContent className="flex flex-col items-center justify-center py-12">
+                      <History className="h-16 w-16 text-muted-foreground mb-4 opacity-50" />
+                      <p className="text-lg font-medium">אין תשלומים שהושלמו</p>
+                      <Button variant="outline" className="mt-4 gap-2" asChild>
+                        <Link href={`/dashboard/clients/${selectedClient.id}?tab=payments`}>
+                          צפה בתיקיית המטופל
+                        </Link>
+                      </Button>
+                    </CardContent>
+                  </Card>
+                );
+              }
+
+              return (
+                <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-4">
+                  {clientHistory.map((payment) => (
+                    <PaymentHistoryItem
+                      key={payment.id}
+                      payment={{
+                        id: payment.id,
+                        amount: payment.amount,
+                        expectedAmount: payment.expectedAmount,
+                        method: payment.method,
+                        status: payment.status,
+                        createdAt: payment.createdAt,
+                        paidAt: payment.paidAt,
+                        session: payment.session,
+                        childPayments: payment.childPayments,
+                      }}
+                    />
+                  ))}
+                </div>
+              );
+            })()}
           </TabsContent>
         </Tabs>
 

@@ -3,7 +3,7 @@ import { getServerSession } from "next-auth";
 import { authOptions } from "@/lib/auth";
 import prisma from "@/lib/prisma";
 import { GoogleGenerativeAI } from "@google/generative-ai";
-import { getApproachById, getApproachPrompts } from "@/lib/therapeutic-approaches";
+import { getApproachById, getApproachPrompts, buildIntegrationSection, getScalesPrompt, getUniversalPromptsLight } from "@/lib/therapeutic-approaches";
 
 // POST - Analyze questionnaire with AI
 export async function POST(
@@ -32,6 +32,7 @@ export async function POST(
             name: true,
             birthDate: true,
             therapeuticApproaches: true,
+            culturalContext: true,
           },
         },
       },
@@ -73,13 +74,14 @@ export async function POST(
 
     // Build approach section for ENTERPRISE tier
     let approachSection = '';
+    let approachNamesFull = '';
     if (user?.aiTier === 'ENTERPRISE') {
       const therapeuticApproaches = (response.client?.therapeuticApproaches && response.client.therapeuticApproaches.length > 0)
         ? response.client.therapeuticApproaches
         : (user.therapeuticApproaches || []);
       
       if (therapeuticApproaches.length > 0) {
-        const approachNames = therapeuticApproaches
+        approachNamesFull = therapeuticApproaches
           .map((id: string) => {
             const approach = getApproachById(id);
             return approach ? approach.nameHe : null;
@@ -88,22 +90,22 @@ export async function POST(
           .join(", ");
         
         const approachPrompts = getApproachPrompts(therapeuticApproaches);
+        const integrationSection = buildIntegrationSection(therapeuticApproaches);
         
         approachSection = `
-=== גישות טיפוליות מוגדרות: ${approachNames} ===
-
-חובה לנתח את השאלון לפי הגישה/ות הבאות. השתמש במושגים הספציפיים של הגישה!
+=== גישות טיפוליות: ${approachNamesFull} ===
 
 ${approachPrompts}
 
-הנחיות חיוניות:
-• כל הניתוח חייב להיות דרך העדשה של ${approachNames}
-• ציין מושגים ספציפיים מהגישה (עם תרגום עברי אם באנגלית)
-• ההמלצות חייבות להתבסס על הטכניקות של הגישה
-
+${integrationSection}
 `;
       }
     }
+
+    // Cultural context
+    const culturalSection = response.client?.culturalContext
+      ? `\nהקשר תרבותי חשוב:\n${response.client.culturalContext}\nשים לב: אל תפרש תשובות שמשקפות נורמות תרבותיות כפתולוגיה. התאם את הפרשנות בהתאם.\n`
+      : '';
 
     // Build analysis prompt based on test type
     const template = response.template;
@@ -122,14 +124,18 @@ ${approachPrompts}
         return `${q.id}. ${q.title}: ${selectedOption?.text || answer?.value || "לא נענה"} (ציון: ${answer?.value || 0})`;
       }).join("\n");
 
-      prompt = `חשוב מאוד - כללי פורמט (חובה לציית):
-- כתוב טקסט רגיל בלבד, ללא שום עיצוב
-- אסור להשתמש ב-Markdown: ללא #, ללא **, ללא *, ללא _
-- לכותרות: כתוב את הכותרת בשורה נפרדת עם נקודתיים בסוף
-- לרשימות: השתמש בסימן • בלבד
+      prompt = `כללי פורמט (חובה):
+- כתוב בעברית בלבד, מימין לשמאל
+- מונחים מקצועיים: כתוב קודם בעברית, אנגלית בסוגריים. דוגמה: "פיצול (Splitting)"
+- ללא Markdown: ללא #, ללא **, ללא *, ללא _
+- כותרות: בשורה נפרדת עם נקודתיים
+- רשימות: סימן • בלבד
 
-אתה פסיכולוג קליני מומחה באבחון פסיכולוגי. נתח את תוצאות השאלון הבא:
+הנחיה: תתעלם מהתשובה ה"מובנת מאליה" וחפש את הפרדוקס.
+
+אתה פסיכולוג קליני ברמה אקדמית גבוהה. נתח את תוצאות השאלון ברמה של פסיכולוג בכיר.
 ${approachSection}
+${culturalSection}
 
 שאלון: ${template.name} (${template.nameEn || template.code})
 קטגוריה: ${template.category || "כללי"}
@@ -147,25 +153,47 @@ ${answersText}
 ${scoring ? `מידע על הציון:
 ${JSON.stringify(scoring, null, 2)}` : ""}
 
-אנא ספק ניתוח קליני מקיף הכולל:
-1. פרשנות הציון הכולל והמשמעות הקלינית
-2. זיהוי דפוסים ותחומי דאגה מרכזיים
-3. נקודות חוזק שזוהו
-4. המלצות לטיפול והמשך אבחון
-5. שאלות נוספות לבירור
+בצע ניתוח קליני מעמיק${approachNamesFull ? ` לפי ${approachNamesFull}` : ''}:
 
-כתוב בעברית מקצועית אך נגישה.`;
+1. פרשנות קלינית:
+• משמעות הציון הכולל (טווח: נורמלי/קל/בינוני/חמור)
+${approachNamesFull ? `• פרשנות ספציפית לפי ${approachNamesFull}` : ''}
+
+2. סימנים מחשידים (Red Flags):
+• פריטים קריטיים שדורשים תשומת לב מיידית
+• סתירות בתשובות - למשל דיווח על מצב רוח טוב אבל שינה מופרעת
+• תשובות שנראות "חברתית רצויות" (רצוי חברתית - Social Desirability)
+
+3. דפוסים ותובנות:
+• דפוסים בולטים בתשובות${approachNamesFull ? ` דרך העדשה של ${approachNamesFull}` : ''}
+• מה המטופל לא אומר - חסרים בולטים
+
+4. נקודות חוזק:
+• משאבים פנימיים שעולים מהתשובות
+
+5. המלצות קליניות:
+• המלצות לטיפול${approachNamesFull ? ` בהתאם ל-${approachNamesFull}` : ''}
+• שאלות שכדאי לשאול בפגישה הבאה
+• המלצות להמשך אבחון
+
+כל מונח אנגלי חייב להופיע עם תרגום פשוט בעברית.
+
+${getUniversalPromptsLight()}`;
 
     } else if (testType === "PROJECTIVE") {
       // Projective test analysis
-      prompt = `חשוב מאוד - כללי פורמט (חובה לציית):
-- כתוב טקסט רגיל בלבד, ללא שום עיצוב
-- אסור להשתמש ב-Markdown: ללא #, ללא **, ללא *, ללא _
-- לכותרות: כתוב את הכותרת בשורה נפרדת עם נקודתיים בסוף
-- לרשימות: השתמש בסימן • בלבד
+      prompt = `כללי פורמט (חובה):
+- כתוב בעברית בלבד, מימין לשמאל
+- מונחים מקצועיים: כתוב קודם בעברית, אנגלית בסוגריים
+- ללא Markdown: ללא #, ללא **, ללא *, ללא _
+- כותרות: בשורה נפרדת עם נקודתיים
+- רשימות: סימן • בלבד
 
-אתה פסיכולוג קליני מומחה במבחנים השלכתיים. נתח את תוצאות המבחן הבא:
+הנחיה: חפש את מה שלא נאמר - ההשמטות במבחנים השלכתיים חשובות לא פחות מהתוכן.
+
+אתה פסיכולוג קליני ברמה אקדמית גבוהה, מומחה במבחנים השלכתיים (מבחנים השלכתיים - Projective Tests).
 ${approachSection}
+${culturalSection}
 
 מבחן: ${template.name} (${template.nameEn || template.code})
 
@@ -179,27 +207,55 @@ ${JSON.stringify(answers, null, 2)}
 ${scoring ? `מידע על הניתוח:
 ${JSON.stringify(scoring, null, 2)}` : ""}
 
-אנא ספק ניתוח קליני מקיף הכולל:
-1. ניתוח תמטי של התוכן
-2. הערכת מבנה האישיות
-3. מנגנוני הגנה שזוהו
-4. יחסי אובייקט
-5. תפקודי אגו
-6. אינטגרציה דיאגנוסטית
-7. המלצות להמשך
+בצע ניתוח קליני מעמיק${approachNamesFull ? ` לפי ${approachNamesFull}` : ''}:
 
-כתוב בעברית מקצועית.`;
+1. ניתוח תמטי (ניתוח תמטי - Thematic Analysis):
+• נושאים מרכזיים בתוכן
+• תמות חוזרות ומה הן מייצגות
+${approachNamesFull ? `• פרשנות לפי ${approachNamesFull}` : ''}
+
+2. מבנה אישיות (מבנה אישיות - Personality Structure):
+• רמת ארגון האישיות - נוירוטי/גבולי/פסיכוטי
+• כוחות ופגיעויות
+
+3. מנגנוני הגנה (מנגנוני הגנה - Defense Mechanisms):
+• מנגנונים בשלים (הומור, סובלימציה) לעומת פרימיטיביים (פיצול, הכחשה)
+• מה המנגנונים מגנים עליו?
+
+4. יחסי אובייקט (יחסי אובייקט - Object Relations):
+• איכות הייצוגים הפנימיים
+• דמויות אנושיות - שלמות או חלקיות?
+${approachNamesFull ? `• פרשנות לפי ${approachNamesFull}` : ''}
+
+5. תפקודי אגו (תפקודי אגו - Ego Functions):
+• בדיקת מציאות, שיפוט, ויסות רגשי
+• חשיבה - לוגית, משוחררת, מתפרקת?
+
+6. סימנים מחשידים (Red Flags):
+• תכנים מדאיגים (אלימות, חוסר אונים, פירוק)
+• סימנים לפגיעה בבדיקת מציאות
+
+7. אינטגרציה והמלצות:
+• תמונה כוללת
+• המלצות לטיפול${approachNamesFull ? ` בהתאם ל-${approachNamesFull}` : ''}
+• המלצות להמשך אבחון
+
+כל מונח אנגלי חייב להופיע עם תרגום פשוט בעברית.
+
+${getUniversalPromptsLight()}`;
 
     } else if (testType === "INTELLIGENCE") {
       // Intelligence test analysis
-      prompt = `חשוב מאוד - כללי פורמט (חובה לציית):
-- כתוב טקסט רגיל בלבד, ללא שום עיצוב
-- אסור להשתמש ב-Markdown: ללא #, ללא **, ללא *, ללא _
-- לכותרות: כתוב את הכותרת בשורה נפרדת עם נקודתיים בסוף
-- לרשימות: השתמש בסימן • בלבד
+      prompt = `כללי פורמט (חובה):
+- כתוב בעברית בלבד, מימין לשמאל
+- מונחים מקצועיים: כתוב קודם בעברית, אנגלית בסוגריים
+- ללא Markdown: ללא #, ללא **, ללא *, ללא _
+- כותרות: בשורה נפרדת עם נקודתיים
+- רשימות: סימן • בלבד
 
-אתה נוירופסיכולוג קליני מומחה במבחני אינטליגנציה. נתח את תוצאות המבחן הבא:
+אתה נוירופסיכולוג קליני ברמה אקדמית גבוהה, מומחה במבחני אינטליגנציה.
 ${approachSection}
+${culturalSection}
 
 מבחן: ${template.name} (${template.nameEn || template.code})
 
@@ -216,15 +272,36 @@ ${JSON.stringify(response.subscores, null, 2)}` : ""}
 ${scoring ? `מידע נורמטיבי:
 ${JSON.stringify(scoring, null, 2)}` : ""}
 
-אנא ספק ניתוח קוגניטיבי מקיף הכולל:
-1. רמת התפקוד האינטלקטואלי הכללי
-2. ניתוח פרופיל - חוזקות וחולשות יחסיות
-3. פערים משמעותיים בין מדדים
-4. השלכות על תפקוד יומיומי ולימודי/תעסוקתי
-5. המלצות להתאמות והתערבויות
-6. שאלות לבירור נוסף
+בצע ניתוח נוירו-קוגניטיבי מעמיק:
 
-כתוב בעברית מקצועית.`;
+1. רמת תפקוד אינטלקטואלי כללי:
+• ציון כולל ומשמעותו
+• סיווג (ממוצע, מעל/מתחת ממוצע, וכו')
+
+2. ניתוח פרופיל קוגניטיבי (פרופיל קוגניטיבי - Cognitive Profile):
+• חוזקות יחסיות - איפה הנבדק מצטיין
+• חולשות יחסיות - איפה יש קושי
+• פערים משמעותיים בין מדדים (פער מובהק - Significant Discrepancy)
+
+3. השלכות פונקציונליות:
+• השפעה על תפקוד יומיומי
+• השפעה על למידה/תעסוקה
+• תחומים שעלולים להיפגע
+
+4. סימנים מחשידים:
+• האם יש חשד ללקות למידה (לקות למידה - Learning Disability)?
+• האם יש סימנים של קשב וריכוז (הפרעת קשב - ADHD)?
+• פרופיל לא אחיד - מה זה אומר?
+
+5. המלצות:
+• התאמות ספציפיות מומלצות
+• התערבויות לחיזוק תחומים חלשים
+• הפניות מקצועיות נדרשות
+• בירורים נוספים
+
+כל מונח אנגלי חייב להופיע עם תרגום פשוט בעברית.
+
+${getUniversalPromptsLight()}`;
 
     } else {
       // Generic analysis

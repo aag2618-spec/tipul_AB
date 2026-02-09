@@ -25,6 +25,7 @@ import { toast } from "sonner";
 import { RichTextEditor } from "@/components/rich-text-editor";
 import { CompleteSessionDialog } from "@/components/sessions/complete-session-dialog";
 import { SessionPrepCard } from "@/components/ai/session-prep-card";
+import { SessionAnalysisButtons } from "@/components/ai/session-analysis-buttons";
 
 interface NoteAnalysis {
   // Plain text analysis (from SessionAnalysis model)
@@ -452,15 +453,22 @@ export default function SessionDetailPage({
               {noteAnalysis ? (
                 <>
                   <CardHeader className="pb-3">
-                    <CardTitle className="flex items-center gap-2">
-                      <Brain className="h-5 w-5 text-primary" />
-                      ניתוח AI
-                      {noteAnalysis.analysisType && (
-                        <Badge variant="outline" className="text-xs">
-                          {noteAnalysis.analysisType === 'CONCISE' ? 'תמציתי' : 'מפורט'}
-                        </Badge>
-                      )}
-                    </CardTitle>
+                    <div className="flex items-center justify-between">
+                      <CardTitle className="flex items-center gap-2">
+                        <Brain className="h-5 w-5 text-primary" />
+                        ניתוח AI
+                        {noteAnalysis.analysisType && (
+                          <Badge variant="outline" className="text-xs">
+                            {noteAnalysis.analysisType === 'CONCISE' ? 'תמציתי' : 'מפורט'}
+                          </Badge>
+                        )}
+                      </CardTitle>
+                      <SessionAnalysisButtons
+                        sessionId={session.id}
+                        userTier={userTier}
+                        onAnalysisComplete={() => fetchSession()}
+                      />
+                    </div>
                     <CardDescription>ניתוח אוטומטי של סיכום הפגישה</CardDescription>
                   </CardHeader>
                   <CardContent className="space-y-4 max-h-[600px] overflow-y-auto">
@@ -833,8 +841,12 @@ export default function SessionDetailPage({
                 <div className="text-center text-muted-foreground p-6">
                   <Brain className="h-12 w-12 mx-auto mb-3 opacity-30" />
                   <p className="font-medium">ניתוח AI</p>
-                  <p className="text-sm mt-1">כתוב סיכום ולחץ על &quot;נתח עם AI&quot;</p>
-                  <p className="text-sm">לקבלת תובנות וניתוח מקצועי</p>
+                  <p className="text-sm mt-1 mb-4">כתוב סיכום ולחץ על &quot;נתח עם AI&quot; או בחר ניתוח מעמיק:</p>
+                  <SessionAnalysisButtons
+                    sessionId={session.id}
+                    userTier={userTier}
+                    onAnalysisComplete={() => fetchSession()}
+                  />
                 </div>
               )}
             </Card>

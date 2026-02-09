@@ -15,7 +15,7 @@ export async function PATCH(
 
     const { id: clientId } = await params;
     const body = await request.json();
-    const { therapeuticApproaches, approachNotes } = body;
+    const { therapeuticApproaches, approachNotes, culturalContext } = body;
 
     // Verify client belongs to therapist
     const client = await prisma.client.findFirst({
@@ -26,12 +26,13 @@ export async function PATCH(
       return NextResponse.json({ message: "Client not found" }, { status: 404 });
     }
 
-    // Update client approaches
+    // Update client approaches and cultural context
     const updatedClient = await prisma.client.update({
       where: { id: clientId },
       data: {
         therapeuticApproaches: therapeuticApproaches || [],
         approachNotes: approachNotes || null,
+        culturalContext: culturalContext !== undefined ? (culturalContext || null) : undefined,
       },
     });
 

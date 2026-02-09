@@ -3,7 +3,7 @@ import { getServerSession } from "next-auth";
 import { authOptions } from "@/lib/auth";
 import { prisma } from "@/lib/prisma";
 import { GoogleGenerativeAI } from "@google/generative-ai";
-import { getApproachById, getApproachPrompts } from "@/lib/therapeutic-approaches";
+import { getApproachById, getApproachPrompts, buildIntegrationSection, getScalesPrompt, getUniversalPromptsLight } from "@/lib/therapeutic-approaches";
 
 // שימוש ב-Gemini 2.0 Flash בלבד
 const genAI = new GoogleGenerativeAI(process.env.GOOGLE_AI_API_KEY || "");
@@ -89,7 +89,16 @@ export async function POST(req: NextRequest) {
       where: { id: responseId },
       include: {
         template: true,
-        client: true,
+        client: {
+          select: {
+            id: true,
+            name: true,
+            birthDate: true,
+            therapeuticApproaches: true,
+            approachNotes: true,
+            culturalContext: true,
+          }
+        },
       },
     });
 
@@ -105,9 +114,13 @@ export async function POST(req: NextRequest) {
       return NextResponse.json({ error: "אין הרשאה" }, { status: 403 });
     }
 
-    // קבלת גישות טיפוליות - רק לארגוני!
+    // קבלת גישות טיפוליות
     let approachNames = '';
     let approachSection = '';
+    let integrationSection = '';
+    let scalesSection = '';
+    let culturalSection = '';
+    const clientCulturalContext = response.client?.culturalContext || null;
     
     if (user.aiTier === 'ENTERPRISE') {
       const therapeuticApproaches = (response.client?.therapeuticApproaches && response.client.therapeuticApproaches.length > 0)
@@ -122,59 +135,84 @@ export async function POST(req: NextRequest) {
         .filter(Boolean)
         .join(", ");
 
-      // קבלת ה-prompt המפורט של הגישות
-      const approachPrompts = getApproachPrompts(therapeuticApproaches);
+      if (therapeuticApproaches.length > 0) {
+        const approachPrompts = getApproachPrompts(therapeuticApproaches);
+        integrationSection = buildIntegrationSection(therapeuticApproaches);
+        scalesSection = getScalesPrompt(therapeuticApproaches);
 
-      approachSection = approachNames 
-        ? `
-=== גישות טיפוליות מוגדרות: ${approachNames} ===
-
-חובה לנתח את השאלון לפי הגישה/ות הבאות. השתמש במושגים הספציפיים של הגישה!
+        approachSection = `
+=== גישות טיפוליות: ${approachNames} ===
 
 ${approachPrompts}
 
-הנחיות חיוניות:
-• כל הניתוח חייב להיות דרך העדשה של ${approachNames}
-• ציין מושגים ספציפיים מהגישה (עם תרגום עברי אם באנגלית)
-• המלצות חייבות להתבסס על הטכניקות של הגישה
+${integrationSection}
+`;
+      }
+    }
 
-`
-        : '';
+    if (clientCulturalContext) {
+      culturalSection = `
+הקשר תרבותי חשוב:
+${clientCulturalContext}
+שים לב: אל תפרש תשובות שמשקפות נורמות תרבותיות כפתולוגיה. התאם את הפרשנות בהתאם.
+`;
     }
 
     // Prepare prompt
-    const prompt = `חשוב מאוד - כללי פורמט (חובה לציית):
-- כתוב טקסט רגיל בלבד, ללא שום עיצוב
-- אסור להשתמש ב-Markdown: ללא #, ללא **, ללא *, ללא _
-- לכותרות: כתוב את הכותרת בשורה נפרדת עם נקודתיים בסוף
-- לרשימות: השתמש בסימן • בלבד
-- להפרדה: שורה ריקה בין סעיפים
+    const prompt = `כללי פורמט (חובה):
+- כתוב בעברית בלבד, מימין לשמאל
+- מונחים מקצועיים: כתוב קודם בעברית, אנגלית בסוגריים. דוגמה: "פיצול (Splitting)"
+- ללא Markdown: ללא #, ללא **, ללא *, ללא _
+- כותרות: בשורה נפרדת עם נקודתיים
+- רשימות: סימן • בלבד
+- הפרדה: שורה ריקה בין סעיפים
 
-אתה פסיכולוג מומחה המנתח תוצאות שאלונים.
+הנחיה: תתעלם מהתשובה ה"מובנת מאליה" וחפש את הפרדוקס.
+לדוגמה: מטופל שמדווח על חרדה נמוכה אבל הדיכאון גבוה - האם החרדה מוסווית?
+
+אתה פסיכולוג קליני ברמה אקדמית גבוהה. נתח את תוצאות השאלון ברמה של פסיכולוג בכיר.
 ${approachSection}
+${culturalSection}
 שאלון: ${response.template.name} (${response.template.nameEn || ""})
 קטגוריה: ${response.template.category || "כללי"}
 תאריך מילוי: ${response.completedAt?.toLocaleDateString("he-IL") || "לא הושלם"}
+מטופל: ${response.client?.name || "לא ידוע"}
 
 תוצאות:
 ציון כולל: ${response.totalScore || "N/A"}
 תשובות: ${JSON.stringify(response.answers)}
 ${response.subscores ? `ציוני משנה: ${JSON.stringify(response.subscores)}` : ""}
 
-בצע ניתוח מקצועי וממוקד${approachNames ? ` לפי גישות: ${approachNames}` : ''}:
+בצע ניתוח קליני מעמיק${approachNames ? ` לפי ${approachNames}` : ''}:
 
-1. פירוש התוצאות:
-(2-3 שורות - מה משמעות הציון? האם בטווח נורמלי/קל/בינוני/חמור?)
+1. פרשנות קלינית:
+• משמעות הציון הכולל (טווח: נורמלי/קל/בינוני/חמור)
+• מה הציון אומר *באמת* - לא רק המספר
+${approachNames ? `• פרשנות לפי ${approachNames} - איך הגישה מסבירה את הדפוס` : ''}
 
-2. נקודות מרכזיות:
-• ממצאים חשובים בתשובות
-• דפוסים בולטים${approachNames ? ` (לפי המסגרת התיאורטית של ${approachNames})` : ''}
+2. סימנים מחשידים (Red Flags):
+• תשובות שדורשות תשומת לב מיוחדת
+• סתירות בתשובות (למשל: מדווח על מצב רוח טוב אבל שינה מופרעת)
+• פריטים קריטיים (סיכון, פגיעה עצמית)
 
-3. המלצות טיפוליות:
-• המלצות קונקרטיות למטפל${approachNames ? ` בהתאם לגישות ${approachNames}` : ''}
-• טכניקות מומלצות
+3. דפוסים ותובנות:
+• דפוסים בולטים בתשובות${approachNames ? ` (דרך העדשה של ${approachNames})` : ''}
+• מה המטופל *לא* אומר - חסרים בולטים
+• קשר בין תחומים שונים בשאלון
 
-כתוב בעברית, בסגנון מקצועי אך ברור.`;
+4. נקודות חוזק:
+• תחומים חזקים שניתן לבנות עליהם
+• משאבים פנימיים שעולים מהתשובות
+
+5. המלצות קליניות:
+• המלצות קונקרטיות למטפל${approachNames ? ` בהתאם ל-${approachNames}` : ''}
+• טכניקות ספציפיות מומלצות
+• שאלות שכדאי לשאול בפגישה הבאה
+${scalesSection ? `\n6. הערכה כמותית:\n${scalesSection}` : ''}
+
+כל מונח אנגלי חייב להופיע עם תרגום פשוט בעברית.
+
+${getUniversalPromptsLight()}`;
 
     // קריאה ל-Gemini 2.0 Flash
     const model = genAI.getGenerativeModel({ model: GEMINI_MODEL });

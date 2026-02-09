@@ -3,7 +3,7 @@ import { getServerSession } from "next-auth";
 import { authOptions } from "@/lib/auth";
 import { GoogleGenerativeAI } from "@google/generative-ai";
 import prisma from "@/lib/prisma";
-import { getApproachById, getApproachPrompts } from "@/lib/therapeutic-approaches";
+import { getApproachById, getApproachPrompts, buildIntegrationSection, getScalesPrompt, getUniversalPrompts } from "@/lib/therapeutic-approaches";
 
 // Lazy initialization
 let genAI: GoogleGenerativeAI | null = null;
@@ -73,11 +73,12 @@ export async function POST(request: NextRequest) {
 
     // קבלת גישות מהמטופל אם יש
     let therapeuticApproaches = user.therapeuticApproaches || [];
+    let clientCulturalContext: string | null = null;
     
     if (clientId) {
       const client = await prisma.client.findUnique({
         where: { id: clientId },
-        select: { therapeuticApproaches: true }
+        select: { therapeuticApproaches: true, culturalContext: true }
       });
       console.log('🔍 ANALYZE NOTE - Client data:', {
         clientId,
@@ -86,6 +87,7 @@ export async function POST(request: NextRequest) {
       if (client?.therapeuticApproaches && client.therapeuticApproaches.length > 0) {
         therapeuticApproaches = client.therapeuticApproaches;
       }
+      clientCulturalContext = client?.culturalContext || null;
     }
 
     console.log('🔍 ANALYZE NOTE - Final approaches:', {
@@ -131,7 +133,7 @@ ${approachPrompts}
     const isEnterprise = user.aiTier === 'ENTERPRISE' && therapeuticApproaches.length > 0;
     
     const prompt = isEnterprise 
-      ? buildEnterpriseAnalysisPrompt(clientName, approachSection, noteContent, approachNames)
+      ? buildEnterpriseAnalysisPrompt(clientName, approachSection, noteContent, approachNames, therapeuticApproaches, clientCulturalContext)
       : buildBasicAnalysisPrompt(clientName, noteContent);
 
     const result = await model.generateContent(prompt);
@@ -157,140 +159,158 @@ ${approachPrompts}
 }
 
 /**
- * בניית prompt מפורט לתוכנית ארגונית - עם ניתוח עמוק לפי הגישה
- * מיקוד: סיכום והבנה של מה שהיה בפגישה (לא הכנה לעתיד)
+ * בניית prompt מפורט לתוכנית ארגונית - ניתוח עמוק לפי הגישה
+ * גרסה 3.0 - כולל Red Flags, סולמות, אינטגרציה, רגישות תרבותית
  */
 function buildEnterpriseAnalysisPrompt(
   clientName: string | undefined,
   approachSection: string,
   noteContent: string,
-  approachNames: string
+  approachNames: string,
+  approachIds?: string[],
+  culturalContext?: string | null
 ): string {
-  return `חשוב מאוד - כללי פורמט (חובה לציית):
-- כתוב טקסט רגיל בלבד, ללא שום עיצוב
-- אסור להשתמש ב-Markdown: ללא #, ללא **, ללא *, ללא _
-- לכותרות: כתוב את הכותרת בשורה נפרדת עם נקודתיים בסוף
-- לרשימות: השתמש בסימן • בלבד
-- להפרדה: שורה ריקה בין סעיפים
-- מונחים באנגלית: הוסף תרגום עברי בסוגריים
+  // בניית section אינטגרציה אם נבחרו מספר גישות
+  const integrationSection = approachIds ? buildIntegrationSection(approachIds) : '';
+  const scalesSection = approachIds ? getScalesPrompt(approachIds) : '';
+  const universalSection = getUniversalPrompts();
 
-אתה פסיכולוג קליני מומחה ברמה אקדמית גבוהה. 
-המשימה: סיכום וניתוח מעמיק של פגישה טיפולית שכבר התקיימה.
+  return `כללי פורמט (חובה):
+- כתוב בעברית בלבד, מימין לשמאל
+- מונחים מקצועיים: כתוב קודם בעברית, אנגלית בסוגריים. דוגמה: "הזדהות השלכתית (Projective Identification)"
+- ללא Markdown: ללא #, ללא **, ללא *, ללא _
+- כותרות: בשורה נפרדת עם נקודתיים
+- רשימות: סימן • בלבד
 
-חשוב: זהו סיכום אחרי פגישה - לא הכנה לפגישה!
-המיקוד הוא על הבנה עמוקה של מה שקרה, לא על תכנון עתידי.
+הנחיה חשובה: תתעלם מהתשובה ה"מובנת מאליה" וחפש את הפרדוקס.
+
+אתה פסיכולוג קליני מומחה ברמה אקדמית גבוהה.
+המשימה: סיכום וניתוח מעמיק של פגישה שכבר התקיימה.
 
 ${clientName ? `שם המטופל: ${clientName}` : ""}
 ${approachSection}
-
+${integrationSection}
+${universalSection}
+${culturalContext ? `\nהקשר תרבותי חשוב:\n${culturalContext}\nשים לב: אל תפרש התנהגות שהיא נורמטיבית בהקשר התרבותי של המטופל כפתולוגיה. התאם את הניתוח בהתאם.\n` : ""}
 סיכום הפגישה שנכתב על ידי המטפל:
 ${noteContent}
 
-=== הנחיות לסיכום וניתוח מעמיק ===
+חובה: כל הניתוח דרך העדשה של ${approachNames}.
+כל מונח אנגלי חייב להופיע עם תרגום והסבר פשוט בעברית.
 
-חובה: כל הניתוח חייב להיות דרך העדשה של ${approachNames}. 
-השתמש במושגים הספציפיים של הגישה בכל סעיף!
-
-החזר את התשובה בפורמט JSON בלבד (ללא markdown או הסברים) עם המבנה הבא:
+החזר JSON בלבד:
 
 {
-  "summary": "סיכום מקיף ומפורט של הפגישה (5-7 משפטים) - מה עלה, מה נחקר, ומה המשמעות הטיפולית לפי ${approachNames}",
-  
+  "summary": "סיכום מקיף (5-7 משפטים) - מה עלה, מה נחקר, והמשמעות לפי ${approachNames}",
+
   "therapeuticStage": {
-    "currentStage": "באיזה שלב התפתחותי/טיפולי נמצא המטופל כעת לפי ${approachNames} (למשל: שלב המעבר, עמדה דיכאונית, שלב האמון וכו')",
-    "stageIndicators": "מה בפגישה מעיד על השלב הזה",
-    "stageProgress": "האם יש תנועה בין שלבים או התבססות בשלב הנוכחי"
-  },
-  
-  "sessionDeepAnalysis": {
-    "whatActuallyHappened": "תיאור מפורט של מה שקרה בפגישה מבחינה טיפולית - לא רק העובדות, אלא התהליך הפנימי",
-    "therapeuticMoments": "רגעים טיפוליים משמעותיים שקרו בפגישה",
-    "patientExperience": "מה נראה שהמטופל חווה במהלך הפגישה לפי ${approachNames}",
-    "relationshipDynamics": "איך התפתח הקשר הטיפולי בפגישה זו"
+    "currentStage": "שלב לפי ${approachNames} (בעברית + מונח אנגלי בסוגריים)",
+    "stageIndicators": "ראיות מהפגישה",
+    "stageProgress": "תנועה או התבססות"
   },
 
-  "keyThemes": ["נושא מרכזי 1 (עם פרשנות לפי הגישה)", "נושא 2", "נושא 3"],
-  
+  "sessionDeepAnalysis": {
+    "whatActuallyHappened": "התהליך הפנימי - לא רק העובדות",
+    "therapeuticMoments": "רגעים טיפוליים משמעותיים",
+    "whatWasNotSaid": "מה לא נאמר? מעברי נושא חשודים, שתיקות, הימנעויות",
+    "patientExperience": "מה המטופל חווה לפי ${approachNames}",
+    "relationshipDynamics": "איך התפתח הקשר הטיפולי"
+  },
+
+  "keyThemes": ["נושא 1 (עם פרשנות לפי הגישה)", "נושא 2", "נושא 3"],
+
   "approachAnalysis": {
     "conceptsObserved": [
       {
-        "concept": "מושג מהגישה (באנגלית + עברית)",
-        "observation": "איך המושג הזה התבטא בפגישה",
+        "conceptHe": "שם המושג בעברית",
+        "conceptEn": "שם המושג באנגלית",
+        "simpleExplanation": "הסבר פשוט במשפט אחד למטפל מתחיל",
+        "observation": "איך המושג התבטא בפגישה",
         "significance": "המשמעות הטיפולית"
       }
     ],
-    "newInsights": "מה התחדש בהבנת המטופל בפגישה זו שלא היה ידוע קודם - לפי מסגרת ${approachNames}",
-    "progressInApproach": "באיזה מושגים/תחומים של ${approachNames} יש התקדמות או שינוי"
+    "redFlagsDetected": ["סימנים מחשידים שזוהו לפי כללי הגישה"],
+    "newInsights": "מה התחדש בהבנת המטופל",
+    "progressInApproach": "התקדמות במושגי ${approachNames}"
   },
-  
-  "therapistBlindSpots": {
-    "possibleMisses": ["דבר שייתכן שהמטפל לא שם לב אליו בפגישה לפי ${approachNames}"],
-    "unexploredAreas": ["תחום שעלה אבל לא נחקר מספיק"],
-    "alternativeInterpretations": "פרשנות אחרת אפשרית למה שקרה לפי הגישה"
+
+  ${(approachIds?.length ?? 0) > 1 ? `"integrationAnalysis": {
+    "convergences": "איפה הגישות מאירות את אותו דבר מזוויות שונות",
+    "uniqueContributions": "מה כל גישה תורמת שרק היא יכולה",
+    "paradoxes": "סתירות מעניינות בין הגישות שמעמיקות את ההבנה"
+  },` : ''}
+
+  "topicShiftsAnalysis": {
+    "shifts": ["מעבר נושא חשוד 1 - מה הנושא שנמנע?"],
+    "defenseMechanisms": [
+      {
+        "defenseHe": "שם ההגנה בעברית",
+        "defenseEn": "שם ההגנה באנגלית",
+        "simpleExplanation": "הסבר פשוט",
+        "manifestation": "איך התבטא",
+        "approachPerspective": "פרשנות לפי ${approachNames}"
+      }
+    ]
   },
-  
+
   "transferenceAnalysis": {
     "transference": {
-      "type": "סוג ההעברה לפי ${approachNames}",
-      "manifestation": "איך ההעברה התבטאה בפגישה",
-      "meaning": "המשמעות לפי המסגרת התיאורטית"
+      "type": "סוג ההעברה (עברית + אנגלית)",
+      "manifestation": "איך התבטאה",
+      "meaning": "משמעות לפי ${approachNames}"
     },
     "countertransference": {
       "feelings": "מה המטפל עלול לחוות",
-      "meaning": "המשמעות לפי ${approachNames}",
+      "meaning": "משמעות לפי ${approachNames}",
       "recommendation": "איך להשתמש בזה טיפולית"
     }
   },
-  
-  "defensesMechanisms": [
+
+  "quantitativeAssessment": [
     {
-      "defense": "שם ההגנה (באנגלית + עברית)",
-      "approachPerspective": "איך ${approachNames} מבינה את ההגנה הזו",
-      "manifestation": "איך זה התבטא בפגישה",
-      "therapeuticApproach": "איך לגשת לזה טיפולית לפי הגישה"
+      "scaleName": "שם הסולם (עברית + אנגלית)",
+      "score": "1-10",
+      "evidence": "ראיות לדירוג",
+      "trend": "עלייה/ירידה/יציבות לעומת פגישות קודמות"
     }
   ],
-  
+
+  "blindSpots": {
+    "possibleMisses": ["מה המטפל אולי פיספס"],
+    "unexploredAreas": ["תחום שלא נחקר מספיק"],
+    "alternativeInterpretations": "פרשנות חלופית"
+  },
+
   "progressIndicators": [
     {
       "area": "תחום לפי מושגי ${approachNames}",
       "status": "improving/stable/concerning",
-      "notes": "פירוט לפי הגישה"
+      "notes": "פירוט"
     }
   ],
-  
-  "clinicalObservations": ["תצפית קלינית 1 (לפי הגישה)", "תצפית 2"],
-  
-  "recommendationsForTherapist": {
-    "keyTakeaways": ["מסקנה חשובה 1 מהפגישה", "מסקנה 2"],
-    "attentionPoints": ["נקודה לתשומת לב בהמשך הטיפול"],
-    "therapeuticDirection": "המלצה לכיוון הטיפולי לפי ${approachNames}"
+
+  "clinicalObservations": ["תצפית 1", "תצפית 2"],
+
+  "recommendations": {
+    "keyTakeaways": ["מסקנה 1", "מסקנה 2"],
+    "interventions": [
+      {
+        "intervention": "התערבות מומלצת (עברית + אנגלית)",
+        "rationale": "למה זה מתאים לפי ${approachNames}",
+        "howTo": "איך לבצע בפועל"
+      }
+    ],
+    "questionsForNext": [
+      {
+        "question": "שאלה מנוסחת לפי סגנון ${approachNames}",
+        "purpose": "מה רוצים לברר"
+      }
+    ],
+    "therapeuticStance": "עמדה טיפולית מומלצת לפי ${approachNames}",
+    "whatToAvoid": "ממה להיזהר"
   },
-  
-  "questionsForNextSession": [
-    {
-      "question": "השאלה עצמה",
-      "purpose": "מה אנחנו רוצים לברר",
-      "approachStyle": "איך לשאול את זה לפי סגנון ${approachNames}"
-    }
-  ],
-  
-  "suggestedInterventions": [
-    {
-      "intervention": "ההתערבות המומלצת להמשך",
-      "rationale": "למה זה מתאים לפי ${approachNames}",
-      "howTo": "איך לבצע בפועל"
-    }
-  ],
-  
-  "approachToPatient": {
-    "recommendedStance": "העמדה הטיפולית המומלצת לפי ${approachNames}",
-    "whatToExplore": "מה כדאי לחקור יותר לעומק בהמשך",
-    "whatToAvoid": "ממה להיזהר או להימנע",
-    "timing": "מתי ואיך לגשת לנושאים רגישים"
-  },
-  
-  "riskFactors": ["גורם סיכון אם זוהה, או מערך ריק אם אין"]
+
+  "riskFactors": []
 }`;
 }
 

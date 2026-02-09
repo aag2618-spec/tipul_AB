@@ -1,0 +1,618 @@
+<!DOCTYPE html>
+<html lang="he" dir="rtl">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>סיכום מערכת AI - טיפול AB</title>
+    <style>
+        * { margin: 0; padding: 0; box-sizing: border-box; }
+        body {
+            font-family: 'Segoe UI', Tahoma, Arial, sans-serif;
+            background: #0f172a;
+            color: #e2e8f0;
+            line-height: 1.7;
+            padding: 40px 20px;
+        }
+        .container { max-width: 1100px; margin: 0 auto; }
+        
+        h1 {
+            text-align: center;
+            font-size: 2.2em;
+            background: linear-gradient(135deg, #60a5fa, #a78bfa, #f472b6);
+            -webkit-background-clip: text;
+            -webkit-text-fill-color: transparent;
+            margin-bottom: 8px;
+        }
+        .subtitle {
+            text-align: center;
+            color: #94a3b8;
+            font-size: 1.1em;
+            margin-bottom: 40px;
+        }
+        .date {
+            text-align: center;
+            color: #64748b;
+            font-size: 0.9em;
+            margin-bottom: 50px;
+        }
+
+        /* Section */
+        .section {
+            background: #1e293b;
+            border-radius: 16px;
+            padding: 32px;
+            margin-bottom: 24px;
+            border: 1px solid #334155;
+            transition: transform 0.2s;
+        }
+        .section:hover { transform: translateY(-2px); border-color: #475569; }
+
+        .section-title {
+            font-size: 1.4em;
+            color: #60a5fa;
+            margin-bottom: 16px;
+            display: flex;
+            align-items: center;
+            gap: 10px;
+        }
+        .section-title .icon { font-size: 1.3em; }
+
+        /* Cards grid */
+        .cards { display: grid; grid-template-columns: 1fr 1fr; gap: 16px; margin-top: 16px; }
+        @media (max-width: 768px) { .cards { grid-template-columns: 1fr; } }
+
+        .card {
+            background: #0f172a;
+            border-radius: 12px;
+            padding: 20px;
+            border: 1px solid #334155;
+        }
+        .card-title {
+            color: #a78bfa;
+            font-weight: 700;
+            font-size: 1.05em;
+            margin-bottom: 8px;
+        }
+        .card-location {
+            color: #f472b6;
+            font-size: 0.85em;
+            margin-bottom: 10px;
+            display: flex;
+            align-items: center;
+            gap: 6px;
+        }
+
+        /* Lists */
+        ul { list-style: none; padding: 0; }
+        li {
+            padding: 4px 0;
+            padding-right: 18px;
+            position: relative;
+            color: #cbd5e1;
+            font-size: 0.95em;
+        }
+        li::before {
+            content: "•";
+            position: absolute;
+            right: 0;
+            color: #60a5fa;
+            font-weight: bold;
+        }
+
+        /* Table */
+        table {
+            width: 100%;
+            border-collapse: collapse;
+            margin-top: 16px;
+            font-size: 0.9em;
+        }
+        th {
+            background: #334155;
+            color: #e2e8f0;
+            padding: 12px 16px;
+            text-align: right;
+            font-weight: 600;
+        }
+        td {
+            padding: 10px 16px;
+            border-bottom: 1px solid #1e293b;
+            color: #cbd5e1;
+        }
+        tr:nth-child(even) { background: #0f172a; }
+        .check { color: #34d399; font-weight: bold; }
+        .dash { color: #475569; }
+
+        /* Approach badges */
+        .approach-badge {
+            display: inline-block;
+            background: #1e293b;
+            border: 1px solid #475569;
+            border-radius: 20px;
+            padding: 6px 14px;
+            margin: 4px;
+            font-size: 0.85em;
+            color: #a78bfa;
+        }
+
+        /* Status */
+        .status-new {
+            display: inline-block;
+            background: #065f46;
+            color: #34d399;
+            padding: 2px 10px;
+            border-radius: 10px;
+            font-size: 0.75em;
+            font-weight: 600;
+            margin-right: 8px;
+        }
+        .status-upgraded {
+            display: inline-block;
+            background: #713f12;
+            color: #fbbf24;
+            padding: 2px 10px;
+            border-radius: 10px;
+            font-size: 0.75em;
+            font-weight: 600;
+            margin-right: 8px;
+        }
+
+        /* Divider */
+        .divider {
+            border: none;
+            border-top: 1px solid #334155;
+            margin: 30px 0;
+        }
+
+        /* Flow diagram */
+        .flow {
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            gap: 12px;
+            flex-wrap: wrap;
+            margin: 20px 0;
+        }
+        .flow-item {
+            background: #334155;
+            padding: 10px 18px;
+            border-radius: 10px;
+            font-size: 0.9em;
+            color: #e2e8f0;
+        }
+        .flow-arrow { color: #60a5fa; font-size: 1.3em; }
+
+        /* Footer */
+        .footer {
+            text-align: center;
+            color: #475569;
+            margin-top: 50px;
+            padding: 20px;
+            font-size: 0.85em;
+        }
+    </style>
+</head>
+<body>
+    <div class="container">
+        <h1>מערכת AI - טיפול AB</h1>
+        <p class="subtitle">סיכום מלא של כל יכולות הבינה המלאכותית, מיקומים, ושדרוגים</p>
+        <p class="date">עדכון אחרון: 7 בפברואר 2026</p>
+
+        <!-- ═══════════════════════════════════ -->
+        <!-- SECTION 1: 7 Therapeutic Approaches -->
+        <!-- ═══════════════════════════════════ -->
+        <div class="section">
+            <div class="section-title">
+                <span class="icon">🧠</span>
+                7 גישות טיפוליות עמוקות
+            </div>
+            <p style="color: #94a3b8; margin-bottom: 16px;">
+                כל גישה כוללת: רקע תיאורטי, מושגי מפתח עם תרגום עברי, כללי זיהוי ("אם X → בדוק Y"), רגישות תרבותית, סולם כמותי (1-10), ו-21 נקודות אינטגרציה בין גישות.
+            </p>
+            <div style="text-align: center; margin: 16px 0;">
+                <span class="approach-badge">CBT - בק</span>
+                <span class="approach-badge">מאהלר - הפרדה-יחידנות</span>
+                <span class="approach-badge">ויניקוט - החזקה ואובייקט מעבר</span>
+                <span class="approach-badge">בולבי - התקשרות</span>
+                <span class="approach-badge">קליין - יחסי אובייקט</span>
+                <span class="approach-badge">קוהוט - פסיכולוגיית עצמי</span>
+                <span class="approach-badge">יאלום - אקזיסטנציאלי</span>
+            </div>
+            <p style="color: #64748b; font-size: 0.85em; text-align: center;">
+                קובץ: <code>src/lib/therapeutic-approaches.ts</code> (~1,300 שורות)
+            </p>
+        </div>
+
+        <!-- ═══════════════════════════════════ -->
+        <!-- SECTION 2: All AI Features & Locations -->
+        <!-- ═══════════════════════════════════ -->
+        <div class="section">
+            <div class="section-title">
+                <span class="icon">📍</span>
+                כל כפתורי ה-AI ומיקומם
+            </div>
+
+            <div class="cards">
+                <!-- Card 1 -->
+                <div class="card">
+                    <div class="card-title">הכנה לפגישה</div>
+                    <div class="card-location">📄 דף פגישה → למעלה</div>
+                    <ul>
+                        <li>כפתור: "צור הכנה לפגישה"</li>
+                        <li>מנתח: 5 פגישות אחרונות + שאלונים מ-30 יום אחרונים</li>
+                        <li><b>מה מייצר:</b></li>
+                        <li>השורה התחתונה (מה הכי חשוב)</li>
+                        <li>מה נשאר פתוח מפגישות קודמות</li>
+                        <li>ניתוח לפי הגישה הטיפולית</li>
+                        <li>מה לעשות / מה לא לעשות ("זהירות מ...")</li>
+                        <li>שאלות מוצעות</li>
+                        <li>הערכת סיכון (רקע)</li>
+                        <li>שאלות סופרוויז'ן</li>
+                    </ul>
+                </div>
+
+                <!-- Card 2 -->
+                <div class="card">
+                    <div class="card-title">ניתוח הערה מהיר</div>
+                    <div class="card-location">📄 דף פגישה → צד שמאל (עורך טקסט)</div>
+                    <ul>
+                        <li>כפתור: "נתח עם AI"</li>
+                        <li>מנתח: הערת הפגישה הנוכחית</li>
+                        <li><b>מה מייצר:</b></li>
+                        <li>סיכום + נושאים מרכזיים</li>
+                        <li>ניתוח לפי גישה (Enterprise)</li>
+                        <li>אינטגרציה בין גישות</li>
+                        <li>Red Flags + סולמות כמותיים</li>
+                        <li>העברה + מעברי נושא + העברה נגדית</li>
+                        <li>הערכת סיכון + שאלות סופרוויז'ן</li>
+                        <li>ברית טיפולית (שבר/חידוש)</li>
+                    </ul>
+                </div>
+
+                <!-- Card 3 -->
+                <div class="card">
+                    <div class="card-title">ניתוח פגישה (תמציתי / מפורט) <span class="status-new">חדש</span></div>
+                    <div class="card-location">📄 דף פגישה → צד ימין (כרטיסיית ניתוח AI)</div>
+                    <ul>
+                        <li>כפתורים: "ניתוח תמציתי" / "ניתוח מפורט"</li>
+                        <li>מנתח: סיכום הפגישה + הקשר מטופל</li>
+                        <li><b>תמציתי (250-400 מילים):</b></li>
+                        <li>ניתוח ממוקד לפי גישה + אינטגרציה</li>
+                        <li>הקשר תרבותי + הערכת סיכון</li>
+                        <li><b>מפורט (500-700 מילים) - Enterprise:</b></li>
+                        <li>כל מה שבתמציתי + סולמות כמותיים</li>
+                        <li>מעברי נושא + העברה/העברה נגדית</li>
+                        <li>ברית טיפולית + שאלות סופרוויז'ן</li>
+                    </ul>
+                </div>
+
+                <!-- Card 4 -->
+                <div class="card">
+                    <div class="card-title">ניתוח שאלון בודד <span class="status-new">חובר</span></div>
+                    <div class="card-location">👤 דף מטופל → פרופיל → שאלונים</div>
+                    <ul>
+                        <li>כפתור: "נתח" (ליד כל שאלון)</li>
+                        <li>מנתח: תשובות השאלון + ציונים</li>
+                        <li><b>מה מייצר:</b></li>
+                        <li>פרשנות קלינית לפי הגישה</li>
+                        <li>Red Flags: סתירות, תשובות "רצויות חברתית"</li>
+                        <li>דפוסים + מה שלא נאמר</li>
+                        <li>המלצות + שאלות לפגישה הבאה</li>
+                        <li>הערכת סיכון + שאלות סופרוויז'ן</li>
+                    </ul>
+                </div>
+
+                <!-- Card 5 -->
+                <div class="card">
+                    <div class="card-title">ניתוח כל השאלונים <span class="status-new">חובר</span></div>
+                    <div class="card-location">👤 דף מטופל → פרופיל → שאלונים</div>
+                    <ul>
+                        <li>כפתור: "נתח את כל השאלונים"</li>
+                        <li>מנתח: כל השאלונים של מטופל ביחד</li>
+                        <li><b>מה מייצר:</b></li>
+                        <li>תמונה קלינית כוללת</li>
+                        <li>סתירות ופרדוקסים בין שאלונים</li>
+                        <li>Red Flags + אינטגרציה בין גישות</li>
+                        <li>סדר עדיפויות קליני + המלצות</li>
+                        <li>הערכת סיכון + שאלות סופרוויז'ן</li>
+                    </ul>
+                </div>
+
+                <!-- Card 6 -->
+                <div class="card">
+                    <div class="card-title">דוח התקדמות <span class="status-upgraded">שודרג</span></div>
+                    <div class="card-location">👤 דף מטופל → פרופיל → שאלונים</div>
+                    <ul>
+                        <li>כפתור: "דוח התקדמות (30 יום)"</li>
+                        <li>מנתח: שאלונים + פגישות בטווח תאריכים</li>
+                        <li><b>מה מייצר:</b></li>
+                        <li>מגמות בשאלונים (שיפור/החמרה)</li>
+                        <li>תהליך טיפולי מסיכומי פגישות</li>
+                        <li>אינטגרציה: שאלונים מול פגישות</li>
+                        <li>פרדוקסים: שיפור באזור + החמרה באחר</li>
+                        <li>כל המודולים האוניברסליים</li>
+                    </ul>
+                </div>
+
+                <!-- Card 7 -->
+                <div class="card">
+                    <div class="card-title">ניתוח AI מעמיק (סיכומים) <span class="status-upgraded">שודרג</span></div>
+                    <div class="card-location">👤 דף מטופל → סיכומים → כל הסיכומים</div>
+                    <ul>
+                        <li>כפתור: "ניתוח AI מעמיק"</li>
+                        <li>מנתח: כל סיכומי הפגישות של המטופל</li>
+                        <li><b>מה מייצר:</b></li>
+                        <li>מהלך טיפול + נקודות מפנה</li>
+                        <li>דפוסים + מה שנתקע</li>
+                        <li>פרדוקסים + דינמיקה טיפולית</li>
+                        <li>כל המודולים האוניברסליים</li>
+                    </ul>
+                </div>
+
+                <!-- Card 8 -->
+                <div class="card">
+                    <div class="card-title">מתמלול</div>
+                    <div class="card-location">📄 דף פגישה → צד שמאל</div>
+                    <ul>
+                        <li>כפתור: "מתמלול" (Sparkles icon)</li>
+                        <li>מנתח: תמלול הקלטת פגישה</li>
+                        <li><b>מה מייצר:</b></li>
+                        <li>סיכום אוטומטי מהתמלול</li>
+                        <li>ניתוח דפוסים רגשיים, התנהגותיים, יחסיים</li>
+                        <li>ניתוח לפי גישה + המלצות</li>
+                    </ul>
+                </div>
+            </div>
+        </div>
+
+        <!-- ═══════════════════════════════════ -->
+        <!-- SECTION 3: Universal Modules -->
+        <!-- ═══════════════════════════════════ -->
+        <div class="section">
+            <div class="section-title">
+                <span class="icon">🔧</span>
+                מודולים אוניברסליים (חלים על כל ניתוח)
+            </div>
+            <p style="color: #94a3b8; margin-bottom: 20px;">
+                מודולים שמוזרקים אוטומטית לכל prompt. חלקם חלים על כל סוגי הניתוח (Full) וחלקם רק על ניתוח פגישות (מסומנים).
+            </p>
+
+            <table>
+                <thead>
+                    <tr>
+                        <th>מודול</th>
+                        <th>מה עושה</th>
+                        <th>פגישות</th>
+                        <th>שאלונים</th>
+                        <th>הכנה</th>
+                        <th>דוח</th>
+                    </tr>
+                </thead>
+                <tbody>
+                    <tr>
+                        <td><b>הערכת סיכון</b></td>
+                        <td>סריקת רקע. שקט אם תקין, בולט אם סיכון</td>
+                        <td class="check">✓</td>
+                        <td class="check">✓</td>
+                        <td class="check">✓</td>
+                        <td class="check">✓</td>
+                    </tr>
+                    <tr>
+                        <td><b>שאלות סופרוויז'ן</b></td>
+                        <td>2-3 שאלות חדות בסוף (כמו מדריך קליני)</td>
+                        <td class="check">✓</td>
+                        <td class="check">✓</td>
+                        <td class="check">✓</td>
+                        <td class="check">✓</td>
+                    </tr>
+                    <tr>
+                        <td><b>עיצוב Output</b></td>
+                        <td>קצר, ממוקד, כותרות חדות, ללא חזרות</td>
+                        <td class="check">✓</td>
+                        <td class="check">✓</td>
+                        <td class="check">✓</td>
+                        <td class="check">✓</td>
+                    </tr>
+                    <tr>
+                        <td><b>מעברי נושא</b></td>
+                        <td>זיהוי הימנעות, ריחוק רגשי, התנגדות</td>
+                        <td class="check">✓</td>
+                        <td class="dash">—</td>
+                        <td class="dash">—</td>
+                        <td class="check">✓</td>
+                    </tr>
+                    <tr>
+                        <td><b>העברה</b></td>
+                        <td>דפוסי יחסים שמוקרנים על המטפל</td>
+                        <td class="check">✓</td>
+                        <td class="dash">—</td>
+                        <td class="dash">—</td>
+                        <td class="check">✓</td>
+                    </tr>
+                    <tr>
+                        <td><b>רגישות תרבותית</b></td>
+                        <td>לא לפרש נורמות תרבותיות כפתולוגיה</td>
+                        <td class="check">✓</td>
+                        <td class="dash">—</td>
+                        <td class="dash">—</td>
+                        <td class="check">✓</td>
+                    </tr>
+                    <tr>
+                        <td><b>ברית טיפולית</b></td>
+                        <td>שבר (Rupture) וחידוש (Repair)</td>
+                        <td class="check">✓</td>
+                        <td class="dash">—</td>
+                        <td class="dash">—</td>
+                        <td class="check">✓</td>
+                    </tr>
+                    <tr>
+                        <td><b>העברה נגדית</b></td>
+                        <td>זיהוי מסגנון כתיבת המטפל</td>
+                        <td class="check">✓</td>
+                        <td class="dash">—</td>
+                        <td class="dash">—</td>
+                        <td class="check">✓</td>
+                    </tr>
+                </tbody>
+            </table>
+        </div>
+
+        <!-- ═══════════════════════════════════ -->
+        <!-- SECTION 4: Cultural Context -->
+        <!-- ═══════════════════════════════════ -->
+        <div class="section">
+            <div class="section-title">
+                <span class="icon">🌍</span>
+                שדה הקשר תרבותי <span class="status-new">חדש</span>
+            </div>
+            <div class="card-location" style="margin-bottom: 12px;">📍 דף מטופל → פרופיל → הגדרות AI (באותו דיאלוג של בחירת גישות)</div>
+            <ul>
+                <li>שדה טקסט חופשי, אופציונלי</li>
+                <li>דוגמה: "מטופל מהמגזר החרדי-ליטאי. ציות לסמכות רבנית נורמטיבי. הפרדה מגדרית - לא הימנעות."</li>
+                <li>מועבר לכל 10 נקודות ניתוח AI במערכת</li>
+                <li>הנחיה ל-AI: "אל תפרש התנהגות נורמטיבית כפתולוגיה"</li>
+            </ul>
+            <p style="color: #64748b; font-size: 0.85em; margin-top: 12px;">
+                שינויים: schema.prisma + client-approach-editor + API route + כל ה-prompts
+            </p>
+        </div>
+
+        <!-- ═══════════════════════════════════ -->
+        <!-- SECTION 5: Risk Assessment Logic -->
+        <!-- ═══════════════════════════════════ -->
+        <div class="section">
+            <div class="section-title">
+                <span class="icon">🚨</span>
+                הערכת סיכון - לוגיקה היברידית <span class="status-new">חדש</span>
+            </div>
+            <div class="flow">
+                <div class="flow-item">AI סורק ברקע</div>
+                <span class="flow-arrow">←</span>
+                <div class="flow-item">הכל תקין?</div>
+                <span class="flow-arrow">←</span>
+                <div class="flow-item" style="border: 1px solid #34d399;">שורה אחת בסוף</div>
+            </div>
+            <div class="flow">
+                <div class="flow-item">AI סורק ברקע</div>
+                <span class="flow-arrow">←</span>
+                <div class="flow-item">יש משהו?</div>
+                <span class="flow-arrow">←</span>
+                <div class="flow-item" style="border: 1px solid #fbbf24;">סעיף בולט בראש</div>
+            </div>
+            <div class="flow">
+                <div class="flow-item">AI סורק ברקע</div>
+                <span class="flow-arrow">←</span>
+                <div class="flow-item">דחוף!</div>
+                <span class="flow-arrow">←</span>
+                <div class="flow-item" style="border: 1px solid #ef4444;">התראה אדומה בראש</div>
+            </div>
+            <p style="color: #94a3b8; margin-top: 16px; text-align: center;">
+                סורק: אובדנות, פגיעה עצמית, פגיעה באחרים, התעללות, חומרים, ניתוק מציאות, אובדן תפקוד
+            </p>
+        </div>
+
+        <!-- ═══════════════════════════════════ -->
+        <!-- SECTION 6: Files Changed -->
+        <!-- ═══════════════════════════════════ -->
+        <div class="section">
+            <div class="section-title">
+                <span class="icon">📁</span>
+                קבצים שהשתנו
+            </div>
+            <table>
+                <thead>
+                    <tr>
+                        <th>קובץ</th>
+                        <th>שינוי</th>
+                    </tr>
+                </thead>
+                <tbody>
+                    <tr>
+                        <td><code>src/lib/therapeutic-approaches.ts</code></td>
+                        <td>נבנה מחדש: 7 גישות + 21 אינטגרציות + 8 מודולים אוניברסליים + פונקציות עזר</td>
+                    </tr>
+                    <tr>
+                        <td><code>src/lib/openai.ts</code></td>
+                        <td>הוסרו 13 גישות ישנות, מחובר למערכת החדשה</td>
+                    </tr>
+                    <tr>
+                        <td><code>prisma/schema.prisma</code></td>
+                        <td>נוסף שדה culturalContext ל-Client</td>
+                    </tr>
+                    <tr>
+                        <td><code>src/components/clients/client-approach-editor.tsx</code></td>
+                        <td>נוסף שדה הקשר תרבותי + כפתור ניקוי</td>
+                    </tr>
+                    <tr>
+                        <td><code>src/app/api/clients/[id]/approaches/route.ts</code></td>
+                        <td>שמירת culturalContext</td>
+                    </tr>
+                    <tr>
+                        <td><code>src/app/api/ai/session/analyze/route.ts</code></td>
+                        <td>שודרג: culturalContext + מודולים אוניברסליים</td>
+                    </tr>
+                    <tr>
+                        <td><code>src/app/api/analyze/note/route.ts</code></td>
+                        <td>שודרג: culturalContext + מודולים אוניברסליים</td>
+                    </tr>
+                    <tr>
+                        <td><code>src/app/api/ai/session-prep/route.ts</code></td>
+                        <td>שודרג: culturalContext + שאלונים אחרונים + prompt חדש + מודולים</td>
+                    </tr>
+                    <tr>
+                        <td><code>src/app/api/ai/questionnaire/analyze-single/route.ts</code></td>
+                        <td>שודרג: culturalContext + אינטגרציה + Red Flags + RTL + מודולים</td>
+                    </tr>
+                    <tr>
+                        <td><code>src/app/api/ai/questionnaire/analyze-combined/route.ts</code></td>
+                        <td>שודרג: culturalContext + אינטגרציה + פרדוקסים + מודולים</td>
+                    </tr>
+                    <tr>
+                        <td><code>src/app/api/ai/questionnaire/progress-report/route.ts</code></td>
+                        <td>שודרג: culturalContext + אינטגרציה + סולמות + מודולים מלאים</td>
+                    </tr>
+                    <tr>
+                        <td><code>src/app/api/questionnaires/responses/[id]/analyze/route.ts</code></td>
+                        <td>שודרג: culturalContext + Red Flags + RTL + מודולים (3 סוגי מבחנים)</td>
+                    </tr>
+                    <tr>
+                        <td><code>src/app/api/analyze/summary/route.ts</code></td>
+                        <td>שודרג: culturalContext + פרדוקסים + מודולים מלאים</td>
+                    </tr>
+                    <tr>
+                        <td><code>src/app/(dashboard)/dashboard/sessions/[id]/page.tsx</code></td>
+                        <td>חובר: SessionAnalysisButtons לכרטיסיית ניתוח AI</td>
+                    </tr>
+                    <tr>
+                        <td><code>src/app/(dashboard)/dashboard/clients/[id]/page.tsx</code></td>
+                        <td>חובר: QuestionnaireAnalysis + culturalContext</td>
+                    </tr>
+                </tbody>
+            </table>
+        </div>
+
+        <!-- ═══════════════════════════════════ -->
+        <!-- SECTION 7: What's Left -->
+        <!-- ═══════════════════════════════════ -->
+        <div class="section">
+            <div class="section-title">
+                <span class="icon">⚡</span>
+                מה צריך להריץ
+            </div>
+            <div class="card" style="margin-top: 12px;">
+                <div class="card-title">Prisma Migration</div>
+                <p style="color: #cbd5e1; margin-top: 8px;">
+                    כדי שהשדה <code>culturalContext</code> ייווצר במסד הנתונים:
+                </p>
+                <div style="background: #334155; padding: 14px; border-radius: 8px; margin-top: 10px; font-family: monospace; color: #34d399; direction: ltr; text-align: left;">
+                    npx prisma migrate dev --name add-cultural-context
+                </div>
+            </div>
+        </div>
+
+        <div class="footer">
+            טיפול AB — מערכת AI לניתוח פגישות טיפוליות<br>
+            נבנה עם Claude 4.6 • Gemini 2.0 Flash • Next.js • Prisma
+        </div>
+    </div>
+</body>
+</html>

@@ -3,7 +3,7 @@ import { getServerSession } from "next-auth";
 import { authOptions } from "@/lib/auth";
 import { generateSessionSummary, analyzeText } from "@/lib/google-ai";
 import prisma from "@/lib/prisma";
-import { getApproachById, getApproachPrompts } from "@/lib/therapeutic-approaches";
+import { getApproachById, getApproachPrompts, getUniversalPrompts } from "@/lib/therapeutic-approaches";
 
 export async function POST(request: NextRequest) {
   try {
@@ -32,14 +32,16 @@ export async function POST(request: NextRequest) {
     // קבלת גישות מהמטופל אם יש
     let therapeuticApproaches = user.therapeuticApproaches || [];
     
+    let clientCulturalContext: string | null = null;
     if (clientId) {
       const client = await prisma.client.findUnique({
         where: { id: clientId },
-        select: { therapeuticApproaches: true }
+        select: { therapeuticApproaches: true, culturalContext: true }
       });
       if (client?.therapeuticApproaches && client.therapeuticApproaches.length > 0) {
         therapeuticApproaches = client.therapeuticApproaches;
       }
+      clientCulturalContext = client?.culturalContext || null;
     }
 
     // בניית section של גישות טיפוליות - רק ל-ENTERPRISE
@@ -90,23 +92,53 @@ ${approachPrompts}
         .map((s: any) => `תאריך: ${s.date}\n${s.content}`)
         .join("\n\n---\n\n");
 
-      const prompt = `חשוב מאוד - כללי פורמט (חובה לציית):
-- כתוב טקסט רגיל בלבד, ללא שום עיצוב
-- אסור להשתמש ב-Markdown: ללא #, ללא **, ללא *, ללא _
-- לכותרות: כתוב את הכותרת בשורה נפרדת עם נקודתיים בסוף
-- לרשימות: השתמש בסימן • בלבד
-- להפרדה: שורה ריקה בין סעיפים
+      const culturalSection = clientCulturalContext
+        ? `\nהקשר תרבותי חשוב:\n${clientCulturalContext}\nשים לב: התאם את הניתוח להקשר התרבותי של המטופל.\n`
+        : '';
 
-אתה פסיכולוג מומחה. קיבלת ${summaries.length} סיכומי פגישות של מטופל${clientName ? ` בשם ${clientName}` : ""}.
+      const prompt = `כללי פורמט (חובה):
+- כתוב בעברית בלבד, מימין לשמאל
+- מונחים מקצועיים: כתוב קודם בעברית, אנגלית בסוגריים
+- ללא Markdown: ללא #, ללא **, ללא *, ללא _
+- כותרות: בשורה נפרדת עם נקודתיים
+- רשימות: סימן • בלבד
+- הפרדה: שורה ריקה בין סעיפים
+
+הנחיה: חפש את מה שהשתנה ואת מה שנשאר תקוע. חפש את הפרדוקסים.
+
+אתה פסיכולוג קליני ברמה אקדמית גבוהה. קיבלת ${summaries.length} סיכומי פגישות של מטופל${clientName ? ` בשם ${clientName}` : ""}.
 ${approachSection}
-ניתח בצורה מעמיקה את כל הפגישות ביחד וספק:
+${culturalSection}
+ניתח בצורה מעמיקה ברמה של פסיכולוג בכיר:
 
-1. סיכום כללי: סקירה של מהלך הטיפול
-2. נושאים מרכזיים: מה הנושאים החוזרים והמרכזיים בטיפול
-3. דפוסים זוהו: התנהגויות, מחשבות או רגשות שחוזרים על עצמם
-4. התקדמות: שינויים והתפתחות לאורך זמן
-5. תובנות טיפוליות: מה ניתן ללמוד מהמהלך הכולל
-6. המלצות להמשך: הצעות לכיוונים טיפוליים
+1. סיכום מהלך הטיפול:
+• סקירה כוללת - היכן התחלנו, היכן אנחנו
+• נקודות מפנה בטיפול
+
+2. נושאים מרכזיים:
+• נושאים חוזרים ומשמעותם
+• נושאים שנעלמו - האם נפתרו או הודחקו?
+
+3. דפוסים שזוהו:
+• דפוסים רגשיים, התנהגותיים, ויחסיים
+• מה חוזר שוב ושוב ולמה?
+
+4. התקדמות לאורך זמן:
+• שינויים חיוביים ומה אפשר אותם
+• תחומים שנתקעו - למה?
+• פרדוקסים: שיפור באזור אחד עם החמרה באחר
+
+5. תובנות קליניות:
+• מה ניתן ללמוד מהמהלך הכולל?
+• דינמיקה טיפולית (ברית טיפולית - Therapeutic Alliance)
+
+6. המלצות להמשך:
+• כיוונים טיפוליים מומלצים
+• מה לשים לב אליו
+
+כל מונח אנגלי חייב להופיע עם תרגום פשוט בעברית.
+
+${getUniversalPrompts()}
 
 הסיכומים:
 
