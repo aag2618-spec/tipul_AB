@@ -466,7 +466,7 @@ export default function SessionDetailPage({
                       <SessionAnalysisButtons
                         sessionId={session.id}
                         userTier={userTier}
-                        onAnalysisComplete={() => fetchSession()}
+                        onAnalysisComplete={() => refreshSession()}
                       />
                     </div>
                     <CardDescription>ניתוח אוטומטי של סיכום הפגישה</CardDescription>
@@ -845,7 +845,7 @@ export default function SessionDetailPage({
                   <SessionAnalysisButtons
                     sessionId={session.id}
                     userTier={userTier}
-                    onAnalysisComplete={() => fetchSession()}
+                    onAnalysisComplete={() => refreshSession()}
                   />
                 </div>
               )}
