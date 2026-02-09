@@ -99,12 +99,13 @@ export async function PUT(
       
       // Create a child payment record for tracking if there was a previous payment
       // This helps track partial payment history
+      // Note: sessionId is NOT included because it has a UNIQUE constraint
       if (existingAmount > 0 || paymentMode === "PARTIAL") {
         await prisma.payment.create({
           data: {
             parentPaymentId: id,
             clientId: existingPayment.clientId,
-            sessionId: existingPayment.sessionId,
+            // sessionId is intentionally null - it's unique and belongs to parent only
             amount: newPaymentAmount,
             expectedAmount: newPaymentAmount,
             method: method || existingPayment.method,
