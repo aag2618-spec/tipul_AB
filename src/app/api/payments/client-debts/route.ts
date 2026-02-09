@@ -31,6 +31,7 @@ export async function GET() {
             amount: true,
             expectedAmount: true,
             createdAt: true,
+            updatedAt: true,
             sessionId: true,
           },
           orderBy: {
@@ -42,13 +43,19 @@ export async function GET() {
 
     // Calculate debts for each client
     const clientDebts = clients.map((client) => {
-      const unpaidSessions = client.payments.map((payment) => ({
-        paymentId: payment.id,
-        amount: Number(payment.expectedAmount),
-        paidAmount: Number(payment.amount),
-        date: payment.createdAt,
-        sessionId: payment.sessionId,
-      }));
+      const unpaidSessions = client.payments.map((payment) => {
+        const paidAmount = Number(payment.amount);
+        // אם יש תשלום חלקי, נשתמש בתאריך העדכון כתאריך התשלום החלקי
+        const hasPartialPayment = paidAmount > 0 && paidAmount < Number(payment.expectedAmount);
+        return {
+          paymentId: payment.id,
+          amount: Number(payment.expectedAmount),
+          paidAmount,
+          date: payment.createdAt,
+          sessionId: payment.sessionId,
+          partialPaymentDate: hasPartialPayment ? payment.updatedAt : null,
+        };
+      });
 
       const totalDebt = unpaidSessions.reduce((sum, session) => sum + (session.amount - session.paidAmount), 0);
 
