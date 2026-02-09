@@ -7,7 +7,13 @@ import { Input } from "@/components/ui/input";
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
 import { Badge } from "@/components/ui/badge";
 import { Calendar } from "@/components/ui/calendar";
-import { Popover, PopoverContent, PopoverTrigger } from "@/components/ui/popover";
+import {
+  Dialog,
+  DialogContent,
+  DialogHeader,
+  DialogTitle,
+  DialogTrigger,
+} from "@/components/ui/dialog";
 import { 
   Loader2, 
   AlertCircle, 
@@ -334,22 +340,25 @@ export default function PaymentsPage() {
                   <TabsTrigger value="specific">תאריך ספציפי</TabsTrigger>
                 </TabsList>
                 <TabsContent value="specific" className="mt-4">
-                  <Popover>
-                    <PopoverTrigger asChild>
+                  <Dialog>
+                    <DialogTrigger asChild>
                       <Button variant="outline" className="w-full justify-start gap-2">
                         <CalendarIcon className="h-4 w-4" />
                         {selectedDate ? format(selectedDate, "dd/MM/yyyy") : "בחר תאריך"}
                       </Button>
-                    </PopoverTrigger>
-                    <PopoverContent className="w-auto p-0" align="start">
+                    </DialogTrigger>
+                    <DialogContent className="w-auto p-4">
+                      <DialogHeader>
+                        <DialogTitle>בחר תאריך</DialogTitle>
+                      </DialogHeader>
                       <Calendar
                         mode="single"
                         selected={selectedDate}
                         onSelect={setSelectedDate}
                         locale={he}
                       />
-                    </PopoverContent>
-                  </Popover>
+                    </DialogContent>
+                  </Dialog>
                 </TabsContent>
               </Tabs>
             </CardContent>
