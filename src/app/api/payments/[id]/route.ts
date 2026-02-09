@@ -51,7 +51,7 @@ export async function PUT(
 
     const { id } = await params;
     const body = await request.json();
-    const { status, method, notes, paidAt, amount, paymentMode, creditUsed } = body;
+    const { status, method, notes, paidAt, amount, paymentMode, creditUsed, issueReceipt } = body;
 
     const existingPayment = await prisma.payment.findFirst({
       where: { id, client: { therapistId: session.user.id } },
@@ -63,6 +63,31 @@ export async function PUT(
 
     if (!existingPayment) {
       return NextResponse.json({ message: "תשלום לא נמצא" }, { status: 404 });
+    }
+
+    // Handle receipt number generation if requested
+    let receiptNumber: string | undefined;
+    let hasReceipt = false;
+    
+    if (issueReceipt) {
+      // Get user's next receipt number and increment it
+      const user = await prisma.user.findUnique({
+        where: { id: session.user.id },
+        select: { nextReceiptNumber: true, businessType: true },
+      });
+      
+      if (user && user.businessType !== "NONE") {
+        const currentNumber = user.nextReceiptNumber || 1;
+        const year = new Date().getFullYear();
+        receiptNumber = `${year}-${String(currentNumber).padStart(4, "0")}`;
+        hasReceipt = true;
+        
+        // Increment the receipt number for next time
+        await prisma.user.update({
+          where: { id: session.user.id },
+          data: { nextReceiptNumber: currentNumber + 1 },
+        });
+      }
     }
 
     // Handle credit usage if specified
@@ -133,6 +158,8 @@ export async function PUT(
         paymentType: paymentMode || undefined,
         notes: notes !== undefined ? notes : undefined,
         paidAt: finalStatus === "PAID" ? paidAt || new Date() : undefined,
+        receiptNumber: receiptNumber || undefined,
+        hasReceipt: hasReceipt || undefined,
       },
     });
 

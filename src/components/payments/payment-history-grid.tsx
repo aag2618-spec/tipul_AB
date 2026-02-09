@@ -30,6 +30,11 @@ import {
 import { PaymentHistoryItem } from './payment-history-item';
 import { toast } from 'sonner';
 import {
+  exportDetailedExcel,
+  exportDetailedPDF,
+  type PaymentExportData,
+} from '@/lib/export-utils';
+import {
   LineChart,
   Line,
   XAxis,
@@ -192,7 +197,24 @@ export function PaymentHistoryGrid({ payments }: PaymentHistoryGridProps) {
                 variant="outline" 
                 size="sm" 
                 className="gap-1.5 bg-white/80 hover:bg-white border-emerald-200 text-emerald-700 hover:text-emerald-800"
-                onClick={() => toast.info("ייצוא ל-PDF בקרוב...")}
+                onClick={() => {
+                  const exportData: PaymentExportData[] = filteredPayments.map(p => ({
+                    id: p.id,
+                    clientName: "מטופל",
+                    amount: p.amount,
+                    expectedAmount: p.expectedAmount || p.amount,
+                    method: p.method,
+                    status: p.status,
+                    paidAt: p.paidAt,
+                    createdAt: p.createdAt,
+                    sessionDate: p.session?.startTime || null,
+                    sessionType: p.session?.type || null,
+                    receiptNumber: null,
+                    hasReceipt: false,
+                  }));
+                  exportDetailedPDF(exportData, "היסטוריית תשלומים");
+                  toast.success("הקובץ הורד בהצלחה");
+                }}
               >
                 <Download className="h-3.5 w-3.5" />
                 PDF
@@ -201,7 +223,24 @@ export function PaymentHistoryGrid({ payments }: PaymentHistoryGridProps) {
                 variant="outline" 
                 size="sm" 
                 className="gap-1.5 bg-white/80 hover:bg-white border-emerald-200 text-emerald-700 hover:text-emerald-800"
-                onClick={() => toast.info("ייצוא ל-Excel בקרוב...")}
+                onClick={() => {
+                  const exportData: PaymentExportData[] = filteredPayments.map(p => ({
+                    id: p.id,
+                    clientName: "מטופל",
+                    amount: p.amount,
+                    expectedAmount: p.expectedAmount || p.amount,
+                    method: p.method,
+                    status: p.status,
+                    paidAt: p.paidAt,
+                    createdAt: p.createdAt,
+                    sessionDate: p.session?.startTime || null,
+                    sessionType: p.session?.type || null,
+                    receiptNumber: null,
+                    hasReceipt: false,
+                  }));
+                  exportDetailedExcel(exportData, "היסטוריית תשלומים");
+                  toast.success("הקובץ הורד בהצלחה");
+                }}
               >
                 <Download className="h-3.5 w-3.5" />
                 Excel

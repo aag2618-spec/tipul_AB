@@ -84,6 +84,14 @@ model User {
   // Usage limits
   maxActiveClients        Int       @default(40) // Maximum active clients allowed
   
+  // Business & Receipt Settings (הגדרות עסק וקבלות)
+  businessType            BusinessType @default(NONE) // סוג עסק
+  businessName            String?   // שם העסק
+  businessPhone           String?   // טלפון עסקי
+  businessAddress         String?   // כתובת העסק
+  nextReceiptNumber       Int       @default(1) // מספר הקבלה הבא
+  receiptDefaultMode      ReceiptMode @default(ASK) // ברירת מחדל לקבלות
+  
   createdAt               DateTime  @default(now())
   updatedAt               DateTime  @updatedAt
 
@@ -421,6 +429,10 @@ model Payment {
   paidAt         DateTime?
   createdAt      DateTime      @default(now())
   updatedAt      DateTime      @updatedAt
+  
+  // Receipt tracking
+  receiptNumber  String?       // מספר קבלה (לעוסק פטור)
+  hasReceipt     Boolean       @default(false) // האם הוצאה קבלה
 
   clientId String
   client   Client @relation(fields: [clientId], references: [id], onDelete: Cascade)
@@ -443,6 +455,20 @@ enum PaymentMethod {
   CHECK
   CREDIT
   OTHER
+}
+
+// Business type for receipt handling
+enum BusinessType {
+  NONE          // לא רוצה קבלות
+  EXEMPT        // עוסק פטור - קבלות פנימיות
+  LICENSED      // עוסק מורשה - מחובר למערכת חיצונית
+}
+
+// Default receipt mode
+enum ReceiptMode {
+  ALWAYS        // תמיד להוציא קבלה
+  ASK           // לשאול בכל תשלום
+  NEVER         // לעולם לא
 }
 
 enum PaymentStatus {

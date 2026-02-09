@@ -21,7 +21,8 @@ import {
 import { Label } from "@/components/ui/label";
 import { Input } from "@/components/ui/input";
 import { Badge } from "@/components/ui/badge";
-import { CreditCard, Loader2, Check, ChevronDown, ChevronUp, Wallet } from "lucide-react";
+import { CreditCard, Loader2, Check, ChevronDown, ChevronUp, Wallet, Receipt } from "lucide-react";
+import { Checkbox } from "@/components/ui/checkbox";
 import { toast } from "sonner";
 import { useRouter } from "next/navigation";
 import Link from "next/link";
@@ -76,6 +77,9 @@ export function QuickMarkPaid({
   const [showAdvanced, setShowAdvanced] = useState(false);
   const [paymentType, setPaymentType] = useState<"FULL" | "PARTIAL" | "CREDIT">("FULL");
   const [partialAmount, setPartialAmount] = useState<string>("");
+  const [issueReceipt, setIssueReceipt] = useState<boolean>(false);
+  const [receiptMode, setReceiptMode] = useState<"ALWAYS" | "ASK" | "NEVER">("ASK");
+  const [businessType, setBusinessType] = useState<"NONE" | "EXEMPT" | "LICENSED">("NONE");
   const router = useRouter();
   
   // State for auto-fetched debt info
@@ -105,6 +109,27 @@ export function QuickMarkPaid({
         });
     }
   }, [isOpen, clientId, totalClientDebt, unpaidSessionsCount]);
+
+  // Fetch business settings for receipt handling
+  useEffect(() => {
+    if (isOpen) {
+      fetch("/api/user/business-settings")
+        .then((res) => res.json())
+        .then((data) => {
+          if (data.businessType) setBusinessType(data.businessType);
+          if (data.receiptDefaultMode) setReceiptMode(data.receiptDefaultMode);
+          // Set initial receipt state based on mode
+          if (data.receiptDefaultMode === "ALWAYS") {
+            setIssueReceipt(true);
+          } else if (data.receiptDefaultMode === "NEVER") {
+            setIssueReceipt(false);
+          }
+        })
+        .catch((err) => {
+          console.error("Failed to fetch business settings:", err);
+        });
+    }
+  }, [isOpen]);
 
   // If already paid, show badge
   if (existingPayment?.status === "PAID") {
@@ -144,6 +169,7 @@ export function QuickMarkPaid({
             creditUsed: creditToUse,
             method,
             paidAt: new Date().toISOString(),
+            issueReceipt: businessType !== "NONE" && issueReceipt,
           }),
         });
 
@@ -162,6 +188,7 @@ export function QuickMarkPaid({
             method,
             status: "PAID",
             creditUsed: creditToUse,
+            issueReceipt: businessType !== "NONE" && issueReceipt,
           }),
         });
 
@@ -255,6 +282,25 @@ export function QuickMarkPaid({
                   </SelectContent>
                 </Select>
               </div>
+
+              {/* הוצאת קבלה - מוצג רק אם סוג העסק מאפשר */}
+              {businessType !== "NONE" && receiptMode !== "NEVER" && (
+                <div className="flex items-center gap-3 py-2 px-3 bg-blue-50 rounded-lg border border-blue-200">
+                  <Checkbox
+                    id="issue-receipt"
+                    checked={issueReceipt}
+                    onCheckedChange={(checked) => setIssueReceipt(checked === true)}
+                    disabled={receiptMode === "ALWAYS"}
+                  />
+                  <Label htmlFor="issue-receipt" className="cursor-pointer flex items-center gap-2 text-blue-800">
+                    <Receipt className="h-4 w-4" />
+                    הוצא קבלה
+                    {receiptMode === "ALWAYS" && (
+                      <span className="text-xs text-blue-600">(ברירת מחדל)</span>
+                    )}
+                  </Label>
+                </div>
+              )}
 
               {/* כפתור אופציות מתקדמות - תיקון הבאג */}
               <div
