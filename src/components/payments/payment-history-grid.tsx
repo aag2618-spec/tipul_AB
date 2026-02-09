@@ -223,7 +223,7 @@ export function PaymentHistoryGrid({ payments }: PaymentHistoryGridProps) {
                   tickFormatter={(value) => `₪${value}`}
                 />
                 <Tooltip 
-                  formatter={(value: number) => [`₪${value}`, "סה״כ"]}
+                  formatter={(value) => [`₪${value}`, "סה״כ"]}
                   labelStyle={{ fontWeight: "bold" }}
                   contentStyle={{ 
                     backgroundColor: "white", 
