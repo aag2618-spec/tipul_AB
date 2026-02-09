@@ -44,12 +44,13 @@ export async function GET() {
     const clientDebts = clients.map((client) => {
       const unpaidSessions = client.payments.map((payment) => ({
         paymentId: payment.id,
-        amount: Number(payment.expectedAmount) - Number(payment.amount),
+        amount: Number(payment.expectedAmount),
+        paidAmount: Number(payment.amount),
         date: payment.createdAt,
         sessionId: payment.sessionId,
       }));
 
-      const totalDebt = unpaidSessions.reduce((sum, session) => sum + session.amount, 0);
+      const totalDebt = unpaidSessions.reduce((sum, session) => sum + (session.amount - session.paidAmount), 0);
 
       console.log(`Client ${client.firstName} ${client.lastName}: ${client.payments.length} payments, totalDebt: ${totalDebt}`);
 
