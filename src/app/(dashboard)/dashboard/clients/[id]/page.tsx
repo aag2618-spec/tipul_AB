@@ -118,13 +118,17 @@ async function getClient(clientId: string, userId: string) {
 
 export default async function ClientPage({
   params,
+  searchParams,
 }: {
   params: Promise<{ id: string }>;
+  searchParams: Promise<{ tab?: string }>;
 }) {
   const session = await getServerSession(authOptions);
   if (!session?.user?.id) return null;
 
   const { id } = await params;
+  const { tab } = await searchParams;
+  const defaultTab = tab || "sessions";
   
   // קבלת פרטי המשתמש כולל tier
   const user = await prisma.user.findUnique({
@@ -328,7 +332,7 @@ export default async function ClientPage({
       </div>
 
       {/* Tabs - Simplified */}
-      <Tabs defaultValue="sessions" className="w-full">
+      <Tabs defaultValue={defaultTab} className="w-full">
         <TabsList className="grid w-full grid-cols-5 max-w-5xl">
           <TabsTrigger value="sessions" className="gap-2">
             <Calendar className="h-4 w-4" />
