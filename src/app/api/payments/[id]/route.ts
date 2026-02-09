@@ -90,10 +90,37 @@ export async function PUT(
 
     // Determine payment status based on amount
     let finalStatus = status;
+    let finalAmount = Number(existingPayment.amount);
+    const expectedAmount = Number(existingPayment.expectedAmount);
+    const existingAmount = Number(existingPayment.amount);
+    
     if (amount !== undefined) {
-      const newAmount = Number(amount);
-      const expectedAmount = Number(existingPayment.expectedAmount);
-      finalStatus = newAmount >= expectedAmount ? "PAID" : "PENDING";
+      const newPaymentAmount = Number(amount);
+      
+      // Create a child payment record for tracking if there was a previous payment
+      // This helps track partial payment history
+      if (existingAmount > 0 || paymentMode === "PARTIAL") {
+        await prisma.payment.create({
+          data: {
+            parentPaymentId: id,
+            clientId: existingPayment.clientId,
+            sessionId: existingPayment.sessionId,
+            amount: newPaymentAmount,
+            expectedAmount: newPaymentAmount,
+            method: method || existingPayment.method,
+            status: "PAID",
+            paidAt: new Date(),
+          },
+        });
+      }
+      
+      // Always ADD the new payment to the existing amount
+      // This is because QuickMarkPaid sends the REMAINING amount to pay
+      // So: new amount = existing paid + what user just paid
+      finalAmount = existingAmount + newPaymentAmount;
+      
+      // Check if fully paid
+      finalStatus = finalAmount >= expectedAmount ? "PAID" : "PENDING";
     }
 
     const payment = await prisma.payment.update({
@@ -101,7 +128,7 @@ export async function PUT(
       data: {
         status: finalStatus || undefined,
         method: method || undefined,
-        amount: amount !== undefined ? Number(amount) : undefined,
+        amount: finalAmount,
         paymentType: paymentMode || undefined,
         notes: notes !== undefined ? notes : undefined,
         paidAt: finalStatus === "PAID" ? paidAt || new Date() : undefined,
