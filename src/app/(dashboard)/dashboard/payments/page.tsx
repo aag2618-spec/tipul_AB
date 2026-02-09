@@ -469,49 +469,69 @@ export default function PaymentsPage() {
               </CardContent>
             </Card>
           ) : (
-            filteredClients.map((client) => (
-              <Card 
-                key={client.id}
-                className="cursor-pointer hover:shadow-lg transition-all hover:scale-[1.02]"
-                onClick={() => {
-                  setSelectedClient(client);
-                  setViewMode("clientDetail");
-                }}
-              >
-                <CardContent className="p-4">
-                  <div className="flex items-center gap-2 mb-3">
-                    <Clock className="h-4 w-4 text-muted-foreground" />
-                    <span className="text-sm text-muted-foreground">
-                      {client.unpaidSessionsCount} פגישות
-                    </span>
-                  </div>
-                  
-                  <h3 className="font-semibold text-lg mb-3">{client.fullName}</h3>
-                  
-                  <div className="space-y-2">
-                    {client.totalDebt > 0 && (
-                      <div className="flex justify-between items-center">
-                        <Badge variant="destructive" className="gap-1">
-                          <AlertCircle className="h-3 w-3" />
-                          חוב
-                        </Badge>
-                        <span className="font-bold text-red-600">₪{client.totalDebt.toFixed(0)}</span>
+            filteredClients.map((client) => {
+              // כשמסננים לפי תאריך - מציגים את מספר הפגישות המסוננות
+              const sessionsCount = dateFilterMode === "specific" && selectedDate 
+                ? client.unpaidSessions.length 
+                : client.unpaidSessionsCount;
+              
+              return (
+                <Card 
+                  key={client.id}
+                  className="cursor-pointer hover:shadow-lg transition-all hover:scale-[1.02]"
+                  onClick={() => {
+                    setSelectedClient(client);
+                    setViewMode("clientDetail");
+                  }}
+                >
+                  <CardContent className="p-4">
+                    {/* הצגת תאריך כשמסננים לפי תאריך ספציפי */}
+                    {dateFilterMode === "specific" && selectedDate && (
+                      <div className="flex items-center gap-2 mb-2 pb-2 border-b">
+                        <CalendarIcon className="h-4 w-4 text-primary" />
+                        <span className="text-sm font-medium text-primary">
+                          {format(selectedDate, "dd/MM/yyyy")}
+                        </span>
                       </div>
                     )}
                     
-                    {client.creditBalance > 0 && (
-                      <div className="flex justify-between items-center">
-                        <Badge className="gap-1 bg-green-100 text-green-800">
-                          <CheckCircle className="h-3 w-3" />
-                          קרדיט
-                        </Badge>
-                        <span className="font-bold text-green-600">₪{client.creditBalance.toFixed(0)}</span>
+                    {/* מספר פגישות - רק אם יש יותר מאחת או אם לא מסננים לפי תאריך */}
+                    {(dateFilterMode !== "specific" || sessionsCount > 1) && (
+                      <div className="flex items-center gap-2 mb-3">
+                        <Clock className="h-4 w-4 text-muted-foreground" />
+                        <span className="text-sm text-muted-foreground">
+                          {sessionsCount} פגישות
+                        </span>
                       </div>
                     )}
-                  </div>
-                </CardContent>
-              </Card>
-            ))
+                    
+                    <h3 className="font-semibold text-lg mb-3">{client.fullName}</h3>
+                    
+                    <div className="space-y-2">
+                      {client.totalDebt > 0 && (
+                        <div className="flex justify-between items-center">
+                          <Badge variant="destructive" className="gap-1">
+                            <AlertCircle className="h-3 w-3" />
+                            חוב
+                          </Badge>
+                          <span className="font-bold text-red-600">₪{client.totalDebt.toFixed(0)}</span>
+                        </div>
+                      )}
+                      
+                      {client.creditBalance > 0 && (
+                        <div className="flex justify-between items-center">
+                          <Badge className="gap-1 bg-green-100 text-green-800">
+                            <CheckCircle className="h-3 w-3" />
+                            קרדיט
+                          </Badge>
+                          <span className="font-bold text-green-600">₪{client.creditBalance.toFixed(0)}</span>
+                        </div>
+                      )}
+                    </div>
+                  </CardContent>
+                </Card>
+              );
+            })
           )}
         </div>
       </div>
