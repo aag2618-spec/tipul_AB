@@ -26,8 +26,9 @@ import {
   Wallet,
   History,
   ChevronLeft,
-  Home
+  Mail
 } from "lucide-react";
+import { QuickMarkPaid } from "@/components/payments/quick-mark-paid";
 import { toast } from "sonner";
 import { format } from "date-fns";
 import { he } from "date-fns/locale";
@@ -83,6 +84,14 @@ export default function PaymentsPage() {
   const [totalDebt, setTotalDebt] = useState(0);
   const [totalCredit, setTotalCredit] = useState(0);
   const [paidThisMonth, setPaidThisMonth] = useState(0);
+  
+  // תשלום מהיר
+  const [selectedPaymentSession, setSelectedPaymentSession] = useState<UnpaidSession | null>(null);
+  const [isPaymentDialogOpen, setIsPaymentDialogOpen] = useState(false);
+  
+  // שליחת מיילים
+  const [isSendingEmail, setIsSendingEmail] = useState(false);
+  const [isSendingAllEmails, setIsSendingAllEmails] = useState(false);
 
   useEffect(() => {
     fetchData();
@@ -166,6 +175,60 @@ export default function PaymentsPage() {
       setSelectedClient(null);
     } else if (viewMode === "clients") {
       setViewMode("summary");
+    }
+  };
+
+  // שליחת מייל תזכורת למטופל בודד
+  const sendDebtReminder = async (clientId: string, clientName: string) => {
+    setIsSendingEmail(true);
+    try {
+      const res = await fetch(`/api/clients/${clientId}/send-debt-reminder`, {
+        method: "POST",
+      });
+      if (!res.ok) {
+        const error = await res.json();
+        throw new Error(error.error || "שגיאה בשליחת התזכורת");
+      }
+      toast.success(`תזכורת נשלחה בהצלחה ל-${clientName}!`);
+    } catch (error: any) {
+      toast.error(error.message || "שגיאה בשליחת התזכורת");
+    } finally {
+      setIsSendingEmail(false);
+    }
+  };
+
+  // שליחת מייל לכל המטופלים
+  const sendDebtReminderToAll = async () => {
+    const clientsWithDebt = clients.filter(c => c.totalDebt > 0);
+    if (clientsWithDebt.length === 0) {
+      toast.info("אין מטופלים עם חוב");
+      return;
+    }
+    
+    setIsSendingAllEmails(true);
+    let successCount = 0;
+    let failCount = 0;
+    
+    for (const client of clientsWithDebt) {
+      try {
+        const res = await fetch(`/api/clients/${client.id}/send-debt-reminder`, {
+          method: "POST",
+        });
+        if (res.ok) {
+          successCount++;
+        } else {
+          failCount++;
+        }
+      } catch {
+        failCount++;
+      }
+    }
+    
+    setIsSendingAllEmails(false);
+    if (failCount === 0) {
+      toast.success(`נשלחו ${successCount} תזכורות בהצלחה!`);
+    } else {
+      toast.info(`נשלחו ${successCount} תזכורות, ${failCount} נכשלו`);
     }
   };
 
@@ -298,12 +361,27 @@ export default function PaymentsPage() {
         {/* Breadcrumbs */}
         <Breadcrumbs />
         
-        {/* כותרת */}
-        <div>
-          <h1 className="text-2xl font-bold tracking-tight">חובות וקרדיט</h1>
-          <p className="text-muted-foreground">
-            {filteredClients.length} מטופלים
-          </p>
+        {/* כותרת עם כפתור מייל לכולם */}
+        <div className="flex items-center justify-between">
+          <div>
+            <h1 className="text-2xl font-bold tracking-tight">חובות וקרדיט</h1>
+            <p className="text-muted-foreground">
+              {filteredClients.length} מטופלים
+            </p>
+          </div>
+          <Button 
+            variant="outline" 
+            className="gap-2"
+            onClick={sendDebtReminderToAll}
+            disabled={isSendingAllEmails}
+          >
+            {isSendingAllEmails ? (
+              <Loader2 className="h-4 w-4 animate-spin" />
+            ) : (
+              <Mail className="h-4 w-4" />
+            )}
+            שלח תזכורת לכל המטופלים
+          </Button>
         </div>
 
         {/* טאבים */}
@@ -447,13 +525,52 @@ export default function PaymentsPage() {
         {/* Breadcrumbs */}
         <Breadcrumbs />
         
-        {/* כותרת */}
-        <div>
-          <h1 className="text-2xl font-bold tracking-tight">{selectedClient.fullName}</h1>
-          <p className="text-muted-foreground">
-            פירוט תשלומים
-          </p>
+        {/* כותרת עם כפתורי פעולה */}
+        <div className="flex items-center justify-between flex-wrap gap-4">
+          <div>
+            <h1 className="text-2xl font-bold tracking-tight">{selectedClient.fullName}</h1>
+            <p className="text-muted-foreground">פירוט תשלומים</p>
+          </div>
+          <div className="flex gap-2">
+            {/* כפתור שליחת מייל */}
+            <Button 
+              variant="outline" 
+              className="gap-2"
+              onClick={() => sendDebtReminder(selectedClient.id, selectedClient.fullName)}
+              disabled={isSendingEmail}
+            >
+              {isSendingEmail ? (
+                <Loader2 className="h-4 w-4 animate-spin" />
+              ) : (
+                <Mail className="h-4 w-4" />
+              )}
+              שלח תזכורת
+            </Button>
+          </div>
         </div>
+
+        {/* תשלום מהיר על כלל החובות - למעלה */}
+        {selectedClient.totalDebt > 0 && (
+          <Card className="bg-gradient-to-r from-green-50 to-emerald-50 border-green-300">
+            <CardContent className="p-4 flex items-center justify-between">
+              <div className="flex items-center gap-3">
+                <CreditCard className="h-5 w-5 text-green-600" />
+                <div>
+                  <span className="font-semibold">תשלום מהיר על כלל החובות</span>
+                  <p className="text-sm text-muted-foreground">
+                    סה"כ: ₪{selectedClient.totalDebt.toFixed(0)} | {selectedClient.unpaidSessionsCount} פגישות
+                  </p>
+                </div>
+              </div>
+              <Button className="gap-2 bg-green-600 hover:bg-green-700" asChild>
+                <Link href={`/dashboard/payments/pay/${selectedClient.id}`}>
+                  <CreditCard className="h-4 w-4" />
+                  שלם הכל
+                </Link>
+              </Button>
+            </CardContent>
+          </Card>
+        )}
 
         {/* סיכום מטופל */}
         <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
@@ -505,7 +622,14 @@ export default function PaymentsPage() {
                 </Card>
               ) : (
                 selectedClient.unpaidSessions.map((session) => (
-                  <Card key={session.paymentId} className="hover:shadow-md transition-shadow">
+                  <Card 
+                    key={session.paymentId} 
+                    className="cursor-pointer hover:shadow-lg transition-all hover:scale-[1.02] hover:border-primary"
+                    onClick={() => {
+                      setSelectedPaymentSession(session);
+                      setIsPaymentDialogOpen(true);
+                    }}
+                  >
                     <CardContent className="p-4">
                       <div className="flex items-center gap-2 mb-3">
                         <CalendarIcon className="h-4 w-4 text-muted-foreground" />
@@ -528,13 +652,18 @@ export default function PaymentsPage() {
                               <span className="text-muted-foreground">שולם חלקית:</span>
                               <span className="text-green-600">₪{session.paidAmount.toFixed(0)}</span>
                             </div>
-                            {session.partialPaymentDate && (
-                              <div className="text-xs text-muted-foreground">
-                                תאריך תשלום: {format(new Date(session.partialPaymentDate), "dd/MM/yyyy")}
-                              </div>
-                            )}
+                            <div className="text-xs text-muted-foreground">
+                              בתאריך: {session.partialPaymentDate 
+                                ? format(new Date(session.partialPaymentDate), "dd/MM/yyyy") 
+                                : "לא ידוע"}
+                            </div>
                           </>
                         )}
+                      </div>
+                      
+                      <div className="mt-3 pt-2 border-t text-xs text-primary flex items-center gap-1">
+                        לחץ לתשלום
+                        <ArrowRight className="h-3 w-3" />
                       </div>
                     </CardContent>
                   </Card>
@@ -544,33 +673,39 @@ export default function PaymentsPage() {
           </TabsContent>
 
           <TabsContent value="history" className="mt-4">
-            {/* היסטוריית תשלומים */}
-            <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-4">
-              <Card className="col-span-full">
-                <CardContent className="flex flex-col items-center justify-center py-12">
-                  <History className="h-16 w-16 text-muted-foreground mb-4 opacity-50" />
-                  <p className="text-lg font-medium">היסטוריית תשלומים תתווסף בשלב הבא</p>
-                  <Button variant="outline" className="mt-4" asChild>
-                    <Link href={`/dashboard/clients/${selectedClient.id}?tab=payments`}>
-                      צפה בהיסטוריה המלאה
-                    </Link>
-                  </Button>
-                </CardContent>
-              </Card>
+            {/* היסטוריית תשלומים - קישור לתיקיית המטופל */}
+            <div className="flex justify-center">
+              <Button variant="outline" className="gap-2" asChild>
+                <Link href={`/dashboard/clients/${selectedClient.id}?tab=payments`}>
+                  <History className="h-4 w-4" />
+                  צפה בהיסטוריית התשלומים המלאה
+                </Link>
+              </Button>
             </div>
           </TabsContent>
         </Tabs>
 
-        {/* כפתור תשלום */}
-        {selectedClient.totalDebt > 0 && (
-          <div className="flex justify-center">
-            <Button size="lg" className="gap-2 bg-green-600 hover:bg-green-700" asChild>
-              <Link href={`/dashboard/payments/pay/${selectedClient.id}`}>
-                <CreditCard className="h-5 w-5" />
-                שלם עכשיו
-              </Link>
-            </Button>
-          </div>
+        {/* דיאלוג תשלום מהיר לפגישה בודדת */}
+        {selectedPaymentSession && (
+          <QuickMarkPaid
+            sessionId={selectedPaymentSession.sessionId || ""}
+            clientId={selectedClient.id}
+            clientName={selectedClient.fullName}
+            amount={selectedPaymentSession.amount - selectedPaymentSession.paidAmount}
+            creditBalance={selectedClient.creditBalance}
+            existingPayment={{ id: selectedPaymentSession.paymentId, status: "PENDING" }}
+            buttonText="תשלום"
+            open={isPaymentDialogOpen}
+            onOpenChange={(open) => {
+              setIsPaymentDialogOpen(open);
+              if (!open) {
+                setSelectedPaymentSession(null);
+                // רענון הנתונים אחרי תשלום
+                fetchData();
+              }
+            }}
+            hideButton={true}
+          />
         )}
       </div>
     );
