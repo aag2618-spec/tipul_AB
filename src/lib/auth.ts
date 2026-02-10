@@ -77,17 +77,73 @@ export const authOptions: NextAuthOptions = {
         token.role = user.role;
       }
       
-      // Refresh role from database on each request to catch role changes
+      // Refresh role and subscription status from database on each request
       if (token.id) {
         const dbUser = await prisma.user.findUnique({
           where: { id: token.id as string },
-          select: { role: true, isBlocked: true },
+          select: { 
+            role: true, 
+            isBlocked: true,
+            subscriptionStatus: true,
+            subscriptionEndsAt: true,
+            trialEndsAt: true,
+          },
         });
         if (dbUser) {
           token.role = dbUser.role;
-          // Block access if user is blocked
-          if (dbUser.isBlocked) {
-            token.isBlocked = true;
+          token.subscriptionStatus = dbUser.subscriptionStatus;
+          token.isBlocked = dbUser.isBlocked || false;
+          
+          // Grace period: 7 ימים אחרי שהמנוי פג לפני חסימה
+          const GRACE_PERIOD_DAYS = 7;
+          const gracePeriodMs = GRACE_PERIOD_DAYS * 24 * 60 * 60 * 1000;
+          
+          // בדיקה אם תקופת הניסיון הסתיימה
+          if (dbUser.subscriptionStatus === "TRIALING" && dbUser.trialEndsAt) {
+            const trialEnd = new Date(dbUser.trialEndsAt);
+            const now = new Date();
+            if (now > trialEnd) {
+              // בתוך תקופת החסד - רק הודעה, לא חסימה
+              if (now.getTime() - trialEnd.getTime() <= gracePeriodMs) {
+                token.subscriptionStatus = "PAST_DUE";
+                token.gracePeriodEndsAt = new Date(trialEnd.getTime() + gracePeriodMs).toISOString();
+              } else {
+                // תקופת החסד נגמרה - חסום
+                token.subscriptionStatus = "CANCELLED";
+              }
+            }
+          }
+          
+          // בדיקה אם המנוי פג תוקף
+          if (dbUser.subscriptionStatus === "ACTIVE" && dbUser.subscriptionEndsAt) {
+            const subEnd = new Date(dbUser.subscriptionEndsAt);
+            const now = new Date();
+            if (now > subEnd) {
+              // בתוך תקופת החסד
+              if (now.getTime() - subEnd.getTime() <= gracePeriodMs) {
+                token.subscriptionStatus = "PAST_DUE";
+                token.gracePeriodEndsAt = new Date(subEnd.getTime() + gracePeriodMs).toISOString();
+              } else {
+                // תקופת החסד נגמרה
+                token.subscriptionStatus = "CANCELLED";
+              }
+            }
+          }
+
+          // בדיקה חשובה: מנוי שביטל אבל עדיין בתוך התקופה ששילם עליה
+          // המנוי ביטל (CANCELLED) אבל subscriptionEndsAt עדיין בעתיד = ממשיך לעבוד
+          if (dbUser.subscriptionStatus === "CANCELLED" && dbUser.subscriptionEndsAt) {
+            const subEnd = new Date(dbUser.subscriptionEndsAt);
+            const now = new Date();
+            if (now < subEnd) {
+              // עדיין בתוך התקופה ששילם - נותנים גישה מלאה
+              token.subscriptionStatus = "ACTIVE";
+            }
+          }
+          
+          // PAUSED - מושהה, נותנים גישה עם אזהרה (כמו PAST_DUE)
+          if (dbUser.subscriptionStatus === "PAUSED") {
+            token.subscriptionStatus = "PAST_DUE";
           }
         }
       }
@@ -130,5 +186,8 @@ declare module "next-auth/jwt" {
   interface JWT {
     id: string;
     role?: "USER" | "MANAGER" | "ADMIN";
+    subscriptionStatus?: "ACTIVE" | "TRIALING" | "PAST_DUE" | "CANCELLED" | "PAUSED";
+    isBlocked?: boolean;
+    gracePeriodEndsAt?: string; // ISO date string - מתי נגמרת תקופת החסד
   }
 }

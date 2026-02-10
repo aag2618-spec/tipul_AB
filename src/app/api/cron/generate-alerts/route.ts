@@ -61,13 +61,14 @@ export async function GET(req: NextRequest) {
     }
 
     // 2. Check for expiring subscriptions (within 7 days)
+    // כולל גם מנויים שביטלו אבל עדיין בתקופה ששילמו
     const expiringUsers = await prisma.user.findMany({
       where: {
         subscriptionEndsAt: {
           gte: now,
           lte: new Date(now.getTime() + 7 * 24 * 60 * 60 * 1000),
         },
-        subscriptionStatus: "ACTIVE",
+        subscriptionStatus: { in: ["ACTIVE", "CANCELLED"] },
       },
       select: {
         id: true,
@@ -109,12 +110,13 @@ export async function GET(req: NextRequest) {
     }
 
     // 3. Check for expired subscriptions
+    // כולל גם מנויים שביטלו ועכשיו התקופה שלהם נגמרה
     const expiredUsers = await prisma.user.findMany({
       where: {
         subscriptionEndsAt: {
           lt: now,
         },
-        subscriptionStatus: "ACTIVE", // Still marked as active but expired
+        subscriptionStatus: { in: ["ACTIVE", "CANCELLED"] },
       },
       select: {
         id: true,

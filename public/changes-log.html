@@ -1,0 +1,334 @@
+<!DOCTYPE html>
+<html lang="he" dir="rtl">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>סיכום שינויים - Tipul AB</title>
+<style>
+* { margin: 0; padding: 0; box-sizing: border-box; }
+body { font-family: 'Segoe UI', Tahoma, Geneva, Verdana, sans-serif; background: #f8fafc; color: #1e293b; line-height: 1.7; padding: 20px; }
+.container { max-width: 900px; margin: 0 auto; background: white; border-radius: 16px; box-shadow: 0 4px 24px rgba(0,0,0,0.08); padding: 40px; }
+h1 { font-size: 28px; color: #0f172a; border-bottom: 3px solid #3b82f6; padding-bottom: 12px; margin-bottom: 8px; }
+.date { color: #64748b; font-size: 14px; margin-bottom: 32px; }
+h2 { font-size: 22px; color: #1e40af; margin-top: 36px; margin-bottom: 16px; padding: 10px 16px; background: #eff6ff; border-radius: 8px; border-right: 4px solid #3b82f6; }
+h3 { font-size: 17px; color: #334155; margin-top: 20px; margin-bottom: 8px; }
+ul { padding-right: 24px; margin-bottom: 12px; }
+li { margin-bottom: 4px; }
+code { background: #f1f5f9; padding: 2px 6px; border-radius: 4px; font-family: 'Consolas', 'Courier New', monospace; font-size: 13px; color: #be185d; }
+pre { background: #1e293b; color: #e2e8f0; padding: 16px; border-radius: 8px; overflow-x: auto; margin: 12px 0; direction: ltr; text-align: left; font-size: 13px; }
+table { width: 100%; border-collapse: collapse; margin: 16px 0; font-size: 14px; }
+th { background: #1e40af; color: white; padding: 10px 12px; text-align: right; }
+td { padding: 8px 12px; border-bottom: 1px solid #e2e8f0; }
+tr:hover td { background: #f8fafc; }
+.critical { color: #dc2626; font-weight: bold; }
+.medium { color: #f59e0b; font-weight: bold; }
+.low { color: #22c55e; font-weight: bold; }
+.section-new { border-right-color: #22c55e; background: #f0fdf4; }
+.section-updated { border-right-color: #f59e0b; background: #fffbeb; }
+.section-bugs { border-right-color: #dc2626; background: #fef2f2; }
+.section-manual { border-right-color: #8b5cf6; background: #f5f3ff; }
+.section-future { border-right-color: #06b6d4; background: #ecfeff; }
+.section-flows { border-right-color: #ec4899; background: #fdf2f8; }
+.flow-box { background: #f8fafc; border: 1px solid #e2e8f0; border-radius: 8px; padding: 16px; margin: 12px 0; direction: ltr; text-align: left; font-family: monospace; font-size: 13px; white-space: pre-wrap; }
+.note-box { background: #fefce8; border: 1px solid #fde047; border-radius: 8px; padding: 12px 16px; margin: 16px 0; }
+.note-box strong { color: #854d0e; }
+.download-btn { display: inline-block; background: #3b82f6; color: white; padding: 12px 24px; border-radius: 8px; text-decoration: none; font-weight: bold; margin: 16px 0; cursor: pointer; border: none; font-size: 15px; }
+.download-btn:hover { background: #2563eb; }
+.print-only { display: none; }
+@media print { 
+  body { padding: 0; background: white; } 
+  .container { box-shadow: none; padding: 20px; } 
+  .no-print { display: none; }
+  .print-only { display: block; }
+  h2 { break-before: auto; }
+}
+</style>
+</head>
+<body>
+<div class="container">
+
+<div class="no-print" style="text-align: center; margin-bottom: 24px;">
+<button class="download-btn" onclick="window.print()">הדפס / שמור כ-PDF</button>
+</div>
+
+<h1>סיכום שינויים מלא - Tipul AB</h1>
+<div class="date">10 בפברואר 2026</div>
+
+<!-- ===== א. קבצים חדשים ===== -->
+<h2 class="section-new">א. קבצים חדשים שנוצרו (6 קבצים)</h2>
+
+<h3>1. <code>src/lib/pricing.ts</code> - מקור אמת מרכזי לתמחור</h3>
+<ul>
+<li>כל המחירים מוגדרים כאן בלבד (ESSENTIAL / PRO / ENTERPRISE)</li>
+<li>תקופות: חודשי (1), רבעוני (3), חצי שנתי (6), שנתי (12)</li>
+<li>פונקציות: <code>getDiscount</code>, <code>getAverageMonthlyPrice</code>, <code>detectPeriodFromAmount</code></li>
+<li><code>detectPeriodFromAmount</code> - מזהה תקופה לפי סכום תשלום (עם סטייה של ₪5)</li>
+</ul>
+
+<h3>2. <code>src/lib/rate-limit.ts</code> - Rate Limiter בזיכרון</h3>
+<ul>
+<li>In-memory store - מתאים לשרת יחיד (Render)</li>
+<li>ניקוי אוטומטי כל 5 דקות</li>
+<li>הגדרות: API_RATE_LIMIT, AUTH_RATE_LIMIT, SUBSCRIPTION_RATE_LIMIT, WEBHOOK_RATE_LIMIT</li>
+<li>פונקציית <code>rateLimitResponse</code> עם headers מתאימים</li>
+</ul>
+
+<h3>3. <code>src/lib/billing-logger.ts</code> - לוג קריאות לספקי חיוב</h3>
+<ul>
+<li>שומר לטבלת <code>ApiUsageLog</code></li>
+<li><code>withBillingLog</code> - wrapper שמודד זמן אוטומטית</li>
+</ul>
+
+<h3>4. <code>src/lib/webhook-retry.ts</code> - ניסיון חוזר ל-webhooks</h3>
+<ul>
+<li>שומר webhooks שנכשלו בטבלת <code>AdminAlert</code> (סוג SYSTEM)</li>
+<li><code>withWebhookRetry</code> - wrapper שתופס שגיאות</li>
+</ul>
+
+<h3>5. <code>src/app/api/admin/subscribers/route.ts</code> - API חיפוש מנויים</h3>
+<ul>
+<li>חיפוש לפי שם (חלקי), מייל, טלפון</li>
+<li>סינון לפי סטטוס ומסלול</li>
+<li>Pagination</li>
+<li>מחזיר: פרטי משתמש + תשלומים אחרונים + אישורי תנאים + סטטיסטיקות</li>
+</ul>
+
+<h3>6. <code>src/app/api/admin/terms/route.ts</code> - API אישורי תנאים</h3>
+<ul>
+<li>GET בלבד (אין DELETE/PUT - רשומות אלו הוכחה חוקית!)</li>
+<li>סינון לפי userId</li>
+<li>Pagination</li>
+</ul>
+
+<!-- ===== ב. קבצים שעודכנו ===== -->
+<h2 class="section-updated">ב. קבצים שעודכנו (13 קבצים)</h2>
+
+<h3>7. <code>prisma/schema.prisma</code></h3>
+<ul>
+<li>שדות חדשים ב-User: <code>isFreeSubscription</code> (Boolean), <code>freeSubscriptionNote</code> (String?), <code>freeSubscriptionGrantedAt</code> (DateTime?)</li>
+<li>מודל חדש: <code>TermsAcceptance</code> - הוכחה חוקית על אישור תנאים (userId, userEmail, userName, termsVersion, termsType, acceptedContent, action, planSelected, billingMonths, amountAgreed, ipAddress, userAgent)</li>
+<li>אינדקסים: userId, createdAt, termsType</li>
+<li>Relation חדש: <code>termsAcceptances TermsAcceptance[]</code> ב-User</li>
+</ul>
+
+<h3>8. <code>src/lib/auth.ts</code></h3>
+<ul>
+<li>CANCELLED + subscriptionEndsAt בעתיד → <code>token.subscriptionStatus = "ACTIVE"</code> (גישה עד סוף תקופה ששולמה)</li>
+<li>PAUSED → <code>token.subscriptionStatus = "PAST_DUE"</code> (גישה עם אזהרה)</li>
+<li>Grace period: 7 ימים אחרי פקיעת מנוי לפני חסימה מלאה</li>
+</ul>
+
+<h3>9. <code>src/app/api/webhooks/meshulam/route.ts</code></h3>
+<ul>
+<li><code>handlePaymentSuccess</code>: תוקן מ-30 ימים hardcoded → <code>detectPeriodCentral</code></li>
+<li><code>handleSubscriptionCreated</code>: תוקן מ-30 ימים hardcoded → <code>detectPeriodCentral</code></li>
+<li>ניקוי שדות חינם (<code>isFreeSubscription: false</code>) אחרי תשלום</li>
+<li>שילוב <code>withWebhookRetry</code> + <code>checkRateLimit</code></li>
+</ul>
+
+<h3>10. <code>src/app/api/subscription/create/route.ts</code></h3>
+<ul>
+<li>בדיקת <code>termsAccepted</code> בצד שרת (מחזיר 400 אם חסר)</li>
+<li>יצירת <code>TermsAcceptance</code> עם IP, user-agent, גרסת תנאים</li>
+<li>תמחור מ-<code>pricing.ts</code> (PRICING, PERIOD_DAYS, PERIOD_LABELS)</li>
+<li>Rate limiting</li>
+</ul>
+
+<h3>11. <code>src/app/api/subscription/cancel/route.ts</code></h3>
+<ul>
+<li>חישוב התאמת הנחה לביטול מוקדם (<code>calculateFairPrice</code>, <code>calculateCancellationAdjustment</code>)</li>
+<li>יצירת <code>SubscriptionPayment</code> עם סטטוס PENDING אם יש הפרש</li>
+<li>מיילים למנוי ולאדמין עם פירוט</li>
+<li>Rate limiting</li>
+</ul>
+
+<h3>12. <code>src/app/api/subscription/status/route.ts</code></h3>
+<ul>
+<li><code>isActive</code> מחושב נכון: ACTIVE, TRIALING בתוקף, או CANCELLED עם תאריך עתידי</li>
+</ul>
+
+<h3>13. <code>src/app/api/admin/users/[id]/route.ts</code> (PATCH)</h3>
+<ul>
+<li><code>grantFree</code>: מפעיל מנוי חינם + שולח מייל הפעלה</li>
+<li><code>revokeFree</code>: מבטל חינם + קובע 7 ימים grace + שולח מייל עם קישור לתשלום</li>
+<li><code>extendDays</code>: הארכת מנוי מתאריך קיים או מהיום</li>
+</ul>
+
+<h3>14. <code>src/app/api/cron/subscription-reminders/route.ts</code></h3>
+<ul>
+<li>כל השאילתות כוללות <code>subscriptionStatus: { in: ["ACTIVE", "CANCELLED"] }</code></li>
+<li>סעיף 5 (חסימה אחרי grace) - גם CANCELLED</li>
+</ul>
+
+<h3>15. <code>src/app/api/cron/generate-alerts/route.ts</code></h3>
+<ul>
+<li>expiringUsers ו-expiredUsers כוללים גם CANCELLED</li>
+</ul>
+
+<h3>16. <code>src/app/(dashboard)/dashboard/settings/billing/page.tsx</code></h3>
+<ul>
+<li>תקופות חיוב: 1, 3, 6, 12 חודשים עם הנחות מחושבות</li>
+<li>תנאי שימוש: Checkbox חובה + פירוט + חסימת כפתורי רכישה</li>
+<li>חישוב ביטול מוקדם - client side</li>
+<li>דיאלוג ביטול עם פירוט התאמת הנחה</li>
+<li>ניווט עקבי (פרופיל, התראות, תקשורת, אינטגרציות, מנוי)</li>
+</ul>
+
+<h3>17. <code>src/app/(dashboard)/dashboard/settings/integrations/page.tsx</code></h3>
+<ul>
+<li>כפתור "בדוק חיבור" לספקי חיוב מחוברים</li>
+<li>הוראות ספציפיות ל-SUMIT</li>
+</ul>
+
+<h3>18. <code>src/app/admin/billing/page.tsx</code> (שכתוב מלא)</h3>
+<ul>
+<li>דף ניהול מנויים מקיף: טבלה + חיפוש + סינון + pagination</li>
+<li>סטטיסטיקות מהירות (6 כרטיסים)</li>
+<li>שורה מורחבת (תשלומים + תנאים)</li>
+<li>דיאלוג פרטים מלאים (3 טאבים)</li>
+<li>דיאלוגי פעולות: חסימה, שדרוג, הארכה, מנוי חינם, ביטול חינם</li>
+</ul>
+
+<h3>19. <code>src/components/admin-sidebar.tsx</code></h3>
+<ul>
+<li>הוספת "אישורי תנאים" (<code>/admin/terms</code>) עם אייקון FileCheck</li>
+</ul>
+
+<!-- ===== ג. באגים ===== -->
+<h2 class="section-bugs">ג. באגים שמצאתי ותיקנתי (7 באגים)</h2>
+
+<table>
+<tr><th>חומרה</th><th>באג</th><th>קובץ</th><th>פירוט</th></tr>
+<tr><td class="critical">קריטי</td><td>handlePaymentSuccess תמיד 30 יום</td><td>webhooks/meshulam</td><td>מנוי שנתי קיבל רק חודש. תוקן עם detectPeriodCentral</td></tr>
+<tr><td class="critical">קריטי</td><td>handleSubscriptionCreated תמיד 30 יום</td><td>webhooks/meshulam</td><td>מנוי חדש שנתי קיבל רק חודש. תוקן</td></tr>
+<tr><td class="critical">קריטי</td><td>revokeFree השאיר גישה חינם</td><td>admin/users/[id]</td><td>ביטול חינם לא שינה subscriptionEndsAt - המשתמש נשאר עם גישה עד 10 שנים. תוקן ל-7 ימים grace</td></tr>
+<tr><td class="medium">בינוני</td><td>Fragment בלי key ב-.map()</td><td>admin/billing</td><td>React warning + באגים בעדכון טבלה. תוקן</td></tr>
+<tr><td class="medium">בינוני</td><td>handleSearch double-fetch</td><td>admin/billing</td><td>קריאת API כפולה עם page ישן. תוקן</td></tr>
+<tr><td class="low">קל</td><td>Cron לא חסם CANCELLED</td><td>subscription-reminders</td><td>מנויים CANCELLED שעברו grace לא נחסמו. תוקן</td></tr>
+<tr><td class="low">קל</td><td>Dead import Download</td><td>admin/billing</td><td>Import שלא בשימוש הוסר</td></tr>
+</table>
+
+<!-- ===== ד. מה צריך להשלים ===== -->
+<h2 class="section-manual">ד. מה צריך להשלים ידנית</h2>
+
+<h3>1. הרצת Prisma Migration (חובה!)</h3>
+<pre>npx prisma migrate dev --name add-terms-and-free-subscription</pre>
+<p>זה יוסיף את:</p>
+<ul>
+<li>שדות <code>isFreeSubscription</code>, <code>freeSubscriptionNote</code>, <code>freeSubscriptionGrantedAt</code> לטבלת User</li>
+<li>טבלת <code>TermsAcceptance</code> החדשה</li>
+</ul>
+
+<div class="note-box">
+<strong>שים לב:</strong> ב-Render ה-build command כבר כולל <code>prisma db push</code> - זה ירוץ אוטומטית בדפלוי. אבל מומלץ להריץ migrate dev מקומית לפני כן ליצור migration file.
+</div>
+
+<h3>2. משתני סביבה (Environment Variables) ב-Render</h3>
+<p>ודא שהמשתנים הבאים קיימים בדשבורד של Render:</p>
+<table>
+<tr><th>משתנה</th><th>תיאור</th><th>דוגמה</th></tr>
+<tr><td><code>DATABASE_URL</code></td><td>כתובת PostgreSQL</td><td>postgresql://user:pass@host/db</td></tr>
+<tr><td><code>NEXTAUTH_URL</code></td><td>כתובת האתר</td><td>https://tipul-app.onrender.com</td></tr>
+<tr><td><code>NEXTAUTH_SECRET</code></td><td>מפתח סודי (32+ תווים)</td><td>openssl rand -base64 32</td></tr>
+<tr><td><code>MESHULAM_API_KEY</code></td><td>מפתח API של Meshulam</td><td>מהפאנל שלהם</td></tr>
+<tr><td><code>ADMIN_EMAIL</code></td><td>המייל שלך להתראות</td><td>admin@example.com</td></tr>
+<tr><td><code>CRON_SECRET</code></td><td>סוד ל-cron jobs</td><td>openssl rand -hex 32</td></tr>
+<tr><td><code>RESEND_API_KEY</code></td><td>מפתח API של Resend</td><td>re_...</td></tr>
+<tr><td><code>ENCRYPTION_KEY</code></td><td>מפתח הצפנה AES-256</td><td>openssl rand -hex 32</td></tr>
+</table>
+
+<h3>3. הגדרת Cron Jobs</h3>
+<div class="note-box">
+<strong>הגדרה ב-render.yaml:</strong> כבר עודכן! שני cron jobs חדשים נוספו אוטומטית:
+<br>- <code>subscription-reminders</code> - כל יום בשעה 09:00
+<br>- <code>admin-alerts-generator</code> - כל יום בשעה 08:00
+<br><br>
+<strong>חשוב:</strong> ב-Render חינם (free plan), cron jobs מוגבלים. אם יש בעיה, השתמש בשירות חיצוני כמו cron-job.org:
+</div>
+<pre>GET https://tipul-app.onrender.com/api/cron/subscription-reminders
+Header: Authorization: Bearer YOUR_CRON_SECRET
+
+GET https://tipul-app.onrender.com/api/cron/generate-alerts
+Header: Authorization: Bearer YOUR_CRON_SECRET</pre>
+
+<h3>4. הגדרת Webhook ב-Meshulam</h3>
+<p>בפאנל הניהול של Meshulam, הגדר:</p>
+<ul>
+<li><strong>Webhook URL:</strong> <code>https://tipul-app.onrender.com/api/webhooks/meshulam</code></li>
+<li><strong>Events:</strong> payment.success, payment.failed, subscription.created, subscription.renewed, subscription.cancelled</li>
+</ul>
+
+<h3>5. הגדרת Resend (שליחת מיילים)</h3>
+<ul>
+<li>היכנס ל-<a href="https://resend.com" target="_blank">resend.com</a></li>
+<li>הגדר דומיין שליחה (או השתמש בדומיין ברירת מחדל)</li>
+<li>צור API Key והכנס ל-<code>RESEND_API_KEY</code></li>
+</ul>
+
+<!-- ===== ה. מה להוסיף בהמשך ===== -->
+<h2 class="section-future">ה. מה להוסיף בהמשך (לא קריטי)</h2>
+
+<h3>1. סנכרון תמחור Client/Server</h3>
+<p>המחירים מוגדרים בשני מקומות - <code>pricing.ts</code> (שרת) ו-<code>billing/page.tsx</code> (לקוח). בהמשך כדאי שדף ה-billing ייבא מ-pricing.ts (דורש API route).</p>
+
+<h3>2. שיפור דף admin/terms</h3>
+<p>הדף בסיסי. אפשר להוסיף חיפוש לפי שם/מייל, ייצוא ל-CSV, ותצוגה מפורטת.</p>
+
+<h3>3. Webhook ל-Sumit</h3>
+<p>אם תשתמש גם ב-Sumit, צריך webhook handler דומה ב-<code>webhooks/sumit/route.ts</code>.</p>
+
+<h3>4. ביטול הוראת קבע ב-Meshulam</h3>
+<p>כשמשתמש מבטל מנוי, כרגע רק הסטטוס ב-DB משתנה. צריך גם לבטל הוראת קבע דרך ה-API של Meshulam.</p>
+
+<h3>5. חיוב התאמת הנחה</h3>
+<p>ביטול מנוי מוזל יוצר רשומה PENDING. צריך לממש חיוב בפועל דרך Meshulam API.</p>
+
+<!-- ===== ו. הכפתור ===== -->
+<h2>ו. לגבי "הכפתור שהורד"</h2>
+<div class="note-box">
+<strong>לא הורד שום כפתור מהמסך!</strong> הוסרה רק שורת <code>import</code> של אייקון <code>Download</code> מ-lucide-react שהיה מיובא אבל <strong>מעולם לא הוצג על המסך</strong>. אף אלמנט ויזואלי לא נפגע.
+</div>
+
+<!-- ===== ז. זרימות ===== -->
+<h2 class="section-flows">ז. זרימות מערכת חשובות</h2>
+
+<h3>זרימת מנוי חינם (חדש)</h3>
+<div class="flow-box">אדמין לוחץ "מנוי חינם" בטבלה
+→ בוחר מסלול + תקופה + הערה
+→ API מעדכן User (isFreeSubscription=true, subscriptionStatus=ACTIVE)
+→ מייל נשלח למנוי</div>
+
+<h3>זרימת ביטול חינם (חדש)</h3>
+<div class="flow-box">אדמין לוחץ כפתור Gift אדום
+→ אישור בדיאלוג
+→ API: isFreeSubscription=false, status=CANCELLED, subscriptionEndsAt=+7 ימים
+→ מייל עם קישור לתשלום נשלח למנוי
+→ (המנוי עדיין פעיל 7 ימים - CANCELLED + תאריך עתידי = ACTIVE)
+→ המנוי משלם → webhook → ACTIVE + isFreeSubscription=false</div>
+
+<h3>זרימת ביטול מנוי רגיל</h3>
+<div class="flow-box">משתמש לוחץ "ביטול מנוי" בדף billing
+→ חישוב התאמת הנחה (אם מנוי מוזל)
+→ API: status=CANCELLED (subscriptionEndsAt נשאר)
+→ auth.ts: CANCELLED + עתיד = ACTIVE (גישה עד סוף תקופה)
+→ מיילים למנוי + אדמין
+→ אחרי subscriptionEndsAt: PAST_DUE (grace 7 ימים)
+→ אחרי grace: CANCELLED (חסום)</div>
+
+<h3>זרימת רכישת מנוי</h3>
+<div class="flow-box">משתמש בדף billing → בוחר מסלול + תקופה
+→ מסמן checkbox תנאי שימוש (חובה!)
+→ לוחץ "שדרג עכשיו"
+→ API: בודק termsAccepted (server-side) → יוצר TermsAcceptance record
+→ מפנה לעמוד תשלום Meshulam
+→ תשלום מוצלח → Webhook → User status=ACTIVE
+→ מייל אישור למנוי + התראה לאדמין</div>
+
+<div class="no-print" style="text-align: center; margin-top: 40px; padding-top: 20px; border-top: 1px solid #e2e8f0;">
+<button class="download-btn" onclick="window.print()">הדפס / שמור כ-PDF</button>
+<p style="color: #94a3b8; font-size: 13px; margin-top: 8px;">ניתן לשמור כ-PDF דרך הדפסה → "שמור כ-PDF"</p>
+</div>
+
+</div>
+</body>
+</html>

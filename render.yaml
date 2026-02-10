@@ -26,6 +26,12 @@ services:
       - key: UPLOADS_DIR
         value: /opt/render/project/uploads
       - key: CRON_SECRET
+        sync: false
+      - key: ADMIN_EMAIL
+        sync: false
+      - key: MESHULAM_API_KEY
+        sync: false
+      - key: ENCRYPTION_KEY
         sync: false  # Cron job for 24-hour session reminders (runs every hour)
   - type: cron
     name: session-reminders-24h
@@ -56,6 +62,46 @@ services:
     buildCommand: echo "No build needed"
     startCommand: |
       curl -X GET "$RENDER_EXTERNAL_URL/api/cron/reminders-2h" \
+        -H "Authorization: Bearer $CRON_SECRET"
+    envVars:
+      - key: RENDER_EXTERNAL_URL
+        fromService:
+          type: web
+          name: tipul-app
+          property: url
+      - key: CRON_SECRET
+        sync: false
+
+  # Cron job for subscription reminders (runs daily at 09:00 UTC)
+  - type: cron
+    name: subscription-reminders
+    runtime: node
+    region: frankfurt
+    plan: free
+    schedule: "0 9 * * *"  # Every day at 09:00
+    buildCommand: echo "No build needed"
+    startCommand: |
+      curl -X GET "$RENDER_EXTERNAL_URL/api/cron/subscription-reminders" \
+        -H "Authorization: Bearer $CRON_SECRET"
+    envVars:
+      - key: RENDER_EXTERNAL_URL
+        fromService:
+          type: web
+          name: tipul-app
+          property: url
+      - key: CRON_SECRET
+        sync: false
+
+  # Cron job for admin alerts generation (runs daily at 08:00 UTC)
+  - type: cron
+    name: admin-alerts-generator
+    runtime: node
+    region: frankfurt
+    plan: free
+    schedule: "0 8 * * *"  # Every day at 08:00
+    buildCommand: echo "No build needed"
+    startCommand: |
+      curl -X GET "$RENDER_EXTERNAL_URL/api/cron/generate-alerts" \
         -H "Authorization: Bearer $CRON_SECRET"
     envVars:
       - key: RENDER_EXTERNAL_URL

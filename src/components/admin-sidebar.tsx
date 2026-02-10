@@ -24,6 +24,7 @@ import {
   Shield,
   ArrowLeft,
   Ticket,
+  FileCheck,
 } from "lucide-react";
 
 interface AdminSidebarProps {
@@ -61,6 +62,11 @@ const adminNavItems = [
     title: "תשלומים ומנויים",
     href: "/admin/billing",
     icon: CreditCard,
+  },
+  {
+    title: "אישורי תנאים",
+    href: "/admin/terms",
+    icon: FileCheck,
   },
   {
     title: "אחסון קבצים",

@@ -81,6 +81,11 @@ model User {
   subscriptionEndsAt      DateTime?
   trialEndsAt             DateTime?
   
+  // Free Subscription (מנוי חינם - ניתן ע"י מנהל)
+  isFreeSubscription      Boolean   @default(false)
+  freeSubscriptionNote    String?   // הערה למה ניתן חינם
+  freeSubscriptionGrantedAt DateTime? // מתי ניתן
+  
   // Usage limits
   maxActiveClients        Int       @default(40) // Maximum active clients allowed
   
@@ -126,6 +131,7 @@ model User {
   aiInsights            AIInsight[]
   therapeuticGoals      TherapeuticGoal[]
   emotionLogs           EmotionLog[]
+  termsAcceptances      TermsAcceptance[]
   
   // AI Analysis Relations
   questionnaireAnalyses QuestionnaireAnalysis[]
@@ -678,6 +684,40 @@ enum SubscriptionPaymentStatus {
   OVERDUE
   CANCELLED
   REFUNDED
+}
+
+// ==================== Terms Acceptance Log ====================
+// רשומות הוכחה חוקיות - לעולם לא למחוק!
+
+model TermsAcceptance {
+  id              String   @id @default(cuid())
+  
+  // מי אישר
+  userId          String
+  user            User     @relation(fields: [userId], references: [id]) // NO cascade - שומר הוכחה גם אם המשתמש נמחק
+  userEmail       String   // מייל בזמן האישור (backup אם המשתמש ישנה מייל)
+  userName        String?  // שם בזמן האישור
+  
+  // מה אושר
+  termsVersion    String   @default("1.0") // גרסת התנאים שאושרו
+  termsType       String   // SUBSCRIPTION_TERMS | PRIVACY_POLICY | CANCELLATION_POLICY
+  acceptedContent String   @db.Text // תקציר התנאים שאושרו
+  
+  // הקשר הפעולה
+  action          String   // SUBSCRIPTION_CREATE | SUBSCRIPTION_UPGRADE | SUBSCRIPTION_RENEW
+  planSelected    String?  // ESSENTIAL | PRO | ENTERPRISE
+  billingMonths   Int?     // 1 | 3 | 6 | 12
+  amountAgreed    Decimal? @db.Decimal(10, 2) // הסכום שהוסכם
+
+  // פרטי זיהוי (הוכחה חוקית)
+  ipAddress       String?  // כתובת IP
+  userAgent       String?  @db.Text // דפדפן/מכשיר
+  
+  createdAt       DateTime @default(now())
+  
+  @@index([userId])
+  @@index([createdAt])
+  @@index([termsType])
 }
 
 // ==================== Cancellation Requests ====================

@@ -56,11 +56,34 @@ export default function IntegrationsPage() {
   const [showApiKey, setShowApiKey] = useState(false);
   const [showApiSecret, setShowApiSecret] = useState(false);
   const [saving, setSaving] = useState(false);
+  const [testingConnection, setTestingConnection] = useState<string | null>(null);
 
   useEffect(() => {
     checkGoogleConnection();
     fetchBillingProviders();
   }, []);
+
+  const testBillingConnection = async (providerId: string) => {
+    setTestingConnection(providerId);
+    try {
+      const res = await fetch('/api/integrations/billing/test', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ providerId }),
+      });
+      const data = await res.json();
+      if (data.success) {
+        toast.success(data.message || 'החיבור תקין!');
+      } else {
+        toast.error(data.message || data.error || 'החיבור נכשל');
+      }
+    } catch (error) {
+      console.error('Test connection error:', error);
+      toast.error('שגיאה בבדיקת החיבור');
+    } finally {
+      setTestingConnection(null);
+    }
+  };
 
   const checkGoogleConnection = async () => {
     try {
@@ -408,25 +431,40 @@ export default function IntegrationsPage() {
                       </ul>
                       
                       {connected ? (
-                        <div className="flex gap-2 pt-2">
+                        <div className="space-y-2 pt-2">
                           <Button
                             variant="outline"
                             size="sm"
-                            className="flex-1"
-                            onClick={() => openBillingDialog(key)}
+                            className="w-full"
+                            onClick={() => testBillingConnection(connected.id)}
+                            disabled={testingConnection === connected.id}
                           >
-                            <SettingsIcon className="h-3 w-3 ml-1" />
-                            הגדרות
+                            {testingConnection === connected.id ? (
+                              <><span className="h-3 w-3 ml-1 animate-spin rounded-full border-2 border-current border-t-transparent inline-block" />בודק...</>
+                            ) : (
+                              <><CheckCircle className="h-3 w-3 ml-1" />בדוק חיבור</>
+                            )}
                           </Button>
-                          <Button
-                            variant="outline"
-                            size="sm"
-                            className="text-destructive hover:text-destructive"
-                            onClick={() => disconnectBillingProvider(connected.id)}
-                          >
-                            <Unlink className="h-3 w-3 ml-1" />
-                            נתק
-                          </Button>
+                          <div className="flex gap-2">
+                            <Button
+                              variant="outline"
+                              size="sm"
+                              className="flex-1"
+                              onClick={() => openBillingDialog(key)}
+                            >
+                              <SettingsIcon className="h-3 w-3 ml-1" />
+                              הגדרות
+                            </Button>
+                            <Button
+                              variant="outline"
+                              size="sm"
+                              className="text-destructive hover:text-destructive"
+                              onClick={() => disconnectBillingProvider(connected.id)}
+                            >
+                              <Unlink className="h-3 w-3 ml-1" />
+                              נתק
+                            </Button>
+                          </div>
                         </div>
                       ) : (
                         <Button
@@ -583,6 +621,14 @@ export default function IntegrationsPage() {
                   <li>לחץ על "הגדרות" → "API"</li>
                   <li>צור API Token חדש</li>
                   <li>העתק והדבק כאן</li>
+                </ol>
+              )}
+              {selectedProvider === 'SUMIT' && (
+                <ol className="text-blue-800 dark:text-blue-400 space-y-1 mr-4 list-decimal">
+                  <li>היכנס ל-<a href="https://www.sumit.co.il" target="_blank" className="underline">Sumit</a></li>
+                  <li>הגדרות → אינטגרציות → API</li>
+                  <li>העתק את ה-Company ID ו-API Key</li>
+                  <li>הדבק כאן</li>
                 </ol>
               )}
               {selectedProvider === 'GREEN_INVOICE' && (

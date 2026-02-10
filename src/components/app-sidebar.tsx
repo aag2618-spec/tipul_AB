@@ -39,6 +39,8 @@ import {
   MessageSquare,
   Mail,
   Brain,
+  Link2,
+  CreditCard,
 } from "lucide-react";
 
 interface AppSidebarProps {
@@ -142,6 +144,16 @@ const settingsItems = [
     title: "תזכורות SMS",
     href: "/dashboard/settings/sms",
     icon: MessageSquare,
+  },
+  {
+    title: "אינטגרציות",
+    href: "/dashboard/settings/integrations",
+    icon: Link2,
+  },
+  {
+    title: "מנוי וחיוב",
+    href: "/dashboard/settings/billing",
+    icon: CreditCard,
   },
   {
     title: "קופות חולים",

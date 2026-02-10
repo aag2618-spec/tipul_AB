@@ -4,6 +4,7 @@ import { authOptions } from "@/lib/auth";
 import prisma from "@/lib/prisma";
 import { sendEmail } from "@/lib/resend";
 import { createPaymentReceiptEmail } from "@/lib/email-templates/payment-receipt";
+import { createBillingService } from "@/lib/billing";
 
 export async function GET() {
   try {
@@ -136,18 +137,56 @@ export async function POST(request: NextRequest) {
       });
     }
 
-    // Send payment receipt email if status is PAID
+    // Send payment receipt email and create formal receipt if status is PAID
     if (status === "PAID") {
       try {
         const commSettings = await prisma.communicationSetting.findUnique({
           where: { userId: session.user.id },
         });
 
-        if (commSettings?.sendPaymentReceipt && payment.client.email) {
-          const therapist = await prisma.user.findUnique({
-            where: { id: session.user.id },
+        const therapist = await prisma.user.findUnique({
+          where: { id: session.user.id },
+        });
+
+        // יצירת קבלה דרך ספק החיוב המחובר
+        let receiptUrl: string | null = null;
+        let receiptNumber: string | null = null;
+
+        try {
+          const billingService = createBillingService(session.user.id);
+          const receiptResult = await billingService.createReceipt({
+            clientName: payment.client.name,
+            clientEmail: payment.client.email || undefined,
+            clientPhone: payment.client.phone || undefined,
+            amount: Number(payment.amount),
+            description: payment.session 
+              ? `תשלום עבור פגישה בתאריך ${new Date(payment.session.startTime).toLocaleDateString('he-IL')}`
+              : `תשלום עבור טיפול`,
+            paymentMethod: mapPaymentMethod(method),
+            sendEmail: commSettings?.sendReceiptToClient ?? true,
           });
 
+          if (receiptResult.success) {
+            receiptUrl = receiptResult.receiptUrl || null;
+            receiptNumber = receiptResult.receiptNumber || null;
+
+            // עדכון התשלום עם פרטי הקבלה
+            await prisma.payment.update({
+              where: { id: payment.id },
+              data: {
+                receiptUrl,
+                receiptNumber,
+                hasReceipt: true,
+              },
+            });
+          }
+        } catch (billingError) {
+          console.error("Error creating receipt via billing provider:", billingError);
+          // ממשיכים גם אם יצירת הקבלה נכשלה
+        }
+
+        // שליחת מייל אישור תשלום
+        if (commSettings?.sendPaymentReceipt && payment.client.email) {
           // Calculate remaining debt
           const allPayments = await prisma.payment.findMany({
             where: {
@@ -170,6 +209,8 @@ export async function POST(request: NextRequest) {
               method: payment.method,
               paidAt: payment.paidAt || new Date(),
               session: payment.session || undefined,
+              receiptUrl: receiptUrl || undefined,
+              receiptNumber: receiptNumber || undefined,
             },
             clientBalance: {
               remainingDebt,
@@ -218,6 +259,21 @@ export async function POST(request: NextRequest) {
       { status: 500 }
     );
   }
+}
+
+/**
+ * המרת שיטת תשלום לפורמט ספקי החיוב
+ */
+function mapPaymentMethod(method: string): 'cash' | 'check' | 'bank_transfer' | 'credit_card' | 'other' {
+  const mapping: Record<string, 'cash' | 'check' | 'bank_transfer' | 'credit_card' | 'other'> = {
+    CASH: 'cash',
+    CHECK: 'check',
+    BANK_TRANSFER: 'bank_transfer',
+    CREDIT_CARD: 'credit_card',
+    CREDIT: 'other',
+    OTHER: 'other',
+  };
+  return mapping[method] || 'other';
 }
 
 
