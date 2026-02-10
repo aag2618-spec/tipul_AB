@@ -25,7 +25,6 @@ import {
   Calendar,
   FileText,
   Mic,
-  CreditCard,
   FolderOpen,
   BarChart3,
   Settings,
@@ -109,11 +108,7 @@ const clinicalItems = [
 ];
 
 const businessItems = [
-  {
-    title: "תשלומים",
-    href: "/dashboard/payments",
-    icon: CreditCard,
-  },
+  // תשלומים הוסר - נגיש דרך המלבן בדשבורד
   {
     title: "היסטוריית תקשורת",
     href: "/dashboard/communications",
