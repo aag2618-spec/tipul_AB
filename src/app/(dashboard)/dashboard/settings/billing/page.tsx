@@ -153,6 +153,7 @@ export default function BillingPage() {
   const [cancelling, setCancelling] = useState(false);
   const [termsAccepted, setTermsAccepted] = useState(false);
   const [showTermsDetail, setShowTermsDetail] = useState(false);
+  const [showUpgradeDialog, setShowUpgradeDialog] = useState<string | null>(null);
 
   useEffect(() => {
     fetchSubscription();
@@ -175,10 +176,6 @@ export default function BillingPage() {
 
   const handleUpgrade = async (plan: string) => {
     if (upgrading) return;
-    if (!termsAccepted) {
-      toast.error('יש לאשר את תנאי השימוש לפני הרכישה');
-      return;
-    }
     setUpgrading(true);
     setSelectedPlan(plan);
     
@@ -576,27 +573,19 @@ export default function BillingPage() {
                   ) : isUpgrade ? (
                     <Button 
                       className="w-full bg-gradient-to-r from-blue-600 to-purple-600 hover:from-blue-700 hover:to-purple-700"
-                      onClick={() => handleUpgrade(key)}
-                      disabled={upgrading || !termsAccepted}
+                      onClick={() => { setTermsAccepted(false); setShowTermsDetail(false); setShowUpgradeDialog(key); }}
+                      disabled={upgrading}
                     >
-                      {upgrading && selectedPlan === key ? (
-                        <><Loader2 className="h-4 w-4 ml-2 animate-spin" />מעבד...</>
-                      ) : (
-                        <><ArrowUpCircle className="h-4 w-4 ml-1" />שדרג עכשיו</>
-                      )}
+                      <ArrowUpCircle className="h-4 w-4 ml-1" />שדרג עכשיו
                     </Button>
                   ) : (
                     <Button 
                       variant="outline"
                       className="w-full"
-                      onClick={() => handleUpgrade(key)}
-                      disabled={upgrading || !termsAccepted}
+                      onClick={() => { setTermsAccepted(false); setShowTermsDetail(false); setShowUpgradeDialog(key); }}
+                      disabled={upgrading}
                     >
-                      {upgrading && selectedPlan === key ? (
-                        <><Loader2 className="h-4 w-4 ml-2 animate-spin" />מעבד...</>
-                      ) : (
-                        <><ArrowDownCircle className="h-4 w-4 ml-1" />עבור למסלול זה</>
-                      )}
+                      <ArrowDownCircle className="h-4 w-4 ml-1" />עבור למסלול זה
                     </Button>
                   )}
                 </CardContent>
@@ -607,102 +596,105 @@ export default function BillingPage() {
       </div>
 
       {/* ========================================
-          סעיף 3: תנאי שימוש ואישור
+          דיאלוג אישור שדרוג + תנאי שימוש
           ======================================== */}
-      <Card className="border-blue-200 dark:border-blue-800">
-        <CardContent className="pt-6">
-          <div className="space-y-4">
-            {/* Checkbox אישור תנאים */}
-            <div className="flex items-start gap-3">
-              <Checkbox 
-                id="terms"
-                checked={termsAccepted}
-                onCheckedChange={(checked) => setTermsAccepted(checked === true)}
-                className="mt-1"
-              />
-              <label htmlFor="terms" className="text-sm leading-relaxed cursor-pointer">
-                <span className="font-medium">קראתי ואני מאשר/ת את </span>
-                <button 
-                  type="button"
-                  className="text-blue-600 underline hover:text-blue-800 font-medium"
-                  onClick={(e) => {
-                    e.preventDefault();
-                    setShowTermsDetail(!showTermsDetail);
-                  }}
-                >
-                  תנאי המנוי והשימוש
-                </button>
-              </label>
-            </div>
-
-            {/* פרטי תנאים */}
-            {showTermsDetail && (
-              <div className="bg-slate-50 dark:bg-slate-900/50 rounded-lg p-4 space-y-3 text-sm border animate-in slide-in-from-top-2 duration-200">
-                <h3 className="font-semibold flex items-center gap-2">
-                  <FileText className="h-4 w-4" />
-                  תנאי מנוי ותשלום
-                </h3>
-                
-                <div className="space-y-2 text-muted-foreground leading-relaxed">
-                  <p className="flex items-start gap-2">
-                    <Shield className="h-4 w-4 text-green-600 mt-0.5 shrink-0" />
-                    <span>
-                      <strong className="text-foreground">חידוש אוטומטי:</strong> המנוי מתחדש אוטומטית בסוף כל תקופה. 
-                      ניתן לבטל בכל עת ולהמשיך להשתמש עד סוף התקופה ששולמה.
-                    </span>
-                  </p>
-                  
-                  <p className="flex items-start gap-2">
-                    <Shield className="h-4 w-4 text-green-600 mt-0.5 shrink-0" />
-                    <span>
-                      <strong className="text-foreground">ניסיון חינם:</strong> 14 ימי ניסיון חינם ללא התחייבות. 
-                      ניתן לבטל בתקופת הניסיון ללא חיוב.
-                    </span>
-                  </p>
-
-                  <p className="flex items-start gap-2">
-                    <Shield className="h-4 w-4 text-blue-600 mt-0.5 shrink-0" />
-                    <span>
-                      <strong className="text-foreground">הנחות תקופתיות:</strong> ההנחה במסלולים הרב-חודשיים (3/6/12 חודשים) 
-                      מותנית בהשלמת התקופה. בביטול מוקדם, ההנחה תחושב מחדש לפי תקופת השימוש 
-                      בפועל - תמיד לפי המחיר הטוב ביותר שמתאים לך.
-                    </span>
-                  </p>
-                  
-                  <div className="bg-blue-50 dark:bg-blue-950/30 rounded-md p-3 border border-blue-200 dark:border-blue-800">
-                    <p className="text-blue-800 dark:text-blue-300 text-xs">
-                      <strong>דוגמה:</strong> אם רכשת מנוי שנתי עם הנחת 17%, 
-                      וביטלת אחרי 6 חודשים - ההנחה תחושב לפי מחיר חצי-שנתי (10% הנחה) 
-                      ולא לפי מחיר חודשי. אנחנו תמיד בוחרים את המחיר המשתלם ביותר עבורך.
-                    </p>
+      <AlertDialog open={!!showUpgradeDialog} onOpenChange={(open) => { if (!open) setShowUpgradeDialog(null); }}>
+        <AlertDialogContent className="max-w-lg">
+          <AlertDialogHeader>
+            <AlertDialogTitle className="flex items-center gap-2">
+              {showUpgradeDialog && PLANS[showUpgradeDialog as keyof typeof PLANS] && (() => {
+                const plan = PLANS[showUpgradeDialog as keyof typeof PLANS];
+                const Icon = plan.icon;
+                return <><Icon className="h-5 w-5" />{subscription?.isActive ? 'שדרוג' : 'רכישת'} מסלול {plan.name}</>;
+              })()}
+            </AlertDialogTitle>
+            <AlertDialogDescription asChild>
+              <div className="space-y-4 text-right">
+                {/* סיכום מחיר */}
+                {showUpgradeDialog && (
+                  <div className="bg-slate-50 dark:bg-slate-900/50 rounded-lg p-4 border">
+                    <div className="flex justify-between items-center mb-2">
+                      <span className="text-sm text-muted-foreground">מסלול</span>
+                      <span className="font-semibold text-foreground">{PLANS[showUpgradeDialog as keyof typeof PLANS]?.name}</span>
+                    </div>
+                    <div className="flex justify-between items-center mb-2">
+                      <span className="text-sm text-muted-foreground">תקופה</span>
+                      <span className="font-medium text-foreground">{PERIOD_OPTIONS.find(p => p.months === billingMonths)?.label}</span>
+                    </div>
+                    <div className="flex justify-between items-center mb-2">
+                      <span className="text-sm text-muted-foreground">מחיר לחודש</span>
+                      <span className="font-medium text-foreground">₪{getMonthlyPrice(showUpgradeDialog)}</span>
+                    </div>
+                    <div className="flex justify-between items-center pt-2 border-t">
+                      <span className="text-sm font-medium text-foreground">סה&quot;כ לתשלום</span>
+                      <span className="text-lg font-bold text-foreground">₪{getTotalPrice(showUpgradeDialog)}</span>
+                    </div>
+                    {getDiscount(showUpgradeDialog) > 0 && (
+                      <div className="mt-2 text-xs text-green-600 text-left">
+                        חיסכון של ₪{getSaving(showUpgradeDialog)} ({getDiscount(showUpgradeDialog)}% הנחה)
+                      </div>
+                    )}
                   </div>
-                  
+                )}
+
+                {/* תנאים */}
+                <div className="space-y-2 text-sm text-muted-foreground">
                   <p className="flex items-start gap-2">
                     <Shield className="h-4 w-4 text-green-600 mt-0.5 shrink-0" />
-                    <span>
-                      <strong className="text-foreground">הנתונים שלך:</strong> גם לאחר ביטול, הנתונים שלך נשמרים במלואם 
-                      ותוכל לגשת אליהם מחדש בכל עת שתחדש את המנוי.
-                    </span>
+                    <span><strong className="text-foreground">חידוש אוטומטי:</strong> המנוי מתחדש אוטומטית בסוף כל תקופה. ניתן לבטל בכל עת.</span>
+                  </p>
+                  <p className="flex items-start gap-2">
+                    <Shield className="h-4 w-4 text-green-600 mt-0.5 shrink-0" />
+                    <span><strong className="text-foreground">ניסיון חינם:</strong> 14 ימי ניסיון ללא התחייבות. ניתן לבטל ללא חיוב.</span>
+                  </p>
+                  {billingMonths > 1 && (
+                    <p className="flex items-start gap-2">
+                      <Shield className="h-4 w-4 text-blue-600 mt-0.5 shrink-0" />
+                      <span><strong className="text-foreground">הנחה תקופתית:</strong> בביטול מוקדם, ההנחה תחושב מחדש לפי תקופת השימוש בפועל - תמיד לפי המחיר הטוב ביותר.</span>
+                    </p>
+                  )}
+                  <p className="flex items-start gap-2">
+                    <Shield className="h-4 w-4 text-green-600 mt-0.5 shrink-0" />
+                    <span><strong className="text-foreground">הנתונים שלך:</strong> גם לאחר ביטול, הנתונים נשמרים ותוכל לגשת אליהם בכל עת.</span>
                   </p>
                 </div>
-                
-                <p className="text-xs text-muted-foreground pt-2 border-t">
-                  תנאים נוספים עשויים לחול. לפרטים המלאים פנה אלינו ב-
-                  <a href="mailto:support@tipul.co.il" className="text-blue-600 underline mr-1">support@tipul.co.il</a>
-                </p>
-              </div>
-            )}
 
-            {/* הודעה אם לא אושרו תנאים */}
-            {!termsAccepted && (
-              <p className="text-xs text-amber-600 flex items-center gap-1">
-                <Info className="h-3 w-3" />
-                יש לאשר את התנאים לפני רכישת מנוי
-              </p>
-            )}
-          </div>
-        </CardContent>
-      </Card>
+                {/* Checkbox */}
+                <div className="flex items-start gap-3 pt-2 border-t">
+                  <Checkbox 
+                    id="terms-dialog"
+                    checked={termsAccepted}
+                    onCheckedChange={(checked) => setTermsAccepted(checked === true)}
+                    className="mt-1"
+                  />
+                  <label htmlFor="terms-dialog" className="text-sm leading-relaxed cursor-pointer text-foreground">
+                    <span className="font-medium">קראתי ואני מאשר/ת את תנאי המנוי והשימוש</span>
+                  </label>
+                </div>
+              </div>
+            </AlertDialogDescription>
+          </AlertDialogHeader>
+          <AlertDialogFooter className="flex-row-reverse gap-2 sm:flex-row-reverse">
+            <AlertDialogAction
+              disabled={!termsAccepted || upgrading}
+              onClick={() => {
+                if (showUpgradeDialog) {
+                  handleUpgrade(showUpgradeDialog);
+                  setShowUpgradeDialog(null);
+                }
+              }}
+              className="bg-gradient-to-r from-blue-600 to-purple-600 hover:from-blue-700 hover:to-purple-700"
+            >
+              {upgrading ? (
+                <><Loader2 className="h-4 w-4 ml-2 animate-spin" />מעבד...</>
+              ) : (
+                <>אשר ועבור לתשלום</>
+              )}
+            </AlertDialogAction>
+            <AlertDialogCancel>ביטול</AlertDialogCancel>
+          </AlertDialogFooter>
+        </AlertDialogContent>
+      </AlertDialog>
 
       {/* ========================================
           סעיף 4: היסטוריית תשלומים
