@@ -14,7 +14,7 @@ export interface GreenInvoiceResponse<T = unknown> {
 /**
  * פרטי לקוח
  */
-export interface GreenInvoiceClient {
+export interface GreenInvoiceClientInfo {
   name: string;
   emails?: string[];
   phone?: string;
@@ -63,7 +63,7 @@ export type GreenInvoicePaymentType =
  */
 export interface CreateDocumentRequest {
   type: GreenInvoiceDocType;
-  client: GreenInvoiceClient;
+  client: GreenInvoiceClientInfo;
   income: GreenInvoiceItem[];
   description?: string;
   remarks?: string;
