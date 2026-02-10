@@ -71,9 +71,8 @@ export async function POST(request: NextRequest) {
       case "MESHULAM": {
         try {
           const client = new MeshulamClient(apiKey);
-          const result = await client.testConnection();
-          success = result.status === 1;
-          message = success ? "חיבור ל-Meshulam תקין!" : (result.message || "חיבור נכשל");
+          success = await client.testConnection();
+          message = success ? "חיבור ל-Meshulam תקין!" : "חיבור נכשל";
         } catch (err) {
           message = `שגיאת חיבור ל-Meshulam: ${err instanceof Error ? err.message : "שגיאה לא ידועה"}`;
         }
@@ -82,9 +81,8 @@ export async function POST(request: NextRequest) {
       case "SUMIT": {
         try {
           const client = new SumitClient(apiKey, apiSecret);
-          const result = await client.testConnection();
-          success = result.success === true;
-          message = success ? "חיבור ל-Sumit תקין!" : (result.errorMessage || "חיבור נכשל");
+          success = await client.testConnection();
+          message = success ? "חיבור ל-Sumit תקין!" : "חיבור נכשל";
         } catch (err) {
           message = `שגיאת חיבור ל-Sumit: ${err instanceof Error ? err.message : "שגיאה לא ידועה"}`;
         }
@@ -93,8 +91,7 @@ export async function POST(request: NextRequest) {
       case "ICOUNT": {
         try {
           const client = new ICountClient(apiKey, apiSecret);
-          const result = await client.testConnection();
-          success = result.status === true;
+          success = await client.testConnection();
           message = success ? "חיבור ל-iCount תקין!" : "חיבור נכשל";
         } catch (err) {
           message = `שגיאת חיבור ל-iCount: ${err instanceof Error ? err.message : "שגיאה לא ידועה"}`;
@@ -104,8 +101,7 @@ export async function POST(request: NextRequest) {
       case "GREEN_INVOICE": {
         try {
           const client = new GreenInvoiceClient(apiKey, apiSecret);
-          const result = await client.testConnection();
-          success = result.errorCode === 0;
+          success = await client.testConnection();
           message = success ? "חיבור לחשבונית ירוקה תקין!" : "חיבור נכשל";
         } catch (err) {
           message = `שגיאת חיבור לחשבונית ירוקה: ${err instanceof Error ? err.message : "שגיאה לא ידועה"}`;
