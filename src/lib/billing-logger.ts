@@ -24,10 +24,10 @@ export async function logBillingApiCall(entry: BillingLogEntry): Promise<void> {
       data: {
         userId: entry.userId || "system",
         endpoint: `billing/${entry.provider.toLowerCase()}/${entry.action}`,
-        model: entry.provider,
+        method: "POST",
         tokensUsed: 0,
         cost: 0,
-        responseTimeMs: entry.durationMs || 0,
+        durationMs: entry.durationMs || 0,
         success: entry.success,
         errorMessage: entry.error || null,
       },
