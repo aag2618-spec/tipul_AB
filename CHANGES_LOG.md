@@ -1,261 +1,321 @@
-# סיכום שינויים מלא - Tipul AB
-## תאריך: 10 בפברואר 2026
+# מדריך הגדרה מלא מאפס + סיכום שינויים - Tipul AB
+## תאריך: 10 בפברואר 2026 | גרסה 2.0
 
 ---
 
-## א. קבצים חדשים שנוצרו
-
-### 1. `src/lib/pricing.ts` - מקור אמת מרכזי לתמחור
-- כל המחירים מוגדרים כאן בלבד (ESSENTIAL / PRO / ENTERPRISE)
-- תקופות: חודשי (1), רבעוני (3), חצי שנתי (6), שנתי (12)
-- פונקציות: getDiscount, getAverageMonthlyPrice, detectPeriodFromAmount
-- detectPeriodFromAmount - מזהה תקופה לפי סכום (עם סטייה של ₪5)
-
-### 2. `src/lib/rate-limit.ts` - Rate Limiter בזיכרון
-- In-memory store - מתאים לשרת יחיד (Render)
-- ניקוי אוטומטי כל 5 דקות
-- הגדרות מוכנות: API_RATE_LIMIT, AUTH_RATE_LIMIT, SUBSCRIPTION_RATE_LIMIT, WEBHOOK_RATE_LIMIT
-- פונקציית rateLimitResponse עם headers מתאימים
-
-### 3. `src/lib/billing-logger.ts` - לוג קריאות לספקי חיוב
-- שומר לטבלת ApiUsageLog
-- withBillingLog - wrapper שמודד זמן אוטומטית
-
-### 4. `src/lib/webhook-retry.ts` - ניסיון חוזר ל-webhooks
-- שומר webhooks שנכשלו בטבלת AdminAlert (סוג SYSTEM)
-- withWebhookRetry - wrapper שתופס שגיאות
-
-### 5. `src/app/api/admin/subscribers/route.ts` - API חיפוש מנויים
-- חיפוש לפי שם (חלקי), מייל, טלפון
-- סינון לפי סטטוס ומסלול
-- Pagination
-- מחזיר: פרטי משתמש + תשלומים אחרונים + אישורי תנאים + סטטיסטיקות
-
-### 6. `src/app/api/admin/terms/route.ts` - API אישורי תנאים
-- GET בלבד (אין DELETE/PUT - רשומות אלו הוכחה חוקית!)
-- סינון לפי userId
-- Pagination
+# חלק א: מדריך הגדרה מאפס - שלב אחרי שלב
 
 ---
 
-## ב. קבצים שעודכנו
+## שלב 1: הרשמה ל-Resend (שירות שליחת מיילים)
 
-### 7. `prisma/schema.prisma`
-**שינויים:**
-- שדות חדשים ב-User: `isFreeSubscription` (Boolean), `freeSubscriptionNote` (String?), `freeSubscriptionGrantedAt` (DateTime?)
-- מודל חדש: `TermsAcceptance` - הוכחה חוקית על אישור תנאים
-  - שדות: userId, userEmail, userName, termsVersion, termsType, acceptedContent, action, planSelected, billingMonths, amountAgreed, ipAddress, userAgent
-  - אינדקסים: userId, createdAt, termsType
-- Relation חדש: `termsAcceptances TermsAcceptance[]` ב-User
+**מה זה?** Resend שולח מיילים בשם המערכת: תזכורות מנוי, אישורי תשלום, התראות ביטול.
 
-### 8. `src/lib/auth.ts`
-**שינויים:**
-- CANCELLED + subscriptionEndsAt בעתיד → token.subscriptionStatus = "ACTIVE" (המנוי ממשיך עד סוף תקופה ששולמה)
-- PAUSED → token.subscriptionStatus = "PAST_DUE" (גישה עם אזהרה)
-- Grace period: 7 ימים אחרי פקיעת מנוי לפני חסימה מלאה
+### 1.1 - הרשמה
+1. גלוש ל-**[resend.com/signup](https://resend.com/signup)**
+2. הירשם עם המייל שלך (או Google/GitHub)
+3. אשר את כתובת המייל
 
-### 9. `src/app/api/webhooks/meshulam/route.ts`
-**שינויים:**
-- `handlePaymentSuccess`: תוקן מ-30 ימים hardcoded → `detectPeriodCentral` (מזהה תקופה לפי סכום)
-- `handleSubscriptionCreated`: תוקן מ-30 ימים hardcoded → `detectPeriodCentral`
-- `handleSubscriptionRenewed`: כבר השתמש ב-detectPeriodCentral
-- שילוב ניקוי שדות חינם (`isFreeSubscription: false`) אחרי תשלום
-- שילוב `withWebhookRetry` + `checkRateLimit`
-- שימוש ב-`PLAN_NAMES` מ-pricing.ts (במקום הגדרה מקומית)
+### 1.2 - יצירת API Key
+1. אחרי ההרשמה, היכנס ל-Dashboard
+2. בתפריט לחץ **API Keys**
+3. לחץ **Create API Key**
+4. תן שם: `tipul-production`
+5. Permission: **Full Access**
+6. לחץ **Create**
+7. **העתק את המפתח (מתחיל ב-`re_`) ושמור!** מוצג רק פעם אחת
 
-### 10. `src/app/api/subscription/create/route.ts`
-**שינויים:**
-- בדיקת `termsAccepted` בצד שרת (מחזיר 400 אם חסר)
-- יצירת TermsAcceptance עם IP, user-agent, גרסת תנאים
-- תמחור מ-pricing.ts (PRICING, PERIOD_DAYS, PERIOD_LABELS)
-- Rate limiting (SUBSCRIPTION_RATE_LIMIT)
+### 1.3 - הגדרת דומיין (אופציונלי אבל מומלץ)
+1. בתפריט לחץ **Domains**
+2. לחץ **Add Domain**
+3. הכנס את הדומיין שלך (למשל: `yourdomain.co.il`)
+4. Resend ייתן רשומות DNS להוסיף אצל ספק הדומיין שלך
+5. המתן לאימות (כמה דקות עד שעה)
 
-### 11. `src/app/api/subscription/cancel/route.ts`
-**שינויים:**
-- חישוב התאמת הנחה לביטול מוקדם (calculateFairPrice, calculateCancellationAdjustment)
-- יצירת SubscriptionPayment עם סטטוס PENDING אם יש הפרש
-- מיילים למנוי ולאדמין עם פירוט
-- Rate limiting
-- תמחור מ-pricing.ts
+> **טיפ:** בלי דומיין מאומת אפשר לשלוח רק מ-`onboarding@resend.dev` ורק למיילים שאימתת. מספיק לבדיקות, אבל לייצור חייבים דומיין מאומת.
 
-### 12. `src/app/api/subscription/status/route.ts`
-**שינויים:**
-- isActive מחושב נכון: ACTIVE, TRIALING בתוקף, CANCELLED עם תאריך עתידי
-- מחיר חודשי מ-MONTHLY_PRICES (pricing.ts)
+### 1.4 - מחירים
+- **חינם:** עד 100 מיילים ליום / 3,000 לחודש
+- **Pro ($20/חודש):** עד 50,000 מיילים לחודש
 
-### 13. `src/app/api/admin/users/[id]/route.ts` (PATCH)
-**שינויים:**
-- `grantFree`: מפעיל מנוי חינם + שולח מייל הפעלה
-- `revokeFree`: מבטל חינם + קובע 7 ימים grace + שולח מייל עם קישור לתשלום
-- `extendDays`: הארכת מנוי מתאריך קיים או מהיום
-- Import: sendEmail, PLAN_NAMES
-
-### 14. `src/app/api/cron/subscription-reminders/route.ts`
-**שינויים:**
-- כל השאילתות כוללות `subscriptionStatus: { in: ["ACTIVE", "CANCELLED"] }`
-- סעיף 5 (חסימה אחרי grace) - גם CANCELLED
-- תמחור מ-MONTHLY_PRICES (pricing.ts)
-
-### 15. `src/app/api/cron/generate-alerts/route.ts`
-**שינויים:**
-- expiringUsers: כולל `subscriptionStatus: { in: ["ACTIVE", "CANCELLED"] }`
-- expiredUsers: כולל `subscriptionStatus: { in: ["ACTIVE", "CANCELLED"] }`
-
-### 16. `src/app/(dashboard)/dashboard/settings/billing/page.tsx`
-**שינויים:**
-- תקופות חיוב: 1, 3, 6, 12 חודשים עם הנחות מחושבות
-- תנאי שימוש: Checkbox חובה + פירוט תנאים + חסימת כפתורי רכישה
-- חישוב ביטול מוקדם (calculateFairPrice) - client side
-- דיאלוג ביטול עם פירוט התאמת הנחה
-- ניווט עקבי (פרופיל, התראות, תקשורת, אינטגרציות, מנוי)
-
-### 17. `src/app/(dashboard)/dashboard/settings/integrations/page.tsx`
-**שינויים:**
-- כפתור "בדוק חיבור" לספקי חיוב מחוברים
-- הוראות ספציפיות ל-SUMIT
-- Import: CheckCircle
-
-### 18. `src/app/admin/billing/page.tsx` (שכתוב מלא)
-**שינויים:**
-- דף ניהול מנויים מקיף: טבלה + חיפוש + סינון + pagination
-- סטטיסטיקות מהירות (6 כרטיסים)
-- שורה מורחבת (תשלומים + תנאים)
-- דיאלוג פרטים מלאים (3 טאבים)
-- דיאלוגי פעולות: חסימה, שדרוג, הארכה, מנוי חינם, ביטול חינם
-- תגית "חינם" כתומה בטבלה
-- Fragment עם key (תוקן מ-React warning)
-- handleSearch ללא double-fetch
-
-### 19. `src/components/admin-sidebar.tsx`
-**שינויים:**
-- הוספת "אישורי תנאים" (/admin/terms) עם אייקון FileCheck
+> **שמור!** `RESEND_API_KEY` = re_________________
 
 ---
 
-## ג. באגים שמצאתי ותיקנתי
+## שלב 2: הרשמה ל-Meshulam (סליקת תשלומים)
 
-| חומרה | באג | קובץ | פירוט |
-|---|---|---|---|
-| קריטי | handlePaymentSuccess תמיד 30 יום | webhooks/meshulam | מנוי שנתי קיבל רק חודש. תוקן עם detectPeriodCentral |
-| קריטי | handleSubscriptionCreated תמיד 30 יום | webhooks/meshulam | מנוי חדש שנתי קיבל רק חודש. תוקן |
-| קריטי | revokeFree השאיר גישה חינם לחודשים | admin/users/[id] | ביטול חינם לא שינה subscriptionEndsAt - המשתמש נשאר עם גישה עד 10 שנים. תוקן ל-7 ימים grace |
-| בינוני | Fragment בלי key ב-.map() | admin/billing | React warning + באגים בעדכון טבלה. תוקן |
-| בינוני | handleSearch double-fetch | admin/billing | קריאת API כפולה עם page ישן. תוקן |
-| קל | Cron סעיף 5 לא חסם CANCELLED | subscription-reminders | מנויים CANCELLED שעברו grace לא נחסמו. תוקן |
-| קל | Dead import Download | admin/billing | הוסר |
+**מה זה?** Meshulam (משולם) הוא ספק סליקה ישראלי. דרכו המנויים שלך ישלמו.
+
+### 2.1 - הרשמה
+1. גלוש ל-**[meshulam.co.il](https://www.meshulam.co.il)**
+2. לחץ **"הרשמה"** או **"התחל עכשיו"**
+3. מלא פרטים: שם מלא, טלפון, מייל, שם עסק, ח.פ / מספר עוסק
+
+### 2.2 - מה קורה אחרי ההרשמה?
+- Meshulam יצרו קשר תוך **1-3 ימי עסקים**
+- תצטרך לספק: תעודת זהות, אישור ניהול חשבון, תעודת עוסק
+- אחרי אישור תקבל גישה לפאנל
+
+### 2.3 - קבלת API Key (אחרי אישור)
+1. היכנס לפאנל Meshulam
+2. לך ל-**הגדרות** ← **API**
+3. העתק את ה-**Page Code** (זה ה-API Key)
+
+### 2.4 - יצירת קשר ישיר
+
+| פרט | מידע |
+|------|------|
+| אתר | [meshulam.co.il](https://www.meshulam.co.il) |
+| טלפון | 073-2756200 |
+| מייל | info@meshulam.co.il |
+| שעות פעילות | א'-ה' 09:00-18:00 |
+
+### 2.5 - חלופות
+
+| ספק | אתר | הערות |
+|------|------|--------|
+| Sumit (סמיט) | [sumit.co.il](https://www.sumit.co.il) | פופולרי, חשבוניות מובנות |
+| iCount | [icount.co.il](https://www.icount.co.il) | הנהלת חשבונות + סליקה |
+| Green Invoice | [greeninvoice.co.il](https://www.greeninvoice.co.il) | חשבוניות + סליקה |
+
+> **הערה:** המערכת בנויה ל-Meshulam כספק ראשי. ספק אחר ידרוש התאמות בקוד.
+
+> **שמור!** `MESHULAM_API_KEY` = _________________
 
 ---
 
-## ד. מה צריך להשלים ידנית
+## שלב 3: יצירת מפתחות הצפנה וסודות
 
-### 1. הרצת Prisma Migration (חובה!)
-```bash
-npx prisma migrate dev --name add-terms-and-free-subscription
+**מה זה?** מפתחות שהמערכת צריכה כדי להצפין מידע רגיש ולאמת קריאות.
+
+### 3.1 - פתח PowerShell
+לחץ **Win + X** ← בחר **Windows PowerShell**
+
+### 3.2 - צור ENCRYPTION_KEY (32 תווים)
+```powershell
+-join ((65..90) + (97..122) + (48..57) | Get-Random -Count 32 | ForEach-Object {[char]$_})
 ```
-זה יוסיף את:
-- שדות isFreeSubscription, freeSubscriptionNote, freeSubscriptionGrantedAt לטבלת User
-- טבלת TermsAcceptance החדשה
+> **חשוב מאוד!** אם תאבד את המפתח הזה, לא תוכל לפענח API Keys של מטפלים שכבר שמרו. שמור במקום בטוח!
 
-### 2. משתני סביבה (Environment Variables) ב-Render
-ודא שהמשתנים הבאים קיימים:
+### 3.3 - צור CRON_SECRET
+```powershell
+[Convert]::ToBase64String((1..32 | ForEach-Object { Get-Random -Maximum 256 }))
+```
+
+### 3.4 - צור MESHULAM_WEBHOOK_SECRET
+```powershell
+[Convert]::ToBase64String((1..32 | ForEach-Object { Get-Random -Maximum 256 }))
+```
+
+### 3.5 - צור INCOMING_EMAIL_SECRET
+```powershell
+[Convert]::ToBase64String((1..32 | ForEach-Object { Get-Random -Maximum 256 }))
+```
+
+> **סיכום שלב 3 - שמור לעצמך:**
+> - `ENCRYPTION_KEY` = _________________________________
+> - `CRON_SECRET` = _________________________________
+> - `MESHULAM_WEBHOOK_SECRET` = _________________________________
+> - `INCOMING_EMAIL_SECRET` = _________________________________
+
+---
+
+## שלב 4: הוספת משתני סביבה ב-Render
+
+### 4.1 - היכנס ל-Render
+1. גלוש ל-[dashboard.render.com](https://dashboard.render.com)
+2. בחר את ה-Service שלך (**tipul-app**)
+3. בתפריט הצדדי לחץ **Environment**
+
+### 4.2 - הוסף את המשתנים הבאים
+
+| # | Key | Value | הערות |
+|---|-----|-------|--------|
+| 1 | `ADMIN_EMAIL` | הכתובת מייל שלך | לקבלת התראות מנויים |
+| 2 | `RESEND_API_KEY` | המפתח מ-Resend (re_...) | משלב 1.2 |
+| 3 | `MESHULAM_API_KEY` | ה-Page Code מ-Meshulam | משלב 2.3 (אחרי אישור) |
+| 4 | `MESHULAM_WEBHOOK_SECRET` | הסוד מ-3.4 | - |
+| 5 | `ENCRYPTION_KEY` | 32 תווים מ-3.2 | שמור בנפרד! |
+| 6 | `CRON_SECRET` | הסוד מ-3.3 | - |
+| 7 | `INCOMING_EMAIL_SECRET` | הסוד מ-3.5 | - |
+
+**משתנים שכבר אמורים להיות מוגדרים:**
 - `DATABASE_URL` - כתובת PostgreSQL
-- `NEXTAUTH_URL` - כתובת האתר (https://your-app.onrender.com)
-- `NEXTAUTH_SECRET` - מפתח סודי
-- `MESHULAM_API_KEY` - מפתח API של Meshulam
-- `MESHULAM_WEBHOOK_SECRET` - סוד Webhook (אם יש)
-- `ADMIN_EMAIL` - המייל שלך לקבלת התראות
-- `CRON_SECRET` - סוד ל-cron jobs
-- `RESEND_API_KEY` - מפתח API של Resend לשליחת מיילים
-- `ENCRYPTION_KEY` - מפתח הצפנה AES-256
+- `NEXTAUTH_SECRET` - מפתח אימות
+- `NEXTAUTH_URL` - כתובת האתר
+- `NODE_ENV` = production
 
-### 3. הגדרת Cron Jobs (חובה!)
-ב-Render או בשירות חיצוני (cron-job.org, easycron.com), הגדר:
+> אם חסר `NEXTAUTH_SECRET`, צור ב-PowerShell:
+> `[Convert]::ToBase64String((1..32 | ForEach-Object { Get-Random -Maximum 256 }))`
 
-**תזכורות מנוי - כל יום בשעה 09:00:**
-```
-GET https://your-app.onrender.com/api/cron/subscription-reminders
-Header: Authorization: Bearer YOUR_CRON_SECRET
-```
-
-**יצירת התראות אדמין - כל יום בשעה 08:00:**
-```
-GET https://your-app.onrender.com/api/cron/generate-alerts
-Header: Authorization: Bearer YOUR_CRON_SECRET
-```
-
-### 4. הגדרת Webhook ב-Meshulam
-בפאנל הניהול של Meshulam, הגדר:
-- Webhook URL: `https://your-app.onrender.com/api/webhooks/meshulam`
-- Events: payment.success, payment.failed, subscription.created, subscription.renewed, subscription.cancelled
-
-### 5. הגדרת Resend (שליחת מיילים)
-- היכנס ל-resend.com
-- הגדר דומיין שליחה (או השתמש בדומיין ברירת מחדל)
-- צור API Key והכנס ל-RESEND_API_KEY
+### 4.3 - שמירה
+1. לחץ **Save Changes**
+2. Render יפעיל deploy אוטומטי
+3. המתן 2-5 דקות
 
 ---
 
-## ה. מה להוסיף בהמשך (לא קריטי עכשיו)
+## שלב 5: הגדרת Webhook ב-Meshulam
 
-### 1. סנכרון תמחור
-המחירים מוגדרים בשני מקומות:
-- `src/lib/pricing.ts` (מקור אמת - לצד שרת)
-- `src/app/(dashboard)/dashboard/settings/billing/page.tsx` (צד לקוח)
+> **עשה שלב זה רק אחרי ש-Meshulam אישרו את החשבון שלך!**
 
-בהמשך כדאי שדף ה-billing ייבא מ-pricing.ts (דורש API route או server component).
-
-### 2. דף admin/terms
-הדף `/admin/terms/page.tsx` (UI) נוצר אבל הוא בסיסי. בהמשך אפשר להוסיף:
-- חיפוש לפי שם/מייל (לא רק userId)
-- ייצוא ל-CSV
-- תצוגה מפורטת של כל רשומה
-
-### 3. Webhook ל-Sumit
-אם תשתמש גם ב-Sumit (לא רק Meshulam), צריך webhook handler דומה ב:
-`src/app/api/webhooks/sumit/route.ts`
-
-### 4. ביטול הוראת קבע ב-Meshulam
-כשמשתמש מבטל מנוי, צריך גם לבטל את הוראת הקבע ב-Meshulam דרך ה-API שלהם.
-כרגע רק הסטטוס ב-DB משתנה אבל ההוראה ב-Meshulam עדיין פעילה.
-
-### 5. חיוב התאמת הנחה
-כשמשתמש מבטל מנוי מוזל מוקדם, נוצרת רשומת תשלום PENDING עם ההפרש.
-צריך לממש את החיוב בפועל דרך Meshulam API (חיוב ידני של כרטיס אשראי).
+1. היכנס לחשבון Meshulam
+2. לך ל-**הגדרות** ← **Webhooks**
+3. הוסף Webhook חדש:
+   - URL: `https://tipul-app.onrender.com/api/webhooks/meshulam`
+   - (החלף `tipul-app` בשם ה-Service שלך ב-Render)
+4. סמן אירועים:
+   - ✅ תשלום התקבל
+   - ✅ תשלום נכשל
+   - ✅ מנוי נוצר
+   - ✅ מנוי חודש
+   - ✅ מנוי בוטל
+5. שמור
 
 ---
 
-## ו. לגבי "הכפתור שהורד"
-**לא הורד שום כפתור מהמסך!** הוסרה רק שורת `import` של אייקון `Download` מ-lucide-react שהיה מיובא אבל **מעולם לא הוצג על המסך**. אף אלמנט ויזואלי לא נפגע.
+## שלב 6: הגדרת Cron Jobs
+
+> **חדשות טובות!** ה-Cron Jobs כבר מוגדרים ב-`render.yaml` ויופיעו אוטומטית.
+
+### 6.1 - בדוק ב-Render
+1. היכנס ל-[dashboard.render.com](https://dashboard.render.com)
+2. חפש Services:
+   - `subscription-reminders` (כל יום 09:00)
+   - `admin-alerts-generator` (כל יום 08:00)
+3. ודא שה-`CRON_SECRET` מוגדר בכל אחד מהם!
+
+### 6.2 - אם לא הופיעו (או Free Plan)
+השתמש ב-[cron-job.org](https://cron-job.org) (חינם):
+
+| שם | URL | תזמון | Header |
+|----|-----|--------|--------|
+| Subscription Reminders | `https://tipul-app.onrender.com/api/cron/subscription-reminders` | כל יום 09:00 | `Authorization: Bearer YOUR_CRON_SECRET` |
+| Admin Alerts | `https://tipul-app.onrender.com/api/cron/generate-alerts` | כל יום 08:00 | `Authorization: Bearer YOUR_CRON_SECRET` |
+
+> החלף `YOUR_CRON_SECRET` בערך שיצרת בשלב 3.3!
+> החלף `tipul-app` בשם ה-Service האמיתי!
 
 ---
 
-## ז. זרימות מערכת חשובות
+## שלב 7: עדכון בסיס הנתונים (Prisma)
 
-### זרימת מנוי חינם (חדש)
+> **חדשות טובות!** ה-build command ב-Render כולל `prisma db push` - יעודכן אוטומטית בכל deploy!
+
+מה שיתווסף אוטומטית:
+- טבלת `TermsAcceptance` (הוכחה חוקית)
+- שדות חדשים ב-User: `isFreeSubscription`, `freeSubscriptionNote`, `freeSubscriptionGrantedAt`
+
+---
+
+## שלב 8: בדיקות
+
+### 8.1 - מיילים
+- היכנס למערכת ← שלח מייל למטופל ← אם הגיע = Resend עובד
+
+### 8.2 - דף Billing
+- הגדרות ← מנוי ותשלום ← ודא: מסלולים, תקופות, checkbox תנאים, כפתורי שדרג
+
+### 8.3 - פאנל אדמין
+- ניהול מנויים ← ודא: טבלה, חיפוש, סטטיסטיקות, כפתורי פעולות
+
+### 8.4 - Meshulam (אחרי אישור)
+- נסה לשלם ← ודא webhook בלוגים ← ודא סטטוס ACTIVE
+
+### 8.5 - Cron (למחרת)
+- בדוק ב-Render Logs שב-08:00 ו-09:00 ה-cron jobs רצו
+
+---
+
+# חלק ב: סיכום כל השינויים שנעשו
+
+## קבצים חדשים (6)
+
+| # | קובץ | מה עושה |
+|---|-------|---------|
+| 1 | `src/lib/pricing.ts` | מקור אמת מרכזי לכל המחירים |
+| 2 | `src/lib/rate-limit.ts` | Rate Limiter |
+| 3 | `src/lib/billing-logger.ts` | לוג API לספקי סליקה |
+| 4 | `src/lib/webhook-retry.ts` | שמירת webhooks שנכשלו |
+| 5 | `src/app/api/admin/subscribers/route.ts` | API חיפוש מנויים |
+| 6 | `src/app/api/admin/terms/route.ts` | API אישורי תנאים |
+
+## קבצים שעודכנו (13)
+
+| # | קובץ | מה השתנה |
+|---|-------|----------|
+| 7 | `prisma/schema.prisma` | TermsAcceptance + שדות חינם |
+| 8 | `src/lib/auth.ts` | CANCELLED+עתיד=ACTIVE, PAUSED=PAST_DUE |
+| 9 | `webhooks/meshulam/route.ts` | תקופה דינמית, ניקוי חינם |
+| 10 | `subscription/create/route.ts` | תנאים צד-שרת + TermsAcceptance |
+| 11 | `subscription/cancel/route.ts` | התאמת הנחה לביטול |
+| 12 | `subscription/status/route.ts` | isActive נכון |
+| 13 | `admin/users/[id]/route.ts` | grantFree, revokeFree, extendDays |
+| 14 | `cron/subscription-reminders` | תזכורות כולל CANCELLED |
+| 15 | `cron/generate-alerts` | התראות כולל CANCELLED |
+| 16 | `settings/billing/page.tsx` | דף billing מלא |
+| 17 | `settings/integrations/page.tsx` | כפתור "בדוק חיבור" |
+| 18 | `admin/billing/page.tsx` | ניהול מנויים מלא |
+| 19 | `admin-sidebar.tsx` | קישור אישורי תנאים |
+
+---
+
+# חלק ג: באגים שתוקנו (7)
+
+| חומרה | באג | פירוט |
+|--------|------|--------|
+| **קריטי** | handlePaymentSuccess 30 יום | מנוי שנתי קיבל חודש. תוקן לדינמי |
+| **קריטי** | handleSubscriptionCreated 30 יום | מנוי חדש שנתי קיבל חודש. תוקן |
+| **קריטי** | revokeFree השאיר גישה | ביטול חינם נשאר ל-10 שנים. תוקן ל-7 ימים |
+| בינוני | Fragment בלי key | React warning. תוקן |
+| בינוני | handleSearch double-fetch | API כפול. תוקן |
+| קל | Cron לא חסם CANCELLED | מנויים לא נחסמו. תוקן |
+| קל | Dead import | הוסר |
+
+---
+
+# חלק ד: מה להוסיף בהמשך
+
+1. **סנכרון מחירים Client/Server** - לאחד מקור אמת
+2. **שיפור דף admin/terms** - חיפוש, CSV, פירוט
+3. **Webhook ל-Sumit** - אם תשתמש בספק נוסף
+4. **ביטול הוראת קבע אוטומטי** - API call ל-Meshulam
+5. **חיוב התאמת הנחה** - חיוב בפועל דרך API
+
+---
+
+# חלק ה: זרימות מערכת
+
+## רכישת מנוי
 ```
-אדמין לוחץ "מנוי חינם" בטבלה
-→ בוחר מסלול + תקופה + הערה
-→ API מעדכן User (isFreeSubscription=true, subscriptionStatus=ACTIVE)
-→ מייל נשלח למנוי
+משתמש ← billing ← בוחר מסלול + תקופה
+← מסמן תנאים ← "שדרג"
+← Server: בדיקת תנאים + TermsAcceptance
+← הפניה ל-Meshulam ← תשלום
+← Webhook ← ACTIVE ← מייל אישור
 ```
 
-### זרימת ביטול חינם (חדש)
+## ביטול מנוי
 ```
-אדמין לוחץ כפתור Gift אדום
-→ אישור בדיאלוג
-→ API: isFreeSubscription=false, subscriptionStatus=CANCELLED, subscriptionEndsAt=+7 ימים
-→ מייל עם קישור לתשלום נשלח למנוי
-→ (המנוי עדיין פעיל 7 ימים - כי CANCELLED + תאריך עתידי = ACTIVE ב-auth.ts)
-→ המנוי משלם → webhook → ACTIVE + isFreeSubscription=false
+משתמש ← "ביטול" ← חישוב התאמת הנחה
+← CANCELLED (subscriptionEndsAt נשאר)
+← גישה עד סוף תקופה ← grace 7 ימים ← חסום
 ```
 
-### זרימת ביטול מנוי רגיל
+## מנוי חינם
 ```
-משתמש לוחץ "ביטול מנוי" בדף billing
-→ חישוב התאמת הנחה (אם מנוי מוזל)
-→ API: subscriptionStatus=CANCELLED (subscriptionEndsAt נשאר)
-→ auth.ts: CANCELLED + עתיד = ACTIVE (גישה עד סוף תקופה)
-→ מיילים למנוי + אדמין
-→ אחרי subscriptionEndsAt: auth.ts → PAST_DUE (grace 7 ימים)
-→ אחרי grace: CANCELLED (חסום)
+אדמין ← "מנוי חינם" ← מסלול + תקופה + הערה
+← isFreeSubscription=true, ACTIVE ← מייל למנוי
 ```
+
+## ביטול חינם
+```
+אדמין ← ביטול ← CANCELLED + 7 ימים grace
+← מייל עם קישור לתשלום
+← משלם ← webhook ← ACTIVE רגיל
+```
+
+---
+
+## לגבי "הכפתור שהורד"
+**לא הורד שום כפתור מהמסך!** הוסרה רק שורת import של אייקון Download שמעולם לא הוצג. אף אלמנט ויזואלי לא נפגע.

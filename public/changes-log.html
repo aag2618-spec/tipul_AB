@@ -3,44 +3,66 @@
 <head>
 <meta charset="UTF-8">
 <meta name="viewport" content="width=device-width, initial-scale=1.0">
-<title>סיכום שינויים - Tipul AB</title>
+<title>מדריך הגדרה מלא מאפס - Tipul AB</title>
 <style>
 * { margin: 0; padding: 0; box-sizing: border-box; }
-body { font-family: 'Segoe UI', Tahoma, Geneva, Verdana, sans-serif; background: #f8fafc; color: #1e293b; line-height: 1.7; padding: 20px; }
-.container { max-width: 900px; margin: 0 auto; background: white; border-radius: 16px; box-shadow: 0 4px 24px rgba(0,0,0,0.08); padding: 40px; }
-h1 { font-size: 28px; color: #0f172a; border-bottom: 3px solid #3b82f6; padding-bottom: 12px; margin-bottom: 8px; }
+body { font-family: 'Segoe UI', Tahoma, Geneva, Verdana, sans-serif; background: #f8fafc; color: #1e293b; line-height: 1.8; padding: 20px; }
+.container { max-width: 920px; margin: 0 auto; background: white; border-radius: 16px; box-shadow: 0 4px 24px rgba(0,0,0,0.08); padding: 40px; }
+h1 { font-size: 26px; color: #0f172a; border-bottom: 3px solid #3b82f6; padding-bottom: 12px; margin-bottom: 8px; }
 .date { color: #64748b; font-size: 14px; margin-bottom: 32px; }
-h2 { font-size: 22px; color: #1e40af; margin-top: 36px; margin-bottom: 16px; padding: 10px 16px; background: #eff6ff; border-radius: 8px; border-right: 4px solid #3b82f6; }
+h2 { font-size: 21px; color: #1e40af; margin-top: 40px; margin-bottom: 16px; padding: 10px 16px; background: #eff6ff; border-radius: 8px; border-right: 4px solid #3b82f6; }
 h3 { font-size: 17px; color: #334155; margin-top: 20px; margin-bottom: 8px; }
-ul { padding-right: 24px; margin-bottom: 12px; }
-li { margin-bottom: 4px; }
+h4 { font-size: 15px; color: #475569; margin-top: 14px; margin-bottom: 6px; }
+p { margin-bottom: 8px; }
+ul, ol { padding-right: 24px; margin-bottom: 12px; }
+li { margin-bottom: 6px; }
 code { background: #f1f5f9; padding: 2px 6px; border-radius: 4px; font-family: 'Consolas', 'Courier New', monospace; font-size: 13px; color: #be185d; }
-pre { background: #1e293b; color: #e2e8f0; padding: 16px; border-radius: 8px; overflow-x: auto; margin: 12px 0; direction: ltr; text-align: left; font-size: 13px; }
+pre { background: #1e293b; color: #e2e8f0; padding: 16px; border-radius: 8px; overflow-x: auto; margin: 12px 0; direction: ltr; text-align: left; font-size: 13px; line-height: 1.5; }
 table { width: 100%; border-collapse: collapse; margin: 16px 0; font-size: 14px; }
 th { background: #1e40af; color: white; padding: 10px 12px; text-align: right; }
-td { padding: 8px 12px; border-bottom: 1px solid #e2e8f0; }
+td { padding: 8px 12px; border-bottom: 1px solid #e2e8f0; vertical-align: top; }
 tr:hover td { background: #f8fafc; }
 .critical { color: #dc2626; font-weight: bold; }
 .medium { color: #f59e0b; font-weight: bold; }
 .low { color: #22c55e; font-weight: bold; }
-.section-new { border-right-color: #22c55e; background: #f0fdf4; }
-.section-updated { border-right-color: #f59e0b; background: #fffbeb; }
+.step-box { background: #f0fdf4; border: 1px solid #bbf7d0; border-radius: 10px; padding: 20px; margin: 16px 0; }
+.step-num { display: inline-block; width: 32px; height: 32px; background: #16a34a; color: white; border-radius: 50%; text-align: center; line-height: 32px; font-weight: bold; margin-left: 10px; font-size: 15px; }
+.warn-box { background: #fef3c7; border: 1px solid #fde047; border-radius: 10px; padding: 16px; margin: 16px 0; }
+.warn-box strong { color: #92400e; }
+.error-box { background: #fef2f2; border: 1px solid #fecaca; border-radius: 10px; padding: 16px; margin: 16px 0; }
+.error-box strong { color: #991b1b; }
+.info-box { background: #eff6ff; border: 1px solid #bfdbfe; border-radius: 10px; padding: 16px; margin: 16px 0; }
+.info-box strong { color: #1e40af; }
+.success-box { background: #f0fdf4; border: 1px solid #bbf7d0; border-radius: 10px; padding: 16px; margin: 16px 0; }
+.success-box strong { color: #166534; }
+.section-setup { border-right-color: #8b5cf6; background: #f5f3ff; }
+.section-render { border-right-color: #06b6d4; background: #ecfeff; }
+.section-meshulam { border-right-color: #f59e0b; background: #fffbeb; }
+.section-resend { border-right-color: #ec4899; background: #fdf2f8; }
+.section-cron { border-right-color: #22c55e; background: #f0fdf4; }
+.section-webhook { border-right-color: #ef4444; background: #fef2f2; }
+.section-test { border-right-color: #6366f1; background: #eef2ff; }
+.section-changes { border-right-color: #3b82f6; background: #eff6ff; }
 .section-bugs { border-right-color: #dc2626; background: #fef2f2; }
-.section-manual { border-right-color: #8b5cf6; background: #f5f3ff; }
 .section-future { border-right-color: #06b6d4; background: #ecfeff; }
 .section-flows { border-right-color: #ec4899; background: #fdf2f8; }
-.flow-box { background: #f8fafc; border: 1px solid #e2e8f0; border-radius: 8px; padding: 16px; margin: 12px 0; direction: ltr; text-align: left; font-family: monospace; font-size: 13px; white-space: pre-wrap; }
-.note-box { background: #fefce8; border: 1px solid #fde047; border-radius: 8px; padding: 12px 16px; margin: 16px 0; }
-.note-box strong { color: #854d0e; }
-.download-btn { display: inline-block; background: #3b82f6; color: white; padding: 12px 24px; border-radius: 8px; text-decoration: none; font-weight: bold; margin: 16px 0; cursor: pointer; border: none; font-size: 15px; }
+.flow-box { background: #f8fafc; border: 1px solid #e2e8f0; border-radius: 8px; padding: 16px; margin: 12px 0; direction: ltr; text-align: left; font-family: monospace; font-size: 13px; white-space: pre-wrap; line-height: 1.6; }
+.download-btn { display: inline-block; background: #3b82f6; color: white; padding: 12px 24px; border-radius: 8px; text-decoration: none; font-weight: bold; margin: 8px 4px; cursor: pointer; border: none; font-size: 15px; }
 .download-btn:hover { background: #2563eb; }
-.print-only { display: none; }
+.download-btn.green { background: #16a34a; }
+.download-btn.green:hover { background: #15803d; }
+.toc { background: #f8fafc; border: 1px solid #e2e8f0; border-radius: 10px; padding: 20px; margin-bottom: 30px; }
+.toc a { color: #2563eb; text-decoration: none; display: block; padding: 4px 0; }
+.toc a:hover { text-decoration: underline; }
+.toc-title { font-weight: bold; font-size: 17px; margin-bottom: 10px; color: #1e293b; }
+.divider { border: none; border-top: 2px solid #e2e8f0; margin: 36px 0; }
 @media print { 
-  body { padding: 0; background: white; } 
-  .container { box-shadow: none; padding: 20px; } 
-  .no-print { display: none; }
-  .print-only { display: block; }
-  h2 { break-before: auto; }
+  body { padding: 0; background: white; font-size: 12px; } 
+  .container { box-shadow: none; padding: 16px; } 
+  .no-print { display: none !important; }
+  h2 { font-size: 17px; margin-top: 24px; }
+  .step-box { page-break-inside: avoid; }
+  pre { font-size: 11px; }
 }
 </style>
 </head>
@@ -49,284 +71,526 @@ tr:hover td { background: #f8fafc; }
 
 <div class="no-print" style="text-align: center; margin-bottom: 24px;">
 <button class="download-btn" onclick="window.print()">הדפס / שמור כ-PDF</button>
+<button class="download-btn green" onclick="document.getElementById('setup-section').scrollIntoView({behavior:'smooth'})">קפוץ למדריך ההגדרה</button>
 </div>
 
-<h1>סיכום שינויים מלא - Tipul AB</h1>
-<div class="date">10 בפברואר 2026</div>
+<h1>מדריך הגדרה מלא מאפס + סיכום שינויים - Tipul AB</h1>
+<div class="date">10 בפברואר 2026 | גרסה 2.0</div>
 
-<!-- ===== א. קבצים חדשים ===== -->
-<h2 class="section-new">א. קבצים חדשים שנוצרו (6 קבצים)</h2>
+<!-- תוכן עניינים -->
+<div class="toc">
+<div class="toc-title">תוכן עניינים</div>
+<a href="#setup-section">חלק א: מדריך הגדרה מאפס - שלב אחרי שלב</a>
+<a href="#step1">&nbsp;&nbsp;&nbsp;שלב 1: הרשמה ל-Resend (שליחת מיילים)</a>
+<a href="#step2">&nbsp;&nbsp;&nbsp;שלב 2: הרשמה ל-Meshulam (סליקת תשלומים)</a>
+<a href="#step3">&nbsp;&nbsp;&nbsp;שלב 3: יצירת מפתחות הצפנה</a>
+<a href="#step4">&nbsp;&nbsp;&nbsp;שלב 4: הוספת משתני סביבה ב-Render</a>
+<a href="#step5">&nbsp;&nbsp;&nbsp;שלב 5: הגדרת Webhook ב-Meshulam</a>
+<a href="#step6">&nbsp;&nbsp;&nbsp;שלב 6: הגדרת Cron Jobs</a>
+<a href="#step7">&nbsp;&nbsp;&nbsp;שלב 7: Prisma - עדכון בסיס הנתונים</a>
+<a href="#step8">&nbsp;&nbsp;&nbsp;שלב 8: בדיקות</a>
+<a href="#changes-section">חלק ב: סיכום כל השינויים שנעשו</a>
+<a href="#bugs-section">חלק ג: באגים שתוקנו</a>
+<a href="#future-section">חלק ד: מה להוסיף בהמשך</a>
+<a href="#flows-section">חלק ה: זרימות מערכת</a>
+</div>
 
-<h3>1. <code>src/lib/pricing.ts</code> - מקור אמת מרכזי לתמחור</h3>
+<!-- ============================================================ -->
+<!-- חלק א: מדריך הגדרה מאפס -->
+<!-- ============================================================ -->
+
+<h2 class="section-setup" id="setup-section">חלק א: מדריך הגדרה מאפס - שלב אחרי שלב</h2>
+<p>עדיין לא הגדרת כלום ולא נרשמת לשום שירות? מצוין. עקוב אחרי כל שלב בסדר.</p>
+
+<!-- ===== שלב 1: Resend ===== -->
+<h2 class="section-resend" id="step1"><span class="step-num">1</span> הרשמה ל-Resend (שירות שליחת מיילים)</h2>
+
+<p><strong>מה זה?</strong> Resend שולח מיילים בשם המערכת שלך: תזכורות מנוי, אישורי תשלום, התראות ביטול, מיילים למטופלים.</p>
+
+<div class="step-box">
+<h4>1.1 - הרשמה</h4>
+<ol>
+<li>גלוש ל-<strong><a href="https://resend.com/signup" target="_blank">resend.com/signup</a></strong></li>
+<li>הירשם עם המייל שלך (או Google/GitHub)</li>
+<li>אשר את כתובת המייל</li>
+</ol>
+
+<h4>1.2 - יצירת API Key</h4>
+<ol>
+<li>אחרי ההרשמה, היכנס ל-Dashboard</li>
+<li>בתפריט השמאלי לחץ <strong>API Keys</strong></li>
+<li>לחץ <strong>Create API Key</strong></li>
+<li>תן שם: <code>tipul-production</code></li>
+<li>Permission: <strong>Full Access</strong></li>
+<li>לחץ <strong>Create</strong></li>
+<li><strong>העתק את המפתח (מתחיל ב-<code>re_</code>) ושמור אותו!</strong> הוא יוצג רק פעם אחת</li>
+</ol>
+
+<h4>1.3 - הגדרת דומיין (אופציונלי אבל מומלץ)</h4>
+<ol>
+<li>בתפריט לחץ <strong>Domains</strong></li>
+<li>לחץ <strong>Add Domain</strong></li>
+<li>הכנס את הדומיין שלך (למשל: <code>yourdomain.co.il</code>)</li>
+<li>Resend ייתן לך רשומות DNS להוסיף - הוסף אותן אצל ספק הדומיין שלך</li>
+<li>המתן לאימות (כמה דקות עד שעה)</li>
+</ol>
+
+<div class="info-box">
+<strong>טיפ:</strong> בלי דומיין מאומת אפשר לשלוח רק מ-<code>onboarding@resend.dev</code> ורק למיילים שאימתת. מספיק לבדיקות, אבל לייצור חייבים דומיין מאומת.
+</div>
+
+<h4>1.4 - מחירים</h4>
 <ul>
-<li>כל המחירים מוגדרים כאן בלבד (ESSENTIAL / PRO / ENTERPRISE)</li>
-<li>תקופות: חודשי (1), רבעוני (3), חצי שנתי (6), שנתי (12)</li>
-<li>פונקציות: <code>getDiscount</code>, <code>getAverageMonthlyPrice</code>, <code>detectPeriodFromAmount</code></li>
-<li><code>detectPeriodFromAmount</code> - מזהה תקופה לפי סכום תשלום (עם סטייה של ₪5)</li>
+<li><strong>חינם:</strong> עד 100 מיילים ליום / 3,000 לחודש</li>
+<li><strong>Pro ($20/חודש):</strong> עד 50,000 מיילים לחודש</li>
+<li>לרוב התוכנית החינמית מספיקה בהתחלה</li>
+</ul>
+</div>
+
+<div class="warn-box">
+<strong>שמור את ה-API Key!</strong> תצטרך אותו בשלב 4 (משתני סביבה).
+<br>המפתח שלך: <code>re_________________</code> (רשום כאן לעצמך)
+</div>
+
+<!-- ===== שלב 2: Meshulam ===== -->
+<h2 class="section-meshulam" id="step2"><span class="step-num">2</span> הרשמה ל-Meshulam (סליקת תשלומים)</h2>
+
+<p><strong>מה זה?</strong> Meshulam (משולם) הוא ספק סליקה ישראלי. דרכו המנויים שלך ישלמו על המנוי.</p>
+
+<div class="step-box">
+<h4>2.1 - הרשמה</h4>
+<ol>
+<li>גלוש ל-<strong><a href="https://www.meshulam.co.il" target="_blank">meshulam.co.il</a></strong></li>
+<li>לחץ <strong>"הרשמה"</strong> או <strong>"התחל עכשיו"</strong></li>
+<li>מלא את הפרטים:
+  <ul>
+    <li>שם מלא</li>
+    <li>מספר טלפון</li>
+    <li>כתובת מייל</li>
+    <li>שם עסק</li>
+    <li>ח.פ / מספר עוסק מורשה</li>
+  </ul>
+</li>
+<li>שלח את הטופס</li>
+</ol>
+
+<h4>2.2 - מה קורה אחרי ההרשמה?</h4>
+<ul>
+<li>Meshulam יצרו איתך קשר תוך <strong>1-3 ימי עסקים</strong></li>
+<li>תצטרך לספק מסמכים: תעודת זהות, אישור ניהול חשבון, תעודת עוסק</li>
+<li>אחרי אישור תקבל גישה לפאנל הניהול שלהם</li>
 </ul>
 
-<h3>2. <code>src/lib/rate-limit.ts</code> - Rate Limiter בזיכרון</h3>
-<ul>
-<li>In-memory store - מתאים לשרת יחיד (Render)</li>
-<li>ניקוי אוטומטי כל 5 דקות</li>
-<li>הגדרות: API_RATE_LIMIT, AUTH_RATE_LIMIT, SUBSCRIPTION_RATE_LIMIT, WEBHOOK_RATE_LIMIT</li>
-<li>פונקציית <code>rateLimitResponse</code> עם headers מתאימים</li>
-</ul>
+<h4>2.3 - קבלת API Key (אחרי שמאשרים אותך)</h4>
+<ol>
+<li>היכנס לפאנל הניהול של Meshulam</li>
+<li>לך ל-<strong>הגדרות</strong> &larr; <strong>API</strong></li>
+<li>העתק את ה-<strong>Page Code</strong> (זה ה-API Key שלך)</li>
+<li><strong>שמור אותו!</strong></li>
+</ol>
 
-<h3>3. <code>src/lib/billing-logger.ts</code> - לוג קריאות לספקי חיוב</h3>
-<ul>
-<li>שומר לטבלת <code>ApiUsageLog</code></li>
-<li><code>withBillingLog</code> - wrapper שמודד זמן אוטומטית</li>
-</ul>
-
-<h3>4. <code>src/lib/webhook-retry.ts</code> - ניסיון חוזר ל-webhooks</h3>
-<ul>
-<li>שומר webhooks שנכשלו בטבלת <code>AdminAlert</code> (סוג SYSTEM)</li>
-<li><code>withWebhookRetry</code> - wrapper שתופס שגיאות</li>
-</ul>
-
-<h3>5. <code>src/app/api/admin/subscribers/route.ts</code> - API חיפוש מנויים</h3>
-<ul>
-<li>חיפוש לפי שם (חלקי), מייל, טלפון</li>
-<li>סינון לפי סטטוס ומסלול</li>
-<li>Pagination</li>
-<li>מחזיר: פרטי משתמש + תשלומים אחרונים + אישורי תנאים + סטטיסטיקות</li>
-</ul>
-
-<h3>6. <code>src/app/api/admin/terms/route.ts</code> - API אישורי תנאים</h3>
-<ul>
-<li>GET בלבד (אין DELETE/PUT - רשומות אלו הוכחה חוקית!)</li>
-<li>סינון לפי userId</li>
-<li>Pagination</li>
-</ul>
-
-<!-- ===== ב. קבצים שעודכנו ===== -->
-<h2 class="section-updated">ב. קבצים שעודכנו (13 קבצים)</h2>
-
-<h3>7. <code>prisma/schema.prisma</code></h3>
-<ul>
-<li>שדות חדשים ב-User: <code>isFreeSubscription</code> (Boolean), <code>freeSubscriptionNote</code> (String?), <code>freeSubscriptionGrantedAt</code> (DateTime?)</li>
-<li>מודל חדש: <code>TermsAcceptance</code> - הוכחה חוקית על אישור תנאים (userId, userEmail, userName, termsVersion, termsType, acceptedContent, action, planSelected, billingMonths, amountAgreed, ipAddress, userAgent)</li>
-<li>אינדקסים: userId, createdAt, termsType</li>
-<li>Relation חדש: <code>termsAcceptances TermsAcceptance[]</code> ב-User</li>
-</ul>
-
-<h3>8. <code>src/lib/auth.ts</code></h3>
-<ul>
-<li>CANCELLED + subscriptionEndsAt בעתיד → <code>token.subscriptionStatus = "ACTIVE"</code> (גישה עד סוף תקופה ששולמה)</li>
-<li>PAUSED → <code>token.subscriptionStatus = "PAST_DUE"</code> (גישה עם אזהרה)</li>
-<li>Grace period: 7 ימים אחרי פקיעת מנוי לפני חסימה מלאה</li>
-</ul>
-
-<h3>9. <code>src/app/api/webhooks/meshulam/route.ts</code></h3>
-<ul>
-<li><code>handlePaymentSuccess</code>: תוקן מ-30 ימים hardcoded → <code>detectPeriodCentral</code></li>
-<li><code>handleSubscriptionCreated</code>: תוקן מ-30 ימים hardcoded → <code>detectPeriodCentral</code></li>
-<li>ניקוי שדות חינם (<code>isFreeSubscription: false</code>) אחרי תשלום</li>
-<li>שילוב <code>withWebhookRetry</code> + <code>checkRateLimit</code></li>
-</ul>
-
-<h3>10. <code>src/app/api/subscription/create/route.ts</code></h3>
-<ul>
-<li>בדיקת <code>termsAccepted</code> בצד שרת (מחזיר 400 אם חסר)</li>
-<li>יצירת <code>TermsAcceptance</code> עם IP, user-agent, גרסת תנאים</li>
-<li>תמחור מ-<code>pricing.ts</code> (PRICING, PERIOD_DAYS, PERIOD_LABELS)</li>
-<li>Rate limiting</li>
-</ul>
-
-<h3>11. <code>src/app/api/subscription/cancel/route.ts</code></h3>
-<ul>
-<li>חישוב התאמת הנחה לביטול מוקדם (<code>calculateFairPrice</code>, <code>calculateCancellationAdjustment</code>)</li>
-<li>יצירת <code>SubscriptionPayment</code> עם סטטוס PENDING אם יש הפרש</li>
-<li>מיילים למנוי ולאדמין עם פירוט</li>
-<li>Rate limiting</li>
-</ul>
-
-<h3>12. <code>src/app/api/subscription/status/route.ts</code></h3>
-<ul>
-<li><code>isActive</code> מחושב נכון: ACTIVE, TRIALING בתוקף, או CANCELLED עם תאריך עתידי</li>
-</ul>
-
-<h3>13. <code>src/app/api/admin/users/[id]/route.ts</code> (PATCH)</h3>
-<ul>
-<li><code>grantFree</code>: מפעיל מנוי חינם + שולח מייל הפעלה</li>
-<li><code>revokeFree</code>: מבטל חינם + קובע 7 ימים grace + שולח מייל עם קישור לתשלום</li>
-<li><code>extendDays</code>: הארכת מנוי מתאריך קיים או מהיום</li>
-</ul>
-
-<h3>14. <code>src/app/api/cron/subscription-reminders/route.ts</code></h3>
-<ul>
-<li>כל השאילתות כוללות <code>subscriptionStatus: { in: ["ACTIVE", "CANCELLED"] }</code></li>
-<li>סעיף 5 (חסימה אחרי grace) - גם CANCELLED</li>
-</ul>
-
-<h3>15. <code>src/app/api/cron/generate-alerts/route.ts</code></h3>
-<ul>
-<li>expiringUsers ו-expiredUsers כוללים גם CANCELLED</li>
-</ul>
-
-<h3>16. <code>src/app/(dashboard)/dashboard/settings/billing/page.tsx</code></h3>
-<ul>
-<li>תקופות חיוב: 1, 3, 6, 12 חודשים עם הנחות מחושבות</li>
-<li>תנאי שימוש: Checkbox חובה + פירוט + חסימת כפתורי רכישה</li>
-<li>חישוב ביטול מוקדם - client side</li>
-<li>דיאלוג ביטול עם פירוט התאמת הנחה</li>
-<li>ניווט עקבי (פרופיל, התראות, תקשורת, אינטגרציות, מנוי)</li>
-</ul>
-
-<h3>17. <code>src/app/(dashboard)/dashboard/settings/integrations/page.tsx</code></h3>
-<ul>
-<li>כפתור "בדוק חיבור" לספקי חיוב מחוברים</li>
-<li>הוראות ספציפיות ל-SUMIT</li>
-</ul>
-
-<h3>18. <code>src/app/admin/billing/page.tsx</code> (שכתוב מלא)</h3>
-<ul>
-<li>דף ניהול מנויים מקיף: טבלה + חיפוש + סינון + pagination</li>
-<li>סטטיסטיקות מהירות (6 כרטיסים)</li>
-<li>שורה מורחבת (תשלומים + תנאים)</li>
-<li>דיאלוג פרטים מלאים (3 טאבים)</li>
-<li>דיאלוגי פעולות: חסימה, שדרוג, הארכה, מנוי חינם, ביטול חינם</li>
-</ul>
-
-<h3>19. <code>src/components/admin-sidebar.tsx</code></h3>
-<ul>
-<li>הוספת "אישורי תנאים" (<code>/admin/terms</code>) עם אייקון FileCheck</li>
-</ul>
-
-<!-- ===== ג. באגים ===== -->
-<h2 class="section-bugs">ג. באגים שמצאתי ותיקנתי (7 באגים)</h2>
-
+<h4>2.4 - יצירת קשר ישיר</h4>
 <table>
-<tr><th>חומרה</th><th>באג</th><th>קובץ</th><th>פירוט</th></tr>
-<tr><td class="critical">קריטי</td><td>handlePaymentSuccess תמיד 30 יום</td><td>webhooks/meshulam</td><td>מנוי שנתי קיבל רק חודש. תוקן עם detectPeriodCentral</td></tr>
-<tr><td class="critical">קריטי</td><td>handleSubscriptionCreated תמיד 30 יום</td><td>webhooks/meshulam</td><td>מנוי חדש שנתי קיבל רק חודש. תוקן</td></tr>
-<tr><td class="critical">קריטי</td><td>revokeFree השאיר גישה חינם</td><td>admin/users/[id]</td><td>ביטול חינם לא שינה subscriptionEndsAt - המשתמש נשאר עם גישה עד 10 שנים. תוקן ל-7 ימים grace</td></tr>
-<tr><td class="medium">בינוני</td><td>Fragment בלי key ב-.map()</td><td>admin/billing</td><td>React warning + באגים בעדכון טבלה. תוקן</td></tr>
-<tr><td class="medium">בינוני</td><td>handleSearch double-fetch</td><td>admin/billing</td><td>קריאת API כפולה עם page ישן. תוקן</td></tr>
-<tr><td class="low">קל</td><td>Cron לא חסם CANCELLED</td><td>subscription-reminders</td><td>מנויים CANCELLED שעברו grace לא נחסמו. תוקן</td></tr>
-<tr><td class="low">קל</td><td>Dead import Download</td><td>admin/billing</td><td>Import שלא בשימוש הוסר</td></tr>
+<tr><th>פרט</th><th>מידע</th></tr>
+<tr><td>אתר</td><td><a href="https://www.meshulam.co.il" target="_blank">meshulam.co.il</a></td></tr>
+<tr><td>טלפון</td><td>073-2756200</td></tr>
+<tr><td>מייל</td><td>info@meshulam.co.il</td></tr>
+<tr><td>שעות פעילות</td><td>א'-ה' 09:00-18:00</td></tr>
 </table>
 
-<!-- ===== ד. מה צריך להשלים ===== -->
-<h2 class="section-manual">ד. מה צריך להשלים ידנית</h2>
+<h4>2.5 - חלופות (אם Meshulam לא מתאים)</h4>
+<table>
+<tr><th>ספק</th><th>אתר</th><th>הערות</th></tr>
+<tr><td>Sumit (סמיט)</td><td><a href="https://www.sumit.co.il" target="_blank">sumit.co.il</a></td><td>פופולרי בישראל, חשבוניות מובנות</td></tr>
+<tr><td>iCount (אייקאונט)</td><td><a href="https://www.icount.co.il" target="_blank">icount.co.il</a></td><td>הנהלת חשבונות + סליקה</td></tr>
+<tr><td>Green Invoice (חשבונית ירוקה)</td><td><a href="https://www.greeninvoice.co.il" target="_blank">greeninvoice.co.il</a></td><td>חשבוניות + סליקה</td></tr>
+</table>
 
-<h3>1. הרצת Prisma Migration (חובה!)</h3>
+<div class="info-box">
+<strong>הערה:</strong> המערכת בנויה לעבוד עם Meshulam כספק ראשי. אם תבחר ספק אחר, יצטרכו התאמות בקוד.
+</div>
+
+<h4>2.6 - מחירים של Meshulam (משוער)</h4>
+<ul>
+<li>עמלה: בדרך כלל 1-3% + דמי עסקה קבועים</li>
+<li>דמי הקמה: משתנה (לפעמים חינם)</li>
+<li>דמי חודשיים: משתנה לפי חבילה</li>
+<li><strong>מומלץ לדבר איתם ישירות על מחירים</strong></li>
+</ul>
+</div>
+
+<div class="warn-box">
+<strong>שמור את ה-Page Code (API Key)!</strong> תצטרך אותו בשלב 4.
+<br>המפתח שלך: <code>_________________</code> (רשום כאן לעצמך)
+</div>
+
+<!-- ===== שלב 3: מפתחות ===== -->
+<h2 class="section-setup" id="step3"><span class="step-num">3</span> יצירת מפתחות הצפנה וסודות</h2>
+
+<p><strong>מה זה?</strong> מפתחות שהמערכת משתמשת בהם כדי להצפין מידע רגיש ולאמת קריאות.</p>
+
+<div class="step-box">
+<h4>3.1 - פתח PowerShell במחשב שלך</h4>
+<p>לחץ <strong>Win + X</strong> &larr; בחר <strong>Windows PowerShell</strong></p>
+
+<h4>3.2 - צור ENCRYPTION_KEY (מפתח הצפנה - 32 תווים)</h4>
+<p>העתק והדבק את השורה הבאה ב-PowerShell ולחץ Enter:</p>
+<pre>-join ((65..90) + (97..122) + (48..57) | Get-Random -Count 32 | ForEach-Object {[char]$_})</pre>
+<p><strong>העתק את התוצאה ושמור!</strong> זה ה-<code>ENCRYPTION_KEY</code></p>
+
+<div class="error-box">
+<strong>חשוב מאוד!</strong> אם תאבד את המפתח הזה, לא תוכל לפענח API Keys של מטפלים שכבר שמרו. שמור אותו במקום בטוח!
+</div>
+
+<h4>3.3 - צור CRON_SECRET (סוד ל-cron jobs)</h4>
+<pre>[Convert]::ToBase64String((1..32 | ForEach-Object { Get-Random -Maximum 256 }))</pre>
+<p>העתק ושמור. זה ה-<code>CRON_SECRET</code></p>
+
+<h4>3.4 - צור MESHULAM_WEBHOOK_SECRET (סוד ל-webhook)</h4>
+<pre>[Convert]::ToBase64String((1..32 | ForEach-Object { Get-Random -Maximum 256 }))</pre>
+<p>העתק ושמור. זה ה-<code>MESHULAM_WEBHOOK_SECRET</code></p>
+
+<h4>3.5 - צור INCOMING_EMAIL_SECRET (סוד למיילים נכנסים)</h4>
+<pre>[Convert]::ToBase64String((1..32 | ForEach-Object { Get-Random -Maximum 256 }))</pre>
+<p>העתק ושמור. זה ה-<code>INCOMING_EMAIL_SECRET</code></p>
+</div>
+
+<div class="warn-box">
+<strong>סיכום מה שיצרת בשלב הזה (רשום לעצמך):</strong>
+<br><code>ENCRYPTION_KEY</code> = _________________________________
+<br><code>CRON_SECRET</code> = _________________________________
+<br><code>MESHULAM_WEBHOOK_SECRET</code> = _________________________________
+<br><code>INCOMING_EMAIL_SECRET</code> = _________________________________
+</div>
+
+<!-- ===== שלב 4: Render ===== -->
+<h2 class="section-render" id="step4"><span class="step-num">4</span> הוספת משתני סביבה ב-Render</h2>
+
+<p><strong>מה זה?</strong> משתני סביבה (Environment Variables) הם ההגדרות הסודיות שהמערכת צריכה כדי לעבוד.</p>
+
+<div class="step-box">
+<h4>4.1 - היכנס ל-Render</h4>
+<ol>
+<li>גלוש ל-<strong><a href="https://dashboard.render.com" target="_blank">dashboard.render.com</a></strong></li>
+<li>בחר את ה-Service שלך (<strong>tipul-app</strong>)</li>
+<li>בתפריט הצדדי לחץ <strong>Environment</strong></li>
+</ol>
+
+<h4>4.2 - הוסף את המשתנים הבאים</h4>
+<p>לחץ <strong>Add Environment Variable</strong> עבור כל אחד:</p>
+</div>
+
+<table>
+<tr><th>#</th><th>Key (שם המשתנה)</th><th>Value (ערך)</th><th>הערות</th></tr>
+<tr><td>1</td><td><code>ADMIN_EMAIL</code></td><td>הכתובת מייל שלך</td><td>לשם תקבל התראות על מנויים חדשים, ביטולים, תשלומים שנכשלו</td></tr>
+<tr><td>2</td><td><code>RESEND_API_KEY</code></td><td>המפתח מ-Resend (מתחיל ב-<code>re_</code>)</td><td>משלב 1.2</td></tr>
+<tr><td>3</td><td><code>MESHULAM_API_KEY</code></td><td>ה-Page Code מ-Meshulam</td><td>משלב 2.3 (אחרי שמאשרים אותך)</td></tr>
+<tr><td>4</td><td><code>MESHULAM_WEBHOOK_SECRET</code></td><td>הסוד שיצרת ב-3.4</td><td>-</td></tr>
+<tr><td>5</td><td><code>ENCRYPTION_KEY</code></td><td>32 התווים שיצרת ב-3.2</td><td>שמור בנפרד! אי אפשר לשחזר</td></tr>
+<tr><td>6</td><td><code>CRON_SECRET</code></td><td>הסוד שיצרת ב-3.3</td><td>-</td></tr>
+<tr><td>7</td><td><code>INCOMING_EMAIL_SECRET</code></td><td>הסוד שיצרת ב-3.5</td><td>-</td></tr>
+</table>
+
+<div class="info-box">
+<strong>משתנים שכבר אמורים להיות מוגדרים (מלפני היום):</strong>
+<br><code>DATABASE_URL</code> - כתובת בסיס הנתונים
+<br><code>NEXTAUTH_SECRET</code> - מפתח אימות
+<br><code>NEXTAUTH_URL</code> - כתובת האתר
+<br><code>NODE_ENV</code> = production
+<br>
+<br><strong>אם חסר משהו מהרשימה הזו</strong>, צריך להוסיף גם אותו. 
+<br>ל-<code>NEXTAUTH_SECRET</code> צור ב-PowerShell: <code>[Convert]::ToBase64String((1..32 | ForEach-Object { Get-Random -Maximum 256 }))</code>
+</div>
+
+<div class="step-box">
+<h4>4.3 - שמירה</h4>
+<ol>
+<li>אחרי שהוספת את כל המשתנים, לחץ <strong>Save Changes</strong></li>
+<li>Render יפעיל deploy חדש אוטומטית</li>
+<li>המתן שה-deploy יסתיים (2-5 דקות)</li>
+</ol>
+</div>
+
+<!-- ===== שלב 5: Webhook ===== -->
+<h2 class="section-webhook" id="step5"><span class="step-num">5</span> הגדרת Webhook ב-Meshulam</h2>
+
+<p><strong>מה זה?</strong> Webhook = Meshulam שולח הודעה למערכת שלך כל פעם שמישהו משלם, מבטל, או שתשלום נכשל.</p>
+
+<div class="warn-box">
+<strong>עשה את השלב הזה רק אחרי ש-Meshulam אישרו את החשבון שלך!</strong>
+</div>
+
+<div class="step-box">
+<h4>5.1 - הגדרה</h4>
+<ol>
+<li>היכנס לחשבון Meshulam שלך</li>
+<li>לך ל-<strong>הגדרות</strong> &larr; <strong>Webhooks</strong> (או "התראות" / "Notifications")</li>
+<li>לחץ <strong>הוסף Webhook חדש</strong></li>
+<li>הכנס URL:
+<pre>https://tipul-app.onrender.com/api/webhooks/meshulam</pre>
+<strong>החלף <code>tipul-app</code> בשם ה-Service שלך ב-Render!</strong>
+</li>
+<li>סמן את כל האירועים:
+<ul>
+<li>תשלום התקבל (payment.success)</li>
+<li>תשלום נכשל (payment.failed)</li>
+<li>מנוי נוצר (subscription.created)</li>
+<li>מנוי חודש (subscription.renewed)</li>
+<li>מנוי בוטל (subscription.cancelled)</li>
+</ul>
+</li>
+<li>לחץ <strong>שמור</strong></li>
+</ol>
+</div>
+
+<!-- ===== שלב 6: Cron ===== -->
+<h2 class="section-cron" id="step6"><span class="step-num">6</span> הגדרת Cron Jobs (משימות אוטומטיות)</h2>
+
+<p><strong>מה זה?</strong> משימות שרצות אוטומטית כל יום: שליחת תזכורות למנויים שעומדים לפוג, ויצירת התראות לאדמין.</p>
+
+<div class="success-box">
+<strong>חדשות טובות!</strong> כבר הגדרתי את ה-Cron Jobs ב-<code>render.yaml</code>. הם יופיעו אוטומטית ב-Render.
+<br>אם Render מזהה אותם מה-YAML - אין מה לעשות ידנית.
+</div>
+
+<div class="step-box">
+<h4>6.1 - בדוק ב-Render</h4>
+<ol>
+<li>היכנס ל-<a href="https://dashboard.render.com" target="_blank">dashboard.render.com</a></li>
+<li>בדוק אם יש בתפריט שמאלי את ה-Services הבאים:
+<ul>
+<li><code>subscription-reminders</code> (כל יום 09:00)</li>
+<li><code>admin-alerts-generator</code> (כל יום 08:00)</li>
+</ul>
+</li>
+<li>אם <strong>כן</strong> - מצוין, הם כבר מוגדרים. ודא שה-<code>CRON_SECRET</code> מוגדר גם אצלם (בכל cron service בנפרד!)</li>
+</ol>
+
+<h4>6.2 - אם ה-Cron Jobs לא הופיעו אוטומטית (או שאתה ב-Free Plan)</h4>
+<p>השתמש בשירות חיצוני חינמי:</p>
+<ol>
+<li>גלוש ל-<strong><a href="https://cron-job.org" target="_blank">cron-job.org</a></strong> (חינם)</li>
+<li>הירשם</li>
+<li>צור 2 cron jobs:</li>
+</ol>
+
+<table>
+<tr><th>שם</th><th>URL</th><th>תזמון</th><th>Header</th></tr>
+<tr>
+<td>Subscription Reminders</td>
+<td><code>https://tipul-app.onrender.com/api/cron/subscription-reminders</code></td>
+<td>כל יום בשעה 09:00</td>
+<td><code>Authorization: Bearer YOUR_CRON_SECRET</code></td>
+</tr>
+<tr>
+<td>Admin Alerts</td>
+<td><code>https://tipul-app.onrender.com/api/cron/generate-alerts</code></td>
+<td>כל יום בשעה 08:00</td>
+<td><code>Authorization: Bearer YOUR_CRON_SECRET</code></td>
+</tr>
+</table>
+
+<div class="warn-box">
+<strong>החלף <code>YOUR_CRON_SECRET</code></strong> בערך שיצרת בשלב 3.3!
+<br><strong>החלף <code>tipul-app</code></strong> בשם ה-Service האמיתי שלך ב-Render!
+</div>
+</div>
+
+<!-- ===== שלב 7: Prisma ===== -->
+<h2 class="section-setup" id="step7"><span class="step-num">7</span> עדכון בסיס הנתונים (Prisma)</h2>
+
+<div class="success-box">
+<strong>חדשות טובות!</strong> ה-build command ב-Render כבר כולל <code>prisma db push</code> - המיגרציה תרוץ אוטומטית בכל deploy!
+<br>השינויים שנוספו היום (TermsAcceptance, שדות חינם) ייכנסו אוטומטית.
+</div>
+
+<div class="step-box">
+<h4>7.1 - מה תרוץ אוטומטית</h4>
+<p>ב-build ב-Render, הפקודה הבאה רצה:</p>
+<pre>npx prisma db push --accept-data-loss</pre>
+<p>זה יוסיף אוטומטית:</p>
+<ul>
+<li>טבלת <code>TermsAcceptance</code> (הוכחה חוקית על אישור תנאים)</li>
+<li>שדות חדשים ב-User: <code>isFreeSubscription</code>, <code>freeSubscriptionNote</code>, <code>freeSubscriptionGrantedAt</code></li>
+</ul>
+
+<h4>7.2 - אם תרצה להריץ ידנית (אופציונלי)</h4>
+<p>פתח PowerShell בתיקיית הפרויקט והרץ:</p>
+<pre>npx prisma db push</pre>
+<p>או ליצירת migration file מסודר:</p>
 <pre>npx prisma migrate dev --name add-terms-and-free-subscription</pre>
-<p>זה יוסיף את:</p>
-<ul>
-<li>שדות <code>isFreeSubscription</code>, <code>freeSubscriptionNote</code>, <code>freeSubscriptionGrantedAt</code> לטבלת User</li>
-<li>טבלת <code>TermsAcceptance</code> החדשה</li>
-</ul>
-
-<div class="note-box">
-<strong>שים לב:</strong> ב-Render ה-build command כבר כולל <code>prisma db push</code> - זה ירוץ אוטומטית בדפלוי. אבל מומלץ להריץ migrate dev מקומית לפני כן ליצור migration file.
 </div>
 
-<h3>2. משתני סביבה (Environment Variables) ב-Render</h3>
-<p>ודא שהמשתנים הבאים קיימים בדשבורד של Render:</p>
+<!-- ===== שלב 8: בדיקות ===== -->
+<h2 class="section-test" id="step8"><span class="step-num">8</span> בדיקות - לוודא שהכל עובד</h2>
+
+<div class="step-box">
+<h4>8.1 - בדיקת מיילים</h4>
+<ol>
+<li>היכנס למערכת</li>
+<li>נסה לשלוח מייל למטופל</li>
+<li>אם הגעת - Resend עובד</li>
+</ol>
+
+<h4>8.2 - בדיקת דף Billing (תשלומים)</h4>
+<ol>
+<li>היכנס למערכת כמשתמש רגיל (לא אדמין)</li>
+<li>לך ל-<strong>הגדרות</strong> &larr; <strong>מנוי ותשלום</strong></li>
+<li>ודא שאתה רואה:
+<ul>
+<li>מסלולים (ESSENTIAL / PRO / ENTERPRISE)</li>
+<li>תקופות (חודשי, רבעוני, חצי שנתי, שנתי)</li>
+<li>Checkbox של תנאי שימוש</li>
+<li>כפתורי "שדרג עכשיו"</li>
+</ul>
+</li>
+</ol>
+
+<h4>8.3 - בדיקת פאנל אדמין</h4>
+<ol>
+<li>היכנס כאדמין</li>
+<li>לך ל-<strong>ניהול מנויים</strong> (admin/billing)</li>
+<li>ודא שאתה רואה:
+<ul>
+<li>טבלת מנויים עם חיפוש</li>
+<li>סטטיסטיקות (6 כרטיסים)</li>
+<li>כפתורי פעולות (חסימה, שדרוג, הארכה, חינם)</li>
+</ul>
+</li>
+</ol>
+
+<h4>8.4 - בדיקת Meshulam (אחרי שמאשרים אותך)</h4>
+<ol>
+<li>היכנס כמשתמש רגיל</li>
+<li>לך לדף billing ונסה לשלם עם כרטיס בדיקה</li>
+<li>ודא שב-Render Logs אתה רואה שה-webhook התקבל</li>
+<li>ודא שהסטטוס שלך השתנה ל-ACTIVE</li>
+</ol>
+
+<h4>8.5 - בדיקת Cron (למחרת)</h4>
+<ol>
+<li>בדוק ב-Render Logs שב-08:00 ו-09:00 ה-cron jobs רצו</li>
+<li>או הרץ ידנית בדפדפן (אם CRON_SECRET = <code>abc123</code>):
+<pre>https://tipul-app.onrender.com/api/cron/generate-alerts?secret=abc123</pre>
+(בפועל ה-secret נשלח ב-header, לא ב-URL - זו רק בדיקה)
+</li>
+</ol>
+</div>
+
+<hr class="divider">
+
+<!-- ============================================================ -->
+<!-- חלק ב: סיכום שינויים -->
+<!-- ============================================================ -->
+
+<h2 class="section-changes" id="changes-section">חלק ב: סיכום כל השינויים שנעשו (19 קבצים)</h2>
+
+<h3>קבצים חדשים (6)</h3>
 <table>
-<tr><th>משתנה</th><th>תיאור</th><th>דוגמה</th></tr>
-<tr><td><code>DATABASE_URL</code></td><td>כתובת PostgreSQL</td><td>postgresql://user:pass@host/db</td></tr>
-<tr><td><code>NEXTAUTH_URL</code></td><td>כתובת האתר</td><td>https://tipul-app.onrender.com</td></tr>
-<tr><td><code>NEXTAUTH_SECRET</code></td><td>מפתח סודי (32+ תווים)</td><td>openssl rand -base64 32</td></tr>
-<tr><td><code>MESHULAM_API_KEY</code></td><td>מפתח API של Meshulam</td><td>מהפאנל שלהם</td></tr>
-<tr><td><code>ADMIN_EMAIL</code></td><td>המייל שלך להתראות</td><td>admin@example.com</td></tr>
-<tr><td><code>CRON_SECRET</code></td><td>סוד ל-cron jobs</td><td>openssl rand -hex 32</td></tr>
-<tr><td><code>RESEND_API_KEY</code></td><td>מפתח API של Resend</td><td>re_...</td></tr>
-<tr><td><code>ENCRYPTION_KEY</code></td><td>מפתח הצפנה AES-256</td><td>openssl rand -hex 32</td></tr>
+<tr><th>#</th><th>קובץ</th><th>מה עושה</th></tr>
+<tr><td>1</td><td><code>src/lib/pricing.ts</code></td><td>מקור אמת מרכזי לכל המחירים - ESSENTIAL/PRO/ENTERPRISE, תקופות 1-12 חודשים, הנחות</td></tr>
+<tr><td>2</td><td><code>src/lib/rate-limit.ts</code></td><td>Rate Limiter - הגנה מפני הצפת בקשות</td></tr>
+<tr><td>3</td><td><code>src/lib/billing-logger.ts</code></td><td>לוג קריאות API לספקי סליקה</td></tr>
+<tr><td>4</td><td><code>src/lib/webhook-retry.ts</code></td><td>שמירת webhooks שנכשלו לניסיון חוזר</td></tr>
+<tr><td>5</td><td><code>src/app/api/admin/subscribers/route.ts</code></td><td>API חיפוש מנויים (שם, מייל, טלפון, סטטוס)</td></tr>
+<tr><td>6</td><td><code>src/app/api/admin/terms/route.ts</code></td><td>API אישורי תנאים (GET בלבד - הוכחה חוקית)</td></tr>
 </table>
 
-<h3>3. הגדרת Cron Jobs</h3>
-<div class="note-box">
-<strong>הגדרה ב-render.yaml:</strong> כבר עודכן! שני cron jobs חדשים נוספו אוטומטית:
-<br>- <code>subscription-reminders</code> - כל יום בשעה 09:00
-<br>- <code>admin-alerts-generator</code> - כל יום בשעה 08:00
-<br><br>
-<strong>חשוב:</strong> ב-Render חינם (free plan), cron jobs מוגבלים. אם יש בעיה, השתמש בשירות חיצוני כמו cron-job.org:
-</div>
-<pre>GET https://tipul-app.onrender.com/api/cron/subscription-reminders
-Header: Authorization: Bearer YOUR_CRON_SECRET
+<h3>קבצים שעודכנו (13)</h3>
+<table>
+<tr><th>#</th><th>קובץ</th><th>מה השתנה</th></tr>
+<tr><td>7</td><td><code>prisma/schema.prisma</code></td><td>מודל TermsAcceptance + שדות חינם ב-User</td></tr>
+<tr><td>8</td><td><code>src/lib/auth.ts</code></td><td>CANCELLED+עתיד=ACTIVE, PAUSED=PAST_DUE, grace period</td></tr>
+<tr><td>9</td><td><code>webhooks/meshulam/route.ts</code></td><td>תיקון חישוב תקופה (לא 30 יום hardcoded), ניקוי חינם אחרי תשלום</td></tr>
+<tr><td>10</td><td><code>subscription/create/route.ts</code></td><td>בדיקת תנאים צד-שרת + יצירת TermsAcceptance</td></tr>
+<tr><td>11</td><td><code>subscription/cancel/route.ts</code></td><td>חישוב התאמת הנחה לביטול מוקדם</td></tr>
+<tr><td>12</td><td><code>subscription/status/route.ts</code></td><td>isActive נכון גם ל-CANCELLED עם תאריך עתידי</td></tr>
+<tr><td>13</td><td><code>admin/users/[id]/route.ts</code></td><td>grantFree, revokeFree (7 ימים grace), extendDays</td></tr>
+<tr><td>14</td><td><code>cron/subscription-reminders</code></td><td>תזכורות מנוי כולל CANCELLED+עתיד</td></tr>
+<tr><td>15</td><td><code>cron/generate-alerts</code></td><td>התראות אדמין כולל CANCELLED+עתיד</td></tr>
+<tr><td>16</td><td><code>settings/billing/page.tsx</code></td><td>דף billing מלא: מסלולים, תקופות, תנאים, ביטול</td></tr>
+<tr><td>17</td><td><code>settings/integrations/page.tsx</code></td><td>כפתור "בדוק חיבור" לספקי סליקה</td></tr>
+<tr><td>18</td><td><code>admin/billing/page.tsx</code></td><td>דף ניהול מנויים מלא: חיפוש, סטטיסטיקות, פעולות</td></tr>
+<tr><td>19</td><td><code>admin-sidebar.tsx</code></td><td>קישור "אישורי תנאים" בסיידבר</td></tr>
+</table>
 
-GET https://tipul-app.onrender.com/api/cron/generate-alerts
-Header: Authorization: Bearer YOUR_CRON_SECRET</pre>
+<hr class="divider">
 
-<h3>4. הגדרת Webhook ב-Meshulam</h3>
-<p>בפאנל הניהול של Meshulam, הגדר:</p>
-<ul>
-<li><strong>Webhook URL:</strong> <code>https://tipul-app.onrender.com/api/webhooks/meshulam</code></li>
-<li><strong>Events:</strong> payment.success, payment.failed, subscription.created, subscription.renewed, subscription.cancelled</li>
-</ul>
+<!-- ============================================================ -->
+<!-- חלק ג: באגים -->
+<!-- ============================================================ -->
 
-<h3>5. הגדרת Resend (שליחת מיילים)</h3>
-<ul>
-<li>היכנס ל-<a href="https://resend.com" target="_blank">resend.com</a></li>
-<li>הגדר דומיין שליחה (או השתמש בדומיין ברירת מחדל)</li>
-<li>צור API Key והכנס ל-<code>RESEND_API_KEY</code></li>
-</ul>
+<h2 class="section-bugs" id="bugs-section">חלק ג: באגים שתוקנו (7)</h2>
 
-<!-- ===== ה. מה להוסיף בהמשך ===== -->
-<h2 class="section-future">ה. מה להוסיף בהמשך (לא קריטי)</h2>
+<table>
+<tr><th>חומרה</th><th>באג</th><th>מה קרה</th><th>מה תוקן</th></tr>
+<tr><td class="critical">קריטי</td><td>handlePaymentSuccess 30 יום</td><td>מנוי שנתי קיבל רק חודש אחד</td><td>חישוב דינמי לפי סכום תשלום</td></tr>
+<tr><td class="critical">קריטי</td><td>handleSubscriptionCreated 30 יום</td><td>מנוי חדש שנתי קיבל רק חודש</td><td>חישוב דינמי</td></tr>
+<tr><td class="critical">קריטי</td><td>revokeFree השאיר גישה</td><td>ביטול חינם השאיר גישה ל-10 שנים</td><td>7 ימים grace בלבד</td></tr>
+<tr><td class="medium">בינוני</td><td>Fragment בלי key</td><td>React warning, באגים בעדכון טבלה</td><td>Fragment עם key</td></tr>
+<tr><td class="medium">בינוני</td><td>handleSearch double-fetch</td><td>קריאת API כפולה</td><td>בדיקת page לפני קריאה</td></tr>
+<tr><td class="low">קל</td><td>Cron לא חסם CANCELLED</td><td>מנויים שעברו grace לא נחסמו</td><td>הוספת CANCELLED לשאילתות</td></tr>
+<tr><td class="low">קל</td><td>Dead import</td><td>import לא בשימוש</td><td>הוסר</td></tr>
+</table>
 
-<h3>1. סנכרון תמחור Client/Server</h3>
-<p>המחירים מוגדרים בשני מקומות - <code>pricing.ts</code> (שרת) ו-<code>billing/page.tsx</code> (לקוח). בהמשך כדאי שדף ה-billing ייבא מ-pricing.ts (דורש API route).</p>
+<hr class="divider">
 
-<h3>2. שיפור דף admin/terms</h3>
-<p>הדף בסיסי. אפשר להוסיף חיפוש לפי שם/מייל, ייצוא ל-CSV, ותצוגה מפורטת.</p>
+<!-- ============================================================ -->
+<!-- חלק ד: להוסיף בהמשך -->
+<!-- ============================================================ -->
 
-<h3>3. Webhook ל-Sumit</h3>
-<p>אם תשתמש גם ב-Sumit, צריך webhook handler דומה ב-<code>webhooks/sumit/route.ts</code>.</p>
+<h2 class="section-future" id="future-section">חלק ד: מה להוסיף בהמשך (לא קריטי עכשיו)</h2>
 
-<h3>4. ביטול הוראת קבע ב-Meshulam</h3>
-<p>כשמשתמש מבטל מנוי, כרגע רק הסטטוס ב-DB משתנה. צריך גם לבטל הוראת קבע דרך ה-API של Meshulam.</p>
+<table>
+<tr><th>#</th><th>מה</th><th>פירוט</th></tr>
+<tr><td>1</td><td><strong>סנכרון מחירים Client/Server</strong></td><td>מחירים מוגדרים בשני קבצים. בהמשך כדאי לאחד דרך API route</td></tr>
+<tr><td>2</td><td><strong>שיפור דף admin/terms</strong></td><td>הדף בסיסי - אפשר להוסיף חיפוש, CSV, תצוגה מפורטת</td></tr>
+<tr><td>3</td><td><strong>Webhook ל-Sumit</strong></td><td>אם תשתמש ב-Sumit נוסף על Meshulam</td></tr>
+<tr><td>4</td><td><strong>ביטול הוראת קבע אוטומטי</strong></td><td>כרגע ביטול רק ב-DB. צריך גם API call ל-Meshulam לבטל הוראת קבע</td></tr>
+<tr><td>5</td><td><strong>חיוב התאמת הנחה</strong></td><td>ביטול מנוי מוזל יוצר PENDING - צריך חיוב בפועל דרך Meshulam</td></tr>
+</table>
 
-<h3>5. חיוב התאמת הנחה</h3>
-<p>ביטול מנוי מוזל יוצר רשומה PENDING. צריך לממש חיוב בפועל דרך Meshulam API.</p>
+<hr class="divider">
 
-<!-- ===== ו. הכפתור ===== -->
-<h2>ו. לגבי "הכפתור שהורד"</h2>
-<div class="note-box">
-<strong>לא הורד שום כפתור מהמסך!</strong> הוסרה רק שורת <code>import</code> של אייקון <code>Download</code> מ-lucide-react שהיה מיובא אבל <strong>מעולם לא הוצג על המסך</strong>. אף אלמנט ויזואלי לא נפגע.
-</div>
+<!-- ============================================================ -->
+<!-- חלק ה: זרימות -->
+<!-- ============================================================ -->
 
-<!-- ===== ז. זרימות ===== -->
-<h2 class="section-flows">ז. זרימות מערכת חשובות</h2>
+<h2 class="section-flows" id="flows-section">חלק ה: זרימות מערכת חשובות</h2>
 
-<h3>זרימת מנוי חינם (חדש)</h3>
-<div class="flow-box">אדמין לוחץ "מנוי חינם" בטבלה
-→ בוחר מסלול + תקופה + הערה
-→ API מעדכן User (isFreeSubscription=true, subscriptionStatus=ACTIVE)
-→ מייל נשלח למנוי</div>
+<h3>רכישת מנוי</h3>
+<div class="flow-box">משתמש בדף billing &rarr; בוחר מסלול + תקופה
+&rarr; מסמן checkbox תנאים (חובה)
+&rarr; לוחץ "שדרג"
+&rarr; Server בודק termsAccepted + שומר TermsAcceptance
+&rarr; הפניה לעמוד תשלום Meshulam
+&rarr; תשלום OK &rarr; Webhook &rarr; status = ACTIVE
+&rarr; מייל אישור למנוי + התראה לאדמין</div>
 
-<h3>זרימת ביטול חינם (חדש)</h3>
-<div class="flow-box">אדמין לוחץ כפתור Gift אדום
-→ אישור בדיאלוג
-→ API: isFreeSubscription=false, status=CANCELLED, subscriptionEndsAt=+7 ימים
-→ מייל עם קישור לתשלום נשלח למנוי
-→ (המנוי עדיין פעיל 7 ימים - CANCELLED + תאריך עתידי = ACTIVE)
-→ המנוי משלם → webhook → ACTIVE + isFreeSubscription=false</div>
+<h3>ביטול מנוי רגיל</h3>
+<div class="flow-box">משתמש לוחץ "ביטול מנוי"
+&rarr; חישוב התאמת הנחה (אם מנוי מוזל)
+&rarr; status = CANCELLED (subscriptionEndsAt נשאר!)
+&rarr; גישה ממשיכה עד סוף תקופה ששולמה
+&rarr; אחרי subscriptionEndsAt: grace 7 ימים
+&rarr; אחרי grace: חסום</div>
 
-<h3>זרימת ביטול מנוי רגיל</h3>
-<div class="flow-box">משתמש לוחץ "ביטול מנוי" בדף billing
-→ חישוב התאמת הנחה (אם מנוי מוזל)
-→ API: status=CANCELLED (subscriptionEndsAt נשאר)
-→ auth.ts: CANCELLED + עתיד = ACTIVE (גישה עד סוף תקופה)
-→ מיילים למנוי + אדמין
-→ אחרי subscriptionEndsAt: PAST_DUE (grace 7 ימים)
-→ אחרי grace: CANCELLED (חסום)</div>
+<h3>מנוי חינם (אדמין מפעיל)</h3>
+<div class="flow-box">אדמין &rarr; ניהול מנויים &rarr; "מנוי חינם"
+&rarr; בוחר מסלול + תקופה + הערה
+&rarr; User: isFreeSubscription=true, status=ACTIVE
+&rarr; מייל למנוי</div>
 
-<h3>זרימת רכישת מנוי</h3>
-<div class="flow-box">משתמש בדף billing → בוחר מסלול + תקופה
-→ מסמן checkbox תנאי שימוש (חובה!)
-→ לוחץ "שדרג עכשיו"
-→ API: בודק termsAccepted (server-side) → יוצר TermsAcceptance record
-→ מפנה לעמוד תשלום Meshulam
-→ תשלום מוצלח → Webhook → User status=ACTIVE
-→ מייל אישור למנוי + התראה לאדמין</div>
+<h3>ביטול חינם (אדמין)</h3>
+<div class="flow-box">אדמין לוחץ ביטול חינם
+&rarr; isFreeSubscription=false, status=CANCELLED
+&rarr; subscriptionEndsAt = +7 ימים (grace)
+&rarr; מייל עם קישור לתשלום
+&rarr; המנוי משלם &rarr; webhook &rarr; ACTIVE רגיל</div>
 
 <div class="no-print" style="text-align: center; margin-top: 40px; padding-top: 20px; border-top: 1px solid #e2e8f0;">
 <button class="download-btn" onclick="window.print()">הדפס / שמור כ-PDF</button>
-<p style="color: #94a3b8; font-size: 13px; margin-top: 8px;">ניתן לשמור כ-PDF דרך הדפסה → "שמור כ-PDF"</p>
+<p style="color: #94a3b8; font-size: 13px; margin-top: 8px;">לחץ &rarr; בחר "שמור כ-PDF" &rarr; קובץ מסודר להורדה</p>
 </div>
 
 </div>
