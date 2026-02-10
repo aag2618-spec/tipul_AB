@@ -13,6 +13,8 @@ interface PaymentReceiptEmailProps {
       startTime: Date;
       type: string;
     };
+    receiptUrl?: string;
+    receiptNumber?: string;
   };
   clientBalance: {
     remainingDebt: number;
