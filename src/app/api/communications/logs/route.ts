@@ -10,12 +10,26 @@ export async function GET(request: NextRequest) {
       return NextResponse.json({ message: "לא מורשה" }, { status: 401 });
     }
 
-    // Get all communication logs for this therapist
+    // Get all communication logs for this therapist (sent + received)
     const logs = await prisma.communicationLog.findMany({
       where: {
         userId: session.user.id,
       },
-      include: {
+      select: {
+        id: true,
+        type: true,
+        channel: true,
+        recipient: true,
+        subject: true,
+        content: true,
+        status: true,
+        errorMessage: true,
+        sentAt: true,
+        createdAt: true,
+        isRead: true,
+        readAt: true,
+        messageId: true,
+        inReplyTo: true,
         client: {
           select: {
             id: true,
@@ -26,7 +40,7 @@ export async function GET(request: NextRequest) {
       orderBy: {
         createdAt: "desc",
       },
-      take: 200, // Limit to last 200 logs
+      take: 200,
     });
 
     return NextResponse.json(logs);

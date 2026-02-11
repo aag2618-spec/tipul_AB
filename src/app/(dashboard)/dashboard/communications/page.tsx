@@ -23,7 +23,9 @@ import {
   Calendar,
   User,
   Users,
-  Plus
+  Plus,
+  ArrowDownLeft,
+  Send
 } from "lucide-react";
 import Link from "next/link";
 import { format } from "date-fns";
@@ -48,6 +50,8 @@ interface CommunicationLog {
   errorMessage: string | null;
   sentAt: Date | null;
   createdAt: Date;
+  isRead: boolean;
+  readAt: Date | null;
   client: {
     id: string;
     name: string;
@@ -162,6 +166,10 @@ export default function CommunicationsPage() {
       CANCELLATION_APPROVED: "ביטול אושר",
       CANCELLATION_REJECTED: "ביטול נדחה",
       CUSTOM: "מייל מותאם",
+      INCOMING_EMAIL: "תשובה מהמטופל",
+      SESSION_CONFIRMATION: "אישור תור",
+      PAYMENT_RECEIPT: "קבלה",
+      WELCOME: "ברוכים הבאים",
     };
     return labels[type] || type;
   };
@@ -187,7 +195,7 @@ export default function CommunicationsPage() {
       <div className="flex items-center justify-between">
         <div>
           <h1 className="text-2xl font-bold tracking-tight">היסטוריית תקשורת</h1>
-          <p className="text-muted-foreground">כל המיילים וההודעות ששלחת למטופלים</p>
+          <p className="text-muted-foreground">כל המיילים וההודעות - שלוחים ונכנסים</p>
         </div>
         <Button asChild className="gap-2">
           <Link href="/dashboard/communications/bulk-email">
@@ -294,56 +302,89 @@ export default function CommunicationsPage() {
             </CardContent>
           </Card>
         ) : (
-          filteredLogs.map((log) => (
-            <Card key={log.id} className="hover:shadow-md transition-shadow">
-              <CardContent className="p-4">
-                <div className="flex items-start justify-between gap-4">
-                  <div className="flex items-start gap-3 flex-1">
-                    <div className="mt-1">{getStatusIcon(log.status)}</div>
-                    <div className="flex-1 space-y-2">
-                      <div className="flex items-center gap-2 flex-wrap">
-                        <h3 className="font-semibold">{log.subject}</h3>
-                        {getStatusBadge(log.status)}
-                        <Badge variant="outline">{getTypeLabel(log.type)}</Badge>
+          filteredLogs.map((log) => {
+            const isIncoming = log.type === "INCOMING_EMAIL";
+            return (
+              <Card 
+                key={log.id} 
+                className={`hover:shadow-md transition-shadow ${
+                  isIncoming 
+                    ? "border-blue-200 bg-blue-50/30 dark:bg-blue-950/10" 
+                    : ""
+                } ${isIncoming && !log.isRead ? "ring-2 ring-blue-400/50" : ""}`}
+              >
+                <CardContent className="p-4">
+                  <div className="flex items-start justify-between gap-4">
+                    <div className="flex items-start gap-3 flex-1">
+                      <div className="mt-1">
+                        {isIncoming ? (
+                          <ArrowDownLeft className="h-4 w-4 text-blue-600" />
+                        ) : (
+                          getStatusIcon(log.status)
+                        )}
                       </div>
-                      <div className="flex items-center gap-4 text-sm text-muted-foreground flex-wrap">
-                        <div className="flex items-center gap-1">
-                          <Mail className="h-3 w-3" />
-                          {log.recipient}
+                      <div className="flex-1 space-y-2">
+                        <div className="flex items-center gap-2 flex-wrap">
+                          {isIncoming && !log.isRead && (
+                            <Badge className="bg-blue-600">חדש</Badge>
+                          )}
+                          <h3 className="font-semibold">{log.subject}</h3>
+                          {isIncoming ? (
+                            <Badge variant="outline" className="border-blue-500 text-blue-700 bg-blue-50">
+                              <ArrowDownLeft className="h-3 w-3 ml-1" />
+                              תשובה מהמטופל
+                            </Badge>
+                          ) : (
+                            <>
+                              {getStatusBadge(log.status)}
+                              <Badge variant="outline">{getTypeLabel(log.type)}</Badge>
+                            </>
+                          )}
                         </div>
-                        {log.client && (
+                        <div className="flex items-center gap-4 text-sm text-muted-foreground flex-wrap">
                           <div className="flex items-center gap-1">
-                            <User className="h-3 w-3" />
-                            {log.client.name}
+                            {isIncoming ? <ArrowDownLeft className="h-3 w-3" /> : <Send className="h-3 w-3" />}
+                            {isIncoming ? `מ-${log.client?.name || log.recipient}` : log.recipient}
+                          </div>
+                          {!isIncoming && log.client && (
+                            <div className="flex items-center gap-1">
+                              <User className="h-3 w-3" />
+                              {log.client.name}
+                            </div>
+                          )}
+                          <div className="flex items-center gap-1">
+                            <Calendar className="h-3 w-3" />
+                            {log.sentAt
+                              ? format(new Date(log.sentAt), "dd/MM/yyyy HH:mm", { locale: he })
+                              : format(new Date(log.createdAt), "dd/MM/yyyy HH:mm", { locale: he })}
+                          </div>
+                        </div>
+                        {isIncoming && (
+                          <div className="text-sm text-foreground bg-white dark:bg-slate-900 p-3 rounded border mt-1">
+                            <div dangerouslySetInnerHTML={{ __html: log.content.substring(0, 300) + (log.content.length > 300 ? "..." : "") }} />
                           </div>
                         )}
-                        <div className="flex items-center gap-1">
-                          <Calendar className="h-3 w-3" />
-                          {log.sentAt
-                            ? format(new Date(log.sentAt), "dd/MM/yyyy HH:mm", { locale: he })
-                            : format(new Date(log.createdAt), "dd/MM/yyyy HH:mm", { locale: he })}
-                        </div>
+                        {log.errorMessage && (
+                          <div className="text-sm text-red-600 bg-red-50 p-2 rounded">
+                            שגיאה: {log.errorMessage}
+                          </div>
+                        )}
                       </div>
-                      {log.errorMessage && (
-                        <div className="text-sm text-red-600 bg-red-50 p-2 rounded">
-                          שגיאה: {log.errorMessage}
-                        </div>
-                      )}
                     </div>
+                    <Button
+                      variant="ghost"
+                      size="sm"
+                      onClick={() => setSelectedLog(log)}
+                      className="gap-2"
+                    >
+                      <Eye className="h-4 w-4" />
+                      צפה
+                    </Button>
                   </div>
-                  <Button
-                    variant="ghost"
-                    size="sm"
-                    onClick={() => setSelectedLog(log)}
-                    className="gap-2"
-                  >
-                    <Eye className="h-4 w-4" />
-                    צפה
-                  </Button>
-                </div>
-              </CardContent>
-            </Card>
-          ))
+                </CardContent>
+              </Card>
+            );
+          })
         )}
       </div>
 
@@ -358,6 +399,19 @@ export default function CommunicationsPage() {
           </DialogHeader>
           {selectedLog && (
             <div className="space-y-4">
+              {/* Direction banner */}
+              {selectedLog.type === "INCOMING_EMAIL" ? (
+                <div className="flex items-center gap-2 p-3 bg-blue-50 dark:bg-blue-950/30 rounded-lg border border-blue-200">
+                  <ArrowDownLeft className="h-5 w-5 text-blue-600" />
+                  <span className="font-medium text-blue-800 dark:text-blue-300">תשובה שהתקבלה מ-{selectedLog.client?.name || "מטופל"}</span>
+                </div>
+              ) : (
+                <div className="flex items-center gap-2 p-3 bg-green-50 dark:bg-green-950/30 rounded-lg border border-green-200">
+                  <Send className="h-5 w-5 text-green-600" />
+                  <span className="font-medium text-green-800 dark:text-green-300">הודעה שנשלחה ל-{selectedLog.client?.name || selectedLog.recipient}</span>
+                </div>
+              )}
+
               <div className="grid grid-cols-2 gap-4">
                 <div>
                   <div className="text-sm text-muted-foreground">סטטוס</div>
@@ -372,7 +426,7 @@ export default function CommunicationsPage() {
                   <div className="mt-1 font-medium">{selectedLog.channel}</div>
                 </div>
                 <div>
-                  <div className="text-sm text-muted-foreground">נמען</div>
+                  <div className="text-sm text-muted-foreground">{selectedLog.type === "INCOMING_EMAIL" ? "מאת" : "נמען"}</div>
                   <div className="mt-1 font-medium">{selectedLog.recipient}</div>
                 </div>
               </div>
@@ -389,7 +443,7 @@ export default function CommunicationsPage() {
               <div>
                 <div className="text-sm text-muted-foreground mb-2">תוכן</div>
                 <div 
-                  className="bg-slate-50 p-4 rounded border whitespace-pre-wrap"
+                  className="bg-slate-50 dark:bg-slate-900 p-4 rounded border whitespace-pre-wrap prose prose-sm max-w-none"
                   dangerouslySetInnerHTML={{ __html: selectedLog.content }}
                 />
               </div>
