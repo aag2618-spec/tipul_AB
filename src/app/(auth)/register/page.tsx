@@ -7,7 +7,7 @@ import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import { Card, CardContent, CardDescription, CardFooter, CardHeader, CardTitle } from "@/components/ui/card";
-import { Loader2, Leaf } from "lucide-react";
+import { Loader2, Leaf, Star, CheckCircle, ChevronDown, ChevronUp, Mail } from "lucide-react";
 
 export default function RegisterPage() {
   const router = useRouter();
@@ -22,6 +22,8 @@ export default function RegisterPage() {
   });
   const [error, setError] = useState("");
   const [isLoading, setIsLoading] = useState(false);
+  const [showCoupon, setShowCoupon] = useState(false);
+  const [success, setSuccess] = useState(false);
 
   const handleChange = (e: React.ChangeEvent<HTMLInputElement>) => {
     setFormData((prev) => ({
@@ -56,7 +58,7 @@ export default function RegisterPage() {
           password: formData.password,
           phone: formData.phone,
           license: formData.license,
-          couponCode: formData.couponCode,
+          couponCode: formData.couponCode || undefined,
         }),
       });
 
@@ -66,13 +68,64 @@ export default function RegisterPage() {
         throw new Error(data.message || "אירעה שגיאה בהרשמה");
       }
 
-      router.push("/login?registered=true");
+      // Show success with email verification message
+      setSuccess(true);
     } catch (err) {
       setError(err instanceof Error ? err.message : "אירעה שגיאה בהרשמה");
     } finally {
       setIsLoading(false);
     }
   };
+
+  // Success state - show email verification message
+  if (success) {
+    return (
+      <div className="min-h-screen flex items-center justify-center bg-gradient-to-br from-background via-secondary/30 to-accent/20 p-4">
+        <div className="absolute inset-0 bg-[radial-gradient(ellipse_at_top_right,_var(--tw-gradient-stops))] from-primary/5 via-transparent to-transparent" />
+        
+        <Card className="w-full max-w-md animate-fade-in relative text-center">
+          <CardHeader className="space-y-4">
+            <div className="mx-auto w-16 h-16 bg-blue-100 dark:bg-blue-900/30 rounded-full flex items-center justify-center">
+              <Mail className="w-8 h-8 text-blue-600" />
+            </div>
+            <div>
+              <CardTitle className="text-2xl font-bold">בדוק את המייל שלך!</CardTitle>
+              <CardDescription className="mt-3 text-base leading-relaxed">
+                שלחנו קישור אימות ל-<strong className="text-foreground">{formData.email}</strong>
+              </CardDescription>
+            </div>
+          </CardHeader>
+          
+          <CardContent className="space-y-4">
+            <div className="bg-slate-50 dark:bg-slate-900/50 rounded-lg p-4 text-sm text-muted-foreground space-y-2">
+              <p className="flex items-center gap-2">
+                <CheckCircle className="h-4 w-4 text-green-600 shrink-0" />
+                <span>לחץ על הקישור במייל כדי לאמת את החשבון</span>
+              </p>
+              <p className="flex items-center gap-2">
+                <CheckCircle className="h-4 w-4 text-green-600 shrink-0" />
+                <span>לאחר האימות, תוכל להתחבר ולהתחיל את תקופת הניסיון</span>
+              </p>
+              <p className="flex items-center gap-2">
+                <Star className="h-4 w-4 text-purple-600 shrink-0" />
+                <span>14 ימי ניסיון חינם במסלול Pro</span>
+              </p>
+            </div>
+            
+            <p className="text-xs text-muted-foreground">
+              לא קיבלת מייל? בדוק בתיקיית הספאם.
+            </p>
+          </CardContent>
+          
+          <CardFooter>
+            <Button variant="outline" className="w-full" onClick={() => router.push("/login")}>
+              עבור לדף ההתחברות
+            </Button>
+          </CardFooter>
+        </Card>
+      </div>
+    );
+  }
 
   return (
     <div className="min-h-screen flex items-center justify-center bg-gradient-to-br from-background via-secondary/30 to-accent/20 p-4">
@@ -86,8 +139,13 @@ export default function RegisterPage() {
           <div>
             <CardTitle className="text-2xl font-bold">הרשמה למערכת</CardTitle>
             <CardDescription className="mt-2">
-              צרו חשבון חדש לניהול הפרקטיקה שלכם
+              התחל את תקופת הניסיון שלך - 14 ימים חינם במסלול Pro
             </CardDescription>
+          </div>
+          {/* Trial badge */}
+          <div className="inline-flex items-center gap-1.5 bg-purple-50 dark:bg-purple-900/20 text-purple-700 dark:text-purple-300 rounded-full px-3 py-1 text-xs font-medium mx-auto">
+            <Star className="h-3 w-3" />
+            ללא התחייבות, ללא פרטי אשראי
           </div>
         </CardHeader>
         
@@ -130,7 +188,7 @@ export default function RegisterPage() {
             
             <div className="grid grid-cols-2 gap-4">
               <div className="space-y-2">
-                <Label htmlFor="phone">טלפון</Label>
+                <Label htmlFor="phone">טלפון (אופציונלי)</Label>
                 <Input
                   id="phone"
                   name="phone"
@@ -145,7 +203,7 @@ export default function RegisterPage() {
               </div>
               
               <div className="space-y-2">
-                <Label htmlFor="license">מספר רישיון</Label>
+                <Label htmlFor="license">מספר רישיון (אופציונלי)</Label>
                 <Input
                   id="license"
                   name="license"
@@ -157,21 +215,6 @@ export default function RegisterPage() {
                   dir="ltr"
                 />
               </div>
-            </div>
-            
-            <div className="space-y-2">
-              <Label htmlFor="couponCode">קוד קופון</Label>
-              <Input
-                id="couponCode"
-                name="couponCode"
-                placeholder="הזן קוד קופון להרשמה"
-                value={formData.couponCode}
-                onChange={handleChange}
-                required
-                disabled={isLoading}
-                className="text-left"
-                dir="ltr"
-              />
             </div>
 
             <div className="space-y-2">
@@ -205,6 +248,32 @@ export default function RegisterPage() {
                 dir="ltr"
               />
             </div>
+
+            {/* Coupon code - optional, collapsible */}
+            <div>
+              <button
+                type="button"
+                className="text-xs text-muted-foreground hover:text-foreground flex items-center gap-1 transition-colors"
+                onClick={() => setShowCoupon(!showCoupon)}
+              >
+                {showCoupon ? <ChevronUp className="h-3 w-3" /> : <ChevronDown className="h-3 w-3" />}
+                יש לך קוד קופון?
+              </button>
+              {showCoupon && (
+                <div className="mt-2">
+                  <Input
+                    id="couponCode"
+                    name="couponCode"
+                    placeholder="הזן קוד קופון (אופציונלי)"
+                    value={formData.couponCode}
+                    onChange={handleChange}
+                    disabled={isLoading}
+                    className="text-left"
+                    dir="ltr"
+                  />
+                </div>
+              )}
+            </div>
           </CardContent>
           
           <CardFooter className="flex flex-col gap-4">
@@ -215,7 +284,7 @@ export default function RegisterPage() {
                   יוצר חשבון...
                 </>
               ) : (
-                "הרשמה"
+                "הרשמה - התחל ניסיון חינם"
               )}
             </Button>
             
@@ -231,16 +300,3 @@ export default function RegisterPage() {
     </div>
   );
 }
-
-
-
-
-
-
-
-
-
-
-
-
-

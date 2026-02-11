@@ -81,6 +81,14 @@ model User {
   subscriptionEndsAt      DateTime?
   trialEndsAt             DateTime?
   
+  // Email verification
+  emailVerificationToken  String?   // טוקן אימות מייל
+  emailVerificationExpires DateTime? // תפוגת טוקן אימות
+  
+  // Trial AI usage limit
+  trialAiCostLimit        Decimal   @default(5) @db.Decimal(10, 2) // תקרת עלות AI בניסיון (₪)
+  trialAiUsedCost         Decimal   @default(0) @db.Decimal(10, 4) // עלות AI שנוצלה בניסיון
+
   // Free Subscription (מנוי חינם - ניתן ע"י מנהל)
   isFreeSubscription      Boolean   @default(false)
   freeSubscriptionNote    String?   // הערה למה ניתן חינם

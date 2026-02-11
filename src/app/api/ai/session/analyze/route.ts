@@ -4,6 +4,7 @@ import { authOptions } from "@/lib/auth";
 import { prisma } from "@/lib/prisma";
 import { GoogleGenerativeAI } from "@google/generative-ai";
 import { getApproachPrompts, getApproachById, buildIntegrationSection, getScalesPrompt, getUniversalPrompts } from "@/lib/therapeutic-approaches";
+import { checkTrialAiLimit, updateTrialAiCost } from "@/lib/trial-limits";
 
 // שימוש ב-Gemini Pro לכל הניתוחים
 const genAI = new GoogleGenerativeAI(process.env.GOOGLE_AI_API_KEY || "");
@@ -75,6 +76,15 @@ export async function POST(req: NextRequest) {
           upgradeLink: "/dashboard/settings/billing"
         },
         { status: 403 }
+      );
+    }
+
+    // בדיקת מגבלות ניסיון
+    const trialCheck = await checkTrialAiLimit(session.user.id);
+    if (!trialCheck.allowed) {
+      return NextResponse.json(
+        { error: trialCheck.message, upgradeLink: "/dashboard/settings/billing", trialLimitReached: true },
+        { status: 429 }
       );
     }
 
@@ -295,6 +305,9 @@ export async function POST(req: NextRequest) {
         totalTokens: { increment: totalTokens },
       },
     });
+
+    // עדכון עלות ניסיון
+    await updateTrialAiCost(session.user.id, cost);
 
     return NextResponse.json({
       success: true,

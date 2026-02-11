@@ -239,6 +239,98 @@ export async function GET(req: NextRequest) {
     }
 
     // ========================================
+    // 5.5 תזכורות ניסיון - יום 7 ויום 12
+    // ========================================
+    
+    // תזכורת יום 7 - חצי מתקופת הניסיון
+    const trialDay7Start = new Date(now.getTime() + 7 * 24 * 60 * 60 * 1000);
+    const trialDay7End = new Date(now.getTime() + 6 * 24 * 60 * 60 * 1000);
+    
+    const trialReminder7 = await prisma.user.findMany({
+      where: {
+        subscriptionStatus: "TRIALING",
+        trialEndsAt: {
+          gte: trialDay7End,
+          lt: trialDay7Start,
+        },
+        isBlocked: false,
+        emailVerified: { not: null },
+      },
+      select: { id: true, name: true, email: true, aiTier: true, trialEndsAt: true },
+    });
+
+    for (const user of trialReminder7) {
+      try {
+        if (user.email) {
+          await sendEmail({
+            to: user.email,
+            subject: "נותרו לך 7 ימים בתקופת הניסיון - Tipul",
+            html: `
+              <div dir="rtl" style="font-family: Arial, sans-serif; max-width: 600px; margin: 0 auto; padding: 20px;">
+                <h2 style="color: #1e293b;">שלום ${user.name},</h2>
+                <p>נותרו לך <strong>7 ימים</strong> בתקופת הניסיון שלך.</p>
+                <p>נהנה מהמערכת? בחר מסלול ותמשיך לנהל את הפרקטיקה שלך ללא הפסקה:</p>
+                <div style="text-align: center; margin: 20px 0;">
+                  <a href="${SYSTEM_URL}/dashboard/settings/billing" 
+                     style="background: linear-gradient(135deg, #2563eb, #7c3aed); color: white; padding: 12px 30px; border-radius: 8px; text-decoration: none; font-weight: bold;">
+                    בחר מסלול
+                  </a>
+                </div>
+                <p style="color: #64748b; font-size: 13px;">כל הנתונים שלך שמורים - המעבר חלק ומיידי.</p>
+              </div>
+            `,
+          });
+        }
+      } catch (err) {
+        results.errors.push(`Trial 7-day reminder for ${user.email}: ${err}`);
+      }
+    }
+
+    // תזכורת יום 12 - יומיים לפני סוף
+    const trialDay2Start = new Date(now.getTime() + 2 * 24 * 60 * 60 * 1000);
+    const trialDay2End = new Date(now.getTime() + 1 * 24 * 60 * 60 * 1000);
+    
+    const trialReminder2 = await prisma.user.findMany({
+      where: {
+        subscriptionStatus: "TRIALING",
+        trialEndsAt: {
+          gte: trialDay2End,
+          lt: trialDay2Start,
+        },
+        isBlocked: false,
+        emailVerified: { not: null },
+      },
+      select: { id: true, name: true, email: true, aiTier: true, trialEndsAt: true },
+    });
+
+    for (const user of trialReminder2) {
+      try {
+        if (user.email) {
+          await sendEmail({
+            to: user.email,
+            subject: "נותרו יומיים לסיום תקופת הניסיון! - Tipul",
+            html: `
+              <div dir="rtl" style="font-family: Arial, sans-serif; max-width: 600px; margin: 0 auto; padding: 20px;">
+                <h2 style="color: #1e293b;">שלום ${user.name},</h2>
+                <p style="color: #dc2626; font-weight: bold;">תקופת הניסיון שלך מסתיימת בעוד יומיים!</p>
+                <p>כדי להמשיך ליהנות מכל התכונות ולשמור על הנתונים שלך נגישים, בחר עכשיו מסלול מנוי:</p>
+                <div style="text-align: center; margin: 20px 0;">
+                  <a href="${SYSTEM_URL}/dashboard/settings/billing" 
+                     style="background: linear-gradient(135deg, #dc2626, #9333ea); color: white; padding: 14px 36px; border-radius: 8px; text-decoration: none; font-weight: bold; font-size: 16px;">
+                    בחר מסלול עכשיו
+                  </a>
+                </div>
+                <p style="color: #64748b; font-size: 13px;">לאחר סיום הניסיון, תהיה לך תקופת חסד של 7 ימים. לאחר מכן הגישה תוגבל.</p>
+              </div>
+            `,
+          });
+        }
+      } catch (err) {
+        results.errors.push(`Trial 2-day reminder for ${user.email}: ${err}`);
+      }
+    }
+
+    // ========================================
     // 6. TRIAL שפג תוקף
     // ========================================
     const expiredTrials = await prisma.user.findMany({

@@ -25,6 +25,7 @@ import {
   ArrowLeft,
   Ticket,
   FileCheck,
+  FlaskConical,
 } from "lucide-react";
 
 interface AdminSidebarProps {
@@ -57,6 +58,11 @@ const adminNavItems = [
     title: "שימוש ב-API",
     href: "/admin/api-usage",
     icon: Activity,
+  },
+  {
+    title: "תקופת ניסיון",
+    href: "/admin/trials",
+    icon: FlaskConical,
   },
   {
     title: "תשלומים ומנויים",

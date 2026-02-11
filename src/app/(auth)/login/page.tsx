@@ -2,16 +2,21 @@
 
 import { useState } from "react";
 import { signIn } from "next-auth/react";
-import { useRouter } from "next/navigation";
+import { useRouter, useSearchParams } from "next/navigation";
 import Link from "next/link";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import { Card, CardContent, CardDescription, CardFooter, CardHeader, CardTitle } from "@/components/ui/card";
-import { Loader2, Leaf } from "lucide-react";
+import { Loader2, Leaf, CheckCircle, AlertTriangle } from "lucide-react";
 
 export default function LoginPage() {
   const router = useRouter();
+  const searchParams = useSearchParams();
+  const verified = searchParams.get("verified") === "true";
+  const registered = searchParams.get("registered") === "true";
+  const tokenError = searchParams.get("error");
+  
   const [email, setEmail] = useState("");
   const [password, setPassword] = useState("");
   const [error, setError] = useState("");
@@ -61,6 +66,36 @@ export default function LoginPage() {
         
         <form onSubmit={handleSubmit}>
           <CardContent className="space-y-4">
+            {/* Email verification success */}
+            {verified && (
+              <div className="p-3 rounded-lg bg-green-50 dark:bg-green-900/20 text-green-700 dark:text-green-300 text-sm text-center animate-fade-in flex items-center justify-center gap-2">
+                <CheckCircle className="h-4 w-4" />
+                המייל אומת בהצלחה! התחבר כדי להתחיל
+              </div>
+            )}
+
+            {/* Registered but needs verification */}
+            {registered && !verified && (
+              <div className="p-3 rounded-lg bg-blue-50 dark:bg-blue-900/20 text-blue-700 dark:text-blue-300 text-sm text-center animate-fade-in">
+                ההרשמה הצליחה! בדוק את המייל שלך לאימות החשבון
+              </div>
+            )}
+
+            {/* Token errors */}
+            {tokenError === "invalid-token" && (
+              <div className="p-3 rounded-lg bg-amber-50 dark:bg-amber-900/20 text-amber-700 dark:text-amber-300 text-sm text-center animate-fade-in flex items-center justify-center gap-2">
+                <AlertTriangle className="h-4 w-4" />
+                הקישור לא תקין או פג תוקף. נסה להירשם מחדש.
+              </div>
+            )}
+
+            {tokenError === "missing-token" && (
+              <div className="p-3 rounded-lg bg-amber-50 dark:bg-amber-900/20 text-amber-700 dark:text-amber-300 text-sm text-center animate-fade-in flex items-center justify-center gap-2">
+                <AlertTriangle className="h-4 w-4" />
+                קישור אימות חסר. נסה שוב.
+              </div>
+            )}
+
             {error && (
               <div className="p-3 rounded-lg bg-destructive/10 text-destructive text-sm text-center animate-fade-in">
                 {error}

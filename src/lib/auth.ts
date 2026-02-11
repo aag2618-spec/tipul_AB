@@ -47,6 +47,11 @@ export const authOptions: NextAuthOptions = {
           throw new Error("המשתמש חסום. אנא פנה למנהל המערכת");
         }
 
+        // Check email verification
+        if (!user.emailVerified) {
+          throw new Error("יש לאמת את כתובת המייל לפני ההתחברות. בדוק את תיבת הדואר שלך.");
+        }
+
         const isValid = await bcrypt.compare(credentials.password, user.password);
 
         if (!isValid) {
