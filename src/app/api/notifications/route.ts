@@ -13,10 +13,18 @@ export async function GET(request: NextRequest) {
     const { searchParams } = new URL(request.url);
     const unreadOnly = searchParams.get("unread") === "true";
     const limit = parseInt(searchParams.get("limit") || "50");
+    const typeFilter = searchParams.get("type"); // e.g. "EMAIL_RECEIVED"
 
-    const where = {
+    const where: Record<string, unknown> = {
       userId: session.user.id,
       ...(unreadOnly ? { status: { in: ["PENDING", "SENT"] as ("PENDING" | "SENT")[] } } : {}),
+      ...(typeFilter ? { type: typeFilter } : {}),
+    };
+
+    const unreadWhere: Record<string, unknown> = {
+      userId: session.user.id,
+      status: { in: ["PENDING", "SENT"] as ("PENDING" | "SENT")[] },
+      ...(typeFilter ? { type: typeFilter } : {}),
     };
 
     const [notifications, unreadCount] = await Promise.all([
@@ -26,10 +34,7 @@ export async function GET(request: NextRequest) {
         take: limit,
       }),
       prisma.notification.count({
-        where: {
-          userId: session.user.id,
-          status: { in: ["PENDING", "SENT"] as ("PENDING" | "SENT")[] },
-        },
+        where: unreadWhere,
       }),
     ]);
 

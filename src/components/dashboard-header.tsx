@@ -55,7 +55,7 @@ export function DashboardHeader({ user }: DashboardHeaderProps) {
 
   const fetchNotifications = async () => {
     try {
-      const response = await fetch("/api/notifications?limit=5&unread=true");
+      const response = await fetch("/api/notifications?limit=5&unread=true&type=EMAIL_RECEIVED");
       if (response.ok) {
         const data = await response.json();
         setNotifications(data.notifications || []);
@@ -136,7 +136,7 @@ export function DashboardHeader({ user }: DashboardHeaderProps) {
           </DropdownMenuTrigger>
           <DropdownMenuContent align="start" className="w-80">
             <DropdownMenuLabel className="flex items-center justify-between">
-              <span>התראות</span>
+              <span>תשובות ממטופלים</span>
               {unreadCount > 0 && (
                 <Badge variant="secondary" className="text-xs">
                   {unreadCount} חדשות
@@ -192,7 +192,7 @@ export function DashboardHeader({ user }: DashboardHeaderProps) {
               ))
             ) : pendingCancellations === 0 ? (
               <div className="p-4 text-center text-muted-foreground text-sm">
-                אין התראות חדשות
+                אין תשובות חדשות ממטופלים
               </div>
             ) : null}
             

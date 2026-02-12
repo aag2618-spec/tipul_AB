@@ -301,6 +301,9 @@ export async function POST(
         content: html,
         status: "SENT",
         sentAt: new Date(),
+        messageId: result.messageId,
+        clientId: clientId,
+        userId: session.user.id,
       },
     });
 

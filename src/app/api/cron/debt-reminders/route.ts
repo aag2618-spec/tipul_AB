@@ -257,6 +257,8 @@ export async function GET(request: NextRequest) {
               content: html,
               status: "SENT",
               sentAt: new Date(),
+              clientId: client.id,
+              userId: therapist.id,
             },
           });
 

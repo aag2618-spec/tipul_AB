@@ -243,6 +243,8 @@ export async function POST(request: NextRequest) {
               content: html,
               status: "SENT",
               sentAt: new Date(),
+              clientId: clientId,
+              userId: session.user.id,
             },
           });
         }

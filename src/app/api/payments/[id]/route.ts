@@ -241,6 +241,8 @@ export async function PUT(
               content: html,
               status: "SENT",
               sentAt: new Date(),
+              clientId: existingPayment.clientId,
+              userId: session.user.id,
             },
           });
         }
