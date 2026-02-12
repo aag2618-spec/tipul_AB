@@ -113,22 +113,16 @@ export async function POST(request: NextRequest) {
     }
 
     const resend = new Resend(resendApiKey);
-    
-    const sendPayload: Record<string, unknown> = {
+
+    const { data: sendResult, error: sendError } = await resend.emails.send({
       from: process.env.EMAIL_FROM || "Tipul App <onboarding@resend.dev>",
       to: [originalLog.client.email.toLowerCase()],
       subject: replySubject,
       html: replyHtml,
       replyTo: "inbox@mytipul.com",
       headers: emailHeaders,
-    };
-
-    // Add attachments if any
-    if (resendAttachments.length > 0) {
-      sendPayload.attachments = resendAttachments;
-    }
-
-    const { data: sendResult, error: sendError } = await resend.emails.send(sendPayload as Parameters<typeof resend.emails.send>[0]);
+      ...(resendAttachments.length > 0 && { attachments: resendAttachments }),
+    });
 
     if (sendError) {
       console.error("Reply send error:", sendError);
