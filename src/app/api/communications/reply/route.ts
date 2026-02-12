@@ -3,6 +3,8 @@ import { getServerSession } from "next-auth";
 import { authOptions } from "@/lib/auth";
 import prisma from "@/lib/prisma";
 import { Resend } from "resend";
+import path from "path";
+import fs from "fs/promises";
 
 export async function POST(request: NextRequest) {
   try {
@@ -132,12 +134,33 @@ export async function POST(request: NextRequest) {
       );
     }
 
-    // Build attachment metadata for storage
-    const sentAttachmentMeta = resendAttachments.map(att => ({
-      filename: att.filename,
-      size: att.content.length,
-      resendEmailId: sendResult?.id || null,
-    }));
+    // Save attachment copies to disk + build metadata
+    const sentAttachmentMeta: Array<{
+      filename: string;
+      size: number;
+      resendEmailId: string | null;
+      fileUrl: string;
+    }> = [];
+
+    if (resendAttachments.length > 0 && originalLog.clientId) {
+      const uploadsDir = process.env.UPLOADS_DIR || "/var/data/uploads";
+      const sentDir = path.join(uploadsDir, "sent", originalLog.clientId);
+      await fs.mkdir(sentDir, { recursive: true });
+
+      for (const att of resendAttachments) {
+        const safeFilename = att.filename.replace(/[^a-zA-Z0-9._\u0590-\u05FF -]/g, "_");
+        const uniqueFilename = `${Date.now()}_${safeFilename}`;
+        const filePath = path.join(sentDir, uniqueFilename);
+        await fs.writeFile(filePath, att.content);
+
+        sentAttachmentMeta.push({
+          filename: att.filename,
+          size: att.content.length,
+          resendEmailId: sendResult?.id || null,
+          fileUrl: `/api/uploads/sent/${originalLog.clientId}/${uniqueFilename}`,
+        });
+      }
+    }
 
     // Log the reply in CommunicationLog
     const replyLog = await prisma.communicationLog.create({

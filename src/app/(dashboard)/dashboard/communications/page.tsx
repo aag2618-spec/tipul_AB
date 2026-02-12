@@ -65,6 +65,7 @@ interface CommunicationLog {
     contentType?: string;
     size?: number;
     resendEmailId?: string;
+    fileUrl?: string;
   }> | null;
   client: {
     id: string;
@@ -97,31 +98,33 @@ function normalizeSubject(subject: string): string {
 function cleanIncomingContent(html: string): string {
   let cleaned = html;
   
-  // Remove Unicode direction markers that Gmail adds
-  cleaned = cleaned.replace(/[\u200F\u200E\u202B\u202C\u202A\u200D\u200C]/g, "");
+  // Step 1: Remove ALL Unicode direction markers, zero-width chars, RTL/LTR marks
+  cleaned = cleaned.replace(/[\u200F\u200E\u202B\u202C\u202A\u202D\u202E\u200D\u200C\u200B\u2069\u2068\u2067\u2066\uFEFF]/g, "");
   
-  // Remove Hebrew date headers: "בתאריך יום X, DD בMONTH YYYY ב-HH:MM מאת NAME <email>:" and everything after
-  // Matches various Hebrew formats with ׳ (geresh) and different spacing
-  cleaned = cleaned.replace(/\u200F?\u202B?בתאריך[\s\S]*?מאת[\s\S]*?>[:\s]*[\u202C]?[\s\S]*/gi, "");
-  cleaned = cleaned.replace(/בתאריך\s+יום[\s\S]*?@[\s\S]*?>[:\s]*[\s\S]*/gi, "");
+  // Step 2: Remove gmail_quote divs and everything inside them
+  cleaned = cleaned.replace(/<div\s+class=["']gmail_quote["'][\s\S]*$/gi, "");
   
-  // Remove English date headers: "On DATE, NAME <email> wrote:" and everything after
-  cleaned = cleaned.replace(/On\s+\w[\s\S]*?wrote:[\s\S]*/gi, "");
-  
-  // Remove "---------- Forwarded message" blocks
-  cleaned = cleaned.replace(/-{3,}\s*(Forwarded|Original|הודעה)[\s\S]*/gi, "");
-  
-  // Remove blockquote elements (quoted replies)
+  // Step 3: Remove blockquote elements (quoted replies)
   cleaned = cleaned.replace(/<blockquote[\s\S]*?<\/blockquote>/gi, "");
+  cleaned = cleaned.replace(/<blockquote[\s\S]*$/gi, "");
   
-  // Remove gmail_quote divs
-  cleaned = cleaned.replace(/<div\s+class="gmail_quote"[\s\S]*?<\/div>/gi, "");
+  // Step 4: Remove Hebrew "בתאריך" date header and EVERYTHING after it
+  // This is the most common Gmail Hebrew quoting format
+  // Uses very broad matching to catch all variations with geresh (׳), special chars, etc.
+  cleaned = cleaned.replace(/\s*בתאריך[\s\S]*$/gi, "");
   
-  // Remove trailing whitespace, <br>, empty divs
+  // Step 5: Remove English "On ... wrote:" header and everything after
+  cleaned = cleaned.replace(/\s*On\s+\w{3,},?\s+\w[\s\S]*?wrote:\s*[\s\S]*$/gi, "");
+  
+  // Step 6: Remove "---------- Forwarded/Original message" blocks
+  cleaned = cleaned.replace(/\s*-{3,}\s*(Forwarded|Original|הודעה)[\s\S]*/gi, "");
+  
+  // Step 7: Remove trailing <br>, empty divs, whitespace
   cleaned = cleaned.replace(/(<br\s*\/?>|<div>\s*<\/div>|\s)*$/gi, "").trim();
   
-  // If nothing meaningful left, return original
-  if (!cleaned || cleaned.replace(/<[^>]*>/g, "").trim().length === 0) {
+  // If nothing meaningful left, return original content
+  const textOnly = cleaned.replace(/<[^>]*>/g, "").trim();
+  if (!textOnly || textOnly.length === 0) {
     return html;
   }
   
@@ -704,41 +707,69 @@ export default function CommunicationsPage() {
                             קבצים מצורפים ({msg.attachments.length})
                           </div>
                           <div className="flex flex-col gap-1">
-                            {msg.attachments.map((att: { id?: string; filename: string; size?: number; resendEmailId?: string }, attIdx: number) => (
-                              <div key={attIdx} className="flex items-center gap-2 bg-muted/50 rounded px-2 py-1.5 text-xs">
-                                <FileText className="h-3.5 w-3.5 text-muted-foreground flex-shrink-0" />
-                                <span className="truncate flex-1">{att.filename}</span>
-                                {att.size && (
-                                  <span className="text-muted-foreground flex-shrink-0">
-                                    {att.size > 1024 * 1024 
-                                      ? `${(att.size / (1024 * 1024)).toFixed(1)}MB` 
-                                      : `${Math.round(att.size / 1024)}KB`}
-                                  </span>
-                                )}
-                                <Button
-                                  size="sm"
-                                  variant="ghost"
-                                  className="h-6 px-2 text-xs"
-                                  onClick={() => handleDownloadAttachment(msg.id, att.id || "", att.filename)}
-                                  title="הורד למחשב"
-                                >
-                                  <Download className="h-3 w-3 ml-1" />
-                                  הורד
-                                </Button>
-                                {msg.client?.id && (
-                                  <Button
-                                    size="sm"
-                                    variant="ghost"
-                                    className="h-6 px-2 text-xs text-blue-600"
-                                    onClick={() => handleSaveToClientFolder(msg.id, att.id || "", att.filename, msg.client!.id)}
-                                    title="שמור לתיקיית מטופל"
-                                  >
-                                    <FolderPlus className="h-3 w-3 ml-1" />
-                                    שמור
-                                  </Button>
-                                )}
-                              </div>
-                            ))}
+                            {msg.attachments.map((att: { id?: string; filename: string; size?: number; resendEmailId?: string; fileUrl?: string }, attIdx: number) => {
+                              const msgIsIncoming = msg.type === "INCOMING_EMAIL";
+                              const hasSavedFile = !!att.fileUrl;
+                              return (
+                                <div key={attIdx} className="flex items-center gap-2 bg-muted/50 rounded px-2 py-1.5 text-xs">
+                                  <FileText className="h-3.5 w-3.5 text-muted-foreground flex-shrink-0" />
+                                  <span className="truncate flex-1">{att.filename}</span>
+                                  {att.size && (
+                                    <span className="text-muted-foreground flex-shrink-0">
+                                      {att.size > 1024 * 1024 
+                                        ? `${(att.size / (1024 * 1024)).toFixed(1)}MB` 
+                                        : `${Math.round(att.size / 1024)}KB`}
+                                    </span>
+                                  )}
+                                  {msgIsIncoming ? (
+                                    <>
+                                      <Button
+                                        size="sm"
+                                        variant="ghost"
+                                        className="h-6 px-2 text-xs"
+                                        onClick={() => handleDownloadAttachment(msg.id, att.id || "", att.filename)}
+                                        title="הורד למחשב"
+                                      >
+                                        <Download className="h-3 w-3 ml-1" />
+                                        הורד
+                                      </Button>
+                                      {msg.client?.id && (
+                                        <Button
+                                          size="sm"
+                                          variant="ghost"
+                                          className="h-6 px-2 text-xs text-blue-600"
+                                          onClick={() => handleSaveToClientFolder(msg.id, att.id || "", att.filename, msg.client!.id)}
+                                          title="שמור לתיקיית מטופל"
+                                        >
+                                          <FolderPlus className="h-3 w-3 ml-1" />
+                                          שמור
+                                        </Button>
+                                      )}
+                                    </>
+                                  ) : hasSavedFile ? (
+                                    <Button
+                                      size="sm"
+                                      variant="ghost"
+                                      className="h-6 px-2 text-xs"
+                                      onClick={() => {
+                                        const a = document.createElement("a");
+                                        a.href = att.fileUrl!;
+                                        a.download = att.filename;
+                                        document.body.appendChild(a);
+                                        a.click();
+                                        document.body.removeChild(a);
+                                      }}
+                                      title="הורד למחשב"
+                                    >
+                                      <Download className="h-3 w-3 ml-1" />
+                                      הורד
+                                    </Button>
+                                  ) : (
+                                    <span className="text-muted-foreground italic">נשלח</span>
+                                  )}
+                                </div>
+                              );
+                            })}
                           </div>
                         </div>
                       )}

@@ -19,7 +19,7 @@ export async function GET(request: NextRequest) {
     const attachmentId = searchParams.get("attachmentId");
     const filename = searchParams.get("filename");
 
-    if (!logId || !attachmentId) {
+    if (!logId) {
       return NextResponse.json({ message: "חסרים פרמטרים" }, { status: 400 });
     }
 
@@ -33,22 +33,24 @@ export async function GET(request: NextRequest) {
     }
 
     // For sent emails, attachments aren't stored in Resend after sending
-    const isSentByTherapist = log.type !== "INCOMING_EMAIL";
-
-    // Get the Resend email ID from attachments metadata or messageId
-    const attachments = (log.attachments as Array<{ id?: string; resendEmailId?: string; filename: string }>) || [];
-    const attachment = attachments.find(a => a.id === attachmentId || a.filename === filename);
-    
-    const resendEmailId = attachment?.resendEmailId || log.messageId;
-    
-    if (!resendEmailId) {
-      return NextResponse.json({ message: "לא ניתן לזהות את המייל" }, { status: 400 });
+    if (log.type !== "INCOMING_EMAIL") {
+      return NextResponse.json({ 
+        message: "קבצים שנשלחו על ידך לא ניתנים להורדה חוזרת. ניתן להוריד רק קבצים שנשלחו ע\"י מטופלים." 
+      }, { status: 410 });
     }
 
-    if (isSentByTherapist) {
-      return NextResponse.json({ 
-        message: "קבצים שנשלחו על ידך לא נשמרים לאחר שליחה. ניתן להוריד רק קבצים שנשלחו ע\"י מטופלים." 
-      }, { status: 410 });
+    // Get the Resend email ID from attachments metadata
+    const attachments = (log.attachments as Array<{ id?: string; resendEmailId?: string; filename: string }>) || [];
+    // Find by ID first, then by filename
+    const attachment = (attachmentId ? attachments.find(a => a.id === attachmentId) : null) 
+      || attachments.find(a => a.filename === filename);
+    
+    // Use attachment-level resendEmailId, or fallback to the log messageId
+    const resendEmailId = attachment?.resendEmailId || log.messageId;
+    const actualAttachmentId = attachment?.id || attachmentId;
+    
+    if (!resendEmailId || !actualAttachmentId) {
+      return NextResponse.json({ message: "לא ניתן לזהות את הקובץ" }, { status: 400 });
     }
 
     const resendApiKey = process.env.RESEND_API_KEY;
@@ -59,7 +61,7 @@ export async function GET(request: NextRequest) {
     // Fetch attachment metadata from Resend receiving API
     const resend = new Resend(resendApiKey);
     const { data: attachmentData } = await resend.emails.receiving.attachments.get({
-      id: attachmentId,
+      id: actualAttachmentId,
       emailId: resendEmailId,
     });
 
@@ -104,7 +106,7 @@ export async function POST(request: NextRequest) {
 
     const { logId, attachmentId, filename, clientId } = await request.json();
 
-    if (!logId || !attachmentId || !clientId) {
+    if (!logId || !clientId) {
       return NextResponse.json({ message: "חסרים פרמטרים" }, { status: 400 });
     }
 
@@ -119,11 +121,13 @@ export async function POST(request: NextRequest) {
 
     // Get Resend email ID
     const attachments = (log.attachments as Array<{ id?: string; resendEmailId?: string; filename: string }>) || [];
-    const attachment = attachments.find(a => a.id === attachmentId || a.filename === filename);
+    const attachment = (attachmentId ? attachments.find(a => a.id === attachmentId) : null) 
+      || attachments.find(a => a.filename === filename);
     const resendEmailId = attachment?.resendEmailId || log.messageId;
+    const actualAttachmentId = attachment?.id || attachmentId;
 
-    if (!resendEmailId) {
-      return NextResponse.json({ message: "לא ניתן לזהות את המייל" }, { status: 400 });
+    if (!resendEmailId || !actualAttachmentId) {
+      return NextResponse.json({ message: "לא ניתן לזהות את הקובץ" }, { status: 400 });
     }
 
     const resendApiKey = process.env.RESEND_API_KEY;
@@ -134,7 +138,7 @@ export async function POST(request: NextRequest) {
     // Fetch attachment metadata from Resend (returns download_url)
     const resend = new Resend(resendApiKey);
     const { data: attachmentData } = await resend.emails.receiving.attachments.get({
-      id: attachmentId,
+      id: actualAttachmentId,
       emailId: resendEmailId,
     });
 
@@ -169,7 +173,7 @@ export async function POST(request: NextRequest) {
       data: {
         name: filename || "קובץ מצורף ממייל",
         type: "OTHER",
-        fileUrl: `/uploads/clients/${clientId}/${uniqueFilename}`,
+        fileUrl: `/api/uploads/clients/${clientId}/${uniqueFilename}`,
         clientId: clientId,
         therapistId: session.user.id,
       },
