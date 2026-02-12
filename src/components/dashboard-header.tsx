@@ -1,6 +1,7 @@
 "use client";
 
 import { useState, useEffect } from "react";
+import { useRouter } from "next/navigation";
 import { signOut } from "next-auth/react";
 import { SidebarTrigger } from "@/components/ui/sidebar";
 import { Button } from "@/components/ui/button";
@@ -36,6 +37,7 @@ interface DashboardHeaderProps {
 }
 
 export function DashboardHeader({ user }: DashboardHeaderProps) {
+  const router = useRouter();
   const [notifications, setNotifications] = useState<Notification[]>([]);
   const [unreadCount, setUnreadCount] = useState(0);
   const [pendingCancellations, setPendingCancellations] = useState(0);
@@ -100,6 +102,8 @@ export function DashboardHeader({ user }: DashboardHeaderProps) {
     switch (type) {
       case "CANCELLATION_REQUEST":
         return <XCircle className="h-4 w-4 text-orange-500" />;
+      case "EMAIL_RECEIVED":
+        return <Mail className="h-4 w-4 text-blue-500" />;
       case "EMAIL_SENT":
         return <Mail className="h-4 w-4 text-blue-500" />;
       case "SESSION_REMINDER":
@@ -107,6 +111,12 @@ export function DashboardHeader({ user }: DashboardHeaderProps) {
       default:
         return <Bell className="h-4 w-4" />;
     }
+  };
+
+  const handleNotificationClick = (notification: Notification) => {
+    markAsRead(notification.id);
+    // Navigate to communications page to see the email reply
+    router.push("/dashboard/communications");
   };
 
   const totalBadge = unreadCount + pendingCancellations;
@@ -174,7 +184,7 @@ export function DashboardHeader({ user }: DashboardHeaderProps) {
                 <DropdownMenuItem 
                   key={notification.id}
                   className="cursor-pointer flex items-start gap-3 p-3"
-                  onClick={() => markAsRead(notification.id)}
+                  onClick={() => handleNotificationClick(notification)}
                 >
                   {getNotificationIcon(notification.type)}
                   <div className="flex-1 space-y-1">
@@ -199,10 +209,10 @@ export function DashboardHeader({ user }: DashboardHeaderProps) {
             <DropdownMenuSeparator />
             <DropdownMenuItem asChild>
               <Link 
-                href="/dashboard/notifications" 
+                href="/dashboard/communications" 
                 className="cursor-pointer text-center text-sm text-primary"
               >
-                צפה בכל ההתראות
+                צפה בכל התקשורת
               </Link>
             </DropdownMenuItem>
           </DropdownMenuContent>
