@@ -31,7 +31,10 @@ export async function sendEmail({ to, subject, html, text, replyTo }: EmailOptio
 
   // המרה לאותיות קטנות - חובה עבור Resend Sandbox
   const normalizedTo = to.toLowerCase();
-  const normalizedReplyTo = replyTo?.toLowerCase();
+  
+  // תשובות מטופלים מנותבות דרך inbox@mytipul.com כך ש-Resend יתפוס אותן
+  // ויעביר אותן ל-Webhook שלנו → המערכת תציג אותן בהיסטוריית התקשורת
+  const systemReplyTo = "inbox@mytipul.com";
 
   try {
     const { data, error } = await resend.emails.send({
@@ -40,7 +43,7 @@ export async function sendEmail({ to, subject, html, text, replyTo }: EmailOptio
       subject,
       html,
       text: text || html.replace(/<[^>]*>/g, ''),
-      ...(normalizedReplyTo && { replyTo: normalizedReplyTo }), // תשובות יגיעו למטפל
+      replyTo: systemReplyTo, // תשובות מנותבות דרך המערכת
     });
 
     if (error) {
