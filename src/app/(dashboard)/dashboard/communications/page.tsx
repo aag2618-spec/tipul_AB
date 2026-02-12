@@ -1,6 +1,6 @@
 "use client";
 
-import { useState, useEffect } from "react";
+import { useState, useEffect, useRef, useMemo } from "react";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
@@ -24,10 +24,13 @@ import {
   Calendar,
   User,
   Users,
-  Plus,
   ArrowDownLeft,
   Send,
-  Reply
+  Reply,
+  MessageSquare,
+  X,
+  Paperclip,
+  FileText
 } from "lucide-react";
 import Link from "next/link";
 import { format } from "date-fns";
@@ -36,7 +39,6 @@ import { toast } from "sonner";
 import {
   Dialog,
   DialogContent,
-  DialogDescription,
   DialogHeader,
   DialogTitle,
 } from "@/components/ui/dialog";
@@ -54,33 +56,50 @@ interface CommunicationLog {
   createdAt: Date;
   isRead: boolean;
   readAt: Date | null;
+  messageId: string | null;
+  inReplyTo: string | null;
   client: {
     id: string;
     name: string;
   } | null;
 }
 
+interface Thread {
+  id: string; // normalized subject + clientId
+  subject: string;
+  clientName: string;
+  clientId: string | null;
+  messages: CommunicationLog[];
+  latestMessage: CommunicationLog;
+  hasUnread: boolean;
+  messageCount: number;
+}
+
 type FilterType = "all" | "SENT" | "FAILED" | "PENDING" | "RECEIVED";
 type ChannelType = "all" | "EMAIL" | "SMS" | "WHATSAPP";
 
+// Normalize subject by removing Re: / Fwd: prefixes
+function normalizeSubject(subject: string): string {
+  return subject
+    .replace(/^(Re:|RE:|Fwd:|FWD:|השב:|הע:)\s*/gi, "")
+    .trim();
+}
+
 export default function CommunicationsPage() {
   const [logs, setLogs] = useState<CommunicationLog[]>([]);
-  const [filteredLogs, setFilteredLogs] = useState<CommunicationLog[]>([]);
   const [isLoading, setIsLoading] = useState(true);
   const [searchTerm, setSearchTerm] = useState("");
   const [statusFilter, setStatusFilter] = useState<FilterType>("all");
   const [channelFilter, setChannelFilter] = useState<ChannelType>("all");
-  const [selectedLog, setSelectedLog] = useState<CommunicationLog | null>(null);
+  const [selectedThread, setSelectedThread] = useState<Thread | null>(null);
   const [replyText, setReplyText] = useState("");
   const [isSendingReply, setIsSendingReply] = useState(false);
+  const [attachments, setAttachments] = useState<File[]>([]);
+  const fileInputRef = useRef<HTMLInputElement>(null);
 
   useEffect(() => {
     fetchLogs();
   }, []);
-
-  useEffect(() => {
-    applyFilters();
-  }, [logs, searchTerm, statusFilter, channelFilter]);
 
   const fetchLogs = async () => {
     try {
@@ -100,87 +119,114 @@ export default function CommunicationsPage() {
     }
   };
 
-  const applyFilters = () => {
-    let filtered = logs;
+  // Group logs into threads
+  const threads = useMemo(() => {
+    const threadMap = new Map<string, CommunicationLog[]>();
 
-    // Status filter
+    for (const log of logs) {
+      const normalizedSub = normalizeSubject(log.subject || "");
+      const clientKey = log.client?.id || log.recipient || "unknown";
+      const threadKey = `${clientKey}::${normalizedSub}`;
+
+      if (!threadMap.has(threadKey)) {
+        threadMap.set(threadKey, []);
+      }
+      threadMap.get(threadKey)!.push(log);
+    }
+
+    const result: Thread[] = [];
+    for (const [key, messages] of threadMap) {
+      // Sort messages: newest first
+      messages.sort((a, b) => new Date(b.createdAt).getTime() - new Date(a.createdAt).getTime());
+
+      const latestMessage = messages[0];
+      const hasUnread = messages.some(m => m.type === "INCOMING_EMAIL" && !m.isRead);
+
+      result.push({
+        id: key,
+        subject: normalizeSubject(latestMessage.subject || "ללא נושא"),
+        clientName: latestMessage.client?.name || latestMessage.recipient,
+        clientId: latestMessage.client?.id || null,
+        messages,
+        latestMessage,
+        hasUnread,
+        messageCount: messages.length,
+      });
+    }
+
+    // Sort threads by latest message date (newest first)
+    result.sort((a, b) => 
+      new Date(b.latestMessage.createdAt).getTime() - new Date(a.latestMessage.createdAt).getTime()
+    );
+
+    return result;
+  }, [logs]);
+
+  // Apply filters to threads
+  const filteredThreads = useMemo(() => {
+    let filtered = threads;
+
     if (statusFilter !== "all") {
-      filtered = filtered.filter((log) => log.status === statusFilter);
+      if (statusFilter === "RECEIVED") {
+        filtered = filtered.filter(t => t.messages.some(m => m.status === "RECEIVED"));
+      } else {
+        filtered = filtered.filter(t => t.messages.some(m => m.status === statusFilter));
+      }
     }
 
-    // Channel filter
     if (channelFilter !== "all") {
-      filtered = filtered.filter((log) => log.channel === channelFilter);
+      filtered = filtered.filter(t => t.messages.some(m => m.channel === channelFilter));
     }
 
-    // Search filter
     if (searchTerm) {
       const search = searchTerm.toLowerCase();
-      filtered = filtered.filter(
-        (log) =>
-          log.recipient.toLowerCase().includes(search) ||
-          log.subject.toLowerCase().includes(search) ||
-          log.client?.name.toLowerCase().includes(search)
+      filtered = filtered.filter(t =>
+        t.subject.toLowerCase().includes(search) ||
+        t.clientName.toLowerCase().includes(search) ||
+        t.messages.some(m => m.recipient.toLowerCase().includes(search))
       );
     }
 
-    setFilteredLogs(filtered);
-  };
-
-  const getStatusIcon = (status: string) => {
-    switch (status) {
-      case "SENT":
-        return <CheckCircle className="h-4 w-4 text-green-500" />;
-      case "FAILED":
-        return <XCircle className="h-4 w-4 text-red-500" />;
-      case "PENDING":
-        return <Clock className="h-4 w-4 text-yellow-500" />;
-      case "RECEIVED":
-        return <Mail className="h-4 w-4 text-blue-500" />;
-      default:
-        return <Mail className="h-4 w-4" />;
-    }
-  };
-
-  const getStatusBadge = (status: string) => {
-    const variants: Record<string, "default" | "secondary" | "destructive" | "outline"> = {
-      SENT: "default",
-      FAILED: "destructive",
-      PENDING: "secondary",
-      RECEIVED: "outline",
-    };
-    const labels: Record<string, string> = {
-      SENT: "נשלח",
-      FAILED: "נכשל",
-      PENDING: "ממתין",
-      RECEIVED: "התקבל מהמטופל",
-    };
-    return (
-      <Badge variant={variants[status] || "outline"} className={status === "RECEIVED" ? "bg-blue-50 text-blue-700 border-blue-200" : ""}>
-        {labels[status] || status}
-      </Badge>
-    );
-  };
+    return filtered;
+  }, [threads, statusFilter, channelFilter, searchTerm]);
 
   const handleSendReply = async () => {
-    if (!selectedLog || !replyText.trim()) return;
-    
+    if (!selectedThread || !replyText.trim()) return;
+
+    // Find the latest incoming email to reply to, or fallback to latest message
+    const replyTo = selectedThread.messages.find(m => m.type === "INCOMING_EMAIL") 
+      || selectedThread.latestMessage;
+
     setIsSendingReply(true);
     try {
+      const formData = new FormData();
+      formData.append("communicationLogId", replyTo.id);
+      formData.append("replyContent", replyText.trim());
+      
+      for (const file of attachments) {
+        formData.append("attachments", file);
+      }
+
       const response = await fetch("/api/communications/reply", {
         method: "POST",
-        headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({
-          communicationLogId: selectedLog.id,
-          replyContent: replyText.trim(),
-        }),
+        // If there are attachments, use FormData; otherwise JSON
+        ...(attachments.length > 0
+          ? { body: formData }
+          : {
+              headers: { "Content-Type": "application/json" },
+              body: JSON.stringify({
+                communicationLogId: replyTo.id,
+                replyContent: replyText.trim(),
+              }),
+            }),
       });
 
       if (response.ok) {
         toast.success("התשובה נשלחה בהצלחה!");
         setReplyText("");
-        setSelectedLog(null);
-        fetchLogs(); // Refresh list
+        setAttachments([]);
+        setSelectedThread(null);
+        fetchLogs();
       } else {
         const data = await response.json();
         toast.error(data.message || "שגיאה בשליחת התשובה");
@@ -193,20 +239,33 @@ export default function CommunicationsPage() {
     }
   };
 
-  const getTypeLabel = (type: string) => {
-    const labels: Record<string, string> = {
-      REMINDER_24H: "תזכורת 24 שעות",
-      REMINDER_2H: "תזכורת 2 שעות",
-      CANCELLATION_REQUEST: "בקשת ביטול",
-      CANCELLATION_APPROVED: "ביטול אושר",
-      CANCELLATION_REJECTED: "ביטול נדחה",
-      CUSTOM: "מייל מותאם",
-      INCOMING_EMAIL: "תשובה מהמטופל",
-      SESSION_CONFIRMATION: "אישור תור",
-      PAYMENT_RECEIPT: "קבלה",
-      WELCOME: "ברוכים הבאים",
-    };
-    return labels[type] || type;
+  const handleFileSelect = (e: React.ChangeEvent<HTMLInputElement>) => {
+    const files = e.target.files;
+    if (files) {
+      const newFiles = Array.from(files);
+      // Max 5 files, max 10MB each
+      const validFiles = newFiles.filter(f => f.size <= 10 * 1024 * 1024);
+      if (validFiles.length < newFiles.length) {
+        toast.error("קבצים מעל 10MB לא נתמכים");
+      }
+      setAttachments(prev => [...prev, ...validFiles].slice(0, 5));
+    }
+    if (fileInputRef.current) {
+      fileInputRef.current.value = "";
+    }
+  };
+
+  const removeAttachment = (index: number) => {
+    setAttachments(prev => prev.filter((_, i) => i !== index));
+  };
+
+  const getLatestMessagePreview = (thread: Thread) => {
+    const msg = thread.latestMessage;
+    const isIncoming = msg.type === "INCOMING_EMAIL";
+    // Strip HTML for preview
+    const textContent = msg.content?.replace(/<[^>]*>/g, "").trim() || "";
+    const preview = textContent.substring(0, 100) + (textContent.length > 100 ? "..." : "");
+    return { isIncoming, preview };
   };
 
   if (isLoading) {
@@ -219,10 +278,10 @@ export default function CommunicationsPage() {
 
   const stats = {
     total: logs.length,
-    sent: logs.filter((l) => l.status === "SENT").length,
-    failed: logs.filter((l) => l.status === "FAILED").length,
-    pending: logs.filter((l) => l.status === "PENDING").length,
-    received: logs.filter((l) => l.status === "RECEIVED").length,
+    sent: logs.filter(l => l.status === "SENT").length,
+    failed: logs.filter(l => l.status === "FAILED").length,
+    pending: logs.filter(l => l.status === "PENDING").length,
+    received: logs.filter(l => l.status === "RECEIVED").length,
   };
 
   return (
@@ -244,7 +303,7 @@ export default function CommunicationsPage() {
       <div className="grid gap-4 md:grid-cols-5">
         <Card>
           <CardHeader className="flex flex-row items-center justify-between space-y-0 pb-2">
-            <CardTitle className="text-sm font-medium">סה"כ הודעות</CardTitle>
+            <CardTitle className="text-sm font-medium">סה&quot;כ הודעות</CardTitle>
             <Mail className="h-4 w-4 text-muted-foreground" />
           </CardHeader>
           <CardContent>
@@ -325,9 +384,9 @@ export default function CommunicationsPage() {
         </Select>
       </div>
 
-      {/* Logs List */}
+      {/* Threads List */}
       <div className="space-y-3">
-        {filteredLogs.length === 0 ? (
+        {filteredThreads.length === 0 ? (
           <Card>
             <CardContent className="flex flex-col items-center justify-center py-12">
               <Mail className="h-16 w-16 text-muted-foreground mb-4 opacity-50" />
@@ -337,80 +396,65 @@ export default function CommunicationsPage() {
             </CardContent>
           </Card>
         ) : (
-          filteredLogs.map((log) => {
-            const isIncoming = log.type === "INCOMING_EMAIL";
+          filteredThreads.map((thread) => {
+            const { isIncoming, preview } = getLatestMessagePreview(thread);
             return (
               <Card 
-                key={log.id} 
-                className={`hover:shadow-md transition-shadow ${
-                  isIncoming 
-                    ? "border-blue-200 bg-blue-50/30 dark:bg-blue-950/10" 
+                key={thread.id} 
+                className={`hover:shadow-md transition-shadow cursor-pointer ${
+                  thread.hasUnread 
+                    ? "border-blue-300 bg-blue-50/40 dark:bg-blue-950/10 ring-2 ring-blue-400/40" 
                     : ""
-                } ${isIncoming && !log.isRead ? "ring-2 ring-blue-400/50" : ""}`}
+                }`}
+                onClick={() => { setSelectedThread(thread); setReplyText(""); setAttachments([]); }}
               >
                 <CardContent className="p-4">
                   <div className="flex items-start justify-between gap-4">
                     <div className="flex items-start gap-3 flex-1">
                       <div className="mt-1">
                         {isIncoming ? (
-                          <ArrowDownLeft className="h-4 w-4 text-blue-600" />
+                          <ArrowDownLeft className="h-5 w-5 text-blue-600" />
                         ) : (
-                          getStatusIcon(log.status)
+                          <Send className="h-5 w-5 text-green-600" />
                         )}
                       </div>
-                      <div className="flex-1 space-y-2">
+                      <div className="flex-1 space-y-1.5">
                         <div className="flex items-center gap-2 flex-wrap">
-                          {isIncoming && !log.isRead && (
-                            <Badge className="bg-blue-600">חדש</Badge>
+                          {thread.hasUnread && (
+                            <Badge className="bg-blue-600 text-white">חדש</Badge>
                           )}
-                          <h3 className="font-semibold">{log.subject}</h3>
-                          {isIncoming ? (
-                            <Badge variant="outline" className="border-blue-500 text-blue-700 bg-blue-50">
-                              <ArrowDownLeft className="h-3 w-3 ml-1" />
-                              תשובה מהמטופל
+                          <h3 className="font-semibold">{thread.subject || "ללא נושא"}</h3>
+                          {thread.messageCount > 1 && (
+                            <Badge variant="secondary" className="gap-1">
+                              <MessageSquare className="h-3 w-3" />
+                              {thread.messageCount} הודעות
                             </Badge>
-                          ) : (
-                            <>
-                              {getStatusBadge(log.status)}
-                              <Badge variant="outline">{getTypeLabel(log.type)}</Badge>
-                            </>
                           )}
                         </div>
-                        <div className="flex items-center gap-4 text-sm text-muted-foreground flex-wrap">
+                        <div className="flex items-center gap-4 text-sm text-muted-foreground">
                           <div className="flex items-center gap-1">
-                            {isIncoming ? <ArrowDownLeft className="h-3 w-3" /> : <Send className="h-3 w-3" />}
-                            {isIncoming ? `מ-${log.client?.name || log.recipient}` : log.recipient}
+                            <User className="h-3 w-3" />
+                            {thread.clientName}
                           </div>
-                          {!isIncoming && log.client && (
-                            <div className="flex items-center gap-1">
-                              <User className="h-3 w-3" />
-                              {log.client.name}
-                            </div>
-                          )}
                           <div className="flex items-center gap-1">
                             <Calendar className="h-3 w-3" />
-                            {log.sentAt
-                              ? format(new Date(log.sentAt), "dd/MM/yyyy HH:mm", { locale: he })
-                              : format(new Date(log.createdAt), "dd/MM/yyyy HH:mm", { locale: he })}
+                            {format(new Date(thread.latestMessage.createdAt), "dd/MM/yyyy HH:mm", { locale: he })}
                           </div>
                         </div>
-                        {isIncoming && (
-                          <div className="text-sm text-foreground bg-white dark:bg-slate-900 p-3 rounded border mt-1">
-                            <div dangerouslySetInnerHTML={{ __html: log.content.substring(0, 300) + (log.content.length > 300 ? "..." : "") }} />
-                          </div>
-                        )}
-                        {log.errorMessage && (
-                          <div className="text-sm text-red-600 bg-red-50 p-2 rounded">
-                            שגיאה: {log.errorMessage}
-                          </div>
-                        )}
+                        {/* Latest message preview */}
+                        <div className="text-sm text-muted-foreground mt-1 line-clamp-2">
+                          <span className="font-medium">
+                            {isIncoming ? `${thread.clientName}: ` : "אתה: "}
+                          </span>
+                          {preview || "(ללא תוכן)"}
+                        </div>
                       </div>
                     </div>
                     <Button
                       variant="ghost"
                       size="sm"
-                      onClick={() => setSelectedLog(log)}
                       className="gap-2"
+                      onClick={(e) => { e.stopPropagation(); setSelectedThread(thread); setReplyText(""); setAttachments([]); }}
                     >
                       <Eye className="h-4 w-4" />
                       צפה
@@ -423,114 +467,161 @@ export default function CommunicationsPage() {
         )}
       </div>
 
-      {/* View Details Dialog */}
-      <Dialog open={!!selectedLog} onOpenChange={() => { setSelectedLog(null); setReplyText(""); }}>
-        <DialogContent className="max-w-2xl max-h-[80vh] overflow-y-auto">
-          <DialogHeader>
-            <DialogTitle>פרטי הודעה</DialogTitle>
-            <DialogDescription>
-              {selectedLog && format(new Date(selectedLog.createdAt), "dd MMMM yyyy, HH:mm", { locale: he })}
-            </DialogDescription>
-          </DialogHeader>
-          {selectedLog && (
-            <div className="space-y-4">
-              {/* Direction banner */}
-              {selectedLog.type === "INCOMING_EMAIL" ? (
-                <div className="flex items-center gap-2 p-3 bg-blue-50 dark:bg-blue-950/30 rounded-lg border border-blue-200">
-                  <ArrowDownLeft className="h-5 w-5 text-blue-600" />
-                  <span className="font-medium text-blue-800 dark:text-blue-300">תשובה שהתקבלה מ-{selectedLog.client?.name || "מטופל"}</span>
-                </div>
-              ) : (
-                <div className="flex items-center gap-2 p-3 bg-green-50 dark:bg-green-950/30 rounded-lg border border-green-200">
-                  <Send className="h-5 w-5 text-green-600" />
-                  <span className="font-medium text-green-800 dark:text-green-300">הודעה שנשלחה ל-{selectedLog.client?.name || selectedLog.recipient}</span>
-                </div>
+      {/* Thread Dialog */}
+      <Dialog open={!!selectedThread} onOpenChange={() => { setSelectedThread(null); setReplyText(""); setAttachments([]); }}>
+        <DialogContent className="max-w-3xl max-h-[85vh] flex flex-col p-0">
+          {/* Header with X button */}
+          <div className="flex items-center justify-between p-4 pb-2 border-b">
+            <DialogHeader className="flex-1">
+              <DialogTitle className="flex items-center gap-2">
+                <MessageSquare className="h-5 w-5 text-teal-600" />
+                {selectedThread?.subject || "ללא נושא"}
+                {selectedThread && selectedThread.messageCount > 1 && (
+                  <Badge variant="secondary" className="mr-2">
+                    {selectedThread.messageCount} הודעות
+                  </Badge>
+                )}
+              </DialogTitle>
+              {selectedThread?.clientName && (
+                <p className="text-sm text-muted-foreground flex items-center gap-1 mt-1">
+                  <User className="h-3 w-3" />
+                  {selectedThread.clientName}
+                </p>
               )}
+            </DialogHeader>
+            <Button
+              variant="ghost"
+              size="icon"
+              onClick={() => { setSelectedThread(null); setReplyText(""); setAttachments([]); }}
+              className="h-8 w-8 shrink-0"
+            >
+              <X className="h-5 w-5" />
+            </Button>
+          </div>
 
-              <div className="grid grid-cols-2 gap-4">
-                <div>
-                  <div className="text-sm text-muted-foreground">סטטוס</div>
-                  <div className="mt-1">{getStatusBadge(selectedLog.status)}</div>
+          {selectedThread && (
+            <>
+              {/* Reply Section - AT THE TOP */}
+              <div className="p-4 border-b bg-slate-50/50 dark:bg-slate-900/50">
+                <div className="flex items-center gap-2 mb-2">
+                  <Reply className="h-4 w-4 text-teal-600" />
+                  <span className="font-medium text-sm text-teal-700">השב ל-{selectedThread.clientName}</span>
                 </div>
-                <div>
-                  <div className="text-sm text-muted-foreground">סוג</div>
-                  <div className="mt-1 font-medium">{getTypeLabel(selectedLog.type)}</div>
-                </div>
-                <div>
-                  <div className="text-sm text-muted-foreground">ערוץ</div>
-                  <div className="mt-1 font-medium">{selectedLog.channel}</div>
-                </div>
-                <div>
-                  <div className="text-sm text-muted-foreground">{selectedLog.type === "INCOMING_EMAIL" ? "מאת" : "נמען"}</div>
-                  <div className="mt-1 font-medium">{selectedLog.recipient}</div>
-                </div>
-              </div>
-              {selectedLog.client && (
-                <div>
-                  <div className="text-sm text-muted-foreground">מטופל</div>
-                  <div className="mt-1 font-medium">{selectedLog.client.name}</div>
-                </div>
-              )}
-              <div>
-                <div className="text-sm text-muted-foreground">נושא</div>
-                <div className="mt-1 font-semibold text-lg">{selectedLog.subject}</div>
-              </div>
-              <div>
-                <div className="text-sm text-muted-foreground mb-2">תוכן</div>
-                <div 
-                  className="bg-slate-50 dark:bg-slate-900 p-4 rounded border whitespace-pre-wrap prose prose-sm max-w-none"
-                  dangerouslySetInnerHTML={{ __html: selectedLog.content }}
+                <Textarea
+                  placeholder="כתוב את תשובתך כאן..."
+                  value={replyText}
+                  onChange={(e) => setReplyText(e.target.value)}
+                  className="min-h-[80px] mb-2 bg-white dark:bg-slate-800"
+                  dir="rtl"
                 />
-              </div>
-              {selectedLog.errorMessage && (
-                <div>
-                  <div className="text-sm text-muted-foreground">הודעת שגיאה</div>
-                  <div className="mt-1 text-red-600 bg-red-50 p-3 rounded">
-                    {selectedLog.errorMessage}
+                {/* Attachments */}
+                {attachments.length > 0 && (
+                  <div className="flex flex-wrap gap-2 mb-2">
+                    {attachments.map((file, idx) => (
+                      <div key={idx} className="flex items-center gap-1 bg-white dark:bg-slate-800 border rounded px-2 py-1 text-xs">
+                        <FileText className="h-3 w-3 text-muted-foreground" />
+                        <span className="max-w-[120px] truncate">{file.name}</span>
+                        <button onClick={() => removeAttachment(idx)} className="text-red-400 hover:text-red-600 mr-1">
+                          <X className="h-3 w-3" />
+                        </button>
+                      </div>
+                    ))}
                   </div>
-                </div>
-              )}
-
-              {/* Reply Section - only for incoming emails */}
-              {selectedLog.type === "INCOMING_EMAIL" && (
-                <div className="border-t pt-4 mt-4">
-                  <div className="flex items-center gap-2 mb-3">
-                    <Reply className="h-4 w-4 text-teal-600" />
-                    <span className="font-medium text-teal-700">השב ל-{selectedLog.client?.name || "מטופל"}</span>
-                  </div>
-                  <Textarea
-                    placeholder="כתוב את תשובתך כאן..."
-                    value={replyText}
-                    onChange={(e) => setReplyText(e.target.value)}
-                    className="min-h-[120px] mb-3"
-                    dir="rtl"
-                  />
-                  <div className="flex justify-end gap-2">
+                )}
+                <div className="flex justify-between items-center">
+                  <div>
+                    <input
+                      ref={fileInputRef}
+                      type="file"
+                      multiple
+                      className="hidden"
+                      onChange={handleFileSelect}
+                      accept=".pdf,.doc,.docx,.xls,.xlsx,.jpg,.jpeg,.png,.gif,.txt"
+                    />
                     <Button
                       variant="outline"
-                      onClick={() => {
-                        setReplyText("");
-                        setSelectedLog(null);
-                      }}
+                      size="sm"
+                      onClick={() => fileInputRef.current?.click()}
+                      className="gap-1 text-xs"
                     >
-                      ביטול
-                    </Button>
-                    <Button
-                      onClick={handleSendReply}
-                      disabled={!replyText.trim() || isSendingReply}
-                      className="gap-2 bg-teal-600 hover:bg-teal-700"
-                    >
-                      {isSendingReply ? (
-                        <Loader2 className="h-4 w-4 animate-spin" />
-                      ) : (
-                        <Send className="h-4 w-4" />
-                      )}
-                      שלח תשובה
+                      <Paperclip className="h-3 w-3" />
+                      צרף קובץ
                     </Button>
                   </div>
+                  <Button
+                    onClick={handleSendReply}
+                    disabled={!replyText.trim() || isSendingReply}
+                    size="sm"
+                    className="gap-2 bg-teal-600 hover:bg-teal-700"
+                  >
+                    {isSendingReply ? (
+                      <Loader2 className="h-4 w-4 animate-spin" />
+                    ) : (
+                      <Send className="h-4 w-4" />
+                    )}
+                    שלח תשובה
+                  </Button>
                 </div>
-              )}
-            </div>
+              </div>
+
+              {/* Messages - newest first (scrollable) */}
+              <div className="flex-1 overflow-y-auto p-4 space-y-4">
+                {selectedThread.messages.map((msg, idx) => {
+                  const isIncoming = msg.type === "INCOMING_EMAIL";
+                  const msgDate = msg.sentAt || msg.createdAt;
+                  return (
+                    <div
+                      key={msg.id}
+                      className={`rounded-lg border p-4 ${
+                        isIncoming
+                          ? "bg-blue-50/70 dark:bg-blue-950/20 border-blue-200"
+                          : "bg-green-50/70 dark:bg-green-950/20 border-green-200"
+                      }`}
+                    >
+                      {/* Message header */}
+                      <div className="flex items-center justify-between mb-3">
+                        <div className="flex items-center gap-2">
+                          {isIncoming ? (
+                            <>
+                              <ArrowDownLeft className="h-4 w-4 text-blue-600" />
+                              <span className="font-medium text-blue-800 dark:text-blue-300 text-sm">
+                                {msg.client?.name || "מטופל"}
+                              </span>
+                              {!msg.isRead && (
+                                <Badge className="bg-blue-600 text-white text-xs py-0">חדש</Badge>
+                              )}
+                            </>
+                          ) : (
+                            <>
+                              <Send className="h-4 w-4 text-green-600" />
+                              <span className="font-medium text-green-800 dark:text-green-300 text-sm">
+                                אתה
+                              </span>
+                              {msg.status === "FAILED" && (
+                                <Badge variant="destructive" className="text-xs py-0">נכשל</Badge>
+                              )}
+                            </>
+                          )}
+                        </div>
+                        <span className="text-xs text-muted-foreground">
+                          {format(new Date(msgDate), "dd/MM/yyyy HH:mm", { locale: he })}
+                        </span>
+                      </div>
+                      {/* Message content */}
+                      <div 
+                        className="prose prose-sm max-w-none text-sm whitespace-pre-wrap"
+                        dangerouslySetInnerHTML={{ __html: msg.content || "(ללא תוכן)" }}
+                      />
+                      {msg.errorMessage && (
+                        <div className="mt-2 text-xs text-red-600 bg-red-50 p-2 rounded">
+                          שגיאה: {msg.errorMessage}
+                        </div>
+                      )}
+                    </div>
+                  );
+                })}
+              </div>
+            </>
           )}
         </DialogContent>
       </Dialog>

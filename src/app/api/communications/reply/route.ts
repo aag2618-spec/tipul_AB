@@ -11,7 +11,34 @@ export async function POST(request: NextRequest) {
       return NextResponse.json({ message: "לא מורשה" }, { status: 401 });
     }
 
-    const { communicationLogId, replyContent } = await request.json();
+    let communicationLogId: string;
+    let replyContent: string;
+    const resendAttachments: { filename: string; content: Buffer }[] = [];
+
+    // Check if request is FormData (with attachments) or JSON
+    const contentType = request.headers.get("content-type") || "";
+    
+    if (contentType.includes("multipart/form-data")) {
+      const formData = await request.formData();
+      communicationLogId = formData.get("communicationLogId") as string;
+      replyContent = formData.get("replyContent") as string;
+      
+      // Process file attachments
+      const files = formData.getAll("attachments") as File[];
+      for (const file of files) {
+        if (file && file.size > 0) {
+          const buffer = Buffer.from(await file.arrayBuffer());
+          resendAttachments.push({
+            filename: file.name,
+            content: buffer,
+          });
+        }
+      }
+    } else {
+      const body = await request.json();
+      communicationLogId = body.communicationLogId;
+      replyContent = body.replyContent;
+    }
 
     if (!communicationLogId || !replyContent) {
       return NextResponse.json(
@@ -20,7 +47,7 @@ export async function POST(request: NextRequest) {
       );
     }
 
-    // Get the original incoming email
+    // Get the original email
     const originalLog = await prisma.communicationLog.findUnique({
       where: { id: communicationLogId },
       include: {
@@ -39,7 +66,7 @@ export async function POST(request: NextRequest) {
       );
     }
 
-    // Get therapist info for sender name
+    // Get therapist info
     const therapist = await prisma.user.findUnique({
       where: { id: session.user.id },
       select: { name: true, email: true },
@@ -51,30 +78,25 @@ export async function POST(request: NextRequest) {
       : `Re: ${originalLog.subject || "ללא נושא"}`;
 
     // Build reply HTML
+    const attachmentNote = resendAttachments.length > 0
+      ? `<p style="color: #888; font-size: 12px; margin-top: 10px;">📎 ${resendAttachments.length} קבצים מצורפים</p>`
+      : "";
+
     const replyHtml = `
       <div dir="rtl" style="font-family: Arial, sans-serif; max-width: 600px; margin: 0 auto; padding: 20px;">
         <div style="white-space: pre-wrap; line-height: 1.6;">${replyContent}</div>
+        ${attachmentNote}
         <p style="color: #666; font-size: 14px; margin-top: 30px;">
           בברכה,<br/>
           ${therapist?.name || "המטפל/ת שלך"}
         </p>
-        <hr style="margin-top: 30px; border: none; border-top: 1px solid #eee;" />
-        <div style="color: #999; font-size: 12px; margin-top: 10px;">
-          <p><strong>בתשובה ל:</strong></p>
-          <blockquote style="border-right: 3px solid #ddd; padding-right: 10px; margin-right: 0; color: #777;">
-            ${originalLog.content?.substring(0, 500) || ""}
-          </blockquote>
-        </div>
       </div>
     `;
 
     // Build threading headers
     const emailHeaders: Record<string, string> = {};
-    
     if (originalLog.messageId) {
       emailHeaders["In-Reply-To"] = originalLog.messageId;
-      
-      // Collect all previous message IDs for References header
       const previousRefs = originalLog.inReplyTo
         ? `${originalLog.inReplyTo} ${originalLog.messageId}`
         : originalLog.messageId;
@@ -91,14 +113,22 @@ export async function POST(request: NextRequest) {
     }
 
     const resend = new Resend(resendApiKey);
-    const { data: sendResult, error: sendError } = await resend.emails.send({
+    
+    const sendPayload: Record<string, unknown> = {
       from: process.env.EMAIL_FROM || "Tipul App <onboarding@resend.dev>",
       to: [originalLog.client.email.toLowerCase()],
       subject: replySubject,
       html: replyHtml,
       replyTo: "inbox@mytipul.com",
       headers: emailHeaders,
-    });
+    };
+
+    // Add attachments if any
+    if (resendAttachments.length > 0) {
+      sendPayload.attachments = resendAttachments;
+    }
+
+    const { data: sendResult, error: sendError } = await resend.emails.send(sendPayload as Parameters<typeof resend.emails.send>[0]);
 
     if (sendError) {
       console.error("Reply send error:", sendError);
@@ -126,13 +156,15 @@ export async function POST(request: NextRequest) {
     });
 
     // Mark the original incoming email as read
-    await prisma.communicationLog.update({
-      where: { id: communicationLogId },
-      data: {
-        isRead: true,
-        readAt: new Date(),
-      },
-    });
+    if (originalLog.type === "INCOMING_EMAIL") {
+      await prisma.communicationLog.update({
+        where: { id: communicationLogId },
+        data: {
+          isRead: true,
+          readAt: new Date(),
+        },
+      });
+    }
 
     return NextResponse.json({
       success: true,
