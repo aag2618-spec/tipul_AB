@@ -20,7 +20,6 @@ import {
   Clock, 
   Search, 
   Loader2,
-  Eye,
   Calendar,
   User,
   Users,
@@ -83,6 +82,30 @@ function normalizeSubject(subject: string): string {
   return subject
     .replace(/^(Re:|RE:|Fwd:|FWD:|השב:|הע:)\s*/gi, "")
     .trim();
+}
+
+// Clean incoming email content - remove quoted replies and date/sender headers
+function cleanIncomingContent(html: string): string {
+  let cleaned = html;
+  
+  // Remove "בתאריך יום X, DD בMONTH YYYY ב-HH:MM מאת NAME <email>:" blocks and everything after
+  cleaned = cleaned.replace(/בתאריך\s+יום\s+[^:]+מאת\s+[^:]+:[\s\S]*/gi, "");
+  
+  // Remove "On DATE, NAME <email> wrote:" blocks and everything after
+  cleaned = cleaned.replace(/On\s+\w+,\s+\w+\s+\d+[\s\S]*?wrote:[\s\S]*/gi, "");
+  
+  // Remove blockquote elements (quoted replies)
+  cleaned = cleaned.replace(/<blockquote[\s\S]*?<\/blockquote>/gi, "");
+  
+  // Remove <br> and divs that are just whitespace after cleaning
+  cleaned = cleaned.replace(/(<br\s*\/?>|\s)*$/gi, "").trim();
+  
+  // If nothing left, return original
+  if (!cleaned || cleaned.replace(/<[^>]*>/g, "").trim().length === 0) {
+    return html;
+  }
+  
+  return cleaned;
 }
 
 export default function CommunicationsPage() {
@@ -262,8 +285,9 @@ export default function CommunicationsPage() {
   const getLatestMessagePreview = (thread: Thread) => {
     const msg = thread.latestMessage;
     const isIncoming = msg.type === "INCOMING_EMAIL";
-    // Strip HTML for preview
-    const textContent = msg.content?.replace(/<[^>]*>/g, "").trim() || "";
+    // Clean incoming content then strip HTML for preview
+    const rawContent = isIncoming ? cleanIncomingContent(msg.content || "") : (msg.content || "");
+    const textContent = rawContent.replace(/<[^>]*>/g, "").trim();
     const preview = textContent.substring(0, 100) + (textContent.length > 100 ? "..." : "");
     return { isIncoming, preview };
   };
@@ -450,15 +474,6 @@ export default function CommunicationsPage() {
                         </div>
                       </div>
                     </div>
-                    <Button
-                      variant="ghost"
-                      size="sm"
-                      className="gap-2"
-                      onClick={(e) => { e.stopPropagation(); setSelectedThread(thread); setReplyText(""); setAttachments([]); }}
-                    >
-                      <Eye className="h-4 w-4" />
-                      צפה
-                    </Button>
                   </div>
                 </CardContent>
               </Card>
@@ -470,9 +485,9 @@ export default function CommunicationsPage() {
       {/* Thread Dialog */}
       <Dialog open={!!selectedThread} onOpenChange={() => { setSelectedThread(null); setReplyText(""); setAttachments([]); }}>
         <DialogContent className="max-w-3xl max-h-[85vh] flex flex-col p-0">
-          {/* Header with X button */}
-          <div className="flex items-center justify-between p-4 pb-2 border-b">
-            <DialogHeader className="flex-1">
+          {/* Header */}
+          <div className="p-4 pb-2 border-b">
+            <DialogHeader>
               <DialogTitle className="flex items-center gap-2">
                 <MessageSquare className="h-5 w-5 text-teal-600" />
                 {selectedThread?.subject || "ללא נושא"}
@@ -489,14 +504,6 @@ export default function CommunicationsPage() {
                 </p>
               )}
             </DialogHeader>
-            <Button
-              variant="ghost"
-              size="icon"
-              onClick={() => { setSelectedThread(null); setReplyText(""); setAttachments([]); }}
-              className="h-8 w-8 shrink-0"
-            >
-              <X className="h-5 w-5" />
-            </Button>
           </div>
 
           {selectedThread && (
@@ -610,7 +617,7 @@ export default function CommunicationsPage() {
                       {/* Message content */}
                       <div 
                         className="prose prose-sm max-w-none text-sm whitespace-pre-wrap"
-                        dangerouslySetInnerHTML={{ __html: msg.content || "(ללא תוכן)" }}
+                        dangerouslySetInnerHTML={{ __html: isIncoming ? cleanIncomingContent(msg.content || "") || "(ללא תוכן)" : msg.content || "(ללא תוכן)" }}
                       />
                       {msg.errorMessage && (
                         <div className="mt-2 text-xs text-red-600 bg-red-50 p-2 rounded">
