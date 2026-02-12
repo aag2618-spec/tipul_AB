@@ -18,7 +18,7 @@ import {
   Menu,
   X,
   Shield,
-  ArrowLeft,
+  ArrowRight,
   Ticket,
   ClipboardList,
   Brain,
@@ -145,7 +145,7 @@ function AdminLayoutContent({ children }: { children: React.ReactNode }) {
                 className="justify-start text-slate-400 hover:text-white hover:bg-slate-800"
               >
                 <Link href="/dashboard">
-                  <ArrowLeft className="ml-2 h-4 w-4" />
+                  <ArrowRight className="ml-2 h-4 w-4" />
                   חזרה לדשבורד
                 </Link>
               </Button>

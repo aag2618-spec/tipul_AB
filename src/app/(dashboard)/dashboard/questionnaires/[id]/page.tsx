@@ -16,7 +16,7 @@ import {
   CheckCircle,
   AlertTriangle,
   BarChart3,
-  ArrowLeft
+  ArrowRight
 } from "lucide-react";
 import { toast } from "sonner";
 import ReactMarkdown from "react-markdown";
@@ -185,7 +185,7 @@ export default function QuestionnaireResultsPage() {
             variant="ghost"
             onClick={() => router.push("/dashboard/questionnaires")}
           >
-            <ArrowLeft className="h-4 w-4 ml-2" />
+            <ArrowRight className="h-4 w-4 ml-2" />
             חזרה לשאלונים
           </Button>
           <div>

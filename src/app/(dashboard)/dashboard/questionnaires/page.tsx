@@ -12,7 +12,7 @@ import {
   Eye, 
   ClipboardList, 
   Plus,
-  ChevronLeft,
+  ChevronRight,
   Activity,
   Search
 } from "lucide-react";
@@ -195,7 +195,7 @@ export default function QuestionnairesPage() {
       <div className="flex items-center justify-between">
         <div className="flex items-center gap-4">
           <Button variant="ghost" size="icon" onClick={() => router.back()}>
-            <ChevronLeft className="h-5 w-5" />
+            <ChevronRight className="h-5 w-5" />
           </Button>
           <div>
             <h1 className="text-3xl font-bold">שאלונים ומבחנים</h1>

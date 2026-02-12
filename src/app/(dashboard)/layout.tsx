@@ -4,6 +4,7 @@ import { authOptions } from "@/lib/auth";
 import { SidebarProvider } from "@/components/ui/sidebar";
 import { AppSidebar } from "@/components/app-sidebar";
 import { DashboardHeader } from "@/components/dashboard-header";
+import { Breadcrumbs } from "@/components/breadcrumbs";
 
 export default async function DashboardLayout({
   children,
@@ -22,6 +23,7 @@ export default async function DashboardLayout({
         <AppSidebar user={session.user} />
         <div className="flex flex-1 flex-col">
           <DashboardHeader user={session.user} />
+          <Breadcrumbs />
           <main className="flex-1 p-6 bg-muted/30">
             {children}
           </main>

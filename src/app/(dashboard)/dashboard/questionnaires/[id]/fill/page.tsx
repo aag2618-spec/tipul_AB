@@ -305,7 +305,7 @@ export default function FillQuestionnairePage() {
         <div className="flex items-center justify-between mb-4">
           <div className="flex items-center gap-3">
             <Button variant="ghost" size="icon" onClick={() => router.back()}>
-              <ChevronLeft className="h-5 w-5" />
+              <ChevronRight className="h-5 w-5" />
             </Button>
             <div>
               <h1 className="text-xl font-bold">{response.template.name}</h1>
