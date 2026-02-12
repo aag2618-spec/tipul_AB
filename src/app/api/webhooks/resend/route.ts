@@ -1,6 +1,7 @@
 import { NextRequest, NextResponse } from "next/server";
 import prisma from "@/lib/prisma";
 import { headers } from "next/headers";
+import { Resend } from "resend";
 
 // Extract email from "Name <email@example.com>" format or plain email
 function extractEmail(raw: string): string {
@@ -11,25 +12,21 @@ function extractEmail(raw: string): string {
 // Resend webhook for incoming email replies
 export async function POST(request: NextRequest) {
   try {
-    // Verify webhook signature (optional but recommended)
     const headersList = await headers();
     const signature = headersList.get("svix-signature");
     
     const body = await request.json();
     console.log("Resend webhook received:", JSON.stringify(body, null, 2));
 
-    // Handle different event types
     const { type, data } = body;
 
     if (type === "email.received" || type === "email.replied") {
-      // Extract email data
       const {
+        email_id,
         message_id,
         from: rawFrom,
         to,
         subject,
-        html,
-        text,
         in_reply_to,
         references,
       } = data;
@@ -37,12 +34,34 @@ export async function POST(request: NextRequest) {
       const senderEmail = extractEmail(rawFrom || "");
 
       console.log("Processing incoming email:", {
+        email_id,
         message_id,
         senderEmail,
         to,
         subject,
         in_reply_to,
       });
+
+      // --- Fetch actual email content from Resend API ---
+      let emailHtml = "";
+      let emailText = "";
+      
+      if (email_id && process.env.RESEND_API_KEY) {
+        try {
+          const resend = new Resend(process.env.RESEND_API_KEY);
+          const { data: emailContent } = await resend.emails.receiving.get(email_id);
+          
+          if (emailContent) {
+            emailHtml = emailContent.html || "";
+            emailText = emailContent.text || "";
+            console.log("Fetched email content, html length:", emailHtml.length, "text length:", emailText.length);
+          }
+        } catch (fetchError) {
+          console.error("Error fetching email content from Resend:", fetchError);
+        }
+      }
+
+      const content = emailHtml || emailText || "(לא ניתן לטעון את תוכן המייל)";
 
       // Strategy 1: Find original email by in_reply_to header
       let originalEmail = null;
@@ -56,7 +75,7 @@ export async function POST(request: NextRequest) {
         });
       }
 
-      // Strategy 2: Find any recent email sent TO this sender (any type, not just CUSTOM)
+      // Strategy 2: Find any recent email sent TO this sender
       if (!originalEmail && senderEmail) {
         originalEmail = await prisma.communicationLog.findFirst({
           where: {
@@ -97,26 +116,25 @@ export async function POST(request: NextRequest) {
         }
       }
 
-      // If we still can't identify who sent this, log and acknowledge
       if (!clientRecord || !therapistId) {
         console.warn("Could not find client for incoming email:", senderEmail);
         return NextResponse.json(
           { message: "Client not found for sender email" },
-          { status: 200 } // Return 200 to acknowledge receipt
+          { status: 200 }
         );
       }
 
-      // Save the incoming reply
+      // Save the incoming reply with actual content
       const incomingLog = await prisma.communicationLog.create({
         data: {
           type: "INCOMING_EMAIL",
           channel: "EMAIL",
-          recipient: senderEmail, // Who sent this (the patient)
+          recipient: senderEmail,
           subject: subject || "ללא נושא",
-          content: html || text || "",
+          content: content,
           status: "RECEIVED",
           sentAt: new Date(),
-          messageId: message_id,
+          messageId: message_id || email_id,
           inReplyTo: in_reply_to || originalEmail?.messageId || null,
           isRead: false,
           clientId: clientRecord.id,
@@ -124,7 +142,7 @@ export async function POST(request: NextRequest) {
         },
       });
 
-      console.log("Saved incoming email:", incomingLog.id);
+      console.log("Saved incoming email with content:", incomingLog.id);
 
       // Create notification for therapist
       await prisma.notification.create({
@@ -150,7 +168,6 @@ export async function POST(request: NextRequest) {
     return NextResponse.json({ message: "Event received" });
   } catch (error) {
     console.error("Resend webhook error:", error);
-    // Return 200 to prevent Resend from retrying
     return NextResponse.json(
       { message: "Error processing webhook", error: String(error) },
       { status: 200 }

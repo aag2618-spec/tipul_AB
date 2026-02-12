@@ -12,6 +12,7 @@ import {
   SelectTrigger, 
   SelectValue 
 } from "@/components/ui/select";
+import { Textarea } from "@/components/ui/textarea";
 import { 
   Mail, 
   CheckCircle, 
@@ -25,7 +26,8 @@ import {
   Users,
   Plus,
   ArrowDownLeft,
-  Send
+  Send,
+  Reply
 } from "lucide-react";
 import Link from "next/link";
 import { format } from "date-fns";
@@ -69,6 +71,8 @@ export default function CommunicationsPage() {
   const [statusFilter, setStatusFilter] = useState<FilterType>("all");
   const [channelFilter, setChannelFilter] = useState<ChannelType>("all");
   const [selectedLog, setSelectedLog] = useState<CommunicationLog | null>(null);
+  const [replyText, setReplyText] = useState("");
+  const [isSendingReply, setIsSendingReply] = useState(false);
 
   useEffect(() => {
     fetchLogs();
@@ -156,6 +160,37 @@ export default function CommunicationsPage() {
         {labels[status] || status}
       </Badge>
     );
+  };
+
+  const handleSendReply = async () => {
+    if (!selectedLog || !replyText.trim()) return;
+    
+    setIsSendingReply(true);
+    try {
+      const response = await fetch("/api/communications/reply", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({
+          communicationLogId: selectedLog.id,
+          replyContent: replyText.trim(),
+        }),
+      });
+
+      if (response.ok) {
+        toast.success("התשובה נשלחה בהצלחה!");
+        setReplyText("");
+        setSelectedLog(null);
+        fetchLogs(); // Refresh list
+      } else {
+        const data = await response.json();
+        toast.error(data.message || "שגיאה בשליחת התשובה");
+      }
+    } catch (error) {
+      console.error("Error sending reply:", error);
+      toast.error("שגיאה בשליחת התשובה");
+    } finally {
+      setIsSendingReply(false);
+    }
   };
 
   const getTypeLabel = (type: string) => {
@@ -389,7 +424,7 @@ export default function CommunicationsPage() {
       </div>
 
       {/* View Details Dialog */}
-      <Dialog open={!!selectedLog} onOpenChange={() => setSelectedLog(null)}>
+      <Dialog open={!!selectedLog} onOpenChange={() => { setSelectedLog(null); setReplyText(""); }}>
         <DialogContent className="max-w-2xl max-h-[80vh] overflow-y-auto">
           <DialogHeader>
             <DialogTitle>פרטי הודעה</DialogTitle>
@@ -452,6 +487,46 @@ export default function CommunicationsPage() {
                   <div className="text-sm text-muted-foreground">הודעת שגיאה</div>
                   <div className="mt-1 text-red-600 bg-red-50 p-3 rounded">
                     {selectedLog.errorMessage}
+                  </div>
+                </div>
+              )}
+
+              {/* Reply Section - only for incoming emails */}
+              {selectedLog.type === "INCOMING_EMAIL" && (
+                <div className="border-t pt-4 mt-4">
+                  <div className="flex items-center gap-2 mb-3">
+                    <Reply className="h-4 w-4 text-teal-600" />
+                    <span className="font-medium text-teal-700">השב ל-{selectedLog.client?.name || "מטופל"}</span>
+                  </div>
+                  <Textarea
+                    placeholder="כתוב את תשובתך כאן..."
+                    value={replyText}
+                    onChange={(e) => setReplyText(e.target.value)}
+                    className="min-h-[120px] mb-3"
+                    dir="rtl"
+                  />
+                  <div className="flex justify-end gap-2">
+                    <Button
+                      variant="outline"
+                      onClick={() => {
+                        setReplyText("");
+                        setSelectedLog(null);
+                      }}
+                    >
+                      ביטול
+                    </Button>
+                    <Button
+                      onClick={handleSendReply}
+                      disabled={!replyText.trim() || isSendingReply}
+                      className="gap-2 bg-teal-600 hover:bg-teal-700"
+                    >
+                      {isSendingReply ? (
+                        <Loader2 className="h-4 w-4 animate-spin" />
+                      ) : (
+                        <Send className="h-4 w-4" />
+                      )}
+                      שלח תשובה
+                    </Button>
                   </div>
                 </div>
               )}
