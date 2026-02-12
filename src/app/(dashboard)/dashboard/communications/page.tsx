@@ -29,7 +29,9 @@ import {
   MessageSquare,
   X,
   Paperclip,
-  FileText
+  FileText,
+  Download,
+  FolderPlus
 } from "lucide-react";
 import Link from "next/link";
 import { format } from "date-fns";
@@ -57,6 +59,13 @@ interface CommunicationLog {
   readAt: Date | null;
   messageId: string | null;
   inReplyTo: string | null;
+  attachments: Array<{
+    id?: string;
+    filename: string;
+    contentType?: string;
+    size?: number;
+    resendEmailId?: string;
+  }> | null;
   client: {
     id: string;
     name: string;
@@ -88,19 +97,30 @@ function normalizeSubject(subject: string): string {
 function cleanIncomingContent(html: string): string {
   let cleaned = html;
   
-  // Remove "בתאריך יום X, DD בMONTH YYYY ב-HH:MM מאת NAME <email>:" blocks and everything after
-  cleaned = cleaned.replace(/בתאריך\s+יום\s+[^:]+מאת\s+[^:]+:[\s\S]*/gi, "");
+  // Remove Unicode direction markers that Gmail adds
+  cleaned = cleaned.replace(/[\u200F\u200E\u202B\u202C\u202A\u200D\u200C]/g, "");
   
-  // Remove "On DATE, NAME <email> wrote:" blocks and everything after
-  cleaned = cleaned.replace(/On\s+\w+,\s+\w+\s+\d+[\s\S]*?wrote:[\s\S]*/gi, "");
+  // Remove Hebrew date headers: "בתאריך יום X, DD בMONTH YYYY ב-HH:MM מאת NAME <email>:" and everything after
+  // Matches various Hebrew formats with ׳ (geresh) and different spacing
+  cleaned = cleaned.replace(/\u200F?\u202B?בתאריך[\s\S]*?מאת[\s\S]*?>[:\s]*[\u202C]?[\s\S]*/gi, "");
+  cleaned = cleaned.replace(/בתאריך\s+יום[\s\S]*?@[\s\S]*?>[:\s]*[\s\S]*/gi, "");
+  
+  // Remove English date headers: "On DATE, NAME <email> wrote:" and everything after
+  cleaned = cleaned.replace(/On\s+\w[\s\S]*?wrote:[\s\S]*/gi, "");
+  
+  // Remove "---------- Forwarded message" blocks
+  cleaned = cleaned.replace(/-{3,}\s*(Forwarded|Original|הודעה)[\s\S]*/gi, "");
   
   // Remove blockquote elements (quoted replies)
   cleaned = cleaned.replace(/<blockquote[\s\S]*?<\/blockquote>/gi, "");
   
-  // Remove <br> and divs that are just whitespace after cleaning
-  cleaned = cleaned.replace(/(<br\s*\/?>|\s)*$/gi, "").trim();
+  // Remove gmail_quote divs
+  cleaned = cleaned.replace(/<div\s+class="gmail_quote"[\s\S]*?<\/div>/gi, "");
   
-  // If nothing left, return original
+  // Remove trailing whitespace, <br>, empty divs
+  cleaned = cleaned.replace(/(<br\s*\/?>|<div>\s*<\/div>|\s)*$/gi, "").trim();
+  
+  // If nothing meaningful left, return original
   if (!cleaned || cleaned.replace(/<[^>]*>/g, "").trim().length === 0) {
     return html;
   }
@@ -280,6 +300,51 @@ export default function CommunicationsPage() {
 
   const removeAttachment = (index: number) => {
     setAttachments(prev => prev.filter((_, i) => i !== index));
+  };
+
+  const handleDownloadAttachment = async (logId: string, attachmentId: string, filename: string) => {
+    try {
+      toast.info("מוריד קובץ...");
+      const response = await fetch(
+        `/api/communications/attachments?logId=${logId}&attachmentId=${encodeURIComponent(attachmentId)}&filename=${encodeURIComponent(filename)}`
+      );
+      if (!response.ok) {
+        const err = await response.json().catch(() => ({}));
+        toast.error(err.message || "שגיאה בהורדת הקובץ");
+        return;
+      }
+      const blob = await response.blob();
+      const url = window.URL.createObjectURL(blob);
+      const a = document.createElement("a");
+      a.href = url;
+      a.download = filename;
+      document.body.appendChild(a);
+      a.click();
+      document.body.removeChild(a);
+      window.URL.revokeObjectURL(url);
+      toast.success("הקובץ הורד בהצלחה");
+    } catch {
+      toast.error("שגיאה בהורדת הקובץ");
+    }
+  };
+
+  const handleSaveToClientFolder = async (logId: string, attachmentId: string, filename: string, clientId: string) => {
+    try {
+      toast.info("שומר לתיקיית מטופל...");
+      const response = await fetch("/api/communications/attachments", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ logId, attachmentId, filename, clientId }),
+      });
+      const data = await response.json();
+      if (response.ok) {
+        toast.success(data.message || "הקובץ נשמר בהצלחה!");
+      } else {
+        toast.error(data.message || "שגיאה בשמירת הקובץ");
+      }
+    } catch {
+      toast.error("שגיאה בשמירת הקובץ");
+    }
   };
 
   const getLatestMessagePreview = (thread: Thread) => {
@@ -472,6 +537,13 @@ export default function CommunicationsPage() {
                           </span>
                           {preview || "(ללא תוכן)"}
                         </div>
+                        {/* Attachment indicator */}
+                        {thread.messages.some(m => m.attachments && m.attachments.length > 0) && (
+                          <div className="flex items-center gap-1 text-xs text-muted-foreground mt-1">
+                            <Paperclip className="h-3 w-3" />
+                            <span>קבצים מצורפים</span>
+                          </div>
+                        )}
                       </div>
                     </div>
                   </div>
@@ -611,7 +683,7 @@ export default function CommunicationsPage() {
                           )}
                         </div>
                         <span className="text-xs text-muted-foreground">
-                          {format(new Date(msgDate), "dd/MM/yyyy HH:mm", { locale: he })}
+                          {format(new Date(msgDate), "EEEE dd/MM/yyyy HH:mm", { locale: he })}
                         </span>
                       </div>
                       {/* Message content */}
@@ -622,6 +694,52 @@ export default function CommunicationsPage() {
                       {msg.errorMessage && (
                         <div className="mt-2 text-xs text-red-600 bg-red-50 p-2 rounded">
                           שגיאה: {msg.errorMessage}
+                        </div>
+                      )}
+                      {/* Attachments */}
+                      {msg.attachments && msg.attachments.length > 0 && (
+                        <div className="mt-3 border-t pt-2">
+                          <div className="text-xs text-muted-foreground mb-1 flex items-center gap-1">
+                            <Paperclip className="h-3 w-3" />
+                            קבצים מצורפים ({msg.attachments.length})
+                          </div>
+                          <div className="flex flex-col gap-1">
+                            {msg.attachments.map((att: { id?: string; filename: string; size?: number; resendEmailId?: string }, attIdx: number) => (
+                              <div key={attIdx} className="flex items-center gap-2 bg-muted/50 rounded px-2 py-1.5 text-xs">
+                                <FileText className="h-3.5 w-3.5 text-muted-foreground flex-shrink-0" />
+                                <span className="truncate flex-1">{att.filename}</span>
+                                {att.size && (
+                                  <span className="text-muted-foreground flex-shrink-0">
+                                    {att.size > 1024 * 1024 
+                                      ? `${(att.size / (1024 * 1024)).toFixed(1)}MB` 
+                                      : `${Math.round(att.size / 1024)}KB`}
+                                  </span>
+                                )}
+                                <Button
+                                  size="sm"
+                                  variant="ghost"
+                                  className="h-6 px-2 text-xs"
+                                  onClick={() => handleDownloadAttachment(msg.id, att.id || "", att.filename)}
+                                  title="הורד למחשב"
+                                >
+                                  <Download className="h-3 w-3 ml-1" />
+                                  הורד
+                                </Button>
+                                {msg.client?.id && (
+                                  <Button
+                                    size="sm"
+                                    variant="ghost"
+                                    className="h-6 px-2 text-xs text-blue-600"
+                                    onClick={() => handleSaveToClientFolder(msg.id, att.id || "", att.filename, msg.client!.id)}
+                                    title="שמור לתיקיית מטופל"
+                                  >
+                                    <FolderPlus className="h-3 w-3 ml-1" />
+                                    שמור
+                                  </Button>
+                                )}
+                              </div>
+                            ))}
+                          </div>
                         </div>
                       )}
                     </div>

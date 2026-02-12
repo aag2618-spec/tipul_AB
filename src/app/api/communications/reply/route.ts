@@ -132,6 +132,13 @@ export async function POST(request: NextRequest) {
       );
     }
 
+    // Build attachment metadata for storage
+    const sentAttachmentMeta = resendAttachments.map(att => ({
+      filename: att.filename,
+      size: att.content.length,
+      resendEmailId: sendResult?.id || null,
+    }));
+
     // Log the reply in CommunicationLog
     const replyLog = await prisma.communicationLog.create({
       data: {
@@ -146,6 +153,7 @@ export async function POST(request: NextRequest) {
         inReplyTo: originalLog.messageId,
         clientId: originalLog.clientId,
         userId: session.user.id,
+        ...(sentAttachmentMeta.length > 0 && { attachments: sentAttachmentMeta }),
       },
     });
 

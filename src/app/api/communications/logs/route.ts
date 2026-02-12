@@ -30,6 +30,7 @@ export async function GET(request: NextRequest) {
         readAt: true,
         messageId: true,
         inReplyTo: true,
+        attachments: true,
         client: {
           select: {
             id: true,

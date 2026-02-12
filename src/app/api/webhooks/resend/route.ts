@@ -29,9 +29,20 @@ export async function POST(request: NextRequest) {
         subject,
         in_reply_to,
         references,
+        attachments: rawAttachments,
       } = data;
 
       const senderEmail = extractEmail(rawFrom || "");
+
+      // Parse attachment metadata from Resend
+      const attachmentMeta = Array.isArray(rawAttachments)
+        ? rawAttachments.map((att: { id: string; filename: string; content_type: string }) => ({
+            id: att.id,
+            filename: att.filename,
+            contentType: att.content_type,
+            resendEmailId: email_id,
+          }))
+        : [];
 
       console.log("Processing incoming email:", {
         email_id,
@@ -139,6 +150,7 @@ export async function POST(request: NextRequest) {
           isRead: false,
           clientId: clientRecord.id,
           userId: therapistId,
+          ...(attachmentMeta.length > 0 && { attachments: attachmentMeta }),
         },
       });
 
