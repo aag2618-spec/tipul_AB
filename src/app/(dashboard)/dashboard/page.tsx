@@ -243,7 +243,7 @@ export default async function DashboardPage() {
     {
       title: "פגישות השבוע",
       value: stats.sessionsThisWeek,
-      description: `${stats.sessionsThisMonth} החודש`,
+      description: "",
       icon: Calendar,
       href: "/dashboard/calendar",
       bgColor: "bg-gradient-to-br from-green-50 to-green-100 dark:from-green-950/30 dark:to-green-900/30",
