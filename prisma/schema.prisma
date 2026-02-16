@@ -809,6 +809,7 @@ enum CommunicationStatus {
   SENT
   FAILED
   RECEIVED
+  DISMISSED   // כשל שסומן כטופל ע"י המשתמש
 }
 
 // ==================== Communication Settings ====================

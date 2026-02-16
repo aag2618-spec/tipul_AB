@@ -376,6 +376,26 @@ export default function CommunicationsPage() {
     }).catch(() => {});
   };
 
+  const dismissFailedMessage = async (msgId: string) => {
+    try {
+      const response = await fetch(`/api/communications/logs/${msgId}/dismiss`, { method: "POST" });
+      if (response.ok) {
+        // Update local state immediately
+        setLogs(prev => prev.map(l => l.id === msgId ? { ...l, status: "DISMISSED" } : l));
+        // Also update selected thread if open
+        if (selectedThread) {
+          setSelectedThread({
+            ...selectedThread,
+            messages: selectedThread.messages.map(m => m.id === msgId ? { ...m, status: "DISMISSED" } : m),
+          });
+        }
+        toast.success("סומן כטופל");
+      }
+    } catch {
+      toast.error("שגיאה");
+    }
+  };
+
   const getLatestMessagePreview = (thread: Thread) => {
     const msg = thread.latestMessage;
     const isIncoming = msg.type === "INCOMING_EMAIL";
@@ -679,15 +699,30 @@ export default function CommunicationsPage() {
                         dangerouslySetInnerHTML={{ __html: isIncoming ? cleanIncomingContent(msg.content || "") || "(ללא תוכן)" : msg.content || "(ללא תוכן)" }}
                       />
                       {msg.status === "FAILED" && (
-                        <div className="mt-2 text-xs text-red-700 bg-red-50 border border-red-200 p-2.5 rounded-md flex items-start gap-2">
-                          <XCircle className="h-4 w-4 text-red-500 shrink-0 mt-0.5" />
-                          <div>
-                            <span className="font-semibold">ההודעה לא הגיעה למטופל.</span>
-                            {msg.errorMessage && (
-                              <span className="block mt-0.5 text-red-500">סיבה: {msg.errorMessage}</span>
-                            )}
-                            <span className="block mt-0.5 text-red-400">ניתן לנסות לשלוח שוב מהמערכת.</span>
+                        <div className="mt-2 text-xs text-red-700 bg-red-50 border border-red-200 p-2.5 rounded-md">
+                          <div className="flex items-start gap-2">
+                            <XCircle className="h-4 w-4 text-red-500 shrink-0 mt-0.5" />
+                            <div className="flex-1">
+                              <span className="font-semibold">ההודעה לא הגיעה למטופל.</span>
+                              {msg.errorMessage && (
+                                <span className="block mt-0.5 text-red-500">סיבה: {msg.errorMessage}</span>
+                              )}
+                            </div>
                           </div>
+                          <div className="mt-2 flex items-center gap-2 border-t border-red-200 pt-2">
+                            <button
+                              onClick={(e) => { e.stopPropagation(); dismissFailedMessage(msg.id); }}
+                              className="text-xs px-2.5 py-1 rounded bg-gray-100 hover:bg-gray-200 text-gray-700 transition-colors"
+                            >
+                              סמן כטופל ✓
+                            </button>
+                            <span className="text-red-400 text-xs">ניתן לנסות לשלוח שוב מהמערכת</span>
+                          </div>
+                        </div>
+                      )}
+                      {msg.status === "DISMISSED" && (
+                        <div className="mt-2 text-xs text-gray-500 bg-gray-50 border border-gray-200 p-2 rounded-md flex items-center gap-1.5">
+                          <span>✓ סומן כטופל</span>
                         </div>
                       )}
                       {/* Attachments */}
