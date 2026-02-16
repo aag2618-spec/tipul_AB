@@ -145,6 +145,12 @@ export default function CommunicationsPage() {
 
   useEffect(() => {
     fetchLogs();
+    // Auto-refresh every 30 seconds (silent, no spinner, no error toasts)
+    const interval = setInterval(() => {
+      silentRefresh();
+    }, 30000);
+    return () => clearInterval(interval);
+  // eslint-disable-next-line react-hooks/exhaustive-deps
   }, []);
 
   const fetchLogs = async () => {
@@ -162,6 +168,18 @@ export default function CommunicationsPage() {
       toast.error("שגיאה בטעינת נתונים");
     } finally {
       setIsLoading(false);
+    }
+  };
+
+  const silentRefresh = async () => {
+    try {
+      const response = await fetch("/api/communications/logs");
+      if (response.ok) {
+        const data = await response.json();
+        setLogs(data);
+      }
+    } catch {
+      // Silent - don't show errors on background refresh
     }
   };
 
@@ -350,6 +368,24 @@ export default function CommunicationsPage() {
     }
   };
 
+  const openThread = (thread: Thread) => {
+    setSelectedThread(thread);
+    setReplyText("");
+    setAttachments([]);
+    // Mark unread incoming messages in this thread as read
+    thread.messages.forEach(msg => {
+      if (msg.type === "INCOMING_EMAIL" && !msg.isRead) {
+        fetch(`/api/communications/logs/${msg.id}/read`, { method: "POST" }).catch(() => {});
+      }
+    });
+    // Mark related notifications as read (by subject match)
+    fetch("/api/notifications/mark-read-by-subject", {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({ subject: thread.subject }),
+    }).catch(() => {});
+  };
+
   const getLatestMessagePreview = (thread: Thread) => {
     const msg = thread.latestMessage;
     const isIncoming = msg.type === "INCOMING_EMAIL";
@@ -498,7 +534,7 @@ export default function CommunicationsPage() {
                     ? "border-blue-300 bg-blue-50/40 dark:bg-blue-950/10 ring-2 ring-blue-400/40" 
                     : ""
                 }`}
-                onClick={() => { setSelectedThread(thread); setReplyText(""); setAttachments([]); }}
+                onClick={() => openThread(thread)}
               >
                 <CardContent className="p-4">
                   <div className="flex items-start justify-between gap-4">

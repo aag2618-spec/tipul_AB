@@ -15,7 +15,7 @@ import {
 } from "@/components/ui/dropdown-menu";
 import { Avatar, AvatarFallback, AvatarImage } from "@/components/ui/avatar";
 import { Badge } from "@/components/ui/badge";
-import { Bell, LogOut, Settings, User, XCircle, Mail, Calendar } from "lucide-react";
+import { Bell, LogOut, Settings, User, XCircle, Mail, Calendar, X } from "lucide-react";
 import Link from "next/link";
 
 interface Notification {
@@ -57,7 +57,7 @@ export function DashboardHeader({ user }: DashboardHeaderProps) {
 
   const fetchNotifications = async () => {
     try {
-      const response = await fetch("/api/notifications?limit=5&unread=true&type=EMAIL_RECEIVED");
+      const response = await fetch("/api/notifications?limit=20&unread=true&type=EMAIL_RECEIVED");
       if (response.ok) {
         const data = await response.json();
         setNotifications(data.notifications || []);
@@ -83,9 +83,33 @@ export function DashboardHeader({ user }: DashboardHeaderProps) {
   const markAsRead = async (id: string) => {
     try {
       await fetch(`/api/notifications/${id}/read`, { method: "POST" });
-      fetchNotifications();
+      // Remove from local state immediately for instant UI feedback
+      setNotifications(prev => prev.filter(n => n.id !== id));
+      setUnreadCount(prev => Math.max(0, prev - 1));
     } catch (error) {
       console.error("Error marking as read:", error);
+    }
+  };
+
+  const dismissNotification = async (e: React.MouseEvent, id: string) => {
+    e.stopPropagation(); // Don't trigger the parent click (navigation)
+    try {
+      await fetch(`/api/notifications/${id}`, { method: "DELETE" });
+      // Remove from local state immediately
+      setNotifications(prev => prev.filter(n => n.id !== id));
+      setUnreadCount(prev => Math.max(0, prev - 1));
+    } catch (error) {
+      console.error("Error dismissing notification:", error);
+    }
+  };
+
+  const markAllAsRead = async () => {
+    try {
+      await fetch("/api/notifications/mark-all-read", { method: "POST" });
+      setNotifications([]);
+      setUnreadCount(0);
+    } catch (error) {
+      console.error("Error marking all as read:", error);
     }
   };
 
@@ -178,28 +202,34 @@ export function DashboardHeader({ user }: DashboardHeaderProps) {
               </>
             )}
             
-            {/* Recent Notifications */}
+            {/* Recent Notifications - only unread */}
             {notifications.length > 0 ? (
-              notifications.map((notification) => (
-                <DropdownMenuItem 
-                  key={notification.id}
-                  className="cursor-pointer flex items-start gap-3 p-3"
-                  onClick={() => handleNotificationClick(notification)}
-                >
-                  {getNotificationIcon(notification.type)}
-                  <div className="flex-1 space-y-1">
-                    <p className={`text-sm ${!notification.read ? "font-medium" : ""}`}>
-                      {notification.title}
-                    </p>
-                    <p className="text-xs text-muted-foreground line-clamp-2">
-                      {notification.content}
-                    </p>
-                  </div>
-                  {!notification.read && (
-                    <div className="h-2 w-2 rounded-full bg-primary" />
-                  )}
-                </DropdownMenuItem>
-              ))
+              <div className="max-h-[400px] overflow-y-auto">
+                {notifications.map((notification) => (
+                  <DropdownMenuItem 
+                    key={notification.id}
+                    className="cursor-pointer flex items-start gap-3 p-3"
+                    onClick={() => handleNotificationClick(notification)}
+                  >
+                    {getNotificationIcon(notification.type)}
+                    <div className="flex-1 space-y-1">
+                      <p className="text-sm font-medium">
+                        {notification.title}
+                      </p>
+                      <p className="text-xs text-muted-foreground line-clamp-2">
+                        {notification.content}
+                      </p>
+                    </div>
+                    <button
+                      onClick={(e) => dismissNotification(e, notification.id)}
+                      className="p-1 rounded-full hover:bg-muted text-muted-foreground hover:text-foreground flex-shrink-0"
+                      title="מחק התראה"
+                    >
+                      <X className="h-3.5 w-3.5" />
+                    </button>
+                  </DropdownMenuItem>
+                ))}
+              </div>
             ) : pendingCancellations === 0 ? (
               <div className="p-4 text-center text-muted-foreground text-sm">
                 אין תשובות חדשות ממטופלים
@@ -207,14 +237,22 @@ export function DashboardHeader({ user }: DashboardHeaderProps) {
             ) : null}
             
             <DropdownMenuSeparator />
-            <DropdownMenuItem asChild>
+            <div className="flex items-center justify-between px-2 py-1">
               <Link 
                 href="/dashboard/communications" 
-                className="cursor-pointer text-center text-sm text-primary"
+                className="text-sm text-primary hover:underline px-2 py-1"
               >
                 צפה בכל התקשורת
               </Link>
-            </DropdownMenuItem>
+              {notifications.length > 0 && (
+                <button
+                  onClick={markAllAsRead}
+                  className="text-xs text-muted-foreground hover:text-foreground px-2 py-1"
+                >
+                  סמן הכל כנקרא
+                </button>
+              )}
+            </div>
           </DropdownMenuContent>
         </DropdownMenu>
         

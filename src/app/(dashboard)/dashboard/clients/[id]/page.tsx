@@ -50,6 +50,7 @@ import {
 } from "@/components/ui/dropdown-menu";
 import { SummariesTab } from "@/components/clients/summaries-tab";
 import { ClientApproachEditor } from "@/components/clients/client-approach-editor";
+import { DocumentItem } from "@/components/clients/document-item";
 import { SendReminderButton } from "@/components/clients/send-reminder-button";
 import { SendPaymentHistoryButton } from "@/components/clients/send-payment-history-button";
 import { TodaySessionCard } from "@/components/dashboard/today-session-card";
@@ -714,35 +715,15 @@ export default async function ClientPage({
               {client.documents.length > 0 ? (
                 <div className="space-y-3">
                   {client.documents.map((doc) => (
-                    <div
+                    <DocumentItem
                       key={doc.id}
-                      className="flex items-center justify-between p-4 rounded-lg border border-border bg-background"
-                    >
-                      <div className="flex items-center gap-4 flex-1">
-                        <div className="flex h-12 w-12 items-center justify-center rounded-lg bg-primary/10">
-                          <FileText className="h-6 w-6 text-primary" />
-                        </div>
-                        <div>
-                          <p className="font-medium">{doc.name}</p>
-                          <p className="text-sm text-muted-foreground">
-                            {format(new Date(doc.createdAt), "dd/MM/yyyy")}
-                          </p>
-                        </div>
-                      </div>
-                      <div className="flex items-center gap-2">
-                        <Button variant="outline" size="sm" asChild>
-                          <a href={doc.fileUrl} target="_blank" rel="noopener noreferrer">
-                            <FileText className="h-4 w-4 ml-2" />
-                            פתח
-                          </a>
-                        </Button>
-                        <Button variant="ghost" size="icon" asChild>
-                          <a href={doc.fileUrl} download target="_blank" rel="noopener noreferrer">
-                            <Download className="h-4 w-4" />
-                          </a>
-                        </Button>
-                      </div>
-                    </div>
+                      doc={{
+                        id: doc.id,
+                        name: doc.name,
+                        fileUrl: doc.fileUrl,
+                        createdAt: doc.createdAt.toISOString(),
+                      }}
+                    />
                   ))}
                 </div>
               ) : (
