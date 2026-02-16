@@ -1,7 +1,7 @@
 "use client";
 
 import { useState, useEffect, useRef, useMemo } from "react";
-import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
+import { Card, CardContent } from "@/components/ui/card";
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
@@ -15,9 +15,7 @@ import {
 import { Textarea } from "@/components/ui/textarea";
 import { 
   Mail, 
-  CheckCircle, 
   XCircle, 
-  Clock, 
   Search, 
   Loader2,
   Calendar,
@@ -404,20 +402,44 @@ export default function CommunicationsPage() {
     );
   }
 
-  const stats = {
-    total: logs.length,
-    sent: logs.filter(l => l.status === "SENT").length,
-    failed: logs.filter(l => l.status === "FAILED").length,
-    pending: logs.filter(l => l.status === "PENDING").length,
-    received: logs.filter(l => l.status === "RECEIVED").length,
-  };
+  const unreadReplies = logs.filter(l => l.type === "INCOMING_EMAIL" && !l.isRead).length;
+  const failedCount = logs.filter(l => l.status === "FAILED").length;
 
   return (
-    <div className="space-y-6 animate-fade-in">
-      <div className="flex items-center justify-between">
+    <div className="space-y-5 animate-fade-in">
+      <div className="flex items-center justify-between flex-wrap gap-3">
         <div>
           <h1 className="text-2xl font-bold tracking-tight">היסטוריית תקשורת</h1>
-          <p className="text-muted-foreground">כל המיילים וההודעות - שלוחים ונכנסים</p>
+          <div className="flex items-center gap-2 mt-2">
+            {/* Unread replies badge - always visible */}
+            <button
+              onClick={() => setStatusFilter(statusFilter === "RECEIVED" ? "all" : "RECEIVED")}
+              className={`inline-flex items-center gap-1.5 px-3 py-1.5 rounded-full text-sm font-medium transition-colors ${
+                statusFilter === "RECEIVED"
+                  ? "bg-blue-100 text-blue-800 ring-2 ring-blue-400"
+                  : unreadReplies > 0
+                    ? "bg-blue-50 text-blue-700 hover:bg-blue-100"
+                    : "bg-muted text-muted-foreground hover:bg-muted/80"
+              }`}
+            >
+              <Mail className="h-3.5 w-3.5" />
+              {unreadReplies > 0 ? `${unreadReplies} תגובות שלא נקראו` : "אין תגובות חדשות"}
+            </button>
+            {/* Failed badge - only if > 0 */}
+            {failedCount > 0 && (
+              <button
+                onClick={() => setStatusFilter(statusFilter === "FAILED" ? "all" : "FAILED")}
+                className={`inline-flex items-center gap-1.5 px-3 py-1.5 rounded-full text-sm font-medium transition-colors ${
+                  statusFilter === "FAILED"
+                    ? "bg-red-100 text-red-800 ring-2 ring-red-400"
+                    : "bg-red-50 text-red-700 hover:bg-red-100"
+                }`}
+              >
+                <XCircle className="h-3.5 w-3.5" />
+                {failedCount} נכשלו
+              </button>
+            )}
+          </div>
         </div>
         <Button asChild className="gap-2">
           <Link href="/dashboard/communications/bulk-email">
@@ -425,55 +447,6 @@ export default function CommunicationsPage() {
             שליחה קבוצתית
           </Link>
         </Button>
-      </div>
-
-      {/* Stats */}
-      <div className="grid gap-4 md:grid-cols-5">
-        <Card>
-          <CardHeader className="flex flex-row items-center justify-between space-y-0 pb-2">
-            <CardTitle className="text-sm font-medium">סה&quot;כ הודעות</CardTitle>
-            <Mail className="h-4 w-4 text-muted-foreground" />
-          </CardHeader>
-          <CardContent>
-            <div className="text-2xl font-bold">{stats.total}</div>
-          </CardContent>
-        </Card>
-        <Card>
-          <CardHeader className="flex flex-row items-center justify-between space-y-0 pb-2">
-            <CardTitle className="text-sm font-medium">נשלחו בהצלחה</CardTitle>
-            <CheckCircle className="h-4 w-4 text-green-500" />
-          </CardHeader>
-          <CardContent>
-            <div className="text-2xl font-bold text-green-600">{stats.sent}</div>
-          </CardContent>
-        </Card>
-        <Card>
-          <CardHeader className="flex flex-row items-center justify-between space-y-0 pb-2">
-            <CardTitle className="text-sm font-medium">נכשלו</CardTitle>
-            <XCircle className="h-4 w-4 text-red-500" />
-          </CardHeader>
-          <CardContent>
-            <div className="text-2xl font-bold text-red-600">{stats.failed}</div>
-          </CardContent>
-        </Card>
-        <Card>
-          <CardHeader className="flex flex-row items-center justify-between space-y-0 pb-2">
-            <CardTitle className="text-sm font-medium">ממתינים</CardTitle>
-            <Clock className="h-4 w-4 text-yellow-500" />
-          </CardHeader>
-          <CardContent>
-            <div className="text-2xl font-bold text-yellow-600">{stats.pending}</div>
-          </CardContent>
-        </Card>
-        <Card>
-          <CardHeader className="flex flex-row items-center justify-between space-y-0 pb-2">
-            <CardTitle className="text-sm font-medium">תגובות מהמטופלים</CardTitle>
-            <Mail className="h-4 w-4 text-blue-500" />
-          </CardHeader>
-          <CardContent>
-            <div className="text-2xl font-bold text-blue-600">{stats.received}</div>
-          </CardContent>
-        </Card>
       </div>
 
       {/* Filters */}
