@@ -5,13 +5,7 @@ import { Card, CardContent } from "@/components/ui/card";
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
-import { 
-  Select, 
-  SelectContent, 
-  SelectItem, 
-  SelectTrigger, 
-  SelectValue 
-} from "@/components/ui/select";
+// Select removed - filters replaced by inline badges
 import { Textarea } from "@/components/ui/textarea";
 import { 
   Mail, 
@@ -83,7 +77,7 @@ interface Thread {
 }
 
 type FilterType = "all" | "SENT" | "FAILED" | "PENDING" | "RECEIVED";
-type ChannelType = "all" | "EMAIL" | "SMS" | "WHATSAPP";
+// ChannelType removed - channel filter dropdown removed
 
 // Normalize subject by removing Re: / Fwd: prefixes
 function normalizeSubject(subject: string): string {
@@ -134,7 +128,7 @@ export default function CommunicationsPage() {
   const [isLoading, setIsLoading] = useState(true);
   const [searchTerm, setSearchTerm] = useState("");
   const [statusFilter, setStatusFilter] = useState<FilterType>("all");
-  const [channelFilter, setChannelFilter] = useState<ChannelType>("all");
+  // channelFilter removed - dropdown removed for simplicity
   const [selectedThread, setSelectedThread] = useState<Thread | null>(null);
   const [replyText, setReplyText] = useState("");
   const [isSendingReply, setIsSendingReply] = useState(false);
@@ -236,9 +230,7 @@ export default function CommunicationsPage() {
       }
     }
 
-    if (channelFilter !== "all") {
-      filtered = filtered.filter(t => t.messages.some(m => m.channel === channelFilter));
-    }
+    // channelFilter removed
 
     if (searchTerm) {
       const search = searchTerm.toLowerCase();
@@ -250,7 +242,7 @@ export default function CommunicationsPage() {
     }
 
     return filtered;
-  }, [threads, statusFilter, channelFilter, searchTerm]);
+  }, [threads, statusFilter, searchTerm]);
 
   const handleSendReply = async () => {
     if (!selectedThread || !replyText.trim()) return;
@@ -403,7 +395,7 @@ export default function CommunicationsPage() {
   }
 
   const unreadReplies = logs.filter(l => l.type === "INCOMING_EMAIL" && !l.isRead).length;
-  const failedCount = logs.filter(l => l.status === "FAILED").length;
+  const failedThreadCount = threads.filter(t => t.messages.some(m => m.status === "FAILED")).length;
 
   return (
     <div className="space-y-5 animate-fade-in">
@@ -425,8 +417,8 @@ export default function CommunicationsPage() {
               <Mail className="h-3.5 w-3.5" />
               {unreadReplies > 0 ? `${unreadReplies} תגובות שלא נקראו` : "אין תגובות חדשות"}
             </button>
-            {/* Failed badge - only if > 0 */}
-            {failedCount > 0 && (
+            {/* Failed badge - only if > 0, counts threads */}
+            {failedThreadCount > 0 && (
               <button
                 onClick={() => setStatusFilter(statusFilter === "FAILED" ? "all" : "FAILED")}
                 className={`inline-flex items-center gap-1.5 px-3 py-1.5 rounded-full text-sm font-medium transition-colors ${
@@ -436,7 +428,7 @@ export default function CommunicationsPage() {
                 }`}
               >
                 <XCircle className="h-3.5 w-3.5" />
-                {failedCount} נכשלו
+                {failedThreadCount} שליחות נכשלו
               </button>
             )}
           </div>
@@ -449,40 +441,15 @@ export default function CommunicationsPage() {
         </Button>
       </div>
 
-      {/* Filters */}
-      <div className="flex gap-4 flex-wrap">
-        <div className="relative flex-1 min-w-[200px]">
-          <Search className="absolute right-3 top-1/2 -translate-y-1/2 h-4 w-4 text-muted-foreground" />
-          <Input
-            placeholder="חפש לפי נמען, נושא או מטופל..."
-            value={searchTerm}
-            onChange={(e) => setSearchTerm(e.target.value)}
-            className="pr-10"
-          />
-        </div>
-        <Select value={statusFilter} onValueChange={(value) => setStatusFilter(value as FilterType)}>
-          <SelectTrigger className="w-[180px]">
-            <SelectValue placeholder="סטטוס" />
-          </SelectTrigger>
-          <SelectContent>
-            <SelectItem value="all">הכל</SelectItem>
-            <SelectItem value="SENT">נשלחו</SelectItem>
-            <SelectItem value="RECEIVED">תגובות מהמטופלים</SelectItem>
-            <SelectItem value="FAILED">נכשלו</SelectItem>
-            <SelectItem value="PENDING">ממתינים</SelectItem>
-          </SelectContent>
-        </Select>
-        <Select value={channelFilter} onValueChange={(value) => setChannelFilter(value as ChannelType)}>
-          <SelectTrigger className="w-[180px]">
-            <SelectValue placeholder="ערוץ" />
-          </SelectTrigger>
-          <SelectContent>
-            <SelectItem value="all">כל הערוצים</SelectItem>
-            <SelectItem value="EMAIL">מייל</SelectItem>
-            <SelectItem value="SMS">SMS</SelectItem>
-            <SelectItem value="WHATSAPP">WhatsApp</SelectItem>
-          </SelectContent>
-        </Select>
+      {/* Search */}
+      <div className="relative">
+        <Search className="absolute right-3 top-1/2 -translate-y-1/2 h-4 w-4 text-muted-foreground" />
+        <Input
+          placeholder="חפש לפי שם מטופל או נושא..."
+          value={searchTerm}
+          onChange={(e) => setSearchTerm(e.target.value)}
+          className="pr-10"
+        />
       </div>
 
       {/* Threads List */}
@@ -499,12 +466,15 @@ export default function CommunicationsPage() {
         ) : (
           filteredThreads.map((thread) => {
             const { isIncoming, preview } = getLatestMessagePreview(thread);
+            const threadHasFailed = thread.messages.some(m => m.status === "FAILED");
             return (
               <Card 
                 key={thread.id} 
                 className={`hover:shadow-md transition-shadow cursor-pointer ${
                   thread.hasUnread 
                     ? "border-blue-300 bg-blue-50/40 dark:bg-blue-950/10 ring-2 ring-blue-400/40" 
+                    : threadHasFailed
+                    ? "border-red-200 bg-red-50/30"
                     : ""
                 }`}
                 onClick={() => openThread(thread)}
@@ -513,7 +483,9 @@ export default function CommunicationsPage() {
                   <div className="flex items-start justify-between gap-4">
                     <div className="flex items-start gap-3 flex-1">
                       <div className="mt-1">
-                        {isIncoming ? (
+                        {threadHasFailed ? (
+                          <XCircle className="h-5 w-5 text-red-500" />
+                        ) : isIncoming ? (
                           <ArrowDownLeft className="h-5 w-5 text-blue-600" />
                         ) : (
                           <Send className="h-5 w-5 text-green-600" />
@@ -523,6 +495,9 @@ export default function CommunicationsPage() {
                         <div className="flex items-center gap-2 flex-wrap">
                           {thread.hasUnread && (
                             <Badge className="bg-blue-600 text-white">חדש</Badge>
+                          )}
+                          {threadHasFailed && (
+                            <Badge variant="destructive" className="text-xs">ההודעה לא הגיעה</Badge>
                           )}
                           <h3 className="font-semibold">{thread.subject || "ללא נושא"}</h3>
                           {thread.messageCount > 1 && (
@@ -689,7 +664,7 @@ export default function CommunicationsPage() {
                                 אתה
                               </span>
                               {msg.status === "FAILED" && (
-                                <Badge variant="destructive" className="text-xs py-0">נכשל</Badge>
+                                <Badge variant="destructive" className="text-xs py-0">שליחה נכשלה</Badge>
                               )}
                             </>
                           )}
@@ -703,9 +678,16 @@ export default function CommunicationsPage() {
                         className="prose prose-sm max-w-none text-sm whitespace-pre-wrap"
                         dangerouslySetInnerHTML={{ __html: isIncoming ? cleanIncomingContent(msg.content || "") || "(ללא תוכן)" : msg.content || "(ללא תוכן)" }}
                       />
-                      {msg.errorMessage && (
-                        <div className="mt-2 text-xs text-red-600 bg-red-50 p-2 rounded">
-                          שגיאה: {msg.errorMessage}
+                      {msg.status === "FAILED" && (
+                        <div className="mt-2 text-xs text-red-700 bg-red-50 border border-red-200 p-2.5 rounded-md flex items-start gap-2">
+                          <XCircle className="h-4 w-4 text-red-500 shrink-0 mt-0.5" />
+                          <div>
+                            <span className="font-semibold">ההודעה לא הגיעה למטופל.</span>
+                            {msg.errorMessage && (
+                              <span className="block mt-0.5 text-red-500">סיבה: {msg.errorMessage}</span>
+                            )}
+                            <span className="block mt-0.5 text-red-400">ניתן לנסות לשלוח שוב מהמערכת.</span>
+                          </div>
                         </div>
                       )}
                       {/* Attachments */}
