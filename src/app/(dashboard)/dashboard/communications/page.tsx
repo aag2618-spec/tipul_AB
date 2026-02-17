@@ -1,7 +1,7 @@
 "use client";
 
 import { useState, useEffect, useRef, useMemo } from "react";
-import { Card, CardContent } from "@/components/ui/card";
+// Card removed - threads use lightweight divs now
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
@@ -485,99 +485,88 @@ export default function CommunicationsPage() {
       </div>
 
       {/* Threads List */}
-      <div className="space-y-3">
+      <div className="border rounded-lg overflow-hidden divide-y">
         {filteredThreads.length === 0 ? (
-          <Card>
-            <CardContent className="flex flex-col items-center justify-center py-12">
-              <Mail className="h-16 w-16 text-muted-foreground mb-4 opacity-50" />
-              <p className="text-lg font-medium">
-                {searchTerm ? "לא נמצאו תוצאות" : "אין עדיין היסטוריית תקשורת"}
-              </p>
-            </CardContent>
-          </Card>
+          <div className="flex flex-col items-center justify-center py-12 text-muted-foreground">
+            <Mail className="h-10 w-10 mb-3 opacity-40" />
+            <p className="text-sm">
+              {searchTerm ? "לא נמצאו תוצאות" : "אין עדיין היסטוריית תקשורת"}
+            </p>
+          </div>
         ) : (
           filteredThreads.map((thread) => {
             const { isIncoming, preview } = getLatestMessagePreview(thread);
             const threadHasFailed = thread.messages.some(m => m.status === "FAILED");
+            const hasAttachments = thread.messages.some(m => m.attachments && m.attachments.length > 0);
             return (
-              <Card 
+              <div 
                 key={thread.id} 
-                className={`hover:shadow-md transition-shadow cursor-pointer ${
+                className={`flex items-center gap-3 px-4 py-2.5 cursor-pointer transition-colors hover:bg-muted/50 ${
                   thread.hasUnread 
-                    ? "border-blue-300 bg-blue-50/40 dark:bg-blue-950/10 ring-2 ring-blue-400/40" 
+                    ? "bg-blue-50/60 dark:bg-blue-950/10" 
                     : threadHasFailed
-                    ? "border-red-200 bg-red-50/30"
+                    ? "bg-red-50/40"
                     : ""
                 }`}
                 onClick={() => openThread(thread)}
               >
-                <CardContent className="p-4">
-                  <div className="flex items-start justify-between gap-4">
-                    <div className="flex items-start gap-3 flex-1">
-                      <div className="mt-1">
-                        {threadHasFailed ? (
-                          <AlertCircle className="h-5 w-5 text-red-500" />
-                        ) : isIncoming ? (
-                          <ArrowDownLeft className="h-5 w-5 text-blue-600" />
-                        ) : (
-                          <Send className="h-5 w-5 text-green-600" />
-                        )}
-                      </div>
-                      <div className="flex-1 space-y-1.5">
-                        <div className="flex items-center gap-2 flex-wrap">
-                          {thread.hasUnread && (
-                            <Badge className="bg-blue-600 text-white">חדש</Badge>
-                          )}
-                          {threadHasFailed && (
-                            <Badge variant="destructive" className="text-xs">ההודעה לא הגיעה</Badge>
-                          )}
-                          <h3 className="font-semibold">{thread.subject || "ללא נושא"}</h3>
-                          {thread.messageCount > 1 && (
-                            <Badge variant="secondary" className="gap-1">
-                              <MessageSquare className="h-3 w-3" />
-                              {thread.messageCount} הודעות
-                            </Badge>
-                          )}
-                        </div>
-                        <div className="flex items-center gap-4 text-sm text-muted-foreground">
-                          <div className="flex items-center gap-1">
-                            <User className="h-3 w-3" />
-                            {thread.clientName}
-                          </div>
-                          <div className="flex items-center gap-1">
-                            <Calendar className="h-3 w-3" />
-                            {format(new Date(thread.latestMessage.createdAt), "dd/MM/yyyy HH:mm", { locale: he })}
-                          </div>
-                        </div>
-                        {/* Latest message preview */}
-                        <div className="text-sm text-muted-foreground mt-1 line-clamp-2">
-                          <span className="font-medium">
-                            {isIncoming ? `${thread.clientName}: ` : "אתה: "}
-                          </span>
-                          {preview || "(ללא תוכן)"}
-                        </div>
-                        {/* Attachment indicator */}
-                        {thread.messages.some(m => m.attachments && m.attachments.length > 0) && (
-                          <div className="flex items-center gap-1 text-xs text-muted-foreground mt-1">
-                            <Paperclip className="h-3 w-3" />
-                            <span>קבצים מצורפים</span>
-                          </div>
-                        )}
-                      </div>
-                    </div>
-                    {/* Dismiss button - only for failed threads */}
-                    {threadHasFailed && (
-                      <button
-                        onClick={(e) => { e.stopPropagation(); dismissAllFailedInThread(thread); }}
-                        className="shrink-0 p-1.5 rounded-full hover:bg-red-100 text-red-400 hover:text-red-600 transition-colors"
-                        title="סמן כטופל"
-                      >
-                        <X className="h-4 w-4" />
-                      </button>
-                    )}
-                  </div>
-                </CardContent>
-              </Card>
+                {/* Icon */}
+                <div className="shrink-0">
+                  {threadHasFailed ? (
+                    <AlertCircle className="h-4 w-4 text-red-500" />
+                  ) : isIncoming ? (
+                    <ArrowDownLeft className="h-4 w-4 text-blue-500" />
+                  ) : (
+                    <Send className="h-4 w-4 text-green-500" />
+                  )}
+                </div>
+
+                {/* Badges */}
+                <div className="flex items-center gap-1.5 shrink-0">
+                  {thread.hasUnread && (
+                    <span className="w-2 h-2 rounded-full bg-blue-600 shrink-0" />
+                  )}
+                  {threadHasFailed && (
+                    <span className="text-[11px] text-red-600 font-medium">נכשל</span>
+                  )}
+                </div>
+
+                {/* Client name */}
+                <span className={`shrink-0 text-sm w-28 truncate ${thread.hasUnread ? "font-bold" : "font-medium"}`}>
+                  {thread.clientName}
+                </span>
+
+                {/* Subject + preview */}
+                <div className="flex-1 min-w-0 flex items-center gap-2">
+                  <span className={`text-sm truncate ${thread.hasUnread ? "font-semibold text-foreground" : "text-foreground"}`}>
+                    {thread.subject || "ללא נושא"}
+                  </span>
+                  <span className="text-xs text-muted-foreground truncate hidden sm:inline">
+                    — {preview || "(ללא תוכן)"}
+                  </span>
+                </div>
+
+                {/* Right side: indicators + date */}
+                <div className="flex items-center gap-2 shrink-0 text-xs text-muted-foreground">
+                  {hasAttachments && <Paperclip className="h-3 w-3" />}
+                  {thread.messageCount > 1 && (
+                    <span className="bg-muted px-1.5 py-0.5 rounded text-[11px]">{thread.messageCount}</span>
+                  )}
+                  <span className="w-28 text-left">
+                    {format(new Date(thread.latestMessage.createdAt), "dd/MM HH:mm", { locale: he })}
+                  </span>
+                  {/* Dismiss X for failed */}
+                  {threadHasFailed && (
+                    <button
+                      onClick={(e) => { e.stopPropagation(); dismissAllFailedInThread(thread); }}
+                      className="p-1 rounded hover:bg-red-100 text-red-400 hover:text-red-600 transition-colors"
+                      title="סמן כטופל"
+                    >
+                      <X className="h-3.5 w-3.5" />
+                    </button>
+                  )}
+                </div>
+              </div>
             );
           })
         )}
