@@ -514,7 +514,7 @@ export default function CommunicationsPage() {
                     ? "bg-red-50/40"
                     : ""
                 }`}
-                style={{ gridTemplateColumns: "20px 8px 110px 1fr auto" , gap: "8px" }}
+                style={{ gridTemplateColumns: "20px 8px 110px 1fr 120px" , gap: "8px" }}
                 onClick={() => openThread(thread)}
               >
                 {/* 1: Icon */}
@@ -554,7 +554,7 @@ export default function CommunicationsPage() {
                 </div>
 
                 {/* 5: Date + indicators */}
-                <div className="flex items-center gap-1.5 text-xs text-muted-foreground whitespace-nowrap">
+                <div className="flex items-center justify-end gap-1.5 text-xs text-muted-foreground overflow-hidden">
                   {hasAttachments && <Paperclip className="h-3 w-3" />}
                   {thread.messageCount > 1 && (
                     <span className="bg-muted px-1.5 py-0.5 rounded text-[11px]">{thread.messageCount}</span>
