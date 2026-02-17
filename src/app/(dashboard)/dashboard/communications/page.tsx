@@ -10,6 +10,7 @@ import { Textarea } from "@/components/ui/textarea";
 import { 
   Mail, 
   XCircle, 
+  AlertCircle,
   Search, 
   Loader2,
   Calendar,
@@ -380,9 +381,7 @@ export default function CommunicationsPage() {
     try {
       const response = await fetch(`/api/communications/logs/${msgId}/dismiss`, { method: "POST" });
       if (response.ok) {
-        // Update local state immediately
         setLogs(prev => prev.map(l => l.id === msgId ? { ...l, status: "DISMISSED" } : l));
-        // Also update selected thread if open
         if (selectedThread) {
           setSelectedThread({
             ...selectedThread,
@@ -391,6 +390,19 @@ export default function CommunicationsPage() {
         }
         toast.success("סומן כטופל");
       }
+    } catch {
+      toast.error("שגיאה");
+    }
+  };
+
+  const dismissAllFailedInThread = async (thread: Thread) => {
+    const failedMsgs = thread.messages.filter(m => m.status === "FAILED");
+    if (failedMsgs.length === 0) return;
+    try {
+      await Promise.all(failedMsgs.map(m => fetch(`/api/communications/logs/${m.id}/dismiss`, { method: "POST" })));
+      const failedIds = new Set(failedMsgs.map(m => m.id));
+      setLogs(prev => prev.map(l => failedIds.has(l.id) ? { ...l, status: "DISMISSED" } : l));
+      toast.success("סומן כטופל");
     } catch {
       toast.error("שגיאה");
     }
@@ -447,7 +459,7 @@ export default function CommunicationsPage() {
                     : "bg-red-50 text-red-700 hover:bg-red-100"
                 }`}
               >
-                <XCircle className="h-3.5 w-3.5" />
+                <AlertCircle className="h-3.5 w-3.5" />
                 {failedThreadCount} שליחות נכשלו
               </button>
             )}
@@ -504,7 +516,7 @@ export default function CommunicationsPage() {
                     <div className="flex items-start gap-3 flex-1">
                       <div className="mt-1">
                         {threadHasFailed ? (
-                          <XCircle className="h-5 w-5 text-red-500" />
+                          <AlertCircle className="h-5 w-5 text-red-500" />
                         ) : isIncoming ? (
                           <ArrowDownLeft className="h-5 w-5 text-blue-600" />
                         ) : (
@@ -553,6 +565,16 @@ export default function CommunicationsPage() {
                         )}
                       </div>
                     </div>
+                    {/* Dismiss button - only for failed threads */}
+                    {threadHasFailed && (
+                      <button
+                        onClick={(e) => { e.stopPropagation(); dismissAllFailedInThread(thread); }}
+                        className="shrink-0 p-1.5 rounded-full hover:bg-red-100 text-red-400 hover:text-red-600 transition-colors"
+                        title="סמן כטופל"
+                      >
+                        <X className="h-4 w-4" />
+                      </button>
+                    )}
                   </div>
                 </CardContent>
               </Card>
