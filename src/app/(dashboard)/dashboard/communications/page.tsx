@@ -507,17 +507,18 @@ export default function CommunicationsPage() {
             return (
               <div 
                 key={thread.id} 
-                className={`flex items-center gap-3 px-4 py-2.5 cursor-pointer transition-colors hover:bg-accent/50 ${
+                className={`grid items-center py-2 px-4 cursor-pointer transition-colors hover:bg-accent/50 ${
                   thread.hasUnread 
                     ? "bg-blue-50/60 dark:bg-blue-950/10" 
                     : threadHasFailed
                     ? "bg-red-50/40"
                     : ""
                 }`}
+                style={{ gridTemplateColumns: "20px 8px 110px 1fr auto" , gap: "8px" }}
                 onClick={() => openThread(thread)}
               >
-                {/* Icon */}
-                <div className="shrink-0 w-5 flex justify-center">
+                {/* 1: Icon */}
+                <div className="flex justify-center">
                   {threadHasFailed ? (
                     <AlertCircle className="h-4 w-4 text-red-500" />
                   ) : isIncoming ? (
@@ -527,34 +528,34 @@ export default function CommunicationsPage() {
                   )}
                 </div>
 
-                {/* Unread dot */}
-                <div className="shrink-0 w-3 flex justify-center">
+                {/* 2: Unread dot */}
+                <div className="flex justify-center">
                   {thread.hasUnread && (
                     <span className="w-2 h-2 rounded-full bg-blue-600" />
                   )}
                 </div>
 
-                {/* Client name - fixed width */}
-                <span className={`shrink-0 text-sm truncate ${thread.hasUnread ? "font-bold" : "font-medium"}`} style={{ width: "120px" }}>
+                {/* 3: Client name */}
+                <span className={`text-sm truncate ${thread.hasUnread ? "font-bold" : "font-medium"}`}>
                   {thread.clientName}
                 </span>
 
-                {/* Subject + preview - takes remaining space */}
-                <div className="flex-1 min-w-0 flex items-baseline gap-1.5 overflow-hidden">
-                  <span className={`text-sm whitespace-nowrap ${thread.hasUnread ? "font-semibold" : ""}`}>
+                {/* 4: Subject + preview */}
+                <div className="min-w-0 flex items-baseline gap-1.5">
+                  <span className={`text-sm truncate ${thread.hasUnread ? "font-semibold" : ""}`}>
                     {thread.subject || "ללא נושא"}
                   </span>
                   {threadHasFailed && (
-                    <span className="text-[11px] text-red-600 font-medium whitespace-nowrap">— נכשל</span>
+                    <span className="text-[11px] text-red-600 font-medium shrink-0">נכשל</span>
                   )}
                   <span className="text-xs text-muted-foreground truncate hidden sm:inline">
                     — {preview || "(ללא תוכן)"}
                   </span>
                 </div>
 
-                {/* Right side: indicators + date */}
-                <div className="flex items-center gap-1.5 shrink-0 text-xs text-muted-foreground" style={{ whiteSpace: "nowrap", minWidth: "max-content" }}>
-                  {hasAttachments && <Paperclip className="h-3 w-3 shrink-0" />}
+                {/* 5: Date + indicators */}
+                <div className="flex items-center gap-1.5 text-xs text-muted-foreground whitespace-nowrap">
+                  {hasAttachments && <Paperclip className="h-3 w-3" />}
                   {thread.messageCount > 1 && (
                     <span className="bg-muted px-1.5 py-0.5 rounded text-[11px]">{thread.messageCount}</span>
                   )}
