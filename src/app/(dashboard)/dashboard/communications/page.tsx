@@ -491,7 +491,7 @@ export default function CommunicationsPage() {
       </div>
 
       {/* Threads List */}
-      <div className="border rounded-lg divide-y overflow-hidden">
+      <div className="border rounded-lg divide-y">
         {filteredThreads.length === 0 ? (
           <div className="flex flex-col items-center justify-center py-12 text-muted-foreground">
             <Mail className="h-10 w-10 mb-3 opacity-40" />
@@ -514,7 +514,7 @@ export default function CommunicationsPage() {
                     ? "bg-red-50/40"
                     : ""
                 }`}
-                style={{ gridTemplateColumns: "20px 8px 110px 1fr 120px" , gap: "8px" }}
+                style={{ gridTemplateColumns: "20px 8px 110px 1fr auto" , gap: "8px" }}
                 onClick={() => openThread(thread)}
               >
                 {/* 1: Icon */}
@@ -541,7 +541,7 @@ export default function CommunicationsPage() {
                 </span>
 
                 {/* 4: Subject + preview */}
-                <div className="min-w-0 flex items-baseline gap-1.5">
+                <div className="min-w-0 flex items-baseline gap-1.5 overflow-hidden">
                   <span className={`text-sm truncate ${thread.hasUnread ? "font-semibold" : ""}`}>
                     {thread.subject || "ללא נושא"}
                   </span>
@@ -554,7 +554,7 @@ export default function CommunicationsPage() {
                 </div>
 
                 {/* 5: Date + indicators */}
-                <div className="flex items-center justify-end gap-1.5 text-xs text-muted-foreground overflow-hidden">
+                <div className="flex items-center gap-1.5 text-xs text-muted-foreground" style={{ whiteSpace: "nowrap" }}>
                   {hasAttachments && <Paperclip className="h-3 w-3" />}
                   {thread.messageCount > 1 && (
                     <span className="bg-muted px-1.5 py-0.5 rounded text-[11px]">{thread.messageCount}</span>
