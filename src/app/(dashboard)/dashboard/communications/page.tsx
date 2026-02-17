@@ -552,19 +552,19 @@ export default function CommunicationsPage() {
                   </span>
                 </div>
 
-                {/* Right side: compact indicators */}
-                <div className="flex items-center gap-1.5 shrink-0 text-xs text-muted-foreground whitespace-nowrap">
+                {/* Right side: indicators + date */}
+                <div className="flex items-center gap-1.5 shrink-0 text-xs text-muted-foreground" style={{ whiteSpace: "nowrap", minWidth: "max-content" }}>
                   {hasAttachments && <Paperclip className="h-3 w-3 shrink-0" />}
                   {thread.messageCount > 1 && (
                     <span className="bg-muted px-1.5 py-0.5 rounded text-[11px]">{thread.messageCount}</span>
                   )}
-                  <span>
-                    {format(new Date(thread.latestMessage.createdAt), "dd/MM HH:mm", { locale: he })}
+                  <span dir="ltr" className="tabular-nums">
+                    {format(new Date(thread.latestMessage.createdAt), "HH:mm dd/MM", { locale: he })}
                   </span>
                   {threadHasFailed && (
                     <button
                       onClick={(e) => { e.stopPropagation(); dismissAllFailedInThread(thread); }}
-                      className="p-0.5 rounded hover:bg-red-100 text-red-400 hover:text-red-600 transition-colors mr-1"
+                      className="p-0.5 rounded hover:bg-red-100 text-red-400 hover:text-red-600 transition-colors"
                       title="סמן כטופל"
                     >
                       <X className="h-3.5 w-3.5" />
