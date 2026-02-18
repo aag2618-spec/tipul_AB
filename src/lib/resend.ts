@@ -107,16 +107,20 @@ export function createGenericEmail(
   content: string,
   senderName: string
 ) {
+  const trimmed = content.trim();
+  const hasGreeting = /^שלום\s/.test(trimmed);
+  const hasClosing = /בברכה[,]?\s*$/m.test(trimmed) || /בהצלחה[!]?\s*$/m.test(trimmed);
+
+  const greeting = hasGreeting ? "" : `<h2 style="color: #333;">שלום ${recipientName},</h2>`;
+  const closing = hasClosing ? "" : `<p style="color: #666; font-size: 14px; margin-top: 30px;">בברכה,<br/>${senderName}</p>`;
+
   return {
     subject,
     html: `
       <div dir="rtl" style="font-family: Arial, sans-serif; max-width: 600px; margin: 0 auto; padding: 20px;">
-        <h2 style="color: #333;">שלום ${recipientName},</h2>
+        ${greeting}
         <div style="white-space: pre-wrap; line-height: 1.6;">${content}</div>
-        <p style="color: #666; font-size: 14px; margin-top: 30px;">
-          בברכה,<br/>
-          ${senderName}
-        </p>
+        ${closing}
       </div>
     `,
   };
