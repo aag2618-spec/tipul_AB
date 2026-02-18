@@ -491,7 +491,7 @@ export default function CommunicationsPage() {
       </div>
 
       {/* Threads List */}
-      <div className="border rounded-lg divide-y overflow-hidden">
+      <div className="border rounded-lg divide-y [&>div:first-child]:rounded-t-lg [&>div:last-child]:rounded-b-lg">
         {filteredThreads.length === 0 ? (
           <div className="flex flex-col items-center justify-center py-12 text-muted-foreground">
             <Mail className="h-10 w-10 mb-3 opacity-40" />
