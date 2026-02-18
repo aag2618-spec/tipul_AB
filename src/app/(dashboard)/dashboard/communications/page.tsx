@@ -507,14 +507,14 @@ export default function CommunicationsPage() {
             return (
               <div 
                 key={thread.id} 
-                className={`grid items-center py-2 px-4 cursor-pointer transition-colors hover:bg-accent/50 ${
+                className={`grid items-center h-10 px-4 cursor-pointer hover:bg-accent/50 ${
                   thread.hasUnread 
                     ? "bg-blue-50/60 dark:bg-blue-950/10" 
                     : threadHasFailed
                     ? "bg-red-50/40"
                     : ""
                 }`}
-                style={{ gridTemplateColumns: "20px 8px 110px 1fr auto" , gap: "8px" }}
+                style={{ gridTemplateColumns: "20px 8px 110px 1fr 130px" , gap: "8px" }}
                 onClick={() => openThread(thread)}
               >
                 {/* 1: Icon */}
