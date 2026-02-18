@@ -33,31 +33,31 @@ const EMAIL_TEMPLATES = [
     id: "reminder",
     name: "תזכורת לפגישה",
     subject: "תזכורת לפגישה הקרובה",
-    content: "שלום {name},\n\nרציתי להזכיר לך את הפגישה הקרובה שלנו.\n\nאשמח לראותך!\n\nבברכה",
+    content: "שלום {שם},\n\nרציתי להזכיר לך את הפגישה הקרובה שלנו.\n\nאשמח לראותך!\n\nבברכה",
   },
   {
     id: "thankyou",
     name: "תודה על הפגישה",
     subject: "תודה על הפגישה",
-    content: "שלום {name},\n\nתודה על הפגישה היום. היה נעים לראותך.\n\nנתראה בפגישה הבאה!\n\nבברכה",
+    content: "שלום {שם},\n\nתודה על הפגישה היום. היה נעים לראותך.\n\nנתראה בפגישה הבאה!\n\nבברכה",
   },
   {
     id: "cancellation",
     name: "ביטול פגישה",
     subject: "ביטול פגישה",
-    content: "שלום {name},\n\nלצערי, אצטרך לבטל את הפגישה שלנו.\n\nאשמח לתאם מועד חלופי בהקדם.\n\nסליחה על אי הנוחות,\nבברכה",
+    content: "שלום {שם},\n\nלצערי, אצטרך לבטל את הפגישה שלנו.\n\nאשמח לתאם מועד חלופי בהקדם.\n\nסליחה על אי הנוחות,\nבברכה",
   },
   {
     id: "resources",
     name: "שליחת משאבים",
     subject: "משאבים שדיברנו עליהם",
-    content: "שלום {name},\n\nכפי שהבטחתי, הנה החומרים שדיברנו עליהם בפגישה.\n\nאשמח לשמוע את המחשבות שלך.\n\nבברכה",
+    content: "שלום {שם},\n\nכפי שהבטחתי, הנה החומרים שדיברנו עליהם בפגישה.\n\nאשמח לשמוע את המחשבות שלך.\n\nבברכה",
   },
   {
     id: "followup",
     name: "מעקב אחרי פגישה",
     subject: "איך אתה מרגיש?",
-    content: "שלום {name},\n\nרציתי לשאול איך אתה מרגיש אחרי הפגישה שלנו.\n\nאם יש משהו שתרצה לשתף או לדון בו, אני כאן.\n\nבברכה",
+    content: "שלום {שם},\n\nרציתי לשאול איך אתה מרגיש אחרי הפגישה שלנו.\n\nאם יש משהו שתרצה לשתף או לדון בו, אני כאן.\n\nבברכה",
   },
 ];
 
@@ -74,9 +74,8 @@ export default function SendEmailPage({ params }: { params: Promise<{ id: string
     content: "",
   });
 
-  // החלפת {name} בשם המטופל
   const replaceVariables = (text: string) => {
-    return text.replace(/{name}/g, client?.firstName || "");
+    return text.replace(/{שם}/g, client?.firstName || "").replace(/{name}/g, client?.firstName || "");
   };
 
   useEffect(() => {
@@ -207,7 +206,7 @@ export default function SendEmailPage({ params }: { params: Promise<{ id: string
                 </SelectContent>
               </Select>
               <p className="text-xs text-muted-foreground">
-                💡 טיפ: השתמש ב-{"{name}"} כדי להוסיף את שם המטופל
+                💡 טיפ: השתמש ב-{"{שם}"} כדי להוסיף את שם המטופל
               </p>
             </div>
 
