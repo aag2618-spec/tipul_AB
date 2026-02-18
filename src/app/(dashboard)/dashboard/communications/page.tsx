@@ -491,7 +491,7 @@ export default function CommunicationsPage() {
       </div>
 
       {/* Threads List */}
-      <div className="border rounded-lg divide-y">
+      <div className="border rounded-lg divide-y overflow-hidden">
         {filteredThreads.length === 0 ? (
           <div className="flex flex-col items-center justify-center py-12 text-muted-foreground">
             <Mail className="h-10 w-10 mb-3 opacity-40" />
@@ -514,7 +514,7 @@ export default function CommunicationsPage() {
                     ? "bg-red-50/40"
                     : ""
                 }`}
-                style={{ gridTemplateColumns: "20px 8px 110px 1fr 130px" , gap: "8px" }}
+                style={{ gridTemplateColumns: "20px 8px 110px 1fr 40px 90px" , gap: "8px" }}
                 onClick={() => openThread(thread)}
               >
                 {/* 1: Icon */}
@@ -553,25 +553,27 @@ export default function CommunicationsPage() {
                   </span>
                 </div>
 
-                {/* 5: Date + indicators */}
-                <div className="flex items-center gap-1.5 text-xs text-muted-foreground" style={{ whiteSpace: "nowrap" }}>
+                {/* 5: Indicators (attachments + count) */}
+                <div className="flex items-center justify-end gap-1 text-xs text-muted-foreground">
                   {hasAttachments && <Paperclip className="h-3 w-3" />}
                   {thread.messageCount > 1 && (
-                    <span className="bg-muted px-1.5 py-0.5 rounded text-[11px]">{thread.messageCount}</span>
+                    <span className="bg-muted px-1 py-0.5 rounded text-[11px]">{thread.messageCount}</span>
                   )}
-                  <span dir="ltr" className="tabular-nums">
-                    {format(new Date(thread.latestMessage.createdAt), "HH:mm dd/MM", { locale: he })}
-                  </span>
                   {threadHasFailed && (
                     <button
                       onClick={(e) => { e.stopPropagation(); dismissAllFailedInThread(thread); }}
-                      className="p-0.5 rounded hover:bg-red-100 text-red-400 hover:text-red-600 transition-colors"
+                      className="p-0.5 rounded hover:bg-red-100 text-red-400 hover:text-red-600"
                       title="סמן כטופל"
                     >
-                      <X className="h-3.5 w-3.5" />
+                      <X className="h-3 w-3" />
                     </button>
                   )}
                 </div>
+
+                {/* 6: Date - always aligned */}
+                <span dir="ltr" className="text-xs text-muted-foreground tabular-nums text-left">
+                  {format(new Date(thread.latestMessage.createdAt), "HH:mm dd/MM", { locale: he })}
+                </span>
               </div>
             );
           })
