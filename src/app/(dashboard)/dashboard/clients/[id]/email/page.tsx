@@ -96,14 +96,14 @@ export default function SendEmailPage({ params }: { params: Promise<{ id: string
     fetchClient();
   }, [id]);
 
-  // טעינת תבנית
   const handleTemplateChange = (templateId: string) => {
     setSelectedTemplate(templateId);
     const template = EMAIL_TEMPLATES.find(t => t.id === templateId);
     if (template) {
+      const name = client?.firstName || client?.name || "";
       setFormData({
         subject: template.subject,
-        content: template.content,
+        content: template.content.replace(/{שם}/g, name).replace(/{name}/g, name),
       });
     }
   };
@@ -206,7 +206,7 @@ export default function SendEmailPage({ params }: { params: Promise<{ id: string
                 </SelectContent>
               </Select>
               <p className="text-xs text-muted-foreground">
-                💡 טיפ: השתמש ב-{"{שם}"} כדי להוסיף את שם המטופל
+                💡 שם המטופל מתמלא אוטומטית בתבנית
               </p>
             </div>
 
