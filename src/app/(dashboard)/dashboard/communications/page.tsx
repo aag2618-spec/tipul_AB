@@ -490,93 +490,104 @@ export default function CommunicationsPage() {
         />
       </div>
 
-      {/* Threads List */}
-      <div className="border rounded-lg divide-y [&>div:first-child]:rounded-t-lg [&>div:last-child]:rounded-b-lg">
+      {/* Threads List - Gmail style */}
+      <div className="bg-white dark:bg-background rounded-lg">
         {filteredThreads.length === 0 ? (
-          <div className="flex flex-col items-center justify-center py-12 text-muted-foreground">
-            <Mail className="h-10 w-10 mb-3 opacity-40" />
-            <p className="text-sm">
-              {searchTerm ? "לא נמצאו תוצאות" : "אין עדיין היסטוריית תקשורת"}
-            </p>
+          <div className="flex flex-col items-center justify-center py-16 text-muted-foreground">
+            <Mail className="h-10 w-10 mb-3 opacity-30" />
+            <p className="text-sm">{searchTerm ? "לא נמצאו תוצאות" : "אין עדיין היסטוריית תקשורת"}</p>
           </div>
         ) : (
-          filteredThreads.map((thread) => {
-            const { isIncoming, preview } = getLatestMessagePreview(thread);
-            const threadHasFailed = thread.messages.some(m => m.status === "FAILED");
-            const hasAttachments = thread.messages.some(m => m.attachments && m.attachments.length > 0);
-            return (
-              <div 
-                key={thread.id} 
-                className={`grid items-center h-10 px-4 cursor-pointer hover:bg-accent/50 ${
-                  thread.hasUnread 
-                    ? "bg-blue-50/60 dark:bg-blue-950/10" 
-                    : threadHasFailed
-                    ? "bg-red-50/40"
-                    : ""
-                }`}
-                style={{ gridTemplateColumns: "20px 8px 110px 1fr 40px 90px" , gap: "8px" }}
-                onClick={() => openThread(thread)}
-              >
-                {/* 1: Icon */}
-                <div className="flex justify-center">
-                  {threadHasFailed ? (
-                    <AlertCircle className="h-4 w-4 text-red-500" />
-                  ) : isIncoming ? (
-                    <ArrowDownLeft className="h-4 w-4 text-blue-500" />
-                  ) : (
-                    <Send className="h-4 w-4 text-green-500" />
-                  )}
-                </div>
+          <table className="w-full" style={{ borderCollapse: "collapse", tableLayout: "fixed" }}>
+            <colgroup>
+              <col style={{ width: "28px" }} />
+              <col style={{ width: "140px" }} />
+              <col />
+              <col style={{ width: "50px" }} />
+              <col style={{ width: "80px" }} />
+            </colgroup>
+            <tbody>
+              {filteredThreads.map((thread, idx) => {
+                const { isIncoming, preview } = getLatestMessagePreview(thread);
+                const threadHasFailed = thread.messages.some(m => m.status === "FAILED");
+                const hasAttachments = thread.messages.some(m => m.attachments && m.attachments.length > 0);
+                const isUnread = thread.hasUnread;
+                return (
+                  <tr
+                    key={thread.id}
+                    className={`cursor-pointer border-b border-[#f1f3f4] dark:border-gray-800 last:border-b-0 hover:z-10 hover:shadow-[inset_1px_0_0_#dadce0,inset_-1px_0_0_#dadce0,0_1px_2px_0_rgba(60,64,67,.3),0_1px_3px_1px_rgba(60,64,67,.15)] ${
+                      isUnread
+                        ? "bg-[#f2f6fc] dark:bg-blue-950/20"
+                        : threadHasFailed
+                        ? "bg-red-50/30 dark:bg-red-950/10"
+                        : "bg-white dark:bg-background"
+                    } ${idx === 0 ? "[&>td:first-child]:rounded-tr-lg [&>td:last-child]:rounded-tl-lg" : ""} ${idx === filteredThreads.length - 1 ? "[&>td:first-child]:rounded-br-lg [&>td:last-child]:rounded-bl-lg" : ""}`}
+                    style={{ height: "40px" }}
+                    onClick={() => openThread(thread)}
+                  >
+                    {/* Col 1: Unread dot / fail icon */}
+                    <td className="pr-2 pl-3">
+                      <div className="flex justify-center">
+                        {isUnread ? (
+                          <span className="w-[10px] h-[10px] rounded-full bg-[#1a73e8]" />
+                        ) : threadHasFailed ? (
+                          <AlertCircle className="h-4 w-4 text-red-500" />
+                        ) : null}
+                      </div>
+                    </td>
 
-                {/* 2: Unread dot */}
-                <div className="flex justify-center">
-                  {thread.hasUnread && (
-                    <span className="w-2 h-2 rounded-full bg-blue-600" />
-                  )}
-                </div>
+                    {/* Col 2: Client name */}
+                    <td className="py-0 pr-3 overflow-hidden">
+                      <span className={`block text-[14px] truncate ${isUnread ? "font-bold text-[#202124] dark:text-white" : "text-[#5f6368] dark:text-gray-300"}`}>
+                        {thread.clientName}
+                      </span>
+                    </td>
 
-                {/* 3: Client name */}
-                <span className={`text-sm truncate ${thread.hasUnread ? "font-bold" : "font-medium"}`}>
-                  {thread.clientName}
-                </span>
+                    {/* Col 3: Subject + preview */}
+                    <td className="py-0 pr-2 overflow-hidden">
+                      <div className="flex items-baseline overflow-hidden whitespace-nowrap">
+                        <span className={`text-[14px] shrink-0 ${isUnread ? "font-bold text-[#202124] dark:text-white" : "text-[#202124] dark:text-gray-200"}`}>
+                          {thread.subject || "ללא נושא"}
+                        </span>
+                        {threadHasFailed && (
+                          <span className="text-[12px] text-red-500 mr-1 shrink-0"> — נכשל</span>
+                        )}
+                        <span className="text-[14px] text-[#5f6368] dark:text-gray-400 truncate">
+                          &nbsp;— {preview || ""}
+                        </span>
+                      </div>
+                    </td>
 
-                {/* 4: Subject + preview */}
-                <div className="min-w-0 flex items-baseline gap-1.5 overflow-hidden">
-                  <span className={`text-sm truncate ${thread.hasUnread ? "font-semibold" : ""}`}>
-                    {thread.subject || "ללא נושא"}
-                  </span>
-                  {threadHasFailed && (
-                    <span className="text-[11px] text-red-600 font-medium shrink-0">נכשל</span>
-                  )}
-                  <span className="text-xs text-muted-foreground truncate hidden sm:inline">
-                    — {preview || "(ללא תוכן)"}
-                  </span>
-                </div>
+                    {/* Col 4: Indicators */}
+                    <td className="py-0 text-center">
+                      <div className="flex items-center justify-end gap-1">
+                        {hasAttachments && <Paperclip className="h-[15px] w-[15px] text-[#5f6368] dark:text-gray-400" />}
+                        {thread.messageCount > 1 && (
+                          <span className="text-[12px] text-[#5f6368] dark:text-gray-400">{thread.messageCount}</span>
+                        )}
+                        {threadHasFailed && (
+                          <button
+                            onClick={(e) => { e.stopPropagation(); dismissAllFailedInThread(thread); }}
+                            className="p-0.5 rounded hover:bg-red-100 text-red-400 hover:text-red-600"
+                            title="סמן כטופל"
+                          >
+                            <X className="h-3.5 w-3.5" />
+                          </button>
+                        )}
+                      </div>
+                    </td>
 
-                {/* 5: Indicators (attachments + count) */}
-                <div className="flex items-center justify-end gap-1 text-xs text-muted-foreground">
-                  {hasAttachments && <Paperclip className="h-3 w-3" />}
-                  {thread.messageCount > 1 && (
-                    <span className="bg-muted px-1 py-0.5 rounded text-[11px]">{thread.messageCount}</span>
-                  )}
-                  {threadHasFailed && (
-                    <button
-                      onClick={(e) => { e.stopPropagation(); dismissAllFailedInThread(thread); }}
-                      className="p-0.5 rounded hover:bg-red-100 text-red-400 hover:text-red-600"
-                      title="סמן כטופל"
-                    >
-                      <X className="h-3 w-3" />
-                    </button>
-                  )}
-                </div>
-
-                {/* 6: Date - always aligned */}
-                <span dir="ltr" className="text-xs text-muted-foreground tabular-nums text-left">
-                  {format(new Date(thread.latestMessage.createdAt), "HH:mm dd/MM", { locale: he })}
-                </span>
-              </div>
-            );
-          })
+                    {/* Col 5: Date */}
+                    <td className="py-0 pl-4 pr-2">
+                      <span dir="ltr" className={`text-[12px] tabular-nums block text-left ${isUnread ? "font-bold text-[#202124] dark:text-white" : "text-[#5f6368] dark:text-gray-400"}`}>
+                        {format(new Date(thread.latestMessage.createdAt), "dd בMMM", { locale: he })}
+                      </span>
+                    </td>
+                  </tr>
+                );
+              })}
+            </tbody>
+          </table>
         )}
       </div>
 
