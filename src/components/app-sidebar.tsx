@@ -24,22 +24,17 @@ import {
   Users,
   Calendar,
   FileText,
-  Mic,
   FolderOpen,
   BarChart3,
   Settings,
-  Bell,
   ListTodo,
   Leaf,
   Shield,
   XCircle,
   ClipboardList,
   FileSignature,
-  Building2,
-  MessageSquare,
   Mail,
   Brain,
-  Link2,
   CreditCard,
 } from "lucide-react";
 
@@ -82,20 +77,19 @@ const mainNavItems = [
 
 const clinicalItems = [
   {
-    title: "AI Session Prep",
+    title: "AI Assistant · עוזר",
     href: "/dashboard/ai-prep",
     icon: Brain,
   },
-  // הקלטות - מוסתר לעת עתה
-  // {
-  //   title: "הקלטות",
-  //   href: "/dashboard/recordings",
-  //   icon: Mic,
-  // },
   {
     title: "שאלונים",
     href: "/dashboard/questionnaires",
     icon: ClipboardList,
+  },
+  {
+    title: "תקשורת",
+    href: "/dashboard/communications",
+    icon: Mail,
   },
   {
     title: "טפסי הסכמה",
@@ -110,11 +104,10 @@ const clinicalItems = [
 ];
 
 const businessItems = [
-  // תשלומים הוסר - נגיש דרך המלבן בדשבורד
   {
-    title: "היסטוריית תקשורת",
-    href: "/dashboard/communications",
-    icon: Mail,
+    title: "דוחות",
+    href: "/dashboard/reports",
+    icon: BarChart3,
   },
   {
     title: "בקשות ביטול",
@@ -122,33 +115,13 @@ const businessItems = [
     icon: XCircle,
     hasBadge: true,
   },
-  {
-    title: "דוחות",
-    href: "/dashboard/reports",
-    icon: BarChart3,
-  },
 ];
 
 const settingsItems = [
   {
-    title: "AI Assistant",
+    title: "AI Assistant · הגדרות",
     href: "/dashboard/settings/ai-assistant",
     icon: Brain,
-  },
-  {
-    title: "התראות",
-    href: "/dashboard/settings/notifications",
-    icon: Bell,
-  },
-  {
-    title: "תזכורות SMS",
-    href: "/dashboard/settings/sms",
-    icon: MessageSquare,
-  },
-  {
-    title: "אינטגרציות",
-    href: "/dashboard/settings/integrations",
-    icon: Link2,
   },
   {
     title: "מנוי וחיוב",
@@ -156,12 +129,7 @@ const settingsItems = [
     icon: CreditCard,
   },
   {
-    title: "קופות חולים",
-    href: "/dashboard/settings/health-insurers",
-    icon: Building2,
-  },
-  {
-    title: "הגדרות כלליות",
+    title: "הגדרות",
     href: "/dashboard/settings",
     icon: Settings,
   },
