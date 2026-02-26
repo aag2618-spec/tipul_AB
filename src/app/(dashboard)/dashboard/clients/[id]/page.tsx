@@ -590,7 +590,7 @@ export default async function ClientPage({
                                 <>
                                   {session.payment.childPayments && session.payment.childPayments.length > 0 ? (
                                     session.payment.childPayments.map((child: { id: string; amount: number | { toNumber?: () => number }; paidAt: Date | string | null }, idx: number) => {
-                                      const childAmount = typeof child.amount === 'object' && child.amount && 'toNumber' in child.amount ? child.amount.toNumber() : Number(child.amount);
+                                      const childAmount = typeof child.amount === 'object' && child.amount && 'toNumber' in child.amount && child.amount.toNumber ? child.amount.toNumber() : Number(child.amount);
                                       return (
                                         <div key={child.id} className="flex items-center justify-between">
                                           <span className="text-sm text-muted-foreground/70">
