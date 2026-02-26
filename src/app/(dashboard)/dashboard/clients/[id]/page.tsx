@@ -435,6 +435,7 @@ export default async function ClientPage({
                                 status: session.status as string,
                                 price: Number(session.price),
                                 sessionNote: session.sessionNote ? "exists" : null,
+                                cancellationReason: session.cancellationReason,
                                 payment: session.payment ? {
                                   id: session.payment.id,
                                   status: session.payment.status as string,
@@ -474,6 +475,7 @@ export default async function ClientPage({
                                 status: session.status as string,
                                 price: Number(session.price),
                                 sessionNote: session.sessionNote ? "exists" : null,
+                                cancellationReason: session.cancellationReason,
                                 payment: session.payment ? {
                                   id: session.payment.id,
                                   status: session.payment.status as string,
@@ -519,18 +521,24 @@ export default async function ClientPage({
         {/* Payments Tab */}
         <TabsContent value="payments" className="mt-6">
           <Tabs defaultValue="pending" className="w-full">
-            <TabsList>
-              <TabsTrigger value="pending">⏳ ממתינים לתשלום</TabsTrigger>
-              <TabsTrigger value="history">📊 היסטוריית תשלומים</TabsTrigger>
+            <TabsList className="bg-muted/40 p-1 h-auto">
+              <TabsTrigger value="pending" className="gap-2 px-4 py-2 data-[state=active]:bg-white data-[state=active]:shadow-sm">
+                חובות פתוחים
+              </TabsTrigger>
+              <TabsTrigger value="history" className="gap-2 px-4 py-2 data-[state=active]:bg-white data-[state=active]:shadow-sm">
+                היסטוריית תשלומים
+              </TabsTrigger>
             </TabsList>
 
             {/* Pending Payments */}
             <TabsContent value="pending" className="mt-4">
               <div className="space-y-4">
-                {/* Quick Actions */}
-                <div className="flex gap-2 justify-end">
-                  {totalDebt > 0 && (
-                    <>
+                {totalDebt > 0 && (
+                  <div className="flex items-center justify-between flex-wrap gap-3">
+                    <p className="text-sm text-muted-foreground">
+                      {unpaidSessions.length} פגישות • סה&quot;כ חוב: <span className="font-bold text-red-600">₪{totalDebt}</span>
+                    </p>
+                    <div className="flex gap-2">
                       <SendReminderButton
                         clientId={client.id}
                         clientName={client.name}
@@ -542,99 +550,94 @@ export default async function ClientPage({
                           תשלום מהיר על הכל
                         </Link>
                       </Button>
-                    </>
-                  )}
-                </div>
+                    </div>
+                  </div>
+                )}
 
-                {/* Unpaid Sessions List */}
-                <Card>
-                  <CardHeader>
-                    <CardTitle>פגישות שטרם שולמו</CardTitle>
-                    <CardDescription>
-                      {unpaidSessions.length} פגישות • סה"כ חוב: ₪{totalDebt}
-                    </CardDescription>
-                  </CardHeader>
-                  <CardContent>
-                    {unpaidSessions.length > 0 ? (
-                      <div className="space-y-3">
-                        {unpaidSessions.map((session) => {
-                          const sessionPrice = Number(session.price);
-                          const alreadyPaid = session.payment ? Number(session.payment.amount) : 0;
-                          const debt = sessionPrice - alreadyPaid;
+                {unpaidSessions.length > 0 ? (
+                  <div className="grid gap-3 grid-cols-1 sm:grid-cols-2 lg:grid-cols-3">
+                    {unpaidSessions.map((session) => {
+                      const sessionPrice = Number(session.price);
+                      const alreadyPaid = session.payment ? Number(session.payment.amount) : 0;
+                      const debt = sessionPrice - alreadyPaid;
 
-                          return (
-                            <div
-                              key={session.id}
-                              className="flex items-center justify-between p-4 rounded-lg border bg-card"
-                            >
-                              <div className="flex-1">
-                                <div className="flex items-center gap-3 mb-2">
-                                  <Calendar className="h-4 w-4 text-muted-foreground" />
-                                  <p className="font-medium">
-                                    {format(new Date(session.startTime), "EEEE, d בMMMM yyyy", {
-                                      locale: he,
-                                    })}
-                                  </p>
-                                  <Badge variant="outline">
-                                    {session.type === "ONLINE"
-                                      ? "אונליין"
-                                      : session.type === "PHONE"
-                                      ? "טלפון"
-                                      : "פרונטלי"}
-                                  </Badge>
-                                  <Badge
-                                    variant={
-                                      session.status === "COMPLETED"
-                                        ? "default"
-                                        : session.status === "CANCELLED"
-                                        ? "destructive"
-                                        : "secondary"
-                                    }
-                                  >
-                                    {session.status === "COMPLETED"
-                                      ? "הושלם"
-                                      : session.status === "CANCELLED"
-                                      ? "בוטל"
-                                      : "אי הופעה"}
-                                  </Badge>
-                                </div>
-                                <div className="flex items-center gap-4 text-sm text-muted-foreground">
-                                  <span>מחיר: ₪{sessionPrice}</span>
-                                  {alreadyPaid > 0 && <span>שולם: ₪{alreadyPaid}</span>}
-                                  <span className="font-bold text-red-600">חוב: ₪{debt}</span>
-                                </div>
-                              </div>
-                              <div className="flex gap-2">
-                                {session.payment && (
-                                  <QuickMarkPaid
-                                    sessionId={session.id}
-                                    clientId={client.id}
-                                    clientName={client.name}
-                                    amount={debt}
-                                    creditBalance={Number(client.creditBalance || 0)}
-                                    existingPayment={{
-                                      id: session.payment.id,
-                                      status: session.payment.status,
-                                    }}
-                                    buttonText="שלם"
-                                    totalClientDebt={totalDebt}
-                                    unpaidSessionsCount={unpaidSessions.length}
-                                  />
-                                )}
+                      return (
+                        <div
+                          key={session.id}
+                          className="bg-white rounded-xl border border-muted-foreground/8 p-4
+                            hover:shadow-md hover:-translate-y-0.5 transition-all duration-200
+                            flex flex-col justify-between min-h-[140px]"
+                        >
+                          <div>
+                            <div className="flex items-center justify-between mb-2">
+                              <div className="flex items-center gap-1.5 text-muted-foreground/70">
+                                <Calendar className="h-3.5 w-3.5" />
+                                <span className="text-sm">
+                                  {format(new Date(session.startTime), "dd/MM/yyyy", { locale: he })}
+                                </span>
                               </div>
                             </div>
-                          );
-                        })}
-                      </div>
-                    ) : (
-                      <div className="text-center py-12 text-muted-foreground">
-                        <CheckCircle className="mx-auto h-16 w-16 mb-4 text-green-500 opacity-50" />
-                        <p className="text-lg font-medium mb-2">כל התשלומים שולמו! 🎉</p>
-                        <p className="text-sm">אין חובות פתוחים למטופל זה</p>
-                      </div>
-                    )}
-                  </CardContent>
-                </Card>
+
+                            <div className="space-y-1.5">
+                              <div className="flex items-center justify-between">
+                                <span className="text-sm text-muted-foreground/70">חוב:</span>
+                                <span className="text-lg font-bold text-red-600">₪{debt}</span>
+                              </div>
+                              {alreadyPaid > 0 && (
+                                <>
+                                  <div className="flex items-center justify-between">
+                                    <span className="text-sm text-muted-foreground/70">שולם חלקית:</span>
+                                    <span className="text-sm font-medium text-green-600">₪{alreadyPaid}</span>
+                                  </div>
+                                  <div className="flex items-center justify-between">
+                                    <span className="text-sm text-muted-foreground/70">בתאריך:</span>
+                                    <span className="text-sm text-muted-foreground">
+                                      {session.payment?.paidAt ? format(new Date(session.payment.paidAt), "dd/MM/yyyy") : ""}
+                                    </span>
+                                  </div>
+                                </>
+                              )}
+                            </div>
+                          </div>
+
+                          <div className="mt-3 pt-3 border-t border-muted-foreground/5">
+                            {session.payment ? (
+                              <QuickMarkPaid
+                                sessionId={session.id}
+                                clientId={client.id}
+                                clientName={client.name}
+                                amount={debt}
+                                creditBalance={Number(client.creditBalance || 0)}
+                                existingPayment={{
+                                  id: session.payment.id,
+                                  status: session.payment.status,
+                                }}
+                                buttonText="לחץ לתשלום →"
+                                totalClientDebt={totalDebt}
+                                unpaidSessionsCount={unpaidSessions.length}
+                              />
+                            ) : (
+                              <Link
+                                href={`/dashboard/payments/pay/${client.id}`}
+                                className="text-sm text-primary hover:underline font-medium"
+                              >
+                                לחץ לתשלום →
+                              </Link>
+                            )}
+                          </div>
+                        </div>
+                      );
+                    })}
+                  </div>
+                ) : (
+                  <div className="text-center py-16">
+                    <div className="w-16 h-16 rounded-full bg-green-50 flex items-center justify-center mx-auto mb-4">
+                      <CheckCircle className="h-7 w-7 text-green-400" />
+                    </div>
+                    <p className="font-medium mb-1">כל התשלומים שולמו!</p>
+                    <p className="text-sm text-muted-foreground">אין חובות פתוחים למטופל זה</p>
+                  </div>
+                )}
               </div>
             </TabsContent>
 

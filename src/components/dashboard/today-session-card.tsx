@@ -35,6 +35,7 @@ interface TodaySessionCardProps {
     price: number;
     status: string;
     sessionNote: string | null;
+    cancellationReason?: string | null;
     payment: {
       id: string;
       status: string;
@@ -244,6 +245,13 @@ export function TodaySessionCard({ session }: TodaySessionCardProps) {
           </div>
         ) : (
           <div className="text-base font-semibold text-muted-foreground">🌊 הפסקה</div>
+        )}
+
+        {/* סיבת ביטול */}
+        {session.status === "CANCELLED" && session.cancellationReason && (
+          <p className="text-xs text-muted-foreground/70 bg-red-50 rounded px-2 py-1 border border-red-100">
+            סיבה: {session.cancellationReason}
+          </p>
         )}
 
         {/* שורה 3: אינדיקטורים (רק לפגישות שהושלמו) */}
