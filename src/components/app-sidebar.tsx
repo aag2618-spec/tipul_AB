@@ -27,7 +27,6 @@ import {
   FolderOpen,
   BarChart3,
   Settings,
-  ListTodo,
   Leaf,
   Shield,
   XCircle,
@@ -67,11 +66,6 @@ const mainNavItems = [
     title: "פגישות",
     href: "/dashboard/sessions",
     icon: FileText,
-  },
-  {
-    title: "משימות",
-    href: "/dashboard/tasks",
-    icon: ListTodo,
   },
 ];
 

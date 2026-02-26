@@ -266,9 +266,9 @@ export default async function DashboardPage() {
       iconColor: "text-orange-600",
     },
     {
-      title: "משימות ממתינות",
+      title: "ממתינים לסיכום",
       value: stats.pendingTasks,
-      description: "לביצוע",
+      description: "פגישות לסיכום",
       icon: Clock,
       href: "/dashboard/tasks",
       bgColor: "bg-gradient-to-br from-purple-50 to-purple-100 dark:from-purple-950/30 dark:to-purple-900/30",
