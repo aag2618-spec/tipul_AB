@@ -411,17 +411,17 @@ export default async function ClientPage({
                 <Tabs defaultValue="past" className="w-full">
                   <TabsList className="grid w-full grid-cols-2 mb-6">
                     <TabsTrigger value="past">
-                      פגישות שעבר זמנן ({client.therapySessions.filter(s => new Date(s.startTime) < new Date()).length})
+                      היסטוריית פגישות ({client.therapySessions.filter(s => new Date(s.startTime) < new Date()).length})
                     </TabsTrigger>
                     <TabsTrigger value="upcoming">
                       פגישות עתידיות ({client.therapySessions.filter(s => new Date(s.startTime) >= new Date()).length})
                     </TabsTrigger>
                   </TabsList>
 
-                  {/* פגישות שעבר זמנן */}
+                  {/* היסטוריית פגישות */}
                   <TabsContent value="past">
                     {client.therapySessions.filter(s => new Date(s.startTime) < new Date()).length > 0 ? (
-                      <div className="space-y-4">
+                      <div className="grid gap-3 grid-cols-1 sm:grid-cols-2 lg:grid-cols-3">
                         {client.therapySessions
                           .filter(s => new Date(s.startTime) < new Date())
                           .map((session) => (
@@ -460,7 +460,7 @@ export default async function ClientPage({
                   {/* פגישות עתידיות */}
                   <TabsContent value="upcoming">
                     {client.therapySessions.filter(s => new Date(s.startTime) >= new Date()).length > 0 ? (
-                      <div className="space-y-4">
+                      <div className="grid gap-3 grid-cols-1 sm:grid-cols-2 lg:grid-cols-3">
                         {client.therapySessions
                           .filter(s => new Date(s.startTime) >= new Date())
                           .map((session) => (
