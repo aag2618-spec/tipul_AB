@@ -13,7 +13,6 @@ import {
   DialogFooter,
 } from "@/components/ui/dialog";
 import { Textarea } from "@/components/ui/textarea";
-import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import {
   Select,
@@ -614,9 +613,23 @@ export function SessionsView({ initialSessions }: SessionsViewProps) {
               </Button>
             </div>
 
-            {updateStatus === "COMPLETED" && updateDialog.price > 0 && (
-              <div className="space-y-3 p-3 rounded-lg border bg-emerald-50/30 border-emerald-200">
-                <Label className="text-sm font-semibold">תשלום</Label>
+            {updateStatus === "CANCELLED" && (
+              <div className="space-y-2">
+                <Label className="text-sm">סיבת ביטול (אופציונלי)</Label>
+                <Textarea
+                  value={updateReason}
+                  onChange={e => setUpdateReason(e.target.value)}
+                  placeholder="לדוגמה: מחלה, בקשת מטופל..."
+                  className="resize-none h-16 bg-muted/20 border-muted-foreground/10 text-sm"
+                />
+              </div>
+            )}
+
+            {updateStatus && updateDialog.price > 0 && (
+              <div className="space-y-3 p-3 rounded-lg border bg-muted/20 border-muted-foreground/10">
+                <Label className="text-sm font-semibold">
+                  {updateStatus === "COMPLETED" ? "תשלום" : updateStatus === "CANCELLED" ? "דמי ביטול" : "חיוב אי הגעה"}
+                </Label>
                 <div className="grid grid-cols-2 gap-3">
                   <div className="space-y-1">
                     <Label className="text-xs text-muted-foreground">סכום</Label>
@@ -654,18 +667,6 @@ export function SessionsView({ initialSessions }: SessionsViewProps) {
                 >
                   ללא תשלום
                 </Button>
-              </div>
-            )}
-
-            {updateStatus === "CANCELLED" && (
-              <div className="space-y-2">
-                <Label className="text-sm">סיבת ביטול (אופציונלי)</Label>
-                <Textarea
-                  value={updateReason}
-                  onChange={e => setUpdateReason(e.target.value)}
-                  placeholder="לדוגמה: מחלה, בקשת מטופל..."
-                  className="resize-none h-16 bg-muted/20 border-muted-foreground/10 text-sm"
-                />
               </div>
             )}
           </div>
