@@ -145,6 +145,11 @@ export function SessionsView({ initialSessions }: SessionsViewProps) {
   const [updating, setUpdating] = useState(false);
   const [paymentMethod, setPaymentMethod] = useState("CASH");
   const [paymentAmount, setPaymentAmount] = useState("");
+  const [showPayment, setShowPayment] = useState(true);
+  const [showAdvanced, setShowAdvanced] = useState(false);
+  const [paymentType, setPaymentType] = useState<"FULL" | "PARTIAL">("FULL");
+  const [partialAmount, setPartialAmount] = useState("");
+  const [noChargeReason, setNoChargeReason] = useState("");
 
   const now = useMemo(() => new Date(), []);
 
@@ -223,16 +228,24 @@ export function SessionsView({ initialSessions }: SessionsViewProps) {
     if (!updateStatus) { toast.error("בחר סטטוס"); return; }
     setUpdating(true);
     try {
-      if (updateStatus === "COMPLETED") {
-        const updates: Promise<Response>[] = [];
-        updates.push(
-          fetch(`/api/sessions/${updateDialog.sessionId}/status`, {
-            method: "PATCH",
-            headers: { "Content-Type": "application/json" },
-            body: JSON.stringify({ status: "COMPLETED" }),
-          })
-        );
-        const amt = parseFloat(paymentAmount);
+      const updates: Promise<Response>[] = [];
+
+      const statusBody: Record<string, unknown> = { status: updateStatus };
+      if (updateStatus === "CANCELLED") {
+        statusBody.cancellationReason = updateReason.trim() || undefined;
+      }
+      updates.push(
+        fetch(`/api/sessions/${updateDialog.sessionId}/status`, {
+          method: "PATCH",
+          headers: { "Content-Type": "application/json" },
+          body: JSON.stringify(statusBody),
+        })
+      );
+
+      if (showPayment) {
+        const amt = paymentType === "PARTIAL"
+          ? parseFloat(partialAmount) || 0
+          : parseFloat(paymentAmount) || 0;
         if (amt > 0) {
           updates.push(
             fetch("/api/payments", {
@@ -243,49 +256,44 @@ export function SessionsView({ initialSessions }: SessionsViewProps) {
                 sessionId: updateDialog.sessionId,
                 amount: amt,
                 expectedAmount: updateDialog.price || amt,
-                paymentType: "FULL",
+                paymentType: paymentType === "PARTIAL" ? "PARTIAL" : "FULL",
                 method: paymentMethod,
                 status: "PAID",
               }),
             })
           );
         }
-        await Promise.all(updates);
-        setSessions(prev => prev.map(s =>
-          s.id === updateDialog.sessionId ? { ...s, status: "COMPLETED" } : s
-        ));
-        toast.success("הפגישה עודכנה כהושלמה");
-      } else if (updateStatus === "CANCELLED") {
-        const res = await fetch(`/api/sessions/${updateDialog.sessionId}/status`, {
-          method: "PATCH",
-          headers: { "Content-Type": "application/json" },
-          body: JSON.stringify({ status: "CANCELLED", cancellationReason: updateReason.trim() || undefined }),
-        });
-        if (res.ok) {
-          setSessions(prev => prev.map(s =>
-            s.id === updateDialog.sessionId
-              ? { ...s, status: "CANCELLED", cancellationReason: updateReason.trim(), cancelledAt: new Date().toISOString() }
-              : s
-          ));
-          toast.success("הפגישה עודכנה כבוטלה");
-        }
-      } else if (updateStatus === "NO_SHOW") {
-        const res = await fetch(`/api/sessions/${updateDialog.sessionId}/status`, {
-          method: "PATCH",
-          headers: { "Content-Type": "application/json" },
-          body: JSON.stringify({ status: "NO_SHOW" }),
-        });
-        if (res.ok) {
-          setSessions(prev => prev.map(s =>
-            s.id === updateDialog.sessionId ? { ...s, status: "NO_SHOW" } : s
-          ));
-          toast.success("הפגישה עודכנה כלא הגיע");
-        }
       }
+
+      await Promise.all(updates);
+
+      const newStatus = updateStatus;
+      setSessions(prev => prev.map(s =>
+        s.id === updateDialog.sessionId
+          ? {
+              ...s,
+              status: newStatus,
+              ...(newStatus === "CANCELLED" ? { cancellationReason: updateReason.trim(), cancelledAt: new Date().toISOString() } : {}),
+            }
+          : s
+      ));
+
+      const labels: Record<string, string> = {
+        COMPLETED: "הפגישה עודכנה כהושלמה",
+        CANCELLED: "הפגישה עודכנה כבוטלה",
+        NO_SHOW: "הפגישה עודכנה כלא הגיע",
+      };
+      toast.success(labels[newStatus] || "הפגישה עודכנה");
+
       setUpdateDialog({ open: false, sessionId: "", clientName: "", clientId: "", price: 0 });
       setUpdateStatus("");
       setUpdateReason("");
       setPaymentAmount("");
+      setShowPayment(true);
+      setShowAdvanced(false);
+      setPaymentType("FULL");
+      setPartialAmount("");
+      setNoChargeReason("");
     } catch {
       toast.error("שגיאה בעדכון הפגישה");
     } finally {
@@ -568,9 +576,14 @@ export function SessionsView({ initialSessions }: SessionsViewProps) {
           setUpdateStatus("");
           setUpdateReason("");
           setPaymentAmount("");
+          setShowPayment(true);
+          setShowAdvanced(false);
+          setPaymentType("FULL");
+          setPartialAmount("");
+          setNoChargeReason("");
         }
       }}>
-        <DialogContent className="sm:max-w-md" dir="rtl">
+        <DialogContent className="sm:max-w-[550px] max-h-[90vh] overflow-y-auto" dir="rtl">
           <DialogHeader>
             <DialogTitle className="flex items-center gap-2">
               <AlertCircle className="h-5 w-5 text-orange-500" />
@@ -626,48 +639,133 @@ export function SessionsView({ initialSessions }: SessionsViewProps) {
             )}
 
             {updateStatus && updateDialog.price > 0 && (
-              <div className="space-y-3 p-3 rounded-lg border bg-muted/20 border-muted-foreground/10">
-                <Label className="text-sm font-semibold">
-                  {updateStatus === "COMPLETED" ? "תשלום" : updateStatus === "CANCELLED" ? "דמי ביטול" : "חיוב אי הגעה"}
-                </Label>
-                <div className="grid grid-cols-2 gap-3">
-                  <div className="space-y-1">
-                    <Label className="text-xs text-muted-foreground">סכום</Label>
-                    <div className="relative">
-                      <Input
-                        type="number"
-                        value={paymentAmount}
-                        onChange={e => setPaymentAmount(e.target.value)}
-                        className="pl-8 h-9 text-sm"
-                      />
-                      <span className="absolute left-3 top-1/2 -translate-y-1/2 text-xs text-muted-foreground">₪</span>
-                    </div>
-                  </div>
-                  <div className="space-y-1">
-                    <Label className="text-xs text-muted-foreground">אמצעי</Label>
-                    <Select value={paymentMethod} onValueChange={setPaymentMethod}>
-                      <SelectTrigger className="h-9 text-sm">
-                        <SelectValue />
-                      </SelectTrigger>
-                      <SelectContent>
-                        <SelectItem value="CASH">מזומן</SelectItem>
-                        <SelectItem value="CREDIT_CARD">אשראי</SelectItem>
-                        <SelectItem value="BANK_TRANSFER">העברה</SelectItem>
-                        <SelectItem value="CHECK">צ׳ק</SelectItem>
-                      </SelectContent>
-                    </Select>
-                  </div>
-                </div>
+              <>
                 <Button
                   type="button"
-                  variant="ghost"
-                  size="sm"
-                  className="text-xs text-muted-foreground h-7 px-2"
-                  onClick={() => setPaymentAmount("0")}
+                  variant="outline"
+                  className="w-full font-bold text-base"
+                  onClick={() => {
+                    setShowPayment(false);
+                  }}
                 >
-                  ללא תשלום
+                  {updateStatus === "COMPLETED" ? "עדכון ללא תשלום" : updateStatus === "CANCELLED" ? "ביטול ללא חיוב" : "אי הגעה ללא חיוב"}
                 </Button>
-              </div>
+
+                {!showPayment && (
+                  <div className="space-y-2 p-3 rounded-lg border bg-orange-50/50 border-orange-200">
+                    <Label className="text-sm text-orange-700">סיבה לאי חיוב (אופציונלי)</Label>
+                    <Textarea
+                      value={noChargeReason}
+                      onChange={e => setNoChargeReason(e.target.value)}
+                      placeholder="לדוגמה: סיכום מראש, פגישת היכרות, הסדר מיוחד..."
+                      className="resize-none h-16 bg-white/80 border-orange-200 text-sm"
+                    />
+                    <Button
+                      type="button"
+                      variant="ghost"
+                      size="sm"
+                      className="text-xs text-sky-600"
+                      onClick={() => setShowPayment(true)}
+                    >
+                      ← חזרה לתשלום
+                    </Button>
+                  </div>
+                )}
+
+                {showPayment && (
+                  <div className="space-y-3 p-4 rounded-lg border bg-muted/30">
+                    <div className="flex items-center justify-between">
+                      <Label className="text-lg font-bold">
+                        {updateStatus === "COMPLETED" ? "עדכון ותשלום 💰" : updateStatus === "CANCELLED" ? "דמי ביטול 💰" : "חיוב אי הגעה 💰"}
+                      </Label>
+                    </div>
+
+                    <div className="grid grid-cols-2 gap-3">
+                      <div className="space-y-2">
+                        <Label htmlFor="update-amount">סכום</Label>
+                        <div className="relative">
+                          <Input
+                            type="number"
+                            value={paymentAmount}
+                            onChange={e => setPaymentAmount(e.target.value)}
+                            className="pl-8"
+                            disabled={paymentType !== "FULL"}
+                          />
+                          <span className="absolute left-3 top-1/2 -translate-y-1/2 text-sm text-muted-foreground">₪</span>
+                        </div>
+                      </div>
+                      <div className="space-y-2">
+                        <Label htmlFor="update-method">אמצעי תשלום</Label>
+                        <Select value={paymentMethod} onValueChange={setPaymentMethod}>
+                          <SelectTrigger>
+                            <SelectValue />
+                          </SelectTrigger>
+                          <SelectContent>
+                            <SelectItem value="CASH">מזומן</SelectItem>
+                            <SelectItem value="CREDIT_CARD">אשראי</SelectItem>
+                            <SelectItem value="BANK_TRANSFER">העברה</SelectItem>
+                            <SelectItem value="CHECK">צ׳ק</SelectItem>
+                            <SelectItem value="OTHER">אחר</SelectItem>
+                          </SelectContent>
+                        </Select>
+                      </div>
+                    </div>
+
+                    <div className="space-y-3">
+                      <Button
+                        type="button"
+                        variant="ghost"
+                        size="sm"
+                        className="w-full justify-between font-semibold"
+                        onClick={() => setShowAdvanced(!showAdvanced)}
+                      >
+                        <span className="font-bold">אופציות מתקדמות</span>
+                        {showAdvanced ? <ChevronUp className="h-4 w-4" /> : <ChevronDown className="h-4 w-4" />}
+                      </Button>
+                      {showAdvanced && (
+                        <div className="space-y-2 pt-2">
+                          <div className="grid gap-2">
+                            <Button
+                              type="button"
+                              variant={paymentType === "FULL" ? "default" : "outline"}
+                              size="sm"
+                              onClick={() => setPaymentType("FULL")}
+                            >
+                              תשלום מלא (₪{updateDialog.price})
+                            </Button>
+                            <Button
+                              type="button"
+                              variant={paymentType === "PARTIAL" ? "default" : "outline"}
+                              size="sm"
+                              onClick={() => setPaymentType("PARTIAL")}
+                            >
+                              תשלום חלקי
+                            </Button>
+                            {paymentType === "PARTIAL" && (
+                              <div className="pr-4 space-y-1">
+                                <Input
+                                  type="number"
+                                  placeholder="הכנס סכום"
+                                  value={partialAmount}
+                                  onChange={e => setPartialAmount(e.target.value)}
+                                  max={updateDialog.price}
+                                  min={0}
+                                  step="0.01"
+                                />
+                                {partialAmount && parseFloat(partialAmount) < updateDialog.price && (
+                                  <p className="text-xs text-muted-foreground">
+                                    נותר לתשלום: ₪{updateDialog.price - parseFloat(partialAmount)}
+                                  </p>
+                                )}
+                              </div>
+                            )}
+                          </div>
+                        </div>
+                      )}
+                    </div>
+                  </div>
+                )}
+              </>
             )}
           </div>
           <DialogFooter className="gap-2 sm:gap-0">
@@ -678,23 +776,40 @@ export function SessionsView({ initialSessions }: SessionsViewProps) {
                 setUpdateStatus("");
                 setUpdateReason("");
                 setPaymentAmount("");
+                setShowPayment(true);
+                setShowAdvanced(false);
+                setPaymentType("FULL");
+                setPartialAmount("");
+                setNoChargeReason("");
               }}
               disabled={updating}
+              className="font-medium"
             >
               ביטול
             </Button>
-            <Button
-              onClick={handleUpdate}
-              disabled={updating || !updateStatus}
-              className={
-                updateStatus === "COMPLETED" ? "bg-emerald-600 hover:bg-emerald-700" :
-                updateStatus === "CANCELLED" ? "bg-red-500 hover:bg-red-600" :
-                updateStatus === "NO_SHOW" ? "bg-amber-500 hover:bg-amber-600" : ""
-              }
-            >
-              {updating ? <Loader2 className="h-4 w-4 animate-spin ml-1" /> : null}
-              עדכן
-            </Button>
+            {showPayment && updateDialog.price > 0 ? (
+              <Button
+                onClick={handleUpdate}
+                disabled={updating || !updateStatus}
+                className="gap-2 font-bold bg-green-600 hover:bg-green-700"
+              >
+                {updating ? <Loader2 className="h-4 w-4 animate-spin" /> : <CheckCircle2 className="h-4 w-4" />}
+                {updateStatus === "COMPLETED" ? "עדכן ושלם" : updateStatus === "CANCELLED" ? "בטל וחייב" : updateStatus === "NO_SHOW" ? "עדכן וחייב" : "עדכן"}
+              </Button>
+            ) : (
+              <Button
+                onClick={handleUpdate}
+                disabled={updating || !updateStatus}
+                className={
+                  updateStatus === "COMPLETED" ? "bg-emerald-600 hover:bg-emerald-700" :
+                  updateStatus === "CANCELLED" ? "bg-red-500 hover:bg-red-600" :
+                  updateStatus === "NO_SHOW" ? "bg-amber-500 hover:bg-amber-600" : ""
+                }
+              >
+                {updating ? <Loader2 className="h-4 w-4 animate-spin ml-1" /> : null}
+                עדכן
+              </Button>
+            )}
           </DialogFooter>
         </DialogContent>
       </Dialog>
