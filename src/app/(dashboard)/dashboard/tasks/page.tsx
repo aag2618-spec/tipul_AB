@@ -8,11 +8,9 @@ async function getTasks(userId: string) {
   return prisma.task.findMany({
     where: {
       userId,
+      type: "WRITE_SUMMARY",
       status: { in: ["PENDING", "IN_PROGRESS"] },
-      OR: [
-        { type: { not: "WRITE_SUMMARY" } },
-        { type: "WRITE_SUMMARY", dueDate: { lte: now } },
-      ],
+      dueDate: { lte: now },
     },
     orderBy: [
       { dueDate: "desc" },
