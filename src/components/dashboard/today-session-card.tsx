@@ -212,25 +212,35 @@ export function TodaySessionCard({ session }: TodaySessionCardProps) {
             </div>
           </div>
 
-          <Badge
-            variant={
-              session.status === "COMPLETED"
-                ? "default"
+          {session.status === "SCHEDULED" && new Date(session.startTime) < new Date() ? (
+            <Badge
+              variant="outline"
+              className="bg-orange-50 text-orange-600 border-orange-300 cursor-pointer hover:bg-orange-100 text-[10px]"
+              onClick={() => router.push(`/dashboard/sessions/${session.id}`)}
+            >
+              ⚠ לא עודכן · עדכן
+            </Badge>
+          ) : (
+            <Badge
+              variant={
+                session.status === "COMPLETED"
+                  ? "default"
+                  : session.status === "CANCELLED"
+                  ? "destructive"
+                  : session.status === "NO_SHOW"
+                  ? "destructive"
+                  : "secondary"
+              }
+            >
+              {session.status === "SCHEDULED"
+                ? "מתוכנן"
+                : session.status === "COMPLETED"
+                ? "הושלם"
                 : session.status === "CANCELLED"
-                ? "destructive"
-                : session.status === "NO_SHOW"
-                ? "destructive"
-                : "secondary"
-            }
-          >
-            {session.status === "SCHEDULED"
-              ? "✅ מתוכנן"
-              : session.status === "COMPLETED"
-              ? "✅ הושלם"
-              : session.status === "CANCELLED"
-              ? "🚫 בוטל"
-              : "❌ אי הופעה"}
-          </Badge>
+                ? "בוטל"
+                : "אי הופעה"}
+            </Badge>
+          )}
         </div>
 
         {/* שורה 2: שם מטופל - קליקבלי */}

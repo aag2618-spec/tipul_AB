@@ -13,6 +13,15 @@ import {
   DialogFooter,
 } from "@/components/ui/dialog";
 import { Textarea } from "@/components/ui/textarea";
+import { Input } from "@/components/ui/input";
+import { Label } from "@/components/ui/label";
+import {
+  Select,
+  SelectContent,
+  SelectItem,
+  SelectTrigger,
+  SelectValue,
+} from "@/components/ui/select";
 import {
   Search,
   X,
@@ -27,6 +36,7 @@ import {
   Loader2,
   ChevronDown,
   ChevronUp,
+  AlertCircle,
 } from "lucide-react";
 import { format } from "date-fns";
 import { he } from "date-fns/locale";
@@ -56,18 +66,21 @@ const STATUS_LABELS: Record<string, string> = {
   COMPLETED: "הושלמה",
   CANCELLED: "בוטלה",
   NO_SHOW: "לא הגיע",
+  NOT_UPDATED: "לא עודכן",
 };
 
 const STATUS_COLORS: Record<string, string> = {
   COMPLETED: "bg-emerald-50 text-emerald-700 border-emerald-200",
   CANCELLED: "bg-red-50 text-red-600 border-red-200",
   NO_SHOW: "bg-amber-50 text-amber-700 border-amber-200",
+  NOT_UPDATED: "bg-orange-50 text-orange-600 border-orange-300 cursor-pointer hover:bg-orange-100",
 };
 
 const STATUS_ICONS: Record<string, React.ReactNode> = {
   COMPLETED: <CheckCircle2 className="h-3 w-3" />,
   CANCELLED: <Ban className="h-3 w-3" />,
   NO_SHOW: <UserX className="h-3 w-3" />,
+  NOT_UPDATED: <Clock className="h-3 w-3" />,
 };
 
 const UPCOMING_GROUPS = ["היום", "מחר", "השבוע", "החודש", "בהמשך"] as const;
@@ -124,6 +137,15 @@ export function SessionsView({ initialSessions }: SessionsViewProps) {
   });
   const [cancelReason, setCancelReason] = useState("");
   const [cancelling, setCancelling] = useState(false);
+
+  const [updateDialog, setUpdateDialog] = useState<{
+    open: boolean; sessionId: string; clientName: string; clientId: string; price: number;
+  }>({ open: false, sessionId: "", clientName: "", clientId: "", price: 0 });
+  const [updateStatus, setUpdateStatus] = useState<string>("");
+  const [updateReason, setUpdateReason] = useState("");
+  const [updating, setUpdating] = useState(false);
+  const [paymentMethod, setPaymentMethod] = useState("CASH");
+  const [paymentAmount, setPaymentAmount] = useState("");
 
   const now = useMemo(() => new Date(), []);
 
@@ -198,6 +220,87 @@ export function SessionsView({ initialSessions }: SessionsViewProps) {
     }
   };
 
+  const handleUpdate = async () => {
+    if (!updateStatus) { toast.error("בחר סטטוס"); return; }
+    setUpdating(true);
+    try {
+      if (updateStatus === "COMPLETED") {
+        const updates: Promise<Response>[] = [];
+        updates.push(
+          fetch(`/api/sessions/${updateDialog.sessionId}/status`, {
+            method: "PATCH",
+            headers: { "Content-Type": "application/json" },
+            body: JSON.stringify({ status: "COMPLETED" }),
+          })
+        );
+        const amt = parseFloat(paymentAmount);
+        if (amt > 0) {
+          updates.push(
+            fetch("/api/payments", {
+              method: "POST",
+              headers: { "Content-Type": "application/json" },
+              body: JSON.stringify({
+                clientId: updateDialog.clientId,
+                sessionId: updateDialog.sessionId,
+                amount: amt,
+                expectedAmount: updateDialog.price || amt,
+                paymentType: "FULL",
+                method: paymentMethod,
+                status: "PAID",
+              }),
+            })
+          );
+        }
+        await Promise.all(updates);
+        setSessions(prev => prev.map(s =>
+          s.id === updateDialog.sessionId ? { ...s, status: "COMPLETED" } : s
+        ));
+        toast.success("הפגישה עודכנה כהושלמה");
+      } else if (updateStatus === "CANCELLED") {
+        const res = await fetch(`/api/sessions/${updateDialog.sessionId}/status`, {
+          method: "PATCH",
+          headers: { "Content-Type": "application/json" },
+          body: JSON.stringify({ status: "CANCELLED", cancellationReason: updateReason.trim() || undefined }),
+        });
+        if (res.ok) {
+          setSessions(prev => prev.map(s =>
+            s.id === updateDialog.sessionId
+              ? { ...s, status: "CANCELLED", cancellationReason: updateReason.trim(), cancelledAt: new Date().toISOString() }
+              : s
+          ));
+          toast.success("הפגישה עודכנה כבוטלה");
+        }
+      } else if (updateStatus === "NO_SHOW") {
+        const res = await fetch(`/api/sessions/${updateDialog.sessionId}/status`, {
+          method: "PATCH",
+          headers: { "Content-Type": "application/json" },
+          body: JSON.stringify({ status: "NO_SHOW" }),
+        });
+        if (res.ok) {
+          setSessions(prev => prev.map(s =>
+            s.id === updateDialog.sessionId ? { ...s, status: "NO_SHOW" } : s
+          ));
+          toast.success("הפגישה עודכנה כלא הגיע");
+        }
+      }
+      setUpdateDialog({ open: false, sessionId: "", clientName: "", clientId: "", price: 0 });
+      setUpdateStatus("");
+      setUpdateReason("");
+      setPaymentAmount("");
+    } catch {
+      toast.error("שגיאה בעדכון הפגישה");
+    } finally {
+      setUpdating(false);
+    }
+  };
+
+  const isWithinWeek = (dateStr: string) => {
+    const d = new Date(dateStr);
+    const weekEnd = new Date();
+    weekEnd.setDate(weekEnd.getDate() + 7);
+    return d < weekEnd;
+  };
+
   const renderSessionCard = (s: Session, showCancel: boolean) => (
     <div
       key={s.id}
@@ -208,7 +311,26 @@ export function SessionsView({ initialSessions }: SessionsViewProps) {
       <div>
         <div className="flex items-center justify-between mb-1">
           <p className="font-semibold text-[15px] truncate flex-1">{s.client?.name || "ללא מטופל"}</p>
-          {!showCancel && s.status !== "SCHEDULED" && (
+          {!showCancel && s.status === "SCHEDULED" && new Date(s.startTime) < now ? (
+            <Badge
+              variant="outline"
+              className={`text-[10px] px-1.5 py-0 h-5 font-normal gap-1 shrink-0 mr-2 ${STATUS_COLORS["NOT_UPDATED"]}`}
+              onClick={(e) => {
+                e.stopPropagation();
+                setUpdateDialog({
+                  open: true,
+                  sessionId: s.id,
+                  clientName: s.client?.name || "",
+                  clientId: s.client?.id || "",
+                  price: s.price || 0,
+                });
+                setPaymentAmount(s.price ? s.price.toString() : "");
+              }}
+            >
+              {STATUS_ICONS["NOT_UPDATED"]}
+              לא עודכן · עדכן
+            </Badge>
+          ) : !showCancel && s.status !== "SCHEDULED" ? (
             <Badge
               variant="outline"
               className={`text-[10px] px-1.5 py-0 h-5 font-normal gap-1 shrink-0 mr-2 ${STATUS_COLORS[s.status] || ""}`}
@@ -216,7 +338,7 @@ export function SessionsView({ initialSessions }: SessionsViewProps) {
               {STATUS_ICONS[s.status]}
               {STATUS_LABELS[s.status]}
             </Badge>
-          )}
+          ) : null}
         </div>
         <div className="flex items-center gap-1.5 text-muted-foreground/70">
           <CalendarIcon className="h-3.5 w-3.5 shrink-0" />
@@ -237,17 +359,19 @@ export function SessionsView({ initialSessions }: SessionsViewProps) {
       )}
 
       <div className="flex items-center gap-1.5 mt-3 pt-3 border-t border-muted-foreground/5">
-        <Button
-          variant="outline"
-          size="sm"
-          className="flex-1 h-8 text-xs border-muted-foreground/10 hover:bg-muted/30"
-          asChild
-        >
-          <Link href={`/dashboard/sessions/${s.id}`}>
-            <Eye className="h-3 w-3 ml-1" />
-            פרטים
-          </Link>
-        </Button>
+        {(!showCancel || isWithinWeek(s.startTime)) && (
+          <Button
+            variant="outline"
+            size="sm"
+            className="flex-1 h-8 text-xs border-muted-foreground/10 hover:bg-muted/30"
+            asChild
+          >
+            <Link href={`/dashboard/sessions/${s.id}`}>
+              <Eye className="h-3 w-3 ml-1" />
+              פרטים
+            </Link>
+          </Button>
+        )}
         {showCancel && (
           <Button
             type="button"
@@ -433,6 +557,142 @@ export function SessionsView({ initialSessions }: SessionsViewProps) {
             >
               {cancelling ? <Loader2 className="h-4 w-4 animate-spin ml-1" /> : <Ban className="h-4 w-4 ml-1" />}
               בטל פגישה
+            </Button>
+          </DialogFooter>
+        </DialogContent>
+      </Dialog>
+
+      {/* Update Session Dialog */}
+      <Dialog open={updateDialog.open} onOpenChange={(o) => {
+        if (!o) {
+          setUpdateDialog({ open: false, sessionId: "", clientName: "", clientId: "", price: 0 });
+          setUpdateStatus("");
+          setUpdateReason("");
+          setPaymentAmount("");
+        }
+      }}>
+        <DialogContent className="sm:max-w-md" dir="rtl">
+          <DialogHeader>
+            <DialogTitle className="flex items-center gap-2">
+              <AlertCircle className="h-5 w-5 text-orange-500" />
+              עדכון פגישה - {updateDialog.clientName}
+            </DialogTitle>
+          </DialogHeader>
+          <div className="space-y-4 py-2">
+            <p className="text-sm text-muted-foreground">הפגישה לא עודכנה. מה קרה?</p>
+
+            <div className="grid grid-cols-3 gap-2">
+              <Button
+                type="button"
+                variant={updateStatus === "COMPLETED" ? "default" : "outline"}
+                size="sm"
+                className={`h-10 text-xs gap-1 ${updateStatus === "COMPLETED" ? "bg-emerald-600 hover:bg-emerald-700" : ""}`}
+                onClick={() => setUpdateStatus("COMPLETED")}
+              >
+                <CheckCircle2 className="h-3.5 w-3.5" />
+                הושלמה
+              </Button>
+              <Button
+                type="button"
+                variant={updateStatus === "CANCELLED" ? "default" : "outline"}
+                size="sm"
+                className={`h-10 text-xs gap-1 ${updateStatus === "CANCELLED" ? "bg-red-500 hover:bg-red-600" : ""}`}
+                onClick={() => setUpdateStatus("CANCELLED")}
+              >
+                <Ban className="h-3.5 w-3.5" />
+                בוטלה
+              </Button>
+              <Button
+                type="button"
+                variant={updateStatus === "NO_SHOW" ? "default" : "outline"}
+                size="sm"
+                className={`h-10 text-xs gap-1 ${updateStatus === "NO_SHOW" ? "bg-amber-500 hover:bg-amber-600" : ""}`}
+                onClick={() => setUpdateStatus("NO_SHOW")}
+              >
+                <UserX className="h-3.5 w-3.5" />
+                לא הגיע
+              </Button>
+            </div>
+
+            {updateStatus === "COMPLETED" && updateDialog.price > 0 && (
+              <div className="space-y-3 p-3 rounded-lg border bg-emerald-50/30 border-emerald-200">
+                <Label className="text-sm font-semibold">תשלום</Label>
+                <div className="grid grid-cols-2 gap-3">
+                  <div className="space-y-1">
+                    <Label className="text-xs text-muted-foreground">סכום</Label>
+                    <div className="relative">
+                      <Input
+                        type="number"
+                        value={paymentAmount}
+                        onChange={e => setPaymentAmount(e.target.value)}
+                        className="pl-8 h-9 text-sm"
+                      />
+                      <span className="absolute left-3 top-1/2 -translate-y-1/2 text-xs text-muted-foreground">₪</span>
+                    </div>
+                  </div>
+                  <div className="space-y-1">
+                    <Label className="text-xs text-muted-foreground">אמצעי</Label>
+                    <Select value={paymentMethod} onValueChange={setPaymentMethod}>
+                      <SelectTrigger className="h-9 text-sm">
+                        <SelectValue />
+                      </SelectTrigger>
+                      <SelectContent>
+                        <SelectItem value="CASH">מזומן</SelectItem>
+                        <SelectItem value="CREDIT_CARD">אשראי</SelectItem>
+                        <SelectItem value="BANK_TRANSFER">העברה</SelectItem>
+                        <SelectItem value="CHECK">צ׳ק</SelectItem>
+                      </SelectContent>
+                    </Select>
+                  </div>
+                </div>
+                <Button
+                  type="button"
+                  variant="ghost"
+                  size="sm"
+                  className="text-xs text-muted-foreground h-7 px-2"
+                  onClick={() => setPaymentAmount("0")}
+                >
+                  ללא תשלום
+                </Button>
+              </div>
+            )}
+
+            {updateStatus === "CANCELLED" && (
+              <div className="space-y-2">
+                <Label className="text-sm">סיבת ביטול (אופציונלי)</Label>
+                <Textarea
+                  value={updateReason}
+                  onChange={e => setUpdateReason(e.target.value)}
+                  placeholder="לדוגמה: מחלה, בקשת מטופל..."
+                  className="resize-none h-16 bg-muted/20 border-muted-foreground/10 text-sm"
+                />
+              </div>
+            )}
+          </div>
+          <DialogFooter className="gap-2 sm:gap-0">
+            <Button
+              variant="outline"
+              onClick={() => {
+                setUpdateDialog({ open: false, sessionId: "", clientName: "", clientId: "", price: 0 });
+                setUpdateStatus("");
+                setUpdateReason("");
+                setPaymentAmount("");
+              }}
+              disabled={updating}
+            >
+              ביטול
+            </Button>
+            <Button
+              onClick={handleUpdate}
+              disabled={updating || !updateStatus}
+              className={
+                updateStatus === "COMPLETED" ? "bg-emerald-600 hover:bg-emerald-700" :
+                updateStatus === "CANCELLED" ? "bg-red-500 hover:bg-red-600" :
+                updateStatus === "NO_SHOW" ? "bg-amber-500 hover:bg-amber-600" : ""
+              }
+            >
+              {updating ? <Loader2 className="h-4 w-4 animate-spin ml-1" /> : null}
+              עדכן
             </Button>
           </DialogFooter>
         </DialogContent>
