@@ -572,7 +572,7 @@ export default function BillingPage() {
                     </Button>
                   ) : isUpgrade ? (
                     <Button 
-                      className="w-full bg-gradient-to-r from-sky-600 to-purple-600 hover:from-sky-700 hover:to-purple-700"
+                      className="w-full bg-gradient-to-r from-blue-600 to-purple-600 hover:from-blue-700 hover:to-purple-700"
                       onClick={() => { setTermsAccepted(false); setShowTermsDetail(false); setShowUpgradeDialog(key); }}
                       disabled={upgrading}
                     >
@@ -683,7 +683,7 @@ export default function BillingPage() {
                   setShowUpgradeDialog(null);
                 }
               }}
-              className="bg-gradient-to-r from-sky-600 to-purple-600 hover:from-sky-700 hover:to-purple-700"
+              className="bg-gradient-to-r from-blue-600 to-purple-600 hover:from-blue-700 hover:to-purple-700"
             >
               {upgrading ? (
                 <><Loader2 className="h-4 w-4 ml-2 animate-spin" />מעבד...</>
