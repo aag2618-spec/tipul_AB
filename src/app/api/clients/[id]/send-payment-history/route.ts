@@ -59,12 +59,12 @@ export async function POST(
         break;
     }
 
-    // Get payments in range
     const payments = await prisma.payment.findMany({
       where: {
         session: {
           clientId: id,
         },
+        parentPaymentId: null,
         paidAt: {
           gte: startOfDay(fromDate),
           lte: endOfDay(now),

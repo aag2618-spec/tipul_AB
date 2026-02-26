@@ -20,11 +20,11 @@ export async function GET(request: NextRequest) {
     const status = searchParams.get("status"); // PAID, PENDING, ALL
     const format = searchParams.get("format") || "csv"; // csv or json
 
-    // בניית query
     const where: any = {
       client: {
         therapistId: session.user.id,
       },
+      parentPaymentId: null,
     };
 
     // סינון לפי תאריך

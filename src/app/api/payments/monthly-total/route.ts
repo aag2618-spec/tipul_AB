@@ -26,6 +26,7 @@ export async function GET(request: NextRequest) {
       where: {
         client: { therapistId: session.user.id },
         status: "PAID",
+        parentPaymentId: null,
         paidAt: {
           gte: startDate,
           lte: endDate,
