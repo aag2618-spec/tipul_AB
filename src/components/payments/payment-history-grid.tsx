@@ -90,18 +90,11 @@ export function PaymentHistoryGrid({ payments }: PaymentHistoryGridProps) {
     return months;
   }, []);
 
-  // סינון רק תשלומים שהושלמו במלואם
   const fullyPaidPayments = payments.filter((payment) => {
     if (payment.status !== "PAID") return false;
-    
     const amount = payment.amount;
     const expectedAmount = payment.expectedAmount || amount;
-    const childPaymentsTotal = payment.childPayments?.reduce(
-      (sum, child) => sum + child.amount, 0
-    ) || 0;
-    const totalPaid = amount + childPaymentsTotal;
-    
-    return totalPaid >= expectedAmount;
+    return amount >= expectedAmount;
   });
 
   // נתוני גרף - תשלומים לפי חודשים

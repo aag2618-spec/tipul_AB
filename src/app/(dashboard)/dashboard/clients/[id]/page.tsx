@@ -72,7 +72,10 @@ async function getClient(clientId: string, userId: string) {
       therapySessions: {
         orderBy: { startTime: "desc" },
         take: 20,
-        include: { sessionNote: true, payment: true },
+        include: { 
+          sessionNote: true, 
+          payment: { include: { childPayments: { orderBy: { paidAt: "asc" } } } },
+        },
       },
       payments: {
         where: { parentPaymentId: null }, // Only get parent payments
@@ -583,18 +586,40 @@ export default async function ClientPage({
                                 <span className="text-sm text-muted-foreground/70">חוב:</span>
                                 <span className="text-lg font-bold text-red-600">₪{debt}</span>
                               </div>
-                              {alreadyPaid > 0 && (
+                              {alreadyPaid > 0 && session.payment && (
                                 <>
-                                  <div className="flex items-center justify-between">
-                                    <span className="text-sm text-muted-foreground/70">שולם חלקית:</span>
-                                    <span className="text-sm font-medium text-green-600">₪{alreadyPaid}</span>
-                                  </div>
-                                  <div className="flex items-center justify-between">
-                                    <span className="text-sm text-muted-foreground/70">בתאריך:</span>
-                                    <span className="text-sm text-muted-foreground">
-                                      {session.payment?.paidAt ? format(new Date(session.payment.paidAt), "dd/MM/yyyy") : ""}
-                                    </span>
-                                  </div>
+                                  {session.payment.childPayments && session.payment.childPayments.length > 0 ? (
+                                    session.payment.childPayments.map((child: { id: string; amount: number | { toNumber?: () => number }; paidAt: Date | string | null }, idx: number) => {
+                                      const childAmount = typeof child.amount === 'object' && child.amount && 'toNumber' in child.amount ? child.amount.toNumber() : Number(child.amount);
+                                      return (
+                                        <div key={child.id} className="flex items-center justify-between">
+                                          <span className="text-sm text-muted-foreground/70">
+                                            תשלום {idx + 1}:
+                                          </span>
+                                          <span className="text-sm">
+                                            <span className="font-medium text-green-600">₪{childAmount}</span>
+                                            {child.paidAt && (
+                                              <span className="text-muted-foreground mr-1">
+                                                · {format(new Date(child.paidAt), "dd/MM/yyyy")}
+                                              </span>
+                                            )}
+                                          </span>
+                                        </div>
+                                      );
+                                    })
+                                  ) : (
+                                    <div className="flex items-center justify-between">
+                                      <span className="text-sm text-muted-foreground/70">שולם חלקית:</span>
+                                      <span className="text-sm">
+                                        <span className="font-medium text-green-600">₪{alreadyPaid}</span>
+                                        {session.payment.paidAt && (
+                                          <span className="text-muted-foreground mr-1">
+                                            · {format(new Date(session.payment.paidAt), "dd/MM/yyyy")}
+                                          </span>
+                                        )}
+                                      </span>
+                                    </div>
+                                  )}
                                 </>
                               )}
                             </div>
