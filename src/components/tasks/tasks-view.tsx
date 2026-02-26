@@ -100,7 +100,7 @@ export function TasksView({ initialTasks }: TasksViewProps) {
       });
       if (res.ok) {
         setTasks(prev => prev.filter(t => t.id !== taskId));
-        toast.success("הסיכום סומן כלא רלוונטי");
+        toast.success("הוסר בהצלחה");
       } else {
         setDismissingIds(prev => { const n = new Set(prev); n.delete(taskId); return n; });
         toast.error("שגיאה במחיקה");
