@@ -57,6 +57,7 @@ const GROUP_ORDER = ["שבוע אחרון", "חודש אחרון", "חודש נ�
 
 export function TasksView({ initialTasks }: TasksViewProps) {
   const [tasks, setTasks] = useState<Task[]>(initialTasks);
+  const [dismissingIds, setDismissingIds] = useState<Set<string>>(new Set());
   const [searchTerm, setSearchTerm] = useState("");
   const [expandedGroups, setExpandedGroups] = useState<Record<string, boolean>>({
     "שבוע אחרון": true,
@@ -67,10 +68,13 @@ export function TasksView({ initialTasks }: TasksViewProps) {
   });
 
   const filteredTasks = useMemo(() => {
-    if (!searchTerm.trim()) return tasks;
-    const term = searchTerm.trim().toLowerCase();
-    return tasks.filter(t => t.title.toLowerCase().includes(term));
-  }, [tasks, searchTerm]);
+    let result = tasks.filter(t => !dismissingIds.has(t.id));
+    if (searchTerm.trim()) {
+      const term = searchTerm.trim().toLowerCase();
+      result = result.filter(t => t.title.toLowerCase().includes(term));
+    }
+    return result;
+  }, [tasks, searchTerm, dismissingIds]);
 
   const groupedTasks = useMemo(() => {
     const groups: Record<string, Task[]> = {};
@@ -87,6 +91,7 @@ export function TasksView({ initialTasks }: TasksViewProps) {
   };
 
   const handleDismiss = async (taskId: string) => {
+    setDismissingIds(prev => new Set(prev).add(taskId));
     try {
       const res = await fetch(`/api/tasks/${taskId}`, {
         method: "PATCH",
@@ -96,11 +101,17 @@ export function TasksView({ initialTasks }: TasksViewProps) {
       if (res.ok) {
         setTasks(prev => prev.filter(t => t.id !== taskId));
         toast.success("הסיכום סומן כלא רלוונטי");
+      } else {
+        setDismissingIds(prev => { const n = new Set(prev); n.delete(taskId); return n; });
+        toast.error("שגיאה במחיקה");
       }
-    } catch { toast.error("שגיאה"); }
+    } catch {
+      setDismissingIds(prev => { const n = new Set(prev); n.delete(taskId); return n; });
+      toast.error("שגיאה");
+    }
   };
 
-  const pendingCount = tasks.length;
+  const pendingCount = filteredTasks.length;
 
   return (
     <div className="space-y-4 animate-fade-in">
@@ -179,10 +190,11 @@ export function TasksView({ initialTasks }: TasksViewProps) {
                             </Link>
                           </Button>
                           <Button
+                            type="button"
                             variant="ghost"
                             size="sm"
-                            className="text-muted-foreground hover:text-destructive px-2"
-                            onClick={() => handleDismiss(task.id)}
+                            className="text-muted-foreground hover:text-destructive hover:bg-destructive/10 px-2"
+                            onClick={(e) => { e.stopPropagation(); e.preventDefault(); handleDismiss(task.id); }}
                             title="דלג / לא רלוונטי"
                           >
                             <X className="h-4 w-4" />
