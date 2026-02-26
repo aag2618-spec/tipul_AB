@@ -233,8 +233,8 @@ export function PaymentHistoryItem({ payment }: PaymentHistoryItemProps) {
 
             {/* Payment Timeline */}
             {hasMultiplePayments ? (
-              <div className="bg-blue-50 border border-blue-200 rounded p-3">
-                <p className="text-sm font-medium text-blue-800 mb-3 flex items-center gap-2">
+              <div className="bg-sky-50 border border-sky-200 rounded p-3">
+                <p className="text-sm font-medium text-sky-800 mb-3 flex items-center gap-2">
                   <CheckCircle className="h-4 w-4" />
                   פירוט תשלומים ({paymentCount} תשלומים)
                 </p>
@@ -270,7 +270,7 @@ export function PaymentHistoryItem({ payment }: PaymentHistoryItemProps) {
                             </>
                           )}
                         </div>
-                        <span className={`text-xs font-medium ${isLast && isCompleted ? 'text-green-600' : 'text-blue-600'}`}>
+                        <span className={`text-xs font-medium ${isLast && isCompleted ? 'text-green-600' : 'text-sky-600'}`}>
                           {getPercentage(childAmount)}%
                         </span>
                       </div>
@@ -279,10 +279,10 @@ export function PaymentHistoryItem({ payment }: PaymentHistoryItemProps) {
                 </div>
 
                 {/* Summary */}
-                <div className="mt-3 pt-3 border-t border-blue-200 flex items-center justify-between text-sm">
-                  <span className="font-semibold text-blue-800">סה&quot;כ:</span>
+                <div className="mt-3 pt-3 border-t border-sky-200 flex items-center justify-between text-sm">
+                  <span className="font-semibold text-sky-800">סה&quot;כ:</span>
                   <div className="flex items-center gap-2">
-                    <span className="font-bold text-blue-900">₪{totalPaid}</span>
+                    <span className="font-bold text-sky-900">₪{totalPaid}</span>
                     {isPartial && (
                       <span className="text-yellow-600 text-xs">
                         (נותר: ₪{remaining})

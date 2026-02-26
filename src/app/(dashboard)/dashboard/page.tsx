@@ -230,8 +230,8 @@ export default async function DashboardPage() {
       description: `מתוך ${stats.totalClients} סה"כ`,
       icon: Users,
       href: "/dashboard/clients",
-      bgColor: "bg-gradient-to-br from-blue-50 to-blue-100 dark:from-blue-950/30 dark:to-blue-900/30",
-      iconColor: "text-blue-600",
+      bgColor: "bg-gradient-to-br from-sky-50 to-sky-100 dark:from-sky-950/30 dark:to-sky-900/30",
+      iconColor: "text-sky-600",
       subBox: stats.waitingClientsCount > 0 ? {
         value: stats.waitingClientsCount,
         label: "ממתינים",
@@ -401,7 +401,7 @@ export default async function DashboardPage() {
         </Card>
 
         {/* AI Session Prep - What to work on today */}
-        <Card className="bg-gradient-to-br from-purple-50 to-blue-50 dark:from-purple-950/30 dark:to-blue-900/30 border-purple-200">
+        <Card className="bg-gradient-to-br from-purple-50 to-sky-50 dark:from-purple-950/30 dark:to-sky-900/30 border-purple-200">
           <CardHeader className="flex flex-row items-center justify-between">
             <div>
               <CardTitle className="flex items-center gap-2">
@@ -467,7 +467,7 @@ export default async function DashboardPage() {
                               <span>הכנה חכמה לפגישה עם {session.client?.name}</span>
                             </div>
                             <div className="flex items-start gap-2">
-                              <span className="text-blue-600">📋</span>
+                              <span className="text-sky-600">📋</span>
                               <span>ניתוח הפגישות האחרונות וזיהוי דפוסים</span>
                             </div>
                             <div className="flex items-start gap-2">

@@ -446,9 +446,9 @@ export default function CommunicationsPage() {
               onClick={() => setStatusFilter(statusFilter === "RECEIVED" ? "all" : "RECEIVED")}
               className={`inline-flex items-center gap-1.5 px-3 py-1.5 rounded-full text-sm font-medium transition-colors ${
                 statusFilter === "RECEIVED"
-                  ? "bg-blue-100 text-blue-800 ring-2 ring-blue-400"
+                  ? "bg-sky-100 text-sky-800 ring-2 ring-sky-400"
                   : unreadReplies > 0
-                    ? "bg-blue-50 text-blue-700 hover:bg-blue-100"
+                    ? "bg-sky-50 text-sky-700 hover:bg-sky-100"
                     : "bg-muted text-muted-foreground hover:bg-muted/80"
               }`}
             >
@@ -517,7 +517,7 @@ export default function CommunicationsPage() {
                     key={thread.id}
                     className={`cursor-pointer border-b border-[#f1f3f4] dark:border-gray-800 last:border-b-0 hover:z-10 hover:shadow-[inset_1px_0_0_#dadce0,inset_-1px_0_0_#dadce0,0_1px_2px_0_rgba(60,64,67,.3),0_1px_3px_1px_rgba(60,64,67,.15)] ${
                       isUnread
-                        ? "bg-[#f2f6fc] dark:bg-blue-950/20"
+                        ? "bg-[#f0f9ff] dark:bg-sky-950/20"
                         : threadHasFailed
                         ? "bg-red-50/30 dark:bg-red-950/10"
                         : "bg-white dark:bg-background"
@@ -529,7 +529,7 @@ export default function CommunicationsPage() {
                     <td className="pr-2 pl-3">
                       <div className="flex justify-center">
                         {isUnread ? (
-                          <span className="w-[10px] h-[10px] rounded-full bg-[#1a73e8]" />
+                          <span className="w-[10px] h-[10px] rounded-full bg-[#0ea5e9]" />
                         ) : threadHasFailed ? (
                           <AlertCircle className="h-4 w-4 text-red-500" />
                         ) : null}
@@ -690,7 +690,7 @@ export default function CommunicationsPage() {
                       key={msg.id}
                       className={`rounded-lg border p-4 ${
                         isIncoming
-                          ? "bg-blue-50/70 dark:bg-blue-950/20 border-blue-200"
+                          ? "bg-sky-50/70 dark:bg-sky-950/20 border-sky-200"
                           : "bg-green-50/70 dark:bg-green-950/20 border-green-200"
                       }`}
                     >
@@ -699,12 +699,12 @@ export default function CommunicationsPage() {
                         <div className="flex items-center gap-2">
                           {isIncoming ? (
                             <>
-                              <ArrowDownLeft className="h-4 w-4 text-blue-600" />
-                              <span className="font-medium text-blue-800 dark:text-blue-300 text-sm">
+                              <ArrowDownLeft className="h-4 w-4 text-sky-600" />
+                              <span className="font-medium text-sky-800 dark:text-sky-300 text-sm">
                                 {msg.client?.name || "מטופל"}
                               </span>
                               {!msg.isRead && (
-                                <Badge className="bg-blue-600 text-white text-xs py-0">חדש</Badge>
+                                <Badge className="bg-sky-600 text-white text-xs py-0">חדש</Badge>
                               )}
                             </>
                           ) : (
@@ -793,7 +793,7 @@ export default function CommunicationsPage() {
                                         <Button
                                           size="sm"
                                           variant="ghost"
-                                          className="h-6 px-2 text-xs text-blue-600"
+                                          className="h-6 px-2 text-xs text-sky-600"
                                           onClick={() => handleSaveToClientFolder(msg.id, att.id || "", att.filename, msg.client!.id)}
                                           title="שמור לתיקיית מטופל"
                                         >

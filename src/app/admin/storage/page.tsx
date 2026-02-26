@@ -94,7 +94,7 @@ export default function AdminStoragePage() {
         <Card className="bg-slate-900 border-slate-800">
           <CardHeader className="flex flex-row items-center justify-between pb-2">
             <CardTitle className="text-sm font-medium text-slate-400">מסמכים</CardTitle>
-            <FileText className="h-4 w-4 text-blue-500" />
+            <FileText className="h-4 w-4 text-sky-500" />
           </CardHeader>
           <CardContent>
             <div className="text-2xl font-bold text-white">
@@ -174,7 +174,7 @@ export default function AdminStoragePage() {
                       </TableCell>
                       <TableCell>
                         <div className="flex items-center gap-2">
-                          <FileText className="h-4 w-4 text-blue-500" />
+                          <FileText className="h-4 w-4 text-sky-500" />
                           <span className="text-slate-300">{user.documentsCount}</span>
                           <span className="text-xs text-slate-500">
                             ({user.documentsStorageMB.toFixed(1)} MB)
@@ -194,7 +194,7 @@ export default function AdminStoragePage() {
                         <div className="space-y-1">
                           <div className="h-2 bg-slate-800 rounded-full overflow-hidden relative">
                             <div 
-                              className="absolute h-full bg-blue-500 rounded-full"
+                              className="absolute h-full bg-sky-500 rounded-full"
                               style={{ width: `${(docPercentage / 100) * percentage}%` }}
                             />
                             <div 
@@ -207,7 +207,7 @@ export default function AdminStoragePage() {
                           </div>
                           <div className="flex justify-between text-xs text-slate-500">
                             <span className="flex items-center gap-1">
-                              <span className="w-2 h-2 rounded-full bg-blue-500" />
+                              <span className="w-2 h-2 rounded-full bg-sky-500" />
                               מסמכים
                             </span>
                             <span className="flex items-center gap-1">

@@ -285,18 +285,18 @@ export function QuickMarkPaid({
 
               {/* הוצאת קבלה - מוצג רק אם סוג העסק מאפשר */}
               {businessType !== "NONE" && receiptMode !== "NEVER" && (
-                <div className="flex items-center gap-3 py-2 px-3 bg-blue-50 rounded-lg border border-blue-200">
+                <div className="flex items-center gap-3 py-2 px-3 bg-sky-50 rounded-lg border border-sky-200">
                   <Checkbox
                     id="issue-receipt"
                     checked={issueReceipt}
                     onCheckedChange={(checked) => setIssueReceipt(checked === true)}
                     disabled={receiptMode === "ALWAYS"}
                   />
-                  <Label htmlFor="issue-receipt" className="cursor-pointer flex items-center gap-2 text-blue-800">
+                  <Label htmlFor="issue-receipt" className="cursor-pointer flex items-center gap-2 text-sky-800">
                     <Receipt className="h-4 w-4" />
                     הוצא קבלה
                     {receiptMode === "ALWAYS" && (
-                      <span className="text-xs text-blue-600">(ברירת מחדל)</span>
+                      <span className="text-xs text-sky-600">(ברירת מחדל)</span>
                     )}
                   </Label>
                 </div>

@@ -85,7 +85,7 @@ const testTypeLabels: Record<string, string> = {
 
 const categoryColors: Record<string, string> = {
   "דיכאון": "bg-slate-700 text-white border-slate-600",
-  "חרדה": "bg-blue-700 text-white border-blue-600",
+  "חרדה": "bg-sky-700 text-white border-sky-600",
   "טראומה": "bg-red-800 text-white border-red-700",
   "השלכתי": "bg-purple-800 text-white border-purple-700",
   "אינטליגנציה": "bg-emerald-700 text-white border-emerald-600",

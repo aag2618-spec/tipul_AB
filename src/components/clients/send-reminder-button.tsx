@@ -48,7 +48,7 @@ export function SendReminderButton({
       size={size}
       onClick={handleSend}
       disabled={sending}
-      className={`gap-2 bg-blue-600 hover:bg-blue-700 text-white shadow-md ${className}`}
+      className={`gap-2 bg-sky-600 hover:bg-sky-700 text-white shadow-md ${className}`}
     >
       {sending ? (
         <>

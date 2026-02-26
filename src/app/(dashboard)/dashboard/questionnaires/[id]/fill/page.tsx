@@ -348,7 +348,7 @@ export default function FillQuestionnairePage() {
             <CardDescription>{currentQuestion.description}</CardDescription>
           )}
           {currentQuestion.instruction && (
-            <div className="mt-2 p-3 bg-blue-50 rounded-lg text-sm">
+            <div className="mt-2 p-3 bg-sky-50 rounded-lg text-sm">
               <strong>הנחיות:</strong> {currentQuestion.instruction}
             </div>
           )}

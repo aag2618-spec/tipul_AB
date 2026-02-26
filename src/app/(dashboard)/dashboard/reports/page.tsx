@@ -156,8 +156,8 @@ export default async function ReportsPage() {
         <Card>
           <CardContent className="pt-6">
             <div className="flex items-center gap-3">
-              <div className="flex h-10 w-10 items-center justify-center rounded-lg bg-blue-100">
-                <Calendar className="h-5 w-5 text-blue-600" />
+              <div className="flex h-10 w-10 items-center justify-center rounded-lg bg-sky-100">
+                <Calendar className="h-5 w-5 text-sky-600" />
               </div>
               <div>
                 <p className="text-sm text-muted-foreground">פגישות השנה</p>

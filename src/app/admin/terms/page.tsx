@@ -155,7 +155,7 @@ export default function TermsAcceptancePage() {
       <div className="flex items-center justify-between">
         <div>
           <h1 className="text-2xl font-bold tracking-tight flex items-center gap-2">
-            <Shield className="h-6 w-6 text-blue-600" />
+            <Shield className="h-6 w-6 text-sky-600" />
             אישורי תנאי שימוש
           </h1>
           <p className="text-muted-foreground">
@@ -169,9 +169,9 @@ export default function TermsAcceptancePage() {
       </div>
 
       {/* Info Banner */}
-      <Card className="bg-blue-50 dark:bg-blue-950/20 border-blue-200 dark:border-blue-800">
+      <Card className="bg-sky-50 dark:bg-sky-950/20 border-sky-200 dark:border-sky-800">
         <CardContent className="pt-4 pb-4">
-          <div className="flex gap-2 items-center text-sm text-blue-800 dark:text-blue-300">
+          <div className="flex gap-2 items-center text-sm text-sky-800 dark:text-sky-300">
             <Shield className="h-4 w-4 shrink-0" />
             <span>
               רשומות אלו הן <strong>הוכחה חוקית</strong> שהמשתמש אישר את התנאים. 
@@ -313,7 +313,7 @@ export default function TermsAcceptancePage() {
         <DialogContent className="max-w-lg">
           <DialogHeader>
             <DialogTitle className="flex items-center gap-2">
-              <Shield className="h-5 w-5 text-blue-600" />
+              <Shield className="h-5 w-5 text-sky-600" />
               פרטי אישור תנאים
             </DialogTitle>
           </DialogHeader>

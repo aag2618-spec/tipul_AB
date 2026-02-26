@@ -717,7 +717,7 @@ export default function PaymentsPage() {
                         <Button 
                           variant="outline" 
                           size="sm" 
-                          className="gap-1.5 bg-white/80 hover:bg-white border-blue-200 text-blue-700 hover:text-blue-800"
+                          className="gap-1.5 bg-white/80 hover:bg-white border-sky-200 text-sky-700 hover:text-sky-800"
                         >
                           <Download className="h-3.5 w-3.5" />
                           דוחות לרו"ח

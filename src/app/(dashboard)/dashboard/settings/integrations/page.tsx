@@ -279,8 +279,8 @@ export default function IntegrationsPage() {
           <CardHeader>
             <div className="flex items-center justify-between">
               <div className="flex items-center gap-3">
-                <div className="h-12 w-12 rounded-lg bg-blue-100 flex items-center justify-center">
-                  <Calendar className="h-6 w-6 text-blue-600" />
+                <div className="h-12 w-12 rounded-lg bg-sky-100 flex items-center justify-center">
+                  <Calendar className="h-6 w-6 text-sky-600" />
                 </div>
                 <div>
                   <CardTitle className="flex items-center gap-2">
@@ -483,15 +483,15 @@ export default function IntegrationsPage() {
             })}
           </div>
 
-          <Card className="bg-blue-50 border-blue-200 dark:bg-blue-950/20">
+          <Card className="bg-sky-50 border-sky-200 dark:bg-sky-950/20">
             <CardContent className="pt-6">
               <div className="flex gap-3">
-                <AlertCircle className="h-5 w-5 text-blue-600 mt-0.5" />
+                <AlertCircle className="h-5 w-5 text-sky-600 mt-0.5" />
                 <div className="text-sm space-y-1">
-                  <p className="font-semibold text-blue-900 dark:text-blue-300">
+                  <p className="font-semibold text-sky-900 dark:text-sky-300">
                     💡 חשוב לדעת:
                   </p>
-                  <ul className="text-blue-800 dark:text-blue-400 space-y-1 mr-4">
+                  <ul className="text-sky-800 dark:text-sky-400 space-y-1 mr-4">
                     <li>• כל ספק דורש פתיחת חשבון אצלו (רוב מציעים ניסיון חינם)</li>
                     <li>• ה-API Key נשמר מוצפן ומאובטח במערכת</li>
                     <li>• התשלומים והקבלות מנוהלים ישירות מהחשבון שלך</li>
@@ -603,12 +603,12 @@ export default function IntegrationsPage() {
               </div>
             )}
 
-            <div className="bg-blue-50 border border-blue-200 rounded-lg p-3 text-sm dark:bg-blue-950/20 dark:border-blue-800">
-              <p className="font-semibold text-blue-900 dark:text-blue-300 mb-2">
+            <div className="bg-sky-50 border border-sky-200 rounded-lg p-3 text-sm dark:bg-sky-950/20 dark:border-sky-800">
+              <p className="font-semibold text-sky-900 dark:text-sky-300 mb-2">
                 📖 איך למצוא את ה-API Key?
               </p>
               {selectedProvider === 'MESHULAM' && (
-                <ol className="text-blue-800 dark:text-blue-400 space-y-1 mr-4 list-decimal">
+                <ol className="text-sky-800 dark:text-sky-400 space-y-1 mr-4 list-decimal">
                   <li>היכנס ל-<a href="https://secure.meshulam.co.il" target="_blank" className="underline">Meshulam</a></li>
                   <li>לחץ על "הגדרות" → "API"</li>
                   <li>העתק את ה-"Page Code" או "API Key"</li>
@@ -616,7 +616,7 @@ export default function IntegrationsPage() {
                 </ol>
               )}
               {selectedProvider === 'ICOUNT' && (
-                <ol className="text-blue-800 dark:text-blue-400 space-y-1 mr-4 list-decimal">
+                <ol className="text-sky-800 dark:text-sky-400 space-y-1 mr-4 list-decimal">
                   <li>היכנס ל-<a href="https://www.icount.co.il" target="_blank" className="underline">iCount</a></li>
                   <li>לחץ על "הגדרות" → "API"</li>
                   <li>צור API Token חדש</li>
@@ -624,7 +624,7 @@ export default function IntegrationsPage() {
                 </ol>
               )}
               {selectedProvider === 'SUMIT' && (
-                <ol className="text-blue-800 dark:text-blue-400 space-y-1 mr-4 list-decimal">
+                <ol className="text-sky-800 dark:text-sky-400 space-y-1 mr-4 list-decimal">
                   <li>היכנס ל-<a href="https://www.sumit.co.il" target="_blank" className="underline">Sumit</a></li>
                   <li>הגדרות → אינטגרציות → API</li>
                   <li>העתק את ה-Company ID ו-API Key</li>
@@ -632,7 +632,7 @@ export default function IntegrationsPage() {
                 </ol>
               )}
               {selectedProvider === 'GREEN_INVOICE' && (
-                <ol className="text-blue-800 dark:text-blue-400 space-y-1 mr-4 list-decimal">
+                <ol className="text-sky-800 dark:text-sky-400 space-y-1 mr-4 list-decimal">
                   <li>היכנס ל-<a href="https://www.greeninvoice.co.il" target="_blank" className="underline">חשבונית ירוקה</a></li>
                   <li>הגדרות → אינטגרציות → API</li>
                   <li>צור מפתח חדש</li>

@@ -37,7 +37,7 @@ interface TierLimit {
 
 const TIER_COLORS = {
   ESSENTIAL: "bg-gray-100 text-gray-800",
-  PRO: "bg-blue-100 text-blue-800",
+  PRO: "bg-sky-100 text-sky-800",
   ENTERPRISE: "bg-purple-100 text-purple-800",
 };
 
@@ -306,7 +306,7 @@ export default function TierSettingsPage() {
               <Card className="bg-slate-900 border-slate-800">
                 <CardHeader>
                   <CardTitle className="text-white flex items-center gap-2">
-                    <FileText className="h-5 w-5 text-blue-500" />
+                    <FileText className="h-5 w-5 text-sky-500" />
                     ניתוחי פגישות
                   </CardTitle>
                 </CardHeader>

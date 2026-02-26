@@ -96,7 +96,7 @@ export default function AIAssistantSettingsPage() {
           </p>
         </div>
 
-        <Card className="border-2 border-primary bg-gradient-to-br from-blue-50 to-purple-50">
+        <Card className="border-2 border-primary bg-gradient-to-br from-sky-50 to-purple-50">
           <CardHeader>
             <div className="flex items-center gap-2">
               <Lock className="h-6 w-6 text-primary" />
@@ -129,7 +129,7 @@ export default function AIAssistantSettingsPage() {
               </div>
 
               <div className="grid gap-4 md:grid-cols-2 pt-4">
-                <div className="p-4 border-2 border-blue-200 rounded-lg bg-blue-50/50">
+                <div className="p-4 border-2 border-sky-200 rounded-lg bg-sky-50/50">
                   <h3 className="font-semibold mb-2">🥈 מקצועי (Professional)</h3>
                   <p className="text-2xl font-bold mb-1">145₪/חודש</p>
                   <p className="text-sm text-muted-foreground mb-3">Gemini 2.0 - ניתוח תמציתי</p>
@@ -179,7 +179,7 @@ export default function AIAssistantSettingsPage() {
       </div>
 
       {/* Current Plan Info */}
-      <Card className="bg-gradient-to-r from-blue-50 to-purple-50 border-primary/20">
+      <Card className="bg-gradient-to-r from-sky-50 to-purple-50 border-primary/20">
         <CardContent className="pt-6">
           <div className="flex items-center gap-3">
             <Brain className="h-8 w-8 text-primary" />
@@ -313,7 +313,7 @@ export default function AIAssistantSettingsPage() {
       </Card>
 
       {/* What AI Will Do */}
-      <Card className="bg-gradient-to-br from-green-50 to-blue-50 border-green-200">
+      <Card className="bg-gradient-to-br from-green-50 to-sky-50 border-green-200">
         <CardHeader>
           <CardTitle>🎯 מה ה-AI יעשה?</CardTitle>
         </CardHeader>

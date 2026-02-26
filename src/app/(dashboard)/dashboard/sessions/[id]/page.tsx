@@ -664,15 +664,15 @@ export default function SessionDetailPage({
 
                         {/* Transference Analysis - Enterprise */}
                         {noteAnalysis.transferenceAnalysis && (
-                          <div className="p-3 rounded-lg bg-blue-50 border border-blue-200">
-                            <h4 className="text-sm font-medium mb-3 flex items-center gap-2 text-blue-700">
+                          <div className="p-3 rounded-lg bg-sky-50 border border-sky-200">
+                            <h4 className="text-sm font-medium mb-3 flex items-center gap-2 text-sky-700">
                               <Users className="h-4 w-4" />
                               העברה והעברה נגדית
                             </h4>
                             
                             {noteAnalysis.transferenceAnalysis.transference && (
                               <div className="mb-3 p-2 bg-white/50 rounded">
-                                <p className="text-xs font-medium text-blue-600 mb-1">העברה (Transference):</p>
+                                <p className="text-xs font-medium text-sky-600 mb-1">העברה (Transference):</p>
                                 <p className="text-sm"><strong>סוג:</strong> {noteAnalysis.transferenceAnalysis.transference.type}</p>
                                 <p className="text-xs text-muted-foreground">ביטוי: {noteAnalysis.transferenceAnalysis.transference.manifestation}</p>
                                 <p className="text-xs text-muted-foreground">משמעות: {noteAnalysis.transferenceAnalysis.transference.meaning}</p>
@@ -681,7 +681,7 @@ export default function SessionDetailPage({
 
                             {noteAnalysis.transferenceAnalysis.countertransference && (
                               <div className="p-2 bg-white/50 rounded">
-                                <p className="text-xs font-medium text-blue-600 mb-1">העברה נגדית (Countertransference):</p>
+                                <p className="text-xs font-medium text-sky-600 mb-1">העברה נגדית (Countertransference):</p>
                                 <p className="text-sm"><strong>תחושות:</strong> {noteAnalysis.transferenceAnalysis.countertransference.feelings}</p>
                                 <p className="text-xs text-muted-foreground">משמעות: {noteAnalysis.transferenceAnalysis.countertransference.meaning}</p>
                                 <p className="text-xs text-muted-foreground">המלצה: {noteAnalysis.transferenceAnalysis.countertransference.recommendation}</p>

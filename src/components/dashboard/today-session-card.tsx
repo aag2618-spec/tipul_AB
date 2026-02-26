@@ -280,7 +280,7 @@ export function TodaySessionCard({ session }: TodaySessionCardProps) {
               ) : (
                 <Link
                   href={`/dashboard/sessions/${session.id}`}
-                  className="text-blue-600 font-medium hover:text-blue-700 hover:underline transition-colors"
+                  className="text-sky-600 font-medium hover:text-sky-700 hover:underline transition-colors"
                 >
                   כתוב סיכום
                 </Link>
@@ -334,7 +334,7 @@ export function TodaySessionCard({ session }: TodaySessionCardProps) {
                       סיים ושלם
                     </DropdownMenuItem>
                     <DropdownMenuItem onClick={handleFinishWithoutPayment} disabled={isProcessing}>
-                      <CheckCircle className="h-4 w-4 ml-2 text-blue-600" />
+                      <CheckCircle className="h-4 w-4 ml-2 text-sky-600" />
                       סיים ללא תשלום
                     </DropdownMenuItem>
                     <DropdownMenuItem onClick={() => {

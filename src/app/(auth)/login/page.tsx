@@ -73,7 +73,7 @@ function LoginForm() {
 
           {/* Registered but needs verification */}
           {registered && !verified && (
-            <div className="p-3 rounded-lg bg-blue-50 dark:bg-blue-900/20 text-blue-700 dark:text-blue-300 text-sm text-center animate-fade-in">
+            <div className="p-3 rounded-lg bg-sky-50 dark:bg-sky-900/20 text-sky-700 dark:text-sky-300 text-sm text-center animate-fade-in">
               ההרשמה הצליחה! בדוק את המייל שלך לאימות החשבון
             </div>
           )}

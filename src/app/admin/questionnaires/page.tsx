@@ -184,11 +184,11 @@ export default function AdminQuestionnairesPage() {
               </div>
             )}
 
-            <div className="bg-blue-50 border border-blue-200 rounded-lg p-4 text-sm">
-              <h4 className="font-semibold text-blue-900 mb-2">
+            <div className="bg-sky-50 border border-sky-200 rounded-lg p-4 text-sm">
+              <h4 className="font-semibold text-sky-900 mb-2">
                 💡 מידע חשוב:
               </h4>
-              <ul className="text-blue-800 space-y-1 mr-4 list-disc">
+              <ul className="text-sky-800 space-y-1 mr-4 list-disc">
                 <li>הפעולה בטוחה - לא תמחק שאלונים קיימים</li>
                 <li>שאלונים חדשים יווספו אוטומטית</li>
                 <li>שאלונים קיימים יעודכנו אם השתנו בקוד</li>

@@ -320,8 +320,8 @@ export default function CommunicationSettingsPage() {
                   </p>
                 </div>
 
-                <div className="bg-blue-50 border border-blue-200 rounded-lg p-4">
-                  <p className="text-sm text-blue-800">
+                <div className="bg-sky-50 border border-sky-200 rounded-lg p-4">
+                  <p className="text-sm text-sky-800">
                     <strong>💡 מה יקרה:</strong> ב-{settings.debtReminderDayOfMonth} לכל חודש, המערכת תשלח מייל אוטומטי
                     לכל מטופל עם חוב מעל ₪{settings.debtReminderMinAmount}. המייל יכלול פירוט של כל הפגישות שטרם שולמו,
                     התאריכים, הסטטוס (הופיע/ביטל/אי הופעה), והסכום הכולל.
@@ -362,8 +362,8 @@ export default function CommunicationSettingsPage() {
 
             {settings.sendPaymentReceipt && (
               <div className="space-y-4">
-                <div className="bg-blue-50 border border-blue-200 rounded-lg p-4 dark:bg-blue-950/20 dark:border-blue-800">
-                  <p className="text-sm text-blue-800 dark:text-blue-300">
+                <div className="bg-sky-50 border border-sky-200 rounded-lg p-4 dark:bg-sky-950/20 dark:border-sky-800">
+                  <p className="text-sm text-sky-800 dark:text-sky-300">
                     <strong>💡 מה יקרה:</strong> כאשר תרשום תשלום במערכת (מזומן/אשראי/העברה), המערכת תשלח קבלה אוטומטית:
                   </p>
                 </div>
@@ -475,31 +475,31 @@ export default function CommunicationSettingsPage() {
 
               {/* Examples */}
               {showExamples && (
-                <div className="bg-blue-50 border border-blue-200 rounded-lg p-4 space-y-3">
-                  <p className="text-sm font-semibold text-blue-900">💡 דוגמאות:</p>
+                <div className="bg-sky-50 border border-sky-200 rounded-lg p-4 space-y-3">
+                  <p className="text-sm font-semibold text-sky-900">💡 דוגמאות:</p>
                   
                   <div className="space-y-2">
                     <button
                       onClick={() => setSettings({ ...settings, paymentInstructions: 'להעברה בנקאית:\nבנק לאומי, סניף 123, חשבון 456789\nנא לציין את שמך בהעברה' })}
-                      className="w-full text-right bg-white p-3 rounded border hover:border-blue-400 text-xs"
+                      className="w-full text-right bg-white p-3 rounded border hover:border-sky-400 text-xs"
                     >
-                      <strong className="block text-blue-900 mb-1">העברה בנקאית:</strong>
+                      <strong className="block text-sky-900 mb-1">העברה בנקאית:</strong>
                       <span className="text-gray-700">להעברה בנקאית:<br/>בנק לאומי, סניף 123, חשבון 456789<br/>נא לציין את שמך בהעברה</span>
                     </button>
 
                     <button
                       onClick={() => setSettings({ ...settings, paymentInstructions: 'תשלום מהיר:\n• ביט: 050-1234567\n• פייבוקס: bit.ly/pay-therapist\n• מזומן בפגישה' })}
-                      className="w-full text-right bg-white p-3 rounded border hover:border-blue-400 text-xs"
+                      className="w-full text-right bg-white p-3 rounded border hover:border-sky-400 text-xs"
                     >
-                      <strong className="block text-blue-900 mb-1">אפשרויות מרובות:</strong>
+                      <strong className="block text-sky-900 mb-1">אפשרויות מרובות:</strong>
                       <span className="text-gray-700">תשלום מהיר:<br/>• ביט: 050-1234567<br/>• פייבוקס: bit.ly/pay<br/>• מזומן בפגישה</span>
                     </button>
 
                     <button
                       onClick={() => setSettings({ ...settings, paymentInstructions: 'מקבל תשלום במזומן בלבד\nבסיום כל פגישה' })}
-                      className="w-full text-right bg-white p-3 rounded border hover:border-blue-400 text-xs"
+                      className="w-full text-right bg-white p-3 rounded border hover:border-sky-400 text-xs"
                     >
-                      <strong className="block text-blue-900 mb-1">מזומן בלבד:</strong>
+                      <strong className="block text-sky-900 mb-1">מזומן בלבד:</strong>
                       <span className="text-gray-700">מקבל תשלום במזומן בלבד<br/>בסיום כל פגישה</span>
                     </button>
                   </div>

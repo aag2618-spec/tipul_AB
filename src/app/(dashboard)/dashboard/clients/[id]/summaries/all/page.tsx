@@ -170,7 +170,7 @@ export default function AllSummariesPage() {
             onClick={handleAIAnalysis} 
             disabled={isAnalyzing}
             size="lg"
-            className="gap-2 bg-gradient-to-r from-purple-600 to-blue-600 hover:from-purple-700 hover:to-blue-700"
+            className="gap-2 bg-gradient-to-r from-purple-600 to-sky-600 hover:from-purple-700 hover:to-sky-700"
           >
             {isAnalyzing ? (
               <>
@@ -246,7 +246,7 @@ export default function AllSummariesPage() {
                 <Separator className="my-8" />
                 
                 {/* AI Analysis Section */}
-                <Card className="border-2 border-purple-200 bg-gradient-to-br from-purple-50 to-blue-50">
+                <Card className="border-2 border-purple-200 bg-gradient-to-br from-purple-50 to-sky-50">
                   <CardHeader>
                     <CardTitle className="flex items-center gap-2 text-2xl">
                       <Brain className="h-7 w-7 text-purple-600" />

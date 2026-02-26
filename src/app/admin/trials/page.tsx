@@ -148,7 +148,7 @@ export default function AdminTrialsPage() {
       if (daysLeft > 0) return <Badge className="bg-amber-500">ניסיון ({daysLeft} ימים)</Badge>;
       return <Badge variant="destructive">ניסיון - פג תוקף</Badge>;
     }
-    if (user.subscriptionStatus === "ACTIVE") return <Badge className="bg-blue-600">ממיר</Badge>;
+    if (user.subscriptionStatus === "ACTIVE") return <Badge className="bg-sky-600">ממיר</Badge>;
     if (user.subscriptionStatus === "PAST_DUE") return <Badge className="bg-amber-600">חסד</Badge>;
     if (user.subscriptionStatus === "CANCELLED") return <Badge variant="destructive">בוטל</Badge>;
     return <Badge variant="outline">{user.subscriptionStatus}</Badge>;
@@ -181,7 +181,7 @@ export default function AdminTrialsPage() {
       <div className="grid grid-cols-2 md:grid-cols-3 lg:grid-cols-6 gap-3">
         <Card>
           <CardContent className="p-4 text-center">
-            <Users className="h-5 w-5 mx-auto mb-1 text-blue-600" />
+            <Users className="h-5 w-5 mx-auto mb-1 text-sky-600" />
             <p className="text-2xl font-bold">{stats.total}</p>
             <p className="text-xs text-muted-foreground">סה&quot;כ</p>
           </CardContent>
@@ -235,7 +235,7 @@ export default function AdminTrialsPage() {
             </div>
             <div className="mt-2 h-2 bg-slate-100 dark:bg-slate-800 rounded-full overflow-hidden">
               <div 
-                className="h-full bg-gradient-to-r from-purple-500 to-blue-500 rounded-full transition-all"
+                className="h-full bg-gradient-to-r from-purple-500 to-sky-500 rounded-full transition-all"
                 style={{ width: `${(stats.converted / stats.total) * 100}%` }}
               />
             </div>

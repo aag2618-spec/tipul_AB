@@ -67,8 +67,8 @@ export default function AdminDashboardPage() {
       value: stats?.totalUsers || 0,
       description: `${stats?.activeUsers || 0} פעילים | ${stats?.newUsersThisMonth || 0} חדשים החודש`,
       icon: Users,
-      color: "text-blue-500",
-      bgColor: "bg-blue-500/20",
+      color: "text-sky-500",
+      bgColor: "bg-sky-500/20",
     },
     {
       title: "קריאות API",
@@ -302,7 +302,7 @@ function RecentUsers() {
             {user.email ? (
               <a 
                 href={`mailto:${user.email}`}
-                className="text-sm text-blue-400 hover:text-blue-300 hover:underline"
+                className="text-sm text-sky-400 hover:text-sky-300 hover:underline"
               >
                 {user.email}
               </a>

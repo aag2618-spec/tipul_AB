@@ -197,7 +197,7 @@ export function ConnectionsTab() {
 
   const insurerItems = [
     { key: "clalit", label: "כללית", color: "text-green-600", config: insurerSettings.clalit, keyLabel: "API Key", secLabel: "קוד מוסד" },
-    { key: "maccabi", label: "מכבי", color: "text-blue-600", config: insurerSettings.maccabi, keyLabel: "API Key", secLabel: "קוד ספק" },
+    { key: "maccabi", label: "מכבי", color: "text-sky-600", config: insurerSettings.maccabi, keyLabel: "API Key", secLabel: "קוד ספק" },
     { key: "leumit", label: "לאומית", color: "text-red-600", config: insurerSettings.leumit, keyLabel: "API Key", secLabel: "קוד מרפאה" },
   ];
 
@@ -208,8 +208,8 @@ export function ConnectionsTab() {
         <CardHeader>
           <div className="flex items-center justify-between">
             <div className="flex items-center gap-3">
-              <div className="h-10 w-10 rounded-lg bg-blue-100 flex items-center justify-center">
-                <Calendar className="h-5 w-5 text-blue-600" />
+              <div className="h-10 w-10 rounded-lg bg-sky-100 flex items-center justify-center">
+                <Calendar className="h-5 w-5 text-sky-600" />
               </div>
               <div>
                 <CardTitle className="text-base flex items-center gap-2">

@@ -195,7 +195,7 @@ export default async function AdminAIUsagePage() {
 
             <div className="flex items-center justify-between">
               <div className="flex items-center gap-3">
-                <div className="w-12 h-12 rounded-lg bg-blue-100 flex items-center justify-center">
+                <div className="w-12 h-12 rounded-lg bg-sky-100 flex items-center justify-center">
                   <span className="text-2xl">🥈</span>
                 </div>
                 <div>

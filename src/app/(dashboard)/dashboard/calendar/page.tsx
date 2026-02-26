@@ -1072,7 +1072,7 @@ export default function CalendarPage() {
                     ? "bg-red-100 text-red-800"
                     : selectedSession.status === "CANCELLED"
                     ? "bg-gray-100 text-gray-800"
-                    : "bg-blue-100 text-blue-800"
+                    : "bg-sky-100 text-sky-800"
                 }`}>
                   {selectedSession.status === "COMPLETED" 
                     ? "✅ הושלם" 
@@ -1280,9 +1280,9 @@ export default function CalendarPage() {
                             toast.error("שגיאה בעדכון הפגישה");
                           }
                         }}
-                        className="w-full py-3 px-4 text-right hover:bg-blue-50 transition-colors flex items-center gap-3"
+                        className="w-full py-3 px-4 text-right hover:bg-sky-50 transition-colors flex items-center gap-3"
                       >
-                        <span className="flex items-center justify-center w-7 h-7 rounded-full bg-blue-600 text-white text-sm font-bold">2</span>
+                        <span className="flex items-center justify-center w-7 h-7 rounded-full bg-sky-600 text-white text-sm font-bold">2</span>
                         <span className="flex-1 font-medium">סיים ללא תשלום</span>
                       </button>
                       

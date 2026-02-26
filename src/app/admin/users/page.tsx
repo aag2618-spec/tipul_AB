@@ -369,7 +369,7 @@ export default function AdminUsersPage() {
                           user.role === "ADMIN" 
                             ? "bg-amber-500/20 text-amber-500" 
                             : user.role === "MANAGER"
-                            ? "bg-blue-500/20 text-blue-500"
+                            ? "bg-sky-500/20 text-sky-500"
                             : ""
                         }
                       >

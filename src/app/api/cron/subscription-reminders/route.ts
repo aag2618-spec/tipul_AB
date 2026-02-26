@@ -272,7 +272,7 @@ export async function GET(req: NextRequest) {
                 <p>נהנה מהמערכת? בחר מסלול ותמשיך לנהל את הפרקטיקה שלך ללא הפסקה:</p>
                 <div style="text-align: center; margin: 20px 0;">
                   <a href="${SYSTEM_URL}/dashboard/settings/billing" 
-                     style="background: linear-gradient(135deg, #2563eb, #7c3aed); color: white; padding: 12px 30px; border-radius: 8px; text-decoration: none; font-weight: bold;">
+                     style="background: linear-gradient(135deg, #0284c7, #7c3aed); color: white; padding: 12px 30px; border-radius: 8px; text-decoration: none; font-weight: bold;">
                     בחר מסלול
                   </a>
                 </div>
@@ -714,7 +714,7 @@ function createAdminNotificationHtml(
   type: "info" | "warning" | "urgent" | "error" | "success"
 ): string {
   const colors = {
-    info: { bg: "#eff6ff", border: "#3b82f6", icon: "ℹ️" },
+    info: { bg: "#f0f9ff", border: "#0ea5e9", icon: "ℹ️" },
     warning: { bg: "#fffbeb", border: "#f59e0b", icon: "⚠️" },
     urgent: { bg: "#fef2f2", border: "#ef4444", icon: "🚨" },
     error: { bg: "#fef2f2", border: "#dc2626", icon: "❌" },
@@ -742,7 +742,7 @@ function createAdminNotificationHtml(
       <div style="background: #f8fafc; padding: 12px 20px; border: 1px solid #e2e8f0; border-top: none; border-radius: 0 0 8px 8px;">
         <p style="margin: 0; color: #94a3b8; font-size: 12px; text-align: center;">
           ${new Date().toLocaleString("he-IL")} | 
-          <a href="${SYSTEM_URL}/admin/billing" style="color: #3b82f6;">פאנל ניהול</a>
+          <a href="${SYSTEM_URL}/admin/billing" style="color: #0ea5e9;">פאנל ניהול</a>
         </p>
       </div>
     </div>

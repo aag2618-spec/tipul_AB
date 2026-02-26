@@ -35,9 +35,9 @@ const TIER_CONFIG = {
     labelEn: "Professional",
     icon: Sparkles,
     emoji: "🥈",
-    bgColor: "bg-blue-100",
-    textColor: "text-blue-700",
-    borderColor: "border-blue-300",
+    bgColor: "bg-sky-100",
+    textColor: "text-sky-700",
+    borderColor: "border-sky-300",
   },
   ENTERPRISE: {
     label: "ארגוני",
@@ -59,7 +59,7 @@ const STATUS_CONFIG = {
   TRIALING: {
     label: "ניסיון",
     icon: Clock,
-    color: "text-blue-600",
+    color: "text-sky-600",
   },
   PAST_DUE: {
     label: "חוב",

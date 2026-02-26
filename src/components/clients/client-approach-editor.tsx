@@ -107,9 +107,9 @@ export function ClientApproachEditor({
 
         <div className="space-y-6">
           {/* Info Banner */}
-          <div className="bg-blue-50 dark:bg-blue-950/30 border border-blue-200 dark:border-blue-800 rounded-lg p-4 flex gap-3">
-            <Info className="h-5 w-5 text-blue-600 dark:text-blue-400 flex-shrink-0 mt-0.5" />
-            <div className="text-sm text-blue-900 dark:text-blue-100">
+          <div className="bg-sky-50 dark:bg-sky-950/30 border border-sky-200 dark:border-sky-800 rounded-lg p-4 flex gap-3">
+            <Info className="h-5 w-5 text-sky-600 dark:text-sky-400 flex-shrink-0 mt-0.5" />
+            <div className="text-sm text-sky-900 dark:text-sky-100">
               <strong>שים לב:</strong> אם תבחר גישות כאן, הן יחליפו את ברירת המחדל
               שלך עבור מטופל זה בלבד. זה שימושי כשאתה עובד עם מטופל ספציפי בגישה
               שונה מהרגיל.

@@ -264,7 +264,7 @@ export default function PayClientPage({ params }: { params: Promise<{ clientId: 
                   ₪{client.totalDebt.toFixed(0)}
                 </span>
                 {client.creditBalance > 0 && (
-                  <Badge className="bg-blue-50 text-blue-900 font-semibold border border-blue-200">
+                  <Badge className="bg-sky-50 text-sky-900 font-semibold border border-sky-200">
                     קרדיט: ₪{client.creditBalance.toFixed(0)}
                   </Badge>
                 )}
@@ -422,7 +422,7 @@ export default function PayClientPage({ params }: { params: Promise<{ clientId: 
             </div>
             <div className="text-center p-4 bg-slate-50 rounded-lg">
               <p className="text-sm text-muted-foreground">נבחרו לתשלום</p>
-              <p className="text-2xl font-bold text-blue-600">₪{selectedTotal.toFixed(0)}</p>
+              <p className="text-2xl font-bold text-sky-600">₪{selectedTotal.toFixed(0)}</p>
             </div>
             <div className="text-center p-4 bg-slate-50 rounded-lg col-span-2 md:col-span-1">
               <p className="text-sm text-muted-foreground">יישאר לשלם</p>

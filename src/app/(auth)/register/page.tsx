@@ -85,8 +85,8 @@ export default function RegisterPage() {
         
         <Card className="w-full max-w-md animate-fade-in relative text-center">
           <CardHeader className="space-y-4">
-            <div className="mx-auto w-16 h-16 bg-blue-100 dark:bg-blue-900/30 rounded-full flex items-center justify-center">
-              <Mail className="w-8 h-8 text-blue-600" />
+            <div className="mx-auto w-16 h-16 bg-sky-100 dark:bg-sky-900/30 rounded-full flex items-center justify-center">
+              <Mail className="w-8 h-8 text-sky-600" />
             </div>
             <div>
               <CardTitle className="text-2xl font-bold">בדוק את המייל שלך!</CardTitle>

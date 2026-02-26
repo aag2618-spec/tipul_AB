@@ -127,9 +127,9 @@ export function DashboardHeader({ user }: DashboardHeaderProps) {
       case "CANCELLATION_REQUEST":
         return <XCircle className="h-4 w-4 text-orange-500" />;
       case "EMAIL_RECEIVED":
-        return <Mail className="h-4 w-4 text-blue-500" />;
+        return <Mail className="h-4 w-4 text-sky-500" />;
       case "EMAIL_SENT":
-        return <Mail className="h-4 w-4 text-blue-500" />;
+        return <Mail className="h-4 w-4 text-sky-500" />;
       case "SESSION_REMINDER":
         return <Calendar className="h-4 w-4 text-green-500" />;
       default:

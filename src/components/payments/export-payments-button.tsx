@@ -179,9 +179,9 @@ export function ExportPaymentsButton() {
           </div>
 
           {/* מידע */}
-          <div className="text-sm text-muted-foreground bg-blue-50 border border-blue-200 rounded-lg p-3">
-            <p className="font-medium text-blue-900 mb-1">הקובץ יכלול:</p>
-            <ul className="text-blue-800 space-y-1">
+          <div className="text-sm text-muted-foreground bg-sky-50 border border-sky-200 rounded-lg p-3">
+            <p className="font-medium text-sky-900 mb-1">הקובץ יכלול:</p>
+            <ul className="text-sky-800 space-y-1">
               <li>• תאריך, שם מטופל, סכום, שיטת תשלום</li>
               <li>• מספרי קבלות וקישורים</li>
               <li>• סיכום סה"כ בסוף הקובץ</li>

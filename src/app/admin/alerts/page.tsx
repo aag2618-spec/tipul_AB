@@ -75,8 +75,8 @@ const ALERT_TYPES = {
   HIGH_AI_USAGE: { label: "שימוש גבוה AI", icon: Zap, color: "text-purple-500" },
   NEW_USER: { label: "משתמש חדש", icon: Users, color: "text-green-500" },
   USER_BLOCKED: { label: "משתמש נחסם", icon: XCircle, color: "text-gray-500" },
-  TIER_CHANGE_REQUEST: { label: "בקשת שינוי תוכנית", icon: RefreshCw, color: "text-blue-500" },
-  MANUAL_REMINDER: { label: "תזכורת ידנית", icon: Bell, color: "text-blue-400" },
+  TIER_CHANGE_REQUEST: { label: "בקשת שינוי תוכנית", icon: RefreshCw, color: "text-sky-500" },
+  MANUAL_REMINDER: { label: "תזכורת ידנית", icon: Bell, color: "text-sky-400" },
   SYSTEM: { label: "מערכת", icon: AlertCircle, color: "text-gray-400" },
 };
 
@@ -89,7 +89,7 @@ const PRIORITY_BADGES: Record<string, { label: string; variant: "destructive" | 
 
 const STATUS_BADGES: Record<string, { label: string; variant: "destructive" | "default" | "secondary" | "outline"; className?: string }> = {
   PENDING: { label: "ממתין", variant: "destructive", className: "" },
-  IN_PROGRESS: { label: "בטיפול", variant: "default", className: "bg-blue-500" },
+  IN_PROGRESS: { label: "בטיפול", variant: "default", className: "bg-sky-500" },
   RESOLVED: { label: "טופל", variant: "secondary", className: "bg-green-500 text-white" },
   DISMISSED: { label: "נדחה", variant: "outline", className: "" },
   SNOOZED: { label: "נדחה לאחר", variant: "outline", className: "" },
@@ -343,10 +343,10 @@ export default function AdminAlertsPage() {
               onClick={() => setFilterStatus("IN_PROGRESS")}>
           <CardHeader className="flex flex-row items-center justify-between pb-2">
             <CardTitle className="text-sm font-medium text-slate-400">בטיפול</CardTitle>
-            <Clock className="h-4 w-4 text-blue-500" />
+            <Clock className="h-4 w-4 text-sky-500" />
           </CardHeader>
           <CardContent>
-            <div className="text-2xl font-bold text-blue-500">{counts.IN_PROGRESS}</div>
+            <div className="text-2xl font-bold text-sky-500">{counts.IN_PROGRESS}</div>
           </CardContent>
         </Card>
 
@@ -584,7 +584,7 @@ export default function AdminAlertsPage() {
                 <Button
                   variant="outline"
                   onClick={() => handleUpdateStatus(selectedAlert.id, "IN_PROGRESS")}
-                  className="border-blue-500 text-blue-500"
+                  className="border-sky-500 text-sky-500"
                 >
                   סמן כ"בטיפול"
                 </Button>
