@@ -1,6 +1,6 @@
 "use client";
 
-import { useState, useMemo } from "react";
+import { useState, useMemo, useEffect } from "react";
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
@@ -36,6 +36,7 @@ import {
   ChevronDown,
   ChevronUp,
   AlertCircle,
+  Wallet,
 } from "lucide-react";
 import { format } from "date-fns";
 import { he } from "date-fns/locale";
@@ -131,11 +132,15 @@ export function SessionsView({ initialSessions }: SessionsViewProps) {
   const [expandedHistory, setExpandedHistory] = useState<Record<string, boolean>>({
     "היום": true, "שבוע אחרון": true, "חודש אחרון": false, "ישנים": false,
   });
-  const [cancelDialog, setCancelDialog] = useState<{ open: boolean; sessionId: string; clientName: string }>({
-    open: false, sessionId: "", clientName: "",
+  const [cancelDialog, setCancelDialog] = useState<{
+    open: boolean; sessionId: string; clientName: string;
+    clientId: string; startTime: string; price: number;
+  }>({
+    open: false, sessionId: "", clientName: "", clientId: "", startTime: "", price: 0,
   });
   const [cancelReason, setCancelReason] = useState("");
   const [cancelling, setCancelling] = useState(false);
+  const [cancelCharge, setCancelCharge] = useState<"ask" | "charge" | "free">("ask");
 
   const [updateDialog, setUpdateDialog] = useState<{
     open: boolean; sessionId: string; clientName: string; clientId: string; price: number;
@@ -150,8 +155,25 @@ export function SessionsView({ initialSessions }: SessionsViewProps) {
   const [paymentType, setPaymentType] = useState<"FULL" | "PARTIAL">("FULL");
   const [partialAmount, setPartialAmount] = useState("");
   const [noChargeReason, setNoChargeReason] = useState("");
+  const [clientDebt, setClientDebt] = useState<{ total: number; count: number } | null>(null);
 
   const now = useMemo(() => new Date(), []);
+
+  useEffect(() => {
+    if (updateDialog.open && updateDialog.clientId) {
+      fetch(`/api/payments/client-debt/${updateDialog.clientId}`)
+        .then(res => res.json())
+        .then(data => {
+          setClientDebt({
+            total: Number(data.totalDebt || 0),
+            count: data.unpaidSessions?.length || 0,
+          });
+        })
+        .catch(() => setClientDebt(null));
+    } else {
+      setClientDebt(null);
+    }
+  }, [updateDialog.open, updateDialog.clientId]);
 
   const searchFilter = (s: Session, term: string) => {
     if (!term.trim()) return true;
@@ -192,18 +214,48 @@ export function SessionsView({ initialSessions }: SessionsViewProps) {
     return g;
   }, [history]);
 
-  const handleCancel = async () => {
+  const isWithin24h = (startTime: string) => {
+    const sessionTime = new Date(startTime).getTime();
+    const nowTime = Date.now();
+    return sessionTime - nowTime <= 24 * 60 * 60 * 1000;
+  };
+
+  const handleCancel = async (charge: boolean = false) => {
     setCancelling(true);
     try {
-      const res = await fetch(`/api/sessions/${cancelDialog.sessionId}/status`, {
-        method: "PATCH",
-        headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({
-          status: "CANCELLED",
-          cancellationReason: cancelReason.trim() || undefined,
-        }),
-      });
-      if (res.ok) {
+      const updates: Promise<Response>[] = [];
+
+      updates.push(
+        fetch(`/api/sessions/${cancelDialog.sessionId}/status`, {
+          method: "PATCH",
+          headers: { "Content-Type": "application/json" },
+          body: JSON.stringify({
+            status: "CANCELLED",
+            cancellationReason: cancelReason.trim() || undefined,
+          }),
+        })
+      );
+
+      if (charge && cancelDialog.price > 0) {
+        updates.push(
+          fetch("/api/payments", {
+            method: "POST",
+            headers: { "Content-Type": "application/json" },
+            body: JSON.stringify({
+              clientId: cancelDialog.clientId,
+              sessionId: cancelDialog.sessionId,
+              amount: cancelDialog.price,
+              expectedAmount: cancelDialog.price,
+              paymentType: "FULL",
+              method: "CASH",
+              status: "PENDING",
+            }),
+          })
+        );
+      }
+
+      const results = await Promise.all(updates);
+      if (results[0].ok) {
         setSessions(prev =>
           prev.map(s =>
             s.id === cancelDialog.sessionId
@@ -211,9 +263,10 @@ export function SessionsView({ initialSessions }: SessionsViewProps) {
               : s
           )
         );
-        toast.success("הפגישה בוטלה בהצלחה");
-        setCancelDialog({ open: false, sessionId: "", clientName: "" });
+        toast.success(charge ? "הפגישה בוטלה - נוצר חיוב" : "הפגישה בוטלה ללא חיוב");
+        setCancelDialog({ open: false, sessionId: "", clientName: "", clientId: "", startTime: "", price: 0 });
         setCancelReason("");
+        setCancelCharge("ask");
       } else {
         toast.error("שגיאה בביטול הפגישה");
       }
@@ -387,7 +440,10 @@ export function SessionsView({ initialSessions }: SessionsViewProps) {
             className="h-8 text-xs text-muted-foreground/60 hover:text-red-500 hover:bg-red-50/50"
             onClick={(e) => {
               e.stopPropagation();
-              setCancelDialog({ open: true, sessionId: s.id, clientName: s.client?.name || "" });
+              setCancelDialog({
+                open: true, sessionId: s.id, clientName: s.client?.name || "",
+                clientId: s.client?.id || "", startTime: s.startTime, price: s.price || 0,
+              });
             }}
           >
             <XCircle className="h-3.5 w-3.5 ml-1" />
@@ -527,7 +583,13 @@ export function SessionsView({ initialSessions }: SessionsViewProps) {
       </Tabs>
 
       {/* Cancel Dialog */}
-      <Dialog open={cancelDialog.open} onOpenChange={(o) => { if (!o) { setCancelDialog({ open: false, sessionId: "", clientName: "" }); setCancelReason(""); } }}>
+      <Dialog open={cancelDialog.open} onOpenChange={(o) => {
+        if (!o) {
+          setCancelDialog({ open: false, sessionId: "", clientName: "", clientId: "", startTime: "", price: 0 });
+          setCancelReason("");
+          setCancelCharge("ask");
+        }
+      }}>
         <DialogContent className="sm:max-w-md" dir="rtl">
           <DialogHeader>
             <DialogTitle>ביטול פגישה</DialogTitle>
@@ -547,23 +609,71 @@ export function SessionsView({ initialSessions }: SessionsViewProps) {
                 className="resize-none h-20 bg-muted/20 border-muted-foreground/10"
               />
             </div>
+
+            {isWithin24h(cancelDialog.startTime) && cancelDialog.price > 0 && cancelCharge === "ask" && (
+              <div className="p-3 rounded-lg border bg-amber-50 border-amber-200">
+                <p className="text-sm font-semibold text-amber-800 mb-2">
+                  הפגישה תוך 24 שעות - האם לחייב דמי ביטול?
+                </p>
+                <p className="text-xs text-amber-700 mb-3">
+                  סכום: ₪{cancelDialog.price}
+                </p>
+                <div className="flex gap-2">
+                  <Button
+                    size="sm"
+                    className="flex-1 bg-amber-600 hover:bg-amber-700"
+                    onClick={() => setCancelCharge("charge")}
+                  >
+                    כן, לחייב
+                  </Button>
+                  <Button
+                    size="sm"
+                    variant="outline"
+                    className="flex-1"
+                    onClick={() => setCancelCharge("free")}
+                  >
+                    לא, פטור
+                  </Button>
+                </div>
+              </div>
+            )}
+
+            {cancelCharge === "charge" && (
+              <div className="p-3 rounded-lg border bg-emerald-50 border-emerald-200">
+                <p className="text-sm text-emerald-700">
+                  ✓ ייווצר חיוב של ₪{cancelDialog.price} למטופל
+                </p>
+              </div>
+            )}
+
+            {cancelCharge === "free" && (
+              <div className="p-3 rounded-lg border bg-sky-50 border-sky-200">
+                <p className="text-sm text-sky-700">
+                  ✓ הביטול יהיה ללא חיוב
+                </p>
+              </div>
+            )}
           </div>
           <DialogFooter className="gap-2 sm:gap-0">
             <Button
               variant="outline"
-              onClick={() => { setCancelDialog({ open: false, sessionId: "", clientName: "" }); setCancelReason(""); }}
+              onClick={() => {
+                setCancelDialog({ open: false, sessionId: "", clientName: "", clientId: "", startTime: "", price: 0 });
+                setCancelReason("");
+                setCancelCharge("ask");
+              }}
               disabled={cancelling}
             >
               חזרה
             </Button>
             <Button
               variant="destructive"
-              onClick={handleCancel}
-              disabled={cancelling}
+              onClick={() => handleCancel(cancelCharge === "charge")}
+              disabled={cancelling || (isWithin24h(cancelDialog.startTime) && cancelDialog.price > 0 && cancelCharge === "ask")}
               className="bg-red-500 hover:bg-red-600"
             >
               {cancelling ? <Loader2 className="h-4 w-4 animate-spin ml-1" /> : <Ban className="h-4 w-4 ml-1" />}
-              בטל פגישה
+              {cancelCharge === "charge" ? "בטל וחייב" : "בטל פגישה"}
             </Button>
           </DialogFooter>
         </DialogContent>
@@ -766,6 +876,25 @@ export function SessionsView({ initialSessions }: SessionsViewProps) {
                   </div>
                 )}
               </>
+            )}
+
+            {clientDebt && clientDebt.count > 1 && clientDebt.total > 0 && (
+              <div className="pt-3 border-t mt-2">
+                <p className="text-sm text-muted-foreground mb-2 text-center">
+                  למטופל יש עוד {clientDebt.count - 1} פגישות ממתינות לתשלום
+                  (סה״כ חוב: ₪{clientDebt.total.toFixed(0)})
+                </p>
+                <Button
+                  variant="outline"
+                  className="w-full gap-2"
+                  asChild
+                >
+                  <Link href={`/dashboard/payments/pay/${updateDialog.clientId}`}>
+                    <Wallet className="h-4 w-4" />
+                    שלם את כל החוב
+                  </Link>
+                </Button>
+              </div>
             )}
           </div>
           <DialogFooter className="gap-2 sm:gap-0">
