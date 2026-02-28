@@ -76,10 +76,10 @@ export default async function ClientsPage({ searchParams }: PageProps) {
   if (!session?.user?.id) return null;
 
   const params = await searchParams;
-  const statusFilter = params.status as ClientStatus | undefined;
+  const rawStatus = params.status;
   const validStatuses: ClientStatus[] = ["ACTIVE", "WAITING", "ARCHIVED"];
-  const mappedFilter = statusFilter === "INACTIVE" ? "ARCHIVED" : statusFilter;
-  const activeStatus = validStatuses.includes(mappedFilter as ClientStatus) ? mappedFilter as ClientStatus : undefined;
+  const mappedStatus = rawStatus === "INACTIVE" ? "ARCHIVED" : rawStatus;
+  const activeStatus = validStatuses.includes(mappedStatus as ClientStatus) ? mappedStatus as ClientStatus : undefined;
 
   const [clients, counts] = await Promise.all([
     getClients(session.user.id, activeStatus),
