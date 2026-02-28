@@ -61,6 +61,40 @@ export async function GET(request: NextRequest) {
   }
 }
 
+export async function POST(request: NextRequest) {
+  try {
+    const session = await getServerSession(authOptions);
+    if (!session?.user?.id) {
+      return NextResponse.json({ message: "לא מורשה" }, { status: 401 });
+    }
+
+    const { type, title, content } = await request.json();
+
+    if (!title || !content) {
+      return NextResponse.json({ message: "חסרים שדות חובה" }, { status: 400 });
+    }
+
+    const notification = await prisma.notification.create({
+      data: {
+        userId: session.user.id,
+        type: type || "CUSTOM",
+        title,
+        content,
+        status: "PENDING",
+        sentAt: new Date(),
+      },
+    });
+
+    return NextResponse.json(notification, { status: 201 });
+  } catch (error) {
+    console.error("Create notification error:", error);
+    return NextResponse.json(
+      { message: "שגיאה ביצירת התראה" },
+      { status: 500 }
+    );
+  }
+}
+
 export async function PUT(request: NextRequest) {
   try {
     const session = await getServerSession(authOptions);

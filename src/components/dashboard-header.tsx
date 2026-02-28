@@ -15,7 +15,7 @@ import {
 } from "@/components/ui/dropdown-menu";
 import { Avatar, AvatarFallback, AvatarImage } from "@/components/ui/avatar";
 import { Badge } from "@/components/ui/badge";
-import { Bell, LogOut, Settings, User, XCircle, Mail, Calendar, X } from "lucide-react";
+import { Bell, LogOut, Settings, User, XCircle, Mail, Calendar, X, ListTodo } from "lucide-react";
 import Link from "next/link";
 
 interface Notification {
@@ -57,7 +57,7 @@ export function DashboardHeader({ user }: DashboardHeaderProps) {
 
   const fetchNotifications = async () => {
     try {
-      const response = await fetch("/api/notifications?limit=20&unread=true&type=EMAIL_RECEIVED");
+      const response = await fetch("/api/notifications?limit=20&unread=true");
       if (response.ok) {
         const data = await response.json();
         setNotifications(data.notifications || []);
@@ -132,6 +132,9 @@ export function DashboardHeader({ user }: DashboardHeaderProps) {
         return <Mail className="h-4 w-4 text-sky-500" />;
       case "SESSION_REMINDER":
         return <Calendar className="h-4 w-4 text-green-500" />;
+      case "PENDING_TASKS":
+      case "CUSTOM":
+        return <ListTodo className="h-4 w-4 text-amber-500" />;
       default:
         return <Bell className="h-4 w-4" />;
     }
@@ -139,8 +142,11 @@ export function DashboardHeader({ user }: DashboardHeaderProps) {
 
   const handleNotificationClick = (notification: Notification) => {
     markAsRead(notification.id);
-    // Navigate to communications page to see the email reply
-    router.push("/dashboard/communications");
+    if (notification.type === "PENDING_TASKS" || notification.type === "CUSTOM") {
+      router.push("/dashboard");
+    } else {
+      router.push("/dashboard/communications");
+    }
   };
 
   const totalBadge = unreadCount + pendingCancellations;

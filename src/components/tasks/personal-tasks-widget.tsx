@@ -104,6 +104,22 @@ export function PersonalTasksWidget() {
     }
   }, []);
 
+  const [activeReminders, setActiveReminders] = useState<Set<string>>(new Set());
+
+  useEffect(() => {
+    const now = new Date();
+    const active = new Set<string>();
+    tasks.forEach(task => {
+      if (task.reminderAt) {
+        const reminderTime = new Date(task.reminderAt);
+        if (now.getTime() >= reminderTime.getTime()) {
+          active.add(task.id);
+        }
+      }
+    });
+    setActiveReminders(active);
+  }, [tasks]);
+
   useEffect(() => {
     const checkReminders = () => {
       const now = new Date();
@@ -118,7 +134,19 @@ export function PersonalTasksWidget() {
               new Notification("תזכורת: " + task.title, { body: task.description || "יש לך משימה", icon: "/favicon.ico" });
             }
             localStorage.setItem(notifiedKey, JSON.stringify([...notified, task.id]));
-            toast.info(`תזכורת: ${task.title}`);
+            toast.info(`תזכורת: ${task.title}`, { duration: 10000 });
+
+            setActiveReminders(prev => new Set(prev).add(task.id));
+
+            fetch("/api/notifications", {
+              method: "POST",
+              headers: { "Content-Type": "application/json" },
+              body: JSON.stringify({
+                type: "PENDING_TASKS",
+                title: `תזכורת: ${task.title}`,
+                content: task.description || "יש לך מטלה שדורשת טיפול",
+              }),
+            }).catch(() => {});
           }
         }
       });
@@ -267,8 +295,17 @@ export function PersonalTasksWidget() {
                 {visibleTasks.map(task => (
                   <div
                     key={task.id}
-                    className="flex items-center gap-2 py-1.5 px-2 rounded hover:bg-muted/50 group cursor-pointer"
-                    onClick={() => openTask(task)}
+                    className={`flex items-center gap-2 py-1.5 px-2 rounded hover:bg-muted/50 group cursor-pointer transition-all ${
+                      activeReminders.has(task.id) ? "animate-pulse bg-amber-50 border border-amber-200 shadow-sm" : ""
+                    }`}
+                    onClick={() => {
+                      setActiveReminders(prev => {
+                        const next = new Set(prev);
+                        next.delete(task.id);
+                        return next;
+                      });
+                      openTask(task);
+                    }}
                   >
                     <div onClick={(e) => e.stopPropagation()}>
                       <Checkbox className="h-4 w-4" onCheckedChange={() => handleComplete(task.id)} />
