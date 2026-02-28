@@ -291,12 +291,14 @@ export function PersonalTasksWidget() {
         <CardContent className="pb-3">
           {showHistory ? renderHistory() : (
             <>
-              <div className="space-y-1.5">
+              <div className="space-y-2">
                 {visibleTasks.map(task => (
                   <div
                     key={task.id}
-                    className={`flex items-center gap-2 py-1.5 px-2 rounded hover:bg-muted/50 group cursor-pointer transition-all ${
-                      activeReminders.has(task.id) ? "animate-pulse bg-amber-50 border border-amber-200 shadow-sm" : ""
+                    className={`flex items-center gap-2 py-2 px-3 rounded-lg group cursor-pointer transition-all ${
+                      activeReminders.has(task.id)
+                        ? "animate-pulse bg-amber-50 border border-amber-200 shadow-sm"
+                        : "bg-sky-50/40 hover:bg-sky-50/70 border border-sky-100/50"
                     }`}
                     onClick={() => {
                       setActiveReminders(prev => {
@@ -311,7 +313,6 @@ export function PersonalTasksWidget() {
                       <Checkbox className="h-4 w-4" onCheckedChange={() => handleComplete(task.id)} />
                     </div>
                     <span className="text-sm flex-1 truncate">{task.title}</span>
-                    {task.description && <span className="text-[10px] text-muted-foreground shrink-0">...</span>}
                     {task.reminderAt && <Bell className="h-3 w-3 text-amber-500 shrink-0" />}
                     {task.dueDate && (
                       <span className="text-[11px] text-muted-foreground shrink-0">
