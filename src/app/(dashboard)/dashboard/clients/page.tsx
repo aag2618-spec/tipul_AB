@@ -5,24 +5,24 @@ import { Button } from "@/components/ui/button";
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
 import { Badge } from "@/components/ui/badge";
 import { Avatar, AvatarFallback } from "@/components/ui/avatar";
-import { Plus, Phone, Mail, MoreVertical, Users } from "lucide-react";
+import { Plus, Phone, Mail, Users } from "lucide-react";
 import Link from "next/link";
-import {
-  DropdownMenu,
-  DropdownMenuContent,
-  DropdownMenuItem,
-  DropdownMenuTrigger,
-} from "@/components/ui/dropdown-menu";
 import { format } from "date-fns";
 import { ExportAllClientsButton } from "@/components/clients/export-all-clients-button";
 
-type ClientStatus = "ACTIVE" | "WAITING" | "INACTIVE" | "ARCHIVED";
+type ClientStatus = "ACTIVE" | "WAITING" | "ARCHIVED";
 
 async function getClients(userId: string, status?: ClientStatus) {
+  const statusFilter = status === "ARCHIVED" 
+    ? { status: { in: ["ARCHIVED" as const, "INACTIVE" as const] } }
+    : status 
+      ? { status } 
+      : {};
+
   return prisma.client.findMany({
     where: { 
       therapistId: userId,
-      ...(status && { status }),
+      ...statusFilter,
     },
     orderBy: { lastName: "asc" },
     include: {
@@ -37,14 +37,13 @@ async function getClients(userId: string, status?: ClientStatus) {
 }
 
 async function getClientCounts(userId: string) {
-  const [active, waiting, inactive, archived, total] = await Promise.all([
+  const [active, waiting, inactiveAndArchived, total] = await Promise.all([
     prisma.client.count({ where: { therapistId: userId, status: "ACTIVE" } }),
     prisma.client.count({ where: { therapistId: userId, status: "WAITING" } }),
-    prisma.client.count({ where: { therapistId: userId, status: "INACTIVE" } }),
-    prisma.client.count({ where: { therapistId: userId, status: "ARCHIVED" } }),
+    prisma.client.count({ where: { therapistId: userId, status: { in: ["INACTIVE", "ARCHIVED"] } } }),
     prisma.client.count({ where: { therapistId: userId } }),
   ]);
-  return { active, waiting, inactive, archived, total };
+  return { active, waiting, archived: inactiveAndArchived, total };
 }
 
 const statusConfig: Record<ClientStatus, { label: string; bgColor: string; textColor: string; borderColor: string }> = {
@@ -60,17 +59,11 @@ const statusConfig: Record<ClientStatus, { label: string; bgColor: string; textC
     textColor: "text-amber-900 font-semibold", 
     borderColor: "border-amber-200" 
   },
-  INACTIVE: { 
-    label: "לא פעילים", 
+  ARCHIVED: { 
+    label: "ארכיון", 
     bgColor: "bg-slate-50", 
     textColor: "text-slate-900 font-semibold", 
     borderColor: "border-slate-200" 
-  },
-  ARCHIVED: { 
-    label: "ארכיון", 
-    bgColor: "bg-purple-50", 
-    textColor: "text-purple-900 font-semibold", 
-    borderColor: "border-purple-200" 
   },
 };
 
@@ -84,8 +77,9 @@ export default async function ClientsPage({ searchParams }: PageProps) {
 
   const params = await searchParams;
   const statusFilter = params.status as ClientStatus | undefined;
-  const validStatuses: ClientStatus[] = ["ACTIVE", "WAITING", "INACTIVE", "ARCHIVED"];
-  const activeStatus = validStatuses.includes(statusFilter as ClientStatus) ? statusFilter : undefined;
+  const validStatuses: ClientStatus[] = ["ACTIVE", "WAITING", "ARCHIVED"];
+  const mappedFilter = statusFilter === "INACTIVE" ? "ARCHIVED" : statusFilter;
+  const activeStatus = validStatuses.includes(mappedFilter as ClientStatus) ? mappedFilter as ClientStatus : undefined;
 
   const [clients, counts] = await Promise.all([
     getClients(session.user.id, activeStatus),
@@ -105,9 +99,8 @@ export default async function ClientsPage({ searchParams }: PageProps) {
       case "WAITING":
         return <Badge className="bg-amber-50 text-amber-900 font-semibold hover:bg-amber-100 border border-amber-200">ממתין</Badge>;
       case "INACTIVE":
-        return <Badge className="bg-slate-50 text-slate-900 font-semibold hover:bg-slate-100 border border-slate-200">לא פעיל</Badge>;
       case "ARCHIVED":
-        return <Badge className="bg-purple-50 text-purple-900 font-semibold hover:bg-purple-100 border border-purple-200">בארכיון</Badge>;
+        return <Badge className="bg-slate-50 text-slate-900 font-semibold hover:bg-slate-100 border border-slate-200">ארכיון</Badge>;
       default:
         return null;
     }
@@ -159,34 +152,23 @@ export default async function ClientsPage({ searchParams }: PageProps) {
           </Badge>
         </Link>
         
-        <DropdownMenu>
-          <DropdownMenuTrigger asChild>
-            <Badge 
-              variant="outline"
-              className="cursor-pointer text-sm py-2 px-4 hover:bg-muted"
-            >
-              אחרים ({counts.waiting + counts.inactive + counts.archived})
-              <MoreVertical className="h-3 w-3 mr-1" />
-            </Badge>
-          </DropdownMenuTrigger>
-          <DropdownMenuContent align="start">
-            <DropdownMenuItem asChild>
-              <Link href="/dashboard/clients?status=WAITING" className="cursor-pointer">
-                ממתינים ({counts.waiting})
-              </Link>
-            </DropdownMenuItem>
-            <DropdownMenuItem asChild>
-              <Link href="/dashboard/clients?status=INACTIVE" className="cursor-pointer">
-                לא פעילים ({counts.inactive})
-              </Link>
-            </DropdownMenuItem>
-            <DropdownMenuItem asChild>
-              <Link href="/dashboard/clients?status=ARCHIVED" className="cursor-pointer">
-                ארכיון ({counts.archived})
-              </Link>
-            </DropdownMenuItem>
-          </DropdownMenuContent>
-        </DropdownMenu>
+        <Link href="/dashboard/clients?status=WAITING">
+          <Badge 
+            variant={activeStatus === "WAITING" ? "default" : "outline"}
+            className={`cursor-pointer text-sm py-2 px-4 ${activeStatus === "WAITING" ? "bg-amber-500" : "hover:bg-muted"}`}
+          >
+            ממתינים ({counts.waiting})
+          </Badge>
+        </Link>
+
+        <Link href="/dashboard/clients?status=ARCHIVED">
+          <Badge 
+            variant={activeStatus === "ARCHIVED" ? "default" : "outline"}
+            className={`cursor-pointer text-sm py-2 px-4 ${activeStatus === "ARCHIVED" ? "bg-slate-500" : "hover:bg-muted"}`}
+          >
+            ארכיון ({counts.archived})
+          </Badge>
+        </Link>
       </div>
 
       {/* Current filter indicator */}

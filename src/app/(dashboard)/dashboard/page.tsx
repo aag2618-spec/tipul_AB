@@ -59,7 +59,6 @@ async function getDashboardStats(userId: string) {
     totalClients,
     activeClients,
     waitingClientsCount,
-    inactiveClients,
     archivedClients,
     sessionsThisWeek,
     sessionsThisMonth,
@@ -71,8 +70,7 @@ async function getDashboardStats(userId: string) {
     prisma.client.count({ where: { therapistId: userId } }),
     prisma.client.count({ where: { therapistId: userId, status: "ACTIVE" } }),
     prisma.client.count({ where: { therapistId: userId, status: "WAITING" } }),
-    prisma.client.count({ where: { therapistId: userId, status: "INACTIVE" } }),
-    prisma.client.count({ where: { therapistId: userId, status: "ARCHIVED" } }),
+    prisma.client.count({ where: { therapistId: userId, status: { in: ["INACTIVE", "ARCHIVED"] } } }),
     prisma.therapySession.count({
       where: {
         therapistId: userId,
@@ -204,7 +202,6 @@ async function getDashboardStats(userId: string) {
     totalClients,
     activeClients,
     waitingClientsCount,
-    inactiveClients,
     archivedClients,
     sessionsThisWeek,
     sessionsThisMonth,

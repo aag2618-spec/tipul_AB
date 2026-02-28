@@ -200,8 +200,6 @@ export default async function ClientPage({
                     ? "default"
                     : client.status === "WAITING"
                     ? "secondary"
-                    : client.status === "INACTIVE"
-                    ? "outline"
                     : "outline"
                 }
                 className={
@@ -209,18 +207,14 @@ export default async function ClientPage({
                     ? "bg-emerald-50 text-emerald-900 font-semibold border border-emerald-200" 
                     : client.status === "WAITING" 
                     ? "bg-amber-50 text-amber-900 font-semibold border border-amber-200" 
-                    : client.status === "INACTIVE"
-                    ? "bg-slate-50 text-slate-900 font-semibold border border-slate-200"
-                    : "bg-purple-50 text-purple-900 font-semibold border border-purple-200"
+                    : "bg-slate-50 text-slate-900 font-semibold border border-slate-200"
                 }
               >
                 {client.status === "ACTIVE"
                   ? "פעיל"
                   : client.status === "WAITING"
                   ? "ממתין"
-                  : client.status === "INACTIVE"
-                  ? "לא פעיל"
-                  : "בארכיון"}
+                  : "ארכיון"}
               </Badge>
             </div>
             <p className="text-muted-foreground">

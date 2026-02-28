@@ -102,7 +102,7 @@ async function getReportData(userId: string) {
         count: s._count,
       })),
       clientStatus: clientStatus.map((c) => ({
-        status: c.status === "ACTIVE" ? "פעילים" : c.status === "INACTIVE" ? "לא פעילים" : "בארכיון",
+        status: c.status === "ACTIVE" ? "פעילים" : c.status === "WAITING" ? "ממתינים" : "ארכיון",
         count: c._count,
       })),
     };
