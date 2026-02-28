@@ -594,6 +594,7 @@ enum TaskStatus {
   IN_PROGRESS
   COMPLETED
   CANCELLED
+  DISMISSED
 }
 
 enum Priority {
