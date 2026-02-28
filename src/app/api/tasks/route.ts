@@ -33,8 +33,23 @@ export async function GET(request: NextRequest) {
     const status = searchParams.get("status");
     const type = searchParams.get("type");
     const withReminders = searchParams.get("withReminders");
+    const history = searchParams.get("history");
 
     const where: Record<string, unknown> = { userId: session.user.id };
+
+    if (history === "true") {
+      const thirtyDaysAgo = new Date();
+      thirtyDaysAgo.setDate(thirtyDaysAgo.getDate() - 30);
+      where.type = "CUSTOM";
+      where.status = { in: ["COMPLETED", "DISMISSED"] };
+      where.updatedAt = { gte: thirtyDaysAgo };
+
+      const tasks = await prisma.task.findMany({
+        where,
+        orderBy: [{ updatedAt: "desc" }],
+      });
+      return NextResponse.json(tasks);
+    }
 
     if (status) {
       where.status = status;
@@ -44,7 +59,6 @@ export async function GET(request: NextRequest) {
       where.type = type;
     }
 
-    // Filter tasks with upcoming reminders (next 24 hours)
     if (withReminders === "true") {
       const now = new Date();
       const tomorrow = new Date(now);
