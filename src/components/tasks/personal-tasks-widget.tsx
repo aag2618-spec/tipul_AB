@@ -106,11 +106,24 @@ export function PersonalTasksWidget() {
 
   const [activeReminders, setActiveReminders] = useState<Set<string>>(new Set());
 
+  const getAcknowledged = (): string[] => {
+    try { return JSON.parse(localStorage.getItem("acknowledged_reminders") || "[]"); }
+    catch { return []; }
+  };
+
+  const addAcknowledged = (taskId: string) => {
+    const list = getAcknowledged();
+    if (!list.includes(taskId)) {
+      localStorage.setItem("acknowledged_reminders", JSON.stringify([...list, taskId]));
+    }
+  };
+
   useEffect(() => {
     const now = new Date();
+    const acknowledged = getAcknowledged();
     const active = new Set<string>();
     tasks.forEach(task => {
-      if (task.reminderAt) {
+      if (task.reminderAt && !acknowledged.includes(task.id)) {
         const reminderTime = new Date(task.reminderAt);
         if (now.getTime() >= reminderTime.getTime()) {
           active.add(task.id);
@@ -268,7 +281,7 @@ export function PersonalTasksWidget() {
 
   return (
     <>
-      <Card>
+      <Card id="personal-tasks">
         <CardHeader className="flex flex-row items-center justify-between pb-2">
           <div className="flex items-center gap-2">
             <ListTodo className="h-4 w-4 text-primary" />
@@ -297,15 +310,18 @@ export function PersonalTasksWidget() {
                     key={task.id}
                     className={`flex items-center gap-2 py-2 px-3 rounded-lg group cursor-pointer transition-all ${
                       activeReminders.has(task.id)
-                        ? "animate-pulse bg-amber-50 border border-amber-200 shadow-sm"
-                        : "bg-sky-50/40 hover:bg-sky-50/70 border border-sky-100/50"
+                        ? "animate-pulse bg-amber-100 border border-amber-300 shadow-sm"
+                        : "bg-sky-100/60 hover:bg-sky-100 border border-sky-200"
                     }`}
                     onClick={() => {
-                      setActiveReminders(prev => {
-                        const next = new Set(prev);
-                        next.delete(task.id);
-                        return next;
-                      });
+                      if (activeReminders.has(task.id)) {
+                        addAcknowledged(task.id);
+                        setActiveReminders(prev => {
+                          const next = new Set(prev);
+                          next.delete(task.id);
+                          return next;
+                        });
+                      }
                       openTask(task);
                     }}
                   >

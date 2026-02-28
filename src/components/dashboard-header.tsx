@@ -143,7 +143,10 @@ export function DashboardHeader({ user }: DashboardHeaderProps) {
   const handleNotificationClick = (notification: Notification) => {
     markAsRead(notification.id);
     if (notification.type === "PENDING_TASKS" || notification.type === "CUSTOM") {
-      router.push("/dashboard");
+      router.push("/dashboard#personal-tasks");
+      setTimeout(() => {
+        document.getElementById("personal-tasks")?.scrollIntoView({ behavior: "smooth", block: "center" });
+      }, 300);
     } else {
       router.push("/dashboard/communications");
     }
