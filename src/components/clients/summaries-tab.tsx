@@ -8,19 +8,11 @@ import { Input } from "@/components/ui/input";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
 import {
-  DropdownMenu,
-  DropdownMenuContent,
-  DropdownMenuItem,
-  DropdownMenuTrigger,
-} from "@/components/ui/dropdown-menu";
-import {
   Calendar,
   CheckCircle,
   Clock,
   Eye,
   FileText,
-  MoreVertical,
-  Plus,
   Search,
   Trash2,
 } from "lucide-react";
@@ -208,50 +200,44 @@ export function SummariesTab({ clientId, sessions }: SummariesTabProps) {
           </CardHeader>
           <CardContent>
             {unsummarizedSessions.length > 0 ? (
-              <div className="space-y-3">
+              <div className="grid gap-3 grid-cols-1 sm:grid-cols-2 lg:grid-cols-3">
                 {unsummarizedSessions.map((session) => (
                   <div
                     key={session.id}
-                    className="flex items-center justify-between p-4 border rounded-lg bg-orange-50/50 hover:bg-orange-50 transition-colors group"
+                    className="border rounded-xl p-4 bg-card hover:shadow-md transition-all flex flex-col justify-between min-h-[120px] group"
                   >
-                    <div className="flex items-center gap-3">
-                      <Calendar className="h-5 w-5 text-orange-600" />
-                      <div>
-                        <p className="font-medium">
-                          {format(new Date(session.startTime), "EEEE, d בMMMM yyyy", { locale: he })}
-                        </p>
-                        <p className="text-sm text-muted-foreground">
-                          {format(new Date(session.startTime), "HH:mm")} - {format(new Date(session.endTime), "HH:mm")}
-                        </p>
+                    <div>
+                      <div className="flex items-center gap-2 text-muted-foreground/70 mb-1">
+                        <Calendar className="h-3.5 w-3.5" />
+                        <span className="text-sm">
+                          {format(new Date(session.startTime), "EEEE, d/M", { locale: he })}
+                        </span>
                       </div>
+                      <p className="text-sm text-muted-foreground/60">
+                        {format(new Date(session.startTime), "HH:mm")} - {format(new Date(session.endTime), "HH:mm")}
+                      </p>
                     </div>
-                    <div className="flex items-center gap-2">
-                      <Button asChild size="sm">
+                    <div className="flex items-center gap-2 mt-3">
+                      <Button
+                        size="sm"
+                        className="flex-1 gap-1.5 bg-primary/10 text-primary border border-primary/20 hover:bg-primary/15 shadow-none"
+                        asChild
+                      >
                         <Link href={`/dashboard/sessions/${session.id}`}>
-                          <Plus className="h-4 w-4 ml-2" />
+                          <FileText className="h-3.5 w-3.5" />
                           סכם פגישה
                         </Link>
                       </Button>
-                      <DropdownMenu>
-                        <DropdownMenuTrigger asChild>
-                          <Button
-                            variant="ghost"
-                            size="sm"
-                            className="h-8 w-8 p-0 opacity-0 group-hover:opacity-100 transition-opacity"
-                          >
-                            <MoreVertical className="h-4 w-4" />
-                          </Button>
-                        </DropdownMenuTrigger>
-                        <DropdownMenuContent align="end">
-                          <DropdownMenuItem
-                            className="text-orange-600 focus:text-orange-600"
-                            onClick={() => handleHideSession(session.id)}
-                          >
-                            <Trash2 className="h-4 w-4 ml-2" />
-                            הסר מהרשימה
-                          </DropdownMenuItem>
-                        </DropdownMenuContent>
-                      </DropdownMenu>
+                      <Button
+                        type="button"
+                        variant="ghost"
+                        size="sm"
+                        className="px-2 text-muted-foreground/40 hover:text-destructive hover:bg-destructive/10 opacity-0 group-hover:opacity-100 transition-opacity"
+                        onClick={() => handleHideSession(session.id)}
+                        title="הסר מהרשימה"
+                      >
+                        <Trash2 className="h-4 w-4" />
+                      </Button>
                     </div>
                   </div>
                 ))}
@@ -278,57 +264,45 @@ export function SummariesTab({ clientId, sessions }: SummariesTabProps) {
           </CardHeader>
           <CardContent>
             {summarizedSessions.length > 0 ? (
-              <div className="space-y-3">
+              <div className="grid gap-3 grid-cols-1 sm:grid-cols-2 lg:grid-cols-3">
                 {summarizedSessions.map((session) => (
                   <div
                     key={session.id}
-                    className="flex items-center justify-between p-4 border rounded-lg hover:bg-slate-50 transition-colors group"
+                    className="border rounded-xl p-4 bg-card hover:shadow-md transition-all flex flex-col justify-between min-h-[120px] group"
                   >
-                    <div className="flex-1">
-                      <div className="flex items-center gap-3 mb-2">
-                        <Calendar className="h-5 w-5 text-green-600" />
-                        <div>
-                          <p className="font-medium">
-                            {format(new Date(session.startTime), "EEEE, d בMMMM yyyy", { locale: he })}
-                          </p>
-                          <p className="text-sm text-muted-foreground">
-                            {format(new Date(session.startTime), "HH:mm")} - {format(new Date(session.endTime), "HH:mm")}
-                          </p>
-                        </div>
+                    <div>
+                      <div className="flex items-center gap-2 text-muted-foreground/70 mb-1">
+                        <Calendar className="h-3.5 w-3.5 text-emerald-500" />
+                        <span className="text-sm">
+                          {format(new Date(session.startTime), "EEEE, d/M", { locale: he })}
+                        </span>
                       </div>
+                      <p className="text-sm text-muted-foreground/60">
+                        {format(new Date(session.startTime), "HH:mm")} - {format(new Date(session.endTime), "HH:mm")}
+                      </p>
                       {session.sessionNote && (
-                        <p className="text-sm text-muted-foreground line-clamp-2 mr-8">
+                        <p className="text-xs text-muted-foreground/50 line-clamp-2 mt-2">
                           {session.sessionNote.content}
                         </p>
                       )}
                     </div>
-                    <div className="flex items-center gap-2">
-                      <Button variant="outline" size="sm" asChild>
+                    <div className="flex items-center gap-2 mt-3">
+                      <Button variant="outline" size="sm" className="flex-1 gap-1.5 text-xs" asChild>
                         <Link href={`/dashboard/sessions/${session.id}`}>
-                          <Eye className="h-4 w-4 ml-2" />
-                          צפה
+                          <Eye className="h-3.5 w-3.5" />
+                          צפה / ערוך
                         </Link>
                       </Button>
-                      <DropdownMenu>
-                        <DropdownMenuTrigger asChild>
-                          <Button
-                            variant="ghost"
-                            size="sm"
-                            className="h-8 w-8 p-0 opacity-0 group-hover:opacity-100 transition-opacity"
-                          >
-                            <MoreVertical className="h-4 w-4" />
-                          </Button>
-                        </DropdownMenuTrigger>
-                        <DropdownMenuContent align="end">
-                          <DropdownMenuItem
-                            className="text-red-600 focus:text-red-600"
-                            onClick={() => handleDeleteSummary(session.id)}
-                          >
-                            <Trash2 className="h-4 w-4 ml-2" />
-                            מחק סיכום
-                          </DropdownMenuItem>
-                        </DropdownMenuContent>
-                      </DropdownMenu>
+                      <Button
+                        type="button"
+                        variant="ghost"
+                        size="sm"
+                        className="px-2 text-muted-foreground/40 hover:text-destructive hover:bg-destructive/10 opacity-0 group-hover:opacity-100 transition-opacity"
+                        onClick={() => handleDeleteSummary(session.id)}
+                        title="מחק סיכום"
+                      >
+                        <Trash2 className="h-4 w-4" />
+                      </Button>
                     </div>
                   </div>
                 ))}

@@ -4,7 +4,7 @@ import { useState, useMemo } from "react";
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
-import { Search, FileText, X, ChevronDown, ChevronUp, ListTodo } from "lucide-react";
+import { Search, FileText, X, ChevronDown, ChevronUp, ListTodo, Trash2 } from "lucide-react";
 import { format } from "date-fns";
 import { he } from "date-fns/locale";
 import { toast } from "sonner";
@@ -174,7 +174,7 @@ export function TasksView({ initialTasks }: TasksViewProps) {
                     return (
                       <div
                         key={task.id}
-                        className="border rounded-lg p-4 bg-card hover:shadow-md transition-shadow flex flex-col justify-between"
+                        className="border rounded-xl p-4 bg-card hover:shadow-md transition-all flex flex-col justify-between min-h-[120px] group"
                       >
                         <div>
                           <p className="font-bold text-base truncate">{clientName}</p>
@@ -183,7 +183,11 @@ export function TasksView({ initialTasks }: TasksViewProps) {
                           )}
                         </div>
                         <div className="flex items-center gap-2 mt-3">
-                          <Button size="sm" className="flex-1 gap-1" asChild>
+                          <Button
+                            size="sm"
+                            className="flex-1 gap-1.5 bg-primary/10 text-primary border border-primary/20 hover:bg-primary/15 shadow-none"
+                            asChild
+                          >
                             <Link href={link}>
                               <FileText className="h-3.5 w-3.5" />
                               כתוב סיכום
@@ -193,11 +197,11 @@ export function TasksView({ initialTasks }: TasksViewProps) {
                             type="button"
                             variant="ghost"
                             size="sm"
-                            className="text-muted-foreground hover:text-destructive hover:bg-destructive/10 px-2"
+                            className="px-2 text-muted-foreground/40 hover:text-destructive hover:bg-destructive/10 opacity-0 group-hover:opacity-100 transition-opacity"
                             onClick={(e) => { e.stopPropagation(); e.preventDefault(); handleDismiss(task.id); }}
-                            title="דלג / לא רלוונטי"
+                            title="הסר מהרשימה"
                           >
-                            <X className="h-4 w-4" />
+                            <Trash2 className="h-4 w-4" />
                           </Button>
                         </div>
                       </div>
