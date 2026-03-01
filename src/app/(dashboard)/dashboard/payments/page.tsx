@@ -1042,7 +1042,7 @@ export default function PaymentsPage() {
                 selectedClient.unpaidSessions.map((session) => (
                   <Card 
                     key={session.paymentId} 
-                    className="cursor-pointer hover:shadow-lg transition-all hover:scale-[1.02] hover:border-primary"
+                    className="cursor-pointer hover:shadow-lg transition-all hover:scale-[1.02] h-full"
                     onClick={() => {
                       setSelectedPaymentSession(session);
                       setIsPaymentDialogOpen(true);

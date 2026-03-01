@@ -225,7 +225,7 @@ export function QuickMarkPaid({
     <Dialog open={isOpen} onOpenChange={setIsOpen}>
       {children ? (
         <DialogTrigger asChild>
-          <div className="cursor-pointer">{children}</div>
+          <div className="cursor-pointer outline-none focus:outline-none focus:ring-0 [&:focus-visible]:outline-none">{children}</div>
         </DialogTrigger>
       ) : !hideButton ? (
         <DialogTrigger asChild>
