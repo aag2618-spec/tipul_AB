@@ -1165,6 +1165,16 @@ export default async function ClientPage({
                   </CardContent>
                 </Card>
 
+                {/* ניתוח AI לשאלונים */}
+                {client.questionnaireResponses && client.questionnaireResponses.length > 0 && (
+                  <QuestionnaireAnalysis
+                    clientId={client.id}
+                    clientName={client.name}
+                    questionnaires={client.questionnaireResponses}
+                    userTier={(user?.aiTier as "ESSENTIAL" | "PRO" | "ENTERPRISE") || "ESSENTIAL"}
+                  />
+                )}
+
                 {/* אבחון והערות */}
                 <div className="grid gap-6 lg:grid-cols-2">
                   <Card>
