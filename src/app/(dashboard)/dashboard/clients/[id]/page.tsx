@@ -257,8 +257,8 @@ export default async function ClientPage({
 
               {/* Email */}
               <div className="flex items-center gap-2">
-                <Mail className="h-4 w-4 text-muted-foreground" />
-                <span className="text-sm font-medium truncate max-w-[200px]" dir="ltr">
+                <Mail className="h-4 w-4 text-slate-400" />
+                <span className="text-sm font-medium text-muted-foreground truncate max-w-[200px]" dir="ltr">
                   {client.email || "לא צוין"}
                 </span>
               </div>
@@ -276,58 +276,31 @@ export default async function ClientPage({
           </CardContent>
         </Card>
 
-        {/* Credit/Debt Card */}
-        <Card className={`transition-all ${
-          totalDebt > 0 ? "border-red-200 bg-red-50/50" : "border-green-200 bg-green-50/50"
-        }`}>
-          <CardContent className="py-4">
-            <div className="flex items-center justify-between">
-              <div className="flex items-center gap-3 flex-1">
-                <CreditCard className={`h-6 w-6 ${
-                  totalDebt > 0 ? "text-red-600" : "text-green-600"
-                }`} />
-                <div className="space-y-1">
-                  {/* חוב */}
-                  <div>
-                    <p className="text-xs text-muted-foreground">חוב</p>
-                    <p className={`text-xl font-bold ${totalDebt > 0 ? "text-red-600" : "text-gray-400"}`}>
-                      ₪{totalDebt}
-                    </p>
-                  </div>
-                  {/* קרדיט */}
-                  <div>
-                    <p className="text-xs text-muted-foreground">קרדיט</p>
-                    <p className={`text-xl font-bold ${Number(client.creditBalance) > 0 ? "text-green-600" : "text-gray-400"}`}>
-                      ₪{Number(client.creditBalance)}
-                    </p>
-                  </div>
+        {/* Debt Summary Card - Clickable */}
+        <Link href={`/dashboard/clients/${client.id}?tab=payments`}>
+          <Card className={`transition-all cursor-pointer hover:shadow-md hover:scale-[1.02] ${
+            totalDebt > 0 ? "border-red-200 bg-red-50/50" : "border-emerald-200 bg-emerald-50/50"
+          }`}>
+            <CardContent className="py-4">
+              <div className="flex items-center justify-between">
+                <div className="flex items-center gap-3">
+                  <CreditCard className={`h-5 w-5 ${
+                    totalDebt > 0 ? "text-red-500" : "text-emerald-500"
+                  }`} />
+                  {totalDebt > 0 ? (
+                    <div>
+                      <p className="text-sm text-muted-foreground">חוב פתוח</p>
+                      <p className="text-xl font-bold text-red-600">₪{totalDebt}</p>
+                    </div>
+                  ) : (
+                    <p className="text-sm font-medium text-emerald-700">אין חובות פתוחים ✓</p>
+                  )}
                 </div>
+                <ArrowRight className="h-4 w-4 text-muted-foreground/40" />
               </div>
-              <div className="flex flex-col gap-2">
-                <AddCreditDialog
-                  clientId={client.id}
-                  clientName={client.name}
-                  currentCredit={Number(client.creditBalance)}
-                />
-                {totalDebt > 0 && (
-                  <>
-                    <Button variant="outline" size="sm" asChild>
-                      <Link href={`/dashboard/payments/pay/${client.id}`}>
-                        תשלום
-                      </Link>
-                    </Button>
-                    <SendReminderButton
-                      clientId={client.id}
-                      clientName={client.name}
-                      variant="outline"
-                      size="sm"
-                    />
-                  </>
-                )}
-              </div>
-            </div>
-          </CardContent>
-        </Card>
+            </CardContent>
+          </Card>
+        </Link>
       </div>
 
       {/* Tabs - Simplified */}
@@ -529,26 +502,43 @@ export default async function ClientPage({
             {/* Pending Payments */}
             <TabsContent value="pending" className="mt-4">
               <div className="space-y-4">
-                {totalDebt > 0 && (
-                  <div className="flex items-center justify-between flex-wrap gap-3">
-                    <p className="text-sm text-muted-foreground">
-                      {unpaidSessions.length} פגישות • סה&quot;כ חוב: <span className="font-bold text-red-600">₪{totalDebt}</span>
-                    </p>
-                    <div className="flex gap-2">
-                      <SendReminderButton
-                        clientId={client.id}
-                        clientName={client.name}
-                        size="default"
-                      />
-                      <Button asChild className="gap-2">
-                        <Link href={`/dashboard/payments/pay/${client.id}`}>
-                          <CreditCard className="h-4 w-4" />
-                          תשלום מהיר על הכל
-                        </Link>
-                      </Button>
-                    </div>
+                {/* Summary bar with actions */}
+                <div className="flex items-center justify-between flex-wrap gap-3">
+                  <div className="flex items-center gap-4">
+                    {totalDebt > 0 && (
+                      <p className="text-sm text-muted-foreground">
+                        {unpaidSessions.length} פגישות • סה&quot;כ חוב: <span className="font-bold text-red-600">₪{totalDebt}</span>
+                      </p>
+                    )}
+                    {Number(client.creditBalance) > 0 && (
+                      <p className="text-sm text-muted-foreground">
+                        קרדיט: <span className="font-bold text-emerald-600">₪{Number(client.creditBalance)}</span>
+                      </p>
+                    )}
                   </div>
-                )}
+                  <div className="flex gap-2">
+                    <AddCreditDialog
+                      clientId={client.id}
+                      clientName={client.name}
+                      currentCredit={Number(client.creditBalance)}
+                    />
+                    {totalDebt > 0 && (
+                      <>
+                        <SendReminderButton
+                          clientId={client.id}
+                          clientName={client.name}
+                          size="default"
+                        />
+                        <Button asChild className="gap-2 bg-emerald-600 hover:bg-emerald-700">
+                          <Link href={`/dashboard/payments/pay/${client.id}`}>
+                            <CreditCard className="h-4 w-4" />
+                            שלם הכל
+                          </Link>
+                        </Button>
+                      </>
+                    )}
+                  </div>
+                </div>
 
                 {unpaidSessions.length > 0 ? (
                   <div className="grid gap-3 grid-cols-1 sm:grid-cols-2 lg:grid-cols-3">
@@ -630,17 +620,17 @@ export default async function ClientPage({
                                   id: session.payment.id,
                                   status: session.payment.status,
                                 }}
-                                buttonText="לחץ לתשלום →"
+                                buttonText="שלם"
                                 totalClientDebt={totalDebt}
                                 unpaidSessionsCount={unpaidSessions.length}
                               />
                             ) : (
-                              <Link
-                                href={`/dashboard/payments/pay/${client.id}`}
-                                className="text-sm text-primary hover:underline font-medium"
-                              >
-                                לחץ לתשלום →
-                              </Link>
+                              <Button size="sm" className="w-full gap-1.5 bg-emerald-50 text-emerald-700 border border-emerald-200 hover:bg-emerald-100 shadow-none" asChild>
+                                <Link href={`/dashboard/payments/pay/${client.id}`}>
+                                  <CreditCard className="h-3.5 w-3.5" />
+                                  שלם
+                                </Link>
+                              </Button>
                             )}
                           </div>
                         </div>
