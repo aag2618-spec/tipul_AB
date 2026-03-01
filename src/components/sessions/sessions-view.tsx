@@ -70,16 +70,24 @@ const STATUS_LABELS: Record<string, string> = {
 };
 
 const STATUS_COLORS: Record<string, string> = {
-  COMPLETED: "bg-emerald-50 text-emerald-700 border-emerald-200",
-  CANCELLED: "bg-red-50 text-red-600 border-red-200",
-  NO_SHOW: "bg-amber-50 text-amber-700 border-amber-200",
+  COMPLETED: "text-emerald-600 border-transparent",
+  CANCELLED: "text-red-500 border-transparent",
+  NO_SHOW: "text-amber-600 border-transparent",
   NOT_UPDATED: "bg-orange-50 text-orange-600 border-orange-300 cursor-pointer hover:bg-orange-100",
 };
 
+const CARD_BG: Record<string, string> = {
+  SCHEDULED_FUTURE: "bg-emerald-50/60 border-emerald-200",
+  SCHEDULED_PAST: "bg-sky-50/60 border-sky-200",
+  COMPLETED: "bg-white border-emerald-300",
+  CANCELLED: "bg-red-50/40 border-red-200",
+  NO_SHOW: "bg-amber-50/60 border-amber-200",
+};
+
 const STATUS_ICONS: Record<string, React.ReactNode> = {
-  COMPLETED: <CheckCircle2 className="h-3 w-3" />,
-  CANCELLED: <Ban className="h-3 w-3" />,
-  NO_SHOW: <UserX className="h-3 w-3" />,
+  COMPLETED: null,
+  CANCELLED: null,
+  NO_SHOW: null,
   NOT_UPDATED: <Clock className="h-3 w-3" />,
 };
 
@@ -361,12 +369,20 @@ export function SessionsView({ initialSessions }: SessionsViewProps) {
     return d < weekEnd;
   };
 
+  const getCardBg = (s: Session, isUpcoming: boolean) => {
+    if (s.status === "COMPLETED") return CARD_BG.COMPLETED;
+    if (s.status === "CANCELLED") return CARD_BG.CANCELLED;
+    if (s.status === "NO_SHOW") return CARD_BG.NO_SHOW;
+    if (s.status === "SCHEDULED" && new Date(s.startTime) < now) return CARD_BG.SCHEDULED_PAST;
+    return CARD_BG.SCHEDULED_FUTURE;
+  };
+
   const renderSessionCard = (s: Session, showCancel: boolean) => (
     <div
       key={s.id}
-      className="group relative bg-white rounded-xl border border-muted-foreground/8 p-4
+      className={`group relative rounded-xl border p-4
         hover:shadow-md hover:-translate-y-0.5 transition-all duration-200
-        flex flex-col justify-between min-h-[130px]"
+        flex flex-col justify-between min-h-[130px] ${getCardBg(s, showCancel)}`}
     >
       <div>
         <div className="flex items-center justify-between mb-1">

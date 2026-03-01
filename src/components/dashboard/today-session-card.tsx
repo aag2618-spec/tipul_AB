@@ -190,7 +190,13 @@ export function TodaySessionCard({ session }: TodaySessionCardProps) {
 
   return (
     <>
-      <div className="p-3 rounded-lg border border-border bg-background space-y-2">
+      <div className={`p-3 rounded-lg border space-y-2 ${
+        session.status === "COMPLETED" ? "bg-white border-emerald-300" :
+        session.status === "CANCELLED" ? "bg-red-50/40 border-red-200" :
+        session.status === "NO_SHOW" ? "bg-amber-50/60 border-amber-200" :
+        session.status === "SCHEDULED" && new Date(session.endTime) < new Date() ? "bg-sky-50/60 border-sky-200" :
+        "bg-emerald-50/60 border-emerald-200"
+      }`}>
         {/* שורה 1: זמן + סוג פגישה */}
         <div className="flex items-center justify-between">
           <div className="flex items-center gap-2">
@@ -220,27 +226,16 @@ export function TodaySessionCard({ session }: TodaySessionCardProps) {
             >
               ⚠ לא עודכן · עדכן
             </Badge>
-          ) : (
-            <Badge
-              variant={
-                session.status === "COMPLETED"
-                  ? "default"
-                  : session.status === "CANCELLED"
-                  ? "destructive"
-                  : session.status === "NO_SHOW"
-                  ? "destructive"
-                  : "secondary"
-              }
-            >
-              {session.status === "SCHEDULED"
-                ? "מתוכנן"
-                : session.status === "COMPLETED"
-                ? "הושלם"
-                : session.status === "CANCELLED"
-                ? "בוטל"
-                : "אי הופעה"}
-            </Badge>
-          )}
+          ) : session.status !== "SCHEDULED" ? (
+            <span className={`text-xs font-medium ${
+              session.status === "COMPLETED" ? "text-emerald-600" :
+              session.status === "CANCELLED" ? "text-red-500" :
+              "text-amber-600"
+            }`}>
+              {session.status === "COMPLETED" ? "הושלם" :
+               session.status === "CANCELLED" ? "בוטל" : "לא הגיע"}
+            </span>
+          ) : null}
         </div>
 
         {/* שורה 2: שם מטופל - קליקבלי */}
