@@ -423,8 +423,8 @@ export default async function ClientPage({
                           .filter(s => new Date(s.startTime) < new Date())
                           .map((session) => ({
                             id: session.id,
-                            startTime: session.startTime,
-                            endTime: session.endTime,
+                            startTime: session.startTime.toISOString(),
+                            endTime: session.endTime.toISOString(),
                             type: session.type as string,
                             status: session.status as string,
                             price: Number(session.price),
