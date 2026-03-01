@@ -315,32 +315,34 @@ export default async function ClientPage({
 
       {/* Tabs */}
       <Tabs defaultValue={defaultTab} key={defaultTab} className="w-full">
-        <TabsList className="grid w-full grid-cols-6 h-11 p-1 rounded-xl bg-muted/60">
-          <TabsTrigger value="sessions" className="gap-2 rounded-lg data-[state=active]:bg-white data-[state=active]:text-primary data-[state=active]:shadow-sm font-medium">
+        <div className="flex w-full gap-2">
+          <TabsList className="flex w-full gap-1.5 h-auto p-0 bg-transparent">
+          <TabsTrigger value="sessions" className="flex-1 gap-2 rounded-xl py-2.5 border border-muted-foreground/10 bg-muted/40 data-[state=active]:bg-white data-[state=active]:text-primary data-[state=active]:shadow-md data-[state=active]:border-primary/30 font-medium">
             <Calendar className="h-4 w-4" />
             פגישות
           </TabsTrigger>
-          <TabsTrigger value="ai" className="gap-2 rounded-lg data-[state=active]:bg-primary/10 data-[state=active]:text-primary data-[state=active]:shadow-sm font-medium">
+          <TabsTrigger value="ai" className="flex-1 gap-2 rounded-xl py-2.5 border border-muted-foreground/10 bg-muted/40 data-[state=active]:bg-primary/10 data-[state=active]:text-primary data-[state=active]:shadow-md data-[state=active]:border-primary/30 font-medium">
             <Sparkles className="h-4 w-4" />
             AI · ניתוח
           </TabsTrigger>
-          <TabsTrigger value="summaries" className="gap-2 rounded-lg data-[state=active]:bg-white data-[state=active]:text-primary data-[state=active]:shadow-sm font-medium">
+          <TabsTrigger value="summaries" className="flex-1 gap-2 rounded-xl py-2.5 border border-muted-foreground/10 bg-muted/40 data-[state=active]:bg-white data-[state=active]:text-primary data-[state=active]:shadow-md data-[state=active]:border-primary/30 font-medium">
             <FileText className="h-4 w-4" />
             סיכומים
           </TabsTrigger>
-          <TabsTrigger value="payments" className="gap-2 rounded-lg data-[state=active]:bg-white data-[state=active]:text-primary data-[state=active]:shadow-sm font-medium">
+          <TabsTrigger value="payments" className="flex-1 gap-2 rounded-xl py-2.5 border border-muted-foreground/10 bg-muted/40 data-[state=active]:bg-white data-[state=active]:text-primary data-[state=active]:shadow-md data-[state=active]:border-primary/30 font-medium">
             <CreditCard className="h-4 w-4" />
             תשלומים
           </TabsTrigger>
-          <TabsTrigger value="files" className="gap-2 rounded-lg data-[state=active]:bg-white data-[state=active]:text-primary data-[state=active]:shadow-sm font-medium">
+          <TabsTrigger value="files" className="flex-1 gap-2 rounded-xl py-2.5 border border-muted-foreground/10 bg-muted/40 data-[state=active]:bg-white data-[state=active]:text-primary data-[state=active]:shadow-md data-[state=active]:border-primary/30 font-medium">
             <FolderOpen className="h-4 w-4" />
             קבצים
           </TabsTrigger>
-          <TabsTrigger value="profile" className="gap-2 rounded-lg data-[state=active]:bg-white data-[state=active]:text-primary data-[state=active]:shadow-sm font-medium">
+          <TabsTrigger value="profile" className="flex-1 gap-2 rounded-xl py-2.5 border border-muted-foreground/10 bg-muted/40 data-[state=active]:bg-white data-[state=active]:text-primary data-[state=active]:shadow-md data-[state=active]:border-primary/30 font-medium">
             <UserIcon className="h-4 w-4" />
             פרופיל
           </TabsTrigger>
         </TabsList>
+        </div>
 
         <TabsContent value="sessions" className="mt-6">
           {/* Recurring Pattern Card */}
