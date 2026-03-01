@@ -299,9 +299,9 @@ export function QuestionnaireAnalysis({
       )}
 
       {/* Global Actions */}
-      {!compact && <Card>
+      <Card>
         <CardHeader>
-          <CardTitle>ניתוחים גלובליים</CardTitle>
+          <CardTitle>{compact ? "ניתוח AI" : "ניתוחים גלובליים"}</CardTitle>
           <CardDescription>
             ניתוחים על כל השאלונים של {clientName}
           </CardDescription>
@@ -325,26 +325,28 @@ export function QuestionnaireAnalysis({
             )}
           </Button>
 
-          <Button
-            onClick={handleProgressReport}
-            disabled={loading}
-            variant="outline"
-            className="gap-2"
-          >
-            {loading && analysisType === "progress" ? (
-              <Loader2 className="h-4 w-4 animate-spin" />
-            ) : (
-              <TrendingUp className="h-4 w-4" />
-            )}
-            📈 דו"ח התקדמות (30 יום)
-            {userTier === "ENTERPRISE" && (
-              <Badge variant="secondary" className="mr-2">
-                Gemini 2.0
-              </Badge>
-            )}
-          </Button>
+          {!compact && (
+            <Button
+              onClick={handleProgressReport}
+              disabled={loading}
+              variant="outline"
+              className="gap-2"
+            >
+              {loading && analysisType === "progress" ? (
+                <Loader2 className="h-4 w-4 animate-spin" />
+              ) : (
+                <TrendingUp className="h-4 w-4" />
+              )}
+              📈 דו"ח התקדמות (30 יום)
+              {userTier === "ENTERPRISE" && (
+                <Badge variant="secondary" className="mr-2">
+                  Gemini 2.0
+                </Badge>
+              )}
+            </Button>
+          )}
         </CardContent>
-      </Card>}
+      </Card>
 
       {/* Individual Questionnaires */}
       <Card>
