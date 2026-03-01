@@ -204,10 +204,20 @@ export default function CalendarPage() {
           : session.status === "COMPLETED"
           ? "var(--primary)"
           : session.status === "NO_SHOW"
-          ? "#FED7AA"
+          ? "#FCA5A5"
           : session.status === "SCHEDULED" && new Date(session.endTime) < new Date()
-          ? "#FEF3C7"
-          : "var(--accent)",
+          ? "#BAE6FD"
+          : "#A7F3D0",
+      textColor:
+        session.type === "BREAK"
+          ? "#ffffff"
+          : session.status === "COMPLETED"
+          ? "#ffffff"
+          : session.status === "NO_SHOW"
+          ? "#7F1D1D"
+          : session.status === "SCHEDULED" && new Date(session.endTime) < new Date()
+          ? "#0C4A6E"
+          : "#064E3B",
     borderColor:
       session.type === "BREAK"
         ? "var(--chart-2)"
@@ -216,10 +226,8 @@ export default function CalendarPage() {
         : session.status === "NO_SHOW"
         ? "#DC2626"
         : session.status === "SCHEDULED" && new Date(session.endTime) < new Date()
-        ? "#F59E0B"
-        : session.status === "CANCELLED"
-        ? "var(--destructive)"
-        : "var(--primary)",
+        ? "#0EA5E9"
+        : "#059669",
     extendedProps: {
       clientId: session.client?.id || "",
       status: session.status,
@@ -434,7 +442,8 @@ export default function CalendarPage() {
       });
 
       if (!response.ok) {
-        throw new Error("שגיאה ביצירת הפגישה");
+        const errData = await response.json().catch(() => null);
+        throw new Error(errData?.message || "שגיאה ביצירת הפגישה");
       }
 
       // If recurring, create additional sessions for future weeks
@@ -471,8 +480,8 @@ export default function CalendarPage() {
       );
       setIsDialogOpen(false);
       fetchData();
-    } catch {
-      toast.error("שגיאה ביצירת הפגישה");
+    } catch (err) {
+      toast.error(err instanceof Error ? err.message : "שגיאה ביצירת הפגישה");
     } finally {
       setIsSubmitting(false);
     }
