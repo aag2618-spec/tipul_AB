@@ -39,6 +39,7 @@ interface QuickMarkPaidProps {
     method?: string;
   } | null;
   buttonText?: string;
+  buttonClassName?: string;
   totalClientDebt?: number;
   unpaidSessionsCount?: number;
   // אפשרות לשליטה מבחוץ (אופציונלי - לשימוש ביומן)
@@ -55,6 +56,7 @@ export function QuickMarkPaid({
   creditBalance = 0,
   existingPayment,
   buttonText = "סמן כשולם",
+  buttonClassName,
   totalClientDebt,
   unpaidSessionsCount,
   open,
@@ -222,9 +224,9 @@ export function QuickMarkPaid({
       {!hideButton && (
         <DialogTrigger asChild>
           <Button 
-            variant="default" 
+            variant={buttonClassName ? "ghost" : "default"}
             size="sm" 
-            className="gap-1"
+            className={buttonClassName || "gap-1"}
             onClick={(e) => e.stopPropagation()}
           >
             <CreditCard className="h-3 w-3" />

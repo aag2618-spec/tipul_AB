@@ -296,7 +296,6 @@ export default async function ClientPage({
                     <p className="text-sm font-medium text-emerald-700">אין חובות פתוחים ✓</p>
                   )}
                 </div>
-                <ArrowRight className="h-4 w-4 text-muted-foreground/40" />
               </div>
             </CardContent>
           </Card>
@@ -304,7 +303,7 @@ export default async function ClientPage({
       </div>
 
       {/* Tabs - Simplified */}
-      <Tabs defaultValue={defaultTab} className="w-full">
+      <Tabs defaultValue={defaultTab} key={defaultTab} className="w-full">
         <TabsList className="grid w-full grid-cols-5 max-w-5xl">
           <TabsTrigger value="sessions" className="gap-2">
             <Calendar className="h-4 w-4" />
@@ -541,33 +540,29 @@ export default async function ClientPage({
                 </div>
 
                 {unpaidSessions.length > 0 ? (
-                  <div className="grid gap-3 grid-cols-1 sm:grid-cols-2 lg:grid-cols-3">
+                  <div className="grid gap-4 grid-cols-1 sm:grid-cols-2 lg:grid-cols-3">
                     {unpaidSessions.map((session) => {
                       const sessionPrice = Number(session.price);
                       const alreadyPaid = session.payment ? Number(session.payment.amount) : 0;
                       const debt = sessionPrice - alreadyPaid;
 
                       return (
-                        <div
+                        <Card
                           key={session.id}
-                          className="bg-white rounded-xl border border-muted-foreground/8 p-4
-                            hover:shadow-md hover:-translate-y-0.5 transition-all duration-200
-                            flex flex-col justify-between min-h-[140px]"
+                          className="hover:shadow-lg transition-all hover:scale-[1.02] hover:border-primary"
                         >
-                          <div>
-                            <div className="flex items-center justify-between mb-2">
-                              <div className="flex items-center gap-1.5 text-muted-foreground/70">
-                                <Calendar className="h-3.5 w-3.5" />
-                                <span className="text-sm">
-                                  {format(new Date(session.startTime), "dd/MM/yyyy", { locale: he })}
-                                </span>
-                              </div>
+                          <CardContent className="p-4">
+                            <div className="flex items-center gap-2 mb-3">
+                              <Calendar className="h-4 w-4 text-muted-foreground" />
+                              <span className="text-sm font-medium">
+                                {format(new Date(session.startTime), "dd/MM/yyyy", { locale: he })}
+                              </span>
                             </div>
 
-                            <div className="space-y-1.5">
-                              <div className="flex items-center justify-between">
-                                <span className="text-sm text-muted-foreground/70">חוב:</span>
-                                <span className="text-lg font-bold text-red-600">₪{debt}</span>
+                            <div className="space-y-2">
+                              <div className="flex justify-between items-center">
+                                <span className="text-muted-foreground">חוב:</span>
+                                <span className="font-bold text-red-600">₪{debt}</span>
                               </div>
                               {alreadyPaid > 0 && session.payment && (
                                 <>
@@ -575,12 +570,10 @@ export default async function ClientPage({
                                     session.payment.childPayments.map((child: { id: string; amount: unknown; paidAt: Date | string | null }, idx: number) => {
                                       const childAmount = Number(child.amount);
                                       return (
-                                        <div key={child.id} className="flex items-center justify-between">
-                                          <span className="text-sm text-muted-foreground/70">
-                                            תשלום {idx + 1}:
-                                          </span>
-                                          <span className="text-sm">
-                                            <span className="font-medium text-green-600">₪{childAmount}</span>
+                                        <div key={child.id} className="flex justify-between items-center text-sm">
+                                          <span className="text-muted-foreground">תשלום {idx + 1}:</span>
+                                          <span>
+                                            <span className="text-emerald-600">₪{childAmount}</span>
                                             {child.paidAt && (
                                               <span className="text-muted-foreground mr-1">
                                                 · {format(new Date(child.paidAt), "dd/MM/yyyy")}
@@ -591,10 +584,10 @@ export default async function ClientPage({
                                       );
                                     })
                                   ) : (
-                                    <div className="flex items-center justify-between">
-                                      <span className="text-sm text-muted-foreground/70">שולם חלקית:</span>
-                                      <span className="text-sm">
-                                        <span className="font-medium text-green-600">₪{alreadyPaid}</span>
+                                    <div className="flex justify-between items-center text-sm">
+                                      <span className="text-muted-foreground">שולם חלקית:</span>
+                                      <span>
+                                        <span className="text-emerald-600">₪{alreadyPaid}</span>
                                         {session.payment.paidAt && (
                                           <span className="text-muted-foreground mr-1">
                                             · {format(new Date(session.payment.paidAt), "dd/MM/yyyy")}
@@ -606,34 +599,36 @@ export default async function ClientPage({
                                 </>
                               )}
                             </div>
-                          </div>
 
-                          <div className="mt-3 pt-3 border-t border-muted-foreground/5">
-                            {session.payment ? (
-                              <QuickMarkPaid
-                                sessionId={session.id}
-                                clientId={client.id}
-                                clientName={client.name}
-                                amount={debt}
-                                creditBalance={Number(client.creditBalance || 0)}
-                                existingPayment={{
-                                  id: session.payment.id,
-                                  status: session.payment.status,
-                                }}
-                                buttonText="שלם"
-                                totalClientDebt={totalDebt}
-                                unpaidSessionsCount={unpaidSessions.length}
-                              />
-                            ) : (
-                              <Button size="sm" className="w-full gap-1.5 bg-emerald-50 text-emerald-700 border border-emerald-200 hover:bg-emerald-100 shadow-none" asChild>
-                                <Link href={`/dashboard/payments/pay/${client.id}`}>
-                                  <CreditCard className="h-3.5 w-3.5" />
-                                  שלם
+                            <div className="mt-3 pt-2 border-t">
+                              {session.payment ? (
+                                <QuickMarkPaid
+                                  sessionId={session.id}
+                                  clientId={client.id}
+                                  clientName={client.name}
+                                  amount={debt}
+                                  creditBalance={Number(client.creditBalance || 0)}
+                                  existingPayment={{
+                                    id: session.payment.id,
+                                    status: session.payment.status,
+                                  }}
+                                  buttonText="לחץ לתשלום"
+                                  buttonClassName="text-xs text-primary gap-1 p-0 h-auto hover:bg-transparent"
+                                  totalClientDebt={totalDebt}
+                                  unpaidSessionsCount={unpaidSessions.length}
+                                />
+                              ) : (
+                                <Link
+                                  href={`/dashboard/payments/pay/${client.id}`}
+                                  className="text-xs text-primary flex items-center gap-1"
+                                >
+                                  לחץ לתשלום
+                                  <ArrowRight className="h-3 w-3" />
                                 </Link>
-                              </Button>
-                            )}
-                          </div>
-                        </div>
+                              )}
+                            </div>
+                          </CardContent>
+                        </Card>
                       );
                     })}
                   </div>
