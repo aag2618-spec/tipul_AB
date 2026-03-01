@@ -878,7 +878,7 @@ export function SessionsView({ initialSessions }: SessionsViewProps) {
               </>
             )}
 
-            {clientDebt && clientDebt.count > 1 && clientDebt.total > 0 && (
+            {updateStatus && clientDebt && clientDebt.count > 1 && clientDebt.total > 0 && (
               <div className="pt-3 border-t mt-2">
                 <p className="text-sm text-muted-foreground mb-2 text-center">
                   למטופל יש עוד {clientDebt.count - 1} פגישות ממתינות לתשלום
