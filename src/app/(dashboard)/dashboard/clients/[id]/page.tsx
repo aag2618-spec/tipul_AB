@@ -276,7 +276,7 @@ export default async function ClientPage({
         </Card>
 
         {/* Debt Summary Card - Clickable */}
-        <Link href={`/dashboard/clients/${client.id}?tab=payments`}>
+        <a href={`/dashboard/clients/${client.id}?tab=payments`}>
           <Card className={`transition-all cursor-pointer hover:shadow-md hover:scale-[1.02] ${
             totalDebt > 0 ? "border-red-200 bg-red-50/50" : "border-emerald-200 bg-emerald-50/50"
           }`}>
@@ -298,7 +298,7 @@ export default async function ClientPage({
               </div>
             </CardContent>
           </Card>
-        </Link>
+        </a>
       </div>
 
       {/* Tabs - Simplified */}
