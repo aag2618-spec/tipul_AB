@@ -381,6 +381,19 @@ export default function CommunicationsPage() {
       headers: { "Content-Type": "application/json" },
       body: JSON.stringify({ subject: thread.subject }),
     }).catch(() => {});
+    // Auto-dismiss failed messages in this thread
+    const failedMsgs = thread.messages.filter(m => m.status === "FAILED");
+    if (failedMsgs.length > 0) {
+      const failedIds = new Set(failedMsgs.map(m => m.id));
+      failedMsgs.forEach(m => {
+        fetch(`/api/communications/logs/${m.id}/dismiss`, { method: "POST" }).catch(() => {});
+      });
+      setLogs(prev => prev.map(l => failedIds.has(l.id) ? { ...l, status: "DISMISSED" } : l));
+      setSelectedThread({
+        ...thread,
+        messages: thread.messages.map(m => failedIds.has(m.id) ? { ...m, status: "DISMISSED" } : m),
+      });
+    }
   };
 
   const dismissFailedMessage = async (msgId: string) => {
@@ -455,15 +468,18 @@ export default function CommunicationsPage() {
               <Mail className="h-3.5 w-3.5" />
               {unreadReplies > 0 ? `${unreadReplies} תגובות שלא נקראו` : "אין תגובות חדשות"}
             </button>
-            {/* Failed badge - only if > 0, counts threads */}
+            {/* Failed badge - only if > 0, click to dismiss all */}
             {failedThreadCount > 0 && (
               <button
-                onClick={() => setStatusFilter(statusFilter === "FAILED" ? "all" : "FAILED")}
-                className={`inline-flex items-center gap-1.5 px-3 py-1.5 rounded-full text-sm font-medium transition-colors ${
-                  statusFilter === "FAILED"
-                    ? "bg-red-100 text-red-800 ring-2 ring-red-400"
-                    : "bg-red-50 text-red-700 hover:bg-red-100"
-                }`}
+                onClick={async () => {
+                  const allFailed = logs.filter(l => l.status === "FAILED");
+                  if (allFailed.length === 0) return;
+                  const failedIds = new Set(allFailed.map(m => m.id));
+                  await Promise.all(allFailed.map(m => fetch(`/api/communications/logs/${m.id}/dismiss`, { method: "POST" })));
+                  setLogs(prev => prev.map(l => failedIds.has(l.id) ? { ...l, status: "DISMISSED" } : l));
+                  toast.success("כל ההודעות שנכשלו סומנו כטופלו");
+                }}
+                className="inline-flex items-center gap-1.5 px-3 py-1.5 rounded-full text-sm font-medium transition-colors bg-red-50 text-red-700 hover:bg-red-100"
               >
                 <AlertCircle className="h-3.5 w-3.5" />
                 {failedThreadCount} שליחות נכשלו
