@@ -54,6 +54,7 @@ import { DocumentItem } from "@/components/clients/document-item";
 import { SendReminderButton } from "@/components/clients/send-reminder-button";
 import { SendPaymentHistoryButton } from "@/components/clients/send-payment-history-button";
 import { TodaySessionCard } from "@/components/dashboard/today-session-card";
+import { SessionHistoryGrid } from "@/components/clients/session-history-grid";
 import { AddCreditDialog } from "@/components/clients/add-credit-dialog";
 import { PaymentHistoryItem } from "@/components/payments/payment-history-item";
 import { PaymentHistoryGrid } from "@/components/payments/payment-history-grid";
@@ -418,35 +419,30 @@ export default async function ClientPage({
                   {/* היסטוריית פגישות */}
                   <TabsContent value="past">
                     {client.therapySessions.filter(s => new Date(s.startTime) < new Date()).length > 0 ? (
-                      <div className="grid gap-3 grid-cols-1 sm:grid-cols-2 lg:grid-cols-3">
-                        {client.therapySessions
+                      <SessionHistoryGrid
+                        sessions={client.therapySessions
                           .filter(s => new Date(s.startTime) < new Date())
-                          .map((session) => (
-                            <TodaySessionCard 
-                              key={session.id} 
-                              session={{
-                                id: session.id,
-                                startTime: session.startTime,
-                                endTime: session.endTime,
-                                type: session.type as string,
-                                status: session.status as string,
-                                price: Number(session.price),
-                                sessionNote: session.sessionNote ? "exists" : null,
-                                cancellationReason: session.cancellationReason,
-                                payment: session.payment ? {
-                                  id: session.payment.id,
-                                  status: session.payment.status as string,
-                                  amount: Number(session.payment.amount),
-                                } : null,
-                                client: {
-                                  id: client.id,
-                                  name: client.name,
-                                  creditBalance: Number(client.creditBalance),
-                                },
-                              }} 
-                            />
-                          ))}
-                      </div>
+                          .map((session) => ({
+                            id: session.id,
+                            startTime: session.startTime,
+                            endTime: session.endTime,
+                            type: session.type as string,
+                            status: session.status as string,
+                            price: Number(session.price),
+                            sessionNote: session.sessionNote ? "exists" : null,
+                            cancellationReason: session.cancellationReason,
+                            payment: session.payment ? {
+                              id: session.payment.id,
+                              status: session.payment.status as string,
+                              amount: Number(session.payment.amount),
+                            } : null,
+                            client: {
+                              id: client.id,
+                              name: client.name,
+                              creditBalance: Number(client.creditBalance),
+                            },
+                          }))}
+                      />
                     ) : (
                       <div className="text-center py-8 text-muted-foreground">
                         <Calendar className="mx-auto h-12 w-12 mb-3 opacity-50" />

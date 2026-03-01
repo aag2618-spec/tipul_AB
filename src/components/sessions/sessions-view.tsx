@@ -72,7 +72,7 @@ const STATUS_LABELS: Record<string, string> = {
 const STATUS_COLORS: Record<string, string> = {
   COMPLETED: "text-emerald-600 border-transparent",
   CANCELLED: "text-red-500 border-transparent",
-  NO_SHOW: "text-amber-600 border-transparent",
+  NO_SHOW: "text-red-500 border-transparent",
   NOT_UPDATED: "bg-orange-50 text-orange-600 border-orange-300 cursor-pointer hover:bg-orange-100",
 };
 
@@ -81,7 +81,7 @@ const CARD_BG: Record<string, string> = {
   SCHEDULED_PAST: "bg-sky-50/60 border-sky-200",
   COMPLETED: "bg-white border-emerald-300",
   CANCELLED: "bg-red-50/40 border-red-200",
-  NO_SHOW: "bg-amber-50/60 border-amber-200",
+  NO_SHOW: "bg-red-50/50 border-red-200",
 };
 
 const STATUS_ICONS: Record<string, React.ReactNode> = {

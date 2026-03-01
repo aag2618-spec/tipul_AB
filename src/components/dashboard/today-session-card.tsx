@@ -193,7 +193,7 @@ export function TodaySessionCard({ session }: TodaySessionCardProps) {
       <div className={`p-3 rounded-lg border space-y-2 ${
         session.status === "COMPLETED" ? "bg-white border-emerald-300" :
         session.status === "CANCELLED" ? "bg-red-50/40 border-red-200" :
-        session.status === "NO_SHOW" ? "bg-amber-50/60 border-amber-200" :
+        session.status === "NO_SHOW" ? "bg-red-50/50 border-red-200" :
         session.status === "SCHEDULED" && new Date(session.endTime) < new Date() ? "bg-sky-50/60 border-sky-200" :
         "bg-emerald-50/60 border-emerald-200"
       }`}>
@@ -230,7 +230,7 @@ export function TodaySessionCard({ session }: TodaySessionCardProps) {
             <span className={`text-xs font-medium ${
               session.status === "COMPLETED" ? "text-emerald-600" :
               session.status === "CANCELLED" ? "text-red-500" :
-              "text-amber-600"
+              "text-red-500"
             }`}>
               {session.status === "COMPLETED" ? "הושלם" :
                session.status === "CANCELLED" ? "בוטל" : "לא הגיע"}
