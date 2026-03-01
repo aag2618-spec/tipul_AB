@@ -3,7 +3,7 @@
 import { useState, useMemo } from "react";
 import { Button } from "@/components/ui/button";
 import { TodaySessionCard } from "@/components/dashboard/today-session-card";
-import { ChevronDown } from "lucide-react";
+import { ChevronDown, ChevronUp } from "lucide-react";
 import { format } from "date-fns";
 import { he } from "date-fns/locale";
 
@@ -25,6 +25,8 @@ interface SessionData {
     id: string;
     name: string;
     creditBalance: number;
+    totalDebt?: number;
+    unpaidSessionsCount?: number;
   };
 }
 
@@ -87,6 +89,17 @@ export function SessionHistoryGrid({ sessions }: SessionHistoryGridProps) {
         >
           <ChevronDown className="h-4 w-4" />
           הצג הכל ({sorted.length} פגישות)
+        </Button>
+      )}
+
+      {showAll && sorted.length > INITIAL_COUNT && (
+        <Button
+          variant="outline"
+          className="w-full gap-2 text-muted-foreground"
+          onClick={() => setShowAll(false)}
+        >
+          <ChevronUp className="h-4 w-4" />
+          הצג פחות
         </Button>
       )}
     </div>

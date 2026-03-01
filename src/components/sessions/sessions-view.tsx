@@ -134,6 +134,8 @@ export function SessionsView({ initialSessions }: SessionsViewProps) {
   const [sessions, setSessions] = useState<Session[]>(initialSessions);
   const [searchTerm, setSearchTerm] = useState("");
   const [historySearch, setHistorySearch] = useState("");
+  const [dateFrom, setDateFrom] = useState("");
+  const [dateTo, setDateTo] = useState("");
   const [expandedUpcoming, setExpandedUpcoming] = useState<Record<string, boolean>>({
     "היום": true, "מחר": true, "השבוע": true, "החודש": true, "בהמשך": false,
   });
@@ -185,7 +187,7 @@ export function SessionsView({ initialSessions }: SessionsViewProps) {
 
   const searchFilter = (s: Session, term: string) => {
     if (!term.trim()) return true;
-    return s.client?.name.toLowerCase().includes(term.trim().toLowerCase()) ?? false;
+    return (s.client?.name ?? "").toLowerCase().includes(term.trim().toLowerCase());
   };
 
   const upcoming = useMemo(() => {
@@ -199,8 +201,17 @@ export function SessionsView({ initialSessions }: SessionsViewProps) {
     return sessions
       .filter(s => s.status !== "SCHEDULED" || new Date(s.startTime) < now)
       .filter(s => searchFilter(s, historySearch))
+      .filter(s => {
+        if (dateFrom && new Date(s.startTime) < new Date(dateFrom)) return false;
+        if (dateTo) {
+          const to = new Date(dateTo);
+          to.setHours(23, 59, 59, 999);
+          if (new Date(s.startTime) > to) return false;
+        }
+        return true;
+      })
       .sort((a, b) => new Date(b.startTime).getTime() - new Date(a.startTime).getTime());
-  }, [sessions, historySearch, now]);
+  }, [sessions, historySearch, dateFrom, dateTo, now]);
 
   const groupedUpcoming = useMemo(() => {
     const g: Record<string, Session[]> = {};
@@ -418,7 +429,12 @@ export function SessionsView({ initialSessions }: SessionsViewProps) {
         </div>
         <div className="flex items-center gap-1.5 text-muted-foreground/70">
           <CalendarIcon className="h-3.5 w-3.5 shrink-0" />
-          <span className="text-sm">{format(new Date(s.startTime), "EEEE, d/M", { locale: he })}</span>
+          <span className="text-sm">
+            {format(new Date(s.startTime), "EEEE, d/M", { locale: he })}
+            {s.type && s.type !== "IN_PERSON" && (
+              <span className="text-xs mr-1">· {s.type === "ONLINE" ? "אונליין" : s.type === "PHONE" ? "טלפון" : s.type === "BREAK" ? "הפסקה" : ""}</span>
+            )}
+          </span>
         </div>
         <div className="flex items-center gap-1.5 mt-0.5 text-muted-foreground/70">
           <Clock className="h-3.5 w-3.5 shrink-0" />
@@ -568,7 +584,7 @@ export function SessionsView({ initialSessions }: SessionsViewProps) {
 
         {/* History */}
         <TabsContent value="history" className="mt-4">
-          <div className="flex items-center gap-3 mb-4">
+          <div className="flex items-center gap-3 mb-4 flex-wrap">
             <div className="relative flex-1 min-w-[200px]">
               <Search className="absolute right-3 top-1/2 -translate-y-1/2 h-4 w-4 text-muted-foreground/60" />
               <Input
@@ -580,6 +596,28 @@ export function SessionsView({ initialSessions }: SessionsViewProps) {
               {historySearch && (
                 <button onClick={() => setHistorySearch("")} className="absolute left-3 top-1/2 -translate-y-1/2">
                   <X className="h-3.5 w-3.5 text-muted-foreground" />
+                </button>
+              )}
+            </div>
+            <div className="flex items-center gap-2">
+              <Input
+                type="date"
+                value={dateFrom}
+                onChange={e => setDateFrom(e.target.value)}
+                className="h-9 w-[140px] bg-white border-muted-foreground/15 text-sm"
+                placeholder="מתאריך"
+              />
+              <span className="text-muted-foreground/50 text-xs">—</span>
+              <Input
+                type="date"
+                value={dateTo}
+                onChange={e => setDateTo(e.target.value)}
+                className="h-9 w-[140px] bg-white border-muted-foreground/15 text-sm"
+                placeholder="עד תאריך"
+              />
+              {(dateFrom || dateTo) && (
+                <button onClick={() => { setDateFrom(""); setDateTo(""); }} className="text-muted-foreground hover:text-foreground">
+                  <X className="h-3.5 w-3.5" />
                 </button>
               )}
             </div>
@@ -936,7 +974,7 @@ export function SessionsView({ initialSessions }: SessionsViewProps) {
               <Button
                 onClick={handleUpdate}
                 disabled={updating || !updateStatus}
-                className="gap-2 font-bold bg-green-600 hover:bg-green-700"
+                className="gap-2 font-bold bg-emerald-600 hover:bg-emerald-700"
               >
                 {updating ? <Loader2 className="h-4 w-4 animate-spin" /> : <CheckCircle2 className="h-4 w-4" />}
                 {updateStatus === "COMPLETED" ? "עדכן ושלם" : updateStatus === "CANCELLED" ? "בטל וחייב" : updateStatus === "NO_SHOW" ? "עדכן וחייב" : "עדכן"}

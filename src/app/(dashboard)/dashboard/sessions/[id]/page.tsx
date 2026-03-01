@@ -328,10 +328,8 @@ export default function SessionDetailPage({
       {/* Header */}
       <div className="flex items-start justify-between">
         <div className="flex items-center gap-4">
-          <Button variant="ghost" size="icon" asChild>
-            <Link href="/dashboard/sessions">
-              <ArrowRight className="h-5 w-5" />
-            </Link>
+          <Button variant="ghost" size="icon" onClick={() => router.back()}>
+            <ArrowRight className="h-5 w-5" />
           </Button>
           <div>
             <h1 className="text-2xl font-bold tracking-tight">

@@ -7,7 +7,7 @@ async function getSessions(userId: string) {
   return prisma.therapySession.findMany({
     where: { therapistId: userId },
     orderBy: { startTime: "desc" },
-    take: 200,
+    // No limit - load all sessions
     include: {
       client: { select: { id: true, name: true } },
     },

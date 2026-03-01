@@ -72,7 +72,6 @@ async function getClient(clientId: string, userId: string) {
       },
       therapySessions: {
         orderBy: { startTime: "desc" },
-        take: 20,
         include: { 
           sessionNote: true, 
           payment: { include: { childPayments: { orderBy: { paidAt: "asc" } } } },
@@ -440,6 +439,8 @@ export default async function ClientPage({
                               id: client.id,
                               name: client.name,
                               creditBalance: Number(client.creditBalance),
+                              totalDebt,
+                              unpaidSessionsCount: unpaidSessions.length,
                             },
                           }))}
                       />
@@ -478,6 +479,8 @@ export default async function ClientPage({
                                   id: client.id,
                                   name: client.name,
                                   creditBalance: Number(client.creditBalance),
+                                  totalDebt,
+                                  unpaidSessionsCount: unpaidSessions.length,
                                 },
                               }} 
                             />
