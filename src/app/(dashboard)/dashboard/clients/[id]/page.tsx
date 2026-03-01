@@ -33,6 +33,8 @@ import {
   User as UserIcon,
   Trash2,
   Lock,
+  Sparkles,
+  Brain,
 } from "lucide-react";
 import { Input } from "@/components/ui/input";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
@@ -59,6 +61,7 @@ import { AddCreditDialog } from "@/components/clients/add-credit-dialog";
 import { PaymentHistoryItem } from "@/components/payments/payment-history-item";
 import { PaymentHistoryGrid } from "@/components/payments/payment-history-grid";
 import { QuestionnaireAnalysis } from "@/components/ai/questionnaire-analysis";
+import { SessionPrepCard } from "@/components/ai/session-prep-card";
 import { format } from "date-fns";
 import { he } from "date-fns/locale";
 
@@ -166,6 +169,15 @@ export default async function ClientPage({
     (sum, p) => sum + (Number(p.expectedAmount) - Number(p.amount)),
     0
   );
+
+  // AI tab data
+  const futureSessions = client.therapySessions.filter(
+    (s) => new Date(s.startTime) > new Date() && s.type !== "BREAK"
+  );
+  const nextUpcomingSession = futureSessions.length > 0 
+    ? futureSessions[futureSessions.length - 1] 
+    : null;
+  const summarizedSessionsCount = client.therapySessions.filter(s => s.sessionNote).length;
 
   // Get unpaid sessions for the Payments tab
   const unpaidSessions = client.therapySessions.filter(
@@ -301,28 +313,32 @@ export default async function ClientPage({
         </a>
       </div>
 
-      {/* Tabs - Simplified */}
+      {/* Tabs */}
       <Tabs defaultValue={defaultTab} key={defaultTab} className="w-full">
-        <TabsList className="grid w-full grid-cols-5 max-w-5xl">
-          <TabsTrigger value="sessions" className="gap-2">
+        <TabsList className="grid w-full grid-cols-6 h-11 p-1 rounded-xl bg-muted/60">
+          <TabsTrigger value="sessions" className="gap-2 rounded-lg data-[state=active]:bg-white data-[state=active]:text-primary data-[state=active]:shadow-sm font-medium">
             <Calendar className="h-4 w-4" />
             פגישות
           </TabsTrigger>
-          <TabsTrigger value="payments" className="gap-2">
-            <CreditCard className="h-4 w-4" />
-            תשלומים
+          <TabsTrigger value="ai" className="gap-2 rounded-lg data-[state=active]:bg-primary/10 data-[state=active]:text-primary data-[state=active]:shadow-sm font-medium">
+            <Sparkles className="h-4 w-4" />
+            AI · ניתוח
           </TabsTrigger>
-          <TabsTrigger value="summaries" className="gap-2">
+          <TabsTrigger value="summaries" className="gap-2 rounded-lg data-[state=active]:bg-white data-[state=active]:text-primary data-[state=active]:shadow-sm font-medium">
             <FileText className="h-4 w-4" />
             סיכומים
           </TabsTrigger>
-          <TabsTrigger value="files" className="gap-2">
+          <TabsTrigger value="payments" className="gap-2 rounded-lg data-[state=active]:bg-white data-[state=active]:text-primary data-[state=active]:shadow-sm font-medium">
+            <CreditCard className="h-4 w-4" />
+            תשלומים
+          </TabsTrigger>
+          <TabsTrigger value="files" className="gap-2 rounded-lg data-[state=active]:bg-white data-[state=active]:text-primary data-[state=active]:shadow-sm font-medium">
             <FolderOpen className="h-4 w-4" />
             קבצים
           </TabsTrigger>
-          <TabsTrigger value="profile" className="gap-2">
+          <TabsTrigger value="profile" className="gap-2 rounded-lg data-[state=active]:bg-white data-[state=active]:text-primary data-[state=active]:shadow-sm font-medium">
             <UserIcon className="h-4 w-4" />
-            פרופיל מלא
+            פרופיל
           </TabsTrigger>
         </TabsList>
 
@@ -684,6 +700,116 @@ export default async function ClientPage({
           </Tabs>
         </TabsContent>
 
+        {/* AI Tab */}
+        <TabsContent value="ai" className="mt-6">
+          <div className="space-y-6">
+            {/* הכנה לפגישה הקרובה */}
+            {nextUpcomingSession ? (
+              <SessionPrepCard
+                session={{
+                  id: nextUpcomingSession.id,
+                  clientId: client.id,
+                  clientName: client.name,
+                  startTime: nextUpcomingSession.startTime,
+                }}
+                userTier={(user?.aiTier as "ESSENTIAL" | "PRO" | "ENTERPRISE") || "ESSENTIAL"}
+              />
+            ) : (
+              <Card className="border-dashed">
+                <CardContent className="py-8 text-center text-muted-foreground">
+                  <Calendar className="mx-auto h-10 w-10 mb-3 opacity-40" />
+                  <p className="font-medium">אין פגישות קרובות</p>
+                  <p className="text-sm mt-1">קבע פגישה כדי ליצור הכנת AI</p>
+                </CardContent>
+              </Card>
+            )}
+
+            {/* ניתוח מקיף של כל הסיכומים */}
+            <Card className="border-primary/20 bg-primary/5">
+              <CardHeader>
+                <CardTitle className="flex items-center gap-2">
+                  <Brain className="h-5 w-5 text-primary" />
+                  ניתוח מקיף
+                </CardTitle>
+                <CardDescription>
+                  ניתוח AI שמשלב את כל סיכומי הפגישות ומזהה דפוסים, התקדמות ותובנות
+                </CardDescription>
+              </CardHeader>
+              <CardContent>
+                {summarizedSessionsCount > 0 ? (
+                  <Button asChild className="bg-primary/10 text-primary border border-primary/20 hover:bg-primary/15 shadow-none">
+                    <Link href={`/dashboard/clients/${client.id}/summaries/all`}>
+                      <Sparkles className="ml-2 h-4 w-4" />
+                      התחל ניתוח מקיף ({summarizedSessionsCount} סיכומים)
+                    </Link>
+                  </Button>
+                ) : (
+                  <p className="text-sm text-muted-foreground">אין סיכומים עדיין - סכם פגישות כדי להפעיל ניתוח מקיף</p>
+                )}
+              </CardContent>
+            </Card>
+
+            {/* ניתוח שאלונים */}
+            {client.questionnaireResponses && client.questionnaireResponses.length > 0 ? (
+              <QuestionnaireAnalysis
+                clientId={client.id}
+                clientName={client.name}
+                questionnaires={client.questionnaireResponses}
+                userTier={(user?.aiTier as "ESSENTIAL" | "PRO" | "ENTERPRISE") || "ESSENTIAL"}
+              />
+            ) : (
+              <Card className="border-dashed">
+                <CardContent className="py-8 text-center text-muted-foreground">
+                  <ClipboardList className="mx-auto h-10 w-10 mb-3 opacity-40" />
+                  <p className="font-medium">אין שאלונים לניתוח</p>
+                  <p className="text-sm mt-1">מלא שאלונים כדי לקבל ניתוח AI</p>
+                  <Button variant="link" asChild className="mt-2">
+                    <Link href={`/dashboard/questionnaires/new?client=${client.id}`}>
+                      <Plus className="ml-1 h-4 w-4" />
+                      מלא שאלון
+                    </Link>
+                  </Button>
+                </CardContent>
+              </Card>
+            )}
+
+            {/* גישה טיפולית למטופל */}
+            <Card className={user?.aiTier !== 'ENTERPRISE' ? 'border-dashed border-amber-300/50' : ''}>
+              <CardHeader>
+                <div className="flex items-center justify-between">
+                  <div>
+                    <CardTitle className="flex items-center gap-2">
+                      <Stethoscope className="h-5 w-5" />
+                      גישה טיפולית למטופל
+                      {user?.aiTier !== 'ENTERPRISE' && <Lock className="h-4 w-4 text-amber-500" />}
+                    </CardTitle>
+                    <CardDescription>
+                      {user?.aiTier === 'ENTERPRISE' 
+                        ? 'הגדר גישות טיפוליות ספציפיות למטופל זה'
+                        : 'שדרג לארגוני כדי להפעיל ניתוח מותאם אישית'}
+                    </CardDescription>
+                  </div>
+                  {user?.aiTier !== 'ENTERPRISE' && (
+                    <Badge className="bg-gradient-to-r from-amber-400 to-orange-400 text-white border-0 text-xs">
+                      ENTERPRISE
+                    </Badge>
+                  )}
+                </div>
+              </CardHeader>
+              <CardContent>
+                <ClientApproachEditor
+                  clientId={client.id}
+                  clientName={client.name}
+                  currentApproaches={client.therapeuticApproaches || []}
+                  currentNotes={client.approachNotes}
+                  currentCulturalContext={client.culturalContext}
+                  disabled={user?.aiTier !== 'ENTERPRISE'}
+                />
+              </CardContent>
+            </Card>
+          </div>
+        </TabsContent>
+
         <TabsContent value="summaries" className="mt-6">
           <SummariesTab clientId={client.id} sessions={client.therapySessions} />
         </TabsContent>
@@ -904,41 +1030,6 @@ export default async function ClientPage({
               </CardContent>
             </Card>
 
-            {/* גישות טיפוליות למטופל */}
-            <Card className={`lg:col-span-2 ${user?.aiTier !== 'ENTERPRISE' ? 'border-dashed border-amber-300/50' : ''}`}>
-              <CardHeader>
-                <div className="flex items-center justify-between">
-                  <div>
-                    <CardTitle className="flex items-center gap-2">
-                      <Stethoscope className="h-5 w-5" />
-                      גישה טיפולית למטופל
-                      {user?.aiTier !== 'ENTERPRISE' && <Lock className="h-4 w-4 text-amber-500" />}
-                    </CardTitle>
-                    <CardDescription>
-                      {user?.aiTier === 'ENTERPRISE' 
-                        ? 'הגדר גישות טיפוליות ספציפיות למטופל זה (אופציונלי)'
-                        : 'לחץ על גישה כדי לשדרג ולהפעיל ניתוח מותאם!'
-                      }
-                    </CardDescription>
-                  </div>
-                  {user?.aiTier !== 'ENTERPRISE' && (
-                    <Badge className="bg-gradient-to-r from-amber-400 to-orange-400 text-white border-0 text-xs">
-                      שדרג לארגוני
-                    </Badge>
-                  )}
-                </div>
-              </CardHeader>
-              <CardContent>
-                <ClientApproachEditor
-                  clientId={client.id}
-                  clientName={client.name}
-                  currentApproaches={client.therapeuticApproaches || []}
-                  currentNotes={client.approachNotes}
-                  currentCulturalContext={client.culturalContext}
-                  disabled={user?.aiTier !== 'ENTERPRISE'}
-                />
-              </CardContent>
-            </Card>
           </div>
             </TabsContent>
 
@@ -1073,16 +1164,6 @@ export default async function ClientPage({
                     )}
                   </CardContent>
                 </Card>
-
-                {/* ניתוח AI לשאלונים */}
-                {client.questionnaireResponses && client.questionnaireResponses.length > 0 && (
-                  <QuestionnaireAnalysis
-                    clientId={client.id}
-                    clientName={client.name}
-                    questionnaires={client.questionnaireResponses}
-                    userTier={(user?.aiTier as "ESSENTIAL" | "PRO" | "ENTERPRISE") || "ESSENTIAL"}
-                  />
-                )}
 
                 {/* אבחון והערות */}
                 <div className="grid gap-6 lg:grid-cols-2">
