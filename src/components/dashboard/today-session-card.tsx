@@ -39,8 +39,8 @@ import { he } from "date-fns/locale";
 interface TodaySessionCardProps {
   session: {
     id: string;
-    startTime: Date;
-    endTime: Date;
+    startTime: Date | string;
+    endTime: Date | string;
     type: string;
     price: number;
     status: string;
