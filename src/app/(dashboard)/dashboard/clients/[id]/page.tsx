@@ -78,9 +78,8 @@ async function getClient(clientId: string, userId: string) {
         },
       },
       payments: {
-        where: { parentPaymentId: null }, // Only get parent payments
+        where: { parentPaymentId: null },
         orderBy: { createdAt: "desc" },
-        take: 10,
         include: { 
           session: true,
           childPayments: {
@@ -672,8 +671,9 @@ export default async function ClientPage({
                     paidAt: payment.paidAt,
                     session: payment.session,
                     childPayments: payment.childPayments?.map((child) => ({
-                      ...child,
+                      id: child.id,
                       amount: Number(child.amount),
+                      method: child.method || payment.method,
                       paidAt: child.paidAt,
                       createdAt: child.createdAt,
                     })),

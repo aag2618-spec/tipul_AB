@@ -37,6 +37,7 @@ export async function GET() {
           select: {
             id: true,
             amount: true,
+            method: true,
             paidAt: true,
             createdAt: true,
           },
@@ -76,7 +77,7 @@ export async function GET() {
       childPayments: payment.childPayments?.map((child) => ({
         id: child.id,
         amount: Number(child.amount),
-        method: payment.method, // שימוש באותו אמצעי תשלום
+        method: child.method || payment.method,
         paidAt: child.paidAt,
         createdAt: child.createdAt,
       })) || [],
