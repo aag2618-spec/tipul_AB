@@ -35,6 +35,7 @@ interface QuestionnaireAnalysisProps {
   clientName: string;
   questionnaires: any[];
   userTier: "ESSENTIAL" | "PRO" | "ENTERPRISE";
+  compact?: boolean;
 }
 
 export function QuestionnaireAnalysis({
@@ -42,6 +43,7 @@ export function QuestionnaireAnalysis({
   clientName,
   questionnaires,
   userTier,
+  compact = false,
 }: QuestionnaireAnalysisProps) {
   const [usage, setUsage] = useState<any>(null);
   const [loading, setLoading] = useState(false);
@@ -216,7 +218,7 @@ export function QuestionnaireAnalysis({
   return (
     <div className="space-y-6">
       {/* Usage Counter */}
-      {usage && (
+      {!compact && usage && (
         <Card>
           <CardHeader>
             <CardTitle className="flex items-center gap-2">
@@ -297,7 +299,7 @@ export function QuestionnaireAnalysis({
       )}
 
       {/* Global Actions */}
-      <Card>
+      {!compact && <Card>
         <CardHeader>
           <CardTitle>ניתוחים גלובליים</CardTitle>
           <CardDescription>
@@ -342,7 +344,7 @@ export function QuestionnaireAnalysis({
             )}
           </Button>
         </CardContent>
-      </Card>
+      </Card>}
 
       {/* Individual Questionnaires */}
       <Card>

@@ -1174,6 +1174,7 @@ export default async function ClientPage({
                     clientName={client.name}
                     questionnaires={client.questionnaireResponses}
                     userTier={(user?.aiTier as "ESSENTIAL" | "PRO" | "ENTERPRISE") || "ESSENTIAL"}
+                    compact
                   />
                 )}
 
