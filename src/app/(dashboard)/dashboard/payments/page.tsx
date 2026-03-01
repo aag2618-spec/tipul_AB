@@ -1081,7 +1081,6 @@ export default function PaymentsPage() {
                       
                       <div className="mt-3 pt-2 border-t text-xs text-primary flex items-center gap-1">
                         לחץ לתשלום
-                        <ArrowRight className="h-3 w-3" />
                       </div>
                     </CardContent>
                   </Card>

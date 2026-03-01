@@ -45,7 +45,8 @@ interface QuickMarkPaidProps {
   // אפשרות לשליטה מבחוץ (אופציונלי - לשימוש ביומן)
   open?: boolean;
   onOpenChange?: (open: boolean) => void;
-  hideButton?: boolean; // להסתיר את הכפתור ולהציג רק את הדיאלוג
+  hideButton?: boolean;
+  children?: React.ReactNode;
 }
 
 export function QuickMarkPaid({
@@ -62,6 +63,7 @@ export function QuickMarkPaid({
   open,
   onOpenChange,
   hideButton = false,
+  children,
 }: QuickMarkPaidProps) {
   const [internalOpen, setInternalOpen] = useState(false);
   
@@ -221,7 +223,11 @@ export function QuickMarkPaid({
 
   return (
     <Dialog open={isOpen} onOpenChange={setIsOpen}>
-      {!hideButton && (
+      {children ? (
+        <DialogTrigger asChild>
+          <div className="cursor-pointer">{children}</div>
+        </DialogTrigger>
+      ) : !hideButton ? (
         <DialogTrigger asChild>
           <Button 
             variant={buttonClassName ? "ghost" : "default"}
@@ -233,7 +239,7 @@ export function QuickMarkPaid({
             {buttonText}
           </Button>
         </DialogTrigger>
-      )}
+      ) : null}
       <DialogContent className="sm:max-w-[550px] max-h-[90vh] overflow-y-auto">
         <DialogHeader>
           <DialogTitle className="flex items-center gap-2">

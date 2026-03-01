@@ -546,11 +546,8 @@ export default async function ClientPage({
                       const alreadyPaid = session.payment ? Number(session.payment.amount) : 0;
                       const debt = sessionPrice - alreadyPaid;
 
-                      return (
-                        <Card
-                          key={session.id}
-                          className="hover:shadow-lg transition-all hover:scale-[1.02] hover:border-primary"
-                        >
+                      const cardContent = (
+                        <Card className="cursor-pointer hover:shadow-lg transition-all hover:scale-[1.02] hover:border-primary">
                           <CardContent className="p-4">
                             <div className="flex items-center gap-2 mb-3">
                               <Calendar className="h-4 w-4 text-muted-foreground" />
@@ -600,35 +597,34 @@ export default async function ClientPage({
                               )}
                             </div>
 
-                            <div className="mt-3 pt-2 border-t">
-                              {session.payment ? (
-                                <QuickMarkPaid
-                                  sessionId={session.id}
-                                  clientId={client.id}
-                                  clientName={client.name}
-                                  amount={debt}
-                                  creditBalance={Number(client.creditBalance || 0)}
-                                  existingPayment={{
-                                    id: session.payment.id,
-                                    status: session.payment.status,
-                                  }}
-                                  buttonText="לחץ לתשלום"
-                                  buttonClassName="text-xs text-primary gap-1 p-0 h-auto hover:bg-transparent"
-                                  totalClientDebt={totalDebt}
-                                  unpaidSessionsCount={unpaidSessions.length}
-                                />
-                              ) : (
-                                <Link
-                                  href={`/dashboard/payments/pay/${client.id}`}
-                                  className="text-xs text-primary flex items-center gap-1"
-                                >
-                                  לחץ לתשלום
-                                  <ArrowRight className="h-3 w-3" />
-                                </Link>
-                              )}
+                            <div className="mt-3 pt-2 border-t text-xs text-primary flex items-center gap-1">
+                              לחץ לתשלום
                             </div>
                           </CardContent>
                         </Card>
+                      );
+
+                      return session.payment ? (
+                        <QuickMarkPaid
+                          key={session.id}
+                          sessionId={session.id}
+                          clientId={client.id}
+                          clientName={client.name}
+                          amount={debt}
+                          creditBalance={Number(client.creditBalance || 0)}
+                          existingPayment={{
+                            id: session.payment.id,
+                            status: session.payment.status,
+                          }}
+                          totalClientDebt={totalDebt}
+                          unpaidSessionsCount={unpaidSessions.length}
+                        >
+                          {cardContent}
+                        </QuickMarkPaid>
+                      ) : (
+                        <Link key={session.id} href={`/dashboard/payments/pay/${client.id}`}>
+                          {cardContent}
+                        </Link>
                       );
                     })}
                   </div>
