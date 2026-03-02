@@ -3,11 +3,10 @@ import prisma from "@/lib/prisma";
 import { sendEmail } from "@/lib/resend";
 import { create2HourReminderEmail, formatSessionDateTime } from "@/lib/email-templates";
 
-// Send 2-hour session reminders
+// Send custom-timed session reminders (replaces fixed 2h reminders)
 // Should be called by cron job every 15 minutes
 
 export async function GET(request: NextRequest) {
-  // Verify cron secret for security
   const authHeader = request.headers.get("authorization");
   const cronSecret = process.env.CRON_SECRET;
   
@@ -17,100 +16,114 @@ export async function GET(request: NextRequest) {
 
   try {
     const now = new Date();
-    
-    // Find sessions starting in 1.75-2.25 hours (to catch within the 15-minute window)
-    const reminderWindowStart = new Date(now.getTime() + 105 * 60 * 1000); // 1h45m
-    const reminderWindowEnd = new Date(now.getTime() + 135 * 60 * 1000);   // 2h15m
 
-    const upcomingSessions = await prisma.therapySession.findMany({
+    const therapistsWithCustomReminders = await prisma.user.findMany({
       where: {
-        startTime: {
-          gte: reminderWindowStart,
-          lt: reminderWindowEnd,
+        communicationSetting: {
+          OR: [
+            { customReminderEnabled: true },
+            { send2hReminder: true },
+          ],
         },
-        status: "SCHEDULED",
       },
       include: {
-        client: true,
-        therapist: {
-          include: {
-            communicationSetting: true,
-          },
-        },
+        communicationSetting: true,
       },
     });
 
     let emailsSent = 0;
     const errors: string[] = [];
 
-    for (const session of upcomingSessions) {
-      // Skip if client is null (BREAK session) or has no email
-      if (!session.client || !session.client.email) continue;
+    for (const therapist of therapistsWithCustomReminders) {
+      const settings = therapist.communicationSetting;
+      if (!settings) continue;
 
-      // Check if therapist has 2h reminders enabled
-      const settings = session.therapist.communicationSetting;
-      if (settings && !settings.send2hReminder) continue;
+      const reminderHours = settings.customReminderEnabled
+        ? settings.customReminderHours
+        : 2;
 
-      // Check if we already sent this reminder
-      const existingLog = await prisma.communicationLog.findFirst({
+      const windowMinutes = 15;
+      const reminderMs = reminderHours * 60 * 60 * 1000;
+      const halfWindow = (windowMinutes / 2) * 60 * 1000;
+      const reminderWindowStart = new Date(now.getTime() + reminderMs - halfWindow);
+      const reminderWindowEnd = new Date(now.getTime() + reminderMs + halfWindow);
+
+      const upcomingSessions = await prisma.therapySession.findMany({
         where: {
-          sessionId: session.id,
-          type: "REMINDER_2H",
+          therapistId: therapist.id,
+          startTime: {
+            gte: reminderWindowStart,
+            lt: reminderWindowEnd,
+          },
+          status: "SCHEDULED",
+        },
+        include: {
+          client: true,
         },
       });
 
-      if (existingLog) continue;
+      for (const session of upcomingSessions) {
+        if (!session.client || !session.client.email) continue;
 
-      const { date, time } = formatSessionDateTime(session.startTime);
-      const { subject, html } = create2HourReminderEmail({
-        clientName: session.client.name,
-        therapistName: session.therapist.name || "המטפל/ת שלך",
-        date,
-        time,
-        address: session.location || undefined,
-      });
+        const existingLog = await prisma.communicationLog.findFirst({
+          where: {
+            sessionId: session.id,
+            type: "REMINDER_2H",
+          },
+        });
 
-      const result = await sendEmail({
-        to: session.client.email,
-        subject,
-        html,
-        replyTo: session.therapist.email || undefined, // תשובות יגיעו למטפל
-      });
+        if (existingLog) continue;
 
-      // Log communication
-      await prisma.communicationLog.create({
-        data: {
-          type: "REMINDER_2H",
-          channel: "EMAIL",
-          recipient: session.client.email,
+        const { date, time } = formatSessionDateTime(session.startTime);
+        const { subject, html } = create2HourReminderEmail({
+          clientName: session.client.name,
+          therapistName: therapist.name || "המטפל/ת שלך",
+          date,
+          time,
+          address: session.location || undefined,
+        });
+
+        const result = await sendEmail({
+          to: session.client.email,
           subject,
-          content: html,
-          status: result.success ? "SENT" : "FAILED",
-          errorMessage: result.success ? null : String(result.error),
-          sentAt: result.success ? new Date() : null,
-          sessionId: session.id,
-          clientId: session.clientId,
-          userId: session.therapistId,
-        },
-      });
+          html,
+          replyTo: therapist.email || undefined,
+        });
 
-      if (result.success) {
-        emailsSent++;
-      } else {
-        errors.push(`Failed to send to ${session.client.email}: ${result.error}`);
+        await prisma.communicationLog.create({
+          data: {
+            type: "REMINDER_2H",
+            channel: "EMAIL",
+            recipient: session.client.email,
+            subject,
+            content: html,
+            status: result.success ? "SENT" : "FAILED",
+            errorMessage: result.success ? null : String(result.error),
+            sentAt: result.success ? new Date() : null,
+            sessionId: session.id,
+            clientId: session.clientId,
+            userId: session.therapistId,
+          },
+        });
+
+        if (result.success) {
+          emailsSent++;
+        } else {
+          errors.push(`Failed to send to ${session.client.email}: ${result.error}`);
+        }
       }
     }
 
     return NextResponse.json({
-      message: "2-hour reminders processed",
-      sessionsFound: upcomingSessions.length,
+      message: "Custom reminders processed",
+      therapistsChecked: therapistsWithCustomReminders.length,
       emailsSent,
       errors: errors.length > 0 ? errors : undefined,
     });
   } catch (error) {
-    console.error("Cron 2h reminders error:", error);
+    console.error("Cron custom reminders error:", error);
     return NextResponse.json(
-      { message: "Error processing 2h reminders" },
+      { message: "Error processing custom reminders" },
       { status: 500 }
     );
   }

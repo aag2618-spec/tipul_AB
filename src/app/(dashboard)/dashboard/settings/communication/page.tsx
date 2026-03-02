@@ -21,6 +21,8 @@ interface CommunicationSettings {
   sendConfirmationEmail: boolean;
   send24hReminder: boolean;
   send2hReminder: boolean;
+  customReminderEnabled: boolean;
+  customReminderHours: number;
   allowClientCancellation: boolean;
   minCancellationHours: number;
   sendDebtReminders: boolean;
@@ -44,6 +46,8 @@ export default function CommunicationSettingsPage() {
     sendConfirmationEmail: true,
     send24hReminder: true,
     send2hReminder: false,
+    customReminderEnabled: false,
+    customReminderHours: 2,
     allowClientCancellation: true,
     minCancellationHours: 24,
     sendDebtReminders: false,
@@ -169,20 +173,38 @@ export default function CommunicationSettingsPage() {
               />
             </div>
 
-            <div className="flex items-center justify-between">
-              <div className="space-y-0.5">
-                <Label htmlFor="reminder2h">תזכורת 2 שעות לפני</Label>
-                <p className="text-sm text-muted-foreground">
-                  שלח תזכורת שעתיים לפני הפגישה
-                </p>
+            <div className="space-y-3">
+              <div className="flex items-center justify-between">
+                <div className="space-y-0.5">
+                  <Label htmlFor="customReminder">תזכורת מותאמת אישית</Label>
+                  <p className="text-sm text-muted-foreground">
+                    הגדר כמה זמן לפני הפגישה לשלוח תזכורת
+                  </p>
+                </div>
+                <Switch
+                  id="customReminder"
+                  checked={settings.customReminderEnabled}
+                  onCheckedChange={(checked) =>
+                    setSettings({ ...settings, customReminderEnabled: checked, send2hReminder: checked })
+                  }
+                />
               </div>
-              <Switch
-                id="reminder2h"
-                checked={settings.send2hReminder}
-                onCheckedChange={(checked) =>
-                  setSettings({ ...settings, send2hReminder: checked })
-                }
-              />
+              {settings.customReminderEnabled && (
+                <div className="flex items-center gap-2 pr-2">
+                  <Clock className="h-4 w-4 text-muted-foreground" />
+                  <Input
+                    type="number"
+                    min={1}
+                    max={72}
+                    value={settings.customReminderHours}
+                    onChange={(e) =>
+                      setSettings({ ...settings, customReminderHours: parseInt(e.target.value) || 2 })
+                    }
+                    className="w-20"
+                  />
+                  <span className="text-sm text-muted-foreground">שעות לפני הפגישה</span>
+                </div>
+              )}
             </div>
           </CardContent>
         </Card>

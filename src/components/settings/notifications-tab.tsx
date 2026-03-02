@@ -43,6 +43,8 @@ interface CommunicationSettings {
   sendConfirmationEmail: boolean;
   send24hReminder: boolean;
   send2hReminder: boolean;
+  customReminderEnabled: boolean;
+  customReminderHours: number;
   allowClientCancellation: boolean;
   minCancellationHours: number;
   sendDebtReminders: boolean;
@@ -80,6 +82,8 @@ export function NotificationsTab() {
     sendConfirmationEmail: true,
     send24hReminder: true,
     send2hReminder: false,
+    customReminderEnabled: false,
+    customReminderHours: 2,
     allowClientCancellation: true,
     minCancellationHours: 24,
     sendDebtReminders: false,
@@ -338,15 +342,31 @@ export function NotificationsTab() {
                 onCheckedChange={(checked) => setCommSettings({ ...commSettings, send24hReminder: checked })}
               />
             </div>
-            <div className="flex items-center justify-between">
-              <div className="space-y-0.5">
-                <Label>תזכורת 2 שעות לפני</Label>
-                <p className="text-sm text-muted-foreground">תזכורת שעתיים לפני</p>
+            <div className="space-y-3">
+              <div className="flex items-center justify-between">
+                <div className="space-y-0.5">
+                  <Label>תזכורת מותאמת אישית</Label>
+                  <p className="text-sm text-muted-foreground">הגדר כמה זמן לפני הפגישה לשלוח תזכורת</p>
+                </div>
+                <Switch
+                  checked={commSettings.customReminderEnabled}
+                  onCheckedChange={(checked) => setCommSettings({ ...commSettings, customReminderEnabled: checked, send2hReminder: checked })}
+                />
               </div>
-              <Switch
-                checked={commSettings.send2hReminder}
-                onCheckedChange={(checked) => setCommSettings({ ...commSettings, send2hReminder: checked })}
-              />
+              {commSettings.customReminderEnabled && (
+                <div className="flex items-center gap-2 pr-2">
+                  <Clock className="h-4 w-4 text-muted-foreground" />
+                  <Input
+                    type="number"
+                    min={1}
+                    max={72}
+                    value={commSettings.customReminderHours}
+                    onChange={(e) => setCommSettings({ ...commSettings, customReminderHours: parseInt(e.target.value) || 2 })}
+                    className="w-20"
+                  />
+                  <span className="text-sm text-muted-foreground">שעות לפני הפגישה</span>
+                </div>
+              )}
             </div>
           </AccordionContent>
         </AccordionItem>

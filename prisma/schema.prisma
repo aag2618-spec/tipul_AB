@@ -819,9 +819,11 @@ model CommunicationSetting {
   id String @id @default(cuid())
 
   // Session notifications
-  sendConfirmationEmail Boolean @default(true)
-  send24hReminder       Boolean @default(true)
-  send2hReminder        Boolean @default(false)
+  sendConfirmationEmail  Boolean @default(true)
+  send24hReminder        Boolean @default(true)
+  send2hReminder         Boolean @default(false)
+  customReminderEnabled  Boolean @default(false)
+  customReminderHours    Int     @default(2)
 
   // Cancellation policy
   allowClientCancellation Boolean @default(true)
