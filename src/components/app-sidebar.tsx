@@ -3,7 +3,6 @@
 import Link from "next/link";
 import { usePathname } from "next/navigation";
 import { useSession } from "next-auth/react";
-import { useState, useEffect } from "react";
 import {
   Sidebar,
   SidebarContent,
@@ -17,7 +16,6 @@ import {
   SidebarGroupContent,
 } from "@/components/ui/sidebar";
 import { Avatar, AvatarFallback, AvatarImage } from "@/components/ui/avatar";
-import { Badge } from "@/components/ui/badge";
 import { UserTierBadge } from "@/components/user-tier-badge";
 import {
   LayoutDashboard,
@@ -29,7 +27,6 @@ import {
   Settings,
   Leaf,
   Shield,
-  XCircle,
   ClipboardList,
   FileSignature,
   Mail,
@@ -103,12 +100,6 @@ const businessItems = [
     href: "/dashboard/reports",
     icon: BarChart3,
   },
-  {
-    title: "בקשות ביטול",
-    href: "/dashboard/cancellation-requests",
-    icon: XCircle,
-    hasBadge: true,
-  },
 ];
 
 const settingsItems = [
@@ -133,28 +124,6 @@ export function AppSidebar({ user }: AppSidebarProps) {
   const pathname = usePathname();
   const { data: session } = useSession();
   const isAdmin = session?.user?.role === "ADMIN" || session?.user?.role === "MANAGER";
-  const [pendingCancellations, setPendingCancellations] = useState(0);
-
-  // Fetch pending cancellation requests count
-  useEffect(() => {
-    const fetchPendingCount = async () => {
-      try {
-        const res = await fetch('/api/cancellation-requests?status=PENDING&countOnly=true');
-        if (res.ok) {
-          const data = await res.json();
-          setPendingCancellations(data.count || 0);
-        }
-      } catch (error) {
-        console.error('Error fetching pending cancellations:', error);
-      }
-    };
-
-    fetchPendingCount();
-    // Refresh every minute
-    const interval = setInterval(fetchPendingCount, 60000);
-    return () => clearInterval(interval);
-  }, []);
-
   const isActive = (href: string) => {
     if (href === "/dashboard") {
       return pathname === "/dashboard";
@@ -255,11 +224,6 @@ export function AppSidebar({ user }: AppSidebarProps) {
                         <item.icon className="h-4 w-4" />
                         <span>{item.title}</span>
                       </div>
-                      {item.hasBadge && pendingCancellations > 0 && (
-                        <Badge variant="destructive" className="h-5 min-w-[20px] px-1.5 text-xs">
-                          {pendingCancellations}
-                        </Badge>
-                      )}
                     </Link>
                   </SidebarMenuButton>
                 </SidebarMenuItem>

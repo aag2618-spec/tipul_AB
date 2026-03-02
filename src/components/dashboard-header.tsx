@@ -40,20 +40,6 @@ export function DashboardHeader({ user }: DashboardHeaderProps) {
   const router = useRouter();
   const [notifications, setNotifications] = useState<Notification[]>([]);
   const [unreadCount, setUnreadCount] = useState(0);
-  const [pendingCancellations, setPendingCancellations] = useState(0);
-
-  useEffect(() => {
-    fetchNotifications();
-    fetchPendingCancellations();
-    
-    // רענון כל 30 שניות
-    const interval = setInterval(() => {
-      fetchNotifications();
-      fetchPendingCancellations();
-    }, 30000);
-    
-    return () => clearInterval(interval);
-  }, []);
 
   const fetchNotifications = async () => {
     try {
@@ -68,17 +54,15 @@ export function DashboardHeader({ user }: DashboardHeaderProps) {
     }
   };
 
-  const fetchPendingCancellations = async () => {
-    try {
-      const response = await fetch("/api/cancellation-requests?status=PENDING&limit=1");
-      if (response.ok) {
-        const data = await response.json();
-        setPendingCancellations(data.total || 0);
-      }
-    } catch (error) {
-      console.error("Error fetching cancellations:", error);
-    }
-  };
+  useEffect(() => {
+    fetchNotifications();
+    
+    const interval = setInterval(() => {
+      fetchNotifications();
+    }, 30000);
+    
+    return () => clearInterval(interval);
+  }, []);
 
   const markAsRead = async (id: string) => {
     try {
@@ -152,7 +136,7 @@ export function DashboardHeader({ user }: DashboardHeaderProps) {
     }
   };
 
-  const totalBadge = unreadCount + pendingCancellations;
+  const totalBadge = unreadCount;
 
   return (
     <header className="sticky top-0 z-50 flex h-16 items-center gap-4 border-b bg-background/95 backdrop-blur supports-[backdrop-filter]:bg-background/60 px-6">
@@ -188,29 +172,6 @@ export function DashboardHeader({ user }: DashboardHeaderProps) {
             </DropdownMenuLabel>
             <DropdownMenuSeparator />
             
-            {/* Pending Cancellations Alert */}
-            {pendingCancellations > 0 && (
-              <>
-                <DropdownMenuItem asChild>
-                  <Link 
-                    href="/dashboard/cancellation-requests" 
-                    className="cursor-pointer flex items-center gap-3 p-3 bg-orange-50 dark:bg-orange-950"
-                  >
-                    <XCircle className="h-5 w-5 text-orange-500" />
-                    <div className="flex-1">
-                      <p className="font-medium text-orange-700 dark:text-orange-300">
-                        {pendingCancellations} בקשות ביטול ממתינות
-                      </p>
-                      <p className="text-xs text-orange-600 dark:text-orange-400">
-                        לחץ לצפייה ואישור
-                      </p>
-                    </div>
-                  </Link>
-                </DropdownMenuItem>
-                <DropdownMenuSeparator />
-              </>
-            )}
-            
             {/* Recent Notifications - only unread */}
             {notifications.length > 0 ? (
               <div className="max-h-[400px] overflow-y-auto">
@@ -239,11 +200,11 @@ export function DashboardHeader({ user }: DashboardHeaderProps) {
                   </DropdownMenuItem>
                 ))}
               </div>
-            ) : pendingCancellations === 0 ? (
+            ) : (
               <div className="p-4 text-center text-muted-foreground text-sm">
                 אין תשובות חדשות ממטופלים
               </div>
-            ) : null}
+            )}
             
             <DropdownMenuSeparator />
             <div className="flex items-center justify-between px-2 py-1">

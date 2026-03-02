@@ -362,8 +362,8 @@ export function NotificationsTab() {
           <AccordionContent className="space-y-4 pb-4">
             <div className="flex items-center justify-between">
               <div className="space-y-0.5">
-                <Label>אפשר למטופלים לבקש ביטול</Label>
-                <p className="text-sm text-muted-foreground">מטופלים ישלחו בקשות ביטול דרך המערכת</p>
+                <Label>אפשר למטופלים לבטל תורים</Label>
+                <p className="text-sm text-muted-foreground">מטופלים יוכלו לבטל תורים בהתאם למדיניות שהוגדרה</p>
               </div>
               <Switch
                 checked={commSettings.allowClientCancellation}

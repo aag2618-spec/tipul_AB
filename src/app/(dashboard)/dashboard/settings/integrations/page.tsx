@@ -530,7 +530,7 @@ export default function IntegrationsPage() {
               <ul className="list-disc list-inside mt-2 space-y-1">
                 <li>אישור קביעת תור</li>
                 <li>תזכורות לפני פגישות (24 שעות / 2 שעות)</li>
-                <li>בקשות ביטול ועדכונים</li>
+                <li>עדכונים ותזכורות</li>
               </ul>
               <p className="mt-3">
                 <Link href="/dashboard/settings/communication" className="text-primary hover:underline">

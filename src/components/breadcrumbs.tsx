@@ -22,7 +22,6 @@ const pathNames: Record<string, string> = {
   communications: "תקשורת",
   tasks: "משימות",
   "consent-forms": "טפסי הסכמה",
-  "cancellation-requests": "בקשות ביטול",
   "ai-prep": "הכנה לפגישה",
   "bulk-email": "דיוור",
   new: "חדש",

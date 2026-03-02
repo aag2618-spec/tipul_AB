@@ -201,9 +201,9 @@ export default function CommunicationSettingsPage() {
           <CardContent className="space-y-6">
             <div className="flex items-center justify-between">
               <div className="space-y-0.5">
-                <Label htmlFor="allowCancellation">אפשר למטופלים לבקש ביטול</Label>
+                <Label htmlFor="allowCancellation">אפשר למטופלים לבטל תורים</Label>
                 <p className="text-sm text-muted-foreground">
-                  מטופלים יוכלו לשלוח בקשות ביטול דרך המערכת
+                  מטופלים יוכלו לבטל תורים בהתאם למדיניות שהוגדרה
                 </p>
               </div>
               <Switch
