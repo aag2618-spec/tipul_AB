@@ -71,14 +71,14 @@ function AdminLayoutContent({ children }: { children: React.ReactNode }) {
   }
 
   return (
-    <div className="min-h-screen bg-slate-950 text-white" dir="rtl">
+    <div className="dark min-h-screen bg-slate-950 text-white" dir="rtl">
       {/* Mobile menu button */}
       <div className="lg:hidden fixed top-4 right-4 z-50">
         <Button
           variant="ghost"
           size="icon"
           onClick={() => setSidebarOpen(!sidebarOpen)}
-          className="text-white hover:bg-slate-800"
+          className="text-foreground hover:bg-muted"
         >
           {sidebarOpen ? <X className="h-6 w-6" /> : <Menu className="h-6 w-6" />}
         </Button>
@@ -87,20 +87,20 @@ function AdminLayoutContent({ children }: { children: React.ReactNode }) {
       {/* Sidebar */}
       <aside
         className={cn(
-          "fixed inset-y-0 right-0 z-40 w-64 bg-slate-900 border-l border-slate-800 transform transition-transform duration-300 lg:translate-x-0",
+          "fixed inset-y-0 right-0 z-40 w-64 bg-card border-l border-border transform transition-transform duration-300 lg:translate-x-0",
           sidebarOpen ? "translate-x-0" : "translate-x-full lg:translate-x-0"
         )}
       >
         <div className="flex flex-col h-full">
           {/* Logo */}
-          <div className="p-6 border-b border-slate-800">
+          <div className="p-6 border-b border-border">
             <div className="flex items-center gap-3">
               <div className="p-2 bg-amber-500/20 rounded-lg">
                 <Shield className="h-6 w-6 text-amber-500" />
               </div>
               <div>
                 <h1 className="font-bold text-lg">ממשק ניהול</h1>
-                <p className="text-xs text-slate-400">Admin Panel</p>
+                <p className="text-xs text-muted-foreground">Admin Panel</p>
               </div>
             </div>
           </div>
@@ -120,7 +120,7 @@ function AdminLayoutContent({ children }: { children: React.ReactNode }) {
                     "flex items-center gap-3 px-4 py-3 rounded-lg transition-all",
                     isActive
                       ? "bg-amber-500/20 text-amber-500"
-                      : "text-slate-400 hover:bg-slate-800 hover:text-white"
+                      : "text-muted-foreground hover:bg-muted hover:text-foreground"
                   )}
                 >
                   <item.icon className="h-5 w-5" />
@@ -131,10 +131,10 @@ function AdminLayoutContent({ children }: { children: React.ReactNode }) {
           </nav>
 
           {/* User Info & Actions */}
-          <div className="p-4 border-t border-slate-800 space-y-4">
-            <div className="text-sm text-slate-400">
+          <div className="p-4 border-t border-border space-y-4">
+            <div className="text-sm text-muted-foreground">
               <p>מחובר כ:</p>
-              <p className="text-white font-medium">{session?.user?.name || session?.user?.email}</p>
+              <p className="text-foreground font-medium">{session?.user?.name || session?.user?.email}</p>
             </div>
             
             <div className="flex flex-col gap-2">
@@ -142,7 +142,7 @@ function AdminLayoutContent({ children }: { children: React.ReactNode }) {
                 variant="ghost"
                 size="sm"
                 asChild
-                className="justify-start text-slate-400 hover:text-white hover:bg-slate-800"
+                className="justify-start text-muted-foreground hover:text-foreground hover:bg-muted"
               >
                 <Link href="/dashboard">
                   <ArrowRight className="ml-2 h-4 w-4" />
@@ -154,7 +154,7 @@ function AdminLayoutContent({ children }: { children: React.ReactNode }) {
                 variant="ghost"
                 size="sm"
                 onClick={() => signOut({ callbackUrl: "/login" })}
-                className="justify-start text-slate-400 hover:text-red-400 hover:bg-slate-800"
+                className="justify-start text-muted-foreground hover:text-red-400 hover:bg-muted"
               >
                 <LogOut className="ml-2 h-4 w-4" />
                 התנתק

@@ -60,7 +60,7 @@ export default function AdminStoragePage() {
   if (isLoading) {
     return (
       <div className="h-[50vh] flex items-center justify-center">
-        <Loader2 className="h-8 w-8 animate-spin text-slate-400" />
+        <Loader2 className="h-8 w-8 animate-spin text-muted-foreground" />
       </div>
     );
   }
@@ -71,90 +71,90 @@ export default function AdminStoragePage() {
     <div className="space-y-6 animate-fade-in">
       <div>
         <h1 className="text-3xl font-bold">ניהול אחסון</h1>
-        <p className="text-slate-400 mt-1">סקירת שימוש באחסון לפי משתמש</p>
+        <p className="text-muted-foreground mt-1">סקירת שימוש באחסון לפי משתמש</p>
       </div>
 
       {/* Stats Cards */}
       <div className="grid gap-4 md:grid-cols-4">
-        <Card className="bg-slate-900 border-slate-800">
+        <Card>
           <CardHeader className="flex flex-row items-center justify-between pb-2">
-            <CardTitle className="text-sm font-medium text-slate-400">סה"כ אחסון</CardTitle>
+            <CardTitle className="text-sm font-medium text-muted-foreground">סה"כ אחסון</CardTitle>
             <Database className="h-4 w-4 text-purple-500" />
           </CardHeader>
           <CardContent>
-            <div className="text-2xl font-bold text-white">
+            <div className="text-2xl font-bold">
               {(totals?.totalStorageGB || 0).toFixed(2)} GB
             </div>
-            <p className="text-xs text-slate-500 mt-1">
+            <p className="text-xs text-muted-foreground mt-1">
               {(totals?.totalStorageMB || 0).toFixed(0)} MB
             </p>
           </CardContent>
         </Card>
 
-        <Card className="bg-slate-900 border-slate-800">
+        <Card>
           <CardHeader className="flex flex-row items-center justify-between pb-2">
-            <CardTitle className="text-sm font-medium text-slate-400">מסמכים</CardTitle>
+            <CardTitle className="text-sm font-medium text-muted-foreground">מסמכים</CardTitle>
             <FileText className="h-4 w-4 text-sky-500" />
           </CardHeader>
           <CardContent>
-            <div className="text-2xl font-bold text-white">
+            <div className="text-2xl font-bold">
               {totals?.totalDocuments || 0}
             </div>
-            <p className="text-xs text-slate-500 mt-1">קבצים</p>
+            <p className="text-xs text-muted-foreground mt-1">קבצים</p>
           </CardContent>
         </Card>
 
-        <Card className="bg-slate-900 border-slate-800">
+        <Card>
           <CardHeader className="flex flex-row items-center justify-between pb-2">
-            <CardTitle className="text-sm font-medium text-slate-400">הקלטות</CardTitle>
+            <CardTitle className="text-sm font-medium text-muted-foreground">הקלטות</CardTitle>
             <Mic className="h-4 w-4 text-green-500" />
           </CardHeader>
           <CardContent>
-            <div className="text-2xl font-bold text-white">
+            <div className="text-2xl font-bold">
               {totals?.totalRecordings || 0}
             </div>
-            <p className="text-xs text-slate-500 mt-1">קבצי אודיו</p>
+            <p className="text-xs text-muted-foreground mt-1">קבצי אודיו</p>
           </CardContent>
         </Card>
 
-        <Card className="bg-slate-900 border-slate-800">
+        <Card>
           <CardHeader className="flex flex-row items-center justify-between pb-2">
-            <CardTitle className="text-sm font-medium text-slate-400">ממוצע למשתמש</CardTitle>
+            <CardTitle className="text-sm font-medium text-muted-foreground">ממוצע למשתמש</CardTitle>
             <HardDrive className="h-4 w-4 text-amber-500" />
           </CardHeader>
           <CardContent>
-            <div className="text-2xl font-bold text-white">
+            <div className="text-2xl font-bold">
               {users.length > 0 
                 ? ((totals?.totalStorageMB || 0) / users.length).toFixed(1)
                 : 0
               } MB
             </div>
-            <p className="text-xs text-slate-500 mt-1">לכל משתמש</p>
+            <p className="text-xs text-muted-foreground mt-1">לכל משתמש</p>
           </CardContent>
         </Card>
       </div>
 
       {/* Storage by User */}
-      <Card className="bg-slate-900 border-slate-800">
+      <Card>
         <CardHeader>
-          <CardTitle className="text-white">שימוש באחסון לפי משתמש</CardTitle>
+          <CardTitle>שימוש באחסון לפי משתמש</CardTitle>
           <CardDescription>משתמשים ממוינים לפי נפח אחסון</CardDescription>
         </CardHeader>
         <CardContent>
           {users.length === 0 ? (
-            <div className="text-center py-8 text-slate-400">
+            <div className="text-center py-8 text-muted-foreground">
               <HardDrive className="h-12 w-12 mx-auto mb-4 opacity-50" />
               <p>אין נתוני אחסון</p>
             </div>
           ) : (
             <Table>
               <TableHeader>
-                <TableRow className="border-slate-800">
-                  <TableHead className="text-slate-400">משתמש</TableHead>
-                  <TableHead className="text-slate-400">מסמכים</TableHead>
-                  <TableHead className="text-slate-400">הקלטות</TableHead>
-                  <TableHead className="text-slate-400 w-[300px]">שימוש באחסון</TableHead>
-                  <TableHead className="text-slate-400">סה"כ</TableHead>
+                <TableRow className="border-border">
+                  <TableHead className="text-muted-foreground">משתמש</TableHead>
+                  <TableHead className="text-muted-foreground">מסמכים</TableHead>
+                  <TableHead className="text-muted-foreground">הקלטות</TableHead>
+                  <TableHead className="text-muted-foreground w-[300px]">שימוש באחסון</TableHead>
+                  <TableHead className="text-muted-foreground">סה"כ</TableHead>
                 </TableRow>
               </TableHeader>
               <TableBody>
@@ -165,18 +165,18 @@ export default function AdminStoragePage() {
                     : 0;
                   
                   return (
-                    <TableRow key={user.id} className="border-slate-800">
+                    <TableRow key={user.id} className="border-border">
                       <TableCell>
                         <div>
-                          <p className="font-medium text-white">{user.name || "ללא שם"}</p>
-                          <p className="text-sm text-slate-500">{user.email}</p>
+                          <p className="font-medium">{user.name || "ללא שם"}</p>
+                          <p className="text-sm text-muted-foreground">{user.email}</p>
                         </div>
                       </TableCell>
                       <TableCell>
                         <div className="flex items-center gap-2">
                           <FileText className="h-4 w-4 text-sky-500" />
-                          <span className="text-slate-300">{user.documentsCount}</span>
-                          <span className="text-xs text-slate-500">
+                          <span>{user.documentsCount}</span>
+                          <span className="text-xs text-muted-foreground">
                             ({user.documentsStorageMB.toFixed(1)} MB)
                           </span>
                         </div>
@@ -184,15 +184,15 @@ export default function AdminStoragePage() {
                       <TableCell>
                         <div className="flex items-center gap-2">
                           <Mic className="h-4 w-4 text-green-500" />
-                          <span className="text-slate-300">{user.recordingsCount}</span>
-                          <span className="text-xs text-slate-500">
+                          <span>{user.recordingsCount}</span>
+                          <span className="text-xs text-muted-foreground">
                             ({user.recordingsStorageMB.toFixed(1)} MB)
                           </span>
                         </div>
                       </TableCell>
                       <TableCell>
                         <div className="space-y-1">
-                          <div className="h-2 bg-slate-800 rounded-full overflow-hidden relative">
+                          <div className="h-2 bg-muted rounded-full overflow-hidden relative">
                             <div 
                               className="absolute h-full bg-sky-500 rounded-full"
                               style={{ width: `${(docPercentage / 100) * percentage}%` }}
@@ -205,7 +205,7 @@ export default function AdminStoragePage() {
                               }}
                             />
                           </div>
-                          <div className="flex justify-between text-xs text-slate-500">
+                          <div className="flex justify-between text-xs text-muted-foreground">
                             <span className="flex items-center gap-1">
                               <span className="w-2 h-2 rounded-full bg-sky-500" />
                               מסמכים
