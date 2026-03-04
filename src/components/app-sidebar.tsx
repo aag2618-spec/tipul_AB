@@ -4,6 +4,7 @@ import Link from "next/link";
 import Image from "next/image";
 import { usePathname } from "next/navigation";
 import { useSession } from "next-auth/react";
+import { useState, useEffect } from "react";
 import {
   Sidebar,
   SidebarContent,
@@ -17,21 +18,29 @@ import {
   SidebarGroupContent,
 } from "@/components/ui/sidebar";
 import { Avatar, AvatarFallback, AvatarImage } from "@/components/ui/avatar";
+import { Badge } from "@/components/ui/badge";
 import { UserTierBadge } from "@/components/user-tier-badge";
 import {
   LayoutDashboard,
   Users,
   Calendar,
   FileText,
+  Mic,
   FolderOpen,
   BarChart3,
   Settings,
+  Bell,
+  ListTodo,
   Leaf,
   Shield,
+  XCircle,
   ClipboardList,
   FileSignature,
+  Building2,
+  MessageSquare,
   Mail,
   Brain,
+  Link2,
   CreditCard,
 } from "lucide-react";
 
@@ -65,23 +74,29 @@ const mainNavItems = [
     href: "/dashboard/sessions",
     icon: FileText,
   },
+  {
+    title: "משימות",
+    href: "/dashboard/tasks",
+    icon: ListTodo,
+  },
 ];
 
 const clinicalItems = [
   {
-    title: "AI Assistant · עוזר",
+    title: "AI Session Prep",
     href: "/dashboard/ai-prep",
     icon: Brain,
   },
+  // הקלטות - מוסתר לעת עתה
+  // {
+  //   title: "הקלטות",
+  //   href: "/dashboard/recordings",
+  //   icon: Mic,
+  // },
   {
     title: "שאלונים",
     href: "/dashboard/questionnaires",
     icon: ClipboardList,
-  },
-  {
-    title: "תקשורת",
-    href: "/dashboard/communications",
-    icon: Mail,
   },
   {
     title: "טפסי הסכמה",
@@ -96,6 +111,18 @@ const clinicalItems = [
 ];
 
 const businessItems = [
+  // תשלומים הוסר - נגיש דרך המלבן בדשבורד
+  {
+    title: "היסטוריית תקשורת",
+    href: "/dashboard/communications",
+    icon: Mail,
+  },
+  {
+    title: "בקשות ביטול",
+    href: "/dashboard/cancellation-requests",
+    icon: XCircle,
+    hasBadge: true,
+  },
   {
     title: "דוחות",
     href: "/dashboard/reports",
@@ -105,9 +132,24 @@ const businessItems = [
 
 const settingsItems = [
   {
-    title: "AI Assistant · הגדרות",
+    title: "AI Assistant",
     href: "/dashboard/settings/ai-assistant",
     icon: Brain,
+  },
+  {
+    title: "התראות",
+    href: "/dashboard/settings/notifications",
+    icon: Bell,
+  },
+  {
+    title: "תזכורות SMS",
+    href: "/dashboard/settings/sms",
+    icon: MessageSquare,
+  },
+  {
+    title: "אינטגרציות",
+    href: "/dashboard/settings/integrations",
+    icon: Link2,
   },
   {
     title: "מנוי וחיוב",
@@ -115,7 +157,12 @@ const settingsItems = [
     icon: CreditCard,
   },
   {
-    title: "הגדרות",
+    title: "קופות חולים",
+    href: "/dashboard/settings/health-insurers",
+    icon: Building2,
+  },
+  {
+    title: "הגדרות כלליות",
     href: "/dashboard/settings",
     icon: Settings,
   },
@@ -125,6 +172,28 @@ export function AppSidebar({ user }: AppSidebarProps) {
   const pathname = usePathname();
   const { data: session } = useSession();
   const isAdmin = session?.user?.role === "ADMIN" || session?.user?.role === "MANAGER";
+  const [pendingCancellations, setPendingCancellations] = useState(0);
+
+  // Fetch pending cancellation requests count
+  useEffect(() => {
+    const fetchPendingCount = async () => {
+      try {
+        const res = await fetch('/api/cancellation-requests?status=PENDING&countOnly=true');
+        if (res.ok) {
+          const data = await res.json();
+          setPendingCancellations(data.count || 0);
+        }
+      } catch (error) {
+        console.error('Error fetching pending cancellations:', error);
+      }
+    };
+
+    fetchPendingCount();
+    // Refresh every minute
+    const interval = setInterval(fetchPendingCount, 60000);
+    return () => clearInterval(interval);
+  }, []);
+
   const isActive = (href: string) => {
     if (href === "/dashboard") {
       return pathname === "/dashboard";
@@ -146,21 +215,16 @@ export function AppSidebar({ user }: AppSidebarProps) {
       <SidebarHeader className="border-b border-sidebar-border">
         <SidebarMenu>
           <SidebarMenuItem>
-            <SidebarMenuButton size="lg" asChild>
-              <Link href="/dashboard" className="flex items-center gap-3">
-                <Image
-                  src="/logo.png"
-                  alt="MyTipul"
-                  width={40}
-                  height={40}
-                  className="rounded-xl"
-                />
-                <div className="flex flex-col">
-                  <span className="font-semibold text-lg">MyTipul</span>
-                  <span className="text-xs text-muted-foreground">ניהול פרקטיקה</span>
-                </div>
-              </Link>
-            </SidebarMenuButton>
+            <Link href="/dashboard" className="flex items-center justify-center py-3 px-2 hover:opacity-80 transition-opacity">
+              <Image
+                src="/logo.png"
+                alt="MyTipul"
+                width={160}
+                height={80}
+                className="object-contain"
+                priority
+              />
+            </Link>
           </SidebarMenuItem>
         </SidebarMenu>
       </SidebarHeader>
@@ -229,6 +293,11 @@ export function AppSidebar({ user }: AppSidebarProps) {
                         <item.icon className="h-4 w-4" />
                         <span>{item.title}</span>
                       </div>
+                      {item.hasBadge && pendingCancellations > 0 && (
+                        <Badge variant="destructive" className="h-5 min-w-[20px] px-1.5 text-xs">
+                          {pendingCancellations}
+                        </Badge>
+                      )}
                     </Link>
                   </SidebarMenuButton>
                 </SidebarMenuItem>
