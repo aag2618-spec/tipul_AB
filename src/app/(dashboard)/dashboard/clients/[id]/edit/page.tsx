@@ -8,8 +8,7 @@ import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/com
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import { Textarea } from "@/components/ui/textarea";
-import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
-import { ArrowRight, Loader2, Save } from "lucide-react";
+import { ArrowRight, Loader2, Save, Archive, Clock, UserCheck } from "lucide-react";
 import { toast } from "sonner";
 
 interface Client {
@@ -61,7 +60,7 @@ export default function EditClientPage({ params }: { params: Promise<{ id: strin
             email: data.email || "",
             birthDate: data.birthDate ? data.birthDate.split("T")[0] : "",
             address: data.address || "",
-            status: data.status || "ACTIVE",
+            status: data.status === "INACTIVE" ? "ARCHIVED" : (data.status || "ACTIVE"),
             defaultSessionPrice: data.defaultSessionPrice ? String(data.defaultSessionPrice) : "",
             notes: data.notes || "",
             initialDiagnosis: data.initialDiagnosis || "",
@@ -226,21 +225,39 @@ export default function EditClientPage({ params }: { params: Promise<{ id: strin
               </div>
 
               <div className="space-y-2">
-                <Label>סטטוס</Label>
-                <Select
-                  value={formData.status}
-                  onValueChange={(v) => setFormData({ ...formData, status: v })}
-                >
-                  <SelectTrigger>
-                    <SelectValue />
-                  </SelectTrigger>
-                  <SelectContent>
-                    <SelectItem value="ACTIVE">התחיל טיפול</SelectItem>
-                    <SelectItem value="WAITING">ממתין בתור</SelectItem>
-                    <SelectItem value="INACTIVE">לא פעיל</SelectItem>
-                    <SelectItem value="ARCHIVED">בארכיון</SelectItem>
-                  </SelectContent>
-                </Select>
+                <Label>סטטוס מטופל</Label>
+                <div className="flex gap-2">
+                  <Button
+                    type="button"
+                    size="sm"
+                    variant={formData.status === "ACTIVE" ? "default" : "outline"}
+                    className={`flex-1 gap-1.5 h-9 ${formData.status === "ACTIVE" ? "bg-emerald-600 hover:bg-emerald-700" : ""}`}
+                    onClick={() => setFormData({ ...formData, status: "ACTIVE" })}
+                  >
+                    <UserCheck className="h-3.5 w-3.5" />
+                    פעיל
+                  </Button>
+                  <Button
+                    type="button"
+                    size="sm"
+                    variant={formData.status === "WAITING" ? "default" : "outline"}
+                    className={`flex-1 gap-1.5 h-9 ${formData.status === "WAITING" ? "bg-amber-500 hover:bg-amber-600" : ""}`}
+                    onClick={() => setFormData({ ...formData, status: "WAITING" })}
+                  >
+                    <Clock className="h-3.5 w-3.5" />
+                    ממתין
+                  </Button>
+                  <Button
+                    type="button"
+                    size="sm"
+                    variant={formData.status === "ARCHIVED" ? "default" : "outline"}
+                    className={`flex-1 gap-1.5 h-9 ${formData.status === "ARCHIVED" ? "bg-slate-500 hover:bg-slate-600" : ""}`}
+                    onClick={() => setFormData({ ...formData, status: "ARCHIVED" })}
+                  >
+                    <Archive className="h-3.5 w-3.5" />
+                    ארכיון
+                  </Button>
+                </div>
               </div>
             </div>
 
@@ -315,6 +332,7 @@ export default function EditClientPage({ params }: { params: Promise<{ id: strin
           </Button>
         </div>
       </form>
+
     </div>
   );
 }

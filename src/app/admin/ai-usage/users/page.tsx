@@ -290,7 +290,7 @@ export default function AdminUsersPage() {
                             {user.email ? (
                               <a 
                                 href={`mailto:${user.email}`}
-                                className="text-xs text-blue-500 hover:text-blue-400 hover:underline"
+                                className="text-xs text-sky-500 hover:text-sky-400 hover:underline"
                                 onClick={(e) => e.stopPropagation()}
                               >
                                 {user.email}

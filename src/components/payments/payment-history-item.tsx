@@ -47,22 +47,14 @@ export function PaymentHistoryItem({ payment }: PaymentHistoryItemProps) {
         : payment.expectedAmount.toNumber())
     : amount;
 
-  // Calculate total from child payments if exists
   const childPayments = payment.childPayments || [];
   const hasMultiplePayments = childPayments.length > 0;
-  const totalPaid = hasMultiplePayments 
-    ? childPayments.reduce((sum, child) => {
-        const childAmount = typeof child.amount === 'number' 
-          ? child.amount 
-          : child.amount.toNumber();
-        return sum + childAmount;
-      }, amount)
-    : amount;
+  const totalPaid = amount;
 
   const isPartial = totalPaid < expectedAmount;
   const remaining = expectedAmount - totalPaid;
   const isCompleted = payment.status === 'PAID' && !isPartial;
-  const paymentCount = hasMultiplePayments ? childPayments.length + 1 : 1;
+  const paymentCount = hasMultiplePayments ? childPayments.length : 1;
 
   const getMethodText = (method: string) => {
     switch (method) {
@@ -241,34 +233,12 @@ export function PaymentHistoryItem({ payment }: PaymentHistoryItemProps) {
 
             {/* Payment Timeline */}
             {hasMultiplePayments ? (
-              <div className="bg-blue-50 border border-blue-200 rounded p-3">
-                <p className="text-sm font-medium text-blue-800 mb-3 flex items-center gap-2">
+              <div className="bg-sky-50 border border-sky-200 rounded p-3">
+                <p className="text-sm font-medium text-sky-800 mb-3 flex items-center gap-2">
                   <CheckCircle className="h-4 w-4" />
                   פירוט תשלומים ({paymentCount} תשלומים)
                 </p>
                 <div className="space-y-2">
-                  {/* First Payment */}
-                  <div className="flex items-center justify-between text-sm bg-white rounded p-2">
-                    <div className="flex items-center gap-2">
-                      <span className="bg-blue-100 text-blue-700 font-semibold px-2 py-0.5 rounded text-xs">
-                        #1
-                      </span>
-                      <span className="text-blue-700">
-                        {format(getPaymentDate(payment), 'dd/MM/yyyy')}
-                      </span>
-                      <span className="text-muted-foreground">•</span>
-                      <span className="font-semibold">₪{amount}</span>
-                      <span className="text-muted-foreground">•</span>
-                      <span className="text-xs text-muted-foreground">
-                        {getMethodText(payment.method)}
-                      </span>
-                    </div>
-                    <span className="text-xs text-blue-600 font-medium">
-                      {getPercentage(amount)}%
-                    </span>
-                  </div>
-
-                  {/* Child Payments */}
                   {childPayments.map((child, index) => {
                     const childAmount = typeof child.amount === 'number' 
                       ? child.amount 
@@ -278,10 +248,10 @@ export function PaymentHistoryItem({ payment }: PaymentHistoryItemProps) {
                     return (
                       <div key={child.id} className="flex items-center justify-between text-sm bg-white rounded p-2">
                         <div className="flex items-center gap-2">
-                          <span className={`${isLast ? 'bg-green-50 text-green-900 border border-green-200' : 'bg-yellow-50 text-yellow-900 border border-yellow-200'} font-semibold px-2 py-0.5 rounded text-xs`}>
-                            #{index + 2}
+                          <span className={`${isLast && isCompleted ? 'bg-green-50 text-green-900 border border-green-200' : 'bg-yellow-50 text-yellow-900 border border-yellow-200'} font-semibold px-2 py-0.5 rounded text-xs`}>
+                            #{index + 1}
                           </span>
-                          <span className={isLast ? 'text-green-700' : 'text-yellow-700'}>
+                          <span className={isLast && isCompleted ? 'text-green-700' : 'text-yellow-700'}>
                             {format(getPaymentDate(child), 'dd/MM/yyyy')}
                           </span>
                           <span className="text-muted-foreground">•</span>
@@ -300,7 +270,7 @@ export function PaymentHistoryItem({ payment }: PaymentHistoryItemProps) {
                             </>
                           )}
                         </div>
-                        <span className={`text-xs font-medium ${isLast && isCompleted ? 'text-green-600' : 'text-blue-600'}`}>
+                        <span className={`text-xs font-medium ${isLast && isCompleted ? 'text-green-600' : 'text-sky-600'}`}>
                           {getPercentage(childAmount)}%
                         </span>
                       </div>
@@ -309,10 +279,10 @@ export function PaymentHistoryItem({ payment }: PaymentHistoryItemProps) {
                 </div>
 
                 {/* Summary */}
-                <div className="mt-3 pt-3 border-t border-blue-200 flex items-center justify-between text-sm">
-                  <span className="font-semibold text-blue-800">סה"כ:</span>
+                <div className="mt-3 pt-3 border-t border-sky-200 flex items-center justify-between text-sm">
+                  <span className="font-semibold text-sky-800">סה&quot;כ:</span>
                   <div className="flex items-center gap-2">
-                    <span className="font-bold text-blue-900">₪{totalPaid}</span>
+                    <span className="font-bold text-sky-900">₪{totalPaid}</span>
                     {isPartial && (
                       <span className="text-yellow-600 text-xs">
                         (נותר: ₪{remaining})

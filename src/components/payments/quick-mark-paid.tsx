@@ -39,12 +39,14 @@ interface QuickMarkPaidProps {
     method?: string;
   } | null;
   buttonText?: string;
+  buttonClassName?: string;
   totalClientDebt?: number;
   unpaidSessionsCount?: number;
   // אפשרות לשליטה מבחוץ (אופציונלי - לשימוש ביומן)
   open?: boolean;
   onOpenChange?: (open: boolean) => void;
-  hideButton?: boolean; // להסתיר את הכפתור ולהציג רק את הדיאלוג
+  hideButton?: boolean;
+  children?: React.ReactNode;
 }
 
 export function QuickMarkPaid({
@@ -55,11 +57,13 @@ export function QuickMarkPaid({
   creditBalance = 0,
   existingPayment,
   buttonText = "סמן כשולם",
+  buttonClassName,
   totalClientDebt,
   unpaidSessionsCount,
   open,
   onOpenChange,
   hideButton = false,
+  children,
 }: QuickMarkPaidProps) {
   const [internalOpen, setInternalOpen] = useState(false);
   
@@ -219,19 +223,23 @@ export function QuickMarkPaid({
 
   return (
     <Dialog open={isOpen} onOpenChange={setIsOpen}>
-      {!hideButton && (
+      {children ? (
+        <DialogTrigger asChild>
+          <div className="cursor-pointer outline-none focus:outline-none focus:ring-0 [&:focus-visible]:outline-none">{children}</div>
+        </DialogTrigger>
+      ) : !hideButton ? (
         <DialogTrigger asChild>
           <Button 
-            variant="default" 
+            variant={buttonClassName ? "ghost" : "default"}
             size="sm" 
-            className="gap-1"
+            className={buttonClassName || "gap-1"}
             onClick={(e) => e.stopPropagation()}
           >
             <CreditCard className="h-3 w-3" />
             {buttonText}
           </Button>
         </DialogTrigger>
-      )}
+      ) : null}
       <DialogContent className="sm:max-w-[550px] max-h-[90vh] overflow-y-auto">
         <DialogHeader>
           <DialogTitle className="flex items-center gap-2">
@@ -285,18 +293,18 @@ export function QuickMarkPaid({
 
               {/* הוצאת קבלה - מוצג רק אם סוג העסק מאפשר */}
               {businessType !== "NONE" && receiptMode !== "NEVER" && (
-                <div className="flex items-center gap-3 py-2 px-3 bg-blue-50 rounded-lg border border-blue-200">
+                <div className="flex items-center gap-3 py-2 px-3 bg-sky-50 rounded-lg border border-sky-200">
                   <Checkbox
                     id="issue-receipt"
                     checked={issueReceipt}
                     onCheckedChange={(checked) => setIssueReceipt(checked === true)}
                     disabled={receiptMode === "ALWAYS"}
                   />
-                  <Label htmlFor="issue-receipt" className="cursor-pointer flex items-center gap-2 text-blue-800">
+                  <Label htmlFor="issue-receipt" className="cursor-pointer flex items-center gap-2 text-sky-800">
                     <Receipt className="h-4 w-4" />
                     הוצא קבלה
                     {receiptMode === "ALWAYS" && (
-                      <span className="text-xs text-blue-600">(ברירת מחדל)</span>
+                      <span className="text-xs text-sky-600">(ברירת מחדל)</span>
                     )}
                   </Label>
                 </div>

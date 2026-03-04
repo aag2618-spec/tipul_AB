@@ -113,51 +113,58 @@ export async function PUT(
       }
     }
 
-    // Determine payment status based on amount
     let finalStatus = status;
     let finalAmount = Number(existingPayment.amount);
-    const expectedAmount = Number(existingPayment.expectedAmount);
+    const expectedAmount = Number(existingPayment.expectedAmount) || 0;
     const existingAmount = Number(existingPayment.amount);
     
     if (amount !== undefined) {
       const newPaymentAmount = Number(amount);
       
-      // Create a child payment record for tracking if there was a previous payment
-      // This helps track partial payment history
-      // Note: sessionId is NOT included because it has a UNIQUE constraint
-      if (existingAmount > 0 || paymentMode === "PARTIAL") {
+      // Only create child payment if this is a partial payment or adding to existing partial
+      if (paymentMode === "PARTIAL" || (existingAmount > 0 && newPaymentAmount < (expectedAmount - existingAmount + 1))) {
         await prisma.payment.create({
           data: {
             parentPaymentId: id,
             clientId: existingPayment.clientId,
-            // sessionId is intentionally null - it's unique and belongs to parent only
             amount: newPaymentAmount,
             expectedAmount: newPaymentAmount,
             method: method || existingPayment.method,
             status: "PAID",
             paidAt: new Date(),
+            paymentType: "PARTIAL",
+          },
+        });
+      } else if (existingAmount > 0) {
+        // Completing a previously partial payment - record the final installment
+        await prisma.payment.create({
+          data: {
+            parentPaymentId: id,
+            clientId: existingPayment.clientId,
+            amount: newPaymentAmount,
+            expectedAmount: newPaymentAmount,
+            method: method || existingPayment.method,
+            status: "PAID",
+            paidAt: new Date(),
+            paymentType: "FULL",
           },
         });
       }
       
-      // Always ADD the new payment to the existing amount
-      // This is because QuickMarkPaid sends the REMAINING amount to pay
-      // So: new amount = existing paid + what user just paid
       finalAmount = existingAmount + newPaymentAmount;
-      
-      // Check if fully paid
       finalStatus = finalAmount >= expectedAmount ? "PAID" : "PENDING";
     }
 
+    const now = new Date();
     const payment = await prisma.payment.update({
       where: { id },
       data: {
         status: finalStatus || undefined,
         method: method || undefined,
         amount: finalAmount,
-        paymentType: paymentMode || undefined,
+        paymentType: finalAmount >= expectedAmount ? "FULL" : (paymentMode || undefined),
         notes: notes !== undefined ? notes : undefined,
-        paidAt: finalStatus === "PAID" ? paidAt || new Date() : undefined,
+        paidAt: finalStatus === "PAID" ? (paidAt || now) : (paymentMode === "PARTIAL" ? now : undefined),
         receiptNumber: receiptNumber || undefined,
         hasReceipt: hasReceipt || undefined,
       },
@@ -241,6 +248,8 @@ export async function PUT(
               content: html,
               status: "SENT",
               sentAt: new Date(),
+              clientId: existingPayment.clientId,
+              userId: session.user.id,
             },
           });
         }

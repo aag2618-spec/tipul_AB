@@ -15,6 +15,7 @@ export async function GET() {
       where: {
         client: { therapistId: session.user.id },
         status: "PAID",
+        parentPaymentId: null,
       },
       include: {
         client: {
@@ -36,6 +37,7 @@ export async function GET() {
           select: {
             id: true,
             amount: true,
+            method: true,
             paidAt: true,
             createdAt: true,
           },
@@ -46,16 +48,10 @@ export async function GET() {
       },
     });
 
-    // סינון רק תשלומים שהושלמו במלואם
     const fullyPaidPayments = payments.filter((payment) => {
       const amount = Number(payment.amount);
       const expectedAmount = payment.expectedAmount ? Number(payment.expectedAmount) : amount;
-      const childPaymentsTotal = payment.childPayments?.reduce(
-        (sum, child) => sum + Number(child.amount), 0
-      ) || 0;
-      const totalPaid = amount + childPaymentsTotal;
-      
-      return totalPaid >= expectedAmount;
+      return amount >= expectedAmount;
     });
 
     // המרה לפורמט הנדרש - כולל כל הנתונים ל-PaymentHistoryItem
@@ -81,7 +77,7 @@ export async function GET() {
       childPayments: payment.childPayments?.map((child) => ({
         id: child.id,
         amount: Number(child.amount),
-        method: payment.method, // שימוש באותו אמצעי תשלום
+        method: child.method || payment.method,
         paidAt: child.paidAt,
         createdAt: child.createdAt,
       })) || [],

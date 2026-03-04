@@ -232,7 +232,7 @@ export default function HealthInsurersPage() {
       <Card>
         <CardHeader>
           <CardTitle className="flex items-center gap-2">
-            <Shield className="h-5 w-5 text-blue-600" />
+            <Shield className="h-5 w-5 text-sky-600" />
             מכבי
           </CardTitle>
           <CardDescription>הגדרות שילוב עם קופת חולים מכבי</CardDescription>

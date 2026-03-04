@@ -184,7 +184,7 @@ export async function POST(request: NextRequest) {
             
             <div style="text-align: center; margin: 30px 0;">
               <a href="${verifyUrl}" 
-                 style="display: inline-block; background: linear-gradient(135deg, #2563eb, #7c3aed); color: white; 
+                 style="display: inline-block; background: linear-gradient(135deg, #0284c7, #7c3aed); color: white; 
                         padding: 14px 40px; border-radius: 8px; text-decoration: none; font-weight: bold; font-size: 16px;">
                 אמת את החשבון שלי
               </a>

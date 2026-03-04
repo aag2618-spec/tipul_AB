@@ -21,6 +21,8 @@ interface CommunicationSettings {
   sendConfirmationEmail: boolean;
   send24hReminder: boolean;
   send2hReminder: boolean;
+  customReminderEnabled: boolean;
+  customReminderHours: number;
   allowClientCancellation: boolean;
   minCancellationHours: number;
   sendDebtReminders: boolean;
@@ -44,6 +46,8 @@ export default function CommunicationSettingsPage() {
     sendConfirmationEmail: true,
     send24hReminder: true,
     send2hReminder: false,
+    customReminderEnabled: false,
+    customReminderHours: 2,
     allowClientCancellation: true,
     minCancellationHours: 24,
     sendDebtReminders: false,
@@ -169,20 +173,38 @@ export default function CommunicationSettingsPage() {
               />
             </div>
 
-            <div className="flex items-center justify-between">
-              <div className="space-y-0.5">
-                <Label htmlFor="reminder2h">תזכורת 2 שעות לפני</Label>
-                <p className="text-sm text-muted-foreground">
-                  שלח תזכורת שעתיים לפני הפגישה
-                </p>
+            <div className="space-y-3">
+              <div className="flex items-center justify-between">
+                <div className="space-y-0.5">
+                  <Label htmlFor="customReminder">תזכורת מותאמת אישית</Label>
+                  <p className="text-sm text-muted-foreground">
+                    הגדר כמה זמן לפני הפגישה לשלוח תזכורת
+                  </p>
+                </div>
+                <Switch
+                  id="customReminder"
+                  checked={settings.customReminderEnabled}
+                  onCheckedChange={(checked) =>
+                    setSettings({ ...settings, customReminderEnabled: checked, send2hReminder: checked })
+                  }
+                />
               </div>
-              <Switch
-                id="reminder2h"
-                checked={settings.send2hReminder}
-                onCheckedChange={(checked) =>
-                  setSettings({ ...settings, send2hReminder: checked })
-                }
-              />
+              {settings.customReminderEnabled && (
+                <div className="flex items-center gap-2 pr-2">
+                  <Clock className="h-4 w-4 text-muted-foreground" />
+                  <Input
+                    type="number"
+                    min={1}
+                    max={72}
+                    value={settings.customReminderHours}
+                    onChange={(e) =>
+                      setSettings({ ...settings, customReminderHours: parseInt(e.target.value) || 2 })
+                    }
+                    className="w-20"
+                  />
+                  <span className="text-sm text-muted-foreground">שעות לפני הפגישה</span>
+                </div>
+              )}
             </div>
           </CardContent>
         </Card>
@@ -201,9 +223,9 @@ export default function CommunicationSettingsPage() {
           <CardContent className="space-y-6">
             <div className="flex items-center justify-between">
               <div className="space-y-0.5">
-                <Label htmlFor="allowCancellation">אפשר למטופלים לבקש ביטול</Label>
+                <Label htmlFor="allowCancellation">אפשר למטופלים לבטל תורים</Label>
                 <p className="text-sm text-muted-foreground">
-                  מטופלים יוכלו לשלוח בקשות ביטול דרך המערכת
+                  מטופלים יוכלו לבטל תורים בהתאם למדיניות שהוגדרה
                 </p>
               </div>
               <Switch
@@ -320,8 +342,8 @@ export default function CommunicationSettingsPage() {
                   </p>
                 </div>
 
-                <div className="bg-blue-50 border border-blue-200 rounded-lg p-4">
-                  <p className="text-sm text-blue-800">
+                <div className="bg-sky-50 border border-sky-200 rounded-lg p-4">
+                  <p className="text-sm text-sky-800">
                     <strong>💡 מה יקרה:</strong> ב-{settings.debtReminderDayOfMonth} לכל חודש, המערכת תשלח מייל אוטומטי
                     לכל מטופל עם חוב מעל ₪{settings.debtReminderMinAmount}. המייל יכלול פירוט של כל הפגישות שטרם שולמו,
                     התאריכים, הסטטוס (הופיע/ביטל/אי הופעה), והסכום הכולל.
@@ -362,8 +384,8 @@ export default function CommunicationSettingsPage() {
 
             {settings.sendPaymentReceipt && (
               <div className="space-y-4">
-                <div className="bg-blue-50 border border-blue-200 rounded-lg p-4 dark:bg-blue-950/20 dark:border-blue-800">
-                  <p className="text-sm text-blue-800 dark:text-blue-300">
+                <div className="bg-sky-50 border border-sky-200 rounded-lg p-4 dark:bg-sky-950/20 dark:border-sky-800">
+                  <p className="text-sm text-sky-800 dark:text-sky-300">
                     <strong>💡 מה יקרה:</strong> כאשר תרשום תשלום במערכת (מזומן/אשראי/העברה), המערכת תשלח קבלה אוטומטית:
                   </p>
                 </div>
@@ -475,31 +497,31 @@ export default function CommunicationSettingsPage() {
 
               {/* Examples */}
               {showExamples && (
-                <div className="bg-blue-50 border border-blue-200 rounded-lg p-4 space-y-3">
-                  <p className="text-sm font-semibold text-blue-900">💡 דוגמאות:</p>
+                <div className="bg-sky-50 border border-sky-200 rounded-lg p-4 space-y-3">
+                  <p className="text-sm font-semibold text-sky-900">💡 דוגמאות:</p>
                   
                   <div className="space-y-2">
                     <button
                       onClick={() => setSettings({ ...settings, paymentInstructions: 'להעברה בנקאית:\nבנק לאומי, סניף 123, חשבון 456789\nנא לציין את שמך בהעברה' })}
-                      className="w-full text-right bg-white p-3 rounded border hover:border-blue-400 text-xs"
+                      className="w-full text-right bg-white p-3 rounded border hover:border-sky-400 text-xs"
                     >
-                      <strong className="block text-blue-900 mb-1">העברה בנקאית:</strong>
+                      <strong className="block text-sky-900 mb-1">העברה בנקאית:</strong>
                       <span className="text-gray-700">להעברה בנקאית:<br/>בנק לאומי, סניף 123, חשבון 456789<br/>נא לציין את שמך בהעברה</span>
                     </button>
 
                     <button
                       onClick={() => setSettings({ ...settings, paymentInstructions: 'תשלום מהיר:\n• ביט: 050-1234567\n• פייבוקס: bit.ly/pay-therapist\n• מזומן בפגישה' })}
-                      className="w-full text-right bg-white p-3 rounded border hover:border-blue-400 text-xs"
+                      className="w-full text-right bg-white p-3 rounded border hover:border-sky-400 text-xs"
                     >
-                      <strong className="block text-blue-900 mb-1">אפשרויות מרובות:</strong>
+                      <strong className="block text-sky-900 mb-1">אפשרויות מרובות:</strong>
                       <span className="text-gray-700">תשלום מהיר:<br/>• ביט: 050-1234567<br/>• פייבוקס: bit.ly/pay<br/>• מזומן בפגישה</span>
                     </button>
 
                     <button
                       onClick={() => setSettings({ ...settings, paymentInstructions: 'מקבל תשלום במזומן בלבד\nבסיום כל פגישה' })}
-                      className="w-full text-right bg-white p-3 rounded border hover:border-blue-400 text-xs"
+                      className="w-full text-right bg-white p-3 rounded border hover:border-sky-400 text-xs"
                     >
-                      <strong className="block text-blue-900 mb-1">מזומן בלבד:</strong>
+                      <strong className="block text-sky-900 mb-1">מזומן בלבד:</strong>
                       <span className="text-gray-700">מקבל תשלום במזומן בלבד<br/>בסיום כל פגישה</span>
                     </button>
                   </div>

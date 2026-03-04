@@ -594,6 +594,7 @@ enum TaskStatus {
   IN_PROGRESS
   COMPLETED
   CANCELLED
+  DISMISSED
 }
 
 enum Priority {
@@ -774,6 +775,7 @@ model CommunicationLog {
   inReplyTo    String?              // ID of the message this is replying to
   isRead       Boolean              @default(false) // Has therapist read this reply?
   readAt       DateTime?            // When was it read?
+  attachments  Json?                // [{id, filename, contentType, size, resendEmailId}]
 
   sessionId String?
   session   TherapySession? @relation(fields: [sessionId], references: [id], onDelete: SetNull)
@@ -808,6 +810,7 @@ enum CommunicationStatus {
   SENT
   FAILED
   RECEIVED
+  DISMISSED   // כשל שסומן כטופל ע"י המשתמש
 }
 
 // ==================== Communication Settings ====================
@@ -816,9 +819,11 @@ model CommunicationSetting {
   id String @id @default(cuid())
 
   // Session notifications
-  sendConfirmationEmail Boolean @default(true)
-  send24hReminder       Boolean @default(true)
-  send2hReminder        Boolean @default(false)
+  sendConfirmationEmail  Boolean @default(true)
+  send24hReminder        Boolean @default(true)
+  send2hReminder         Boolean @default(false)
+  customReminderEnabled  Boolean @default(false)
+  customReminderHours    Int     @default(2)
 
   // Cancellation policy
   allowClientCancellation Boolean @default(true)

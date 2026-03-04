@@ -140,7 +140,7 @@ export function CorrespondenceTab({
                     key={log.id}
                     className={`p-4 rounded-lg border ${
                       isIncoming
-                        ? "bg-blue-50/50 border-blue-200"
+                        ? "bg-sky-50/50 border-sky-200"
                         : "bg-gray-50 border-gray-200"
                     }`}
                   >
@@ -148,8 +148,8 @@ export function CorrespondenceTab({
                       <div className="flex items-center gap-2">
                         {isIncoming ? (
                           <>
-                            <ArrowRight className="h-4 w-4 text-blue-600" />
-                            <Badge variant="outline" className="border-blue-600 text-blue-600">
+                            <ArrowRight className="h-4 w-4 text-sky-600" />
+                            <Badge variant="outline" className="border-sky-600 text-sky-600">
                               תשובה מ-{clientName}
                             </Badge>
                           </>

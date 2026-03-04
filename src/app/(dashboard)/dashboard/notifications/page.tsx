@@ -82,7 +82,7 @@ export default function NotificationsPage() {
       case "CANCELLATION_REQUEST":
         return <XCircle className="h-5 w-5 text-orange-500" />;
       case "EMAIL_SENT":
-        return <Mail className="h-5 w-5 text-blue-500" />;
+        return <Mail className="h-5 w-5 text-sky-500" />;
       case "SESSION_REMINDER":
         return <Calendar className="h-5 w-5 text-green-500" />;
       default:

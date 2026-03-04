@@ -4,37 +4,36 @@ import { useState, useEffect } from "react";
 import { Loader2 } from "lucide-react";
 
 interface ReportsChartsProps {
-  data: { month: string; [key: string]: string | number }[];
+  data: Record<string, string | number>[];
   dataKey: string;
+  xAxisKey?: string;
   color?: string;
-  formatType?: "currency" | "number";
+  formatType?: "currency" | "number" | "percentage";
 }
 
 export function ReportsCharts({
   data,
   dataKey,
+  xAxisKey = "month",
   color = "hsl(var(--primary))",
   formatType = "number",
 }: ReportsChartsProps) {
   const [Chart, setChart] = useState<React.ComponentType<any> | null>(null);
 
-  // Format function defined inside the client component
   const formatValue = (value: number): string => {
-    if (formatType === "currency") {
-      return `₪${value.toLocaleString()}`;
-    }
+    if (formatType === "currency") return `₪${value.toLocaleString()}`;
+    if (formatType === "percentage") return `${value}%`;
     return String(value);
   };
 
   useEffect(() => {
-    // Dynamic import on client side only
     import("recharts").then((mod) => {
-      const ChartComponent = ({ data, dataKey, color }: Omit<ReportsChartsProps, "formatType">) => (
+      const ChartComponent = ({ data, dataKey, color, xAxisKey }: { data: any[]; dataKey: string; color?: string; xAxisKey: string }) => (
         <mod.ResponsiveContainer width="100%" height="100%">
           <mod.BarChart data={data} margin={{ top: 10, right: 10, left: 10, bottom: 0 }}>
             <mod.CartesianGrid strokeDasharray="3 3" stroke="hsl(var(--muted))" />
             <mod.XAxis
-              dataKey="month"
+              dataKey={xAxisKey}
               fontSize={12}
               tick={{ fill: "hsl(var(--muted-foreground))" }}
             />
@@ -77,8 +76,7 @@ export function ReportsCharts({
 
   return (
     <div className="h-[300px] w-full">
-      <Chart data={data} dataKey={dataKey} color={color} />
+      <Chart data={data} dataKey={dataKey} color={color} xAxisKey={xAxisKey} />
     </div>
   );
 }
-

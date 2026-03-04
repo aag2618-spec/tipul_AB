@@ -139,7 +139,7 @@ export function createCancellationRequestToTherapistEmail(data: EmailTemplateDat
       <p>היכנס/י למערכת לאישור או דחייה.</p>
       ${data.dashboardLink ? `
         <p style="margin-top: 20px;">
-          <a href="${data.dashboardLink}" style="display: inline-block; background: #2196f3; color: white; padding: 12px 24px; text-decoration: none; border-radius: 4px;">
+          <a href="${data.dashboardLink}" style="display: inline-block; background: #0ea5e9; color: white; padding: 12px 24px; text-decoration: none; border-radius: 4px;">
             צפייה בבקשה
           </a>
         </p>

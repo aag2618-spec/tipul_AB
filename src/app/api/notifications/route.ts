@@ -13,10 +13,18 @@ export async function GET(request: NextRequest) {
     const { searchParams } = new URL(request.url);
     const unreadOnly = searchParams.get("unread") === "true";
     const limit = parseInt(searchParams.get("limit") || "50");
+    const typeFilter = searchParams.get("type"); // e.g. "EMAIL_RECEIVED"
 
-    const where = {
+    const where: Record<string, unknown> = {
       userId: session.user.id,
       ...(unreadOnly ? { status: { in: ["PENDING", "SENT"] as ("PENDING" | "SENT")[] } } : {}),
+      ...(typeFilter ? { type: typeFilter } : {}),
+    };
+
+    const unreadWhere: Record<string, unknown> = {
+      userId: session.user.id,
+      status: { in: ["PENDING", "SENT"] as ("PENDING" | "SENT")[] },
+      ...(typeFilter ? { type: typeFilter } : {}),
     };
 
     const [notifications, unreadCount] = await Promise.all([
@@ -26,10 +34,7 @@ export async function GET(request: NextRequest) {
         take: limit,
       }),
       prisma.notification.count({
-        where: {
-          userId: session.user.id,
-          status: { in: ["PENDING", "SENT"] as ("PENDING" | "SENT")[] },
-        },
+        where: unreadWhere,
       }),
     ]);
 
@@ -51,6 +56,40 @@ export async function GET(request: NextRequest) {
     console.error("Get notifications error:", error);
     return NextResponse.json(
       { message: "אירעה שגיאה בטעינת ההתראות" },
+      { status: 500 }
+    );
+  }
+}
+
+export async function POST(request: NextRequest) {
+  try {
+    const session = await getServerSession(authOptions);
+    if (!session?.user?.id) {
+      return NextResponse.json({ message: "לא מורשה" }, { status: 401 });
+    }
+
+    const { type, title, content } = await request.json();
+
+    if (!title || !content) {
+      return NextResponse.json({ message: "חסרים שדות חובה" }, { status: 400 });
+    }
+
+    const notification = await prisma.notification.create({
+      data: {
+        userId: session.user.id,
+        type: type || "CUSTOM",
+        title,
+        content,
+        status: "PENDING",
+        sentAt: new Date(),
+      },
+    });
+
+    return NextResponse.json(notification, { status: 201 });
+  } catch (error) {
+    console.error("Create notification error:", error);
+    return NextResponse.json(
+      { message: "שגיאה ביצירת התראה" },
       { status: 500 }
     );
   }

@@ -283,12 +283,12 @@ export default function AdminReportsPage() {
           </CardContent>
         </Card>
 
-        <Card className="bg-blue-50 border-blue-200">
+        <Card className="bg-sky-50 border-sky-200">
           <CardHeader>
-            <CardTitle className="text-blue-900">📈 הזדמנות</CardTitle>
+            <CardTitle className="text-sky-900">📈 הזדמנות</CardTitle>
           </CardHeader>
           <CardContent>
-            <p className="text-sm text-blue-900">
+            <p className="text-sm text-sky-900">
               35% מהמשתמשים Essential - יש פוטנציאל לשדרוג ל-Pro (700₪ הכנסה נוספת).
             </p>
           </CardContent>

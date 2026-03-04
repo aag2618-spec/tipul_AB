@@ -59,7 +59,6 @@ async function getDashboardStats(userId: string) {
     totalClients,
     activeClients,
     waitingClientsCount,
-    inactiveClients,
     archivedClients,
     sessionsThisWeek,
     sessionsThisMonth,
@@ -71,8 +70,7 @@ async function getDashboardStats(userId: string) {
     prisma.client.count({ where: { therapistId: userId } }),
     prisma.client.count({ where: { therapistId: userId, status: "ACTIVE" } }),
     prisma.client.count({ where: { therapistId: userId, status: "WAITING" } }),
-    prisma.client.count({ where: { therapistId: userId, status: "INACTIVE" } }),
-    prisma.client.count({ where: { therapistId: userId, status: "ARCHIVED" } }),
+    prisma.client.count({ where: { therapistId: userId, status: { in: ["INACTIVE", "ARCHIVED"] } } }),
     prisma.therapySession.count({
       where: {
         therapistId: userId,
@@ -204,7 +202,6 @@ async function getDashboardStats(userId: string) {
     totalClients,
     activeClients,
     waitingClientsCount,
-    inactiveClients,
     archivedClients,
     sessionsThisWeek,
     sessionsThisMonth,
@@ -230,8 +227,8 @@ export default async function DashboardPage() {
       description: `מתוך ${stats.totalClients} סה"כ`,
       icon: Users,
       href: "/dashboard/clients",
-      bgColor: "bg-gradient-to-br from-blue-50 to-blue-100 dark:from-blue-950/30 dark:to-blue-900/30",
-      iconColor: "text-blue-600",
+      bgColor: "bg-gradient-to-br from-sky-50 to-sky-100 dark:from-sky-950/30 dark:to-sky-900/30",
+      iconColor: "text-sky-600",
       subBox: stats.waitingClientsCount > 0 ? {
         value: stats.waitingClientsCount,
         label: "ממתינים",
@@ -243,7 +240,7 @@ export default async function DashboardPage() {
     {
       title: "פגישות השבוע",
       value: stats.sessionsThisWeek,
-      description: `${stats.sessionsThisMonth} החודש`,
+      description: "",
       icon: Calendar,
       href: "/dashboard/calendar",
       bgColor: "bg-gradient-to-br from-green-50 to-green-100 dark:from-green-950/30 dark:to-green-900/30",
@@ -266,9 +263,9 @@ export default async function DashboardPage() {
       iconColor: "text-orange-600",
     },
     {
-      title: "משימות ממתינות",
+      title: "ממתינים לסיכום",
       value: stats.pendingTasks,
-      description: "לביצוע",
+      description: "פגישות לסיכום",
       icon: Clock,
       href: "/dashboard/tasks",
       bgColor: "bg-gradient-to-br from-purple-50 to-purple-100 dark:from-purple-950/30 dark:to-purple-900/30",
@@ -297,7 +294,7 @@ export default async function DashboardPage() {
       {/* Stats Grid */}
       <div className="grid gap-6 md:grid-cols-2 lg:grid-cols-4">
         {statCards.map((stat) => (
-          <Card key={stat.title} className={`group relative overflow-hidden ${stat.bgColor} border-2 border-transparent hover:border-current cursor-pointer transition-all duration-300 hover:scale-105 hover:shadow-2xl hover:brightness-100! hover:bg-transparent!`}>
+          <Card key={stat.title} className={`group relative overflow-hidden ${stat.bgColor} cursor-pointer transition-all duration-300 hover:scale-105 hover:shadow-xl`}>
             <Link href={stat.href} className="absolute inset-0 z-10 hover:brightness-100! hover:bg-transparent! hover:shadow-none! hover:scale-100!">
               <span className="sr-only">{stat.title}</span>
             </Link>
@@ -401,7 +398,7 @@ export default async function DashboardPage() {
         </Card>
 
         {/* AI Session Prep - What to work on today */}
-        <Card className="bg-gradient-to-br from-purple-50 to-blue-50 dark:from-purple-950/30 dark:to-blue-900/30 border-purple-200">
+        <Card className="bg-gradient-to-br from-purple-50 to-sky-50 dark:from-purple-950/30 dark:to-sky-900/30 border-purple-200">
           <CardHeader className="flex flex-row items-center justify-between">
             <div>
               <CardTitle className="flex items-center gap-2">
@@ -467,7 +464,7 @@ export default async function DashboardPage() {
                               <span>הכנה חכמה לפגישה עם {session.client?.name}</span>
                             </div>
                             <div className="flex items-start gap-2">
-                              <span className="text-blue-600">📋</span>
+                              <span className="text-sky-600">📋</span>
                               <span>ניתוח הפגישות האחרונות וזיהוי דפוסים</span>
                             </div>
                             <div className="flex items-start gap-2">

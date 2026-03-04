@@ -127,7 +127,8 @@ export function ClientPortal({
       CANCELLED: 'bg-gray-100 text-gray-800',
       ACTIVE: 'bg-green-100 text-green-800',
       INACTIVE: 'bg-gray-100 text-gray-800',
-      OPEN: 'bg-blue-100 text-blue-800',
+      ARCHIVED: 'bg-gray-100 text-gray-800',
+      OPEN: 'bg-sky-100 text-sky-800',
       IN_PROGRESS: 'bg-yellow-100 text-yellow-800',
       RESOLVED: 'bg-green-100 text-green-800',
       CLOSED: 'bg-gray-100 text-gray-800',
@@ -142,7 +143,8 @@ export function ClientPortal({
       OVERDUE: 'באיחור',
       CANCELLED: 'בוטל',
       ACTIVE: 'פעיל',
-      INACTIVE: 'לא פעיל',
+      INACTIVE: 'ארכיון',
+      ARCHIVED: 'ארכיון',
       OPEN: 'פתוח',
       IN_PROGRESS: 'בטיפול',
       RESOLVED: 'נפתר',
@@ -215,7 +217,7 @@ export function ClientPortal({
           </div>
           <div className="bg-gray-50 p-4 rounded-lg">
             <p className="text-sm text-gray-500">פניות פתוחות</p>
-            <p className="text-lg font-bold text-blue-600">
+            <p className="text-lg font-bold text-sky-600">
               {data.summary.openTickets}
             </p>
           </div>

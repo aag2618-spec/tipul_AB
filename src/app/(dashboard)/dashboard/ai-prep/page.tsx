@@ -95,7 +95,7 @@ export default async function AIPrepPage() {
 
       {/* Not Enabled State */}
       {!isAIEnabled && (
-        <Card className="border-2 border-primary bg-gradient-to-br from-blue-50 to-purple-50">
+        <Card className="border-2 border-primary bg-gradient-to-br from-sky-50 to-purple-50">
           <CardHeader>
             <div className="flex items-center gap-2">
               <Lock className="h-6 w-6 text-primary" />
@@ -227,7 +227,7 @@ export default async function AIPrepPage() {
       {/* Info Cards */}
       {isAIEnabled && hasApproaches && sessions.length > 0 && (
         <div className="grid gap-4 md:grid-cols-3">
-          <Card className="bg-blue-50/50 border-blue-200">
+          <Card className="bg-sky-50/50 border-sky-200">
             <CardHeader>
               <CardTitle className="text-base">💡 עצה</CardTitle>
             </CardHeader>

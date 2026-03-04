@@ -199,7 +199,7 @@ export default function AdminAIDashboard() {
       case "ESSENTIAL":
         return <Badge variant="outline">🥉 בסיסי 117₪</Badge>;
       case "PRO":
-        return <Badge className="bg-blue-500">🥈 מקצועי 145₪</Badge>;
+        return <Badge className="bg-sky-500">🥈 מקצועי 145₪</Badge>;
       case "ENTERPRISE":
         return <Badge className="bg-purple-500">🥇 ארגוני 220₪</Badge>;
       default:
@@ -377,7 +377,7 @@ export default function AdminAIDashboard() {
                           {user.email ? (
                             <a 
                               href={`mailto:${user.email}`}
-                              className="text-xs text-blue-500 hover:text-blue-400 hover:underline"
+                              className="text-xs text-sky-500 hover:text-sky-400 hover:underline"
                               onClick={(e) => e.stopPropagation()}
                             >
                               {user.email}

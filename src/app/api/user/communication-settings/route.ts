@@ -22,6 +22,8 @@ export async function GET() {
           sendConfirmationEmail: true,
           send24hReminder: true,
           send2hReminder: false,
+          customReminderEnabled: false,
+          customReminderHours: 2,
           allowClientCancellation: true,
           minCancellationHours: 24,
           sendDebtReminders: false,
@@ -44,6 +46,8 @@ export async function GET() {
         sendConfirmationEmail: settings.sendConfirmationEmail,
         send24hReminder: settings.send24hReminder,
         send2hReminder: settings.send2hReminder,
+        customReminderEnabled: settings.customReminderEnabled,
+        customReminderHours: settings.customReminderHours,
         allowClientCancellation: settings.allowClientCancellation,
         minCancellationHours: settings.minCancellationHours,
         sendDebtReminders: settings.sendDebtReminders,
@@ -81,6 +85,8 @@ export async function PUT(request: NextRequest) {
       sendConfirmationEmail,
       send24hReminder,
       send2hReminder,
+      customReminderEnabled,
+      customReminderHours,
       allowClientCancellation,
       minCancellationHours,
       sendDebtReminders,
@@ -96,6 +102,9 @@ export async function PUT(request: NextRequest) {
       businessHours,
     } = body;
 
+    // Validate customReminderHours (1-72)
+    const validCustomHours = Math.max(1, Math.min(72, customReminderHours || 2));
+    
     // Validate minCancellationHours
     const validMinHours = Math.max(1, Math.min(168, minCancellationHours || 24));
     
@@ -111,6 +120,8 @@ export async function PUT(request: NextRequest) {
         sendConfirmationEmail: sendConfirmationEmail ?? true,
         send24hReminder: send24hReminder ?? true,
         send2hReminder: send2hReminder ?? false,
+        customReminderEnabled: customReminderEnabled ?? false,
+        customReminderHours: validCustomHours,
         allowClientCancellation: allowClientCancellation ?? true,
         minCancellationHours: validMinHours,
         sendDebtReminders: sendDebtReminders ?? false,
@@ -130,6 +141,8 @@ export async function PUT(request: NextRequest) {
         sendConfirmationEmail: sendConfirmationEmail ?? true,
         send24hReminder: send24hReminder ?? true,
         send2hReminder: send2hReminder ?? false,
+        customReminderEnabled: customReminderEnabled ?? false,
+        customReminderHours: validCustomHours,
         allowClientCancellation: allowClientCancellation ?? true,
         minCancellationHours: validMinHours,
         sendDebtReminders: sendDebtReminders ?? false,
@@ -152,6 +165,8 @@ export async function PUT(request: NextRequest) {
         sendConfirmationEmail: settings.sendConfirmationEmail,
         send24hReminder: settings.send24hReminder,
         send2hReminder: settings.send2hReminder,
+        customReminderEnabled: settings.customReminderEnabled,
+        customReminderHours: settings.customReminderHours,
         allowClientCancellation: settings.allowClientCancellation,
         minCancellationHours: settings.minCancellationHours,
         sendDebtReminders: settings.sendDebtReminders,

@@ -58,9 +58,8 @@ export async function POST(request: NextRequest) {
     // Send emails in parallel (but with rate limiting)
     const sendPromises = clientsWithEmail.map(async (client) => {
       try {
-        // Replace {name} with client's first name
-        const personalizedSubject = subject.replace(/{name}/g, client.firstName || client.name);
-        const personalizedContent = content.replace(/{name}/g, client.firstName || client.name);
+        const personalizedSubject = subject.replace(/{שם}/g, client.firstName || client.name).replace(/{name}/g, client.firstName || client.name);
+        const personalizedContent = content.replace(/{שם}/g, client.firstName || client.name).replace(/{name}/g, client.firstName || client.name);
 
         const { subject: emailSubject, html } = createGenericEmail(
           client.name,

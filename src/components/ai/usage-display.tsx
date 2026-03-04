@@ -65,8 +65,8 @@ const FEATURE_INFO = {
     label: "ניתוח תמציתי",
     description: "ניתוח קצר של פגישה",
     icon: FileText,
-    color: "text-blue-500",
-    bgColor: "bg-blue-500",
+    color: "text-sky-500",
+    bgColor: "bg-sky-500",
   },
   detailedAnalysis: {
     label: "ניתוח מפורט",
@@ -104,7 +104,7 @@ const TIER_STYLES = {
     icon: "🥉",
   },
   PRO: {
-    badge: "bg-blue-100 text-blue-800 border-blue-300",
+    badge: "bg-sky-100 text-sky-800 border-sky-300",
     icon: "🥈",
   },
   ENTERPRISE: {
@@ -339,9 +339,9 @@ export function UsageDisplay({ compact = false, showTierInfo = true }: UsageDisp
 
         {/* Upgrade prompt for ESSENTIAL */}
         {usage.tier.code === "ESSENTIAL" && (
-          <div className="p-4 rounded-lg bg-gradient-to-r from-blue-500/10 to-purple-500/10 border border-blue-200">
+          <div className="p-4 rounded-lg bg-gradient-to-r from-sky-500/10 to-purple-500/10 border border-sky-200">
             <div className="flex items-center gap-3">
-              <Sparkles className="h-8 w-8 text-blue-500" />
+              <Sparkles className="h-8 w-8 text-sky-500" />
               <div>
                 <p className="font-medium">שדרג לתוכנית מקצועית</p>
                 <p className="text-sm text-muted-foreground">

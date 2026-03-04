@@ -1,42 +1,80 @@
 import { NextRequest, NextResponse } from "next/server";
 import prisma from "@/lib/prisma";
 import { headers } from "next/headers";
+import { Resend } from "resend";
+
+// Extract email from "Name <email@example.com>" format or plain email
+function extractEmail(raw: string): string {
+  const match = raw.match(/<(.+?)>/);
+  return (match ? match[1] : raw).toLowerCase().trim();
+}
 
 // Resend webhook for incoming email replies
 export async function POST(request: NextRequest) {
   try {
-    // Verify webhook signature (optional but recommended)
     const headersList = await headers();
     const signature = headersList.get("svix-signature");
     
     const body = await request.json();
     console.log("Resend webhook received:", JSON.stringify(body, null, 2));
 
-    // Handle different event types
     const { type, data } = body;
 
     if (type === "email.received" || type === "email.replied") {
-      // Extract email data
       const {
+        email_id,
         message_id,
-        from,
+        from: rawFrom,
         to,
         subject,
-        html,
-        text,
         in_reply_to,
         references,
+        attachments: rawAttachments,
       } = data;
 
+      const senderEmail = extractEmail(rawFrom || "");
+
+      // Parse attachment metadata from Resend
+      const attachmentMeta = Array.isArray(rawAttachments)
+        ? rawAttachments.map((att: { id: string; filename: string; content_type: string }) => ({
+            id: att.id,
+            filename: att.filename,
+            contentType: att.content_type,
+            resendEmailId: email_id,
+          }))
+        : [];
+
       console.log("Processing incoming email:", {
+        email_id,
         message_id,
-        from,
+        senderEmail,
         to,
         subject,
         in_reply_to,
       });
 
-      // Find the original email this is replying to
+      // --- Fetch actual email content from Resend API ---
+      let emailHtml = "";
+      let emailText = "";
+      
+      if (email_id && process.env.RESEND_API_KEY) {
+        try {
+          const resend = new Resend(process.env.RESEND_API_KEY);
+          const { data: emailContent } = await resend.emails.receiving.get(email_id);
+          
+          if (emailContent) {
+            emailHtml = emailContent.html || "";
+            emailText = emailContent.text || "";
+            console.log("Fetched email content, html length:", emailHtml.length, "text length:", emailText.length);
+          }
+        } catch (fetchError) {
+          console.error("Error fetching email content from Resend:", fetchError);
+        }
+      }
+
+      const content = emailHtml || emailText || "(לא ניתן לטעון את תוכן המייל)";
+
+      // Strategy 1: Find original email by in_reply_to header
       let originalEmail = null;
       if (in_reply_to) {
         originalEmail = await prisma.communicationLog.findFirst({
@@ -48,20 +86,17 @@ export async function POST(request: NextRequest) {
         });
       }
 
-      // If we can't find by in_reply_to, try to match by client email
-      if (!originalEmail) {
-        // Extract email from "Name <email@example.com>" format
-        const emailMatch = from.match(/<(.+?)>/) || [null, from];
-        const senderEmail = emailMatch[1] || from;
-
+      // Strategy 2: Find any recent email sent TO this sender
+      if (!originalEmail && senderEmail) {
         originalEmail = await prisma.communicationLog.findFirst({
           where: {
             recipient: {
               equals: senderEmail,
               mode: "insensitive",
             },
-            type: "CUSTOM",
             status: "SENT",
+            clientId: { not: null },
+            userId: { not: null },
           },
           include: {
             client: true,
@@ -73,49 +108,67 @@ export async function POST(request: NextRequest) {
         });
       }
 
-      if (!originalEmail) {
-        console.warn("Could not find original email for reply:", from);
+      // Strategy 3: Find client directly by email address
+      let clientRecord = originalEmail?.client || null;
+      let therapistId = originalEmail?.userId || null;
+
+      if (!clientRecord && senderEmail) {
+        clientRecord = await prisma.client.findFirst({
+          where: {
+            email: {
+              equals: senderEmail,
+              mode: "insensitive",
+            },
+          },
+        });
+
+        if (clientRecord) {
+          therapistId = clientRecord.therapistId;
+        }
+      }
+
+      if (!clientRecord || !therapistId) {
+        console.warn("Could not find client for incoming email:", senderEmail);
         return NextResponse.json(
-          { message: "Original email not found" },
-          { status: 200 } // Return 200 to acknowledge receipt
+          { message: "Client not found for sender email" },
+          { status: 200 }
         );
       }
 
-      // Save the incoming reply
+      // Save the incoming reply with actual content
       const incomingLog = await prisma.communicationLog.create({
         data: {
           type: "INCOMING_EMAIL",
           channel: "EMAIL",
-          recipient: to[0] || "", // The therapist's email
+          recipient: senderEmail,
           subject: subject || "ללא נושא",
-          content: html || text || "",
+          content: content,
           status: "RECEIVED",
           sentAt: new Date(),
-          messageId: message_id,
-          inReplyTo: in_reply_to || originalEmail.messageId,
+          messageId: message_id || email_id,
+          inReplyTo: in_reply_to || originalEmail?.messageId || null,
           isRead: false,
-          clientId: originalEmail.clientId,
-          userId: originalEmail.userId,
+          clientId: clientRecord.id,
+          userId: therapistId,
+          ...(attachmentMeta.length > 0 && { attachments: attachmentMeta }),
         },
       });
 
-      console.log("Saved incoming email:", incomingLog.id);
+      console.log("Saved incoming email with content:", incomingLog.id);
 
       // Create notification for therapist
-      if (originalEmail.userId) {
-        await prisma.notification.create({
-          data: {
-            userId: originalEmail.userId,
-            type: "EMAIL_RECEIVED",
-            title: `תשובה חדשה מ-${originalEmail.client?.name || "מטופל"} 📧`,
-            content: `נושא: ${subject || "ללא נושא"}`,
-            status: "SENT",
-            sentAt: new Date(),
-          },
-        });
+      await prisma.notification.create({
+        data: {
+          userId: therapistId,
+          type: "EMAIL_RECEIVED",
+          title: `תשובה חדשה מ-${clientRecord.name || "מטופל"} 📧`,
+          content: `נושא: ${subject || "ללא נושא"}`,
+          status: "PENDING",
+          sentAt: new Date(),
+        },
+      });
 
-        console.log("Created notification for user:", originalEmail.userId);
-      }
+      console.log("Created notification for user:", therapistId);
 
       return NextResponse.json({
         message: "Email reply processed successfully",
@@ -127,7 +180,6 @@ export async function POST(request: NextRequest) {
     return NextResponse.json({ message: "Event received" });
   } catch (error) {
     console.error("Resend webhook error:", error);
-    // Return 200 to prevent Resend from retrying
     return NextResponse.json(
       { message: "Error processing webhook", error: String(error) },
       { status: 200 }

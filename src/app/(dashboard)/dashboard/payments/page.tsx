@@ -717,7 +717,7 @@ export default function PaymentsPage() {
                         <Button 
                           variant="outline" 
                           size="sm" 
-                          className="gap-1.5 bg-white/80 hover:bg-white border-blue-200 text-blue-700 hover:text-blue-800"
+                          className="gap-1.5 bg-white/80 hover:bg-white border-sky-200 text-sky-700 hover:text-sky-800"
                         >
                           <Download className="h-3.5 w-3.5" />
                           דוחות לרו"ח
@@ -1042,7 +1042,7 @@ export default function PaymentsPage() {
                 selectedClient.unpaidSessions.map((session) => (
                   <Card 
                     key={session.paymentId} 
-                    className="cursor-pointer hover:shadow-lg transition-all hover:scale-[1.02] hover:border-primary"
+                    className="cursor-pointer hover:shadow-lg transition-all hover:scale-[1.02] h-full"
                     onClick={() => {
                       setSelectedPaymentSession(session);
                       setIsPaymentDialogOpen(true);
@@ -1081,7 +1081,6 @@ export default function PaymentsPage() {
                       
                       <div className="mt-3 pt-2 border-t text-xs text-primary flex items-center gap-1">
                         לחץ לתשלום
-                        <ArrowRight className="h-3 w-3" />
                       </div>
                     </CardContent>
                   </Card>

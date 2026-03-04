@@ -75,8 +75,8 @@ const ALERT_TYPES = {
   HIGH_AI_USAGE: { label: "שימוש גבוה AI", icon: Zap, color: "text-purple-500" },
   NEW_USER: { label: "משתמש חדש", icon: Users, color: "text-green-500" },
   USER_BLOCKED: { label: "משתמש נחסם", icon: XCircle, color: "text-gray-500" },
-  TIER_CHANGE_REQUEST: { label: "בקשת שינוי תוכנית", icon: RefreshCw, color: "text-blue-500" },
-  MANUAL_REMINDER: { label: "תזכורת ידנית", icon: Bell, color: "text-blue-400" },
+  TIER_CHANGE_REQUEST: { label: "בקשת שינוי תוכנית", icon: RefreshCw, color: "text-sky-500" },
+  MANUAL_REMINDER: { label: "תזכורת ידנית", icon: Bell, color: "text-sky-400" },
   SYSTEM: { label: "מערכת", icon: AlertCircle, color: "text-gray-400" },
 };
 
@@ -89,7 +89,7 @@ const PRIORITY_BADGES: Record<string, { label: string; variant: "destructive" | 
 
 const STATUS_BADGES: Record<string, { label: string; variant: "destructive" | "default" | "secondary" | "outline"; className?: string }> = {
   PENDING: { label: "ממתין", variant: "destructive", className: "" },
-  IN_PROGRESS: { label: "בטיפול", variant: "default", className: "bg-blue-500" },
+  IN_PROGRESS: { label: "בטיפול", variant: "default", className: "bg-sky-500" },
   RESOLVED: { label: "טופל", variant: "secondary", className: "bg-green-500 text-white" },
   DISMISSED: { label: "נדחה", variant: "outline", className: "" },
   SNOOZED: { label: "נדחה לאחר", variant: "outline", className: "" },
@@ -223,7 +223,7 @@ export default function AdminAlertsPage() {
             <Bell className="h-8 w-8 text-amber-500" />
             מרכז התראות
           </h1>
-          <p className="text-slate-400 mt-1">ניהול התראות, תזכורות ומעקב תשלומים</p>
+          <p className="text-muted-foreground mt-1">ניהול התראות, תזכורות ומעקב תשלומים</p>
         </div>
 
         <Dialog open={isNewDialogOpen} onOpenChange={setIsNewDialogOpen}>
@@ -233,21 +233,21 @@ export default function AdminAlertsPage() {
               התראה חדשה
             </Button>
           </DialogTrigger>
-          <DialogContent className="bg-slate-900 border-slate-800">
+          <DialogContent>
             <DialogHeader>
-              <DialogTitle className="text-white">יצירת התראה/תזכורת</DialogTitle>
+              <DialogTitle>יצירת התראה/תזכורת</DialogTitle>
               <DialogDescription>צור תזכורת ידנית או התראה</DialogDescription>
             </DialogHeader>
 
             <div className="space-y-4 py-4">
               <div className="grid grid-cols-2 gap-4">
                 <div className="space-y-2">
-                  <label className="text-sm font-medium text-slate-300">סוג</label>
+                  <label className="text-sm font-medium">סוג</label>
                   <Select
                     value={newAlert.type}
                     onValueChange={(v) => setNewAlert({ ...newAlert, type: v })}
                   >
-                    <SelectTrigger className="bg-slate-800 border-slate-700">
+                    <SelectTrigger>
                       <SelectValue />
                     </SelectTrigger>
                     <SelectContent>
@@ -259,12 +259,12 @@ export default function AdminAlertsPage() {
                 </div>
 
                 <div className="space-y-2">
-                  <label className="text-sm font-medium text-slate-300">עדיפות</label>
+                  <label className="text-sm font-medium">עדיפות</label>
                   <Select
                     value={newAlert.priority}
                     onValueChange={(v) => setNewAlert({ ...newAlert, priority: v })}
                   >
-                    <SelectTrigger className="bg-slate-800 border-slate-700">
+                    <SelectTrigger>
                       <SelectValue />
                     </SelectTrigger>
                     <SelectContent>
@@ -278,39 +278,36 @@ export default function AdminAlertsPage() {
               </div>
 
               <div className="space-y-2">
-                <label className="text-sm font-medium text-slate-300">כותרת</label>
+                <label className="text-sm font-medium">כותרת</label>
                 <Input
                   value={newAlert.title}
                   onChange={(e) => setNewAlert({ ...newAlert, title: e.target.value })}
-                  className="bg-slate-800 border-slate-700"
                   placeholder="כותרת ההתראה..."
                 />
               </div>
 
               <div className="space-y-2">
-                <label className="text-sm font-medium text-slate-300">הודעה</label>
+                <label className="text-sm font-medium">הודעה</label>
                 <Textarea
                   value={newAlert.message}
                   onChange={(e) => setNewAlert({ ...newAlert, message: e.target.value })}
-                  className="bg-slate-800 border-slate-700"
                   placeholder="תוכן ההתראה..."
                   rows={3}
                 />
               </div>
 
               <div className="space-y-2">
-                <label className="text-sm font-medium text-slate-300">פעולה נדרשת (אופציונלי)</label>
+                <label className="text-sm font-medium">פעולה נדרשת (אופציונלי)</label>
                 <Input
                   value={newAlert.actionRequired}
                   onChange={(e) => setNewAlert({ ...newAlert, actionRequired: e.target.value })}
-                  className="bg-slate-800 border-slate-700"
                   placeholder="מה צריך לעשות?"
                 />
               </div>
             </div>
 
             <DialogFooter>
-              <Button variant="ghost" onClick={() => setIsNewDialogOpen(false)} className="text-slate-400">
+              <Button variant="ghost" onClick={() => setIsNewDialogOpen(false)} className="text-muted-foreground">
                 ביטול
               </Button>
               <Button onClick={handleCreateAlert} className="bg-amber-500 hover:bg-amber-600 text-black">
@@ -323,15 +320,15 @@ export default function AdminAlertsPage() {
 
       {/* Stats Cards */}
       <div className="grid gap-4 md:grid-cols-4">
-        <Card className="bg-slate-900 border-slate-800 cursor-pointer hover:bg-slate-800 transition-colors"
+        <Card className="cursor-pointer hover:bg-muted transition-colors"
               onClick={() => setFilterStatus("PENDING")}>
           <CardHeader className="flex flex-row items-center justify-between pb-2">
-            <CardTitle className="text-sm font-medium text-slate-400">ממתינים לטיפול</CardTitle>
+            <CardTitle className="text-sm font-medium text-muted-foreground">ממתינים לטיפול</CardTitle>
             <AlertCircle className="h-4 w-4 text-red-500" />
           </CardHeader>
           <CardContent>
             <div className="text-2xl font-bold text-red-500">{counts.PENDING}</div>
-            <p className="text-xs text-slate-500 mt-1">
+            <p className="text-xs text-muted-foreground mt-1">
               {pendingByPriority.URGENT > 0 && <span className="text-red-500">{pendingByPriority.URGENT} דחופים</span>}
               {pendingByPriority.URGENT > 0 && pendingByPriority.HIGH > 0 && " | "}
               {pendingByPriority.HIGH > 0 && <span className="text-orange-500">{pendingByPriority.HIGH} גבוהים</span>}
@@ -339,21 +336,21 @@ export default function AdminAlertsPage() {
           </CardContent>
         </Card>
 
-        <Card className="bg-slate-900 border-slate-800 cursor-pointer hover:bg-slate-800 transition-colors"
+        <Card className="cursor-pointer hover:bg-muted transition-colors"
               onClick={() => setFilterStatus("IN_PROGRESS")}>
           <CardHeader className="flex flex-row items-center justify-between pb-2">
-            <CardTitle className="text-sm font-medium text-slate-400">בטיפול</CardTitle>
-            <Clock className="h-4 w-4 text-blue-500" />
+            <CardTitle className="text-sm font-medium text-muted-foreground">בטיפול</CardTitle>
+            <Clock className="h-4 w-4 text-sky-500" />
           </CardHeader>
           <CardContent>
-            <div className="text-2xl font-bold text-blue-500">{counts.IN_PROGRESS}</div>
+            <div className="text-2xl font-bold text-sky-500">{counts.IN_PROGRESS}</div>
           </CardContent>
         </Card>
 
-        <Card className="bg-slate-900 border-slate-800 cursor-pointer hover:bg-slate-800 transition-colors"
+        <Card className="cursor-pointer hover:bg-muted transition-colors"
               onClick={() => setFilterStatus("RESOLVED")}>
           <CardHeader className="flex flex-row items-center justify-between pb-2">
-            <CardTitle className="text-sm font-medium text-slate-400">טופלו</CardTitle>
+            <CardTitle className="text-sm font-medium text-muted-foreground">טופלו</CardTitle>
             <CheckCircle className="h-4 w-4 text-green-500" />
           </CardHeader>
           <CardContent>
@@ -361,14 +358,14 @@ export default function AdminAlertsPage() {
           </CardContent>
         </Card>
 
-        <Card className="bg-slate-900 border-slate-800 cursor-pointer hover:bg-slate-800 transition-colors"
+        <Card className="cursor-pointer hover:bg-muted transition-colors"
               onClick={() => setFilterStatus("all")}>
           <CardHeader className="flex flex-row items-center justify-between pb-2">
-            <CardTitle className="text-sm font-medium text-slate-400">סה"כ</CardTitle>
-            <Bell className="h-4 w-4 text-slate-400" />
+            <CardTitle className="text-sm font-medium text-muted-foreground">סה"כ</CardTitle>
+            <Bell className="h-4 w-4 text-muted-foreground" />
           </CardHeader>
           <CardContent>
-            <div className="text-2xl font-bold text-white">
+            <div className="text-2xl font-bold">
               {counts.PENDING + counts.IN_PROGRESS + counts.RESOLVED + counts.DISMISSED + counts.SNOOZED}
             </div>
           </CardContent>
@@ -376,11 +373,11 @@ export default function AdminAlertsPage() {
       </div>
 
       {/* Filters */}
-      <Card className="bg-slate-900 border-slate-800">
+      <Card>
         <CardContent className="pt-6">
           <div className="flex gap-4 flex-wrap">
             <Select value={filterStatus} onValueChange={setFilterStatus}>
-              <SelectTrigger className="w-40 bg-slate-800 border-slate-700">
+              <SelectTrigger className="w-40">
                 <SelectValue placeholder="סטטוס" />
               </SelectTrigger>
               <SelectContent>
@@ -393,7 +390,7 @@ export default function AdminAlertsPage() {
             </Select>
 
             <Select value={filterType} onValueChange={setFilterType}>
-              <SelectTrigger className="w-48 bg-slate-800 border-slate-700">
+              <SelectTrigger className="w-48">
                 <SelectValue placeholder="סוג" />
               </SelectTrigger>
               <SelectContent>
@@ -404,7 +401,7 @@ export default function AdminAlertsPage() {
               </SelectContent>
             </Select>
 
-            <Button variant="outline" onClick={fetchAlerts} className="border-slate-700">
+            <Button variant="outline" onClick={fetchAlerts} className="border-border">
               <RefreshCw className="h-4 w-4 ml-2" />
               רענן
             </Button>
@@ -413,30 +410,30 @@ export default function AdminAlertsPage() {
       </Card>
 
       {/* Alerts Table */}
-      <Card className="bg-slate-900 border-slate-800">
+      <Card>
         <CardHeader>
-          <CardTitle className="text-white">רשימת התראות ({alerts.length})</CardTitle>
+          <CardTitle>רשימת התראות ({alerts.length})</CardTitle>
         </CardHeader>
         <CardContent>
           {loading ? (
             <div className="flex justify-center py-8">
-              <RefreshCw className="h-8 w-8 animate-spin text-slate-400" />
+              <RefreshCw className="h-8 w-8 animate-spin text-muted-foreground" />
             </div>
           ) : alerts.length === 0 ? (
-            <div className="text-center py-8 text-slate-400">
+            <div className="text-center py-8 text-muted-foreground">
               <Bell className="h-12 w-12 mx-auto mb-4 opacity-50" />
               <p>אין התראות</p>
             </div>
           ) : (
             <Table>
               <TableHeader>
-                <TableRow className="border-slate-800">
-                  <TableHead className="text-slate-400">סוג</TableHead>
-                  <TableHead className="text-slate-400">עדיפות</TableHead>
-                  <TableHead className="text-slate-400">כותרת</TableHead>
-                  <TableHead className="text-slate-400">סטטוס</TableHead>
-                  <TableHead className="text-slate-400">תאריך</TableHead>
-                  <TableHead className="text-slate-400">פעולות</TableHead>
+                <TableRow className="border-border">
+                  <TableHead className="text-muted-foreground">סוג</TableHead>
+                  <TableHead className="text-muted-foreground">עדיפות</TableHead>
+                  <TableHead className="text-muted-foreground">כותרת</TableHead>
+                  <TableHead className="text-muted-foreground">סטטוס</TableHead>
+                  <TableHead className="text-muted-foreground">תאריך</TableHead>
+                  <TableHead className="text-muted-foreground">פעולות</TableHead>
                 </TableRow>
               </TableHeader>
               <TableBody>
@@ -447,11 +444,11 @@ export default function AdminAlertsPage() {
                   const statusInfo = STATUS_BADGES[alert.status as keyof typeof STATUS_BADGES];
 
                   return (
-                    <TableRow key={alert.id} className="border-slate-800">
+                    <TableRow key={alert.id} className="border-border">
                       <TableCell>
                         <div className="flex items-center gap-2">
                           <TypeIcon className={`h-4 w-4 ${typeInfo.color}`} />
-                          <span className="text-sm text-slate-300">{typeInfo.label}</span>
+                          <span className="text-sm">{typeInfo.label}</span>
                         </div>
                       </TableCell>
                       <TableCell>
@@ -461,8 +458,8 @@ export default function AdminAlertsPage() {
                       </TableCell>
                       <TableCell>
                         <div>
-                          <p className="font-medium text-white">{alert.title}</p>
-                          <p className="text-xs text-slate-500 truncate max-w-xs">{alert.message}</p>
+                          <p className="font-medium">{alert.title}</p>
+                          <p className="text-xs text-muted-foreground truncate max-w-xs">{alert.message}</p>
                         </div>
                       </TableCell>
                       <TableCell>
@@ -470,7 +467,7 @@ export default function AdminAlertsPage() {
                           {statusInfo.label}
                         </Badge>
                       </TableCell>
-                      <TableCell className="text-slate-400 text-sm">
+                      <TableCell className="text-muted-foreground text-sm">
                         {format(new Date(alert.createdAt), "dd/MM/yyyy HH:mm", { locale: he })}
                       </TableCell>
                       <TableCell>
@@ -506,9 +503,9 @@ export default function AdminAlertsPage() {
 
       {/* View/Edit Dialog */}
       <Dialog open={isViewDialogOpen} onOpenChange={setIsViewDialogOpen}>
-        <DialogContent className="bg-slate-900 border-slate-800 max-w-2xl">
+        <DialogContent className="max-w-2xl">
           <DialogHeader>
-            <DialogTitle className="text-white flex items-center gap-2">
+            <DialogTitle className="flex items-center gap-2">
               {selectedAlert && (
                 <>
                   {(() => {
@@ -526,11 +523,11 @@ export default function AdminAlertsPage() {
             <div className="space-y-4 py-4">
               <div className="grid grid-cols-2 gap-4">
                 <div>
-                  <label className="text-xs text-slate-500">סוג</label>
-                  <p className="text-white">{getAlertTypeInfo(selectedAlert.type).label}</p>
+                  <label className="text-xs text-muted-foreground">סוג</label>
+                  <p>{getAlertTypeInfo(selectedAlert.type).label}</p>
                 </div>
                 <div>
-                  <label className="text-xs text-slate-500">עדיפות</label>
+                  <label className="text-xs text-muted-foreground">עדיפות</label>
                   <Badge variant={PRIORITY_BADGES[selectedAlert.priority as keyof typeof PRIORITY_BADGES]?.variant}>
                     {PRIORITY_BADGES[selectedAlert.priority as keyof typeof PRIORITY_BADGES]?.label}
                   </Badge>
@@ -538,38 +535,37 @@ export default function AdminAlertsPage() {
               </div>
 
               <div>
-                <label className="text-xs text-slate-500">הודעה</label>
-                <p className="text-white whitespace-pre-wrap">{selectedAlert.message}</p>
+                <label className="text-xs text-muted-foreground">הודעה</label>
+                <p className="whitespace-pre-wrap">{selectedAlert.message}</p>
               </div>
 
               {selectedAlert.actionRequired && (
                 <div>
-                  <label className="text-xs text-slate-500">פעולה נדרשת</label>
+                  <label className="text-xs text-muted-foreground">פעולה נדרשת</label>
                   <p className="text-amber-400">{selectedAlert.actionRequired}</p>
                 </div>
               )}
 
               {selectedAlert.actionTaken && (
                 <div>
-                  <label className="text-xs text-slate-500">מה נעשה</label>
+                  <label className="text-xs text-muted-foreground">מה נעשה</label>
                   <p className="text-green-400">{selectedAlert.actionTaken}</p>
                 </div>
               )}
 
               <div>
-                <label className="text-xs text-slate-500">תאריך יצירה</label>
-                <p className="text-slate-300">
-                  {format(new Date(selectedAlert.createdAt), "dd/MM/yyyy HH:mm", { locale: he })}
+                <label className="text-xs text-muted-foreground">תאריך יצירה</label>
+<p>
+                {format(new Date(selectedAlert.createdAt), "dd/MM/yyyy HH:mm", { locale: he })}
                 </p>
               </div>
 
               {selectedAlert.status === "PENDING" || selectedAlert.status === "IN_PROGRESS" ? (
-                <div className="space-y-2 border-t border-slate-700 pt-4">
-                  <label className="text-sm font-medium text-slate-300">תיעוד פעולה</label>
+                <div className="space-y-2 border-t border-border pt-4">
+                  <label className="text-sm font-medium">תיעוד פעולה</label>
                   <Textarea
                     value={actionTaken}
                     onChange={(e) => setActionTaken(e.target.value)}
-                    className="bg-slate-800 border-slate-700"
                     placeholder="מה עשית? (לדוגמה: שלחתי מייל ללקוח, התקשרתי, וכו')"
                     rows={2}
                   />
@@ -584,14 +580,14 @@ export default function AdminAlertsPage() {
                 <Button
                   variant="outline"
                   onClick={() => handleUpdateStatus(selectedAlert.id, "IN_PROGRESS")}
-                  className="border-blue-500 text-blue-500"
+                  className="border-sky-500 text-sky-500"
                 >
                   סמן כ"בטיפול"
                 </Button>
                 <Button
                   variant="outline"
                   onClick={() => handleUpdateStatus(selectedAlert.id, "DISMISSED")}
-                  className="border-slate-500 text-slate-400"
+                  className="border-border text-muted-foreground"
                 >
                   דחה
                 </Button>
@@ -606,7 +602,7 @@ export default function AdminAlertsPage() {
                 סמן כ"טופל"
               </Button>
             )}
-            <Button variant="ghost" onClick={() => setIsViewDialogOpen(false)} className="text-slate-400">
+            <Button variant="ghost" onClick={() => setIsViewDialogOpen(false)} className="text-muted-foreground">
               סגור
             </Button>
           </DialogFooter>

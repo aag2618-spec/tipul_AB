@@ -7,7 +7,7 @@ import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import { RadioGroup, RadioGroupItem } from "@/components/ui/radio-group";
 import { toast } from "sonner";
-import { Loader2, Building2, Receipt, Save, ArrowLeft } from "lucide-react";
+import { Loader2, Building2, Receipt, Save, ArrowRight } from "lucide-react";
 import Link from "next/link";
 
 interface BusinessSettings {
@@ -86,7 +86,7 @@ export default function BusinessSettingsPage() {
       <div className="flex items-center gap-4 mb-6">
         <Button variant="ghost" size="icon" asChild>
           <Link href="/dashboard/settings">
-            <ArrowLeft className="h-5 w-5" />
+            <ArrowRight className="h-5 w-5" />
           </Link>
         </Button>
         <div>

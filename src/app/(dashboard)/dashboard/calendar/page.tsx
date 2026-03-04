@@ -204,10 +204,20 @@ export default function CalendarPage() {
           : session.status === "COMPLETED"
           ? "var(--primary)"
           : session.status === "NO_SHOW"
-          ? "#FED7AA"
+          ? "#FCA5A5"
           : session.status === "SCHEDULED" && new Date(session.endTime) < new Date()
-          ? "#FEF3C7"
-          : "var(--accent)",
+          ? "#BAE6FD"
+          : "#A7F3D0",
+      textColor:
+        session.type === "BREAK"
+          ? "#ffffff"
+          : session.status === "COMPLETED"
+          ? "#ffffff"
+          : session.status === "NO_SHOW"
+          ? "#7F1D1D"
+          : session.status === "SCHEDULED" && new Date(session.endTime) < new Date()
+          ? "#0C4A6E"
+          : "#064E3B",
     borderColor:
       session.type === "BREAK"
         ? "var(--chart-2)"
@@ -216,10 +226,8 @@ export default function CalendarPage() {
         : session.status === "NO_SHOW"
         ? "#DC2626"
         : session.status === "SCHEDULED" && new Date(session.endTime) < new Date()
-        ? "#F59E0B"
-        : session.status === "CANCELLED"
-        ? "var(--destructive)"
-        : "var(--primary)",
+        ? "#0EA5E9"
+        : "#059669",
     extendedProps: {
       clientId: session.client?.id || "",
       status: session.status,
@@ -434,7 +442,8 @@ export default function CalendarPage() {
       });
 
       if (!response.ok) {
-        throw new Error("שגיאה ביצירת הפגישה");
+        const errData = await response.json().catch(() => null);
+        throw new Error(errData?.message || "שגיאה ביצירת הפגישה");
       }
 
       // If recurring, create additional sessions for future weeks
@@ -471,8 +480,8 @@ export default function CalendarPage() {
       );
       setIsDialogOpen(false);
       fetchData();
-    } catch {
-      toast.error("שגיאה ביצירת הפגישה");
+    } catch (err) {
+      toast.error(err instanceof Error ? err.message : "שגיאה ביצירת הפגישה");
     } finally {
       setIsSubmitting(false);
     }
@@ -1072,7 +1081,7 @@ export default function CalendarPage() {
                     ? "bg-red-100 text-red-800"
                     : selectedSession.status === "CANCELLED"
                     ? "bg-gray-100 text-gray-800"
-                    : "bg-blue-100 text-blue-800"
+                    : "bg-sky-100 text-sky-800"
                 }`}>
                   {selectedSession.status === "COMPLETED" 
                     ? "✅ הושלם" 
@@ -1280,9 +1289,9 @@ export default function CalendarPage() {
                             toast.error("שגיאה בעדכון הפגישה");
                           }
                         }}
-                        className="w-full py-3 px-4 text-right hover:bg-blue-50 transition-colors flex items-center gap-3"
+                        className="w-full py-3 px-4 text-right hover:bg-sky-50 transition-colors flex items-center gap-3"
                       >
-                        <span className="flex items-center justify-center w-7 h-7 rounded-full bg-blue-600 text-white text-sm font-bold">2</span>
+                        <span className="flex items-center justify-center w-7 h-7 rounded-full bg-sky-600 text-white text-sm font-bold">2</span>
                         <span className="flex-1 font-medium">סיים ללא תשלום</span>
                       </button>
                       

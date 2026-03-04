@@ -33,6 +33,8 @@ import {
   User as UserIcon,
   Trash2,
   Lock,
+  Sparkles,
+  Brain,
 } from "lucide-react";
 import { Input } from "@/components/ui/input";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
@@ -50,13 +52,16 @@ import {
 } from "@/components/ui/dropdown-menu";
 import { SummariesTab } from "@/components/clients/summaries-tab";
 import { ClientApproachEditor } from "@/components/clients/client-approach-editor";
+import { DocumentItem } from "@/components/clients/document-item";
 import { SendReminderButton } from "@/components/clients/send-reminder-button";
 import { SendPaymentHistoryButton } from "@/components/clients/send-payment-history-button";
 import { TodaySessionCard } from "@/components/dashboard/today-session-card";
+import { SessionHistoryGrid } from "@/components/clients/session-history-grid";
 import { AddCreditDialog } from "@/components/clients/add-credit-dialog";
 import { PaymentHistoryItem } from "@/components/payments/payment-history-item";
 import { PaymentHistoryGrid } from "@/components/payments/payment-history-grid";
 import { QuestionnaireAnalysis } from "@/components/ai/questionnaire-analysis";
+import { SessionPrepCard } from "@/components/ai/session-prep-card";
 import { format } from "date-fns";
 import { he } from "date-fns/locale";
 
@@ -70,13 +75,14 @@ async function getClient(clientId: string, userId: string) {
       },
       therapySessions: {
         orderBy: { startTime: "desc" },
-        take: 20,
-        include: { sessionNote: true, payment: true },
+        include: { 
+          sessionNote: true, 
+          payment: { include: { childPayments: { orderBy: { paidAt: "asc" } } } },
+        },
       },
       payments: {
-        where: { parentPaymentId: null }, // Only get parent payments
+        where: { parentPaymentId: null },
         orderBy: { createdAt: "desc" },
-        take: 10,
         include: { 
           session: true,
           childPayments: {
@@ -164,6 +170,15 @@ export default async function ClientPage({
     0
   );
 
+  // AI tab data
+  const futureSessions = client.therapySessions.filter(
+    (s) => new Date(s.startTime) > new Date() && s.type !== "BREAK"
+  );
+  const nextUpcomingSession = futureSessions.length > 0 
+    ? futureSessions[futureSessions.length - 1] 
+    : null;
+  const summarizedSessionsCount = client.therapySessions.filter(s => s.sessionNote).length;
+
   // Get unpaid sessions for the Payments tab
   const unpaidSessions = client.therapySessions.filter(
     (session) =>
@@ -196,8 +211,6 @@ export default async function ClientPage({
                     ? "default"
                     : client.status === "WAITING"
                     ? "secondary"
-                    : client.status === "INACTIVE"
-                    ? "outline"
                     : "outline"
                 }
                 className={
@@ -205,18 +218,14 @@ export default async function ClientPage({
                     ? "bg-emerald-50 text-emerald-900 font-semibold border border-emerald-200" 
                     : client.status === "WAITING" 
                     ? "bg-amber-50 text-amber-900 font-semibold border border-amber-200" 
-                    : client.status === "INACTIVE"
-                    ? "bg-slate-50 text-slate-900 font-semibold border border-slate-200"
-                    : "bg-purple-50 text-purple-900 font-semibold border border-purple-200"
+                    : "bg-slate-50 text-slate-900 font-semibold border border-slate-200"
                 }
               >
                 {client.status === "ACTIVE"
                   ? "פעיל"
                   : client.status === "WAITING"
                   ? "ממתין"
-                  : client.status === "INACTIVE"
-                  ? "לא פעיל"
-                  : "בארכיון"}
+                  : "ארכיון"}
               </Badge>
             </div>
             <p className="text-muted-foreground">
@@ -259,8 +268,8 @@ export default async function ClientPage({
 
               {/* Email */}
               <div className="flex items-center gap-2">
-                <Mail className="h-4 w-4 text-muted-foreground" />
-                <span className="text-sm font-medium truncate max-w-[200px]" dir="ltr">
+                <Mail className="h-4 w-4 text-slate-400" />
+                <span className="text-sm font-medium text-muted-foreground truncate max-w-[200px]" dir="ltr">
                   {client.email || "לא צוין"}
                 </span>
               </div>
@@ -278,84 +287,62 @@ export default async function ClientPage({
           </CardContent>
         </Card>
 
-        {/* Credit/Debt Card */}
-        <Card className={`transition-all ${
-          totalDebt > 0 ? "border-red-200 bg-red-50/50" : "border-green-200 bg-green-50/50"
-        }`}>
-          <CardContent className="py-4">
-            <div className="flex items-center justify-between">
-              <div className="flex items-center gap-3 flex-1">
-                <CreditCard className={`h-6 w-6 ${
-                  totalDebt > 0 ? "text-red-600" : "text-green-600"
-                }`} />
-                <div className="space-y-1">
-                  {/* חוב */}
-                  <div>
-                    <p className="text-xs text-muted-foreground">חוב</p>
-                    <p className={`text-xl font-bold ${totalDebt > 0 ? "text-red-600" : "text-gray-400"}`}>
-                      ₪{totalDebt}
-                    </p>
-                  </div>
-                  {/* קרדיט */}
-                  <div>
-                    <p className="text-xs text-muted-foreground">קרדיט</p>
-                    <p className={`text-xl font-bold ${Number(client.creditBalance) > 0 ? "text-green-600" : "text-gray-400"}`}>
-                      ₪{Number(client.creditBalance)}
-                    </p>
-                  </div>
+        {/* Debt Summary Card - Clickable */}
+        <a href={`/dashboard/clients/${client.id}?tab=payments`}>
+          <Card className={`transition-all cursor-pointer hover:shadow-md hover:scale-[1.02] ${
+            totalDebt > 0 ? "border-red-200 bg-red-50/50" : "border-emerald-200 bg-emerald-50/50"
+          }`}>
+            <CardContent className="py-4">
+              <div className="flex items-center justify-between">
+                <div className="flex items-center gap-3">
+                  <CreditCard className={`h-5 w-5 ${
+                    totalDebt > 0 ? "text-red-500" : "text-emerald-500"
+                  }`} />
+                  {totalDebt > 0 ? (
+                    <div>
+                      <p className="text-sm text-muted-foreground">חוב פתוח</p>
+                      <p className="text-xl font-bold text-red-600">₪{totalDebt}</p>
+                    </div>
+                  ) : (
+                    <p className="text-sm font-medium text-emerald-700">אין חובות פתוחים ✓</p>
+                  )}
                 </div>
               </div>
-              <div className="flex flex-col gap-2">
-                <AddCreditDialog
-                  clientId={client.id}
-                  clientName={client.name}
-                  currentCredit={Number(client.creditBalance)}
-                />
-                {totalDebt > 0 && (
-                  <>
-                    <Button variant="outline" size="sm" asChild>
-                      <Link href={`/dashboard/payments/pay/${client.id}`}>
-                        תשלום
-                      </Link>
-                    </Button>
-                    <SendReminderButton
-                      clientId={client.id}
-                      clientName={client.name}
-                      variant="outline"
-                      size="sm"
-                    />
-                  </>
-                )}
-              </div>
-            </div>
-          </CardContent>
-        </Card>
+            </CardContent>
+          </Card>
+        </a>
       </div>
 
-      {/* Tabs - Simplified */}
-      <Tabs defaultValue={defaultTab} className="w-full">
-        <TabsList className="grid w-full grid-cols-5 max-w-5xl">
-          <TabsTrigger value="sessions" className="gap-2">
+      {/* Tabs */}
+      <Tabs defaultValue={defaultTab} key={defaultTab} className="w-full">
+        <div className="flex w-full gap-2">
+          <TabsList className="flex w-full gap-1.5 h-auto p-0 bg-transparent">
+          <TabsTrigger value="sessions" className="flex-1 gap-2 rounded-xl py-2.5 border border-muted-foreground/10 bg-muted/40 data-[state=active]:bg-white data-[state=active]:text-primary data-[state=active]:shadow-md data-[state=active]:border-primary/30 font-medium">
             <Calendar className="h-4 w-4" />
             פגישות
           </TabsTrigger>
-          <TabsTrigger value="payments" className="gap-2">
-            <CreditCard className="h-4 w-4" />
-            תשלומים
+          <TabsTrigger value="ai" className="flex-1 gap-2 rounded-xl py-2.5 border border-muted-foreground/10 bg-muted/40 data-[state=active]:bg-primary/10 data-[state=active]:text-primary data-[state=active]:shadow-md data-[state=active]:border-primary/30 font-medium">
+            <Sparkles className="h-4 w-4" />
+            AI · ניתוח
           </TabsTrigger>
-          <TabsTrigger value="summaries" className="gap-2">
+          <TabsTrigger value="summaries" className="flex-1 gap-2 rounded-xl py-2.5 border border-muted-foreground/10 bg-muted/40 data-[state=active]:bg-white data-[state=active]:text-primary data-[state=active]:shadow-md data-[state=active]:border-primary/30 font-medium">
             <FileText className="h-4 w-4" />
             סיכומים
           </TabsTrigger>
-          <TabsTrigger value="files" className="gap-2">
+          <TabsTrigger value="payments" className="flex-1 gap-2 rounded-xl py-2.5 border border-muted-foreground/10 bg-muted/40 data-[state=active]:bg-white data-[state=active]:text-primary data-[state=active]:shadow-md data-[state=active]:border-primary/30 font-medium">
+            <CreditCard className="h-4 w-4" />
+            תשלומים
+          </TabsTrigger>
+          <TabsTrigger value="files" className="flex-1 gap-2 rounded-xl py-2.5 border border-muted-foreground/10 bg-muted/40 data-[state=active]:bg-white data-[state=active]:text-primary data-[state=active]:shadow-md data-[state=active]:border-primary/30 font-medium">
             <FolderOpen className="h-4 w-4" />
             קבצים
           </TabsTrigger>
-          <TabsTrigger value="profile" className="gap-2">
+          <TabsTrigger value="profile" className="flex-1 gap-2 rounded-xl py-2.5 border border-muted-foreground/10 bg-muted/40 data-[state=active]:bg-white data-[state=active]:text-primary data-[state=active]:shadow-md data-[state=active]:border-primary/30 font-medium">
             <UserIcon className="h-4 w-4" />
-            פרופיל מלא
+            פרופיל
           </TabsTrigger>
         </TabsList>
+        </div>
 
         <TabsContent value="sessions" className="mt-6">
           {/* Recurring Pattern Card */}
@@ -410,44 +397,42 @@ export default async function ClientPage({
                 <Tabs defaultValue="past" className="w-full">
                   <TabsList className="grid w-full grid-cols-2 mb-6">
                     <TabsTrigger value="past">
-                      פגישות שעבר זמנן ({client.therapySessions.filter(s => new Date(s.startTime) < new Date()).length})
+                      היסטוריית פגישות ({client.therapySessions.filter(s => new Date(s.startTime) < new Date()).length})
                     </TabsTrigger>
                     <TabsTrigger value="upcoming">
                       פגישות עתידיות ({client.therapySessions.filter(s => new Date(s.startTime) >= new Date()).length})
                     </TabsTrigger>
                   </TabsList>
 
-                  {/* פגישות שעבר זמנן */}
+                  {/* היסטוריית פגישות */}
                   <TabsContent value="past">
                     {client.therapySessions.filter(s => new Date(s.startTime) < new Date()).length > 0 ? (
-                      <div className="space-y-4">
-                        {client.therapySessions
+                      <SessionHistoryGrid
+                        sessions={client.therapySessions
                           .filter(s => new Date(s.startTime) < new Date())
-                          .map((session) => (
-                            <TodaySessionCard 
-                              key={session.id} 
-                              session={{
-                                id: session.id,
-                                startTime: session.startTime,
-                                endTime: session.endTime,
-                                type: session.type as string,
-                                status: session.status as string,
-                                price: Number(session.price),
-                                sessionNote: session.sessionNote ? "exists" : null,
-                                payment: session.payment ? {
-                                  id: session.payment.id,
-                                  status: session.payment.status as string,
-                                  amount: Number(session.payment.amount),
-                                } : null,
-                                client: {
-                                  id: client.id,
-                                  name: client.name,
-                                  creditBalance: Number(client.creditBalance),
-                                },
-                              }} 
-                            />
-                          ))}
-                      </div>
+                          .map((session) => ({
+                            id: session.id,
+                            startTime: session.startTime.toISOString(),
+                            endTime: session.endTime.toISOString(),
+                            type: session.type as string,
+                            status: session.status as string,
+                            price: Number(session.price),
+                            sessionNote: session.sessionNote ? "exists" : null,
+                            cancellationReason: session.cancellationReason,
+                            payment: session.payment ? {
+                              id: session.payment.id,
+                              status: session.payment.status as string,
+                              amount: Number(session.payment.amount),
+                            } : null,
+                            client: {
+                              id: client.id,
+                              name: client.name,
+                              creditBalance: Number(client.creditBalance),
+                              totalDebt,
+                              unpaidSessionsCount: unpaidSessions.length,
+                            },
+                          }))}
+                      />
                     ) : (
                       <div className="text-center py-8 text-muted-foreground">
                         <Calendar className="mx-auto h-12 w-12 mb-3 opacity-50" />
@@ -459,7 +444,7 @@ export default async function ClientPage({
                   {/* פגישות עתידיות */}
                   <TabsContent value="upcoming">
                     {client.therapySessions.filter(s => new Date(s.startTime) >= new Date()).length > 0 ? (
-                      <div className="space-y-4">
+                      <div className="grid gap-3 grid-cols-1 sm:grid-cols-2 lg:grid-cols-3">
                         {client.therapySessions
                           .filter(s => new Date(s.startTime) >= new Date())
                           .map((session) => (
@@ -473,6 +458,7 @@ export default async function ClientPage({
                                 status: session.status as string,
                                 price: Number(session.price),
                                 sessionNote: session.sessionNote ? "exists" : null,
+                                cancellationReason: session.cancellationReason,
                                 payment: session.payment ? {
                                   id: session.payment.id,
                                   status: session.payment.status as string,
@@ -482,6 +468,8 @@ export default async function ClientPage({
                                   id: client.id,
                                   name: client.name,
                                   creditBalance: Number(client.creditBalance),
+                                  totalDebt,
+                                  unpaidSessionsCount: unpaidSessions.length,
                                 },
                               }} 
                             />
@@ -518,122 +506,154 @@ export default async function ClientPage({
         {/* Payments Tab */}
         <TabsContent value="payments" className="mt-6">
           <Tabs defaultValue="pending" className="w-full">
-            <TabsList>
-              <TabsTrigger value="pending">⏳ ממתינים לתשלום</TabsTrigger>
-              <TabsTrigger value="history">📊 היסטוריית תשלומים</TabsTrigger>
+            <TabsList className="bg-muted/40 p-1 h-auto">
+              <TabsTrigger value="pending" className="gap-2 px-4 py-2 data-[state=active]:bg-white data-[state=active]:shadow-sm">
+                חובות פתוחים
+              </TabsTrigger>
+              <TabsTrigger value="history" className="gap-2 px-4 py-2 data-[state=active]:bg-white data-[state=active]:shadow-sm">
+                היסטוריית תשלומים
+              </TabsTrigger>
             </TabsList>
 
             {/* Pending Payments */}
             <TabsContent value="pending" className="mt-4">
               <div className="space-y-4">
-                {/* Quick Actions */}
-                <div className="flex gap-2 justify-end">
-                  {totalDebt > 0 && (
-                    <>
-                      <SendReminderButton
-                        clientId={client.id}
-                        clientName={client.name}
-                        size="default"
-                      />
-                      <Button asChild className="gap-2">
-                        <Link href={`/dashboard/payments/pay/${client.id}`}>
-                          <CreditCard className="h-4 w-4" />
-                          תשלום מהיר על הכל
-                        </Link>
-                      </Button>
-                    </>
-                  )}
+                {/* Summary bar with actions */}
+                <div className="flex items-center justify-between flex-wrap gap-3">
+                  <div className="flex items-center gap-4">
+                    {totalDebt > 0 && (
+                      <p className="text-sm text-muted-foreground">
+                        {unpaidSessions.length} פגישות • סה&quot;כ חוב: <span className="font-bold text-red-600">₪{totalDebt}</span>
+                      </p>
+                    )}
+                    {Number(client.creditBalance) > 0 && (
+                      <p className="text-sm text-muted-foreground">
+                        קרדיט: <span className="font-bold text-emerald-600">₪{Number(client.creditBalance)}</span>
+                      </p>
+                    )}
+                  </div>
+                  <div className="flex gap-2">
+                    <AddCreditDialog
+                      clientId={client.id}
+                      clientName={client.name}
+                      currentCredit={Number(client.creditBalance)}
+                    />
+                    {totalDebt > 0 && (
+                      <>
+                        <SendReminderButton
+                          clientId={client.id}
+                          clientName={client.name}
+                          size="default"
+                        />
+                        <Button asChild className="gap-2 bg-emerald-600 hover:bg-emerald-700">
+                          <Link href={`/dashboard/payments/pay/${client.id}`}>
+                            <CreditCard className="h-4 w-4" />
+                            שלם הכל
+                          </Link>
+                        </Button>
+                      </>
+                    )}
+                  </div>
                 </div>
 
-                {/* Unpaid Sessions List */}
-                <Card>
-                  <CardHeader>
-                    <CardTitle>פגישות שטרם שולמו</CardTitle>
-                    <CardDescription>
-                      {unpaidSessions.length} פגישות • סה"כ חוב: ₪{totalDebt}
-                    </CardDescription>
-                  </CardHeader>
-                  <CardContent>
-                    {unpaidSessions.length > 0 ? (
-                      <div className="space-y-3">
-                        {unpaidSessions.map((session) => {
-                          const sessionPrice = Number(session.price);
-                          const alreadyPaid = session.payment ? Number(session.payment.amount) : 0;
-                          const debt = sessionPrice - alreadyPaid;
+                {unpaidSessions.length > 0 ? (
+                  <div className="grid gap-4 grid-cols-1 sm:grid-cols-2 lg:grid-cols-3">
+                    {unpaidSessions.map((session) => {
+                      const sessionPrice = Number(session.price);
+                      const alreadyPaid = session.payment ? Number(session.payment.amount) : 0;
+                      const debt = sessionPrice - alreadyPaid;
 
-                          return (
-                            <div
-                              key={session.id}
-                              className="flex items-center justify-between p-4 rounded-lg border bg-card"
-                            >
-                              <div className="flex-1">
-                                <div className="flex items-center gap-3 mb-2">
-                                  <Calendar className="h-4 w-4 text-muted-foreground" />
-                                  <p className="font-medium">
-                                    {format(new Date(session.startTime), "EEEE, d בMMMM yyyy", {
-                                      locale: he,
-                                    })}
-                                  </p>
-                                  <Badge variant="outline">
-                                    {session.type === "ONLINE"
-                                      ? "אונליין"
-                                      : session.type === "PHONE"
-                                      ? "טלפון"
-                                      : "פרונטלי"}
-                                  </Badge>
-                                  <Badge
-                                    variant={
-                                      session.status === "COMPLETED"
-                                        ? "default"
-                                        : session.status === "CANCELLED"
-                                        ? "destructive"
-                                        : "secondary"
-                                    }
-                                  >
-                                    {session.status === "COMPLETED"
-                                      ? "הושלם"
-                                      : session.status === "CANCELLED"
-                                      ? "בוטל"
-                                      : "אי הופעה"}
-                                  </Badge>
-                                </div>
-                                <div className="flex items-center gap-4 text-sm text-muted-foreground">
-                                  <span>מחיר: ₪{sessionPrice}</span>
-                                  {alreadyPaid > 0 && <span>שולם: ₪{alreadyPaid}</span>}
-                                  <span className="font-bold text-red-600">חוב: ₪{debt}</span>
-                                </div>
-                              </div>
-                              <div className="flex gap-2">
-                                {session.payment && (
-                                  <QuickMarkPaid
-                                    sessionId={session.id}
-                                    clientId={client.id}
-                                    clientName={client.name}
-                                    amount={debt}
-                                    creditBalance={Number(client.creditBalance || 0)}
-                                    existingPayment={{
-                                      id: session.payment.id,
-                                      status: session.payment.status,
-                                    }}
-                                    buttonText="שלם"
-                                    totalClientDebt={totalDebt}
-                                    unpaidSessionsCount={unpaidSessions.length}
-                                  />
-                                )}
-                              </div>
+                      const cardContent = (
+                        <Card className="cursor-pointer hover:shadow-lg transition-all hover:scale-[1.02] h-full">
+                          <CardContent className="p-4">
+                            <div className="flex items-center gap-2 mb-3">
+                              <Calendar className="h-4 w-4 text-muted-foreground" />
+                              <span className="text-sm font-medium">
+                                {format(new Date(session.startTime), "dd/MM/yyyy", { locale: he })}
+                              </span>
                             </div>
-                          );
-                        })}
-                      </div>
-                    ) : (
-                      <div className="text-center py-12 text-muted-foreground">
-                        <CheckCircle className="mx-auto h-16 w-16 mb-4 text-green-500 opacity-50" />
-                        <p className="text-lg font-medium mb-2">כל התשלומים שולמו! 🎉</p>
-                        <p className="text-sm">אין חובות פתוחים למטופל זה</p>
-                      </div>
-                    )}
-                  </CardContent>
-                </Card>
+
+                            <div className="space-y-2">
+                              <div className="flex justify-between items-center">
+                                <span className="text-muted-foreground">חוב:</span>
+                                <span className="font-bold text-red-600">₪{debt}</span>
+                              </div>
+                              {alreadyPaid > 0 && session.payment && (
+                                <>
+                                  {session.payment.childPayments && session.payment.childPayments.length > 0 ? (
+                                    session.payment.childPayments.map((child: { id: string; amount: unknown; paidAt: Date | string | null }, idx: number) => {
+                                      const childAmount = Number(child.amount);
+                                      return (
+                                        <div key={child.id} className="flex justify-between items-center text-sm">
+                                          <span className="text-muted-foreground">תשלום {idx + 1}:</span>
+                                          <span>
+                                            <span className="text-emerald-600">₪{childAmount}</span>
+                                            {child.paidAt && (
+                                              <span className="text-muted-foreground mr-1">
+                                                · {format(new Date(child.paidAt), "dd/MM/yyyy")}
+                                              </span>
+                                            )}
+                                          </span>
+                                        </div>
+                                      );
+                                    })
+                                  ) : (
+                                    <div className="flex justify-between items-center text-sm">
+                                      <span className="text-muted-foreground">שולם חלקית:</span>
+                                      <span>
+                                        <span className="text-emerald-600">₪{alreadyPaid}</span>
+                                        {session.payment.paidAt && (
+                                          <span className="text-muted-foreground mr-1">
+                                            · {format(new Date(session.payment.paidAt), "dd/MM/yyyy")}
+                                          </span>
+                                        )}
+                                      </span>
+                                    </div>
+                                  )}
+                                </>
+                              )}
+                            </div>
+
+                            <div className="mt-3 pt-2 border-t text-xs text-primary flex items-center gap-1">
+                              לחץ לתשלום
+                            </div>
+                          </CardContent>
+                        </Card>
+                      );
+
+                      return session.payment ? (
+                        <QuickMarkPaid
+                          key={session.id}
+                          sessionId={session.id}
+                          clientId={client.id}
+                          clientName={client.name}
+                          amount={debt}
+                          creditBalance={Number(client.creditBalance || 0)}
+                          existingPayment={{
+                            id: session.payment.id,
+                            status: session.payment.status,
+                          }}
+                          totalClientDebt={totalDebt}
+                          unpaidSessionsCount={unpaidSessions.length}
+                        >
+                          {cardContent}
+                        </QuickMarkPaid>
+                      ) : (
+                        <Link key={session.id} href={`/dashboard/payments/pay/${client.id}`}>
+                          {cardContent}
+                        </Link>
+                      );
+                    })}
+                  </div>
+                ) : (
+                  <div className="text-center py-16">
+                    <div className="w-16 h-16 rounded-full bg-green-50 flex items-center justify-center mx-auto mb-4">
+                      <CheckCircle className="h-7 w-7 text-green-400" />
+                    </div>
+                    <p className="font-medium mb-1">כל התשלומים שולמו!</p>
+                    <p className="text-sm text-muted-foreground">אין חובות פתוחים למטופל זה</p>
+                  </div>
+                )}
               </div>
             </TabsContent>
 
@@ -669,8 +689,9 @@ export default async function ClientPage({
                     paidAt: payment.paidAt,
                     session: payment.session,
                     childPayments: payment.childPayments?.map((child) => ({
-                      ...child,
+                      id: child.id,
                       amount: Number(child.amount),
+                      method: child.method || payment.method,
                       paidAt: child.paidAt,
                       createdAt: child.createdAt,
                     })),
@@ -679,6 +700,116 @@ export default async function ClientPage({
               </div>
             </TabsContent>
           </Tabs>
+        </TabsContent>
+
+        {/* AI Tab */}
+        <TabsContent value="ai" className="mt-6">
+          <div className="space-y-6">
+            {/* הכנה לפגישה הקרובה */}
+            {nextUpcomingSession ? (
+              <SessionPrepCard
+                session={{
+                  id: nextUpcomingSession.id,
+                  clientId: client.id,
+                  clientName: client.name,
+                  startTime: nextUpcomingSession.startTime,
+                }}
+                userTier={(user?.aiTier as "ESSENTIAL" | "PRO" | "ENTERPRISE") || "ESSENTIAL"}
+              />
+            ) : (
+              <Card className="border-dashed">
+                <CardContent className="py-8 text-center text-muted-foreground">
+                  <Calendar className="mx-auto h-10 w-10 mb-3 opacity-40" />
+                  <p className="font-medium">אין פגישות קרובות</p>
+                  <p className="text-sm mt-1">קבע פגישה כדי ליצור הכנת AI</p>
+                </CardContent>
+              </Card>
+            )}
+
+            {/* ניתוח מקיף של כל הסיכומים */}
+            <Card className="border-primary/20 bg-primary/5">
+              <CardHeader>
+                <CardTitle className="flex items-center gap-2">
+                  <Brain className="h-5 w-5 text-primary" />
+                  ניתוח מקיף
+                </CardTitle>
+                <CardDescription>
+                  ניתוח AI שמשלב את כל סיכומי הפגישות ומזהה דפוסים, התקדמות ותובנות
+                </CardDescription>
+              </CardHeader>
+              <CardContent>
+                {summarizedSessionsCount > 0 ? (
+                  <Button asChild className="bg-primary/10 text-primary border border-primary/20 hover:bg-primary/15 shadow-none">
+                    <Link href={`/dashboard/clients/${client.id}/summaries/all`}>
+                      <Sparkles className="ml-2 h-4 w-4" />
+                      התחל ניתוח מקיף ({summarizedSessionsCount} סיכומים)
+                    </Link>
+                  </Button>
+                ) : (
+                  <p className="text-sm text-muted-foreground">אין סיכומים עדיין - סכם פגישות כדי להפעיל ניתוח מקיף</p>
+                )}
+              </CardContent>
+            </Card>
+
+            {/* ניתוח שאלונים */}
+            {client.questionnaireResponses && client.questionnaireResponses.length > 0 ? (
+              <QuestionnaireAnalysis
+                clientId={client.id}
+                clientName={client.name}
+                questionnaires={client.questionnaireResponses}
+                userTier={(user?.aiTier as "ESSENTIAL" | "PRO" | "ENTERPRISE") || "ESSENTIAL"}
+              />
+            ) : (
+              <Card className="border-dashed">
+                <CardContent className="py-8 text-center text-muted-foreground">
+                  <ClipboardList className="mx-auto h-10 w-10 mb-3 opacity-40" />
+                  <p className="font-medium">אין שאלונים לניתוח</p>
+                  <p className="text-sm mt-1">מלא שאלונים כדי לקבל ניתוח AI</p>
+                  <Button variant="link" asChild className="mt-2">
+                    <Link href={`/dashboard/questionnaires/new?client=${client.id}`}>
+                      <Plus className="ml-1 h-4 w-4" />
+                      מלא שאלון
+                    </Link>
+                  </Button>
+                </CardContent>
+              </Card>
+            )}
+
+            {/* גישה טיפולית למטופל */}
+            <Card className={user?.aiTier !== 'ENTERPRISE' ? 'border-dashed border-amber-300/50' : ''}>
+              <CardHeader>
+                <div className="flex items-center justify-between">
+                  <div>
+                    <CardTitle className="flex items-center gap-2">
+                      <Stethoscope className="h-5 w-5" />
+                      גישה טיפולית למטופל
+                      {user?.aiTier !== 'ENTERPRISE' && <Lock className="h-4 w-4 text-amber-500" />}
+                    </CardTitle>
+                    <CardDescription>
+                      {user?.aiTier === 'ENTERPRISE' 
+                        ? 'הגדר גישות טיפוליות ספציפיות למטופל זה'
+                        : 'שדרג לארגוני כדי להפעיל ניתוח מותאם אישית'}
+                    </CardDescription>
+                  </div>
+                  {user?.aiTier !== 'ENTERPRISE' && (
+                    <Badge className="bg-gradient-to-r from-amber-400 to-orange-400 text-white border-0 text-xs">
+                      ENTERPRISE
+                    </Badge>
+                  )}
+                </div>
+              </CardHeader>
+              <CardContent>
+                <ClientApproachEditor
+                  clientId={client.id}
+                  clientName={client.name}
+                  currentApproaches={client.therapeuticApproaches || []}
+                  currentNotes={client.approachNotes}
+                  currentCulturalContext={client.culturalContext}
+                  disabled={user?.aiTier !== 'ENTERPRISE'}
+                />
+              </CardContent>
+            </Card>
+          </div>
         </TabsContent>
 
         <TabsContent value="summaries" className="mt-6">
@@ -714,35 +845,15 @@ export default async function ClientPage({
               {client.documents.length > 0 ? (
                 <div className="space-y-3">
                   {client.documents.map((doc) => (
-                    <div
+                    <DocumentItem
                       key={doc.id}
-                      className="flex items-center justify-between p-4 rounded-lg border border-border bg-background"
-                    >
-                      <div className="flex items-center gap-4 flex-1">
-                        <div className="flex h-12 w-12 items-center justify-center rounded-lg bg-primary/10">
-                          <FileText className="h-6 w-6 text-primary" />
-                        </div>
-                        <div>
-                          <p className="font-medium">{doc.name}</p>
-                          <p className="text-sm text-muted-foreground">
-                            {format(new Date(doc.createdAt), "dd/MM/yyyy")}
-                          </p>
-                        </div>
-                      </div>
-                      <div className="flex items-center gap-2">
-                        <Button variant="outline" size="sm" asChild>
-                          <a href={doc.fileUrl} target="_blank" rel="noopener noreferrer">
-                            <FileText className="h-4 w-4 ml-2" />
-                            פתח
-                          </a>
-                        </Button>
-                        <Button variant="ghost" size="icon" asChild>
-                          <a href={doc.fileUrl} download target="_blank" rel="noopener noreferrer">
-                            <Download className="h-4 w-4" />
-                          </a>
-                        </Button>
-                      </div>
-                    </div>
+                      doc={{
+                        id: doc.id,
+                        name: doc.name,
+                        fileUrl: doc.fileUrl,
+                        createdAt: doc.createdAt.toISOString(),
+                      }}
+                    />
                   ))}
                 </div>
               ) : (
@@ -921,41 +1032,6 @@ export default async function ClientPage({
               </CardContent>
             </Card>
 
-            {/* גישות טיפוליות למטופל */}
-            <Card className={`lg:col-span-2 ${user?.aiTier !== 'ENTERPRISE' ? 'border-dashed border-amber-300/50' : ''}`}>
-              <CardHeader>
-                <div className="flex items-center justify-between">
-                  <div>
-                    <CardTitle className="flex items-center gap-2">
-                      <Stethoscope className="h-5 w-5" />
-                      גישה טיפולית למטופל
-                      {user?.aiTier !== 'ENTERPRISE' && <Lock className="h-4 w-4 text-amber-500" />}
-                    </CardTitle>
-                    <CardDescription>
-                      {user?.aiTier === 'ENTERPRISE' 
-                        ? 'הגדר גישות טיפוליות ספציפיות למטופל זה (אופציונלי)'
-                        : 'לחץ על גישה כדי לשדרג ולהפעיל ניתוח מותאם!'
-                      }
-                    </CardDescription>
-                  </div>
-                  {user?.aiTier !== 'ENTERPRISE' && (
-                    <Badge className="bg-gradient-to-r from-amber-400 to-orange-400 text-white border-0 text-xs">
-                      שדרג לארגוני
-                    </Badge>
-                  )}
-                </div>
-              </CardHeader>
-              <CardContent>
-                <ClientApproachEditor
-                  clientId={client.id}
-                  clientName={client.name}
-                  currentApproaches={client.therapeuticApproaches || []}
-                  currentNotes={client.approachNotes}
-                  currentCulturalContext={client.culturalContext}
-                  disabled={user?.aiTier !== 'ENTERPRISE'}
-                />
-              </CardContent>
-            </Card>
           </div>
             </TabsContent>
 
@@ -1098,6 +1174,7 @@ export default async function ClientPage({
                     clientName={client.name}
                     questionnaires={client.questionnaireResponses}
                     userTier={(user?.aiTier as "ESSENTIAL" | "PRO" | "ENTERPRISE") || "ESSENTIAL"}
+                    compact
                   />
                 )}
 

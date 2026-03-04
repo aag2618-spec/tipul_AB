@@ -102,7 +102,7 @@ export function SessionPrepCard({ session, userTier }: SessionPrepCardProps) {
   // תוכנית בסיסית - הצגת אפשרות שדרוג
   if (userTier === 'ESSENTIAL') {
     return (
-      <Card className="border-2 border-dashed border-primary/30 bg-gradient-to-br from-blue-50/50 to-purple-50/50">
+      <Card className="border-2 border-dashed border-primary/30 bg-gradient-to-br from-sky-50/50 to-purple-50/50">
         <CardHeader>
           <div className="flex items-center gap-2">
             <Brain className="h-5 w-5 text-primary" />
@@ -150,7 +150,7 @@ export function SessionPrepCard({ session, userTier }: SessionPrepCardProps) {
     : 'מקצועי - תמציתי';
 
   return (
-    <Card className="border-2 border-primary/20 bg-gradient-to-br from-blue-50/30 to-purple-50/30">
+    <Card className="border-2 border-primary/20 bg-gradient-to-br from-sky-50/30 to-purple-50/30">
       <CardHeader>
         <div className="flex items-center justify-between">
           <div className="flex items-center gap-2">

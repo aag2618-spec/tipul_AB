@@ -56,7 +56,7 @@ export default function AdminDashboardPage() {
   if (isLoading) {
     return (
       <div className="h-[50vh] flex items-center justify-center">
-        <Loader2 className="h-8 w-8 animate-spin text-slate-400" />
+        <Loader2 className="h-8 w-8 animate-spin text-muted-foreground" />
       </div>
     );
   }
@@ -67,8 +67,8 @@ export default function AdminDashboardPage() {
       value: stats?.totalUsers || 0,
       description: `${stats?.activeUsers || 0} פעילים | ${stats?.newUsersThisMonth || 0} חדשים החודש`,
       icon: Users,
-      color: "text-blue-500",
-      bgColor: "bg-blue-500/20",
+      color: "text-sky-500",
+      bgColor: "bg-sky-500/20",
     },
     {
       title: "קריאות API",
@@ -100,15 +100,15 @@ export default function AdminDashboardPage() {
     <div className="space-y-8 animate-fade-in">
       <div>
         <h1 className="text-3xl font-bold">דשבורד ניהול</h1>
-        <p className="text-slate-400 mt-2">סקירה כללית של המערכת</p>
+        <p className="text-muted-foreground mt-2">סקירה כללית של המערכת</p>
       </div>
 
       {/* Stats Grid */}
       <div className="grid gap-6 md:grid-cols-2 lg:grid-cols-4">
         {statCards.map((card) => (
-          <Card key={card.title} className="bg-slate-900 border-slate-800">
+          <Card key={card.title}>
             <CardHeader className="flex flex-row items-center justify-between pb-2">
-              <CardTitle className="text-sm font-medium text-slate-400">
+              <CardTitle className="text-sm font-medium text-muted-foreground">
                 {card.title}
               </CardTitle>
               <div className={`p-2 rounded-lg ${card.bgColor}`}>
@@ -116,8 +116,8 @@ export default function AdminDashboardPage() {
               </div>
             </CardHeader>
             <CardContent>
-              <div className="text-2xl font-bold text-white">{card.value}</div>
-              <p className="text-xs text-slate-500 mt-1">{card.description}</p>
+              <div className="text-2xl font-bold">{card.value}</div>
+              <p className="text-xs text-muted-foreground mt-1">{card.description}</p>
             </CardContent>
           </Card>
         ))}
@@ -128,9 +128,9 @@ export default function AdminDashboardPage() {
 
       {/* Recent Activity */}
       <div className="grid gap-6 lg:grid-cols-2">
-        <Card className="bg-slate-900 border-slate-800">
+        <Card>
           <CardHeader>
-            <CardTitle className="text-white">משתמשים אחרונים</CardTitle>
+            <CardTitle>משתמשים אחרונים</CardTitle>
             <CardDescription>משתמשים שנרשמו לאחרונה</CardDescription>
           </CardHeader>
           <CardContent>
@@ -138,9 +138,9 @@ export default function AdminDashboardPage() {
           </CardContent>
         </Card>
 
-        <Card className="bg-slate-900 border-slate-800">
+        <Card>
           <CardHeader>
-            <CardTitle className="text-white">פעילות API אחרונה</CardTitle>
+            <CardTitle>פעילות API אחרונה</CardTitle>
             <CardDescription>קריאות API אחרונות במערכת</CardDescription>
           </CardHeader>
           <CardContent>
@@ -198,23 +198,23 @@ function PendingAlerts() {
       case "URGENT": return "text-red-500 bg-red-500/20";
       case "HIGH": return "text-orange-500 bg-orange-500/20";
       case "MEDIUM": return "text-yellow-500 bg-yellow-500/20";
-      default: return "text-slate-400 bg-slate-500/20";
+      default: return "text-muted-foreground bg-muted";
     }
   };
 
   return (
-    <Card className={`bg-slate-900 border-slate-800 ${counts.urgent > 0 ? 'border-red-500/50' : counts.high > 0 ? 'border-orange-500/50' : ''}`}>
+    <Card className={`${counts.urgent > 0 ? 'border-red-500/50' : counts.high > 0 ? 'border-orange-500/50' : ''}`}>
       <CardHeader className="pb-3">
         <div className="flex items-center justify-between">
           <div className="flex items-center gap-2">
             <Bell className={`h-5 w-5 ${counts.urgent > 0 ? 'text-red-500 animate-pulse' : 'text-amber-500'}`} />
-            <CardTitle className="text-white">התראות ממתינות</CardTitle>
+            <CardTitle>התראות ממתינות</CardTitle>
             <Badge variant="destructive">{counts.PENDING}</Badge>
             {counts.urgent > 0 && (
               <Badge className="bg-red-600">{counts.urgent} דחופות</Badge>
             )}
           </div>
-          <Button variant="ghost" size="sm" asChild className="text-slate-400 hover:text-white">
+          <Button variant="ghost" size="sm" asChild className="text-muted-foreground hover:text-foreground">
             <Link href="/admin/alerts">
               צפה בכל ההתראות
               <ArrowRight className="mr-2 h-4 w-4" />
@@ -227,7 +227,7 @@ function PendingAlerts() {
           {alerts.map((alert) => (
             <div 
               key={alert.id} 
-              className="flex items-center justify-between py-2 border-b border-slate-800 last:border-0"
+              className="flex items-center justify-between py-2 border-b border-border last:border-0"
             >
               <div className="flex items-center gap-3">
                 <div className={`p-1.5 rounded ${getPriorityColor(alert.priority)}`}>
@@ -238,8 +238,8 @@ function PendingAlerts() {
                   )}
                 </div>
                 <div>
-                  <p className="font-medium text-white text-sm">{alert.title}</p>
-                  <p className="text-xs text-slate-500">
+                  <p className="font-medium text-sm">{alert.title}</p>
+                  <p className="text-xs text-muted-foreground">
                     {new Date(alert.createdAt).toLocaleDateString("he-IL")}
                   </p>
                 </div>
@@ -249,7 +249,7 @@ function PendingAlerts() {
                 className={`text-xs ${
                   alert.priority === "URGENT" ? "border-red-500 text-red-500" :
                   alert.priority === "HIGH" ? "border-orange-500 text-orange-500" :
-                  "border-slate-500 text-slate-400"
+                  "border-border text-muted-foreground"
                 }`}
               >
                 {alert.priority === "URGENT" ? "דחוף" : 
@@ -286,31 +286,31 @@ function RecentUsers() {
   }, []);
 
   if (isLoading) {
-    return <div className="flex justify-center py-4"><Loader2 className="h-6 w-6 animate-spin text-slate-400" /></div>;
+    return <div className="flex justify-center py-4"><Loader2 className="h-6 w-6 animate-spin text-muted-foreground" /></div>;
   }
 
   if (users.length === 0) {
-    return <p className="text-slate-500 text-center py-4">אין משתמשים</p>;
+    return <p className="text-muted-foreground text-center py-4">אין משתמשים</p>;
   }
 
   return (
     <div className="space-y-3">
       {users.map((user) => (
-        <div key={user.id} className="flex items-center justify-between py-2 border-b border-slate-800 last:border-0">
+        <div key={user.id} className="flex items-center justify-between py-2 border-b border-border last:border-0">
           <div>
-            <p className="font-medium text-white">{user.name || "ללא שם"}</p>
+            <p className="font-medium">{user.name || "ללא שם"}</p>
             {user.email ? (
               <a 
                 href={`mailto:${user.email}`}
-                className="text-sm text-blue-400 hover:text-blue-300 hover:underline"
+                className="text-sm text-sky-400 hover:text-sky-300 hover:underline"
               >
                 {user.email}
               </a>
             ) : (
-              <p className="text-sm text-slate-500">ללא מייל</p>
+              <p className="text-sm text-muted-foreground">ללא מייל</p>
             )}
           </div>
-          <span className="text-xs text-slate-500">
+          <span className="text-xs text-muted-foreground">
             {new Date(user.createdAt).toLocaleDateString("he-IL")}
           </span>
         </div>
@@ -341,17 +341,17 @@ function RecentApiCalls() {
   }, []);
 
   if (isLoading) {
-    return <div className="flex justify-center py-4"><Loader2 className="h-6 w-6 animate-spin text-slate-400" /></div>;
+    return <div className="flex justify-center py-4"><Loader2 className="h-6 w-6 animate-spin text-muted-foreground" /></div>;
   }
 
   if (calls.length === 0) {
-    return <p className="text-slate-500 text-center py-4">אין קריאות API</p>;
+    return <p className="text-muted-foreground text-center py-4">אין קריאות API</p>;
   }
 
   return (
     <div className="space-y-3">
       {calls.map((call) => (
-        <div key={call.id} className="flex items-center justify-between py-2 border-b border-slate-800 last:border-0">
+        <div key={call.id} className="flex items-center justify-between py-2 border-b border-border last:border-0">
           <div className="flex items-center gap-2">
             {call.success ? (
               <TrendingUp className="h-4 w-4 text-green-500" />
@@ -359,11 +359,11 @@ function RecentApiCalls() {
               <TrendingDown className="h-4 w-4 text-red-500" />
             )}
             <div>
-              <p className="font-medium text-white text-sm">{call.endpoint}</p>
-              <p className="text-xs text-slate-500">{call.user?.name || "משתמש"}</p>
+              <p className="font-medium text-sm">{call.endpoint}</p>
+              <p className="text-xs text-muted-foreground">{call.user?.name || "משתמש"}</p>
             </div>
           </div>
-          <span className="text-xs text-slate-500">
+          <span className="text-xs text-muted-foreground">
             {new Date(call.createdAt).toLocaleTimeString("he-IL")}
           </span>
         </div>

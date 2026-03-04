@@ -208,6 +208,8 @@ export async function POST(req: NextRequest) {
               content: html,
               status: "SENT",
               sentAt: new Date(),
+              clientId: clientId,
+              userId: session.user.id,
             },
           });
         }

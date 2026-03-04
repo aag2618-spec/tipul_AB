@@ -191,7 +191,7 @@ export default function ClientPaymentsPage() {
           <Button
             onClick={handleSendReminder}
             disabled={sendingReminder}
-            className="gap-2 bg-blue-600 hover:bg-blue-700 text-white shadow-lg"
+            className="gap-2 bg-sky-600 hover:bg-sky-700 text-white shadow-lg"
             size="lg"
           >
             {sendingReminder ? (

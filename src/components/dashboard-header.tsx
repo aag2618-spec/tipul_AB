@@ -1,6 +1,7 @@
 "use client";
 
 import { useState, useEffect } from "react";
+import { useRouter } from "next/navigation";
 import { signOut } from "next-auth/react";
 import { SidebarTrigger } from "@/components/ui/sidebar";
 import { Button } from "@/components/ui/button";
@@ -14,7 +15,7 @@ import {
 } from "@/components/ui/dropdown-menu";
 import { Avatar, AvatarFallback, AvatarImage } from "@/components/ui/avatar";
 import { Badge } from "@/components/ui/badge";
-import { Bell, LogOut, Settings, User, XCircle, Mail, Calendar } from "lucide-react";
+import { Bell, LogOut, Settings, User, XCircle, Mail, Calendar, X, ListTodo } from "lucide-react";
 import Link from "next/link";
 
 interface Notification {
@@ -36,26 +37,13 @@ interface DashboardHeaderProps {
 }
 
 export function DashboardHeader({ user }: DashboardHeaderProps) {
+  const router = useRouter();
   const [notifications, setNotifications] = useState<Notification[]>([]);
   const [unreadCount, setUnreadCount] = useState(0);
-  const [pendingCancellations, setPendingCancellations] = useState(0);
-
-  useEffect(() => {
-    fetchNotifications();
-    fetchPendingCancellations();
-    
-    // רענון כל 30 שניות
-    const interval = setInterval(() => {
-      fetchNotifications();
-      fetchPendingCancellations();
-    }, 30000);
-    
-    return () => clearInterval(interval);
-  }, []);
 
   const fetchNotifications = async () => {
     try {
-      const response = await fetch("/api/notifications?limit=5&unread=true");
+      const response = await fetch("/api/notifications?limit=20&unread=true");
       if (response.ok) {
         const data = await response.json();
         setNotifications(data.notifications || []);
@@ -66,24 +54,46 @@ export function DashboardHeader({ user }: DashboardHeaderProps) {
     }
   };
 
-  const fetchPendingCancellations = async () => {
-    try {
-      const response = await fetch("/api/cancellation-requests?status=PENDING&limit=1");
-      if (response.ok) {
-        const data = await response.json();
-        setPendingCancellations(data.total || 0);
-      }
-    } catch (error) {
-      console.error("Error fetching cancellations:", error);
-    }
-  };
+  useEffect(() => {
+    fetchNotifications();
+    
+    const interval = setInterval(() => {
+      fetchNotifications();
+    }, 30000);
+    
+    return () => clearInterval(interval);
+  }, []);
 
   const markAsRead = async (id: string) => {
     try {
       await fetch(`/api/notifications/${id}/read`, { method: "POST" });
-      fetchNotifications();
+      // Remove from local state immediately for instant UI feedback
+      setNotifications(prev => prev.filter(n => n.id !== id));
+      setUnreadCount(prev => Math.max(0, prev - 1));
     } catch (error) {
       console.error("Error marking as read:", error);
+    }
+  };
+
+  const dismissNotification = async (e: React.MouseEvent, id: string) => {
+    e.stopPropagation(); // Don't trigger the parent click (navigation)
+    try {
+      await fetch(`/api/notifications/${id}`, { method: "DELETE" });
+      // Remove from local state immediately
+      setNotifications(prev => prev.filter(n => n.id !== id));
+      setUnreadCount(prev => Math.max(0, prev - 1));
+    } catch (error) {
+      console.error("Error dismissing notification:", error);
+    }
+  };
+
+  const markAllAsRead = async () => {
+    try {
+      await fetch("/api/notifications/mark-all-read", { method: "POST" });
+      setNotifications([]);
+      setUnreadCount(0);
+    } catch (error) {
+      console.error("Error marking all as read:", error);
     }
   };
 
@@ -100,16 +110,33 @@ export function DashboardHeader({ user }: DashboardHeaderProps) {
     switch (type) {
       case "CANCELLATION_REQUEST":
         return <XCircle className="h-4 w-4 text-orange-500" />;
+      case "EMAIL_RECEIVED":
+        return <Mail className="h-4 w-4 text-sky-500" />;
       case "EMAIL_SENT":
-        return <Mail className="h-4 w-4 text-blue-500" />;
+        return <Mail className="h-4 w-4 text-sky-500" />;
       case "SESSION_REMINDER":
         return <Calendar className="h-4 w-4 text-green-500" />;
+      case "PENDING_TASKS":
+      case "CUSTOM":
+        return <ListTodo className="h-4 w-4 text-amber-500" />;
       default:
         return <Bell className="h-4 w-4" />;
     }
   };
 
-  const totalBadge = unreadCount + pendingCancellations;
+  const handleNotificationClick = (notification: Notification) => {
+    markAsRead(notification.id);
+    if (notification.type === "PENDING_TASKS" || notification.type === "CUSTOM") {
+      router.push("/dashboard#personal-tasks");
+      setTimeout(() => {
+        document.getElementById("personal-tasks")?.scrollIntoView({ behavior: "smooth", block: "center" });
+      }, 300);
+    } else {
+      router.push("/dashboard/communications");
+    }
+  };
+
+  const totalBadge = unreadCount;
 
   return (
     <header className="sticky top-0 z-50 flex h-16 items-center gap-4 border-b bg-background/95 backdrop-blur supports-[backdrop-filter]:bg-background/60 px-6">
@@ -136,7 +163,7 @@ export function DashboardHeader({ user }: DashboardHeaderProps) {
           </DropdownMenuTrigger>
           <DropdownMenuContent align="start" className="w-80">
             <DropdownMenuLabel className="flex items-center justify-between">
-              <span>התראות</span>
+              <span>תשובות ממטופלים</span>
               {unreadCount > 0 && (
                 <Badge variant="secondary" className="text-xs">
                   {unreadCount} חדשות
@@ -145,66 +172,57 @@ export function DashboardHeader({ user }: DashboardHeaderProps) {
             </DropdownMenuLabel>
             <DropdownMenuSeparator />
             
-            {/* Pending Cancellations Alert */}
-            {pendingCancellations > 0 && (
-              <>
-                <DropdownMenuItem asChild>
-                  <Link 
-                    href="/dashboard/cancellation-requests" 
-                    className="cursor-pointer flex items-center gap-3 p-3 bg-orange-50 dark:bg-orange-950"
+            {/* Recent Notifications - only unread */}
+            {notifications.length > 0 ? (
+              <div className="max-h-[400px] overflow-y-auto">
+                {notifications.map((notification) => (
+                  <DropdownMenuItem 
+                    key={notification.id}
+                    className="cursor-pointer flex items-start gap-3 p-3"
+                    onClick={() => handleNotificationClick(notification)}
                   >
-                    <XCircle className="h-5 w-5 text-orange-500" />
-                    <div className="flex-1">
-                      <p className="font-medium text-orange-700 dark:text-orange-300">
-                        {pendingCancellations} בקשות ביטול ממתינות
+                    {getNotificationIcon(notification.type)}
+                    <div className="flex-1 space-y-1">
+                      <p className="text-sm font-medium">
+                        {notification.title}
                       </p>
-                      <p className="text-xs text-orange-600 dark:text-orange-400">
-                        לחץ לצפייה ואישור
+                      <p className="text-xs text-muted-foreground line-clamp-2">
+                        {notification.content}
                       </p>
                     </div>
-                  </Link>
-                </DropdownMenuItem>
-                <DropdownMenuSeparator />
-              </>
+                    <button
+                      onClick={(e) => dismissNotification(e, notification.id)}
+                      className="p-1 rounded-full hover:bg-muted text-muted-foreground hover:text-foreground flex-shrink-0"
+                      title="מחק התראה"
+                    >
+                      <X className="h-3.5 w-3.5" />
+                    </button>
+                  </DropdownMenuItem>
+                ))}
+              </div>
+            ) : (
+              <div className="p-4 text-center text-muted-foreground text-sm">
+                אין תשובות חדשות ממטופלים
+              </div>
             )}
             
-            {/* Recent Notifications */}
-            {notifications.length > 0 ? (
-              notifications.map((notification) => (
-                <DropdownMenuItem 
-                  key={notification.id}
-                  className="cursor-pointer flex items-start gap-3 p-3"
-                  onClick={() => markAsRead(notification.id)}
-                >
-                  {getNotificationIcon(notification.type)}
-                  <div className="flex-1 space-y-1">
-                    <p className={`text-sm ${!notification.read ? "font-medium" : ""}`}>
-                      {notification.title}
-                    </p>
-                    <p className="text-xs text-muted-foreground line-clamp-2">
-                      {notification.content}
-                    </p>
-                  </div>
-                  {!notification.read && (
-                    <div className="h-2 w-2 rounded-full bg-primary" />
-                  )}
-                </DropdownMenuItem>
-              ))
-            ) : pendingCancellations === 0 ? (
-              <div className="p-4 text-center text-muted-foreground text-sm">
-                אין התראות חדשות
-              </div>
-            ) : null}
-            
             <DropdownMenuSeparator />
-            <DropdownMenuItem asChild>
+            <div className="flex items-center justify-between px-2 py-1">
               <Link 
-                href="/dashboard/notifications" 
-                className="cursor-pointer text-center text-sm text-primary"
+                href="/dashboard/communications" 
+                className="text-sm text-primary hover:underline px-2 py-1"
               >
-                צפה בכל ההתראות
+                צפה בכל התקשורת
               </Link>
-            </DropdownMenuItem>
+              {notifications.length > 0 && (
+                <button
+                  onClick={markAllAsRead}
+                  className="text-xs text-muted-foreground hover:text-foreground px-2 py-1"
+                >
+                  סמן הכל כנקרא
+                </button>
+              )}
+            </div>
           </DropdownMenuContent>
         </DropdownMenu>
         

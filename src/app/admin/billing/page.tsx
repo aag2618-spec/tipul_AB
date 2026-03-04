@@ -303,7 +303,7 @@ export default function AdminBillingPage() {
   const getStatusBadge = (status: string) => {
     switch (status) {
       case "ACTIVE": return <Badge className="bg-green-500/20 text-green-600 border-green-600/30">פעיל</Badge>;
-      case "TRIALING": return <Badge className="bg-blue-500/20 text-blue-600 border-blue-600/30">ניסיון</Badge>;
+      case "TRIALING": return <Badge className="bg-sky-500/20 text-sky-600 border-sky-600/30">ניסיון</Badge>;
       case "PAST_DUE": return <Badge className="bg-red-500/20 text-red-600 border-red-600/30">לתשלום</Badge>;
       case "CANCELLED": return <Badge className="bg-gray-500/20 text-gray-600 border-gray-600/30">בוטל</Badge>;
       case "PAUSED": return <Badge className="bg-yellow-500/20 text-yellow-600 border-yellow-600/30">מושהה</Badge>;
@@ -314,7 +314,7 @@ export default function AdminBillingPage() {
   const getTierIcon = (tier: string) => {
     switch (tier) {
       case "ESSENTIAL": return <Zap className="h-3.5 w-3.5 text-slate-500" />;
-      case "PRO": return <Crown className="h-3.5 w-3.5 text-blue-500" />;
+      case "PRO": return <Crown className="h-3.5 w-3.5 text-sky-500" />;
       case "ENTERPRISE": return <Building className="h-3.5 w-3.5 text-purple-500" />;
       default: return null;
     }
@@ -381,9 +381,9 @@ export default function AdminBillingPage() {
           </Card>
           <Card className="p-3">
             <div className="flex items-center gap-2">
-              <Clock className="h-4 w-4 text-blue-600" />
+              <Clock className="h-4 w-4 text-sky-600" />
               <div>
-                <div className="text-lg font-bold text-blue-600">{stats.trialing}</div>
+                <div className="text-lg font-bold text-sky-600">{stats.trialing}</div>
                 <div className="text-xs text-muted-foreground">ניסיון</div>
               </div>
             </div>
@@ -585,7 +585,7 @@ export default function AdminBillingPage() {
                               title="שדרוג מסלול"
                               onClick={() => { setNewTier(sub.aiTier); setActionDialog({ type: "upgrade", user: sub }); }}
                             >
-                              <ArrowUpCircle className="h-3.5 w-3.5 text-blue-600" />
+                              <ArrowUpCircle className="h-3.5 w-3.5 text-sky-600" />
                             </Button>
                             <Button 
                               variant="ghost" 
@@ -670,7 +670,7 @@ export default function AdminBillingPage() {
                                     {sub.termsAcceptances.map(t => (
                                       <div key={t.id} className="flex items-center justify-between bg-background rounded px-2 py-1 text-xs">
                                         <div className="flex items-center gap-2">
-                                          <FileCheck className="h-3 w-3 text-blue-500" />
+                                          <FileCheck className="h-3 w-3 text-sky-500" />
                                           <span>{getActionLabel(t.action)}</span>
                                           {t.planSelected && <Badge variant="outline" className="text-[10px] py-0">{t.planSelected}</Badge>}
                                         </div>
@@ -795,7 +795,7 @@ export default function AdminBillingPage() {
                       <div key={t.id} className="p-2 bg-muted/50 rounded text-sm space-y-1">
                         <div className="flex items-center justify-between">
                           <div className="flex items-center gap-2">
-                            <FileCheck className="h-4 w-4 text-blue-500" />
+                            <FileCheck className="h-4 w-4 text-sky-500" />
                             <span className="font-medium">{getActionLabel(t.action)}</span>
                             {t.planSelected && <Badge variant="outline" className="text-xs">{t.planSelected}</Badge>}
                           </div>

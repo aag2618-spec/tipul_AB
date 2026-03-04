@@ -32,6 +32,35 @@ export async function GET(
         return NextResponse.json({ message: "אין הרשאה לקובץ זה" }, { status: 403 });
       }
     }
+    // Check if it's a client attachment (saved from email)
+    else if (pathStr.startsWith("clients/")) {
+      const fileName = path[path.length - 1];
+      const document = await prisma.document.findFirst({
+        where: {
+          fileUrl: { contains: fileName },
+          therapistId: session.user.id,
+        },
+      });
+      if (!document) {
+        return NextResponse.json({ message: "אין הרשאה לקובץ זה" }, { status: 403 });
+      }
+    }
+    // Check if it's a sent attachment copy
+    else if (pathStr.startsWith("sent/")) {
+      // Verify the therapist owns this client's communication
+      const clientId = path[1]; // sent/{clientId}/{filename}
+      if (clientId) {
+        const log = await prisma.communicationLog.findFirst({
+          where: {
+            userId: session.user.id,
+            clientId: clientId,
+          },
+        });
+        if (!log) {
+          return NextResponse.json({ message: "אין הרשאה לקובץ זה" }, { status: 403 });
+        }
+      }
+    }
     // Check if it's a recording
     else if (pathStr.startsWith("recordings/")) {
       const fileName = path[path.length - 1];
@@ -101,6 +130,25 @@ export async function GET(
         break;
       case "gif":
         contentType = "image/gif";
+        break;
+      case "webp":
+        contentType = "image/webp";
+        break;
+      case "htm":
+      case "html":
+        contentType = "text/html";
+        break;
+      case "csv":
+        contentType = "text/csv";
+        break;
+      case "xlsx":
+        contentType = "application/vnd.openxmlformats-officedocument.spreadsheetml.sheet";
+        break;
+      case "xls":
+        contentType = "application/vnd.ms-excel";
+        break;
+      case "zip":
+        contentType = "application/zip";
         break;
     }
 

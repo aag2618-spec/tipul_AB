@@ -205,7 +205,7 @@ export default function AdminUsersPage() {
       <div className="flex items-center justify-between">
         <div>
           <h1 className="text-3xl font-bold">ניהול משתמשים</h1>
-          <p className="text-slate-400 mt-1">{total} משתמשים במערכת</p>
+          <p className="text-muted-foreground mt-1">{total} משתמשים במערכת</p>
         </div>
         
         <Dialog open={isDialogOpen} onOpenChange={(open) => {
@@ -218,9 +218,9 @@ export default function AdminUsersPage() {
               משתמש חדש
             </Button>
           </DialogTrigger>
-          <DialogContent className="bg-slate-900 border-slate-800">
+          <DialogContent>
             <DialogHeader>
-              <DialogTitle className="text-white">
+              <DialogTitle>
                 {editingUser ? "עריכת משתמש" : "משתמש חדש"}
               </DialogTitle>
               <DialogDescription>
@@ -234,7 +234,6 @@ export default function AdminUsersPage() {
                 <Input
                   value={formData.name}
                   onChange={(e) => setFormData({ ...formData, name: e.target.value })}
-                  className="bg-slate-800 border-slate-700"
                 />
               </div>
               
@@ -244,7 +243,6 @@ export default function AdminUsersPage() {
                   type="email"
                   value={formData.email}
                   onChange={(e) => setFormData({ ...formData, email: e.target.value })}
-                  className="bg-slate-800 border-slate-700"
                 />
               </div>
               
@@ -254,7 +252,6 @@ export default function AdminUsersPage() {
                   type="password"
                   value={formData.password}
                   onChange={(e) => setFormData({ ...formData, password: e.target.value })}
-                  className="bg-slate-800 border-slate-700"
                 />
               </div>
               
@@ -263,7 +260,6 @@ export default function AdminUsersPage() {
                 <Input
                   value={formData.phone}
                   onChange={(e) => setFormData({ ...formData, phone: e.target.value })}
-                  className="bg-slate-800 border-slate-700"
                 />
               </div>
               
@@ -275,7 +271,7 @@ export default function AdminUsersPage() {
                     setFormData({ ...formData, role: value })
                   }
                 >
-                  <SelectTrigger className="bg-slate-800 border-slate-700">
+                  <SelectTrigger >
                     <SelectValue />
                   </SelectTrigger>
                   <SelectContent>
@@ -291,7 +287,7 @@ export default function AdminUsersPage() {
               <Button
                 variant="ghost"
                 onClick={() => setIsDialogOpen(false)}
-                className="text-slate-400"
+                className="text-muted-foreground"
               >
                 ביטול
               </Button>
@@ -314,52 +310,52 @@ export default function AdminUsersPage() {
       </div>
 
       {/* Search */}
-      <Card className="bg-slate-900 border-slate-800">
+      <Card>
         <CardContent className="pt-6">
           <div className="relative">
-            <Search className="absolute right-3 top-1/2 -translate-y-1/2 h-4 w-4 text-slate-400" />
+            <Search className="absolute right-3 top-1/2 -translate-y-1/2 h-4 w-4 text-muted-foreground" />
             <Input
               placeholder="חיפוש לפי שם או אימייל..."
               value={search}
               onChange={(e) => setSearch(e.target.value)}
-              className="pr-10 bg-slate-800 border-slate-700"
+              className="pr-10"
             />
           </div>
         </CardContent>
       </Card>
 
       {/* Users Table */}
-      <Card className="bg-slate-900 border-slate-800">
+      <Card>
         <CardContent className="pt-6">
           {isLoading ? (
             <div className="flex justify-center py-8">
-              <Loader2 className="h-8 w-8 animate-spin text-slate-400" />
+              <Loader2 className="h-8 w-8 animate-spin text-muted-foreground" />
             </div>
           ) : users.length === 0 ? (
-            <div className="text-center py-8 text-slate-400">
+            <div className="text-center py-8 text-muted-foreground">
               <Users className="h-12 w-12 mx-auto mb-4 opacity-50" />
               <p>לא נמצאו משתמשים</p>
             </div>
           ) : (
             <Table>
               <TableHeader>
-                <TableRow className="border-slate-800">
-                  <TableHead className="text-slate-400">משתמש</TableHead>
-                  <TableHead className="text-slate-400">תפקיד</TableHead>
-                  <TableHead className="text-slate-400">סטטוס</TableHead>
-                  <TableHead className="text-slate-400">מטופלים</TableHead>
-                  <TableHead className="text-slate-400">קריאות API</TableHead>
-                  <TableHead className="text-slate-400">נוצר</TableHead>
-                  <TableHead className="text-slate-400">פעולות</TableHead>
+                <TableRow className="border-border">
+                  <TableHead className="text-muted-foreground">משתמש</TableHead>
+                  <TableHead className="text-muted-foreground">תפקיד</TableHead>
+                  <TableHead className="text-muted-foreground">סטטוס</TableHead>
+                  <TableHead className="text-muted-foreground">מטופלים</TableHead>
+                  <TableHead className="text-muted-foreground">קריאות API</TableHead>
+                  <TableHead className="text-muted-foreground">נוצר</TableHead>
+                  <TableHead className="text-muted-foreground">פעולות</TableHead>
                 </TableRow>
               </TableHeader>
               <TableBody>
                 {users.map((user) => (
-                  <TableRow key={user.id} className="border-slate-800">
+                  <TableRow key={user.id} className="border-border">
                     <TableCell>
                       <div>
-                        <p className="font-medium text-white">{user.name || "ללא שם"}</p>
-                        <p className="text-sm text-slate-500">{user.email}</p>
+                        <p className="font-medium">{user.name || "ללא שם"}</p>
+                        <p className="text-sm text-muted-foreground">{user.email}</p>
                       </div>
                     </TableCell>
                     <TableCell>
@@ -369,7 +365,7 @@ export default function AdminUsersPage() {
                           user.role === "ADMIN" 
                             ? "bg-amber-500/20 text-amber-500" 
                             : user.role === "MANAGER"
-                            ? "bg-blue-500/20 text-blue-500"
+                            ? "bg-sky-500/20 text-sky-500"
                             : ""
                         }
                       >
@@ -387,9 +383,9 @@ export default function AdminUsersPage() {
                         {user.isBlocked ? "חסום" : "פעיל"}
                       </Badge>
                     </TableCell>
-                    <TableCell className="text-slate-300">{user._count.clients}</TableCell>
-                    <TableCell className="text-slate-300">{user._count.apiUsageLogs}</TableCell>
-                    <TableCell className="text-slate-500">
+                    <TableCell>{user._count.clients}</TableCell>
+                    <TableCell>{user._count.apiUsageLogs}</TableCell>
+                    <TableCell className="text-muted-foreground">
                       {new Date(user.createdAt).toLocaleDateString("he-IL")}
                     </TableCell>
                     <TableCell>
@@ -398,7 +394,7 @@ export default function AdminUsersPage() {
                           variant="ghost"
                           size="icon"
                           onClick={() => openEditDialog(user)}
-                          className="text-slate-400 hover:text-white"
+                          className="text-muted-foreground hover:text-foreground"
                         >
                           <Pencil className="h-4 w-4" />
                         </Button>
@@ -426,9 +422,9 @@ export default function AdminUsersPage() {
                               <Trash2 className="h-4 w-4" />
                             </Button>
                           </AlertDialogTrigger>
-                          <AlertDialogContent className="bg-slate-900 border-slate-800">
+                          <AlertDialogContent>
                             <AlertDialogHeader>
-                              <AlertDialogTitle className="text-white">
+                              <AlertDialogTitle>
                                 מחיקת משתמש
                               </AlertDialogTitle>
                               <AlertDialogDescription>
@@ -437,7 +433,7 @@ export default function AdminUsersPage() {
                               </AlertDialogDescription>
                             </AlertDialogHeader>
                             <AlertDialogFooter>
-                              <AlertDialogCancel className="bg-slate-800 border-slate-700">
+                              <AlertDialogCancel >
                                 ביטול
                               </AlertDialogCancel>
                               <AlertDialogAction

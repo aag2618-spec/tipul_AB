@@ -100,7 +100,10 @@ export async function DELETE(
       return NextResponse.json({ message: "משימה לא נמצאה" }, { status: 404 });
     }
 
-    await prisma.task.delete({ where: { id } });
+    await prisma.task.update({
+      where: { id },
+      data: { status: "DISMISSED", updatedAt: new Date() },
+    });
 
     return NextResponse.json({ message: "המשימה נמחקה" });
   } catch (error) {

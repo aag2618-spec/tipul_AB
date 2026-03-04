@@ -91,7 +91,7 @@ export default function AdminAISettingsPage() {
         </CardHeader>
         <CardContent className="space-y-6">
           {/* Pro Limits */}
-          <div className="space-y-4 p-4 bg-blue-50 rounded-lg">
+          <div className="space-y-4 p-4 bg-sky-50 rounded-lg">
             <h3 className="font-semibold text-lg">🥈 מקצועי (145₪)</h3>
             <div className="grid gap-4 md:grid-cols-2">
               <div className="space-y-2">

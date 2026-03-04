@@ -36,9 +36,9 @@ interface TierLimit {
 }
 
 const TIER_COLORS = {
-  ESSENTIAL: "bg-gray-100 text-gray-800",
-  PRO: "bg-blue-100 text-blue-800",
-  ENTERPRISE: "bg-purple-100 text-purple-800",
+  ESSENTIAL: "bg-gray-500/20 text-gray-300",
+  PRO: "bg-sky-500/20 text-sky-300",
+  ENTERPRISE: "bg-purple-500/20 text-purple-300",
 };
 
 const TIER_ICONS = {
@@ -152,10 +152,10 @@ export default function TierSettingsPage() {
     const isUnlimited = value === 0;
 
     return (
-      <div className="flex items-center justify-between py-3 border-b border-slate-700 last:border-0">
+      <div className="flex items-center justify-between py-3 border-b border-border last:border-0">
         <div className="flex-1">
-          <p className="text-white font-medium">{label}</p>
-          <p className="text-xs text-slate-400">{description}</p>
+          <p className="text-foreground font-medium">{label}</p>
+          <p className="text-xs text-muted-foreground">{description}</p>
         </div>
         <div className="flex items-center gap-2">
           {isBlocked ? (
@@ -173,7 +173,7 @@ export default function TierSettingsPage() {
             type="number"
             value={value}
             onChange={(e) => handleChange(limit.tier, field, parseInt(e.target.value) || 0)}
-            className="w-24 bg-slate-800 border-slate-700 text-center"
+            className="w-24 text-center"
           />
         </div>
       </div>
@@ -183,7 +183,7 @@ export default function TierSettingsPage() {
   if (loading) {
     return (
       <div className="flex items-center justify-center min-h-[50vh]">
-        <RefreshCw className="h-8 w-8 animate-spin text-slate-400" />
+        <RefreshCw className="h-8 w-8 animate-spin text-muted-foreground" />
       </div>
     );
   }
@@ -197,7 +197,7 @@ export default function TierSettingsPage() {
             <Settings className="h-8 w-8 text-amber-500" />
             הגדרות תוכניות
           </h1>
-          <p className="text-slate-400 mt-1">ניהול מכסות ומחירים לכל תוכנית</p>
+          <p className="text-muted-foreground mt-1">ניהול מכסות ומחירים לכל תוכנית</p>
         </div>
 
         <Button variant="outline" onClick={handleReset} disabled={saving} className="border-red-500 text-red-500">
@@ -207,20 +207,20 @@ export default function TierSettingsPage() {
       </div>
 
       {/* Legend */}
-      <Card className="bg-slate-900 border-slate-800">
+      <Card>
         <CardContent className="pt-6">
           <div className="flex gap-6 flex-wrap text-sm">
             <div className="flex items-center gap-2">
               <Badge variant="destructive" className="text-xs">-1</Badge>
-              <span className="text-slate-400">= חסום (לא זמין בתוכנית)</span>
+              <span className="text-muted-foreground">= חסום (לא זמין בתוכנית)</span>
             </div>
             <div className="flex items-center gap-2">
               <Badge variant="secondary" className="text-xs bg-green-500/20 text-green-400">0</Badge>
-              <span className="text-slate-400">= ללא הגבלה</span>
+              <span className="text-muted-foreground">= ללא הגבלה</span>
             </div>
             <div className="flex items-center gap-2">
               <Badge variant="outline" className="text-xs">N</Badge>
-              <span className="text-slate-400">= מספר מקסימלי לחודש</span>
+              <span className="text-muted-foreground">= מספר מקסימלי לחודש</span>
             </div>
           </div>
         </CardContent>
@@ -228,12 +228,11 @@ export default function TierSettingsPage() {
 
       {/* Tier Tabs */}
       <Tabs defaultValue="ESSENTIAL" className="w-full">
-        <TabsList className="grid w-full grid-cols-3 bg-slate-900">
+        <TabsList className="grid w-full grid-cols-3">
           {limits.map((limit) => (
             <TabsTrigger
               key={limit.tier}
               value={limit.tier}
-              className="data-[state=active]:bg-slate-800"
             >
               <span className="ml-2">{TIER_ICONS[limit.tier]}</span>
               {limit.displayNameHe}
@@ -248,47 +247,47 @@ export default function TierSettingsPage() {
           <TabsContent key={limit.tier} value={limit.tier} className="mt-6">
             <div className="grid gap-6 lg:grid-cols-2">
               {/* Basic Info */}
-              <Card className="bg-slate-900 border-slate-800">
+              <Card>
                 <CardHeader>
-                  <CardTitle className="text-white flex items-center gap-2">
+                  <CardTitle className="flex items-center gap-2">
                     <span className="text-2xl">{TIER_ICONS[limit.tier]}</span>
                     פרטי התוכנית
                   </CardTitle>
                 </CardHeader>
                 <CardContent className="space-y-4">
                   <div>
-                    <label className="text-sm text-slate-400">שם בעברית</label>
+                    <label className="text-sm text-muted-foreground">שם בעברית</label>
                     <Input
                       value={getValue(limit, "displayNameHe") as string}
                       onChange={(e) => handleChange(limit.tier, "displayNameHe", e.target.value)}
-                      className="bg-slate-800 border-slate-700 mt-1"
+                      className="mt-1"
                     />
                   </div>
                   <div>
-                    <label className="text-sm text-slate-400">שם באנגלית</label>
+                    <label className="text-sm text-muted-foreground">שם באנגלית</label>
                     <Input
                       value={getValue(limit, "displayNameEn") as string}
                       onChange={(e) => handleChange(limit.tier, "displayNameEn", e.target.value)}
-                      className="bg-slate-800 border-slate-700 mt-1"
+                      className="mt-1"
                     />
                   </div>
                   <div>
-                    <label className="text-sm text-slate-400">מחיר חודשי (₪)</label>
+                    <label className="text-sm text-muted-foreground">מחיר חודשי (₪)</label>
                     <Input
                       type="number"
                       value={getValue(limit, "priceMonthly") as number}
                       onChange={(e) => handleChange(limit.tier, "priceMonthly", parseInt(e.target.value) || 0)}
-                      className="bg-slate-800 border-slate-700 mt-1"
+                      className="mt-1"
                     />
                   </div>
                 </CardContent>
               </Card>
 
               {/* Session Prep Limits */}
-              <Card className="bg-slate-900 border-slate-800">
+              <Card>
                 <CardHeader>
-                  <CardTitle className="text-white flex items-center gap-2">
-                    <Brain className="h-5 w-5 text-purple-500" />
+                  <CardTitle className="flex items-center gap-2">
+                    <Brain className="h-5 w-5 text-purple-400" />
                     הכנה לפגישות
                   </CardTitle>
                 </CardHeader>
@@ -303,10 +302,10 @@ export default function TierSettingsPage() {
               </Card>
 
               {/* Session Analysis Limits */}
-              <Card className="bg-slate-900 border-slate-800">
+              <Card>
                 <CardHeader>
-                  <CardTitle className="text-white flex items-center gap-2">
-                    <FileText className="h-5 w-5 text-blue-500" />
+                  <CardTitle className="flex items-center gap-2">
+                    <FileText className="h-5 w-5 text-sky-400" />
                     ניתוחי פגישות
                   </CardTitle>
                 </CardHeader>
@@ -327,10 +326,10 @@ export default function TierSettingsPage() {
               </Card>
 
               {/* Questionnaire Limits */}
-              <Card className="bg-slate-900 border-slate-800">
+              <Card>
                 <CardHeader>
-                  <CardTitle className="text-white flex items-center gap-2">
-                    <BarChart3 className="h-5 w-5 text-green-500" />
+                  <CardTitle className="flex items-center gap-2">
+                    <BarChart3 className="h-5 w-5 text-green-400" />
                     ניתוחי שאלונים
                   </CardTitle>
                 </CardHeader>

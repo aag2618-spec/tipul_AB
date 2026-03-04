@@ -84,7 +84,7 @@ export async function POST(request: NextRequest) {
     await prisma.notification.create({
       data: {
         userId: client.therapistId,
-        type: "EMAIL_SENT",
+        type: "EMAIL_RECEIVED",
         title: `📬 תגובה מ-${client.name}`,
         content: `נושא: ${subject}`,
         status: "PENDING",

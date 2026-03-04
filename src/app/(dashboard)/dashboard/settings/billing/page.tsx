@@ -59,7 +59,7 @@ const PLANS = {
   PRO: {
     name: 'Pro',
     icon: Crown,
-    color: 'bg-blue-100 text-blue-800',
+    color: 'bg-sky-100 text-sky-800',
     popular: true,
     features: ['הכל ב-Essential', 'AI עוזר חכם (GPT-4o-mini)', 'סיכומי פגישות', 'המלצות טיפוליות'],
     pricing: {
@@ -290,7 +290,7 @@ export default function BillingPage() {
       case 'ACTIVE':
         return <Badge className="bg-green-100 text-green-800"><CheckCircle className="h-3 w-3 ml-1" />פעיל</Badge>;
       case 'TRIALING':
-        return <Badge className="bg-blue-100 text-blue-800"><Calendar className="h-3 w-3 ml-1" />תקופת ניסיון</Badge>;
+        return <Badge className="bg-sky-100 text-sky-800"><Calendar className="h-3 w-3 ml-1" />תקופת ניסיון</Badge>;
       case 'PAST_DUE':
         return <Badge className="bg-red-100 text-red-800"><AlertCircle className="h-3 w-3 ml-1" />לתשלום</Badge>;
       case 'CANCELLED':
@@ -514,7 +514,7 @@ export default function BillingPage() {
               PLANS[subscription.plan as keyof typeof PLANS]?.pricing[1] < plan.pricing[1];
             
             return (
-              <Card key={key} className={`relative ${isCurrent ? 'border-primary border-2' : ''} ${'popular' in plan && plan.popular && !isCurrent ? 'border-blue-300 border-2' : ''}`}>
+              <Card key={key} className={`relative ${isCurrent ? 'border-primary border-2' : ''} ${'popular' in plan && plan.popular && !isCurrent ? 'border-sky-300 border-2' : ''}`}>
                 {'popular' in plan && plan.popular && !isCurrent && (
                   <div className="absolute -top-3 right-4">
                     <Badge className="bg-primary">הכי פופולרי</Badge>
@@ -649,7 +649,7 @@ export default function BillingPage() {
                   </p>
                   {billingMonths > 1 && (
                     <p className="flex items-start gap-2">
-                      <Shield className="h-4 w-4 text-blue-600 mt-0.5 shrink-0" />
+                      <Shield className="h-4 w-4 text-sky-600 mt-0.5 shrink-0" />
                       <span><strong className="text-foreground">הנחה תקופתית:</strong> בביטול מוקדם, ההנחה תחושב מחדש לפי תקופת השימוש בפועל - תמיד לפי המחיר הטוב ביותר.</span>
                     </p>
                   )}
@@ -755,13 +755,13 @@ export default function BillingPage() {
       {/* ========================================
           סעיף 5: עזרה ותמיכה
           ======================================== */}
-      <Card className="bg-blue-50 dark:bg-blue-950/20 border-blue-200 dark:border-blue-800">
+      <Card className="bg-sky-50 dark:bg-sky-950/20 border-sky-200 dark:border-sky-800">
         <CardContent className="pt-6">
           <div className="flex gap-3">
-            <AlertCircle className="h-5 w-5 text-blue-600 mt-0.5 shrink-0" />
+            <AlertCircle className="h-5 w-5 text-sky-600 mt-0.5 shrink-0" />
             <div className="text-sm space-y-1">
-              <p className="font-semibold text-blue-900 dark:text-blue-300">צריך עזרה?</p>
-              <p className="text-blue-800 dark:text-blue-400">
+              <p className="font-semibold text-sky-900 dark:text-sky-300">צריך עזרה?</p>
+              <p className="text-sky-800 dark:text-sky-400">
                 שאלות לגבי המנוי, שדרוגים או חיובים? פנה אלינו ב-{' '}
                 <a href="mailto:support@tipul.co.il" className="underline font-medium">support@tipul.co.il</a>
               </p>
@@ -781,12 +781,12 @@ export default function BillingPage() {
               <div className="space-y-3">
                 <p>האם אתה בטוח שברצונך לבטל את המנוי?</p>
                 
-                <div className="p-3 bg-blue-50 dark:bg-blue-950/30 border border-blue-200 dark:border-blue-800 rounded-lg space-y-2">
-                  <p className="text-sm font-medium text-blue-900 dark:text-blue-300 flex items-center gap-1">
+                <div className="p-3 bg-sky-50 dark:bg-sky-950/30 border border-sky-200 dark:border-sky-800 rounded-lg space-y-2">
+                  <p className="text-sm font-medium text-sky-900 dark:text-sky-300 flex items-center gap-1">
                     <CheckCircle className="h-4 w-4" />
                     מה קורה כשמבטלים?
                   </p>
-                  <ul className="text-sm text-blue-800 dark:text-blue-400 space-y-1 mr-5">
+                  <ul className="text-sm text-sky-800 dark:text-sky-400 space-y-1 mr-5">
                     <li>• הגישה שלך ממשיכה עד {formatDate(subscription?.subscriptionEndsAt || null)}</li>
                     <li>• הנתונים נשמרים במלואם</li>
                     <li>• תוכל לחדש בכל עת</li>

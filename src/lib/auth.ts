@@ -47,9 +47,19 @@ export const authOptions: NextAuthOptions = {
           throw new Error("המשתמש חסום. אנא פנה למנהל המערכת");
         }
 
-        // Check email verification
-        if (!user.emailVerified) {
-          throw new Error("יש לאמת את כתובת המייל לפני ההתחברות. בדוק את תיבת הדואר שלך.");
+        // Check email verification - skip for ADMIN users and users created before verification system
+        if (!user.emailVerified && user.role !== "ADMIN") {
+          // Auto-verify users created before the email verification system was added
+          // (they don't have emailVerificationToken, meaning they never went through the new registration flow)
+          if (!user.emailVerificationToken && !user.emailVerificationExpires) {
+            // Old user - auto verify
+            await prisma.user.update({
+              where: { id: user.id },
+              data: { emailVerified: new Date() },
+            });
+          } else {
+            throw new Error("יש לאמת את כתובת המייל לפני ההתחברות. בדוק את תיבת הדואר שלך.");
+          }
         }
 
         const isValid = await bcrypt.compare(credentials.password, user.password);

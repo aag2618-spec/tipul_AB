@@ -1,11 +1,31 @@
 "use client";
 
 import { useEffect, useState, useCallback } from "react";
-import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
-import { Badge } from "@/components/ui/badge";
+import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
+import { Input } from "@/components/ui/input";
+import { Label } from "@/components/ui/label";
+import { Textarea } from "@/components/ui/textarea";
 import { Checkbox } from "@/components/ui/checkbox";
-import { ListTodo, Bell, Loader2, History, CheckCircle, Clock, Trash2 } from "lucide-react";
+import {
+  Dialog,
+  DialogContent,
+  DialogFooter,
+  DialogHeader,
+  DialogTitle,
+} from "@/components/ui/dialog";
+import {
+  ListTodo,
+  Bell,
+  Loader2,
+  Trash2,
+  ChevronDown,
+  ChevronUp,
+  History,
+  CheckCircle2,
+  X,
+  Pencil,
+} from "lucide-react";
 import { format } from "date-fns";
 import { he } from "date-fns/locale";
 import { toast } from "sonner";
@@ -24,36 +44,32 @@ interface Task {
   updatedAt?: string;
 }
 
+const MAX_VISIBLE = 8;
+
+const PRIORITY_LABELS: Record<string, string> = {
+  LOW: "נמוכה",
+  MEDIUM: "בינונית",
+  HIGH: "גבוהה",
+  URGENT: "דחופה",
+};
+
 export function PersonalTasksWidget() {
   const [tasks, setTasks] = useState<Task[]>([]);
-  const [completedTasks, setCompletedTasks] = useState<Task[]>([]);
+  const [historyTasks, setHistoryTasks] = useState<Task[]>([]);
   const [isLoading, setIsLoading] = useState(true);
+  const [showAll, setShowAll] = useState(false);
   const [showHistory, setShowHistory] = useState(false);
+  const [selectedTask, setSelectedTask] = useState<Task | null>(null);
+  const [isEditing, setIsEditing] = useState(false);
+  const [editForm, setEditForm] = useState({ title: "", description: "" });
+  const [saving, setSaving] = useState(false);
 
   const fetchTasks = useCallback(async () => {
     try {
-      // Fetch pending custom tasks
       const response = await fetch("/api/tasks?status=PENDING");
       if (response.ok) {
         const data = await response.json();
-        // Filter only CUSTOM tasks and limit to 5
-        const customTasks = data
-          .filter((t: Task) => t.type === "CUSTOM")
-          .slice(0, 5);
-        setTasks(customTasks);
-      }
-      
-      // Fetch completed custom tasks (last 30 days)
-      const completedResponse = await fetch("/api/tasks?status=COMPLETED&type=CUSTOM");
-      if (completedResponse.ok) {
-        const completedData = await completedResponse.json();
-        // Filter to only CUSTOM tasks completed in last 30 days
-        const thirtyDaysAgo = new Date();
-        thirtyDaysAgo.setDate(thirtyDaysAgo.getDate() - 30);
-        const recentCompleted = completedData
-          .filter((t: Task) => t.type === "CUSTOM" && new Date(t.updatedAt || t.createdAt) >= thirtyDaysAgo)
-          .slice(0, 20);
-        setCompletedTasks(recentCompleted);
+        setTasks(data.filter((t: Task) => t.type === "CUSTOM"));
       }
     } catch (error) {
       console.error("Failed to fetch tasks:", error);
@@ -62,247 +78,411 @@ export function PersonalTasksWidget() {
     }
   }, []);
 
-  useEffect(() => {
-    fetchTasks();
-  }, [fetchTasks]);
+  const fetchHistory = useCallback(async () => {
+    try {
+      const response = await fetch("/api/tasks?history=true");
+      if (response.ok) {
+        const data = await response.json();
+        setHistoryTasks(data);
+      }
+    } catch (error) {
+      console.error("Failed to fetch history:", error);
+    }
+  }, []);
 
-  // Request notification permission on mount
+  useEffect(() => { fetchTasks(); }, [fetchTasks]);
+
+  useEffect(() => {
+    if (showHistory && historyTasks.length === 0) {
+      fetchHistory();
+    }
+  }, [showHistory, historyTasks.length, fetchHistory]);
+
   useEffect(() => {
     if ("Notification" in window && Notification.permission === "default") {
       Notification.requestPermission();
     }
   }, []);
 
-  // Check for reminders every minute
+  const [activeReminders, setActiveReminders] = useState<Set<string>>(new Set());
+
+  const getAcknowledged = (): string[] => {
+    try { return JSON.parse(localStorage.getItem("acknowledged_reminders") || "[]"); }
+    catch { return []; }
+  };
+
+  const addAcknowledged = (taskId: string) => {
+    const list = getAcknowledged();
+    if (!list.includes(taskId)) {
+      localStorage.setItem("acknowledged_reminders", JSON.stringify([...list, taskId]));
+    }
+  };
+
+  useEffect(() => {
+    const now = new Date();
+    const acknowledged = getAcknowledged();
+    const active = new Set<string>();
+    tasks.forEach(task => {
+      if (task.reminderAt && !acknowledged.includes(task.id)) {
+        const reminderTime = new Date(task.reminderAt);
+        if (now.getTime() >= reminderTime.getTime()) {
+          active.add(task.id);
+        }
+      }
+    });
+    setActiveReminders(active);
+  }, [tasks]);
+
   useEffect(() => {
     const checkReminders = () => {
       const now = new Date();
       const notifiedKey = "notified_reminders";
       const notified = JSON.parse(localStorage.getItem(notifiedKey) || "[]");
-
       tasks.forEach((task) => {
         if (task.reminderAt && !notified.includes(task.id)) {
           const reminderTime = new Date(task.reminderAt);
-          // Check if reminder time has passed (within last 5 minutes)
           const timeDiff = now.getTime() - reminderTime.getTime();
           if (timeDiff >= 0 && timeDiff < 5 * 60 * 1000) {
-            // Show browser notification
             if ("Notification" in window && Notification.permission === "granted") {
-              new Notification("תזכורת: " + task.title, {
-                body: task.description || "יש לך משימה לביצוע",
-                icon: "/favicon.ico",
-              });
+              new Notification("תזכורת: " + task.title, { body: task.description || "יש לך משימה", icon: "/favicon.ico" });
             }
-            // Mark as notified
-            localStorage.setItem(
-              notifiedKey,
-              JSON.stringify([...notified, task.id])
-            );
-            toast.info(`תזכורת: ${task.title}`);
+            localStorage.setItem(notifiedKey, JSON.stringify([...notified, task.id]));
+            toast.info(`תזכורת: ${task.title}`, { duration: 10000 });
+
+            setActiveReminders(prev => new Set(prev).add(task.id));
+
+            fetch("/api/notifications", {
+              method: "POST",
+              headers: { "Content-Type": "application/json" },
+              body: JSON.stringify({
+                type: "PENDING_TASKS",
+                title: `תזכורת: ${task.title}`,
+                content: task.description || "יש לך מטלה שדורשת טיפול",
+              }),
+            }).catch(() => {});
           }
         }
       });
     };
-
-    const interval = setInterval(checkReminders, 60000); // Check every minute
-    checkReminders(); // Check immediately
-
+    const interval = setInterval(checkReminders, 60000);
+    checkReminders();
     return () => clearInterval(interval);
   }, [tasks]);
 
   const handleComplete = async (taskId: string) => {
     try {
-      const response = await fetch(`/api/tasks/${taskId}`, {
-        method: "PATCH",
-        headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ status: "COMPLETED" }),
-      });
-
-      if (response.ok) {
-        setTasks((prev) => prev.filter((t) => t.id !== taskId));
-        toast.success("המשימה הושלמה");
-      }
-    } catch {
-      toast.error("שגיאה בעדכון המשימה");
-    }
+      const res = await fetch(`/api/tasks/${taskId}`, { method: "PATCH", headers: { "Content-Type": "application/json" }, body: JSON.stringify({ status: "COMPLETED" }) });
+      if (res.ok) { setTasks(prev => prev.filter(t => t.id !== taskId)); toast.success("הושלם"); }
+    } catch { toast.error("שגיאה"); }
   };
 
   const handleDelete = async (taskId: string) => {
     try {
-      const response = await fetch(`/api/tasks/${taskId}`, {
-        method: "DELETE",
+      const res = await fetch(`/api/tasks/${taskId}`, { method: "DELETE" });
+      if (res.ok) { setTasks(prev => prev.filter(t => t.id !== taskId)); toast.success("נמחק"); }
+    } catch { toast.error("שגיאה"); }
+  };
+
+  const handleSaveEdit = async () => {
+    if (!selectedTask) return;
+    setSaving(true);
+    try {
+      const res = await fetch(`/api/tasks/${selectedTask.id}`, {
+        method: "PATCH",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ title: editForm.title, description: editForm.description || null }),
       });
-
-      if (response.ok) {
-        setTasks((prev) => prev.filter((t) => t.id !== taskId));
-        toast.success("המשימה נמחקה");
+      if (res.ok) {
+        setTasks(prev => prev.map(t =>
+          t.id === selectedTask.id
+            ? { ...t, title: editForm.title, description: editForm.description || null }
+            : t
+        ));
+        setSelectedTask({ ...selectedTask, title: editForm.title, description: editForm.description || null });
+        setIsEditing(false);
+        toast.success("עודכן בהצלחה");
       }
-    } catch {
-      toast.error("שגיאה במחיקת המשימה");
-    }
+    } catch { toast.error("שגיאה בשמירה"); }
+    finally { setSaving(false); }
   };
 
-  const getPriorityColor = (priority: string) => {
-    switch (priority) {
-      case "URGENT":
-        return "destructive";
-      case "HIGH":
-        return "default";
-      case "MEDIUM":
-        return "secondary";
-      default:
-        return "outline";
-    }
-  };
-
-  const getPriorityLabel = (priority: string) => {
-    switch (priority) {
-      case "URGENT":
-        return "דחוף";
-      case "HIGH":
-        return "גבוה";
-      case "MEDIUM":
-        return "בינוני";
-      default:
-        return "נמוך";
-    }
+  const openTask = (task: Task) => {
+    setSelectedTask(task);
+    setEditForm({ title: task.title, description: task.description || "" });
+    setIsEditing(false);
   };
 
   if (isLoading) {
+    return <Card><CardContent className="py-6 flex items-center justify-center"><Loader2 className="h-5 w-5 animate-spin text-muted-foreground" /></CardContent></Card>;
+  }
+
+  if (tasks.length === 0 && !showHistory) {
     return (
       <Card>
-        <CardContent className="py-8 flex items-center justify-center">
-          <Loader2 className="h-6 w-6 animate-spin text-muted-foreground" />
+        <CardHeader className="flex flex-row items-center justify-between pb-2">
+          <div className="flex items-center gap-2">
+            <ListTodo className="h-4 w-4 text-primary" />
+            <CardTitle className="text-sm font-medium">מטלות אישיות</CardTitle>
+          </div>
+          <div className="flex items-center gap-1">
+            <Button
+              variant="ghost"
+              size="sm"
+              className="h-7 text-xs gap-1 text-muted-foreground"
+              onClick={() => setShowHistory(!showHistory)}
+            >
+              <History className="h-3 w-3" />
+              היסטוריה
+            </Button>
+            <AddCustomTask onTaskAdded={fetchTasks} />
+          </div>
+        </CardHeader>
+        <CardContent className="pb-4">
+          {showHistory ? renderHistory() : (
+            <p className="text-sm text-muted-foreground text-center py-2">אין מטלות</p>
+          )}
         </CardContent>
       </Card>
     );
   }
 
-  return (
-    <Card>
-      <CardHeader className="flex flex-row items-center justify-between pb-2">
-        <div className="flex items-center gap-3">
-          <div className="flex h-10 w-10 items-center justify-center rounded-lg bg-primary/10">
-            <ListTodo className="h-5 w-5 text-primary" />
-          </div>
-          <div>
-            <CardTitle className="text-lg">מטלות אישיות</CardTitle>
-            <CardDescription>
-              {tasks.length > 0
-                ? `${tasks.length} מטלות ממתינות`
-                : "אין מטלות ממתינות"}
-            </CardDescription>
-          </div>
-        </div>
-        <div className="flex items-center gap-2">
-          <Button 
-            variant={showHistory ? "secondary" : "outline"} 
-            size="sm"
-            onClick={() => setShowHistory(!showHistory)}
-            className="gap-1"
+  function renderHistory() {
+    if (historyTasks.length === 0) {
+      return <p className="text-sm text-muted-foreground text-center py-2">אין היסטוריה ב-30 הימים האחרונים</p>;
+    }
+    return (
+      <div className="space-y-1">
+        <p className="text-xs text-muted-foreground mb-2">30 ימים אחרונים</p>
+        {historyTasks.map(task => (
+          <div
+            key={task.id}
+            className="flex items-center gap-2 py-1.5 px-2 rounded hover:bg-muted/50 cursor-pointer"
+            onClick={() => openTask(task)}
           >
-            <History className="h-4 w-4" />
-            היסטוריה
-          </Button>
-          <AddCustomTask onTaskAdded={fetchTasks} />
-        </div>
-      </CardHeader>
+            {task.status === "COMPLETED" ? (
+              <CheckCircle2 className="h-3.5 w-3.5 text-emerald-500 shrink-0" />
+            ) : (
+              <X className="h-3.5 w-3.5 text-muted-foreground shrink-0" />
+            )}
+            <span className="text-sm flex-1 truncate line-through text-muted-foreground">{task.title}</span>
+            {task.updatedAt && (
+              <span className="text-[11px] text-muted-foreground shrink-0">
+                {format(new Date(task.updatedAt), "d/M")}
+              </span>
+            )}
+          </div>
+        ))}
+      </div>
+    );
+  }
 
-      <CardContent>
-        {/* History Section */}
-        {showHistory && (
-          <div className="mb-4 p-3 rounded-lg bg-green-50/50 border border-green-200/50">
-            <div className="flex items-center gap-2 mb-2">
-              <CheckCircle className="h-4 w-4 text-green-500" />
-              <span className="text-sm font-medium">היסטוריה (30 יום אחרונים)</span>
-            </div>
-            {completedTasks.length > 0 ? (
-              <div className="space-y-1 max-h-[200px] overflow-y-auto">
-                {completedTasks.map((task) => (
+  const visibleTasks = showAll ? tasks : tasks.slice(0, MAX_VISIBLE);
+  const hasMore = tasks.length > MAX_VISIBLE;
+
+  return (
+    <>
+      <Card id="personal-tasks">
+        <CardHeader className="flex flex-row items-center justify-between pb-2">
+          <div className="flex items-center gap-2">
+            <ListTodo className="h-4 w-4 text-primary" />
+            <CardTitle className="text-sm font-medium">מטלות אישיות</CardTitle>
+            <span className="text-xs text-muted-foreground">({tasks.length})</span>
+          </div>
+          <div className="flex items-center gap-1">
+            <Button
+              variant="ghost"
+              size="sm"
+              className="h-7 text-xs gap-1 text-muted-foreground"
+              onClick={() => { setShowHistory(!showHistory); }}
+            >
+              <History className="h-3 w-3" />
+              {showHistory ? "מטלות" : "היסטוריה"}
+            </Button>
+            <AddCustomTask onTaskAdded={fetchTasks} />
+          </div>
+        </CardHeader>
+        <CardContent className="pb-3">
+          {showHistory ? renderHistory() : (
+            <>
+              <div className="space-y-2">
+                {visibleTasks.map(task => (
                   <div
                     key={task.id}
-                    className="flex items-center justify-between gap-2 py-1 text-sm"
+                    className={`flex items-center gap-2 py-2 px-3 rounded-lg group cursor-pointer transition-all ${
+                      activeReminders.has(task.id)
+                        ? "animate-pulse bg-amber-100 border border-amber-300 shadow-sm"
+                        : "bg-sky-100/60 hover:bg-sky-100 border border-sky-200"
+                    }`}
+                    onClick={() => {
+                      if (activeReminders.has(task.id)) {
+                        addAcknowledged(task.id);
+                        setActiveReminders(prev => {
+                          const next = new Set(prev);
+                          next.delete(task.id);
+                          return next;
+                        });
+                      }
+                      openTask(task);
+                    }}
                   >
-                    <div className="flex items-center gap-2">
-                      <CheckCircle className="h-3 w-3 text-green-500 shrink-0" />
-                      <span className="text-muted-foreground line-through">{task.title}</span>
+                    <div onClick={(e) => e.stopPropagation()}>
+                      <Checkbox className="h-4 w-4" onCheckedChange={() => handleComplete(task.id)} />
                     </div>
-                    <span className="text-xs text-muted-foreground shrink-0">
-                      {format(new Date(task.updatedAt || task.createdAt), "d/M/yy")}
-                    </span>
+                    <span className="text-sm flex-1 truncate">{task.title}</span>
+                    {task.reminderAt && <Bell className="h-3 w-3 text-amber-500 shrink-0" />}
+                    {task.dueDate && (
+                      <span className="text-[11px] text-muted-foreground shrink-0">
+                        {format(new Date(task.dueDate), "d/M")}
+                      </span>
+                    )}
+                    <button
+                      onClick={(e) => { e.stopPropagation(); handleDelete(task.id); }}
+                      className="opacity-0 group-hover:opacity-100 transition-opacity"
+                    >
+                      <Trash2 className="h-3.5 w-3.5 text-muted-foreground hover:text-destructive" />
+                    </button>
                   </div>
                 ))}
               </div>
-            ) : (
-              <div className="text-center py-3 text-muted-foreground text-sm">
-                <Clock className="mx-auto h-6 w-6 mb-1 opacity-30" />
-                <p>מטלות אישיות שתשלים יופיעו כאן</p>
-              </div>
-            )}
-          </div>
-        )}
-
-        {/* Pending Tasks */}
-        {tasks.length > 0 ? (
-          <div className="space-y-3">
-            {tasks.map((task) => (
-              <div
-                key={task.id}
-                className="flex items-start gap-3 p-3 rounded-lg bg-muted/50 hover:bg-muted/70 transition-colors"
-              >
-                <Checkbox
-                  className="mt-1"
-                  onCheckedChange={() => handleComplete(task.id)}
-                />
-                <div className="flex-1 min-w-0">
-                  <div className="flex items-center gap-2 flex-wrap">
-                    <span className="font-medium">{task.title}</span>
-                    <Badge variant={getPriorityColor(task.priority) as "destructive" | "default" | "secondary" | "outline"}>
-                      {getPriorityLabel(task.priority)}
-                    </Badge>
-                    {task.reminderAt && (
-                      <Badge variant="outline" className="text-amber-600 border-amber-200 bg-amber-50">
-                        <Bell className="h-3 w-3 ml-1" />
-                        {format(new Date(task.reminderAt), "d/M HH:mm")}
-                      </Badge>
-                    )}
-                  </div>
-                  {task.description && (
-                    <p className="text-sm text-muted-foreground mt-1 truncate">
-                      {task.description}
-                    </p>
-                  )}
-                  {task.dueDate && (
-                    <p className="text-xs text-muted-foreground mt-1">
-                      יעד: {format(new Date(task.dueDate), "EEEE, d בMMMM", { locale: he })}
-                    </p>
-                  )}
-                </div>
+              {hasMore && (
                 <Button
                   variant="ghost"
-                  size="icon"
-                  className="h-8 w-8 text-muted-foreground hover:text-destructive hover:bg-destructive/10"
-                  onClick={() => handleDelete(task.id)}
+                  size="sm"
+                  className="w-full mt-2 text-xs gap-1"
+                  onClick={() => setShowAll(!showAll)}
                 >
-                  <Trash2 className="h-4 w-4" />
+                  {showAll ? <><ChevronUp className="h-3 w-3" />הצג פחות</> : <><ChevronDown className="h-3 w-3" />עוד {tasks.length - MAX_VISIBLE} מטלות</>}
                 </Button>
-              </div>
-            ))}
-          </div>
-        ) : (
-          <div className="text-center py-6 text-muted-foreground">
-            <ListTodo className="mx-auto h-10 w-10 mb-2 opacity-50" />
-            <p>אין מטלות אישיות</p>
-            <p className="text-sm">הוסף מטלה חדשה כדי לעקוב אחריה</p>
-          </div>
-        )}
+              )}
+            </>
+          )}
+        </CardContent>
+      </Card>
 
-        {tasks.length > 0 && (
-          <Button variant="link" className="w-full mt-2" asChild>
-            <a href="/dashboard/tasks">צפה בכל המשימות</a>
-          </Button>
-        )}
-      </CardContent>
-    </Card>
+      {/* Task Detail / Edit Dialog */}
+      <Dialog open={!!selectedTask} onOpenChange={(o) => { if (!o) { setSelectedTask(null); setIsEditing(false); } }}>
+        <DialogContent className="sm:max-w-md" dir="rtl">
+          <DialogHeader>
+            <DialogTitle className="flex items-center gap-2">
+              <ListTodo className="h-5 w-5 text-primary" />
+              {isEditing ? "עריכת מטלה" : "פרטי מטלה"}
+            </DialogTitle>
+          </DialogHeader>
+
+          {selectedTask && !isEditing && (
+            <div className="space-y-4 py-2">
+              <div>
+                <Label className="text-xs text-muted-foreground">כותרת</Label>
+                <p className="text-sm font-medium mt-1">{selectedTask.title}</p>
+              </div>
+
+              {selectedTask.description && (
+                <div>
+                  <Label className="text-xs text-muted-foreground">תיאור</Label>
+                  <p className="text-sm mt-1 whitespace-pre-wrap bg-muted/30 p-3 rounded-lg">{selectedTask.description}</p>
+                </div>
+              )}
+
+              <div className="grid grid-cols-2 gap-3">
+                <div>
+                  <Label className="text-xs text-muted-foreground">עדיפות</Label>
+                  <p className="text-sm mt-1">{PRIORITY_LABELS[selectedTask.priority] || selectedTask.priority}</p>
+                </div>
+                <div>
+                  <Label className="text-xs text-muted-foreground">סטטוס</Label>
+                  <p className="text-sm mt-1">
+                    {selectedTask.status === "PENDING" ? "פעילה" : selectedTask.status === "COMPLETED" ? "הושלמה" : "נמחקה"}
+                  </p>
+                </div>
+              </div>
+
+              {selectedTask.dueDate && (
+                <div>
+                  <Label className="text-xs text-muted-foreground">תאריך יעד</Label>
+                  <p className="text-sm mt-1">{format(new Date(selectedTask.dueDate), "EEEE, d בMMMM yyyy", { locale: he })}</p>
+                </div>
+              )}
+
+              {selectedTask.reminderAt && (
+                <div>
+                  <Label className="text-xs text-muted-foreground">תזכורת</Label>
+                  <p className="text-sm mt-1">{format(new Date(selectedTask.reminderAt), "EEEE, d/M בשעה HH:mm", { locale: he })}</p>
+                </div>
+              )}
+
+              <div>
+                <Label className="text-xs text-muted-foreground">נוצרה</Label>
+                <p className="text-sm mt-1">{format(new Date(selectedTask.createdAt), "d/M/yyyy HH:mm", { locale: he })}</p>
+              </div>
+            </div>
+          )}
+
+          {selectedTask && isEditing && (
+            <div className="space-y-4 py-2">
+              <div className="space-y-2">
+                <Label>כותרת</Label>
+                <Input
+                  value={editForm.title}
+                  onChange={e => setEditForm(f => ({ ...f, title: e.target.value }))}
+                />
+              </div>
+              <div className="space-y-2">
+                <Label>תיאור</Label>
+                <Textarea
+                  value={editForm.description}
+                  onChange={e => setEditForm(f => ({ ...f, description: e.target.value }))}
+                  rows={5}
+                  className="resize-none"
+                  placeholder="פרטים נוספים..."
+                />
+              </div>
+            </div>
+          )}
+
+          <DialogFooter className="gap-2 sm:gap-0">
+            {selectedTask?.status === "PENDING" && !isEditing && (
+              <>
+                <Button
+                  variant="outline"
+                  size="sm"
+                  className="gap-1"
+                  onClick={() => setIsEditing(true)}
+                >
+                  <Pencil className="h-3.5 w-3.5" />
+                  ערוך
+                </Button>
+                <Button
+                  size="sm"
+                  className="gap-1 bg-emerald-600 hover:bg-emerald-700"
+                  onClick={() => {
+                    handleComplete(selectedTask.id);
+                    setSelectedTask(null);
+                  }}
+                >
+                  <CheckCircle2 className="h-3.5 w-3.5" />
+                  סמן כהושלם
+                </Button>
+              </>
+            )}
+            {isEditing && (
+              <>
+                <Button variant="outline" size="sm" onClick={() => setIsEditing(false)} disabled={saving}>
+                  ביטול
+                </Button>
+                <Button size="sm" onClick={handleSaveEdit} disabled={saving}>
+                  {saving ? <Loader2 className="h-3.5 w-3.5 animate-spin ml-1" /> : null}
+                  שמור
+                </Button>
+              </>
+            )}
+            {selectedTask?.status !== "PENDING" && !isEditing && (
+              <Button variant="outline" size="sm" onClick={() => setSelectedTask(null)}>
+                סגור
+              </Button>
+            )}
+          </DialogFooter>
+        </DialogContent>
+      </Dialog>
+    </>
   );
 }

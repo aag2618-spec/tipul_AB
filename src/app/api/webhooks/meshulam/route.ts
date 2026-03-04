@@ -600,7 +600,7 @@ function createAdminPaymentHtml(
       </div>
       <div style="background: #f8fafc; padding: 12px 20px; border: 1px solid #e2e8f0; border-top: none; border-radius: 0 0 8px 8px;">
         <p style="margin: 0; color: #94a3b8; font-size: 12px; text-align: center;">
-          ${new Date().toLocaleString("he-IL")} | <a href="${SYSTEM_URL}/admin/billing" style="color: #3b82f6;">פאנל ניהול</a>
+          ${new Date().toLocaleString("he-IL")} | <a href="${SYSTEM_URL}/admin/billing" style="color: #0ea5e9;">פאנל ניהול</a>
         </p>
       </div>
     </div>

@@ -14,21 +14,20 @@ export async function PATCH(
     }
 
     const { id: sessionId } = await params;
-    const { status } = await req.json();
+    const { status, cancellationReason } = await req.json();
 
-    // Validate status
     const validStatuses = ["SCHEDULED", "COMPLETED", "CANCELLED", "NO_SHOW"];
     if (!validStatuses.includes(status)) {
       return NextResponse.json({ error: "Invalid status" }, { status: 400 });
     }
 
-    // Verify the session belongs to this therapist
     const therapySession = await prisma.therapySession.findFirst({
       where: {
         id: sessionId,
-        client: {
-          therapistId: session.user.id,
-        },
+        OR: [
+          { therapistId: session.user.id },
+          { client: { therapistId: session.user.id } },
+        ],
       },
     });
 
@@ -36,10 +35,16 @@ export async function PATCH(
       return NextResponse.json({ error: "Session not found" }, { status: 404 });
     }
 
-    // Update the session status
+    const updateData: Record<string, unknown> = { status };
+    if (status === "CANCELLED") {
+      updateData.cancelledAt = new Date();
+      updateData.cancelledBy = session.user.id;
+      if (cancellationReason) updateData.cancellationReason = cancellationReason;
+    }
+
     const updatedSession = await prisma.therapySession.update({
       where: { id: sessionId },
-      data: { status },
+      data: updateData,
     });
 
     return NextResponse.json(updatedSession);

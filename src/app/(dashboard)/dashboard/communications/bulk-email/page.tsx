@@ -35,25 +35,25 @@ const EMAIL_TEMPLATES = [
     id: "holiday",
     name: "ברכת חג",
     subject: "ברכת חג שמח",
-    content: "שלום {name},\n\nברכות חמות לרגל החג הקרוב.\n\nאני מאחל/ת לך חג שמח ומלא באושר.\n\nבברכה",
+    content: "שלום {שם},\n\nברכות חמות לרגל החג הקרוב.\n\nאני מאחל/ת לך חג שמח ומלא באושר.\n\nבברכה",
   },
   {
     id: "update",
     name: "עדכון כללי",
     subject: "עדכון חשוב",
-    content: "שלום {name},\n\nרציתי לעדכן אותך בנושא חשוב:\n\n[כתוב כאן את העדכון]\n\nאשמח לשמוע ממך אם יש שאלות.\n\nבברכה",
+    content: "שלום {שם},\n\nרציתי לעדכן אותך בנושא חשוב:\n\n[כתוב כאן את העדכון]\n\nאשמח לשמוע ממך אם יש שאלות.\n\nבברכה",
   },
   {
     id: "schedule_change",
     name: "שינוי בלוח",
     subject: "שינוי בלוח הזמנים",
-    content: "שלום {name},\n\nרציתי לעדכן אותך על שינוי בלוח הזמנים שלי.\n\nאשמח לתאם איתך מועד חדש במידת הצורך.\n\nבברכה",
+    content: "שלום {שם},\n\nרציתי לעדכן אותך על שינוי בלוח הזמנים שלי.\n\nאשמח לתאם איתך מועד חדש במידת הצורך.\n\nבברכה",
   },
   {
     id: "resources",
     name: "משאבים מועילים",
     subject: "משאבים שחשבתי שיעניינו אותך",
-    content: "שלום {name},\n\nרציתי לשתף איתך כמה משאבים שחשבתי שיכולים לעזור לך:\n\n[הוסף קישורים/משאבים כאן]\n\nמקווה שתמצא/י את זה מועיל.\n\nבברכה",
+    content: "שלום {שם},\n\nרציתי לשתף איתך כמה משאבים שחשבתי שיכולים לעזור לך:\n\n[הוסף קישורים/משאבים כאן]\n\nמקווה שתמצא/י את זה מועיל.\n\nבברכה",
   },
 ];
 
@@ -122,7 +122,7 @@ export default function BulkEmailPage() {
   };
 
   const replaceVariables = (text: string, client: Client) => {
-    return text.replace(/{name}/g, client.firstName);
+    return text.replace(/{שם}/g, client.firstName).replace(/{name}/g, client.firstName);
   };
 
   const handleSubmit = async (e: React.FormEvent) => {
@@ -278,7 +278,7 @@ export default function BulkEmailPage() {
                   </SelectContent>
                 </Select>
                 <p className="text-xs text-muted-foreground">
-                  💡 טיפ: השתמש ב-{"{name}"} כדי להוסיף את שם המטופל
+                  💡 טיפ: השתמש ב-{"{שם}"} כדי להוסיף את שם המטופל
                 </p>
               </div>
 

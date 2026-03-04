@@ -27,7 +27,7 @@ export interface Client {
   therapistId: string;
 }
 
-export type ClientStatus = 'ACTIVE' | 'INACTIVE' | 'ARCHIVED';
+export type ClientStatus = 'ACTIVE' | 'WAITING' | 'ARCHIVED';
 
 export interface TherapySession {
   id: string;

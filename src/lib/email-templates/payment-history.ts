@@ -101,7 +101,7 @@ export function createPaymentHistoryEmail({
     html: `
       <div dir="rtl" style="font-family: 'Segoe UI', Tahoma, Geneva, Verdana, sans-serif; max-width: 700px; margin: 0 auto; padding: 20px; background: #f9fafb;">
         <!-- Header -->
-        <div style="background: linear-gradient(135deg, #3b82f6 0%, #2563eb 100%); padding: 30px 20px; border-radius: 12px 12px 0 0; text-align: center;">
+        <div style="background: linear-gradient(135deg, #0ea5e9 0%, #0284c7 100%); padding: 30px 20px; border-radius: 12px 12px 0 0; text-align: center;">
           ${
             customization?.logoUrl
               ? `<img src="${customization.logoUrl}" alt="Logo" style="max-width: 120px; max-height: 60px; margin-bottom: 15px;" />`
@@ -109,7 +109,7 @@ export function createPaymentHistoryEmail({
           }
           <div style="font-size: 48px; margin-bottom: 10px;">📊</div>
           <h1 style="color: #ffffff; margin: 0; font-size: 26px; font-weight: 700;">סיכום תשלומים</h1>
-          <p style="color: #dbeafe; margin: 8px 0 0 0; font-size: 15px;">${fromDate} - ${toDate}</p>
+          <p style="color: #e0f2fe; margin: 8px 0 0 0; font-size: 15px;">${fromDate} - ${toDate}</p>
         </div>
         
         <!-- Content -->
@@ -121,10 +121,10 @@ export function createPaymentHistoryEmail({
           </p>
 
           <!-- Total Paid -->
-          <div style="background: linear-gradient(135deg, #dbeafe 0%, #bfdbfe 100%); border: 2px solid #3b82f6; border-radius: 10px; padding: 20px; margin: 25px 0; text-align: center;">
-            <p style="margin: 0; color: #1e40af; font-size: 14px; font-weight: 600; text-transform: uppercase; letter-spacing: 1px;">סה"כ שולם</p>
-            <p style="margin: 8px 0 0 0; color: #1d4ed8; font-size: 36px; font-weight: 800;">₪${totalPaid}</p>
-            <p style="margin: 4px 0 0 0; color: #3b82f6; font-size: 13px;">${payments.length} תשלומים</p>
+          <div style="background: linear-gradient(135deg, #e0f2fe 0%, #bae6fd 100%); border: 2px solid #0ea5e9; border-radius: 10px; padding: 20px; margin: 25px 0; text-align: center;">
+            <p style="margin: 0; color: #075985; font-size: 14px; font-weight: 600; text-transform: uppercase; letter-spacing: 1px;">סה"כ שולם</p>
+            <p style="margin: 8px 0 0 0; color: #0369a1; font-size: 36px; font-weight: 800;">₪${totalPaid}</p>
+            <p style="margin: 4px 0 0 0; color: #0ea5e9; font-size: 13px;">${payments.length} תשלומים</p>
           </div>
 
           <!-- Payments Table -->

@@ -244,12 +244,12 @@ export async function PATCH(
               <p style="color: #555; font-size: 16px; line-height: 1.6;">
                 כדי להמשיך להשתמש בכל היכולות, בחר מסלול מנוי מתאים:
               </p>
-              <div style="background: #eff6ff; border: 1px solid #93c5fd; border-radius: 8px; padding: 16px; margin: 20px 0;">
-                <p style="margin: 0 0 8px; color: #1e40af; font-weight: bold;">מה כלול?</p>
-                <p style="margin: 0; color: #1e40af;">✅ ניהול מטופלים ויומן</p>
-                <p style="margin: 0; color: #1e40af;">✅ תשלומים וקבלות</p>
-                <p style="margin: 0; color: #1e40af;">✅ AI עוזר חכם</p>
-                <p style="margin: 0; color: #1e40af;">✅ כל הנתונים שלך שמורים!</p>
+              <div style="background: #f0f9ff; border: 1px solid #7dd3fc; border-radius: 8px; padding: 16px; margin: 20px 0;">
+                <p style="margin: 0 0 8px; color: #075985; font-weight: bold;">מה כלול?</p>
+                <p style="margin: 0; color: #075985;">✅ ניהול מטופלים ויומן</p>
+                <p style="margin: 0; color: #075985;">✅ תשלומים וקבלות</p>
+                <p style="margin: 0; color: #075985;">✅ AI עוזר חכם</p>
+                <p style="margin: 0; color: #075985;">✅ כל הנתונים שלך שמורים!</p>
               </div>
               <div style="text-align: center; margin: 20px 0;">
                 <a href="${billingUrl}" style="display: inline-block; background: #4f46e5; color: white; padding: 14px 32px; border-radius: 8px; text-decoration: none; font-weight: bold; font-size: 16px;">
