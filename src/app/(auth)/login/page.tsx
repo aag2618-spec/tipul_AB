@@ -8,7 +8,8 @@ import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import { Card, CardContent, CardDescription, CardFooter, CardHeader, CardTitle } from "@/components/ui/card";
-import { Loader2, Leaf, CheckCircle, AlertTriangle } from "lucide-react";
+import Image from "next/image";
+import { Loader2, CheckCircle, AlertTriangle } from "lucide-react";
 
 function LoginForm() {
   const router = useRouter();
@@ -50,8 +51,8 @@ function LoginForm() {
   return (
     <Card className="w-full max-w-md animate-fade-in relative">
       <CardHeader className="text-center space-y-4">
-        <div className="mx-auto w-16 h-16 bg-primary/10 rounded-2xl flex items-center justify-center">
-          <Leaf className="w-8 h-8 text-primary" />
+        <div className="mx-auto w-16 h-16 flex items-center justify-center">
+          <Image src="/logo.png" alt="MyTipul" width={64} height={64} className="rounded-2xl" />
         </div>
         <div>
           <CardTitle className="text-2xl font-bold">ברוכים הבאים</CardTitle>

@@ -1,6 +1,6 @@
 {
-  "name": "Tipul - ניהול פרקטיקה טיפולית",
-  "short_name": "Tipul",
+  "name": "MyTipul - ניהול פרקטיקה טיפולית",
+  "short_name": "MyTipul",
   "description": "מערכת ניהול מטופלים, פגישות ותשלומים למטפלים ופסיכולוגים",
   "start_url": "/dashboard",
   "display": "standalone",
@@ -9,5 +9,13 @@
   "orientation": "portrait",
   "dir": "rtl",
   "lang": "he",
-  "categories": ["healthcare", "productivity", "medical"]
+  "categories": ["healthcare", "productivity", "medical"],
+  "icons": [
+    {
+      "src": "/logo.png",
+      "sizes": "512x512",
+      "type": "image/png",
+      "purpose": "any maskable"
+    }
+  ]
 }

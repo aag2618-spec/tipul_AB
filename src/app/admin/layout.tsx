@@ -2,6 +2,7 @@
 
 import { useState } from "react";
 import Link from "next/link";
+import Image from "next/image";
 import { usePathname } from "next/navigation";
 import { signOut, useSession } from "next-auth/react";
 import { cn } from "@/lib/utils";
@@ -95,9 +96,7 @@ function AdminLayoutContent({ children }: { children: React.ReactNode }) {
           {/* Logo */}
           <div className="p-6 border-b border-slate-800">
             <div className="flex items-center gap-3">
-              <div className="p-2 bg-amber-500/20 rounded-lg">
-                <Shield className="h-6 w-6 text-amber-500" />
-              </div>
+              <Image src="/logo.png" alt="MyTipul" width={40} height={40} className="rounded-lg" />
               <div>
                 <h1 className="font-bold text-lg">ממשק ניהול</h1>
                 <p className="text-xs text-slate-400">Admin Panel</p>

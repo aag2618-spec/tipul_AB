@@ -5,13 +5,17 @@ import { Providers } from "@/components/providers";
 import "./globals.css";
 
 export const metadata: Metadata = {
-  title: "טיפול | מערכת ניהול לפרקטיקה טיפולית",
+  title: "MyTipul | מערכת ניהול לפרקטיקה טיפולית",
   description: "מערכת מודרנית לניהול פרקטיקה של מטפלים רגשיים - ניהול מטופלים, יומן, סיכומי טיפול ועוד",
   manifest: "/manifest.json",
+  icons: {
+    icon: "/logo.png",
+    apple: "/logo.png",
+  },
   appleWebApp: {
     capable: true,
     statusBarStyle: "default",
-    title: "Tipul",
+    title: "MyTipul",
   },
   formatDetection: {
     telephone: false,

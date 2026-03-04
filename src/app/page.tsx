@@ -2,7 +2,8 @@ import { getServerSession } from "next-auth";
 import { redirect } from "next/navigation";
 import { authOptions } from "@/lib/auth";
 import { Button } from "@/components/ui/button";
-import { Leaf, Calendar, Users, Mic, FileText, BarChart3 } from "lucide-react";
+import Image from "next/image";
+import { Calendar, Users, Mic, FileText, BarChart3 } from "lucide-react";
 import Link from "next/link";
 
 // Auto-deploy enabled: 2026-01-20
@@ -47,12 +48,12 @@ export default async function HomePage() {
       {/* Hero */}
       <div className="container mx-auto px-4 py-16">
         <div className="text-center max-w-3xl mx-auto">
-          <div className="inline-flex items-center justify-center w-20 h-20 bg-primary/10 rounded-2xl mb-8">
-            <Leaf className="w-10 h-10 text-primary" />
+          <div className="inline-flex items-center justify-center w-24 h-24 mb-8">
+            <Image src="/logo.png" alt="MyTipul" width={96} height={96} className="rounded-2xl" />
           </div>
           
           <h1 className="text-4xl md:text-5xl font-bold tracking-tight mb-6">
-            טיפול
+            MyTipul
           </h1>
           
           <p className="text-xl text-muted-foreground mb-8 leading-relaxed">
@@ -127,8 +128,9 @@ export default async function HomePage() {
 
       {/* Footer */}
       <footer className="border-t mt-24 py-8">
-        <div className="container mx-auto px-4 text-center text-sm text-muted-foreground">
-          <p>© 2024 טיפול - מערכת ניהול לפרקטיקה טיפולית</p>
+        <div className="container mx-auto px-4 flex flex-col items-center gap-3 text-sm text-muted-foreground">
+          <Image src="/logo.png" alt="MyTipul" width={32} height={32} className="rounded-lg opacity-70" />
+          <p>© {new Date().getFullYear()} MyTipul - מערכת ניהול לפרקטיקה טיפולית</p>
         </div>
       </footer>
     </div>

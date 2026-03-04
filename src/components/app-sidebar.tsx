@@ -1,6 +1,7 @@
 "use client";
 
 import Link from "next/link";
+import Image from "next/image";
 import { usePathname } from "next/navigation";
 import { useSession } from "next-auth/react";
 import { useState, useEffect } from "react";
@@ -216,11 +217,15 @@ export function AppSidebar({ user }: AppSidebarProps) {
           <SidebarMenuItem>
             <SidebarMenuButton size="lg" asChild>
               <Link href="/dashboard" className="flex items-center gap-3">
-                <div className="flex h-10 w-10 items-center justify-center rounded-xl bg-primary text-primary-foreground">
-                  <Leaf className="h-5 w-5" />
-                </div>
+                <Image
+                  src="/logo.png"
+                  alt="MyTipul"
+                  width={40}
+                  height={40}
+                  className="rounded-xl"
+                />
                 <div className="flex flex-col">
-                  <span className="font-semibold text-lg">טיפול</span>
+                  <span className="font-semibold text-lg">MyTipul</span>
                   <span className="text-xs text-muted-foreground">ניהול פרקטיקה</span>
                 </div>
               </Link>
