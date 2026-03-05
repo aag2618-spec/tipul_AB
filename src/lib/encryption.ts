@@ -3,8 +3,13 @@
 
 import crypto from 'crypto';
 
-// הסוד להצפנה - צריך להיות ב-ENV!
-const ENCRYPTION_KEY = process.env.ENCRYPTION_KEY || 'default-key-change-in-production-must-be-32-chars!!';
+const ENCRYPTION_KEY = (() => {
+  const key = process.env.ENCRYPTION_KEY;
+  if (!key && process.env.NODE_ENV === "production") {
+    throw new Error("ENCRYPTION_KEY must be set in production environment");
+  }
+  return key || "default-key-for-development-only-32chars!!";
+})();
 const ALGORITHM = 'aes-256-gcm';
 
 /**

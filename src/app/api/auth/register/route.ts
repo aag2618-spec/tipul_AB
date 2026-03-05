@@ -3,12 +3,19 @@ import bcrypt from "bcryptjs";
 import prisma from "@/lib/prisma";
 import { randomBytes } from "node:crypto";
 import { sendEmail } from "@/lib/resend";
+import { checkRateLimit, AUTH_RATE_LIMIT, rateLimitResponse } from "@/lib/rate-limit";
 
 const TRIAL_DAYS = 14;
 const TRIAL_AI_TIER = "PRO"; // מסלול ניסיון
 
 export async function POST(request: NextRequest) {
   try {
+    const ip = request.headers.get("x-forwarded-for") || request.headers.get("x-real-ip") || "unknown";
+    const rateLimitResult = checkRateLimit(`register:${ip}`, AUTH_RATE_LIMIT);
+    if (!rateLimitResult.allowed) {
+      return rateLimitResponse(rateLimitResult);
+    }
+
     const body = await request.json();
     const { name, email, password, phone, license, couponCode } = body;
 

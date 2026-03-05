@@ -2,11 +2,20 @@ import { NextRequest, NextResponse } from "next/server";
 import prisma from "@/lib/prisma";
 import { Resend } from "resend";
 import crypto from "crypto";
+import { checkRateLimit, rateLimitResponse } from "@/lib/rate-limit";
 
 const resend = new Resend(process.env.RESEND_API_KEY);
 
+const FORGOT_PASSWORD_RATE_LIMIT = { maxRequests: 5, windowMs: 15 * 60 * 1000 };
+
 export async function POST(request: NextRequest) {
   try {
+    const ip = request.headers.get("x-forwarded-for") || request.headers.get("x-real-ip") || "unknown";
+    const rateLimitResult = checkRateLimit(`forgot-password:${ip}`, FORGOT_PASSWORD_RATE_LIMIT);
+    if (!rateLimitResult.allowed) {
+      return rateLimitResponse(rateLimitResult);
+    }
+
     const { email } = await request.json();
 
     if (!email) {
