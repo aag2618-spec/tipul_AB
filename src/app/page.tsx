@@ -92,11 +92,26 @@ export default async function HomePage() {
       {/* Hero */}
       <div className="container mx-auto px-4 py-16 md:py-24">
         <div className="landing-centered max-w-3xl mx-auto">
-          <div className="inline-flex items-center justify-center mb-6">
-            <Image src="/logo.png" alt="MyTipul" width={200} height={200} className="rounded-3xl shadow-xl w-[140px] h-[140px] sm:w-[180px] sm:h-[180px] md:w-[200px] md:h-[200px]" />
+          {/* AI badge - first thing visitors see */}
+          <div className="landing-centered mb-6">
+            <span className="inline-flex items-center gap-2 bg-primary text-primary-foreground rounded-full px-5 py-2.5 text-sm font-bold ai-badge-pulse shadow-lg">
+              <Sparkles className="h-4 w-4" />
+              מערכת ניהול טיפולית מונעת AI
+            </span>
           </div>
 
-          <h1 className="text-5xl md:text-7xl font-bold tracking-tight mb-6 landing-centered">
+          <div className="landing-centered mb-6">
+            <Image
+              src="/logo.png"
+              alt="MyTipul"
+              width={1376}
+              height={768}
+              className="mx-auto w-[280px] sm:w-[360px] md:w-[440px] h-auto"
+              priority
+            />
+          </div>
+
+          <h1 className="text-5xl md:text-7xl font-bold tracking-tight mb-6 landing-centered" style={{ color: 'oklch(0.3 0.08 180)' }}>
             MyTipul
           </h1>
 
@@ -105,7 +120,8 @@ export default async function HomePage() {
           </p>
           <p className="text-lg text-muted-foreground mb-8 leading-relaxed max-w-2xl mx-auto landing-centered">
             נהלו מטופלים, פגישות, תשלומים ושאלונים במקום אחד -
-            {" "}עם בינה מלאכותית מתקדמת שחוסכת לכם שעות עבודה בכל חודש.
+            {" "}עם{" "}<strong className="text-primary font-bold">AI מתקדם</strong>{" "}
+            שחוסך לכם <strong className="text-foreground">שעות עבודה בכל חודש</strong>.
           </p>
 
           <div className="landing-centered mb-8">
@@ -247,7 +263,7 @@ export default async function HomePage() {
       {/* Footer */}
       <footer className="border-t mt-8 py-8">
         <div className="container mx-auto px-4 flex flex-col items-center gap-3 text-sm text-muted-foreground landing-centered">
-          <Image src="/logo.png" alt="MyTipul" width={48} height={48} className="rounded-xl opacity-80" />
+          <Image src="/logo.png" alt="MyTipul" width={1376} height={768} className="w-[120px] h-auto opacity-80" />
           <p className="landing-centered">© {new Date().getFullYear()} MyTipul - מערכת ניהול לפרקטיקה טיפולית</p>
         </div>
       </footer>
