@@ -6,7 +6,7 @@ import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/com
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import { Separator } from "@/components/ui/separator";
-import { Loader2, Save, Calendar } from "lucide-react";
+import { Loader2, Save } from "lucide-react";
 import { toast } from "sonner";
 
 interface UserProfile {
@@ -14,7 +14,6 @@ interface UserProfile {
   email: string;
   phone: string;
   license: string;
-  defaultSessionDuration: number;
 }
 
 export function ProfileTab() {
@@ -23,7 +22,6 @@ export function ProfileTab() {
     email: "",
     phone: "",
     license: "",
-    defaultSessionDuration: 50,
   });
   const [isLoading, setIsLoading] = useState(true);
   const [isSaving, setIsSaving] = useState(false);
@@ -39,7 +37,6 @@ export function ProfileTab() {
             email: data.email || "",
             phone: data.phone || "",
             license: data.license || "",
-            defaultSessionDuration: data.defaultSessionDuration || 50,
           });
         }
       } catch (error) {
@@ -82,11 +79,12 @@ export function ProfileTab() {
       <Card>
         <CardHeader>
           <CardTitle>פרטים אישיים</CardTitle>
-          <CardDescription>עדכן את הפרטים האישיים שלך</CardDescription>
+          <CardDescription>עדכן את הפרטים האישיים שלך - פרטים אלו משמשים לזיהוי ולתקשורת עם המטופלים</CardDescription>
         </CardHeader>
         <CardContent className="space-y-4">
           <div className="space-y-2">
             <Label htmlFor="name">שם מלא</Label>
+            <p className="text-xs text-muted-foreground">השם שיוצג למטופלים במיילים, בקבלות ובמסמכים</p>
             <Input
               id="name"
               value={profile.name}
@@ -96,6 +94,7 @@ export function ProfileTab() {
           </div>
           <div className="space-y-2">
             <Label htmlFor="email">אימייל</Label>
+            <p className="text-xs text-muted-foreground">כתובת המייל לקבלת התראות, תזכורות ותקשורת עם מטופלים</p>
             <Input
               id="email"
               type="email"
@@ -109,6 +108,7 @@ export function ProfileTab() {
           <div className="grid grid-cols-2 gap-4">
             <div className="space-y-2">
               <Label htmlFor="phone">טלפון</Label>
+              <p className="text-xs text-muted-foreground">מספר הטלפון שיופיע בקבלות ובמסמכים</p>
               <Input
                 id="phone"
                 type="tel"
@@ -121,6 +121,7 @@ export function ProfileTab() {
             </div>
             <div className="space-y-2">
               <Label htmlFor="license">מספר רישיון</Label>
+              <p className="text-xs text-muted-foreground">מספר רישיון מקצועי (לתיעוד רגולטורי)</p>
               <Input
                 id="license"
                 value={profile.license}
@@ -130,42 +131,6 @@ export function ProfileTab() {
                 className="text-left"
               />
             </div>
-          </div>
-        </CardContent>
-      </Card>
-
-      <Card className="border-primary/20 bg-gradient-to-br from-sky-50/50 to-indigo-50/50 dark:from-sky-950/20 dark:to-indigo-950/20">
-        <CardHeader>
-          <div className="flex items-center gap-2">
-            <Calendar className="h-5 w-5 text-primary" />
-            <CardTitle>הגדרות יומן ופגישות</CardTitle>
-          </div>
-          <CardDescription>
-            הגדרות כלליות החלות על כל היומן וכל הפגישות
-          </CardDescription>
-        </CardHeader>
-        <CardContent className="space-y-4">
-          <div className="space-y-2">
-            <Label htmlFor="sessionDuration" className="text-base font-semibold">
-              משך זמן ברירת מחדל לפגישה
-            </Label>
-            <div className="flex items-center gap-3">
-              <Input
-                id="sessionDuration"
-                type="number"
-                min="15"
-                max="180"
-                step="5"
-                value={profile.defaultSessionDuration}
-                onChange={(e) => setProfile({ ...profile, defaultSessionDuration: parseInt(e.target.value) || 50 })}
-                disabled={isSaving}
-                className="max-w-[120px] text-lg font-semibold"
-              />
-              <span className="text-muted-foreground">דקות</span>
-            </div>
-            <p className="text-sm text-muted-foreground">
-              מומלץ: 45-50 דקות (משך טיפול סטנדרטי)
-            </p>
           </div>
         </CardContent>
       </Card>
@@ -185,7 +150,7 @@ export function ProfileTab() {
       <Card className="border-destructive/50">
         <CardHeader>
           <CardTitle className="text-destructive">אזור מסוכן</CardTitle>
-          <CardDescription>פעולות בלתי הפיכות</CardDescription>
+          <CardDescription>פעולות בלתי הפיכות - לא ניתן לשחזר נתונים לאחר מחיקה</CardDescription>
         </CardHeader>
         <CardContent>
           <Button variant="destructive" disabled>מחק חשבון</Button>

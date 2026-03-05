@@ -76,7 +76,7 @@ export function NotificationsTab() {
     enabled: false,
     hoursBeforeReminder: 24,
     customMessage: null,
-    sendOnWeekends: true,
+    sendOnWeekends: false,
   });
   const [commSettings, setCommSettings] = useState<CommunicationSettings>({
     sendConfirmationEmail: true,
@@ -104,7 +104,6 @@ export function NotificationsTab() {
 
   const [isLoading, setIsLoading] = useState(true);
   const [isSaving, setIsSaving] = useState(false);
-  const [showExamples, setShowExamples] = useState(false);
 
   useEffect(() => {
     Promise.all([
@@ -124,7 +123,7 @@ export function NotificationsTab() {
           monthlyReminderDay: emailSetting?.monthlyReminderDay || null,
         });
       }
-      if (smsData) setSmsSettings(smsData);
+      if (smsData) setSmsSettings({ ...smsData, sendOnWeekends: false });
       if (commData?.settings) setCommSettings(commData.settings);
     }).catch(err => console.error("Failed to load settings:", err))
       .finally(() => setIsLoading(false));
@@ -142,7 +141,7 @@ export function NotificationsTab() {
         fetch("/api/sms/settings", {
           method: "PUT",
           headers: { "Content-Type": "application/json" },
-          body: JSON.stringify(smsSettings),
+          body: JSON.stringify({ ...smsSettings, sendOnWeekends: false }),
         }),
         fetch("/api/user/communication-settings", {
           method: "PUT",
@@ -187,7 +186,7 @@ export function NotificationsTab() {
                 </div>
                 <div>
                   <p className="font-medium">אימייל</p>
-                  <p className="text-sm text-muted-foreground">קבל התראות באימייל</p>
+                  <p className="text-sm text-muted-foreground">קבל סיכום יומי של פגישות ומשימות להיום ולמחר</p>
                 </div>
               </div>
               <Switch
@@ -202,7 +201,7 @@ export function NotificationsTab() {
                 </div>
                 <div>
                   <p className="font-medium">Push Notifications</p>
-                  <p className="text-sm text-muted-foreground">התראות בדפדפן ובמובייל</p>
+                  <p className="text-sm text-muted-foreground">התראות מיידיות בדפדפן ובמובייל על פגישות חדשות, ביטולים ותשלומים</p>
                 </div>
               </div>
               <Switch
@@ -213,6 +212,7 @@ export function NotificationsTab() {
             <div className="grid grid-cols-2 gap-4">
               <div className="space-y-2">
                 <Label>תזכורת בוקר</Label>
+                <p className="text-xs text-muted-foreground">שעה שבה תקבל סיכום של הפגישות היומיות שלך</p>
                 <Input
                   type="time"
                   value={notifSettings.morningTime}
@@ -221,6 +221,7 @@ export function NotificationsTab() {
               </div>
               <div className="space-y-2">
                 <Label>תזכורת ערב</Label>
+                <p className="text-xs text-muted-foreground">שעה שבה תקבל תזכורת על פגישות מחר</p>
                 <Input
                   type="time"
                   value={notifSettings.eveningTime}
@@ -231,6 +232,7 @@ export function NotificationsTab() {
             <div className="grid grid-cols-2 gap-4">
               <div className="space-y-2">
                 <Label>ימים לתזכורת חוב</Label>
+                <p className="text-xs text-muted-foreground">אחרי כמה ימים ללא תשלום תקבל התראה על חוב פתוח</p>
                 <Input
                   type="number"
                   min={1}
@@ -242,6 +244,7 @@ export function NotificationsTab() {
               </div>
               <div className="space-y-2">
                 <Label>תזכורת גבייה חודשית (יום)</Label>
+                <p className="text-xs text-muted-foreground">באיזה יום בחודש לקבל תזכורת לגבות חובות פתוחים</p>
                 <Input
                   type="number"
                   min={1}
@@ -269,7 +272,10 @@ export function NotificationsTab() {
           </AccordionTrigger>
           <AccordionContent className="space-y-4 pb-4">
             <div className="flex items-center justify-between">
-              <Label>הפעל תזכורות SMS</Label>
+              <div className="space-y-0.5">
+                <Label>הפעל תזכורות SMS</Label>
+                <p className="text-xs text-muted-foreground">שלח הודעת SMS אוטומטית למטופלים לפני הפגישה (בימים א&apos;-ה&apos; בלבד)</p>
+              </div>
               <Switch
                 checked={smsSettings.enabled}
                 onCheckedChange={(checked) => setSmsSettings({ ...smsSettings, enabled: checked })}
@@ -279,6 +285,7 @@ export function NotificationsTab() {
               <>
                 <div className="space-y-2">
                   <Label>שעות לפני הפגישה</Label>
+                  <p className="text-xs text-muted-foreground">כמה שעות לפני הפגישה לשלוח את התזכורת</p>
                   <Input
                     type="number"
                     min="1"
@@ -290,6 +297,7 @@ export function NotificationsTab() {
                 </div>
                 <div className="space-y-2">
                   <Label>טקסט ההודעה (אופציונלי)</Label>
+                  <p className="text-xs text-muted-foreground">התאם אישית את נוסח ההודעה. השאר ריק לטקסט ברירת המחדל.</p>
                   <Textarea
                     placeholder={defaultSmsMessage}
                     value={smsSettings.customMessage || ""}
@@ -298,15 +306,8 @@ export function NotificationsTab() {
                     className="font-mono text-sm"
                   />
                   <p className="text-xs text-muted-foreground">
-                    משתנים: {"{שם}"}, {"{תאריך}"}, {"{שעה}"}
+                    משתנים זמינים: {"{שם}"} = שם המטופל, {"{תאריך}"} = תאריך הפגישה, {"{שעה}"} = שעת הפגישה
                   </p>
-                </div>
-                <div className="flex items-center justify-between rounded-lg border p-3">
-                  <Label>שלח גם בסופי שבוע</Label>
-                  <Switch
-                    checked={smsSettings.sendOnWeekends}
-                    onCheckedChange={(checked) => setSmsSettings({ ...smsSettings, sendOnWeekends: checked })}
-                  />
                 </div>
               </>
             )}
@@ -325,7 +326,7 @@ export function NotificationsTab() {
             <div className="flex items-center justify-between">
               <div className="space-y-0.5">
                 <Label>מייל אישור קביעת תור</Label>
-                <p className="text-sm text-muted-foreground">שלח מייל כשנקבעת פגישה</p>
+                <p className="text-sm text-muted-foreground">המטופל יקבל מייל אוטומטי עם פרטי הפגישה ברגע שנקבעת</p>
               </div>
               <Switch
                 checked={commSettings.sendConfirmationEmail}
@@ -335,7 +336,7 @@ export function NotificationsTab() {
             <div className="flex items-center justify-between">
               <div className="space-y-0.5">
                 <Label>תזכורת 24 שעות לפני</Label>
-                <p className="text-sm text-muted-foreground">תזכורת יום לפני הפגישה</p>
+                <p className="text-sm text-muted-foreground">המטופל יקבל תזכורת במייל יום לפני הפגישה</p>
               </div>
               <Switch
                 checked={commSettings.send24hReminder}
@@ -346,7 +347,7 @@ export function NotificationsTab() {
               <div className="flex items-center justify-between">
                 <div className="space-y-0.5">
                   <Label>תזכורת מותאמת אישית</Label>
-                  <p className="text-sm text-muted-foreground">הגדר כמה זמן לפני הפגישה לשלוח תזכורת</p>
+                  <p className="text-sm text-muted-foreground">הגדר תזכורת נוספת במרחק זמן מותאם אישית מהפגישה</p>
                 </div>
                 <Switch
                   checked={commSettings.customReminderEnabled}
@@ -371,8 +372,6 @@ export function NotificationsTab() {
           </AccordionContent>
         </AccordionItem>
 
-        {/* מדיניות ביטולים - מוסתר לעת עתה (הביטולים מושבתים) */}
-
         {/* Debt Reminders */}
         <AccordionItem value="debt" className="border rounded-lg px-4">
           <AccordionTrigger className="hover:no-underline">
@@ -386,7 +385,10 @@ export function NotificationsTab() {
           </AccordionTrigger>
           <AccordionContent className="space-y-4 pb-4">
             <div className="flex items-center justify-between">
-              <Label>הפעל תזכורות חוב אוטומטיות</Label>
+              <div className="space-y-0.5">
+                <Label>הפעל תזכורות חוב אוטומטיות</Label>
+                <p className="text-xs text-muted-foreground">שלח מייל אוטומטי למטופלים עם חוב פתוח מעל הסכום המינימלי</p>
+              </div>
               <Switch
                 checked={commSettings.sendDebtReminders}
                 onCheckedChange={(checked) => setCommSettings({ ...commSettings, sendDebtReminders: checked })}
@@ -396,6 +398,7 @@ export function NotificationsTab() {
               <>
                 <div className="space-y-2">
                   <Label>יום בחודש לשליחה</Label>
+                  <p className="text-xs text-muted-foreground">באיזה יום בחודש לשלוח את תזכורות החוב למטופלים</p>
                   <Select
                     value={commSettings.debtReminderDayOfMonth.toString()}
                     onValueChange={(value) => setCommSettings({ ...commSettings, debtReminderDayOfMonth: parseInt(value) })}
@@ -410,6 +413,7 @@ export function NotificationsTab() {
                 </div>
                 <div className="space-y-2">
                   <Label>סכום מינימלי (₪)</Label>
+                  <p className="text-xs text-muted-foreground">תזכורת תישלח רק כשהחוב מעל סכום זה</p>
                   <Input
                     type="number"
                     min={0}
@@ -439,7 +443,7 @@ export function NotificationsTab() {
             <div className="flex items-center justify-between p-3 bg-muted rounded-lg">
               <div className="space-y-0.5">
                 <Label>שלח קבלה למטופל</Label>
-                <p className="text-xs text-muted-foreground">המטופל יקבל קבלה למייל שלו</p>
+                <p className="text-xs text-muted-foreground">המטופל יקבל את הקבלה אוטומטית למייל שלו אחרי כל תשלום</p>
               </div>
               <Switch
                 checked={commSettings.sendReceiptToClient}
@@ -449,7 +453,7 @@ export function NotificationsTab() {
             <div className="flex items-center justify-between p-3 bg-muted rounded-lg">
               <div className="space-y-0.5">
                 <Label>שלח עותק אלי (למטפל)</Label>
-                <p className="text-xs text-muted-foreground">תקבל עותק של הקבלה למייל שלך</p>
+                <p className="text-xs text-muted-foreground">תקבל עותק של כל קבלה למייל שלך לצורך תיעוד ומעקב</p>
               </div>
               <Switch
                 checked={commSettings.sendReceiptToTherapist}
@@ -470,6 +474,7 @@ export function NotificationsTab() {
           <AccordionContent className="space-y-4 pb-4">
             <div className="space-y-2">
               <Label>הוראות תשלום</Label>
+              <p className="text-xs text-muted-foreground">טקסט שיופיע במייל תזכורת חוב - כמו פרטי חשבון בנק או אמצעי תשלום</p>
               <Textarea
                 placeholder="השאר ריק לטקסט סטנדרטי..."
                 value={commSettings.paymentInstructions || ""}
@@ -480,6 +485,7 @@ export function NotificationsTab() {
             </div>
             <div className="space-y-2">
               <Label>קישור לתשלום ישיר</Label>
+              <p className="text-xs text-muted-foreground">קישור לדף תשלום (ביט, פייבוקס וכדומה) - יופיע כלחצן במייל</p>
               <Input
                 type="url"
                 placeholder="https://..."
@@ -489,6 +495,7 @@ export function NotificationsTab() {
             </div>
             <div className="space-y-2">
               <Label>חתימה אישית</Label>
+              <p className="text-xs text-muted-foreground">חתימה שתופיע בתחתית כל מייל שנשלח מהמערכת</p>
               <Textarea
                 placeholder="שם, תואר, טלפון..."
                 value={commSettings.emailSignature || ""}
@@ -499,6 +506,7 @@ export function NotificationsTab() {
             </div>
             <div className="space-y-2">
               <Label>ברכת פתיחה</Label>
+              <p className="text-xs text-muted-foreground">פתיחת המייל - השתמש ב-{"{שם}"} כדי להכניס את שם המטופל אוטומטית</p>
               <Input
                 placeholder='ברירת מחדל: "שלום {שם},"'
                 value={commSettings.customGreeting || ""}
@@ -507,6 +515,7 @@ export function NotificationsTab() {
             </div>
             <div className="space-y-2">
               <Label>ברכת סיום</Label>
+              <p className="text-xs text-muted-foreground">הטקסט שיופיע לפני החתימה בסוף כל מייל</p>
               <Input
                 placeholder='ברירת מחדל: "בברכה,"'
                 value={commSettings.customClosing || ""}
@@ -515,6 +524,7 @@ export function NotificationsTab() {
             </div>
             <div className="space-y-2">
               <Label>שעות פעילות</Label>
+              <p className="text-xs text-muted-foreground">שעות הפעילות שלך - יופיעו בתחתית המיילים למטופלים</p>
               <Textarea
                 placeholder="ראשון-חמישי: 9:00-20:00"
                 value={commSettings.businessHours || ""}

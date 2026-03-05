@@ -220,7 +220,7 @@ export function ConnectionsTab() {
                     <Badge variant="secondary"><AlertCircle className="h-3 w-3 ml-1" />לא מחובר</Badge>
                   )}
                 </CardTitle>
-                <CardDescription className="text-xs">סנכרון פגישות עם יומן Google</CardDescription>
+                <CardDescription className="text-xs">סנכרון דו-כיווני: פגישות שתיצור כאן יופיעו ב-Google Calendar ולהפך</CardDescription>
               </div>
             </div>
           </div>
@@ -246,7 +246,8 @@ export function ConnectionsTab() {
 
       {/* Billing Providers */}
       <div>
-        <h3 className="font-semibold mb-3">ספקי חיוב וקבלות</h3>
+        <h3 className="font-semibold mb-1">ספקי חיוב וקבלות</h3>
+        <p className="text-xs text-muted-foreground mb-3">חבר ספק חיצוני להנפקת קבלות מס וחשבוניות. נדרש רק לעוסקים מורשים (הגדר סוג עסק בטאב &quot;עסק וקבלות&quot;).</p>
         <div className="grid gap-3 md:grid-cols-2">
           {Object.entries(providerInfo).map(([key, info]) => {
             const connected = connectedProvider(key);
@@ -296,11 +297,17 @@ export function ConnectionsTab() {
           </AccordionTrigger>
           <AccordionContent className="space-y-4 pb-4">
             <div className="flex items-center justify-between">
-              <Label>הפעל שילוב קופות חולים</Label>
+              <div className="space-y-0.5">
+                <Label>הפעל שילוב קופות חולים</Label>
+                <p className="text-xs text-muted-foreground">אפשר דיווח ישיר לקופות חולים על פגישות שבוצעו</p>
+              </div>
               <Switch checked={insurerSettings.enabled} onCheckedChange={(checked) => setInsurerSettings(p => ({ ...p, enabled: checked }))} />
             </div>
             <div className="flex items-center justify-between">
-              <Label>שליחה אוטומטית בסיום פגישה</Label>
+              <div className="space-y-0.5">
+                <Label>שליחה אוטומטית בסיום פגישה</Label>
+                <p className="text-xs text-muted-foreground">דווח אוטומטית לקופה כשסיימת פגישה. אם כבוי - תצטרך לדווח ידנית.</p>
+              </div>
               <Switch checked={insurerSettings.autoSubmit} onCheckedChange={(checked) => setInsurerSettings(p => ({ ...p, autoSubmit: checked }))} disabled={!insurerSettings.enabled} />
             </div>
 
