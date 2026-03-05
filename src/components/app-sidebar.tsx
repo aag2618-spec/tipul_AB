@@ -115,6 +115,11 @@ const settingsItems = [
     icon: Brain,
   },
   {
+    title: "זימון עצמי",
+    href: "/dashboard/settings/booking",
+    icon: Calendar,
+  },
+  {
     title: "מנוי וחיוב",
     href: "/dashboard/settings/billing",
     icon: CreditCard,

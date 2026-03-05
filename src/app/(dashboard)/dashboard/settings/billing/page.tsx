@@ -17,17 +17,12 @@ import {
   Zap,
   Building,
   XCircle,
-  LinkIcon,
-  Bell,
-  MessageSquare,
-  User,
   ArrowUpCircle,
   ArrowDownCircle,
   Info,
   Shield,
   FileText,
 } from 'lucide-react';
-import Link from 'next/link';
 import {
   AlertDialog,
   AlertDialogAction,
@@ -323,26 +318,6 @@ export default function BillingPage() {
       <div>
         <h1 className="text-2xl font-bold tracking-tight">ניהול מנוי וחיוב</h1>
         <p className="text-muted-foreground">צפייה, שדרוג, שינוי ותנאי המנוי שלך - הכל במקום אחד</p>
-      </div>
-
-      {/* Navigation */}
-      <div className="flex gap-2 flex-wrap">
-        <Button variant="outline" size="sm" asChild className="gap-2">
-          <Link href="/dashboard/settings"><User className="h-4 w-4" />פרופיל</Link>
-        </Button>
-        <Button variant="outline" size="sm" asChild className="gap-2">
-          <Link href="/dashboard/settings/notifications"><Bell className="h-4 w-4" />התראות</Link>
-        </Button>
-        <Button variant="outline" size="sm" asChild className="gap-2">
-          <Link href="/dashboard/settings/communication"><MessageSquare className="h-4 w-4" />תקשורת</Link>
-        </Button>
-        <Button variant="outline" size="sm" asChild className="gap-2">
-          <Link href="/dashboard/settings/integrations"><LinkIcon className="h-4 w-4" />אינטגרציות</Link>
-        </Button>
-        <Button variant="default" size="sm" className="gap-2">
-          <CreditCard className="h-4 w-4" />
-          מנוי וחיוב
-        </Button>
       </div>
 
       {/* ========================================

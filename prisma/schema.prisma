@@ -147,6 +147,9 @@ model User {
   sessionAnalyses       SessionAnalysis[]
   monthlyUsages         MonthlyUsage[]
   adminAuditLogs        AdminAuditLog[]       @relation("auditAdmin")
+  
+  // Online Booking
+  bookingSettings       BookingSettings?
 }
 
 // ==================== AI Tiers ====================
@@ -347,6 +350,7 @@ enum SessionStatus {
   COMPLETED
   CANCELLED
   PENDING_CANCELLATION
+  PENDING_APPROVAL
   NO_SHOW
 }
 
@@ -553,6 +557,7 @@ enum NotificationType {
   EMAIL_SENT
   EMAIL_RECEIVED
   CANCELLATION_REQUEST
+  BOOKING_REQUEST
   CUSTOM
 }
 
@@ -1593,6 +1598,42 @@ model AdminAuditLog {
   @@index([adminId])
   @@index([targetType, targetId])
   @@index([createdAt])
+}
+
+// ==================== Online Booking ====================
+
+model BookingSettings {
+  id                String   @id @default(cuid())
+  enabled           Boolean  @default(false)
+  slug              String   @unique // unique URL slug for public booking page
+  
+  // Working hours per day (0=Sunday .. 6=Saturday). JSON: { "0": { "start": "09:00", "end": "18:00" }, ... }
+  workingHours      Json     @default("{}")
+  
+  // Breaks. JSON array: [{ "start": "13:00", "end": "14:00" }]
+  breaks            Json     @default("[]")
+  
+  sessionDuration   Int      @default(50) // minutes
+  bufferBetween     Int      @default(10) // minutes between sessions
+  maxAdvanceDays    Int      @default(30) // how far ahead clients can book
+  minAdvanceHours   Int      @default(24) // minimum hours before session
+  
+  // Auto-approve or require manual approval
+  requireApproval   Boolean  @default(true)
+  
+  // Customization
+  welcomeMessage    String?  @db.Text
+  confirmationMessage String? @db.Text
+  
+  // Session defaults
+  defaultSessionType SessionType @default(IN_PERSON)
+  defaultPrice      Decimal?  @db.Decimal(10, 2)
+  
+  createdAt         DateTime @default(now())
+  updatedAt         DateTime @updatedAt
+  
+  therapistId       String   @unique
+  therapist         User     @relation(fields: [therapistId], references: [id], onDelete: Cascade)
 }
 
 // ==================== Feature Flags ====================
