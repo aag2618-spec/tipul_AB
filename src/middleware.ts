@@ -43,7 +43,7 @@ export async function middleware(request: NextRequest) {
 
   // Protect /api/admin routes - require ADMIN role
   // Exception: reset-password route uses secret key instead of session
-  if (pathname.startsWith("/api/admin") && !pathname.includes("/reset-password")) {
+  if (pathname.startsWith("/api/admin") && !pathname.includes("/reset-password") && !pathname.includes("/backfill-user-numbers")) {
     if (!token) {
       return NextResponse.json(
         { message: "לא מורשה - נדרשת התחברות" },
