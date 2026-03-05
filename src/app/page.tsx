@@ -91,26 +91,28 @@ export default async function HomePage() {
     <div className="min-h-screen bg-gradient-to-br from-background via-secondary/20 to-accent/10">
       {/* Hero */}
       <div className="container mx-auto px-4 py-16 md:py-24">
-        <div className="text-center max-w-3xl mx-auto">
-          <div className="inline-flex items-center justify-center w-40 h-40 mb-8">
-            <Image src="/logo.png" alt="MyTipul" width={160} height={160} className="rounded-3xl shadow-lg" />
+        <div className="landing-centered max-w-3xl mx-auto">
+          <div className="inline-flex items-center justify-center mb-6">
+            <Image src="/logo.png" alt="MyTipul" width={200} height={200} className="rounded-3xl shadow-xl w-[140px] h-[140px] sm:w-[180px] sm:h-[180px] md:w-[200px] md:h-[200px]" />
           </div>
 
-          <h1 className="text-4xl md:text-6xl font-bold tracking-tight mb-6">
+          <h1 className="text-5xl md:text-7xl font-bold tracking-tight mb-6 landing-centered">
             MyTipul
           </h1>
 
-          <p className="text-xl md:text-2xl text-muted-foreground mb-4 leading-relaxed">
+          <p className="text-xl md:text-2xl text-muted-foreground mb-4 leading-relaxed landing-centered">
             המערכת המתקדמת בישראל לניהול פרקטיקה טיפולית
           </p>
-          <p className="text-lg text-muted-foreground mb-8 leading-relaxed max-w-2xl mx-auto">
+          <p className="text-lg text-muted-foreground mb-8 leading-relaxed max-w-2xl mx-auto landing-centered">
             נהלו מטופלים, פגישות, תשלומים ושאלונים במקום אחד -
             {" "}עם בינה מלאכותית מתקדמת שחוסכת לכם שעות עבודה בכל חודש.
           </p>
 
-          <div className="inline-flex items-center gap-2 bg-primary/10 text-primary rounded-full px-5 py-2.5 text-sm font-medium mb-8">
-            <Star className="h-4 w-4 fill-primary" />
-            14 ימי ניסיון חינם · ללא פרטי אשראי · ללא התחייבות
+          <div className="landing-centered mb-8">
+            <span className="inline-flex items-center gap-2 bg-primary/10 text-primary rounded-full px-5 py-2.5 text-sm font-medium">
+              <Star className="h-4 w-4 fill-primary" />
+              14 ימי ניסיון חינם · ללא פרטי אשראי · ללא התחייבות
+            </span>
           </div>
 
           <div className="flex flex-col sm:flex-row items-center justify-center gap-4">
@@ -125,10 +127,10 @@ export default async function HomePage() {
 
         {/* Features */}
         <div className="mt-28">
-          <h2 className="text-2xl md:text-3xl font-bold text-center mb-4">
+          <h2 className="text-2xl md:text-3xl font-bold landing-centered mb-4">
             הכל מה שהפרקטיקה שלכם צריכה
           </h2>
-          <p className="text-muted-foreground text-center mb-12 max-w-2xl mx-auto">
+          <p className="text-muted-foreground landing-centered mb-12 max-w-2xl mx-auto">
             מערכת שלמה שמנהלת את כל ההיבטים של הפרקטיקה הטיפולית -
             {" "}מניהול מטופלים ופגישות ועד תשלומים ודוחות
           </p>
@@ -148,86 +150,90 @@ export default async function HomePage() {
           </div>
         </div>
 
-        {/* AI Feature Highlight */}
+        {/* AI Feature Highlight - prominent section */}
         <div className="mt-28 max-w-5xl mx-auto">
-          <div className="text-center mb-12">
-            <div className="inline-flex items-center gap-2 bg-primary/10 text-primary rounded-full px-4 py-1.5 text-sm font-medium mb-4">
+          <div className="landing-centered mb-12">
+            <span className="inline-flex items-center gap-2 bg-primary text-primary-foreground rounded-full px-5 py-2 text-sm font-bold ai-badge-pulse mb-4">
               <Sparkles className="h-4 w-4" />
               בינה מלאכותית מתקדמת
-            </div>
-            <h2 className="text-2xl md:text-3xl font-bold mb-4">
+            </span>
+            <h2 className="text-2xl md:text-3xl font-bold mb-4 landing-centered">
               AI שעובד בשבילכם - כך שתוכלו להתמקד בטיפול
             </h2>
-            <p className="text-muted-foreground max-w-2xl mx-auto leading-relaxed">
+            <p className="text-muted-foreground max-w-2xl mx-auto leading-relaxed landing-centered">
               טכנולוגיית AI מהמתקדמות בעולם שמנתחת, מסכמת וממליצה -
               {" "}חוסכת לכם 5-10 שעות עבודה בחודש ומגלה דפוסים שקשה לזהות בעין אנושית
             </p>
           </div>
 
-          <div className="grid gap-6 md:grid-cols-2">
-            {aiFeatures.map((feature) => (
-              <div key={feature.title} className="p-6 rounded-2xl bg-gradient-to-br from-primary/5 to-accent/10 border hover:shadow-md transition-shadow">
-                <div className="flex items-start gap-3">
-                  <CheckCircle className="w-5 h-5 text-primary mt-0.5 flex-shrink-0" />
+          <div className="p-1 rounded-3xl bg-gradient-to-br from-primary/30 via-primary/10 to-accent/30 ai-section-glow">
+            <div className="bg-card rounded-[calc(1.5rem-4px)] p-6 md:p-8">
+              <div className="grid gap-6 md:grid-cols-2">
+                {aiFeatures.map((feature) => (
+                  <div key={feature.title} className="p-5 rounded-2xl bg-gradient-to-br from-primary/5 to-accent/10 border border-primary/20">
+                    <div className="flex items-start gap-3">
+                      <CheckCircle className="w-5 h-5 text-primary mt-0.5 flex-shrink-0" />
+                      <div>
+                        <h3 className="font-semibold mb-2">{feature.title}</h3>
+                        <p className="text-sm text-muted-foreground leading-relaxed">{feature.description}</p>
+                      </div>
+                    </div>
+                  </div>
+                ))}
+              </div>
+
+              {/* Therapeutic approaches */}
+              <div className="mt-6 p-5 rounded-2xl bg-primary/5 border border-primary/20">
+                <div className="flex items-start gap-3 mb-4">
+                  <Brain className="w-5 h-5 text-primary mt-0.5 flex-shrink-0" />
                   <div>
-                    <h3 className="font-semibold mb-2">{feature.title}</h3>
-                    <p className="text-sm text-muted-foreground leading-relaxed">{feature.description}</p>
+                    <h3 className="font-semibold mb-1">גישות טיפוליות מותאמות</h3>
+                    <p className="text-sm text-muted-foreground">
+                      ה-AI מתאים את הניתוח וההמלצות לגישה הטיפולית שבחרתם -
+                      {" "}ניתוחים מדויקים ורלוונטיים לשפה המקצועית שלכם
+                    </p>
                   </div>
                 </div>
+                <div className="flex flex-wrap gap-2 mt-4">
+                  {approaches.map((approach) => (
+                    <span key={approach} className="inline-flex items-center px-3 py-1.5 rounded-full bg-primary/15 text-primary text-xs font-medium border border-primary/20">
+                      {approach}
+                    </span>
+                  ))}
+                </div>
               </div>
-            ))}
-          </div>
-
-          {/* Therapeutic approaches */}
-          <div className="mt-8 p-6 rounded-2xl bg-card border">
-            <div className="flex items-start gap-3 mb-4">
-              <Brain className="w-5 h-5 text-primary mt-0.5 flex-shrink-0" />
-              <div>
-                <h3 className="font-semibold mb-1">גישות טיפוליות מותאמות</h3>
-                <p className="text-sm text-muted-foreground">
-                  ה-AI מתאים את הניתוח וההמלצות לגישה הטיפולית שבחרתם -
-                  {" "}ניתוחים מדויקים ורלוונטיים לשפה המקצועית שלכם
-                </p>
-              </div>
-            </div>
-            <div className="flex flex-wrap gap-2 mt-4">
-              {approaches.map((approach) => (
-                <span key={approach} className="inline-flex items-center px-3 py-1.5 rounded-full bg-primary/10 text-primary text-xs font-medium">
-                  {approach}
-                </span>
-              ))}
             </div>
           </div>
         </div>
 
         {/* Security Section */}
         <div className="mt-28 max-w-4xl mx-auto">
-          <h2 className="text-2xl md:text-3xl font-bold text-center mb-4">
+          <h2 className="text-2xl md:text-3xl font-bold landing-centered mb-4">
             אבטחה ופרטיות ברמה הגבוהה ביותר
           </h2>
-          <p className="text-muted-foreground text-center mb-12 max-w-2xl mx-auto">
+          <p className="text-muted-foreground landing-centered mb-12 max-w-2xl mx-auto">
             מידע טיפולי הוא מהרגיש ביותר שקיים.
             {" "}לכן השקענו באבטחה מתקדמת כדי להגן על המידע שלכם ושל המטופלים שלכם.
           </p>
           <div className="grid gap-6 grid-cols-2 lg:grid-cols-4">
             {securityItems.map((item) => (
-              <div key={item.title} className="text-center p-5 rounded-2xl bg-card border">
+              <div key={item.title} className="landing-centered p-5 rounded-2xl bg-card border">
                 <div className="w-12 h-12 rounded-xl bg-primary/10 flex items-center justify-center mx-auto mb-3">
                   <item.icon className="w-6 h-6 text-primary" />
                 </div>
-                <h3 className="font-semibold text-sm mb-1.5">{item.title}</h3>
-                <p className="text-xs text-muted-foreground leading-relaxed">{item.desc}</p>
+                <h3 className="font-semibold text-sm mb-1.5 landing-centered">{item.title}</h3>
+                <p className="text-xs text-muted-foreground leading-relaxed landing-centered">{item.desc}</p>
               </div>
             ))}
           </div>
         </div>
 
         {/* Final CTA */}
-        <div className="mt-28 text-center max-w-2xl mx-auto pb-8">
-          <h2 className="text-2xl md:text-3xl font-bold mb-4">
+        <div className="mt-28 landing-centered max-w-2xl mx-auto pb-8">
+          <h2 className="text-2xl md:text-3xl font-bold mb-4 landing-centered">
             מוכנים לנהל את הפרקטיקה בצורה חכמה יותר?
           </h2>
-          <p className="text-muted-foreground mb-8 leading-relaxed">
+          <p className="text-muted-foreground mb-8 leading-relaxed landing-centered">
             הצטרפו למטפלים שכבר חוסכים זמן ומנהלים הכל ממקום אחד.
             <br />
             התחילו עם 14 ימי ניסיון חינם - ללא פרטי אשראי, ללא התחייבות.
@@ -240,9 +246,9 @@ export default async function HomePage() {
 
       {/* Footer */}
       <footer className="border-t mt-8 py-8">
-        <div className="container mx-auto px-4 flex flex-col items-center gap-3 text-sm text-muted-foreground">
+        <div className="container mx-auto px-4 flex flex-col items-center gap-3 text-sm text-muted-foreground landing-centered">
           <Image src="/logo.png" alt="MyTipul" width={48} height={48} className="rounded-xl opacity-80" />
-          <p>© {new Date().getFullYear()} MyTipul - מערכת ניהול לפרקטיקה טיפולית</p>
+          <p className="landing-centered">© {new Date().getFullYear()} MyTipul - מערכת ניהול לפרקטיקה טיפולית</p>
         </div>
       </footer>
     </div>
