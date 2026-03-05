@@ -49,7 +49,7 @@ export interface TherapySession {
   recordings?: Recording[];
 }
 
-export type SessionStatus = 'SCHEDULED' | 'COMPLETED' | 'CANCELLED' | 'NO_SHOW';
+export type SessionStatus = 'SCHEDULED' | 'COMPLETED' | 'CANCELLED' | 'NO_SHOW' | 'PENDING_CANCELLATION' | 'PENDING_APPROVAL';
 export type SessionType = 'IN_PERSON' | 'ONLINE' | 'PHONE';
 
 export interface SessionNote {
@@ -159,7 +159,7 @@ export interface Notification {
   userId: string;
 }
 
-export type NotificationType = 'MORNING_SUMMARY' | 'EVENING_SUMMARY' | 'PENDING_TASKS' | 'PAYMENT_REMINDER' | 'SESSION_REMINDER' | 'EMAIL_SENT' | 'CANCELLATION_REQUEST' | 'CUSTOM';
+export type NotificationType = 'MORNING_SUMMARY' | 'EVENING_SUMMARY' | 'PENDING_TASKS' | 'PAYMENT_REMINDER' | 'SESSION_REMINDER' | 'EMAIL_SENT' | 'EMAIL_RECEIVED' | 'CANCELLATION_REQUEST' | 'BOOKING_REQUEST' | 'CUSTOM';
 export type NotificationStatus = 'PENDING' | 'SENT' | 'READ' | 'DISMISSED';
 
 export interface Task {

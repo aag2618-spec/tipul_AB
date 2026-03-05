@@ -337,6 +337,10 @@ export function TodaySessionCard({ session }: TodaySessionCardProps) {
             >
               ⚠ לא עודכן · עדכן
             </Badge>
+          ) : session.status === "PENDING_APPROVAL" ? (
+            <span className="text-xs font-medium text-amber-600">
+              📋 ממתין לאישור
+            </span>
           ) : session.status !== "SCHEDULED" ? (
             <span className={`text-xs font-medium ${
               session.status === "COMPLETED" ? "text-emerald-600" :

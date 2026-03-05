@@ -205,6 +205,8 @@ export default function CalendarPage() {
           ? "var(--primary)"
           : session.status === "NO_SHOW"
           ? "#FCA5A5"
+          : session.status === "PENDING_APPROVAL"
+          ? "#FDE68A"
           : session.status === "SCHEDULED" && new Date(session.endTime) < new Date()
           ? "#BAE6FD"
           : "#A7F3D0",
@@ -215,6 +217,8 @@ export default function CalendarPage() {
           ? "#ffffff"
           : session.status === "NO_SHOW"
           ? "#7F1D1D"
+          : session.status === "PENDING_APPROVAL"
+          ? "#92400E"
           : session.status === "SCHEDULED" && new Date(session.endTime) < new Date()
           ? "#0C4A6E"
           : "#064E3B",
@@ -225,6 +229,8 @@ export default function CalendarPage() {
         ? "var(--primary)"
         : session.status === "NO_SHOW"
         ? "#DC2626"
+        : session.status === "PENDING_APPROVAL"
+        ? "#F59E0B"
         : session.status === "SCHEDULED" && new Date(session.endTime) < new Date()
         ? "#0EA5E9"
         : "#059669",
@@ -1081,6 +1087,8 @@ export default function CalendarPage() {
                     ? "bg-red-100 text-red-800"
                     : selectedSession.status === "CANCELLED"
                     ? "bg-gray-100 text-gray-800"
+                    : selectedSession.status === "PENDING_APPROVAL"
+                    ? "bg-amber-100 text-amber-800"
                     : "bg-sky-100 text-sky-800"
                 }`}>
                   {selectedSession.status === "COMPLETED" 
@@ -1089,6 +1097,8 @@ export default function CalendarPage() {
                     ? "⚠️ אי הופעה"
                     : selectedSession.status === "CANCELLED"
                     ? "❌ בוטל"
+                    : selectedSession.status === "PENDING_APPROVAL"
+                    ? "📋 ממתין לאישור"
                     : "🕐 מתוכנן"}
                 </span>
               </div>
@@ -1232,6 +1242,53 @@ export default function CalendarPage() {
                     >
                       🗑️ מחק הפסקה
                     </Button>
+                  </>
+                ) : selectedSession.status === "PENDING_APPROVAL" ? (
+                  <>
+                    <div className="bg-amber-50 border border-amber-200 rounded-lg p-4 space-y-3">
+                      <p className="text-sm font-medium text-amber-800 text-center">📋 פגישה זו נקבעה דרך זימון עצמי וממתינה לאישורך</p>
+                      <div className="flex gap-2">
+                        <Button
+                          onClick={async () => {
+                            const res = await fetch(`/api/sessions/${selectedSession.id}/status`, {
+                              method: "PATCH",
+                              headers: { "Content-Type": "application/json" },
+                              body: JSON.stringify({ status: "SCHEDULED" }),
+                            });
+                            if (res.ok) {
+                              toast.success("הפגישה אושרה!");
+                              fetchData();
+                              setIsSessionDialogOpen(false);
+                            } else {
+                              toast.error("שגיאה באישור הפגישה");
+                            }
+                          }}
+                          className="flex-1 bg-green-600 hover:bg-green-700"
+                        >
+                          ✅ אשר פגישה
+                        </Button>
+                        <Button
+                          onClick={async () => {
+                            const res = await fetch(`/api/sessions/${selectedSession.id}/status`, {
+                              method: "PATCH",
+                              headers: { "Content-Type": "application/json" },
+                              body: JSON.stringify({ status: "CANCELLED" }),
+                            });
+                            if (res.ok) {
+                              toast.success("הפגישה נדחתה");
+                              fetchData();
+                              setIsSessionDialogOpen(false);
+                            } else {
+                              toast.error("שגיאה בדחיית הפגישה");
+                            }
+                          }}
+                          variant="destructive"
+                          className="flex-1"
+                        >
+                          ❌ דחה
+                        </Button>
+                      </div>
+                    </div>
                   </>
                 ) : selectedSession.status === "SCHEDULED" ? (
                   <>

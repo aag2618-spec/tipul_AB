@@ -82,6 +82,8 @@ export function SessionCancellationCard({
         return <Badge variant="default">מתוכנן</Badge>;
       case 'PENDING_CANCELLATION':
         return <Badge variant="secondary" className="bg-orange-100 text-orange-800">ממתין לאישור ביטול</Badge>;
+      case 'PENDING_APPROVAL':
+        return <Badge variant="secondary" className="bg-amber-100 text-amber-800">ממתין לאישור</Badge>;
       case 'CANCELLED':
         return <Badge variant="destructive">מבוטל</Badge>;
       case 'COMPLETED':

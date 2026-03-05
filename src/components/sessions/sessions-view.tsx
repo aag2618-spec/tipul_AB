@@ -67,6 +67,7 @@ const STATUS_LABELS: Record<string, string> = {
   CANCELLED: "בוטלה",
   NO_SHOW: "לא הגיע",
   NOT_UPDATED: "לא עודכן",
+  PENDING_APPROVAL: "ממתין לאישור",
 };
 
 const STATUS_COLORS: Record<string, string> = {
@@ -74,6 +75,7 @@ const STATUS_COLORS: Record<string, string> = {
   CANCELLED: "text-red-500 border-transparent",
   NO_SHOW: "text-red-500 border-transparent",
   NOT_UPDATED: "bg-orange-50 text-orange-600 border-orange-300 cursor-pointer hover:bg-orange-100",
+  PENDING_APPROVAL: "bg-amber-50 text-amber-600 border-amber-300",
 };
 
 const CARD_BG: Record<string, string> = {
@@ -82,6 +84,7 @@ const CARD_BG: Record<string, string> = {
   COMPLETED: "bg-white border-emerald-300",
   CANCELLED: "bg-red-50/40 border-red-200",
   NO_SHOW: "bg-red-50/50 border-red-200",
+  PENDING_APPROVAL: "bg-amber-50/60 border-amber-200",
 };
 
 const STATUS_ICONS: Record<string, React.ReactNode> = {
@@ -192,14 +195,14 @@ export function SessionsView({ initialSessions }: SessionsViewProps) {
 
   const upcoming = useMemo(() => {
     return sessions
-      .filter(s => s.status === "SCHEDULED" && new Date(s.startTime) >= now)
+      .filter(s => (s.status === "SCHEDULED" || s.status === "PENDING_APPROVAL") && new Date(s.startTime) >= now)
       .filter(s => searchFilter(s, searchTerm))
       .sort((a, b) => new Date(a.startTime).getTime() - new Date(b.startTime).getTime());
   }, [sessions, searchTerm, now]);
 
   const history = useMemo(() => {
     return sessions
-      .filter(s => s.status !== "SCHEDULED" || new Date(s.startTime) < now)
+      .filter(s => (s.status !== "SCHEDULED" && s.status !== "PENDING_APPROVAL") || new Date(s.startTime) < now)
       .filter(s => searchFilter(s, historySearch))
       .filter(s => {
         if (dateFrom && new Date(s.startTime) < new Date(dateFrom)) return false;
@@ -384,6 +387,7 @@ export function SessionsView({ initialSessions }: SessionsViewProps) {
     if (s.status === "COMPLETED") return CARD_BG.COMPLETED;
     if (s.status === "CANCELLED") return CARD_BG.CANCELLED;
     if (s.status === "NO_SHOW") return CARD_BG.NO_SHOW;
+    if (s.status === "PENDING_APPROVAL") return CARD_BG.PENDING_APPROVAL;
     if (s.status === "SCHEDULED" && new Date(s.startTime) < now) return CARD_BG.SCHEDULED_PAST;
     return CARD_BG.SCHEDULED_FUTURE;
   };

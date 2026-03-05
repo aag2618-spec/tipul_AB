@@ -16,7 +16,7 @@ export async function PATCH(
     const { id: sessionId } = await params;
     const { status, cancellationReason } = await req.json();
 
-    const validStatuses = ["SCHEDULED", "COMPLETED", "CANCELLED", "NO_SHOW"];
+    const validStatuses = ["SCHEDULED", "COMPLETED", "CANCELLED", "NO_SHOW", "PENDING_APPROVAL"];
     if (!validStatuses.includes(status)) {
       return NextResponse.json({ error: "Invalid status" }, { status: 400 });
     }
