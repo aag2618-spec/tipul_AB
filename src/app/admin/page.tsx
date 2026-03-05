@@ -17,6 +17,10 @@ import {
   AlertCircle,
   Clock,
   ArrowRight,
+  DollarSign,
+  BarChart3,
+  UserMinus,
+  Filter,
 } from "lucide-react";
 
 interface DashboardStats {
@@ -29,6 +33,17 @@ interface DashboardStats {
   pendingPayments: number;
   totalStorageGB: number;
   averageStoragePerUser: number;
+  mrr: number;
+  arr: number;
+  churnRate: number;
+  churnedUsers: number;
+  totalNonTrialing: number;
+  funnel: {
+    totalSignups: number;
+    activeTrials: number;
+    convertedToPaid: number;
+    currentlyActive: number;
+  };
 }
 
 export default function AdminDashboardPage() {
@@ -96,6 +111,41 @@ export default function AdminDashboardPage() {
     },
   ];
 
+  const revenueCards = [
+    {
+      title: "MRR (הכנסה חודשית חוזרת)",
+      value: `₪${(stats?.mrr || 0).toLocaleString()}`,
+      description: "סה״כ מנויים משלמים פעילים",
+      icon: DollarSign,
+      color: "text-emerald-500",
+      bgColor: "bg-emerald-500/20",
+    },
+    {
+      title: "ARR (הכנסה שנתית חוזרת)",
+      value: `₪${(stats?.arr || 0).toLocaleString()}`,
+      description: "MRR × 12",
+      icon: BarChart3,
+      color: "text-teal-500",
+      bgColor: "bg-teal-500/20",
+    },
+    {
+      title: "שיעור נטישה (Churn)",
+      value: `${stats?.churnRate || 0}%`,
+      description: `${stats?.churnedUsers || 0} נטשו מתוך ${stats?.totalNonTrialing || 0}`,
+      icon: UserMinus,
+      color: stats?.churnRate && stats.churnRate > 10 ? "text-red-500" : "text-orange-500",
+      bgColor: stats?.churnRate && stats.churnRate > 10 ? "bg-red-500/20" : "bg-orange-500/20",
+    },
+  ];
+
+  const funnel = stats?.funnel;
+  const funnelSteps = funnel ? [
+    { label: "נרשמו (כל הזמנים)", value: funnel.totalSignups, pct: 100 },
+    { label: "בתקופת ניסיון", value: funnel.activeTrials, pct: funnel.totalSignups > 0 ? Math.round((funnel.activeTrials / funnel.totalSignups) * 100) : 0 },
+    { label: "המירו למנוי בתשלום", value: funnel.convertedToPaid, pct: funnel.totalSignups > 0 ? Math.round((funnel.convertedToPaid / funnel.totalSignups) * 100) : 0 },
+    { label: "פעילים כעת", value: funnel.currentlyActive, pct: funnel.totalSignups > 0 ? Math.round((funnel.currentlyActive / funnel.totalSignups) * 100) : 0 },
+  ] : [];
+
   return (
     <div className="space-y-8 animate-fade-in">
       <div>
@@ -122,6 +172,76 @@ export default function AdminDashboardPage() {
           </Card>
         ))}
       </div>
+
+      {/* Revenue & Churn Cards */}
+      <div className="grid gap-6 md:grid-cols-3">
+        {revenueCards.map((card) => (
+          <Card key={card.title}>
+            <CardHeader className="flex flex-row items-center justify-between pb-2">
+              <CardTitle className="text-sm font-medium text-muted-foreground">
+                {card.title}
+              </CardTitle>
+              <div className={`p-2 rounded-lg ${card.bgColor}`}>
+                <card.icon className={`h-4 w-4 ${card.color}`} />
+              </div>
+            </CardHeader>
+            <CardContent>
+              <div className="text-2xl font-bold">{card.value}</div>
+              <p className="text-xs text-muted-foreground mt-1">{card.description}</p>
+            </CardContent>
+          </Card>
+        ))}
+      </div>
+
+      {/* Conversion Funnel */}
+      {funnel && (
+        <Card>
+          <CardHeader>
+            <div className="flex items-center gap-2">
+              <div className="p-2 rounded-lg bg-indigo-500/20">
+                <Filter className="h-4 w-4 text-indigo-500" />
+              </div>
+              <div>
+                <CardTitle>משפך המרה (Conversion Funnel)</CardTitle>
+                <CardDescription>מהרשמה ועד מנוי פעיל</CardDescription>
+              </div>
+            </div>
+          </CardHeader>
+          <CardContent>
+            <div className="space-y-4">
+              {funnelSteps.map((step, i) => {
+                const barColors = [
+                  "bg-sky-500",
+                  "bg-violet-500",
+                  "bg-emerald-500",
+                  "bg-teal-500",
+                ];
+                return (
+                  <div key={step.label}>
+                    <div className="flex items-center justify-between mb-1.5">
+                      <span className="text-sm font-medium text-foreground">{step.label}</span>
+                      <div className="flex items-center gap-2">
+                        <span className="text-sm font-bold text-foreground">{step.value.toLocaleString()}</span>
+                        {i > 0 && (
+                          <Badge variant="outline" className="text-xs font-mono">
+                            {step.pct}%
+                          </Badge>
+                        )}
+                      </div>
+                    </div>
+                    <div className="h-3 rounded-full bg-muted overflow-hidden">
+                      <div
+                        className={`h-full rounded-full transition-all duration-500 ${barColors[i]}`}
+                        style={{ width: `${Math.max(step.pct, 2)}%` }}
+                      />
+                    </div>
+                  </div>
+                );
+              })}
+            </div>
+          </CardContent>
+        </Card>
+      )}
 
       {/* Alerts Section */}
       <PendingAlerts />
@@ -265,7 +385,7 @@ function PendingAlerts() {
 }
 
 function RecentUsers() {
-  const [users, setUsers] = useState<Array<{id: string; name: string; email: string; createdAt: string}>>([]);
+  const [users, setUsers] = useState<Array<{id: string; name: string; email: string; userNumber: number | null; createdAt: string}>>([]);
   const [isLoading, setIsLoading] = useState(true);
 
   useEffect(() => {
@@ -298,7 +418,14 @@ function RecentUsers() {
       {users.map((user) => (
         <div key={user.id} className="flex items-center justify-between py-2 border-b border-border last:border-0">
           <div>
-            <p className="font-medium">{user.name || "ללא שם"}</p>
+            <div className="flex items-center gap-2">
+              <p className="font-medium">{user.name || "ללא שם"}</p>
+              {user.userNumber && (
+                <Badge variant="outline" className="font-mono text-xs bg-sky-500/10 text-sky-400 border-sky-500/30">
+                  #{user.userNumber}
+                </Badge>
+              )}
+            </div>
             {user.email ? (
               <a 
                 href={`mailto:${user.email}`}

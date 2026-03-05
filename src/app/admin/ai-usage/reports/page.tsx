@@ -52,37 +52,11 @@ export default function AdminReportsPage() {
     );
   }
 
-  // Mock data for demonstration
-  const usageByDay = [
-    { day: 'ראשון', calls: 245, cost: 0.5 },
-    { day: 'שני', calls: 312, cost: 0.65 },
-    { day: 'שלישי', calls: 289, cost: 0.58 },
-    { day: 'רביעי', calls: 401, cost: 0.82 },
-    { day: 'חמישי', calls: 378, cost: 0.76 },
-    { day: 'שישי', calls: 156, cost: 0.32 },
-    { day: 'שבת', calls: 89, cost: 0.18 },
-  ];
-
-  const tierDistribution = [
-    { name: 'Essential', value: 45, color: '#94a3b8' },
-    { name: 'Pro', value: 35, color: '#3b82f6' },
-    { name: 'Enterprise', value: 20, color: '#8b5cf6' },
-  ];
-
-  const monthlyTrend = [
-    { month: 'ינואר', users: 85, revenue: 9500, cost: 35 },
-    { month: 'פברואר', users: 100, revenue: 11450, cost: 52 },
-    { month: 'מרץ', users: 115, revenue: 13200, cost: 68 },
-    { month: 'אפריל', users: 128, revenue: 14800, cost: 85 },
-  ];
-
-  const topUsers = [
-    { name: 'ד״ר כהן', calls: 856, tier: 'ENTERPRISE' },
-    { name: 'פסיכולוג לוי', calls: 734, tier: 'PRO' },
-    { name: 'ד״ר מזרחי', calls: 689, tier: 'ENTERPRISE' },
-    { name: 'טיפול ישראל', calls: 623, tier: 'PRO' },
-    { name: 'ד״ר אברהם', calls: 567, tier: 'ENTERPRISE' },
-  ];
+  const usageByDay = stats?.usageByDay || [];
+  const tierDistribution = stats?.tierDistribution || [];
+  const monthlyTrend = stats?.monthlyTrend || [];
+  const topUsers = stats?.topUsers || [];
+  const summary = stats?.summary || {};
 
   return (
     <div className="space-y-6">
@@ -107,10 +81,10 @@ export default function AdminReportsPage() {
             <CardTitle className="text-sm font-medium">סה״כ קריאות היום</CardTitle>
           </CardHeader>
           <CardContent>
-            <div className="text-2xl font-bold">1,870</div>
-            <div className="flex items-center gap-1 text-xs text-green-600">
-              <TrendingUp className="h-3 w-3" />
-              <span>+12% מאתמול</span>
+            <div className="text-2xl font-bold">{(summary.todayCalls || 0).toLocaleString()}</div>
+            <div className={`flex items-center gap-1 text-xs ${(summary.callsChange || 0) >= 0 ? 'text-green-600' : 'text-red-500'}`}>
+              {(summary.callsChange || 0) >= 0 ? <TrendingUp className="h-3 w-3" /> : <TrendingDown className="h-3 w-3" />}
+              <span>{summary.callsChange || 0}% מאתמול</span>
             </div>
           </CardContent>
         </Card>
@@ -120,10 +94,10 @@ export default function AdminReportsPage() {
             <CardTitle className="text-sm font-medium">עלות היום</CardTitle>
           </CardHeader>
           <CardContent>
-            <div className="text-2xl font-bold">3.81₪</div>
-            <div className="flex items-center gap-1 text-xs text-green-600">
-              <TrendingUp className="h-3 w-3" />
-              <span>+8% מאתמול</span>
+            <div className="text-2xl font-bold">{summary.todayCost || 0}₪</div>
+            <div className={`flex items-center gap-1 text-xs ${(summary.costChange || 0) >= 0 ? 'text-green-600' : 'text-red-500'}`}>
+              {(summary.costChange || 0) >= 0 ? <TrendingUp className="h-3 w-3" /> : <TrendingDown className="h-3 w-3" />}
+              <span>{summary.costChange || 0}% מאתמול</span>
             </div>
           </CardContent>
         </Card>
@@ -133,7 +107,7 @@ export default function AdminReportsPage() {
             <CardTitle className="text-sm font-medium">משתמשים פעילים</CardTitle>
           </CardHeader>
           <CardContent>
-            <div className="text-2xl font-bold">87/100</div>
+            <div className="text-2xl font-bold">{summary.activeUsers || 0}/{summary.totalUsers || 0}</div>
             <div className="flex items-center gap-1 text-xs text-muted-foreground">
               <Calendar className="h-3 w-3" />
               <span>היום</span>
@@ -143,13 +117,13 @@ export default function AdminReportsPage() {
 
         <Card>
           <CardHeader className="pb-2">
-            <CardTitle className="text-sm font-medium">רווח היום</CardTitle>
+            <CardTitle className="text-sm font-medium">סה״כ משתמשים</CardTitle>
           </CardHeader>
           <CardContent>
-            <div className="text-2xl font-bold text-green-600">373₪</div>
-            <div className="flex items-center gap-1 text-xs text-green-600">
-              <TrendingUp className="h-3 w-3" />
-              <span>98% מרווח</span>
+            <div className="text-2xl font-bold">{summary.totalUsers || 0}</div>
+            <div className="flex items-center gap-1 text-xs text-muted-foreground">
+              <Calendar className="h-3 w-3" />
+              <span>רשומים</span>
             </div>
           </CardContent>
         </Card>
@@ -197,7 +171,7 @@ export default function AdminReportsPage() {
                   fill="#8884d8"
                   dataKey="value"
                 >
-                  {tierDistribution.map((entry, index) => (
+                  {tierDistribution.map((entry: { name: string; value: number; color: string }, index: number) => (
                     <Cell key={`cell-${index}`} fill={entry.color} />
                   ))}
                 </Pie>
@@ -205,7 +179,7 @@ export default function AdminReportsPage() {
               </PieChart>
             </ResponsiveContainer>
             <div className="mt-4 space-y-2">
-              {tierDistribution.map((tier) => (
+              {tierDistribution.map((tier: { name: string; value: number; color: string }) => (
                 <div key={tier.name} className="flex items-center justify-between text-sm">
                   <div className="flex items-center gap-2">
                     <div className="w-3 h-3 rounded-full" style={{ backgroundColor: tier.color }} />
@@ -226,7 +200,7 @@ export default function AdminReportsPage() {
           </CardHeader>
           <CardContent>
             <div className="space-y-3">
-              {topUsers.map((user, index) => (
+              {topUsers.map((user: { name: string; calls: number; tier: string }, index: number) => (
                 <div key={user.name} className="flex items-center justify-between p-3 border rounded-lg">
                   <div className="flex items-center gap-3">
                     <div className="w-8 h-8 rounded-full bg-primary/10 flex items-center justify-center font-bold text-primary">
@@ -272,35 +246,41 @@ export default function AdminReportsPage() {
 
       {/* Insights */}
       <div className="grid gap-4 md:grid-cols-3">
-        <Card className="bg-green-50 border-green-200">
+        <Card className="border-green-500/30 bg-green-500/5">
           <CardHeader>
-            <CardTitle className="text-green-900">💡 תובנה</CardTitle>
+            <CardTitle>💡 תובנה</CardTitle>
           </CardHeader>
           <CardContent>
-            <p className="text-sm text-green-900">
-              השימוש ב-AI גדל ב-23% בחודש האחרון. שקול להוסיף עוד משתמשי Enterprise.
+            <p className="text-sm text-muted-foreground">
+              {tierDistribution.length > 0 
+                ? `${tierDistribution.reduce((s: number, t: { value: number }) => s + t.value, 0)} משתמשים רשומים. ${(summary.callsChange || 0) > 0 ? `השימוש גדל ב-${summary.callsChange}% מאתמול.` : 'השימוש יציב.'}`
+                : 'טוען נתונים...'}
             </p>
           </CardContent>
         </Card>
 
-        <Card className="bg-sky-50 border-sky-200">
+        <Card className="border-sky-500/30 bg-sky-500/5">
           <CardHeader>
-            <CardTitle className="text-sky-900">📈 הזדמנות</CardTitle>
+            <CardTitle>📈 הזדמנות</CardTitle>
           </CardHeader>
           <CardContent>
-            <p className="text-sm text-sky-900">
-              35% מהמשתמשים Essential - יש פוטנציאל לשדרוג ל-Pro (700₪ הכנסה נוספת).
+            <p className="text-sm text-muted-foreground">
+              {tierDistribution.length > 0
+                ? `${tierDistribution.find((t: { name: string }) => t.name === 'Essential')?.value || 0} משתמשי Essential - פוטנציאל שדרוג ל-Pro.`
+                : 'טוען נתונים...'}
             </p>
           </CardContent>
         </Card>
 
-        <Card className="bg-purple-50 border-purple-200">
+        <Card className="border-purple-500/30 bg-purple-500/5">
           <CardHeader>
-            <CardTitle className="text-purple-900">🎯 המלצה</CardTitle>
+            <CardTitle>🎯 סטטיסטיקה</CardTitle>
           </CardHeader>
           <CardContent>
-            <p className="text-sm text-purple-900">
-              מרווח הרווח 98% - מחירים אופטימליים. שמור על המודל הנוכחי.
+            <p className="text-sm text-muted-foreground">
+              {topUsers.length > 0
+                ? `המשתמש הפעיל ביותר: ${topUsers[0].name} עם ${topUsers[0].calls} קריאות החודש.`
+                : 'אין נתוני שימוש עדיין.'}
             </p>
           </CardContent>
         </Card>

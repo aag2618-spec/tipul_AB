@@ -25,15 +25,19 @@ export async function GET(request: NextRequest) {
     const search = searchParams.get('search') || '';
 
     // Build where clause
-    const where = search
-      ? {
-          OR: [
-            { name: { contains: search, mode: 'insensitive' as const } },
-            { email: { contains: search, mode: 'insensitive' as const } },
-            { phone: { contains: search, mode: 'insensitive' as const } },
-          ],
-        }
-      : {};
+    const where: Record<string, unknown> = {};
+    if (search) {
+      const orConditions: Record<string, unknown>[] = [
+        { name: { contains: search, mode: 'insensitive' as const } },
+        { email: { contains: search, mode: 'insensitive' as const } },
+        { phone: { contains: search, mode: 'insensitive' as const } },
+      ];
+      const parsed = parseInt(search.replace('#', ''), 10);
+      if (!isNaN(parsed)) {
+        orConditions.push({ userNumber: parsed });
+      }
+      where.OR = orConditions;
+    }
 
     // Get all users with AI usage stats
     const users = await prisma.user.findMany({
@@ -46,6 +50,7 @@ export async function GET(request: NextRequest) {
         role: true,
         isBlocked: true,
         aiTier: true,
+        userNumber: true,
         createdAt: true,
         aiUsageStats: {
           select: {
@@ -127,15 +132,21 @@ export async function POST(request: NextRequest) {
     // Hash password
     const hashedPassword = await bcrypt.hash(password, 10);
 
-    // Create user
-    const newUser = await prisma.user.create({
-      data: {
-        name,
-        email,
-        phone,
-        password: hashedPassword,
-        role: role || 'USER',
-      }
+    // Create user with auto-assigned userNumber
+    const newUser = await prisma.$transaction(async (tx) => {
+      const maxResult = await tx.user.aggregate({ _max: { userNumber: true } });
+      const nextUserNumber = (maxResult._max.userNumber ?? 1000) + 1;
+
+      return tx.user.create({
+        data: {
+          name,
+          email,
+          phone,
+          password: hashedPassword,
+          role: role || 'USER',
+          userNumber: nextUserNumber,
+        }
+      });
     });
 
     return NextResponse.json({

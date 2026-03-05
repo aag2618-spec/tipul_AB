@@ -62,6 +62,7 @@ interface User {
   phone: string | null;
   role: "USER" | "MANAGER" | "ADMIN";
   isBlocked: boolean;
+  userNumber: number | null;
   createdAt: string;
   _count: {
     clients: number;
@@ -91,6 +92,7 @@ export default function AdminUsersPage() {
   }, [search]);
 
   const fetchUsers = async () => {
+    setIsLoading(true);
     try {
       const params = new URLSearchParams();
       if (search) params.set("search", search);
@@ -315,7 +317,7 @@ export default function AdminUsersPage() {
           <div className="relative">
             <Search className="absolute right-3 top-1/2 -translate-y-1/2 h-4 w-4 text-muted-foreground" />
             <Input
-              placeholder="חיפוש לפי שם או אימייל..."
+              placeholder="חיפוש לפי שם, אימייל, טלפון או מספר משתמש (#1001)..."
               value={search}
               onChange={(e) => setSearch(e.target.value)}
               className="pr-10"
@@ -340,6 +342,7 @@ export default function AdminUsersPage() {
             <Table>
               <TableHeader>
                 <TableRow className="border-border">
+                  <TableHead className="text-muted-foreground">מס׳</TableHead>
                   <TableHead className="text-muted-foreground">משתמש</TableHead>
                   <TableHead className="text-muted-foreground">תפקיד</TableHead>
                   <TableHead className="text-muted-foreground">סטטוס</TableHead>
@@ -352,6 +355,15 @@ export default function AdminUsersPage() {
               <TableBody>
                 {users.map((user) => (
                   <TableRow key={user.id} className="border-border">
+                    <TableCell>
+                      {user.userNumber ? (
+                        <Badge variant="outline" className="font-mono text-xs bg-sky-500/10 text-sky-400 border-sky-500/30">
+                          #{user.userNumber}
+                        </Badge>
+                      ) : (
+                        <span className="text-xs text-muted-foreground">—</span>
+                      )}
+                    </TableCell>
                     <TableCell>
                       <div>
                         <p className="font-medium">{user.name || "ללא שם"}</p>

@@ -1,12 +1,13 @@
 "use client";
 
-import { useState } from "react";
+import { useState, useEffect, useRef, useCallback } from "react";
 import Link from "next/link";
 import Image from "next/image";
-import { usePathname } from "next/navigation";
+import { usePathname, useRouter } from "next/navigation";
 import { signOut, useSession } from "next-auth/react";
 import { cn } from "@/lib/utils";
 import { Button } from "@/components/ui/button";
+import { Input } from "@/components/ui/input";
 import { ClientOnly } from "@/components/client-only";
 import { Loader2 } from "lucide-react";
 import {
@@ -24,24 +25,135 @@ import {
   ClipboardList,
   Brain,
   Bell,
+  Megaphone,
   Settings,
+  Search,
+  Flag,
 } from "lucide-react";
 
-// תפריט ניהול - מאורגן לפי חשיבות
 const adminNavItems = [
-  // --- ראשי ---
   { href: "/admin", label: "דשבורד", icon: LayoutDashboard },
   { href: "/admin/alerts", label: "התראות", icon: Bell },
-  
-  // --- משתמשים וכסף ---
   { href: "/admin/ai-dashboard", label: "משתמשים", icon: Users },
   { href: "/admin/billing", label: "תשלומים", icon: CreditCard },
-  
-  // --- הגדרות ---
+  { href: "/admin/trials", label: "ניסיונות", icon: Activity },
   { href: "/admin/tier-settings", label: "תוכניות ומחירים", icon: Settings },
   { href: "/admin/coupons", label: "קופונים", icon: Ticket },
+  { href: "/admin/ai-usage", label: "שימוש AI", icon: Brain },
+  { href: "/admin/storage", label: "אחסון", icon: HardDrive },
+  { href: "/admin/announcements", label: "הודעות", icon: Megaphone },
   { href: "/admin/questionnaires", label: "שאלונים", icon: ClipboardList },
+  { href: "/admin/audit-log", label: "לוג פעולות", icon: Shield },
+  { href: "/admin/feature-flags", label: "Feature Flags", icon: Flag },
 ];
+
+interface SearchResult {
+  id: string;
+  type: string;
+  typeLabel: string;
+  title: string;
+  subtitle: string;
+  role: string;
+  aiTier: string;
+  isBlocked: boolean;
+  href: string;
+}
+
+function AdminSearch() {
+  const [query, setQuery] = useState("");
+  const [results, setResults] = useState<SearchResult[]>([]);
+  const [open, setOpen] = useState(false);
+  const [loading, setLoading] = useState(false);
+  const ref = useRef<HTMLDivElement>(null);
+  const router = useRouter();
+  const debounceRef = useRef<ReturnType<typeof setTimeout>>(undefined);
+
+  const search = useCallback(async (q: string) => {
+    if (!q.trim()) {
+      setResults([]);
+      setOpen(false);
+      return;
+    }
+    setLoading(true);
+    try {
+      const res = await fetch(`/api/admin/search?q=${encodeURIComponent(q)}`);
+      if (res.ok) {
+        const data = await res.json();
+        setResults(data.results);
+        setOpen(data.results.length > 0);
+      }
+    } catch {
+      /* ignore */
+    } finally {
+      setLoading(false);
+    }
+  }, []);
+
+  function handleChange(val: string) {
+    setQuery(val);
+    clearTimeout(debounceRef.current);
+    debounceRef.current = setTimeout(() => search(val), 300);
+  }
+
+  function handleSelect(result: SearchResult) {
+    setOpen(false);
+    setQuery("");
+    setResults([]);
+    router.push(result.href);
+  }
+
+  useEffect(() => {
+    function handleClickOutside(e: MouseEvent) {
+      if (ref.current && !ref.current.contains(e.target as Node)) {
+        setOpen(false);
+      }
+    }
+    document.addEventListener("mousedown", handleClickOutside);
+    return () => document.removeEventListener("mousedown", handleClickOutside);
+  }, []);
+
+  return (
+    <div ref={ref} className="relative">
+      <div className="relative">
+        <Search className="absolute right-3 top-1/2 -translate-y-1/2 h-4 w-4 text-muted-foreground" />
+        <Input
+          value={query}
+          onChange={(e) => handleChange(e.target.value)}
+          placeholder="חיפוש משתמשים..."
+          className="bg-muted border-border pr-9 text-sm h-9"
+          onFocus={() => results.length > 0 && setOpen(true)}
+        />
+        {loading && (
+          <Loader2 className="absolute left-3 top-1/2 -translate-y-1/2 h-3.5 w-3.5 animate-spin text-muted-foreground" />
+        )}
+      </div>
+      {open && results.length > 0 && (
+        <div className="absolute top-full mt-1 right-0 left-0 z-50 bg-card border border-border rounded-lg shadow-xl overflow-hidden max-h-80 overflow-y-auto">
+          {results.map((r) => (
+            <button
+              key={r.id}
+              onClick={() => handleSelect(r)}
+              className="w-full text-right px-3 py-2.5 hover:bg-muted transition-colors flex items-center gap-3 border-b border-border last:border-0"
+            >
+              <div className="flex-1 min-w-0">
+                <div className="flex items-center gap-2">
+                  <span className="text-sm font-medium truncate">{r.title}</span>
+                  {r.isBlocked && (
+                    <span className="text-[10px] bg-red-500/20 text-red-400 px-1.5 py-0.5 rounded">חסום</span>
+                  )}
+                </div>
+                <p className="text-xs text-muted-foreground truncate">{r.subtitle}</p>
+              </div>
+              <span className="text-[10px] bg-muted text-muted-foreground px-1.5 py-0.5 rounded shrink-0">
+                {r.typeLabel}
+              </span>
+            </button>
+          ))}
+        </div>
+      )}
+    </div>
+  );
+}
 
 function AdminLayoutContent({ children }: { children: React.ReactNode }) {
   const [sidebarOpen, setSidebarOpen] = useState(false);
@@ -96,7 +208,9 @@ function AdminLayoutContent({ children }: { children: React.ReactNode }) {
           {/* Logo */}
           <div className="p-6 border-b border-border">
             <div className="flex items-center gap-3">
-              <Image src="/logo.png" alt="MyTipul" width={40} height={40} className="rounded-lg" />
+              <div className="p-2 bg-amber-500/20 rounded-lg">
+                <Shield className="h-6 w-6 text-amber-500" />
+              </div>
               <div>
                 <h1 className="font-bold text-lg">ממשק ניהול</h1>
                 <p className="text-xs text-muted-foreground">Admin Panel</p>
@@ -104,8 +218,13 @@ function AdminLayoutContent({ children }: { children: React.ReactNode }) {
             </div>
           </div>
 
+          {/* Search */}
+          <div className="px-4 pt-4">
+            <AdminSearch />
+          </div>
+
           {/* Navigation */}
-          <nav className="flex-1 p-4 space-y-2">
+          <nav className="flex-1 p-4 space-y-2 overflow-y-auto">
             {adminNavItems.map((item) => {
               const isActive = pathname === item.href || 
                 (item.href !== "/admin" && pathname.startsWith(item.href));

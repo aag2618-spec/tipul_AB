@@ -96,6 +96,7 @@ model User {
   
   // Usage limits
   maxActiveClients        Int       @default(40) // Maximum active clients allowed
+  userNumber              Int?      @unique // מספר משתמש ייחודי (1001+)
   
   // Business & Receipt Settings (הגדרות עסק וקבלות)
   businessType            BusinessType @default(NONE) // סוג עסק
@@ -145,6 +146,7 @@ model User {
   questionnaireAnalyses QuestionnaireAnalysis[]
   sessionAnalyses       SessionAnalysis[]
   monthlyUsages         MonthlyUsage[]
+  adminAuditLogs        AdminAuditLog[]       @relation("auditAdmin")
 }
 
 // ==================== AI Tiers ====================
@@ -1547,4 +1549,61 @@ model MonthlyUsage {
   
   @@unique([userId, month, year])
   @@index([userId, year, month])
+}
+
+// ==================== System Announcements ====================
+
+model SystemAnnouncement {
+  id          String    @id @default(cuid())
+  title       String
+  content     String    @db.Text
+  type        String    @default("info") // info, warning, success, update
+  isActive    Boolean   @default(true)
+  showBanner  Boolean   @default(true) // show as top banner on dashboard
+  expiresAt   DateTime?
+  createdAt   DateTime  @default(now())
+  updatedAt   DateTime  @updatedAt
+
+  dismissals  AnnouncementDismissal[]
+}
+
+model AnnouncementDismissal {
+  id              String   @id @default(cuid())
+  announcementId  String
+  userId          String
+  dismissedAt     DateTime @default(now())
+
+  announcement    SystemAnnouncement @relation(fields: [announcementId], references: [id], onDelete: Cascade)
+
+  @@unique([announcementId, userId])
+}
+
+// ==================== Admin Audit Log ====================
+
+model AdminAuditLog {
+  id          String   @id @default(cuid())
+  action      String   // e.g. "block_user", "grant_trial", "change_tier"
+  targetType  String   // e.g. "user", "announcement", "coupon"
+  targetId    String?
+  details     String?  @db.Text // JSON details
+  adminId     String
+  admin       User     @relation("auditAdmin", fields: [adminId], references: [id])
+  createdAt   DateTime @default(now())
+
+  @@index([adminId])
+  @@index([targetType, targetId])
+  @@index([createdAt])
+}
+
+// ==================== Feature Flags ====================
+
+model FeatureFlag {
+  id          String   @id @default(cuid())
+  key         String   @unique // e.g. "ai_session_prep", "email_threads"
+  name        String   // display name
+  description String?
+  isEnabled   Boolean  @default(true) // global on/off
+  tiers       String[] @default([]) // allowed tiers: ["ESSENTIAL", "PRO", "ENTERPRISE"]
+  createdAt   DateTime @default(now())
+  updatedAt   DateTime @updatedAt
 }

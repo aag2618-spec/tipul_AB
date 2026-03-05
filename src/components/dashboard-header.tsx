@@ -1,6 +1,6 @@
 "use client";
 
-import { useState, useEffect } from "react";
+import { useState, useEffect, useCallback } from "react";
 import { useRouter } from "next/navigation";
 import { signOut } from "next-auth/react";
 import { SidebarTrigger } from "@/components/ui/sidebar";
@@ -15,7 +15,7 @@ import {
 } from "@/components/ui/dropdown-menu";
 import { Avatar, AvatarFallback, AvatarImage } from "@/components/ui/avatar";
 import { Badge } from "@/components/ui/badge";
-import { Bell, LogOut, Settings, User, XCircle, Mail, Calendar, X, ListTodo } from "lucide-react";
+import { Bell, LogOut, Settings, User, XCircle, Mail, Calendar, X, ListTodo, Info, AlertTriangle, CheckCircle, Sparkles } from "lucide-react";
 import Link from "next/link";
 
 interface Notification {
@@ -26,6 +26,21 @@ interface Notification {
   read: boolean;
   createdAt: string;
 }
+
+interface SystemAnnouncement {
+  id: string;
+  title: string;
+  content: string;
+  type: "info" | "warning" | "success" | "update";
+  createdAt: string;
+}
+
+const ANNOUNCEMENT_STYLES: Record<string, { bg: string; border: string; text: string; icon: typeof Info }> = {
+  info: { bg: "bg-blue-500/10", border: "border-blue-500/30", text: "text-blue-600 dark:text-blue-400", icon: Info },
+  warning: { bg: "bg-amber-500/10", border: "border-amber-500/30", text: "text-amber-600 dark:text-amber-400", icon: AlertTriangle },
+  success: { bg: "bg-emerald-500/10", border: "border-emerald-500/30", text: "text-emerald-600 dark:text-emerald-400", icon: CheckCircle },
+  update: { bg: "bg-purple-500/10", border: "border-purple-500/30", text: "text-purple-600 dark:text-purple-400", icon: Sparkles },
+};
 
 interface DashboardHeaderProps {
   user: {
@@ -40,6 +55,7 @@ export function DashboardHeader({ user }: DashboardHeaderProps) {
   const router = useRouter();
   const [notifications, setNotifications] = useState<Notification[]>([]);
   const [unreadCount, setUnreadCount] = useState(0);
+  const [announcements, setAnnouncements] = useState<SystemAnnouncement[]>([]);
 
   const fetchNotifications = async () => {
     try {
@@ -54,15 +70,43 @@ export function DashboardHeader({ user }: DashboardHeaderProps) {
     }
   };
 
+  const fetchAnnouncements = useCallback(async () => {
+    try {
+      const response = await fetch("/api/announcements/active");
+      if (response.ok) {
+        const data = await response.json();
+        setAnnouncements(data.announcements || []);
+      }
+    } catch (error) {
+      console.error("Error fetching announcements:", error);
+    }
+  }, []);
+
+  const dismissAnnouncement = async (announcementId: string) => {
+    setAnnouncements((prev) => prev.filter((a) => a.id !== announcementId));
+    try {
+      await fetch("/api/announcements/dismiss", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ announcementId }),
+      });
+    } catch (error) {
+      console.error("Error dismissing announcement:", error);
+    }
+  };
+
   useEffect(() => {
     fetchNotifications();
+    fetchAnnouncements();
     
-    const interval = setInterval(() => {
-      fetchNotifications();
-    }, 30000);
+    const notifInterval = setInterval(fetchNotifications, 30000);
+    const announcementInterval = setInterval(fetchAnnouncements, 5 * 60 * 1000);
     
-    return () => clearInterval(interval);
-  }, []);
+    return () => {
+      clearInterval(notifInterval);
+      clearInterval(announcementInterval);
+    };
+  }, [fetchAnnouncements]);
 
   const markAsRead = async (id: string) => {
     try {
@@ -139,6 +183,7 @@ export function DashboardHeader({ user }: DashboardHeaderProps) {
   const totalBadge = unreadCount;
 
   return (
+    <>
     <header className="sticky top-0 z-50 flex h-16 items-center gap-4 border-b bg-background/95 backdrop-blur supports-[backdrop-filter]:bg-background/60 px-6">
       <SidebarTrigger className="-mr-2" />
       
@@ -270,6 +315,39 @@ export function DashboardHeader({ user }: DashboardHeaderProps) {
         </DropdownMenu>
       </div>
     </header>
+
+    {/* System Announcements Banner */}
+    {announcements.length > 0 && (
+      <div className="space-y-0">
+        {announcements.map((announcement) => {
+          const style = ANNOUNCEMENT_STYLES[announcement.type] || ANNOUNCEMENT_STYLES.info;
+          const AnnouncementIcon = style.icon;
+          return (
+            <div
+              key={announcement.id}
+              className={`flex items-center gap-3 px-6 py-2.5 ${style.bg} border-b ${style.border}`}
+            >
+              <AnnouncementIcon className={`h-4 w-4 flex-shrink-0 ${style.text}`} />
+              <div className="flex-1 min-w-0">
+                <span className={`text-sm font-medium ${style.text}`}>
+                  {announcement.title}
+                </span>
+                <span className="text-sm text-muted-foreground mr-2">
+                  {announcement.content}
+                </span>
+              </div>
+              <button
+                onClick={() => dismissAnnouncement(announcement.id)}
+                className="p-1 rounded-full hover:bg-black/10 dark:hover:bg-white/10 transition-colors flex-shrink-0"
+              >
+                <X className="h-3.5 w-3.5 text-muted-foreground" />
+              </button>
+            </div>
+          );
+        })}
+      </div>
+    )}
+    </>
   );
 }
 
