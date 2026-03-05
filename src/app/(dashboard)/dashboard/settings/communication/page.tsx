@@ -209,60 +209,7 @@ export default function CommunicationSettingsPage() {
           </CardContent>
         </Card>
 
-        {/* Cancellation Policy */}
-        <Card>
-          <CardHeader>
-            <div className="flex items-center gap-2">
-              <Shield className="h-5 w-5 text-primary" />
-              <CardTitle>מדיניות ביטולים</CardTitle>
-            </div>
-            <CardDescription>
-              הגדר את מדיניות ביטול התורים עבור המטופלים
-            </CardDescription>
-          </CardHeader>
-          <CardContent className="space-y-6">
-            <div className="flex items-center justify-between">
-              <div className="space-y-0.5">
-                <Label htmlFor="allowCancellation">אפשר למטופלים לבטל תורים</Label>
-                <p className="text-sm text-muted-foreground">
-                  מטופלים יוכלו לבטל תורים בהתאם למדיניות שהוגדרה
-                </p>
-              </div>
-              <Switch
-                id="allowCancellation"
-                checked={settings.allowClientCancellation}
-                onCheckedChange={(checked) =>
-                  setSettings({ ...settings, allowClientCancellation: checked })
-                }
-              />
-            </div>
-
-            <div className="space-y-2">
-              <Label htmlFor="minHours">זמן מינימלי לביטול (שעות)</Label>
-              <div className="flex items-center gap-2">
-                <Clock className="h-4 w-4 text-muted-foreground" />
-                <Input
-                  id="minHours"
-                  type="number"
-                  min={1}
-                  max={168}
-                  value={settings.minCancellationHours}
-                  onChange={(e) =>
-                    setSettings({
-                      ...settings,
-                      minCancellationHours: parseInt(e.target.value) || 24,
-                    })
-                  }
-                  className="w-24"
-                />
-                <span className="text-sm text-muted-foreground">שעות לפני הפגישה</span>
-              </div>
-              <p className="text-sm text-muted-foreground">
-                מטופלים לא יוכלו לבקש ביטול פחות מ-{settings.minCancellationHours} שעות לפני הפגישה
-              </p>
-            </div>
-          </CardContent>
-        </Card>
+        {/* מדיניות ביטולים - מוסתר לעת עתה (הביטולים מושבתים) */}
 
         {/* Debt Reminders */}
         <Card>
@@ -362,96 +309,73 @@ export default function CommunicationSettingsPage() {
               <CardTitle>קבלות תשלום אוטומטיות</CardTitle>
             </div>
             <CardDescription>
-              שלח מייל קבלה למטופל אחרי כל תשלום
+              שלח מייל קבלה אחרי כל תשלום
             </CardDescription>
           </CardHeader>
           <CardContent className="space-y-6">
-            <div className="flex items-center justify-between">
-              <div className="space-y-0.5">
-                <Label htmlFor="paymentReceipt">שלח קבלה אוטומטית במייל</Label>
-                <p className="text-sm text-muted-foreground">
-                  כאשר תרשום תשלום, המטופל יקבל מייל עם קבלה
-                </p>
+            <div className="bg-sky-50 border border-sky-200 rounded-lg p-4 dark:bg-sky-950/20 dark:border-sky-800">
+              <p className="text-sm text-sky-800 dark:text-sky-300">
+                <strong>💡 מה יקרה:</strong> כאשר תרשום תשלום במערכת (מזומן/אשראי/העברה), המערכת תשלח קבלה אוטומטית לנמענים שתבחר.
+              </p>
+            </div>
+
+            <div className="flex items-center justify-between p-3 bg-muted rounded-lg">
+              <div className="flex items-center gap-3">
+                <Mail className="h-4 w-4 text-muted-foreground" />
+                <div>
+                  <Label htmlFor="sendReceiptToClient" className="font-medium cursor-pointer">
+                    שלח קבלה למטופל
+                  </Label>
+                  <p className="text-xs text-muted-foreground">
+                    המטופל יקבל קבלה למייל שלו
+                  </p>
+                </div>
               </div>
               <Switch
-                id="paymentReceipt"
-                checked={settings.sendPaymentReceipt}
+                id="sendReceiptToClient"
+                checked={settings.sendReceiptToClient}
                 onCheckedChange={(checked) =>
-                  setSettings({ ...settings, sendPaymentReceipt: checked })
+                  setSettings({ ...settings, sendReceiptToClient: checked, sendPaymentReceipt: checked || settings.sendReceiptToTherapist })
                 }
               />
             </div>
 
-            {settings.sendPaymentReceipt && (
-              <div className="space-y-4">
-                <div className="bg-sky-50 border border-sky-200 rounded-lg p-4 dark:bg-sky-950/20 dark:border-sky-800">
-                  <p className="text-sm text-sky-800 dark:text-sky-300">
-                    <strong>💡 מה יקרה:</strong> כאשר תרשום תשלום במערכת (מזומן/אשראי/העברה), המערכת תשלח קבלה אוטומטית:
-                  </p>
-                </div>
-
-                {/* שליחה למטופל */}
-                <div className="flex items-center justify-between p-3 bg-muted rounded-lg">
-                  <div className="flex items-center gap-3">
-                    <Mail className="h-4 w-4 text-muted-foreground" />
-                    <div>
-                      <Label htmlFor="sendReceiptToClient" className="font-medium cursor-pointer">
-                        שלח קבלה למטופל
-                      </Label>
-                      <p className="text-xs text-muted-foreground">
-                        המטופל יקבל קבלה למייל שלו
-                      </p>
-                    </div>
-                  </div>
-                  <Switch
-                    id="sendReceiptToClient"
-                    checked={settings.sendReceiptToClient}
-                    onCheckedChange={(checked) =>
-                      setSettings({ ...settings, sendReceiptToClient: checked })
-                    }
-                  />
-                </div>
-
-                {/* עותק למטפל */}
-                <div className="flex items-center justify-between p-3 bg-muted rounded-lg">
-                  <div className="flex items-center gap-3">
-                    <Mail className="h-4 w-4 text-muted-foreground" />
-                    <div>
-                      <Label htmlFor="sendReceiptToTherapist" className="font-medium cursor-pointer">
-                        שלח עותק אלי (למטפל)
-                      </Label>
-                      <p className="text-xs text-muted-foreground">
-                        תקבל עותק של הקבלה למייל שלך
-                      </p>
-                    </div>
-                  </div>
-                  <Switch
-                    id="sendReceiptToTherapist"
-                    checked={settings.sendReceiptToTherapist}
-                    onCheckedChange={(checked) =>
-                      setSettings({ ...settings, sendReceiptToTherapist: checked })
-                    }
-                  />
-                </div>
-
-                {/* תבנית מותאמת אישית */}
-                <div className="space-y-2">
-                  <Label htmlFor="receiptEmailTemplate">תבנית מייל קבלה (אופציונלי)</Label>
-                  <Textarea
-                    id="receiptEmailTemplate"
-                    value={settings.receiptEmailTemplate || ''}
-                    onChange={(e) =>
-                      setSettings({ ...settings, receiptEmailTemplate: e.target.value })
-                    }
-                    placeholder="תודה רבה על התשלום!\n\nמצורפת קבלה על סך {סכום}.\n\nבברכה,\n{שם_מטפל}"
-                    rows={5}
-                  />
+            <div className="flex items-center justify-between p-3 bg-muted rounded-lg">
+              <div className="flex items-center gap-3">
+                <Mail className="h-4 w-4 text-muted-foreground" />
+                <div>
+                  <Label htmlFor="sendReceiptToTherapist" className="font-medium cursor-pointer">
+                    שלח עותק אלי (למטפל)
+                  </Label>
                   <p className="text-xs text-muted-foreground">
-                    משתנים זמינים: {'{שם_מטופל}'}, {'{סכום}'}, {'{תאריך}'}, {'{שם_מטפל}'}
+                    תקבל עותק של הקבלה למייל שלך
                   </p>
                 </div>
               </div>
-            )}
+              <Switch
+                id="sendReceiptToTherapist"
+                checked={settings.sendReceiptToTherapist}
+                onCheckedChange={(checked) =>
+                  setSettings({ ...settings, sendReceiptToTherapist: checked, sendPaymentReceipt: checked || settings.sendReceiptToClient })
+                }
+              />
+            </div>
+
+            <div className="space-y-2">
+              <Label htmlFor="receiptEmailTemplate">תבנית מייל קבלה (אופציונלי)</Label>
+              <Textarea
+                id="receiptEmailTemplate"
+                value={settings.receiptEmailTemplate || ''}
+                onChange={(e) =>
+                  setSettings({ ...settings, receiptEmailTemplate: e.target.value })
+                }
+                placeholder="תודה רבה על התשלום!\n\nמצורפת קבלה על סך {סכום}.\n\nבברכה,\n{שם_מטפל}"
+                rows={5}
+              />
+              <p className="text-xs text-muted-foreground">
+                משתנים זמינים: {'{שם_מטופל}'}, {'{סכום}'}, {'{תאריך}'}, {'{שם_מטפל}'}
+              </p>
+            </div>
           </CardContent>
         </Card>
 
@@ -622,24 +546,7 @@ export default function CommunicationSettingsPage() {
           </CardContent>
         </Card>
 
-        {/* Info Card */}
-        <Card className="bg-muted/50">
-          <CardHeader>
-            <div className="flex items-center gap-2">
-              <Bell className="h-5 w-5 text-primary" />
-              <CardTitle className="text-base">איך מערכת הביטולים עובדת?</CardTitle>
-            </div>
-          </CardHeader>
-          <CardContent>
-            <ul className="space-y-2 text-sm text-muted-foreground">
-              <li>• מטופלים לא יכולים לבטל תורים ישירות - רק לשלוח בקשה</li>
-              <li>• כאשר מטופל שולח בקשת ביטול, תקבל מייל והתראה במערכת</li>
-              <li>• את/ה מאשר/ת או דוחה את הבקשה</li>
-              <li>• המטופל מקבל מייל עם התוצאה</li>
-              <li>• כל התקשורת מתועדת בלוג המערכת</li>
-            </ul>
-          </CardContent>
-        </Card>
+        {/* כרטיס ביטולים הוסר - הביטולים מושבתים */}
       </div>
 
       <div className="flex justify-end">

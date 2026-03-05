@@ -114,9 +114,6 @@ export async function POST(request: NextRequest) {
 
     // Create user with trial status
     const user = await prisma.$transaction(async (tx) => {
-      const maxResult = await tx.user.aggregate({ _max: { userNumber: true } });
-      const nextUserNumber = (maxResult._max.userNumber ?? 1000) + 1;
-
       const newUser = await tx.user.create({
         data: {
           name,
@@ -127,7 +124,6 @@ export async function POST(request: NextRequest) {
           aiTier: TRIAL_AI_TIER as "ESSENTIAL" | "PRO" | "ENTERPRISE",
           subscriptionStatus: "TRIALING",
           trialEndsAt,
-          userNumber: nextUserNumber,
           emailVerificationToken: verificationToken,
           emailVerificationExpires: verificationExpires,
         },

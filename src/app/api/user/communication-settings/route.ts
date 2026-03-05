@@ -16,7 +16,6 @@ export async function GET() {
     });
 
     if (!settings) {
-      // Return default settings if none exist
       return NextResponse.json({
         settings: {
           sendConfirmationEmail: true,
@@ -30,6 +29,9 @@ export async function GET() {
           debtReminderDayOfMonth: 1,
           debtReminderMinAmount: 50,
           sendPaymentReceipt: false,
+          sendReceiptToClient: true,
+          sendReceiptToTherapist: false,
+          receiptEmailTemplate: null,
           paymentInstructions: null,
           paymentLink: null,
           emailSignature: null,
@@ -54,6 +56,9 @@ export async function GET() {
         debtReminderDayOfMonth: settings.debtReminderDayOfMonth,
         debtReminderMinAmount: Number(settings.debtReminderMinAmount),
         sendPaymentReceipt: settings.sendPaymentReceipt,
+        sendReceiptToClient: settings.sendReceiptToClient,
+        sendReceiptToTherapist: settings.sendReceiptToTherapist,
+        receiptEmailTemplate: settings.receiptEmailTemplate,
         paymentInstructions: settings.paymentInstructions,
         paymentLink: settings.paymentLink,
         emailSignature: settings.emailSignature,
@@ -93,6 +98,9 @@ export async function PUT(request: NextRequest) {
       debtReminderDayOfMonth,
       debtReminderMinAmount,
       sendPaymentReceipt,
+      sendReceiptToClient,
+      sendReceiptToTherapist,
+      receiptEmailTemplate,
       paymentInstructions,
       paymentLink,
       emailSignature,
@@ -128,6 +136,9 @@ export async function PUT(request: NextRequest) {
         debtReminderDayOfMonth: validDayOfMonth,
         debtReminderMinAmount: validMinAmount,
         sendPaymentReceipt: sendPaymentReceipt ?? false,
+        sendReceiptToClient: sendReceiptToClient !== undefined ? sendReceiptToClient : undefined,
+        sendReceiptToTherapist: sendReceiptToTherapist !== undefined ? sendReceiptToTherapist : undefined,
+        receiptEmailTemplate: receiptEmailTemplate !== undefined ? receiptEmailTemplate : undefined,
         paymentInstructions: paymentInstructions !== undefined ? paymentInstructions : undefined,
         paymentLink: paymentLink !== undefined ? paymentLink : undefined,
         emailSignature: emailSignature !== undefined ? emailSignature : undefined,
@@ -149,6 +160,9 @@ export async function PUT(request: NextRequest) {
         debtReminderDayOfMonth: validDayOfMonth,
         debtReminderMinAmount: validMinAmount,
         sendPaymentReceipt: sendPaymentReceipt ?? false,
+        sendReceiptToClient: sendReceiptToClient ?? true,
+        sendReceiptToTherapist: sendReceiptToTherapist ?? false,
+        receiptEmailTemplate: receiptEmailTemplate || null,
         paymentInstructions: paymentInstructions || null,
         paymentLink: paymentLink || null,
         emailSignature: emailSignature || null,
@@ -173,6 +187,9 @@ export async function PUT(request: NextRequest) {
         debtReminderDayOfMonth: settings.debtReminderDayOfMonth,
         debtReminderMinAmount: Number(settings.debtReminderMinAmount),
         sendPaymentReceipt: settings.sendPaymentReceipt,
+        sendReceiptToClient: settings.sendReceiptToClient,
+        sendReceiptToTherapist: settings.sendReceiptToTherapist,
+        receiptEmailTemplate: settings.receiptEmailTemplate,
         paymentInstructions: settings.paymentInstructions,
         paymentLink: settings.paymentLink,
         emailSignature: settings.emailSignature,

@@ -250,29 +250,6 @@ export default function IntegrationsPage() {
         </p>
       </div>
 
-      {/* Navigation */}
-      <div className="flex gap-2 flex-wrap">
-        <Button variant="outline" size="sm" asChild className="gap-2">
-          <Link href="/dashboard/settings">
-            פרופיל
-          </Link>
-        </Button>
-        <Button variant="outline" size="sm" asChild className="gap-2">
-          <Link href="/dashboard/settings/notifications">
-            התראות
-          </Link>
-        </Button>
-        <Button variant="outline" size="sm" asChild className="gap-2">
-          <Link href="/dashboard/settings/communication">
-            תקשורת
-          </Link>
-        </Button>
-        <Button variant="default" size="sm" className="gap-2">
-          <LinkIcon className="h-4 w-4" />
-          אינטגרציות
-        </Button>
-      </div>
-
       <div className="grid gap-6">
         {/* Google Calendar Integration */}
         <Card>
@@ -503,43 +480,7 @@ export default function IntegrationsPage() {
           </Card>
         </div>
 
-        {/* Email Integration Info */}
-        <Card>
-          <CardHeader>
-            <div className="flex items-center gap-3">
-              <div className="h-12 w-12 rounded-lg bg-purple-100 flex items-center justify-center">
-                <Mail className="h-6 w-6 text-purple-600" />
-              </div>
-              <div>
-                <CardTitle className="flex items-center gap-2">
-                  שליחת מיילים
-                  <Badge variant="default" className="bg-green-100 text-green-800">
-                    <CheckCircle className="h-3 w-3 ml-1" />
-                    מוגדר
-                  </Badge>
-                </CardTitle>
-                <CardDescription>
-                  מיילים אוטומטיים למטופלים
-                </CardDescription>
-              </div>
-            </div>
-          </CardHeader>
-          <CardContent>
-            <div className="text-sm text-muted-foreground">
-              <p>המערכת שולחת מיילים אוטומטיים עבור:</p>
-              <ul className="list-disc list-inside mt-2 space-y-1">
-                <li>אישור קביעת תור</li>
-                <li>תזכורות לפני פגישות (24 שעות / 2 שעות)</li>
-                <li>עדכונים ותזכורות</li>
-              </ul>
-              <p className="mt-3">
-                <Link href="/dashboard/settings/communication" className="text-primary hover:underline">
-                  ניהול הגדרות מיילים →
-                </Link>
-              </p>
-            </div>
-          </CardContent>
-        </Card>
+        {/* הגדרות מיילים נגישות דרך טאב "התראות ותקשורת" בהגדרות הכלליות */}
       </div>
 
       {/* Billing Provider Dialog */}

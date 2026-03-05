@@ -371,42 +371,7 @@ export function NotificationsTab() {
           </AccordionContent>
         </AccordionItem>
 
-        {/* Cancellation Policy */}
-        <AccordionItem value="cancellation" className="border rounded-lg px-4">
-          <AccordionTrigger className="hover:no-underline">
-            <div className="flex items-center gap-2">
-              <Shield className="h-5 w-5 text-primary" />
-              <span className="font-semibold">מדיניות ביטולים</span>
-            </div>
-          </AccordionTrigger>
-          <AccordionContent className="space-y-4 pb-4">
-            <div className="flex items-center justify-between">
-              <div className="space-y-0.5">
-                <Label>אפשר למטופלים לבטל תורים</Label>
-                <p className="text-sm text-muted-foreground">מטופלים יוכלו לבטל תורים בהתאם למדיניות שהוגדרה</p>
-              </div>
-              <Switch
-                checked={commSettings.allowClientCancellation}
-                onCheckedChange={(checked) => setCommSettings({ ...commSettings, allowClientCancellation: checked })}
-              />
-            </div>
-            <div className="space-y-2">
-              <Label>זמן מינימלי לביטול</Label>
-              <div className="flex items-center gap-2">
-                <Clock className="h-4 w-4 text-muted-foreground" />
-                <Input
-                  type="number"
-                  min={1}
-                  max={168}
-                  value={commSettings.minCancellationHours}
-                  onChange={(e) => setCommSettings({ ...commSettings, minCancellationHours: parseInt(e.target.value) || 24 })}
-                  className="w-24"
-                />
-                <span className="text-sm text-muted-foreground">שעות לפני</span>
-              </div>
-            </div>
-          </AccordionContent>
-        </AccordionItem>
+        {/* מדיניות ביטולים - מוסתר לעת עתה (הביטולים מושבתים) */}
 
         {/* Debt Reminders */}
         <AccordionItem value="debt" className="border rounded-lg px-4">
@@ -464,38 +429,33 @@ export function NotificationsTab() {
           <AccordionTrigger className="hover:no-underline">
             <div className="flex items-center gap-2">
               <FileText className="h-5 w-5 text-primary" />
-              <span className="font-semibold">קבלות תשלום</span>
+              <span className="font-semibold">קבלות תשלום אוטומטיות</span>
               <span className={`text-xs px-2 py-0.5 rounded-full ${commSettings.sendPaymentReceipt ? "bg-green-100 text-green-700" : "bg-gray-100 text-gray-500"}`}>
                 {commSettings.sendPaymentReceipt ? "פעיל" : "כבוי"}
               </span>
             </div>
           </AccordionTrigger>
           <AccordionContent className="space-y-4 pb-4">
-            <div className="flex items-center justify-between">
-              <Label>שלח קבלה אוטומטית</Label>
+            <div className="flex items-center justify-between p-3 bg-muted rounded-lg">
+              <div className="space-y-0.5">
+                <Label>שלח קבלה למטופל</Label>
+                <p className="text-xs text-muted-foreground">המטופל יקבל קבלה למייל שלו</p>
+              </div>
               <Switch
-                checked={commSettings.sendPaymentReceipt}
-                onCheckedChange={(checked) => setCommSettings({ ...commSettings, sendPaymentReceipt: checked })}
+                checked={commSettings.sendReceiptToClient}
+                onCheckedChange={(checked) => setCommSettings({ ...commSettings, sendReceiptToClient: checked, sendPaymentReceipt: checked || commSettings.sendReceiptToTherapist })}
               />
             </div>
-            {commSettings.sendPaymentReceipt && (
-              <>
-                <div className="flex items-center justify-between p-3 bg-muted rounded-lg">
-                  <Label>שלח קבלה למטופל</Label>
-                  <Switch
-                    checked={commSettings.sendReceiptToClient}
-                    onCheckedChange={(checked) => setCommSettings({ ...commSettings, sendReceiptToClient: checked })}
-                  />
-                </div>
-                <div className="flex items-center justify-between p-3 bg-muted rounded-lg">
-                  <Label>שלח עותק אלי</Label>
-                  <Switch
-                    checked={commSettings.sendReceiptToTherapist}
-                    onCheckedChange={(checked) => setCommSettings({ ...commSettings, sendReceiptToTherapist: checked })}
-                  />
-                </div>
-              </>
-            )}
+            <div className="flex items-center justify-between p-3 bg-muted rounded-lg">
+              <div className="space-y-0.5">
+                <Label>שלח עותק אלי (למטפל)</Label>
+                <p className="text-xs text-muted-foreground">תקבל עותק של הקבלה למייל שלך</p>
+              </div>
+              <Switch
+                checked={commSettings.sendReceiptToTherapist}
+                onCheckedChange={(checked) => setCommSettings({ ...commSettings, sendReceiptToTherapist: checked, sendPaymentReceipt: checked || commSettings.sendReceiptToClient })}
+              />
+            </div>
           </AccordionContent>
         </AccordionItem>
 

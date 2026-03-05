@@ -4,7 +4,6 @@ import Link from "next/link";
 import Image from "next/image";
 import { usePathname } from "next/navigation";
 import { useSession } from "next-auth/react";
-import { useState, useEffect } from "react";
 import {
   Sidebar,
   SidebarContent,
@@ -18,29 +17,21 @@ import {
   SidebarGroupContent,
 } from "@/components/ui/sidebar";
 import { Avatar, AvatarFallback, AvatarImage } from "@/components/ui/avatar";
-import { Badge } from "@/components/ui/badge";
 import { UserTierBadge } from "@/components/user-tier-badge";
 import {
   LayoutDashboard,
   Users,
   Calendar,
   FileText,
-  Mic,
   FolderOpen,
   BarChart3,
   Settings,
-  Bell,
   ListTodo,
-  Leaf,
   Shield,
-  XCircle,
   ClipboardList,
   FileSignature,
-  Building2,
-  MessageSquare,
   Mail,
   Brain,
-  Link2,
   CreditCard,
 } from "lucide-react";
 
@@ -83,16 +74,10 @@ const mainNavItems = [
 
 const clinicalItems = [
   {
-    title: "AI Session Prep",
+    title: "הכנה לפגישה AI",
     href: "/dashboard/ai-prep",
     icon: Brain,
   },
-  // הקלטות - מוסתר לעת עתה
-  // {
-  //   title: "הקלטות",
-  //   href: "/dashboard/recordings",
-  //   icon: Mic,
-  // },
   {
     title: "שאלונים",
     href: "/dashboard/questionnaires",
@@ -111,17 +96,10 @@ const clinicalItems = [
 ];
 
 const businessItems = [
-  // תשלומים הוסר - נגיש דרך המלבן בדשבורד
   {
     title: "היסטוריית תקשורת",
     href: "/dashboard/communications",
     icon: Mail,
-  },
-  {
-    title: "בקשות ביטול",
-    href: "/dashboard/cancellation-requests",
-    icon: XCircle,
-    hasBadge: true,
   },
   {
     title: "דוחות",
@@ -132,34 +110,14 @@ const businessItems = [
 
 const settingsItems = [
   {
-    title: "AI Assistant",
+    title: "הגדרות AI",
     href: "/dashboard/settings/ai-assistant",
     icon: Brain,
-  },
-  {
-    title: "התראות",
-    href: "/dashboard/settings/notifications",
-    icon: Bell,
-  },
-  {
-    title: "תזכורות SMS",
-    href: "/dashboard/settings/sms",
-    icon: MessageSquare,
-  },
-  {
-    title: "אינטגרציות",
-    href: "/dashboard/settings/integrations",
-    icon: Link2,
   },
   {
     title: "מנוי וחיוב",
     href: "/dashboard/settings/billing",
     icon: CreditCard,
-  },
-  {
-    title: "קופות חולים",
-    href: "/dashboard/settings/health-insurers",
-    icon: Building2,
   },
   {
     title: "הגדרות כלליות",
@@ -172,27 +130,6 @@ export function AppSidebar({ user }: AppSidebarProps) {
   const pathname = usePathname();
   const { data: session } = useSession();
   const isAdmin = session?.user?.role === "ADMIN" || session?.user?.role === "MANAGER";
-  const [pendingCancellations, setPendingCancellations] = useState(0);
-
-  // Fetch pending cancellation requests count
-  useEffect(() => {
-    const fetchPendingCount = async () => {
-      try {
-        const res = await fetch('/api/cancellation-requests?status=PENDING&countOnly=true');
-        if (res.ok) {
-          const data = await res.json();
-          setPendingCancellations(data.count || 0);
-        }
-      } catch (error) {
-        console.error('Error fetching pending cancellations:', error);
-      }
-    };
-
-    fetchPendingCount();
-    // Refresh every minute
-    const interval = setInterval(fetchPendingCount, 60000);
-    return () => clearInterval(interval);
-  }, []);
 
   const isActive = (href: string) => {
     if (href === "/dashboard") {
@@ -278,7 +215,7 @@ export function AppSidebar({ user }: AppSidebarProps) {
 
         {/* Business Management */}
         <SidebarGroup>
-          <SidebarGroupLabel>ניהול עסקי</SidebarGroupLabel>
+          <SidebarGroupLabel>מעקב ודוחות</SidebarGroupLabel>
           <SidebarGroupContent>
             <SidebarMenu>
               {businessItems.map((item) => (
@@ -288,16 +225,9 @@ export function AppSidebar({ user }: AppSidebarProps) {
                     isActive={isActive(item.href)}
                     tooltip={item.title}
                   >
-                    <Link href={item.href} className="flex items-center justify-between w-full">
-                      <div className="flex items-center gap-2">
-                        <item.icon className="h-4 w-4" />
-                        <span>{item.title}</span>
-                      </div>
-                      {item.hasBadge && pendingCancellations > 0 && (
-                        <Badge variant="destructive" className="h-5 min-w-[20px] px-1.5 text-xs">
-                          {pendingCancellations}
-                        </Badge>
-                      )}
+                    <Link href={item.href}>
+                      <item.icon className="h-4 w-4" />
+                      <span>{item.title}</span>
                     </Link>
                   </SidebarMenuButton>
                 </SidebarMenuItem>
