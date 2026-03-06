@@ -1,4 +1,4 @@
-"use client";
+﻿"use client";
 
 import Link from "next/link";
 import Image from "next/image";
@@ -113,6 +113,11 @@ const settingsItems = [
     title: "הגדרות AI",
     href: "/dashboard/settings/ai-assistant",
     icon: Brain,
+  },
+  {
+    title: "זימון עצמי",
+    href: "/dashboard/settings/booking",
+    icon: Calendar,
   },
   {
     title: "מנוי וחיוב",

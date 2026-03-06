@@ -136,6 +136,9 @@ model User {
   aiUsageStats          AIUsageStats?
   sessionPreps          SessionPrep[]
   
+  // Online Booking
+  bookingSettings       BookingSettings?
+  
   // AI Insights Relations
   aiInsights            AIInsight[]
   therapeuticGoals      TherapeuticGoal[]
@@ -347,6 +350,7 @@ enum SessionStatus {
   COMPLETED
   CANCELLED
   PENDING_CANCELLATION
+  PENDING_APPROVAL
   NO_SHOW
 }
 
@@ -553,6 +557,7 @@ enum NotificationType {
   EMAIL_SENT
   EMAIL_RECEIVED
   CANCELLATION_REQUEST
+  BOOKING_REQUEST
   CUSTOM
 }
 
@@ -1595,6 +1600,29 @@ model AdminAuditLog {
   @@index([createdAt])
 }
 
+
+// ==================== Online Booking ====================
+
+model BookingSettings {
+  id                String   @id @default(cuid())
+  enabled           Boolean  @default(false)
+  slug              String   @unique
+  workingHours      Json     @default("{}")
+  breaks            Json     @default("[]")
+  sessionDuration   Int      @default(50)
+  bufferBetween     Int      @default(10)
+  maxAdvanceDays    Int      @default(30)
+  minAdvanceHours   Int      @default(24)
+  requireApproval   Boolean  @default(true)
+  welcomeMessage    String?  @db.Text
+  confirmationMessage String? @db.Text
+  defaultSessionType SessionType @default(IN_PERSON)
+  defaultPrice      Decimal?  @db.Decimal(10, 2)
+  createdAt         DateTime @default(now())
+  updatedAt         DateTime @updatedAt
+  therapistId       String   @unique
+  therapist         User     @relation(fields: [therapistId], references: [id], onDelete: Cascade)
+}
 // ==================== Feature Flags ====================
 
 model FeatureFlag {
