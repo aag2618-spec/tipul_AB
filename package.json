@@ -1,10 +1,10 @@
-{
+﻿{
   "name": "tipul",
   "version": "0.1.0",
   "private": true,
   "scripts": {
     "dev": "next dev",
-    "build": "prisma db push --accept-data-loss && rm -rf .next && prisma generate && node --max-old-space-size=4096 ./node_modules/.bin/next build",
+    "build": "prisma db push --accept-data-loss; rm -rf .next && prisma generate && node --max-old-space-size=4096 ./node_modules/.bin/next build",
     "postinstall": "prisma generate",
     "start": "next start",
     "lint": "eslint",
