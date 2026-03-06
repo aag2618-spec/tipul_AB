@@ -12,16 +12,22 @@ import { PersonalTasksWidget } from "@/components/tasks/personal-tasks-widget";
 import { TodaySessionCard } from "@/components/dashboard/today-session-card";
 import { SubBoxLink } from "@/components/dashboard-stat-card";
 
-// Helper to convert UTC time to Israel time for display  
+function getIsraelOffsetHours(date: Date): number {
+  const dateStr = date.toISOString().split("T")[0];
+  const testDate = new Date(`${dateStr}T12:00:00Z`);
+  const israelHour = parseInt(
+    new Intl.DateTimeFormat("en-US", {
+      timeZone: "Asia/Jerusalem",
+      hour: "numeric",
+      hour12: false,
+    }).format(testDate)
+  );
+  return israelHour - 12;
+}
+
 function toIsraelTime(utcDate: Date): Date {
   const date = new Date(utcDate);
-  // Check if in DST (roughly late March to late October)
-  const month = date.getUTCMonth() + 1;
-  const isDST = month >= 3 && month <= 10;
-  const offsetHours = isDST ? 3 : 2;
-  
-  // Add Israel offset to UTC time
-  date.setUTCHours(date.getUTCHours() + offsetHours);
+  date.setUTCHours(date.getUTCHours() + getIsraelOffsetHours(date));
   return date;
 }
 
@@ -162,16 +168,13 @@ async function getDashboardStats(userId: string) {
 
   // Filter sessions to only show TODAY in Israel time
   const filteredTodaySessions = todaySessions.filter(session => {
-    // Convert session startTime to Israel time
     const sessionDate = new Date(session.startTime);
-    const month = sessionDate.getUTCMonth() + 1;
-    const isDST = month >= 3 && month <= 10;
-    const offsetMs = (isDST ? 3 : 2) * 60 * 60 * 1000;
-    
-    const sessionIsraelTime = new Date(sessionDate.getTime() + offsetMs);
-    const nowIsraelTime = new Date(now.getTime() + offsetMs);
-    
-    // Check if same day
+    const sessionOffsetMs = getIsraelOffsetHours(sessionDate) * 60 * 60 * 1000;
+    const nowOffsetMs = getIsraelOffsetHours(now) * 60 * 60 * 1000;
+
+    const sessionIsraelTime = new Date(sessionDate.getTime() + sessionOffsetMs);
+    const nowIsraelTime = new Date(now.getTime() + nowOffsetMs);
+
     return (
       sessionIsraelTime.getUTCFullYear() === nowIsraelTime.getUTCFullYear() &&
       sessionIsraelTime.getUTCMonth() === nowIsraelTime.getUTCMonth() &&

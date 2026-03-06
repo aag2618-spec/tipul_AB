@@ -61,23 +61,34 @@ interface TodaySessionCardProps {
   };
 }
 
-// Helper to get Israel time components from UTC
+// Helper to get Israel time components from UTC using Intl API for accurate DST
 function getIsraelTime(utcDate: Date) {
   const date = new Date(utcDate);
-  const month = date.getUTCMonth() + 1;
-  const isDST = month >= 3 && month <= 10;
-  const offsetMs = (isDST ? 3 : 2) * 60 * 60 * 1000;
-  
-  const israelTimeMs = date.getTime() + offsetMs;
-  const israelDate = new Date(israelTimeMs);
-  
+  const parts = new Intl.DateTimeFormat("en-US", {
+    timeZone: "Asia/Jerusalem",
+    year: "numeric",
+    month: "numeric",
+    day: "numeric",
+    hour: "numeric",
+    minute: "numeric",
+    hourCycle: "h23",
+  }).formatToParts(date);
+
+  const get = (type: string) => parseInt(parts.find(p => p.type === type)?.value || "0");
+
+  const dayOfWeekStr = new Intl.DateTimeFormat("en-US", {
+    timeZone: "Asia/Jerusalem",
+    weekday: "short",
+  }).format(date);
+  const dayMap: Record<string, number> = { Sun: 0, Mon: 1, Tue: 2, Wed: 3, Thu: 4, Fri: 5, Sat: 6 };
+
   return {
-    hours: israelDate.getUTCHours(),
-    minutes: israelDate.getUTCMinutes(),
-    date: israelDate.getUTCDate(),
-    month: israelDate.getUTCMonth() + 1,
-    year: israelDate.getUTCFullYear(),
-    dayOfWeek: israelDate.getUTCDay(),
+    hours: get("hour"),
+    minutes: get("minute"),
+    date: get("day"),
+    month: get("month"),
+    year: get("year"),
+    dayOfWeek: dayMap[dayOfWeekStr] ?? 0,
   };
 }
 

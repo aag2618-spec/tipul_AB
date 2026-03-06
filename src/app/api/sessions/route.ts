@@ -5,29 +5,24 @@ import prisma from "@/lib/prisma";
 
 // Helper function to parse datetime-local as Israel time
 function parseIsraelTime(datetimeLocal: string): Date {
-  // datetime-local format: "2024-01-15T08:00"
-  // The input represents Israel time (UTC+2 or UTC+3)
-  // We need to convert it to UTC for storage
-  
-  // Parse the datetime string and treat it as Israel time
-  const [datePart, timePart] = datetimeLocal.split('T');
-  const [year, month, day] = datePart.split('-').map(Number);
-  const [hours, minutes] = timePart.split(':').map(Number);
-  
-  // Create a date string with explicit Israel timezone
-  // Israel is UTC+2 in winter, UTC+3 in summer (DST)
-  // Using a more reliable approach - create date and adjust
-  const date = new Date(Date.UTC(year, month - 1, day, hours, minutes));
-  
-  // Israel Standard Time is UTC+2, Israel Daylight Time is UTC+3
-  // Check if date is in DST (roughly March-October)
-  const isDST = month >= 3 && month <= 10;
-  const offsetHours = isDST ? 3 : 2;
-  
-  // Subtract the Israel offset to get UTC time
-  date.setUTCHours(date.getUTCHours() - offsetHours);
-  
-  return date;
+  // If already an ISO string (with Z or offset), return as-is
+  if (datetimeLocal.endsWith("Z") || /[+-]\d{2}:\d{2}$/.test(datetimeLocal)) {
+    return new Date(datetimeLocal);
+  }
+
+  // datetime-local format: "2024-01-15T08:00" → interpret as Israel time
+  const [datePart, timePart] = datetimeLocal.split("T");
+  const testDate = new Date(`${datePart}T12:00:00Z`);
+  const israelHour = parseInt(
+    new Intl.DateTimeFormat("en-US", {
+      timeZone: "Asia/Jerusalem",
+      hour: "numeric",
+      hour12: false,
+    }).format(testDate)
+  );
+  const offsetHours = israelHour - 12;
+  const offsetStr = `+${String(offsetHours).padStart(2, "0")}:00`;
+  return new Date(`${datePart}T${timePart}:00${offsetStr}`);
 }
 
 export async function GET(request: NextRequest) {
