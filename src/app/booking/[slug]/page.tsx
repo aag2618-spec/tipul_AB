@@ -21,6 +21,13 @@ interface TherapistInfo {
 }
 
 const HEBREW_DAYS = ["ראשון", "שני", "שלישי", "רביעי", "חמישי", "שישי", "מוצ״ש"];
+
+function formatLocalDate(date: Date): string {
+  const y = date.getFullYear();
+  const m = String(date.getMonth() + 1).padStart(2, "0");
+  const d = String(date.getDate()).padStart(2, "0");
+  return `${y}-${m}-${d}`;
+}
 const HEBREW_MONTHS = [
   "ינואר", "פברואר", "מרץ", "אפריל", "מאי", "יוני",
   "יולי", "אוגוסט", "ספטמבר", "אוקטובר", "נובמבר", "דצמבר",
@@ -68,7 +75,7 @@ export default function BookingPage() {
   const fetchSlots = useCallback(async (date: Date) => {
     setSlotsLoading(true);
     try {
-      const dateStr = date.toISOString().split("T")[0];
+      const dateStr = formatLocalDate(date);
       const res = await fetch(`/api/booking/${slug}?date=${dateStr}`);
       const data = await res.json();
       setAvailableSlots(data.slots || []);
@@ -92,7 +99,7 @@ export default function BookingPage() {
     setSubmitting(true);
     setError(null);
     try {
-      const dateStr = selectedDate.toISOString().split("T")[0];
+      const dateStr = formatLocalDate(selectedDate);
       const res = await fetch(`/api/booking/${slug}`, {
         method: "POST",
         headers: { "Content-Type": "application/json" },
