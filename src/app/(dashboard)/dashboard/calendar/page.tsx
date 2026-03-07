@@ -199,6 +199,32 @@ export default function CalendarPage() {
 
   useEffect(() => {
     fetchData();
+
+    const interval = setInterval(() => {
+      fetch("/api/sessions").then(async (res) => {
+        if (res.ok) {
+          const data = await res.json();
+          const mapped = data.map((s: any) => ({ ...s, sessionNote: s.sessionNote?.content || null }));
+          setSessions(mapped);
+        }
+      }).catch(() => {});
+    }, 30_000);
+
+    const onFocus = () => {
+      fetch("/api/sessions").then(async (res) => {
+        if (res.ok) {
+          const data = await res.json();
+          const mapped = data.map((s: any) => ({ ...s, sessionNote: s.sessionNote?.content || null }));
+          setSessions(mapped);
+        }
+      }).catch(() => {});
+    };
+    window.addEventListener("focus", onFocus);
+
+    return () => {
+      clearInterval(interval);
+      window.removeEventListener("focus", onFocus);
+    };
   }, [fetchData]);
 
   // עדכן duration כשמשך הפגישה הסטנדרטי משתנה
