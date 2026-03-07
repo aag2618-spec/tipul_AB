@@ -303,7 +303,11 @@ export async function POST(
           foundClient = candidates.find(c => byName(c)) || null;
         }
 
-        // If name doesn't match any existing client → null → creates new client
+        // 3. Unique email match (handles typos in name - email is a reliable identifier)
+        if (!foundClient && clientEmail) {
+          const emailMatches = candidates.filter(c => c.email === clientEmail);
+          if (emailMatches.length === 1) foundClient = emailMatches[0];
+        }
       }
 
       if (!foundClient) {
