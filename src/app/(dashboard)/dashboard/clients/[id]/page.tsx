@@ -55,6 +55,7 @@ import { ClientApproachEditor } from "@/components/clients/client-approach-edito
 import { DocumentItem } from "@/components/clients/document-item";
 import { SendReminderButton } from "@/components/clients/send-reminder-button";
 import { SendPaymentHistoryButton } from "@/components/clients/send-payment-history-button";
+import { SendBookingLinkButton } from "@/components/clients/send-booking-link-button";
 import { TodaySessionCard } from "@/components/dashboard/today-session-card";
 import { SessionHistoryGrid } from "@/components/clients/session-history-grid";
 import { AddCreditDialog } from "@/components/clients/add-credit-dialog";
@@ -242,6 +243,9 @@ export default async function ClientPage({
               עריכה
             </Link>
           </Button>
+          {client.email && (
+            <SendBookingLinkButton clientId={client.id} clientName={client.name} />
+          )}
           <Button asChild>
             <Link href={`/dashboard/calendar?client=${client.id}`}>
               <Plus className="ml-2 h-4 w-4" />

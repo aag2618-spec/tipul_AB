@@ -8,7 +8,9 @@ import { Label } from "@/components/ui/label";
 import { Switch } from "@/components/ui/switch";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
 import { toast } from "sonner";
-import { Calendar, Clock, Link2, Copy, Check, Loader2, ExternalLink, Settings, Plus, Trash2, Coffee } from "lucide-react";
+import { Calendar, Clock, Link2, Copy, Check, Loader2, ExternalLink, Settings, Plus, Trash2, Coffee, Send, Search } from "lucide-react";
+import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogFooter } from "@/components/ui/dialog";
+import { Checkbox } from "@/components/ui/checkbox";
 
 interface WorkingDay { start: string; end: string; enabled: boolean; }
 
@@ -55,6 +57,12 @@ export default function BookingSettingsPage() {
   const [loading, setLoading] = useState(true);
   const [saving, setSaving] = useState(false);
   const [copied, setCopied] = useState(false);
+  const [sendDialogOpen, setSendDialogOpen] = useState(false);
+  const [allClients, setAllClients] = useState<Array<{ id: string; name: string; email: string | null }>>([]);
+  const [selectedClients, setSelectedClients] = useState<Set<string>>(new Set());
+  const [clientSearch, setClientSearch] = useState("");
+  const [customMessage, setCustomMessage] = useState("");
+  const [sending, setSending] = useState(false);
 
   useEffect(() => {
     async function load() {
@@ -105,6 +113,70 @@ export default function BookingSettingsPage() {
     setTimeout(() => setCopied(false), 2000);
   }
 
+  async function openSendDialog() {
+    try {
+      const res = await fetch("/api/clients?limit=500");
+      const data = await res.json();
+      const clients = (data.clients || data || []).map((c: { id: string; name: string; email?: string }) => ({
+        id: c.id,
+        name: c.name,
+        email: c.email || null,
+      }));
+      setAllClients(clients);
+      setSelectedClients(new Set());
+      setClientSearch("");
+      setCustomMessage("");
+      setSendDialogOpen(true);
+    } catch {
+      toast.error("שגיאה בטעינת רשימת מטופלים");
+    }
+  }
+
+  function toggleClient(id: string) {
+    setSelectedClients((prev) => {
+      const next = new Set(prev);
+      if (next.has(id)) next.delete(id);
+      else next.add(id);
+      return next;
+    });
+  }
+
+  function selectAll(filtered: Array<{ id: string }>) {
+    setSelectedClients((prev) => {
+      const next = new Set(prev);
+      const allSelected = filtered.every((c) => next.has(c.id));
+      if (allSelected) filtered.forEach((c) => next.delete(c.id));
+      else filtered.forEach((c) => next.add(c.id));
+      return next;
+    });
+  }
+
+  async function handleSendLinks() {
+    if (selectedClients.size === 0) return;
+    setSending(true);
+    try {
+      const res = await fetch("/api/user/booking-settings/send-link", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({
+          clientIds: Array.from(selectedClients),
+          customMessage: customMessage || undefined,
+        }),
+      });
+      const data = await res.json();
+      if (res.ok) {
+        toast.success(data.message);
+        setSendDialogOpen(false);
+      } else {
+        toast.error(data.error || "שגיאה בשליחה");
+      }
+    } catch {
+      toast.error("שגיאה בשליחה");
+    } finally {
+      setSending(false);
+    }
+  }
+
   function updateDay(day: string, field: keyof WorkingDay, value: string | boolean) {
     setSettings((prev) => ({ ...prev, workingHours: { ...prev.workingHours, [day]: { ...prev.workingHours[day], [field]: value } } }));
   }
@@ -136,6 +208,12 @@ export default function BookingSettingsPage() {
               <Button variant="outline" size="icon" onClick={copyLink}>{copied ? <Check className="h-4 w-4 text-green-600" /> : <Copy className="h-4 w-4" />}</Button>
               <Button variant="outline" size="icon" asChild><a href={bookingUrl} target="_blank" rel="noopener noreferrer"><ExternalLink className="h-4 w-4" /></a></Button>
             </div>
+          )}
+          {bookingUrl && (
+            <Button variant="outline" className="w-full" onClick={openSendDialog}>
+              <Send className="h-4 w-4 ml-2" />
+              שלח קישור זימון למטופלים
+            </Button>
           )}
           {!settings.slug && <p className="text-sm text-muted-foreground">שמור את ההגדרות כדי ליצור קישור זימון ייחודי</p>}
         </CardContent>
@@ -269,6 +347,81 @@ export default function BookingSettingsPage() {
         {saving ? <Loader2 className="h-4 w-4 animate-spin ml-2" /> : null}
         {saving ? "שומר..." : "שמירת הגדרות"}
       </Button>
+
+      <Dialog open={sendDialogOpen} onOpenChange={setSendDialogOpen}>
+        <DialogContent className="max-w-md max-h-[80vh] flex flex-col">
+          <DialogHeader>
+            <DialogTitle className="flex items-center gap-2"><Send className="h-5 w-5 text-primary" />שליחת קישור זימון</DialogTitle>
+          </DialogHeader>
+          <div className="space-y-3 flex-1 overflow-hidden flex flex-col">
+            <div className="relative">
+              <Search className="absolute right-3 top-1/2 -translate-y-1/2 h-4 w-4 text-muted-foreground" />
+              <Input
+                placeholder="חפש מטופל..."
+                value={clientSearch}
+                onChange={(e) => setClientSearch(e.target.value)}
+                className="pr-9"
+              />
+            </div>
+            {(() => {
+              const filtered = allClients.filter((c) =>
+                c.name.toLowerCase().includes(clientSearch.toLowerCase())
+              );
+              return (
+                <>
+                  <div className="flex items-center justify-between text-sm text-muted-foreground px-1">
+                    <button type="button" className="hover:text-primary" onClick={() => selectAll(filtered)}>
+                      {filtered.length > 0 && filtered.every((c) => selectedClients.has(c.id)) ? "בטל הכל" : "בחר הכל"}
+                    </button>
+                    <span>{selectedClients.size} נבחרו</span>
+                  </div>
+                  <div className="overflow-y-auto flex-1 max-h-[300px] space-y-1 border rounded-md p-2">
+                    {filtered.length === 0 ? (
+                      <p className="text-sm text-muted-foreground text-center py-4">לא נמצאו מטופלים</p>
+                    ) : (
+                      filtered.map((client) => (
+                        <label
+                          key={client.id}
+                          className="flex items-center gap-3 p-2 rounded-md hover:bg-muted/50 cursor-pointer"
+                        >
+                          <Checkbox
+                            checked={selectedClients.has(client.id)}
+                            onCheckedChange={() => toggleClient(client.id)}
+                          />
+                          <div className="flex-1 min-w-0">
+                            <p className="text-sm font-medium truncate">{client.name}</p>
+                            {client.email ? (
+                              <p className="text-xs text-muted-foreground truncate" dir="ltr">{client.email}</p>
+                            ) : (
+                              <p className="text-xs text-amber-500">ללא מייל</p>
+                            )}
+                          </div>
+                        </label>
+                      ))
+                    )}
+                  </div>
+                </>
+              );
+            })()}
+            <div className="space-y-2">
+              <Label>הודעה אישית (אופציונלי)</Label>
+              <textarea
+                value={customMessage}
+                onChange={(e) => setCustomMessage(e.target.value)}
+                placeholder="ניתן לקבוע תור בקלות דרך הקישור למטה..."
+                className="w-full min-h-[60px] rounded-md border border-input bg-background px-3 py-2 text-sm resize-none focus:outline-none focus:ring-2 focus:ring-ring"
+              />
+            </div>
+          </div>
+          <DialogFooter>
+            <Button variant="outline" onClick={() => setSendDialogOpen(false)}>ביטול</Button>
+            <Button onClick={handleSendLinks} disabled={sending || selectedClients.size === 0}>
+              {sending ? <Loader2 className="h-4 w-4 animate-spin ml-2" /> : <Send className="h-4 w-4 ml-2" />}
+              {sending ? "שולח..." : `שלח ל-${selectedClients.size} מטופלים`}
+            </Button>
+          </DialogFooter>
+        </DialogContent>
+      </Dialog>
     </div>
   );
 }

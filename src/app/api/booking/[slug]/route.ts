@@ -290,13 +290,19 @@ export async function POST(
           orderBy: { createdAt: "desc" },
         });
 
+        const nameNorm = clientName.trim().toLowerCase();
+        const byName = (c: { name: string }) => c.name.trim().toLowerCase() === nameNorm;
+
         if (clientEmail && clientPhone) {
-          foundClient = candidates.find(c => c.email === clientEmail && c.phone === clientPhone)
+          foundClient = candidates.find(c => c.email === clientEmail && c.phone === clientPhone && byName(c))
+            || candidates.find(c => c.email === clientEmail && c.phone === clientPhone)
+            || candidates.find(c => c.phone === clientPhone && byName(c))
+            || candidates.find(c => c.email === clientEmail && byName(c))
             || candidates.find(c => c.phone === clientPhone)
             || candidates.find(c => c.email === clientEmail)
             || null;
         } else {
-          foundClient = candidates[0] || null;
+          foundClient = candidates.find(c => byName(c)) || candidates[0] || null;
         }
       }
 
