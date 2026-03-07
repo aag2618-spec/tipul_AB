@@ -153,8 +153,9 @@ export async function GET(req: NextRequest) {
     }
 
     // 4. Check for high AI usage (over 80% of limit)
-    const currentMonth = now.getMonth() + 1;
-    const currentYear = now.getFullYear();
+    const israelDateParts = now.toLocaleDateString('en-CA', { timeZone: 'Asia/Jerusalem' }).split('-');
+    const currentYear = parseInt(israelDateParts[0]);
+    const currentMonth = parseInt(israelDateParts[1]);
 
     const highUsageUsers = await prisma.monthlyUsage.findMany({
       where: {

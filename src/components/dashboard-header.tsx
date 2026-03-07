@@ -170,12 +170,18 @@ export function DashboardHeader({ user }: DashboardHeaderProps) {
     }
   };
 
+  const extractDateFromContent = (content: string): string | null => {
+    // Try to match ISO date (yyyy-mm-dd) from content
+    const isoMatch = content.match(/(\d{4}-\d{2}-\d{2})/);
+    if (isoMatch) return isoMatch[1];
+    return null;
+  };
+
   const handleNotificationClick = (notification: Notification) => {
     markAsRead(notification.id);
-    if (notification.type === "BOOKING_REQUEST") {
-      router.push("/dashboard/calendar");
-    } else if (notification.type === "CANCELLATION_REQUEST") {
-      router.push("/dashboard/calendar");
+    if (notification.type === "BOOKING_REQUEST" || notification.type === "CANCELLATION_REQUEST") {
+      const dateParam = extractDateFromContent(notification.content);
+      router.push(`/dashboard/calendar${dateParam ? `?date=${dateParam}` : ""}`);
     } else if (notification.type === "PENDING_TASKS" || notification.type === "CUSTOM") {
       router.push("/dashboard#personal-tasks");
       setTimeout(() => {

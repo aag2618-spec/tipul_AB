@@ -146,8 +146,8 @@ export async function GET(request: NextRequest) {
   }
 
   try {
-    const today = new Date();
-    const dayOfMonth = today.getDate();
+    const israelDateStr = new Date().toLocaleDateString('en-CA', { timeZone: 'Asia/Jerusalem' });
+    const dayOfMonth = parseInt(israelDateStr.split('-')[2]);
 
     console.log(`[Debt Reminders Cron] Running for day ${dayOfMonth} of month`);
 

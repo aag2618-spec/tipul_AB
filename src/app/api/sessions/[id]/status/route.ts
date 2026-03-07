@@ -95,8 +95,12 @@ export async function PATCH(
       const dateStr = formatDateHebrew(therapySession.startTime);
       const timeStr = formatTimeHebrew(therapySession.startTime);
 
+      let emailSubject = "";
+      let emailHtml = "";
+
       if (status === "SCHEDULED") {
-        const html = `
+        emailSubject = `התור שלך אושר - ${therapistName}`;
+        emailHtml = `
           <div dir="rtl" style="font-family: Arial, sans-serif; max-width: 600px; margin: 0 auto; padding: 20px; line-height: 1.6;">
             <h2 style="color: #059669;">התור שלך אושר!</h2>
             <p>שלום ${clientName},</p>
@@ -110,17 +114,9 @@ export async function PATCH(
             <p style="color: #666; font-size: 14px; margin-top: 30px;">בברכה,<br/>${therapistName}</p>
             <p style="color: #999; font-size: 12px; margin-top: 20px;">מופעל על ידי MyTipul</p>
           </div>`;
-        try {
-          await sendEmail({
-            to: therapySession.client.email,
-            subject: `התור שלך אושר - ${therapistName}`,
-            html,
-          });
-        } catch (e) {
-          console.error("Failed to send approval email:", e);
-        }
       } else if (status === "CANCELLED") {
-        const html = `
+        emailSubject = `עדכון לגבי בקשת הזימון - ${therapistName}`;
+        emailHtml = `
           <div dir="rtl" style="font-family: Arial, sans-serif; max-width: 600px; margin: 0 auto; padding: 20px; line-height: 1.6;">
             <h2 style="color: #dc2626;">הבקשה לא אושרה</h2>
             <p>שלום ${clientName},</p>
@@ -134,15 +130,53 @@ export async function PATCH(
             <p style="color: #666; font-size: 14px; margin-top: 30px;">בברכה,<br/>${therapistName}</p>
             <p style="color: #999; font-size: 12px; margin-top: 20px;">מופעל על ידי MyTipul</p>
           </div>`;
+      }
+
+      if (emailSubject) {
         try {
-          await sendEmail({
+          const result = await sendEmail({
             to: therapySession.client.email,
-            subject: `עדכון לגבי בקשת הזימון - ${therapistName}`,
-            html,
+            subject: emailSubject,
+            html: emailHtml,
+          });
+          await prisma.communicationLog.create({
+            data: {
+              type: status === "SCHEDULED" ? "BOOKING_APPROVED" : "BOOKING_REJECTED",
+              channel: "EMAIL",
+              recipient: therapySession.client.email,
+              subject: emailSubject,
+              content: emailHtml,
+              status: result.success ? "SENT" : "FAILED",
+              errorMessage: result.success ? null : String(result.error),
+              sentAt: result.success ? new Date() : null,
+              sessionId,
+              clientId: therapySession.clientId,
+              userId: session.user.id,
+            },
           });
         } catch (e) {
-          console.error("Failed to send rejection email:", e);
+          console.error("Failed to send booking status email:", e);
         }
+      }
+    }
+
+    if (currentStatus === "PENDING_APPROVAL") {
+      try {
+        const sessionDate = therapySession.startTime.toISOString().split("T")[0];
+        await prisma.notification.updateMany({
+          where: {
+            userId: session.user.id,
+            type: "BOOKING_REQUEST",
+            status: { in: ["PENDING", "SENT"] },
+            AND: [
+              { content: { contains: therapySession.client?.name || "" } },
+              { content: { contains: `[${sessionDate}]` } },
+            ],
+          },
+          data: { status: "READ", readAt: new Date() },
+        });
+      } catch (e) {
+        console.error("Failed to clean up notifications:", e);
       }
     }
 

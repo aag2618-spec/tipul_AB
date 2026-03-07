@@ -8,7 +8,7 @@ import { Label } from "@/components/ui/label";
 import { Switch } from "@/components/ui/switch";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
 import { toast } from "sonner";
-import { Calendar, Clock, Link2, Copy, Check, Loader2, ExternalLink, Settings } from "lucide-react";
+import { Calendar, Clock, Link2, Copy, Check, Loader2, ExternalLink, Settings, Plus, Trash2, Coffee } from "lucide-react";
 
 interface WorkingDay { start: string; end: string; enabled: boolean; }
 
@@ -62,7 +62,23 @@ export default function BookingSettingsPage() {
         const res = await fetch("/api/user/booking-settings");
         const data = await res.json();
         if (data && data.id) {
-          setSettings({ ...DEFAULT_SETTINGS, ...data, welcomeMessage: data.welcomeMessage || "", confirmationMessage: data.confirmationMessage || "", defaultPrice: data.defaultPrice ? Number(data.defaultPrice) : null });
+          const mergedHours = { ...DEFAULT_SETTINGS.workingHours };
+          if (data.workingHours && typeof data.workingHours === "object") {
+            for (const day of Object.keys(mergedHours)) {
+              if (data.workingHours[day]) {
+                mergedHours[day] = { ...mergedHours[day], ...data.workingHours[day] };
+              }
+            }
+          }
+          setSettings({
+            ...DEFAULT_SETTINGS,
+            ...data,
+            workingHours: mergedHours,
+            breaks: Array.isArray(data.breaks) ? data.breaks : [],
+            welcomeMessage: data.welcomeMessage || "",
+            confirmationMessage: data.confirmationMessage || "",
+            defaultPrice: data.defaultPrice ? Number(data.defaultPrice) : null,
+          });
         }
       } catch { toast.error("שגיאה בטעינת ההגדרות"); }
       finally { setLoading(false); }
@@ -150,6 +166,66 @@ export default function BookingSettingsPage() {
               </div>
             );
           })}
+        </CardContent>
+      </Card>
+
+      <Card>
+        <CardHeader>
+          <CardTitle className="flex items-center gap-2"><Coffee className="h-5 w-5 text-primary" />הפסקות</CardTitle>
+          <CardDescription>הגדר שעות הפסקה שבהן לא ניתן לקבוע תורים</CardDescription>
+        </CardHeader>
+        <CardContent className="space-y-3">
+          {settings.breaks.length > 0 ? (
+            settings.breaks.map((brk, idx) => (
+              <div key={idx} className="flex items-center gap-2">
+                <Input
+                  type="time"
+                  value={brk.start}
+                  onChange={(e) => {
+                    const updated = [...settings.breaks];
+                    updated[idx] = { ...updated[idx], start: e.target.value };
+                    setSettings((p) => ({ ...p, breaks: updated }));
+                  }}
+                  className="w-28"
+                  dir="ltr"
+                />
+                <span className="text-muted-foreground">עד</span>
+                <Input
+                  type="time"
+                  value={brk.end}
+                  onChange={(e) => {
+                    const updated = [...settings.breaks];
+                    updated[idx] = { ...updated[idx], end: e.target.value };
+                    setSettings((p) => ({ ...p, breaks: updated }));
+                  }}
+                  className="w-28"
+                  dir="ltr"
+                />
+                <Button
+                  variant="ghost"
+                  size="icon"
+                  onClick={() => {
+                    setSettings((p) => ({ ...p, breaks: p.breaks.filter((_, i) => i !== idx) }));
+                  }}
+                  className="text-destructive hover:text-destructive"
+                >
+                  <Trash2 className="h-4 w-4" />
+                </Button>
+              </div>
+            ))
+          ) : (
+            <p className="text-sm text-muted-foreground">אין הפסקות מוגדרות</p>
+          )}
+          <Button
+            variant="outline"
+            size="sm"
+            onClick={() => {
+              setSettings((p) => ({ ...p, breaks: [...p.breaks, { start: "12:00", end: "13:00" }] }));
+            }}
+          >
+            <Plus className="h-4 w-4 ml-2" />
+            הוסף הפסקה
+          </Button>
         </CardContent>
       </Card>
 

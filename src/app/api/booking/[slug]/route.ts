@@ -43,6 +43,23 @@ function escapeHtml(str: string): string {
 const DATE_RE = /^\d{4}-\d{2}-\d{2}$/;
 const TIME_RE = /^\d{1,2}:\d{2}$/;
 
+// Simple in-memory rate limiter per IP (max 5 bookings per minute)
+const rateLimitMap = new Map<string, { count: number; resetAt: number }>();
+const RATE_LIMIT_WINDOW_MS = 60_000;
+const RATE_LIMIT_MAX = 5;
+
+function checkRateLimit(ip: string): boolean {
+  const now = Date.now();
+  const entry = rateLimitMap.get(ip);
+  if (!entry || now > entry.resetAt) {
+    rateLimitMap.set(ip, { count: 1, resetAt: now + RATE_LIMIT_WINDOW_MS });
+    return true;
+  }
+  if (entry.count >= RATE_LIMIT_MAX) return false;
+  entry.count++;
+  return true;
+}
+
 export async function GET(
   request: NextRequest,
   { params }: { params: Promise<{ slug: string }> }
@@ -145,12 +162,30 @@ export async function POST(
   { params }: { params: Promise<{ slug: string }> }
 ) {
   const { slug } = await params;
+
+  const ip = request.headers.get("x-forwarded-for")?.split(",")[0]?.trim()
+    || request.headers.get("x-real-ip")
+    || "unknown";
+  if (!checkRateLimit(ip)) {
+    return NextResponse.json(
+      { error: "יותר מדי בקשות. נסה שוב בעוד דקה." },
+      { status: 429 }
+    );
+  }
+
   const body = await request.json();
   const { date, time, clientName, clientPhone, clientEmail, notes } = body;
 
   if (!date || !time || !clientName) {
     return NextResponse.json(
       { error: "חסרים שדות חובה: תאריך, שעה ושם" },
+      { status: 400 }
+    );
+  }
+
+  if (!clientEmail && !clientPhone) {
+    return NextResponse.json(
+      { error: "חובה להזין מייל או טלפון" },
       { status: 400 }
     );
   }
@@ -305,12 +340,13 @@ export async function POST(
       userId: settings.therapistId,
       type: "BOOKING_REQUEST",
       title: "בקשת זימון חדשה",
-      content: `${escapeHtml(clientName)} ביקש/ה לקבוע פגישה ב-${formattedDate} בשעה ${time}`,
+      content: `${escapeHtml(clientName)} ביקש/ה לקבוע פגישה ב-${formattedDate} בשעה ${time} [${date}]`,
       status: "PENDING",
     },
   });
 
-  const appUrl = process.env.NEXTAUTH_URL || "https://tipul-mh2t.onrender.com";
+  const appUrl = process.env.NEXTAUTH_URL || "";
+  if (!process.env.NEXTAUTH_URL) console.warn("NEXTAUTH_URL is not set – email links will be relative");
   const safeName = escapeHtml(clientName);
   const safeNotes = notes ? escapeHtml(String(notes).slice(0, 1000)) : "";
   const safePhone = clientPhone ? escapeHtml(clientPhone) : "";

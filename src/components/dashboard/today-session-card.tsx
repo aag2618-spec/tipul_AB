@@ -349,9 +349,56 @@ export function TodaySessionCard({ session }: TodaySessionCardProps) {
               ⚠ לא עודכן · עדכן
             </Badge>
           ) : session.status === "PENDING_APPROVAL" ? (
-            <span className="text-xs font-medium text-amber-600">
-              📋 ממתין לאישור
-            </span>
+            <div className="flex items-center gap-1.5">
+              <Badge
+                variant="outline"
+                className="bg-green-50 text-green-700 border-green-300 cursor-pointer hover:bg-green-100 text-[10px] px-2 py-0.5"
+                onClick={async () => {
+                  try {
+                    const res = await fetch(`/api/sessions/${session.id}/status`, {
+                      method: "PATCH",
+                      headers: { "Content-Type": "application/json" },
+                      body: JSON.stringify({ status: "SCHEDULED" }),
+                    });
+                    if (res.ok) {
+                      toast.success("הפגישה אושרה");
+                      router.refresh();
+                      window.location.reload();
+                    } else {
+                      toast.error("שגיאה באישור הפגישה");
+                    }
+                  } catch {
+                    toast.error("שגיאה באישור הפגישה");
+                  }
+                }}
+              >
+                ✅ אשר
+              </Badge>
+              <Badge
+                variant="outline"
+                className="bg-red-50 text-red-600 border-red-300 cursor-pointer hover:bg-red-100 text-[10px] px-2 py-0.5"
+                onClick={async () => {
+                  try {
+                    const res = await fetch(`/api/sessions/${session.id}/status`, {
+                      method: "PATCH",
+                      headers: { "Content-Type": "application/json" },
+                      body: JSON.stringify({ status: "CANCELLED" }),
+                    });
+                    if (res.ok) {
+                      toast.success("הפגישה נדחתה");
+                      router.refresh();
+                      window.location.reload();
+                    } else {
+                      toast.error("שגיאה בדחיית הפגישה");
+                    }
+                  } catch {
+                    toast.error("שגיאה בדחיית הפגישה");
+                  }
+                }}
+              >
+                ❌ דחה
+              </Badge>
+            </div>
           ) : session.status !== "SCHEDULED" ? (
             <span className={`text-xs font-medium ${
               session.status === "COMPLETED" ? "text-emerald-600" :

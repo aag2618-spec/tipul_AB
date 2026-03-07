@@ -55,6 +55,7 @@ interface CalendarEvent {
   end: Date;
   backgroundColor: string;
   borderColor: string;
+  classNames?: string[];
   extendedProps: {
     clientId: string;
     status: string;
@@ -103,7 +104,10 @@ const DAYS_OF_WEEK = [
 export default function CalendarPage() {
   const searchParams = useSearchParams();
   const viewParam = searchParams.get('view');
+  const dateParam = searchParams.get('date');
+  const highlightParam = searchParams.get('highlight');
   const initialCalendarView = viewParam === 'month' ? 'dayGridMonth' : 'timeGridWeek';
+  const initialDate = dateParam && /^\d{4}-\d{2}-\d{2}$/.test(dateParam) ? dateParam : undefined;
   
   const [sessions, setSessions] = useState<Session[]>([]);
   const [clients, setClients] = useState<Client[]>([]);
@@ -236,6 +240,10 @@ export default function CalendarPage() {
         : session.status === "SCHEDULED" && new Date(session.endTime) < new Date()
         ? "#0EA5E9"
         : "#059669",
+    classNames: [
+      ...(session.status === "PENDING_APPROVAL" ? ["fc-event-pending-pulse"] : []),
+      ...(highlightParam === session.id ? ["fc-event-highlighted"] : []),
+    ],
     extendedProps: {
       clientId: session.client?.id || "",
       status: session.status,
@@ -616,6 +624,7 @@ export default function CalendarPage() {
           <FullCalendar
             plugins={[dayGridPlugin, timeGridPlugin, interactionPlugin]}
             initialView={initialCalendarView}
+            initialDate={initialDate}
             locale="he"
             direction="rtl"
             headerToolbar={{
@@ -628,6 +637,11 @@ export default function CalendarPage() {
               month: "חודש",
               week: "שבוע",
               day: "יום",
+            }}
+            buttonHints={{
+              prev: "תקופה קודמת",
+              next: "תקופה הבאה",
+              today: "עבור להיום",
             }}
             slotMinTime="00:00:00"
             slotMaxTime="24:00:00"

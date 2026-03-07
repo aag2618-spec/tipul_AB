@@ -54,6 +54,20 @@ export async function PUT(request: NextRequest) {
   if (defaultPrice !== undefined && (typeof defaultPrice !== "number" || defaultPrice < 0)) {
     return NextResponse.json({ error: "מחיר חייב להיות חיובי" }, { status: 400 });
   }
+  if (breaks !== undefined) {
+    if (!Array.isArray(breaks)) {
+      return NextResponse.json({ error: "הפסקות חייבות להיות מערך" }, { status: 400 });
+    }
+    const timeRe = /^\d{2}:\d{2}$/;
+    for (const brk of breaks) {
+      if (!brk || typeof brk !== "object" || !timeRe.test(brk.start) || !timeRe.test(brk.end)) {
+        return NextResponse.json({ error: "כל הפסקה חייבת לכלול שעת התחלה וסיום תקינות (HH:MM)" }, { status: 400 });
+      }
+      if (brk.start >= brk.end) {
+        return NextResponse.json({ error: "שעת סיום ההפסקה חייבת להיות אחרי שעת ההתחלה" }, { status: 400 });
+      }
+    }
+  }
   const validSessionTypes = ["IN_PERSON", "ONLINE", "PHONE"];
   if (defaultSessionType !== undefined && !validSessionTypes.includes(defaultSessionType)) {
     return NextResponse.json({ error: "סוג פגישה לא תקין" }, { status: 400 });

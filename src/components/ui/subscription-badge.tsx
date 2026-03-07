@@ -199,7 +199,7 @@ export function SubscriptionCard({
         {expiresAt && (
           <p className="text-xs text-muted-foreground">
             {status === "ACTIVE" ? "מתחדש: " : "פג: "}
-            {new Date(expiresAt).toLocaleDateString("he-IL")}
+            {new Date(expiresAt).toLocaleDateString("he-IL", { timeZone: "Asia/Jerusalem" })}
           </p>
         )}
       </div>

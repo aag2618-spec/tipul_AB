@@ -223,13 +223,36 @@ export async function DELETE(
 
     const existingSession = await prisma.therapySession.findFirst({
       where: { id, therapistId: session.user.id },
+      include: { client: { select: { name: true } } },
     });
 
     if (!existingSession) {
       return NextResponse.json({ message: "פגישה לא נמצאה" }, { status: 404 });
     }
 
+    const sessionDate = existingSession.startTime.toISOString().split("T")[0];
+    const clientName = existingSession.client?.name || "";
+
     await prisma.therapySession.delete({ where: { id } });
+
+    if (clientName) {
+      try {
+        await prisma.notification.updateMany({
+          where: {
+            userId: session.user.id,
+            type: { in: ["BOOKING_REQUEST", "CANCELLATION_REQUEST", "SESSION_REMINDER"] },
+            status: { in: ["PENDING", "SENT"] },
+            AND: [
+              { content: { contains: clientName } },
+              { content: { contains: `[${sessionDate}]` } },
+            ],
+          },
+          data: { status: "DISMISSED" },
+        });
+      } catch (e) {
+        console.error("Failed to clean up notifications:", e);
+      }
+    }
 
     return NextResponse.json({ message: "הפגישה נמחקה בהצלחה" });
   } catch (error) {

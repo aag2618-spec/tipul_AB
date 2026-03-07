@@ -527,7 +527,8 @@ async function sendGracePeriodEmail(
   const price = PLAN_PRICES[user.aiTier] || 0;
   
   // חישוב תאריך חסימה
-  const blockDate = new Date();
+  const israelNowStr = new Date().toLocaleDateString('en-CA', { timeZone: 'Asia/Jerusalem' });
+  const blockDate = new Date(`${israelNowStr}T12:00:00Z`);
   blockDate.setDate(blockDate.getDate() + daysLeft);
   const blockDateStr = blockDate.toLocaleDateString("he-IL", { timeZone: 'Asia/Jerusalem' });
 

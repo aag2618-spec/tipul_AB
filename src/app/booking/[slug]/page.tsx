@@ -202,7 +202,7 @@ export default function BookingPage() {
 
         {step === "time" && selectedDate && (
           <Card>
-            <CardHeader><CardTitle className="flex items-center gap-2 text-lg"><Clock className="h-5 w-5 text-primary" />בחירת שעה - {HEBREW_DAYS[selectedDate.getDay()]} {selectedDate.toLocaleDateString("he-IL")}</CardTitle></CardHeader>
+            <CardHeader><CardTitle className="flex items-center gap-2 text-lg"><Clock className="h-5 w-5 text-primary" />בחירת שעה - {HEBREW_DAYS[selectedDate.getDay()]} {selectedDate.toLocaleDateString("he-IL", { timeZone: "Asia/Jerusalem" })}</CardTitle></CardHeader>
             <CardContent>
               {slotsLoading ? (<div className="flex justify-center py-8"><Loader2 className="h-6 w-6 animate-spin text-primary" /></div>
               ) : availableSlots.length === 0 ? (
@@ -227,17 +227,18 @@ export default function BookingPage() {
             <CardHeader><CardTitle className="flex items-center gap-2 text-lg"><User className="h-5 w-5 text-primary" />פרטים אישיים</CardTitle></CardHeader>
             <CardContent className="space-y-4">
               <div className="bg-muted/50 rounded-lg p-3 text-sm flex items-center gap-3">
-                <Calendar className="h-4 w-4 text-primary shrink-0" /><span>{HEBREW_DAYS[selectedDate.getDay()]} {selectedDate.toLocaleDateString("he-IL")}</span>
+                <Calendar className="h-4 w-4 text-primary shrink-0" /><span>{HEBREW_DAYS[selectedDate.getDay()]} {selectedDate.toLocaleDateString("he-IL", { timeZone: "Asia/Jerusalem" })}</span>
                 <Clock className="h-4 w-4 text-primary shrink-0 mr-2" /><span>{selectedTime}</span>
               </div>
               {error && (<div className="bg-destructive/10 text-destructive rounded-lg p-3 text-sm flex items-center gap-2"><AlertCircle className="h-4 w-4 shrink-0" />{error}</div>)}
               <div className="space-y-2"><Label htmlFor="name" className="flex items-center gap-1"><User className="h-3.5 w-3.5" /> שם מלא *</Label><Input id="name" value={clientName} onChange={(e) => setClientName(e.target.value)} placeholder="השם שלך" required /></div>
-              <div className="space-y-2"><Label htmlFor="phone" className="flex items-center gap-1"><Phone className="h-3.5 w-3.5" /> טלפון</Label><Input id="phone" type="tel" value={clientPhone} onChange={(e) => setClientPhone(e.target.value)} placeholder="050-1234567" dir="ltr" /></div>
-              <div className="space-y-2"><Label htmlFor="email" className="flex items-center gap-1"><Mail className="h-3.5 w-3.5" /> אימייל</Label><Input id="email" type="email" value={clientEmail} onChange={(e) => setClientEmail(e.target.value)} placeholder="your@email.com" dir="ltr" /></div>
+              <div className="space-y-2"><Label htmlFor="phone" className="flex items-center gap-1"><Phone className="h-3.5 w-3.5" /> טלפון {!clientEmail && "*"}</Label><Input id="phone" type="tel" value={clientPhone} onChange={(e) => setClientPhone(e.target.value)} placeholder="050-1234567" dir="ltr" /></div>
+              <div className="space-y-2"><Label htmlFor="email" className="flex items-center gap-1"><Mail className="h-3.5 w-3.5" /> אימייל {!clientPhone && "*"}</Label><Input id="email" type="email" value={clientEmail} onChange={(e) => setClientEmail(e.target.value)} placeholder="your@email.com" dir="ltr" /></div>
+              {!clientEmail && !clientPhone && <p className="text-xs text-amber-600">* חובה להזין מייל או טלפון</p>}
               <div className="space-y-2"><Label htmlFor="notes">הערות (אופציונלי)</Label><textarea id="notes" value={clientNotes} onChange={(e) => setClientNotes(e.target.value)} placeholder="האם יש משהו שתרצה/י לשתף מראש?" className="w-full min-h-[80px] rounded-md border border-input bg-background px-3 py-2 text-sm resize-none focus:outline-none focus:ring-2 focus:ring-ring" /></div>
               <div className="flex gap-2 pt-2">
                 <Button variant="outline" onClick={() => setStep("time")} className="flex-1">חזרה</Button>
-                <Button onClick={handleSubmit} disabled={!clientName || submitting} className="flex-1">{submitting ? <Loader2 className="h-4 w-4 animate-spin" /> : "קביעת תור"}</Button>
+                <Button onClick={handleSubmit} disabled={!clientName || (!clientEmail && !clientPhone) || submitting} className="flex-1">{submitting ? <Loader2 className="h-4 w-4 animate-spin" /> : "קביעת תור"}</Button>
               </div>
             </CardContent>
           </Card>

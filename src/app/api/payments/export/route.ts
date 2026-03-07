@@ -158,7 +158,7 @@ export async function GET(request: NextRequest) {
     const finalCsv = csvContent + summaryRow + paidSummaryRow;
 
     // יצירת שם קובץ
-    const fileName = `payments_${new Date().toISOString().split("T")[0]}.csv`;
+    const fileName = `payments_${new Date().toLocaleDateString('en-CA', { timeZone: 'Asia/Jerusalem' })}.csv`;
 
     return new NextResponse(finalCsv, {
       headers: {

@@ -1,5 +1,15 @@
-import { format } from "date-fns";
-import { he } from "date-fns/locale";
+function formatIsraelDateTime(date: Date, includeWeekday = false): string {
+  const options: Intl.DateTimeFormatOptions = {
+    timeZone: "Asia/Jerusalem",
+    day: "numeric",
+    month: "long",
+    year: "numeric",
+    hour: "2-digit",
+    minute: "2-digit",
+  };
+  if (includeWeekday) options.weekday = "long";
+  return new Intl.DateTimeFormat("he-IL", options).format(date);
+}
 
 interface PaymentReceiptEmailProps {
   clientName: string;
@@ -47,9 +57,7 @@ export function createPaymentReceiptEmail({
 
   // Use custom signature or default
   const signature = customization?.emailSignature || therapistName;
-  const paymentDate = format(new Date(payment.paidAt), "d בMMMM yyyy • HH:mm", {
-    locale: he,
-  });
+  const paymentDate = formatIsraelDateTime(new Date(payment.paidAt));
 
   const methodLabel =
     payment.method === "CASH"
@@ -67,11 +75,7 @@ export function createPaymentReceiptEmail({
 
   let sessionHtml = "";
   if (payment.session) {
-    const sessionDate = format(
-      new Date(payment.session.startTime),
-      "EEEE, d בMMMM yyyy • HH:mm",
-      { locale: he }
-    );
+    const sessionDate = formatIsraelDateTime(new Date(payment.session.startTime), true);
 
     const typeLabel =
       payment.session.type === "ONLINE"

@@ -53,7 +53,7 @@ export async function POST() {
 
       // Get pending payments
       const debtThreshold = user.notificationSettings[0]?.debtThresholdDays || 30;
-      const thresholdDate = new Date();
+      const thresholdDate = new Date(today);
       thresholdDate.setDate(thresholdDate.getDate() - debtThreshold);
 
       const pendingPayments = await prisma.payment.findMany({

@@ -120,9 +120,8 @@ export async function GET(request: NextRequest) {
         notificationsCreated++;
       }
 
-      // Payment reminders
       const debtThreshold = settings.debtThresholdDays || 30;
-      const thresholdDate = new Date();
+      const thresholdDate = new Date(today);
       thresholdDate.setDate(thresholdDate.getDate() - debtThreshold);
 
       const pendingPayments = await prisma.payment.findMany({
@@ -152,7 +151,8 @@ export async function GET(request: NextRequest) {
 
       // Monthly payment collection reminder (e.g., 25th of month)
       const monthlyReminderDay = (settings as { monthlyReminderDay?: number }).monthlyReminderDay;
-      if (monthlyReminderDay && now.getDate() === monthlyReminderDay) {
+      const israelDay = parseInt(israelDateStr.split('-')[2]);
+      if (monthlyReminderDay && israelDay === monthlyReminderDay) {
         const allPendingPayments = await prisma.payment.findMany({
           where: {
             client: { therapistId: user.id },

@@ -355,7 +355,7 @@ export default function QuestionnairesPage() {
                           {response.status === "ANALYZED" && "נותח"}
                         </Badge>
                         <span className="text-sm text-muted-foreground">
-                          {new Date(response.createdAt).toLocaleDateString("he-IL")}
+                          {new Date(response.createdAt).toLocaleDateString("he-IL", { timeZone: "Asia/Jerusalem" })}
                         </span>
                       </div>
                     </div>
