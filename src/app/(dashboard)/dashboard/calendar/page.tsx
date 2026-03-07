@@ -632,6 +632,7 @@ export default function CalendarPage() {
       <Card>
         <CardContent className="p-4">
           <FullCalendar
+            key={`${initialDate || "today"}-${scrollTime}-${highlightParam || ""}`}
             plugins={[dayGridPlugin, timeGridPlugin, interactionPlugin]}
             initialView={initialCalendarView}
             initialDate={initialDate}
