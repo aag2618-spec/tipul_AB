@@ -293,33 +293,17 @@ export async function POST(
         const nameNorm = clientName.trim().toLowerCase();
         const byName = (c: { name: string }) => c.name.trim().toLowerCase() === nameNorm;
 
-        if (clientEmail && clientPhone) {
-          // 1. Best: exact match on email + phone + name
-          foundClient = candidates.find(c => c.email === clientEmail && c.phone === clientPhone && byName(c)) || null;
+        // 1. Exact match: name + email + phone
+        foundClient = candidates.find(c =>
+          byName(c) && c.email === clientEmail && c.phone === clientPhone
+        ) || null;
 
-          // 2. Name matches any candidate
-          if (!foundClient) foundClient = candidates.find(c => byName(c)) || null;
-
-          // 3. Email+phone match, but only if exactly one candidate
-          if (!foundClient) {
-            const epMatches = candidates.filter(c => c.email === clientEmail && c.phone === clientPhone);
-            if (epMatches.length === 1) foundClient = epMatches[0];
-          }
-
-          // 4. Single phone-only or email-only match
-          if (!foundClient) {
-            const phoneMatches = candidates.filter(c => c.phone === clientPhone);
-            if (phoneMatches.length === 1) foundClient = phoneMatches[0];
-          }
-          if (!foundClient) {
-            const emailMatches = candidates.filter(c => c.email === clientEmail);
-            if (emailMatches.length === 1) foundClient = emailMatches[0];
-          }
-
-          // If multiple candidates share the same contact info and none match by name → null → creates new client
-        } else {
-          foundClient = candidates.find(c => byName(c)) || (candidates.length === 1 ? candidates[0] : null);
+        // 2. Name match among candidates (regardless of contact info)
+        if (!foundClient) {
+          foundClient = candidates.find(c => byName(c)) || null;
         }
+
+        // If name doesn't match any existing client → null → creates new client
       }
 
       if (!foundClient) {
