@@ -1,7 +1,7 @@
 "use client";
 
 import { useEffect, useState, useCallback } from "react";
-import { useSearchParams } from "next/navigation";
+import { useSearchParams, useRouter } from "next/navigation";
 import dynamic from "next/dynamic";
 import { Button } from "@/components/ui/button";
 import { Card, CardContent } from "@/components/ui/card";
@@ -102,6 +102,7 @@ const DAYS_OF_WEEK = [
 ];
 
 export default function CalendarPage() {
+  const router = useRouter();
   const searchParams = useSearchParams();
   const viewParam = searchParams.get('view');
   const dateParam = searchParams.get('date');
@@ -1448,7 +1449,7 @@ export default function CalendarPage() {
                       <Button
                         onClick={() => {
                           setIsSessionDialogOpen(false);
-                          window.location.href = `/dashboard/clients/${selectedSession.client?.id}`;
+                          router.push(`/dashboard/clients/${selectedSession.client?.id}`);
                         }}
                         className="w-full gap-2"
                       >
@@ -1458,7 +1459,7 @@ export default function CalendarPage() {
                       <Button
                         onClick={() => {
                           setIsSessionDialogOpen(false);
-                          window.location.href = `/dashboard/sessions/${selectedSession.id}`;
+                          router.push(`/dashboard/sessions/${selectedSession.id}`);
                         }}
                         className="w-full gap-2"
                         variant="outline"
@@ -1516,7 +1517,7 @@ export default function CalendarPage() {
                       <Button
                         onClick={() => {
                           setIsSessionDialogOpen(false);
-                          window.location.href = `/dashboard/clients/${selectedSession.client?.id}`;
+                          router.push(`/dashboard/clients/${selectedSession.client?.id}`);
                         }}
                         className="w-full gap-2"
                       >
@@ -1526,7 +1527,7 @@ export default function CalendarPage() {
                       <Button
                         onClick={() => {
                           setIsSessionDialogOpen(false);
-                          window.location.href = `/dashboard/sessions/${selectedSession.id}`;
+                          router.push(`/dashboard/sessions/${selectedSession.id}`);
                         }}
                         className="w-full gap-2"
                         variant="outline"

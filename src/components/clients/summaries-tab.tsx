@@ -1,6 +1,7 @@
 "use client";
 
 import { useState } from "react";
+import { useRouter } from "next/navigation";
 import Link from "next/link";
 import { Button } from "@/components/ui/button";
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
@@ -37,6 +38,7 @@ interface SummariesTabProps {
 }
 
 export function SummariesTab({ clientId, sessions }: SummariesTabProps) {
+  const router = useRouter();
   const [searchQuery, setSearchQuery] = useState("");
   const [dateFilter, setDateFilter] = useState("all");
 
@@ -105,7 +107,7 @@ export function SummariesTab({ clientId, sessions }: SummariesTabProps) {
         headers: { "Content-Type": "application/json" },
         body: JSON.stringify({ skipSummary: true }),
       });
-      window.location.reload();
+      router.refresh();
     } catch (error) {
       console.error("Error hiding session:", error);
     }
@@ -121,7 +123,7 @@ export function SummariesTab({ clientId, sessions }: SummariesTabProps) {
       await fetch(`/api/sessions/${sessionId}/summary`, {
         method: "DELETE",
       });
-      window.location.reload();
+      router.refresh();
     } catch (error) {
       console.error("Error deleting summary:", error);
     }

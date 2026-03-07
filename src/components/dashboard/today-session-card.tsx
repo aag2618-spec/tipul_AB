@@ -285,10 +285,9 @@ export function TodaySessionCard({ session }: TodaySessionCardProps) {
         if (clientId) {
           setTimeout(() => {
             if (updatedSession.payment?.id) {
-              window.location.href = `/dashboard/payments/${updatedSession.payment.id}/mark-paid`;
+              router.push(`/dashboard/payments/${updatedSession.payment.id}/mark-paid`);
             } else {
-              // Fallback to full payment page if no payment created
-              window.location.href = `/dashboard/payments/pay/${clientId}`;
+              router.push(`/dashboard/payments/pay/${clientId}`);
             }
           }, 500);
         } else {
@@ -363,7 +362,6 @@ export function TodaySessionCard({ session }: TodaySessionCardProps) {
                     if (res.ok) {
                       toast.success("הפגישה אושרה");
                       router.refresh();
-                      window.location.reload();
                     } else {
                       toast.error("שגיאה באישור הפגישה");
                     }
@@ -387,7 +385,6 @@ export function TodaySessionCard({ session }: TodaySessionCardProps) {
                     if (res.ok) {
                       toast.success("הפגישה נדחתה");
                       router.refresh();
-                      window.location.reload();
                     } else {
                       toast.error("שגיאה בדחיית הפגישה");
                     }

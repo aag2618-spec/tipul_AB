@@ -1,6 +1,7 @@
 "use client";
 
 import { useState } from "react";
+import { useRouter } from "next/navigation";
 import { Button } from "@/components/ui/button";
 import {
   Dialog,
@@ -30,6 +31,7 @@ export function PayDebtButton({
   creditBalance,
   unpaidPayments,
 }: PayDebtButtonProps) {
+  const router = useRouter();
   const [isOpen, setIsOpen] = useState(false);
 
   return (
@@ -55,7 +57,7 @@ export function PayDebtButton({
               unpaidPayments={unpaidPayments}
               onPaymentComplete={() => {
                 setIsOpen(false);
-                window.location.reload();
+                router.refresh();
               }}
             />
           </div>
