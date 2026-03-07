@@ -228,7 +228,30 @@ export default function CalendarPage() {
     };
   }, [fetchData]);
 
-  // עדכן duration כשמשך הפגישה הסטנדרטי משתנה
+  useEffect(() => {
+    if (!timeParam && !highlightParam) return;
+
+    const timer = setTimeout(() => {
+      if (highlightParam) {
+        const el = document.querySelector('.fc-event-highlighted');
+        if (el) {
+          el.scrollIntoView({ behavior: 'smooth', block: 'center' });
+          return;
+        }
+      }
+      if (timeParam) {
+        const [h, m] = timeParam.split(':').map(Number);
+        const timeStr = `${String(h).padStart(2, '0')}:${String(m || 0).padStart(2, '0')}:00`;
+        const slot = document.querySelector(`[data-time="${timeStr}"]`);
+        if (slot) {
+          slot.scrollIntoView({ behavior: 'smooth', block: 'center' });
+        }
+      }
+    }, 600);
+
+    return () => clearTimeout(timer);
+  }, [timeParam, highlightParam]);
+
   useEffect(() => {
     setRecurringFormData(prev => ({ ...prev, duration: defaultSessionDuration }));
   }, [defaultSessionDuration]);
