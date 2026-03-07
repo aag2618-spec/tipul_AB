@@ -2,10 +2,6 @@ import { NextRequest, NextResponse } from "next/server";
 import { prisma } from "@/lib/prisma";
 import { sendEmail } from "@/lib/resend";
 
-/**
- * Converts an Israel local date+time string pair to a UTC Date object.
- * Automatically handles IST (UTC+2) vs IDT (UTC+3) via the Intl API.
- */
 function toIsraelDate(dateStr: string, timeStr: string = "00:00"): Date {
   const testDate = new Date(`${dateStr}T12:00:00Z`);
   const israelHour = parseInt(
@@ -34,6 +30,18 @@ function formatIsraelDate(dateStr: string): string {
     day: "numeric",
   });
 }
+
+function escapeHtml(str: string): string {
+  return str
+    .replace(/&/g, "&amp;")
+    .replace(/</g, "&lt;")
+    .replace(/>/g, "&gt;")
+    .replace(/"/g, "&quot;")
+    .replace(/'/g, "&#039;");
+}
+
+const DATE_RE = /^\d{4}-\d{2}-\d{2}$/;
+const TIME_RE = /^\d{1,2}:\d{2}$/;
 
 export async function GET(
   request: NextRequest,
@@ -75,7 +83,7 @@ export async function GET(
   };
 
   if (!dateStr) {
-    const workingHours = settings.workingHours as Record<string, { start: string; end: string; enabled: boolean }>;
+    const workingHours = (settings.workingHours ?? {}) as Record<string, { start: string; end: string; enabled: boolean }>;
     const enabledDays = Object.entries(workingHours)
       .filter(([, v]) => v.enabled)
       .map(([k]) => parseInt(k));
@@ -87,8 +95,12 @@ export async function GET(
     });
   }
 
+  if (!DATE_RE.test(dateStr) || isNaN(new Date(`${dateStr}T12:00:00Z`).getTime())) {
+    return NextResponse.json({ error: "תאריך לא תקין" }, { status: 400 });
+  }
+
   const dayOfWeek = getIsraelDayOfWeek(dateStr);
-  const workingHours = settings.workingHours as Record<string, { start: string; end: string; enabled: boolean }>;
+  const workingHours = (settings.workingHours ?? {}) as Record<string, { start: string; end: string; enabled: boolean }>;
   const dayConfig = workingHours[dayOfWeek.toString()];
 
   if (!dayConfig || !dayConfig.enabled) {
@@ -143,6 +155,17 @@ export async function POST(
     );
   }
 
+  if (!DATE_RE.test(date) || isNaN(new Date(`${date}T12:00:00Z`).getTime())) {
+    return NextResponse.json({ error: "תאריך לא תקין" }, { status: 400 });
+  }
+  if (!TIME_RE.test(time)) {
+    return NextResponse.json({ error: "שעה לא תקינה" }, { status: 400 });
+  }
+  const [tH, tM] = time.split(":").map(Number);
+  if (tH < 0 || tH > 23 || tM < 0 || tM > 59) {
+    return NextResponse.json({ error: "שעה לא תקינה" }, { status: 400 });
+  }
+
   const settings = await prisma.bookingSettings.findUnique({
     where: { slug },
     include: {
@@ -161,9 +184,17 @@ export async function POST(
   const endTime = new Date(startTime.getTime() + settings.sessionDuration * 60 * 1000);
   const now = new Date();
 
+  // maxAdvanceDays validation
+  const maxDate = new Date(now.getTime() + settings.maxAdvanceDays * 24 * 60 * 60 * 1000);
+  if (startTime > maxDate) {
+    return NextResponse.json(
+      { error: `ניתן לקבוע תור עד ${settings.maxAdvanceDays} ימים מראש` },
+      { status: 400 }
+    );
+  }
+
   const bookingDay = getIsraelDayOfWeek(date);
-  const [bookingH, bookingM] = time.split(":").map(Number);
-  const bookingMinutes = bookingH * 60 + bookingM;
+  const bookingMinutes = tH * 60 + tM;
 
   if (bookingDay === 5 && bookingMinutes >= 17 * 60 + 30) {
     return NextResponse.json(
@@ -193,65 +224,80 @@ export async function POST(
     );
   }
 
-  const conflicting = await prisma.therapySession.findFirst({
-    where: {
-      therapistId: settings.therapistId,
-      status: { notIn: ["CANCELLED"] },
-      OR: [
-        { startTime: { lt: endTime }, endTime: { gt: startTime } },
-      ],
-    },
-  });
+  // Use transaction to prevent race condition (double booking)
+  let therapySession;
+  try {
+    const result = await prisma.$transaction(async (tx) => {
+      const conflicting = await tx.therapySession.findFirst({
+        where: {
+          therapistId: settings.therapistId,
+          status: { notIn: ["CANCELLED"] },
+          startTime: { lt: endTime },
+          endTime: { gt: startTime },
+        },
+      });
 
-  if (conflicting) {
-    return NextResponse.json(
-      { error: "השעה המבוקשת אינה פנויה יותר" },
-      { status: 409 }
-    );
-  }
+      if (conflicting) {
+        throw new Error("SLOT_TAKEN");
+      }
 
-  let client = null;
-  if (clientEmail || clientPhone) {
-    client = await prisma.client.findFirst({
-      where: {
-        therapistId: settings.therapistId,
-        OR: [
-          ...(clientEmail ? [{ email: clientEmail }] : []),
-          ...(clientPhone ? [{ phone: clientPhone }] : []),
-        ],
-      },
+      let foundClient = null;
+      if (clientEmail || clientPhone) {
+        foundClient = await tx.client.findFirst({
+          where: {
+            therapistId: settings.therapistId,
+            OR: [
+              ...(clientEmail ? [{ email: clientEmail }] : []),
+              ...(clientPhone ? [{ phone: clientPhone }] : []),
+            ],
+          },
+        });
+      }
+
+      if (!foundClient) {
+        foundClient = await tx.client.create({
+          data: {
+            name: clientName,
+            phone: clientPhone || null,
+            email: clientEmail || null,
+            therapistId: settings.therapistId,
+            status: "WAITING",
+            defaultSessionPrice: settings.defaultPrice,
+          },
+        });
+      }
+
+      const sessionStatus = settings.requireApproval ? "PENDING_APPROVAL" : "SCHEDULED";
+      const price = settings.defaultPrice || foundClient.defaultSessionPrice || 0;
+
+      const session = await tx.therapySession.create({
+        data: {
+          therapistId: settings.therapistId,
+          clientId: foundClient.id,
+          startTime,
+          endTime,
+          status: sessionStatus,
+          type: settings.defaultSessionType,
+          price,
+          notes: notes ? String(notes).slice(0, 1000) : null,
+        },
+      });
+
+      return { session, client: foundClient, sessionStatus };
     });
-  }
 
-  if (!client) {
-    client = await prisma.client.create({
-      data: {
-        name: clientName,
-        phone: clientPhone || null,
-        email: clientEmail || null,
-        therapistId: settings.therapistId,
-        status: "WAITING",
-        defaultSessionPrice: settings.defaultPrice,
-      },
-    });
+    therapySession = result.session;
+  } catch (e) {
+    if (e instanceof Error && e.message === "SLOT_TAKEN") {
+      return NextResponse.json(
+        { error: "השעה המבוקשת אינה פנויה יותר" },
+        { status: 409 }
+      );
+    }
+    throw e;
   }
 
   const sessionStatus = settings.requireApproval ? "PENDING_APPROVAL" : "SCHEDULED";
-  const price = settings.defaultPrice || client.defaultSessionPrice || 0;
-
-  const therapySession = await prisma.therapySession.create({
-    data: {
-      therapistId: settings.therapistId,
-      clientId: client.id,
-      startTime,
-      endTime,
-      status: sessionStatus,
-      type: settings.defaultSessionType,
-      price,
-      notes: notes || null,
-    },
-  });
-
   const formattedDate = formatIsraelDate(date);
 
   await prisma.notification.create({
@@ -259,27 +305,31 @@ export async function POST(
       userId: settings.therapistId,
       type: "BOOKING_REQUEST",
       title: "בקשת זימון חדשה",
-      content: `${clientName} ביקש/ה לקבוע פגישה ב-${formattedDate} בשעה ${time}`,
+      content: `${escapeHtml(clientName)} ביקש/ה לקבוע פגישה ב-${formattedDate} בשעה ${time}`,
       status: "PENDING",
     },
   });
 
   const appUrl = process.env.NEXTAUTH_URL || "https://tipul-mh2t.onrender.com";
+  const safeName = escapeHtml(clientName);
+  const safeNotes = notes ? escapeHtml(String(notes).slice(0, 1000)) : "";
+  const safePhone = clientPhone ? escapeHtml(clientPhone) : "";
+  const safeEmail = clientEmail ? escapeHtml(clientEmail) : "";
 
   if (clientEmail) {
     const isPending = sessionStatus === "PENDING_APPROVAL";
     const clientEmailHtml = `
       <div dir="rtl" style="font-family: Arial, sans-serif; max-width: 600px; margin: 0 auto; padding: 20px; line-height: 1.6;">
-        <h2 style="color: #0f766e;">שלום ${clientName},</h2>
+        <h2 style="color: #0f766e;">שלום ${safeName},</h2>
         <p>${isPending ? "בקשת הזימון שלך התקבלה וממתינה לאישור המטפל/ת." : "התור שלך אושר בהצלחה!"}</p>
         <div style="background: #f0fdfa; padding: 20px; border-radius: 8px; margin: 20px 0; border-right: 4px solid #0f766e;">
-          <p style="margin: 8px 0;"><strong>📅 תאריך:</strong> ${formattedDate}</p>
-          <p style="margin: 8px 0;"><strong>🕐 שעה:</strong> ${time}</p>
-          <p style="margin: 8px 0;"><strong>👤 מטפל/ת:</strong> ${settings.therapist.name}</p>
-          <p style="margin: 8px 0;"><strong>📋 סטטוס:</strong> ${isPending ? "ממתין לאישור" : "מאושר"}</p>
+          <p style="margin: 8px 0;"><strong>תאריך:</strong> ${formattedDate}</p>
+          <p style="margin: 8px 0;"><strong>שעה:</strong> ${time}</p>
+          <p style="margin: 8px 0;"><strong>מטפל/ת:</strong> ${escapeHtml(settings.therapist.name || "")}</p>
+          <p style="margin: 8px 0;"><strong>סטטוס:</strong> ${isPending ? "ממתין לאישור" : "מאושר"}</p>
         </div>
         ${isPending ? "<p>תקבל/י עדכון ברגע שהמטפל/ת יאשר/ו את התור.</p>" : "<p>לביטול או שינוי תור, נא ליצור קשר לפחות 24 שעות מראש.</p>"}
-        <p style="color: #666; font-size: 14px; margin-top: 30px;">בברכה,<br/>${settings.therapist.name}</p>
+        <p style="color: #666; font-size: 14px; margin-top: 30px;">בברכה,<br/>${escapeHtml(settings.therapist.name || "")}</p>
         <p style="color: #999; font-size: 12px; margin-top: 20px;">מופעל על ידי MyTipul</p>
       </div>`;
     try {
@@ -299,16 +349,16 @@ export async function POST(
     const therapistEmailHtml = `
       <div dir="rtl" style="font-family: Arial, sans-serif; max-width: 600px; margin: 0 auto; padding: 20px; line-height: 1.6;">
         <h2 style="color: #0f766e;">בקשת זימון חדשה</h2>
-        <p>${clientName} ביקש/ה לקבוע תור דרך דף הזימון העצמי:</p>
+        <p>${safeName} ביקש/ה לקבוע תור דרך דף הזימון העצמי:</p>
         <div style="background: #fffbeb; padding: 20px; border-radius: 8px; margin: 20px 0; border-right: 4px solid #f59e0b;">
-          <p style="margin: 8px 0;"><strong>👤 שם:</strong> ${clientName}</p>
-          <p style="margin: 8px 0;"><strong>📅 תאריך:</strong> ${formattedDate}</p>
-          <p style="margin: 8px 0;"><strong>🕐 שעה:</strong> ${time}</p>
-          ${clientPhone ? `<p style="margin: 8px 0;"><strong>📱 טלפון:</strong> ${clientPhone}</p>` : ""}
-          ${clientEmail ? `<p style="margin: 8px 0;"><strong>📧 מייל:</strong> ${clientEmail}</p>` : ""}
-          ${notes ? `<p style="margin: 8px 0;"><strong>📝 הערות:</strong> ${notes}</p>` : ""}
+          <p style="margin: 8px 0;"><strong>שם:</strong> ${safeName}</p>
+          <p style="margin: 8px 0;"><strong>תאריך:</strong> ${formattedDate}</p>
+          <p style="margin: 8px 0;"><strong>שעה:</strong> ${time}</p>
+          ${safePhone ? `<p style="margin: 8px 0;"><strong>טלפון:</strong> ${safePhone}</p>` : ""}
+          ${safeEmail ? `<p style="margin: 8px 0;"><strong>מייל:</strong> ${safeEmail}</p>` : ""}
+          ${safeNotes ? `<p style="margin: 8px 0;"><strong>הערות:</strong> ${safeNotes}</p>` : ""}
         </div>
-        <a href="${appUrl}/dashboard/calendar" style="display: inline-block; background: #0f766e; color: white; padding: 12px 24px; border-radius: 8px; text-decoration: none; margin-top: 10px;">
+        <a href="${appUrl}/dashboard/calendar?date=${date}&highlight=${therapySession.id}" style="display: inline-block; background: #0f766e; color: white; padding: 12px 24px; border-radius: 8px; text-decoration: none; margin-top: 10px;">
           ${settings.requireApproval ? "כנס לאשר את התור" : "צפה ביומן"}
         </a>
         <p style="color: #999; font-size: 12px; margin-top: 20px;">מופעל על ידי MyTipul</p>
@@ -367,7 +417,7 @@ function generateTimeSlots(
   const [startH, startM] = dayStart.split(":").map(Number);
   const [endH, endM] = dayEnd.split(":").map(Number);
 
-  const slotStep = duration + buffer;
+  const slotStep = Math.max(1, duration + buffer);
   let currentMinutes = startH * 60 + startM;
   const endMinutes = endH * 60 + endM;
 
@@ -384,10 +434,11 @@ function generateTimeSlots(
     }
 
     const isInBreak = breaks.some((brk) => {
-      const [bsH, bsM] = brk.start.split(":").map(Number);
-      const [beH, beM] = brk.end.split(":").map(Number);
-      const breakStart = bsH * 60 + bsM;
-      const breakEnd = beH * 60 + beM;
+      const bs = brk.start?.split(":").map(Number);
+      const be = brk.end?.split(":").map(Number);
+      if (!bs || bs.length < 2 || !be || be.length < 2) return false;
+      const breakStart = bs[0] * 60 + bs[1];
+      const breakEnd = be[0] * 60 + be[1];
       return currentMinutes < breakEnd && currentMinutes + duration > breakStart;
     });
 

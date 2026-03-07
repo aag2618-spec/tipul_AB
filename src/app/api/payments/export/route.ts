@@ -91,7 +91,7 @@ export async function GET(request: NextRequest) {
     if (format === "json") {
       // החזרת JSON
       const data = payments.map((p) => ({
-        תאריך: p.paidAt ? new Date(p.paidAt).toLocaleDateString("he-IL") : new Date(p.createdAt).toLocaleDateString("he-IL"),
+        תאריך: p.paidAt ? new Date(p.paidAt).toLocaleDateString("he-IL", { timeZone: "Asia/Jerusalem" }) : new Date(p.createdAt).toLocaleDateString("he-IL", { timeZone: "Asia/Jerusalem" }),
         שם_מטופל: p.client.name,
         סכום: Number(p.amount),
         סכום_צפוי: Number(p.expectedAmount || p.amount),
@@ -124,7 +124,7 @@ export async function GET(request: NextRequest) {
     ];
 
     const rows = payments.map((p) => [
-      p.paidAt ? new Date(p.paidAt).toLocaleDateString("he-IL") : new Date(p.createdAt).toLocaleDateString("he-IL"),
+      p.paidAt ? new Date(p.paidAt).toLocaleDateString("he-IL", { timeZone: "Asia/Jerusalem" }) : new Date(p.createdAt).toLocaleDateString("he-IL", { timeZone: "Asia/Jerusalem" }),
       p.client.name,
       p.client.email || "-",
       p.client.phone || "-",
@@ -135,7 +135,7 @@ export async function GET(request: NextRequest) {
       statusNames[p.status] || p.status,
       p.receiptNumber || "-",
       p.receiptUrl || "-",
-      p.session?.startTime ? new Date(p.session.startTime).toLocaleDateString("he-IL") : "-",
+      p.session?.startTime ? new Date(p.session.startTime).toLocaleDateString("he-IL", { timeZone: "Asia/Jerusalem" }) : "-",
       p.notes?.replace(/[\n\r,]/g, " ") || "-",
     ]);
 

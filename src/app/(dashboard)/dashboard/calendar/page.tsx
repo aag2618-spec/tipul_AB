@@ -31,6 +31,8 @@ import interactionPlugin from "@fullcalendar/interaction";
 interface Client {
   id: string;
   name: string;
+  email?: string | null;
+  phone?: string | null;
   defaultSessionPrice?: number | null;
 }
 
@@ -1246,7 +1248,17 @@ export default function CalendarPage() {
                 ) : selectedSession.status === "PENDING_APPROVAL" ? (
                   <>
                     <div className="bg-amber-50 border border-amber-200 rounded-lg p-4 space-y-3">
-                      <p className="text-sm font-medium text-amber-800 text-center">📋 פגישה זו נקבעה דרך זימון עצמי וממתינה לאישורך</p>
+                      <p className="text-sm font-medium text-amber-800 text-center">פגישה זו נקבעה דרך זימון עצמי וממתינה לאישורך</p>
+                      {(selectedSession.client?.email || selectedSession.client?.phone) && (
+                        <div className="text-sm text-amber-700 space-y-1 border-t border-amber-200 pt-2">
+                          {selectedSession.client.phone && (
+                            <p><strong>טלפון:</strong> <a href={`tel:${selectedSession.client.phone}`} className="underline">{selectedSession.client.phone}</a></p>
+                          )}
+                          {selectedSession.client.email && (
+                            <p><strong>מייל:</strong> <a href={`mailto:${selectedSession.client.email}`} className="underline">{selectedSession.client.email}</a></p>
+                          )}
+                        </div>
+                      )}
                       <div className="flex gap-2">
                         <Button
                           onClick={async () => {

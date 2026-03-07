@@ -154,6 +154,8 @@ export function DashboardHeader({ user }: DashboardHeaderProps) {
     switch (type) {
       case "CANCELLATION_REQUEST":
         return <XCircle className="h-4 w-4 text-orange-500" />;
+      case "BOOKING_REQUEST":
+        return <Calendar className="h-4 w-4 text-amber-500" />;
       case "EMAIL_RECEIVED":
         return <Mail className="h-4 w-4 text-sky-500" />;
       case "EMAIL_SENT":
@@ -170,7 +172,11 @@ export function DashboardHeader({ user }: DashboardHeaderProps) {
 
   const handleNotificationClick = (notification: Notification) => {
     markAsRead(notification.id);
-    if (notification.type === "PENDING_TASKS" || notification.type === "CUSTOM") {
+    if (notification.type === "BOOKING_REQUEST") {
+      router.push("/dashboard/calendar");
+    } else if (notification.type === "CANCELLATION_REQUEST") {
+      router.push("/dashboard/calendar");
+    } else if (notification.type === "PENDING_TASKS" || notification.type === "CUSTOM") {
       router.push("/dashboard#personal-tasks");
       setTimeout(() => {
         document.getElementById("personal-tasks")?.scrollIntoView({ behavior: "smooth", block: "center" });

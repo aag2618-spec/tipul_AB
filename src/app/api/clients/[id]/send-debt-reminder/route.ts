@@ -3,9 +3,6 @@ import { getServerSession } from "next-auth";
 import { authOptions } from "@/lib/auth";
 import prisma from "@/lib/prisma";
 import { sendEmail } from "@/lib/resend";
-import { format } from "date-fns";
-import { he } from "date-fns/locale";
-
 function createDebtReminderEmail(
   clientName: string,
   therapistName: string,
@@ -35,11 +32,19 @@ function createDebtReminderEmail(
 
   // Use custom signature or default
   const signature = customization?.emailSignature || therapistName;
+  const dateFormatter = new Intl.DateTimeFormat("he-IL", {
+    timeZone: "Asia/Jerusalem",
+    weekday: "long",
+    year: "numeric",
+    month: "long",
+    day: "numeric",
+    hour: "2-digit",
+    minute: "2-digit",
+    hour12: false,
+  });
   const sessionsHtml = sessions
     .map((session) => {
-      const dateStr = format(new Date(session.date), "EEEE, d בMMMM yyyy • HH:mm", {
-        locale: he,
-      });
+      const dateStr = dateFormatter.format(new Date(session.date));
       
       const typeLabel =
         session.type === "ONLINE"

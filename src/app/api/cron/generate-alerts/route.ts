@@ -141,7 +141,7 @@ export async function GET(req: NextRequest) {
           type: AdminAlertType.SUBSCRIPTION_EXPIRED,
           priority: AlertPriority.URGENT,
           title: `מנוי פג תוקף - ${user.name || user.email}`,
-          message: `המנוי של המשתמש פג ב-${user.subscriptionEndsAt?.toLocaleDateString("he-IL")}. יש לטפל מיידית.`,
+          message: `המנוי של המשתמש פג ב-${user.subscriptionEndsAt?.toLocaleDateString("he-IL", { timeZone: 'Asia/Jerusalem' })}. יש לטפל מיידית.`,
           userId: user.id,
           actionRequired: "ליצור קשר עם המשתמש לחידוש או לשנות סטטוס",
           metadata: {

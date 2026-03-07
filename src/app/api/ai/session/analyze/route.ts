@@ -379,7 +379,7 @@ ${approachIds && approachIds.length > 1 ? buildIntegrationSection(approachIds) :
 
 פרטי הפגישה:
 מטופל: ${clientName}
-תאריך: ${sessionDate.toLocaleDateString("he-IL")}
+תאריך: ${sessionDate.toLocaleDateString("he-IL", { timeZone: "Asia/Jerusalem" })}
 סוג פגישה: ${sessionTypeHe}
 ${approachSection}
 ${culturalContext ? `הקשר תרבותי חשוב:\n${culturalContext}\nשים לב: אל תפרש התנהגות שהיא נורמטיבית בהקשר התרבותי של המטופל כפתולוגיה.\n` : ''}
@@ -472,7 +472,7 @@ function buildDetailedPrompt(
 
 פרטי הפגישה:
 מטופל: ${clientName}
-תאריך: ${sessionDate.toLocaleDateString("he-IL")}
+תאריך: ${sessionDate.toLocaleDateString("he-IL", { timeZone: "Asia/Jerusalem" })}
 סוג פגישה: ${sessionTypeHe}
 גישות טיפוליות: ${approachNames || "גישה אקלקטית"}
 

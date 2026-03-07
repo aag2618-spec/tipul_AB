@@ -71,10 +71,12 @@ export function createSessionReminderEmail(
     year: 'numeric',
     month: 'long',
     day: 'numeric',
+    timeZone: 'Asia/Jerusalem',
   });
   const formattedTime = sessionDate.toLocaleTimeString('he-IL', {
     hour: '2-digit',
     minute: '2-digit',
+    timeZone: 'Asia/Jerusalem',
   });
 
   const typeLabel = sessionType === 'ONLINE' ? 'אונליין' : sessionType === 'PHONE' ? 'טלפונית' : 'פרונטלית';

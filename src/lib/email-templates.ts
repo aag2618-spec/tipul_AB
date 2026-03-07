@@ -17,6 +17,7 @@ function formatEmailDate(date: Date): string {
     year: 'numeric',
     month: 'long',
     day: 'numeric',
+    timeZone: 'Asia/Jerusalem',
   });
 }
 
@@ -24,6 +25,7 @@ function formatEmailTime(date: Date): string {
   return date.toLocaleTimeString('he-IL', {
     hour: '2-digit',
     minute: '2-digit',
+    timeZone: 'Asia/Jerusalem',
   });
 }
 

@@ -409,7 +409,7 @@ async function sendSubscriptionReminderEmail(
   const planName = PLAN_NAMES[user.aiTier] || user.aiTier;
   const price = PLAN_PRICES[user.aiTier] || 0;
   const expiryDate = user.subscriptionEndsAt 
-    ? new Date(user.subscriptionEndsAt).toLocaleDateString("he-IL") 
+    ? new Date(user.subscriptionEndsAt).toLocaleDateString("he-IL", { timeZone: 'Asia/Jerusalem' }) 
     : "בקרוב";
   const billingUrl = `${SYSTEM_URL}/dashboard/settings/billing`;
 
@@ -529,7 +529,7 @@ async function sendGracePeriodEmail(
   // חישוב תאריך חסימה
   const blockDate = new Date();
   blockDate.setDate(blockDate.getDate() + daysLeft);
-  const blockDateStr = blockDate.toLocaleDateString("he-IL");
+  const blockDateStr = blockDate.toLocaleDateString("he-IL", { timeZone: 'Asia/Jerusalem' });
 
   await sendEmail({
     to: user.email,
@@ -741,7 +741,7 @@ function createAdminNotificationHtml(
       
       <div style="background: #f8fafc; padding: 12px 20px; border: 1px solid #e2e8f0; border-top: none; border-radius: 0 0 8px 8px;">
         <p style="margin: 0; color: #94a3b8; font-size: 12px; text-align: center;">
-          ${new Date().toLocaleString("he-IL")} | 
+          ${new Date().toLocaleString("he-IL", { timeZone: 'Asia/Jerusalem' })} | 
           <a href="${SYSTEM_URL}/admin/billing" style="color: #0ea5e9;">פאנל ניהול</a>
         </p>
       </div>

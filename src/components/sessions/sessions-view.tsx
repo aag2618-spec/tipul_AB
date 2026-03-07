@@ -455,36 +455,88 @@ export function SessionsView({ initialSessions }: SessionsViewProps) {
       )}
 
       <div className="flex items-center gap-1.5 mt-3 pt-3 border-t border-muted-foreground/5">
-        {(!showCancel || isWithinWeek(s.startTime)) && (
-          <Button
-            variant="outline"
-            size="sm"
-            className="flex-1 h-8 text-xs border-muted-foreground/10 hover:bg-muted/30"
-            asChild
-          >
-            <Link href={`/dashboard/sessions/${s.id}`}>
-              <Eye className="h-3 w-3 ml-1" />
-              פרטים
-            </Link>
-          </Button>
-        )}
-        {showCancel && (
-          <Button
-            type="button"
-            variant="ghost"
-            size="sm"
-            className="h-8 text-xs text-muted-foreground/60 hover:text-red-500 hover:bg-red-50/50"
-            onClick={(e) => {
-              e.stopPropagation();
-              setCancelDialog({
-                open: true, sessionId: s.id, clientName: s.client?.name || "",
-                clientId: s.client?.id || "", startTime: s.startTime, price: s.price || 0,
-              });
-            }}
-          >
-            <XCircle className="h-3.5 w-3.5 ml-1" />
-            ביטול
-          </Button>
+        {s.status === "PENDING_APPROVAL" ? (
+          <>
+            <Button
+              type="button"
+              size="sm"
+              className="flex-1 h-8 text-xs bg-green-600 hover:bg-green-700 text-white"
+              onClick={async (e) => {
+                e.stopPropagation();
+                const res = await fetch(`/api/sessions/${s.id}/status`, {
+                  method: "PATCH",
+                  headers: { "Content-Type": "application/json" },
+                  body: JSON.stringify({ status: "SCHEDULED" }),
+                });
+                if (res.ok) {
+                  toast.success("הפגישה אושרה!");
+                  setSessions(prev => prev.map(sess => sess.id === s.id ? { ...sess, status: "SCHEDULED" } : sess));
+                } else {
+                  toast.error("שגיאה באישור הפגישה");
+                }
+              }}
+            >
+              <CheckCircle2 className="h-3 w-3 ml-1" />
+              אשר
+            </Button>
+            <Button
+              type="button"
+              size="sm"
+              variant="destructive"
+              className="flex-1 h-8 text-xs"
+              onClick={async (e) => {
+                e.stopPropagation();
+                const res = await fetch(`/api/sessions/${s.id}/status`, {
+                  method: "PATCH",
+                  headers: { "Content-Type": "application/json" },
+                  body: JSON.stringify({ status: "CANCELLED" }),
+                });
+                if (res.ok) {
+                  toast.success("הפגישה נדחתה");
+                  setSessions(prev => prev.map(sess => sess.id === s.id ? { ...sess, status: "CANCELLED" } : sess));
+                } else {
+                  toast.error("שגיאה בדחיית הפגישה");
+                }
+              }}
+            >
+              <XCircle className="h-3 w-3 ml-1" />
+              דחה
+            </Button>
+          </>
+        ) : (
+          <>
+            {(!showCancel || isWithinWeek(s.startTime)) && (
+              <Button
+                variant="outline"
+                size="sm"
+                className="flex-1 h-8 text-xs border-muted-foreground/10 hover:bg-muted/30"
+                asChild
+              >
+                <Link href={`/dashboard/sessions/${s.id}`}>
+                  <Eye className="h-3 w-3 ml-1" />
+                  פרטים
+                </Link>
+              </Button>
+            )}
+            {showCancel && (
+              <Button
+                type="button"
+                variant="ghost"
+                size="sm"
+                className="h-8 text-xs text-muted-foreground/60 hover:text-red-500 hover:bg-red-50/50"
+                onClick={(e) => {
+                  e.stopPropagation();
+                  setCancelDialog({
+                    open: true, sessionId: s.id, clientName: s.client?.name || "",
+                    clientId: s.client?.id || "", startTime: s.startTime, price: s.price || 0,
+                  });
+                }}
+              >
+                <XCircle className="h-3.5 w-3.5 ml-1" />
+                ביטול
+              </Button>
+            )}
+          </>
         )}
       </div>
     </div>

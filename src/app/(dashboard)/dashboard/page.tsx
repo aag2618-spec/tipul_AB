@@ -444,7 +444,8 @@ export default async function DashboardPage() {
                             <Badge variant="outline" className="text-xs">
                               {new Date(session.startTime).toLocaleTimeString('he-IL', { 
                                 hour: '2-digit', 
-                                minute: '2-digit' 
+                                minute: '2-digit',
+                                timeZone: 'Asia/Jerusalem'
                               })}
                             </Badge>
                           </div>

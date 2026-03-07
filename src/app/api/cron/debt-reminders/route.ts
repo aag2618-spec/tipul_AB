@@ -1,9 +1,6 @@
 import { NextRequest, NextResponse } from "next/server";
 import prisma from "@/lib/prisma";
 import { sendEmail } from "@/lib/resend";
-import { format } from "date-fns";
-import { he } from "date-fns/locale";
-
 // Helper function to create debt reminder email
 function createDebtReminderEmail(
   clientName: string,
@@ -16,11 +13,19 @@ function createDebtReminderEmail(
   }>,
   totalDebt: number
 ) {
+  const dateFormatter = new Intl.DateTimeFormat("he-IL", {
+    timeZone: "Asia/Jerusalem",
+    weekday: "long",
+    year: "numeric",
+    month: "long",
+    day: "numeric",
+    hour: "2-digit",
+    minute: "2-digit",
+    hour12: false,
+  });
   const sessionsHtml = sessions
     .map((session) => {
-      const dateStr = format(new Date(session.date), "EEEE, d בMMMM yyyy • HH:mm", {
-        locale: he,
-      });
+      const dateStr = dateFormatter.format(new Date(session.date));
       
       const typeLabel =
         session.type === "ONLINE"

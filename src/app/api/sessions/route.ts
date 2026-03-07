@@ -55,7 +55,7 @@ export async function GET(request: NextRequest) {
       orderBy: { startTime: "asc" },
       include: {
         client: {
-          select: { id: true, name: true },
+          select: { id: true, name: true, email: true, phone: true },
         },
         sessionNote: true,
         payment: true,

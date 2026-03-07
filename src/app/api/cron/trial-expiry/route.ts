@@ -49,7 +49,7 @@ export async function GET(req: NextRequest) {
       if (!user.email) continue;
       try {
         const expiryDate = user.trialEndsAt
-          ? new Date(user.trialEndsAt).toLocaleDateString("he-IL")
+          ? new Date(user.trialEndsAt).toLocaleDateString("he-IL", { timeZone: 'Asia/Jerusalem' })
           : "בקרוב";
 
         await sendEmail({

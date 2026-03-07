@@ -15,8 +15,14 @@ export async function GET(request: NextRequest) {
 
   try {
     const now = new Date();
-    const today = new Date(now.getFullYear(), now.getMonth(), now.getDate());
-    const tomorrow = new Date(today);
+    // Israel-aware today/tomorrow boundaries
+    const israelDateStr = now.toLocaleDateString('en-CA', { timeZone: 'Asia/Jerusalem' });
+    const israelNoon = new Date(`${israelDateStr}T12:00:00Z`);
+    const israelHour = parseInt(new Intl.DateTimeFormat('en-US', { timeZone: 'Asia/Jerusalem', hour: 'numeric', hour12: false }).format(israelNoon));
+    const offsetHours = israelHour - 12;
+    const offsetStr = offsetHours >= 0 ? `+${String(offsetHours).padStart(2, '0')}:00` : `-${String(Math.abs(offsetHours)).padStart(2, '0')}:00`;
+    const today = new Date(`${israelDateStr}T00:00:00${offsetStr}`);
+    const tomorrow = new Date(`${israelDateStr}T00:00:00${offsetStr}`);
     tomorrow.setDate(tomorrow.getDate() + 1);
     const dayAfterTomorrow = new Date(tomorrow);
     dayAfterTomorrow.setDate(dayAfterTomorrow.getDate() + 1);
@@ -53,14 +59,14 @@ export async function GET(request: NextRequest) {
       if (todaySessions.length > 0) {
         const sessionsList = todaySessions
           .filter((s) => s.client) // Filter out BREAK sessions
-          .map((s) => `• ${s.client!.name} - ${new Date(s.startTime).toLocaleTimeString("he-IL", { hour: "2-digit", minute: "2-digit" })}`)
+          .map((s) => `• ${s.client!.name} - ${new Date(s.startTime).toLocaleTimeString("he-IL", { hour: "2-digit", minute: "2-digit", timeZone: 'Asia/Jerusalem' })}`)
           .join("\n");
 
         await prisma.notification.create({
           data: {
             userId: user.id,
             type: "MORNING_SUMMARY",
-            title: `תזכורת בוקר - ${today.toLocaleDateString("he-IL")}`,
+            title: `תזכורת בוקר - ${today.toLocaleDateString("he-IL", { timeZone: 'Asia/Jerusalem' })}`,
             content: `יש לך ${todaySessions.length} פגישות היום:\n${sessionsList}`,
             status: "PENDING",
             scheduledFor: now,
@@ -93,7 +99,7 @@ export async function GET(request: NextRequest) {
       if (tomorrowSessions.length > 0 || pendingTasks.length > 0) {
         const sessionsList = tomorrowSessions
           .filter((s) => s.client) // Filter out BREAK sessions
-          .map((s) => `• ${s.client!.name} - ${new Date(s.startTime).toLocaleTimeString("he-IL", { hour: "2-digit", minute: "2-digit" })}`)
+          .map((s) => `• ${s.client!.name} - ${new Date(s.startTime).toLocaleTimeString("he-IL", { hour: "2-digit", minute: "2-digit", timeZone: 'Asia/Jerusalem' })}`)
           .join("\n");
 
         const tasksList = pendingTasks
@@ -105,7 +111,7 @@ export async function GET(request: NextRequest) {
           data: {
             userId: user.id,
             type: "EVENING_SUMMARY",
-            title: `סיכום ליום מחר - ${tomorrow.toLocaleDateString("he-IL")}`,
+            title: `סיכום ליום מחר - ${tomorrow.toLocaleDateString("he-IL", { timeZone: 'Asia/Jerusalem' })}`,
             content: `פגישות מחר (${tomorrowSessions.length}):\n${sessionsList || "אין פגישות"}\n\nמשימות פתוחות (${pendingTasks.length}):\n${tasksList || "אין משימות"}`,
             status: "PENDING",
             scheduledFor: now,

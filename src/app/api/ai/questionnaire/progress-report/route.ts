@@ -162,14 +162,14 @@ export async function POST(req: NextRequest) {
     // הכנת סיכום שאלונים
     const questionnairesSummary = questionnaires
       .map((r) => {
-        return `${r.completedAt?.toLocaleDateString("he-IL")}: ${r.template.name} - ציון: ${r.totalScore || "לא זמין"}`;
+        return `${r.completedAt?.toLocaleDateString("he-IL", { timeZone: "Asia/Jerusalem" })}: ${r.template.name} - ציון: ${r.totalScore || "לא זמין"}`;
       })
       .join("\n");
 
     // הכנת סיכום פגישות
     const sessionsSummary = sessions
       .map((s) => {
-        return `${s.startTime.toLocaleDateString("he-IL")}: ${s.sessionNote?.content?.substring(0, 200) || "אין סיכום"}...`;
+        return `${s.startTime.toLocaleDateString("he-IL", { timeZone: "Asia/Jerusalem" })}: ${s.sessionNote?.content?.substring(0, 200) || "אין סיכום"}...`;
       })
       .join("\n\n");
 
@@ -220,7 +220,7 @@ ${approachSection}
 ${culturalSection}
 פרטים:
 • מטופל: ${client.name}
-• תקופה: ${fromDate.toLocaleDateString("he-IL")} - ${toDate.toLocaleDateString("he-IL")}
+• תקופה: ${fromDate.toLocaleDateString("he-IL", { timeZone: "Asia/Jerusalem" })} - ${toDate.toLocaleDateString("he-IL", { timeZone: "Asia/Jerusalem" })}
 • מספר פגישות: ${sessions.length}
 • מספר שאלונים: ${questionnaires.length}
 

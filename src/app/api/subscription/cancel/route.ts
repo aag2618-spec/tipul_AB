@@ -148,7 +148,7 @@ export async function POST() {
         userId: user.id,
         type: "CUSTOM",
         title: "המנוי בוטל",
-        content: `המנוי שלך בוטל. תוכל להמשיך להשתמש עד ${user.subscriptionEndsAt ? new Date(user.subscriptionEndsAt).toLocaleDateString("he-IL") : "סוף התקופה"}.${adjustmentNote}`,
+        content: `המנוי שלך בוטל. תוכל להמשיך להשתמש עד ${user.subscriptionEndsAt ? new Date(user.subscriptionEndsAt).toLocaleDateString("he-IL", { timeZone: "Asia/Jerusalem" }) : "סוף התקופה"}.${adjustmentNote}`,
         status: "PENDING",
       },
     });
@@ -182,7 +182,7 @@ export async function POST() {
               </p>
               <div style="background: #f0fdf4; border: 1px solid #86efac; border-radius: 8px; padding: 16px; margin: 20px 0;">
                 <p style="margin: 0 0 8px; color: #166534;">
-                  ✅ תוכל להמשיך להשתמש עד: <strong>${user.subscriptionEndsAt ? new Date(user.subscriptionEndsAt).toLocaleDateString("he-IL") : "סוף התקופה"}</strong>
+                  ✅ תוכל להמשיך להשתמש עד: <strong>${user.subscriptionEndsAt ? new Date(user.subscriptionEndsAt).toLocaleDateString("he-IL", { timeZone: "Asia/Jerusalem" }) : "סוף התקופה"}</strong>
                 </p>
                 <p style="margin: 0; color: #166534;">
                   ✅ הנתונים שלך שמורים ומאובטחים

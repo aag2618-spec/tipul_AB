@@ -185,7 +185,7 @@ ${approachSection}
 ${culturalSection}
 שאלון: ${response.template.name} (${response.template.nameEn || ""})
 קטגוריה: ${response.template.category || "כללי"}
-תאריך מילוי: ${response.completedAt?.toLocaleDateString("he-IL") || "לא הושלם"}
+תאריך מילוי: ${response.completedAt?.toLocaleDateString("he-IL", { timeZone: "Asia/Jerusalem" }) || "לא הושלם"}
 מטופל: ${response.client?.name || "לא ידוע"}
 
 תוצאות:

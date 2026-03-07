@@ -223,7 +223,7 @@ export async function POST(request: NextRequest) {
               <tr><td style="padding: 8px; border-bottom: 1px solid #eee; font-weight: bold;">מייל</td><td style="padding: 8px; border-bottom: 1px solid #eee;">${email}</td></tr>
               <tr><td style="padding: 8px; border-bottom: 1px solid #eee; font-weight: bold;">טלפון</td><td style="padding: 8px; border-bottom: 1px solid #eee;">${phone || "-"}</td></tr>
               <tr><td style="padding: 8px; border-bottom: 1px solid #eee; font-weight: bold;">מסלול</td><td style="padding: 8px; border-bottom: 1px solid #eee;">Pro Trial (${TRIAL_DAYS} ימים)</td></tr>
-              <tr><td style="padding: 8px; border-bottom: 1px solid #eee; font-weight: bold;">סיום ניסיון</td><td style="padding: 8px; border-bottom: 1px solid #eee;">${trialEndsAt.toLocaleDateString("he-IL")}</td></tr>
+              <tr><td style="padding: 8px; border-bottom: 1px solid #eee; font-weight: bold;">סיום ניסיון</td><td style="padding: 8px; border-bottom: 1px solid #eee;">${trialEndsAt.toLocaleDateString("he-IL", { timeZone: "Asia/Jerusalem" })}</td></tr>
               ${coupon ? `<tr><td style="padding: 8px; border-bottom: 1px solid #eee; font-weight: bold;">קופון</td><td style="padding: 8px; border-bottom: 1px solid #eee;">${coupon.code}</td></tr>` : ""}
             </table>
           </div>

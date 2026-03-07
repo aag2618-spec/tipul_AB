@@ -160,7 +160,7 @@ export async function POST(request: NextRequest) {
             clientPhone: payment.client.phone || undefined,
             amount: Number(payment.amount),
             description: payment.session 
-              ? `תשלום עבור פגישה בתאריך ${new Date(payment.session.startTime).toLocaleDateString('he-IL')}`
+              ? `תשלום עבור פגישה בתאריך ${new Date(payment.session.startTime).toLocaleDateString('he-IL', { timeZone: 'Asia/Jerusalem' })}`
               : `תשלום עבור טיפול`,
             paymentMethod: mapPaymentMethod(method),
             sendEmail: commSettings?.sendReceiptToClient ?? true,

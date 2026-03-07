@@ -137,7 +137,7 @@ export async function POST(req: NextRequest) {
       .map((r) => {
         return `
 שאלון: ${r.template.name}
-תאריך: ${r.completedAt?.toLocaleDateString("he-IL") || "לא זמין"}
+תאריך: ${r.completedAt?.toLocaleDateString("he-IL", { timeZone: "Asia/Jerusalem" }) || "לא זמין"}
 ציון כולל: ${r.totalScore || "לא זמין"}
 קטגוריה: ${r.template.category || "כללי"}
 ${r.subscores ? `ציוני משנה: ${JSON.stringify(r.subscores)}` : ""}

@@ -39,6 +39,26 @@ export async function PUT(request: NextRequest) {
     defaultPrice,
   } = body;
 
+  if (sessionDuration !== undefined && (typeof sessionDuration !== "number" || sessionDuration < 5 || sessionDuration > 300)) {
+    return NextResponse.json({ error: "משך פגישה חייב להיות בין 5 ל-300 דקות" }, { status: 400 });
+  }
+  if (bufferBetween !== undefined && (typeof bufferBetween !== "number" || bufferBetween < 0 || bufferBetween > 120)) {
+    return NextResponse.json({ error: "הפסקה בין פגישות חייבת להיות בין 0 ל-120 דקות" }, { status: 400 });
+  }
+  if (maxAdvanceDays !== undefined && (typeof maxAdvanceDays !== "number" || maxAdvanceDays < 1 || maxAdvanceDays > 365)) {
+    return NextResponse.json({ error: "מספר ימי הזמנה מראש חייב להיות בין 1 ל-365" }, { status: 400 });
+  }
+  if (minAdvanceHours !== undefined && (typeof minAdvanceHours !== "number" || minAdvanceHours < 0 || minAdvanceHours > 168)) {
+    return NextResponse.json({ error: "שעות מינימום מראש חייבות להיות בין 0 ל-168" }, { status: 400 });
+  }
+  if (defaultPrice !== undefined && (typeof defaultPrice !== "number" || defaultPrice < 0)) {
+    return NextResponse.json({ error: "מחיר חייב להיות חיובי" }, { status: 400 });
+  }
+  const validSessionTypes = ["IN_PERSON", "ONLINE", "PHONE"];
+  if (defaultSessionType !== undefined && !validSessionTypes.includes(defaultSessionType)) {
+    return NextResponse.json({ error: "סוג פגישה לא תקין" }, { status: 400 });
+  }
+
   const existing = await prisma.bookingSettings.findUnique({
     where: { therapistId: session.user.id },
   });
