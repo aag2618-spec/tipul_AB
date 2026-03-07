@@ -278,15 +278,26 @@ export async function POST(
 
       let foundClient = null;
       if (clientEmail || clientPhone) {
-        foundClient = await tx.client.findFirst({
+        const conditions = [];
+        if (clientEmail) conditions.push({ email: clientEmail });
+        if (clientPhone) conditions.push({ phone: clientPhone });
+
+        const candidates = await tx.client.findMany({
           where: {
             therapistId: settings.therapistId,
-            OR: [
-              ...(clientEmail ? [{ email: clientEmail }] : []),
-              ...(clientPhone ? [{ phone: clientPhone }] : []),
-            ],
+            OR: conditions,
           },
+          orderBy: { createdAt: "desc" },
         });
+
+        if (clientEmail && clientPhone) {
+          foundClient = candidates.find(c => c.email === clientEmail && c.phone === clientPhone)
+            || candidates.find(c => c.phone === clientPhone)
+            || candidates.find(c => c.email === clientEmail)
+            || null;
+        } else {
+          foundClient = candidates[0] || null;
+        }
       }
 
       if (!foundClient) {
@@ -340,7 +351,7 @@ export async function POST(
       userId: settings.therapistId,
       type: "BOOKING_REQUEST",
       title: "בקשת זימון חדשה",
-      content: `${escapeHtml(clientName)} ביקש/ה לקבוע פגישה ב-${formattedDate} בשעה ${time} [${date}]`,
+      content: `${escapeHtml(clientName)} ביקש/ה לקבוע פגישה ב-${formattedDate} בשעה ${time} [${date}|${time}|${therapySession.id}]`,
       status: "PENDING",
     },
   });
@@ -394,7 +405,7 @@ export async function POST(
           ${safeEmail ? `<p style="margin: 8px 0;"><strong>מייל:</strong> ${safeEmail}</p>` : ""}
           ${safeNotes ? `<p style="margin: 8px 0;"><strong>הערות:</strong> ${safeNotes}</p>` : ""}
         </div>
-        <a href="${appUrl}/dashboard/calendar?date=${date}&highlight=${therapySession.id}" style="display: inline-block; background: #0f766e; color: white; padding: 12px 24px; border-radius: 8px; text-decoration: none; margin-top: 10px;">
+        <a href="${appUrl}/dashboard/calendar?date=${date}&time=${time}&highlight=${therapySession.id}" style="display: inline-block; background: #0f766e; color: white; padding: 12px 24px; border-radius: 8px; text-decoration: none; margin-top: 10px;">
           ${settings.requireApproval ? "כנס לאשר את התור" : "צפה ביומן"}
         </a>
         <p style="color: #999; font-size: 12px; margin-top: 20px;">מופעל על ידי MyTipul</p>

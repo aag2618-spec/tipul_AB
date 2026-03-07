@@ -105,9 +105,19 @@ export default function CalendarPage() {
   const searchParams = useSearchParams();
   const viewParam = searchParams.get('view');
   const dateParam = searchParams.get('date');
+  const timeParam = searchParams.get('time');
   const highlightParam = searchParams.get('highlight');
   const initialCalendarView = viewParam === 'month' ? 'dayGridMonth' : 'timeGridWeek';
   const initialDate = dateParam && /^\d{4}-\d{2}-\d{2}$/.test(dateParam) ? dateParam : undefined;
+
+  const scrollTime = (() => {
+    if (timeParam && /^\d{1,2}:\d{2}$/.test(timeParam)) {
+      const [h] = timeParam.split(":").map(Number);
+      const scrollH = Math.max(0, h - 1);
+      return `${String(scrollH).padStart(2, "0")}:00:00`;
+    }
+    return "07:00:00";
+  })();
   
   const [sessions, setSessions] = useState<Session[]>([]);
   const [clients, setClients] = useState<Client[]>([]);
@@ -643,6 +653,7 @@ export default function CalendarPage() {
               next: "תקופה הבאה",
               today: "עבור להיום",
             }}
+            scrollTime={scrollTime}
             slotMinTime="00:00:00"
             slotMaxTime="24:00:00"
             allDaySlot={false}

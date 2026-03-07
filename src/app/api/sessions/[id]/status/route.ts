@@ -162,16 +162,12 @@ export async function PATCH(
 
     if (currentStatus === "PENDING_APPROVAL") {
       try {
-        const sessionDate = therapySession.startTime.toISOString().split("T")[0];
         await prisma.notification.updateMany({
           where: {
             userId: session.user.id,
             type: "BOOKING_REQUEST",
             status: { in: ["PENDING", "SENT"] },
-            AND: [
-              { content: { contains: therapySession.client?.name || "" } },
-              { content: { contains: `[${sessionDate}]` } },
-            ],
+            content: { contains: sessionId },
           },
           data: { status: "READ", readAt: new Date() },
         });

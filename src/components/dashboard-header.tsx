@@ -170,18 +170,24 @@ export function DashboardHeader({ user }: DashboardHeaderProps) {
     }
   };
 
-  const extractDateFromContent = (content: string): string | null => {
-    // Try to match ISO date (yyyy-mm-dd) from content
-    const isoMatch = content.match(/(\d{4}-\d{2}-\d{2})/);
-    if (isoMatch) return isoMatch[1];
-    return null;
+  const extractBookingInfo = (content: string): { date: string | null; time: string | null; sessionId: string | null } => {
+    const match = content.match(/\[(\d{4}-\d{2}-\d{2})\|(\d{1,2}:\d{2})\|([a-z0-9]+)\]/);
+    if (match) return { date: match[1], time: match[2], sessionId: match[3] };
+    const dateOnly = content.match(/\[(\d{4}-\d{2}-\d{2})\]/);
+    if (dateOnly) return { date: dateOnly[1], time: null, sessionId: null };
+    return { date: null, time: null, sessionId: null };
   };
 
   const handleNotificationClick = (notification: Notification) => {
     markAsRead(notification.id);
     if (notification.type === "BOOKING_REQUEST" || notification.type === "CANCELLATION_REQUEST") {
-      const dateParam = extractDateFromContent(notification.content);
-      router.push(`/dashboard/calendar${dateParam ? `?date=${dateParam}` : ""}`);
+      const info = extractBookingInfo(notification.content);
+      const params = new URLSearchParams();
+      if (info.date) params.set("date", info.date);
+      if (info.time) params.set("time", info.time);
+      if (info.sessionId) params.set("highlight", info.sessionId);
+      const qs = params.toString();
+      router.push(`/dashboard/calendar${qs ? `?${qs}` : ""}`);
     } else if (notification.type === "PENDING_TASKS" || notification.type === "CUSTOM") {
       router.push("/dashboard#personal-tasks");
       setTimeout(() => {
