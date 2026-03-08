@@ -10,31 +10,7 @@ import { SumitClient } from "@/lib/sumit/client";
 import { ICountClient } from "@/lib/icount/client";
 import { GreenInvoiceClient } from "@/lib/green-invoice/client";
 import { logBillingApiCall } from "@/lib/billing-logger";
-
-// פונקציית פענוח מוצפן (זהה לזו שב-billing service)
-function decryptApiKey(encrypted: string): string {
-  const key = process.env.ENCRYPTION_KEY;
-  if (!key) return encrypted;
-  
-  try {
-    const { createDecipheriv } = require("node:crypto");
-    const [ivHex, authTagHex, encryptedHex] = encrypted.split(":");
-    if (!ivHex || !authTagHex || !encryptedHex) return encrypted;
-    
-    const iv = Buffer.from(ivHex, "hex");
-    const authTag = Buffer.from(authTagHex, "hex");
-    const keyBuffer = Buffer.from(key, "hex");
-    
-    const decipher = createDecipheriv("aes-256-gcm", keyBuffer, iv);
-    decipher.setAuthTag(authTag);
-    
-    let decrypted = decipher.update(encryptedHex, "hex", "utf8");
-    decrypted += decipher.final("utf8");
-    return decrypted;
-  } catch {
-    return encrypted;
-  }
-}
+import { decrypt } from "@/lib/encryption";
 
 export async function POST(request: NextRequest) {
   try {
@@ -61,8 +37,8 @@ export async function POST(request: NextRequest) {
       return NextResponse.json({ error: "ספק לא נמצא" }, { status: 404 });
     }
 
-    const apiKey = decryptApiKey(provider.apiKey);
-    const apiSecret = provider.apiSecret ? decryptApiKey(provider.apiSecret) : "";
+    const apiKey = decrypt(provider.apiKey);
+    const apiSecret = provider.apiSecret ? decrypt(provider.apiSecret) : "";
 
     let success = false;
     let message = "";

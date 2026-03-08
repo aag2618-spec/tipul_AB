@@ -45,30 +45,100 @@ interface InsurerSettings {
   autoSubmit: boolean;
 }
 
-const providerInfo: Record<string, { name: string; description: string; icon: typeof CreditCard; features: string[] }> = {
+interface ProviderInfo {
+  name: string;
+  description: string;
+  icon: typeof CreditCard;
+  features: string[];
+  fields: {
+    apiKeyLabel: string;
+    apiKeyPlaceholder: string;
+    apiSecretLabel?: string;
+    apiSecretPlaceholder?: string;
+    apiSecretRequired?: boolean;
+  };
+  instructions: string[];
+  signupUrl: string;
+}
+
+const providerInfo: Record<string, ProviderInfo> = {
   MESHULAM: {
     name: "Meshulam",
     description: "סליקת אשראי + הנפקת קבלות",
     icon: CreditCard,
     features: ["סליקת אשראי", "קבלות אוטומטיות", "תשלום בקישור"],
+    fields: {
+      apiKeyLabel: "Page Code",
+      apiKeyPlaceholder: "הקוד מלוח הבקרה של Meshulam",
+      apiSecretLabel: "API Secret",
+      apiSecretPlaceholder: "אופציונלי - לאימות Webhooks",
+    },
+    instructions: [
+      "היכנס לאתר meshulam.co.il והתחבר לחשבון שלך",
+      "לך אל הגדרות → API / חיבורים",
+      "העתק את ה-Page Code והדבק כאן",
+    ],
+    signupUrl: "https://www.meshulam.co.il",
   },
   ICOUNT: {
     name: "iCount",
     description: "הנפקת קבלות (תוכנית חינמית!)",
     icon: FileText,
     features: ["קבלות מקצועיות", "דוחות", "חינמי עד 25/חודש"],
+    fields: {
+      apiKeyLabel: "Company ID (מזהה חברה)",
+      apiKeyPlaceholder: "המזהה שקיבלת מ-iCount",
+      apiSecretLabel: "API Token (טוקן)",
+      apiSecretPlaceholder: "הטוקן מהגדרות ה-API",
+      apiSecretRequired: true,
+    },
+    instructions: [
+      "היכנס לאתר icount.co.il ופתח חשבון (תוכנית חינמית זמינה)",
+      "לך אל הגדרות → הגדרות API",
+      "העתק את ה-Company ID ואת ה-API Token",
+      "הדבק את שניהם בשדות למטה",
+    ],
+    signupUrl: "https://www.icount.co.il",
   },
   GREEN_INVOICE: {
     name: "חשבונית ירוקה",
     description: "הנפקת קבלות (ממשק יפה)",
     icon: FileText,
     features: ["קבלות מעוצבות", "ממשק נוח"],
+    fields: {
+      apiKeyLabel: "API Key (מפתח API)",
+      apiKeyPlaceholder: "מפתח ה-API שלך",
+      apiSecretLabel: "API Secret (סוד API)",
+      apiSecretPlaceholder: "הסוד שקיבלת יחד עם המפתח",
+      apiSecretRequired: true,
+    },
+    instructions: [
+      "היכנס לאתר greeninvoice.co.il והתחבר",
+      "לך אל הגדרות → מפתחות API → צור מפתח חדש",
+      "העתק את ה-API Key ואת ה-API Secret",
+      "הדבק את שניהם בשדות למטה",
+    ],
+    signupUrl: "https://www.greeninvoice.co.il",
   },
   SUMIT: {
     name: "Sumit",
     description: "קבלות + סליקה",
     icon: CreditCard,
     features: ["סליקה", "קבלות", "Developer Friendly"],
+    fields: {
+      apiKeyLabel: "API Key (מפתח API)",
+      apiKeyPlaceholder: "מפתח ה-API שלך",
+      apiSecretLabel: "Company ID (מזהה חברה)",
+      apiSecretPlaceholder: "המזהה מהגדרות Sumit",
+      apiSecretRequired: true,
+    },
+    instructions: [
+      "היכנס לאתר sumit.co.il והתחבר לחשבון שלך",
+      "לך אל הגדרות → הגדרות API",
+      "העתק את ה-API Key ואת ה-Company ID",
+      "הדבק את שניהם בשדות למטה",
+    ],
+    signupUrl: "https://www.sumit.co.il",
   },
 };
 
@@ -151,8 +221,11 @@ export function ConnectionsTab() {
     setShowApiKey(false); setShowApiSecret(false); setShowBillingDialog(true);
   };
 
+  const currentProviderInfo = selectedProvider ? providerInfo[selectedProvider] : null;
+
   const saveBillingProvider = async () => {
-    if (!selectedProvider || !apiKey) { toast.error("יש למלא API Key"); return; }
+    if (!selectedProvider || !apiKey) { toast.error(`יש למלא ${currentProviderInfo?.fields.apiKeyLabel || "API Key"}`); return; }
+    if (currentProviderInfo?.fields.apiSecretRequired && !apiSecret) { toast.error(`יש למלא ${currentProviderInfo?.fields.apiSecretLabel || "API Secret"}`); return; }
     setSaving(true);
     try {
       const res = await fetch("/api/integrations/billing", { method: "POST", headers: { "Content-Type": "application/json" }, body: JSON.stringify({ provider: selectedProvider, apiKey, apiSecret: apiSecret || null }) });
@@ -372,24 +445,61 @@ export function ConnectionsTab() {
       <Dialog open={showBillingDialog} onOpenChange={setShowBillingDialog}>
         <DialogContent className="max-w-md">
           <DialogHeader>
-            <DialogTitle>חיבור {selectedProvider && providerInfo[selectedProvider]?.name}</DialogTitle>
-            <DialogDescription>הזן את פרטי ה-API שלך. המידע נשמר מוצפן.</DialogDescription>
+            <DialogTitle>חיבור {currentProviderInfo?.name}</DialogTitle>
+            <DialogDescription>הזן את פרטי ה-API שלך. המידע נשמר מוצפן ומאובטח.</DialogDescription>
           </DialogHeader>
-          <div className="space-y-4 py-4">
+
+          {currentProviderInfo && (
+            <div className="bg-muted/50 border rounded-lg p-3 space-y-2">
+              <p className="text-xs font-medium">איך להשיג את הפרטים:</p>
+              <ol className="text-xs text-muted-foreground space-y-1 list-decimal list-inside">
+                {currentProviderInfo.instructions.map((step, i) => (
+                  <li key={i}>{step}</li>
+                ))}
+              </ol>
+              <a
+                href={currentProviderInfo.signupUrl}
+                target="_blank"
+                rel="noopener noreferrer"
+                className="text-xs text-primary hover:underline inline-flex items-center gap-1 mt-1"
+              >
+                <LinkIcon className="h-3 w-3" />
+                {`עוד אין חשבון? הירשם ב-${currentProviderInfo.name}`}
+              </a>
+            </div>
+          )}
+
+          <div className="space-y-4 py-2">
             <div className="space-y-2">
-              <Label>API Key *</Label>
+              <Label>{currentProviderInfo?.fields.apiKeyLabel || "API Key"} *</Label>
               <div className="relative">
-                <Input type={showApiKey ? "text" : "password"} value={apiKey} onChange={(e) => setApiKey(e.target.value)} placeholder="API Key" className="pl-10" />
+                <Input
+                  type={showApiKey ? "text" : "password"}
+                  value={apiKey}
+                  onChange={(e) => setApiKey(e.target.value)}
+                  placeholder={currentProviderInfo?.fields.apiKeyPlaceholder || "API Key"}
+                  className="pl-10"
+                />
                 <Button type="button" variant="ghost" size="sm" className="absolute left-0 top-0 h-full px-3" onClick={() => setShowApiKey(!showApiKey)}>
                   {showApiKey ? <EyeOff className="h-4 w-4" /> : <Eye className="h-4 w-4" />}
                 </Button>
               </div>
             </div>
-            {(selectedProvider === "MESHULAM" || selectedProvider === "SUMIT") && (
+
+            {currentProviderInfo?.fields.apiSecretLabel && (
               <div className="space-y-2">
-                <Label>API Secret</Label>
+                <Label>
+                  {currentProviderInfo.fields.apiSecretLabel}
+                  {currentProviderInfo.fields.apiSecretRequired && " *"}
+                </Label>
                 <div className="relative">
-                  <Input type={showApiSecret ? "text" : "password"} value={apiSecret} onChange={(e) => setApiSecret(e.target.value)} placeholder="API Secret (אופציונלי)" className="pl-10" />
+                  <Input
+                    type={showApiSecret ? "text" : "password"}
+                    value={apiSecret}
+                    onChange={(e) => setApiSecret(e.target.value)}
+                    placeholder={currentProviderInfo.fields.apiSecretPlaceholder || ""}
+                    className="pl-10"
+                  />
                   <Button type="button" variant="ghost" size="sm" className="absolute left-0 top-0 h-full px-3" onClick={() => setShowApiSecret(!showApiSecret)}>
                     {showApiSecret ? <EyeOff className="h-4 w-4" /> : <Eye className="h-4 w-4" />}
                   </Button>
@@ -397,9 +507,20 @@ export function ConnectionsTab() {
               </div>
             )}
           </div>
+
+          <div className="flex items-center gap-2 text-xs text-muted-foreground bg-muted/30 rounded p-2">
+            <Shield className="h-3.5 w-3.5 shrink-0" />
+            <span>הפרטים מוצפנים ונשמרים בצורה מאובטחת. רק אתה יכול לגשת אליהם.</span>
+          </div>
+
           <DialogFooter>
             <Button variant="outline" onClick={() => setShowBillingDialog(false)}>ביטול</Button>
-            <Button onClick={saveBillingProvider} disabled={!apiKey || saving}>{saving ? "שומר..." : "שמור וחבר"}</Button>
+            <Button
+              onClick={saveBillingProvider}
+              disabled={!apiKey || (currentProviderInfo?.fields.apiSecretRequired && !apiSecret) || saving}
+            >
+              {saving ? "שומר..." : "שמור וחבר"}
+            </Button>
           </DialogFooter>
         </DialogContent>
       </Dialog>
