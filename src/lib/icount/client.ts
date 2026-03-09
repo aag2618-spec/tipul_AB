@@ -152,6 +152,15 @@ export class ICountClient {
     }
   }
 
+  async getAvailableDocTypes(): Promise<Record<string, string>> {
+    const response = await this.request<{ doctypes?: Record<string, string> }>('doc/types', {});
+    if (response.success && response.data) {
+      const raw = response.data as Record<string, unknown>;
+      return (raw.doctypes ?? raw) as Record<string, string>;
+    }
+    return {};
+  }
+
   private normalizeDocResponse(raw: ICountRawDocResponse): CreateDocumentResponse {
     return {
       doc_id: String(raw.docid ?? raw.doc_id ?? ''),
@@ -162,13 +171,34 @@ export class ICountClient {
     };
   }
 
+  private async resolveReceiptDocType(): Promise<number> {
+    try {
+      const types = await this.getAvailableDocTypes();
+      const typeKeys = Object.keys(types);
+      console.log('iCount available doc types:', JSON.stringify(types));
+
+      const receiptPreference = [400, 320, 305];
+      for (const code of receiptPreference) {
+        if (typeKeys.includes(String(code))) return code;
+      }
+
+      const numericKeys = typeKeys.map(Number).filter(n => !isNaN(n));
+      if (numericKeys.length > 0) return numericKeys[0];
+    } catch (err) {
+      console.error('Failed to resolve doc types, defaulting to 320:', err);
+    }
+    return 320;
+  }
+
   /**
    * יצירת קבלה
    */
   async createReceipt(
     request: CreateDocumentRequest
   ): Promise<ICountResponse<CreateDocumentResponse>> {
-    const data = this.buildDocumentData(request);
+    const resolvedType = await this.resolveReceiptDocType();
+    console.log('iCount using doctype:', resolvedType);
+    const data = this.buildDocumentData({ ...request, doctype: request.doctype }, resolvedType);
     const raw = await this.request<ICountRawDocResponse>('doc/create', data);
     if (!raw.success || !raw.data) return raw as ICountResponse<CreateDocumentResponse>;
     console.log('iCount doc/create raw response:', JSON.stringify(raw.data));
@@ -208,7 +238,7 @@ export class ICountClient {
   /**
    * בניית נתוני מסמך
    */
-  private buildDocumentData(request: CreateDocumentRequest): Record<string, unknown> {
+  private buildDocumentData(request: CreateDocumentRequest, resolvedDocType?: number): Record<string, unknown> {
     const items = request.items.map((item, index) => ({
       description: item.description,
       quantity: item.quantity,
@@ -217,7 +247,7 @@ export class ICountClient {
     }));
 
     return {
-      doctype: this.mapDocType(request.doctype),
+      doctype: resolvedDocType ?? this.mapDocType(request.doctype),
       client_name: request.client.client_name,
       email: request.client.email,
       phone: request.client.phone,
