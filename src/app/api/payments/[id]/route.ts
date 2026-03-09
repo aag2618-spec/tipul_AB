@@ -7,6 +7,8 @@ import { createPaymentReceiptEmail } from "@/lib/email-templates/payment-receipt
 import { createBillingService } from "@/lib/billing";
 import { getReceiptPageUrl } from "@/lib/receipt-token";
 
+export const dynamic = "force-dynamic";
+
 export async function GET(
   request: NextRequest,
   { params }: { params: Promise<{ id: string }> }
@@ -97,17 +99,23 @@ export async function PUT(
               where: { userId: session.user.id },
             });
             const billingService = createBillingService(session.user.id);
-            const finalAmount = amount !== undefined 
-              ? Number(existingPayment.amount) + Number(amount) 
-              : Number(existingPayment.amount);
+            const receiptAmount = amount !== undefined ? Number(amount) : Number(existingPayment.amount);
+            const sessionDateStr = existingPayment.session
+              ? new Date(existingPayment.session.startTime).toLocaleDateString('he-IL', { timeZone: 'Asia/Jerusalem' })
+              : null;
+            let receiptDesc = sessionDateStr
+              ? `תשלום עבור פגישה בתאריך ${sessionDateStr}`
+              : `תשלום עבור טיפול`;
+            const isPartialReceipt = amount !== undefined && (Number(existingPayment.amount) + Number(amount)) < Number(existingPayment.expectedAmount);
+            if (isPartialReceipt) {
+              receiptDesc += ` (תשלום חלקי - ₪${receiptAmount} מתוך ₪${Number(existingPayment.expectedAmount)})`;
+            }
             const receiptResult = await billingService.createReceipt({
               clientName: existingPayment.client.name,
               clientEmail: existingPayment.client.email || undefined,
               clientPhone: existingPayment.client.phone || undefined,
-              amount: finalAmount,
-              description: existingPayment.session 
-                ? `תשלום עבור פגישה בתאריך ${new Date(existingPayment.session.startTime).toLocaleDateString('he-IL', { timeZone: 'Asia/Jerusalem' })}`
-                : `תשלום עבור טיפול`,
+              amount: receiptAmount,
+              description: receiptDesc,
               paymentMethod: mapPaymentMethod(method || existingPayment.method),
               sendEmail: commSettings?.sendReceiptToClient ?? true,
             });
@@ -205,7 +213,6 @@ export async function PUT(
       },
     });
 
-    // Complete related task if paid
     if (finalStatus === "PAID") {
       await prisma.task.updateMany({
         where: {
@@ -216,8 +223,11 @@ export async function PUT(
         },
         data: { status: "COMPLETED" },
       });
+    }
 
-      // Send payment receipt email if enabled
+    // שליחת מייל קבלה - גם על תשלום חלקי
+    const paidNow = amount !== undefined ? Number(amount) : (finalStatus === "PAID" ? Number(payment.amount) : 0);
+    if (paidNow > 0) {
       try {
         const commSettings = await prisma.communicationSetting.findUnique({
           where: { userId: session.user.id },
@@ -245,7 +255,7 @@ export async function PUT(
             therapistName: therapist?.name || "המטפל/ת שלך",
             therapistPhone: therapist?.businessPhone || therapist?.phone || undefined,
             payment: {
-              amount: Number(payment.amount),
+              amount: paidNow,
               expectedAmount: Number(payment.expectedAmount || payment.amount),
               method: payment.method,
               paidAt: payment.paidAt || new Date(),
@@ -267,7 +277,6 @@ export async function PUT(
             },
           });
 
-          // שליחה למטופל
           if (commSettings.sendReceiptToClient && existingPayment.client.email) {
             await sendEmail({
               to: existingPayment.client.email,
@@ -291,7 +300,6 @@ export async function PUT(
             });
           }
 
-          // שליחת עותק למטפל
           if (commSettings.sendReceiptToTherapist && therapist?.email) {
             await sendEmail({
               to: therapist.email,

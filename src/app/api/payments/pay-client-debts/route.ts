@@ -7,6 +7,8 @@ import { createPaymentReceiptEmail } from "@/lib/email-templates/payment-receipt
 import { createBillingService } from "@/lib/billing";
 import { getReceiptPageUrl } from "@/lib/receipt-token";
 
+export const dynamic = "force-dynamic";
+
 export async function POST(req: NextRequest) {
   try {
     const session = await getServerSession(authOptions);
@@ -93,7 +95,7 @@ export async function POST(req: NextRequest) {
           },
         });
 
-        updatedPayments.push(updatedPayment);
+        updatedPayments.push({ ...updatedPayment, _amountPaidNow: amountToPayForThis });
         remainingAmount -= amountToPayForThis;
       }
 
@@ -145,11 +147,13 @@ export async function POST(req: NextRequest) {
         where: { id: clientId },
       });
 
-      const paidPayments = result.updatedPayments.filter(p => p.status === "PAID");
       let localReceiptCounter = therapist?.nextReceiptNumber || 1;
 
-      // הנפקת קבלות לכל תשלום ששולם
-      for (const payment of paidPayments) {
+      // הנפקת קבלות לכל תשלום שהתקבל (כולל חלקי)
+      for (const payment of result.updatedPayments) {
+        const amountPaidNow = (payment as { _amountPaidNow?: number })._amountPaidNow || 0;
+        if (amountPaidNow <= 0) continue;
+        const isPartial = Number(payment.amount) < Number(payment.expectedAmount);
         let receiptNumber: string | null = null;
         let receiptUrl: string | null = null;
 
@@ -178,14 +182,21 @@ export async function POST(req: NextRequest) {
               });
 
               const billingService = createBillingService(session.user.id);
+              const sessionDateStr = paymentWithSession?.session
+                ? new Date(paymentWithSession.session.startTime).toLocaleDateString('he-IL', { timeZone: 'Asia/Jerusalem' })
+                : null;
+              let description = sessionDateStr
+                ? `תשלום עבור פגישה בתאריך ${sessionDateStr}`
+                : `תשלום עבור טיפול`;
+              if (isPartial) {
+                description += ` (תשלום חלקי - ₪${amountPaidNow} מתוך ₪${Number(payment.expectedAmount)})`;
+              }
               const receiptResult = await billingService.createReceipt({
                 clientName: client.name,
                 clientEmail: client.email || undefined,
                 clientPhone: client.phone || undefined,
-                amount: Number(payment.amount),
-                description: paymentWithSession?.session
-                  ? `תשלום עבור פגישה בתאריך ${new Date(paymentWithSession.session.startTime).toLocaleDateString('he-IL', { timeZone: 'Asia/Jerusalem' })}`
-                  : `תשלום עבור טיפול`,
+                amount: amountPaidNow,
+                description,
                 paymentMethod: mapPaymentMethod(method),
                 sendEmail: commSettings?.sendReceiptToClient ?? true,
               });
@@ -226,7 +237,7 @@ export async function POST(req: NextRequest) {
             therapistName: therapist?.name || "המטפל/ת שלך",
             therapistPhone: therapist?.businessPhone || therapist?.phone || undefined,
             payment: {
-              amount: Number(payment.amount),
+              amount: amountPaidNow,
               expectedAmount: Number(payment.expectedAmount || payment.amount),
               method: payment.method,
               paidAt: payment.paidAt || new Date(),

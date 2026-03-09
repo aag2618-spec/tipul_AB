@@ -23,6 +23,8 @@ import {
 import { format } from "date-fns";
 import { he } from "date-fns/locale";
 import { toast } from "sonner";
+import html2canvas from "html2canvas";
+import { jsPDF } from "jspdf";
 
 interface ReceiptPayment {
   id: string;
@@ -112,6 +114,7 @@ export default function ReceiptsPage() {
       const sessionDate = payment.session
         ? format(new Date(payment.session.startTime), "dd/MM/yyyy")
         : null;
+      const isPartial = Number(payment.amount) < Number(payment.expectedAmount);
 
       const container = document.createElement("div");
       container.style.position = "fixed";
@@ -160,9 +163,23 @@ export default function ReceiptsPage() {
             </tbody>
           </table>
 
-          <div style="border: 1px solid #e5e7eb; border-top: 2px solid #0f766e; padding: 16px 25px; text-align: left; background: #f9fafb; border-radius: 0 0 8px 8px;">
-            <span style="font-size: 20px; font-weight: 700; color: #0f766e;">סה״כ: ₪${Number(payment.amount).toLocaleString()}</span>
+          <div style="border: 1px solid #e5e7eb; border-top: 2px solid #0f766e; padding: 16px 25px; background: #f9fafb; border-radius: 0 0 ${isPartial ? "0 0" : "8px 8px"};">
+            <span style="font-size: 20px; font-weight: 700; color: #0f766e;">סה״כ שולם: ₪${Number(payment.amount).toLocaleString()}</span>
           </div>
+
+          ${isPartial ? `
+          <div style="border: 1px solid #e5e7eb; border-top: none; padding: 14px 25px; background: #fffbeb; border-radius: 0 0 8px 8px;">
+            <p style="margin: 0 0 6px; font-size: 13px; color: #92400e; font-weight: 600;">* תשלום חלקי</p>
+            <div style="display: flex; justify-content: space-between; font-size: 13px; color: #78716c; margin-bottom: 4px;">
+              <span>סכום מלא לפגישה:</span>
+              <span style="font-weight: 600;">₪${Number(payment.expectedAmount).toLocaleString()}</span>
+            </div>
+            <div style="display: flex; justify-content: space-between; font-size: 13px; color: #ea580c;">
+              <span>נותר לתשלום:</span>
+              <span style="font-weight: 600;">₪${(Number(payment.expectedAmount) - Number(payment.amount)).toLocaleString()}</span>
+            </div>
+          </div>
+          ` : ""}
 
           <div style="text-align: center; margin-top: 35px; padding-top: 15px; border-top: 1px solid #e5e7eb;">
             <p style="margin: 0; font-size: 11px; color: #9ca3af;">הופק על ידי MyTipul | ${format(new Date(), "dd/MM/yyyy HH:mm")}</p>
@@ -171,9 +188,6 @@ export default function ReceiptsPage() {
       `;
 
       document.body.appendChild(container);
-
-      const html2canvas = (await import("html2canvas")).default;
-      const { jsPDF } = await import("jspdf");
 
       const canvas = await html2canvas(container, {
         scale: 2,

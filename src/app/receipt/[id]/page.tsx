@@ -3,6 +3,8 @@
 import { useState, useEffect, useRef, use } from "react";
 import { format } from "date-fns";
 import { he } from "date-fns/locale";
+import html2canvas from "html2canvas";
+import { jsPDF } from "jspdf";
 
 const METHOD_LABELS: Record<string, string> = {
   CASH: "מזומן",
@@ -16,12 +18,15 @@ const METHOD_LABELS: Record<string, string> = {
 interface ReceiptData {
   receiptNumber: string | null;
   amount: number;
+  expectedAmount: number;
   method: string;
   paidAt: string | null;
   createdAt: string;
   clientName: string;
   sessionDate: string | null;
   receiptUrl: string | null;
+  isPartial: boolean;
+  remaining: number;
   therapist: {
     name: string;
     businessName: string;
@@ -63,13 +68,11 @@ export default function PublicReceiptPage({
     if (!receiptRef.current || !receipt) return;
 
     try {
-      const html2canvas = (await import("html2canvas")).default;
-      const { jsPDF } = await import("jspdf");
-
       const canvas = await html2canvas(receiptRef.current, {
         scale: 2,
         useCORS: true,
         backgroundColor: "#ffffff",
+        logging: false,
       });
 
       const imgData = canvas.toDataURL("image/png");
@@ -84,7 +87,7 @@ export default function PublicReceiptPage({
       pdf.save(fileName);
     } catch (err) {
       console.error("PDF error:", err);
-      alert("שגיאה ביצירת PDF, נסה שוב");
+      window.print();
     }
   };
 
@@ -228,10 +231,25 @@ export default function PublicReceiptPage({
           </div>
 
           {/* Total */}
-          <div className="px-8 py-5 text-left bg-gray-50 border-t-2 border-teal-500">
-            <span className="text-xl font-bold text-teal-700">
-              סה״כ: ₪{receipt.amount.toLocaleString()}
-            </span>
+          <div className="px-8 py-5 bg-gray-50 border-t-2 border-teal-500">
+            <div className="flex justify-between items-center">
+              <span className="text-xl font-bold text-teal-700">
+                סה״כ שולם: ₪{receipt.amount.toLocaleString()}
+              </span>
+            </div>
+            {receipt.isPartial && (
+              <div className="mt-3 pt-3 border-t border-gray-200 text-sm text-gray-600 space-y-1">
+                <div className="flex justify-between">
+                  <span>סכום מלא לפגישה:</span>
+                  <span className="font-medium">₪{receipt.expectedAmount.toLocaleString()}</span>
+                </div>
+                <div className="flex justify-between">
+                  <span>נותר לתשלום:</span>
+                  <span className="font-medium text-orange-600">₪{receipt.remaining.toLocaleString()}</span>
+                </div>
+                <p className="text-xs text-orange-500 mt-1 font-medium">* תשלום חלקי</p>
+              </div>
+            )}
           </div>
 
           {/* Footer */}

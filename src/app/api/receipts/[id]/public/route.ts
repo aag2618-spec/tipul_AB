@@ -2,6 +2,8 @@ import { NextRequest, NextResponse } from "next/server";
 import prisma from "@/lib/prisma";
 import { verifyReceiptToken } from "@/lib/receipt-token";
 
+export const dynamic = "force-dynamic";
+
 export async function GET(
   request: NextRequest,
   { params }: { params: Promise<{ id: string }> }
@@ -44,15 +46,22 @@ export async function GET(
       },
     });
 
+    const amount = Number(payment.amount);
+    const expectedAmount = Number(payment.expectedAmount || payment.amount);
+    const isPartial = amount < expectedAmount;
+
     return NextResponse.json({
       receiptNumber: payment.receiptNumber,
-      amount: Number(payment.amount),
+      amount,
+      expectedAmount,
       method: payment.method,
       paidAt: payment.paidAt,
       createdAt: payment.createdAt,
       clientName: payment.client.name,
       sessionDate: payment.session?.startTime || null,
       receiptUrl: payment.receiptUrl,
+      isPartial,
+      remaining: isPartial ? expectedAmount - amount : 0,
       therapist: {
         name: therapist?.name || "",
         businessName: therapist?.businessName || "",
