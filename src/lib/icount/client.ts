@@ -171,38 +171,46 @@ export class ICountClient {
     };
   }
 
-  private async resolveReceiptDocType(): Promise<number> {
-    try {
-      const types = await this.getAvailableDocTypes();
-      const typeKeys = Object.keys(types);
-      console.log('iCount available doc types:', JSON.stringify(types));
-
-      const receiptPreference = [400, 320, 305];
-      for (const code of receiptPreference) {
-        if (typeKeys.includes(String(code))) return code;
-      }
-
-      const numericKeys = typeKeys.map(Number).filter(n => !isNaN(n));
-      if (numericKeys.length > 0) return numericKeys[0];
-    } catch (err) {
-      console.error('Failed to resolve doc types, defaulting to 320:', err);
-    }
-    return 320;
-  }
-
   /**
-   * יצירת קבלה
+   * יצירת קבלה - מנסה סוגי מסמכים שונים עד שמצליח
    */
   async createReceipt(
     request: CreateDocumentRequest
   ): Promise<ICountResponse<CreateDocumentResponse>> {
-    const resolvedType = await this.resolveReceiptDocType();
-    console.log('iCount using doctype:', resolvedType);
-    const data = this.buildDocumentData({ ...request, doctype: request.doctype }, resolvedType);
-    const raw = await this.request<ICountRawDocResponse>('doc/create', data);
-    if (!raw.success || !raw.data) return raw as ICountResponse<CreateDocumentResponse>;
-    console.log('iCount doc/create raw response:', JSON.stringify(raw.data));
-    return { ...raw, data: this.normalizeDocResponse(raw.data) };
+    let availableTypes: Record<string, string> = {};
+    try {
+      availableTypes = await this.getAvailableDocTypes();
+      console.log('iCount available doc types:', JSON.stringify(availableTypes));
+    } catch (e) {
+      console.error('Failed to fetch doc types:', e);
+    }
+
+    const typesToTry = [320, 305, 400, 100];
+    const errors: string[] = [];
+
+    for (const docType of typesToTry) {
+      console.log('iCount trying doctype:', docType);
+      const data = this.buildDocumentData(request, docType);
+      const raw = await this.request<ICountRawDocResponse>('doc/create', data);
+
+      if (raw.success && raw.data) {
+        console.log('iCount doc/create SUCCESS with doctype', docType, ':', JSON.stringify(raw.data));
+        return { ...raw, data: this.normalizeDocResponse(raw.data) };
+      }
+
+      const errMsg = raw.message || 'unknown error';
+      console.log('iCount doctype', docType, 'failed:', errMsg);
+      errors.push(`${docType}: ${errMsg}`);
+
+      if (!errMsg.includes('מסמך') && !errMsg.includes('doctype') && !errMsg.includes('type')) {
+        return raw as ICountResponse<CreateDocumentResponse>;
+      }
+    }
+
+    return {
+      success: false,
+      message: `כל סוגי המסמכים נכשלו: ${errors.join(' | ')}`,
+    };
   }
 
   async createInvoice(
