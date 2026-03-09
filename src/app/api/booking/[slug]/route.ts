@@ -60,6 +60,8 @@ function checkRateLimit(ip: string): boolean {
   return true;
 }
 
+export const dynamic = "force-dynamic";
+
 export async function GET(
   request: NextRequest,
   { params }: { params: Promise<{ slug: string }> }

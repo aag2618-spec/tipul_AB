@@ -6,6 +6,8 @@ import { GoogleGenerativeAI } from "@google/generative-ai";
 import { getApproachById, getApproachPrompts, buildIntegrationSection, getScalesPrompt, getUniversalPromptsLight } from "@/lib/therapeutic-approaches";
 
 // POST - Analyze questionnaire with AI
+export const dynamic = "force-dynamic";
+
 export async function POST(
   request: NextRequest,
   { params }: { params: Promise<{ id: string }> }

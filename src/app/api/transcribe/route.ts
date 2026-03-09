@@ -7,6 +7,8 @@ import { readFile } from "fs/promises";
 import { join } from "path";
 import { logApiUsage, estimateTokens, estimateCost } from "@/lib/api-logger";
 
+export const dynamic = "force-dynamic";
+
 export async function POST(request: NextRequest) {
   try {
     const session = await getServerSession(authOptions);

@@ -2,6 +2,8 @@ import { NextRequest, NextResponse } from "next/server";
 import prisma from "@/lib/prisma";
 
 // POST - One-time setup to make aag2618@gmail.com an ADMIN
+export const dynamic = "force-dynamic";
+
 export async function POST(request: NextRequest) {
   try {
     const secretKey = request.headers.get("x-setup-key");

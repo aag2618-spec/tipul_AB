@@ -5,6 +5,8 @@ import prisma from "@/lib/prisma";
 import { Prisma } from "@prisma/client";
 
 // POST - שמור תשובות
+export const dynamic = "force-dynamic";
+
 export async function POST(req: NextRequest) {
   try {
     const session = await getServerSession(authOptions);

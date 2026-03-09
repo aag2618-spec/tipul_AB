@@ -5,6 +5,8 @@ import prisma from "@/lib/prisma";
 
 // GET /api/cancellation-requests
 // Get all cancellation requests for the therapist
+export const dynamic = "force-dynamic";
+
 export async function GET(request: NextRequest) {
   try {
     const session = await getServerSession(authOptions);

@@ -12,6 +12,8 @@ import { PLAN_NAMES, detectPeriodFromAmount as detectPeriodCentral } from "@/lib
 const ADMIN_EMAIL = process.env.ADMIN_EMAIL;
 const SYSTEM_URL = process.env.NEXTAUTH_URL || "";
 
+export const dynamic = "force-dynamic";
+
 export async function POST(request: NextRequest) {
   try {
     const body = await request.text();

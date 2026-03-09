@@ -6,6 +6,8 @@ import { createPaymentHistoryEmail } from "@/lib/email-templates/payment-history
 import { sendEmail } from "@/lib/resend";
 import { subMonths, startOfDay, endOfDay } from "date-fns";
 
+export const dynamic = "force-dynamic";
+
 export async function POST(
   req: NextRequest,
   { params }: { params: Promise<{ id: string }> }

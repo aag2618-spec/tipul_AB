@@ -6,6 +6,8 @@ import { Resend } from "resend";
 import path from "path";
 import fs from "fs/promises";
 
+export const dynamic = "force-dynamic";
+
 export async function POST(request: NextRequest) {
   try {
     const session = await getServerSession(authOptions);

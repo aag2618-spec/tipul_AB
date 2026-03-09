@@ -12,6 +12,8 @@ import { GreenInvoiceClient } from "@/lib/green-invoice/client";
 import { logBillingApiCall } from "@/lib/billing-logger";
 import { decrypt } from "@/lib/encryption";
 
+export const dynamic = "force-dynamic";
+
 export async function POST(request: NextRequest) {
   try {
     const session = await getServerSession(authOptions);

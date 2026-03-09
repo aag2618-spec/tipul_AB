@@ -5,6 +5,8 @@ import prisma from "@/lib/prisma";
 import JSZip from "jszip";
 import { format } from "date-fns";
 
+export const dynamic = "force-dynamic";
+
 export async function GET() {
   try {
     const session = await getServerSession(authOptions);

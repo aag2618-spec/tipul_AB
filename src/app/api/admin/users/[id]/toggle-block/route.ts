@@ -7,6 +7,8 @@ import prisma from "@/lib/prisma";
  * POST /api/admin/users/[id]/toggle-block
  * Toggle user block status
  */
+export const dynamic = "force-dynamic";
+
 export async function POST(
   req: NextRequest,
   { params }: { params: Promise<{ id: string }> }

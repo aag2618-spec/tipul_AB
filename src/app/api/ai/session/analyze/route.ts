@@ -27,6 +27,8 @@ const COSTS_PER_1M_TOKENS = {
  * - PROFESSIONAL: ניתוח תמציתי בלבד
  * - ENTERPRISE: ניתוח תמציתי + מפורט לפי גישות
  */
+export const dynamic = "force-dynamic";
+
 export async function POST(req: NextRequest) {
   try {
     const session = await getServerSession(authOptions);

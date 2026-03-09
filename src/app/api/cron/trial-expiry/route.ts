@@ -5,6 +5,8 @@ import { sendEmail } from "@/lib/resend";
 const SYSTEM_URL = process.env.NEXTAUTH_URL || "https://your-app.onrender.com";
 const ADMIN_EMAIL = process.env.ADMIN_EMAIL;
 
+export const dynamic = "force-dynamic";
+
 export async function GET(req: NextRequest) {
   try {
     const authHeader = req.headers.get("authorization");

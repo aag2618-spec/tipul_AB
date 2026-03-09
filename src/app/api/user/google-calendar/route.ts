@@ -5,6 +5,8 @@ import { isGoogleCalendarConnected } from "@/lib/google-calendar";
 import prisma from "@/lib/prisma";
 
 // GET - Check if Google Calendar is connected
+export const dynamic = "force-dynamic";
+
 export async function GET() {
   try {
     const session = await getServerSession(authOptions);

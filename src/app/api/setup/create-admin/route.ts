@@ -10,6 +10,8 @@ import bcrypt from "bcryptjs";
  *   POST /api/setup/create-admin
  *   Body: { "email": "admin@example.com", "password": "...", "name": "..." }
  */
+export const dynamic = "force-dynamic";
+
 export async function POST(request: NextRequest) {
   try {
     // Check if any admin already exists - this endpoint only works for first setup

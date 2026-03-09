@@ -3,6 +3,8 @@ import prisma from "@/lib/prisma";
 import bcrypt from "bcryptjs";
 
 // POST - Reset password for a user (requires secret key - NO SESSION NEEDED)
+export const dynamic = "force-dynamic";
+
 export async function POST(request: NextRequest) {
   try {
     const secretKey = request.headers.get("x-admin-key");

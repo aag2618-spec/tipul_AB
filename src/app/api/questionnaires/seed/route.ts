@@ -1364,6 +1364,8 @@ const questionnaires = [
 ];
 
 // POST - Seed questionnaires to database
+export const dynamic = "force-dynamic";
+
 export async function POST(request: NextRequest) {
   try {
     // Allow with secret key or session with ADMIN/MANAGER role

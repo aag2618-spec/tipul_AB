@@ -114,7 +114,7 @@ export default function MarkPaidPage({ params }: { params: Promise<{ id: string 
           status: paymentMode === "FULL" ? "PAID" : "PENDING",
           method,
           paidAt: new Date().toISOString(),
-          amount: Number(payment.amount) + amountToPay + creditUsed,
+          amount: amountToPay + creditUsed,
           paymentMode,
           creditUsed,
         }),

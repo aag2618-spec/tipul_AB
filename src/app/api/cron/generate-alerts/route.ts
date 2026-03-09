@@ -5,6 +5,8 @@ import { AdminAlertType, AlertPriority, Prisma } from "@prisma/client";
 // API Route for generating automatic admin alerts
 // This can be called by a cron job (e.g., daily at 8:00 AM)
 
+export const dynamic = "force-dynamic";
+
 export async function GET(req: NextRequest) {
   try {
     // Verify cron secret (for security)

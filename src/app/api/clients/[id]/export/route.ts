@@ -5,6 +5,8 @@ import prisma from "@/lib/prisma";
 import JSZip from "jszip";
 import { format } from "date-fns";
 
+export const dynamic = "force-dynamic";
+
 export async function GET(
   request: NextRequest,
   { params }: { params: Promise<{ id: string }> }

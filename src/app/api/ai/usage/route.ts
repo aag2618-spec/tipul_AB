@@ -7,6 +7,8 @@ import { prisma } from "@/lib/prisma";
  * GET /api/ai/usage
  * קבלת סטטיסטיקות שימוש ב-AI לחודש הנוכחי
  */
+export const dynamic = "force-dynamic";
+
 export async function GET(req: NextRequest) {
   try {
     const session = await getServerSession(authOptions);

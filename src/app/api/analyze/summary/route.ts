@@ -5,6 +5,8 @@ import { generateSessionSummary, analyzeText } from "@/lib/google-ai";
 import prisma from "@/lib/prisma";
 import { getApproachById, getApproachPrompts, getUniversalPrompts } from "@/lib/therapeutic-approaches";
 
+export const dynamic = "force-dynamic";
+
 export async function POST(request: NextRequest) {
   try {
     const session = await getServerSession(authOptions);

@@ -7,6 +7,8 @@ import prisma from "@/lib/prisma";
  * GET /api/admin/ai-dashboard
  * Get all users with AI usage stats for admin dashboard
  */
+export const dynamic = "force-dynamic";
+
 export async function GET(req: NextRequest) {
   try {
     const session = await getServerSession(authOptions);

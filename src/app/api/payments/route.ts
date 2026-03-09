@@ -7,6 +7,8 @@ import { createPaymentReceiptEmail } from "@/lib/email-templates/payment-receipt
 import { createBillingService } from "@/lib/billing";
 import { getReceiptPageUrl } from "@/lib/receipt-token";
 
+export const dynamic = "force-dynamic";
+
 export async function GET() {
   try {
     const session = await getServerSession(authOptions);

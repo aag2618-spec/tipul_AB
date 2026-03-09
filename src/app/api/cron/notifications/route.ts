@@ -5,6 +5,8 @@ import { sendEmail } from "@/lib/resend";
 // This endpoint should be called by a cron job (Vercel Cron, Render Cron, or external service)
 // Set up in vercel.json or cron-job.org to call daily
 
+export const dynamic = "force-dynamic";
+
 export async function GET(request: NextRequest) {
   // Verify cron secret for security
   const authHeader = request.headers.get("authorization");

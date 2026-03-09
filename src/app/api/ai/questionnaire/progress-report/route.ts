@@ -25,6 +25,8 @@ const COSTS_PER_1M_TOKENS = {
  * - PROFESSIONAL: עד 15 דוחות בחודש
  * - ENTERPRISE: עד 20 דוחות בחודש
  */
+export const dynamic = "force-dynamic";
+
 export async function POST(req: NextRequest) {
   try {
     const session = await getServerSession(authOptions);

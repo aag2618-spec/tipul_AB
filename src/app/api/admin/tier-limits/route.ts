@@ -44,6 +44,8 @@ const DEFAULT_LIMITS = {
 };
 
 // GET - קבלת מכסות לפי תוכנית
+export const dynamic = "force-dynamic";
+
 export async function GET(req: NextRequest) {
   try {
     const session = await getServerSession(authOptions);

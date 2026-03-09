@@ -180,6 +180,7 @@ export function QuickMarkPaid({
         if (!response.ok) throw new Error("Failed to update payment");
       } else {
         // Create new payment
+        const isFullPayment = paymentType !== "PARTIAL" || totalAmount >= amount;
         const response = await fetch("/api/payments", {
           method: "POST",
           headers: { "Content-Type": "application/json" },
@@ -190,7 +191,7 @@ export function QuickMarkPaid({
             expectedAmount: amount,
             paymentType: paymentType === "PARTIAL" ? "PARTIAL" : "FULL",
             method,
-            status: "PAID",
+            status: isFullPayment ? "PAID" : "PENDING",
             creditUsed: creditToUse,
             issueReceipt: businessType !== "NONE" && issueReceipt,
           }),

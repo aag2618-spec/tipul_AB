@@ -9,6 +9,8 @@ const TIER_FALLBACK_PRICES: Record<string, number> = {
   ENTERPRISE: 220,
 };
 
+export const dynamic = "force-dynamic";
+
 export async function GET() {
   try {
     const session = await getServerSession(authOptions);

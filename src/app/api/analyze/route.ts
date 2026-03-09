@@ -5,6 +5,8 @@ import prisma from "@/lib/prisma";
 import { analyzeSession, analyzeIntake } from "@/lib/google-ai";
 import { logApiUsage, estimateTokens, estimateCost } from "@/lib/api-logger";
 
+export const dynamic = "force-dynamic";
+
 export async function POST(request: NextRequest) {
   try {
     const session = await getServerSession(authOptions);

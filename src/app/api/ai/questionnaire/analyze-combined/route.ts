@@ -25,6 +25,8 @@ const COSTS_PER_1M_TOKENS = {
  * - PROFESSIONAL: עד 30 ניתוחים בחודש
  * - ENTERPRISE: עד 40 ניתוחים בחודש
  */
+export const dynamic = "force-dynamic";
+
 export async function POST(req: NextRequest) {
   try {
     const session = await getServerSession(authOptions);

@@ -6,6 +6,8 @@ import { create2HourReminderEmail, formatSessionDateTime } from "@/lib/email-tem
 // Send custom-timed session reminders (replaces fixed 2h reminders)
 // Should be called by cron job every 15 minutes
 
+export const dynamic = "force-dynamic";
+
 export async function GET(request: NextRequest) {
   const authHeader = request.headers.get("authorization");
   const cronSecret = process.env.CRON_SECRET;

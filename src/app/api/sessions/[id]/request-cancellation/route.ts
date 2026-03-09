@@ -11,6 +11,8 @@ import {
 
 // POST /api/sessions/[id]/request-cancellation
 // Allows a client to request cancellation of a session
+export const dynamic = "force-dynamic";
+
 export async function POST(
   request: NextRequest,
   { params }: { params: Promise<{ id: string }> }

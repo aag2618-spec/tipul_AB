@@ -22,6 +22,8 @@ const COSTS_PER_1M_TOKENS = {
  * GET /api/ai/session-prep
  * קבלת הכנה קיימת לפגישה
  */
+export const dynamic = "force-dynamic";
+
 export async function GET(request: NextRequest) {
   try {
     const session = await getServerSession(authOptions);

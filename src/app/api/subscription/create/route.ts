@@ -10,6 +10,8 @@ import { MeshulamClient } from "@/lib/meshulam";
 import { checkRateLimit, SUBSCRIPTION_RATE_LIMIT, rateLimitResponse } from "@/lib/rate-limit";
 import { PRICING, PERIOD_DAYS, PERIOD_LABELS } from "@/lib/pricing";
 
+export const dynamic = "force-dynamic";
+
 export async function POST(request: NextRequest) {
   try {
     const session = await getServerSession(authOptions);

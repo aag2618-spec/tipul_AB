@@ -7,6 +7,8 @@ import prisma from "@/lib/prisma";
  * API endpoint to set a user as admin
  * Only accessible by existing admins
  */
+export const dynamic = "force-dynamic";
+
 export async function POST(request: NextRequest) {
   try {
     const session = await getServerSession(authOptions);

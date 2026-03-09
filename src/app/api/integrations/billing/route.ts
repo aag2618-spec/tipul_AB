@@ -5,6 +5,8 @@ import prisma from "@/lib/prisma";
 import { encrypt, decrypt } from "@/lib/encryption";
 
 // GET - Get all billing providers for the current user
+export const dynamic = "force-dynamic";
+
 export async function GET() {
   try {
     const session = await getServerSession(authOptions);

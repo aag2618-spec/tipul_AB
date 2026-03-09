@@ -10,6 +10,8 @@ function extractEmail(raw: string): string {
 }
 
 // Resend webhook for incoming email replies
+export const dynamic = "force-dynamic";
+
 export async function POST(request: NextRequest) {
   try {
     const headersList = await headers();

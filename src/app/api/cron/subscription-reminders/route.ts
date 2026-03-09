@@ -22,6 +22,8 @@ const PLAN_PRICES = MONTHLY_PRICES;
 // API Route
 // ========================================
 
+export const dynamic = "force-dynamic";
+
 export async function GET(req: NextRequest) {
   try {
     // אימות CRON secret

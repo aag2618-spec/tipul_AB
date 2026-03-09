@@ -38,6 +38,8 @@ const TIER_DISPLAY_NAMES = {
 };
 
 // GET - קבלת מידע על שימוש המשתמש
+export const dynamic = "force-dynamic";
+
 export async function GET(req: NextRequest) {
   try {
     const session = await getServerSession(authOptions);

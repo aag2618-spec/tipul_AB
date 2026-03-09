@@ -6,6 +6,8 @@ import { sendEmail } from "@/lib/resend";
 import { createSessionConfirmationEmail, formatSessionDateTime } from "@/lib/email-templates";
 
 // Send session confirmation email immediately after session creation
+export const dynamic = "force-dynamic";
+
 export async function POST(request: NextRequest) {
   const session = await getServerSession(authOptions);
   if (!session?.user?.id) {

@@ -4,6 +4,8 @@ import { authOptions } from "@/lib/auth";
 import prisma from "@/lib/prisma";
 
 // Webhook to receive incoming emails forwarded from Gmail/Outlook
+export const dynamic = "force-dynamic";
+
 export async function POST(request: NextRequest) {
   try {
     // Verify webhook secret

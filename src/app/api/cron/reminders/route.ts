@@ -6,6 +6,8 @@ import { create24HourReminderEmail, formatSessionDateTime } from "@/lib/email-te
 // Send 24-hour session reminders
 // Should be called by cron job every hour
 
+export const dynamic = "force-dynamic";
+
 export async function GET(request: NextRequest) {
   // Verify cron secret for security
   const authHeader = request.headers.get("authorization");

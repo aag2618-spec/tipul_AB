@@ -8,6 +8,8 @@ import { checkRateLimit, AUTH_RATE_LIMIT, rateLimitResponse } from "@/lib/rate-l
 const TRIAL_DAYS = 14;
 const TRIAL_AI_TIER = "PRO"; // מסלול ניסיון
 
+export const dynamic = "force-dynamic";
+
 export async function POST(request: NextRequest) {
   try {
     const ip = request.headers.get("x-forwarded-for") || request.headers.get("x-real-ip") || "unknown";

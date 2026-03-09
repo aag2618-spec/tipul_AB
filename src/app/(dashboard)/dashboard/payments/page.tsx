@@ -196,7 +196,7 @@ export default function PaymentsPage() {
       setIsLoading(true);
       
       // טעינת חובות מטופלים
-      const debtsResponse = await fetch("/api/payments/client-debts");
+      const debtsResponse = await fetch("/api/payments/client-debts", { cache: "no-store" });
       if (debtsResponse.ok) {
         const data = await debtsResponse.json();
         setClients(data);
@@ -211,14 +211,14 @@ export default function PaymentsPage() {
       // טעינת תשלומים החודש
       const now = new Date();
       const startOfMonth = new Date(now.getFullYear(), now.getMonth(), 1);
-      const monthlyResponse = await fetch(`/api/payments/monthly-total?start=${startOfMonth.toISOString()}`);
+      const monthlyResponse = await fetch(`/api/payments/monthly-total?start=${startOfMonth.toISOString()}`, { cache: "no-store" });
       if (monthlyResponse.ok) {
         const monthlyData = await monthlyResponse.json();
         setPaidThisMonth(monthlyData.total || 0);
       }
       
       // טעינת היסטוריית תשלומים (תשלומים ששולמו)
-      const paidResponse = await fetch("/api/payments/paid-history");
+      const paidResponse = await fetch("/api/payments/paid-history", { cache: "no-store" });
       if (paidResponse.ok) {
         const paidData = await paidResponse.json();
         setPaidPayments(paidData);
