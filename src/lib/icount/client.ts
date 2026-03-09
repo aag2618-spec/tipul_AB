@@ -44,11 +44,11 @@ export class ICountClient {
         body: params.toString(),
       });
       const result = await response.json();
-      if (result.sid) {
+      if (result.status && result.sid) {
         this.sid = result.sid;
         return true;
       }
-      console.error('iCount login failed:', result);
+      console.error('iCount login failed:', result.error_description || result.reason || JSON.stringify(result));
       return false;
     } catch (err) {
       console.error('iCount login error:', err);
@@ -93,14 +93,15 @@ export class ICountClient {
 
       const result = await response.json();
 
-      if (!result.success && result.status !== 'ok') {
+      // iCount API returns { status: true/false } not { success: true }
+      if (!result.status) {
         console.error('iCount API Error:', result);
         return {
           success: false,
-          message: result.reason || result.message || 'שגיאה בתקשורת עם iCount',
+          message: result.error_description || result.reason || result.message || 'שגיאה בתקשורת עם iCount',
           error: {
             code: result.errorcode || 'UNKNOWN',
-            message: result.reason || 'שגיאה לא ידועה',
+            message: result.error_description || result.reason || 'שגיאה לא ידועה',
           },
         };
       }
