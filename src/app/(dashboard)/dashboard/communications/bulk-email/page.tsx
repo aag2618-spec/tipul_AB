@@ -192,10 +192,10 @@ export default function BulkEmailPage() {
         </Button>
         <div>
           <h1 className="text-2xl font-bold tracking-tight flex items-center gap-2">
-            <Users className="h-6 w-6" />
-            שליחה קבוצתית
+            <Send className="h-6 w-6" />
+            שליחת הודעה
           </h1>
-          <p className="text-muted-foreground">שלח מייל למספר מטופלים בבת אחת</p>
+          <p className="text-muted-foreground">שלח מייל למטופל אחד או יותר</p>
         </div>
       </div>
 

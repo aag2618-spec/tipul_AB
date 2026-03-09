@@ -452,7 +452,7 @@ export default function CommunicationsPage() {
     <div className="space-y-5 animate-fade-in">
       <div className="flex items-center justify-between flex-wrap gap-3">
         <div>
-          <h1 className="text-2xl font-bold tracking-tight">היסטוריית תקשורת</h1>
+          <h1 className="text-2xl font-bold tracking-tight">הודעות</h1>
           <div className="flex items-center gap-2 mt-2">
             {/* Unread replies badge - always visible */}
             <button
@@ -489,8 +489,8 @@ export default function CommunicationsPage() {
         </div>
         <Button asChild className="gap-2">
           <Link href="/dashboard/communications/bulk-email">
-            <Users className="h-4 w-4" />
-            שליחה קבוצתית
+            <Send className="h-4 w-4" />
+            שליחת הודעה
           </Link>
         </Button>
       </div>
@@ -511,7 +511,7 @@ export default function CommunicationsPage() {
         {filteredThreads.length === 0 ? (
           <div className="flex flex-col items-center justify-center py-16 text-muted-foreground">
             <Mail className="h-10 w-10 mb-3 opacity-30" />
-            <p className="text-sm">{searchTerm ? "לא נמצאו תוצאות" : "אין עדיין היסטוריית תקשורת"}</p>
+            <p className="text-sm">{searchTerm ? "לא נמצאו תוצאות" : "אין עדיין הודעות"}</p>
           </div>
         ) : (
           <table className="w-full" style={{ borderCollapse: "collapse", tableLayout: "fixed" }}>

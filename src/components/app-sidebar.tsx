@@ -70,6 +70,11 @@ const mainNavItems = [
     href: "/dashboard/tasks",
     icon: ListTodo,
   },
+  {
+    title: "הודעות",
+    href: "/dashboard/communications",
+    icon: Mail,
+  },
 ];
 
 const clinicalItems = [
@@ -96,11 +101,6 @@ const clinicalItems = [
 ];
 
 const businessItems = [
-  {
-    title: "היסטוריית תקשורת",
-    href: "/dashboard/communications",
-    icon: Mail,
-  },
   {
     title: "דוחות",
     href: "/dashboard/reports",
@@ -220,7 +220,7 @@ export function AppSidebar({ user }: AppSidebarProps) {
 
         {/* Business Management */}
         <SidebarGroup>
-          <SidebarGroupLabel>מעקב ודוחות</SidebarGroupLabel>
+          <SidebarGroupLabel>דוחות</SidebarGroupLabel>
           <SidebarGroupContent>
             <SidebarMenu>
               {businessItems.map((item) => (
