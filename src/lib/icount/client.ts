@@ -33,22 +33,25 @@ export class ICountClient {
 
   private async login(): Promise<boolean> {
     try {
+      const params = new URLSearchParams();
+      params.append('cid', this.companyId);
+      params.append('user', this.username);
+      params.append('pass', this.password);
+
       const response = await fetch(`${ICOUNT_API_BASE}/auth/login`, {
         method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({
-          cid: this.companyId,
-          user: this.username,
-          pass: this.password,
-        }),
+        headers: { 'Content-Type': 'application/x-www-form-urlencoded' },
+        body: params.toString(),
       });
       const result = await response.json();
       if (result.sid) {
         this.sid = result.sid;
         return true;
       }
+      console.error('iCount login failed:', result);
       return false;
-    } catch {
+    } catch (err) {
+      console.error('iCount login error:', err);
       return false;
     }
   }
@@ -68,18 +71,24 @@ export class ICountClient {
         }
       }
 
-      const requestData = {
-        ...data,
-        cid: this.companyId,
-        sid: this.sid,
-      };
+      const params = new URLSearchParams();
+      params.append('cid', this.companyId);
+      params.append('sid', this.sid);
+      
+      for (const [key, value] of Object.entries(data)) {
+        if (value !== undefined && value !== null) {
+          if (typeof value === 'object') {
+            params.append(key, JSON.stringify(value));
+          } else {
+            params.append(key, String(value));
+          }
+        }
+      }
 
       const response = await fetch(`${ICOUNT_API_BASE}/${endpoint}`, {
         method: 'POST',
-        headers: {
-          'Content-Type': 'application/json',
-        },
-        body: JSON.stringify(requestData),
+        headers: { 'Content-Type': 'application/x-www-form-urlencoded' },
+        body: params.toString(),
       });
 
       const result = await response.json();
@@ -115,7 +124,11 @@ export class ICountClient {
    */
   async testConnection(): Promise<boolean> {
     try {
-      const response = await this.request('get_company_details', {});
+      this.sid = null;
+      const loggedIn = await this.login();
+      if (!loggedIn) return false;
+      
+      const response = await this.request('doc/types', {});
       return response.success;
     } catch {
       return false;
@@ -129,12 +142,9 @@ export class ICountClient {
     request: CreateDocumentRequest
   ): Promise<ICountResponse<CreateDocumentResponse>> {
     const data = this.buildDocumentData(request);
-    return this.request<CreateDocumentResponse>('create_doc', data);
+    return this.request<CreateDocumentResponse>('doc/create', data);
   }
 
-  /**
-   * יצירת חשבונית מס
-   */
   async createInvoice(
     request: CreateDocumentRequest
   ): Promise<ICountResponse<CreateDocumentResponse>> {
@@ -142,12 +152,9 @@ export class ICountClient {
       ...request,
       doctype: 'tax_invoice',
     });
-    return this.request<CreateDocumentResponse>('create_doc', data);
+    return this.request<CreateDocumentResponse>('doc/create', data);
   }
 
-  /**
-   * יצירת חשבונית מס קבלה
-   */
   async createInvoiceReceipt(
     request: CreateDocumentRequest
   ): Promise<ICountResponse<CreateDocumentResponse>> {
@@ -155,14 +162,11 @@ export class ICountClient {
       ...request,
       doctype: 'invoice_receipt',
     });
-    return this.request<CreateDocumentResponse>('create_doc', data);
+    return this.request<CreateDocumentResponse>('doc/create', data);
   }
 
-  /**
-   * קבלת קישור למסמך
-   */
   async getDocumentUrl(docId: string): Promise<ICountResponse<{ url: string; pdf_url: string }>> {
-    return this.request<{ url: string; pdf_url: string }>('get_doc_url', {
+    return this.request<{ url: string; pdf_url: string }>('doc/get_url', {
       doc_id: docId,
     });
   }
