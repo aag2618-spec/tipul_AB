@@ -200,8 +200,7 @@ export async function POST(request: NextRequest) {
         }
 
         // שליחת מייל אישור תשלום
-        if (commSettings?.sendPaymentReceipt && payment.client.email) {
-          // Calculate remaining debt
+        if (commSettings?.sendPaymentReceipt) {
           const allPayments = await prisma.payment.findMany({
             where: {
               clientId: payment.client.id,
@@ -241,27 +240,38 @@ export async function POST(request: NextRequest) {
             },
           });
 
-          await sendEmail({
-            to: payment.client.email,
-            subject,
-            html,
-            replyTo: therapist?.email || undefined,
-          });
-
-          // Log communication
-          await prisma.communicationLog.create({
-            data: {
-              type: "CUSTOM",
-              channel: "EMAIL",
-              recipient: payment.client.email.toLowerCase(),
+          // שליחה למטופל
+          if (commSettings.sendReceiptToClient && payment.client.email) {
+            await sendEmail({
+              to: payment.client.email,
               subject,
-              content: html,
-              status: "SENT",
-              sentAt: new Date(),
-              clientId: clientId,
-              userId: session.user.id,
-            },
-          });
+              html,
+              replyTo: therapist?.email || undefined,
+            });
+
+            await prisma.communicationLog.create({
+              data: {
+                type: "CUSTOM",
+                channel: "EMAIL",
+                recipient: payment.client.email.toLowerCase(),
+                subject,
+                content: html,
+                status: "SENT",
+                sentAt: new Date(),
+                clientId: clientId,
+                userId: session.user.id,
+              },
+            });
+          }
+
+          // שליחת עותק למטפל
+          if (commSettings.sendReceiptToTherapist && therapist?.email) {
+            await sendEmail({
+              to: therapist.email,
+              subject: `[עותק] ${subject}`,
+              html,
+            });
+          }
         }
       } catch (emailError) {
         console.error("Error sending payment receipt email:", emailError);

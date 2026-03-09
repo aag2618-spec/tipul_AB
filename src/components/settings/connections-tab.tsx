@@ -56,6 +56,9 @@ interface ProviderInfo {
     apiSecretLabel?: string;
     apiSecretPlaceholder?: string;
     apiSecretRequired?: boolean;
+    extraFieldLabel?: string;
+    extraFieldPlaceholder?: string;
+    extraFieldIsPassword?: boolean;
   };
   instructions: string[];
   signupUrl: string;
@@ -68,17 +71,18 @@ const providerInfo: Record<string, ProviderInfo> = {
     icon: CreditCard,
     features: ["סליקת אשראי", "קבלות אוטומטיות", "תשלום בקישור"],
     fields: {
-      apiKeyLabel: "Page Code",
-      apiKeyPlaceholder: "הקוד מלוח הבקרה של Meshulam",
-      apiSecretLabel: "API Secret",
-      apiSecretPlaceholder: "אופציונלי - לאימות Webhooks",
+      apiKeyLabel: "Page Code (קוד דף)",
+      apiKeyPlaceholder: "קוד שקיבלת מ-Meshulam/Grow, למשל: f6a3c7d0ed02",
+      apiSecretLabel: "API Secret (אופציונלי)",
+      apiSecretPlaceholder: "לאימות Webhooks - לא חובה",
     },
     instructions: [
-      "היכנס לאתר meshulam.co.il והתחבר לחשבון שלך",
-      "לך אל הגדרות → API / חיבורים",
-      "העתק את ה-Page Code והדבק כאן",
+      "פתח חשבון ב-Grow (grow.business) - הפלטפורמה החדשה של Meshulam",
+      "לאחר פתיחת חשבון, פנה לצוות התמיכה של Grow ובקש Page Code לחיבור API",
+      "תקבל מהם קוד (Page Code) - הדבק אותו בשדה למטה",
+      "שדה ה-API Secret הוא אופציונלי ומשמש לאימות Webhooks בלבד",
     ],
-    signupUrl: "https://www.meshulam.co.il",
+    signupUrl: "https://grow.business",
   },
   ICOUNT: {
     name: "iCount",
@@ -87,16 +91,19 @@ const providerInfo: Record<string, ProviderInfo> = {
     features: ["קבלות מקצועיות", "דוחות", "חינמי עד 25/חודש"],
     fields: {
       apiKeyLabel: "מזהה חברה (Company ID)",
-      apiKeyPlaceholder: "מספר מזהה החברה שלך ב-iCount",
-      apiSecretLabel: "שם משתמש (המייל שלך ב-iCount)",
-      apiSecretPlaceholder: "המייל או שם המשתמש שאיתו נכנסת ל-iCount",
+      apiKeyPlaceholder: 'למשל: MYTIPUL (שם באנגלית שבחרת בהרשמה)',
+      apiSecretLabel: "כתובת מייל (שם משתמש)",
+      apiSecretPlaceholder: "המייל שאיתו נרשמת ל-iCount",
       apiSecretRequired: true,
+      extraFieldLabel: "סיסמה",
+      extraFieldPlaceholder: "הסיסמה שלך ב-iCount",
+      extraFieldIsPassword: true,
     },
     instructions: [
-      "היכנס ל-iCount (app.icount.co.il) והתחבר לחשבון שלך",
-      "לחץ על מערכת (גלגל שיניים) → הגדרות",
-      "מזהה החברה (CID) מופיע בראש העמוד או בפרטי החשבון",
-      "שם המשתמש הוא המייל שאיתו נרשמת ל-iCount",
+      "אם עוד אין לך חשבון - הירשם באתר icount.co.il (יש תוכנית חינמית!)",
+      'מזהה החברה: השם באנגלית שבחרת בהרשמה. נמצא ב: מערכת → הגדרות → "החברה שלי"',
+      "כתובת מייל: המייל שאיתו נכנסת ל-iCount",
+      "סיסמה: הסיסמה שאיתה נכנסת ל-iCount",
     ],
     signupUrl: "https://www.icount.co.il",
   },
@@ -106,17 +113,18 @@ const providerInfo: Record<string, ProviderInfo> = {
     icon: FileText,
     features: ["קבלות מעוצבות", "ממשק נוח"],
     fields: {
-      apiKeyLabel: "API Key (מפתח API)",
-      apiKeyPlaceholder: "מפתח ה-API שלך",
-      apiSecretLabel: "API Secret (סוד API)",
-      apiSecretPlaceholder: "הסוד שקיבלת יחד עם המפתח",
+      apiKeyLabel: "מפתח API (API Key ID)",
+      apiKeyPlaceholder: "המפתח שנוצר בכלי הפיתוח",
+      apiSecretLabel: "סוד API (API Secret)",
+      apiSecretPlaceholder: "הסוד שהוצג בעת יצירת המפתח",
       apiSecretRequired: true,
     },
     instructions: [
-      "היכנס לאתר greeninvoice.co.il והתחבר",
-      "לך אל הגדרות → מפתחות API → צור מפתח חדש",
-      "העתק את ה-API Key ואת ה-API Secret",
-      "הדבק את שניהם בשדות למטה",
+      "חשוב: נדרש מסלול Best ומעלה (ה-API לא זמין במסלול הבסיסי)",
+      "היכנס לחשבון שלך ב-greeninvoice.co.il",
+      "לחץ על שם המשתמש שלך (למעלה) → כלי פיתוח → מפתחות API",
+      "לחץ על + כדי ליצור מפתח חדש, תן לו שם, ולחץ שמור",
+      "העתק את המפתח (API Key) ואת הסוד (Secret) - הסוד מוצג רק פעם אחת!",
     ],
     signupUrl: "https://www.greeninvoice.co.il",
   },
@@ -126,17 +134,17 @@ const providerInfo: Record<string, ProviderInfo> = {
     icon: CreditCard,
     features: ["סליקה", "קבלות", "Developer Friendly"],
     fields: {
-      apiKeyLabel: "API Key (מפתח API)",
-      apiKeyPlaceholder: "מפתח ה-API שלך",
-      apiSecretLabel: "Company ID (מזהה חברה)",
-      apiSecretPlaceholder: "המזהה מהגדרות Sumit",
+      apiKeyLabel: "מפתח API (API Key)",
+      apiKeyPlaceholder: "המפתח ממסך ה-API",
+      apiSecretLabel: "מזהה חברה (Company ID)",
+      apiSecretPlaceholder: "מזהה החברה שלך ב-Sumit",
       apiSecretRequired: true,
     },
     instructions: [
-      "היכנס לאתר sumit.co.il והתחבר לחשבון שלך",
-      "לך אל הגדרות → הגדרות API",
-      "העתק את ה-API Key ואת ה-Company ID",
-      "הדבק את שניהם בשדות למטה",
+      "היכנס לחשבון שלך ב-sumit.co.il",
+      "בתפריט הצד, לחץ על API (דורש הרשאות מנהל מערכת)",
+      "יופיעו מזהה הלקוח (Client ID) ומפתח הגישה (API Key)",
+      "העתק את שניהם והדבק בשדות למטה",
     ],
     signupUrl: "https://www.sumit.co.il",
   },
@@ -153,8 +161,10 @@ export function ConnectionsTab() {
   const [selectedProvider, setSelectedProvider] = useState<string | null>(null);
   const [apiKey, setApiKey] = useState("");
   const [apiSecret, setApiSecret] = useState("");
+  const [extraField, setExtraField] = useState("");
   const [showApiKey, setShowApiKey] = useState(false);
   const [showApiSecret, setShowApiSecret] = useState(false);
+  const [showExtraField, setShowExtraField] = useState(false);
   const [saving, setSaving] = useState(false);
   const [testingConnection, setTestingConnection] = useState<string | null>(null);
 
@@ -217,8 +227,8 @@ export function ConnectionsTab() {
   };
 
   const openBillingDialog = (provider: string) => {
-    setSelectedProvider(provider); setApiKey(""); setApiSecret("");
-    setShowApiKey(false); setShowApiSecret(false); setShowBillingDialog(true);
+    setSelectedProvider(provider); setApiKey(""); setApiSecret(""); setExtraField("");
+    setShowApiKey(false); setShowApiSecret(false); setShowExtraField(false); setShowBillingDialog(true);
   };
 
   const currentProviderInfo = selectedProvider ? providerInfo[selectedProvider] : null;
@@ -226,9 +236,14 @@ export function ConnectionsTab() {
   const saveBillingProvider = async () => {
     if (!selectedProvider || !apiKey) { toast.error(`יש למלא ${currentProviderInfo?.fields.apiKeyLabel || "API Key"}`); return; }
     if (currentProviderInfo?.fields.apiSecretRequired && !apiSecret) { toast.error(`יש למלא ${currentProviderInfo?.fields.apiSecretLabel || "API Secret"}`); return; }
+    if (currentProviderInfo?.fields.extraFieldLabel && !extraField) { toast.error(`יש למלא ${currentProviderInfo?.fields.extraFieldLabel}`); return; }
     setSaving(true);
     try {
-      const res = await fetch("/api/integrations/billing", { method: "POST", headers: { "Content-Type": "application/json" }, body: JSON.stringify({ provider: selectedProvider, apiKey, apiSecret: apiSecret || null }) });
+      let finalApiSecret = apiSecret || null;
+      if (currentProviderInfo?.fields.extraFieldLabel && apiSecret && extraField) {
+        finalApiSecret = `${apiSecret}|||${extraField}`;
+      }
+      const res = await fetch("/api/integrations/billing", { method: "POST", headers: { "Content-Type": "application/json" }, body: JSON.stringify({ provider: selectedProvider, apiKey, apiSecret: finalApiSecret }) });
       if (res.ok) { toast.success("נוסף!"); setShowBillingDialog(false); const data = await fetch("/api/integrations/billing").then(r => r.json()); setBillingProviders(data); }
       else { const err = await res.json(); toast.error(err.error || "שגיאה"); }
     } catch { toast.error("שגיאה"); }
@@ -506,6 +521,26 @@ export function ConnectionsTab() {
                 </div>
               </div>
             )}
+
+            {currentProviderInfo?.fields.extraFieldLabel && (
+              <div className="space-y-2">
+                <Label>{currentProviderInfo.fields.extraFieldLabel} *</Label>
+                <div className="relative">
+                  <Input
+                    type={currentProviderInfo.fields.extraFieldIsPassword && !showExtraField ? "password" : "text"}
+                    value={extraField}
+                    onChange={(e) => setExtraField(e.target.value)}
+                    placeholder={currentProviderInfo.fields.extraFieldPlaceholder || ""}
+                    className="pl-10"
+                  />
+                  {currentProviderInfo.fields.extraFieldIsPassword && (
+                    <Button type="button" variant="ghost" size="sm" className="absolute left-0 top-0 h-full px-3" onClick={() => setShowExtraField(!showExtraField)}>
+                      {showExtraField ? <EyeOff className="h-4 w-4" /> : <Eye className="h-4 w-4" />}
+                    </Button>
+                  )}
+                </div>
+              </div>
+            )}
           </div>
 
           <div className="flex items-center gap-2 text-xs text-muted-foreground bg-muted/30 rounded p-2">
@@ -517,7 +552,7 @@ export function ConnectionsTab() {
             <Button variant="outline" onClick={() => setShowBillingDialog(false)}>ביטול</Button>
             <Button
               onClick={saveBillingProvider}
-              disabled={!apiKey || (currentProviderInfo?.fields.apiSecretRequired && !apiSecret) || saving}
+              disabled={!apiKey || (currentProviderInfo?.fields.apiSecretRequired && !apiSecret) || (currentProviderInfo?.fields.extraFieldLabel && !extraField) || saving}
             >
               {saving ? "שומר..." : "שמור וחבר"}
             </Button>

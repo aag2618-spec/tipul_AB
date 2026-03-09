@@ -4,6 +4,7 @@ import { authOptions } from "@/lib/auth";
 import prisma from "@/lib/prisma";
 import { sendEmail } from "@/lib/resend";
 import { createPaymentReceiptEmail } from "@/lib/email-templates/payment-receipt";
+import { createBillingService } from "@/lib/billing";
 
 export async function POST(req: NextRequest) {
   try {
@@ -129,39 +130,90 @@ export async function POST(req: NextRequest) {
       };
     });
 
-    // Send payment receipt email if enabled and payment is complete
+    // הנפקת קבלות ושליחת מיילים
     try {
       const commSettings = await prisma.communicationSetting.findUnique({
         where: { userId: session.user.id },
       });
 
-      if (commSettings?.sendPaymentReceipt && result.clientEmail) {
-        // Get therapist details
-        const therapist = await prisma.user.findUnique({
-          where: { id: session.user.id },
-        });
+      const therapist = await prisma.user.findUnique({
+        where: { id: session.user.id },
+      });
 
-        // Get updated client data
-        const updatedClient = await prisma.client.findUnique({
-          where: { id: clientId },
-        });
+      const updatedClient = await prisma.client.findUnique({
+        where: { id: clientId },
+      });
 
-        // Calculate remaining debt
-        const allPayments = await prisma.payment.findMany({
-          where: {
-            clientId,
-            status: "PENDING",
-          },
-        });
+      const paidPayments = result.updatedPayments.filter(p => p.status === "PAID");
+      let localReceiptCounter = therapist?.nextReceiptNumber || 1;
 
-        const remainingDebt = allPayments.reduce(
-          (sum, p) => sum + (Number(p.expectedAmount) - Number(p.amount)),
-          0
-        );
+      // הנפקת קבלות לכל תשלום ששולם
+      for (const payment of paidPayments) {
+        let receiptNumber: string | null = null;
+        let receiptUrl: string | null = null;
 
-        // Send email for each fully paid payment
-        for (const payment of result.updatedPayments.filter(p => p.status === "PAID")) {
-          // Get session info if exists
+        if (therapist?.businessType && therapist.businessType !== "NONE") {
+          if (therapist.businessType === "EXEMPT") {
+            const year = new Date().getFullYear();
+            receiptNumber = `${year}-${String(localReceiptCounter).padStart(4, "0")}`;
+            localReceiptCounter++;
+
+            await prisma.user.update({
+              where: { id: session.user.id },
+              data: { nextReceiptNumber: localReceiptCounter },
+            });
+
+            await prisma.payment.update({
+              where: { id: payment.id },
+              data: { receiptNumber, hasReceipt: true },
+            });
+          } else {
+            // עוסק מורשה: יצירת קבלה דרך ספק חיוב
+            try {
+              const paymentWithSession = await prisma.payment.findUnique({
+                where: { id: payment.id },
+                include: { session: true },
+              });
+
+              const billingService = createBillingService(session.user.id);
+              const receiptResult = await billingService.createReceipt({
+                clientName: client.name,
+                clientEmail: client.email || undefined,
+                clientPhone: client.phone || undefined,
+                amount: Number(payment.amount),
+                description: paymentWithSession?.session
+                  ? `תשלום עבור פגישה בתאריך ${new Date(paymentWithSession.session.startTime).toLocaleDateString('he-IL', { timeZone: 'Asia/Jerusalem' })}`
+                  : `תשלום עבור טיפול`,
+                paymentMethod: mapPaymentMethod(method),
+                sendEmail: commSettings?.sendReceiptToClient ?? true,
+              });
+
+              if (receiptResult.success) {
+                receiptUrl = receiptResult.receiptUrl || null;
+                receiptNumber = receiptResult.receiptNumber || null;
+
+                await prisma.payment.update({
+                  where: { id: payment.id },
+                  data: { receiptUrl, receiptNumber, hasReceipt: true },
+                });
+              }
+            } catch (billingError) {
+              console.error("Error creating receipt via billing provider:", billingError);
+            }
+          }
+        }
+
+        // שליחת מייל קבלה
+        if (commSettings?.sendPaymentReceipt) {
+          const allPendingPayments = await prisma.payment.findMany({
+            where: { clientId, status: "PENDING" },
+          });
+
+          const remainingDebt = allPendingPayments.reduce(
+            (sum, p) => sum + (Number(p.expectedAmount) - Number(p.amount)),
+            0
+          );
+
           const paymentWithSession = await prisma.payment.findUnique({
             where: { id: payment.id },
             include: { session: true },
@@ -177,6 +229,8 @@ export async function POST(req: NextRequest) {
               method: payment.method,
               paidAt: payment.paidAt || new Date(),
               session: paymentWithSession?.session || undefined,
+              receiptUrl: receiptUrl || undefined,
+              receiptNumber: receiptNumber || undefined,
             },
             clientBalance: {
               remainingDebt,
@@ -192,27 +246,38 @@ export async function POST(req: NextRequest) {
             },
           });
 
-          await sendEmail({
-            to: result.clientEmail,
-            subject,
-            html,
-            replyTo: therapist?.email || undefined,
-          });
-
-          // Log communication
-          await prisma.communicationLog.create({
-            data: {
-              type: "CUSTOM",
-              channel: "EMAIL",
-              recipient: result.clientEmail.toLowerCase(),
+          // שליחה למטופל
+          if (commSettings.sendReceiptToClient && result.clientEmail) {
+            await sendEmail({
+              to: result.clientEmail,
               subject,
-              content: html,
-              status: "SENT",
-              sentAt: new Date(),
-              clientId: clientId,
-              userId: session.user.id,
-            },
-          });
+              html,
+              replyTo: therapist?.email || undefined,
+            });
+
+            await prisma.communicationLog.create({
+              data: {
+                type: "CUSTOM",
+                channel: "EMAIL",
+                recipient: result.clientEmail.toLowerCase(),
+                subject,
+                content: html,
+                status: "SENT",
+                sentAt: new Date(),
+                clientId: clientId,
+                userId: session.user.id,
+              },
+            });
+          }
+
+          // שליחת עותק למטפל
+          if (commSettings.sendReceiptToTherapist && therapist?.email) {
+            await sendEmail({
+              to: therapist.email,
+              subject: `[עותק] ${subject}`,
+              html,
+            });
+          }
         }
       }
     } catch (emailError) {
@@ -238,4 +303,16 @@ export async function POST(req: NextRequest) {
       { status: 500 }
     );
   }
+}
+
+function mapPaymentMethod(method: string): 'cash' | 'check' | 'bank_transfer' | 'credit_card' | 'other' {
+  const mapping: Record<string, 'cash' | 'check' | 'bank_transfer' | 'credit_card' | 'other'> = {
+    CASH: 'cash',
+    CHECK: 'check',
+    BANK_TRANSFER: 'bank_transfer',
+    CREDIT_CARD: 'credit_card',
+    CREDIT: 'other',
+    OTHER: 'other',
+  };
+  return mapping[method] || 'other';
 }

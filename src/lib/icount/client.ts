@@ -12,12 +12,16 @@ const ICOUNT_API_BASE = 'https://api.icount.co.il/api/v3.php';
 
 export class ICountClient {
   private companyId: string;
-  private apiKey: string;
+  private username: string;
+  private password: string;
+  private sid: string | null = null;
   private settings: ICountSettings;
 
-  constructor(companyId: string, apiKey: string, settings?: Partial<ICountSettings>) {
+  constructor(companyId: string, credentials: string, settings?: Partial<ICountSettings>) {
     this.companyId = companyId;
-    this.apiKey = apiKey;
+    const parts = credentials.split('|||');
+    this.username = parts[0] || '';
+    this.password = parts[1] || '';
     this.settings = {
       company_id: companyId,
       vat_exempt: false,
@@ -27,18 +31,47 @@ export class ICountClient {
     };
   }
 
-  /**
-   * שליחת בקשה ל-iCount API
-   */
+  private async login(): Promise<boolean> {
+    try {
+      const response = await fetch(`${ICOUNT_API_BASE}/auth/login`, {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({
+          cid: this.companyId,
+          user: this.username,
+          pass: this.password,
+        }),
+      });
+      const result = await response.json();
+      if (result.sid) {
+        this.sid = result.sid;
+        return true;
+      }
+      return false;
+    } catch {
+      return false;
+    }
+  }
+
   private async request<T>(
     endpoint: string,
     data: Record<string, unknown>
   ): Promise<ICountResponse<T>> {
     try {
+      if (!this.sid) {
+        const loggedIn = await this.login();
+        if (!loggedIn) {
+          return {
+            success: false,
+            message: 'שגיאת התחברות ל-iCount - בדוק מזהה חברה, מייל וסיסמה',
+          };
+        }
+      }
+
       const requestData = {
         ...data,
         cid: this.companyId,
-        user: this.apiKey,
+        sid: this.sid,
       };
 
       const response = await fetch(`${ICOUNT_API_BASE}/${endpoint}`, {
@@ -197,8 +230,8 @@ export class ICountClient {
  */
 export function createICountClient(
   companyId: string,
-  apiKey: string,
+  credentials: string,
   settings?: Partial<ICountSettings>
 ): ICountClient {
-  return new ICountClient(companyId, apiKey, settings);
+  return new ICountClient(companyId, credentials, settings);
 }

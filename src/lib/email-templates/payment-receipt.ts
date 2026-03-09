@@ -121,6 +121,12 @@ export function createPaymentReceiptEmail({
 
           <!-- Payment Details -->
           <div style="background: #f9fafb; border: 1px solid #e5e7eb; border-radius: 8px; padding: 20px; margin: 20px 0;">
+            ${payment.receiptNumber ? `
+            <div style="display: flex; justify-content: space-between; margin-bottom: 12px;">
+              <span style="color: #6b7280; font-size: 14px;">מספר קבלה:</span>
+              <span style="color: #111827; font-size: 14px; font-weight: 600;">${payment.receiptNumber}</span>
+            </div>
+            ` : ''}
             <div style="display: flex; justify-content: space-between; margin-bottom: 12px;">
               <span style="color: #6b7280; font-size: 14px;">תאריך תשלום:</span>
               <span style="color: #111827; font-size: 14px; font-weight: 600;">${paymentDate}</span>
@@ -146,6 +152,15 @@ export function createPaymentReceiptEmail({
           </div>
 
           ${sessionHtml}
+
+          ${payment.receiptUrl ? `
+          <!-- Receipt Link -->
+          <div style="text-align: center; margin: 20px 0;">
+            <a href="${payment.receiptUrl}" target="_blank" style="display: inline-block; background: #10b981; color: #ffffff; padding: 12px 28px; border-radius: 8px; text-decoration: none; font-weight: 600; font-size: 15px;">
+              📄 צפה בקבלה
+            </a>
+          </div>
+          ` : ''}
 
           ${
             isPartial
