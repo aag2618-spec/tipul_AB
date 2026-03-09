@@ -1,0 +1,37 @@
+---
+description: Ensure all API routes have force-dynamic export to prevent stale cached data
+globs: src/app/api/**/route.ts
+alwaysApply: true
+---
+
+# API Routes Must Use force-dynamic
+
+Every API route file (`src/app/api/**/route.ts`) MUST include this export at the top level:
+
+```typescript
+export const dynamic = "force-dynamic";
+```
+
+## Why
+
+Next.js Data Cache can serve stale responses from API routes. This directive ensures every route is dynamically rendered at request time.
+
+## Before Pushing to GitHub
+
+1. Verify ALL API route files contain `export const dynamic = "force-dynamic"`
+2. Any NEW API route must include it before the first `export function`
+3. Never remove this line from existing routes
+
+## Example
+
+```typescript
+import { NextRequest, NextResponse } from "next/server";
+import { getServerSession } from "next-auth";
+import { authOptions } from "@/lib/auth";
+
+export const dynamic = "force-dynamic";
+
+export async function GET(request: NextRequest) {
+  // ...
+}
+```
