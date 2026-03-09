@@ -245,7 +245,7 @@ export function SessionPrepCard({ session, userTier }: SessionPrepCardProps) {
             <div className="flex items-center justify-between pt-3 border-t text-xs text-muted-foreground">
               <span>🧠 {Number(prep.tokensUsed || 0).toLocaleString()} טוקנים</span>
               <span>💰 {Number(prep.cost || 0).toFixed(4)}₪</span>
-              <span>⚡ Gemini 2.0</span>
+              <span>⚡ AI מתקדם</span>
               {prep.createdAt && (
                 <span>📅 {new Date(prep.createdAt).toLocaleTimeString('he-IL', { hour: '2-digit', minute: '2-digit' })}</span>
               )}

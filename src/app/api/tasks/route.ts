@@ -10,6 +10,22 @@ function parseIsraelTime(datetimeLocal: string): Date {
   }
 
   const [datePart, timePart] = datetimeLocal.split("T");
+
+  // Date-only string (e.g. "2026-03-09" from <input type="date">)
+  if (!timePart) {
+    const testDate = new Date(`${datePart}T12:00:00Z`);
+    const israelHour = parseInt(
+      new Intl.DateTimeFormat("en-US", {
+        timeZone: "Asia/Jerusalem",
+        hour: "numeric",
+        hour12: false,
+      }).format(testDate)
+    );
+    const offsetHours = israelHour - 12;
+    const offsetStr = `+${String(offsetHours).padStart(2, "0")}:00`;
+    return new Date(`${datePart}T00:00:00${offsetStr}`);
+  }
+
   const testDate = new Date(`${datePart}T12:00:00Z`);
   const israelHour = parseInt(
     new Intl.DateTimeFormat("en-US", {

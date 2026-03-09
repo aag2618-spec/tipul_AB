@@ -132,7 +132,7 @@ export default function AIAssistantSettingsPage() {
                 <div className="p-4 border-2 border-sky-200 rounded-lg bg-sky-50/50">
                   <h3 className="font-semibold mb-2">🥈 מקצועי (Professional)</h3>
                   <p className="text-2xl font-bold mb-1">145₪/חודש</p>
-                  <p className="text-sm text-muted-foreground mb-3">Gemini 2.0 - ניתוח תמציתי</p>
+                  <p className="text-sm text-muted-foreground mb-3">AI מתקדם - ניתוח תמציתי</p>
                   <ul className="text-xs space-y-1 mb-3">
                     <li>✅ הכנה לפגישות</li>
                     <li>✅ ניתוח תמציתי</li>
@@ -143,7 +143,7 @@ export default function AIAssistantSettingsPage() {
                 <div className="p-4 border-2 border-purple-200 rounded-lg bg-purple-50/50">
                   <h3 className="font-semibold mb-2">🥇 ארגוני (Enterprise)</h3>
                   <p className="text-2xl font-bold mb-1">220₪/חודש</p>
-                  <p className="text-sm text-muted-foreground mb-3">Gemini 2.0 - ניתוח מפורט עם גישות</p>
+                  <p className="text-sm text-muted-foreground mb-3">AI מתקדם - ניתוח מפורט עם גישות</p>
                   <ul className="text-xs space-y-1 mb-3">
                     <li>✅ ניתוח מפורט לפי גישה</li>
                     <li>✅ דוחות התקדמות</li>
@@ -185,7 +185,7 @@ export default function AIAssistantSettingsPage() {
             <Brain className="h-8 w-8 text-primary" />
             <div>
               <p className="font-semibold">
-                Gemini 2.0 Flash - {userTier === 'ENTERPRISE' ? 'ניתוח מפורט' : 'ניתוח תמציתי'}
+                AI מתקדם - {userTier === 'ENTERPRISE' ? 'ניתוח מפורט' : 'ניתוח תמציתי'}
               </p>
               <p className="text-sm text-muted-foreground">
                 {userTier === 'ENTERPRISE' 

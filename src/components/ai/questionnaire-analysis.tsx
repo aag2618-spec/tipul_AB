@@ -320,7 +320,7 @@ export function QuestionnaireAnalysis({
             📊 נתח את כל השאלונים
             {userTier === "ENTERPRISE" && (
               <Badge variant="secondary" className="mr-2">
-                Gemini 2.0
+                AI מתקדם
               </Badge>
             )}
           </Button>
@@ -340,7 +340,7 @@ export function QuestionnaireAnalysis({
               📈 דו"ח התקדמות (30 יום)
               {userTier === "ENTERPRISE" && (
                 <Badge variant="secondary" className="mr-2">
-                  Gemini 2.0
+                  AI מתקדם
                 </Badge>
               )}
             </Button>
