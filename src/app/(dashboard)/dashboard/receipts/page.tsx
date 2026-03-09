@@ -23,8 +23,6 @@ import {
 import { format } from "date-fns";
 import { he } from "date-fns/locale";
 import { toast } from "sonner";
-import html2canvas from "html2canvas";
-import { jsPDF } from "jspdf";
 
 interface ReceiptPayment {
   id: string;
@@ -70,6 +68,8 @@ export default function ReceiptsPage() {
   const [searchTerm, setSearchTerm] = useState("");
   const [filterType, setFilterType] = useState<"all" | "with" | "without">("all");
   const [therapist, setTherapist] = useState<TherapistInfo | null>(null);
+  const [selectedIds, setSelectedIds] = useState<Set<string>>(new Set());
+  const [isDownloading, setIsDownloading] = useState(false);
 
   useEffect(() => {
     fetchPayments();
@@ -103,110 +103,152 @@ export default function ReceiptsPage() {
     }
   };
 
-  const downloadReceiptPdf = async (payment: ReceiptPayment) => {
-    try {
-      const businessName = therapist?.businessName || therapist?.name || "MyTipul";
-      const dateStr = payment.paidAt
-        ? format(new Date(payment.paidAt), "dd בMMMM yyyy", { locale: he })
-        : format(new Date(payment.createdAt), "dd בMMMM yyyy", { locale: he });
-      const methodLabel = METHOD_LABELS[payment.method] || payment.method;
-      const receiptNum = payment.receiptNumber || `R-${payment.id.slice(0, 8).toUpperCase()}`;
-      const sessionDate = payment.session
-        ? format(new Date(payment.session.startTime), "dd/MM/yyyy")
-        : null;
-      const isPartial = Number(payment.amount) < Number(payment.expectedAmount);
+  const buildReceiptHtml = (payment: ReceiptPayment) => {
+    const businessName = therapist?.businessName || therapist?.name || "MyTipul";
+    const dateStr = payment.paidAt
+      ? format(new Date(payment.paidAt), "dd בMMMM yyyy", { locale: he })
+      : format(new Date(payment.createdAt), "dd בMMMM yyyy", { locale: he });
+    const methodLabel = METHOD_LABELS[payment.method] || payment.method;
+    const receiptNum = payment.receiptNumber || `R-${payment.id.slice(0, 8).toUpperCase()}`;
+    const sessionDate = payment.session
+      ? format(new Date(payment.session.startTime), "dd/MM/yyyy")
+      : null;
+    const isPartial = Number(payment.amount) < Number(payment.expectedAmount);
 
-      const container = document.createElement("div");
-      container.style.position = "fixed";
-      container.style.left = "-9999px";
-      container.style.top = "0";
-      container.style.width = "794px";
-      container.style.background = "white";
-
-      container.innerHTML = `
-        <div style="padding: 40px; direction: rtl; font-family: 'Heebo', 'Segoe UI', Arial, sans-serif; color: #1a1a1a;">
-          <div style="background: linear-gradient(135deg, #0f766e, #14b8a6); padding: 30px; text-align: center; color: white; border-radius: 8px 8px 0 0;">
-            <h1 style="margin: 0; font-size: 30px; font-weight: 700;">קבלה</h1>
-            <p style="margin: 10px 0 0; font-size: 16px; opacity: 0.9;">${businessName}</p>
+    return `
+      <div style="padding: 40px; direction: rtl; font-family: 'Heebo', 'Segoe UI', Arial, sans-serif; color: #1a1a1a;">
+        <div style="background: linear-gradient(135deg, #0f766e, #14b8a6); padding: 30px; text-align: center; color: white; border-radius: 8px 8px 0 0;">
+          <h1 style="margin: 0; font-size: 30px; font-weight: 700;">קבלה</h1>
+          <p style="margin: 10px 0 0; font-size: 16px; opacity: 0.9;">${businessName}</p>
+        </div>
+        <div style="border: 1px solid #e5e7eb; border-top: none; padding: 20px 25px; display: flex; justify-content: space-between;">
+          <div style="font-size: 13px; color: #6b7280;">
+            ${therapist?.businessPhone ? `<p style="margin: 0 0 4px;">טלפון: ${therapist.businessPhone}</p>` : ""}
+            ${therapist?.businessAddress ? `<p style="margin: 0;">כתובת: ${therapist.businessAddress}</p>` : ""}
           </div>
-
-          <div style="border: 1px solid #e5e7eb; border-top: none; padding: 20px 25px; display: flex; justify-content: space-between;">
-            <div style="font-size: 13px; color: #6b7280;">
-              ${therapist?.businessPhone ? `<p style="margin: 0 0 4px;">טלפון: ${therapist.businessPhone}</p>` : ""}
-              ${therapist?.businessAddress ? `<p style="margin: 0;">כתובת: ${therapist.businessAddress}</p>` : ""}
-            </div>
-            <div style="text-align: left; font-size: 13px; color: #6b7280;">
-              <p style="margin: 0 0 4px;">קבלה מס׳: ${receiptNum}</p>
-              <p style="margin: 0;">תאריך: ${dateStr}</p>
-            </div>
-          </div>
-
-          <div style="border: 1px solid #e5e7eb; border-top: none; padding: 18px 25px;">
-            <p style="margin: 0 0 4px; font-size: 12px; color: #0f766e; font-weight: 600;">התקבל מאת:</p>
-            <p style="margin: 0; font-size: 17px; font-weight: 600;">${payment.client.name}</p>
-          </div>
-
-          <table style="width: 100%; border-collapse: collapse; border: 1px solid #e5e7eb; border-top: none;">
-            <thead>
-              <tr style="background: #f3f4f6;">
-                <th style="padding: 12px 16px; text-align: right; font-size: 13px; color: #6b7280; font-weight: 600; border-bottom: 1px solid #e5e7eb;">תיאור</th>
-                <th style="padding: 12px 16px; text-align: center; font-size: 13px; color: #6b7280; font-weight: 600; border-bottom: 1px solid #e5e7eb;">אמצעי תשלום</th>
-                <th style="padding: 12px 16px; text-align: left; font-size: 13px; color: #6b7280; font-weight: 600; border-bottom: 1px solid #e5e7eb;">סכום</th>
-              </tr>
-            </thead>
-            <tbody>
-              <tr>
-                <td style="padding: 14px 16px; font-size: 14px; border-bottom: 1px solid #e5e7eb;">פגישה טיפולית${sessionDate ? ` - ${sessionDate}` : ""}</td>
-                <td style="padding: 14px 16px; font-size: 14px; text-align: center; border-bottom: 1px solid #e5e7eb;">${methodLabel}</td>
-                <td style="padding: 14px 16px; font-size: 14px; text-align: left; font-weight: 600; border-bottom: 1px solid #e5e7eb;">₪${Number(payment.amount).toLocaleString()}</td>
-              </tr>
-            </tbody>
-          </table>
-
-          <div style="border: 1px solid #e5e7eb; border-top: 2px solid #0f766e; padding: 16px 25px; background: #f9fafb; border-radius: 0 0 ${isPartial ? "0 0" : "8px 8px"};">
-            <span style="font-size: 20px; font-weight: 700; color: #0f766e;">סה״כ שולם: ₪${Number(payment.amount).toLocaleString()}</span>
-          </div>
-
-          ${isPartial ? `
-          <div style="border: 1px solid #e5e7eb; border-top: none; padding: 14px 25px; background: #fffbeb; border-radius: 0 0 8px 8px;">
-            <p style="margin: 0 0 6px; font-size: 13px; color: #92400e; font-weight: 600;">* תשלום חלקי</p>
-            <div style="display: flex; justify-content: space-between; font-size: 13px; color: #78716c; margin-bottom: 4px;">
-              <span>סכום מלא לפגישה:</span>
-              <span style="font-weight: 600;">₪${Number(payment.expectedAmount).toLocaleString()}</span>
-            </div>
-            <div style="display: flex; justify-content: space-between; font-size: 13px; color: #ea580c;">
-              <span>נותר לתשלום:</span>
-              <span style="font-weight: 600;">₪${(Number(payment.expectedAmount) - Number(payment.amount)).toLocaleString()}</span>
-            </div>
-          </div>
-          ` : ""}
-
-          <div style="text-align: center; margin-top: 35px; padding-top: 15px; border-top: 1px solid #e5e7eb;">
-            <p style="margin: 0; font-size: 11px; color: #9ca3af;">הופק על ידי MyTipul | ${format(new Date(), "dd/MM/yyyy HH:mm")}</p>
+          <div style="text-align: left; font-size: 13px; color: #6b7280;">
+            <p style="margin: 0 0 4px;">קבלה מס׳: ${receiptNum}</p>
+            <p style="margin: 0;">תאריך: ${dateStr}</p>
           </div>
         </div>
-      `;
+        <div style="border: 1px solid #e5e7eb; border-top: none; padding: 18px 25px;">
+          <p style="margin: 0 0 4px; font-size: 12px; color: #0f766e; font-weight: 600;">התקבל מאת:</p>
+          <p style="margin: 0; font-size: 17px; font-weight: 600;">${payment.client.name}</p>
+        </div>
+        <table style="width: 100%; border-collapse: collapse; border: 1px solid #e5e7eb; border-top: none;">
+          <thead><tr style="background: #f3f4f6;">
+            <th style="padding: 12px 16px; text-align: right; font-size: 13px; color: #6b7280; font-weight: 600; border-bottom: 1px solid #e5e7eb;">תיאור</th>
+            <th style="padding: 12px 16px; text-align: center; font-size: 13px; color: #6b7280; font-weight: 600; border-bottom: 1px solid #e5e7eb;">אמצעי תשלום</th>
+            <th style="padding: 12px 16px; text-align: left; font-size: 13px; color: #6b7280; font-weight: 600; border-bottom: 1px solid #e5e7eb;">סכום</th>
+          </tr></thead>
+          <tbody><tr>
+            <td style="padding: 14px 16px; font-size: 14px; border-bottom: 1px solid #e5e7eb;">פגישה טיפולית${sessionDate ? ` - ${sessionDate}` : ""}</td>
+            <td style="padding: 14px 16px; font-size: 14px; text-align: center; border-bottom: 1px solid #e5e7eb;">${methodLabel}</td>
+            <td style="padding: 14px 16px; font-size: 14px; text-align: left; font-weight: 600; border-bottom: 1px solid #e5e7eb;">₪${Number(payment.amount).toLocaleString()}</td>
+          </tr></tbody>
+        </table>
+        <div style="border: 1px solid #e5e7eb; border-top: 2px solid #0f766e; padding: 16px 25px; background: #f9fafb; border-radius: 0 0 ${isPartial ? "0 0" : "8px 8px"};">
+          <span style="font-size: 20px; font-weight: 700; color: #0f766e;">סה״כ שולם: ₪${Number(payment.amount).toLocaleString()}</span>
+        </div>
+        ${isPartial ? `
+        <div style="border: 1px solid #e5e7eb; border-top: none; padding: 14px 25px; background: #fffbeb; border-radius: 0 0 8px 8px;">
+          <p style="margin: 0 0 6px; font-size: 13px; color: #92400e; font-weight: 600;">* תשלום חלקי</p>
+          <div style="display: flex; justify-content: space-between; font-size: 13px; color: #78716c; margin-bottom: 4px;">
+            <span>סכום מלא לפגישה:</span><span style="font-weight: 600;">₪${Number(payment.expectedAmount).toLocaleString()}</span>
+          </div>
+          <div style="display: flex; justify-content: space-between; font-size: 13px; color: #ea580c;">
+            <span>נותר לתשלום:</span><span style="font-weight: 600;">₪${(Number(payment.expectedAmount) - Number(payment.amount)).toLocaleString()}</span>
+          </div>
+        </div>` : ""}
+        <div style="text-align: center; margin-top: 35px; padding-top: 15px; border-top: 1px solid #e5e7eb;">
+          <p style="margin: 0; font-size: 11px; color: #9ca3af;">הופק על ידי MyTipul | ${format(new Date(), "dd/MM/yyyy HH:mm")}</p>
+        </div>
+      </div>`;
+  };
 
-      document.body.appendChild(container);
+  const renderAndCapture = async (html: string) => {
+    await document.fonts.ready;
+    const h2cModule = await import("html2canvas");
+    const h2c = h2cModule.default ?? h2cModule;
 
-      const canvas = await html2canvas(container, {
-        scale: 2,
-        useCORS: true,
-        backgroundColor: "#ffffff",
-      });
+    const container = document.createElement("div");
+    container.style.position = "absolute";
+    container.style.left = "-9999px";
+    container.style.top = "0";
+    container.style.width = "794px";
+    container.style.background = "white";
+    container.innerHTML = html;
+    document.body.appendChild(container);
 
-      const imgData = canvas.toDataURL("image/png");
+    await new Promise((r) => setTimeout(r, 200));
+    const canvas = await h2c(container, { scale: 2, useCORS: true, backgroundColor: "#ffffff", logging: false, windowWidth: 794 });
+    document.body.removeChild(container);
+    return canvas;
+  };
+
+  const downloadReceiptPdf = async (payment: ReceiptPayment) => {
+    try {
+      const receiptNum = payment.receiptNumber || `R-${payment.id.slice(0, 8).toUpperCase()}`;
+      const canvas = await renderAndCapture(buildReceiptHtml(payment));
+      const { jsPDF } = await import("jspdf");
+
       const pdf = new jsPDF("portrait", "mm", "a4");
       const pageWidth = 210;
       const imgHeight = (canvas.height * pageWidth) / canvas.width;
-      pdf.addImage(imgData, "PNG", 0, 0, pageWidth, imgHeight);
+      pdf.addImage(canvas.toDataURL("image/png"), "PNG", 0, 0, pageWidth, imgHeight);
       pdf.save(`קבלה_${receiptNum}.pdf`);
-
-      document.body.removeChild(container);
       toast.success("הקבלה הורדה בהצלחה");
     } catch (err) {
-      console.error("PDF generation error:", err);
-      toast.error("שגיאה ביצירת הקבלה");
+      console.error("PDF error:", err);
+      if (payment.receiptUrl) {
+        window.open(payment.receiptUrl, "_blank");
+      } else {
+        toast.error("שגיאה ביצירת PDF");
+      }
+    }
+  };
+
+  const downloadSelectedPdf = async () => {
+    const selected = filteredPayments.filter((p) => selectedIds.has(p.id));
+    if (selected.length === 0) { toast.error("לא נבחרו קבלות"); return; }
+
+    setIsDownloading(true);
+    try {
+      const { jsPDF } = await import("jspdf");
+      const pdf = new jsPDF("portrait", "mm", "a4");
+      const pageWidth = 210;
+
+      for (let i = 0; i < selected.length; i++) {
+        if (i > 0) pdf.addPage();
+        const canvas = await renderAndCapture(buildReceiptHtml(selected[i]));
+        const imgHeight = (canvas.height * pageWidth) / canvas.width;
+        pdf.addImage(canvas.toDataURL("image/png"), "PNG", 0, 0, pageWidth, imgHeight);
+      }
+
+      pdf.save(`קבלות_${format(new Date(), "yyyy-MM-dd")}.pdf`);
+      toast.success(`${selected.length} קבלות הורדו בהצלחה`);
+      setSelectedIds(new Set());
+    } catch (err) {
+      console.error("Bulk PDF error:", err);
+      toast.error("שגיאה ביצירת PDF");
+    } finally {
+      setIsDownloading(false);
+    }
+  };
+
+  const toggleSelect = (id: string) => {
+    setSelectedIds((prev) => {
+      const next = new Set(prev);
+      if (next.has(id)) next.delete(id); else next.add(id);
+      return next;
+    });
+  };
+
+  const toggleSelectAll = () => {
+    if (selectedIds.size === filteredPayments.length) {
+      setSelectedIds(new Set());
+    } else {
+      setSelectedIds(new Set(filteredPayments.map((p) => p.id)));
     }
   };
 
@@ -278,10 +320,18 @@ export default function ReceiptsPage() {
             {totalWithReceipt} קבלות מתוך {payments.length} תשלומים
           </p>
         </div>
-        <Button variant="outline" className="gap-2" onClick={handleExportCSV} disabled={filteredPayments.length === 0}>
-          <Download className="h-4 w-4" />
-          ייצוא CSV
-        </Button>
+        <div className="flex gap-2">
+          {selectedIds.size > 0 && (
+            <Button className="gap-2 bg-teal-600 hover:bg-teal-700" onClick={downloadSelectedPdf} disabled={isDownloading}>
+              {isDownloading ? <Loader2 className="h-4 w-4 animate-spin" /> : <FileDown className="h-4 w-4" />}
+              הורד {selectedIds.size} קבלות PDF
+            </Button>
+          )}
+          <Button variant="outline" className="gap-2" onClick={handleExportCSV} disabled={filteredPayments.length === 0}>
+            <Download className="h-4 w-4" />
+            ייצוא CSV
+          </Button>
+        </div>
       </div>
 
       {/* Stats */}
@@ -334,6 +384,14 @@ export default function ReceiptsPage() {
           <table className="w-full">
             <thead>
               <tr className="border-b bg-muted/30">
+                <th className="py-3 px-3 w-10">
+                  <input
+                    type="checkbox"
+                    checked={filteredPayments.length > 0 && selectedIds.size === filteredPayments.length}
+                    onChange={toggleSelectAll}
+                    className="h-4 w-4 rounded border-gray-300 accent-teal-600 cursor-pointer"
+                  />
+                </th>
                 <th className="text-right py-3 px-4 text-sm font-medium text-muted-foreground">תאריך</th>
                 <th className="text-right py-3 px-4 text-sm font-medium text-muted-foreground">מטופל</th>
                 <th className="text-right py-3 px-4 text-sm font-medium text-muted-foreground">סכום</th>
@@ -344,7 +402,15 @@ export default function ReceiptsPage() {
             </thead>
             <tbody>
               {filteredPayments.map((payment) => (
-                <tr key={payment.id} className="border-b last:border-b-0 hover:bg-muted/20 transition-colors">
+                <tr key={payment.id} className={`border-b last:border-b-0 hover:bg-muted/20 transition-colors ${selectedIds.has(payment.id) ? "bg-teal-50 dark:bg-teal-900/10" : ""}`}>
+                  <td className="py-3 px-3">
+                    <input
+                      type="checkbox"
+                      checked={selectedIds.has(payment.id)}
+                      onChange={() => toggleSelect(payment.id)}
+                      className="h-4 w-4 rounded border-gray-300 accent-teal-600 cursor-pointer"
+                    />
+                  </td>
                   <td className="py-3 px-4 text-sm">
                     <div className="flex items-center gap-1.5">
                       <CalendarIcon className="h-3.5 w-3.5 text-muted-foreground" />
@@ -367,20 +433,18 @@ export default function ReceiptsPage() {
                   </td>
                   <td className="py-3 px-4 text-sm">
                     <div className="flex items-center gap-2">
-                      {payment.hasReceipt ? (
-                        payment.receiptUrl ? (
-                          <a
-                            href={payment.receiptUrl}
-                            target="_blank"
-                            rel="noopener noreferrer"
-                            className="inline-flex items-center gap-1 text-teal-600 hover:text-teal-700 font-medium"
-                          >
-                            <ExternalLink className="h-3.5 w-3.5" />
-                            צפה
-                          </a>
-                        ) : (
-                          <Badge variant="secondary" className="text-xs">הופקה</Badge>
-                        )
+                      {payment.receiptUrl ? (
+                        <a
+                          href={payment.receiptUrl}
+                          target="_blank"
+                          rel="noopener noreferrer"
+                          className="inline-flex items-center gap-1 text-teal-600 hover:text-teal-700 font-medium text-xs"
+                        >
+                          <ExternalLink className="h-3.5 w-3.5" />
+                          צפה
+                        </a>
+                      ) : payment.hasReceipt ? (
+                        <Badge variant="secondary" className="text-xs">הופקה</Badge>
                       ) : (
                         <span className="text-muted-foreground text-xs">לא הופקה</span>
                       )}

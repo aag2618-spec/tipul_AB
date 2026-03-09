@@ -3,8 +3,6 @@
 import { useState, useEffect, useRef, use } from "react";
 import { format } from "date-fns";
 import { he } from "date-fns/locale";
-import html2canvas from "html2canvas";
-import { jsPDF } from "jspdf";
 
 const METHOD_LABELS: Record<string, string> = {
   CASH: "מזומן",
@@ -68,12 +66,30 @@ export default function PublicReceiptPage({
     if (!receiptRef.current || !receipt) return;
 
     try {
-      const canvas = await html2canvas(receiptRef.current, {
+      await document.fonts.ready;
+
+      const html2canvasModule = await import("html2canvas");
+      const h2c = html2canvasModule.default ?? html2canvasModule;
+      const { jsPDF } = await import("jspdf");
+
+      const clone = receiptRef.current.cloneNode(true) as HTMLElement;
+      clone.style.width = "794px";
+      clone.style.position = "absolute";
+      clone.style.left = "-9999px";
+      clone.style.top = "0";
+      document.body.appendChild(clone);
+
+      await new Promise((r) => setTimeout(r, 200));
+
+      const canvas = await h2c(clone, {
         scale: 2,
         useCORS: true,
         backgroundColor: "#ffffff",
         logging: false,
+        windowWidth: 794,
       });
+
+      document.body.removeChild(clone);
 
       const imgData = canvas.toDataURL("image/png");
       const pdf = new jsPDF("portrait", "mm", "a4");
@@ -86,10 +102,12 @@ export default function PublicReceiptPage({
         : `קבלה_${format(new Date(receipt.paidAt || receipt.createdAt), "yyyy-MM-dd")}.pdf`;
       pdf.save(fileName);
     } catch (err) {
-      console.error("PDF error:", err);
+      console.error("PDF generation error:", err);
       window.print();
     }
   };
+
+  const handlePrint = () => window.print();
 
   if (loading) {
     return (
@@ -132,29 +150,22 @@ export default function PublicReceiptPage({
     <div className="min-h-screen bg-gray-100 py-8 px-4" dir="rtl">
       <div className="max-w-2xl mx-auto">
         {/* Download button */}
-        <div className="flex justify-between items-center mb-4">
+        <div className="flex justify-between items-center mb-4 print:hidden">
           <h1 className="text-lg font-semibold text-gray-700">קבלה</h1>
-          <button
-            onClick={handleDownloadPdf}
-            className="flex items-center gap-2 bg-teal-600 hover:bg-teal-700 text-white px-5 py-2.5 rounded-lg font-medium transition-colors shadow-md"
-          >
-            <svg
-              xmlns="http://www.w3.org/2000/svg"
-              width="18"
-              height="18"
-              viewBox="0 0 24 24"
-              fill="none"
-              stroke="currentColor"
-              strokeWidth="2"
-              strokeLinecap="round"
-              strokeLinejoin="round"
+          <div className="flex gap-2">
+            <button
+              onClick={handlePrint}
+              className="flex items-center gap-2 border border-gray-300 bg-white hover:bg-gray-50 text-gray-700 px-4 py-2.5 rounded-lg font-medium transition-colors"
             >
-              <path d="M21 15v4a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2v-4" />
-              <polyline points="7 10 12 15 17 10" />
-              <line x1="12" y1="15" x2="12" y2="3" />
-            </svg>
-            הורד PDF
-          </button>
+              🖨️ הדפס
+            </button>
+            <button
+              onClick={handleDownloadPdf}
+              className="flex items-center gap-2 bg-teal-600 hover:bg-teal-700 text-white px-5 py-2.5 rounded-lg font-medium transition-colors shadow-md"
+            >
+              📥 הורד PDF
+            </button>
+          </div>
         </div>
 
         {/* Receipt card - this is what gets captured to PDF */}
