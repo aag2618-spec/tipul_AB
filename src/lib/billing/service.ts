@@ -237,6 +237,7 @@ export class BillingService {
       notes: request.notes,
     });
 
+    console.log('Meshulam createInvoice response:', JSON.stringify(response));
     if (response.status !== 1 || !response.data) {
       return {
         success: false,
@@ -321,7 +322,7 @@ export class BillingService {
     };
   }
 
-  // --- Green Invoice ---
+  // --- Green Invoice (חשבונית ירוקה) ---
   private async createGreenInvoiceReceipt(apiKey: string, apiSecret: string, request: ReceiptRequest): Promise<ReceiptResult> {
     const client = new GreenInvoiceClient(apiKey, apiSecret);
     const response = await client.createReceipt({
@@ -344,6 +345,7 @@ export class BillingService {
       sendEmail: request.sendEmail,
     });
 
+    console.log('Green Invoice createReceipt response:', JSON.stringify(response));
     if (!response.success || !response.data) {
       return {
         success: false,
@@ -354,9 +356,9 @@ export class BillingService {
     return {
       success: true,
       receiptId: response.data.id,
-      receiptNumber: response.data.number.toString(),
-      receiptUrl: response.data.url,
-      pdfUrl: response.data.pdfUrl,
+      receiptNumber: String(response.data.number || ''),
+      receiptUrl: response.data.url || '',
+      pdfUrl: response.data.pdfUrl || '',
     };
   }
 
@@ -379,6 +381,7 @@ export class BillingService {
       Comments: request.notes,
     });
 
+    console.log('Sumit createReceipt response:', JSON.stringify(response));
     if (!response.Success || !response.Data) {
       return {
         success: false,
@@ -388,10 +391,10 @@ export class BillingService {
 
     return {
       success: true,
-      receiptId: response.Data.DocumentID,
-      receiptNumber: response.Data.DocumentNumber.toString(),
-      receiptUrl: response.Data.DocumentURL,
-      pdfUrl: response.Data.DocumentPDF,
+      receiptId: String(response.Data.DocumentID || ''),
+      receiptNumber: String(response.Data.DocumentNumber || ''),
+      receiptUrl: response.Data.DocumentURL || '',
+      pdfUrl: response.Data.DocumentPDF || '',
     };
   }
 

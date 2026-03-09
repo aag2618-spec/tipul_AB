@@ -154,6 +154,7 @@ export async function POST(request: NextRequest) {
 
         let receiptUrl: string | null = null;
         let receiptNumber: string | null = null;
+        let receiptError: string | undefined;
 
         if (issueReceipt !== false && therapist?.businessType !== "NONE") {
           if (therapist?.businessType === "EXEMPT") {
@@ -195,9 +196,13 @@ export async function POST(request: NextRequest) {
                   where: { id: payment.id },
                   data: { receiptUrl, receiptNumber, hasReceipt: true },
                 });
+              } else {
+                console.error("Billing receipt creation failed:", receiptResult.error);
+                receiptError = receiptResult.error || "שגיאה ביצירת קבלה בספק החיוב";
               }
             } catch (billingError) {
               console.error("Error creating receipt via billing provider:", billingError);
+              receiptError = billingError instanceof Error ? billingError.message : "שגיאה ביצירת קבלה";
             }
           }
         }
@@ -281,7 +286,7 @@ export async function POST(request: NextRequest) {
       }
     }
 
-    return NextResponse.json(payment, { status: 201 });
+    return NextResponse.json({ ...payment, receiptError }, { status: 201 });
   } catch (error) {
     console.error("Create payment error:", error);
     return NextResponse.json(

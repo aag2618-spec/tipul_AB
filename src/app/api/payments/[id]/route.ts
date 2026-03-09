@@ -73,6 +73,7 @@ export async function PUT(
     let receiptNumber: string | undefined;
     let receiptUrl: string | undefined;
     let hasReceipt = false;
+    let receiptError: string | undefined;
     
     if (issueReceipt) {
       const user = await prisma.user.findUnique({
@@ -124,9 +125,13 @@ export async function PUT(
               receiptUrl = receiptResult.receiptUrl || undefined;
               receiptNumber = receiptResult.receiptNumber || undefined;
               hasReceipt = true;
+            } else {
+              console.error("Billing provider receipt creation failed:", receiptResult.error);
+              receiptError = receiptResult.error || "שגיאה ביצירת קבלה בספק החיוב";
             }
           } catch (billingError) {
             console.error("Error creating receipt via billing provider:", billingError);
+            receiptError = billingError instanceof Error ? billingError.message : "שגיאה ביצירת קבלה";
           }
         }
       }
@@ -313,7 +318,7 @@ export async function PUT(
       }
     }
 
-    return NextResponse.json(payment);
+    return NextResponse.json({ ...payment, receiptError });
   } catch (error) {
     console.error("Update payment error:", error);
     return NextResponse.json(

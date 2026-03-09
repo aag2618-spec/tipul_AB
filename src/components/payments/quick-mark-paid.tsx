@@ -162,8 +162,9 @@ export function QuickMarkPaid({
       const creditToUse = paymentType === "CREDIT" ? Math.min(totalAmount, creditBalance) : 0;
       const cashAmount = totalAmount - creditToUse;
 
+      let result: { receiptError?: string } | undefined;
+
       if (existingPayment) {
-        // Update existing payment
         const response = await fetch(`/api/payments/${existingPayment.id}`, {
           method: "PUT",
           headers: { "Content-Type": "application/json" },
@@ -178,8 +179,8 @@ export function QuickMarkPaid({
         });
 
         if (!response.ok) throw new Error("Failed to update payment");
+        result = await response.json();
       } else {
-        // Create new payment
         const isFullPayment = paymentType !== "PARTIAL" || totalAmount >= amount;
         const response = await fetch("/api/payments", {
           method: "POST",
@@ -198,6 +199,7 @@ export function QuickMarkPaid({
         });
 
         if (!response.ok) throw new Error("Failed to create payment");
+        result = await response.json();
       }
 
       const successMessage = 
@@ -207,6 +209,10 @@ export function QuickMarkPaid({
         "התשלום סומן כשולם";
       
       toast.success(successMessage);
+
+      if (result?.receiptError) {
+        toast.error(`שגיאה בהפקת קבלה: ${result.receiptError}`, { duration: 8000 });
+      }
       setIsOpen(false);
       setShowAdvanced(false);
       setPaymentType("FULL");

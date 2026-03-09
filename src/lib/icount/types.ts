@@ -62,7 +62,7 @@ export interface CreateDocumentRequest {
 }
 
 /**
- * תגובה ליצירת מסמך
+ * תגובה ליצירת מסמך (normalized from iCount's raw response)
  */
 export interface CreateDocumentResponse {
   doc_id: string;
@@ -70,6 +70,23 @@ export interface CreateDocumentResponse {
   doc_url: string;
   pdf_url: string;
   total_amount: number;
+}
+
+/**
+ * Raw iCount API response for doc/create - field names vary
+ */
+export interface ICountRawDocResponse {
+  status: boolean;
+  docnum?: string;
+  doc_number?: string;
+  docid?: string | number;
+  doc_id?: string | number;
+  doc_url?: string;
+  pdf_link?: string;
+  pdf_url?: string;
+  total?: number;
+  total_amount?: number;
+  [key: string]: unknown;
 }
 
 /**

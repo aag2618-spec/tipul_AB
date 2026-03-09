@@ -6,6 +6,7 @@ import {
   CreateDocumentRequest,
   CreateDocumentResponse,
   ICountSettings,
+  ICountRawDocResponse,
 } from './types';
 
 const ICOUNT_API_BASE = 'https://api.icount.co.il/api/v3.php';
@@ -73,15 +74,30 @@ export class ICountClient {
 
       const params = new URLSearchParams();
       params.append('cid', this.companyId);
-      params.append('sid', this.sid);
+      params.append('sid', this.sid!);
       
       for (const [key, value] of Object.entries(data)) {
-        if (value !== undefined && value !== null) {
-          if (typeof value === 'object') {
-            params.append(key, JSON.stringify(value));
-          } else {
-            params.append(key, String(value));
+        if (value === undefined || value === null) continue;
+        if (Array.isArray(value)) {
+          value.forEach((item, idx) => {
+            if (typeof item === 'object' && item !== null) {
+              for (const [k, v] of Object.entries(item)) {
+                if (v !== undefined && v !== null) {
+                  params.append(`${key}[${idx}][${k}]`, String(v));
+                }
+              }
+            } else {
+              params.append(`${key}[${idx}]`, String(item));
+            }
+          });
+        } else if (typeof value === 'object') {
+          for (const [k, v] of Object.entries(value as Record<string, unknown>)) {
+            if (v !== undefined && v !== null) {
+              params.append(`${key}[${k}]`, String(v));
+            }
           }
+        } else {
+          params.append(key, String(value));
         }
       }
 
@@ -136,6 +152,16 @@ export class ICountClient {
     }
   }
 
+  private normalizeDocResponse(raw: ICountRawDocResponse): CreateDocumentResponse {
+    return {
+      doc_id: String(raw.docid ?? raw.doc_id ?? ''),
+      doc_number: String(raw.docnum ?? raw.doc_number ?? ''),
+      doc_url: raw.doc_url ?? '',
+      pdf_url: raw.pdf_link ?? raw.pdf_url ?? '',
+      total_amount: Number(raw.total ?? raw.total_amount ?? 0),
+    };
+  }
+
   /**
    * יצירת קבלה
    */
@@ -143,7 +169,10 @@ export class ICountClient {
     request: CreateDocumentRequest
   ): Promise<ICountResponse<CreateDocumentResponse>> {
     const data = this.buildDocumentData(request);
-    return this.request<CreateDocumentResponse>('doc/create', data);
+    const raw = await this.request<ICountRawDocResponse>('doc/create', data);
+    if (!raw.success || !raw.data) return raw as ICountResponse<CreateDocumentResponse>;
+    console.log('iCount doc/create raw response:', JSON.stringify(raw.data));
+    return { ...raw, data: this.normalizeDocResponse(raw.data) };
   }
 
   async createInvoice(
@@ -153,7 +182,9 @@ export class ICountClient {
       ...request,
       doctype: 'tax_invoice',
     });
-    return this.request<CreateDocumentResponse>('doc/create', data);
+    const raw = await this.request<ICountRawDocResponse>('doc/create', data);
+    if (!raw.success || !raw.data) return raw as ICountResponse<CreateDocumentResponse>;
+    return { ...raw, data: this.normalizeDocResponse(raw.data) };
   }
 
   async createInvoiceReceipt(
@@ -163,7 +194,9 @@ export class ICountClient {
       ...request,
       doctype: 'invoice_receipt',
     });
-    return this.request<CreateDocumentResponse>('doc/create', data);
+    const raw = await this.request<ICountRawDocResponse>('doc/create', data);
+    if (!raw.success || !raw.data) return raw as ICountResponse<CreateDocumentResponse>;
+    return { ...raw, data: this.normalizeDocResponse(raw.data) };
   }
 
   async getDocumentUrl(docId: string): Promise<ICountResponse<{ url: string; pdf_url: string }>> {
