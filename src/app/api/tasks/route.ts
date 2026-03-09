@@ -2,42 +2,7 @@ import { NextRequest, NextResponse } from "next/server";
 import { getServerSession } from "next-auth";
 import { authOptions } from "@/lib/auth";
 import prisma from "@/lib/prisma";
-
-// Helper function to parse datetime-local as Israel time
-function parseIsraelTime(datetimeLocal: string): Date {
-  if (datetimeLocal.endsWith("Z") || /[+-]\d{2}:\d{2}$/.test(datetimeLocal)) {
-    return new Date(datetimeLocal);
-  }
-
-  const [datePart, timePart] = datetimeLocal.split("T");
-
-  // Date-only string (e.g. "2026-03-09" from <input type="date">)
-  if (!timePart) {
-    const testDate = new Date(`${datePart}T12:00:00Z`);
-    const israelHour = parseInt(
-      new Intl.DateTimeFormat("en-US", {
-        timeZone: "Asia/Jerusalem",
-        hour: "numeric",
-        hour12: false,
-      }).format(testDate)
-    );
-    const offsetHours = israelHour - 12;
-    const offsetStr = `+${String(offsetHours).padStart(2, "0")}:00`;
-    return new Date(`${datePart}T00:00:00${offsetStr}`);
-  }
-
-  const testDate = new Date(`${datePart}T12:00:00Z`);
-  const israelHour = parseInt(
-    new Intl.DateTimeFormat("en-US", {
-      timeZone: "Asia/Jerusalem",
-      hour: "numeric",
-      hour12: false,
-    }).format(testDate)
-  );
-  const offsetHours = israelHour - 12;
-  const offsetStr = `+${String(offsetHours).padStart(2, "0")}:00`;
-  return new Date(`${datePart}T${timePart}:00${offsetStr}`);
-}
+import { parseIsraelTime } from "@/lib/date-utils";
 
 export async function GET(request: NextRequest) {
   try {

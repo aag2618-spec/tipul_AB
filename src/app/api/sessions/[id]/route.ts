@@ -2,28 +2,7 @@ import { NextRequest, NextResponse } from "next/server";
 import { getServerSession } from "next-auth";
 import { authOptions } from "@/lib/auth";
 import prisma from "@/lib/prisma";
-
-// Helper function to parse datetime-local as Israel time
-function parseIsraelTime(datetimeLocal: string): Date {
-  // If already an ISO string (with Z or offset), return as-is
-  if (datetimeLocal.endsWith("Z") || /[+-]\d{2}:\d{2}$/.test(datetimeLocal)) {
-    return new Date(datetimeLocal);
-  }
-
-  // datetime-local format: "2024-01-15T08:00" → interpret as Israel time
-  const [datePart, timePart] = datetimeLocal.split("T");
-  const testDate = new Date(`${datePart}T12:00:00Z`);
-  const israelHour = parseInt(
-    new Intl.DateTimeFormat("en-US", {
-      timeZone: "Asia/Jerusalem",
-      hour: "numeric",
-      hour12: false,
-    }).format(testDate)
-  );
-  const offsetHours = israelHour - 12;
-  const offsetStr = `+${String(offsetHours).padStart(2, "0")}:00`;
-  return new Date(`${datePart}T${timePart}:00${offsetStr}`);
-}
+import { parseIsraelTime } from "@/lib/date-utils";
 
 export async function GET(
   request: NextRequest,
