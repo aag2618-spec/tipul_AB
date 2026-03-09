@@ -40,6 +40,7 @@ export async function GET(
       where: {
         clientId,
         status: "PENDING",
+        parentPaymentId: null,
       },
       orderBy: {
         createdAt: "asc", // Oldest first - pay in order

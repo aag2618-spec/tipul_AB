@@ -319,9 +319,12 @@ export function QuickMarkPaid({
                   e.stopPropagation();
                   setShowAdvanced(!showAdvanced);
                 }}
+                onPointerDown={(e) => e.stopPropagation()}
+                onMouseDown={(e) => e.stopPropagation()}
                 onKeyDown={(e) => {
                   if (e.key === 'Enter' || e.key === ' ') {
                     e.preventDefault();
+                    e.stopPropagation();
                     setShowAdvanced(!showAdvanced);
                   }
                 }}

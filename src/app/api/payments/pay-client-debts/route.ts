@@ -90,8 +90,9 @@ export async function POST(req: NextRequest) {
           data: {
             amount: newPaidAmount,
             status: isFullyPaid ? "PAID" : "PENDING",
-            method: isFullyPaid ? method : payment.method,
-            paidAt: isFullyPaid ? new Date() : payment.paidAt,
+            method: method,
+            paymentType: isFullyPaid ? "FULL" : "PARTIAL",
+            paidAt: isFullyPaid ? new Date() : undefined,
           },
         });
 
