@@ -21,7 +21,7 @@ import {
 import { Label } from "@/components/ui/label";
 import { Input } from "@/components/ui/input";
 import { Badge } from "@/components/ui/badge";
-import { CreditCard, Loader2, Check, ChevronDown, ChevronUp, Wallet, Receipt } from "lucide-react";
+import { CreditCard, Loader2, Check, ChevronDown, ChevronUp, Wallet, FileText } from "lucide-react";
 import { Checkbox } from "@/components/ui/checkbox";
 import { toast } from "sonner";
 import { useRouter } from "next/navigation";
@@ -300,7 +300,7 @@ export function QuickMarkPaid({
                     disabled={receiptMode === "ALWAYS"}
                   />
                   <Label htmlFor="issue-receipt" className="cursor-pointer flex items-center gap-2 text-sky-800">
-                    <Receipt className="h-4 w-4" />
+                    <FileText className="h-4 w-4" />
                     הוצא קבלה
                     {receiptMode === "ALWAYS" && (
                       <span className="text-xs text-sky-600">(ברירת מחדל)</span>

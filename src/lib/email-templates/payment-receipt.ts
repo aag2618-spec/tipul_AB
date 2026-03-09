@@ -14,6 +14,7 @@ function formatIsraelDateTime(date: Date, includeWeekday = false): string {
 interface PaymentReceiptEmailProps {
   clientName: string;
   therapistName: string;
+  therapistPhone?: string;
   payment: {
     amount: number;
     expectedAmount: number;
@@ -43,6 +44,7 @@ interface PaymentReceiptEmailProps {
 export function createPaymentReceiptEmail({
   clientName,
   therapistName,
+  therapistPhone,
   payment,
   clientBalance,
   customization,
@@ -240,7 +242,7 @@ export function createPaymentReceiptEmail({
             </p>
             <p style="color: #374151; font-size: 15px; margin: 20px 0 0 0; white-space: pre-wrap;">
               ${closing},<br/>
-              <strong>${signature}</strong>
+              <strong>${signature}</strong>${therapistPhone ? `<br/><span style="color: #6b7280; font-size: 13px;">טל: ${therapistPhone}</span>` : ""}
             </p>
           </div>
         </div>

@@ -49,7 +49,8 @@ export async function POST(request: NextRequest) {
       method,
       status,
       notes,
-      creditUsed
+      creditUsed,
+      issueReceipt
     } = body;
 
     if (!clientId || !amount) {
@@ -148,41 +149,54 @@ export async function POST(request: NextRequest) {
           where: { id: session.user.id },
         });
 
-        // יצירת קבלה דרך ספק החיוב המחובר
         let receiptUrl: string | null = null;
         let receiptNumber: string | null = null;
 
-        try {
-          const billingService = createBillingService(session.user.id);
-          const receiptResult = await billingService.createReceipt({
-            clientName: payment.client.name,
-            clientEmail: payment.client.email || undefined,
-            clientPhone: payment.client.phone || undefined,
-            amount: Number(payment.amount),
-            description: payment.session 
-              ? `תשלום עבור פגישה בתאריך ${new Date(payment.session.startTime).toLocaleDateString('he-IL', { timeZone: 'Asia/Jerusalem' })}`
-              : `תשלום עבור טיפול`,
-            paymentMethod: mapPaymentMethod(method),
-            sendEmail: commSettings?.sendReceiptToClient ?? true,
-          });
+        if (issueReceipt !== false && therapist?.businessType !== "NONE") {
+          if (therapist?.businessType === "EXEMPT") {
+            // עוסק פטור: מספור פנימי
+            const currentNumber = therapist.nextReceiptNumber || 1;
+            const year = new Date().getFullYear();
+            receiptNumber = `${year}-${String(currentNumber).padStart(4, "0")}`;
 
-          if (receiptResult.success) {
-            receiptUrl = receiptResult.receiptUrl || null;
-            receiptNumber = receiptResult.receiptNumber || null;
+            await prisma.user.update({
+              where: { id: session.user.id },
+              data: { nextReceiptNumber: currentNumber + 1 },
+            });
 
-            // עדכון התשלום עם פרטי הקבלה
             await prisma.payment.update({
               where: { id: payment.id },
-              data: {
-                receiptUrl,
-                receiptNumber,
-                hasReceipt: true,
-              },
+              data: { receiptNumber, hasReceipt: true },
             });
+          } else {
+            // עוסק מורשה: יצירת קבלה דרך ספק חיוב
+            try {
+              const billingService = createBillingService(session.user.id);
+              const receiptResult = await billingService.createReceipt({
+                clientName: payment.client.name,
+                clientEmail: payment.client.email || undefined,
+                clientPhone: payment.client.phone || undefined,
+                amount: Number(payment.amount),
+                description: payment.session 
+                  ? `תשלום עבור פגישה בתאריך ${new Date(payment.session.startTime).toLocaleDateString('he-IL', { timeZone: 'Asia/Jerusalem' })}`
+                  : `תשלום עבור טיפול`,
+                paymentMethod: mapPaymentMethod(method),
+                sendEmail: commSettings?.sendReceiptToClient ?? true,
+              });
+
+              if (receiptResult.success) {
+                receiptUrl = receiptResult.receiptUrl || null;
+                receiptNumber = receiptResult.receiptNumber || null;
+
+                await prisma.payment.update({
+                  where: { id: payment.id },
+                  data: { receiptUrl, receiptNumber, hasReceipt: true },
+                });
+              }
+            } catch (billingError) {
+              console.error("Error creating receipt via billing provider:", billingError);
+            }
           }
-        } catch (billingError) {
-          console.error("Error creating receipt via billing provider:", billingError);
-          // ממשיכים גם אם יצירת הקבלה נכשלה
         }
 
         // שליחת מייל אישור תשלום
@@ -203,6 +217,7 @@ export async function POST(request: NextRequest) {
           const { subject, html } = createPaymentReceiptEmail({
             clientName: payment.client.name,
             therapistName: therapist?.name || "המטפל/ת שלך",
+            therapistPhone: therapist?.businessPhone || therapist?.phone || undefined,
             payment: {
               amount: Number(payment.amount),
               expectedAmount: Number(payment.expectedAmount || payment.amount),

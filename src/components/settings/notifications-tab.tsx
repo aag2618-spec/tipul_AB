@@ -7,7 +7,7 @@ import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import { Switch } from "@/components/ui/switch";
 import { Textarea } from "@/components/ui/textarea";
-import { Loader2, Save, Bell, Mail, Smartphone, MessageSquare, Shield, Clock, CreditCard, Sparkles, FileText } from "lucide-react";
+import { Loader2, Save, Bell, Mail, MessageSquare, Clock, CreditCard, Sparkles, FileText } from "lucide-react";
 import { toast } from "sonner";
 import {
   Select,
@@ -192,21 +192,6 @@ export function NotificationsTab() {
               <Switch
                 checked={notifSettings.emailEnabled}
                 onCheckedChange={(checked) => setNotifSettings({ ...notifSettings, emailEnabled: checked })}
-              />
-            </div>
-            <div className="flex items-center justify-between">
-              <div className="flex items-center gap-3">
-                <div className="flex h-10 w-10 items-center justify-center rounded-lg bg-primary/10">
-                  <Smartphone className="h-5 w-5 text-primary" />
-                </div>
-                <div>
-                  <p className="font-medium">Push Notifications</p>
-                  <p className="text-sm text-muted-foreground">התראות מיידיות בדפדפן ובמובייל על פגישות חדשות, ביטולים ותשלומים</p>
-                </div>
-              </div>
-              <Switch
-                checked={notifSettings.pushEnabled}
-                onCheckedChange={(checked) => setNotifSettings({ ...notifSettings, pushEnabled: checked })}
               />
             </div>
             <div className="grid grid-cols-2 gap-4">

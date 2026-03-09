@@ -1,5 +1,6 @@
 import { NextRequest, NextResponse } from "next/server";
 import prisma from "@/lib/prisma";
+import { sendEmail } from "@/lib/resend";
 
 // This endpoint should be called by a cron job (Vercel Cron, Render Cron, or external service)
 // Set up in vercel.json or cron-job.org to call daily
@@ -27,7 +28,6 @@ export async function GET(request: NextRequest) {
     const dayAfterTomorrow = new Date(tomorrow);
     dayAfterTomorrow.setDate(dayAfterTomorrow.getDate() + 1);
 
-    // Get all users with enabled notifications
     const users = await prisma.user.findMany({
       where: {
         notificationSettings: {
@@ -45,6 +45,9 @@ export async function GET(request: NextRequest) {
       const settings = user.notificationSettings[0];
       if (!settings) continue;
 
+      const emailSetting = user.notificationSettings.find((s) => s.channel === "email");
+      const shouldSendEmail = emailSetting?.enabled && user.email;
+
       // Morning summary - today's sessions
       const todaySessions = await prisma.therapySession.findMany({
         where: {
@@ -57,22 +60,46 @@ export async function GET(request: NextRequest) {
       });
 
       if (todaySessions.length > 0) {
-        const sessionsList = todaySessions
-          .filter((s) => s.client) // Filter out BREAK sessions
+        const realSessions = todaySessions.filter((s) => s.client);
+        const sessionsList = realSessions
           .map((s) => `• ${s.client!.name} - ${new Date(s.startTime).toLocaleTimeString("he-IL", { hour: "2-digit", minute: "2-digit", timeZone: 'Asia/Jerusalem' })}`)
           .join("\n");
+
+        const title = `תזכורת בוקר - ${today.toLocaleDateString("he-IL", { timeZone: 'Asia/Jerusalem' })}`;
+        const content = `יש לך ${realSessions.length} פגישות היום:\n${sessionsList}`;
 
         await prisma.notification.create({
           data: {
             userId: user.id,
             type: "MORNING_SUMMARY",
-            title: `תזכורת בוקר - ${today.toLocaleDateString("he-IL", { timeZone: 'Asia/Jerusalem' })}`,
-            content: `יש לך ${todaySessions.length} פגישות היום:\n${sessionsList}`,
+            title,
+            content,
             status: "PENDING",
             scheduledFor: now,
           },
         });
         notificationsCreated++;
+
+        if (shouldSendEmail) {
+          const sessionsHtml = realSessions
+            .map((s) => `<tr><td style="padding:6px 12px;border-bottom:1px solid #e5e7eb;">${s.client!.name}</td><td style="padding:6px 12px;border-bottom:1px solid #e5e7eb;" dir="ltr">${new Date(s.startTime).toLocaleTimeString("he-IL", { hour: "2-digit", minute: "2-digit", timeZone: "Asia/Jerusalem" })}</td></tr>`)
+            .join("");
+
+          await sendEmail({
+            to: user.email!,
+            subject: title,
+            html: `<div dir="rtl" style="font-family:Arial,sans-serif;max-width:600px;margin:0 auto;padding:20px;">
+              <h2 style="color:#0d9488;">☀️ ${title}</h2>
+              <p>שלום ${user.name || ""},</p>
+              <p>יש לך <strong>${realSessions.length} פגישות</strong> היום:</p>
+              <table style="width:100%;border-collapse:collapse;margin:16px 0;">
+                <thead><tr><th style="text-align:right;padding:6px 12px;background:#f0fdfa;border-bottom:2px solid #0d9488;">מטופל</th><th style="text-align:right;padding:6px 12px;background:#f0fdfa;border-bottom:2px solid #0d9488;">שעה</th></tr></thead>
+                <tbody>${sessionsHtml}</tbody>
+              </table>
+              <p style="color:#6b7280;font-size:13px;margin-top:24px;">מייל זה נשלח אוטומטית ממערכת MyTipul</p>
+            </div>`,
+          }).catch(() => {});
+        }
       }
 
       // Evening summary - tomorrow's sessions
@@ -86,7 +113,6 @@ export async function GET(request: NextRequest) {
         orderBy: { startTime: "asc" },
       });
 
-      // Pending tasks
       const pendingTasks = await prisma.task.findMany({
         where: {
           userId: user.id,
@@ -97,8 +123,8 @@ export async function GET(request: NextRequest) {
       });
 
       if (tomorrowSessions.length > 0 || pendingTasks.length > 0) {
-        const sessionsList = tomorrowSessions
-          .filter((s) => s.client) // Filter out BREAK sessions
+        const realTomorrowSessions = tomorrowSessions.filter((s) => s.client);
+        const sessionsList = realTomorrowSessions
           .map((s) => `• ${s.client!.name} - ${new Date(s.startTime).toLocaleTimeString("he-IL", { hour: "2-digit", minute: "2-digit", timeZone: 'Asia/Jerusalem' })}`)
           .join("\n");
 
@@ -107,17 +133,46 @@ export async function GET(request: NextRequest) {
           .map((t) => `• ${t.title}`)
           .join("\n");
 
+        const title = `סיכום ליום מחר - ${tomorrow.toLocaleDateString("he-IL", { timeZone: 'Asia/Jerusalem' })}`;
+        const content = `פגישות מחר (${realTomorrowSessions.length}):\n${sessionsList || "אין פגישות"}\n\nמשימות פתוחות (${pendingTasks.length}):\n${tasksList || "אין משימות"}`;
+
         await prisma.notification.create({
           data: {
             userId: user.id,
             type: "EVENING_SUMMARY",
-            title: `סיכום ליום מחר - ${tomorrow.toLocaleDateString("he-IL", { timeZone: 'Asia/Jerusalem' })}`,
-            content: `פגישות מחר (${tomorrowSessions.length}):\n${sessionsList || "אין פגישות"}\n\nמשימות פתוחות (${pendingTasks.length}):\n${tasksList || "אין משימות"}`,
+            title,
+            content,
             status: "PENDING",
             scheduledFor: now,
           },
         });
         notificationsCreated++;
+
+        if (shouldSendEmail) {
+          const sessionsHtml = realTomorrowSessions.length > 0
+            ? realTomorrowSessions.map((s) => `<tr><td style="padding:6px 12px;border-bottom:1px solid #e5e7eb;">${s.client!.name}</td><td style="padding:6px 12px;border-bottom:1px solid #e5e7eb;" dir="ltr">${new Date(s.startTime).toLocaleTimeString("he-IL", { hour: "2-digit", minute: "2-digit", timeZone: "Asia/Jerusalem" })}</td></tr>`).join("")
+            : `<tr><td colspan="2" style="padding:12px;text-align:center;color:#6b7280;">אין פגישות מחר</td></tr>`;
+          const tasksHtml = pendingTasks.length > 0
+            ? pendingTasks.slice(0, 5).map((t) => `<li style="margin-bottom:4px;">${t.title}</li>`).join("")
+            : `<li style="color:#6b7280;">אין משימות פתוחות</li>`;
+
+          await sendEmail({
+            to: user.email!,
+            subject: title,
+            html: `<div dir="rtl" style="font-family:Arial,sans-serif;max-width:600px;margin:0 auto;padding:20px;">
+              <h2 style="color:#0d9488;">🌙 ${title}</h2>
+              <p>שלום ${user.name || ""},</p>
+              <h3 style="margin-top:20px;">פגישות מחר (${realTomorrowSessions.length})</h3>
+              <table style="width:100%;border-collapse:collapse;margin:12px 0;">
+                <thead><tr><th style="text-align:right;padding:6px 12px;background:#f0fdfa;border-bottom:2px solid #0d9488;">מטופל</th><th style="text-align:right;padding:6px 12px;background:#f0fdfa;border-bottom:2px solid #0d9488;">שעה</th></tr></thead>
+                <tbody>${sessionsHtml}</tbody>
+              </table>
+              <h3 style="margin-top:20px;">משימות פתוחות (${pendingTasks.length})</h3>
+              <ul style="padding-right:20px;">${tasksHtml}</ul>
+              <p style="color:#6b7280;font-size:13px;margin-top:24px;">מייל זה נשלח אוטומטית ממערכת MyTipul</p>
+            </div>`,
+          }).catch(() => {});
+        }
       }
 
       const debtThreshold = settings.debtThresholdDays || 30;

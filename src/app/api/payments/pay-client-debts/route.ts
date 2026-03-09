@@ -170,6 +170,7 @@ export async function POST(req: NextRequest) {
           const { subject, html } = createPaymentReceiptEmail({
             clientName: client.name,
             therapistName: therapist?.name || "המטפל/ת שלך",
+            therapistPhone: therapist?.businessPhone || therapist?.phone || undefined,
             payment: {
               amount: Number(payment.amount),
               expectedAmount: Number(payment.expectedAmount || payment.amount),

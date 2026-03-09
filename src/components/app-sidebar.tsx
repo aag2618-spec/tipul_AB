@@ -106,6 +106,11 @@ const businessItems = [
     href: "/dashboard/reports",
     icon: BarChart3,
   },
+  {
+    title: "קבלות",
+    href: "/dashboard/receipts",
+    icon: FileText,
+  },
 ];
 
 const settingsItems = [

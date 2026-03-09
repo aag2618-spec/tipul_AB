@@ -16,6 +16,7 @@ const pathNames: Record<string, string> = {
   settings: "הגדרות",
   questionnaires: "שאלונים",
   reports: "דוחות",
+  receipts: "קבלות",
   documents: "מסמכים",
   recordings: "הקלטות",
   notifications: "התראות",
