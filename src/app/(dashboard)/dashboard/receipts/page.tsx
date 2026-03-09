@@ -92,7 +92,7 @@ export default function ReceiptsPage() {
       const response = await fetch("/api/payments");
       if (response.ok) {
         const data = await response.json();
-        setPayments(data.filter((p: ReceiptPayment) => p.status === "PAID"));
+        setPayments(data.filter((p: ReceiptPayment) => p.status === "PAID" || p.hasReceipt));
       } else {
         toast.error("שגיאה בטעינת נתונים");
       }
