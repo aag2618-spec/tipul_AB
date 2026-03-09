@@ -26,6 +26,15 @@ export async function POST(req: NextRequest) {
       return NextResponse.json({ error: "Client not found" }, { status: 404 });
     }
 
+    if (templateId) {
+      const template = await prisma.intakeQuestionnaire.findFirst({
+        where: { id: templateId, userId: session.user.id },
+      });
+      if (!template) {
+        return NextResponse.json({ error: "Template not found" }, { status: 404 });
+      }
+    }
+
     const response = await prisma.intakeResponse.create({
       data: {
         clientId,

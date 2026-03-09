@@ -82,7 +82,7 @@ export default async function AdminAIUsagePage() {
   const session = await getServerSession(authOptions);
   
   if (!session?.user?.id) {
-    redirect("/auth/signin");
+    redirect("/login");
   }
   
   // Check if admin

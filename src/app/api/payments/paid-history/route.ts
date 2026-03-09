@@ -67,13 +67,14 @@ export async function GET() {
       status: payment.status,
       paidAt: payment.paidAt,
       createdAt: payment.createdAt,
-      // נתוני פגישה מלאים
+      receiptNumber: payment.receiptNumber,
+      receiptUrl: payment.receiptUrl,
+      hasReceipt: payment.hasReceipt,
       session: payment.session ? {
         id: payment.session.id,
         startTime: payment.session.startTime,
         type: payment.session.type,
       } : null,
-      // תשלומים חלקיים
       childPayments: payment.childPayments?.map((child) => ({
         id: child.id,
         amount: Number(child.amount),

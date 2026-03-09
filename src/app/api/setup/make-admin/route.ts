@@ -4,11 +4,10 @@ import prisma from "@/lib/prisma";
 // POST - One-time setup to make aag2618@gmail.com an ADMIN
 export async function POST(request: NextRequest) {
   try {
-    // Security key to prevent unauthorized access
     const secretKey = request.headers.get("x-setup-key");
-    const validSecret = process.env.SETUP_SECRET || "tipul-setup-2024";
+    const validSecret = process.env.SETUP_SECRET;
     
-    if (secretKey !== validSecret) {
+    if (!validSecret || secretKey !== validSecret) {
       return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
     }
 

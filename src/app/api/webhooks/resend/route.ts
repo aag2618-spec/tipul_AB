@@ -13,10 +13,41 @@ function extractEmail(raw: string): string {
 export async function POST(request: NextRequest) {
   try {
     const headersList = await headers();
-    const signature = headersList.get("svix-signature");
-    
+    const svixId = headersList.get("svix-id");
+    const svixTimestamp = headersList.get("svix-timestamp");
+    const svixSignature = headersList.get("svix-signature");
+
+    if (!svixId || !svixTimestamp || !svixSignature) {
+      console.warn("Resend webhook: missing Svix headers");
+      return NextResponse.json({ error: "Missing webhook headers" }, { status: 401 });
+    }
+
+    const webhookSecret = process.env.RESEND_WEBHOOK_SECRET;
+    if (webhookSecret) {
+      const crypto = await import("crypto");
+      const signedContent = `${svixId}.${svixTimestamp}.${await request.clone().text()}`;
+      const secret = webhookSecret.startsWith("whsec_") 
+        ? webhookSecret.slice(6) 
+        : webhookSecret;
+      const secretBytes = Buffer.from(secret, "base64");
+      const expectedSignature = crypto
+        .createHmac("sha256", secretBytes)
+        .update(signedContent)
+        .digest("base64");
+      
+      const signatures = svixSignature.split(" ");
+      const isValid = signatures.some((sig) => {
+        const sigValue = sig.split(",")[1];
+        return sigValue === expectedSignature;
+      });
+      
+      if (!isValid) {
+        console.warn("Resend webhook: invalid signature");
+        return NextResponse.json({ error: "Invalid signature" }, { status: 401 });
+      }
+    }
+
     const body = await request.json();
-    console.log("Resend webhook received:", JSON.stringify(body, null, 2));
 
     const { type, data } = body;
 

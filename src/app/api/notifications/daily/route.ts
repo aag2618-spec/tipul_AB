@@ -1,9 +1,15 @@
-import { NextResponse } from "next/server";
+import { NextRequest, NextResponse } from "next/server";
 import prisma from "@/lib/prisma";
 
-// This endpoint can be called by a cron job to generate daily notifications
-export async function POST() {
+export async function POST(request: NextRequest) {
   try {
+    const cronSecret = process.env.CRON_SECRET;
+    if (cronSecret) {
+      const authHeader = request.headers.get("authorization");
+      if (authHeader !== `Bearer ${cronSecret}`) {
+        return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
+      }
+    }
     const now = new Date();
     // Israel-aware today/tomorrow boundaries
     const israelDateStr = now.toLocaleDateString('en-CA', { timeZone: 'Asia/Jerusalem' });

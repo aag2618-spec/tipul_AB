@@ -466,6 +466,10 @@ model Payment {
   childPayments   Payment[] @relation("PaymentChildren")
 
   @@index([parentPaymentId])
+  @@index([clientId])
+  @@index([status])
+  @@index([clientId, status])
+  @@index([hasReceipt])
 }
 
 enum PaymentMethod {

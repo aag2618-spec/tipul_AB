@@ -53,14 +53,14 @@ export default async function AIPrepPage() {
   const session = await getServerSession(authOptions);
   
   if (!session?.user?.id) {
-    redirect("/auth/signin");
+    redirect("/login");
   }
 
   const user = await getUserWithTier(session.user.id);
   const sessions = await getTodaysSessions(session.user.id);
 
   if (!user) {
-    redirect("/auth/signin");
+    redirect("/login");
   }
 
   const isAIEnabled = user.aiTier !== 'ESSENTIAL';

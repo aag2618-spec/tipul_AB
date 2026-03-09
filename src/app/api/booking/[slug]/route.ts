@@ -350,7 +350,11 @@ export async function POST(
         { status: 409 }
       );
     }
-    throw e;
+    console.error("Booking transaction error:", e);
+    return NextResponse.json(
+      { error: "שגיאה בקביעת התור. נסה שוב." },
+      { status: 500 }
+    );
   }
 
   const sessionStatus = settings.requireApproval ? "PENDING_APPROVAL" : "SCHEDULED";

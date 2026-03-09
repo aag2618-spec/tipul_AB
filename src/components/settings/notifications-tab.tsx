@@ -132,7 +132,7 @@ export function NotificationsTab() {
   const handleSaveAll = async () => {
     setIsSaving(true);
     try {
-      await Promise.all([
+      const results = await Promise.all([
         fetch("/api/user/notification-settings", {
           method: "PUT",
           headers: { "Content-Type": "application/json" },
@@ -149,7 +149,13 @@ export function NotificationsTab() {
           body: JSON.stringify(commSettings),
         }),
       ]);
-      toast.success("כל ההגדרות נשמרו בהצלחה");
+
+      const failed = results.filter((r) => !r.ok);
+      if (failed.length > 0) {
+        toast.error(`שגיאה בשמירת ${failed.length} הגדרות. נסה שוב.`);
+      } else {
+        toast.success("כל ההגדרות נשמרו בהצלחה");
+      }
     } catch {
       toast.error("שגיאה בשמירת ההגדרות");
     } finally {
