@@ -276,6 +276,21 @@
   50% { opacity: 0.7; }
 }
 
+@keyframes bell-ring {
+  0%, 100% { transform: rotate(0deg); }
+  10% { transform: rotate(14deg); }
+  20% { transform: rotate(-14deg); }
+  30% { transform: rotate(10deg); }
+  40% { transform: rotate(-8deg); }
+  50% { transform: rotate(4deg); }
+  60% { transform: rotate(0deg); }
+}
+
+.animate-bell-ring {
+  animation: bell-ring 2s ease-in-out infinite;
+  transform-origin: top center;
+}
+
 @keyframes ai-glow {
   0%, 100% { box-shadow: 0 0 15px rgba(14, 116, 144, 0.3), 0 0 30px rgba(14, 116, 144, 0.1); }
   50% { box-shadow: 0 0 25px rgba(14, 116, 144, 0.5), 0 0 50px rgba(14, 116, 144, 0.2); }

@@ -212,11 +212,11 @@ export function DashboardHeader({ user }: DashboardHeaderProps) {
         <DropdownMenu>
           <DropdownMenuTrigger asChild>
             <Button variant="ghost" size="icon" className="relative">
-              <Bell className="h-5 w-5" />
+              <Bell className={`h-5 w-5 ${totalBadge > 0 ? "animate-bell-ring" : ""}`} />
               {totalBadge > 0 && (
                 <Badge 
                   variant="destructive" 
-                  className="absolute -top-1 -right-1 h-5 w-5 flex items-center justify-center p-0 text-xs"
+                  className="absolute -top-1 -right-1 h-5 w-5 flex items-center justify-center p-0 text-xs animate-pulse"
                 >
                   {totalBadge > 9 ? "9+" : totalBadge}
                 </Badge>
@@ -226,7 +226,7 @@ export function DashboardHeader({ user }: DashboardHeaderProps) {
           </DropdownMenuTrigger>
           <DropdownMenuContent align="start" className="w-80">
             <DropdownMenuLabel className="flex items-center justify-between">
-              <span>תשובות ממטופלים</span>
+              <span>התראות</span>
               {unreadCount > 0 && (
                 <Badge variant="secondary" className="text-xs">
                   {unreadCount} חדשות
@@ -265,17 +265,17 @@ export function DashboardHeader({ user }: DashboardHeaderProps) {
               </div>
             ) : (
               <div className="p-4 text-center text-muted-foreground text-sm">
-                אין תשובות חדשות ממטופלים
+                אין התראות חדשות
               </div>
             )}
             
             <DropdownMenuSeparator />
             <div className="flex items-center justify-between px-2 py-1">
               <Link 
-                href="/dashboard/communications" 
+                href="/dashboard/notifications" 
                 className="text-sm text-primary hover:underline px-2 py-1"
               >
-                צפה בכל התקשורת
+                צפה בכל ההתראות
               </Link>
               {notifications.length > 0 && (
                 <button

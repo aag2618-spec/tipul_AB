@@ -103,6 +103,20 @@ export async function POST(request: NextRequest) {
       },
     });
 
+    // Create a bell notification so it shows up immediately
+    await prisma.notification.create({
+      data: {
+        userId: session.user.id,
+        type: "PENDING_TASKS",
+        title: `מטלה חדשה: ${title}`,
+        content: reminderAt
+          ? `תזכורת מתוזמנת ל-${new Date(parseIsraelTime(reminderAt)).toLocaleString("he-IL", { timeZone: "Asia/Jerusalem" })}`
+          : description || title,
+        status: "PENDING",
+        sentAt: new Date(),
+      },
+    }).catch((err) => console.error("Failed to create task notification:", err));
+
     return NextResponse.json(task, { status: 201 });
   } catch (error) {
     console.error("Create task error:", error);
