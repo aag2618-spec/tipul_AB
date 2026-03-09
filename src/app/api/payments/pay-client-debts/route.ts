@@ -5,6 +5,7 @@ import prisma from "@/lib/prisma";
 import { sendEmail } from "@/lib/resend";
 import { createPaymentReceiptEmail } from "@/lib/email-templates/payment-receipt";
 import { createBillingService } from "@/lib/billing";
+import { getReceiptPageUrl } from "@/lib/receipt-token";
 
 export async function POST(req: NextRequest) {
   try {
@@ -156,6 +157,7 @@ export async function POST(req: NextRequest) {
           if (therapist.businessType === "EXEMPT") {
             const year = new Date().getFullYear();
             receiptNumber = `${year}-${String(localReceiptCounter).padStart(4, "0")}`;
+            receiptUrl = getReceiptPageUrl(payment.id);
             localReceiptCounter++;
 
             await prisma.user.update({
@@ -165,7 +167,7 @@ export async function POST(req: NextRequest) {
 
             await prisma.payment.update({
               where: { id: payment.id },
-              data: { receiptNumber, hasReceipt: true },
+              data: { receiptNumber, receiptUrl, hasReceipt: true },
             });
           } else {
             // עוסק מורשה: יצירת קבלה דרך ספק חיוב

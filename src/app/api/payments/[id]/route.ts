@@ -5,6 +5,7 @@ import prisma from "@/lib/prisma";
 import { sendEmail } from "@/lib/resend";
 import { createPaymentReceiptEmail } from "@/lib/email-templates/payment-receipt";
 import { createBillingService } from "@/lib/billing";
+import { getReceiptPageUrl } from "@/lib/receipt-token";
 
 export async function GET(
   request: NextRequest,
@@ -82,6 +83,7 @@ export async function PUT(
           const currentNumber = user.nextReceiptNumber || 1;
           const year = new Date().getFullYear();
           receiptNumber = `${year}-${String(currentNumber).padStart(4, "0")}`;
+          receiptUrl = getReceiptPageUrl(id);
           hasReceipt = true;
           
           await prisma.user.update({

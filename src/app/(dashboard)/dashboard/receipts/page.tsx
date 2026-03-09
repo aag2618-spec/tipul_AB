@@ -23,7 +23,6 @@ import {
 import { format } from "date-fns";
 import { he } from "date-fns/locale";
 import { toast } from "sonner";
-import { jsPDF } from "jspdf";
 
 interface ReceiptPayment {
   id: string;
@@ -102,98 +101,94 @@ export default function ReceiptsPage() {
     }
   };
 
-  const downloadReceiptPdf = (payment: ReceiptPayment) => {
+  const downloadReceiptPdf = async (payment: ReceiptPayment) => {
     try {
-      const doc = new jsPDF({ orientation: "portrait", unit: "mm", format: "a4" });
-      const pageWidth = doc.internal.pageSize.getWidth();
-      
-      doc.addFont("Helvetica", "Helvetica", "normal");
-      doc.setFont("Helvetica");
-
       const businessName = therapist?.businessName || therapist?.name || "MyTipul";
       const dateStr = payment.paidAt
-        ? format(new Date(payment.paidAt), "dd/MM/yyyy")
-        : format(new Date(payment.createdAt), "dd/MM/yyyy");
+        ? format(new Date(payment.paidAt), "dd בMMMM yyyy", { locale: he })
+        : format(new Date(payment.createdAt), "dd בMMMM yyyy", { locale: he });
       const methodLabel = METHOD_LABELS[payment.method] || payment.method;
-      const receiptNum = payment.receiptNumber || payment.id.slice(0, 8).toUpperCase();
+      const receiptNum = payment.receiptNumber || `R-${payment.id.slice(0, 8).toUpperCase()}`;
+      const sessionDate = payment.session
+        ? format(new Date(payment.session.startTime), "dd/MM/yyyy")
+        : null;
 
-      // Header bar
-      doc.setFillColor(15, 118, 110);
-      doc.rect(0, 0, pageWidth, 35, "F");
-      doc.setTextColor(255, 255, 255);
-      doc.setFontSize(22);
-      doc.text("RECEIPT", pageWidth / 2, 16, { align: "center" });
-      doc.setFontSize(11);
-      doc.text(businessName, pageWidth / 2, 26, { align: "center" });
+      const container = document.createElement("div");
+      container.style.position = "fixed";
+      container.style.left = "-9999px";
+      container.style.top = "0";
+      container.style.width = "794px";
+      container.style.background = "white";
 
-      // Receipt info
-      doc.setTextColor(100, 100, 100);
-      doc.setFontSize(10);
-      doc.text(`Receipt #: ${receiptNum}`, pageWidth - 20, 45, { align: "right" });
-      doc.text(`Date: ${dateStr}`, pageWidth - 20, 52, { align: "right" });
+      container.innerHTML = `
+        <div style="padding: 40px; direction: rtl; font-family: 'Heebo', 'Segoe UI', Arial, sans-serif; color: #1a1a1a;">
+          <div style="background: linear-gradient(135deg, #0f766e, #14b8a6); padding: 30px; text-align: center; color: white; border-radius: 8px 8px 0 0;">
+            <h1 style="margin: 0; font-size: 30px; font-weight: 700;">קבלה</h1>
+            <p style="margin: 10px 0 0; font-size: 16px; opacity: 0.9;">${businessName}</p>
+          </div>
 
-      // Business details
-      let yPos = 45;
-      doc.setTextColor(60, 60, 60);
-      doc.setFontSize(10);
-      if (therapist?.businessPhone) {
-        doc.text(`Tel: ${therapist.businessPhone}`, 20, yPos);
-        yPos += 7;
-      }
-      if (therapist?.businessAddress) {
-        doc.text(`Address: ${therapist.businessAddress}`, 20, yPos);
-        yPos += 7;
-      }
+          <div style="border: 1px solid #e5e7eb; border-top: none; padding: 20px 25px; display: flex; justify-content: space-between;">
+            <div style="font-size: 13px; color: #6b7280;">
+              ${therapist?.businessPhone ? `<p style="margin: 0 0 4px;">טלפון: ${therapist.businessPhone}</p>` : ""}
+              ${therapist?.businessAddress ? `<p style="margin: 0;">כתובת: ${therapist.businessAddress}</p>` : ""}
+            </div>
+            <div style="text-align: left; font-size: 13px; color: #6b7280;">
+              <p style="margin: 0 0 4px;">קבלה מס׳: ${receiptNum}</p>
+              <p style="margin: 0;">תאריך: ${dateStr}</p>
+            </div>
+          </div>
 
-      // Divider
-      doc.setDrawColor(200, 200, 200);
-      doc.line(20, 65, pageWidth - 20, 65);
+          <div style="border: 1px solid #e5e7eb; border-top: none; padding: 18px 25px;">
+            <p style="margin: 0 0 4px; font-size: 12px; color: #0f766e; font-weight: 600;">התקבל מאת:</p>
+            <p style="margin: 0; font-size: 17px; font-weight: 600;">${payment.client.name}</p>
+          </div>
 
-      // Bill To
-      doc.setFontSize(12);
-      doc.setTextColor(15, 118, 110);
-      doc.text("Bill To:", 20, 77);
-      doc.setTextColor(30, 30, 30);
-      doc.setFontSize(11);
-      doc.text(payment.client.name, 20, 85);
+          <table style="width: 100%; border-collapse: collapse; border: 1px solid #e5e7eb; border-top: none;">
+            <thead>
+              <tr style="background: #f3f4f6;">
+                <th style="padding: 12px 16px; text-align: right; font-size: 13px; color: #6b7280; font-weight: 600; border-bottom: 1px solid #e5e7eb;">תיאור</th>
+                <th style="padding: 12px 16px; text-align: center; font-size: 13px; color: #6b7280; font-weight: 600; border-bottom: 1px solid #e5e7eb;">אמצעי תשלום</th>
+                <th style="padding: 12px 16px; text-align: left; font-size: 13px; color: #6b7280; font-weight: 600; border-bottom: 1px solid #e5e7eb;">סכום</th>
+              </tr>
+            </thead>
+            <tbody>
+              <tr>
+                <td style="padding: 14px 16px; font-size: 14px; border-bottom: 1px solid #e5e7eb;">פגישה טיפולית${sessionDate ? ` - ${sessionDate}` : ""}</td>
+                <td style="padding: 14px 16px; font-size: 14px; text-align: center; border-bottom: 1px solid #e5e7eb;">${methodLabel}</td>
+                <td style="padding: 14px 16px; font-size: 14px; text-align: left; font-weight: 600; border-bottom: 1px solid #e5e7eb;">₪${Number(payment.amount).toLocaleString()}</td>
+              </tr>
+            </tbody>
+          </table>
 
-      // Table header
-      const tableY = 100;
-      doc.setFillColor(240, 240, 240);
-      doc.rect(20, tableY, pageWidth - 40, 10, "F");
-      doc.setFontSize(10);
-      doc.setTextColor(80, 80, 80);
-      doc.text("Description", 25, tableY + 7);
-      doc.text("Method", pageWidth / 2, tableY + 7, { align: "center" });
-      doc.text("Amount", pageWidth - 25, tableY + 7, { align: "right" });
+          <div style="border: 1px solid #e5e7eb; border-top: 2px solid #0f766e; padding: 16px 25px; text-align: left; background: #f9fafb; border-radius: 0 0 8px 8px;">
+            <span style="font-size: 20px; font-weight: 700; color: #0f766e;">סה״כ: ₪${Number(payment.amount).toLocaleString()}</span>
+          </div>
 
-      // Table row
-      doc.setTextColor(30, 30, 30);
-      doc.setFontSize(11);
-      const rowY = tableY + 18;
-      const description = payment.session
-        ? `Session - ${format(new Date(payment.session.startTime), "dd/MM/yyyy")}`
-        : "Therapy session";
-      doc.text(description, 25, rowY);
-      doc.text(methodLabel, pageWidth / 2, rowY, { align: "center" });
-      doc.setFontSize(12);
-      doc.text(`${Number(payment.amount).toLocaleString()} ILS`, pageWidth - 25, rowY, { align: "right" });
+          <div style="text-align: center; margin-top: 35px; padding-top: 15px; border-top: 1px solid #e5e7eb;">
+            <p style="margin: 0; font-size: 11px; color: #9ca3af;">הופק על ידי MyTipul | ${format(new Date(), "dd/MM/yyyy HH:mm")}</p>
+          </div>
+        </div>
+      `;
 
-      // Total
-      doc.setDrawColor(15, 118, 110);
-      doc.setLineWidth(0.5);
-      doc.line(pageWidth / 2, rowY + 8, pageWidth - 20, rowY + 8);
-      doc.setFontSize(14);
-      doc.setTextColor(15, 118, 110);
-      doc.text(`Total: ${Number(payment.amount).toLocaleString()} ILS`, pageWidth - 25, rowY + 18, { align: "right" });
+      document.body.appendChild(container);
 
-      // Footer
-      doc.setFontSize(9);
-      doc.setTextColor(150, 150, 150);
-      doc.text("This receipt was generated by MyTipul", pageWidth / 2, 270, { align: "center" });
-      doc.text(`Generated: ${format(new Date(), "dd/MM/yyyy HH:mm")}`, pageWidth / 2, 276, { align: "center" });
+      const html2canvas = (await import("html2canvas")).default;
+      const { jsPDF } = await import("jspdf");
 
-      doc.save(`receipt_${receiptNum}_${payment.client.name}.pdf`);
+      const canvas = await html2canvas(container, {
+        scale: 2,
+        useCORS: true,
+        backgroundColor: "#ffffff",
+      });
+
+      const imgData = canvas.toDataURL("image/png");
+      const pdf = new jsPDF("portrait", "mm", "a4");
+      const pageWidth = 210;
+      const imgHeight = (canvas.height * pageWidth) / canvas.width;
+      pdf.addImage(imgData, "PNG", 0, 0, pageWidth, imgHeight);
+      pdf.save(`קבלה_${receiptNum}.pdf`);
+
+      document.body.removeChild(container);
       toast.success("הקבלה הורדה בהצלחה");
     } catch (err) {
       console.error("PDF generation error:", err);
@@ -219,7 +214,11 @@ export default function ReceiptsPage() {
       );
     }
 
-    return filtered;
+    return filtered.sort((a, b) => {
+      const dateA = new Date(a.paidAt || a.createdAt).getTime();
+      const dateB = new Date(b.paidAt || b.createdAt).getTime();
+      return dateB - dateA;
+    });
   }, [payments, filterType, searchTerm]);
 
   const totalWithReceipt = payments.filter((p) => p.hasReceipt).length;
