@@ -72,48 +72,23 @@ export class ICountClient {
         }
       }
 
-      const params = new URLSearchParams();
-      params.append('cid', this.companyId);
-      params.append('sid', this.sid!);
-      
-      for (const [key, value] of Object.entries(data)) {
-        if (value === undefined || value === null) continue;
-        if (Array.isArray(value)) {
-          value.forEach((item, idx) => {
-            if (typeof item === 'object' && item !== null) {
-              for (const [k, v] of Object.entries(item)) {
-                if (v !== undefined && v !== null) {
-                  params.append(`${key}[${idx}][${k}]`, String(v));
-                }
-              }
-            } else {
-              params.append(`${key}[${idx}]`, String(item));
-            }
-          });
-        } else if (typeof value === 'object') {
-          for (const [k, v] of Object.entries(value as Record<string, unknown>)) {
-            if (v !== undefined && v !== null) {
-              params.append(`${key}[${k}]`, String(v));
-            }
-          }
-        } else {
-          params.append(key, String(value));
-        }
-      }
+      const jsonBody = {
+        cid: this.companyId,
+        sid: this.sid!,
+        ...data,
+      };
 
-      const body = params.toString();
-      console.log(`iCount REQUEST ${endpoint}:`, body.substring(0, 500));
+      console.log(`iCount REQUEST ${endpoint}:`, JSON.stringify(jsonBody).substring(0, 500));
 
       const response = await fetch(`${ICOUNT_API_BASE}/${endpoint}`, {
         method: 'POST',
-        headers: { 'Content-Type': 'application/x-www-form-urlencoded' },
-        body,
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify(jsonBody),
       });
 
       const result = await response.json();
       console.log(`iCount RESPONSE ${endpoint}:`, JSON.stringify(result).substring(0, 500));
 
-      // iCount API returns { status: true/false } not { success: true }
       if (!result.status) {
         console.error('iCount API Error:', result);
         return {
@@ -189,24 +164,28 @@ export class ICountClient {
       console.error('Failed to fetch doc types:', e);
     }
 
-    const typesToTry = ['receipt', 'invrec', 'invoice'];
+    // Use types from doc/types API if available, otherwise try common ones
+    const availableKeys = Object.keys(availableTypes);
+    const typesToTry = availableKeys.length > 0
+      ? availableKeys
+      : ['400', '320', '305', '100'];
     const errors: string[] = [];
 
     for (const docType of typesToTry) {
-      console.log('iCount trying docType:', docType);
+      console.log('iCount trying doctype:', docType, '=', availableTypes[docType] || 'unknown');
       const data = this.buildDocumentData(request, docType);
       const raw = await this.request<ICountRawDocResponse>('doc/create', data);
 
       if (raw.success && raw.data) {
-        console.log('iCount doc/create SUCCESS with docType', docType, ':', JSON.stringify(raw.data));
+        console.log('iCount doc/create SUCCESS with doctype', docType, ':', JSON.stringify(raw.data));
         return { ...raw, data: this.normalizeDocResponse(raw.data) };
       }
 
       const errMsg = raw.message || 'unknown error';
-      console.log('iCount docType', docType, 'failed:', errMsg);
+      console.log('iCount doctype', docType, 'failed:', errMsg);
       errors.push(`${docType}: ${errMsg}`);
 
-      if (!errMsg.includes('מסמך') && !errMsg.includes('doctype') && !errMsg.includes('type') && !errMsg.includes('docType')) {
+      if (!errMsg.includes('מסמך') && !errMsg.includes('doctype') && !errMsg.includes('type')) {
         return raw as ICountResponse<CreateDocumentResponse>;
       }
     }
@@ -220,7 +199,7 @@ export class ICountClient {
   async createInvoice(
     request: CreateDocumentRequest
   ): Promise<ICountResponse<CreateDocumentResponse>> {
-    const data = this.buildDocumentData(request, 'invoice');
+    const data = this.buildDocumentData(request, '305');
     const raw = await this.request<ICountRawDocResponse>('doc/create', data);
     if (!raw.success || !raw.data) return raw as ICountResponse<CreateDocumentResponse>;
     return { ...raw, data: this.normalizeDocResponse(raw.data) };
@@ -229,7 +208,7 @@ export class ICountClient {
   async createInvoiceReceipt(
     request: CreateDocumentRequest
   ): Promise<ICountResponse<CreateDocumentResponse>> {
-    const data = this.buildDocumentData(request, 'invrec');
+    const data = this.buildDocumentData(request, '320');
     const raw = await this.request<ICountRawDocResponse>('doc/create', data);
     if (!raw.success || !raw.data) return raw as ICountResponse<CreateDocumentResponse>;
     return { ...raw, data: this.normalizeDocResponse(raw.data) };
@@ -242,70 +221,54 @@ export class ICountClient {
   }
 
   /**
-   * בניית נתוני מסמך - פורמט תואם ל-iCount API
-   * Items are sent as flat keys: desc[0], unitprice[0], quantity[0]
-   * docType uses string values: 'receipt', 'invrec', 'invoice', 'credit', 'quote'
+   * בניית נתוני מסמך - פורמט JSON תואם ל-iCount API V3
+   * Based on n8n-nodes-icount working implementation
    */
   private buildDocumentData(request: CreateDocumentRequest, resolvedDocType?: string): Record<string, unknown> {
-    const now = new Date();
-    const dateissued = `${now.getFullYear()}${String(now.getMonth() + 1).padStart(2, '0')}${String(now.getDate()).padStart(2, '0')}`;
+    const items = request.items.map(item => ({
+      description: item.description,
+      quantity: item.quantity,
+      unitprice: item.unit_price,
+    }));
 
     const data: Record<string, unknown> = {
-      docType: resolvedDocType ?? this.mapDocType(request.doctype),
-      clientname: request.client.client_name,
+      doctype: resolvedDocType ?? this.mapDocType(request.doctype),
+      client_name: request.client.client_name,
       email: request.client.email,
-      phone: request.client.phone,
-      client_street: request.client.address,
+      client_phone: request.client.phone,
+      client_address: request.client.address,
       client_city: request.client.city,
       vat_id: request.client.vat_id,
+      items,
       hwc: request.notes || request.description || '',
       send_email: request.send_email !== false ? 1 : 0,
       lang: request.lang || this.settings.default_lang,
-      currency: this.mapCurrency(request.currency || 'ILS'),
-      dateissued,
-      validity: dateissued,
+      currency_code: request.currency || 'ILS',
     };
 
-    request.items.forEach((item, idx) => {
-      data[`desc[${idx}]`] = item.description;
-      data[`unitprice[${idx}]`] = item.unit_price;
-      data[`quantity[${idx}]`] = item.quantity;
-      if (item.vat_type === 'exempt' || this.settings.vat_exempt) {
-        data[`vat_exempt[${idx}]`] = 1;
+    if (request.payment_type) {
+      const payType = this.mapPaymentType(request.payment_type);
+      if (payType === 1) {
+        data.cash = { sum: String(request.items.reduce((s, i) => s + i.unit_price * i.quantity, 0)) };
       }
-    });
-
-    const payType = this.mapPaymentType(request.payment_type);
-    if (payType) {
-      data['paytype'] = payType;
     }
 
     return data;
   }
 
   /**
-   * המרת סוג מסמך לערכי מחרוזת של iCount
+   * המרת סוג מסמך לקוד מספרי (מחרוזת) של iCount
+   * doc/types returns: { "320": "חשבונית מס", "305": "...", "400": "קבלה", ... }
    */
   private mapDocType(type: string): string {
     const mapping: Record<string, string> = {
-      receipt: 'receipt',
-      tax_invoice: 'invoice',
-      invoice_receipt: 'invrec',
-      credit_invoice: 'credit',
-      price_quote: 'quote',
+      receipt: '400',
+      tax_invoice: '305',
+      invoice_receipt: '320',
+      credit_invoice: '330',
+      price_quote: '100',
     };
-    return mapping[type] || 'receipt';
-  }
-
-  /**
-   * המרת מטבע לקוד מספרי של iCount
-   */
-  private mapCurrency(currency: string): number {
-    const mapping: Record<string, number> = {
-      EUR: 1, USD: 2, YEN: 3, GBP: 4, ILS: 5, NIS: 5,
-      SGP: 6, CAD: 7, RUB: 8, NZD: 9, AUD: 10,
-    };
-    return mapping[currency] || 5;
+    return mapping[type] || '400';
   }
 
   /**
