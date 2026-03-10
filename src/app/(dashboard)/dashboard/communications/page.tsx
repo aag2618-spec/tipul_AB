@@ -429,17 +429,25 @@ export default function CommunicationsPage() {
           <div className="flex items-center gap-2 mt-2">
             {/* Unread replies badge - always visible */}
             <button
-              onClick={() => setStatusFilter(statusFilter === "RECEIVED" ? "all" : "RECEIVED")}
+              onClick={() => {
+                const unreadIds = logs
+                  .filter(l => l.type === "INCOMING_EMAIL" && !l.isRead)
+                  .map(l => l.id);
+                if (unreadIds.length > 0) {
+                  setLogs(prev => prev.map(l => unreadIds.includes(l.id) ? { ...l, isRead: true } : l));
+                  unreadIds.forEach(id => {
+                    fetch(`/api/communications/logs/${id}/read`, { method: "POST" }).catch(() => {});
+                  });
+                }
+              }}
               className={`inline-flex items-center gap-1.5 px-3 py-1.5 rounded-full text-sm font-medium transition-colors ${
-                statusFilter === "RECEIVED"
-                  ? "bg-sky-100 text-sky-800 ring-2 ring-sky-400"
-                  : unreadReplies > 0
-                    ? "bg-sky-50 text-sky-700 hover:bg-sky-100"
-                    : "bg-muted text-muted-foreground hover:bg-muted/80"
+                unreadReplies > 0
+                  ? "bg-sky-50 text-sky-700 hover:bg-sky-100"
+                  : "bg-muted text-muted-foreground hover:bg-muted/80"
               }`}
             >
               <Mail className="h-3.5 w-3.5" />
-              {unreadReplies > 0 ? `${unreadReplies} תגובות שלא נקראו` : "אין תגובות חדשות"}
+              {unreadReplies > 0 ? `${unreadReplies} הודעות שלא נקראו` : "אין הודעות חדשות"}
             </button>
             {/* Failed badge - only if > 0, click to dismiss all */}
             {failedThreadCount > 0 && (
