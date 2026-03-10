@@ -79,18 +79,6 @@ export async function POST(request: NextRequest) {
       );
     }
 
-    // Create notification for sent email
-    await prisma.notification.create({
-      data: {
-        userId: session.user.id,
-        type: "EMAIL_SENT",
-        title: `מייל נשלח ל-${client.name} ✅`,
-        content: `נושא: ${subject}`,
-        status: "SENT",
-        sentAt: new Date(),
-      },
-    });
-
     return NextResponse.json({ 
       message: "המייל נשלח בהצלחה",
       logId: communicationLog.id

@@ -112,18 +112,6 @@ export async function POST(request: NextRequest) {
     // Wait for all emails to be sent
     await Promise.all(sendPromises);
 
-    // Create notification
-    await prisma.notification.create({
-      data: {
-        userId: session.user.id,
-        type: "EMAIL_SENT",
-        title: `מיילים נשלחו ל-${successCount} מטופלים ✅`,
-        content: `נושא: ${subject}\n${failureCount > 0 ? `נכשלו: ${failureCount}` : ""}`,
-        status: "SENT",
-        sentAt: new Date(),
-      },
-    });
-
     return NextResponse.json({
       message: `${successCount} מיילים נשלחו בהצלחה`,
       sent: successCount,

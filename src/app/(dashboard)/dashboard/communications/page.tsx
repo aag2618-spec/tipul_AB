@@ -495,7 +495,7 @@ export default function CommunicationsPage() {
           <table className="w-full" style={{ borderCollapse: "collapse", tableLayout: "fixed" }}>
             <colgroup>
               <col style={{ width: "28px" }} />
-              <col style={{ width: "140px" }} />
+              <col style={{ width: "160px" }} />
               <col />
               <col style={{ width: "50px" }} />
               <col style={{ width: "80px" }} />
@@ -530,14 +530,21 @@ export default function CommunicationsPage() {
                       </div>
                     </td>
 
-                    {/* Col 2: Client name + direction indicator */}
+                    {/* Col 2: Client name + direction arrow */}
                     <td className="py-0 pr-3 overflow-hidden">
-                      <span className={`block text-[14px] truncate ${isUnread ? "font-bold text-[#202124] dark:text-white" : "text-[#5f6368] dark:text-gray-300"}`}>
-                        {thread.clientName}
-                      </span>
+                      <div className="flex items-center gap-1.5">
+                        {isIncoming ? (
+                          <ArrowDownLeft className="h-3.5 w-3.5 text-sky-500 shrink-0" />
+                        ) : (
+                          <Send className="h-3 w-3 text-green-500 shrink-0" />
+                        )}
+                        <span className={`text-[14px] truncate ${isUnread ? "font-bold text-[#202124] dark:text-white" : "text-[#5f6368] dark:text-gray-300"}`}>
+                          {thread.clientName}
+                        </span>
+                      </div>
                     </td>
 
-                    {/* Col 3: Subject + preview (with sender prefix) */}
+                    {/* Col 3: Subject + preview */}
                     <td className="py-0 pr-2 overflow-hidden">
                       <div className="flex items-baseline overflow-hidden whitespace-nowrap">
                         <span className={`text-[14px] shrink-0 ${isUnread ? "font-bold text-[#202124] dark:text-white" : "text-[#202124] dark:text-gray-200"}`}>
@@ -547,7 +554,7 @@ export default function CommunicationsPage() {
                           <span className="text-[12px] text-red-500 mr-1 shrink-0"> — נכשל</span>
                         )}
                         <span className="text-[14px] text-[#5f6368] dark:text-gray-400 truncate">
-                          &nbsp;— {isIncoming ? "" : "אתה: "}{preview || ""}
+                          &nbsp;— {preview || ""}
                         </span>
                       </div>
                     </td>
