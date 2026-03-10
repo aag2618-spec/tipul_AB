@@ -819,7 +819,7 @@ export function SessionsView({ initialSessions }: SessionsViewProps) {
                 variant={updateStatus === "COMPLETED" ? "default" : "outline"}
                 size="sm"
                 className={`h-10 text-xs gap-1 ${updateStatus === "COMPLETED" ? "bg-emerald-600 hover:bg-emerald-700" : ""}`}
-                onClick={() => setUpdateStatus("COMPLETED")}
+                onClick={() => { setUpdateStatus("COMPLETED"); setShowPayment(true); }}
               >
                 <CheckCircle2 className="h-3.5 w-3.5" />
                 הושלמה
@@ -829,7 +829,7 @@ export function SessionsView({ initialSessions }: SessionsViewProps) {
                 variant={updateStatus === "CANCELLED" ? "default" : "outline"}
                 size="sm"
                 className={`h-10 text-xs gap-1 ${updateStatus === "CANCELLED" ? "bg-red-500 hover:bg-red-600" : ""}`}
-                onClick={() => setUpdateStatus("CANCELLED")}
+                onClick={() => { setUpdateStatus("CANCELLED"); setShowPayment(true); }}
               >
                 <Ban className="h-3.5 w-3.5" />
                 בוטלה
@@ -839,7 +839,7 @@ export function SessionsView({ initialSessions }: SessionsViewProps) {
                 variant={updateStatus === "NO_SHOW" ? "default" : "outline"}
                 size="sm"
                 className={`h-10 text-xs gap-1 ${updateStatus === "NO_SHOW" ? "bg-amber-500 hover:bg-amber-600" : ""}`}
-                onClick={() => setUpdateStatus("NO_SHOW")}
+                onClick={() => { setUpdateStatus("NO_SHOW"); setShowPayment(true); }}
               >
                 <UserX className="h-3.5 w-3.5" />
                 לא הגיע
@@ -860,16 +860,18 @@ export function SessionsView({ initialSessions }: SessionsViewProps) {
 
             {updateStatus && updateDialog.price > 0 && (
               <>
-                <Button
-                  type="button"
-                  variant="outline"
-                  className="w-full font-bold text-base"
-                  onClick={() => {
-                    setShowPayment(false);
-                  }}
-                >
-                  {updateStatus === "COMPLETED" ? "עדכון ללא תשלום" : updateStatus === "CANCELLED" ? "ביטול ללא חיוב" : "אי הגעה ללא חיוב"}
-                </Button>
+                {updateStatus !== "COMPLETED" && (
+                  <Button
+                    type="button"
+                    variant="outline"
+                    className="w-full font-bold text-base"
+                    onClick={() => {
+                      setShowPayment(false);
+                    }}
+                  >
+                    {updateStatus === "CANCELLED" ? "ביטול ללא חיוב" : "אי הגעה ללא חיוב"}
+                  </Button>
+                )}
 
                 <Button
                   type="button"

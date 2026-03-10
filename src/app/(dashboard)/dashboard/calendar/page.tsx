@@ -1599,9 +1599,32 @@ export default function CalendarPage() {
                       
                       {/* 4. ביטול */}
                       <button
-                        onClick={() => {
-                          setPendingAction("CANCELLED");
-                          setIsChargeDialogOpen(true);
+                        onClick={async () => {
+                          if (!selectedSession) return;
+                          const sessionStart = new Date(selectedSession.startTime);
+                          const hoursUntil = (sessionStart.getTime() - Date.now()) / (1000 * 60 * 60);
+
+                          if (hoursUntil > 24) {
+                            // Future session (>24h) — cancel and remove, no charge dialog
+                            if (!confirm("האם אתה בטוח שברצונך לבטל את הפגישה?")) return;
+                            try {
+                              await fetch(`/api/sessions/${selectedSession.id}`, {
+                                method: "PUT",
+                                headers: { "Content-Type": "application/json" },
+                                body: JSON.stringify({ status: "CANCELLED" }),
+                              });
+                              toast.success("הפגישה בוטלה");
+                              setIsSessionDialogOpen(false);
+                              setSelectedSession(null);
+                              fetchData();
+                            } catch {
+                              toast.error("שגיאה בביטול הפגישה");
+                            }
+                          } else {
+                            // Past or near session — show charge dialog
+                            setPendingAction("CANCELLED");
+                            setIsChargeDialogOpen(true);
+                          }
                         }}
                         className="w-full py-3 px-4 text-right hover:bg-orange-50 transition-colors flex items-center gap-3"
                       >
@@ -1901,7 +1924,7 @@ export default function CalendarPage() {
                 variant={updateStatus === "COMPLETED" ? "default" : "outline"}
                 size="sm"
                 className={`h-10 text-xs gap-1 ${updateStatus === "COMPLETED" ? "bg-emerald-600 hover:bg-emerald-700" : ""}`}
-                onClick={() => setUpdateStatus("COMPLETED")}
+                onClick={() => { setUpdateStatus("COMPLETED"); setShowUpdatePayment(true); }}
               >
                 <CheckCircle2 className="h-3.5 w-3.5" />
                 הושלמה
@@ -1911,7 +1934,7 @@ export default function CalendarPage() {
                 variant={updateStatus === "CANCELLED" ? "default" : "outline"}
                 size="sm"
                 className={`h-10 text-xs gap-1 ${updateStatus === "CANCELLED" ? "bg-red-500 hover:bg-red-600" : ""}`}
-                onClick={() => setUpdateStatus("CANCELLED")}
+                onClick={() => { setUpdateStatus("CANCELLED"); setShowUpdatePayment(true); }}
               >
                 <Ban className="h-3.5 w-3.5" />
                 בוטלה
@@ -1921,7 +1944,7 @@ export default function CalendarPage() {
                 variant={updateStatus === "NO_SHOW" ? "default" : "outline"}
                 size="sm"
                 className={`h-10 text-xs gap-1 ${updateStatus === "NO_SHOW" ? "bg-amber-500 hover:bg-amber-600" : ""}`}
-                onClick={() => setUpdateStatus("NO_SHOW")}
+                onClick={() => { setUpdateStatus("NO_SHOW"); setShowUpdatePayment(true); }}
               >
                 <UserX className="h-3.5 w-3.5" />
                 לא הגיע
@@ -1942,14 +1965,16 @@ export default function CalendarPage() {
 
             {updateStatus && selectedSession && selectedSession.price > 0 && (
               <>
-                <Button
-                  type="button"
-                  variant="outline"
-                  className="w-full font-bold text-base"
-                  onClick={() => setShowUpdatePayment(false)}
-                >
-                  {updateStatus === "COMPLETED" ? "עדכון ללא תשלום" : updateStatus === "CANCELLED" ? "ביטול ללא חיוב" : "אי הגעה ללא חיוב"}
-                </Button>
+                {updateStatus !== "COMPLETED" && (
+                  <Button
+                    type="button"
+                    variant="outline"
+                    className="w-full font-bold text-base"
+                    onClick={() => setShowUpdatePayment(false)}
+                  >
+                    {updateStatus === "CANCELLED" ? "ביטול ללא חיוב" : "אי הגעה ללא חיוב"}
+                  </Button>
+                )}
 
                 <Button
                   type="button"
