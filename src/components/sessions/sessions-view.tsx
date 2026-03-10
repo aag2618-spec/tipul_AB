@@ -37,7 +37,10 @@ import {
   ChevronUp,
   AlertCircle,
   Wallet,
+  FileText,
 } from "lucide-react";
+import { Checkbox } from "@/components/ui/checkbox";
+import { QuickMarkPaid } from "@/components/payments/quick-mark-paid";
 import { format } from "date-fns";
 import { he } from "date-fns/locale";
 import { toast } from "sonner";
@@ -55,6 +58,7 @@ interface Session {
   client?: {
     id: string;
     name: string;
+    creditBalance?: number | null;
   } | null;
 }
 
@@ -169,6 +173,18 @@ export function SessionsView({ initialSessions }: SessionsViewProps) {
   const [partialAmount, setPartialAmount] = useState("");
   const [noChargeReason, setNoChargeReason] = useState("");
   const [clientDebt, setClientDebt] = useState<{ total: number; count: number } | null>(null);
+  const [issueReceipt, setIssueReceipt] = useState(false);
+  const [receiptMode, setReceiptMode] = useState<string>("ASK");
+  const [businessType, setBusinessType] = useState<string>("NONE");
+  const [isPaymentDialogOpen, setIsPaymentDialogOpen] = useState(false);
+  const [paymentDialogData, setPaymentDialogData] = useState<{
+    sessionId: string;
+    clientId: string;
+    clientName: string;
+    amount: number;
+    paymentId?: string;
+    creditBalance: number;
+  } | null>(null);
 
   const now = useMemo(() => new Date(), []);
 
@@ -187,6 +203,20 @@ export function SessionsView({ initialSessions }: SessionsViewProps) {
       setClientDebt(null);
     }
   }, [updateDialog.open, updateDialog.clientId]);
+
+  useEffect(() => {
+    if (updateDialog.open) {
+      fetch("/api/user/business-settings")
+        .then(res => res.json())
+        .then(data => {
+          if (data.businessType) setBusinessType(data.businessType);
+          if (data.receiptDefaultMode) setReceiptMode(data.receiptDefaultMode);
+          if (data.receiptDefaultMode === "ALWAYS") setIssueReceipt(true);
+          else if (data.receiptDefaultMode === "NEVER") setIssueReceipt(false);
+        })
+        .catch(() => {});
+    }
+  }, [updateDialog.open]);
 
   const searchFilter = (s: Session, term: string) => {
     if (!term.trim()) return true;
@@ -303,6 +333,44 @@ export function SessionsView({ initialSessions }: SessionsViewProps) {
     if (!updateStatus) { toast.error("בחר סטטוס"); return; }
     setUpdating(true);
     try {
+      if (updateStatus === "COMPLETED" && showPayment && updateDialog.price > 0 && updateDialog.clientId) {
+        const response = await fetch(`/api/sessions/${updateDialog.sessionId}`, {
+          method: "PUT",
+          headers: { "Content-Type": "application/json" },
+          body: JSON.stringify({ status: "COMPLETED", createPayment: true, markAsPaid: false }),
+        });
+
+        if (response.ok) {
+          const updatedSession = await response.json();
+          toast.success("הפגישה עודכנה כהושלמה");
+          setSessions(prev => prev.map(s =>
+            s.id === updateDialog.sessionId ? { ...s, status: "COMPLETED" } : s
+          ));
+          const sessionForCredit = sessions.find(s => s.id === updateDialog.sessionId);
+          setPaymentDialogData({
+            sessionId: updateDialog.sessionId,
+            clientId: updateDialog.clientId,
+            clientName: updateDialog.clientName,
+            amount: updateDialog.price,
+            paymentId: updatedSession.payment?.id,
+            creditBalance: Number(sessionForCredit?.client?.creditBalance || 0),
+          });
+          setUpdateDialog({ open: false, sessionId: "", clientName: "", clientId: "", price: 0 });
+          setUpdateStatus("");
+          setUpdateReason("");
+          setPaymentAmount("");
+          setShowPayment(true);
+          setShowAdvanced(false);
+          setPaymentType("FULL");
+          setPartialAmount("");
+          setNoChargeReason("");
+          setIsPaymentDialogOpen(true);
+        } else {
+          toast.error("שגיאה בעדכון הפגישה");
+        }
+        return;
+      }
+
       const updates: Promise<Response>[] = [];
 
       const statusBody: Record<string, unknown> = { status: updateStatus };
@@ -334,6 +402,7 @@ export function SessionsView({ initialSessions }: SessionsViewProps) {
                 paymentType: paymentType === "PARTIAL" ? "PARTIAL" : "FULL",
                 method: paymentMethod,
                 status: "PAID",
+                issueReceipt: businessType !== "NONE" && issueReceipt,
               }),
             })
           );
@@ -801,6 +870,7 @@ export function SessionsView({ initialSessions }: SessionsViewProps) {
           setPaymentType("FULL");
           setPartialAmount("");
           setNoChargeReason("");
+          setIssueReceipt(false);
         }
       }}>
         <DialogContent className="sm:max-w-[550px] max-h-[90vh] overflow-y-auto" dir="rtl">
@@ -873,52 +943,6 @@ export function SessionsView({ initialSessions }: SessionsViewProps) {
                   </Button>
                 )}
 
-                <Button
-                  type="button"
-                  variant="outline"
-                  className="w-full font-bold text-base border-amber-300 text-amber-700 hover:bg-amber-50"
-                  onClick={async () => {
-                    setUpdating(true);
-                    try {
-                      const statusBody: Record<string, unknown> = { status: updateStatus, createPayment: true, markAsPaid: false };
-                      if (updateStatus === "CANCELLED") {
-                        statusBody.cancellationReason = updateReason.trim() || undefined;
-                      }
-                      const response = await fetch(`/api/sessions/${updateDialog.sessionId}`, {
-                        method: "PUT",
-                        headers: { "Content-Type": "application/json" },
-                        body: JSON.stringify(statusBody),
-                      });
-                      if (response.ok) {
-                        toast.success("הפגישה עודכנה והחוב נרשם");
-                        const newStatus = updateStatus;
-                        setSessions(prev => prev.map(s =>
-                          s.id === updateDialog.sessionId ? { ...s, status: newStatus } : s
-                        ));
-                        setUpdateDialog({ open: false, sessionId: "", clientName: "", clientId: "", price: 0 });
-                        setUpdateStatus("");
-                        setUpdateReason("");
-                        setPaymentAmount("");
-                        setShowPayment(true);
-                        setShowAdvanced(false);
-                        setPaymentType("FULL");
-                        setPartialAmount("");
-                        setNoChargeReason("");
-                      } else {
-                        toast.error("שגיאה בעדכון הפגישה");
-                      }
-                    } catch {
-                      toast.error("שגיאה בעדכון הפגישה");
-                    } finally {
-                      setUpdating(false);
-                    }
-                  }}
-                  disabled={updating}
-                >
-                  {updating ? <Loader2 className="h-4 w-4 animate-spin ml-1" /> : <Wallet className="h-4 w-4 ml-1" />}
-                  רשום כחוב
-                </Button>
-
                 {!showPayment && (
                   <div className="space-y-2 p-3 rounded-lg border bg-orange-50/50 border-orange-200">
                     <Label className="text-sm text-orange-700">סיבה לאי חיוב (אופציונלי)</Label>
@@ -979,6 +1003,24 @@ export function SessionsView({ initialSessions }: SessionsViewProps) {
                       </div>
                     </div>
 
+                    {businessType !== "NONE" && receiptMode !== "NEVER" && (
+                      <div className="flex items-center gap-3 py-2 px-3 bg-sky-50 rounded-lg border border-sky-200">
+                        <Checkbox
+                          id="update-issue-receipt"
+                          checked={issueReceipt}
+                          onCheckedChange={(checked) => setIssueReceipt(checked === true)}
+                          disabled={receiptMode === "ALWAYS"}
+                        />
+                        <Label htmlFor="update-issue-receipt" className="cursor-pointer flex items-center gap-2 text-sky-800">
+                          <FileText className="h-4 w-4" />
+                          הוצא קבלה
+                          {receiptMode === "ALWAYS" && (
+                            <span className="text-xs text-sky-600">(ברירת מחדל)</span>
+                          )}
+                        </Label>
+                      </div>
+                    )}
+
                     <div className="space-y-3">
                       <Button
                         type="button"
@@ -1036,10 +1078,10 @@ export function SessionsView({ initialSessions }: SessionsViewProps) {
               </>
             )}
 
-            {updateStatus && clientDebt && clientDebt.count > 1 && clientDebt.total > 0 && (
+            {updateStatus && clientDebt && clientDebt.count > 0 && clientDebt.total > 0 && (
               <div className="pt-3 border-t mt-2">
                 <p className="text-sm text-muted-foreground mb-2 text-center">
-                  למטופל יש עוד {clientDebt.count - 1} פגישות ממתינות לתשלום
+                  למטופל יש {clientDebt.count} פגישות ממתינות לתשלום
                   (סה״כ חוב: ₪{clientDebt.total.toFixed(0)})
                 </p>
                 <Button
@@ -1055,7 +1097,7 @@ export function SessionsView({ initialSessions }: SessionsViewProps) {
               </div>
             )}
           </div>
-          <DialogFooter className="gap-2 sm:gap-0">
+          <DialogFooter className="flex flex-wrap gap-2 sm:gap-2">
             <Button
               variant="outline"
               onClick={() => {
@@ -1068,12 +1110,60 @@ export function SessionsView({ initialSessions }: SessionsViewProps) {
                 setPaymentType("FULL");
                 setPartialAmount("");
                 setNoChargeReason("");
+                setIssueReceipt(false);
               }}
               disabled={updating}
               className="font-medium"
             >
               ביטול
             </Button>
+            {updateStatus && showPayment && updateDialog.price > 0 && (
+              <Button
+                variant="outline"
+                className="gap-2 font-bold border-amber-300 text-amber-700 hover:bg-amber-50"
+                onClick={async () => {
+                  setUpdating(true);
+                  try {
+                    const statusBody: Record<string, unknown> = { status: updateStatus, createPayment: true, markAsPaid: false };
+                    if (updateStatus === "CANCELLED") {
+                      statusBody.cancellationReason = updateReason.trim() || undefined;
+                    }
+                    const response = await fetch(`/api/sessions/${updateDialog.sessionId}`, {
+                      method: "PUT",
+                      headers: { "Content-Type": "application/json" },
+                      body: JSON.stringify(statusBody),
+                    });
+                    if (response.ok) {
+                      toast.success("הפגישה עודכנה והחוב נרשם");
+                      const newStatus = updateStatus;
+                      setSessions(prev => prev.map(s =>
+                        s.id === updateDialog.sessionId ? { ...s, status: newStatus } : s
+                      ));
+                      setUpdateDialog({ open: false, sessionId: "", clientName: "", clientId: "", price: 0 });
+                      setUpdateStatus("");
+                      setUpdateReason("");
+                      setPaymentAmount("");
+                      setShowPayment(true);
+                      setShowAdvanced(false);
+                      setPaymentType("FULL");
+                      setPartialAmount("");
+                      setNoChargeReason("");
+                      setIssueReceipt(false);
+                    } else {
+                      toast.error("שגיאה בעדכון הפגישה");
+                    }
+                  } catch {
+                    toast.error("שגיאה בעדכון הפגישה");
+                  } finally {
+                    setUpdating(false);
+                  }
+                }}
+                disabled={updating}
+              >
+                {updating ? <Loader2 className="h-4 w-4 animate-spin ml-1" /> : <Wallet className="h-4 w-4 ml-1" />}
+                עדכן ורשום חוב
+              </Button>
+            )}
             {showPayment && updateDialog.price > 0 ? (
               <Button
                 onClick={handleUpdate}
@@ -1100,6 +1190,26 @@ export function SessionsView({ initialSessions }: SessionsViewProps) {
           </DialogFooter>
         </DialogContent>
       </Dialog>
+
+      {paymentDialogData && (
+        <QuickMarkPaid
+          sessionId={paymentDialogData.sessionId}
+          clientId={paymentDialogData.clientId}
+          clientName={paymentDialogData.clientName}
+          amount={paymentDialogData.amount}
+          creditBalance={paymentDialogData.creditBalance}
+          existingPayment={paymentDialogData.paymentId ? { id: paymentDialogData.paymentId, status: "PENDING" } : null}
+          buttonText="תשלום"
+          open={isPaymentDialogOpen}
+          onOpenChange={(open) => {
+            setIsPaymentDialogOpen(open);
+            if (!open) {
+              setPaymentDialogData(null);
+            }
+          }}
+          hideButton={true}
+        />
+      )}
     </div>
   );
 }

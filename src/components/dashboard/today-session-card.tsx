@@ -31,6 +31,7 @@ import {
   SelectValue,
 } from "@/components/ui/select";
 import { CheckCircle, CheckCircle2, ClipboardList, Clock, FileText, MoreVertical, User, CreditCard, Ban, UserX, Loader2, ChevronDown, ChevronUp, AlertCircle, Wallet } from "lucide-react";
+import { Checkbox } from "@/components/ui/checkbox";
 import { QuickMarkPaid } from "@/components/payments/quick-mark-paid";
 import { toast } from "sonner";
 import { format } from "date-fns";
@@ -125,6 +126,16 @@ export function TodaySessionCard({ session }: TodaySessionCardProps) {
   const [partialAmount, setPartialAmount] = useState("");
   const [noChargeReason, setNoChargeReason] = useState("");
   const [clientDebt, setClientDebt] = useState<{ total: number; count: number } | null>(null);
+  const [issueReceipt, setIssueReceipt] = useState(false);
+  const [receiptMode, setReceiptMode] = useState<string>("ASK");
+  const [businessType, setBusinessType] = useState<string>("NONE");
+  const [isPaymentDialogOpen, setIsPaymentDialogOpen] = useState(false);
+  const [paymentData, setPaymentData] = useState<{
+    sessionId: string;
+    clientId: string;
+    amount: number;
+    paymentId?: string;
+  } | null>(null);
 
   useEffect(() => {
     if (updateDialogOpen && session.client?.id) {
@@ -142,6 +153,20 @@ export function TodaySessionCard({ session }: TodaySessionCardProps) {
     }
   }, [updateDialogOpen, session.client?.id]);
 
+  useEffect(() => {
+    if (updateDialogOpen) {
+      fetch("/api/user/business-settings")
+        .then(res => res.json())
+        .then(data => {
+          if (data.businessType) setBusinessType(data.businessType);
+          if (data.receiptDefaultMode) setReceiptMode(data.receiptDefaultMode);
+          if (data.receiptDefaultMode === "ALWAYS") setIssueReceipt(true);
+          else if (data.receiptDefaultMode === "NEVER") setIssueReceipt(false);
+        })
+        .catch(() => {});
+    }
+  }, [updateDialogOpen]);
+
   const resetUpdateDialog = () => {
     setUpdateDialogOpen(false);
     setUpdateStatus("");
@@ -152,12 +177,38 @@ export function TodaySessionCard({ session }: TodaySessionCardProps) {
     setPaymentType("FULL");
     setPartialAmount("");
     setNoChargeReason("");
+    setIssueReceipt(false);
   };
 
   const handleUpdate = async () => {
     if (!updateStatus) { toast.error("בחר סטטוס"); return; }
     setUpdating(true);
     try {
+      if (updateStatus === "COMPLETED" && showPayment && session.price > 0 && session.client) {
+        const response = await fetch(`/api/sessions/${session.id}`, {
+          method: "PUT",
+          headers: { "Content-Type": "application/json" },
+          body: JSON.stringify({ status: "COMPLETED", createPayment: true, markAsPaid: false }),
+        });
+
+        if (response.ok) {
+          const updatedSession = await response.json();
+          toast.success("הפגישה עודכנה כהושלמה");
+          resetUpdateDialog();
+          setPaymentData({
+            sessionId: session.id,
+            clientId: session.client.id,
+            amount: session.price,
+            paymentId: updatedSession.payment?.id,
+          });
+          setIsPaymentDialogOpen(true);
+          router.refresh();
+        } else {
+          toast.error("שגיאה בעדכון הפגישה");
+        }
+        return;
+      }
+
       const updates: Promise<Response>[] = [];
       const statusBody: Record<string, unknown> = { status: updateStatus };
       if (updateStatus === "CANCELLED") {
@@ -188,6 +239,7 @@ export function TodaySessionCard({ session }: TodaySessionCardProps) {
                 paymentType: paymentType === "PARTIAL" ? "PARTIAL" : "FULL",
                 method: paymentMethod,
                 status: "PAID",
+                issueReceipt: businessType !== "NONE" && issueReceipt,
               }),
             })
           );
@@ -218,7 +270,7 @@ export function TodaySessionCard({ session }: TodaySessionCardProps) {
       const response = await fetch(`/api/sessions/${session.id}`, {
         method: "PUT",
         headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ status: "COMPLETED", markAsPaid: false }),
+        body: JSON.stringify({ status: "COMPLETED", createPayment: true, markAsPaid: false }),
       });
 
       if (response.ok) {
@@ -620,7 +672,7 @@ export function TodaySessionCard({ session }: TodaySessionCardProps) {
                 variant={updateStatus === "COMPLETED" ? "default" : "outline"}
                 size="sm"
                 className={`h-10 text-xs gap-1 ${updateStatus === "COMPLETED" ? "bg-emerald-600 hover:bg-emerald-700" : ""}`}
-                onClick={() => setUpdateStatus("COMPLETED")}
+                onClick={() => { setUpdateStatus("COMPLETED"); setShowPayment(true); }}
               >
                 <CheckCircle2 className="h-3.5 w-3.5" />
                 הושלמה
@@ -630,7 +682,7 @@ export function TodaySessionCard({ session }: TodaySessionCardProps) {
                 variant={updateStatus === "CANCELLED" ? "default" : "outline"}
                 size="sm"
                 className={`h-10 text-xs gap-1 ${updateStatus === "CANCELLED" ? "bg-red-500 hover:bg-red-600" : ""}`}
-                onClick={() => setUpdateStatus("CANCELLED")}
+                onClick={() => { setUpdateStatus("CANCELLED"); setShowPayment(true); }}
               >
                 <Ban className="h-3.5 w-3.5" />
                 בוטלה
@@ -640,7 +692,7 @@ export function TodaySessionCard({ session }: TodaySessionCardProps) {
                 variant={updateStatus === "NO_SHOW" ? "default" : "outline"}
                 size="sm"
                 className={`h-10 text-xs gap-1 ${updateStatus === "NO_SHOW" ? "bg-amber-500 hover:bg-amber-600" : ""}`}
-                onClick={() => setUpdateStatus("NO_SHOW")}
+                onClick={() => { setUpdateStatus("NO_SHOW"); setShowPayment(true); }}
               >
                 <UserX className="h-3.5 w-3.5" />
                 לא הגיע
@@ -661,14 +713,16 @@ export function TodaySessionCard({ session }: TodaySessionCardProps) {
 
             {updateStatus && session.price > 0 && (
               <>
-                <Button
-                  type="button"
-                  variant="outline"
-                  className="w-full font-bold text-base"
-                  onClick={() => setShowPayment(false)}
-                >
-                  {updateStatus === "COMPLETED" ? "עדכון ללא תשלום" : updateStatus === "CANCELLED" ? "ביטול ללא חיוב" : "אי הגעה ללא חיוב"}
-                </Button>
+                {updateStatus !== "COMPLETED" && (
+                  <Button
+                    type="button"
+                    variant="outline"
+                    className="w-full font-bold text-base"
+                    onClick={() => setShowPayment(false)}
+                  >
+                    {updateStatus === "CANCELLED" ? "ביטול ללא חיוב" : "אי הגעה ללא חיוב"}
+                  </Button>
+                )}
 
                 {!showPayment && (
                   <div className="space-y-2 p-3 rounded-lg border bg-orange-50/50 border-orange-200">
@@ -730,6 +784,24 @@ export function TodaySessionCard({ session }: TodaySessionCardProps) {
                       </div>
                     </div>
 
+                    {businessType !== "NONE" && receiptMode !== "NEVER" && (
+                      <div className="flex items-center gap-3 py-2 px-3 bg-sky-50 rounded-lg border border-sky-200">
+                        <Checkbox
+                          id="today-issue-receipt"
+                          checked={issueReceipt}
+                          onCheckedChange={(checked) => setIssueReceipt(checked === true)}
+                          disabled={receiptMode === "ALWAYS"}
+                        />
+                        <Label htmlFor="today-issue-receipt" className="cursor-pointer flex items-center gap-2 text-sky-800">
+                          <FileText className="h-4 w-4" />
+                          הוצא קבלה
+                          {receiptMode === "ALWAYS" && (
+                            <span className="text-xs text-sky-600">(ברירת מחדל)</span>
+                          )}
+                        </Label>
+                      </div>
+                    )}
+
                     <div className="space-y-3">
                       <Button
                         type="button"
@@ -787,10 +859,10 @@ export function TodaySessionCard({ session }: TodaySessionCardProps) {
               </>
             )}
 
-            {updateStatus && clientDebt && clientDebt.count > 1 && clientDebt.total > 0 && (
+            {updateStatus && clientDebt && clientDebt.count > 0 && clientDebt.total > 0 && (
               <div className="pt-3 border-t mt-2">
                 <p className="text-sm text-muted-foreground mb-2 text-center">
-                  למטופל יש עוד {clientDebt.count - 1} פגישות ממתינות לתשלום
+                  למטופל יש {clientDebt.count} פגישות ממתינות לתשלום
                   (סה״כ חוב: ₪{clientDebt.total.toFixed(0)})
                 </p>
                 <Button
@@ -806,7 +878,7 @@ export function TodaySessionCard({ session }: TodaySessionCardProps) {
               </div>
             )}
           </div>
-          <DialogFooter className="gap-2 sm:gap-0">
+          <DialogFooter className="flex flex-wrap gap-2 sm:gap-2">
             <Button
               variant="outline"
               onClick={resetUpdateDialog}
@@ -815,6 +887,42 @@ export function TodaySessionCard({ session }: TodaySessionCardProps) {
             >
               ביטול
             </Button>
+            {updateStatus && showPayment && session.price > 0 && session.client && (
+              <Button
+                variant="outline"
+                className="gap-2 font-bold border-amber-300 text-amber-700 hover:bg-amber-50"
+                onClick={async () => {
+                  if (!session.client) return;
+                  setUpdating(true);
+                  try {
+                    const statusBody: Record<string, unknown> = { status: updateStatus, createPayment: true, markAsPaid: false };
+                    if (updateStatus === "CANCELLED") {
+                      statusBody.cancellationReason = updateReason.trim() || undefined;
+                    }
+                    const response = await fetch(`/api/sessions/${session.id}`, {
+                      method: "PUT",
+                      headers: { "Content-Type": "application/json" },
+                      body: JSON.stringify(statusBody),
+                    });
+                    if (response.ok) {
+                      toast.success("הפגישה עודכנה והחוב נרשם");
+                      resetUpdateDialog();
+                      router.refresh();
+                    } else {
+                      toast.error("שגיאה בעדכון הפגישה");
+                    }
+                  } catch {
+                    toast.error("שגיאה בעדכון הפגישה");
+                  } finally {
+                    setUpdating(false);
+                  }
+                }}
+                disabled={updating}
+              >
+                {updating ? <Loader2 className="h-4 w-4 animate-spin ml-1" /> : <Wallet className="h-4 w-4 ml-1" />}
+                עדכן ורשום חוב
+              </Button>
+            )}
             {showPayment && session.price > 0 ? (
               <Button
                 onClick={handleUpdate}
@@ -841,6 +949,26 @@ export function TodaySessionCard({ session }: TodaySessionCardProps) {
           </DialogFooter>
         </DialogContent>
       </Dialog>
+
+      {paymentData && (
+        <QuickMarkPaid
+          sessionId={paymentData.sessionId}
+          clientId={paymentData.clientId}
+          clientName={session.client?.name}
+          amount={paymentData.amount}
+          creditBalance={Number(session.client?.creditBalance || 0)}
+          existingPayment={paymentData.paymentId ? { id: paymentData.paymentId, status: "PENDING" } : null}
+          buttonText="תשלום"
+          open={isPaymentDialogOpen}
+          onOpenChange={(open) => {
+            setIsPaymentDialogOpen(open);
+            if (!open) {
+              setPaymentData(null);
+            }
+          }}
+          hideButton={true}
+        />
+      )}
     </>
   );
 }

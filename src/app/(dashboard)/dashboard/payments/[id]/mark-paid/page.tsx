@@ -9,7 +9,8 @@ import { Label } from "@/components/ui/label";
 import { Input } from "@/components/ui/input";
 import { Badge } from "@/components/ui/badge";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
-import { ArrowRight, Loader2, Check, ChevronDown, CreditCard, Wallet } from "lucide-react";
+import { ArrowRight, Loader2, Check, ChevronDown, CreditCard, Wallet, FileText } from "lucide-react";
+import { Checkbox } from "@/components/ui/checkbox";
 import { toast } from "sonner";
 import { format } from "date-fns";
 
@@ -42,6 +43,9 @@ export default function MarkPaidPage({ params }: { params: Promise<{ id: string 
   const [partialAmount, setPartialAmount] = useState<string>("");
   const [useCredit, setUseCredit] = useState(false);
   const [showAdvanced, setShowAdvanced] = useState(false);
+  const [issueReceipt, setIssueReceipt] = useState(false);
+  const [receiptMode, setReceiptMode] = useState<string>("ASK");
+  const [businessType, setBusinessType] = useState<string>("NONE");
 
   useEffect(() => {
     const fetchPayment = async () => {
@@ -74,6 +78,18 @@ export default function MarkPaidPage({ params }: { params: Promise<{ id: string 
 
     fetchPayment();
   }, [id]);
+
+  useEffect(() => {
+    fetch("/api/user/business-settings")
+      .then(res => res.json())
+      .then(data => {
+        if (data.businessType) setBusinessType(data.businessType);
+        if (data.receiptDefaultMode) setReceiptMode(data.receiptDefaultMode);
+        if (data.receiptDefaultMode === "ALWAYS") setIssueReceipt(true);
+        else if (data.receiptDefaultMode === "NEVER") setIssueReceipt(false);
+      })
+      .catch(() => {});
+  }, []);
 
   const handleMarkPaid = async () => {
     if (!payment) return;
@@ -117,6 +133,7 @@ export default function MarkPaidPage({ params }: { params: Promise<{ id: string 
           amount: amountToPay + creditUsed,
           paymentMode,
           creditUsed,
+          issueReceipt: businessType !== "NONE" && issueReceipt,
         }),
       });
 
@@ -331,6 +348,21 @@ export default function MarkPaidPage({ params }: { params: Promise<{ id: string 
                       </div>
                     </div>
                   )}
+                </div>
+              )}
+
+              {businessType !== "NONE" && receiptMode !== "NEVER" && (
+                <div className="flex items-center gap-3 py-2 px-3 bg-sky-50 rounded-lg border border-sky-200">
+                  <Checkbox
+                    id="issue-receipt"
+                    checked={issueReceipt}
+                    onCheckedChange={(checked) => setIssueReceipt(checked === true)}
+                    disabled={receiptMode === "ALWAYS"}
+                  />
+                  <Label htmlFor="issue-receipt" className="cursor-pointer flex items-center gap-2 text-sky-800">
+                    <FileText className="h-4 w-4" />
+                    הפק קבלה
+                  </Label>
                 </div>
               )}
             </div>

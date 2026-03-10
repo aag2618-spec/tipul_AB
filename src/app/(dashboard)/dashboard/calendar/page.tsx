@@ -13,6 +13,7 @@ import { Switch } from "@/components/ui/switch";
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
 import { Textarea } from "@/components/ui/textarea";
 import { Plus, Loader2, Calendar, Repeat, Settings, Waves, Trash2, User, FileText, Clock, AlertCircle, CheckCircle2, Ban, UserX, ChevronUp, ChevronDown, Wallet } from "lucide-react";
+import { Checkbox } from "@/components/ui/checkbox";
 import { format, addWeeks } from "date-fns";
 import { toast } from "sonner";
 import type { EventClickArg } from "@fullcalendar/core";
@@ -36,6 +37,7 @@ interface Client {
   email?: string | null;
   phone?: string | null;
   defaultSessionPrice?: number | null;
+  creditBalance?: number | null;
 }
 
 interface Session {
@@ -146,6 +148,9 @@ export default function CalendarPage() {
   const [updatePartialAmount, setUpdatePartialAmount] = useState("");
   const [updateNoChargeReason, setUpdateNoChargeReason] = useState("");
   const [updateClientDebt, setUpdateClientDebt] = useState<{ total: number; count: number } | null>(null);
+  const [updateIssueReceipt, setUpdateIssueReceipt] = useState(false);
+  const [updateReceiptMode, setUpdateReceiptMode] = useState<string>("ASK");
+  const [updateBusinessType, setUpdateBusinessType] = useState<string>("NONE");
   const [isPaymentDialogOpen, setIsPaymentDialogOpen] = useState(false);
   const [paymentData, setPaymentData] = useState<{
     sessionId: string;
@@ -422,6 +427,7 @@ export default function CalendarPage() {
     setUpdatePaymentType("FULL");
     setUpdatePartialAmount("");
     setUpdateNoChargeReason("");
+    setUpdateIssueReceipt(false);
   };
 
   useEffect(() => {
@@ -431,7 +437,7 @@ export default function CalendarPage() {
         .then(data => {
           setUpdateClientDebt({
             total: Number(data.totalDebt || 0),
-            count: Number(data.unpaidCount || 0),
+            count: data.unpaidSessions?.length || 0,
           });
         })
         .catch(() => setUpdateClientDebt(null));
@@ -440,11 +446,24 @@ export default function CalendarPage() {
     }
   }, [updateDialogOpen, selectedSession?.client?.id]);
 
+  useEffect(() => {
+    if (updateDialogOpen) {
+      fetch("/api/user/business-settings")
+        .then(res => res.json())
+        .then(data => {
+          if (data.businessType) setUpdateBusinessType(data.businessType);
+          if (data.receiptDefaultMode) setUpdateReceiptMode(data.receiptDefaultMode);
+          if (data.receiptDefaultMode === "ALWAYS") setUpdateIssueReceipt(true);
+          else if (data.receiptDefaultMode === "NEVER") setUpdateIssueReceipt(false);
+        })
+        .catch(() => {});
+    }
+  }, [updateDialogOpen]);
+
   const handleUpdateSession = async () => {
     if (!updateStatus || !selectedSession) { toast.error("בחר סטטוס"); return; }
     setUpdating(true);
     try {
-      // COMPLETED with payment → use the same flow as "סיים ושלם" to open QuickMarkPaid
       if (updateStatus === "COMPLETED" && showUpdatePayment && selectedSession.price > 0 && selectedSession.client) {
         const response = await fetch(`/api/sessions/${selectedSession.id}`, {
           method: "PUT",
@@ -454,6 +473,7 @@ export default function CalendarPage() {
 
         if (response.ok) {
           const updatedSession = await response.json();
+          toast.success("הפגישה עודכנה כהושלמה");
           resetUpdateDialog();
           setPaymentData({
             sessionId: selectedSession.id,
@@ -469,7 +489,6 @@ export default function CalendarPage() {
         return;
       }
 
-      // All other cases: COMPLETED without payment, CANCELLED, NO_SHOW
       const updates: Promise<Response>[] = [];
 
       const statusBody: Record<string, unknown> = { status: updateStatus };
@@ -484,8 +503,7 @@ export default function CalendarPage() {
         })
       );
 
-      // Charge for CANCELLED/NO_SHOW when showUpdatePayment is true
-      if (showUpdatePayment && selectedSession.price > 0 && (updateStatus === "CANCELLED" || updateStatus === "NO_SHOW")) {
+      if (showUpdatePayment && selectedSession.price > 0) {
         const amt = updatePaymentType === "PARTIAL"
           ? parseFloat(updatePartialAmount) || 0
           : parseFloat(updatePaymentAmount) || 0;
@@ -502,6 +520,7 @@ export default function CalendarPage() {
                 paymentType: updatePaymentType === "PARTIAL" ? "PARTIAL" : "FULL",
                 method: updatePaymentMethod,
                 status: "PAID",
+                issueReceipt: updateBusinessType !== "NONE" && updateIssueReceipt,
               }),
             })
           );
@@ -1665,7 +1684,7 @@ export default function CalendarPage() {
                           clientId={selectedSession.client.id}
                           clientName={selectedSession.client.name}
                           amount={selectedSession.price}
-                          creditBalance={0}
+                          creditBalance={Number(selectedSession.client.creditBalance || 0)}
                           existingPayment={selectedSession.payment}
                           buttonText="רשום תשלום / הצג קבלה"
                         />
@@ -1733,7 +1752,7 @@ export default function CalendarPage() {
                             clientId={selectedSession.client.id}
                             clientName={selectedSession.client.name}
                             amount={selectedSession.price}
-                            creditBalance={0}
+                            creditBalance={Number(selectedSession.client.creditBalance || 0)}
                             existingPayment={selectedSession.payment}
                             buttonText="רשום תשלום"
                           />
@@ -1854,7 +1873,7 @@ export default function CalendarPage() {
                 }
               }}
             >
-              רשום כחוב
+              עדכן ורשום חוב
             </Button>
             <Button
               variant="outline"
@@ -1892,7 +1911,7 @@ export default function CalendarPage() {
           clientId={paymentData.clientId}
           clientName={selectedSession?.client?.name}
           amount={paymentData.amount}
-          creditBalance={0}
+          creditBalance={Number(selectedSession?.client?.creditBalance || 0)}
           existingPayment={paymentData.paymentId ? { id: paymentData.paymentId, status: "PENDING" } : null}
           buttonText="תשלום"
           open={isPaymentDialogOpen}
@@ -1976,43 +1995,6 @@ export default function CalendarPage() {
                   </Button>
                 )}
 
-                <Button
-                  type="button"
-                  variant="outline"
-                  className="w-full font-bold text-base border-amber-300 text-amber-700 hover:bg-amber-50"
-                  onClick={async () => {
-                    if (!selectedSession.client) return;
-                    setUpdating(true);
-                    try {
-                      const statusBody: Record<string, unknown> = { status: updateStatus, createPayment: true, markAsPaid: false };
-                      if (updateStatus === "CANCELLED") {
-                        statusBody.cancellationReason = updateReason.trim() || undefined;
-                      }
-                      const response = await fetch(`/api/sessions/${selectedSession.id}`, {
-                        method: "PUT",
-                        headers: { "Content-Type": "application/json" },
-                        body: JSON.stringify(statusBody),
-                      });
-                      if (response.ok) {
-                        toast.success("הפגישה עודכנה והחוב נרשם");
-                        resetUpdateDialog();
-                        setSelectedSession(null);
-                        fetchData();
-                      } else {
-                        toast.error("שגיאה בעדכון הפגישה");
-                      }
-                    } catch {
-                      toast.error("שגיאה בעדכון הפגישה");
-                    } finally {
-                      setUpdating(false);
-                    }
-                  }}
-                  disabled={updating}
-                >
-                  {updating ? <Loader2 className="h-4 w-4 animate-spin ml-1" /> : <Wallet className="h-4 w-4 ml-1" />}
-                  רשום כחוב
-                </Button>
-
                 {!showUpdatePayment && (
                   <div className="space-y-2 p-3 rounded-lg border bg-orange-50/50 border-orange-200">
                     <Label className="text-sm text-orange-700">סיבה לאי חיוב (אופציונלי)</Label>
@@ -2073,6 +2055,24 @@ export default function CalendarPage() {
                       </div>
                     </div>
 
+                    {updateBusinessType !== "NONE" && updateReceiptMode !== "NEVER" && (
+                      <div className="flex items-center gap-3 py-2 px-3 bg-sky-50 rounded-lg border border-sky-200">
+                        <Checkbox
+                          id="cal-update-issue-receipt"
+                          checked={updateIssueReceipt}
+                          onCheckedChange={(checked) => setUpdateIssueReceipt(checked === true)}
+                          disabled={updateReceiptMode === "ALWAYS"}
+                        />
+                        <Label htmlFor="cal-update-issue-receipt" className="cursor-pointer flex items-center gap-2 text-sky-800">
+                          <FileText className="h-4 w-4" />
+                          הוצא קבלה
+                          {updateReceiptMode === "ALWAYS" && (
+                            <span className="text-xs text-sky-600">(ברירת מחדל)</span>
+                          )}
+                        </Label>
+                      </div>
+                    )}
+
                     <div className="space-y-3">
                       <Button
                         type="button"
@@ -2130,10 +2130,10 @@ export default function CalendarPage() {
               </>
             )}
 
-            {updateStatus && updateClientDebt && updateClientDebt.count > 1 && updateClientDebt.total > 0 && (
+            {updateStatus && updateClientDebt && updateClientDebt.count > 0 && updateClientDebt.total > 0 && (
               <div className="pt-3 border-t mt-2">
                 <p className="text-sm text-muted-foreground mb-2 text-center">
-                  למטופל יש עוד {updateClientDebt.count - 1} פגישות ממתינות לתשלום
+                  למטופל יש {updateClientDebt.count} פגישות ממתינות לתשלום
                   (סה״כ חוב: ₪{updateClientDebt.total.toFixed(0)})
                 </p>
                 <Button
@@ -2149,7 +2149,7 @@ export default function CalendarPage() {
               </div>
             )}
           </div>
-          <DialogFooter className="gap-2 sm:gap-0">
+          <DialogFooter className="flex flex-wrap gap-2 sm:gap-2">
             <Button
               variant="outline"
               onClick={resetUpdateDialog}
@@ -2158,6 +2158,43 @@ export default function CalendarPage() {
             >
               ביטול
             </Button>
+            {updateStatus && showUpdatePayment && selectedSession && selectedSession.price > 0 && (
+              <Button
+                variant="outline"
+                className="gap-2 font-bold border-amber-300 text-amber-700 hover:bg-amber-50"
+                onClick={async () => {
+                  if (!selectedSession.client) return;
+                  setUpdating(true);
+                  try {
+                    const statusBody: Record<string, unknown> = { status: updateStatus, createPayment: true, markAsPaid: false };
+                    if (updateStatus === "CANCELLED") {
+                      statusBody.cancellationReason = updateReason.trim() || undefined;
+                    }
+                    const response = await fetch(`/api/sessions/${selectedSession.id}`, {
+                      method: "PUT",
+                      headers: { "Content-Type": "application/json" },
+                      body: JSON.stringify(statusBody),
+                    });
+                    if (response.ok) {
+                      toast.success("הפגישה עודכנה והחוב נרשם");
+                      resetUpdateDialog();
+                      setSelectedSession(null);
+                      fetchData();
+                    } else {
+                      toast.error("שגיאה בעדכון הפגישה");
+                    }
+                  } catch {
+                    toast.error("שגיאה בעדכון הפגישה");
+                  } finally {
+                    setUpdating(false);
+                  }
+                }}
+                disabled={updating}
+              >
+                {updating ? <Loader2 className="h-4 w-4 animate-spin ml-1" /> : <Wallet className="h-4 w-4 ml-1" />}
+                עדכן ורשום חוב
+              </Button>
+            )}
             {showUpdatePayment && selectedSession && selectedSession.price > 0 ? (
               <Button
                 onClick={handleUpdateSession}
