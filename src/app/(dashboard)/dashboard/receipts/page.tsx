@@ -291,8 +291,6 @@ export default function ReceiptsPage() {
     });
   };
 
-  const paymentsWithReceipts = useMemo(() => filteredPayments.filter((p) => p.hasReceipt), [filteredPayments]);
-
   const toggleSelectAll = () => {
     if (selectedIds.size === paymentsWithReceipts.length) {
       setSelectedIds(new Set());
@@ -325,6 +323,8 @@ export default function ReceiptsPage() {
       return dateB - dateA;
     });
   }, [payments, filterType, searchTerm]);
+
+  const paymentsWithReceipts = useMemo(() => filteredPayments.filter((p) => p.hasReceipt), [filteredPayments]);
 
   const totalWithReceipt = payments.filter((p) => p.hasReceipt).length;
   const totalAmount = filteredPayments.reduce((sum, p) => sum + Number(p.amount), 0);
