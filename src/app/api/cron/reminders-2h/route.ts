@@ -89,7 +89,6 @@ export async function GET(request: NextRequest) {
           to: session.client.email,
           subject,
           html,
-          replyTo: therapist.email || undefined,
         });
 
         await prisma.communicationLog.create({

@@ -4,8 +4,6 @@ import { authOptions } from "@/lib/auth";
 import prisma from "@/lib/prisma";
 import { sendEmail, createGenericEmail } from "@/lib/resend";
 
-export const dynamic = "force-dynamic";
-
 export async function POST(request: NextRequest) {
   try {
     const session = await getServerSession(authOptions);
@@ -54,7 +52,6 @@ export async function POST(request: NextRequest) {
       to: client.email.toLowerCase(), // המרה לאותיות קטנות
       subject: emailSubject,
       html,
-      replyTo: user?.email?.toLowerCase() || undefined, // תשובות יגיעו למטפל
     });
 
     // Log communication (both success and failure)

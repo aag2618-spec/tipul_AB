@@ -136,8 +136,6 @@ function createDebtReminderEmail(
  * Should be called daily (Render cron: 0 9 * * *)
  * Checks if today is the configured day of month and sends reminders
  */
-export const dynamic = "force-dynamic";
-
 export async function GET(request: NextRequest) {
   // Verify cron secret for security
   const authHeader = request.headers.get("authorization");
@@ -248,7 +246,6 @@ export async function GET(request: NextRequest) {
           to: client.email,
           subject,
           html,
-          replyTo: therapist.email || undefined,
         });
 
         if (result.success) {

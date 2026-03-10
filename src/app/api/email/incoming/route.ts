@@ -4,8 +4,6 @@ import { authOptions } from "@/lib/auth";
 import prisma from "@/lib/prisma";
 
 // Webhook to receive incoming emails forwarded from Gmail/Outlook
-export const dynamic = "force-dynamic";
-
 export async function POST(request: NextRequest) {
   try {
     // Verify webhook secret
@@ -36,10 +34,11 @@ export async function POST(request: NextRequest) {
     }
 
     // Find the client by email
+    const senderEmail = from.toLowerCase().trim();
     const client = await prisma.client.findFirst({
       where: {
         email: {
-          contains: from,
+          equals: senderEmail,
           mode: 'insensitive'
         }
       },
@@ -49,31 +48,22 @@ export async function POST(request: NextRequest) {
     });
 
     if (!client) {
-      console.log(`No client found for email: ${from}`);
+      console.log(`No client found for email: ${senderEmail}`);
       return NextResponse.json({ message: "Client not found" }, { status: 404 });
     }
 
-    // Find original communication log if exists (by matching subject or recent emails)
-    const recentLog = await prisma.communicationLog.findFirst({
-      where: {
-        clientId: client.id,
-        channel: "EMAIL",
-        createdAt: {
-          gte: new Date(Date.now() - 7 * 24 * 60 * 60 * 1000) // Last 7 days
-        }
-      },
-      orderBy: {
-        createdAt: 'desc'
-      }
-    });
+    // Normalize subject — don't add RE: if already present
+    const normalizedSubject = /^(Re:|RE:|השב:|הע:|Fwd:|FWD:)\s*/i.test(subject)
+      ? subject
+      : `RE: ${subject}`;
 
     // Create incoming email log
     const incomingLog = await prisma.communicationLog.create({
       data: {
         type: "INCOMING_EMAIL",
         channel: "EMAIL",
-        recipient: from,
-        subject: `RE: ${subject}`,
+        recipient: to || "inbox@mytipul.com",
+        subject: normalizedSubject,
         content: html || text || "",
         status: "RECEIVED",
         sentAt: new Date(),
@@ -136,13 +126,13 @@ export async function PUT(request: NextRequest) {
       return NextResponse.json({ message: "לא נמצא" }, { status: 404 });
     }
 
-    // Create reply log
+    // Create reply log — recipient = inbox (consistent with webhook-created incoming emails)
     const replyLog = await prisma.communicationLog.create({
       data: {
         type: "INCOMING_EMAIL",
         channel: "EMAIL",
-        recipient: originalLog.recipient,
-        subject: replySubject || `RE: ${originalLog.subject}`,
+        recipient: "inbox@mytipul.com",
+        subject: replySubject || (originalLog.subject?.match(/^(Re:|RE:|השב:|הע:)/i) ? originalLog.subject : `RE: ${originalLog.subject}`),
         content: replyContent || "המטופל השיב על המייל",
         status: "RECEIVED",
         sentAt: new Date(),

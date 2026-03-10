@@ -92,7 +92,6 @@ export async function POST(request: NextRequest) {
       to: therapySession.client.email,
       subject,
       html,
-      replyTo: therapySession.therapist.email || undefined,
     });
 
     // Log communication

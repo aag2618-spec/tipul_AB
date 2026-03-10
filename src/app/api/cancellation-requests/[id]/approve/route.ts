@@ -107,7 +107,6 @@ export async function POST(
         to: cancellationRequest.client.email,
         subject: approvalEmail.subject,
         html: approvalEmail.html,
-        replyTo: cancellationRequest.session.therapist.email || undefined, // תשובות יגיעו למטפל
       });
 
       // Log communication

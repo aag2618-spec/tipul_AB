@@ -10,8 +10,6 @@ function extractEmail(raw: string): string {
 }
 
 // Resend webhook for incoming email replies
-export const dynamic = "force-dynamic";
-
 export async function POST(request: NextRequest) {
   try {
     const headersList = await headers();
@@ -169,11 +167,13 @@ export async function POST(request: NextRequest) {
       }
 
       // Save the incoming reply with actual content
+      // recipient = who received the email (the system inbox), not who sent it
+      const recipientAddress = Array.isArray(to) ? to[0] : (to || "inbox@mytipul.com");
       const incomingLog = await prisma.communicationLog.create({
         data: {
           type: "INCOMING_EMAIL",
           channel: "EMAIL",
-          recipient: senderEmail,
+          recipient: recipientAddress,
           subject: subject || "ללא נושא",
           content: content,
           status: "RECEIVED",

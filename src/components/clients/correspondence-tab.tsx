@@ -8,6 +8,7 @@ import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
 import { Mail, Send, ArrowRight, CheckCircle } from "lucide-react";
 import { useRouter } from "next/navigation";
+import { cleanIncomingContent } from "@/lib/email-utils";
 
 interface CommunicationLog {
   id: string;
@@ -92,7 +93,7 @@ export function CorrespondenceTab({
                         <p className="font-medium">{log.subject || "ללא נושא"}</p>
                       </div>
                       <p className="text-sm text-muted-foreground mb-2">
-                        {stripHtml(log.content)}
+                        {stripHtml(cleanIncomingContent(log.content))}
                       </p>
                       <p className="text-xs text-muted-foreground">
                         התקבל: {log.sentAt ? format(new Date(log.sentAt), "d בMMMM yyyy, HH:mm", { locale: he }) : "לא ידוע"}
@@ -176,7 +177,7 @@ export function CorrespondenceTab({
                     <p className="font-medium mb-2">{log.subject || "ללא נושא"}</p>
                     <div
                       className="text-sm text-muted-foreground prose prose-sm max-w-none"
-                      dangerouslySetInnerHTML={{ __html: log.content }}
+                      dangerouslySetInnerHTML={{ __html: isIncoming ? cleanIncomingContent(log.content) : log.content }}
                     />
                     {isIncoming && !log.isRead && (
                       <div className="mt-3 pt-3 border-t">

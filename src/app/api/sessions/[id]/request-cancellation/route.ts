@@ -150,7 +150,6 @@ export async function POST(
         to: therapySession.client.email,
         subject: clientEmail.subject,
         html: clientEmail.html,
-        replyTo: therapySession.therapist.email || undefined, // תשובות יגיעו למטפל
       });
 
       // Log communication
@@ -187,7 +186,6 @@ export async function POST(
         to: therapySession.therapist.email,
         subject: therapistEmail.subject,
         html: therapistEmail.html,
-        replyTo: therapySession.client.email || undefined, // תשובות יגיעו ללקוח
       });
 
       // Log communication

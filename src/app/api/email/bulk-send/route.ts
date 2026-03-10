@@ -74,10 +74,9 @@ export async function POST(request: NextRequest) {
           to: client.email!.toLowerCase(),
           subject: emailSubject,
           html,
-          replyTo: user?.email?.toLowerCase() || undefined,
         });
 
-        // Log communication
+        // Log communication (include messageId for reply threading)
         await prisma.communicationLog.create({
           data: {
             type: "CUSTOM",
@@ -88,6 +87,7 @@ export async function POST(request: NextRequest) {
             status: result.success ? "SENT" : "FAILED",
             errorMessage: result.success ? null : String(result.error),
             sentAt: result.success ? new Date() : null,
+            messageId: result.messageId || null,
             clientId: client.id,
             userId: session.user.id,
           },

@@ -18,10 +18,11 @@ export interface EmailOptions {
   subject: string;
   html: string;
   text?: string;
-  replyTo?: string; // המייל של המטפל - תשובות יגיעו אליו
 }
 
-export async function sendEmail({ to, subject, html, text, replyTo }: EmailOptions) {
+// All replies are routed through inbox@mytipul.com so the Resend webhook
+// captures them and the system displays them in the communication history.
+export async function sendEmail({ to, subject, html, text }: EmailOptions) {
   const resend = getResendClient();
   
   if (!resend) {
@@ -29,12 +30,7 @@ export async function sendEmail({ to, subject, html, text, replyTo }: EmailOptio
     return { success: false, error: 'API key not configured', messageId: null };
   }
 
-  // המרה לאותיות קטנות - חובה עבור Resend Sandbox
   const normalizedTo = to.toLowerCase();
-  
-  // תשובות מטופלים מנותבות דרך inbox@mytipul.com כך ש-Resend יתפוס אותן
-  // ויעביר אותן ל-Webhook שלנו → המערכת תציג אותן בהיסטוריית התקשורת
-  const systemReplyTo = "inbox@mytipul.com";
 
   try {
     const { data, error } = await resend.emails.send({
@@ -43,7 +39,7 @@ export async function sendEmail({ to, subject, html, text, replyTo }: EmailOptio
       subject,
       html,
       text: text || html.replace(/<[^>]*>/g, ''),
-      replyTo: systemReplyTo, // תשובות מנותבות דרך המערכת
+      replyTo: "inbox@mytipul.com",
     });
 
     if (error) {

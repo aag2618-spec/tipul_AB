@@ -181,8 +181,6 @@ function createDebtReminderEmail(
   };
 }
 
-export const dynamic = "force-dynamic";
-
 export async function POST(
   request: NextRequest,
   { params }: { params: Promise<{ id: string }> }
@@ -291,7 +289,6 @@ export async function POST(
       to: client.email,
       subject,
       html,
-      replyTo: user?.email || undefined,
     });
 
     if (!result.success) {

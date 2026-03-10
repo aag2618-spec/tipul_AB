@@ -4,8 +4,6 @@ import { authOptions } from "@/lib/auth";
 import prisma from "@/lib/prisma";
 import { parseIsraelTime } from "@/lib/date-utils";
 
-export const dynamic = "force-dynamic";
-
 export async function GET(request: NextRequest) {
   try {
     const session = await getServerSession(authOptions);
@@ -185,7 +183,6 @@ export async function POST(request: NextRequest) {
           to: clientEmail,
           subject,
           html,
-          replyTo: therapySession.therapist.email || undefined,
         })
           .then(async (result) => {
             // Log communication

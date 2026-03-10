@@ -30,6 +30,7 @@ import Link from "next/link";
 import { format } from "date-fns";
 import { he } from "date-fns/locale";
 import { toast } from "sonner";
+import { cleanIncomingContent } from "@/lib/email-utils";
 import {
   Dialog,
   DialogContent,
@@ -63,6 +64,7 @@ interface CommunicationLog {
   client: {
     id: string;
     name: string;
+    email: string | null;
   } | null;
 }
 
@@ -85,43 +87,6 @@ function normalizeSubject(subject: string): string {
   return subject
     .replace(/^(Re:|RE:|Fwd:|FWD:|השב:|הע:)\s*/gi, "")
     .trim();
-}
-
-// Clean incoming email content - remove quoted replies and date/sender headers
-function cleanIncomingContent(html: string): string {
-  let cleaned = html;
-  
-  // Step 1: Remove ALL Unicode direction markers, zero-width chars, RTL/LTR marks
-  cleaned = cleaned.replace(/[\u200F\u200E\u202B\u202C\u202A\u202D\u202E\u200D\u200C\u200B\u2069\u2068\u2067\u2066\uFEFF]/g, "");
-  
-  // Step 2: Remove gmail_quote divs and everything inside them
-  cleaned = cleaned.replace(/<div\s+class=["']gmail_quote["'][\s\S]*$/gi, "");
-  
-  // Step 3: Remove blockquote elements (quoted replies)
-  cleaned = cleaned.replace(/<blockquote[\s\S]*?<\/blockquote>/gi, "");
-  cleaned = cleaned.replace(/<blockquote[\s\S]*$/gi, "");
-  
-  // Step 4: Remove Hebrew "בתאריך" date header and EVERYTHING after it
-  // This is the most common Gmail Hebrew quoting format
-  // Uses very broad matching to catch all variations with geresh (׳), special chars, etc.
-  cleaned = cleaned.replace(/\s*בתאריך[\s\S]*$/gi, "");
-  
-  // Step 5: Remove English "On ... wrote:" header and everything after
-  cleaned = cleaned.replace(/\s*On\s+\w{3,},?\s+\w[\s\S]*?wrote:\s*[\s\S]*$/gi, "");
-  
-  // Step 6: Remove "---------- Forwarded/Original message" blocks
-  cleaned = cleaned.replace(/\s*-{3,}\s*(Forwarded|Original|הודעה)[\s\S]*/gi, "");
-  
-  // Step 7: Remove trailing <br>, empty divs, whitespace
-  cleaned = cleaned.replace(/(<br\s*\/?>|<div>\s*<\/div>|\s)*$/gi, "").trim();
-  
-  // If nothing meaningful left, return original content
-  const textOnly = cleaned.replace(/<[^>]*>/g, "").trim();
-  if (!textOnly || textOnly.length === 0) {
-    return html;
-  }
-  
-  return cleaned;
 }
 
 export default function CommunicationsPage() {
@@ -182,7 +147,8 @@ export default function CommunicationsPage() {
 
     for (const log of logs) {
       const normalizedSub = normalizeSubject(log.subject || "");
-      const clientKey = log.client?.id || log.recipient || "unknown";
+      // Use client ID first, then client email, then recipient (for outgoing only)
+      const clientKey = log.client?.id || log.client?.email || log.recipient || "unknown";
       const threadKey = `${clientKey}::${normalizedSub}`;
 
       if (!threadMap.has(threadKey)) {
@@ -193,17 +159,26 @@ export default function CommunicationsPage() {
 
     const result: Thread[] = [];
     for (const [key, messages] of threadMap) {
-      // Sort messages: newest first
       messages.sort((a, b) => new Date(b.createdAt).getTime() - new Date(a.createdAt).getTime());
 
       const latestMessage = messages[0];
       const hasUnread = messages.some(m => m.type === "INCOMING_EMAIL" && !m.isRead);
 
+      // Find client name from ANY message in the thread (not just latest)
+      const msgWithClient = messages.find(m => m.client?.name);
+      // Fallback: client email, then recipient (only useful for outgoing emails)
+      const outgoingMsg = messages.find(m => m.type !== "INCOMING_EMAIL");
+      const clientName = msgWithClient?.client?.name
+        || msgWithClient?.client?.email
+        || outgoingMsg?.recipient
+        || "מטופל";
+      const clientId = msgWithClient?.client?.id || null;
+
       result.push({
         id: key,
         subject: normalizeSubject(latestMessage.subject || "ללא נושא"),
-        clientName: latestMessage.client?.name || latestMessage.recipient,
-        clientId: latestMessage.client?.id || null,
+        clientName,
+        clientId,
         messages,
         latestMessage,
         hasUnread,
@@ -238,7 +213,10 @@ export default function CommunicationsPage() {
       filtered = filtered.filter(t =>
         t.subject.toLowerCase().includes(search) ||
         t.clientName.toLowerCase().includes(search) ||
-        t.messages.some(m => m.recipient.toLowerCase().includes(search))
+        t.messages.some(m =>
+          m.recipient.toLowerCase().includes(search) ||
+          (m.client?.email?.toLowerCase().includes(search) ?? false)
+        )
       );
     }
 
@@ -552,14 +530,14 @@ export default function CommunicationsPage() {
                       </div>
                     </td>
 
-                    {/* Col 2: Client name */}
+                    {/* Col 2: Client name + direction indicator */}
                     <td className="py-0 pr-3 overflow-hidden">
                       <span className={`block text-[14px] truncate ${isUnread ? "font-bold text-[#202124] dark:text-white" : "text-[#5f6368] dark:text-gray-300"}`}>
                         {thread.clientName}
                       </span>
                     </td>
 
-                    {/* Col 3: Subject + preview */}
+                    {/* Col 3: Subject + preview (with sender prefix) */}
                     <td className="py-0 pr-2 overflow-hidden">
                       <div className="flex items-baseline overflow-hidden whitespace-nowrap">
                         <span className={`text-[14px] shrink-0 ${isUnread ? "font-bold text-[#202124] dark:text-white" : "text-[#202124] dark:text-gray-200"}`}>
@@ -569,7 +547,7 @@ export default function CommunicationsPage() {
                           <span className="text-[12px] text-red-500 mr-1 shrink-0"> — נכשל</span>
                         )}
                         <span className="text-[14px] text-[#5f6368] dark:text-gray-400 truncate">
-                          &nbsp;— {preview || ""}
+                          &nbsp;— {isIncoming ? "" : "אתה: "}{preview || ""}
                         </span>
                       </div>
                     </td>

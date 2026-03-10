@@ -6,6 +6,7 @@ import { sendEmail } from "@/lib/resend";
 import { createPaymentReceiptEmail } from "@/lib/email-templates/payment-receipt";
 import { createBillingService } from "@/lib/billing";
 import { getReceiptPageUrl } from "@/lib/receipt-token";
+import { mapPaymentMethod } from "@/lib/email-utils";
 
 export const dynamic = "force-dynamic";
 
@@ -254,7 +255,6 @@ export async function POST(request: NextRequest) {
               to: payment.client.email,
               subject,
               html,
-              replyTo: therapist?.email || undefined,
             });
 
             await prisma.communicationLog.create({
@@ -296,20 +296,6 @@ export async function POST(request: NextRequest) {
   }
 }
 
-/**
- * המרת שיטת תשלום לפורמט ספקי החיוב
- */
-function mapPaymentMethod(method: string): 'cash' | 'check' | 'bank_transfer' | 'credit_card' | 'other' {
-  const mapping: Record<string, 'cash' | 'check' | 'bank_transfer' | 'credit_card' | 'other'> = {
-    CASH: 'cash',
-    CHECK: 'check',
-    BANK_TRANSFER: 'bank_transfer',
-    CREDIT_CARD: 'credit_card',
-    CREDIT: 'other',
-    OTHER: 'other',
-  };
-  return mapping[method] || 'other';
-}
 
 
 

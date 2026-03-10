@@ -76,7 +76,6 @@ export async function GET(request: NextRequest) {
         to: session.client.email,
         subject,
         html,
-        replyTo: session.therapist.email || undefined, // תשובות יגיעו למטפל
       });
 
       // Log communication
