@@ -271,9 +271,12 @@ export default function CalendarPage() {
     setRecurringFormData(prev => ({ ...prev, duration: defaultSessionDuration }));
   }, [defaultSessionDuration]);
 
-  // סינון פגישות מבוטלות מהיומן
+  // הצג פגישות מבוטלות שכבר עברו, הסתר מבוטלות עתידיות
   const events: CalendarEvent[] = sessions
-    .filter((session) => session.status !== "CANCELLED")
+    .filter((session) => {
+      if (session.status !== "CANCELLED") return true;
+      return new Date(session.endTime) < new Date();
+    })
     .map((session) => ({
       id: session.id,
       title: session.type === "BREAK" ? "🌊 הפסקה" : (session.client?.name || "ללא שם"),
@@ -282,6 +285,8 @@ export default function CalendarPage() {
       backgroundColor:
         session.type === "BREAK"
           ? "var(--chart-2)"
+          : session.status === "CANCELLED"
+          ? "#E5E7EB"
           : session.status === "COMPLETED"
           ? "var(--primary)"
           : session.status === "NO_SHOW"
@@ -294,6 +299,8 @@ export default function CalendarPage() {
       textColor:
         session.type === "BREAK"
           ? "#ffffff"
+          : session.status === "CANCELLED"
+          ? "#6B7280"
           : session.status === "COMPLETED"
           ? "#ffffff"
           : session.status === "NO_SHOW"
@@ -306,6 +313,8 @@ export default function CalendarPage() {
     borderColor:
       session.type === "BREAK"
         ? "var(--chart-2)"
+        : session.status === "CANCELLED"
+        ? "#9CA3AF"
         : session.status === "COMPLETED"
         ? "var(--primary)"
         : session.status === "NO_SHOW"
