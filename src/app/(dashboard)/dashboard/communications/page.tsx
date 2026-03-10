@@ -27,7 +27,7 @@ import {
   FolderPlus
 } from "lucide-react";
 import Link from "next/link";
-import { format } from "date-fns";
+import { format, isToday } from "date-fns";
 import { he } from "date-fns/locale";
 import { toast } from "sonner";
 import { cleanIncomingContent } from "@/lib/email-utils";
@@ -164,14 +164,8 @@ export default function CommunicationsPage() {
       const latestMessage = messages[0];
       const hasUnread = messages.some(m => m.type === "INCOMING_EMAIL" && !m.isRead);
 
-      // Find client name from ANY message in the thread (not just latest)
       const msgWithClient = messages.find(m => m.client?.name);
-      // Fallback: client email, then recipient (only useful for outgoing emails)
-      const outgoingMsg = messages.find(m => m.type !== "INCOMING_EMAIL");
-      const clientName = msgWithClient?.client?.name
-        || msgWithClient?.client?.email
-        || outgoingMsg?.recipient
-        || "מטופל";
+      const clientName = msgWithClient?.client?.name || "מטופל";
       const clientId = msgWithClient?.client?.id || null;
 
       result.push({
@@ -581,7 +575,10 @@ export default function CommunicationsPage() {
                     {/* Col 5: Date */}
                     <td className="py-0 pl-4 pr-2">
                       <span dir="ltr" className={`text-[12px] tabular-nums block text-left ${isUnread ? "font-bold text-[#202124] dark:text-white" : "text-[#5f6368] dark:text-gray-400"}`}>
-                        {format(new Date(thread.latestMessage.createdAt), "dd בMMM", { locale: he })}
+                        {(() => {
+                          const d = new Date(thread.latestMessage.createdAt);
+                          return isToday(d) ? format(d, "HH:mm") : format(d, "d בMMM", { locale: he });
+                        })()}
                       </span>
                     </td>
                   </tr>

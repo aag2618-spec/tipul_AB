@@ -18,9 +18,15 @@ export function cleanIncomingContent(html: string): string {
   // Remove Hebrew "בתאריך ... כתב/ה:" quoting header and everything after
   cleaned = cleaned.replace(/\s*בתאריך\s+[^<]{10,}כתב.*:[\s\S]*$/gi, "");
   cleaned = cleaned.replace(/\s*בתאריך\s+\d{1,2}[\s\S]{0,80}כתב[\s\S]*$/gi, "");
+  // Also catch "בתאריך ... מאת ..." patterns (with or without "כתב")
+  cleaned = cleaned.replace(/\s*בתאריך\s+[^<]{10,}מאת\s+[\s\S]*$/gi, "");
 
   // Remove English "On ... wrote:" header and everything after
   cleaned = cleaned.replace(/\s*On\s+\w{3,},?\s+\w[\s\S]*?wrote:\s*[\s\S]*$/gi, "");
+
+  // Remove email addresses in angle brackets like &lt;user@gmail.com&gt; or <user@gmail.com>
+  cleaned = cleaned.replace(/&lt;[^@\s]+@[^&\s]+&gt;/gi, "");
+  cleaned = cleaned.replace(/<[^@\s>]+@[^>\s]+>/g, "");
 
   // Remove "---------- Forwarded/Original message" blocks
   cleaned = cleaned.replace(/\s*-{3,}\s*(Forwarded|Original|הודעה)[\s\S]*/gi, "");
