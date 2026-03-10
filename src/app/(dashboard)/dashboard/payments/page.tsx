@@ -206,6 +206,13 @@ export default function PaymentsPage() {
         const credit = data.reduce((sum: number, c: ClientDebt) => sum + c.creditBalance, 0);
         setTotalDebt(debt);
         setTotalCredit(credit);
+        
+        // עדכון selectedClient עם הנתונים החדשים
+        setSelectedClient((prev) => {
+          if (!prev) return null;
+          const updated = data.find((c: ClientDebt) => c.id === prev.id);
+          return updated || null;
+        });
       }
       
       // טעינת תשלומים החודש
