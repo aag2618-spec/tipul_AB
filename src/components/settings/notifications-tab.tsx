@@ -2,12 +2,11 @@
 
 import { useState, useEffect } from "react";
 import { Button } from "@/components/ui/button";
-import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import { Switch } from "@/components/ui/switch";
 import { Textarea } from "@/components/ui/textarea";
-import { Loader2, Save, Bell, Mail, MessageSquare, Clock, CreditCard, Sparkles, FileText } from "lucide-react";
+import { Loader2, Save, Bell, Mail, MessageSquare, Clock, CreditCard, Sparkles } from "lucide-react";
 import { toast } from "sonner";
 import {
   Select,
@@ -421,41 +420,6 @@ export function NotificationsTab() {
                 </div>
               </>
             )}
-          </AccordionContent>
-        </AccordionItem>
-
-        {/* Payment Receipts */}
-        <AccordionItem value="receipts" className="border rounded-lg px-4">
-          <AccordionTrigger className="hover:no-underline">
-            <div className="flex items-center gap-2">
-              <FileText className="h-5 w-5 text-primary" />
-              <span className="font-semibold">קבלות תשלום אוטומטיות</span>
-              <span className={`text-xs px-2 py-0.5 rounded-full ${commSettings.sendPaymentReceipt ? "bg-green-100 text-green-700" : "bg-gray-100 text-gray-500"}`}>
-                {commSettings.sendPaymentReceipt ? "פעיל" : "כבוי"}
-              </span>
-            </div>
-          </AccordionTrigger>
-          <AccordionContent className="space-y-4 pb-4">
-            <div className="flex items-center justify-between p-3 bg-muted rounded-lg">
-              <div className="space-y-0.5">
-                <Label>שלח קבלה למטופל</Label>
-                <p className="text-xs text-muted-foreground">המטופל יקבל את הקבלה אוטומטית למייל שלו אחרי כל תשלום</p>
-              </div>
-              <Switch
-                checked={commSettings.sendReceiptToClient}
-                onCheckedChange={(checked) => setCommSettings({ ...commSettings, sendReceiptToClient: checked, sendPaymentReceipt: checked || commSettings.sendReceiptToTherapist })}
-              />
-            </div>
-            <div className="flex items-center justify-between p-3 bg-muted rounded-lg">
-              <div className="space-y-0.5">
-                <Label>שלח עותק אלי (למטפל)</Label>
-                <p className="text-xs text-muted-foreground">תקבל עותק של כל קבלה למייל שלך לצורך תיעוד ומעקב</p>
-              </div>
-              <Switch
-                checked={commSettings.sendReceiptToTherapist}
-                onCheckedChange={(checked) => setCommSettings({ ...commSettings, sendReceiptToTherapist: checked, sendPaymentReceipt: checked || commSettings.sendReceiptToClient })}
-              />
-            </div>
           </AccordionContent>
         </AccordionItem>
 

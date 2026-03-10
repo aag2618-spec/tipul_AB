@@ -7,7 +7,8 @@ import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import { RadioGroup, RadioGroupItem } from "@/components/ui/radio-group";
 import { toast } from "sonner";
-import { Loader2, Building2, Receipt, Save, Calendar } from "lucide-react";
+import { Switch } from "@/components/ui/switch";
+import { Loader2, Building2, Receipt, Save, Calendar, FileText } from "lucide-react";
 
 interface BusinessSettings {
   businessType: "NONE" | "EXEMPT" | "LICENSED";
@@ -30,12 +31,19 @@ export function BusinessTab() {
     nextReceiptNumber: 1,
     receiptDefaultMode: "ASK",
   });
+  const [receiptEmailSettings, setReceiptEmailSettings] = useState({
+    sendPaymentReceipt: false,
+    sendReceiptToClient: true,
+    sendReceiptToTherapist: false,
+  });
+  const [fullCommSettings, setFullCommSettings] = useState<Record<string, unknown> | null>(null);
 
   useEffect(() => {
     Promise.all([
-      fetch("/api/user/business-settings").then((res) => res.json()),
-      fetch("/api/user/profile").then((res) => res.json()),
-    ]).then(([bizData, profileData]) => {
+      fetch("/api/user/business-settings", { cache: "no-store" }).then((res) => res.json()),
+      fetch("/api/user/profile", { cache: "no-store" }).then((res) => res.json()),
+      fetch("/api/user/communication-settings", { cache: "no-store" }).then(r => r.ok ? r.json() : null),
+    ]).then(([bizData, profileData, commData]) => {
       setSettings({
         businessType: bizData.businessType || "NONE",
         businessName: bizData.businessName || "",
@@ -45,6 +53,14 @@ export function BusinessTab() {
         receiptDefaultMode: bizData.receiptDefaultMode || "ASK",
       });
       setDefaultSessionDuration(profileData.defaultSessionDuration || 50);
+      if (commData?.settings) {
+        setFullCommSettings(commData.settings);
+        setReceiptEmailSettings({
+          sendPaymentReceipt: commData.settings.sendPaymentReceipt ?? false,
+          sendReceiptToClient: commData.settings.sendReceiptToClient ?? true,
+          sendReceiptToTherapist: commData.settings.sendReceiptToTherapist ?? false,
+        });
+      }
     })
       .catch(() => toast.error("שגיאה בטעינת ההגדרות"))
       .finally(() => setIsLoading(false));
@@ -53,7 +69,7 @@ export function BusinessTab() {
   const handleSave = async () => {
     setIsSaving(true);
     try {
-      const [bizRes, profileRes] = await Promise.all([
+      const promises: Promise<Response>[] = [
         fetch("/api/user/business-settings", {
           method: "PUT",
           headers: { "Content-Type": "application/json" },
@@ -64,8 +80,18 @@ export function BusinessTab() {
           headers: { "Content-Type": "application/json" },
           body: JSON.stringify({ defaultSessionDuration }),
         }),
-      ]);
-      if (!bizRes.ok || !profileRes.ok) throw new Error();
+      ];
+      if (fullCommSettings) {
+        promises.push(
+          fetch("/api/user/communication-settings", {
+            method: "PUT",
+            headers: { "Content-Type": "application/json" },
+            body: JSON.stringify({ ...fullCommSettings, ...receiptEmailSettings }),
+          })
+        );
+      }
+      const results = await Promise.all(promises);
+      if (results.some(r => !r.ok)) throw new Error();
       toast.success("ההגדרות נשמרו");
     } catch {
       toast.error("שגיאה בשמירה");
@@ -226,6 +252,48 @@ export function BusinessTab() {
                 </div>
               </div>
             </RadioGroup>
+          </CardContent>
+        </Card>
+      )}
+
+      {settings.businessType !== "NONE" && (
+        <Card>
+          <CardHeader>
+            <CardTitle className="flex items-center gap-2">
+              <FileText className="h-5 w-5" />
+              קבלות תשלום אוטומטיות
+            </CardTitle>
+            <CardDescription>שליחת קבלות במייל אוטומטית אחרי כל תשלום</CardDescription>
+          </CardHeader>
+          <CardContent className="space-y-4">
+            <div className="flex items-center justify-between p-3 bg-muted rounded-lg">
+              <div className="space-y-0.5">
+                <Label>שלח קבלה למטופל</Label>
+                <p className="text-xs text-muted-foreground">המטופל יקבל את הקבלה אוטומטית למייל שלו אחרי כל תשלום</p>
+              </div>
+              <Switch
+                checked={receiptEmailSettings.sendReceiptToClient}
+                onCheckedChange={(checked) => setReceiptEmailSettings({
+                  ...receiptEmailSettings,
+                  sendReceiptToClient: checked,
+                  sendPaymentReceipt: checked || receiptEmailSettings.sendReceiptToTherapist,
+                })}
+              />
+            </div>
+            <div className="flex items-center justify-between p-3 bg-muted rounded-lg">
+              <div className="space-y-0.5">
+                <Label>שלח עותק אלי (למטפל)</Label>
+                <p className="text-xs text-muted-foreground">תקבל עותק של כל קבלה למייל שלך לצורך תיעוד ומעקב</p>
+              </div>
+              <Switch
+                checked={receiptEmailSettings.sendReceiptToTherapist}
+                onCheckedChange={(checked) => setReceiptEmailSettings({
+                  ...receiptEmailSettings,
+                  sendReceiptToTherapist: checked,
+                  sendPaymentReceipt: checked || receiptEmailSettings.sendReceiptToClient,
+                })}
+              />
+            </div>
           </CardContent>
         </Card>
       )}
