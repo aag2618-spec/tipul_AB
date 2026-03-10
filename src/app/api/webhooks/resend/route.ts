@@ -166,6 +166,18 @@ export async function POST(request: NextRequest) {
         );
       }
 
+      // Duplicate detection — skip if we already logged this messageId
+      const uniqueMessageId = message_id || email_id;
+      if (uniqueMessageId) {
+        const existing = await prisma.communicationLog.findFirst({
+          where: { messageId: uniqueMessageId },
+        });
+        if (existing) {
+          console.log("Duplicate webhook event, skipping:", uniqueMessageId);
+          return NextResponse.json({ message: "Duplicate, already processed" });
+        }
+      }
+
       // Save the incoming reply with actual content
       // recipient = who received the email (the system inbox), not who sent it
       const recipientAddress = Array.isArray(to) ? to[0] : (to || "inbox@mytipul.com");

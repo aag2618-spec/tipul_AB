@@ -31,8 +31,6 @@ function formatTimeHebrew(date: Date): string {
   });
 }
 
-export const dynamic = "force-dynamic";
-
 export async function PATCH(
   req: NextRequest,
   { params }: { params: Promise<{ id: string }> }
@@ -151,6 +149,7 @@ export async function PATCH(
               status: result.success ? "SENT" : "FAILED",
               errorMessage: result.success ? null : String(result.error),
               sentAt: result.success ? new Date() : null,
+              messageId: result.messageId || null,
               sessionId,
               clientId: therapySession.clientId,
               userId: session.user.id,

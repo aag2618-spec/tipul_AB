@@ -52,6 +52,17 @@ export async function POST(request: NextRequest) {
       return NextResponse.json({ message: "Client not found" }, { status: 404 });
     }
 
+    // Duplicate detection
+    if (originalMessageId) {
+      const existing = await prisma.communicationLog.findFirst({
+        where: { messageId: originalMessageId },
+      });
+      if (existing) {
+        console.log("Duplicate incoming email, skipping:", originalMessageId);
+        return NextResponse.json({ message: "Duplicate, already processed" });
+      }
+    }
+
     // Normalize subject — don't add RE: if already present
     const normalizedSubject = /^(Re:|RE:|השב:|הע:|Fwd:|FWD:)\s*/i.test(subject)
       ? subject
@@ -67,6 +78,7 @@ export async function POST(request: NextRequest) {
         content: html || text || "",
         status: "RECEIVED",
         sentAt: new Date(),
+        messageId: originalMessageId || null,
         clientId: client.id,
         userId: client.therapistId,
       },

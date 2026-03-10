@@ -76,23 +76,29 @@ export async function POST(request: NextRequest) {
       select: { name: true, email: true },
     });
 
-    // Build reply subject
-    const replySubject = originalLog.subject?.startsWith("Re:")
+    // Build reply subject — handle Hebrew prefixes too
+    const replySubject = /^(Re:|RE:|השב:|הע:|Fwd:|FWD:)\s*/i.test(originalLog.subject || "")
       ? originalLog.subject
       : `Re: ${originalLog.subject || "ללא נושא"}`;
 
-    // Build reply HTML
+    // Escape user content to prevent XSS
+    const escapeHtml = (str: string) =>
+      str.replace(/&/g, "&amp;").replace(/</g, "&lt;").replace(/>/g, "&gt;").replace(/"/g, "&quot;");
+
+    const safeReplyContent = escapeHtml(replyContent);
+    const safeTherapistName = escapeHtml(therapist?.name || "המטפל/ת שלך");
+
     const attachmentNote = resendAttachments.length > 0
       ? `<p style="color: #888; font-size: 12px; margin-top: 10px;">📎 ${resendAttachments.length} קבצים מצורפים</p>`
       : "";
 
     const replyHtml = `
       <div dir="rtl" style="font-family: Arial, sans-serif; max-width: 600px; margin: 0 auto; padding: 20px;">
-        <div style="white-space: pre-wrap; line-height: 1.6;">${replyContent}</div>
+        <div style="white-space: pre-wrap; line-height: 1.6;">${safeReplyContent}</div>
         ${attachmentNote}
         <p style="color: #666; font-size: 14px; margin-top: 30px;">
           בברכה,<br/>
-          ${therapist?.name || "המטפל/ת שלך"}
+          ${safeTherapistName}
         </p>
       </div>
     `;

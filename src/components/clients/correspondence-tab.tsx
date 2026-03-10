@@ -8,6 +8,7 @@ import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
 import { Mail, Send, ArrowRight, CheckCircle } from "lucide-react";
 import { useRouter } from "next/navigation";
+import DOMPurify from "dompurify";
 import { cleanIncomingContent } from "@/lib/email-utils";
 
 interface CommunicationLog {
@@ -47,7 +48,7 @@ export function CorrespondenceTab({
   const handleMarkAsRead = async (logId: string) => {
     setMarkingAsRead(logId);
     try {
-      const response = await fetch(`/api/communication-logs/${logId}/mark-read`, {
+      const response = await fetch(`/api/communications/logs/${logId}/read`, {
         method: "POST",
       });
 
@@ -177,7 +178,7 @@ export function CorrespondenceTab({
                     <p className="font-medium mb-2">{log.subject || "ללא נושא"}</p>
                     <div
                       className="text-sm text-muted-foreground prose prose-sm max-w-none"
-                      dangerouslySetInnerHTML={{ __html: isIncoming ? cleanIncomingContent(log.content) : log.content }}
+                      dangerouslySetInnerHTML={{ __html: DOMPurify.sanitize(isIncoming ? cleanIncomingContent(log.content) : log.content) }}
                     />
                     {isIncoming && !log.isRead && (
                       <div className="mt-3 pt-3 border-t">

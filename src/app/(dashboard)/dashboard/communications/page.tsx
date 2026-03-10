@@ -30,6 +30,7 @@ import Link from "next/link";
 import { format, isToday } from "date-fns";
 import { he } from "date-fns/locale";
 import { toast } from "sonner";
+import DOMPurify from "dompurify";
 import { cleanIncomingContent } from "@/lib/email-utils";
 import {
   Dialog,
@@ -724,7 +725,7 @@ export default function CommunicationsPage() {
                       {/* Message content */}
                       <div 
                         className="prose prose-sm max-w-none text-sm whitespace-pre-wrap"
-                        dangerouslySetInnerHTML={{ __html: isIncoming ? cleanIncomingContent(msg.content || "") || "(ללא תוכן)" : msg.content || "(ללא תוכן)" }}
+                        dangerouslySetInnerHTML={{ __html: DOMPurify.sanitize(isIncoming ? cleanIncomingContent(msg.content || "") || "(ללא תוכן)" : msg.content || "(ללא תוכן)") }}
                       />
                       {msg.status === "FAILED" && (
                         <div className="mt-2 text-xs text-red-700 bg-red-50 border border-red-200 p-2.5 rounded-md">

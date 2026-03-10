@@ -261,6 +261,7 @@ export async function GET(request: NextRequest) {
               content: html,
               status: "SENT",
               sentAt: new Date(),
+              messageId: result.messageId || null,
               clientId: client.id,
               userId: therapist.id,
             },

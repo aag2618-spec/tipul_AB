@@ -284,7 +284,7 @@ export async function PUT(
           });
 
           if (commSettings.sendReceiptToClient && existingPayment.client.email) {
-            await sendEmail({
+            const emailResult = await sendEmail({
               to: existingPayment.client.email,
               subject,
               html,
@@ -299,6 +299,7 @@ export async function PUT(
                 content: html,
                 status: "SENT",
                 sentAt: new Date(),
+                messageId: emailResult.messageId || null,
                 clientId: existingPayment.clientId,
                 userId: session.user.id,
               },

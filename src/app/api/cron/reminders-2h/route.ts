@@ -101,6 +101,7 @@ export async function GET(request: NextRequest) {
             status: result.success ? "SENT" : "FAILED",
             errorMessage: result.success ? null : String(result.error),
             sentAt: result.success ? new Date() : null,
+            messageId: result.messageId || null,
             sessionId: session.id,
             clientId: session.clientId,
             userId: session.therapistId,

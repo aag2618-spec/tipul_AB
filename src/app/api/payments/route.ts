@@ -251,7 +251,7 @@ export async function POST(request: NextRequest) {
 
           // שליחה למטופל
           if (commSettings.sendReceiptToClient && payment.client.email) {
-            await sendEmail({
+            const emailResult = await sendEmail({
               to: payment.client.email,
               subject,
               html,
@@ -266,6 +266,7 @@ export async function POST(request: NextRequest) {
                 content: html,
                 status: "SENT",
                 sentAt: new Date(),
+                messageId: emailResult.messageId || null,
                 clientId: clientId,
                 userId: session.user.id,
               },

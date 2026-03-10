@@ -263,7 +263,7 @@ export async function POST(req: NextRequest) {
 
           // שליחה למטופל
           if (commSettings.sendReceiptToClient && result.clientEmail) {
-            await sendEmail({
+            const emailResult = await sendEmail({
               to: result.clientEmail,
               subject,
               html,
@@ -278,6 +278,7 @@ export async function POST(req: NextRequest) {
                 content: html,
                 status: "SENT",
                 sentAt: new Date(),
+                messageId: emailResult.messageId || null,
                 clientId: clientId,
                 userId: session.user.id,
               },

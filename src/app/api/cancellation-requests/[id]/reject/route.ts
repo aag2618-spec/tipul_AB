@@ -120,6 +120,7 @@ export async function POST(
           status: result.success ? "SENT" : "FAILED",
           errorMessage: result.success ? null : String(result.error),
           sentAt: result.success ? new Date() : null,
+          messageId: result.messageId || null,
           sessionId: cancellationRequest.sessionId,
           clientId: cancellationRequest.clientId,
           userId: session.user.id,
