@@ -435,6 +435,32 @@ export default function CalendarPage() {
     if (!updateStatus || !selectedSession) { toast.error("בחר סטטוס"); return; }
     setUpdating(true);
     try {
+      // COMPLETED with payment → use the same flow as "סיים ושלם" to open QuickMarkPaid
+      if (updateStatus === "COMPLETED" && showUpdatePayment && selectedSession.price > 0 && selectedSession.client) {
+        const response = await fetch(`/api/sessions/${selectedSession.id}`, {
+          method: "PUT",
+          headers: { "Content-Type": "application/json" },
+          body: JSON.stringify({ status: "COMPLETED", createPayment: true, markAsPaid: false }),
+        });
+
+        if (response.ok) {
+          const updatedSession = await response.json();
+          resetUpdateDialog();
+          setPaymentData({
+            sessionId: selectedSession.id,
+            clientId: selectedSession.client.id,
+            amount: selectedSession.price,
+            paymentId: updatedSession.payment?.id,
+          });
+          setIsPaymentDialogOpen(true);
+          fetchData();
+        } else {
+          toast.error("שגיאה בעדכון הפגישה");
+        }
+        return;
+      }
+
+      // All other cases: COMPLETED without payment, CANCELLED, NO_SHOW
       const updates: Promise<Response>[] = [];
 
       const statusBody: Record<string, unknown> = { status: updateStatus };
@@ -449,7 +475,8 @@ export default function CalendarPage() {
         })
       );
 
-      if (showUpdatePayment && selectedSession.price > 0) {
+      // Charge for CANCELLED/NO_SHOW when showUpdatePayment is true
+      if (showUpdatePayment && selectedSession.price > 0 && (updateStatus === "CANCELLED" || updateStatus === "NO_SHOW")) {
         const amt = updatePaymentType === "PARTIAL"
           ? parseFloat(updatePartialAmount) || 0
           : parseFloat(updatePaymentAmount) || 0;
