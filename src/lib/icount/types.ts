@@ -82,10 +82,12 @@ export interface ICountRawDocResponse {
   docid?: string | number;
   doc_id?: string | number;
   doc_url?: string;
+  doc_link?: string;
   pdf_link?: string;
   pdf_url?: string;
   total?: number;
   total_amount?: number;
+  totalwithvat?: number;
   [key: string]: unknown;
 }
 

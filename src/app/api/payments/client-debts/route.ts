@@ -44,25 +44,43 @@ export async function GET() {
       },
     });
 
+    // Auto-fix: update stuck PENDING payments that are actually fully paid
+    const allPendingPayments = clients.flatMap(c => c.payments);
+    const stuckPayments = allPendingPayments.filter(p => {
+      const paid = Number(p.amount);
+      const expected = Number(p.expectedAmount) || 0;
+      return (expected > 0 && paid >= expected) || (expected === 0 && paid > 0);
+    });
+    if (stuckPayments.length > 0) {
+      await prisma.payment.updateMany({
+        where: { id: { in: stuckPayments.map(p => p.id) } },
+        data: { status: "PAID", paidAt: new Date() },
+      });
+    }
+
     // Calculate debts for each client
     const clientDebts = clients.map((client) => {
-      const unpaidSessions = client.payments.map((payment) => {
-        const paidAmount = Number(payment.amount);
-        // אם יש תשלום חלקי, נשתמש בתאריך העדכון כתאריך התשלום החלקי
-        const hasPartialPayment = paidAmount > 0 && paidAmount < Number(payment.expectedAmount);
-        return {
-          paymentId: payment.id,
-          amount: Number(payment.expectedAmount),
-          paidAmount,
-          date: payment.createdAt,
-          sessionId: payment.sessionId,
-          partialPaymentDate: hasPartialPayment ? payment.updatedAt : null,
-        };
-      });
+      const unpaidSessions = client.payments
+        .filter((payment) => {
+          const paid = Number(payment.amount);
+          const expected = Number(payment.expectedAmount) || 0;
+          return expected > 0 && paid < expected;
+        })
+        .map((payment) => {
+          const paidAmount = Number(payment.amount);
+          const expectedAmount = Number(payment.expectedAmount) || 0;
+          const hasPartialPayment = paidAmount > 0 && paidAmount < expectedAmount;
+          return {
+            paymentId: payment.id,
+            amount: expectedAmount,
+            paidAmount,
+            date: payment.createdAt,
+            sessionId: payment.sessionId,
+            partialPaymentDate: hasPartialPayment ? payment.updatedAt : null,
+          };
+        });
 
-      const totalDebt = unpaidSessions.reduce((sum, session) => sum + (session.amount - session.paidAmount), 0);
-
-      console.log(`Client ${client.firstName} ${client.lastName}: ${client.payments.length} payments, totalDebt: ${totalDebt}`);
+      const totalDebt = unpaidSessions.reduce((sum, s) => sum + (s.amount - s.paidAmount), 0);
 
       return {
         id: client.id,

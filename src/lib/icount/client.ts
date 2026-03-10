@@ -101,13 +101,17 @@ export class ICountClient {
         }
       }
 
+      const body = params.toString();
+      console.log(`iCount REQUEST ${endpoint}:`, body.substring(0, 500));
+
       const response = await fetch(`${ICOUNT_API_BASE}/${endpoint}`, {
         method: 'POST',
         headers: { 'Content-Type': 'application/x-www-form-urlencoded' },
-        body: params.toString(),
+        body,
       });
 
       const result = await response.json();
+      console.log(`iCount RESPONSE ${endpoint}:`, JSON.stringify(result).substring(0, 500));
 
       // iCount API returns { status: true/false } not { success: true }
       if (!result.status) {
@@ -165,9 +169,9 @@ export class ICountClient {
     return {
       doc_id: String(raw.docid ?? raw.doc_id ?? ''),
       doc_number: String(raw.docnum ?? raw.doc_number ?? ''),
-      doc_url: raw.doc_url ?? '',
-      pdf_url: raw.pdf_link ?? raw.pdf_url ?? '',
-      total_amount: Number(raw.total ?? raw.total_amount ?? 0),
+      doc_url: String(raw.doc_link ?? raw.doc_url ?? ''),
+      pdf_url: String(raw.pdf_link ?? raw.pdf_url ?? ''),
+      total_amount: Number(raw.total ?? raw.total_amount ?? raw.totalwithvat ?? 0),
     };
   }
 
@@ -185,24 +189,24 @@ export class ICountClient {
       console.error('Failed to fetch doc types:', e);
     }
 
-    const typesToTry = [320, 305, 400, 100];
+    const typesToTry = ['receipt', 'invrec', 'invoice'];
     const errors: string[] = [];
 
     for (const docType of typesToTry) {
-      console.log('iCount trying doctype:', docType);
+      console.log('iCount trying docType:', docType);
       const data = this.buildDocumentData(request, docType);
       const raw = await this.request<ICountRawDocResponse>('doc/create', data);
 
       if (raw.success && raw.data) {
-        console.log('iCount doc/create SUCCESS with doctype', docType, ':', JSON.stringify(raw.data));
+        console.log('iCount doc/create SUCCESS with docType', docType, ':', JSON.stringify(raw.data));
         return { ...raw, data: this.normalizeDocResponse(raw.data) };
       }
 
       const errMsg = raw.message || 'unknown error';
-      console.log('iCount doctype', docType, 'failed:', errMsg);
+      console.log('iCount docType', docType, 'failed:', errMsg);
       errors.push(`${docType}: ${errMsg}`);
 
-      if (!errMsg.includes('מסמך') && !errMsg.includes('doctype') && !errMsg.includes('type')) {
+      if (!errMsg.includes('מסמך') && !errMsg.includes('doctype') && !errMsg.includes('type') && !errMsg.includes('docType')) {
         return raw as ICountResponse<CreateDocumentResponse>;
       }
     }
@@ -216,10 +220,7 @@ export class ICountClient {
   async createInvoice(
     request: CreateDocumentRequest
   ): Promise<ICountResponse<CreateDocumentResponse>> {
-    const data = this.buildDocumentData({
-      ...request,
-      doctype: 'tax_invoice',
-    });
+    const data = this.buildDocumentData(request, 'invoice');
     const raw = await this.request<ICountRawDocResponse>('doc/create', data);
     if (!raw.success || !raw.data) return raw as ICountResponse<CreateDocumentResponse>;
     return { ...raw, data: this.normalizeDocResponse(raw.data) };
@@ -228,10 +229,7 @@ export class ICountClient {
   async createInvoiceReceipt(
     request: CreateDocumentRequest
   ): Promise<ICountResponse<CreateDocumentResponse>> {
-    const data = this.buildDocumentData({
-      ...request,
-      doctype: 'invoice_receipt',
-    });
+    const data = this.buildDocumentData(request, 'invrec');
     const raw = await this.request<ICountRawDocResponse>('doc/create', data);
     if (!raw.success || !raw.data) return raw as ICountResponse<CreateDocumentResponse>;
     return { ...raw, data: this.normalizeDocResponse(raw.data) };
@@ -244,46 +242,70 @@ export class ICountClient {
   }
 
   /**
-   * בניית נתוני מסמך
+   * בניית נתוני מסמך - פורמט תואם ל-iCount API
+   * Items are sent as flat keys: desc[0], unitprice[0], quantity[0]
+   * docType uses string values: 'receipt', 'invrec', 'invoice', 'credit', 'quote'
    */
-  private buildDocumentData(request: CreateDocumentRequest, resolvedDocType?: number): Record<string, unknown> {
-    const items = request.items.map((item, index) => ({
-      description: item.description,
-      quantity: item.quantity,
-      unitprice: item.unit_price,
-      vat_type: item.vat_type || (this.settings.vat_exempt ? 'exempt' : 'include'),
-    }));
+  private buildDocumentData(request: CreateDocumentRequest, resolvedDocType?: string): Record<string, unknown> {
+    const now = new Date();
+    const dateissued = `${now.getFullYear()}${String(now.getMonth() + 1).padStart(2, '0')}${String(now.getDate()).padStart(2, '0')}`;
 
-    return {
-      doctype: resolvedDocType ?? this.mapDocType(request.doctype),
-      client_name: request.client.client_name,
+    const data: Record<string, unknown> = {
+      docType: resolvedDocType ?? this.mapDocType(request.doctype),
+      clientname: request.client.client_name,
       email: request.client.email,
       phone: request.client.phone,
-      address: request.client.address,
-      city: request.client.city,
+      client_street: request.client.address,
+      client_city: request.client.city,
       vat_id: request.client.vat_id,
-      items,
-      description: request.description,
-      paytype: this.mapPaymentType(request.payment_type),
+      hwc: request.notes || request.description || '',
       send_email: request.send_email !== false ? 1 : 0,
       lang: request.lang || this.settings.default_lang,
-      currency_code: request.currency || 'ILS',
-      remarks: request.notes,
+      currency: this.mapCurrency(request.currency || 'ILS'),
+      dateissued,
+      validity: dateissued,
     };
+
+    request.items.forEach((item, idx) => {
+      data[`desc[${idx}]`] = item.description;
+      data[`unitprice[${idx}]`] = item.unit_price;
+      data[`quantity[${idx}]`] = item.quantity;
+      if (item.vat_type === 'exempt' || this.settings.vat_exempt) {
+        data[`vat_exempt[${idx}]`] = 1;
+      }
+    });
+
+    const payType = this.mapPaymentType(request.payment_type);
+    if (payType) {
+      data['paytype'] = payType;
+    }
+
+    return data;
   }
 
   /**
-   * המרת סוג מסמך
+   * המרת סוג מסמך לערכי מחרוזת של iCount
    */
-  private mapDocType(type: string): number {
-    const mapping: Record<string, number> = {
-      receipt: 400,
-      tax_invoice: 305,
-      invoice_receipt: 320,
-      credit_invoice: 330,
-      price_quote: 100,
+  private mapDocType(type: string): string {
+    const mapping: Record<string, string> = {
+      receipt: 'receipt',
+      tax_invoice: 'invoice',
+      invoice_receipt: 'invrec',
+      credit_invoice: 'credit',
+      price_quote: 'quote',
     };
-    return mapping[type] || 400;
+    return mapping[type] || 'receipt';
+  }
+
+  /**
+   * המרת מטבע לקוד מספרי של iCount
+   */
+  private mapCurrency(currency: string): number {
+    const mapping: Record<string, number> = {
+      EUR: 1, USD: 2, YEN: 3, GBP: 4, ILS: 5, NIS: 5,
+      SGP: 6, CAD: 7, RUB: 8, NZD: 9, AUD: 10,
+    };
+    return mapping[currency] || 5;
   }
 
   /**

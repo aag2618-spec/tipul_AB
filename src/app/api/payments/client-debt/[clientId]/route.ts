@@ -55,10 +55,25 @@ export async function GET(
       },
     });
 
-    // Filter to only include payments where amount < expectedAmount
-    const unpaidPayments = allPayments.filter(
-      payment => Number(payment.amount) < Number(payment.expectedAmount)
-    );
+    // Auto-fix stuck PENDING payments that are actually fully paid
+    const stuckPayments = allPayments.filter(p => {
+      const paid = Number(p.amount);
+      const expected = Number(p.expectedAmount) || 0;
+      return (expected > 0 && paid >= expected) || (expected === 0 && paid > 0);
+    });
+    if (stuckPayments.length > 0) {
+      await prisma.payment.updateMany({
+        where: { id: { in: stuckPayments.map(p => p.id) } },
+        data: { status: "PAID", paidAt: new Date() },
+      });
+    }
+
+    // Filter to only include payments with actual remaining debt
+    const unpaidPayments = allPayments.filter(payment => {
+      const paid = Number(payment.amount);
+      const expected = Number(payment.expectedAmount) || 0;
+      return expected > 0 && paid < expected;
+    });
 
     // Calculate total debt
     const totalDebt = unpaidPayments.reduce(
