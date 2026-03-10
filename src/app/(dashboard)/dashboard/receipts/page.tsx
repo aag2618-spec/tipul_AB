@@ -116,21 +116,23 @@ export default function ReceiptsPage() {
     const isPartial = Number(payment.amount) < Number(payment.expectedAmount);
 
     return `
-      <div style="padding: 40px; direction: rtl; font-family: 'Heebo', 'Segoe UI', Arial, sans-serif; color: #1a1a1a;">
-        <div style="background: linear-gradient(135deg, #0f766e, #14b8a6); padding: 30px; text-align: center; color: white; border-radius: 8px 8px 0 0;">
+      <div style="padding: 40px; direction: rtl; font-family: 'Heebo', 'Segoe UI', Arial, sans-serif; color: #1a1a1a; width: 714px;">
+        <div style="background: #0f766e; padding: 30px; text-align: center; color: white; border-radius: 8px 8px 0 0;">
           <h1 style="margin: 0; font-size: 30px; font-weight: 700;">קבלה</h1>
           <p style="margin: 10px 0 0; font-size: 16px; opacity: 0.9;">${businessName}</p>
         </div>
-        <div style="border: 1px solid #e5e7eb; border-top: none; padding: 20px 25px; display: flex; justify-content: space-between;">
-          <div style="font-size: 13px; color: #6b7280;">
-            ${therapist?.businessPhone ? `<p style="margin: 0 0 4px;">טלפון: ${therapist.businessPhone}</p>` : ""}
-            ${therapist?.businessAddress ? `<p style="margin: 0;">כתובת: ${therapist.businessAddress}</p>` : ""}
-          </div>
-          <div style="text-align: left; font-size: 13px; color: #6b7280;">
-            <p style="margin: 0 0 4px;">קבלה מס׳: ${receiptNum}</p>
-            <p style="margin: 0;">תאריך: ${dateStr}</p>
-          </div>
-        </div>
+        <table style="width: 100%; border-collapse: collapse; border: 1px solid #e5e7eb; border-top: none;">
+          <tr>
+            <td style="padding: 16px 25px; font-size: 13px; color: #6b7280; vertical-align: top;">
+              ${therapist?.businessPhone ? `<p style="margin: 0 0 4px;">טלפון: ${therapist.businessPhone}</p>` : ""}
+              ${therapist?.businessAddress ? `<p style="margin: 0;">כתובת: ${therapist.businessAddress}</p>` : ""}
+            </td>
+            <td style="padding: 16px 25px; font-size: 13px; color: #6b7280; text-align: left; vertical-align: top;">
+              <p style="margin: 0 0 4px;">קבלה מס׳: ${receiptNum}</p>
+              <p style="margin: 0;">תאריך: ${dateStr}</p>
+            </td>
+          </tr>
+        </table>
         <div style="border: 1px solid #e5e7eb; border-top: none; padding: 18px 25px;">
           <p style="margin: 0 0 4px; font-size: 12px; color: #0f766e; font-weight: 600;">התקבל מאת:</p>
           <p style="margin: 0; font-size: 17px; font-weight: 600;">${payment.client.name}</p>
@@ -153,12 +155,16 @@ export default function ReceiptsPage() {
         ${isPartial ? `
         <div style="border: 1px solid #e5e7eb; border-top: none; padding: 14px 25px; background: #fffbeb; border-radius: 0 0 8px 8px;">
           <p style="margin: 0 0 6px; font-size: 13px; color: #92400e; font-weight: 600;">* תשלום חלקי</p>
-          <div style="display: flex; justify-content: space-between; font-size: 13px; color: #78716c; margin-bottom: 4px;">
-            <span>סכום מלא לפגישה:</span><span style="font-weight: 600;">₪${Number(payment.expectedAmount).toLocaleString()}</span>
-          </div>
-          <div style="display: flex; justify-content: space-between; font-size: 13px; color: #ea580c;">
-            <span>נותר לתשלום:</span><span style="font-weight: 600;">₪${(Number(payment.expectedAmount) - Number(payment.amount)).toLocaleString()}</span>
-          </div>
+          <table style="width: 100%; font-size: 13px;">
+            <tr style="color: #78716c;">
+              <td style="padding: 2px 0;">סכום מלא לפגישה:</td>
+              <td style="padding: 2px 0; text-align: left; font-weight: 600;">₪${Number(payment.expectedAmount).toLocaleString()}</td>
+            </tr>
+            <tr style="color: #ea580c;">
+              <td style="padding: 2px 0;">נותר לתשלום:</td>
+              <td style="padding: 2px 0; text-align: left; font-weight: 600;">₪${(Number(payment.expectedAmount) - Number(payment.amount)).toLocaleString()}</td>
+            </tr>
+          </table>
         </div>` : ""}
         <div style="text-align: center; margin-top: 35px; padding-top: 15px; border-top: 1px solid #e5e7eb;">
           <p style="margin: 0; font-size: 11px; color: #9ca3af;">הופק על ידי MyTipul | ${format(new Date(), "dd/MM/yyyy HH:mm")}</p>
@@ -171,18 +177,38 @@ export default function ReceiptsPage() {
     const h2cModule = await import("html2canvas");
     const h2c = h2cModule.default ?? h2cModule;
 
-    const container = document.createElement("div");
-    container.style.position = "absolute";
-    container.style.left = "-9999px";
-    container.style.top = "0";
-    container.style.width = "794px";
-    container.style.background = "white";
-    container.innerHTML = html;
-    document.body.appendChild(container);
+    const iframe = document.createElement("iframe");
+    iframe.style.position = "fixed";
+    iframe.style.left = "-9999px";
+    iframe.style.top = "0";
+    iframe.style.width = "794px";
+    iframe.style.height = "1200px";
+    iframe.style.border = "none";
+    document.body.appendChild(iframe);
 
-    await new Promise((r) => setTimeout(r, 200));
-    const canvas = await h2c(container, { scale: 2, useCORS: true, backgroundColor: "#ffffff", logging: false, windowWidth: 794 });
-    document.body.removeChild(container);
+    const iDoc = iframe.contentDocument || iframe.contentWindow?.document;
+    if (!iDoc) throw new Error("Cannot access iframe document");
+
+    iDoc.open();
+    iDoc.write(`<!DOCTYPE html><html dir="rtl"><head>
+      <link href="https://fonts.googleapis.com/css2?family=Heebo:wght@300;400;500;600;700&display=swap" rel="stylesheet"/>
+      <style>*{margin:0;padding:0;box-sizing:border-box;font-family:'Heebo',sans-serif;}</style>
+    </head><body style="background:white;">${html}</body></html>`);
+    iDoc.close();
+
+    await new Promise((r) => setTimeout(r, 500));
+    if (iDoc.fonts) await iDoc.fonts.ready;
+
+    const target = iDoc.body.firstElementChild as HTMLElement || iDoc.body;
+    const canvas = await h2c(target, {
+      scale: 1.5,
+      useCORS: true,
+      backgroundColor: "#ffffff",
+      logging: false,
+      windowWidth: 794,
+    });
+
+    document.body.removeChild(iframe);
     return canvas;
   };
 
@@ -211,7 +237,12 @@ export default function ReceiptsPage() {
       toast.success("הקבלה הורדה בהצלחה", { id: "pdf-dl" });
     } catch (err) {
       console.error("PDF error:", err);
-      toast.error("שגיאה ביצירת PDF, נסה שוב", { id: "pdf-dl" });
+      if (payment.receiptUrl) {
+        window.open(payment.receiptUrl, "_blank");
+        toast.info("נפתח קישור לקבלה במקום", { id: "pdf-dl" });
+      } else {
+        toast.error("שגיאה ביצירת PDF, נסה שוב", { id: "pdf-dl" });
+      }
     }
   };
 
@@ -260,11 +291,13 @@ export default function ReceiptsPage() {
     });
   };
 
+  const paymentsWithReceipts = useMemo(() => filteredPayments.filter((p) => p.hasReceipt), [filteredPayments]);
+
   const toggleSelectAll = () => {
-    if (selectedIds.size === filteredPayments.length) {
+    if (selectedIds.size === paymentsWithReceipts.length) {
       setSelectedIds(new Set());
     } else {
-      setSelectedIds(new Set(filteredPayments.map((p) => p.id)));
+      setSelectedIds(new Set(paymentsWithReceipts.map((p) => p.id)));
     }
   };
 
@@ -390,7 +423,7 @@ export default function ReceiptsPage() {
       </div>
 
       {/* Bulk Download Hint */}
-      {filteredPayments.length > 0 && selectedIds.size === 0 && (
+      {filteredPayments.some((p) => p.hasReceipt) && selectedIds.size === 0 && (
         <div className="bg-blue-50 dark:bg-blue-950/20 border border-blue-200 dark:border-blue-800 rounded-lg px-4 py-3 flex items-center gap-3">
           <FileDown className="h-5 w-5 text-blue-500 flex-shrink-0" />
           <p className="text-sm text-blue-700 dark:text-blue-300">
@@ -413,7 +446,7 @@ export default function ReceiptsPage() {
                 <th className="py-3 px-3 w-10">
                   <input
                     type="checkbox"
-                    checked={filteredPayments.length > 0 && selectedIds.size === filteredPayments.length}
+                    checked={paymentsWithReceipts.length > 0 && selectedIds.size === paymentsWithReceipts.length}
                     onChange={toggleSelectAll}
                     className="h-4 w-4 rounded border-gray-300 accent-teal-600 cursor-pointer"
                   />
@@ -430,12 +463,16 @@ export default function ReceiptsPage() {
               {filteredPayments.map((payment) => (
                 <tr key={payment.id} className={`border-b last:border-b-0 hover:bg-muted/20 transition-colors ${selectedIds.has(payment.id) ? "bg-teal-50 dark:bg-teal-900/10" : ""}`}>
                   <td className="py-3 px-3">
-                    <input
-                      type="checkbox"
-                      checked={selectedIds.has(payment.id)}
-                      onChange={() => toggleSelect(payment.id)}
-                      className="h-4 w-4 rounded border-gray-300 accent-teal-600 cursor-pointer"
-                    />
+                    {payment.hasReceipt ? (
+                      <input
+                        type="checkbox"
+                        checked={selectedIds.has(payment.id)}
+                        onChange={() => toggleSelect(payment.id)}
+                        className="h-4 w-4 rounded border-gray-300 accent-teal-600 cursor-pointer"
+                      />
+                    ) : (
+                      <span className="block w-4" />
+                    )}
                   </td>
                   <td className="py-3 px-4 text-sm">
                     <div className="flex items-center gap-1.5">
@@ -480,14 +517,16 @@ export default function ReceiptsPage() {
                       ) : (
                         <span className="text-muted-foreground text-xs">לא הופקה</span>
                       )}
-                      <button
-                        onClick={() => downloadReceiptPdf(payment)}
-                        className="inline-flex items-center gap-1 text-xs text-blue-600 hover:text-blue-700 hover:underline"
-                        title="הורד קבלה כקובץ PDF"
-                      >
-                        <Download className="h-3.5 w-3.5" />
-                        הורד PDF
-                      </button>
+                      {payment.hasReceipt && (
+                        <button
+                          onClick={() => downloadReceiptPdf(payment)}
+                          className="inline-flex items-center gap-1 text-xs text-blue-600 hover:text-blue-700 hover:underline"
+                          title="הורד קבלה כקובץ PDF"
+                        >
+                          <Download className="h-3.5 w-3.5" />
+                          הורד PDF
+                        </button>
+                      )}
                     </div>
                   </td>
                 </tr>
