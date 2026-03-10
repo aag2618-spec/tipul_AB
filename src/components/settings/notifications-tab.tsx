@@ -105,11 +105,11 @@ export function NotificationsTab() {
   const [isLoading, setIsLoading] = useState(true);
   const [isSaving, setIsSaving] = useState(false);
 
-  useEffect(() => {
+  const loadSettings = () => {
     Promise.all([
-      fetch("/api/user/notification-settings").then(r => r.ok ? r.json() : []),
-      fetch("/api/sms/settings").then(r => r.ok ? r.json() : null),
-      fetch("/api/user/communication-settings").then(r => r.ok ? r.json() : null),
+      fetch("/api/user/notification-settings", { cache: "no-store" }).then(r => r.ok ? r.json() : []),
+      fetch("/api/sms/settings", { cache: "no-store" }).then(r => r.ok ? r.json() : null),
+      fetch("/api/user/communication-settings", { cache: "no-store" }).then(r => r.ok ? r.json() : null),
     ]).then(([notifData, smsData, commData]) => {
       if (notifData && notifData.length > 0) {
         const emailSetting = notifData.find((s: { channel: string }) => s.channel === "email");
@@ -127,6 +127,10 @@ export function NotificationsTab() {
       if (commData?.settings) setCommSettings(commData.settings);
     }).catch(err => console.error("Failed to load settings:", err))
       .finally(() => setIsLoading(false));
+  };
+
+  useEffect(() => {
+    loadSettings();
   }, []);
 
   const handleSaveAll = async () => {
@@ -155,6 +159,7 @@ export function NotificationsTab() {
         toast.error(`שגיאה בשמירת ${failed.length} הגדרות. נסה שוב.`);
       } else {
         toast.success("כל ההגדרות נשמרו בהצלחה");
+        loadSettings();
       }
     } catch {
       toast.error("שגיאה בשמירת ההגדרות");

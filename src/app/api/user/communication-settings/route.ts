@@ -3,9 +3,9 @@ import { getServerSession } from "next-auth";
 import { authOptions } from "@/lib/auth";
 import prisma from "@/lib/prisma";
 
-// GET /api/user/communication-settings
 export const dynamic = "force-dynamic";
 
+// GET /api/user/communication-settings
 export async function GET() {
   try {
     const session = await getServerSession(authOptions);
