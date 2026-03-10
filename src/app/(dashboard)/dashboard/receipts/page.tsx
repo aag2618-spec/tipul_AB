@@ -187,8 +187,9 @@ export default function ReceiptsPage() {
   };
 
   const downloadReceiptPdf = async (payment: ReceiptPayment) => {
+    const receiptNum = payment.receiptNumber || `R-${payment.id.slice(0, 8).toUpperCase()}`;
+    toast.loading("מכין PDF...", { id: "pdf-dl" });
     try {
-      const receiptNum = payment.receiptNumber || `R-${payment.id.slice(0, 8).toUpperCase()}`;
       const canvas = await renderAndCapture(buildReceiptHtml(payment));
       const { jsPDF } = await import("jspdf");
 
@@ -196,15 +197,21 @@ export default function ReceiptsPage() {
       const pageWidth = 210;
       const imgHeight = (canvas.height * pageWidth) / canvas.width;
       pdf.addImage(canvas.toDataURL("image/png"), "PNG", 0, 0, pageWidth, imgHeight);
-      pdf.save(`קבלה_${receiptNum}.pdf`);
-      toast.success("הקבלה הורדה בהצלחה");
+
+      const blob = pdf.output("blob");
+      const url = URL.createObjectURL(blob);
+      const a = document.createElement("a");
+      a.href = url;
+      a.download = `קבלה_${receiptNum}.pdf`;
+      document.body.appendChild(a);
+      a.click();
+      document.body.removeChild(a);
+      URL.revokeObjectURL(url);
+
+      toast.success("הקבלה הורדה בהצלחה", { id: "pdf-dl" });
     } catch (err) {
       console.error("PDF error:", err);
-      if (payment.receiptUrl) {
-        window.open(payment.receiptUrl, "_blank");
-      } else {
-        toast.error("שגיאה ביצירת PDF");
-      }
+      toast.error("שגיאה ביצירת PDF, נסה שוב", { id: "pdf-dl" });
     }
   };
 
@@ -225,7 +232,16 @@ export default function ReceiptsPage() {
         pdf.addImage(canvas.toDataURL("image/png"), "PNG", 0, 0, pageWidth, imgHeight);
       }
 
-      pdf.save(`קבלות_${format(new Date(), "yyyy-MM-dd")}.pdf`);
+      const blob = pdf.output("blob");
+      const url = URL.createObjectURL(blob);
+      const a = document.createElement("a");
+      a.href = url;
+      a.download = `קבלות_${format(new Date(), "yyyy-MM-dd")}.pdf`;
+      document.body.appendChild(a);
+      a.click();
+      document.body.removeChild(a);
+      URL.revokeObjectURL(url);
+
       toast.success(`${selected.length} קבלות הורדו בהצלחה`);
       setSelectedIds(new Set());
     } catch (err) {
@@ -373,6 +389,16 @@ export default function ReceiptsPage() {
         </Select>
       </div>
 
+      {/* Bulk Download Hint */}
+      {filteredPayments.length > 0 && selectedIds.size === 0 && (
+        <div className="bg-blue-50 dark:bg-blue-950/20 border border-blue-200 dark:border-blue-800 rounded-lg px-4 py-3 flex items-center gap-3">
+          <FileDown className="h-5 w-5 text-blue-500 flex-shrink-0" />
+          <p className="text-sm text-blue-700 dark:text-blue-300">
+            <span className="font-medium">הורדה מרובה:</span> סמן קבלות באמצעות תיבות הסימון בצד ימין, ואז לחץ על כפתור ההורדה שיופיע למעלה
+          </p>
+        </div>
+      )}
+
       {/* Table */}
       <div className="bg-white dark:bg-background rounded-lg border overflow-hidden">
         {filteredPayments.length === 0 ? (
@@ -434,15 +460,21 @@ export default function ReceiptsPage() {
                   <td className="py-3 px-4 text-sm">
                     <div className="flex items-center gap-2">
                       {payment.receiptUrl ? (
-                        <a
-                          href={payment.receiptUrl}
-                          target="_blank"
-                          rel="noopener noreferrer"
-                          className="inline-flex items-center gap-1 text-teal-600 hover:text-teal-700 font-medium text-xs"
-                        >
-                          <ExternalLink className="h-3.5 w-3.5" />
-                          צפה
-                        </a>
+                        <>
+                          {payment.receiptUrl.includes("icount") && (
+                            <Badge variant="outline" className="text-xs border-blue-300 text-blue-600">iCount</Badge>
+                          )}
+                          <a
+                            href={payment.receiptUrl}
+                            target="_blank"
+                            rel="noopener noreferrer"
+                            className="inline-flex items-center gap-1 text-teal-600 hover:text-teal-700 font-medium text-xs"
+                            title={payment.receiptUrl.includes("icount") ? "פתח קבלה באתר iCount" : "צפה בקבלה"}
+                          >
+                            <ExternalLink className="h-3.5 w-3.5" />
+                            צפה
+                          </a>
+                        </>
                       ) : payment.hasReceipt ? (
                         <Badge variant="secondary" className="text-xs">הופקה</Badge>
                       ) : (
@@ -451,10 +483,10 @@ export default function ReceiptsPage() {
                       <button
                         onClick={() => downloadReceiptPdf(payment)}
                         className="inline-flex items-center gap-1 text-xs text-blue-600 hover:text-blue-700 hover:underline"
-                        title="הורד PDF"
+                        title="הורד קבלה כקובץ PDF"
                       >
-                        <FileDown className="h-3.5 w-3.5" />
-                        PDF
+                        <Download className="h-3.5 w-3.5" />
+                        הורד PDF
                       </button>
                     </div>
                   </td>

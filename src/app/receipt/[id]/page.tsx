@@ -100,10 +100,19 @@ export default function PublicReceiptPage({
       const fileName = receipt.receiptNumber
         ? `קבלה_${receipt.receiptNumber}.pdf`
         : `קבלה_${format(new Date(receipt.paidAt || receipt.createdAt), "yyyy-MM-dd")}.pdf`;
-      pdf.save(fileName);
+
+      const blob = pdf.output("blob");
+      const url = URL.createObjectURL(blob);
+      const a = document.createElement("a");
+      a.href = url;
+      a.download = fileName;
+      document.body.appendChild(a);
+      a.click();
+      document.body.removeChild(a);
+      URL.revokeObjectURL(url);
     } catch (err) {
       console.error("PDF generation error:", err);
-      window.print();
+      alert("שגיאה ביצירת PDF. נסה שוב או השתמש בכפתור ההדפסה.");
     }
   };
 
