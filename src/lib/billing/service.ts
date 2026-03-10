@@ -233,7 +233,7 @@ export class BillingService {
         price: request.amount,
       }],
       paymentType: request.paymentMethod,
-      sendEmail: request.sendEmail,
+      sendEmail: false,
       notes: request.notes,
     });
 
@@ -302,7 +302,7 @@ export class BillingService {
         unit_price: request.amount,
       }],
       payment_type: request.paymentMethod,
-      send_email: request.sendEmail,
+      send_email: false,
       notes: request.notes,
     });
 
@@ -342,7 +342,7 @@ export class BillingService {
         price: request.amount,
       }],
       remarks: request.notes,
-      sendEmail: request.sendEmail,
+      sendEmail: false,
     });
 
     console.log('Green Invoice createReceipt response:', JSON.stringify(response));
@@ -377,7 +377,7 @@ export class BillingService {
         Price: request.amount,
       }],
       PaymentMethod: SumitClient.mapPaymentMethod(request.paymentMethod),
-      SendEmail: request.sendEmail,
+      SendEmail: false,
       Comments: request.notes,
     });
 
