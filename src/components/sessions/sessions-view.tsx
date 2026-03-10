@@ -871,6 +871,52 @@ export function SessionsView({ initialSessions }: SessionsViewProps) {
                   {updateStatus === "COMPLETED" ? "עדכון ללא תשלום" : updateStatus === "CANCELLED" ? "ביטול ללא חיוב" : "אי הגעה ללא חיוב"}
                 </Button>
 
+                <Button
+                  type="button"
+                  variant="outline"
+                  className="w-full font-bold text-base border-amber-300 text-amber-700 hover:bg-amber-50"
+                  onClick={async () => {
+                    setUpdating(true);
+                    try {
+                      const statusBody: Record<string, unknown> = { status: updateStatus, createPayment: true, markAsPaid: false };
+                      if (updateStatus === "CANCELLED") {
+                        statusBody.cancellationReason = updateReason.trim() || undefined;
+                      }
+                      const response = await fetch(`/api/sessions/${updateDialog.sessionId}`, {
+                        method: "PUT",
+                        headers: { "Content-Type": "application/json" },
+                        body: JSON.stringify(statusBody),
+                      });
+                      if (response.ok) {
+                        toast.success("הפגישה עודכנה והחוב נרשם");
+                        const newStatus = updateStatus;
+                        setSessions(prev => prev.map(s =>
+                          s.id === updateDialog.sessionId ? { ...s, status: newStatus } : s
+                        ));
+                        setUpdateDialog({ open: false, sessionId: "", clientName: "", clientId: "", price: 0 });
+                        setUpdateStatus("");
+                        setUpdateReason("");
+                        setPaymentAmount("");
+                        setShowPayment(true);
+                        setShowAdvanced(false);
+                        setPaymentType("FULL");
+                        setPartialAmount("");
+                        setNoChargeReason("");
+                      } else {
+                        toast.error("שגיאה בעדכון הפגישה");
+                      }
+                    } catch {
+                      toast.error("שגיאה בעדכון הפגישה");
+                    } finally {
+                      setUpdating(false);
+                    }
+                  }}
+                  disabled={updating}
+                >
+                  {updating ? <Loader2 className="h-4 w-4 animate-spin ml-1" /> : <Wallet className="h-4 w-4 ml-1" />}
+                  רשום כחוב
+                </Button>
+
                 {!showPayment && (
                   <div className="space-y-2 p-3 rounded-lg border bg-orange-50/50 border-orange-200">
                     <Label className="text-sm text-orange-700">סיבה לאי חיוב (אופציונלי)</Label>

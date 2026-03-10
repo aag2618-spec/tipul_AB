@@ -1810,6 +1810,30 @@ export default function CalendarPage() {
               כן, לחייב
             </Button>
             <Button
+              variant="secondary"
+              onClick={async () => {
+                if (!selectedSession || !pendingAction || !selectedSession.client) return;
+                try {
+                  const response = await fetch(`/api/sessions/${selectedSession.id}`, {
+                    method: "PUT",
+                    headers: { "Content-Type": "application/json" },
+                    body: JSON.stringify({ status: pendingAction, createPayment: true, markAsPaid: false }),
+                  });
+                  if (response.ok) {
+                    toast.success("הפגישה עודכנה והחוב נרשם");
+                    setIsChargeDialogOpen(false);
+                    setIsSessionDialogOpen(false);
+                    setPendingAction(null);
+                    await fetchData();
+                  }
+                } catch {
+                  toast.error("שגיאה בעדכון הפגישה");
+                }
+              }}
+            >
+              רשום כחוב
+            </Button>
+            <Button
               variant="outline"
               onClick={async () => {
                 if (!selectedSession || !pendingAction) return;
@@ -1826,14 +1850,13 @@ export default function CalendarPage() {
                   setIsSessionDialogOpen(false);
                   setPendingAction(null);
                   
-                  // Refresh data to get updated session without payment
                   await fetchData();
                 } catch {
                   toast.error("שגיאה בעדכון הפגישה");
                 }
               }}
             >
-              לא, פטור מתשלום
+              פטור מתשלום
             </Button>
           </DialogFooter>
         </DialogContent>
@@ -1926,6 +1949,43 @@ export default function CalendarPage() {
                   onClick={() => setShowUpdatePayment(false)}
                 >
                   {updateStatus === "COMPLETED" ? "עדכון ללא תשלום" : updateStatus === "CANCELLED" ? "ביטול ללא חיוב" : "אי הגעה ללא חיוב"}
+                </Button>
+
+                <Button
+                  type="button"
+                  variant="outline"
+                  className="w-full font-bold text-base border-amber-300 text-amber-700 hover:bg-amber-50"
+                  onClick={async () => {
+                    if (!selectedSession.client) return;
+                    setUpdating(true);
+                    try {
+                      const statusBody: Record<string, unknown> = { status: updateStatus, createPayment: true, markAsPaid: false };
+                      if (updateStatus === "CANCELLED") {
+                        statusBody.cancellationReason = updateReason.trim() || undefined;
+                      }
+                      const response = await fetch(`/api/sessions/${selectedSession.id}`, {
+                        method: "PUT",
+                        headers: { "Content-Type": "application/json" },
+                        body: JSON.stringify(statusBody),
+                      });
+                      if (response.ok) {
+                        toast.success("הפגישה עודכנה והחוב נרשם");
+                        resetUpdateDialog();
+                        setSelectedSession(null);
+                        fetchData();
+                      } else {
+                        toast.error("שגיאה בעדכון הפגישה");
+                      }
+                    } catch {
+                      toast.error("שגיאה בעדכון הפגישה");
+                    } finally {
+                      setUpdating(false);
+                    }
+                  }}
+                  disabled={updating}
+                >
+                  {updating ? <Loader2 className="h-4 w-4 animate-spin ml-1" /> : <Wallet className="h-4 w-4 ml-1" />}
+                  רשום כחוב
                 </Button>
 
                 {!showUpdatePayment && (
