@@ -209,7 +209,7 @@ export async function POST(request: NextRequest) {
         }
 
         // שליחת מייל אישור תשלום
-        if (commSettings?.sendPaymentReceipt) {
+        if (commSettings?.sendPaymentReceipt !== false) {
           const allPayments = await prisma.payment.findMany({
             where: {
               clientId: payment.client.id,
@@ -250,7 +250,7 @@ export async function POST(request: NextRequest) {
           });
 
           // שליחה למטופל
-          if (commSettings.sendReceiptToClient && payment.client.email) {
+          if (commSettings?.sendReceiptToClient !== false && payment.client.email) {
             const emailResult = await sendEmail({
               to: payment.client.email,
               subject,
@@ -274,7 +274,7 @@ export async function POST(request: NextRequest) {
           }
 
           // שליחת עותק למטפל
-          if (commSettings.sendReceiptToTherapist && therapist?.email) {
+          if (commSettings?.sendReceiptToTherapist !== false && therapist?.email) {
             await sendEmail({
               to: therapist.email,
               subject: `[עותק] ${subject}`,

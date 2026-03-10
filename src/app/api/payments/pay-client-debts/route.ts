@@ -219,7 +219,7 @@ export async function POST(req: NextRequest) {
         }
 
         // שליחת מייל קבלה
-        if (commSettings?.sendPaymentReceipt) {
+        if (commSettings?.sendPaymentReceipt !== false) {
           const allPendingPayments = await prisma.payment.findMany({
             where: { clientId, status: "PENDING" },
           });
@@ -262,7 +262,7 @@ export async function POST(req: NextRequest) {
           });
 
           // שליחה למטופל
-          if (commSettings.sendReceiptToClient && result.clientEmail) {
+          if (commSettings?.sendReceiptToClient !== false && result.clientEmail) {
             const emailResult = await sendEmail({
               to: result.clientEmail,
               subject,
@@ -286,7 +286,7 @@ export async function POST(req: NextRequest) {
           }
 
           // שליחת עותק למטפל
-          if (commSettings.sendReceiptToTherapist && therapist?.email) {
+          if (commSettings?.sendReceiptToTherapist !== false && therapist?.email) {
             await sendEmail({
               to: therapist.email,
               subject: `[עותק] ${subject}`,

@@ -239,7 +239,8 @@ export async function PUT(
           where: { userId: session.user.id },
         });
 
-        if (commSettings?.sendPaymentReceipt) {
+        const shouldSendReceipt = commSettings?.sendPaymentReceipt !== false;
+        if (shouldSendReceipt) {
           const therapist = await prisma.user.findUnique({
             where: { id: session.user.id },
           });
@@ -283,7 +284,7 @@ export async function PUT(
             },
           });
 
-          if (commSettings.sendReceiptToClient && existingPayment.client.email) {
+          if (commSettings?.sendReceiptToClient !== false && existingPayment.client.email) {
             const emailResult = await sendEmail({
               to: existingPayment.client.email,
               subject,
@@ -306,7 +307,7 @@ export async function PUT(
             });
           }
 
-          if (commSettings.sendReceiptToTherapist && therapist?.email) {
+          if (commSettings?.sendReceiptToTherapist !== false && therapist?.email) {
             await sendEmail({
               to: therapist.email,
               subject: `[עותק] ${subject}`,
