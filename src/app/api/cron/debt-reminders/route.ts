@@ -1,6 +1,9 @@
 import { NextRequest, NextResponse } from "next/server";
 import prisma from "@/lib/prisma";
 import { sendEmail } from "@/lib/resend";
+
+export const dynamic = "force-dynamic";
+
 // Helper function to create debt reminder email
 function createDebtReminderEmail(
   clientName: string,
