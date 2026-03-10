@@ -68,7 +68,7 @@ async function getDashboardStats(userId: string) {
     archivedClients,
     sessionsThisWeek,
     sessionsThisMonth,
-    pendingPayments,
+    pendingPaymentsRaw,
     pendingTasks,
     todaySessions,
     todaySessionPreps,
@@ -93,11 +93,16 @@ async function getDashboardStats(userId: string) {
         type: { not: "BREAK" }
       },
     }),
-    // Count actual pending payments
-    prisma.payment.count({
+    // Fetch pending payments to properly filter only truly unpaid ones
+    prisma.payment.findMany({
       where: {
         client: { therapistId: userId },
         status: "PENDING",
+        parentPaymentId: null,
+      },
+      select: {
+        amount: true,
+        expectedAmount: true,
       },
     }),
     // Count tasks - only show WRITE_SUMMARY tasks for past sessions
@@ -200,6 +205,12 @@ async function getDashboardStats(userId: string) {
     ...session,
     hasPrep: session.client ? prepsByClientId.has(session.client.id) : false,
   }));
+
+  const pendingPayments = pendingPaymentsRaw.filter((p) => {
+    const paid = Number(p.amount);
+    const expected = Number(p.expectedAmount) || 0;
+    return expected > 0 && paid < expected;
+  }).length;
 
   return {
     totalClients,
