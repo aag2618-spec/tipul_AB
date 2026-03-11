@@ -75,12 +75,14 @@ export async function PUT(
     let receiptUrl: string | undefined;
     let hasReceipt = false;
     let receiptError: string | undefined;
+    let receiptBusinessType: string | undefined;
     
     if (issueReceipt) {
       const user = await prisma.user.findUnique({
         where: { id: session.user.id },
         select: { nextReceiptNumber: true, businessType: true },
       });
+      receiptBusinessType = user?.businessType || undefined;
       
       if (user && user.businessType !== "NONE") {
         if (user.businessType === "EXEMPT") {
@@ -166,12 +168,14 @@ export async function PUT(
     const expectedAmount = Number(existingPayment.expectedAmount) || 0;
     const existingAmount = Number(existingPayment.amount);
     
+    let childPaymentId: string | null = null;
+
     if (amount !== undefined) {
       const newPaymentAmount = Number(amount);
       
       // Only create child payment if this is a partial payment or adding to existing partial
       if (paymentMode === "PARTIAL" || (existingAmount > 0 && newPaymentAmount < (expectedAmount - existingAmount + 1))) {
-        await prisma.payment.create({
+        const childPayment = await prisma.payment.create({
           data: {
             parentPaymentId: id,
             clientId: existingPayment.clientId,
@@ -183,9 +187,10 @@ export async function PUT(
             paymentType: "PARTIAL",
           },
         });
+        childPaymentId = childPayment.id;
       } else if (existingAmount > 0) {
         // Completing a previously partial payment - record the final installment
-        await prisma.payment.create({
+        const childPayment = await prisma.payment.create({
           data: {
             parentPaymentId: id,
             clientId: existingPayment.clientId,
@@ -197,10 +202,28 @@ export async function PUT(
             paymentType: "FULL",
           },
         });
+        childPaymentId = childPayment.id;
       }
       
       finalAmount = existingAmount + newPaymentAmount;
       finalStatus = finalAmount >= expectedAmount ? "PAID" : "PENDING";
+    }
+
+    // Store receipt on the CHILD payment if one was created, to avoid overwriting parent's receipt
+    if (childPaymentId && hasReceipt) {
+      const childReceiptUrl = receiptBusinessType === "EXEMPT"
+        ? getReceiptPageUrl(childPaymentId)
+        : receiptUrl;
+      await prisma.payment.update({
+        where: { id: childPaymentId },
+        data: {
+          receiptNumber,
+          receiptUrl: childReceiptUrl,
+          hasReceipt: true,
+        },
+      });
+      // Update local var so the email also uses the child's receipt URL
+      receiptUrl = childReceiptUrl;
     }
 
     const now = new Date();
@@ -213,9 +236,12 @@ export async function PUT(
         paymentType: finalAmount >= expectedAmount ? "FULL" : (paymentMode || undefined),
         notes: notes !== undefined ? notes : undefined,
         paidAt: finalStatus === "PAID" ? (paidAt || now) : (paymentMode === "PARTIAL" ? now : undefined),
-        receiptNumber: receiptNumber || undefined,
-        receiptUrl: receiptUrl || undefined,
-        hasReceipt: hasReceipt || undefined,
+        // Only set receipt on parent if no child was created (avoid overwriting existing receipt)
+        ...(childPaymentId ? {} : {
+          receiptNumber: receiptNumber || undefined,
+          receiptUrl: receiptUrl || undefined,
+          hasReceipt: hasReceipt || undefined,
+        }),
       },
     });
 

@@ -35,6 +35,7 @@ interface ReceiptPayment {
   receiptNumber: string | null;
   receiptUrl: string | null;
   hasReceipt: boolean;
+  parentPaymentId: string | null;
   client: {
     id: string;
     name: string;
@@ -92,7 +93,10 @@ export default function ReceiptsPage() {
       const response = await fetch("/api/payments");
       if (response.ok) {
         const data = await response.json();
-        setPayments(data.filter((p: ReceiptPayment) => p.status === "PAID" || p.hasReceipt));
+        setPayments(data.filter((p: ReceiptPayment) => 
+          (p.status === "PAID" || p.hasReceipt) && 
+          (!p.parentPaymentId || p.hasReceipt)
+        ));
       } else {
         toast.error("שגיאה בטעינת נתונים");
       }
@@ -110,9 +114,16 @@ export default function ReceiptsPage() {
       : format(new Date(payment.createdAt), "dd בMMMM yyyy", { locale: he });
     const methodLabel = METHOD_LABELS[payment.method] || payment.method;
     const receiptNum = payment.receiptNumber || `R-${payment.id.slice(0, 8).toUpperCase()}`;
-    const sessionDate = payment.session
+    let sessionDate = payment.session
       ? format(new Date(payment.session.startTime), "dd/MM/yyyy")
       : null;
+    // For child payments, use parent's session date
+    if (!sessionDate && payment.parentPaymentId) {
+      const parent = payments.find(p => p.id === payment.parentPaymentId);
+      if (parent?.session) {
+        sessionDate = format(new Date(parent.session.startTime), "dd/MM/yyyy");
+      }
+    }
     const isPartial = Number(payment.amount) < Number(payment.expectedAmount);
 
     return `

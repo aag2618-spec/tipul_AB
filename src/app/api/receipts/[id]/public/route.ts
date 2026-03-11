@@ -29,6 +29,7 @@ export async function GET(
       include: {
         client: { select: { name: true } },
         session: { select: { startTime: true, type: true } },
+        parentPayment: { select: { session: { select: { startTime: true } } } },
       },
     });
 
@@ -50,6 +51,10 @@ export async function GET(
     const expectedAmount = Number(payment.expectedAmount || payment.amount);
     const isPartial = amount < expectedAmount;
 
+    const sessionDate = payment.session?.startTime 
+      || payment.parentPayment?.session?.startTime 
+      || null;
+
     return NextResponse.json({
       receiptNumber: payment.receiptNumber,
       amount,
@@ -58,7 +63,7 @@ export async function GET(
       paidAt: payment.paidAt,
       createdAt: payment.createdAt,
       clientName: payment.client.name,
-      sessionDate: payment.session?.startTime || null,
+      sessionDate,
       receiptUrl: payment.receiptUrl,
       isPartial,
       remaining: isPartial ? expectedAmount - amount : 0,

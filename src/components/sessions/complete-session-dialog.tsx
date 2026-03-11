@@ -1,6 +1,6 @@
 "use client";
 
-import { useState } from "react";
+import { useState, useEffect } from "react";
 import { Button } from "@/components/ui/button";
 import {
   Dialog,
@@ -22,6 +22,7 @@ import { Label } from "@/components/ui/label";
 import { Textarea } from "@/components/ui/textarea";
 import { Input } from "@/components/ui/input";
 import { Badge } from "@/components/ui/badge";
+import { Checkbox } from "@/components/ui/checkbox";
 import { CheckCircle, Loader2, FileText, ChevronDown, ChevronUp } from "lucide-react";
 import { toast } from "sonner";
 import { useRouter } from "next/navigation";
@@ -81,14 +82,28 @@ export function CompleteSessionDialog(props: CompleteSessionDialogProps) {
   const [showAdvanced, setShowAdvanced] = useState(false);
   const [paymentType, setPaymentType] = useState<"FULL" | "PARTIAL" | "ADVANCE" | "CREDIT">("FULL");
   const [partialAmount, setPartialAmount] = useState<string>("");
+  const [issueReceipt, setIssueReceipt] = useState<boolean>(false);
+  const [receiptMode, setReceiptMode] = useState<"ALWAYS" | "ASK" | "NEVER">("ASK");
+  const [businessType, setBusinessType] = useState<"NONE" | "EXEMPT" | "LICENSED">("NONE");
   const router = useRouter();
+
+  useEffect(() => {
+    if (isOpen) {
+      fetch("/api/user/business-settings")
+        .then((res) => res.json())
+        .then((data) => {
+          if (data.businessType) setBusinessType(data.businessType);
+          if (data.receiptDefaultMode) setReceiptMode(data.receiptDefaultMode);
+          if (data.receiptDefaultMode === "ALWAYS") setIssueReceipt(true);
+          else if (data.receiptDefaultMode === "NEVER") setIssueReceipt(false);
+        })
+        .catch(() => {});
+    }
+  }, [isOpen]);
 
   const handleComplete = async () => {
     setIsLoading(true);
     try {
-      const updates: any[] = [];
-
-      // הוסף תשלום
       let actualAmount = parseFloat(amount);
       let actualPaymentType: "FULL" | "PARTIAL" | "ADVANCE" = "FULL";
       let useCredit = false;
@@ -113,50 +128,44 @@ export function CompleteSessionDialog(props: CompleteSessionDialogProps) {
         actualAmount = parseFloat(partialAmount) || 0;
       }
 
-      updates.push(
-        fetch("/api/payments", {
-          method: "POST",
-          headers: { "Content-Type": "application/json" },
-          body: JSON.stringify({
-            clientId,
-            sessionId: paymentType === "ADVANCE" ? null : sessionId,
-            amount: actualAmount,
-            expectedAmount: paymentType === "PARTIAL" ? defaultAmount : undefined,
-            paymentType: actualPaymentType,
-            method: paymentMethod,
-            status: "PAID",
-          }),
-        }).then(async (res) => {
-          if (!res.ok) throw new Error("Payment failed");
-          // If using credit, update payment
-          if (useCredit) {
-            const paymentData = await res.json();
-            return fetch(`/api/payments/${paymentData.id}`, {
-              method: "PUT",
-              headers: { "Content-Type": "application/json" },
-              body: JSON.stringify({
-                status: "PAID",
-                useCredit: true,
-              }),
-            });
-          }
-          return res;
-        })
-      );
+      // Step 1: Create payment first (with receipt)
+      const paymentRes = await fetch("/api/payments", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({
+          clientId,
+          sessionId: paymentType === "ADVANCE" ? null : sessionId,
+          amount: actualAmount,
+          expectedAmount: paymentType === "PARTIAL" ? defaultAmount : undefined,
+          paymentType: actualPaymentType,
+          method: paymentMethod,
+          status: "PAID",
+          issueReceipt: businessType !== "NONE" && issueReceipt,
+        }),
+      });
 
-      // עדכן סטטוס המפגש להושלם
-      updates.push(
-        fetch(`/api/sessions/${sessionId}`, {
+      if (!paymentRes.ok) throw new Error("Payment failed");
+      const paymentResult = await paymentRes.json();
+
+      // Step 1b: If using credit, update payment
+      if (useCredit) {
+        await fetch(`/api/payments/${paymentResult.id}`, {
           method: "PUT",
           headers: { "Content-Type": "application/json" },
-          body: JSON.stringify({
-            status: "COMPLETED",
-            markAsPaid: true,
-          }),
-        })
-      );
+          body: JSON.stringify({ status: "PAID", useCredit: true }),
+        });
+      }
 
-      await Promise.all(updates);
+      // Step 2: Update session status (payment already exists, session PUT will find it and skip)
+      await fetch(`/api/sessions/${sessionId}`, {
+        method: "PUT",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ status: "COMPLETED" }),
+      });
+
+      if (paymentResult?.receiptError) {
+        toast.error(`שגיאה בהפקת קבלה: ${paymentResult.receiptError}`, { duration: 8000 });
+      }
 
       toast.success("המפגש הושלם בהצלחה!");
       setIsOpen(false);
@@ -283,6 +292,25 @@ export function CompleteSessionDialog(props: CompleteSessionDialogProps) {
                   </Select>
                 </div>
               </div>
+
+              {/* הוצאת קבלה */}
+              {businessType !== "NONE" && receiptMode !== "NEVER" && (
+                <div className="flex items-center gap-3 py-2 px-3 bg-sky-50 rounded-lg border border-sky-200">
+                  <Checkbox
+                    id="issue-receipt-complete"
+                    checked={issueReceipt}
+                    onCheckedChange={(checked) => setIssueReceipt(checked === true)}
+                    disabled={receiptMode === "ALWAYS"}
+                  />
+                  <Label htmlFor="issue-receipt-complete" className="cursor-pointer flex items-center gap-2 text-sky-800">
+                    <FileText className="h-4 w-4" />
+                    הוצא קבלה
+                    {receiptMode === "ALWAYS" && (
+                      <span className="text-xs text-sky-600">(ברירת מחדל)</span>
+                    )}
+                  </Label>
+                </div>
+              )}
 
               {/* Advanced Options */}
               <div className="space-y-3">
