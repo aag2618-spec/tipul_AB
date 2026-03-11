@@ -149,8 +149,6 @@ export async function POST(req: NextRequest) {
         where: { id: clientId },
       });
 
-      let localReceiptCounter = therapist?.nextReceiptNumber || 1;
-
       // הנפקת קבלות לכל תשלום שהתקבל (כולל חלקי)
       for (const payment of result.updatedPayments) {
         const amountPaidNow = (payment as { _amountPaidNow?: number })._amountPaidNow || 0;
@@ -161,15 +159,19 @@ export async function POST(req: NextRequest) {
 
         if (therapist?.businessType && therapist.businessType !== "NONE") {
           if (therapist.businessType === "EXEMPT") {
-            const year = new Date().getFullYear();
-            receiptNumber = `${year}-${String(localReceiptCounter).padStart(4, "0")}`;
-            receiptUrl = getReceiptPageUrl(payment.id);
-            localReceiptCounter++;
-
-            await prisma.user.update({
-              where: { id: session.user.id },
-              data: { nextReceiptNumber: localReceiptCounter },
+            await prisma.user.updateMany({
+              where: { id: session.user.id, nextReceiptNumber: null },
+              data: { nextReceiptNumber: 1 },
             });
+            const receiptUser = await prisma.user.update({
+              where: { id: session.user.id },
+              data: { nextReceiptNumber: { increment: 1 } },
+              select: { nextReceiptNumber: true },
+            });
+            const reservedNumber = (receiptUser.nextReceiptNumber ?? 2) - 1;
+            const year = new Date().getFullYear();
+            receiptNumber = `${year}-${String(reservedNumber).padStart(4, "0")}`;
+            receiptUrl = getReceiptPageUrl(payment.id);
 
             await prisma.payment.update({
               where: { id: payment.id },
@@ -200,7 +202,7 @@ export async function POST(req: NextRequest) {
                 amount: amountPaidNow,
                 description,
                 paymentMethod: mapPaymentMethod(method),
-                sendEmail: commSettings?.sendReceiptToClient ?? true,
+                sendEmail: false,
               });
 
               if (receiptResult.success) {

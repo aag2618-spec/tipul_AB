@@ -159,15 +159,19 @@ export async function POST(request: NextRequest) {
 
         if (issueReceipt !== false && therapist?.businessType !== "NONE") {
           if (therapist?.businessType === "EXEMPT") {
-            const currentNumber = therapist.nextReceiptNumber || 1;
-            const year = new Date().getFullYear();
-            receiptNumber = `${year}-${String(currentNumber).padStart(4, "0")}`;
-            receiptUrl = getReceiptPageUrl(payment.id);
-
-            await prisma.user.update({
-              where: { id: session.user.id },
-              data: { nextReceiptNumber: currentNumber + 1 },
+            await prisma.user.updateMany({
+              where: { id: session.user.id, nextReceiptNumber: null },
+              data: { nextReceiptNumber: 1 },
             });
+            const receiptUser = await prisma.user.update({
+              where: { id: session.user.id },
+              data: { nextReceiptNumber: { increment: 1 } },
+              select: { nextReceiptNumber: true },
+            });
+            const reservedNumber = (receiptUser.nextReceiptNumber ?? 2) - 1;
+            const year = new Date().getFullYear();
+            receiptNumber = `${year}-${String(reservedNumber).padStart(4, "0")}`;
+            receiptUrl = getReceiptPageUrl(payment.id);
 
             await prisma.payment.update({
               where: { id: payment.id },
@@ -186,7 +190,7 @@ export async function POST(request: NextRequest) {
                   ? `תשלום עבור פגישה בתאריך ${new Date(payment.session.startTime).toLocaleDateString('he-IL', { timeZone: 'Asia/Jerusalem' })}`
                   : `תשלום עבור טיפול`,
                 paymentMethod: mapPaymentMethod(method),
-                sendEmail: commSettings?.sendReceiptToClient ?? true,
+                sendEmail: false,
               });
 
               if (receiptResult.success) {

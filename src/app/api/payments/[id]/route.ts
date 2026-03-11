@@ -80,22 +80,26 @@ export async function PUT(
     if (issueReceipt) {
       const user = await prisma.user.findUnique({
         where: { id: session.user.id },
-        select: { nextReceiptNumber: true, businessType: true },
+        select: { businessType: true },
       });
       receiptBusinessType = user?.businessType || undefined;
       
       if (user && user.businessType !== "NONE") {
         if (user.businessType === "EXEMPT") {
-          const currentNumber = user.nextReceiptNumber || 1;
+          await prisma.user.updateMany({
+            where: { id: session.user.id, nextReceiptNumber: null },
+            data: { nextReceiptNumber: 1 },
+          });
+          const receiptUser = await prisma.user.update({
+            where: { id: session.user.id },
+            data: { nextReceiptNumber: { increment: 1 } },
+            select: { nextReceiptNumber: true },
+          });
+          const reservedNumber = (receiptUser.nextReceiptNumber ?? 2) - 1;
           const year = new Date().getFullYear();
-          receiptNumber = `${year}-${String(currentNumber).padStart(4, "0")}`;
+          receiptNumber = `${year}-${String(reservedNumber).padStart(4, "0")}`;
           receiptUrl = getReceiptPageUrl(id);
           hasReceipt = true;
-          
-          await prisma.user.update({
-            where: { id: session.user.id },
-            data: { nextReceiptNumber: currentNumber + 1 },
-          });
         } else {
           // עוסק מורשה: יצירת קבלה דרך ספק חיוב
           try {
@@ -121,7 +125,7 @@ export async function PUT(
               amount: receiptAmount,
               description: receiptDesc,
               paymentMethod: mapPaymentMethod(method || existingPayment.method),
-              sendEmail: commSettings?.sendReceiptToClient ?? true,
+              sendEmail: false,
             });
 
             if (receiptResult.success) {
@@ -162,6 +166,10 @@ export async function PUT(
         );
       }
     }
+
+    const freshCreditBalance = creditUsed && Number(creditUsed) > 0
+      ? (await prisma.client.findUnique({ where: { id: existingPayment.client.id }, select: { creditBalance: true } }))?.creditBalance
+      : null;
 
     let finalStatus = status;
     let finalAmount = Number(existingPayment.amount);
@@ -298,7 +306,7 @@ export async function PUT(
             },
             clientBalance: {
               remainingDebt,
-              credit: Number(existingPayment.client.creditBalance),
+              credit: Number(freshCreditBalance ?? existingPayment.client.creditBalance),
             },
             customization: {
               paymentInstructions: commSettings?.paymentInstructions,
