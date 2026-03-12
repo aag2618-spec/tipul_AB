@@ -86,10 +86,6 @@ export async function PUT(
       
       if (user && user.businessType !== "NONE") {
         if (user.businessType === "EXEMPT") {
-          await prisma.user.updateMany({
-            where: { id: session.user.id, nextReceiptNumber: null },
-            data: { nextReceiptNumber: 1 },
-          });
           const receiptUser = await prisma.user.update({
             where: { id: session.user.id },
             data: { nextReceiptNumber: { increment: 1 } },
