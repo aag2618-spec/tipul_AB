@@ -1,6 +1,6 @@
 "use client";
 
-import { useEffect, useState, useCallback, useRef } from "react";
+import { useEffect, useState, useCallback } from "react";
 import { useSearchParams, useRouter } from "next/navigation";
 import dynamic from "next/dynamic";
 import { Button } from "@/components/ui/button";
@@ -157,6 +157,7 @@ export default function CalendarPage() {
     clientId: string;
     amount: number;
     paymentId?: string;
+    pendingSessionStatus?: string;
   } | null>(null);
   const [selectedDate, setSelectedDate] = useState<Date | null>(null);
   const [formData, setFormData] = useState({
@@ -177,7 +178,6 @@ export default function CalendarPage() {
   const [isSubmitting, setIsSubmitting] = useState(false);
   const [showDurationCustomizer, setShowDurationCustomizer] = useState(false);
   const [customDuration, setCustomDuration] = useState(defaultSessionDuration);
-  const paramsHandled = useRef(false);
 
   const fetchData = useCallback(async () => {
     try {
@@ -276,31 +276,6 @@ export default function CalendarPage() {
   useEffect(() => {
     setRecurringFormData(prev => ({ ...prev, duration: defaultSessionDuration }));
   }, [defaultSessionDuration]);
-
-  useEffect(() => {
-    if (isLoading || paramsHandled.current) return;
-    const newParam = searchParams.get("new");
-    const clientParam = searchParams.get("client");
-    if (newParam === "true" || clientParam) {
-      paramsHandled.current = true;
-      const now = new Date();
-      const startTime = format(now, "yyyy-MM-dd'T'HH:mm");
-      const endDate = new Date(now.getTime() + defaultSessionDuration * 60000);
-      const endTime = format(endDate, "yyyy-MM-dd'T'HH:mm");
-      const selectedClient = clientParam ? clients.find(c => c.id === clientParam) : null;
-      setSelectedDate(now);
-      setFormData({
-        clientId: clientParam || "",
-        startTime,
-        endTime,
-        type: "IN_PERSON",
-        price: selectedClient?.defaultSessionPrice ? String(selectedClient.defaultSessionPrice) : "",
-        isRecurring: false,
-        weeksToRepeat: 4,
-      });
-      setIsDialogOpen(true);
-    }
-  }, [isLoading, searchParams, clients, defaultSessionDuration]);
 
   // הצג פגישות מבוטלות שכבר עברו, הסתר מבוטלות עתידיות
   const events: CalendarEvent[] = sessions
@@ -491,27 +466,52 @@ export default function CalendarPage() {
     setUpdating(true);
     try {
       if (updateStatus === "COMPLETED" && showUpdatePayment && selectedSession.price > 0 && selectedSession.client) {
-        const response = await fetch(`/api/sessions/${selectedSession.id}`, {
-          method: "PUT",
+        const paymentAmount = updatePaymentType === "PARTIAL"
+          ? (parseFloat(updatePartialAmount) || 0)
+          : Number(selectedSession.price);
+
+        if (updatePaymentType === "PARTIAL" && (paymentAmount <= 0 || paymentAmount > selectedSession.price)) {
+          toast.error("סכום חלקי לא תקין");
+          setUpdating(false);
+          return;
+        }
+
+        const paymentResponse = await fetch("/api/payments", {
+          method: "POST",
           headers: { "Content-Type": "application/json" },
-          body: JSON.stringify({ status: "COMPLETED", createPayment: true, markAsPaid: false }),
+          body: JSON.stringify({
+            clientId: selectedSession.client.id,
+            sessionId: selectedSession.id,
+            amount: paymentAmount,
+            expectedAmount: Number(selectedSession.price),
+            paymentType: updatePaymentType === "PARTIAL" ? "PARTIAL" : "FULL",
+            method: updatePaymentMethod,
+            status: "PAID",
+            issueReceipt: updateBusinessType !== "NONE" && updateIssueReceipt,
+          }),
         });
 
-        if (response.ok) {
-          const updatedSession = await response.json();
-          toast.success("הפגישה עודכנה כהושלמה");
-          resetUpdateDialog();
-          setPaymentData({
-            sessionId: selectedSession.id,
-            clientId: selectedSession.client.id,
-            amount: selectedSession.price,
-            paymentId: updatedSession.payment?.id,
-          });
-          setIsPaymentDialogOpen(true);
-          fetchData();
-        } else {
-          toast.error("שגיאה בעדכון הפגישה");
+        if (!paymentResponse.ok) {
+          toast.error("שגיאה ביצירת התשלום");
+          setUpdating(false);
+          return;
         }
+
+        const paymentResult = await paymentResponse.json();
+
+        await fetch(`/api/sessions/${selectedSession.id}`, {
+          method: "PUT",
+          headers: { "Content-Type": "application/json" },
+          body: JSON.stringify({ status: "COMPLETED" }),
+        });
+
+        toast.success("הפגישה הושלמה והתשלום בוצע");
+        if (paymentResult?.receiptError) {
+          toast.error(`שגיאה בהפקת קבלה: ${paymentResult.receiptError}`, { duration: 8000 });
+        }
+        resetUpdateDialog();
+        setSelectedSession(null);
+        fetchData();
         return;
       }
 
@@ -828,65 +828,6 @@ export default function CalendarPage() {
     }
   };
 
-
-  const handleEventDrop = async (info) => {
-    const session = sessions.find(s => s.id === info.event.id);
-    if (!session || session.status !== "SCHEDULED") {
-      info.revert();
-      toast.error("ניתן להזיז רק פגישות מתוכננות");
-      return;
-    }
-    try {
-      const response = await fetch(`/api/sessions/${info.event.id}`, {
-        method: "PUT",
-        headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({
-          startTime: info.event.start.toISOString(),
-          endTime: info.event.end.toISOString(),
-        }),
-      });
-      if (response.ok) {
-        toast.success("הפגישה הוזזה בהצלחה");
-        fetchData();
-      } else {
-        info.revert();
-        toast.error("שגיאה בהזזת הפגישה");
-      }
-    } catch {
-      info.revert();
-      toast.error("שגיאה בהזזת הפגישה");
-    }
-  };
-
-  const handleEventResize = async (info) => {
-    const session = sessions.find(s => s.id === info.event.id);
-    if (!session || session.status !== "SCHEDULED") {
-      info.revert();
-      toast.error("ניתן לשנות גודל רק של פגישות מתוכננות");
-      return;
-    }
-    try {
-      const response = await fetch(`/api/sessions/${info.event.id}`, {
-        method: "PUT",
-        headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({
-          startTime: info.event.start.toISOString(),
-          endTime: info.event.end.toISOString(),
-        }),
-      });
-      if (response.ok) {
-        toast.success("משך הפגישה עודכן בהצלחה");
-        fetchData();
-      } else {
-        info.revert();
-        toast.error("שגיאה בעדכון משך הפגישה");
-      }
-    } catch {
-      info.revert();
-      toast.error("שגיאה בעדכון משך הפגישה");
-    }
-  };
-
   if (isLoading) {
     return (
       <div className="h-[calc(100vh-200px)] flex items-center justify-center">
@@ -959,11 +900,8 @@ export default function CalendarPage() {
             allDaySlot={false}
             slotDuration="00:30:00"
             events={events}
-            editable={true}
             dateClick={handleDateClick}
             eventClick={handleEventClick}
-            eventDrop={handleEventDrop}
-            eventResize={handleEventResize}
             eventContent={renderEventContent}
             height="auto"
             eventTimeFormat={{
@@ -1250,39 +1188,17 @@ export default function CalendarPage() {
                             {pattern.client && ` • ${pattern.client.name}`}
                           </p>
                         </div>
-                        <div className="flex items-center gap-2">
-                          <Switch
-                            checked={pattern.isActive}
-                            onCheckedChange={async (checked) => {
-                              await fetch(`/api/recurring-patterns/${pattern.id}`, {
-                                method: "PUT",
-                                headers: { "Content-Type": "application/json" },
-                                body: JSON.stringify({ isActive: checked }),
-                              });
-                              fetchData();
-                            }}
-                          />
-                          <button
-                            onClick={async () => {
-                              if (!confirm("האם אתה בטוח שברצונך למחוק את התבנית?")) return;
-                              try {
-                                const res = await fetch(`/api/recurring-patterns/${pattern.id}`, { method: "DELETE" });
-                                if (res.ok) {
-                                  toast.success("התבנית נמחקה בהצלחה");
-                                  fetchData();
-                                } else {
-                                  toast.error("שגיאה במחיקת התבנית");
-                                }
-                              } catch {
-                                toast.error("שגיאה במחיקת התבנית");
-                              }
-                            }}
-                            className="text-muted-foreground hover:text-red-500 transition-colors p-1"
-                            title="מחק תבנית"
-                          >
-                            <Trash2 className="h-4 w-4" />
-                          </button>
-                        </div>
+                        <Switch
+                          checked={pattern.isActive}
+                          onCheckedChange={async (checked) => {
+                            await fetch(`/api/recurring-patterns/${pattern.id}`, {
+                              method: "PUT",
+                              headers: { "Content-Type": "application/json" },
+                              body: JSON.stringify({ isActive: checked }),
+                            });
+                            fetchData();
+                          }}
+                        />
                       </div>
                     ))}
                   </div>
@@ -1379,16 +1295,16 @@ export default function CalendarPage() {
                   <div className="space-y-2">
                     <Label>מטופל (אופציונלי)</Label>
                     <Select
-                      value={recurringFormData.clientId || "none"}
+                      value={recurringFormData.clientId}
                       onValueChange={(value) =>
-                        setRecurringFormData((prev) => ({ ...prev, clientId: value === "none" ? "" : value }))
+                        setRecurringFormData((prev) => ({ ...prev, clientId: value }))
                       }
                     >
                       <SelectTrigger>
                         <SelectValue placeholder="ללא" />
                       </SelectTrigger>
                       <SelectContent>
-                        <SelectItem value="none">ללא</SelectItem>
+                        <SelectItem value="">ללא</SelectItem>
                         {clients.map((client) => (
                           <SelectItem key={client.id} value={client.id}>
                             {client.name}
@@ -1659,32 +1575,16 @@ export default function CalendarPage() {
                       
                       {/* 1. סיים ושלם */}
                       <button
-                        onClick={async () => {
+                        onClick={() => {
                           if (!selectedSession.client) return;
-                          try {
-                            // Update session status to COMPLETED (this will auto-create payment)
-                            const response = await fetch(`/api/sessions/${selectedSession.id}`, {
-                              method: "PUT",
-                              headers: { "Content-Type": "application/json" },
-                              body: JSON.stringify({ status: "COMPLETED", createPayment: true, markAsPaid: false }),
-                            });
-                            
-                            if (response.ok) {
-                              const updatedSession = await response.json();
-                              // סגור את דיאלוג הפגישה ופתח את דיאלוג התשלום
-                              setIsSessionDialogOpen(false);
-                              setPaymentData({
-                                sessionId: selectedSession.id,
-                                clientId: selectedSession.client.id,
-                                amount: selectedSession.price,
-                                paymentId: updatedSession.payment?.id,
-                              });
-                              setIsPaymentDialogOpen(true);
-                              fetchData(); // Refresh data in background
-                            }
-                          } catch {
-                            toast.error("שגיאה בעדכון הפגישה");
-                          }
+                          setIsSessionDialogOpen(false);
+                          setPaymentData({
+                            sessionId: selectedSession.id,
+                            clientId: selectedSession.client.id,
+                            amount: selectedSession.price,
+                            pendingSessionStatus: "COMPLETED",
+                          });
+                          setIsPaymentDialogOpen(true);
                         }}
                         className="w-full py-3 px-4 text-right hover:bg-green-50 transition-colors flex items-center gap-3"
                       >
@@ -1925,38 +1825,19 @@ export default function CalendarPage() {
           </DialogHeader>
           <DialogFooter className="flex-row-reverse gap-2">
             <Button
-              onClick={async () => {
+              onClick={() => {
                 if (!selectedSession || !pendingAction || !selectedSession.client) return;
-                try {
-                  // Update session status and create payment
-                  const response = await fetch(`/api/sessions/${selectedSession.id}`, {
-                    method: "PUT",
-                    headers: { "Content-Type": "application/json" },
-                    body: JSON.stringify({ 
-                      status: pendingAction,
-                      createPayment: true, // Create payment for cancelled/no-show
-                      markAsPaid: false, // Don't auto-mark as paid, let user choose payment method
-                    }),
-                  });
-                  
-                  if (response.ok) {
-                    const updatedSession = await response.json();
-                    // סגור את הדיאלוגים ופתח את דיאלוג התשלום
-                    setIsChargeDialogOpen(false);
-                    setIsSessionDialogOpen(false);
-                    setPendingAction(null);
-                    setPaymentData({
-                      sessionId: selectedSession.id,
-                      clientId: selectedSession.client.id,
-                      amount: selectedSession.price,
-                      paymentId: updatedSession.payment?.id,
-                    });
-                    setIsPaymentDialogOpen(true);
-                    fetchData(); // Refresh data in background
-                  }
-                } catch {
-                  toast.error("שגיאה בעדכון הפגישה");
-                }
+                const status = pendingAction;
+                setIsChargeDialogOpen(false);
+                setIsSessionDialogOpen(false);
+                setPendingAction(null);
+                setPaymentData({
+                  sessionId: selectedSession.id,
+                  clientId: selectedSession.client.id,
+                  amount: selectedSession.price,
+                  pendingSessionStatus: status,
+                });
+                setIsPaymentDialogOpen(true);
               }}
             >
               כן, לחייב
@@ -2032,6 +1913,14 @@ export default function CalendarPage() {
             }
           }}
           hideButton={true}
+          onPaymentSuccess={paymentData.pendingSessionStatus ? async () => {
+            await fetch(`/api/sessions/${paymentData.sessionId}`, {
+              method: "PUT",
+              headers: { "Content-Type": "application/json" },
+              body: JSON.stringify({ status: paymentData.pendingSessionStatus }),
+            });
+            fetchData();
+          } : undefined}
         />
       )}
 

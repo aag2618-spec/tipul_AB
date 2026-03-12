@@ -334,40 +334,61 @@ export function SessionsView({ initialSessions }: SessionsViewProps) {
     setUpdating(true);
     try {
       if (updateStatus === "COMPLETED" && showPayment && updateDialog.price > 0 && updateDialog.clientId) {
-        const response = await fetch(`/api/sessions/${updateDialog.sessionId}`, {
-          method: "PUT",
+        const pmtAmount = paymentType === "PARTIAL"
+          ? (parseFloat(partialAmount) || 0)
+          : Number(updateDialog.price);
+
+        if (paymentType === "PARTIAL" && (pmtAmount <= 0 || pmtAmount > updateDialog.price)) {
+          toast.error("סכום חלקי לא תקין");
+          setUpdating(false);
+          return;
+        }
+
+        const paymentResponse = await fetch("/api/payments", {
+          method: "POST",
           headers: { "Content-Type": "application/json" },
-          body: JSON.stringify({ status: "COMPLETED", createPayment: true, markAsPaid: false }),
+          body: JSON.stringify({
+            clientId: updateDialog.clientId,
+            sessionId: updateDialog.sessionId,
+            amount: pmtAmount,
+            expectedAmount: Number(updateDialog.price),
+            paymentType: paymentType === "PARTIAL" ? "PARTIAL" : "FULL",
+            method: paymentMethod,
+            status: "PAID",
+            issueReceipt: businessType !== "NONE" && issueReceipt,
+          }),
         });
 
-        if (response.ok) {
-          const updatedSession = await response.json();
-          toast.success("הפגישה עודכנה כהושלמה");
-          setSessions(prev => prev.map(s =>
-            s.id === updateDialog.sessionId ? { ...s, status: "COMPLETED" } : s
-          ));
-          const sessionForCredit = sessions.find(s => s.id === updateDialog.sessionId);
-          setPaymentDialogData({
-            sessionId: updateDialog.sessionId,
-            clientId: updateDialog.clientId,
-            clientName: updateDialog.clientName,
-            amount: updateDialog.price,
-            paymentId: updatedSession.payment?.id,
-            creditBalance: Number(sessionForCredit?.client?.creditBalance || 0),
-          });
-          setUpdateDialog({ open: false, sessionId: "", clientName: "", clientId: "", price: 0 });
-          setUpdateStatus("");
-          setUpdateReason("");
-          setPaymentAmount("");
-          setShowPayment(true);
-          setShowAdvanced(false);
-          setPaymentType("FULL");
-          setPartialAmount("");
-          setNoChargeReason("");
-          setIsPaymentDialogOpen(true);
-        } else {
-          toast.error("שגיאה בעדכון הפגישה");
+        if (!paymentResponse.ok) {
+          toast.error("שגיאה ביצירת התשלום");
+          setUpdating(false);
+          return;
         }
+
+        const paymentResult = await paymentResponse.json();
+
+        await fetch(`/api/sessions/${updateDialog.sessionId}`, {
+          method: "PUT",
+          headers: { "Content-Type": "application/json" },
+          body: JSON.stringify({ status: "COMPLETED" }),
+        });
+
+        toast.success("הפגישה הושלמה והתשלום בוצע");
+        if (paymentResult?.receiptError) {
+          toast.error(`שגיאה בהפקת קבלה: ${paymentResult.receiptError}`, { duration: 8000 });
+        }
+        setSessions(prev => prev.map(s =>
+          s.id === updateDialog.sessionId ? { ...s, status: "COMPLETED" } : s
+        ));
+        setUpdateDialog({ open: false, sessionId: "", clientName: "", clientId: "", price: 0 });
+        setUpdateStatus("");
+        setUpdateReason("");
+        setPaymentAmount("");
+        setShowPayment(true);
+        setShowAdvanced(false);
+        setPaymentType("FULL");
+        setPartialAmount("");
+        setNoChargeReason("");
         return;
       }
 
@@ -698,7 +719,7 @@ export function SessionsView({ initialSessions }: SessionsViewProps) {
               <p className="text-muted-foreground">{searchTerm ? "לא נמצאו תוצאות" : "אין פגישות קרובות"}</p>
               {!searchTerm && (
                 <Button variant="link" asChild className="mt-1 text-primary/70">
-                  <Link href="/dashboard/calendar?new=true">קבע פגישה חדשה</Link>
+                  <Link href="/dashboard/calendar">קבע פגישה חדשה</Link>
                 </Button>
               )}
             </div>

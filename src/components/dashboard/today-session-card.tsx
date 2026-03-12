@@ -185,27 +185,51 @@ export function TodaySessionCard({ session }: TodaySessionCardProps) {
     setUpdating(true);
     try {
       if (updateStatus === "COMPLETED" && showPayment && session.price > 0 && session.client) {
-        const response = await fetch(`/api/sessions/${session.id}`, {
-          method: "PUT",
+        const pmtAmount = paymentType === "PARTIAL"
+          ? (parseFloat(partialAmount) || 0)
+          : Number(session.price);
+
+        if (paymentType === "PARTIAL" && (pmtAmount <= 0 || pmtAmount > session.price)) {
+          toast.error("סכום חלקי לא תקין");
+          setUpdating(false);
+          return;
+        }
+
+        const paymentResponse = await fetch("/api/payments", {
+          method: "POST",
           headers: { "Content-Type": "application/json" },
-          body: JSON.stringify({ status: "COMPLETED", createPayment: true, markAsPaid: false }),
+          body: JSON.stringify({
+            clientId: session.client.id,
+            sessionId: session.id,
+            amount: pmtAmount,
+            expectedAmount: Number(session.price),
+            paymentType: paymentType === "PARTIAL" ? "PARTIAL" : "FULL",
+            method: paymentMethod,
+            status: "PAID",
+            issueReceipt: businessType !== "NONE" && issueReceipt,
+          }),
         });
 
-        if (response.ok) {
-          const updatedSession = await response.json();
-          toast.success("הפגישה עודכנה כהושלמה");
-          resetUpdateDialog();
-          setPaymentData({
-            sessionId: session.id,
-            clientId: session.client.id,
-            amount: session.price,
-            paymentId: updatedSession.payment?.id,
-          });
-          setIsPaymentDialogOpen(true);
-          router.refresh();
-        } else {
-          toast.error("שגיאה בעדכון הפגישה");
+        if (!paymentResponse.ok) {
+          toast.error("שגיאה ביצירת התשלום");
+          setUpdating(false);
+          return;
         }
+
+        const paymentResult = await paymentResponse.json();
+
+        await fetch(`/api/sessions/${session.id}`, {
+          method: "PUT",
+          headers: { "Content-Type": "application/json" },
+          body: JSON.stringify({ status: "COMPLETED" }),
+        });
+
+        toast.success("הפגישה הושלמה והתשלום בוצע");
+        if (paymentResult?.receiptError) {
+          toast.error(`שגיאה בהפקת קבלה: ${paymentResult.receiptError}`, { duration: 8000 });
+        }
+        resetUpdateDialog();
+        router.refresh();
         return;
       }
 

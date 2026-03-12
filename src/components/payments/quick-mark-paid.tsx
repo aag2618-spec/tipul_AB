@@ -47,6 +47,7 @@ interface QuickMarkPaidProps {
   onOpenChange?: (open: boolean) => void;
   hideButton?: boolean;
   children?: React.ReactNode;
+  onPaymentSuccess?: () => Promise<void> | void;
 }
 
 export function QuickMarkPaid({
@@ -64,6 +65,7 @@ export function QuickMarkPaid({
   onOpenChange,
   hideButton = false,
   children,
+  onPaymentSuccess,
 }: QuickMarkPaidProps) {
   const [internalOpen, setInternalOpen] = useState(false);
   
@@ -208,6 +210,14 @@ export function QuickMarkPaid({
         paymentType === "PARTIAL" ? "תשלום חלקי בוצע" :
         "התשלום סומן כשולם";
       
+      if (onPaymentSuccess) {
+        try {
+          await onPaymentSuccess();
+        } catch (err) {
+          console.error("onPaymentSuccess error:", err);
+        }
+      }
+
       toast.success(successMessage);
 
       if (result?.receiptError) {
