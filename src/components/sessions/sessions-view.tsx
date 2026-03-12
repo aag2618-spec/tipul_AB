@@ -698,7 +698,7 @@ export function SessionsView({ initialSessions }: SessionsViewProps) {
               <p className="text-muted-foreground">{searchTerm ? "לא נמצאו תוצאות" : "אין פגישות קרובות"}</p>
               {!searchTerm && (
                 <Button variant="link" asChild className="mt-1 text-primary/70">
-                  <Link href="/dashboard/calendar">קבע פגישה חדשה</Link>
+                  <Link href="/dashboard/calendar?new=true">קבע פגישה חדשה</Link>
                 </Button>
               )}
             </div>

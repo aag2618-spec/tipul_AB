@@ -298,7 +298,7 @@ export default async function DashboardPage() {
           </p>
         </div>
         <Button asChild>
-          <Link href="/dashboard/sessions/new">
+          <Link href="/dashboard/calendar?new=true">
             <Plus className="h-4 w-4 ml-2" />
             פגישה חדשה
           </Link>
@@ -404,7 +404,7 @@ export default async function DashboardPage() {
                 <Calendar className="mx-auto h-12 w-12 mb-3 opacity-50" />
                 <p>אין פגישות מתוכננות להיום</p>
                 <Button variant="link" asChild className="mt-2">
-                  <Link href="/dashboard/calendar">קבע פגישה חדשה</Link>
+                  <Link href="/dashboard/calendar?new=true">קבע פגישה חדשה</Link>
                 </Button>
               </div>
             )}

@@ -169,9 +169,9 @@ function NewSessionNoteContent() {
               <div className="space-y-2">
                 <Label>מטופל</Label>
                 <Select
-                  value={selectedClient}
+                  value={selectedClient || "all"}
                   onValueChange={(v) => {
-                    setSelectedClient(v);
+                    setSelectedClient(v === "all" ? "" : v);
                     setSelectedSession("");
                   }}
                 >
@@ -179,7 +179,7 @@ function NewSessionNoteContent() {
                     <SelectValue placeholder="כל המטופלים" />
                   </SelectTrigger>
                   <SelectContent>
-                    <SelectItem value="">כל המטופלים</SelectItem>
+                    <SelectItem value="all">כל המטופלים</SelectItem>
                     {clients.map((client) => (
                       <SelectItem key={client.id} value={client.id}>
                         {client.name}
@@ -203,7 +203,7 @@ function NewSessionNoteContent() {
                         </SelectItem>
                       ))
                     ) : (
-                      <SelectItem value="" disabled>
+                      <SelectItem value="no-sessions" disabled>
                         אין פגישות זמינות
                       </SelectItem>
                     )}
