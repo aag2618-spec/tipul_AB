@@ -50,9 +50,7 @@ import {
 import { toast } from "sonner";
 import {
   exportDetailedExcel,
-  exportAccountantExcel,
   exportDetailedPDF,
-  exportAccountantPDF,
   type PaymentExportData,
 } from "@/lib/export-utils";
 import { format, startOfMonth, endOfMonth, subMonths } from "date-fns";
@@ -715,77 +713,6 @@ export default function PaymentsPage() {
                         }}>
                           PDF
                         </DropdownMenuItem>
-                      </DropdownMenuContent>
-                    </DropdownMenu>
-
-                    {/* דוחות לרו"ח */}
-                    <DropdownMenu>
-                      <DropdownMenuTrigger asChild>
-                        <Button 
-                          variant="outline" 
-                          size="sm" 
-                          className="gap-1.5 bg-white/80 hover:bg-white border-sky-200 text-sky-700 hover:text-sky-800"
-                        >
-                          <Download className="h-3.5 w-3.5" />
-                          דוחות לרו"ח
-                        </Button>
-                      </DropdownMenuTrigger>
-                      <DropdownMenuContent align="end">
-                        <DropdownMenuLabel>דוחות שנתיים</DropdownMenuLabel>
-                        <DropdownMenuSeparator />
-                        {[2026, 2025, 2024].map(year => (
-                          <DropdownMenuItem key={year} onClick={() => {
-                            const exportData: PaymentExportData[] = paidPayments.map(p => ({
-                              id: p.id,
-                              clientName: p.clientName,
-                              amount: p.amount,
-                              expectedAmount: p.expectedAmount,
-                              method: p.method,
-                              status: p.status,
-                              paidAt: p.paidAt,
-                              createdAt: p.createdAt,
-                              sessionDate: p.session?.startTime || null,
-                              sessionType: p.session?.type || null,
-                              receiptNumber: null,
-                              hasReceipt: false,
-                            }));
-                            exportAccountantExcel(exportData, year);
-                            toast.success(`דוח שנת ${year} הורד בהצלחה`);
-                          }}>
-                            שנת {year} (Excel)
-                          </DropdownMenuItem>
-                        ))}
-                        <DropdownMenuSeparator />
-                        <DropdownMenuLabel>דוחות רבעוניים</DropdownMenuLabel>
-                        <DropdownMenuSeparator />
-                        {[
-                          { q: 1, label: "Q1 (ינו-מרץ)" },
-                          { q: 2, label: "Q2 (אפר-יוני)" },
-                          { q: 3, label: "Q3 (יולי-ספט)" },
-                          { q: 4, label: "Q4 (אוק-דצמ)" },
-                        ].map(({ q, label }) => (
-                          <DropdownMenuItem key={q} onClick={() => {
-                            const year = new Date().getFullYear();
-                            const exportData: PaymentExportData[] = paidPayments.map(p => ({
-                              id: p.id,
-                              clientName: p.clientName,
-                              amount: p.amount,
-                              expectedAmount: p.expectedAmount,
-                              method: p.method,
-                              status: p.status,
-                              paidAt: p.paidAt,
-                              createdAt: p.createdAt,
-                              sessionDate: p.session?.startTime || null,
-                              sessionType: p.session?.type || null,
-                              receiptNumber: null,
-                              hasReceipt: false,
-                            }));
-                            exportAccountantExcel(exportData, year, q);
-                            toast.success(`דוח ${label} ${year} הורד בהצלחה`);
-                          }}>
-                            {label} {new Date().getFullYear()}
-                          </DropdownMenuItem>
-                        ))}
                       </DropdownMenuContent>
                     </DropdownMenu>
                   </div>

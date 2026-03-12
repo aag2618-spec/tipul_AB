@@ -402,3 +402,129 @@ export function exportAccountantPDF(
   const fileName = `דוח_רואה_חשבון_${quarter ? `Q${quarter}_` : ""}${year}.pdf`;
   doc.save(fileName);
 }
+
+// ============ ACCOUNTANT REPORT (from Receipts page) ============
+export interface ReceiptExportData {
+  amount: number;
+  method: string;
+  paidAt: string | null;
+  createdAt: string;
+  receiptNumber: string | null;
+  clientName: string;
+}
+
+export function exportAccountantReport(
+  receipts: ReceiptExportData[],
+  year: number,
+  businessName: string,
+  quarter?: number
+): boolean {
+  const filtered = receipts.filter((r) => {
+    const date = r.paidAt ? new Date(r.paidAt) : new Date(r.createdAt);
+    if (date.getFullYear() !== year) return false;
+    if (quarter) {
+      const q = Math.floor(date.getMonth() / 3) + 1;
+      if (q !== quarter) return false;
+    }
+    return true;
+  });
+
+  if (filtered.length === 0) return false;
+
+  const wb = XLSX.utils.book_new();
+
+  const sorted = [...filtered].sort((a, b) => {
+    const dA = new Date(a.paidAt || a.createdAt).getTime();
+    const dB = new Date(b.paidAt || b.createdAt).getTime();
+    return dA - dB;
+  });
+
+  const totalRevenue = filtered.reduce((s, r) => s + Number(r.amount), 0);
+  const receiptCount = filtered.length;
+
+  const methodTotals: Record<string, number> = {};
+  filtered.forEach((r) => {
+    const label = getMethodLabel(r.method);
+    methodTotals[label] = (methodTotals[label] || 0) + Number(r.amount);
+  });
+
+  // --- Sheet 1: סיכום שנתי ---
+  const periodLabel = quarter ? `רבעון ${quarter}, ${year}` : `${year}`;
+  const summaryRows = [
+    ["שם העסק", businessName],
+    ["תקופת דיווח", periodLabel],
+    ["תאריך הפקה", format(new Date(), "dd/MM/yyyy HH:mm")],
+    ["סה\"כ הכנסות", `₪${totalRevenue.toLocaleString()}`],
+    ["מספר קבלות", receiptCount.toString()],
+    ...Object.entries(methodTotals).map(([m, t]) => [m, `₪${t.toLocaleString()}`]),
+  ];
+  const summaryWs = XLSX.utils.aoa_to_sheet([["שדה", "ערך"], ...summaryRows]);
+  summaryWs["!cols"] = [{ wch: 22 }, { wch: 20 }];
+  XLSX.utils.book_append_sheet(wb, summaryWs, quarter ? "סיכום רבעוני" : "סיכום שנתי");
+
+  // --- Sheet 2: פירוט קבלות ---
+  const detailHeaders = ["תאריך", "מספר קבלה", "שם מטופל", "סכום (₪)", "אמצעי תשלום"];
+  const detailRows = sorted.map((r) => [
+    r.paidAt ? format(new Date(r.paidAt), "dd/MM/yyyy") : format(new Date(r.createdAt), "dd/MM/yyyy"),
+    r.receiptNumber || "-",
+    r.clientName,
+    Number(r.amount),
+    getMethodLabel(r.method),
+  ]);
+  const detailWs = XLSX.utils.aoa_to_sheet([detailHeaders, ...detailRows]);
+  detailWs["!cols"] = [{ wch: 12 }, { wch: 14 }, { wch: 22 }, { wch: 12 }, { wch: 16 }];
+  XLSX.utils.book_append_sheet(wb, detailWs, "פירוט קבלות");
+
+  // --- Sheet 3: סיכום חודשי ---
+  const monthMap: Record<number, { count: number; total: number }> = {};
+  filtered.forEach((r) => {
+    const m = new Date(r.paidAt || r.createdAt).getMonth();
+    if (!monthMap[m]) monthMap[m] = { count: 0, total: 0 };
+    monthMap[m].count += 1;
+    monthMap[m].total += Number(r.amount);
+  });
+  const monthNames = ["ינואר","פברואר","מרץ","אפריל","מאי","יוני","יולי","אוגוסט","ספטמבר","אוקטובר","נובמבר","דצמבר"];
+  const monthHeaders = ["חודש", "מספר קבלות", "סה\"כ הכנסות (₪)"];
+  const monthRows = Object.keys(monthMap)
+    .map(Number)
+    .sort((a, b) => a - b)
+    .map((m) => [monthNames[m], monthMap[m].count, monthMap[m].total]);
+  const monthWs = XLSX.utils.aoa_to_sheet([monthHeaders, ...monthRows]);
+  monthWs["!cols"] = [{ wch: 14 }, { wch: 14 }, { wch: 18 }];
+  XLSX.utils.book_append_sheet(wb, monthWs, "סיכום חודשי");
+
+  // --- Sheet 4: סיכום רבעוני ---
+  const qMap: Record<number, { count: number; total: number }> = {};
+  filtered.forEach((r) => {
+    const q = Math.floor(new Date(r.paidAt || r.createdAt).getMonth() / 3) + 1;
+    if (!qMap[q]) qMap[q] = { count: 0, total: 0 };
+    qMap[q].count += 1;
+    qMap[q].total += Number(r.amount);
+  });
+  const qHeaders = ["רבעון", "מספר קבלות", "סה\"כ הכנסות (₪)"];
+  const qRows = Object.keys(qMap)
+    .map(Number)
+    .sort((a, b) => a - b)
+    .map((q) => [`Q${q}`, qMap[q].count, qMap[q].total]);
+  const qWs = XLSX.utils.aoa_to_sheet([qHeaders, ...qRows]);
+  qWs["!cols"] = [{ wch: 10 }, { wch: 14 }, { wch: 18 }];
+  XLSX.utils.book_append_sheet(wb, qWs, "סיכום רבעוני");
+
+  // --- Sheet 5: לפי אמצעי תשלום ---
+  const methodHeaders = ["אמצעי תשלום", "מספר קבלות", "סה\"כ (₪)"];
+  const methodCountMap: Record<string, { count: number; total: number }> = {};
+  filtered.forEach((r) => {
+    const label = getMethodLabel(r.method);
+    if (!methodCountMap[label]) methodCountMap[label] = { count: 0, total: 0 };
+    methodCountMap[label].count += 1;
+    methodCountMap[label].total += Number(r.amount);
+  });
+  const methodRows = Object.entries(methodCountMap).map(([m, d]) => [m, d.count, d.total]);
+  const methodWs = XLSX.utils.aoa_to_sheet([methodHeaders, ...methodRows]);
+  methodWs["!cols"] = [{ wch: 18 }, { wch: 14 }, { wch: 14 }];
+  XLSX.utils.book_append_sheet(wb, methodWs, "לפי אמצעי תשלום");
+
+  const fileLabel = quarter ? `Q${quarter}_${year}` : `${year}`;
+  XLSX.writeFile(wb, `דוח_לרואה_חשבון_${fileLabel}.xlsx`);
+  return true;
+}

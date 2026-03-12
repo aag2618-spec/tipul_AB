@@ -23,6 +23,18 @@ import {
 import { format } from "date-fns";
 import { he } from "date-fns/locale";
 import { toast } from "sonner";
+import {
+  exportAccountantReport,
+  type ReceiptExportData,
+} from "@/lib/export-utils";
+import {
+  DropdownMenu,
+  DropdownMenuContent,
+  DropdownMenuItem,
+  DropdownMenuLabel,
+  DropdownMenuSeparator,
+  DropdownMenuTrigger,
+} from "@/components/ui/dropdown-menu";
 
 interface ReceiptPayment {
   id: string;
@@ -384,6 +396,80 @@ export default function ReceiptsPage() {
               הורד {selectedIds.size} קבלות PDF
             </Button>
           )}
+          <DropdownMenu>
+            <DropdownMenuTrigger asChild>
+              <Button
+                variant="outline"
+                className="gap-2 border-sky-200 text-sky-700 hover:text-sky-800 hover:bg-sky-50"
+                disabled={payments.length === 0}
+              >
+                <FileText className="h-4 w-4" />
+                דוח לרו״ח
+              </Button>
+            </DropdownMenuTrigger>
+            <DropdownMenuContent align="end" className="w-52">
+              <DropdownMenuLabel>שנה שלמה</DropdownMenuLabel>
+              <DropdownMenuSeparator />
+              {[new Date().getFullYear(), new Date().getFullYear() - 1, new Date().getFullYear() - 2].map((y) => (
+                <DropdownMenuItem
+                  key={y}
+                  onClick={() => {
+                    const data: ReceiptExportData[] = payments.map((p) => ({
+                      amount: p.amount,
+                      method: p.method,
+                      paidAt: p.paidAt,
+                      createdAt: p.createdAt,
+                      receiptNumber: p.receiptNumber,
+                      clientName: p.client.name,
+                    }));
+                    const ok = exportAccountantReport(data, y, therapist?.businessName || therapist?.name || "");
+                    if (ok) {
+                      toast.success(`דוח שנת ${y} הורד בהצלחה`);
+                    } else {
+                      toast.error(`אין קבלות בשנת ${y}`);
+                    }
+                  }}
+                >
+                  שנת {y}
+                </DropdownMenuItem>
+              ))}
+              <DropdownMenuSeparator />
+              {[new Date().getFullYear(), new Date().getFullYear() - 1].map((qYear) => (
+                <div key={qYear}>
+                  <DropdownMenuLabel>רבעון ({qYear})</DropdownMenuLabel>
+                  <DropdownMenuSeparator />
+                  {[
+                    { q: 1, label: "Q1 (ינו׳-מרץ)" },
+                    { q: 2, label: "Q2 (אפר׳-יוני)" },
+                    { q: 3, label: "Q3 (יולי-ספט׳)" },
+                    { q: 4, label: "Q4 (אוק׳-דצמ׳)" },
+                  ].map(({ q, label }) => (
+                    <DropdownMenuItem
+                      key={`${qYear}-${q}`}
+                      onClick={() => {
+                        const data: ReceiptExportData[] = payments.map((p) => ({
+                          amount: p.amount,
+                          method: p.method,
+                          paidAt: p.paidAt,
+                          createdAt: p.createdAt,
+                          receiptNumber: p.receiptNumber,
+                          clientName: p.client.name,
+                        }));
+                        const ok = exportAccountantReport(data, qYear, therapist?.businessName || therapist?.name || "", q);
+                        if (ok) {
+                          toast.success(`דוח ${label} ${qYear} הורד בהצלחה`);
+                        } else {
+                          toast.error(`אין קבלות ב-${label} ${qYear}`);
+                        }
+                      }}
+                    >
+                      {label}
+                    </DropdownMenuItem>
+                  ))}
+                </div>
+              ))}
+            </DropdownMenuContent>
+          </DropdownMenu>
           <Button variant="outline" className="gap-2" onClick={handleExportCSV} disabled={filteredPayments.length === 0}>
             <Download className="h-4 w-4" />
             ייצוא CSV
