@@ -55,6 +55,7 @@ interface Session {
   price: number;
   cancellationReason?: string | null;
   cancelledAt?: string | null;
+  payment?: { id: string; status: string } | null;
   client?: {
     id: string;
     name: string;
@@ -160,7 +161,7 @@ export function SessionsView({ initialSessions }: SessionsViewProps) {
   const [cancelCharge, setCancelCharge] = useState<"ask" | "charge" | "free">("ask");
 
   const [updateDialog, setUpdateDialog] = useState<{
-    open: boolean; sessionId: string; clientName: string; clientId: string; price: number;
+    open: boolean; sessionId: string; clientName: string; clientId: string; price: number; existingPaymentId?: string;
   }>({ open: false, sessionId: "", clientName: "", clientId: "", price: 0 });
   const [updateStatus, setUpdateStatus] = useState<string>("");
   const [updateReason, setUpdateReason] = useState("");
@@ -344,20 +345,35 @@ export function SessionsView({ initialSessions }: SessionsViewProps) {
           return;
         }
 
-        const paymentResponse = await fetch("/api/payments", {
-          method: "POST",
-          headers: { "Content-Type": "application/json" },
-          body: JSON.stringify({
-            clientId: updateDialog.clientId,
-            sessionId: updateDialog.sessionId,
-            amount: pmtAmount,
-            expectedAmount: Number(updateDialog.price),
-            paymentType: paymentType === "PARTIAL" ? "PARTIAL" : "FULL",
-            method: paymentMethod,
-            status: "PAID",
-            issueReceipt: businessType !== "NONE" && issueReceipt,
-          }),
-        });
+        let paymentResponse: Response;
+
+        if (updateDialog.existingPaymentId) {
+          paymentResponse = await fetch(`/api/payments/${updateDialog.existingPaymentId}`, {
+            method: "PUT",
+            headers: { "Content-Type": "application/json" },
+            body: JSON.stringify({
+              amount: pmtAmount,
+              method: paymentMethod,
+              paidAt: new Date().toISOString(),
+              issueReceipt: businessType !== "NONE" && issueReceipt,
+            }),
+          });
+        } else {
+          paymentResponse = await fetch("/api/payments", {
+            method: "POST",
+            headers: { "Content-Type": "application/json" },
+            body: JSON.stringify({
+              clientId: updateDialog.clientId,
+              sessionId: updateDialog.sessionId,
+              amount: pmtAmount,
+              expectedAmount: Number(updateDialog.price),
+              paymentType: paymentType === "PARTIAL" ? "PARTIAL" : "FULL",
+              method: paymentMethod,
+              status: "PAID",
+              issueReceipt: businessType !== "NONE" && issueReceipt,
+            }),
+          });
+        }
 
         if (!paymentResponse.ok) {
           toast.error("שגיאה ביצירת התשלום");
@@ -411,22 +427,37 @@ export function SessionsView({ initialSessions }: SessionsViewProps) {
           ? parseFloat(partialAmount) || 0
           : parseFloat(paymentAmount) || 0;
         if (amt > 0) {
-          updates.push(
-            fetch("/api/payments", {
-              method: "POST",
-              headers: { "Content-Type": "application/json" },
-              body: JSON.stringify({
-                clientId: updateDialog.clientId,
-                sessionId: updateDialog.sessionId,
-                amount: amt,
-                expectedAmount: updateDialog.price || amt,
-                paymentType: paymentType === "PARTIAL" ? "PARTIAL" : "FULL",
-                method: paymentMethod,
-                status: "PAID",
-                issueReceipt: businessType !== "NONE" && issueReceipt,
-              }),
-            })
-          );
+          if (updateDialog.existingPaymentId) {
+            updates.push(
+              fetch(`/api/payments/${updateDialog.existingPaymentId}`, {
+                method: "PUT",
+                headers: { "Content-Type": "application/json" },
+                body: JSON.stringify({
+                  amount: amt,
+                  method: paymentMethod,
+                  paidAt: new Date().toISOString(),
+                  issueReceipt: businessType !== "NONE" && issueReceipt,
+                }),
+              })
+            );
+          } else {
+            updates.push(
+              fetch("/api/payments", {
+                method: "POST",
+                headers: { "Content-Type": "application/json" },
+                body: JSON.stringify({
+                  clientId: updateDialog.clientId,
+                  sessionId: updateDialog.sessionId,
+                  amount: amt,
+                  expectedAmount: updateDialog.price || amt,
+                  paymentType: paymentType === "PARTIAL" ? "PARTIAL" : "FULL",
+                  method: paymentMethod,
+                  status: "PAID",
+                  issueReceipt: businessType !== "NONE" && issueReceipt,
+                }),
+              })
+            );
+          }
         }
       }
 
@@ -504,6 +535,7 @@ export function SessionsView({ initialSessions }: SessionsViewProps) {
                   clientName: s.client?.name || "",
                   clientId: s.client?.id || "",
                   price: s.price || 0,
+                  existingPaymentId: s.payment?.id,
                 });
                 setPaymentAmount(s.price ? s.price.toString() : "");
               }}
