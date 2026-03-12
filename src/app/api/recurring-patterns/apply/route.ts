@@ -60,15 +60,35 @@ export async function POST(request: NextRequest) {
         // Calculate end time
         const sessionEnd = new Date(sessionStart.getTime() + pattern.duration * 60000);
 
-        // Check if session already exists at this time
-        const existing = await prisma.therapySession.findFirst({
+        // Check for any overlapping session (not just exact start time match)
+        const conflict = await prisma.therapySession.findFirst({
           where: {
             therapistId: session.user.id,
-            startTime: sessionStart,
+            status: { not: "CANCELLED" },
+            OR: [
+              {
+                AND: [
+                  { startTime: { lte: sessionStart } },
+                  { endTime: { gt: sessionStart } },
+                ],
+              },
+              {
+                AND: [
+                  { startTime: { lt: sessionEnd } },
+                  { endTime: { gte: sessionEnd } },
+                ],
+              },
+              {
+                AND: [
+                  { startTime: { gte: sessionStart } },
+                  { endTime: { lte: sessionEnd } },
+                ],
+              },
+            ],
           },
         });
 
-        if (existing) continue;
+        if (conflict) continue;
 
         // Skip patterns without a client
         if (!pattern.clientId) continue;

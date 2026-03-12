@@ -12,7 +12,7 @@ import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@
 import { Switch } from "@/components/ui/switch";
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
 import { Textarea } from "@/components/ui/textarea";
-import { Plus, Loader2, Calendar, Repeat, Settings, Waves, Trash2, User, FileText, Clock, AlertCircle, CheckCircle2, Ban, UserX, ChevronUp, ChevronDown, Wallet } from "lucide-react";
+import { Plus, Loader2, Calendar, Repeat, Settings, Waves, Trash2, User, FileText, Clock, AlertCircle, AlertTriangle, CheckCircle2, Ban, UserX, ChevronUp, ChevronDown, Wallet } from "lucide-react";
 import { Checkbox } from "@/components/ui/checkbox";
 import { format, addWeeks } from "date-fns";
 import { toast } from "sonner";
@@ -178,6 +178,9 @@ export default function CalendarPage() {
   const [showDurationCustomizer, setShowDurationCustomizer] = useState(false);
   const [customDuration, setCustomDuration] = useState(defaultSessionDuration);
   const paramsHandled = useRef(false);
+  const [overlaps, setOverlaps] = useState<any[]>([]);
+  const [showOverlapsDialog, setShowOverlapsDialog] = useState(false);
+  const [deletingOverlap, setDeletingOverlap] = useState<string | null>(null);
 
   const fetchData = useCallback(async () => {
     try {
@@ -219,8 +222,21 @@ export default function CalendarPage() {
     }
   }, []);
 
+  const checkOverlaps = useCallback(async () => {
+    try {
+      const res = await fetch("/api/sessions/overlaps");
+      if (res.ok) {
+        const data = await res.json();
+        setOverlaps(data.overlaps || []);
+      }
+    } catch {
+      // silently fail
+    }
+  }, []);
+
   useEffect(() => {
     fetchData();
+    checkOverlaps();
 
     const interval = setInterval(() => {
       fetch("/api/sessions").then(async (res) => {
@@ -247,7 +263,7 @@ export default function CalendarPage() {
       clearInterval(interval);
       window.removeEventListener("focus", onFocus);
     };
-  }, [fetchData]);
+  }, [fetchData, checkOverlaps]);
 
   useEffect(() => {
     if (!timeParam && !highlightParam) return;
@@ -905,6 +921,12 @@ export default function CalendarPage() {
           </p>
         </div>
         <div className="flex gap-2">
+          {overlaps.length > 0 && (
+            <Button variant="outline" className="text-amber-600 border-amber-300 hover:bg-amber-50" onClick={() => setShowOverlapsDialog(true)}>
+              <AlertTriangle className="ml-2 h-4 w-4" />
+              {overlaps.length} חפיפות
+            </Button>
+          )}
           <Button variant="outline" onClick={() => setIsRecurringDialogOpen(true)}>
             <Repeat className="ml-2 h-4 w-4" />
             תבנית שבועית
@@ -2329,6 +2351,89 @@ export default function CalendarPage() {
               </Button>
             )}
           </DialogFooter>
+        </DialogContent>
+      </Dialog>
+
+
+      {/* Overlaps Detection Dialog */}
+      <Dialog open={showOverlapsDialog} onOpenChange={setShowOverlapsDialog}>
+        <DialogContent className="sm:max-w-lg max-h-[80vh] overflow-y-auto">
+          <DialogHeader>
+            <DialogTitle className="flex items-center gap-2">
+              <AlertTriangle className="h-5 w-5 text-amber-500" />
+              פגישות חופפות ({overlaps.length})
+            </DialogTitle>
+            <DialogDescription>
+              הפגישות הבאות חופפות זו לזו. ניתן למחוק את הפגישה הלא רצויה.
+            </DialogDescription>
+          </DialogHeader>
+          <div className="space-y-3">
+            {overlaps.map((overlap, idx) => (
+              <div key={idx} className="border rounded-lg p-3 space-y-2">
+                <div className="flex items-center justify-between">
+                  <div className="text-sm">
+                    <p className="font-medium">{overlap.session1.clientName}</p>
+                    <p className="text-muted-foreground">
+                      {new Date(overlap.session1.startTime).toLocaleDateString("he-IL")}
+                      {" "}
+                      {new Date(overlap.session1.startTime).toLocaleTimeString("he-IL", { hour: "2-digit", minute: "2-digit" })}
+                      {" - "}
+                      {new Date(overlap.session1.endTime).toLocaleTimeString("he-IL", { hour: "2-digit", minute: "2-digit" })}
+                    </p>
+                  </div>
+                  <Button
+                    size="sm"
+                    variant="destructive"
+                    disabled={deletingOverlap === overlap.session1.id}
+                    onClick={async () => {
+                      if (!confirm("למחוק פגישה זו?")) return;
+                      setDeletingOverlap(overlap.session1.id);
+                      try {
+                        await fetch(`/api/sessions/${overlap.session1.id}`, { method: "DELETE" });
+                        toast.success("הפגישה נמחקה");
+                        fetchData();
+                        checkOverlaps();
+                      } catch { toast.error("שגיאה במחיקה"); }
+                      setDeletingOverlap(null);
+                    }}
+                  >
+                    <Trash2 className="h-3 w-3" />
+                  </Button>
+                </div>
+                <div className="text-xs text-center text-amber-500 font-medium">חופפת עם</div>
+                <div className="flex items-center justify-between">
+                  <div className="text-sm">
+                    <p className="font-medium">{overlap.session2.clientName}</p>
+                    <p className="text-muted-foreground">
+                      {new Date(overlap.session2.startTime).toLocaleDateString("he-IL")}
+                      {" "}
+                      {new Date(overlap.session2.startTime).toLocaleTimeString("he-IL", { hour: "2-digit", minute: "2-digit" })}
+                      {" - "}
+                      {new Date(overlap.session2.endTime).toLocaleTimeString("he-IL", { hour: "2-digit", minute: "2-digit" })}
+                    </p>
+                  </div>
+                  <Button
+                    size="sm"
+                    variant="destructive"
+                    disabled={deletingOverlap === overlap.session2.id}
+                    onClick={async () => {
+                      if (!confirm("למחוק פגישה זו?")) return;
+                      setDeletingOverlap(overlap.session2.id);
+                      try {
+                        await fetch(`/api/sessions/${overlap.session2.id}`, { method: "DELETE" });
+                        toast.success("הפגישה נמחקה");
+                        fetchData();
+                        checkOverlaps();
+                      } catch { toast.error("שגיאה במחיקה"); }
+                      setDeletingOverlap(null);
+                    }}
+                  >
+                    <Trash2 className="h-3 w-3" />
+                  </Button>
+                </div>
+              </div>
+            ))}
+          </div>
         </DialogContent>
       </Dialog>
 
