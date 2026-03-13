@@ -502,6 +502,7 @@ export default function CalendarPage() {
             headers: { "Content-Type": "application/json" },
             body: JSON.stringify({
               amount: paymentAmount,
+              paymentMode: updatePaymentType === "PARTIAL" ? "PARTIAL" : "FULL",
               method: updatePaymentMethod,
               paidAt: new Date().toISOString(),
               issueReceipt: updateBusinessType !== "NONE" && updateIssueReceipt,
@@ -518,7 +519,7 @@ export default function CalendarPage() {
               expectedAmount: Number(selectedSession.price),
               paymentType: updatePaymentType === "PARTIAL" ? "PARTIAL" : "FULL",
               method: updatePaymentMethod,
-              status: "PAID",
+              status: updatePaymentType === "PARTIAL" ? "PENDING" : "PAID",
               issueReceipt: updateBusinessType !== "NONE" && updateIssueReceipt,
             }),
           });
@@ -575,6 +576,7 @@ export default function CalendarPage() {
                 headers: { "Content-Type": "application/json" },
                 body: JSON.stringify({
                   amount: amt,
+                  paymentMode: updatePaymentType === "PARTIAL" ? "PARTIAL" : "FULL",
                   method: updatePaymentMethod,
                   paidAt: new Date().toISOString(),
                   issueReceipt: updateBusinessType !== "NONE" && updateIssueReceipt,

@@ -204,6 +204,7 @@ export function TodaySessionCard({ session }: TodaySessionCardProps) {
             headers: { "Content-Type": "application/json" },
             body: JSON.stringify({
               amount: pmtAmount,
+              paymentMode: paymentType === "PARTIAL" ? "PARTIAL" : "FULL",
               method: paymentMethod,
               paidAt: new Date().toISOString(),
               issueReceipt: businessType !== "NONE" && issueReceipt,
@@ -220,7 +221,7 @@ export function TodaySessionCard({ session }: TodaySessionCardProps) {
               expectedAmount: Number(session.price),
               paymentType: paymentType === "PARTIAL" ? "PARTIAL" : "FULL",
               method: paymentMethod,
-              status: "PAID",
+              status: paymentType === "PARTIAL" ? "PENDING" : "PAID",
               issueReceipt: businessType !== "NONE" && issueReceipt,
             }),
           });
@@ -275,6 +276,7 @@ export function TodaySessionCard({ session }: TodaySessionCardProps) {
                 headers: { "Content-Type": "application/json" },
                 body: JSON.stringify({
                   amount: amt,
+                  paymentMode: paymentType === "PARTIAL" ? "PARTIAL" : "FULL",
                   method: paymentMethod,
                   paidAt: new Date().toISOString(),
                   issueReceipt: businessType !== "NONE" && issueReceipt,

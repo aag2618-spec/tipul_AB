@@ -95,24 +95,48 @@ export async function POST(request: NextRequest) {
       }
     }
 
-    // Create payment
-    const payment = await prisma.payment.create({
-      data: {
-        clientId,
-        sessionId: sessionId || null,
-        amount,
-        expectedAmount: expectedAmount || amount,
-        paymentType,
-        method: method || "CASH",
-        status: status || "PENDING",
-        paidAt: status === "PAID" ? new Date() : null,
-        notes: notes || null,
-      },
-      include: {
-        client: true,
-        session: true,
-      },
-    });
+    // If session already has a payment, update it instead of creating a new one
+    let payment;
+    const existingSessionPayment = sessionId
+      ? await prisma.payment.findUnique({ where: { sessionId } })
+      : null;
+
+    if (existingSessionPayment) {
+      payment = await prisma.payment.update({
+        where: { sessionId },
+        data: {
+          amount,
+          expectedAmount: expectedAmount || amount,
+          paymentType,
+          method: method || "CASH",
+          status: status || "PENDING",
+          paidAt: status === "PAID" ? new Date() : null,
+          notes: notes || null,
+        },
+        include: {
+          client: true,
+          session: true,
+        },
+      });
+    } else {
+      payment = await prisma.payment.create({
+        data: {
+          clientId,
+          sessionId: sessionId || null,
+          amount,
+          expectedAmount: expectedAmount || amount,
+          paymentType,
+          method: method || "CASH",
+          status: status || "PENDING",
+          paidAt: status === "PAID" ? new Date() : null,
+          notes: notes || null,
+        },
+        include: {
+          client: true,
+          session: true,
+        },
+      });
+    }
 
     // Handle credit balance for ADVANCE payments
     if (paymentType === 'ADVANCE') {
