@@ -345,36 +345,20 @@ export function SessionsView({ initialSessions }: SessionsViewProps) {
           return;
         }
 
-        let paymentResponse: Response;
-
-        if (updateDialog.existingPaymentId) {
-          paymentResponse = await fetch(`/api/payments/${updateDialog.existingPaymentId}`, {
-            method: "PUT",
-            headers: { "Content-Type": "application/json" },
-            body: JSON.stringify({
-              amount: pmtAmount,
-              paymentMode: paymentType === "PARTIAL" ? "PARTIAL" : "FULL",
-              method: paymentMethod,
-              paidAt: new Date().toISOString(),
-              issueReceipt: businessType !== "NONE" && issueReceipt,
-            }),
-          });
-        } else {
-          paymentResponse = await fetch("/api/payments", {
-            method: "POST",
-            headers: { "Content-Type": "application/json" },
-            body: JSON.stringify({
-              clientId: updateDialog.clientId,
-              sessionId: updateDialog.sessionId,
-              amount: pmtAmount,
-              expectedAmount: Number(updateDialog.price),
-              paymentType: paymentType === "PARTIAL" ? "PARTIAL" : "FULL",
-              method: paymentMethod,
-              status: paymentType === "PARTIAL" ? "PENDING" : "PAID",
-              issueReceipt: businessType !== "NONE" && issueReceipt,
-            }),
-          });
-        }
+        const paymentResponse = await fetch("/api/payments", {
+          method: "POST",
+          headers: { "Content-Type": "application/json" },
+          body: JSON.stringify({
+            clientId: updateDialog.clientId,
+            sessionId: updateDialog.sessionId,
+            amount: pmtAmount,
+            expectedAmount: Number(updateDialog.price),
+            paymentType: paymentType === "PARTIAL" ? "PARTIAL" : "FULL",
+            method: paymentMethod,
+            status: paymentType === "PARTIAL" ? "PENDING" : "PAID",
+            issueReceipt: businessType !== "NONE" && issueReceipt,
+          }),
+        });
 
         if (!paymentResponse.ok) {
           toast.error("שגיאה ביצירת התשלום");
@@ -428,38 +412,22 @@ export function SessionsView({ initialSessions }: SessionsViewProps) {
           ? parseFloat(partialAmount) || 0
           : parseFloat(paymentAmount) || 0;
         if (amt > 0) {
-          if (updateDialog.existingPaymentId) {
-            updates.push(
-              fetch(`/api/payments/${updateDialog.existingPaymentId}`, {
-                method: "PUT",
-                headers: { "Content-Type": "application/json" },
-                body: JSON.stringify({
-                  amount: amt,
-                  paymentMode: paymentType === "PARTIAL" ? "PARTIAL" : "FULL",
-                  method: paymentMethod,
-                  paidAt: new Date().toISOString(),
-                  issueReceipt: businessType !== "NONE" && issueReceipt,
-                }),
-              })
-            );
-          } else {
-            updates.push(
-              fetch("/api/payments", {
-                method: "POST",
-                headers: { "Content-Type": "application/json" },
-                body: JSON.stringify({
-                  clientId: updateDialog.clientId,
-                  sessionId: updateDialog.sessionId,
-                  amount: amt,
-                  expectedAmount: updateDialog.price || amt,
-                  paymentType: paymentType === "PARTIAL" ? "PARTIAL" : "FULL",
-                  method: paymentMethod,
-                  status: "PAID",
-                  issueReceipt: businessType !== "NONE" && issueReceipt,
-                }),
-              })
-            );
-          }
+          updates.push(
+            fetch("/api/payments", {
+              method: "POST",
+              headers: { "Content-Type": "application/json" },
+              body: JSON.stringify({
+                clientId: updateDialog.clientId,
+                sessionId: updateDialog.sessionId,
+                amount: amt,
+                expectedAmount: updateDialog.price || amt,
+                paymentType: paymentType === "PARTIAL" ? "PARTIAL" : "FULL",
+                method: paymentMethod,
+                status: paymentType === "PARTIAL" ? "PENDING" : "PAID",
+                issueReceipt: businessType !== "NONE" && issueReceipt,
+              }),
+            })
+          );
         }
       }
 

@@ -493,37 +493,20 @@ export default function CalendarPage() {
           return;
         }
 
-        const existingPayment = selectedSession.payment;
-        let paymentResponse: Response;
-
-        if (existingPayment) {
-          paymentResponse = await fetch(`/api/payments/${existingPayment.id}`, {
-            method: "PUT",
-            headers: { "Content-Type": "application/json" },
-            body: JSON.stringify({
-              amount: paymentAmount,
-              paymentMode: updatePaymentType === "PARTIAL" ? "PARTIAL" : "FULL",
-              method: updatePaymentMethod,
-              paidAt: new Date().toISOString(),
-              issueReceipt: updateBusinessType !== "NONE" && updateIssueReceipt,
-            }),
-          });
-        } else {
-          paymentResponse = await fetch("/api/payments", {
-            method: "POST",
-            headers: { "Content-Type": "application/json" },
-            body: JSON.stringify({
-              clientId: selectedSession.client.id,
-              sessionId: selectedSession.id,
-              amount: paymentAmount,
-              expectedAmount: Number(selectedSession.price),
-              paymentType: updatePaymentType === "PARTIAL" ? "PARTIAL" : "FULL",
-              method: updatePaymentMethod,
-              status: updatePaymentType === "PARTIAL" ? "PENDING" : "PAID",
-              issueReceipt: updateBusinessType !== "NONE" && updateIssueReceipt,
-            }),
-          });
-        }
+        const paymentResponse = await fetch("/api/payments", {
+          method: "POST",
+          headers: { "Content-Type": "application/json" },
+          body: JSON.stringify({
+            clientId: selectedSession.client.id,
+            sessionId: selectedSession.id,
+            amount: paymentAmount,
+            expectedAmount: Number(selectedSession.price),
+            paymentType: updatePaymentType === "PARTIAL" ? "PARTIAL" : "FULL",
+            method: updatePaymentMethod,
+            status: updatePaymentType === "PARTIAL" ? "PENDING" : "PAID",
+            issueReceipt: updateBusinessType !== "NONE" && updateIssueReceipt,
+          }),
+        });
 
         if (!paymentResponse.ok) {
           toast.error("שגיאה ביצירת התשלום");
@@ -568,39 +551,22 @@ export default function CalendarPage() {
           ? parseFloat(updatePartialAmount) || 0
           : parseFloat(updatePaymentAmount) || 0;
         if (amt > 0) {
-          const ep = selectedSession.payment;
-          if (ep) {
-            updates.push(
-              fetch(`/api/payments/${ep.id}`, {
-                method: "PUT",
-                headers: { "Content-Type": "application/json" },
-                body: JSON.stringify({
-                  amount: amt,
-                  paymentMode: updatePaymentType === "PARTIAL" ? "PARTIAL" : "FULL",
-                  method: updatePaymentMethod,
-                  paidAt: new Date().toISOString(),
-                  issueReceipt: updateBusinessType !== "NONE" && updateIssueReceipt,
-                }),
-              })
-            );
-          } else {
-            updates.push(
-              fetch("/api/payments", {
-                method: "POST",
-                headers: { "Content-Type": "application/json" },
-                body: JSON.stringify({
-                  clientId: selectedSession.client?.id,
-                  sessionId: selectedSession.id,
-                  amount: amt,
-                  expectedAmount: selectedSession.price || amt,
-                  paymentType: updatePaymentType === "PARTIAL" ? "PARTIAL" : "FULL",
-                  method: updatePaymentMethod,
-                  status: "PAID",
-                  issueReceipt: updateBusinessType !== "NONE" && updateIssueReceipt,
-                }),
-              })
-            );
-          }
+          updates.push(
+            fetch("/api/payments", {
+              method: "POST",
+              headers: { "Content-Type": "application/json" },
+              body: JSON.stringify({
+                clientId: selectedSession.client?.id,
+                sessionId: selectedSession.id,
+                amount: amt,
+                expectedAmount: selectedSession.price || amt,
+                paymentType: updatePaymentType === "PARTIAL" ? "PARTIAL" : "FULL",
+                method: updatePaymentMethod,
+                status: updatePaymentType === "PARTIAL" ? "PENDING" : "PAID",
+                issueReceipt: updateBusinessType !== "NONE" && updateIssueReceipt,
+              }),
+            })
+          );
         }
       }
 
