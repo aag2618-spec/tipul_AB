@@ -410,6 +410,7 @@ export interface ReceiptExportData {
   paidAt: string | null;
   createdAt: string;
   receiptNumber: string | null;
+  receiptUrl: string | null;
   clientName: string;
 }
 
@@ -448,31 +449,52 @@ export function exportAccountantReport(
     methodTotals[label] = (methodTotals[label] || 0) + Number(r.amount);
   });
 
+  // Receipt source breakdown
+  const internalCount = filtered.filter((r) => !r.receiptUrl || !r.receiptUrl.includes("icount")).length;
+  const externalCount = filtered.filter((r) => r.receiptUrl && r.receiptUrl.includes("icount")).length;
+
   // --- Sheet 1: סיכום שנתי ---
   const periodLabel = quarter ? `רבעון ${quarter}, ${year}` : `${year}`;
-  const summaryRows = [
+  const summaryRows: (string | number)[][] = [
     ["שם העסק", businessName],
     ["תקופת דיווח", periodLabel],
     ["תאריך הפקה", format(new Date(), "dd/MM/yyyy HH:mm")],
+    ["", ""],
     ["סה\"כ הכנסות", `₪${totalRevenue.toLocaleString()}`],
-    ["מספר קבלות", receiptCount.toString()],
+    ["מספר קבלות", receiptCount],
+    ["", ""],
     ...Object.entries(methodTotals).map(([m, t]) => [m, `₪${t.toLocaleString()}`]),
+    ["", ""],
+    ["קבלות פנימיות (מערכת)", internalCount],
+    ["קבלות חיצוניות (iCount)", externalCount],
   ];
   const summaryWs = XLSX.utils.aoa_to_sheet([["שדה", "ערך"], ...summaryRows]);
-  summaryWs["!cols"] = [{ wch: 22 }, { wch: 20 }];
+  summaryWs["!cols"] = [{ wch: 26 }, { wch: 20 }];
   XLSX.utils.book_append_sheet(wb, summaryWs, quarter ? "סיכום רבעוני" : "סיכום שנתי");
 
   // --- Sheet 2: פירוט קבלות ---
-  const detailHeaders = ["תאריך", "מספר קבלה", "שם מטופל", "סכום (₪)", "אמצעי תשלום"];
-  const detailRows = sorted.map((r) => [
-    r.paidAt ? format(new Date(r.paidAt), "dd/MM/yyyy") : format(new Date(r.createdAt), "dd/MM/yyyy"),
-    r.receiptNumber || "-",
-    r.clientName,
-    Number(r.amount),
-    getMethodLabel(r.method),
-  ]);
+  const detailHeaders = ["תאריך", "מספר קבלה", "שם מטופל", "סכום (₪)", "אמצעי תשלום", "מקור קבלה", "קישור לקבלה"];
+  const detailRows = sorted.map((r) => {
+    const isExternal = r.receiptUrl && r.receiptUrl.includes("icount");
+    return [
+      r.paidAt ? format(new Date(r.paidAt), "dd/MM/yyyy") : format(new Date(r.createdAt), "dd/MM/yyyy"),
+      r.receiptNumber || "-",
+      r.clientName,
+      Number(r.amount),
+      getMethodLabel(r.method),
+      isExternal ? "iCount" : "פנימית",
+      r.receiptUrl || "",
+    ];
+  });
   const detailWs = XLSX.utils.aoa_to_sheet([detailHeaders, ...detailRows]);
-  detailWs["!cols"] = [{ wch: 12 }, { wch: 14 }, { wch: 22 }, { wch: 12 }, { wch: 16 }];
+  detailWs["!cols"] = [{ wch: 12 }, { wch: 14 }, { wch: 22 }, { wch: 12 }, { wch: 16 }, { wch: 12 }, { wch: 40 }];
+  // Make receipt URLs clickable
+  sorted.forEach((r, i) => {
+    if (r.receiptUrl) {
+      const cell = XLSX.utils.encode_cell({ r: i + 1, c: 6 });
+      detailWs[cell] = { t: "s", v: r.receiptUrl, l: { Target: r.receiptUrl, Tooltip: "פתח קבלה" } };
+    }
+  });
   XLSX.utils.book_append_sheet(wb, detailWs, "פירוט קבלות");
 
   // --- Sheet 3: סיכום חודשי ---

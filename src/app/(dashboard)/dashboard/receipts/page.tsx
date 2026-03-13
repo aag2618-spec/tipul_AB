@@ -349,29 +349,6 @@ export default function ReceiptsPage() {
   const totalWithReceipt = payments.filter((p) => p.hasReceipt).length;
   const totalAmount = filteredPayments.reduce((sum, p) => sum + Number(p.amount), 0);
 
-  const handleExportCSV = () => {
-    const headers = ["תאריך", "מטופל", "סכום", "אמצעי תשלום", "מספר קבלה", "קבלה"];
-    const rows = filteredPayments.map((p) => [
-      p.paidAt ? format(new Date(p.paidAt), "dd/MM/yyyy") : "",
-      p.client.name,
-      `₪${Number(p.amount)}`,
-      METHOD_LABELS[p.method] || p.method,
-      p.receiptNumber || "",
-      p.hasReceipt ? "כן" : "לא",
-    ]);
-
-    const bom = "\uFEFF";
-    const csv = bom + [headers, ...rows].map((r) => r.join(",")).join("\n");
-    const blob = new Blob([csv], { type: "text/csv;charset=utf-8;" });
-    const url = URL.createObjectURL(blob);
-    const a = document.createElement("a");
-    a.href = url;
-    a.download = `קבלות_${format(new Date(), "yyyy-MM-dd")}.csv`;
-    a.click();
-    URL.revokeObjectURL(url);
-    toast.success("הקובץ הורד בהצלחה");
-  };
-
   if (isLoading) {
     return (
       <div className="flex items-center justify-center min-h-[400px]">
@@ -420,6 +397,7 @@ export default function ReceiptsPage() {
                       paidAt: p.paidAt,
                       createdAt: p.createdAt,
                       receiptNumber: p.receiptNumber,
+                      receiptUrl: p.receiptUrl,
                       clientName: p.client.name,
                     }));
                     const ok = exportAccountantReport(data, y, therapist?.businessName || therapist?.name || "");
@@ -453,6 +431,7 @@ export default function ReceiptsPage() {
                           paidAt: p.paidAt,
                           createdAt: p.createdAt,
                           receiptNumber: p.receiptNumber,
+                          receiptUrl: p.receiptUrl,
                           clientName: p.client.name,
                         }));
                         const ok = exportAccountantReport(data, qYear, therapist?.businessName || therapist?.name || "", q);
@@ -470,10 +449,6 @@ export default function ReceiptsPage() {
               ))}
             </DropdownMenuContent>
           </DropdownMenu>
-          <Button variant="outline" className="gap-2" onClick={handleExportCSV} disabled={filteredPayments.length === 0}>
-            <Download className="h-4 w-4" />
-            ייצוא CSV
-          </Button>
         </div>
       </div>
 
