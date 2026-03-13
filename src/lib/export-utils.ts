@@ -404,6 +404,23 @@ export function exportAccountantPDF(
 }
 
 // ============ ACCOUNTANT REPORT (from Receipts page) ============
+function getReceiptSource(url: string | null): string {
+  if (!url) return "פנימית";
+  if (url.startsWith("/")) return "פנימית";
+  try {
+    const hostname = new URL(url).hostname.toLowerCase();
+    if (hostname.includes("icount")) return "iCount";
+    if (hostname.includes("greeninvoice")) return "Green Invoice";
+    if (hostname.includes("rivhit")) return "רווחית";
+    if (hostname.includes("invoice4u")) return "Invoice4U";
+    if (hostname.includes("hashavshevet")) return "חשבשבת";
+    if (hostname.includes("ezcount")) return "EZcount";
+    return hostname.replace("www.", "");
+  } catch {
+    return "פנימית";
+  }
+}
+
 export interface ReceiptExportData {
   amount: number;
   method: string;
@@ -450,8 +467,11 @@ export function exportAccountantReport(
   });
 
   // Receipt source breakdown
-  const internalCount = filtered.filter((r) => !r.receiptUrl || !r.receiptUrl.includes("icount")).length;
-  const externalCount = filtered.filter((r) => r.receiptUrl && r.receiptUrl.includes("icount")).length;
+  const sourceCounts: Record<string, number> = {};
+  filtered.forEach((r) => {
+    const src = getReceiptSource(r.receiptUrl);
+    sourceCounts[src] = (sourceCounts[src] || 0) + 1;
+  });
 
   // --- Sheet 1: סיכום שנתי ---
   const periodLabel = quarter ? `רבעון ${quarter}, ${year}` : `${year}`;
@@ -465,8 +485,7 @@ export function exportAccountantReport(
     ["", ""],
     ...Object.entries(methodTotals).map(([m, t]) => [m, `₪${t.toLocaleString()}`]),
     ["", ""],
-    ["קבלות פנימיות (מערכת)", internalCount],
-    ["קבלות חיצוניות (iCount)", externalCount],
+    ...Object.entries(sourceCounts).map(([src, count]) => [`קבלות - ${src}`, count]),
   ];
   const summaryWs = XLSX.utils.aoa_to_sheet([["שדה", "ערך"], ...summaryRows]);
   summaryWs["!cols"] = [{ wch: 26 }, { wch: 20 }];
@@ -475,14 +494,13 @@ export function exportAccountantReport(
   // --- Sheet 2: פירוט קבלות ---
   const detailHeaders = ["תאריך", "מספר קבלה", "שם מטופל", "סכום (₪)", "אמצעי תשלום", "מקור קבלה", "קישור לקבלה"];
   const detailRows = sorted.map((r) => {
-    const isExternal = r.receiptUrl && r.receiptUrl.includes("icount");
     return [
       r.paidAt ? format(new Date(r.paidAt), "dd/MM/yyyy") : format(new Date(r.createdAt), "dd/MM/yyyy"),
       r.receiptNumber || "-",
       r.clientName,
       Number(r.amount),
       getMethodLabel(r.method),
-      isExternal ? "iCount" : "פנימית",
+      getReceiptSource(r.receiptUrl),
       r.receiptUrl || "",
     ];
   });
