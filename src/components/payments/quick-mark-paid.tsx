@@ -72,6 +72,12 @@ export function QuickMarkPaid({
   // שימוש בשליטה חיצונית אם קיימת, אחרת שליטה פנימית
   const isOpen = open !== undefined ? open : internalOpen;
   const setIsOpen = (value: boolean) => {
+    if (!value) {
+      setMethod("CASH");
+      setShowAdvanced(false);
+      setPaymentType("FULL");
+      setPartialAmount("");
+    }
     if (onOpenChange) {
       onOpenChange(value);
     } else {
@@ -224,9 +230,6 @@ export function QuickMarkPaid({
         toast.error(`שגיאה בהפקת קבלה: ${result.receiptError}`, { duration: 8000 });
       }
       setIsOpen(false);
-      setShowAdvanced(false);
-      setPaymentType("FULL");
-      setPartialAmount("");
       
       router.refresh();
     } catch (error) {

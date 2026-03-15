@@ -45,7 +45,8 @@ export function QuickSessionStatus({
         );
         router.refresh();
       } else {
-        toast.error("שגיאה בעדכון הסטטוס");
+        const errorData = await response.json().catch(() => null);
+        toast.error(errorData?.message || "שגיאה בעדכון הסטטוס");
       }
     } catch (error) {
       console.error("Error updating session status:", error);

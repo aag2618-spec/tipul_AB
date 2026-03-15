@@ -308,7 +308,11 @@ export function SessionsView({ initialSessions }: SessionsViewProps) {
       }
 
       const results = await Promise.all(updates);
-      if (results[0].ok) {
+      const failedResult = results.find(r => !r.ok);
+      if (failedResult) {
+        const errorData = await failedResult.json().catch(() => null);
+        toast.error(errorData?.message || "שגיאה בביטול הפגישה");
+      } else {
         setSessions(prev =>
           prev.map(s =>
             s.id === cancelDialog.sessionId
@@ -320,8 +324,6 @@ export function SessionsView({ initialSessions }: SessionsViewProps) {
         setCancelDialog({ open: false, sessionId: "", clientName: "", clientId: "", startTime: "", price: 0 });
         setCancelReason("");
         setCancelCharge("ask");
-      } else {
-        toast.error("שגיאה בביטול הפגישה");
       }
     } catch {
       toast.error("שגיאה בביטול הפגישה");
@@ -361,20 +363,26 @@ export function SessionsView({ initialSessions }: SessionsViewProps) {
         });
 
         if (!paymentResponse.ok) {
-          toast.error("שגיאה ביצירת התשלום");
+          const errorData = await paymentResponse.json().catch(() => null);
+          toast.error(errorData?.message || "שגיאה ביצירת התשלום");
           setUpdating(false);
           return;
         }
 
         const paymentResult = await paymentResponse.json();
 
-        await fetch(`/api/sessions/${updateDialog.sessionId}`, {
+        const sessionUpdateRes = await fetch(`/api/sessions/${updateDialog.sessionId}`, {
           method: "PUT",
           headers: { "Content-Type": "application/json" },
           body: JSON.stringify({ status: "COMPLETED" }),
         });
 
-        toast.success("הפגישה הושלמה והתשלום בוצע");
+        if (!sessionUpdateRes.ok) {
+          toast.success("התשלום בוצע");
+          toast.error("שגיאה בעדכון סטטוס הפגישה - נסה לעדכן ידנית");
+        } else {
+          toast.success("הפגישה הושלמה והתשלום בוצע");
+        }
         if (paymentResult?.receiptError) {
           toast.error(`שגיאה בהפקת קבלה: ${paymentResult.receiptError}`, { duration: 8000 });
         }
@@ -431,25 +439,31 @@ export function SessionsView({ initialSessions }: SessionsViewProps) {
         }
       }
 
-      await Promise.all(updates);
+      const results = await Promise.all(updates);
+      const failedResult = results.find(r => !r.ok);
 
-      const newStatus = updateStatus;
-      setSessions(prev => prev.map(s =>
-        s.id === updateDialog.sessionId
-          ? {
-              ...s,
-              status: newStatus,
-              ...(newStatus === "CANCELLED" ? { cancellationReason: updateReason.trim(), cancelledAt: new Date().toISOString() } : {}),
-            }
-          : s
-      ));
+      if (failedResult) {
+        const errorData = await failedResult.json().catch(() => null);
+        toast.error(errorData?.message || "שגיאה בעדכון הפגישה");
+      } else {
+        const newStatus = updateStatus;
+        setSessions(prev => prev.map(s =>
+          s.id === updateDialog.sessionId
+            ? {
+                ...s,
+                status: newStatus,
+                ...(newStatus === "CANCELLED" ? { cancellationReason: updateReason.trim(), cancelledAt: new Date().toISOString() } : {}),
+              }
+            : s
+        ));
 
-      const labels: Record<string, string> = {
-        COMPLETED: "הפגישה עודכנה כהושלמה",
-        CANCELLED: "הפגישה עודכנה כבוטלה",
-        NO_SHOW: "הפגישה עודכנה כלא הגיע",
-      };
-      toast.success(labels[newStatus] || "הפגישה עודכנה");
+        const labels: Record<string, string> = {
+          COMPLETED: "הפגישה עודכנה כהושלמה",
+          CANCELLED: "הפגישה עודכנה כבוטלה",
+          NO_SHOW: "הפגישה עודכנה כלא הגיע",
+        };
+        toast.success(labels[newStatus] || "הפגישה עודכנה");
+      }
 
       setUpdateDialog({ open: false, sessionId: "", clientName: "", clientId: "", price: 0 });
       setUpdateStatus("");
@@ -564,7 +578,8 @@ export function SessionsView({ initialSessions }: SessionsViewProps) {
                   toast.success("הפגישה אושרה!");
                   setSessions(prev => prev.map(sess => sess.id === s.id ? { ...sess, status: "SCHEDULED" } : sess));
                 } else {
-                  toast.error("שגיאה באישור הפגישה");
+                  const errorData = await res.json().catch(() => null);
+                  toast.error(errorData?.message || "שגיאה באישור הפגישה");
                 }
               }}
             >
@@ -587,7 +602,8 @@ export function SessionsView({ initialSessions }: SessionsViewProps) {
                   toast.success("הפגישה נדחתה");
                   setSessions(prev => prev.map(sess => sess.id === s.id ? { ...sess, status: "CANCELLED" } : sess));
                 } else {
-                  toast.error("שגיאה בדחיית הפגישה");
+                  const errorData = await res.json().catch(() => null);
+                  toast.error(errorData?.message || "שגיאה בדחיית הפגישה");
                 }
               }}
             >

@@ -509,20 +509,26 @@ export default function CalendarPage() {
         });
 
         if (!paymentResponse.ok) {
-          toast.error("שגיאה ביצירת התשלום");
+          const errorData = await paymentResponse.json().catch(() => null);
+          toast.error(errorData?.message || "שגיאה ביצירת התשלום");
           setUpdating(false);
           return;
         }
 
         const paymentResult = await paymentResponse.json();
 
-        await fetch(`/api/sessions/${selectedSession.id}`, {
+        const sessionUpdateRes = await fetch(`/api/sessions/${selectedSession.id}`, {
           method: "PUT",
           headers: { "Content-Type": "application/json" },
           body: JSON.stringify({ status: "COMPLETED" }),
         });
 
-        toast.success("הפגישה הושלמה והתשלום בוצע");
+        if (!sessionUpdateRes.ok) {
+          toast.success("התשלום בוצע");
+          toast.error("שגיאה בעדכון סטטוס הפגישה - נסה לעדכן ידנית");
+        } else {
+          toast.success("הפגישה הושלמה והתשלום בוצע");
+        }
         if (paymentResult?.receiptError) {
           toast.error(`שגיאה בהפקת קבלה: ${paymentResult.receiptError}`, { duration: 8000 });
         }
@@ -570,14 +576,20 @@ export default function CalendarPage() {
         }
       }
 
-      await Promise.all(updates);
+      const results = await Promise.all(updates);
+      const failedResult = results.find(r => !r.ok);
 
-      const labels: Record<string, string> = {
-        COMPLETED: "הפגישה עודכנה כהושלמה",
-        CANCELLED: "הפגישה עודכנה כבוטלה",
-        NO_SHOW: "הפגישה עודכנה כלא הגיע",
-      };
-      toast.success(labels[updateStatus] || "הפגישה עודכנה");
+      if (failedResult) {
+        const errorData = await failedResult.json().catch(() => null);
+        toast.error(errorData?.message || "שגיאה בעדכון הפגישה");
+      } else {
+        const labels: Record<string, string> = {
+          COMPLETED: "הפגישה עודכנה כהושלמה",
+          CANCELLED: "הפגישה עודכנה כבוטלה",
+          NO_SHOW: "הפגישה עודכנה כלא הגיע",
+        };
+        toast.success(labels[updateStatus] || "הפגישה עודכנה");
+      }
       resetUpdateDialog();
       setSelectedSession(null);
       fetchData();
@@ -1561,7 +1573,8 @@ export default function CalendarPage() {
                               fetchData();
                               setIsSessionDialogOpen(false);
                             } else {
-                              toast.error("שגיאה באישור הפגישה");
+                              const errorData = await res.json().catch(() => null);
+                              toast.error(errorData?.message || "שגיאה באישור הפגישה");
                             }
                           }}
                           className="flex-1 bg-green-600 hover:bg-green-700"
@@ -1580,7 +1593,8 @@ export default function CalendarPage() {
                               fetchData();
                               setIsSessionDialogOpen(false);
                             } else {
-                              toast.error("שגיאה בדחיית הפגישה");
+                              const errorData = await res.json().catch(() => null);
+                              toast.error(errorData?.message || "שגיאה בדחיית הפגישה");
                             }
                           }}
                           variant="destructive"
@@ -2203,7 +2217,8 @@ export default function CalendarPage() {
                       setSelectedSession(null);
                       fetchData();
                     } else {
-                      toast.error("שגיאה בעדכון הפגישה");
+                      const errorData = await response.json().catch(() => null);
+                      toast.error(errorData?.message || "שגיאה בעדכון הפגישה");
                     }
                   } catch {
                     toast.error("שגיאה בעדכון הפגישה");
