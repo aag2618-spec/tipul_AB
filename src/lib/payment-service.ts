@@ -189,7 +189,7 @@ export async function sendPaymentReceiptEmail(params: {
         receiptNumber: params.receiptNumber || undefined,
       },
       clientBalance: {
-        remainingDebt: remainingDebt + Math.max(0, sessionRemaining),
+        remainingDebt,
         credit: Number(client.creditBalance),
       },
       customization: {
