@@ -20,6 +20,7 @@ interface PaymentReceiptEmailProps {
     expectedAmount: number;
     method: string;
     paidAt: Date;
+    sessionRemainingAfterPayment?: number;
     session?: {
       startTime: Date;
       type: string;
@@ -72,8 +73,8 @@ export function createPaymentReceiptEmail({
       ? "צ'ק"
       : "אחר";
 
-  const isPartial = payment.amount < payment.expectedAmount;
-  const remaining = payment.expectedAmount - payment.amount;
+  const remaining = payment.sessionRemainingAfterPayment ?? (payment.expectedAmount - payment.amount);
+  const isPartial = remaining > 0;
 
   let sessionHtml = "";
   if (payment.session) {

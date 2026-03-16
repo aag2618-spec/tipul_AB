@@ -143,6 +143,7 @@ export async function sendPaymentReceiptEmail(params: {
   session?: { startTime: Date; type: string } | null;
   receiptUrl?: string | null;
   receiptNumber?: string | null;
+  sessionRemainingAfterPayment?: number;
 }): Promise<void> {
   try {
     const commSettings = await prisma.communicationSetting.findUnique({
@@ -159,12 +160,18 @@ export async function sendPaymentReceiptEmail(params: {
     if (!client) return;
 
     const allPending = await prisma.payment.findMany({
-      where: { clientId: params.clientId, status: "PENDING" },
+      where: {
+        clientId: params.clientId,
+        status: "PENDING",
+        parentPaymentId: null,
+      },
     });
     const remainingDebt = allPending.reduce(
       (sum, p) => sum + (Number(p.expectedAmount) - Number(p.amount)),
       0
     );
+
+    const sessionRemaining = params.sessionRemainingAfterPayment ?? (params.expectedAmount - params.amountPaid);
 
     const { subject, html } = createPaymentReceiptEmail({
       clientName: client.name,
@@ -176,12 +183,13 @@ export async function sendPaymentReceiptEmail(params: {
         expectedAmount: params.expectedAmount,
         method: params.method,
         paidAt: params.paidAt,
+        sessionRemainingAfterPayment: Math.max(0, sessionRemaining),
         session: params.session || undefined,
         receiptUrl: params.receiptUrl || undefined,
         receiptNumber: params.receiptNumber || undefined,
       },
       clientBalance: {
-        remainingDebt,
+        remainingDebt: remainingDebt + Math.max(0, sessionRemaining),
         credit: Number(client.creditBalance),
       },
       customization: {
@@ -432,11 +440,12 @@ export async function createPaymentForSession(params: {
       });
     }
 
-    // Receipt (only when PAID)
+    // Receipt — issue for any actual payment (not just when parent is PAID)
     let receiptResult: ReceiptResult | null = null;
-    if (payment.status === "PAID" && shouldIssueReceipt !== false) {
+    if (amount > 0 && shouldIssueReceipt !== false) {
       const receiptPaymentId = childPayment ? childPayment.id : payment.id;
       const receiptAmount = childPayment ? amount : Number(payment.amount);
+      const sessionRemaining = Number(payment.expectedAmount || 0) - Number(payment.amount);
       receiptResult = await issueReceipt({
         userId,
         paymentId: receiptPaymentId,
@@ -446,7 +455,7 @@ export async function createPaymentForSession(params: {
         clientPhone: client.phone || undefined,
         description: buildReceiptDescription(
           payment.session,
-          false,
+          sessionRemaining > 0,
           receiptAmount,
           Number(payment.expectedAmount || payment.amount)
         ),
@@ -454,9 +463,10 @@ export async function createPaymentForSession(params: {
       });
     }
 
-    // Email (only when PAID)
-    if (payment.status === "PAID") {
+    // Email — send for any actual payment
+    if (amount > 0) {
       const emailAmount = childPayment ? amount : Number(payment.amount);
+      const sessionRemaining = Number(payment.expectedAmount || 0) - Number(payment.amount);
       await sendPaymentReceiptEmail({
         userId,
         clientId,
@@ -467,6 +477,7 @@ export async function createPaymentForSession(params: {
         session: payment.session || null,
         receiptUrl: receiptResult?.receiptUrl || null,
         receiptNumber: receiptResult?.receiptNumber || null,
+        sessionRemainingAfterPayment: Math.max(0, sessionRemaining),
       });
     }
 
@@ -588,6 +599,7 @@ export async function addPartialPayment(params: {
 
     // Email for any paid amount
     if (amount > 0) {
+      const sessionRemaining = Math.max(0, expectedAmount - newTotal);
       await sendPaymentReceiptEmail({
         userId,
         clientId: existingPayment.clientId,
@@ -598,6 +610,7 @@ export async function addPartialPayment(params: {
         session: existingPayment.session || null,
         receiptUrl: receiptResult?.receiptUrl || null,
         receiptNumber: receiptResult?.receiptNumber || null,
+        sessionRemainingAfterPayment: sessionRemaining,
       });
     }
 
@@ -721,6 +734,7 @@ export async function markFullyPaid(params: {
         session: existingPayment.session || null,
         receiptUrl: receiptResult?.receiptUrl || null,
         receiptNumber: receiptResult?.receiptNumber || null,
+        sessionRemainingAfterPayment: 0,
       });
     }
 
@@ -904,6 +918,7 @@ export async function processMultiSessionPayment(params: {
           method,
         });
 
+        const sessionRemaining = item.isFullyPaid ? 0 : Math.max(0, expAmt - Number(paymentWithSession.amount));
         await sendPaymentReceiptEmail({
           userId,
           clientId,
@@ -914,6 +929,7 @@ export async function processMultiSessionPayment(params: {
           session: paymentWithSession.session || null,
           receiptUrl: receiptResult.receiptUrl,
           receiptNumber: receiptResult.receiptNumber,
+          sessionRemainingAfterPayment: sessionRemaining,
         });
       } catch (receiptEmailError) {
         console.error(
