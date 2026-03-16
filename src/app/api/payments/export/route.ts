@@ -64,6 +64,11 @@ export async function GET(request: NextRequest) {
             startTime: true,
           },
         },
+        childPayments: {
+          where: { hasReceipt: true },
+          select: { receiptNumber: true, receiptUrl: true },
+          take: 1,
+        },
       },
     });
 
@@ -91,19 +96,21 @@ export async function GET(request: NextRequest) {
     };
 
     if (format === "json") {
-      // החזרת JSON
-      const data = payments.map((p) => ({
-        תאריך: p.paidAt ? new Date(p.paidAt).toLocaleDateString("he-IL", { timeZone: "Asia/Jerusalem" }) : new Date(p.createdAt).toLocaleDateString("he-IL", { timeZone: "Asia/Jerusalem" }),
-        שם_מטופל: p.client.name,
-        סכום: Number(p.amount),
-        סכום_צפוי: Number(p.expectedAmount || p.amount),
-        שיטת_תשלום: methodNames[p.method] || p.method,
-        סוג: typeNames[p.paymentType] || p.paymentType,
-        סטטוס: statusNames[p.status] || p.status,
-        מספר_קבלה: p.receiptNumber || "-",
-        קישור_קבלה: p.receiptUrl || "-",
-        הערות: p.notes || "-",
-      }));
+      const data = payments.map((p) => {
+        const childReceipt = p.childPayments?.[0];
+        return {
+          תאריך: p.paidAt ? new Date(p.paidAt).toLocaleDateString("he-IL", { timeZone: "Asia/Jerusalem" }) : new Date(p.createdAt).toLocaleDateString("he-IL", { timeZone: "Asia/Jerusalem" }),
+          שם_מטופל: p.client.name,
+          סכום: Number(p.amount),
+          סכום_צפוי: Number(p.expectedAmount || p.amount),
+          שיטת_תשלום: methodNames[p.method] || p.method,
+          סוג: typeNames[p.paymentType] || p.paymentType,
+          סטטוס: statusNames[p.status] || p.status,
+          מספר_קבלה: p.receiptNumber || childReceipt?.receiptNumber || "-",
+          קישור_קבלה: p.receiptUrl || childReceipt?.receiptUrl || "-",
+          הערות: p.notes || "-",
+        };
+      });
 
       return NextResponse.json(data);
     }
@@ -125,21 +132,24 @@ export async function GET(request: NextRequest) {
       "הערות",
     ];
 
-    const rows = payments.map((p) => [
-      p.paidAt ? new Date(p.paidAt).toLocaleDateString("he-IL", { timeZone: "Asia/Jerusalem" }) : new Date(p.createdAt).toLocaleDateString("he-IL", { timeZone: "Asia/Jerusalem" }),
-      p.client.name,
-      p.client.email || "-",
-      p.client.phone || "-",
-      Number(p.amount).toFixed(2),
-      Number(p.expectedAmount || p.amount).toFixed(2),
-      methodNames[p.method] || p.method,
-      typeNames[p.paymentType] || p.paymentType,
-      statusNames[p.status] || p.status,
-      p.receiptNumber || "-",
-      p.receiptUrl || "-",
-      p.session?.startTime ? new Date(p.session.startTime).toLocaleDateString("he-IL", { timeZone: "Asia/Jerusalem" }) : "-",
-      p.notes?.replace(/[\n\r,]/g, " ") || "-",
-    ]);
+    const rows = payments.map((p) => {
+      const childReceipt = p.childPayments?.[0];
+      return [
+        p.paidAt ? new Date(p.paidAt).toLocaleDateString("he-IL", { timeZone: "Asia/Jerusalem" }) : new Date(p.createdAt).toLocaleDateString("he-IL", { timeZone: "Asia/Jerusalem" }),
+        p.client.name,
+        p.client.email || "-",
+        p.client.phone || "-",
+        Number(p.amount).toFixed(2),
+        Number(p.expectedAmount || p.amount).toFixed(2),
+        methodNames[p.method] || p.method,
+        typeNames[p.paymentType] || p.paymentType,
+        statusNames[p.status] || p.status,
+        p.receiptNumber || childReceipt?.receiptNumber || "-",
+        p.receiptUrl || childReceipt?.receiptUrl || "-",
+        p.session?.startTime ? new Date(p.session.startTime).toLocaleDateString("he-IL", { timeZone: "Asia/Jerusalem" }) : "-",
+        p.notes?.replace(/[\n\r,]/g, " ") || "-",
+      ];
+    });
 
     // בניית CSV עם BOM לתמיכה בעברית ב-Excel
     const BOM = "\uFEFF";

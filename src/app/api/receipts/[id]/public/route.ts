@@ -29,7 +29,13 @@ export async function GET(
       include: {
         client: { select: { name: true } },
         session: { select: { startTime: true, type: true } },
-        parentPayment: { select: { session: { select: { startTime: true } } } },
+        parentPayment: {
+          select: {
+            expectedAmount: true,
+            session: { select: { startTime: true } },
+          },
+        },
+        childPayments: { select: { amount: true } },
       },
     });
 
@@ -47,9 +53,26 @@ export async function GET(
       },
     });
 
-    const amount = Number(payment.amount);
-    const expectedAmount = Number(payment.expectedAmount || payment.amount);
-    const isPartial = amount < expectedAmount;
+    let amount = Number(payment.amount);
+
+    // Legacy fix: receipt on parent whose amount grew with subsequent partials
+    if (
+      !payment.parentPaymentId &&
+      payment.childPayments &&
+      payment.childPayments.length > 0
+    ) {
+      const childSum = payment.childPayments.reduce(
+        (s, c) => s + Number(c.amount),
+        0
+      );
+      const originalAmount = Number(payment.amount) - childSum;
+      if (originalAmount > 0) amount = originalAmount;
+    }
+
+    const sessionExpectedAmount = payment.parentPaymentId
+      ? Number(payment.parentPayment?.expectedAmount || payment.expectedAmount || amount)
+      : Number(payment.expectedAmount || amount);
+    const isPartial = amount < sessionExpectedAmount;
 
     const sessionDate = payment.session?.startTime 
       || payment.parentPayment?.session?.startTime 
@@ -58,7 +81,7 @@ export async function GET(
     return NextResponse.json({
       receiptNumber: payment.receiptNumber,
       amount,
-      expectedAmount,
+      expectedAmount: sessionExpectedAmount,
       method: payment.method,
       paidAt: payment.paidAt,
       createdAt: payment.createdAt,
@@ -66,7 +89,7 @@ export async function GET(
       sessionDate,
       receiptUrl: payment.receiptUrl,
       isPartial,
-      remaining: isPartial ? expectedAmount - amount : 0,
+      remaining: isPartial ? sessionExpectedAmount - amount : 0,
       therapist: {
         name: therapist?.name || "",
         businessName: therapist?.businessName || "",

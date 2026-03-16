@@ -42,7 +42,11 @@ export async function GET() {
             method: true,
             paidAt: true,
             createdAt: true,
+            receiptNumber: true,
+            receiptUrl: true,
+            hasReceipt: true,
           },
+          orderBy: { paidAt: "asc" },
         },
       },
       orderBy: {
@@ -57,34 +61,41 @@ export async function GET() {
     });
 
     // המרה לפורמט הנדרש - כולל כל הנתונים ל-PaymentHistoryItem
-    const result = fullyPaidPayments.map((payment) => ({
-      id: payment.id,
-      clientId: payment.client.id,
-      clientName: payment.client.firstName && payment.client.lastName
-        ? `${payment.client.firstName} ${payment.client.lastName}`
-        : payment.client.name,
-      amount: Number(payment.amount),
-      expectedAmount: payment.expectedAmount ? Number(payment.expectedAmount) : Number(payment.amount),
-      method: payment.method,
-      status: payment.status,
-      paidAt: payment.paidAt,
-      createdAt: payment.createdAt,
-      receiptNumber: payment.receiptNumber,
-      receiptUrl: payment.receiptUrl,
-      hasReceipt: payment.hasReceipt,
-      session: payment.session ? {
-        id: payment.session.id,
-        startTime: payment.session.startTime,
-        type: payment.session.type,
-      } : null,
-      childPayments: payment.childPayments?.map((child) => ({
-        id: child.id,
-        amount: Number(child.amount),
-        method: child.method || payment.method,
-        paidAt: child.paidAt,
-        createdAt: child.createdAt,
-      })) || [],
-    }));
+    const result = fullyPaidPayments.map((payment) => {
+      const firstChildWithReceipt = payment.childPayments?.find((c) => c.hasReceipt);
+      const receiptNumber = payment.receiptNumber || firstChildWithReceipt?.receiptNumber || null;
+      const receiptUrl = payment.receiptUrl || firstChildWithReceipt?.receiptUrl || null;
+      const hasReceipt = payment.hasReceipt || !!firstChildWithReceipt?.hasReceipt;
+
+      return {
+        id: payment.id,
+        clientId: payment.client.id,
+        clientName: payment.client.firstName && payment.client.lastName
+          ? `${payment.client.firstName} ${payment.client.lastName}`
+          : payment.client.name,
+        amount: Number(payment.amount),
+        expectedAmount: payment.expectedAmount ? Number(payment.expectedAmount) : Number(payment.amount),
+        method: payment.method,
+        status: payment.status,
+        paidAt: payment.paidAt,
+        createdAt: payment.createdAt,
+        receiptNumber,
+        receiptUrl,
+        hasReceipt,
+        session: payment.session ? {
+          id: payment.session.id,
+          startTime: payment.session.startTime,
+          type: payment.session.type,
+        } : null,
+        childPayments: payment.childPayments?.map((child) => ({
+          id: child.id,
+          amount: Number(child.amount),
+          method: child.method || payment.method,
+          paidAt: child.paidAt,
+          createdAt: child.createdAt,
+        })) || [],
+      };
+    });
 
     return NextResponse.json(result);
   } catch (error) {

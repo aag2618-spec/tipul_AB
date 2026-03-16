@@ -383,13 +383,17 @@ export async function createPaymentForSession(params: {
       const derivedStatus =
         requestedStatus ||
         (amount >= expectedAmount ? "PAID" : "PENDING");
+
+      const isFirstPartial =
+        amount > 0 && expectedAmount > 0 && amount < expectedAmount;
+
       payment = await prisma.payment.create({
         data: {
           clientId,
           sessionId: sessionId || null,
           amount,
           expectedAmount: expectedAmount || amount,
-          paymentType,
+          paymentType: isFirstPartial ? "PARTIAL" : paymentType,
           method,
           status: derivedStatus,
           paidAt: derivedStatus === "PAID" ? new Date() : null,
@@ -397,6 +401,21 @@ export async function createPaymentForSession(params: {
         },
         include: { client: true, session: true },
       });
+
+      if (isFirstPartial) {
+        childPayment = await prisma.payment.create({
+          data: {
+            parentPaymentId: payment.id,
+            clientId,
+            amount,
+            expectedAmount: amount,
+            method,
+            status: "PAID",
+            paidAt: new Date(),
+            paymentType: "PARTIAL",
+          },
+        });
+      }
     }
 
     // ADVANCE → add to credit balance
@@ -1193,4 +1212,68 @@ export async function getAllClientsDebtSummary(
       };
     })
     .filter((c) => c.totalDebt > 0 || c.creditBalance > 0);
+}
+
+// ================================================================
+// migrateParentReceiptsToChildren
+// ================================================================
+
+export async function migrateParentReceiptsToChildren(): Promise<{
+  fixed: number;
+  details: string[];
+}> {
+  const parents = await prisma.payment.findMany({
+    where: {
+      hasReceipt: true,
+      parentPaymentId: null,
+      childPayments: { some: {} },
+    },
+    include: {
+      childPayments: { select: { id: true, amount: true } },
+      client: { select: { name: true } },
+    },
+  });
+
+  const details: string[] = [];
+
+  for (const parent of parents) {
+    const childSum = parent.childPayments.reduce(
+      (s, c) => s + Number(c.amount),
+      0
+    );
+    const originalAmount = Number(parent.amount) - childSum;
+    if (originalAmount <= 0) continue;
+
+    const newChild = await prisma.payment.create({
+      data: {
+        parentPaymentId: parent.id,
+        clientId: parent.clientId,
+        amount: originalAmount,
+        expectedAmount: originalAmount,
+        method: parent.method,
+        status: "PAID",
+        paidAt: parent.createdAt,
+        paymentType: "PARTIAL",
+        receiptNumber: parent.receiptNumber,
+        receiptUrl: parent.receiptUrl,
+        hasReceipt: true,
+      },
+    });
+
+    await prisma.payment.update({
+      where: { id: parent.id },
+      data: {
+        hasReceipt: false,
+        receiptNumber: null,
+        receiptUrl: null,
+      },
+    });
+
+    details.push(
+      `${parent.client.name}: moved receipt ${parent.receiptNumber} ` +
+        `(₪${originalAmount}) from parent ${parent.id} to child ${newChild.id}`
+    );
+  }
+
+  return { fixed: details.length, details };
 }

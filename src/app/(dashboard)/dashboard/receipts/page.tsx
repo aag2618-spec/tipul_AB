@@ -116,6 +116,19 @@ export default function ReceiptsPage() {
     }
   };
 
+  const getReceiptDisplayAmount = (payment: ReceiptPayment): number => {
+    const rawAmount = Number(payment.amount);
+    if (!payment.parentPaymentId) {
+      const children = payments.filter(p => p.parentPaymentId === payment.id);
+      if (children.length > 0) {
+        const childSum = children.reduce((s, c) => s + Number(c.amount), 0);
+        const originalAmount = rawAmount - childSum;
+        return originalAmount > 0 ? originalAmount : rawAmount;
+      }
+    }
+    return rawAmount;
+  };
+
   const buildReceiptHtml = (payment: ReceiptPayment) => {
     const businessName = therapist?.businessName || therapist?.name || "MyTipul";
     const dateStr = payment.paidAt
@@ -126,14 +139,14 @@ export default function ReceiptsPage() {
     let sessionDate = payment.session
       ? format(new Date(payment.session.startTime), "dd/MM/yyyy")
       : null;
-    // For child payments, use parent's session date
     if (!sessionDate && payment.parentPaymentId) {
       const parent = payments.find(p => p.id === payment.parentPaymentId);
       if (parent?.session) {
         sessionDate = format(new Date(parent.session.startTime), "dd/MM/yyyy");
       }
     }
-    const isPartial = Number(payment.amount) < Number(payment.expectedAmount);
+    const displayAmount = getReceiptDisplayAmount(payment);
+    const isPartial = displayAmount < Number(payment.expectedAmount);
 
     return `
       <div style="padding: 40px; direction: rtl; font-family: 'Heebo', 'Segoe UI', Arial, sans-serif; color: #1a1a1a; width: 714px;">
@@ -166,11 +179,11 @@ export default function ReceiptsPage() {
           <tbody><tr>
             <td style="padding: 14px 16px; font-size: 14px; border-bottom: 1px solid #e5e7eb;">פגישה טיפולית${sessionDate ? ` - ${sessionDate}` : ""}</td>
             <td style="padding: 14px 16px; font-size: 14px; text-align: center; border-bottom: 1px solid #e5e7eb;">${methodLabel}</td>
-            <td style="padding: 14px 16px; font-size: 14px; text-align: left; font-weight: 600; border-bottom: 1px solid #e5e7eb;">₪${Number(payment.amount).toLocaleString()}</td>
+            <td style="padding: 14px 16px; font-size: 14px; text-align: left; font-weight: 600; border-bottom: 1px solid #e5e7eb;">₪${displayAmount.toLocaleString()}</td>
           </tr></tbody>
         </table>
         <div style="border: 1px solid #e5e7eb; border-top: 2px solid #0f766e; padding: 16px 25px; background: #f9fafb; border-radius: 0 0 ${isPartial ? "0 0" : "8px 8px"};">
-          <span style="font-size: 20px; font-weight: 700; color: #0f766e;">סה״כ שולם: ₪${Number(payment.amount).toLocaleString()}</span>
+          <span style="font-size: 20px; font-weight: 700; color: #0f766e;">סה״כ שולם: ₪${displayAmount.toLocaleString()}</span>
         </div>
         ${isPartial ? `
         <div style="border: 1px solid #e5e7eb; border-top: none; padding: 14px 25px; background: #fffbeb; border-radius: 0 0 8px 8px;">
@@ -182,7 +195,7 @@ export default function ReceiptsPage() {
             </tr>
             <tr style="color: #ea580c;">
               <td style="padding: 2px 0;">נותר לתשלום:</td>
-              <td style="padding: 2px 0; text-align: left; font-weight: 600;">₪${(Number(payment.expectedAmount) - Number(payment.amount)).toLocaleString()}</td>
+              <td style="padding: 2px 0; text-align: left; font-weight: 600;">₪${(Number(payment.expectedAmount) - displayAmount).toLocaleString()}</td>
             </tr>
           </table>
         </div>` : ""}
@@ -347,7 +360,7 @@ export default function ReceiptsPage() {
   const paymentsWithReceipts = useMemo(() => filteredPayments.filter((p) => p.hasReceipt), [filteredPayments]);
 
   const totalWithReceipt = payments.filter((p) => p.hasReceipt).length;
-  const totalAmount = filteredPayments.reduce((sum, p) => sum + Number(p.amount), 0);
+  const totalAmount = filteredPayments.reduce((sum, p) => sum + getReceiptDisplayAmount(p), 0);
 
   if (isLoading) {
     return (
@@ -392,7 +405,7 @@ export default function ReceiptsPage() {
                   key={y}
                   onClick={() => {
                     const data: ReceiptExportData[] = payments.map((p) => ({
-                      amount: p.amount,
+                      amount: getReceiptDisplayAmount(p),
                       method: p.method,
                       paidAt: p.paidAt,
                       createdAt: p.createdAt,
@@ -426,7 +439,7 @@ export default function ReceiptsPage() {
                       key={`${qYear}-${q}`}
                       onClick={() => {
                         const data: ReceiptExportData[] = payments.map((p) => ({
-                          amount: p.amount,
+                          amount: getReceiptDisplayAmount(p),
                           method: p.method,
                           paidAt: p.paidAt,
                           createdAt: p.createdAt,
@@ -552,7 +565,7 @@ export default function ReceiptsPage() {
                     </div>
                   </td>
                   <td className="py-3 px-4 text-sm font-medium">{payment.client.name}</td>
-                  <td className="py-3 px-4 text-sm font-semibold">₪{Number(payment.amount).toLocaleString()}</td>
+                  <td className="py-3 px-4 text-sm font-semibold">₪{getReceiptDisplayAmount(payment).toLocaleString()}</td>
                   <td className="py-3 px-4 text-sm text-muted-foreground">
                     {METHOD_LABELS[payment.method] || payment.method}
                   </td>
