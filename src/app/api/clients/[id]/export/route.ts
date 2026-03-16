@@ -4,6 +4,7 @@ import { authOptions } from "@/lib/auth";
 import prisma from "@/lib/prisma";
 import JSZip from "jszip";
 import { format } from "date-fns";
+import { calculateDebtFromPayments } from "@/lib/payment-utils";
 
 export const dynamic = "force-dynamic";
 
@@ -159,7 +160,7 @@ ${i + 1}. תאריך: ${format(new Date(p.createdAt), "dd/MM/yyyy")}
 `)
   .join("\n")}
 
-סה"כ חוב: ₪${client.payments.filter(p => p.status === "PENDING").reduce((sum, p) => sum + Number(p.amount), 0)}
+סה"כ חוב: ₪${calculateDebtFromPayments(client.payments)}
       `.trim();
       zip.file("תשלומים.txt", paymentsSummary);
     }
