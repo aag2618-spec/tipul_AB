@@ -258,11 +258,15 @@ async function deductCredit(
   clientId: string,
   amount: number
 ): Promise<{ success: boolean; error?: string }> {
-  const client = await prisma.client.findUnique({
-    where: { id: clientId },
-    select: { creditBalance: true },
+  const result = await prisma.client.updateMany({
+    where: { id: clientId, creditBalance: { gte: amount } },
+    data: { creditBalance: { decrement: amount } },
   });
-  if (!client || Number(client.creditBalance) < amount) {
+  if (result.count === 0) {
+    const client = await prisma.client.findUnique({
+      where: { id: clientId },
+      select: { creditBalance: true },
+    });
     return {
       success: false,
       error: `אין מספיק קרדיט. זמין: ₪${Number(
@@ -270,10 +274,6 @@ async function deductCredit(
       ).toFixed(0)}, מבוקש: ₪${amount.toFixed(0)}`,
     };
   }
-  await prisma.client.update({
-    where: { id: clientId },
-    data: { creditBalance: { decrement: amount } },
-  });
   return { success: true };
 }
 
@@ -576,7 +576,7 @@ export async function addPartialPayment(params: {
         status: finalStatus,
         method,
         paymentType: finalStatus === "PAID" ? "FULL" : "PARTIAL",
-        paidAt: finalStatus === "PAID" ? new Date() : new Date(),
+        paidAt: finalStatus === "PAID" ? new Date() : existingPayment.paidAt,
       },
       include: { client: true, session: true },
     });
@@ -882,20 +882,23 @@ export async function processMultiSessionPayment(params: {
         );
       }
 
-      // Credit deduction inside transaction
+      // Credit deduction inside transaction (atomic check + decrement)
       if (creditUsed > 0) {
-        const currentCredit = Number(client.creditBalance);
-        if (currentCredit < creditUsed) {
+        const updated = await tx.client.updateMany({
+          where: { id: clientId, creditBalance: { gte: creditUsed } },
+          data: { creditBalance: { decrement: creditUsed } },
+        });
+        if (updated.count === 0) {
+          const freshClient = await tx.client.findUnique({
+            where: { id: clientId },
+            select: { creditBalance: true },
+          });
           throw new Error(
-            `אין מספיק קרדיט. זמין: ₪${currentCredit.toFixed(
-              0
-            )}, מבוקש: ₪${creditUsed.toFixed(0)}`
+            `אין מספיק קרדיט. זמין: ₪${Number(
+              freshClient?.creditBalance || 0
+            ).toFixed(0)}, מבוקש: ₪${creditUsed.toFixed(0)}`
           );
         }
-        await tx.client.update({
-          where: { id: clientId },
-          data: { creditBalance: currentCredit - creditUsed },
-        });
       }
 
       return {
