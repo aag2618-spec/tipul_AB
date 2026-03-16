@@ -32,7 +32,12 @@ export async function GET(
         parentPayment: {
           select: {
             expectedAmount: true,
+            amount: true,
             session: { select: { startTime: true } },
+            childPayments: {
+              select: { id: true, amount: true, paidAt: true, createdAt: true },
+              orderBy: { paidAt: "asc" as const },
+            },
           },
         },
         childPayments: { select: { amount: true } },
@@ -72,7 +77,21 @@ export async function GET(
     const sessionExpectedAmount = payment.parentPaymentId
       ? Number(payment.parentPayment?.expectedAmount || payment.expectedAmount || amount)
       : Number(payment.expectedAmount || amount);
-    const isPartial = amount < sessionExpectedAmount;
+
+    let remaining = 0;
+    if (payment.parentPaymentId && payment.parentPayment) {
+      const siblings = payment.parentPayment.childPayments || [];
+      let cumulativePaid = 0;
+      for (const sib of siblings) {
+        cumulativePaid += Number(sib.amount);
+        if (sib.id === payment.id) break;
+      }
+      remaining = Math.max(0, sessionExpectedAmount - cumulativePaid);
+    } else {
+      remaining = Math.max(0, sessionExpectedAmount - amount);
+    }
+
+    const isPartial = remaining > 0;
 
     const sessionDate = payment.session?.startTime 
       || payment.parentPayment?.session?.startTime 
@@ -89,7 +108,7 @@ export async function GET(
       sessionDate,
       receiptUrl: payment.receiptUrl,
       isPartial,
-      remaining: isPartial ? sessionExpectedAmount - amount : 0,
+      remaining,
       therapist: {
         name: therapist?.name || "",
         businessName: therapist?.businessName || "",
