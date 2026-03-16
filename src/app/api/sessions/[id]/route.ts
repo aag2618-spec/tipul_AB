@@ -3,6 +3,7 @@ import { getServerSession } from "next-auth";
 import { authOptions } from "@/lib/auth";
 import prisma from "@/lib/prisma";
 import { parseIsraelTime } from "@/lib/date-utils";
+import { createPaymentForSession } from "@/lib/payment-service";
 
 export const dynamic = "force-dynamic";
 
@@ -116,18 +117,14 @@ export async function PUT(
         },
       });
       if (!existingPayment) {
-        await prisma.payment.create({
-          data: {
-            clientId: therapySession.clientId,
-            sessionId: therapySession.id,
-            amount: markAsPaid ? Number(therapySession.price) : 0,
-            expectedAmount: Number(therapySession.price),
-            method: "CASH",
-            status: markAsPaid ? "PAID" : "PENDING",
-            paymentType: markAsPaid ? "FULL" : "FULL",
-            paidAt: markAsPaid ? new Date() : null,
-            notes: null,
-          },
+        await createPaymentForSession({
+          userId: session.user.id,
+          clientId: therapySession.clientId,
+          sessionId: therapySession.id,
+          amount: markAsPaid ? Number(therapySession.price) : 0,
+          expectedAmount: Number(therapySession.price),
+          method: "CASH",
+          paymentType: "FULL",
         });
       }
     }

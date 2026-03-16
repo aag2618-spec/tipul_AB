@@ -106,7 +106,7 @@ export function CompleteSessionDialog(props: CompleteSessionDialogProps) {
     try {
       let actualAmount = parseFloat(amount);
       let actualPaymentType: "FULL" | "PARTIAL" | "ADVANCE" = "FULL";
-      let useCredit = false;
+      let creditToUse = 0;
 
       if (paymentType === "PARTIAL") {
         actualAmount = parseFloat(partialAmount) || 0;
@@ -122,7 +122,7 @@ export function CompleteSessionDialog(props: CompleteSessionDialogProps) {
           setIsLoading(false);
           return;
         }
-        useCredit = true;
+        creditToUse = actualAmount;
       } else if (paymentType === "ADVANCE") {
         actualPaymentType = "ADVANCE";
         actualAmount = parseFloat(partialAmount) || 0;
@@ -138,23 +138,15 @@ export function CompleteSessionDialog(props: CompleteSessionDialogProps) {
           amount: actualAmount,
           expectedAmount: paymentType === "PARTIAL" ? defaultAmount : undefined,
           paymentType: actualPaymentType,
-          method: paymentMethod,
+          method: paymentType === "CREDIT" ? "CREDIT" : paymentMethod,
           status: "PAID",
           issueReceipt: businessType !== "NONE" && issueReceipt,
+          creditUsed: creditToUse > 0 ? creditToUse : undefined,
         }),
       });
 
       if (!paymentRes.ok) throw new Error("Payment failed");
       const paymentResult = await paymentRes.json();
-
-      // Step 1b: If using credit, update payment
-      if (useCredit) {
-        await fetch(`/api/payments/${paymentResult.id}`, {
-          method: "PUT",
-          headers: { "Content-Type": "application/json" },
-          body: JSON.stringify({ status: "PAID", useCredit: true }),
-        });
-      }
 
       // Step 2: Update session status (payment already exists, session PUT will find it and skip)
       await fetch(`/api/sessions/${sessionId}`, {

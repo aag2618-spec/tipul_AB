@@ -52,9 +52,19 @@ export async function GET() {
       return (expected > 0 && paid >= expected) || (expected === 0 && paid > 0);
     });
     if (stuckPayments.length > 0) {
+      const stuckIds = stuckPayments.map(p => p.id);
       await prisma.payment.updateMany({
-        where: { id: { in: stuckPayments.map(p => p.id) } },
+        where: { id: { in: stuckIds } },
         data: { status: "PAID", paidAt: new Date() },
+      });
+      await prisma.task.updateMany({
+        where: {
+          userId: session.user.id,
+          relatedEntityId: { in: stuckIds },
+          type: "COLLECT_PAYMENT",
+          status: { in: ["PENDING", "IN_PROGRESS"] },
+        },
+        data: { status: "COMPLETED" },
       });
     }
 

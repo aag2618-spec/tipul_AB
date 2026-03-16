@@ -2,11 +2,7 @@ import { NextRequest, NextResponse } from "next/server";
 import { getServerSession } from "next-auth";
 import { authOptions } from "@/lib/auth";
 import prisma from "@/lib/prisma";
-import { sendEmail } from "@/lib/resend";
-import { createPaymentReceiptEmail } from "@/lib/email-templates/payment-receipt";
-import { createBillingService } from "@/lib/billing";
-import { getReceiptPageUrl } from "@/lib/receipt-token";
-import { mapPaymentMethod } from "@/lib/email-utils";
+import { createPaymentForSession } from "@/lib/payment-service";
 
 export const dynamic = "force-dynamic";
 
@@ -44,17 +40,17 @@ export async function POST(request: NextRequest) {
     }
 
     const body = await request.json();
-    const { 
-      clientId, 
-      sessionId, 
-      amount, 
+    const {
+      clientId,
+      sessionId,
+      amount,
       expectedAmount,
-      paymentType = 'FULL',
+      paymentType = "FULL",
       method,
       status,
       notes,
       creditUsed,
-      issueReceipt
+      issueReceipt,
     } = body;
 
     if (!clientId || !amount) {
@@ -64,254 +60,28 @@ export async function POST(request: NextRequest) {
       );
     }
 
-    // Verify client ownership
-    const client = await prisma.client.findFirst({
-      where: { id: clientId, therapistId: session.user.id },
+    const result = await createPaymentForSession({
+      userId: session.user.id,
+      clientId,
+      sessionId,
+      amount: Number(amount),
+      expectedAmount: Number(expectedAmount || amount),
+      method: method || "CASH",
+      paymentType,
+      status,
+      issueReceipt,
+      notes,
+      creditUsed: creditUsed ? Number(creditUsed) : undefined,
     });
 
-    if (!client) {
-      return NextResponse.json({ message: "מטופל לא נמצא" }, { status: 404 });
+    if (!result.success) {
+      return NextResponse.json({ message: result.error }, { status: 400 });
     }
 
-    // Handle credit usage if specified
-    if (creditUsed && Number(creditUsed) > 0) {
-      const creditAmount = Number(creditUsed);
-      
-      if (Number(client.creditBalance) >= creditAmount) {
-        // Deduct from credit balance
-        await prisma.client.update({
-          where: { id: clientId },
-          data: {
-            creditBalance: {
-              decrement: creditAmount
-            }
-          }
-        });
-      } else {
-        return NextResponse.json(
-          { message: "אין מספיק קרדיט" },
-          { status: 400 }
-        );
-      }
-    }
-
-    // If session already has a payment, update it instead of creating a new one
-    let payment;
-    const existingSessionPayment = sessionId
-      ? await prisma.payment.findUnique({ where: { sessionId } })
-      : null;
-
-    if (existingSessionPayment) {
-      payment = await prisma.payment.update({
-        where: { sessionId },
-        data: {
-          amount,
-          expectedAmount: expectedAmount || amount,
-          paymentType,
-          method: method || "CASH",
-          status: status || "PENDING",
-          paidAt: status === "PAID" ? new Date() : null,
-          notes: notes || null,
-        },
-        include: {
-          client: true,
-          session: true,
-        },
-      });
-    } else {
-      payment = await prisma.payment.create({
-        data: {
-          clientId,
-          sessionId: sessionId || null,
-          amount,
-          expectedAmount: expectedAmount || amount,
-          paymentType,
-          method: method || "CASH",
-          status: status || "PENDING",
-          paidAt: status === "PAID" ? new Date() : null,
-          notes: notes || null,
-        },
-        include: {
-          client: true,
-          session: true,
-        },
-      });
-    }
-
-    // Handle credit balance for ADVANCE payments
-    if (paymentType === 'ADVANCE') {
-      await prisma.client.update({
-        where: { id: clientId },
-        data: {
-          creditBalance: {
-            increment: amount
-          }
-        }
-      });
-    }
-
-    // Create task for payment collection (only for partial or unpaid)
-    if (paymentType === 'PARTIAL') {
-      const remaining = (expectedAmount || amount) - amount;
-      await prisma.task.create({
-        data: {
-          userId: session.user.id,
-          type: "COLLECT_PAYMENT",
-          title: `גבה יתרת תשלום מ-${client.name} - ₪${remaining}`,
-          status: "PENDING",
-          priority: "MEDIUM",
-          relatedEntityId: payment.id,
-          relatedEntity: "Payment",
-        },
-      });
-    }
-
-    // Send payment receipt email and create formal receipt if status is PAID
-    if (status === "PAID") {
-      try {
-        const commSettings = await prisma.communicationSetting.findUnique({
-          where: { userId: session.user.id },
-        });
-
-        const therapist = await prisma.user.findUnique({
-          where: { id: session.user.id },
-        });
-
-        let receiptUrl: string | null = null;
-        let receiptNumber: string | null = null;
-        let receiptError: string | undefined;
-
-        if (issueReceipt !== false && therapist?.businessType !== "NONE") {
-          if (therapist?.businessType === "EXEMPT") {
-            const receiptUser = await prisma.user.update({
-              where: { id: session.user.id },
-              data: { nextReceiptNumber: { increment: 1 } },
-              select: { nextReceiptNumber: true },
-            });
-            const reservedNumber = (receiptUser.nextReceiptNumber ?? 2) - 1;
-            const year = new Date().getFullYear();
-            receiptNumber = `${year}-${String(reservedNumber).padStart(4, "0")}`;
-            receiptUrl = getReceiptPageUrl(payment.id);
-
-            await prisma.payment.update({
-              where: { id: payment.id },
-              data: { receiptNumber, receiptUrl, hasReceipt: true },
-            });
-          } else {
-            // עוסק מורשה: יצירת קבלה דרך ספק חיוב
-            try {
-              const billingService = createBillingService(session.user.id);
-              const receiptResult = await billingService.createReceipt({
-                clientName: payment.client.name,
-                clientEmail: payment.client.email || undefined,
-                clientPhone: payment.client.phone || undefined,
-                amount: Number(payment.amount),
-                description: payment.session 
-                  ? `תשלום עבור פגישה בתאריך ${new Date(payment.session.startTime).toLocaleDateString('he-IL', { timeZone: 'Asia/Jerusalem' })}`
-                  : `תשלום עבור טיפול`,
-                paymentMethod: mapPaymentMethod(method),
-                sendEmail: false,
-              });
-
-              if (receiptResult.success) {
-                receiptUrl = receiptResult.receiptUrl || null;
-                receiptNumber = receiptResult.receiptNumber || null;
-
-                await prisma.payment.update({
-                  where: { id: payment.id },
-                  data: { receiptUrl, receiptNumber, hasReceipt: true },
-                });
-              } else {
-                console.error("Billing receipt creation failed:", receiptResult.error);
-                receiptError = receiptResult.error || "שגיאה ביצירת קבלה בספק החיוב";
-              }
-            } catch (billingError) {
-              console.error("Error creating receipt via billing provider:", billingError);
-              receiptError = billingError instanceof Error ? billingError.message : "שגיאה ביצירת קבלה";
-            }
-          }
-        }
-
-        // שליחת מייל אישור תשלום
-        if (commSettings?.sendPaymentReceipt !== false) {
-          const allPayments = await prisma.payment.findMany({
-            where: {
-              clientId: payment.client.id,
-              status: "PENDING",
-            },
-          });
-
-          const remainingDebt = allPayments.reduce(
-            (sum, p) => sum + (Number(p.expectedAmount) - Number(p.amount)),
-            0
-          );
-
-          const { subject, html } = createPaymentReceiptEmail({
-            clientName: payment.client.name,
-            therapistName: therapist?.name || "המטפל/ת שלך",
-            therapistPhone: therapist?.businessPhone || therapist?.phone || undefined,
-            payment: {
-              amount: Number(payment.amount),
-              expectedAmount: Number(payment.expectedAmount || payment.amount),
-              method: payment.method,
-              paidAt: payment.paidAt || new Date(),
-              session: payment.session || undefined,
-              receiptUrl: receiptUrl || undefined,
-              receiptNumber: receiptNumber || undefined,
-            },
-            clientBalance: {
-              remainingDebt,
-              credit: Number(payment.client.creditBalance),
-            },
-            customization: {
-              paymentInstructions: commSettings?.paymentInstructions,
-              paymentLink: commSettings?.paymentLink,
-              emailSignature: commSettings?.emailSignature,
-              customGreeting: commSettings?.customGreeting,
-              customClosing: commSettings?.customClosing,
-              businessHours: commSettings?.businessHours,
-            },
-          });
-
-          // שליחה למטופל
-          if (commSettings?.sendReceiptToClient !== false && payment.client.email) {
-            const emailResult = await sendEmail({
-              to: payment.client.email,
-              subject,
-              html,
-            });
-
-            await prisma.communicationLog.create({
-              data: {
-                type: "CUSTOM",
-                channel: "EMAIL",
-                recipient: payment.client.email.toLowerCase(),
-                subject,
-                content: html,
-                status: "SENT",
-                sentAt: new Date(),
-                messageId: emailResult.messageId || null,
-                clientId: clientId,
-                userId: session.user.id,
-              },
-            });
-          }
-
-          // שליחת עותק למטפל
-          if (commSettings?.sendReceiptToTherapist !== false && therapist?.email) {
-            await sendEmail({
-              to: therapist.email,
-              subject: `[עותק] ${subject}`,
-              html,
-            });
-          }
-        }
-      } catch (emailError) {
-        console.error("Error sending payment receipt email:", emailError);
-      }
-    }
-
-    return NextResponse.json({ ...payment, receiptError }, { status: 201 });
+    return NextResponse.json(
+      { ...result.payment, receiptError: result.receiptError },
+      { status: 201 }
+    );
   } catch (error) {
     console.error("Create payment error:", error);
     return NextResponse.json(

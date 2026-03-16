@@ -2,6 +2,7 @@ import { NextRequest, NextResponse } from "next/server";
 import { getServerSession } from "next-auth";
 import { authOptions } from "@/lib/auth";
 import prisma from "@/lib/prisma";
+import { createPaymentForSession } from "@/lib/payment-service";
 
 export const dynamic = "force-dynamic";
 
@@ -23,41 +24,28 @@ export async function POST(
       return NextResponse.json({ message: "סכום לא תקין" }, { status: 400 });
     }
 
-    // Verify ownership
-    const existingClient = await prisma.client.findFirst({
-      where: { id, therapistId: session.user.id },
+    const result = await createPaymentForSession({
+      userId: session.user.id,
+      clientId: id,
+      amount: Number(amount),
+      expectedAmount: Number(amount),
+      method: "CREDIT",
+      paymentType: "ADVANCE",
+      notes: notes || `הוספת קרדיט: ₪${amount}`,
     });
 
-    if (!existingClient) {
-      return NextResponse.json({ message: "מטופל לא נמצא" }, { status: 404 });
+    if (!result.success) {
+      return NextResponse.json({ message: result.error }, { status: 400 });
     }
 
-    // Update credit balance
-    const updatedClient = await prisma.client.update({
+    const updatedClient = await prisma.client.findUnique({
       where: { id },
-      data: {
-        creditBalance: {
-          increment: amount,
-        },
-      },
-    });
-
-    // Create a payment record for tracking (optional - for history)
-    await prisma.payment.create({
-      data: {
-        clientId: id,
-        amount: amount,
-        expectedAmount: amount,
-        method: "CREDIT",
-        status: "PAID",
-        notes: notes || `הוספת קרדיט: ₪${amount}`,
-        paidAt: new Date(),
-      },
+      select: { creditBalance: true },
     });
 
     return NextResponse.json({
       message: "הקרדיט נוסף בהצלחה",
-      newBalance: updatedClient.creditBalance,
+      newBalance: updatedClient?.creditBalance,
     });
   } catch (error) {
     console.error("Add credit error:", error);
