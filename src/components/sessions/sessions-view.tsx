@@ -297,11 +297,12 @@ export function SessionsView({ initialSessions }: SessionsViewProps) {
             body: JSON.stringify({
               clientId: cancelDialog.clientId,
               sessionId: cancelDialog.sessionId,
-              amount: cancelDialog.price,
+              amount: 0,
               expectedAmount: cancelDialog.price,
               paymentType: "FULL",
               method: "CASH",
               status: "PENDING",
+              issueReceipt: false,
             }),
           })
         );

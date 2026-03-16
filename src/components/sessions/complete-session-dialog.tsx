@@ -139,7 +139,7 @@ export function CompleteSessionDialog(props: CompleteSessionDialogProps) {
           expectedAmount: paymentType === "PARTIAL" ? defaultAmount : undefined,
           paymentType: actualPaymentType,
           method: paymentType === "CREDIT" ? "CREDIT" : paymentMethod,
-          status: "PAID",
+          status: paymentType === "PARTIAL" ? undefined : "PAID",
           issueReceipt: businessType !== "NONE" && issueReceipt,
           creditUsed: creditToUse > 0 ? creditToUse : undefined,
         }),

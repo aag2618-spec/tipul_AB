@@ -66,13 +66,14 @@ function NewPaymentContent() {
         headers: { "Content-Type": "application/json" },
         body: JSON.stringify({
           clientId: formData.clientId,
-          amount: parseFloat(formData.amount),
+          amount: formData.status === "PAID" ? parseFloat(formData.amount) : 0,
           expectedAmount: parseFloat(formData.amount),
           paymentType: "FULL",
           method: formData.method,
           notes: formData.notes,
           status: formData.status,
           paidAt: formData.status === "PAID" ? new Date().toISOString() : null,
+          issueReceipt: formData.status === "PAID",
         }),
       });
 
