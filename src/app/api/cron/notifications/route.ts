@@ -1,6 +1,7 @@
 import { NextRequest, NextResponse } from "next/server";
 import prisma from "@/lib/prisma";
 import { sendEmail } from "@/lib/resend";
+import { calculateDebtFromPayments } from "@/lib/payment-utils";
 
 export const dynamic = "force-dynamic";
 
@@ -140,7 +141,7 @@ export async function GET(request: NextRequest) {
           });
 
           if (pendingPayments.length > 0) {
-            const totalDebt = pendingPayments.reduce((sum, p) => sum + Number(p.amount), 0);
+            const totalDebt = calculateDebtFromPayments(pendingPayments);
 
             await prisma.notification.create({
               data: {
@@ -262,7 +263,7 @@ export async function GET(request: NextRequest) {
             });
 
             if (allPendingPayments.length > 0) {
-              const totalAmount = allPendingPayments.reduce((sum, p) => sum + Number(p.amount), 0);
+              const totalAmount = calculateDebtFromPayments(allPendingPayments);
 
               await prisma.notification.create({
                 data: {

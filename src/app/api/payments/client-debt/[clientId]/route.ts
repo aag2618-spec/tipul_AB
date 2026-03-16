@@ -1,7 +1,7 @@
 import { NextRequest, NextResponse } from "next/server";
 import { getServerSession } from "next-auth";
 import { authOptions } from "@/lib/auth";
-import prisma from "@/lib/prisma";
+import { getClientDebtSummary } from "@/lib/payment-service";
 
 export const dynamic = "force-dynamic";
 
@@ -16,96 +16,11 @@ export async function GET(
     }
 
     const { clientId } = await params;
+    const result = await getClientDebtSummary(session.user.id, clientId);
 
-    // Get client with unpaid sessions
-    const client = await prisma.client.findFirst({
-      where: {
-        id: clientId,
-        therapistId: session.user.id,
-      },
-      select: {
-        id: true,
-        name: true,
-        email: true,
-        creditBalance: true,
-      },
-    });
-
-    if (!client) {
+    if (!result) {
       return NextResponse.json({ message: "מטופל לא נמצא" }, { status: 404 });
     }
-
-    // Get all unpaid or partially paid sessions
-    const allPayments = await prisma.payment.findMany({
-      where: {
-        clientId,
-        status: "PENDING",
-        parentPaymentId: null,
-      },
-      orderBy: {
-        createdAt: "asc", // Oldest first - pay in order
-      },
-      select: {
-        id: true,
-        sessionId: true,
-        createdAt: true,
-        amount: true,
-        expectedAmount: true,
-        status: true,
-      },
-    });
-
-    // Auto-fix stuck PENDING payments that are actually fully paid
-    const stuckPayments = allPayments.filter(p => {
-      const paid = Number(p.amount);
-      const expected = Number(p.expectedAmount) || 0;
-      return (expected > 0 && paid >= expected) || (expected === 0 && paid > 0);
-    });
-    if (stuckPayments.length > 0) {
-      const stuckIds = stuckPayments.map(p => p.id);
-      await prisma.payment.updateMany({
-        where: { id: { in: stuckIds } },
-        data: { status: "PAID", paidAt: new Date() },
-      });
-      await prisma.task.updateMany({
-        where: {
-          userId: session.user.id,
-          relatedEntityId: { in: stuckIds },
-          type: "COLLECT_PAYMENT",
-          status: { in: ["PENDING", "IN_PROGRESS"] },
-        },
-        data: { status: "COMPLETED" },
-      });
-    }
-
-    // Filter to only include payments with actual remaining debt
-    const unpaidPayments = allPayments.filter(payment => {
-      const paid = Number(payment.amount);
-      const expected = Number(payment.expectedAmount) || 0;
-      return expected > 0 && paid < expected;
-    });
-
-    // Calculate total debt
-    const totalDebt = unpaidPayments.reduce(
-      (sum, payment) => sum + (Number(payment.expectedAmount) - Number(payment.amount)),
-      0
-    );
-
-    const result = {
-      id: client.id,
-      name: client.name,
-      email: client.email,
-      creditBalance: Number(client.creditBalance),
-      totalDebt,
-      unpaidSessions: unpaidPayments.map(payment => ({
-        paymentId: payment.id,
-        sessionId: payment.sessionId,
-        date: payment.createdAt,
-        amount: Number(payment.amount),
-        expectedAmount: Number(payment.expectedAmount),
-        status: payment.status,
-      })),
-    };
 
     return NextResponse.json(result);
   } catch (error) {

@@ -27,6 +27,7 @@ import Link from "next/link";
 import { format } from "date-fns";
 import { he } from "date-fns/locale";
 import { toast } from "sonner";
+import { calculateDebtFromSessions, calculateSessionDebt } from "@/lib/payment-utils";
 
 interface Session {
   id: string;
@@ -116,16 +117,9 @@ export default function ClientPaymentsPage() {
     }
   };
 
-  const calculateSessionDebt = (session: Session) => {
-    if (!session.payment) return session.price;
-    return Number(session.payment.expectedAmount) - Number(session.payment.amount);
-  };
-
   const calculateTotalDebt = () => {
     if (!client) return 0;
-    return client.sessions.reduce((sum, session) => {
-      return sum + calculateSessionDebt(session);
-    }, 0);
+    return calculateDebtFromSessions(client.sessions);
   };
 
   const handleSendReminder = async () => {

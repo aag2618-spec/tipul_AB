@@ -13,6 +13,7 @@ import { RadioGroup, RadioGroupItem } from "@/components/ui/radio-group";
 import { ArrowRight, Loader2, CreditCard, Calendar, User, Hash, Banknote, Wallet } from "lucide-react";
 import { toast } from "sonner";
 import { format } from "date-fns";
+import { calculateDebtFromPayments, calculateSessionDebt } from "@/lib/payment-utils";
 import { he } from "date-fns/locale";
 import { PayClientDebts } from "@/components/payments/pay-client-debts";
 import { AddCreditDialog } from "@/components/clients/add-credit-dialog";
@@ -156,9 +157,9 @@ export default function PayClientPage({ params }: { params: Promise<{ clientId: 
   const calculateSelectedTotal = () => {
     if (!client) return 0;
     
-    const totalDebt = client.unpaidSessions
-      .filter(s => selectedPayments.has(s.paymentId))
-      .reduce((sum, s) => sum + (s.expectedAmount - s.amount), 0);
+    const totalDebt = calculateDebtFromPayments(
+      client.unpaidSessions.filter(s => selectedPayments.has(s.paymentId))
+    );
     
     // אם במצב תשלום לפי סכום - הצג את הסכום שהוזן (או את החוב אם קטן יותר)
     if (selectionMode === "amount" && targetAmount) {

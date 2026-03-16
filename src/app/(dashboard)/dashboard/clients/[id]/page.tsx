@@ -65,6 +65,7 @@ import { QuestionnaireAnalysis } from "@/components/ai/questionnaire-analysis";
 import { SessionPrepCard } from "@/components/ai/session-prep-card";
 import { format } from "date-fns";
 import { he } from "date-fns/locale";
+import { calculateDebtFromPayments, calculateSessionDebt } from "@/lib/payment-utils";
 
 async function getClient(clientId: string, userId: string) {
   return prisma.client.findFirst({
@@ -166,10 +167,7 @@ export default async function ClientPage({
     : null;
 
   const pendingPayments = client.payments.filter((p) => p.status === "PENDING");
-  const totalDebt = pendingPayments.reduce(
-    (sum, p) => sum + (Number(p.expectedAmount) - Number(p.amount)),
-    0
-  );
+  const totalDebt = calculateDebtFromPayments(pendingPayments);
 
   // AI tab data
   const futureSessions = client.therapySessions.filter(
@@ -563,9 +561,8 @@ export default async function ClientPage({
                 {unpaidSessions.length > 0 ? (
                   <div className="grid gap-4 grid-cols-1 sm:grid-cols-2 lg:grid-cols-3">
                     {unpaidSessions.map((session) => {
-                      const sessionPrice = Number(session.price);
+                      const debt = calculateSessionDebt(session);
                       const alreadyPaid = session.payment ? Number(session.payment.amount) : 0;
-                      const debt = sessionPrice - alreadyPaid;
 
                       const cardContent = (
                         <Card className="cursor-pointer hover:shadow-lg transition-all hover:scale-[1.02] h-full">

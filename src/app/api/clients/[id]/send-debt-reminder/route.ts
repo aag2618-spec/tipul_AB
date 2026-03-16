@@ -3,6 +3,7 @@ import { getServerSession } from "next-auth";
 import { authOptions } from "@/lib/auth";
 import prisma from "@/lib/prisma";
 import { sendEmail } from "@/lib/resend";
+import { calculateSessionDebt } from "@/lib/payment-utils";
 function createDebtReminderEmail(
   clientName: string,
   therapistName: string,
@@ -247,19 +248,12 @@ export async function POST(
       );
     }
 
-    // Calculate debt for each session
-    const sessionsWithDebt = sessions.map((session) => {
-      const sessionPrice = Number(session.price);
-      const alreadyPaid = session.payment ? Number(session.payment.amount) : 0;
-      const debt = sessionPrice - alreadyPaid;
-
-      return {
-        date: session.startTime,
-        type: session.type,
-        status: session.status,
-        debt,
-      };
-    });
+    const sessionsWithDebt = sessions.map((session) => ({
+      date: session.startTime,
+      type: session.type,
+      status: session.status,
+      debt: calculateSessionDebt(session),
+    }));
 
     const totalDebt = sessionsWithDebt.reduce((sum, s) => sum + s.debt, 0);
 

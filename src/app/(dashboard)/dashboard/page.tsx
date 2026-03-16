@@ -11,6 +11,7 @@ import Link from "next/link";
 import { PersonalTasksWidget } from "@/components/tasks/personal-tasks-widget";
 import { TodaySessionCard } from "@/components/dashboard/today-session-card";
 import { SubBoxLink } from "@/components/dashboard-stat-card";
+import { calculateDebtFromPayments } from "@/lib/payment-utils";
 
 function getIsraelOffsetHours(date: Date): number {
   const dateStr = date.toISOString().split("T")[0];
@@ -364,11 +365,9 @@ export default async function DashboardPage() {
             {stats.todaySessions.length > 0 ? (
               <div className="space-y-4">
                 {stats.todaySessions.map((therapySession) => {
-                  // Calculate total debt and unpaid sessions count for client
-                  const totalDebt = therapySession.client?.payments.reduce(
-                    (sum, p) => sum + (Number(p.expectedAmount) - Number(p.amount)),
-                    0
-                  ) || 0;
+                  const totalDebt = therapySession.client?.payments
+                    ? calculateDebtFromPayments(therapySession.client.payments)
+                    : 0;
                   const unpaidSessionsCount = therapySession.client?.payments.length || 0;
 
                   return (

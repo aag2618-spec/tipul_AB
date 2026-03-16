@@ -1,5 +1,6 @@
 import { NextRequest, NextResponse } from "next/server";
 import prisma from "@/lib/prisma";
+import { calculateDebtFromPayments } from "@/lib/payment-utils";
 
 export const dynamic = "force-dynamic";
 
@@ -106,10 +107,7 @@ ${pendingTasks.length > 5 ? `\n...ועוד ${pendingTasks.length - 5} משימו
 
       // Create payment reminder if there are overdue payments
       if (pendingPayments.length > 0) {
-        const totalDebt = pendingPayments.reduce(
-          (sum, p) => sum + Number(p.amount),
-          0
-        );
+        const totalDebt = calculateDebtFromPayments(pendingPayments);
 
         await prisma.notification.create({
           data: {

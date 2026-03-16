@@ -4,6 +4,7 @@ import { createPaymentReceiptEmail } from "@/lib/email-templates/payment-receipt
 import { createBillingService } from "@/lib/billing";
 import { getReceiptPageUrl } from "@/lib/receipt-token";
 import { mapPaymentMethod } from "@/lib/email-utils";
+import { calculateDebtFromPayments } from "@/lib/payment-utils";
 
 // ================================================================
 // Types
@@ -166,10 +167,7 @@ export async function sendPaymentReceiptEmail(params: {
         parentPaymentId: null,
       },
     });
-    const remainingDebt = allPending.reduce(
-      (sum, p) => sum + (Number(p.expectedAmount) - Number(p.amount)),
-      0
-    );
+    const remainingDebt = calculateDebtFromPayments(allPending);
 
     const sessionRemaining = params.sessionRemainingAfterPayment ?? (params.expectedAmount - params.amountPaid);
 
@@ -978,4 +976,221 @@ export async function processMultiSessionPayment(params: {
       error: error instanceof Error ? error.message : "שגיאה בעיבוד התשלום",
     };
   }
+}
+
+// Re-export pure calculation helpers from payment-utils
+export { calculateDebtFromPayments } from "@/lib/payment-utils";
+
+// ================================================================
+// READ: Auto-fix stuck payments
+// ================================================================
+
+async function autoFixStuckPayments(
+  userId: string,
+  pendingPayments: Array<{ id: string; amount: any; expectedAmount: any }>
+): Promise<string[]> {
+  const stuck = pendingPayments.filter((p) => {
+    const paid = Number(p.amount);
+    const expected = Number(p.expectedAmount) || 0;
+    return (expected > 0 && paid >= expected) || (expected === 0 && paid > 0);
+  });
+
+  if (stuck.length === 0) return [];
+
+  const stuckIds = stuck.map((p) => p.id);
+  await prisma.payment.updateMany({
+    where: { id: { in: stuckIds } },
+    data: { status: "PAID", paidAt: new Date() },
+  });
+  await prisma.task.updateMany({
+    where: {
+      userId,
+      relatedEntityId: { in: stuckIds },
+      type: "COLLECT_PAYMENT",
+      status: { in: ["PENDING", "IN_PROGRESS"] },
+    },
+    data: { status: "COMPLETED" },
+  });
+
+  return stuckIds;
+}
+
+// ================================================================
+// READ: getClientDebtSummary
+// ================================================================
+
+export interface ClientDebtSummary {
+  id: string;
+  name: string;
+  email?: string | null;
+  creditBalance: number;
+  totalDebt: number;
+  unpaidSessions: Array<{
+    paymentId: string;
+    sessionId: string | null;
+    date: Date;
+    amount: number;
+    expectedAmount: number;
+    paidAmount: number;
+    status: string;
+    partialPaymentDate?: Date | null;
+  }>;
+}
+
+export async function getClientDebtSummary(
+  userId: string,
+  clientId: string
+): Promise<ClientDebtSummary | null> {
+  const client = await prisma.client.findFirst({
+    where: { id: clientId, therapistId: userId },
+    select: { id: true, name: true, email: true, creditBalance: true },
+  });
+  if (!client) return null;
+
+  const allPending = await prisma.payment.findMany({
+    where: { clientId, status: "PENDING", parentPaymentId: null },
+    orderBy: { createdAt: "asc" },
+    select: {
+      id: true,
+      sessionId: true,
+      createdAt: true,
+      updatedAt: true,
+      amount: true,
+      expectedAmount: true,
+      status: true,
+    },
+  });
+
+  await autoFixStuckPayments(userId, allPending);
+
+  const unpaid = allPending.filter((p) => {
+    const paid = Number(p.amount);
+    const expected = Number(p.expectedAmount) || 0;
+    return expected > 0 && paid < expected;
+  });
+
+  const totalDebt = unpaid.reduce(
+    (sum, p) => sum + (Number(p.expectedAmount) - Number(p.amount)),
+    0
+  );
+
+  return {
+    id: client.id,
+    name: client.name,
+    email: client.email,
+    creditBalance: Number(client.creditBalance),
+    totalDebt,
+    unpaidSessions: unpaid.map((p) => {
+      const paidAmount = Number(p.amount);
+      const expectedAmount = Number(p.expectedAmount) || 0;
+      return {
+        paymentId: p.id,
+        sessionId: p.sessionId,
+        date: p.createdAt,
+        amount: paidAmount,
+        expectedAmount,
+        paidAmount,
+        status: p.status,
+        partialPaymentDate:
+          paidAmount > 0 && paidAmount < expectedAmount ? p.updatedAt : null,
+      };
+    }),
+  };
+}
+
+// ================================================================
+// READ: getAllClientsDebtSummary
+// ================================================================
+
+export interface AllClientsDebtItem {
+  id: string;
+  firstName: string;
+  lastName: string;
+  fullName: string;
+  totalDebt: number;
+  creditBalance: number;
+  unpaidSessionsCount: number;
+  unpaidSessions: Array<{
+    paymentId: string;
+    amount: number;
+    paidAmount: number;
+    date: Date;
+    sessionId: string | null;
+    partialPaymentDate: Date | null;
+  }>;
+}
+
+export async function getAllClientsDebtSummary(
+  userId: string
+): Promise<AllClientsDebtItem[]> {
+  const clients = await prisma.client.findMany({
+    where: { therapistId: userId, status: { not: "ARCHIVED" } },
+    select: {
+      id: true,
+      firstName: true,
+      lastName: true,
+      name: true,
+      creditBalance: true,
+      payments: {
+        where: { status: "PENDING", parentPaymentId: null },
+        select: {
+          id: true,
+          amount: true,
+          expectedAmount: true,
+          createdAt: true,
+          updatedAt: true,
+          sessionId: true,
+        },
+        orderBy: { createdAt: "desc" },
+      },
+    },
+  });
+
+  const allPending = clients.flatMap((c) => c.payments);
+  await autoFixStuckPayments(userId, allPending);
+
+  return clients
+    .map((client) => {
+      const unpaid = client.payments
+        .filter((p) => {
+          const paid = Number(p.amount);
+          const expected = Number(p.expectedAmount) || 0;
+          return expected > 0 && paid < expected;
+        })
+        .map((p) => {
+          const paidAmount = Number(p.amount);
+          const expectedAmount = Number(p.expectedAmount) || 0;
+          return {
+            paymentId: p.id,
+            amount: expectedAmount,
+            paidAmount,
+            date: p.createdAt,
+            sessionId: p.sessionId,
+            partialPaymentDate:
+              paidAmount > 0 && paidAmount < expectedAmount
+                ? p.updatedAt
+                : null,
+          };
+        });
+
+      const totalDebt = unpaid.reduce(
+        (sum, s) => sum + (s.amount - s.paidAmount),
+        0
+      );
+
+      return {
+        id: client.id,
+        firstName: client.firstName || "",
+        lastName: client.lastName || "",
+        fullName:
+          client.firstName && client.lastName
+            ? `${client.firstName} ${client.lastName}`
+            : client.name,
+        totalDebt,
+        creditBalance: Number(client.creditBalance),
+        unpaidSessionsCount: unpaid.length,
+        unpaidSessions: unpaid,
+      };
+    })
+    .filter((c) => c.totalDebt > 0 || c.creditBalance > 0);
 }

@@ -1,6 +1,7 @@
 import { NextRequest, NextResponse } from "next/server";
 import prisma from "@/lib/prisma";
 import { sendEmail } from "@/lib/resend";
+import { calculateSessionDebt } from "@/lib/payment-utils";
 
 export const dynamic = "force-dynamic";
 
@@ -212,18 +213,12 @@ export async function GET(request: NextRequest) {
       for (const client of clients) {
         if (!client.email) continue;
 
-        const sessionsWithDebt = client.therapySessions.map((session) => {
-          const sessionPrice = Number(session.price);
-          const alreadyPaid = session.payment ? Number(session.payment.amount) : 0;
-          const debt = sessionPrice - alreadyPaid;
-
-          return {
-            date: session.startTime,
-            type: session.type,
-            status: session.status,
-            debt,
-          };
-        });
+        const sessionsWithDebt = client.therapySessions.map((session) => ({
+          date: session.startTime,
+          type: session.type,
+          status: session.status,
+          debt: calculateSessionDebt(session),
+        }));
 
         const totalDebt = sessionsWithDebt.reduce((sum, s) => sum + s.debt, 0);
 

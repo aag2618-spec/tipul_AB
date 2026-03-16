@@ -2,6 +2,7 @@ import { NextRequest, NextResponse } from "next/server";
 import { getServerSession } from "next-auth";
 import { authOptions } from "@/lib/auth";
 import prisma from "@/lib/prisma";
+import { calculateDebtFromSessions } from "@/lib/payment-utils";
 
 export const dynamic = "force-dynamic";
 
@@ -56,27 +57,30 @@ export async function GET(
       return NextResponse.json({ error: "Client not found" }, { status: 404 });
     }
 
+    const sessions = client.therapySessions.map((session) => ({
+      id: session.id,
+      startTime: session.startTime,
+      endTime: session.endTime,
+      price: Number(session.price),
+      type: session.type,
+      status: session.status,
+      payment: session.payment
+        ? {
+            id: session.payment.id,
+            amount: Number(session.payment.amount),
+            expectedAmount: Number(session.payment.expectedAmount),
+            status: session.payment.status,
+            method: session.payment.method,
+          }
+        : null,
+    }));
+
     return NextResponse.json({
       id: client.id,
       name: client.name,
       creditBalance: Number(client.creditBalance),
-      sessions: client.therapySessions.map((session) => ({
-        id: session.id,
-        startTime: session.startTime,
-        endTime: session.endTime,
-        price: Number(session.price),
-        type: session.type,
-        status: session.status,
-        payment: session.payment
-          ? {
-              id: session.payment.id,
-              amount: Number(session.payment.amount),
-              expectedAmount: Number(session.payment.expectedAmount),
-              status: session.payment.status,
-              method: session.payment.method,
-            }
-          : null,
-      })),
+      totalDebt: calculateDebtFromSessions(sessions),
+      sessions,
     });
   } catch (error) {
     console.error("Error fetching unpaid sessions:", error);
