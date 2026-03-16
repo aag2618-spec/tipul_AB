@@ -33,7 +33,7 @@ async function getReportData(userId: string): Promise<ReportData> {
             { status: "PENDING" },
           ],
         },
-        select: { amount: true, status: true, paidAt: true, createdAt: true },
+        select: { amount: true, expectedAmount: true, status: true, paidAt: true, createdAt: true },
       }),
       prisma.client.findMany({
         where: { therapistId: userId, createdAt: { gte: yearStart } },
@@ -71,7 +71,7 @@ async function getReportData(userId: string): Promise<ReportData> {
         .reduce((sum, p) => sum + Number(p.amount), 0);
       const pendingAmount = allPayments
         .filter(p => p.status === "PENDING" && p.createdAt.getTime() >= msStart && p.createdAt.getTime() <= msEnd)
-        .reduce((sum, p) => sum + Number(p.amount), 0);
+        .reduce((sum, p) => sum + (Number(p.expectedAmount) || Number(p.amount)) - Number(p.amount), 0);
 
       const newClients = allNewClients.filter(c => {
         const t = c.createdAt.getTime();
@@ -96,7 +96,7 @@ async function getReportData(userId: string): Promise<ReportData> {
     const cancelledTotal = allSessions.filter(s => s.status === "CANCELLED").length;
     const totalSessionsAll = allSessions.length;
     const paidTotal = allPayments.filter(p => p.status === "PAID").reduce((sum, p) => sum + Number(p.amount), 0);
-    const pendingTotal = allPayments.filter(p => p.status === "PENDING").reduce((sum, p) => sum + Number(p.amount), 0);
+    const pendingTotal = allPayments.filter(p => p.status === "PENDING").reduce((sum, p) => sum + (Number(p.expectedAmount) || Number(p.amount)) - Number(p.amount), 0);
     const allPaymentsTotal = paidTotal + pendingTotal;
 
     // Day of week distribution

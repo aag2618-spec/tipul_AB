@@ -20,6 +20,7 @@ interface SessionData {
     id: string;
     status: string;
     amount: number;
+    expectedAmount?: number;
   } | null;
   client: {
     id: string;

@@ -171,6 +171,8 @@ export function PaymentHistoryItem({ payment }: PaymentHistoryItemProps) {
               variant={
                 payment.status === 'PAID'
                   ? 'default'
+                  : payment.status === 'PENDING' && isPartial && amount > 0
+                  ? 'outline'
                   : payment.status === 'PENDING'
                   ? 'secondary'
                   : 'destructive'
@@ -178,6 +180,8 @@ export function PaymentHistoryItem({ payment }: PaymentHistoryItemProps) {
             >
               {payment.status === 'PAID'
                 ? 'שולם'
+                : payment.status === 'PENDING' && isPartial && amount > 0
+                ? 'שולם חלקית'
                 : payment.status === 'PENDING'
                 ? 'ממתין'
                 : payment.status === 'CANCELLED'

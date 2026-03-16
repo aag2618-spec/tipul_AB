@@ -48,7 +48,7 @@ interface Session {
   type: string;
   price: number;
   client: Client | null;
-  payment?: { id: string; status: string } | null;
+  payment?: { id: string; status: string; amount?: number; expectedAmount?: number } | null;
   sessionNote?: string | null;
 }
 
@@ -1618,7 +1618,7 @@ export default function CalendarPage() {
                           setPaymentData({
                             sessionId: selectedSession.id,
                             clientId: selectedSession.client.id,
-                            amount: selectedSession.price,
+                            amount: selectedSession.price - Number(selectedSession.payment?.amount || 0),
                             pendingSessionStatus: "COMPLETED",
                           });
                           setIsPaymentDialogOpen(true);
@@ -1730,7 +1730,7 @@ export default function CalendarPage() {
                           sessionId={selectedSession.id}
                           clientId={selectedSession.client.id}
                           clientName={selectedSession.client.name}
-                          amount={selectedSession.price}
+                          amount={selectedSession.price - Number(selectedSession.payment?.amount || 0)}
                           creditBalance={Number(selectedSession.client.creditBalance || 0)}
                           existingPayment={selectedSession.payment}
                           buttonText="רשום תשלום / הצג קבלה"
@@ -1798,7 +1798,7 @@ export default function CalendarPage() {
                             sessionId={selectedSession.id}
                             clientId={selectedSession.client.id}
                             clientName={selectedSession.client.name}
-                            amount={selectedSession.price}
+                            amount={selectedSession.price - Number(selectedSession.payment?.amount || 0)}
                             creditBalance={Number(selectedSession.client.creditBalance || 0)}
                             existingPayment={selectedSession.payment}
                             buttonText="רשום תשלום"
@@ -1871,7 +1871,7 @@ export default function CalendarPage() {
                 setPaymentData({
                   sessionId: selectedSession.id,
                   clientId: selectedSession.client.id,
-                  amount: selectedSession.price,
+                  amount: selectedSession.price - Number(selectedSession.payment?.amount || 0),
                   pendingSessionStatus: status,
                 });
                 setIsPaymentDialogOpen(true);

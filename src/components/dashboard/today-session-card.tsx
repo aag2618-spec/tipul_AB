@@ -528,7 +528,7 @@ export function TodaySessionCard({ session }: TodaySessionCardProps) {
               <span className="text-muted-foreground">💵 תשלום:</span>
               {session.payment?.status === "PAID" ? (
                 <span className="text-green-600 font-medium">✓ שולם</span>
-              ) : session.payment && session.payment.amount > 0 ? (
+              ) : session.payment && session.payment.amount > 0 && session.payment.amount < Number(session.price) ? (
                 <span className="text-blue-600 font-medium">⏳ שולם חלקית (₪{session.payment.amount})</span>
               ) : (
                 <span className="text-orange-600 font-medium">⏳ לא שולם</span>
@@ -565,7 +565,7 @@ export function TodaySessionCard({ session }: TodaySessionCardProps) {
               <span className="text-muted-foreground">💵 תשלום:</span>
               {session.payment?.status === "PAID" ? (
                 <span className="text-green-600 font-medium">✓ שולם</span>
-              ) : session.payment && session.payment.amount > 0 ? (
+              ) : session.payment && session.payment.amount > 0 && session.payment.amount < Number(session.price) ? (
                 <span className="text-blue-600 font-medium">⏳ שולם חלקית (₪{session.payment.amount})</span>
               ) : session.payment ? (
                 <span className="text-orange-600 font-medium">⏳ חויב - לא שולם</span>

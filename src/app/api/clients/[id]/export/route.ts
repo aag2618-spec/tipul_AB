@@ -154,7 +154,7 @@ ${client.payments
   .map((p, i) => `
 ${i + 1}. תאריך: ${format(new Date(p.createdAt), "dd/MM/yyyy")}
    סכום: ₪${p.amount}
-   מצב: ${p.status === "PAID" ? "שולם" : "ממתין"}
+   מצב: ${p.status === "PAID" ? "שולם" : (p.status === "PENDING" && Number(p.amount) > 0 && Number(p.amount) < Number(p.expectedAmount)) ? "שולם חלקית" : "ממתין"}
    ${p.notes || ""}
 `)
   .join("\n")}

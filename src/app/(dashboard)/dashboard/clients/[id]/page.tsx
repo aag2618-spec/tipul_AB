@@ -425,6 +425,7 @@ export default async function ClientPage({
                               id: session.payment.id,
                               status: session.payment.status as string,
                               amount: Number(session.payment.amount),
+                              expectedAmount: Number(session.payment.expectedAmount),
                             } : null,
                             client: {
                               id: client.id,
@@ -465,6 +466,7 @@ export default async function ClientPage({
                                   id: session.payment.id,
                                   status: session.payment.status as string,
                                   amount: Number(session.payment.amount),
+                                  expectedAmount: Number(session.payment.expectedAmount),
                                 } : null,
                                 client: {
                                   id: client.id,

@@ -70,7 +70,7 @@ export function exportDetailedExcel(
     "סכום": `₪${p.amount}`,
     "סכום מצופה": `₪${p.expectedAmount}`,
     "אמצעי תשלום": getMethodLabel(p.method),
-    "סטטוס": p.status === "PAID" ? "שולם" : "ממתין",
+    "סטטוס": p.status === "PAID" ? "שולם" : (p.status === "PENDING" && Number(p.amount) > 0 && Number(p.amount) < Number(p.expectedAmount)) ? "שולם חלקית" : "ממתין",
     "תאריך פגישה": p.sessionDate ? formatDate(p.sessionDate) : "-",
     "סוג פגישה": p.sessionType || "-",
     "מס' קבלה": p.receiptNumber || "-",
