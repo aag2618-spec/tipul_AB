@@ -312,11 +312,18 @@ export function QuickMarkPaid({
 
               {/* הוצאת קבלה - מוצג רק אם סוג העסק מאפשר */}
               {businessType !== "NONE" && receiptMode !== "NEVER" && (
-                <div className="flex items-center gap-3 py-2 px-3 bg-sky-50 rounded-lg border border-sky-200">
+                <div
+                  className="flex items-center gap-3 py-2 px-3 bg-sky-50 rounded-lg border border-sky-200"
+                  onClick={(e) => e.stopPropagation()}
+                  onPointerDown={(e) => e.stopPropagation()}
+                  onMouseDown={(e) => e.stopPropagation()}
+                >
                   <Checkbox
                     id="issue-receipt"
                     checked={issueReceipt}
-                    onCheckedChange={(checked) => setIssueReceipt(checked === true)}
+                    onCheckedChange={(checked) => {
+                      setIssueReceipt(checked === true);
+                    }}
                     disabled={receiptMode === "ALWAYS"}
                   />
                   <Label htmlFor="issue-receipt" className="cursor-pointer flex items-center gap-2 text-sky-800">

@@ -51,6 +51,7 @@ interface TodaySessionCardProps {
       id: string;
       status: string;
       amount: number;
+      expectedAmount?: number;
     } | null;
     client: {
       id: string;
@@ -527,6 +528,8 @@ export function TodaySessionCard({ session }: TodaySessionCardProps) {
               <span className="text-muted-foreground">💵 תשלום:</span>
               {session.payment?.status === "PAID" ? (
                 <span className="text-green-600 font-medium">✓ שולם</span>
+              ) : session.payment && session.payment.amount > 0 ? (
+                <span className="text-blue-600 font-medium">⏳ שולם חלקית (₪{session.payment.amount})</span>
               ) : (
                 <span className="text-orange-600 font-medium">⏳ לא שולם</span>
               )}
@@ -562,6 +565,8 @@ export function TodaySessionCard({ session }: TodaySessionCardProps) {
               <span className="text-muted-foreground">💵 תשלום:</span>
               {session.payment?.status === "PAID" ? (
                 <span className="text-green-600 font-medium">✓ שולם</span>
+              ) : session.payment && session.payment.amount > 0 ? (
+                <span className="text-blue-600 font-medium">⏳ שולם חלקית (₪{session.payment.amount})</span>
               ) : session.payment ? (
                 <span className="text-orange-600 font-medium">⏳ חויב - לא שולם</span>
               ) : (
@@ -645,7 +650,7 @@ export function TodaySessionCard({ session }: TodaySessionCardProps) {
                           sessionId={session.id}
                           clientId={session.client.id}
                           clientName={session.client.name}
-                          amount={Number(session.price)}
+                          amount={Number(session.price) - Number(session.payment?.amount || 0)}
                           creditBalance={Number(session.client.creditBalance || 0)}
                           existingPayment={session.payment}
                           buttonText="רשום תשלום"

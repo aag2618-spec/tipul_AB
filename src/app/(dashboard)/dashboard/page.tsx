@@ -153,6 +153,7 @@ async function getDashboardStats(userId: string) {
             id: true,
             status: true,
             amount: true,
+            expectedAmount: true,
           },
         },
       },
@@ -385,6 +386,7 @@ export default async function DashboardPage() {
                           id: therapySession.payment.id,
                           status: therapySession.payment.status as string,
                           amount: Number(therapySession.payment.amount),
+                          expectedAmount: Number(therapySession.payment.expectedAmount),
                         } : null,
                         client: therapySession.client ? {
                           id: therapySession.client.id,
