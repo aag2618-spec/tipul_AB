@@ -1,4 +1,16 @@
 /**
+ * Escape user-controlled strings before interpolation into HTML email templates.
+ */
+export function escapeHtml(str: string): string {
+  return str
+    .replace(/&/g, "&amp;")
+    .replace(/</g, "&lt;")
+    .replace(/>/g, "&gt;")
+    .replace(/"/g, "&quot;")
+    .replace(/'/g, "&#039;");
+}
+
+/**
  * Clean incoming email HTML — strip quoted replies, Gmail date headers, direction markers.
  * Used by communications page and correspondence tab.
  */

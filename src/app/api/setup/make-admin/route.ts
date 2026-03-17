@@ -53,41 +53,9 @@ export async function POST(request: NextRequest) {
   } catch (error) {
     console.error("Setup admin error:", error);
     return NextResponse.json(
-      { error: "Failed to update user", details: String(error) },
+      { error: "Failed to update user" },
       { status: 500 }
     );
   }
 }
 
-// GET - Check current role
-export async function GET() {
-  try {
-    const user = await prisma.user.findUnique({
-      where: { email: "aag2618@gmail.com" },
-      select: {
-        id: true,
-        name: true,
-        email: true,
-        role: true,
-      },
-    });
-
-    if (!user) {
-      return NextResponse.json(
-        { error: "User not found" },
-        { status: 404 }
-      );
-    }
-
-    return NextResponse.json({
-      user,
-      is_admin: user.role === "ADMIN",
-    });
-  } catch (error) {
-    console.error("Check admin error:", error);
-    return NextResponse.json(
-      { error: "Failed to check user" },
-      { status: 500 }
-    );
-  }
-}

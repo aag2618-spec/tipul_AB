@@ -3,7 +3,7 @@ import { getServerSession } from "next-auth";
 import { authOptions } from "@/lib/auth";
 import prisma from "@/lib/prisma";
 import { readFile, stat } from "fs/promises";
-import { join } from "path";
+import { join, resolve } from "path";
 
 export const dynamic = "force-dynamic";
 
@@ -18,6 +18,11 @@ export async function GET(
     }
 
     const { path } = await params;
+
+    if (path.some((segment) => segment === ".." || segment.includes("\0"))) {
+      return NextResponse.json({ message: "Forbidden" }, { status: 403 });
+    }
+
     const pathStr = path.join("/");
 
     // Security: Verify file ownership
@@ -47,20 +52,19 @@ export async function GET(
         return NextResponse.json({ message: "אין הרשאה לקובץ זה" }, { status: 403 });
       }
     }
-    // Check if it's a sent attachment copy
     else if (pathStr.startsWith("sent/")) {
-      // Verify the therapist owns this client's communication
-      const clientId = path[1]; // sent/{clientId}/{filename}
-      if (clientId) {
-        const log = await prisma.communicationLog.findFirst({
-          where: {
-            userId: session.user.id,
-            clientId: clientId,
-          },
-        });
-        if (!log) {
-          return NextResponse.json({ message: "אין הרשאה לקובץ זה" }, { status: 403 });
-        }
+      const clientId = path.length >= 2 ? path[1] : null;
+      if (!clientId) {
+        return NextResponse.json({ message: "אין הרשאה לקובץ זה" }, { status: 403 });
+      }
+      const log = await prisma.communicationLog.findFirst({
+        where: {
+          userId: session.user.id,
+          clientId: clientId,
+        },
+      });
+      if (!log) {
+        return NextResponse.json({ message: "אין הרשאה לקובץ זה" }, { status: 403 });
       }
     }
     // Check if it's a recording
@@ -77,11 +81,9 @@ export async function GET(
       }
     }
 
-    // Use persistent disk on Render, fallback to local for development
-    const baseDir = process.env.UPLOADS_DIR || join(process.cwd(), "uploads");
-    const filePath = join(baseDir, ...path);
+    const baseDir = resolve(process.env.UPLOADS_DIR || join(process.cwd(), "uploads"));
+    const filePath = resolve(baseDir, ...path);
 
-    // Security: Prevent directory traversal
     if (!filePath.startsWith(baseDir)) {
       return NextResponse.json({ message: "Forbidden" }, { status: 403 });
     }

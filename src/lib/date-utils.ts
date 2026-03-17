@@ -31,5 +31,6 @@ export function parseIsraelTime(input: string): Date {
   const offsetHours = israelHour - 12;
   const offsetStr = `+${String(offsetHours).padStart(2, "0")}:00`;
 
-  return new Date(`${datePart}T${time}:00${offsetStr}`);
+  const timeWithSeconds = time.split(":").length >= 3 ? time : `${time}:00`;
+  return new Date(`${datePart}T${timeWithSeconds}${offsetStr}`);
 }

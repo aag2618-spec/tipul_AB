@@ -25,6 +25,11 @@ export async function POST(req: NextRequest) {
       return NextResponse.json({ message: "חסרים פרמטרים" }, { status: 400 });
     }
 
+    const validMethods = ["CASH", "CREDIT_CARD", "BANK_TRANSFER", "CHECK", "CREDIT", "OTHER"];
+    if (!validMethods.includes(method)) {
+      return NextResponse.json({ message: "אמצעי תשלום לא תקין" }, { status: 400 });
+    }
+
     if (totalAmount <= 0) {
       return NextResponse.json(
         { message: "סכום התשלום חייב להיות חיובי" },

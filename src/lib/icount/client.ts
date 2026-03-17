@@ -78,7 +78,9 @@ export class ICountClient {
         ...data,
       };
 
-      console.log(`iCount REQUEST ${endpoint}:`, JSON.stringify(jsonBody).substring(0, 500));
+      if (process.env.NODE_ENV === 'development') {
+        console.log(`iCount REQUEST ${endpoint}:`, JSON.stringify(jsonBody).substring(0, 500));
+      }
 
       const response = await fetch(`${ICOUNT_API_BASE}/${endpoint}`, {
         method: 'POST',
@@ -87,7 +89,9 @@ export class ICountClient {
       });
 
       const result = await response.json();
-      console.log(`iCount RESPONSE ${endpoint}:`, JSON.stringify(result).substring(0, 500));
+      if (process.env.NODE_ENV === 'development') {
+        console.log(`iCount RESPONSE ${endpoint}:`, JSON.stringify(result).substring(0, 500));
+      }
 
       if (!result.status) {
         console.error('iCount API Error:', result);

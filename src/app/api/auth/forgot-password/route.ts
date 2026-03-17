@@ -1,10 +1,9 @@
 import { NextRequest, NextResponse } from "next/server";
 import prisma from "@/lib/prisma";
-import { Resend } from "resend";
 import crypto from "crypto";
+import { sendEmail } from "@/lib/resend";
 import { checkRateLimit, rateLimitResponse } from "@/lib/rate-limit";
-
-const resend = new Resend(process.env.RESEND_API_KEY);
+import { escapeHtml } from "@/lib/email-utils";
 
 const FORGOT_PASSWORD_RATE_LIMIT = { maxRequests: 5, windowMs: 15 * 60 * 1000 };
 
@@ -61,54 +60,44 @@ export async function POST(request: NextRequest) {
     const baseUrl = process.env.NEXTAUTH_URL || "https://tipul-mh2t.onrender.com";
     const resetUrl = `${baseUrl}/reset-password?token=${token}`;
 
-    await resend.emails.send({
-      from: process.env.EMAIL_FROM || "tipul@resend.dev",
+    await sendEmail({
       to: user.email!,
       subject: "איפוס סיסמה - טיפול",
       html: `
-        <!DOCTYPE html>
-        <html dir="rtl" lang="he">
-        <head>
-          <meta charset="UTF-8">
-          <meta name="viewport" content="width=device-width, initial-scale=1.0">
-        </head>
-        <body style="font-family: Arial, sans-serif; background-color: #f5f5f5; padding: 20px; direction: rtl;">
-          <div style="max-width: 600px; margin: 0 auto; background-color: white; border-radius: 10px; padding: 40px; box-shadow: 0 2px 10px rgba(0,0,0,0.1);">
-            <h1 style="color: #1e293b; text-align: center; margin-bottom: 30px;">🔐 איפוס סיסמה</h1>
-            
-            <p style="color: #475569; font-size: 16px; line-height: 1.6;">
-              שלום ${user.name || ""},
-            </p>
-            
-            <p style="color: #475569; font-size: 16px; line-height: 1.6;">
-              קיבלנו בקשה לאיפוס הסיסמה שלך במערכת טיפול.
-            </p>
-            
-            <div style="text-align: center; margin: 30px 0;">
-              <a href="${resetUrl}" 
-                 style="background-color: #f59e0b; color: white; padding: 15px 40px; 
-                        text-decoration: none; border-radius: 8px; font-size: 18px;
-                        display: inline-block; font-weight: bold;">
-                לחץ כאן לאיפוס הסיסמה
-              </a>
-            </div>
-            
-            <p style="color: #64748b; font-size: 14px; line-height: 1.6;">
-              הקישור תקף לשעה אחת בלבד.
-            </p>
-            
-            <p style="color: #64748b; font-size: 14px; line-height: 1.6;">
-              אם לא ביקשת לאפס את הסיסמה, התעלם מאימייל זה.
-            </p>
-            
-            <hr style="border: none; border-top: 1px solid #e2e8f0; margin: 30px 0;">
-            
-            <p style="color: #94a3b8; font-size: 12px; text-align: center;">
-              אימייל זה נשלח ממערכת ניהול הקליניקה - טיפול
-            </p>
+        <div dir="rtl" style="font-family: Arial, sans-serif; max-width: 600px; margin: 0 auto; background-color: white; border-radius: 10px; padding: 40px; box-shadow: 0 2px 10px rgba(0,0,0,0.1);">
+          <h1 style="color: #1e293b; text-align: center; margin-bottom: 30px;">איפוס סיסמה</h1>
+          
+          <p style="color: #475569; font-size: 16px; line-height: 1.6;">
+            שלום ${escapeHtml(user.name || "")},
+          </p>
+          
+          <p style="color: #475569; font-size: 16px; line-height: 1.6;">
+            קיבלנו בקשה לאיפוס הסיסמה שלך במערכת טיפול.
+          </p>
+          
+          <div style="text-align: center; margin: 30px 0;">
+            <a href="${resetUrl}" 
+               style="background-color: #f59e0b; color: white; padding: 15px 40px; 
+                      text-decoration: none; border-radius: 8px; font-size: 18px;
+                      display: inline-block; font-weight: bold;">
+              לחץ כאן לאיפוס הסיסמה
+            </a>
           </div>
-        </body>
-        </html>
+          
+          <p style="color: #64748b; font-size: 14px; line-height: 1.6;">
+            הקישור תקף לשעה אחת בלבד.
+          </p>
+          
+          <p style="color: #64748b; font-size: 14px; line-height: 1.6;">
+            אם לא ביקשת לאפס את הסיסמה, התעלם מאימייל זה.
+          </p>
+          
+          <hr style="border: none; border-top: 1px solid #e2e8f0; margin: 30px 0;">
+          
+          <p style="color: #94a3b8; font-size: 12px; text-align: center;">
+            אימייל זה נשלח ממערכת ניהול הקליניקה - טיפול
+          </p>
+        </div>
       `,
     });
 

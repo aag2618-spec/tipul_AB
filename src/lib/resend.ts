@@ -1,4 +1,5 @@
 import { Resend } from 'resend';
+import { escapeHtml } from './email-utils';
 
 // Initialize lazily to avoid build errors when API key is not set
 let resendClient: Resend | null = null;
@@ -77,22 +78,25 @@ export function createSessionReminderEmail(
 
   const typeLabel = sessionType === 'ONLINE' ? 'אונליין' : sessionType === 'PHONE' ? 'טלפונית' : 'פרונטלית';
 
+  const safeName = escapeHtml(patientName);
+  const safeTherapist = escapeHtml(therapistName);
+
   return {
     subject: `תזכורת: פגישה עם ${therapistName} ב-${formattedDate}`,
     html: `
       <div dir="rtl" style="font-family: Arial, sans-serif; max-width: 600px; margin: 0 auto; padding: 20px;">
-        <h2 style="color: #333;">שלום ${patientName},</h2>
+        <h2 style="color: #333;">שלום ${safeName},</h2>
         <p>זוהי תזכורת לפגישה שלך:</p>
         <div style="background: #f5f5f5; padding: 20px; border-radius: 8px; margin: 20px 0;">
           <p><strong>תאריך:</strong> ${formattedDate}</p>
           <p><strong>שעה:</strong> ${formattedTime}</p>
           <p><strong>סוג פגישה:</strong> ${typeLabel}</p>
-          <p><strong>מטפל/ת:</strong> ${therapistName}</p>
+          <p><strong>מטפל/ת:</strong> ${safeTherapist}</p>
         </div>
         <p>במידה ויש שינוי, נא לעדכן בהקדם.</p>
         <p style="color: #666; font-size: 14px; margin-top: 30px;">
           בברכה,<br/>
-          ${therapistName}
+          ${safeTherapist}
         </p>
       </div>
     `,
@@ -105,19 +109,23 @@ export function createGenericEmail(
   content: string,
   senderName: string
 ) {
+  const safeContent = escapeHtml(content);
+  const safeRecipient = escapeHtml(recipientName);
+  const safeSender = escapeHtml(senderName);
+
   const trimmed = content.trim();
   const hasGreeting = /^שלום\s/.test(trimmed);
   const hasClosing = /בברכה[,]?\s*$/m.test(trimmed) || /בהצלחה[!]?\s*$/m.test(trimmed);
 
-  const greeting = hasGreeting ? "" : `<h2 style="color: #333;">שלום ${recipientName},</h2>`;
-  const closing = hasClosing ? "" : `<p style="color: #666; font-size: 14px; margin-top: 30px;">בברכה,<br/>${senderName}</p>`;
+  const greeting = hasGreeting ? "" : `<h2 style="color: #333;">שלום ${safeRecipient},</h2>`;
+  const closing = hasClosing ? "" : `<p style="color: #666; font-size: 14px; margin-top: 30px;">בברכה,<br/>${safeSender}</p>`;
 
   return {
     subject,
     html: `
       <div dir="rtl" style="font-family: Arial, sans-serif; max-width: 600px; margin: 0 auto; padding: 20px;">
         ${greeting}
-        <div style="white-space: pre-wrap; line-height: 1.6;">${content}</div>
+        <div style="white-space: pre-wrap; line-height: 1.6;">${safeContent}</div>
         ${closing}
       </div>
     `,

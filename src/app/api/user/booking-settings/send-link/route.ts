@@ -3,6 +3,7 @@ import { getServerSession } from "next-auth";
 import { authOptions } from "@/lib/auth";
 import { prisma } from "@/lib/prisma";
 import { sendEmail } from "@/lib/resend";
+import { escapeHtml } from "@/lib/email-utils";
 
 export const dynamic = "force-dynamic";
 
@@ -66,14 +67,14 @@ export async function POST(request: NextRequest) {
 
     const html = `
       <div dir="rtl" style="font-family: Arial, sans-serif; max-width: 600px; margin: 0 auto; padding: 20px; line-height: 1.6;">
-        <h2 style="color: #0f766e;">שלום ${client.name},</h2>
-        ${customMessage ? `<p>${customMessage.replace(/\n/g, "<br/>")}</p>` : `<p>${therapistName} מזמין/ה אותך לקבוע תור דרך דף הזימון:</p>`}
+        <h2 style="color: #0f766e;">שלום ${escapeHtml(client.name)},</h2>
+        ${customMessage ? `<p>${escapeHtml(customMessage).replace(/\n/g, "<br/>")}</p>` : `<p>${escapeHtml(therapistName)} מזמין/ה אותך לקבוע תור דרך דף הזימון:</p>`}
         <div style="text-align: center; margin: 30px 0;">
           <a href="${bookingUrl}" style="display: inline-block; background: #0f766e; color: white; padding: 14px 32px; border-radius: 8px; text-decoration: none; font-size: 16px; font-weight: bold;">
             קביעת תור
           </a>
         </div>
-        <p style="color: #666; font-size: 14px; margin-top: 30px;">בברכה,<br/>${therapistName}</p>
+        <p style="color: #666; font-size: 14px; margin-top: 30px;">בברכה,<br/>${escapeHtml(therapistName)}</p>
         <p style="color: #999; font-size: 12px; margin-top: 20px;">מופעל על ידי MyTipul</p>
       </div>`;
 

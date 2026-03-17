@@ -8,6 +8,7 @@ import { sendEmail } from "@/lib/resend";
 import { withWebhookRetry } from "@/lib/webhook-retry";
 import { checkRateLimit, WEBHOOK_RATE_LIMIT } from "@/lib/rate-limit";
 import { PLAN_NAMES, detectPeriodFromAmount as detectPeriodCentral } from "@/lib/pricing";
+import { escapeHtml } from "@/lib/email-utils";
 
 const ADMIN_EMAIL = process.env.ADMIN_EMAIL;
 const SYSTEM_URL = process.env.NEXTAUTH_URL || "";
@@ -21,7 +22,10 @@ export async function POST(request: NextRequest) {
     
     // אימות החתימה
     const webhookSecret = process.env.MESHULAM_WEBHOOK_SECRET;
-    if (webhookSecret && !verifyMeshulamWebhook(body, signature, webhookSecret)) {
+    if (!webhookSecret) {
+      return NextResponse.json({ error: "Service unavailable" }, { status: 503 });
+    }
+    if (!verifyMeshulamWebhook(body, signature, webhookSecret)) {
       console.error("Invalid Meshulam webhook signature");
       return NextResponse.json(
         { error: "Invalid signature" },
@@ -263,7 +267,7 @@ async function handlePaymentFailed(payload: MeshulamWebhookPayload) {
                 <h1 style="color: white; margin: 0;">⚠️ תשלום לא עבר</h1>
               </div>
               <div style="background: #fff; padding: 30px; border: 1px solid #e5e7eb; border-top: none; border-radius: 0 0 12px 12px;">
-                <h2 style="color: #333; margin-top: 0;">שלום ${user.name || ""},</h2>
+                <h2 style="color: #333; margin-top: 0;">שלום ${escapeHtml(user.name || "")},</h2>
                 <p style="color: #555; font-size: 16px;">התשלום על המנוי שלך לא עבר. אנא עדכן את פרטי התשלום כדי להמשיך להשתמש במערכת.</p>
                 <div style="text-align: center; margin: 25px 0;">
                   <a href="${billingUrl}" style="display: inline-block; background: #4f46e5; color: white; padding: 14px 32px; border-radius: 8px; text-decoration: none; font-weight: bold;">
@@ -490,7 +494,7 @@ async function handleSubscriptionCancelled(payload: MeshulamWebhookPayload) {
               <h1 style="color: white; margin: 0;">המנוי בוטל</h1>
             </div>
             <div style="background: #fff; padding: 30px; border: 1px solid #e5e7eb; border-top: none; border-radius: 0 0 12px 12px;">
-              <h2 style="color: #333; margin-top: 0;">שלום ${user.name || ""},</h2>
+              <h2 style="color: #333; margin-top: 0;">שלום ${escapeHtml(user.name || "")},</h2>
               <p style="color: #555; font-size: 16px; line-height: 1.6;">
                 המנוי שלך בוטל. תוכל להמשיך להשתמש עד סוף התקופה הנוכחית.
               </p>

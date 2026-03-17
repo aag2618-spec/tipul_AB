@@ -2,14 +2,17 @@ import { NextRequest, NextResponse } from "next/server";
 import prisma from "@/lib/prisma";
 import { sendEmail } from "@/lib/resend";
 import { calculateDebtFromPayments } from "@/lib/payment-utils";
+import { escapeHtml } from "@/lib/email-utils";
 
 export const dynamic = "force-dynamic";
 
 export async function GET(request: NextRequest) {
-  const authHeader = request.headers.get("authorization");
   const cronSecret = process.env.CRON_SECRET;
-
-  if (cronSecret && authHeader !== `Bearer ${cronSecret}`) {
+  if (!cronSecret) {
+    return NextResponse.json({ message: "CRON_SECRET not configured" }, { status: 503 });
+  }
+  const authHeader = request.headers.get("authorization");
+  if (authHeader !== `Bearer ${cronSecret}`) {
     return NextResponse.json({ message: "Unauthorized" }, { status: 401 });
   }
 
@@ -114,7 +117,7 @@ export async function GET(request: NextRequest) {
                 subject: title,
                 html: `<div dir="rtl" style="font-family:Arial,sans-serif;max-width:600px;margin:0 auto;padding:20px;">
                   <h2 style="color:#0d9488;">☀️ ${title}</h2>
-                  <p>שלום ${user.name || ""},</p>
+                  <p>שלום ${escapeHtml(user.name || "")},</p>
                   <p>יש לך <strong>${realSessions.length} פגישות</strong> היום:</p>
                   <table style="width:100%;border-collapse:collapse;margin:16px 0;">
                     <thead><tr><th style="text-align:right;padding:6px 12px;background:#f0fdfa;border-bottom:2px solid #0d9488;">מטופל</th><th style="text-align:right;padding:6px 12px;background:#f0fdfa;border-bottom:2px solid #0d9488;">שעה</th></tr></thead>
@@ -237,7 +240,7 @@ export async function GET(request: NextRequest) {
                 subject: title,
                 html: `<div dir="rtl" style="font-family:Arial,sans-serif;max-width:600px;margin:0 auto;padding:20px;">
                   <h2 style="color:#0d9488;">🌙 ${title}</h2>
-                  <p>שלום ${user.name || ""},</p>
+                  <p>שלום ${escapeHtml(user.name || "")},</p>
                   <h3 style="margin-top:20px;">פגישות מחר (${realTomorrowSessions.length})</h3>
                   <table style="width:100%;border-collapse:collapse;margin:12px 0;">
                     <thead><tr><th style="text-align:right;padding:6px 12px;background:#f0fdfa;border-bottom:2px solid #0d9488;">מטופל</th><th style="text-align:right;padding:6px 12px;background:#f0fdfa;border-bottom:2px solid #0d9488;">שעה</th></tr></thead>

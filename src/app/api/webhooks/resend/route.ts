@@ -23,7 +23,11 @@ export async function POST(request: NextRequest) {
     }
 
     const webhookSecret = process.env.RESEND_WEBHOOK_SECRET;
-    if (webhookSecret) {
+    if (!webhookSecret) {
+      console.error("RESEND_WEBHOOK_SECRET not configured — rejecting webhook");
+      return NextResponse.json({ error: "Service unavailable" }, { status: 503 });
+    }
+    {
       const crypto = await import("crypto");
       const signedContent = `${svixId}.${svixTimestamp}.${await request.clone().text()}`;
       const secret = webhookSecret.startsWith("whsec_") 

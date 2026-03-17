@@ -4,6 +4,8 @@ import { authOptions } from "@/lib/auth";
 import prisma from "@/lib/prisma";
 import { sendEmail } from "@/lib/resend";
 import { calculateSessionDebt } from "@/lib/payment-utils";
+import { escapeHtml } from "@/lib/email-utils";
+
 function createDebtReminderEmail(
   clientName: string,
   therapistName: string,
@@ -23,16 +25,12 @@ function createDebtReminderEmail(
     businessHours?: string | null;
   }
 ) {
-  // Use custom greeting or default
   const greeting = customization?.customGreeting
-    ? customization.customGreeting.replace(/{שם}/g, clientName)
-    : `שלום ${clientName}`;
+    ? escapeHtml(customization.customGreeting.replace(/{שם}/g, clientName))
+    : `שלום ${escapeHtml(clientName)}`;
 
-  // Use custom closing or default
-  const closing = customization?.customClosing || "בברכה";
-
-  // Use custom signature or default
-  const signature = customization?.emailSignature || therapistName;
+  const closing = escapeHtml(customization?.customClosing || "בברכה");
+  const signature = escapeHtml(customization?.emailSignature || therapistName);
   const dateFormatter = new Intl.DateTimeFormat("he-IL", {
     timeZone: "Asia/Jerusalem",
     weekday: "long",
@@ -136,7 +134,7 @@ function createDebtReminderEmail(
             <p style="margin: 8px 0 0 0; color: #15803d; font-size: 14px; line-height: 1.6; white-space: pre-wrap;">
               ${
                 customization?.paymentInstructions
-                  ? customization.paymentInstructions
+                  ? escapeHtml(customization.paymentInstructions)
                   : "ניתן לשלם באמצעות העברה בנקאית, אשראי, מזומן או צ'ק.\nלתיאום תשלום, נא ליצור קשר."
               }
             </p>
@@ -148,7 +146,7 @@ function createDebtReminderEmail(
           <!-- Business Hours -->
           <div style="background: #fef3c7; border-right: 4px solid #f59e0b; border-radius: 6px; padding: 15px; margin-top: 15px;">
             <p style="margin: 0 0 4px 0; color: #92400e; font-weight: 600; font-size: 13px;">⏰ שעות פעילות</p>
-            <p style="margin: 0; color: #92400e; font-size: 13px; line-height: 1.5; white-space: pre-wrap;">${customization.businessHours}</p>
+            <p style="margin: 0; color: #92400e; font-size: 13px; line-height: 1.5; white-space: pre-wrap;">${escapeHtml(customization.businessHours)}</p>
           </div>
           `
               : ""
@@ -248,12 +246,21 @@ export async function POST(
       );
     }
 
-    const sessionsWithDebt = sessions.map((session) => ({
-      date: session.startTime,
-      type: session.type,
-      status: session.status,
-      debt: calculateSessionDebt(session),
-    }));
+    const sessionsWithDebt = sessions
+      .map((session) => ({
+        date: session.startTime,
+        type: session.type,
+        status: session.status,
+        debt: calculateSessionDebt(session),
+      }))
+      .filter((s) => s.debt > 0);
+
+    if (sessionsWithDebt.length === 0) {
+      return NextResponse.json(
+        { error: "אין פגישות עם חוב פתוח" },
+        { status: 400 }
+      );
+    }
 
     const totalDebt = sessionsWithDebt.reduce((sum, s) => sum + s.debt, 0);
 

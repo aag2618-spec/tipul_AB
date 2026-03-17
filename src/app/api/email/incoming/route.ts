@@ -6,11 +6,12 @@ import prisma from "@/lib/prisma";
 // Webhook to receive incoming emails forwarded from Gmail/Outlook
 export async function POST(request: NextRequest) {
   try {
-    // Verify webhook secret
-    const authHeader = request.headers.get("authorization");
     const webhookSecret = process.env.INCOMING_EMAIL_SECRET;
-    
-    if (webhookSecret && authHeader !== `Bearer ${webhookSecret}`) {
+    if (!webhookSecret) {
+      return NextResponse.json({ message: "INCOMING_EMAIL_SECRET not configured" }, { status: 503 });
+    }
+    const authHeader = request.headers.get("authorization");
+    if (authHeader !== `Bearer ${webhookSecret}`) {
       return NextResponse.json({ message: "Unauthorized" }, { status: 401 });
     }
 

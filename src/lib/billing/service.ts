@@ -237,7 +237,9 @@ export class BillingService {
       notes: request.notes,
     });
 
-    console.log('Meshulam createInvoice response:', JSON.stringify(response));
+    if (process.env.NODE_ENV === 'development') {
+      console.log('Meshulam createInvoice response:', JSON.stringify(response));
+    }
     if (response.status !== 1 || !response.data) {
       return {
         success: false,
@@ -345,7 +347,9 @@ export class BillingService {
       sendEmail: false,
     });
 
-    console.log('Green Invoice createReceipt response:', JSON.stringify(response));
+    if (process.env.NODE_ENV === 'development') {
+      console.log('Green Invoice createReceipt response:', JSON.stringify(response));
+    }
     if (!response.success || !response.data) {
       return {
         success: false,
@@ -381,7 +385,9 @@ export class BillingService {
       Comments: request.notes,
     });
 
-    console.log('Sumit createReceipt response:', JSON.stringify(response));
+    if (process.env.NODE_ENV === 'development') {
+      console.log('Sumit createReceipt response:', JSON.stringify(response));
+    }
     if (!response.Success || !response.Data) {
       return {
         success: false,

@@ -9,6 +9,7 @@ import prisma from "@/lib/prisma";
 import { sendEmail } from "@/lib/resend";
 import { checkRateLimit, SUBSCRIPTION_RATE_LIMIT, rateLimitResponse } from "@/lib/rate-limit";
 import { PLAN_NAMES, PRICING } from "@/lib/pricing";
+import { escapeHtml } from "@/lib/email-utils";
 
 const ADMIN_EMAIL = process.env.ADMIN_EMAIL;
 const SYSTEM_URL = process.env.NEXTAUTH_URL || "";
@@ -178,7 +179,7 @@ export async function POST() {
               <h1 style="color: white; margin: 0;">אישור ביטול מנוי</h1>
             </div>
             <div style="background: #fff; padding: 30px; border: 1px solid #e5e7eb; border-top: none; border-radius: 0 0 12px 12px;">
-              <h2 style="color: #333; margin-top: 0;">שלום ${user.name || ""},</h2>
+              <h2 style="color: #333; margin-top: 0;">שלום ${escapeHtml(user.name || "")},</h2>
               <p style="color: #555; font-size: 16px; line-height: 1.6;">
                 המנוי שלך בוטל בהצלחה.
               </p>
@@ -223,7 +224,7 @@ export async function POST() {
             </div>
             <div style="background: #fff; padding: 25px; border: 1px solid #e2e8f0; border-top: none; border-radius: 0 0 8px 8px;">
               <div style="background: #fffbeb; border-right: 4px solid #f59e0b; padding: 16px; border-radius: 4px;">
-                <p style="margin: 0; font-size: 15px;"><strong>${user.name}</strong> (${user.email}) ביטל את המנוי.</p>
+                <p style="margin: 0; font-size: 15px;"><strong>${escapeHtml(user.name || "")}</strong> (${escapeHtml(user.email)}) ביטל את המנוי.</p>
                 <p style="margin: 8px 0 0; font-size: 14px; color: #64748b;">מסלול: ${PLAN_NAMES[user.aiTier] || user.aiTier}</p>
                 ${adjustment > 0 ? `<p style="margin: 8px 0 0; font-size: 14px; color: #d97706;"><strong>התאמת הנחה:</strong> ₪${adjustment}</p>` : ""}
               </div>

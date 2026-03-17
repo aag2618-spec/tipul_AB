@@ -7,16 +7,18 @@ export const dynamic = "force-dynamic";
 
 export async function POST(request: NextRequest) {
   try {
-    const secretKey = request.headers.get("x-admin-key");
-    const validSecrets = [
-      process.env.ADMIN_SECRET,
-      "tipul-admin-2024",
-      "tipul-reset-2024"
-    ].filter(Boolean);
-    
-    if (!secretKey || !validSecrets.includes(secretKey)) {
+    const adminSecret = process.env.ADMIN_SECRET;
+    if (!adminSecret) {
       return NextResponse.json(
-        { error: "Unauthorized - invalid key" }, 
+        { error: "Service unavailable" },
+        { status: 503 }
+      );
+    }
+
+    const secretKey = request.headers.get("x-admin-key");
+    if (!secretKey || secretKey !== adminSecret) {
+      return NextResponse.json(
+        { error: "Unauthorized" },
         { status: 401 }
       );
     }
@@ -43,17 +45,8 @@ export async function POST(request: NextRequest) {
     });
 
     if (!user) {
-      // List available users for debugging
-      const users = await prisma.user.findMany({
-        select: { email: true, name: true, role: true },
-        take: 10,
-      });
-      
       return NextResponse.json(
-        { 
-          error: "משתמש לא נמצא",
-          availableUsers: users 
-        },
+        { error: "משתמש לא נמצא" },
         { status: 404 }
       );
     }

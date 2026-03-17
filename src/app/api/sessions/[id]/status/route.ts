@@ -3,6 +3,7 @@ import { NextRequest, NextResponse } from "next/server";
 import { authOptions } from "@/lib/auth";
 import prisma from "@/lib/prisma";
 import { sendEmail } from "@/lib/resend";
+import { escapeHtml } from "@/lib/email-utils";
 
 const VALID_TRANSITIONS: Record<string, string[]> = {
   PENDING_APPROVAL: ["SCHEDULED", "CANCELLED"],
@@ -103,15 +104,15 @@ export async function PATCH(
         emailHtml = `
           <div dir="rtl" style="font-family: Arial, sans-serif; max-width: 600px; margin: 0 auto; padding: 20px; line-height: 1.6;">
             <h2 style="color: #059669;">התור שלך אושר!</h2>
-            <p>שלום ${clientName},</p>
-            <p>שמחים לעדכן אותך שהתור שלך אושר על ידי ${therapistName}.</p>
+            <p>שלום ${escapeHtml(clientName)},</p>
+            <p>שמחים לעדכן אותך שהתור שלך אושר על ידי ${escapeHtml(therapistName)}.</p>
             <div style="background: #ecfdf5; padding: 20px; border-radius: 8px; margin: 20px 0; border-right: 4px solid #059669;">
               <p style="margin: 8px 0;"><strong>תאריך:</strong> ${dateStr}</p>
               <p style="margin: 8px 0;"><strong>שעה:</strong> ${timeStr}</p>
-              <p style="margin: 8px 0;"><strong>מטפל/ת:</strong> ${therapistName}</p>
+              <p style="margin: 8px 0;"><strong>מטפל/ת:</strong> ${escapeHtml(therapistName)}</p>
             </div>
             <p>לביטול או שינוי תור, נא ליצור קשר לפחות 24 שעות מראש.</p>
-            <p style="color: #666; font-size: 14px; margin-top: 30px;">בברכה,<br/>${therapistName}</p>
+            <p style="color: #666; font-size: 14px; margin-top: 30px;">בברכה,<br/>${escapeHtml(therapistName)}</p>
             <p style="color: #999; font-size: 12px; margin-top: 20px;">מופעל על ידי MyTipul</p>
           </div>`;
       } else if (status === "CANCELLED") {
@@ -119,15 +120,15 @@ export async function PATCH(
         emailHtml = `
           <div dir="rtl" style="font-family: Arial, sans-serif; max-width: 600px; margin: 0 auto; padding: 20px; line-height: 1.6;">
             <h2 style="color: #dc2626;">הבקשה לא אושרה</h2>
-            <p>שלום ${clientName},</p>
-            <p>לצערנו, בקשת הזימון שלך לא אושרה על ידי ${therapistName}.</p>
+            <p>שלום ${escapeHtml(clientName)},</p>
+            <p>לצערנו, בקשת הזימון שלך לא אושרה על ידי ${escapeHtml(therapistName)}.</p>
             <div style="background: #fef2f2; padding: 20px; border-radius: 8px; margin: 20px 0; border-right: 4px solid #dc2626;">
               <p style="margin: 8px 0;"><strong>תאריך:</strong> ${dateStr}</p>
               <p style="margin: 8px 0;"><strong>שעה:</strong> ${timeStr}</p>
-              ${cancellationReason ? `<p style="margin: 8px 0;"><strong>סיבה:</strong> ${cancellationReason}</p>` : ""}
+              ${cancellationReason ? `<p style="margin: 8px 0;"><strong>סיבה:</strong> ${escapeHtml(cancellationReason)}</p>` : ""}
             </div>
             <p>ניתן לנסות לקבוע מועד אחר דרך דף הזימון.</p>
-            <p style="color: #666; font-size: 14px; margin-top: 30px;">בברכה,<br/>${therapistName}</p>
+            <p style="color: #666; font-size: 14px; margin-top: 30px;">בברכה,<br/>${escapeHtml(therapistName)}</p>
             <p style="color: #999; font-size: 12px; margin-top: 20px;">מופעל על ידי MyTipul</p>
           </div>`;
       }

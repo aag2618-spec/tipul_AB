@@ -6,6 +6,7 @@ import { NextRequest, NextResponse } from "next/server";
 import prisma from "@/lib/prisma";
 import { sendEmail } from "@/lib/resend";
 import { PLAN_NAMES, MONTHLY_PRICES } from "@/lib/pricing";
+import { escapeHtml } from "@/lib/email-utils";
 
 // ========================================
 // הגדרות
@@ -27,10 +28,12 @@ export const dynamic = "force-dynamic";
 export async function GET(req: NextRequest) {
   try {
     // אימות CRON secret
-    const authHeader = req.headers.get("authorization");
     const cronSecret = process.env.CRON_SECRET;
-    
-    if (cronSecret && authHeader !== `Bearer ${cronSecret}`) {
+    if (!cronSecret) {
+      return NextResponse.json({ message: "CRON_SECRET not configured" }, { status: 503 });
+    }
+    const authHeader = req.headers.get("authorization");
+    if (authHeader !== `Bearer ${cronSecret}`) {
       return NextResponse.json({ message: "לא מורשה" }, { status: 401 });
     }
 
@@ -269,7 +272,7 @@ export async function GET(req: NextRequest) {
             subject: "נותרו לך 7 ימים בתקופת הניסיון - Tipul",
             html: `
               <div dir="rtl" style="font-family: Arial, sans-serif; max-width: 600px; margin: 0 auto; padding: 20px;">
-                <h2 style="color: #1e293b;">שלום ${user.name},</h2>
+                <h2 style="color: #1e293b;">שלום ${escapeHtml(user.name || "")},</h2>
                 <p>נותרו לך <strong>7 ימים</strong> בתקופת הניסיון שלך.</p>
                 <p>נהנה מהמערכת? בחר מסלול ותמשיך לנהל את הפרקטיקה שלך ללא הפסקה:</p>
                 <div style="text-align: center; margin: 20px 0;">
@@ -313,7 +316,7 @@ export async function GET(req: NextRequest) {
             subject: "נותרו יומיים לסיום תקופת הניסיון! - Tipul",
             html: `
               <div dir="rtl" style="font-family: Arial, sans-serif; max-width: 600px; margin: 0 auto; padding: 20px;">
-                <h2 style="color: #1e293b;">שלום ${user.name},</h2>
+                <h2 style="color: #1e293b;">שלום ${escapeHtml(user.name || "")},</h2>
                 <p style="color: #dc2626; font-weight: bold;">תקופת הניסיון שלך מסתיימת בעוד יומיים!</p>
                 <p>כדי להמשיך ליהנות מכל התכונות ולשמור על הנתונים שלך נגישים, בחר עכשיו מסלול מנוי:</p>
                 <div style="text-align: center; margin: 20px 0;">
@@ -370,7 +373,7 @@ export async function GET(req: NextRequest) {
             to: ADMIN_EMAIL,
             subject: `📋 תקופת ניסיון הסתיימה - ${user.name}`,
             html: createAdminNotificationHtml(
-              `תקופת הניסיון של <strong>${user.name}</strong> (${user.email}) הסתיימה.`,
+              `תקופת הניסיון של <strong>${escapeHtml(user.name || "")}</strong> (${escapeHtml(user.email)}) הסתיימה.`,
               "כדאי ליצור קשר ולעודד מעבר למנוי בתשלום.",
               "info"
             ),
@@ -425,7 +428,7 @@ async function sendSubscriptionReminderEmail(
         </div>
         
         <div style="background: #ffffff; padding: 30px; border: 1px solid #e5e7eb; border-top: none; border-radius: 0 0 12px 12px;">
-          <h2 style="color: #333; margin-top: 0;">שלום ${user.name || ""},</h2>
+          <h2 style="color: #333; margin-top: 0;">שלום ${escapeHtml(user.name || "")},</h2>
           
           <p style="color: #555; font-size: 16px; line-height: 1.6;">
             תוקף המנוי שלך במסלול <strong>${planName}</strong> מסתיים בתאריך 
@@ -486,7 +489,7 @@ async function sendLastDayReminderEmail(
         </div>
         
         <div style="background: #ffffff; padding: 30px; border: 1px solid #e5e7eb; border-top: none; border-radius: 0 0 12px 12px;">
-          <h2 style="color: #333; margin-top: 0;">שלום ${user.name || ""},</h2>
+          <h2 style="color: #333; margin-top: 0;">שלום ${escapeHtml(user.name || "")},</h2>
           
           <p style="color: #555; font-size: 16px; line-height: 1.6;">
             תוקף המנוי שלך במסלול <strong>${planName}</strong> מסתיים <strong>היום</strong>.
@@ -544,7 +547,7 @@ async function sendGracePeriodEmail(
         </div>
         
         <div style="background: #ffffff; padding: 30px; border: 1px solid #e5e7eb; border-top: none; border-radius: 0 0 12px 12px;">
-          <h2 style="color: #333; margin-top: 0;">שלום ${user.name || ""},</h2>
+          <h2 style="color: #333; margin-top: 0;">שלום ${escapeHtml(user.name || "")},</h2>
           
           <p style="color: #555; font-size: 16px; line-height: 1.6;">
             תוקף המנוי שלך במסלול <strong>${planName}</strong> פג. 
@@ -597,7 +600,7 @@ async function sendSubscriptionExpiredEmail(
         </div>
         
         <div style="background: #ffffff; padding: 30px; border: 1px solid #e5e7eb; border-top: none; border-radius: 0 0 12px 12px;">
-          <h2 style="color: #333; margin-top: 0;">שלום ${user.name || ""},</h2>
+          <h2 style="color: #333; margin-top: 0;">שלום ${escapeHtml(user.name || "")},</h2>
           
           <p style="color: #555; font-size: 16px; line-height: 1.6;">
             לצערנו, המנוי שלך נחסם עקב אי-תשלום.
@@ -643,7 +646,7 @@ async function sendTrialExpiredEmail(
         </div>
         
         <div style="background: #ffffff; padding: 30px; border: 1px solid #e5e7eb; border-top: none; border-radius: 0 0 12px 12px;">
-          <h2 style="color: #333; margin-top: 0;">שלום ${user.name || ""},</h2>
+          <h2 style="color: #333; margin-top: 0;">שלום ${escapeHtml(user.name || "")},</h2>
           
           <p style="color: #555; font-size: 16px; line-height: 1.6;">
             תודה שניסית את Tipul! תקופת הניסיון שלך הסתיימה.
@@ -680,7 +683,7 @@ async function sendAdminGraceAlert(
     to: ADMIN_EMAIL,
     subject: `⚠️ מנוי בתקופת חסד - ${user.name} (${daysLeft} ימים נותרו)`,
     html: createAdminNotificationHtml(
-      `<strong>${user.name}</strong> (${user.email}) נמצא בתקופת חסד.<br/>
+      `<strong>${escapeHtml(user.name || "")}</strong> (${escapeHtml(user.email)}) נמצא בתקופת חסד.<br/>
        מסלול: ${PLAN_NAMES[user.aiTier] || user.aiTier}<br/>
        <strong>נותרו ${daysLeft} ימים</strong> לפני חסימה.`,
       daysLeft <= 2 
@@ -700,7 +703,7 @@ async function sendAdminExpiredAlert(
     to: ADMIN_EMAIL,
     subject: `❌ מנוי נחסם - ${user.name}`,
     html: createAdminNotificationHtml(
-      `המנוי של <strong>${user.name}</strong> (${user.email}) <strong>נחסם</strong> עקב אי-תשלום.<br/>
+      `המנוי של <strong>${escapeHtml(user.name || "")}</strong> (${escapeHtml(user.email)}) <strong>נחסם</strong> עקב אי-תשלום.<br/>
        מסלול: ${PLAN_NAMES[user.aiTier] || user.aiTier}`,
       "המנוי קיבל מייל עם קישור לחידוש. הנתונים שלו שמורים.",
       "error"

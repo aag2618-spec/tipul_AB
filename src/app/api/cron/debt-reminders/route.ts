@@ -2,6 +2,7 @@ import { NextRequest, NextResponse } from "next/server";
 import prisma from "@/lib/prisma";
 import { sendEmail } from "@/lib/resend";
 import { calculateSessionDebt } from "@/lib/payment-utils";
+import { escapeHtml } from "@/lib/email-utils";
 
 export const dynamic = "force-dynamic";
 
@@ -81,7 +82,7 @@ function createDebtReminderEmail(
         
         <!-- Content -->
         <div style="background: #ffffff; padding: 30px; border-radius: 0 0 12px 12px; box-shadow: 0 4px 6px rgba(0, 0, 0, 0.1);">
-          <h2 style="color: #111827; margin-top: 0; font-size: 20px;">שלום ${clientName},</h2>
+          <h2 style="color: #111827; margin-top: 0; font-size: 20px;">שלום ${escapeHtml(clientName)},</h2>
           
           <p style="color: #4b5563; line-height: 1.6; font-size: 15px;">
             רצינו להזכיר לך כי קיים יתרת חוב עבור הפגישות הבאות:
@@ -121,7 +122,7 @@ function createDebtReminderEmail(
             </p>
             <p style="color: #374151; font-size: 15px; margin: 20px 0 0 0;">
               בברכה,<br/>
-              <strong>${therapistName}</strong>
+              <strong>${escapeHtml(therapistName)}</strong>
             </p>
           </div>
         </div>
@@ -142,10 +143,12 @@ function createDebtReminderEmail(
  */
 export async function GET(request: NextRequest) {
   // Verify cron secret for security
-  const authHeader = request.headers.get("authorization");
   const cronSecret = process.env.CRON_SECRET;
-  
-  if (cronSecret && authHeader !== `Bearer ${cronSecret}`) {
+  if (!cronSecret) {
+    return NextResponse.json({ message: "CRON_SECRET not configured" }, { status: 503 });
+  }
+  const authHeader = request.headers.get("authorization");
+  if (authHeader !== `Bearer ${cronSecret}`) {
     return NextResponse.json({ message: "Unauthorized" }, { status: 401 });
   }
 

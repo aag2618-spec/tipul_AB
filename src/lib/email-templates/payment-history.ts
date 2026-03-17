@@ -1,5 +1,6 @@
 import { format } from "date-fns";
 import { he } from "date-fns/locale";
+import { escapeHtml } from "../email-utils";
 
 interface PaymentHistoryItem {
   id: string;
@@ -41,16 +42,16 @@ export function createPaymentHistoryEmail({
   totalPaid,
   customization,
 }: PaymentHistoryEmailProps) {
-  // Use custom greeting or default
+  const safeName = escapeHtml(clientName);
+  const safeTherapist = escapeHtml(therapistName);
+
   const greeting = customization?.customGreeting
-    ? customization.customGreeting.replace(/{שם}/g, clientName)
-    : `שלום ${clientName}`;
+    ? escapeHtml(customization.customGreeting.replace(/{שם}/g, clientName))
+    : `שלום ${safeName}`;
 
-  // Use custom closing or default
-  const closing = customization?.customClosing || "בברכה";
+  const closing = escapeHtml(customization?.customClosing || "בברכה");
 
-  // Use custom signature or default
-  const signature = customization?.emailSignature || therapistName;
+  const signature = escapeHtml(customization?.emailSignature || therapistName);
 
   const fromDate = format(dateRange.from, "d בMMMM yyyy", { locale: he });
   const toDate = format(dateRange.to, "d בMMMM yyyy", { locale: he });
@@ -164,7 +165,7 @@ export function createPaymentHistoryEmail({
           <!-- Payment Instructions -->
           <div style="background: #f0fdf4; border: 1px solid #86efac; border-radius: 10px; padding: 20px; margin: 20px 0;">
             <p style="margin: 0 0 8px 0; color: #166534; font-weight: 600; font-size: 15px;">💳 אפשרויות תשלום</p>
-            <p style="margin: 0; color: #15803d; font-size: 14px; line-height: 1.6; white-space: pre-wrap;">${customization.paymentInstructions}</p>
+            <p style="margin: 0; color: #15803d; font-size: 14px; line-height: 1.6; white-space: pre-wrap;">${escapeHtml(customization.paymentInstructions)}</p>
           </div>
           `
               : ""
@@ -176,7 +177,7 @@ export function createPaymentHistoryEmail({
           <!-- Business Hours -->
           <div style="background: #fef3c7; border-right: 4px solid #f59e0b; border-radius: 6px; padding: 15px; margin: 20px 0;">
             <p style="margin: 0 0 4px 0; color: #92400e; font-weight: 600; font-size: 13px;">⏰ שעות פעילות</p>
-            <p style="margin: 0; color: #92400e; font-size: 13px; line-height: 1.5; white-space: pre-wrap;">${customization.businessHours}</p>
+            <p style="margin: 0; color: #92400e; font-size: 13px; line-height: 1.5; white-space: pre-wrap;">${escapeHtml(customization.businessHours)}</p>
           </div>
           `
               : ""

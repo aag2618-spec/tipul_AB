@@ -1,14 +1,19 @@
 import { NextRequest, NextResponse } from "next/server";
-import prisma from "@/lib/prisma";
 
-// Render Webhook handler for deployment events
 export const dynamic = "force-dynamic";
 
 export async function POST(req: NextRequest) {
   try {
+    const webhookSecret = process.env.RENDER_WEBHOOK_SECRET;
+    if (!webhookSecret) {
+      return NextResponse.json({ error: "Service unavailable" }, { status: 503 });
+    }
+    const authHeader = req.headers.get("authorization");
+    if (authHeader !== `Bearer ${webhookSecret}`) {
+      return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
+    }
+
     const body = await req.json();
-    
-    console.log("📥 Render Webhook received:", JSON.stringify(body, null, 2));
 
     const { service, deploy, timestamp } = body;
 
@@ -69,11 +74,3 @@ export async function POST(req: NextRequest) {
   }
 }
 
-// Allow GET for testing
-export async function GET() {
-  return NextResponse.json({ 
-    message: "Render Webhook Endpoint",
-    status: "active",
-    info: "POST deployment events here"
-  });
-}

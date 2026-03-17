@@ -1,6 +1,7 @@
 import { NextRequest, NextResponse } from "next/server";
 import prisma from "@/lib/prisma";
 import { sendEmail } from "@/lib/resend";
+import { escapeHtml } from "@/lib/email-utils";
 
 const SYSTEM_URL = process.env.NEXTAUTH_URL || "https://your-app.onrender.com";
 const ADMIN_EMAIL = process.env.ADMIN_EMAIL;
@@ -9,10 +10,12 @@ export const dynamic = "force-dynamic";
 
 export async function GET(req: NextRequest) {
   try {
-    const authHeader = req.headers.get("authorization");
     const cronSecret = process.env.CRON_SECRET;
-
-    if (cronSecret && authHeader !== `Bearer ${cronSecret}`) {
+    if (!cronSecret) {
+      return NextResponse.json({ message: "CRON_SECRET not configured" }, { status: 503 });
+    }
+    const authHeader = req.headers.get("authorization");
+    if (authHeader !== `Bearer ${cronSecret}`) {
       return NextResponse.json({ message: "לא מורשה" }, { status: 401 });
     }
 
@@ -63,7 +66,7 @@ export async function GET(req: NextRequest) {
                 <h1 style="color: white; margin: 0; font-size: 24px;">תקופת הניסיון מסתיימת בקרוב</h1>
               </div>
               <div style="background: #ffffff; padding: 30px; border: 1px solid #e5e7eb; border-top: none; border-radius: 0 0 12px 12px;">
-                <h2 style="color: #333; margin-top: 0;">שלום ${user.name || ""},</h2>
+                <h2 style="color: #333; margin-top: 0;">שלום ${escapeHtml(user.name || "")},</h2>
                 <p style="color: #555; font-size: 16px; line-height: 1.6;">
                   תקופת הניסיון שלך מסתיימת בתאריך <strong>${expiryDate}</strong>.
                 </p>
@@ -138,7 +141,7 @@ export async function GET(req: NextRequest) {
                   <h1 style="color: white; margin: 0; font-size: 24px;">תקופת הניסיון הסתיימה</h1>
                 </div>
                 <div style="background: #ffffff; padding: 30px; border: 1px solid #e5e7eb; border-top: none; border-radius: 0 0 12px 12px;">
-                  <h2 style="color: #333; margin-top: 0;">שלום ${user.name || ""},</h2>
+                  <h2 style="color: #333; margin-top: 0;">שלום ${escapeHtml(user.name || "")},</h2>
                   <p style="color: #555; font-size: 16px; line-height: 1.6;">
                     תקופת הניסיון שלך ב-Tipul הסתיימה, והגישה למערכת הוגבלה.
                   </p>
@@ -177,7 +180,7 @@ export async function GET(req: NextRequest) {
                 <div style="background: #ffffff; padding: 25px; border: 1px solid #e2e8f0; border-top: none; border-radius: 0 0 8px 8px;">
                   <div style="background: #fef2f2; border-right: 4px solid #ef4444; padding: 16px; border-radius: 4px; margin-bottom: 16px;">
                     <p style="margin: 0; color: #1e293b; font-size: 15px; line-height: 1.6;">
-                      תקופת הניסיון של <strong>${user.name}</strong> (${user.email}) הסתיימה.<br/>
+                      תקופת הניסיון של <strong>${escapeHtml(user.name || "")}</strong> (${escapeHtml(user.email)}) הסתיימה.<br/>
                       המשתמש <strong>נחסם</strong> והסטטוס שונה ל-CANCELLED.
                     </p>
                   </div>

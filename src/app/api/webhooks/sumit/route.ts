@@ -14,7 +14,10 @@ export async function POST(request: NextRequest) {
     
     // אימות החתימה
     const webhookSecret = process.env.SUMIT_WEBHOOK_SECRET;
-    if (webhookSecret && !verifySumitWebhook(body, signature, webhookSecret)) {
+    if (!webhookSecret) {
+      return NextResponse.json({ error: "Service unavailable" }, { status: 503 });
+    }
+    if (!verifySumitWebhook(body, signature, webhookSecret)) {
       console.error("Invalid Sumit webhook signature");
       return NextResponse.json(
         { error: "Invalid signature" },
