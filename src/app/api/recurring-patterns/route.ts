@@ -1,19 +1,19 @@
 import { NextRequest, NextResponse } from "next/server";
-import { getServerSession } from "next-auth";
-import { authOptions } from "@/lib/auth";
 import prisma from "@/lib/prisma";
+import { logger } from "@/lib/logger";
+
+import { requireAuth } from "@/lib/api-auth";
 
 export const dynamic = "force-dynamic";
 
 export async function GET() {
   try {
-    const session = await getServerSession(authOptions);
-    if (!session?.user?.id) {
-      return NextResponse.json({ message: "לא מורשה" }, { status: 401 });
-    }
+    const auth = await requireAuth();
+    if ("error" in auth) return auth.error;
+    const { userId, session } = auth;
 
     const patterns = await prisma.recurringPattern.findMany({
-      where: { userId: session.user.id },
+      where: { userId: userId },
       include: {
         client: { select: { id: true, name: true } },
       },
@@ -22,7 +22,7 @@ export async function GET() {
 
     return NextResponse.json(patterns);
   } catch (error) {
-    console.error("Get recurring patterns error:", error);
+    logger.error("Get recurring patterns error:", { error: error instanceof Error ? error.message : String(error) });
     return NextResponse.json(
       { message: "אירעה שגיאה בטעינת התבניות" },
       { status: 500 }
@@ -32,17 +32,16 @@ export async function GET() {
 
 export async function POST(request: NextRequest) {
   try {
-    const session = await getServerSession(authOptions);
-    if (!session?.user?.id) {
-      return NextResponse.json({ message: "לא מורשה" }, { status: 401 });
-    }
+    const auth = await requireAuth();
+    if ("error" in auth) return auth.error;
+    const { userId, session } = auth;
 
     const body = await request.json();
     const { dayOfWeek, time, duration, clientId } = body;
 
     const pattern = await prisma.recurringPattern.create({
       data: {
-        userId: session.user.id,
+        userId: userId,
         dayOfWeek,
         time,
         duration: duration || 50,
@@ -56,7 +55,7 @@ export async function POST(request: NextRequest) {
 
     return NextResponse.json(pattern, { status: 201 });
   } catch (error) {
-    console.error("Create recurring pattern error:", error);
+    logger.error("Create recurring pattern error:", { error: error instanceof Error ? error.message : String(error) });
     return NextResponse.json(
       { message: "אירעה שגיאה ביצירת התבנית" },
       { status: 500 }

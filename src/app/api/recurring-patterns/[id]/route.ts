@@ -1,7 +1,8 @@
 import { NextRequest, NextResponse } from "next/server";
-import { getServerSession } from "next-auth";
-import { authOptions } from "@/lib/auth";
 import prisma from "@/lib/prisma";
+import { logger } from "@/lib/logger";
+
+import { requireAuth } from "@/lib/api-auth";
 
 export const dynamic = "force-dynamic";
 
@@ -10,16 +11,15 @@ export async function PUT(
   { params }: { params: Promise<{ id: string }> }
 ) {
   try {
-    const session = await getServerSession(authOptions);
-    if (!session?.user?.id) {
-      return NextResponse.json({ message: "לא מורשה" }, { status: 401 });
-    }
+    const auth = await requireAuth();
+    if ("error" in auth) return auth.error;
+    const { userId, session } = auth;
 
     const { id } = await params;
     const body = await request.json();
 
     const existing = await prisma.recurringPattern.findFirst({
-      where: { id, userId: session.user.id },
+      where: { id, userId: userId },
     });
 
     if (!existing) {
@@ -39,7 +39,7 @@ export async function PUT(
 
     return NextResponse.json(pattern);
   } catch (error) {
-    console.error("Update recurring pattern error:", error);
+    logger.error("Update recurring pattern error:", { error: error instanceof Error ? error.message : String(error) });
     return NextResponse.json(
       { message: "אירעה שגיאה בעדכון התבנית" },
       { status: 500 }
@@ -52,15 +52,14 @@ export async function DELETE(
   { params }: { params: Promise<{ id: string }> }
 ) {
   try {
-    const session = await getServerSession(authOptions);
-    if (!session?.user?.id) {
-      return NextResponse.json({ message: "לא מורשה" }, { status: 401 });
-    }
+    const auth = await requireAuth();
+    if ("error" in auth) return auth.error;
+    const { userId, session } = auth;
 
     const { id } = await params;
 
     const existing = await prisma.recurringPattern.findFirst({
-      where: { id, userId: session.user.id },
+      where: { id, userId: userId },
     });
 
     if (!existing) {
@@ -71,7 +70,7 @@ export async function DELETE(
 
     return NextResponse.json({ message: "התבנית נמחקה בהצלחה" });
   } catch (error) {
-    console.error("Delete recurring pattern error:", error);
+    logger.error("Delete recurring pattern error:", { error: error instanceof Error ? error.message : String(error) });
     return NextResponse.json(
       { message: "אירעה שגיאה במחיקת התבנית" },
       { status: 500 }

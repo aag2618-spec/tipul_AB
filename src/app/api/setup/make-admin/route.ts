@@ -1,5 +1,6 @@
 import { NextRequest, NextResponse } from "next/server";
 import prisma from "@/lib/prisma";
+import { logger } from "@/lib/logger";
 
 // POST - One-time setup to make aag2618@gmail.com an ADMIN
 export const dynamic = "force-dynamic";
@@ -10,7 +11,7 @@ export async function POST(request: NextRequest) {
     const validSecret = process.env.SETUP_SECRET;
     
     if (!validSecret || secretKey !== validSecret) {
-      return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
+      return NextResponse.json({ message: "Unauthorized" }, { status: 401 });
     }
 
     // Find the user
@@ -51,7 +52,7 @@ export async function POST(request: NextRequest) {
       new_role: updatedUser.role,
     });
   } catch (error) {
-    console.error("Setup admin error:", error);
+    logger.error("Setup admin error:", { error: error instanceof Error ? error.message : String(error) });
     return NextResponse.json(
       { error: "Failed to update user" },
       { status: 500 }

@@ -1,7 +1,8 @@
 import { NextRequest, NextResponse } from "next/server";
-import { getServerSession } from "next-auth";
-import { authOptions } from "@/lib/auth";
 import { prisma } from "@/lib/prisma";
+import { logger } from "@/lib/logger";
+
+import { requireAuth } from "@/lib/api-auth";
 
 /**
  * GET /api/ai/usage
@@ -11,18 +12,17 @@ export const dynamic = "force-dynamic";
 
 export async function GET(req: NextRequest) {
   try {
-    const session = await getServerSession(authOptions);
-    if (!session?.user?.id) {
-      return NextResponse.json({ error: "לא מורשה" }, { status: 401 });
-    }
+    const auth = await requireAuth();
+    if ("error" in auth) return auth.error;
+    const { userId, session } = auth;
 
     // קבלת פרטי המשתמש
     const user = await prisma.user.findUnique({
-      where: { id: session.user.id },
+      where: { id: userId },
     });
 
     if (!user) {
-      return NextResponse.json({ error: "משתמש לא נמצא" }, { status: 404 });
+      return NextResponse.json({ message: "משתמש לא נמצא" }, { status: 404 });
     }
 
     // Get current month usage
@@ -105,9 +105,9 @@ export async function GET(req: NextRequest) {
       year: now.getFullYear(),
     });
   } catch (error) {
-    console.error("שגיאה בקבלת נתוני שימוש:", error);
+    logger.error("שגיאה בקבלת נתוני שימוש:", { error: error instanceof Error ? error.message : String(error) });
     return NextResponse.json(
-      { error: "שגיאה בקבלת נתוני השימוש ב-AI" },
+      { message: "שגיאה בקבלת נתוני השימוש ב-AI" },
       { status: 500 }
     );
   }

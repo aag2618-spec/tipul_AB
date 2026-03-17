@@ -1,18 +1,17 @@
 import { NextRequest, NextResponse } from "next/server";
-import { getServerSession } from "next-auth";
-import { authOptions } from "@/lib/auth";
 import prisma from "@/lib/prisma";
 import { Prisma } from "@prisma/client";
+import { logger } from "@/lib/logger";
+import { requireAuth } from "@/lib/api-auth";
 
 // POST - שמור תשובות
 export const dynamic = "force-dynamic";
 
 export async function POST(req: NextRequest) {
   try {
-    const session = await getServerSession(authOptions);
-    if (!session?.user?.id) {
-      return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
-    }
+    const auth = await requireAuth();
+    if ("error" in auth) return auth.error;
+    const { userId, session } = auth;
 
     const body = await req.json();
     const { clientId, templateId, responses } = body;
@@ -20,20 +19,20 @@ export async function POST(req: NextRequest) {
     const client = await prisma.client.findFirst({
       where: {
         id: clientId,
-        therapistId: session.user.id,
+        therapistId: userId,
       },
     });
 
     if (!client) {
-      return NextResponse.json({ error: "Client not found" }, { status: 404 });
+      return NextResponse.json({ message: "Client not found" }, { status: 404 });
     }
 
     if (templateId) {
       const template = await prisma.intakeQuestionnaire.findFirst({
-        where: { id: templateId, userId: session.user.id },
+        where: { id: templateId, userId: userId },
       });
       if (!template) {
-        return NextResponse.json({ error: "Template not found" }, { status: 404 });
+        return NextResponse.json({ message: "Template not found" }, { status: 404 });
       }
     }
 
@@ -50,9 +49,9 @@ export async function POST(req: NextRequest) {
 
     return NextResponse.json(response);
   } catch (error) {
-    console.error("Error saving intake response:", error);
+    logger.error("Error saving intake response:", { error: error instanceof Error ? error.message : String(error) });
     return NextResponse.json(
-      { error: "Failed to save response" },
+      { message: "Failed to save response" },
       { status: 500 }
     );
   }
@@ -61,27 +60,26 @@ export async function POST(req: NextRequest) {
 // GET - קבל תשובות של לקוח
 export async function GET(req: NextRequest) {
   try {
-    const session = await getServerSession(authOptions);
-    if (!session?.user?.id) {
-      return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
-    }
+    const auth = await requireAuth();
+    if ("error" in auth) return auth.error;
+    const { userId, session } = auth;
 
     const { searchParams } = new URL(req.url);
     const clientId = searchParams.get("clientId");
 
     if (!clientId) {
-      return NextResponse.json({ error: "Client ID required" }, { status: 400 });
+      return NextResponse.json({ message: "Client ID required" }, { status: 400 });
     }
 
     const client = await prisma.client.findFirst({
       where: {
         id: clientId,
-        therapistId: session.user.id,
+        therapistId: userId,
       },
     });
 
     if (!client) {
-      return NextResponse.json({ error: "Client not found" }, { status: 404 });
+      return NextResponse.json({ message: "Client not found" }, { status: 404 });
     }
 
     const responses = await prisma.intakeResponse.findMany({
@@ -96,9 +94,9 @@ export async function GET(req: NextRequest) {
 
     return NextResponse.json(responses);
   } catch (error) {
-    console.error("Error fetching intake responses:", error);
+    logger.error("Error fetching intake responses:", { error: error instanceof Error ? error.message : String(error) });
     return NextResponse.json(
-      { error: "Failed to fetch responses" },
+      { message: "Failed to fetch responses" },
       { status: 500 }
     );
   }

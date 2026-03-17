@@ -1,6 +1,7 @@
 import { NextRequest, NextResponse } from "next/server";
 import { requireAuth } from "@/lib/api-auth";
 import prisma from "@/lib/prisma";
+import { logger } from "@/lib/logger";
 
 export const dynamic = "force-dynamic";
 
@@ -47,7 +48,7 @@ export async function GET(request: NextRequest) {
 
     return NextResponse.json(recordings);
   } catch (error) {
-    console.error("Get recordings error:", error);
+    logger.error("Get recordings error:", { error: error instanceof Error ? error.message : String(error) });
     return NextResponse.json(
       { message: "אירעה שגיאה בטעינת ההקלטות" },
       { status: 500 }
@@ -128,7 +129,7 @@ export async function POST(request: NextRequest) {
 
     return NextResponse.json(recording, { status: 201 });
   } catch (error) {
-    console.error("Create recording error:", error);
+    logger.error("Create recording error:", { error: error instanceof Error ? error.message : String(error) });
     return NextResponse.json(
       { message: "אירעה שגיאה ביצירת ההקלטה" },
       { status: 500 }

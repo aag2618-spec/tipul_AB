@@ -1,19 +1,19 @@
 import { NextResponse } from "next/server";
-import { getServerSession } from "next-auth";
-import { authOptions } from "@/lib/auth";
 import prisma from "@/lib/prisma";
+import { logger } from "@/lib/logger";
+
+import { requireAuth } from "@/lib/api-auth";
 
 export const dynamic = "force-dynamic";
 
 export async function GET(request: Request) {
   try {
-    const session = await getServerSession(authOptions);
-    if (!session?.user?.id) {
-      return NextResponse.json({ error: "לא מורשה" }, { status: 401 });
-    }
+    const auth = await requireAuth();
+    if ("error" in auth) return auth.error;
+    const { userId, session } = auth;
 
     const settings = await prisma.insurerSettings.findUnique({
-      where: { therapistId: session.user.id },
+      where: { therapistId: userId },
     });
 
     // Return defaults if no settings exist
@@ -30,9 +30,9 @@ export async function GET(request: Request) {
 
     return NextResponse.json(settings);
   } catch (error) {
-    console.error("Get insurer settings error:", error);
+    logger.error("Get insurer settings error:", { error: error instanceof Error ? error.message : String(error) });
     return NextResponse.json(
-      { error: "שגיאה בטעינת הגדרות" },
+      { message: "שגיאה בטעינת הגדרות" },
       { status: 500 }
     );
   }
@@ -40,17 +40,16 @@ export async function GET(request: Request) {
 
 export async function PUT(request: Request) {
   try {
-    const session = await getServerSession(authOptions);
-    if (!session?.user?.id) {
-      return NextResponse.json({ error: "לא מורשה" }, { status: 401 });
-    }
+    const auth = await requireAuth();
+    if ("error" in auth) return auth.error;
+    const { userId, session } = auth;
 
     const body = await request.json();
 
     const settings = await prisma.insurerSettings.upsert({
-      where: { therapistId: session.user.id },
+      where: { therapistId: userId },
       create: {
-        therapistId: session.user.id,
+        therapistId: userId,
         ...body,
       },
       update: body,
@@ -58,9 +57,9 @@ export async function PUT(request: Request) {
 
     return NextResponse.json(settings);
   } catch (error) {
-    console.error("Update insurer settings error:", error);
+    logger.error("Update insurer settings error:", { error: error instanceof Error ? error.message : String(error) });
     return NextResponse.json(
-      { error: "שגיאה בשמירת הגדרות" },
+      { message: "שגיאה בשמירת הגדרות" },
       { status: 500 }
     );
   }

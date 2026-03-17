@@ -4,6 +4,9 @@ import prisma from "@/lib/prisma";
 import { parseIsraelTime } from "@/lib/date-utils";
 import { parseBody } from "@/lib/validations/helpers";
 import { createSessionSchema } from "@/lib/validations/session";
+import { logger } from "@/lib/logger";
+
+export const dynamic = "force-dynamic";
 
 export async function GET(request: NextRequest) {
   try {
@@ -43,7 +46,7 @@ export async function GET(request: NextRequest) {
 
     return NextResponse.json(sessions);
   } catch (error) {
-    console.error("Get sessions error:", error);
+    logger.error("Get sessions error:", { error: error instanceof Error ? error.message : String(error) });
     return NextResponse.json(
       { message: "אירעה שגיאה בטעינת הפגישות" },
       { status: 500 }
@@ -190,12 +193,12 @@ export async function POST(request: NextRequest) {
 
             // Log result
             if (result.success) {
-              console.log(`Confirmation email sent to ${clientEmail}`);
+              logger.info(`Confirmation email sent to ${clientEmail}`);
             } else {
-              console.error(`Failed to send confirmation to ${clientEmail}:`, result.error);
+              logger.error(`Failed to send confirmation to ${clientEmail}:`, { error: result.error });
             }
           })
-          .catch((err) => console.error("Failed to send confirmation:", err));
+          .catch((err) => logger.error("Failed to send confirmation:", { error: err instanceof Error ? err.message : String(err) }));
       }
     }
 
@@ -227,7 +230,7 @@ export async function POST(request: NextRequest) {
       therapist: undefined,
     }, { status: 201 });
   } catch (error) {
-    console.error("Create session error:", error);
+    logger.error("Create session error:", { error: error instanceof Error ? error.message : String(error) });
     return NextResponse.json(
       { message: "אירעה שגיאה ביצירת הפגישה" },
       { status: 500 }

@@ -1,25 +1,24 @@
 import { NextRequest, NextResponse } from "next/server";
-import { getServerSession } from "next-auth";
-import { authOptions } from "@/lib/auth";
 import { generateSessionSummary, analyzeText } from "@/lib/google-ai";
 import prisma from "@/lib/prisma";
 import { getApproachById, getApproachPrompts, getUniversalPrompts } from "@/lib/therapeutic-approaches";
+import { logger } from "@/lib/logger";
+import { requireAuth } from "@/lib/api-auth";
 
 export const dynamic = "force-dynamic";
 
 export async function POST(request: NextRequest) {
   try {
-    const session = await getServerSession(authOptions);
-    if (!session?.user?.id) {
-      return NextResponse.json({ message: "לא מורשה" }, { status: 401 });
-    }
+    const auth = await requireAuth();
+    if ("error" in auth) return auth.error;
+    const { userId, session } = auth;
 
     const body = await request.json();
     const { transcription, summaries, clientName, clientId, analysisType } = body;
 
     // קבלת פרטי המשתמש כולל גישות טיפוליות
     const user = await prisma.user.findUnique({
-      where: { id: session.user.id },
+      where: { id: userId },
       select: {
         id: true,
         aiTier: true,
@@ -155,23 +154,11 @@ ${summariesText}`;
       { status: 400 }
     );
   } catch (error) {
-    console.error("Generate summary error:", error);
+    logger.error("Generate summary error:", { error: error instanceof Error ? error.message : String(error) });
     return NextResponse.json(
       { message: "אירעה שגיאה ביצירת הסיכום או הניתוח" },
       { status: 500 }
     );
   }
 }
-
-
-
-
-
-
-
-
-
-
-
-
 

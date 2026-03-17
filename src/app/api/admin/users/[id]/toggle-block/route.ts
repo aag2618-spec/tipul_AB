@@ -1,7 +1,8 @@
 import { NextRequest, NextResponse } from "next/server";
-import { getServerSession } from "next-auth";
-import { authOptions } from "@/lib/auth";
 import prisma from "@/lib/prisma";
+import { logger } from "@/lib/logger";
+
+import { requireAdmin } from "@/lib/api-auth";
 
 /**
  * POST /api/admin/users/[id]/toggle-block
@@ -14,11 +15,8 @@ export async function POST(
   { params }: { params: Promise<{ id: string }> }
 ) {
   try {
-    const session = await getServerSession(authOptions);
-    
-    if (!session?.user || session.user.role !== "ADMIN") {
-      return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
-    }
+    const auth = await requireAdmin();
+    if ("error" in auth) return auth.error;
 
     const { id: userId } = await params;
 
@@ -29,7 +27,7 @@ export async function POST(
     });
 
     if (!user) {
-      return NextResponse.json({ error: "User not found" }, { status: 404 });
+      return NextResponse.json({ message: "User not found" }, { status: 404 });
     }
 
     // Toggle
@@ -48,9 +46,9 @@ export async function POST(
       user: updatedUser,
     });
   } catch (error) {
-    console.error("Error toggling user block:", error);
+    logger.error("Error toggling user block:", { error: error instanceof Error ? error.message : String(error) });
     return NextResponse.json(
-      { error: "Failed to toggle block status" },
+      { message: "Failed to toggle block status" },
       { status: 500 }
     );
   }

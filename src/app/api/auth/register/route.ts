@@ -6,9 +6,8 @@ import { sendEmail } from "@/lib/resend";
 import { checkRateLimit, AUTH_RATE_LIMIT, rateLimitResponse } from "@/lib/rate-limit";
 import { parseBody } from "@/lib/validations/helpers";
 import { registerSchema } from "@/lib/validations/auth";
-
-const TRIAL_DAYS = 14;
-const TRIAL_AI_TIER = "PRO"; // מסלול ניסיון
+import { logger } from "@/lib/logger";
+import { TRIAL_DAYS, TRIAL_AI_TIER } from "@/lib/constants";
 
 export const dynamic = "force-dynamic";
 
@@ -231,7 +230,7 @@ export async function POST(request: NextRequest) {
       { status: 201 }
     );
   } catch (error) {
-    console.error("Registration error:", error);
+    logger.error("Registration error:", { error: error instanceof Error ? error.message : String(error) });
     return NextResponse.json(
       { message: "אירעה שגיאה בהרשמה" },
       { status: 500 }

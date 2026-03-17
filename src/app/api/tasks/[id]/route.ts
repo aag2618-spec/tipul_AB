@@ -1,7 +1,8 @@
 import { NextRequest, NextResponse } from "next/server";
-import { getServerSession } from "next-auth";
-import { authOptions } from "@/lib/auth";
 import prisma from "@/lib/prisma";
+import { logger } from "@/lib/logger";
+
+import { requireAuth } from "@/lib/api-auth";
 
 export const dynamic = "force-dynamic";
 
@@ -10,15 +11,14 @@ export async function GET(
   { params }: { params: Promise<{ id: string }> }
 ) {
   try {
-    const session = await getServerSession(authOptions);
-    if (!session?.user?.id) {
-      return NextResponse.json({ message: "לא מורשה" }, { status: 401 });
-    }
+    const auth = await requireAuth();
+    if ("error" in auth) return auth.error;
+    const { userId, session } = auth;
 
     const { id } = await params;
 
     const task = await prisma.task.findFirst({
-      where: { id, userId: session.user.id },
+      where: { id, userId: userId },
     });
 
     if (!task) {
@@ -27,7 +27,7 @@ export async function GET(
 
     return NextResponse.json(task);
   } catch (error) {
-    console.error("Get task error:", error);
+    logger.error("Get task error:", { error: error instanceof Error ? error.message : String(error) });
     return NextResponse.json(
       { message: "אירעה שגיאה בטעינת המשימה" },
       { status: 500 }
@@ -40,17 +40,16 @@ export async function PATCH(
   { params }: { params: Promise<{ id: string }> }
 ) {
   try {
-    const session = await getServerSession(authOptions);
-    if (!session?.user?.id) {
-      return NextResponse.json({ message: "לא מורשה" }, { status: 401 });
-    }
+    const auth = await requireAuth();
+    if ("error" in auth) return auth.error;
+    const { userId, session } = auth;
 
     const { id } = await params;
     const body = await request.json();
 
     // Verify task belongs to user
     const existingTask = await prisma.task.findFirst({
-      where: { id, userId: session.user.id },
+      where: { id, userId: userId },
     });
 
     if (!existingTask) {
@@ -73,7 +72,7 @@ export async function PATCH(
 
     return NextResponse.json(task);
   } catch (error) {
-    console.error("Update task error:", error);
+    logger.error("Update task error:", { error: error instanceof Error ? error.message : String(error) });
     return NextResponse.json(
       { message: "אירעה שגיאה בעדכון המשימה" },
       { status: 500 }
@@ -86,16 +85,15 @@ export async function DELETE(
   { params }: { params: Promise<{ id: string }> }
 ) {
   try {
-    const session = await getServerSession(authOptions);
-    if (!session?.user?.id) {
-      return NextResponse.json({ message: "לא מורשה" }, { status: 401 });
-    }
+    const auth = await requireAuth();
+    if ("error" in auth) return auth.error;
+    const { userId, session } = auth;
 
     const { id } = await params;
 
     // Verify task belongs to user
     const existingTask = await prisma.task.findFirst({
-      where: { id, userId: session.user.id },
+      where: { id, userId: userId },
     });
 
     if (!existingTask) {
@@ -109,7 +107,7 @@ export async function DELETE(
 
     return NextResponse.json({ message: "המשימה נמחקה" });
   } catch (error) {
-    console.error("Delete task error:", error);
+    logger.error("Delete task error:", { error: error instanceof Error ? error.message : String(error) });
     return NextResponse.json(
       { message: "אירעה שגיאה במחיקת המשימה" },
       { status: 500 }

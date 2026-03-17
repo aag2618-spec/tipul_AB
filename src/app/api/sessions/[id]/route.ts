@@ -3,6 +3,7 @@ import { requireAuth } from "@/lib/api-auth";
 import prisma from "@/lib/prisma";
 import { parseIsraelTime } from "@/lib/date-utils";
 import { createPaymentForSession } from "@/lib/payment-service";
+import { logger } from "@/lib/logger";
 
 export const dynamic = "force-dynamic";
 
@@ -40,7 +41,7 @@ export async function GET(
 
     return NextResponse.json(therapySession);
   } catch (error) {
-    console.error("Get session error:", error);
+    logger.error("Get session error:", { error: error instanceof Error ? error.message : String(error) });
     return NextResponse.json(
       { message: "אירעה שגיאה בטעינת הפגישה" },
       { status: 500 }
@@ -137,7 +138,7 @@ export async function PUT(
 
     return NextResponse.json(updatedSession);
   } catch (error) {
-    console.error("Update session error:", error);
+    logger.error("Update session error:", { error: error instanceof Error ? error.message : String(error) });
     return NextResponse.json(
       { message: "אירעה שגיאה בעדכון הפגישה" },
       { status: 500 }
@@ -175,7 +176,7 @@ export async function PATCH(
 
     return NextResponse.json(updatedSession);
   } catch (error) {
-    console.error("Patch session error:", error);
+    logger.error("Patch session error:", { error: error instanceof Error ? error.message : String(error) });
     return NextResponse.json(
       { message: "אירעה שגיאה בעדכון הפגישה" },
       { status: 500 }
@@ -215,12 +216,12 @@ export async function DELETE(
         data: { status: "DISMISSED" },
       });
     } catch (e) {
-      console.error("Failed to clean up notifications:", e);
+      logger.error("Failed to clean up notifications:", { error: e instanceof Error ? e.message : String(e) });
     }
 
     return NextResponse.json({ message: "הפגישה נמחקה בהצלחה" });
   } catch (error) {
-    console.error("Delete session error:", error);
+    logger.error("Delete session error:", { error: error instanceof Error ? error.message : String(error) });
     return NextResponse.json(
       { message: "אירעה שגיאה במחיקת הפגישה" },
       { status: 500 }

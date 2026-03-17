@@ -1,16 +1,15 @@
 import { NextRequest, NextResponse } from "next/server";
-import { getServerSession } from "next-auth";
-import { authOptions } from "@/lib/auth";
 import prisma from "@/lib/prisma";
+import { logger } from "@/lib/logger";
+
+import { requireAdmin } from "@/lib/api-auth";
 
 export const dynamic = "force-dynamic";
 
 export async function GET(request: NextRequest) {
   try {
-    const session = await getServerSession(authOptions);
-    if (!session?.user?.id || session.user.role !== "ADMIN") {
-      return NextResponse.json({ message: "לא מורשה" }, { status: 403 });
-    }
+    const auth = await requireAdmin();
+    if ("error" in auth) return auth.error;
 
     const { searchParams } = new URL(request.url);
     const userId = searchParams.get("userId");
@@ -83,7 +82,7 @@ export async function GET(request: NextRequest) {
       },
     });
   } catch (error) {
-    console.error("Get storage error:", error);
+    logger.error("Get storage error:", { error: error instanceof Error ? error.message : String(error) });
     return NextResponse.json(
       { message: "אירעה שגיאה בטעינת נתוני האחסון" },
       { status: 500 }

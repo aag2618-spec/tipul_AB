@@ -1,10 +1,11 @@
 import { NextRequest, NextResponse } from "next/server";
-import { getServerSession } from "next-auth";
-import { authOptions } from "@/lib/auth";
 import prisma from "@/lib/prisma";
 import bcrypt from "bcryptjs";
 import { sendEmail } from "@/lib/resend";
 import { PLAN_NAMES } from "@/lib/pricing";
+import { logger } from "@/lib/logger";
+
+import { requireAdmin } from "@/lib/api-auth";
 
 export const dynamic = "force-dynamic";
 
@@ -13,19 +14,9 @@ export async function PUT(
   { params }: { params: Promise<{ id: string }> }
 ) {
   try {
-    const session = await getServerSession(authOptions);
-    if (!session?.user?.id) {
-      return NextResponse.json({ message: "Unauthorized" }, { status: 401 });
-    }
-
-    // Check if admin
-    const adminUser = await prisma.user.findUnique({
-      where: { id: session.user.id }
-    });
-
-    if (adminUser?.role !== 'ADMIN') {
-      return NextResponse.json({ message: "Forbidden" }, { status: 403 });
-    }
+    const auth = await requireAdmin();
+    if ("error" in auth) return auth.error;
+    const { userId, session } = auth;
 
     const { id } = await params;
     const body = await request.json();
@@ -60,7 +51,7 @@ export async function PUT(
       user: { ...updatedUser, password: undefined }
     });
   } catch (error) {
-    console.error('Error updating user:', error);
+    logger.error('Error updating user:', { error: error instanceof Error ? error.message : String(error) });
     return NextResponse.json(
       { message: "Internal server error" },
       { status: 500 }
@@ -73,24 +64,14 @@ export async function DELETE(
   { params }: { params: Promise<{ id: string }> }
 ) {
   try {
-    const session = await getServerSession(authOptions);
-    if (!session?.user?.id) {
-      return NextResponse.json({ message: "Unauthorized" }, { status: 401 });
-    }
-
-    // Check if admin
-    const adminUser = await prisma.user.findUnique({
-      where: { id: session.user.id }
-    });
-
-    if (adminUser?.role !== 'ADMIN') {
-      return NextResponse.json({ message: "Forbidden" }, { status: 403 });
-    }
+    const auth = await requireAdmin();
+    if ("error" in auth) return auth.error;
+    const { userId, session } = auth;
 
     const { id } = await params;
 
     // Prevent deleting self
-    if (id === session.user.id) {
+    if (id === userId) {
       return NextResponse.json(
         { message: "אי אפשר למחוק את עצמך" },
         { status: 400 }
@@ -106,7 +87,7 @@ export async function DELETE(
       message: "User deleted successfully"
     });
   } catch (error) {
-    console.error('Error deleting user:', error);
+    logger.error('Error deleting user:', { error: error instanceof Error ? error.message : String(error) });
     return NextResponse.json(
       { message: "Internal server error" },
       { status: 500 }
@@ -119,19 +100,9 @@ export async function PATCH(
   { params }: { params: Promise<{ id: string }> }
 ) {
   try {
-    const session = await getServerSession(authOptions);
-    if (!session?.user?.id) {
-      return NextResponse.json({ message: "Unauthorized" }, { status: 401 });
-    }
-
-    // Check if admin
-    const adminUser = await prisma.user.findUnique({
-      where: { id: session.user.id }
-    });
-
-    if (adminUser?.role !== 'ADMIN') {
-      return NextResponse.json({ message: "Forbidden" }, { status: 403 });
-    }
+    const auth = await requireAdmin();
+    if ("error" in auth) return auth.error;
+    const { userId, session } = auth;
 
     const { id } = await params;
     const body = await request.json();
@@ -221,7 +192,7 @@ export async function PATCH(
             </div>
           </div>
         `,
-      }).catch(err => console.error("Grant free email failed:", err));
+      }).catch(err => logger.error("Grant free email failed:", { error: err instanceof Error ? err.message : String(err) }));
     }
 
     // ========================================
@@ -264,7 +235,7 @@ export async function PATCH(
             </div>
           </div>
         `,
-      }).catch(err => console.error("Revoke free email failed:", err));
+      }).catch(err => logger.error("Revoke free email failed:", { error: err instanceof Error ? err.message : String(err) }));
     }
 
     return NextResponse.json({
@@ -272,7 +243,7 @@ export async function PATCH(
       user: updatedUser
     });
   } catch (error) {
-    console.error('Error updating user:', error);
+    logger.error('Error updating user:', { error: error instanceof Error ? error.message : String(error) });
     return NextResponse.json(
       { message: "Internal server error" },
       { status: 500 }

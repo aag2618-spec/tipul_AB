@@ -27,7 +27,7 @@ export async function POST(request: NextRequest) {
     }
 
     const payload: SumitWebhookPayload = JSON.parse(body);
-    console.log("Sumit webhook received:", payload.Event);
+    logger.info("Sumit webhook received:", { data: payload.Event });
 
     switch (payload.Event) {
       case "payment.success":
@@ -40,7 +40,7 @@ export async function POST(request: NextRequest) {
         await handleDocumentCreated(payload);
         break;
       default:
-        console.log("Unhandled webhook event:", payload.Event);
+        logger.info("Unhandled webhook event:", { data: payload.Event });
     }
 
     return NextResponse.json({ received: true });

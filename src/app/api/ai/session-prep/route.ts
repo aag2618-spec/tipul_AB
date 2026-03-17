@@ -1,12 +1,13 @@
 import { NextRequest, NextResponse } from "next/server";
-import { getServerSession } from "next-auth";
-import { authOptions } from "@/lib/auth";
 import prisma from "@/lib/prisma";
 import { GoogleGenerativeAI } from "@google/generative-ai";
 import { format } from "date-fns";
 import { he } from "date-fns/locale";
 import { getApproachPrompts, getApproachById, getUniversalPromptsLight } from "@/lib/therapeutic-approaches";
 import { checkTrialAiLimit, updateTrialAiCost } from "@/lib/trial-limits";
+import { logger } from "@/lib/logger";
+
+import { requireAuth } from "@/lib/api-auth";
 
 // שימוש ב-Gemini 2.0 Flash בלבד
 const genAI = new GoogleGenerativeAI(process.env.GOOGLE_AI_API_KEY || "");
@@ -26,10 +27,9 @@ export const dynamic = "force-dynamic";
 
 export async function GET(request: NextRequest) {
   try {
-    const session = await getServerSession(authOptions);
-    if (!session?.user?.id) {
-      return NextResponse.json({ message: "לא מורשה" }, { status: 401 });
-    }
+    const auth = await requireAuth();
+    if ("error" in auth) return auth.error;
+    const { userId, session } = auth;
 
     const { searchParams } = new URL(request.url);
     const clientId = searchParams.get('clientId');
@@ -53,7 +53,7 @@ export async function GET(request: NextRequest) {
     const existingPrep = await prisma.sessionPrep.findFirst({
       where: {
         clientId,
-        userId: session.user.id,
+        userId: userId,
         sessionDate: {
           gte: startOfDay,
           lte: endOfDay
@@ -76,7 +76,7 @@ export async function GET(request: NextRequest) {
       createdAt: existingPrep.createdAt
     });
   } catch (error: unknown) {
-    console.error("שגיאה בקבלת הכנה לפגישה:", error);
+    logger.error("שגיאה בקבלת הכנה לפגישה:", { error: error instanceof Error ? error.message : String(error) });
     return NextResponse.json(
       { message: "שגיאה בקבלת הכנה לפגישה" },
       { status: 500 }
@@ -95,10 +95,9 @@ export async function GET(request: NextRequest) {
  */
 export async function POST(request: NextRequest) {
   try {
-    const session = await getServerSession(authOptions);
-    if (!session?.user?.id) {
-      return NextResponse.json({ message: "לא מורשה" }, { status: 401 });
-    }
+    const auth = await requireAuth();
+    if ("error" in auth) return auth.error;
+    const { userId, session } = auth;
 
     const body = await request.json();
     const { clientId, sessionDate } = body;
@@ -112,7 +111,7 @@ export async function POST(request: NextRequest) {
 
     // קבלת פרטי המשתמש
     const user = await prisma.user.findUnique({
-      where: { id: session.user.id },
+      where: { id: userId },
       include: { aiUsageStats: true }
     });
 
@@ -132,7 +131,7 @@ export async function POST(request: NextRequest) {
     }
 
     // בדיקת מגבלות ניסיון (₪5 cap)
-    const trialCheck = await checkTrialAiLimit(session.user.id);
+    const trialCheck = await checkTrialAiLimit(userId);
     if (!trialCheck.allowed) {
       return NextResponse.json(
         { 
@@ -182,7 +181,7 @@ export async function POST(request: NextRequest) {
       where: { id: clientId },
     });
 
-    if (!client || client.therapistId !== session.user.id) {
+    if (!client || client.therapistId !== userId) {
       return NextResponse.json({ message: "מטופל לא נמצא" }, { status: 404 });
     }
 
@@ -229,7 +228,7 @@ export async function POST(request: NextRequest) {
       const questionnaires = await prisma.questionnaireResponse.findMany({
         where: {
           clientId,
-          therapistId: session.user.id,
+          therapistId: userId,
           status: 'COMPLETED',
           completedAt: { gte: thirtyDaysAgo },
         },
@@ -322,7 +321,7 @@ export async function POST(request: NextRequest) {
     // שמירת ההכנה
     const sessionPrep = await prisma.sessionPrep.create({
       data: {
-        userId: session.user.id,
+        userId: userId,
         clientId,
         sessionDate: sessionDate ? new Date(sessionDate) : new Date(),
         content: content,
@@ -339,9 +338,9 @@ export async function POST(request: NextRequest) {
     today.setHours(0, 0, 0, 0);
     
     await prisma.aIUsageStats.upsert({
-      where: { userId: session.user.id },
+      where: { userId: userId },
       create: {
-        userId: session.user.id,
+        userId: userId,
         dailyCalls: 1,
         currentMonthCalls: 1,
         currentMonthTokens: totalTokens,
@@ -361,7 +360,7 @@ export async function POST(request: NextRequest) {
     });
 
     // עדכון עלות ניסיון
-    await updateTrialAiCost(session.user.id, cost);
+    await updateTrialAiCost(userId, cost);
 
     return NextResponse.json({
       success: true,
@@ -376,7 +375,7 @@ export async function POST(request: NextRequest) {
     });
 
   } catch (error: any) {
-    console.error('שגיאה בהכנה לפגישה:', error);
+    logger.error('שגיאה בהכנה לפגישה:', { error: error instanceof Error ? error.message : String(error) });
     return NextResponse.json(
       { message: error.message || "שגיאה פנימית בשרת" },
       { status: 500 }

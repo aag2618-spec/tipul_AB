@@ -1,7 +1,8 @@
 import { NextRequest, NextResponse } from "next/server";
-import { getServerSession } from "next-auth";
-import { authOptions } from "@/lib/auth";
 import prisma from "@/lib/prisma";
+import { logger } from "@/lib/logger";
+
+import { requireAuth } from "@/lib/api-auth";
 
 export const dynamic = "force-dynamic";
 
@@ -10,23 +11,22 @@ export async function DELETE(
   { params }: { params: Promise<{ id: string }> }
 ) {
   try {
-    const session = await getServerSession(authOptions);
-    if (!session?.user?.id) {
-      return NextResponse.json({ message: "לא מורשה" }, { status: 401 });
-    }
+    const auth = await requireAuth();
+    if ("error" in auth) return auth.error;
+    const { userId, session } = auth;
 
     const { id } = await params;
 
     await prisma.notification.delete({
       where: { 
         id,
-        userId: session.user.id, // Security: only allow deleting own notifications
+        userId: userId, // Security: only allow deleting own notifications
       },
     });
 
     return NextResponse.json({ success: true });
   } catch (error) {
-    console.error("Delete notification error:", error);
+    logger.error("Delete notification error:", { error: error instanceof Error ? error.message : String(error) });
     return NextResponse.json(
       { message: "אירעה שגיאה במחיקת ההתראה" },
       { status: 500 }

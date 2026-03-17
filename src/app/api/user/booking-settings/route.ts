@@ -1,30 +1,28 @@
 import { NextRequest, NextResponse } from "next/server";
-import { getServerSession } from "next-auth";
-import { authOptions } from "@/lib/auth";
 import { prisma } from "@/lib/prisma";
 import { Prisma } from "@prisma/client";
 import { nanoid } from "nanoid";
 
+import { requireAuth } from "@/lib/api-auth";
+
 export const dynamic = "force-dynamic";
 
 export async function GET() {
-  const session = await getServerSession(authOptions);
-  if (!session?.user?.id) {
-    return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
-  }
+  const auth = await requireAuth();
+  if ("error" in auth) return auth.error;
+  const { userId, session } = auth;
 
   const settings = await prisma.bookingSettings.findUnique({
-    where: { therapistId: session.user.id },
+    where: { therapistId: userId },
   });
 
   return NextResponse.json(settings);
 }
 
 export async function PUT(request: NextRequest) {
-  const session = await getServerSession(authOptions);
-  if (!session?.user?.id) {
-    return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
-  }
+  const auth = await requireAuth();
+  if ("error" in auth) return auth.error;
+  const { userId, session } = auth;
 
   const body = await request.json();
   const {
@@ -43,46 +41,46 @@ export async function PUT(request: NextRequest) {
   } = body;
 
   if (sessionDuration !== undefined && (typeof sessionDuration !== "number" || sessionDuration < 5 || sessionDuration > 300)) {
-    return NextResponse.json({ error: "משך פגישה חייב להיות בין 5 ל-300 דקות" }, { status: 400 });
+    return NextResponse.json({ message: "משך פגישה חייב להיות בין 5 ל-300 דקות" }, { status: 400 });
   }
   if (bufferBetween !== undefined && (typeof bufferBetween !== "number" || bufferBetween < 0 || bufferBetween > 120)) {
-    return NextResponse.json({ error: "הפסקה בין פגישות חייבת להיות בין 0 ל-120 דקות" }, { status: 400 });
+    return NextResponse.json({ message: "הפסקה בין פגישות חייבת להיות בין 0 ל-120 דקות" }, { status: 400 });
   }
   if (maxAdvanceDays !== undefined && (typeof maxAdvanceDays !== "number" || maxAdvanceDays < 1 || maxAdvanceDays > 365)) {
-    return NextResponse.json({ error: "מספר ימי הזמנה מראש חייב להיות בין 1 ל-365" }, { status: 400 });
+    return NextResponse.json({ message: "מספר ימי הזמנה מראש חייב להיות בין 1 ל-365" }, { status: 400 });
   }
   if (minAdvanceHours !== undefined && (typeof minAdvanceHours !== "number" || minAdvanceHours < 0 || minAdvanceHours > 168)) {
-    return NextResponse.json({ error: "שעות מינימום מראש חייבות להיות בין 0 ל-168" }, { status: 400 });
+    return NextResponse.json({ message: "שעות מינימום מראש חייבות להיות בין 0 ל-168" }, { status: 400 });
   }
   if (defaultPrice !== undefined && (typeof defaultPrice !== "number" || defaultPrice < 0)) {
-    return NextResponse.json({ error: "מחיר חייב להיות חיובי" }, { status: 400 });
+    return NextResponse.json({ message: "מחיר חייב להיות חיובי" }, { status: 400 });
   }
   if (breaks !== undefined) {
     if (!Array.isArray(breaks)) {
-      return NextResponse.json({ error: "הפסקות חייבות להיות מערך" }, { status: 400 });
+      return NextResponse.json({ message: "הפסקות חייבות להיות מערך" }, { status: 400 });
     }
     const timeRe = /^\d{2}:\d{2}$/;
     for (const brk of breaks) {
       if (!brk || typeof brk !== "object" || !timeRe.test(brk.start) || !timeRe.test(brk.end)) {
-        return NextResponse.json({ error: "כל הפסקה חייבת לכלול שעת התחלה וסיום תקינות (HH:MM)" }, { status: 400 });
+        return NextResponse.json({ message: "כל הפסקה חייבת לכלול שעת התחלה וסיום תקינות (HH:MM)" }, { status: 400 });
       }
       if (brk.start >= brk.end) {
-        return NextResponse.json({ error: "שעת סיום ההפסקה חייבת להיות אחרי שעת ההתחלה" }, { status: 400 });
+        return NextResponse.json({ message: "שעת סיום ההפסקה חייבת להיות אחרי שעת ההתחלה" }, { status: 400 });
       }
     }
   }
   const validSessionTypes = ["IN_PERSON", "ONLINE", "PHONE"];
   if (defaultSessionType !== undefined && !validSessionTypes.includes(defaultSessionType)) {
-    return NextResponse.json({ error: "סוג פגישה לא תקין" }, { status: 400 });
+    return NextResponse.json({ message: "סוג פגישה לא תקין" }, { status: 400 });
   }
 
   const existing = await prisma.bookingSettings.findUnique({
-    where: { therapistId: session.user.id },
+    where: { therapistId: userId },
   });
 
   if (existing) {
     const updated = await prisma.bookingSettings.update({
-      where: { therapistId: session.user.id },
+      where: { therapistId: userId },
       data: {
         enabled: enabled ?? existing.enabled,
         workingHours: workingHours ? (sanitizeWorkingHours(workingHours) as unknown as Prisma.InputJsonValue) : existing.workingHours as Prisma.InputJsonValue,
@@ -104,7 +102,7 @@ export async function PUT(request: NextRequest) {
   const slug = nanoid(10);
   const created = await prisma.bookingSettings.create({
     data: {
-      therapistId: session.user.id,
+      therapistId: userId,
       slug,
       enabled: enabled ?? false,
       workingHours: (workingHours ? sanitizeWorkingHours(workingHours) : getDefaultWorkingHours()) as unknown as Prisma.InputJsonValue,

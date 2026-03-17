@@ -1,10 +1,10 @@
 import { NextRequest, NextResponse } from "next/server";
-import { getServerSession } from "next-auth";
-import { authOptions } from "@/lib/auth";
 import { prisma } from "@/lib/prisma";
 import { GoogleGenerativeAI } from "@google/generative-ai";
 import { getApproachPrompts, getApproachById, buildIntegrationSection, getScalesPrompt, getUniversalPrompts } from "@/lib/therapeutic-approaches";
 import { checkTrialAiLimit, updateTrialAiCost } from "@/lib/trial-limits";
+import { logger } from "@/lib/logger";
+import { requireAuth } from "@/lib/api-auth";
 
 // שימוש ב-Gemini Pro לכל הניתוחים
 const genAI = new GoogleGenerativeAI(process.env.GOOGLE_AI_API_KEY || "");
@@ -31,24 +31,23 @@ export const dynamic = "force-dynamic";
 
 export async function POST(req: NextRequest) {
   try {
-    const session = await getServerSession(authOptions);
-    if (!session?.user?.id) {
-      return NextResponse.json({ error: "לא מורשה" }, { status: 401 });
-    }
+    const auth = await requireAuth();
+    if ("error" in auth) return auth.error;
+    const { userId, session } = auth;
 
     const { sessionId, analysisType, force } = await req.json();
 
     // סוג ניתוח: תמציתי או מפורט
     if (!["CONCISE", "DETAILED"].includes(analysisType)) {
       return NextResponse.json(
-        { error: "סוג ניתוח לא תקין" },
+        { message: "סוג ניתוח לא תקין" },
         { status: 400 }
       );
     }
 
     // בדיקת משתמש ותוכנית - כולל גישות טיפוליות
     const user = await prisma.user.findUnique({
-      where: { id: session.user.id },
+      where: { id: userId },
       select: {
         id: true,
         name: true,
@@ -66,14 +65,14 @@ export async function POST(req: NextRequest) {
     });
 
     if (!user) {
-      return NextResponse.json({ error: "משתמש לא נמצא" }, { status: 404 });
+      return NextResponse.json({ message: "משתמש לא נמצא" }, { status: 404 });
     }
 
     // תוכנית בסיסית - אין גישה ל-AI
     if (user.aiTier === "ESSENTIAL") {
       return NextResponse.json(
         { 
-          error: "תכונות AI אינן זמינות בתוכנית הבסיסית",
+          message: "תכונות AI אינן זמינות בתוכנית הבסיסית",
           errorEn: "AI features not available in Essential plan",
           upgradeLink: "/dashboard/settings/billing"
         },
@@ -82,10 +81,10 @@ export async function POST(req: NextRequest) {
     }
 
     // בדיקת מגבלות ניסיון
-    const trialCheck = await checkTrialAiLimit(session.user.id);
+    const trialCheck = await checkTrialAiLimit(userId);
     if (!trialCheck.allowed) {
       return NextResponse.json(
-        { error: trialCheck.message, upgradeLink: "/dashboard/settings/billing", trialLimitReached: true },
+        { message: trialCheck.message, upgradeLink: "/dashboard/settings/billing", trialLimitReached: true },
         { status: 429 }
       );
     }
@@ -94,7 +93,7 @@ export async function POST(req: NextRequest) {
     if (analysisType === "DETAILED" && user.aiTier !== "ENTERPRISE") {
       return NextResponse.json(
         { 
-          error: "ניתוח מפורט זמין רק בתוכנית הארגונית",
+          message: "ניתוח מפורט זמין רק בתוכנית הארגונית",
           errorEn: "Detailed analysis is only available in Enterprise plan",
           upgradeLink: "/dashboard/settings/billing"
         },
@@ -121,7 +120,7 @@ export async function POST(req: NextRequest) {
       if (currentCount >= limit) {
         return NextResponse.json(
           { 
-            error: `הגעת למכסה החודשית (${limit} ניתוחים מפורטים)`,
+            message: `הגעת למכסה החודשית (${limit} ניתוחים מפורטים)`,
             errorEn: `Monthly limit reached (${limit} detailed analyses)`
           },
           { status: 429 }
@@ -152,17 +151,17 @@ export async function POST(req: NextRequest) {
     });
 
     if (!therapySession) {
-      return NextResponse.json({ error: "פגישה לא נמצאה" }, { status: 404 });
+      return NextResponse.json({ message: "פגישה לא נמצאה" }, { status: 404 });
     }
 
     // וידוא בעלות
     if (therapySession.therapistId !== user.id) {
-      return NextResponse.json({ error: "אין הרשאה" }, { status: 403 });
+      return NextResponse.json({ message: "אין הרשאה" }, { status: 403 });
     }
 
     if (!therapySession.sessionNote) {
       return NextResponse.json(
-        { error: "לא נמצא סיכום לפגישה זו" },
+        { message: "לא נמצא סיכום לפגישה זו" },
         { status: 404 }
       );
     }
@@ -309,7 +308,7 @@ export async function POST(req: NextRequest) {
     });
 
     // עדכון עלות ניסיון
-    await updateTrialAiCost(session.user.id, cost);
+    await updateTrialAiCost(userId, cost);
 
     return NextResponse.json({
       success: true,
@@ -320,9 +319,9 @@ export async function POST(req: NextRequest) {
       cost: cost,
     });
   } catch (error) {
-    console.error("שגיאה בניתוח פגישה:", error);
+    logger.error("שגיאה בניתוח פגישה:", { error: error instanceof Error ? error.message : String(error) });
     return NextResponse.json(
-      { error: "שגיאה בניתוח הפגישה" },
+      { message: "שגיאה בניתוח הפגישה" },
       { status: 500 }
     );
   }

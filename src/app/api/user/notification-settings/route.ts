@@ -1,24 +1,24 @@
 import { NextRequest, NextResponse } from "next/server";
-import { getServerSession } from "next-auth";
-import { authOptions } from "@/lib/auth";
 import prisma from "@/lib/prisma";
+import { logger } from "@/lib/logger";
+
+import { requireAuth } from "@/lib/api-auth";
 
 export const dynamic = "force-dynamic";
 
 export async function GET() {
   try {
-    const session = await getServerSession(authOptions);
-    if (!session?.user?.id) {
-      return NextResponse.json({ message: "לא מורשה" }, { status: 401 });
-    }
+    const auth = await requireAuth();
+    if ("error" in auth) return auth.error;
+    const { userId, session } = auth;
 
     const settings = await prisma.notificationSetting.findMany({
-      where: { userId: session.user.id },
+      where: { userId: userId },
     });
 
     return NextResponse.json(settings);
   } catch (error) {
-    console.error("Get notification settings error:", error);
+    logger.error("Get notification settings error:", { error: error instanceof Error ? error.message : String(error) });
     return NextResponse.json(
       { message: "אירעה שגיאה בטעינת ההגדרות" },
       { status: 500 }
@@ -28,17 +28,16 @@ export async function GET() {
 
 export async function PUT(request: NextRequest) {
   try {
-    const session = await getServerSession(authOptions);
-    if (!session?.user?.id) {
-      return NextResponse.json({ message: "לא מורשה" }, { status: 401 });
-    }
+    const auth = await requireAuth();
+    if ("error" in auth) return auth.error;
+    const { userId, session } = auth;
 
     const body = await request.json();
     const { emailEnabled, pushEnabled, morningTime, eveningTime, debtThresholdDays, monthlyReminderDay } = body;
 
     // Update or create email settings
     const existingEmail = await prisma.notificationSetting.findFirst({
-      where: { userId: session.user.id, channel: "email" },
+      where: { userId: userId, channel: "email" },
     });
 
     if (existingEmail) {
@@ -55,7 +54,7 @@ export async function PUT(request: NextRequest) {
     } else {
       await prisma.notificationSetting.create({
         data: {
-          userId: session.user.id,
+          userId: userId,
           channel: "email",
           enabled: emailEnabled,
           morningTime,
@@ -68,7 +67,7 @@ export async function PUT(request: NextRequest) {
 
     // Update or create push settings
     const existingPush = await prisma.notificationSetting.findFirst({
-      where: { userId: session.user.id, channel: "push" },
+      where: { userId: userId, channel: "push" },
     });
 
     if (existingPush) {
@@ -84,7 +83,7 @@ export async function PUT(request: NextRequest) {
     } else {
       await prisma.notificationSetting.create({
         data: {
-          userId: session.user.id,
+          userId: userId,
           channel: "push",
           enabled: pushEnabled,
           morningTime,
@@ -95,12 +94,12 @@ export async function PUT(request: NextRequest) {
     }
 
     const settings = await prisma.notificationSetting.findMany({
-      where: { userId: session.user.id },
+      where: { userId: userId },
     });
 
     return NextResponse.json(settings);
   } catch (error) {
-    console.error("Update notification settings error:", error);
+    logger.error("Update notification settings error:", { error: error instanceof Error ? error.message : String(error) });
     return NextResponse.json(
       { message: "אירעה שגיאה בעדכון ההגדרות" },
       { status: 500 }

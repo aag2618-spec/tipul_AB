@@ -1,15 +1,16 @@
 import { NextRequest, NextResponse } from "next/server";
-import { getServerSession } from "next-auth";
-import { authOptions } from "@/lib/auth";
 import prisma from "@/lib/prisma";
 import { sendEmail, createGenericEmail } from "@/lib/resend";
+import { logger } from "@/lib/logger";
+import { requireAuth } from "@/lib/api-auth";
+
+export const dynamic = "force-dynamic";
 
 export async function POST(request: NextRequest) {
   try {
-    const session = await getServerSession(authOptions);
-    if (!session?.user?.id) {
-      return NextResponse.json({ message: "לא מורשה" }, { status: 401 });
-    }
+    const auth = await requireAuth();
+    if ("error" in auth) return auth.error;
+    const { userId, session } = auth;
 
     const body = await request.json();
     const { clientId, subject, content } = body;
@@ -23,7 +24,7 @@ export async function POST(request: NextRequest) {
 
     // Get client and therapist info
     const client = await prisma.client.findFirst({
-      where: { id: clientId, therapistId: session.user.id },
+      where: { id: clientId, therapistId: userId },
     });
 
     if (!client) {
@@ -38,7 +39,7 @@ export async function POST(request: NextRequest) {
     }
 
     const user = await prisma.user.findUnique({
-      where: { id: session.user.id },
+      where: { id: userId },
     });
 
     const { subject: emailSubject, html } = createGenericEmail(
@@ -67,12 +68,12 @@ export async function POST(request: NextRequest) {
         sentAt: result.success ? new Date() : null,
         messageId: result.messageId, // Save Resend message ID for tracking replies
         clientId: client.id,
-        userId: session.user.id,
+        userId: userId,
       },
     });
 
     if (!result.success) {
-      console.error("Email send failed:", result.error);
+      logger.error("Email send failed:", { error: result.error });
       return NextResponse.json(
         { message: "שגיאה בשליחת המייל", error: result.error },
         { status: 500 }
@@ -84,17 +85,11 @@ export async function POST(request: NextRequest) {
       logId: communicationLog.id
     });
   } catch (error) {
-    console.error("Send email error:", error);
+    logger.error("Send email error:", { error: error instanceof Error ? error.message : String(error) });
     return NextResponse.json(
       { message: "אירעה שגיאה בשליחת המייל" },
       { status: 500 }
     );
   }
 }
-
-
-
-
-
-
 

@@ -1,5 +1,6 @@
 import { NextRequest, NextResponse } from "next/server";
 import prisma from "@/lib/prisma";
+import { logger } from "@/lib/logger";
 
 export const dynamic = "force-dynamic";
 
@@ -44,7 +45,7 @@ export async function GET(request: NextRequest) {
       new URL("/login?verified=true", request.nextUrl.origin)
     );
   } catch (error) {
-    console.error("Email verification error:", error);
+    logger.error("Email verification error:", { error: error instanceof Error ? error.message : String(error) });
     return NextResponse.redirect(
       new URL("/login?error=verification-failed", request.nextUrl.origin)
     );

@@ -1,24 +1,24 @@
 import { NextRequest, NextResponse } from "next/server";
-import { getServerSession } from "next-auth";
-import { authOptions } from "@/lib/auth";
 import prisma from "@/lib/prisma";
+import { logger } from "@/lib/logger";
+
+import { requireAuth } from "@/lib/api-auth";
 
 // POST - Create a new questionnaire response
 export const dynamic = "force-dynamic";
 
 export async function POST(request: NextRequest) {
   try {
-    const session = await getServerSession(authOptions);
-    if (!session?.user?.id) {
-      return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
-    }
+    const auth = await requireAuth();
+    if ("error" in auth) return auth.error;
+    const { userId, session } = auth;
 
     const body = await request.json();
     const { templateId, clientId } = body;
 
     if (!templateId || !clientId) {
       return NextResponse.json(
-        { error: "Missing required fields: templateId, clientId" },
+        { message: "Missing required fields: templateId, clientId" },
         { status: 400 }
       );
     }
@@ -30,7 +30,7 @@ export async function POST(request: NextRequest) {
 
     if (!template) {
       return NextResponse.json(
-        { error: "Questionnaire template not found" },
+        { message: "Questionnaire template not found" },
         { status: 404 }
       );
     }
@@ -39,13 +39,13 @@ export async function POST(request: NextRequest) {
     const client = await prisma.client.findFirst({
       where: {
         id: clientId,
-        therapistId: session.user.id,
+        therapistId: userId,
       },
     });
 
     if (!client) {
       return NextResponse.json(
-        { error: "Client not found or access denied" },
+        { message: "Client not found or access denied" },
         { status: 404 }
       );
     }
@@ -55,7 +55,7 @@ export async function POST(request: NextRequest) {
       data: {
         templateId,
         clientId,
-        therapistId: session.user.id,
+        therapistId: userId,
         status: "IN_PROGRESS",
         answers: [],
       },
@@ -73,9 +73,9 @@ export async function POST(request: NextRequest) {
 
     return NextResponse.json(response, { status: 201 });
   } catch (error) {
-    console.error("Error creating questionnaire response:", error);
+    logger.error("Error creating questionnaire response:", { error: error instanceof Error ? error.message : String(error) });
     return NextResponse.json(
-      { error: "Failed to create questionnaire response" },
+      { message: "Failed to create questionnaire response" },
       { status: 500 }
     );
   }
@@ -84,17 +84,16 @@ export async function POST(request: NextRequest) {
 // GET - Get all questionnaire responses for this therapist
 export async function GET(request: NextRequest) {
   try {
-    const session = await getServerSession(authOptions);
-    if (!session?.user?.id) {
-      return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
-    }
+    const auth = await requireAuth();
+    if ("error" in auth) return auth.error;
+    const { userId, session } = auth;
 
     const { searchParams } = new URL(request.url);
     const clientId = searchParams.get("clientId");
     const status = searchParams.get("status");
 
     const where: any = {
-      therapistId: session.user.id,
+      therapistId: userId,
     };
 
     if (clientId) {
@@ -129,9 +128,9 @@ export async function GET(request: NextRequest) {
 
     return NextResponse.json(responses);
   } catch (error) {
-    console.error("Error fetching questionnaire responses:", error);
+    logger.error("Error fetching questionnaire responses:", { error: error instanceof Error ? error.message : String(error) });
     return NextResponse.json(
-      { error: "Failed to fetch questionnaire responses" },
+      { message: "Failed to fetch questionnaire responses" },
       { status: 500 }
     );
   }

@@ -1,7 +1,7 @@
 import { NextRequest, NextResponse } from "next/server";
-import { getServerSession } from "next-auth";
-import { authOptions } from "@/lib/auth";
 import { getClientDebtSummary } from "@/lib/payment-service";
+import { logger } from "@/lib/logger";
+import { requireAuth } from "@/lib/api-auth";
 
 export const dynamic = "force-dynamic";
 
@@ -10,13 +10,12 @@ export async function GET(
   { params }: { params: Promise<{ clientId: string }> }
 ) {
   try {
-    const session = await getServerSession(authOptions);
-    if (!session?.user?.id) {
-      return NextResponse.json({ message: "אין הרשאה" }, { status: 401 });
-    }
+    const auth = await requireAuth();
+    if ("error" in auth) return auth.error;
+    const { userId, session } = auth;
 
     const { clientId } = await params;
-    const result = await getClientDebtSummary(session.user.id, clientId);
+    const result = await getClientDebtSummary(userId, clientId);
 
     if (!result) {
       return NextResponse.json({ message: "מטופל לא נמצא" }, { status: 404 });
@@ -24,7 +23,7 @@ export async function GET(
 
     return NextResponse.json(result);
   } catch (error) {
-    console.error("Get client debt error:", error);
+    logger.error("Get client debt error:", { error: error instanceof Error ? error.message : String(error) });
     return NextResponse.json(
       { message: "שגיאה בטעינת נתונים" },
       { status: 500 }

@@ -1,16 +1,15 @@
 import { NextRequest, NextResponse } from "next/server";
-import { getServerSession } from "next-auth";
-import { authOptions } from "@/lib/auth";
 import { processMultiSessionPayment } from "@/lib/payment-service";
+import { logger } from "@/lib/logger";
+import { requireAuth } from "@/lib/api-auth";
 
 export const dynamic = "force-dynamic";
 
 export async function POST(req: NextRequest) {
   try {
-    const session = await getServerSession(authOptions);
-    if (!session?.user?.id) {
-      return NextResponse.json({ message: "אין הרשאה" }, { status: 401 });
-    }
+    const auth = await requireAuth();
+    if ("error" in auth) return auth.error;
+    const { userId, session } = auth;
 
     const {
       clientId,
@@ -45,7 +44,7 @@ export async function POST(req: NextRequest) {
     }
 
     const result = await processMultiSessionPayment({
-      userId: session.user.id,
+      userId: userId,
       clientId,
       paymentIds,
       totalAmount: Number(totalAmount),
@@ -65,7 +64,7 @@ export async function POST(req: NextRequest) {
       totalPaid: result.totalPaid,
     });
   } catch (error) {
-    console.error("Pay client debts error:", error);
+    logger.error("Pay client debts error:", { error: error instanceof Error ? error.message : String(error) });
     const errorMessage =
       error instanceof Error ? error.message : "שגיאה בעיבוד התשלום";
     return NextResponse.json({ message: errorMessage }, { status: 500 });

@@ -1,21 +1,21 @@
 import { NextRequest, NextResponse } from "next/server";
-import { getServerSession } from "next-auth";
-import { authOptions } from "@/lib/auth";
 import prisma from "@/lib/prisma";
+import { logger } from "@/lib/logger";
+
+import { requireAuth } from "@/lib/api-auth";
 
 // Create test notification - for testing only
 export const dynamic = "force-dynamic";
 
 export async function POST(request: NextRequest) {
   try {
-    const session = await getServerSession(authOptions);
-    if (!session?.user?.id) {
-      return NextResponse.json({ message: "לא מורשה" }, { status: 401 });
-    }
+    const auth = await requireAuth();
+    if ("error" in auth) return auth.error;
+    const { userId, session } = auth;
 
     const notification = await prisma.notification.create({
       data: {
-        userId: session.user.id,
+        userId: userId,
         type: "SESSION_REMINDER",
         title: "התראת בדיקה",
         content: "זוהי התראה לבדיקה שהמערכת עובדת",
@@ -25,7 +25,7 @@ export async function POST(request: NextRequest) {
 
     return NextResponse.json({ success: true, notification });
   } catch (error) {
-    console.error("Create test notification error:", error);
+    logger.error("Create test notification error:", { error: error instanceof Error ? error.message : String(error) });
     return NextResponse.json(
       { message: "אירעה שגיאה ביצירת ההתראה" },
       { status: 500 }

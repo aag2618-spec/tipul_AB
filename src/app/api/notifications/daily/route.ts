@@ -1,6 +1,7 @@
 import { NextRequest, NextResponse } from "next/server";
 import prisma from "@/lib/prisma";
 import { calculateDebtFromPayments } from "@/lib/payment-utils";
+import { logger } from "@/lib/logger";
 
 export const dynamic = "force-dynamic";
 
@@ -8,11 +9,11 @@ export async function POST(request: NextRequest) {
   try {
     const cronSecret = process.env.CRON_SECRET;
     if (!cronSecret) {
-      return NextResponse.json({ error: "CRON_SECRET not configured" }, { status: 503 });
+      return NextResponse.json({ message: "CRON_SECRET not configured" }, { status: 503 });
     }
     const authHeader = request.headers.get("authorization");
     if (authHeader !== `Bearer ${cronSecret}`) {
-      return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
+      return NextResponse.json({ message: "Unauthorized" }, { status: 401 });
     }
     const now = new Date();
     // Israel-aware today/tomorrow boundaries
@@ -136,7 +137,7 @@ ${pendingTasks.length > 5 ? `\n...ועוד ${pendingTasks.length - 5} משימו
 
     return NextResponse.json({ message: "Notifications generated successfully" });
   } catch (error) {
-    console.error("Generate notifications error:", error);
+    logger.error("Generate notifications error:", { error: error instanceof Error ? error.message : String(error) });
     return NextResponse.json(
       { message: "Error generating notifications" },
       { status: 500 }

@@ -1,9 +1,12 @@
-import { getServerSession } from "next-auth";
 import { NextRequest, NextResponse } from "next/server";
-import { authOptions } from "@/lib/auth";
 import prisma from "@/lib/prisma";
 import { sendEmail } from "@/lib/resend";
 import { escapeHtml } from "@/lib/email-utils";
+import { logger } from "@/lib/logger";
+
+import { requireAuth } from "@/lib/api-auth";
+
+export const dynamic = "force-dynamic";
 
 const VALID_TRANSITIONS: Record<string, string[]> = {
   PENDING_APPROVAL: ["SCHEDULED", "CANCELLED"],
@@ -37,25 +40,24 @@ export async function PATCH(
   { params }: { params: Promise<{ id: string }> }
 ) {
   try {
-    const session = await getServerSession(authOptions);
-    if (!session?.user?.id) {
-      return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
-    }
+    const auth = await requireAuth();
+    if ("error" in auth) return auth.error;
+    const { userId, session } = auth;
 
     const { id: sessionId } = await params;
     const { status, cancellationReason } = await req.json();
 
     const validStatuses = Object.keys(VALID_TRANSITIONS);
     if (!validStatuses.includes(status)) {
-      return NextResponse.json({ error: "Invalid status" }, { status: 400 });
+      return NextResponse.json({ message: "Invalid status" }, { status: 400 });
     }
 
     const therapySession = await prisma.therapySession.findFirst({
       where: {
         id: sessionId,
         OR: [
-          { therapistId: session.user.id },
-          { client: { therapistId: session.user.id } },
+          { therapistId: userId },
+          { client: { therapistId: userId } },
         ],
       },
       include: {
@@ -65,7 +67,7 @@ export async function PATCH(
     });
 
     if (!therapySession) {
-      return NextResponse.json({ error: "Session not found" }, { status: 404 });
+      return NextResponse.json({ message: "Session not found" }, { status: 404 });
     }
 
     const currentStatus = therapySession.status;
@@ -80,7 +82,7 @@ export async function PATCH(
     const updateData: Record<string, unknown> = { status };
     if (status === "CANCELLED") {
       updateData.cancelledAt = new Date();
-      updateData.cancelledBy = session.user.id;
+      updateData.cancelledBy = userId;
       if (cancellationReason) updateData.cancellationReason = cancellationReason;
     }
 
@@ -153,11 +155,11 @@ export async function PATCH(
               messageId: result.messageId || null,
               sessionId,
               clientId: therapySession.clientId,
-              userId: session.user.id,
+              userId: userId,
             },
           });
         } catch (e) {
-          console.error("Failed to send booking status email:", e);
+          logger.error("Failed to send booking status email:", { error: e instanceof Error ? e.message : String(e) });
         }
       }
     }
@@ -166,7 +168,7 @@ export async function PATCH(
       try {
         await prisma.notification.updateMany({
           where: {
-            userId: session.user.id,
+            userId: userId,
             type: "BOOKING_REQUEST",
             status: { in: ["PENDING", "SENT"] },
             content: { contains: sessionId },
@@ -174,13 +176,13 @@ export async function PATCH(
           data: { status: "READ", readAt: new Date() },
         });
       } catch (e) {
-        console.error("Failed to clean up notifications:", e);
+        logger.error("Failed to clean up notifications:", { error: e instanceof Error ? e.message : String(e) });
       }
     }
 
     return NextResponse.json(updatedSession);
   } catch (error) {
-    console.error("Error updating session status:", error);
+    logger.error("Error updating session status:", { error: error instanceof Error ? error.message : String(error) });
     return NextResponse.json(
       { error: "Failed to update session status" },
       { status: 500 }

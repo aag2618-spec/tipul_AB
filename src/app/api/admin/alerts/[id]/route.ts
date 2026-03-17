@@ -1,7 +1,8 @@
 import { NextRequest, NextResponse } from "next/server";
-import { getServerSession } from "next-auth";
-import { authOptions } from "@/lib/auth";
 import prisma from "@/lib/prisma";
+import { logger } from "@/lib/logger";
+
+import { requireAdmin } from "@/lib/api-auth";
 
 // GET - קבלת התראה ספציפית
 export const dynamic = "force-dynamic";
@@ -11,18 +12,9 @@ export async function GET(
   { params }: { params: Promise<{ id: string }> }
 ) {
   try {
-    const session = await getServerSession(authOptions);
-    if (!session?.user?.id) {
-      return NextResponse.json({ message: "לא מורשה" }, { status: 401 });
-    }
-
-    const user = await prisma.user.findUnique({
-      where: { id: session.user.id },
-    });
-
-    if (user?.role !== "ADMIN") {
-      return NextResponse.json({ message: "אין הרשאה" }, { status: 403 });
-    }
+    const auth = await requireAdmin();
+    if ("error" in auth) return auth.error;
+    const { userId, session } = auth;
 
     const { id } = await params;
     
@@ -52,7 +44,7 @@ export async function GET(
 
     return NextResponse.json({ alert, relatedUser });
   } catch (error) {
-    console.error("Admin alert GET error:", error);
+    logger.error("Admin alert GET error:", { error: error instanceof Error ? error.message : String(error) });
     return NextResponse.json(
       { message: "שגיאה בטעינת ההתראה" },
       { status: 500 }
@@ -66,18 +58,9 @@ export async function PATCH(
   { params }: { params: Promise<{ id: string }> }
 ) {
   try {
-    const session = await getServerSession(authOptions);
-    if (!session?.user?.id) {
-      return NextResponse.json({ message: "לא מורשה" }, { status: 401 });
-    }
-
-    const user = await prisma.user.findUnique({
-      where: { id: session.user.id },
-    });
-
-    if (user?.role !== "ADMIN") {
-      return NextResponse.json({ message: "אין הרשאה" }, { status: 403 });
-    }
+    const auth = await requireAdmin();
+    if ("error" in auth) return auth.error;
+    const { userId, session } = auth;
 
     const { id } = await params;
     const body = await req.json();
@@ -95,7 +78,7 @@ export async function PATCH(
       updateData.status = status;
       if (status === "RESOLVED") {
         updateData.resolvedAt = new Date();
-        updateData.resolvedBy = session.user.id;
+        updateData.resolvedBy = userId;
       }
     }
     if (priority) updateData.priority = priority;
@@ -113,7 +96,7 @@ export async function PATCH(
       message: "התראה עודכנה בהצלחה",
     });
   } catch (error) {
-    console.error("Admin alert PATCH error:", error);
+    logger.error("Admin alert PATCH error:", { error: error instanceof Error ? error.message : String(error) });
     return NextResponse.json(
       { message: "שגיאה בעדכון ההתראה" },
       { status: 500 }
@@ -127,18 +110,9 @@ export async function DELETE(
   { params }: { params: Promise<{ id: string }> }
 ) {
   try {
-    const session = await getServerSession(authOptions);
-    if (!session?.user?.id) {
-      return NextResponse.json({ message: "לא מורשה" }, { status: 401 });
-    }
-
-    const user = await prisma.user.findUnique({
-      where: { id: session.user.id },
-    });
-
-    if (user?.role !== "ADMIN") {
-      return NextResponse.json({ message: "אין הרשאה" }, { status: 403 });
-    }
+    const auth = await requireAdmin();
+    if ("error" in auth) return auth.error;
+    const { userId, session } = auth;
 
     const { id } = await params;
 
@@ -151,7 +125,7 @@ export async function DELETE(
       message: "התראה נמחקה בהצלחה",
     });
   } catch (error) {
-    console.error("Admin alert DELETE error:", error);
+    logger.error("Admin alert DELETE error:", { error: error instanceof Error ? error.message : String(error) });
     return NextResponse.json(
       { message: "שגיאה במחיקת ההתראה" },
       { status: 500 }

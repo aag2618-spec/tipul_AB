@@ -1,16 +1,16 @@
 import { NextRequest, NextResponse } from "next/server";
-import { getServerSession } from "next-auth";
-import { authOptions } from "@/lib/auth";
 import prisma from "@/lib/prisma";
+import { logger } from "@/lib/logger";
+
+import { requireAuth } from "@/lib/api-auth";
 
 export const dynamic = "force-dynamic";
 
 export async function GET(request: NextRequest) {
   try {
-    const session = await getServerSession(authOptions);
-    if (!session?.user?.id) {
-      return NextResponse.json({ message: "אין הרשאה" }, { status: 401 });
-    }
+    const auth = await requireAuth();
+    if ("error" in auth) return auth.error;
+    const { userId, session } = auth;
 
     const { searchParams } = new URL(request.url);
     const startParam = searchParams.get("start");
@@ -26,7 +26,7 @@ export async function GET(request: NextRequest) {
     // מצא את כל התשלומים ששולמו בטווח התאריכים
     const payments = await prisma.payment.findMany({
       where: {
-        client: { therapistId: session.user.id },
+        client: { therapistId: userId },
         status: "PAID",
         parentPaymentId: null,
         paidAt: {
@@ -49,7 +49,7 @@ export async function GET(request: NextRequest) {
       endDate: endDate.toISOString(),
     });
   } catch (error) {
-    console.error("Get monthly total error:", error);
+    logger.error("Get monthly total error:", { error: error instanceof Error ? error.message : String(error) });
     return NextResponse.json(
       { message: "שגיאה בטעינת נתונים" },
       { status: 500 }

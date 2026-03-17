@@ -2,8 +2,6 @@
 // בדיקת חיבור לספק חיוב - מאמת שה-API Key עובד
 
 import { NextRequest, NextResponse } from "next/server";
-import { getServerSession } from "next-auth";
-import { authOptions } from "@/lib/auth";
 import prisma from "@/lib/prisma";
 import { MeshulamClient } from "@/lib/meshulam";
 import { SumitClient } from "@/lib/sumit/client";
@@ -11,32 +9,33 @@ import { ICountClient } from "@/lib/icount/client";
 import { GreenInvoiceClient } from "@/lib/green-invoice/client";
 import { logBillingApiCall } from "@/lib/billing-logger";
 import { decrypt } from "@/lib/encryption";
+import { logger } from "@/lib/logger";
+import { requireAuth } from "@/lib/api-auth";
 
 export const dynamic = "force-dynamic";
 
 export async function POST(request: NextRequest) {
   try {
-    const session = await getServerSession(authOptions);
-    if (!session?.user?.id) {
-      return NextResponse.json({ error: "לא מורשה" }, { status: 401 });
-    }
+    const auth = await requireAuth();
+    if ("error" in auth) return auth.error;
+    const { userId, session } = auth;
 
     const { providerId } = await request.json();
 
     if (!providerId) {
-      return NextResponse.json({ error: "חסר מזהה ספק" }, { status: 400 });
+      return NextResponse.json({ message: "חסר מזהה ספק" }, { status: 400 });
     }
 
     // שליפת הספק
     const provider = await prisma.billingProvider.findFirst({
       where: {
         id: providerId,
-        userId: session.user.id,
+        userId: userId,
       },
     });
 
     if (!provider) {
-      return NextResponse.json({ error: "ספק לא נמצא" }, { status: 404 });
+      return NextResponse.json({ message: "ספק לא נמצא" }, { status: 404 });
     }
 
     const apiKey = decrypt(provider.apiKey);
@@ -92,7 +91,7 @@ export async function POST(request: NextRequest) {
 
     // לוג הקריאה ל-API
     await logBillingApiCall({
-      userId: session.user.id,
+      userId: userId,
       provider: provider.provider as "MESHULAM" | "SUMIT" | "ICOUNT" | "GREEN_INVOICE",
       action: "testConnection",
       success,
@@ -109,9 +108,9 @@ export async function POST(request: NextRequest) {
 
     return NextResponse.json({ success, message });
   } catch (error) {
-    console.error("Test connection error:", error);
+    logger.error("Test connection error:", { error: error instanceof Error ? error.message : String(error) });
     return NextResponse.json(
-      { error: "שגיאה בבדיקת החיבור" },
+      { message: "שגיאה בבדיקת החיבור" },
       { status: 500 }
     );
   }

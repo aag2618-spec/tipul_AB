@@ -1,21 +1,20 @@
 import { NextResponse } from "next/server";
-import { getServerSession } from "next-auth";
-import { authOptions } from "@/lib/auth";
 import { getAllClientsDebtSummary } from "@/lib/payment-service";
+import { logger } from "@/lib/logger";
+import { requireAuth } from "@/lib/api-auth";
 
 export const dynamic = "force-dynamic";
 
 export async function GET() {
   try {
-    const session = await getServerSession(authOptions);
-    if (!session?.user?.id) {
-      return NextResponse.json({ message: "אין הרשאה" }, { status: 401 });
-    }
+    const auth = await requireAuth();
+    if ("error" in auth) return auth.error;
+    const { userId, session } = auth;
 
-    const clientDebts = await getAllClientsDebtSummary(session.user.id);
+    const clientDebts = await getAllClientsDebtSummary(userId);
     return NextResponse.json(clientDebts);
   } catch (error) {
-    console.error("Get client debts error:", error);
+    logger.error("Get client debts error:", { error: error instanceof Error ? error.message : String(error) });
     return NextResponse.json(
       { message: "שגיאה בטעינת החובות" },
       { status: 500 }

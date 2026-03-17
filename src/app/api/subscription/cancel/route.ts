@@ -3,13 +3,13 @@
 // כולל חישוב התאמת הנחה לביטול מוקדם
 
 import { NextResponse } from "next/server";
-import { getServerSession } from "next-auth";
-import { authOptions } from "@/lib/auth";
 import prisma from "@/lib/prisma";
 import { sendEmail } from "@/lib/resend";
 import { checkRateLimit, SUBSCRIPTION_RATE_LIMIT, rateLimitResponse } from "@/lib/rate-limit";
 import { PLAN_NAMES, PRICING } from "@/lib/pricing";
 import { escapeHtml } from "@/lib/email-utils";
+import { logger } from "@/lib/logger";
+import { requireAuth } from "@/lib/api-auth";
 
 const ADMIN_EMAIL = process.env.ADMIN_EMAIL;
 const SYSTEM_URL = process.env.NEXTAUTH_URL || "";
@@ -46,19 +46,18 @@ export const dynamic = "force-dynamic";
 
 export async function POST() {
   try {
-    const session = await getServerSession(authOptions);
-    if (!session?.user?.id) {
-      return NextResponse.json({ error: "לא מורשה" }, { status: 401 });
-    }
+    const auth = await requireAuth();
+    if ("error" in auth) return auth.error;
+    const { userId, session } = auth;
 
     // Rate limiting
-    const rateCheck = checkRateLimit(`sub_cancel:${session.user.id}`, SUBSCRIPTION_RATE_LIMIT);
+    const rateCheck = checkRateLimit(`sub_cancel:${userId}`, SUBSCRIPTION_RATE_LIMIT);
     if (!rateCheck.allowed) {
       return rateLimitResponse(rateCheck);
     }
 
     const user = await prisma.user.findUnique({
-      where: { id: session.user.id },
+      where: { id: userId },
       select: {
         id: true,
         name: true,
@@ -71,11 +70,11 @@ export async function POST() {
     });
 
     if (!user) {
-      return NextResponse.json({ error: "משתמש לא נמצא" }, { status: 404 });
+      return NextResponse.json({ message: "משתמש לא נמצא" }, { status: 404 });
     }
 
     if (user.subscriptionStatus !== "ACTIVE" && user.subscriptionStatus !== "TRIALING") {
-      return NextResponse.json({ error: "אין מנוי פעיל לביטול" }, { status: 400 });
+      return NextResponse.json({ message: "אין מנוי פעיל לביטול" }, { status: 400 });
     }
 
     // ========================================
@@ -209,7 +208,7 @@ export async function POST() {
             </div>
           </div>
         `,
-      }).catch(err => console.error("Cancel confirmation email failed:", err));
+      }).catch(err => logger.error("Cancel confirmation email failed:", { error: err instanceof Error ? err.message : String(err) }));
     }
 
     // 📧 הודעה לאדמין
@@ -234,7 +233,7 @@ export async function POST() {
             </div>
           </div>
         `,
-      }).catch(err => console.error("Admin cancel notification failed:", err));
+      }).catch(err => logger.error("Admin cancel notification failed:", { error: err instanceof Error ? err.message : String(err) }));
     }
 
     return NextResponse.json({
@@ -244,9 +243,9 @@ export async function POST() {
       adjustment,
     });
   } catch (error) {
-    console.error("Cancel subscription error:", error);
+    logger.error("Cancel subscription error:", { error: error instanceof Error ? error.message : String(error) });
     return NextResponse.json(
-      { error: "שגיאה בביטול המנוי" },
+      { message: "שגיאה בביטול המנוי" },
       { status: 500 }
     );
   }

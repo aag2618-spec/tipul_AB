@@ -1,10 +1,12 @@
 import { NextRequest, NextResponse } from "next/server";
-import { getServerSession } from "next-auth";
-import { authOptions } from "@/lib/auth";
 import prisma from "@/lib/prisma";
 import { sendEmail } from "@/lib/resend";
 import { calculateSessionDebt } from "@/lib/payment-utils";
 import { escapeHtml } from "@/lib/email-utils";
+import { logger } from "@/lib/logger";
+import { requireAuth } from "@/lib/api-auth";
+
+export const dynamic = "force-dynamic";
 
 function createDebtReminderEmail(
   clientName: string,
@@ -185,10 +187,9 @@ export async function POST(
   { params }: { params: Promise<{ id: string }> }
 ) {
   try {
-    const session = await getServerSession(authOptions);
-    if (!session?.user?.id) {
-      return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
-    }
+    const auth = await requireAuth();
+    if ("error" in auth) return auth.error;
+    const { userId, session } = auth;
 
     const { id: clientId } = await params;
 
@@ -196,24 +197,24 @@ export async function POST(
     const client = await prisma.client.findFirst({
       where: {
         id: clientId,
-        therapistId: session.user.id,
+        therapistId: userId,
       },
     });
 
     if (!client) {
-      return NextResponse.json({ error: "Client not found" }, { status: 404 });
+      return NextResponse.json({ message: "Client not found" }, { status: 404 });
     }
 
     if (!client.email) {
       return NextResponse.json(
-        { error: "למטופל אין כתובת מייל" },
+        { message: "למטופל אין כתובת מייל" },
         { status: 400 }
       );
     }
 
     // Get therapist
     const user = await prisma.user.findUnique({
-      where: { id: session.user.id },
+      where: { id: userId },
     });
 
     // Get unpaid/partially paid sessions
@@ -266,7 +267,7 @@ export async function POST(
 
     // Get communication settings for customization
     const commSettings = await prisma.communicationSetting.findUnique({
-      where: { userId: session.user.id },
+      where: { userId: userId },
     });
 
     // Create email
@@ -308,7 +309,7 @@ export async function POST(
         sentAt: new Date(),
         messageId: result.messageId,
         clientId: clientId,
-        userId: session.user.id,
+        userId: userId,
       },
     });
 
@@ -317,7 +318,7 @@ export async function POST(
       message: "תזכורת נשלחה בהצלחה",
     });
   } catch (error) {
-    console.error("Error sending debt reminder:", error);
+    logger.error("Error sending debt reminder:", { error: error instanceof Error ? error.message : String(error) });
     return NextResponse.json(
       { error: "Internal server error" },
       { status: 500 }

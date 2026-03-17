@@ -1,7 +1,8 @@
 import { NextRequest, NextResponse } from "next/server";
-import { getServerSession } from "next-auth";
-import { authOptions } from "@/lib/auth";
 import prisma from "@/lib/prisma";
+import { logger } from "@/lib/logger";
+
+import { requireAuth } from "@/lib/api-auth";
 
 // GET - Get specific response
 export const dynamic = "force-dynamic";
@@ -11,17 +12,16 @@ export async function GET(
   { params }: { params: Promise<{ id: string }> }
 ) {
   try {
-    const session = await getServerSession(authOptions);
-    if (!session?.user?.id) {
-      return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
-    }
+    const auth = await requireAuth();
+    if ("error" in auth) return auth.error;
+    const { userId, session } = auth;
 
     const { id } = await params;
 
     const response = await prisma.questionnaireResponse.findFirst({
       where: {
         id,
-        therapistId: session.user.id,
+        therapistId: userId,
       },
       include: {
         template: true,
@@ -37,16 +37,16 @@ export async function GET(
 
     if (!response) {
       return NextResponse.json(
-        { error: "Response not found" },
+        { message: "Response not found" },
         { status: 404 }
       );
     }
 
     return NextResponse.json(response);
   } catch (error) {
-    console.error("Error fetching questionnaire response:", error);
+    logger.error("Error fetching questionnaire response:", { error: error instanceof Error ? error.message : String(error) });
     return NextResponse.json(
-      { error: "Failed to fetch questionnaire response" },
+      { message: "Failed to fetch questionnaire response" },
       { status: 500 }
     );
   }
@@ -58,10 +58,9 @@ export async function PATCH(
   { params }: { params: Promise<{ id: string }> }
 ) {
   try {
-    const session = await getServerSession(authOptions);
-    if (!session?.user?.id) {
-      return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
-    }
+    const auth = await requireAuth();
+    if ("error" in auth) return auth.error;
+    const { userId, session } = auth;
 
     const { id } = await params;
     const body = await request.json();
@@ -71,13 +70,13 @@ export async function PATCH(
     const existing = await prisma.questionnaireResponse.findFirst({
       where: {
         id,
-        therapistId: session.user.id,
+        therapistId: userId,
       },
     });
 
     if (!existing) {
       return NextResponse.json(
-        { error: "Response not found" },
+        { message: "Response not found" },
         { status: 404 }
       );
     }
@@ -119,9 +118,9 @@ export async function PATCH(
 
     return NextResponse.json(response);
   } catch (error) {
-    console.error("Error updating questionnaire response:", error);
+    logger.error("Error updating questionnaire response:", { error: error instanceof Error ? error.message : String(error) });
     return NextResponse.json(
-      { error: "Failed to update questionnaire response" },
+      { message: "Failed to update questionnaire response" },
       { status: 500 }
     );
   }
@@ -133,10 +132,9 @@ export async function DELETE(
   { params }: { params: Promise<{ id: string }> }
 ) {
   try {
-    const session = await getServerSession(authOptions);
-    if (!session?.user?.id) {
-      return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
-    }
+    const auth = await requireAuth();
+    if ("error" in auth) return auth.error;
+    const { userId, session } = auth;
 
     const { id } = await params;
 
@@ -144,13 +142,13 @@ export async function DELETE(
     const existing = await prisma.questionnaireResponse.findFirst({
       where: {
         id,
-        therapistId: session.user.id,
+        therapistId: userId,
       },
     });
 
     if (!existing) {
       return NextResponse.json(
-        { error: "Response not found" },
+        { message: "Response not found" },
         { status: 404 }
       );
     }
@@ -161,9 +159,9 @@ export async function DELETE(
 
     return NextResponse.json({ success: true });
   } catch (error) {
-    console.error("Error deleting questionnaire response:", error);
+    logger.error("Error deleting questionnaire response:", { error: error instanceof Error ? error.message : String(error) });
     return NextResponse.json(
-      { error: "Failed to delete questionnaire response" },
+      { message: "Failed to delete questionnaire response" },
       { status: 500 }
     );
   }

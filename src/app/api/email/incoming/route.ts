@@ -1,7 +1,10 @@
 import { NextRequest, NextResponse } from "next/server";
-import { getServerSession } from "next-auth";
-import { authOptions } from "@/lib/auth";
 import prisma from "@/lib/prisma";
+import { logger } from "@/lib/logger";
+
+import { requireAuth } from "@/lib/api-auth";
+
+export const dynamic = "force-dynamic";
 
 // Webhook to receive incoming emails forwarded from Gmail/Outlook
 export async function POST(request: NextRequest) {
@@ -49,7 +52,7 @@ export async function POST(request: NextRequest) {
     });
 
     if (!client) {
-      console.log(`No client found for email: ${senderEmail}`);
+      logger.info(`No client found for email: ${senderEmail}`);
       return NextResponse.json({ message: "Client not found" }, { status: 404 });
     }
 
@@ -59,7 +62,7 @@ export async function POST(request: NextRequest) {
         where: { messageId: originalMessageId },
       });
       if (existing) {
-        console.log("Duplicate incoming email, skipping:", originalMessageId);
+        logger.info("Duplicate incoming email, skipping:", { data: originalMessageId });
         return NextResponse.json({ message: "Duplicate, already processed" });
       }
     }
@@ -102,7 +105,7 @@ export async function POST(request: NextRequest) {
       message: "Incoming email logged successfully"
     });
   } catch (error) {
-    console.error("Incoming email error:", error);
+    logger.error("Incoming email error:", { error: error instanceof Error ? error.message : String(error) });
     return NextResponse.json(
       { message: "Error processing incoming email" },
       { status: 500 }
@@ -113,10 +116,9 @@ export async function POST(request: NextRequest) {
 // Simple endpoint to manually log an incoming email
 export async function PUT(request: NextRequest) {
   try {
-    const session = await getServerSession(authOptions);
-    if (!session?.user?.id) {
-      return NextResponse.json({ message: "לא מורשה" }, { status: 401 });
-    }
+    const auth = await requireAuth();
+    if ("error" in auth) return auth.error;
+    const { userId, session } = auth;
 
     const { communicationLogId, replyContent, replySubject } = await request.json();
 
@@ -135,7 +137,7 @@ export async function PUT(request: NextRequest) {
       }
     });
 
-    if (!originalLog || originalLog.userId !== session.user.id) {
+    if (!originalLog || originalLog.userId !== userId) {
       return NextResponse.json({ message: "לא נמצא" }, { status: 404 });
     }
 
@@ -150,7 +152,7 @@ export async function PUT(request: NextRequest) {
         status: "RECEIVED",
         sentAt: new Date(),
         clientId: originalLog.clientId,
-        userId: session.user.id,
+        userId: userId,
       },
     });
 
@@ -160,7 +162,7 @@ export async function PUT(request: NextRequest) {
       message: "התגובה נרשמה בהצלחה"
     });
   } catch (error) {
-    console.error("Manual reply log error:", error);
+    logger.error("Manual reply log error:", { error: error instanceof Error ? error.message : String(error) });
     return NextResponse.json(
       { message: "שגיאה ברישום התגובה" },
       { status: 500 }

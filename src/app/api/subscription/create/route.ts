@@ -3,24 +3,24 @@
 // כל המנויים מתחדשים אוטומטית עד שהמנוי מבטל.
 
 import { NextRequest, NextResponse } from "next/server";
-import { getServerSession } from "next-auth";
-import { authOptions } from "@/lib/auth";
 import prisma from "@/lib/prisma";
 import { MeshulamClient } from "@/lib/meshulam";
 import { checkRateLimit, SUBSCRIPTION_RATE_LIMIT, rateLimitResponse } from "@/lib/rate-limit";
 import { PRICING, PERIOD_DAYS, PERIOD_LABELS } from "@/lib/pricing";
+import { logger } from "@/lib/logger";
+
+import { requireAuth } from "@/lib/api-auth";
 
 export const dynamic = "force-dynamic";
 
 export async function POST(request: NextRequest) {
   try {
-    const session = await getServerSession(authOptions);
-    if (!session?.user?.id) {
-      return NextResponse.json({ error: "לא מורשה" }, { status: 401 });
-    }
+    const auth = await requireAuth();
+    if ("error" in auth) return auth.error;
+    const { userId, session } = auth;
 
     // Rate limiting - 5 ניסיונות יצירת מנוי לשעה
-    const rateCheck = checkRateLimit(`sub_create:${session.user.id}`, SUBSCRIPTION_RATE_LIMIT);
+    const rateCheck = checkRateLimit(`sub_create:${userId}`, SUBSCRIPTION_RATE_LIMIT);
     if (!rateCheck.allowed) {
       return rateLimitResponse(rateCheck);
     }
@@ -30,33 +30,33 @@ export async function POST(request: NextRequest) {
     // בדיקת אישור תנאים - חובה לפני רכישה
     if (!termsAccepted) {
       return NextResponse.json(
-        { error: "יש לאשר את תנאי השימוש לפני רכישת מנוי" },
+        { message: "יש לאשר את תנאי השימוש לפני רכישת מנוי" },
         { status: 400 }
       );
     }
 
     // בדיקות תקינות
     if (!plan || !PRICING[plan]) {
-      return NextResponse.json({ error: "מסלול לא תקין" }, { status: 400 });
+      return NextResponse.json({ message: "מסלול לא תקין" }, { status: 400 });
     }
 
     const months = Number(billingMonths);
     if (![1, 3, 6, 12].includes(months)) {
-      return NextResponse.json({ error: "תקופת חיוב לא תקינה" }, { status: 400 });
+      return NextResponse.json({ message: "תקופת חיוב לא תקינה" }, { status: 400 });
     }
 
     const user = await prisma.user.findUnique({
-      where: { id: session.user.id },
+      where: { id: userId },
     });
 
     if (!user) {
-      return NextResponse.json({ error: "משתמש לא נמצא" }, { status: 404 });
+      return NextResponse.json({ message: "משתמש לא נמצא" }, { status: 404 });
     }
 
     const meshulamApiKey = process.env.MESHULAM_API_KEY;
     if (!meshulamApiKey) {
       return NextResponse.json(
-        { error: "מערכת התשלומים לא מוגדרת" },
+        { message: "מערכת התשלומים לא מוגדרת" },
         { status: 500 }
       );
     }
@@ -81,9 +81,9 @@ export async function POST(request: NextRequest) {
     });
 
     if (response.status !== 1 || !response.data) {
-      console.error("Meshulam subscription creation failed:", response);
+      logger.error("Meshulam subscription creation failed:", { error: String(response) });
       return NextResponse.json(
-        { error: response.message || "שגיאה ביצירת הרשמה" },
+        { message: response.message || "שגיאה ביצירת הרשמה" },
         { status: 500 }
       );
     }
@@ -124,9 +124,9 @@ export async function POST(request: NextRequest) {
       intervalDays,
     });
   } catch (error) {
-    console.error("Subscription creation error:", error);
+    logger.error("Subscription creation error:", { error: error instanceof Error ? error.message : String(error) });
     return NextResponse.json(
-      { error: "שגיאה ביצירת מנוי" },
+      { message: "שגיאה ביצירת מנוי" },
       { status: 500 }
     );
   }

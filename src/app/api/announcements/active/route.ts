@@ -1,16 +1,16 @@
 import { NextResponse } from "next/server";
-import { getServerSession } from "next-auth";
-import { authOptions } from "@/lib/auth";
 import prisma from "@/lib/prisma";
+import { logger } from "@/lib/logger";
+
+import { requireAuth } from "@/lib/api-auth";
 
 export const dynamic = "force-dynamic";
 
 export async function GET() {
   try {
-    const session = await getServerSession(authOptions);
-    if (!session?.user?.id) {
-      return NextResponse.json({ message: "לא מורשה" }, { status: 401 });
-    }
+    const auth = await requireAuth();
+    if ("error" in auth) return auth.error;
+    const { userId, session } = auth;
 
     const now = new Date();
 
@@ -21,7 +21,7 @@ export async function GET() {
         OR: [{ expiresAt: null }, { expiresAt: { gt: now } }],
         dismissals: {
           none: {
-            userId: session.user.id,
+            userId: userId,
           },
         },
       },
@@ -37,7 +37,7 @@ export async function GET() {
 
     return NextResponse.json({ announcements });
   } catch (error) {
-    console.error("Get active announcements error:", error);
+    logger.error("Get active announcements error:", { error: error instanceof Error ? error.message : String(error) });
     return NextResponse.json(
       { message: "שגיאה בטעינת ההודעות" },
       { status: 500 }

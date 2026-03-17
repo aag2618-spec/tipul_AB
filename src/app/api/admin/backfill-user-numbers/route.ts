@@ -1,7 +1,8 @@
 import { NextRequest, NextResponse } from "next/server";
-import { getServerSession } from "next-auth";
-import { authOptions } from "@/lib/auth";
 import prisma from "@/lib/prisma";
+import { logger } from "@/lib/logger";
+
+import { requireAdmin } from "@/lib/api-auth";
 
 export const dynamic = "force-dynamic";
 
@@ -11,16 +12,9 @@ export async function POST(req: NextRequest) {
     const cronAuth = authHeader === `Bearer ${process.env.CRON_SECRET}`;
 
     if (!cronAuth) {
-      const session = await getServerSession(authOptions);
-      if (!session?.user?.id) {
-        return NextResponse.json({ message: "Unauthorized" }, { status: 401 });
-      }
-      const adminUser = await prisma.user.findUnique({
-        where: { id: session.user.id },
-      });
-      if (adminUser?.role !== "ADMIN") {
-        return NextResponse.json({ message: "Forbidden" }, { status: 403 });
-      }
+      const auth = await requireAdmin();
+    if ("error" in auth) return auth.error;
+    const { userId, session } = auth;
     }
 
     const result = await prisma.$transaction(async (tx) => {
@@ -49,7 +43,7 @@ export async function POST(req: NextRequest) {
       count: result,
     });
   } catch (error) {
-    console.error("Backfill error:", error);
+    logger.error("Backfill error:", { error: error instanceof Error ? error.message : String(error) });
     return NextResponse.json(
       { message: "Internal server error" },
       { status: 500 }

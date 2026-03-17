@@ -1,8 +1,8 @@
 import { NextRequest, NextResponse } from "next/server";
-import { getServerSession } from "next-auth";
-import { authOptions } from "@/lib/auth";
 import prisma from "@/lib/prisma";
 import { questionnaires } from "@/data/questionnaire-seeds";
+import { logger } from "@/lib/logger";
+import { requireAuth } from "@/lib/api-auth";
 
 // POST - Seed questionnaires to database
 export const dynamic = "force-dynamic";
@@ -14,15 +14,14 @@ export async function POST(request: NextRequest) {
     const validSecret = process.env.SEED_SECRET || "tipul-seed-2024";
 
     if (secretKey !== validSecret) {
-      const session = await getServerSession(authOptions);
-      if (!session?.user?.id) {
-        return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
-      }
+      const auth = await requireAuth();
+      if ("error" in auth) return auth.error;
+      const { session } = auth;
 
       // בדיקת הרשאות - רק ADMIN או MANAGER
       const userRole = (session.user as any)?.role;
       if (userRole !== "ADMIN" && userRole !== "MANAGER") {
-        return NextResponse.json({ error: "Forbidden - requires ADMIN or MANAGER role" }, { status: 403 });
+        return NextResponse.json({ message: "Forbidden - requires ADMIN or MANAGER role" }, { status: 403 });
       }
     }
 
@@ -76,9 +75,9 @@ export async function POST(request: NextRequest) {
       details: results
     });
   } catch (error) {
-    console.error("Error seeding questionnaires:", error);
+    logger.error("Error seeding questionnaires:", { error: error instanceof Error ? error.message : String(error) });
     return NextResponse.json(
-      { error: "Failed to seed questionnaires" },
+      { message: "Failed to seed questionnaires" },
       { status: 500 }
     );
   }
@@ -87,10 +86,9 @@ export async function POST(request: NextRequest) {
 // GET - Check current questionnaire count
 export async function GET(request: NextRequest) {
   try {
-    const session = await getServerSession(authOptions);
-    if (!session?.user?.id) {
-      return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
-    }
+    const auth = await requireAuth();
+    if ("error" in auth) return auth.error;
+    const { userId, session } = auth;
 
     const count = await prisma.questionnaireTemplate.count();
     const templates = await prisma.questionnaireTemplate.findMany({
@@ -103,9 +101,9 @@ export async function GET(request: NextRequest) {
       availableToSeed: questionnaires.map(q => ({ code: q.code, name: q.name }))
     });
   } catch (error) {
-    console.error("Error checking questionnaires:", error);
+    logger.error("Error checking questionnaires:", { error: error instanceof Error ? error.message : String(error) });
     return NextResponse.json(
-      { error: "Failed to check questionnaires" },
+      { message: "Failed to check questionnaires" },
       { status: 500 }
     );
   }

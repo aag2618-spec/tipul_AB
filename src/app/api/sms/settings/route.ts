@@ -1,19 +1,19 @@
 import { NextResponse } from "next/server";
-import { getServerSession } from "next-auth";
-import { authOptions } from "@/lib/auth";
 import prisma from "@/lib/prisma";
+import { logger } from "@/lib/logger";
+
+import { requireAuth } from "@/lib/api-auth";
 
 export const dynamic = "force-dynamic";
 
 export async function GET() {
   try {
-    const session = await getServerSession(authOptions);
-    if (!session?.user?.id) {
-      return NextResponse.json({ error: "לא מורשה" }, { status: 401 });
-    }
+    const auth = await requireAuth();
+    if ("error" in auth) return auth.error;
+    const { userId, session } = auth;
 
     const settings = await prisma.sMSSettings.findUnique({
-      where: { therapistId: session.user.id },
+      where: { therapistId: userId },
     });
 
     // Return default settings if none exist
@@ -28,9 +28,9 @@ export async function GET() {
 
     return NextResponse.json(settings);
   } catch (error) {
-    console.error("Get SMS settings error:", error);
+    logger.error("Get SMS settings error:", { error: error instanceof Error ? error.message : String(error) });
     return NextResponse.json(
-      { error: "שגיאה בטעינת ההגדרות" },
+      { message: "שגיאה בטעינת ההגדרות" },
       { status: 500 }
     );
   }
@@ -38,16 +38,15 @@ export async function GET() {
 
 export async function PUT(request: Request) {
   try {
-    const session = await getServerSession(authOptions);
-    if (!session?.user?.id) {
-      return NextResponse.json({ error: "לא מורשה" }, { status: 401 });
-    }
+    const auth = await requireAuth();
+    if ("error" in auth) return auth.error;
+    const { userId, session } = auth;
 
     const body = await request.json();
     const { enabled, hoursBeforeReminder, customMessage, sendOnWeekends } = body;
 
     const settings = await prisma.sMSSettings.upsert({
-      where: { therapistId: session.user.id },
+      where: { therapistId: userId },
       update: {
         enabled,
         hoursBeforeReminder,
@@ -55,7 +54,7 @@ export async function PUT(request: Request) {
         sendOnWeekends,
       },
       create: {
-        therapistId: session.user.id,
+        therapistId: userId,
         enabled,
         hoursBeforeReminder,
         customMessage,
@@ -65,9 +64,9 @@ export async function PUT(request: Request) {
 
     return NextResponse.json(settings);
   } catch (error) {
-    console.error("Update SMS settings error:", error);
+    logger.error("Update SMS settings error:", { error: error instanceof Error ? error.message : String(error) });
     return NextResponse.json(
-      { error: "שגיאה בשמירת ההגדרות" },
+      { message: "שגיאה בשמירת ההגדרות" },
       { status: 500 }
     );
   }

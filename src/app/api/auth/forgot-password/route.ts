@@ -4,8 +4,8 @@ import crypto from "crypto";
 import { sendEmail } from "@/lib/resend";
 import { checkRateLimit, rateLimitResponse } from "@/lib/rate-limit";
 import { escapeHtml } from "@/lib/email-utils";
-
-const FORGOT_PASSWORD_RATE_LIMIT = { maxRequests: 5, windowMs: 15 * 60 * 1000 };
+import { logger } from "@/lib/logger";
+import { FORGOT_PASSWORD_RATE_LIMIT } from "@/lib/constants";
 
 export const dynamic = "force-dynamic";
 
@@ -105,7 +105,7 @@ export async function POST(request: NextRequest) {
       message: "אם האימייל קיים במערכת, נשלח אליך קישור לאיפוס סיסמה",
     });
   } catch (error) {
-    console.error("Forgot password error:", error);
+    logger.error("Forgot password error:", { error: error instanceof Error ? error.message : String(error) });
     return NextResponse.json(
       { error: "שגיאה בשליחת האימייל" },
       { status: 500 }

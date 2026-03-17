@@ -2,18 +2,17 @@
 // API לייצוא תשלומים לקובץ CSV/Excel עבור רו"ח
 
 import { NextRequest, NextResponse } from "next/server";
-import { getServerSession } from "next-auth";
-import { authOptions } from "@/lib/auth";
 import prisma from "@/lib/prisma";
+import { logger } from "@/lib/logger";
+import { requireAuth } from "@/lib/api-auth";
 
 export const dynamic = "force-dynamic";
 
 export async function GET(request: NextRequest) {
   try {
-    const session = await getServerSession(authOptions);
-    if (!session?.user?.id) {
-      return NextResponse.json({ error: "לא מורשה" }, { status: 401 });
-    }
+    const auth = await requireAuth();
+    if ("error" in auth) return auth.error;
+    const { userId, session } = auth;
 
     // קבלת פרמטרים מ-URL
     const { searchParams } = new URL(request.url);
@@ -24,7 +23,7 @@ export async function GET(request: NextRequest) {
 
     const where: any = {
       client: {
-        therapistId: session.user.id,
+        therapistId: userId,
       },
       parentPaymentId: null,
     };
@@ -179,7 +178,7 @@ export async function GET(request: NextRequest) {
       },
     });
   } catch (error) {
-    console.error("Export payments error:", error);
+    logger.error("Export payments error:", { error: error instanceof Error ? error.message : String(error) });
     return NextResponse.json(
       { error: "שגיאה בייצוא התשלומים" },
       { status: 500 }

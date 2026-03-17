@@ -1,8 +1,8 @@
 import { NextRequest, NextResponse } from "next/server";
-import { getServerSession } from "next-auth";
-import { authOptions } from "@/lib/auth";
 import prisma from "@/lib/prisma";
 import { addPartialPayment, markFullyPaid } from "@/lib/payment-service";
+import { logger } from "@/lib/logger";
+import { requireAuth } from "@/lib/api-auth";
 
 export const dynamic = "force-dynamic";
 
@@ -11,15 +11,14 @@ export async function GET(
   { params }: { params: Promise<{ id: string }> }
 ) {
   try {
-    const session = await getServerSession(authOptions);
-    if (!session?.user?.id) {
-      return NextResponse.json({ message: "אין הרשאה" }, { status: 401 });
-    }
+    const auth = await requireAuth();
+    if ("error" in auth) return auth.error;
+    const { userId, session } = auth;
 
     const { id } = await params;
 
     const payment = await prisma.payment.findFirst({
-      where: { id, client: { therapistId: session.user.id } },
+      where: { id, client: { therapistId: userId } },
       include: {
         client: true,
         session: true,
@@ -32,7 +31,7 @@ export async function GET(
 
     return NextResponse.json(payment);
   } catch (error) {
-    console.error("Get payment error:", error);
+    logger.error("Get payment error:", { error: error instanceof Error ? error.message : String(error) });
     return NextResponse.json(
       { message: "שגיאה בטעינת התשלום" },
       { status: 500 }
@@ -45,10 +44,9 @@ export async function PUT(
   { params }: { params: Promise<{ id: string }> }
 ) {
   try {
-    const session = await getServerSession(authOptions);
-    if (!session?.user?.id) {
-      return NextResponse.json({ message: "אין הרשאה" }, { status: 401 });
-    }
+    const auth = await requireAuth();
+    if ("error" in auth) return auth.error;
+    const { userId, session } = auth;
 
     const { id } = await params;
     const body = await request.json();
@@ -57,7 +55,7 @@ export async function PUT(
     // Adding a payment amount (partial or completing)
     if (amount !== undefined) {
       const result = await addPartialPayment({
-        userId: session.user.id,
+        userId: userId,
         parentPaymentId: id,
         amount: Number(amount),
         method: method || "CASH",
@@ -82,7 +80,7 @@ export async function PUT(
     // Marking as fully paid (no specific amount)
     if (status === "PAID") {
       const result = await markFullyPaid({
-        userId: session.user.id,
+        userId: userId,
         paymentId: id,
         method: method || "CASH",
         issueReceipt,
@@ -105,7 +103,7 @@ export async function PUT(
 
     // Simple field update (status change, notes, method — no payment action)
     const existing = await prisma.payment.findFirst({
-      where: { id, client: { therapistId: session.user.id } },
+      where: { id, client: { therapistId: userId } },
     });
     if (!existing) {
       return NextResponse.json({ message: "תשלום לא נמצא" }, { status: 404 });
@@ -122,20 +120,11 @@ export async function PUT(
 
     return NextResponse.json(payment);
   } catch (error) {
-    console.error("Update payment error:", error);
+    logger.error("Update payment error:", { error: error instanceof Error ? error.message : String(error) });
     return NextResponse.json(
       { message: "שגיאה בעדכון התשלום" },
       { status: 500 }
     );
   }
 }
-
-
-
-
-
-
-
-
-
 

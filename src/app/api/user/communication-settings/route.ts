@@ -1,20 +1,19 @@
 import { NextRequest, NextResponse } from "next/server";
-import { getServerSession } from "next-auth";
-import { authOptions } from "@/lib/auth";
 import prisma from "@/lib/prisma";
+import { logger } from "@/lib/logger";
+import { requireAuth } from "@/lib/api-auth";
 
 export const dynamic = "force-dynamic";
 
 // GET /api/user/communication-settings
 export async function GET() {
   try {
-    const session = await getServerSession(authOptions);
-    if (!session?.user?.id) {
-      return NextResponse.json({ message: "לא מורשה" }, { status: 401 });
-    }
+    const auth = await requireAuth();
+    if ("error" in auth) return auth.error;
+    const { userId, session } = auth;
 
     const settings = await prisma.communicationSetting.findUnique({
-      where: { userId: session.user.id },
+      where: { userId: userId },
     });
 
     if (!settings) {
@@ -71,7 +70,7 @@ export async function GET() {
       },
     });
   } catch (error) {
-    console.error("Get communication settings error:", error);
+    logger.error("Get communication settings error:", { error: error instanceof Error ? error.message : String(error) });
     return NextResponse.json(
       { message: "אירעה שגיאה בטעינת ההגדרות" },
       { status: 500 }
@@ -82,10 +81,9 @@ export async function GET() {
 // PUT /api/user/communication-settings
 export async function PUT(request: NextRequest) {
   try {
-    const session = await getServerSession(authOptions);
-    if (!session?.user?.id) {
-      return NextResponse.json({ message: "לא מורשה" }, { status: 401 });
-    }
+    const auth = await requireAuth();
+    if ("error" in auth) return auth.error;
+    const { userId, session } = auth;
 
     const body = await request.json();
     const {
@@ -125,7 +123,7 @@ export async function PUT(request: NextRequest) {
     const validMinAmount = Math.max(0, debtReminderMinAmount || 50);
 
     const settings = await prisma.communicationSetting.upsert({
-      where: { userId: session.user.id },
+      where: { userId: userId },
       update: {
         sendConfirmationEmail: sendConfirmationEmail ?? true,
         send24hReminder: send24hReminder ?? true,
@@ -150,7 +148,7 @@ export async function PUT(request: NextRequest) {
         businessHours: businessHours !== undefined ? businessHours : undefined,
       },
       create: {
-        userId: session.user.id,
+        userId: userId,
         sendConfirmationEmail: sendConfirmationEmail ?? true,
         send24hReminder: send24hReminder ?? true,
         send2hReminder: send2hReminder ?? false,
@@ -202,7 +200,7 @@ export async function PUT(request: NextRequest) {
       },
     });
   } catch (error) {
-    console.error("Update communication settings error:", error);
+    logger.error("Update communication settings error:", { error: error instanceof Error ? error.message : String(error) });
     return NextResponse.json(
       { message: "אירעה שגיאה בשמירת ההגדרות" },
       { status: 500 }

@@ -1,8 +1,8 @@
 import { NextRequest, NextResponse } from "next/server";
-import { getServerSession } from "next-auth";
-import { authOptions } from "@/lib/auth";
 import prisma from "@/lib/prisma";
 import { createPaymentForSession, processMultiSessionPayment } from "@/lib/payment-service";
+import { logger } from "@/lib/logger";
+import { requireAuth } from "@/lib/api-auth";
 
 export const dynamic = "force-dynamic";
 
@@ -11,10 +11,9 @@ export async function POST(
   { params }: { params: Promise<{ id: string }> }
 ) {
   try {
-    const session = await getServerSession(authOptions);
-    if (!session?.user?.id) {
-      return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
-    }
+    const auth = await requireAuth();
+    if ("error" in auth) return auth.error;
+    const { userId, session } = auth;
 
     const { id: clientId } = await params;
     const body = await request.json();
@@ -22,24 +21,24 @@ export async function POST(
 
     if (!amount || amount <= 0) {
       return NextResponse.json(
-        { error: "Invalid payment amount" },
+        { message: "Invalid payment amount" },
         { status: 400 }
       );
     }
 
     if (!["CASH", "CREDIT_CARD", "BANK_TRANSFER", "CHECK", "CREDIT", "OTHER"].includes(method)) {
       return NextResponse.json(
-        { error: "Invalid payment method" },
+        { message: "Invalid payment method" },
         { status: 400 }
       );
     }
 
     const client = await prisma.client.findFirst({
-      where: { id: clientId, therapistId: session.user.id },
+      where: { id: clientId, therapistId: userId },
     });
 
     if (!client) {
-      return NextResponse.json({ error: "Client not found" }, { status: 404 });
+      return NextResponse.json({ message: "Client not found" }, { status: 404 });
     }
 
     // Find unpaid/partially-paid completed sessions (oldest first)
@@ -59,7 +58,7 @@ export async function POST(
 
     if (sessions.length === 0) {
       return NextResponse.json(
-        { error: "No sessions to pay" },
+        { message: "No sessions to pay" },
         { status: 400 }
       );
     }
@@ -71,7 +70,7 @@ export async function POST(
         paymentIds.push(s.payment.id);
       } else {
         const result = await createPaymentForSession({
-          userId: session.user.id,
+          userId: userId,
           clientId,
           sessionId: s.id,
           amount: 0,
@@ -86,7 +85,7 @@ export async function POST(
     }
 
     const result = await processMultiSessionPayment({
-      userId: session.user.id,
+      userId: userId,
       clientId,
       paymentIds,
       totalAmount: Number(amount),
@@ -95,13 +94,13 @@ export async function POST(
     });
 
     if (!result.success) {
-      return NextResponse.json({ error: result.error }, { status: 500 });
+      return NextResponse.json({ message: result.error }, { status: 500 });
     }
 
     // Surplus goes to credit — via trunk for audit trail
     if (result.remainingAmount > 0) {
       await createPaymentForSession({
-        userId: session.user.id,
+        userId: userId,
         clientId,
         amount: result.remainingAmount,
         expectedAmount: result.remainingAmount,
@@ -122,9 +121,9 @@ export async function POST(
           : `קוזזו ${result.updatedPayments} פגישות בהצלחה`,
     });
   } catch (error) {
-    console.error("Error processing bulk payment:", error);
+    logger.error("Error processing bulk payment:", { error: error instanceof Error ? error.message : String(error) });
     return NextResponse.json(
-      { error: "Internal server error" },
+      { message: "Internal server error" },
       { status: 500 }
     );
   }

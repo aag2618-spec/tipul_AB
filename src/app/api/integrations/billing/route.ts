@@ -1,22 +1,22 @@
 import { NextRequest, NextResponse } from "next/server";
-import { getServerSession } from "next-auth";
-import { authOptions } from "@/lib/auth";
 import prisma from "@/lib/prisma";
 import { encrypt, decrypt } from "@/lib/encryption";
+import { logger } from "@/lib/logger";
+
+import { requireAuth } from "@/lib/api-auth";
 
 // GET - Get all billing providers for the current user
 export const dynamic = "force-dynamic";
 
 export async function GET() {
   try {
-    const session = await getServerSession(authOptions);
-    if (!session?.user?.id) {
-      return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
-    }
+    const auth = await requireAuth();
+    if ("error" in auth) return auth.error;
+    const { userId, session } = auth;
 
     const providers = await prisma.billingProvider.findMany({
       where: {
-        userId: session.user.id,
+        userId: userId,
       },
       select: {
         id: true,
@@ -34,9 +34,9 @@ export async function GET() {
 
     return NextResponse.json(providers);
   } catch (error) {
-    console.error("Error fetching billing providers:", error);
+    logger.error("Error fetching billing providers:", { error: error instanceof Error ? error.message : String(error) });
     return NextResponse.json(
-      { error: "Failed to fetch billing providers" },
+      { message: "Failed to fetch billing providers" },
       { status: 500 }
     );
   }
@@ -45,17 +45,16 @@ export async function GET() {
 // POST - Add/Update a billing provider
 export async function POST(request: NextRequest) {
   try {
-    const session = await getServerSession(authOptions);
-    if (!session?.user?.id) {
-      return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
-    }
+    const auth = await requireAuth();
+    if ("error" in auth) return auth.error;
+    const { userId, session } = auth;
 
     const body = await request.json();
     const { provider, apiKey, apiSecret, displayName } = body;
 
     if (!provider || !apiKey) {
       return NextResponse.json(
-        { error: "Missing required fields: provider, apiKey" },
+        { message: "Missing required fields: provider, apiKey" },
         { status: 400 }
       );
     }
@@ -73,7 +72,7 @@ export async function POST(request: NextRequest) {
 
     if (!validProviders.includes(provider)) {
       return NextResponse.json(
-        { error: "Invalid provider type" },
+        { message: "Invalid provider type" },
         { status: 400 }
       );
     }
@@ -85,7 +84,7 @@ export async function POST(request: NextRequest) {
     // בדיקה אם כבר קיים ספק מסוג זה
     const existing = await prisma.billingProvider.findFirst({
       where: {
-        userId: session.user.id,
+        userId: userId,
         provider,
       },
     });
@@ -108,7 +107,7 @@ export async function POST(request: NextRequest) {
       // יצירת חדש
       billingProvider = await prisma.billingProvider.create({
         data: {
-          userId: session.user.id,
+          userId: userId,
           provider,
           apiKey: encryptedApiKey,
           apiSecret: encryptedApiSecret,
@@ -132,9 +131,9 @@ export async function POST(request: NextRequest) {
       { status: 201 }
     );
   } catch (error) {
-    console.error("Error creating billing provider:", error);
+    logger.error("Error creating billing provider:", { error: error instanceof Error ? error.message : String(error) });
     return NextResponse.json(
-      { error: "Failed to save billing provider" },
+      { message: "Failed to save billing provider" },
       { status: 500 }
     );
   }

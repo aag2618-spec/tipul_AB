@@ -1,17 +1,17 @@
 import { NextRequest, NextResponse } from "next/server";
-import { getServerSession } from "next-auth";
-import { authOptions } from "@/lib/auth";
 import prisma from "@/lib/prisma";
 import { addDays, addWeeks, startOfWeek, setHours, setMinutes } from "date-fns";
+import { logger } from "@/lib/logger";
+
+import { requireAuth } from "@/lib/api-auth";
 
 export const dynamic = "force-dynamic";
 
 export async function POST(request: NextRequest) {
   try {
-    const session = await getServerSession(authOptions);
-    if (!session?.user?.id) {
-      return NextResponse.json({ message: "לא מורשה" }, { status: 401 });
-    }
+    const auth = await requireAuth();
+    if ("error" in auth) return auth.error;
+    const { userId, session } = auth;
 
     const body = await request.json();
     const weeksAhead = body.weeksAhead || 4;
@@ -19,7 +19,7 @@ export async function POST(request: NextRequest) {
     // Get active recurring patterns
     const patterns = await prisma.recurringPattern.findMany({
       where: {
-        userId: session.user.id,
+        userId: userId,
         isActive: true,
       },
     });
@@ -33,7 +33,7 @@ export async function POST(request: NextRequest) {
 
     // Get user's default session price from latest session
     const latestSession = await prisma.therapySession.findFirst({
-      where: { therapistId: session.user.id },
+      where: { therapistId: userId },
       orderBy: { createdAt: "desc" },
     });
     const defaultPrice = latestSession?.price || 300;
@@ -63,7 +63,7 @@ export async function POST(request: NextRequest) {
         // Check for any overlapping session (not just exact start time match)
         const conflict = await prisma.therapySession.findFirst({
           where: {
-            therapistId: session.user.id,
+            therapistId: userId,
             status: { not: "CANCELLED" },
             OR: [
               {
@@ -96,7 +96,7 @@ export async function POST(request: NextRequest) {
         // Create the session
         await prisma.therapySession.create({
           data: {
-            therapistId: session.user.id,
+            therapistId: userId,
             clientId: pattern.clientId,
             startTime: sessionStart,
             endTime: sessionEnd,
@@ -116,7 +116,7 @@ export async function POST(request: NextRequest) {
       created,
     });
   } catch (error) {
-    console.error("Apply recurring patterns error:", error);
+    logger.error("Apply recurring patterns error:", { error: error instanceof Error ? error.message : String(error) });
     return NextResponse.json(
       { message: "אירעה שגיאה בהחלת התבניות" },
       { status: 500 }

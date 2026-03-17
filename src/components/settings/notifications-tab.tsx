@@ -2,25 +2,14 @@
 
 import { useState, useEffect } from "react";
 import { Button } from "@/components/ui/button";
-import { Input } from "@/components/ui/input";
-import { Label } from "@/components/ui/label";
-import { Switch } from "@/components/ui/switch";
-import { Textarea } from "@/components/ui/textarea";
-import { Loader2, Save, Bell, Mail, MessageSquare, Clock, CreditCard, Sparkles } from "lucide-react";
+import { Loader2, Save } from "lucide-react";
 import { toast } from "sonner";
 import {
-  Select,
-  SelectContent,
-  SelectItem,
-  SelectTrigger,
-  SelectValue,
-} from "@/components/ui/select";
-import {
   Accordion,
-  AccordionContent,
-  AccordionItem,
-  AccordionTrigger,
 } from "@/components/ui/accordion";
+import { NotificationChannelsSection } from "@/components/settings/notification-channels-section";
+import { SmsSection } from "@/components/settings/sms-section";
+import { EmailAutomationSection } from "@/components/settings/email-automation-section";
 
 interface NotificationSettings {
   emailEnabled: boolean;
@@ -175,326 +164,23 @@ export function NotificationsTab() {
     );
   }
 
-  const defaultSmsMessage = `שלום {שם},\nזוהי תזכורת לפגישה שלך ב{תאריך} בשעה {שעה}.\nתודה!`;
-
   return (
     <div className="space-y-6">
       <Accordion type="multiple" defaultValue={["notifications", "sms", "automation"]} className="space-y-4">
-        {/* Notification Channels */}
-        <AccordionItem value="notifications" className="border rounded-lg px-4">
-          <AccordionTrigger className="hover:no-underline">
-            <div className="flex items-center gap-2">
-              <Bell className="h-5 w-5 text-primary" />
-              <span className="font-semibold">התראות</span>
-            </div>
-          </AccordionTrigger>
-          <AccordionContent className="space-y-6 pb-4">
-            <div className="flex items-center justify-between">
-              <div className="flex items-center gap-3">
-                <div className="flex h-10 w-10 items-center justify-center rounded-lg bg-primary/10">
-                  <Mail className="h-5 w-5 text-primary" />
-                </div>
-                <div>
-                  <p className="font-medium">אימייל</p>
-                  <p className="text-sm text-muted-foreground">קבל סיכום יומי של פגישות ומשימות להיום ולמחר</p>
-                </div>
-              </div>
-              <Switch
-                checked={notifSettings.emailEnabled}
-                onCheckedChange={(checked) => setNotifSettings({ ...notifSettings, emailEnabled: checked })}
-              />
-            </div>
-            <div className="grid grid-cols-2 gap-4">
-              <div className="space-y-2">
-                <Label>תזכורת בוקר</Label>
-                <p className="text-xs text-muted-foreground">שעה שבה תקבל סיכום של הפגישות היומיות שלך</p>
-                <Input
-                  type="time"
-                  value={notifSettings.morningTime}
-                  onChange={(e) => setNotifSettings({ ...notifSettings, morningTime: e.target.value })}
-                />
-              </div>
-              <div className="space-y-2">
-                <Label>תזכורת ערב</Label>
-                <p className="text-xs text-muted-foreground">שעה שבה תקבל תזכורת על פגישות מחר</p>
-                <Input
-                  type="time"
-                  value={notifSettings.eveningTime}
-                  onChange={(e) => setNotifSettings({ ...notifSettings, eveningTime: e.target.value })}
-                />
-              </div>
-            </div>
-            <div className="grid grid-cols-2 gap-4">
-              <div className="space-y-2">
-                <Label>ימים לתזכורת חוב</Label>
-                <p className="text-xs text-muted-foreground">אחרי כמה ימים ללא תשלום תקבל התראה על חוב פתוח</p>
-                <Input
-                  type="number"
-                  min={1}
-                  max={90}
-                  value={notifSettings.debtThresholdDays}
-                  onChange={(e) => setNotifSettings({ ...notifSettings, debtThresholdDays: parseInt(e.target.value) || 30 })}
-                  className="w-24"
-                />
-              </div>
-              <div className="space-y-2">
-                <Label>תזכורת גבייה חודשית (יום)</Label>
-                <p className="text-xs text-muted-foreground">באיזה יום בחודש לקבל תזכורת לגבות חובות פתוחים</p>
-                <Input
-                  type="number"
-                  min={1}
-                  max={31}
-                  value={notifSettings.monthlyReminderDay || ""}
-                  onChange={(e) => setNotifSettings({ ...notifSettings, monthlyReminderDay: e.target.value ? parseInt(e.target.value) : null })}
-                  className="w-24"
-                  placeholder="--"
-                />
-              </div>
-            </div>
-          </AccordionContent>
-        </AccordionItem>
+        <NotificationChannelsSection
+          notifSettings={notifSettings}
+          setNotifSettings={setNotifSettings}
+        />
 
-        {/* SMS */}
-        <AccordionItem value="sms" className="border rounded-lg px-4">
-          <AccordionTrigger className="hover:no-underline">
-            <div className="flex items-center gap-2">
-              <MessageSquare className="h-5 w-5 text-primary" />
-              <span className="font-semibold">תזכורות SMS</span>
-              <span className={`text-xs px-2 py-0.5 rounded-full ${smsSettings.enabled ? "bg-green-100 text-green-700" : "bg-gray-100 text-gray-500"}`}>
-                {smsSettings.enabled ? "פעיל" : "כבוי"}
-              </span>
-            </div>
-          </AccordionTrigger>
-          <AccordionContent className="space-y-4 pb-4">
-            <div className="flex items-center justify-between">
-              <div className="space-y-0.5">
-                <Label>הפעל תזכורות SMS</Label>
-                <p className="text-xs text-muted-foreground">שלח הודעת SMS אוטומטית למטופלים לפני הפגישה (בימים א&apos;-ה&apos; בלבד)</p>
-              </div>
-              <Switch
-                checked={smsSettings.enabled}
-                onCheckedChange={(checked) => setSmsSettings({ ...smsSettings, enabled: checked })}
-              />
-            </div>
-            {smsSettings.enabled && (
-              <>
-                <div className="space-y-2">
-                  <Label>שעות לפני הפגישה</Label>
-                  <p className="text-xs text-muted-foreground">כמה שעות לפני הפגישה לשלוח את התזכורת</p>
-                  <Input
-                    type="number"
-                    min="1"
-                    max="72"
-                    value={smsSettings.hoursBeforeReminder}
-                    onChange={(e) => setSmsSettings({ ...smsSettings, hoursBeforeReminder: parseInt(e.target.value) || 24 })}
-                    className="w-24"
-                  />
-                </div>
-                <div className="space-y-2">
-                  <Label>טקסט ההודעה (אופציונלי)</Label>
-                  <p className="text-xs text-muted-foreground">התאם אישית את נוסח ההודעה. השאר ריק לטקסט ברירת המחדל.</p>
-                  <Textarea
-                    placeholder={defaultSmsMessage}
-                    value={smsSettings.customMessage || ""}
-                    onChange={(e) => setSmsSettings({ ...smsSettings, customMessage: e.target.value || null })}
-                    rows={4}
-                    className="font-mono text-sm"
-                  />
-                  <p className="text-xs text-muted-foreground">
-                    משתנים זמינים: {"{שם}"} = שם המטופל, {"{תאריך}"} = תאריך הפגישה, {"{שעה}"} = שעת הפגישה
-                  </p>
-                </div>
-              </>
-            )}
-          </AccordionContent>
-        </AccordionItem>
+        <SmsSection
+          smsSettings={smsSettings}
+          setSmsSettings={setSmsSettings}
+        />
 
-        {/* Email Automation */}
-        <AccordionItem value="automation" className="border rounded-lg px-4">
-          <AccordionTrigger className="hover:no-underline">
-            <div className="flex items-center gap-2">
-              <Mail className="h-5 w-5 text-primary" />
-              <span className="font-semibold">מיילים אוטומטיים</span>
-            </div>
-          </AccordionTrigger>
-          <AccordionContent className="space-y-6 pb-4">
-            <div className="flex items-center justify-between">
-              <div className="space-y-0.5">
-                <Label>מייל אישור קביעת תור</Label>
-                <p className="text-sm text-muted-foreground">המטופל יקבל מייל אוטומטי עם פרטי הפגישה ברגע שנקבעת</p>
-              </div>
-              <Switch
-                checked={commSettings.sendConfirmationEmail}
-                onCheckedChange={(checked) => setCommSettings({ ...commSettings, sendConfirmationEmail: checked })}
-              />
-            </div>
-            <div className="flex items-center justify-between">
-              <div className="space-y-0.5">
-                <Label>תזכורת 24 שעות לפני</Label>
-                <p className="text-sm text-muted-foreground">המטופל יקבל תזכורת במייל יום לפני הפגישה</p>
-              </div>
-              <Switch
-                checked={commSettings.send24hReminder}
-                onCheckedChange={(checked) => setCommSettings({ ...commSettings, send24hReminder: checked })}
-              />
-            </div>
-            <div className="space-y-3">
-              <div className="flex items-center justify-between">
-                <div className="space-y-0.5">
-                  <Label>תזכורת מותאמת אישית</Label>
-                  <p className="text-sm text-muted-foreground">הגדר תזכורת נוספת במרחק זמן מותאם אישית מהפגישה</p>
-                </div>
-                <Switch
-                  checked={commSettings.customReminderEnabled}
-                  onCheckedChange={(checked) => setCommSettings({ ...commSettings, customReminderEnabled: checked, send2hReminder: checked })}
-                />
-              </div>
-              {commSettings.customReminderEnabled && (
-                <div className="flex items-center gap-2 pr-2">
-                  <Clock className="h-4 w-4 text-muted-foreground" />
-                  <Input
-                    type="number"
-                    min={1}
-                    max={72}
-                    value={commSettings.customReminderHours}
-                    onChange={(e) => setCommSettings({ ...commSettings, customReminderHours: parseInt(e.target.value) || 2 })}
-                    className="w-20"
-                  />
-                  <span className="text-sm text-muted-foreground">שעות לפני הפגישה</span>
-                </div>
-              )}
-            </div>
-          </AccordionContent>
-        </AccordionItem>
-
-        {/* Debt Reminders */}
-        <AccordionItem value="debt" className="border rounded-lg px-4">
-          <AccordionTrigger className="hover:no-underline">
-            <div className="flex items-center gap-2">
-              <CreditCard className="h-5 w-5 text-primary" />
-              <span className="font-semibold">תזכורות חוב</span>
-              <span className={`text-xs px-2 py-0.5 rounded-full ${commSettings.sendDebtReminders ? "bg-green-100 text-green-700" : "bg-gray-100 text-gray-500"}`}>
-                {commSettings.sendDebtReminders ? "פעיל" : "כבוי"}
-              </span>
-            </div>
-          </AccordionTrigger>
-          <AccordionContent className="space-y-4 pb-4">
-            <div className="flex items-center justify-between">
-              <div className="space-y-0.5">
-                <Label>הפעל תזכורות חוב אוטומטיות</Label>
-                <p className="text-xs text-muted-foreground">שלח מייל אוטומטי למטופלים עם חוב פתוח מעל הסכום המינימלי</p>
-              </div>
-              <Switch
-                checked={commSettings.sendDebtReminders}
-                onCheckedChange={(checked) => setCommSettings({ ...commSettings, sendDebtReminders: checked })}
-              />
-            </div>
-            {commSettings.sendDebtReminders && (
-              <>
-                <div className="space-y-2">
-                  <Label>יום בחודש לשליחה</Label>
-                  <p className="text-xs text-muted-foreground">באיזה יום בחודש לשלוח את תזכורות החוב למטופלים</p>
-                  <Select
-                    value={commSettings.debtReminderDayOfMonth.toString()}
-                    onValueChange={(value) => setCommSettings({ ...commSettings, debtReminderDayOfMonth: parseInt(value) })}
-                  >
-                    <SelectTrigger><SelectValue /></SelectTrigger>
-                    <SelectContent>
-                      {Array.from({ length: 28 }, (_, i) => i + 1).map((day) => (
-                        <SelectItem key={day} value={day.toString()}>{day} לחודש</SelectItem>
-                      ))}
-                    </SelectContent>
-                  </Select>
-                </div>
-                <div className="space-y-2">
-                  <Label>סכום מינימלי (₪)</Label>
-                  <p className="text-xs text-muted-foreground">תזכורת תישלח רק כשהחוב מעל סכום זה</p>
-                  <Input
-                    type="number"
-                    min={0}
-                    step={10}
-                    value={commSettings.debtReminderMinAmount}
-                    onChange={(e) => setCommSettings({ ...commSettings, debtReminderMinAmount: parseFloat(e.target.value) || 0 })}
-                    className="w-32"
-                  />
-                </div>
-              </>
-            )}
-          </AccordionContent>
-        </AccordionItem>
-
-        {/* Email Customization */}
-        <AccordionItem value="customization" className="border rounded-lg px-4">
-          <AccordionTrigger className="hover:no-underline">
-            <div className="flex items-center gap-2">
-              <Sparkles className="h-5 w-5 text-primary" />
-              <span className="font-semibold">התאמה אישית של מיילים</span>
-            </div>
-          </AccordionTrigger>
-          <AccordionContent className="space-y-4 pb-4">
-            <div className="space-y-2">
-              <Label>הוראות תשלום</Label>
-              <p className="text-xs text-muted-foreground">טקסט שיופיע במייל תזכורת חוב - כמו פרטי חשבון בנק או אמצעי תשלום</p>
-              <Textarea
-                placeholder="השאר ריק לטקסט סטנדרטי..."
-                value={commSettings.paymentInstructions || ""}
-                onChange={(e) => setCommSettings({ ...commSettings, paymentInstructions: e.target.value || null })}
-                rows={3}
-                className="resize-none"
-              />
-            </div>
-            <div className="space-y-2">
-              <Label>קישור לתשלום ישיר</Label>
-              <p className="text-xs text-muted-foreground">קישור לדף תשלום (ביט, פייבוקס וכדומה) - יופיע כלחצן במייל</p>
-              <Input
-                type="url"
-                placeholder="https://..."
-                value={commSettings.paymentLink || ""}
-                onChange={(e) => setCommSettings({ ...commSettings, paymentLink: e.target.value || null })}
-              />
-            </div>
-            <div className="space-y-2">
-              <Label>חתימה אישית</Label>
-              <p className="text-xs text-muted-foreground">חתימה שתופיע בתחתית כל מייל שנשלח מהמערכת</p>
-              <Textarea
-                placeholder="שם, תואר, טלפון..."
-                value={commSettings.emailSignature || ""}
-                onChange={(e) => setCommSettings({ ...commSettings, emailSignature: e.target.value || null })}
-                rows={2}
-                className="resize-none"
-              />
-            </div>
-            <div className="space-y-2">
-              <Label>ברכת פתיחה</Label>
-              <p className="text-xs text-muted-foreground">פתיחת המייל - השתמש ב-{"{שם}"} כדי להכניס את שם המטופל אוטומטית</p>
-              <Input
-                placeholder='ברירת מחדל: "שלום {שם},"'
-                value={commSettings.customGreeting || ""}
-                onChange={(e) => setCommSettings({ ...commSettings, customGreeting: e.target.value || null })}
-              />
-            </div>
-            <div className="space-y-2">
-              <Label>ברכת סיום</Label>
-              <p className="text-xs text-muted-foreground">הטקסט שיופיע לפני החתימה בסוף כל מייל</p>
-              <Input
-                placeholder='ברירת מחדל: "בברכה,"'
-                value={commSettings.customClosing || ""}
-                onChange={(e) => setCommSettings({ ...commSettings, customClosing: e.target.value || null })}
-              />
-            </div>
-            <div className="space-y-2">
-              <Label>שעות פעילות</Label>
-              <p className="text-xs text-muted-foreground">שעות הפעילות שלך - יופיעו בתחתית המיילים למטופלים</p>
-              <Textarea
-                placeholder="ראשון-חמישי: 9:00-20:00"
-                value={commSettings.businessHours || ""}
-                onChange={(e) => setCommSettings({ ...commSettings, businessHours: e.target.value || null })}
-                rows={2}
-                className="resize-none"
-              />
-            </div>
-          </AccordionContent>
-        </AccordionItem>
+        <EmailAutomationSection
+          commSettings={commSettings}
+          setCommSettings={setCommSettings}
+        />
       </Accordion>
 
       <div className="flex justify-end">

@@ -1,8 +1,9 @@
 import { NextResponse } from "next/server";
-import { getServerSession } from "next-auth";
-import { authOptions } from "@/lib/auth";
 import prisma from "@/lib/prisma";
 import { format } from "date-fns";
+import { logger } from "@/lib/logger";
+
+import { requireAuth } from "@/lib/api-auth";
 
 // Types of health insurance companies in Israel
 enum HealthInsurer {
@@ -28,17 +29,16 @@ export const dynamic = "force-dynamic";
 
 export async function POST(request: Request) {
   try {
-    const session = await getServerSession(authOptions);
-    if (!session?.user?.id) {
-      return NextResponse.json({ error: "לא מורשה" }, { status: 401 });
-    }
+    const auth = await requireAuth();
+    if ("error" in auth) return auth.error;
+    const { userId, session } = auth;
 
     const body = await request.json();
     const { insurer, sessionId } = body;
 
     // Get therapist details
     const therapist = await prisma.user.findUnique({
-      where: { id: session.user.id },
+      where: { id: userId },
       select: {
         license: true,
         name: true,
@@ -47,7 +47,7 @@ export async function POST(request: Request) {
 
     if (!therapist?.license) {
       return NextResponse.json(
-        { error: "נדרש מספר רישיון לשליחת דיווחים" },
+        { message: "נדרש מספר רישיון לשליחת דיווחים" },
         { status: 400 }
       );
     }
@@ -61,13 +61,13 @@ export async function POST(request: Request) {
       },
     });
 
-    if (!therapySession || therapySession.therapistId !== session.user.id) {
-      return NextResponse.json({ error: "פגישה לא נמצאה" }, { status: 404 });
+    if (!therapySession || therapySession.therapistId !== userId) {
+      return NextResponse.json({ message: "פגישה לא נמצאה" }, { status: 404 });
     }
 
     if (!therapySession.client) {
       return NextResponse.json(
-        { error: "לא ניתן לשלוח דיווח לפגישת הפסקה" },
+        { message: "לא ניתן לשלוח דיווח לפגישת הפסקה" },
         { status: 400 }
       );
     }
@@ -93,9 +93,9 @@ export async function POST(request: Request) {
       message: `דיווח ל${getInsurerName(insurer)} נוצר בהצלחה`,
     });
   } catch (error) {
-    console.error("Health insurer report error:", error);
+    logger.error("Health insurer report error:", { error: error instanceof Error ? error.message : String(error) });
     return NextResponse.json(
-      { error: "שגיאה ביצירת הדיווח" },
+      { message: "שגיאה ביצירת הדיווח" },
       { status: 500 }
     );
   }

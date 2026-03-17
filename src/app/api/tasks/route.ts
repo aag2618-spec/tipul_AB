@@ -2,6 +2,7 @@ import { NextRequest, NextResponse } from "next/server";
 import { requireAuth } from "@/lib/api-auth";
 import prisma from "@/lib/prisma";
 import { parseIsraelTime } from "@/lib/date-utils";
+import { logger } from "@/lib/logger";
 
 export const dynamic = "force-dynamic";
 
@@ -63,7 +64,7 @@ export async function GET(request: NextRequest) {
 
     return NextResponse.json(tasks);
   } catch (error) {
-    console.error("Get tasks error:", error);
+    logger.error("Get tasks error:", { error: error instanceof Error ? error.message : String(error) });
     return NextResponse.json(
       { message: "אירעה שגיאה בטעינת המשימות" },
       { status: 500 }
@@ -114,11 +115,11 @@ export async function POST(request: NextRequest) {
         status: "PENDING",
         sentAt: new Date(),
       },
-    }).catch((err) => console.error("Failed to create task notification:", err));
+    }).catch((err) => logger.error("Failed to create task notification:", { error: err instanceof Error ? err.message : String(err) }));
 
     return NextResponse.json(task, { status: 201 });
   } catch (error) {
-    console.error("Create task error:", error);
+    logger.error("Create task error:", { error: error instanceof Error ? error.message : String(error) });
     return NextResponse.json(
       { message: "אירעה שגיאה ביצירת המשימה" },
       { status: 500 }

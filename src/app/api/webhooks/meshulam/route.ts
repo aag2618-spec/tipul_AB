@@ -35,7 +35,7 @@ export async function POST(request: NextRequest) {
     }
 
     const payload: MeshulamWebhookPayload = JSON.parse(body);
-    console.log("Meshulam webhook received:", payload.type);
+    logger.info("Meshulam webhook received:", { data: payload.type });
 
     // Rate limiting לwebhooks - הגנה מפני flooding
     const clientIp = request.headers.get("x-forwarded-for") || "unknown";
@@ -63,7 +63,7 @@ export async function POST(request: NextRequest) {
           await handleSubscriptionCancelled(payload);
           break;
         default:
-          console.log("Unhandled webhook type:", payload.type);
+          logger.info("Unhandled webhook type:", { data: payload.type });
       }
     });
 

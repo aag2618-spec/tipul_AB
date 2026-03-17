@@ -1,20 +1,20 @@
 import { NextResponse } from "next/server";
-import { getServerSession } from "next-auth";
-import { authOptions } from "@/lib/auth";
 import prisma from "@/lib/prisma";
+import { logger } from "@/lib/logger";
+
+import { requireAuth } from "@/lib/api-auth";
 
 export const dynamic = "force-dynamic";
 
 export async function POST() {
   try {
-    const session = await getServerSession(authOptions);
-    if (!session?.user?.id) {
-      return NextResponse.json({ message: "לא מורשה" }, { status: 401 });
-    }
+    const auth = await requireAuth();
+    if ("error" in auth) return auth.error;
+    const { userId, session } = auth;
 
     await prisma.notification.updateMany({
       where: {
-        userId: session.user.id,
+        userId: userId,
         status: { in: ["PENDING", "SENT"] },
       },
       data: {
@@ -25,7 +25,7 @@ export async function POST() {
 
     return NextResponse.json({ success: true, message: "כל ההתראות סומנו כנקראו" });
   } catch (error) {
-    console.error("Mark all as read error:", error);
+    logger.error("Mark all as read error:", { error: error instanceof Error ? error.message : String(error) });
     return NextResponse.json(
       { message: "אירעה שגיאה בעדכון ההתראות" },
       { status: 500 }

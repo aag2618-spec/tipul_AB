@@ -1,20 +1,20 @@
 import { NextRequest, NextResponse } from "next/server";
-import { getServerSession } from "next-auth";
-import { authOptions } from "@/lib/auth";
 import prisma from "@/lib/prisma";
+import { logger } from "@/lib/logger";
+
+import { requireAuth } from "@/lib/api-auth";
 
 // GET - Get business settings
 export const dynamic = "force-dynamic";
 
 export async function GET() {
   try {
-    const session = await getServerSession(authOptions);
-    if (!session?.user?.id) {
-      return NextResponse.json({ message: "אין הרשאה" }, { status: 401 });
-    }
+    const auth = await requireAuth();
+    if ("error" in auth) return auth.error;
+    const { userId, session } = auth;
 
     const user = await prisma.user.findUnique({
-      where: { id: session.user.id },
+      where: { id: userId },
       select: {
         name: true,
         businessType: true,
@@ -40,7 +40,7 @@ export async function GET() {
       receiptDefaultMode: user.receiptDefaultMode || "ASK",
     });
   } catch (error) {
-    console.error("Get business settings error:", error);
+    logger.error("Get business settings error:", { error: error instanceof Error ? error.message : String(error) });
     return NextResponse.json(
       { message: "שגיאה בטעינת הגדרות עסק" },
       { status: 500 }
@@ -51,10 +51,9 @@ export async function GET() {
 // PUT - Update business settings
 export async function PUT(request: NextRequest) {
   try {
-    const session = await getServerSession(authOptions);
-    if (!session?.user?.id) {
-      return NextResponse.json({ message: "אין הרשאה" }, { status: 401 });
-    }
+    const auth = await requireAuth();
+    if ("error" in auth) return auth.error;
+    const { userId, session } = auth;
 
     const body = await request.json();
     const {
@@ -67,7 +66,7 @@ export async function PUT(request: NextRequest) {
     } = body;
 
     const updatedUser = await prisma.user.update({
-      where: { id: session.user.id },
+      where: { id: userId },
       data: {
         businessType: businessType || undefined,
         businessName: businessName !== undefined ? businessName : undefined,
@@ -91,7 +90,7 @@ export async function PUT(request: NextRequest) {
       ...updatedUser,
     });
   } catch (error) {
-    console.error("Update business settings error:", error);
+    logger.error("Update business settings error:", { error: error instanceof Error ? error.message : String(error) });
     return NextResponse.json(
       { message: "שגיאה בשמירת הגדרות עסק" },
       { status: 500 }

@@ -1,7 +1,8 @@
 import { NextRequest, NextResponse } from "next/server";
-import { getServerSession } from "next-auth";
-import { authOptions } from "@/lib/auth";
 import prisma from "@/lib/prisma";
+import { logger } from "@/lib/logger";
+
+import { requireAuth } from "@/lib/api-auth";
 
 // DELETE - Remove a billing provider
 export const dynamic = "force-dynamic";
@@ -11,10 +12,9 @@ export async function DELETE(
   { params }: { params: Promise<{ id: string }> }
 ) {
   try {
-    const session = await getServerSession(authOptions);
-    if (!session?.user?.id) {
-      return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
-    }
+    const auth = await requireAuth();
+    if ("error" in auth) return auth.error;
+    const { userId, session } = auth;
 
     const { id } = await params;
 
@@ -22,13 +22,13 @@ export async function DELETE(
     const provider = await prisma.billingProvider.findFirst({
       where: {
         id,
-        userId: session.user.id,
+        userId: userId,
       },
     });
 
     if (!provider) {
       return NextResponse.json(
-        { error: "Provider not found" },
+        { message: "Provider not found" },
         { status: 404 }
       );
     }
@@ -40,9 +40,9 @@ export async function DELETE(
 
     return NextResponse.json({ success: true, message: "הספק נותק בהצלחה" });
   } catch (error) {
-    console.error("Error deleting billing provider:", error);
+    logger.error("Error deleting billing provider:", { error: error instanceof Error ? error.message : String(error) });
     return NextResponse.json(
-      { error: "Failed to delete billing provider" },
+      { message: "Failed to delete billing provider" },
       { status: 500 }
     );
   }
@@ -54,10 +54,9 @@ export async function PATCH(
   { params }: { params: Promise<{ id: string }> }
 ) {
   try {
-    const session = await getServerSession(authOptions);
-    if (!session?.user?.id) {
-      return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
-    }
+    const auth = await requireAuth();
+    if ("error" in auth) return auth.error;
+    const { userId, session } = auth;
 
     const { id } = await params;
     const body = await request.json();
@@ -67,13 +66,13 @@ export async function PATCH(
     const provider = await prisma.billingProvider.findFirst({
       where: {
         id,
-        userId: session.user.id,
+        userId: userId,
       },
     });
 
     if (!provider) {
       return NextResponse.json(
-        { error: "Provider not found" },
+        { message: "Provider not found" },
         { status: 404 }
       );
     }
@@ -95,9 +94,9 @@ export async function PATCH(
       provider: updated
     });
   } catch (error) {
-    console.error("Error updating billing provider:", error);
+    logger.error("Error updating billing provider:", { error: error instanceof Error ? error.message : String(error) });
     return NextResponse.json(
-      { error: "Failed to update billing provider" },
+      { message: "Failed to update billing provider" },
       { status: 500 }
     );
   }

@@ -3,6 +3,7 @@ import { requireAuth } from "@/lib/api-auth";
 import prisma from "@/lib/prisma";
 import { parseBody } from "@/lib/validations/helpers";
 import { createClientSchema } from "@/lib/validations/client";
+import { logger } from "@/lib/logger";
 
 export const dynamic = "force-dynamic";
 
@@ -50,7 +51,7 @@ export async function GET(request: NextRequest) {
 
     return NextResponse.json(clientsWithPriceAsNumber);
   } catch (error) {
-    console.error("Get clients error:", error);
+    logger.error("Get clients error:", { error: error instanceof Error ? error.message : String(error) });
     return NextResponse.json(
       { message: "אירעה שגיאה בטעינת המטופלים" },
       { status: 500 }
@@ -86,7 +87,7 @@ export async function POST(request: NextRequest) {
 
     return NextResponse.json(client, { status: 201 });
   } catch (error) {
-    console.error("Create client error:", error);
+    logger.error("Create client error:", { error: error instanceof Error ? error.message : String(error) });
     return NextResponse.json(
       { message: "אירעה שגיאה ביצירת המטופל" },
       { status: 500 }

@@ -1,16 +1,16 @@
 import { NextRequest, NextResponse } from "next/server";
-import { getServerSession } from "next-auth";
-import { authOptions } from "@/lib/auth";
 import prisma from "@/lib/prisma";
+import { logger } from "@/lib/logger";
+
+import { requireAdmin } from "@/lib/api-auth";
 
 export const dynamic = "force-dynamic";
 
 export async function GET(req: NextRequest) {
   try {
-    const session = await getServerSession(authOptions);
-    if (!session?.user || session.user.role !== "ADMIN") {
-      return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
-    }
+    const auth = await requireAdmin();
+    if ("error" in auth) return auth.error;
+    const { userId, session } = auth;
 
     const now = new Date();
     const todayStart = new Date(now.getFullYear(), now.getMonth(), now.getDate());
@@ -132,7 +132,7 @@ export async function GET(req: NextRequest) {
       topUsers,
     });
   } catch (error) {
-    console.error("Error fetching AI stats:", error);
-    return NextResponse.json({ error: "Failed to fetch stats" }, { status: 500 });
+    logger.error("Error fetching AI stats:", { error: error instanceof Error ? error.message : String(error) });
+    return NextResponse.json({ message: "Failed to fetch stats" }, { status: 500 });
   }
 }

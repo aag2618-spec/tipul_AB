@@ -1,17 +1,17 @@
 import { NextRequest, NextResponse } from "next/server";
-import { getServerSession } from "next-auth";
-import { authOptions } from "@/lib/auth";
 import { prisma } from "@/lib/prisma";
 import { sendEmail } from "@/lib/resend";
 import { escapeHtml } from "@/lib/email-utils";
+import { logger } from "@/lib/logger";
+
+import { requireAuth } from "@/lib/api-auth";
 
 export const dynamic = "force-dynamic";
 
 export async function POST(request: NextRequest) {
-  const session = await getServerSession(authOptions);
-  if (!session?.user?.id) {
-    return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
-  }
+  const auth = await requireAuth();
+  if ("error" in auth) return auth.error;
+  const { userId, session } = auth;
 
   const body = await request.json();
   const { clientIds, customMessage } = body as {
@@ -20,33 +20,33 @@ export async function POST(request: NextRequest) {
   };
 
   if (!Array.isArray(clientIds) || clientIds.length === 0) {
-    return NextResponse.json({ error: "חובה לבחור לפחות מטופל אחד" }, { status: 400 });
+    return NextResponse.json({ message: "חובה לבחור לפחות מטופל אחד" }, { status: 400 });
   }
 
   if (clientIds.length > 50) {
-    return NextResponse.json({ error: "ניתן לשלוח עד 50 מטופלים בפעם אחת" }, { status: 400 });
+    return NextResponse.json({ message: "ניתן לשלוח עד 50 מטופלים בפעם אחת" }, { status: 400 });
   }
 
   const settings = await prisma.bookingSettings.findUnique({
-    where: { therapistId: session.user.id },
+    where: { therapistId: userId },
   });
 
   if (!settings || !settings.slug || !settings.enabled) {
     return NextResponse.json(
-      { error: "יש להפעיל את הזימון העצמי לפני שליחת קישורים" },
+      { message: "יש להפעיל את הזימון העצמי לפני שליחת קישורים" },
       { status: 400 }
     );
   }
 
   const therapist = await prisma.user.findUnique({
-    where: { id: session.user.id },
+    where: { id: userId },
     select: { name: true, email: true },
   });
 
   const clients = await prisma.client.findMany({
     where: {
       id: { in: clientIds },
-      therapistId: session.user.id,
+      therapistId: userId,
     },
     select: { id: true, name: true, email: true },
   });
@@ -96,14 +96,14 @@ export async function POST(request: NextRequest) {
           errorMessage: result.success ? null : String(result.error),
           sentAt: result.success ? new Date() : null,
           clientId: client.id,
-          userId: session.user.id,
+          userId: userId,
         },
       });
 
       if (result.success) sent++;
       else errors.push(`${client.name}: שגיאה בשליחה`);
     } catch (e) {
-      console.error(`Failed to send booking link to ${client.email}:`, e);
+      logger.error(`Failed to send booking link to ${client.email}:`, { error: e instanceof Error ? e.message : String(e) });
       errors.push(`${client.name}: שגיאה בשליחה`);
     }
   }

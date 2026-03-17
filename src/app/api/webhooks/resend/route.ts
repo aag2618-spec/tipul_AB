@@ -2,6 +2,9 @@ import { NextRequest, NextResponse } from "next/server";
 import prisma from "@/lib/prisma";
 import { headers } from "next/headers";
 import { Resend } from "resend";
+import { logger } from "@/lib/logger";
+
+export const dynamic = "force-dynamic";
 
 // Extract email from "Name <email@example.com>" format or plain email
 function extractEmail(raw: string): string {
@@ -24,7 +27,7 @@ export async function POST(request: NextRequest) {
 
     const webhookSecret = process.env.RESEND_WEBHOOK_SECRET;
     if (!webhookSecret) {
-      console.error("RESEND_WEBHOOK_SECRET not configured — rejecting webhook");
+      logger.error("RESEND_WEBHOOK_SECRET not configured — rejecting webhook");
       return NextResponse.json({ error: "Service unavailable" }, { status: 503 });
     }
     {
@@ -79,14 +82,14 @@ export async function POST(request: NextRequest) {
           }))
         : [];
 
-      console.log("Processing incoming email:", {
+      logger.info("Processing incoming email:", { data: {
         email_id,
         message_id,
         senderEmail,
         to,
         subject,
         in_reply_to,
-      });
+      } });
 
       // --- Fetch actual email content from Resend API ---
       let emailHtml = "";
@@ -100,10 +103,10 @@ export async function POST(request: NextRequest) {
           if (emailContent) {
             emailHtml = emailContent.html || "";
             emailText = emailContent.text || "";
-            console.log("Fetched email content, html length:", emailHtml.length, "text length:", emailText.length);
+            logger.info("Fetched email content", { htmlLength: emailHtml.length, textLength: emailText.length });
           }
         } catch (fetchError) {
-          console.error("Error fetching email content from Resend:", fetchError);
+          logger.error("Error fetching email content from Resend:", { error: fetchError instanceof Error ? fetchError.message : String(fetchError) });
         }
       }
 
@@ -177,7 +180,7 @@ export async function POST(request: NextRequest) {
           where: { messageId: uniqueMessageId },
         });
         if (existing) {
-          console.log("Duplicate webhook event, skipping:", uniqueMessageId);
+          logger.info("Duplicate webhook event, skipping:", { data: uniqueMessageId });
           return NextResponse.json({ message: "Duplicate, already processed" });
         }
       }
@@ -203,7 +206,7 @@ export async function POST(request: NextRequest) {
         },
       });
 
-      console.log("Saved incoming email with content:", incomingLog.id);
+      logger.info("Saved incoming email with content:", { data: incomingLog.id });
 
       // Create notification for therapist
       await prisma.notification.create({
@@ -217,7 +220,7 @@ export async function POST(request: NextRequest) {
         },
       });
 
-      console.log("Created notification for user:", therapistId);
+      logger.info("Created notification for user:", { data: therapistId });
 
       return NextResponse.json({
         message: "Email reply processed successfully",
@@ -228,7 +231,7 @@ export async function POST(request: NextRequest) {
     // Acknowledge other event types
     return NextResponse.json({ message: "Event received" });
   } catch (error) {
-    console.error("Resend webhook error:", error);
+    logger.error("Resend webhook error:", { error: error instanceof Error ? error.message : String(error) });
     return NextResponse.json(
       { message: "Error processing webhook", error: String(error) },
       { status: 200 }

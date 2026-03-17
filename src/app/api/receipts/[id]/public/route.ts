@@ -1,6 +1,7 @@
 import { NextRequest, NextResponse } from "next/server";
 import prisma from "@/lib/prisma";
 import { verifyReceiptToken } from "@/lib/receipt-token";
+import { logger } from "@/lib/logger";
 
 export const dynamic = "force-dynamic";
 
@@ -13,15 +14,15 @@ export async function GET(
     const token = request.nextUrl.searchParams.get("t");
 
     if (!token || token.length !== 24) {
-      return NextResponse.json({ error: "אין הרשאה" }, { status: 403 });
+      return NextResponse.json({ message: "אין הרשאה" }, { status: 403 });
     }
 
     try {
       if (!verifyReceiptToken(id, token)) {
-        return NextResponse.json({ error: "אין הרשאה" }, { status: 403 });
+        return NextResponse.json({ message: "אין הרשאה" }, { status: 403 });
       }
     } catch {
-      return NextResponse.json({ error: "אין הרשאה" }, { status: 403 });
+      return NextResponse.json({ message: "אין הרשאה" }, { status: 403 });
     }
 
     const payment = await prisma.payment.findUnique({
@@ -45,7 +46,7 @@ export async function GET(
     });
 
     if (!payment) {
-      return NextResponse.json({ error: "קבלה לא נמצאה" }, { status: 404 });
+      return NextResponse.json({ message: "קבלה לא נמצאה" }, { status: 404 });
     }
 
     const therapist = await prisma.user.findFirst({
@@ -117,7 +118,7 @@ export async function GET(
       },
     });
   } catch (error) {
-    console.error("Public receipt error:", error);
-    return NextResponse.json({ error: "שגיאה בטעינת הקבלה" }, { status: 500 });
+    logger.error("Public receipt error:", { error: error instanceof Error ? error.message : String(error) });
+    return NextResponse.json({ message: "שגיאה בטעינת הקבלה" }, { status: 500 });
   }
 }

@@ -1,8 +1,9 @@
 import { NextRequest, NextResponse } from "next/server";
-import { getServerSession } from "next-auth";
-import { authOptions } from "@/lib/auth";
 import prisma from "@/lib/prisma";
 import { Prisma } from "@prisma/client";
+import { logger } from "@/lib/logger";
+
+import { requireAuth } from "@/lib/api-auth";
 
 // GET - קבל שאלון ספציפי
 export const dynamic = "force-dynamic";
@@ -12,17 +13,16 @@ export async function GET(
   { params }: { params: Promise<{ id: string }> }
 ) {
   try {
-    const session = await getServerSession(authOptions);
-    if (!session?.user?.id) {
-      return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
-    }
+    const auth = await requireAuth();
+    if ("error" in auth) return auth.error;
+    const { userId, session } = auth;
 
     const { id } = await params;
 
     const template = await prisma.intakeQuestionnaire.findFirst({
       where: {
         id,
-        userId: session.user.id,
+        userId: userId,
       },
       include: {
         _count: {
@@ -32,14 +32,14 @@ export async function GET(
     });
 
     if (!template) {
-      return NextResponse.json({ error: "Template not found" }, { status: 404 });
+      return NextResponse.json({ message: "Template not found" }, { status: 404 });
     }
 
     return NextResponse.json(template);
   } catch (error) {
-    console.error("Error fetching intake questionnaire:", error);
+    logger.error("Error fetching intake questionnaire:", { error: error instanceof Error ? error.message : String(error) });
     return NextResponse.json(
-      { error: "Failed to fetch template" },
+      { message: "Failed to fetch template" },
       { status: 500 }
     );
   }
@@ -51,10 +51,9 @@ export async function PUT(
   { params }: { params: Promise<{ id: string }> }
 ) {
   try {
-    const session = await getServerSession(authOptions);
-    if (!session?.user?.id) {
-      return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
-    }
+    const auth = await requireAuth();
+    if ("error" in auth) return auth.error;
+    const { userId, session } = auth;
 
     const { id } = await params;
     const body = await req.json();
@@ -63,7 +62,7 @@ export async function PUT(
     if (isDefault) {
       await prisma.intakeQuestionnaire.updateMany({
         where: {
-          userId: session.user.id,
+          userId: userId,
           isDefault: true,
           NOT: { id },
         },
@@ -85,9 +84,9 @@ export async function PUT(
 
     return NextResponse.json(template);
   } catch (error) {
-    console.error("Error updating intake questionnaire:", error);
+    logger.error("Error updating intake questionnaire:", { error: error instanceof Error ? error.message : String(error) });
     return NextResponse.json(
-      { error: "Failed to update template" },
+      { message: "Failed to update template" },
       { status: 500 }
     );
   }
@@ -99,10 +98,9 @@ export async function DELETE(
   { params }: { params: Promise<{ id: string }> }
 ) {
   try {
-    const session = await getServerSession(authOptions);
-    if (!session?.user?.id) {
-      return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
-    }
+    const auth = await requireAuth();
+    if ("error" in auth) return auth.error;
+    const { userId, session } = auth;
 
     const { id } = await params;
 
@@ -123,9 +121,9 @@ export async function DELETE(
 
     return NextResponse.json({ success: true });
   } catch (error) {
-    console.error("Error deleting intake questionnaire:", error);
+    logger.error("Error deleting intake questionnaire:", { error: error instanceof Error ? error.message : String(error) });
     return NextResponse.json(
-      { error: "Failed to delete template" },
+      { message: "Failed to delete template" },
       { status: 500 }
     );
   }

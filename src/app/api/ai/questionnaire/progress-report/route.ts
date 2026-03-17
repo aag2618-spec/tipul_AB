@@ -1,10 +1,10 @@
 import { NextRequest, NextResponse } from "next/server";
-import { getServerSession } from "next-auth";
-import { authOptions } from "@/lib/auth";
 import { prisma } from "@/lib/prisma";
 import { GoogleGenerativeAI } from "@google/generative-ai";
 import { getApproachById, getApproachPrompts, buildIntegrationSection, getScalesPrompt, getUniversalPrompts } from "@/lib/therapeutic-approaches";
 import { checkTrialAiLimit, updateTrialAiCost } from "@/lib/trial-limits";
+import { logger } from "@/lib/logger";
+import { requireAuth } from "@/lib/api-auth";
 
 // שימוש ב-Gemini 2.0 Flash בלבד
 const genAI = new GoogleGenerativeAI(process.env.GOOGLE_AI_API_KEY || "");
@@ -29,27 +29,26 @@ export const dynamic = "force-dynamic";
 
 export async function POST(req: NextRequest) {
   try {
-    const session = await getServerSession(authOptions);
-    if (!session?.user?.id) {
-      return NextResponse.json({ error: "לא מורשה" }, { status: 401 });
-    }
+    const auth = await requireAuth();
+    if ("error" in auth) return auth.error;
+    const { userId, session } = auth;
 
     const { clientId, dateFrom, dateTo } = await req.json();
 
     // קבלת פרטי המשתמש
     const user = await prisma.user.findUnique({
-      where: { id: session.user.id },
+      where: { id: userId },
     });
 
     if (!user) {
-      return NextResponse.json({ error: "משתמש לא נמצא" }, { status: 404 });
+      return NextResponse.json({ message: "משתמש לא נמצא" }, { status: 404 });
     }
 
     // תוכנית בסיסית - אין גישה
     if (user.aiTier === "ESSENTIAL") {
       return NextResponse.json(
         { 
-          error: "תכונות AI אינן זמינות בתוכנית הבסיסית",
+          message: "תכונות AI אינן זמינות בתוכנית הבסיסית",
           upgradeLink: "/dashboard/settings/billing"
         },
         { status: 403 }
@@ -57,10 +56,10 @@ export async function POST(req: NextRequest) {
     }
 
     // בדיקת מגבלות ניסיון
-    const trialCheck = await checkTrialAiLimit(session.user.id);
+    const trialCheck = await checkTrialAiLimit(userId);
     if (!trialCheck.allowed) {
       return NextResponse.json(
-        { error: trialCheck.message, upgradeLink: "/dashboard/settings/billing", trialLimitReached: true },
+        { message: trialCheck.message, upgradeLink: "/dashboard/settings/billing", trialLimitReached: true },
         { status: 429 }
       );
     }
@@ -89,7 +88,7 @@ export async function POST(req: NextRequest) {
     if (currentCount >= limit) {
       return NextResponse.json(
         {
-          error: `הגעת למכסה החודשית (${limit} דוחות). שדרג את התוכנית שלך לעוד דוחות.`,
+          message: `הגעת למכסה החודשית (${limit} דוחות). שדרג את התוכנית שלך לעוד דוחות.`,
         },
         { status: 429 }
       );
@@ -113,7 +112,7 @@ export async function POST(req: NextRequest) {
     });
 
     if (!client || client.therapistId !== user.id) {
-      return NextResponse.json({ error: "מטופל לא נמצא" }, { status: 404 });
+      return NextResponse.json({ message: "מטופל לא נמצא" }, { status: 404 });
     }
 
     // קבלת שאלונים בטווח התאריכים
@@ -156,7 +155,7 @@ export async function POST(req: NextRequest) {
 
     if (questionnaires.length === 0 && sessions.length === 0) {
       return NextResponse.json(
-        { error: "לא נמצאו נתונים בטווח התאריכים שנבחר" },
+        { message: "לא נמצאו נתונים בטווח התאריכים שנבחר" },
         { status: 404 }
       );
     }
@@ -324,7 +323,7 @@ ${getUniversalPrompts()}`;
     });
 
     // עדכון עלות ניסיון
-    await updateTrialAiCost(session.user.id, cost);
+    await updateTrialAiCost(userId, cost);
 
     return NextResponse.json({
       success: true,
@@ -337,9 +336,9 @@ ${getUniversalPrompts()}`;
       },
     });
   } catch (error) {
-    console.error("שגיאה ביצירת דוח התקדמות:", error);
+    logger.error("שגיאה ביצירת דוח התקדמות:", { error: error instanceof Error ? error.message : String(error) });
     return NextResponse.json(
-      { error: "שגיאה ביצירת דוח ההתקדמות" },
+      { message: "שגיאה ביצירת דוח ההתקדמות" },
       { status: 500 }
     );
   }

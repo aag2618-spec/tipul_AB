@@ -1,20 +1,20 @@
 import { NextRequest, NextResponse } from "next/server";
-import { getServerSession } from "next-auth";
-import { authOptions } from "@/lib/auth";
 import prisma from "@/lib/prisma";
 import { Resend } from "resend";
 import path from "path";
 import fs from "fs/promises";
+import { logger } from "@/lib/logger";
+
+import { requireAuth } from "@/lib/api-auth";
 
 // GET - Download attachment from Resend
 export const dynamic = "force-dynamic";
 
 export async function GET(request: NextRequest) {
   try {
-    const session = await getServerSession(authOptions);
-    if (!session?.user?.id) {
-      return NextResponse.json({ message: "לא מורשה" }, { status: 401 });
-    }
+    const auth = await requireAuth();
+    if ("error" in auth) return auth.error;
+    const { userId, session } = auth;
 
     const { searchParams } = new URL(request.url);
     const logId = searchParams.get("logId");
@@ -27,7 +27,7 @@ export async function GET(request: NextRequest) {
 
     // Verify this log belongs to the user
     const log = await prisma.communicationLog.findFirst({
-      where: { id: logId, userId: session.user.id },
+      where: { id: logId, userId: userId },
     });
 
     if (!log) {
@@ -90,7 +90,7 @@ export async function GET(request: NextRequest) {
 
     return new NextResponse(buffer, { headers });
   } catch (error) {
-    console.error("Download attachment error:", error);
+    logger.error("Download attachment error:", { error: error instanceof Error ? error.message : String(error) });
     return NextResponse.json(
       { message: "שגיאה בהורדת הקובץ" },
       { status: 500 }
@@ -101,10 +101,9 @@ export async function GET(request: NextRequest) {
 // POST - Save attachment to patient folder
 export async function POST(request: NextRequest) {
   try {
-    const session = await getServerSession(authOptions);
-    if (!session?.user?.id) {
-      return NextResponse.json({ message: "לא מורשה" }, { status: 401 });
-    }
+    const auth = await requireAuth();
+    if ("error" in auth) return auth.error;
+    const { userId, session } = auth;
 
     const { logId, attachmentId, filename, clientId } = await request.json();
 
@@ -114,7 +113,7 @@ export async function POST(request: NextRequest) {
 
     // Verify this log belongs to the user
     const log = await prisma.communicationLog.findFirst({
-      where: { id: logId, userId: session.user.id },
+      where: { id: logId, userId: userId },
     });
 
     if (!log) {
@@ -177,7 +176,7 @@ export async function POST(request: NextRequest) {
         type: "OTHER",
         fileUrl: `/api/uploads/clients/${clientId}/${uniqueFilename}`,
         clientId: clientId,
-        therapistId: session.user.id,
+        therapistId: userId,
       },
     });
 
@@ -187,7 +186,7 @@ export async function POST(request: NextRequest) {
       message: "הקובץ נשמר בתיקיית המטופל",
     });
   } catch (error) {
-    console.error("Save attachment error:", error);
+    logger.error("Save attachment error:", { error: error instanceof Error ? error.message : String(error) });
     return NextResponse.json(
       { message: "שגיאה בשמירת הקובץ" },
       { status: 500 }

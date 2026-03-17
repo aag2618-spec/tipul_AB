@@ -1,7 +1,8 @@
 import { NextResponse } from "next/server";
-import { getServerSession } from "next-auth";
-import { authOptions } from "@/lib/auth";
 import prisma from "@/lib/prisma";
+import { logger } from "@/lib/logger";
+
+import { requireAuth } from "@/lib/api-auth";
 
 export const dynamic = "force-dynamic";
 
@@ -10,10 +11,9 @@ export async function GET(
   { params }: { params: Promise<{ id: string }> }
 ) {
   try {
-    const session = await getServerSession(authOptions);
-    if (!session?.user?.id) {
-      return NextResponse.json({ error: "לא מורשה" }, { status: 401 });
-    }
+    const auth = await requireAuth();
+    if ("error" in auth) return auth.error;
+    const { userId, session } = auth;
 
     const { id } = await params;
 
@@ -29,15 +29,15 @@ export async function GET(
       },
     });
 
-    if (!form || form.therapistId !== session.user.id) {
-      return NextResponse.json({ error: "לא נמצא" }, { status: 404 });
+    if (!form || form.therapistId !== userId) {
+      return NextResponse.json({ message: "לא נמצא" }, { status: 404 });
     }
 
     return NextResponse.json(form);
   } catch (error) {
-    console.error("Get consent form error:", error);
+    logger.error("Get consent form error:", { error: error instanceof Error ? error.message : String(error) });
     return NextResponse.json(
-      { error: "שגיאה בטעינת הטופס" },
+      { message: "שגיאה בטעינת הטופס" },
       { status: 500 }
     );
   }
@@ -48,10 +48,9 @@ export async function PATCH(
   { params }: { params: Promise<{ id: string }> }
 ) {
   try {
-    const session = await getServerSession(authOptions);
-    if (!session?.user?.id) {
-      return NextResponse.json({ error: "לא מורשה" }, { status: 401 });
-    }
+    const auth = await requireAuth();
+    if ("error" in auth) return auth.error;
+    const { userId, session } = auth;
 
     const { id } = await params;
     const body = await request.json();
@@ -61,8 +60,8 @@ export async function PATCH(
       where: { id },
     });
 
-    if (!form || form.therapistId !== session.user.id) {
-      return NextResponse.json({ error: "לא נמצא" }, { status: 404 });
+    if (!form || form.therapistId !== userId) {
+      return NextResponse.json({ message: "לא נמצא" }, { status: 404 });
     }
 
     const updated = await prisma.consentForm.update({
@@ -83,9 +82,9 @@ export async function PATCH(
 
     return NextResponse.json(updated);
   } catch (error) {
-    console.error("Sign consent form error:", error);
+    logger.error("Sign consent form error:", { error: error instanceof Error ? error.message : String(error) });
     return NextResponse.json(
-      { error: "שגיאה בחתימת הטופס" },
+      { message: "שגיאה בחתימת הטופס" },
       { status: 500 }
     );
   }
@@ -96,10 +95,9 @@ export async function DELETE(
   { params }: { params: Promise<{ id: string }> }
 ) {
   try {
-    const session = await getServerSession(authOptions);
-    if (!session?.user?.id) {
-      return NextResponse.json({ error: "לא מורשה" }, { status: 401 });
-    }
+    const auth = await requireAuth();
+    if ("error" in auth) return auth.error;
+    const { userId, session } = auth;
 
     const { id } = await params;
 
@@ -107,8 +105,8 @@ export async function DELETE(
       where: { id },
     });
 
-    if (!form || form.therapistId !== session.user.id) {
-      return NextResponse.json({ error: "לא נמצא" }, { status: 404 });
+    if (!form || form.therapistId !== userId) {
+      return NextResponse.json({ message: "לא נמצא" }, { status: 404 });
     }
 
     await prisma.consentForm.delete({
@@ -117,9 +115,9 @@ export async function DELETE(
 
     return NextResponse.json({ success: true });
   } catch (error) {
-    console.error("Delete consent form error:", error);
+    logger.error("Delete consent form error:", { error: error instanceof Error ? error.message : String(error) });
     return NextResponse.json(
-      { error: "שגיאה במחיקת הטופס" },
+      { message: "שגיאה במחיקת הטופס" },
       { status: 500 }
     );
   }

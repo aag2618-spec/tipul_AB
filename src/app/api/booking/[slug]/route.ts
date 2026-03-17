@@ -1,6 +1,8 @@
 import { NextRequest, NextResponse } from "next/server";
 import { prisma } from "@/lib/prisma";
 import { sendEmail } from "@/lib/resend";
+import { logger } from "@/lib/logger";
+import { BOOKING_RATE_LIMIT_WINDOW_MS, BOOKING_RATE_LIMIT_MAX } from "@/lib/constants";
 
 function toIsraelDate(dateStr: string, timeStr: string = "00:00"): Date {
   const testDate = new Date(`${dateStr}T12:00:00Z`);
@@ -45,17 +47,15 @@ const TIME_RE = /^\d{1,2}:\d{2}$/;
 
 // Simple in-memory rate limiter per IP (max 5 bookings per minute)
 const rateLimitMap = new Map<string, { count: number; resetAt: number }>();
-const RATE_LIMIT_WINDOW_MS = 60_000;
-const RATE_LIMIT_MAX = 5;
 
 function checkRateLimit(ip: string): boolean {
   const now = Date.now();
   const entry = rateLimitMap.get(ip);
   if (!entry || now > entry.resetAt) {
-    rateLimitMap.set(ip, { count: 1, resetAt: now + RATE_LIMIT_WINDOW_MS });
+    rateLimitMap.set(ip, { count: 1, resetAt: now + BOOKING_RATE_LIMIT_WINDOW_MS });
     return true;
   }
-  if (entry.count >= RATE_LIMIT_MAX) return false;
+  if (entry.count >= BOOKING_RATE_LIMIT_MAX) return false;
   entry.count++;
   return true;
 }
@@ -86,7 +86,7 @@ export async function GET(
 
   if (!settings || !settings.enabled) {
     return NextResponse.json(
-      { error: "דף הזימון אינו פעיל" },
+      { message: "דף הזימון אינו פעיל" },
       { status: 404 }
     );
   }
@@ -115,7 +115,7 @@ export async function GET(
   }
 
   if (!DATE_RE.test(dateStr) || isNaN(new Date(`${dateStr}T12:00:00Z`).getTime())) {
-    return NextResponse.json({ error: "תאריך לא תקין" }, { status: 400 });
+    return NextResponse.json({ message: "תאריך לא תקין" }, { status: 400 });
   }
 
   const dayOfWeek = getIsraelDayOfWeek(dateStr);
@@ -170,7 +170,7 @@ export async function POST(
     || "unknown";
   if (!checkRateLimit(ip)) {
     return NextResponse.json(
-      { error: "יותר מדי בקשות. נסה שוב בעוד דקה." },
+      { message: "יותר מדי בקשות. נסה שוב בעוד דקה." },
       { status: 429 }
     );
   }
@@ -180,27 +180,27 @@ export async function POST(
 
   if (!date || !time || !clientName) {
     return NextResponse.json(
-      { error: "חסרים שדות חובה: תאריך, שעה ושם" },
+      { message: "חסרים שדות חובה: תאריך, שעה ושם" },
       { status: 400 }
     );
   }
 
   if (!clientEmail && !clientPhone) {
     return NextResponse.json(
-      { error: "חובה להזין מייל או טלפון" },
+      { message: "חובה להזין מייל או טלפון" },
       { status: 400 }
     );
   }
 
   if (!DATE_RE.test(date) || isNaN(new Date(`${date}T12:00:00Z`).getTime())) {
-    return NextResponse.json({ error: "תאריך לא תקין" }, { status: 400 });
+    return NextResponse.json({ message: "תאריך לא תקין" }, { status: 400 });
   }
   if (!TIME_RE.test(time)) {
-    return NextResponse.json({ error: "שעה לא תקינה" }, { status: 400 });
+    return NextResponse.json({ message: "שעה לא תקינה" }, { status: 400 });
   }
   const [tH, tM] = time.split(":").map(Number);
   if (tH < 0 || tH > 23 || tM < 0 || tM > 59) {
-    return NextResponse.json({ error: "שעה לא תקינה" }, { status: 400 });
+    return NextResponse.json({ message: "שעה לא תקינה" }, { status: 400 });
   }
 
   const settings = await prisma.bookingSettings.findUnique({
@@ -212,7 +212,7 @@ export async function POST(
 
   if (!settings || !settings.enabled) {
     return NextResponse.json(
-      { error: "דף הזימון אינו פעיל" },
+      { message: "דף הזימון אינו פעיל" },
       { status: 404 }
     );
   }
@@ -225,7 +225,7 @@ export async function POST(
   const maxDate = new Date(now.getTime() + settings.maxAdvanceDays * 24 * 60 * 60 * 1000);
   if (startTime > maxDate) {
     return NextResponse.json(
-      { error: `ניתן לקבוע תור עד ${settings.maxAdvanceDays} ימים מראש` },
+      { message: `ניתן לקבוע תור עד ${settings.maxAdvanceDays} ימים מראש` },
       { status: 400 }
     );
   }
@@ -235,20 +235,20 @@ export async function POST(
 
   if (bookingDay === 5 && bookingMinutes >= 17 * 60 + 30) {
     return NextResponse.json(
-      { error: "לא ניתן לקבוע תורים ביום שישי אחרי 17:30" },
+      { message: "לא ניתן לקבוע תורים ביום שישי אחרי 17:30" },
       { status: 400 }
     );
   }
   if (bookingDay === 6 && bookingMinutes < 17 * 60 + 45) {
     return NextResponse.json(
-      { error: "ניתן לקבוע תורים במוצ״ש רק מ-17:45" },
+      { message: "ניתן לקבוע תורים במוצ״ש רק מ-17:45" },
       { status: 400 }
     );
   }
 
   if (startTime <= now) {
     return NextResponse.json(
-      { error: "לא ניתן לקבוע תור בעבר" },
+      { message: "לא ניתן לקבוע תור בעבר" },
       { status: 400 }
     );
   }
@@ -256,7 +256,7 @@ export async function POST(
   const hoursUntilSession = (startTime.getTime() - now.getTime()) / (1000 * 60 * 60);
   if (hoursUntilSession < settings.minAdvanceHours) {
     return NextResponse.json(
-      { error: `יש לקבוע תור לפחות ${settings.minAdvanceHours} שעות מראש` },
+      { message: `יש לקבוע תור לפחות ${settings.minAdvanceHours} שעות מראש` },
       { status: 400 }
     );
   }
@@ -348,13 +348,13 @@ export async function POST(
   } catch (e) {
     if (e instanceof Error && e.message === "SLOT_TAKEN") {
       return NextResponse.json(
-        { error: "השעה המבוקשת אינה פנויה יותר" },
+        { message: "השעה המבוקשת אינה פנויה יותר" },
         { status: 409 }
       );
     }
-    console.error("Booking transaction error:", e);
+    logger.error("Booking transaction error:", { error: e instanceof Error ? e.message : String(e) });
     return NextResponse.json(
-      { error: "שגיאה בקביעת התור. נסה שוב." },
+      { message: "שגיאה בקביעת התור. נסה שוב." },
       { status: 500 }
     );
   }
@@ -404,7 +404,7 @@ export async function POST(
         html: clientEmailHtml,
       });
     } catch (e) {
-      console.error("Failed to send client confirmation email:", e);
+      logger.error("Failed to send client confirmation email:", { error: e instanceof Error ? e.message : String(e) });
     }
   }
 
@@ -433,7 +433,7 @@ export async function POST(
         html: therapistEmailHtml,
       });
     } catch (e) {
-      console.error("Failed to send therapist notification email:", e);
+      logger.error("Failed to send therapist notification email:", { error: e instanceof Error ? e.message : String(e) });
     }
   }
 

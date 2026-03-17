@@ -1,18 +1,17 @@
 import { NextRequest, NextResponse } from "next/server";
-import { getServerSession } from "next-auth";
-import { authOptions } from "@/lib/auth";
 import prisma from "@/lib/prisma";
 import { sendEmail } from "@/lib/resend";
 import { createSessionConfirmationEmail, formatSessionDateTime } from "@/lib/email-templates";
+import { logger } from "@/lib/logger";
+import { requireAuth } from "@/lib/api-auth";
 
 // Send session confirmation email immediately after session creation
 export const dynamic = "force-dynamic";
 
 export async function POST(request: NextRequest) {
-  const session = await getServerSession(authOptions);
-  if (!session?.user?.id) {
-    return NextResponse.json({ message: "Unauthorized" }, { status: 401 });
-  }
+  const auth = await requireAuth();
+  if ("error" in auth) return auth.error;
+  const { userId, session } = auth;
 
   try {
     const { sessionId } = await request.json();
@@ -28,7 +27,7 @@ export async function POST(request: NextRequest) {
     const therapySession = await prisma.therapySession.findFirst({
       where: {
         id: sessionId,
-        therapistId: session.user.id,
+        therapistId: userId,
       },
       include: {
         client: true,
@@ -128,7 +127,7 @@ export async function POST(request: NextRequest) {
       );
     }
   } catch (error) {
-    console.error("Send confirmation error:", error);
+    logger.error("Send confirmation error:", { error: error instanceof Error ? error.message : String(error) });
     return NextResponse.json(
       { message: "Error sending confirmation", success: false },
       { status: 500 }

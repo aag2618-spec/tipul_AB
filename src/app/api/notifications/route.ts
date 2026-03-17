@@ -1,6 +1,7 @@
 import { NextRequest, NextResponse } from "next/server";
 import { requireAuth } from "@/lib/api-auth";
 import prisma from "@/lib/prisma";
+import { logger } from "@/lib/logger";
 
 export const dynamic = "force-dynamic";
 
@@ -53,7 +54,7 @@ export async function GET(request: NextRequest) {
       unreadCount,
     });
   } catch (error) {
-    console.error("Get notifications error:", error);
+    logger.error("Get notifications error:", { error: error instanceof Error ? error.message : String(error) });
     return NextResponse.json(
       { message: "אירעה שגיאה בטעינת ההתראות" },
       { status: 500 }
@@ -86,7 +87,7 @@ export async function POST(request: NextRequest) {
 
     return NextResponse.json(notification, { status: 201 });
   } catch (error) {
-    console.error("Create notification error:", error);
+    logger.error("Create notification error:", { error: error instanceof Error ? error.message : String(error) });
     return NextResponse.json(
       { message: "שגיאה ביצירת התראה" },
       { status: 500 }
@@ -130,7 +131,7 @@ export async function PUT(request: NextRequest) {
 
     return NextResponse.json({ message: "פרמטרים חסרים" }, { status: 400 });
   } catch (error) {
-    console.error("Update notification error:", error);
+    logger.error("Update notification error:", { error: error instanceof Error ? error.message : String(error) });
     return NextResponse.json(
       { message: "אירעה שגיאה בעדכון ההתראה" },
       { status: 500 }

@@ -1,7 +1,8 @@
 import { NextRequest, NextResponse } from "next/server";
-import { getServerSession } from "next-auth";
-import { authOptions } from "@/lib/auth";
 import prisma from "@/lib/prisma";
+import { logger } from "@/lib/logger";
+
+import { requireAuth } from "@/lib/api-auth";
 
 // GET - קבל תשובה ספציפית
 export const dynamic = "force-dynamic";
@@ -11,10 +12,9 @@ export async function GET(
   { params }: { params: Promise<{ id: string }> }
 ) {
   try {
-    const session = await getServerSession(authOptions);
-    if (!session?.user?.id) {
-      return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
-    }
+    const auth = await requireAuth();
+    if ("error" in auth) return auth.error;
+    const { userId, session } = auth;
 
     const { id } = await params;
 
@@ -22,7 +22,7 @@ export async function GET(
       where: { 
         id,
         client: {
-          therapistId: session.user.id,
+          therapistId: userId,
         },
       },
       include: {
@@ -37,14 +37,14 @@ export async function GET(
     });
 
     if (!response) {
-      return NextResponse.json({ error: "Response not found" }, { status: 404 });
+      return NextResponse.json({ message: "Response not found" }, { status: 404 });
     }
 
     return NextResponse.json(response);
   } catch (error) {
-    console.error("Error fetching intake response:", error);
+    logger.error("Error fetching intake response:", { error: error instanceof Error ? error.message : String(error) });
     return NextResponse.json(
-      { error: "Failed to fetch response" },
+      { message: "Failed to fetch response" },
       { status: 500 }
     );
   }

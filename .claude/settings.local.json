@@ -21,7 +21,29 @@
       "Bash(sed -n '8,1364p' src/app/api/questionnaires/seed/route.ts)",
       "Read(//tmp/**)",
       "Bash(cmd.exe /c \"npm test\")",
-      "Bash(cmd.exe /c \"npm test 2>&1\")"
+      "Bash(cmd.exe /c \"npm test 2>&1\")",
+      "WebSearch",
+      "Bash(claude mcp:*)",
+      "Bash(grep:*)",
+      "Bash(sed:*)",
+      "Bash(awk:*)",
+      "Bash(head:*)",
+      "Bash(tail:*)",
+      "Bash(sort:*)",
+      "Bash(uniq:*)",
+      "Bash(cut:*)",
+      "Bash(tr:*)",
+      "Bash(diff:*)",
+      "Bash(pwd:*)",
+      "Bash(cp:*)",
+      "Bash(mv:*)",
+      "Bash(touch:*)",
+      "Bash(rm:*)",
+      "Bash(tsc:*)",
+      "Bash(which:*)",
+      "Bash(env:*)",
+      "Bash(while read:*)",
+      "Bash(do head:*)"
     ]
   }
 }

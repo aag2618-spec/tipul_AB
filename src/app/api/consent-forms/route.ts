@@ -1,22 +1,22 @@
 import { NextResponse } from "next/server";
-import { getServerSession } from "next-auth";
-import { authOptions } from "@/lib/auth";
 import prisma from "@/lib/prisma";
+import { logger } from "@/lib/logger";
+
+import { requireAuth } from "@/lib/api-auth";
 
 export const dynamic = "force-dynamic";
 
 export async function GET(request: Request) {
   try {
-    const session = await getServerSession(authOptions);
-    if (!session?.user?.id) {
-      return NextResponse.json({ error: "לא מורשה" }, { status: 401 });
-    }
+    const auth = await requireAuth();
+    if ("error" in auth) return auth.error;
+    const { userId, session } = auth;
 
     const { searchParams } = new URL(request.url);
     const clientId = searchParams.get("clientId");
     const isTemplate = searchParams.get("isTemplate") === "true";
 
-    const where: any = { therapistId: session.user.id };
+    const where: any = { therapistId: userId };
     if (clientId) {
       where.clientId = clientId;
     }
@@ -39,9 +39,9 @@ export async function GET(request: Request) {
 
     return NextResponse.json(forms);
   } catch (error) {
-    console.error("Get consent forms error:", error);
+    logger.error("Get consent forms error:", { error: error instanceof Error ? error.message : String(error) });
     return NextResponse.json(
-      { error: "שגיאה בטעינת הטפסים" },
+      { message: "שגיאה בטעינת הטפסים" },
       { status: 500 }
     );
   }
@@ -49,10 +49,9 @@ export async function GET(request: Request) {
 
 export async function POST(request: Request) {
   try {
-    const session = await getServerSession(authOptions);
-    if (!session?.user?.id) {
-      return NextResponse.json({ error: "לא מורשה" }, { status: 401 });
-    }
+    const auth = await requireAuth();
+    if ("error" in auth) return auth.error;
+    const { userId, session } = auth;
 
     const body = await request.json();
     const { type, title, content, isTemplate, clientId } = body;
@@ -64,7 +63,7 @@ export async function POST(request: Request) {
         content,
         isTemplate,
         clientId: clientId || null,
-        therapistId: session.user.id,
+        therapistId: userId,
       },
       include: {
         client: {
@@ -78,9 +77,9 @@ export async function POST(request: Request) {
 
     return NextResponse.json(form);
   } catch (error) {
-    console.error("Create consent form error:", error);
+    logger.error("Create consent form error:", { error: error instanceof Error ? error.message : String(error) });
     return NextResponse.json(
-      { error: "שגיאה ביצירת הטופס" },
+      { message: "שגיאה ביצירת הטופס" },
       { status: 500 }
     );
   }

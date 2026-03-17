@@ -2,6 +2,7 @@ import { NextRequest, NextResponse } from "next/server";
 import prisma from "@/lib/prisma";
 import { sendEmail } from "@/lib/resend";
 import { create2HourReminderEmail, formatSessionDateTime } from "@/lib/email-templates";
+import { logger } from "@/lib/logger";
 
 // Send custom-timed session reminders (replaces fixed 2h reminders)
 // Should be called by cron job every 15 minutes
@@ -125,7 +126,7 @@ export async function GET(request: NextRequest) {
       errors: errors.length > 0 ? errors : undefined,
     });
   } catch (error) {
-    console.error("Cron custom reminders error:", error);
+    logger.error("Cron custom reminders error:", { error: error instanceof Error ? error.message : String(error) });
     return NextResponse.json(
       { message: "Error processing custom reminders" },
       { status: 500 }

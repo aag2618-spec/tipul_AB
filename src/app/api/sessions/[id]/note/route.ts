@@ -1,7 +1,8 @@
 import { NextRequest, NextResponse } from "next/server";
-import { getServerSession } from "next-auth";
-import { authOptions } from "@/lib/auth";
 import prisma from "@/lib/prisma";
+import { logger } from "@/lib/logger";
+
+import { requireAuth } from "@/lib/api-auth";
 
 export const dynamic = "force-dynamic";
 
@@ -10,10 +11,9 @@ export async function POST(
   { params }: { params: Promise<{ id: string }> }
 ) {
   try {
-    const session = await getServerSession(authOptions);
-    if (!session?.user?.id) {
-      return NextResponse.json({ message: "לא מורשה" }, { status: 401 });
-    }
+    const auth = await requireAuth();
+    if ("error" in auth) return auth.error;
+    const { userId, session } = auth;
 
     const { id } = await params;
     const body = await request.json();
@@ -21,7 +21,7 @@ export async function POST(
 
     // Verify session belongs to therapist
     const therapySession = await prisma.therapySession.findFirst({
-      where: { id, therapistId: session.user.id },
+      where: { id, therapistId: userId },
     });
 
     if (!therapySession) {
@@ -58,7 +58,7 @@ export async function POST(
     // Update related task if exists
     await prisma.task.updateMany({
       where: {
-        userId: session.user.id,
+        userId: userId,
         relatedEntityId: id,
         type: "WRITE_SUMMARY",
         status: { in: ["PENDING", "IN_PROGRESS"] },
@@ -70,7 +70,7 @@ export async function POST(
 
     return NextResponse.json(note, { status: 201 });
   } catch (error) {
-    console.error("Create note error:", error);
+    logger.error("Create note error:", { error: error instanceof Error ? error.message : String(error) });
     return NextResponse.json(
       { message: "אירעה שגיאה ביצירת הסיכום" },
       { status: 500 }
@@ -83,10 +83,9 @@ export async function PUT(
   { params }: { params: Promise<{ id: string }> }
 ) {
   try {
-    const session = await getServerSession(authOptions);
-    if (!session?.user?.id) {
-      return NextResponse.json({ message: "לא מורשה" }, { status: 401 });
-    }
+    const auth = await requireAuth();
+    if ("error" in auth) return auth.error;
+    const { userId, session } = auth;
 
     const { id } = await params;
     const body = await request.json();
@@ -94,7 +93,7 @@ export async function PUT(
 
     // Verify session belongs to therapist
     const therapySession = await prisma.therapySession.findFirst({
-      where: { id, therapistId: session.user.id },
+      where: { id, therapistId: userId },
       include: { sessionNote: true },
     });
 
@@ -120,7 +119,7 @@ export async function PUT(
 
     return NextResponse.json(note);
   } catch (error) {
-    console.error("Update note error:", error);
+    logger.error("Update note error:", { error: error instanceof Error ? error.message : String(error) });
     return NextResponse.json(
       { message: "אירעה שגיאה בעדכון הסיכום" },
       { status: 500 }

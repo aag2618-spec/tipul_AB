@@ -1,21 +1,21 @@
 import { NextResponse } from "next/server";
-import { getServerSession } from "next-auth";
-import { authOptions } from "@/lib/auth";
 import prisma from "@/lib/prisma";
+import { logger } from "@/lib/logger";
+
+import { requireAuth } from "@/lib/api-auth";
 
 export const dynamic = "force-dynamic";
 
 export async function GET() {
   try {
-    const session = await getServerSession(authOptions);
-    if (!session?.user?.id) {
-      return NextResponse.json({ message: "אין הרשאה" }, { status: 401 });
-    }
+    const auth = await requireAuth();
+    if ("error" in auth) return auth.error;
+    const { userId, session } = auth;
 
     // קבלת כל התשלומים ששולמו במלואם
     const payments = await prisma.payment.findMany({
       where: {
-        client: { therapistId: session.user.id },
+        client: { therapistId: userId },
         status: "PAID",
         parentPaymentId: null,
       },
@@ -99,7 +99,7 @@ export async function GET() {
 
     return NextResponse.json(result);
   } catch (error) {
-    console.error("Get paid history error:", error);
+    logger.error("Get paid history error:", { error: error instanceof Error ? error.message : String(error) });
     return NextResponse.json(
       { message: "שגיאה בטעינת היסטוריית התשלומים" },
       { status: 500 }

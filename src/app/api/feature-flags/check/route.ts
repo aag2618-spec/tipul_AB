@@ -1,16 +1,17 @@
 import { NextRequest, NextResponse } from "next/server";
-import { getServerSession } from "next-auth";
-import { authOptions } from "@/lib/auth";
 import { prisma } from "@/lib/prisma";
+import { logger } from "@/lib/logger";
+import { requireAuth } from "@/lib/api-auth";
 
 export const dynamic = "force-dynamic";
 
 export async function GET(request: NextRequest) {
   try {
-    const session = await getServerSession(authOptions);
-    if (!session?.user?.id) {
+    const auth = await requireAuth();
+    if ("error" in auth) {
       return NextResponse.json({ enabled: false });
     }
+    const { userId } = auth;
 
     const key = request.nextUrl.searchParams.get("key");
     if (!key) {
@@ -30,7 +31,7 @@ export async function GET(request: NextRequest) {
     }
 
     const user = await prisma.user.findUnique({
-      where: { id: session.user.id },
+      where: { id: userId },
       select: { aiTier: true },
     });
 
@@ -41,7 +42,7 @@ export async function GET(request: NextRequest) {
     const enabled = flag.tiers.includes(user.aiTier);
     return NextResponse.json({ enabled });
   } catch (error) {
-    console.error("Error checking feature flag:", error);
+    logger.error("Error checking feature flag:", { error: error instanceof Error ? error.message : String(error) });
     return NextResponse.json({ enabled: false });
   }
 }

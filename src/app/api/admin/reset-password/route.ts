@@ -2,6 +2,7 @@ import { NextRequest, NextResponse } from "next/server";
 import prisma from "@/lib/prisma";
 import bcrypt from "bcryptjs";
 import { checkRateLimit, AUTH_RATE_LIMIT, rateLimitResponse } from "@/lib/rate-limit";
+import { logger } from "@/lib/logger";
 
 // POST - Reset password for a user (requires secret key - NO SESSION NEEDED)
 export const dynamic = "force-dynamic";
@@ -74,7 +75,7 @@ export async function POST(request: NextRequest) {
       },
     });
   } catch (error) {
-    console.error("Reset password error:", error);
+    logger.error("Reset password error:", { error: error instanceof Error ? error.message : String(error) });
     return NextResponse.json(
       { error: "שגיאה באיפוס הסיסמה" },
       { status: 500 }

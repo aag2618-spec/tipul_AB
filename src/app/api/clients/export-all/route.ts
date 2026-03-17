@@ -1,22 +1,22 @@
 import { NextResponse } from "next/server";
-import { getServerSession } from "next-auth";
-import { authOptions } from "@/lib/auth";
 import prisma from "@/lib/prisma";
 import JSZip from "jszip";
 import { format } from "date-fns";
+import { logger } from "@/lib/logger";
+
+import { requireAuth } from "@/lib/api-auth";
 
 export const dynamic = "force-dynamic";
 
 export async function GET() {
   try {
-    const session = await getServerSession(authOptions);
-    if (!session?.user?.id) {
-      return NextResponse.json({ error: "אינך מחובר" }, { status: 401 });
-    }
+    const auth = await requireAuth();
+    if ("error" in auth) return auth.error;
+    const { userId, session } = auth;
 
     // Fetch all clients with their related data
     const clients = await prisma.client.findMany({
-      where: { therapistId: session.user.id },
+      where: { therapistId: userId },
       include: {
         therapySessions: {
           orderBy: { startTime: "desc" },
@@ -44,7 +44,7 @@ export async function GET() {
     });
 
     if (clients.length === 0) {
-      return NextResponse.json({ error: "לא נמצאו מטופלים" }, { status: 404 });
+      return NextResponse.json({ message: "לא נמצאו מטופלים" }, { status: 404 });
     }
 
     const zip = new JSZip();
@@ -182,9 +182,9 @@ ${p.notes ? `הערות: ${p.notes}` : ""}
       },
     });
   } catch (error) {
-    console.error("Error exporting all clients:", error);
+    logger.error("Error exporting all clients:", { error: error instanceof Error ? error.message : String(error) });
     return NextResponse.json(
-      { error: "שגיאה ביצירת קובץ הייצוא" },
+      { message: "שגיאה ביצירת קובץ הייצוא" },
       { status: 500 }
     );
   }

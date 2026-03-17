@@ -1,7 +1,8 @@
 import { NextRequest, NextResponse } from "next/server";
-import { getServerSession } from "next-auth";
-import { authOptions } from "@/lib/auth";
 import prisma from "@/lib/prisma";
+import { logger } from "@/lib/logger";
+
+import { requireAdmin } from "@/lib/api-auth";
 
 // ברירות מחדל למכסות לפי תוכנית
 const DEFAULT_LIMITS = {
@@ -48,18 +49,9 @@ export const dynamic = "force-dynamic";
 
 export async function GET(req: NextRequest) {
   try {
-    const session = await getServerSession(authOptions);
-    if (!session?.user?.id) {
-      return NextResponse.json({ message: "לא מורשה" }, { status: 401 });
-    }
-
-    const user = await prisma.user.findUnique({
-      where: { id: session.user.id },
-    });
-
-    if (user?.role !== "ADMIN") {
-      return NextResponse.json({ message: "אין הרשאה" }, { status: 403 });
-    }
+    const auth = await requireAdmin();
+    if ("error" in auth) return auth.error;
+    const { userId, session } = auth;
 
     // Try to get from DB, fallback to defaults
     let limits = await prisma.tierLimits.findMany({
@@ -86,7 +78,7 @@ export async function GET(req: NextRequest) {
 
     return NextResponse.json({ limits, defaults: DEFAULT_LIMITS });
   } catch (error) {
-    console.error("Tier limits GET error:", error);
+    logger.error("Tier limits GET error:", { error: error instanceof Error ? error.message : String(error) });
     return NextResponse.json(
       { message: "שגיאה בטעינת המכסות" },
       { status: 500 }
@@ -97,18 +89,9 @@ export async function GET(req: NextRequest) {
 // PUT - עדכון מכסות לתוכנית
 export async function PUT(req: NextRequest) {
   try {
-    const session = await getServerSession(authOptions);
-    if (!session?.user?.id) {
-      return NextResponse.json({ message: "לא מורשה" }, { status: 401 });
-    }
-
-    const user = await prisma.user.findUnique({
-      where: { id: session.user.id },
-    });
-
-    if (user?.role !== "ADMIN") {
-      return NextResponse.json({ message: "אין הרשאה" }, { status: 403 });
-    }
+    const auth = await requireAdmin();
+    if ("error" in auth) return auth.error;
+    const { userId, session } = auth;
 
     const body = await req.json();
     const { tier, ...updateData } = body;
@@ -136,7 +119,7 @@ export async function PUT(req: NextRequest) {
       message: "המכסות עודכנו בהצלחה",
     });
   } catch (error) {
-    console.error("Tier limits PUT error:", error);
+    logger.error("Tier limits PUT error:", { error: error instanceof Error ? error.message : String(error) });
     return NextResponse.json(
       { message: "שגיאה בעדכון המכסות" },
       { status: 500 }
@@ -147,18 +130,9 @@ export async function PUT(req: NextRequest) {
 // POST - אתחול המכסות לברירות מחדל
 export async function POST(req: NextRequest) {
   try {
-    const session = await getServerSession(authOptions);
-    if (!session?.user?.id) {
-      return NextResponse.json({ message: "לא מורשה" }, { status: 401 });
-    }
-
-    const user = await prisma.user.findUnique({
-      where: { id: session.user.id },
-    });
-
-    if (user?.role !== "ADMIN") {
-      return NextResponse.json({ message: "אין הרשאה" }, { status: 403 });
-    }
+    const auth = await requireAdmin();
+    if ("error" in auth) return auth.error;
+    const { userId, session } = auth;
 
     // Reset all to defaults
     await prisma.tierLimits.deleteMany({});
@@ -184,7 +158,7 @@ export async function POST(req: NextRequest) {
       message: "המכסות אותחלו לברירות מחדל",
     });
   } catch (error) {
-    console.error("Tier limits POST error:", error);
+    logger.error("Tier limits POST error:", { error: error instanceof Error ? error.message : String(error) });
     return NextResponse.json(
       { message: "שגיאה באתחול המכסות" },
       { status: 500 }

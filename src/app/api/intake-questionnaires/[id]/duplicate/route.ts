@@ -1,8 +1,9 @@
 import { NextRequest, NextResponse } from "next/server";
-import { getServerSession } from "next-auth";
-import { authOptions } from "@/lib/auth";
 import prisma from "@/lib/prisma";
 import { Prisma } from "@prisma/client";
+import { logger } from "@/lib/logger";
+
+import { requireAuth } from "@/lib/api-auth";
 
 // POST - שכפל שאלון
 export const dynamic = "force-dynamic";
@@ -12,27 +13,26 @@ export async function POST(
   { params }: { params: Promise<{ id: string }> }
 ) {
   try {
-    const session = await getServerSession(authOptions);
-    if (!session?.user?.id) {
-      return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
-    }
+    const auth = await requireAuth();
+    if ("error" in auth) return auth.error;
+    const { userId, session } = auth;
 
     const { id } = await params;
 
     const original = await prisma.intakeQuestionnaire.findFirst({
       where: {
         id,
-        userId: session.user.id,
+        userId: userId,
       },
     });
 
     if (!original) {
-      return NextResponse.json({ error: "Template not found" }, { status: 404 });
+      return NextResponse.json({ message: "Template not found" }, { status: 404 });
     }
 
     const duplicate = await prisma.intakeQuestionnaire.create({
       data: {
-        userId: session.user.id,
+        userId: userId,
         name: `${original.name} (עותק)`,
         description: original.description,
         questions: original.questions as Prisma.InputJsonValue,
@@ -42,9 +42,9 @@ export async function POST(
 
     return NextResponse.json(duplicate);
   } catch (error) {
-    console.error("Error duplicating intake questionnaire:", error);
+    logger.error("Error duplicating intake questionnaire:", { error: error instanceof Error ? error.message : String(error) });
     return NextResponse.json(
-      { error: "Failed to duplicate template" },
+      { message: "Failed to duplicate template" },
       { status: 500 }
     );
   }

@@ -1,7 +1,7 @@
 import { NextRequest, NextResponse } from "next/server";
-import { getServerSession } from "next-auth";
-import { authOptions } from "@/lib/auth";
 import prisma from "@/lib/prisma";
+import { logger } from "@/lib/logger";
+import { requireAuth } from "@/lib/api-auth";
 
 export const dynamic = "force-dynamic";
 
@@ -10,10 +10,9 @@ export async function PATCH(
   { params }: { params: Promise<{ id: string }> }
 ) {
   try {
-    const session = await getServerSession(authOptions);
-    if (!session?.user?.id) {
-      return NextResponse.json({ message: "Unauthorized" }, { status: 401 });
-    }
+    const auth = await requireAuth();
+    if ("error" in auth) return auth.error;
+    const { userId, session } = auth;
 
     const { id: clientId } = await params;
     const body = await request.json();
@@ -21,7 +20,7 @@ export async function PATCH(
 
     // Verify client belongs to therapist
     const client = await prisma.client.findFirst({
-      where: { id: clientId, therapistId: session.user.id },
+      where: { id: clientId, therapistId: userId },
     });
 
     if (!client) {
@@ -43,7 +42,7 @@ export async function PATCH(
       client: updatedClient,
     });
   } catch (error) {
-    console.error("Error updating client approaches:", error);
+    logger.error("Error updating client approaches:", { error: error instanceof Error ? error.message : String(error) });
     return NextResponse.json(
       { message: "Internal server error" },
       { status: 500 }

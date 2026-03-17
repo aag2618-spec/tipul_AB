@@ -1,6 +1,7 @@
 import { NextRequest, NextResponse } from "next/server";
 import prisma from "@/lib/prisma";
 import { AdminAlertType, AlertPriority, Prisma } from "@prisma/client";
+import { logger } from "@/lib/logger";
 
 // API Route for generating automatic admin alerts
 // This can be called by a cron job (e.g., daily at 8:00 AM)
@@ -284,7 +285,7 @@ export async function GET(req: NextRequest) {
       },
     });
   } catch (error) {
-    console.error("Generate alerts error:", error);
+    logger.error("Generate alerts error:", { error: error instanceof Error ? error.message : String(error) });
     return NextResponse.json(
       { message: "שגיאה ביצירת ההתראות", error: String(error) },
       { status: 500 }

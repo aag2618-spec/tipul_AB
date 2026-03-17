@@ -2,18 +2,16 @@
 // Admin API: ניהול משתמשי ניסיון
 
 import { NextRequest, NextResponse } from "next/server";
-import { getServerSession } from "next-auth/next";
-import { authOptions } from "@/lib/auth";
 import prisma from "@/lib/prisma";
+import { logger } from "@/lib/logger";
+import { requireAdmin } from "@/lib/api-auth";
 
 export const dynamic = "force-dynamic";
 
 export async function GET(req: NextRequest) {
   try {
-    const session = await getServerSession(authOptions);
-    if (!session?.user || (session.user as { role: string }).role !== "ADMIN") {
-      return NextResponse.json({ error: "לא מורשה" }, { status: 403 });
-    }
+    const auth = await requireAdmin();
+    if ("error" in auth) return auth.error;
 
     const search = req.nextUrl.searchParams.get("search") || "";
     const status = req.nextUrl.searchParams.get("status") || "all"; // all, active, expired, converted
@@ -85,24 +83,22 @@ export async function GET(req: NextRequest) {
 
     return NextResponse.json({ users: trialUsers, stats });
   } catch (error) {
-    console.error("Admin trials API error:", error);
-    return NextResponse.json({ error: "שגיאת שרת" }, { status: 500 });
+    logger.error("Admin trials API error:", { error: error instanceof Error ? error.message : String(error) });
+    return NextResponse.json({ message: "שגיאת שרת" }, { status: 500 });
   }
 }
 
 // PATCH: block/unblock trial user or convert to free subscription
 export async function PATCH(req: NextRequest) {
   try {
-    const session = await getServerSession(authOptions);
-    if (!session?.user || (session.user as { role: string }).role !== "ADMIN") {
-      return NextResponse.json({ error: "לא מורשה" }, { status: 403 });
-    }
+    const auth = await requireAdmin();
+    if ("error" in auth) return auth.error;
 
     const body = await req.json();
     const { userId, action, aiTier, note } = body;
 
     if (!userId || !action) {
-      return NextResponse.json({ error: "חסר userId או action" }, { status: 400 });
+      return NextResponse.json({ message: "חסר userId או action" }, { status: 400 });
     }
 
     const user = await prisma.user.findUnique({
@@ -111,7 +107,7 @@ export async function PATCH(req: NextRequest) {
     });
 
     if (!user) {
-      return NextResponse.json({ error: "משתמש לא נמצא" }, { status: 404 });
+      return NextResponse.json({ message: "משתמש לא נמצא" }, { status: 404 });
     }
 
     switch (action) {
@@ -144,17 +140,17 @@ export async function PATCH(req: NextRequest) {
             freeSubscriptionGrantedAt: new Date(),
           },
         });
-        return NextResponse.json({ 
-          success: true, 
-          message: `${user.name} הועבר למנוי חינם - ${tier}` 
+        return NextResponse.json({
+          success: true,
+          message: `${user.name} הועבר למנוי חינם - ${tier}`
         });
       }
 
       default:
-        return NextResponse.json({ error: "פעולה לא מוכרת" }, { status: 400 });
+        return NextResponse.json({ message: "פעולה לא מוכרת" }, { status: 400 });
     }
   } catch (error) {
-    console.error("Admin trials PATCH error:", error);
-    return NextResponse.json({ error: "שגיאת שרת" }, { status: 500 });
+    logger.error("Admin trials PATCH error:", { error: error instanceof Error ? error.message : String(error) });
+    return NextResponse.json({ message: "שגיאת שרת" }, { status: 500 });
   }
 }

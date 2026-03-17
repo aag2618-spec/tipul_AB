@@ -1,6 +1,4 @@
 import { NextRequest, NextResponse } from "next/server";
-import { getServerSession } from "next-auth";
-import { authOptions } from "@/lib/auth";
 import prisma from "@/lib/prisma";
 import { sendEmail } from "@/lib/resend";
 import {
@@ -8,6 +6,8 @@ import {
   createCancellationRequestToTherapistEmail,
   formatSessionDateTime,
 } from "@/lib/email-templates";
+import { logger } from "@/lib/logger";
+import { requireAuth } from "@/lib/api-auth";
 
 // POST /api/sessions/[id]/request-cancellation
 // Allows a client to request cancellation of a session
@@ -225,7 +225,7 @@ export async function POST(
       requestId: cancellationRequest.id,
     });
   } catch (error) {
-    console.error("Request cancellation error:", error);
+    logger.error("Request cancellation error:", { error: error instanceof Error ? error.message : String(error) });
     return NextResponse.json(
       { success: false, message: "אירעה שגיאה בשליחת בקשת הביטול" },
       { status: 500 }

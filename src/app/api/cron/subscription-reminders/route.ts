@@ -7,6 +7,7 @@ import prisma from "@/lib/prisma";
 import { sendEmail } from "@/lib/resend";
 import { PLAN_NAMES, MONTHLY_PRICES } from "@/lib/pricing";
 import { escapeHtml } from "@/lib/email-utils";
+import { logger } from "@/lib/logger";
 
 // ========================================
 // הגדרות
@@ -385,7 +386,7 @@ export async function GET(req: NextRequest) {
       }
     }
 
-    console.log("Subscription reminders results:", results);
+    logger.info("Subscription reminders results:", { data: results });
 
     return NextResponse.json({
       success: true,
@@ -393,7 +394,7 @@ export async function GET(req: NextRequest) {
       results,
     });
   } catch (error) {
-    console.error("Subscription reminders cron error:", error);
+    logger.error("Subscription reminders cron error:", { error: error instanceof Error ? error.message : String(error) });
     return NextResponse.json(
       { error: "שגיאה בהרצת תזכורות מנויים" },
       { status: 500 }

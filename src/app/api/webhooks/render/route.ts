@@ -31,11 +31,11 @@ export async function POST(req: NextRequest) {
       fullPayload: body,
     };
 
-    console.log("🚀 Deploy Status:", {
+    logger.info("🚀 Deploy Status:", { data: {
       service: logEntry.serviceName,
       status: logEntry.status,
       commit: logEntry.commitMessage,
-    });
+    } });
 
     // If deploy failed, log error
     if (deploy?.status === "build_failed" || deploy?.status === "deploy_failed") {
@@ -53,11 +53,11 @@ export async function POST(req: NextRequest) {
 
     // If deploy succeeded
     if (deploy?.status === "live") {
-      console.log("✅ DEPLOY SUCCESSFUL:", {
+      logger.info("✅ DEPLOY SUCCESSFUL:", { data: {
         service: logEntry.serviceName,
         deployId: logEntry.deployId,
         commit: logEntry.commitMessage,
-      });
+      } });
     }
 
     return NextResponse.json({ 

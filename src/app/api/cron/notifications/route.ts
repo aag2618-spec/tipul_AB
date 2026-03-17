@@ -3,6 +3,7 @@ import prisma from "@/lib/prisma";
 import { sendEmail } from "@/lib/resend";
 import { calculateDebtFromPayments } from "@/lib/payment-utils";
 import { escapeHtml } from "@/lib/email-utils";
+import { logger } from "@/lib/logger";
 
 export const dynamic = "force-dynamic";
 
@@ -293,7 +294,7 @@ export async function GET(request: NextRequest) {
       count: notificationsCreated,
     });
   } catch (error) {
-    console.error("Cron notifications error:", error);
+    logger.error("Cron notifications error:", { error: error instanceof Error ? error.message : String(error) });
     return NextResponse.json({ message: "Error generating notifications" }, { status: 500 });
   }
 }

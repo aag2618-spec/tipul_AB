@@ -1,25 +1,25 @@
 import { NextRequest, NextResponse } from "next/server";
-import { getServerSession } from "next-auth";
-import { authOptions } from "@/lib/auth";
 import prisma from "@/lib/prisma";
+import { logger } from "@/lib/logger";
+
+import { requireAuth } from "@/lib/api-auth";
 
 export const dynamic = "force-dynamic";
 
 export async function GET() {
   try {
-    const session = await getServerSession(authOptions);
-    if (!session?.user?.id) {
-      return NextResponse.json({ message: "לא מורשה" }, { status: 401 });
-    }
+    const auth = await requireAuth();
+    if ("error" in auth) return auth.error;
+    const { userId, session } = auth;
 
     const templates = await prisma.intakeTemplate.findMany({
-      where: { userId: session.user.id },
+      where: { userId: userId },
       orderBy: { createdAt: "desc" },
     });
 
     return NextResponse.json(templates);
   } catch (error) {
-    console.error("Get intake templates error:", error);
+    logger.error("Get intake templates error:", { error: error instanceof Error ? error.message : String(error) });
     return NextResponse.json(
       { message: "אירעה שגיאה בטעינת התבניות" },
       { status: 500 }
@@ -29,10 +29,9 @@ export async function GET() {
 
 export async function POST(request: NextRequest) {
   try {
-    const session = await getServerSession(authOptions);
-    if (!session?.user?.id) {
-      return NextResponse.json({ message: "לא מורשה" }, { status: 401 });
-    }
+    const auth = await requireAuth();
+    if ("error" in auth) return auth.error;
+    const { userId, session } = auth;
 
     const body = await request.json();
     const { name, questions, isDefault } = body;
@@ -47,14 +46,14 @@ export async function POST(request: NextRequest) {
     // If this is marked as default, unmark all others
     if (isDefault) {
       await prisma.intakeTemplate.updateMany({
-        where: { userId: session.user.id, isDefault: true },
+        where: { userId: userId, isDefault: true },
         data: { isDefault: false },
       });
     }
 
     const template = await prisma.intakeTemplate.create({
       data: {
-        userId: session.user.id,
+        userId: userId,
         name,
         questions,
         isDefault: isDefault || false,
@@ -63,7 +62,7 @@ export async function POST(request: NextRequest) {
 
     return NextResponse.json(template, { status: 201 });
   } catch (error) {
-    console.error("Create intake template error:", error);
+    logger.error("Create intake template error:", { error: error instanceof Error ? error.message : String(error) });
     return NextResponse.json(
       { message: "אירעה שגיאה ביצירת התבנית" },
       { status: 500 }

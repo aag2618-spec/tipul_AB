@@ -1,9 +1,10 @@
 import { NextRequest, NextResponse } from "next/server";
-import { getServerSession } from "next-auth";
-import { authOptions } from "@/lib/auth";
 import prisma from "@/lib/prisma";
 import { unlink } from "fs/promises";
 import { join } from "path";
+import { logger } from "@/lib/logger";
+
+import { requireAuth } from "@/lib/api-auth";
 
 export const dynamic = "force-dynamic";
 
@@ -12,15 +13,14 @@ export async function GET(
   { params }: { params: Promise<{ id: string }> }
 ) {
   try {
-    const session = await getServerSession(authOptions);
-    if (!session?.user?.id) {
-      return NextResponse.json({ message: "לא מורשה" }, { status: 401 });
-    }
+    const auth = await requireAuth();
+    if ("error" in auth) return auth.error;
+    const { userId, session } = auth;
 
     const { id } = await params;
 
     const document = await prisma.document.findFirst({
-      where: { id, therapistId: session.user.id },
+      where: { id, therapistId: userId },
       include: {
         client: { select: { id: true, name: true } },
       },
@@ -32,7 +32,7 @@ export async function GET(
 
     return NextResponse.json(document);
   } catch (error) {
-    console.error("Get document error:", error);
+    logger.error("Get document error:", { error: error instanceof Error ? error.message : String(error) });
     return NextResponse.json(
       { message: "אירעה שגיאה בטעינת המסמך" },
       { status: 500 }
@@ -45,16 +45,15 @@ export async function PUT(
   { params }: { params: Promise<{ id: string }> }
 ) {
   try {
-    const session = await getServerSession(authOptions);
-    if (!session?.user?.id) {
-      return NextResponse.json({ message: "לא מורשה" }, { status: 401 });
-    }
+    const auth = await requireAuth();
+    if ("error" in auth) return auth.error;
+    const { userId, session } = auth;
 
     const { id } = await params;
     const body = await request.json();
 
     const existing = await prisma.document.findFirst({
-      where: { id, therapistId: session.user.id },
+      where: { id, therapistId: userId },
     });
 
     if (!existing) {
@@ -73,7 +72,7 @@ export async function PUT(
 
     return NextResponse.json(document);
   } catch (error) {
-    console.error("Update document error:", error);
+    logger.error("Update document error:", { error: error instanceof Error ? error.message : String(error) });
     return NextResponse.json(
       { message: "אירעה שגיאה בעדכון המסמך" },
       { status: 500 }
@@ -86,15 +85,14 @@ export async function DELETE(
   { params }: { params: Promise<{ id: string }> }
 ) {
   try {
-    const session = await getServerSession(authOptions);
-    if (!session?.user?.id) {
-      return NextResponse.json({ message: "לא מורשה" }, { status: 401 });
-    }
+    const auth = await requireAuth();
+    if ("error" in auth) return auth.error;
+    const { userId, session } = auth;
 
     const { id } = await params;
 
     const document = await prisma.document.findFirst({
-      where: { id, therapistId: session.user.id },
+      where: { id, therapistId: userId },
     });
 
     if (!document) {
@@ -113,7 +111,7 @@ export async function DELETE(
 
     return NextResponse.json({ message: "המסמך נמחק בהצלחה" });
   } catch (error) {
-    console.error("Delete document error:", error);
+    logger.error("Delete document error:", { error: error instanceof Error ? error.message : String(error) });
     return NextResponse.json(
       { message: "אירעה שגיאה במחיקת המסמך" },
       { status: 500 }

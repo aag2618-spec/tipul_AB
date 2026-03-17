@@ -1,18 +1,18 @@
 import { NextRequest, NextResponse } from "next/server";
-import { getServerSession } from "next-auth";
-import { authOptions } from "@/lib/auth";
 import prisma from "@/lib/prisma";
 import { analyzeSession, analyzeIntake } from "@/lib/google-ai";
 import { logApiUsage, estimateTokens, estimateCost } from "@/lib/api-logger";
+import { logger } from "@/lib/logger";
+
+import { requireAuth } from "@/lib/api-auth";
 
 export const dynamic = "force-dynamic";
 
 export async function POST(request: NextRequest) {
   try {
-    const session = await getServerSession(authOptions);
-    if (!session?.user?.id) {
-      return NextResponse.json({ message: "לא מורשה" }, { status: 401 });
-    }
+    const auth = await requireAuth();
+    if ("error" in auth) return auth.error;
+    const { userId, session } = auth;
 
     const body = await request.json();
     const { transcriptionId, type } = body;
@@ -43,8 +43,8 @@ export async function POST(request: NextRequest) {
 
     // Verify ownership
     const isOwner =
-      transcription.recording.client?.therapistId === session.user.id ||
-      transcription.recording.session?.therapistId === session.user.id;
+      transcription.recording.client?.therapistId === userId ||
+      transcription.recording.session?.therapistId === userId;
 
     if (!isOwner) {
       return NextResponse.json({ message: "לא מורשה" }, { status: 403 });
@@ -86,7 +86,7 @@ export async function POST(request: NextRequest) {
       // Complete related task
       await prisma.task.updateMany({
         where: {
-          userId: session.user.id,
+          userId: userId,
           relatedEntityId: transcription.recordingId,
           type: "REVIEW_TRANSCRIPTION",
           status: { in: ["PENDING", "IN_PROGRESS"] },
@@ -98,7 +98,7 @@ export async function POST(request: NextRequest) {
       const durationMs = Date.now() - startTime;
       const tokensUsed = estimateTokens(transcription.content) + estimateTokens(JSON.stringify(analysisResult));
       await logApiUsage({
-        userId: session.user.id,
+        userId: userId,
         endpoint: "/api/analyze",
         method: "POST",
         tokensUsed,
@@ -110,12 +110,12 @@ export async function POST(request: NextRequest) {
       return NextResponse.json(analysis, { status: 201 });
     } catch (analysisError) {
       const errorMessage = analysisError instanceof Error ? analysisError.message : String(analysisError);
-      console.error("Analysis failed:", errorMessage, analysisError);
+      logger.error("Analysis failed:", { error: errorMessage });
       
       // Log failed API usage
       const durationMs = Date.now() - startTime;
       await logApiUsage({
-        userId: session.user.id,
+        userId: userId,
         endpoint: "/api/analyze",
         method: "POST",
         success: false,
@@ -129,7 +129,7 @@ export async function POST(request: NextRequest) {
       );
     }
   } catch (error) {
-    console.error("Analyze error:", error);
+    logger.error("Analyze error:", { error: error instanceof Error ? error.message : String(error) });
     return NextResponse.json(
       { message: "אירעה שגיאה בניתוח" },
       { status: 500 }

@@ -1,24 +1,16 @@
 import { NextRequest, NextResponse } from "next/server";
-import { getServerSession } from "next-auth";
-import { authOptions } from "@/lib/auth";
 import prisma from "@/lib/prisma";
+import { logger } from "@/lib/logger";
+
+import { requireAdmin } from "@/lib/api-auth";
 
 export const dynamic = "force-dynamic";
 
 export async function GET(req: NextRequest) {
   try {
-    const session = await getServerSession(authOptions);
-    if (!session?.user?.id) {
-      return NextResponse.json({ message: "לא מורשה" }, { status: 401 });
-    }
-
-    const user = await prisma.user.findUnique({
-      where: { id: session.user.id },
-    });
-
-    if (user?.role !== "ADMIN") {
-      return NextResponse.json({ message: "אין הרשאה" }, { status: 403 });
-    }
+    const auth = await requireAdmin();
+    if ("error" in auth) return auth.error;
+    const { userId, session } = auth;
 
     const announcements = await prisma.systemAnnouncement.findMany({
       orderBy: { createdAt: "desc" },
@@ -42,7 +34,7 @@ export async function GET(req: NextRequest) {
 
     return NextResponse.json({ announcements: enriched });
   } catch (error) {
-    console.error("Get announcements error:", error);
+    logger.error("Get announcements error:", { error: error instanceof Error ? error.message : String(error) });
     return NextResponse.json(
       { message: "שגיאה בטעינת ההודעות" },
       { status: 500 }
@@ -52,18 +44,9 @@ export async function GET(req: NextRequest) {
 
 export async function POST(req: NextRequest) {
   try {
-    const session = await getServerSession(authOptions);
-    if (!session?.user?.id) {
-      return NextResponse.json({ message: "לא מורשה" }, { status: 401 });
-    }
-
-    const user = await prisma.user.findUnique({
-      where: { id: session.user.id },
-    });
-
-    if (user?.role !== "ADMIN") {
-      return NextResponse.json({ message: "אין הרשאה" }, { status: 403 });
-    }
+    const auth = await requireAdmin();
+    if ("error" in auth) return auth.error;
+    const { userId, session } = auth;
 
     const body = await req.json();
     const { title, content, type, expiresAt, showBanner } = body;
@@ -92,13 +75,13 @@ export async function POST(req: NextRequest) {
         targetType: "announcement",
         targetId: announcement.id,
         details: JSON.stringify({ title, type }),
-        adminId: session.user.id,
+        adminId: userId,
       },
     });
 
     return NextResponse.json({ announcement }, { status: 201 });
   } catch (error) {
-    console.error("Create announcement error:", error);
+    logger.error("Create announcement error:", { error: error instanceof Error ? error.message : String(error) });
     return NextResponse.json(
       { message: "שגיאה ביצירת ההודעה" },
       { status: 500 }

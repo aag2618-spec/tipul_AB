@@ -1,7 +1,8 @@
 import { NextRequest, NextResponse } from "next/server";
-import { getServerSession } from "next-auth";
-import { authOptions } from "@/lib/auth";
 import prisma from "@/lib/prisma";
+import { logger } from "@/lib/logger";
+
+import { requireAuth } from "@/lib/api-auth";
 
 // ברירות מחדל למכסות
 const DEFAULT_LIMITS = {
@@ -42,13 +43,9 @@ export const dynamic = "force-dynamic";
 
 export async function GET(req: NextRequest) {
   try {
-    const session = await getServerSession(authOptions);
-    if (!session?.user?.id) {
-      return NextResponse.json({ message: "לא מורשה" }, { status: 401 });
-    }
-
-    const userId = session.user.id;
-
+    const auth = await requireAuth();
+    if ("error" in auth) return auth.error;
+    const { userId, session } = auth;
     // Get user with tier
     const user = await prisma.user.findUnique({
       where: { id: userId },
@@ -176,7 +173,7 @@ export async function GET(req: NextRequest) {
 
     return NextResponse.json(usage);
   } catch (error) {
-    console.error("User usage GET error:", error);
+    logger.error("User usage GET error:", { error: error instanceof Error ? error.message : String(error) });
     return NextResponse.json(
       { message: "שגיאה בטעינת נתוני השימוש" },
       { status: 500 }

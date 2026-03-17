@@ -1,10 +1,11 @@
 import { NextRequest, NextResponse } from "next/server";
-import { getServerSession } from "next-auth";
-import { authOptions } from "@/lib/auth";
 import prisma from "@/lib/prisma";
 import { createPaymentHistoryEmail } from "@/lib/email-templates/payment-history";
 import { sendEmail } from "@/lib/resend";
 import { subMonths, startOfDay, endOfDay } from "date-fns";
+import { logger } from "@/lib/logger";
+
+import { requireAuth } from "@/lib/api-auth";
 
 export const dynamic = "force-dynamic";
 
@@ -13,10 +14,9 @@ export async function POST(
   { params }: { params: Promise<{ id: string }> }
 ) {
   try {
-    const session = await getServerSession(authOptions);
-    if (!session?.user?.id) {
-      return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
-    }
+    const auth = await requireAuth();
+    if ("error" in auth) return auth.error;
+    const { userId, session } = auth;
 
     const { id } = await params;
     const body = await req.json();
@@ -26,17 +26,17 @@ export async function POST(
     const client = await prisma.client.findFirst({
       where: {
         id,
-        therapistId: session.user.id,
+        therapistId: userId,
       },
     });
 
     if (!client) {
-      return NextResponse.json({ error: "Client not found" }, { status: 404 });
+      return NextResponse.json({ message: "Client not found" }, { status: 404 });
     }
 
     if (!client.email) {
       return NextResponse.json(
-        { error: "Client does not have an email address" },
+        { message: "Client does not have an email address" },
         { status: 400 }
       );
     }
@@ -87,7 +87,7 @@ export async function POST(
 
     if (payments.length === 0) {
       return NextResponse.json(
-        { error: "No payments found in this period" },
+        { message: "No payments found in this period" },
         { status: 400 }
       );
     }
@@ -101,7 +101,7 @@ export async function POST(
     // Get therapist communication settings
     const communicationSettings = await prisma.communicationSetting.findUnique(
       {
-        where: { userId: session.user.id },
+        where: { userId: userId },
       }
     );
 
@@ -154,9 +154,9 @@ export async function POST(
       totalPaid,
     });
   } catch (error) {
-    console.error("Error sending payment history:", error);
+    logger.error("Error sending payment history:", { error: error instanceof Error ? error.message : String(error) });
     return NextResponse.json(
-      { error: "Failed to send payment history" },
+      { message: "Failed to send payment history" },
       { status: 500 }
     );
   }

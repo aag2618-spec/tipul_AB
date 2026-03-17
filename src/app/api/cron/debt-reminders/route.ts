@@ -3,6 +3,7 @@ import prisma from "@/lib/prisma";
 import { sendEmail } from "@/lib/resend";
 import { calculateSessionDebt } from "@/lib/payment-utils";
 import { escapeHtml } from "@/lib/email-utils";
+import { logger } from "@/lib/logger";
 
 export const dynamic = "force-dynamic";
 
@@ -156,7 +157,7 @@ export async function GET(request: NextRequest) {
     const israelDateStr = new Date().toLocaleDateString('en-CA', { timeZone: 'Asia/Jerusalem' });
     const dayOfMonth = parseInt(israelDateStr.split('-')[2]);
 
-    console.log(`[Debt Reminders Cron] Running for day ${dayOfMonth} of month`);
+    logger.info(`[Debt Reminders Cron] Running for day ${dayOfMonth} of month`);
 
     // Get all users with debt reminders enabled for today
     const usersWithReminders = await prisma.communicationSetting.findMany({
@@ -169,7 +170,7 @@ export async function GET(request: NextRequest) {
       },
     });
 
-    console.log(`[Debt Reminders Cron] Found ${usersWithReminders.length} therapists with reminders enabled`);
+    logger.info(`[Debt Reminders Cron] Found ${usersWithReminders.length} therapists with reminders enabled`);
 
     let totalEmailsSent = 0;
     let totalClientsProcessed = 0;
@@ -180,7 +181,7 @@ export async function GET(request: NextRequest) {
       const therapist = setting.user;
       const minAmount = Number(setting.debtReminderMinAmount);
 
-      console.log(`[Debt Reminders Cron] Processing therapist ${therapist.name} (min amount: ₪${minAmount})`);
+      logger.info(`[Debt Reminders Cron] Processing therapist ${therapist.name} (min amount: ₪${minAmount})`);
 
       // Get all clients with unpaid sessions for this therapist
       const clients = await prisma.client.findMany({
@@ -229,11 +230,11 @@ export async function GET(request: NextRequest) {
 
         // Skip if debt is below minimum
         if (totalDebt < minAmount) {
-          console.log(`[Debt Reminders Cron] Skipping ${client.name} - debt ₪${totalDebt} below minimum ₪${minAmount}`);
+          logger.info(`[Debt Reminders Cron] Skipping ${client.name} - debt ₪${totalDebt} below minimum ₪${minAmount}`);
           continue;
         }
 
-        console.log(`[Debt Reminders Cron] Sending to ${client.name} - debt ₪${totalDebt}`);
+        logger.info(`[Debt Reminders Cron] Sending to ${client.name} - debt ₪${totalDebt}`);
         totalClientsProcessed++;
 
         // Create email
@@ -283,7 +284,7 @@ export async function GET(request: NextRequest) {
           });
         } else {
           errors.push(`Failed to send to ${client.name} (${client.email}): ${result.error}`);
-          console.error(`[Debt Reminders Cron] Error sending to ${client.name}:`, result.error);
+          logger.error(`[Debt Reminders Cron] Error sending to ${client.name}:`, { error: result.error });
         }
       }
     }
@@ -297,11 +298,11 @@ export async function GET(request: NextRequest) {
       errors: errors.length > 0 ? errors : undefined,
     };
 
-    console.log(`[Debt Reminders Cron] Completed:`, response);
+    logger.info(`[Debt Reminders Cron] Completed:`, { data: response });
 
     return NextResponse.json(response);
   } catch (error) {
-    console.error("[Debt Reminders Cron] Error:", error);
+    logger.error("[Debt Reminders Cron] Error:", { error: error instanceof Error ? error.message : String(error) });
     return NextResponse.json(
       {
         message: "Error processing debt reminders",

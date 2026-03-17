@@ -1,6 +1,7 @@
 import { NextRequest, NextResponse } from "next/server";
 import { requireAuth } from "@/lib/api-auth";
 import prisma from "@/lib/prisma";
+import { logger } from "@/lib/logger";
 
 export const dynamic = "force-dynamic";
 
@@ -44,7 +45,7 @@ export async function GET(
 
     return NextResponse.json(client);
   } catch (error) {
-    console.error("Get client error:", error);
+    logger.error("Get client error:", { error: error instanceof Error ? error.message : String(error) });
     return NextResponse.json(
       { message: "אירעה שגיאה בטעינת המטופל" },
       { status: 500 }
@@ -94,7 +95,7 @@ export async function PUT(
 
     return NextResponse.json(client);
   } catch (error) {
-    console.error("Update client error:", error);
+    logger.error("Update client error:", { error: error instanceof Error ? error.message : String(error) });
     return NextResponse.json(
       { message: "אירעה שגיאה בעדכון המטופל" },
       { status: 500 }
@@ -126,7 +127,7 @@ export async function DELETE(
 
     return NextResponse.json({ message: "המטופל נמחק בהצלחה" });
   } catch (error) {
-    console.error("Delete client error:", error);
+    logger.error("Delete client error:", { error: error instanceof Error ? error.message : String(error) });
     return NextResponse.json(
       { message: "אירעה שגיאה במחיקת המטופל" },
       { status: 500 }

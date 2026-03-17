@@ -1,7 +1,8 @@
 import { NextRequest, NextResponse } from "next/server";
-import { getServerSession } from "next-auth";
-import { authOptions } from "@/lib/auth";
 import prisma from "@/lib/prisma";
+import { logger } from "@/lib/logger";
+
+import { requireAdmin } from "@/lib/api-auth";
 
 export const dynamic = "force-dynamic";
 
@@ -10,18 +11,9 @@ export async function PUT(
   { params }: { params: Promise<{ id: string }> }
 ) {
   try {
-    const session = await getServerSession(authOptions);
-    if (!session?.user?.id) {
-      return NextResponse.json({ message: "לא מורשה" }, { status: 401 });
-    }
-
-    const user = await prisma.user.findUnique({
-      where: { id: session.user.id },
-    });
-
-    if (user?.role !== "ADMIN") {
-      return NextResponse.json({ message: "אין הרשאה" }, { status: 403 });
-    }
+    const auth = await requireAdmin();
+    if ("error" in auth) return auth.error;
+    const { userId, session } = auth;
 
     const { id } = await params;
     const body = await req.json();
@@ -55,13 +47,13 @@ export async function PUT(
         targetType: "announcement",
         targetId: id,
         details: JSON.stringify(body),
-        adminId: session.user.id,
+        adminId: userId,
       },
     });
 
     return NextResponse.json({ announcement });
   } catch (error) {
-    console.error("Update announcement error:", error);
+    logger.error("Update announcement error:", { error: error instanceof Error ? error.message : String(error) });
     return NextResponse.json(
       { message: "שגיאה בעדכון ההודעה" },
       { status: 500 }
@@ -74,18 +66,9 @@ export async function DELETE(
   { params }: { params: Promise<{ id: string }> }
 ) {
   try {
-    const session = await getServerSession(authOptions);
-    if (!session?.user?.id) {
-      return NextResponse.json({ message: "לא מורשה" }, { status: 401 });
-    }
-
-    const user = await prisma.user.findUnique({
-      where: { id: session.user.id },
-    });
-
-    if (user?.role !== "ADMIN") {
-      return NextResponse.json({ message: "אין הרשאה" }, { status: 403 });
-    }
+    const auth = await requireAdmin();
+    if ("error" in auth) return auth.error;
+    const { userId, session } = auth;
 
     const { id } = await params;
 
@@ -107,13 +90,13 @@ export async function DELETE(
         targetType: "announcement",
         targetId: id,
         details: JSON.stringify({ title: existing.title }),
-        adminId: session.user.id,
+        adminId: userId,
       },
     });
 
     return NextResponse.json({ success: true });
   } catch (error) {
-    console.error("Delete announcement error:", error);
+    logger.error("Delete announcement error:", { error: error instanceof Error ? error.message : String(error) });
     return NextResponse.json(
       { message: "שגיאה במחיקת ההודעה" },
       { status: 500 }

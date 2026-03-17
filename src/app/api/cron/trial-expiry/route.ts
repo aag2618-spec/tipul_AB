@@ -2,6 +2,7 @@ import { NextRequest, NextResponse } from "next/server";
 import prisma from "@/lib/prisma";
 import { sendEmail } from "@/lib/resend";
 import { escapeHtml } from "@/lib/email-utils";
+import { logger } from "@/lib/logger";
 
 const SYSTEM_URL = process.env.NEXTAUTH_URL || "https://your-app.onrender.com";
 const ADMIN_EMAIL = process.env.ADMIN_EMAIL;
@@ -199,7 +200,7 @@ export async function GET(req: NextRequest) {
       }
     }
 
-    console.log("Trial expiry cron results:", results);
+    logger.info("Trial expiry cron results:", { data: results });
 
     return NextResponse.json({
       success: true,
@@ -207,7 +208,7 @@ export async function GET(req: NextRequest) {
       results,
     });
   } catch (error) {
-    console.error("Trial expiry cron error:", error);
+    logger.error("Trial expiry cron error:", { error: error instanceof Error ? error.message : String(error) });
     return NextResponse.json(
       { error: "שגיאה בהרצת בדיקת תפוגת ניסיון" },
       { status: 500 }

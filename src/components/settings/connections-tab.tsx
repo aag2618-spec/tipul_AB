@@ -2,24 +2,20 @@
 
 import { useState, useEffect } from "react";
 import { signIn } from "next-auth/react";
-import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
-import { Badge } from "@/components/ui/badge";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
-import { Switch } from "@/components/ui/switch";
 import { toast } from "sonner";
 import {
-  Calendar, Mail, Link as LinkIcon, Unlink, CheckCircle, AlertCircle,
-  CreditCard, FileText, Settings as SettingsIcon, Eye, EyeOff,
-  Shield, Save, Loader2, Building2,
+  CreditCard, FileText, Eye, EyeOff,
+  Shield, Loader2, Link as LinkIcon,
 } from "lucide-react";
 import {
   Dialog, DialogContent, DialogDescription, DialogFooter, DialogHeader, DialogTitle,
 } from "@/components/ui/dialog";
-import {
-  Accordion, AccordionContent, AccordionItem, AccordionTrigger,
-} from "@/components/ui/accordion";
+import { GoogleCalendarSection } from "@/components/settings/google-calendar-section";
+import { BillingProvidersSection } from "@/components/settings/billing-providers-section";
+import { HealthInsurersSection } from "@/components/settings/health-insurers-section";
 
 interface BillingProvider {
   id: string;
@@ -282,184 +278,35 @@ export function ConnectionsTab() {
     finally { setSavingInsurers(false); }
   };
 
-  const connectedProvider = (type: string) => billingProviders.find(p => p.provider === type && p.isActive);
-
   if (loading) {
     return <div className="h-[30vh] flex items-center justify-center"><Loader2 className="h-8 w-8 animate-spin text-muted-foreground" /></div>;
   }
 
-  const insurerItems = [
-    { key: "clalit", label: "כללית", color: "text-green-600", config: insurerSettings.clalit, keyLabel: "API Key", secLabel: "קוד מוסד" },
-    { key: "maccabi", label: "מכבי", color: "text-sky-600", config: insurerSettings.maccabi, keyLabel: "API Key", secLabel: "קוד ספק" },
-    { key: "leumit", label: "לאומית", color: "text-red-600", config: insurerSettings.leumit, keyLabel: "API Key", secLabel: "קוד מרפאה" },
-  ];
-
   return (
     <div className="space-y-6">
-      {/* Google Calendar */}
-      <Card>
-        <CardHeader>
-          <div className="flex items-center justify-between">
-            <div className="flex items-center gap-3">
-              <div className="h-10 w-10 rounded-lg bg-sky-100 flex items-center justify-center">
-                <Calendar className="h-5 w-5 text-sky-600" />
-              </div>
-              <div>
-                <CardTitle className="text-base flex items-center gap-2">
-                  Google Calendar
-                  {googleConnected ? (
-                    <Badge className="bg-emerald-50 text-emerald-900 border border-emerald-200"><CheckCircle className="h-3 w-3 ml-1" />מחובר</Badge>
-                  ) : (
-                    <Badge variant="secondary"><AlertCircle className="h-3 w-3 ml-1" />לא מחובר</Badge>
-                  )}
-                </CardTitle>
-                <CardDescription className="text-xs">סנכרון דו-כיווני: פגישות שתיצור כאן יופיעו ב-Google Calendar ולהפך</CardDescription>
-              </div>
-            </div>
-          </div>
-        </CardHeader>
-        <CardContent>
-          {googleConnected ? (
-            <div className="space-y-3">
-              <div className="flex items-center gap-2 p-2 bg-muted rounded-lg text-sm">
-                <Mail className="h-4 w-4 text-muted-foreground" />
-                מחובר כ: <strong>{googleEmail}</strong>
-              </div>
-              <Button variant="outline" size="sm" className="gap-1 text-destructive" onClick={disconnectGoogle} disabled={disconnecting}>
-                <Unlink className="h-3 w-3" />{disconnecting ? "מנתק..." : "נתק"}
-              </Button>
-            </div>
-          ) : (
-            <Button size="sm" onClick={connectGoogle} className="gap-1">
-              <LinkIcon className="h-3 w-3" />התחבר עם Google
-            </Button>
-          )}
-        </CardContent>
-      </Card>
+      <GoogleCalendarSection
+        googleConnected={googleConnected}
+        googleEmail={googleEmail}
+        disconnecting={disconnecting}
+        connectGoogle={connectGoogle}
+        disconnectGoogle={disconnectGoogle}
+      />
 
-      {/* Billing Providers */}
-      <div>
-        <h3 className="font-semibold mb-1">ספקי חיוב וקבלות</h3>
-        <p className="text-xs text-muted-foreground mb-3">חבר ספק חיצוני להנפקת קבלות מס וחשבוניות. נדרש רק לעוסקים מורשים (הגדר סוג עסק בטאב &quot;עסק וקבלות&quot;).</p>
-        <div className="grid gap-3 md:grid-cols-2">
-          {Object.entries(providerInfo).map(([key, info]) => {
-            const connected = connectedProvider(key);
-            const Icon = info.icon;
-            return (
-              <Card key={key} className="p-4">
-                <div className="flex items-center gap-2 mb-2">
-                  <Icon className="h-4 w-4 text-primary" />
-                  <span className="font-medium text-sm">{info.name}</span>
-                  {connected ? (
-                    <Badge className="bg-emerald-50 text-emerald-900 border border-emerald-200 text-[10px] py-0"><CheckCircle className="h-2.5 w-2.5 ml-0.5" />מחובר</Badge>
-                  ) : (
-                    <Badge variant="outline" className="text-[10px] py-0">לא מחובר</Badge>
-                  )}
-                </div>
-                <p className="text-xs text-muted-foreground mb-3">{info.description}</p>
-                {connected ? (
-                  <div className="flex gap-2">
-                    <Button variant="outline" size="sm" className="text-xs h-7" onClick={() => testBillingConnection(connected.id)} disabled={testingConnection === connected.id}>
-                      {testingConnection === connected.id ? "בודק..." : "בדוק"}
-                    </Button>
-                    <Button variant="outline" size="sm" className="text-xs h-7" onClick={() => openBillingDialog(key)}>הגדרות</Button>
-                    <Button variant="outline" size="sm" className="text-xs h-7 text-destructive" onClick={() => disconnectBillingProvider(connected.id)}>נתק</Button>
-                  </div>
-                ) : (
-                  <Button size="sm" className="text-xs h-7" onClick={() => openBillingDialog(key)}>
-                    <LinkIcon className="h-3 w-3 ml-1" />התחבר
-                  </Button>
-                )}
-              </Card>
-            );
-          })}
-        </div>
-      </div>
+      <BillingProvidersSection
+        providerInfo={providerInfo}
+        billingProviders={billingProviders}
+        testingConnection={testingConnection}
+        testBillingConnection={testBillingConnection}
+        openBillingDialog={openBillingDialog}
+        disconnectBillingProvider={disconnectBillingProvider}
+      />
 
-      {/* Health Insurers */}
-      <Accordion type="single" collapsible>
-        <AccordionItem value="insurers" className="border rounded-lg px-4">
-          <AccordionTrigger className="hover:no-underline">
-            <div className="flex items-center gap-2">
-              <Building2 className="h-5 w-5 text-primary" />
-              <span className="font-semibold">קופות חולים</span>
-              <span className={`text-xs px-2 py-0.5 rounded-full ${insurerSettings.enabled ? "bg-green-100 text-green-700" : "bg-gray-100 text-gray-500"}`}>
-                {insurerSettings.enabled ? "פעיל" : "כבוי"}
-              </span>
-            </div>
-          </AccordionTrigger>
-          <AccordionContent className="space-y-4 pb-4">
-            <div className="flex items-center justify-between">
-              <div className="space-y-0.5">
-                <Label>הפעל שילוב קופות חולים</Label>
-                <p className="text-xs text-muted-foreground">אפשר דיווח ישיר לקופות חולים על פגישות שבוצעו</p>
-              </div>
-              <Switch checked={insurerSettings.enabled} onCheckedChange={(checked) => setInsurerSettings(p => ({ ...p, enabled: checked }))} />
-            </div>
-            <div className="flex items-center justify-between">
-              <div className="space-y-0.5">
-                <Label>שליחה אוטומטית בסיום פגישה</Label>
-                <p className="text-xs text-muted-foreground">דווח אוטומטית לקופה כשסיימת פגישה. אם כבוי - תצטרך לדווח ידנית.</p>
-              </div>
-              <Switch checked={insurerSettings.autoSubmit} onCheckedChange={(checked) => setInsurerSettings(p => ({ ...p, autoSubmit: checked }))} disabled={!insurerSettings.enabled} />
-            </div>
-
-            {insurerItems.map(item => (
-              <Card key={item.key} className="p-4">
-                <div className="flex items-center justify-between mb-3">
-                  <div className="flex items-center gap-2">
-                    <Shield className={`h-4 w-4 ${item.color}`} />
-                    <span className="font-medium text-sm">{item.label}</span>
-                  </div>
-                  <Switch
-                    checked={item.config.enabled}
-                    onCheckedChange={(checked) => setInsurerSettings(p => ({ ...p, [item.key]: { ...p[item.key as keyof InsurerSettings] as InsurerConfig, enabled: checked } }))}
-                    disabled={!insurerSettings.enabled}
-                  />
-                </div>
-                {item.config.enabled && (
-                  <div className="space-y-2">
-                    <Input type="password" placeholder={item.keyLabel} value={item.config.apiKey}
-                      onChange={(e) => setInsurerSettings(p => ({ ...p, [item.key]: { ...p[item.key as keyof InsurerSettings] as InsurerConfig, apiKey: e.target.value } }))} />
-                    <Input placeholder={item.secLabel} value={item.config.secondaryField}
-                      onChange={(e) => setInsurerSettings(p => ({ ...p, [item.key]: { ...p[item.key as keyof InsurerSettings] as InsurerConfig, secondaryField: e.target.value } }))} />
-                  </div>
-                )}
-              </Card>
-            ))}
-
-            {/* Meuhedet - special fields */}
-            <Card className="p-4">
-              <div className="flex items-center justify-between mb-3">
-                <div className="flex items-center gap-2">
-                  <Shield className="h-4 w-4 text-orange-600" />
-                  <span className="font-medium text-sm">מאוחדת</span>
-                </div>
-                <Switch
-                  checked={insurerSettings.meuhedet.enabled}
-                  onCheckedChange={(checked) => setInsurerSettings(p => ({ ...p, meuhedet: { ...p.meuhedet, enabled: checked } }))}
-                  disabled={!insurerSettings.enabled}
-                />
-              </div>
-              {insurerSettings.meuhedet.enabled && (
-                <div className="space-y-2">
-                  <Input placeholder="שם משתמש" value={insurerSettings.meuhedet.username}
-                    onChange={(e) => setInsurerSettings(p => ({ ...p, meuhedet: { ...p.meuhedet, username: e.target.value } }))} />
-                  <Input type="password" placeholder="סיסמה" value={insurerSettings.meuhedet.password}
-                    onChange={(e) => setInsurerSettings(p => ({ ...p, meuhedet: { ...p.meuhedet, password: e.target.value } }))} />
-                </div>
-              )}
-            </Card>
-
-            <div className="flex justify-end">
-              <Button onClick={saveInsurerSettings} disabled={savingInsurers} size="sm" className="gap-1">
-                {savingInsurers ? <Loader2 className="h-4 w-4 animate-spin" /> : <Save className="h-4 w-4" />}
-                שמור קופות חולים
-              </Button>
-            </div>
-          </AccordionContent>
-        </AccordionItem>
-      </Accordion>
+      <HealthInsurersSection
+        insurerSettings={insurerSettings}
+        setInsurerSettings={setInsurerSettings}
+        savingInsurers={savingInsurers}
+        saveInsurerSettings={saveInsurerSettings}
+      />
 
       {/* Billing Dialog */}
       <Dialog open={showBillingDialog} onOpenChange={setShowBillingDialog}>

@@ -1,9 +1,9 @@
 import { NextRequest, NextResponse } from "next/server";
-import { getServerSession } from "next-auth";
-import { authOptions } from "@/lib/auth";
 import prisma from "@/lib/prisma";
 import { GoogleGenerativeAI } from "@google/generative-ai";
 import { getApproachById, getApproachPrompts, buildIntegrationSection, getScalesPrompt, getUniversalPromptsLight } from "@/lib/therapeutic-approaches";
+import { logger } from "@/lib/logger";
+import { requireAuth } from "@/lib/api-auth";
 
 // POST - Analyze questionnaire with AI
 export const dynamic = "force-dynamic";
@@ -13,10 +13,9 @@ export async function POST(
   { params }: { params: Promise<{ id: string }> }
 ) {
   try {
-    const session = await getServerSession(authOptions);
-    if (!session?.user?.id) {
-      return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
-    }
+    const auth = await requireAuth();
+    if ("error" in auth) return auth.error;
+    const { userId, session } = auth;
 
     const { id } = await params;
 
@@ -24,7 +23,7 @@ export async function POST(
     const response = await prisma.questionnaireResponse.findFirst({
       where: {
         id,
-        therapistId: session.user.id,
+        therapistId: userId,
       },
       include: {
         template: true,
@@ -42,7 +41,7 @@ export async function POST(
     
     // Get user with tier and approaches
     const user = await prisma.user.findUnique({
-      where: { id: session.user.id },
+      where: { id: userId },
       select: {
         aiTier: true,
         therapeuticApproaches: true,
@@ -51,14 +50,14 @@ export async function POST(
 
     if (!response) {
       return NextResponse.json(
-        { error: "Response not found" },
+        { message: "Response not found" },
         { status: 404 }
       );
     }
 
     if (response.status !== "COMPLETED") {
       return NextResponse.json(
-        { error: "Questionnaire must be completed before analysis" },
+        { message: "Questionnaire must be completed before analysis" },
         { status: 400 }
       );
     }
@@ -66,7 +65,7 @@ export async function POST(
     const apiKey = process.env.GOOGLE_AI_API_KEY;
     if (!apiKey) {
       return NextResponse.json(
-        { error: "AI service not configured" },
+        { message: "AI service not configured" },
         { status: 500 }
       );
     }
@@ -336,7 +335,7 @@ ${approachSection}
     // Log API usage
     await prisma.apiUsageLog.create({
       data: {
-        userId: session.user.id,
+        userId: userId,
         endpoint: "questionnaire-analysis",
         method: "POST",
         tokensUsed: 0, // Gemini doesn't return token count in same way
@@ -350,9 +349,9 @@ ${approachSection}
       response: updatedResponse,
     });
   } catch (error) {
-    console.error("Error analyzing questionnaire:", error);
+    logger.error("Error analyzing questionnaire:", { error: error instanceof Error ? error.message : String(error) });
     return NextResponse.json(
-      { error: "Failed to analyze questionnaire" },
+      { message: "Failed to analyze questionnaire" },
       { status: 500 }
     );
   }

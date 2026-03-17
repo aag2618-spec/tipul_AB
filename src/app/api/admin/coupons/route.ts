@@ -1,27 +1,16 @@
 import { NextRequest, NextResponse } from "next/server";
-import { getServerSession } from "next-auth";
-import { authOptions } from "@/lib/auth";
 import prisma from "@/lib/prisma";
+import { logger } from "@/lib/logger";
+
+import { requireAdmin } from "@/lib/api-auth";
 
 // GET - List all coupons
 export const dynamic = "force-dynamic";
 
 export async function GET() {
   try {
-    const session = await getServerSession(authOptions);
-    if (!session?.user?.id) {
-      return NextResponse.json({ message: "לא מורשה" }, { status: 401 });
-    }
-
-    // Check if user is admin
-    const user = await prisma.user.findUnique({
-      where: { id: session.user.id },
-      select: { role: true },
-    });
-
-    if (user?.role !== "ADMIN") {
-      return NextResponse.json({ message: "אין הרשאה" }, { status: 403 });
-    }
+    const auth = await requireAdmin();
+    if ("error" in auth) return auth.error;
 
     const coupons = await prisma.coupon.findMany({
       include: {
@@ -42,7 +31,7 @@ export async function GET() {
 
     return NextResponse.json(coupons);
   } catch (error) {
-    console.error("Get coupons error:", error);
+    logger.error("Get coupons error:", { error: error instanceof Error ? error.message : String(error) });
     return NextResponse.json(
       { message: "אירעה שגיאה בטעינת הקופונים" },
       { status: 500 }
@@ -53,20 +42,8 @@ export async function GET() {
 // POST - Create new coupon
 export async function POST(request: NextRequest) {
   try {
-    const session = await getServerSession(authOptions);
-    if (!session?.user?.id) {
-      return NextResponse.json({ message: "לא מורשה" }, { status: 401 });
-    }
-
-    // Check if user is admin
-    const user = await prisma.user.findUnique({
-      where: { id: session.user.id },
-      select: { role: true },
-    });
-
-    if (user?.role !== "ADMIN") {
-      return NextResponse.json({ message: "אין הרשאה" }, { status: 403 });
-    }
+    const auth = await requireAdmin();
+    if ("error" in auth) return auth.error;
 
     const body = await request.json();
     const { code, name, type, maxUses, trialDays, validUntil, discount } = body;
@@ -104,7 +81,7 @@ export async function POST(request: NextRequest) {
 
     return NextResponse.json(coupon, { status: 201 });
   } catch (error) {
-    console.error("Create coupon error:", error);
+    logger.error("Create coupon error:", { error: error instanceof Error ? error.message : String(error) });
     return NextResponse.json(
       { message: "אירעה שגיאה ביצירת הקופון" },
       { status: 500 }

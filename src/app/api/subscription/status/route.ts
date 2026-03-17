@@ -2,22 +2,22 @@
 // API לקבלת סטטוס המנוי של המשתמש
 
 import { NextResponse } from "next/server";
-import { getServerSession } from "next-auth";
-import { authOptions } from "@/lib/auth";
 import prisma from "@/lib/prisma";
 import { MONTHLY_PRICES } from "@/lib/pricing";
+import { logger } from "@/lib/logger";
+
+import { requireAuth } from "@/lib/api-auth";
 
 export const dynamic = "force-dynamic";
 
 export async function GET() {
   try {
-    const session = await getServerSession(authOptions);
-    if (!session?.user?.id) {
-      return NextResponse.json({ error: "לא מורשה" }, { status: 401 });
-    }
+    const auth = await requireAuth();
+    if ("error" in auth) return auth.error;
+    const { userId, session } = auth;
 
     const user = await prisma.user.findUnique({
-      where: { id: session.user.id },
+      where: { id: userId },
       select: {
         aiTier: true,
         subscriptionStatus: true,
@@ -28,7 +28,7 @@ export async function GET() {
     });
 
     if (!user) {
-      return NextResponse.json({ error: "משתמש לא נמצא" }, { status: 404 });
+      return NextResponse.json({ message: "משתמש לא נמצא" }, { status: 404 });
     }
 
     // בדיקה אם המנוי בתוקף
@@ -41,7 +41,7 @@ export async function GET() {
 
     // קבלת תשלומים אחרונים
     const recentPayments = await prisma.subscriptionPayment.findMany({
-      where: { userId: session.user.id },
+      where: { userId: userId },
       orderBy: { createdAt: "desc" },
       take: 5,
       select: {
@@ -66,9 +66,9 @@ export async function GET() {
       recentPayments,
     });
   } catch (error) {
-    console.error("Subscription status error:", error);
+    logger.error("Subscription status error:", { error: error instanceof Error ? error.message : String(error) });
     return NextResponse.json(
-      { error: "שגיאה בקבלת סטטוס מנוי" },
+      { message: "שגיאה בקבלת סטטוס מנוי" },
       { status: 500 }
     );
   }

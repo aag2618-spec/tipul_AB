@@ -1,20 +1,20 @@
 import { NextRequest, NextResponse } from "next/server";
-import { getServerSession } from "next-auth";
-import { authOptions } from "@/lib/auth";
 import prisma from "@/lib/prisma";
 import { transcribeAudio } from "@/lib/google-ai";
 import { readFile } from "fs/promises";
 import { join } from "path";
 import { logApiUsage, estimateTokens, estimateCost } from "@/lib/api-logger";
+import { logger } from "@/lib/logger";
+
+import { requireAuth } from "@/lib/api-auth";
 
 export const dynamic = "force-dynamic";
 
 export async function POST(request: NextRequest) {
   try {
-    const session = await getServerSession(authOptions);
-    if (!session?.user?.id) {
-      return NextResponse.json({ message: "לא מורשה" }, { status: 401 });
-    }
+    const auth = await requireAuth();
+    if ("error" in auth) return auth.error;
+    const { userId, session } = auth;
 
     const body = await request.json();
     const { recordingId, force } = body;
@@ -41,8 +41,8 @@ export async function POST(request: NextRequest) {
 
     // Verify ownership
     const isOwner = 
-      (recording.client && recording.client.therapistId === session.user.id) ||
-      (recording.session && recording.session.therapistId === session.user.id);
+      (recording.client && recording.client.therapistId === userId) ||
+      (recording.session && recording.session.therapistId === userId);
     
     if (!isOwner) {
       return NextResponse.json({ message: "לא מורשה" }, { status: 403 });
@@ -77,7 +77,7 @@ export async function POST(request: NextRequest) {
     try {
       // Check if API key is configured
       if (!process.env.GOOGLE_AI_API_KEY) {
-        console.error("GOOGLE_AI_API_KEY is not set");
+        logger.error("GOOGLE_AI_API_KEY is not set");
         throw new Error("API key not configured");
       }
 
@@ -140,7 +140,7 @@ export async function POST(request: NextRequest) {
       const durationMs = Date.now() - startTime;
       const tokensUsed = estimateTokens(result.text);
       await logApiUsage({
-        userId: session.user.id,
+        userId: userId,
         endpoint: "/api/transcribe",
         method: "POST",
         tokensUsed,
@@ -154,7 +154,7 @@ export async function POST(request: NextRequest) {
       const errorMessage = transcriptionError instanceof Error 
         ? transcriptionError.message 
         : "Unknown error";
-      console.error("Transcription failed:", errorMessage, transcriptionError);
+      logger.error("Transcription failed:", { error: errorMessage });
       
       // Update status to error
       await prisma.recording.update({
@@ -165,7 +165,7 @@ export async function POST(request: NextRequest) {
       // Log failed API usage
       const durationMs = Date.now() - startTime;
       await logApiUsage({
-        userId: session.user.id,
+        userId: userId,
         endpoint: "/api/transcribe",
         method: "POST",
         success: false,
@@ -180,7 +180,7 @@ export async function POST(request: NextRequest) {
     }
   } catch (error: unknown) {
     const errorMessage = error instanceof Error ? error.message : "Unknown error";
-    console.error("Transcribe error:", errorMessage, error);
+    logger.error("Transcribe error:", { error: errorMessage });
     return NextResponse.json(
       { message: `אירעה שגיאה בתמלול: ${errorMessage}` },
       { status: 500 }

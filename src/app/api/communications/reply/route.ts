@@ -1,19 +1,18 @@
 import { NextRequest, NextResponse } from "next/server";
-import { getServerSession } from "next-auth";
-import { authOptions } from "@/lib/auth";
 import prisma from "@/lib/prisma";
 import { Resend } from "resend";
 import path from "path";
 import fs from "fs/promises";
+import { logger } from "@/lib/logger";
+import { requireAuth } from "@/lib/api-auth";
 
 export const dynamic = "force-dynamic";
 
 export async function POST(request: NextRequest) {
   try {
-    const session = await getServerSession(authOptions);
-    if (!session?.user?.id) {
-      return NextResponse.json({ message: "לא מורשה" }, { status: 401 });
-    }
+    const auth = await requireAuth();
+    if ("error" in auth) return auth.error;
+    const { userId, session } = auth;
 
     let communicationLogId: string;
     let replyContent: string;
@@ -59,7 +58,7 @@ export async function POST(request: NextRequest) {
       },
     });
 
-    if (!originalLog || originalLog.userId !== session.user.id) {
+    if (!originalLog || originalLog.userId !== userId) {
       return NextResponse.json({ message: "לא נמצא" }, { status: 404 });
     }
 
@@ -72,7 +71,7 @@ export async function POST(request: NextRequest) {
 
     // Get therapist info
     const therapist = await prisma.user.findUnique({
-      where: { id: session.user.id },
+      where: { id: userId },
       select: { name: true, email: true },
     });
 
@@ -135,7 +134,7 @@ export async function POST(request: NextRequest) {
     });
 
     if (sendError) {
-      console.error("Reply send error:", sendError);
+      logger.error("Reply send error:", { error: sendError instanceof Error ? sendError.message : String(sendError) });
       return NextResponse.json(
         { message: `שגיאה בשליחה: ${sendError.message}` },
         { status: 500 }
@@ -183,7 +182,7 @@ export async function POST(request: NextRequest) {
         messageId: sendResult?.id || null,
         inReplyTo: originalLog.messageId,
         clientId: originalLog.clientId,
-        userId: session.user.id,
+        userId: userId,
         ...(sentAttachmentMeta.length > 0 && { attachments: sentAttachmentMeta }),
       },
     });
@@ -205,7 +204,7 @@ export async function POST(request: NextRequest) {
       message: "התשובה נשלחה בהצלחה",
     });
   } catch (error) {
-    console.error("Reply error:", error);
+    logger.error("Reply error:", { error: error instanceof Error ? error.message : String(error) });
     return NextResponse.json(
       { message: "שגיאה בשליחת התשובה" },
       { status: 500 }

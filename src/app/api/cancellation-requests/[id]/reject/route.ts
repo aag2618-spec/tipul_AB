@@ -1,12 +1,12 @@
 import { NextRequest, NextResponse } from "next/server";
-import { getServerSession } from "next-auth";
-import { authOptions } from "@/lib/auth";
 import prisma from "@/lib/prisma";
 import { sendEmail } from "@/lib/resend";
 import {
   createCancellationRejectedEmail,
   formatSessionDateTime,
 } from "@/lib/email-templates";
+import { logger } from "@/lib/logger";
+import { requireAuth } from "@/lib/api-auth";
 
 // POST /api/cancellation-requests/[id]/reject
 // Reject a cancellation request
@@ -17,10 +17,9 @@ export async function POST(
   { params }: { params: Promise<{ id: string }> }
 ) {
   try {
-    const session = await getServerSession(authOptions);
-    if (!session?.user?.id) {
-      return NextResponse.json({ message: "לא מורשה" }, { status: 401 });
-    }
+    const auth = await requireAuth();
+    if ("error" in auth) return auth.error;
+    const { userId, session } = auth;
 
     const { id: requestId } = await params;
     const body = await request.json();
@@ -55,7 +54,7 @@ export async function POST(
     }
 
     // Verify the therapist owns this session
-    if (cancellationRequest.session.therapistId !== session.user.id) {
+    if (cancellationRequest.session.therapistId !== userId) {
       return NextResponse.json(
         { success: false, message: "אין הרשאה לטפל בבקשה זו" },
         { status: 403 }
@@ -76,7 +75,7 @@ export async function POST(
         status: "REJECTED",
         adminNotes: adminNotes || reason,
         reviewedAt: new Date(),
-        reviewedById: session.user.id,
+        reviewedById: userId,
       },
     });
 
@@ -123,7 +122,7 @@ export async function POST(
           messageId: result.messageId || null,
           sessionId: cancellationRequest.sessionId,
           clientId: cancellationRequest.clientId,
-          userId: session.user.id,
+          userId: userId,
         },
       });
     }
@@ -133,7 +132,7 @@ export async function POST(
       message: "הבקשה נדחתה והמטופל/ת קיבל/ה עדכון",
     });
   } catch (error) {
-    console.error("Reject cancellation error:", error);
+    logger.error("Reject cancellation error:", { error: error instanceof Error ? error.message : String(error) });
     return NextResponse.json(
       { success: false, message: "אירעה שגיאה בדחיית הבקשה" },
       { status: 500 }

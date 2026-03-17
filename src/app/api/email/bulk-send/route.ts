@@ -1,17 +1,16 @@
 import { NextRequest, NextResponse } from "next/server";
-import { getServerSession } from "next-auth";
-import { authOptions } from "@/lib/auth";
 import prisma from "@/lib/prisma";
 import { sendEmail, createGenericEmail } from "@/lib/resend";
+import { logger } from "@/lib/logger";
+import { requireAuth } from "@/lib/api-auth";
 
 export const dynamic = "force-dynamic";
 
 export async function POST(request: NextRequest) {
   try {
-    const session = await getServerSession(authOptions);
-    if (!session?.user?.id) {
-      return NextResponse.json({ message: "לא מורשה" }, { status: 401 });
-    }
+    const auth = await requireAuth();
+    if ("error" in auth) return auth.error;
+    const { userId, session } = auth;
 
     const body = await request.json();
     const { clientIds, subject, content } = body;
@@ -32,14 +31,14 @@ export async function POST(request: NextRequest) {
 
     // Get user info
     const user = await prisma.user.findUnique({
-      where: { id: session.user.id },
+      where: { id: userId },
     });
 
     // Get all selected clients
     const clients = await prisma.client.findMany({
       where: {
         id: { in: clientIds },
-        therapistId: session.user.id,
+        therapistId: userId,
       },
     });
 
@@ -89,7 +88,7 @@ export async function POST(request: NextRequest) {
             sentAt: result.success ? new Date() : null,
             messageId: result.messageId || null,
             clientId: client.id,
-            userId: session.user.id,
+            userId: userId,
           },
         });
 
@@ -119,7 +118,7 @@ export async function POST(request: NextRequest) {
       errors: errors.length > 0 ? errors : undefined,
     });
   } catch (error) {
-    console.error("Bulk send email error:", error);
+    logger.error("Bulk send email error:", { error: error instanceof Error ? error.message : String(error) });
     return NextResponse.json(
       { message: "אירעה שגיאה בשליחת המיילים" },
       { status: 500 }

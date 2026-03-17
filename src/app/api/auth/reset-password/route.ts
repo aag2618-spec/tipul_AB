@@ -2,6 +2,7 @@ import { NextRequest, NextResponse } from "next/server";
 import prisma from "@/lib/prisma";
 import bcrypt from "bcryptjs";
 import { checkRateLimit, AUTH_RATE_LIMIT, rateLimitResponse } from "@/lib/rate-limit";
+import { logger } from "@/lib/logger";
 
 export const dynamic = "force-dynamic";
 
@@ -78,7 +79,7 @@ export async function POST(request: NextRequest) {
       message: "הסיסמה עודכנה בהצלחה! ניתן להתחבר עכשיו",
     });
   } catch (error) {
-    console.error("Reset password error:", error);
+    logger.error("Reset password error:", { error: error instanceof Error ? error.message : String(error) });
     return NextResponse.json(
       { error: "שגיאה באיפוס הסיסמה" },
       { status: 500 }
@@ -114,7 +115,7 @@ export async function GET(request: NextRequest) {
 
     return NextResponse.json({ valid: true });
   } catch (error) {
-    console.error("Validate token error:", error);
+    logger.error("Validate token error:", { error: error instanceof Error ? error.message : String(error) });
     return NextResponse.json({ valid: false, error: "שגיאה" });
   }
 }

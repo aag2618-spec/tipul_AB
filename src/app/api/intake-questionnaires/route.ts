@@ -1,22 +1,22 @@
 import { NextRequest, NextResponse } from "next/server";
-import { getServerSession } from "next-auth";
-import { authOptions } from "@/lib/auth";
 import prisma from "@/lib/prisma";
 import { Prisma } from "@prisma/client";
+import { logger } from "@/lib/logger";
+
+import { requireAuth } from "@/lib/api-auth";
 
 // GET - קבל את כל השאלונים של המטפל
 export const dynamic = "force-dynamic";
 
 export async function GET() {
   try {
-    const session = await getServerSession(authOptions);
-    if (!session?.user?.id) {
-      return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
-    }
+    const auth = await requireAuth();
+    if ("error" in auth) return auth.error;
+    const { userId, session } = auth;
 
     const templates = await prisma.intakeQuestionnaire.findMany({
       where: {
-        userId: session.user.id,
+        userId: userId,
         isActive: true,
       },
       orderBy: [
@@ -32,9 +32,9 @@ export async function GET() {
 
     return NextResponse.json(templates);
   } catch (error) {
-    console.error("Error fetching intake questionnaires:", error);
+    logger.error("Error fetching intake questionnaires:", { error: error instanceof Error ? error.message : String(error) });
     return NextResponse.json(
-      { error: "Failed to fetch templates" },
+      { message: "Failed to fetch templates" },
       { status: 500 }
     );
   }
@@ -43,10 +43,9 @@ export async function GET() {
 // POST - צור שאלון חדש
 export async function POST(req: NextRequest) {
   try {
-    const session = await getServerSession(authOptions);
-    if (!session?.user?.id) {
-      return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
-    }
+    const auth = await requireAuth();
+    if ("error" in auth) return auth.error;
+    const { userId, session } = auth;
 
     const body = await req.json();
     const { name, description, questions, isDefault } = body;
@@ -54,7 +53,7 @@ export async function POST(req: NextRequest) {
     if (isDefault) {
       await prisma.intakeQuestionnaire.updateMany({
         where: {
-          userId: session.user.id,
+          userId: userId,
           isDefault: true,
         },
         data: {
@@ -65,7 +64,7 @@ export async function POST(req: NextRequest) {
 
     const template = await prisma.intakeQuestionnaire.create({
       data: {
-        userId: session.user.id,
+        userId: userId,
         name,
         description,
         questions: questions as Prisma.InputJsonValue,
@@ -75,9 +74,9 @@ export async function POST(req: NextRequest) {
 
     return NextResponse.json(template);
   } catch (error) {
-    console.error("Error creating intake questionnaire:", error);
+    logger.error("Error creating intake questionnaire:", { error: error instanceof Error ? error.message : String(error) });
     return NextResponse.json(
-      { error: "Failed to create template" },
+      { message: "Failed to create template" },
       { status: 500 }
     );
   }

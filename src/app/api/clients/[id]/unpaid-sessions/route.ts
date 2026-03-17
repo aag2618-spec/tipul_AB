@@ -1,8 +1,8 @@
 import { NextRequest, NextResponse } from "next/server";
-import { getServerSession } from "next-auth";
-import { authOptions } from "@/lib/auth";
 import prisma from "@/lib/prisma";
 import { calculateDebtFromSessions } from "@/lib/payment-utils";
+import { logger } from "@/lib/logger";
+import { requireAuth } from "@/lib/api-auth";
 
 export const dynamic = "force-dynamic";
 
@@ -11,10 +11,9 @@ export async function GET(
   { params }: { params: Promise<{ id: string }> }
 ) {
   try {
-    const session = await getServerSession(authOptions);
-    if (!session?.user?.id) {
-      return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
-    }
+    const auth = await requireAuth();
+    if ("error" in auth) return auth.error;
+    const { userId, session } = auth;
 
     const { id: clientId } = await params;
 
@@ -22,7 +21,7 @@ export async function GET(
     const client = await prisma.client.findFirst({
       where: {
         id: clientId,
-        therapistId: session.user.id,
+        therapistId: userId,
       },
       select: {
         id: true,
@@ -54,7 +53,7 @@ export async function GET(
     });
 
     if (!client) {
-      return NextResponse.json({ error: "Client not found" }, { status: 404 });
+      return NextResponse.json({ message: "Client not found" }, { status: 404 });
     }
 
     const sessions = client.therapySessions.map((session) => ({
@@ -83,9 +82,9 @@ export async function GET(
       sessions,
     });
   } catch (error) {
-    console.error("Error fetching unpaid sessions:", error);
+    logger.error("Error fetching unpaid sessions:", { error: error instanceof Error ? error.message : String(error) });
     return NextResponse.json(
-      { error: "Internal server error" },
+      { message: "Internal server error" },
       { status: 500 }
     );
   }

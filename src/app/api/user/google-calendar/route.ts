@@ -1,27 +1,27 @@
 import { NextResponse } from "next/server";
-import { getServerSession } from "next-auth";
-import { authOptions } from "@/lib/auth";
 import { isGoogleCalendarConnected } from "@/lib/google-calendar";
 import prisma from "@/lib/prisma";
+import { logger } from "@/lib/logger";
+
+import { requireAuth } from "@/lib/api-auth";
 
 // GET - Check if Google Calendar is connected
 export const dynamic = "force-dynamic";
 
 export async function GET() {
   try {
-    const session = await getServerSession(authOptions);
-    if (!session?.user?.id) {
-      return NextResponse.json({ message: "לא מורשה" }, { status: 401 });
-    }
+    const auth = await requireAuth();
+    if ("error" in auth) return auth.error;
+    const { userId, session } = auth;
 
-    const isConnected = await isGoogleCalendarConnected(session.user.id);
+    const isConnected = await isGoogleCalendarConnected(userId);
     
     // Get account info if connected
     let accountEmail = null;
     if (isConnected) {
       const account = await prisma.account.findFirst({
         where: {
-          userId: session.user.id,
+          userId: userId,
           provider: 'google',
         },
         include: {
@@ -38,7 +38,7 @@ export async function GET() {
       email: accountEmail,
     });
   } catch (error) {
-    console.error("Check Google Calendar connection error:", error);
+    logger.error("Check Google Calendar connection error:", { error: error instanceof Error ? error.message : String(error) });
     return NextResponse.json(
       { message: "אירעה שגיאה" },
       { status: 500 }
@@ -49,15 +49,14 @@ export async function GET() {
 // DELETE - Disconnect Google Calendar
 export async function DELETE() {
   try {
-    const session = await getServerSession(authOptions);
-    if (!session?.user?.id) {
-      return NextResponse.json({ message: "לא מורשה" }, { status: 401 });
-    }
+    const auth = await requireAuth();
+    if ("error" in auth) return auth.error;
+    const { userId, session } = auth;
 
     // Delete Google account connection
     await prisma.account.deleteMany({
       where: {
-        userId: session.user.id,
+        userId: userId,
         provider: 'google',
       },
     });
@@ -67,7 +66,7 @@ export async function DELETE() {
       message: "החיבור ל-Google Calendar נותק בהצלחה",
     });
   } catch (error) {
-    console.error("Disconnect Google Calendar error:", error);
+    logger.error("Disconnect Google Calendar error:", { error: error instanceof Error ? error.message : String(error) });
     return NextResponse.json(
       { message: "אירעה שגיאה בניתוק החיבור" },
       { status: 500 }
