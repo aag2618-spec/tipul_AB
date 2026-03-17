@@ -9,6 +9,7 @@ import { withWebhookRetry } from "@/lib/webhook-retry";
 import { checkRateLimit, WEBHOOK_RATE_LIMIT } from "@/lib/rate-limit";
 import { PLAN_NAMES, detectPeriodFromAmount as detectPeriodCentral } from "@/lib/pricing";
 import { escapeHtml } from "@/lib/email-utils";
+import { logger } from "@/lib/logger";
 
 const ADMIN_EMAIL = process.env.ADMIN_EMAIL;
 const SYSTEM_URL = process.env.NEXTAUTH_URL || "";
@@ -26,7 +27,7 @@ export async function POST(request: NextRequest) {
       return NextResponse.json({ error: "Service unavailable" }, { status: 503 });
     }
     if (!verifyMeshulamWebhook(body, signature, webhookSecret)) {
-      console.error("Invalid Meshulam webhook signature");
+      logger.error("Invalid Meshulam webhook signature");
       return NextResponse.json(
         { error: "Invalid signature" },
         { status: 401 }
@@ -67,12 +68,12 @@ export async function POST(request: NextRequest) {
     });
 
     if (!result.success) {
-      console.error("Webhook handler failed but saved for retry:", result.error);
+      logger.error("Webhook handler failed but saved for retry", { error: String(result.error) });
     }
 
     return NextResponse.json({ received: true });
   } catch (error) {
-    console.error("Meshulam webhook error:", error);
+    logger.error("Meshulam webhook error", { error: error instanceof Error ? error.message : String(error) });
     return NextResponse.json(
       { error: "Webhook processing failed" },
       { status: 500 }
@@ -181,7 +182,7 @@ async function handlePaymentSuccess(payload: MeshulamWebhookPayload) {
             user.aiTier,
             documentUrl
           ),
-        }).catch(err => console.error("Email to subscriber failed:", err));
+        }).catch(err => logger.error("Email to subscriber failed", { error: err instanceof Error ? err.message : String(err) }));
       }
 
       // 📧 הודעה לאדמין (לך!)
@@ -197,7 +198,7 @@ async function handlePaymentSuccess(payload: MeshulamWebhookPayload) {
             "תשלום מנוי התקבל בהצלחה",
             "success"
           ),
-        }).catch(err => console.error("Email to admin failed:", err));
+        }).catch(err => logger.error("Email to admin failed", { error: err instanceof Error ? err.message : String(err) }));
       }
     }
   }
@@ -277,7 +278,7 @@ async function handlePaymentFailed(payload: MeshulamWebhookPayload) {
               </div>
             </div>
           `,
-        }).catch(err => console.error("Payment failed email to user error:", err));
+        }).catch(err => logger.error("Payment failed email to user error", { error: err instanceof Error ? err.message : String(err) }));
       }
 
       // 📧 הודעה לאדמין
@@ -293,7 +294,7 @@ async function handlePaymentFailed(payload: MeshulamWebhookPayload) {
             `תשלום נכשל: ${errorMessage}`,
             "error"
           ),
-        }).catch(err => console.error("Payment failed email to admin error:", err));
+        }).catch(err => logger.error("Payment failed email to admin error", { error: err instanceof Error ? err.message : String(err) }));
       }
     }
   }
@@ -346,7 +347,7 @@ async function handleSubscriptionCreated(payload: MeshulamWebhookPayload) {
           user.aiTier,
           undefined
         ),
-      }).catch(err => console.error("Welcome email failed:", err));
+      }).catch(err => logger.error("Welcome email failed", { error: err instanceof Error ? err.message : String(err) }));
     }
 
     // 📧 הודעה לאדמין - מנוי חדש!
@@ -362,7 +363,7 @@ async function handleSubscriptionCreated(payload: MeshulamWebhookPayload) {
           "מנוי חדש נרשם למערכת!",
           "success"
         ),
-      }).catch(err => console.error("Admin new sub email failed:", err));
+      }).catch(err => logger.error("Admin new sub email failed", { error: err instanceof Error ? err.message : String(err) }));
     }
   }
 }
@@ -422,7 +423,7 @@ async function handleSubscriptionRenewed(payload: MeshulamWebhookPayload) {
           user.aiTier,
           documentUrl
         ),
-      }).catch(err => console.error("Renewal email to user failed:", err));
+      }).catch(err => logger.error("Renewal email to user failed", { error: err instanceof Error ? err.message : String(err) }));
     }
 
     // 📧 הודעה לאדמין - חידוש אוטומטי הצליח
@@ -438,7 +439,7 @@ async function handleSubscriptionRenewed(payload: MeshulamWebhookPayload) {
           "המנוי חודש אוטומטית בהצלחה",
           "success"
         ),
-      }).catch(err => console.error("Renewal email to admin failed:", err));
+      }).catch(err => logger.error("Renewal email to admin failed", { error: err instanceof Error ? err.message : String(err) }));
     }
   }
 }
@@ -509,7 +510,7 @@ async function handleSubscriptionCancelled(payload: MeshulamWebhookPayload) {
             </div>
           </div>
         `,
-      }).catch(err => console.error("Cancellation email to user failed:", err));
+      }).catch(err => logger.error("Cancellation email to user failed", { error: err instanceof Error ? err.message : String(err) }));
     }
 
     // 📧 הודעה לאדמין
@@ -525,7 +526,7 @@ async function handleSubscriptionCancelled(payload: MeshulamWebhookPayload) {
           "המנוי בוטל על ידי המשתמש או ספק התשלום",
           "warning"
         ),
-      }).catch(err => console.error("Cancellation email to admin failed:", err));
+      }).catch(err => logger.error("Cancellation email to admin failed", { error: err instanceof Error ? err.message : String(err) }));
     }
   }
 }

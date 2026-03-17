@@ -1,21 +1,21 @@
 import { NextRequest, NextResponse } from "next/server";
-import { getServerSession } from "next-auth";
-import { authOptions } from "@/lib/auth";
+import { requireAuth } from "@/lib/api-auth";
 import prisma from "@/lib/prisma";
+import { parseBody } from "@/lib/validations/helpers";
+import { createClientSchema } from "@/lib/validations/client";
 
 export const dynamic = "force-dynamic";
 
 export async function GET(request: NextRequest) {
   try {
-    const session = await getServerSession(authOptions);
-    if (!session?.user?.id) {
-      return NextResponse.json({ message: "לא מורשה" }, { status: 401 });
-    }
+    const auth = await requireAuth();
+    if ("error" in auth) return auth.error;
+    const { userId } = auth;
 
     const { searchParams } = new URL(request.url);
     const status = searchParams.get("status");
 
-    const where: Record<string, unknown> = { therapistId: session.user.id };
+    const where: Record<string, unknown> = { therapistId: userId };
 
     if (status) {
       where.status = status;
@@ -60,24 +60,17 @@ export async function GET(request: NextRequest) {
 
 export async function POST(request: NextRequest) {
   try {
-    const session = await getServerSession(authOptions);
-    if (!session?.user?.id) {
-      return NextResponse.json({ message: "לא מורשה" }, { status: 401 });
-    }
+    const auth = await requireAuth();
+    if ("error" in auth) return auth.error;
+    const { userId } = auth;
 
-    const body = await request.json();
-    const { firstName, lastName, phone, email, birthDate, address, notes, status, defaultSessionPrice } = body;
-
-    if (!firstName || !lastName) {
-      return NextResponse.json(
-        { message: "שם פרטי ושם משפחה הם שדות חובה" },
-        { status: 400 }
-      );
-    }
+    const parsed = await parseBody(request, createClientSchema);
+    if ("error" in parsed) return parsed.error;
+    const { firstName, lastName, phone, email, birthDate, address, notes, status, defaultSessionPrice } = parsed.data;
 
     const client = await prisma.client.create({
       data: {
-        therapistId: session.user.id,
+        therapistId: userId,
         firstName: firstName.trim(),
         lastName: lastName.trim(),
         name: `${firstName.trim()} ${lastName.trim()}`,
@@ -87,7 +80,7 @@ export async function POST(request: NextRequest) {
         address: address || null,
         notes: notes || null,
         status: status || "ACTIVE",
-        defaultSessionPrice: defaultSessionPrice ? parseFloat(defaultSessionPrice) : null,
+        defaultSessionPrice: defaultSessionPrice ? parseFloat(String(defaultSessionPrice)) : null,
       },
     });
 

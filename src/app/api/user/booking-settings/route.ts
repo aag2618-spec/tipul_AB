@@ -2,6 +2,7 @@ import { NextRequest, NextResponse } from "next/server";
 import { getServerSession } from "next-auth";
 import { authOptions } from "@/lib/auth";
 import { prisma } from "@/lib/prisma";
+import { Prisma } from "@prisma/client";
 import { nanoid } from "nanoid";
 
 export const dynamic = "force-dynamic";
@@ -84,7 +85,7 @@ export async function PUT(request: NextRequest) {
       where: { therapistId: session.user.id },
       data: {
         enabled: enabled ?? existing.enabled,
-        workingHours: workingHours ? sanitizeWorkingHours(workingHours) : existing.workingHours,
+        workingHours: workingHours ? (sanitizeWorkingHours(workingHours) as unknown as Prisma.InputJsonValue) : existing.workingHours as Prisma.InputJsonValue,
         breaks: breaks ?? existing.breaks,
         sessionDuration: sessionDuration ?? existing.sessionDuration,
         bufferBetween: bufferBetween ?? existing.bufferBetween,
@@ -106,7 +107,7 @@ export async function PUT(request: NextRequest) {
       therapistId: session.user.id,
       slug,
       enabled: enabled ?? false,
-      workingHours: workingHours ? sanitizeWorkingHours(workingHours) : getDefaultWorkingHours(),
+      workingHours: (workingHours ? sanitizeWorkingHours(workingHours) : getDefaultWorkingHours()) as unknown as Prisma.InputJsonValue,
       breaks: breaks ?? [],
       sessionDuration: sessionDuration ?? 50,
       bufferBetween: bufferBetween ?? 10,

@@ -1,27 +1,27 @@
 import { NextRequest, NextResponse } from "next/server";
-import { getServerSession } from "next-auth";
-import { authOptions } from "@/lib/auth";
+import { requireAuth } from "@/lib/api-auth";
 import prisma from "@/lib/prisma";
 import { parseIsraelTime } from "@/lib/date-utils";
+import { parseBody } from "@/lib/validations/helpers";
+import { createSessionSchema } from "@/lib/validations/session";
 
 export async function GET(request: NextRequest) {
   try {
-    const session = await getServerSession(authOptions);
-    if (!session?.user?.id) {
-      return NextResponse.json({ message: "לא מורשה" }, { status: 401 });
-    }
+    const auth = await requireAuth();
+    if ("error" in auth) return auth.error;
+    const { userId } = auth;
 
     const { searchParams } = new URL(request.url);
     const clientId = searchParams.get("clientId");
     const startDate = searchParams.get("startDate");
     const endDate = searchParams.get("endDate");
 
-    const where: Record<string, unknown> = { therapistId: session.user.id };
-    
+    const where: Record<string, unknown> = { therapistId: userId };
+
     if (clientId) {
       where.clientId = clientId;
     }
-    
+
     if (startDate && endDate) {
       where.startTime = {
         gte: new Date(startDate),
@@ -53,34 +53,19 @@ export async function GET(request: NextRequest) {
 
 export async function POST(request: NextRequest) {
   try {
-    const session = await getServerSession(authOptions);
-    if (!session?.user?.id) {
-      return NextResponse.json({ message: "לא מורשה" }, { status: 401 });
-    }
+    const auth = await requireAuth();
+    if ("error" in auth) return auth.error;
+    const { userId } = auth;
 
-    const body = await request.json();
-    const { clientId, startTime, endTime, type, price, location, notes, isRecurring } = body;
-
-    // For BREAK type, we don't require a client
-    if (type !== "BREAK" && (!clientId || !startTime || !endTime)) {
-      return NextResponse.json(
-        { message: "נא למלא את כל השדות הנדרשים" },
-        { status: 400 }
-      );
-    }
-    
-    if (type === "BREAK" && (!startTime || !endTime)) {
-      return NextResponse.json(
-        { message: "נא למלא את שעות ההפסקה" },
-        { status: 400 }
-      );
-    }
+    const parsed = await parseBody(request, createSessionSchema);
+    if ("error" in parsed) return parsed.error;
+    const { clientId, startTime, endTime, type, price, location, notes, isRecurring } = parsed.data;
 
     // Verify client belongs to therapist (skip for BREAK)
     let clientDefaultPrice = 0;
     if (type !== "BREAK") {
       const client = await prisma.client.findFirst({
-        where: { id: clientId, therapistId: session.user.id },
+        where: { id: clientId, therapistId: userId },
       });
 
       if (!client) {
@@ -89,7 +74,7 @@ export async function POST(request: NextRequest) {
           { status: 404 }
         );
       }
-      
+
       // Use client's default session price if no price provided
       clientDefaultPrice = Number(client.defaultSessionPrice || 0);
     }
@@ -101,7 +86,7 @@ export async function POST(request: NextRequest) {
     // Check for conflicts
     const conflict = await prisma.therapySession.findFirst({
       where: {
-        therapistId: session.user.id,
+        therapistId: userId,
         status: { not: "CANCELLED" },
         OR: [
           {
@@ -135,11 +120,11 @@ export async function POST(request: NextRequest) {
 
     const therapySession = await prisma.therapySession.create({
       data: {
-        therapistId: session.user.id,
+        therapistId: userId,
         clientId: type === "BREAK" ? null : clientId,
         startTime: parsedStartTime,
         endTime: parsedEndTime,
-        type: type || "IN_PERSON",
+        type: type ?? "IN_PERSON",
         price: type === "BREAK" ? 0 : (price || clientDefaultPrice),
         location: location || null,
         notes: notes || null,
@@ -165,10 +150,10 @@ export async function POST(request: NextRequest) {
         // Send email directly without HTTP request
         const { sendEmail } = await import("@/lib/resend");
         const { createSessionConfirmationEmail, formatSessionDateTime } = await import("@/lib/email-templates");
-        
+
         // Format session date/time for confirmation email
         const { date, time } = formatSessionDateTime(therapySession.startTime);
-        // Store email in variable for type safety (validated in line 187)
+        // Store email in variable for type safety
         const clientEmail = therapySession.client.email;
         const { subject, html } = createSessionConfirmationEmail({
           clientName: therapySession.client.name,
@@ -202,12 +187,12 @@ export async function POST(request: NextRequest) {
                 messageId: result.messageId,
               },
             });
-            
+
             // Log result
             if (result.success) {
-              console.log(`✅ Confirmation email sent to ${clientEmail}`);
+              console.log(`Confirmation email sent to ${clientEmail}`);
             } else {
-              console.error(`❌ Failed to send confirmation to ${clientEmail}:`, result.error);
+              console.error(`Failed to send confirmation to ${clientEmail}:`, result.error);
             }
           })
           .catch((err) => console.error("Failed to send confirmation:", err));
@@ -219,11 +204,11 @@ export async function POST(request: NextRequest) {
       const client = await prisma.client.findUnique({
         where: { id: clientId },
       });
-      
+
       if (client) {
         await prisma.task.create({
           data: {
-            userId: session.user.id,
+            userId,
             type: "WRITE_SUMMARY",
             title: `כתוב סיכום לפגישה עם ${client.name}`,
             status: "PENDING",
@@ -249,16 +234,3 @@ export async function POST(request: NextRequest) {
     );
   }
 }
-
-
-
-
-
-
-
-
-
-
-
-
-

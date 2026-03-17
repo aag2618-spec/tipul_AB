@@ -31,7 +31,7 @@ export async function GET(
       const fileName = path[path.length - 1];
       const document = await prisma.document.findFirst({
         where: {
-          fileUrl: { contains: fileName },
+          fileUrl: { endsWith: '/' + fileName },
           therapistId: session.user.id,
         },
       });
@@ -44,7 +44,7 @@ export async function GET(
       const fileName = path[path.length - 1];
       const document = await prisma.document.findFirst({
         where: {
-          fileUrl: { contains: fileName },
+          fileUrl: { endsWith: '/' + fileName },
           therapistId: session.user.id,
         },
       });
@@ -72,7 +72,7 @@ export async function GET(
       const fileName = path[path.length - 1];
       const recording = await prisma.recording.findFirst({
         where: {
-          audioUrl: { contains: fileName },
+          audioUrl: { endsWith: '/' + fileName },
           client: { therapistId: session.user.id },
         },
       });

@@ -1,6 +1,5 @@
 import { NextRequest, NextResponse } from "next/server";
-import { getServerSession } from "next-auth";
-import { authOptions } from "@/lib/auth";
+import { requireAuth } from "@/lib/api-auth";
 import prisma from "@/lib/prisma";
 import { parseIsraelTime } from "@/lib/date-utils";
 
@@ -8,10 +7,9 @@ export const dynamic = "force-dynamic";
 
 export async function GET(request: NextRequest) {
   try {
-    const session = await getServerSession(authOptions);
-    if (!session?.user?.id) {
-      return NextResponse.json({ message: "לא מורשה" }, { status: 401 });
-    }
+    const auth = await requireAuth();
+    if ("error" in auth) return auth.error;
+    const { userId } = auth;
 
     const { searchParams } = new URL(request.url);
     const status = searchParams.get("status");
@@ -19,7 +17,7 @@ export async function GET(request: NextRequest) {
     const withReminders = searchParams.get("withReminders");
     const history = searchParams.get("history");
 
-    const where: Record<string, unknown> = { userId: session.user.id };
+    const where: Record<string, unknown> = { userId };
 
     if (history === "true") {
       const thirtyDaysAgo = new Date();
@@ -75,10 +73,9 @@ export async function GET(request: NextRequest) {
 
 export async function POST(request: NextRequest) {
   try {
-    const session = await getServerSession(authOptions);
-    if (!session?.user?.id) {
-      return NextResponse.json({ message: "לא מורשה" }, { status: 401 });
-    }
+    const auth = await requireAuth();
+    if ("error" in auth) return auth.error;
+    const { userId } = auth;
 
     const body = await request.json();
     const { type, title, description, priority, dueDate, reminderAt, relatedEntityId, relatedEntity } = body;
@@ -92,7 +89,7 @@ export async function POST(request: NextRequest) {
 
     const task = await prisma.task.create({
       data: {
-        userId: session.user.id,
+        userId,
         type: type || "CUSTOM",
         title,
         description: description || null,
@@ -108,7 +105,7 @@ export async function POST(request: NextRequest) {
     // Create a bell notification so it shows up immediately
     await prisma.notification.create({
       data: {
-        userId: session.user.id,
+        userId,
         type: "PENDING_TASKS",
         title: `מטלה חדשה: ${title}`,
         content: reminderAt

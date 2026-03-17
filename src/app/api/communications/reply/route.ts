@@ -127,7 +127,7 @@ export async function POST(request: NextRequest) {
     const { data: sendResult, error: sendError } = await resend.emails.send({
       from: process.env.EMAIL_FROM || "Tipul App <onboarding@resend.dev>",
       to: [originalLog.client.email.toLowerCase()],
-      subject: replySubject,
+      subject: replySubject ?? "",
       html: replyHtml,
       replyTo: "inbox@mytipul.com",
       headers: emailHeaders,

@@ -1,23 +1,21 @@
 import { NextRequest, NextResponse } from "next/server";
-import { getServerSession } from "next-auth";
-import { authOptions } from "@/lib/auth";
+import { requireAuth } from "@/lib/api-auth";
 import prisma from "@/lib/prisma";
 
 export const dynamic = "force-dynamic";
 
 export async function GET(request: NextRequest) {
   try {
-    const session = await getServerSession(authOptions);
-    if (!session?.user?.id) {
-      return NextResponse.json({ message: "לא מורשה" }, { status: 401 });
-    }
+    const auth = await requireAuth();
+    if ("error" in auth) return auth.error;
+    const { userId } = auth;
 
     const { searchParams } = new URL(request.url);
     const clientId = searchParams.get("clientId");
     const status = searchParams.get("status");
 
     const where: Record<string, unknown> = {
-      client: { therapistId: session.user.id },
+      client: { therapistId: userId },
     };
 
     if (clientId) {
@@ -59,10 +57,9 @@ export async function GET(request: NextRequest) {
 
 export async function POST(request: NextRequest) {
   try {
-    const session = await getServerSession(authOptions);
-    if (!session?.user?.id) {
-      return NextResponse.json({ message: "לא מורשה" }, { status: 401 });
-    }
+    const auth = await requireAuth();
+    if ("error" in auth) return auth.error;
+    const { userId } = auth;
 
     const body = await request.json();
     const { audioData, mimeType, durationSeconds, type, clientId, sessionId } = body;
@@ -77,7 +74,7 @@ export async function POST(request: NextRequest) {
     // Verify client belongs to therapist
     if (clientId) {
       const client = await prisma.client.findFirst({
-        where: { id: clientId, therapistId: session.user.id },
+        where: { id: clientId, therapistId: userId },
       });
 
       if (!client) {

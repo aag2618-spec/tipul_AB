@@ -1,11 +1,11 @@
 import crypto from 'crypto';
 
-const ENCRYPTION_KEY = (() => {
-  const key = process.env.ENCRYPTION_KEY;
-  if (!key && process.env.NODE_ENV === "production") {
-    throw new Error("ENCRYPTION_KEY must be set in production environment");
+const ENCRYPTION_KEY = process.env.ENCRYPTION_KEY || (() => {
+  if (process.env.NODE_ENV === "production") {
+    throw new Error("ENCRYPTION_KEY must be set in production");
   }
-  return key || "default-key-for-development-only-32chars!!";
+  console.warn("⚠️ Using random development encryption key - encrypted data will not persist across restarts");
+  return crypto.randomBytes(32).toString("hex").slice(0, 42);
 })();
 const ALGORITHM = 'aes-256-gcm';
 

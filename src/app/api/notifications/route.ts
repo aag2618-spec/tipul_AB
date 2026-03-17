@@ -1,16 +1,14 @@
 import { NextRequest, NextResponse } from "next/server";
-import { getServerSession } from "next-auth";
-import { authOptions } from "@/lib/auth";
+import { requireAuth } from "@/lib/api-auth";
 import prisma from "@/lib/prisma";
 
 export const dynamic = "force-dynamic";
 
 export async function GET(request: NextRequest) {
   try {
-    const session = await getServerSession(authOptions);
-    if (!session?.user?.id) {
-      return NextResponse.json({ message: "לא מורשה" }, { status: 401 });
-    }
+    const auth = await requireAuth();
+    if ("error" in auth) return auth.error;
+    const { userId } = auth;
 
     const { searchParams } = new URL(request.url);
     const unreadOnly = searchParams.get("unread") === "true";
@@ -18,13 +16,13 @@ export async function GET(request: NextRequest) {
     const typeFilter = searchParams.get("type"); // e.g. "EMAIL_RECEIVED"
 
     const where: Record<string, unknown> = {
-      userId: session.user.id,
+      userId,
       ...(unreadOnly ? { status: { in: ["PENDING", "SENT"] as ("PENDING" | "SENT")[] } } : {}),
       ...(typeFilter ? { type: typeFilter } : {}),
     };
 
     const unreadWhere: Record<string, unknown> = {
-      userId: session.user.id,
+      userId,
       status: { in: ["PENDING", "SENT"] as ("PENDING" | "SENT")[] },
       ...(typeFilter ? { type: typeFilter } : {}),
     };
@@ -65,10 +63,9 @@ export async function GET(request: NextRequest) {
 
 export async function POST(request: NextRequest) {
   try {
-    const session = await getServerSession(authOptions);
-    if (!session?.user?.id) {
-      return NextResponse.json({ message: "לא מורשה" }, { status: 401 });
-    }
+    const auth = await requireAuth();
+    if ("error" in auth) return auth.error;
+    const { userId } = auth;
 
     const { type, title, content } = await request.json();
 
@@ -78,7 +75,7 @@ export async function POST(request: NextRequest) {
 
     const notification = await prisma.notification.create({
       data: {
-        userId: session.user.id,
+        userId,
         type: type || "CUSTOM",
         title,
         content,
@@ -99,10 +96,9 @@ export async function POST(request: NextRequest) {
 
 export async function PUT(request: NextRequest) {
   try {
-    const session = await getServerSession(authOptions);
-    if (!session?.user?.id) {
-      return NextResponse.json({ message: "לא מורשה" }, { status: 401 });
-    }
+    const auth = await requireAuth();
+    if ("error" in auth) return auth.error;
+    const { userId } = auth;
 
     const body = await request.json();
     const { id, status, markAllAsRead } = body;
@@ -110,7 +106,7 @@ export async function PUT(request: NextRequest) {
     if (markAllAsRead) {
       await prisma.notification.updateMany({
         where: {
-          userId: session.user.id,
+          userId,
           status: { in: ["PENDING", "SENT"] },
         },
         data: {
@@ -141,10 +137,3 @@ export async function PUT(request: NextRequest) {
     );
   }
 }
-
-
-
-
-
-
-

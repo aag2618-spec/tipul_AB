@@ -4,6 +4,8 @@ import prisma from "@/lib/prisma";
 import { randomBytes } from "node:crypto";
 import { sendEmail } from "@/lib/resend";
 import { checkRateLimit, AUTH_RATE_LIMIT, rateLimitResponse } from "@/lib/rate-limit";
+import { parseBody } from "@/lib/validations/helpers";
+import { registerSchema } from "@/lib/validations/auth";
 
 const TRIAL_DAYS = 14;
 const TRIAL_AI_TIER = "PRO"; // מסלול ניסיון
@@ -18,22 +20,9 @@ export async function POST(request: NextRequest) {
       return rateLimitResponse(rateLimitResult);
     }
 
-    const body = await request.json();
-    const { name, email, password, phone, license, couponCode } = body;
-
-    if (!name || !email || !password) {
-      return NextResponse.json(
-        { message: "נא למלא את כל השדות הנדרשים" },
-        { status: 400 }
-      );
-    }
-
-    if (password.length < 8) {
-      return NextResponse.json(
-        { message: "הסיסמה חייבת להכיל לפחות 8 תווים" },
-        { status: 400 }
-      );
-    }
+    const parsed = await parseBody(request, registerSchema);
+    if ("error" in parsed) return parsed.error;
+    const { name, email, password, phone, license, couponCode } = parsed.data;
 
     // Check if user already exists by email
     const existingUser = await prisma.user.findUnique({

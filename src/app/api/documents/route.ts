@@ -1,6 +1,5 @@
 import { NextRequest, NextResponse } from "next/server";
-import { getServerSession } from "next-auth";
-import { authOptions } from "@/lib/auth";
+import { requireAuth } from "@/lib/api-auth";
 import prisma from "@/lib/prisma";
 import { writeFile, mkdir } from "fs/promises";
 import { join } from "path";
@@ -10,17 +9,16 @@ export const dynamic = "force-dynamic";
 
 export async function GET(request: NextRequest) {
   try {
-    const session = await getServerSession(authOptions);
-    if (!session?.user?.id) {
-      return NextResponse.json({ message: "לא מורשה" }, { status: 401 });
-    }
+    const auth = await requireAuth();
+    if ("error" in auth) return auth.error;
+    const { userId } = auth;
 
     const { searchParams } = new URL(request.url);
     const clientId = searchParams.get("clientId");
 
     const documents = await prisma.document.findMany({
       where: {
-        therapistId: session.user.id,
+        therapistId: userId,
         ...(clientId ? { clientId } : {}),
       },
       orderBy: { createdAt: "desc" },
@@ -41,10 +39,9 @@ export async function GET(request: NextRequest) {
 
 export async function POST(request: NextRequest) {
   try {
-    const session = await getServerSession(authOptions);
-    if (!session?.user?.id) {
-      return NextResponse.json({ message: "לא מורשה" }, { status: 401 });
-    }
+    const auth = await requireAuth();
+    if ("error" in auth) return auth.error;
+    const { userId } = auth;
 
     const formData = await request.formData();
     const file = formData.get("file") as File | null;
@@ -62,7 +59,7 @@ export async function POST(request: NextRequest) {
     // Verify client ownership if provided
     if (clientId) {
       const client = await prisma.client.findFirst({
-        where: { id: clientId, therapistId: session.user.id },
+        where: { id: clientId, therapistId: userId },
       });
       if (!client) {
         return NextResponse.json({ message: "מטופל לא נמצא" }, { status: 404 });
@@ -72,13 +69,13 @@ export async function POST(request: NextRequest) {
     // Save file
     const fileExtension = file.name.split(".").pop() || "pdf";
     const fileName = `${uuidv4()}.${fileExtension}`;
-    
+
     // Use persistent disk on Render, fallback to local for development
     const baseDir = process.env.UPLOADS_DIR || join(process.cwd(), "uploads");
     const uploadsDir = join(baseDir, "documents");
-    
+
     await mkdir(uploadsDir, { recursive: true });
-    
+
     const filePath = join(uploadsDir, fileName);
     const buffer = Buffer.from(await file.arrayBuffer());
     await writeFile(filePath, buffer);
@@ -95,7 +92,7 @@ export async function POST(request: NextRequest) {
     // Create document record
     const document = await prisma.document.create({
       data: {
-        therapistId: session.user.id,
+        therapistId: userId,
         clientId: clientId || null,
         name,
         type: type as "CONSENT_FORM" | "INTAKE_FORM" | "TREATMENT_PLAN" | "REPORT" | "OTHER",
@@ -116,4 +113,3 @@ export async function POST(request: NextRequest) {
     );
   }
 }
-

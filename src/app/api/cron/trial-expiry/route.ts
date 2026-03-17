@@ -180,7 +180,7 @@ export async function GET(req: NextRequest) {
                 <div style="background: #ffffff; padding: 25px; border: 1px solid #e2e8f0; border-top: none; border-radius: 0 0 8px 8px;">
                   <div style="background: #fef2f2; border-right: 4px solid #ef4444; padding: 16px; border-radius: 4px; margin-bottom: 16px;">
                     <p style="margin: 0; color: #1e293b; font-size: 15px; line-height: 1.6;">
-                      תקופת הניסיון של <strong>${escapeHtml(user.name || "")}</strong> (${escapeHtml(user.email)}) הסתיימה.<br/>
+                      תקופת הניסיון של <strong>${escapeHtml(user.name || "")}</strong> (${escapeHtml(user.email ?? "")}) הסתיימה.<br/>
                       המשתמש <strong>נחסם</strong> והסטטוס שונה ל-CANCELLED.
                     </p>
                   </div>

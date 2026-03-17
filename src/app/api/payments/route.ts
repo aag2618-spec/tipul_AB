@@ -1,20 +1,21 @@
 import { NextRequest, NextResponse } from "next/server";
-import { getServerSession } from "next-auth";
-import { authOptions } from "@/lib/auth";
+import { requireAuth } from "@/lib/api-auth";
 import prisma from "@/lib/prisma";
 import { createPaymentForSession } from "@/lib/payment-service";
+import { logger } from "@/lib/logger";
+import { parseBody } from "@/lib/validations/helpers";
+import { createPaymentSchema } from "@/lib/validations/payment";
 
 export const dynamic = "force-dynamic";
 
 export async function GET() {
   try {
-    const session = await getServerSession(authOptions);
-    if (!session?.user?.id) {
-      return NextResponse.json({ message: "אין הרשאה" }, { status: 401 });
-    }
+    const auth = await requireAuth();
+    if ("error" in auth) return auth.error;
+    const { userId } = auth;
 
     const payments = await prisma.payment.findMany({
-      where: { client: { therapistId: session.user.id } },
+      where: { client: { therapistId: userId } },
       orderBy: { createdAt: "desc" },
       include: {
         client: { select: { id: true, name: true } },
@@ -24,7 +25,7 @@ export async function GET() {
 
     return NextResponse.json(payments);
   } catch (error) {
-    console.error("Get payments error:", error);
+    logger.error("Get payments error", { error: error instanceof Error ? error.message : String(error) });
     return NextResponse.json(
       { message: "שגיאה בטעינת התשלומים" },
       { status: 500 }
@@ -34,40 +35,33 @@ export async function GET() {
 
 export async function POST(request: NextRequest) {
   try {
-    const session = await getServerSession(authOptions);
-    if (!session?.user?.id) {
-      return NextResponse.json({ message: "אין הרשאה" }, { status: 401 });
-    }
+    const auth = await requireAuth();
+    if ("error" in auth) return auth.error;
+    const { userId } = auth;
 
-    const body = await request.json();
+    const parsed = await parseBody(request, createPaymentSchema);
+    if ("error" in parsed) return parsed.error;
     const {
       clientId,
       sessionId,
       amount,
       expectedAmount,
-      paymentType = "FULL",
+      paymentType,
       method,
       status,
       notes,
       creditUsed,
       issueReceipt,
-    } = body;
-
-    if (!clientId || !amount) {
-      return NextResponse.json(
-        { message: "נא למלא את כל השדות הנדרשים" },
-        { status: 400 }
-      );
-    }
+    } = parsed.data;
 
     const result = await createPaymentForSession({
-      userId: session.user.id,
+      userId,
       clientId,
       sessionId,
       amount: Number(amount),
       expectedAmount: Number(expectedAmount || amount),
       method: method || "CASH",
-      paymentType,
+      paymentType: paymentType ?? "FULL",
       status,
       issueReceipt,
       notes,
@@ -83,24 +77,10 @@ export async function POST(request: NextRequest) {
       { status: 201 }
     );
   } catch (error) {
-    console.error("Create payment error:", error);
+    logger.error("Create payment error", { error: error instanceof Error ? error.message : String(error) });
     return NextResponse.json(
       { message: "שגיאה ביצירת התשלום" },
       { status: 500 }
     );
   }
 }
-
-
-
-
-
-
-
-
-
-
-
-
-
-

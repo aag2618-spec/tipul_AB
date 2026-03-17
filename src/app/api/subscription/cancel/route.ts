@@ -224,7 +224,7 @@ export async function POST() {
             </div>
             <div style="background: #fff; padding: 25px; border: 1px solid #e2e8f0; border-top: none; border-radius: 0 0 8px 8px;">
               <div style="background: #fffbeb; border-right: 4px solid #f59e0b; padding: 16px; border-radius: 4px;">
-                <p style="margin: 0; font-size: 15px;"><strong>${escapeHtml(user.name || "")}</strong> (${escapeHtml(user.email)}) ביטל את המנוי.</p>
+                <p style="margin: 0; font-size: 15px;"><strong>${escapeHtml(user.name || "")}</strong> (${escapeHtml(user.email ?? "")}) ביטל את המנוי.</p>
                 <p style="margin: 8px 0 0; font-size: 14px; color: #64748b;">מסלול: ${PLAN_NAMES[user.aiTier] || user.aiTier}</p>
                 ${adjustment > 0 ? `<p style="margin: 8px 0 0; font-size: 14px; color: #d97706;"><strong>התאמת הנחה:</strong> ₪${adjustment}</p>` : ""}
               </div>

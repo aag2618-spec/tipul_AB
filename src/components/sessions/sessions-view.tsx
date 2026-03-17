@@ -1,103 +1,28 @@
 "use client";
 
-import { useState, useMemo, useEffect } from "react";
+import { useState, useMemo } from "react";
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
 import {
-  Dialog,
-  DialogContent,
-  DialogHeader,
-  DialogTitle,
-  DialogFooter,
-} from "@/components/ui/dialog";
-import { Textarea } from "@/components/ui/textarea";
-import { Label } from "@/components/ui/label";
-import {
-  Select,
-  SelectContent,
-  SelectItem,
-  SelectTrigger,
-  SelectValue,
-} from "@/components/ui/select";
-import {
   Search,
   X,
-  Calendar as CalendarIcon,
   Clock,
-  XCircle,
-  Eye,
   CalendarDays,
-  CheckCircle2,
-  Ban,
-  UserX,
-  Loader2,
   ChevronDown,
   ChevronUp,
-  AlertCircle,
-  Wallet,
-  FileText,
 } from "lucide-react";
-import { Checkbox } from "@/components/ui/checkbox";
 import { QuickMarkPaid } from "@/components/payments/quick-mark-paid";
-import { format } from "date-fns";
-import { he } from "date-fns/locale";
 import { toast } from "sonner";
 import Link from "next/link";
-
-interface Session {
-  id: string;
-  startTime: string;
-  endTime: string;
-  status: string;
-  type: string;
-  price: number;
-  cancellationReason?: string | null;
-  cancelledAt?: string | null;
-  payment?: { id: string; status: string } | null;
-  client?: {
-    id: string;
-    name: string;
-    creditBalance?: number | null;
-  } | null;
-}
+import { SessionCard, type Session } from "./session-card";
+import { CancelSessionDialog } from "./cancel-session-dialog";
+import { SessionsUpdateDialog } from "./update-session-dialog";
 
 interface SessionsViewProps {
   initialSessions: Session[];
 }
-
-const STATUS_LABELS: Record<string, string> = {
-  COMPLETED: "הושלמה",
-  CANCELLED: "בוטלה",
-  NO_SHOW: "לא הגיע",
-  NOT_UPDATED: "לא עודכן",
-  PENDING_APPROVAL: "ממתין לאישור",
-};
-
-const STATUS_COLORS: Record<string, string> = {
-  COMPLETED: "text-emerald-600 border-transparent",
-  CANCELLED: "text-red-500 border-transparent",
-  NO_SHOW: "text-red-500 border-transparent",
-  NOT_UPDATED: "bg-orange-50 text-orange-600 border-orange-300 cursor-pointer hover:bg-orange-100",
-  PENDING_APPROVAL: "bg-amber-50 text-amber-600 border-amber-300",
-};
-
-const CARD_BG: Record<string, string> = {
-  SCHEDULED_FUTURE: "bg-emerald-50/60 border-emerald-200",
-  SCHEDULED_PAST: "bg-sky-50/60 border-sky-200",
-  COMPLETED: "bg-white border-emerald-300",
-  CANCELLED: "bg-red-50/40 border-red-200",
-  NO_SHOW: "bg-red-50/50 border-red-200",
-  PENDING_APPROVAL: "bg-amber-50/60 border-amber-200",
-};
-
-const STATUS_ICONS: Record<string, React.ReactNode> = {
-  COMPLETED: null,
-  CANCELLED: null,
-  NO_SHOW: null,
-  NOT_UPDATED: <Clock className="h-3 w-3" />,
-};
 
 const UPCOMING_GROUPS = ["היום", "מחר", "השבוע", "החודש", "בהמשך"] as const;
 const HISTORY_GROUPS = ["היום", "שבוע אחרון", "חודש אחרון", "ישנים"] as const;
@@ -156,27 +81,12 @@ export function SessionsView({ initialSessions }: SessionsViewProps) {
   }>({
     open: false, sessionId: "", clientName: "", clientId: "", startTime: "", price: 0,
   });
-  const [cancelReason, setCancelReason] = useState("");
   const [cancelling, setCancelling] = useState(false);
-  const [cancelCharge, setCancelCharge] = useState<"ask" | "charge" | "free">("ask");
 
   const [updateDialog, setUpdateDialog] = useState<{
     open: boolean; sessionId: string; clientName: string; clientId: string; price: number; existingPaymentId?: string;
   }>({ open: false, sessionId: "", clientName: "", clientId: "", price: 0 });
-  const [updateStatus, setUpdateStatus] = useState<string>("");
-  const [updateReason, setUpdateReason] = useState("");
   const [updating, setUpdating] = useState(false);
-  const [paymentMethod, setPaymentMethod] = useState("CASH");
-  const [paymentAmount, setPaymentAmount] = useState("");
-  const [showPayment, setShowPayment] = useState(true);
-  const [showAdvanced, setShowAdvanced] = useState(false);
-  const [paymentType, setPaymentType] = useState<"FULL" | "PARTIAL">("FULL");
-  const [partialAmount, setPartialAmount] = useState("");
-  const [noChargeReason, setNoChargeReason] = useState("");
-  const [clientDebt, setClientDebt] = useState<{ total: number; count: number } | null>(null);
-  const [issueReceipt, setIssueReceipt] = useState(false);
-  const [receiptMode, setReceiptMode] = useState<string>("ASK");
-  const [businessType, setBusinessType] = useState<string>("NONE");
   const [isPaymentDialogOpen, setIsPaymentDialogOpen] = useState(false);
   const [paymentDialogData, setPaymentDialogData] = useState<{
     sessionId: string;
@@ -188,36 +98,6 @@ export function SessionsView({ initialSessions }: SessionsViewProps) {
   } | null>(null);
 
   const now = useMemo(() => new Date(), []);
-
-  useEffect(() => {
-    if (updateDialog.open && updateDialog.clientId) {
-      fetch(`/api/payments/client-debt/${updateDialog.clientId}`)
-        .then(res => res.json())
-        .then(data => {
-          setClientDebt({
-            total: Number(data.totalDebt || 0),
-            count: data.unpaidSessions?.length || 0,
-          });
-        })
-        .catch(() => setClientDebt(null));
-    } else {
-      setClientDebt(null);
-    }
-  }, [updateDialog.open, updateDialog.clientId]);
-
-  useEffect(() => {
-    if (updateDialog.open) {
-      fetch("/api/user/business-settings")
-        .then(res => res.json())
-        .then(data => {
-          if (data.businessType) setBusinessType(data.businessType);
-          if (data.receiptDefaultMode) setReceiptMode(data.receiptDefaultMode);
-          if (data.receiptDefaultMode === "ALWAYS") setIssueReceipt(true);
-          else if (data.receiptDefaultMode === "NEVER") setIssueReceipt(false);
-        })
-        .catch(() => {});
-    }
-  }, [updateDialog.open]);
 
   const searchFilter = (s: Session, term: string) => {
     if (!term.trim()) return true;
@@ -267,13 +147,14 @@ export function SessionsView({ initialSessions }: SessionsViewProps) {
     return g;
   }, [history]);
 
-  const isWithin24h = (startTime: string) => {
-    const sessionTime = new Date(startTime).getTime();
-    const nowTime = Date.now();
-    return sessionTime - nowTime <= 24 * 60 * 60 * 1000;
+  const isWithinWeek = (dateStr: string) => {
+    const d = new Date(dateStr);
+    const weekEnd = new Date();
+    weekEnd.setDate(weekEnd.getDate() + 7);
+    return d < weekEnd;
   };
 
-  const handleCancel = async (charge: boolean = false) => {
+  const handleCancel = async (charge: boolean, reason: string) => {
     setCancelling(true);
     try {
       const updates: Promise<Response>[] = [];
@@ -284,7 +165,7 @@ export function SessionsView({ initialSessions }: SessionsViewProps) {
           headers: { "Content-Type": "application/json" },
           body: JSON.stringify({
             status: "CANCELLED",
-            cancellationReason: cancelReason.trim() || undefined,
+            cancellationReason: reason.trim() || undefined,
           }),
         })
       );
@@ -317,14 +198,12 @@ export function SessionsView({ initialSessions }: SessionsViewProps) {
         setSessions(prev =>
           prev.map(s =>
             s.id === cancelDialog.sessionId
-              ? { ...s, status: "CANCELLED", cancellationReason: cancelReason.trim(), cancelledAt: new Date().toISOString() }
+              ? { ...s, status: "CANCELLED", cancellationReason: reason.trim(), cancelledAt: new Date().toISOString() }
               : s
           )
         );
         toast.success(charge ? "הפגישה בוטלה - נוצר חיוב" : "הפגישה בוטלה ללא חיוב");
         setCancelDialog({ open: false, sessionId: "", clientName: "", clientId: "", startTime: "", price: 0 });
-        setCancelReason("");
-        setCancelCharge("ask");
       }
     } catch {
       toast.error("שגיאה בביטול הפגישה");
@@ -333,7 +212,19 @@ export function SessionsView({ initialSessions }: SessionsViewProps) {
     }
   };
 
-  const handleUpdate = async () => {
+  const handleUpdate = async (params: {
+    updateStatus: string;
+    showPayment: boolean;
+    paymentMethod: string;
+    paymentType: "FULL" | "PARTIAL";
+    paymentAmount: string;
+    partialAmount: string;
+    issueReceipt: boolean;
+    businessType: string;
+    updateReason: string;
+    noChargeReason: string;
+  }) => {
+    const { updateStatus, showPayment, paymentMethod, paymentType, paymentAmount, partialAmount, issueReceipt, businessType, updateReason } = params;
     if (!updateStatus) { toast.error("בחר סטטוס"); return; }
     setUpdating(true);
     try {
@@ -391,14 +282,6 @@ export function SessionsView({ initialSessions }: SessionsViewProps) {
           s.id === updateDialog.sessionId ? { ...s, status: "COMPLETED" } : s
         ));
         setUpdateDialog({ open: false, sessionId: "", clientName: "", clientId: "", price: 0 });
-        setUpdateStatus("");
-        setUpdateReason("");
-        setPaymentAmount("");
-        setShowPayment(true);
-        setShowAdvanced(false);
-        setPaymentType("FULL");
-        setPartialAmount("");
-        setNoChargeReason("");
         return;
       }
 
@@ -467,14 +350,6 @@ export function SessionsView({ initialSessions }: SessionsViewProps) {
       }
 
       setUpdateDialog({ open: false, sessionId: "", clientName: "", clientId: "", price: 0 });
-      setUpdateStatus("");
-      setUpdateReason("");
-      setPaymentAmount("");
-      setShowPayment(true);
-      setShowAdvanced(false);
-      setPaymentType("FULL");
-      setPartialAmount("");
-      setNoChargeReason("");
     } catch {
       toast.error("שגיאה בעדכון הפגישה");
     } finally {
@@ -482,174 +357,67 @@ export function SessionsView({ initialSessions }: SessionsViewProps) {
     }
   };
 
-  const isWithinWeek = (dateStr: string) => {
-    const d = new Date(dateStr);
-    const weekEnd = new Date();
-    weekEnd.setDate(weekEnd.getDate() + 7);
-    return d < weekEnd;
+  const handleRecordDebt = async (params: {
+    updateStatus: string;
+    updateReason: string;
+  }) => {
+    setUpdating(true);
+    try {
+      const statusBody: Record<string, unknown> = { status: params.updateStatus, createPayment: true, markAsPaid: false };
+      if (params.updateStatus === "CANCELLED") {
+        statusBody.cancellationReason = params.updateReason.trim() || undefined;
+      }
+      const response = await fetch(`/api/sessions/${updateDialog.sessionId}`, {
+        method: "PUT",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify(statusBody),
+      });
+      if (response.ok) {
+        toast.success("הפגישה עודכנה והחוב נרשם");
+        const newStatus = params.updateStatus;
+        setSessions(prev => prev.map(s =>
+          s.id === updateDialog.sessionId ? { ...s, status: newStatus } : s
+        ));
+        setUpdateDialog({ open: false, sessionId: "", clientName: "", clientId: "", price: 0 });
+      } else {
+        toast.error("שגיאה בעדכון הפגישה");
+      }
+    } catch {
+      toast.error("שגיאה בעדכון הפגישה");
+    } finally {
+      setUpdating(false);
+    }
   };
 
-  const getCardBg = (s: Session, isUpcoming: boolean) => {
-    if (s.status === "COMPLETED") return CARD_BG.COMPLETED;
-    if (s.status === "CANCELLED") return CARD_BG.CANCELLED;
-    if (s.status === "NO_SHOW") return CARD_BG.NO_SHOW;
-    if (s.status === "PENDING_APPROVAL") return CARD_BG.PENDING_APPROVAL;
-    if (s.status === "SCHEDULED" && new Date(s.startTime) < now) return CARD_BG.SCHEDULED_PAST;
-    return CARD_BG.SCHEDULED_FUTURE;
+  const handleApproveSession = async (s: Session) => {
+    const res = await fetch(`/api/sessions/${s.id}/status`, {
+      method: "PATCH",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({ status: "SCHEDULED" }),
+    });
+    if (res.ok) {
+      toast.success("הפגישה אושרה!");
+      setSessions(prev => prev.map(sess => sess.id === s.id ? { ...sess, status: "SCHEDULED" } : sess));
+    } else {
+      const errorData = await res.json().catch(() => null);
+      toast.error(errorData?.message || "שגיאה באישור הפגישה");
+    }
   };
 
-  const renderSessionCard = (s: Session, showCancel: boolean) => (
-    <div
-      key={s.id}
-      className={`group relative rounded-xl border p-4
-        hover:shadow-md hover:-translate-y-0.5 transition-all duration-200
-        flex flex-col justify-between min-h-[130px] ${getCardBg(s, showCancel)}`}
-    >
-      <div>
-        <div className="flex items-center justify-between mb-1">
-          <p className="font-semibold text-[15px] truncate flex-1">{s.client?.name || "ללא מטופל"}</p>
-          {!showCancel && s.status === "SCHEDULED" && new Date(s.startTime) < now ? (
-            <Badge
-              variant="outline"
-              className={`text-[10px] px-1.5 py-0 h-5 font-normal gap-1 shrink-0 mr-2 ${STATUS_COLORS["NOT_UPDATED"]}`}
-              onClick={(e) => {
-                e.stopPropagation();
-                setUpdateDialog({
-                  open: true,
-                  sessionId: s.id,
-                  clientName: s.client?.name || "",
-                  clientId: s.client?.id || "",
-                  price: s.price || 0,
-                  existingPaymentId: s.payment?.id,
-                });
-                setPaymentAmount(s.price ? s.price.toString() : "");
-              }}
-            >
-              {STATUS_ICONS["NOT_UPDATED"]}
-              לא עודכן · עדכן
-            </Badge>
-          ) : !showCancel && s.status !== "SCHEDULED" ? (
-            <Badge
-              variant="outline"
-              className={`text-[10px] px-1.5 py-0 h-5 font-normal gap-1 shrink-0 mr-2 ${STATUS_COLORS[s.status] || ""}`}
-            >
-              {STATUS_ICONS[s.status]}
-              {STATUS_LABELS[s.status]}
-            </Badge>
-          ) : null}
-        </div>
-        <div className="flex items-center gap-1.5 text-muted-foreground/70">
-          <CalendarIcon className="h-3.5 w-3.5 shrink-0" />
-          <span className="text-sm">
-            {format(new Date(s.startTime), "EEEE, d/M", { locale: he })}
-            {s.type && s.type !== "IN_PERSON" && (
-              <span className="text-xs mr-1">· {s.type === "ONLINE" ? "אונליין" : s.type === "PHONE" ? "טלפון" : s.type === "BREAK" ? "הפסקה" : ""}</span>
-            )}
-          </span>
-        </div>
-        <div className="flex items-center gap-1.5 mt-0.5 text-muted-foreground/70">
-          <Clock className="h-3.5 w-3.5 shrink-0" />
-          <span className="text-sm">
-            {format(new Date(s.startTime), "HH:mm")} - {format(new Date(s.endTime), "HH:mm")}
-          </span>
-        </div>
-      </div>
-
-      {s.cancellationReason && !showCancel && (
-        <p className="text-xs text-muted-foreground/50 mt-2 pt-2 border-t border-muted-foreground/5 truncate">
-          סיבה: {s.cancellationReason}
-        </p>
-      )}
-
-      <div className="flex items-center gap-1.5 mt-3 pt-3 border-t border-muted-foreground/5">
-        {s.status === "PENDING_APPROVAL" ? (
-          <>
-            <Button
-              type="button"
-              size="sm"
-              className="flex-1 h-8 text-xs bg-green-600 hover:bg-green-700 text-white"
-              onClick={async (e) => {
-                e.stopPropagation();
-                const res = await fetch(`/api/sessions/${s.id}/status`, {
-                  method: "PATCH",
-                  headers: { "Content-Type": "application/json" },
-                  body: JSON.stringify({ status: "SCHEDULED" }),
-                });
-                if (res.ok) {
-                  toast.success("הפגישה אושרה!");
-                  setSessions(prev => prev.map(sess => sess.id === s.id ? { ...sess, status: "SCHEDULED" } : sess));
-                } else {
-                  const errorData = await res.json().catch(() => null);
-                  toast.error(errorData?.message || "שגיאה באישור הפגישה");
-                }
-              }}
-            >
-              <CheckCircle2 className="h-3 w-3 ml-1" />
-              אשר
-            </Button>
-            <Button
-              type="button"
-              size="sm"
-              variant="destructive"
-              className="flex-1 h-8 text-xs"
-              onClick={async (e) => {
-                e.stopPropagation();
-                const res = await fetch(`/api/sessions/${s.id}/status`, {
-                  method: "PATCH",
-                  headers: { "Content-Type": "application/json" },
-                  body: JSON.stringify({ status: "CANCELLED" }),
-                });
-                if (res.ok) {
-                  toast.success("הפגישה נדחתה");
-                  setSessions(prev => prev.map(sess => sess.id === s.id ? { ...sess, status: "CANCELLED" } : sess));
-                } else {
-                  const errorData = await res.json().catch(() => null);
-                  toast.error(errorData?.message || "שגיאה בדחיית הפגישה");
-                }
-              }}
-            >
-              <XCircle className="h-3 w-3 ml-1" />
-              דחה
-            </Button>
-          </>
-        ) : (
-          <>
-            {(!showCancel || isWithinWeek(s.startTime)) && (
-              <Button
-                variant="outline"
-                size="sm"
-                className="flex-1 h-8 text-xs border-muted-foreground/10 hover:bg-muted/30"
-                asChild
-              >
-                <Link href={`/dashboard/sessions/${s.id}`}>
-                  <Eye className="h-3 w-3 ml-1" />
-                  פרטים
-                </Link>
-              </Button>
-            )}
-            {showCancel && (
-              <Button
-                type="button"
-                variant="ghost"
-                size="sm"
-                className="h-8 text-xs text-muted-foreground/60 hover:text-red-500 hover:bg-red-50/50"
-                onClick={(e) => {
-                  e.stopPropagation();
-                  setCancelDialog({
-                    open: true, sessionId: s.id, clientName: s.client?.name || "",
-                    clientId: s.client?.id || "", startTime: s.startTime, price: s.price || 0,
-                  });
-                }}
-              >
-                <XCircle className="h-3.5 w-3.5 ml-1" />
-                ביטול
-              </Button>
-            )}
-          </>
-        )}
-      </div>
-    </div>
-  );
+  const handleRejectSession = async (s: Session) => {
+    const res = await fetch(`/api/sessions/${s.id}/status`, {
+      method: "PATCH",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({ status: "CANCELLED" }),
+    });
+    if (res.ok) {
+      toast.success("הפגישה נדחתה");
+      setSessions(prev => prev.map(sess => sess.id === s.id ? { ...sess, status: "CANCELLED" } : sess));
+    } else {
+      const errorData = await res.json().catch(() => null);
+      toast.error(errorData?.message || "שגיאה בדחיית הפגישה");
+    }
+  };
 
   const renderGroupedGrid = (
     groups: readonly string[],
@@ -678,7 +446,33 @@ export function SessionsView({ initialSessions }: SessionsViewProps) {
             </button>
             {isOpen && (
               <div className="grid gap-3 grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 xl:grid-cols-4">
-                {items.map(s => renderSessionCard(s, showCancel))}
+                {items.map(s => (
+                  <SessionCard
+                    key={s.id}
+                    session={s}
+                    showCancel={showCancel}
+                    now={now}
+                    isWithinWeek={isWithinWeek}
+                    onCancelClick={(sess) => {
+                      setCancelDialog({
+                        open: true, sessionId: sess.id, clientName: sess.client?.name || "",
+                        clientId: sess.client?.id || "", startTime: sess.startTime, price: sess.price || 0,
+                      });
+                    }}
+                    onUpdateClick={(sess) => {
+                      setUpdateDialog({
+                        open: true,
+                        sessionId: sess.id,
+                        clientName: sess.client?.name || "",
+                        clientId: sess.client?.id || "",
+                        price: sess.price || 0,
+                        existingPaymentId: sess.payment?.id,
+                      });
+                    }}
+                    onApprove={handleApproveSession}
+                    onReject={handleRejectSession}
+                  />
+                ))}
               </div>
             )}
           </div>
@@ -802,434 +596,36 @@ export function SessionsView({ initialSessions }: SessionsViewProps) {
       </Tabs>
 
       {/* Cancel Dialog */}
-      <Dialog open={cancelDialog.open} onOpenChange={(o) => {
-        if (!o) {
+      <CancelSessionDialog
+        open={cancelDialog.open}
+        onOpenChange={(o) => {
+          if (o) setCancelDialog(prev => ({ ...prev, open: true }));
+        }}
+        clientName={cancelDialog.clientName}
+        startTime={cancelDialog.startTime}
+        price={cancelDialog.price}
+        cancelling={cancelling}
+        onCancel={handleCancel}
+        onClose={() => {
           setCancelDialog({ open: false, sessionId: "", clientName: "", clientId: "", startTime: "", price: 0 });
-          setCancelReason("");
-          setCancelCharge("ask");
-        }
-      }}>
-        <DialogContent className="sm:max-w-md" dir="rtl">
-          <DialogHeader>
-            <DialogTitle>ביטול פגישה</DialogTitle>
-          </DialogHeader>
-          <div className="space-y-3 py-2">
-            {cancelDialog.clientName && (
-              <p className="text-sm text-muted-foreground">
-                האם לבטל את הפגישה עם <span className="font-medium text-foreground">{cancelDialog.clientName}</span>?
-              </p>
-            )}
-            <div>
-              <label className="text-sm font-medium mb-1.5 block">סיבת ביטול (אופציונלי)</label>
-              <Textarea
-                value={cancelReason}
-                onChange={e => setCancelReason(e.target.value)}
-                placeholder="לדוגמה: מחלה, בקשת מטופל..."
-                className="resize-none h-20 bg-muted/20 border-muted-foreground/10"
-              />
-            </div>
-
-            {isWithin24h(cancelDialog.startTime) && cancelDialog.price > 0 && cancelCharge === "ask" && (
-              <div className="p-3 rounded-lg border bg-amber-50 border-amber-200">
-                <p className="text-sm font-semibold text-amber-800 mb-2">
-                  הפגישה תוך 24 שעות - האם לחייב דמי ביטול?
-                </p>
-                <p className="text-xs text-amber-700 mb-3">
-                  סכום: ₪{cancelDialog.price}
-                </p>
-                <div className="flex gap-2">
-                  <Button
-                    size="sm"
-                    className="flex-1 bg-amber-600 hover:bg-amber-700"
-                    onClick={() => setCancelCharge("charge")}
-                  >
-                    כן, לחייב
-                  </Button>
-                  <Button
-                    size="sm"
-                    variant="outline"
-                    className="flex-1"
-                    onClick={() => setCancelCharge("free")}
-                  >
-                    לא, פטור
-                  </Button>
-                </div>
-              </div>
-            )}
-
-            {cancelCharge === "charge" && (
-              <div className="p-3 rounded-lg border bg-emerald-50 border-emerald-200">
-                <p className="text-sm text-emerald-700">
-                  ✓ ייווצר חיוב של ₪{cancelDialog.price} למטופל
-                </p>
-              </div>
-            )}
-
-            {cancelCharge === "free" && (
-              <div className="p-3 rounded-lg border bg-sky-50 border-sky-200">
-                <p className="text-sm text-sky-700">
-                  ✓ הביטול יהיה ללא חיוב
-                </p>
-              </div>
-            )}
-          </div>
-          <DialogFooter className="gap-2 sm:gap-0">
-            <Button
-              variant="outline"
-              onClick={() => {
-                setCancelDialog({ open: false, sessionId: "", clientName: "", clientId: "", startTime: "", price: 0 });
-                setCancelReason("");
-                setCancelCharge("ask");
-              }}
-              disabled={cancelling}
-            >
-              חזרה
-            </Button>
-            <Button
-              variant="destructive"
-              onClick={() => handleCancel(cancelCharge === "charge")}
-              disabled={cancelling || (isWithin24h(cancelDialog.startTime) && cancelDialog.price > 0 && cancelCharge === "ask")}
-              className="bg-red-500 hover:bg-red-600"
-            >
-              {cancelling ? <Loader2 className="h-4 w-4 animate-spin ml-1" /> : <Ban className="h-4 w-4 ml-1" />}
-              {cancelCharge === "charge" ? "בטל וחייב" : "בטל פגישה"}
-            </Button>
-          </DialogFooter>
-        </DialogContent>
-      </Dialog>
+        }}
+      />
 
       {/* Update Session Dialog */}
-      <Dialog open={updateDialog.open} onOpenChange={(o) => {
-        if (!o) {
+      <SessionsUpdateDialog
+        open={updateDialog.open}
+        sessionId={updateDialog.sessionId}
+        clientName={updateDialog.clientName}
+        clientId={updateDialog.clientId}
+        price={updateDialog.price}
+        existingPaymentId={updateDialog.existingPaymentId}
+        updating={updating}
+        onClose={() => {
           setUpdateDialog({ open: false, sessionId: "", clientName: "", clientId: "", price: 0 });
-          setUpdateStatus("");
-          setUpdateReason("");
-          setPaymentAmount("");
-          setShowPayment(true);
-          setShowAdvanced(false);
-          setPaymentType("FULL");
-          setPartialAmount("");
-          setNoChargeReason("");
-          setIssueReceipt(false);
-        }
-      }}>
-        <DialogContent className="sm:max-w-[550px] max-h-[90vh] overflow-y-auto" dir="rtl">
-          <DialogHeader>
-            <DialogTitle className="flex items-center gap-2">
-              <AlertCircle className="h-5 w-5 text-orange-500" />
-              עדכון פגישה - {updateDialog.clientName}
-            </DialogTitle>
-          </DialogHeader>
-          <div className="space-y-4 py-2">
-            <p className="text-sm text-muted-foreground">הפגישה לא עודכנה. מה קרה?</p>
-
-            <div className="grid grid-cols-3 gap-2">
-              <Button
-                type="button"
-                variant={updateStatus === "COMPLETED" ? "default" : "outline"}
-                size="sm"
-                className={`h-10 text-xs gap-1 ${updateStatus === "COMPLETED" ? "bg-emerald-600 hover:bg-emerald-700" : ""}`}
-                onClick={() => { setUpdateStatus("COMPLETED"); setShowPayment(true); }}
-              >
-                <CheckCircle2 className="h-3.5 w-3.5" />
-                הושלמה
-              </Button>
-              <Button
-                type="button"
-                variant={updateStatus === "CANCELLED" ? "default" : "outline"}
-                size="sm"
-                className={`h-10 text-xs gap-1 ${updateStatus === "CANCELLED" ? "bg-red-500 hover:bg-red-600" : ""}`}
-                onClick={() => { setUpdateStatus("CANCELLED"); setShowPayment(true); }}
-              >
-                <Ban className="h-3.5 w-3.5" />
-                בוטלה
-              </Button>
-              <Button
-                type="button"
-                variant={updateStatus === "NO_SHOW" ? "default" : "outline"}
-                size="sm"
-                className={`h-10 text-xs gap-1 ${updateStatus === "NO_SHOW" ? "bg-amber-500 hover:bg-amber-600" : ""}`}
-                onClick={() => { setUpdateStatus("NO_SHOW"); setShowPayment(true); }}
-              >
-                <UserX className="h-3.5 w-3.5" />
-                לא הגיע
-              </Button>
-            </div>
-
-            {updateStatus === "CANCELLED" && (
-              <div className="space-y-2">
-                <Label className="text-sm">סיבת ביטול (אופציונלי)</Label>
-                <Textarea
-                  value={updateReason}
-                  onChange={e => setUpdateReason(e.target.value)}
-                  placeholder="לדוגמה: מחלה, בקשת מטופל..."
-                  className="resize-none h-16 bg-muted/20 border-muted-foreground/10 text-sm"
-                />
-              </div>
-            )}
-
-            {updateStatus && updateDialog.price > 0 && (
-              <>
-                {updateStatus !== "COMPLETED" && (
-                  <Button
-                    type="button"
-                    variant="outline"
-                    className="w-full font-bold text-base"
-                    onClick={() => {
-                      setShowPayment(false);
-                    }}
-                  >
-                    {updateStatus === "CANCELLED" ? "ביטול ללא חיוב" : "אי הגעה ללא חיוב"}
-                  </Button>
-                )}
-
-                {!showPayment && (
-                  <div className="space-y-2 p-3 rounded-lg border bg-orange-50/50 border-orange-200">
-                    <Label className="text-sm text-orange-700">סיבה לאי חיוב (אופציונלי)</Label>
-                    <Textarea
-                      value={noChargeReason}
-                      onChange={e => setNoChargeReason(e.target.value)}
-                      placeholder="לדוגמה: סיכום מראש, פגישת היכרות, הסדר מיוחד..."
-                      className="resize-none h-16 bg-white/80 border-orange-200 text-sm"
-                    />
-                    <Button
-                      type="button"
-                      variant="ghost"
-                      size="sm"
-                      className="text-xs text-sky-600"
-                      onClick={() => setShowPayment(true)}
-                    >
-                      ← חזרה לתשלום
-                    </Button>
-                  </div>
-                )}
-
-                {showPayment && (
-                  <div className="space-y-3 p-4 rounded-lg border bg-muted/30">
-                    <div className="flex items-center justify-between">
-                      <Label className="text-lg font-bold">
-                        {updateStatus === "COMPLETED" ? "עדכון ותשלום 💰" : updateStatus === "CANCELLED" ? "דמי ביטול 💰" : "חיוב אי הגעה 💰"}
-                      </Label>
-                    </div>
-
-                    <div className="grid grid-cols-2 gap-3">
-                      <div className="space-y-2">
-                        <Label htmlFor="update-amount">סכום</Label>
-                        <div className="relative">
-                          <Input
-                            type="number"
-                            value={paymentAmount}
-                            onChange={e => setPaymentAmount(e.target.value)}
-                            className="pl-8"
-                            disabled={paymentType !== "FULL"}
-                          />
-                          <span className="absolute left-3 top-1/2 -translate-y-1/2 text-sm text-muted-foreground">₪</span>
-                        </div>
-                      </div>
-                      <div className="space-y-2">
-                        <Label htmlFor="update-method">אמצעי תשלום</Label>
-                        <Select value={paymentMethod} onValueChange={setPaymentMethod}>
-                          <SelectTrigger>
-                            <SelectValue />
-                          </SelectTrigger>
-                          <SelectContent>
-                            <SelectItem value="CASH">מזומן</SelectItem>
-                            <SelectItem value="CREDIT_CARD">אשראי</SelectItem>
-                            <SelectItem value="BANK_TRANSFER">העברה</SelectItem>
-                            <SelectItem value="CHECK">צ׳ק</SelectItem>
-                            <SelectItem value="OTHER">אחר</SelectItem>
-                          </SelectContent>
-                        </Select>
-                      </div>
-                    </div>
-
-                    {businessType !== "NONE" && receiptMode !== "NEVER" && (
-                      <div className="flex items-center gap-3 py-2 px-3 bg-sky-50 rounded-lg border border-sky-200">
-                        <Checkbox
-                          id="update-issue-receipt"
-                          checked={issueReceipt}
-                          onCheckedChange={(checked) => setIssueReceipt(checked === true)}
-                          disabled={receiptMode === "ALWAYS"}
-                        />
-                        <Label htmlFor="update-issue-receipt" className="cursor-pointer flex items-center gap-2 text-sky-800">
-                          <FileText className="h-4 w-4" />
-                          הוצא קבלה
-                          {receiptMode === "ALWAYS" && (
-                            <span className="text-xs text-sky-600">(ברירת מחדל)</span>
-                          )}
-                        </Label>
-                      </div>
-                    )}
-
-                    <div className="space-y-3">
-                      <Button
-                        type="button"
-                        variant="ghost"
-                        size="sm"
-                        className="w-full justify-between font-semibold"
-                        onClick={() => setShowAdvanced(!showAdvanced)}
-                      >
-                        <span className="font-bold">אופציות מתקדמות</span>
-                        {showAdvanced ? <ChevronUp className="h-4 w-4" /> : <ChevronDown className="h-4 w-4" />}
-                      </Button>
-                      {showAdvanced && (
-                        <div className="space-y-2 pt-2">
-                          <div className="grid gap-2">
-                            <Button
-                              type="button"
-                              variant={paymentType === "FULL" ? "default" : "outline"}
-                              size="sm"
-                              onClick={() => setPaymentType("FULL")}
-                            >
-                              תשלום מלא (₪{updateDialog.price})
-                            </Button>
-                            <Button
-                              type="button"
-                              variant={paymentType === "PARTIAL" ? "default" : "outline"}
-                              size="sm"
-                              onClick={() => setPaymentType("PARTIAL")}
-                            >
-                              תשלום חלקי
-                            </Button>
-                            {paymentType === "PARTIAL" && (
-                              <div className="pr-4 space-y-1">
-                                <Input
-                                  type="number"
-                                  placeholder="הכנס סכום"
-                                  value={partialAmount}
-                                  onChange={e => setPartialAmount(e.target.value)}
-                                  max={updateDialog.price}
-                                  min={0}
-                                  step="0.01"
-                                />
-                                {partialAmount && parseFloat(partialAmount) < updateDialog.price && (
-                                  <p className="text-xs text-muted-foreground">
-                                    נותר לתשלום: ₪{updateDialog.price - parseFloat(partialAmount)}
-                                  </p>
-                                )}
-                              </div>
-                            )}
-                          </div>
-                        </div>
-                      )}
-                    </div>
-                  </div>
-                )}
-              </>
-            )}
-
-            {updateStatus && clientDebt && clientDebt.count > 0 && clientDebt.total > 0 && (
-              <div className="pt-3 border-t mt-2">
-                <p className="text-sm text-muted-foreground mb-2 text-center">
-                  למטופל יש {clientDebt.count} פגישות ממתינות לתשלום
-                  (סה״כ חוב: ₪{clientDebt.total.toFixed(0)})
-                </p>
-                <Button
-                  variant="outline"
-                  className="w-full gap-2"
-                  asChild
-                >
-                  <Link href={`/dashboard/payments/pay/${updateDialog.clientId}`}>
-                    <Wallet className="h-4 w-4" />
-                    שלם את כל החוב
-                  </Link>
-                </Button>
-              </div>
-            )}
-          </div>
-          <DialogFooter className="flex flex-wrap gap-2 sm:gap-2">
-            <Button
-              variant="outline"
-              onClick={() => {
-                setUpdateDialog({ open: false, sessionId: "", clientName: "", clientId: "", price: 0 });
-                setUpdateStatus("");
-                setUpdateReason("");
-                setPaymentAmount("");
-                setShowPayment(true);
-                setShowAdvanced(false);
-                setPaymentType("FULL");
-                setPartialAmount("");
-                setNoChargeReason("");
-                setIssueReceipt(false);
-              }}
-              disabled={updating}
-              className="font-medium"
-            >
-              ביטול
-            </Button>
-            {updateStatus && showPayment && updateDialog.price > 0 && (
-              <Button
-                variant="outline"
-                className="gap-2 font-bold border-amber-300 text-amber-700 hover:bg-amber-50"
-                onClick={async () => {
-                  setUpdating(true);
-                  try {
-                    const statusBody: Record<string, unknown> = { status: updateStatus, createPayment: true, markAsPaid: false };
-                    if (updateStatus === "CANCELLED") {
-                      statusBody.cancellationReason = updateReason.trim() || undefined;
-                    }
-                    const response = await fetch(`/api/sessions/${updateDialog.sessionId}`, {
-                      method: "PUT",
-                      headers: { "Content-Type": "application/json" },
-                      body: JSON.stringify(statusBody),
-                    });
-                    if (response.ok) {
-                      toast.success("הפגישה עודכנה והחוב נרשם");
-                      const newStatus = updateStatus;
-                      setSessions(prev => prev.map(s =>
-                        s.id === updateDialog.sessionId ? { ...s, status: newStatus } : s
-                      ));
-                      setUpdateDialog({ open: false, sessionId: "", clientName: "", clientId: "", price: 0 });
-                      setUpdateStatus("");
-                      setUpdateReason("");
-                      setPaymentAmount("");
-                      setShowPayment(true);
-                      setShowAdvanced(false);
-                      setPaymentType("FULL");
-                      setPartialAmount("");
-                      setNoChargeReason("");
-                      setIssueReceipt(false);
-                    } else {
-                      toast.error("שגיאה בעדכון הפגישה");
-                    }
-                  } catch {
-                    toast.error("שגיאה בעדכון הפגישה");
-                  } finally {
-                    setUpdating(false);
-                  }
-                }}
-                disabled={updating}
-              >
-                {updating ? <Loader2 className="h-4 w-4 animate-spin ml-1" /> : <Wallet className="h-4 w-4 ml-1" />}
-                עדכן ורשום חוב
-              </Button>
-            )}
-            {showPayment && updateDialog.price > 0 ? (
-              <Button
-                onClick={handleUpdate}
-                disabled={updating || !updateStatus}
-                className="gap-2 font-bold bg-emerald-600 hover:bg-emerald-700"
-              >
-                {updating ? <Loader2 className="h-4 w-4 animate-spin" /> : <CheckCircle2 className="h-4 w-4" />}
-                {updateStatus === "COMPLETED" ? "עדכן ושלם" : updateStatus === "CANCELLED" ? "בטל וחייב" : updateStatus === "NO_SHOW" ? "עדכן וחייב" : "עדכן"}
-              </Button>
-            ) : (
-              <Button
-                onClick={handleUpdate}
-                disabled={updating || !updateStatus}
-                className={
-                  updateStatus === "COMPLETED" ? "bg-emerald-600 hover:bg-emerald-700" :
-                  updateStatus === "CANCELLED" ? "bg-red-500 hover:bg-red-600" :
-                  updateStatus === "NO_SHOW" ? "bg-amber-500 hover:bg-amber-600" : ""
-                }
-              >
-                {updating ? <Loader2 className="h-4 w-4 animate-spin ml-1" /> : null}
-                עדכן
-              </Button>
-            )}
-          </DialogFooter>
-        </DialogContent>
-      </Dialog>
+        }}
+        onUpdate={handleUpdate}
+        onRecordDebt={handleRecordDebt}
+      />
 
       {paymentDialogData && (
         <QuickMarkPaid

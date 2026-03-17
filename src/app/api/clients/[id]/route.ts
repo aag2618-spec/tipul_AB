@@ -1,6 +1,5 @@
 import { NextRequest, NextResponse } from "next/server";
-import { getServerSession } from "next-auth";
-import { authOptions } from "@/lib/auth";
+import { requireAuth } from "@/lib/api-auth";
 import prisma from "@/lib/prisma";
 
 export const dynamic = "force-dynamic";
@@ -10,15 +9,14 @@ export async function GET(
   { params }: { params: Promise<{ id: string }> }
 ) {
   try {
-    const session = await getServerSession(authOptions);
-    if (!session?.user?.id) {
-      return NextResponse.json({ message: "לא מורשה" }, { status: 401 });
-    }
+    const auth = await requireAuth();
+    if ("error" in auth) return auth.error;
+    const { userId } = auth;
 
     const { id } = await params;
 
     const client = await prisma.client.findFirst({
-      where: { id, therapistId: session.user.id },
+      where: { id, therapistId: userId },
       include: {
         therapySessions: {
           orderBy: { startTime: "desc" },
@@ -59,10 +57,9 @@ export async function PUT(
   { params }: { params: Promise<{ id: string }> }
 ) {
   try {
-    const session = await getServerSession(authOptions);
-    if (!session?.user?.id) {
-      return NextResponse.json({ message: "לא מורשה" }, { status: 401 });
-    }
+    const auth = await requireAuth();
+    if ("error" in auth) return auth.error;
+    const { userId } = auth;
 
     const { id } = await params;
     const body = await request.json();
@@ -70,7 +67,7 @@ export async function PUT(
 
     // Verify ownership
     const existingClient = await prisma.client.findFirst({
-      where: { id, therapistId: session.user.id },
+      where: { id, therapistId: userId },
     });
 
     if (!existingClient) {
@@ -110,16 +107,15 @@ export async function DELETE(
   { params }: { params: Promise<{ id: string }> }
 ) {
   try {
-    const session = await getServerSession(authOptions);
-    if (!session?.user?.id) {
-      return NextResponse.json({ message: "לא מורשה" }, { status: 401 });
-    }
+    const auth = await requireAuth();
+    if ("error" in auth) return auth.error;
+    const { userId } = auth;
 
     const { id } = await params;
 
     // Verify ownership
     const existingClient = await prisma.client.findFirst({
-      where: { id, therapistId: session.user.id },
+      where: { id, therapistId: userId },
     });
 
     if (!existingClient) {
@@ -137,11 +133,3 @@ export async function DELETE(
     );
   }
 }
-
-
-
-
-
-
-
-

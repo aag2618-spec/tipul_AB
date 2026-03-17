@@ -1,4 +1,5 @@
 import { NextRequest, NextResponse } from "next/server";
+import { logger } from "@/lib/logger";
 
 export const dynamic = "force-dynamic";
 
@@ -38,7 +39,7 @@ export async function POST(req: NextRequest) {
 
     // If deploy failed, log error
     if (deploy?.status === "build_failed" || deploy?.status === "deploy_failed") {
-      console.error("❌ DEPLOY FAILED:", {
+      logger.error("DEPLOY FAILED", {
         service: logEntry.serviceName,
         deployId: logEntry.deployId,
         error: deploy?.error || "Unknown error",
@@ -66,7 +67,7 @@ export async function POST(req: NextRequest) {
     });
 
   } catch (error) {
-    console.error("Error processing Render webhook:", error);
+    logger.error("Error processing Render webhook", { error: error instanceof Error ? error.message : String(error) });
     return NextResponse.json(
       { error: "Failed to process webhook" },
       { status: 500 }

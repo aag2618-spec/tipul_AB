@@ -1,20 +1,27 @@
 {
   "permissions": {
     "allow": [
-      "Bash(git add:*)",
-      "Bash(git commit -m \"$\\(cat <<''EOF''\nUpdate to Gemini 3 Pro and various improvements\n\n- Upgrade transcription model from gemini-2.5-pro-preview to gemini-3-pro-preview\n- CRM integration improvements\n- Dashboard and UI updates\n- API route enhancements\n\n🤖 Generated with [Claude Code]\\(https://claude.com/claude-code\\)\n\nCo-Authored-By: Claude Opus 4.5 <noreply@anthropic.com>\nEOF\n\\)\")",
-      "Bash(git push)",
-      "Bash(git commit -m \"$\\(cat <<''EOF''\nSwitch analysis from Claude to Gemini\n\n- Move all analysis functions to google-ai.ts using Gemini 3 Pro\n- Remove dependency on Anthropic API for analysis\n- Update analyze routes to import from google-ai\n\n🤖 Generated with [Claude Code]\\(https://claude.com/claude-code\\)\n\nCo-Authored-By: Claude Opus 4.5 <noreply@anthropic.com>\nEOF\n\\)\")",
-      "Bash(git commit:*)",
+      "Read",
+      "Edit",
+      "Write",
+      "Glob",
+      "Grep",
+      "Bash(git:*)",
+      "Bash(npm:*)",
+      "Bash(npx:*)",
+      "Bash(node:*)",
       "Bash(cat:*)",
       "Bash(curl:*)",
-      "Bash(npx prisma db push)",
-      "Bash(npx prisma generate:*)",
-      "Bash(git push:*)",
-      "Bash(find /c/Users/User/Documents/tipul_AB/tipul_AB-main/src/app/api -name \"route.ts\" -exec wc -l {} +)",
-      "Bash(find /c/Users/User/Documents/tipul_AB/tipul_AB-main/src -name \"*.ts\" -path \"*/components/*\" -exec wc -l {} +)",
-      "Bash(find /c/Users/User/Documents/tipul_AB/tipul_AB-main/src/components -name \"*.tsx\" -exec wc -l {} +)",
-      "Bash(find /c/Users/User/Documents/tipul_AB/tipul_AB-main -type f \\\\\\(-name *.test.ts -o -name *.spec.ts -o -name jest.config.ts -o -name vitest.config.ts \\\\\\))"
+      "Bash(ls:*)",
+      "Bash(find:*)",
+      "Bash(echo:*)",
+      "Bash(wc:*)",
+      "Bash(mkdir:*)",
+      "Bash(ls -d c:/Users/User/Documents/tipul_AB/tipul_AB-main/src/app/\\\\\\(dashboard\\\\\\)/dashboard/payments c:/Users/User/Documents/tipul_AB/tipul_AB-main/src/app/\\\\\\(dashboard\\\\\\)/dashboard/sessions c:/Users/User/Documents/tipul_AB/tipul_AB-main/src/app/\\\\\\(dashboard\\\\\\)/dashboard/clients)",
+      "Bash(sed -n '8,1364p' src/app/api/questionnaires/seed/route.ts)",
+      "Read(//tmp/**)",
+      "Bash(cmd.exe /c \"npm test\")",
+      "Bash(cmd.exe /c \"npm test 2>&1\")"
     ]
   }
 }

@@ -4,6 +4,7 @@
 import { NextRequest, NextResponse } from "next/server";
 import prisma from "@/lib/prisma";
 import { verifySumitWebhook, SumitWebhookPayload } from "@/lib/sumit";
+import { logger } from "@/lib/logger";
 
 export const dynamic = "force-dynamic";
 
@@ -18,7 +19,7 @@ export async function POST(request: NextRequest) {
       return NextResponse.json({ error: "Service unavailable" }, { status: 503 });
     }
     if (!verifySumitWebhook(body, signature, webhookSecret)) {
-      console.error("Invalid Sumit webhook signature");
+      logger.error("Invalid Sumit webhook signature");
       return NextResponse.json(
         { error: "Invalid signature" },
         { status: 401 }
@@ -44,7 +45,7 @@ export async function POST(request: NextRequest) {
 
     return NextResponse.json({ received: true });
   } catch (error) {
-    console.error("Sumit webhook error:", error);
+    logger.error("Sumit webhook error", { error: error instanceof Error ? error.message : String(error) });
     return NextResponse.json(
       { error: "Webhook processing failed" },
       { status: 500 }

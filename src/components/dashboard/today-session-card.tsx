@@ -1,13 +1,10 @@
 "use client";
 
-import { useState, useEffect } from "react";
+import { useState } from "react";
 import Link from "next/link";
 import { useRouter } from "next/navigation";
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
-import { Input } from "@/components/ui/input";
-import { Textarea } from "@/components/ui/textarea";
-import { Label } from "@/components/ui/label";
 import {
   DropdownMenu,
   DropdownMenuContent,
@@ -15,27 +12,12 @@ import {
   DropdownMenuTrigger,
   DropdownMenuSeparator,
 } from "@/components/ui/dropdown-menu";
-import {
-  Dialog,
-  DialogContent,
-  DialogDescription,
-  DialogFooter,
-  DialogHeader,
-  DialogTitle,
-} from "@/components/ui/dialog";
-import {
-  Select,
-  SelectContent,
-  SelectItem,
-  SelectTrigger,
-  SelectValue,
-} from "@/components/ui/select";
-import { CheckCircle, CheckCircle2, ClipboardList, Clock, FileText, MoreVertical, User, CreditCard, Ban, UserX, Loader2, ChevronDown, ChevronUp, AlertCircle, Wallet } from "lucide-react";
-import { Checkbox } from "@/components/ui/checkbox";
+import { CheckCircle, ClipboardList, Clock, FileText, MoreVertical, User, Loader2 } from "lucide-react";
 import { QuickMarkPaid } from "@/components/payments/quick-mark-paid";
 import { toast } from "sonner";
-import { format } from "date-fns";
-import { he } from "date-fns/locale";
+import { ChargeConfirmDialog } from "./charge-confirm-dialog";
+import { UpdateSessionDialog } from "./update-session-dialog";
+import { SessionStatusIndicators } from "./session-status-indicators";
 
 interface TodaySessionCardProps {
   session: {
@@ -105,7 +87,7 @@ function formatDateHebrew(utcDate: Date): string {
   const { date, month, dayOfWeek } = getIsraelTime(utcDate);
   const days = ['ראשון', 'שני', 'שלישי', 'רביעי', 'חמישי', 'שישי', 'שבת'];
   const months = ['ינואר', 'פברואר', 'מרץ', 'אפריל', 'מאי', 'יוני', 'יולי', 'אוגוסט', 'ספטמבר', 'אוקטובר', 'נובמבר', 'דצמבר'];
-  
+
   return `יום ${days[dayOfWeek]}, ${date} ב${months[month - 1]}`;
 }
 
@@ -116,20 +98,7 @@ export function TodaySessionCard({ session }: TodaySessionCardProps) {
   const [isProcessing, setIsProcessing] = useState(false);
 
   const [updateDialogOpen, setUpdateDialogOpen] = useState(false);
-  const [updateStatus, setUpdateStatus] = useState("");
-  const [updateReason, setUpdateReason] = useState("");
   const [updating, setUpdating] = useState(false);
-  const [paymentMethod, setPaymentMethod] = useState("CASH");
-  const [paymentAmount, setPaymentAmount] = useState("");
-  const [showPayment, setShowPayment] = useState(true);
-  const [showAdvanced, setShowAdvanced] = useState(false);
-  const [paymentType, setPaymentType] = useState<"FULL" | "PARTIAL">("FULL");
-  const [partialAmount, setPartialAmount] = useState("");
-  const [noChargeReason, setNoChargeReason] = useState("");
-  const [clientDebt, setClientDebt] = useState<{ total: number; count: number } | null>(null);
-  const [issueReceipt, setIssueReceipt] = useState(false);
-  const [receiptMode, setReceiptMode] = useState<string>("ASK");
-  const [businessType, setBusinessType] = useState<string>("NONE");
   const [isPaymentDialogOpen, setIsPaymentDialogOpen] = useState(false);
   const [paymentData, setPaymentData] = useState<{
     sessionId: string;
@@ -138,50 +107,19 @@ export function TodaySessionCard({ session }: TodaySessionCardProps) {
     paymentId?: string;
   } | null>(null);
 
-  useEffect(() => {
-    if (updateDialogOpen && session.client?.id) {
-      fetch(`/api/payments/client-debt/${session.client.id}`)
-        .then(res => res.json())
-        .then(data => {
-          setClientDebt({
-            total: Number(data.totalDebt || 0),
-            count: data.unpaidSessions?.length || 0,
-          });
-        })
-        .catch(() => setClientDebt(null));
-    } else {
-      setClientDebt(null);
-    }
-  }, [updateDialogOpen, session.client?.id]);
-
-  useEffect(() => {
-    if (updateDialogOpen) {
-      fetch("/api/user/business-settings")
-        .then(res => res.json())
-        .then(data => {
-          if (data.businessType) setBusinessType(data.businessType);
-          if (data.receiptDefaultMode) setReceiptMode(data.receiptDefaultMode);
-          if (data.receiptDefaultMode === "ALWAYS") setIssueReceipt(true);
-          else if (data.receiptDefaultMode === "NEVER") setIssueReceipt(false);
-        })
-        .catch(() => {});
-    }
-  }, [updateDialogOpen]);
-
-  const resetUpdateDialog = () => {
-    setUpdateDialogOpen(false);
-    setUpdateStatus("");
-    setUpdateReason("");
-    setPaymentAmount("");
-    setShowPayment(true);
-    setShowAdvanced(false);
-    setPaymentType("FULL");
-    setPartialAmount("");
-    setNoChargeReason("");
-    setIssueReceipt(false);
-  };
-
-  const handleUpdate = async () => {
+  const handleUpdate = async (params: {
+    updateStatus: string;
+    showPayment: boolean;
+    paymentMethod: string;
+    paymentType: "FULL" | "PARTIAL";
+    paymentAmount: string;
+    partialAmount: string;
+    issueReceipt: boolean;
+    businessType: string;
+    updateReason: string;
+    noChargeReason: string;
+  }) => {
+    const { updateStatus, showPayment, paymentMethod, paymentType, paymentAmount, partialAmount, issueReceipt, businessType, updateReason } = params;
     if (!updateStatus) { toast.error("בחר סטטוס"); return; }
     setUpdating(true);
     try {
@@ -235,7 +173,6 @@ export function TodaySessionCard({ session }: TodaySessionCardProps) {
         if (paymentResult?.receiptError) {
           toast.error(`שגיאה בהפקת קבלה: ${paymentResult.receiptError}`, { duration: 8000 });
         }
-        resetUpdateDialog();
         router.refresh();
         return;
       }
@@ -291,8 +228,36 @@ export function TodaySessionCard({ session }: TodaySessionCardProps) {
         };
         toast.success(labels[updateStatus] || "הפגישה עודכנה");
       }
-      resetUpdateDialog();
       router.refresh();
+    } catch {
+      toast.error("שגיאה בעדכון הפגישה");
+    } finally {
+      setUpdating(false);
+    }
+  };
+
+  const handleRecordDebt = async (params: {
+    updateStatus: string;
+    updateReason: string;
+  }) => {
+    if (!session.client) return;
+    setUpdating(true);
+    try {
+      const statusBody: Record<string, unknown> = { status: params.updateStatus, createPayment: true, markAsPaid: false };
+      if (params.updateStatus === "CANCELLED") {
+        statusBody.cancellationReason = params.updateReason.trim() || undefined;
+      }
+      const response = await fetch(`/api/sessions/${session.id}`, {
+        method: "PUT",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify(statusBody),
+      });
+      if (response.ok) {
+        toast.success("הפגישה עודכנה והחוב נרשם");
+        router.refresh();
+      } else {
+        toast.error("שגיאה בעדכון הפגישה");
+      }
     } catch {
       toast.error("שגיאה בעדכון הפגישה");
     } finally {
@@ -352,9 +317,9 @@ export function TodaySessionCard({ session }: TodaySessionCardProps) {
       const response = await fetch(`/api/sessions/${session.id}`, {
         method: "PUT",
         headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ 
+        body: JSON.stringify({
           status: pendingAction,
-          createPayment: shouldCharge,  // ← יוצר payment record אם בוחרים לחייב
+          createPayment: shouldCharge,
           markAsPaid: false,
         }),
       });
@@ -405,7 +370,7 @@ export function TodaySessionCard({ session }: TodaySessionCardProps) {
         session.status === "SCHEDULED" && new Date(session.endTime) < new Date() ? "bg-sky-50/60 border-sky-200" :
         "bg-emerald-50/60 border-emerald-200"
       }`}>
-        {/* שורה 1: זמן + סוג פגישה */}
+        {/* Row 1: Time + session type */}
         <div className="flex items-center justify-between">
           <div className="flex items-center gap-2">
             <div className="flex flex-col items-center justify-center w-12 h-12 rounded-lg bg-primary/10 text-primary">
@@ -431,7 +396,6 @@ export function TodaySessionCard({ session }: TodaySessionCardProps) {
               className="bg-orange-50 text-orange-600 border-orange-300 cursor-pointer hover:bg-orange-100 text-[10px]"
               onClick={() => {
                 setUpdateDialogOpen(true);
-                setPaymentAmount(session.price ? session.price.toString() : "");
               }}
             >
               ⚠ לא עודכן · עדכן
@@ -499,7 +463,7 @@ export function TodaySessionCard({ session }: TodaySessionCardProps) {
           ) : null}
         </div>
 
-        {/* שורה 2: שם מטופל - קליקבלי */}
+        {/* Row 2: Client name - clickable */}
         {session.client ? (
           <div>
             <Link
@@ -513,70 +477,17 @@ export function TodaySessionCard({ session }: TodaySessionCardProps) {
           <div className="text-base font-semibold text-muted-foreground">🌊 הפסקה</div>
         )}
 
-        {/* סיבת ביטול */}
+        {/* Cancellation reason */}
         {session.status === "CANCELLED" && session.cancellationReason && (
           <p className="text-xs text-muted-foreground/70 bg-red-50 rounded px-2 py-1 border border-red-100">
             סיבה: {session.cancellationReason}
           </p>
         )}
 
-        {/* שורה 3: אינדיקטורים (רק לפגישות שהושלמו) */}
-        {session.status === "COMPLETED" && session.client && (
-          <div className="flex items-center gap-3 text-xs pt-1.5 border-t">
-            {/* אינדיקטור תשלום */}
-            <div className="flex items-center gap-1.5">
-              <span className="text-muted-foreground">💵 תשלום:</span>
-              {session.payment?.status === "PAID" ? (
-                <span className="text-green-600 font-medium">✓ שולם</span>
-              ) : session.payment && session.payment.amount > 0 && session.payment.amount < Number(session.price) ? (
-                <span className="text-blue-600 font-medium">⏳ שולם חלקית (₪{session.payment.amount})</span>
-              ) : (
-                <span className="text-orange-600 font-medium">⏳ לא שולם</span>
-              )}
-            </div>
+        {/* Row 3: Status indicators */}
+        <SessionStatusIndicators session={session} />
 
-            {/* אינדיקטור סיכום */}
-            <div className="flex items-center gap-1.5">
-              <span className="text-muted-foreground">📝 סיכום:</span>
-              {session.sessionNote ? (
-                <Link
-                  href={`/dashboard/sessions/${session.id}`}
-                  className="text-green-600 font-medium hover:text-green-700 hover:underline transition-colors"
-                >
-                  ✓ נכתב
-                </Link>
-              ) : (
-                <Link
-                  href={`/dashboard/sessions/${session.id}`}
-                  className="text-sky-600 font-medium hover:text-sky-700 hover:underline transition-colors"
-                >
-                  כתוב סיכום
-                </Link>
-              )}
-            </div>
-          </div>
-        )}
-
-        {/* שורה 3: אינדיקטורים (רק לאי הופעה/ביטול) */}
-        {(session.status === "NO_SHOW" || session.status === "CANCELLED") && session.client && (
-          <div className="flex items-center gap-3 text-xs pt-1.5 border-t">
-            {/* אינדיקטור תשלום */}
-            <div className="flex items-center gap-1.5">
-              <span className="text-muted-foreground">💵 תשלום:</span>
-              {session.payment?.status === "PAID" ? (
-                <span className="text-green-600 font-medium">✓ שולם</span>
-              ) : session.payment && session.payment.amount > 0 && session.payment.amount < Number(session.price) ? (
-                <span className="text-blue-600 font-medium">⏳ שולם חלקית (₪{session.payment.amount})</span>
-              ) : session.payment ? (
-                <span className="text-orange-600 font-medium">⏳ חויב - לא שולם</span>
-              ) : (
-                <span className="text-gray-600 font-medium">✓ פטור מתשלום</span>
-              )}
-            </div>
-          </div>
-        )}
-
-        {/* שורה 4: תפריט פעולות */}
+        {/* Row 4: Action menu */}
         {session.client && (
           <div className="flex justify-center pt-1.5 border-t">
             <DropdownMenu>
@@ -587,7 +498,7 @@ export function TodaySessionCard({ session }: TodaySessionCardProps) {
                 </Button>
               </DropdownMenuTrigger>
               <DropdownMenuContent align="center" className="w-56">
-                {/* תיקית מטופל - תמיד */}
+                {/* Client folder - always */}
                 <DropdownMenuItem asChild>
                   <Link href={`/dashboard/clients/${session.client.id}`} className="cursor-pointer">
                     <User className="h-4 w-4 ml-2" />
@@ -595,7 +506,7 @@ export function TodaySessionCard({ session }: TodaySessionCardProps) {
                   </Link>
                 </DropdownMenuItem>
 
-                {/* אופציות לפגישה מתוכננת */}
+                {/* Options for scheduled session */}
                 {session.status === "SCHEDULED" && (
                   <>
                     <DropdownMenuSeparator />
@@ -624,7 +535,7 @@ export function TodaySessionCard({ session }: TodaySessionCardProps) {
                   </>
                 )}
 
-                {/* כתוב/צפה בסיכום - רק אם הושלמה */}
+                {/* Write/view summary - only if completed */}
                 {session.status === "COMPLETED" && (
                   <>
                     <DropdownMenuSeparator />
@@ -637,10 +548,10 @@ export function TodaySessionCard({ session }: TodaySessionCardProps) {
                   </>
                 )}
 
-                {/* רשום תשלום - רק אם דיווחת על הפגישה ויש חוב */}
-                {(session.status === "COMPLETED" || session.status === "NO_SHOW" || session.status === "CANCELLED") && 
-                 session.payment && 
-                 session.payment.status !== "PAID" && 
+                {/* Record payment - only if reported and has debt */}
+                {(session.status === "COMPLETED" || session.status === "NO_SHOW" || session.status === "CANCELLED") &&
+                 session.payment &&
+                 session.payment.status !== "PAID" &&
                  session.client && (
                   <>
                     <DropdownMenuSeparator />
@@ -668,330 +579,27 @@ export function TodaySessionCard({ session }: TodaySessionCardProps) {
       </div>
 
       {/* Charge Confirmation Dialog */}
-      <Dialog open={isChargeDialogOpen} onOpenChange={setIsChargeDialogOpen}>
-        <DialogContent>
-          <DialogHeader>
-            <DialogTitle>האם לחייב את המטופל?</DialogTitle>
-            <DialogDescription>
-              {pendingAction === "CANCELLED"
-                ? "הפגישה בוטלה. האם ברצונך לחייב את המטופל בתשלום?"
-                : "המטופל נעדר מהפגישה. האם ברצונך לחייב אותו בתשלום?"}
-            </DialogDescription>
-          </DialogHeader>
-          <DialogFooter className="gap-2">
-            <Button
-              variant="default"
-              onClick={() => handleActionWithCharge(true)}
-              disabled={isProcessing}
-            >
-              כן, לחייב
-            </Button>
-            <Button
-              variant="outline"
-              onClick={() => handleActionWithCharge(false)}
-              disabled={isProcessing}
-            >
-              לא, פטור מתשלום
-            </Button>
-          </DialogFooter>
-        </DialogContent>
-      </Dialog>
+      <ChargeConfirmDialog
+        open={isChargeDialogOpen}
+        onOpenChange={setIsChargeDialogOpen}
+        pendingAction={pendingAction}
+        isProcessing={isProcessing}
+        onCharge={handleActionWithCharge}
+      />
 
-      {/* Update Session Dialog - identical to sessions-view */}
-      <Dialog open={updateDialogOpen} onOpenChange={(o) => { if (!o) resetUpdateDialog(); }}>
-        <DialogContent className="sm:max-w-[550px] max-h-[90vh] overflow-y-auto" dir="rtl">
-          <DialogHeader>
-            <DialogTitle className="flex items-center gap-2">
-              <AlertCircle className="h-5 w-5 text-orange-500" />
-              עדכון פגישה - {session.client?.name}
-            </DialogTitle>
-          </DialogHeader>
-          <div className="space-y-4 py-2">
-            <p className="text-sm text-muted-foreground">הפגישה לא עודכנה. מה קרה?</p>
-
-            <div className="grid grid-cols-3 gap-2">
-              <Button
-                type="button"
-                variant={updateStatus === "COMPLETED" ? "default" : "outline"}
-                size="sm"
-                className={`h-10 text-xs gap-1 ${updateStatus === "COMPLETED" ? "bg-emerald-600 hover:bg-emerald-700" : ""}`}
-                onClick={() => { setUpdateStatus("COMPLETED"); setShowPayment(true); }}
-              >
-                <CheckCircle2 className="h-3.5 w-3.5" />
-                הושלמה
-              </Button>
-              <Button
-                type="button"
-                variant={updateStatus === "CANCELLED" ? "default" : "outline"}
-                size="sm"
-                className={`h-10 text-xs gap-1 ${updateStatus === "CANCELLED" ? "bg-red-500 hover:bg-red-600" : ""}`}
-                onClick={() => { setUpdateStatus("CANCELLED"); setShowPayment(true); }}
-              >
-                <Ban className="h-3.5 w-3.5" />
-                בוטלה
-              </Button>
-              <Button
-                type="button"
-                variant={updateStatus === "NO_SHOW" ? "default" : "outline"}
-                size="sm"
-                className={`h-10 text-xs gap-1 ${updateStatus === "NO_SHOW" ? "bg-amber-500 hover:bg-amber-600" : ""}`}
-                onClick={() => { setUpdateStatus("NO_SHOW"); setShowPayment(true); }}
-              >
-                <UserX className="h-3.5 w-3.5" />
-                לא הגיע
-              </Button>
-            </div>
-
-            {updateStatus === "CANCELLED" && (
-              <div className="space-y-2">
-                <Label className="text-sm">סיבת ביטול (אופציונלי)</Label>
-                <Textarea
-                  value={updateReason}
-                  onChange={e => setUpdateReason(e.target.value)}
-                  placeholder="לדוגמה: מחלה, בקשת מטופל..."
-                  className="resize-none h-16 bg-muted/20 border-muted-foreground/10 text-sm"
-                />
-              </div>
-            )}
-
-            {updateStatus && session.price > 0 && (
-              <>
-                {updateStatus !== "COMPLETED" && (
-                  <Button
-                    type="button"
-                    variant="outline"
-                    className="w-full font-bold text-base"
-                    onClick={() => setShowPayment(false)}
-                  >
-                    {updateStatus === "CANCELLED" ? "ביטול ללא חיוב" : "אי הגעה ללא חיוב"}
-                  </Button>
-                )}
-
-                {!showPayment && (
-                  <div className="space-y-2 p-3 rounded-lg border bg-orange-50/50 border-orange-200">
-                    <Label className="text-sm text-orange-700">סיבה לאי חיוב (אופציונלי)</Label>
-                    <Textarea
-                      value={noChargeReason}
-                      onChange={e => setNoChargeReason(e.target.value)}
-                      placeholder="לדוגמה: סיכום מראש, פגישת היכרות, הסדר מיוחד..."
-                      className="resize-none h-16 bg-white/80 border-orange-200 text-sm"
-                    />
-                    <Button
-                      type="button"
-                      variant="ghost"
-                      size="sm"
-                      className="text-xs text-sky-600"
-                      onClick={() => setShowPayment(true)}
-                    >
-                      ← חזרה לתשלום
-                    </Button>
-                  </div>
-                )}
-
-                {showPayment && (
-                  <div className="space-y-3 p-4 rounded-lg border bg-muted/30">
-                    <div className="flex items-center justify-between">
-                      <Label className="text-lg font-bold">
-                        {updateStatus === "COMPLETED" ? "עדכון ותשלום 💰" : updateStatus === "CANCELLED" ? "דמי ביטול 💰" : "חיוב אי הגעה 💰"}
-                      </Label>
-                    </div>
-
-                    <div className="grid grid-cols-2 gap-3">
-                      <div className="space-y-2">
-                        <Label>סכום</Label>
-                        <div className="relative">
-                          <Input
-                            type="number"
-                            value={paymentAmount}
-                            onChange={e => setPaymentAmount(e.target.value)}
-                            className="pl-8"
-                            disabled={paymentType !== "FULL"}
-                          />
-                          <span className="absolute left-3 top-1/2 -translate-y-1/2 text-sm text-muted-foreground">₪</span>
-                        </div>
-                      </div>
-                      <div className="space-y-2">
-                        <Label>אמצעי תשלום</Label>
-                        <Select value={paymentMethod} onValueChange={setPaymentMethod}>
-                          <SelectTrigger>
-                            <SelectValue />
-                          </SelectTrigger>
-                          <SelectContent>
-                            <SelectItem value="CASH">מזומן</SelectItem>
-                            <SelectItem value="CREDIT_CARD">אשראי</SelectItem>
-                            <SelectItem value="BANK_TRANSFER">העברה</SelectItem>
-                            <SelectItem value="CHECK">צ׳ק</SelectItem>
-                            <SelectItem value="OTHER">אחר</SelectItem>
-                          </SelectContent>
-                        </Select>
-                      </div>
-                    </div>
-
-                    {businessType !== "NONE" && receiptMode !== "NEVER" && (
-                      <div className="flex items-center gap-3 py-2 px-3 bg-sky-50 rounded-lg border border-sky-200">
-                        <Checkbox
-                          id="today-issue-receipt"
-                          checked={issueReceipt}
-                          onCheckedChange={(checked) => setIssueReceipt(checked === true)}
-                          disabled={receiptMode === "ALWAYS"}
-                        />
-                        <Label htmlFor="today-issue-receipt" className="cursor-pointer flex items-center gap-2 text-sky-800">
-                          <FileText className="h-4 w-4" />
-                          הוצא קבלה
-                          {receiptMode === "ALWAYS" && (
-                            <span className="text-xs text-sky-600">(ברירת מחדל)</span>
-                          )}
-                        </Label>
-                      </div>
-                    )}
-
-                    <div className="space-y-3">
-                      <Button
-                        type="button"
-                        variant="ghost"
-                        size="sm"
-                        className="w-full justify-between font-semibold"
-                        onClick={() => setShowAdvanced(!showAdvanced)}
-                      >
-                        <span className="font-bold">אופציות מתקדמות</span>
-                        {showAdvanced ? <ChevronUp className="h-4 w-4" /> : <ChevronDown className="h-4 w-4" />}
-                      </Button>
-                      {showAdvanced && (
-                        <div className="space-y-2 pt-2">
-                          <div className="grid gap-2">
-                            <Button
-                              type="button"
-                              variant={paymentType === "FULL" ? "default" : "outline"}
-                              size="sm"
-                              onClick={() => setPaymentType("FULL")}
-                            >
-                              תשלום מלא (₪{session.price})
-                            </Button>
-                            <Button
-                              type="button"
-                              variant={paymentType === "PARTIAL" ? "default" : "outline"}
-                              size="sm"
-                              onClick={() => setPaymentType("PARTIAL")}
-                            >
-                              תשלום חלקי
-                            </Button>
-                            {paymentType === "PARTIAL" && (
-                              <div className="pr-4 space-y-1">
-                                <Input
-                                  type="number"
-                                  placeholder="הכנס סכום"
-                                  value={partialAmount}
-                                  onChange={e => setPartialAmount(e.target.value)}
-                                  max={session.price}
-                                  min={0}
-                                  step="0.01"
-                                />
-                                {partialAmount && parseFloat(partialAmount) < session.price && (
-                                  <p className="text-xs text-muted-foreground">
-                                    נותר לתשלום: ₪{session.price - parseFloat(partialAmount)}
-                                  </p>
-                                )}
-                              </div>
-                            )}
-                          </div>
-                        </div>
-                      )}
-                    </div>
-                  </div>
-                )}
-              </>
-            )}
-
-            {updateStatus && clientDebt && clientDebt.count > 0 && clientDebt.total > 0 && (
-              <div className="pt-3 border-t mt-2">
-                <p className="text-sm text-muted-foreground mb-2 text-center">
-                  למטופל יש {clientDebt.count} פגישות ממתינות לתשלום
-                  (סה״כ חוב: ₪{clientDebt.total.toFixed(0)})
-                </p>
-                <Button
-                  variant="outline"
-                  className="w-full gap-2"
-                  asChild
-                >
-                  <Link href={`/dashboard/payments/pay/${session.client?.id}`}>
-                    <Wallet className="h-4 w-4" />
-                    שלם את כל החוב
-                  </Link>
-                </Button>
-              </div>
-            )}
-          </div>
-          <DialogFooter className="flex flex-wrap gap-2 sm:gap-2">
-            <Button
-              variant="outline"
-              onClick={resetUpdateDialog}
-              disabled={updating}
-              className="font-medium"
-            >
-              ביטול
-            </Button>
-            {updateStatus && showPayment && session.price > 0 && session.client && (
-              <Button
-                variant="outline"
-                className="gap-2 font-bold border-amber-300 text-amber-700 hover:bg-amber-50"
-                onClick={async () => {
-                  if (!session.client) return;
-                  setUpdating(true);
-                  try {
-                    const statusBody: Record<string, unknown> = { status: updateStatus, createPayment: true, markAsPaid: false };
-                    if (updateStatus === "CANCELLED") {
-                      statusBody.cancellationReason = updateReason.trim() || undefined;
-                    }
-                    const response = await fetch(`/api/sessions/${session.id}`, {
-                      method: "PUT",
-                      headers: { "Content-Type": "application/json" },
-                      body: JSON.stringify(statusBody),
-                    });
-                    if (response.ok) {
-                      toast.success("הפגישה עודכנה והחוב נרשם");
-                      resetUpdateDialog();
-                      router.refresh();
-                    } else {
-                      toast.error("שגיאה בעדכון הפגישה");
-                    }
-                  } catch {
-                    toast.error("שגיאה בעדכון הפגישה");
-                  } finally {
-                    setUpdating(false);
-                  }
-                }}
-                disabled={updating}
-              >
-                {updating ? <Loader2 className="h-4 w-4 animate-spin ml-1" /> : <Wallet className="h-4 w-4 ml-1" />}
-                עדכן ורשום חוב
-              </Button>
-            )}
-            {showPayment && session.price > 0 ? (
-              <Button
-                onClick={handleUpdate}
-                disabled={updating || !updateStatus}
-                className="gap-2 font-bold bg-emerald-600 hover:bg-emerald-700"
-              >
-                {updating ? <Loader2 className="h-4 w-4 animate-spin" /> : <CheckCircle2 className="h-4 w-4" />}
-                {updateStatus === "COMPLETED" ? "עדכן ושלם" : updateStatus === "CANCELLED" ? "בטל וחייב" : updateStatus === "NO_SHOW" ? "עדכן וחייב" : "עדכן"}
-              </Button>
-            ) : (
-              <Button
-                onClick={handleUpdate}
-                disabled={updating || !updateStatus}
-                className={
-                  updateStatus === "COMPLETED" ? "bg-emerald-600 hover:bg-emerald-700" :
-                  updateStatus === "CANCELLED" ? "bg-red-500 hover:bg-red-600" :
-                  updateStatus === "NO_SHOW" ? "bg-amber-500 hover:bg-amber-600" : ""
-                }
-              >
-                {updating ? <Loader2 className="h-4 w-4 animate-spin ml-1" /> : null}
-                עדכן
-              </Button>
-            )}
-          </DialogFooter>
-        </DialogContent>
-      </Dialog>
+      {/* Update Session Dialog */}
+      <UpdateSessionDialog
+        open={updateDialogOpen}
+        onOpenChange={setUpdateDialogOpen}
+        session={{
+          id: session.id,
+          price: session.price,
+          client: session.client,
+        }}
+        onUpdate={handleUpdate}
+        onRecordDebt={handleRecordDebt}
+        updating={updating}
+      />
 
       {paymentData && (
         <QuickMarkPaid

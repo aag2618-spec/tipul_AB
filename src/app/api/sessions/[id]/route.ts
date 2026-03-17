@@ -1,6 +1,5 @@
 import { NextRequest, NextResponse } from "next/server";
-import { getServerSession } from "next-auth";
-import { authOptions } from "@/lib/auth";
+import { requireAuth } from "@/lib/api-auth";
 import prisma from "@/lib/prisma";
 import { parseIsraelTime } from "@/lib/date-utils";
 import { createPaymentForSession } from "@/lib/payment-service";
@@ -12,15 +11,14 @@ export async function GET(
   { params }: { params: Promise<{ id: string }> }
 ) {
   try {
-    const session = await getServerSession(authOptions);
-    if (!session?.user?.id) {
-      return NextResponse.json({ message: "לא מורשה" }, { status: 401 });
-    }
+    const auth = await requireAuth();
+    if ("error" in auth) return auth.error;
+    const { userId } = auth;
 
     const { id } = await params;
 
     const therapySession = await prisma.therapySession.findFirst({
-      where: { id, therapistId: session.user.id },
+      where: { id, therapistId: userId },
       include: {
         client: true,
         sessionNote: true,
@@ -55,17 +53,16 @@ export async function PUT(
   { params }: { params: Promise<{ id: string }> }
 ) {
   try {
-    const session = await getServerSession(authOptions);
-    if (!session?.user?.id) {
-      return NextResponse.json({ message: "לא מורשה" }, { status: 401 });
-    }
+    const auth = await requireAuth();
+    if ("error" in auth) return auth.error;
+    const { userId } = auth;
 
     const { id } = await params;
     const body = await request.json();
     const { startTime, endTime, type, price, location, notes, status, createPayment, markAsPaid } = body;
 
     const existingSession = await prisma.therapySession.findFirst({
-      where: { id, therapistId: session.user.id },
+      where: { id, therapistId: userId },
       include: {
         client: {
           select: {
@@ -80,10 +77,10 @@ export async function PUT(
     }
 
     // If no price provided, use client's default price
-    const finalPrice = price !== undefined 
-      ? price 
-      : (existingSession.client?.defaultSessionPrice 
-          ? Number(existingSession.client.defaultSessionPrice) 
+    const finalPrice = price !== undefined
+      ? price
+      : (existingSession.client?.defaultSessionPrice
+          ? Number(existingSession.client.defaultSessionPrice)
           : undefined);
 
     const therapySession = await prisma.therapySession.update({
@@ -104,10 +101,10 @@ export async function PUT(
     });
 
     // יצירת תשלום אם צריך (הושלם, או ביטול/אי הופעה עם בקשה לחיוב)
-    const shouldCreatePayment = 
+    const shouldCreatePayment =
       (status === "COMPLETED" || therapySession.status === "COMPLETED") ||
       (createPayment && (status === "CANCELLED" || status === "NO_SHOW"));
-    
+
     if (shouldCreatePayment && therapySession.price && therapySession.clientId) {
       // בדוק אם כבר קיים תשלום ממתין או שולם לפגישה זו
       const existingPayment = await prisma.payment.findFirst({
@@ -118,7 +115,7 @@ export async function PUT(
       });
       if (!existingPayment) {
         await createPaymentForSession({
-          userId: session.user.id,
+          userId,
           clientId: therapySession.clientId,
           sessionId: therapySession.id,
           amount: markAsPaid ? Number(therapySession.price) : 0,
@@ -128,7 +125,7 @@ export async function PUT(
         });
       }
     }
-    
+
     // Fetch updated session with payment info
     const updatedSession = await prisma.therapySession.findUnique({
       where: { id: therapySession.id },
@@ -137,7 +134,7 @@ export async function PUT(
         payment: true,
       },
     });
-    
+
     return NextResponse.json(updatedSession);
   } catch (error) {
     console.error("Update session error:", error);
@@ -153,17 +150,16 @@ export async function PATCH(
   { params }: { params: Promise<{ id: string }> }
 ) {
   try {
-    const session = await getServerSession(authOptions);
-    if (!session?.user?.id) {
-      return NextResponse.json({ message: "לא מורשה" }, { status: 401 });
-    }
+    const auth = await requireAuth();
+    if ("error" in auth) return auth.error;
+    const { userId } = auth;
 
     const { id } = await params;
     const body = await request.json();
     const { skipSummary } = body;
 
     const existingSession = await prisma.therapySession.findFirst({
-      where: { id, therapistId: session.user.id },
+      where: { id, therapistId: userId },
     });
 
     if (!existingSession) {
@@ -192,15 +188,14 @@ export async function DELETE(
   { params }: { params: Promise<{ id: string }> }
 ) {
   try {
-    const session = await getServerSession(authOptions);
-    if (!session?.user?.id) {
-      return NextResponse.json({ message: "לא מורשה" }, { status: 401 });
-    }
+    const auth = await requireAuth();
+    if ("error" in auth) return auth.error;
+    const { userId } = auth;
 
     const { id } = await params;
 
     const existingSession = await prisma.therapySession.findFirst({
-      where: { id, therapistId: session.user.id },
+      where: { id, therapistId: userId },
     });
 
     if (!existingSession) {
@@ -212,7 +207,7 @@ export async function DELETE(
     try {
       await prisma.notification.updateMany({
         where: {
-          userId: session.user.id,
+          userId,
           type: { in: ["BOOKING_REQUEST", "CANCELLATION_REQUEST", "SESSION_REMINDER"] },
           status: { in: ["PENDING", "SENT"] },
           content: { contains: id },
@@ -232,16 +227,3 @@ export async function DELETE(
     );
   }
 }
-
-
-
-
-
-
-
-
-
-
-
-
-

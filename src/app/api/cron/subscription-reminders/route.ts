@@ -373,7 +373,7 @@ export async function GET(req: NextRequest) {
             to: ADMIN_EMAIL,
             subject: `📋 תקופת ניסיון הסתיימה - ${user.name}`,
             html: createAdminNotificationHtml(
-              `תקופת הניסיון של <strong>${escapeHtml(user.name || "")}</strong> (${escapeHtml(user.email)}) הסתיימה.`,
+              `תקופת הניסיון של <strong>${escapeHtml(user.name || "")}</strong> (${escapeHtml(user.email ?? "")}) הסתיימה.`,
               "כדאי ליצור קשר ולעודד מעבר למנוי בתשלום.",
               "info"
             ),
@@ -683,7 +683,7 @@ async function sendAdminGraceAlert(
     to: ADMIN_EMAIL,
     subject: `⚠️ מנוי בתקופת חסד - ${user.name} (${daysLeft} ימים נותרו)`,
     html: createAdminNotificationHtml(
-      `<strong>${escapeHtml(user.name || "")}</strong> (${escapeHtml(user.email)}) נמצא בתקופת חסד.<br/>
+      `<strong>${escapeHtml(user.name || "")}</strong> (${escapeHtml(user.email ?? "")}) נמצא בתקופת חסד.<br/>
        מסלול: ${PLAN_NAMES[user.aiTier] || user.aiTier}<br/>
        <strong>נותרו ${daysLeft} ימים</strong> לפני חסימה.`,
       daysLeft <= 2 
@@ -703,7 +703,7 @@ async function sendAdminExpiredAlert(
     to: ADMIN_EMAIL,
     subject: `❌ מנוי נחסם - ${user.name}`,
     html: createAdminNotificationHtml(
-      `המנוי של <strong>${escapeHtml(user.name || "")}</strong> (${escapeHtml(user.email)}) <strong>נחסם</strong> עקב אי-תשלום.<br/>
+      `המנוי של <strong>${escapeHtml(user.name || "")}</strong> (${escapeHtml(user.email ?? "")}) <strong>נחסם</strong> עקב אי-תשלום.<br/>
        מסלול: ${PLAN_NAMES[user.aiTier] || user.aiTier}`,
       "המנוי קיבל מייל עם קישור לחידוש. הנתונים שלו שמורים.",
       "error"
