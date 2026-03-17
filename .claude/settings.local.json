@@ -10,7 +10,11 @@
       "Bash(curl:*)",
       "Bash(npx prisma db push)",
       "Bash(npx prisma generate:*)",
-      "Bash(git push:*)"
+      "Bash(git push:*)",
+      "Bash(find /c/Users/User/Documents/tipul_AB/tipul_AB-main/src/app/api -name \"route.ts\" -exec wc -l {} +)",
+      "Bash(find /c/Users/User/Documents/tipul_AB/tipul_AB-main/src -name \"*.ts\" -path \"*/components/*\" -exec wc -l {} +)",
+      "Bash(find /c/Users/User/Documents/tipul_AB/tipul_AB-main/src/components -name \"*.tsx\" -exec wc -l {} +)",
+      "Bash(find /c/Users/User/Documents/tipul_AB/tipul_AB-main -type f \\\\\\(-name *.test.ts -o -name *.spec.ts -o -name jest.config.ts -o -name vitest.config.ts \\\\\\))"
     ]
   }
 }
