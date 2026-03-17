@@ -69,15 +69,20 @@ export async function POST(request: NextRequest) {
         where: {
           client: { therapistId: user.id },
           status: "PENDING",
+          parentPaymentId: null,
           createdAt: { lt: thresholdDate },
         },
         include: { client: true },
       });
 
-      // Create evening summary notification (for tomorrow)
-      if (tomorrowSessions.length > 0 || pendingTasks.length > 0) {
+      // Create evening summary notification (for tomorrow) — skip if already sent today
+      const alreadySentEvening = await prisma.notification.findFirst({
+        where: { userId: user.id, type: "EVENING_SUMMARY", createdAt: { gte: today } },
+      });
+
+      if (!alreadySentEvening && (tomorrowSessions.length > 0 || pendingTasks.length > 0)) {
         const sessionsList = tomorrowSessions
-          .filter((s) => s.client) // Filter out BREAK sessions
+          .filter((s) => s.client)
           .map((s) => `• ${s.client!.name} - ${new Date(s.startTime).toLocaleTimeString("he-IL", { hour: "2-digit", minute: "2-digit", timeZone: 'Asia/Jerusalem' })}`)
           .join("\n");
 
@@ -105,20 +110,26 @@ ${pendingTasks.length > 5 ? `\n...ועוד ${pendingTasks.length - 5} משימו
         });
       }
 
-      // Create payment reminder if there are overdue payments
+      // Create payment reminder if there are overdue payments — skip if already sent today
       if (pendingPayments.length > 0) {
-        const totalDebt = calculateDebtFromPayments(pendingPayments);
-
-        await prisma.notification.create({
-          data: {
-            userId: user.id,
-            type: "PAYMENT_REMINDER",
-            title: `תזכורת: ${pendingPayments.length} תשלומים ממתינים`,
-            content: `יש לך ${pendingPayments.length} תשלומים שממתינים מעל ${debtThreshold} ימים בסך ₪${totalDebt}`,
-            status: "PENDING",
-            scheduledFor: now,
-          },
+        const alreadySentPayment = await prisma.notification.findFirst({
+          where: { userId: user.id, type: "PAYMENT_REMINDER", createdAt: { gte: today } },
         });
+
+        if (!alreadySentPayment) {
+          const totalDebt = calculateDebtFromPayments(pendingPayments);
+
+          await prisma.notification.create({
+            data: {
+              userId: user.id,
+              type: "PAYMENT_REMINDER",
+              title: `תזכורת: ${pendingPayments.length} תשלומים ממתינים`,
+              content: `יש לך ${pendingPayments.length} תשלומים שממתינים מעל ${debtThreshold} ימים בסך ₪${totalDebt}`,
+              status: "PENDING",
+              scheduledFor: now,
+            },
+          });
+        }
       }
     }
 

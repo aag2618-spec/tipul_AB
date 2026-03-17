@@ -46,13 +46,6 @@ async function getDashboardStats(userId: string) {
   const tomorrow = new Date(today);
   tomorrow.setUTCDate(tomorrow.getUTCDate() + 3);
   
-  // DEBUG: Log the calculated range
-  console.log('🔍 Dashboard timezone debug:', {
-    now: now.toISOString(),
-    todayUTC: today.toISOString(),
-    tomorrowUTC: tomorrow.toISOString()
-  });
-  
   const weekStart = new Date(today);
   weekStart.setDate(weekStart.getDate() - weekStart.getDay());
 

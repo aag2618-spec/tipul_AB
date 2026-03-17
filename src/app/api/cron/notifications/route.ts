@@ -135,6 +135,7 @@ export async function GET(request: NextRequest) {
             where: {
               client: { therapistId: user.id },
               status: "PENDING",
+              parentPaymentId: null,
               createdAt: { lt: thresholdDate },
             },
             include: { client: true },
@@ -258,6 +259,7 @@ export async function GET(request: NextRequest) {
               where: {
                 client: { therapistId: user.id },
                 status: "PENDING",
+                parentPaymentId: null,
               },
               include: { client: true },
             });

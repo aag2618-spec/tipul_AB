@@ -27,7 +27,7 @@ export async function POST(
       );
     }
 
-    if (!["CASH", "CREDIT_CARD", "BANK_TRANSFER", "CHECK"].includes(method)) {
+    if (!["CASH", "CREDIT_CARD", "BANK_TRANSFER", "CHECK", "CREDIT", "OTHER"].includes(method)) {
       return NextResponse.json(
         { error: "Invalid payment method" },
         { status: 400 }
@@ -98,11 +98,17 @@ export async function POST(
       return NextResponse.json({ error: result.error }, { status: 500 });
     }
 
-    // Surplus goes to credit
+    // Surplus goes to credit — via trunk for audit trail
     if (result.remainingAmount > 0) {
-      await prisma.client.update({
-        where: { id: clientId },
-        data: { creditBalance: { increment: result.remainingAmount } },
+      await createPaymentForSession({
+        userId: session.user.id,
+        clientId,
+        amount: result.remainingAmount,
+        expectedAmount: result.remainingAmount,
+        method,
+        paymentType: "ADVANCE",
+        issueReceipt: false,
+        notes: `עודף מתשלום מרוכז — נוסף לקרדיט`,
       });
     }
 

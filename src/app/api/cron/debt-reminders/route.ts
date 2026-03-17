@@ -213,12 +213,14 @@ export async function GET(request: NextRequest) {
       for (const client of clients) {
         if (!client.email) continue;
 
-        const sessionsWithDebt = client.therapySessions.map((session) => ({
-          date: session.startTime,
-          type: session.type,
-          status: session.status,
-          debt: calculateSessionDebt(session),
-        }));
+        const sessionsWithDebt = client.therapySessions
+          .map((session) => ({
+            date: session.startTime,
+            type: session.type,
+            status: session.status,
+            debt: calculateSessionDebt(session),
+          }))
+          .filter((s) => s.debt > 0);
 
         const totalDebt = sessionsWithDebt.reduce((sum, s) => sum + s.debt, 0);
 
