@@ -193,6 +193,57 @@ export async function sendPaymentReceiptEmail(params: {
 }
 
 // ================================================================
+// completeWebhookPayment - called by webhooks after updating Payment
+// Sends receipt email + completes COLLECT_PAYMENT task
+// This is the "connector pipe" between webhooks and the payment trunk
+// ================================================================
+
+export async function completeWebhookPayment(paymentId: string): Promise<void> {
+  try {
+    const payment = await prisma.payment.findUnique({
+      where: { id: paymentId },
+      include: {
+        session: { select: { startTime: true, type: true } },
+        client: { select: { id: true, therapistId: true } },
+      },
+    });
+
+    if (!payment || !payment.client) return;
+
+    const { client } = payment;
+
+    // 1. Send receipt email to client (respects therapist's communication settings)
+    await sendPaymentReceiptEmail({
+      userId: client.therapistId,
+      clientId: client.id,
+      amountPaid: Number(payment.amount),
+      expectedAmount: Number(payment.expectedAmount),
+      method: payment.method,
+      paidAt: payment.paidAt || new Date(),
+      session: payment.session,
+      receiptUrl: payment.receiptUrl,
+      receiptNumber: payment.receiptNumber,
+    }).catch(err => logger.error("Webhook receipt email failed", { error: err instanceof Error ? err.message : String(err) }));
+
+    // 2. Complete COLLECT_PAYMENT task if this payment is now fully paid
+    if (payment.status === "PAID") {
+      await prisma.task.updateMany({
+        where: {
+          userId: client.therapistId,
+          type: "COLLECT_PAYMENT",
+          status: { in: ["PENDING", "IN_PROGRESS"] },
+          description: { contains: paymentId },
+        },
+        data: { status: "COMPLETED" },
+      });
+    }
+  } catch (err) {
+    // Non-critical: webhook already updated the payment, this is supplementary
+    logger.error("completeWebhookPayment error", { error: err instanceof Error ? err.message : String(err) });
+  }
+}
+
+// ================================================================
 // Helpers
 // ================================================================
 

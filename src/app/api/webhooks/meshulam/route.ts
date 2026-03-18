@@ -10,6 +10,7 @@ import { checkRateLimit, WEBHOOK_RATE_LIMIT } from "@/lib/rate-limit";
 import { PLAN_NAMES, detectPeriodFromAmount as detectPeriodCentral } from "@/lib/pricing";
 import { escapeHtml } from "@/lib/email-utils";
 import { logger } from "@/lib/logger";
+import { completeWebhookPayment } from "@/lib/payments/receipt-service";
 
 const ADMIN_EMAIL = process.env.ADMIN_EMAIL;
 const SYSTEM_URL = process.env.NEXTAUTH_URL || "";
@@ -112,6 +113,9 @@ async function handlePaymentSuccess(payload: MeshulamWebhookPayload) {
         },
       });
     }
+
+    // Send receipt email + complete COLLECT_PAYMENT task
+    await completeWebhookPayment(customFields.paymentId);
   } else if (payload.customerId) {
     // תשלום מנוי - מחפשים לפי המייל
     const user = await prisma.user.findFirst({

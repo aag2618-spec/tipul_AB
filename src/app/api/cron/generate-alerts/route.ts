@@ -266,6 +266,26 @@ export async function GET(req: NextRequest) {
       }
     }
 
+    // Auto-fix stuck payments (PENDING but fully paid)
+    const stuckPayments = await prisma.payment.findMany({
+      where: {
+        status: "PENDING",
+        parentPaymentId: null,
+        expectedAmount: { gt: 0 },
+      },
+      select: { id: true, amount: true, expectedAmount: true },
+    });
+    const stuckIds = stuckPayments
+      .filter(p => Number(p.amount) >= Number(p.expectedAmount))
+      .map(p => p.id);
+    if (stuckIds.length > 0) {
+      await prisma.payment.updateMany({
+        where: { id: { in: stuckIds } },
+        data: { status: "PAID", paidAt: new Date() },
+      });
+      logger.info(`Auto-fixed ${stuckIds.length} stuck payments`);
+    }
+
     // Create all alerts
     if (alerts.length > 0) {
       await prisma.adminAlert.createMany({

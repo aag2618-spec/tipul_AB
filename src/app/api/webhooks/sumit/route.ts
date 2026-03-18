@@ -5,6 +5,7 @@ import { NextRequest, NextResponse } from "next/server";
 import prisma from "@/lib/prisma";
 import { verifySumitWebhook, SumitWebhookPayload } from "@/lib/sumit";
 import { logger } from "@/lib/logger";
+import { completeWebhookPayment } from "@/lib/payments/receipt-service";
 
 export const dynamic = "force-dynamic";
 
@@ -99,6 +100,9 @@ async function handlePaymentSuccess(payload: SumitWebhookPayload) {
         status: "PENDING",
       },
     });
+
+    // Send receipt email + complete COLLECT_PAYMENT task
+    await completeWebhookPayment(payment.id);
   } else if (Customer?.Email) {
     // אולי זה תשלום מנוי
     const user = await prisma.user.findFirst({
