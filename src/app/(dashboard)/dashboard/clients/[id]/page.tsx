@@ -817,7 +817,15 @@ export default async function ClientPage({
         </TabsContent>
 
         <TabsContent value="summaries" className="mt-6">
-          <SummariesTab clientId={client.id} sessions={client.therapySessions} />
+          <SummariesTab clientId={client.id} sessions={client.therapySessions.map(s => ({
+            id: s.id,
+            startTime: s.startTime,
+            endTime: s.endTime,
+            type: s.type as string,
+            status: s.status as string,
+            skipSummary: s.skipSummary,
+            sessionNote: s.sessionNote ? { content: s.sessionNote.content } : null,
+          }))} />
         </TabsContent>
 
         <TabsContent value="files" className="mt-6">
@@ -1063,7 +1071,7 @@ export default async function ClientPage({
                           >
                             <div className="flex items-center justify-between">
                               <div>
-                                <p className="font-medium">{response.template.name}</p>
+                                <p className="font-medium">{response.template?.name || "תשאול ראשוני"}</p>
                                 <p className="text-sm text-muted-foreground">
                                   {format(new Date(response.filledAt), "dd/MM/yyyy HH:mm")}
                                 </p>
@@ -1118,7 +1126,7 @@ export default async function ClientPage({
                                   <ClipboardList className="h-5 w-5 text-primary" />
                                 </div>
                                 <div>
-                                  <p className="font-medium">{response.template.name}</p>
+                                  <p className="font-medium">{response.template?.name || "שאלון"}</p>
                                   <p className="text-sm text-muted-foreground">
                                     {response.completedAt
                                       ? format(new Date(response.completedAt), "dd/MM/yyyy HH:mm")

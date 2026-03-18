@@ -93,10 +93,11 @@ export function TasksView({ initialTasks }: TasksViewProps) {
   const handleDismiss = async (taskId: string) => {
     setDismissingIds(prev => new Set(prev).add(taskId));
     try {
-      const res = await fetch(`/api/tasks/${taskId}`, {
+      // taskId is actually a session ID (virtual tasks created from sessions)
+      const res = await fetch(`/api/sessions/${taskId}`, {
         method: "PATCH",
         headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ status: "COMPLETED" }),
+        body: JSON.stringify({ skipSummary: true }),
       });
       if (res.ok) {
         setTasks(prev => prev.filter(t => t.id !== taskId));
