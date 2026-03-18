@@ -68,7 +68,7 @@ import { he } from "date-fns/locale";
 import { calculateDebtFromPayments, calculateSessionDebt } from "@/lib/payment-utils";
 
 async function getClient(clientId: string, userId: string) {
-  return prisma.client.findFirst({
+  const client = await prisma.client.findFirst({
     where: { id: clientId, therapistId: userId },
     include: {
       recurringPatterns: {
@@ -77,15 +77,15 @@ async function getClient(clientId: string, userId: string) {
       },
       therapySessions: {
         orderBy: { startTime: "desc" },
-        include: { 
-          sessionNote: true, 
+        include: {
+          sessionNote: true,
           payment: { include: { childPayments: { orderBy: { paidAt: "asc" } } } },
         },
       },
       payments: {
         where: { parentPaymentId: null },
         orderBy: { createdAt: "desc" },
-        include: { 
+        include: {
           session: true,
           childPayments: {
             orderBy: { paidAt: "asc" },
@@ -113,16 +113,20 @@ async function getClient(clientId: string, userId: string) {
         },
       },
       _count: {
-        select: { 
-          therapySessions: { where: { type: { not: "BREAK" } } }, 
-          payments: true, 
-          recordings: true, 
+        select: {
+          therapySessions: { where: { type: { not: "BREAK" } } },
+          payments: true,
+          recordings: true,
           questionnaireResponses: true,
           intakeResponses: true
         },
       },
     },
   });
+  if (!client) return null;
+  // ניקוי כולל: Prisma Decimal → string, Date → ISO string
+  // מונע שגיאות RSC serialization בכל client components
+  return JSON.parse(JSON.stringify(client)) as typeof client;
 }
 
 export default async function ClientPage({
