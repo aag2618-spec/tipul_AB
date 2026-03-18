@@ -555,7 +555,7 @@ export function TodaySessionCard({ session }: TodaySessionCardProps) {
                  session.client && (
                   <>
                     <DropdownMenuSeparator />
-                    <DropdownMenuItem asChild>
+                    <DropdownMenuItem asChild onSelect={(e) => e.preventDefault()}>
                       <div className="cursor-pointer">
                         <QuickMarkPaid
                           sessionId={session.id}
