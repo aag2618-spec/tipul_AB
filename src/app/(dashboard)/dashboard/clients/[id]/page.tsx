@@ -178,12 +178,13 @@ export default async function ClientPage({
     : null;
   const summarizedSessionsCount = client.therapySessions.filter(s => s.sessionNote).length;
 
-  // Get unpaid sessions for the Payments tab
+  // Get unpaid sessions for the Payments tab (exclude cancelled sessions)
   const unpaidSessions = client.therapySessions.filter(
     (session) =>
+      session.status !== "CANCELLED" &&
       session.payment &&
       session.payment.status === "PENDING" &&
-      Number(session.payment.expectedAmount) > Number(session.payment.amount)
+      Number(session.payment.expectedAmount || 0) > Number(session.payment.amount || 0)
   );
 
   return (
