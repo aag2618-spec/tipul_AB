@@ -188,11 +188,10 @@ export function DashboardHeader({ user }: DashboardHeaderProps) {
       if (info.sessionId) params.set("highlight", info.sessionId);
       const qs = params.toString();
       router.push(`/dashboard/calendar${qs ? `?${qs}` : ""}`);
-    } else if (notification.type === "PENDING_TASKS" || notification.type === "CUSTOM") {
-      router.push("/dashboard#personal-tasks");
-      setTimeout(() => {
-        document.getElementById("personal-tasks")?.scrollIntoView({ behavior: "smooth", block: "center" });
-      }, 300);
+    } else if (notification.type === "PENDING_TASKS" || notification.type === "MORNING_SUMMARY" || notification.type === "EVENING_SUMMARY") {
+      router.push("/dashboard/tasks");
+    } else if (notification.type === "PAYMENT_REMINDER") {
+      router.push("/dashboard/payments");
     } else {
       router.push("/dashboard/communications");
     }

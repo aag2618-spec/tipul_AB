@@ -99,15 +99,15 @@ async function getDashboardStats(userId: string) {
         expectedAmount: true,
       },
     }),
-    // Count tasks - only show WRITE_SUMMARY tasks for past sessions
-    prisma.task.count({
+    // Count sessions pending summary - same logic as summaries-tab.tsx
+    prisma.therapySession.count({
       where: {
-        userId,
-        status: { in: ["PENDING", "IN_PROGRESS"] },
-        OR: [
-          { type: { not: "WRITE_SUMMARY" } },
-          { type: "WRITE_SUMMARY", dueDate: { lte: new Date() } },
-        ],
+        therapistId: userId,
+        startTime: { lt: new Date() },
+        skipSummary: { not: true },
+        type: { not: "BREAK" },
+        status: { in: ["SCHEDULED", "COMPLETED"] },
+        sessionNote: { is: null },
       },
     }),
     prisma.therapySession.findMany({

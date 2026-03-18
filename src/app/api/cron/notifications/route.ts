@@ -39,10 +39,12 @@ export async function GET(request: NextRequest) {
     const dayAfterTomorrow = new Date(tomorrow);
     dayAfterTomorrow.setDate(dayAfterTomorrow.getDate() + 1);
 
-    // Include users with notifications enabled OR users who never configured settings (default = on)
+    // Include active therapists with notifications enabled OR users who never configured settings (default = on)
     const users = await prisma.user.findMany({
       where: {
         email: { not: null },
+        isBlocked: { not: true },
+        clients: { some: {} }, // Only users who have clients (i.e. therapists)
         OR: [
           { notificationSettings: { some: { enabled: true } } },
           { notificationSettings: { none: {} } },

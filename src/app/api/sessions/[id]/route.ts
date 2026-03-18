@@ -174,6 +174,19 @@ export async function PATCH(
       },
     });
 
+    // If skipSummary is set to true, also complete the WRITE_SUMMARY task
+    if (skipSummary === true) {
+      await prisma.task.updateMany({
+        where: {
+          userId,
+          type: "WRITE_SUMMARY",
+          status: { in: ["PENDING", "IN_PROGRESS"] },
+          description: { contains: id },
+        },
+        data: { status: "COMPLETED" },
+      });
+    }
+
     return NextResponse.json(updatedSession);
   } catch (error) {
     logger.error("Patch session error:", { error: error instanceof Error ? error.message : String(error) });
