@@ -692,19 +692,25 @@ export default async function ClientPage({
                 {/* רשימת תשלומים עם אפשרות סינון לפי תאריך */}
                 <PaymentHistoryGrid
                   payments={client.payments.map((payment) => ({
-                    ...payment,
+                    id: payment.id,
                     amount: Number(payment.amount),
                     expectedAmount: payment.expectedAmount ? Number(payment.expectedAmount) : null,
+                    method: payment.method as string,
+                    status: payment.status as string,
                     createdAt: payment.createdAt,
                     paidAt: payment.paidAt,
-                    session: payment.session,
+                    session: payment.session ? {
+                      id: payment.session.id,
+                      startTime: payment.session.startTime,
+                      type: payment.session.type as string,
+                    } : null,
                     childPayments: payment.childPayments?.map((child) => ({
                       id: child.id,
                       amount: Number(child.amount),
-                      method: child.method || payment.method,
+                      method: (child.method || payment.method) as string,
                       paidAt: child.paidAt,
                       createdAt: child.createdAt,
-                    })),
+                    })) || [],
                   }))}
                 />
               </div>

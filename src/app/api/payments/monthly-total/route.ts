@@ -12,61 +12,43 @@ export async function GET(request: NextRequest) {
     if ("error" in auth) return auth.error;
     const { userId, session } = auth;
 
-    const { searchParams } = new URL(request.url);
-    const startParam = searchParams.get("start");
-    
-    // ברירת מחדל - תחילת החודש הנוכחי
-    const startDate = startParam 
-      ? new Date(startParam) 
-      : new Date(new Date().getFullYear(), new Date().getMonth(), 1);
-
-    // סוף החודש
-    const endDate = new Date(startDate.getFullYear(), startDate.getMonth() + 1, 0, 23, 59, 59, 999);
-
-    // מצא את כל התשלומים ששולמו בטווח התאריכים
-    // כולל תשלומים שה-paidAt שלהם null אבל createdAt בטווח
+    // שליפת כל התשלומים ששולמו במלואם (אותה גישה כמו הגרף)
+    // וסינון לפי חודש בזמן ישראל - מונע בעיות timezone/DST
     const payments = await prisma.payment.findMany({
       where: {
         client: { therapistId: userId },
         status: "PAID",
         parentPaymentId: null,
-        OR: [
-          {
-            paidAt: {
-              gte: startDate,
-              lte: endDate,
-            },
-          },
-          {
-            paidAt: null,
-            createdAt: {
-              gte: startDate,
-              lte: endDate,
-            },
-          },
-        ],
       },
       select: {
         amount: true,
         expectedAmount: true,
+        paidAt: true,
+        createdAt: true,
       },
     });
 
-    // סנן רק תשלומים שמולאו במלואם (כמו paid-history)
-    const fullyPaid = payments.filter((p) => {
+    // חישוב החודש הנוכחי בזמן ישראל
+    const israelNow = new Date(new Date().toLocaleString("en-US", { timeZone: "Asia/Jerusalem" }));
+    const israelYear = israelNow.getFullYear();
+    const israelMonth = israelNow.getMonth();
+
+    // סינון לחודש הנוכחי (בזמן ישראל) + רק תשלומים שמולאו במלואם
+    const thisMonthPaid = payments.filter((p) => {
       const amount = Number(p.amount);
       const expected = p.expectedAmount ? Number(p.expectedAmount) : amount;
-      return amount >= expected;
+      if (amount < expected) return false;
+
+      const paymentDate = p.paidAt || p.createdAt;
+      const israelDate = new Date(paymentDate.toLocaleString("en-US", { timeZone: "Asia/Jerusalem" }));
+      return israelDate.getFullYear() === israelYear && israelDate.getMonth() === israelMonth;
     });
 
-    // חישוב סה"כ
-    const total = fullyPaid.reduce((sum, p) => sum + Number(p.amount), 0);
+    const total = thisMonthPaid.reduce((sum, p) => sum + Number(p.amount), 0);
 
-    return NextResponse.json({ 
+    return NextResponse.json({
       total,
-      count: fullyPaid.length,
-      startDate: startDate.toISOString(),
-      endDate: endDate.toISOString(),
+      count: thisMonthPaid.length,
     });
   } catch (error) {
     logger.error("Get monthly total error:", { error: error instanceof Error ? error.message : String(error) });
