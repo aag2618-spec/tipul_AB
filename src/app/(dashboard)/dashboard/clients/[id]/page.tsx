@@ -425,8 +425,8 @@ export default async function ClientPage({
                           .filter(s => new Date(s.startTime) < new Date())
                           .map((session) => ({
                             id: session.id,
-                            startTime: session.startTime.toISOString(),
-                            endTime: session.endTime.toISOString(),
+                            startTime: session.startTime.toString(),
+                            endTime: session.endTime.toString(),
                             type: session.type as string,
                             status: session.status as string,
                             price: Number(session.price),
@@ -879,7 +879,7 @@ export default async function ClientPage({
                         id: doc.id,
                         name: doc.name,
                         fileUrl: doc.fileUrl,
-                        createdAt: doc.createdAt.toISOString(),
+                        createdAt: doc.createdAt.toString(),
                       }}
                     />
                   ))}
