@@ -21,7 +21,7 @@ const pathNames: Record<string, string> = {
   recordings: "הקלטות",
   notifications: "התראות",
   communications: "הודעות",
-  tasks: "משימות",
+  tasks: "ממתינים לסיכום",
   "consent-forms": "טפסי הסכמה",
   "ai-prep": "הכנה לפגישה",
   "bulk-email": "שליחת הודעה",

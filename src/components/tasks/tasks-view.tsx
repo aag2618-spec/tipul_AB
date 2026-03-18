@@ -119,9 +119,9 @@ export function TasksView({ initialTasks }: TasksViewProps) {
       {/* Header */}
       <div className="flex items-center justify-between flex-wrap gap-3">
         <div className="flex items-center gap-3">
-          <h1 className="text-2xl font-bold tracking-tight">משימות</h1>
+          <h1 className="text-2xl font-bold tracking-tight">ממתינים לסיכום</h1>
           <Badge variant="secondary" className="text-base px-3 py-1">
-            {pendingCount} ממתינים
+            {pendingCount} פגישות
           </Badge>
         </div>
         <div className="relative w-full sm:w-72">
@@ -144,7 +144,7 @@ export function TasksView({ initialTasks }: TasksViewProps) {
       {filteredTasks.length === 0 ? (
         <div className="text-center py-16 text-muted-foreground">
           <ListTodo className="mx-auto h-10 w-10 mb-3 opacity-30" />
-          <p>{searchTerm ? "לא נמצאו תוצאות" : "אין משימות ממתינות"}</p>
+          <p>{searchTerm ? "לא נמצאו תוצאות" : "אין פגישות ממתינות לסיכום"}</p>
         </div>
       ) : (
         GROUP_ORDER.map(groupName => {

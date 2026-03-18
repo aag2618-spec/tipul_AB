@@ -55,6 +55,16 @@ export async function GET(request: NextRequest) {
       },
     });
 
+    // פקיעת תזכורות ישנות - סיכומי בוקר/ערב שנוצרו לפני יותר מיום ועדיין לא נקראו
+    await prisma.notification.updateMany({
+      where: {
+        type: { in: ["MORNING_SUMMARY", "EVENING_SUMMARY"] },
+        status: { in: ["PENDING", "SENT"] },
+        createdAt: { lt: today },
+      },
+      data: { status: "DISMISSED" },
+    });
+
     let notificationsCreated = 0;
 
     for (const user of users) {

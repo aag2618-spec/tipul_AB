@@ -66,7 +66,7 @@ const mainNavItems = [
     icon: FileText,
   },
   {
-    title: "משימות",
+    title: "ממתינים לסיכום",
     href: "/dashboard/tasks",
     icon: ListTodo,
   },

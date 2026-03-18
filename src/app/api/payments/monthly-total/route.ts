@@ -12,17 +12,19 @@ export async function GET(request: NextRequest) {
     if ("error" in auth) return auth.error;
     const { userId, session } = auth;
 
-    // שליפת כל התשלומים ששולמו במלואם (אותה גישה כמו הגרף)
-    // וסינון לפי חודש בזמן ישראל - מונע בעיות timezone/DST
+    // שליפת תשלומים אמיתיים (ילדים חלקיים + הורים ללא ילדים)
+    // מונע כפילות: הורה עם ילדים לא נספר כי הילדים כבר נספרים
     const payments = await prisma.payment.findMany({
       where: {
         client: { therapistId: userId },
         status: "PAID",
-        parentPaymentId: null,
+        OR: [
+          { parentPaymentId: { not: null } },                        // ילדים (תשלומים חלקיים)
+          { parentPaymentId: null, childPayments: { none: {} } },    // הורים ללא ילדים (תשלום מלא בודד)
+        ],
       },
       select: {
         amount: true,
-        expectedAmount: true,
         paidAt: true,
         createdAt: true,
       },
@@ -33,12 +35,8 @@ export async function GET(request: NextRequest) {
     const israelYear = israelNow.getFullYear();
     const israelMonth = israelNow.getMonth();
 
-    // סינון לחודש הנוכחי (בזמן ישראל) + רק תשלומים שמולאו במלואם
+    // סינון לחודש הנוכחי (בזמן ישראל)
     const thisMonthPaid = payments.filter((p) => {
-      const amount = Number(p.amount);
-      const expected = p.expectedAmount ? Number(p.expectedAmount) : amount;
-      if (amount < expected) return false;
-
       const paymentDate = p.paidAt || p.createdAt;
       const israelDate = new Date(paymentDate.toLocaleString("en-US", { timeZone: "Asia/Jerusalem" }));
       return israelDate.getFullYear() === israelYear && israelDate.getMonth() === israelMonth;

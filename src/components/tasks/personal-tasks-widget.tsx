@@ -25,6 +25,8 @@ import {
   CheckCircle2,
   X,
   Pencil,
+  Sun,
+  Moon,
 } from "lucide-react";
 import { format } from "date-fns";
 import { he } from "date-fns/locale";
@@ -44,6 +46,14 @@ interface Task {
   updatedAt?: string;
 }
 
+interface Reminder {
+  id: string;
+  type: string;
+  title: string;
+  content: string;
+  createdAt: string;
+}
+
 const MAX_VISIBLE = 8;
 
 const PRIORITY_LABELS: Record<string, string> = {
@@ -55,6 +65,7 @@ const PRIORITY_LABELS: Record<string, string> = {
 
 export function PersonalTasksWidget() {
   const [tasks, setTasks] = useState<Task[]>([]);
+  const [reminders, setReminders] = useState<Reminder[]>([]);
   const [historyTasks, setHistoryTasks] = useState<Task[]>([]);
   const [isLoading, setIsLoading] = useState(true);
   const [showAll, setShowAll] = useState(false);
@@ -78,6 +89,28 @@ export function PersonalTasksWidget() {
     }
   }, []);
 
+  const fetchReminders = useCallback(async () => {
+    try {
+      const response = await fetch("/api/notifications?unread=true");
+      if (response.ok) {
+        const data = await response.json();
+        const summaryTypes = ["MORNING_SUMMARY", "EVENING_SUMMARY"];
+        setReminders(
+          (data.notifications || []).filter((n: Reminder) => summaryTypes.includes(n.type))
+        );
+      }
+    } catch (error) {
+      console.error("Failed to fetch reminders:", error);
+    }
+  }, []);
+
+  const dismissReminder = async (id: string) => {
+    try {
+      await fetch(`/api/notifications/${id}/read`, { method: "POST" });
+      setReminders(prev => prev.filter(r => r.id !== id));
+    } catch { /* ignore */ }
+  };
+
   const fetchHistory = useCallback(async () => {
     try {
       const response = await fetch("/api/tasks?history=true");
@@ -90,7 +123,7 @@ export function PersonalTasksWidget() {
     }
   }, []);
 
-  useEffect(() => { fetchTasks(); }, [fetchTasks]);
+  useEffect(() => { fetchTasks(); fetchReminders(); }, [fetchTasks, fetchReminders]);
 
   useEffect(() => {
     if (showHistory && historyTasks.length === 0) {
@@ -216,13 +249,44 @@ export function PersonalTasksWidget() {
     return <Card><CardContent className="py-6 flex items-center justify-center"><Loader2 className="h-5 w-5 animate-spin text-muted-foreground" /></CardContent></Card>;
   }
 
-  if (tasks.length === 0 && !showHistory) {
+  function renderReminders() {
+    if (reminders.length === 0) return null;
     return (
-      <Card>
+      <div className="space-y-2 mb-3">
+        {reminders.map(reminder => (
+          <div
+            key={reminder.id}
+            className="flex items-start gap-2 py-2 px-3 rounded-lg bg-amber-50 border border-amber-200 group"
+          >
+            {reminder.type === "MORNING_SUMMARY" ? (
+              <Sun className="h-4 w-4 text-amber-500 shrink-0 mt-0.5" />
+            ) : (
+              <Moon className="h-4 w-4 text-indigo-500 shrink-0 mt-0.5" />
+            )}
+            <div className="flex-1 min-w-0">
+              <p className="text-sm font-medium truncate">{reminder.title}</p>
+              <p className="text-xs text-muted-foreground line-clamp-2 whitespace-pre-line">{reminder.content}</p>
+            </div>
+            <button
+              onClick={() => dismissReminder(reminder.id)}
+              className="shrink-0 mt-0.5 opacity-60 hover:opacity-100 transition-opacity"
+              title="סמן כנקרא"
+            >
+              <CheckCircle2 className="h-4 w-4 text-emerald-500" />
+            </button>
+          </div>
+        ))}
+      </div>
+    );
+  }
+
+  if (tasks.length === 0 && reminders.length === 0 && !showHistory) {
+    return (
+      <Card id="personal-tasks">
         <CardHeader className="flex flex-row items-center justify-between pb-2">
           <div className="flex items-center gap-2">
             <ListTodo className="h-4 w-4 text-primary" />
-            <CardTitle className="text-sm font-medium">מטלות אישיות</CardTitle>
+            <CardTitle className="text-sm font-medium">מטלות ותזכורות</CardTitle>
           </div>
           <div className="flex items-center gap-1">
             <Button
@@ -239,7 +303,7 @@ export function PersonalTasksWidget() {
         </CardHeader>
         <CardContent className="pb-4">
           {showHistory ? renderHistory() : (
-            <p className="text-sm text-muted-foreground text-center py-2">אין מטלות</p>
+            <p className="text-sm text-muted-foreground text-center py-2">אין מטלות ותזכורות</p>
           )}
         </CardContent>
       </Card>
@@ -285,8 +349,8 @@ export function PersonalTasksWidget() {
         <CardHeader className="flex flex-row items-center justify-between pb-2">
           <div className="flex items-center gap-2">
             <ListTodo className="h-4 w-4 text-primary" />
-            <CardTitle className="text-sm font-medium">מטלות אישיות</CardTitle>
-            <span className="text-xs text-muted-foreground">({tasks.length})</span>
+            <CardTitle className="text-sm font-medium">מטלות ותזכורות</CardTitle>
+            <span className="text-xs text-muted-foreground">({tasks.length + reminders.length})</span>
           </div>
           <div className="flex items-center gap-1">
             <Button
@@ -304,6 +368,7 @@ export function PersonalTasksWidget() {
         <CardContent className="pb-3">
           {showHistory ? renderHistory() : (
             <>
+              {renderReminders()}
               <div className="space-y-2">
                 {visibleTasks.map(task => (
                   <div
