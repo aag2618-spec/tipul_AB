@@ -99,11 +99,14 @@ async function getDashboardStats(userId: string) {
         expectedAmount: true,
       },
     }),
-    // Count sessions pending summary - same logic as summaries-tab.tsx
+    // Count sessions pending summary (last 30 days only)
     prisma.therapySession.count({
       where: {
         therapistId: userId,
-        startTime: { lt: new Date() },
+        startTime: {
+          lt: new Date(),
+          gte: new Date(Date.now() - 30 * 24 * 60 * 60 * 1000),
+        },
         skipSummary: { not: true },
         type: { not: "BREAK" },
         status: { in: ["SCHEDULED", "COMPLETED"] },
