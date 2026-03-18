@@ -290,7 +290,7 @@ export default async function ClientPage({
           </CardContent>
         </Card>
 
-        {/* Debt Summary Card - Clickable */}
+        {/* Debt & Credit Summary Card - Clickable */}
         <a href={`/dashboard/clients/${client.id}?tab=payments`}>
           <Card className={`transition-all cursor-pointer hover:shadow-md hover:scale-[1.02] ${
             totalDebt > 0 ? "border-red-200 bg-red-50/50" : "border-emerald-200 bg-emerald-50/50"
@@ -310,6 +310,12 @@ export default async function ClientPage({
                     <p className="text-sm font-medium text-emerald-700">אין חובות פתוחים ✓</p>
                   )}
                 </div>
+                {Number(client.creditBalance) > 0 && (
+                  <div className="text-left">
+                    <p className="text-sm text-muted-foreground">קרדיט</p>
+                    <p className="text-lg font-bold text-emerald-600">₪{Number(client.creditBalance)}</p>
+                  </div>
+                )}
               </div>
             </CardContent>
           </Card>

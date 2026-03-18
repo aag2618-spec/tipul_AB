@@ -24,27 +24,47 @@ export async function GET(request: NextRequest) {
     const endDate = new Date(startDate.getFullYear(), startDate.getMonth() + 1, 0, 23, 59, 59, 999);
 
     // מצא את כל התשלומים ששולמו בטווח התאריכים
+    // כולל תשלומים שה-paidAt שלהם null אבל createdAt בטווח
     const payments = await prisma.payment.findMany({
       where: {
         client: { therapistId: userId },
         status: "PAID",
         parentPaymentId: null,
-        paidAt: {
-          gte: startDate,
-          lte: endDate,
-        },
+        OR: [
+          {
+            paidAt: {
+              gte: startDate,
+              lte: endDate,
+            },
+          },
+          {
+            paidAt: null,
+            createdAt: {
+              gte: startDate,
+              lte: endDate,
+            },
+          },
+        ],
       },
       select: {
         amount: true,
+        expectedAmount: true,
       },
     });
 
+    // סנן רק תשלומים שמולאו במלואם (כמו paid-history)
+    const fullyPaid = payments.filter((p) => {
+      const amount = Number(p.amount);
+      const expected = p.expectedAmount ? Number(p.expectedAmount) : amount;
+      return amount >= expected;
+    });
+
     // חישוב סה"כ
-    const total = payments.reduce((sum, p) => sum + Number(p.amount), 0);
+    const total = fullyPaid.reduce((sum, p) => sum + Number(p.amount), 0);
 
     return NextResponse.json({ 
       total,
-      count: payments.length,
+      count: fullyPaid.length,
       startDate: startDate.toISOString(),
       endDate: endDate.toISOString(),
     });
