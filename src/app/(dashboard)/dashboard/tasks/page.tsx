@@ -3,19 +3,24 @@ import { authOptions } from "@/lib/auth";
 import prisma from "@/lib/prisma";
 import { TasksView } from "@/components/tasks/tasks-view";
 
-async function getTasks(userId: string) {
-  const now = new Date();
-  return prisma.task.findMany({
+async function getSessionsPendingSummary(userId: string) {
+  const thirtyDaysAgo = new Date(Date.now() - 30 * 24 * 60 * 60 * 1000);
+  return prisma.therapySession.findMany({
     where: {
-      userId,
-      type: "WRITE_SUMMARY",
-      status: { in: ["PENDING", "IN_PROGRESS"] },
-      dueDate: { lte: now },
+      therapistId: userId,
+      startTime: {
+        lt: new Date(),
+        gte: thirtyDaysAgo,
+      },
+      skipSummary: { not: true },
+      type: { not: "BREAK" },
+      status: { in: ["SCHEDULED", "COMPLETED"] },
+      sessionNote: { is: null },
     },
-    orderBy: [
-      { dueDate: "desc" },
-      { createdAt: "desc" },
-    ],
+    include: {
+      client: { select: { id: true, name: true } },
+    },
+    orderBy: { startTime: "desc" },
   });
 }
 
@@ -23,7 +28,25 @@ export default async function TasksPage() {
   const session = await getServerSession(authOptions);
   if (!session?.user?.id) return null;
 
-  const tasks = await getTasks(session.user.id);
+  const pendingSessions = await getSessionsPendingSummary(session.user.id);
+
+  // Convert sessions to task-like format for TasksView
+  const tasks = pendingSessions.map((s) => ({
+    id: s.id,
+    type: "WRITE_SUMMARY" as const,
+    title: `כתוב סיכום - ${s.client?.name || "מטופל"}`,
+    description: s.id,
+    status: "PENDING" as const,
+    priority: "MEDIUM" as const,
+    dueDate: s.startTime,
+    createdAt: s.startTime,
+    updatedAt: s.updatedAt,
+    userId: session.user.id,
+    clientName: s.client?.name,
+    sessionId: s.id,
+    relatedEntityId: s.id,
+    relatedEntity: "SESSION" as const,
+  }));
 
   return <TasksView initialTasks={tasks} />;
 }
