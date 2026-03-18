@@ -216,8 +216,30 @@ export async function DELETE(
       return NextResponse.json({ message: "פגישה לא נמצאה" }, { status: 404 });
     }
 
-    await prisma.therapySession.delete({ where: { id } });
+    // Soft delete: cancel instead of hard delete, preserving history
+    const now = new Date();
+    const sessionStart = new Date(existingSession.startTime);
+    const isPast = sessionStart < now;
 
+    // Get therapist's cancellation policy
+    const commSettings = await prisma.communicationSetting.findUnique({
+      where: { userId },
+      select: { minCancellationHours: true },
+    });
+    const minHours = commSettings?.minCancellationHours ?? 24;
+    const hoursUntilSession = (sessionStart.getTime() - now.getTime()) / (1000 * 60 * 60);
+    const withinChargeWindow = !isPast && hoursUntilSession < minHours;
+
+    await prisma.therapySession.update({
+      where: { id },
+      data: {
+        status: "CANCELLED",
+        cancelledAt: now,
+        cancelledBy: "THERAPIST",
+      },
+    });
+
+    // Dismiss related notifications
     try {
       await prisma.notification.updateMany({
         where: {
@@ -232,11 +254,27 @@ export async function DELETE(
       logger.error("Failed to clean up notifications:", { error: e instanceof Error ? e.message : String(e) });
     }
 
-    return NextResponse.json({ message: "הפגישה נמחקה בהצלחה" });
+    // Complete any WRITE_SUMMARY task for this session
+    await prisma.task.updateMany({
+      where: {
+        userId,
+        type: "WRITE_SUMMARY",
+        status: { in: ["PENDING", "IN_PROGRESS"] },
+        description: { contains: id },
+      },
+      data: { status: "COMPLETED" },
+    });
+
+    return NextResponse.json({
+      message: "הפגישה בוטלה בהצלחה",
+      cancelled: true,
+      withinChargeWindow,
+      isPast,
+    });
   } catch (error) {
-    logger.error("Delete session error:", { error: error instanceof Error ? error.message : String(error) });
+    logger.error("Cancel session error:", { error: error instanceof Error ? error.message : String(error) });
     return NextResponse.json(
-      { message: "אירעה שגיאה במחיקת הפגישה" },
+      { message: "אירעה שגיאה בביטול הפגישה" },
       { status: 500 }
     );
   }
