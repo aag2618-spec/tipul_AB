@@ -110,6 +110,7 @@ export function useCalendarData() {
                 : (typeof s.sessionNote === "string" ? s.sessionNote : null),
             }));
             setSessions(mapped);
+            checkOverlaps();
           }
         })
         .catch(() => {});
@@ -127,6 +128,7 @@ export function useCalendarData() {
                 : (typeof s.sessionNote === "string" ? s.sessionNote : null),
             }));
             setSessions(mapped);
+            checkOverlaps();
           }
         })
         .catch(() => {});
