@@ -27,8 +27,8 @@ export async function GET(request: NextRequest) {
 
     if (startDate && endDate) {
       where.startTime = {
-        gte: new Date(startDate),
-        lte: new Date(endDate),
+        gte: parseIsraelTime(startDate),
+        lte: parseIsraelTime(endDate),
       };
     }
 
