@@ -5,17 +5,19 @@ import { TasksView } from "@/components/tasks/tasks-view";
 
 async function getSessionsPendingSummary(userId: string) {
   const thirtyDaysAgo = new Date(Date.now() - 30 * 24 * 60 * 60 * 1000);
+  // Include COMPLETED without summary even if startTime is still "future" by server clock (timezone-safe).
   return prisma.therapySession.findMany({
     where: {
       therapistId: userId,
-      startTime: {
-        lt: new Date(),
-        gte: thirtyDaysAgo,
-      },
+      startTime: { gte: thirtyDaysAgo },
       skipSummary: { not: true },
       type: { not: "BREAK" },
       status: { in: ["SCHEDULED", "COMPLETED"] },
       sessionNote: { is: null },
+      OR: [
+        { startTime: { lt: new Date() } },
+        { status: "COMPLETED" },
+      ],
     },
     include: {
       client: { select: { id: true, name: true } },
