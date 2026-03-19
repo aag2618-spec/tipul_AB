@@ -89,7 +89,7 @@ export function PersonalTasksWidget() {
           // מטלה בלי תאריך יעד - מופיעה תמיד
           if (!t.dueDate) return true;
           // מטלה עם תאריך - מופיעה רק אם התאריך הגיע (היום או עבר)
-          return new Date(t.dueDate) <= new Date(todayStart.getTime() + 24 * 60 * 60 * 1000);
+          return new Date(t.dueDate) < new Date(todayStart.getTime() + 24 * 60 * 60 * 1000);
         }));
       }
     } catch (error) {
