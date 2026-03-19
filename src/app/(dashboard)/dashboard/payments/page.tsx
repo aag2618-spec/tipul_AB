@@ -134,6 +134,7 @@ export default function PaymentsPage() {
   const [totalDebt, setTotalDebt] = useState(0);
   const [totalCredit, setTotalCredit] = useState(0);
   const [paidThisMonth, setPaidThisMonth] = useState(0);
+  const [chartMonthlyData, setChartMonthlyData] = useState<{ month: string; total: number }[]>([]);
   
   // תשלום מהיר
   const [selectedPaymentSession, setSelectedPaymentSession] = useState<UnpaidSession | null>(null);
@@ -159,31 +160,20 @@ export default function PaymentsPage() {
     return months;
   }, []);
 
-  // נתוני גרף - תשלומים לפי חודשים
+  // נתוני גרף - תשלומים לפי חודשים (מגיע מה-API, אותו חישוב כמו "שולם החודש")
   const chartData = useMemo(() => {
-    const monthlyTotals: { [key: string]: number } = {};
-    
-    // אתחול 6 חודשים אחרונים
-    for (let i = 5; i >= 0; i--) {
-      const date = subMonths(new Date(), i);
-      const key = format(date, "yyyy-MM");
-      monthlyTotals[key] = 0;
+    if (chartMonthlyData.length > 0) {
+      return chartMonthlyData.map((item) => ({
+        month: format(new Date(item.month + "-01"), "MMM", { locale: he }),
+        total: Math.round(item.total),
+      }));
     }
-    
-    // סכימת תשלומים לפי חודש
-    paidPayments.forEach((payment) => {
-      const paymentDate = payment.paidAt ? new Date(payment.paidAt) : new Date(payment.createdAt);
-      const key = format(paymentDate, "yyyy-MM");
-      if (monthlyTotals[key] !== undefined) {
-        monthlyTotals[key] += payment.amount;
-      }
-    });
-    
-    return Object.entries(monthlyTotals).map(([month, total]) => ({
-      month: format(new Date(month + "-01"), "MMM", { locale: he }),
-      total: Math.round(total),
+    // fallback - אם אין נתונים מה-API, הצג ריק
+    return Array.from({ length: 6 }, (_, i) => ({
+      month: format(subMonths(new Date(), 5 - i), "MMM", { locale: he }),
+      total: 0,
     }));
-  }, [paidPayments]);
+  }, [chartMonthlyData]);
 
   useEffect(() => {
     fetchData();
@@ -213,13 +203,14 @@ export default function PaymentsPage() {
         });
       }
       
-      // טעינת תשלומים החודש
-      const now = new Date();
-      const startOfMonth = new Date(now.getFullYear(), now.getMonth(), 1);
-      const monthlyResponse = await fetch(`/api/payments/monthly-total?start=${startOfMonth.toISOString()}`, { cache: "no-store" });
+      // טעינת תשלומים החודש + נתוני גרף (אותו חישוב, כולל תשלומים חלקיים)
+      const monthlyResponse = await fetch("/api/payments/monthly-total?months=6", { cache: "no-store" });
       if (monthlyResponse.ok) {
         const monthlyData = await monthlyResponse.json();
         setPaidThisMonth(monthlyData.total || 0);
+        if (monthlyData.breakdown) {
+          setChartMonthlyData(monthlyData.breakdown);
+        }
       }
       
       // טעינת היסטוריית תשלומים (תשלומים ששולמו)

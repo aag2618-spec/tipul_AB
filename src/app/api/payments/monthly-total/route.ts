@@ -44,6 +44,29 @@ export async function GET(request: NextRequest) {
 
     const total = thisMonthPaid.reduce((sum, p) => sum + Number(p.amount), 0);
 
+    // פירוט לפי חודשים (לגרף) - אם מבקשים months > 1
+    const monthsParam = Number(request.nextUrl.searchParams.get("months")) || 1;
+    if (monthsParam > 1) {
+      const breakdown = [];
+      for (let i = monthsParam - 1; i >= 0; i--) {
+        const targetDate = new Date(israelYear, israelMonth - i, 1);
+        const tYear = targetDate.getFullYear();
+        const tMonth = targetDate.getMonth();
+
+        const monthPaid = payments.filter((p) => {
+          const paymentDate = p.paidAt || p.createdAt;
+          const d = new Date(paymentDate.toLocaleString("en-US", { timeZone: "Asia/Jerusalem" }));
+          return d.getFullYear() === tYear && d.getMonth() === tMonth;
+        });
+
+        const monthTotal = monthPaid.reduce((sum, p) => sum + Number(p.amount), 0);
+        const key = `${tYear}-${String(tMonth + 1).padStart(2, "0")}`;
+        breakdown.push({ month: key, total: monthTotal, count: monthPaid.length });
+      }
+
+      return NextResponse.json({ total, count: thisMonthPaid.length, breakdown });
+    }
+
     return NextResponse.json({
       total,
       count: thisMonthPaid.length,

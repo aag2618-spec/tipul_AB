@@ -33,7 +33,15 @@ async function getReportData(userId: string): Promise<ReportData> {
             { status: "PENDING" },
           ],
         },
-        select: { amount: true, expectedAmount: true, status: true, paidAt: true, createdAt: true },
+        select: {
+          amount: true,
+          expectedAmount: true,
+          status: true,
+          paidAt: true,
+          createdAt: true,
+          parentPaymentId: true,
+          _count: { select: { childPayments: true } },
+        },
       }),
       prisma.client.findMany({
         where: { therapistId: userId, createdAt: { gte: yearStart } },
@@ -66,8 +74,13 @@ async function getReportData(userId: string): Promise<ReportData> {
       const cancelled = monthSessions.filter(s => s.status === "CANCELLED").length;
       const total = monthSessions.length;
 
+      // ספירת תשלומים אמיתיים בלבד: ילדים (חלקיים) + הורים ללא ילדים (מלאים)
+      // מונע כפילות: הורה עם ילדים לא נספר כי הילדים כבר נספרים
       const paidAmount = allPayments
-        .filter(p => p.status === "PAID" && p.paidAt && p.paidAt.getTime() >= msStart && p.paidAt.getTime() <= msEnd)
+        .filter(p =>
+          p.status === "PAID" && p.paidAt && p.paidAt.getTime() >= msStart && p.paidAt.getTime() <= msEnd &&
+          (p.parentPaymentId !== null || p._count.childPayments === 0)
+        )
         .reduce((sum, p) => sum + Number(p.amount), 0);
       const pendingAmount = allPayments
         .filter(p => p.status === "PENDING" && p.createdAt.getTime() >= msStart && p.createdAt.getTime() <= msEnd)
@@ -95,7 +108,7 @@ async function getReportData(userId: string): Promise<ReportData> {
     const completedTotal = allSessions.filter(s => s.status === "COMPLETED").length;
     const cancelledTotal = allSessions.filter(s => s.status === "CANCELLED").length;
     const totalSessionsAll = allSessions.length;
-    const paidTotal = allPayments.filter(p => p.status === "PAID").reduce((sum, p) => sum + Number(p.amount), 0);
+    const paidTotal = allPayments.filter(p => p.status === "PAID" && (p.parentPaymentId !== null || p._count.childPayments === 0)).reduce((sum, p) => sum + Number(p.amount), 0);
     const pendingTotal = allPayments.filter(p => p.status === "PENDING").reduce((sum, p) => sum + (Number(p.expectedAmount) || Number(p.amount)) - Number(p.amount), 0);
     const allPaymentsTotal = paidTotal + pendingTotal;
 
