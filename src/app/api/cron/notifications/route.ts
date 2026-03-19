@@ -192,16 +192,41 @@ export async function GET(request: NextRequest) {
             orderBy: { startTime: "asc" },
           });
 
+          // פגישות בלי סיכום - מהגזע הנכון (שאילתת פגישות ישירה)
+          const thirtyDaysAgo = new Date(today);
+          thirtyDaysAgo.setDate(thirtyDaysAgo.getDate() - 30);
+          const sessionsPendingSummary = await prisma.therapySession.findMany({
+            where: {
+              therapistId: user.id,
+              startTime: { gte: thirtyDaysAgo, lt: today },
+              skipSummary: { not: true },
+              type: { not: "BREAK" },
+              status: { in: ["SCHEDULED", "COMPLETED"] },
+              sessionNote: { is: null },
+              OR: [
+                { startTime: { lt: today } },
+                { status: "COMPLETED" },
+              ],
+            },
+            include: { client: { select: { name: true } } },
+            orderBy: { startTime: "desc" },
+            take: 5,
+          });
+
+          // מטלות אישיות ותשלומים (לא WRITE_SUMMARY - כבר מכוסה למעלה)
           const pendingTasks = await prisma.task.findMany({
             where: {
               userId: user.id,
               status: { in: ["PENDING", "IN_PROGRESS"] },
+              type: { notIn: ["WRITE_SUMMARY"] },
             },
             orderBy: { priority: "desc" },
-            take: 10,
+            take: 5,
           });
 
-          if (tomorrowSessions.length > 0 || pendingTasks.length > 0) {
+          const totalPending = sessionsPendingSummary.length + pendingTasks.length;
+
+          if (tomorrowSessions.length > 0 || totalPending > 0) {
             const realTomorrowSessions = tomorrowSessions.filter((s) => s.client);
             const sessionsList = realTomorrowSessions
               .map(
@@ -210,13 +235,16 @@ export async function GET(request: NextRequest) {
               )
               .join("\n");
 
+            const summaryList = sessionsPendingSummary
+              .map((s) => `• כתוב סיכום - ${s.client?.name || "מטופל"}`)
+              .join("\n");
             const tasksList = pendingTasks
-              .slice(0, 5)
               .map((t) => `• ${t.title}`)
               .join("\n");
+            const allTasksList = [summaryList, tasksList].filter(Boolean).join("\n");
 
             const title = `סיכום ליום מחר - ${tomorrow.toLocaleDateString("he-IL", { timeZone: "Asia/Jerusalem" })}`;
-            const content = `פגישות מחר (${realTomorrowSessions.length}):\n${sessionsList || "אין פגישות"}\n\nמשימות פתוחות (${pendingTasks.length}):\n${tasksList || "אין משימות"}`;
+            const content = `פגישות מחר (${realTomorrowSessions.length}):\n${sessionsList || "אין פגישות"}\n\nמשימות פתוחות (${totalPending}):\n${allTasksList || "אין משימות"}`;
 
             await prisma.notification.create({
               data: {
@@ -240,13 +268,13 @@ export async function GET(request: NextRequest) {
                       )
                       .join("")
                   : `<tr><td colspan="2" style="padding:12px;text-align:center;color:#6b7280;">אין פגישות מחר</td></tr>`;
-              const tasksHtml =
-                pendingTasks.length > 0
-                  ? pendingTasks
-                      .slice(0, 5)
-                      .map((t) => `<li style="margin-bottom:4px;">${t.title}</li>`)
-                      .join("")
-                  : `<li style="color:#6b7280;">אין משימות פתוחות</li>`;
+              const summaryItemsHtml = sessionsPendingSummary
+                .map((s) => `<li style="margin-bottom:4px;">כתוב סיכום - ${escapeHtml(s.client?.name || "מטופל")}</li>`)
+                .join("");
+              const taskItemsHtml = pendingTasks
+                .map((t) => `<li style="margin-bottom:4px;">${escapeHtml(t.title)}</li>`)
+                .join("");
+              const allTasksHtml = summaryItemsHtml + taskItemsHtml || `<li style="color:#6b7280;">אין משימות פתוחות</li>`;
 
               await sendEmail({
                 to: user.email!,
@@ -259,8 +287,8 @@ export async function GET(request: NextRequest) {
                     <thead><tr><th style="text-align:right;padding:6px 12px;background:#f0fdfa;border-bottom:2px solid #0d9488;">מטופל</th><th style="text-align:right;padding:6px 12px;background:#f0fdfa;border-bottom:2px solid #0d9488;">שעה</th></tr></thead>
                     <tbody>${sessionsHtml}</tbody>
                   </table>
-                  <h3 style="margin-top:20px;">משימות פתוחות (${pendingTasks.length})</h3>
-                  <ul style="padding-right:20px;">${tasksHtml}</ul>
+                  <h3 style="margin-top:20px;">משימות פתוחות (${totalPending})</h3>
+                  <ul style="padding-right:20px;">${allTasksHtml}</ul>
                   <p style="color:#6b7280;font-size:13px;margin-top:24px;">מייל זה נשלח אוטומטית ממערכת MyTipul</p>
                 </div>`,
               }).catch(() => {});

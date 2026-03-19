@@ -36,16 +36,7 @@ export async function DELETE(
       where: { id: existingSession.sessionNote.id },
     });
 
-    // Reopen WRITE_SUMMARY task so therapist gets reminded to rewrite
-    await prisma.task.updateMany({
-      where: {
-        userId,
-        type: "WRITE_SUMMARY",
-        status: "COMPLETED",
-        description: { contains: id },
-      },
-      data: { status: "PENDING" },
-    });
+    // WRITE_SUMMARY tasks no longer used - deleting sessionNote automatically makes it "pending" again
 
     return NextResponse.json({
       message: "הסיכום נמחק בהצלחה",

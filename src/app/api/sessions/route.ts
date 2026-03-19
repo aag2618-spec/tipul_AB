@@ -202,27 +202,8 @@ export async function POST(request: NextRequest) {
       }
     }
 
-    // Create a task to write summary after session (skip for BREAK)
-    if (type !== "BREAK") {
-      const client = await prisma.client.findUnique({
-        where: { id: clientId },
-      });
-
-      if (client) {
-        await prisma.task.create({
-          data: {
-            userId,
-            type: "WRITE_SUMMARY",
-            title: `כתוב סיכום לפגישה עם ${client.name}`,
-            status: "PENDING",
-            priority: "MEDIUM",
-            dueDate: parsedEndTime,
-            relatedEntityId: therapySession.id,
-            relatedEntity: "TherapySession",
-          },
-        });
-      }
-    }
+    // WRITE_SUMMARY tasks removed - summary tracking is done via sessionNote IS NULL
+    // on TherapySession directly (single source of truth)
 
     // Return session without therapist data (clean response)
     return NextResponse.json({

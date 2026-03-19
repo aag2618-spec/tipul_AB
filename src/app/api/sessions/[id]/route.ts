@@ -174,18 +174,7 @@ export async function PATCH(
       },
     });
 
-    // If skipSummary is set to true, also complete the WRITE_SUMMARY task
-    if (skipSummary === true) {
-      await prisma.task.updateMany({
-        where: {
-          userId,
-          type: "WRITE_SUMMARY",
-          status: { in: ["PENDING", "IN_PROGRESS"] },
-          description: { contains: id },
-        },
-        data: { status: "COMPLETED" },
-      });
-    }
+    // WRITE_SUMMARY tasks no longer used - skipSummary flag on session is the source of truth
 
     return NextResponse.json(updatedSession);
   } catch (error) {
@@ -254,16 +243,7 @@ export async function DELETE(
       logger.error("Failed to clean up notifications:", { error: e instanceof Error ? e.message : String(e) });
     }
 
-    // Complete any WRITE_SUMMARY task for this session
-    await prisma.task.updateMany({
-      where: {
-        userId,
-        type: "WRITE_SUMMARY",
-        status: { in: ["PENDING", "IN_PROGRESS"] },
-        description: { contains: id },
-      },
-      data: { status: "COMPLETED" },
-    });
+    // WRITE_SUMMARY tasks no longer used - session status CANCELLED handles it
 
     return NextResponse.json({
       message: "הפגישה בוטלה בהצלחה",

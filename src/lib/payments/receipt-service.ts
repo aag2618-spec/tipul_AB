@@ -232,7 +232,7 @@ export async function completeWebhookPayment(paymentId: string): Promise<void> {
           userId: client.therapistId,
           type: "COLLECT_PAYMENT",
           status: { in: ["PENDING", "IN_PROGRESS"] },
-          description: { contains: paymentId },
+          relatedEntityId: paymentId,
         },
         data: { status: "COMPLETED" },
       });

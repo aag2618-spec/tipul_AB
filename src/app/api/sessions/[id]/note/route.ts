@@ -55,18 +55,7 @@ export async function POST(
       },
     });
 
-    // Update related task if exists
-    await prisma.task.updateMany({
-      where: {
-        userId: userId,
-        relatedEntityId: id,
-        type: "WRITE_SUMMARY",
-        status: { in: ["PENDING", "IN_PROGRESS"] },
-      },
-      data: {
-        status: "COMPLETED",
-      },
-    });
+    // WRITE_SUMMARY tasks no longer used - sessionNote IS NULL is the source of truth
 
     return NextResponse.json(note, { status: 201 });
   } catch (error) {
