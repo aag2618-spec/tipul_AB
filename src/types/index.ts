@@ -50,7 +50,20 @@ export interface TherapySession {
 }
 
 export type SessionStatus = 'SCHEDULED' | 'COMPLETED' | 'CANCELLED' | 'NO_SHOW' | 'PENDING_CANCELLATION' | 'PENDING_APPROVAL';
-export type SessionType = 'IN_PERSON' | 'ONLINE' | 'PHONE';
+export type SessionType = 'IN_PERSON' | 'ONLINE' | 'PHONE' | 'BREAK';
+
+/** Response shape from GET /api/sessions/overlaps */
+export interface SessionOverlapItem {
+  id: string;
+  clientName: string | null;
+  startTime: string;
+  endTime: string;
+}
+
+export interface SessionOverlap {
+  session1: SessionOverlapItem;
+  session2: SessionOverlapItem;
+}
 
 export interface SessionNote {
   id: string;

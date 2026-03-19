@@ -1,14 +1,15 @@
 "use client";
 
 import { Button } from "@/components/ui/button";
-import { Dialog, DialogContent, DialogDescription, DialogHeader, DialogTitle, DialogFooter } from "@/components/ui/dialog";
+import { Dialog, DialogContent, DialogDescription, DialogHeader, DialogTitle } from "@/components/ui/dialog";
 import { AlertTriangle, Trash2 } from "lucide-react";
 import { toast } from "sonner";
+import type { SessionOverlap } from "@/types";
 
 interface CalendarOverlapsDialogProps {
   showOverlapsDialog: boolean;
   setShowOverlapsDialog: (show: boolean) => void;
-  overlaps: any[];
+  overlaps: SessionOverlap[];
   deletingOverlap: string | null;
   setDeletingOverlap: (id: string | null) => void;
   fetchData: () => Promise<void>;
