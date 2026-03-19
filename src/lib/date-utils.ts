@@ -19,18 +19,34 @@ export function parseIsraelTime(input: string): Date {
 
   const [datePart, timePart] = input.split("T");
   const time = timePart || "00:00";
+  const timeWithSeconds = time.split(":").length >= 3 ? time : `${time}:00`;
+  const [targetHours, targetMinutes] = time.split(":").map(Number);
+  const targetDay = parseInt(datePart.split("-")[2]);
 
-  const testDate = new Date(`${datePart}T12:00:00Z`);
-  const israelHour = parseInt(
-    new Intl.DateTimeFormat("en-US", {
+  // Try both Israel offsets: +02:00 (winter/IST) and +03:00 (summer/IDT)
+  // This correctly handles DST transition days where offset at midnight
+  // differs from offset at noon
+  for (const offsetHours of [2, 3]) {
+    const offsetStr = `+${String(offsetHours).padStart(2, "0")}:00`;
+    const candidate = new Date(`${datePart}T${timeWithSeconds}${offsetStr}`);
+
+    const parts = new Intl.DateTimeFormat("en-US", {
       timeZone: "Asia/Jerusalem",
       hour: "numeric",
+      minute: "numeric",
+      day: "numeric",
       hour12: false,
-    }).format(testDate)
-  );
-  const offsetHours = israelHour - 12;
-  const offsetStr = `+${String(offsetHours).padStart(2, "0")}:00`;
+    }).formatToParts(candidate);
 
-  const timeWithSeconds = time.split(":").length >= 3 ? time : `${time}:00`;
-  return new Date(`${datePart}T${timeWithSeconds}${offsetStr}`);
+    const h = parseInt(parts.find(p => p.type === "hour")?.value || "-1");
+    const m = parseInt(parts.find(p => p.type === "minute")?.value || "-1");
+    const d = parseInt(parts.find(p => p.type === "day")?.value || "-1");
+
+    if (h === targetHours && m === targetMinutes && d === targetDay) {
+      return candidate;
+    }
+  }
+
+  // Fallback: use +02:00 (standard Israel time)
+  return new Date(`${datePart}T${timeWithSeconds}+02:00`);
 }
