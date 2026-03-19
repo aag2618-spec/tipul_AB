@@ -8,26 +8,54 @@ import { requireAuth } from "@/lib/api-auth";
 
 export const dynamic = "force-dynamic";
 
+interface ConflictResolution {
+  key: string;
+  action: "skip" | "replace" | "create";
+}
+
+interface PreviewItem {
+  key: string;
+  date: string;
+  time: string;
+  clientName: string;
+  clientId: string;
+  patternId: string;
+  status: "ok" | "conflict";
+  conflictWith?: {
+    id: string;
+    clientName: string;
+    startTime: string;
+    endTime: string;
+  };
+}
+
 export async function POST(request: NextRequest) {
   try {
     const auth = await requireAuth();
     if ("error" in auth) return auth.error;
-    const { userId, session } = auth;
+    const { userId } = auth;
 
     const body = await request.json();
     const weeksAhead = body.weeksAhead || 4;
+    const dryRun = body.dryRun === true;
+    const resolutions: ConflictResolution[] = body.resolutions || [];
 
-    // Get active recurring patterns
+    // Get active recurring patterns with client names
     const patterns = await prisma.recurringPattern.findMany({
       where: {
         userId: userId,
         isActive: true,
       },
+      include: {
+        client: { select: { name: true } },
+      },
     });
 
     if (patterns.length === 0) {
       return NextResponse.json(
-        { message: "אין תבניות פעילות", created: 0 },
+        dryRun
+          ? { preview: [], conflicts: 0 }
+          : { message: "אין תבניות פעילות", created: 0 },
         { status: 200 }
       );
     }
@@ -40,8 +68,11 @@ export async function POST(request: NextRequest) {
     const defaultPrice = latestSession?.price || 300;
 
     let created = 0;
+    let skipped = 0;
     const now = new Date();
     const weekStart = startOfWeek(now, { weekStartsOn: 0 }); // Sunday
+    const preview: PreviewItem[] = [];
+    const resolutionMap = new Map(resolutions.map(r => [r.key, r.action]));
 
     for (let week = 0; week < weeksAhead; week++) {
       const currentWeekStart = addWeeks(weekStart, week);
@@ -49,9 +80,12 @@ export async function POST(request: NextRequest) {
       for (const pattern of patterns) {
         // Calculate the date for this pattern in this week
         const sessionDate = addDays(currentWeekStart, pattern.dayOfWeek);
-        
+
         // Skip if date is in the past
         if (sessionDate < now) continue;
+
+        // Skip patterns without a client
+        if (!pattern.clientId) continue;
 
         // Parse time using Israel timezone
         const dateStr = sessionDate.toISOString().split("T")[0];
@@ -60,7 +94,9 @@ export async function POST(request: NextRequest) {
         // Calculate end time
         const sessionEnd = new Date(sessionStart.getTime() + pattern.duration * 60000);
 
-        // Check for any overlapping session (not just exact start time match)
+        const itemKey = `${dateStr}_${pattern.time}_${pattern.id}`;
+
+        // Check for any overlapping session
         const conflict = await prisma.therapySession.findFirst({
           where: {
             therapistId: userId,
@@ -86,12 +122,49 @@ export async function POST(request: NextRequest) {
               },
             ],
           },
+          include: {
+            client: { select: { name: true } },
+          },
         });
 
-        if (conflict) continue;
+        // DRY RUN - just collect preview data
+        if (dryRun) {
+          preview.push({
+            key: itemKey,
+            date: dateStr,
+            time: pattern.time,
+            clientName: pattern.client?.name || "ללא מטופל",
+            clientId: pattern.clientId,
+            patternId: pattern.id,
+            status: conflict ? "conflict" : "ok",
+            conflictWith: conflict ? {
+              id: conflict.id,
+              clientName: conflict.client?.name || (conflict.type === "BREAK" ? "הפסקה" : "ללא מטופל"),
+              startTime: conflict.startTime.toISOString(),
+              endTime: conflict.endTime.toISOString(),
+            } : undefined,
+          });
+          continue;
+        }
 
-        // Skip patterns without a client
-        if (!pattern.clientId) continue;
+        // ACTUAL RUN - check resolutions for conflicts
+        if (conflict) {
+          const resolution = resolutionMap.get(itemKey);
+
+          if (resolution === "replace") {
+            // Cancel existing session and create new one
+            await prisma.therapySession.update({
+              where: { id: conflict.id },
+              data: { status: "CANCELLED", cancelledAt: now, cancelledBy: "THERAPIST" },
+            });
+          } else if (resolution === "create") {
+            // Create anyway (allow overlap) - fall through to creation
+          } else {
+            // Skip (default behavior)
+            skipped++;
+            continue;
+          }
+        }
 
         // Create the session
         await prisma.therapySession.create({
@@ -111,9 +184,17 @@ export async function POST(request: NextRequest) {
       }
     }
 
+    if (dryRun) {
+      return NextResponse.json({
+        preview,
+        conflicts: preview.filter(p => p.status === "conflict").length,
+      });
+    }
+
     return NextResponse.json({
       message: `${created} פגישות נוצרו`,
       created,
+      skipped,
     });
   } catch (error) {
     logger.error("Apply recurring patterns error:", { error: error instanceof Error ? error.message : String(error) });
@@ -123,5 +204,3 @@ export async function POST(request: NextRequest) {
     );
   }
 }
-
-

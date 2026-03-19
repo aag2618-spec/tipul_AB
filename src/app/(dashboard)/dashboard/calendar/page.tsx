@@ -147,6 +147,17 @@ export default function CalendarPage() {
   const [customDuration, setCustomDuration] = useState(50);
   const [showOverlapsDialog, setShowOverlapsDialog] = useState(false);
   const [deletingOverlap, setDeletingOverlap] = useState<string | null>(null);
+  const [applyPreview, setApplyPreview] = useState<{
+    key: string;
+    date: string;
+    time: string;
+    clientName: string;
+    clientId: string;
+    patternId: string;
+    status: "ok" | "conflict";
+    conflictWith?: { id: string; clientName: string; startTime: string; endTime: string };
+  }[] | null>(null);
+  const [conflictDecisions, setConflictDecisions] = useState<Record<string, "skip" | "replace" | "create">>({});
 
   useEffect(() => {
     if (!timeParam && !highlightParam) return;
@@ -630,21 +641,80 @@ export default function CalendarPage() {
 
   const handleApplyRecurring = async (weeksAhead: number = 4) => {
     setIsSubmitting(true);
-    
+
     try {
+      // Step 1: Dry run - get preview
+      const previewRes = await fetch("/api/recurring-patterns/apply", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ weeksAhead, dryRun: true }),
+      });
+
+      if (!previewRes.ok) throw new Error("שגיאה בהחלת התבניות");
+
+      const previewData = await previewRes.json();
+
+      if (previewData.preview.length === 0) {
+        toast.info("אין פגישות חדשות ליצירה");
+        setIsSubmitting(false);
+        return;
+      }
+
+      // If there are conflicts, show preview dialog
+      if (previewData.conflicts > 0) {
+        setApplyPreview(previewData.preview);
+        // Set default decisions to "skip" for all conflicts
+        const defaults: Record<string, "skip" | "replace" | "create"> = {};
+        previewData.preview.forEach((item: { key: string; status: string }) => {
+          if (item.status === "conflict") defaults[item.key] = "skip";
+        });
+        setConflictDecisions(defaults);
+        setIsSubmitting(false);
+        return;
+      }
+
+      // No conflicts - create directly
       const response = await fetch("/api/recurring-patterns/apply", {
         method: "POST",
         headers: { "Content-Type": "application/json" },
         body: JSON.stringify({ weeksAhead }),
       });
 
-      if (!response.ok) {
-        throw new Error("שגיאה בהחלת התבניות");
-      }
+      if (!response.ok) throw new Error("שגיאה בהחלת התבניות");
 
       const result = await response.json();
       toast.success(`${result.created} פגישות נוצרו מהתבניות`);
       fetchData();
+      checkOverlaps();
+    } catch {
+      toast.error("שגיאה בהחלת התבניות");
+    } finally {
+      setIsSubmitting(false);
+    }
+  };
+
+  const handleConfirmApply = async () => {
+    setIsSubmitting(true);
+    try {
+      const resolutions = Object.entries(conflictDecisions).map(([key, action]) => ({ key, action }));
+
+      const response = await fetch("/api/recurring-patterns/apply", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ weeksAhead: 4, resolutions }),
+      });
+
+      if (!response.ok) throw new Error("שגיאה בהחלת התבניות");
+
+      const result = await response.json();
+      const msg = result.skipped > 0
+        ? `${result.created} פגישות נוצרו, ${result.skipped} דולגו`
+        : `${result.created} פגישות נוצרו מהתבניות`;
+      toast.success(msg);
+      setApplyPreview(null);
+      setConflictDecisions({});
+      fetchData();
+      checkOverlaps();
     } catch {
       toast.error("שגיאה בהחלת התבניות");
     } finally {
@@ -1795,6 +1865,90 @@ export default function CalendarPage() {
           onRecordDebt={handleCalendarRecordDebt}
         />
       )}
+
+      {/* דיאלוג תצוגה מקדימה - תבניות חוזרות */}
+      <Dialog open={applyPreview !== null} onOpenChange={(open) => { if (!open) { setApplyPreview(null); setConflictDecisions({}); } }}>
+        <DialogContent className="sm:max-w-lg max-h-[80vh] overflow-y-auto">
+          <DialogHeader>
+            <DialogTitle>תצוגה מקדימה - החלת תבניות</DialogTitle>
+            <DialogDescription>
+              בדוק את הפגישות שייווצרו ובחר מה לעשות עם התנגשויות
+            </DialogDescription>
+          </DialogHeader>
+          <div className="space-y-2">
+            {applyPreview?.map((item) => (
+              <div
+                key={item.key}
+                className={`p-3 rounded-lg border ${item.status === "conflict" ? "border-amber-300 bg-amber-50/50" : "border-green-200 bg-green-50/50"}`}
+              >
+                <div className="flex items-center justify-between">
+                  <div className="text-sm">
+                    <p className="font-medium">{item.clientName}</p>
+                    <p className="text-muted-foreground">
+                      {new Date(item.date + "T12:00:00Z").toLocaleDateString("he-IL", { weekday: "long", day: "numeric", month: "long" })}
+                      {" • "}
+                      {item.time}
+                    </p>
+                  </div>
+                  {item.status === "ok" && (
+                    <span className="text-xs text-green-600 font-medium">תיווצר</span>
+                  )}
+                </div>
+
+                {item.status === "conflict" && item.conflictWith && (
+                  <div className="mt-2 space-y-2">
+                    <div className="text-xs text-amber-700 bg-amber-100 rounded px-2 py-1">
+                      <AlertTriangle className="inline h-3 w-3 ml-1" />
+                      חופפת עם: {item.conflictWith.clientName}{" "}
+                      {new Date(item.conflictWith.startTime).toLocaleTimeString("he-IL", { hour: "2-digit", minute: "2-digit" })}
+                      {" - "}
+                      {new Date(item.conflictWith.endTime).toLocaleTimeString("he-IL", { hour: "2-digit", minute: "2-digit" })}
+                    </div>
+                    <div className="flex flex-col gap-1.5">
+                      <label className="flex items-center gap-2 text-sm cursor-pointer">
+                        <input
+                          type="radio"
+                          name={`decision-${item.key}`}
+                          checked={conflictDecisions[item.key] === "skip"}
+                          onChange={() => setConflictDecisions(prev => ({ ...prev, [item.key]: "skip" }))}
+                        />
+                        דלג (לא ליצור)
+                      </label>
+                      <label className="flex items-center gap-2 text-sm cursor-pointer">
+                        <input
+                          type="radio"
+                          name={`decision-${item.key}`}
+                          checked={conflictDecisions[item.key] === "replace"}
+                          onChange={() => setConflictDecisions(prev => ({ ...prev, [item.key]: "replace" }))}
+                        />
+                        בטל את הפגישה הקיימת וצור חדשה
+                      </label>
+                      <label className="flex items-center gap-2 text-sm cursor-pointer">
+                        <input
+                          type="radio"
+                          name={`decision-${item.key}`}
+                          checked={conflictDecisions[item.key] === "create"}
+                          onChange={() => setConflictDecisions(prev => ({ ...prev, [item.key]: "create" }))}
+                        />
+                        צור בכל זאת (חפיפה)
+                      </label>
+                    </div>
+                  </div>
+                )}
+              </div>
+            ))}
+          </div>
+          <DialogFooter className="gap-2">
+            <Button variant="outline" onClick={() => { setApplyPreview(null); setConflictDecisions({}); }}>
+              ביטול
+            </Button>
+            <Button onClick={handleConfirmApply} disabled={isSubmitting}>
+              {isSubmitting ? <Loader2 className="ml-2 h-4 w-4 animate-spin" /> : null}
+              אשר וצור {applyPreview?.filter(p => p.status === "ok" || conflictDecisions[p.key] !== "skip").length} פגישות
+            </Button>
+          </DialogFooter>
+        </DialogContent>
+      </Dialog>
 
       <CalendarOverlapsDialog
         showOverlapsDialog={showOverlapsDialog}
