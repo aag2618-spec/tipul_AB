@@ -56,8 +56,8 @@ export async function GET(request: NextRequest) {
     const tasks = await prisma.task.findMany({
       where,
       orderBy: [
+        { dueDate: { sort: "asc", nulls: "last" } },
         { priority: "desc" },
-        { dueDate: "asc" },
         { createdAt: "desc" },
       ],
     });
