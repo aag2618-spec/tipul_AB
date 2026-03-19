@@ -81,7 +81,16 @@ export function PersonalTasksWidget() {
       const response = await fetch("/api/tasks?status=PENDING");
       if (response.ok) {
         const data = await response.json();
-        setTasks(data.filter((t: Task) => t.type === "CUSTOM"));
+        // סינון: רק מטלות CUSTOM, ורק אלה בלי תאריך או שהתאריך כבר הגיע
+        const todayStart = new Date();
+        todayStart.setHours(0, 0, 0, 0);
+        setTasks(data.filter((t: Task) => {
+          if (t.type !== "CUSTOM") return false;
+          // מטלה בלי תאריך יעד - מופיעה תמיד
+          if (!t.dueDate) return true;
+          // מטלה עם תאריך - מופיעה רק אם התאריך הגיע (היום או עבר)
+          return new Date(t.dueDate) <= new Date(todayStart.getTime() + 24 * 60 * 60 * 1000);
+        }));
       }
     } catch (error) {
       console.error("Failed to fetch tasks:", error);
