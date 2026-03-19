@@ -108,7 +108,13 @@ export function AdminSidebar({ user }: AdminSidebarProps) {
           <SidebarMenuItem>
             <SidebarMenuButton size="lg" asChild>
               <Link href="/admin" className="flex items-center gap-3">
-                <Image src="/logo.png" alt="MyTipul" width={40} height={40} className="rounded-xl" />
+                <Image
+                  src="/logo.png"
+                  alt="MyTipul"
+                  width={160}
+                  height={90}
+                  className="h-9 w-auto object-contain shrink-0"
+                />
                 <div className="flex flex-col">
                   <span className="font-semibold text-lg text-red-100">ניהול מערכת</span>
                   <span className="text-xs text-red-300/70">Admin Panel</span>

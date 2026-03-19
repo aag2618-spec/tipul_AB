@@ -51,8 +51,15 @@ function LoginForm() {
   return (
     <Card className="w-full max-w-md animate-fade-in relative">
       <CardHeader className="text-center space-y-4">
-        <div className="mx-auto w-16 h-16 flex items-center justify-center">
-          <Image src="/logo.png" alt="MyTipul" width={64} height={64} className="rounded-2xl" />
+        <div className="mx-auto flex justify-center">
+          <Image
+            src="/logo.png"
+            alt="MyTipul"
+            width={344}
+            height={192}
+            className="h-14 w-auto object-contain"
+            priority
+          />
         </div>
         <div>
           <CardTitle className="text-2xl font-bold">ברוכים הבאים</CardTitle>
