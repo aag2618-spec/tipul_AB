@@ -74,6 +74,7 @@ export function PersonalTasksWidget() {
   const [isEditing, setIsEditing] = useState(false);
   const [editForm, setEditForm] = useState({ title: "", description: "" });
   const [saving, setSaving] = useState(false);
+  const [selectedReminder, setSelectedReminder] = useState<Reminder | null>(null);
 
   const fetchTasks = useCallback(async () => {
     try {
@@ -95,9 +96,27 @@ export function PersonalTasksWidget() {
       if (response.ok) {
         const data = await response.json();
         const summaryTypes = ["MORNING_SUMMARY", "EVENING_SUMMARY"];
-        setReminders(
-          (data.notifications || []).filter((n: Reminder) => summaryTypes.includes(n.type))
+        const sixHoursMs = 6 * 60 * 60 * 1000;
+        const now = Date.now();
+        const allReminders = (data.notifications || []).filter(
+          (n: Reminder) => summaryTypes.includes(n.type)
         );
+        // הפרדה: תזכורות פעילות vs. ישנות מעל 6 שעות
+        const active: Reminder[] = [];
+        const expired: Reminder[] = [];
+        for (const n of allReminders) {
+          const age = now - new Date(n.createdAt).getTime();
+          if (age > sixHoursMs) {
+            expired.push(n);
+          } else {
+            active.push(n);
+          }
+        }
+        setReminders(active);
+        // סימון ישנות כנקראו ברקע (מחוץ ל-filter)
+        for (const n of expired) {
+          fetch(`/api/notifications/${n.id}/read`, { method: "POST" }).catch(() => {});
+        }
       }
     } catch (error) {
       console.error("Failed to fetch reminders:", error);
@@ -136,6 +155,18 @@ export function PersonalTasksWidget() {
       Notification.requestPermission();
     }
   }, []);
+
+  // גלילה אוטומטית כשמגיעים מהפעמון עם #personal-tasks
+  // ממתין עד שהטעינה נגמרת כדי שה-id יהיה קיים ב-DOM
+  useEffect(() => {
+    if (!isLoading && window.location.hash === "#personal-tasks") {
+      const timerId = setTimeout(() => {
+        document.getElementById("personal-tasks")?.scrollIntoView({ behavior: "smooth" });
+        window.history.replaceState(null, "", window.location.pathname);
+      }, 100);
+      return () => clearTimeout(timerId);
+    }
+  }, [isLoading]);
 
   const [activeReminders, setActiveReminders] = useState<Set<string>>(new Set());
 
@@ -256,7 +287,8 @@ export function PersonalTasksWidget() {
         {reminders.map(reminder => (
           <div
             key={reminder.id}
-            className="flex items-start gap-2 py-2 px-3 rounded-lg bg-amber-50 border border-amber-200 group"
+            className="flex items-start gap-2 py-2 px-3 rounded-lg animate-pulse bg-amber-100 border border-amber-300 shadow-sm cursor-pointer"
+            onClick={() => setSelectedReminder(reminder)}
           >
             {reminder.type === "MORNING_SUMMARY" ? (
               <Sun className="h-4 w-4 text-amber-500 shrink-0 mt-0.5" />
@@ -268,7 +300,7 @@ export function PersonalTasksWidget() {
               <p className="text-xs text-muted-foreground line-clamp-2 whitespace-pre-line">{reminder.content}</p>
             </div>
             <button
-              onClick={() => dismissReminder(reminder.id)}
+              onClick={(e) => { e.stopPropagation(); dismissReminder(reminder.id); }}
               className="shrink-0 mt-0.5 opacity-60 hover:opacity-100 transition-opacity"
               title="סמן כנקרא"
             >
@@ -545,6 +577,45 @@ export function PersonalTasksWidget() {
                 סגור
               </Button>
             )}
+          </DialogFooter>
+        </DialogContent>
+      </Dialog>
+
+      {/* Reminder Detail Dialog */}
+      <Dialog open={!!selectedReminder} onOpenChange={(o) => { if (!o) setSelectedReminder(null); }}>
+        <DialogContent className="sm:max-w-md" dir="rtl">
+          <DialogHeader>
+            <DialogTitle className="flex items-center gap-2">
+              {selectedReminder?.type === "MORNING_SUMMARY" ? (
+                <Sun className="h-5 w-5 text-amber-500" />
+              ) : (
+                <Moon className="h-5 w-5 text-indigo-500" />
+              )}
+              {selectedReminder?.title}
+            </DialogTitle>
+          </DialogHeader>
+          {selectedReminder && (
+            <div className="space-y-3 py-2">
+              <div className="text-sm whitespace-pre-line bg-muted/30 p-4 rounded-lg leading-relaxed">
+                {selectedReminder.content}
+              </div>
+              <p className="text-xs text-muted-foreground">
+                {format(new Date(selectedReminder.createdAt), "EEEE, d בMMMM yyyy בשעה HH:mm", { locale: he })}
+              </p>
+            </div>
+          )}
+          <DialogFooter>
+            <Button
+              size="sm"
+              className="gap-1 bg-emerald-600 hover:bg-emerald-700"
+              onClick={() => {
+                if (selectedReminder) dismissReminder(selectedReminder.id);
+                setSelectedReminder(null);
+              }}
+            >
+              <CheckCircle2 className="h-3.5 w-3.5" />
+              סמן כנקרא
+            </Button>
           </DialogFooter>
         </DialogContent>
       </Dialog>

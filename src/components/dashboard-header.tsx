@@ -1,7 +1,7 @@
 "use client";
 
 import { useState, useEffect, useCallback } from "react";
-import { useRouter } from "next/navigation";
+import { useRouter, usePathname } from "next/navigation";
 import { signOut } from "next-auth/react";
 import { SidebarTrigger } from "@/components/ui/sidebar";
 import { Button } from "@/components/ui/button";
@@ -53,6 +53,7 @@ interface DashboardHeaderProps {
 
 export function DashboardHeader({ user }: DashboardHeaderProps) {
   const router = useRouter();
+  const pathname = usePathname();
   const [notifications, setNotifications] = useState<Notification[]>([]);
   const [unreadCount, setUnreadCount] = useState(0);
   const [announcements, setAnnouncements] = useState<SystemAnnouncement[]>([]);
@@ -191,7 +192,13 @@ export function DashboardHeader({ user }: DashboardHeaderProps) {
     } else if (notification.type === "MORNING_SUMMARY") {
       router.push("/dashboard/calendar");
     } else if (notification.type === "PENDING_TASKS" || notification.type === "EVENING_SUMMARY") {
-      router.push("/dashboard#personal-tasks");
+      if (pathname === "/dashboard") {
+        // כבר בדשבורד - גלילה ישירה
+        document.getElementById("personal-tasks")?.scrollIntoView({ behavior: "smooth" });
+      } else {
+        // ניווט לדשבורד + גלילה אחרי טעינה
+        router.push("/dashboard#personal-tasks");
+      }
     } else if (notification.type === "PAYMENT_REMINDER") {
       router.push("/dashboard/payments");
     } else {
