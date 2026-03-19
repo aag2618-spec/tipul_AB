@@ -1,7 +1,8 @@
 import { NextRequest, NextResponse } from "next/server";
 import prisma from "@/lib/prisma";
-import { addDays, addWeeks, startOfWeek, setHours, setMinutes } from "date-fns";
+import { addDays, addWeeks, startOfWeek } from "date-fns";
 import { logger } from "@/lib/logger";
+import { parseIsraelTime } from "@/lib/date-utils";
 
 import { requireAuth } from "@/lib/api-auth";
 
@@ -52,10 +53,9 @@ export async function POST(request: NextRequest) {
         // Skip if date is in the past
         if (sessionDate < now) continue;
 
-        // Parse time
-        const [hours, minutes] = pattern.time.split(":").map(Number);
-        let sessionStart = setHours(sessionDate, hours);
-        sessionStart = setMinutes(sessionStart, minutes);
+        // Parse time using Israel timezone
+        const dateStr = sessionDate.toISOString().split("T")[0];
+        const sessionStart = parseIsraelTime(`${dateStr}T${pattern.time}`);
 
         // Calculate end time
         const sessionEnd = new Date(sessionStart.getTime() + pattern.duration * 60000);
