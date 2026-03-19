@@ -1,6 +1,6 @@
 "use client";
 
-import { useEffect, useState, useCallback, useRef } from "react";
+import { useEffect, useState, useCallback } from "react";
 import { useSearchParams, useRouter } from "next/navigation";
 import dynamic from "next/dynamic";
 import { Button } from "@/components/ui/button";
@@ -12,14 +12,17 @@ import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@
 import { Switch } from "@/components/ui/switch";
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
 import { Textarea } from "@/components/ui/textarea";
-import { Plus, Loader2, Calendar, Repeat, Settings, Waves, Trash2, User, FileText, Clock, AlertCircle, AlertTriangle, CheckCircle2, Ban, UserX, ChevronUp, ChevronDown, Wallet } from "lucide-react";
-import { Checkbox } from "@/components/ui/checkbox";
+import { Plus, Loader2, Calendar, Repeat, Settings, Waves, Trash2, User, FileText, Clock, AlertCircle, AlertTriangle, Ban, UserX } from "lucide-react";
 import { format, addWeeks } from "date-fns";
 import { toast } from "sonner";
 import type { EventClickArg } from "@fullcalendar/core";
 import type { DateClickArg } from "@fullcalendar/interaction";
 import { QuickMarkPaid } from "@/components/payments/quick-mark-paid";
 import Link from "next/link";
+import type { SessionOverlap } from "@/types";
+import { CalendarOverlapsDialog } from "@/components/calendar/calendar-overlaps-dialog";
+import { UpdateSessionDialog, type UpdateSessionDialogParams } from "@/components/update-session-dialog";
+import { useCalendarData, type CalendarClient, type CalendarSession, type RecurringPattern } from "@/hooks/use-calendar-data";
 
 // Dynamic import for FullCalendar to avoid SSR issues
 const FullCalendar = dynamic(
@@ -30,27 +33,6 @@ const FullCalendar = dynamic(
 import dayGridPlugin from "@fullcalendar/daygrid";
 import timeGridPlugin from "@fullcalendar/timegrid";
 import interactionPlugin from "@fullcalendar/interaction";
-
-interface Client {
-  id: string;
-  name: string;
-  email?: string | null;
-  phone?: string | null;
-  defaultSessionPrice?: number | null;
-  creditBalance?: number | null;
-}
-
-interface Session {
-  id: string;
-  startTime: string;
-  endTime: string;
-  status: string;
-  type: string;
-  price: number;
-  client: Client | null;
-  payment?: { id: string; status: string; amount?: number; expectedAmount?: number } | null;
-  sessionNote?: string | null;
-}
 
 interface CalendarEvent {
   id: string;
@@ -65,16 +47,6 @@ interface CalendarEvent {
     status: string;
     type: string;
   };
-}
-
-interface RecurringPattern {
-  id: string;
-  dayOfWeek: number;
-  time: string;
-  duration: number;
-  isActive: boolean;
-  clientId: string | null;
-  client?: { name: string } | null;
 }
 
 const TIME_SLOTS = [
@@ -123,34 +95,29 @@ export default function CalendarPage() {
     }
     return "07:00:00";
   })();
-  
-  const [sessions, setSessions] = useState<Session[]>([]);
-  const [clients, setClients] = useState<Client[]>([]);
-  const [recurringPatterns, setRecurringPatterns] = useState<RecurringPattern[]>([]);
-  const [isLoading, setIsLoading] = useState(true);
-  const [defaultSessionDuration, setDefaultSessionDuration] = useState(50);
+
+  const {
+    sessions,
+    setSessions,
+    clients,
+    recurringPatterns,
+    isLoading,
+    defaultSessionDuration,
+    fetchData,
+    checkOverlaps,
+    overlaps,
+    setOverlaps,
+  } = useCalendarData();
+
   const [isDialogOpen, setIsDialogOpen] = useState(false);
   const [isRecurringDialogOpen, setIsRecurringDialogOpen] = useState(false);
   const [isSessionDialogOpen, setIsSessionDialogOpen] = useState(false);
-  const [selectedSession, setSelectedSession] = useState<Session | null>(null);
+  const [selectedSession, setSelectedSession] = useState<CalendarSession | null>(null);
   const [isChargeDialogOpen, setIsChargeDialogOpen] = useState(false);
   const [pendingAction, setPendingAction] = useState<"CANCELLED" | "NO_SHOW" | null>(null);
 
   const [updateDialogOpen, setUpdateDialogOpen] = useState(false);
-  const [updateStatus, setUpdateStatus] = useState("");
-  const [updateReason, setUpdateReason] = useState("");
   const [updating, setUpdating] = useState(false);
-  const [updatePaymentMethod, setUpdatePaymentMethod] = useState("CASH");
-  const [updatePaymentAmount, setUpdatePaymentAmount] = useState("");
-  const [showUpdatePayment, setShowUpdatePayment] = useState(true);
-  const [showUpdateAdvanced, setShowUpdateAdvanced] = useState(false);
-  const [updatePaymentType, setUpdatePaymentType] = useState<"FULL" | "PARTIAL">("FULL");
-  const [updatePartialAmount, setUpdatePartialAmount] = useState("");
-  const [updateNoChargeReason, setUpdateNoChargeReason] = useState("");
-  const [updateClientDebt, setUpdateClientDebt] = useState<{ total: number; count: number } | null>(null);
-  const [updateIssueReceipt, setUpdateIssueReceipt] = useState(false);
-  const [updateReceiptMode, setUpdateReceiptMode] = useState<string>("ASK");
-  const [updateBusinessType, setUpdateBusinessType] = useState<string>("NONE");
   const [isPaymentDialogOpen, setIsPaymentDialogOpen] = useState(false);
   const [paymentData, setPaymentData] = useState<{
     sessionId: string;
@@ -172,99 +139,14 @@ export default function CalendarPage() {
   const [recurringFormData, setRecurringFormData] = useState({
     dayOfWeek: 0,
     time: "09:00",
-    duration: defaultSessionDuration,
+    duration: 50,
     clientId: "",
   });
   const [isSubmitting, setIsSubmitting] = useState(false);
   const [showDurationCustomizer, setShowDurationCustomizer] = useState(false);
-  const [customDuration, setCustomDuration] = useState(defaultSessionDuration);
-  const paramsHandled = useRef(false);
-  const [overlaps, setOverlaps] = useState<any[]>([]);
+  const [customDuration, setCustomDuration] = useState(50);
   const [showOverlapsDialog, setShowOverlapsDialog] = useState(false);
   const [deletingOverlap, setDeletingOverlap] = useState<string | null>(null);
-
-  const fetchData = useCallback(async () => {
-    try {
-      const [sessionsRes, clientsRes, patternsRes, profileRes] = await Promise.all([
-        fetch("/api/sessions"),
-        fetch("/api/clients"),
-        fetch("/api/recurring-patterns"),
-        fetch("/api/user/profile"),
-      ]);
-      
-      if (sessionsRes.ok && clientsRes.ok) {
-        const sessionsData = await sessionsRes.json();
-        const clientsData = await clientsRes.json();
-        
-        // Map sessionNote.content to sessionNote for easier access
-        const mappedSessions = sessionsData.map((session: any) => ({
-          ...session,
-          sessionNote: session.sessionNote?.content || null,
-        }));
-        
-        setSessions(mappedSessions);
-        setClients(clientsData);
-      }
-
-      if (patternsRes.ok) {
-        const patternsData = await patternsRes.json();
-        setRecurringPatterns(patternsData);
-      }
-
-      if (profileRes.ok) {
-        const profileData = await profileRes.json();
-        setDefaultSessionDuration(profileData.defaultSessionDuration || 50);
-      }
-    } catch (error) {
-      console.error("Failed to fetch data:", error);
-      toast.error("שגיאה בטעינת הנתונים");
-    } finally {
-      setIsLoading(false);
-    }
-  }, []);
-
-  const checkOverlaps = useCallback(async () => {
-    try {
-      const res = await fetch("/api/sessions/overlaps");
-      if (res.ok) {
-        const data = await res.json();
-        setOverlaps(data.overlaps || []);
-      }
-    } catch {
-      // silently fail
-    }
-  }, []);
-
-  useEffect(() => {
-    fetchData();
-    checkOverlaps();
-
-    const interval = setInterval(() => {
-      fetch("/api/sessions").then(async (res) => {
-        if (res.ok) {
-          const data = await res.json();
-          const mapped = data.map((s: any) => ({ ...s, sessionNote: s.sessionNote?.content || null }));
-          setSessions(mapped);
-        }
-      }).catch(() => {});
-    }, 30_000);
-
-    const onFocus = () => {
-      fetch("/api/sessions").then(async (res) => {
-        if (res.ok) {
-          const data = await res.json();
-          const mapped = data.map((s: any) => ({ ...s, sessionNote: s.sessionNote?.content || null }));
-          setSessions(mapped);
-        }
-      }).catch(() => {});
-    };
-    window.addEventListener("focus", onFocus);
-
-    return () => {
-      clearInterval(interval);
-      window.removeEventListener("focus", onFocus);
-    };
-  }, [fetchData, checkOverlaps]);
 
   useEffect(() => {
     if (!timeParam && !highlightParam) return;
@@ -388,45 +270,12 @@ export default function CalendarPage() {
     setIsDialogOpen(true);
   };
 
-  // Play wave sound using Web Audio API
-  const playWaveSound = () => {
-    try {
-      const audioContext = new (window.AudioContext || (window as any).webkitAudioContext)();
-      const duration = 3;
-      
-      // Create multiple oscillators for a richer wave sound
-      const frequencies = [200, 300, 400];
-      frequencies.forEach((freq, index) => {
-        const oscillator = audioContext.createOscillator();
-        const gainNode = audioContext.createGain();
-        
-        oscillator.type = 'sine';
-        oscillator.frequency.setValueAtTime(freq, audioContext.currentTime);
-        oscillator.frequency.exponentialRampToValueAtTime(freq * 0.7, audioContext.currentTime + duration);
-        
-        // Fade in and out
-        gainNode.gain.setValueAtTime(0, audioContext.currentTime);
-        gainNode.gain.linearRampToValueAtTime(0.03 / (index + 1), audioContext.currentTime + 0.1);
-        gainNode.gain.linearRampToValueAtTime(0, audioContext.currentTime + duration);
-        
-        oscillator.connect(gainNode);
-        gainNode.connect(audioContext.destination);
-        
-        oscillator.start(audioContext.currentTime);
-        oscillator.stop(audioContext.currentTime + duration);
-      });
-    } catch (error) {
-      console.log('Audio not available:', error);
-    }
-  };
-
   const handleEventClick = (info: EventClickArg) => {
     const session = sessions.find(s => s.id === info.event.id);
     if (session) {
       const isPast = new Date(session.startTime) < new Date();
       if (isPast && session.status === "SCHEDULED" && session.type !== "BREAK") {
         setSelectedSession(session);
-        setUpdatePaymentAmount(session.price ? session.price.toString() : "");
         setUpdateDialogOpen(true);
       } else {
         setSelectedSession(session);
@@ -435,94 +284,46 @@ export default function CalendarPage() {
     }
   };
 
-  const resetUpdateDialog = () => {
-    setUpdateDialogOpen(false);
-    setUpdateStatus("");
-    setUpdateReason("");
-    setUpdatePaymentAmount("");
-    setShowUpdatePayment(true);
-    setShowUpdateAdvanced(false);
-    setUpdatePaymentType("FULL");
-    setUpdatePartialAmount("");
-    setUpdateNoChargeReason("");
-    setUpdateIssueReceipt(false);
-  };
-
-  useEffect(() => {
-    if (updateDialogOpen && selectedSession?.client?.id) {
-      fetch(`/api/payments/client-debt/${selectedSession.client.id}`)
-        .then(res => res.json())
-        .then(data => {
-          setUpdateClientDebt({
-            total: Number(data.totalDebt || 0),
-            count: data.unpaidSessions?.length || 0,
-          });
-        })
-        .catch(() => setUpdateClientDebt(null));
-    } else {
-      setUpdateClientDebt(null);
-    }
-  }, [updateDialogOpen, selectedSession?.client?.id]);
-
-  useEffect(() => {
-    if (updateDialogOpen) {
-      fetch("/api/user/business-settings")
-        .then(res => res.json())
-        .then(data => {
-          if (data.businessType) setUpdateBusinessType(data.businessType);
-          if (data.receiptDefaultMode) setUpdateReceiptMode(data.receiptDefaultMode);
-          if (data.receiptDefaultMode === "ALWAYS") setUpdateIssueReceipt(true);
-          else if (data.receiptDefaultMode === "NEVER") setUpdateIssueReceipt(false);
-        })
-        .catch(() => {});
-    }
-  }, [updateDialogOpen]);
-
-  const handleUpdateSession = async () => {
-    if (!updateStatus || !selectedSession) { toast.error("בחר סטטוס"); return; }
+  const handleCalendarUpdate = async (params: UpdateSessionDialogParams) => {
+    if (!selectedSession) return;
+    const { updateStatus, showPayment, paymentMethod, paymentType, paymentAmount, partialAmount, issueReceipt, businessType, updateReason } = params;
     setUpdating(true);
     try {
-      if (updateStatus === "COMPLETED" && showUpdatePayment && selectedSession.price > 0 && selectedSession.client) {
-        const paymentAmount = updatePaymentType === "PARTIAL"
-          ? (parseFloat(updatePartialAmount) || 0)
+      if (updateStatus === "COMPLETED" && showPayment && selectedSession.price > 0 && selectedSession.client) {
+        const pmtAmount = paymentType === "PARTIAL"
+          ? (parseFloat(partialAmount) || 0)
           : Number(selectedSession.price);
-
-        if (updatePaymentType === "PARTIAL" && (paymentAmount <= 0 || paymentAmount > selectedSession.price)) {
+        if (paymentType === "PARTIAL" && (pmtAmount <= 0 || pmtAmount > selectedSession.price)) {
           toast.error("סכום חלקי לא תקין");
           setUpdating(false);
           return;
         }
-
         const paymentResponse = await fetch("/api/payments", {
           method: "POST",
           headers: { "Content-Type": "application/json" },
           body: JSON.stringify({
             clientId: selectedSession.client.id,
             sessionId: selectedSession.id,
-            amount: paymentAmount,
+            amount: pmtAmount,
             expectedAmount: Number(selectedSession.price),
-            paymentType: updatePaymentType === "PARTIAL" ? "PARTIAL" : "FULL",
-            method: updatePaymentMethod,
-            status: updatePaymentType === "PARTIAL" ? "PENDING" : "PAID",
-            issueReceipt: updateBusinessType !== "NONE" && updateIssueReceipt,
+            paymentType: paymentType === "PARTIAL" ? "PARTIAL" : "FULL",
+            method: paymentMethod,
+            status: paymentType === "PARTIAL" ? "PENDING" : "PAID",
+            issueReceipt: businessType !== "NONE" && issueReceipt,
           }),
         });
-
         if (!paymentResponse.ok) {
           const errorData = await paymentResponse.json().catch(() => null);
           toast.error(errorData?.message || "שגיאה ביצירת התשלום");
           setUpdating(false);
           return;
         }
-
         const paymentResult = await paymentResponse.json();
-
         const sessionUpdateRes = await fetch(`/api/sessions/${selectedSession.id}`, {
           method: "PUT",
           headers: { "Content-Type": "application/json" },
           body: JSON.stringify({ status: "COMPLETED" }),
         });
-
         if (!sessionUpdateRes.ok) {
           toast.success("התשלום בוצע");
           toast.error("שגיאה בעדכון סטטוס הפגישה - נסה לעדכן ידנית");
@@ -532,18 +333,14 @@ export default function CalendarPage() {
         if (paymentResult?.receiptError) {
           toast.error(`שגיאה בהפקת קבלה: ${paymentResult.receiptError}`, { duration: 8000 });
         }
-        resetUpdateDialog();
+        setUpdateDialogOpen(false);
         setSelectedSession(null);
         fetchData();
         return;
       }
-
       const updates: Promise<Response>[] = [];
-
       const statusBody: Record<string, unknown> = { status: updateStatus };
-      if (updateStatus === "CANCELLED") {
-        statusBody.cancellationReason = updateReason.trim() || undefined;
-      }
+      if (updateStatus === "CANCELLED") statusBody.cancellationReason = updateReason.trim() || undefined;
       updates.push(
         fetch(`/api/sessions/${selectedSession.id}/status`, {
           method: "PATCH",
@@ -551,11 +348,10 @@ export default function CalendarPage() {
           body: JSON.stringify(statusBody),
         })
       );
-
-      if (showUpdatePayment && selectedSession.price > 0) {
-        const amt = updatePaymentType === "PARTIAL"
-          ? parseFloat(updatePartialAmount) || 0
-          : parseFloat(updatePaymentAmount) || 0;
+      if (showPayment && selectedSession.price > 0) {
+        const amt = paymentType === "PARTIAL"
+          ? parseFloat(partialAmount) || 0
+          : parseFloat(paymentAmount) || 0;
         if (amt > 0) {
           updates.push(
             fetch("/api/payments", {
@@ -566,19 +362,17 @@ export default function CalendarPage() {
                 sessionId: selectedSession.id,
                 amount: amt,
                 expectedAmount: selectedSession.price || amt,
-                paymentType: updatePaymentType === "PARTIAL" ? "PARTIAL" : "FULL",
-                method: updatePaymentMethod,
-                status: updatePaymentType === "PARTIAL" ? "PENDING" : "PAID",
-                issueReceipt: updateBusinessType !== "NONE" && updateIssueReceipt,
+                paymentType: paymentType === "PARTIAL" ? "PARTIAL" : "FULL",
+                method: paymentMethod,
+                status: paymentType === "PARTIAL" ? "PENDING" : "PAID",
+                issueReceipt: businessType !== "NONE" && issueReceipt,
               }),
             })
           );
         }
       }
-
       const results = await Promise.all(updates);
       const failedResult = results.find(r => !r.ok);
-
       if (failedResult) {
         const errorData = await failedResult.json().catch(() => null);
         toast.error(errorData?.message || "שגיאה בעדכון הפגישה");
@@ -590,7 +384,7 @@ export default function CalendarPage() {
         };
         toast.success(labels[updateStatus] || "הפגישה עודכנה");
       }
-      resetUpdateDialog();
+      setUpdateDialogOpen(false);
       setSelectedSession(null);
       fetchData();
     } catch {
@@ -600,8 +394,35 @@ export default function CalendarPage() {
     }
   };
 
+  const handleCalendarRecordDebt = async (params: { updateStatus: string; updateReason: string }) => {
+    if (!selectedSession?.client) return;
+    setUpdating(true);
+    try {
+      const statusBody: Record<string, unknown> = { status: params.updateStatus, createPayment: true, markAsPaid: false };
+      if (params.updateStatus === "CANCELLED") statusBody.cancellationReason = params.updateReason.trim() || undefined;
+      const response = await fetch(`/api/sessions/${selectedSession.id}`, {
+        method: "PUT",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify(statusBody),
+      });
+      if (response.ok) {
+        toast.success("הפגישה עודכנה והחוב נרשם");
+        setUpdateDialogOpen(false);
+        setSelectedSession(null);
+        fetchData();
+      } else {
+        const errorData = await response.json().catch(() => null);
+        toast.error(errorData?.message || "שגיאה בעדכון הפגישה");
+      }
+    } catch {
+      toast.error("שגיאה בעדכון הפגישה");
+    } finally {
+      setUpdating(false);
+    }
+  };
+
   // פתיחת דיאלוג פגישה חדשה מיד אחרי פגישה קיימת
-  const handleAddSessionAfter = (session: Session) => {
+  const handleAddSessionAfter = (session: CalendarSession) => {
     const endTime = new Date(session.endTime);
     const dateStr = format(endTime, "yyyy-MM-dd");
     const timeStr = format(endTime, "HH:mm");
@@ -1961,386 +1782,29 @@ export default function CalendarPage() {
         />
       )}
 
-      {/* עדכון פגישה שעברה ולא עודכנה */}
-      <Dialog open={updateDialogOpen} onOpenChange={(o) => { if (!o) resetUpdateDialog(); }}>
-        <DialogContent className="sm:max-w-[550px] max-h-[90vh] overflow-y-auto" dir="rtl">
-          <DialogHeader>
-            <DialogTitle className="flex items-center gap-2">
-              <AlertCircle className="h-5 w-5 text-orange-500" />
-              עדכון פגישה - {selectedSession?.client?.name}
-            </DialogTitle>
-          </DialogHeader>
-          <div className="space-y-4 py-2">
-            <p className="text-sm text-muted-foreground">הפגישה לא עודכנה. מה קרה?</p>
+      {updateDialogOpen && selectedSession && (
+        <UpdateSessionDialog
+          open={updateDialogOpen}
+          onClose={() => { setUpdateDialogOpen(false); setSelectedSession(null); }}
+          sessionId={selectedSession.id}
+          clientId={selectedSession.client?.id ?? ""}
+          clientName={selectedSession.client?.name ?? "מטופל"}
+          price={selectedSession.price}
+          updating={updating}
+          onUpdate={handleCalendarUpdate}
+          onRecordDebt={handleCalendarRecordDebt}
+        />
+      )}
 
-            <div className="grid grid-cols-3 gap-2">
-              <Button
-                type="button"
-                variant={updateStatus === "COMPLETED" ? "default" : "outline"}
-                size="sm"
-                className={`h-10 text-xs gap-1 ${updateStatus === "COMPLETED" ? "bg-emerald-600 hover:bg-emerald-700" : ""}`}
-                onClick={() => { setUpdateStatus("COMPLETED"); setShowUpdatePayment(true); }}
-              >
-                <CheckCircle2 className="h-3.5 w-3.5" />
-                הושלמה
-              </Button>
-              <Button
-                type="button"
-                variant={updateStatus === "CANCELLED" ? "default" : "outline"}
-                size="sm"
-                className={`h-10 text-xs gap-1 ${updateStatus === "CANCELLED" ? "bg-red-500 hover:bg-red-600" : ""}`}
-                onClick={() => { setUpdateStatus("CANCELLED"); setShowUpdatePayment(true); }}
-              >
-                <Ban className="h-3.5 w-3.5" />
-                בוטלה
-              </Button>
-              <Button
-                type="button"
-                variant={updateStatus === "NO_SHOW" ? "default" : "outline"}
-                size="sm"
-                className={`h-10 text-xs gap-1 ${updateStatus === "NO_SHOW" ? "bg-amber-500 hover:bg-amber-600" : ""}`}
-                onClick={() => { setUpdateStatus("NO_SHOW"); setShowUpdatePayment(true); }}
-              >
-                <UserX className="h-3.5 w-3.5" />
-                לא הגיע
-              </Button>
-            </div>
-
-            {updateStatus === "CANCELLED" && (
-              <div className="space-y-2">
-                <Label className="text-sm">סיבת ביטול (אופציונלי)</Label>
-                <Textarea
-                  value={updateReason}
-                  onChange={e => setUpdateReason(e.target.value)}
-                  placeholder="לדוגמה: מחלה, בקשת מטופל..."
-                  className="resize-none h-16 bg-muted/20 border-muted-foreground/10 text-sm"
-                />
-              </div>
-            )}
-
-            {updateStatus && selectedSession && selectedSession.price > 0 && (
-              <>
-                {updateStatus !== "COMPLETED" && (
-                  <Button
-                    type="button"
-                    variant="outline"
-                    className="w-full font-bold text-base"
-                    onClick={() => setShowUpdatePayment(false)}
-                  >
-                    {updateStatus === "CANCELLED" ? "ביטול ללא חיוב" : "אי הגעה ללא חיוב"}
-                  </Button>
-                )}
-
-                {!showUpdatePayment && (
-                  <div className="space-y-2 p-3 rounded-lg border bg-orange-50/50 border-orange-200">
-                    <Label className="text-sm text-orange-700">סיבה לאי חיוב (אופציונלי)</Label>
-                    <Textarea
-                      value={updateNoChargeReason}
-                      onChange={e => setUpdateNoChargeReason(e.target.value)}
-                      placeholder="לדוגמה: סיכום מראש, פגישת היכרות, הסדר מיוחד..."
-                      className="resize-none h-16 bg-white/80 border-orange-200 text-sm"
-                    />
-                    <Button
-                      type="button"
-                      variant="ghost"
-                      size="sm"
-                      className="text-xs text-sky-600"
-                      onClick={() => setShowUpdatePayment(true)}
-                    >
-                      ← חזרה לתשלום
-                    </Button>
-                  </div>
-                )}
-
-                {showUpdatePayment && (
-                  <div className="space-y-3 p-4 rounded-lg border bg-muted/30">
-                    <div className="flex items-center justify-between">
-                      <Label className="text-lg font-bold">
-                        {updateStatus === "COMPLETED" ? "עדכון ותשלום 💰" : updateStatus === "CANCELLED" ? "דמי ביטול 💰" : "חיוב אי הגעה 💰"}
-                      </Label>
-                    </div>
-
-                    <div className="grid grid-cols-2 gap-3">
-                      <div className="space-y-2">
-                        <Label>סכום</Label>
-                        <div className="relative">
-                          <Input
-                            type="number"
-                            value={updatePaymentAmount}
-                            onChange={e => setUpdatePaymentAmount(e.target.value)}
-                            className="pl-8"
-                            disabled={updatePaymentType !== "FULL"}
-                          />
-                          <span className="absolute left-3 top-1/2 -translate-y-1/2 text-sm text-muted-foreground">₪</span>
-                        </div>
-                      </div>
-                      <div className="space-y-2">
-                        <Label>אמצעי תשלום</Label>
-                        <Select value={updatePaymentMethod} onValueChange={setUpdatePaymentMethod}>
-                          <SelectTrigger>
-                            <SelectValue />
-                          </SelectTrigger>
-                          <SelectContent>
-                            <SelectItem value="CASH">מזומן</SelectItem>
-                            <SelectItem value="CREDIT_CARD">אשראי</SelectItem>
-                            <SelectItem value="BANK_TRANSFER">העברה</SelectItem>
-                            <SelectItem value="CHECK">צ׳ק</SelectItem>
-                            <SelectItem value="OTHER">אחר</SelectItem>
-                          </SelectContent>
-                        </Select>
-                      </div>
-                    </div>
-
-                    {updateBusinessType !== "NONE" && updateReceiptMode !== "NEVER" && (
-                      <div className="flex items-center gap-3 py-2 px-3 bg-sky-50 rounded-lg border border-sky-200">
-                        <Checkbox
-                          id="cal-update-issue-receipt"
-                          checked={updateIssueReceipt}
-                          onCheckedChange={(checked) => setUpdateIssueReceipt(checked === true)}
-                          disabled={updateReceiptMode === "ALWAYS"}
-                        />
-                        <Label htmlFor="cal-update-issue-receipt" className="cursor-pointer flex items-center gap-2 text-sky-800">
-                          <FileText className="h-4 w-4" />
-                          הוצא קבלה
-                          {updateReceiptMode === "ALWAYS" && (
-                            <span className="text-xs text-sky-600">(ברירת מחדל)</span>
-                          )}
-                        </Label>
-                      </div>
-                    )}
-
-                    <div className="space-y-3">
-                      <Button
-                        type="button"
-                        variant="ghost"
-                        size="sm"
-                        className="w-full justify-between font-semibold"
-                        onClick={() => setShowUpdateAdvanced(!showUpdateAdvanced)}
-                      >
-                        <span className="font-bold">אופציות מתקדמות</span>
-                        {showUpdateAdvanced ? <ChevronUp className="h-4 w-4" /> : <ChevronDown className="h-4 w-4" />}
-                      </Button>
-                      {showUpdateAdvanced && (
-                        <div className="space-y-2 pt-2">
-                          <div className="grid gap-2">
-                            <Button
-                              type="button"
-                              variant={updatePaymentType === "FULL" ? "default" : "outline"}
-                              size="sm"
-                              onClick={() => setUpdatePaymentType("FULL")}
-                            >
-                              תשלום מלא (₪{selectedSession.price})
-                            </Button>
-                            <Button
-                              type="button"
-                              variant={updatePaymentType === "PARTIAL" ? "default" : "outline"}
-                              size="sm"
-                              onClick={() => setUpdatePaymentType("PARTIAL")}
-                            >
-                              תשלום חלקי
-                            </Button>
-                            {updatePaymentType === "PARTIAL" && (
-                              <div className="pr-4 space-y-1">
-                                <Input
-                                  type="number"
-                                  placeholder="הכנס סכום"
-                                  value={updatePartialAmount}
-                                  onChange={e => setUpdatePartialAmount(e.target.value)}
-                                  max={selectedSession.price}
-                                  min={0}
-                                  step="0.01"
-                                />
-                                {updatePartialAmount && parseFloat(updatePartialAmount) < selectedSession.price && (
-                                  <p className="text-xs text-muted-foreground">
-                                    נותר לתשלום: ₪{selectedSession.price - parseFloat(updatePartialAmount)}
-                                  </p>
-                                )}
-                              </div>
-                            )}
-                          </div>
-                        </div>
-                      )}
-                    </div>
-                  </div>
-                )}
-              </>
-            )}
-
-            {updateStatus && updateClientDebt && updateClientDebt.count > 0 && updateClientDebt.total > 0 && (
-              <div className="pt-3 border-t mt-2">
-                <p className="text-sm text-muted-foreground mb-2 text-center">
-                  למטופל יש {updateClientDebt.count} פגישות ממתינות לתשלום
-                  (סה״כ חוב: ₪{updateClientDebt.total.toFixed(0)})
-                </p>
-                <Button
-                  variant="outline"
-                  className="w-full gap-2"
-                  asChild
-                >
-                  <Link href={`/dashboard/payments/pay/${selectedSession?.client?.id}`}>
-                    <Wallet className="h-4 w-4" />
-                    שלם את כל החוב
-                  </Link>
-                </Button>
-              </div>
-            )}
-          </div>
-          <DialogFooter className="flex flex-wrap gap-2 sm:gap-2">
-            <Button
-              variant="outline"
-              onClick={resetUpdateDialog}
-              disabled={updating}
-              className="font-medium"
-            >
-              ביטול
-            </Button>
-            {updateStatus && showUpdatePayment && selectedSession && selectedSession.price > 0 && (
-              <Button
-                variant="outline"
-                className="gap-2 font-bold border-amber-300 text-amber-700 hover:bg-amber-50"
-                onClick={async () => {
-                  if (!selectedSession.client) return;
-                  setUpdating(true);
-                  try {
-                    const statusBody: Record<string, unknown> = { status: updateStatus, createPayment: true, markAsPaid: false };
-                    if (updateStatus === "CANCELLED") {
-                      statusBody.cancellationReason = updateReason.trim() || undefined;
-                    }
-                    const response = await fetch(`/api/sessions/${selectedSession.id}`, {
-                      method: "PUT",
-                      headers: { "Content-Type": "application/json" },
-                      body: JSON.stringify(statusBody),
-                    });
-                    if (response.ok) {
-                      toast.success("הפגישה עודכנה והחוב נרשם");
-                      resetUpdateDialog();
-                      setSelectedSession(null);
-                      fetchData();
-                    } else {
-                      const errorData = await response.json().catch(() => null);
-                      toast.error(errorData?.message || "שגיאה בעדכון הפגישה");
-                    }
-                  } catch {
-                    toast.error("שגיאה בעדכון הפגישה");
-                  } finally {
-                    setUpdating(false);
-                  }
-                }}
-                disabled={updating}
-              >
-                {updating ? <Loader2 className="h-4 w-4 animate-spin ml-1" /> : <Wallet className="h-4 w-4 ml-1" />}
-                עדכן ורשום חוב
-              </Button>
-            )}
-            {showUpdatePayment && selectedSession && selectedSession.price > 0 ? (
-              <Button
-                onClick={handleUpdateSession}
-                disabled={updating || !updateStatus}
-                className="gap-2 font-bold bg-emerald-600 hover:bg-emerald-700"
-              >
-                {updating ? <Loader2 className="h-4 w-4 animate-spin" /> : <CheckCircle2 className="h-4 w-4" />}
-                {updateStatus === "COMPLETED" ? "עדכן ושלם" : updateStatus === "CANCELLED" ? "בטל וחייב" : updateStatus === "NO_SHOW" ? "עדכן וחייב" : "עדכן"}
-              </Button>
-            ) : (
-              <Button
-                onClick={handleUpdateSession}
-                disabled={updating || !updateStatus}
-                className={
-                  updateStatus === "COMPLETED" ? "bg-emerald-600 hover:bg-emerald-700" :
-                  updateStatus === "CANCELLED" ? "bg-red-500 hover:bg-red-600" :
-                  updateStatus === "NO_SHOW" ? "bg-amber-500 hover:bg-amber-600" : ""
-                }
-              >
-                {updating ? <Loader2 className="h-4 w-4 animate-spin ml-1" /> : null}
-                עדכן
-              </Button>
-            )}
-          </DialogFooter>
-        </DialogContent>
-      </Dialog>
-
-
-      {/* Overlaps Detection Dialog */}
-      <Dialog open={showOverlapsDialog} onOpenChange={setShowOverlapsDialog}>
-        <DialogContent className="sm:max-w-lg max-h-[80vh] overflow-y-auto">
-          <DialogHeader>
-            <DialogTitle className="flex items-center gap-2">
-              <AlertTriangle className="h-5 w-5 text-amber-500" />
-              פגישות חופפות ({overlaps.length})
-            </DialogTitle>
-            <DialogDescription>
-              הפגישות הבאות חופפות זו לזו. ניתן למחוק את הפגישה הלא רצויה.
-            </DialogDescription>
-          </DialogHeader>
-          <div className="space-y-3">
-            {overlaps.map((overlap, idx) => (
-              <div key={idx} className="border rounded-lg p-3 space-y-2">
-                <div className="flex items-center justify-between">
-                  <div className="text-sm">
-                    <p className="font-medium">{overlap.session1.clientName}</p>
-                    <p className="text-muted-foreground">
-                      {new Date(overlap.session1.startTime).toLocaleDateString("he-IL")}
-                      {" "}
-                      {new Date(overlap.session1.startTime).toLocaleTimeString("he-IL", { hour: "2-digit", minute: "2-digit" })}
-                      {" - "}
-                      {new Date(overlap.session1.endTime).toLocaleTimeString("he-IL", { hour: "2-digit", minute: "2-digit" })}
-                    </p>
-                  </div>
-                  <Button
-                    size="sm"
-                    variant="destructive"
-                    disabled={deletingOverlap === overlap.session1.id}
-                    onClick={async () => {
-                      if (!confirm("למחוק פגישה זו?")) return;
-                      setDeletingOverlap(overlap.session1.id);
-                      try {
-                        await fetch(`/api/sessions/${overlap.session1.id}`, { method: "DELETE" });
-                        toast.success("הפגישה נמחקה");
-                        fetchData();
-                        checkOverlaps();
-                      } catch { toast.error("שגיאה במחיקה"); }
-                      setDeletingOverlap(null);
-                    }}
-                  >
-                    <Trash2 className="h-3 w-3" />
-                  </Button>
-                </div>
-                <div className="text-xs text-center text-amber-500 font-medium">חופפת עם</div>
-                <div className="flex items-center justify-between">
-                  <div className="text-sm">
-                    <p className="font-medium">{overlap.session2.clientName}</p>
-                    <p className="text-muted-foreground">
-                      {new Date(overlap.session2.startTime).toLocaleDateString("he-IL")}
-                      {" "}
-                      {new Date(overlap.session2.startTime).toLocaleTimeString("he-IL", { hour: "2-digit", minute: "2-digit" })}
-                      {" - "}
-                      {new Date(overlap.session2.endTime).toLocaleTimeString("he-IL", { hour: "2-digit", minute: "2-digit" })}
-                    </p>
-                  </div>
-                  <Button
-                    size="sm"
-                    variant="destructive"
-                    disabled={deletingOverlap === overlap.session2.id}
-                    onClick={async () => {
-                      if (!confirm("למחוק פגישה זו?")) return;
-                      setDeletingOverlap(overlap.session2.id);
-                      try {
-                        await fetch(`/api/sessions/${overlap.session2.id}`, { method: "DELETE" });
-                        toast.success("הפגישה נמחקה");
-                        fetchData();
-                        checkOverlaps();
-                      } catch { toast.error("שגיאה במחיקה"); }
-                      setDeletingOverlap(null);
-                    }}
-                  >
-                    <Trash2 className="h-3 w-3" />
-                  </Button>
-                </div>
-              </div>
-            ))}
-          </div>
-        </DialogContent>
-      </Dialog>
+      <CalendarOverlapsDialog
+        showOverlapsDialog={showOverlapsDialog}
+        setShowOverlapsDialog={setShowOverlapsDialog}
+        overlaps={overlaps}
+        deletingOverlap={deletingOverlap}
+        setDeletingOverlap={setDeletingOverlap}
+        fetchData={fetchData}
+        checkOverlaps={checkOverlaps}
+      />
 
     </div>
   );
