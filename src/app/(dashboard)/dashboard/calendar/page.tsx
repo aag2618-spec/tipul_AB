@@ -697,9 +697,12 @@ export default function CalendarPage() {
       if (!response.ok) throw new Error("שגיאה בהחלת התבניות");
 
       const result = await response.json();
-      const msg = result.skipped > 0
-        ? `${result.created} פגישות נוצרו, ${result.skipped} דולגו`
-        : `${result.created} פגישות נוצרו מהתבניות`;
+      const created = typeof result.created === "number" ? result.created : 0;
+      const skipped = typeof result.skipped === "number" ? result.skipped : 0;
+      const msg =
+        skipped > 0
+          ? `${created} פגישות נוצרו, ${skipped} דולגו`
+          : `${created} פגישות נוצרו מהתבניות`;
       toast.success(msg);
       setApplyPreview(null);
       setConflictDecisions({});
