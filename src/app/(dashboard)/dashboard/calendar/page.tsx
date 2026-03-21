@@ -660,32 +660,14 @@ export default function CalendarPage() {
         return;
       }
 
-      // If there are conflicts, show preview dialog
-      if (previewData.conflicts > 0) {
-        setApplyPreview(previewData.preview);
-        // Set default decisions to "skip" for all conflicts
-        const defaults: Record<string, "skip" | "replace" | "create"> = {};
-        previewData.preview.forEach((item: { key: string; status: string }) => {
-          if (item.status === "conflict") defaults[item.key] = "skip";
-        });
-        setConflictDecisions(defaults);
-        setIsSubmitting(false);
-        return;
-      }
-
-      // No conflicts - create directly
-      const response = await fetch("/api/recurring-patterns/apply", {
-        method: "POST",
-        headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ weeksAhead }),
+      // Always show preview dialog - user confirms before creation
+      setApplyPreview(previewData.preview);
+      const defaults: Record<string, "skip" | "replace" | "create"> = {};
+      previewData.preview.forEach((item: { key: string; status: string }) => {
+        if (item.status === "conflict") defaults[item.key] = "skip";
       });
-
-      if (!response.ok) throw new Error("שגיאה בהחלת התבניות");
-
-      const result = await response.json();
-      toast.success(`${result.created} פגישות נוצרו מהתבניות`);
-      fetchData();
-      checkOverlaps();
+      setConflictDecisions(defaults);
+      setIsSubmitting(false);
     } catch {
       toast.error("שגיאה בהחלת התבניות");
     } finally {
