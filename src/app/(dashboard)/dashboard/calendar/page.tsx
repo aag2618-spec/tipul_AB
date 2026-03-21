@@ -158,6 +158,7 @@ export default function CalendarPage() {
     conflictWith?: { id: string; clientName: string; startTime: string; endTime: string };
   }[] | null>(null);
   const [conflictDecisions, setConflictDecisions] = useState<Record<string, "skip" | "replace" | "create">>({});
+  const [previewWeeksAhead, setPreviewWeeksAhead] = useState(4);
 
   useEffect(() => {
     if (!timeParam && !highlightParam) return;
@@ -643,33 +644,39 @@ export default function CalendarPage() {
     setIsSubmitting(true);
 
     try {
-      // Step 1: Dry run - get preview
+      // Step 1: Dry run - get preview (no-store: avoid any intermediary caching)
       const previewRes = await fetch("/api/recurring-patterns/apply", {
         method: "POST",
         headers: { "Content-Type": "application/json" },
         body: JSON.stringify({ weeksAhead, dryRun: true }),
+        cache: "no-store",
       });
 
-      if (!previewRes.ok) throw new Error("שגיאה בהחלת התבניות");
+      if (!previewRes.ok) {
+        const errBody = await previewRes.json().catch(() => null);
+        throw new Error(errBody?.message || "שגיאה בהחלת התבניות");
+      }
 
       const previewData = await previewRes.json();
+      const rows = Array.isArray(previewData?.preview) ? previewData.preview : [];
 
-      if (previewData.preview.length === 0) {
+      if (rows.length === 0) {
         toast.info("אין פגישות חדשות ליצירה");
-        setIsSubmitting(false);
         return;
       }
 
-      // Always show preview dialog - user confirms before creation
-      setApplyPreview(previewData.preview);
+      setPreviewWeeksAhead(weeksAhead);
       const defaults: Record<string, "skip" | "replace" | "create"> = {};
-      previewData.preview.forEach((item: { key: string; status: string }) => {
+      rows.forEach((item: { key: string; status: string }) => {
         if (item.status === "conflict") defaults[item.key] = "skip";
       });
       setConflictDecisions(defaults);
-      setIsSubmitting(false);
-    } catch {
-      toast.error("שגיאה בהחלת התבניות");
+      // Close recurring dialog first so the preview modal is not stacked behind it (both were z-50)
+      setIsRecurringDialogOpen(false);
+      setApplyPreview(rows);
+    } catch (e) {
+      console.error("apply recurring dryRun:", e);
+      toast.error(e instanceof Error ? e.message : "שגיאה בהחלת התבניות");
     } finally {
       setIsSubmitting(false);
     }
@@ -683,7 +690,8 @@ export default function CalendarPage() {
       const response = await fetch("/api/recurring-patterns/apply", {
         method: "POST",
         headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ weeksAhead: 4, resolutions }),
+        body: JSON.stringify({ weeksAhead: previewWeeksAhead, dryRun: false, resolutions }),
+        cache: "no-store",
       });
 
       if (!response.ok) throw new Error("שגיאה בהחלת התבניות");
@@ -1111,6 +1119,7 @@ export default function CalendarPage() {
                     ))}
                   </div>
                   <Button
+                    type="button"
                     onClick={() => handleApplyRecurring(4)}
                     disabled={isSubmitting}
                     className="w-full"
