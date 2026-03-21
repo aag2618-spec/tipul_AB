@@ -1,4 +1,5 @@
-const CACHE_NAME = 'tipul-v1';
+// Bump when caching strategy changes (v2: never cache POST/mutation API — was breaking dry-run vs apply)
+const CACHE_NAME = 'tipul-v2';
 const OFFLINE_URL = '/offline.html';
 
 // Assets to cache on install
@@ -43,21 +44,28 @@ self.addEventListener('fetch', (event) => {
     return;
   }
 
-  // API requests - network first, cache fallback
+  // API: always hit network for mutations; only cache safe GET (never cache POST — same URL can be dry-run vs apply)
   if (event.request.url.includes('/api/')) {
+    const method = (event.request.method || 'GET').toUpperCase();
+    const isReadOnly = method === 'GET' || method === 'HEAD';
     event.respondWith(
-      fetch(event.request)
-        .then((response) => {
-          // Clone the response
-          const responseToCache = response.clone();
-          caches.open(CACHE_NAME).then((cache) => {
-            cache.put(event.request, responseToCache);
-          });
+      (async () => {
+        try {
+          const response = await fetch(event.request);
+          if (isReadOnly && response.ok) {
+            const copy = response.clone();
+            const cache = await caches.open(CACHE_NAME);
+            await cache.put(event.request, copy);
+          }
           return response;
-        })
-        .catch(() => {
-          return caches.match(event.request);
-        })
+        } catch (e) {
+          if (isReadOnly) {
+            const cached = await caches.match(event.request);
+            if (cached) return cached;
+          }
+          throw e;
+        }
+      })()
     );
     return;
   }

@@ -665,15 +665,17 @@ export default function CalendarPage() {
         return;
       }
 
-      setPreviewWeeksAhead(weeksAhead);
-      const defaults: Record<string, "skip" | "replace" | "create"> = {};
-      rows.forEach((item: { key: string; status: string }) => {
-        if (item.status === "conflict") defaults[item.key] = "skip";
-      });
-      setConflictDecisions(defaults);
-      // Close recurring dialog first so the preview modal is not stacked behind it (both were z-50)
+      // Close recurring dialog first, then open preview on next tick (avoids Radix modal stack glitches)
       setIsRecurringDialogOpen(false);
-      setApplyPreview(rows);
+      window.setTimeout(() => {
+        setPreviewWeeksAhead(weeksAhead);
+        const defaults: Record<string, "skip" | "replace" | "create"> = {};
+        rows.forEach((item: { key: string; status: string }) => {
+          if (item.status === "conflict") defaults[item.key] = "skip";
+        });
+        setConflictDecisions(defaults);
+        setApplyPreview(rows);
+      }, 0);
     } catch (e) {
       console.error("apply recurring dryRun:", e);
       toast.error(e instanceof Error ? e.message : "שגיאה בהחלת התבניות");
@@ -1933,10 +1935,10 @@ export default function CalendarPage() {
             ))}
           </div>
           <DialogFooter className="gap-2">
-            <Button variant="outline" onClick={() => { setApplyPreview(null); setConflictDecisions({}); }}>
+            <Button type="button" variant="outline" onClick={() => { setApplyPreview(null); setConflictDecisions({}); }}>
               ביטול
             </Button>
-            <Button onClick={handleConfirmApply} disabled={isSubmitting}>
+            <Button type="button" onClick={handleConfirmApply} disabled={isSubmitting}>
               {isSubmitting ? <Loader2 className="ml-2 h-4 w-4 animate-spin" /> : null}
               אשר וצור {applyPreview?.filter(p => p.status === "ok" || conflictDecisions[p.key] !== "skip").length} פגישות
             </Button>

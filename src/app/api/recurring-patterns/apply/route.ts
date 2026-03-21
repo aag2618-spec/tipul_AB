@@ -39,6 +39,7 @@ export async function POST(request: NextRequest) {
     const weeksAhead = body.weeksAhead || 4;
     const dryRun = body.dryRun === true;
     const resolutions: ConflictResolution[] = body.resolutions || [];
+    const noStore = { "Cache-Control": "no-store, must-revalidate" };
 
     // Get active recurring patterns with client names
     const patterns = await prisma.recurringPattern.findMany({
@@ -56,7 +57,7 @@ export async function POST(request: NextRequest) {
         dryRun
           ? { preview: [], conflicts: 0 }
           : { message: "אין תבניות פעילות", created: 0 },
-        { status: 200 }
+        { status: 200, headers: noStore }
       );
     }
 
@@ -185,17 +186,23 @@ export async function POST(request: NextRequest) {
     }
 
     if (dryRun) {
-      return NextResponse.json({
-        preview,
-        conflicts: preview.filter(p => p.status === "conflict").length,
-      });
+      return NextResponse.json(
+        {
+          preview,
+          conflicts: preview.filter(p => p.status === "conflict").length,
+        },
+        { headers: noStore }
+      );
     }
 
-    return NextResponse.json({
-      message: `${created} פגישות נוצרו`,
-      created,
-      skipped,
-    });
+    return NextResponse.json(
+      {
+        message: `${created} פגישות נוצרו`,
+        created,
+        skipped,
+      },
+      { headers: noStore }
+    );
   } catch (error) {
     logger.error("Apply recurring patterns error:", { error: error instanceof Error ? error.message : String(error) });
     return NextResponse.json(
