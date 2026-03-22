@@ -1,6 +1,7 @@
 "use client";
 
 import { useState, useEffect } from "react";
+import { useRouter } from "next/navigation";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Textarea } from "@/components/ui/textarea";
@@ -19,9 +20,8 @@ import {
   SelectTrigger,
   SelectValue,
 } from "@/components/ui/select";
-import { CheckCircle2, Ban, UserX, Loader2, ChevronDown, ChevronUp, AlertCircle, Wallet, FileText } from "lucide-react";
+import { CheckCircle2, Ban, UserX, Loader2, ChevronDown, ChevronUp, AlertCircle, Wallet, FileText, ArrowLeft } from "lucide-react";
 import { Checkbox } from "@/components/ui/checkbox";
-import Link from "next/link";
 
 export interface UpdateSessionDialogParams {
   updateStatus: string;
@@ -61,6 +61,7 @@ export function UpdateSessionDialog({
   onUpdate,
   onRecordDebt,
 }: UpdateSessionDialogProps) {
+  const router = useRouter();
   const [updateStatus, setUpdateStatus] = useState<string>("");
   const [updateReason, setUpdateReason] = useState("");
   const [paymentMethod, setPaymentMethod] = useState("CASH");
@@ -148,6 +149,17 @@ export function UpdateSessionDialog({
     resetAndClose();
   };
 
+  const handleFinishAndPayAll = async () => {
+    await onRecordDebt({
+      updateStatus,
+      updateReason,
+    });
+    resetAndClose();
+    router.push(`/dashboard/payments/pay/${clientId}`);
+  };
+
+  const hasOldDebts = clientDebt && clientDebt.count > 0 && clientDebt.total > 0;
+
   return (
     <Dialog open={open} onOpenChange={(o) => { if (!o) resetAndClose(); }}>
       <DialogContent className="sm:max-w-[550px] max-h-[90vh] overflow-y-auto" dir="rtl">
@@ -207,7 +219,7 @@ export function UpdateSessionDialog({
 
           {updateStatus && price > 0 && (
             <>
-              {updateStatus !== "COMPLETED" && (
+              {updateStatus !== "COMPLETED" && !hasOldDebts && (
                 <Button
                   type="button"
                   variant="outline"
@@ -239,7 +251,49 @@ export function UpdateSessionDialog({
                 </div>
               )}
 
-              {showPayment && (
+              {showPayment && hasOldDebts && (
+                <div className="space-y-3 p-4 rounded-lg border bg-amber-50/50 border-amber-200">
+                  <p className="text-sm text-center font-medium">
+                    💡 למטופל זה יש {clientDebt!.count} פגישות שעדיין לא שולמו
+                  </p>
+                  <p className="text-sm text-center text-muted-foreground">
+                    (סה״כ חוב: ₪{clientDebt!.total.toFixed(0)})
+                  </p>
+                  <div className="space-y-2 pt-2">
+                    <Button
+                      type="button"
+                      className="w-full gap-2 font-bold bg-emerald-600 hover:bg-emerald-700"
+                      onClick={handleFinishAndPayAll}
+                      disabled={updating}
+                    >
+                      {updating ? <Loader2 className="h-4 w-4 animate-spin" /> : <Wallet className="h-4 w-4" />}
+                      סיים ועבור לתשלום הכל
+                    </Button>
+                    <Button
+                      type="button"
+                      variant="outline"
+                      className="w-full gap-2 border-amber-300 text-amber-700 hover:bg-amber-50"
+                      onClick={handleRecordDebtClick}
+                      disabled={updating}
+                    >
+                      {updating ? <Loader2 className="h-4 w-4 animate-spin" /> : <Wallet className="h-4 w-4" />}
+                      סיים ורשום כחוב
+                    </Button>
+                    <Button
+                      type="button"
+                      variant="ghost"
+                      size="sm"
+                      className="w-full gap-2 text-muted-foreground"
+                      onClick={() => setUpdateStatus("")}
+                    >
+                      <ArrowLeft className="h-3 w-3" />
+                      חזור
+                    </Button>
+                  </div>
+                </div>
+              )}
+
+              {showPayment && !hasOldDebts && (
                 <div className="space-y-3 p-4 rounded-lg border bg-muted/30">
                   <div className="flex items-center justify-between">
                     <Label className="text-lg font-bold">
@@ -353,68 +407,54 @@ export function UpdateSessionDialog({
               )}
             </>
           )}
-
-          {updateStatus && clientDebt && clientDebt.count > 0 && clientDebt.total > 0 && (
-            <div className="pt-3 border-t mt-2">
-              <p className="text-sm text-muted-foreground mb-2 text-center">
-                למטופל יש {clientDebt.count} פגישות ממתינות לתשלום
-                (סה״כ חוב: ₪{clientDebt.total.toFixed(0)})
-              </p>
-              <Button
-                variant="outline"
-                className="w-full gap-2"
-                asChild
-              >
-                <Link href={`/dashboard/payments/pay/${clientId}`}>
-                  <Wallet className="h-4 w-4" />
-                  שלם את כל החוב
-                </Link>
-              </Button>
-            </div>
-          )}
         </div>
         <DialogFooter className="flex flex-wrap gap-2 sm:gap-2">
-          <Button
-            variant="outline"
-            onClick={resetAndClose}
-            disabled={updating}
-            className="font-medium"
-          >
-            ביטול
-          </Button>
-          {updateStatus && showPayment && price > 0 && (
-            <Button
-              variant="outline"
-              className="gap-2 font-bold border-amber-300 text-amber-700 hover:bg-amber-50"
-              onClick={handleRecordDebtClick}
-              disabled={updating}
-            >
-              {updating ? <Loader2 className="h-4 w-4 animate-spin ml-1" /> : <Wallet className="h-4 w-4 ml-1" />}
-              עדכון ורשום חוב
-            </Button>
-          )}
-          {showPayment && price > 0 ? (
-            <Button
-              onClick={handleUpdateClick}
-              disabled={updating || !updateStatus}
-              className="gap-2 font-bold bg-emerald-600 hover:bg-emerald-700"
-            >
-              {updating ? <Loader2 className="h-4 w-4 animate-spin" /> : <CheckCircle2 className="h-4 w-4" />}
-              {updateStatus === "COMPLETED" ? "עדכון ושלם" : updateStatus === "CANCELLED" ? "בטל וחייב" : updateStatus === "NO_SHOW" ? "עדכון וחייב" : "עדכון"}
-            </Button>
-          ) : (
-            <Button
-              onClick={handleUpdateClick}
-              disabled={updating || !updateStatus}
-              className={
-                updateStatus === "COMPLETED" ? "bg-emerald-600 hover:bg-emerald-700" :
-                updateStatus === "CANCELLED" ? "bg-red-500 hover:bg-red-600" :
-                updateStatus === "NO_SHOW" ? "bg-amber-500 hover:bg-amber-600" : ""
-              }
-            >
-              {updating ? <Loader2 className="h-4 w-4 animate-spin ml-1" /> : null}
-              עדכון
-            </Button>
+          {/* כשיש חובות ישנים - הכפתורים כבר בתוך הלייאאוט למעלה */}
+          {!(updateStatus && showPayment && hasOldDebts && price > 0) && (
+            <>
+              <Button
+                variant="outline"
+                onClick={resetAndClose}
+                disabled={updating}
+                className="font-medium"
+              >
+                ביטול
+              </Button>
+              {updateStatus && showPayment && price > 0 && (
+                <Button
+                  variant="outline"
+                  className="gap-2 font-bold border-amber-300 text-amber-700 hover:bg-amber-50"
+                  onClick={handleRecordDebtClick}
+                  disabled={updating}
+                >
+                  {updating ? <Loader2 className="h-4 w-4 animate-spin ml-1" /> : <Wallet className="h-4 w-4 ml-1" />}
+                  עדכון ורשום חוב
+                </Button>
+              )}
+              {showPayment && price > 0 ? (
+                <Button
+                  onClick={handleUpdateClick}
+                  disabled={updating || !updateStatus}
+                  className="gap-2 font-bold bg-emerald-600 hover:bg-emerald-700"
+                >
+                  {updating ? <Loader2 className="h-4 w-4 animate-spin" /> : <CheckCircle2 className="h-4 w-4" />}
+                  {updateStatus === "COMPLETED" ? "עדכון ושלם" : updateStatus === "CANCELLED" ? "בטל וחייב" : updateStatus === "NO_SHOW" ? "עדכון וחייב" : "עדכון"}
+                </Button>
+              ) : (
+                <Button
+                  onClick={handleUpdateClick}
+                  disabled={updating || !updateStatus}
+                  className={
+                    updateStatus === "COMPLETED" ? "bg-emerald-600 hover:bg-emerald-700" :
+                    updateStatus === "CANCELLED" ? "bg-red-500 hover:bg-red-600" :
+                    updateStatus === "NO_SHOW" ? "bg-amber-500 hover:bg-amber-600" : ""
+                  }
+                >
+                  {updating ? <Loader2 className="h-4 w-4 animate-spin ml-1" /> : null}
+                  עדכון
+                </Button>
+              )}
+            </>
           )}
         </DialogFooter>
       </DialogContent>
