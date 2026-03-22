@@ -159,6 +159,12 @@ export default function CalendarPage() {
   }[] | null>(null);
   const [conflictDecisions, setConflictDecisions] = useState<Record<string, "skip" | "replace" | "create">>({});
   const [previewWeeksAhead, setPreviewWeeksAhead] = useState(4);
+  const [pendingFormRecurring, setPendingFormRecurring] = useState<{
+    clientId: string;
+    type: string;
+    price: string;
+    sessions: Array<{ startTime: string; endTime: string }>;
+  } | null>(null);
 
   useEffect(() => {
     if (!timeParam && !highlightParam) return;
@@ -555,7 +561,72 @@ export default function CalendarPage() {
     setIsSubmitting(true);
 
     try {
-      // Create the first session
+      // ── Recurring: show preview before creating ──
+      if (formData.isRecurring && formData.weeksToRepeat > 1) {
+        const startDate = new Date(formData.startTime);
+        const endDate = new Date(formData.endTime);
+        const client = clients.find((c) => c.id === formData.clientId);
+        const planned: Array<{ startLocal: string; endLocal: string; start: Date; end: Date }> = [];
+
+        for (let i = 0; i < formData.weeksToRepeat; i++) {
+          const s = addWeeks(startDate, i);
+          const e = addWeeks(endDate, i);
+          planned.push({
+            start: s,
+            end: e,
+            startLocal: format(s, "yyyy-MM-dd'T'HH:mm"),
+            endLocal: format(e, "yyyy-MM-dd'T'HH:mm"),
+          });
+        }
+
+        const previewItems = planned.map((p, idx) => {
+          const dateStr = format(p.start, "yyyy-MM-dd");
+          const timeStr = format(p.start, "HH:mm");
+          const key = `form_${dateStr}_${timeStr}_${idx}`;
+          const overlap = sessions.find((s) => {
+            if (s.status === "CANCELLED") return false;
+            const sStart = new Date(s.startTime);
+            const sEnd = new Date(s.endTime);
+            return p.start < sEnd && p.end > sStart;
+          });
+          return {
+            key,
+            date: dateStr,
+            time: timeStr,
+            clientName: client?.name || (formData.type === "BREAK" ? "הפסקה" : "ללא שם"),
+            clientId: formData.clientId,
+            patternId: "",
+            status: (overlap ? "conflict" : "ok") as "ok" | "conflict",
+            conflictWith: overlap
+              ? {
+                  id: overlap.id,
+                  clientName: overlap.client?.name || (overlap.type === "BREAK" ? "הפסקה" : "ללא שם"),
+                  startTime: overlap.startTime,
+                  endTime: overlap.endTime,
+                }
+              : undefined,
+          };
+        });
+
+        const defaults: Record<string, "skip" | "replace" | "create"> = {};
+        previewItems.forEach((item) => {
+          if (item.status === "conflict") defaults[item.key] = "skip";
+        });
+
+        setPendingFormRecurring({
+          clientId: formData.clientId,
+          type: formData.type,
+          price: formData.price,
+          sessions: planned.map((p) => ({ startTime: p.startLocal, endTime: p.endLocal })),
+        });
+        setConflictDecisions(defaults);
+        setApplyPreview(previewItems);
+        setIsDialogOpen(false);
+        setIsSubmitting(false);
+        return;
+      }
+
+      // ── Single session: create directly ──
       const response = await fetch("/api/sessions", {
         method: "POST",
         headers: { "Content-Type": "application/json" },
@@ -565,7 +636,7 @@ export default function CalendarPage() {
           endTime: formData.endTime,
           type: formData.type,
           price: parseFloat(formData.price) || 0,
-          isRecurring: formData.isRecurring,
+          isRecurring: false,
         }),
       });
 
@@ -574,38 +645,7 @@ export default function CalendarPage() {
         throw new Error(errData?.message || "שגיאה ביצירת הפגישה");
       }
 
-      // If recurring, create additional sessions for future weeks
-      if (formData.isRecurring && formData.weeksToRepeat > 1) {
-        const startDate = new Date(formData.startTime);
-        const endDate = new Date(formData.endTime);
-
-        for (let i = 1; i < formData.weeksToRepeat; i++) {
-          const newStart = addWeeks(startDate, i);
-          const newEnd = addWeeks(endDate, i);
-
-          // Use local datetime format (same as first session) to preserve timezone
-          const newStartLocal = format(newStart, "yyyy-MM-dd'T'HH:mm");
-          const newEndLocal = format(newEnd, "yyyy-MM-dd'T'HH:mm");
-
-          await fetch("/api/sessions", {
-            method: "POST",
-            headers: { "Content-Type": "application/json" },
-            body: JSON.stringify({
-              clientId: formData.clientId,
-              startTime: newStartLocal,
-              endTime: newEndLocal,
-              type: formData.type,
-              price: parseFloat(formData.price) || 0,
-              isRecurring: true,
-            }),
-          });
-        }
-      }
-
-      toast.success(formData.isRecurring 
-        ? `${formData.weeksToRepeat} פגישות נוצרו בהצלחה` 
-        : "הפגישה נוצרה בהצלחה"
-      );
+      toast.success("הפגישה נוצרה בהצלחה");
       setIsDialogOpen(false);
       fetchData();
     } catch (err) {
@@ -684,6 +724,61 @@ export default function CalendarPage() {
   const handleConfirmApply = async () => {
     setIsSubmitting(true);
     try {
+      // ── Form-based recurring ──
+      if (pendingFormRecurring && applyPreview) {
+        let created = 0;
+        let skipped = 0;
+
+        for (let i = 0; i < pendingFormRecurring.sessions.length; i++) {
+          const session = pendingFormRecurring.sessions[i];
+          const item = applyPreview[i];
+
+          if (item?.status === "conflict") {
+            const decision = conflictDecisions[item.key];
+            if (!decision || decision === "skip") {
+              skipped++;
+              continue;
+            }
+            if (decision === "replace" && item.conflictWith) {
+              await fetch(`/api/sessions/${item.conflictWith.id}`, {
+                method: "PUT",
+                headers: { "Content-Type": "application/json" },
+                body: JSON.stringify({ status: "CANCELLED" }),
+              });
+            }
+          }
+
+          const res = await fetch("/api/sessions", {
+            method: "POST",
+            headers: { "Content-Type": "application/json" },
+            body: JSON.stringify({
+              clientId: pendingFormRecurring.clientId,
+              startTime: session.startTime,
+              endTime: session.endTime,
+              type: pendingFormRecurring.type,
+              price: parseFloat(pendingFormRecurring.price) || 0,
+              isRecurring: true,
+            }),
+          });
+
+          if (res.ok) created++;
+          else skipped++;
+        }
+
+        const msg =
+          skipped > 0
+            ? `${created} פגישות נוצרו, ${skipped} דולגו`
+            : `${created} פגישות נוצרו בהצלחה`;
+        toast.success(msg);
+        setPendingFormRecurring(null);
+        setApplyPreview(null);
+        setConflictDecisions({});
+        fetchData();
+        checkOverlaps();
+        return;
+      }
+
+      // ── Pattern-based recurring ──
       const resolutions = Object.entries(conflictDecisions).map(([key, action]) => ({ key, action }));
 
       const response = await fetch("/api/recurring-patterns/apply", {
@@ -1081,6 +1176,7 @@ export default function CalendarPage() {
           if (!open) {
             setApplyPreview(null);
             setConflictDecisions({});
+            setPendingFormRecurring(null);
           }
         }}
       >
@@ -1167,7 +1263,7 @@ export default function CalendarPage() {
                     setConflictDecisions({});
                   }}
                 >
-                  חזרה לתבניות
+                  {pendingFormRecurring ? "ביטול" : "חזרה לתבניות"}
                 </Button>
                 <div className="flex gap-2 w-full sm:w-auto justify-end">
                   <Button type="button" onClick={handleConfirmApply} disabled={isSubmitting} className="flex-1 sm:flex-initial">
