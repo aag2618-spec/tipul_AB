@@ -748,6 +748,7 @@ export default function CalendarPage() {
             }
           }
 
+          const isOverlapAllowed = item?.status === "conflict" && conflictDecisions[item.key] === "create";
           const res = await fetch("/api/sessions", {
             method: "POST",
             headers: { "Content-Type": "application/json" },
@@ -758,6 +759,7 @@ export default function CalendarPage() {
               type: pendingFormRecurring.type,
               price: parseFloat(pendingFormRecurring.price) || 0,
               isRecurring: true,
+              allowOverlap: isOverlapAllowed || undefined,
             }),
           });
 

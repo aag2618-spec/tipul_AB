@@ -10,6 +10,7 @@ export const createSessionSchema = z.object({
   location: z.string().optional(),
   notes: z.string().optional(),
   isRecurring: z.boolean().optional(),
+  allowOverlap: z.boolean().optional(),
 }).refine(
   (data) => {
     if (data.type !== "BREAK" && !data.clientId) {

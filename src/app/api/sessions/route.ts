@@ -62,7 +62,7 @@ export async function POST(request: NextRequest) {
 
     const parsed = await parseBody(request, createSessionSchema);
     if ("error" in parsed) return parsed.error;
-    const { clientId, startTime, endTime, type, price, location, notes, isRecurring } = parsed.data;
+    const { clientId, startTime, endTime, type, price, location, notes, isRecurring, allowOverlap } = parsed.data;
 
     // Verify client belongs to therapist (skip for BREAK)
     let clientDefaultPrice = 0;
@@ -114,7 +114,7 @@ export async function POST(request: NextRequest) {
       },
     });
 
-    if (conflict) {
+    if (conflict && !allowOverlap) {
       return NextResponse.json(
         { message: "יש התנגשות עם פגישה קיימת" },
         { status: 400 }
