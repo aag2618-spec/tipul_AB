@@ -15,7 +15,7 @@ import { Textarea } from "@/components/ui/textarea";
 import { Plus, Loader2, Calendar, Repeat, Settings, Waves, Trash2, User, FileText, Clock, AlertCircle, AlertTriangle, Ban, UserX } from "lucide-react";
 import { format, addWeeks } from "date-fns";
 import { toast } from "sonner";
-import type { EventClickArg } from "@fullcalendar/core";
+import type { EventClickArg, DatesSetArg } from "@fullcalendar/core";
 import type { DateClickArg } from "@fullcalendar/interaction";
 import { QuickMarkPaid } from "@/components/payments/quick-mark-paid";
 import Link from "next/link";
@@ -107,6 +107,7 @@ export default function CalendarPage() {
     checkOverlaps,
     overlaps,
     setOverlaps,
+    setDateRange,
   } = useCalendarData();
 
   const [isDialogOpen, setIsDialogOpen] = useState(false);
@@ -257,6 +258,16 @@ export default function CalendarPage() {
       type: session.type,
     },
   }));
+
+  // Update date range when calendar view changes (month/week navigation)
+  const handleDatesSet = useCallback((info: DatesSetArg) => {
+    const start = info.start.toISOString().split("T")[0] + "T00:00";
+    const end = info.end.toISOString().split("T")[0] + "T23:59";
+    setDateRange(prev => {
+      if (prev && prev.start === start && prev.end === end) return prev;
+      return { start, end };
+    });
+  }, [setDateRange]);
 
   const handleDateClick = (info: DateClickArg) => {
     // אם בתצוגת חודש, עבור לתצוגת שבוע של אותו תאריך
@@ -916,6 +927,7 @@ export default function CalendarPage() {
             allDaySlot={false}
             slotDuration="00:30:00"
             events={events}
+            datesSet={handleDatesSet}
             dateClick={handleDateClick}
             eventClick={handleEventClick}
             eventContent={renderEventContent}

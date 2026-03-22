@@ -42,11 +42,17 @@ export function useCalendarData() {
   const [isLoading, setIsLoading] = useState(true);
   const [defaultSessionDuration, setDefaultSessionDuration] = useState(50);
   const [overlaps, setOverlaps] = useState<SessionOverlap[]>([]);
+  const [dateRange, setDateRange] = useState<{ start: string; end: string } | null>(null);
+
+  const buildSessionsUrl = useCallback(() => {
+    if (!dateRange) return "/api/sessions";
+    return `/api/sessions?startDate=${dateRange.start}&endDate=${dateRange.end}`;
+  }, [dateRange]);
 
   const fetchData = useCallback(async () => {
     try {
       const [sessionsRes, clientsRes, patternsRes, profileRes] = await Promise.all([
-        fetch("/api/sessions"),
+        fetch(buildSessionsUrl()),
         fetch("/api/clients"),
         fetch("/api/recurring-patterns"),
         fetch("/api/user/profile"),
@@ -80,7 +86,7 @@ export function useCalendarData() {
     } finally {
       setIsLoading(false);
     }
-  }, []);
+  }, [buildSessionsUrl]);
 
   const checkOverlaps = useCallback(async () => {
     try {
@@ -99,7 +105,7 @@ export function useCalendarData() {
     checkOverlaps();
 
     const interval = setInterval(() => {
-      fetch("/api/sessions")
+      fetch(buildSessionsUrl())
         .then(async (res) => {
           if (res.ok) {
             const data = await res.json();
@@ -117,7 +123,7 @@ export function useCalendarData() {
     }, 30_000);
 
     const onFocus = () => {
-      fetch("/api/sessions")
+      fetch(buildSessionsUrl())
         .then(async (res) => {
           if (res.ok) {
             const data = await res.json();
@@ -139,7 +145,7 @@ export function useCalendarData() {
       clearInterval(interval);
       window.removeEventListener("focus", onFocus);
     };
-  }, [fetchData, checkOverlaps]);
+  }, [fetchData, checkOverlaps, buildSessionsUrl]);
 
   return {
     sessions,
@@ -152,5 +158,6 @@ export function useCalendarData() {
     checkOverlaps,
     overlaps,
     setOverlaps,
+    setDateRange,
   };
 }
