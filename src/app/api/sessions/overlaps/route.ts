@@ -30,32 +30,33 @@ export async function GET() {
       session2: { id: string; clientName: string | null; startTime: Date; endTime: Date };
     }[] = [];
 
+    // Sessions are sorted by startTime ASC, so we only need to check
+    // each session against the ones that follow while they still overlap
     for (let i = 0; i < sessions.length; i++) {
+      const a = sessions[i];
+      const aEnd = new Date(a.endTime).getTime();
+
       for (let j = i + 1; j < sessions.length; j++) {
-        const a = sessions[i];
         const b = sessions[j];
-
-        const aStart = new Date(a.startTime).getTime();
-        const aEnd = new Date(a.endTime).getTime();
         const bStart = new Date(b.startTime).getTime();
-        const bEnd = new Date(b.endTime).getTime();
 
-        if (aStart < bEnd && bStart < aEnd) {
-          overlaps.push({
-            session1: {
-              id: a.id,
-              clientName: a.client?.name || (a.type === "BREAK" ? "הפסקה" : "ללא מטופל"),
-              startTime: a.startTime,
-              endTime: a.endTime,
-            },
-            session2: {
-              id: b.id,
-              clientName: b.client?.name || (b.type === "BREAK" ? "הפסקה" : "ללא מטופל"),
-              startTime: b.startTime,
-              endTime: b.endTime,
-            },
-          });
-        }
+        // Since sorted by startTime, if b starts after a ends, no more overlaps for a
+        if (bStart >= aEnd) break;
+
+        overlaps.push({
+          session1: {
+            id: a.id,
+            clientName: a.client?.name || (a.type === "BREAK" ? "הפסקה" : "ללא מטופל"),
+            startTime: a.startTime,
+            endTime: a.endTime,
+          },
+          session2: {
+            id: b.id,
+            clientName: b.client?.name || (b.type === "BREAK" ? "הפסקה" : "ללא מטופל"),
+            startTime: b.startTime,
+            endTime: b.endTime,
+          },
+        });
       }
     }
 
