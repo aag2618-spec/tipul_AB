@@ -84,6 +84,51 @@ export async function PUT(
           ? Number(existingSession.client.defaultSessionPrice)
           : undefined);
 
+    // Check for overlaps when changing time
+    if (startTime || endTime) {
+      const newStart = startTime ? parseIsraelTime(startTime) : existingSession.startTime;
+      const newEnd = endTime ? parseIsraelTime(endTime) : existingSession.endTime;
+
+      const conflict = await prisma.therapySession.findFirst({
+        where: {
+          therapistId: userId,
+          id: { not: id }, // exclude this session
+          status: { not: "CANCELLED" },
+          OR: [
+            {
+              AND: [
+                { startTime: { lte: newStart } },
+                { endTime: { gt: newStart } },
+              ],
+            },
+            {
+              AND: [
+                { startTime: { lt: newEnd } },
+                { endTime: { gte: newEnd } },
+              ],
+            },
+            {
+              AND: [
+                { startTime: { gte: newStart } },
+                { endTime: { lte: newEnd } },
+              ],
+            },
+          ],
+        },
+        include: {
+          client: { select: { name: true } },
+        },
+      });
+
+      if (conflict) {
+        const conflictName = conflict.client?.name || (conflict.type === "BREAK" ? "הפסקה" : "פגישה");
+        return NextResponse.json(
+          { message: `יש התנגשות עם ${conflictName} בשעה ${conflict.startTime.toISOString()}` },
+          { status: 409 }
+        );
+      }
+    }
+
     const therapySession = await prisma.therapySession.update({
       where: { id },
       data: {

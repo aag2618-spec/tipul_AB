@@ -1534,13 +1534,14 @@ export default function CalendarPage() {
                               startTime: newStartTime.toISOString(),
                               endTime: newEndTime.toISOString(),
                             }),
-                          }).then(res => {
+                          }).then(async res => {
                             if (res.ok) {
                               toast.success("הזמן עודכן בהצלחה");
                               fetchData();
                               res.json().then(updated => setSelectedSession(updated));
                             } else {
-                              toast.error("שגיאה בעדכון הזמן");
+                              const err = await res.json().catch(() => null);
+                              toast.error(err?.message || "שגיאה בעדכון הזמן");
                             }
                           });
                         }}
@@ -1548,7 +1549,7 @@ export default function CalendarPage() {
                         className="text-sm"
                       />
                     </div>
-                    
+
                     <div className="space-y-2">
                       <Label htmlFor="edit-endTime" className="text-xs">שעת סיום</Label>
                       <Input
@@ -1557,20 +1558,21 @@ export default function CalendarPage() {
                         value={format(new Date(selectedSession.endTime), "yyyy-MM-dd'T'HH:mm")}
                         onChange={(e) => {
                           const newEndTime = new Date(e.target.value);
-                          
+
                           fetch(`/api/sessions/${selectedSession.id}`, {
                             method: "PUT",
                             headers: { "Content-Type": "application/json" },
                             body: JSON.stringify({
                               endTime: newEndTime.toISOString(),
                             }),
-                          }).then(res => {
+                          }).then(async res => {
                             if (res.ok) {
                               toast.success("הזמן עודכן בהצלחה");
                               fetchData();
                               res.json().then(updated => setSelectedSession(updated));
                             } else {
-                              toast.error("שגיאה בעדכון הזמן");
+                              const err = await res.json().catch(() => null);
+                              toast.error(err?.message || "שגיאה בעדכון הזמן");
                             }
                           });
                         }}
