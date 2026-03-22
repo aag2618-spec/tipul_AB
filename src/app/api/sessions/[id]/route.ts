@@ -160,7 +160,7 @@ export async function PUT(
         },
       });
       if (!existingPayment) {
-        await createPaymentForSession({
+        const paymentResult = await createPaymentForSession({
           userId,
           clientId: therapySession.clientId,
           sessionId: therapySession.id,
@@ -169,6 +169,20 @@ export async function PUT(
           method: "CASH",
           paymentType: "FULL",
         });
+
+        // אם יצירת התשלום נכשלה - מחזירים את הפגישה למצב הקודם
+        if (!paymentResult.success) {
+          await prisma.therapySession.update({
+            where: { id },
+            data: {
+              status: existingSession.status,
+            },
+          });
+          return NextResponse.json(
+            { message: paymentResult.error || "שגיאה ביצירת התשלום, הפגישה לא עודכנה" },
+            { status: 500 }
+          );
+        }
       }
     }
 
