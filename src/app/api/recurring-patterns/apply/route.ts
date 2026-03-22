@@ -68,12 +68,15 @@ export async function POST(request: NextRequest) {
     });
     const defaultPrice = latestSession?.price || 300;
 
-    let created = 0;
     let skipped = 0;
     const now = new Date();
     const weekStart = startOfWeek(now, { weekStartsOn: 0 }); // Sunday
     const preview: PreviewItem[] = [];
     const resolutionMap = new Map(resolutions.map(r => [r.key, r.action]));
+
+    // Collect all DB operations before executing them in a transaction
+    const cancelOps: { id: string }[] = [];
+    const createOps: Parameters<typeof prisma.therapySession.create>[0]["data"][] = [];
 
     for (let week = 0; week < weeksAhead; week++) {
       const currentWeekStart = addWeeks(weekStart, week);
@@ -153,11 +156,8 @@ export async function POST(request: NextRequest) {
           const resolution = resolutionMap.get(itemKey);
 
           if (resolution === "replace") {
-            // Cancel existing session and create new one
-            await prisma.therapySession.update({
-              where: { id: conflict.id },
-              data: { status: "CANCELLED", cancelledAt: now, cancelledBy: "THERAPIST" },
-            });
+            // Mark for cancellation (will execute in transaction)
+            cancelOps.push({ id: conflict.id });
           } else if (resolution === "create") {
             // Create anyway (allow overlap) - fall through to creation
           } else {
@@ -167,21 +167,17 @@ export async function POST(request: NextRequest) {
           }
         }
 
-        // Create the session
-        await prisma.therapySession.create({
-          data: {
-            therapistId: userId,
-            clientId: pattern.clientId,
-            startTime: sessionStart,
-            endTime: sessionEnd,
-            status: "SCHEDULED",
-            type: "IN_PERSON",
-            price: defaultPrice,
-            isRecurring: true,
-          },
+        // Collect session for creation (will execute in transaction)
+        createOps.push({
+          therapistId: userId,
+          clientId: pattern.clientId,
+          startTime: sessionStart,
+          endTime: sessionEnd,
+          status: "SCHEDULED",
+          type: "IN_PERSON",
+          price: defaultPrice,
+          isRecurring: true,
         });
-
-        created++;
       }
     }
 
@@ -194,6 +190,21 @@ export async function POST(request: NextRequest) {
         { headers: noStore }
       );
     }
+
+    // Execute all operations in a single transaction (all-or-nothing)
+    await prisma.$transaction([
+      ...cancelOps.map(op =>
+        prisma.therapySession.update({
+          where: { id: op.id },
+          data: { status: "CANCELLED", cancelledAt: now, cancelledBy: "THERAPIST" },
+        })
+      ),
+      ...createOps.map(op =>
+        prisma.therapySession.create({ data: op })
+      ),
+    ]);
+
+    const created = createOps.length;
 
     return NextResponse.json(
       {
