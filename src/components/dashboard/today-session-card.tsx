@@ -276,15 +276,8 @@ export function TodaySessionCard({ session }: TodaySessionCardProps) {
       });
 
       if (response.ok) {
-        const updatedSession = await response.json();
         toast.success("הפגישה הושלמה, מעבר לדף תשלום...");
-        // Navigate to simple payment page with payment ID
-        if (updatedSession.payment?.id) {
-          router.push(`/dashboard/payments/${updatedSession.payment.id}/mark-paid`);
-        } else {
-          // Fallback to full payment page if no payment created
-          router.push(`/dashboard/payments/pay/${session.client.id}`);
-        }
+        router.push(`/dashboard/payments/pay/${session.client.id}`);
       }
     } catch {
       toast.error("שגיאה בעדכון הפגישה");
@@ -332,17 +325,11 @@ export function TodaySessionCard({ session }: TodaySessionCardProps) {
       setPendingAction(null);
 
       if (shouldCharge) {
-        const updatedSession = await response.json();
         toast.success(pendingAction === "CANCELLED" ? "הפגישה בוטלה וחויבה. מעבר לדף תשלום..." : "דווחה אי הופעה וחויב. מעבר לדף תשלום...");
-        // Navigate to simple payment page with payment ID
         const clientId = session.client?.id;
         if (clientId) {
           setTimeout(() => {
-            if (updatedSession.payment?.id) {
-              router.push(`/dashboard/payments/${updatedSession.payment.id}/mark-paid`);
-            } else {
-              router.push(`/dashboard/payments/pay/${clientId}`);
-            }
+            router.push(`/dashboard/payments/pay/${clientId}`);
           }, 500);
         } else {
           toast.error("שגיאה: לא נמצא מזהה מטופל");
