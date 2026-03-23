@@ -214,7 +214,7 @@ export default function CalendarPage() {
     setInitialFormData({
       clientId: "",
       startTime: `${dateStr}T${timeStr}`,
-      endTime: `${dateStr}T${format(endTime, "HH:mm")}`,
+      endTime: format(endTime, "yyyy-MM-dd'T'HH:mm"),
       type: "IN_PERSON",
       price: "",
       isRecurring: false,
@@ -386,7 +386,7 @@ export default function CalendarPage() {
     setInitialFormData({
       clientId: session.client?.id || "",
       startTime: `${dateStr}T${timeStr}`,
-      endTime: `${dateStr}T${format(newEndTime, "HH:mm")}`,
+      endTime: format(newEndTime, "yyyy-MM-dd'T'HH:mm"),
       type: session.type,
       price: session.client?.defaultSessionPrice?.toString() || "",
       isRecurring: false,
