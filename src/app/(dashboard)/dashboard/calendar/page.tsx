@@ -51,7 +51,6 @@ interface CalendarEvent {
   };
 }
 
-// TIME_SLOTS and DAYS_OF_WEEK moved to recurring-pattern-dialog.tsx
 
 export default function CalendarPage() {
   const router = useRouter();
@@ -60,6 +59,8 @@ export default function CalendarPage() {
   const dateParam = searchParams.get('date');
   const timeParam = searchParams.get('time');
   const highlightParam = searchParams.get('highlight');
+  const clientParam = searchParams.get('client');
+  const newParam = searchParams.get('new');
   const initialCalendarView = viewParam === 'month' ? 'dayGridMonth' : 'timeGridWeek';
   const initialDate = dateParam && /^\d{4}-\d{2}-\d{2}$/.test(dateParam) ? dateParam : undefined;
 
@@ -74,7 +75,6 @@ export default function CalendarPage() {
 
   const {
     sessions,
-    setSessions,
     clients,
     recurringPatterns,
     isLoading,
@@ -82,7 +82,6 @@ export default function CalendarPage() {
     fetchData,
     checkOverlaps,
     overlaps,
-    setOverlaps,
     setDateRange,
   } = useCalendarData();
 
@@ -106,7 +105,6 @@ export default function CalendarPage() {
   } | null>(null);
   const [selectedDate, setSelectedDate] = useState<Date | null>(null);
   const [initialFormData, setInitialFormData] = useState<SessionFormData>(DEFAULT_FORM_DATA);
-  // isSubmitting is no longer needed here - moved to dialog components
   const [showOverlapsDialog, setShowOverlapsDialog] = useState(false);
   const [deletingOverlap, setDeletingOverlap] = useState<string | null>(null);
   const [applyPreview, setApplyPreview] = useState<{
@@ -120,7 +118,6 @@ export default function CalendarPage() {
     conflictWith?: { id: string; clientName: string; startTime: string; endTime: string };
   }[] | null>(null);
   const [conflictDecisions, setConflictDecisions] = useState<Record<string, "skip" | "replace" | "create">>({});
-  // previewWeeksAhead moved to RecurringPatternDialog
   const [pendingFormRecurring, setPendingFormRecurring] = useState<{
     clientId: string;
     type: string;
@@ -152,7 +149,21 @@ export default function CalendarPage() {
     return () => clearTimeout(timer);
   }, [timeParam, highlightParam]);
 
-  // recurringFormData duration sync moved to RecurringPatternDialog
+  // פתיחת דיאלוג פגישה חדשה אוטומטית כשמגיעים עם פרמטרים בכתובת
+  useEffect(() => {
+    if (isLoading || (!newParam && !clientParam)) return;
+    const formData = { ...DEFAULT_FORM_DATA };
+    if (clientParam) {
+      formData.clientId = clientParam;
+      const client = clients.find(c => c.id === clientParam);
+      if (client?.defaultSessionPrice) {
+        formData.price = String(client.defaultSessionPrice);
+      }
+    }
+    setSelectedDate(new Date());
+    setInitialFormData(formData);
+    setIsDialogOpen(true);
+  }, [isLoading]); // eslint-disable-line react-hooks/exhaustive-deps
 
   // הצג פגישות מבוטלות שכבר עברו, הסתר מבוטלות עתידיות
   const events: CalendarEvent[] = sessions
@@ -271,8 +282,6 @@ export default function CalendarPage() {
     });
     setIsDialogOpen(true);
   };
-
-  // handleDeleteSession moved to SessionDetailDialog
 
   if (isLoading) {
     return (
