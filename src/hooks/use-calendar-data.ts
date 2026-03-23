@@ -3,6 +3,7 @@
 import { useState, useCallback, useEffect } from "react";
 import { toast } from "sonner";
 import type { SessionOverlap } from "@/types";
+import { mapSessions } from "@/lib/calendar/session-mapper";
 
 export interface CalendarClient {
   id: string;
@@ -61,13 +62,7 @@ export function useCalendarData() {
       if (sessionsRes.ok && clientsRes.ok) {
         const sessionsData = await sessionsRes.json();
         const clientsData = await clientsRes.json();
-        const mappedSessions = sessionsData.map((session: CalendarSession & { sessionNote?: { content?: string } | string }) => ({
-          ...session,
-          sessionNote: typeof session.sessionNote === "object" && session.sessionNote && "content" in session.sessionNote
-            ? (session.sessionNote as { content?: string }).content ?? null
-            : (typeof session.sessionNote === "string" ? session.sessionNote : null),
-        }));
-        setSessions(mappedSessions);
+        setSessions(mapSessions(sessionsData));
         setClients(clientsData);
       }
 
@@ -109,13 +104,7 @@ export function useCalendarData() {
         .then(async (res) => {
           if (res.ok) {
             const data = await res.json();
-            const mapped = data.map((s: CalendarSession & { sessionNote?: { content?: string } | string }) => ({
-              ...s,
-              sessionNote: typeof s.sessionNote === "object" && s.sessionNote && "content" in s.sessionNote
-                ? (s.sessionNote as { content?: string }).content ?? null
-                : (typeof s.sessionNote === "string" ? s.sessionNote : null),
-            }));
-            setSessions(mapped);
+            setSessions(mapSessions(data));
             checkOverlaps();
           }
         })
@@ -127,13 +116,7 @@ export function useCalendarData() {
         .then(async (res) => {
           if (res.ok) {
             const data = await res.json();
-            const mapped = data.map((s: CalendarSession & { sessionNote?: { content?: string } | string }) => ({
-              ...s,
-              sessionNote: typeof s.sessionNote === "object" && s.sessionNote && "content" in s.sessionNote
-                ? (s.sessionNote as { content?: string }).content ?? null
-                : (typeof s.sessionNote === "string" ? s.sessionNote : null),
-            }));
-            setSessions(mapped);
+            setSessions(mapSessions(data));
             checkOverlaps();
           }
         })

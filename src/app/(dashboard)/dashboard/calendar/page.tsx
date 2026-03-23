@@ -23,6 +23,7 @@ import type { SessionOverlap } from "@/types";
 import { CalendarOverlapsDialog } from "@/components/calendar/calendar-overlaps-dialog";
 import { UpdateSessionDialog, type UpdateSessionDialogParams } from "@/components/update-session-dialog";
 import { useCalendarData, type CalendarClient, type CalendarSession, type RecurringPattern } from "@/hooks/use-calendar-data";
+import { getEventColors } from "@/lib/calendar/event-colors";
 
 // Dynamic import for FullCalendar to avoid SSR issues
 const FullCalendar = dynamic(
@@ -40,6 +41,7 @@ interface CalendarEvent {
   start: Date;
   end: Date;
   backgroundColor: string;
+  textColor: string;
   borderColor: string;
   classNames?: string[];
   extendedProps: {
@@ -201,63 +203,27 @@ export default function CalendarPage() {
       if (session.status !== "CANCELLED") return true;
       return new Date(session.endTime) < new Date();
     })
-    .map((session) => ({
-      id: session.id,
-      title: session.type === "BREAK" ? "🌊 הפסקה" : (session.client?.name || "ללא שם"),
-      start: new Date(session.startTime),
-      end: new Date(session.endTime),
-      backgroundColor:
-        session.type === "BREAK"
-          ? "var(--chart-2)"
-          : session.status === "CANCELLED"
-          ? "#E5E7EB"
-          : session.status === "COMPLETED"
-          ? "var(--primary)"
-          : session.status === "NO_SHOW"
-          ? "#FCA5A5"
-          : session.status === "PENDING_APPROVAL"
-          ? "#FDE68A"
-          : session.status === "SCHEDULED" && new Date(session.endTime) < new Date()
-          ? "#BAE6FD"
-          : "#A7F3D0",
-      textColor:
-        session.type === "BREAK"
-          ? "#ffffff"
-          : session.status === "CANCELLED"
-          ? "#6B7280"
-          : session.status === "COMPLETED"
-          ? "#ffffff"
-          : session.status === "NO_SHOW"
-          ? "#7F1D1D"
-          : session.status === "PENDING_APPROVAL"
-          ? "#92400E"
-          : session.status === "SCHEDULED" && new Date(session.endTime) < new Date()
-          ? "#0C4A6E"
-          : "#064E3B",
-    borderColor:
-      session.type === "BREAK"
-        ? "var(--chart-2)"
-        : session.status === "CANCELLED"
-        ? "#9CA3AF"
-        : session.status === "COMPLETED"
-        ? "var(--primary)"
-        : session.status === "NO_SHOW"
-        ? "#DC2626"
-        : session.status === "PENDING_APPROVAL"
-        ? "#F59E0B"
-        : session.status === "SCHEDULED" && new Date(session.endTime) < new Date()
-        ? "#0EA5E9"
-        : "#059669",
-    classNames: [
-      ...(session.status === "PENDING_APPROVAL" ? ["fc-event-pending-pulse"] : []),
-      ...(highlightParam === session.id ? ["fc-event-highlighted"] : []),
-    ],
-    extendedProps: {
-      clientId: session.client?.id || "",
-      status: session.status,
-      type: session.type,
-    },
-  }));
+    .map((session) => {
+      const colors = getEventColors(session);
+      return {
+        id: session.id,
+        title: session.type === "BREAK" ? "🌊 הפסקה" : (session.client?.name || "ללא שם"),
+        start: new Date(session.startTime),
+        end: new Date(session.endTime),
+        backgroundColor: colors.bg,
+        textColor: colors.text,
+        borderColor: colors.border,
+        classNames: [
+          ...(session.status === "PENDING_APPROVAL" ? ["fc-event-pending-pulse"] : []),
+          ...(highlightParam === session.id ? ["fc-event-highlighted"] : []),
+        ],
+        extendedProps: {
+          clientId: session.client?.id || "",
+          status: session.status,
+          type: session.type,
+        },
+      };
+    });
 
   // Update date range when calendar view changes (month/week navigation)
   const handleDatesSet = useCallback((info: DatesSetArg) => {
