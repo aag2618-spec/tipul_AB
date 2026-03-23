@@ -473,7 +473,7 @@ export function QuickMarkPaid({
         </DialogFooter>
 
         {/* Show "Pay All Debt" button only if there are additional unpaid sessions */}
-        {effectiveUnpaidCount && effectiveUnpaidCount > 0 && effectiveDebt && (
+        {effectiveUnpaidCount && effectiveUnpaidCount > 1 && effectiveDebt && (
           <div className="pt-4 border-t mt-4">
             <p className="text-sm text-muted-foreground mb-3 text-center">
               למטופל יש {effectiveUnpaidCount} פגישות ממתינות לתשלום

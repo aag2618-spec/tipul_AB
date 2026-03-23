@@ -219,7 +219,7 @@ export function UpdateSessionDialog({
 
           {updateStatus && price > 0 && (
             <>
-              {updateStatus !== "COMPLETED" && !hasOldDebts && (
+              {updateStatus !== "COMPLETED" && (
                 <Button
                   type="button"
                   variant="outline"
