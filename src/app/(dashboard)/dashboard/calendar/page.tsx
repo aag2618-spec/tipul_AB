@@ -595,7 +595,28 @@ export default function CalendarPage() {
         onOpenChange={setIsSessionDialogOpen}
         session={selectedSession}
         onSessionChange={setSelectedSession}
-        onRequestPayment={(data: PaymentRequest) => {
+        onRequestPayment={async (data: PaymentRequest) => {
+          // בדיקה אם למטופל יש חובות ישנים - אם כן, מעבר לדף תשלום כל החובות
+          try {
+            const debtRes = await fetch(`/api/payments/client-debt/${data.clientId}`);
+            if (debtRes.ok) {
+              const debtData = await debtRes.json();
+              if (debtData.count > 0 && debtData.totalDebt > 0) {
+                // יש חובות ישנים - רושם חוב על הפגישה הנוכחית ומעביר לדף תשלום כולל
+                await fetch(`/api/sessions/${data.sessionId}`, {
+                  method: "PUT",
+                  headers: { "Content-Type": "application/json" },
+                  body: JSON.stringify({ status: data.pendingSessionStatus, createPayment: true, markAsPaid: false }),
+                });
+                fetchData();
+                router.push(`/dashboard/payments/pay/${data.clientId}`);
+                return;
+              }
+            }
+          } catch {
+            // fallback לדיאלוג רגיל
+          }
+          // אין חובות ישנים - פתיחת דיאלוג תשלום רגיל
           setPaymentData(data);
           setIsPaymentDialogOpen(true);
         }}
@@ -626,15 +647,35 @@ export default function CalendarPage() {
           </DialogHeader>
           <DialogFooter className="flex-row-reverse gap-2">
             <Button
-              onClick={() => {
+              onClick={async () => {
                 if (!selectedSession || !pendingAction || !selectedSession.client) return;
                 const status = pendingAction;
+                const clientId = selectedSession.client.id;
                 setIsChargeDialogOpen(false);
                 setIsSessionDialogOpen(false);
                 setPendingAction(null);
+                // בדיקת חובות ישנים
+                try {
+                  const debtRes = await fetch(`/api/payments/client-debt/${clientId}`);
+                  if (debtRes.ok) {
+                    const debtData = await debtRes.json();
+                    if (debtData.count > 0 && debtData.totalDebt > 0) {
+                      await fetch(`/api/sessions/${selectedSession.id}`, {
+                        method: "PUT",
+                        headers: { "Content-Type": "application/json" },
+                        body: JSON.stringify({ status, createPayment: true, markAsPaid: false }),
+                      });
+                      fetchData();
+                      router.push(`/dashboard/payments/pay/${clientId}`);
+                      return;
+                    }
+                  }
+                } catch {
+                  // fallback
+                }
                 setPaymentData({
                   sessionId: selectedSession.id,
-                  clientId: selectedSession.client.id,
+                  clientId,
                   amount: selectedSession.price - Number(selectedSession.payment?.amount || 0),
                   pendingSessionStatus: status,
                 });
