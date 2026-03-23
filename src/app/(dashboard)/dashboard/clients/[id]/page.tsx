@@ -560,12 +560,14 @@ export default async function ClientPage({
                           clientName={client.name}
                           size="default"
                         />
-                        <Button asChild className="gap-2 bg-emerald-600 hover:bg-emerald-700">
-                          <Link href={`/dashboard/payments/pay/${client.id}`}>
-                            <CreditCard className="h-4 w-4" />
-                            שלם הכל
-                          </Link>
-                        </Button>
+                        {unpaidSessions.length > 1 && (
+                          <Button asChild className="gap-2 bg-emerald-600 hover:bg-emerald-700">
+                            <Link href={`/dashboard/payments/pay/${client.id}`}>
+                              <CreditCard className="h-4 w-4" />
+                              שלם הכל
+                            </Link>
+                          </Button>
+                        )}
                       </>
                     )}
                   </div>

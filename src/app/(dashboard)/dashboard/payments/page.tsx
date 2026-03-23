@@ -893,7 +893,7 @@ export default function PaymentsPage() {
         </div>
 
         {/* תשלום מהיר על כלל החובות - למעלה */}
-        {selectedClient.totalDebt > 0 && (
+        {selectedClient.unpaidSessionsCount > 1 && selectedClient.totalDebt > 0 && (
           <Card className="bg-gradient-to-r from-green-50 to-emerald-50 border-green-300">
             <CardContent className="p-4 flex items-center justify-between">
               <div className="flex items-center gap-3">
