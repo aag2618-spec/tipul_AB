@@ -41,7 +41,7 @@ export async function GET(request: NextRequest) {
       orderBy: { startTime: "asc" },
       include: {
         client: {
-          select: { id: true, name: true, email: true, phone: true, creditBalance: true },
+          select: { id: true, name: true, email: true, phone: true, creditBalance: true, defaultSessionPrice: true },
         },
         sessionNote: true,
         payment: true,
