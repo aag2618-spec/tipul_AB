@@ -122,11 +122,19 @@ export async function POST(request: NextRequest) {
     });
 
     if (conflict && !allowOverlap) {
+      const statusLabels: Record<string, string> = {
+        SCHEDULED: "מתוכננת",
+        PENDING_APPROVAL: "ממתינה לאישור",
+        COMPLETED: "הושלמה",
+        CANCELLED: "בוטלה",
+        NO_SHOW: "לא הגיע",
+      };
       const conflictName = conflict.client?.name || (conflict.type === "BREAK" ? "הפסקה" : "פגישה");
       const conflictStart = new Intl.DateTimeFormat("he-IL", { timeZone: "Asia/Jerusalem", hour: "2-digit", minute: "2-digit", hour12: false }).format(conflict.startTime);
       const conflictEnd = new Intl.DateTimeFormat("he-IL", { timeZone: "Asia/Jerusalem", hour: "2-digit", minute: "2-digit", hour12: false }).format(conflict.endTime);
+      const statusHeb = statusLabels[conflict.status] || conflict.status;
       return NextResponse.json(
-        { message: `יש התנגשות עם פגישה קיימת: ${conflictName} (${conflictStart}-${conflictEnd}), סטטוס: ${conflict.status}` },
+        { message: `יש התנגשות עם פגישה קיימת: ${conflictName} (${conflictStart}-${conflictEnd}), סטטוס: ${statusHeb}` },
         { status: 400 }
       );
     }
