@@ -155,6 +155,7 @@ export function UpdateSessionDialog({
       updateReason,
     });
     resetAndClose();
+    router.push(`/dashboard/payments/pay/${clientId}`);
   };
 
   const hasOldDebts = clientDebt && clientDebt.count > 0 && clientDebt.total > 0;
