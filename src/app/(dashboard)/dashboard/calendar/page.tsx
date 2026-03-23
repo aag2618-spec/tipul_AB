@@ -5,14 +5,13 @@ import { useSearchParams, useRouter } from "next/navigation";
 import dynamic from "next/dynamic";
 import { Button } from "@/components/ui/button";
 import { Card, CardContent } from "@/components/ui/card";
-import { Dialog, DialogContent, DialogDescription, DialogHeader, DialogTitle, DialogFooter } from "@/components/ui/dialog";
 
 
 
 
 
 
-import { Plus, Loader2, Repeat, Waves, AlertTriangle } from "lucide-react";
+import { Plus, Loader2, Repeat, AlertTriangle } from "lucide-react";
 import { format } from "date-fns";
 import { toast } from "sonner";
 import type { EventClickArg, DatesSetArg } from "@fullcalendar/core";
@@ -27,6 +26,8 @@ import { getEventColors } from "@/lib/calendar/event-colors";
 import { NewSessionDialog, DEFAULT_FORM_DATA, type SessionFormData, type RecurringPreviewItem, type PendingFormRecurring } from "@/components/calendar/new-session-dialog";
 import { RecurringPatternDialog } from "@/components/calendar/recurring-pattern-dialog";
 import { SessionDetailDialog, type PaymentRequest } from "@/components/calendar/session-detail-dialog";
+import { ChargeConfirmationDialog } from "@/components/calendar/charge-confirmation-dialog";
+import { CalendarEventContent } from "@/components/calendar/calendar-event-content";
 
 // Dynamic import for FullCalendar to avoid SSR issues
 const FullCalendar = dynamic(
@@ -637,109 +638,22 @@ export default function CalendarPage() {
       />
 
       {/* Charge Confirmation Dialog */}
-      <Dialog open={isChargeDialogOpen} onOpenChange={setIsChargeDialogOpen}>
-        <DialogContent>
-          <DialogHeader>
-            <DialogTitle>האם לחייב את המטופל?</DialogTitle>
-            <DialogDescription>
-              {pendingAction === "CANCELLED" 
-                ? "הפגישה בוטלה. האם ברצונך לחייב את המטופל בתשלום?"
-                : "המטופל נעדר מהפגישה. האם ברצונך לחייב אותו בתשלום?"}
-            </DialogDescription>
-          </DialogHeader>
-          <DialogFooter className="flex-row-reverse gap-2">
-            <Button
-              onClick={async () => {
-                if (!selectedSession || !pendingAction || !selectedSession.client) return;
-                const status = pendingAction;
-                const clientId = selectedSession.client.id;
-                setIsChargeDialogOpen(false);
-                setIsSessionDialogOpen(false);
-                setPendingAction(null);
-                // בדיקת חובות ישנים
-                try {
-                  const debtRes = await fetch(`/api/payments/client-debt/${clientId}`);
-                  if (debtRes.ok) {
-                    const debtData = await debtRes.json();
-                    const unpaidCount = debtData.unpaidSessions?.length || 0;
-                    if (unpaidCount > 0 && debtData.totalDebt > 0) {
-                      await fetch(`/api/sessions/${selectedSession.id}`, {
-                        method: "PUT",
-                        headers: { "Content-Type": "application/json" },
-                        body: JSON.stringify({ status, createPayment: true, markAsPaid: false }),
-                      });
-                      toast.success("הפגישה עודכנה, מעבר לדף תשלום החובות...");
-                      fetchData();
-                      router.push(`/dashboard/payments/pay/${clientId}`);
-                      return;
-                    }
-                  }
-                } catch {
-                  // fallback
-                }
-                setPaymentData({
-                  sessionId: selectedSession.id,
-                  clientId,
-                  amount: selectedSession.price - Number(selectedSession.payment?.amount || 0),
-                  pendingSessionStatus: status,
-                });
-                setIsPaymentDialogOpen(true);
-              }}
-            >
-              כן, לחייב
-            </Button>
-            <Button
-              variant="secondary"
-              onClick={async () => {
-                if (!selectedSession || !pendingAction || !selectedSession.client) return;
-                try {
-                  const response = await fetch(`/api/sessions/${selectedSession.id}`, {
-                    method: "PUT",
-                    headers: { "Content-Type": "application/json" },
-                    body: JSON.stringify({ status: pendingAction, createPayment: true, markAsPaid: false }),
-                  });
-                  if (response.ok) {
-                    toast.success("הפגישה עודכנה והחוב נרשם");
-                    setIsChargeDialogOpen(false);
-                    setIsSessionDialogOpen(false);
-                    setPendingAction(null);
-                    await fetchData();
-                  }
-                } catch {
-                  toast.error("שגיאה בעדכון הפגישה");
-                }
-              }}
-            >
-              עדכן ורשום חוב
-            </Button>
-            <Button
-              variant="outline"
-              onClick={async () => {
-                if (!selectedSession || !pendingAction) return;
-                try {
-                  await fetch(`/api/sessions/${selectedSession.id}`, {
-                    method: "PUT",
-                    headers: { "Content-Type": "application/json" },
-                    body: JSON.stringify({ status: pendingAction }),
-                  });
-                  
-                  toast.success(pendingAction === "CANCELLED" ? "הפגישה בוטלה ללא חיוב - פטור מתשלום" : "נרשמה אי הופעה ללא חיוב - פטור מתשלום");
-                  
-                  setIsChargeDialogOpen(false);
-                  setIsSessionDialogOpen(false);
-                  setPendingAction(null);
-                  
-                  await fetchData();
-                } catch {
-                  toast.error("שגיאה בעדכון הפגישה");
-                }
-              }}
-            >
-              פטור מתשלום
-            </Button>
-          </DialogFooter>
-        </DialogContent>
-      </Dialog>
+      <ChargeConfirmationDialog
+        open={isChargeDialogOpen}
+        onOpenChange={setIsChargeDialogOpen}
+        session={selectedSession}
+        pendingAction={pendingAction}
+        onDismissAll={() => {
+          setIsChargeDialogOpen(false);
+          setIsSessionDialogOpen(false);
+          setPendingAction(null);
+        }}
+        onRequestPayment={(data) => {
+          setPaymentData(data);
+          setIsPaymentDialogOpen(true);
+        }}
+        onDataChanged={() => fetchData()}
+      />
 
       {/* דיאלוג תשלום מהיר - נפתח אחרי סיום פגישה */}
       {paymentData && (
