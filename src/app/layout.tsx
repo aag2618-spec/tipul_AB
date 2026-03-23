@@ -2,6 +2,7 @@ import type { Metadata } from "next";
 import Script from "next/script";
 import { Toaster } from "@/components/ui/sonner";
 import { Providers } from "@/components/providers";
+import { APP_LOGO } from "@/config/branding";
 import "./globals.css";
 
 export const metadata: Metadata = {
@@ -9,8 +10,8 @@ export const metadata: Metadata = {
   description: "מערכת מודרנית לניהול פרקטיקה של מטפלים רגשיים - ניהול מטופלים, יומן, סיכומי טיפול ועוד",
   manifest: "/manifest.json",
   icons: {
-    icon: "/icon.png",
-    apple: "/icon.png",
+    icon: APP_LOGO.src,
+    apple: APP_LOGO.src,
   },
   appleWebApp: {
     capable: true,

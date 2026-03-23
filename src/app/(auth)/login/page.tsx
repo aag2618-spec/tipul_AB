@@ -8,7 +8,7 @@ import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import { Card, CardContent, CardDescription, CardFooter, CardHeader, CardTitle } from "@/components/ui/card";
-import Image from "next/image";
+import { AppLogo } from "@/components/app-logo";
 import { Loader2, CheckCircle, AlertTriangle } from "lucide-react";
 
 function LoginForm() {
@@ -51,16 +51,9 @@ function LoginForm() {
   return (
     <Card className="w-full max-w-md animate-fade-in relative">
       <CardHeader className="text-center space-y-4">
-        <div className="mx-auto flex justify-center">
-          <Image
-            src="/logo.png"
-            alt="MyTipul"
-            width={344}
-            height={192}
-            className="h-14 w-auto object-contain"
-            priority
-          />
-        </div>
+          <div className="mx-auto flex justify-center">
+            <AppLogo width={344} height={192} className="h-14 w-auto object-contain" priority />
+          </div>
         <div>
           <CardTitle className="text-2xl font-bold">ברוכים הבאים</CardTitle>
           <CardDescription className="mt-2">

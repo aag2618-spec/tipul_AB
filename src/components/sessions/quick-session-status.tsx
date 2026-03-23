@@ -29,6 +29,25 @@ export function QuickSessionStatus({
   const updateSessionStatus = async (status: string) => {
     try {
       setIsLoading(true);
+
+      if (status === "COMPLETED") {
+        // Use PUT to create payment + mark as completed
+        const response = await fetch(`/api/sessions/${sessionId}`, {
+          method: "PUT",
+          headers: { "Content-Type": "application/json" },
+          body: JSON.stringify({ status: "COMPLETED", createPayment: true, markAsPaid: false }),
+        });
+        if (response.ok) {
+          toast.success("הפגישה הושלמה, מעבר לדף תשלום...");
+          router.push(`/dashboard/payments/pay/${clientId}`);
+        } else {
+          const errorData = await response.json().catch(() => null);
+          toast.error(errorData?.message || "שגיאה בעדכון הסטטוס");
+        }
+        return;
+      }
+
+      // For non-COMPLETED statuses, use PATCH as before
       const response = await fetch(`/api/sessions/${sessionId}/status`, {
         method: "PATCH",
         headers: { "Content-Type": "application/json" },
@@ -37,9 +56,7 @@ export function QuickSessionStatus({
 
       if (response.ok) {
         toast.success(
-          status === "COMPLETED"
-            ? "הפגישה סומנה כהושלמה"
-            : status === "NO_SHOW"
+          status === "NO_SHOW"
             ? "סומן כ'אי הופעה'"
             : "הפגישה בוטלה"
         );

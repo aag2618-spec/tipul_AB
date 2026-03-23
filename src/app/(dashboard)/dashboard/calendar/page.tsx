@@ -425,6 +425,7 @@ export default function CalendarPage() {
 
   const handleCalendarRecordDebt = async (params: { updateStatus: string; updateReason: string }) => {
     if (!selectedSession?.client) return;
+    const clientId = selectedSession.client.id;
     setUpdating(true);
     try {
       const statusBody: Record<string, unknown> = { status: params.updateStatus, createPayment: true, markAsPaid: false };
@@ -435,10 +436,10 @@ export default function CalendarPage() {
         body: JSON.stringify(statusBody),
       });
       if (response.ok) {
-        toast.success("הפגישה עודכנה והחוב נרשם");
+        toast.success("הפגישה עודכנה והחוב נרשם, מעבר לדף תשלום...");
         setUpdateDialogOpen(false);
         setSelectedSession(null);
-        fetchData();
+        router.push(`/dashboard/payments/pay/${clientId}`);
       } else {
         const errorData = await response.json().catch(() => null);
         toast.error(errorData?.message || "שגיאה בעדכון הפגישה");
@@ -590,11 +591,29 @@ export default function CalendarPage() {
           });
         }
 
+        // Fetch sessions for the full recurring span (first slot start → last slot end) from the server.
+        // API uses overlap semantics so every session touching this window is included.
+        const rangeStart = format(planned[0].start, "yyyy-MM-dd'T'HH:mm");
+        const rangeEnd = format(planned[planned.length - 1].end, "yyyy-MM-dd'T'HH:mm");
+        let rangeSessions = sessions;
+        try {
+          const qs = new URLSearchParams({
+            startDate: rangeStart,
+            endDate: rangeEnd,
+          });
+          const rangeRes = await fetch(`/api/sessions?${qs.toString()}`);
+          if (rangeRes.ok) {
+            rangeSessions = await rangeRes.json();
+          }
+        } catch {
+          // fallback to local sessions on network error
+        }
+
         const previewItems = planned.map((p, idx) => {
           const dateStr = format(p.start, "yyyy-MM-dd");
           const timeStr = format(p.start, "HH:mm");
           const key = `form_${dateStr}_${timeStr}_${idx}`;
-          const overlap = sessions.find((s) => {
+          const overlap = rangeSessions.find((s: CalendarSession) => {
             if (s.status === "CANCELLED") return false;
             const sStart = new Date(s.startTime);
             const sEnd = new Date(s.endTime);

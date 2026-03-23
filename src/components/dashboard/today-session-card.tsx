@@ -253,8 +253,8 @@ export function TodaySessionCard({ session }: TodaySessionCardProps) {
         body: JSON.stringify(statusBody),
       });
       if (response.ok) {
-        toast.success("הפגישה עודכנה והחוב נרשם");
-        router.refresh();
+        toast.success("הפגישה עודכנה והחוב נרשם, מעבר לדף תשלום...");
+        router.push(`/dashboard/payments/pay/${session.client.id}`);
       } else {
         toast.error("שגיאה בעדכון הפגישה");
       }

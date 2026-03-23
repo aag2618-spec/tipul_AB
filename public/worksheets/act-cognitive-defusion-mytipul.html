@@ -1,0 +1,300 @@
+<!DOCTYPE html>
+<!-- תבנית: מילוי לוגו — npm run save-act-worksheet או GET /api/download/act-worksheet -->
+<html lang="he" dir="rtl">
+  <head>
+    <meta charset="utf-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1" />
+    <title>ניתוק מחשבתי – 7 טכניקות | MyTipul</title>
+    <style>
+      :root {
+        --header-bg: linear-gradient(135deg, #c2410c 0%, #ea580c 45%, #fdba74 100%);
+        --ink: #1c1917;
+        --muted: #57534e;
+        --line: #d6d3d1;
+        --field: #fafaf9;
+        --ok: #15803d;
+        --bad: #b91c1c;
+      }
+      * {
+        box-sizing: border-box;
+      }
+      body {
+        margin: 0;
+        font-family: "Segoe UI", system-ui, sans-serif;
+        color: var(--ink);
+        background: #fff;
+        line-height: 1.5;
+        font-size: 15px;
+      }
+      .sheet {
+        max-width: 900px;
+        margin: 0 auto;
+        padding: 16px;
+      }
+      header.banner {
+        background: var(--header-bg);
+        color: #fff;
+        padding: 14px 18px;
+        border-radius: 12px;
+        margin-bottom: 18px;
+        display: flex;
+        flex-wrap: wrap;
+        align-items: flex-start;
+        justify-content: space-between;
+        gap: 12px;
+        box-shadow: 0 2px 8px rgba(0, 0, 0, 0.12);
+      }
+      .brand {
+        display: flex;
+        align-items: center;
+        gap: 10px;
+      }
+      .brand img {
+        height: 52px;
+        width: auto;
+        max-width: 200px;
+        object-fit: contain;
+        display: block;
+      }
+      .titles h1 {
+        margin: 0 0 4px;
+        font-size: 1.35rem;
+        font-weight: 800;
+        text-shadow: 0 1px 2px rgba(0, 0, 0, 0.15);
+      }
+      .titles .sub {
+        margin: 0;
+        font-size: 0.88rem;
+        opacity: 0.95;
+      }
+      .titles .act {
+        margin: 0 0 6px;
+        font-size: 0.82rem;
+        font-weight: 600;
+        opacity: 0.92;
+      }
+      .meta-row {
+        display: flex;
+        flex-wrap: wrap;
+        gap: 16px;
+        margin-top: 8px;
+        font-size: 0.9rem;
+      }
+      .meta-row label {
+        display: flex;
+        align-items: center;
+        gap: 8px;
+      }
+      .meta-row .line {
+        border-bottom: 1px dashed rgba(255, 255, 255, 0.85);
+        min-width: 140px;
+        flex: 1;
+        max-width: 220px;
+        height: 1.2em;
+      }
+      .instruction {
+        background: #fff7ed;
+        border: 1px solid #fed7aa;
+        border-radius: 10px;
+        padding: 12px 14px;
+        margin-bottom: 16px;
+      }
+      .instruction strong {
+        color: #9a3412;
+      }
+      .box {
+        border: 1px solid var(--line);
+        border-radius: 10px;
+        background: var(--field);
+        padding: 12px 14px;
+        margin-bottom: 14px;
+      }
+      .box h2 {
+        margin: 0 0 8px;
+        font-size: 1rem;
+        color: #0f766e;
+      }
+      .scale {
+        margin-top: 10px;
+        font-size: 0.9rem;
+        color: var(--muted);
+      }
+      .lines {
+        min-height: 72px;
+        border: 1px dashed var(--line);
+        border-radius: 8px;
+        margin-top: 8px;
+        background: #fff;
+      }
+      .tech {
+        border: 1px solid var(--line);
+        border-radius: 10px;
+        padding: 14px;
+        margin-bottom: 14px;
+        page-break-inside: avoid;
+      }
+      .tech h3 {
+        margin: 0 0 10px;
+        font-size: 1.02rem;
+        color: #c2410c;
+      }
+      .compare {
+        display: grid;
+        grid-template-columns: 1fr 1fr;
+        gap: 10px;
+        margin: 10px 0;
+      }
+      @media (max-width: 640px) {
+        .compare {
+          grid-template-columns: 1fr;
+        }
+      }
+      .before,
+      .after {
+        padding: 10px;
+        border-radius: 8px;
+        font-size: 0.88rem;
+      }
+      .before {
+        background: #fef2f2;
+        border: 1px solid #fecaca;
+      }
+      .after {
+        background: #f0fdf4;
+        border: 1px solid #bbf7d0;
+      }
+      .tag {
+        font-weight: 700;
+        font-size: 0.75rem;
+        margin-bottom: 6px;
+        display: flex;
+        align-items: center;
+        gap: 6px;
+      }
+      .foot {
+        font-size: 0.78rem;
+        color: var(--muted);
+        margin-top: 20px;
+        padding-top: 12px;
+        border-top: 1px solid var(--line);
+      }
+      @media print {
+        body {
+          background: #fff;
+        }
+        .sheet {
+          max-width: none;
+          padding: 0;
+        }
+        header.banner {
+          break-inside: avoid;
+          -webkit-print-color-adjust: exact;
+          print-color-adjust: exact;
+        }
+        .instruction,
+        .box,
+        .tech {
+          break-inside: avoid;
+        }
+      }
+    </style>
+  </head>
+  <body>
+    <div class="sheet">
+      <header class="banner">
+        <div class="titles">
+          <p class="act">ACT — טיפול בקבלה ומחויבות</p>
+          <h1>ניתוק מחשבתי – 7 טכניקות</h1>
+          <p class="sub">Cognitive Defusion — לראות מחשבות כמחשבות, לא כעובדות</p>
+          <div class="meta-row">
+            <label>שם: <span class="line"></span></label>
+            <label>תאריך: <span class="line"></span></label>
+          </div>
+        </div>
+        <div class="brand">
+          <img src="__LOGO_DATA_URL__" alt="MyTipul" width="1376" height="768" />
+        </div>
+      </header>
+
+      <div class="instruction">
+        <strong>המחשבה שנעבוד איתה היום:</strong>
+        כתבו את המחשבה ה„דביקה” ביותר — זו שחוזרת שוב ושוב ומשפיעה על החיים שלכם.
+      </div>
+
+      <div class="box">
+        <h2>המחשבה שלי</h2>
+        <div class="lines" aria-label="מקום לכתיבה"></div>
+        <p class="scale">
+          כמה אני „תפוס/ה” במחשבה הזו? (0 = בכלל לא, 10 = לגמרי) ______ / 10
+        </p>
+      </div>
+
+      <section class="tech">
+        <h3>1. „אני שם/ה לב שיש לי את המחשבה ש…”</h3>
+        <p>
+          <strong>Noticing thoughts:</strong> במקום להתמזג עם המחשבה, מוסיפים מסגרת מילולית שמזכירה שזו
+          <em>מחשבה</em>, לא עובדה.
+        </p>
+        <div class="compare">
+          <div class="before">
+            <div class="tag" style="color: var(--bad)">✕ לפני</div>
+            „אף אחד לא אוהב אותי.”
+          </div>
+          <div class="after">
+            <div class="tag" style="color: var(--ok)">✓ אחרי</div>
+            „אני שם/ה לב שיש לי את המחשבה שאף אחד לא אוהב אותי.”
+          </div>
+        </div>
+        <p><strong>המחשבה שלי אחרי הטכניקה:</strong></p>
+        <div class="lines" style="min-height: 56px"></div>
+      </section>
+
+      <section class="tech">
+        <h3>2. „תודה מוח”</h3>
+        <p>להכיר בתודה את מה שהמוח מנסה להגיד — בלי להסכים או להתווכח.</p>
+        <div class="lines" style="min-height: 48px"></div>
+      </section>
+
+      <section class="tech">
+        <h3>3. שירה / קול מצחיק</h3>
+        <p>לחזור על המחשבה בקול מוגזם, לאט, או ללחוש — עד שהיא מרגישה פחות „אמיתית”.</p>
+        <div class="lines" style="min-height: 48px"></div>
+      </section>
+
+      <section class="tech">
+        <h3>4. עלים בנחל (דימוי)</h3>
+        <p>לשים את המחשבה על „עלה” שזורם הלאה — צפייה מרחוק, בלי לנסות לעצור.</p>
+        <div class="lines" style="min-height: 48px"></div>
+      </section>
+
+      <section class="tech">
+        <h3>5. חלב את המשפט</h3>
+        <p>לחזור על המילים שוב ושוב לאט עד שהן הופכות לצלילים חסרי משמעות.</p>
+        <div class="lines" style="min-height: 48px"></div>
+      </section>
+
+      <section class="tech">
+        <h3>6. „אני מרגיש/ה ש…”</h3>
+        <p>הפרדה בין „אני חושב/ת” לבין „אני מרגיש/ה” — ואז חזרה למחשבה כמחשבה.</p>
+        <div class="lines" style="min-height: 48px"></div>
+      </section>
+
+      <section class="tech">
+        <h3>7. פיזיולוגיה קצרה</h3>
+        <p>30 שניות של נשימה / מתיחה / הליכה קצרה — ואז חזרה למחשבה עם מרחק קטן יותר.</p>
+        <div class="lines" style="min-height: 48px"></div>
+      </section>
+
+      <div class="box">
+        <h2>סיכום — איזו טכניקה עזרה הכי הרבה היום?</h2>
+        <div class="lines" style="min-height: 64px"></div>
+      </div>
+
+      <p class="foot">
+        דף עבודה זה שייך למערכת <strong>MyTipul</strong> — הלוגו למעלה הוא הקובץ
+        <code>public/logo.png</code> מהפרויקט (גרסה מוטמעת בקובץ ההורדה). להדפסה: Ctrl+P → שמירה כ-PDF
+        או הדפסה.
+      </p>
+    </div>
+  </body>
+</html>

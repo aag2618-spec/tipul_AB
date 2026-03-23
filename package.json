@@ -11,7 +11,11 @@
     "db:push": "prisma db push",
     "db:migrate": "prisma migrate deploy",
     "test": "vitest run",
-    "test:watch": "vitest"
+    "test:watch": "vitest",
+    "save-logo-preview": "node scripts/save-logo-preview-to-downloads.mjs",
+    "save-work-demo-cbt": "node scripts/save-cbt-work-demo-to-downloads.mjs",
+    "export-work-pages": "node scripts/export-work-pages-to-downloads.mjs",
+    "save-act-worksheet": "node scripts/save-act-worksheet-to-downloads.mjs"
   },
   "dependencies": {
     "@anthropic-ai/sdk": "^0.71.2",

@@ -1,7 +1,6 @@
 "use client";
 
 import Link from "next/link";
-import Image from "next/image";
 import { usePathname } from "next/navigation";
 import { useSession } from "next-auth/react";
 import {
@@ -18,6 +17,7 @@ import {
 } from "@/components/ui/sidebar";
 import { Avatar, AvatarFallback, AvatarImage } from "@/components/ui/avatar";
 import { UserTierBadge } from "@/components/user-tier-badge";
+import { AppLogo } from "@/components/app-logo";
 import {
   LayoutDashboard,
   Users,
@@ -163,14 +163,7 @@ export function AppSidebar({ user }: AppSidebarProps) {
         <SidebarMenu>
           <SidebarMenuItem>
             <Link href="/dashboard" className="flex items-center justify-center py-3 px-2 hover:opacity-80 transition-opacity">
-              <Image
-                src="/logo.png"
-                alt="MyTipul"
-                width={160}
-                height={80}
-                className="object-contain"
-                priority
-              />
+              <AppLogo width={160} height={80} className="object-contain" priority />
             </Link>
           </SidebarMenuItem>
         </SidebarMenu>

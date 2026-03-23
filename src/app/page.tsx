@@ -2,7 +2,7 @@ import { getServerSession } from "next-auth";
 import { redirect } from "next/navigation";
 import { authOptions } from "@/lib/auth";
 import { Button } from "@/components/ui/button";
-import Image from "next/image";
+import { AppLogo } from "@/components/app-logo";
 import {
   Calendar, Users, Brain, ClipboardList, CreditCard,
   FileCheck, Sparkles, Shield, Lock, Star, CheckCircle, Zap,
@@ -101,14 +101,7 @@ export default async function HomePage() {
           </div>
 
           <div className="landing-centered mb-6">
-            <Image
-              src="/logo.png"
-              alt="MyTipul"
-              width={1376}
-              height={768}
-              className="mx-auto w-[280px] sm:w-[360px] md:w-[440px] h-auto"
-              priority
-            />
+            <AppLogo className="mx-auto w-[280px] sm:w-[360px] md:w-[440px] h-auto" priority />
           </div>
 
           <h1 className="text-5xl md:text-7xl font-bold tracking-tight mb-6 landing-centered" style={{ color: 'oklch(0.3 0.08 180)' }}>
@@ -263,7 +256,7 @@ export default async function HomePage() {
       {/* Footer */}
       <footer className="border-t mt-8 py-8">
         <div className="container mx-auto px-4 flex flex-col items-center gap-3 text-sm text-muted-foreground landing-centered">
-          <Image src="/logo.png" alt="MyTipul" width={1376} height={768} className="w-[120px] h-auto opacity-80" />
+          <AppLogo className="w-[120px] h-auto opacity-80" />
           <p className="landing-centered">© {new Date().getFullYear()} MyTipul - מערכת ניהול לפרקטיקה טיפולית</p>
         </div>
       </footer>

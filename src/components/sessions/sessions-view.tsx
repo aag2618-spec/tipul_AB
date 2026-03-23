@@ -1,6 +1,7 @@
 "use client";
 
 import { useState, useMemo } from "react";
+import { useRouter } from "next/navigation";
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
@@ -64,6 +65,7 @@ function getHistoryGroup(dateStr: string): string {
 }
 
 export function SessionsView({ initialSessions }: SessionsViewProps) {
+  const router = useRouter();
   const [sessions, setSessions] = useState<Session[]>(initialSessions);
   const [searchTerm, setSearchTerm] = useState("");
   const [historySearch, setHistorySearch] = useState("");
@@ -373,12 +375,10 @@ export function SessionsView({ initialSessions }: SessionsViewProps) {
         body: JSON.stringify(statusBody),
       });
       if (response.ok) {
-        toast.success("הפגישה עודכנה והחוב נרשם");
-        const newStatus = params.updateStatus;
-        setSessions(prev => prev.map(s =>
-          s.id === updateDialog.sessionId ? { ...s, status: newStatus } : s
-        ));
+        toast.success("הפגישה עודכנה והחוב נרשם, מעבר לדף תשלום...");
+        const clientId = updateDialog.clientId;
         setUpdateDialog({ open: false, sessionId: "", clientName: "", clientId: "", price: 0 });
+        router.push(`/dashboard/payments/pay/${clientId}`);
       } else {
         toast.error("שגיאה בעדכון הפגישה");
       }

@@ -12,10 +12,10 @@
   "categories": ["healthcare", "productivity", "medical"],
   "icons": [
     {
-      "src": "/icon.png",
-      "sizes": "512x512",
+      "src": "/logo.png",
+      "sizes": "1376x768",
       "type": "image/png",
-      "purpose": "any maskable"
+      "purpose": "any"
     }
   ]
 }

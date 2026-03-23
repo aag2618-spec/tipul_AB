@@ -1,7 +1,6 @@
 "use client";
 
 import Link from "next/link";
-import Image from "next/image";
 import { usePathname } from "next/navigation";
 import {
   Sidebar,
@@ -16,6 +15,7 @@ import {
   SidebarGroupContent,
 } from "@/components/ui/sidebar";
 import { Avatar, AvatarFallback, AvatarImage } from "@/components/ui/avatar";
+import { AppLogo } from "@/components/app-logo";
 import {
   LayoutDashboard,
   Users,
@@ -108,9 +108,7 @@ export function AdminSidebar({ user }: AdminSidebarProps) {
           <SidebarMenuItem>
             <SidebarMenuButton size="lg" asChild>
               <Link href="/admin" className="flex items-center gap-3">
-                <Image
-                  src="/logo.png"
-                  alt="MyTipul"
+                <AppLogo
                   width={160}
                   height={90}
                   className="h-9 w-auto object-contain shrink-0"

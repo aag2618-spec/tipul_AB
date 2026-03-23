@@ -25,11 +25,15 @@ export async function GET(request: NextRequest) {
       where.clientId = clientId;
     }
 
+    // Overlap with [startDate, endDate]: include any session that isn't entirely before/after the window.
+    // (Filtering only by startTime in range misses sessions that start before the window but overlap it.)
     if (startDate && endDate) {
-      where.startTime = {
-        gte: parseIsraelTime(startDate),
-        lte: parseIsraelTime(endDate),
-      };
+      const rangeStart = parseIsraelTime(startDate);
+      const rangeEnd = parseIsraelTime(endDate);
+      where.AND = [
+        { startTime: { lt: rangeEnd } },
+        { endTime: { gt: rangeStart } },
+      ];
     }
 
     const sessions = await prisma.therapySession.findMany({

@@ -1,0 +1,96 @@
+<!DOCTYPE html>
+<html lang="he" dir="rtl">
+  <head>
+    <meta charset="utf-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1" />
+    <title>תצוגת לוגו – דמו סיידבר (MyTipul)</title>
+    <style>
+      * {
+        box-sizing: border-box;
+      }
+      body {
+        margin: 0;
+        min-height: 100vh;
+        font-family: system-ui, "Segoe UI", sans-serif;
+        background: repeating-conic-gradient(#e8e8e8 0% 25%, #f4f4f4 0% 50%) 50% /
+          24px 24px;
+      }
+      .wrap {
+        display: flex;
+        min-height: 100vh;
+        flex-direction: row-reverse;
+      }
+      /* דמו צר של סיידבר דפי עבודה */
+      .sidebar {
+        width: 260px;
+        background: #fafafa;
+        border-left: 1px solid #e5e5e5;
+        padding: 1rem 0.5rem;
+      }
+      .sidebar-header {
+        border-bottom: 1px solid #e5e5e5;
+        padding-bottom: 0.75rem;
+        margin-bottom: 0.5rem;
+        text-align: center;
+      }
+      .sidebar-header img {
+        max-width: 160px;
+        height: auto;
+        vertical-align: middle;
+      }
+      .main {
+        flex: 1;
+        padding: 1.5rem;
+      }
+      .note {
+        max-width: 36rem;
+        line-height: 1.6;
+        color: #333;
+        background: #fff;
+        border: 1px solid #ddd;
+        border-radius: 8px;
+        padding: 1rem 1.25rem;
+        margin-bottom: 1rem;
+      }
+      code {
+        background: #f0f0f0;
+        padding: 0.1em 0.35em;
+        border-radius: 4px;
+        font-size: 0.9em;
+      }
+    </style>
+  </head>
+  <body>
+    <div class="wrap">
+      <aside class="sidebar" aria-label="דמו סיידבר">
+        <div class="sidebar-header">
+          <!-- אותו קובץ כמו באפליקציה: /logo.png -->
+          <img src="logo.png" alt="MyTipul" width="1376" height="768" />
+        </div>
+        <p style="text-align: center; font-size: 0.8rem; color: #666">
+          דמו: אזור הלוגו בדפי העבודה
+        </p>
+      </aside>
+      <main class="main">
+        <div class="note">
+          <strong>למה הרקע משבצות?</strong> כדי שתראו בבירור שהלוגו עם רקע שקוף (אין
+          מלבן לבן סביב הסמל והטקסט).
+        </div>
+        <div class="note">
+          <strong>במערכת האמיתית</strong> דפי העבודה משתמשים בקומפוננטה
+          <code>AppLogo</code> שמושכת את הנתיב מ־<code>src/config/branding.ts</code>
+          (אותו קובץ <code>public/logo.png</code>).
+        </div>
+        <div class="note">
+          <strong>באתר (הכי נוח):</strong> גלוש ל־<code>/logo-preview</code> — אותה תצוגה
+          בעמוד באפליקציה.
+        </div>
+        <div class="note">
+          <strong>איך לפתוח מהמחשב (בלי שרת):</strong> העתק את הקבצים
+          <code>dashboard-logo-preview.html</code> ו־<code>logo.png</code> לאותה תיקייה,
+          ואז לחץ פעמיים על ה־HTML.
+        </div>
+      </main>
+    </div>
+  </body>
+</html>
