@@ -601,7 +601,8 @@ export default function CalendarPage() {
             const debtRes = await fetch(`/api/payments/client-debt/${data.clientId}`);
             if (debtRes.ok) {
               const debtData = await debtRes.json();
-              if (debtData.count > 0 && debtData.totalDebt > 0) {
+              const unpaidCount = debtData.unpaidSessions?.length || 0;
+              if (unpaidCount > 0 && debtData.totalDebt > 0) {
                 // יש חובות ישנים - רושם חוב על הפגישה הנוכחית ומעביר לדף תשלום כולל
                 await fetch(`/api/sessions/${data.sessionId}`, {
                   method: "PUT",
@@ -659,7 +660,8 @@ export default function CalendarPage() {
                   const debtRes = await fetch(`/api/payments/client-debt/${clientId}`);
                   if (debtRes.ok) {
                     const debtData = await debtRes.json();
-                    if (debtData.count > 0 && debtData.totalDebt > 0) {
+                    const unpaidCount = debtData.unpaidSessions?.length || 0;
+                    if (unpaidCount > 0 && debtData.totalDebt > 0) {
                       await fetch(`/api/sessions/${selectedSession.id}`, {
                         method: "PUT",
                         headers: { "Content-Type": "application/json" },

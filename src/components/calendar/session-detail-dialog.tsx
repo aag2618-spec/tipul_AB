@@ -229,7 +229,14 @@ export function SessionDetailDialog({
             {session.type === "BREAK" ? (
               <>
                 <Button
-                  onClick={() => {
+                  onClick={async () => {
+                    // מוחק את ההפסקה ופותח דיאלוג פגישה חדשה באותו זמן
+                    try {
+                      await fetch(`/api/sessions/${session.id}`, { method: "DELETE" });
+                      onDataChanged();
+                    } catch {
+                      // ממשיך גם אם המחיקה נכשלה
+                    }
                     onOpenChange(false);
                     onOpenNewSession({
                       startTime: format(new Date(session.startTime), "yyyy-MM-dd'T'HH:mm"),
