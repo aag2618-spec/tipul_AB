@@ -2,6 +2,7 @@
 
 import { useState, useEffect } from "react";
 import { useRouter } from "next/navigation";
+import { toast } from "sonner";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Textarea } from "@/components/ui/textarea";
@@ -155,6 +156,7 @@ export function UpdateSessionDialog({
       updateReason,
     });
     resetAndClose();
+    toast.success("הפגישה עודכנה, מעבר לדף תשלום החובות...");
     router.push(`/dashboard/payments/pay/${clientId}`);
   };
 

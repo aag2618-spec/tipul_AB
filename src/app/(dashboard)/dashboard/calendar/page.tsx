@@ -609,6 +609,7 @@ export default function CalendarPage() {
                   headers: { "Content-Type": "application/json" },
                   body: JSON.stringify({ status: data.pendingSessionStatus, createPayment: true, markAsPaid: false }),
                 });
+                toast.success("הפגישה עודכנה, מעבר לדף תשלום החובות...");
                 fetchData();
                 router.push(`/dashboard/payments/pay/${data.clientId}`);
                 return;
@@ -667,6 +668,7 @@ export default function CalendarPage() {
                         headers: { "Content-Type": "application/json" },
                         body: JSON.stringify({ status, createPayment: true, markAsPaid: false }),
                       });
+                      toast.success("הפגישה עודכנה, מעבר לדף תשלום החובות...");
                       fetchData();
                       router.push(`/dashboard/payments/pay/${clientId}`);
                       return;
