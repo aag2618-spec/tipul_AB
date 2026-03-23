@@ -93,7 +93,7 @@ export async function PUT(
         where: {
           therapistId: userId,
           id: { not: id }, // exclude this session
-          status: { not: "CANCELLED" },
+          status: { notIn: ["CANCELLED", "COMPLETED", "NO_SHOW"] },
           OR: [
             {
               AND: [

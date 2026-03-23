@@ -15,7 +15,7 @@ export async function GET() {
     const sessions = await prisma.therapySession.findMany({
       where: {
         therapistId: userId,
-        status: { not: "CANCELLED" },
+        status: { notIn: ["CANCELLED", "COMPLETED", "NO_SHOW"] },
       },
       orderBy: { startTime: "asc" },
       include: {

@@ -94,7 +94,7 @@ export async function POST(request: NextRequest) {
     const conflict = await prisma.therapySession.findFirst({
       where: {
         therapistId: userId,
-        status: { not: "CANCELLED" },
+        status: { notIn: ["CANCELLED", "COMPLETED", "NO_SHOW"] },
         OR: [
           {
             AND: [
@@ -116,11 +116,17 @@ export async function POST(request: NextRequest) {
           },
         ],
       },
+      include: {
+        client: { select: { name: true } },
+      },
     });
 
     if (conflict && !allowOverlap) {
+      const conflictName = conflict.client?.name || (conflict.type === "BREAK" ? "הפסקה" : "פגישה");
+      const conflictStart = new Intl.DateTimeFormat("he-IL", { timeZone: "Asia/Jerusalem", hour: "2-digit", minute: "2-digit", hour12: false }).format(conflict.startTime);
+      const conflictEnd = new Intl.DateTimeFormat("he-IL", { timeZone: "Asia/Jerusalem", hour: "2-digit", minute: "2-digit", hour12: false }).format(conflict.endTime);
       return NextResponse.json(
-        { message: "יש התנגשות עם פגישה קיימת" },
+        { message: `יש התנגשות עם פגישה קיימת: ${conflictName} (${conflictStart}-${conflictEnd}), סטטוס: ${conflict.status}` },
         { status: 400 }
       );
     }
