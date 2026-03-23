@@ -149,21 +149,8 @@ export default function CalendarPage() {
     return () => clearTimeout(timer);
   }, [timeParam, highlightParam]);
 
-  // פתיחת דיאלוג פגישה חדשה אוטומטית כשמגיעים עם פרמטרים בכתובת
-  useEffect(() => {
-    if (isLoading || (!newParam && !clientParam)) return;
-    const formData = { ...DEFAULT_FORM_DATA };
-    if (clientParam) {
-      formData.clientId = clientParam;
-      const client = clients.find(c => c.id === clientParam);
-      if (client?.defaultSessionPrice) {
-        formData.price = String(client.defaultSessionPrice);
-      }
-    }
-    setSelectedDate(new Date());
-    setInitialFormData(formData);
-    setIsDialogOpen(true);
-  }, [isLoading]); // eslint-disable-line react-hooks/exhaustive-deps
+  // שמירת מטופל מהכתובת - ישמש כשלוחצים על שעה ביומן
+  const [preselectedClientId, setPreselectedClientId] = useState<string | null>(clientParam);
 
   // הצג פגישות מבוטלות שכבר עברו, הסתר מבוטלות עתידיות
   const events: CalendarEvent[] = sessions
@@ -219,12 +206,23 @@ export default function CalendarPage() {
     const endTime = new Date(clickedTime);
     endTime.setMinutes(endTime.getMinutes() + defaultSessionDuration);
     
+    // אם הגיעו מדף מטופל, למלא את המטופל והמחיר אוטומטית
+    let clientId = "";
+    let price = "";
+    if (preselectedClientId) {
+      clientId = preselectedClientId;
+      const client = clients.find(c => c.id === preselectedClientId);
+      if (client?.defaultSessionPrice) {
+        price = String(client.defaultSessionPrice);
+      }
+      setPreselectedClientId(null);
+    }
     setInitialFormData({
-      clientId: "",
+      clientId,
       startTime: `${dateStr}T${timeStr}`,
       endTime: format(endTime, "yyyy-MM-dd'T'HH:mm"),
       type: "IN_PERSON",
-      price: "",
+      price,
       isRecurring: false,
       weeksToRepeat: 4,
     });
