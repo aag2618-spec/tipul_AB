@@ -24,6 +24,7 @@ import { CalendarOverlapsDialog } from "@/components/calendar/calendar-overlaps-
 import { UpdateSessionDialog, type UpdateSessionDialogParams } from "@/components/update-session-dialog";
 import { useCalendarData, type CalendarClient, type CalendarSession, type RecurringPattern } from "@/hooks/use-calendar-data";
 import { getEventColors } from "@/lib/calendar/event-colors";
+import { NewSessionDialog, DEFAULT_FORM_DATA, type SessionFormData, type RecurringPreviewItem, type PendingFormRecurring } from "@/components/calendar/new-session-dialog";
 
 // Dynamic import for FullCalendar to avoid SSR issues
 const FullCalendar = dynamic(
@@ -130,15 +131,7 @@ export default function CalendarPage() {
     pendingSessionStatus?: string;
   } | null>(null);
   const [selectedDate, setSelectedDate] = useState<Date | null>(null);
-  const [formData, setFormData] = useState({
-    clientId: "",
-    startTime: "",
-    endTime: "",
-    type: "IN_PERSON",
-    price: "",
-    isRecurring: false,
-    weeksToRepeat: 4,
-  });
+  const [initialFormData, setInitialFormData] = useState<SessionFormData>(DEFAULT_FORM_DATA);
   const [recurringFormData, setRecurringFormData] = useState({
     dayOfWeek: 0,
     time: "09:00",
@@ -146,8 +139,6 @@ export default function CalendarPage() {
     clientId: "",
   });
   const [isSubmitting, setIsSubmitting] = useState(false);
-  const [showDurationCustomizer, setShowDurationCustomizer] = useState(false);
-  const [customDuration, setCustomDuration] = useState(50);
   const [showOverlapsDialog, setShowOverlapsDialog] = useState(false);
   const [deletingOverlap, setDeletingOverlap] = useState<string | null>(null);
   const [applyPreview, setApplyPreview] = useState<{
@@ -251,7 +242,7 @@ export default function CalendarPage() {
     const endTime = new Date(clickedTime);
     endTime.setMinutes(endTime.getMinutes() + defaultSessionDuration);
     
-    setFormData({
+    setInitialFormData({
       clientId: "",
       startTime: `${dateStr}T${timeStr}`,
       endTime: `${dateStr}T${format(endTime, "HH:mm")}`,
@@ -260,8 +251,6 @@ export default function CalendarPage() {
       isRecurring: false,
       weeksToRepeat: 4,
     });
-    setCustomDuration(defaultSessionDuration);
-    setShowDurationCustomizer(false);
     setIsDialogOpen(true);
   };
 
@@ -425,7 +414,7 @@ export default function CalendarPage() {
     const newEndTime = new Date(endTime);
     newEndTime.setMinutes(newEndTime.getMinutes() + defaultSessionDuration);
     
-    setFormData({
+    setInitialFormData({
       clientId: session.client?.id || "",
       startTime: `${dateStr}T${timeStr}`,
       endTime: `${dateStr}T${format(newEndTime, "HH:mm")}`,
@@ -435,20 +424,6 @@ export default function CalendarPage() {
       weeksToRepeat: 4,
     });
     setIsDialogOpen(true);
-  };
-
-  // עדכון משך פגישה והחישוב מחדש של שעת סיום
-  const handleDurationChange = (minutes: number) => {
-    setCustomDuration(minutes);
-    if (formData.startTime) {
-      const start = new Date(formData.startTime);
-      const end = new Date(start);
-      end.setMinutes(end.getMinutes() + minutes);
-      setFormData((prev) => ({
-        ...prev,
-        endTime: format(end, "yyyy-MM-dd'T'HH:mm")
-      }));
-    }
   };
 
   // Custom event content with "+" button
@@ -520,135 +495,6 @@ export default function CalendarPage() {
         </button>
       </div>
     );
-  };
-
-  const handleSubmit = async (e: React.FormEvent) => {
-    e.preventDefault();
-    
-    // Skip client validation for BREAK type
-    if (formData.type !== "BREAK" && (!formData.clientId || !formData.startTime || !formData.endTime)) {
-      toast.error("נא למלא את כל השדות");
-      return;
-    }
-    
-    if (formData.type === "BREAK" && (!formData.startTime || !formData.endTime)) {
-      toast.error("נא למלא את שעות ההפסקה");
-      return;
-    }
-
-    setIsSubmitting(true);
-
-    try {
-      // ── Recurring: show preview before creating ──
-      if (formData.isRecurring && formData.weeksToRepeat > 1) {
-        const startDate = new Date(formData.startTime);
-        const endDate = new Date(formData.endTime);
-        const client = clients.find((c) => c.id === formData.clientId);
-        const planned: Array<{ startLocal: string; endLocal: string; start: Date; end: Date }> = [];
-
-        for (let i = 0; i < formData.weeksToRepeat; i++) {
-          const s = addWeeks(startDate, i);
-          const e = addWeeks(endDate, i);
-          planned.push({
-            start: s,
-            end: e,
-            startLocal: format(s, "yyyy-MM-dd'T'HH:mm"),
-            endLocal: format(e, "yyyy-MM-dd'T'HH:mm"),
-          });
-        }
-
-        // Fetch sessions for the full recurring span (first slot start → last slot end) from the server.
-        // API uses overlap semantics so every session touching this window is included.
-        const rangeStart = format(planned[0].start, "yyyy-MM-dd'T'HH:mm");
-        const rangeEnd = format(planned[planned.length - 1].end, "yyyy-MM-dd'T'HH:mm");
-        let rangeSessions = sessions;
-        try {
-          const qs = new URLSearchParams({
-            startDate: rangeStart,
-            endDate: rangeEnd,
-          });
-          const rangeRes = await fetch(`/api/sessions?${qs.toString()}`);
-          if (rangeRes.ok) {
-            rangeSessions = await rangeRes.json();
-          }
-        } catch {
-          // fallback to local sessions on network error
-        }
-
-        const previewItems = planned.map((p, idx) => {
-          const dateStr = format(p.start, "yyyy-MM-dd");
-          const timeStr = format(p.start, "HH:mm");
-          const key = `form_${dateStr}_${timeStr}_${idx}`;
-          const overlap = rangeSessions.find((s: CalendarSession) => {
-            if (s.status === "CANCELLED") return false;
-            const sStart = new Date(s.startTime);
-            const sEnd = new Date(s.endTime);
-            return p.start < sEnd && p.end > sStart;
-          });
-          return {
-            key,
-            date: dateStr,
-            time: timeStr,
-            clientName: client?.name || (formData.type === "BREAK" ? "הפסקה" : "ללא שם"),
-            clientId: formData.clientId,
-            patternId: "",
-            status: (overlap ? "conflict" : "ok") as "ok" | "conflict",
-            conflictWith: overlap
-              ? {
-                  id: overlap.id,
-                  clientName: overlap.client?.name || (overlap.type === "BREAK" ? "הפסקה" : "ללא שם"),
-                  startTime: overlap.startTime,
-                  endTime: overlap.endTime,
-                }
-              : undefined,
-          };
-        });
-
-        const defaults: Record<string, "skip" | "replace" | "create"> = {};
-        previewItems.forEach((item) => {
-          if (item.status === "conflict") defaults[item.key] = "skip";
-        });
-
-        setPendingFormRecurring({
-          clientId: formData.clientId,
-          type: formData.type,
-          price: formData.price,
-          sessions: planned.map((p) => ({ startTime: p.startLocal, endTime: p.endLocal })),
-        });
-        setConflictDecisions(defaults);
-        setApplyPreview(previewItems);
-        setIsDialogOpen(false);
-        setIsSubmitting(false);
-        return;
-      }
-
-      // ── Single session: create directly ──
-      const response = await fetch("/api/sessions", {
-        method: "POST",
-        headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({
-          clientId: formData.clientId,
-          startTime: formData.startTime,
-          endTime: formData.endTime,
-          type: formData.type,
-          price: parseFloat(formData.price) || 0,
-          isRecurring: false,
-        }),
-      });
-
-      if (!response.ok) {
-        const errData = await response.json().catch(() => null);
-        throw new Error(errData?.message || "שגיאה ביצירת הפגישה");
-      }
-
-      toast.success("הפגישה נוצרה בהצלחה");
-      setIsDialogOpen(false);
-      fetchData();
-    } catch (err) {
-      toast.error(err instanceof Error ? err.message : "שגיאה ביצירת הפגישה");
-    } finally {
-      setIsSubmitting(false);
-    }
   };
 
   const handleRecurringSubmit = async (e: React.FormEvent) => {
@@ -864,15 +710,7 @@ export default function CalendarPage() {
           </Button>
           <Button onClick={() => {
             setSelectedDate(new Date());
-            setFormData({
-              clientId: "",
-              startTime: "",
-              endTime: "",
-              type: "IN_PERSON",
-              price: "",
-              isRecurring: false,
-              weeksToRepeat: 4,
-            });
+            setInitialFormData(DEFAULT_FORM_DATA);
             setIsDialogOpen(true);
           }}>
             <Plus className="ml-2 h-4 w-4" />
@@ -932,240 +770,21 @@ export default function CalendarPage() {
       </Card>
 
       {/* New Session Dialog */}
-      <Dialog open={isDialogOpen} onOpenChange={setIsDialogOpen}>
-        <DialogContent className="sm:max-w-md">
-          <DialogHeader>
-            <DialogTitle>פגישה חדשה</DialogTitle>
-            <DialogDescription>
-              {selectedDate && format(selectedDate, "EEEE, d בMMMM yyyy")}
-            </DialogDescription>
-          </DialogHeader>
-          
-          <form onSubmit={handleSubmit} className="space-y-4">
-            {formData.type !== "BREAK" && (
-              <div className="space-y-2">
-                <Label htmlFor="clientId">מטופל</Label>
-                <Select
-                  value={formData.clientId}
-                  onValueChange={(value) => {
-                    const selectedClient = clients.find((c) => c.id === value);
-                    setFormData((prev) => ({
-                      ...prev,
-                      clientId: value,
-                      // Auto-populate price from client's default if available
-                      price: selectedClient?.defaultSessionPrice 
-                        ? String(selectedClient.defaultSessionPrice) 
-                        : prev.price,
-                    }));
-                  }}
-                >
-                  <SelectTrigger>
-                    <SelectValue placeholder="בחר מטופל" />
-                  </SelectTrigger>
-                  <SelectContent>
-                    {clients.map((client) => (
-                      <SelectItem key={client.id} value={client.id}>
-                        {client.name}
-                      </SelectItem>
-                    ))}
-                  </SelectContent>
-                </Select>
-              </div>
-            )}
-
-            <div className="grid grid-cols-2 gap-4">
-              <div className="space-y-2">
-                <Label htmlFor="startTime">שעת התחלה</Label>
-                <Input
-                  id="startTime"
-                  type="datetime-local"
-                  value={formData.startTime}
-                  onChange={(e) => {
-                    const startValue = e.target.value;
-                    if (startValue) {
-                      const start = new Date(startValue);
-                      const end = new Date(start);
-                      end.setMinutes(end.getMinutes() + defaultSessionDuration);
-                      setFormData((prev) => ({
-                        ...prev,
-                        startTime: startValue,
-                        endTime: format(end, "yyyy-MM-dd'T'HH:mm")
-                      }));
-                    } else {
-                      setFormData((prev) => ({ ...prev, startTime: startValue }));
-                    }
-                  }}
-                  dir="ltr"
-                />
-              </div>
-
-              <div className="space-y-2">
-                <Label htmlFor="endTime">שעת סיום</Label>
-                <Input
-                  id="endTime"
-                  type="datetime-local"
-                  value={formData.endTime}
-                  onChange={(e) =>
-                    setFormData((prev) => ({ ...prev, endTime: e.target.value }))
-                  }
-                  dir="ltr"
-                />
-              </div>
-            </div>
-
-            {/* Duration Customizer */}
-            <div className="space-y-2">
-              <Button
-                type="button"
-                variant="ghost"
-                size="sm"
-                onClick={() => setShowDurationCustomizer(!showDurationCustomizer)}
-                className="w-full text-sm text-muted-foreground hover:text-primary"
-              >
-                <Settings className="h-4 w-4 ml-2" />
-                התאם משך פגישה
-              </Button>
-              
-              {showDurationCustomizer && (
-                <div className="border rounded-lg p-3 bg-slate-50 space-y-3 animate-in slide-in-from-top-2">
-                  <div className="flex items-center gap-2">
-                    <Label htmlFor="customDuration" className="text-sm whitespace-nowrap">
-                      משך (דקות):
-                    </Label>
-                    <Input
-                      id="customDuration"
-                      type="number"
-                      min="5"
-                      max="180"
-                      value={customDuration}
-                      onChange={(e) => handleDurationChange(parseInt(e.target.value) || defaultSessionDuration)}
-                      className="w-20 bg-white"
-                    />
-                  </div>
-                  <div className="flex flex-wrap gap-2">
-                    {[15, 30, 45, 60].map((minutes) => (
-                      <Button
-                        key={minutes}
-                        type="button"
-                        variant={customDuration === minutes ? "default" : "outline"}
-                        size="sm"
-                        onClick={() => handleDurationChange(minutes)}
-                        className="text-xs"
-                      >
-                        {minutes} דק׳
-                      </Button>
-                    ))}
-                  </div>
-                </div>
-              )}
-            </div>
-
-            <div className="grid grid-cols-2 gap-4">
-              <div className="space-y-2">
-                <Label htmlFor="type">סוג פגישה</Label>
-                <Select
-                  value={formData.type}
-                  onValueChange={(value) =>
-                    setFormData((prev) => ({ ...prev, type: value }))
-                  }
-                >
-                  <SelectTrigger>
-                    <SelectValue />
-                  </SelectTrigger>
-                  <SelectContent>
-                    <SelectItem value="BREAK">
-                      <div className="flex items-center gap-2">
-                        <Waves className="h-4 w-4" />
-                        הפסקה
-                      </div>
-                    </SelectItem>
-                    <SelectItem value="IN_PERSON">פרונטלי</SelectItem>
-                    <SelectItem value="ONLINE">אונליין</SelectItem>
-                    <SelectItem value="PHONE">טלפון</SelectItem>
-                  </SelectContent>
-                </Select>
-              </div>
-
-              <div className="space-y-2">
-                <Label htmlFor="price">מחיר (₪)</Label>
-                <Input
-                  id="price"
-                  type="number"
-                  placeholder="0"
-                  value={formData.price}
-                  onChange={(e) =>
-                    setFormData((prev) => ({ ...prev, price: e.target.value }))
-                  }
-                  dir="ltr"
-                />
-              </div>
-            </div>
-
-            {/* Recurring Options */}
-            <div className="flex items-center justify-between p-4 rounded-lg bg-muted/50">
-              <div className="flex items-center gap-3">
-                <Repeat className="h-5 w-5 text-muted-foreground" />
-                <div>
-                  <p className="font-medium">פגישה חוזרת</p>
-                  <p className="text-sm text-muted-foreground">
-                    שכפל את הפגישה לשבועות הבאים
-                  </p>
-                </div>
-              </div>
-              <Switch
-                checked={formData.isRecurring}
-                onCheckedChange={(checked) =>
-                  setFormData((prev) => ({ ...prev, isRecurring: checked }))
-                }
-              />
-            </div>
-
-            {formData.isRecurring && (
-              <div className="space-y-2">
-                <Label>כמה שבועות?</Label>
-                <Select
-                  value={formData.weeksToRepeat.toString()}
-                  onValueChange={(value) =>
-                    setFormData((prev) => ({ ...prev, weeksToRepeat: parseInt(value) }))
-                  }
-                >
-                  <SelectTrigger>
-                    <SelectValue />
-                  </SelectTrigger>
-                  <SelectContent>
-                    {[2, 4, 8, 12, 16].map((weeks) => (
-                      <SelectItem key={weeks} value={weeks.toString()}>
-                        {weeks} שבועות
-                      </SelectItem>
-                    ))}
-                  </SelectContent>
-                </Select>
-              </div>
-            )}
-
-            <DialogFooter>
-              <Button
-                type="button"
-                variant="outline"
-                onClick={() => setIsDialogOpen(false)}
-                disabled={isSubmitting}
-              >
-                ביטול
-              </Button>
-              <Button type="submit" disabled={isSubmitting}>
-                {isSubmitting ? (
-                  <>
-                    <Loader2 className="ml-2 h-4 w-4 animate-spin" />
-                    יוצר...
-                  </>
-                ) : (
-                  "צור פגישה"
-                )}
-              </Button>
-            </DialogFooter>
-          </form>
-        </DialogContent>
-      </Dialog>
+      <NewSessionDialog
+        open={isDialogOpen}
+        onOpenChange={setIsDialogOpen}
+        clients={clients}
+        defaultSessionDuration={defaultSessionDuration}
+        selectedDate={selectedDate}
+        initialFormData={initialFormData}
+        sessions={sessions}
+        onSessionCreated={() => fetchData()}
+        onShowRecurringPreview={(preview, decisions, pendingRecurring) => {
+          setApplyPreview(preview);
+          setConflictDecisions(decisions);
+          setPendingFormRecurring(pendingRecurring);
+        }}
+      />
 
       {/* Recurring Pattern Dialog — תצוגה מקדימה באותו חלון (לא דיאלוג שני) */}
       <Dialog
@@ -1600,13 +1219,13 @@ export default function CalendarPage() {
                     <Button
                       onClick={() => {
                         setIsSessionDialogOpen(false);
-                        setIsDialogOpen(true);
-                        setFormData({
-                          ...formData,
+                        setInitialFormData({
+                          ...DEFAULT_FORM_DATA,
                           startTime: format(new Date(selectedSession.startTime), "yyyy-MM-dd'T'HH:mm"),
                           endTime: format(new Date(selectedSession.endTime), "yyyy-MM-dd'T'HH:mm"),
                           type: "IN_PERSON"
                         });
+                        setIsDialogOpen(true);
                       }}
                       className="w-full"
                     >
