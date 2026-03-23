@@ -391,10 +391,10 @@ export default function CalendarPage() {
         body: JSON.stringify(statusBody),
       });
       if (response.ok) {
-        toast.success("הפגישה עודכנה והחוב נרשם, מעבר לדף תשלום...");
+        toast.success("הפגישה עודכנה והחוב נרשם");
         setUpdateDialogOpen(false);
         setSelectedSession(null);
-        router.push(`/dashboard/payments/pay/${clientId}`);
+        fetchData();
       } else {
         const errorData = await response.json().catch(() => null);
         toast.error(errorData?.message || "שגיאה בעדכון הפגישה");

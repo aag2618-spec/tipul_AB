@@ -253,8 +253,8 @@ export function TodaySessionCard({ session }: TodaySessionCardProps) {
         body: JSON.stringify(statusBody),
       });
       if (response.ok) {
-        toast.success("הפגישה עודכנה והחוב נרשם, מעבר לדף תשלום...");
-        router.push(`/dashboard/payments/pay/${session.client.id}`);
+        toast.success("הפגישה עודכנה והחוב נרשם");
+        router.refresh();
       } else {
         toast.error("שגיאה בעדכון הפגישה");
       }
@@ -276,8 +276,8 @@ export function TodaySessionCard({ session }: TodaySessionCardProps) {
       });
 
       if (response.ok) {
-        toast.success("הפגישה הושלמה, מעבר לדף תשלום...");
-        router.push(`/dashboard/payments/pay/${session.client.id}`);
+        toast.success("הפגישה הושלמה והחוב נרשם");
+        router.refresh();
       }
     } catch {
       toast.error("שגיאה בעדכון הפגישה");
@@ -325,16 +325,9 @@ export function TodaySessionCard({ session }: TodaySessionCardProps) {
       setPendingAction(null);
 
       if (shouldCharge) {
-        toast.success(pendingAction === "CANCELLED" ? "הפגישה בוטלה וחויבה. מעבר לדף תשלום..." : "דווחה אי הופעה וחויב. מעבר לדף תשלום...");
-        const clientId = session.client?.id;
-        if (clientId) {
-          setTimeout(() => {
-            router.push(`/dashboard/payments/pay/${clientId}`);
-          }, 500);
-        } else {
-          toast.error("שגיאה: לא נמצא מזהה מטופל");
-          setIsProcessing(false);
-        }
+        toast.success(pendingAction === "CANCELLED" ? "הפגישה בוטלה והחוב נרשם" : "דווחה אי הופעה והחוב נרשם");
+        setIsProcessing(false);
+        router.refresh();
       } else {
         toast.success(pendingAction === "CANCELLED" ? "הפגישה בוטלה ללא חיוב" : "דווחה אי הופעה ללא חיוב");
         setIsProcessing(false);

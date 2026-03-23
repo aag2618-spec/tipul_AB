@@ -38,8 +38,8 @@ export function QuickSessionStatus({
           body: JSON.stringify({ status: "COMPLETED", createPayment: true, markAsPaid: false }),
         });
         if (response.ok) {
-          toast.success("הפגישה הושלמה, מעבר לדף תשלום...");
-          router.push(`/dashboard/payments/pay/${clientId}`);
+          toast.success("הפגישה הושלמה והחוב נרשם");
+          router.refresh();
         } else {
           const errorData = await response.json().catch(() => null);
           toast.error(errorData?.message || "שגיאה בעדכון הסטטוס");

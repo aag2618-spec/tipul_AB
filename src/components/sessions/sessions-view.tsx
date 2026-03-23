@@ -375,10 +375,9 @@ export function SessionsView({ initialSessions }: SessionsViewProps) {
         body: JSON.stringify(statusBody),
       });
       if (response.ok) {
-        toast.success("הפגישה עודכנה והחוב נרשם, מעבר לדף תשלום...");
-        const clientId = updateDialog.clientId;
+        toast.success("הפגישה עודכנה והחוב נרשם");
         setUpdateDialog({ open: false, sessionId: "", clientName: "", clientId: "", price: 0 });
-        router.push(`/dashboard/payments/pay/${clientId}`);
+        router.refresh();
       } else {
         toast.error("שגיאה בעדכון הפגישה");
       }
