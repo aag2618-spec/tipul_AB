@@ -16,7 +16,8 @@ import { QuickMarkPaid } from "@/components/payments/quick-mark-paid";
 import type { SessionOverlap } from "@/types";
 import { CalendarOverlapsDialog } from "@/components/calendar/calendar-overlaps-dialog";
 import { UpdateSessionDialog, type UpdateSessionDialogParams } from "@/components/update-session-dialog";
-import { useCalendarData, type CalendarClient, type CalendarSession, type RecurringPattern } from "@/hooks/use-calendar-data";
+import { useCalendarData, type CalendarSession } from "@/hooks/use-calendar-data";
+import { useCalendarActions } from "@/hooks/use-calendar-actions";
 import { getEventColors } from "@/lib/calendar/event-colors";
 import { NewSessionDialog, DEFAULT_FORM_DATA, type SessionFormData, type RecurringPreviewItem, type PendingFormRecurring } from "@/components/calendar/new-session-dialog";
 import { RecurringPatternDialog } from "@/components/calendar/recurring-pattern-dialog";
@@ -85,6 +86,8 @@ export default function CalendarPage() {
     setDateRange,
   } = useCalendarData();
 
+  const { updating, updateSessionWithPayment, recordSessionDebt } = useCalendarActions({ fetchData });
+
   const [isDialogOpen, setIsDialogOpen] = useState(false);
   const [isRecurringDialogOpen, setIsRecurringDialogOpen] = useState(false);
   const [isSessionDialogOpen, setIsSessionDialogOpen] = useState(false);
@@ -93,7 +96,6 @@ export default function CalendarPage() {
   const [pendingAction, setPendingAction] = useState<"CANCELLED" | "NO_SHOW" | null>(null);
 
   const [updateDialogOpen, setUpdateDialogOpen] = useState(false);
-  const [updating, setUpdating] = useState(false);
   const [isPaymentDialogOpen, setIsPaymentDialogOpen] = useState(false);
   const [paymentData, setPaymentData] = useState<{
     sessionId: string;
@@ -234,139 +236,19 @@ export default function CalendarPage() {
 
   const handleCalendarUpdate = async (params: UpdateSessionDialogParams) => {
     if (!selectedSession) return;
-    const { updateStatus, showPayment, paymentMethod, paymentType, paymentAmount, partialAmount, issueReceipt, businessType, updateReason } = params;
-    setUpdating(true);
-    try {
-      if (updateStatus === "COMPLETED" && showPayment && selectedSession.price > 0 && selectedSession.client) {
-        const pmtAmount = paymentType === "PARTIAL"
-          ? (parseFloat(partialAmount) || 0)
-          : Number(selectedSession.price);
-        if (paymentType === "PARTIAL" && (pmtAmount <= 0 || pmtAmount > selectedSession.price)) {
-          toast.error("סכום חלקי לא תקין");
-          setUpdating(false);
-          return;
-        }
-        const paymentResponse = await fetch("/api/payments", {
-          method: "POST",
-          headers: { "Content-Type": "application/json" },
-          body: JSON.stringify({
-            clientId: selectedSession.client.id,
-            sessionId: selectedSession.id,
-            amount: pmtAmount,
-            expectedAmount: Number(selectedSession.price),
-            paymentType: paymentType === "PARTIAL" ? "PARTIAL" : "FULL",
-            method: paymentMethod,
-            status: paymentType === "PARTIAL" ? "PENDING" : "PAID",
-            issueReceipt: businessType !== "NONE" && issueReceipt,
-          }),
-        });
-        if (!paymentResponse.ok) {
-          const errorData = await paymentResponse.json().catch(() => null);
-          toast.error(errorData?.message || "שגיאה ביצירת התשלום");
-          setUpdating(false);
-          return;
-        }
-        const paymentResult = await paymentResponse.json();
-        const sessionUpdateRes = await fetch(`/api/sessions/${selectedSession.id}`, {
-          method: "PUT",
-          headers: { "Content-Type": "application/json" },
-          body: JSON.stringify({ status: "COMPLETED" }),
-        });
-        if (!sessionUpdateRes.ok) {
-          toast.success("התשלום בוצע");
-          toast.error("שגיאה בעדכון סטטוס הפגישה - נסה לעדכן ידנית");
-        } else {
-          toast.success("הפגישה הושלמה והתשלום בוצע");
-        }
-        if (paymentResult?.receiptError) {
-          toast.error(`שגיאה בהפקת קבלה: ${paymentResult.receiptError}`, { duration: 8000 });
-        }
-        setUpdateDialogOpen(false);
-        setSelectedSession(null);
-        fetchData();
-        return;
-      }
-      const updates: Promise<Response>[] = [];
-      const statusBody: Record<string, unknown> = { status: updateStatus };
-      if (updateStatus === "CANCELLED") statusBody.cancellationReason = updateReason.trim() || undefined;
-      updates.push(
-        fetch(`/api/sessions/${selectedSession.id}/status`, {
-          method: "PATCH",
-          headers: { "Content-Type": "application/json" },
-          body: JSON.stringify(statusBody),
-        })
-      );
-      if (showPayment && selectedSession.price > 0) {
-        const amt = paymentType === "PARTIAL"
-          ? parseFloat(partialAmount) || 0
-          : parseFloat(paymentAmount) || 0;
-        if (amt > 0) {
-          updates.push(
-            fetch("/api/payments", {
-              method: "POST",
-              headers: { "Content-Type": "application/json" },
-              body: JSON.stringify({
-                clientId: selectedSession.client?.id,
-                sessionId: selectedSession.id,
-                amount: amt,
-                expectedAmount: selectedSession.price || amt,
-                paymentType: paymentType === "PARTIAL" ? "PARTIAL" : "FULL",
-                method: paymentMethod,
-                status: paymentType === "PARTIAL" ? "PENDING" : "PAID",
-                issueReceipt: businessType !== "NONE" && issueReceipt,
-              }),
-            })
-          );
-        }
-      }
-      const results = await Promise.all(updates);
-      const failedResult = results.find(r => !r.ok);
-      if (failedResult) {
-        const errorData = await failedResult.json().catch(() => null);
-        toast.error(errorData?.message || "שגיאה בעדכון הפגישה");
-      } else {
-        const labels: Record<string, string> = {
-          COMPLETED: "הפגישה עודכנה כהושלמה",
-          CANCELLED: "הפגישה עודכנה כבוטלה",
-          NO_SHOW: "הפגישה עודכנה כלא הגיע",
-        };
-        toast.success(labels[updateStatus] || "הפגישה עודכנה");
-      }
+    const result = await updateSessionWithPayment(selectedSession, params);
+    if (result.success) {
       setUpdateDialogOpen(false);
       setSelectedSession(null);
-      fetchData();
-    } catch {
-      toast.error("שגיאה בעדכון הפגישה");
-    } finally {
-      setUpdating(false);
     }
   };
 
   const handleCalendarRecordDebt = async (params: { updateStatus: string; updateReason: string }) => {
-    if (!selectedSession?.client) return;
-    const clientId = selectedSession.client.id;
-    setUpdating(true);
-    try {
-      const statusBody: Record<string, unknown> = { status: params.updateStatus, createPayment: true, markAsPaid: false };
-      if (params.updateStatus === "CANCELLED") statusBody.cancellationReason = params.updateReason.trim() || undefined;
-      const response = await fetch(`/api/sessions/${selectedSession.id}`, {
-        method: "PUT",
-        headers: { "Content-Type": "application/json" },
-        body: JSON.stringify(statusBody),
-      });
-      if (response.ok) {
-        toast.success("הפגישה עודכנה והחוב נרשם");
-        setUpdateDialogOpen(false);
-        setSelectedSession(null);
-        fetchData();
-      } else {
-        const errorData = await response.json().catch(() => null);
-        toast.error(errorData?.message || "שגיאה בעדכון הפגישה");
-      }
-    } catch {
-      toast.error("שגיאה בעדכון הפגישה");
-    } finally {
-      setUpdating(false);
+    if (!selectedSession) return;
+    const result = await recordSessionDebt(selectedSession, params);
+    if (result.success) {
+      setUpdateDialogOpen(false);
+      setSelectedSession(null);
     }
   };
 
