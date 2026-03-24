@@ -1,6 +1,6 @@
 "use client";
 
-import { useEffect, useState, useCallback } from "react";
+import { useEffect, useState, useCallback, useRef } from "react";
 import { useSearchParams, useRouter } from "next/navigation";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
@@ -79,6 +79,7 @@ export function PersonalTasksWidget() {
   const [saving, setSaving] = useState(false);
   const [selectedReminder, setSelectedReminder] = useState<Reminder | null>(null);
   const [highlight, setHighlight] = useState(false);
+  const processedNotificationRef = useRef<string | null>(null);
 
   const fetchTasks = useCallback(async () => {
     try {
@@ -96,31 +97,21 @@ export function PersonalTasksWidget() {
 
   const fetchReminders = useCallback(async () => {
     try {
-      const response = await fetch("/api/notifications?unread=true");
+      // שולפים את כל ההתראות (לא רק unread) כדי שסיכומים שנקראו עדיין יופיעו בווידג'ט
+      const response = await fetch("/api/notifications");
       if (response.ok) {
         const data = await response.json();
         const summaryTypes = ["MORNING_SUMMARY", "EVENING_SUMMARY"];
-        const sixHoursMs = 6 * 60 * 60 * 1000;
+        const oneDayMs = 24 * 60 * 60 * 1000;
         const now = Date.now();
-        const allReminders = (data.notifications || []).filter(
-          (n: Reminder) => summaryTypes.includes(n.type)
-        );
-        // הפרדה: תזכורות פעילות vs. ישנות מעל 6 שעות
-        const active: Reminder[] = [];
-        const expired: Reminder[] = [];
-        for (const n of allReminders) {
+        // סיכומים מ-24 השעות האחרונות שלא נדחקו (DISMISSED) - נשארים בווידג'ט
+        const active = (data.notifications || []).filter((n: Reminder & { status?: string }) => {
+          if (!summaryTypes.includes(n.type)) return false;
+          if (n.status === "DISMISSED") return false;
           const age = now - new Date(n.createdAt).getTime();
-          if (age > sixHoursMs) {
-            expired.push(n);
-          } else {
-            active.push(n);
-          }
-        }
+          return age <= oneDayMs;
+        });
         setReminders(active);
-        // סימון ישנות כנקראו ברקע (מחוץ ל-filter)
-        for (const n of expired) {
-          fetch(`/api/notifications/${n.id}/read`, { method: "POST" }).catch(() => {});
-        }
       }
     } catch (error) {
       console.error("Failed to fetch reminders:", error);
@@ -162,8 +153,41 @@ export function PersonalTasksWidget() {
     }
   }, []);
 
-  // גלילה אוטומטית כשמגיעים מהפעמון עם ?scrollTo=personal-tasks או #personal-tasks
-  // ממתין עד שהטעינה נגמרת כדי שה-id יהיה קיים ב-DOM
+  // כשמגיעים מהפעמון עם notificationId - שולפים את ההתראה הספציפית,
+  // מוסיפים אותה לרשימה אם חסרה, ופותחים את הדיאלוג אוטומטית
+  useEffect(() => {
+    const notificationId = searchParams.get("notificationId");
+    if (!notificationId || isLoading) return;
+    // מונע עיבוד כפול של אותו notificationId
+    if (processedNotificationRef.current === notificationId) return;
+    processedNotificationRef.current = notificationId;
+
+    const existing = reminders.find(r => r.id === notificationId);
+    if (existing) {
+      // ההתראה כבר ברשימה - פותחים את הדיאלוג ישר
+      setSelectedReminder(existing);
+    } else {
+      // ההתראה לא ברשימה (נסמנה כנקראה מהפעמון או ישנה) - שולפים בלי סינון
+      fetch("/api/notifications")
+        .then(res => res.ok ? res.json() : null)
+        .then(data => {
+          if (!data) return;
+          const notification = (data.notifications || []).find(
+            (n: Reminder) => n.id === notificationId
+          );
+          if (notification) {
+            setReminders(prev => {
+              if (prev.find(r => r.id === notification.id)) return prev;
+              return [notification, ...prev];
+            });
+            setSelectedReminder(notification);
+          }
+        })
+        .catch(() => {});
+    }
+  }, [isLoading, searchParams]);
+
+  // גלילה מיידית כשמגיעים מהפעמון עם ?scrollTo=personal-tasks או #personal-tasks
   useEffect(() => {
     const shouldScroll =
       searchParams.get("scrollTo") === "personal-tasks" ||
@@ -172,19 +196,21 @@ export function PersonalTasksWidget() {
       const timerId = setTimeout(() => {
         const el = document.getElementById("personal-tasks");
         if (el) {
-          el.scrollIntoView({ behavior: "smooth" });
+          el.scrollIntoView({ behavior: "instant" });
           setHighlight(true);
-          setTimeout(() => setHighlight(false), 6000);
+          setTimeout(() => setHighlight(false), 10000);
         }
-        // ניקוי הפרמטר מה-URL בלי רענון
+        // ניקוי הפרמטרים מה-URL בלי רענון
         const url = new URL(window.location.href);
         url.searchParams.delete("scrollTo");
+        url.searchParams.delete("notificationId");
         url.hash = "";
         window.history.replaceState(null, "", url.pathname + url.search);
       }, 300);
       return () => clearTimeout(timerId);
     }
   }, [isLoading, searchParams]);
+
 
   const [activeReminders, setActiveReminders] = useState<Set<string>>(new Set());
 
@@ -624,7 +650,14 @@ export function PersonalTasksWidget() {
               </p>
             </div>
           )}
-          <DialogFooter>
+          <DialogFooter className="gap-2 sm:gap-0">
+            <Button
+              size="sm"
+              variant="outline"
+              onClick={() => setSelectedReminder(null)}
+            >
+              סגור
+            </Button>
             <Button
               size="sm"
               className="gap-1 bg-emerald-600 hover:bg-emerald-700"
@@ -634,7 +667,7 @@ export function PersonalTasksWidget() {
               }}
             >
               <CheckCircle2 className="h-3.5 w-3.5" />
-              סמן כנקרא
+              הסר מהרשימה
             </Button>
           </DialogFooter>
         </DialogContent>

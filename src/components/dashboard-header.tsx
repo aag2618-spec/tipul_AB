@@ -184,8 +184,8 @@ export function DashboardHeader({ user }: DashboardHeaderProps) {
   };
 
   const handleNotificationClick = (notification: Notification) => {
-    markAsRead(notification.id);
     if (notification.type === "BOOKING_REQUEST" || notification.type === "CANCELLATION_REQUEST") {
+      markAsRead(notification.id);
       const info = extractBookingInfo(notification.content);
       const params = new URLSearchParams();
       if (info.date) params.set("date", info.date);
@@ -194,13 +194,19 @@ export function DashboardHeader({ user }: DashboardHeaderProps) {
       const qs = params.toString();
       router.push(`/dashboard/calendar${qs ? `?${qs}` : ""}`);
     } else if (notification.type === "MORNING_SUMMARY") {
+      markAsRead(notification.id);
       router.push("/dashboard/calendar");
-    } else if (notification.type === "PENDING_TASKS" || notification.type === "EVENING_SUMMARY") {
-      // ניווט לדשבורד עם פרמטר שגורם לגלילה + הדגשה של המשימות
+    } else if (notification.type === "EVENING_SUMMARY") {
+      markAsRead(notification.id);
+      router.push(`/dashboard?scrollTo=personal-tasks&notificationId=${notification.id}`);
+    } else if (notification.type === "PENDING_TASKS") {
+      markAsRead(notification.id);
       router.push("/dashboard?scrollTo=personal-tasks");
     } else if (notification.type === "PAYMENT_REMINDER") {
+      markAsRead(notification.id);
       router.push("/dashboard/payments");
     } else {
+      markAsRead(notification.id);
       router.push("/dashboard/communications");
     }
   };

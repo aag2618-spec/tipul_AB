@@ -45,6 +45,7 @@ export async function GET(request: NextRequest) {
       type: n.type,
       title: n.title,
       content: n.content,
+      status: n.status,
       read: n.status === "READ" || n.status === "DISMISSED",
       createdAt: n.createdAt.toISOString(),
     }));
