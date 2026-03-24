@@ -1,6 +1,6 @@
 "use client";
 
-import { useState } from "react";
+import { useState, useEffect } from "react";
 import { Button } from "@/components/ui/button";
 import {
   Dialog,
@@ -21,7 +21,8 @@ import {
 import { Label } from "@/components/ui/label";
 import { Input } from "@/components/ui/input";
 import { Badge } from "@/components/ui/badge";
-import { CreditCard, Loader2, Check, ChevronDown } from "lucide-react";
+import { CreditCard, Loader2, Check, ChevronDown, FileText } from "lucide-react";
+import { Checkbox } from "@/components/ui/checkbox";
 import { toast } from "sonner";
 import { useRouter } from "next/navigation";
 
@@ -54,7 +55,30 @@ export function PayClientDebts({
   const [partialAmount, setPartialAmount] = useState<string>("");
   const [useCredit, setUseCredit] = useState(false);
   const [showAdvanced, setShowAdvanced] = useState(false);
+  const [issueReceipt, setIssueReceipt] = useState<boolean>(false);
+  const [receiptMode, setReceiptMode] = useState<"ALWAYS" | "ASK" | "NEVER">("ASK");
+  const [businessType, setBusinessType] = useState<"NONE" | "EXEMPT" | "LICENSED">("NONE");
   const router = useRouter();
+
+  // Fetch business settings for receipt handling
+  useEffect(() => {
+    if (isOpen) {
+      fetch("/api/user/business-settings")
+        .then((res) => res.json())
+        .then((data) => {
+          if (data.businessType) setBusinessType(data.businessType);
+          if (data.receiptDefaultMode) setReceiptMode(data.receiptDefaultMode);
+          if (data.receiptDefaultMode === "ALWAYS") {
+            setIssueReceipt(true);
+          } else if (data.receiptDefaultMode === "NEVER") {
+            setIssueReceipt(false);
+          }
+        })
+        .catch((err) => {
+          console.error("Failed to fetch business settings:", err);
+        });
+    }
+  }, [isOpen]);
 
   // Reset form when dialog closes
   const handleDialogOpenChange = (open: boolean) => {
@@ -66,6 +90,7 @@ export function PayClientDebts({
       setPartialAmount("");
       setUseCredit(false);
       setShowAdvanced(false);
+      setIssueReceipt(false);
     }
   };
 
@@ -117,6 +142,7 @@ export function PayClientDebts({
           method,
           paymentMode,
           creditUsed, // Amount paid from credit
+          issueReceipt: businessType !== "NONE" && issueReceipt,
         }),
       });
 
@@ -231,6 +257,32 @@ export function PayClientDebts({
                 </Select>
               </div>
 
+              {/* הוצאת קבלה - מוצג רק אם סוג העסק מאפשר */}
+              {businessType !== "NONE" && receiptMode !== "NEVER" && (
+                <div
+                  className="flex items-center gap-3 py-2 px-3 bg-sky-50 rounded-lg border border-sky-200"
+                  onClick={(e) => e.stopPropagation()}
+                  onPointerDown={(e) => e.stopPropagation()}
+                  onMouseDown={(e) => e.stopPropagation()}
+                >
+                  <Checkbox
+                    id="issue-receipt-debts"
+                    checked={issueReceipt}
+                    onCheckedChange={(checked) => {
+                      setIssueReceipt(checked === true);
+                    }}
+                    disabled={receiptMode === "ALWAYS"}
+                  />
+                  <Label htmlFor="issue-receipt-debts" className="cursor-pointer flex items-center gap-2 text-sky-800">
+                    <FileText className="h-4 w-4" />
+                    הוצא קבלה
+                    {receiptMode === "ALWAYS" && (
+                      <span className="text-xs text-sky-600">(ברירת מחדל)</span>
+                    )}
+                  </Label>
+                </div>
+              )}
+
               {/* כפתור אופציות מתקדמות */}
               <div
                 role="button"
@@ -263,7 +315,7 @@ export function PayClientDebts({
                     <div className="flex items-center gap-2">
                       <input
                         type="checkbox"
-                        id="partial-payment"
+                        id="partial-payment-debts"
                         checked={paymentMode === "PARTIAL"}
                         onChange={(e) => {
                           setPaymentMode(e.target.checked ? "PARTIAL" : "FULL");
@@ -271,17 +323,17 @@ export function PayClientDebts({
                         }}
                         className="h-4 w-4"
                       />
-                      <Label htmlFor="partial-payment" className="cursor-pointer">
+                      <Label htmlFor="partial-payment-debts" className="cursor-pointer">
                         תשלום חלקי
                       </Label>
                     </div>
                     
                     {paymentMode === "PARTIAL" && (
                       <div className="space-y-2 pr-6">
-                        <Label htmlFor="partial-amount" className="text-sm">סכום לתשלום</Label>
+                        <Label htmlFor="partial-amount-debts" className="text-sm">סכום לתשלום</Label>
                         <div className="relative">
                           <Input
-                            id="partial-amount"
+                            id="partial-amount-debts"
                             type="number"
                             placeholder="הזן סכום"
                             value={partialAmount}
@@ -310,12 +362,12 @@ export function PayClientDebts({
                       <div className="flex items-center gap-2">
                         <input
                           type="checkbox"
-                          id="use-credit"
+                          id="use-credit-debts"
                           checked={useCredit}
                           onChange={(e) => setUseCredit(e.target.checked)}
                           className="h-4 w-4"
                         />
-                        <Label htmlFor="use-credit" className="cursor-pointer">
+                        <Label htmlFor="use-credit-debts" className="cursor-pointer">
                           השתמש בקרדיט (זמין: ₪{safeCredit.toFixed(0)})
                         </Label>
                       </div>

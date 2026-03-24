@@ -18,6 +18,7 @@ export async function processMultiSessionPayment(params: {
   method: PaymentMethod;
   paymentMode: "FULL" | "PARTIAL";
   creditUsed?: number;
+  issueReceipt?: boolean;
 }): Promise<BulkPaymentResult> {
   try {
     const {
@@ -28,6 +29,7 @@ export async function processMultiSessionPayment(params: {
       method,
       paymentMode,
       creditUsed = 0,
+      issueReceipt: shouldIssueReceipt = true,
     } = params;
 
     const client = await prisma.client.findFirst({
@@ -156,22 +158,30 @@ export async function processMultiSessionPayment(params: {
         const expAmt = Number(paymentWithSession.expectedAmount) || 0;
         const isStillPartial = !item.isFullyPaid;
 
-        const receiptResult = await issueReceipt({
-          userId,
-          paymentId: item.childId,
-          amount: item.amountPaid,
-          clientName: client.name,
-          clientEmail: client.email || undefined,
-          clientPhone: client.phone || undefined,
-          description: buildReceiptDescription(
-            paymentWithSession.session,
-            isStillPartial,
-            item.amountPaid,
-            expAmt
-          ),
-          method,
-        });
+        // הוצאת קבלה - רק אם המשתמש ביקש
+        let receiptUrl: string | null = null;
+        let receiptNumber: string | null = null;
+        if (shouldIssueReceipt !== false) {
+          const receiptResult = await issueReceipt({
+            userId,
+            paymentId: item.childId,
+            amount: item.amountPaid,
+            clientName: client.name,
+            clientEmail: client.email || undefined,
+            clientPhone: client.phone || undefined,
+            description: buildReceiptDescription(
+              paymentWithSession.session,
+              isStillPartial,
+              item.amountPaid,
+              expAmt
+            ),
+            method,
+          });
+          receiptUrl = receiptResult.receiptUrl;
+          receiptNumber = receiptResult.receiptNumber;
+        }
 
+        // שליחת מייל - תמיד לפי הגדרות התקשורת של המשתמש
         const sessionRemaining = item.isFullyPaid ? 0 : Math.max(0, expAmt - Number(paymentWithSession.amount));
         await sendPaymentReceiptEmail({
           userId,
@@ -181,8 +191,8 @@ export async function processMultiSessionPayment(params: {
           method,
           paidAt: new Date(),
           session: paymentWithSession.session || null,
-          receiptUrl: receiptResult.receiptUrl,
-          receiptNumber: receiptResult.receiptNumber,
+          receiptUrl,
+          receiptNumber,
           sessionRemainingAfterPayment: sessionRemaining,
         });
       } catch (receiptEmailError) {

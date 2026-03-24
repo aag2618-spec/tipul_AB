@@ -18,6 +18,7 @@ export async function POST(req: NextRequest) {
       method,
       paymentMode,
       creditUsed = 0,
+      issueReceipt = true,
     } = await req.json();
 
     if (!clientId || !paymentIds || !totalAmount || !method) {
@@ -51,6 +52,7 @@ export async function POST(req: NextRequest) {
       method,
       paymentMode: paymentMode || "FULL",
       creditUsed: Number(creditUsed) || undefined,
+      issueReceipt,
     });
 
     if (!result.success) {
