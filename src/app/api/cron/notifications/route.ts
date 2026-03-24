@@ -237,7 +237,23 @@ export async function GET(request: NextRequest) {
             take: 5,
           });
 
-          const totalPending = sessionsPendingSummary.length + pendingTasks.length;
+          // ניקוי משימות גבייה עם 0₪ - לא רלוונטיות, נסמן כהושלמו
+          const zeroDebtTaskIds = pendingTasks
+            .filter(t => t.type === "COLLECT_PAYMENT" && /[-–]\s*₪0\s*$/.test(t.title))
+            .map(t => t.id);
+          if (zeroDebtTaskIds.length > 0) {
+            await prisma.task.updateMany({
+              where: { id: { in: zeroDebtTaskIds } },
+              data: { status: "COMPLETED" },
+            });
+          }
+
+          // סינון משימות 0₪ מהתצוגה
+          const filteredTasks = pendingTasks.filter(t =>
+            !(t.type === "COLLECT_PAYMENT" && /[-–]\s*₪0\s*$/.test(t.title))
+          );
+
+          const totalPending = sessionsPendingSummary.length + filteredTasks.length;
 
           if (tomorrowSessions.length > 0 || totalPending > 0) {
             const realTomorrowSessions = tomorrowSessions.filter((s) => s.client);
@@ -251,7 +267,7 @@ export async function GET(request: NextRequest) {
             const summaryList = sessionsPendingSummary
               .map((s) => `• כתוב סיכום - ${s.client?.name || "מטופל"}`)
               .join("\n");
-            const tasksList = pendingTasks
+            const tasksList = filteredTasks
               .map((t) => `• ${t.title}`)
               .join("\n");
             const allTasksList = [summaryList, tasksList].filter(Boolean).join("\n");
@@ -284,7 +300,7 @@ export async function GET(request: NextRequest) {
               const summaryItemsHtml = sessionsPendingSummary
                 .map((s) => `<li style="margin-bottom:4px;">כתוב סיכום - ${escapeHtml(s.client?.name || "מטופל")}</li>`)
                 .join("");
-              const taskItemsHtml = pendingTasks
+              const taskItemsHtml = filteredTasks
                 .map((t) => `<li style="margin-bottom:4px;">${escapeHtml(t.title)}</li>`)
                 .join("");
               const allTasksHtml = summaryItemsHtml + taskItemsHtml || `<li style="color:#6b7280;">אין משימות פתוחות</li>`;
