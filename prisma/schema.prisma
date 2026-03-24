@@ -64,6 +64,7 @@ model User {
   role                    Role      @default(USER)
   isBlocked               Boolean   @default(false)
   defaultSessionDuration  Int       @default(50) // משך פגישה סטנדרטית בדקות
+  defaultSessionPrice     Decimal?  @db.Decimal(10, 2) // מחיר ברירת מחדל לפגישה
   
   // AI & Billing Settings
   aiTier                  AITier    @default(ESSENTIAL) // Essential, Pro, Enterprise

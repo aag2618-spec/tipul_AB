@@ -69,6 +69,18 @@ export async function POST(request: NextRequest) {
     if ("error" in parsed) return parsed.error;
     const { firstName, lastName, phone, email, birthDate, address, notes, status, defaultSessionPrice } = parsed.data;
 
+    // אם לא הוגדר מחיר למטופל, להשתמש במחיר ברירת המחדל של המטפל
+    let finalPrice = defaultSessionPrice ? parseFloat(String(defaultSessionPrice)) : null;
+    if (finalPrice === null) {
+      const therapist = await prisma.user.findUnique({
+        where: { id: userId },
+        select: { defaultSessionPrice: true },
+      });
+      if (therapist?.defaultSessionPrice) {
+        finalPrice = Number(therapist.defaultSessionPrice);
+      }
+    }
+
     const client = await prisma.client.create({
       data: {
         therapistId: userId,
@@ -81,7 +93,7 @@ export async function POST(request: NextRequest) {
         address: address || null,
         notes: notes || null,
         status: status || "ACTIVE",
-        defaultSessionPrice: defaultSessionPrice ? parseFloat(String(defaultSessionPrice)) : null,
+        defaultSessionPrice: finalPrice,
       },
     });
 

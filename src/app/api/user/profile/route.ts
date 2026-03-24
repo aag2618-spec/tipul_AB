@@ -22,6 +22,7 @@ export async function GET() {
         license: true,
         image: true,
         defaultSessionDuration: true,
+        defaultSessionPrice: true,
       },
     });
 
@@ -42,7 +43,7 @@ export async function PUT(request: NextRequest) {
     const { userId, session } = auth;
 
     const body = await request.json();
-    const { name, phone, license, defaultSessionDuration } = body;
+    const { name, phone, license, defaultSessionDuration, defaultSessionPrice } = body;
 
     const user = await prisma.user.update({
       where: { id: userId },
@@ -51,6 +52,7 @@ export async function PUT(request: NextRequest) {
         phone: phone || null,
         license: license || null,
         defaultSessionDuration: defaultSessionDuration ? parseInt(defaultSessionDuration) : undefined,
+        defaultSessionPrice: defaultSessionPrice !== undefined ? (defaultSessionPrice ? parseFloat(defaultSessionPrice) : null) : undefined,
       },
       select: {
         id: true,
@@ -59,6 +61,7 @@ export async function PUT(request: NextRequest) {
         phone: true,
         license: true,
         defaultSessionDuration: true,
+        defaultSessionPrice: true,
       },
     });
 

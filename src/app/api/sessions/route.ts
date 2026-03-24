@@ -84,6 +84,17 @@ export async function POST(request: NextRequest) {
 
       // Use client's default session price if no price provided
       clientDefaultPrice = Number(client.defaultSessionPrice || 0);
+
+      // אם גם למטופל אין מחיר, ניקח את מחיר ברירת המחדל של המטפל
+      if (clientDefaultPrice === 0) {
+        const therapist = await prisma.user.findUnique({
+          where: { id: userId },
+          select: { defaultSessionPrice: true },
+        });
+        if (therapist?.defaultSessionPrice) {
+          clientDefaultPrice = Number(therapist.defaultSessionPrice);
+        }
+      }
     }
 
     // Parse times using Israel timezone

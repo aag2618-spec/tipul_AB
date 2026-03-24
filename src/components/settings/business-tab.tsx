@@ -8,7 +8,7 @@ import { Label } from "@/components/ui/label";
 import { RadioGroup, RadioGroupItem } from "@/components/ui/radio-group";
 import { toast } from "sonner";
 import { Switch } from "@/components/ui/switch";
-import { Loader2, Building2, Receipt, Save, Calendar, FileText } from "lucide-react";
+import { Loader2, Building2, Receipt, Save, FileText } from "lucide-react";
 
 interface BusinessSettings {
   businessType: "NONE" | "EXEMPT" | "LICENSED";
@@ -22,7 +22,6 @@ interface BusinessSettings {
 export function BusinessTab() {
   const [isLoading, setIsLoading] = useState(true);
   const [isSaving, setIsSaving] = useState(false);
-  const [defaultSessionDuration, setDefaultSessionDuration] = useState(50);
   const [settings, setSettings] = useState<BusinessSettings>({
     businessType: "NONE",
     businessName: "",
@@ -41,9 +40,8 @@ export function BusinessTab() {
   useEffect(() => {
     Promise.all([
       fetch("/api/user/business-settings", { cache: "no-store" }).then((res) => res.json()),
-      fetch("/api/user/profile", { cache: "no-store" }).then((res) => res.json()),
       fetch("/api/user/communication-settings", { cache: "no-store" }).then(r => r.ok ? r.json() : null),
-    ]).then(([bizData, profileData, commData]) => {
+    ]).then(([bizData, commData]) => {
       setSettings({
         businessType: bizData.businessType || "NONE",
         businessName: bizData.businessName || "",
@@ -52,7 +50,6 @@ export function BusinessTab() {
         nextReceiptNumber: bizData.nextReceiptNumber || 1,
         receiptDefaultMode: bizData.receiptDefaultMode || "ASK",
       });
-      setDefaultSessionDuration(profileData.defaultSessionDuration || 50);
       if (commData?.settings) {
         setFullCommSettings(commData.settings);
         setReceiptEmailSettings({
@@ -74,11 +71,6 @@ export function BusinessTab() {
           method: "PUT",
           headers: { "Content-Type": "application/json" },
           body: JSON.stringify(settings),
-        }),
-        fetch("/api/user/profile", {
-          method: "PUT",
-          headers: { "Content-Type": "application/json" },
-          body: JSON.stringify({ defaultSessionDuration }),
         }),
       ];
       if (fullCommSettings) {
@@ -106,43 +98,6 @@ export function BusinessTab() {
 
   return (
     <div className="space-y-6">
-      <Card className="border-primary/20 bg-gradient-to-br from-sky-50/50 to-indigo-50/50 dark:from-sky-950/20 dark:to-indigo-950/20">
-        <CardHeader>
-          <div className="flex items-center gap-2">
-            <Calendar className="h-5 w-5 text-primary" />
-            <CardTitle>הגדרות יומן ופגישות</CardTitle>
-          </div>
-          <CardDescription>
-            הגדרות כלליות החלות על כל היומן וכל הפגישות שתיצור
-          </CardDescription>
-        </CardHeader>
-        <CardContent className="space-y-4">
-          <div className="space-y-2">
-            <Label htmlFor="sessionDuration" className="text-base font-semibold">
-              משך זמן ברירת מחדל לפגישה
-            </Label>
-            <p className="text-xs text-muted-foreground">כשתיצור פגישה חדשה, משך הזמן יוגדר אוטומטית לערך הזה. ניתן לשנות לכל פגישה בנפרד.</p>
-            <div className="flex items-center gap-3">
-              <Input
-                id="sessionDuration"
-                type="number"
-                min="15"
-                max="180"
-                step="5"
-                value={defaultSessionDuration}
-                onChange={(e) => setDefaultSessionDuration(parseInt(e.target.value) || 50)}
-                disabled={isSaving}
-                className="max-w-[120px] text-lg font-semibold"
-              />
-              <span className="text-muted-foreground">דקות</span>
-            </div>
-            <p className="text-sm text-muted-foreground">
-              מומלץ: 45-50 דקות (משך טיפול סטנדרטי)
-            </p>
-          </div>
-        </CardContent>
-      </Card>
-
       <Card>
         <CardHeader>
           <CardTitle className="flex items-center gap-2">
