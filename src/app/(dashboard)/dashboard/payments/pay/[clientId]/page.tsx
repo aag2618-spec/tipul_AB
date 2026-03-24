@@ -249,7 +249,7 @@ export default function PayClientPage({ params }: { params: Promise<{ clientId: 
       </div>
 
       {/* Quick Payment Card - Pay All */}
-      <Card className="border-2 border-green-200 bg-green-50/50">
+      <Card className="bg-gradient-to-br from-green-50 to-green-100 dark:from-green-950/30 dark:to-green-900/30">
         <CardContent className="p-6">
           <div className="flex items-center justify-between">
             <div className="space-y-1">
@@ -280,6 +280,10 @@ export default function PayClientPage({ params }: { params: Promise<{ clientId: 
                 paymentId: s.paymentId,
                 amount: s.expectedAmount - s.amount
               }))}
+              dateRange={client.unpaidSessions.length > 0 ? {
+                from: client.unpaidSessions[0].date,
+                to: client.unpaidSessions[client.unpaidSessions.length - 1].date
+              } : undefined}
               onPaymentComplete={() => {
                 toast.success("התשלום בוצע בהצלחה!");
                 router.push("/dashboard/payments");
@@ -417,17 +421,17 @@ export default function PayClientPage({ params }: { params: Promise<{ clientId: 
         </CardHeader>
         <CardContent>
           <div className="grid grid-cols-2 md:grid-cols-3 gap-4">
-            <div className="text-center p-4 bg-slate-50 rounded-lg">
+            <div className="text-center p-4 bg-gradient-to-br from-red-50 to-red-100 dark:from-red-950/30 dark:to-red-900/30 rounded-lg">
               <p className="text-sm text-muted-foreground">סה"כ חוב</p>
               <p className="text-2xl font-bold text-red-600">₪{client.totalDebt.toFixed(0)}</p>
             </div>
-            <div className="text-center p-4 bg-slate-50 rounded-lg">
+            <div className="text-center p-4 bg-gradient-to-br from-green-50 to-green-100 dark:from-green-950/30 dark:to-green-900/30 rounded-lg">
               <p className="text-sm text-muted-foreground">נבחרו לתשלום</p>
-              <p className="text-2xl font-bold text-sky-600">₪{selectedTotal.toFixed(0)}</p>
+              <p className="text-2xl font-bold text-green-600">₪{selectedTotal.toFixed(0)}</p>
             </div>
-            <div className="text-center p-4 bg-slate-50 rounded-lg col-span-2 md:col-span-1">
+            <div className="text-center p-4 bg-gradient-to-br from-orange-50 to-orange-100 dark:from-orange-950/30 dark:to-orange-900/30 rounded-lg col-span-2 md:col-span-1">
               <p className="text-sm text-muted-foreground">יישאר לשלם</p>
-              <p className="text-2xl font-bold text-orange-600">
+              <p className="text-2xl font-bold text-red-600">
                 ₪{(client.totalDebt - selectedTotal).toFixed(0)}
               </p>
             </div>
@@ -502,11 +506,19 @@ export default function PayClientPage({ params }: { params: Promise<{ clientId: 
                     )}
                   </div>
                   <p className="text-sm text-muted-foreground">
-                    {session.amount > 0 
+                    {session.amount > 0
                       ? `שולם חלקית: ₪${session.amount.toFixed(0)} מתוך ₪${session.expectedAmount.toFixed(0)}`
                       : `טרם שולם`
                     }
                   </p>
+                  {session.amount > 0 && (
+                    <div className="w-full bg-gray-200 rounded-full h-2 mt-1">
+                      <div
+                        className="bg-green-500 h-2 rounded-full transition-all"
+                        style={{ width: `${Math.min((session.amount / session.expectedAmount) * 100, 100)}%` }}
+                      />
+                    </div>
+                  )}
                 </div>
 
                 <div className="text-left">
@@ -541,6 +553,10 @@ export default function PayClientPage({ params }: { params: Promise<{ clientId: 
                     paymentId: s.paymentId,
                     amount: s.expectedAmount - s.amount
                   }))}
+                  dateRange={selectedPaymentsList.length > 0 ? {
+                    from: selectedPaymentsList[0].date,
+                    to: selectedPaymentsList[selectedPaymentsList.length - 1].date
+                  } : undefined}
                   onPaymentComplete={() => {
                     toast.success("התשלום בוצע בהצלחה!");
                     router.push("/dashboard/payments");

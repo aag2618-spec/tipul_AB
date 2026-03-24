@@ -25,6 +25,25 @@ import { CreditCard, Loader2, Check, ChevronDown, FileText } from "lucide-react"
 import { Checkbox } from "@/components/ui/checkbox";
 import { toast } from "sonner";
 import { useRouter } from "next/navigation";
+import { format } from "date-fns";
+import {
+  AlertDialog,
+  AlertDialogAction,
+  AlertDialogCancel,
+  AlertDialogContent,
+  AlertDialogDescription,
+  AlertDialogFooter,
+  AlertDialogHeader,
+  AlertDialogTitle,
+} from "@/components/ui/alert-dialog";
+
+const METHOD_LABELS: Record<string, string> = {
+  CASH: "מזומן",
+  CREDIT_CARD: "כרטיס אשראי",
+  BANK_TRANSFER: "העברה בנקאית",
+  CHECK: "המחאה",
+  OTHER: "אחר",
+};
 
 interface PayClientDebtsProps {
   clientId: string;
@@ -37,6 +56,7 @@ interface PayClientDebtsProps {
   }>;
   onPaymentComplete?: () => void;
   onOptimisticUpdate?: (amountPaid: number) => void;
+  dateRange?: { from: Date; to: Date };
 }
 
 export function PayClientDebts({
@@ -47,6 +67,7 @@ export function PayClientDebts({
   unpaidPayments,
   onPaymentComplete,
   onOptimisticUpdate,
+  dateRange,
 }: PayClientDebtsProps) {
   const [isOpen, setIsOpen] = useState(false);
   const [isLoading, setIsLoading] = useState(false);
@@ -58,6 +79,7 @@ export function PayClientDebts({
   const [issueReceipt, setIssueReceipt] = useState<boolean>(false);
   const [receiptMode, setReceiptMode] = useState<"ALWAYS" | "ASK" | "NEVER">("ASK");
   const [businessType, setBusinessType] = useState<"NONE" | "EXEMPT" | "LICENSED">("NONE");
+  const [showConfirmDialog, setShowConfirmDialog] = useState(false);
   const router = useRouter();
 
   // Fetch business settings for receipt handling
@@ -94,12 +116,34 @@ export function PayClientDebts({
     }
   };
 
-  const handlePayment = async () => {
+  // בדיקת תקינות ואישור לפני תשלום
+  const handlePaymentClick = () => {
+    if (paymentMode === "PARTIAL") {
+      const amount = parseFloat(partialAmount) || 0;
+      if (amount <= 0 || amount > totalDebt) {
+        toast.error("סכום חלקי לא תקין");
+        return;
+      }
+    }
+
+    const totalAmount = paymentMode === "FULL" ? (Number(totalDebt) || 0) : (parseFloat(partialAmount) || 0);
+
+    // אישור לתשלום מעל 500 שח
+    if (totalAmount > 500) {
+      setShowConfirmDialog(true);
+      return;
+    }
+
+    executePayment();
+  };
+
+  const executePayment = async () => {
+    setShowConfirmDialog(false);
     setIsLoading(true);
     try {
       let amountToPay = Number(totalDebt) || 0;
       let creditUsed = 0;
-      
+
       if (paymentMode === "PARTIAL") {
         amountToPay = parseFloat(partialAmount) || 0;
         if (amountToPay <= 0 || amountToPay > totalDebt) {
@@ -113,17 +157,6 @@ export function PayClientDebts({
       if (useCredit && safeCredit > 0) {
         creditUsed = Math.min(amountToPay, safeCredit);
         amountToPay = amountToPay - creditUsed;
-      }
-
-      // Confirmation for large amounts
-      if (amountToPay > 1000 && method === "CASH") {
-        const confirmed = window.confirm(
-          `האם אתה בטוח שברצונך לרשום תשלום של ₪${amountToPay.toFixed(0)} במזומן?`
-        );
-        if (!confirmed) {
-          setIsLoading(false);
-          return;
-        }
       }
 
       // Optimistic update - update UI immediately
@@ -186,6 +219,7 @@ export function PayClientDebts({
   }
 
   return (
+    <>
     <Dialog open={isOpen} onOpenChange={handleDialogOpenChange}>
       <DialogTrigger asChild>
         <Button size="sm" className="gap-2">
@@ -214,6 +248,7 @@ export function PayClientDebts({
               )}
               <p className="text-xs text-muted-foreground">
                 {unpaidPayments.length} תשלומים ממתינים
+                {dateRange && ` | ${format(new Date(dateRange.from), "dd/MM")} - ${format(new Date(dateRange.to), "dd/MM")}`}
               </p>
             </div>
           </DialogDescription>
@@ -387,8 +422,8 @@ export function PayClientDebts({
           >
             ביטול
           </Button>
-          <Button 
-            onClick={handlePayment} 
+          <Button
+            onClick={handlePaymentClick}
             disabled={isLoading || (paymentMode === "PARTIAL" && (!partialAmount || parseFloat(partialAmount) <= 0))}
             className="gap-2 bg-green-600 hover:bg-green-700"
           >
@@ -419,5 +454,54 @@ export function PayClientDebts({
         </DialogFooter>
       </DialogContent>
     </Dialog>
+
+    {/* אישור תשלום */}
+    <AlertDialog open={showConfirmDialog} onOpenChange={setShowConfirmDialog}>
+      <AlertDialogContent>
+        <AlertDialogHeader>
+          <AlertDialogTitle>אישור תשלום</AlertDialogTitle>
+          <AlertDialogDescription asChild>
+            <div className="space-y-2">
+              <p>האם לבצע את התשלום הבא?</p>
+              <div className="bg-slate-50 rounded-lg p-3 space-y-1 text-sm">
+                <div className="flex justify-between">
+                  <span>מטופל:</span>
+                  <span className="font-medium">{clientName}</span>
+                </div>
+                <div className="flex justify-between">
+                  <span>סכום:</span>
+                  <span className="font-bold text-lg">₪{paymentMode === "FULL" ? safeDebt.toFixed(0) : (parseFloat(partialAmount) || 0).toFixed(0)}</span>
+                </div>
+                <div className="flex justify-between">
+                  <span>אמצעי תשלום:</span>
+                  <span>{METHOD_LABELS[method] || method}</span>
+                </div>
+                <div className="flex justify-between">
+                  <span>פגישות:</span>
+                  <span>{unpaidPayments.length}</span>
+                </div>
+                {useCredit && safeCredit > 0 && (
+                  <div className="flex justify-between text-green-600">
+                    <span>קרדיט:</span>
+                    <span>₪{Math.min(paymentMode === "FULL" ? safeDebt : (parseFloat(partialAmount) || 0), safeCredit).toFixed(0)}</span>
+                  </div>
+                )}
+              </div>
+            </div>
+          </AlertDialogDescription>
+        </AlertDialogHeader>
+        <AlertDialogFooter>
+          <AlertDialogCancel disabled={isLoading}>ביטול</AlertDialogCancel>
+          <AlertDialogAction
+            onClick={executePayment}
+            disabled={isLoading}
+            className="bg-green-600 hover:bg-green-700"
+          >
+            {isLoading ? "מעבד..." : "אישור תשלום"}
+          </AlertDialogAction>
+        </AlertDialogFooter>
+      </AlertDialogContent>
+    </AlertDialog>
+    </>
   );
 }
