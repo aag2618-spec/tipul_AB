@@ -11,12 +11,10 @@ import { describe, it, expect } from "vitest";
 function getNotificationRoute(type: string): string {
   if (type === "BOOKING_REQUEST" || type === "CANCELLATION_REQUEST") {
     return "/dashboard/calendar";
-  } else if (
-    type === "PENDING_TASKS" ||
-    type === "MORNING_SUMMARY" ||
-    type === "EVENING_SUMMARY"
-  ) {
-    return "/dashboard/tasks";
+  } else if (type === "MORNING_SUMMARY") {
+    return "/dashboard/calendar";
+  } else if (type === "PENDING_TASKS" || type === "EVENING_SUMMARY") {
+    return "/dashboard?scrollTo=personal-tasks";
   } else if (type === "PAYMENT_REMINDER") {
     return "/dashboard/payments";
   } else {
@@ -45,16 +43,16 @@ function countPendingSummaries(sessions: SessionForSummary[]): number {
 }
 
 describe("Notification routing", () => {
-  it("MORNING_SUMMARY routes to /dashboard/tasks", () => {
-    expect(getNotificationRoute("MORNING_SUMMARY")).toBe("/dashboard/tasks");
+  it("MORNING_SUMMARY routes to /dashboard/calendar", () => {
+    expect(getNotificationRoute("MORNING_SUMMARY")).toBe("/dashboard/calendar");
   });
 
-  it("EVENING_SUMMARY routes to /dashboard/tasks", () => {
-    expect(getNotificationRoute("EVENING_SUMMARY")).toBe("/dashboard/tasks");
+  it("EVENING_SUMMARY routes to /dashboard?scrollTo=personal-tasks", () => {
+    expect(getNotificationRoute("EVENING_SUMMARY")).toBe("/dashboard?scrollTo=personal-tasks");
   });
 
-  it("PENDING_TASKS routes to /dashboard/tasks", () => {
-    expect(getNotificationRoute("PENDING_TASKS")).toBe("/dashboard/tasks");
+  it("PENDING_TASKS routes to /dashboard?scrollTo=personal-tasks", () => {
+    expect(getNotificationRoute("PENDING_TASKS")).toBe("/dashboard?scrollTo=personal-tasks");
   });
 
   it("PAYMENT_REMINDER routes to /dashboard/payments", () => {

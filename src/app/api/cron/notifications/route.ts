@@ -157,15 +157,22 @@ export async function GET(request: NextRequest) {
             include: { client: true },
           });
 
-          if (pendingPayments.length > 0) {
-            const totalDebt = calculateDebtFromPayments(pendingPayments);
+          // סינון רק תשלומים שבאמת חייבים כסף (סכום צפוי > 0 וטרם שולם במלואו)
+          const realPendingPayments = pendingPayments.filter((p) => {
+            const paid = Number(p.amount);
+            const expected = Number(p.expectedAmount) || 0;
+            return expected > 0 && paid < expected;
+          });
+
+          if (realPendingPayments.length > 0) {
+            const totalDebt = calculateDebtFromPayments(realPendingPayments);
 
             await prisma.notification.create({
               data: {
                 userId: user.id,
                 type: "PAYMENT_REMINDER",
-                title: `תזכורת: ${pendingPayments.length} תשלומים ממתינים`,
-                content: `יש לך ${pendingPayments.length} תשלומים שממתינים מעל ${debtThreshold} ימים בסך ₪${totalDebt.toLocaleString()}`,
+                title: `תזכורת: ${realPendingPayments.length} תשלומים ממתינים`,
+                content: `יש לך ${realPendingPayments.length} תשלומים שממתינים מעל ${debtThreshold} ימים בסך ₪${totalDebt.toLocaleString()}`,
                 status: "PENDING",
                 scheduledFor: now,
               },
@@ -308,15 +315,22 @@ export async function GET(request: NextRequest) {
               include: { client: true },
             });
 
-            if (allPendingPayments.length > 0) {
-              const totalAmount = calculateDebtFromPayments(allPendingPayments);
+            // סינון רק תשלומים שבאמת חייבים כסף
+            const realAllPending = allPendingPayments.filter((p) => {
+              const paid = Number(p.amount);
+              const expected = Number(p.expectedAmount) || 0;
+              return expected > 0 && paid < expected;
+            });
+
+            if (realAllPending.length > 0) {
+              const totalAmount = calculateDebtFromPayments(realAllPending);
 
               await prisma.notification.create({
                 data: {
                   userId: user.id,
                   type: "PAYMENT_REMINDER",
                   title: `תזכורת גבייה חודשית`,
-                  content: `סוף החודש מתקרב! יש לגבות ${allPendingPayments.length} תשלומים בסך ₪${totalAmount.toLocaleString()}`,
+                  content: `סוף החודש מתקרב! יש לגבות ${realAllPending.length} תשלומים בסך ₪${totalAmount.toLocaleString()}`,
                   status: "PENDING",
                   scheduledFor: now,
                 },

@@ -113,20 +113,27 @@ ${pendingTasks.length > 5 ? `\n...ועוד ${pendingTasks.length - 5} משימו
       }
 
       // Create payment reminder if there are overdue payments — skip if already sent today
-      if (pendingPayments.length > 0) {
+      // סינון רק תשלומים שבאמת חייבים כסף (סכום צפוי > 0 וטרם שולם במלואו)
+      const realPendingPayments = pendingPayments.filter((p) => {
+        const paid = Number(p.amount);
+        const expected = Number(p.expectedAmount) || 0;
+        return expected > 0 && paid < expected;
+      });
+
+      if (realPendingPayments.length > 0) {
         const alreadySentPayment = await prisma.notification.findFirst({
           where: { userId: user.id, type: "PAYMENT_REMINDER", createdAt: { gte: today } },
         });
 
         if (!alreadySentPayment) {
-          const totalDebt = calculateDebtFromPayments(pendingPayments);
+          const totalDebt = calculateDebtFromPayments(realPendingPayments);
 
           await prisma.notification.create({
             data: {
               userId: user.id,
               type: "PAYMENT_REMINDER",
-              title: `תזכורת: ${pendingPayments.length} תשלומים ממתינים`,
-              content: `יש לך ${pendingPayments.length} תשלומים שממתינים מעל ${debtThreshold} ימים בסך ₪${totalDebt}`,
+              title: `תזכורת: ${realPendingPayments.length} תשלומים ממתינים`,
+              content: `יש לך ${realPendingPayments.length} תשלומים שממתינים מעל ${debtThreshold} ימים בסך ₪${totalDebt}`,
               status: "PENDING",
               scheduledFor: now,
             },

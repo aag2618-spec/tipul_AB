@@ -1,6 +1,7 @@
 "use client";
 
 import { useEffect, useState, useCallback } from "react";
+import { useSearchParams, useRouter } from "next/navigation";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
@@ -64,6 +65,8 @@ const PRIORITY_LABELS: Record<string, string> = {
 };
 
 export function PersonalTasksWidget() {
+  const searchParams = useSearchParams();
+  const router = useRouter();
   const [tasks, setTasks] = useState<Task[]>([]);
   const [reminders, setReminders] = useState<Reminder[]>([]);
   const [historyTasks, setHistoryTasks] = useState<Task[]>([]);
@@ -75,6 +78,7 @@ export function PersonalTasksWidget() {
   const [editForm, setEditForm] = useState({ title: "", description: "" });
   const [saving, setSaving] = useState(false);
   const [selectedReminder, setSelectedReminder] = useState<Reminder | null>(null);
+  const [highlight, setHighlight] = useState(false);
 
   const fetchTasks = useCallback(async () => {
     try {
@@ -127,6 +131,8 @@ export function PersonalTasksWidget() {
     try {
       await fetch(`/api/notifications/${id}/read`, { method: "POST" });
       setReminders(prev => prev.filter(r => r.id !== id));
+      // שידור אירוע כדי שהפעמון בהדר יתעדכן מיד
+      window.dispatchEvent(new CustomEvent("notification-read"));
     } catch { /* ignore */ }
   };
 
@@ -156,17 +162,29 @@ export function PersonalTasksWidget() {
     }
   }, []);
 
-  // גלילה אוטומטית כשמגיעים מהפעמון עם #personal-tasks
+  // גלילה אוטומטית כשמגיעים מהפעמון עם ?scrollTo=personal-tasks או #personal-tasks
   // ממתין עד שהטעינה נגמרת כדי שה-id יהיה קיים ב-DOM
   useEffect(() => {
-    if (!isLoading && window.location.hash === "#personal-tasks") {
+    const shouldScroll =
+      searchParams.get("scrollTo") === "personal-tasks" ||
+      window.location.hash === "#personal-tasks";
+    if (!isLoading && shouldScroll) {
       const timerId = setTimeout(() => {
-        document.getElementById("personal-tasks")?.scrollIntoView({ behavior: "smooth" });
-        window.history.replaceState(null, "", window.location.pathname);
-      }, 100);
+        const el = document.getElementById("personal-tasks");
+        if (el) {
+          el.scrollIntoView({ behavior: "smooth" });
+          setHighlight(true);
+          setTimeout(() => setHighlight(false), 6000);
+        }
+        // ניקוי הפרמטר מה-URL בלי רענון
+        const url = new URL(window.location.href);
+        url.searchParams.delete("scrollTo");
+        url.hash = "";
+        window.history.replaceState(null, "", url.pathname + url.search);
+      }, 300);
       return () => clearTimeout(timerId);
     }
-  }, [isLoading]);
+  }, [isLoading, searchParams]);
 
   const [activeReminders, setActiveReminders] = useState<Set<string>>(new Set());
 
@@ -312,9 +330,11 @@ export function PersonalTasksWidget() {
     );
   }
 
+  const highlightClass = highlight ? "ring-2 ring-teal-400 dark:ring-teal-500 ring-offset-2 ring-offset-background transition-all duration-500" : "transition-all duration-500";
+
   if (tasks.length === 0 && reminders.length === 0 && !showHistory) {
     return (
-      <Card id="personal-tasks">
+      <Card id="personal-tasks" className={highlightClass}>
         <CardHeader className="flex flex-row items-center justify-between pb-2">
           <div className="flex items-center gap-2">
             <ListTodo className="h-4 w-4 text-primary" />
@@ -377,7 +397,7 @@ export function PersonalTasksWidget() {
 
   return (
     <>
-      <Card id="personal-tasks">
+      <Card id="personal-tasks" className={highlightClass}>
         <CardHeader className="flex flex-row items-center justify-between pb-2">
           <div className="flex items-center gap-2">
             <ListTodo className="h-4 w-4 text-primary" />

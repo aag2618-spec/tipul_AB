@@ -99,13 +99,17 @@ export function DashboardHeader({ user }: DashboardHeaderProps) {
   useEffect(() => {
     fetchNotifications();
     fetchAnnouncements();
-    
+
     const notifInterval = setInterval(fetchNotifications, 30000);
     const announcementInterval = setInterval(fetchAnnouncements, 5 * 60 * 1000);
-    
+    // רענון מיידי כשהווידג'ט למטה מסמן התראה כנקראה
+    const onNotificationRead = () => fetchNotifications();
+    window.addEventListener("notification-read", onNotificationRead);
+
     return () => {
       clearInterval(notifInterval);
       clearInterval(announcementInterval);
+      window.removeEventListener("notification-read", onNotificationRead);
     };
   }, [fetchAnnouncements]);
 
@@ -192,13 +196,8 @@ export function DashboardHeader({ user }: DashboardHeaderProps) {
     } else if (notification.type === "MORNING_SUMMARY") {
       router.push("/dashboard/calendar");
     } else if (notification.type === "PENDING_TASKS" || notification.type === "EVENING_SUMMARY") {
-      if (pathname === "/dashboard") {
-        // כבר בדשבורד - גלילה ישירה
-        document.getElementById("personal-tasks")?.scrollIntoView({ behavior: "smooth" });
-      } else {
-        // ניווט לדשבורד + גלילה אחרי טעינה
-        router.push("/dashboard#personal-tasks");
-      }
+      // ניווט לדשבורד עם פרמטר שגורם לגלילה + הדגשה של המשימות
+      router.push("/dashboard?scrollTo=personal-tasks");
     } else if (notification.type === "PAYMENT_REMINDER") {
       router.push("/dashboard/payments");
     } else {

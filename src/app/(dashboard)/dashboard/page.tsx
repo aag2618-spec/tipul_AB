@@ -8,6 +8,7 @@ import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
 import { Users, Calendar, CreditCard, Clock, Plus, Brain } from "lucide-react";
 import Link from "next/link";
+import { Suspense } from "react";
 import { PersonalTasksWidget } from "@/components/tasks/personal-tasks-widget";
 import { TodaySessionCard } from "@/components/dashboard/today-session-card";
 import { SubBoxLink } from "@/components/dashboard-stat-card";
@@ -524,7 +525,9 @@ export default async function DashboardPage() {
       </div>
 
       {/* Personal Tasks Widget */}
-      <PersonalTasksWidget />
+      <Suspense fallback={<div className="text-center py-4 text-muted-foreground">טוען משימות...</div>}>
+        <PersonalTasksWidget />
+      </Suspense>
     </div>
   );
 }
