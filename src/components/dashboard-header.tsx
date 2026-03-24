@@ -278,11 +278,11 @@ export function DashboardHeader({ user }: DashboardHeaderProps) {
             
             <DropdownMenuSeparator />
             <div className="flex items-center justify-between px-2 py-1">
-              <Link 
-                href="/dashboard/communications" 
+              <Link
+                href="/dashboard/notifications"
                 className="text-sm text-primary hover:underline px-2 py-1"
               >
-                צפה בכל התקשורת
+                צפה בכל ההתראות
               </Link>
               {notifications.length > 0 && (
                 <button

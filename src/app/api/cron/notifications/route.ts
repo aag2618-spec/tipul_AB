@@ -138,41 +138,54 @@ export async function GET(request: NextRequest) {
                   </table>
                   <p style="color:#6b7280;font-size:13px;margin-top:24px;">מייל זה נשלח אוטומטית ממערכת MyTipul</p>
                 </div>`,
-              }).catch(() => {});
+              }).catch((err) => logger.error("שגיאה בשליחת מייל תזכורת", { userId: user.id, error: err instanceof Error ? err.message : String(err) }));
             }
           }
 
-          // Old debt threshold notification (piggy-backed on morning run)
+          // תזכורת תשלום מאוחדת - כל התשלומים הממתינים + סימון ישנים
           const debtThreshold = (settings as { debtThresholdDays?: number }).debtThresholdDays || 30;
           const thresholdDate = new Date(today);
           thresholdDate.setDate(thresholdDate.getDate() - debtThreshold);
+          const monthlyReminderDay = (settings as { monthlyReminderDay?: number }).monthlyReminderDay;
+          const israelDay = parseInt(israelDateStr.split("-")[2]);
+          const isMonthlyReminderDay = monthlyReminderDay && israelDay === monthlyReminderDay;
 
-          const pendingPayments = await prisma.payment.findMany({
+          const allPayments = await prisma.payment.findMany({
             where: {
               client: { therapistId: user.id },
               status: "PENDING",
               parentPaymentId: null,
-              createdAt: { lt: thresholdDate },
             },
             include: { client: true },
           });
 
-          // סינון רק תשלומים שבאמת חייבים כסף (סכום צפוי > 0 וטרם שולם במלואו)
-          const realPendingPayments = pendingPayments.filter((p) => {
+          const realPayments = allPayments.filter((p) => {
             const paid = Number(p.amount);
             const expected = Number(p.expectedAmount) || 0;
             return expected > 0 && paid < expected;
           });
 
-          if (realPendingPayments.length > 0) {
-            const totalDebt = calculateDebtFromPayments(realPendingPayments);
+          if (realPayments.length > 0) {
+            const totalDebt = calculateDebtFromPayments(realPayments);
+            const oldPayments = realPayments.filter((p) => new Date(p.createdAt) < thresholdDate);
+
+            let title = `תזכורת: ${realPayments.length} תשלומים ממתינים`;
+            let content = `יש לך ${realPayments.length} תשלומים ממתינים בסך ₪${totalDebt.toLocaleString()}`;
+
+            if (oldPayments.length > 0) {
+              content += `\n${oldPayments.length} מהם ממתינים מעל ${debtThreshold} ימים`;
+            }
+            if (isMonthlyReminderDay) {
+              title = `תזכורת גבייה חודשית`;
+              content = `היום יום גבייה! ${content}`;
+            }
 
             await prisma.notification.create({
               data: {
                 userId: user.id,
                 type: "PAYMENT_REMINDER",
-                title: `תזכורת: ${realPendingPayments.length} תשלומים ממתינים`,
-                content: `יש לך ${realPendingPayments.length} תשלומים שממתינים מעל ${debtThreshold} ימים בסך ₪${totalDebt.toLocaleString()}`,
+                title,
+                content,
                 status: "PENDING",
                 scheduledFor: now,
               },
@@ -199,25 +212,18 @@ export async function GET(request: NextRequest) {
             orderBy: { startTime: "asc" },
           });
 
-          // פגישות בלי סיכום - מהגזע הנכון (שאילתת פגישות ישירה)
-          const thirtyDaysAgo = new Date(today);
-          thirtyDaysAgo.setDate(thirtyDaysAgo.getDate() - 30);
+          // פגישות של היום בלי סיכום - רק היום, לא 30 יום אחורה
           const sessionsPendingSummary = await prisma.therapySession.findMany({
             where: {
               therapistId: user.id,
-              startTime: { gte: thirtyDaysAgo, lt: today },
+              startTime: { gte: today, lt: tomorrow },
               skipSummary: { not: true },
               type: { not: "BREAK" },
               status: { in: ["SCHEDULED", "COMPLETED"] },
               sessionNote: { is: null },
-              OR: [
-                { startTime: { lt: today } },
-                { status: "COMPLETED" },
-              ],
             },
             include: { client: { select: { name: true } } },
-            orderBy: { startTime: "desc" },
-            take: 5,
+            orderBy: { startTime: "asc" },
           });
 
           // מטלות אישיות ותשלומים (לא WRITE_SUMMARY - כבר מכוסה למעלה)
@@ -298,46 +304,11 @@ export async function GET(request: NextRequest) {
                   <ul style="padding-right:20px;">${allTasksHtml}</ul>
                   <p style="color:#6b7280;font-size:13px;margin-top:24px;">מייל זה נשלח אוטומטית ממערכת MyTipul</p>
                 </div>`,
-              }).catch(() => {});
+              }).catch((err) => logger.error("שגיאה בשליחת מייל תזכורת", { userId: user.id, error: err instanceof Error ? err.message : String(err) }));
             }
           }
 
-          // Monthly payment collection reminder
-          const monthlyReminderDay = (settings as { monthlyReminderDay?: number }).monthlyReminderDay;
-          const israelDay = parseInt(israelDateStr.split("-")[2]);
-          if (monthlyReminderDay && israelDay === monthlyReminderDay) {
-            const allPendingPayments = await prisma.payment.findMany({
-              where: {
-                client: { therapistId: user.id },
-                status: "PENDING",
-                parentPaymentId: null,
-              },
-              include: { client: true },
-            });
-
-            // סינון רק תשלומים שבאמת חייבים כסף
-            const realAllPending = allPendingPayments.filter((p) => {
-              const paid = Number(p.amount);
-              const expected = Number(p.expectedAmount) || 0;
-              return expected > 0 && paid < expected;
-            });
-
-            if (realAllPending.length > 0) {
-              const totalAmount = calculateDebtFromPayments(realAllPending);
-
-              await prisma.notification.create({
-                data: {
-                  userId: user.id,
-                  type: "PAYMENT_REMINDER",
-                  title: `תזכורת גבייה חודשית`,
-                  content: `סוף החודש מתקרב! יש לגבות ${realAllPending.length} תשלומים בסך ₪${totalAmount.toLocaleString()}`,
-                  status: "PENDING",
-                  scheduledFor: now,
-                },
-              });
-              notificationsCreated++;
-            }
-          }
+          // תזכורת גבייה חודשית - כבר ממוזגת בבלוק התשלום למעלה
         }
       }
     }

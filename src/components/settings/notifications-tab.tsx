@@ -14,8 +14,6 @@ import { EmailAutomationSection } from "@/components/settings/email-automation-s
 interface NotificationSettings {
   emailEnabled: boolean;
   pushEnabled: boolean;
-  morningTime: string;
-  eveningTime: string;
   debtThresholdDays: number;
   monthlyReminderDay: number | null;
 }
@@ -55,8 +53,6 @@ export function NotificationsTab() {
   const [notifSettings, setNotifSettings] = useState<NotificationSettings>({
     emailEnabled: true,
     pushEnabled: true,
-    morningTime: "08:00",
-    eveningTime: "20:00",
     debtThresholdDays: 30,
     monthlyReminderDay: null,
   });
@@ -105,8 +101,6 @@ export function NotificationsTab() {
         setNotifSettings({
           emailEnabled: emailSetting?.enabled ?? true,
           pushEnabled: pushSetting?.enabled ?? true,
-          morningTime: emailSetting?.morningTime || "08:00",
-          eveningTime: emailSetting?.eveningTime || "20:00",
           debtThresholdDays: emailSetting?.debtThresholdDays || 30,
           monthlyReminderDay: emailSetting?.monthlyReminderDay || null,
         });

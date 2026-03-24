@@ -33,7 +33,7 @@ export async function PUT(request: NextRequest) {
     const { userId, session } = auth;
 
     const body = await request.json();
-    const { emailEnabled, pushEnabled, morningTime, eveningTime, debtThresholdDays, monthlyReminderDay } = body;
+    const { emailEnabled, pushEnabled, debtThresholdDays, monthlyReminderDay } = body;
 
     // Update or create email settings
     const existingEmail = await prisma.notificationSetting.findFirst({
@@ -45,8 +45,6 @@ export async function PUT(request: NextRequest) {
         where: { id: existingEmail.id },
         data: {
           enabled: emailEnabled,
-          morningTime,
-          eveningTime,
           debtThresholdDays,
           monthlyReminderDay: monthlyReminderDay || null,
         },
@@ -57,8 +55,6 @@ export async function PUT(request: NextRequest) {
           userId: userId,
           channel: "email",
           enabled: emailEnabled,
-          morningTime,
-          eveningTime,
           debtThresholdDays,
           monthlyReminderDay: monthlyReminderDay || null,
         },
@@ -75,8 +71,6 @@ export async function PUT(request: NextRequest) {
         where: { id: existingPush.id },
         data: {
           enabled: pushEnabled,
-          morningTime,
-          eveningTime,
           debtThresholdDays,
         },
       });
@@ -86,8 +80,6 @@ export async function PUT(request: NextRequest) {
           userId: userId,
           channel: "push",
           enabled: pushEnabled,
-          morningTime,
-          eveningTime,
           debtThresholdDays,
         },
       });

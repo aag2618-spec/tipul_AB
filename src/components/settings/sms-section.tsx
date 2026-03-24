@@ -33,52 +33,25 @@ export function SmsSection({
         <div className="flex items-center gap-2">
           <MessageSquare className="h-5 w-5 text-primary" />
           <span className="font-semibold">תזכורות SMS</span>
-          <span className={`text-xs px-2 py-0.5 rounded-full ${smsSettings.enabled ? "bg-green-100 text-green-700" : "bg-gray-100 text-gray-500"}`}>
-            {smsSettings.enabled ? "פעיל" : "כבוי"}
+          <span className="text-xs px-2 py-0.5 rounded-full bg-blue-100 text-blue-700">
+            בקרוב
           </span>
         </div>
       </AccordionTrigger>
       <AccordionContent className="space-y-4 pb-4">
-        <div className="flex items-center justify-between">
-          <div className="space-y-0.5">
-            <Label>הפעל תזכורות SMS</Label>
-            <p className="text-xs text-muted-foreground">שלח הודעת SMS אוטומטית למטופלים לפני הפגישה (בימים א&apos;-ה&apos; בלבד)</p>
-          </div>
-          <Switch
-            checked={smsSettings.enabled}
-            onCheckedChange={(checked) => setSmsSettings({ ...smsSettings, enabled: checked })}
-          />
+        <div className="text-center py-4">
+          <p className="text-sm text-muted-foreground">שליחת תזכורות SMS למטופלים לפני הפגישה</p>
+          <p className="text-xs text-muted-foreground mt-2">פיצ&apos;ר זה בפיתוח ויהיה זמין בקרוב. ההגדרות שלך יישמרו.</p>
         </div>
-        {smsSettings.enabled && (
-          <>
-            <div className="space-y-2">
-              <Label>שעות לפני הפגישה</Label>
-              <p className="text-xs text-muted-foreground">כמה שעות לפני הפגישה לשלוח את התזכורת</p>
-              <Input
-                type="number"
-                min="1"
-                max="72"
-                value={smsSettings.hoursBeforeReminder}
-                onChange={(e) => setSmsSettings({ ...smsSettings, hoursBeforeReminder: parseInt(e.target.value) || 24 })}
-                className="w-24"
-              />
+        <div className="opacity-50 pointer-events-none space-y-4">
+          <div className="flex items-center justify-between">
+            <div className="space-y-0.5">
+              <Label>הפעל תזכורות SMS</Label>
+              <p className="text-xs text-muted-foreground">שלח הודעת SMS אוטומטית למטופלים לפני הפגישה</p>
             </div>
-            <div className="space-y-2">
-              <Label>טקסט ההודעה (אופציונלי)</Label>
-              <p className="text-xs text-muted-foreground">התאם אישית את נוסח ההודעה. השאר ריק לטקסט ברירת המחדל.</p>
-              <Textarea
-                placeholder={defaultSmsMessage}
-                value={smsSettings.customMessage || ""}
-                onChange={(e) => setSmsSettings({ ...smsSettings, customMessage: e.target.value || null })}
-                rows={4}
-                className="font-mono text-sm"
-              />
-              <p className="text-xs text-muted-foreground">
-                משתנים זמינים: {"{שם}"} = שם המטופל, {"{תאריך}"} = תאריך הפגישה, {"{שעה}"} = שעת הפגישה
-              </p>
-            </div>
-          </>
-        )}
+            <Switch checked={false} disabled />
+          </div>
+        </div>
       </AccordionContent>
     </AccordionItem>
   );

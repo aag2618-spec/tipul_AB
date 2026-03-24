@@ -11,8 +11,6 @@ import {
 interface NotificationSettings {
   emailEnabled: boolean;
   pushEnabled: boolean;
-  morningTime: string;
-  eveningTime: string;
   debtThresholdDays: number;
   monthlyReminderDay: number | null;
 }
@@ -51,23 +49,15 @@ export function NotificationChannelsSection({
           />
         </div>
         <div className="grid grid-cols-2 gap-4">
-          <div className="space-y-2">
+          <div className="space-y-1 rounded-lg bg-muted/40 p-3">
             <Label>תזכורת בוקר</Label>
-            <p className="text-xs text-muted-foreground">שעה שבה תקבל סיכום של הפגישות היומיות שלך</p>
-            <Input
-              type="time"
-              value={notifSettings.morningTime}
-              onChange={(e) => setNotifSettings({ ...notifSettings, morningTime: e.target.value })}
-            />
+            <p className="text-sm font-medium">08:00</p>
+            <p className="text-xs text-muted-foreground">סיכום הפגישות של היום</p>
           </div>
-          <div className="space-y-2">
+          <div className="space-y-1 rounded-lg bg-muted/40 p-3">
             <Label>תזכורת ערב</Label>
-            <p className="text-xs text-muted-foreground">שעה שבה תקבל תזכורת על פגישות מחר</p>
-            <Input
-              type="time"
-              value={notifSettings.eveningTime}
-              onChange={(e) => setNotifSettings({ ...notifSettings, eveningTime: e.target.value })}
-            />
+            <p className="text-sm font-medium">20:00</p>
+            <p className="text-xs text-muted-foreground">תזכורת על פגישות מחר ומשימות פתוחות</p>
           </div>
         </div>
         <div className="grid grid-cols-2 gap-4">
