@@ -120,7 +120,8 @@ export function PersonalTasksWidget() {
 
   const dismissReminder = async (id: string) => {
     try {
-      await fetch(`/api/notifications/${id}/read`, { method: "POST" });
+      // מוחק את ההתראה לגמרי כדי שלא תחזור בריענון
+      await fetch(`/api/notifications/${id}`, { method: "DELETE" });
       setReminders(prev => prev.filter(r => r.id !== id));
       // שידור אירוע כדי שהפעמון בהדר יתעדכן מיד
       window.dispatchEvent(new CustomEvent("notification-read"));
