@@ -36,6 +36,15 @@ export function ChargeConfirmationDialog({
 }: ChargeConfirmationDialogProps) {
   const router = useRouter();
   const [isProcessing, setIsProcessing] = useState(false);
+  const [reason, setReason] = useState("");
+  const [noChargeReason, setNoChargeReason] = useState("");
+  const [showExemptReason, setShowExemptReason] = useState(false);
+
+  const isCancelled = pendingAction === "CANCELLED";
+  const reasonLabel = isCancelled ? "סיבת ביטול (אופציונלי)" : "סיבת אי הופעה (אופציונלי)";
+  const reasonPlaceholder = isCancelled
+    ? "לדוגמה: מחלה, בקשת מטופל..."
+    : "לדוגמה: לא ענה לטלפון, שכח...";
 
   const handleCharge = async () => {
     if (!session || !pendingAction || !session.client) return;
@@ -57,7 +66,12 @@ export function ChargeConfirmationDialog({
           await fetch(`/api/sessions/${sessionId}`, {
             method: "PUT",
             headers: { "Content-Type": "application/json" },
-            body: JSON.stringify({ status, createPayment: true, markAsPaid: false }),
+            body: JSON.stringify({
+              status,
+              createPayment: true,
+              markAsPaid: false,
+              cancellationReason: reason || undefined,
+            }),
           });
           toast.success("הפגישה עודכנה, מעבר לדף תשלום החובות...");
           onDataChanged();
@@ -67,6 +81,15 @@ export function ChargeConfirmationDialog({
       }
     } catch {
       // fallback לדיאלוג תשלום רגיל
+    }
+
+    // שמירת סיבה לפני פתיחת דיאלוג תשלום
+    if (reason) {
+      await fetch(`/api/sessions/${sessionId}`, {
+        method: "PUT",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ cancellationReason: reason }),
+      }).catch(() => {});
     }
 
     // אין חובות ישנים - פתיחת דיאלוג תשלום רגיל
@@ -85,7 +108,12 @@ export function ChargeConfirmationDialog({
       const response = await fetch(`/api/sessions/${session.id}`, {
         method: "PUT",
         headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ status: pendingAction, createPayment: true, markAsPaid: false }),
+        body: JSON.stringify({
+          status: pendingAction,
+          createPayment: true,
+          markAsPaid: false,
+          cancellationReason: reason || undefined,
+        }),
       });
       if (response.ok) {
         toast.success("הפגישה עודכנה והחוב נרשם");
@@ -103,13 +131,25 @@ export function ChargeConfirmationDialog({
     if (!session || !pendingAction) return;
     setIsProcessing(true);
     try {
+      // עדכון סטטוס + סיבה
       await fetch(`/api/sessions/${session.id}`, {
         method: "PUT",
         headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ status: pendingAction }),
+        body: JSON.stringify({
+          status: pendingAction,
+          cancellationReason: reason || undefined,
+        }),
       });
+      // שמירת סיבת אי חיוב כהערה
+      if (noChargeReason) {
+        await fetch(`/api/sessions/${session.id}/note`, {
+          method: "PUT",
+          headers: { "Content-Type": "application/json" },
+          body: JSON.stringify({ note: noChargeReason }),
+        });
+      }
       toast.success(
-        pendingAction === "CANCELLED"
+        isCancelled
           ? "הפגישה בוטלה ללא חיוב - פטור מתשלום"
           : "נרשמה אי הופעה ללא חיוב - פטור מתשלום"
       );
@@ -123,16 +163,52 @@ export function ChargeConfirmationDialog({
   };
 
   return (
-    <Dialog open={open} onOpenChange={onOpenChange}>
-      <DialogContent>
+    <Dialog open={open} onOpenChange={(o) => {
+      if (!o) {
+        setReason("");
+        setNoChargeReason("");
+        setShowExemptReason(false);
+      }
+      onOpenChange(o);
+    }}>
+      <DialogContent className="sm:max-w-[450px]">
         <DialogHeader>
           <DialogTitle>האם לחייב את המטופל?</DialogTitle>
           <DialogDescription>
-            {pendingAction === "CANCELLED"
+            {isCancelled
               ? "הפגישה בוטלה. האם ברצונך לחייב את המטופל בתשלום?"
               : "המטופל נעדר מהפגישה. האם ברצונך לחייב אותו בתשלום?"}
           </DialogDescription>
         </DialogHeader>
+
+        <div className="space-y-3">
+          {/* שדה סיבה */}
+          <div className="space-y-1.5">
+            <label className="text-xs text-muted-foreground">{reasonLabel}</label>
+            <textarea
+              value={reason}
+              onChange={(e) => setReason(e.target.value)}
+              placeholder={reasonPlaceholder}
+              className="w-full text-sm p-2.5 rounded-lg border resize-none bg-background"
+              rows={2}
+            />
+          </div>
+
+          {/* שדה סיבת אי חיוב - מוצג רק בלחיצה על פטור */}
+          {showExemptReason && (
+            <div className="space-y-1.5 border rounded-lg p-3 bg-amber-50/50 dark:bg-amber-950/30 border-amber-200 dark:border-amber-800">
+              <label className="text-xs font-medium text-amber-700 dark:text-amber-300">סיבה לאי חיוב (אופציונלי)</label>
+              <textarea
+                value={noChargeReason}
+                onChange={(e) => setNoChargeReason(e.target.value)}
+                placeholder="לדוגמה: סיכום מראש, פגישת היכרות, הסדר מיוחד..."
+                className="w-full text-sm p-2.5 rounded-lg border resize-none bg-background"
+                rows={2}
+              />
+            </div>
+          )}
+        </div>
+
         <DialogFooter className="flex-row-reverse gap-2">
           <Button onClick={handleCharge} disabled={isProcessing}>
             כן, לחייב
@@ -140,9 +216,23 @@ export function ChargeConfirmationDialog({
           <Button variant="secondary" onClick={handleRecordDebt} disabled={isProcessing}>
             עדכן ורשום חוב
           </Button>
-          <Button variant="outline" onClick={handleExempt} disabled={isProcessing}>
-            פטור מתשלום
-          </Button>
+          {!showExemptReason ? (
+            <Button
+              variant="outline"
+              onClick={() => setShowExemptReason(true)}
+              disabled={isProcessing}
+            >
+              פטור מתשלום
+            </Button>
+          ) : (
+            <Button
+              variant="outline"
+              onClick={handleExempt}
+              disabled={isProcessing}
+            >
+              אשר פטור
+            </Button>
+          )}
         </DialogFooter>
       </DialogContent>
     </Dialog>

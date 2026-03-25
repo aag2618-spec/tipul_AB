@@ -258,13 +258,15 @@ export function SessionDetailDialog({
   };
 
   // ── Section: Cancellation / No-Show Info ──
+  const hasCancellationInfo = session.cancelledBy || session.cancelledAt || session.cancellationReason || (!session.payment && session.sessionNote);
+
   const renderCancellationSection = () => {
     const isCancelled = session.status === "CANCELLED";
     const cancelledByLabel = CANCELLED_BY_LABELS[session.cancelledBy || ""] || "המטפל";
 
     return (
       <div className="rounded-lg p-3 bg-muted/50 border space-y-1.5">
-        <p className="text-sm font-medium">{isCancelled ? "ℹ️ פרטי ביטול" : "ℹ️ אי הגעה"}</p>
+        <p className="text-sm font-medium">{isCancelled ? "ℹ️ פרטי ביטול" : "ℹ️ אי הופעה"}</p>
         {isCancelled && session.cancelledBy && (
           <p className="text-xs text-muted-foreground">בוטל ע&quot;י: {cancelledByLabel}</p>
         )}
@@ -276,7 +278,7 @@ export function SessionDetailDialog({
         )}
         {/* הערת פטור - אם אין payment ויש הערה */}
         {!session.payment && session.sessionNote && (
-          <p className="text-xs bg-background rounded px-2 py-1 border">הערה: {session.sessionNote}</p>
+          <p className="text-xs bg-background rounded px-2 py-1 border">סיבת פטור: {session.sessionNote}</p>
         )}
       </div>
     );
@@ -537,12 +539,16 @@ export function SessionDetailDialog({
                     const hoursUntil = (sessionStart.getTime() - Date.now()) / (1000 * 60 * 60);
 
                     if (hoursUntil > 48) {
-                      if (!confirm("האם אתה בטוח שברצונך לבטל את הפגישה?")) return;
+                      const cancelReason = prompt("סיבת ביטול (אופציונלי):");
+                      if (cancelReason === null) return; // לחץ ביטול
                       try {
                         await fetch(`/api/sessions/${session.id}`, {
                           method: "PUT",
                           headers: { "Content-Type": "application/json" },
-                          body: JSON.stringify({ status: "CANCELLED" }),
+                          body: JSON.stringify({
+                            status: "CANCELLED",
+                            cancellationReason: cancelReason || undefined,
+                          }),
                         });
                         toast.success("הפגישה בוטלה");
                         onOpenChange(false);
@@ -571,16 +577,16 @@ export function SessionDetailDialog({
                   {renderPaymentSection()}
                 </div>
 
-                {/* סקשן סיכום - רק ל-COMPLETED ו-NO_SHOW */}
-                {(session.status === "COMPLETED" || session.status === "NO_SHOW") && (
+                {/* סקשן סיכום - רק ל-COMPLETED */}
+                {session.status === "COMPLETED" && (
                   <div className="space-y-1.5">
                     <p className="text-xs font-medium text-muted-foreground">📝 סיכום</p>
                     {renderSummarySection()}
                   </div>
                 )}
 
-                {/* סקשן ביטול / אי הגעה */}
-                {(session.status === "CANCELLED" || session.status === "NO_SHOW") && (
+                {/* סקשן ביטול / אי הופעה - רק כשיש מידע */}
+                {(session.status === "CANCELLED" || session.status === "NO_SHOW") && hasCancellationInfo && (
                   <div className="space-y-1.5">
                     {renderCancellationSection()}
                   </div>

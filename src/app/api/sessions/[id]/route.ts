@@ -60,7 +60,7 @@ export async function PUT(
 
     const { id } = await params;
     const body = await request.json();
-    const { startTime, endTime, type, price, location, notes, status, createPayment, markAsPaid } = body;
+    const { startTime, endTime, type, price, location, notes, status, createPayment, markAsPaid, cancellationReason } = body;
 
     const existingSession = await prisma.therapySession.findFirst({
       where: { id, therapistId: userId },
@@ -139,6 +139,12 @@ export async function PUT(
         location: location !== undefined ? location : undefined,
         notes: notes !== undefined ? notes : undefined,
         status: status || undefined,
+        // שמירת פרטי ביטול/אי הופעה
+        ...(cancellationReason ? { cancellationReason } : {}),
+        ...((status === "CANCELLED" || status === "NO_SHOW") ? {
+          cancelledAt: new Date(),
+          cancelledBy: "THERAPIST",
+        } : {}),
       },
       include: {
         client: true,
