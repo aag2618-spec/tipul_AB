@@ -4,7 +4,7 @@ import { Button } from "@/components/ui/button";
 import { Dialog, DialogContent, DialogDescription, DialogHeader, DialogTitle, DialogFooter } from "@/components/ui/dialog";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
-import { Trash2, User, FileText } from "lucide-react";
+import { Trash2, User } from "lucide-react";
 import { format } from "date-fns";
 import { toast } from "sonner";
 import { useRouter } from "next/navigation";
@@ -113,25 +113,174 @@ export function SessionDetailDialog({
     }
   };
 
-  // ── Payment Exempt Note (shared between COMPLETED and NO_SHOW) ──
-  const renderPaymentExemptNote = () => (
-    <div className="space-y-2">
-      <div className="w-full py-3 px-4 text-center rounded-lg bg-emerald-50 dark:bg-emerald-950 border-2 border-emerald-200 dark:border-emerald-800">
-        <p className="text-sm font-semibold text-emerald-700 dark:text-emerald-300">💚 פטור מתשלום</p>
-        <p className="text-xs text-emerald-600 dark:text-emerald-400 mt-1">לא מחייב</p>
+  // ── Label maps ──
+  const PAYMENT_METHOD_LABELS: Record<string, string> = {
+    CASH: "מזומן", CREDIT_CARD: "כרטיס אשראי", BANK_TRANSFER: "העברה בנקאית",
+    CHECK: "המחאה", CREDIT: "קרדיט", OTHER: "אחר",
+  };
+  const CANCELLED_BY_LABELS: Record<string, string> = {
+    CLIENT: "המטופל", THERAPIST: "המטפל", SYSTEM: "המערכת",
+  };
+
+  // ── Section: Payment ──
+  const renderPaymentSection = () => {
+    const price = session.price;
+    const payment = session.payment;
+    const paidAmount = Number(payment?.amount || 0);
+    const remaining = price - paidAmount;
+
+    // מחיר 0
+    if (price === 0) {
+      return (
+        <div className="rounded-lg p-3 bg-muted/50 border">
+          <p className="text-sm text-muted-foreground text-center">ללא עלות</p>
+        </div>
+      );
+    }
+
+    // שולם מלא
+    if (payment?.status === "PAID") {
+      return (
+        <div className="rounded-lg p-3 bg-green-50 dark:bg-green-950 border border-green-200 dark:border-green-800 space-y-1">
+          <p className="text-sm font-medium text-green-700 dark:text-green-300">✓ שולם ₪{paidAmount}</p>
+          <p className="text-xs text-green-600 dark:text-green-400">
+            {PAYMENT_METHOD_LABELS[payment.method || ""] || ""}
+            {payment.paidAt && ` • ${format(new Date(payment.paidAt), "d/M/yyyy")}`}
+          </p>
+        </div>
+      );
+    }
+
+    // שולם חלקי
+    if (payment && paidAmount > 0 && paidAmount < price) {
+      return (
+        <div className="rounded-lg p-3 bg-blue-50 dark:bg-blue-950 border border-blue-200 dark:border-blue-800 space-y-2">
+          <div>
+            <p className="text-sm font-medium text-blue-700 dark:text-blue-300">שולם ₪{paidAmount} מתוך ₪{price}</p>
+            <p className="text-xs font-semibold text-blue-600 dark:text-blue-400">נותר ₪{remaining}</p>
+          </div>
+          {session.client && (
+            <QuickMarkPaid
+              sessionId={session.id}
+              clientId={session.client.id}
+              clientName={session.client.name}
+              amount={remaining}
+              creditBalance={Number(session.client.creditBalance || 0)}
+              existingPayment={payment}
+              buttonText="השלם תשלום"
+            />
+          )}
+        </div>
+      );
+    }
+
+    // לא שולם / חוב (יש payment אבל לא PAID)
+    if (payment) {
+      return (
+        <div className="rounded-lg p-3 bg-orange-50 dark:bg-orange-950 border border-orange-200 dark:border-orange-800 space-y-2">
+          <p className="text-sm font-medium text-orange-700 dark:text-orange-300">⏳ ממתין לתשלום ₪{price}</p>
+          {session.client && (
+            <QuickMarkPaid
+              sessionId={session.id}
+              clientId={session.client.id}
+              clientName={session.client.name}
+              amount={remaining}
+              creditBalance={Number(session.client.creditBalance || 0)}
+              existingPayment={payment}
+              buttonText="רשום תשלום"
+            />
+          )}
+        </div>
+      );
+    }
+
+    // פטור מתשלום (אין payment בכלל)
+    return (
+      <div className="rounded-lg p-3 bg-emerald-50 dark:bg-emerald-950 border border-emerald-200 dark:border-emerald-800 space-y-2">
+        <p className="text-sm font-semibold text-emerald-700 dark:text-emerald-300 text-center">💚 פטור מתשלום</p>
+        <div className="space-y-1">
+          <label className="text-xs text-muted-foreground">הערה (אופציונלי):</label>
+          <textarea
+            placeholder="למה לא מחייב? (למשל: מטופל ביטל מראש, חופש, וכו')"
+            defaultValue={session.sessionNote || ""}
+            className="w-full text-xs p-2 rounded border resize-none"
+            rows={2}
+            onBlur={(e) => handleSaveNote(e.target.value)}
+          />
+        </div>
       </div>
-      <div className="space-y-1">
-        <label className="text-xs text-muted-foreground">הערה (אופציונלי):</label>
-        <textarea
-          placeholder="למה לא מחייב? (למשל: מטופל ביטל מראש, חופש, וכו')"
-          defaultValue={session.sessionNote || ""}
-          className="w-full text-xs p-2 rounded border resize-none"
-          rows={2}
-          onBlur={(e) => handleSaveNote(e.target.value)}
-        />
+    );
+  };
+
+  // ── Section: Summary ──
+  const renderSummarySection = () => {
+    if (session.skipSummary) {
+      return (
+        <div className="rounded-lg p-3 bg-muted/50 border">
+          <p className="text-sm text-muted-foreground">📝 סיכום דולג בכוונה</p>
+        </div>
+      );
+    }
+    if (session.sessionNote) {
+      return (
+        <div className="rounded-lg p-3 bg-green-50 dark:bg-green-950 border border-green-200 dark:border-green-800 flex items-center justify-between">
+          <p className="text-sm font-medium text-green-700 dark:text-green-300">📝 סיכום נכתב</p>
+          <Button
+            size="sm"
+            variant="ghost"
+            className="text-xs text-green-600 hover:text-green-700"
+            onClick={() => {
+              onOpenChange(false);
+              router.push(`/dashboard/sessions/${session.id}`);
+            }}
+          >
+            צפה בסיכום →
+          </Button>
+        </div>
+      );
+    }
+    return (
+      <div className="rounded-lg p-3 bg-sky-50 dark:bg-sky-950 border border-sky-200 dark:border-sky-800 flex items-center justify-between">
+        <p className="text-sm font-medium text-sky-700 dark:text-sky-300">📝 טרם נכתב סיכום</p>
+        <Button
+          size="sm"
+          variant="ghost"
+          className="text-xs text-sky-600 hover:text-sky-700"
+          onClick={() => {
+            onOpenChange(false);
+            router.push(`/dashboard/sessions/${session.id}`);
+          }}
+        >
+          כתוב סיכום →
+        </Button>
       </div>
-    </div>
-  );
+    );
+  };
+
+  // ── Section: Cancellation / No-Show Info ──
+  const renderCancellationSection = () => {
+    const isCancelled = session.status === "CANCELLED";
+    const cancelledByLabel = CANCELLED_BY_LABELS[session.cancelledBy || ""] || "המטפל";
+
+    return (
+      <div className="rounded-lg p-3 bg-muted/50 border space-y-1.5">
+        <p className="text-sm font-medium">{isCancelled ? "ℹ️ פרטי ביטול" : "ℹ️ אי הגעה"}</p>
+        {isCancelled && session.cancelledBy && (
+          <p className="text-xs text-muted-foreground">בוטל ע&quot;י: {cancelledByLabel}</p>
+        )}
+        {isCancelled && session.cancelledAt && (
+          <p className="text-xs text-muted-foreground">{format(new Date(session.cancelledAt), "d/M/yyyy HH:mm")}</p>
+        )}
+        {session.cancellationReason && (
+          <p className="text-xs bg-background rounded px-2 py-1 border">סיבה: {session.cancellationReason}</p>
+        )}
+        {/* הערת פטור - אם אין payment ויש הערה */}
+        {!session.payment && session.sessionNote && (
+          <p className="text-xs bg-background rounded px-2 py-1 border">הערה: {session.sessionNote}</p>
+        )}
+      </div>
+    );
+  };
 
   return (
     <Dialog open={open} onOpenChange={onOpenChange}>
@@ -387,7 +536,7 @@ export function SessionDetailDialog({
                     const sessionStart = new Date(session.startTime);
                     const hoursUntil = (sessionStart.getTime() - Date.now()) / (1000 * 60 * 60);
 
-                    if (hoursUntil > 24) {
+                    if (hoursUntil > 48) {
                       if (!confirm("האם אתה בטוח שברצונך לבטל את הפגישה?")) return;
                       try {
                         await fetch(`/api/sessions/${session.id}`, {
@@ -413,79 +562,43 @@ export function SessionDetailDialog({
                 </button>
               </div>
 
-            /* COMPLETED */
-            ) : session.status === "COMPLETED" ? (
-              <div className="space-y-2">
-                <Button
-                  onClick={() => {
-                    onOpenChange(false);
-                    router.push(`/dashboard/clients/${session.client?.id}`);
-                  }}
-                  className="w-full gap-2"
-                >
-                  <User className="h-4 w-4" />
-                  תיקית מטופל
-                </Button>
-                <Button
-                  onClick={() => {
-                    onOpenChange(false);
-                    router.push(`/dashboard/sessions/${session.id}`);
-                  }}
-                  className="w-full gap-2"
-                  variant="outline"
-                >
-                  <FileText className="h-4 w-4" />
-                  סיכום פגישה
-                </Button>
-                {session.payment && session.client ? (
-                  <QuickMarkPaid
-                    sessionId={session.id}
-                    clientId={session.client.id}
-                    clientName={session.client.name}
-                    amount={session.price - Number(session.payment?.amount || 0)}
-                    creditBalance={Number(session.client.creditBalance || 0)}
-                    existingPayment={session.payment}
-                    buttonText="רשום תשלום / הצג קבלה"
-                  />
-                ) : renderPaymentExemptNote()}
-              </div>
+            /* COMPLETED / NO_SHOW / CANCELLED - Structured sections */
+            ) : (session.status === "COMPLETED" || session.status === "NO_SHOW" || session.status === "CANCELLED") ? (
+              <div className="space-y-3">
+                {/* סקשן תשלום */}
+                <div className="space-y-1.5">
+                  <p className="text-xs font-medium text-muted-foreground">💵 תשלום</p>
+                  {renderPaymentSection()}
+                </div>
 
-            /* NO_SHOW */
-            ) : session.status === "NO_SHOW" ? (
-              <div className="space-y-2">
-                <Button
-                  onClick={() => {
-                    onOpenChange(false);
-                    router.push(`/dashboard/clients/${session.client?.id}`);
-                  }}
-                  className="w-full gap-2"
-                >
-                  <User className="h-4 w-4" />
-                  תיקית מטופל
-                </Button>
-                <Button
-                  onClick={() => {
-                    onOpenChange(false);
-                    router.push(`/dashboard/sessions/${session.id}`);
-                  }}
-                  className="w-full gap-2"
-                  variant="outline"
-                >
-                  <FileText className="h-4 w-4" />
-                  הוסף הערה
-                </Button>
+                {/* סקשן סיכום - רק ל-COMPLETED ו-NO_SHOW */}
+                {(session.status === "COMPLETED" || session.status === "NO_SHOW") && (
+                  <div className="space-y-1.5">
+                    <p className="text-xs font-medium text-muted-foreground">📝 סיכום</p>
+                    {renderSummarySection()}
+                  </div>
+                )}
+
+                {/* סקשן ביטול / אי הגעה */}
+                {(session.status === "CANCELLED" || session.status === "NO_SHOW") && (
+                  <div className="space-y-1.5">
+                    {renderCancellationSection()}
+                  </div>
+                )}
+
+                {/* כפתור תיקית מטופל */}
                 {session.client && (
-                  session.payment ? (
-                    <QuickMarkPaid
-                      sessionId={session.id}
-                      clientId={session.client.id}
-                      clientName={session.client.name}
-                      amount={session.price - Number(session.payment?.amount || 0)}
-                      creditBalance={Number(session.client.creditBalance || 0)}
-                      existingPayment={session.payment}
-                      buttonText="רשום תשלום"
-                    />
-                  ) : renderPaymentExemptNote()
+                  <Button
+                    onClick={() => {
+                      onOpenChange(false);
+                      router.push(`/dashboard/clients/${session.client?.id}`);
+                    }}
+                    className="w-full gap-2"
+                    variant="outline"
+                  >
+                    <User className="h-4 w-4" />
+                    תיקית מטופל
+                  </Button>
                 )}
               </div>
 

@@ -22,8 +22,20 @@ export interface CalendarSession {
   type: string;
   price: number;
   client: CalendarClient | null;
-  payment?: { id: string; status: string; amount?: number; expectedAmount?: number } | null;
+  payment?: {
+    id: string;
+    status: string;
+    amount?: number;
+    expectedAmount?: number;
+    method?: string;
+    paidAt?: string | null;
+    paymentType?: string;
+  } | null;
   sessionNote?: string | null;
+  skipSummary?: boolean;
+  cancellationReason?: string | null;
+  cancelledBy?: string | null;
+  cancelledAt?: string | null;
 }
 
 export interface RecurringPattern {

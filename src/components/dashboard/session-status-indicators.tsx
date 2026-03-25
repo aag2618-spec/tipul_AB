@@ -64,7 +64,7 @@ export function SessionStatusIndicators({ session }: SessionStatusIndicatorsProp
   // Indicators for no-show/cancelled sessions
   if ((session.status === "NO_SHOW" || session.status === "CANCELLED") && session.client) {
     return (
-      <div className="flex items-center gap-3 text-xs pt-1.5 border-t">
+      <div className="space-y-1 text-xs pt-1.5 border-t">
         <div className="flex items-center gap-1.5">
           <span className="text-muted-foreground">💵 תשלום:</span>
           {session.payment?.status === "PAID" ? (
@@ -77,6 +77,10 @@ export function SessionStatusIndicators({ session }: SessionStatusIndicatorsProp
             <span className="text-gray-600 font-medium">✓ פטור מתשלום</span>
           )}
         </div>
+        {/* סיבת פטור - אם אין payment ויש הערה */}
+        {!session.payment && session.sessionNote && (
+          <p className="text-muted-foreground/70 truncate">סיבה: {session.sessionNote}</p>
+        )}
       </div>
     );
   }
