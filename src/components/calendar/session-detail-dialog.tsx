@@ -103,9 +103,9 @@ export function SessionDetailDialog({
   const handleSaveNote = async (note: string) => {
     try {
       await fetch(`/api/sessions/${session.id}/note`, {
-        method: "PUT",
+        method: "POST",
         headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ note }),
+        body: JSON.stringify({ content: note }),
       });
       toast.success("הערה נשמרה");
     } catch {

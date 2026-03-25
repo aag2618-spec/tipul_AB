@@ -143,9 +143,9 @@ export function ChargeConfirmationDialog({
       // שמירת סיבת אי חיוב כהערה
       if (noChargeReason) {
         await fetch(`/api/sessions/${session.id}/note`, {
-          method: "PUT",
+          method: "POST",
           headers: { "Content-Type": "application/json" },
-          body: JSON.stringify({ note: noChargeReason }),
+          body: JSON.stringify({ content: noChargeReason }),
         });
       }
       toast.success(

@@ -228,7 +228,7 @@ export function UpdateSessionDialog({
                   className="w-full font-bold text-base"
                   onClick={() => setShowPayment(false)}
                 >
-                  {updateStatus === "CANCELLED" ? "ביטול ללא חיוב" : "אי הגעה ללא חיוב"}
+                  {updateStatus === "CANCELLED" ? "ביטול ללא חיוב" : "אי הופעה ללא חיוב"}
                 </Button>
               )}
 
@@ -299,7 +299,7 @@ export function UpdateSessionDialog({
                 <div className="space-y-3 p-4 rounded-lg border bg-muted/30">
                   <div className="flex items-center justify-between">
                     <Label className="text-lg font-bold">
-                      {updateStatus === "COMPLETED" ? "עדכון ותשלום 💰" : updateStatus === "CANCELLED" ? "דמי ביטול 💰" : "חיוב אי הגעה 💰"}
+                      {updateStatus === "COMPLETED" ? "עדכון ותשלום 💰" : updateStatus === "CANCELLED" ? "דמי ביטול 💰" : "חיוב אי הופעה 💰"}
                     </Label>
                   </div>
 
