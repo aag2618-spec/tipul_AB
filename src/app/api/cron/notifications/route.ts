@@ -239,7 +239,7 @@ export async function GET(request: NextRequest) {
 
           // ניקוי משימות גבייה עם 0₪ - לא רלוונטיות, נסמן כהושלמו
           const zeroDebtTaskIds = pendingTasks
-            .filter(t => t.type === "COLLECT_PAYMENT" && /[-–]\s*₪0\s*$/.test(t.title))
+            .filter(t => t.type === "COLLECT_PAYMENT" && /[-–]\s*(₪0|0₪)\s*$/.test(t.title))
             .map(t => t.id);
           if (zeroDebtTaskIds.length > 0) {
             await prisma.task.updateMany({
@@ -250,7 +250,7 @@ export async function GET(request: NextRequest) {
 
           // סינון משימות 0₪ מהתצוגה
           const filteredTasks = pendingTasks.filter(t =>
-            !(t.type === "COLLECT_PAYMENT" && /[-–]\s*₪0\s*$/.test(t.title))
+            !(t.type === "COLLECT_PAYMENT" && /[-–]\s*(₪0|0₪)\s*$/.test(t.title))
           );
 
           const totalPending = sessionsPendingSummary.length + filteredTasks.length;
