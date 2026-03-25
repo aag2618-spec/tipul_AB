@@ -117,7 +117,7 @@ export function useCalendarActions({ fetchData }: UseCalendarActionsProps) {
       const labels: Record<string, string> = {
         COMPLETED: "הפגישה עודכנה כהושלמה",
         CANCELLED: "הפגישה עודכנה כבוטלה",
-        NO_SHOW: "הפגישה עודכנה כלא הגיע",
+        NO_SHOW: "הפגישה עודכנה כאי הופעה",
       };
       toast.success(labels[updateStatus] || "הפגישה עודכנה");
       fetchData();

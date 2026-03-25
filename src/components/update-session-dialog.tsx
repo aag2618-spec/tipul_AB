@@ -203,7 +203,7 @@ export function UpdateSessionDialog({
               onClick={() => { setUpdateStatus("NO_SHOW"); setShowPayment(true); }}
             >
               <UserX className="h-3.5 w-3.5" />
-              לא הגיע
+              אי הופעה
             </Button>
           </div>
 

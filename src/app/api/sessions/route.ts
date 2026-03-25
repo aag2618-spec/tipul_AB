@@ -138,7 +138,7 @@ export async function POST(request: NextRequest) {
         PENDING_APPROVAL: "ממתינה לאישור",
         COMPLETED: "הושלמה",
         CANCELLED: "בוטלה",
-        NO_SHOW: "לא הגיע",
+        NO_SHOW: "אי הופעה",
       };
       const conflictName = conflict.client?.name || (conflict.type === "BREAK" ? "הפסקה" : "פגישה");
       const conflictStart = new Intl.DateTimeFormat("he-IL", { timeZone: "Asia/Jerusalem", hour: "2-digit", minute: "2-digit", hour12: false }).format(conflict.startTime);
@@ -193,6 +193,12 @@ export async function POST(request: NextRequest) {
           date,
           time,
           address: therapySession.location || undefined,
+          customization: settings ? {
+            customGreeting: settings.customGreeting,
+            customClosing: settings.customClosing,
+            emailSignature: settings.emailSignature,
+            businessHours: settings.businessHours,
+          } : null,
         });
 
         // Send email asynchronously

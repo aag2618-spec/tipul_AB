@@ -34,7 +34,7 @@ interface Session {
 const STATUS_LABELS: Record<string, string> = {
   COMPLETED: "הושלמה",
   CANCELLED: "בוטלה",
-  NO_SHOW: "לא הגיע",
+  NO_SHOW: "אי הופעה",
   NOT_UPDATED: "לא עודכן",
   PENDING_APPROVAL: "ממתין לאישור",
 };

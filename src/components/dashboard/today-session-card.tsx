@@ -224,7 +224,7 @@ export function TodaySessionCard({ session }: TodaySessionCardProps) {
         const labels: Record<string, string> = {
           COMPLETED: "הפגישה עודכנה כהושלמה",
           CANCELLED: "הפגישה עודכנה כבוטלה",
-          NO_SHOW: "הפגישה עודכנה כלא הגיע",
+          NO_SHOW: "הפגישה עודכנה כאי הופעה",
         };
         toast.success(labels[updateStatus] || "הפגישה עודכנה");
       }
@@ -438,7 +438,7 @@ export function TodaySessionCard({ session }: TodaySessionCardProps) {
               "text-red-500"
             }`}>
               {session.status === "COMPLETED" ? "הושלמה" :
-               session.status === "CANCELLED" ? "בוטלה" : "לא הגיע"}
+               session.status === "CANCELLED" ? "בוטלה" : "אי הופעה"}
             </span>
           ) : null}
         </div>
