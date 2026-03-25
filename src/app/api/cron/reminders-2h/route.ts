@@ -86,6 +86,12 @@ export async function GET(request: NextRequest) {
           date,
           time,
           address: session.location || undefined,
+          customization: settings ? {
+            customGreeting: settings.customGreeting,
+            customClosing: settings.customClosing,
+            emailSignature: settings.emailSignature,
+            businessHours: settings.businessHours,
+          } : null,
         });
 
         const result = await sendEmail({

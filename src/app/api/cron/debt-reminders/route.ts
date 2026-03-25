@@ -7,6 +7,15 @@ import { logger } from "@/lib/logger";
 
 export const dynamic = "force-dynamic";
 
+interface DebtEmailCustomization {
+  customGreeting?: string | null;
+  customClosing?: string | null;
+  emailSignature?: string | null;
+  paymentInstructions?: string | null;
+  paymentLink?: string | null;
+  businessHours?: string | null;
+}
+
 // Helper function to create debt reminder email
 function createDebtReminderEmail(
   clientName: string,
@@ -17,7 +26,8 @@ function createDebtReminderEmail(
     status: string;
     debt: number;
   }>,
-  totalDebt: number
+  totalDebt: number,
+  customization?: DebtEmailCustomization | null
 ) {
   const dateFormatter = new Intl.DateTimeFormat("he-IL", {
     timeZone: "Asia/Jerusalem",
@@ -83,7 +93,7 @@ function createDebtReminderEmail(
         
         <!-- Content -->
         <div style="background: #ffffff; padding: 30px; border-radius: 0 0 12px 12px; box-shadow: 0 4px 6px rgba(0, 0, 0, 0.1);">
-          <h2 style="color: #111827; margin-top: 0; font-size: 20px;">שלום ${escapeHtml(clientName)},</h2>
+          <h2 style="color: #111827; margin-top: 0; font-size: 20px;">${customization?.customGreeting ? escapeHtml(customization.customGreeting.replace(/{שם}/g, clientName)) : `שלום ${escapeHtml(clientName)}`},</h2>
           
           <p style="color: #4b5563; line-height: 1.6; font-size: 15px;">
             רצינו להזכיר לך כי קיים יתרת חוב עבור הפגישות הבאות:
@@ -100,12 +110,19 @@ function createDebtReminderEmail(
           
           ${sessionsHtml}
 
+          ${customization?.paymentLink ? `
+          <div style="background: #f0f9ff; border: 1px solid #bae6fd; border-radius: 8px; padding: 20px; margin-top: 30px; text-align: center;">
+            <p style="margin: 0 0 12px 0; color: #075985; font-weight: 600; font-size: 15px;">💳 תשלום מהיר</p>
+            <a href="${customization.paymentLink}" style="display: inline-block; background: #0ea5e9; color: #ffffff; padding: 12px 24px; border-radius: 6px; text-decoration: none; font-weight: 600; font-size: 14px;">
+              שלם עכשיו בקליק
+            </a>
+          </div>` : ''}
+
           <!-- Payment Info -->
           <div style="background: #f0fdf4; border: 1px solid #86efac; border-radius: 10px; padding: 20px; margin-top: 30px;">
             <p style="margin: 0; color: #166534; font-weight: 600; font-size: 15px;">💳 אפשרויות תשלום</p>
-            <p style="margin: 8px 0 0 0; color: #15803d; font-size: 14px; line-height: 1.6;">
-              ניתן לשלם באמצעות העברה בנקאית, אשראי, מזומן או צ'ק.<br/>
-              לתיאום תשלום, נא ליצור קשר.
+            <p style="margin: 8px 0 0 0; color: #15803d; font-size: 14px; line-height: 1.6; white-space: pre-wrap;">
+              ${customization?.paymentInstructions ? escapeHtml(customization.paymentInstructions) : `ניתן לשלם באמצעות העברה בנקאית, אשראי, מזומן או צ'ק.\nלתיאום תשלום, נא ליצור קשר.`}
             </p>
           </div>
 
@@ -121,10 +138,11 @@ function createDebtReminderEmail(
             <p style="color: #6b7280; font-size: 14px; line-height: 1.6; margin: 0;">
               במידה ויש שאלות או צורך לתיאום תשלום, אנא פנה אליי ישירות.
             </p>
-            <p style="color: #374151; font-size: 15px; margin: 20px 0 0 0;">
-              בברכה,<br/>
-              <strong>${escapeHtml(therapistName)}</strong>
+            <p style="color: #374151; font-size: 15px; margin: 20px 0 0 0; white-space: pre-wrap;">
+              ${escapeHtml(customization?.customClosing || "בברכה")},<br/>
+              <strong>${escapeHtml(customization?.emailSignature || therapistName)}</strong>
             </p>
+            ${customization?.businessHours ? `<p style="color: #9ca3af; font-size: 12px; margin-top: 12px;">⏰ ${escapeHtml(customization.businessHours)}</p>` : ''}
           </div>
         </div>
         
@@ -242,7 +260,15 @@ export async function GET(request: NextRequest) {
           client.name,
           therapist.name || "המטפל/ת שלך",
           sessionsWithDebt,
-          totalDebt
+          totalDebt,
+          {
+            customGreeting: setting.customGreeting,
+            customClosing: setting.customClosing,
+            emailSignature: setting.emailSignature,
+            paymentInstructions: setting.paymentInstructions,
+            paymentLink: setting.paymentLink,
+            businessHours: setting.businessHours,
+          }
         );
 
         // Send email

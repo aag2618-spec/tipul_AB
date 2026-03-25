@@ -85,6 +85,12 @@ export async function POST(request: NextRequest) {
       date,
       time,
       address: therapySession.location || undefined,
+      customization: settings ? {
+        customGreeting: settings.customGreeting,
+        customClosing: settings.customClosing,
+        emailSignature: settings.emailSignature,
+        businessHours: settings.businessHours,
+      } : null,
     });
 
     const result = await sendEmail({

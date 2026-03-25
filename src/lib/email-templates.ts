@@ -1,5 +1,12 @@
 // Email templates for cancellation requests and session communications
 
+export interface EmailCustomization {
+  customGreeting?: string | null;
+  customClosing?: string | null;
+  emailSignature?: string | null;
+  businessHours?: string | null;
+}
+
 export interface EmailTemplateData {
   clientName: string;
   therapistName: string;
@@ -9,6 +16,7 @@ export interface EmailTemplateData {
   rejectionReason?: string;
   dashboardLink?: string;
   address?: string;
+  customization?: EmailCustomization | null;
 }
 
 function formatEmailDate(date: Date): string {
@@ -36,6 +44,29 @@ export function formatSessionDateTime(date: Date): { date: string; time: string 
   };
 }
 
+// פונקציות עזר להתאמה אישית
+function getGreeting(clientName: string, customization?: EmailCustomization | null): string {
+  if (customization?.customGreeting) {
+    return customization.customGreeting.replace(/{שם}/g, clientName);
+  }
+  return `שלום ${clientName}`;
+}
+
+function getFooter(therapistName: string, customization?: EmailCustomization | null): string {
+  const closing = customization?.customClosing || "בברכה";
+  const signature = customization?.emailSignature || therapistName;
+  const hours = customization?.businessHours
+    ? `<p style="color: #9ca3af; font-size: 12px; margin-top: 12px;">⏰ ${customization.businessHours}</p>`
+    : "";
+  return `
+    <p style="color: #666; font-size: 14px; margin-top: 30px;">
+      ${closing},<br/>
+      ${signature}
+    </p>
+    ${hours}
+  `;
+}
+
 // Base email template wrapper
 function wrapInEmailTemplate(content: string): string {
   return `
@@ -50,7 +81,7 @@ export function createSessionConfirmationEmail(data: EmailTemplateData) {
   return {
     subject: `אישור תור - ${data.therapistName}`,
     html: wrapInEmailTemplate(`
-      <h2 style="color: #333;">שלום ${data.clientName},</h2>
+      <h2 style="color: #333;">${getGreeting(data.clientName, data.customization)},</h2>
       <p>תורך אושר בהצלחה!</p>
       <div style="background: #f5f5f5; padding: 20px; border-radius: 8px; margin: 20px 0;">
         <p style="margin: 8px 0;"><strong>📅 תאריך:</strong> ${data.date}</p>
@@ -59,10 +90,7 @@ export function createSessionConfirmationEmail(data: EmailTemplateData) {
         ${data.address ? `<p style="margin: 8px 0;"><strong>📍 כתובת:</strong> ${data.address}</p>` : ''}
       </div>
       <p>לביטול או שינוי תור, נא ליצור קשר לפחות 24 שעות מראש.</p>
-      <p style="color: #666; font-size: 14px; margin-top: 30px;">
-        בברכה,<br/>
-        ${data.therapistName}
-      </p>
+      ${getFooter(data.therapistName, data.customization)}
     `),
   };
 }
@@ -72,7 +100,7 @@ export function create24HourReminderEmail(data: EmailTemplateData) {
   return {
     subject: `תזכורת: תור מחר ב-${data.time}`,
     html: wrapInEmailTemplate(`
-      <h2 style="color: #333;">שלום ${data.clientName},</h2>
+      <h2 style="color: #333;">${getGreeting(data.clientName, data.customization)},</h2>
       <p>מזכירים לך שיש לך תור מחר:</p>
       <div style="background: #f5f5f5; padding: 20px; border-radius: 8px; margin: 20px 0;">
         <p style="margin: 8px 0;"><strong>📅 מחר,</strong> ${data.date}</p>
@@ -80,10 +108,7 @@ export function create24HourReminderEmail(data: EmailTemplateData) {
       </div>
       <p>נשמח לראותך!</p>
       <p>לביטול, נא ליצור קשר בהקדם.</p>
-      <p style="color: #666; font-size: 14px; margin-top: 30px;">
-        בברכה,<br/>
-        ${data.therapistName}
-      </p>
+      ${getFooter(data.therapistName, data.customization)}
     `),
   };
 }
@@ -93,17 +118,14 @@ export function create2HourReminderEmail(data: EmailTemplateData) {
   return {
     subject: `תזכורת: תור בעוד שעתיים`,
     html: wrapInEmailTemplate(`
-      <h2 style="color: #333;">שלום ${data.clientName},</h2>
+      <h2 style="color: #333;">${getGreeting(data.clientName, data.customization)},</h2>
       <p>תור בעוד שעתיים!</p>
       <div style="background: #e8f5e9; padding: 20px; border-radius: 8px; margin: 20px 0;">
         <p style="margin: 8px 0;"><strong>🕐 היום בשעה:</strong> ${data.time}</p>
         ${data.address ? `<p style="margin: 8px 0;"><strong>📍 כתובת:</strong> ${data.address}</p>` : ''}
       </div>
       <p>נתראה בקרוב!</p>
-      <p style="color: #666; font-size: 14px; margin-top: 30px;">
-        בברכה,<br/>
-        ${data.therapistName}
-      </p>
+      ${getFooter(data.therapistName, data.customization)}
     `),
   };
 }
@@ -113,16 +135,13 @@ export function createCancellationRequestToClientEmail(data: EmailTemplateData) 
   return {
     subject: `בקשת ביטול התקבלה`,
     html: wrapInEmailTemplate(`
-      <h2 style="color: #333;">שלום ${data.clientName},</h2>
+      <h2 style="color: #333;">${getGreeting(data.clientName, data.customization)},</h2>
       <p>בקשתך לביטול התור התקבלה.</p>
       <div style="background: #fff3e0; padding: 20px; border-radius: 8px; margin: 20px 0; border-right: 4px solid #ff9800;">
         <p style="margin: 8px 0;"><strong>📅 תור:</strong> ${data.date} בשעה ${data.time}</p>
       </div>
       <p>המטפל/ת יבדוק את הבקשה ויעדכן אותך בהקדם.</p>
-      <p style="color: #666; font-size: 14px; margin-top: 30px;">
-        בברכה,<br/>
-        ${data.therapistName}
-      </p>
+      ${getFooter(data.therapistName, data.customization)}
     `),
   };
 }
@@ -155,16 +174,13 @@ export function createCancellationApprovedEmail(data: EmailTemplateData) {
   return {
     subject: `ביטול התור אושר`,
     html: wrapInEmailTemplate(`
-      <h2 style="color: #333;">שלום ${data.clientName},</h2>
+      <h2 style="color: #333;">${getGreeting(data.clientName, data.customization)},</h2>
       <p>ביטול התור אושר.</p>
       <div style="background: #ffebee; padding: 20px; border-radius: 8px; margin: 20px 0; border-right: 4px solid #f44336;">
         <p style="margin: 8px 0;"><strong>❌ תור מבוטל:</strong> ${data.date} בשעה ${data.time}</p>
       </div>
       <p>לקביעת תור חדש, ניתן ליצור קשר או להיכנס למערכת.</p>
-      <p style="color: #666; font-size: 14px; margin-top: 30px;">
-        בברכה,<br/>
-        ${data.therapistName}
-      </p>
+      ${getFooter(data.therapistName, data.customization)}
     `),
   };
 }
@@ -174,7 +190,7 @@ export function createCancellationRejectedEmail(data: EmailTemplateData) {
   return {
     subject: `בקשת ביטול נדחתה`,
     html: wrapInEmailTemplate(`
-      <h2 style="color: #333;">שלום ${data.clientName},</h2>
+      <h2 style="color: #333;">${getGreeting(data.clientName, data.customization)},</h2>
       <p>בקשתך לביטול התור נדחתה.</p>
       <div style="background: #e8f5e9; padding: 20px; border-radius: 8px; margin: 20px 0; border-right: 4px solid #4caf50;">
         <p style="margin: 8px 0;"><strong>📅 התור נשאר על כנו:</strong> ${data.date} בשעה ${data.time}</p>
@@ -185,10 +201,7 @@ export function createCancellationRejectedEmail(data: EmailTemplateData) {
         </div>
       ` : ''}
       <p>לשאלות נוספות, ניתן ליצור קשר.</p>
-      <p style="color: #666; font-size: 14px; margin-top: 30px;">
-        בברכה,<br/>
-        ${data.therapistName}
-      </p>
+      ${getFooter(data.therapistName, data.customization)}
     `),
   };
 }
