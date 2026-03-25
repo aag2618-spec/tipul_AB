@@ -283,6 +283,15 @@ export async function GET(req: NextRequest) {
         where: { id: { in: stuckIds } },
         data: { status: "PAID", paidAt: new Date() },
       });
+      // ניקוי משימות גבייה של תשלומים שתוקנו
+      await prisma.task.updateMany({
+        where: {
+          relatedEntityId: { in: stuckIds },
+          type: "COLLECT_PAYMENT",
+          status: { in: ["PENDING", "IN_PROGRESS"] },
+        },
+        data: { status: "COMPLETED" },
+      });
       logger.info(`Auto-fixed ${stuckIds.length} stuck payments`);
     }
 

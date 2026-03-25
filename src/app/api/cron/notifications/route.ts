@@ -237,7 +237,38 @@ export async function GET(request: NextRequest) {
             take: 5,
           });
 
-          // ניקוי משימות גבייה עם 0₪ - לא רלוונטיות, נסמן כהושלמו
+          // ניקוי משימות גבייה שכבר לא רלוונטיות - אימות מול טבלת התשלומים
+          const collectTasks = pendingTasks.filter(t => t.type === "COLLECT_PAYMENT" && t.relatedEntityId);
+          let staleTaskIds: string[] = [];
+          if (collectTasks.length > 0) {
+            const paymentIds = collectTasks.map(t => t.relatedEntityId!);
+            const payments = await prisma.payment.findMany({
+              where: { id: { in: paymentIds } },
+              select: { id: true, status: true, amount: true, expectedAmount: true },
+            });
+            const paymentMap = new Map(payments.map(p => [p.id, p]));
+
+            staleTaskIds = collectTasks
+              .filter(t => {
+                const payment = paymentMap.get(t.relatedEntityId!);
+                if (!payment) return true; // תשלום נמחק
+                if (payment.status === "PAID") return true; // שולם
+                const paid = Number(payment.amount);
+                const expected = Number(payment.expectedAmount) || 0;
+                if (expected > 0 && paid >= expected) return true; // שולם מלא אבל סטטוס לא עודכן
+                return false;
+              })
+              .map(t => t.id);
+
+            if (staleTaskIds.length > 0) {
+              await prisma.task.updateMany({
+                where: { id: { in: staleTaskIds } },
+                data: { status: "COMPLETED" },
+              });
+            }
+          }
+
+          // ניקוי משימות גבייה עם 0₪
           const zeroDebtTaskIds = pendingTasks
             .filter(t => t.type === "COLLECT_PAYMENT" && /[-–]\s*(₪0|0₪)\s*$/.test(t.title))
             .map(t => t.id);
@@ -248,10 +279,9 @@ export async function GET(request: NextRequest) {
             });
           }
 
-          // סינון משימות 0₪ מהתצוגה
-          const filteredTasks = pendingTasks.filter(t =>
-            !(t.type === "COLLECT_PAYMENT" && /[-–]\s*(₪0|0₪)\s*$/.test(t.title))
-          );
+          // סינון כל המשימות הלא-רלוונטיות מהתצוגה (חוב ששולם + 0₪)
+          const allInvalidTaskIds = new Set([...staleTaskIds, ...zeroDebtTaskIds]);
+          const filteredTasks = pendingTasks.filter(t => !allInvalidTaskIds.has(t.id));
 
           const totalPending = sessionsPendingSummary.length + filteredTasks.length;
 
