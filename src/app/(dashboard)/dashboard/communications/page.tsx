@@ -113,7 +113,8 @@ export default function CommunicationsPage() {
   const fileInputRef = useRef<HTMLInputElement>(null);
   const [deleteDialogOpen, setDeleteDialogOpen] = useState(false);
   const [pendingDeleteIds, setPendingDeleteIds] = useState<string[]>([]);
-  const [pendingDeleteKind, setPendingDeleteKind] = useState<"thread" | "message">("message");
+  /** מפורש: מתוך שרשור = תמיד single, גם אם יש עוד הודעות — לא תלוי באורך המערך בלבד */
+  const [deleteConfirmBulk, setDeleteConfirmBulk] = useState(false);
   const [isDeleting, setIsDeleting] = useState(false);
 
   useEffect(() => {
@@ -414,10 +415,10 @@ export default function CommunicationsPage() {
     }
   };
 
-  const openDeleteConfirm = (ids: string[], kind: "thread" | "message") => {
+  const openDeleteConfirm = (ids: string[], bulk: boolean) => {
     if (ids.length === 0) return;
     setPendingDeleteIds(ids);
-    setPendingDeleteKind(kind);
+    setDeleteConfirmBulk(bulk);
     setDeleteDialogOpen(true);
   };
 
@@ -471,12 +472,13 @@ export default function CommunicationsPage() {
       }
 
       toast.success(
-        pendingDeleteKind === "thread"
+        deleteConfirmBulk
           ? "השרשור נמחק לצמיתות"
           : "ההודעה נמחקה לצמיתות"
       );
       setDeleteDialogOpen(false);
       setPendingDeleteIds([]);
+      setDeleteConfirmBulk(false);
     } catch {
       toast.error("שגיאה במחיקה");
     } finally {
@@ -667,7 +669,10 @@ export default function CommunicationsPage() {
                           type="button"
                           onClick={(e) => {
                             e.stopPropagation();
-                            openDeleteConfirm(thread.messages.map(m => m.id), "thread");
+                            openDeleteConfirm(
+                              thread.messages.map(m => m.id),
+                              thread.messages.length > 1
+                            );
                           }}
                           className="p-1 rounded hover:bg-muted text-[#5f6368] dark:text-gray-400 hover:text-destructive"
                           title="מחק שרשור לצמיתות"
@@ -826,7 +831,7 @@ export default function CommunicationsPage() {
                         <div className="flex items-center gap-1 shrink-0">
                           <button
                             type="button"
-                            onClick={() => openDeleteConfirm([msg.id], "message")}
+                            onClick={() => openDeleteConfirm([msg.id], false)}
                             className="p-1 rounded-md hover:bg-destructive/10 text-muted-foreground hover:text-destructive"
                             title="מחק הודעה לצמיתות"
                             aria-label="מחק הודעה לצמיתות"
@@ -958,30 +963,49 @@ export default function CommunicationsPage() {
         onOpenChange={(open) => {
           if (isDeleting && !open) return;
           setDeleteDialogOpen(open);
-          if (!open) setPendingDeleteIds([]);
+          if (!open) {
+            setPendingDeleteIds([]);
+            setDeleteConfirmBulk(false);
+          }
         }}
       >
-        <AlertDialogContent>
-          <AlertDialogHeader>
-            <AlertDialogTitle>
-              {pendingDeleteKind === "thread" ? "למחוק את כל השרשור?" : "למחוק את ההודעה?"}
+        <AlertDialogContent
+          dir="rtl"
+          className="max-w-md border border-border/80 shadow-lg sm:rounded-xl"
+        >
+          <AlertDialogHeader className="space-y-4 text-center sm:text-center items-center">
+            <div
+              className="flex h-12 w-12 items-center justify-center rounded-full bg-destructive/10 dark:bg-destructive/20"
+              aria-hidden
+            >
+              <Trash2 className="h-5 w-5 text-destructive" />
+            </div>
+            <AlertDialogTitle className="text-xl font-semibold tracking-tight text-foreground">
+              {deleteConfirmBulk
+                ? "למחוק את כל השרשור?"
+                : "למחוק את ההודעה?"}
             </AlertDialogTitle>
-            <AlertDialogDescription>
-              {pendingDeleteKind === "thread"
-                ? "כל ההודעות בשרשור יימחקו לצמיתות. לא ניתן לשחזר."
-                : "ההודעה תימחק לצמיתות. לא ניתן לשחזר."}
+            <AlertDialogDescription asChild>
+              <p className="text-center text-sm leading-relaxed text-muted-foreground max-w-sm mx-auto">
+                {deleteConfirmBulk
+                  ? `יימחקו ${pendingDeleteIds.length} הודעות לצמיתות. לא ניתן לשחזר.`
+                  : "ההודעה תימחק לצמיתות. לא ניתן לשחזר."}
+              </p>
             </AlertDialogDescription>
           </AlertDialogHeader>
-          <AlertDialogFooter className="flex-row-reverse gap-2 sm:flex-row-reverse">
+          <AlertDialogFooter className="flex flex-row-reverse flex-wrap items-center justify-center gap-2 sm:justify-center pt-2">
             <Button
               type="button"
               variant="destructive"
               disabled={isDeleting}
+              className="min-w-[8.5rem]"
               onClick={() => void confirmPermanentDelete()}
             >
               {isDeleting ? <Loader2 className="h-4 w-4 animate-spin" /> : "מחק לצמיתות"}
             </Button>
-            <AlertDialogCancel disabled={isDeleting}>ביטול</AlertDialogCancel>
+            <AlertDialogCancel disabled={isDeleting} className="min-w-[5.5rem]">
+              ביטול
+            </AlertDialogCancel>
           </AlertDialogFooter>
         </AlertDialogContent>
       </AlertDialog>
