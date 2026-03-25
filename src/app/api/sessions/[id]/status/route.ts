@@ -80,7 +80,7 @@ export async function PATCH(
     }
 
     const updateData: Record<string, unknown> = { status };
-    if (status === "CANCELLED") {
+    if (status === "CANCELLED" || status === "NO_SHOW") {
       updateData.cancelledAt = new Date();
       updateData.cancelledBy = "THERAPIST";
       if (cancellationReason) updateData.cancellationReason = cancellationReason;

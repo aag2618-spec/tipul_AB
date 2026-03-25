@@ -76,7 +76,7 @@ export function useCalendarActions({ fetchData }: UseCalendarActionsProps) {
       // עדכון סטטוס (ביטול/אי-הופעה) עם תשלום אופציונלי
       const updates: Promise<Response>[] = [];
       const statusBody: Record<string, unknown> = { status: updateStatus };
-      if (updateStatus === "CANCELLED") statusBody.cancellationReason = updateReason.trim() || undefined;
+      if (updateStatus === "CANCELLED" || updateStatus === "NO_SHOW") statusBody.cancellationReason = updateReason.trim() || undefined;
       updates.push(
         fetch(`/api/sessions/${session.id}/status`, {
           method: "PATCH",

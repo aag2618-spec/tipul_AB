@@ -207,13 +207,15 @@ export function UpdateSessionDialog({
             </Button>
           </div>
 
-          {updateStatus === "CANCELLED" && (
+          {(updateStatus === "CANCELLED" || updateStatus === "NO_SHOW") && (
             <div className="space-y-2">
-              <Label className="text-sm">סיבת ביטול (אופציונלי)</Label>
+              <Label className="text-sm">
+                {updateStatus === "CANCELLED" ? "סיבת ביטול (אופציונלי)" : "סיבת אי הופעה (אופציונלי)"}
+              </Label>
               <Textarea
                 value={updateReason}
                 onChange={e => setUpdateReason(e.target.value)}
-                placeholder="לדוגמה: מחלה, בקשת מטופל..."
+                placeholder={updateStatus === "CANCELLED" ? "לדוגמה: מחלה, בקשת מטופל..." : "לדוגמה: לא ענה לטלפון, שכח..."}
                 className="resize-none h-16 bg-muted/20 border-muted-foreground/10 text-sm"
               />
             </div>
