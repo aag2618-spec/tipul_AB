@@ -162,6 +162,9 @@ export function ChargeConfirmationDialog({
     }
   };
 
+  const actionTitle = isCancelled ? "ביטול פגישה" : "אי הופעה";
+  const price = session?.price || 0;
+
   return (
     <Dialog open={open} onOpenChange={(o) => {
       if (!o) {
@@ -171,33 +174,44 @@ export function ChargeConfirmationDialog({
       }
       onOpenChange(o);
     }}>
-      <DialogContent className="sm:max-w-[450px]">
+      <DialogContent className="sm:max-w-[500px] max-h-[90vh] overflow-y-auto" dir="rtl">
         <DialogHeader>
-          <DialogTitle>האם לחייב את המטופל?</DialogTitle>
-          <DialogDescription>
+          <DialogTitle className="text-center">{actionTitle} - {session?.client?.name}</DialogTitle>
+          <DialogDescription className="text-center">
             {isCancelled
-              ? "הפגישה בוטלה. האם ברצונך לחייב את המטופל בתשלום?"
-              : "המטופל נעדר מהפגישה. האם ברצונך לחייב אותו בתשלום?"}
+              ? "הפגישה בוטלה. מה לעשות עם התשלום?"
+              : "המטופל לא הגיע. מה לעשות עם התשלום?"}
           </DialogDescription>
         </DialogHeader>
 
-        <div className="space-y-3">
+        <div className="space-y-4 py-2">
           {/* שדה סיבה */}
-          <div className="space-y-1.5">
-            <label className="text-xs text-muted-foreground">{reasonLabel}</label>
+          <div className="space-y-2">
+            <label className="text-sm font-medium">{reasonLabel}</label>
             <textarea
               value={reason}
               onChange={(e) => setReason(e.target.value)}
               placeholder={reasonPlaceholder}
-              className="w-full text-sm p-2.5 rounded-lg border resize-none bg-background"
+              className="w-full text-sm p-2.5 rounded-lg border resize-none bg-muted/20 border-muted-foreground/10"
               rows={2}
             />
           </div>
 
-          {/* שדה סיבת אי חיוב - מוצג רק בלחיצה על פטור */}
+          {/* כפתור פטור מתשלום */}
+          <Button
+            type="button"
+            variant="outline"
+            className="w-full font-bold text-base"
+            onClick={() => setShowExemptReason(!showExemptReason)}
+            disabled={isProcessing}
+          >
+            {isCancelled ? "ביטול ללא חיוב" : "אי הופעה ללא חיוב"}
+          </Button>
+
+          {/* אזור פטור - מוצג רק בלחיצה */}
           {showExemptReason && (
-            <div className="space-y-1.5 border rounded-lg p-3 bg-amber-50/50 dark:bg-amber-950/30 border-amber-200 dark:border-amber-800">
-              <label className="text-xs font-medium text-amber-700 dark:text-amber-300">סיבה לאי חיוב (אופציונלי)</label>
+            <div className="space-y-3 p-3 rounded-lg border bg-orange-50/50 dark:bg-orange-950/30 border-orange-200 dark:border-orange-800">
+              <label className="text-sm text-orange-700 dark:text-orange-300 font-medium">סיבה לאי חיוב (אופציונלי)</label>
               <textarea
                 value={noChargeReason}
                 onChange={(e) => setNoChargeReason(e.target.value)}
@@ -207,31 +221,56 @@ export function ChargeConfirmationDialog({
               />
             </div>
           )}
+
+          {/* אזור חיוב */}
+          {!showExemptReason && price > 0 && (
+            <div className="space-y-3 p-4 rounded-lg border bg-muted/30">
+              <div className="text-center">
+                <p className="text-lg font-bold">
+                  {isCancelled ? "דמי ביטול 💰" : "חיוב אי הופעה 💰"}
+                </p>
+                <p className="text-2xl font-bold mt-1">₪{price}</p>
+              </div>
+            </div>
+          )}
         </div>
 
-        <DialogFooter className="flex-row-reverse gap-2">
-          <Button onClick={handleCharge} disabled={isProcessing}>
-            כן, לחייב
-          </Button>
-          <Button variant="secondary" onClick={handleRecordDebt} disabled={isProcessing}>
-            עדכן ורשום חוב
-          </Button>
-          {!showExemptReason ? (
-            <Button
-              variant="outline"
-              onClick={() => setShowExemptReason(true)}
-              disabled={isProcessing}
-            >
-              פטור מתשלום
-            </Button>
+        <DialogFooter className="flex gap-2 sm:justify-start">
+          {showExemptReason ? (
+            <>
+              <Button
+                onClick={handleExempt}
+                disabled={isProcessing}
+                variant="default"
+                className="flex-1 bg-emerald-600 hover:bg-emerald-700"
+              >
+                אשר ללא חיוב
+              </Button>
+              <Button variant="outline" onClick={() => setShowExemptReason(false)} disabled={isProcessing} className="flex-1">
+                חזרה לתשלום
+              </Button>
+            </>
           ) : (
-            <Button
-              variant="outline"
-              onClick={handleExempt}
-              disabled={isProcessing}
-            >
-              אשר פטור
-            </Button>
+            <>
+              <Button
+                onClick={handleCharge}
+                disabled={isProcessing}
+                className="flex-1 bg-emerald-600 hover:bg-emerald-700"
+              >
+                עדכון וחייב
+              </Button>
+              <Button
+                variant="outline"
+                onClick={handleRecordDebt}
+                disabled={isProcessing}
+                className="flex-1 text-orange-600 border-orange-300 hover:bg-orange-50"
+              >
+                עדכון ורשום חוב
+              </Button>
+              <Button variant="ghost" onClick={() => onOpenChange(false)} disabled={isProcessing}>
+                ביטול
+              </Button>
+            </>
           )}
         </DialogFooter>
       </DialogContent>

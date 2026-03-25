@@ -141,7 +141,7 @@ export function useCalendarActions({ fetchData }: UseCalendarActionsProps) {
     setUpdating(true);
     try {
       const statusBody: Record<string, unknown> = { status: params.updateStatus, createPayment: true, markAsPaid: false };
-      if (params.updateStatus === "CANCELLED") statusBody.cancellationReason = params.updateReason.trim() || undefined;
+      if (params.updateStatus === "CANCELLED" || params.updateStatus === "NO_SHOW") statusBody.cancellationReason = params.updateReason.trim() || undefined;
       const response = await fetch(`/api/sessions/${session.id}`, {
         method: "PUT",
         headers: { "Content-Type": "application/json" },
