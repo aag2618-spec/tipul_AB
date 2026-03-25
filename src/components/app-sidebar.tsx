@@ -33,6 +33,7 @@ import {
   Mail,
   Brain,
   CreditCard,
+  BookOpen,
 } from "lucide-react";
 
 interface AppSidebarProps {
@@ -97,6 +98,11 @@ const clinicalItems = [
     title: "מסמכים",
     href: "/dashboard/documents",
     icon: FolderOpen,
+  },
+  {
+    title: "דפי עבודה",
+    href: "/dashboard/worksheets",
+    icon: BookOpen,
   },
 ];
 
