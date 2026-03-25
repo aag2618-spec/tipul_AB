@@ -24,7 +24,8 @@ import {
   Paperclip,
   FileText,
   Download,
-  FolderPlus
+  FolderPlus,
+  Trash2,
 } from "lucide-react";
 import Link from "next/link";
 import { format, isToday } from "date-fns";
@@ -38,6 +39,15 @@ import {
   DialogHeader,
   DialogTitle,
 } from "@/components/ui/dialog";
+import {
+  AlertDialog,
+  AlertDialogCancel,
+  AlertDialogContent,
+  AlertDialogDescription,
+  AlertDialogFooter,
+  AlertDialogHeader,
+  AlertDialogTitle,
+} from "@/components/ui/alert-dialog";
 
 interface CommunicationLog {
   id: string;
@@ -101,6 +111,10 @@ export default function CommunicationsPage() {
   const [isSendingReply, setIsSendingReply] = useState(false);
   const [attachments, setAttachments] = useState<File[]>([]);
   const fileInputRef = useRef<HTMLInputElement>(null);
+  const [deleteDialogOpen, setDeleteDialogOpen] = useState(false);
+  const [pendingDeleteIds, setPendingDeleteIds] = useState<string[]>([]);
+  const [pendingDeleteKind, setPendingDeleteKind] = useState<"thread" | "message">("message");
+  const [isDeleting, setIsDeleting] = useState(false);
 
   useEffect(() => {
     fetchLogs();
@@ -400,6 +414,76 @@ export default function CommunicationsPage() {
     }
   };
 
+  const openDeleteConfirm = (ids: string[], kind: "thread" | "message") => {
+    if (ids.length === 0) return;
+    setPendingDeleteIds(ids);
+    setPendingDeleteKind(kind);
+    setDeleteDialogOpen(true);
+  };
+
+  const confirmPermanentDelete = async () => {
+    if (pendingDeleteIds.length === 0) return;
+    setIsDeleting(true);
+    try {
+      const response = await fetch("/api/communications/logs/delete", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ ids: pendingDeleteIds }),
+      });
+      const data = await response.json().catch(() => ({}));
+      if (!response.ok) {
+        toast.error(data.message || "שגיאה במחיקה");
+        return;
+      }
+      if (typeof data.deleted === "number" && data.deleted === 0) {
+        toast.error("לא נמחקו רשומות");
+        return;
+      }
+      const idSet = new Set(pendingDeleteIds);
+      const shouldCloseComposer =
+        selectedThread !== null &&
+        selectedThread.messages.length > 0 &&
+        selectedThread.messages.every(m => idSet.has(m.id));
+
+      setLogs(prev => prev.filter(l => !idSet.has(l.id)));
+      setSelectedThread(prev => {
+        if (!prev) return null;
+        const remaining = prev.messages.filter(m => !idSet.has(m.id));
+        if (remaining.length === 0) return null;
+        const sorted = [...remaining].sort(
+          (a, b) => new Date(b.createdAt).getTime() - new Date(a.createdAt).getTime()
+        );
+        const latestMessage = sorted[0];
+        const hasUnread = remaining.some(m => m.type === "INCOMING_EMAIL" && !m.isRead);
+        return {
+          ...prev,
+          messages: sorted,
+          latestMessage,
+          hasUnread,
+          messageCount: remaining.length,
+          subject: normalizeSubject(latestMessage.subject || "ללא נושא"),
+        };
+      });
+
+      if (shouldCloseComposer) {
+        setReplyText("");
+        setAttachments([]);
+      }
+
+      toast.success(
+        pendingDeleteKind === "thread"
+          ? "השרשור נמחק לצמיתות"
+          : "ההודעה נמחקה לצמיתות"
+      );
+      setDeleteDialogOpen(false);
+      setPendingDeleteIds([]);
+    } catch {
+      toast.error("שגיאה במחיקה");
+    } finally {
+      setIsDeleting(false);
+    }
+  };
+
   const getLatestMessagePreview = (thread: Thread) => {
     const msg = thread.latestMessage;
     const isIncoming = msg.type === "INCOMING_EMAIL";
@@ -500,7 +584,7 @@ export default function CommunicationsPage() {
               <col style={{ width: "28px" }} />
               <col style={{ width: "160px" }} />
               <col />
-              <col style={{ width: "50px" }} />
+              <col style={{ width: "84px" }} />
               <col style={{ width: "80px" }} />
             </colgroup>
             <tbody>
@@ -562,15 +646,16 @@ export default function CommunicationsPage() {
                       </div>
                     </td>
 
-                    {/* Col 4: Indicators */}
+                    {/* Col 4: Indicators + delete thread */}
                     <td className="py-0 text-center">
-                      <div className="flex items-center justify-end gap-1">
+                      <div className="flex items-center justify-end gap-0.5">
                         {hasAttachments && <Paperclip className="h-[15px] w-[15px] text-[#5f6368] dark:text-gray-400" />}
                         {thread.messageCount > 1 && (
                           <span className="text-[12px] text-[#5f6368] dark:text-gray-400">{thread.messageCount}</span>
                         )}
                         {threadHasFailed && (
                           <button
+                            type="button"
                             onClick={(e) => { e.stopPropagation(); dismissAllFailedInThread(thread); }}
                             className="p-0.5 rounded hover:bg-red-100 text-red-400 hover:text-red-600"
                             title="סמן כטופל"
@@ -578,6 +663,18 @@ export default function CommunicationsPage() {
                             <X className="h-3.5 w-3.5" />
                           </button>
                         )}
+                        <button
+                          type="button"
+                          onClick={(e) => {
+                            e.stopPropagation();
+                            openDeleteConfirm(thread.messages.map(m => m.id), "thread");
+                          }}
+                          className="p-1 rounded hover:bg-muted text-[#5f6368] dark:text-gray-400 hover:text-destructive"
+                          title="מחק שרשור לצמיתות"
+                          aria-label="מחק שרשור לצמיתות"
+                        >
+                          <Trash2 className="h-3.5 w-3.5" />
+                        </button>
                       </div>
                     </td>
 
@@ -689,7 +786,7 @@ export default function CommunicationsPage() {
 
               {/* Messages - newest first (scrollable) */}
               <div className="flex-1 overflow-y-auto p-4 space-y-4">
-                {selectedThread.messages.map((msg, idx) => {
+                {selectedThread.messages.map((msg) => {
                   const isIncoming = msg.type === "INCOMING_EMAIL";
                   const msgDate = msg.sentAt || msg.createdAt;
                   return (
@@ -726,9 +823,20 @@ export default function CommunicationsPage() {
                             </>
                           )}
                         </div>
-                        <span className="text-xs text-muted-foreground">
-                          {format(new Date(msgDate), "EEEE dd/MM/yyyy HH:mm", { locale: he })}
-                        </span>
+                        <div className="flex items-center gap-1 shrink-0">
+                          <button
+                            type="button"
+                            onClick={() => openDeleteConfirm([msg.id], "message")}
+                            className="p-1 rounded-md hover:bg-destructive/10 text-muted-foreground hover:text-destructive"
+                            title="מחק הודעה לצמיתות"
+                            aria-label="מחק הודעה לצמיתות"
+                          >
+                            <Trash2 className="h-3.5 w-3.5" />
+                          </button>
+                          <span className="text-xs text-muted-foreground">
+                            {format(new Date(msgDate), "EEEE dd/MM/yyyy HH:mm", { locale: he })}
+                          </span>
+                        </div>
                       </div>
                       {/* Message content */}
                       <div 
@@ -844,6 +952,39 @@ export default function CommunicationsPage() {
           )}
         </DialogContent>
       </Dialog>
+
+      <AlertDialog
+        open={deleteDialogOpen}
+        onOpenChange={(open) => {
+          if (isDeleting && !open) return;
+          setDeleteDialogOpen(open);
+          if (!open) setPendingDeleteIds([]);
+        }}
+      >
+        <AlertDialogContent>
+          <AlertDialogHeader>
+            <AlertDialogTitle>
+              {pendingDeleteKind === "thread" ? "למחוק את כל השרשור?" : "למחוק את ההודעה?"}
+            </AlertDialogTitle>
+            <AlertDialogDescription>
+              {pendingDeleteKind === "thread"
+                ? "כל ההודעות בשרשור יימחקו לצמיתות. לא ניתן לשחזר."
+                : "ההודעה תימחק לצמיתות. לא ניתן לשחזר."}
+            </AlertDialogDescription>
+          </AlertDialogHeader>
+          <AlertDialogFooter className="flex-row-reverse gap-2 sm:flex-row-reverse">
+            <Button
+              type="button"
+              variant="destructive"
+              disabled={isDeleting}
+              onClick={() => void confirmPermanentDelete()}
+            >
+              {isDeleting ? <Loader2 className="h-4 w-4 animate-spin" /> : "מחק לצמיתות"}
+            </Button>
+            <AlertDialogCancel disabled={isDeleting}>ביטול</AlertDialogCancel>
+          </AlertDialogFooter>
+        </AlertDialogContent>
+      </AlertDialog>
     </div>
   );
 }
