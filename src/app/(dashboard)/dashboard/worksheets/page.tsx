@@ -27,6 +27,9 @@ const colorMap: Record<
     badge: string;
     badgeText: string;
     accent: string;
+    ring: string;
+    hoverBg: string;
+    hoverBorder: string;
     tabActiveBorder: string;
     tabActiveText: string;
   }
@@ -38,6 +41,9 @@ const colorMap: Record<
     badge: "bg-violet-100",
     badgeText: "text-violet-700",
     accent: "bg-violet-600",
+    ring: "ring-violet-300",
+    hoverBg: "hover:bg-violet-50",
+    hoverBorder: "hover:border-violet-200",
     tabActiveBorder: "data-[state=active]:border-violet-600",
     tabActiveText: "data-[state=active]:text-violet-700",
   },
@@ -48,6 +54,9 @@ const colorMap: Record<
     badge: "bg-teal-100",
     badgeText: "text-teal-700",
     accent: "bg-teal-600",
+    ring: "ring-teal-300",
+    hoverBg: "hover:bg-teal-50",
+    hoverBorder: "hover:border-teal-200",
     tabActiveBorder: "data-[state=active]:border-teal-600",
     tabActiveText: "data-[state=active]:text-teal-700",
   },
@@ -58,6 +67,9 @@ const colorMap: Record<
     badge: "bg-orange-100",
     badgeText: "text-orange-700",
     accent: "bg-orange-600",
+    ring: "ring-orange-300",
+    hoverBg: "hover:bg-orange-50",
+    hoverBorder: "hover:border-orange-200",
     tabActiveBorder: "data-[state=active]:border-orange-600",
     tabActiveText: "data-[state=active]:text-orange-700",
   },
@@ -477,8 +489,11 @@ export default function WorksheetsPage() {
     }
   };
 
+  const activeWs = worksheets.find((ws) => ws.id === openWorksheet);
+  const activeColor = activeWs ? colorMap[activeWs.color] : null;
+
   return (
-    <div className="space-y-8 p-6">
+    <div className="space-y-6 p-6">
       {/* Header */}
       <div className="flex items-center gap-3">
         <div className="flex h-10 w-10 items-center justify-center rounded-lg bg-primary/10">
@@ -492,104 +507,107 @@ export default function WorksheetsPage() {
         </div>
       </div>
 
-      {/* Cards */}
-      {worksheets.map((ws) => {
-        const c = colorMap[ws.color];
-        const isOpen = openWorksheet === ws.id;
+      {/* Cards Grid */}
+      <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-4">
+        {worksheets.map((ws) => {
+          const c = colorMap[ws.color];
+          const isOpen = openWorksheet === ws.id;
 
-        return (
-          <div key={ws.id} className="space-y-4">
-            {/* Approach Badge */}
-            <div className="flex items-center gap-3">
-              <span className={`inline-flex items-center rounded-full px-3 py-1 text-xs font-bold ${c.badge} ${c.badgeText}`}>
-                {ws.approach}
+          return (
+            <button
+              key={ws.id}
+              onClick={() => setOpenWorksheet(isOpen ? null : ws.id)}
+              className={`group relative text-right rounded-xl border-2 p-4 transition-all duration-200 cursor-pointer ${
+                isOpen
+                  ? `${c.border} ${c.bg} shadow-lg ring-2 ring-offset-1 ${c.ring}`
+                  : `border-gray-200 bg-white ${c.hoverBg} ${c.hoverBorder} hover:shadow-md`
+              }`}
+            >
+              {/* Accent top bar */}
+              <div className={`absolute top-0 right-0 left-0 h-1 rounded-t-xl ${c.accent}`} />
+
+              {/* Badge */}
+              <span className={`inline-flex items-center rounded-full px-2.5 py-0.5 text-[10px] font-bold ${c.badge} ${c.badgeText} mb-2`}>
+                {ws.approach} &bull; {ws.approachHe}
               </span>
-              <span className="text-sm text-muted-foreground">{ws.approachHe}</span>
+
+              {/* Title */}
+              <h3 className={`text-base font-bold ${c.text} mb-0.5`}>{ws.title}</h3>
+              <p className="text-[11px] text-muted-foreground mb-2">{ws.titleEn}</p>
+
+              {/* Description */}
+              <p className="text-xs leading-relaxed text-muted-foreground line-clamp-2">{ws.description}</p>
+
+              {/* Open indicator */}
+              <div className={`mt-3 flex items-center gap-1.5 text-xs font-medium ${isOpen ? c.badgeText : "text-gray-400"}`}>
+                <Eye className="h-3.5 w-3.5" />
+                {isOpen ? "תצוגה פתוחה" : "לחצו לתצוגה מקדימה"}
+              </div>
+            </button>
+          );
+        })}
+      </div>
+
+      {/* Tabs Preview — full width, below grid */}
+      {activeWs && activeColor && (
+        <div className="rounded-xl border border-gray-200 bg-white shadow-lg overflow-hidden animate-in slide-in-from-top-2 duration-200">
+          <p className="border-b border-amber-100 bg-amber-50/60 px-4 py-2 text-xs text-muted-foreground print:hidden">
+            טיפ להדפסה: בחלון ההדפסה כבו &quot;כותרת ותחתית&quot; (Headers and footers) כדי שלא
+            יודפסו כתובת הקובץ ומספרי עמודים בשוליים.
+          </p>
+          <Tabs defaultValue="instructions" dir="rtl">
+            <div className="flex items-center justify-between border-b bg-gray-50 px-1">
+              <TabsList className="flex-1 justify-start rounded-none border-b-0 bg-transparent p-0 h-auto">
+                <TabsTrigger
+                  value="instructions"
+                  className={`flex-1 gap-2 rounded-none border-b-2 border-transparent py-3 data-[state=active]:bg-white data-[state=active]:shadow-none ${activeColor.tabActiveBorder} ${activeColor.tabActiveText}`}
+                >
+                  <ClipboardList className="h-4 w-4" />
+                  הוראות למטפל
+                </TabsTrigger>
+                <TabsTrigger
+                  value="worksheet"
+                  className={`flex-1 gap-2 rounded-none border-b-2 border-transparent py-3 data-[state=active]:bg-white data-[state=active]:shadow-none ${activeColor.tabActiveBorder} ${activeColor.tabActiveText}`}
+                >
+                  <FileText className="h-4 w-4" />
+                  דף עבודה
+                </TabsTrigger>
+                <TabsTrigger
+                  value="example"
+                  className={`flex-1 gap-2 rounded-none border-b-2 border-transparent py-3 data-[state=active]:bg-white data-[state=active]:shadow-none ${activeColor.tabActiveBorder} ${activeColor.tabActiveText}`}
+                >
+                  <BookOpen className="h-4 w-4" />
+                  דוגמה ממולאת
+                </TabsTrigger>
+              </TabsList>
+              <div className="flex items-center gap-1 px-2">
+                <button
+                  onClick={() => handleDownload(activeWs.file)}
+                  className={`flex items-center gap-1.5 rounded-lg px-3 py-1.5 text-xs font-semibold transition-opacity hover:opacity-80 ${activeColor.badge} ${activeColor.badgeText}`}
+                  title="הורדה"
+                >
+                  <Download className="h-3.5 w-3.5" />
+                  הורדה
+                </button>
+                <button
+                  onClick={() => handlePrint(activeWs.file)}
+                  className={`flex items-center gap-1.5 rounded-lg px-3 py-1.5 text-xs font-semibold transition-opacity hover:opacity-80 ${activeColor.badge} ${activeColor.badgeText}`}
+                  title="הדפסה"
+                >
+                  <Printer className="h-3.5 w-3.5" />
+                  הדפסה
+                </button>
+              </div>
             </div>
 
-            {/* Card */}
-            <div className={`rounded-xl border-2 ${c.border} ${c.bg} p-5 transition-shadow hover:shadow-md`}>
-              <div className="mb-3">
-                <h3 className={`text-lg font-bold ${c.text}`}>{ws.title}</h3>
-                <p className="text-xs text-muted-foreground">{ws.titleEn}</p>
-              </div>
-              <p className="mb-4 text-sm leading-relaxed text-muted-foreground">{ws.description}</p>
-              <button
-                onClick={() => setOpenWorksheet(isOpen ? null : ws.id)}
-                className={`flex items-center justify-center gap-2 rounded-lg border px-3 py-2 text-sm font-medium transition-opacity hover:opacity-80 ${
-                  isOpen
-                    ? `${c.accent} text-white border-transparent`
-                    : "border-gray-200 bg-white text-gray-600"
-                }`}
-              >
-                <Eye className="h-4 w-4" />
-                {isOpen ? "סגור תצוגה" : "תצוגה מקדימה"}
-              </button>
+            <div className="max-h-[600px] overflow-y-auto p-5">
+              <TabsContent value="instructions">{activeWs.therapistInstructions}</TabsContent>
+              <TabsContent value="worksheet">{activeWs.worksheetPreview}</TabsContent>
+              <TabsContent value="example">{activeWs.examplePreview}</TabsContent>
             </div>
-
-            {/* Tabs Preview */}
-            {isOpen && (
-              <div className="rounded-xl border border-gray-200 bg-white shadow-lg overflow-hidden animate-in slide-in-from-top-2 duration-200">
-                <p className="border-b border-amber-100 bg-amber-50/60 px-4 py-2 text-xs text-muted-foreground print:hidden">
-                  טיפ להדפסה: בחלון ההדפסה כבו &quot;כותרת ותחתית&quot; (Headers and footers) כדי שלא
-                  יודפסו כתובת הקובץ ומספרי עמודים בשוליים.
-                </p>
-                <Tabs defaultValue="instructions" dir="rtl">
-                  <div className="flex items-center justify-between border-b bg-gray-50 px-1">
-                    <TabsList className="flex-1 justify-start rounded-none border-b-0 bg-transparent p-0 h-auto">
-                    <TabsTrigger
-                      value="instructions"
-                      className={`flex-1 gap-2 rounded-none border-b-2 border-transparent py-3 data-[state=active]:bg-white data-[state=active]:shadow-none ${c.tabActiveBorder} ${c.tabActiveText}`}
-                    >
-                      <ClipboardList className="h-4 w-4" />
-                      הוראות למטפל
-                    </TabsTrigger>
-                    <TabsTrigger
-                      value="worksheet"
-                      className={`flex-1 gap-2 rounded-none border-b-2 border-transparent py-3 data-[state=active]:bg-white data-[state=active]:shadow-none ${c.tabActiveBorder} ${c.tabActiveText}`}
-                    >
-                      <FileText className="h-4 w-4" />
-                      דף עבודה
-                    </TabsTrigger>
-                    <TabsTrigger
-                      value="example"
-                      className={`flex-1 gap-2 rounded-none border-b-2 border-transparent py-3 data-[state=active]:bg-white data-[state=active]:shadow-none ${c.tabActiveBorder} ${c.tabActiveText}`}
-                    >
-                      <BookOpen className="h-4 w-4" />
-                      דוגמה ממולאת
-                    </TabsTrigger>
-                    </TabsList>
-                    <div className="flex items-center gap-1 px-2">
-                      <button
-                        onClick={() => handleDownload(ws.file)}
-                        className={`flex items-center gap-1.5 rounded-lg px-3 py-1.5 text-xs font-semibold transition-opacity hover:opacity-80 ${c.badge} ${c.badgeText}`}
-                        title="הורדה"
-                      >
-                        <Download className="h-3.5 w-3.5" />
-                        הורדה
-                      </button>
-                      <button
-                        onClick={() => handlePrint(ws.file)}
-                        className={`flex items-center gap-1.5 rounded-lg px-3 py-1.5 text-xs font-semibold transition-opacity hover:opacity-80 ${c.badge} ${c.badgeText}`}
-                        title="הדפסה"
-                      >
-                        <Printer className="h-3.5 w-3.5" />
-                        הדפסה
-                      </button>
-                    </div>
-                  </div>
-
-                  <div className="max-h-[600px] overflow-y-auto p-5">
-                    <TabsContent value="instructions">{ws.therapistInstructions}</TabsContent>
-                    <TabsContent value="worksheet">{ws.worksheetPreview}</TabsContent>
-                    <TabsContent value="example">{ws.examplePreview}</TabsContent>
-                  </div>
-                </Tabs>
-              </div>
-            )}
-          </div>
-        );
-      })}
+          </Tabs>
+        </div>
+      )}
     </div>
   );
 }

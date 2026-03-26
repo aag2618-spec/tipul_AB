@@ -40,12 +40,22 @@
     * { box-sizing: border-box; margin: 0; padding: 0; }
     body {
       font-family: 'Heebo', 'Segoe UI', system-ui, sans-serif;
-      background: var(--slate-50);
+      background: #e5e7eb;
       color: var(--slate-800);
       line-height: 1.6;
       font-size: 15px;
     }
     .sheet { max-width: 860px; margin: 0 auto; padding: 20px; }
+
+    .therapist-section,
+    .worksheet-body,
+    .example-section {
+      background: #fff;
+      box-shadow: 0 1px 8px rgba(0,0,0,0.1), 0 0 1px rgba(0,0,0,0.05);
+      border-radius: var(--radius);
+      padding: 28px 24px;
+      margin-bottom: 32px;
+    }
 
     .header {
       background: linear-gradient(to right, var(--orange-400) 0%, var(--orange-600) 50%, var(--orange-800) 100%);
@@ -71,7 +81,7 @@
     .header-logo { flex-shrink: 0; }
     .header-logo img { height: 180px; width: auto; max-width: 350px; object-fit: contain; display: block; }
 
-    .therapist-section { margin-bottom: 0; }
+    .therapist-section { margin-bottom: 32px; }
     .therapist-box {
       background: linear-gradient(135deg, var(--amber-50) 0%, #fff8f0 100%);
       border: 1.5px solid var(--amber-400); border-radius: var(--radius);
@@ -193,6 +203,7 @@
     @media print {
       html, body { background: #fff; font-size: 15px; margin: 0; padding: 0; }
       .sheet { max-width: none; padding: 0; margin: 0; }
+      .therapist-section, .worksheet-body, .example-section { box-shadow: none; padding: 0; margin-bottom: 0; border-radius: 0; }
       .header, .header-badge, .section-number,
       .scale-row, .scale-dot, .grounding-box, .compassion-box,
       .pattern-box, .therapist-box, .summary-box, .example-banner,
@@ -291,6 +302,7 @@
     </div>
 
     <!-- ═══ חלק 2: דף העבודה ═══ -->
+    <div class="worksheet-body">
     <header class="header">
       <div class="header-content">
         <div class="header-badge">ACT &bull; Acceptance and Commitment Therapy</div>
@@ -441,6 +453,7 @@
       <div>&copy; MyTipul &mdash; כל הזכויות שמורות</div>
       <a href="https://mytipul.com" target="_blank" rel="noopener">mytipul.com</a>
     </footer>
+    </div>
 
     <!-- ═══ חלק 3: דוגמה ממולאת ═══ -->
     <div class="example-section">
