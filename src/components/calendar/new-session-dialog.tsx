@@ -7,7 +7,7 @@ import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
 import { Switch } from "@/components/ui/switch";
-import { Loader2, Repeat, Settings, Waves } from "lucide-react";
+import { Loader2, Repeat, Settings, Waves, UserPlus, ArrowRight } from "lucide-react";
 import { format, addWeeks } from "date-fns";
 import { toast } from "sonner";
 import type { CalendarClient, CalendarSession } from "@/hooks/use-calendar-data";
@@ -20,6 +20,7 @@ export interface SessionFormData {
   endTime: string;
   type: string;
   price: string;
+  topic: string;
   isRecurring: boolean;
   weeksToRepeat: number;
 }
@@ -39,6 +40,7 @@ export interface PendingFormRecurring {
   clientId: string;
   type: string;
   price: string;
+  topic: string;
   sessions: Array<{ startTime: string; endTime: string }>;
 }
 
@@ -48,6 +50,7 @@ export const DEFAULT_FORM_DATA: SessionFormData = {
   endTime: "",
   type: "IN_PERSON",
   price: "",
+  topic: "",
   isRecurring: false,
   weeksToRepeat: 4,
 };
@@ -88,6 +91,13 @@ export function NewSessionDialog({
   const [showDurationCustomizer, setShowDurationCustomizer] = useState(false);
   const [customDuration, setCustomDuration] = useState(defaultSessionDuration);
 
+  // פגישת ייעוץ — state
+  const [isQuickClientMode, setIsQuickClientMode] = useState(false);
+  const [quickClientName, setQuickClientName] = useState("");
+  const [quickClientPhone, setQuickClientPhone] = useState("");
+  const [quickClientEmail, setQuickClientEmail] = useState("");
+  const [matchedClient, setMatchedClient] = useState<CalendarClient | null>(null);
+
   // Reset internal state when dialog opens with new initial data
   useEffect(() => {
     if (open) {
@@ -95,8 +105,26 @@ export function NewSessionDialog({
       setCustomDuration(defaultSessionDuration);
       setShowDurationCustomizer(false);
       setIsSubmitting(false);
+      setIsQuickClientMode(false);
+      setQuickClientName("");
+      setQuickClientPhone("");
+      setQuickClientEmail("");
+      setMatchedClient(null);
     }
   }, [open, initialFormData, defaultSessionDuration]);
+
+  // זיהוי חזרה — כשמקלידים שם, חיפוש בפונים קיימים
+  useEffect(() => {
+    if (!isQuickClientMode || quickClientName.trim().length < 2) {
+      setMatchedClient(null);
+      return;
+    }
+    const searchName = quickClientName.trim().toLowerCase();
+    const found = clients.find(
+      (c) => c.isQuickClient && c.name.toLowerCase().includes(searchName)
+    );
+    setMatchedClient(found || null);
+  }, [quickClientName, isQuickClientMode, clients]);
 
   const handleDurationChange = (minutes: number) => {
     setCustomDuration(minutes);
@@ -114,12 +142,28 @@ export function NewSessionDialog({
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
 
-    if (formData.type !== "BREAK" && (!formData.clientId || !formData.startTime || !formData.endTime)) {
+    // ולידציה — פגישת ייעוץ
+    if (isQuickClientMode) {
+      if (!quickClientName.trim()) {
+        toast.error("נא להזין שם");
+        return;
+      }
+      if (!quickClientPhone.trim() && !quickClientEmail.trim()) {
+        toast.error("נדרש טלפון או מייל");
+        return;
+      }
+      if (!formData.topic.trim()) {
+        toast.error("נא להזין נושא הפגישה");
+        return;
+      }
+      if (!formData.startTime || !formData.endTime) {
+        toast.error("נא למלא את שעות הפגישה");
+        return;
+      }
+    } else if (formData.type !== "BREAK" && (!formData.clientId || !formData.startTime || !formData.endTime)) {
       toast.error("נא למלא את כל השדות");
       return;
-    }
-
-    if (formData.type === "BREAK" && (!formData.startTime || !formData.endTime)) {
+    } else if (formData.type === "BREAK" && (!formData.startTime || !formData.endTime)) {
       toast.error("נא למלא את שעות ההפסקה");
       return;
     }
@@ -127,11 +171,39 @@ export function NewSessionDialog({
     setIsSubmitting(true);
 
     try {
+      // ── פגישת ייעוץ: יצירת פונה מהיר ← פגישה ──
+      let clientIdToUse = formData.clientId;
+
+      if (isQuickClientMode && !matchedClient) {
+        // יצירת פונה חדש
+        const clientRes = await fetch("/api/clients", {
+          method: "POST",
+          headers: { "Content-Type": "application/json" },
+          body: JSON.stringify({
+            isQuickClient: true,
+            name: quickClientName.trim(),
+            phone: quickClientPhone.trim() || undefined,
+            email: quickClientEmail.trim() || undefined,
+            defaultSessionPrice: parseFloat(formData.price) || undefined,
+          }),
+        });
+
+        if (!clientRes.ok) {
+          const errData = await clientRes.json().catch(() => null);
+          throw new Error(errData?.message || "שגיאה ביצירת הפונה");
+        }
+
+        const newClient = await clientRes.json();
+        clientIdToUse = newClient.id;
+      } else if (isQuickClientMode && matchedClient) {
+        // פונה קיים שנבחר
+        clientIdToUse = matchedClient.id;
+      }
       // ── Recurring: show preview before creating ──
       if (formData.isRecurring && formData.weeksToRepeat > 1) {
         const startDate = new Date(formData.startTime);
         const endDate = new Date(formData.endTime);
-        const client = clients.find((c) => c.id === formData.clientId);
+        const client = clients.find((c) => c.id === clientIdToUse);
         const planned: Array<{ startLocal: string; endLocal: string; start: Date; end: Date }> = [];
 
         for (let i = 0; i < formData.weeksToRepeat; i++) {
@@ -175,8 +247,8 @@ export function NewSessionDialog({
             key,
             date: dateStr,
             time: timeStr,
-            clientName: client?.name || (formData.type === "BREAK" ? "הפסקה" : "ללא שם"),
-            clientId: formData.clientId,
+            clientName: client?.name || (isQuickClientMode ? quickClientName.trim() : (formData.type === "BREAK" ? "הפסקה" : "ללא שם")),
+            clientId: clientIdToUse,
             patternId: "",
             status: (overlap ? "conflict" : "ok") as "ok" | "conflict",
             conflictWith: overlap
@@ -199,9 +271,10 @@ export function NewSessionDialog({
           previewItems,
           defaults,
           {
-            clientId: formData.clientId,
+            clientId: clientIdToUse,
             type: formData.type,
             price: formData.price,
+            topic: formData.topic.trim(),
             sessions: planned.map((p) => ({ startTime: p.startLocal, endTime: p.endLocal })),
           }
         );
@@ -215,11 +288,12 @@ export function NewSessionDialog({
         method: "POST",
         headers: { "Content-Type": "application/json" },
         body: JSON.stringify({
-          clientId: formData.clientId,
+          clientId: clientIdToUse,
           startTime: formData.startTime,
           endTime: formData.endTime,
           type: formData.type,
           price: parseFloat(formData.price) || 0,
+          topic: formData.topic.trim() || undefined,
           isRecurring: false,
         }),
       });
@@ -250,7 +324,7 @@ export function NewSessionDialog({
         </DialogHeader>
 
         <form onSubmit={handleSubmit} className="space-y-4">
-          {formData.type !== "BREAK" && (
+          {formData.type !== "BREAK" && !isQuickClientMode && (
             <div className="space-y-2">
               <Label htmlFor="clientId">מטופל</Label>
               <Select
@@ -277,6 +351,127 @@ export function NewSessionDialog({
                   ))}
                 </SelectContent>
               </Select>
+
+              {/* כפתור פגישת ייעוץ */}
+              <Button
+                type="button"
+                variant="outline"
+                size="sm"
+                onClick={() => {
+                  setIsQuickClientMode(true);
+                  setFormData((prev) => ({ ...prev, clientId: "" }));
+                }}
+                className="w-full text-sm gap-2 border-dashed border-blue-300 text-blue-600 hover:bg-blue-50"
+              >
+                <UserPlus className="h-4 w-4" />
+                + פגישת ייעוץ
+              </Button>
+            </div>
+          )}
+
+          {/* טופס פגישת ייעוץ — פונה חדש */}
+          {formData.type !== "BREAK" && isQuickClientMode && (
+            <div className="space-y-3 p-3 border rounded-lg border-blue-200 bg-blue-50/50">
+              <div className="flex items-center justify-between">
+                <span className="text-sm font-medium text-blue-700">פגישת ייעוץ — פונה חדש</span>
+                <Button
+                  type="button"
+                  variant="ghost"
+                  size="sm"
+                  onClick={() => {
+                    setIsQuickClientMode(false);
+                    setQuickClientName("");
+                    setQuickClientPhone("");
+                    setQuickClientEmail("");
+                    setMatchedClient(null);
+                  }}
+                  className="text-xs text-muted-foreground h-7 px-2"
+                >
+                  <ArrowRight className="h-3 w-3 ml-1" />
+                  חזרה לבחירת מטופל
+                </Button>
+              </div>
+
+              <div className="space-y-2">
+                <Label htmlFor="quickName">שם <span className="text-red-500">*</span></Label>
+                <Input
+                  id="quickName"
+                  placeholder="שם מלא"
+                  value={quickClientName}
+                  onChange={(e) => setQuickClientName(e.target.value)}
+                />
+              </div>
+
+              {/* זיהוי חזרה */}
+              {matchedClient && (
+                <div className="p-2 bg-amber-50 border border-amber-200 rounded text-sm">
+                  <p className="text-amber-800">
+                    {matchedClient.name} כבר קיים/ת במערכת.{" "}
+                    <button
+                      type="button"
+                      className="underline font-medium text-amber-900"
+                      onClick={() => {
+                        setFormData((prev) => ({
+                          ...prev,
+                          clientId: matchedClient.id,
+                          price: matchedClient.defaultSessionPrice
+                            ? String(matchedClient.defaultSessionPrice)
+                            : prev.price,
+                        }));
+                        setIsQuickClientMode(false);
+                        setQuickClientName("");
+                        setQuickClientPhone("");
+                        setQuickClientEmail("");
+                      }}
+                    >
+                      לחץ כאן לבחירה
+                    </button>
+                  </p>
+                </div>
+              )}
+
+              <div className="grid grid-cols-2 gap-2">
+                <div className="space-y-1">
+                  <Label htmlFor="quickPhone" className="text-xs">טלפון</Label>
+                  <Input
+                    id="quickPhone"
+                    type="tel"
+                    placeholder="054-1234567"
+                    value={quickClientPhone}
+                    onChange={(e) => setQuickClientPhone(e.target.value)}
+                    dir="ltr"
+                  />
+                </div>
+                <div className="space-y-1">
+                  <Label htmlFor="quickEmail" className="text-xs">מייל</Label>
+                  <Input
+                    id="quickEmail"
+                    type="email"
+                    placeholder="example@mail.com"
+                    value={quickClientEmail}
+                    onChange={(e) => setQuickClientEmail(e.target.value)}
+                    dir="ltr"
+                  />
+                </div>
+              </div>
+              <p className="text-xs text-muted-foreground">* נדרש טלפון או מייל</p>
+            </div>
+          )}
+
+          {/* נושא הפגישה */}
+          {formData.type !== "BREAK" && (
+            <div className="space-y-2">
+              <Label htmlFor="topic">
+                נושא הפגישה {isQuickClientMode && <span className="text-red-500">*</span>}
+              </Label>
+              <Input
+                id="topic"
+                placeholder="למשל: ייעוץ ראשוני, מעקב חרדה, ליווי הורי..."
+                value={formData.topic}
+                onChange={(e) =>
+                  setFormData((prev) => ({ ...prev, topic: e.target.value }))
+                }
+              />
             </div>
           )}
 

@@ -122,6 +122,7 @@ export default function CalendarPage() {
     clientId: string;
     type: string;
     price: string;
+    topic: string;
     sessions: Array<{ startTime: string; endTime: string }>;
   } | null>(null);
 
@@ -223,6 +224,7 @@ export default function CalendarPage() {
       endTime: format(endTime, "yyyy-MM-dd'T'HH:mm"),
       type: "IN_PERSON",
       price,
+      topic: "",
       isRecurring: false,
       weeksToRepeat: 4,
     });
@@ -275,6 +277,7 @@ export default function CalendarPage() {
       endTime: format(newEndTime, "yyyy-MM-dd'T'HH:mm"),
       type: session.type,
       price: session.client?.defaultSessionPrice?.toString() || "",
+      topic: "",
       isRecurring: false,
       weeksToRepeat: 4,
     });

@@ -200,6 +200,7 @@ export function RecurringPatternDialog({
               endTime: session.endTime,
               type: pendingFormRecurring.type,
               price: parseFloat(pendingFormRecurring.price) || 0,
+              topic: pendingFormRecurring.topic || undefined,
               isRecurring: true,
               allowOverlap: isOverlapAllowed || undefined,
             }),

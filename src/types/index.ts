@@ -210,6 +210,7 @@ export interface SessionFormData {
   endTime: string;
   type: SessionType;
   price: number;
+  topic?: string;
   location?: string;
   notes?: string;
   isRecurring?: boolean;
