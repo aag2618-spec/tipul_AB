@@ -77,10 +77,7 @@ export function SessionStatusIndicators({ session }: SessionStatusIndicatorsProp
             <span className="text-gray-600 font-medium">✓ פטור מתשלום</span>
           )}
         </div>
-        {/* סיבת פטור - אם אין payment ויש הערה */}
-        {!session.payment && session.sessionNote && (
-          <p className="text-muted-foreground/70 truncate">סיבת אי חיוב: {session.sessionNote}</p>
-        )}
+        {/* סיבת אי חיוב מוצגת בכרטיס הפגישה עצמו - לא כאן כדי למנוע כפילות */}
       </div>
     );
   }
