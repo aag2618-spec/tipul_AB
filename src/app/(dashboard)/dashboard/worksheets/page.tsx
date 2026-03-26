@@ -51,6 +51,16 @@ const colorMap: Record<
     tabActiveBorder: "data-[state=active]:border-teal-600",
     tabActiveText: "data-[state=active]:text-teal-700",
   },
+  orange: {
+    bg: "bg-orange-50",
+    border: "border-orange-200",
+    text: "text-orange-800",
+    badge: "bg-orange-100",
+    badgeText: "text-orange-700",
+    accent: "bg-orange-600",
+    tabActiveBorder: "data-[state=active]:border-orange-600",
+    tabActiveText: "data-[state=active]:text-orange-700",
+  },
 };
 
 /* ═══ תוכן TIPP ═══ */
@@ -260,6 +270,144 @@ const cbtExamplePreview = (
   </div>
 );
 
+/* ═══ תוכן ACT — זיהוי ערכים ═══ */
+
+const actTherapistInstructions = (
+  <div className="space-y-4 text-sm leading-relaxed">
+    <p>
+      <strong>מהו זיהוי ערכים?</strong> דף עבודה מגישת ACT (טיפול באמצעות קבלה ומחויבות) שעוזר
+      למטופל לזהות מה באמת חשוב לו בחיים, לבדוק פערים בין ערכים להתנהגות, ולבחור צעד קטן לשינוי.
+    </p>
+    <p>
+      <strong>המנגנון:</strong> ערכים הם כיוון, לא יעד. כשאנחנו חיים לפי הערכים שלנו, אנחנו מרגישים
+      יותר שלמים ומשמעותיים — גם כשקשה.
+    </p>
+    <div>
+      <strong>מתי להשתמש:</strong>
+      <ul className="mt-1 list-disc pr-5 space-y-1">
+        <li>תחושת ריקנות או חוסר כיוון</li>
+        <li>קושי לקבל החלטות</li>
+        <li>פער בין רצון לפעולה</li>
+        <li>תחילת תהליך טיפולי ACT</li>
+        <li>אחרי משבר או שינוי חיים</li>
+      </ul>
+    </div>
+    <p>
+      <strong>טיפים:</strong> אין ערכים &quot;נכונים&quot; או &quot;שגויים&quot;. עודדו כנות — לא מה &quot;צריך&quot;
+      להיות חשוב, אלא מה באמת חשוב. הפער בין חשיבות לפעולה הוא נורמלי — לא כישלון. מתאים מגיל 14+.
+    </p>
+    <p>
+      <strong>שימו לב:</strong> ערכים של &quot;להיות מושלם/ת&quot; — בדקו אם זה דפוס הימנעות. לא מתאים
+      לרגע משבר חריף — במצב כזה השתמשו קודם בכלי ויסות (כמו TIPP).
+    </p>
+  </div>
+);
+
+const actWorksheetPreview = (
+  <div className="space-y-4 text-sm">
+    <div className="rounded-lg bg-orange-50 border border-orange-200 p-3 text-center">
+      <strong className="text-orange-800">⏸ עצור, נשום 3 נשימות, והתחל/י.</strong>{" "}
+      <span className="text-gray-600">אין תשובות נכונות או שגויות — יש רק מה שחשוב לך.</span>
+    </div>
+
+    <div className="rounded-lg border border-gray-200 bg-white">
+      <div className="flex items-center gap-2 border-b border-gray-100 bg-gray-50 px-4 py-2">
+        <span className="flex h-7 w-7 items-center justify-center rounded-full bg-orange-600 text-xs font-bold text-white">1</span>
+        <span className="font-bold text-gray-800">מה זה ערכים?</span>
+        <span className="text-xs text-gray-400">What Are Values?</span>
+      </div>
+      <div className="px-4 py-3">
+        <p className="text-xs text-gray-500 mb-2">🧭 ערכים = מצפן, לא מטרה. מטרה אפשר לסיים. ערך הוא כיוון שתמיד ממשיך.</p>
+        <div className="h-10 rounded border border-dashed border-gray-300 bg-gray-50"></div>
+      </div>
+    </div>
+
+    <div className="rounded-lg border border-gray-200 bg-white">
+      <div className="flex items-center gap-2 border-b border-gray-100 bg-gray-50 px-4 py-2">
+        <span className="flex h-7 w-7 items-center justify-center rounded-full bg-orange-600 text-xs font-bold text-white">2</span>
+        <span className="font-bold text-gray-800">תחומי החיים שלי</span>
+        <span className="text-xs text-gray-400">Life Domains</span>
+      </div>
+      <div className="px-4 py-3 space-y-2">
+        {["🏠 משפחה", "🤝 חברויות", "💼 עבודה", "🏃 בריאות", "🎨 פנאי", "📚 צמיחה אישית", "🤲 קהילה", "✨ רוחניות"].map((d) => (
+          <div key={d} className="rounded bg-orange-50 border border-orange-100 px-3 py-2">
+            <span className="font-bold text-orange-800 text-xs">{d}</span>
+            <div className="flex gap-4 mt-1 text-[10px] text-gray-500">
+              <span>חשיבות: 0━━━━━━━━10</span>
+              <span>התאמה: 0━━━━━━━━10</span>
+            </div>
+          </div>
+        ))}
+      </div>
+    </div>
+
+    {[
+      { n: "3", title: "ניתוח פערים", hint: "באיזה תחום הפער הכי גדול?" },
+      { n: "4", title: "צעד אחד קטן", hint: "פעולה קטנה אחת שאוכל לעשות השבוע" },
+    ].map((row) => (
+      <div key={row.title} className="rounded-lg border border-gray-200 bg-white">
+        <div className="flex items-center gap-2 border-b border-gray-100 bg-gray-50 px-3 py-2">
+          <span className="flex h-7 w-7 items-center justify-center rounded-full bg-orange-600 text-xs font-bold text-white">{row.n}</span>
+          <span className="font-bold text-gray-800">{row.title}</span>
+        </div>
+        <div className="px-3 py-2">
+          <p className="text-xs text-gray-500 mb-2">{row.hint}</p>
+          <div className="min-h-10 rounded border border-dashed border-gray-300 bg-gray-50" />
+        </div>
+      </div>
+    ))}
+
+    <div className="rounded-lg border-2 border-orange-200 bg-orange-50/90 p-3">
+      <strong className="text-orange-800">📝 סיכום</strong>
+      <p className="text-xs text-gray-600 mt-1">כמה אני מחובר/ת לערכים שלי? מה למדתי על עצמי?</p>
+    </div>
+    <div className="rounded-lg bg-amber-50 border border-amber-300 p-3">
+      <strong className="text-amber-700">🔄 מעקב דפוסים:</strong>{" "}
+      <span className="text-gray-600">האם יש תחום שבו אני תמיד מתרחק/ת מהערכים? כן / לא</span>
+    </div>
+    <div className="rounded-lg bg-rose-50 border border-rose-200 p-3 text-center">
+      <strong className="text-rose-600">💜 רגע של חמלה עצמית</strong><br />
+      <span className="text-gray-600">לזהות מה חשוב לנו זה לא פשוט — אבל עצם ההסתכלות אומרת שאכפת לך.</span>
+    </div>
+  </div>
+);
+
+const actExamplePreview = (
+  <div className="space-y-4 text-sm">
+    <div className="rounded-lg bg-amber-50 border-2 border-amber-400 p-4 text-center">
+      <h3 className="text-lg font-extrabold text-amber-700">📝 דוגמה ממולאת</h3>
+      <p className="text-sm text-amber-600">הדגמה ללמידה — לא דוגמה אמיתית</p>
+    </div>
+    <div className="rounded-lg border border-gray-200 bg-white p-3 space-y-3">
+      <div>
+        <p className="font-bold text-gray-700 mb-1">🏠 משפחה</p>
+        <p className="text-xs">חשיבות: <span className="inline-flex h-5 w-5 items-center justify-center rounded-full bg-orange-500 text-white text-[10px] font-bold">9</span> | התאמה: <span className="inline-flex h-5 w-5 items-center justify-center rounded-full bg-orange-500 text-white text-[10px] font-bold">4</span></p>
+        <p className="italic text-gray-500 mt-1">להיות אבא נוכח, שמקשיב ומשתתף ביומיום.</p>
+      </div>
+      <div>
+        <p className="font-bold text-gray-700 mb-1">💼 עבודה</p>
+        <p className="text-xs">חשיבות: <span className="inline-flex h-5 w-5 items-center justify-center rounded-full bg-orange-500 text-white text-[10px] font-bold">7</span> | התאמה: <span className="inline-flex h-5 w-5 items-center justify-center rounded-full bg-orange-500 text-white text-[10px] font-bold">7</span></p>
+        <p className="italic text-gray-500 mt-1">לעשות עבודה שיש בה משמעות.</p>
+      </div>
+      <div>
+        <p className="font-bold text-gray-700 mb-1">🏃 בריאות</p>
+        <p className="text-xs">חשיבות: <span className="inline-flex h-5 w-5 items-center justify-center rounded-full bg-orange-500 text-white text-[10px] font-bold">8</span> | התאמה: <span className="inline-flex h-5 w-5 items-center justify-center rounded-full bg-orange-500 text-white text-[10px] font-bold">3</span></p>
+        <p className="italic text-gray-500 mt-1">לטפל בגוף — תנועה, שינה, אוכל טוב.</p>
+      </div>
+    </div>
+    <div className="rounded-lg border border-gray-200 bg-white p-3">
+      <p><strong>הפער הכי גדול:</strong> <span className="italic text-gray-600">משפחה (חשיבות 9, התאמה 4)</span></p>
+      <p className="mt-1"><strong>צעד קטן:</strong> <span className="italic text-gray-600">לצאת מהעבודה עד 17:00 יומיים בשבוע ולשחק עם הילדים.</span></p>
+    </div>
+    <div className="rounded-xl border border-orange-200 bg-linear-to-br from-orange-50 to-amber-50 p-4 text-center">
+      <h3 className="text-base font-bold text-orange-800">💜 לסיום</h3>
+      <p className="mt-2 text-sm text-slate-700">
+        עצרתי, הסתכלתי על מה שבאמת חשוב לי, ובחרתי צעד קטן. אפילו הצעד הקטן הזה — הוא כבר שינוי.
+      </p>
+    </div>
+  </div>
+);
+
 /* ═══ רשימת דפי עבודה ═══ */
 
 const worksheets: WorksheetData[] = [
@@ -289,6 +437,20 @@ const worksheets: WorksheetData[] = [
     therapistInstructions: cbtTherapistInstructions,
     worksheetPreview: cbtWorksheetPreview,
     examplePreview: cbtExamplePreview,
+  },
+  {
+    id: "act-values-identification",
+    title: "זיהוי ערכים",
+    titleEn: "Values Identification",
+    approach: "ACT",
+    approachHe: "טיפול באמצעות קבלה ומחויבות",
+    description:
+      "דף עבודה לזיהוי ערכים אישיים ב-8 תחומי חיים, בדיקת פערים בין ערכים להתנהגות, ובחירת צעד קטן לשינוי — מגישת ACT.",
+    color: "orange",
+    file: "/worksheets/act-values-identification-mytipul.html",
+    therapistInstructions: actTherapistInstructions,
+    worksheetPreview: actWorksheetPreview,
+    examplePreview: actExamplePreview,
   },
 ];
 
