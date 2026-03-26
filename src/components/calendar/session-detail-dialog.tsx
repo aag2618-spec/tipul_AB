@@ -197,6 +197,14 @@ export function SessionDetailDialog({
     }
 
     // פטור מתשלום (אין payment בכלל)
+    // אם כבר יש סיבת אי חיוב שמורה — מציגים רק טקסט קצר, בלי textarea
+    if (session.sessionNote) {
+      return (
+        <div className="rounded-lg p-3 bg-emerald-50 dark:bg-emerald-950 border border-emerald-200 dark:border-emerald-800">
+          <p className="text-sm font-semibold text-emerald-700 dark:text-emerald-300 text-center">💚 פטור מתשלום</p>
+        </div>
+      );
+    }
     return (
       <div className="rounded-lg p-3 bg-emerald-50 dark:bg-emerald-950 border border-emerald-200 dark:border-emerald-800 space-y-2">
         <p className="text-sm font-semibold text-emerald-700 dark:text-emerald-300 text-center">💚 פטור מתשלום</p>
@@ -204,7 +212,7 @@ export function SessionDetailDialog({
           <label className="text-xs text-muted-foreground">הערה (אופציונלי):</label>
           <textarea
             placeholder="למה לא מחייב? (למשל: מטופל ביטל מראש, חופש, וכו')"
-            defaultValue={session.sessionNote || ""}
+            defaultValue=""
             className="w-full text-xs p-2 rounded border resize-none"
             rows={2}
             onBlur={(e) => handleSaveNote(e.target.value)}
@@ -276,7 +284,7 @@ export function SessionDetailDialog({
           <p className="text-xs text-muted-foreground">{format(new Date(session.cancelledAt), "d/M/yyyy HH:mm")}</p>
         )}
         {session.cancellationReason && (
-          <p className="text-xs bg-background rounded px-2 py-1 border">סיבה: {session.cancellationReason}</p>
+          <p className="text-xs bg-background rounded px-2 py-1 border">{isCancelled ? "סיבת ביטול" : "סיבת אי הופעה"}: {session.cancellationReason}</p>
         )}
         {/* הערת פטור - אם אין payment ויש הערה */}
         {!session.payment && session.sessionNote && (

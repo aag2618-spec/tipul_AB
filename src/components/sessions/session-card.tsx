@@ -144,7 +144,7 @@ export function SessionCard({
 
       {s.cancellationReason && !showCancel && (
         <p className="text-xs text-muted-foreground/50 mt-2 pt-2 border-t border-muted-foreground/5 truncate">
-          סיבה: {s.cancellationReason}
+          {s.status === "CANCELLED" ? "סיבת ביטול" : "סיבת אי הופעה"}: {s.cancellationReason}
         </p>
       )}
       {!showCancel && (s.status === "CANCELLED" || s.status === "NO_SHOW") && !s.payment && s.sessionNote && (

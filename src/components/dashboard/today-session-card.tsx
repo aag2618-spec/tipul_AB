@@ -469,7 +469,7 @@ export function TodaySessionCard({ session }: TodaySessionCardProps) {
         {/* Cancellation / No-show reason */}
         {(session.status === "CANCELLED" || session.status === "NO_SHOW") && session.cancellationReason && (
           <p className="text-xs text-muted-foreground/70 bg-red-50 rounded px-2 py-1 border border-red-100">
-            סיבה: {session.cancellationReason}
+            {session.status === "CANCELLED" ? "סיבת ביטול" : "סיבת אי הופעה"}: {session.cancellationReason}
           </p>
         )}
         {/* Exemption reason - when no payment and has note */}
