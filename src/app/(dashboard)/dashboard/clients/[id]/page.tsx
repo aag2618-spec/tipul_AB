@@ -462,8 +462,9 @@ export default async function ClientPage({
                         {client.therapySessions
                           .filter(s => new Date(s.startTime) >= new Date())
                           .map((session) => (
-                            <TodaySessionCard 
-                              key={session.id} 
+                            <TodaySessionCard
+                              key={session.id}
+                              context="patient-file"
                               session={{
                                 id: session.id,
                                 startTime: session.startTime,

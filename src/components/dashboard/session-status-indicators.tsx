@@ -19,9 +19,10 @@ interface SessionStatusIndicatorsProps {
       name: string;
     } | null;
   };
+  onPaymentClick?: () => void;
 }
 
-export function SessionStatusIndicators({ session }: SessionStatusIndicatorsProps) {
+export function SessionStatusIndicators({ session, onPaymentClick }: SessionStatusIndicatorsProps) {
   // Indicators for completed sessions
   if (session.status === "COMPLETED" && session.client) {
     return (
@@ -32,9 +33,19 @@ export function SessionStatusIndicators({ session }: SessionStatusIndicatorsProp
           {session.payment?.status === "PAID" ? (
             <span className="text-green-600 font-medium">✓ שולם</span>
           ) : session.payment && session.payment.amount > 0 && session.payment.amount < Number(session.price) ? (
-            <span className="text-blue-600 font-medium">⏳ שולם חלקית (₪{session.payment.amount})</span>
+            <span
+              onClick={onPaymentClick}
+              className="text-orange-600 font-medium hover:text-orange-700 hover:underline transition-colors cursor-pointer"
+            >
+              להשלמת תשלום (₪{Number(session.price) - session.payment.amount})
+            </span>
           ) : (
-            <span className="text-orange-600 font-medium">⏳ לא שולם</span>
+            <span
+              onClick={onPaymentClick}
+              className="text-orange-600 font-medium hover:text-orange-700 hover:underline transition-colors cursor-pointer"
+            >
+              לתשלום
+            </span>
           )}
         </div>
 
@@ -53,7 +64,7 @@ export function SessionStatusIndicators({ session }: SessionStatusIndicatorsProp
               href={`/dashboard/sessions/${session.id}`}
               className="text-sky-600 font-medium hover:text-sky-700 hover:underline transition-colors"
             >
-              כתוב סיכום
+              לסיכום
             </Link>
           )}
         </div>
@@ -70,9 +81,19 @@ export function SessionStatusIndicators({ session }: SessionStatusIndicatorsProp
           {session.payment?.status === "PAID" ? (
             <span className="text-green-600 font-medium">✓ שולם</span>
           ) : session.payment && session.payment.amount > 0 && session.payment.amount < Number(session.price) ? (
-            <span className="text-blue-600 font-medium">⏳ שולם חלקית (₪{session.payment.amount})</span>
+            <span
+              onClick={onPaymentClick}
+              className="text-orange-600 font-medium hover:text-orange-700 hover:underline transition-colors cursor-pointer"
+            >
+              להשלמת תשלום (₪{Number(session.price) - session.payment.amount})
+            </span>
           ) : session.payment ? (
-            <span className="text-orange-600 font-medium">⏳ חויב - לא שולם</span>
+            <span
+              onClick={onPaymentClick}
+              className="text-orange-600 font-medium hover:text-orange-700 hover:underline transition-colors cursor-pointer"
+            >
+              לתשלום
+            </span>
           ) : (
             <span className="text-gray-600 font-medium">✓ פטור מתשלום</span>
           )}

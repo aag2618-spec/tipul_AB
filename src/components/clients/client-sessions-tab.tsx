@@ -164,6 +164,7 @@ export function ClientSessionsTab({
                       .map((session) => (
                         <TodaySessionCard
                           key={session.id}
+                          context="patient-file"
                           session={{
                             id: session.id,
                             startTime: session.startTime,

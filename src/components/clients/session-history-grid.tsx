@@ -76,7 +76,7 @@ export function SessionHistoryGrid({ sessions }: SessionHistoryGridProps) {
           </div>
           <div className="grid gap-3 grid-cols-1 sm:grid-cols-2 lg:grid-cols-3">
             {group.items.map((session) => (
-              <TodaySessionCard key={session.id} session={session} />
+              <TodaySessionCard key={session.id} session={session} context="patient-file" />
             ))}
           </div>
         </div>

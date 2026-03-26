@@ -12,7 +12,7 @@ import {
   DropdownMenuTrigger,
   DropdownMenuSeparator,
 } from "@/components/ui/dropdown-menu";
-import { CheckCircle, ClipboardList, Clock, FileText, MoreVertical, User, Loader2 } from "lucide-react";
+import { CheckCircle, ClipboardList, Clock, MoreVertical, User } from "lucide-react";
 import { QuickMarkPaid } from "@/components/payments/quick-mark-paid";
 import { toast } from "sonner";
 import { ChargeConfirmDialog } from "./charge-confirm-dialog";
@@ -43,6 +43,7 @@ interface TodaySessionCardProps {
       unpaidSessionsCount?: number;
     } | null;
   };
+  context?: "dashboard" | "patient-file";
 }
 
 // Helper to get Israel time components from UTC using Intl API for accurate DST
@@ -91,7 +92,7 @@ function formatDateHebrew(utcDate: Date): string {
   return `יום ${days[dayOfWeek]}, ${date} ב${months[month - 1]}`;
 }
 
-export function TodaySessionCard({ session }: TodaySessionCardProps) {
+export function TodaySessionCard({ session, context = "dashboard" }: TodaySessionCardProps) {
   const router = useRouter();
   const [isChargeDialogOpen, setIsChargeDialogOpen] = useState(false);
   const [pendingAction, setPendingAction] = useState<"CANCELLED" | "NO_SHOW" | null>(null);
@@ -379,77 +380,130 @@ export function TodaySessionCard({ session }: TodaySessionCardProps) {
             </div>
           </div>
 
-          {session.status === "SCHEDULED" && new Date(session.startTime) < new Date() ? (
-            <Badge
-              variant="outline"
-              className="bg-orange-50 text-orange-600 border-orange-300 cursor-pointer hover:bg-orange-100 text-[10px]"
-              onClick={() => {
-                setUpdateDialogOpen(true);
-              }}
-            >
-              ⚠ לא עודכן · עדכן
-            </Badge>
-          ) : session.status === "PENDING_APPROVAL" ? (
-            <div className="flex items-center gap-1.5">
+          <div className="flex items-center gap-1.5">
+            {session.status === "SCHEDULED" && new Date(session.startTime) < new Date() ? (
               <Badge
                 variant="outline"
-                className="bg-green-50 text-green-700 border-green-300 cursor-pointer hover:bg-green-100 text-[10px] px-2 py-0.5"
-                onClick={async () => {
-                  try {
-                    const res = await fetch(`/api/sessions/${session.id}/status`, {
-                      method: "PATCH",
-                      headers: { "Content-Type": "application/json" },
-                      body: JSON.stringify({ status: "SCHEDULED" }),
-                    });
-                    if (res.ok) {
-                      toast.success("הפגישה אושרה");
-                      router.refresh();
-                    } else {
-                      const errorData = await res.json().catch(() => null);
-                      toast.error(errorData?.message || "שגיאה באישור הפגישה");
-                    }
-                  } catch {
-                    toast.error("שגיאה באישור הפגישה");
-                  }
+                className="bg-orange-50 text-orange-600 border-orange-300 cursor-pointer hover:bg-orange-100 text-[10px]"
+                onClick={() => {
+                  setUpdateDialogOpen(true);
                 }}
               >
-                ✅ אשר
+                ⚠ לא עודכן · עדכן
               </Badge>
-              <Badge
-                variant="outline"
-                className="bg-red-50 text-red-600 border-red-300 cursor-pointer hover:bg-red-100 text-[10px] px-2 py-0.5"
-                onClick={async () => {
-                  try {
-                    const res = await fetch(`/api/sessions/${session.id}/status`, {
-                      method: "PATCH",
-                      headers: { "Content-Type": "application/json" },
-                      body: JSON.stringify({ status: "CANCELLED" }),
-                    });
-                    if (res.ok) {
-                      toast.success("הפגישה נדחתה");
-                      router.refresh();
-                    } else {
-                      const errorData = await res.json().catch(() => null);
-                      toast.error(errorData?.message || "שגיאה בדחיית הפגישה");
+            ) : session.status === "PENDING_APPROVAL" ? (
+              <>
+                <Badge
+                  variant="outline"
+                  className="bg-green-50 text-green-700 border-green-300 cursor-pointer hover:bg-green-100 text-[10px] px-2 py-0.5"
+                  onClick={async () => {
+                    try {
+                      const res = await fetch(`/api/sessions/${session.id}/status`, {
+                        method: "PATCH",
+                        headers: { "Content-Type": "application/json" },
+                        body: JSON.stringify({ status: "SCHEDULED" }),
+                      });
+                      if (res.ok) {
+                        toast.success("הפגישה אושרה");
+                        router.refresh();
+                      } else {
+                        const errorData = await res.json().catch(() => null);
+                        toast.error(errorData?.message || "שגיאה באישור הפגישה");
+                      }
+                    } catch {
+                      toast.error("שגיאה באישור הפגישה");
                     }
-                  } catch {
-                    toast.error("שגיאה בדחיית הפגישה");
-                  }
-                }}
-              >
-                ❌ דחה
-              </Badge>
-            </div>
-          ) : session.status !== "SCHEDULED" ? (
-            <span className={`text-xs font-medium ${
-              session.status === "COMPLETED" ? "text-emerald-600" :
-              session.status === "CANCELLED" ? "text-red-500" :
-              "text-red-500"
-            }`}>
-              {session.status === "COMPLETED" ? "הושלמה" :
-               session.status === "CANCELLED" ? "בוטלה" : "אי הופעה"}
-            </span>
-          ) : null}
+                  }}
+                >
+                  ✅ אשר
+                </Badge>
+                <Badge
+                  variant="outline"
+                  className="bg-red-50 text-red-600 border-red-300 cursor-pointer hover:bg-red-100 text-[10px] px-2 py-0.5"
+                  onClick={async () => {
+                    try {
+                      const res = await fetch(`/api/sessions/${session.id}/status`, {
+                        method: "PATCH",
+                        headers: { "Content-Type": "application/json" },
+                        body: JSON.stringify({ status: "CANCELLED" }),
+                      });
+                      if (res.ok) {
+                        toast.success("הפגישה נדחתה");
+                        router.refresh();
+                      } else {
+                        const errorData = await res.json().catch(() => null);
+                        toast.error(errorData?.message || "שגיאה בדחיית הפגישה");
+                      }
+                    } catch {
+                      toast.error("שגיאה בדחיית הפגישה");
+                    }
+                  }}
+                >
+                  ❌ דחה
+                </Badge>
+              </>
+            ) : session.status !== "SCHEDULED" ? (
+              <span className={`text-xs font-medium ${
+                session.status === "COMPLETED" ? "text-emerald-600" :
+                session.status === "CANCELLED" ? "text-red-500" :
+                "text-red-500"
+              }`}>
+                {session.status === "COMPLETED" ? "הושלמה" :
+                 session.status === "CANCELLED" ? "בוטלה" : "אי הופעה"}
+              </span>
+            ) : null}
+
+            {/* ⋮ Action menu button */}
+            {session.client && (context === "dashboard" || session.status === "SCHEDULED") && (
+              <DropdownMenu>
+                <DropdownMenuTrigger asChild>
+                  <Button variant="ghost" size="icon" className="h-7 w-7 rounded-full hover:bg-muted/60 text-muted-foreground" disabled={isProcessing}>
+                    <MoreVertical className="h-4 w-4" />
+                  </Button>
+                </DropdownMenuTrigger>
+                <DropdownMenuContent align="end" className="w-48 rounded-xl shadow-lg">
+                  {/* Client folder - only in dashboard */}
+                  {context === "dashboard" && (
+                    <DropdownMenuItem asChild>
+                      <Link href={`/dashboard/clients/${session.client.id}`} className="cursor-pointer">
+                        <User className="h-4 w-4 ml-2" />
+                        תיקית מטופל
+                      </Link>
+                    </DropdownMenuItem>
+                  )}
+
+                  {/* Options for scheduled session */}
+                  {session.status === "SCHEDULED" && (
+                    <>
+                      {context === "dashboard" && <DropdownMenuSeparator />}
+                      <DropdownMenuItem onClick={handleFinishAndPay} disabled={isProcessing}>
+                        <CheckCircle className="h-4 w-4 ml-2 text-green-600" />
+                        סיים ושלם
+                      </DropdownMenuItem>
+                      <DropdownMenuItem onClick={handleFinishWithoutPayment} disabled={isProcessing}>
+                        <CheckCircle className="h-4 w-4 ml-2 text-sky-600" />
+                        סיים ללא תשלום
+                      </DropdownMenuItem>
+                      <DropdownMenuItem onClick={() => {
+                        setPendingAction("NO_SHOW");
+                        setIsChargeDialogOpen(true);
+                      }} disabled={isProcessing}>
+                        <ClipboardList className="h-4 w-4 ml-2 text-red-600" />
+                        אי הופעה
+                      </DropdownMenuItem>
+                      <DropdownMenuItem onClick={() => {
+                        setPendingAction("CANCELLED");
+                        setIsChargeDialogOpen(true);
+                      }} disabled={isProcessing}>
+                        <Clock className="h-4 w-4 ml-2 text-orange-600" />
+                        ביטול
+                      </DropdownMenuItem>
+                    </>
+                  )}
+                </DropdownMenuContent>
+              </DropdownMenu>
+            )}
+          </div>
         </div>
 
         {/* Row 2: Client name - clickable */}
@@ -480,97 +534,30 @@ export function TodaySessionCard({ session }: TodaySessionCardProps) {
         )}
 
         {/* Row 3: Status indicators */}
-        <SessionStatusIndicators session={session} />
+        <SessionStatusIndicators
+          session={session}
+          onPaymentClick={() => {
+            if (!session.client) return;
+            if (session.payment && session.payment.status !== "PAID") {
+              // existing payment - complete it
+              setPaymentData({
+                sessionId: session.id,
+                clientId: session.client.id,
+                amount: Number(session.price) - Number(session.payment.amount || 0),
+                paymentId: session.payment.id,
+              });
+            } else if (!session.payment) {
+              // no payment record - create new
+              setPaymentData({
+                sessionId: session.id,
+                clientId: session.client.id,
+                amount: Number(session.price),
+              });
+            }
+            setIsPaymentDialogOpen(true);
+          }}
+        />
 
-        {/* Row 4: Action menu */}
-        {session.client && (
-          <div className="flex justify-center pt-1.5 border-t">
-            <DropdownMenu>
-              <DropdownMenuTrigger asChild>
-                <Button variant="outline" size="default" className="gap-2" disabled={isProcessing}>
-                  פעולות
-                  <MoreVertical className="h-4 w-4" />
-                </Button>
-              </DropdownMenuTrigger>
-              <DropdownMenuContent align="center" className="w-56">
-                {/* Client folder - always */}
-                <DropdownMenuItem asChild>
-                  <Link href={`/dashboard/clients/${session.client.id}`} className="cursor-pointer">
-                    <User className="h-4 w-4 ml-2" />
-                    תיקית מטופל
-                  </Link>
-                </DropdownMenuItem>
-
-                {/* Options for scheduled session */}
-                {session.status === "SCHEDULED" && (
-                  <>
-                    <DropdownMenuSeparator />
-                    <DropdownMenuItem onClick={handleFinishAndPay} disabled={isProcessing}>
-                      <CheckCircle className="h-4 w-4 ml-2 text-green-600" />
-                      סיים ושלם
-                    </DropdownMenuItem>
-                    <DropdownMenuItem onClick={handleFinishWithoutPayment} disabled={isProcessing}>
-                      <CheckCircle className="h-4 w-4 ml-2 text-sky-600" />
-                      סיים ללא תשלום
-                    </DropdownMenuItem>
-                    <DropdownMenuItem onClick={() => {
-                      setPendingAction("NO_SHOW");
-                      setIsChargeDialogOpen(true);
-                    }} disabled={isProcessing}>
-                      <ClipboardList className="h-4 w-4 ml-2 text-red-600" />
-                      אי הופעה
-                    </DropdownMenuItem>
-                    <DropdownMenuItem onClick={() => {
-                      setPendingAction("CANCELLED");
-                      setIsChargeDialogOpen(true);
-                    }} disabled={isProcessing}>
-                      <Clock className="h-4 w-4 ml-2 text-orange-600" />
-                      ביטול
-                    </DropdownMenuItem>
-                  </>
-                )}
-
-                {/* Write/view summary - only if completed */}
-                {session.status === "COMPLETED" && (
-                  <>
-                    <DropdownMenuSeparator />
-                    <DropdownMenuItem asChild>
-                      <Link href={`/dashboard/sessions/${session.id}`} className="cursor-pointer">
-                        <FileText className="h-4 w-4 ml-2" />
-                        {session.sessionNote ? "צפייה/עריכת סיכום" : "כתיבת סיכום"}
-                      </Link>
-                    </DropdownMenuItem>
-                  </>
-                )}
-
-                {/* Record payment - only if reported and has debt */}
-                {(session.status === "COMPLETED" || session.status === "NO_SHOW" || session.status === "CANCELLED") &&
-                 session.payment &&
-                 session.payment.status !== "PAID" &&
-                 session.client && (
-                  <>
-                    <DropdownMenuSeparator />
-                    <DropdownMenuItem asChild onSelect={(e) => e.preventDefault()}>
-                      <div className="cursor-pointer">
-                        <QuickMarkPaid
-                          sessionId={session.id}
-                          clientId={session.client.id}
-                          clientName={session.client.name}
-                          amount={Number(session.price) - Number(session.payment?.amount || 0)}
-                          creditBalance={Number(session.client.creditBalance || 0)}
-                          existingPayment={session.payment}
-                          buttonText="רשום תשלום"
-                          totalClientDebt={session.client.totalDebt}
-                          unpaidSessionsCount={session.client.unpaidSessionsCount}
-                        />
-                      </div>
-                    </DropdownMenuItem>
-                  </>
-                )}
-              </DropdownMenuContent>
-            </DropdownMenu>
-          </div>
-        )}
       </div>
 
       {/* Charge Confirmation Dialog */}
