@@ -11,7 +11,7 @@ async function getSessions(userId: string) {
     include: {
       client: { select: { id: true, name: true } },
       sessionNote: { select: { content: true } },
-      payment: { select: { id: true, status: true } },
+      payment: { select: { id: true, status: true, amount: true, expectedAmount: true } },
     },
   });
 }
@@ -32,7 +32,7 @@ export default async function SessionsPage() {
     cancellationReason: s.cancellationReason,
     cancelledAt: s.cancelledAt?.toISOString() || null,
     sessionNote: s.sessionNote?.content || null,
-    payment: s.payment ? { id: s.payment.id, status: s.payment.status } : null,
+    payment: s.payment ? { id: s.payment.id, status: s.payment.status, amount: Number(s.payment.amount), expectedAmount: Number(s.payment.expectedAmount) } : null,
     client: s.client ? { id: s.client.id, name: s.client.name } : null,
   }));
 
