@@ -23,6 +23,7 @@ interface Session {
   price: number;
   cancellationReason?: string | null;
   cancelledAt?: string | null;
+  sessionNote?: string | null;
   payment?: { id: string; status: string } | null;
   client?: {
     id: string;
@@ -144,6 +145,11 @@ export function SessionCard({
       {s.cancellationReason && !showCancel && (
         <p className="text-xs text-muted-foreground/50 mt-2 pt-2 border-t border-muted-foreground/5 truncate">
           סיבה: {s.cancellationReason}
+        </p>
+      )}
+      {!showCancel && (s.status === "CANCELLED" || s.status === "NO_SHOW") && !s.payment && s.sessionNote && (
+        <p className="text-xs text-muted-foreground/50 mt-1 truncate">
+          סיבת אי חיוב: {s.sessionNote}
         </p>
       )}
 

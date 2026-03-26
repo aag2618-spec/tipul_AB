@@ -226,7 +226,7 @@ export function SessionsView({ initialSessions }: SessionsViewProps) {
     updateReason: string;
     noChargeReason: string;
   }) => {
-    const { updateStatus, showPayment, paymentMethod, paymentType, paymentAmount, partialAmount, issueReceipt, businessType, updateReason } = params;
+    const { updateStatus, showPayment, paymentMethod, paymentType, paymentAmount, partialAmount, issueReceipt, businessType, updateReason, noChargeReason } = params;
     if (!updateStatus) { toast.error("בחר סטטוס"); return; }
     setUpdating(true);
     try {
@@ -290,7 +290,7 @@ export function SessionsView({ initialSessions }: SessionsViewProps) {
       const updates: Promise<Response>[] = [];
 
       const statusBody: Record<string, unknown> = { status: updateStatus };
-      if (updateStatus === "CANCELLED") {
+      if (updateStatus === "CANCELLED" || updateStatus === "NO_SHOW") {
         statusBody.cancellationReason = updateReason.trim() || undefined;
       }
       updates.push(
@@ -338,7 +338,7 @@ export function SessionsView({ initialSessions }: SessionsViewProps) {
             ? {
                 ...s,
                 status: newStatus,
-                ...(newStatus === "CANCELLED" ? { cancellationReason: updateReason.trim(), cancelledAt: new Date().toISOString() } : {}),
+                ...((newStatus === "CANCELLED" || newStatus === "NO_SHOW") ? { cancellationReason: updateReason.trim(), cancelledAt: new Date().toISOString() } : {}),
               }
             : s
         ));
@@ -349,6 +349,15 @@ export function SessionsView({ initialSessions }: SessionsViewProps) {
           NO_SHOW: "הפגישה עודכנה כאי הופעה",
         };
         toast.success(labels[newStatus] || "הפגישה עודכנה");
+
+        // שמירת סיבת אי חיוב כהערה (כשבחרו ללא חיוב)
+        if (!showPayment && noChargeReason?.trim()) {
+          await fetch(`/api/sessions/${updateDialog.sessionId}/note`, {
+            method: "POST",
+            headers: { "Content-Type": "application/json" },
+            body: JSON.stringify({ content: noChargeReason.trim() }),
+          }).catch(() => {});
+        }
       }
 
       setUpdateDialog({ open: false, sessionId: "", clientName: "", clientId: "", price: 0 });

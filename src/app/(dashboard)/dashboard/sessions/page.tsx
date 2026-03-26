@@ -10,6 +10,8 @@ async function getSessions(userId: string) {
     // No limit - load all sessions
     include: {
       client: { select: { id: true, name: true } },
+      sessionNote: { select: { content: true } },
+      payment: { select: { id: true, status: true } },
     },
   });
 }
@@ -29,6 +31,8 @@ export default async function SessionsPage() {
     price: Number(s.price),
     cancellationReason: s.cancellationReason,
     cancelledAt: s.cancelledAt?.toISOString() || null,
+    sessionNote: s.sessionNote?.content || null,
+    payment: s.payment ? { id: s.payment.id, status: s.payment.status } : null,
     client: s.client ? { id: s.client.id, name: s.client.name } : null,
   }));
 

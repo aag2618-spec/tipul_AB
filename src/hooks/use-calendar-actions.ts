@@ -23,7 +23,7 @@ export function useCalendarActions({ fetchData }: UseCalendarActionsProps) {
     session: CalendarSession,
     params: UpdateSessionDialogParams
   ): Promise<UpdateResult> => {
-    const { updateStatus, showPayment, paymentMethod, paymentType, paymentAmount, partialAmount, issueReceipt, businessType, updateReason } = params;
+    const { updateStatus, showPayment, paymentMethod, paymentType, paymentAmount, partialAmount, issueReceipt, businessType, updateReason, noChargeReason } = params;
     setUpdating(true);
     try {
       // תשלום + סטטוס הושלם
@@ -120,6 +120,16 @@ export function useCalendarActions({ fetchData }: UseCalendarActionsProps) {
         NO_SHOW: "הפגישה עודכנה כאי הופעה",
       };
       toast.success(labels[updateStatus] || "הפגישה עודכנה");
+
+      // שמירת סיבת אי חיוב כהערה (כשבחרו ללא חיוב)
+      if (!showPayment && noChargeReason?.trim()) {
+        await fetch(`/api/sessions/${session.id}/note`, {
+          method: "POST",
+          headers: { "Content-Type": "application/json" },
+          body: JSON.stringify({ content: noChargeReason.trim() }),
+        }).catch(() => {});
+      }
+
       fetchData();
       return { success: true };
     } catch {

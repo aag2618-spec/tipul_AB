@@ -119,7 +119,7 @@ export function TodaySessionCard({ session }: TodaySessionCardProps) {
     updateReason: string;
     noChargeReason: string;
   }) => {
-    const { updateStatus, showPayment, paymentMethod, paymentType, paymentAmount, partialAmount, issueReceipt, businessType, updateReason } = params;
+    const { updateStatus, showPayment, paymentMethod, paymentType, paymentAmount, partialAmount, issueReceipt, businessType, updateReason, noChargeReason } = params;
     if (!updateStatus) { toast.error("בחר סטטוס"); return; }
     setUpdating(true);
     try {
@@ -179,7 +179,7 @@ export function TodaySessionCard({ session }: TodaySessionCardProps) {
 
       const updates: Promise<Response>[] = [];
       const statusBody: Record<string, unknown> = { status: updateStatus };
-      if (updateStatus === "CANCELLED") {
+      if (updateStatus === "CANCELLED" || updateStatus === "NO_SHOW") {
         statusBody.cancellationReason = updateReason.trim() || undefined;
       }
       updates.push(
@@ -227,6 +227,15 @@ export function TodaySessionCard({ session }: TodaySessionCardProps) {
           NO_SHOW: "הפגישה עודכנה כאי הופעה",
         };
         toast.success(labels[updateStatus] || "הפגישה עודכנה");
+
+        // שמירת סיבת אי חיוב כהערה (כשבחרו ללא חיוב)
+        if (!showPayment && noChargeReason?.trim()) {
+          await fetch(`/api/sessions/${session.id}/note`, {
+            method: "POST",
+            headers: { "Content-Type": "application/json" },
+            body: JSON.stringify({ content: noChargeReason.trim() }),
+          }).catch(() => {});
+        }
       }
       router.refresh();
     } catch {
@@ -457,10 +466,16 @@ export function TodaySessionCard({ session }: TodaySessionCardProps) {
           <div className="text-base font-semibold text-muted-foreground">🌊 הפסקה</div>
         )}
 
-        {/* Cancellation reason */}
-        {session.status === "CANCELLED" && session.cancellationReason && (
+        {/* Cancellation / No-show reason */}
+        {(session.status === "CANCELLED" || session.status === "NO_SHOW") && session.cancellationReason && (
           <p className="text-xs text-muted-foreground/70 bg-red-50 rounded px-2 py-1 border border-red-100">
             סיבה: {session.cancellationReason}
+          </p>
+        )}
+        {/* Exemption reason - when no payment and has note */}
+        {(session.status === "CANCELLED" || session.status === "NO_SHOW") && !session.payment && session.sessionNote && (
+          <p className="text-xs text-muted-foreground/70 bg-orange-50 rounded px-2 py-1 border border-orange-100">
+            סיבת אי חיוב: {session.sessionNote}
           </p>
         )}
 

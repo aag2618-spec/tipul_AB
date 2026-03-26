@@ -101,6 +101,8 @@ export function SessionDetailDialog({
   };
 
   const handleSaveNote = async (note: string) => {
+    // לא לשמור אם אין שינוי
+    if (note === (session.sessionNote || "")) return;
     try {
       await fetch(`/api/sessions/${session.id}/note`, {
         method: "POST",
@@ -278,7 +280,7 @@ export function SessionDetailDialog({
         )}
         {/* הערת פטור - אם אין payment ויש הערה */}
         {!session.payment && session.sessionNote && (
-          <p className="text-xs bg-background rounded px-2 py-1 border">סיבת פטור: {session.sessionNote}</p>
+          <p className="text-xs bg-background rounded px-2 py-1 border">סיבת אי חיוב: {session.sessionNote}</p>
         )}
       </div>
     );

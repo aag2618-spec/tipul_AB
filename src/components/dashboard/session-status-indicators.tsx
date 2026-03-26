@@ -79,7 +79,7 @@ export function SessionStatusIndicators({ session }: SessionStatusIndicatorsProp
         </div>
         {/* סיבת פטור - אם אין payment ויש הערה */}
         {!session.payment && session.sessionNote && (
-          <p className="text-muted-foreground/70 truncate">סיבה: {session.sessionNote}</p>
+          <p className="text-muted-foreground/70 truncate">סיבת אי חיוב: {session.sessionNote}</p>
         )}
       </div>
     );

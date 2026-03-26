@@ -430,7 +430,7 @@ export default async function ClientPage({
                             type: session.type as string,
                             status: session.status as string,
                             price: Number(session.price),
-                            sessionNote: session.sessionNote ? "exists" : null,
+                            sessionNote: session.sessionNote?.content || null,
                             cancellationReason: session.cancellationReason,
                             payment: session.payment ? {
                               id: session.payment.id,
@@ -471,7 +471,7 @@ export default async function ClientPage({
                                 type: session.type as string,
                                 status: session.status as string,
                                 price: Number(session.price),
-                                sessionNote: session.sessionNote ? "exists" : null,
+                                sessionNote: session.sessionNote?.content || null,
                                 cancellationReason: session.cancellationReason,
                                 payment: session.payment ? {
                                   id: session.payment.id,
