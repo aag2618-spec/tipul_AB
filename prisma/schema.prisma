@@ -261,6 +261,7 @@ model Client {
   birthDate           DateTime?
   address             String?
   status              ClientStatus @default(ACTIVE)
+  isQuickClient       Boolean      @default(false)   // פונה מזדמן — נוצר מהיומן עם מינימום פרטים
   defaultSessionPrice Decimal?     @db.Decimal(10, 2)
   creditBalance       Decimal      @default(0) @db.Decimal(10, 2) // יתרת קרדיט
   medicalHistory      Json?
@@ -313,6 +314,7 @@ model TherapySession {
   status      SessionStatus @default(SCHEDULED)
   type        SessionType   @default(IN_PERSON)
   price       Decimal       @db.Decimal(10, 2)
+  topic       String?       @db.Text  // נושא הפגישה (חובה לפגישת ייעוץ)
   notes       String?       @db.Text
   location    String?
   isRecurring Boolean       @default(false)

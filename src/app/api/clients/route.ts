@@ -2,7 +2,7 @@ import { NextRequest, NextResponse } from "next/server";
 import { requireAuth } from "@/lib/api-auth";
 import prisma from "@/lib/prisma";
 import { parseBody } from "@/lib/validations/helpers";
-import { createClientSchema } from "@/lib/validations/client";
+import { createClientSchema, createQuickClientSchema } from "@/lib/validations/client";
 import { logger } from "@/lib/logger";
 
 export const dynamic = "force-dynamic";
@@ -33,6 +33,7 @@ export async function GET(request: NextRequest) {
         phone: true,
         email: true,
         status: true,
+        isQuickClient: true,
         defaultSessionPrice: true,
         createdAt: true,
         _count: {
@@ -65,6 +66,50 @@ export async function POST(request: NextRequest) {
     if ("error" in auth) return auth.error;
     const { userId } = auth;
 
+    // בדיקה אם זו יצירת פונה מהיר (פגישת ייעוץ)
+    const rawBody = await request.clone().json();
+    const isQuickClient = rawBody.isQuickClient === true;
+
+    if (isQuickClient) {
+      // --- פונה מהיר: שם + טלפון/מייל בלבד ---
+      const parsed = await parseBody(request, createQuickClientSchema);
+      if ("error" in parsed) return parsed.error;
+      const { name, phone, email, defaultSessionPrice } = parsed.data;
+
+      let finalPrice = defaultSessionPrice ? parseFloat(String(defaultSessionPrice)) : null;
+      if (finalPrice === null) {
+        const therapist = await prisma.user.findUnique({
+          where: { id: userId },
+          select: { defaultSessionPrice: true },
+        });
+        if (therapist?.defaultSessionPrice) {
+          finalPrice = Number(therapist.defaultSessionPrice);
+        }
+      }
+
+      // פיצול שם לשם פרטי ומשפחה (אם יש רווח)
+      const nameParts = name.trim().split(/\s+/);
+      const firstName = nameParts[0];
+      const lastName = nameParts.length > 1 ? nameParts.slice(1).join(" ") : "";
+
+      const client = await prisma.client.create({
+        data: {
+          therapistId: userId,
+          firstName,
+          lastName: lastName || null,
+          name: name.trim(),
+          phone: phone || null,
+          email: email || null,
+          status: "ACTIVE",
+          isQuickClient: true,
+          defaultSessionPrice: finalPrice,
+        },
+      });
+
+      return NextResponse.json(client, { status: 201 });
+    }
+
+    // --- מטופל רגיל: זרימה קיימת ללא שינוי ---
     const parsed = await parseBody(request, createClientSchema);
     if ("error" in parsed) return parsed.error;
     const { firstName, lastName, phone, email, birthDate, address, notes, status, defaultSessionPrice } = parsed.data;

@@ -41,7 +41,7 @@ export async function GET(request: NextRequest) {
       orderBy: { startTime: "asc" },
       include: {
         client: {
-          select: { id: true, name: true, email: true, phone: true, creditBalance: true, defaultSessionPrice: true },
+          select: { id: true, name: true, email: true, phone: true, creditBalance: true, defaultSessionPrice: true, isQuickClient: true },
         },
         sessionNote: true,
         payment: true,
@@ -66,7 +66,7 @@ export async function POST(request: NextRequest) {
 
     const parsed = await parseBody(request, createSessionSchema);
     if ("error" in parsed) return parsed.error;
-    const { clientId, startTime, endTime, type, price, location, notes, isRecurring, allowOverlap } = parsed.data;
+    const { clientId, startTime, endTime, type, price, location, notes, topic, isRecurring, allowOverlap } = parsed.data;
 
     // Verify client belongs to therapist (skip for BREAK)
     let clientDefaultPrice = 0;
@@ -158,6 +158,7 @@ export async function POST(request: NextRequest) {
         endTime: parsedEndTime,
         type: type ?? "IN_PERSON",
         price: type === "BREAK" ? 0 : (price || clientDefaultPrice),
+        topic: topic || null,
         location: location || null,
         notes: notes || null,
         isRecurring: isRecurring || false,

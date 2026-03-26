@@ -10,6 +10,7 @@ interface Client {
   phone: string | null;
   email: string | null;
   status: string;
+  isQuickClient?: boolean;
   defaultSessionPrice: number | null;
   createdAt: string;
   _count?: {
@@ -98,6 +99,7 @@ export function useClients() {
         phone: result.phone,
         email: result.email,
         status: result.status,
+        isQuickClient: result.isQuickClient,
         defaultSessionPrice: result.defaultSessionPrice,
         createdAt: result.createdAt,
       }]);

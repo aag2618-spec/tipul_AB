@@ -12,6 +12,7 @@ export interface CalendarClient {
   phone?: string | null;
   defaultSessionPrice?: number | null;
   creditBalance?: number | null;
+  isQuickClient?: boolean;
 }
 
 export interface CalendarSession {
@@ -36,6 +37,7 @@ export interface CalendarSession {
   cancellationReason?: string | null;
   cancelledBy?: string | null;
   cancelledAt?: string | null;
+  topic?: string | null;
 }
 
 export interface RecurringPattern {

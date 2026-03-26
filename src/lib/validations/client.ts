@@ -14,3 +14,16 @@ export const createClientSchema = z.object({
 });
 
 export type CreateClientInput = z.infer<typeof createClientSchema>;
+
+// סכמה ליצירת פונה מהיר (פגישת ייעוץ) — מינימום שדות
+export const createQuickClientSchema = z.object({
+  name: z.string().min(1, "שם הוא שדה חובה"),
+  phone: z.string().optional(),
+  email: z.string().email("כתובת מייל לא תקינה").optional().or(z.literal("")),
+  defaultSessionPrice: z.union([z.number(), z.string()]).optional(),
+}).refine(
+  (data) => data.phone || data.email,
+  { message: "נדרש טלפון או מייל", path: ["phone"] }
+);
+
+export type CreateQuickClientInput = z.infer<typeof createQuickClientSchema>;

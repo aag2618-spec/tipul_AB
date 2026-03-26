@@ -9,6 +9,7 @@ export const createSessionSchema = z.object({
   price: z.union([z.number(), z.string()]).optional(),
   location: z.string().optional(),
   notes: z.string().optional(),
+  topic: z.string().optional(),
   isRecurring: z.boolean().optional(),
   allowOverlap: z.boolean().optional(),
 }).refine(
