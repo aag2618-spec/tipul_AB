@@ -21,6 +21,7 @@ interface Session {
   status: string;
   type: string;
   price: number;
+  topic?: string | null;
   cancellationReason?: string | null;
   cancelledAt?: string | null;
   sessionNote?: string | null;
@@ -28,6 +29,7 @@ interface Session {
   client?: {
     id: string;
     name: string;
+    isQuickClient?: boolean;
     creditBalance?: number | null;
   } | null;
 }

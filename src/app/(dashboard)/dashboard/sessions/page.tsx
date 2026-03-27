@@ -9,7 +9,7 @@ async function getSessions(userId: string) {
     orderBy: { startTime: "desc" },
     // No limit - load all sessions
     include: {
-      client: { select: { id: true, name: true } },
+      client: { select: { id: true, name: true, isQuickClient: true } },
       sessionNote: { select: { content: true } },
       payment: { select: { id: true, status: true, amount: true, expectedAmount: true } },
     },
@@ -29,11 +29,12 @@ export default async function SessionsPage() {
     status: s.status,
     type: s.type,
     price: Number(s.price),
+    topic: s.topic,
     cancellationReason: s.cancellationReason,
     cancelledAt: s.cancelledAt?.toISOString() || null,
     sessionNote: s.sessionNote?.content || null,
     payment: s.payment ? { id: s.payment.id, status: s.payment.status, amount: Number(s.payment.amount), expectedAmount: Number(s.payment.expectedAmount) } : null,
-    client: s.client ? { id: s.client.id, name: s.client.name } : null,
+    client: s.client ? { id: s.client.id, name: s.client.name, isQuickClient: s.client.isQuickClient } : null,
   }));
 
   return <SessionsView initialSessions={serialized} />;

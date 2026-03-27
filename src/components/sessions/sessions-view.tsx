@@ -69,6 +69,7 @@ export function SessionsView({ initialSessions }: SessionsViewProps) {
   const [sessions, setSessions] = useState<Session[]>(initialSessions);
   const [searchTerm, setSearchTerm] = useState("");
   const [historySearch, setHistorySearch] = useState("");
+  const [showOnlyConsultation, setShowOnlyConsultation] = useState(false);
   const [dateFrom, setDateFrom] = useState("");
   const [dateTo, setDateTo] = useState("");
   const [expandedUpcoming, setExpandedUpcoming] = useState<Record<string, boolean>>({
@@ -106,17 +107,24 @@ export function SessionsView({ initialSessions }: SessionsViewProps) {
     return (s.client?.name ?? "").toLowerCase().includes(term.trim().toLowerCase());
   };
 
+  const consultationFilter = (s: Session) => {
+    if (!showOnlyConsultation) return true;
+    return s.client?.isQuickClient === true;
+  };
+
   const upcoming = useMemo(() => {
     return sessions
       .filter(s => (s.status === "SCHEDULED" || s.status === "PENDING_APPROVAL") && new Date(s.startTime) >= now)
       .filter(s => searchFilter(s, searchTerm))
+      .filter(consultationFilter)
       .sort((a, b) => new Date(a.startTime).getTime() - new Date(b.startTime).getTime());
-  }, [sessions, searchTerm, now]);
+  }, [sessions, searchTerm, showOnlyConsultation, now]);
 
   const history = useMemo(() => {
     return sessions
       .filter(s => (s.status !== "SCHEDULED" && s.status !== "PENDING_APPROVAL") || new Date(s.startTime) < now)
       .filter(s => searchFilter(s, historySearch))
+      .filter(consultationFilter)
       .filter(s => {
         if (dateFrom && new Date(s.startTime) < new Date(dateFrom)) return false;
         if (dateTo) {
@@ -127,7 +135,7 @@ export function SessionsView({ initialSessions }: SessionsViewProps) {
         return true;
       })
       .sort((a, b) => new Date(b.startTime).getTime() - new Date(a.startTime).getTime());
-  }, [sessions, historySearch, dateFrom, dateTo, now]);
+  }, [sessions, historySearch, showOnlyConsultation, dateFrom, dateTo, now]);
 
   const groupedUpcoming = useMemo(() => {
     const g: Record<string, Session[]> = {};
@@ -512,6 +520,20 @@ export function SessionsView({ initialSessions }: SessionsViewProps) {
             היסטוריה
           </TabsTrigger>
         </TabsList>
+
+        {/* סינון פגישות ייעוץ */}
+        <div className="mt-3">
+          <button
+            onClick={() => setShowOnlyConsultation(!showOnlyConsultation)}
+            className={`inline-flex items-center gap-1.5 px-3 py-1.5 rounded-full text-xs font-medium border transition-colors ${
+              showOnlyConsultation
+                ? "bg-blue-100 text-blue-700 border-blue-300"
+                : "bg-white text-muted-foreground border-muted hover:bg-muted/50"
+            }`}
+          >
+            {showOnlyConsultation ? "✓ " : ""}פגישות ייעוץ בלבד
+          </button>
+        </div>
 
         {/* Upcoming */}
         <TabsContent value="upcoming" className="mt-4">
