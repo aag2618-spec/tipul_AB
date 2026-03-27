@@ -36,6 +36,7 @@ export interface TherapySession {
   status: SessionStatus;
   type: SessionType;
   price: number;
+  topic: string | null;
   notes: string | null;
   location: string | null;
   isRecurring: boolean;
