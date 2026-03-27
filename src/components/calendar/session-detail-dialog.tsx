@@ -1,10 +1,11 @@
 "use client";
 
+import { useState, useEffect } from "react";
 import { Button } from "@/components/ui/button";
 import { Dialog, DialogContent, DialogDescription, DialogHeader, DialogTitle, DialogFooter } from "@/components/ui/dialog";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
-import { Trash2, User } from "lucide-react";
+import { Trash2, User, Phone, UserCheck, CalendarPlus } from "lucide-react";
 import { format } from "date-fns";
 import { toast } from "sonner";
 import { useRouter } from "next/navigation";
@@ -47,6 +48,27 @@ export function SessionDetailDialog({
   onDataChanged,
 }: SessionDetailDialogProps) {
   const router = useRouter();
+  const [previousSessions, setPreviousSessions] = useState<Array<{
+    id: string; startTime: string; status: string; topic?: string | null;
+    payment?: { status: string; amount?: number } | null;
+  }>>([]);
+
+  const isQuickClient = session?.client?.isQuickClient === true;
+
+  // טעינת פגישות קודמות לפונה (פגישת ייעוץ)
+  useEffect(() => {
+    if (!open || !isQuickClient || !session?.client?.id) {
+      setPreviousSessions([]);
+      return;
+    }
+    fetch(`/api/sessions?clientId=${session.client.id}`)
+      .then((res) => res.ok ? res.json() : [])
+      .then((sessions: Array<{ id: string; startTime: string; status: string; topic?: string | null; payment?: { status: string; amount?: number } | null }>) => {
+        // כל הפגישות חוץ מהנוכחית
+        setPreviousSessions(sessions.filter((s) => s.id !== session.id));
+      })
+      .catch(() => setPreviousSessions([]));
+  }, [open, isQuickClient, session?.client?.id, session?.id]);
 
   if (!session) return null;
 
@@ -331,6 +353,41 @@ export function SessionDetailDialog({
             </span>
           </div>
 
+          {/* נושא הפגישה */}
+          {session.topic && (
+            <div className="rounded-lg p-3 bg-blue-50 dark:bg-blue-950 border border-blue-200 dark:border-blue-800">
+              <p className="text-xs text-blue-600 dark:text-blue-400 mb-1">נושא</p>
+              <p className="text-sm font-medium text-blue-800 dark:text-blue-200">{session.topic}</p>
+            </div>
+          )}
+
+          {/* פרטי פונה — טלפון */}
+          {isQuickClient && session.client?.phone && (
+            <a
+              href={`tel:${session.client.phone}`}
+              className="flex items-center gap-2 rounded-lg p-2 bg-muted/50 border hover:bg-muted transition-colors"
+            >
+              <Phone className="h-4 w-4 text-green-600" />
+              <span className="text-sm" dir="ltr">{session.client.phone}</span>
+            </a>
+          )}
+
+          {/* פגישות קודמות — רק לפונה */}
+          {isQuickClient && previousSessions.length > 0 && (
+            <div className="rounded-lg border p-3 space-y-2">
+              <p className="text-xs font-medium text-muted-foreground">פגישות קודמות ({previousSessions.length})</p>
+              <div className="space-y-1 max-h-24 overflow-y-auto">
+                {previousSessions.map((prev) => (
+                  <div key={prev.id} className="flex items-center justify-between text-xs px-2 py-1 rounded bg-muted/30">
+                    <span>{format(new Date(prev.startTime), "d/M/yy")}</span>
+                    <span className="text-muted-foreground">{prev.topic || "—"}</span>
+                    <span>{prev.payment?.status === "PAID" ? "✓ שולם" : "⏳"}</span>
+                  </div>
+                ))}
+              </div>
+            </div>
+          )}
+
           <div className="grid grid-cols-2 gap-4">
             <div>
               <p className="text-sm text-muted-foreground">סוג</p>
@@ -490,7 +547,7 @@ export function SessionDetailDialog({
 
             /* SCHEDULED */
             ) : session.status === "SCHEDULED" ? (
-              <div className="border rounded-lg divide-y">
+              <><div className="border rounded-lg divide-y">
                 <p className="text-sm font-medium text-center py-2 bg-muted/50">בחר פעולה:</p>
 
                 {/* 1. סיים ושלם */}
@@ -578,6 +635,34 @@ export function SessionDetailDialog({
                 </button>
               </div>
 
+              {/* כפתורי פונה — גם ב-SCHEDULED */}
+              {isQuickClient && session.client && (
+                <div className="space-y-2 pt-2">
+                  <Button
+                    onClick={() => {
+                      onOpenChange(false);
+                      router.push(`/dashboard/clients/${session.client?.id}?upgrade=true`);
+                    }}
+                    className="w-full gap-2 bg-gradient-to-r from-blue-600 to-indigo-600 hover:from-blue-700 hover:to-indigo-700"
+                  >
+                    <UserCheck className="h-4 w-4" />
+                    הפוך למטופל קבוע
+                  </Button>
+                  <Button
+                    onClick={() => {
+                      onOpenChange(false);
+                      router.push(`/dashboard/calendar?client=${session.client?.id}`);
+                    }}
+                    className="w-full gap-2"
+                    variant="outline"
+                  >
+                    <CalendarPlus className="h-4 w-4" />
+                    קבע פגישה חדשה
+                  </Button>
+                </div>
+              )}
+              </>
+
             /* COMPLETED / NO_SHOW / CANCELLED - Structured sections */
             ) : (session.status === "COMPLETED" || session.status === "NO_SHOW" || session.status === "CANCELLED") ? (
               <div className="space-y-3">
@@ -602,6 +687,33 @@ export function SessionDetailDialog({
                   </div>
                 )}
 
+                {/* כפתורים לפונה (פגישת ייעוץ) */}
+                {isQuickClient && session.client && (
+                  <div className="space-y-2 pt-2 border-t">
+                    <Button
+                      onClick={() => {
+                        onOpenChange(false);
+                        router.push(`/dashboard/clients/${session.client?.id}?upgrade=true`);
+                      }}
+                      className="w-full gap-2 bg-gradient-to-r from-blue-600 to-indigo-600 hover:from-blue-700 hover:to-indigo-700"
+                    >
+                      <UserCheck className="h-4 w-4" />
+                      הפוך למטופל קבוע
+                    </Button>
+                    <Button
+                      onClick={() => {
+                        onOpenChange(false);
+                        router.push(`/dashboard/calendar?client=${session.client?.id}`);
+                      }}
+                      className="w-full gap-2"
+                      variant="outline"
+                    >
+                      <CalendarPlus className="h-4 w-4" />
+                      קבע פגישה חדשה
+                    </Button>
+                  </div>
+                )}
+
                 {/* כפתור תיקית מטופל */}
                 {session.client && (
                   <Button
@@ -613,7 +725,7 @@ export function SessionDetailDialog({
                     variant="outline"
                   >
                     <User className="h-4 w-4" />
-                    תיקית מטופל
+                    {isQuickClient ? "צפה בפרטי פונה" : "תיקית מטופל"}
                   </Button>
                 )}
               </div>
