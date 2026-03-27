@@ -21,8 +21,9 @@ async function getClients(userId: string, status?: ClientStatus) {
       : {};
 
   return prisma.client.findMany({
-    where: { 
+    where: {
       therapistId: userId,
+      isQuickClient: false,
       ...statusFilter,
     },
     orderBy: { lastName: "asc" },
@@ -39,10 +40,10 @@ async function getClients(userId: string, status?: ClientStatus) {
 
 async function getClientCounts(userId: string) {
   const [active, waiting, inactiveAndArchived, total] = await Promise.all([
-    prisma.client.count({ where: { therapistId: userId, status: "ACTIVE" } }),
-    prisma.client.count({ where: { therapistId: userId, status: "WAITING" } }),
-    prisma.client.count({ where: { therapistId: userId, status: { in: ["INACTIVE", "ARCHIVED"] } } }),
-    prisma.client.count({ where: { therapistId: userId } }),
+    prisma.client.count({ where: { therapistId: userId, status: "ACTIVE", isQuickClient: false } }),
+    prisma.client.count({ where: { therapistId: userId, status: "WAITING", isQuickClient: false } }),
+    prisma.client.count({ where: { therapistId: userId, status: { in: ["INACTIVE", "ARCHIVED"] }, isQuickClient: false } }),
+    prisma.client.count({ where: { therapistId: userId, isQuickClient: false } }),
   ]);
   return { active, waiting, archived: inactiveAndArchived, total };
 }

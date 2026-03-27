@@ -62,9 +62,6 @@ export function CalendarEventContent({ eventInfo, sessions, onAddSessionAfter }:
     <div className="flex items-center justify-between w-full px-1 group">
       <div className="flex-1 overflow-hidden">
         <div className="font-semibold text-xs truncate">{eventInfo.event.title}</div>
-        {session.topic && (
-          <div className="text-xs opacity-75 truncate">{session.topic}</div>
-        )}
         <div className="text-xs opacity-90">{eventInfo.timeText}</div>
       </div>
       <button

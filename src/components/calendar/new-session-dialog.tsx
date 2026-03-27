@@ -326,7 +326,20 @@ export function NewSessionDialog({
         <form onSubmit={handleSubmit} className="space-y-4">
           {formData.type !== "BREAK" && !isQuickClientMode && (
             <div className="space-y-2">
-              <Label htmlFor="clientId">מטופל</Label>
+              <div className="flex items-center justify-between">
+                <Label htmlFor="clientId">מטופל קבוע</Label>
+                <button
+                  type="button"
+                  onClick={() => {
+                    setIsQuickClientMode(true);
+                    setFormData((prev) => ({ ...prev, clientId: "" }));
+                  }}
+                  className="text-xs gap-1.5 inline-flex items-center text-blue-600 hover:text-blue-700 font-medium"
+                >
+                  <UserPlus className="h-3.5 w-3.5" />
+                  פגישת ייעוץ
+                </button>
+              </div>
               <Select
                 value={formData.clientId}
                 onValueChange={(value) => {
@@ -344,28 +357,13 @@ export function NewSessionDialog({
                   <SelectValue placeholder="בחר מטופל" />
                 </SelectTrigger>
                 <SelectContent>
-                  {clients.map((client) => (
+                  {clients.filter((c) => !c.isQuickClient).map((client) => (
                     <SelectItem key={client.id} value={client.id}>
                       {client.name}
                     </SelectItem>
                   ))}
                 </SelectContent>
               </Select>
-
-              {/* כפתור פגישת ייעוץ */}
-              <Button
-                type="button"
-                variant="outline"
-                size="sm"
-                onClick={() => {
-                  setIsQuickClientMode(true);
-                  setFormData((prev) => ({ ...prev, clientId: "" }));
-                }}
-                className="w-full text-sm gap-2 border-dashed border-blue-300 text-blue-600 hover:bg-blue-50"
-              >
-                <UserPlus className="h-4 w-4" />
-                + פגישת ייעוץ
-              </Button>
             </div>
           )}
 
@@ -458,11 +456,11 @@ export function NewSessionDialog({
             </div>
           )}
 
-          {/* נושא הפגישה */}
-          {formData.type !== "BREAK" && (
+          {/* נושא הפגישה — רק בפגישת ייעוץ */}
+          {formData.type !== "BREAK" && isQuickClientMode && (
             <div className="space-y-2">
               <Label htmlFor="topic">
-                נושא הפגישה {isQuickClientMode && <span className="text-red-500">*</span>}
+                נושא הפגישה <span className="text-red-500">*</span>
               </Label>
               <Input
                 id="topic"
