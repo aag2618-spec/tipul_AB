@@ -90,8 +90,12 @@ export async function PUT(
         defaultSessionPrice: defaultSessionPrice !== undefined ? (defaultSessionPrice !== null ? parseFloat(defaultSessionPrice) : null) : existingClient.defaultSessionPrice,
         initialDiagnosis: initialDiagnosis !== undefined ? (initialDiagnosis?.trim() || null) : existingClient.initialDiagnosis,
         intakeNotes: intakeNotes !== undefined ? (intakeNotes?.trim() || null) : existingClient.intakeNotes,
-        // שדרוג פונה למטופל קבוע
-        ...(isQuickClient !== undefined ? { isQuickClient } : {}),
+        // שדרוג פונה למטופל קבוע — אוטומטי אם יש firstName+lastName, או ידני
+        ...(isQuickClient !== undefined
+          ? { isQuickClient }
+          : existingClient.isQuickClient && firstName?.trim() && lastName?.trim()
+            ? { isQuickClient: false }
+            : {}),
       },
     });
 

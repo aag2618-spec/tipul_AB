@@ -35,6 +35,7 @@ import {
   Lock,
   Sparkles,
   Brain,
+  UserCheck,
 } from "lucide-react";
 import { Input } from "@/components/ui/input";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
@@ -134,14 +135,15 @@ export default async function ClientPage({
   searchParams,
 }: {
   params: Promise<{ id: string }>;
-  searchParams: Promise<{ tab?: string }>;
+  searchParams: Promise<{ tab?: string; upgrade?: string }>;
 }) {
   const session = await getServerSession(authOptions);
   if (!session?.user?.id) return null;
 
   const { id } = await params;
-  const { tab } = await searchParams;
+  const { tab, upgrade } = await searchParams;
   const defaultTab = tab || "sessions";
+  const showUpgradeBanner = upgrade === "true";
   
   // קבלת פרטי המשתמש כולל tier
   const user = await prisma.user.findUnique({
@@ -325,6 +327,23 @@ export default async function ClientPage({
           </Card>
         </a>
       </div>
+
+      {/* באנר שדרוג — פונה מזדמן */}
+      {(client.isQuickClient || showUpgradeBanner) && (
+        <div className="flex items-center justify-between p-4 rounded-lg bg-blue-50 border border-blue-200">
+          <div>
+            <p className="font-medium text-blue-800">זהו פונה מזדמן (פגישת ייעוץ)</p>
+            <p className="text-sm text-blue-600">השלם פרטים כדי להפוך למטופל קבוע</p>
+          </div>
+          <a
+            href={`/dashboard/clients/${client.id}?tab=profile`}
+            className="inline-flex items-center gap-2 px-4 py-2 rounded-lg bg-blue-600 text-white text-sm font-medium hover:bg-blue-700 transition-colors"
+          >
+            <UserCheck className="h-4 w-4" />
+            השלם פרטים ושדרג
+          </a>
+        </div>
+      )}
 
       {/* Tabs */}
       <Tabs defaultValue={defaultTab} key={defaultTab} className="w-full">

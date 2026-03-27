@@ -9,6 +9,7 @@ import { Plus, Phone, Mail, Users } from "lucide-react";
 import Link from "next/link";
 import { format } from "date-fns";
 import { ExportAllClientsButton } from "@/components/clients/export-all-clients-button";
+import { ConsultationClientsSection } from "@/components/clients/consultation-clients-section";
 
 type ClientStatus = "ACTIVE" | "WAITING" | "ARCHIVED";
 
@@ -81,9 +82,22 @@ export default async function ClientsPage({ searchParams }: PageProps) {
   const mappedStatus = rawStatus === "INACTIVE" ? "ARCHIVED" : rawStatus;
   const activeStatus = validStatuses.includes(mappedStatus as ClientStatus) ? mappedStatus as ClientStatus : undefined;
 
-  const [clients, counts] = await Promise.all([
+  const [clients, counts, quickClients] = await Promise.all([
     getClients(session.user.id, activeStatus),
     getClientCounts(session.user.id),
+    prisma.client.findMany({
+      where: { therapistId: session.user.id, isQuickClient: true },
+      orderBy: { updatedAt: "desc" },
+      include: {
+        therapySessions: {
+          orderBy: { startTime: "desc" },
+          select: {
+            id: true, startTime: true, status: true, topic: true,
+            payment: { select: { status: true, amount: true } },
+          },
+        },
+      },
+    }),
   ]);
 
   const getInitials = (firstName: string | null, lastName: string | null) => {
@@ -250,6 +264,25 @@ export default async function ClientsPage({ searchParams }: PageProps) {
             </Button>
           </CardContent>
         </Card>
+      )}
+
+      {/* סקשן פגישות ייעוץ */}
+      {quickClients.length > 0 && (
+        <ConsultationClientsSection
+          clients={quickClients.map((c) => ({
+            id: c.id,
+            name: c.name,
+            phone: c.phone,
+            email: c.email,
+            sessions: c.therapySessions.map((s) => ({
+              id: s.id,
+              startTime: s.startTime.toISOString(),
+              status: s.status,
+              topic: s.topic,
+              paymentStatus: s.payment?.status || null,
+            })),
+          }))}
+        />
       )}
     </div>
   );
