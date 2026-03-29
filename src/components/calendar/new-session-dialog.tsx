@@ -195,6 +195,16 @@ export function NewSessionDialog({
 
         const newClient = await clientRes.json();
         clientIdToUse = newClient.id;
+      } else if (isQuickClientMode && formData.clientId) {
+        // עדכון טלפון/מייל של פונה קיים (אם השתנו)
+        await fetch(`/api/clients/${formData.clientId}`, {
+          method: "PUT",
+          headers: { "Content-Type": "application/json" },
+          body: JSON.stringify({
+            phone: quickClientPhone.trim() || undefined,
+            email: quickClientEmail.trim() || undefined,
+          }),
+        });
       }
       // ── Recurring: show preview before creating ──
       if (formData.isRecurring && formData.weeksToRepeat > 1) {
@@ -438,7 +448,6 @@ export function NewSessionDialog({
                     placeholder="054-1234567"
                     value={quickClientPhone}
                     onChange={(e) => setQuickClientPhone(e.target.value)}
-                    disabled={!!formData.clientId}
                     dir="ltr"
                   />
                 </div>
@@ -450,7 +459,6 @@ export function NewSessionDialog({
                     placeholder="example@mail.com"
                     value={quickClientEmail}
                     onChange={(e) => setQuickClientEmail(e.target.value)}
-                    disabled={!!formData.clientId}
                     dir="ltr"
                   />
                 </div>
