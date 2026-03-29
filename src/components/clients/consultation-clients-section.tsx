@@ -3,7 +3,25 @@
 import { useState } from "react";
 import { Button } from "@/components/ui/button";
 import { Badge } from "@/components/ui/badge";
-import { ChevronDown, ChevronLeft, Phone, CalendarPlus, UserCheck, FileText } from "lucide-react";
+import { Input } from "@/components/ui/input";
+import {
+  DropdownMenu,
+  DropdownMenuContent,
+  DropdownMenuItem,
+  DropdownMenuTrigger,
+} from "@/components/ui/dropdown-menu";
+import {
+  ChevronDown,
+  ChevronLeft,
+  Phone,
+  CalendarPlus,
+  UserCheck,
+  MoreVertical,
+  FileText,
+  FolderOpen,
+  Info,
+  Search,
+} from "lucide-react";
 import { format } from "date-fns";
 import Link from "next/link";
 
@@ -27,111 +45,238 @@ interface ConsultationClientsSectionProps {
   clients: ConsultationClient[];
 }
 
+const sessionStatusLabel: Record<string, string> = {
+  COMPLETED: "הושלמה",
+  SCHEDULED: "מתוכננת",
+  CANCELLED: "בוטלה",
+  NO_SHOW: "לא הגיע",
+  PENDING_APPROVAL: "ממתינה",
+};
+
+const paymentStatusLabel: Record<string, string> = {
+  PAID: "שולם",
+  PENDING: "ממתין",
+  PARTIAL: "חלקי",
+};
+
 export function ConsultationClientsSection({ clients }: ConsultationClientsSectionProps) {
   const [isOpen, setIsOpen] = useState(false);
   const [expandedClientId, setExpandedClientId] = useState<string | null>(null);
+  const [search, setSearch] = useState("");
+
+  const filtered = search.trim()
+    ? clients.filter((c) => c.name.includes(search.trim()))
+    : clients;
 
   return (
-    <div className="border rounded-lg overflow-hidden">
+    <div className="mt-8">
       {/* כותרת מתקפלת */}
       <button
         onClick={() => setIsOpen(!isOpen)}
-        className="w-full flex items-center justify-between p-4 bg-blue-50 hover:bg-blue-100 transition-colors"
+        className="w-full flex items-center justify-between p-4 rounded-t-lg bg-sky-50 hover:bg-sky-100 border border-sky-200 transition-colors"
       >
         <div className="flex items-center gap-2">
-          {isOpen ? <ChevronDown className="h-4 w-4 text-blue-600" /> : <ChevronLeft className="h-4 w-4 text-blue-600" />}
-          <span className="font-medium text-blue-800">פגישות ייעוץ</span>
-          <Badge variant="secondary" className="bg-blue-100 text-blue-700">{clients.length}</Badge>
+          {isOpen ? (
+            <ChevronDown className="h-4 w-4 text-sky-600" />
+          ) : (
+            <ChevronLeft className="h-4 w-4 text-sky-600" />
+          )}
+          <span className="font-semibold text-sky-800">פונים לייעוץ</span>
+          <Badge className="bg-sky-100 text-sky-700 border border-sky-300">
+            {clients.length}
+          </Badge>
         </div>
-        <span className="text-xs text-blue-600">{isOpen ? "הסתר" : "הצג"}</span>
+        <span className="text-xs text-sky-600">{isOpen ? "הסתר" : "הצג"}</span>
       </button>
 
       {/* תוכן */}
       {isOpen && (
-        <div className="divide-y">
-          {clients.map((client) => {
-            const isExpanded = expandedClientId === client.id;
+        <div className="border border-t-0 border-sky-200 rounded-b-lg p-4 space-y-4 bg-white">
+          {/* חיפוש */}
+          <div className="relative max-w-xs">
+            <Search className="absolute right-3 top-1/2 -translate-y-1/2 h-4 w-4 text-muted-foreground" />
+            <Input
+              placeholder="חיפוש לפי שם..."
+              value={search}
+              onChange={(e) => setSearch(e.target.value)}
+              className="pr-9"
+            />
+          </div>
 
-            return (
-              <div key={client.id} className="bg-white">
-                {/* שורת פונה */}
-                <button
-                  onClick={() => setExpandedClientId(isExpanded ? null : client.id)}
-                  className="w-full flex items-center justify-between p-3 hover:bg-slate-50 transition-colors"
-                >
-                  <div className="flex items-center gap-3">
-                    {isExpanded ? <ChevronDown className="h-3 w-3" /> : <ChevronLeft className="h-3 w-3" />}
-                    <span className="font-medium text-sm">{client.name}</span>
-                    {client.phone && (
-                      <span className="text-xs text-muted-foreground" dir="ltr">{client.phone}</span>
-                    )}
-                  </div>
-                  <span className="text-xs text-muted-foreground">{client.sessions.length} פגישות</span>
-                </button>
+          {/* כרטיסי פונים */}
+          {filtered.length > 0 ? (
+            <div className="grid grid-cols-2 md:grid-cols-3 lg:grid-cols-4 gap-3">
+              {filtered.map((client) => {
+                const isExpanded = expandedClientId === client.id;
 
-                {/* פירוט פגישות + כפתורי פעולה */}
-                {isExpanded && (
-                  <div className="px-4 pb-3 space-y-2">
-                    {/* רשימת פגישות */}
-                    {client.sessions.length > 0 ? (
-                      <div className="space-y-1">
-                        {client.sessions.map((session) => (
-                          <Link
-                            key={session.id}
-                            href={`/dashboard/sessions/${session.id}`}
-                            className="flex items-center justify-between text-xs px-3 py-2 rounded bg-slate-50 hover:bg-slate-100 transition-colors"
-                          >
-                            <span>{format(new Date(session.startTime), "d/M/yy")}</span>
-                            <span className="text-muted-foreground flex-1 mx-3 truncate">{session.topic || "—"}</span>
-                            <span>
-                              {session.paymentStatus === "PAID" ? (
-                                <Badge variant="outline" className="text-green-600 border-green-200 text-xs">שולם</Badge>
-                              ) : session.paymentStatus === "PENDING" ? (
-                                <Badge variant="outline" className="text-orange-600 border-orange-200 text-xs">ממתין</Badge>
-                              ) : (
-                                <Badge variant="outline" className="text-slate-500 border-slate-200 text-xs">
-                                  {session.status === "COMPLETED" ? "הושלם" : session.status === "CANCELLED" ? "בוטל" : "מתוכנן"}
-                                </Badge>
-                              )}
-                            </span>
-                          </Link>
-                        ))}
+                return (
+                  <div key={client.id} className="col-span-1">
+                    {/* כרטיס פונה */}
+                    <button
+                      onClick={() =>
+                        setExpandedClientId(isExpanded ? null : client.id)
+                      }
+                      className={`w-full text-right rounded-lg border p-3 transition-all ${
+                        isExpanded
+                          ? "bg-sky-50 border-sky-300 shadow-sm"
+                          : "bg-sky-50/50 border-sky-200 hover:bg-sky-50 hover:border-sky-300"
+                      }`}
+                    >
+                      <div className="flex items-center justify-between">
+                        <span className="font-medium text-sm text-sky-900 truncate">
+                          {client.name}
+                        </span>
+                        {isExpanded ? (
+                          <ChevronDown className="h-3.5 w-3.5 text-sky-500 shrink-0" />
+                        ) : (
+                          <ChevronLeft className="h-3.5 w-3.5 text-sky-500 shrink-0" />
+                        )}
                       </div>
-                    ) : (
-                      <p className="text-xs text-muted-foreground text-center py-2">אין פגישות</p>
-                    )}
+                      <div className="flex items-center gap-2 mt-1">
+                        {client.phone && (
+                          <span className="text-xs text-muted-foreground" dir="ltr">
+                            {client.phone}
+                          </span>
+                        )}
+                        <span className="text-xs text-sky-600 mr-auto">
+                          {client.sessions.length} פגישות
+                        </span>
+                      </div>
+                    </button>
 
-                    {/* כפתורי פעולה */}
-                    <div className="flex gap-2 pt-2">
-                      <Button asChild size="sm" variant="outline" className="flex-1 text-xs gap-1">
-                        <Link href={`/dashboard/calendar?client=${client.id}`}>
-                          <CalendarPlus className="h-3 w-3" />
-                          קבע פגישה
-                        </Link>
-                      </Button>
-                      <Button asChild size="sm" className="flex-1 text-xs gap-1 bg-blue-600 hover:bg-blue-700">
-                        <Link href={`/dashboard/clients/${client.id}?upgrade=true`}>
-                          <UserCheck className="h-3 w-3" />
-                          הפוך למטופל קבוע
-                        </Link>
-                      </Button>
-                    </div>
+                    {/* פגישות מתחת לכרטיס */}
+                    {isExpanded && (
+                      <div className="mt-2 space-y-2">
+                        {client.sessions.length > 0 ? (
+                          client.sessions.map((session) => (
+                            <div
+                              key={session.id}
+                              className="flex items-center justify-between rounded-md border bg-white p-2 text-xs"
+                            >
+                              <div className="flex flex-col gap-0.5 flex-1 min-w-0">
+                                <span className="font-medium">
+                                  {format(new Date(session.startTime), "d/M/yy")}
+                                </span>
+                                <span className="text-muted-foreground truncate">
+                                  {session.topic || "—"}
+                                </span>
+                                <div className="flex gap-1 flex-wrap">
+                                  {/* סטטוס פגישה */}
+                                  <Badge
+                                    variant="outline"
+                                    className={`text-[10px] px-1.5 py-0 ${
+                                      session.status === "COMPLETED"
+                                        ? "text-emerald-600 border-emerald-200"
+                                        : session.status === "CANCELLED"
+                                        ? "text-red-500 border-red-200"
+                                        : "text-sky-600 border-sky-200"
+                                    }`}
+                                  >
+                                    {sessionStatusLabel[session.status] || session.status}
+                                  </Badge>
+                                  {/* סטטוס תשלום */}
+                                  {session.paymentStatus && (
+                                    <Badge
+                                      variant="outline"
+                                      className={`text-[10px] px-1.5 py-0 ${
+                                        session.paymentStatus === "PAID"
+                                          ? "text-green-600 border-green-200"
+                                          : session.paymentStatus === "PARTIAL"
+                                          ? "text-amber-600 border-amber-200"
+                                          : "text-orange-600 border-orange-200"
+                                      }`}
+                                    >
+                                      {paymentStatusLabel[session.paymentStatus] ||
+                                        session.paymentStatus}
+                                    </Badge>
+                                  )}
+                                </div>
+                              </div>
 
-                    {/* טלפון */}
-                    {client.phone && (
-                      <a
-                        href={`tel:${client.phone}`}
-                        className="flex items-center gap-2 text-xs text-green-600 hover:text-green-700 px-2"
-                      >
-                        <Phone className="h-3 w-3" />
-                        התקשר
-                      </a>
+                              {/* 3 נקודות */}
+                              <DropdownMenu>
+                                <DropdownMenuTrigger asChild>
+                                  <button className="p-1 rounded hover:bg-slate-100 shrink-0">
+                                    <MoreVertical className="h-3.5 w-3.5 text-muted-foreground" />
+                                  </button>
+                                </DropdownMenuTrigger>
+                                <DropdownMenuContent align="end" className="text-sm">
+                                  <DropdownMenuItem asChild>
+                                    <Link href={`/dashboard/sessions/${session.id}`}>
+                                      <FileText className="h-3.5 w-3.5 ml-2" />
+                                      כניסה לסיכום
+                                    </Link>
+                                  </DropdownMenuItem>
+                                  <DropdownMenuItem asChild>
+                                    <Link href={`/dashboard/clients/${client.id}`}>
+                                      <FolderOpen className="h-3.5 w-3.5 ml-2" />
+                                      תיקיית מטופל
+                                    </Link>
+                                  </DropdownMenuItem>
+                                  <DropdownMenuItem asChild>
+                                    <Link href={`/dashboard/sessions/${session.id}`}>
+                                      <Info className="h-3.5 w-3.5 ml-2" />
+                                      פרטי פגישה
+                                    </Link>
+                                  </DropdownMenuItem>
+                                </DropdownMenuContent>
+                              </DropdownMenu>
+                            </div>
+                          ))
+                        ) : (
+                          <p className="text-xs text-muted-foreground text-center py-2">
+                            אין פגישות
+                          </p>
+                        )}
+
+                        {/* כפתורי פעולה */}
+                        <div className="flex gap-2">
+                          <Button
+                            asChild
+                            size="sm"
+                            variant="outline"
+                            className="flex-1 text-xs gap-1 h-7"
+                          >
+                            <Link href={`/dashboard/calendar?client=${client.id}`}>
+                              <CalendarPlus className="h-3 w-3" />
+                              קבע פגישה
+                            </Link>
+                          </Button>
+                          <Button
+                            asChild
+                            size="sm"
+                            className="flex-1 text-xs gap-1 h-7 bg-sky-600 hover:bg-sky-700"
+                          >
+                            <Link
+                              href={`/dashboard/clients/${client.id}?upgrade=true`}
+                            >
+                              <UserCheck className="h-3 w-3" />
+                              הפוך למטופל קבוע
+                            </Link>
+                          </Button>
+                        </div>
+
+                        {/* טלפון */}
+                        {client.phone && (
+                          <a
+                            href={`tel:${client.phone}`}
+                            className="flex items-center gap-1.5 text-xs text-green-600 hover:text-green-700"
+                          >
+                            <Phone className="h-3 w-3" />
+                            התקשר
+                          </a>
+                        )}
+                      </div>
                     )}
                   </div>
-                )}
-              </div>
-            );
-          })}
+                );
+              })}
+            </div>
+          ) : (
+            <p className="text-sm text-muted-foreground text-center py-4">
+              לא נמצאו פונים
+            </p>
+          )}
         </div>
       )}
     </div>
