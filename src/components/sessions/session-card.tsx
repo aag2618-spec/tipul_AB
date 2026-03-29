@@ -104,7 +104,14 @@ export function SessionCard({
     >
       <div>
         <div className="flex items-center justify-between mb-1">
-          <p className="font-semibold text-[15px] truncate flex-1">{s.client?.name || "ללא מטופל"}</p>
+          <p className="font-semibold text-[15px] truncate flex-1">
+            {s.client?.name || "ללא מטופל"}
+            {s.client?.isQuickClient && (
+              <Badge variant="outline" className="text-[10px] px-1.5 py-0 h-5 mr-2 font-normal bg-sky-50 text-sky-600 border-sky-300">
+                ייעוץ
+              </Badge>
+            )}
+          </p>
           {!showCancel && s.status === "SCHEDULED" && new Date(s.startTime) < now ? (
             <Badge
               variant="outline"

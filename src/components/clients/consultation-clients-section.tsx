@@ -92,7 +92,7 @@ export function ConsultationClientsSection({ clients }: ConsultationClientsSecti
     : clients;
 
   return (
-    <div className="mt-10 mb-8 scroll-mt-6" id="consultation-section" ref={sectionRef}>
+    <div className="mt-10 mb-16 scroll-mt-6" id="consultation-section" ref={sectionRef}>
       {/* כותרת — כרטיס מעוצב */}
       <button
         onClick={() => setIsOpen(!isOpen)}
