@@ -15,11 +15,17 @@ export async function GET(request: NextRequest) {
 
     const { searchParams } = new URL(request.url);
     const status = searchParams.get("status");
+    const includeQuick = searchParams.get("includeQuick") === "true";
 
     const where: Record<string, unknown> = { therapistId: userId };
 
     if (status) {
       where.status = status;
+    }
+
+    // סינון פונים מזדמנים — ברירת מחדל: לא מציגים אותם
+    if (!includeQuick) {
+      where.isQuickClient = false;
     }
 
     const clients = await prisma.client.findMany({

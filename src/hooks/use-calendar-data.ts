@@ -68,7 +68,7 @@ export function useCalendarData() {
     try {
       const [sessionsRes, clientsRes, patternsRes, profileRes] = await Promise.all([
         fetch(buildSessionsUrl()),
-        fetch("/api/clients"),
+        fetch("/api/clients?includeQuick=true"),
         fetch("/api/recurring-patterns"),
         fetch("/api/user/profile"),
       ]);
