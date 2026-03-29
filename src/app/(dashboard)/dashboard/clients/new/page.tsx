@@ -1,7 +1,7 @@
 "use client";
 
-import { useState, useEffect } from "react";
-import { useRouter } from "next/navigation";
+import { useState, useEffect, Suspense } from "react";
+import { useRouter, useSearchParams } from "next/navigation";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
@@ -33,19 +33,35 @@ interface IntakeQuestionnaireTemplate {
 }
 
 export default function NewClientPage() {
+  return (
+    <Suspense>
+      <NewClientContent />
+    </Suspense>
+  );
+}
+
+function NewClientContent() {
   const router = useRouter();
+  const searchParams = useSearchParams();
+  const fromQuickId = searchParams.get("fromQuick");
   const [isLoading, setIsLoading] = useState(false);
   const [loadingQuestionnaire, setLoadingQuestionnaire] = useState(true);
   const [allQuestionnaires, setAllQuestionnaires] = useState<IntakeQuestionnaireTemplate[]>([]);
   const [defaultQuestionnaire, setDefaultQuestionnaire] = useState<IntakeQuestionnaireTemplate | null>(null);
   const [selectedQuestionnaire, setSelectedQuestionnaire] = useState<IntakeQuestionnaireTemplate | null>(null);
   const [skipQuestionnaire, setSkipQuestionnaire] = useState(false);
-  
+
+  // פיצול שם מלא לשם פרטי ומשפחה (מפונה מזדמן)
+  const prefillName = searchParams.get("name") || "";
+  const nameParts = prefillName.trim().split(" ");
+  const prefillFirstName = nameParts[0] || "";
+  const prefillLastName = nameParts.slice(1).join(" ") || "";
+
   const [formData, setFormData] = useState({
-    firstName: "",
-    lastName: "",
-    phone: "",
-    email: "",
+    firstName: prefillFirstName,
+    lastName: prefillLastName,
+    phone: searchParams.get("phone") || "",
+    email: searchParams.get("email") || "",
     birthDate: "",
     address: "",
     notes: "",
@@ -115,19 +131,32 @@ export default function NewClientPage() {
     setIsLoading(true);
 
     try {
-      // 1. Create client
-      const clientResponse = await fetch("/api/clients", {
-        method: "POST",
-        headers: { "Content-Type": "application/json" },
-        body: JSON.stringify(formData),
-      });
-
-      if (!clientResponse.ok) {
-        const data = await clientResponse.json();
-        throw new Error(data.message || "אירעה שגיאה");
+      // 1. Create or upgrade client
+      let client;
+      if (fromQuickId) {
+        // שדרוג פונה מזדמן — עדכון הפונה הקיים (כולל isQuickClient: false)
+        const clientResponse = await fetch(`/api/clients/${fromQuickId}`, {
+          method: "PUT",
+          headers: { "Content-Type": "application/json" },
+          body: JSON.stringify({ ...formData, isQuickClient: false }),
+        });
+        if (!clientResponse.ok) {
+          const data = await clientResponse.json();
+          throw new Error(data.message || "אירעה שגיאה");
+        }
+        client = await clientResponse.json();
+      } else {
+        const clientResponse = await fetch("/api/clients", {
+          method: "POST",
+          headers: { "Content-Type": "application/json" },
+          body: JSON.stringify(formData),
+        });
+        if (!clientResponse.ok) {
+          const data = await clientResponse.json();
+          throw new Error(data.message || "אירעה שגיאה");
+        }
+        client = await clientResponse.json();
       }
-
-      const client = await clientResponse.json();
 
       // 2. Save questionnaire responses if not skipped
       if (!skipQuestionnaire && defaultQuestionnaire && Object.keys(questionnaireResponses).length > 0) {
@@ -142,7 +171,7 @@ export default function NewClientPage() {
         });
       }
 
-      toast.success("המטופל נוסף בהצלחה");
+      toast.success(fromQuickId ? "הפונה שודרג למטופל קבוע" : "המטופל נוסף בהצלחה");
       router.push(`/dashboard/clients/${client.id}`);
     } catch (error) {
       toast.error(error instanceof Error ? error.message : "אירעה שגיאה");
@@ -210,8 +239,12 @@ export default function NewClientPage() {
           </Link>
         </Button>
         <div>
-          <h1 className="text-2xl font-bold tracking-tight">מטופל חדש</h1>
-          <p className="text-muted-foreground">הוסף מטופל חדש למערכת</p>
+          <h1 className="text-2xl font-bold tracking-tight">
+            {fromQuickId ? "שדרוג פונה למטופל קבוע" : "מטופל חדש"}
+          </h1>
+          <p className="text-muted-foreground">
+            {fromQuickId ? "השלם פרטים כדי להפוך למטופל קבוע" : "הוסף מטופל חדש למערכת"}
+          </p>
         </div>
       </div>
 

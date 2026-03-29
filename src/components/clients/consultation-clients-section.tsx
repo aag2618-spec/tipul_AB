@@ -13,7 +13,7 @@ import {
 import {
   ChevronDown,
   ChevronLeft,
-  Phone,
+  Copy,
   CalendarPlus,
   UserCheck,
   MoreVertical,
@@ -24,6 +24,7 @@ import {
   Users,
 } from "lucide-react";
 import { format } from "date-fns";
+import { toast } from "sonner";
 import Link from "next/link";
 
 interface ConsultationSession {
@@ -127,7 +128,7 @@ export function ConsultationClientsSection({ clients }: ConsultationClientsSecti
 
       {/* תוכן */}
       {isOpen && (
-        <div className="mt-3 border border-sky-100 rounded-xl p-4 space-y-4 bg-white shadow-sm">
+        <div className="mt-3 border border-sky-100 rounded-xl p-4 pb-6 space-y-4 bg-white shadow-sm">
           {/* חיפוש */}
           <div className="relative max-w-xs">
             <Search className="absolute right-3 top-1/2 -translate-y-1/2 h-4 w-4 text-muted-foreground" />
@@ -284,7 +285,7 @@ export function ConsultationClientsSection({ clients }: ConsultationClientsSecti
                             className="flex-1 text-xs gap-1 h-7 bg-sky-600 hover:bg-sky-700"
                           >
                             <Link
-                              href={`/dashboard/clients/${client.id}?upgrade=true`}
+                              href={`/dashboard/clients/new?fromQuick=${client.id}&name=${encodeURIComponent(client.name)}&phone=${encodeURIComponent(client.phone || "")}&email=${encodeURIComponent(client.email || "")}`}
                             >
                               <UserCheck className="h-3 w-3" />
                               הפוך למטופל קבוע
@@ -292,15 +293,23 @@ export function ConsultationClientsSection({ clients }: ConsultationClientsSecti
                           </Button>
                         </div>
 
-                        {/* טלפון */}
+                        {/* העתקת מספר טלפון */}
                         {client.phone && (
-                          <a
-                            href={`tel:${client.phone}`}
-                            className="flex items-center gap-1.5 text-xs text-green-600 hover:text-green-700"
+                          <button
+                            type="button"
+                            onClick={async () => {
+                              try {
+                                await navigator.clipboard.writeText(client.phone!);
+                                toast.success("המספר הועתק ללוח");
+                              } catch {
+                                toast.error("לא ניתן להעתיק — העתק ידנית: " + client.phone);
+                              }
+                            }}
+                            className="flex items-center gap-1.5 text-xs text-sky-600 hover:text-sky-700"
                           >
-                            <Phone className="h-3 w-3" />
-                            התקשר
-                          </a>
+                            <Copy className="h-3 w-3" />
+                            {client.phone}
+                          </button>
                         )}
                       </div>
                     )}
