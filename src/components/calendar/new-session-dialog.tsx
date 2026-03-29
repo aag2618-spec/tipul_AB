@@ -174,8 +174,8 @@ export function NewSessionDialog({
       // ── פגישת ייעוץ: יצירת פונה מהיר ← פגישה ──
       let clientIdToUse = formData.clientId;
 
-      if (isQuickClientMode && !matchedClient) {
-        // יצירת פונה חדש
+      if (isQuickClientMode && !formData.clientId) {
+        // יצירת פונה חדש — רק אם לא נבחר פונה קיים
         const clientRes = await fetch("/api/clients", {
           method: "POST",
           headers: { "Content-Type": "application/json" },
@@ -195,9 +195,6 @@ export function NewSessionDialog({
 
         const newClient = await clientRes.json();
         clientIdToUse = newClient.id;
-      } else if (isQuickClientMode && matchedClient) {
-        // פונה קיים שנבחר
-        clientIdToUse = matchedClient.id;
       }
       // ── Recurring: show preview before creating ──
       if (formData.isRecurring && formData.weeksToRepeat > 1) {
@@ -371,7 +368,9 @@ export function NewSessionDialog({
           {formData.type !== "BREAK" && isQuickClientMode && (
             <div className="space-y-3 p-3 border rounded-lg border-blue-200 bg-blue-50/50">
               <div className="flex items-center justify-between">
-                <span className="text-sm font-medium text-blue-700">פגישת ייעוץ — פונה חדש</span>
+                <span className="text-sm font-medium text-blue-700">
+                  {formData.clientId ? "פגישת ייעוץ — פונה קיים" : "פגישת ייעוץ — פונה חדש"}
+                </span>
                 <Button
                   type="button"
                   variant="ghost"
@@ -382,6 +381,7 @@ export function NewSessionDialog({
                     setQuickClientPhone("");
                     setQuickClientEmail("");
                     setMatchedClient(null);
+                    setFormData((prev) => ({ ...prev, clientId: "", topic: "" }));
                   }}
                   className="text-xs text-muted-foreground h-7 px-2"
                 >
@@ -397,11 +397,12 @@ export function NewSessionDialog({
                   placeholder="שם מלא"
                   value={quickClientName}
                   onChange={(e) => setQuickClientName(e.target.value)}
+                  disabled={!!formData.clientId}
                 />
               </div>
 
               {/* זיהוי חזרה */}
-              {matchedClient && (
+              {matchedClient && !formData.clientId && (
                 <div className="p-2 bg-amber-50 border border-amber-200 rounded text-sm">
                   <p className="text-amber-800">
                     {matchedClient.name} כבר קיים/ת במערכת.{" "}
@@ -416,10 +417,10 @@ export function NewSessionDialog({
                             ? String(matchedClient.defaultSessionPrice)
                             : prev.price,
                         }));
-                        setIsQuickClientMode(false);
-                        setQuickClientName("");
-                        setQuickClientPhone("");
-                        setQuickClientEmail("");
+                        // נשארים במצב ייעוץ — ממלאים את פרטי הפונה
+                        setQuickClientName(matchedClient.name);
+                        setQuickClientPhone(matchedClient.phone || "");
+                        setQuickClientEmail(matchedClient.email || "");
                       }}
                     >
                       לחץ כאן לבחירה
@@ -437,6 +438,7 @@ export function NewSessionDialog({
                     placeholder="054-1234567"
                     value={quickClientPhone}
                     onChange={(e) => setQuickClientPhone(e.target.value)}
+                    disabled={!!formData.clientId}
                     dir="ltr"
                   />
                 </div>
@@ -448,6 +450,7 @@ export function NewSessionDialog({
                     placeholder="example@mail.com"
                     value={quickClientEmail}
                     onChange={(e) => setQuickClientEmail(e.target.value)}
+                    disabled={!!formData.clientId}
                     dir="ltr"
                   />
                 </div>
