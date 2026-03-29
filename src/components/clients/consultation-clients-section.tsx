@@ -78,12 +78,12 @@ export function ConsultationClientsSection({ clients }: ConsultationClientsSecti
     }
   }, [isOpen]);
 
-  // גלילה אוטומטית כשפותחים פגישות של פונה
+  // גלילה אוטומטית כשפותחים פגישות של פונה — עם מרווח תחתון
   useEffect(() => {
     if (expandedClientId && expandedRef.current) {
       setTimeout(() => {
-        expandedRef.current?.scrollIntoView({ behavior: "smooth", block: "nearest" });
-      }, 100);
+        expandedRef.current?.scrollIntoView({ behavior: "smooth", block: "center" });
+      }, 150);
     }
   }, [expandedClientId]);
 
