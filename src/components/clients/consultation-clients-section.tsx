@@ -1,6 +1,6 @@
 "use client";
 
-import { useState } from "react";
+import { useState, useRef, useEffect } from "react";
 import { Button } from "@/components/ui/button";
 import { Badge } from "@/components/ui/badge";
 import { Input } from "@/components/ui/input";
@@ -19,8 +19,9 @@ import {
   MoreVertical,
   FileText,
   FolderOpen,
-  Info,
+  Calendar,
   Search,
+  Users,
 } from "lucide-react";
 import { format } from "date-fns";
 import Link from "next/link";
@@ -64,34 +65,69 @@ export function ConsultationClientsSection({ clients }: ConsultationClientsSecti
   const [expandedClientId, setExpandedClientId] = useState<string | null>(null);
   const [search, setSearch] = useState("");
 
+  const sectionRef = useRef<HTMLDivElement>(null);
+  const expandedRef = useRef<HTMLDivElement>(null);
+
+  // גלילה אוטומטית כשפותחים את הסקשן
+  useEffect(() => {
+    if (isOpen && sectionRef.current) {
+      setTimeout(() => {
+        sectionRef.current?.scrollIntoView({ behavior: "smooth", block: "start" });
+      }, 100);
+    }
+  }, [isOpen]);
+
+  // גלילה אוטומטית כשפותחים פגישות של פונה
+  useEffect(() => {
+    if (expandedClientId && expandedRef.current) {
+      setTimeout(() => {
+        expandedRef.current?.scrollIntoView({ behavior: "smooth", block: "nearest" });
+      }, 100);
+    }
+  }, [expandedClientId]);
+
   const filtered = search.trim()
     ? clients.filter((c) => c.name.includes(search.trim()))
     : clients;
 
   return (
-    <div className="mt-8">
-      {/* כותרת מתקפלת */}
+    <div className="mt-10 mb-8 scroll-mt-6" id="consultation-section" ref={sectionRef}>
+      {/* כותרת — כרטיס מעוצב */}
       <button
         onClick={() => setIsOpen(!isOpen)}
-        className="w-full flex items-center justify-between p-4 rounded-t-lg bg-sky-50 hover:bg-sky-100 border border-sky-200 transition-colors"
+        className="w-full rounded-xl border border-sky-200 bg-gradient-to-l from-sky-50 to-white p-5 shadow-sm hover:shadow-md transition-all"
       >
-        <div className="flex items-center gap-2">
-          {isOpen ? (
-            <ChevronDown className="h-4 w-4 text-sky-600" />
-          ) : (
-            <ChevronLeft className="h-4 w-4 text-sky-600" />
-          )}
-          <span className="font-semibold text-sky-800">פונים לייעוץ</span>
-          <Badge className="bg-sky-100 text-sky-700 border border-sky-300">
-            {clients.length}
-          </Badge>
+        <div className="flex items-center justify-between">
+          <div className="flex items-center gap-3">
+            <div className="flex items-center justify-center h-10 w-10 rounded-full bg-sky-100">
+              <Users className="h-5 w-5 text-sky-600" />
+            </div>
+            <div className="text-right">
+              <div className="flex items-center gap-2">
+                <span className="font-bold text-sky-900">פונים לייעוץ</span>
+                <Badge className="bg-sky-500 text-white border-0 text-xs">
+                  {clients.length}
+                </Badge>
+              </div>
+              <p className="text-xs text-sky-600 mt-0.5">
+                לחץ לצפייה בפונים מזדמנים
+              </p>
+            </div>
+          </div>
+          <div className="flex items-center gap-1 text-sky-500">
+            <span className="text-xs">{isOpen ? "הסתר" : "הצג"}</span>
+            {isOpen ? (
+              <ChevronDown className="h-4 w-4" />
+            ) : (
+              <ChevronLeft className="h-4 w-4" />
+            )}
+          </div>
         </div>
-        <span className="text-xs text-sky-600">{isOpen ? "הסתר" : "הצג"}</span>
       </button>
 
       {/* תוכן */}
       {isOpen && (
-        <div className="border border-t-0 border-sky-200 rounded-b-lg p-4 space-y-4 bg-white">
+        <div className="mt-3 border border-sky-100 rounded-xl p-4 space-y-4 bg-white shadow-sm">
           {/* חיפוש */}
           <div className="relative max-w-xs">
             <Search className="absolute right-3 top-1/2 -translate-y-1/2 h-4 w-4 text-muted-foreground" />
@@ -146,7 +182,7 @@ export function ConsultationClientsSection({ clients }: ConsultationClientsSecti
 
                     {/* פגישות מתחת לכרטיס */}
                     {isExpanded && (
-                      <div className="mt-2 space-y-2">
+                      <div className="mt-2 space-y-2" ref={expandedRef}>
                         {client.sessions.length > 0 ? (
                           client.sessions.map((session) => (
                             <div
@@ -214,9 +250,9 @@ export function ConsultationClientsSection({ clients }: ConsultationClientsSecti
                                     </Link>
                                   </DropdownMenuItem>
                                   <DropdownMenuItem asChild>
-                                    <Link href={`/dashboard/sessions/${session.id}`}>
-                                      <Info className="h-3.5 w-3.5 ml-2" />
-                                      פרטי פגישה
+                                    <Link href={`/dashboard/calendar?date=${format(new Date(session.startTime), "yyyy-MM-dd")}&highlight=${session.id}`}>
+                                      <Calendar className="h-3.5 w-3.5 ml-2" />
+                                      הצג ביומן
                                     </Link>
                                   </DropdownMenuItem>
                                 </DropdownMenuContent>

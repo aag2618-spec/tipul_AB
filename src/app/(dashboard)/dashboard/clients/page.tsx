@@ -155,13 +155,23 @@ export default async function ClientsPage({ searchParams }: PageProps) {
         </Link>
 
         <Link href="/dashboard/clients?status=ARCHIVED">
-          <Badge 
+          <Badge
             variant={activeStatus === "ARCHIVED" ? "default" : "outline"}
             className={`cursor-pointer text-sm py-2 px-4 ${activeStatus === "ARCHIVED" ? "bg-slate-500" : "hover:bg-muted"}`}
           >
             ארכיון ({counts.archived})
           </Badge>
         </Link>
+
+        {quickClients.length > 0 && (
+          <a
+            href="#consultation-section"
+            className="inline-flex items-center gap-1.5 cursor-pointer text-sm font-semibold py-2 px-5 rounded-full bg-gradient-to-l from-sky-500 to-sky-600 text-white shadow-sm hover:from-sky-400 hover:to-sky-500 transition-all"
+          >
+            <Users className="h-3.5 w-3.5" />
+            פונים לייעוץ ({quickClients.length})
+          </a>
+        )}
       </div>
 
       {/* Current filter indicator */}
