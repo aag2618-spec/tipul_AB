@@ -93,6 +93,24 @@ export function NotificationsTab() {
   const [isLoading, setIsLoading] = useState(true);
   const [isSaving, setIsSaving] = useState(false);
 
+  // גלילה אוטומטית — מאזין ללחיצות על כותרות אקורדיון
+  const containerRef = useRef<HTMLDivElement>(null);
+  useEffect(() => {
+    const container = containerRef.current;
+    if (!container) return;
+    const handleClick = (e: Event) => {
+      const trigger = (e.target as HTMLElement).closest('[data-slot="accordion-trigger"]');
+      if (!trigger) return;
+      const item = trigger.closest('[data-slot="accordion-item"]');
+      if (!item || item.getAttribute('data-state') !== 'closed') return;
+      setTimeout(() => {
+        item.scrollIntoView({ behavior: 'smooth', block: 'start' });
+      }, 250);
+    };
+    container.addEventListener('click', handleClick);
+    return () => container.removeEventListener('click', handleClick);
+  }, []);
+
   const loadSettings = () => {
     Promise.all([
       fetch("/api/user/notification-settings", { cache: "no-store" }).then(r => r.ok ? r.json() : []),
@@ -163,25 +181,6 @@ export function NotificationsTab() {
       </div>
     );
   }
-
-  // גלילה אוטומטית — מאזין ללחיצות על כותרות אקורדיון, בלי לגעת ב-onValueChange
-  const containerRef = useRef<HTMLDivElement>(null);
-  useEffect(() => {
-    const container = containerRef.current;
-    if (!container) return;
-    const handleClick = (e: Event) => {
-      const trigger = (e.target as HTMLElement).closest('[data-slot="accordion-trigger"]');
-      if (!trigger) return;
-      const item = trigger.closest('[data-slot="accordion-item"]');
-      if (!item || item.getAttribute('data-state') !== 'closed') return;
-      // הסקשן סגור ועכשיו ייפתח — גולל אליו
-      setTimeout(() => {
-        item.scrollIntoView({ behavior: 'smooth', block: 'start' });
-      }, 250);
-    };
-    container.addEventListener('click', handleClick);
-    return () => container.removeEventListener('click', handleClick);
-  }, []);
 
   return (
     <div className="space-y-6 pb-32" ref={containerRef}>
