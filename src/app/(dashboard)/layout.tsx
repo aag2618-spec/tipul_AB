@@ -1,3 +1,4 @@
+import { Suspense } from "react";
 import { getServerSession } from "next-auth";
 import { redirect } from "next/navigation";
 import { authOptions } from "@/lib/auth";
@@ -23,7 +24,7 @@ export default async function DashboardLayout({
         <AppSidebar user={session.user} />
         <div className="flex flex-1 flex-col">
           <DashboardHeader user={session.user} />
-          <Breadcrumbs />
+          <Suspense><Breadcrumbs /></Suspense>
           <main className="flex-1 p-6 bg-muted/30">
             {children}
           </main>

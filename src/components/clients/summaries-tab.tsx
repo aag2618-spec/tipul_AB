@@ -225,7 +225,7 @@ export function SummariesTab({ clientId, sessions }: SummariesTabProps) {
                         className="flex-1 gap-1.5 bg-primary/10 text-primary border border-primary/20 hover:bg-primary/15 shadow-none"
                         asChild
                       >
-                        <Link href={`/dashboard/sessions/${session.id}`}>
+                        <Link href={`/dashboard/sessions/${session.id}?from=client&clientId=${clientId}`}>
                           <FileText className="h-3.5 w-3.5" />
                           סכם פגישה
                         </Link>
@@ -290,7 +290,7 @@ export function SummariesTab({ clientId, sessions }: SummariesTabProps) {
                     </div>
                     <div className="flex items-center gap-2 mt-3">
                       <Button variant="outline" size="sm" className="flex-1 gap-1.5 text-xs" asChild>
-                        <Link href={`/dashboard/sessions/${session.id}`}>
+                        <Link href={`/dashboard/sessions/${session.id}?from=client&clientId=${clientId}`}>
                           <Eye className="h-3.5 w-3.5" />
                           צפה / ערוך
                         </Link>

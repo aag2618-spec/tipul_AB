@@ -34,7 +34,7 @@ function extractClientName(title: string): string {
 
 function getTaskLink(task: Task): string {
   if (task.type === "WRITE_SUMMARY" && task.relatedEntityId) {
-    return `/dashboard/sessions/${task.relatedEntityId}`;
+    return `/dashboard/sessions/${task.relatedEntityId}?from=tasks`;
   }
   if (task.type === "COLLECT_PAYMENT" && task.relatedEntityId) {
     return `/dashboard/payments?highlight=${task.relatedEntityId}`;

@@ -1,6 +1,6 @@
 "use client";
 
-import { usePathname } from "next/navigation";
+import { usePathname, useSearchParams } from "next/navigation";
 import Link from "next/link";
 import { ChevronLeft, ChevronRight, Home } from "lucide-react";
 import { Button } from "@/components/ui/button";
@@ -47,6 +47,9 @@ const pathNames: Record<string, string> = {
 
 export function Breadcrumbs() {
   const pathname = usePathname();
+  const searchParams = useSearchParams();
+  const fromParam = searchParams.get("from");
+  const clientIdParam = searchParams.get("clientId");
 
   // Don't show on main dashboard
   if (pathname === "/dashboard" || pathname === "/dashboard/") {
@@ -64,6 +67,26 @@ export function Breadcrumbs() {
     isLast: false,
   });
 
+  // אם הגענו מדף אחר (from=tasks / from=client) — להוסיף את המקור לשרשור
+  if (fromParam === "tasks" && pathname.startsWith("/dashboard/sessions/")) {
+    breadcrumbs.push({
+      label: "ממתינים לסיכום",
+      href: "/dashboard/tasks",
+      isLast: false,
+    });
+  } else if (fromParam === "client" && clientIdParam && pathname.startsWith("/dashboard/sessions/")) {
+    breadcrumbs.push({
+      label: "מטופלים",
+      href: "/dashboard/clients",
+      isLast: false,
+    });
+    breadcrumbs.push({
+      label: "כרטיס מטופל",
+      href: `/dashboard/clients/${clientIdParam}`,
+      isLast: false,
+    });
+  }
+
   // נתיבי ביניים שאינם דפים עצמאיים (מופיעים לפני ID ואין להם דף משלהם)
   const intermediateSegments = new Set(["pay", "mark-paid"]);
 
@@ -74,6 +97,11 @@ export function Breadcrumbs() {
 
     // Skip "dashboard" since we already added it
     if (segment === "dashboard") continue;
+
+    // כשיש from — לדלג על "sessions" כי כבר הוספנו את המקור האמיתי (tasks/client)
+    if (fromParam && segment === "sessions" && pathname.startsWith("/dashboard/sessions/")) {
+      continue;
+    }
 
     const isLast = i === segments.length - 1;
 
