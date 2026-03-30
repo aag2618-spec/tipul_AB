@@ -1,7 +1,7 @@
 "use client";
 
 import { useState } from "react";
-import { Download, Eye, BookOpen, Printer, FileText, ClipboardList } from "lucide-react";
+import { Download, Eye, BookOpen, Printer, FileText, ClipboardList, ChevronDown, ChevronUp } from "lucide-react";
 import { Tabs, TabsList, TabsTrigger, TabsContent } from "@/components/ui/tabs";
 
 interface WorksheetData {
@@ -16,6 +16,15 @@ interface WorksheetData {
   therapistInstructions: React.ReactNode;
   worksheetPreview: React.ReactNode;
   examplePreview: React.ReactNode;
+}
+
+interface ApproachCategory {
+  id: string;
+  approach: string;
+  approachHe: string;
+  description: string;
+  color: string;
+  worksheets: WorksheetData[];
 }
 
 const colorMap: Record<
@@ -72,6 +81,19 @@ const colorMap: Record<
     hoverBorder: "hover:border-orange-200",
     tabActiveBorder: "data-[state=active]:border-orange-600",
     tabActiveText: "data-[state=active]:text-orange-700",
+  },
+  emerald: {
+    bg: "bg-emerald-50",
+    border: "border-emerald-200",
+    text: "text-emerald-800",
+    badge: "bg-emerald-100",
+    badgeText: "text-emerald-700",
+    accent: "bg-emerald-600",
+    ring: "ring-emerald-300",
+    hoverBg: "hover:bg-emerald-50",
+    hoverBorder: "hover:border-emerald-200",
+    tabActiveBorder: "data-[state=active]:border-emerald-600",
+    tabActiveText: "data-[state=active]:text-emerald-700",
   },
 };
 
@@ -420,55 +442,156 @@ const actExamplePreview = (
   </div>
 );
 
-/* ═══ רשימת דפי עבודה ═══ */
+/* ═══ Placeholder לדפים חדשים ═══ */
 
-const worksheets: WorksheetData[] = [
+const simplePlaceholder = (title: string, desc: string) => (
+  <div className="space-y-4 text-sm">
+    <div className="rounded-lg bg-gray-50 border border-gray-200 p-4 text-center">
+      <strong className="text-gray-700">{title}</strong>
+    </div>
+    <p className="text-gray-600 leading-relaxed">{desc}</p>
+    <div className="rounded-lg border border-dashed border-gray-300 bg-gray-50 p-6 text-center text-xs text-gray-400">
+      הורידו את הקובץ המלא לצפייה בתוכן המלא עם הדר, לוגו ועיצוב מקצועי
+    </div>
+  </div>
+);
+
+/* ═══ רשימת קטגוריות ודפי עבודה ═══ */
+
+const categories: ApproachCategory[] = [
   {
-    id: "dbt-distress-tolerance",
-    title: "סבילות למצוקה – TIPP",
-    titleEn: "Distress Tolerance",
+    id: "dbt",
     approach: "DBT",
     approachHe: "טיפול דיאלקטי התנהגותי",
-    description: "ארבע טכניקות גוף להורדת עוררות רגשית חריפה: טמפרטורה, פעילות גופנית, נשימה, הרפיית שרירים.",
+    description: "טכניקות ויסות רגשי, סבילות למצוקה ויעילות בין-אישית מגישת DBT של מרשה לינהן.",
     color: "violet",
-    file: "/worksheets/dbt-distress-tolerance-mytipul.html",
-    therapistInstructions: tippTherapistInstructions,
-    worksheetPreview: tippWorksheetPreview,
-    examplePreview: tippExamplePreview,
+    worksheets: [
+      {
+        id: "dbt-distress-tolerance",
+        title: "סבילות למצוקה – TIPP",
+        titleEn: "Distress Tolerance",
+        approach: "DBT",
+        approachHe: "טיפול דיאלקטי התנהגותי",
+        description: "ארבע טכניקות גוף להורדת עוררות רגשית חריפה: טמפרטורה, פעילות גופנית, נשימה, הרפיית שרירים.",
+        color: "violet",
+        file: "/worksheets/dbt-distress-tolerance-mytipul.html",
+        therapistInstructions: tippTherapistInstructions,
+        worksheetPreview: tippWorksheetPreview,
+        examplePreview: tippExamplePreview,
+      },
+      {
+        id: "dbt-opposite-action",
+        title: "פעולה הפוכה",
+        titleEn: "Opposite Action",
+        approach: "DBT",
+        approachHe: "טיפול דיאלקטי התנהגותי",
+        description: "כשהרגש דוחף לכיוון אחד — לעשות את ההפך. זיהוי רגש, בדיקת עובדות, דחף מול הפך.",
+        color: "violet",
+        file: "/worksheets/dbt-opposite-action-mytipul.html",
+        therapistInstructions: simplePlaceholder("הוראות למטפל — פעולה הפוכה", "פעולה הפוכה היא מיומנות DBT לוויסות רגשי: זיהוי הרגש והדחף, בדיקת עובדות, ובחירה לפעול הפוך. כולל טבלת רגש-דחף-הפך, התאמות לגיל ואזהרות."),
+        worksheetPreview: simplePlaceholder("דף עבודה — פעולה הפוכה", "4 שלבים: זיהוי הרגש (עם רשת רגשות לבחירה), בדיקת עובדות, מה הדחף מול מה ההפך, ביצוע ומעקב. כולל תיבות \"איך עושים\" ו\"למה זה עובד\"."),
+        examplePreview: simplePlaceholder("דוגמה ממולאת — פעולה הפוכה", "נועה בת 10, כועסת על חברה שלא הזמינה ליום הולדת. במקום להתעלם — דיברה איתה בשקט. הכעס ירד, קבעו להיפגש."),
+      },
+      {
+        id: "dbt-emotion-regulation",
+        title: "ויסות רגשי",
+        titleEn: "Emotion Regulation",
+        approach: "DBT",
+        approachHe: "טיפול דיאלקטי התנהגותי",
+        description: "כלים לזיהוי רגשות, הבנת המנגנון שלהם, והפחתת פגיעות רגשית.",
+        color: "violet",
+        file: "/worksheets/dbt-emotion-regulation-mytipul.html",
+        therapistInstructions: simplePlaceholder("הוראות למטפל — ויסות רגשי", "דף עבודה לזיהוי רגשות, הבנת המנגנון שלהם, וכלים להפחתת פגיעות רגשית מגישת DBT."),
+        worksheetPreview: simplePlaceholder("דף עבודה — ויסות רגשי", "מיפוי רגשות, זיהוי טריגרים, אסטרטגיות ויסות ומעקב."),
+        examplePreview: simplePlaceholder("דוגמה ממולאת — ויסות רגשי", "דוגמה ממולאת עם תרחיש ריאליסטי להמחשת השימוש בדף."),
+      },
+    ],
   },
   {
-    id: "cbt-thought-record",
-    title: "רישום מחשבות",
-    titleEn: "Thought Record",
+    id: "cbt",
     approach: "CBT",
     approachHe: "טיפול קוגניטיבי־התנהגותי",
-    description:
-      "גליון רישום מחשבות בעברית קלינית: הוראות למטפל, דף מילוי ודוגמה ממולאת — מותאם להדפסה.",
+    description: "כלים לזיהוי ושינוי דפוסי חשיבה שליליים — רישום מחשבות, בחינת ראיות ומחשבה מאוזנת.",
     color: "teal",
-    file: "/worksheets/cbt-thought-record-mytipul.html",
-    therapistInstructions: cbtTherapistInstructions,
-    worksheetPreview: cbtWorksheetPreview,
-    examplePreview: cbtExamplePreview,
+    worksheets: [
+      {
+        id: "cbt-thought-record",
+        title: "רישום מחשבות",
+        titleEn: "Thought Record",
+        approach: "CBT",
+        approachHe: "טיפול קוגניטיבי־התנהגותי",
+        description: "גליון רישום מחשבות בעברית קלינית: הוראות למטפל, דף מילוי ודוגמה ממולאת — מותאם להדפסה.",
+        color: "teal",
+        file: "/worksheets/cbt-thought-record-mytipul.html",
+        therapistInstructions: cbtTherapistInstructions,
+        worksheetPreview: cbtWorksheetPreview,
+        examplePreview: cbtExamplePreview,
+      },
+    ],
   },
   {
-    id: "act-values-identification",
-    title: "זיהוי ערכים",
-    titleEn: "Values Identification",
+    id: "act",
     approach: "ACT",
     approachHe: "טיפול באמצעות קבלה ומחויבות",
-    description:
-      "דף עבודה לזיהוי ערכים אישיים ב-8 תחומי חיים, בדיקת פערים בין ערכים להתנהגות, ובחירת צעד קטן לשינוי — מגישת ACT.",
+    description: "תרגול קבלה, זיהוי ערכים, התנתקות ממחשבות ומחויבות לפעולה משמעותית.",
     color: "orange",
-    file: "/worksheets/act-values-identification-mytipul.html",
-    therapistInstructions: actTherapistInstructions,
-    worksheetPreview: actWorksheetPreview,
-    examplePreview: actExamplePreview,
+    worksheets: [
+      {
+        id: "act-values-identification",
+        title: "זיהוי ערכים",
+        titleEn: "Values Identification",
+        approach: "ACT",
+        approachHe: "טיפול באמצעות קבלה ומחויבות",
+        description: "דף עבודה לזיהוי ערכים אישיים ב-8 תחומי חיים, בדיקת פערים בין ערכים להתנהגות, ובחירת צעד קטן לשינוי.",
+        color: "orange",
+        file: "/worksheets/act-values-identification-mytipul.html",
+        therapistInstructions: actTherapistInstructions,
+        worksheetPreview: actWorksheetPreview,
+        examplePreview: actExamplePreview,
+      },
+      {
+        id: "act-cognitive-defusion",
+        title: "התנתקות קוגניטיבית",
+        titleEn: "Cognitive Defusion",
+        approach: "ACT",
+        approachHe: "טיפול באמצעות קבלה ומחויבות",
+        description: "טכניקות להתנתקות ממחשבות — ראייה של מחשבות כמחשבות, לא כעובדות.",
+        color: "orange",
+        file: "/worksheets/act-cognitive-defusion-mytipul.html",
+        therapistInstructions: simplePlaceholder("הוראות למטפל — התנתקות קוגניטיבית", "טכניקות ACT להתנתקות ממחשבות: ראייה של מחשבות כמחשבות ולא כעובדות, תרגילי דמיון ומטאפורות."),
+        worksheetPreview: simplePlaceholder("דף עבודה — התנתקות קוגניטיבית", "7 טכניקות התנתקות מעשיות עם הסבר והנחיה לכל אחת."),
+        examplePreview: simplePlaceholder("דוגמה ממולאת — התנתקות קוגניטיבית", "דוגמה ממולאת עם תרחיש ריאליסטי להמחשת השימוש בטכניקות."),
+      },
+    ],
+  },
+  {
+    id: "mindfulness",
+    approach: "Mindfulness",
+    approachHe: "קשיבות",
+    description: "תרגולי קשיבות להגברת מודעות לרגע הנוכחי — STOP, חמשת החושים, סריקת גוף.",
+    color: "emerald",
+    worksheets: [
+      {
+        id: "mindfulness-present-moment",
+        title: "נוכחות ברגע",
+        titleEn: "Present Moment Awareness",
+        approach: "Mindfulness",
+        approachHe: "קשיבות",
+        description: "שלושה תרגילי קשיבות: STOP, חמשת החושים (5-4-3-2-1) וסריקת גוף — עם הנחיות נשימה מדויקות.",
+        color: "emerald",
+        file: "/worksheets/mindfulness-present-moment-mytipul.html",
+        therapistInstructions: simplePlaceholder("הוראות למטפל — נוכחות ברגע", "שלוש טכניקות קשיבות: STOP (עצירה מודעת עם נשימה 4-2-6), חמשת החושים (הארקה 5-4-3-2-1), וסריקת גוף (5 אזורים). כולל טבלת טכניקות, התאמות לגיל ואזהרות."),
+        worksheetPreview: simplePlaceholder("דף עבודה — נוכחות ברגע", "3 תרגילים עם תיבות \"איך עושים\" ו\"למה זה עובד\", הנחיות נשימה מדויקות, וסריקת גוף ב-5 אזורים."),
+        examplePreview: simplePlaceholder("דוגמה ממולאת — נוכחות ברגע", "יוסי בן 11, לחץ לפני מבחן. עשה STOP עם נשימות 4-2-6, חמשת החושים בכיתה, וסריקת גוף — הכתפיים ירדו, הנשימה התעמקה."),
+      },
+    ],
   },
 ];
 
 /* ═══ קומפוננטה ═══ */
 
 export default function WorksheetsPage() {
+  const [openCategory, setOpenCategory] = useState<string | null>(null);
   const [openWorksheet, setOpenWorksheet] = useState<string | null>(null);
 
   const handleDownload = (file: string) => {
@@ -489,7 +612,18 @@ export default function WorksheetsPage() {
     }
   };
 
-  const activeWs = worksheets.find((ws) => ws.id === openWorksheet);
+  const toggleCategory = (catId: string) => {
+    if (openCategory === catId) {
+      setOpenCategory(null);
+      setOpenWorksheet(null);
+    } else {
+      setOpenCategory(catId);
+      setOpenWorksheet(null);
+    }
+  };
+
+  const activeCat = categories.find((cat) => cat.id === openCategory);
+  const activeWs = activeCat?.worksheets.find((ws) => ws.id === openWorksheet);
   const activeColor = activeWs ? colorMap[activeWs.color] : null;
 
   return (
@@ -507,105 +641,145 @@ export default function WorksheetsPage() {
         </div>
       </div>
 
-      {/* Cards Grid */}
-      <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-4">
-        {worksheets.map((ws) => {
-          const c = colorMap[ws.color];
-          const isOpen = openWorksheet === ws.id;
+      {/* Category Cards Grid */}
+      <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-4">
+        {categories.map((cat) => {
+          const c = colorMap[cat.color];
+          const isOpen = openCategory === cat.id;
 
           return (
             <button
-              key={ws.id}
-              onClick={() => setOpenWorksheet(isOpen ? null : ws.id)}
+              key={cat.id}
+              onClick={() => toggleCategory(cat.id)}
               className={`group relative text-right rounded-xl border-2 p-4 transition-all duration-200 cursor-pointer ${
                 isOpen
                   ? `${c.border} ${c.bg} shadow-lg ring-2 ring-offset-1 ${c.ring}`
                   : `border-gray-200 bg-white ${c.hoverBg} ${c.hoverBorder} hover:shadow-md`
               }`}
             >
-              {/* Accent top bar */}
               <div className={`absolute top-0 right-0 left-0 h-1 rounded-t-xl ${c.accent}`} />
 
-              {/* Badge */}
               <span className={`inline-flex items-center rounded-full px-2.5 py-0.5 text-[10px] font-bold ${c.badge} ${c.badgeText} mb-2`}>
-                {ws.approach} &bull; {ws.approachHe}
+                {cat.approach} &bull; {cat.approachHe}
               </span>
 
-              {/* Title */}
-              <h3 className={`text-base font-bold ${c.text} mb-0.5`}>{ws.title}</h3>
-              <p className="text-[11px] text-muted-foreground mb-2">{ws.titleEn}</p>
+              <h3 className={`text-base font-bold ${c.text} mb-1`}>{cat.approachHe}</h3>
 
-              {/* Description */}
-              <p className="text-xs leading-relaxed text-muted-foreground line-clamp-2">{ws.description}</p>
+              <span className="inline-flex items-center gap-1 text-[11px] text-muted-foreground mb-2">
+                <FileText className="h-3 w-3" />
+                {cat.worksheets.length} {cat.worksheets.length === 1 ? "דף עבודה" : "דפי עבודה"}
+              </span>
 
-              {/* Open indicator */}
+              <p className="text-xs leading-relaxed text-muted-foreground line-clamp-2">{cat.description}</p>
+
               <div className={`mt-3 flex items-center gap-1.5 text-xs font-medium ${isOpen ? c.badgeText : "text-gray-400"}`}>
-                <Eye className="h-3.5 w-3.5" />
-                {isOpen ? "תצוגה פתוחה" : "לחצו לתצוגה מקדימה"}
+                {isOpen ? <ChevronUp className="h-3.5 w-3.5" /> : <ChevronDown className="h-3.5 w-3.5" />}
+                {isOpen ? "סגירה" : "פתיחה"}
               </div>
             </button>
           );
         })}
       </div>
 
-      {/* Tabs Preview — full width, below grid */}
-      {activeWs && activeColor && (
-        <div className="rounded-xl border border-gray-200 bg-white shadow-lg overflow-hidden animate-in slide-in-from-top-2 duration-200">
-          <p className="border-b border-amber-100 bg-amber-50/60 px-4 py-2 text-xs text-muted-foreground print:hidden">
-            טיפ להדפסה: בחלון ההדפסה כבו &quot;כותרת ותחתית&quot; (Headers and footers) כדי שלא
-            יודפסו כתובת הקובץ ומספרי עמודים בשוליים.
-          </p>
-          <Tabs defaultValue="instructions" dir="rtl">
-            <div className="flex items-center justify-between border-b bg-gray-50 px-1">
-              <TabsList className="flex-1 justify-start rounded-none border-b-0 bg-transparent p-0 h-auto">
-                <TabsTrigger
-                  value="instructions"
-                  className={`flex-1 gap-2 rounded-none border-b-2 border-transparent py-3 data-[state=active]:bg-white data-[state=active]:shadow-none ${activeColor.tabActiveBorder} ${activeColor.tabActiveText}`}
-                >
-                  <ClipboardList className="h-4 w-4" />
-                  הוראות למטפל
-                </TabsTrigger>
-                <TabsTrigger
-                  value="worksheet"
-                  className={`flex-1 gap-2 rounded-none border-b-2 border-transparent py-3 data-[state=active]:bg-white data-[state=active]:shadow-none ${activeColor.tabActiveBorder} ${activeColor.tabActiveText}`}
-                >
-                  <FileText className="h-4 w-4" />
-                  דף עבודה
-                </TabsTrigger>
-                <TabsTrigger
-                  value="example"
-                  className={`flex-1 gap-2 rounded-none border-b-2 border-transparent py-3 data-[state=active]:bg-white data-[state=active]:shadow-none ${activeColor.tabActiveBorder} ${activeColor.tabActiveText}`}
-                >
-                  <BookOpen className="h-4 w-4" />
-                  דוגמה ממולאת
-                </TabsTrigger>
-              </TabsList>
-              <div className="flex items-center gap-1 px-2">
-                <button
-                  onClick={() => handleDownload(activeWs.file)}
-                  className={`flex items-center gap-1.5 rounded-lg px-3 py-1.5 text-xs font-semibold transition-opacity hover:opacity-80 ${activeColor.badge} ${activeColor.badgeText}`}
-                  title="הורדה"
-                >
-                  <Download className="h-3.5 w-3.5" />
-                  הורדה
-                </button>
-                <button
-                  onClick={() => handlePrint(activeWs.file)}
-                  className={`flex items-center gap-1.5 rounded-lg px-3 py-1.5 text-xs font-semibold transition-opacity hover:opacity-80 ${activeColor.badge} ${activeColor.badgeText}`}
-                  title="הדפסה"
-                >
-                  <Printer className="h-3.5 w-3.5" />
-                  הדפסה
-                </button>
-              </div>
-            </div>
+      {/* Expanded Category */}
+      {activeCat && (
+        <div className="space-y-4 animate-in slide-in-from-top-2 duration-200">
+          {/* Category Header */}
+          <div className="flex items-center gap-2">
+            <span className={`inline-flex items-center rounded-full px-3 py-1 text-xs font-bold ${colorMap[activeCat.color].badge} ${colorMap[activeCat.color].badgeText}`}>
+              {activeCat.approach}
+            </span>
+            <h2 className="text-lg font-bold">{activeCat.approachHe}</h2>
+          </div>
 
-            <div className="max-h-[600px] overflow-y-auto p-5">
-              <TabsContent value="instructions">{activeWs.therapistInstructions}</TabsContent>
-              <TabsContent value="worksheet">{activeWs.worksheetPreview}</TabsContent>
-              <TabsContent value="example">{activeWs.examplePreview}</TabsContent>
+          {/* Worksheet Mini Cards */}
+          <div className="grid grid-cols-1 sm:grid-cols-2 md:grid-cols-3 gap-3">
+            {activeCat.worksheets.map((ws) => {
+              const c = colorMap[ws.color];
+              const isSelected = openWorksheet === ws.id;
+
+              return (
+                <button
+                  key={ws.id}
+                  onClick={() => setOpenWorksheet(isSelected ? null : ws.id)}
+                  className={`text-right rounded-lg border-2 p-3 transition-all duration-150 cursor-pointer ${
+                    isSelected
+                      ? `${c.border} ${c.bg} shadow-md ring-1 ring-offset-1 ${c.ring}`
+                      : `border-gray-200 bg-white ${c.hoverBg} ${c.hoverBorder} hover:shadow-sm`
+                  }`}
+                >
+                  <h4 className={`text-sm font-bold ${c.text}`}>{ws.title}</h4>
+                  <p className="text-[10px] text-muted-foreground mb-1">{ws.titleEn}</p>
+                  <p className="text-xs text-muted-foreground line-clamp-1">{ws.description}</p>
+                  <div className={`mt-2 flex items-center gap-1 text-[10px] font-medium ${isSelected ? c.badgeText : "text-gray-400"}`}>
+                    <Eye className="h-3 w-3" />
+                    {isSelected ? "תצוגה פתוחה" : "לחצו לתצוגה"}
+                  </div>
+                </button>
+              );
+            })}
+          </div>
+
+          {/* Tabs Preview Panel */}
+          {activeWs && activeColor && (
+            <div className="rounded-xl border border-gray-200 bg-white shadow-lg overflow-hidden animate-in slide-in-from-top-2 duration-200">
+              <p className="border-b border-amber-100 bg-amber-50/60 px-4 py-2 text-xs text-muted-foreground print:hidden">
+                טיפ להדפסה: בחלון ההדפסה כבו &quot;כותרת ותחתית&quot; (Headers and footers) כדי שלא
+                יודפסו כתובת הקובץ ומספרי עמודים בשוליים.
+              </p>
+              <Tabs key={activeWs.id} defaultValue="instructions" dir="rtl">
+                <div className="flex items-center justify-between border-b bg-gray-50 px-1">
+                  <TabsList className="flex-1 justify-start rounded-none border-b-0 bg-transparent p-0 h-auto">
+                    <TabsTrigger
+                      value="instructions"
+                      className={`flex-1 gap-2 rounded-none border-b-2 border-transparent py-3 data-[state=active]:bg-white data-[state=active]:shadow-none ${activeColor.tabActiveBorder} ${activeColor.tabActiveText}`}
+                    >
+                      <ClipboardList className="h-4 w-4" />
+                      הוראות למטפל
+                    </TabsTrigger>
+                    <TabsTrigger
+                      value="worksheet"
+                      className={`flex-1 gap-2 rounded-none border-b-2 border-transparent py-3 data-[state=active]:bg-white data-[state=active]:shadow-none ${activeColor.tabActiveBorder} ${activeColor.tabActiveText}`}
+                    >
+                      <FileText className="h-4 w-4" />
+                      דף עבודה
+                    </TabsTrigger>
+                    <TabsTrigger
+                      value="example"
+                      className={`flex-1 gap-2 rounded-none border-b-2 border-transparent py-3 data-[state=active]:bg-white data-[state=active]:shadow-none ${activeColor.tabActiveBorder} ${activeColor.tabActiveText}`}
+                    >
+                      <BookOpen className="h-4 w-4" />
+                      דוגמה ממולאת
+                    </TabsTrigger>
+                  </TabsList>
+                  <div className="flex items-center gap-1 px-2">
+                    <button
+                      onClick={() => handleDownload(activeWs.file)}
+                      className={`flex items-center gap-1.5 rounded-lg px-3 py-1.5 text-xs font-semibold transition-opacity hover:opacity-80 ${activeColor.badge} ${activeColor.badgeText}`}
+                      title="הורדה"
+                    >
+                      <Download className="h-3.5 w-3.5" />
+                      הורדה
+                    </button>
+                    <button
+                      onClick={() => handlePrint(activeWs.file)}
+                      className={`flex items-center gap-1.5 rounded-lg px-3 py-1.5 text-xs font-semibold transition-opacity hover:opacity-80 ${activeColor.badge} ${activeColor.badgeText}`}
+                      title="הדפסה"
+                    >
+                      <Printer className="h-3.5 w-3.5" />
+                      הדפסה
+                    </button>
+                  </div>
+                </div>
+
+                <div className="max-h-[600px] overflow-y-auto p-5">
+                  <TabsContent value="instructions">{activeWs.therapistInstructions}</TabsContent>
+                  <TabsContent value="worksheet">{activeWs.worksheetPreview}</TabsContent>
+                  <TabsContent value="example">{activeWs.examplePreview}</TabsContent>
+                </div>
+              </Tabs>
             </div>
-          </Tabs>
+          )}
         </div>
       )}
     </div>
