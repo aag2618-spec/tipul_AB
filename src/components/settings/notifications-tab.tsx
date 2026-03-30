@@ -1,6 +1,6 @@
 "use client";
 
-import { useState, useEffect } from "react";
+import { useState, useEffect, useRef } from "react";
 import { Button } from "@/components/ui/button";
 import { Loader2, Save } from "lucide-react";
 import { toast } from "sonner";
@@ -164,9 +164,23 @@ export function NotificationsTab() {
     );
   }
 
+  const prevValuesRef = useRef<string[]>(["notifications", "sms", "automation"]);
+
+  const handleAccordionChange = (values: string[]) => {
+    // מוצא מה חדש — מה נפתח עכשיו שלא היה פתוח קודם
+    const newlyOpened = values.find(v => !prevValuesRef.current.includes(v));
+    prevValuesRef.current = values;
+    if (newlyOpened) {
+      setTimeout(() => {
+        const el = document.querySelector(`[value="${newlyOpened}"]`);
+        if (el) el.scrollIntoView({ behavior: "smooth", block: "start" });
+      }, 200);
+    }
+  };
+
   return (
     <div className="space-y-6 pb-32">
-      <Accordion type="multiple" defaultValue={["notifications", "sms", "automation"]} className="space-y-4">
+      <Accordion type="multiple" defaultValue={["notifications", "sms", "automation"]} className="space-y-4" onValueChange={handleAccordionChange}>
         <NotificationChannelsSection
           notifSettings={notifSettings}
           setNotifSettings={setNotifSettings}
