@@ -8,6 +8,9 @@ import {
   XCircle,
   Eye,
   CheckCircle2,
+  BookOpen,
+  FolderOpen,
+  PenLine,
 } from "lucide-react";
 import { format } from "date-fns";
 import { he } from "date-fns/locale";
@@ -25,6 +28,7 @@ interface Session {
   cancellationReason?: string | null;
   cancelledAt?: string | null;
   sessionNote?: string | null;
+  hasPrepReady?: boolean;
   payment?: { id: string; status: string } | null;
   client?: {
     id: string;
@@ -149,6 +153,11 @@ export function SessionCard({
             {format(new Date(s.startTime), "HH:mm")} - {format(new Date(s.endTime), "HH:mm")}
           </span>
         </div>
+        {showCancel && s.hasPrepReady && (
+          <Badge variant="outline" className="text-[10px] px-1.5 py-0 h-5 mt-1.5 font-normal bg-emerald-100 text-emerald-700 border-emerald-400 w-fit">
+            ✓ הכנה מוכנה
+          </Badge>
+        )}
       </div>
 
       {s.cancellationReason && !showCancel && (
@@ -191,37 +200,69 @@ export function SessionCard({
               דחה
             </Button>
           </>
-        ) : (
+        ) : showCancel ? (
+          /* פגישות קרובות — "התכונן" + "תיק מטופל" + "ביטול" */
           <>
-            {(!showCancel || isWithinWeek(s.startTime)) && (
+            <Button
+              variant="outline"
+              size="sm"
+              className="flex-1 h-8 text-xs border-muted-foreground/10 hover:bg-muted/30"
+              asChild
+            >
+              <Link href={`/dashboard/sessions/${s.id}`}>
+                <BookOpen className="h-3 w-3 ml-1" />
+                התכונן
+              </Link>
+            </Button>
+            {s.client && (
               <Button
                 variant="outline"
                 size="sm"
                 className="flex-1 h-8 text-xs border-muted-foreground/10 hover:bg-muted/30"
                 asChild
               >
-                <Link href={`/dashboard/sessions/${s.id}`}>
-                  <Eye className="h-3 w-3 ml-1" />
-                  פרטים
+                <Link href={`/dashboard/clients/${s.client.id}`}>
+                  <FolderOpen className="h-3 w-3 ml-1" />
+                  תיק מטופל
                 </Link>
               </Button>
             )}
-            {showCancel && (
-              <Button
-                type="button"
-                variant="ghost"
-                size="sm"
-                className="h-8 text-xs text-muted-foreground/60 hover:text-red-500 hover:bg-red-50/50"
-                onClick={(e) => {
-                  e.stopPropagation();
-                  onCancelClick(s);
-                }}
-              >
-                <XCircle className="h-3.5 w-3.5 ml-1" />
-                ביטול
-              </Button>
-            )}
+            <Button
+              type="button"
+              variant="ghost"
+              size="sm"
+              className="h-8 text-xs text-muted-foreground/60 hover:text-red-500 hover:bg-red-50/50"
+              onClick={(e) => {
+                e.stopPropagation();
+                onCancelClick(s);
+              }}
+            >
+              <XCircle className="h-3.5 w-3.5 ml-1" />
+              ביטול
+            </Button>
           </>
+        ) : (
+          /* היסטוריה — "כתוב סיכום" / "צפה בסיכום" */
+          <Button
+            variant="outline"
+            size="sm"
+            className="flex-1 h-8 text-xs border-muted-foreground/10 hover:bg-muted/30"
+            asChild
+          >
+            <Link href={`/dashboard/sessions/${s.id}`}>
+              {s.sessionNote ? (
+                <>
+                  <Eye className="h-3 w-3 ml-1" />
+                  צפה בסיכום
+                </>
+              ) : (
+                <>
+                  <PenLine className="h-3 w-3 ml-1" />
+                  כתוב סיכום
+                </>
+              )}
+            </Link>
+          </Button>
         )}
       </div>
     </div>

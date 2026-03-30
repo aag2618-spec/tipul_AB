@@ -322,6 +322,7 @@ export default function SessionDetailPage({
 
   const hasTranscription = session.recordings?.some(r => r.transcription);
   const analysis = session.recordings?.[0]?.transcription?.analysis;
+  const isFutureSession = new Date(session.startTime) > new Date() && (session.status === "SCHEDULED" || session.status === "PENDING_APPROVAL");
 
   return (
     <div className="space-y-6 animate-fade-in">
@@ -380,8 +381,8 @@ export default function SessionDetailPage({
         </div>
       )}
 
-      {/* סיכום טיפול + ניתוח AI */}
-      <div className="mt-6">
+      {/* סיכום טיפול + ניתוח AI — רק לפגישות שכבר עברו */}
+      {!isFutureSession && <div className="mt-6">
           <div className="grid gap-6 lg:grid-cols-2">
             {/* Left side - Note Editor */}
             <Card>
@@ -846,7 +847,7 @@ export default function SessionDetailPage({
               )}
             </Card>
           </div>
-        </div>
+        </div>}
 
 
     </div>
