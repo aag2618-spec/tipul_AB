@@ -1,7 +1,7 @@
 "use client";
 
 import { useState, useEffect } from "react";
-import { useParams, useRouter } from "next/navigation";
+import { useParams } from "next/navigation";
 import { Card, CardContent, CardHeader, CardTitle, CardDescription } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
 import { Badge } from "@/components/ui/badge";
@@ -45,7 +45,6 @@ interface Client {
 
 export default function AllSummariesPage() {
   const params = useParams();
-  const router = useRouter();
   const clientId = params.id as string;
   
   const [client, setClient] = useState<Client | null>(null);
@@ -148,14 +147,6 @@ export default function AllSummariesPage() {
       {/* Header */}
       <div className="flex items-center justify-between">
         <div>
-          <div className="flex items-center gap-2 mb-2">
-            <Button variant="ghost" size="sm" asChild>
-              <Link href={`/dashboard/clients/${clientId}`}>
-                <ChevronRight className="h-4 w-4 ml-1" />
-                חזור לתיק המטופל
-              </Link>
-            </Button>
-          </div>
           <h1 className="text-3xl font-bold">
             כל הסיכומים - {client.firstName} {client.lastName}
           </h1>

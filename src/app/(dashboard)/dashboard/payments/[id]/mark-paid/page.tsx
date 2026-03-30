@@ -9,7 +9,7 @@ import { Label } from "@/components/ui/label";
 import { Input } from "@/components/ui/input";
 import { Badge } from "@/components/ui/badge";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
-import { ArrowRight, Loader2, Check, ChevronDown, CreditCard, Wallet, FileText } from "lucide-react";
+import { Loader2, Check, ChevronDown, CreditCard, Wallet, FileText } from "lucide-react";
 import { Checkbox } from "@/components/ui/checkbox";
 import { toast } from "sonner";
 import { format } from "date-fns";
@@ -186,11 +186,6 @@ export default function MarkPaidPage({ params }: { params: Promise<{ id: string 
   return (
     <div className="space-y-6 animate-fade-in max-w-lg mx-auto">
       <div className="flex items-center gap-4">
-        <Button variant="ghost" size="icon" asChild>
-          <Link href="/dashboard/payments">
-            <ArrowRight className="h-5 w-5" />
-          </Link>
-        </Button>
         <div>
           <h1 className="text-2xl font-bold tracking-tight flex items-center gap-2">
             <CreditCard className="h-6 w-6" />
@@ -369,8 +364,8 @@ export default function MarkPaidPage({ params }: { params: Promise<{ id: string 
           </div>
 
           <div className="flex gap-3 pt-4">
-            <Button variant="outline" onClick={() => router.back()} disabled={isSaving}>
-              ביטול
+            <Button variant="outline" asChild disabled={isSaving}>
+              <Link href="/dashboard/payments">ביטול</Link>
             </Button>
             <Button 
               onClick={handleMarkPaid} 

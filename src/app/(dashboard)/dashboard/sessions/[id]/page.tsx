@@ -18,7 +18,7 @@ import {
   AlertDialogHeader,
   AlertDialogTitle,
 } from "@/components/ui/alert-dialog";
-import { ArrowRight, Calendar, Clock, User, Mic, FileText, Save, Loader2, Sparkles, Brain, TrendingUp, TrendingDown, Minus, AlertTriangle, MessageCircleQuestion, Lightbulb, Shield, Target, Users } from "lucide-react";
+import { Calendar, Clock, User, Mic, FileText, Save, Loader2, Sparkles, Brain, TrendingUp, TrendingDown, Minus, AlertTriangle, MessageCircleQuestion, Lightbulb, Shield, Target, Users } from "lucide-react";
 import { format } from "date-fns";
 import { he } from "date-fns/locale";
 import { toast } from "sonner";
@@ -328,9 +328,6 @@ export default function SessionDetailPage({
       {/* Header */}
       <div className="flex items-start justify-between">
         <div className="flex items-center gap-4">
-          <Button variant="ghost" size="icon" onClick={() => router.back()}>
-            <ArrowRight className="h-5 w-5" />
-          </Button>
           <div>
             <h1 className="text-2xl font-bold tracking-tight">
               {session.type === "BREAK" ? "🌊 הפסקה" : `פגישה עם ${session.client?.name || "מטופל"}`}

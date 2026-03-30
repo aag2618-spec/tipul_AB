@@ -2,6 +2,7 @@
 
 import { useState, useEffect, use } from "react";
 import { useRouter } from "next/navigation";
+import Link from "next/link";
 import { Button } from "@/components/ui/button";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Input } from "@/components/ui/input";
@@ -180,9 +181,11 @@ export default function EditQuestionnairePage({
           <h1 className="text-3xl font-bold">ערוך שאלון</h1>
           <p className="text-muted-foreground mt-1">{name}</p>
         </div>
-        <Button variant="outline" onClick={() => router.back()}>
-          <X className="h-4 w-4 ml-2" />
-          ביטול
+        <Button variant="outline" asChild>
+          <Link href="/dashboard/settings/questionnaires">
+            <X className="h-4 w-4 ml-2" />
+            ביטול
+          </Link>
         </Button>
       </div>
 
@@ -388,8 +391,8 @@ export default function EditQuestionnairePage({
       </Card>
 
       <div className="flex items-center justify-between gap-4">
-        <Button variant="outline" onClick={() => router.back()}>
-          ביטול
+        <Button variant="outline" asChild>
+          <Link href="/dashboard/settings/questionnaires">ביטול</Link>
         </Button>
         <Button onClick={handleSave} disabled={saving} size="lg">
           {saving ? (

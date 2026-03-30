@@ -1,7 +1,7 @@
 "use client";
 
 import { useEffect, useState } from "react";
-import { useParams, useRouter } from "next/navigation";
+import { useParams } from "next/navigation";
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
@@ -54,7 +54,6 @@ interface ClientData {
 
 export default function ClientPaymentsPage() {
   const params = useParams();
-  const router = useRouter();
   const clientId = params.id as string;
 
   const [loading, setLoading] = useState(true);
@@ -167,11 +166,6 @@ export default function ClientPaymentsPage() {
       {/* Header */}
       <div className="flex items-center justify-between">
         <div className="flex items-center gap-4">
-          <Button variant="ghost" size="icon" asChild>
-            <Link href={`/dashboard/clients/${clientId}`}>
-              <ArrowRight className="h-5 w-5" />
-            </Link>
-          </Button>
           <div>
             <h1 className="text-2xl font-bold tracking-tight">תשלומים - {client.name}</h1>
             <p className="text-muted-foreground">

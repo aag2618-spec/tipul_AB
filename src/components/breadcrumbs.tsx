@@ -3,7 +3,6 @@
 import { usePathname } from "next/navigation";
 import Link from "next/link";
 import { ChevronLeft, ChevronRight, Home } from "lucide-react";
-import { useRouter } from "next/navigation";
 import { Button } from "@/components/ui/button";
 
 // מיפוי נתיבים לשמות בעברית
@@ -48,7 +47,6 @@ const pathNames: Record<string, string> = {
 
 export function Breadcrumbs() {
   const pathname = usePathname();
-  const router = useRouter();
 
   // Don't show on main dashboard
   if (pathname === "/dashboard" || pathname === "/dashboard/") {
@@ -66,6 +64,9 @@ export function Breadcrumbs() {
     isLast: false,
   });
 
+  // נתיבי ביניים שאינם דפים עצמאיים (מופיעים לפני ID ואין להם דף משלהם)
+  const intermediateSegments = new Set(["pay", "mark-paid"]);
+
   let currentPath = "";
   for (let i = 0; i < segments.length; i++) {
     const segment = segments[i];
@@ -78,10 +79,18 @@ export function Breadcrumbs() {
 
     // Check if it's a dynamic segment (like an ID)
     const isDynamic = segment.match(/^[a-z0-9]{20,}$/i) || segment.match(/^cm[a-z0-9]+$/i);
-    
+
+    // דלג על נתיבי ביניים (כמו pay, mark-paid) שלא מייצגים דף עצמאי
+    if (intermediateSegments.has(segment) && !isLast) {
+      continue;
+    }
+
     if (isDynamic) {
-      // For IDs, show a generic label based on parent
-      const parent = segments[i - 1];
+      // For IDs, show a generic label based on parent (skip intermediate segments)
+      let parent = segments[i - 1];
+      if (intermediateSegments.has(parent)) {
+        parent = segments[i - 2] || parent;
+      }
       const labels: Record<string, string> = {
         clients: "כרטיס מטופל",
         sessions: "פרטי פגישה",
@@ -89,6 +98,7 @@ export function Breadcrumbs() {
         recordings: "הקלטה",
         payments: "תשלום",
         "intake-responses": "תשובת קליטה",
+        intake: "קליטה",
       };
       breadcrumbs.push({
         label: labels[parent] || "פרטים",
@@ -109,14 +119,16 @@ export function Breadcrumbs() {
 
   return (
     <div className="flex items-center gap-1.5 px-6 pt-4 pb-1">
-      {/* Back button */}
+      {/* Back button — navigates to parent page */}
       <Button
         variant="ghost"
         size="sm"
-        onClick={() => router.back()}
+        asChild
         className="h-7 w-7 p-0 ml-2 text-teal-600 hover:text-teal-800 hover:bg-teal-50 dark:text-teal-400 dark:hover:text-teal-200 dark:hover:bg-teal-900/30"
       >
-        <ChevronRight className="h-4 w-4" />
+        <Link href={breadcrumbs.length >= 2 ? breadcrumbs[breadcrumbs.length - 2].href : "/dashboard"}>
+          <ChevronRight className="h-4 w-4" />
+        </Link>
       </Button>
 
       {/* Breadcrumb trail */}

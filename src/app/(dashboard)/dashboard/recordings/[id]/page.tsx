@@ -8,7 +8,7 @@ import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/com
 import { Badge } from "@/components/ui/badge";
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
 import { RichTextEditor } from "@/components/rich-text-editor";
-import { ArrowRight, Loader2, Mic, Clock, User, Play, FileText, Brain, AlertCircle, Download, Trash2, RefreshCw, Pencil, Save } from "lucide-react";
+import { Loader2, Mic, Clock, User, Play, FileText, Brain, AlertCircle, Download, Trash2, RefreshCw, Pencil, Save } from "lucide-react";
 import {
   AlertDialog,
   AlertDialogAction,
@@ -239,11 +239,6 @@ export default function RecordingPage({ params }: { params: Promise<{ id: string
     <div className="space-y-6 animate-fade-in">
       <div className="flex items-center justify-between">
         <div className="flex items-center gap-4">
-          <Button variant="ghost" size="icon" asChild>
-            <Link href="/dashboard/recordings">
-              <ArrowRight className="h-5 w-5" />
-            </Link>
-          </Button>
           <div>
             <div className="flex items-center gap-2">
               <h1 className="text-2xl font-bold tracking-tight">

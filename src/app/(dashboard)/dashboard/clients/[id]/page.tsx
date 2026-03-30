@@ -198,11 +198,6 @@ export default async function ClientPage({
       {/* Header */}
       <div className="flex items-start justify-between">
         <div className="flex items-center gap-4">
-          <Button variant="ghost" size="icon" asChild>
-            <Link href="/dashboard/clients">
-              <ArrowRight className="h-5 w-5" />
-            </Link>
-          </Button>
           <Avatar className="h-16 w-16">
             <AvatarFallback className="bg-primary/10 text-primary text-xl font-medium">
               {getInitials(client.name)}

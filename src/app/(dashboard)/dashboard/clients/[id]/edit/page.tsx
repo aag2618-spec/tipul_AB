@@ -8,7 +8,7 @@ import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/com
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import { Textarea } from "@/components/ui/textarea";
-import { ArrowRight, Loader2, Save, Archive, Clock, UserCheck } from "lucide-react";
+import { Loader2, Save, Archive, Clock, UserCheck } from "lucide-react";
 import { toast } from "sonner";
 
 interface Client {
@@ -133,11 +133,6 @@ export default function EditClientPage({ params }: { params: Promise<{ id: strin
   return (
     <div className="space-y-6 animate-fade-in max-w-3xl mx-auto">
       <div className="flex items-center gap-4">
-        <Button variant="ghost" size="icon" asChild>
-          <Link href={`/dashboard/clients/${id}`}>
-            <ArrowRight className="h-5 w-5" />
-          </Link>
-        </Button>
         <div>
           <h1 className="text-2xl font-bold tracking-tight">עריכת מטופל</h1>
           <p className="text-muted-foreground">{client.firstName} {client.lastName}</p>
@@ -314,8 +309,8 @@ export default function EditClientPage({ params }: { params: Promise<{ id: strin
         </Card>
 
         <div className="flex justify-end gap-3">
-          <Button type="button" variant="outline" onClick={() => router.back()}>
-            ביטול
+          <Button type="button" variant="outline" asChild>
+            <Link href={`/dashboard/clients/${id}`}>ביטול</Link>
           </Button>
           <Button type="submit" disabled={isSaving}>
             {isSaving ? (

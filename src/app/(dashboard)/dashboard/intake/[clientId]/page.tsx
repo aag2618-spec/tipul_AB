@@ -8,7 +8,7 @@ import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/com
 import { Textarea } from "@/components/ui/textarea";
 import { Label } from "@/components/ui/label";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
-import { ArrowRight, Loader2, Save, FileText } from "lucide-react";
+import { Loader2, Save, FileText } from "lucide-react";
 import { toast } from "sonner";
 
 interface Client {
@@ -141,11 +141,6 @@ export default function IntakePage({ params }: { params: Promise<{ clientId: str
     <div className="space-y-6 animate-fade-in max-w-3xl mx-auto">
       <div className="flex items-center justify-between">
         <div className="flex items-center gap-4">
-          <Button variant="ghost" size="icon" asChild>
-            <Link href={`/dashboard/clients/${clientId}`}>
-              <ArrowRight className="h-5 w-5" />
-            </Link>
-          </Button>
           <div>
             <h1 className="text-2xl font-bold tracking-tight">תשאול ראשוני - {client.name}</h1>
             <p className="text-muted-foreground">מלא את פרטי השיחה הראשונית</p>

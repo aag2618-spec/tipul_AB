@@ -5,7 +5,7 @@ import { useRouter } from "next/navigation";
 import { Button } from "@/components/ui/button";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Badge } from "@/components/ui/badge";
-import { Loader2, ArrowRight, Calendar } from "lucide-react";
+import { Loader2, Calendar } from "lucide-react";
 import { toast } from "sonner";
 import { format } from "date-fns";
 import { he } from "date-fns/locale";
@@ -57,7 +57,7 @@ export default function ViewIntakeResponsePage({
         setResponse(data);
       } else {
         toast.error("שגיאה בטעינת השאלון");
-        router.back();
+        router.push("/dashboard/questionnaires");
       }
     } catch (error) {
       console.error("Error fetching response:", error);
@@ -84,9 +84,6 @@ export default function ViewIntakeResponsePage({
   return (
     <div className="space-y-6 max-w-4xl mx-auto">
       <div className="flex items-center gap-4">
-        <Button variant="ghost" size="icon" onClick={() => router.back()}>
-          <ArrowRight className="h-5 w-5" />
-        </Button>
         <div>
           <h1 className="text-2xl font-bold">{response.template.name}</h1>
           <p className="text-muted-foreground">
@@ -134,8 +131,8 @@ export default function ViewIntakeResponsePage({
       </Card>
 
       <div className="flex justify-between">
-        <Button variant="outline" onClick={() => router.back()}>
-          חזור
+        <Button variant="outline" asChild>
+          <Link href="/dashboard/questionnaires">חזור</Link>
         </Button>
         <Button variant="outline" asChild>
           <Link href={`/dashboard/clients/${response.client.id}`}>

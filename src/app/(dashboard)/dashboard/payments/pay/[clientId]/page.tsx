@@ -220,11 +220,6 @@ export default function PayClientPage({ params }: { params: Promise<{ clientId: 
     <div className="space-y-6 animate-fade-in max-w-4xl mx-auto">
       <div className="flex items-center justify-between gap-4">
         <div className="flex items-center gap-4">
-          <Button variant="ghost" size="icon" asChild>
-            <Link href="/dashboard/payments">
-              <ArrowRight className="h-5 w-5" />
-            </Link>
-          </Button>
           <div>
             <h1 className="text-2xl font-bold tracking-tight flex items-center gap-2">
               <CreditCard className="h-6 w-6" />
@@ -540,8 +535,8 @@ export default function PayClientPage({ params }: { params: Promise<{ clientId: 
               <p className="text-3xl font-bold">₪{selectedTotal.toFixed(0)}</p>
             </div>
             <div className="flex gap-3">
-              <Button variant="outline" onClick={() => router.back()}>
-                ביטול
+              <Button variant="outline" asChild>
+                <Link href="/dashboard/payments">ביטול</Link>
               </Button>
               {client.unpaidSessions.length > 0 && (
                 <PayClientDebts

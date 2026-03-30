@@ -9,7 +9,7 @@ import { Textarea } from "@/components/ui/textarea";
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
 import { Checkbox } from "@/components/ui/checkbox";
-import { ArrowRight, Loader2, Save, FileText } from "lucide-react";
+import { Loader2, Save, FileText } from "lucide-react";
 import Link from "next/link";
 import { toast } from "sonner";
 
@@ -233,11 +233,6 @@ function NewClientContent() {
   return (
     <div className="space-y-6 animate-fade-in">
       <div className="flex items-center gap-4">
-        <Button variant="ghost" size="icon" asChild>
-          <Link href="/dashboard/clients">
-            <ArrowRight className="h-5 w-5" />
-          </Link>
-        </Button>
         <div>
           <h1 className="text-2xl font-bold tracking-tight">
             {fromQuickId ? "שדרוג פונה למטופל קבוע" : "מטופל חדש"}

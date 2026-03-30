@@ -7,7 +7,7 @@ import { Button } from "@/components/ui/button";
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
 import { Label } from "@/components/ui/label";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
-import { ArrowRight, Loader2, Save, FileText, Mic } from "lucide-react";
+import { Loader2, Save, FileText, Mic } from "lucide-react";
 import { toast } from "sonner";
 import { RichTextEditor } from "@/components/rich-text-editor";
 import { AudioRecorder } from "@/components/recordings/audio-recorder";
@@ -147,11 +147,6 @@ function NewSessionNoteContent() {
   return (
     <div className="space-y-6 animate-fade-in max-w-4xl mx-auto">
       <div className="flex items-center gap-4">
-        <Button variant="ghost" size="icon" asChild>
-          <Link href="/dashboard/sessions">
-            <ArrowRight className="h-5 w-5" />
-          </Link>
-        </Button>
         <div>
           <h1 className="text-2xl font-bold tracking-tight">סיכום פגישה חדש</h1>
           <p className="text-muted-foreground">כתוב סיכום לפגישה שהסתיימה</p>
@@ -258,8 +253,8 @@ function NewSessionNoteContent() {
         </Card>
 
         <div className="flex justify-end gap-3">
-          <Button type="button" variant="outline" onClick={() => router.back()}>
-            ביטול
+          <Button type="button" variant="outline" asChild>
+            <Link href="/dashboard/sessions">ביטול</Link>
           </Button>
           <Button type="submit" disabled={isSaving || !selectedSession}>
             {isSaving ? (
