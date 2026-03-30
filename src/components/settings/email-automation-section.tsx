@@ -184,9 +184,9 @@ export function EmailAutomationSection({
 
           <div className="space-y-2 rounded-lg border p-4">
             <Label className="text-base font-semibold">ברכת פתיחה</Label>
-            <p className="text-xs text-muted-foreground">השורה הראשונה בכל מייל למטופל. כתוב {"{שם}"} והמערכת תכניס את שם המטופל.</p>
+            <p className="text-xs text-muted-foreground">השורה הראשונה בכל מייל למטופל. כתוב &#123;שם&#125; והמערכת תכניס את שם המטופל.</p>
             <p className="text-xs text-muted-foreground"><strong>ברירת מחדל:</strong> &quot;שלום [שם המטופל],&quot;</p>
-            <p className="text-xs text-muted-foreground"><strong>דוגמה:</strong> &quot;היי {"{שם"},&quot; / &quot;שלום לך {"{שם"},&quot;</p>
+            <p className="text-xs text-muted-foreground"><strong>דוגמה:</strong> &quot;היי &#123;שם&#125;,&quot; / &quot;שלום לך &#123;שם&#125;,&quot;</p>
             <Input
               placeholder='שלום {שם},'
               value={commSettings.customGreeting || ""}
