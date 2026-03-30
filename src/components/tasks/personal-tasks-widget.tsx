@@ -470,8 +470,8 @@ export function PersonalTasksWidget() {
                       openTask(task);
                     }}
                   >
-                    <div onClick={(e) => e.stopPropagation()} title="סמן כהושלם">
-                      <Checkbox className="h-5 w-5 border-2 border-emerald-400 data-[state=checked]:bg-emerald-500 data-[state=checked]:border-emerald-500" onCheckedChange={() => handleComplete(task.id)} />
+                    <div onClick={(e) => e.stopPropagation()} title="סמן כהושלם" className="flex items-center justify-center shrink-0">
+                      <Checkbox className="h-6 w-6 rounded-md border-[2.5px] border-emerald-500 data-[state=checked]:bg-emerald-500 data-[state=checked]:border-emerald-500" onCheckedChange={() => handleComplete(task.id)} />
                     </div>
                     <span className="text-sm flex-1 truncate">{task.title}</span>
                     {task.reminderAt && <Bell className="h-3 w-3 text-amber-500 shrink-0" />}
