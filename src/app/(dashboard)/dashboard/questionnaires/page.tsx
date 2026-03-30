@@ -382,7 +382,7 @@ export default function QuestionnairesPage() {
                 onChange={(e) => setClientSearch(e.target.value)}
                 className="h-9 text-sm"
               />
-              <div className="border rounded-lg max-h-48 overflow-y-scroll">
+              <div className="border rounded-lg max-h-52 overflow-y-auto pb-1">
                 {(() => {
                   const search = clientSearch.trim();
                   const regularClients = clients.filter(
@@ -416,8 +416,8 @@ export default function QuestionnairesPage() {
                               key={client.id}
                               type="button"
                               onClick={() => setSelectedClient(client.id)}
-                              className={`w-full text-right px-3 py-2 text-sm hover:bg-slate-50 transition-colors border-b last:border-b-0 ${
-                                selectedClient === client.id ? "bg-emerald-50 text-emerald-700 font-medium" : ""
+                              className={`w-full text-right px-3 py-2 text-sm hover:bg-slate-50 border-b ${
+                                selectedClient === client.id ? "bg-emerald-50 text-emerald-700 font-medium" : "hover:bg-slate-50"
                               }`}
                             >
                               {client.name}
@@ -435,8 +435,8 @@ export default function QuestionnairesPage() {
                               key={client.id}
                               type="button"
                               onClick={() => setSelectedClient(client.id)}
-                              className={`w-full text-right px-3 py-2 text-sm hover:bg-slate-50 transition-colors border-b last:border-b-0 ${
-                                selectedClient === client.id ? "bg-sky-50 text-sky-700 font-medium" : ""
+                              className={`w-full text-right px-3 py-2 text-sm hover:bg-slate-50 border-b ${
+                                selectedClient === client.id ? "bg-sky-50 text-sky-700 font-medium" : "hover:bg-slate-50"
                               }`}
                             >
                               {client.name}
