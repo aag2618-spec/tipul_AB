@@ -19,7 +19,6 @@ import {
   ListTodo,
   Bell,
   Loader2,
-  Trash2,
   ChevronDown,
   ChevronUp,
   History,
@@ -79,6 +78,7 @@ export function PersonalTasksWidget() {
   const [saving, setSaving] = useState(false);
   const [selectedReminder, setSelectedReminder] = useState<Reminder | null>(null);
   const [highlight, setHighlight] = useState(false);
+  const [readReminders, setReadReminders] = useState<Set<string>>(new Set());
   const processedNotificationRef = useRef<string | null>(null);
 
   const fetchTasks = useCallback(async () => {
@@ -234,12 +234,20 @@ export function PersonalTasksWidget() {
     tasks.forEach(task => {
       if (task.reminderAt && !acknowledged.includes(task.id)) {
         const reminderTime = new Date(task.reminderAt);
-        if (now.getTime() >= reminderTime.getTime()) {
+        const elapsed = now.getTime() - reminderTime.getTime();
+        // הבהוב רק עד 5 דקות מרגע התזכורת
+        if (elapsed >= 0 && elapsed < 5 * 60 * 1000) {
           active.add(task.id);
         }
       }
     });
     setActiveReminders(active);
+
+    // עצירת הבהוב אוטומטית אחרי 5 דקות
+    const timer = setTimeout(() => {
+      setActiveReminders(new Set());
+    }, 5 * 60 * 1000);
+    return () => clearTimeout(timer);
   }, [tasks]);
 
   useEffect(() => {
@@ -285,13 +293,6 @@ export function PersonalTasksWidget() {
     } catch { toast.error("שגיאה"); }
   };
 
-  const handleDelete = async (taskId: string) => {
-    try {
-      const res = await fetch(`/api/tasks/${taskId}`, { method: "DELETE" });
-      if (res.ok) { setTasks(prev => prev.filter(t => t.id !== taskId)); toast.success("נמחק"); }
-    } catch { toast.error("שגיאה"); }
-  };
-
   const handleSaveEdit = async () => {
     if (!selectedTask) return;
     setSaving(true);
@@ -332,8 +333,8 @@ export function PersonalTasksWidget() {
         {reminders.map(reminder => (
           <div
             key={reminder.id}
-            className="flex items-start gap-2 py-2 px-3 rounded-lg animate-pulse bg-amber-100 border border-amber-300 shadow-sm cursor-pointer"
-            onClick={() => setSelectedReminder(reminder)}
+            className={`flex items-start gap-2 py-2 px-3 rounded-lg bg-amber-100 border border-amber-300 shadow-sm cursor-pointer ${readReminders.has(reminder.id) ? "" : "animate-pulse"}`}
+            onClick={() => { setReadReminders(prev => new Set(prev).add(reminder.id)); setSelectedReminder(reminder); }}
           >
             {reminder.type === "MORNING_SUMMARY" ? (
               <Sun className="h-4 w-4 text-amber-500 shrink-0 mt-0.5" />
@@ -469,8 +470,8 @@ export function PersonalTasksWidget() {
                       openTask(task);
                     }}
                   >
-                    <div onClick={(e) => e.stopPropagation()}>
-                      <Checkbox className="h-4 w-4" onCheckedChange={() => handleComplete(task.id)} />
+                    <div onClick={(e) => e.stopPropagation()} title="סמן כהושלם">
+                      <Checkbox className="h-5 w-5 border-2 border-emerald-400 data-[state=checked]:bg-emerald-500 data-[state=checked]:border-emerald-500" onCheckedChange={() => handleComplete(task.id)} />
                     </div>
                     <span className="text-sm flex-1 truncate">{task.title}</span>
                     {task.reminderAt && <Bell className="h-3 w-3 text-amber-500 shrink-0" />}
@@ -479,12 +480,6 @@ export function PersonalTasksWidget() {
                         {format(new Date(task.dueDate), "d/M")}
                       </span>
                     )}
-                    <button
-                      onClick={(e) => { e.stopPropagation(); handleDelete(task.id); }}
-                      className="opacity-0 group-hover:opacity-100 transition-opacity"
-                    >
-                      <Trash2 className="h-3.5 w-3.5 text-muted-foreground hover:text-destructive" />
-                    </button>
                   </div>
                 ))}
               </div>

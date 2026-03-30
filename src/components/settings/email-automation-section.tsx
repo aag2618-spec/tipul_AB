@@ -172,34 +172,45 @@ export function EmailAutomationSection({
         <AccordionTrigger className="hover:no-underline">
           <div className="flex items-center gap-2">
             <Sparkles className="h-5 w-5 text-primary" />
-            <span className="font-semibold">התאמה אישית של מיילים</span>
+            <span className="font-semibold">איך המיילים שלך נראים</span>
           </div>
         </AccordionTrigger>
-        <AccordionContent className="space-y-4 pb-4">
-          <p className="text-xs text-muted-foreground bg-muted/50 rounded-lg p-3">
-            הגדרות אלו חלות על כל המיילים שנשלחים למטופלים: אישורי תור, תזכורות פגישה, קבלות ותזכורות חוב
-          </p>
-          <div className="space-y-2">
-            <Label>ברכת פתיחה</Label>
-            <p className="text-xs text-muted-foreground">השורה הראשונה בכל מייל. כתוב {"{שם}"} והמערכת תכניס את שם המטופל. אם ריק: &quot;שלום [שם המטופל],&quot;</p>
+        <AccordionContent className="space-y-5 pb-4">
+          <div className="text-sm text-muted-foreground bg-violet-50 rounded-lg p-4 border border-violet-100 space-y-2">
+            <p className="font-medium text-violet-800">מה זה?</p>
+            <p>כאן אתה קובע איך המיילים שלך למטופלים ייראו — הברכה בתחילת המייל, החתימה בסוף, והוראות התשלום. ההגדרות חלות על <strong>כל</strong> המיילים: אישורי תור, תזכורות פגישה, קבלות ותזכורות חוב.</p>
+            <p>אם לא תמלא כלום — המערכת תשתמש בברירות מחדל סבירות ואפשר לשנות בכל עת.</p>
+          </div>
+
+          <div className="space-y-2 rounded-lg border p-4">
+            <Label className="text-base font-semibold">ברכת פתיחה</Label>
+            <p className="text-xs text-muted-foreground">השורה הראשונה בכל מייל למטופל. כתוב {"{שם}"} והמערכת תכניס את שם המטופל.</p>
+            <p className="text-xs text-muted-foreground"><strong>ברירת מחדל:</strong> &quot;שלום [שם המטופל],&quot;</p>
+            <p className="text-xs text-muted-foreground"><strong>דוגמה:</strong> &quot;היי {"{שם"},&quot; / &quot;שלום לך {"{שם"},&quot;</p>
             <Input
               placeholder='שלום {שם},'
               value={commSettings.customGreeting || ""}
               onChange={(e) => setCommSettings({ ...commSettings, customGreeting: e.target.value || null })}
             />
           </div>
-          <div className="space-y-2">
-            <Label>ברכת סיום</Label>
-            <p className="text-xs text-muted-foreground">הטקסט שמופיע מעל החתימה שלך בסוף המייל. אם ריק: &quot;בברכה,&quot;</p>
+
+          <div className="space-y-2 rounded-lg border p-4">
+            <Label className="text-base font-semibold">ברכת סיום</Label>
+            <p className="text-xs text-muted-foreground">הטקסט שמופיע לפני החתימה שלך בסוף המייל.</p>
+            <p className="text-xs text-muted-foreground"><strong>ברירת מחדל:</strong> &quot;בברכה,&quot;</p>
+            <p className="text-xs text-muted-foreground"><strong>דוגמה:</strong> &quot;בהצלחה ובריאות,&quot; / &quot;תודה,&quot;</p>
             <Input
               placeholder='בברכה,'
               value={commSettings.customClosing || ""}
               onChange={(e) => setCommSettings({ ...commSettings, customClosing: e.target.value || null })}
             />
           </div>
-          <div className="space-y-2">
-            <Label>חתימה</Label>
-            <p className="text-xs text-muted-foreground">השם שמופיע בסוף כל מייל, אחרי ברכת הסיום. אם ריק: השם שלך מהפרופיל</p>
+
+          <div className="space-y-2 rounded-lg border p-4">
+            <Label className="text-base font-semibold">חתימה</Label>
+            <p className="text-xs text-muted-foreground">השם (או הטקסט) שמופיע בסוף כל מייל, אחרי ברכת הסיום.</p>
+            <p className="text-xs text-muted-foreground"><strong>ברירת מחדל:</strong> השם שלך מהפרופיל</p>
+            <p className="text-xs text-muted-foreground"><strong>דוגמה:</strong> &quot;יוסי כהן, מטפל רגשי מוסמך&quot;</p>
             <Textarea
               placeholder="השם שלך"
               value={commSettings.emailSignature || ""}
@@ -208,9 +219,12 @@ export function EmailAutomationSection({
               className="resize-none"
             />
           </div>
-          <div className="space-y-2">
-            <Label>הוראות תשלום</Label>
-            <p className="text-xs text-muted-foreground">יופיע במיילי חוב וקבלות - פרטי חשבון בנק, ביט, או כל אמצעי תשלום שאתה מקבל</p>
+
+          <div className="space-y-2 rounded-lg border p-4">
+            <Label className="text-base font-semibold">הוראות תשלום</Label>
+            <p className="text-xs text-muted-foreground">יופיע במיילי חוב ובקבלות — פרטי חשבון בנק, ביט, או כל אמצעי תשלום.</p>
+            <p className="text-xs text-muted-foreground"><strong>ברירת מחדל:</strong> &quot;ניתן לשלם באמצעות העברה בנקאית, אשראי, מזומן או צ&apos;ק. לתיאום תשלום, נא ליצור קשר.&quot;</p>
+            <p className="text-xs text-muted-foreground"><strong>דוגמה:</strong> &quot;ניתן לשלם בביט: 050-1234567 או בהעברה: בנק לאומי חשבון 12345&quot;</p>
             <Textarea
               placeholder="ניתן לשלם בהעברה בנקאית / ביט / מזומן..."
               value={commSettings.paymentInstructions || ""}
@@ -219,9 +233,12 @@ export function EmailAutomationSection({
               className="resize-none"
             />
           </div>
-          <div className="space-y-2">
-            <Label>קישור לתשלום ישיר</Label>
-            <p className="text-xs text-muted-foreground">קישור לדף תשלום (ביט, פייבוקס וכדומה) - יופיע כלחצן &quot;שלם עכשיו&quot; במייל</p>
+
+          <div className="space-y-2 rounded-lg border p-4">
+            <Label className="text-base font-semibold">קישור לתשלום ישיר</Label>
+            <p className="text-xs text-muted-foreground">קישור לדף תשלום (ביט, פייבוקס וכדומה). אם תמלא — יופיע כפתור &quot;שלם עכשיו&quot; בולט במייל.</p>
+            <p className="text-xs text-muted-foreground"><strong>ברירת מחדל:</strong> לא מופיע כפתור תשלום (אין קישור)</p>
+            <p className="text-xs text-muted-foreground"><strong>דוגמה:</strong> הכנס כאן את הקישור שלך לביט, לפייבוקס, או לכל דף תשלום אונליין</p>
             <Input
               type="url"
               placeholder="https://..."
@@ -229,9 +246,12 @@ export function EmailAutomationSection({
               onChange={(e) => setCommSettings({ ...commSettings, paymentLink: e.target.value || null })}
             />
           </div>
-          <div className="space-y-2">
-            <Label>שעות פעילות</Label>
-            <p className="text-xs text-muted-foreground">יופיע בתחתית המיילים - כדי שהמטופלים ידעו מתי אפשר ליצור קשר</p>
+
+          <div className="space-y-2 rounded-lg border p-4">
+            <Label className="text-base font-semibold">שעות פעילות</Label>
+            <p className="text-xs text-muted-foreground">יופיע בתחתית המיילים — כדי שהמטופלים ידעו מתי אפשר ליצור קשר.</p>
+            <p className="text-xs text-muted-foreground"><strong>ברירת מחדל:</strong> לא מופיע (אם לא תמלא)</p>
+            <p className="text-xs text-muted-foreground"><strong>דוגמה:</strong> &quot;ראשון-חמישי: 9:00-20:00, שישי: 9:00-13:00&quot;</p>
             <Textarea
               placeholder="ראשון-חמישי: 9:00-20:00"
               value={commSettings.businessHours || ""}

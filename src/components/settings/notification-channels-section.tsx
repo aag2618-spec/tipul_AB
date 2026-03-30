@@ -71,7 +71,7 @@ export function NotificationChannelsSection({
         <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
           <div className="space-y-2 rounded-lg bg-muted/40 p-3">
             <Label>שעת סיכום בוקר</Label>
-            <p className="text-xs text-muted-foreground">מתי לקבל סיכום של הפגישות שלך להיום (פעמון + מייל)</p>
+            <p className="text-xs text-muted-foreground">רשימת הפגישות שלך להיום + תזכורת על תשלומים ממתינים (פעמון + מייל)</p>
             <Select
               value={notifSettings.morningTime}
               onValueChange={(value) => setNotifSettings({ ...notifSettings, morningTime: value })}
@@ -86,7 +86,7 @@ export function NotificationChannelsSection({
           </div>
           <div className="space-y-2 rounded-lg bg-muted/40 p-3">
             <Label>שעת סיכום ערב</Label>
-            <p className="text-xs text-muted-foreground">מתי לקבל סיכום של פגישות מחר ומשימות פתוחות (פעמון + מייל)</p>
+            <p className="text-xs text-muted-foreground">רשימת פגישות מחר + פגישות בלי סיכום + משימות פתוחות (גבייה, מטלות אישיות ועוד) — פעמון + מייל</p>
             <Select
               value={notifSettings.eveningTime}
               onValueChange={(value) => setNotifSettings({ ...notifSettings, eveningTime: value })}
