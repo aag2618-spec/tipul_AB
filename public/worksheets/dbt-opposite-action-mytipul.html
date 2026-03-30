@@ -4,6 +4,7 @@
   <meta charset="utf-8" />
   <meta name="viewport" content="width=device-width, initial-scale=1" />
   <title>פעולה הפוכה — Opposite Action | DBT | MyTipul</title>
+  <!-- v2 -->
   <style>
     @import url('https://fonts.googleapis.com/css2?family=Heebo:wght@300;400;500;600;700;800&display=swap');
 
@@ -209,6 +210,8 @@
       font-size: 0.82rem; color: var(--slate-700); margin-top: 12px; font-weight: 500;
     }
     .footer a { color: var(--violet-600); text-decoration: none; font-weight: 600; }
+    @media screen { .print-footer { display: none; } }
+    .print-footer a { color: var(--violet-600); text-decoration: none; font-weight: 600; }
 
     .example-banner {
       background: linear-gradient(135deg, var(--amber-50) 0%, var(--amber-100) 100%);
@@ -224,7 +227,7 @@
       font-size: 0.88rem; color: var(--slate-700); line-height: 1.7; font-style: italic;
     }
 
-    @page { size: A4; margin: 8mm 10mm; }
+    @page { size: A4; margin: 8mm 10mm 18mm 10mm; }
     @media print {
       html, body { background: #fff; font-size: 15px; margin: 0; padding: 0; }
       .sheet { max-width: none; padding: 0; margin: 0; }
@@ -239,10 +242,18 @@
       }
       .header { box-shadow: none; padding: 16px 20px; margin-bottom: 14px; }
       .header-logo img { height: 150px !important; visibility: visible !important; display: block !important; -webkit-print-color-adjust: exact !important; print-color-adjust: exact !important; max-width: 350px; }
-      .therapist-box, .summary-box, .grounding-box,
-      .compassion-box, .pattern-box, .example-banner, .footer, .header,
+      .summary-box, .grounding-box,
+      .compassion-box, .pattern-box, .example-banner, .header,
       .section-header, .instruction-box, .why-box { break-inside: avoid; }
       .section { box-shadow: none; margin-bottom: 8px; }
+      .footer { display: none; }
+      .print-footer {
+        display: flex !important; position: fixed; bottom: 0; left: 0; right: 0;
+        align-items: center; justify-content: space-between;
+        font-size: 0.78rem; color: var(--slate-700); font-weight: 500;
+        padding: 4px 10mm; border-top: 1px solid var(--slate-200);
+        background: #fff; z-index: 9999;
+      }
       .section-header { padding: 8px 14px; }
       .section-body { padding: 10px 14px; }
       .write-area { min-height: 40px; }
@@ -689,6 +700,12 @@
     </footer>
   </div>
 
+
+</div>
+<!-- פוטר קבוע להדפסה — מחוץ ל-sheet, ישירות ב-body -->
+<div class="print-footer">
+  <span>© MyTipul — כל הזכויות שמורות</span>
+  <a href="https://mytipul.com">mytipul.com</a>
 </div>
 </body>
 </html>
