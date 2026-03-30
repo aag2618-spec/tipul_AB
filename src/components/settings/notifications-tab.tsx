@@ -109,7 +109,7 @@ export function NotificationsTab() {
     };
     container.addEventListener('click', handleClick);
     return () => container.removeEventListener('click', handleClick);
-  }, []);
+  }, [isLoading]);
 
   const loadSettings = () => {
     Promise.all([
