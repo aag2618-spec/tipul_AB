@@ -604,12 +604,7 @@ export default function WorksheetsPage() {
   };
 
   const handlePrint = (file: string) => {
-    const win = window.open(file, "_blank");
-    if (win) {
-      win.addEventListener("load", () => {
-        win.print();
-      });
-    }
+    window.open(file, "_blank");
   };
 
   const toggleCategory = (catId: string) => {
