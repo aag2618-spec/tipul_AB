@@ -33,7 +33,7 @@ export async function PUT(request: NextRequest) {
     const { userId, session } = auth;
 
     const body = await request.json();
-    const { emailEnabled, pushEnabled, debtThresholdDays, monthlyReminderDay } = body;
+    const { emailEnabled, pushEnabled, debtThresholdDays, monthlyReminderDay, morningTime, eveningTime } = body;
 
     // Update or create email settings
     const existingEmail = await prisma.notificationSetting.findFirst({
@@ -47,6 +47,8 @@ export async function PUT(request: NextRequest) {
           enabled: emailEnabled,
           debtThresholdDays,
           monthlyReminderDay: monthlyReminderDay || null,
+          morningTime: morningTime || null,
+          eveningTime: eveningTime || null,
         },
       });
     } else {
@@ -57,6 +59,8 @@ export async function PUT(request: NextRequest) {
           enabled: emailEnabled,
           debtThresholdDays,
           monthlyReminderDay: monthlyReminderDay || null,
+          morningTime: morningTime || null,
+          eveningTime: eveningTime || null,
         },
       });
     }

@@ -39,8 +39,8 @@ async function runAllTasks() {
     "2h-reminders"
   );
 
-  // Morning summary: 07:00-10:00 Israel time
-  if (israelHour >= 7 && israelHour <= 10) {
+  // Morning summary: 05:00-12:00 Israel time (wide window - per-user time filtering in cron)
+  if (israelHour >= 5 && israelHour <= 12) {
     await callEndpoint(
       `${baseUrl}/api/cron/notifications?type=morning`,
       headers,
@@ -48,8 +48,8 @@ async function runAllTasks() {
     );
   }
 
-  // Evening summary: 19:00-22:00 Israel time
-  if (israelHour >= 19 && israelHour <= 22) {
+  // Evening summary: 16:00-23:00 Israel time (wide window - per-user time filtering in cron)
+  if (israelHour >= 16 && israelHour <= 23) {
     await callEndpoint(
       `${baseUrl}/api/cron/notifications?type=evening`,
       headers,
@@ -63,6 +63,24 @@ async function runAllTasks() {
       `${baseUrl}/api/cron/debt-reminders`,
       headers,
       "debt-reminders"
+    );
+  }
+
+  // Subscription reminders: 08:00-10:00 Israel time
+  if (israelHour >= 8 && israelHour <= 10) {
+    await callEndpoint(
+      `${baseUrl}/api/cron/subscription-reminders`,
+      headers,
+      "subscription-reminders"
+    );
+  }
+
+  // Fix stuck payments: 08:00-10:00 Israel time
+  if (israelHour >= 8 && israelHour <= 10) {
+    await callEndpoint(
+      `${baseUrl}/api/cron/fix-stuck-payments`,
+      headers,
+      "fix-stuck-payments"
     );
   }
 

@@ -28,7 +28,9 @@ import {
 import {
   Select,
   SelectContent,
+  SelectGroup,
   SelectItem,
+  SelectLabel,
   SelectTrigger,
   SelectValue,
 } from "@/components/ui/select";
@@ -46,6 +48,7 @@ interface QuestionnaireTemplate {
 interface Client {
   id: string;
   name: string;
+  isQuickClient?: boolean;
 }
 
 interface QuestionnaireResponse {
@@ -108,6 +111,7 @@ export default function QuestionnairesPage() {
   const [searchTerm, setSearchTerm] = useState("");
   const [selectedTemplate, setSelectedTemplate] = useState<QuestionnaireTemplate | null>(null);
   const [selectedClient, setSelectedClient] = useState<string>("");
+  const [clientSearch, setClientSearch] = useState("");
   const [isDialogOpen, setIsDialogOpen] = useState(false);
   const [creating, setCreating] = useState(false);
 
@@ -120,7 +124,7 @@ export default function QuestionnairesPage() {
       const [templatesRes, responsesRes, clientsRes] = await Promise.all([
         fetch("/api/questionnaires"),
         fetch("/api/questionnaires/responses"),
-        fetch("/api/clients"),
+        fetch("/api/clients?includeQuick=true"),
       ]);
 
       if (templatesRes.ok) {
@@ -251,6 +255,8 @@ export default function QuestionnairesPage() {
                       className="hover:shadow-md transition-shadow cursor-pointer"
                       onClick={() => {
                         setSelectedTemplate(template);
+                        setClientSearch("");
+                        setSelectedClient("");
                         setIsDialogOpen(true);
                       }}
                     >
@@ -384,11 +390,51 @@ export default function QuestionnairesPage() {
                   <SelectValue placeholder="בחר מטופל..." />
                 </SelectTrigger>
                 <SelectContent>
-                  {clients.map((client) => (
-                    <SelectItem key={client.id} value={client.id}>
-                      {client.name}
-                    </SelectItem>
-                  ))}
+                  <div className="p-2 border-b">
+                    <Input
+                      placeholder="חיפוש לפי שם..."
+                      value={clientSearch}
+                      onChange={(e) => setClientSearch(e.target.value)}
+                      className="h-8 text-sm"
+                      onKeyDown={(e) => e.stopPropagation()}
+                    />
+                  </div>
+                  {(() => {
+                    const search = clientSearch.trim();
+                    const regularClients = clients.filter(
+                      (c) => !c.isQuickClient && (!search || c.name.includes(search))
+                    );
+                    const quickClients = clients.filter(
+                      (c) => c.isQuickClient && (!search || c.name.includes(search))
+                    );
+                    return (
+                      <>
+                        {regularClients.length > 0 && (
+                          <SelectGroup>
+                            <SelectLabel className="text-xs text-emerald-600 font-semibold">מטופלים קבועים</SelectLabel>
+                            {regularClients.map((client) => (
+                              <SelectItem key={client.id} value={client.id}>
+                                {client.name}
+                              </SelectItem>
+                            ))}
+                          </SelectGroup>
+                        )}
+                        {quickClients.length > 0 && (
+                          <SelectGroup>
+                            <SelectLabel className="text-xs text-sky-600 font-semibold">פונים לייעוץ</SelectLabel>
+                            {quickClients.map((client) => (
+                              <SelectItem key={client.id} value={client.id}>
+                                {client.name}
+                              </SelectItem>
+                            ))}
+                          </SelectGroup>
+                        )}
+                        {regularClients.length === 0 && quickClients.length === 0 && (
+                          <p className="text-xs text-muted-foreground text-center py-3">לא נמצאו מטופלים</p>
+                        )}
+                      </>
+                    );
+                  })()}
                 </SelectContent>
               </Select>
             </div>

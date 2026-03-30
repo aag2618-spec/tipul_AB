@@ -56,6 +56,9 @@ export function EmailAutomationSection({
           </div>
         </AccordionTrigger>
         <AccordionContent className="space-y-6 pb-4">
+          <p className="text-xs text-muted-foreground bg-blue-50 rounded-lg p-3 border border-blue-100">
+            ההגדרות כאן קובעות אילו מיילים <strong>המטופלים שלך</strong> מקבלים — אישורי תור, תזכורות לפני פגישה, וכו&apos;.
+          </p>
           <div className="flex items-center justify-between">
             <div className="space-y-0.5">
               <Label>מייל אישור קביעת תור</Label>
@@ -117,10 +120,13 @@ export function EmailAutomationSection({
           </div>
         </AccordionTrigger>
         <AccordionContent className="space-y-4 pb-4">
+          <p className="text-xs text-muted-foreground bg-amber-50 rounded-lg p-3 border border-amber-100">
+            כשמופעל — המטופלים עצמם יקבלו <strong>מייל ישיר</strong> עם פירוט החוב שלהם ואפשרות לשלם. המייל יישלח פעם בחודש ביום שתבחר.
+          </p>
           <div className="flex items-center justify-between">
             <div className="space-y-0.5">
               <Label>הפעל תזכורות חוב אוטומטיות</Label>
-              <p className="text-xs text-muted-foreground">שלח מייל אוטומטי למטופלים עם חוב פתוח מעל הסכום המינימלי</p>
+              <p className="text-xs text-muted-foreground">שלח מייל אוטומטי ישירות למטופלים עם חוב פתוח</p>
             </div>
             <Switch
               checked={commSettings.sendDebtReminders}
@@ -131,7 +137,7 @@ export function EmailAutomationSection({
             <>
               <div className="space-y-2">
                 <Label>יום בחודש לשליחה</Label>
-                <p className="text-xs text-muted-foreground">באיזה יום בחודש לשלוח את תזכורות החוב למטופלים</p>
+                <p className="text-xs text-muted-foreground">באיזה יום בחודש לשלוח מייל תזכורת חוב ישירות למטופלים (מייל אוטומטי למטופל עם פירוט החוב)</p>
                 <Select
                   value={commSettings.debtReminderDayOfMonth.toString()}
                   onValueChange={(value) => setCommSettings({ ...commSettings, debtReminderDayOfMonth: parseInt(value) })}

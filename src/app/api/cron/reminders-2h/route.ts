@@ -47,7 +47,7 @@ export async function GET(request: NextRequest) {
         ? settings.customReminderHours
         : 2;
 
-      const windowMinutes = 15;
+      const windowMinutes = 20; // מעט יותר מ-15 דקות כדי למנוע פספוס בגלל drift
       const reminderMs = reminderHours * 60 * 60 * 1000;
       const halfWindow = (windowMinutes / 2) * 60 * 1000;
       const reminderWindowStart = new Date(now.getTime() + reminderMs - halfWindow);

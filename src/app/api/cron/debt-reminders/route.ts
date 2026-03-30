@@ -252,6 +252,24 @@ export async function GET(request: NextRequest) {
           continue;
         }
 
+        // בדיקת כפילויות — אם כבר נשלח מייל חוב ללקוח הזה החודש, דלג
+        const monthStart = new Date(`${israelDateStr.substring(0, 7)}-01T00:00:00Z`);
+        const existingDebtEmail = await prisma.communicationLog.findFirst({
+          where: {
+            userId: therapist.id,
+            clientId: client.id,
+            type: "CUSTOM",
+            channel: "EMAIL",
+            status: "SENT",
+            subject: { contains: "תזכורת תשלום" },
+            createdAt: { gte: monthStart },
+          },
+        });
+        if (existingDebtEmail) {
+          logger.info(`[Debt Reminders Cron] Skipping ${client.name} - already sent this month`);
+          continue;
+        }
+
         logger.info(`[Debt Reminders Cron] Sending to ${client.name} - debt ₪${totalDebt}`);
         totalClientsProcessed++;
 

@@ -16,6 +16,8 @@ interface NotificationSettings {
   pushEnabled: boolean;
   debtThresholdDays: number;
   monthlyReminderDay: number | null;
+  morningTime: string;
+  eveningTime: string;
 }
 
 interface SMSSettings {
@@ -55,6 +57,8 @@ export function NotificationsTab() {
     pushEnabled: true,
     debtThresholdDays: 30,
     monthlyReminderDay: null,
+    morningTime: "08:00",
+    eveningTime: "20:00",
   });
   const [smsSettings, setSmsSettings] = useState<SMSSettings>({
     enabled: false,
@@ -103,6 +107,8 @@ export function NotificationsTab() {
           pushEnabled: pushSetting?.enabled ?? true,
           debtThresholdDays: emailSetting?.debtThresholdDays || 30,
           monthlyReminderDay: emailSetting?.monthlyReminderDay || null,
+          morningTime: emailSetting?.morningTime || "08:00",
+          eveningTime: emailSetting?.eveningTime || "20:00",
         });
       }
       if (smsData) setSmsSettings({ ...smsData, sendOnWeekends: false });

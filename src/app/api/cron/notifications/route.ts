@@ -65,6 +65,16 @@ export async function GET(request: NextRequest) {
       data: { status: "DISMISSED" },
     });
 
+    // חישוב השעה הנוכחית בישראל (שעות:דקות) לבדיקת שעות מותאמות אישית
+    const israelTimeStr = new Intl.DateTimeFormat("en-US", {
+      timeZone: "Asia/Jerusalem",
+      hour: "2-digit",
+      minute: "2-digit",
+      hour12: false,
+    }).format(now);
+    const [currentHour, currentMinute] = israelTimeStr.split(":").map(Number);
+    const currentMinutesSinceMidnight = currentHour * 60 + currentMinute;
+
     let notificationsCreated = 0;
 
     for (const user of users) {
@@ -75,8 +85,20 @@ export async function GET(request: NextRequest) {
       const settings = user.notificationSettings[0] || { debtThresholdDays: 30 };
       const shouldSendEmail = !!user.email;
 
+      // שעות מותאמות אישית — ברירת מחדל 08:00 ו-20:00
+      const userMorningTime = (emailSetting as { morningTime?: string | null })?.morningTime || "08:00";
+      const userEveningTime = (emailSetting as { eveningTime?: string | null })?.eveningTime || "20:00";
+      const [mHour, mMin] = userMorningTime.split(":").map(Number);
+      const [eHour, eMin] = userEveningTime.split(":").map(Number);
+      const morningMinutes = mHour * 60 + mMin;
+      const eveningMinutes = eHour * 60 + eMin;
+
+      // בדיקה: האם כבר הגיע הזמן? (חלון 0-30 דקות אחרי השעה שהוגדרה)
+      const isMorningTime = currentMinutesSinceMidnight >= morningMinutes && currentMinutesSinceMidnight < morningMinutes + 30;
+      const isEveningTime = currentMinutesSinceMidnight >= eveningMinutes && currentMinutesSinceMidnight < eveningMinutes + 30;
+
       // ── Morning summary ──
-      if (sendMorning) {
+      if (sendMorning && isMorningTime) {
         // Duplicate prevention: skip if we already created a morning summary today
         const alreadySentMorning = await prisma.notification.findFirst({
           where: { userId: user.id, type: "MORNING_SUMMARY", createdAt: { gte: today } },
@@ -142,7 +164,17 @@ export async function GET(request: NextRequest) {
             }
           }
 
-          // תזכורת תשלום מאוחדת - כל התשלומים הממתינים + סימון ישנים
+        }
+      }
+
+      // ── תזכורת תשלום — עצמאית מסיכום בוקר/ערב ──
+      if (sendMorning && isMorningTime) {
+        // Duplicate prevention: רק תזכורת תשלום אחת ביום
+        const alreadySentPayment = await prisma.notification.findFirst({
+          where: { userId: user.id, type: "PAYMENT_REMINDER", createdAt: { gte: today } },
+        });
+
+        if (!alreadySentPayment) {
           const debtThreshold = (settings as { debtThresholdDays?: number }).debtThresholdDays || 30;
           const thresholdDate = new Date(today);
           thresholdDate.setDate(thresholdDate.getDate() - debtThreshold);
@@ -196,7 +228,7 @@ export async function GET(request: NextRequest) {
       }
 
       // ── Evening summary ──
-      if (sendEvening) {
+      if (sendEvening && isEveningTime) {
         const alreadySentEvening = await prisma.notification.findFirst({
           where: { userId: user.id, type: "EVENING_SUMMARY", createdAt: { gte: today } },
         });
