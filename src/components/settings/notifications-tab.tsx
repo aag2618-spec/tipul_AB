@@ -164,23 +164,28 @@ export function NotificationsTab() {
     );
   }
 
-  const prevValuesRef = useRef<string[]>(["notifications", "sms", "automation"]);
-
-  const handleAccordionChange = (values: string[]) => {
-    // מוצא מה חדש — מה נפתח עכשיו שלא היה פתוח קודם
-    const newlyOpened = values.find(v => !prevValuesRef.current.includes(v));
-    prevValuesRef.current = values;
-    if (newlyOpened) {
+  // גלילה אוטומטית — מאזין ללחיצות על כותרות אקורדיון, בלי לגעת ב-onValueChange
+  const containerRef = useRef<HTMLDivElement>(null);
+  useEffect(() => {
+    const container = containerRef.current;
+    if (!container) return;
+    const handleClick = (e: Event) => {
+      const trigger = (e.target as HTMLElement).closest('[data-slot="accordion-trigger"]');
+      if (!trigger) return;
+      const item = trigger.closest('[data-slot="accordion-item"]');
+      if (!item || item.getAttribute('data-state') !== 'closed') return;
+      // הסקשן סגור ועכשיו ייפתח — גולל אליו
       setTimeout(() => {
-        const el = document.querySelector(`[value="${newlyOpened}"]`);
-        if (el) el.scrollIntoView({ behavior: "smooth", block: "start" });
-      }, 200);
-    }
-  };
+        item.scrollIntoView({ behavior: 'smooth', block: 'start' });
+      }, 250);
+    };
+    container.addEventListener('click', handleClick);
+    return () => container.removeEventListener('click', handleClick);
+  }, []);
 
   return (
-    <div className="space-y-6 pb-32">
-      <Accordion type="multiple" defaultValue={["notifications", "sms", "automation"]} className="space-y-4" onValueChange={handleAccordionChange}>
+    <div className="space-y-6 pb-32" ref={containerRef}>
+      <Accordion type="multiple" defaultValue={["notifications", "sms", "automation"]} className="space-y-4">
         <NotificationChannelsSection
           notifSettings={notifSettings}
           setNotifSettings={setNotifSettings}
