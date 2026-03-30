@@ -1,6 +1,6 @@
 "use client";
 
-import { useState, useEffect, useCallback } from "react";
+import { useState, useEffect } from "react";
 import { Button } from "@/components/ui/button";
 import { Loader2, Save } from "lucide-react";
 import { toast } from "sonner";
@@ -164,24 +164,9 @@ export function NotificationsTab() {
     );
   }
 
-  // גלילה אוטומטית כשפותחים אקורדיון
-  const handleAccordionChange = useCallback((value: string[]) => {
-    // מוצא את האקורדיון החדש שנפתח וגולל אליו
-    setTimeout(() => {
-      const lastOpened = value[value.length - 1];
-      if (lastOpened) {
-        const el = document.querySelector(`[data-state="open"][data-slot="accordion-item"][value="${lastOpened}"]`)
-          || document.querySelector(`[value="${lastOpened}"]`);
-        if (el) {
-          el.scrollIntoView({ behavior: "smooth", block: "start" });
-        }
-      }
-    }, 150);
-  }, []);
-
   return (
     <div className="space-y-6 pb-32">
-      <Accordion type="multiple" defaultValue={["notifications", "sms", "automation"]} className="space-y-4" onValueChange={handleAccordionChange}>
+      <Accordion type="multiple" defaultValue={["notifications", "sms", "automation"]} className="space-y-4">
         <NotificationChannelsSection
           notifSettings={notifSettings}
           setNotifSettings={setNotifSettings}

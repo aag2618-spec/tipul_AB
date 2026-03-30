@@ -7,21 +7,6 @@ import { Bell, Mail } from "lucide-react";
 import {
   AccordionContent, AccordionItem, AccordionTrigger,
 } from "@/components/ui/accordion";
-import {
-  Select, SelectContent, SelectItem, SelectTrigger, SelectValue,
-} from "@/components/ui/select";
-
-const TIME_OPTIONS = [
-  "05:00", "05:30", "06:00", "06:30", "07:00", "07:30",
-  "08:00", "08:30", "09:00", "09:30", "10:00", "10:30",
-  "11:00", "11:30", "12:00",
-];
-
-const EVENING_TIME_OPTIONS = [
-  "16:00", "16:30", "17:00", "17:30", "18:00", "18:30",
-  "19:00", "19:30", "20:00", "20:30", "21:00", "21:30",
-  "22:00", "22:30", "23:00",
-];
 
 interface NotificationSettings {
   emailEnabled: boolean;
@@ -72,32 +57,26 @@ export function NotificationChannelsSection({
           <div className="space-y-2 rounded-lg bg-muted/40 p-3">
             <Label>שעת סיכום בוקר</Label>
             <p className="text-xs text-muted-foreground">רשימת הפגישות שלך להיום + תזכורת על תשלומים ממתינים (פעמון + מייל)</p>
-            <Select
+            <Input
+              type="time"
               value={notifSettings.morningTime}
-              onValueChange={(value) => setNotifSettings({ ...notifSettings, morningTime: value })}
-            >
-              <SelectTrigger className="w-28"><SelectValue /></SelectTrigger>
-              <SelectContent>
-                {TIME_OPTIONS.map((t) => (
-                  <SelectItem key={t} value={t}>{t}</SelectItem>
-                ))}
-              </SelectContent>
-            </Select>
+              onChange={(e) => setNotifSettings({ ...notifSettings, morningTime: e.target.value || "08:00" })}
+              className="w-28"
+              min="05:00"
+              max="12:00"
+            />
           </div>
           <div className="space-y-2 rounded-lg bg-muted/40 p-3">
             <Label>שעת סיכום ערב</Label>
             <p className="text-xs text-muted-foreground">רשימת פגישות מחר + פגישות בלי סיכום + משימות פתוחות (גבייה, מטלות אישיות ועוד) — פעמון + מייל</p>
-            <Select
+            <Input
+              type="time"
               value={notifSettings.eveningTime}
-              onValueChange={(value) => setNotifSettings({ ...notifSettings, eveningTime: value })}
-            >
-              <SelectTrigger className="w-28"><SelectValue /></SelectTrigger>
-              <SelectContent>
-                {EVENING_TIME_OPTIONS.map((t) => (
-                  <SelectItem key={t} value={t}>{t}</SelectItem>
-                ))}
-              </SelectContent>
-            </Select>
+              onChange={(e) => setNotifSettings({ ...notifSettings, eveningTime: e.target.value || "20:00" })}
+              className="w-28"
+              min="16:00"
+              max="23:00"
+            />
           </div>
         </div>
         <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
