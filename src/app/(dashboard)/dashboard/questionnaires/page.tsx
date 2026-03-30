@@ -382,7 +382,7 @@ export default function QuestionnairesPage() {
                 onChange={(e) => setClientSearch(e.target.value)}
                 className="h-9 text-sm"
               />
-              <div className="border rounded-lg max-h-48 overflow-y-auto">
+              <div className="border rounded-lg max-h-48 overflow-y-scroll">
                 {(() => {
                   const search = clientSearch.trim();
                   const regularClients = clients.filter(
