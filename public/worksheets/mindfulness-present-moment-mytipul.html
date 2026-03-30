@@ -279,7 +279,7 @@
       .compassion-box, .pattern-box, .example-banner, .header,
       .section-header, .stop-row, .sense-row, .body-zone-row,
       .instruction-box, .why-box { break-inside: avoid; }
-      .footer { display: none; }
+      .footer { display: none !important; }
       .print-footer {
         display: flex !important; position: fixed; bottom: 0; left: 0; right: 0;
         align-items: center; justify-content: space-between;
@@ -303,7 +303,7 @@
       .pattern-box { padding: 8px 14px; margin-bottom: 10px; }
       .pattern-box .write-area { min-height: 30px; }
       .compassion-box { padding: 8px 14px; margin-bottom: 10px; font-size: 0.85rem; }
-      .footer { margin-top: 8px; }
+      /* footer hidden in print — see .print-footer */
       p, li { orphans: 3; widows: 3; }
       .therapist-section { break-after: always; page-break-after: always; }
       .example-section { break-before: always; page-break-before: always; }
