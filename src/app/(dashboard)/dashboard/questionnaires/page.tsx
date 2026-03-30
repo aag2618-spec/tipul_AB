@@ -25,15 +25,6 @@ import {
   DialogTitle,
   DialogTrigger,
 } from "@/components/ui/dialog";
-import {
-  Select,
-  SelectContent,
-  SelectGroup,
-  SelectItem,
-  SelectLabel,
-  SelectTrigger,
-  SelectValue,
-} from "@/components/ui/select";
 
 interface QuestionnaireTemplate {
   id: string;
@@ -385,58 +376,81 @@ export default function QuestionnairesPage() {
           <div className="space-y-4 py-4">
             <div className="space-y-2">
               <label className="text-sm font-medium">בחר מטופל</label>
-              <Select value={selectedClient} onValueChange={setSelectedClient}>
-                <SelectTrigger>
-                  <SelectValue placeholder="בחר מטופל..." />
-                </SelectTrigger>
-                <SelectContent>
-                  <div className="p-2 border-b">
-                    <Input
-                      placeholder="חיפוש לפי שם..."
-                      value={clientSearch}
-                      onChange={(e) => setClientSearch(e.target.value)}
-                      className="h-8 text-sm"
-                      onKeyDown={(e) => e.stopPropagation()}
-                    />
-                  </div>
-                  {(() => {
-                    const search = clientSearch.trim();
-                    const regularClients = clients.filter(
-                      (c) => !c.isQuickClient && (!search || c.name.includes(search))
-                    );
-                    const quickClients = clients.filter(
-                      (c) => c.isQuickClient && (!search || c.name.includes(search))
-                    );
-                    return (
-                      <>
-                        {regularClients.length > 0 && (
-                          <SelectGroup>
-                            <SelectLabel className="text-xs text-emerald-600 font-semibold">מטופלים קבועים</SelectLabel>
-                            {regularClients.map((client) => (
-                              <SelectItem key={client.id} value={client.id}>
-                                {client.name}
-                              </SelectItem>
-                            ))}
-                          </SelectGroup>
-                        )}
-                        {quickClients.length > 0 && (
-                          <SelectGroup>
-                            <SelectLabel className="text-xs text-sky-600 font-semibold">פונים לייעוץ</SelectLabel>
-                            {quickClients.map((client) => (
-                              <SelectItem key={client.id} value={client.id}>
-                                {client.name}
-                              </SelectItem>
-                            ))}
-                          </SelectGroup>
-                        )}
-                        {regularClients.length === 0 && quickClients.length === 0 && (
-                          <p className="text-xs text-muted-foreground text-center py-3">לא נמצאו מטופלים</p>
-                        )}
-                      </>
-                    );
-                  })()}
-                </SelectContent>
-              </Select>
+              <Input
+                placeholder="חיפוש לפי שם..."
+                value={clientSearch}
+                onChange={(e) => setClientSearch(e.target.value)}
+                className="h-9 text-sm"
+              />
+              <div className="border rounded-lg max-h-48 overflow-y-auto">
+                {(() => {
+                  const search = clientSearch.trim();
+                  const regularClients = clients.filter(
+                    (c) => !c.isQuickClient && (!search || c.name.includes(search))
+                  );
+                  const quickClients = clients.filter(
+                    (c) => c.isQuickClient && (!search || c.name.includes(search))
+                  );
+                  const selectedName = clients.find((c) => c.id === selectedClient)?.name;
+                  return (
+                    <>
+                      {selectedClient && (
+                        <div className="px-3 py-1.5 bg-emerald-50 border-b text-sm font-medium text-emerald-700 flex items-center justify-between">
+                          <span>נבחר: {selectedName}</span>
+                          <button
+                            type="button"
+                            onClick={() => setSelectedClient("")}
+                            className="text-xs text-emerald-500 hover:text-emerald-700"
+                          >
+                            שנה
+                          </button>
+                        </div>
+                      )}
+                      {regularClients.length > 0 && (
+                        <div>
+                          <div className="px-3 py-1.5 text-xs font-semibold text-emerald-600 bg-slate-50 border-b">
+                            מטופלים קבועים
+                          </div>
+                          {regularClients.map((client) => (
+                            <button
+                              key={client.id}
+                              type="button"
+                              onClick={() => setSelectedClient(client.id)}
+                              className={`w-full text-right px-3 py-2 text-sm hover:bg-slate-50 transition-colors border-b last:border-b-0 ${
+                                selectedClient === client.id ? "bg-emerald-50 text-emerald-700 font-medium" : ""
+                              }`}
+                            >
+                              {client.name}
+                            </button>
+                          ))}
+                        </div>
+                      )}
+                      {quickClients.length > 0 && (
+                        <div>
+                          <div className="px-3 py-1.5 text-xs font-semibold text-sky-600 bg-slate-50 border-b">
+                            פונים לייעוץ
+                          </div>
+                          {quickClients.map((client) => (
+                            <button
+                              key={client.id}
+                              type="button"
+                              onClick={() => setSelectedClient(client.id)}
+                              className={`w-full text-right px-3 py-2 text-sm hover:bg-slate-50 transition-colors border-b last:border-b-0 ${
+                                selectedClient === client.id ? "bg-sky-50 text-sky-700 font-medium" : ""
+                              }`}
+                            >
+                              {client.name}
+                            </button>
+                          ))}
+                        </div>
+                      )}
+                      {regularClients.length === 0 && quickClients.length === 0 && (
+                        <p className="text-xs text-muted-foreground text-center py-4">לא נמצאו מטופלים</p>
+                      )}
+                    </>
+                  );
+                })()}
+              </div>
             </div>
 
             {selectedTemplate?.description && (
