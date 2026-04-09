@@ -20,6 +20,10 @@ import {
 import { format } from "date-fns";
 import { he } from "date-fns/locale";
 
+function stripHtml(html: string): string {
+  return html.replace(/<[^>]*>/g, '').replace(/&nbsp;/g, ' ').trim();
+}
+
 interface Session {
   id: string;
   startTime: Date;
@@ -283,8 +287,8 @@ export function SummariesTab({ clientId, sessions }: SummariesTabProps) {
                         {format(new Date(session.startTime), "HH:mm")} - {format(new Date(session.endTime), "HH:mm")}
                       </p>
                       {session.sessionNote && (
-                        <p className="text-xs text-muted-foreground/50 line-clamp-2 mt-2">
-                          {session.sessionNote.content}
+                        <p className="text-xs text-muted-foreground/50 line-clamp-4 mt-2">
+                          {stripHtml(session.sessionNote.content)}
                         </p>
                       )}
                     </div>
