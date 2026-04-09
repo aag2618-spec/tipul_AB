@@ -48,8 +48,8 @@ async function runAllTasks() {
     );
   }
 
-  // Evening summary: 16:00-23:00 Israel time (wide window - per-user time filtering in cron)
-  if (israelHour >= 16 && israelHour <= 23) {
+  // Evening summary: 16:00-03:00 Israel time (wide window - per-user time filtering in cron)
+  if (israelHour >= 16 || israelHour <= 3) {
     await callEndpoint(
       `${baseUrl}/api/cron/notifications?type=evening`,
       headers,

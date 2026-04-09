@@ -5,8 +5,35 @@ import { Label } from "@/components/ui/label";
 import { Switch } from "@/components/ui/switch";
 import { Bell, Mail } from "lucide-react";
 import {
+  Select, SelectContent, SelectGroup, SelectItem, SelectLabel, SelectTrigger, SelectValue,
+} from "@/components/ui/select";
+import {
   AccordionContent, AccordionItem, AccordionTrigger,
 } from "@/components/ui/accordion";
+
+// יצירת רשימת שעות בקפיצות של 15 דקות
+function generateTimeOptions(startHour: number, endHour: number, includeLastQuarters: boolean = false): string[] {
+  const options: string[] = [];
+  for (let h = startHour; h <= endHour; h++) {
+    for (let m = 0; m < 60; m += 15) {
+      if (h === endHour && m > 0 && !includeLastQuarters) break;
+      const hh = String(h).padStart(2, "0");
+      const mm = String(m).padStart(2, "0");
+      options.push(`${hh}:${mm}`);
+    }
+  }
+  return options;
+}
+
+const MORNING_OPTIONS = generateTimeOptions(5, 12);         // 05:00 עד 12:00
+const EVENING_MAIN = generateTimeOptions(16, 23, true);     // 16:00 עד 23:45
+const EVENING_NIGHT = generateTimeOptions(0, 3);             // 00:00 עד 03:00
+const ALL_EVENING_OPTIONS = [...EVENING_MAIN, ...EVENING_NIGHT];
+
+// תיקון אוטומטי לערכים שלא ברשימה (למשל 08:45 ישן)
+function safeTime(value: string, options: string[], fallback: string): string {
+  return options.includes(value) ? value : fallback;
+}
 
 interface NotificationSettings {
   emailEnabled: boolean;
@@ -57,54 +84,45 @@ export function NotificationChannelsSection({
           <div className="space-y-2 rounded-lg bg-muted/40 p-3">
             <Label>שעת סיכום בוקר</Label>
             <p className="text-xs text-muted-foreground">רשימת הפגישות שלך להיום + תזכורת על תשלומים ממתינים (פעמון + מייל)</p>
-            <Input
-              type="time"
-              value={notifSettings.morningTime}
-              onChange={(e) => {
-                const val = e.target.value || "08:00";
-                const [h, m] = val.split(":").map(Number);
-                if (h < 5 || h > 12 || (h === 12 && m > 0)) {
-                  setNotifSettings({ ...notifSettings, morningTime: "08:00" });
-                } else {
-                  setNotifSettings({ ...notifSettings, morningTime: val });
-                }
-              }}
-              onBlur={() => {
-                const [h, m] = notifSettings.morningTime.split(":").map(Number);
-                if (h < 5 || h > 12 || (h === 12 && m > 0)) {
-                  setNotifSettings({ ...notifSettings, morningTime: "08:00" });
-                }
-              }}
-              className="w-28"
-              min="05:00"
-              max="12:00"
-            />
+            <Select
+              value={safeTime(notifSettings.morningTime, MORNING_OPTIONS, "08:00")}
+              onValueChange={(value) => setNotifSettings({ ...notifSettings, morningTime: value })}
+            >
+              <SelectTrigger className="w-28">
+                <SelectValue />
+              </SelectTrigger>
+              <SelectContent>
+                {MORNING_OPTIONS.map((time) => (
+                  <SelectItem key={time} value={time}>{time}</SelectItem>
+                ))}
+              </SelectContent>
+            </Select>
           </div>
           <div className="space-y-2 rounded-lg bg-muted/40 p-3">
             <Label>שעת סיכום ערב</Label>
             <p className="text-xs text-muted-foreground">רשימת פגישות מחר + פגישות בלי סיכום + משימות פתוחות (גבייה, מטלות אישיות ועוד) — פעמון + מייל</p>
-            <Input
-              type="time"
-              value={notifSettings.eveningTime}
-              onChange={(e) => {
-                const val = e.target.value || "20:00";
-                const [h, m] = val.split(":").map(Number);
-                if (h < 16 || h > 23 || (h === 23 && m > 0)) {
-                  setNotifSettings({ ...notifSettings, eveningTime: "20:00" });
-                } else {
-                  setNotifSettings({ ...notifSettings, eveningTime: val });
-                }
-              }}
-              onBlur={() => {
-                const [h, m] = notifSettings.eveningTime.split(":").map(Number);
-                if (h < 16 || h > 23 || (h === 23 && m > 0)) {
-                  setNotifSettings({ ...notifSettings, eveningTime: "20:00" });
-                }
-              }}
-              className="w-28"
-              min="16:00"
-              max="23:00"
-            />
+            <Select
+              value={safeTime(notifSettings.eveningTime, ALL_EVENING_OPTIONS, "20:00")}
+              onValueChange={(value) => setNotifSettings({ ...notifSettings, eveningTime: value })}
+            >
+              <SelectTrigger className="w-28">
+                <SelectValue />
+              </SelectTrigger>
+              <SelectContent>
+                <SelectGroup>
+                  <SelectLabel>ערב</SelectLabel>
+                  {EVENING_MAIN.map((time) => (
+                    <SelectItem key={time} value={time}>{time}</SelectItem>
+                  ))}
+                </SelectGroup>
+                <SelectGroup>
+                  <SelectLabel>לילה</SelectLabel>
+                  {EVENING_NIGHT.map((time) => (
+                    <SelectItem key={time} value={time}>{time}</SelectItem>
+                  ))}
+                </SelectGroup>
+              </SelectContent>
+            </Select>
           </div>
         </div>
         <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
