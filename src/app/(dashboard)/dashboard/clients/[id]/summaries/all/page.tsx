@@ -57,7 +57,7 @@ export default function AllSummariesPage() {
 
   const fetchClient = async () => {
     try {
-      const response = await fetch(`/api/clients/${clientId}`);
+      const response = await fetch(`/api/clients/${clientId}/summaries`);
       if (response.ok) {
         const data = await response.json();
         setClient(data);

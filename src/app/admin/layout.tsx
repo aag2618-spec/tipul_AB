@@ -43,7 +43,7 @@ const adminNavGroups = [
   {
     label: "ניהול משתמשים",
     items: [
-      { href: "/admin/ai-dashboard", label: "משתמשים", icon: Users },
+      { href: "/admin/users", label: "משתמשים", icon: Users },
       { href: "/admin/trials", label: "תקופות ניסיון", icon: Activity },
     ],
   },

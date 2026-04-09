@@ -42,6 +42,7 @@ export async function GET(request: NextRequest) {
         role: true,
         isBlocked: true,
         aiTier: true,
+        subscriptionStatus: true,
         userNumber: true,
         createdAt: true,
         aiUsageStats: {
