@@ -6,8 +6,22 @@ import bcrypt from "bcryptjs";
 import prisma from "./prisma";
 
 // Cache for JWT user data — avoids DB query on every request
-const JWT_CACHE_TTL = 5 * 60 * 1000; // 5 דקות
+const JWT_CACHE_TTL = 2 * 60 * 1000; // 2 דקות
 const jwtUserCache = new Map<string, { data: any; timestamp: number }>();
+
+// ניקוי cache כל דקה — מונע גדילה בלתי מוגבלת (guard מונע כפילויות ב-hot reload)
+let cleanupInitialized = false;
+if (!cleanupInitialized) {
+  cleanupInitialized = true;
+  setInterval(() => {
+    const now = Date.now();
+    for (const [userId, entry] of jwtUserCache.entries()) {
+      if (now - entry.timestamp >= JWT_CACHE_TTL) {
+        jwtUserCache.delete(userId);
+      }
+    }
+  }, 60 * 1000);
+}
 
 export const authOptions: NextAuthOptions = {
   adapter: PrismaAdapter(prisma) as NextAuthOptions["adapter"],

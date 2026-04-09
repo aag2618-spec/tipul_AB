@@ -17,7 +17,7 @@ export async function POST(request: NextRequest) {
     // Find the user
     const adminEmail = process.env.ADMIN_EMAIL;
     if (!adminEmail) {
-      return NextResponse.json({ error: "ADMIN_EMAIL not configured" }, { status: 500 });
+      return NextResponse.json({ error: "משתנה סביבה ADMIN_EMAIL לא מוגדר" }, { status: 500 });
     }
 
     const user = await prisma.user.findUnique({
