@@ -1,6 +1,6 @@
 "use client";
 
-import { useEffect, useState, use } from "react";
+import { useEffect, useState, useRef, useCallback, use } from "react";
 import { useRouter } from "next/navigation";
 import Link from "next/link";
 import { Button } from "@/components/ui/button";
@@ -163,6 +163,9 @@ export default function SessionDetailPage({
   const [noteAnalysis, setNoteAnalysis] = useState<NoteAnalysis | null>(null);
   const [isAnalyzing, setIsAnalyzing] = useState(false);
   const [userTier, setUserTier] = useState<'ESSENTIAL' | 'PRO' | 'ENTERPRISE'>('ESSENTIAL');
+  const [autoSaveStatus, setAutoSaveStatus] = useState<'saved' | 'unsaved' | 'saving' | 'idle'>('idle');
+  const autoSaveTimer = useRef<ReturnType<typeof setTimeout> | null>(null);
+  const lastSavedContent = useRef<string>("");
 
   useEffect(() => {
     const fetchSession = async () => {
@@ -206,6 +209,43 @@ export default function SessionDetailPage({
     fetchUserTier();
   }, [id, router]);
 
+  // Auto-save: שמירה אוטומטית כל 30 שניות
+  const autoSave = useCallback(async (content: string) => {
+    if (!content.trim() || content === lastSavedContent.current) return;
+    setAutoSaveStatus('saving');
+    try {
+      const response = await fetch(`/api/sessions/${id}/note`, {
+        method: session?.sessionNote ? "PUT" : "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ content, aiAnalysis: noteAnalysis || null }),
+      });
+      if (response.ok) {
+        lastSavedContent.current = content;
+        setAutoSaveStatus('saved');
+        // Update session to reflect the saved note
+        const updatedSession = await fetch(`/api/sessions/${id}`).then(r => r.json());
+        setSession(updatedSession);
+      }
+    } catch {
+      setAutoSaveStatus('unsaved');
+    }
+  }, [id, session?.sessionNote, noteAnalysis]);
+
+  useEffect(() => {
+    if (!noteContent.trim() || noteContent === lastSavedContent.current) return;
+    setAutoSaveStatus('unsaved');
+    if (autoSaveTimer.current) clearTimeout(autoSaveTimer.current);
+    autoSaveTimer.current = setTimeout(() => autoSave(noteContent), 30000);
+    return () => { if (autoSaveTimer.current) clearTimeout(autoSaveTimer.current); };
+  }, [noteContent, autoSave]);
+
+  // Initialize lastSavedContent when session loads
+  useEffect(() => {
+    if (session?.sessionNote?.content) {
+      lastSavedContent.current = session.sessionNote.content;
+    }
+  }, [session?.sessionNote?.content]);
+
   const handleSaveNote = async () => {
     if (!noteContent.trim()) {
       toast.error("נא להזין תוכן לסיכום");
@@ -226,8 +266,11 @@ export default function SessionDetailPage({
 
       if (!response.ok) throw new Error();
 
+      lastSavedContent.current = noteContent;
+      setAutoSaveStatus('saved');
+      if (autoSaveTimer.current) clearTimeout(autoSaveTimer.current);
       toast.success("הסיכום נשמר בהצלחה");
-      
+
       // Refresh session data
       const updatedSession = await fetch(`/api/sessions/${id}`).then(r => r.json());
       setSession(updatedSession);
@@ -393,7 +436,19 @@ export default function SessionDetailPage({
                     {session.sessionNote ? "ערוך את סיכום הפגישה" : "כתוב סיכום לפגישה"}
                   </CardDescription>
                 </div>
-                <div className="flex gap-2">
+                <div className="flex items-center gap-2">
+                  {autoSaveStatus === 'saved' && (
+                    <span className="text-xs text-green-600">נשמר</span>
+                  )}
+                  {autoSaveStatus === 'unsaved' && (
+                    <span className="text-xs text-orange-500">שינויים לא שמורים</span>
+                  )}
+                  {autoSaveStatus === 'saving' && (
+                    <span className="text-xs text-muted-foreground flex items-center gap-1">
+                      <Loader2 className="h-3 w-3 animate-spin" />
+                      שומר...
+                    </span>
+                  )}
                   {hasTranscription && (
                     <Button variant="outline" size="sm" onClick={handleGenerateSummary} disabled={isSaving}>
                       <Sparkles className="ml-2 h-4 w-4" />
