@@ -9,6 +9,7 @@ import { Input } from "@/components/ui/input";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
 import {
+  Brain,
   Calendar,
   CheckCircle,
   Clock,
@@ -34,6 +35,7 @@ interface Session {
   sessionNote: {
     content: string;
   } | null;
+  hasAiAnalysis?: boolean;
 }
 
 interface SummariesTabProps {
@@ -94,8 +96,17 @@ export function SummariesTab({ clientId, sessions }: SummariesTabProps) {
       s.status === "COMPLETED"
     ))
   );
+  // כל הפגישות המסוכמות ממוינות מהחדש לישן
+  const allSummarized = sessions
+    .filter((s) => s.sessionNote)
+    .sort((a, b) => new Date(b.startTime).getTime() - new Date(a.startTime).getTime());
+
+  // מיפוי מספור כרונולוגי (ישן→חדש) לכל פגישה מסוכמת
+  const sessionNumberMap = new Map<string, number>();
+  [...allSummarized].reverse().forEach((s, i) => sessionNumberMap.set(s.id, i + 1));
+
   const summarizedSessions = getFilteredBySearch(
-    getFilteredByDate(sessions.filter((s) => s.sessionNote))
+    getFilteredByDate(allSummarized)
   );
 
   // הסרת פגישה מרשימת "ללא סיכום" (מסמן skipSummary = true)
@@ -277,10 +288,18 @@ export function SummariesTab({ clientId, sessions }: SummariesTabProps) {
                   >
                     <div>
                       <div className="flex items-center gap-2 text-muted-foreground/70 mb-1">
+                        <span className="text-xs font-medium text-emerald-600 bg-emerald-50 rounded px-1.5">
+                          #{sessionNumberMap.get(session.id)}
+                        </span>
                         <Calendar className="h-3.5 w-3.5 text-emerald-500" />
                         <span className="text-sm">
                           {format(new Date(session.startTime), "EEEE, d/M", { locale: he })}
                         </span>
+                        {session.hasAiAnalysis && (
+                          <span title="יש ניתוח AI">
+                            <Brain className="h-3.5 w-3.5 text-purple-500" />
+                          </span>
+                        )}
                       </div>
                       <p className="text-sm text-muted-foreground/60">
                         {format(new Date(session.startTime), "HH:mm")} - {format(new Date(session.endTime), "HH:mm")}

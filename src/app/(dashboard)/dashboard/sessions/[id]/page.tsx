@@ -479,26 +479,6 @@ export default function SessionDetailPage({
                   onChange={setNoteContent}
                   placeholder="כתוב כאן את סיכום הפגישה..."
                 />
-                <div className="mt-4">
-                  <Button 
-                    variant="outline" 
-                    className="w-full"
-                    onClick={handleAnalyzeNote} 
-                    disabled={isAnalyzing || !noteContent.trim()}
-                  >
-                    {isAnalyzing ? (
-                      <>
-                        <Loader2 className="ml-2 h-4 w-4 animate-spin" />
-                        מנתח את הסיכום...
-                      </>
-                    ) : (
-                      <>
-                        <Brain className="ml-2 h-4 w-4" />
-                        נתח עם AI
-                      </>
-                    )}
-                  </Button>
-                </div>
               </CardContent>
             </Card>
 

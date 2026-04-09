@@ -80,6 +80,7 @@ async function getClient(clientId: string, userId: string) {
         orderBy: { startTime: "desc" },
         include: {
           sessionNote: true,
+          sessionAnalysis: { select: { id: true } },
           payment: { include: { childPayments: { orderBy: { paidAt: "asc" } } } },
         },
       },
@@ -858,6 +859,7 @@ export default async function ClientPage({
             status: s.status as string,
             skipSummary: s.skipSummary,
             sessionNote: s.sessionNote ? { content: s.sessionNote.content } : null,
+            hasAiAnalysis: !!s.sessionAnalysis,
           }))} />
         </TabsContent>
 
