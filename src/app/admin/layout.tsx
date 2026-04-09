@@ -29,22 +29,50 @@ import {
   Settings,
   Search,
   Flag,
+  BarChart3,
 } from "lucide-react";
 
-const adminNavItems = [
-  { href: "/admin", label: "דשבורד", icon: LayoutDashboard },
-  { href: "/admin/alerts", label: "התראות", icon: Bell },
-  { href: "/admin/ai-dashboard", label: "משתמשים", icon: Users },
-  { href: "/admin/billing", label: "תשלומים", icon: CreditCard },
-  { href: "/admin/trials", label: "ניסיונות", icon: Activity },
-  { href: "/admin/tier-settings", label: "תוכניות ומחירים", icon: Settings },
-  { href: "/admin/coupons", label: "קופונים", icon: Ticket },
-  { href: "/admin/ai-usage", label: "שימוש בינה מלאכותית", icon: Brain },
-  { href: "/admin/storage", label: "אחסון", icon: HardDrive },
-  { href: "/admin/announcements", label: "הודעות", icon: Megaphone },
-  { href: "/admin/questionnaires", label: "שאלונים", icon: ClipboardList },
-  { href: "/admin/audit-log", label: "לוג פעולות", icon: Shield },
-  { href: "/admin/feature-flags", label: "ניהול פיצ'רים", icon: Flag },
+const adminNavGroups = [
+  {
+    label: "סקירה כללית",
+    items: [
+      { href: "/admin", label: "דשבורד", icon: LayoutDashboard },
+      { href: "/admin/alerts", label: "התראות", icon: Bell },
+    ],
+  },
+  {
+    label: "ניהול משתמשים",
+    items: [
+      { href: "/admin/ai-dashboard", label: "משתמשים", icon: Users },
+      { href: "/admin/trials", label: "תקופות ניסיון", icon: Activity },
+    ],
+  },
+  {
+    label: "כספים ותוכניות",
+    items: [
+      { href: "/admin/billing", label: "תשלומים ומנויים", icon: CreditCard },
+      { href: "/admin/tier-settings", label: "תוכניות ומחירים", icon: Settings },
+      { href: "/admin/coupons", label: "קופונים", icon: Ticket },
+    ],
+  },
+  {
+    label: "בינה מלאכותית",
+    items: [
+      { href: "/admin/ai-usage", label: "סקירת שימוש", icon: Brain, exact: true },
+      { href: "/admin/ai-usage/settings", label: "הגדרות", icon: Settings },
+      { href: "/admin/ai-usage/reports", label: "דוחות ואנליטיקס", icon: BarChart3 },
+    ],
+  },
+  {
+    label: "מערכת",
+    items: [
+      { href: "/admin/storage", label: "אחסון", icon: HardDrive },
+      { href: "/admin/announcements", label: "הודעות", icon: Megaphone },
+      { href: "/admin/questionnaires", label: "שאלונים", icon: ClipboardList },
+      { href: "/admin/feature-flags", label: "ניהול פיצ'רים", icon: Flag },
+      { href: "/admin/audit-log", label: "לוג פעולות", icon: Shield },
+    ],
+  },
 ];
 
 interface SearchResult {
@@ -224,28 +252,39 @@ function AdminLayoutContent({ children }: { children: React.ReactNode }) {
           </div>
 
           {/* Navigation */}
-          <nav className="flex-1 p-4 space-y-2 overflow-y-auto">
-            {adminNavItems.map((item) => {
-              const isActive = pathname === item.href || 
-                (item.href !== "/admin" && pathname.startsWith(item.href));
-              
-              return (
-                <Link
-                  key={item.href}
-                  href={item.href}
-                  onClick={() => setSidebarOpen(false)}
-                  className={cn(
-                    "flex items-center gap-3 px-4 py-3 rounded-lg transition-all",
-                    isActive
-                      ? "bg-primary/15 text-primary font-medium"
-                      : "text-muted-foreground hover:bg-muted hover:text-foreground"
-                  )}
-                >
-                  <item.icon className="h-5 w-5" />
-                  <span>{item.label}</span>
-                </Link>
-              );
-            })}
+          <nav className="flex-1 px-3 pt-2 pb-4 overflow-y-auto">
+            {adminNavGroups.map((group, groupIndex) => (
+              <div key={group.label} className={cn(groupIndex > 0 && "mt-5")}>
+                <p className="px-4 mb-2 text-[11px] font-semibold text-muted-foreground/60 tracking-wide">
+                  {group.label}
+                </p>
+                <div className="space-y-1">
+                  {group.items.map((item) => {
+                    const isActive = item.exact
+                      ? pathname === item.href
+                      : pathname === item.href ||
+                        (item.href !== "/admin" && pathname.startsWith(item.href));
+
+                    return (
+                      <Link
+                        key={item.href}
+                        href={item.href}
+                        onClick={() => setSidebarOpen(false)}
+                        className={cn(
+                          "flex items-center gap-3 px-4 py-2.5 rounded-lg transition-all text-sm",
+                          isActive
+                            ? "bg-primary/15 text-primary font-medium"
+                            : "text-muted-foreground hover:bg-muted hover:text-foreground"
+                        )}
+                      >
+                        <item.icon className="h-4 w-4" />
+                        <span>{item.label}</span>
+                      </Link>
+                    );
+                  })}
+                </div>
+              </div>
+            ))}
           </nav>
 
           {/* User Info & Actions */}
