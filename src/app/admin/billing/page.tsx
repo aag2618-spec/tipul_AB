@@ -82,6 +82,7 @@ interface Subscriber {
   name: string | null;
   email: string | null;
   phone: string | null;
+  userNumber: number | null;
   aiTier: string;
   subscriptionStatus: string;
   subscriptionStartedAt: string | null;
@@ -527,7 +528,12 @@ export default function AdminBillingPage() {
                           <ChevronLeft className={`h-4 w-4 transition-transform ${expandedUser === sub.id ? "rotate-90" : ""}`} />
                         </TableCell>
                         <TableCell>
-                          <div className="font-medium text-sm">{sub.name || "ללא שם"}</div>
+                          <div className="font-medium text-sm flex items-center gap-2">
+                            {sub.name || "ללא שם"}
+                            {sub.userNumber && (
+                              <Badge variant="outline" className="font-mono text-xs bg-sky-500/10 text-sky-400 border-sky-500/30">#{sub.userNumber}</Badge>
+                            )}
+                          </div>
                           {sub.phone && <div className="text-xs text-muted-foreground">{sub.phone}</div>}
                         </TableCell>
                         <TableCell className="text-sm">{sub.email || "-"}</TableCell>

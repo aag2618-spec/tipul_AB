@@ -51,6 +51,7 @@ interface TrialUser {
   name: string | null;
   email: string | null;
   phone: string | null;
+  userNumber: number | null;
   aiTier: string;
   subscriptionStatus: string;
   trialEndsAt: string | null;
@@ -300,8 +301,11 @@ export default function AdminTrialsPage() {
                     return (
                       <TableRow key={user.id}>
                         <TableCell className="font-medium">
-                          <div>
+                          <div className="flex items-center gap-2">
                             {user.name || "-"}
+                            {user.userNumber && (
+                              <Badge variant="outline" className="font-mono text-xs bg-sky-500/10 text-sky-400 border-sky-500/30">#{user.userNumber}</Badge>
+                            )}
                             {!user.emailVerified && (
                               <span className="text-xs text-amber-500 mr-1">(לא מאומת)</span>
                             )}

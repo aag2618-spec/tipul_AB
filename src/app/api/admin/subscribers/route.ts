@@ -53,6 +53,7 @@ export async function GET(request: NextRequest) {
           name: true,
           email: true,
           phone: true,
+          userNumber: true,
           aiTier: true,
           subscriptionStatus: true,
           subscriptionStartedAt: true,

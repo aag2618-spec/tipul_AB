@@ -51,6 +51,7 @@ interface UserData {
   name: string | null;
   email: string | null;
   phone: string | null;
+  userNumber: number | null;
   aiTier: "ESSENTIAL" | "PRO" | "ENTERPRISE";
   isBlocked: boolean;
   subscriptionStatus: string;
@@ -373,7 +374,12 @@ export default function AdminAIDashboard() {
                     <TableRow key={user.id}>
                       <TableCell>
                         <div>
-                          <div className="font-medium">{user.name || "ללא שם"}</div>
+                          <div className="font-medium flex items-center gap-2">
+                            {user.name || "ללא שם"}
+                            {user.userNumber && (
+                              <Badge variant="outline" className="font-mono text-xs bg-sky-500/10 text-sky-400 border-sky-500/30">#{user.userNumber}</Badge>
+                            )}
+                          </div>
                           {user.email ? (
                             <a 
                               href={`mailto:${user.email}`}

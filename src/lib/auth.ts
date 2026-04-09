@@ -110,6 +110,30 @@ export const authOptions: NextAuthOptions = {
     signIn: "/login",
     newUser: "/register",
   },
+  events: {
+    async createUser({ user }) {
+      // הקצאת מספר משתמש אוטומטי למשתמשים חדשים (כולל OAuth/Google)
+      // עטוף בטרנזקציה עם retry למניעת race condition
+      for (let attempt = 0; attempt < 3; attempt++) {
+        try {
+          await prisma.$transaction(async (tx) => {
+            const maxResult = await tx.user.aggregate({ _max: { userNumber: true } });
+            const nextUserNumber = (maxResult._max.userNumber ?? 1000) + 1;
+            await tx.user.update({
+              where: { id: user.id },
+              data: { userNumber: nextUserNumber },
+            });
+          });
+          break; // הצלחה — יוצא מהלולאה
+        } catch (error) {
+          if (attempt === 2) {
+            console.error(`נכשל בהקצאת מספר משתמש ל-${user.id} אחרי 3 ניסיונות:`, error);
+          }
+          // ממתין קצרה לפני ניסיון נוסף
+        }
+      }
+    },
+  },
   callbacks: {
     async jwt({ token, user, account }) {
       if (user) {
