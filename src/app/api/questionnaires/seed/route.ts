@@ -19,7 +19,7 @@ export async function POST(request: NextRequest) {
       const { session } = auth;
 
       // בדיקת הרשאות - רק ADMIN או MANAGER
-      const userRole = (session.user as any)?.role;
+      const userRole = session.user.role;
       if (userRole !== "ADMIN" && userRole !== "MANAGER") {
         return NextResponse.json({ message: "Forbidden - requires ADMIN or MANAGER role" }, { status: 403 });
       }

@@ -15,7 +15,7 @@ export async function requireAdmin() {
   if (!session?.user?.id) {
     return { error: NextResponse.json({ message: "אין הרשאה" }, { status: 401 }) };
   }
-  if ((session.user as any).role !== "ADMIN") {
+  if (session.user.role !== "ADMIN") {
     return { error: NextResponse.json({ message: "אין הרשאת מנהל" }, { status: 403 }) };
   }
   return { userId: session.user.id, session };

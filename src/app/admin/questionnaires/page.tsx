@@ -23,7 +23,7 @@ export default function AdminQuestionnairesPage() {
       return;
     }
 
-    const userRole = (session.user as any)?.role;
+    const userRole = session.user.role;
     if (userRole !== "ADMIN" && userRole !== "MANAGER") {
       toast.error("אין לך הרשאה לגשת לדף זה");
       router.push("/dashboard");
@@ -73,7 +73,7 @@ export default function AdminQuestionnairesPage() {
   }
 
   // אין הרשאה
-  const userRole = (session?.user as any)?.role;
+  const userRole = session?.user.role;
   if (userRole !== "ADMIN" && userRole !== "MANAGER") {
     return (
       <div className="container mx-auto py-8 flex items-center justify-center min-h-[400px]" dir="rtl">

@@ -3,6 +3,13 @@
 import { useState, useEffect } from "react";
 import { Loader2 } from "lucide-react";
 
+interface ChartInnerProps {
+  data: Record<string, string | number>[];
+  dataKey: string;
+  color?: string;
+  xAxisKey: string;
+}
+
 interface ReportsChartsProps {
   data: Record<string, string | number>[];
   dataKey: string;
@@ -18,7 +25,7 @@ export function ReportsCharts({
   color = "hsl(var(--primary))",
   formatType = "number",
 }: ReportsChartsProps) {
-  const [Chart, setChart] = useState<React.ComponentType<any> | null>(null);
+  const [Chart, setChart] = useState<React.ComponentType<ChartInnerProps> | null>(null);
 
   const formatValue = (value: number): string => {
     if (formatType === "currency") return `₪${value.toLocaleString()}`;
@@ -28,7 +35,7 @@ export function ReportsCharts({
 
   useEffect(() => {
     import("recharts").then((mod) => {
-      const ChartComponent = ({ data, dataKey, color, xAxisKey }: { data: any[]; dataKey: string; color?: string; xAxisKey: string }) => (
+      const ChartComponent = ({ data, dataKey, color, xAxisKey }: ChartInnerProps) => (
         <mod.ResponsiveContainer width="100%" height="100%">
           <mod.BarChart data={data} margin={{ top: 10, right: 10, left: 10, bottom: 0 }}>
             <mod.CartesianGrid strokeDasharray="3 3" stroke="hsl(var(--muted))" />

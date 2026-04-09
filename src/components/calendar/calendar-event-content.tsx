@@ -1,9 +1,10 @@
 "use client";
 
+import type { EventContentArg } from "@fullcalendar/core";
 import type { CalendarSession } from "@/hooks/use-calendar-data";
 
 interface CalendarEventContentProps {
-  eventInfo: any;
+  eventInfo: EventContentArg;
   sessions: CalendarSession[];
   onAddSessionAfter: (session: CalendarSession) => void;
 }
