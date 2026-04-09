@@ -30,6 +30,7 @@ import {
   Search,
   Flag,
   BarChart3,
+  Headphones,
 } from "lucide-react";
 
 const adminNavGroups = [
@@ -45,6 +46,7 @@ const adminNavGroups = [
     items: [
       { href: "/admin/users", label: "משתמשים", icon: Users },
       { href: "/admin/trials", label: "תקופות ניסיון", icon: Activity },
+      { href: "/admin/support", label: "פניות ותמיכה", icon: Headphones },
     ],
   },
   {
