@@ -12,12 +12,8 @@ async function getSessionsPendingSummary(userId: string) {
       startTime: { gte: thirtyDaysAgo },
       skipSummary: { not: true },
       type: { not: "BREAK" },
-      status: { in: ["SCHEDULED", "COMPLETED"] },
+      status: "COMPLETED",
       sessionNote: { is: null },
-      OR: [
-        { startTime: { lt: new Date() } },
-        { status: "COMPLETED" },
-      ],
     },
     include: {
       client: { select: { id: true, name: true } },

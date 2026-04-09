@@ -101,19 +101,15 @@ async function getDashboardStats(userId: string) {
       },
     }),
     // Count sessions pending summary (last 30 days only).
-    // Include COMPLETED without summary even if startTime is still "future" by server clock (timezone-safe).
+    // Only COMPLETED sessions should appear as pending summary.
     prisma.therapySession.count({
       where: {
         therapistId: userId,
         startTime: { gte: new Date(Date.now() - 30 * 24 * 60 * 60 * 1000) },
         skipSummary: { not: true },
         type: { not: "BREAK" },
-        status: { in: ["SCHEDULED", "COMPLETED"] },
+        status: "COMPLETED",
         sessionNote: { is: null },
-        OR: [
-          { startTime: { lt: new Date() } },
-          { status: "COMPLETED" },
-        ],
       },
     }),
     prisma.therapySession.findMany({
