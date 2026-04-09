@@ -1,9 +1,7 @@
 "use client";
 
-import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import { Switch } from "@/components/ui/switch";
-import { Textarea } from "@/components/ui/textarea";
 import { MessageSquare } from "lucide-react";
 import {
   AccordionContent, AccordionItem, AccordionTrigger,
@@ -25,8 +23,6 @@ export function SmsSection({
   smsSettings,
   setSmsSettings,
 }: SmsSectionProps) {
-  const defaultSmsMessage = `שלום {שם},\nזוהי תזכורת לפגישה שלך ב{תאריך} בשעה {שעה}.\nתודה!`;
-
   return (
     <AccordionItem value="sms" className="border rounded-lg px-4">
       <AccordionTrigger className="hover:no-underline">

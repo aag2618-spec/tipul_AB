@@ -15,8 +15,9 @@ import {
 } from "@/components/ui/dropdown-menu";
 import { Avatar, AvatarFallback, AvatarImage } from "@/components/ui/avatar";
 import { Badge } from "@/components/ui/badge";
-import { Bell, LogOut, Settings, User, XCircle, Mail, Calendar, X, ListTodo, Info, AlertTriangle, CheckCircle, Sparkles } from "lucide-react";
+import { Bell, LogOut, Settings, User, XCircle, Mail, Calendar, X, ListTodo, Sun, Moon, CreditCard, Info, AlertTriangle, CheckCircle, Sparkles } from "lucide-react";
 import Link from "next/link";
+import { getNotificationIconInfo, extractBookingInfo as extractBookingInfoUtil } from "@/lib/notification-utils";
 
 interface Notification {
   id: string;
@@ -155,33 +156,23 @@ export function DashboardHeader({ user }: DashboardHeaderProps) {
       .slice(0, 2);
   };
 
-  const getNotificationIcon = (type: string) => {
-    switch (type) {
-      case "CANCELLATION_REQUEST":
-        return <XCircle className="h-4 w-4 text-orange-500" />;
-      case "BOOKING_REQUEST":
-        return <Calendar className="h-4 w-4 text-amber-500" />;
-      case "EMAIL_RECEIVED":
-        return <Mail className="h-4 w-4 text-sky-500" />;
-      case "EMAIL_SENT":
-        return <Mail className="h-4 w-4 text-sky-500" />;
-      case "SESSION_REMINDER":
-        return <Calendar className="h-4 w-4 text-green-500" />;
-      case "PENDING_TASKS":
-      case "CUSTOM":
-        return <ListTodo className="h-4 w-4 text-amber-500" />;
-      default:
-        return <Bell className="h-4 w-4" />;
-    }
+  const HEADER_ICON_MAP: Record<string, React.ReactNode> = {
+    sun: <Sun className="h-4 w-4" />,
+    moon: <Moon className="h-4 w-4" />,
+    "list-todo": <ListTodo className="h-4 w-4" />,
+    "credit-card": <CreditCard className="h-4 w-4" />,
+    calendar: <Calendar className="h-4 w-4" />,
+    mail: <Mail className="h-4 w-4" />,
+    "x-circle": <XCircle className="h-4 w-4" />,
+    bell: <Bell className="h-4 w-4" />,
   };
 
-  const extractBookingInfo = (content: string): { date: string | null; time: string | null; sessionId: string | null } => {
-    const match = content.match(/\[(\d{4}-\d{2}-\d{2})\|(\d{1,2}:\d{2})\|([a-z0-9]+)\]/);
-    if (match) return { date: match[1], time: match[2], sessionId: match[3] };
-    const dateOnly = content.match(/\[(\d{4}-\d{2}-\d{2})\]/);
-    if (dateOnly) return { date: dateOnly[1], time: null, sessionId: null };
-    return { date: null, time: null, sessionId: null };
+  const getNotificationIcon = (type: string) => {
+    const info = getNotificationIconInfo(type);
+    return <span className={info.color}>{HEADER_ICON_MAP[info.icon] || <Bell className="h-4 w-4" />}</span>;
   };
+
+  const extractBookingInfo = extractBookingInfoUtil;
 
   const handleNotificationClick = (notification: Notification) => {
     if (notification.type === "BOOKING_REQUEST" || notification.type === "CANCELLATION_REQUEST") {

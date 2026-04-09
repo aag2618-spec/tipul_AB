@@ -1,4 +1,5 @@
 import { describe, it, expect } from "vitest";
+import { getNotificationRoute, extractBookingInfo, NOTIFICATION_TYPES } from "@/lib/notification-utils";
 
 /**
  * Tests for notification routing logic and summary count synchronization.
@@ -6,41 +7,6 @@ import { describe, it, expect } from "vitest";
  * - Bug ב': Notification bell click routing
  * - Bug ד': Dashboard summary count matching summaries page
  */
-
-// Simulate the notification routing logic from dashboard-header.tsx
-function getNotificationRoute(type: string): string {
-  if (type === "BOOKING_REQUEST" || type === "CANCELLATION_REQUEST") {
-    return "/dashboard/calendar";
-  } else if (type === "MORNING_SUMMARY") {
-    return "/dashboard/calendar";
-  } else if (type === "PENDING_TASKS" || type === "EVENING_SUMMARY") {
-    return "/dashboard?scrollTo=personal-tasks";
-  } else if (type === "PAYMENT_REMINDER") {
-    return "/dashboard/payments";
-  } else {
-    return "/dashboard/communications";
-  }
-}
-
-// Simulate the summary count filter logic (must match summaries-tab.tsx)
-interface SessionForSummary {
-  sessionNote: { content: string } | null;
-  type: string;
-  skipSummary: boolean;
-  startTime: Date;
-  status: string;
-}
-
-function countPendingSummaries(sessions: SessionForSummary[]): number {
-  return sessions.filter(
-    (s) =>
-      !s.sessionNote &&
-      s.type !== "BREAK" &&
-      !s.skipSummary &&
-      new Date(s.startTime) < new Date() &&
-      (s.status === "SCHEDULED" || s.status === "COMPLETED")
-  ).length;
-}
 
 describe("Notification routing", () => {
   it("MORNING_SUMMARY routes to /dashboard/calendar", () => {
@@ -63,12 +29,85 @@ describe("Notification routing", () => {
     expect(getNotificationRoute("BOOKING_REQUEST")).toBe("/dashboard/calendar");
   });
 
+  it("CANCELLATION_REQUEST routes to /dashboard/calendar", () => {
+    expect(getNotificationRoute("CANCELLATION_REQUEST")).toBe("/dashboard/calendar");
+  });
+
   it("EMAIL_RECEIVED routes to /dashboard/communications", () => {
-    expect(getNotificationRoute("EMAIL_RECEIVED")).toBe(
-      "/dashboard/communications"
-    );
+    expect(getNotificationRoute("EMAIL_RECEIVED")).toBe("/dashboard/communications");
+  });
+
+  it("EMAIL_SENT routes to /dashboard/communications", () => {
+    expect(getNotificationRoute("EMAIL_SENT")).toBe("/dashboard/communications");
+  });
+
+  it("SESSION_REMINDER routes to /dashboard/communications", () => {
+    expect(getNotificationRoute("SESSION_REMINDER")).toBe("/dashboard/communications");
+  });
+
+  it("CUSTOM routes to /dashboard/communications", () => {
+    expect(getNotificationRoute("CUSTOM")).toBe("/dashboard/communications");
+  });
+
+  it("כל 10 הסוגים מחזירים נתיב תקף", () => {
+    for (const type of NOTIFICATION_TYPES) {
+      const route = getNotificationRoute(type);
+      expect(route).toMatch(/^\/dashboard/);
+    }
   });
 });
+
+describe("extractBookingInfo", () => {
+  it("מחלץ תאריך, שעה, ומזהה פגישה מתוכן מלא", () => {
+    const content = "בקשת פגישה [2026-03-15|14:00|abc123]";
+    const result = extractBookingInfo(content);
+    expect(result.date).toBe("2026-03-15");
+    expect(result.time).toBe("14:00");
+    expect(result.sessionId).toBe("abc123");
+  });
+
+  it("מחלץ רק תאריך כשאין שעה ומזהה", () => {
+    const content = "בקשת ביטול [2026-03-15]";
+    const result = extractBookingInfo(content);
+    expect(result.date).toBe("2026-03-15");
+    expect(result.time).toBeNull();
+    expect(result.sessionId).toBeNull();
+  });
+
+  it("מחזיר nulls כשאין מידע הזמנה", () => {
+    const content = "יש לך 3 פגישות היום";
+    const result = extractBookingInfo(content);
+    expect(result.date).toBeNull();
+    expect(result.time).toBeNull();
+    expect(result.sessionId).toBeNull();
+  });
+
+  it("מחלץ שעה עם ספרה אחת", () => {
+    const content = "פגישה [2026-01-01|9:30|xyz789]";
+    const result = extractBookingInfo(content);
+    expect(result.time).toBe("9:30");
+  });
+});
+
+// Simulate the summary count filter logic (must match summaries-tab.tsx)
+interface SessionForSummary {
+  sessionNote: { content: string } | null;
+  type: string;
+  skipSummary: boolean;
+  startTime: Date;
+  status: string;
+}
+
+function countPendingSummaries(sessions: SessionForSummary[]): number {
+  return sessions.filter(
+    (s) =>
+      !s.sessionNote &&
+      s.type !== "BREAK" &&
+      !s.skipSummary &&
+      new Date(s.startTime) < new Date() &&
+      (s.status === "SCHEDULED" || s.status === "COMPLETED")
+  ).length;
+}
 
 describe("Summary count synchronization", () => {
   const pastDate = new Date("2025-01-01");

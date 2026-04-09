@@ -60,7 +60,21 @@ export function NotificationChannelsSection({
             <Input
               type="time"
               value={notifSettings.morningTime}
-              onChange={(e) => setNotifSettings({ ...notifSettings, morningTime: e.target.value || "08:00" })}
+              onChange={(e) => {
+                const val = e.target.value || "08:00";
+                const [h, m] = val.split(":").map(Number);
+                if (h < 5 || h > 12 || (h === 12 && m > 0)) {
+                  setNotifSettings({ ...notifSettings, morningTime: "08:00" });
+                } else {
+                  setNotifSettings({ ...notifSettings, morningTime: val });
+                }
+              }}
+              onBlur={() => {
+                const [h, m] = notifSettings.morningTime.split(":").map(Number);
+                if (h < 5 || h > 12 || (h === 12 && m > 0)) {
+                  setNotifSettings({ ...notifSettings, morningTime: "08:00" });
+                }
+              }}
               className="w-28"
               min="05:00"
               max="12:00"
@@ -72,7 +86,21 @@ export function NotificationChannelsSection({
             <Input
               type="time"
               value={notifSettings.eveningTime}
-              onChange={(e) => setNotifSettings({ ...notifSettings, eveningTime: e.target.value || "20:00" })}
+              onChange={(e) => {
+                const val = e.target.value || "20:00";
+                const [h, m] = val.split(":").map(Number);
+                if (h < 16 || h > 23 || (h === 23 && m > 0)) {
+                  setNotifSettings({ ...notifSettings, eveningTime: "20:00" });
+                } else {
+                  setNotifSettings({ ...notifSettings, eveningTime: val });
+                }
+              }}
+              onBlur={() => {
+                const [h, m] = notifSettings.eveningTime.split(":").map(Number);
+                if (h < 16 || h > 23 || (h === 23 && m > 0)) {
+                  setNotifSettings({ ...notifSettings, eveningTime: "20:00" });
+                }
+              }}
               className="w-28"
               min="16:00"
               max="23:00"

@@ -13,7 +13,12 @@ import {
   Check,
   Trash2,
   CheckCheck,
+  Sun,
+  Moon,
+  ListTodo,
+  CreditCard,
 } from "lucide-react";
+import { formatRelativeDate, getNotificationIconInfo } from "@/lib/notification-utils";
 
 interface Notification {
   id: string;
@@ -77,33 +82,23 @@ export default function NotificationsPage() {
     }
   };
 
+  const ICON_MAP: Record<string, React.ReactNode> = {
+    sun: <Sun className="h-5 w-5" />,
+    moon: <Moon className="h-5 w-5" />,
+    "list-todo": <ListTodo className="h-5 w-5" />,
+    "credit-card": <CreditCard className="h-5 w-5" />,
+    calendar: <Calendar className="h-5 w-5" />,
+    mail: <Mail className="h-5 w-5" />,
+    "x-circle": <XCircle className="h-5 w-5" />,
+    bell: <Bell className="h-5 w-5" />,
+  };
+
   const getIcon = (type: string) => {
-    switch (type) {
-      case "CANCELLATION_REQUEST":
-        return <XCircle className="h-5 w-5 text-orange-500" />;
-      case "EMAIL_SENT":
-        return <Mail className="h-5 w-5 text-sky-500" />;
-      case "SESSION_REMINDER":
-        return <Calendar className="h-5 w-5 text-green-500" />;
-      default:
-        return <Bell className="h-5 w-5 text-gray-500" />;
-    }
+    const info = getNotificationIconInfo(type);
+    return <span className={info.color}>{ICON_MAP[info.icon] || <Bell className="h-5 w-5" />}</span>;
   };
 
-  const formatDate = (dateString: string) => {
-    const date = new Date(dateString);
-    const now = new Date();
-    const diff = now.getTime() - date.getTime();
-    const minutes = Math.floor(diff / 60000);
-    const hours = Math.floor(diff / 3600000);
-    const days = Math.floor(diff / 86400000);
-
-    if (minutes < 1) return "עכשיו";
-    if (minutes < 60) return `לפני ${minutes} דקות`;
-    if (hours < 24) return `לפני ${hours} שעות`;
-    if (days < 7) return `לפני ${days} ימים`;
-    return date.toLocaleDateString("he-IL");
-  };
+  const formatDate = formatRelativeDate;
 
   const unreadCount = notifications.filter((n) => !n.read).length;
 
