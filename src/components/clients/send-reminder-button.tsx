@@ -35,8 +35,8 @@ export function SendReminderButton({
       }
       
       toast.success(`תזכורת נשלחה בהצלחה ל-${clientName}!`);
-    } catch (error: any) {
-      toast.error(error.message || "שגיאה בשליחת התזכורת");
+    } catch (error: unknown) {
+      toast.error(error instanceof Error ? error.message : "שגיאה בשליחת התזכורת");
     } finally {
       setSending(false);
     }

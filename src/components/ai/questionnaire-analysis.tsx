@@ -97,8 +97,8 @@ export function QuestionnaireAnalysis({
         singleQuestionnaire: data.usage.current,
         singleQuestionnaireRemaining: data.usage.remaining,
       }));
-    } catch (error: any) {
-      toast.error(error.message || "שגיאה בניתוח");
+    } catch (error: unknown) {
+      toast.error(error instanceof Error ? error.message : "שגיאה בניתוח");
     } finally {
       setLoading(false);
     }
@@ -132,8 +132,8 @@ export function QuestionnaireAnalysis({
         combinedQuestionnaire: data.usage.current,
         combinedQuestionnaireRemaining: data.usage.remaining,
       }));
-    } catch (error: any) {
-      toast.error(error.message || "שגיאה בניתוח");
+    } catch (error: unknown) {
+      toast.error(error instanceof Error ? error.message : "שגיאה בניתוח");
     } finally {
       setLoading(false);
     }
@@ -176,8 +176,8 @@ export function QuestionnaireAnalysis({
         progressReport: data.usage.current,
         progressReportRemaining: data.usage.remaining,
       }));
-    } catch (error: any) {
-      toast.error(error.message || "שגיאה ביצירת דו\"ח");
+    } catch (error: unknown) {
+      toast.error(error instanceof Error ? error.message : "שגיאה ביצירת דו\"ח");
     } finally {
       setLoading(false);
     }

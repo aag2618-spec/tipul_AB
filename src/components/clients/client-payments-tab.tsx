@@ -174,7 +174,7 @@ export function ClientPaymentsTab({
                                   <span className="text-emerald-600">₪{alreadyPaid}</span>
                                   {(session.payment as any).paidAt && (
                                     <span className="text-muted-foreground mr-1">
-                                      · {format(new Date((session.payment as any).paidAt), "dd/MM/yyyy")}
+                                      · {format(new Date((session.payment as any).paidAt!), "dd/MM/yyyy")}
                                     </span>
                                   )}
                                 </span>

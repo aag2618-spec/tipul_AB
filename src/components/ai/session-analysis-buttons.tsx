@@ -60,8 +60,8 @@ export function SessionAnalysisButtons({
       }
 
       onAnalysisComplete?.();
-    } catch (error: any) {
-      toast.error(error.message || "שגיאה בניתוח");
+    } catch (error: unknown) {
+      toast.error(error instanceof Error ? error.message : "שגיאה בניתוח");
     } finally {
       setLoading(false);
     }

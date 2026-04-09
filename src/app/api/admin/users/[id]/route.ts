@@ -23,7 +23,7 @@ export async function PUT(
     const { name, email, password, phone, role, aiTier } = body;
 
     // Build update data
-    const updateData: any = {
+    const updateData: Record<string, unknown> = {
       name,
       email,
       phone,
@@ -111,7 +111,7 @@ export async function PATCH(
       grantFree, revokeFree, freeNote 
     } = body;
 
-    const updateData: any = {};
+    const updateData: Record<string, unknown> = {};
     if (isBlocked !== undefined) updateData.isBlocked = isBlocked;
     if (aiTier !== undefined) updateData.aiTier = aiTier;
     if (subscriptionStatus !== undefined) updateData.subscriptionStatus = subscriptionStatus;

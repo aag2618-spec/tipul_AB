@@ -16,7 +16,7 @@ export async function GET(request: Request) {
     const clientId = searchParams.get("clientId");
     const isTemplate = searchParams.get("isTemplate") === "true";
 
-    const where: any = { therapistId: userId };
+    const where: Record<string, unknown> = { therapistId: userId };
     if (clientId) {
       where.clientId = clientId;
     }

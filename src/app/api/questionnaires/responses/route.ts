@@ -92,7 +92,7 @@ export async function GET(request: NextRequest) {
     const clientId = searchParams.get("clientId");
     const status = searchParams.get("status");
 
-    const where: any = {
+    const where: Record<string, unknown> = {
       therapistId: userId,
     };
 

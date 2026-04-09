@@ -249,7 +249,7 @@ export async function processMultiSessionPayment(params: {
 
 async function autoFixStuckPayments(
   userId: string,
-  pendingPayments: Array<{ id: string; amount: any; expectedAmount: any }>
+  pendingPayments: Array<{ id: string; amount: unknown; expectedAmount: unknown }>
 ): Promise<string[]> {
   const stuck = pendingPayments.filter((p) => {
     const paid = Number(p.amount);

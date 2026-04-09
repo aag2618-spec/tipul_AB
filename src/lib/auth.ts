@@ -7,7 +7,14 @@ import prisma from "./prisma";
 
 // Cache for JWT user data — avoids DB query on every request
 const JWT_CACHE_TTL = 2 * 60 * 1000; // 2 דקות
-const jwtUserCache = new Map<string, { data: any; timestamp: number }>();
+interface JwtUserData {
+  role: "USER" | "MANAGER" | "ADMIN";
+  isBlocked: boolean;
+  subscriptionStatus: "ACTIVE" | "TRIALING" | "PAST_DUE" | "CANCELLED" | "PAUSED" | null;
+  subscriptionEndsAt: Date | null;
+  trialEndsAt: Date | null;
+}
+const jwtUserCache = new Map<string, { data: JwtUserData; timestamp: number }>();
 
 // ניקוי cache כל דקה — מונע גדילה בלתי מוגבלת (guard מונע כפילויות ב-hot reload)
 let cleanupInitialized = false;
@@ -136,7 +143,7 @@ export const authOptions: NextAuthOptions = {
         }
         if (dbUser) {
           token.role = dbUser.role;
-          token.subscriptionStatus = dbUser.subscriptionStatus;
+          token.subscriptionStatus = dbUser.subscriptionStatus || undefined;
           token.isBlocked = dbUser.isBlocked || false;
           
           // Grace period: 7 ימים אחרי שהמנוי פג לפני חסימה

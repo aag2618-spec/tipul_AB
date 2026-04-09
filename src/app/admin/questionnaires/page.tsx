@@ -12,7 +12,7 @@ export default function AdminQuestionnairesPage() {
   const { data: session, status } = useSession();
   const router = useRouter();
   const [loading, setLoading] = useState(false);
-  const [result, setResult] = useState<any>(null);
+  const [result, setResult] = useState<{ success: boolean; error?: string; data?: { created: number; updated: number; errors: number } } | null>(null);
 
   // בדיקת הרשאות - רק ADMIN או MANAGER
   useEffect(() => {
@@ -51,9 +51,9 @@ export default function AdminQuestionnairesPage() {
         setResult({ success: false, error: data.error });
         toast.error("שגיאה בטעינת שאלונים: " + data.error);
       }
-    } catch (error: any) {
+    } catch (error: unknown) {
       console.error("Error loading questionnaires:", error);
-      setResult({ success: false, error: error.message });
+      setResult({ success: false, error: error instanceof Error ? error.message : "שגיאה לא ידועה" });
       toast.error("שגיאה בטעינת שאלונים");
     } finally {
       setLoading(false);

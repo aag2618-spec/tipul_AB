@@ -81,7 +81,7 @@ export async function PATCH(
       );
     }
 
-    const updateData: any = {};
+    const updateData: Record<string, unknown> = {};
     
     if (answers !== undefined) {
       updateData.answers = answers;

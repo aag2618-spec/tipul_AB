@@ -91,9 +91,9 @@ export function SessionPrepCard({ session, userTier }: SessionPrepCardProps) {
       setPrep(data);
       setIsExpanded(true);
       toast.success('ההכנה לפגישה נוצרה בהצלחה!');
-    } catch (error: any) {
+    } catch (error: unknown) {
       console.error('שגיאה בהכנה לפגישה:', error);
-      toast.error(error.message || 'שגיאה ביצירת הכנה לפגישה');
+      toast.error(error instanceof Error ? error.message : 'שגיאה ביצירת הכנה לפגישה');
     } finally {
       setIsLoading(false);
     }

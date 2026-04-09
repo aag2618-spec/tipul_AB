@@ -21,7 +21,7 @@ export async function GET(request: NextRequest) {
     const status = searchParams.get("status"); // PAID, PENDING, ALL
     const format = searchParams.get("format") || "csv"; // csv or json
 
-    const where: any = {
+    const where: Record<string, unknown> = {
       client: {
         therapistId: userId,
       },
@@ -30,15 +30,16 @@ export async function GET(request: NextRequest) {
 
     // סינון לפי תאריך
     if (startDate || endDate) {
-      where.createdAt = {};
+      const dateFilter: { gte?: Date; lte?: Date } = {};
       if (startDate) {
-        where.createdAt.gte = new Date(startDate);
+        dateFilter.gte = new Date(startDate);
       }
       if (endDate) {
         const end = new Date(endDate);
         end.setHours(23, 59, 59, 999);
-        where.createdAt.lte = end;
+        dateFilter.lte = end;
       }
+      where.createdAt = dateFilter;
     }
 
     // סינון לפי סטטוס

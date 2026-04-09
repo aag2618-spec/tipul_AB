@@ -107,8 +107,8 @@ export default function ClientPaymentsPage() {
       toast.success(`התשלום עובד בהצלחה! קוזזו ${result.sessionsUpdated} פגישות`);
       setBulkAmount("");
       await fetchClientData();
-    } catch (error: any) {
-      toast.error(error.message || "שגיאה בעיבוד התשלום");
+    } catch (error: unknown) {
+      toast.error(error instanceof Error ? error.message : "שגיאה בעיבוד התשלום");
       console.error(error);
     } finally {
       setProcessing(false);
@@ -133,8 +133,8 @@ export default function ClientPaymentsPage() {
       }
 
       toast.success("תזכורת נשלחה בהצלחה למייל המטופל!");
-    } catch (error: any) {
-      toast.error(error.message || "שגיאה בשליחת התזכורת");
+    } catch (error: unknown) {
+      toast.error(error instanceof Error ? error.message : "שגיאה בשליחת התזכורת");
       console.error(error);
     } finally {
       setSendingReminder(false);

@@ -5,7 +5,7 @@
  */
 
 export function calculateDebtFromPayments(
-  payments: Array<{ amount: any; expectedAmount: any }>
+  payments: Array<{ amount: unknown; expectedAmount: unknown }>
 ): number {
   return payments
     .filter((p) => {
@@ -20,8 +20,8 @@ export function calculateDebtFromPayments(
 }
 
 export function calculateSessionDebt(session: {
-  price: any;
-  payment?: { amount: any; expectedAmount: any } | null;
+  price: unknown;
+  payment?: { amount: unknown; expectedAmount: unknown } | null;
 }): number {
   if (!session.payment) return Number(session.price);
   const paid = Number(session.payment.amount);
@@ -32,8 +32,8 @@ export function calculateSessionDebt(session: {
 
 export function calculateDebtFromSessions(
   sessions: Array<{
-    price: any;
-    payment?: { amount: any; expectedAmount: any } | null;
+    price: unknown;
+    payment?: { amount: unknown; expectedAmount: unknown } | null;
   }>
 ): number {
   return sessions.reduce((sum, s) => sum + calculateSessionDebt(s), 0);

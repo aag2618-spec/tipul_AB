@@ -16,6 +16,7 @@ export type PaymentType = "FULL" | "PARTIAL" | "ADVANCE";
 
 export interface PaymentResult {
   success: boolean;
+  // eslint-disable-next-line @typescript-eslint/no-explicit-any -- Prisma model with many fields
   payment?: any;
   childPayment?: any;
   receiptNumber?: string | null;

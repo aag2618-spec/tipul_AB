@@ -56,9 +56,9 @@ export function SendPaymentHistoryButton({
       toast.success(
         `סיכום תשלומים נשלח בהצלחה! (${data.paymentsCount} תשלומים, סה"כ ₪${data.totalPaid})`
       );
-    } catch (error: any) {
+    } catch (error: unknown) {
       console.error("Error sending payment history:", error);
-      toast.error(error.message || "שגיאה בשליחת סיכום תשלומים");
+      toast.error(error instanceof Error ? error.message : "שגיאה בשליחת סיכום תשלומים");
     } finally {
       setSending(false);
     }

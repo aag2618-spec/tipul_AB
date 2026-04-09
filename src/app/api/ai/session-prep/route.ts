@@ -374,10 +374,10 @@ export async function POST(request: NextRequest) {
       tier: user.aiTier
     });
 
-  } catch (error: any) {
+  } catch (error: unknown) {
     logger.error('שגיאה בהכנה לפגישה:', { error: error instanceof Error ? error.message : String(error) });
     return NextResponse.json(
-      { message: error.message || "שגיאה פנימית בשרת" },
+      { message: error instanceof Error ? error.message : "שגיאה פנימית בשרת" },
       { status: 500 }
     );
   }
