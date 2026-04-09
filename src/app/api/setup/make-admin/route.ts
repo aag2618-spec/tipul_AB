@@ -2,7 +2,7 @@ import { NextRequest, NextResponse } from "next/server";
 import prisma from "@/lib/prisma";
 import { logger } from "@/lib/logger";
 
-// POST - One-time setup to make aag2618@gmail.com an ADMIN
+// POST - One-time setup to make ADMIN_EMAIL user an ADMIN
 export const dynamic = "force-dynamic";
 
 export async function POST(request: NextRequest) {
@@ -15,8 +15,13 @@ export async function POST(request: NextRequest) {
     }
 
     // Find the user
+    const adminEmail = process.env.ADMIN_EMAIL;
+    if (!adminEmail) {
+      return NextResponse.json({ error: "ADMIN_EMAIL not configured" }, { status: 500 });
+    }
+
     const user = await prisma.user.findUnique({
-      where: { email: "aag2618@gmail.com" },
+      where: { email: adminEmail },
       select: {
         id: true,
         name: true,
@@ -27,7 +32,7 @@ export async function POST(request: NextRequest) {
 
     if (!user) {
       return NextResponse.json(
-        { error: "User not found", email: "aag2618@gmail.com" },
+        { error: "User not found", email: adminEmail },
         { status: 404 }
       );
     }

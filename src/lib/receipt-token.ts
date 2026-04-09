@@ -1,7 +1,12 @@
 import crypto from 'crypto';
 
-const getSecret = () =>
-  process.env.ENCRYPTION_KEY || process.env.NEXTAUTH_SECRET || 'receipt-fallback-key';
+const getSecret = () => {
+  const key = process.env.ENCRYPTION_KEY || process.env.NEXTAUTH_SECRET;
+  if (!key) {
+    throw new Error('חסר מפתח הצפנה — יש להגדיר ENCRYPTION_KEY או NEXTAUTH_SECRET');
+  }
+  return key;
+};
 
 export function generateReceiptToken(paymentId: string): string {
   return crypto

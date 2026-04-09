@@ -5,6 +5,10 @@ import { PrismaAdapter } from "@auth/prisma-adapter";
 import bcrypt from "bcryptjs";
 import prisma from "./prisma";
 
+// Cache for JWT user data — avoids DB query on every request
+const JWT_CACHE_TTL = 5 * 60 * 1000; // 5 דקות
+const jwtUserCache = new Map<string, { data: any; timestamp: number }>();
+
 export const authOptions: NextAuthOptions = {
   adapter: PrismaAdapter(prisma) as NextAuthOptions["adapter"],
   providers: [
@@ -92,18 +96,30 @@ export const authOptions: NextAuthOptions = {
         token.role = user.role;
       }
       
-      // Refresh role and subscription status from database on each request
+      // Refresh role and subscription status from database (cached for 5 minutes)
       if (token.id) {
-        const dbUser = await prisma.user.findUnique({
-          where: { id: token.id as string },
-          select: { 
-            role: true, 
-            isBlocked: true,
-            subscriptionStatus: true,
-            subscriptionEndsAt: true,
-            trialEndsAt: true,
-          },
-        });
+        const userId = token.id as string;
+        const cached = jwtUserCache.get(userId);
+        const now = Date.now();
+
+        let dbUser;
+        if (cached && (now - cached.timestamp) < JWT_CACHE_TTL) {
+          dbUser = cached.data;
+        } else {
+          dbUser = await prisma.user.findUnique({
+            where: { id: userId },
+            select: {
+              role: true,
+              isBlocked: true,
+              subscriptionStatus: true,
+              subscriptionEndsAt: true,
+              trialEndsAt: true,
+            },
+          });
+          if (dbUser) {
+            jwtUserCache.set(userId, { data: dbUser, timestamp: now });
+          }
+        }
         if (dbUser) {
           token.role = dbUser.role;
           token.subscriptionStatus = dbUser.subscriptionStatus;
