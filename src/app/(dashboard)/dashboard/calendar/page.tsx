@@ -1,6 +1,6 @@
 "use client";
 
-import { useEffect, useState, useCallback } from "react";
+import { Suspense, useEffect, useState, useCallback } from "react";
 import { useSearchParams, useRouter } from "next/navigation";
 import dynamic from "next/dynamic";
 import { Button } from "@/components/ui/button";
@@ -53,6 +53,14 @@ interface CalendarEvent {
 
 
 export default function CalendarPage() {
+  return (
+    <Suspense fallback={<div className="h-[calc(100vh-200px)] flex items-center justify-center"><Loader2 className="h-8 w-8 animate-spin text-muted-foreground" /></div>}>
+      <CalendarPageContent />
+    </Suspense>
+  );
+}
+
+function CalendarPageContent() {
   const router = useRouter();
   const searchParams = useSearchParams();
   const viewParam = searchParams.get('view');

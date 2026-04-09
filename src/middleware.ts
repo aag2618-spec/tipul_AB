@@ -5,9 +5,6 @@ import { getToken } from "next-auth/jwt";
 // דפים שלא דורשים מנוי פעיל (מדויקים!)
 const SUBSCRIPTION_EXEMPT_PATHS = [
   "/dashboard/settings/billing",
-  "/api/subscription",
-  "/api/user",
-  "/api/auth",
 ];
 
 // דפים שפטורים בהתאמה מדויקת (לא startsWith)
