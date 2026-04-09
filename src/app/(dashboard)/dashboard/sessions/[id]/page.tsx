@@ -210,26 +210,29 @@ export default function SessionDetailPage({
   }, [id, router]);
 
   // Auto-save: שמירה אוטומטית כל 30 שניות
+  const hasExistingNote = useRef(false);
+  useEffect(() => {
+    hasExistingNote.current = !!session?.sessionNote;
+  }, [session?.sessionNote]);
+
   const autoSave = useCallback(async (content: string) => {
     if (!content.trim() || content === lastSavedContent.current) return;
     setAutoSaveStatus('saving');
     try {
       const response = await fetch(`/api/sessions/${id}/note`, {
-        method: session?.sessionNote ? "PUT" : "POST",
+        method: hasExistingNote.current ? "PUT" : "POST",
         headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ content, aiAnalysis: noteAnalysis || null }),
+        body: JSON.stringify({ content }),
       });
       if (response.ok) {
         lastSavedContent.current = content;
+        hasExistingNote.current = true;
         setAutoSaveStatus('saved');
-        // Update session to reflect the saved note
-        const updatedSession = await fetch(`/api/sessions/${id}`).then(r => r.json());
-        setSession(updatedSession);
       }
     } catch {
       setAutoSaveStatus('unsaved');
     }
-  }, [id, session?.sessionNote, noteAnalysis]);
+  }, [id]);
 
   useEffect(() => {
     if (!noteContent.trim() || noteContent === lastSavedContent.current) return;
@@ -446,7 +449,7 @@ export default function SessionDetailPage({
                   {autoSaveStatus === 'saving' && (
                     <span className="text-xs text-muted-foreground flex items-center gap-1">
                       <Loader2 className="h-3 w-3 animate-spin" />
-                      שומר...
+                      שמירה אוטומטית...
                     </span>
                   )}
                   {hasTranscription && (

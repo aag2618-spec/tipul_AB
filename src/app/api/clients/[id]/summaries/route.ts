@@ -22,6 +22,8 @@ export async function GET(
         id: true,
         firstName: true,
         lastName: true,
+        comprehensiveAnalysis: true,
+        comprehensiveAnalysisAt: true,
         therapySessions: {
           where: {
             sessionNote: { isNot: null },

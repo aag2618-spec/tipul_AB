@@ -39,6 +39,8 @@ interface Client {
   firstName: string;
   lastName: string;
   therapySessions: Session[];
+  comprehensiveAnalysis: string | null;
+  comprehensiveAnalysisAt: string | null;
 }
 
 export default function AllSummariesPage() {
@@ -61,6 +63,10 @@ export default function AllSummariesPage() {
       if (response.ok) {
         const data = await response.json();
         setClient(data);
+        // טעינת ניתוח שמור אם קיים
+        if (data.comprehensiveAnalysis) {
+          setAiAnalysis(data.comprehensiveAnalysis);
+        }
       } else {
         toast.error("שגיאה בטעינת הנתונים");
       }
@@ -74,7 +80,12 @@ export default function AllSummariesPage() {
 
   const handleAIAnalysis = async () => {
     if (!client) return;
-    
+
+    // אישור לפני דריסת ניתוח קיים
+    if (aiAnalysis && !confirm("ניתוח קיים ייחלף בניתוח חדש. להמשיך?")) {
+      return;
+    }
+
     setIsAnalyzing(true);
     try {
       // Get all session notes content
@@ -91,6 +102,7 @@ export default function AllSummariesPage() {
         body: JSON.stringify({
           summaries,
           clientName: `${client.firstName} ${client.lastName}`,
+          clientId: client.id,
           analysisType: "comprehensive"
         }),
       });
@@ -155,8 +167,8 @@ export default function AllSummariesPage() {
         </div>
         
         {allSessionsWithNotes.length > 0 && (
-          <Button 
-            onClick={handleAIAnalysis} 
+          <Button
+            onClick={handleAIAnalysis}
             disabled={isAnalyzing}
             size="lg"
             className="gap-2 bg-gradient-to-r from-purple-600 to-sky-600 hover:from-purple-700 hover:to-sky-700"
@@ -165,6 +177,11 @@ export default function AllSummariesPage() {
               <>
                 <Loader2 className="h-5 w-5 animate-spin" />
                 מנתח...
+              </>
+            ) : aiAnalysis ? (
+              <>
+                <Brain className="h-5 w-5" />
+                צור ניתוח חדש
               </>
             ) : (
               <>
@@ -243,6 +260,9 @@ export default function AllSummariesPage() {
                     </CardTitle>
                     <CardDescription>
                       ניתוח כולל של {sessionsWithNotes.length} פגישות טיפוליות
+                      {client?.comprehensiveAnalysisAt && (
+                        <> | עודכן לאחרונה: {format(new Date(client.comprehensiveAnalysisAt), "d/M/yyyy HH:mm", { locale: he })}</>
+                      )}
                     </CardDescription>
                   </CardHeader>
                   <CardContent>

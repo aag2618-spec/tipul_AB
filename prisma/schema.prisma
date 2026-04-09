@@ -273,6 +273,10 @@ model Client {
   therapeuticApproaches String[]   @default([]) // Override therapist's default approaches
   approachNotes         String?    @db.Text     // Special notes about therapeutic approach for this client
   culturalContext       String?    @db.Text     // Cultural context for AI analysis sensitivity
+
+  // Comprehensive AI analysis (saved from "all summaries" page)
+  comprehensiveAnalysis   String?    @db.Text
+  comprehensiveAnalysisAt DateTime?
   
   createdAt           DateTime     @default(now())
   updatedAt           DateTime     @updatedAt

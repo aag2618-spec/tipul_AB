@@ -146,6 +146,18 @@ ${getUniversalPrompts()}
 ${summariesText}`;
 
       const analysis = await analyzeText(prompt);
+
+      // שמירת הניתוח המקיף ב-DB
+      if (clientId) {
+        await prisma.client.update({
+          where: { id: clientId },
+          data: {
+            comprehensiveAnalysis: analysis,
+            comprehensiveAnalysisAt: new Date(),
+          },
+        });
+      }
+
       return NextResponse.json({ analysis });
     }
 
