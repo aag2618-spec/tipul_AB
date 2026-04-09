@@ -34,6 +34,7 @@ import {
   Brain,
   CreditCard,
   BookOpen,
+  Headphones,
 } from "lucide-react";
 
 interface AppSidebarProps {
@@ -116,6 +117,14 @@ const businessItems = [
     title: "קבלות",
     href: "/dashboard/receipts",
     icon: FileText,
+  },
+];
+
+const supportItems = [
+  {
+    title: "פניות ותמיכה",
+    href: "/dashboard/support",
+    icon: Headphones,
   },
 ];
 
@@ -251,6 +260,29 @@ export function AppSidebar({ user }: AppSidebarProps) {
           <SidebarGroupContent>
             <SidebarMenu>
               {settingsItems.map((item) => (
+                <SidebarMenuItem key={item.href}>
+                  <SidebarMenuButton
+                    asChild
+                    isActive={isActive(item.href)}
+                    tooltip={item.title}
+                  >
+                    <Link href={item.href}>
+                      <item.icon className="h-4 w-4" />
+                      <span>{item.title}</span>
+                    </Link>
+                  </SidebarMenuButton>
+                </SidebarMenuItem>
+              ))}
+            </SidebarMenu>
+          </SidebarGroupContent>
+        </SidebarGroup>
+
+        {/* Support */}
+        <SidebarGroup>
+          <SidebarGroupLabel>תמיכה</SidebarGroupLabel>
+          <SidebarGroupContent>
+            <SidebarMenu>
+              {supportItems.map((item) => (
                 <SidebarMenuItem key={item.href}>
                   <SidebarMenuButton
                     asChild
