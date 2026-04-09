@@ -101,7 +101,7 @@ export default async function AdminAIUsagePage() {
       {/* Header */}
       <div className="flex items-center justify-between">
         <div>
-          <h1 className="text-3xl font-bold">🤖 AI Usage Dashboard</h1>
+          <h1 className="text-3xl font-bold">🤖 סקירת שימוש בינה מלאכותית</h1>
           <p className="text-muted-foreground mt-1">
             ניהול ובקרה על שימוש ב-AI במערכת
           </p>
@@ -244,11 +244,11 @@ export default async function AdminAIUsagePage() {
                 <div key={user.id} className="flex items-center justify-between p-3 bg-white rounded-lg border">
                   <div className="flex items-center gap-3">
                     <Badge variant={
-                      user.aiTier === 'ENTERPRISE' ? 'default' : 
-                      user.aiTier === 'PRO' ? 'secondary' : 
+                      user.aiTier === 'ENTERPRISE' ? 'default' :
+                      user.aiTier === 'PRO' ? 'secondary' :
                       'outline'
                     }>
-                      {user.aiTier}
+                      {user.aiTier === 'ESSENTIAL' ? 'בסיסי' : user.aiTier === 'PRO' ? 'מקצועי' : 'ארגוני'}
                     </Badge>
                     <div>
                       <p className="font-medium">{user.name}</p>
@@ -270,7 +270,7 @@ export default async function AdminAIUsagePage() {
 
       {/* Quick Actions */}
       <div className="grid gap-4 md:grid-cols-3">
-        <Link href="/admin/ai-usage/users">
+        <Link href="/admin/users">
           <Card className="cursor-pointer hover:shadow-lg transition-shadow h-full">
             <CardHeader>
               <Users className="h-8 w-8 mb-2 text-primary" />

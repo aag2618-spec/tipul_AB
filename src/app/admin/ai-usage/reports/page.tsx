@@ -69,7 +69,7 @@ export default function AdminReportsPage() {
         </div>
         <Button variant="outline" asChild>
           <Link href="/admin/ai-usage">
-            חזרה לדשבורד
+            חזרה לסקירה
           </Link>
         </Button>
       </div>
