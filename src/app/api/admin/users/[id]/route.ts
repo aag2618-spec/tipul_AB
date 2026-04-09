@@ -9,6 +9,89 @@ import { requireAdmin } from "@/lib/api-auth";
 
 export const dynamic = "force-dynamic";
 
+// GET — פרופיל משתמש מלא
+export async function GET(
+  request: NextRequest,
+  { params }: { params: Promise<{ id: string }> }
+) {
+  try {
+    const auth = await requireAdmin();
+    if ("error" in auth) return auth.error;
+    const { id } = await params;
+
+    const user = await prisma.user.findUnique({
+      where: { id },
+      select: {
+        id: true,
+        name: true,
+        email: true,
+        phone: true,
+        role: true,
+        isBlocked: true,
+        aiTier: true,
+        subscriptionStatus: true,
+        subscriptionStartedAt: true,
+        subscriptionEndsAt: true,
+        trialEndsAt: true,
+        isFreeSubscription: true,
+        freeSubscriptionNote: true,
+        userNumber: true,
+        createdAt: true,
+        aiUsageStats: {
+          select: {
+            currentMonthCalls: true,
+            currentMonthCost: true,
+            totalCalls: true,
+            totalCost: true,
+            dailyCalls: true,
+          },
+        },
+        _count: {
+          select: {
+            clients: true,
+            therapySessions: true,
+            documents: true,
+            supportTickets: true,
+            apiUsageLogs: true,
+          },
+        },
+        subscriptionPayments: {
+          orderBy: { createdAt: "desc" },
+          take: 10,
+          select: {
+            id: true,
+            amount: true,
+            status: true,
+            description: true,
+            paidAt: true,
+            createdAt: true,
+          },
+        },
+        supportTickets: {
+          orderBy: { createdAt: "desc" },
+          take: 5,
+          select: {
+            id: true,
+            ticketNumber: true,
+            subject: true,
+            status: true,
+            createdAt: true,
+          },
+        },
+      },
+    });
+
+    if (!user) {
+      return NextResponse.json({ message: "משתמש לא נמצא" }, { status: 404 });
+    }
+
+    return NextResponse.json({ user });
+  } catch (error) {
+    logger.error("Error fetching user profile:", { error: error instanceof Error ? error.message : String(error) });
+    return NextResponse.json({ message: "שגיאה בטעינת פרופיל" }, { status: 500 });
+  }
+}
+
 export async function PUT(
   request: NextRequest,
   { params }: { params: Promise<{ id: string }> }

@@ -57,8 +57,11 @@ import {
   CreditCard,
   UserX,
   RefreshCw,
+  Download,
 } from "lucide-react";
 import { toast } from "sonner";
+import Link from "next/link";
+import { exportToCSV } from "@/lib/export-utils";
 
 interface User {
   id: string;
@@ -264,6 +267,34 @@ export default function AdminUsersPage() {
     setIsDialogOpen(true);
   };
 
+  const handleExportCSV = () => {
+    const data = filteredUsers.map((u) => ({
+      userNumber: u.userNumber ? `#${u.userNumber}` : "",
+      name: u.name || "",
+      email: u.email || "",
+      phone: u.phone || "",
+      role: u.role === "ADMIN" ? "מנהל מלא" : u.role === "MANAGER" ? "מנהל" : "משתמש",
+      tier: TIER_LABELS[u.aiTier] || u.aiTier,
+      status: u.isBlocked ? "חסום" : "פעיל",
+      clients: u._count.clients,
+      aiCalls: u.aiUsageStats?.currentMonthCalls || 0,
+      createdAt: new Date(u.createdAt).toLocaleDateString("he-IL"),
+    }));
+    exportToCSV(data, [
+      { key: "userNumber", label: "מספר" },
+      { key: "name", label: "שם" },
+      { key: "email", label: "אימייל" },
+      { key: "phone", label: "טלפון" },
+      { key: "role", label: "תפקיד" },
+      { key: "tier", label: "תוכנית" },
+      { key: "status", label: "סטטוס" },
+      { key: "clients", label: "מטופלים" },
+      { key: "aiCalls", label: "קריאות AI" },
+      { key: "createdAt", label: "תאריך הרשמה" },
+    ], "משתמשים");
+    toast.success("הקובץ הורד בהצלחה");
+  };
+
   return (
     <div className="space-y-6 animate-fade-in">
       {/* כותרת */}
@@ -274,6 +305,10 @@ export default function AdminUsersPage() {
         </div>
 
         <div className="flex items-center gap-2">
+          <Button variant="outline" size="sm" onClick={handleExportCSV}>
+            <Download className="h-4 w-4 ml-1" />
+            ייצוא
+          </Button>
           <Button variant="outline" size="sm" onClick={fetchUsers}>
             <RefreshCw className="h-4 w-4 ml-1" />
             רענן
@@ -586,7 +621,9 @@ export default function AdminUsersPage() {
                     </TableCell>
                     <TableCell>
                       <div>
-                        <p className="font-medium">{user.name || "ללא שם"}</p>
+                        <Link href={`/admin/users/${user.id}`} className="font-medium hover:underline hover:text-primary">
+                          {user.name || "ללא שם"}
+                        </Link>
                         <p className="text-sm text-muted-foreground">{user.email}</p>
                       </div>
                     </TableCell>

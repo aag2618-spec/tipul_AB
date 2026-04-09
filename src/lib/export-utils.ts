@@ -403,6 +403,120 @@ export function exportAccountantPDF(
   doc.save(fileName);
 }
 
+// ============ SUMMARIES EXPORT (Word-like document) ============
+export interface SummaryExportData {
+  sessionNumber: number;
+  date: string;
+  time: string;
+  content: string;
+}
+
+export function exportSummariesPDF(
+  summaries: SummaryExportData[],
+  clientName: string,
+  comprehensiveAnalysis?: string | null
+) {
+  const doc = new jsPDF({
+    orientation: "portrait",
+    unit: "mm",
+    format: "a4",
+  });
+
+  doc.setFont("helvetica");
+  const pageWidth = doc.internal.pageSize.getWidth();
+  const margin = 15;
+  const contentWidth = pageWidth - margin * 2;
+
+  // Title
+  doc.setFontSize(18);
+  doc.text(`סיכומי טיפול - ${clientName}`, pageWidth - margin, 20, { align: "right" });
+
+  doc.setFontSize(10);
+  doc.text(
+    `תאריך הפקה: ${format(new Date(), "dd/MM/yyyy")} | ${summaries.length} פגישות`,
+    pageWidth - margin,
+    28,
+    { align: "right" }
+  );
+
+  let yPos = 38;
+
+  for (const summary of summaries) {
+    // Check if we need a new page
+    if (yPos > 260) {
+      doc.addPage();
+      yPos = 20;
+    }
+
+    // Session header
+    doc.setFontSize(12);
+    doc.setTextColor(16, 185, 129);
+    doc.text(`#${summary.sessionNumber} | ${summary.date} | ${summary.time}`, pageWidth - margin, yPos, { align: "right" });
+    doc.setTextColor(0, 0, 0);
+    yPos += 7;
+
+    // Session content - strip HTML and split into lines
+    doc.setFontSize(10);
+    const cleanContent = summary.content
+      .replace(/<[^>]*>/g, '')
+      .replace(/&nbsp;/g, ' ')
+      .replace(/&amp;/g, '&')
+      .replace(/&lt;/g, '<')
+      .replace(/&gt;/g, '>')
+      .trim();
+
+    const lines = doc.splitTextToSize(cleanContent, contentWidth);
+    for (const line of lines) {
+      if (yPos > 275) {
+        doc.addPage();
+        yPos = 20;
+      }
+      doc.text(line, pageWidth - margin, yPos, { align: "right" });
+      yPos += 5;
+    }
+
+    // Separator
+    yPos += 3;
+    doc.setDrawColor(200, 200, 200);
+    doc.line(margin, yPos, pageWidth - margin, yPos);
+    yPos += 7;
+  }
+
+  // Comprehensive analysis (if exists)
+  if (comprehensiveAnalysis) {
+    if (yPos > 200) {
+      doc.addPage();
+      yPos = 20;
+    }
+
+    doc.setFontSize(14);
+    doc.setTextColor(124, 58, 237);
+    doc.text("ניתוח AI מקיף", pageWidth - margin, yPos, { align: "right" });
+    doc.setTextColor(0, 0, 0);
+    yPos += 8;
+
+    doc.setFontSize(10);
+    const analysisLines = doc.splitTextToSize(comprehensiveAnalysis, contentWidth);
+    for (const line of analysisLines) {
+      if (yPos > 275) {
+        doc.addPage();
+        yPos = 20;
+      }
+      doc.text(line, pageWidth - margin, yPos, { align: "right" });
+      yPos += 5;
+    }
+  }
+
+  // Footer on last page
+  doc.setFontSize(8);
+  doc.setTextColor(150, 150, 150);
+  doc.text("MyTipul — כל הזכויות שמורות", pageWidth / 2, 290, { align: "center" });
+
+  // Download
+  const fileName = `סיכומים_${clientName}_${format(new Date(), "yyyy-MM-dd")}.pdf`;
+  doc.save(fileName);
+}
+
 // ============ ACCOUNTANT REPORT (from Receipts page) ============
 function getReceiptSource(url: string | null): string {
   if (!url) return "פנימית";
@@ -567,4 +681,41 @@ export function exportAccountantReport(
   const fileLabel = quarter ? `Q${quarter}_${year}` : `${year}`;
   XLSX.writeFile(wb, `דוח_לרואה_חשבון_${fileLabel}.xlsx`);
   return true;
+}
+
+// ============ GENERIC CSV EXPORT ============
+/**
+ * ייצוא גנרי לקובץ CSV עם תמיכה בעברית
+ */
+export function exportToCSV(
+  data: Record<string, unknown>[],
+  headers: { key: string; label: string }[],
+  filename: string
+) {
+  if (data.length === 0) return;
+
+  // BOM לתמיכה בעברית באקסל
+  const BOM = "\uFEFF";
+  const headerRow = headers.map((h) => `"${h.label}"`).join(",");
+  const rows = data.map((row) =>
+    headers
+      .map((h) => {
+        const value = row[h.key];
+        if (value === null || value === undefined) return '""';
+        const str = String(value).replace(/"/g, '""');
+        return `"${str}"`;
+      })
+      .join(",")
+  );
+
+  const csv = BOM + headerRow + "\n" + rows.join("\n");
+  const blob = new Blob([csv], { type: "text/csv;charset=utf-8;" });
+  const url = URL.createObjectURL(blob);
+  const link = document.createElement("a");
+  link.href = url;
+  link.download = `${filename}_${new Date().toISOString().split("T")[0]}.csv`;
+  document.body.appendChild(link);
+  link.click();
+  document.body.removeChild(link);
+  URL.revokeObjectURL(url);
 }
