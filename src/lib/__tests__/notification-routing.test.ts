@@ -104,8 +104,7 @@ function countPendingSummaries(sessions: SessionForSummary[]): number {
       !s.sessionNote &&
       s.type !== "BREAK" &&
       !s.skipSummary &&
-      new Date(s.startTime) < new Date() &&
-      (s.status === "SCHEDULED" || s.status === "COMPLETED")
+      s.status === "COMPLETED"
   ).length;
 }
 

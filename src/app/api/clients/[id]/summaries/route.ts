@@ -27,7 +27,11 @@ export async function GET(
             sessionNote: { isNot: null },
           },
           orderBy: { startTime: "asc" },
-          include: {
+          select: {
+            id: true,
+            startTime: true,
+            endTime: true,
+            type: true,
             sessionNote: {
               select: {
                 id: true,
