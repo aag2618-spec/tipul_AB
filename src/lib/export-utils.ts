@@ -418,19 +418,33 @@ export function exportSummariesDocument(
 ) {
   const dateStr = format(new Date(), "dd/MM/yyyy");
 
-  const summariesHtml = summaries.map(s => `
+  // Escape HTML entities to prevent XSS
+  const esc = (text: string) => text
+    .replace(/&/g, '&amp;')
+    .replace(/</g, '&lt;')
+    .replace(/>/g, '&gt;')
+    .replace(/"/g, '&quot;');
+
+  const safeName = esc(clientName);
+
+  const summariesHtml = summaries.map(s => {
+    const cleanContent = esc(
+      s.content.replace(/<[^>]*>/g, '').replace(/&nbsp;/g, ' ').trim()
+    );
+    return `
     <div style="margin-bottom:24px;page-break-inside:avoid;">
       <div style="color:#10b981;font-size:14px;font-weight:bold;margin-bottom:6px;border-bottom:1px solid #e5e7eb;padding-bottom:4px;">
-        #${s.sessionNumber} | ${s.date} | ${s.time}
+        #${s.sessionNumber} | ${esc(s.date)} | ${esc(s.time)}
       </div>
-      <div style="font-size:13px;line-height:1.8;white-space:pre-wrap;">${s.content.replace(/<[^>]*>/g, '').replace(/&nbsp;/g, ' ').trim()}</div>
+      <div style="font-size:13px;line-height:1.8;white-space:pre-wrap;">${cleanContent}</div>
     </div>
-  `).join('');
+  `;
+  }).join('');
 
   const analysisHtml = comprehensiveAnalysis ? `
     <div style="margin-top:40px;page-break-before:always;">
       <h2 style="color:#7c3aed;font-size:18px;margin-bottom:12px;">ניתוח AI מקיף</h2>
-      <div style="font-size:13px;line-height:1.8;white-space:pre-wrap;background:#f5f3ff;padding:16px;border-radius:8px;border:1px solid #ddd6fe;">${comprehensiveAnalysis}</div>
+      <div style="font-size:13px;line-height:1.8;white-space:pre-wrap;background:#f5f3ff;padding:16px;border-radius:8px;border:1px solid #ddd6fe;">${esc(comprehensiveAnalysis)}</div>
     </div>
   ` : '';
 
@@ -438,18 +452,18 @@ export function exportSummariesDocument(
 <html dir="rtl" lang="he">
 <head>
   <meta charset="utf-8">
-  <title>סיכומי טיפול - ${clientName}</title>
+  <title>סיכומי טיפול - ${safeName}</title>
   <style>
     @page { size: A4; margin: 15mm; }
-    body { font-family: 'Segoe UI', 'Heebo', Arial, sans-serif; direction: rtl; color: #1f2937; max-width: 800px; margin: 0 auto; padding: 20px; }
-    @media print { body { padding: 0; } .no-print { display: none; } }
+    body { font-family: 'Segoe UI', Calibri, Arial, sans-serif; direction: rtl; color: #1f2937; max-width: 700px; margin: 0 auto; padding: 20px; font-size: 14px; }
+    @media print { body { padding: 0; max-width: none; font-size: 12pt; } .no-print { display: none; } }
   </style>
 </head>
 <body>
   <div class="no-print" style="background:#f0fdf4;padding:12px 16px;border-radius:8px;margin-bottom:20px;border:1px solid #bbf7d0;font-size:13px;">
-    להדפסה כ-PDF: לחץ Ctrl+P ובחר "שמור כ-PDF"
+    להדפסה כ-PDF: לחצו Ctrl+P ← בחלון ההדפסה בחרו "שמור כ-PDF" במקום מדפסת
   </div>
-  <h1 style="font-size:22px;margin-bottom:4px;">סיכומי טיפול - ${clientName}</h1>
+  <h1 style="font-size:22px;margin-bottom:4px;">סיכומי טיפול - ${safeName}</h1>
   <p style="color:#6b7280;font-size:13px;margin-bottom:24px;">תאריך הפקה: ${dateStr} | ${summaries.length} פגישות</p>
   ${summariesHtml}
   ${analysisHtml}
