@@ -266,7 +266,7 @@ export default function AdminReportsPage() {
           <CardContent>
             <p className="text-sm text-muted-foreground">
               {tierDistribution.length > 0
-                ? `${tierDistribution.find((t: { name: string }) => t.name === 'Essential')?.value || 0} משתמשי Essential - פוטנציאל שדרוג ל-Pro.`
+                ? `${tierDistribution.find((t: { name: string }) => t.name === 'Essential')?.value || 0} משתמשי בסיסי - פוטנציאל שדרוג למקצועי.`
                 : 'טוען נתונים...'}
             </p>
           </CardContent>

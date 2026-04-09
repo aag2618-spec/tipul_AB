@@ -43,9 +43,9 @@ const ACTION_LABELS: Record<string, string> = {
   create_user: "יצירת משתמש",
   delete_user: "מחיקת משתמש",
   update_user: "עדכון משתמש",
-  toggle_feature_flag: "שינוי Feature Flag",
-  create_feature_flag: "יצירת Feature Flag",
-  delete_feature_flag: "מחיקת Feature Flag",
+  toggle_feature_flag: "שינוי פיצ'ר",
+  create_feature_flag: "יצירת פיצ'ר",
+  delete_feature_flag: "מחיקת פיצ'ר",
   grant_free_subscription: "הענקת מנוי חינם",
   resolve_alert: "טיפול בהתראה",
 };

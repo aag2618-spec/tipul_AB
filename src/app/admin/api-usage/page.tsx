@@ -151,7 +151,7 @@ export default function AdminApiUsagePage() {
       <div className="grid gap-6 lg:grid-cols-2">
         <Card>
           <CardHeader>
-            <CardTitle>שימוש לפי Endpoint</CardTitle>
+            <CardTitle>שימוש לפי נקודת קצה</CardTitle>
             <CardDescription>חלוקת השימוש לפי סוג פעולה</CardDescription>
           </CardHeader>
           <CardContent>
@@ -231,7 +231,7 @@ export default function AdminApiUsagePage() {
               <TableHeader>
                 <TableRow className="border-border">
                   <TableHead className="text-muted-foreground">סטטוס</TableHead>
-                  <TableHead className="text-muted-foreground">Endpoint</TableHead>
+                  <TableHead className="text-muted-foreground">נקודת קצה</TableHead>
                   <TableHead className="text-muted-foreground">משתמש</TableHead>
                   <TableHead className="text-muted-foreground">טוקנים</TableHead>
                   <TableHead className="text-muted-foreground">עלות</TableHead>

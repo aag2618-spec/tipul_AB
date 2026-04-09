@@ -83,10 +83,10 @@ export default function AdminAISettingsPage() {
         </p>
       </div>
 
-      {/* Rate Limits */}
+      {/* מגבלות שימוש */}
       <Card>
         <CardHeader>
-          <CardTitle>🔒 מגבלות שימוש (Rate Limits)</CardTitle>
+          <CardTitle>🔒 מגבלות שימוש</CardTitle>
           <CardDescription>הגדר מגבלות יומיות וחודשיות לכל תוכנית</CardDescription>
         </CardHeader>
         <CardContent className="space-y-6">
@@ -219,7 +219,7 @@ export default function AdminAISettingsPage() {
         <CardContent className="space-y-4">
           <div className="flex items-center justify-between p-4 bg-green-50 rounded-lg">
             <div className="space-y-1">
-              <Label>Cache תוצאות זהות</Label>
+              <Label>שמירת תוצאות זהות במטמון</Label>
               <p className="text-sm text-muted-foreground">
                 שמור תוצאות זהות לחיסכון (חיסכון של ~30%)
               </p>
@@ -232,9 +232,9 @@ export default function AdminAISettingsPage() {
 
           <div className="flex items-center justify-between p-4 bg-green-50 rounded-lg">
             <div className="space-y-1">
-              <Label>דחוס prompts ארוכים</Label>
+              <Label>דחיסת טקסטים ארוכים</Label>
               <p className="text-sm text-muted-foreground">
-                דחוס טקסטים ארוכים לחיסכון בtokens
+                דחוס טקסטים ארוכים לחיסכון בעלויות
               </p>
             </div>
             <Switch

@@ -216,9 +216,9 @@ export default function AdminUsersPage() {
               </SelectTrigger>
               <SelectContent>
                 <SelectItem value="ALL">כל התוכניות</SelectItem>
-                <SelectItem value="ESSENTIAL">Essential</SelectItem>
-                <SelectItem value="PRO">Professional</SelectItem>
-                <SelectItem value="ENTERPRISE">Enterprise</SelectItem>
+                <SelectItem value="ESSENTIAL">בסיסי</SelectItem>
+                <SelectItem value="PRO">מקצועי</SelectItem>
+                <SelectItem value="ENTERPRISE">ארגוני</SelectItem>
               </SelectContent>
             </Select>
 

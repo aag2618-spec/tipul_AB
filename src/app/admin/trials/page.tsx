@@ -425,9 +425,9 @@ export default function AdminTrialsPage() {
                       <SelectValue />
                     </SelectTrigger>
                     <SelectContent>
-                      <SelectItem value="ESSENTIAL">Essential</SelectItem>
-                      <SelectItem value="PRO">Pro</SelectItem>
-                      <SelectItem value="ENTERPRISE">Enterprise</SelectItem>
+                      <SelectItem value="ESSENTIAL">בסיסי</SelectItem>
+                      <SelectItem value="PRO">מקצועי</SelectItem>
+                      <SelectItem value="ENTERPRISE">ארגוני</SelectItem>
                     </SelectContent>
                   </Select>
                 </div>

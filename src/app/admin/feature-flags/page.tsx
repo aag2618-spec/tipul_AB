@@ -34,15 +34,21 @@ import { Settings, Plus, Trash2, Pencil } from "lucide-react";
 import { toast } from "sonner";
 
 const ALL_TIERS = [
-  { value: "ESSENTIAL", label: "Essential" },
-  { value: "PRO", label: "Pro" },
-  { value: "ENTERPRISE", label: "Enterprise" },
+  { value: "ESSENTIAL", label: "בסיסי" },
+  { value: "PRO", label: "מקצועי" },
+  { value: "ENTERPRISE", label: "ארגוני" },
 ];
 
 const TIER_COLORS: Record<string, string> = {
   ESSENTIAL: "bg-slate-600 text-slate-100",
   PRO: "bg-blue-600 text-blue-100",
   ENTERPRISE: "bg-purple-600 text-purple-100",
+};
+
+const TIER_LABELS: Record<string, string> = {
+  ESSENTIAL: "בסיסי",
+  PRO: "מקצועי",
+  ENTERPRISE: "ארגוני",
 };
 
 interface FeatureFlag {
@@ -80,7 +86,7 @@ export default function FeatureFlagsPage() {
       const data = await res.json();
       setFlags(data.flags);
     } catch {
-      toast.error("שגיאה בטעינת Feature Flags");
+      toast.error("שגיאה בטעינת פיצ'רים");
     } finally {
       setLoading(false);
     }
@@ -130,7 +136,7 @@ export default function FeatureFlagsPage() {
         const data = await res.json();
         throw new Error(data.message || "Failed");
       }
-      toast.success("Feature Flag נוצר בהצלחה");
+      toast.success("פיצ'ר נוצר בהצלחה");
       setCreateOpen(false);
       setNewKey("");
       setNewName("");
@@ -229,7 +235,7 @@ export default function FeatureFlagsPage() {
             <Settings className="h-6 w-6 text-amber-500" />
           </div>
           <div>
-            <h1 className="text-2xl font-bold">Feature Flags</h1>
+            <h1 className="text-2xl font-bold">ניהול פיצ'רים</h1>
             <p className="text-muted-foreground">ניהול פיצ׳רים והרשאות תוכניות</p>
           </div>
         </div>
@@ -238,12 +244,12 @@ export default function FeatureFlagsPage() {
           <DialogTrigger asChild>
             <Button className="bg-amber-600 hover:bg-amber-700">
               <Plus className="h-4 w-4 ml-1" />
-              הוסף Flag
+              הוסף פיצ'ר
             </Button>
           </DialogTrigger>
           <DialogContent className="bg-card border-border">
             <DialogHeader>
-              <DialogTitle>יצירת Feature Flag חדש</DialogTitle>
+              <DialogTitle>יצירת פיצ'ר חדש</DialogTitle>
               <DialogDescription>הגדר מפתח, שם ותוכניות מורשות</DialogDescription>
             </DialogHeader>
             <div className="space-y-4 py-2">
@@ -252,7 +258,7 @@ export default function FeatureFlagsPage() {
                 <Input
                   value={newKey}
                   onChange={(e) => setNewKey(e.target.value)}
-                  placeholder="e.g. ai_session_prep"
+                  placeholder="לדוגמה: ai_session_prep"
                   className="bg-muted border-border mt-1"
                   dir="ltr"
                 />
@@ -302,8 +308,8 @@ export default function FeatureFlagsPage() {
 
       <Card className="bg-card border-border">
         <CardHeader>
-          <CardTitle className="text-base">כל ה-Flags</CardTitle>
-          <CardDescription>{flags.length} flags מוגדרים</CardDescription>
+          <CardTitle className="text-base">כל הפיצ'רים</CardTitle>
+          <CardDescription>{flags.length} פיצ'רים מוגדרים</CardDescription>
         </CardHeader>
         <CardContent className="p-0">
           <Table>
@@ -326,7 +332,7 @@ export default function FeatureFlagsPage() {
               ) : flags.length === 0 ? (
                 <TableRow>
                   <TableCell colSpan={5} className="text-center py-8 text-muted-foreground">
-                    אין Feature Flags
+                    אין פיצ'רים מוגדרים
                   </TableCell>
                 </TableRow>
               ) : (
@@ -361,7 +367,7 @@ export default function FeatureFlagsPage() {
                               key={tier}
                               className={TIER_COLORS[tier] || "bg-muted text-foreground"}
                             >
-                              {tier}
+                              {TIER_LABELS[tier] || tier}
                             </Badge>
                           ))
                         )}
@@ -399,7 +405,7 @@ export default function FeatureFlagsPage() {
       <Dialog open={!!editFlag} onOpenChange={(open) => !open && setEditFlag(null)}>
         <DialogContent className="bg-card border-border">
           <DialogHeader>
-            <DialogTitle>עריכת Feature Flag</DialogTitle>
+            <DialogTitle>עריכת פיצ'ר</DialogTitle>
             <DialogDescription>
               מפתח: <code dir="ltr" className="bg-muted px-1 py-0.5 rounded text-xs">{editFlag?.key}</code>
             </DialogDescription>

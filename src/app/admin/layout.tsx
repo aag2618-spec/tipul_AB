@@ -39,12 +39,12 @@ const adminNavItems = [
   { href: "/admin/trials", label: "ניסיונות", icon: Activity },
   { href: "/admin/tier-settings", label: "תוכניות ומחירים", icon: Settings },
   { href: "/admin/coupons", label: "קופונים", icon: Ticket },
-  { href: "/admin/ai-usage", label: "שימוש AI", icon: Brain },
+  { href: "/admin/ai-usage", label: "שימוש בינה מלאכותית", icon: Brain },
   { href: "/admin/storage", label: "אחסון", icon: HardDrive },
   { href: "/admin/announcements", label: "הודעות", icon: Megaphone },
   { href: "/admin/questionnaires", label: "שאלונים", icon: ClipboardList },
   { href: "/admin/audit-log", label: "לוג פעולות", icon: Shield },
-  { href: "/admin/feature-flags", label: "Feature Flags", icon: Flag },
+  { href: "/admin/feature-flags", label: "ניהול פיצ'רים", icon: Flag },
 ];
 
 interface SearchResult {
@@ -213,7 +213,7 @@ function AdminLayoutContent({ children }: { children: React.ReactNode }) {
               </div>
               <div>
                 <h1 className="font-bold text-lg">ממשק ניהול</h1>
-                <p className="text-xs text-muted-foreground">Admin Panel</p>
+                <p className="text-xs text-muted-foreground">לוח בקרה ראשי</p>
               </div>
             </div>
           </div>

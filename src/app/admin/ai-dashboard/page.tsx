@@ -245,8 +245,8 @@ export default function AdminAIDashboard() {
           <CardContent>
             <div className="text-2xl font-bold">{stats.totalUsers}</div>
             <p className="text-xs text-muted-foreground mt-1">
-              Essential: {stats.essentialUsers} | Pro: {stats.proUsers} |
-              Enterprise: {stats.enterpriseUsers}
+              בסיסי: {stats.essentialUsers} | מקצועי: {stats.proUsers} |
+              ארגוני: {stats.enterpriseUsers}
             </p>
           </CardContent>
         </Card>
@@ -315,9 +315,9 @@ export default function AdminAIDashboard() {
               </SelectTrigger>
               <SelectContent>
                 <SelectItem value="all">כל התוכניות</SelectItem>
-                <SelectItem value="ESSENTIAL">Essential</SelectItem>
-                <SelectItem value="PRO">Pro</SelectItem>
-                <SelectItem value="ENTERPRISE">Enterprise</SelectItem>
+                <SelectItem value="ESSENTIAL">בסיסי</SelectItem>
+                <SelectItem value="PRO">מקצועי</SelectItem>
+                <SelectItem value="ENTERPRISE">ארגוני</SelectItem>
               </SelectContent>
             </Select>
 
@@ -462,9 +462,9 @@ export default function AdminAIDashboard() {
                   <SelectValue />
                 </SelectTrigger>
                 <SelectContent>
-                  <SelectItem value="ESSENTIAL">🥉 בסיסי (Essential) - 117₪</SelectItem>
-                  <SelectItem value="PRO">🥈 מקצועי (Professional) - 145₪</SelectItem>
-                  <SelectItem value="ENTERPRISE">🥇 ארגוני (Enterprise) - 220₪</SelectItem>
+                  <SelectItem value="ESSENTIAL">🥉 בסיסי - 117₪</SelectItem>
+                  <SelectItem value="PRO">🥈 מקצועי - 145₪</SelectItem>
+                  <SelectItem value="ENTERPRISE">🥇 ארגוני - 220₪</SelectItem>
                 </SelectContent>
               </Select>
             </div>

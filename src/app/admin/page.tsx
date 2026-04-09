@@ -113,7 +113,7 @@ export default function AdminDashboardPage() {
 
   const revenueCards = [
     {
-      title: "MRR (הכנסה חודשית חוזרת)",
+      title: "הכנסה חודשית חוזרת",
       value: `₪${(stats?.mrr || 0).toLocaleString()}`,
       description: "סה״כ מנויים משלמים פעילים",
       icon: DollarSign,
@@ -121,15 +121,15 @@ export default function AdminDashboardPage() {
       bgColor: "bg-emerald-500/20",
     },
     {
-      title: "ARR (הכנסה שנתית חוזרת)",
+      title: "הכנסה שנתית חוזרת",
       value: `₪${(stats?.arr || 0).toLocaleString()}`,
-      description: "MRR × 12",
+      description: "הכנסה חודשית × 12",
       icon: BarChart3,
       color: "text-teal-500",
       bgColor: "bg-teal-500/20",
     },
     {
-      title: "שיעור נטישה (Churn)",
+      title: "שיעור נטישה",
       value: `${stats?.churnRate || 0}%`,
       description: `${stats?.churnedUsers || 0} נטשו מתוך ${stats?.totalNonTrialing || 0}`,
       icon: UserMinus,
@@ -202,7 +202,7 @@ export default function AdminDashboardPage() {
                 <Filter className="h-4 w-4 text-indigo-500" />
               </div>
               <div>
-                <CardTitle>משפך המרה (Conversion Funnel)</CardTitle>
+                <CardTitle>משפך המרה</CardTitle>
                 <CardDescription>מהרשמה ועד מנוי פעיל</CardDescription>
               </div>
             </div>

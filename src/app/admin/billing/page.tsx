@@ -454,9 +454,9 @@ export default function AdminBillingPage() {
                 <SelectTrigger className="h-9"><SelectValue /></SelectTrigger>
                 <SelectContent>
                   <SelectItem value="all">הכל</SelectItem>
-                  <SelectItem value="ESSENTIAL">Essential</SelectItem>
-                  <SelectItem value="PRO">Pro</SelectItem>
-                  <SelectItem value="ENTERPRISE">Enterprise</SelectItem>
+                  <SelectItem value="ESSENTIAL">בסיסי</SelectItem>
+                  <SelectItem value="PRO">מקצועי</SelectItem>
+                  <SelectItem value="ENTERPRISE">ארגוני</SelectItem>
                 </SelectContent>
               </Select>
             </div>
@@ -763,7 +763,7 @@ export default function AdminBillingPage() {
                   )}
                 </div>
                 <div className="pt-2 border-t">
-                  <div className="text-xs text-muted-foreground">User ID: <code className="font-mono">{selectedUser.id}</code></div>
+                  <div className="text-xs text-muted-foreground">מזהה משתמש: <code className="font-mono">{selectedUser.id}</code></div>
                 </div>
               </TabsContent>
 
@@ -850,9 +850,9 @@ export default function AdminBillingPage() {
                 <Select value={newTier} onValueChange={setNewTier}>
                   <SelectTrigger><SelectValue /></SelectTrigger>
                   <SelectContent>
-                    <SelectItem value="ESSENTIAL">Essential</SelectItem>
-                    <SelectItem value="PRO">Pro</SelectItem>
-                    <SelectItem value="ENTERPRISE">Enterprise</SelectItem>
+                    <SelectItem value="ESSENTIAL">בסיסי</SelectItem>
+                    <SelectItem value="PRO">מקצועי</SelectItem>
+                    <SelectItem value="ENTERPRISE">ארגוני</SelectItem>
                   </SelectContent>
                 </Select>
               </div>
@@ -889,9 +889,9 @@ export default function AdminBillingPage() {
                 <Select value={freeTier} onValueChange={setFreeTier}>
                   <SelectTrigger><SelectValue /></SelectTrigger>
                   <SelectContent>
-                    <SelectItem value="ESSENTIAL">Essential</SelectItem>
-                    <SelectItem value="PRO">Pro</SelectItem>
-                    <SelectItem value="ENTERPRISE">Enterprise</SelectItem>
+                    <SelectItem value="ESSENTIAL">בסיסי</SelectItem>
+                    <SelectItem value="PRO">מקצועי</SelectItem>
+                    <SelectItem value="ENTERPRISE">ארגוני</SelectItem>
                   </SelectContent>
                 </Select>
               </div>

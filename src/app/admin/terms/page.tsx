@@ -185,7 +185,7 @@ export default function TermsAcceptancePage() {
       {/* Search */}
       <div className="flex gap-2">
         <Input
-          placeholder="חיפוש לפי User ID..."
+          placeholder="חיפוש לפי מזהה משתמש..."
           value={searchUserId}
           onChange={(e) => setSearchUserId(e.target.value)}
           onKeyDown={(e) => e.key === "Enter" && handleSearch()}
