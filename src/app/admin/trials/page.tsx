@@ -216,7 +216,7 @@ export default function AdminTrialsPage() {
         </Card>
         <Card>
           <CardContent className="p-4 text-center">
-            <Mail className="h-5 w-5 mx-auto mb-1 text-slate-600" />
+            <Mail className="h-5 w-5 mx-auto mb-1 text-muted-foreground" />
             <p className="text-2xl font-bold">{stats.unverified}</p>
             <p className="text-xs text-muted-foreground">לא אומתו</p>
           </CardContent>
@@ -233,7 +233,7 @@ export default function AdminTrialsPage() {
                 {((stats.converted / stats.total) * 100).toFixed(1)}%
               </span>
             </div>
-            <div className="mt-2 h-2 bg-slate-100 dark:bg-slate-800 rounded-full overflow-hidden">
+            <div className="mt-2 h-2 bg-muted rounded-full overflow-hidden">
               <div 
                 className="h-full bg-gradient-to-r from-purple-500 to-sky-500 rounded-full transition-all"
                 style={{ width: `${(stats.converted / stats.total) * 100}%` }}
@@ -316,7 +316,7 @@ export default function AdminTrialsPage() {
                               <span>₪{ai.used.toFixed(2)}</span>
                               <span className="text-muted-foreground">/ ₪{ai.limit}</span>
                             </div>
-                            <div className="h-1.5 bg-slate-100 dark:bg-slate-800 rounded-full overflow-hidden">
+                            <div className="h-1.5 bg-muted rounded-full overflow-hidden">
                               <div 
                                 className={`h-full rounded-full transition-all ${
                                   ai.percent >= 90 ? "bg-red-500" : ai.percent >= 70 ? "bg-amber-500" : "bg-green-500"

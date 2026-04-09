@@ -98,8 +98,8 @@ export default function AdminDashboardPage() {
       value: `₪${(stats?.totalRevenue || 0).toLocaleString()}`,
       description: `${stats?.pendingPayments || 0} תשלומים ממתינים`,
       icon: CreditCard,
-      color: "text-amber-500",
-      bgColor: "bg-amber-500/20",
+      color: "text-primary",
+      bgColor: "bg-primary/15",
     },
     {
       title: "אחסון",
@@ -327,7 +327,7 @@ function PendingAlerts() {
       <CardHeader className="pb-3">
         <div className="flex items-center justify-between">
           <div className="flex items-center gap-2">
-            <Bell className={`h-5 w-5 ${counts.urgent > 0 ? 'text-red-500 animate-pulse' : 'text-amber-500'}`} />
+            <Bell className={`h-5 w-5 ${counts.urgent > 0 ? 'text-red-500 animate-pulse' : 'text-primary'}`} />
             <CardTitle>התראות ממתינות</CardTitle>
             <Badge variant="destructive">{counts.PENDING}</Badge>
             {counts.urgent > 0 && (

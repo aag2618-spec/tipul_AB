@@ -220,7 +220,7 @@ export default function AdminAlertsPage() {
       <div className="flex items-center justify-between">
         <div>
           <h1 className="text-3xl font-bold flex items-center gap-2">
-            <Bell className="h-8 w-8 text-amber-500" />
+            <Bell className="h-8 w-8 text-primary" />
             מרכז התראות
           </h1>
           <p className="text-muted-foreground mt-1">ניהול התראות, תזכורות ומעקב תשלומים</p>
@@ -228,7 +228,7 @@ export default function AdminAlertsPage() {
 
         <Dialog open={isNewDialogOpen} onOpenChange={setIsNewDialogOpen}>
           <DialogTrigger asChild>
-            <Button className="bg-amber-500 hover:bg-amber-600 text-black">
+            <Button className="bg-primary hover:bg-primary/90 text-primary-foreground">
               <Plus className="ml-2 h-4 w-4" />
               התראה חדשה
             </Button>
@@ -310,7 +310,7 @@ export default function AdminAlertsPage() {
               <Button variant="ghost" onClick={() => setIsNewDialogOpen(false)} className="text-muted-foreground">
                 ביטול
               </Button>
-              <Button onClick={handleCreateAlert} className="bg-amber-500 hover:bg-amber-600 text-black">
+              <Button onClick={handleCreateAlert} className="bg-primary hover:bg-primary/90 text-primary-foreground">
                 צור התראה
               </Button>
             </DialogFooter>

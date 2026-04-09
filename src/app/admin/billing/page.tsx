@@ -313,7 +313,7 @@ export default function AdminBillingPage() {
 
   const getTierIcon = (tier: string) => {
     switch (tier) {
-      case "ESSENTIAL": return <Zap className="h-3.5 w-3.5 text-slate-500" />;
+      case "ESSENTIAL": return <Zap className="h-3.5 w-3.5 text-muted-foreground" />;
       case "PRO": return <Crown className="h-3.5 w-3.5 text-sky-500" />;
       case "ENTERPRISE": return <Building className="h-3.5 w-3.5 text-purple-500" />;
       default: return null;

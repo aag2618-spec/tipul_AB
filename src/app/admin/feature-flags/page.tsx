@@ -231,8 +231,8 @@ export default function FeatureFlagsPage() {
     <div className="space-y-6">
       <div className="flex items-center justify-between">
         <div className="flex items-center gap-3">
-          <div className="p-2 bg-amber-500/20 rounded-lg">
-            <Settings className="h-6 w-6 text-amber-500" />
+          <div className="p-2 bg-primary/15 rounded-lg">
+            <Settings className="h-6 w-6 text-primary" />
           </div>
           <div>
             <h1 className="text-2xl font-bold">ניהול פיצ'רים</h1>
@@ -242,7 +242,7 @@ export default function FeatureFlagsPage() {
 
         <Dialog open={createOpen} onOpenChange={setCreateOpen}>
           <DialogTrigger asChild>
-            <Button className="bg-amber-600 hover:bg-amber-700">
+            <Button className="bg-primary hover:bg-primary/90">
               <Plus className="h-4 w-4 ml-1" />
               הוסף פיצ'ר
             </Button>
@@ -297,7 +297,7 @@ export default function FeatureFlagsPage() {
               <Button
                 onClick={handleCreate}
                 disabled={creating}
-                className="bg-amber-600 hover:bg-amber-700"
+                className="bg-primary hover:bg-primary/90"
               >
                 {creating ? "יוצר..." : "צור"}
               </Button>
@@ -443,7 +443,7 @@ export default function FeatureFlagsPage() {
             <Button
               onClick={handleSaveEdit}
               disabled={saving}
-              className="bg-amber-600 hover:bg-amber-700"
+              className="bg-primary hover:bg-primary/90"
             >
               {saving ? "שומר..." : "שמור"}
             </Button>

@@ -215,7 +215,7 @@ export default function AdminUsersPage() {
           if (!open) resetForm();
         }}>
           <DialogTrigger asChild>
-            <Button className="bg-amber-500 hover:bg-amber-600 text-black">
+            <Button className="bg-primary hover:bg-primary/90 text-primary-foreground">
               <Plus className="ml-2 h-4 w-4" />
               משתמש חדש
             </Button>
@@ -296,7 +296,7 @@ export default function AdminUsersPage() {
               <Button
                 onClick={handleSubmit}
                 disabled={isSaving}
-                className="bg-amber-500 hover:bg-amber-600 text-black"
+                className="bg-primary hover:bg-primary/90 text-primary-foreground"
               >
                 {isSaving ? (
                   <Loader2 className="h-4 w-4 animate-spin" />
@@ -375,7 +375,7 @@ export default function AdminUsersPage() {
                         variant={user.role === "ADMIN" ? "default" : user.role === "MANAGER" ? "secondary" : "outline"}
                         className={
                           user.role === "ADMIN" 
-                            ? "bg-amber-500/20 text-amber-500" 
+                            ? "bg-primary/15 text-primary"
                             : user.role === "MANAGER"
                             ? "bg-sky-500/20 text-sky-500"
                             : ""

@@ -194,7 +194,7 @@ export default function TierSettingsPage() {
       <div className="flex items-center justify-between">
         <div>
           <h1 className="text-3xl font-bold flex items-center gap-2">
-            <Settings className="h-8 w-8 text-amber-500" />
+            <Settings className="h-8 w-8 text-primary" />
             הגדרות תוכניות
           </h1>
           <p className="text-muted-foreground mt-1">ניהול מכסות ומחירים לכל תוכנית</p>
@@ -237,7 +237,7 @@ export default function TierSettingsPage() {
               <span className="ml-2">{TIER_ICONS[limit.tier]}</span>
               {limit.displayNameHe}
               {hasChanges(limit.tier) && (
-                <span className="mr-2 h-2 w-2 rounded-full bg-amber-500" />
+                <span className="mr-2 h-2 w-2 rounded-full bg-primary" />
               )}
             </TabsTrigger>
           ))}
@@ -362,7 +362,7 @@ export default function TierSettingsPage() {
                 <Button
                   onClick={() => handleSave(limit.tier)}
                   disabled={saving}
-                  className="bg-amber-500 hover:bg-amber-600 text-black"
+                  className="bg-primary hover:bg-primary/90 text-primary-foreground"
                 >
                   {saving ? (
                     <RefreshCw className="ml-2 h-4 w-4 animate-spin" />

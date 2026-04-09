@@ -120,7 +120,7 @@ export default function AdminStoragePage() {
         <Card>
           <CardHeader className="flex flex-row items-center justify-between pb-2">
             <CardTitle className="text-sm font-medium text-muted-foreground">ממוצע למשתמש</CardTitle>
-            <HardDrive className="h-4 w-4 text-amber-500" />
+            <HardDrive className="h-4 w-4 text-primary" />
           </CardHeader>
           <CardContent>
             <div className="text-2xl font-bold">

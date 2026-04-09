@@ -163,8 +163,8 @@ function AdminLayoutContent({ children }: { children: React.ReactNode }) {
   // Show loading while checking session
   if (status === "loading") {
     return (
-      <div className="min-h-screen bg-slate-950 flex items-center justify-center">
-        <Loader2 className="h-8 w-8 animate-spin text-amber-500" />
+      <div className="min-h-screen bg-background flex items-center justify-center">
+        <Loader2 className="h-8 w-8 animate-spin text-primary" />
       </div>
     );
   }
@@ -172,7 +172,7 @@ function AdminLayoutContent({ children }: { children: React.ReactNode }) {
   // This will be handled by middleware, but just in case
   if (status === "unauthenticated") {
     return (
-      <div className="min-h-screen bg-slate-950 flex items-center justify-center text-white">
+      <div className="min-h-screen bg-background flex items-center justify-center text-foreground">
         <div className="text-center">
           <p className="mb-4">נדרשת התחברות</p>
           <Button asChild>
@@ -184,7 +184,7 @@ function AdminLayoutContent({ children }: { children: React.ReactNode }) {
   }
 
   return (
-    <div className="dark min-h-screen bg-slate-950 text-white" dir="rtl">
+    <div className="min-h-screen bg-muted/30 text-foreground" dir="rtl">
       {/* Mobile menu button */}
       <div className="lg:hidden fixed top-4 right-4 z-50">
         <Button
@@ -208,8 +208,8 @@ function AdminLayoutContent({ children }: { children: React.ReactNode }) {
           {/* Logo */}
           <div className="p-6 border-b border-border">
             <div className="flex items-center gap-3">
-              <div className="p-2 bg-amber-500/20 rounded-lg">
-                <Shield className="h-6 w-6 text-amber-500" />
+              <div className="p-2 bg-primary/15 rounded-lg">
+                <Shield className="h-6 w-6 text-primary" />
               </div>
               <div>
                 <h1 className="font-bold text-lg">ממשק ניהול</h1>
@@ -237,7 +237,7 @@ function AdminLayoutContent({ children }: { children: React.ReactNode }) {
                   className={cn(
                     "flex items-center gap-3 px-4 py-3 rounded-lg transition-all",
                     isActive
-                      ? "bg-amber-500/20 text-amber-500"
+                      ? "bg-primary/15 text-primary font-medium"
                       : "text-muted-foreground hover:bg-muted hover:text-foreground"
                   )}
                 >
@@ -308,8 +308,8 @@ export default function AdminLayout({
   return (
     <ClientOnly
       fallback={
-        <div className="min-h-screen bg-slate-950 flex items-center justify-center">
-          <Loader2 className="h-8 w-8 animate-spin text-amber-500" />
+        <div className="min-h-screen bg-background flex items-center justify-center">
+          <Loader2 className="h-8 w-8 animate-spin text-primary" />
         </div>
       }
     >
