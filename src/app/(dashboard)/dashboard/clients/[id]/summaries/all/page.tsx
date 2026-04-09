@@ -9,6 +9,7 @@ import { Separator } from "@/components/ui/separator";
 import { Input } from "@/components/ui/input";
 import {
   Calendar,
+  Download,
   Sparkles,
   Loader2,
   FileText,
@@ -19,6 +20,7 @@ import { format } from "date-fns";
 import { he } from "date-fns/locale";
 import { toast } from "sonner";
 import Link from "next/link";
+import { exportSummariesDocument } from "@/lib/export-utils";
 
 interface SessionNote {
   id: string;
@@ -138,6 +140,25 @@ export default function AllSummariesPage() {
     );
   }
 
+  const handleExport = () => {
+    const summaries = client.therapySessions
+      .filter(s => s.sessionNote)
+      .sort((a, b) => new Date(a.startTime).getTime() - new Date(b.startTime).getTime())
+      .map((s, i) => ({
+        sessionNumber: i + 1,
+        date: format(new Date(s.startTime), "EEEE, d בMMMM yyyy", { locale: he }),
+        time: `${format(new Date(s.startTime), "HH:mm")} - ${format(new Date(s.endTime), "HH:mm")}`,
+        content: s.sessionNote!.content,
+      }));
+
+    exportSummariesDocument(
+      summaries,
+      `${client.firstName} ${client.lastName}`,
+      client.comprehensiveAnalysis
+    );
+    toast.success("הקובץ הורד בהצלחה");
+  };
+
   const allSessionsWithNotes = client.therapySessions
     .filter(s => s.sessionNote)
     .sort((a, b) => new Date(a.startTime).getTime() - new Date(b.startTime).getTime());
@@ -167,6 +188,16 @@ export default function AllSummariesPage() {
         </div>
         
         {allSessionsWithNotes.length > 0 && (
+          <div className="flex items-center gap-2">
+          <Button
+            onClick={handleExport}
+            variant="outline"
+            size="lg"
+            className="gap-2"
+          >
+            <Download className="h-5 w-5" />
+            ייצוא סיכומים
+          </Button>
           <Button
             onClick={handleAIAnalysis}
             disabled={isAnalyzing}
@@ -190,6 +221,7 @@ export default function AllSummariesPage() {
               </>
             )}
           </Button>
+          </div>
         )}
       </div>
 

@@ -403,7 +403,7 @@ export function exportAccountantPDF(
   doc.save(fileName);
 }
 
-// ============ SUMMARIES EXPORT (Word-like document) ============
+// ============ SUMMARIES EXPORT (HTML document — supports Hebrew) ============
 export interface SummaryExportData {
   sessionNumber: number;
   date: string;
@@ -411,110 +411,63 @@ export interface SummaryExportData {
   content: string;
 }
 
-export function exportSummariesPDF(
+export function exportSummariesDocument(
   summaries: SummaryExportData[],
   clientName: string,
   comprehensiveAnalysis?: string | null
 ) {
-  const doc = new jsPDF({
-    orientation: "portrait",
-    unit: "mm",
-    format: "a4",
-  });
+  const dateStr = format(new Date(), "dd/MM/yyyy");
 
-  doc.setFont("helvetica");
-  const pageWidth = doc.internal.pageSize.getWidth();
-  const margin = 15;
-  const contentWidth = pageWidth - margin * 2;
+  const summariesHtml = summaries.map(s => `
+    <div style="margin-bottom:24px;page-break-inside:avoid;">
+      <div style="color:#10b981;font-size:14px;font-weight:bold;margin-bottom:6px;border-bottom:1px solid #e5e7eb;padding-bottom:4px;">
+        #${s.sessionNumber} | ${s.date} | ${s.time}
+      </div>
+      <div style="font-size:13px;line-height:1.8;white-space:pre-wrap;">${s.content.replace(/<[^>]*>/g, '').replace(/&nbsp;/g, ' ').trim()}</div>
+    </div>
+  `).join('');
 
-  // Title
-  doc.setFontSize(18);
-  doc.text(`סיכומי טיפול - ${clientName}`, pageWidth - margin, 20, { align: "right" });
+  const analysisHtml = comprehensiveAnalysis ? `
+    <div style="margin-top:40px;page-break-before:always;">
+      <h2 style="color:#7c3aed;font-size:18px;margin-bottom:12px;">ניתוח AI מקיף</h2>
+      <div style="font-size:13px;line-height:1.8;white-space:pre-wrap;background:#f5f3ff;padding:16px;border-radius:8px;border:1px solid #ddd6fe;">${comprehensiveAnalysis}</div>
+    </div>
+  ` : '';
 
-  doc.setFontSize(10);
-  doc.text(
-    `תאריך הפקה: ${format(new Date(), "dd/MM/yyyy")} | ${summaries.length} פגישות`,
-    pageWidth - margin,
-    28,
-    { align: "right" }
-  );
+  const html = `<!DOCTYPE html>
+<html dir="rtl" lang="he">
+<head>
+  <meta charset="utf-8">
+  <title>סיכומי טיפול - ${clientName}</title>
+  <style>
+    @page { size: A4; margin: 15mm; }
+    body { font-family: 'Segoe UI', 'Heebo', Arial, sans-serif; direction: rtl; color: #1f2937; max-width: 800px; margin: 0 auto; padding: 20px; }
+    @media print { body { padding: 0; } .no-print { display: none; } }
+  </style>
+</head>
+<body>
+  <div class="no-print" style="background:#f0fdf4;padding:12px 16px;border-radius:8px;margin-bottom:20px;border:1px solid #bbf7d0;font-size:13px;">
+    להדפסה כ-PDF: לחץ Ctrl+P ובחר "שמור כ-PDF"
+  </div>
+  <h1 style="font-size:22px;margin-bottom:4px;">סיכומי טיפול - ${clientName}</h1>
+  <p style="color:#6b7280;font-size:13px;margin-bottom:24px;">תאריך הפקה: ${dateStr} | ${summaries.length} פגישות</p>
+  ${summariesHtml}
+  ${analysisHtml}
+  <div style="text-align:center;color:#9ca3af;font-size:11px;margin-top:40px;border-top:1px solid #e5e7eb;padding-top:12px;">
+    &copy; MyTipul — כל הזכויות שמורות | mytipul.com
+  </div>
+</body>
+</html>`;
 
-  let yPos = 38;
-
-  for (const summary of summaries) {
-    // Check if we need a new page
-    if (yPos > 260) {
-      doc.addPage();
-      yPos = 20;
-    }
-
-    // Session header
-    doc.setFontSize(12);
-    doc.setTextColor(16, 185, 129);
-    doc.text(`#${summary.sessionNumber} | ${summary.date} | ${summary.time}`, pageWidth - margin, yPos, { align: "right" });
-    doc.setTextColor(0, 0, 0);
-    yPos += 7;
-
-    // Session content - strip HTML and split into lines
-    doc.setFontSize(10);
-    const cleanContent = summary.content
-      .replace(/<[^>]*>/g, '')
-      .replace(/&nbsp;/g, ' ')
-      .replace(/&amp;/g, '&')
-      .replace(/&lt;/g, '<')
-      .replace(/&gt;/g, '>')
-      .trim();
-
-    const lines = doc.splitTextToSize(cleanContent, contentWidth);
-    for (const line of lines) {
-      if (yPos > 275) {
-        doc.addPage();
-        yPos = 20;
-      }
-      doc.text(line, pageWidth - margin, yPos, { align: "right" });
-      yPos += 5;
-    }
-
-    // Separator
-    yPos += 3;
-    doc.setDrawColor(200, 200, 200);
-    doc.line(margin, yPos, pageWidth - margin, yPos);
-    yPos += 7;
-  }
-
-  // Comprehensive analysis (if exists)
-  if (comprehensiveAnalysis) {
-    if (yPos > 200) {
-      doc.addPage();
-      yPos = 20;
-    }
-
-    doc.setFontSize(14);
-    doc.setTextColor(124, 58, 237);
-    doc.text("ניתוח AI מקיף", pageWidth - margin, yPos, { align: "right" });
-    doc.setTextColor(0, 0, 0);
-    yPos += 8;
-
-    doc.setFontSize(10);
-    const analysisLines = doc.splitTextToSize(comprehensiveAnalysis, contentWidth);
-    for (const line of analysisLines) {
-      if (yPos > 275) {
-        doc.addPage();
-        yPos = 20;
-      }
-      doc.text(line, pageWidth - margin, yPos, { align: "right" });
-      yPos += 5;
-    }
-  }
-
-  // Footer on last page
-  doc.setFontSize(8);
-  doc.setTextColor(150, 150, 150);
-  doc.text("MyTipul — כל הזכויות שמורות", pageWidth / 2, 290, { align: "center" });
-
-  // Download
-  const fileName = `סיכומים_${clientName}_${format(new Date(), "yyyy-MM-dd")}.pdf`;
-  doc.save(fileName);
+  const blob = new Blob([html], { type: 'text/html;charset=utf-8' });
+  const url = URL.createObjectURL(blob);
+  const link = document.createElement('a');
+  link.href = url;
+  link.download = `סיכומים_${clientName}_${format(new Date(), "yyyy-MM-dd")}.html`;
+  document.body.appendChild(link);
+  link.click();
+  document.body.removeChild(link);
+  URL.revokeObjectURL(url);
 }
 
 // ============ ACCOUNTANT REPORT (from Receipts page) ============
