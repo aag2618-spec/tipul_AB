@@ -48,8 +48,8 @@ interface ChildPayment {
   id: string;
   amount: number;
   method: string;
-  paidAt: Date | null;
-  createdAt: Date;
+  paidAt: Date | string | null;
+  createdAt: Date | string;
 }
 
 interface Payment {
@@ -58,11 +58,11 @@ interface Payment {
   expectedAmount: number | null;
   method: string;
   status: string;
-  createdAt: Date;
-  paidAt: Date | null;
+  createdAt: Date | string;
+  paidAt: Date | string | null;
   session?: {
     id: string;
-    startTime: Date;
+    startTime: Date | string;
     type: string;
   } | null;
   childPayments?: ChildPayment[];

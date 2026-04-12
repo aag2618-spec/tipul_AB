@@ -31,9 +31,9 @@ export interface PaymentExportData {
   expectedAmount: number;
   method: string;
   status: string;
-  paidAt: Date | null;
-  createdAt: Date;
-  sessionDate?: Date | null;
+  paidAt: Date | string | null;
+  createdAt: Date | string;
+  sessionDate?: Date | string | null;
   sessionType?: string | null;
   receiptNumber?: string | null;
   hasReceipt: boolean;
@@ -53,7 +53,7 @@ function getMethodLabel(method: string): string {
 }
 
 // Helper to format date
-function formatDate(date: Date | null): string {
+function formatDate(date: Date | string | null): string {
   if (!date) return "-";
   return format(new Date(date), "dd/MM/yyyy", { locale: he });
 }

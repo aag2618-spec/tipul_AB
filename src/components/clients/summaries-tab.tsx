@@ -27,8 +27,8 @@ function stripHtml(html: string): string {
 
 interface Session {
   id: string;
-  startTime: Date;
-  endTime: Date;
+  startTime: Date | string;
+  endTime: Date | string;
   type: string;
   status: string;
   skipSummary?: boolean;

@@ -28,6 +28,7 @@ import {
   Sparkles,
   Brain,
   UserCheck,
+  Send,
 } from "lucide-react";
 import Link from "next/link";
 import { QuickMarkPaid } from "@/components/payments/quick-mark-paid";
@@ -509,8 +510,8 @@ export default async function ClientPage({
                               context="patient-file"
                               session={{
                                 id: session.id,
-                                startTime: session.startTime,
-                                endTime: session.endTime,
+                                startTime: session.startTime?.toString() || "",
+                                endTime: session.endTime?.toString() || "",
                                 type: session.type as string,
                                 status: session.status as string,
                                 price: Number(session.price) || 0,
@@ -746,19 +747,19 @@ export default async function ClientPage({
                     expectedAmount: payment.expectedAmount ? (Number(payment.expectedAmount) || 0) : null,
                     method: payment.method as string,
                     status: payment.status as string,
-                    createdAt: payment.createdAt,
-                    paidAt: payment.paidAt,
+                    createdAt: payment.createdAt?.toString() || new Date().toString(),
+                    paidAt: payment.paidAt?.toString() || null,
                     session: payment.session ? {
                       id: payment.session.id,
-                      startTime: payment.session.startTime,
+                      startTime: payment.session.startTime?.toString() || "",
                       type: payment.session.type as string,
                     } : null,
                     childPayments: payment.childPayments?.map((child) => ({
                       id: child.id,
                       amount: Number(child.amount) || 0,
                       method: (child.method || payment.method) as string,
-                      paidAt: child.paidAt,
-                      createdAt: child.createdAt,
+                      paidAt: child.paidAt?.toString() || null,
+                      createdAt: child.createdAt?.toString() || new Date().toString(),
                     })) || [],
                   }))}
                 />
@@ -777,7 +778,7 @@ export default async function ClientPage({
                   id: nextUpcomingSession.id,
                   clientId: client.id,
                   clientName: client.name,
-                  startTime: nextUpcomingSession.startTime,
+                  startTime: nextUpcomingSession.startTime?.toString() || "",
                 }}
                 userTier={(user?.aiTier as "ESSENTIAL" | "PRO" | "ENTERPRISE") || "ESSENTIAL"}
               />
@@ -880,8 +881,8 @@ export default async function ClientPage({
         <TabsContent value="summaries" className="mt-6">
           <SummariesTab clientId={client.id} sessions={client.therapySessions.map(s => ({
             id: s.id,
-            startTime: s.startTime,
-            endTime: s.endTime,
+            startTime: s.startTime?.toString() || "",
+            endTime: s.endTime?.toString() || "",
             type: s.type as string,
             status: s.status as string,
             skipSummary: s.skipSummary,

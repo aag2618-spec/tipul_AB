@@ -12,7 +12,7 @@ interface SessionPrepCardProps {
     id: string;
     clientId: string;
     clientName: string;
-    startTime: Date;
+    startTime: Date | string;
   };
   userTier: 'ESSENTIAL' | 'PRO' | 'ENTERPRISE';
 }
