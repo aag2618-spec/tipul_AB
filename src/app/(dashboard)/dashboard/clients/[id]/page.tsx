@@ -166,7 +166,16 @@ export default async function ClientPage({
     });
   }
   
-  const client = await getClient(id, session.user.id);
+  let client;
+  try {
+    client = await getClient(id, session.user.id);
+  } catch (error) {
+    logger.error("[ClientPage] Unexpected error loading client:", {
+      clientId: id,
+      error: error instanceof Error ? error.message : String(error),
+    });
+    throw error;
+  }
 
   if (!client) {
     notFound();
@@ -187,20 +196,20 @@ export default async function ClientPage({
       )
     : null;
 
-  const pendingPayments = client.payments.filter((p) => p.status === "PENDING");
+  const pendingPayments = client.payments?.filter((p) => p.status === "PENDING") || [];
   const totalDebt = calculateDebtFromPayments(pendingPayments);
 
   // AI tab data
-  const futureSessions = client.therapySessions.filter(
+  const futureSessions = (client.therapySessions || []).filter(
     (s) => new Date(s.startTime) > new Date() && s.type !== "BREAK"
   );
   const nextUpcomingSession = futureSessions.length > 0 
     ? futureSessions[futureSessions.length - 1] 
     : null;
-  const summarizedSessionsCount = client.therapySessions.filter(s => s.sessionNote).length;
+  const summarizedSessionsCount = (client.therapySessions || []).filter(s => s.sessionNote).length;
 
   // Get unpaid sessions for the Payments tab (exclude cancelled sessions)
-  const unpaidSessions = client.therapySessions.filter(
+  const unpaidSessions = (client.therapySessions || []).filter(
     (session) =>
       session.status !== "CANCELLED" &&
       session.payment &&
