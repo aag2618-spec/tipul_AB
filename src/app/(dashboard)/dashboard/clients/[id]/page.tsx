@@ -13,44 +13,25 @@ import {
   CreditCard,
   Edit,
   FileText,
-  Mic,
   Phone,
   Mail,
-  MapPin,
   Cake,
   Plus,
-  Send,
   Stethoscope,
-  Search,
   FolderOpen,
-  Download,
   CheckCircle,
   ClipboardList,
   Repeat,
   Clock,
-  MoreVertical,
-  Eye,
   User as UserIcon,
-  Trash2,
   Lock,
   Sparkles,
   Brain,
   UserCheck,
 } from "lucide-react";
-import { Input } from "@/components/ui/input";
-import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
 import Link from "next/link";
 import { QuickMarkPaid } from "@/components/payments/quick-mark-paid";
-import { CompleteSessionDialog } from "@/components/sessions/complete-session-dialog";
 import { ExportClientButton } from "@/components/clients/export-client-button";
-import { QuickSessionStatus } from "@/components/sessions/quick-session-status";
-import {
-  DropdownMenu,
-  DropdownMenuContent,
-  DropdownMenuItem,
-  DropdownMenuTrigger,
-  DropdownMenuSeparator,
-} from "@/components/ui/dropdown-menu";
 import { SummariesTab } from "@/components/clients/summaries-tab";
 import { ClientApproachEditor } from "@/components/clients/client-approach-editor";
 import { DocumentItem } from "@/components/clients/document-item";
@@ -60,7 +41,6 @@ import { SendBookingLinkButton } from "@/components/clients/send-booking-link-bu
 import { TodaySessionCard } from "@/components/dashboard/today-session-card";
 import { SessionHistoryGrid } from "@/components/clients/session-history-grid";
 import { AddCreditDialog } from "@/components/clients/add-credit-dialog";
-import { PaymentHistoryItem } from "@/components/payments/payment-history-item";
 import { PaymentHistoryGrid } from "@/components/payments/payment-history-grid";
 import { QuestionnaireAnalysis } from "@/components/ai/questionnaire-analysis";
 import { SessionPrepCard } from "@/components/ai/session-prep-card";
@@ -79,41 +59,65 @@ async function getClient(clientId: string, userId: string) {
           orderBy: { dayOfWeek: "asc" },
         },
         therapySessions: {
+          take: 100,
           orderBy: { startTime: "desc" },
           include: {
-            sessionNote: true,
+            sessionNote: { select: { content: true } },
             sessionAnalysis: { select: { id: true } },
-            payment: { include: { childPayments: { orderBy: { paidAt: "asc" } } } },
+            payment: {
+              select: {
+                id: true,
+                amount: true,
+                expectedAmount: true,
+                status: true,
+                paidAt: true,
+                childPayments: {
+                  select: { id: true, amount: true, paidAt: true, method: true },
+                  orderBy: { paidAt: "asc" },
+                },
+              },
+            },
           },
         },
         payments: {
+          take: 100,
           where: { parentPaymentId: null },
           orderBy: { createdAt: "desc" },
           include: {
-            session: true,
+            session: { select: { id: true, startTime: true, type: true } },
             childPayments: {
+              select: { id: true, amount: true, method: true, paidAt: true, createdAt: true },
               orderBy: { paidAt: "asc" },
             },
           },
         },
         recordings: {
           orderBy: { createdAt: "desc" },
-          take: 10,
-          include: { transcription: { include: { analysis: true } } },
+          take: 5,
+          select: {
+            id: true, type: true, status: true, durationSeconds: true, createdAt: true,
+            transcription: { select: { id: true, analysis: { select: { id: true } } } },
+          },
         },
         documents: {
+          take: 50,
           orderBy: { createdAt: "desc" },
+          select: { id: true, name: true, fileUrl: true, createdAt: true },
         },
         questionnaireResponses: {
+          take: 20,
           orderBy: { completedAt: "desc" },
-          include: {
-            template: true,
+          select: {
+            id: true, status: true, completedAt: true, totalScore: true,
+            template: { select: { id: true, name: true } },
           },
         },
         intakeResponses: {
+          take: 10,
           orderBy: { filledAt: "desc" },
-          include: {
-            template: true,
+          select: {
+            id: true, filledAt: true,
+            template: { select: { id: true, name: true } },
           },
         },
         _count: {
