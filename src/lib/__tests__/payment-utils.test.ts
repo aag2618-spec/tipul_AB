@@ -57,7 +57,7 @@ describe('calculateDebtFromSessions', () => {
   it('sums debt across multiple sessions', () => {
     const sessions = [
       { price: 200, payment: { amount: 100, expectedAmount: 200 } },
-      { price: 150, payment: null },
+      { price: 150, payment: null }, // no payment record = not counted as debt
       { price: 100, payment: { amount: 100, expectedAmount: 100 } },
     ];
     // 100 + 150 + 0 = 250

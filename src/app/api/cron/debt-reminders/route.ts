@@ -212,14 +212,9 @@ export async function GET(request: NextRequest) {
             where: {
               status: { in: ["COMPLETED", "CANCELLED", "NO_SHOW"] },
               type: { not: "BREAK" },
-              OR: [
-                { payment: null },
-                {
-                  payment: {
-                    status: "PENDING",
-                  },
-                },
-              ],
+              payment: {
+                status: "PENDING",
+              },
             },
             include: {
               payment: true,

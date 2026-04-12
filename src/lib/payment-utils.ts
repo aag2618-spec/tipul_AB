@@ -23,7 +23,7 @@ export function calculateSessionDebt(session: {
   price: unknown;
   payment?: { amount: unknown; expectedAmount: unknown } | null;
 }): number {
-  if (!session.payment) return Number(session.price);
+  if (!session.payment) return Number(session.price) || 0;
   const paid = Number(session.payment.amount);
   const expected = Number(session.payment.expectedAmount) || 0;
   if (expected > 0 && paid < expected) return expected - paid;

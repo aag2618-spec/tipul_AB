@@ -223,14 +223,9 @@ export async function POST(
         clientId: clientId,
         status: { in: ["COMPLETED", "CANCELLED", "NO_SHOW"] },
         type: { not: "BREAK" },
-        OR: [
-          { payment: null },
-          {
-            payment: {
-              status: "PENDING",
-            },
-          },
-        ],
+        payment: {
+          status: "PENDING",
+        },
       },
       include: {
         payment: true,
