@@ -373,8 +373,8 @@ export default async function DashboardPage() {
                       key={therapySession.id} 
                       session={{
                         id: therapySession.id,
-                        startTime: therapySession.startTime,
-                        endTime: therapySession.endTime,
+                        startTime: therapySession.startTime.toISOString(),
+                        endTime: therapySession.endTime.toISOString(),
                         type: therapySession.type as string,
                         status: therapySession.status as string,
                         price: Number(therapySession.price),

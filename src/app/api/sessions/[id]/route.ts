@@ -122,8 +122,10 @@ export async function PUT(
 
       if (conflict) {
         const conflictName = conflict.client?.name || (conflict.type === "BREAK" ? "הפסקה" : "פגישה");
+        const conflictStart = new Intl.DateTimeFormat("he-IL", { timeZone: "Asia/Jerusalem", hour: "2-digit", minute: "2-digit", hour12: false }).format(conflict.startTime);
+        const conflictEnd = new Intl.DateTimeFormat("he-IL", { timeZone: "Asia/Jerusalem", hour: "2-digit", minute: "2-digit", hour12: false }).format(conflict.endTime);
         return NextResponse.json(
-          { message: `יש התנגשות עם ${conflictName} בשעה ${conflict.startTime.toISOString()}` },
+          { message: `יש התנגשות עם ${conflictName} בשעה ${conflictStart}-${conflictEnd}` },
           { status: 409 }
         );
       }

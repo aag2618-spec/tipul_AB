@@ -69,18 +69,18 @@ import {
 interface UnpaidSession {
   paymentId: string;
   sessionId: string | null;
-  date: Date;
+  date: Date | string;
   amount: number;
   paidAmount: number;
-  partialPaymentDate?: Date;
+  partialPaymentDate?: Date | string;
 }
 
 interface ChildPayment {
   id: string;
   amount: number;
   method: string;
-  paidAt: Date | null;
-  createdAt: Date;
+  paidAt: Date | string | null;
+  createdAt: Date | string;
 }
 
 interface PaidPayment {
@@ -91,11 +91,11 @@ interface PaidPayment {
   expectedAmount: number;
   method: string;
   status: string;
-  paidAt: Date | null;
-  createdAt: Date;
+  paidAt: Date | string | null;
+  createdAt: Date | string;
   session: {
     id: string;
-    startTime: Date;
+    startTime: Date | string;
     type: string;
   } | null;
   childPayments: ChildPayment[];

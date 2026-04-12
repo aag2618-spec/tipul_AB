@@ -213,7 +213,7 @@ export default async function AIPrepPage() {
                       id: therapySession.id,
                       clientId: therapySession.clientId!,
                       clientName: therapySession.client?.name || 'לקוח',
-                      startTime: therapySession.startTime,
+                      startTime: therapySession.startTime.toISOString(),
                     }}
                     userTier={user.aiTier}
                   />

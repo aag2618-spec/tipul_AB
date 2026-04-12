@@ -17,10 +17,10 @@ interface Task {
   description: string | null;
   status: string;
   priority: string;
-  dueDate: Date | null;
+  dueDate: Date | string | null;
   relatedEntityId: string | null;
   relatedEntity: string | null;
-  createdAt: Date;
+  createdAt: Date | string;
 }
 
 interface TasksViewProps {
@@ -42,7 +42,7 @@ function getTaskLink(task: Task): string {
   return `/dashboard/sessions`;
 }
 
-function getTimeGroup(date: Date | null): string {
+function getTimeGroup(date: Date | string | null): string {
   if (!date) return "ללא תאריך";
   const now = new Date();
   const diffMs = now.getTime() - new Date(date).getTime();

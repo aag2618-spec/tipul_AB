@@ -18,7 +18,7 @@ interface ChildPayment {
   amount: unknown;
   paidAt: Date | string | null;
   method?: string;
-  createdAt: Date;
+  createdAt: Date | string;
 }
 
 interface SessionPayment {
@@ -32,8 +32,8 @@ interface SessionPayment {
 
 interface TherapySession {
   id: string;
-  startTime: Date;
-  endTime: Date;
+  startTime: Date | string;
+  endTime: Date | string;
   type: string;
   status: string;
   price: unknown;
@@ -48,8 +48,8 @@ interface Payment {
   expectedAmount: unknown;
   method: string;
   status: string;
-  createdAt: Date;
-  paidAt: Date | null;
+  createdAt: Date | string;
+  paidAt: Date | string | null;
   session: any | null;
   childPayments?: ChildPayment[];
 }
