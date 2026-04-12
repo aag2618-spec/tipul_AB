@@ -33,27 +33,39 @@ export async function sendEmail({ to, subject, html, text }: EmailOptions) {
 
   const normalizedTo = to.toLowerCase();
 
-  try {
-    const { data, error } = await resend.emails.send({
-      from: process.env.EMAIL_FROM || 'Tipul App <onboarding@resend.dev>',
-      to: normalizedTo,
-      subject,
-      html,
-      text: text || html.replace(/<[^>]*>/g, ''),
-      replyTo: "inbox@mytipul.com",
-    });
+  const maxAttempts = 2;
+  for (let attempt = 1; attempt <= maxAttempts; attempt++) {
+    try {
+      const { data, error } = await resend.emails.send({
+        from: process.env.EMAIL_FROM || 'Tipul App <onboarding@resend.dev>',
+        to: normalizedTo,
+        subject,
+        html,
+        text: text || html.replace(/<[^>]*>/g, ''),
+        replyTo: "inbox@mytipul.com",
+      });
 
-    if (error) {
-      console.error('Resend error:', error);
-      return { success: false, error: error.message, messageId: null };
+      if (error) {
+        console.error(`Resend error (attempt ${attempt}/${maxAttempts}):`, error);
+        if (attempt < maxAttempts) {
+          await new Promise(r => setTimeout(r, 3000));
+          continue;
+        }
+        return { success: false, error: error.message, messageId: null };
+      }
+
+      // Return the message ID for tracking
+      return { success: true, data, messageId: data?.id || null };
+    } catch (error) {
+      console.error(`Send email error (attempt ${attempt}/${maxAttempts}):`, error);
+      if (attempt < maxAttempts) {
+        await new Promise(r => setTimeout(r, 3000));
+        continue;
+      }
+      return { success: false, error: 'Failed to send email', messageId: null };
     }
-
-    // Return the message ID for tracking
-    return { success: true, data, messageId: data?.id || null };
-  } catch (error) {
-    console.error('Send email error:', error);
-    return { success: false, error: 'Failed to send email', messageId: null };
   }
+  return { success: false, error: 'Failed after retries', messageId: null };
 }
 
 // Email templates

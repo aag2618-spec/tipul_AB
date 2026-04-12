@@ -147,10 +147,7 @@ export async function GET(request: NextRequest) {
                 )
                 .join("");
 
-              await sendEmail({
-                to: user.email!,
-                subject: title,
-                html: `<div dir="rtl" style="font-family:Arial,sans-serif;max-width:600px;margin:0 auto;padding:20px;">
+              const mornHtml = `<div dir="rtl" style="font-family:Arial,sans-serif;max-width:600px;margin:0 auto;padding:20px;">
                   <h2 style="color:#0d9488;">☀️ ${title}</h2>
                   <p>שלום ${escapeHtml(user.name || "")},</p>
                   <p>יש לך <strong>${realSessions.length} פגישות</strong> היום:</p>
@@ -159,8 +156,22 @@ export async function GET(request: NextRequest) {
                     <tbody>${sessionsHtml}</tbody>
                   </table>
                   <p style="color:#6b7280;font-size:13px;margin-top:24px;">מייל זה נשלח אוטומטית ממערכת MyTipul</p>
-                </div>`,
-              }).catch((err) => logger.error("שגיאה בשליחת מייל תזכורת", { userId: user.id, error: err instanceof Error ? err.message : String(err) }));
+                </div>`;
+              const mornResult = await sendEmail({ to: user.email!, subject: title, html: mornHtml })
+                .catch((err) => { logger.error("שגיאה בשליחת מייל סיכום בוקר", { userId: user.id, error: err instanceof Error ? err.message : String(err) }); return { success: false, error: String(err) }; });
+              await prisma.communicationLog.create({
+                data: {
+                  type: "CUSTOM",
+                  channel: "EMAIL",
+                  recipient: user.email!.toLowerCase(),
+                  subject: title,
+                  content: mornHtml,
+                  status: mornResult?.success ? "SENT" : "FAILED",
+                  errorMessage: mornResult?.success ? null : String(mornResult?.error || "unknown"),
+                  sentAt: mornResult?.success ? new Date() : null,
+                  userId: user.id,
+                },
+              }).catch(() => {});
             }
           }
 
@@ -223,6 +234,42 @@ export async function GET(request: NextRequest) {
               },
             });
             notificationsCreated++;
+
+            // שליחת מייל תזכורת תשלום למטפל
+            if (shouldSendEmail) {
+              const clientsList = [...new Set(realPayments.map(p => (p.client as { name: string })?.name).filter(Boolean))];
+              const clientsHtml = clientsList
+                .map(name => `<li style="margin-bottom:4px;">${escapeHtml(name)}</li>`)
+                .join("");
+
+              const payHtml = `<div dir="rtl" style="font-family:Arial,sans-serif;max-width:600px;margin:0 auto;padding:20px;">
+                  <h2 style="color:#dc2626;">💳 ${escapeHtml(title)}</h2>
+                  <p>שלום ${escapeHtml(user.name || "")},</p>
+                  <div style="background:#fef2f2;border:1px solid #fecaca;border-radius:8px;padding:16px;margin:16px 0;">
+                    <p style="margin:0;font-size:18px;font-weight:bold;color:#991b1b;">סה"כ חוב: ₪${totalDebt.toLocaleString()}</p>
+                    <p style="margin:8px 0 0 0;color:#7f1d1d;">${realPayments.length} תשלומים ממתינים</p>
+                    ${oldPayments.length > 0 ? `<p style="margin:4px 0 0 0;color:#991b1b;font-weight:600;">${oldPayments.length} מהם מעל ${debtThreshold} ימים!</p>` : ""}
+                  </div>
+                  <h3 style="margin-top:20px;">מטופלים עם חוב:</h3>
+                  <ul style="padding-right:20px;">${clientsHtml}</ul>
+                  <p style="color:#6b7280;font-size:13px;margin-top:24px;">מייל זה נשלח אוטומטית ממערכת MyTipul</p>
+                </div>`;
+              const payResult = await sendEmail({ to: user.email!, subject: title, html: payHtml })
+                .catch((err) => { logger.error("שגיאה בשליחת מייל תזכורת תשלום", { userId: user.id, error: err instanceof Error ? err.message : String(err) }); return { success: false, error: String(err) }; });
+              await prisma.communicationLog.create({
+                data: {
+                  type: "CUSTOM",
+                  channel: "EMAIL",
+                  recipient: user.email!.toLowerCase(),
+                  subject: title,
+                  content: payHtml,
+                  status: payResult?.success ? "SENT" : "FAILED",
+                  errorMessage: payResult?.success ? null : String(payResult?.error || "unknown"),
+                  sentAt: payResult?.success ? new Date() : null,
+                  userId: user.id,
+                },
+              }).catch(() => {});
+            }
           }
         }
       }
@@ -367,10 +414,7 @@ export async function GET(request: NextRequest) {
                 .join("");
               const allTasksHtml = summaryItemsHtml + taskItemsHtml || `<li style="color:#6b7280;">אין משימות פתוחות</li>`;
 
-              await sendEmail({
-                to: user.email!,
-                subject: title,
-                html: `<div dir="rtl" style="font-family:Arial,sans-serif;max-width:600px;margin:0 auto;padding:20px;">
+              const eveHtml = `<div dir="rtl" style="font-family:Arial,sans-serif;max-width:600px;margin:0 auto;padding:20px;">
                   <h2 style="color:#0d9488;">🌙 ${title}</h2>
                   <p>שלום ${escapeHtml(user.name || "")},</p>
                   <h3 style="margin-top:20px;">פגישות מחר (${realTomorrowSessions.length})</h3>
@@ -381,8 +425,22 @@ export async function GET(request: NextRequest) {
                   <h3 style="margin-top:20px;">משימות פתוחות (${totalPending})</h3>
                   <ul style="padding-right:20px;">${allTasksHtml}</ul>
                   <p style="color:#6b7280;font-size:13px;margin-top:24px;">מייל זה נשלח אוטומטית ממערכת MyTipul</p>
-                </div>`,
-              }).catch((err) => logger.error("שגיאה בשליחת מייל תזכורת", { userId: user.id, error: err instanceof Error ? err.message : String(err) }));
+                </div>`;
+              const eveResult = await sendEmail({ to: user.email!, subject: title, html: eveHtml })
+                .catch((err) => { logger.error("שגיאה בשליחת מייל סיכום ערב", { userId: user.id, error: err instanceof Error ? err.message : String(err) }); return { success: false, error: String(err) }; });
+              await prisma.communicationLog.create({
+                data: {
+                  type: "CUSTOM",
+                  channel: "EMAIL",
+                  recipient: user.email!.toLowerCase(),
+                  subject: title,
+                  content: eveHtml,
+                  status: eveResult?.success ? "SENT" : "FAILED",
+                  errorMessage: eveResult?.success ? null : String(eveResult?.error || "unknown"),
+                  sentAt: eveResult?.success ? new Date() : null,
+                  userId: user.id,
+                },
+              }).catch(() => {});
             }
           }
 

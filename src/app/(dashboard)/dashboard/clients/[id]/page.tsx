@@ -67,68 +67,75 @@ import { SessionPrepCard } from "@/components/ai/session-prep-card";
 import { format } from "date-fns";
 import { he } from "date-fns/locale";
 import { calculateDebtFromPayments, calculateSessionDebt } from "@/lib/payment-utils";
+import { logger } from "@/lib/logger";
 
 async function getClient(clientId: string, userId: string) {
-  const client = await prisma.client.findFirst({
-    where: { id: clientId, therapistId: userId },
-    include: {
-      recurringPatterns: {
-        where: { isActive: true },
-        orderBy: { dayOfWeek: "asc" },
-      },
-      therapySessions: {
-        orderBy: { startTime: "desc" },
-        include: {
-          sessionNote: true,
-          sessionAnalysis: { select: { id: true } },
-          payment: { include: { childPayments: { orderBy: { paidAt: "asc" } } } },
+  try {
+    const client = await prisma.client.findFirst({
+      where: { id: clientId, therapistId: userId },
+      include: {
+        recurringPatterns: {
+          where: { isActive: true },
+          orderBy: { dayOfWeek: "asc" },
         },
-      },
-      payments: {
-        where: { parentPaymentId: null },
-        orderBy: { createdAt: "desc" },
-        include: {
-          session: true,
-          childPayments: {
-            orderBy: { paidAt: "asc" },
+        therapySessions: {
+          orderBy: { startTime: "desc" },
+          include: {
+            sessionNote: true,
+            sessionAnalysis: { select: { id: true } },
+            payment: { include: { childPayments: { orderBy: { paidAt: "asc" } } } },
+          },
+        },
+        payments: {
+          where: { parentPaymentId: null },
+          orderBy: { createdAt: "desc" },
+          include: {
+            session: true,
+            childPayments: {
+              orderBy: { paidAt: "asc" },
+            },
+          },
+        },
+        recordings: {
+          orderBy: { createdAt: "desc" },
+          take: 10,
+          include: { transcription: { include: { analysis: true } } },
+        },
+        documents: {
+          orderBy: { createdAt: "desc" },
+        },
+        questionnaireResponses: {
+          orderBy: { completedAt: "desc" },
+          include: {
+            template: true,
+          },
+        },
+        intakeResponses: {
+          orderBy: { filledAt: "desc" },
+          include: {
+            template: true,
+          },
+        },
+        _count: {
+          select: {
+            therapySessions: { where: { type: { not: "BREAK" } } },
+            payments: true,
+            recordings: true,
+            questionnaireResponses: true,
+            intakeResponses: true
           },
         },
       },
-      recordings: {
-        orderBy: { createdAt: "desc" },
-        take: 10,
-        include: { transcription: { include: { analysis: true } } },
-      },
-      documents: {
-        orderBy: { createdAt: "desc" },
-      },
-      questionnaireResponses: {
-        orderBy: { completedAt: "desc" },
-        include: {
-          template: true,
-        },
-      },
-      intakeResponses: {
-        orderBy: { filledAt: "desc" },
-        include: {
-          template: true,
-        },
-      },
-      _count: {
-        select: {
-          therapySessions: { where: { type: { not: "BREAK" } } },
-          payments: true,
-          recordings: true,
-          questionnaireResponses: true,
-          intakeResponses: true
-        },
-      },
-    },
-  });
-  if (!client) return null;
-  // ניקוי כולל: Prisma Decimal → string, Date → ISO string
-  // מונע שגיאות RSC serialization בכל client components
-  return JSON.parse(JSON.stringify(client)) as typeof client;
+    });
+    if (!client) return null;
+    return JSON.parse(JSON.stringify(client)) as typeof client;
+  } catch (error) {
+    logger.error("[ClientPage] Failed to load client data:", {
+      clientId,
+      error: error instanceof Error ? error.message : String(error),
+    });
+    return null;
+  }
 }
 
 export default async function ClientPage({
@@ -146,11 +153,18 @@ export default async function ClientPage({
   const defaultTab = tab || "sessions";
   const showUpgradeBanner = upgrade === "true";
   
-  // קבלת פרטי המשתמש כולל tier
-  const user = await prisma.user.findUnique({
-    where: { id: session.user.id },
-    select: { aiTier: true }
-  });
+  let user: { aiTier: string } | null = null;
+  try {
+    user = await prisma.user.findUnique({
+      where: { id: session.user.id },
+      select: { aiTier: true }
+    });
+  } catch (error) {
+    logger.error("[ClientPage] Failed to load user:", {
+      userId: session.user.id,
+      error: error instanceof Error ? error.message : String(error),
+    });
+  }
   
   const client = await getClient(id, session.user.id);
 
@@ -312,10 +326,10 @@ export default async function ClientPage({
                     <p className="text-sm font-medium text-emerald-700">אין חובות פתוחים ✓</p>
                   )}
                 </div>
-                {Number(client.creditBalance) > 0 && (
+                {(Number(client.creditBalance) || 0) > 0 && (
                   <div className="text-left">
                     <p className="text-sm text-muted-foreground">קרדיט</p>
-                    <p className="text-lg font-bold text-emerald-600">₪{Number(client.creditBalance)}</p>
+                    <p className="text-lg font-bold text-emerald-600">₪{Number(client.creditBalance) || 0}</p>
                   </div>
                 )}
               </div>
@@ -444,7 +458,7 @@ export default async function ClientPage({
                             endTime: session.endTime.toString(),
                             type: session.type as string,
                             status: session.status as string,
-                            price: Number(session.price),
+                            price: Number(session.price) || 0,
                             sessionNote: session.sessionNote?.content || null,
                             cancellationReason: session.cancellationReason,
                             payment: session.payment ? {
@@ -456,7 +470,7 @@ export default async function ClientPage({
                             client: {
                               id: client.id,
                               name: client.name,
-                              creditBalance: Number(client.creditBalance),
+                              creditBalance: Number(client.creditBalance) || 0,
                               totalDebt,
                               unpaidSessionsCount: unpaidSessions.length,
                             },
@@ -486,7 +500,7 @@ export default async function ClientPage({
                                 endTime: session.endTime,
                                 type: session.type as string,
                                 status: session.status as string,
-                                price: Number(session.price),
+                                price: Number(session.price) || 0,
                                 sessionNote: session.sessionNote?.content || null,
                                 cancellationReason: session.cancellationReason,
                                 payment: session.payment ? {
@@ -498,7 +512,7 @@ export default async function ClientPage({
                                 client: {
                                   id: client.id,
                                   name: client.name,
-                                  creditBalance: Number(client.creditBalance),
+                                  creditBalance: Number(client.creditBalance) || 0,
                                   totalDebt,
                                   unpaidSessionsCount: unpaidSessions.length,
                                 },
@@ -557,9 +571,9 @@ export default async function ClientPage({
                         {unpaidSessions.length} פגישות • סה&quot;כ חוב: <span className="font-bold text-red-600">₪{totalDebt}</span>
                       </p>
                     )}
-                    {Number(client.creditBalance) > 0 && (
+                    {(Number(client.creditBalance) || 0) > 0 && (
                       <p className="text-sm text-muted-foreground">
-                        קרדיט: <span className="font-bold text-emerald-600">₪{Number(client.creditBalance)}</span>
+                        קרדיט: <span className="font-bold text-emerald-600">₪{Number(client.creditBalance) || 0}</span>
                       </p>
                     )}
                   </div>
@@ -567,7 +581,7 @@ export default async function ClientPage({
                     <AddCreditDialog
                       clientId={client.id}
                       clientName={client.name}
-                      currentCredit={Number(client.creditBalance)}
+                      currentCredit={Number(client.creditBalance) || 0}
                     />
                     {totalDebt > 0 && (
                       <>
@@ -593,7 +607,7 @@ export default async function ClientPage({
                   <div className="grid gap-4 grid-cols-1 sm:grid-cols-2 lg:grid-cols-3">
                     {unpaidSessions.map((session) => {
                       const debt = calculateSessionDebt(session);
-                      const alreadyPaid = session.payment ? Number(session.payment.amount) : 0;
+                      const alreadyPaid = session.payment ? (Number(session.payment.amount) || 0) : 0;
 
                       const cardContent = (
                         <Card className="cursor-pointer hover:shadow-lg transition-all hover:scale-[1.02] h-full">
@@ -614,7 +628,7 @@ export default async function ClientPage({
                                 <>
                                   {session.payment.childPayments && session.payment.childPayments.length > 0 ? (
                                     session.payment.childPayments.map((child: { id: string; amount: unknown; paidAt: Date | string | null }, idx: number) => {
-                                      const childAmount = Number(child.amount);
+                                      const childAmount = Number(child.amount) || 0;
                                       return (
                                         <div key={child.id} className="flex justify-between items-center text-sm">
                                           <span className="text-muted-foreground">תשלום {idx + 1}:</span>
@@ -706,7 +720,7 @@ export default async function ClientPage({
                     <AddCreditDialog
                       clientId={client.id}
                       clientName={client.name}
-                      currentCredit={Number(client.creditBalance)}
+                      currentCredit={Number(client.creditBalance) || 0}
                     />
                   </div>
                 </div>
@@ -715,8 +729,8 @@ export default async function ClientPage({
                 <PaymentHistoryGrid
                   payments={client.payments.map((payment) => ({
                     id: payment.id,
-                    amount: Number(payment.amount),
-                    expectedAmount: payment.expectedAmount ? Number(payment.expectedAmount) : null,
+                    amount: Number(payment.amount) || 0,
+                    expectedAmount: payment.expectedAmount ? (Number(payment.expectedAmount) || 0) : null,
                     method: payment.method as string,
                     status: payment.status as string,
                     createdAt: payment.createdAt,
@@ -728,7 +742,7 @@ export default async function ClientPage({
                     } : null,
                     childPayments: payment.childPayments?.map((child) => ({
                       id: child.id,
-                      amount: Number(child.amount),
+                      amount: Number(child.amount) || 0,
                       method: (child.method || payment.method) as string,
                       paidAt: child.paidAt,
                       createdAt: child.createdAt,
@@ -1108,7 +1122,9 @@ export default async function ClientPage({
                               <div>
                                 <p className="font-medium">{response.template?.name || "תשאול ראשוני"}</p>
                                 <p className="text-sm text-muted-foreground">
-                                  {format(new Date(response.filledAt), "dd/MM/yyyy HH:mm")}
+                                  {response.filledAt
+                                    ? format(new Date(response.filledAt), "dd/MM/yyyy HH:mm")
+                                    : "לא צוין"}
                                 </p>
                               </div>
                               <Button variant="outline" size="sm" asChild>
