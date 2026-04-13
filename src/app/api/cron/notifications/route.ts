@@ -50,12 +50,14 @@ export async function GET(request: NextRequest) {
       },
     });
 
-    // פקיעת תזכורות ישנות - סיכומי בוקר/ערב שנוצרו לפני יותר מיום ועדיין לא נקראו
+    // פקיעת תזכורות ישנות - סיכומי בוקר/ערב שנוצרו לפני יותר מיומיים ועדיין לא נקראו.
+    // חשוב: לא למחוק התראות מאתמול כי בדיקת כפילויות של סיכום ערב אחרי חצות צריכה אותן.
+    const twoDaysAgo = new Date(today.getTime() - 2 * 86400000);
     await prisma.notification.updateMany({
       where: {
         type: { in: ["MORNING_SUMMARY", "EVENING_SUMMARY"] },
         status: { in: ["PENDING", "SENT"] },
-        createdAt: { lt: today },
+        createdAt: { lt: twoDaysAgo },
       },
       data: { status: "DISMISSED" },
     });
