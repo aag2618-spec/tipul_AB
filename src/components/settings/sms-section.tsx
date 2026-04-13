@@ -1,10 +1,13 @@
 "use client";
 
+import { useState } from "react";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import { Switch } from "@/components/ui/switch";
 import { Textarea } from "@/components/ui/textarea";
-import { MessageSquare, Info } from "lucide-react";
+import { Button } from "@/components/ui/button";
+import { Badge } from "@/components/ui/badge";
+import { MessageSquare, Clock, ArrowLeftRight, CreditCard, Lightbulb, ChevronDown, ChevronUp } from "lucide-react";
 import {
   AccordionContent, AccordionItem, AccordionTrigger,
 } from "@/components/ui/accordion";
@@ -25,71 +28,92 @@ interface SmsSectionProps {
   setCommSettings: any;
 }
 
-const SMS_TYPES = [
+const SMS_GROUPS = [
   {
-    key: "sendBookingConfirmationSMS",
-    templateKey: "templateBookingConfirmSMS",
-    label: "אישור הזמנה",
-    desc: "כשמטופל מזמין פגישה דרך זימון עצמי",
-    tip: "מומלץ שניהם — אישור מיידי ב-SMS ותיעוד מלא במייל",
-    defaultTemplate: "שלום {שם}, ההזמנה התקבלה! פגישה ב-{תאריך} ב-{שעה}",
-    vars: "{שם} {תאריך} {שעה}",
+    id: "reminders",
+    title: "תזכורות פגישה",
+    icon: Clock,
+    types: [
+      {
+        key: "sendBookingConfirmationSMS",
+        templateKey: "templateBookingConfirmSMS",
+        label: "אישור הזמנה",
+        desc: "כשמטופל מזמין פגישה דרך זימון עצמי",
+        tip: "מומלץ להפעיל גם מייל וגם SMS — המטופל מקבל אישור מיידי בטלפון ותיעוד מלא במייל",
+        defaultTemplate: "שלום {שם}, ההזמנה התקבלה! פגישה ב-{תאריך} ב-{שעה}",
+        vars: ["{שם}", "{תאריך}", "{שעה}"],
+      },
+      {
+        key: "sendReminder24hSMS",
+        templateKey: "templateReminder24hSMS",
+        label: "תזכורת 24 שעות",
+        desc: "יום לפני הפגישה",
+        tip: "מספיק ערוץ אחד — שניהם ביחד עלולים להרגיש כמו הרבה הודעות",
+        defaultTemplate: "שלום {שם}, תזכורת לפגישה מחר ({יום}) ב-{שעה}",
+        vars: ["{שם}", "{תאריך}", "{שעה}", "{יום}"],
+      },
+      {
+        key: "sendReminderCustomSMS",
+        templateKey: "templateReminderCustomSMS",
+        label: "תזכורת מותאמת",
+        desc: "לפי מספר השעות שהגדרת",
+        tip: "הודעה קצרה ודחופה — SMS מתאים במיוחד",
+        defaultTemplate: "שלום {שם}, פגישה בעוד {שעות} שעות ב-{שעה}",
+        vars: ["{שם}", "{שעה}", "{שעות}"],
+      },
+    ],
   },
   {
-    key: "sendReminder24hSMS",
-    templateKey: "templateReminder24hSMS",
-    label: "תזכורת 24 שעות",
-    desc: "יום לפני הפגישה",
-    tip: "מומלץ ערוץ אחד — שניהם עלולים להרגיש מעיקים",
-    defaultTemplate: "שלום {שם}, תזכורת לפגישה מחר ({יום}) ב-{שעה}",
-    vars: "{שם} {תאריך} {שעה} {יום}",
+    id: "changes",
+    title: "הודעות על שינויים",
+    icon: ArrowLeftRight,
+    types: [
+      {
+        key: "sendCancellationSMS",
+        templateKey: "templateCancellationSMS",
+        label: "הודעת ביטול פגישה",
+        desc: "כשאתה מבטל פגישה מאושרת",
+        tip: "מומלץ שניהם — זו הודעה דחופה שחשוב שתגיע בוודאות",
+        defaultTemplate: "שלום {שם}, הפגישה ב-{תאריך} ב-{שעה} בוטלה",
+        vars: ["{שם}", "{תאריך}", "{שעה}"],
+      },
+      {
+        key: "sendSessionChangeSMS",
+        templateKey: "templateSessionChangeSMS",
+        label: "הודעת שינוי שעה/תאריך",
+        desc: "כשאתה מזיז פגישה למועד אחר",
+        tip: "מומלץ שניהם — חשוב שהמטופל יגיע בזמן הנכון",
+        defaultTemplate: "שלום {שם}, הפגישה הועברה ל-{תאריך} ב-{שעה}",
+        vars: ["{שם}", "{תאריך}", "{שעה}"],
+      },
+      {
+        key: "sendNoShowSMS",
+        templateKey: "templateNoShowSMS",
+        label: 'הודעת "לא הגיע"',
+        desc: 'כשאתה מסמן מטופל כ"לא הגיע"',
+        tip: "מספיק ערוץ אחד — שתי הודעות עלולות להרגיש כלחץ מיותר",
+        defaultTemplate: "שלום {שם}, חבל שלא הגעת היום. ליצירת קשר: {טלפון}",
+        vars: ["{שם}", "{טלפון}"],
+      },
+    ],
   },
   {
-    key: "sendReminderCustomSMS",
-    templateKey: "templateReminderCustomSMS",
-    label: "תזכורת מותאמת",
-    desc: "לפי מספר השעות שהגדרת",
-    tip: "מומלץ SMS בלבד — קצר ודחוף",
-    defaultTemplate: "שלום {שם}, פגישה בעוד {שעות} שעות ב-{שעה}",
-    vars: "{שם} {שעה} {שעות}",
+    id: "financial",
+    title: "כספים",
+    icon: CreditCard,
+    types: [
+      {
+        key: "sendDebtReminderSMS",
+        templateKey: "templateDebtReminderSMS",
+        label: "תזכורת חוב",
+        desc: "תזכורת חוב אוטומטית או ידנית",
+        tip: "המייל מכיל פירוט מלא של החוב. ה-SMS רק מזכיר לפתוח את המייל",
+        defaultTemplate: "שלום {שם}, יש יתרה פתוחה של {סכום}. פרטים נשלחו במייל",
+        vars: ["{שם}", "{סכום}"],
+      },
+    ],
   },
-  {
-    key: "sendCancellationSMS",
-    templateKey: "templateCancellationSMS",
-    label: "הודעת ביטול פגישה",
-    desc: "כשאתה מבטל פגישה מאושרת",
-    tip: "מומלץ שניהם — הודעה דחופה שחשוב שתגיע",
-    defaultTemplate: "שלום {שם}, הפגישה ב-{תאריך} ב-{שעה} בוטלה",
-    vars: "{שם} {תאריך} {שעה}",
-  },
-  {
-    key: "sendSessionChangeSMS",
-    templateKey: "templateSessionChangeSMS",
-    label: "הודעת שינוי שעה/תאריך",
-    desc: "כשאתה מזיז פגישה למועד אחר",
-    tip: "מומלץ שניהם — חשוב שיגיע בזמן הנכון",
-    defaultTemplate: "שלום {שם}, הפגישה הועברה ל-{תאריך} ב-{שעה}",
-    vars: "{שם} {תאריך} {שעה}",
-  },
-  {
-    key: "sendNoShowSMS",
-    templateKey: "templateNoShowSMS",
-    label: 'הודעת "לא הגיע"',
-    desc: 'כשאתה מסמן מטופל כ"לא הגיע"',
-    tip: "מומלץ ערוץ אחד — שניהם עלולים להרגיש לחץ",
-    defaultTemplate: "שלום {שם}, חבל שלא הגעת היום. ליצירת קשר: {טלפון}",
-    vars: "{שם} {טלפון}",
-  },
-  {
-    key: "sendDebtReminderSMS",
-    templateKey: "templateDebtReminderSMS",
-    label: "תזכורת חוב",
-    desc: "תזכורת חוב אוטומטית או ידנית",
-    tip: "המייל מכיל פירוט מלא, ה-SMS מזכיר לפתוח אותו",
-    defaultTemplate: "שלום {שם}, יש יתרה פתוחה של {סכום}. פרטים נשלחו במייל",
-    vars: "{שם} {סכום}",
-  },
-] as const;
+];
 
 export function SmsSection({
   smsSettings,
@@ -97,9 +121,19 @@ export function SmsSection({
   commSettings,
   setCommSettings,
 }: SmsSectionProps) {
+  const [openTemplates, setOpenTemplates] = useState<Set<string>>(new Set());
   const usage = commSettings.smsMonthlyUsage ?? 0;
   const quota = commSettings.smsMonthlyQuota ?? 200;
   const percentUsed = quota > 0 ? Math.round((usage / quota) * 100) : 0;
+
+  const toggleTemplate = (key: string) => {
+    setOpenTemplates(prev => {
+      const next = new Set(prev);
+      if (next.has(key)) next.delete(key);
+      else next.add(key);
+      return next;
+    });
+  };
 
   return (
     <AccordionItem value="sms" className="border rounded-lg px-4">
@@ -114,11 +148,26 @@ export function SmsSection({
       </AccordionTrigger>
       <AccordionContent className="space-y-6 pb-4">
 
+        {/* Hero explanation */}
+        <div className="bg-emerald-50 rounded-xl p-5 border border-emerald-200 space-y-2">
+          <p className="font-semibold text-emerald-800 text-base">הודעות SMS נשלחות אוטומטית — בדיוק כמו המיילים</p>
+          <p className="text-sm text-emerald-700">
+            בכל פעם שנקבעת פגישה, מתבטלת, או מגיע מועד תזכורת — המערכת שולחת SMS לטלפון של המטופל אוטומטית.
+            השם, התאריך והשעה נכנסים מעצמם — אתה לא צריך להקליד כלום.
+          </p>
+          <p className="text-sm text-emerald-700">
+            כל הודעה אפשר לשלוח במייל, ב-SMS, או בשניהם — אתה בוחר.
+          </p>
+          <p className="text-sm text-emerald-700 font-medium">
+            למטה יש נוסח ברירת מחדל לכל הודעה. אם לא תשנה — המערכת תשתמש בנוסח הזה ותמלא אוטומטית את הפרטים.
+          </p>
+        </div>
+
         {/* Master switch */}
         <div className="flex items-center justify-between">
           <div className="space-y-0.5">
             <Label className="text-base font-semibold">הפעל SMS</Label>
-            <p className="text-sm text-muted-foreground">שליחת הודעות SMS למטופלים (Pulseem)</p>
+            <p className="text-sm text-muted-foreground">שליחת הודעות SMS למטופלים</p>
           </div>
           <Switch
             checked={smsSettings.enabled}
@@ -128,6 +177,25 @@ export function SmsSection({
 
         {smsSettings.enabled && (
           <>
+            {/* Visual example */}
+            <div className="rounded-lg border p-4 bg-gray-50 space-y-3">
+              <p className="text-sm font-medium text-gray-700">איך זה עובד? המערכת ממלאת את הפרטים אוטומטית:</p>
+              <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
+                <div className="rounded-lg bg-white border p-3 space-y-1">
+                  <p className="text-xs font-medium text-gray-500">תבנית:</p>
+                  <p className="text-sm" dir="rtl">
+                    שלום <span className="bg-amber-100 text-amber-800 px-1 rounded">{"{שם}"}</span>, תזכורת לפגישה מחר (<span className="bg-amber-100 text-amber-800 px-1 rounded">{"{יום}"}</span>) ב-<span className="bg-amber-100 text-amber-800 px-1 rounded">{"{שעה}"}</span>
+                  </p>
+                </div>
+                <div className="rounded-lg bg-white border p-3 space-y-1">
+                  <p className="text-xs font-medium text-gray-500">מה המטופל מקבל:</p>
+                  <p className="text-sm" dir="rtl">
+                    שלום <span className="bg-green-100 text-green-800 px-1 rounded">דנה</span>, תזכורת לפגישה מחר (<span className="bg-green-100 text-green-800 px-1 rounded">שלישי</span>) ב-<span className="bg-green-100 text-green-800 px-1 rounded">16:00</span>
+                  </p>
+                </div>
+              </div>
+            </div>
+
             {/* Quota display */}
             <div className="rounded-lg border p-4 space-y-3">
               <div className="flex items-center justify-between">
@@ -167,45 +235,96 @@ export function SmsSection({
               </div>
             </div>
 
-            {/* SMS type toggles */}
-            <div className="space-y-1">
-              <Label className="text-base font-semibold">סוגי הודעות SMS</Label>
-              <p className="text-xs text-muted-foreground">בחר אילו הודעות לשלוח ב-SMS. כל סוג עצמאי ממייל.</p>
-            </div>
+            {/* SMS type groups */}
+            {SMS_GROUPS.map((group) => (
+              <div key={group.id}>
+                <div className="flex items-center gap-2 mb-3 mt-2">
+                  <group.icon className="h-4 w-4 text-muted-foreground" />
+                  <span className="text-sm font-semibold text-muted-foreground">{group.title}</span>
+                </div>
 
-            {SMS_TYPES.map((smsType) => (
-              <div key={smsType.key} className="rounded-lg border p-4 space-y-3">
-                <div className="flex items-center justify-between">
-                  <div className="space-y-0.5">
-                    <Label>{smsType.label}</Label>
-                    <p className="text-xs text-muted-foreground">{smsType.desc}</p>
-                  </div>
-                  <Switch
-                    checked={!!commSettings[smsType.key]}
-                    onCheckedChange={(checked) => setCommSettings({ ...commSettings, [smsType.key]: checked })}
-                  />
+                <div className="space-y-3">
+                  {group.types.map((smsType) => {
+                    const isEnabled = !!commSettings[smsType.key];
+                    const isTemplateOpen = openTemplates.has(smsType.key);
+                    const customTemplate = (commSettings[smsType.templateKey] as string) || "";
+
+                    return (
+                      <div key={smsType.key} className="rounded-lg border p-4 space-y-3">
+                        {/* Toggle row */}
+                        <div className="flex items-center justify-between">
+                          <div className="space-y-0.5">
+                            <Label>{smsType.label}</Label>
+                            <p className="text-xs text-muted-foreground">{smsType.desc}</p>
+                          </div>
+                          <Switch
+                            checked={isEnabled}
+                            onCheckedChange={(checked) => setCommSettings({ ...commSettings, [smsType.key]: checked })}
+                          />
+                        </div>
+
+                        {/* Prominent tip */}
+                        <div className="flex items-start gap-2 bg-amber-50 border border-amber-200 rounded-lg p-3">
+                          <Lightbulb className="h-4 w-4 text-amber-600 mt-0.5 shrink-0" />
+                          <p className="text-sm text-amber-800">{smsType.tip}</p>
+                        </div>
+
+                        {/* Template section (collapsed by default) */}
+                        {isEnabled && (
+                          <>
+                            <Button
+                              variant="outline"
+                              size="sm"
+                              className="gap-1.5 text-xs"
+                              onClick={() => toggleTemplate(smsType.key)}
+                            >
+                              {isTemplateOpen ? <ChevronUp className="h-3.5 w-3.5" /> : <ChevronDown className="h-3.5 w-3.5" />}
+                              {isTemplateOpen ? "סגור" : "ערוך נוסח"}
+                            </Button>
+
+                            {isTemplateOpen && (
+                              <div className="space-y-3 border-t pt-3">
+                                {/* Default template preview */}
+                                <div>
+                                  <Label className="text-xs text-muted-foreground">נוסח ברירת מחדל (נשלח אוטומטית אם לא תשנה):</Label>
+                                  <div className="bg-muted/50 rounded-lg p-3 mt-1 text-sm" dir="rtl">
+                                    {smsType.defaultTemplate}
+                                  </div>
+                                </div>
+
+                                {/* Custom template textarea */}
+                                <div>
+                                  <Label className="text-xs">רוצה לשנות? כתוב כאן (אם ריק — ישלח הנוסח שלמעלה):</Label>
+                                  <Textarea
+                                    value={customTemplate}
+                                    onChange={(e) => setCommSettings({ ...commSettings, [smsType.templateKey]: e.target.value || null })}
+                                    placeholder={smsType.defaultTemplate}
+                                    rows={2}
+                                    className="resize-none text-sm mt-1"
+                                    maxLength={201}
+                                  />
+                                </div>
+
+                                {/* Variables as badges + char count */}
+                                <div className="flex items-center justify-between flex-wrap gap-2">
+                                  <div className="flex items-center gap-1.5 flex-wrap">
+                                    <span className="text-xs text-muted-foreground">משתנים:</span>
+                                    {smsType.vars.map((v) => (
+                                      <Badge key={v} variant="secondary" className="text-xs">{v}</Badge>
+                                    ))}
+                                  </div>
+                                  <span className="text-xs text-muted-foreground">
+                                    {(customTemplate || smsType.defaultTemplate).length}/201
+                                  </span>
+                                </div>
+                              </div>
+                            )}
+                          </>
+                        )}
+                      </div>
+                    );
+                  })}
                 </div>
-                <div className="flex items-start gap-1.5">
-                  <Info className="h-3.5 w-3.5 text-blue-500 mt-0.5 shrink-0" />
-                  <p className="text-xs text-blue-600">{smsType.tip}</p>
-                </div>
-                {commSettings[smsType.key] && (
-                  <div className="space-y-2">
-                    <Label className="text-xs">תבנית הודעה</Label>
-                    <Textarea
-                      value={(commSettings[smsType.templateKey] as string) || ""}
-                      onChange={(e) => setCommSettings({ ...commSettings, [smsType.templateKey]: e.target.value || null })}
-                      placeholder={smsType.defaultTemplate}
-                      rows={2}
-                      className="resize-none text-sm"
-                      maxLength={201}
-                    />
-                    <div className="flex justify-between text-xs text-muted-foreground">
-                      <span>משתנים: {smsType.vars}</span>
-                      <span>{((commSettings[smsType.templateKey] as string) || smsType.defaultTemplate).length}/201</span>
-                    </div>
-                  </div>
-                )}
               </div>
             ))}
           </>

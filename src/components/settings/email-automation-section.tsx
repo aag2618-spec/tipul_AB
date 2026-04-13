@@ -62,9 +62,16 @@ export function EmailAutomationSection({
           </div>
         </AccordionTrigger>
         <AccordionContent className="space-y-6 pb-4">
-          <p className="text-xs text-muted-foreground bg-blue-50 rounded-lg p-3 border border-blue-100">
-            ההגדרות כאן קובעות אילו מיילים <strong>המטופלים שלך</strong> מקבלים — אישורי תור, תזכורות לפני פגישה, וכו&apos;.
-          </p>
+          <div className="bg-emerald-50 rounded-xl p-5 border border-emerald-200 space-y-2">
+            <p className="font-semibold text-emerald-800 text-base">המיילים נשלחים אוטומטית</p>
+            <p className="text-sm text-emerald-700">
+              כשנקבעת פגישה, מתבטלת, או מגיע מועד תזכורת — המערכת שולחת מייל למטופל אוטומטית.
+              השם, התאריך והשעה נכנסים מעצמם.
+            </p>
+            <p className="text-sm text-emerald-700 font-medium">
+              אתה לא צריך לעשות כלום — רק לבחור אילו מיילים לשלוח.
+            </p>
+          </div>
           <div className="flex items-center justify-between">
             <div className="space-y-0.5">
               <Label>מייל אישור קביעת תור</Label>
