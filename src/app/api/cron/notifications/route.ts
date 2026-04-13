@@ -406,14 +406,19 @@ export async function GET(request: NextRequest) {
             const tasksList = filteredTasks
               .map((t) => `• ${t.title}`)
               .join("\n");
-            const allTasksList = [summaryList, notUpdatedList, tasksList].filter(Boolean).join("\n");
+            const openTasksList = [summaryList, tasksList].filter(Boolean).join("\n");
+
+            const notUpdatedText = notUpdatedSessions.length > 0
+              ? `\n\nפגישות שטרם עודכנו (${notUpdatedSessions.length}):\n${notUpdatedList}`
+              : "";
 
             const paymentText = unpaidEveningPayments.length > 0
               ? `\n\nתשלומים ממתינים (${unpaidEveningPayments.length}): סה"כ ₪${eveningTotalDebt.toLocaleString()}`
               : "";
 
+            const openTasksCount = sessionsPendingSummary.length + filteredTasks.length;
             const title = `סיכום ליום מחר - ${tomorrow.toLocaleDateString("he-IL", { timeZone: "Asia/Jerusalem" })}`;
-            const content = `פגישות מחר (${realTomorrowSessions.length}):\n${sessionsList || "אין פגישות"}\n\nמשימות פתוחות (${totalPending}):\n${allTasksList || "אין משימות"}${paymentText}`;
+            const content = `פגישות מחר (${realTomorrowSessions.length}):\n${sessionsList || "אין פגישות"}\n\nמשימות פתוחות (${openTasksCount}):\n${openTasksList || "אין משימות"}${notUpdatedText}${paymentText}`;
 
             await prisma.notification.create({
               data: {
@@ -446,8 +451,6 @@ export async function GET(request: NextRequest) {
               const taskItemsHtml = filteredTasks
                 .map((t) => `<li style="margin-bottom:4px;">${escapeHtml(t.title)}</li>`)
                 .join("");
-              const allTasksHtml = summaryItemsHtml + notUpdatedItemsHtml + taskItemsHtml || `<li style="color:#6b7280;">אין משימות פתוחות</li>`;
-
               // בניית סעיף פגישות שלא עודכנו
               const notUpdatedHtml = notUpdatedSessions.length > 0
                 ? `<h3 style="margin-top:20px;color:#d97706;">⚠️ פגישות שטרם עודכנו (${notUpdatedSessions.length})</h3>
