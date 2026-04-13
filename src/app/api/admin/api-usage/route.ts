@@ -3,6 +3,7 @@ import prisma from "@/lib/prisma";
 import { logger } from "@/lib/logger";
 
 import { requireAdmin } from "@/lib/api-auth";
+import { serializePrisma } from "@/lib/serialize";
 
 export const dynamic = "force-dynamic";
 
@@ -111,7 +112,7 @@ export async function GET(request: NextRequest) {
       _sum: item._sum,
     }));
 
-    return NextResponse.json({
+    return NextResponse.json(serializePrisma({
       logs,
       total,
       stats: {
@@ -121,7 +122,7 @@ export async function GET(request: NextRequest) {
       },
       usageByEndpoint: usageByEndpointFormatted,
       usageByUser: usageByUserWithNames,
-    });
+    }));
   } catch (error) {
     logger.error("Get API usage error:", { error: error instanceof Error ? error.message : String(error) });
     return NextResponse.json(

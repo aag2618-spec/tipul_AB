@@ -5,6 +5,7 @@ import { parseIsraelTime } from "@/lib/date-utils";
 import { parseBody } from "@/lib/validations/helpers";
 import { createSessionSchema } from "@/lib/validations/session";
 import { logger } from "@/lib/logger";
+import { serializePrisma } from "@/lib/serialize";
 
 export const dynamic = "force-dynamic";
 
@@ -48,7 +49,7 @@ export async function GET(request: NextRequest) {
       },
     });
 
-    return NextResponse.json(sessions);
+    return NextResponse.json(serializePrisma(sessions));
   } catch (error) {
     logger.error("Get sessions error:", { error: error instanceof Error ? error.message : String(error) });
     return NextResponse.json(
@@ -242,10 +243,10 @@ export async function POST(request: NextRequest) {
     // on TherapySession directly (single source of truth)
 
     // Return session without therapist data (clean response)
-    return NextResponse.json({
+    return NextResponse.json(serializePrisma({
       ...therapySession,
       therapist: undefined,
-    }, { status: 201 });
+    }), { status: 201 });
   } catch (error) {
     logger.error("Create session error:", { error: error instanceof Error ? error.message : String(error) });
     return NextResponse.json(

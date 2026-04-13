@@ -3,6 +3,7 @@ import prisma from "@/lib/prisma";
 import { createPaymentForSession } from "@/lib/payment-service";
 import { logger } from "@/lib/logger";
 import { requireAuth } from "@/lib/api-auth";
+import { serializePrisma } from "@/lib/serialize";
 
 export const dynamic = "force-dynamic";
 
@@ -44,7 +45,7 @@ export async function POST(
 
     return NextResponse.json({
       message: "הקרדיט נוסף בהצלחה",
-      newBalance: updatedClient?.creditBalance,
+      newBalance: Number(updatedClient?.creditBalance || 0),
     });
   } catch (error) {
     logger.error("Add credit error:", { error: error instanceof Error ? error.message : String(error) });

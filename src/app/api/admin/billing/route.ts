@@ -3,6 +3,7 @@ import prisma from "@/lib/prisma";
 import { logger } from "@/lib/logger";
 
 import { requireAdmin } from "@/lib/api-auth";
+import { serializePrisma } from "@/lib/serialize";
 
 export const dynamic = "force-dynamic";
 
@@ -58,7 +59,7 @@ export async function GET(request: NextRequest) {
       .filter((s) => s.status === "OVERDUE")
       .reduce((sum, s) => sum + Number(s._sum.amount || 0), 0);
 
-    return NextResponse.json({
+    return NextResponse.json(serializePrisma({
       payments,
       total,
       stats: {
@@ -67,7 +68,7 @@ export async function GET(request: NextRequest) {
         overdueAmount,
         byStatus: stats,
       },
-    });
+    }));
   } catch (error) {
     logger.error("Get billing error:", { error: error instanceof Error ? error.message : String(error) });
     return NextResponse.json(
@@ -112,7 +113,7 @@ export async function POST(request: NextRequest) {
       },
     });
 
-    return NextResponse.json(payment, { status: 201 });
+    return NextResponse.json(serializePrisma(payment), { status: 201 });
   } catch (error) {
     logger.error("Create payment error:", { error: error instanceof Error ? error.message : String(error) });
     return NextResponse.json(

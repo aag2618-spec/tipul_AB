@@ -3,6 +3,7 @@ import prisma from "@/lib/prisma";
 import { logger } from "@/lib/logger";
 
 import { requireAdmin } from "@/lib/api-auth";
+import { serializePrisma } from "@/lib/serialize";
 
 export const dynamic = "force-dynamic";
 
@@ -33,7 +34,7 @@ export async function GET(request: NextRequest) {
       });
     }
 
-    return NextResponse.json(settings);
+    return NextResponse.json(serializePrisma(settings));
   } catch (error) {
     logger.error('Error fetching AI settings:', { error: error instanceof Error ? error.message : String(error) });
     return NextResponse.json(
@@ -61,7 +62,7 @@ export async function POST(request: NextRequest) {
       update: body
     });
 
-    return NextResponse.json(settings);
+    return NextResponse.json(serializePrisma(settings));
   } catch (error) {
     logger.error('Error saving AI settings:', { error: error instanceof Error ? error.message : String(error) });
     return NextResponse.json(

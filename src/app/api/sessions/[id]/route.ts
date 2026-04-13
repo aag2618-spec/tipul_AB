@@ -4,6 +4,7 @@ import prisma from "@/lib/prisma";
 import { parseIsraelTime } from "@/lib/date-utils";
 import { createPaymentForSession } from "@/lib/payment-service";
 import { logger } from "@/lib/logger";
+import { serializePrisma } from "@/lib/serialize";
 
 export const dynamic = "force-dynamic";
 
@@ -39,7 +40,7 @@ export async function GET(
       return NextResponse.json({ message: "פגישה לא נמצאה" }, { status: 404 });
     }
 
-    return NextResponse.json(therapySession);
+    return NextResponse.json(serializePrisma(therapySession));
   } catch (error) {
     logger.error("Get session error:", { error: error instanceof Error ? error.message : String(error) });
     return NextResponse.json(
@@ -204,7 +205,7 @@ export async function PUT(
       },
     });
 
-    return NextResponse.json(updatedSession);
+    return NextResponse.json(serializePrisma(updatedSession));
   } catch (error) {
     logger.error("Update session error:", { error: error instanceof Error ? error.message : String(error) });
     return NextResponse.json(
@@ -244,7 +245,7 @@ export async function PATCH(
 
     // WRITE_SUMMARY tasks no longer used - skipSummary flag on session is the source of truth
 
-    return NextResponse.json(updatedSession);
+    return NextResponse.json(serializePrisma(updatedSession));
   } catch (error) {
     logger.error("Patch session error:", { error: error instanceof Error ? error.message : String(error) });
     return NextResponse.json(

@@ -2,6 +2,7 @@ import { NextRequest, NextResponse } from "next/server";
 import { requireAuth } from "@/lib/api-auth";
 import prisma from "@/lib/prisma";
 import { logger } from "@/lib/logger";
+import { serializePrisma } from "@/lib/serialize";
 
 export const dynamic = "force-dynamic";
 
@@ -43,7 +44,7 @@ export async function GET(
       return NextResponse.json({ message: "מטופל לא נמצא" }, { status: 404 });
     }
 
-    return NextResponse.json(client);
+    return NextResponse.json(serializePrisma(client));
   } catch (error) {
     logger.error("Get client error:", { error: error instanceof Error ? error.message : String(error) });
     return NextResponse.json(
@@ -99,7 +100,7 @@ export async function PUT(
       },
     });
 
-    return NextResponse.json(client);
+    return NextResponse.json(serializePrisma(client));
   } catch (error) {
     logger.error("Update client error:", { error: error instanceof Error ? error.message : String(error) });
     return NextResponse.json(

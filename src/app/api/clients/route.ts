@@ -4,6 +4,7 @@ import prisma from "@/lib/prisma";
 import { parseBody } from "@/lib/validations/helpers";
 import { createClientSchema, createQuickClientSchema } from "@/lib/validations/client";
 import { logger } from "@/lib/logger";
+import { serializePrisma } from "@/lib/serialize";
 
 export const dynamic = "force-dynamic";
 
@@ -112,7 +113,7 @@ export async function POST(request: NextRequest) {
         },
       });
 
-      return NextResponse.json(client, { status: 201 });
+      return NextResponse.json(serializePrisma(client), { status: 201 });
     }
 
     // --- מטופל רגיל: זרימה קיימת ללא שינוי ---
@@ -148,7 +149,7 @@ export async function POST(request: NextRequest) {
       },
     });
 
-    return NextResponse.json(client, { status: 201 });
+    return NextResponse.json(serializePrisma(client), { status: 201 });
   } catch (error) {
     logger.error("Create client error:", { error: error instanceof Error ? error.message : String(error) });
     return NextResponse.json(

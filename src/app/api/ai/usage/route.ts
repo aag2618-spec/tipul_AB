@@ -93,7 +93,7 @@ export async function GET(req: NextRequest) {
         planLimits.progressReport - (monthlyUsage?.progressReportCount || 0),
 
       // Totals
-      totalCost: monthlyUsage?.totalCost || 0,
+      totalCost: Number(monthlyUsage?.totalCost) || 0,
       totalTokens: monthlyUsage?.totalTokens || 0,
     };
 

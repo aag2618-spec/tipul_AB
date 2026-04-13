@@ -3,6 +3,7 @@ import prisma from "@/lib/prisma";
 import { logger } from "@/lib/logger";
 
 import { requireAdmin } from "@/lib/api-auth";
+import { serializePrisma } from "@/lib/serialize";
 
 export const dynamic = "force-dynamic";
 
@@ -53,7 +54,7 @@ export async function PUT(
       },
     });
 
-    return NextResponse.json(payment);
+    return NextResponse.json(serializePrisma(payment));
   } catch (error) {
     logger.error("Update payment error:", { error: error instanceof Error ? error.message : String(error) });
     return NextResponse.json(

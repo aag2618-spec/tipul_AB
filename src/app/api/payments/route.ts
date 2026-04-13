@@ -5,6 +5,7 @@ import { createPaymentForSession } from "@/lib/payment-service";
 import { logger } from "@/lib/logger";
 import { parseBody } from "@/lib/validations/helpers";
 import { createPaymentSchema } from "@/lib/validations/payment";
+import { serializePrisma } from "@/lib/serialize";
 
 export const dynamic = "force-dynamic";
 
@@ -23,7 +24,7 @@ export async function GET() {
       },
     });
 
-    return NextResponse.json(payments);
+    return NextResponse.json(serializePrisma(payments));
   } catch (error) {
     logger.error("Get payments error", { error: error instanceof Error ? error.message : String(error) });
     return NextResponse.json(
@@ -73,7 +74,7 @@ export async function POST(request: NextRequest) {
     }
 
     return NextResponse.json(
-      { ...result.payment, receiptError: result.receiptError },
+      serializePrisma({ ...result.payment, receiptError: result.receiptError }),
       { status: 201 }
     );
   } catch (error) {

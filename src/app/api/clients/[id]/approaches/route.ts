@@ -2,6 +2,7 @@ import { NextRequest, NextResponse } from "next/server";
 import prisma from "@/lib/prisma";
 import { logger } from "@/lib/logger";
 import { requireAuth } from "@/lib/api-auth";
+import { serializePrisma } from "@/lib/serialize";
 
 export const dynamic = "force-dynamic";
 
@@ -39,7 +40,7 @@ export async function PATCH(
 
     return NextResponse.json({
       message: "Client approaches updated successfully",
-      client: updatedClient,
+      client: serializePrisma(updatedClient),
     });
   } catch (error) {
     logger.error("Error updating client approaches:", { error: error instanceof Error ? error.message : String(error) });

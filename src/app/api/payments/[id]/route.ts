@@ -3,6 +3,7 @@ import prisma from "@/lib/prisma";
 import { addPartialPayment, markFullyPaid } from "@/lib/payment-service";
 import { logger } from "@/lib/logger";
 import { requireAuth } from "@/lib/api-auth";
+import { serializePrisma } from "@/lib/serialize";
 
 export const dynamic = "force-dynamic";
 
@@ -29,7 +30,7 @@ export async function GET(
       return NextResponse.json({ message: "תשלום לא נמצא" }, { status: 404 });
     }
 
-    return NextResponse.json(payment);
+    return NextResponse.json(serializePrisma(payment));
   } catch (error) {
     logger.error("Get payment error:", { error: error instanceof Error ? error.message : String(error) });
     return NextResponse.json(
@@ -71,10 +72,10 @@ export async function PUT(
         await prisma.payment.update({ where: { id }, data: { notes } });
       }
 
-      return NextResponse.json({
+      return NextResponse.json(serializePrisma({
         ...result.payment,
         receiptError: result.receiptError,
-      });
+      }));
     }
 
     // Marking as fully paid (no specific amount)
@@ -95,10 +96,10 @@ export async function PUT(
         await prisma.payment.update({ where: { id }, data: { notes } });
       }
 
-      return NextResponse.json({
+      return NextResponse.json(serializePrisma({
         ...result.payment,
         receiptError: result.receiptError,
-      });
+      }));
     }
 
     // Simple field update (status change, notes, method — no payment action)
@@ -118,7 +119,7 @@ export async function PUT(
       },
     });
 
-    return NextResponse.json(payment);
+    return NextResponse.json(serializePrisma(payment));
   } catch (error) {
     logger.error("Update payment error:", { error: error instanceof Error ? error.message : String(error) });
     return NextResponse.json(
