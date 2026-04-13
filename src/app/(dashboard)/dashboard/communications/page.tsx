@@ -88,6 +88,7 @@ interface Thread {
   latestMessage: CommunicationLog;
   hasUnread: boolean;
   messageCount: number;
+  hasSMS: boolean;
 }
 
 type FilterType = "all" | "SENT" | "FAILED" | "PENDING" | "RECEIVED";
@@ -193,6 +194,7 @@ export default function CommunicationsPage() {
         latestMessage,
         hasUnread,
         messageCount: messages.length,
+        hasSMS: messages.some(m => m.channel === "SMS"),
       });
     }
 
@@ -463,6 +465,7 @@ export default function CommunicationsPage() {
           hasUnread,
           messageCount: remaining.length,
           subject: normalizeSubject(latestMessage.subject || "ללא נושא"),
+          hasSMS: remaining.some(m => m.channel === "SMS"),
         };
       });
 
@@ -630,6 +633,9 @@ export default function CommunicationsPage() {
                         <span className={`text-[14px] truncate ${isUnread ? "font-bold text-[#202124] dark:text-white" : "text-[#5f6368] dark:text-gray-300"}`}>
                           {thread.clientName}
                         </span>
+                        {thread.hasSMS && (
+                          <span className="text-[10px] px-1 py-0.5 rounded bg-violet-100 text-violet-700 shrink-0">SMS</span>
+                        )}
                       </div>
                     </td>
 
@@ -818,10 +824,17 @@ export default function CommunicationsPage() {
                             </>
                           ) : (
                             <>
-                              <Send className="h-4 w-4 text-green-600" />
+                              {msg.channel === "SMS" ? (
+                                <MessageSquare className="h-4 w-4 text-violet-600" />
+                              ) : (
+                                <Send className="h-4 w-4 text-green-600" />
+                              )}
                               <span className="font-medium text-green-800 dark:text-green-300 text-sm">
                                 אתה
                               </span>
+                              {msg.channel === "SMS" && (
+                                <span className="text-[10px] px-1 py-0.5 rounded bg-violet-100 text-violet-700">SMS</span>
+                              )}
                               {msg.status === "FAILED" && (
                                 <Badge variant="destructive" className="text-xs py-0">שליחה נכשלה</Badge>
                               )}

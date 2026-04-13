@@ -2,6 +2,7 @@ import { NextRequest, NextResponse } from "next/server";
 import prisma from "@/lib/prisma";
 import { sendEmail } from "@/lib/resend";
 import { create2HourReminderEmail, formatSessionDateTime } from "@/lib/email-templates";
+import { sendSMSIfEnabled } from "@/lib/sms";
 import { logger } from "@/lib/logger";
 
 // Send custom-timed session reminders (replaces fixed 2h reminders)
@@ -37,6 +38,7 @@ export async function GET(request: NextRequest) {
     });
 
     let emailsSent = 0;
+    let smsSent = 0;
     const errors: string[] = [];
 
     for (const therapist of therapistsWithCustomReminders) {
@@ -122,6 +124,25 @@ export async function GET(request: NextRequest) {
         } else {
           errors.push(`Failed to send to ${session.client.email}: ${result.error}`);
         }
+
+        // Send SMS reminder (independent from email)
+        const smsResult = await sendSMSIfEnabled({
+          userId: session.therapistId,
+          phone: session.client.phone,
+          template: settings?.templateReminderCustomSMS,
+          defaultTemplate: "שלום {שם}, פגישה בעוד {שעות} שעות ב-{שעה}",
+          placeholders: {
+            שם: session.client.firstName || session.client.name,
+            תאריך: date,
+            שעה: time,
+            שעות: String(reminderHours),
+          },
+          settingKey: "sendReminderCustomSMS",
+          sessionId: session.id,
+          clientId: session.clientId || undefined,
+          type: "REMINDER_2H",
+        });
+        if (smsResult.success) smsSent++;
       }
     }
 
@@ -129,6 +150,7 @@ export async function GET(request: NextRequest) {
       message: "Custom reminders processed",
       therapistsChecked: therapistsWithCustomReminders.length,
       emailsSent,
+      smsSent,
       errors: errors.length > 0 ? errors : undefined,
     });
   } catch (error) {

@@ -2,6 +2,7 @@ import { NextRequest, NextResponse } from "next/server";
 import prisma from "@/lib/prisma";
 import { sendEmail } from "@/lib/resend";
 import { escapeHtml } from "@/lib/email-utils";
+import { sendSMSIfEnabled } from "@/lib/sms";
 import { logger } from "@/lib/logger";
 
 import { requireAuth } from "@/lib/api-auth";
@@ -61,8 +62,8 @@ export async function PATCH(
         ],
       },
       include: {
-        client: { select: { name: true, email: true, phone: true } },
-        therapist: { select: { name: true, email: true } },
+        client: { select: { name: true, firstName: true, email: true, phone: true } },
+        therapist: { select: { name: true, email: true, phone: true, businessPhone: true } },
       },
     });
 
@@ -178,6 +179,153 @@ export async function PATCH(
       } catch (e) {
         logger.error("Failed to clean up notifications:", { error: e instanceof Error ? e.message : String(e) });
       }
+    }
+
+    // ── Send cancellation notification (email + SMS) when therapist cancels a SCHEDULED session ──
+    if (currentStatus === "SCHEDULED" && status === "CANCELLED" && therapySession.client) {
+      const clientName = therapySession.client.name;
+      const therapistName = therapySession.therapist?.name || "המטפל/ת";
+      const dateStr = formatDateHebrew(therapySession.startTime);
+      const timeStr = formatTimeHebrew(therapySession.startTime);
+
+      // Get communication settings
+      const commSettings = await prisma.communicationSetting.findUnique({
+        where: { userId },
+      });
+
+      // Send cancellation email if enabled
+      if (commSettings?.sendCancellationEmail !== false && therapySession.client.email) {
+        try {
+          const cancelSubject = `הפגישה בוטלה - ${escapeHtml(therapistName)}`;
+          const cancelHtml = `
+            <div dir="rtl" style="font-family: Arial, sans-serif; max-width: 600px; margin: 0 auto; padding: 20px; line-height: 1.6;">
+              <h2 style="color: #dc2626;">הפגישה בוטלה</h2>
+              <p>${commSettings?.customGreeting ? escapeHtml(commSettings.customGreeting.replace(/{שם}/g, clientName)) : `שלום ${escapeHtml(clientName)}`},</p>
+              <p>הפגישה הבאה בוטלה:</p>
+              <div style="background: #fef2f2; padding: 20px; border-radius: 8px; margin: 20px 0; border-right: 4px solid #dc2626;">
+                <p style="margin: 8px 0;"><strong>תאריך:</strong> ${dateStr}</p>
+                <p style="margin: 8px 0;"><strong>שעה:</strong> ${timeStr}</p>
+                ${cancellationReason ? `<p style="margin: 8px 0;"><strong>סיבה:</strong> ${escapeHtml(cancellationReason)}</p>` : ""}
+              </div>
+              <p>ליצירת קשר לקביעת מועד חדש, אנא פנה/י ישירות.</p>
+              <p style="color: #666; font-size: 14px; margin-top: 30px;">
+                ${escapeHtml(commSettings?.customClosing || "בברכה")},<br/>
+                ${escapeHtml(commSettings?.emailSignature || therapistName)}
+              </p>
+            </div>`;
+
+          const result = await sendEmail({
+            to: therapySession.client.email,
+            subject: cancelSubject,
+            html: cancelHtml,
+          });
+          await prisma.communicationLog.create({
+            data: {
+              type: "CANCELLATION_BY_THERAPIST",
+              channel: "EMAIL",
+              recipient: therapySession.client.email,
+              subject: cancelSubject,
+              content: cancelHtml,
+              status: result.success ? "SENT" : "FAILED",
+              errorMessage: result.success ? null : String(result.error),
+              sentAt: result.success ? new Date() : null,
+              messageId: result.messageId || null,
+              sessionId,
+              clientId: therapySession.clientId,
+              userId,
+            },
+          });
+        } catch (e) {
+          logger.error("Failed to send cancellation email:", { error: e instanceof Error ? e.message : String(e) });
+        }
+      }
+
+      // Send cancellation SMS
+      await sendSMSIfEnabled({
+        userId,
+        phone: therapySession.client.phone,
+        template: commSettings?.templateCancellationSMS,
+        defaultTemplate: "שלום {שם}, הפגישה ב-{תאריך} ב-{שעה} בוטלה",
+        placeholders: {
+          שם: therapySession.client.name,
+          תאריך: dateStr,
+          שעה: timeStr,
+        },
+        settingKey: "sendCancellationSMS",
+        sessionId,
+        clientId: therapySession.clientId || undefined,
+        type: "CANCELLATION_BY_THERAPIST",
+      });
+    }
+
+    // ── Send no-show notification (email + SMS) ──
+    if (currentStatus === "SCHEDULED" && status === "NO_SHOW" && therapySession.client) {
+      const clientName = therapySession.client.name;
+      const therapistName = therapySession.therapist?.name || "המטפל/ת";
+      const dateStr = formatDateHebrew(therapySession.startTime);
+
+      const commSettings = await prisma.communicationSetting.findUnique({
+        where: { userId },
+      });
+
+      // Send no-show email if enabled
+      if (commSettings?.sendNoShowEmail && therapySession.client.email) {
+        try {
+          const noShowSubject = `לא הגעת לפגישה - ${escapeHtml(therapistName)}`;
+          const noShowHtml = `
+            <div dir="rtl" style="font-family: Arial, sans-serif; max-width: 600px; margin: 0 auto; padding: 20px; line-height: 1.6;">
+              <h2 style="color: #f59e0b;">לא הגעת לפגישה</h2>
+              <p>${commSettings?.customGreeting ? escapeHtml(commSettings.customGreeting.replace(/{שם}/g, clientName)) : `שלום ${escapeHtml(clientName)}`},</p>
+              <p>שמנו לב שלא הגעת לפגישה שנקבעה ל-${dateStr}.</p>
+              <p>אם ברצונך לקבוע מועד חדש, אנא צור/י קשר.</p>
+              <p style="color: #666; font-size: 14px; margin-top: 30px;">
+                ${escapeHtml(commSettings?.customClosing || "בברכה")},<br/>
+                ${escapeHtml(commSettings?.emailSignature || therapistName)}
+              </p>
+            </div>`;
+
+          const result = await sendEmail({
+            to: therapySession.client.email,
+            subject: noShowSubject,
+            html: noShowHtml,
+          });
+          await prisma.communicationLog.create({
+            data: {
+              type: "NO_SHOW_NOTIFICATION",
+              channel: "EMAIL",
+              recipient: therapySession.client.email,
+              subject: noShowSubject,
+              content: noShowHtml,
+              status: result.success ? "SENT" : "FAILED",
+              errorMessage: result.success ? null : String(result.error),
+              sentAt: result.success ? new Date() : null,
+              messageId: result.messageId || null,
+              sessionId,
+              clientId: therapySession.clientId,
+              userId,
+            },
+          });
+        } catch (e) {
+          logger.error("Failed to send no-show email:", { error: e instanceof Error ? e.message : String(e) });
+        }
+      }
+
+      // Send no-show SMS
+      await sendSMSIfEnabled({
+        userId,
+        phone: therapySession.client.phone,
+        template: commSettings?.templateNoShowSMS,
+        defaultTemplate: "שלום {שם}, חבל שלא הגעת היום. ליצירת קשר: {טלפון}",
+        placeholders: {
+          שם: therapySession.client.name,
+          תאריך: dateStr,
+          טלפון: therapySession.therapist?.businessPhone || therapySession.therapist?.phone || "",
+        },
+        settingKey: "sendNoShowSMS",
+        sessionId,
+        clientId: therapySession.clientId || undefined,
+        type: "NO_SHOW_NOTIFICATION",
+      });
     }
 
     return NextResponse.json(updatedSession);

@@ -49,6 +49,31 @@ interface CommunicationSettings {
   customGreeting: string | null;
   customClosing: string | null;
   businessHours: string | null;
+  // New email toggles
+  sendCancellationEmail: boolean;
+  sendSessionChangeEmail: boolean;
+  sendNoShowEmail: boolean;
+  // SMS toggles
+  sendBookingConfirmationSMS: boolean;
+  sendReminder24hSMS: boolean;
+  sendReminderCustomSMS: boolean;
+  sendCancellationSMS: boolean;
+  sendSessionChangeSMS: boolean;
+  sendNoShowSMS: boolean;
+  sendDebtReminderSMS: boolean;
+  // SMS quota
+  smsMonthlyQuota: number;
+  smsMonthlyUsage: number;
+  smsAlertAtPercent: number;
+  // SMS templates
+  templateBookingConfirmSMS: string | null;
+  templateReminder24hSMS: string | null;
+  templateReminderCustomSMS: string | null;
+  templateCancellationSMS: string | null;
+  templateSessionChangeSMS: string | null;
+  templateNoShowSMS: string | null;
+  templateDebtReminderSMS: string | null;
+  [key: string]: unknown;
 }
 
 export function NotificationsTab() {
@@ -88,6 +113,30 @@ export function NotificationsTab() {
     customGreeting: null,
     customClosing: null,
     businessHours: null,
+    // New email toggles
+    sendCancellationEmail: true,
+    sendSessionChangeEmail: true,
+    sendNoShowEmail: false,
+    // SMS toggles
+    sendBookingConfirmationSMS: true,
+    sendReminder24hSMS: true,
+    sendReminderCustomSMS: false,
+    sendCancellationSMS: true,
+    sendSessionChangeSMS: true,
+    sendNoShowSMS: false,
+    sendDebtReminderSMS: false,
+    // SMS quota
+    smsMonthlyQuota: 200,
+    smsMonthlyUsage: 0,
+    smsAlertAtPercent: 80,
+    // SMS templates
+    templateBookingConfirmSMS: null,
+    templateReminder24hSMS: null,
+    templateReminderCustomSMS: null,
+    templateCancellationSMS: null,
+    templateSessionChangeSMS: null,
+    templateNoShowSMS: null,
+    templateDebtReminderSMS: null,
   });
 
   const [isLoading, setIsLoading] = useState(true);
@@ -193,6 +242,8 @@ export function NotificationsTab() {
         <SmsSection
           smsSettings={smsSettings}
           setSmsSettings={setSmsSettings}
+          commSettings={commSettings}
+          setCommSettings={setCommSettings}
         />
 
         <EmailAutomationSection

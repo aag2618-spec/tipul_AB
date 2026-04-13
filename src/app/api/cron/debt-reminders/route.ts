@@ -3,6 +3,7 @@ import prisma from "@/lib/prisma";
 import { sendEmail } from "@/lib/resend";
 import { calculateSessionDebt } from "@/lib/payment-utils";
 import { escapeHtml } from "@/lib/email-utils";
+import { sendSMSIfEnabled } from "@/lib/sms";
 import { logger } from "@/lib/logger";
 
 export const dynamic = "force-dynamic";
@@ -191,6 +192,7 @@ export async function GET(request: NextRequest) {
     logger.info(`[Debt Reminders Cron] Found ${usersWithReminders.length} therapists with reminders enabled`);
 
     let totalEmailsSent = 0;
+    let totalSmsSent = 0;
     let totalClientsProcessed = 0;
     const errors: string[] = [];
 
@@ -325,6 +327,22 @@ export async function GET(request: NextRequest) {
           errors.push(`Failed to send to ${client.name} (${client.email}): ${result.error}`);
           logger.error(`[Debt Reminders Cron] Error sending to ${client.name}:`, { error: result.error });
         }
+
+        // Send SMS debt reminder (independent from email)
+        const smsResult = await sendSMSIfEnabled({
+          userId: therapist.id,
+          phone: client.phone,
+          template: setting.templateDebtReminderSMS,
+          defaultTemplate: "שלום {שם}, יש יתרה פתוחה של {סכום}. פרטים נשלחו במייל",
+          placeholders: {
+            שם: client.firstName || client.name,
+            סכום: `₪${totalDebt}`,
+          },
+          settingKey: "sendDebtReminderSMS",
+          clientId: client.id,
+          type: "DEBT_REMINDER",
+        });
+        if (smsResult.success) totalSmsSent++;
       }
     }
 
@@ -334,6 +352,7 @@ export async function GET(request: NextRequest) {
       therapistsProcessed: usersWithReminders.length,
       clientsProcessed: totalClientsProcessed,
       emailsSent: totalEmailsSent,
+      smsSent: totalSmsSent,
       errors: errors.length > 0 ? errors : undefined,
     };
 

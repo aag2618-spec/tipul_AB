@@ -818,8 +818,12 @@ enum CommunicationType {
   CANCELLATION_REQUEST_TO_THERAPIST
   CANCELLATION_APPROVED
   CANCELLATION_REJECTED
+  CANCELLATION_BY_THERAPIST
+  SESSION_CHANGED
+  NO_SHOW_NOTIFICATION
   BOOKING_APPROVED
   BOOKING_REJECTED
+  DEBT_REMINDER
   CUSTOM
   INCOMING_EMAIL
 }
@@ -873,6 +877,35 @@ model CommunicationSetting {
   customGreeting          String? // ברכת פתיחה מותאמת (למשל: "היי {שם}, מקווה שהשבוע עבר בטוב")
   customClosing           String? // ברכת סיום מותאמת (למשל: "תודה ומחכה לראותך")
   businessHours           String? // שעות פעילות (טקסט חופשי)
+
+  // ── SMS toggles (per-type, independent from email) ──
+  sendBookingConfirmationSMS Boolean @default(true)  // אישור הזמנה ב-SMS
+  sendReminder24hSMS         Boolean @default(true)  // תזכורת 24 שעות ב-SMS
+  sendReminderCustomSMS      Boolean @default(false) // תזכורת מותאמת ב-SMS
+  sendCancellationSMS        Boolean @default(true)  // הודעת ביטול ב-SMS
+  sendSessionChangeSMS       Boolean @default(true)  // הודעת שינוי פגישה ב-SMS
+  sendNoShowSMS              Boolean @default(false) // הודעת "לא הגיע" ב-SMS
+  sendDebtReminderSMS        Boolean @default(false) // תזכורת חוב ב-SMS
+
+  // ── Email toggles for new types ──
+  sendCancellationEmail      Boolean @default(true)  // הודעת ביטול במייל
+  sendSessionChangeEmail     Boolean @default(true)  // הודעת שינוי פגישה במייל
+  sendNoShowEmail            Boolean @default(false) // הודעת "לא הגיע" במייל
+
+  // ── SMS quota management ──
+  smsMonthlyQuota     Int       @default(200)  // מכסה חודשית
+  smsMonthlyUsage     Int       @default(0)    // שימוש החודש
+  smsQuotaResetDate   DateTime?                // תאריך איפוס אחרון
+  smsAlertAtPercent   Int       @default(80)   // התראה באחוז ניצול
+
+  // ── SMS templates (customizable per type) ──
+  templateBookingConfirmSMS  String? @db.Text // "שלום {שם}, ההזמנה התקבלה! פגישה ב-{תאריך} ב-{שעה}"
+  templateReminder24hSMS     String? @db.Text // "שלום {שם}, תזכורת לפגישה מחר ({יום}) ב-{שעה}"
+  templateReminderCustomSMS  String? @db.Text // "שלום {שם}, פגישה בעוד {שעות} שעות ב-{שעה}"
+  templateCancellationSMS    String? @db.Text // "שלום {שם}, הפגישה ב-{תאריך} ב-{שעה} בוטלה"
+  templateSessionChangeSMS   String? @db.Text // "שלום {שם}, הפגישה הועברה ל-{תאריך} ב-{שעה}"
+  templateNoShowSMS          String? @db.Text // "שלום {שם}, חבל שלא הגעת היום. ליצירת קשר: {טלפון}"
+  templateDebtReminderSMS    String? @db.Text // "שלום {שם}, יש יתרה פתוחה של {סכום}. פרטים נשלחו במייל"
 
   createdAt DateTime @default(now())
   updatedAt DateTime @updatedAt

@@ -34,11 +34,17 @@ interface CommunicationSettings {
   customGreeting: string | null;
   customClosing: string | null;
   businessHours: string | null;
+  // New email toggles
+  sendCancellationEmail: boolean;
+  sendSessionChangeEmail: boolean;
+  sendNoShowEmail: boolean;
 }
 
 interface EmailAutomationSectionProps {
-  commSettings: CommunicationSettings;
-  setCommSettings: React.Dispatch<React.SetStateAction<CommunicationSettings>>;
+  // eslint-disable-next-line @typescript-eslint/no-explicit-any
+  commSettings: any;
+  // eslint-disable-next-line @typescript-eslint/no-explicit-any
+  setCommSettings: any;
 }
 
 export function EmailAutomationSection({
@@ -104,6 +110,43 @@ export function EmailAutomationSection({
                 <span className="text-sm text-muted-foreground">שעות לפני הפגישה</span>
               </div>
             )}
+          </div>
+
+          <div className="border-t pt-4 mt-4">
+            <p className="text-sm font-medium text-muted-foreground mb-3">הודעות אירוע</p>
+          </div>
+
+          <div className="flex items-center justify-between">
+            <div className="space-y-0.5">
+              <Label>הודעת ביטול פגישה</Label>
+              <p className="text-sm text-muted-foreground">כשאתה מבטל פגישה מאושרת — המטופל יקבל מייל</p>
+            </div>
+            <Switch
+              checked={commSettings.sendCancellationEmail}
+              onCheckedChange={(checked) => setCommSettings({ ...commSettings, sendCancellationEmail: checked })}
+            />
+          </div>
+
+          <div className="flex items-center justify-between">
+            <div className="space-y-0.5">
+              <Label>הודעת שינוי שעה/תאריך</Label>
+              <p className="text-sm text-muted-foreground">כשאתה מזיז פגישה לזמן אחר — המטופל יקבל מייל עם המועד החדש</p>
+            </div>
+            <Switch
+              checked={commSettings.sendSessionChangeEmail}
+              onCheckedChange={(checked) => setCommSettings({ ...commSettings, sendSessionChangeEmail: checked })}
+            />
+          </div>
+
+          <div className="flex items-center justify-between">
+            <div className="space-y-0.5">
+              <Label>הודעת &quot;לא הגיע&quot;</Label>
+              <p className="text-sm text-muted-foreground">כשאתה מסמן מטופל כ&quot;לא הגיע&quot; — ישלח לו מייל</p>
+            </div>
+            <Switch
+              checked={commSettings.sendNoShowEmail}
+              onCheckedChange={(checked) => setCommSettings({ ...commSettings, sendNoShowEmail: checked })}
+            />
           </div>
         </AccordionContent>
       </AccordionItem>

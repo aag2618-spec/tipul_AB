@@ -2,6 +2,7 @@ import { NextRequest, NextResponse } from "next/server";
 import prisma from "@/lib/prisma";
 import { sendEmail } from "@/lib/resend";
 import { create24HourReminderEmail, formatSessionDateTime } from "@/lib/email-templates";
+import { sendSMSIfEnabled } from "@/lib/sms";
 import { logger } from "@/lib/logger";
 
 // Send 24-hour session reminders
@@ -46,6 +47,7 @@ export async function GET(request: NextRequest) {
     });
 
     let emailsSent = 0;
+    let smsSent = 0;
     const errors: string[] = [];
 
     for (const session of upcomingSessions) {
@@ -110,12 +112,33 @@ export async function GET(request: NextRequest) {
       } else {
         errors.push(`Failed to send to ${session.client.email}: ${result.error}`);
       }
+
+      // Send SMS reminder (independent from email)
+      const dayName = session.startTime.toLocaleDateString("he-IL", { weekday: "long", timeZone: "Asia/Jerusalem" });
+      const smsResult = await sendSMSIfEnabled({
+        userId: session.therapistId,
+        phone: session.client.phone,
+        template: settings?.templateReminder24hSMS,
+        defaultTemplate: "שלום {שם}, תזכורת לפגישה מחר ({יום}) ב-{שעה}",
+        placeholders: {
+          שם: session.client.firstName || session.client.name,
+          תאריך: date,
+          שעה: time,
+          יום: dayName,
+        },
+        settingKey: "sendReminder24hSMS",
+        sessionId: session.id,
+        clientId: session.clientId || undefined,
+        type: "REMINDER_24H",
+      });
+      if (smsResult.success) smsSent++;
     }
 
     return NextResponse.json({
       message: "24-hour reminders processed",
       sessionsFound: upcomingSessions.length,
       emailsSent,
+      smsSent,
       errors: errors.length > 0 ? errors : undefined,
     });
   } catch (error) {

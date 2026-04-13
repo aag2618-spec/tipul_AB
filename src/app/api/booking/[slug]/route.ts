@@ -1,6 +1,7 @@
 import { NextRequest, NextResponse } from "next/server";
 import { prisma } from "@/lib/prisma";
 import { sendEmail } from "@/lib/resend";
+import { sendSMSIfEnabled } from "@/lib/sms";
 import { logger } from "@/lib/logger";
 import { BOOKING_RATE_LIMIT_WINDOW_MS, BOOKING_RATE_LIMIT_MAX } from "@/lib/constants";
 
@@ -406,6 +407,31 @@ export async function POST(
     } catch (e) {
       logger.error("Failed to send client confirmation email:", { error: e instanceof Error ? e.message : String(e) });
     }
+  }
+
+  // Send booking confirmation SMS to client
+  if (clientPhone) {
+    const isPendingSMS = sessionStatus === "PENDING_APPROVAL";
+    const commSettings = await prisma.communicationSetting.findUnique({
+      where: { userId: settings.therapist.id },
+    });
+    await sendSMSIfEnabled({
+      userId: settings.therapist.id,
+      phone: clientPhone,
+      template: commSettings?.templateBookingConfirmSMS,
+      defaultTemplate: isPendingSMS
+        ? "שלום {שם}, הבקשה התקבלה וממתינה לאישור. פגישה ב-{תאריך} ב-{שעה}"
+        : "שלום {שם}, התור אושר! פגישה ב-{תאריך} ב-{שעה}",
+      placeholders: {
+        שם: clientName,
+        תאריך: formattedDate,
+        שעה: time,
+      },
+      settingKey: "sendBookingConfirmationSMS",
+      sessionId: therapySession.id,
+      clientId: therapySession.clientId || undefined,
+      type: "SESSION_CONFIRMATION",
+    });
   }
 
   if (settings.therapist.email) {

@@ -3,6 +3,7 @@ import prisma from "@/lib/prisma";
 import { sendEmail } from "@/lib/resend";
 import { calculateSessionDebt } from "@/lib/payment-utils";
 import { escapeHtml } from "@/lib/email-utils";
+import { sendSMSIfEnabled } from "@/lib/sms";
 import { logger } from "@/lib/logger";
 import { requireAuth } from "@/lib/api-auth";
 
@@ -288,10 +289,6 @@ export async function POST(
       html,
     });
 
-    if (!result.success) {
-      throw new Error(result.error || "Failed to send email");
-    }
-
     // Log communication
     await prisma.communicationLog.create({
       data: {
@@ -300,12 +297,28 @@ export async function POST(
         recipient: client.email.toLowerCase(),
         subject,
         content: html,
-        status: "SENT",
-        sentAt: new Date(),
-        messageId: result.messageId,
+        status: result.success ? "SENT" : "FAILED",
+        errorMessage: result.success ? null : String(result.error),
+        sentAt: result.success ? new Date() : null,
+        messageId: result.messageId || null,
         clientId: clientId,
         userId: userId,
       },
+    });
+
+    // Send SMS debt reminder (independent from email)
+    await sendSMSIfEnabled({
+      userId: userId,
+      phone: client.phone,
+      template: commSettings?.templateDebtReminderSMS,
+      defaultTemplate: "שלום {שם}, יש יתרה פתוחה של {סכום}. פרטים נשלחו במייל",
+      placeholders: {
+        שם: client.firstName || client.name,
+        סכום: `₪${totalDebt}`,
+      },
+      settingKey: "sendDebtReminderSMS",
+      clientId: clientId,
+      type: "DEBT_REMINDER",
     });
 
     return NextResponse.json({
