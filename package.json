@@ -4,7 +4,9 @@
   "private": true,
   "scripts": {
     "dev": "next dev",
-    "build": "prisma db push --accept-data-loss && rm -rf .next && prisma generate && node --max-old-space-size=4096 ./node_modules/.bin/next build",
+    "build": "rm -rf .next && prisma generate && node --max-old-space-size=4096 ./node_modules/.bin/next build",
+    "db:push": "prisma db push --accept-data-loss",
+    "start:prod": "prisma db push --accept-data-loss && next start",
     "postinstall": "prisma generate",
     "start": "next start",
     "lint": "eslint",
