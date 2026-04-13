@@ -138,7 +138,7 @@ export async function GET(request: NextRequest) {
               const sessionsHtml = realSessions
                 .map(
                   (s) =>
-                    `<tr><td style="padding:6px 12px;border-bottom:1px solid #e5e7eb;">${s.client!.name}</td><td style="padding:6px 12px;border-bottom:1px solid #e5e7eb;" dir="ltr">${new Date(s.startTime).toLocaleTimeString("he-IL", { hour: "2-digit", minute: "2-digit", timeZone: "Asia/Jerusalem" })}</td></tr>`
+                    `<tr><td style="padding:6px 12px;border-bottom:1px solid #e5e7eb;">${escapeHtml(s.client!.name)}</td><td style="padding:6px 12px;border-bottom:1px solid #e5e7eb;" dir="ltr">${new Date(s.startTime).toLocaleTimeString("he-IL", { hour: "2-digit", minute: "2-digit", timeZone: "Asia/Jerusalem" })}</td></tr>`
                 )
                 .join("");
 
@@ -418,7 +418,7 @@ export async function GET(request: NextRequest) {
 
             const openTasksCount = sessionsPendingSummary.length + filteredTasks.length;
             const title = `סיכום ליום מחר - ${tomorrow.toLocaleDateString("he-IL", { timeZone: "Asia/Jerusalem" })}`;
-            const content = `פגישות מחר (${realTomorrowSessions.length}):\n${sessionsList || "אין פגישות"}\n\nמשימות פתוחות (${openTasksCount}):\n${openTasksList || "אין משימות"}${notUpdatedText}${paymentText}`;
+            const content = `פגישות מחר (${realTomorrowSessions.length}):\n${sessionsList || "אין פגישות"}${notUpdatedText}\n\nמשימות פתוחות (${openTasksCount}):\n${openTasksList || "אין משימות"}${paymentText}`;
 
             await prisma.notification.create({
               data: {
@@ -438,7 +438,7 @@ export async function GET(request: NextRequest) {
                   ? realTomorrowSessions
                       .map(
                         (s) =>
-                          `<tr><td style="padding:6px 12px;border-bottom:1px solid #e5e7eb;">${s.client!.name}</td><td style="padding:6px 12px;border-bottom:1px solid #e5e7eb;" dir="ltr">${new Date(s.startTime).toLocaleTimeString("he-IL", { hour: "2-digit", minute: "2-digit", timeZone: "Asia/Jerusalem" })}</td></tr>`
+                          `<tr><td style="padding:6px 12px;border-bottom:1px solid #e5e7eb;">${escapeHtml(s.client!.name)}</td><td style="padding:6px 12px;border-bottom:1px solid #e5e7eb;" dir="ltr">${new Date(s.startTime).toLocaleTimeString("he-IL", { hour: "2-digit", minute: "2-digit", timeZone: "Asia/Jerusalem" })}</td></tr>`
                       )
                       .join("")
                   : `<tr><td colspan="2" style="padding:12px;text-align:center;color:#6b7280;">אין פגישות מחר</td></tr>`;
