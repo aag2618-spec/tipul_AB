@@ -104,7 +104,7 @@ export async function GET(request: NextRequest) {
             where: {
               therapistId: user.id,
               startTime: { gte: today, lt: tomorrow },
-              status: "SCHEDULED",
+              status: { notIn: ["CANCELLED"] },
             },
             include: { client: true },
             orderBy: { startTime: "asc" },
@@ -286,19 +286,48 @@ export async function GET(request: NextRequest) {
             orderBy: { startTime: "asc" },
           });
 
-          // פגישות של היום בלי סיכום - רק היום, לא 30 יום אחורה
+          // פגישות של היום בלי סיכום - רק פגישות שעודכנו כהושלמות
           const sessionsPendingSummary = await prisma.therapySession.findMany({
             where: {
               therapistId: user.id,
               startTime: { gte: today, lt: tomorrow },
               skipSummary: { not: true },
               type: { not: "BREAK" },
-              status: { in: ["SCHEDULED", "COMPLETED"] },
+              status: "COMPLETED",
               sessionNote: { is: null },
             },
             include: { client: { select: { name: true } } },
             orderBy: { startTime: "asc" },
           });
+
+          // פגישות שהזמן שלהן עבר אבל הסטטוס לא עודכן (לא סומנו כהושלמו/לא הגיע/בוטלו)
+          const notUpdatedSessions = await prisma.therapySession.findMany({
+            where: {
+              therapistId: user.id,
+              startTime: { gte: today, lt: tomorrow },
+              endTime: { lt: now },
+              type: { not: "BREAK" },
+              status: "SCHEDULED",
+            },
+            include: { client: { select: { name: true } } },
+            orderBy: { startTime: "asc" },
+          });
+
+          // תשלומים ממתינים — אותו query כמו בבוקר
+          const eveningPayments = await prisma.payment.findMany({
+            where: {
+              client: { therapistId: user.id },
+              status: "PENDING",
+              parentPaymentId: null,
+            },
+            include: { client: true },
+          });
+          const unpaidEveningPayments = eveningPayments.filter((p) => {
+            const paid = Number(p.amount);
+            const expected = Number(p.expectedAmount) || 0;
+            return expected > 0 && paid < expected;
+          });
+          const eveningTotalDebt = unpaidEveningPayments.length > 0 ? calculateDebtFromPayments(unpaidEveningPayments) : 0;
 
           // מטלות אישיות ותשלומים (לא WRITE_SUMMARY - כבר מכוסה למעלה)
           const pendingTasks = await prisma.task.findMany({
@@ -357,9 +386,9 @@ export async function GET(request: NextRequest) {
           const allInvalidTaskIds = new Set([...staleTaskIds, ...zeroDebtTaskIds]);
           const filteredTasks = pendingTasks.filter(t => !allInvalidTaskIds.has(t.id));
 
-          const totalPending = sessionsPendingSummary.length + filteredTasks.length;
+          const totalPending = sessionsPendingSummary.length + filteredTasks.length + notUpdatedSessions.length;
 
-          if (tomorrowSessions.length > 0 || totalPending > 0) {
+          if (tomorrowSessions.length > 0 || totalPending > 0 || unpaidEveningPayments.length > 0) {
             const realTomorrowSessions = tomorrowSessions.filter((s) => s.client);
             const sessionsList = realTomorrowSessions
               .map(
@@ -371,13 +400,20 @@ export async function GET(request: NextRequest) {
             const summaryList = sessionsPendingSummary
               .map((s) => `• כתוב סיכום - ${s.client?.name || "מטופל"}`)
               .join("\n");
+            const notUpdatedList = notUpdatedSessions
+              .map((s) => `• עדכן סטטוס - ${s.client?.name || "מטופל"} (${new Date(s.startTime).toLocaleTimeString("he-IL", { hour: "2-digit", minute: "2-digit", timeZone: "Asia/Jerusalem" })})`)
+              .join("\n");
             const tasksList = filteredTasks
               .map((t) => `• ${t.title}`)
               .join("\n");
-            const allTasksList = [summaryList, tasksList].filter(Boolean).join("\n");
+            const allTasksList = [summaryList, notUpdatedList, tasksList].filter(Boolean).join("\n");
+
+            const paymentText = unpaidEveningPayments.length > 0
+              ? `\n\nתשלומים ממתינים (${unpaidEveningPayments.length}): סה"כ ₪${eveningTotalDebt.toLocaleString()}`
+              : "";
 
             const title = `סיכום ליום מחר - ${tomorrow.toLocaleDateString("he-IL", { timeZone: "Asia/Jerusalem" })}`;
-            const content = `פגישות מחר (${realTomorrowSessions.length}):\n${sessionsList || "אין פגישות"}\n\nמשימות פתוחות (${totalPending}):\n${allTasksList || "אין משימות"}`;
+            const content = `פגישות מחר (${realTomorrowSessions.length}):\n${sessionsList || "אין פגישות"}\n\nמשימות פתוחות (${totalPending}):\n${allTasksList || "אין משימות"}${paymentText}`;
 
             await prisma.notification.create({
               data: {
@@ -404,10 +440,29 @@ export async function GET(request: NextRequest) {
               const summaryItemsHtml = sessionsPendingSummary
                 .map((s) => `<li style="margin-bottom:4px;">כתוב סיכום - ${escapeHtml(s.client?.name || "מטופל")}</li>`)
                 .join("");
+              const notUpdatedItemsHtml = notUpdatedSessions
+                .map((s) => `<li style="margin-bottom:4px;">עדכן סטטוס - ${escapeHtml(s.client?.name || "מטופל")} (${new Date(s.startTime).toLocaleTimeString("he-IL", { hour: "2-digit", minute: "2-digit", timeZone: "Asia/Jerusalem" })})</li>`)
+                .join("");
               const taskItemsHtml = filteredTasks
                 .map((t) => `<li style="margin-bottom:4px;">${escapeHtml(t.title)}</li>`)
                 .join("");
-              const allTasksHtml = summaryItemsHtml + taskItemsHtml || `<li style="color:#6b7280;">אין משימות פתוחות</li>`;
+              const allTasksHtml = summaryItemsHtml + notUpdatedItemsHtml + taskItemsHtml || `<li style="color:#6b7280;">אין משימות פתוחות</li>`;
+
+              // בניית סעיף פגישות שלא עודכנו
+              const notUpdatedHtml = notUpdatedSessions.length > 0
+                ? `<h3 style="margin-top:20px;color:#d97706;">⚠️ פגישות שטרם עודכנו (${notUpdatedSessions.length})</h3>
+                  <ul style="padding-right:20px;">${notUpdatedItemsHtml}</ul>`
+                : "";
+
+              // בניית סעיף תשלומים ממתינים
+              const eveningClientsList = [...new Set(unpaidEveningPayments.map(p => (p.client as { name: string })?.name).filter(Boolean))];
+              const eveningPaymentHtml = unpaidEveningPayments.length > 0
+                ? `<h3 style="margin-top:20px;color:#dc2626;">💳 תשלומים ממתינים (${unpaidEveningPayments.length})</h3>
+                  <div style="background:#fef2f2;border:1px solid #fecaca;border-radius:8px;padding:12px;margin:8px 0;">
+                    <p style="margin:0;font-weight:bold;color:#991b1b;">סה"כ חוב: ₪${eveningTotalDebt.toLocaleString()}</p>
+                    <ul style="padding-right:20px;margin:8px 0 0 0;">${eveningClientsList.map(name => `<li style="margin-bottom:4px;">${escapeHtml(name)}</li>`).join("")}</ul>
+                  </div>`
+                : "";
 
               const eveHtml = `<div dir="rtl" style="font-family:Arial,sans-serif;max-width:600px;margin:0 auto;padding:20px;">
                   <h2 style="color:#0d9488;">🌙 ${title}</h2>
@@ -417,8 +472,10 @@ export async function GET(request: NextRequest) {
                     <thead><tr><th style="text-align:right;padding:6px 12px;background:#f0fdfa;border-bottom:2px solid #0d9488;">מטופל</th><th style="text-align:right;padding:6px 12px;background:#f0fdfa;border-bottom:2px solid #0d9488;">שעה</th></tr></thead>
                     <tbody>${sessionsHtml}</tbody>
                   </table>
-                  <h3 style="margin-top:20px;">משימות פתוחות (${totalPending})</h3>
-                  <ul style="padding-right:20px;">${allTasksHtml}</ul>
+                  ${notUpdatedHtml}
+                  <h3 style="margin-top:20px;">משימות פתוחות (${sessionsPendingSummary.length + filteredTasks.length})</h3>
+                  <ul style="padding-right:20px;">${summaryItemsHtml + taskItemsHtml || `<li style="color:#6b7280;">אין משימות פתוחות</li>`}</ul>
+                  ${eveningPaymentHtml}
                   <p style="color:#6b7280;font-size:13px;margin-top:24px;">מייל זה נשלח אוטומטית ממערכת MyTipul</p>
                 </div>`;
               const eveResult = await sendEmail({ to: user.email!, subject: title, html: eveHtml })
