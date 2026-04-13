@@ -4,6 +4,7 @@ import { sendEmail } from "@/lib/resend";
 import { calculateDebtFromPayments } from "@/lib/payment-utils";
 import { escapeHtml } from "@/lib/email-utils";
 import { logger } from "@/lib/logger";
+import { parseIsraelTime } from "@/lib/date-utils";
 
 export const dynamic = "force-dynamic";
 
@@ -24,20 +25,14 @@ export async function GET(request: NextRequest) {
   try {
     const now = new Date();
     const israelDateStr = now.toLocaleDateString("en-CA", { timeZone: "Asia/Jerusalem" });
-    const israelNoon = new Date(`${israelDateStr}T12:00:00Z`);
-    const israelHour = parseInt(
-      new Intl.DateTimeFormat("en-US", { timeZone: "Asia/Jerusalem", hour: "numeric", hour12: false }).format(israelNoon)
-    );
-    const offsetHours = israelHour - 12;
-    const offsetStr =
-      offsetHours >= 0
-        ? `+${String(offsetHours).padStart(2, "0")}:00`
-        : `-${String(Math.abs(offsetHours)).padStart(2, "0")}:00`;
-    const today = new Date(`${israelDateStr}T00:00:00${offsetStr}`);
-    const tomorrow = new Date(`${israelDateStr}T00:00:00${offsetStr}`);
-    tomorrow.setDate(tomorrow.getDate() + 1);
-    const dayAfterTomorrow = new Date(tomorrow);
-    dayAfterTomorrow.setDate(dayAfterTomorrow.getDate() + 1);
+    // parseIsraelTime handles DST correctly by testing both UTC+2 and UTC+3 offsets
+    const today = parseIsraelTime(israelDateStr);
+    const tomorrowDateStr = new Date(today.getTime() + 86400000)
+      .toLocaleDateString("en-CA", { timeZone: "Asia/Jerusalem" });
+    const tomorrow = parseIsraelTime(tomorrowDateStr);
+    const dayAfterStr = new Date(tomorrow.getTime() + 86400000)
+      .toLocaleDateString("en-CA", { timeZone: "Asia/Jerusalem" });
+    const dayAfterTomorrow = parseIsraelTime(dayAfterStr);
 
     // Include active therapists with notifications enabled OR users who never configured settings (default = on)
     const users = await prisma.user.findMany({
