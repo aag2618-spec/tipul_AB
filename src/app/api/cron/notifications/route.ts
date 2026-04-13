@@ -271,26 +271,35 @@ export async function GET(request: NextRequest) {
 
       // ── Evening summary ──
       if (sendEvening && isEveningTime) {
+        // אם הסיכום הערבי נשלח אחרי חצות (למשל 01:00), המשתמש מתכוון ל"ערב הקודם".
+        // "מחר" מבחינתו = היום הנוכחי (כשיתעורר בבוקר), לא מחרתיים.
+        const isAfterMidnight = currentHour < 6;
+        const eveToday = isAfterMidnight
+          ? parseIsraelTime(new Date(today.getTime() - 86400000).toLocaleDateString("en-CA", { timeZone: "Asia/Jerusalem" }))
+          : today;
+        const eveTomorrow = isAfterMidnight ? today : tomorrow;
+        const eveDayAfter = isAfterMidnight ? tomorrow : dayAfterTomorrow;
+
         const alreadySentEvening = await prisma.notification.findFirst({
-          where: { userId: user.id, type: "EVENING_SUMMARY", createdAt: { gte: today } },
+          where: { userId: user.id, type: "EVENING_SUMMARY", createdAt: { gte: eveToday } },
         });
 
         if (!alreadySentEvening) {
           const tomorrowSessions = await prisma.therapySession.findMany({
             where: {
               therapistId: user.id,
-              startTime: { gte: tomorrow, lt: dayAfterTomorrow },
+              startTime: { gte: eveTomorrow, lt: eveDayAfter },
               status: "SCHEDULED",
             },
             include: { client: true },
             orderBy: { startTime: "asc" },
           });
 
-          // פגישות של היום בלי סיכום - רק פגישות שעודכנו כהושלמות
+          // פגישות של "היום" בלי סיכום (אם אחרי חצות — אתמול)
           const sessionsPendingSummary = await prisma.therapySession.findMany({
             where: {
               therapistId: user.id,
-              startTime: { gte: today, lt: tomorrow },
+              startTime: { gte: eveToday, lt: eveTomorrow },
               skipSummary: { not: true },
               type: { not: "BREAK" },
               status: "COMPLETED",
@@ -300,11 +309,11 @@ export async function GET(request: NextRequest) {
             orderBy: { startTime: "asc" },
           });
 
-          // פגישות שהזמן שלהן עבר אבל הסטטוס לא עודכן (לא סומנו כהושלמו/לא הגיע/בוטלו)
+          // פגישות שהזמן שלהן עבר אבל הסטטוס לא עודכן
           const notUpdatedSessions = await prisma.therapySession.findMany({
             where: {
               therapistId: user.id,
-              startTime: { gte: today, lt: tomorrow },
+              startTime: { gte: eveToday, lt: eveTomorrow },
               endTime: { lt: now },
               type: { not: "BREAK" },
               status: "SCHEDULED",
@@ -417,7 +426,7 @@ export async function GET(request: NextRequest) {
               : "";
 
             const openTasksCount = sessionsPendingSummary.length + filteredTasks.length;
-            const title = `סיכום ליום מחר - ${tomorrow.toLocaleDateString("he-IL", { timeZone: "Asia/Jerusalem" })}`;
+            const title = `סיכום ליום מחר - ${eveTomorrow.toLocaleDateString("he-IL", { timeZone: "Asia/Jerusalem" })}`;
             const content = `פגישות מחר (${realTomorrowSessions.length}):\n${sessionsList || "אין פגישות"}${notUpdatedText}\n\nמשימות פתוחות (${openTasksCount}):\n${openTasksList || "אין משימות"}${paymentText}`;
 
             await prisma.notification.create({
