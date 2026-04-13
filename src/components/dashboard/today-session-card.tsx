@@ -381,7 +381,7 @@ export function TodaySessionCard({ session, context = "dashboard" }: TodaySessio
           </div>
 
           <div className="flex items-center gap-1.5">
-            {session.status === "SCHEDULED" && new Date(session.startTime) < new Date() ? (
+            {session.status === "SCHEDULED" && new Date(session.endTime) < new Date() ? (
               <Badge
                 variant="outline"
                 className="bg-orange-50 text-orange-600 border-orange-300 cursor-pointer hover:bg-orange-100 text-[10px]"

@@ -86,7 +86,7 @@ function getCardBg(s: Session, now: Date) {
   if (s.status === "CANCELLED") return CARD_BG.CANCELLED;
   if (s.status === "NO_SHOW") return CARD_BG.NO_SHOW;
   if (s.status === "PENDING_APPROVAL") return CARD_BG.PENDING_APPROVAL;
-  if (s.status === "SCHEDULED" && new Date(s.startTime) < now) return CARD_BG.SCHEDULED_PAST;
+  if (s.status === "SCHEDULED" && new Date(s.endTime) < now) return CARD_BG.SCHEDULED_PAST;
   return CARD_BG.SCHEDULED_FUTURE;
 }
 
@@ -116,7 +116,7 @@ export function SessionCard({
               </Badge>
             )}
           </p>
-          {!showCancel && s.status === "SCHEDULED" && new Date(s.startTime) < now ? (
+          {!showCancel && s.status === "SCHEDULED" && new Date(s.endTime) < now ? (
             <Badge
               variant="outline"
               className={`text-[10px] px-1.5 py-0 h-5 font-normal gap-1 shrink-0 mr-2 ${STATUS_COLORS["NOT_UPDATED"]}`}

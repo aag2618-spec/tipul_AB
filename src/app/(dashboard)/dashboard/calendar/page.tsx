@@ -242,8 +242,8 @@ function CalendarPageContent() {
   const handleEventClick = (info: EventClickArg) => {
     const session = sessions.find(s => s.id === info.event.id);
     if (session) {
-      const isPast = new Date(session.startTime) < new Date();
-      if (isPast && session.status === "SCHEDULED" && session.type !== "BREAK") {
+      const isEnded = new Date(session.endTime) < new Date();
+      if (isEnded && session.status === "SCHEDULED" && session.type !== "BREAK") {
         setSelectedSession(session);
         setUpdateDialogOpen(true);
       } else {
