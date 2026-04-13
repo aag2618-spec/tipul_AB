@@ -6,6 +6,7 @@ import { sendSMSIfEnabled } from "@/lib/sms";
 import { logger } from "@/lib/logger";
 
 import { requireAuth } from "@/lib/api-auth";
+import { syncSessionToGoogleCalendar, syncSessionDeletionToGoogleCalendar } from "@/lib/google-calendar-sync";
 
 export const dynamic = "force-dynamic";
 
@@ -91,6 +92,25 @@ export async function PATCH(
       where: { id: sessionId },
       data: updateData,
     });
+
+    // Google Calendar sync (non-blocking)
+    if (currentStatus === "PENDING_APPROVAL" && status === "SCHEDULED") {
+      // הזמנה אושרה — ליצור אירוע ביומן
+      syncSessionToGoogleCalendar(userId, {
+        id: sessionId,
+        clientName: therapySession.client?.name || null,
+        type: therapySession.type,
+        startTime: therapySession.startTime,
+        endTime: therapySession.endTime,
+        location: therapySession.location,
+        topic: null,
+      }).catch((err) => logger.error("[GoogleCalendarSync] Error:", { error: err instanceof Error ? err.message : String(err) }));
+    }
+    if ((status === "CANCELLED" || status === "NO_SHOW") && therapySession.googleEventId) {
+      // פגישה בוטלה — למחוק מהיומן
+      syncSessionDeletionToGoogleCalendar(userId, sessionId, therapySession.googleEventId)
+        .catch((err) => logger.error("[GoogleCalendarSync] Delete error:", { error: err instanceof Error ? err.message : String(err) }));
+    }
 
     // Send email to client when approving/rejecting a booking request
     if (currentStatus === "PENDING_APPROVAL" && therapySession.client?.email) {

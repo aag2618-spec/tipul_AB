@@ -4,6 +4,7 @@ import { sendEmail } from "@/lib/resend";
 import { sendSMSIfEnabled } from "@/lib/sms";
 import { logger } from "@/lib/logger";
 import { BOOKING_RATE_LIMIT_WINDOW_MS, BOOKING_RATE_LIMIT_MAX } from "@/lib/constants";
+import { syncSessionToGoogleCalendar } from "@/lib/google-calendar-sync";
 
 function toIsraelDate(dateStr: string, timeStr: string = "00:00"): Date {
   const testDate = new Date(`${dateStr}T12:00:00Z`);
@@ -361,6 +362,20 @@ export async function POST(
   }
 
   const sessionStatus = settings.requireApproval ? "PENDING_APPROVAL" : "SCHEDULED";
+
+  // Google Calendar sync — only for SCHEDULED bookings (not PENDING_APPROVAL)
+  if (sessionStatus === "SCHEDULED") {
+    syncSessionToGoogleCalendar(settings.therapistId, {
+      id: therapySession.id,
+      clientName: clientName,
+      type: settings.defaultSessionType,
+      startTime,
+      endTime,
+      location: null,
+      topic: null,
+    }).catch((err) => logger.error("[GoogleCalendarSync] Booking sync error:", { error: err instanceof Error ? err.message : String(err) }));
+  }
+
   const formattedDate = formatIsraelDate(date);
 
   await prisma.notification.create({

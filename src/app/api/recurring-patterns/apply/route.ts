@@ -3,6 +3,7 @@ import prisma from "@/lib/prisma";
 import { addDays, addWeeks, startOfWeek } from "date-fns";
 import { logger } from "@/lib/logger";
 import { parseIsraelTime } from "@/lib/date-utils";
+import { syncSessionToGoogleCalendar } from "@/lib/google-calendar-sync";
 
 import { requireAuth } from "@/lib/api-auth";
 
@@ -192,7 +193,7 @@ export async function POST(request: NextRequest) {
     }
 
     // Execute all operations in a single transaction (all-or-nothing)
-    await prisma.$transaction([
+    const results = await prisma.$transaction([
       ...cancelOps.map(op =>
         prisma.therapySession.update({
           where: { id: op.id },
@@ -200,9 +201,25 @@ export async function POST(request: NextRequest) {
         })
       ),
       ...createOps.map(op =>
-        prisma.therapySession.create({ data: op })
+        prisma.therapySession.create({ data: op, include: { client: { select: { name: true } } } })
       ),
     ]);
+
+    // Google Calendar sync for created sessions (non-blocking)
+    const createdSessions = results.slice(cancelOps.length);
+    for (const session of createdSessions) {
+      if (session.status === "SCHEDULED" && session.type !== "BREAK") {
+        syncSessionToGoogleCalendar(userId, {
+          id: session.id,
+          clientName: (session as { client?: { name: string } }).client?.name || null,
+          type: session.type,
+          startTime: session.startTime,
+          endTime: session.endTime,
+          location: session.location,
+          topic: null,
+        }).catch((err) => logger.error("[GoogleCalendarSync] Recurring sync error:", { error: err instanceof Error ? err.message : String(err) }));
+      }
+    }
 
     const created = createOps.length;
 

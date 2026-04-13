@@ -8,6 +8,7 @@ import { escapeHtml } from "@/lib/email-utils";
 import { sendSMSIfEnabled } from "@/lib/sms";
 import { logger } from "@/lib/logger";
 import { serializePrisma } from "@/lib/serialize";
+import { syncSessionUpdateToGoogleCalendar, syncSessionDeletionToGoogleCalendar } from "@/lib/google-calendar-sync";
 
 export const dynamic = "force-dynamic";
 
@@ -158,6 +159,22 @@ export async function PUT(
         sessionNote: true,
       },
     });
+
+    // Google Calendar sync (non-blocking)
+    if (existingSession.googleEventId) {
+      if (status === "CANCELLED" || status === "NO_SHOW") {
+        syncSessionDeletionToGoogleCalendar(userId, therapySession.id, existingSession.googleEventId)
+          .catch((err) => logger.error("[GoogleCalendarSync] Delete error:", { error: err instanceof Error ? err.message : String(err) }));
+      } else if (startTime || endTime || location) {
+        syncSessionUpdateToGoogleCalendar(userId, {
+          clientName: therapySession.client?.name || null,
+          startTime: therapySession.startTime,
+          endTime: therapySession.endTime,
+          location: therapySession.location,
+        }, existingSession.googleEventId)
+          .catch((err) => logger.error("[GoogleCalendarSync] Update error:", { error: err instanceof Error ? err.message : String(err) }));
+      }
+    }
 
     // יצירת תשלום אם צריך (הושלם, או ביטול/אי הופעה עם בקשה לחיוב)
     const shouldCreatePayment =
@@ -373,6 +390,12 @@ export async function DELETE(
         cancelledBy: "THERAPIST",
       },
     });
+
+    // Google Calendar sync — delete event (non-blocking)
+    if (existingSession.googleEventId) {
+      syncSessionDeletionToGoogleCalendar(userId, id, existingSession.googleEventId)
+        .catch((err) => logger.error("[GoogleCalendarSync] Delete error:", { error: err instanceof Error ? err.message : String(err) }));
+    }
 
     // Dismiss related notifications
     try {

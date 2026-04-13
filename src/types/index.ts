@@ -44,6 +44,7 @@ export interface TherapySession {
   updatedAt: Date;
   therapistId: string;
   clientId: string;
+  googleEventId?: string | null;
   client?: Client;
   sessionNote?: SessionNote;
   payment?: Payment;

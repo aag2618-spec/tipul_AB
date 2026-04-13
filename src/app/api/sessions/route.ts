@@ -6,6 +6,7 @@ import { parseBody } from "@/lib/validations/helpers";
 import { createSessionSchema } from "@/lib/validations/session";
 import { logger } from "@/lib/logger";
 import { serializePrisma } from "@/lib/serialize";
+import { syncSessionToGoogleCalendar } from "@/lib/google-calendar-sync";
 
 export const dynamic = "force-dynamic";
 
@@ -175,6 +176,17 @@ export async function POST(request: NextRequest) {
         },
       },
     });
+
+    // Sync to Google Calendar (non-blocking)
+    syncSessionToGoogleCalendar(userId, {
+      id: therapySession.id,
+      clientName: therapySession.client?.name || null,
+      type: therapySession.type,
+      startTime: therapySession.startTime,
+      endTime: therapySession.endTime,
+      location: therapySession.location,
+      topic: therapySession.topic,
+    }).catch((err) => logger.error("[GoogleCalendarSync] Error:", { error: err instanceof Error ? err.message : String(err) }));
 
     // Send confirmation email (skip for BREAK and if client has no email)
     if (type !== "BREAK" && therapySession.client?.email) {

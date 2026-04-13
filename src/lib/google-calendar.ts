@@ -92,7 +92,7 @@ export async function addToGoogleCalendar(
     const response = await calendar.events.insert({
       calendarId: 'primary',
       requestBody: calendarEvent,
-      sendUpdates: 'all', // Send invites to attendees
+      sendUpdates: 'none', // Send invites to attendees
     });
 
     return response.data.id || null;
@@ -135,7 +135,7 @@ export async function updateGoogleCalendarEvent(
       calendarId: 'primary',
       eventId,
       requestBody: updateData,
-      sendUpdates: 'all',
+      sendUpdates: 'none',
     });
 
     return true;
@@ -158,7 +158,7 @@ export async function deleteGoogleCalendarEvent(
     await calendar.events.delete({
       calendarId: 'primary',
       eventId,
-      sendUpdates: 'all',
+      sendUpdates: 'none',
     });
 
     return true;
