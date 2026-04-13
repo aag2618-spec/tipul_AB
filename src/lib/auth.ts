@@ -135,6 +135,59 @@ export const authOptions: NextAuthOptions = {
     },
   },
   callbacks: {
+    async signIn({ user, account, profile }) {
+      // Allow credentials login as-is
+      if (account?.provider === "credentials") return true;
+
+      // Google OAuth: link to existing user if email matches
+      if (account?.provider === "google" && profile?.email) {
+        const existingUser = await prisma.user.findUnique({
+          where: { email: profile.email.toLowerCase() },
+        });
+
+        if (existingUser) {
+          // Check if Google account already linked
+          const existingAccount = await prisma.account.findFirst({
+            where: { userId: existingUser.id, provider: "google" },
+          });
+
+          if (!existingAccount) {
+            // Link Google account to existing user
+            await prisma.account.create({
+              data: {
+                userId: existingUser.id,
+                type: account.type,
+                provider: account.provider,
+                providerAccountId: account.providerAccountId,
+                access_token: account.access_token || null,
+                refresh_token: account.refresh_token || null,
+                expires_at: account.expires_at || null,
+                token_type: account.token_type || null,
+                scope: account.scope || null,
+                id_token: account.id_token || null,
+              },
+            });
+          } else {
+            // Update existing tokens
+            await prisma.account.update({
+              where: { id: existingAccount.id },
+              data: {
+                access_token: account.access_token || null,
+                refresh_token: account.refresh_token || null,
+                expires_at: account.expires_at || null,
+                id_token: account.id_token || null,
+              },
+            });
+          }
+
+          // Override user.id so JWT callback uses the existing user
+          user.id = existingUser.id;
+          user.role = existingUser.role as "USER" | "MANAGER" | "ADMIN";
+        }
+      }
+
+      return true;
+    },
     async jwt({ token, user, account }) {
       if (user) {
         token.id = user.id;
