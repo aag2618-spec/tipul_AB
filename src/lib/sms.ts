@@ -220,7 +220,7 @@ export async function sendSMS(
       method: "POST",
       headers: {
         "Content-Type": "application/json",
-        "X-Api-Key": apiKey,
+        "APIKey": apiKey,
       },
       body: JSON.stringify({
         smsSendData: {
