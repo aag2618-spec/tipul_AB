@@ -112,7 +112,23 @@ export async function GET(request: NextRequest) {
             orderBy: { startTime: "asc" },
           });
 
-          if (todaySessions.length > 0) {
+          // תשלומים ממתינים — משולב במייל הבוקר
+          const morningPayments = await prisma.payment.findMany({
+            where: {
+              client: { therapistId: user.id },
+              status: "PENDING",
+              parentPaymentId: null,
+            },
+            include: { client: true },
+          });
+          const unpaidMorningPayments = morningPayments.filter((p) => {
+            const paid = Number(p.amount);
+            const expected = Number(p.expectedAmount) || 0;
+            return expected > 0 && paid < expected;
+          });
+          const morningTotalDebt = unpaidMorningPayments.length > 0 ? calculateDebtFromPayments(unpaidMorningPayments) : 0;
+
+          if (todaySessions.length > 0 || unpaidMorningPayments.length > 0) {
             const realSessions = todaySessions.filter((s) => s.client);
             const sessionsList = realSessions
               .map(
@@ -121,8 +137,14 @@ export async function GET(request: NextRequest) {
               )
               .join("\n");
 
+            const paymentText = unpaidMorningPayments.length > 0
+              ? `\n\nתשלומים ממתינים (${unpaidMorningPayments.length}): סה"כ ₪${morningTotalDebt.toLocaleString()}`
+              : "";
+
             const title = `תזכורת בוקר - ${today.toLocaleDateString("he-IL", { timeZone: "Asia/Jerusalem" })}`;
-            const content = `יש לך ${realSessions.length} פגישות היום:\n${sessionsList}`;
+            const content = realSessions.length > 0
+              ? `יש לך ${realSessions.length} פגישות היום:\n${sessionsList}${paymentText}`
+              : `אין פגישות היום.${paymentText}`;
 
             await prisma.notification.create({
               data: {
@@ -137,12 +159,24 @@ export async function GET(request: NextRequest) {
             notificationsCreated++;
 
             if (shouldSendEmail) {
-              const sessionsHtml = realSessions
-                .map(
-                  (s) =>
-                    `<tr><td style="padding:6px 12px;border-bottom:1px solid #e5e7eb;">${escapeHtml(s.client!.name)}</td><td style="padding:6px 12px;border-bottom:1px solid #e5e7eb;" dir="ltr">${new Date(s.startTime).toLocaleTimeString("he-IL", { hour: "2-digit", minute: "2-digit", timeZone: "Asia/Jerusalem" })}</td></tr>`
-                )
-                .join("");
+              const sessionsHtml = realSessions.length > 0
+                ? realSessions
+                    .map(
+                      (s) =>
+                        `<tr><td style="padding:6px 12px;border-bottom:1px solid #e5e7eb;">${escapeHtml(s.client!.name)}</td><td style="padding:6px 12px;border-bottom:1px solid #e5e7eb;" dir="ltr">${new Date(s.startTime).toLocaleTimeString("he-IL", { hour: "2-digit", minute: "2-digit", timeZone: "Asia/Jerusalem" })}</td></tr>`
+                    )
+                    .join("")
+                : `<tr><td colspan="2" style="padding:12px;text-align:center;color:#6b7280;">אין פגישות היום</td></tr>`;
+
+              // סעיף תשלומים ממתינים
+              const morningClientsList = [...new Set(unpaidMorningPayments.map(p => (p.client as { name: string })?.name).filter(Boolean))];
+              const morningPaymentHtml = unpaidMorningPayments.length > 0
+                ? `<h3 style="margin-top:20px;color:#dc2626;">💳 תשלומים ממתינים (${unpaidMorningPayments.length})</h3>
+                  <div style="background:#fef2f2;border:1px solid #fecaca;border-radius:8px;padding:12px;margin:8px 0;">
+                    <p style="margin:0;font-weight:bold;color:#991b1b;">סה"כ חוב: ₪${morningTotalDebt.toLocaleString()}</p>
+                    <ul style="padding-right:20px;margin:8px 0 0 0;">${morningClientsList.map(name => `<li style="margin-bottom:4px;">${escapeHtml(name)}</li>`).join("")}</ul>
+                  </div>`
+                : "";
 
               const mornHtml = `<div dir="rtl" style="font-family:Arial,sans-serif;max-width:600px;margin:0 auto;padding:20px;">
                   <h2 style="color:#0d9488;">☀️ ${title}</h2>
@@ -152,6 +186,7 @@ export async function GET(request: NextRequest) {
                     <thead><tr><th style="text-align:right;padding:6px 12px;background:#f0fdfa;border-bottom:2px solid #0d9488;">מטופל</th><th style="text-align:right;padding:6px 12px;background:#f0fdfa;border-bottom:2px solid #0d9488;">שעה</th></tr></thead>
                     <tbody>${sessionsHtml}</tbody>
                   </table>
+                  ${morningPaymentHtml}
                   <p style="color:#6b7280;font-size:13px;margin-top:24px;">מייל זה נשלח אוטומטית ממערכת MyTipul</p>
                 </div>`;
               const mornResult = await sendEmail({ to: user.email!, subject: title, html: mornHtml })
@@ -175,7 +210,7 @@ export async function GET(request: NextRequest) {
         }
       }
 
-      // ── תזכורת תשלום — עצמאית מסיכום בוקר/ערב ──
+      // ── תזכורת תשלום בפעמון — המייל כבר משולב בסיכום הבוקר ──
       if (sendMorning && isMorningTime) {
         // Duplicate prevention: רק תזכורת תשלום אחת ביום
         const alreadySentPayment = await prisma.notification.findFirst({
@@ -184,8 +219,6 @@ export async function GET(request: NextRequest) {
 
         if (!alreadySentPayment) {
           const debtThreshold = (settings as { debtThresholdDays?: number }).debtThresholdDays || 30;
-          const thresholdDate = new Date(today);
-          thresholdDate.setDate(thresholdDate.getDate() - debtThreshold);
           const monthlyReminderDay = (settings as { monthlyReminderDay?: number }).monthlyReminderDay;
           const israelDay = parseInt(israelDateStr.split("-")[2]);
           const isMonthlyReminderDay = monthlyReminderDay && israelDay === monthlyReminderDay;
@@ -207,19 +240,16 @@ export async function GET(request: NextRequest) {
 
           if (realPayments.length > 0) {
             const totalDebt = calculateDebtFromPayments(realPayments);
-            const oldPayments = realPayments.filter((p) => new Date(p.createdAt) < thresholdDate);
 
             let title = `תזכורת: ${realPayments.length} תשלומים ממתינים`;
             let content = `יש לך ${realPayments.length} תשלומים ממתינים בסך ₪${totalDebt.toLocaleString()}`;
 
-            if (oldPayments.length > 0) {
-              content += `\n${oldPayments.length} מהם ממתינים מעל ${debtThreshold} ימים`;
-            }
             if (isMonthlyReminderDay) {
               title = `תזכורת גבייה חודשית`;
               content = `היום יום גבייה! ${content}`;
             }
 
+            // התראה בפעמון בלבד — המייל משולב בסיכום הבוקר
             await prisma.notification.create({
               data: {
                 userId: user.id,
@@ -231,42 +261,6 @@ export async function GET(request: NextRequest) {
               },
             });
             notificationsCreated++;
-
-            // שליחת מייל תזכורת תשלום למטפל
-            if (shouldSendEmail) {
-              const clientsList = [...new Set(realPayments.map(p => (p.client as { name: string })?.name).filter(Boolean))];
-              const clientsHtml = clientsList
-                .map(name => `<li style="margin-bottom:4px;">${escapeHtml(name)}</li>`)
-                .join("");
-
-              const payHtml = `<div dir="rtl" style="font-family:Arial,sans-serif;max-width:600px;margin:0 auto;padding:20px;">
-                  <h2 style="color:#dc2626;">💳 ${escapeHtml(title)}</h2>
-                  <p>שלום ${escapeHtml(user.name || "")},</p>
-                  <div style="background:#fef2f2;border:1px solid #fecaca;border-radius:8px;padding:16px;margin:16px 0;">
-                    <p style="margin:0;font-size:18px;font-weight:bold;color:#991b1b;">סה"כ חוב: ₪${totalDebt.toLocaleString()}</p>
-                    <p style="margin:8px 0 0 0;color:#7f1d1d;">${realPayments.length} תשלומים ממתינים</p>
-                    ${oldPayments.length > 0 ? `<p style="margin:4px 0 0 0;color:#991b1b;font-weight:600;">${oldPayments.length} מהם מעל ${debtThreshold} ימים!</p>` : ""}
-                  </div>
-                  <h3 style="margin-top:20px;">מטופלים עם חוב:</h3>
-                  <ul style="padding-right:20px;">${clientsHtml}</ul>
-                  <p style="color:#6b7280;font-size:13px;margin-top:24px;">מייל זה נשלח אוטומטית ממערכת MyTipul</p>
-                </div>`;
-              const payResult = await sendEmail({ to: user.email!, subject: title, html: payHtml })
-                .catch((err) => { logger.error("שגיאה בשליחת מייל תזכורת תשלום", { userId: user.id, error: err instanceof Error ? err.message : String(err) }); return { success: false, error: String(err) }; });
-              await prisma.communicationLog.create({
-                data: {
-                  type: "CUSTOM",
-                  channel: "EMAIL",
-                  recipient: user.email!.toLowerCase(),
-                  subject: title,
-                  content: payHtml,
-                  status: payResult?.success ? "SENT" : "FAILED",
-                  errorMessage: payResult?.success ? null : String(payResult?.error || "unknown"),
-                  sentAt: payResult?.success ? new Date() : null,
-                  userId: user.id,
-                },
-              }).catch(() => {});
-            }
           }
         }
       }
