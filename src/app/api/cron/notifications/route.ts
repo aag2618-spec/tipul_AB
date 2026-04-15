@@ -96,9 +96,15 @@ export async function GET(request: NextRequest) {
 
       // ── Morning summary ──
       if (sendMorning && isMorningTime) {
-        // Duplicate prevention: skip if we already created a morning summary today
+        // Duplicate prevention: skip if we already created a morning summary for today's date
+        const todayStr = today.toLocaleDateString("he-IL", { timeZone: "Asia/Jerusalem" });
         const alreadySentMorning = await prisma.notification.findFirst({
-          where: { userId: user.id, type: "MORNING_SUMMARY", createdAt: { gte: today } },
+          where: {
+            userId: user.id,
+            type: "MORNING_SUMMARY",
+            createdAt: { gte: today },
+            title: { contains: todayStr },
+          },
         });
 
         if (!alreadySentMorning) {
@@ -276,8 +282,16 @@ export async function GET(request: NextRequest) {
         const eveTomorrow = isAfterMidnight ? today : tomorrow;
         const eveDayAfter = isAfterMidnight ? tomorrow : dayAfterTomorrow;
 
+        // בדיקת כפילויות: חיפוש לפי title שמכיל את תאריך "מחר" הנכון (eveTomorrow)
+        // כך התראה ישנה עם תאריך אחר לא תחסום התראה חדשה
+        const eveTomorrowStr = eveTomorrow.toLocaleDateString("he-IL", { timeZone: "Asia/Jerusalem" });
         const alreadySentEvening = await prisma.notification.findFirst({
-          where: { userId: user.id, type: "EVENING_SUMMARY", createdAt: { gte: eveToday } },
+          where: {
+            userId: user.id,
+            type: "EVENING_SUMMARY",
+            createdAt: { gte: eveToday },
+            title: { contains: eveTomorrowStr },
+          },
         });
 
         if (!alreadySentEvening) {
