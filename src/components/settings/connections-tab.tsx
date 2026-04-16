@@ -203,7 +203,8 @@ export function ConnectionsTab() {
   }, []);
 
   const connectGoogle = async () => {
-    await signIn("google", { callbackUrl: "/dashboard/settings?tab=connections" });
+    // Use custom OAuth flow that only links Google Calendar without replacing the session
+    window.location.href = "/api/auth/google-calendar/connect";
   };
 
   const disconnectGoogle = async () => {
