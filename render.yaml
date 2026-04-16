@@ -32,7 +32,28 @@ services:
       - key: MESHULAM_API_KEY
         sync: false
       - key: ENCRYPTION_KEY
-        sync: false  # Cron job for 24-hour session reminders (runs every hour)
+        sync: false
+      # --- מייל נכנס (קבלת תשובות מלקוחות) ---
+      - key: EMAIL_FROM
+        sync: false
+      - key: RESEND_WEBHOOK_SECRET
+        sync: false
+      - key: INCOMING_EMAIL_SECRET
+        sync: false
+      # --- תשלומים וחשבוניות ---
+      - key: MESHULAM_WEBHOOK_SECRET
+        sync: false
+      - key: SUMIT_WEBHOOK_SECRET
+        sync: false
+      # --- התחברות עם גוגל ---
+      - key: GOOGLE_CLIENT_ID
+        sync: false
+      - key: GOOGLE_CLIENT_SECRET
+        sync: false
+      # --- אדמין ---
+      - key: ADMIN_SECRET
+        sync: false
+  # Cron job for 24-hour session reminders (runs every hour)
   - type: cron
     name: session-reminders-24h
     runtime: node
