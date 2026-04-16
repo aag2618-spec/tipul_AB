@@ -60,7 +60,7 @@ export async function POST(request: NextRequest) {
     const baseUrl = process.env.NEXTAUTH_URL || "https://tipul-mh2t.onrender.com";
     const resetUrl = `${baseUrl}/reset-password?token=${token}`;
 
-    await sendEmail({
+    const emailResult = await sendEmail({
       to: user.email!,
       subject: "איפוס סיסמה - טיפול",
       html: `
@@ -100,6 +100,14 @@ export async function POST(request: NextRequest) {
         </div>
       `,
     });
+
+    if (!emailResult?.success) {
+      logger.error("שגיאה בשליחת מייל איפוס סיסמה", {
+        userId: user.id,
+        email: user.email,
+        error: emailResult?.error || "unknown",
+      });
+    }
 
     return NextResponse.json({
       message: "אם האימייל קיים במערכת, נשלח אליך קישור לאיפוס סיסמה",
