@@ -1,8 +1,7 @@
 import { prisma } from "./prisma";
 
-// ─── Pulseem API Configuration (Campaign API) ───────────────────
-const PULSEEM_CREATE_URL = "https://ui-api.pulseem.com/api/v1/SmsCampaignApi/CreateSmsCampaign";
-const PULSEEM_SEND_URL = "https://ui-api.pulseem.com/api/v1/SmsCampaignApi/SendSmsCampaign";
+// ─── Pulseem API Configuration ───────────────────────────────────
+const PULSEEM_API_URL = "https://api.pulseem.com/api/v1/SmsApi/SendSms";
 
 function getApiKey(): string | null {
   return process.env.PULSEEM_API_KEY || null;
@@ -217,85 +216,52 @@ export async function sendSMS(
   const truncatedMessage = message.slice(0, 201);
 
   try {
-    const headers = {
-      "Content-Type": "application/json",
-      "APIKey": apiKey,
-    };
-
-    // Step 1: Create campaign
-    const createRes = await fetch(PULSEEM_CREATE_URL, {
+    const response = await fetch(PULSEEM_API_URL, {
       method: "POST",
-      headers,
+      headers: {
+        "Content-Type": "application/json",
+        "APIKey": apiKey,
+      },
       body: JSON.stringify({
-        name: `SMS-${Date.now()}`,
-        fromNumber: getSender(),
-        text: truncatedMessage,
+        sendId: `sms-${Date.now()}`,
+        smsSendData: {
+          fromNumber: getSender(),
+          toNumberList: [normalizedPhone],
+          referenceList: [options?.sessionId || `ref-${Date.now()}`],
+          textList: [truncatedMessage],
+        },
       }),
     });
 
-    if (!createRes.ok) {
-      const errorText = await createRes.text().catch(() => "Unknown error");
-      console.error("[SMS] Pulseem create campaign error:", createRes.status, errorText);
+    if (!response.ok) {
+      const errorText = await response.text().catch(() => "Unknown error");
+      console.error("[SMS] Pulseem API error:", response.status, errorText);
 
       await logSMS({
         phone: normalizedPhone,
         message: truncatedMessage,
         status: "FAILED",
-        error: `Create campaign: HTTP ${createRes.status}: ${errorText}`,
+        error: `HTTP ${response.status}: ${errorText}`,
         userId,
         sessionId: options?.sessionId,
         clientId: options?.clientId,
         type: options?.type,
       });
 
-      return { success: false, error: `API error: ${createRes.status}` };
+      return { success: false, error: `API error: ${response.status}` };
     }
 
-    const createData = await createRes.json().catch(() => null);
-    const campaignId = createData?.data?.smsCampaignId;
+    const data = await response.json().catch(() => null);
 
-    if (!campaignId) {
-      const errMsg = createData?.message || "No campaign ID returned";
-      console.error("[SMS] Pulseem create failed:", errMsg);
+    if (data?.status !== "Success" || data?.success === 0) {
+      const errMsg = data?.error || data?.items?.[0]?.message || "Send failed";
+      console.error("[SMS] Pulseem send failed:", errMsg);
 
       await logSMS({
         phone: normalizedPhone,
         message: truncatedMessage,
         status: "FAILED",
-        error: `Create campaign: ${errMsg}`,
-        userId,
-        sessionId: options?.sessionId,
-        clientId: options?.clientId,
-        type: options?.type,
-      });
-
-      return { success: false, error: errMsg };
-    }
-
-    // Step 2: Send campaign to specific phone
-    const sendRes = await fetch(PULSEEM_SEND_URL, {
-      method: "POST",
-      headers,
-      body: JSON.stringify({
-        smsCampaignID: campaignId,
-        isTest: false,
-        sendingDetails: [{
-          cellphone: normalizedPhone,
-        }],
-      }),
-    });
-
-    const sendData = await sendRes.json().catch(() => null);
-
-    if (!sendRes.ok || sendData?.status !== "Success") {
-      const errMsg = sendData?.message || sendData?.error || `HTTP ${sendRes.status}`;
-      console.error("[SMS] Pulseem send error:", errMsg);
-
-      await logSMS({
-        phone: normalizedPhone,
-        message: truncatedMessage,
-        status: "FAILED",
-        error: `Send campaign: ${errMsg}`,
+        error: errMsg,
         userId,
         sessionId: options?.sessionId,
         clientId: options?.clientId,
@@ -317,12 +283,12 @@ export async function sendSMS(
       sessionId: options?.sessionId,
       clientId: options?.clientId,
       type: options?.type,
-      messageId: sendData?.sessionId || undefined,
+      messageId: data?.sessionId || undefined,
     });
 
     return {
       success: true,
-      messageId: sendData?.sessionId || undefined,
+      messageId: data?.sessionId || undefined,
     };
   } catch (error) {
     const errMsg = error instanceof Error ? error.message : "Unknown error";
