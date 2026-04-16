@@ -59,8 +59,9 @@ export const authOptions: NextAuthOptions = {
           throw new Error("אנא הזן אימייל וסיסמה");
         }
 
-        const user = await prisma.user.findUnique({
-          where: { email: credentials.email.toLowerCase() },
+        // חיפוש case-insensitive — חלק מהמשתמשים נרשמו עם אותיות גדולות
+        const user = await prisma.user.findFirst({
+          where: { email: { equals: credentials.email, mode: "insensitive" } },
         });
 
         if (!user || !user.password) {
