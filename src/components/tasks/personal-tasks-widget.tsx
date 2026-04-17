@@ -52,6 +52,7 @@ interface Reminder {
   title: string;
   content: string;
   createdAt: string;
+  status?: string;
 }
 
 const MAX_VISIBLE = 8;
@@ -105,13 +106,24 @@ export function PersonalTasksWidget() {
         const oneDayMs = 24 * 60 * 60 * 1000;
         const now = Date.now();
         // סיכומים מ-24 השעות האחרונות שלא נדחקו (DISMISSED) - נשארים בווידג'ט
-        const active = (data.notifications || []).filter((n: Reminder & { status?: string }) => {
+        const active = (data.notifications || []).filter((n: Reminder) => {
           if (!summaryTypes.includes(n.type)) return false;
           if (n.status === "DISMISSED") return false;
           const age = now - new Date(n.createdAt).getTime();
           return age <= oneDayMs;
         });
         setReminders(active);
+        // סימון תזכורות שכבר נקראו בשרת — ככה לא מהבהבות אחרי רענון
+        const alreadyRead = active
+          .filter((n: Reminder) => n.status === "READ")
+          .map((n: Reminder) => n.id);
+        if (alreadyRead.length > 0) {
+          setReadReminders(prev => {
+            const next = new Set(prev);
+            alreadyRead.forEach((id: string) => next.add(id));
+            return next;
+          });
+        }
       }
     } catch (error) {
       console.error("Failed to fetch reminders:", error);
@@ -141,6 +153,13 @@ export function PersonalTasksWidget() {
   }, []);
 
   useEffect(() => { fetchTasks(); fetchReminders(); }, [fetchTasks, fetchReminders]);
+
+  // כשהעמון למעלה מסמן התראה כנקראה — לעדכן גם את הדשבורד
+  useEffect(() => {
+    const handler = () => fetchReminders();
+    window.addEventListener("notification-read", handler);
+    return () => window.removeEventListener("notification-read", handler);
+  }, [fetchReminders]);
 
   useEffect(() => {
     if (showHistory && historyTasks.length === 0) {
@@ -334,7 +353,14 @@ export function PersonalTasksWidget() {
           <div
             key={reminder.id}
             className={`flex items-start gap-2 py-2 px-3 rounded-lg bg-amber-100 border border-amber-300 shadow-sm cursor-pointer ${readReminders.has(reminder.id) ? "" : "animate-pulse"}`}
-            onClick={() => { setReadReminders(prev => new Set(prev).add(reminder.id)); setSelectedReminder(reminder); }}
+            onClick={() => {
+              setReadReminders(prev => new Set(prev).add(reminder.id));
+              setSelectedReminder(reminder);
+              // שומר ב-DB שההתראה נקראה — ככה לא חוזרת להבהב אחרי רענון
+              fetch(`/api/notifications/${reminder.id}/read`, { method: "POST" })
+                .then(() => window.dispatchEvent(new CustomEvent("notification-read")))
+                .catch(() => {});
+            }}
           >
             {reminder.type === "MORNING_SUMMARY" ? (
               <Sun className="h-4 w-4 text-amber-500 shrink-0 mt-0.5" />
