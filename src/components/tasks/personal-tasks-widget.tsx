@@ -393,31 +393,34 @@ export function PersonalTasksWidget() {
 
   if (tasks.length === 0 && reminders.length === 0 && !showHistory) {
     return (
-      <Card id="personal-tasks" className={highlightClass}>
-        <CardHeader className="flex flex-row items-center justify-between pb-2">
-          <div className="flex items-center gap-2">
-            <ListTodo className="h-4 w-4 text-primary" />
-            <CardTitle className="text-sm font-medium">מטלות ותזכורות</CardTitle>
-          </div>
-          <div className="flex items-center gap-1">
-            <Button
-              variant="ghost"
-              size="sm"
-              className="h-7 text-xs gap-1 text-muted-foreground"
-              onClick={() => setShowHistory(!showHistory)}
-            >
-              <History className="h-3 w-3" />
-              היסטוריה
-            </Button>
-            <AddCustomTask onTaskAdded={fetchTasks} />
-          </div>
-        </CardHeader>
-        <CardContent className="pb-4">
-          {showHistory ? renderHistory() : (
-            <p className="text-sm text-muted-foreground text-center py-2">אין מטלות ותזכורות</p>
-          )}
-        </CardContent>
-      </Card>
+      <>
+        <Card id="personal-tasks" className={highlightClass}>
+          <CardHeader className="flex flex-row items-center justify-between pb-2">
+            <div className="flex items-center gap-2">
+              <ListTodo className="h-4 w-4 text-primary" />
+              <CardTitle className="text-sm font-medium">מטלות ותזכורות</CardTitle>
+            </div>
+            <div className="flex items-center gap-1">
+              <Button
+                variant="ghost"
+                size="sm"
+                className="h-7 text-xs gap-1 text-muted-foreground"
+                onClick={() => setShowHistory(!showHistory)}
+              >
+                <History className="h-3 w-3" />
+                היסטוריה
+              </Button>
+              <AddCustomTask onTaskAdded={fetchTasks} />
+            </div>
+          </CardHeader>
+          <CardContent className="pb-4">
+            {showHistory ? renderHistory() : (
+              <p className="text-sm text-muted-foreground text-center py-2">אין מטלות ותזכורות</p>
+            )}
+          </CardContent>
+        </Card>
+        <CompletionCelebration celebration={celebration} onDismiss={dismissCelebration} />
+      </>
     );
   }
 
