@@ -32,6 +32,7 @@ import { format } from "date-fns";
 import { he } from "date-fns/locale";
 import { toast } from "sonner";
 import { AddCustomTask } from "./add-custom-task";
+import { CompletionCelebration, useCompletionCelebration } from "./completion-celebration";
 
 interface Task {
   id: string;
@@ -81,6 +82,7 @@ export function PersonalTasksWidget() {
   const [highlight, setHighlight] = useState(false);
   const [readReminders, setReadReminders] = useState<Set<string>>(new Set());
   const processedNotificationRef = useRef<string | null>(null);
+  const { celebration, trigger: triggerCelebration, dismiss: dismissCelebration } = useCompletionCelebration();
 
   const fetchTasks = useCallback(async () => {
     try {
@@ -308,7 +310,10 @@ export function PersonalTasksWidget() {
   const handleComplete = async (taskId: string) => {
     try {
       const res = await fetch(`/api/tasks/${taskId}`, { method: "PATCH", headers: { "Content-Type": "application/json" }, body: JSON.stringify({ status: "COMPLETED" }) });
-      if (res.ok) { setTasks(prev => prev.filter(t => t.id !== taskId)); toast.success("הושלם"); }
+      if (res.ok) {
+        setTasks(prev => prev.filter(t => t.id !== taskId));
+        triggerCelebration();
+      }
     } catch { toast.error("שגיאה"); }
   };
 
@@ -372,11 +377,11 @@ export function PersonalTasksWidget() {
               <p className="text-xs text-muted-foreground line-clamp-2 whitespace-pre-line">{reminder.content}</p>
             </div>
             <button
-              onClick={(e) => { e.stopPropagation(); dismissReminder(reminder.id); }}
-              className="shrink-0 mt-0.5 opacity-60 hover:opacity-100 transition-opacity"
-              title="סמן כנקרא"
+              onClick={(e) => { e.stopPropagation(); triggerCelebration(); dismissReminder(reminder.id); }}
+              className="shrink-0 h-8 w-8 rounded-full bg-emerald-500 hover:bg-emerald-600 hover:scale-110 flex items-center justify-center shadow-md transition-all"
+              title="סמן כהושלם"
             >
-              <CheckCircle2 className="h-4 w-4 text-emerald-500" />
+              <CheckCircle2 className="h-5 w-5 text-white" />
             </button>
           </div>
         ))}
@@ -684,7 +689,10 @@ export function PersonalTasksWidget() {
               size="sm"
               className="gap-1 bg-emerald-600 hover:bg-emerald-700"
               onClick={() => {
-                if (selectedReminder) dismissReminder(selectedReminder.id);
+                if (selectedReminder) {
+                  triggerCelebration();
+                  dismissReminder(selectedReminder.id);
+                }
                 setSelectedReminder(null);
               }}
             >
@@ -694,6 +702,8 @@ export function PersonalTasksWidget() {
           </DialogFooter>
         </DialogContent>
       </Dialog>
+
+      <CompletionCelebration celebration={celebration} onDismiss={dismissCelebration} />
     </>
   );
 }
