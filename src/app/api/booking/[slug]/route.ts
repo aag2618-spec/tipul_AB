@@ -47,20 +47,88 @@ function escapeHtml(str: string): string {
 
 const DATE_RE = /^\d{4}-\d{2}-\d{2}$/;
 const TIME_RE = /^\d{1,2}:\d{2}$/;
+// NAME_RE: מאפשר עברית + אנגלית + רווחים + נקודה + מקף + גרש (׳/') + גרשיים (״/")
+// גרשיים (״) הכרחי לשמות חרדיים עם תואר: "ר"מ שניאורסון", "הגר"א", "ט"ו בשבט"
+const NAME_RE = /^[\u0590-\u05FFa-zA-Z\s\.\-'"]{2,80}$/;
+const EMAIL_RE = /^[^\s@]+@[^\s@]+\.[^\s@]{2,}$/;
+const PHONE_DIGITS_RE = /^(05\d{8}|9725\d{8})$/;
 
-// Simple in-memory rate limiter per IP (max 5 bookings per minute)
+// דפוסי שם חשודים (בוטים/בדיקות) — שמרני ברמה שאמיתי לא ייחסם
+// הסרתי דפוסים כמו \btest\b/\badmin\b/\bsystem\b כדי לא לחסום שמות משפחה
+// אמיתיים ("Test", "Admin" וכד׳). אם לשפה אמיתית יש את המילה, היא תעבור.
+const SUSPICIOUS_NAME_PATTERNS: RegExp[] = [
+  /מדינת\s*ישראל/i,
+  /\bמערכת\b/,
+  /\bדוגמה\b/,
+  /\bבדיקה\b/,
+  /(.)\1{4,}/, // 5+ תווים זהים ברצף (aaaaa, 11111)
+  /http[s]?:\/\//i, // קישורים
+  /<[^>]+>/, // תגיות HTML
+];
+
+function normalizeIsraeliPhone(phone: string): string | null {
+  if (!phone) return null;
+  let cleaned = phone.replace(/[\s\-\.\(\)]/g, "");
+  if (cleaned.startsWith("+972")) cleaned = "0" + cleaned.slice(4);
+  if (cleaned.startsWith("972") && cleaned.length === 12) cleaned = "0" + cleaned.slice(3);
+  return PHONE_DIGITS_RE.test(cleaned) || /^05\d{8}$/.test(cleaned) ? cleaned : null;
+}
+
+// ולידציה של שם לקוח — חוסמת דפוסים חשודים
+function validateClientName(name: string): { ok: true } | { ok: false; reason: string } {
+  if (typeof name !== "string") return { ok: false, reason: "שם לא תקין" };
+  const trimmed = name.trim();
+  if (trimmed.length < 2) return { ok: false, reason: "שם קצר מדי (מינימום 2 תווים)" };
+  if (trimmed.length > 80) return { ok: false, reason: "שם ארוך מדי (מקסימום 80 תווים)" };
+  if (!NAME_RE.test(trimmed)) {
+    return { ok: false, reason: "שם יכול להכיל רק אותיות עברית/אנגלית, רווחים ומקפים" };
+  }
+  for (const pattern of SUSPICIOUS_NAME_PATTERNS) {
+    if (pattern.test(trimmed)) {
+      return { ok: false, reason: "שם לא מתאים. נא לוודא שהזנת את שמך המלא באותיות בלבד." };
+    }
+  }
+  return { ok: true };
+}
+
+// Rate limiter: IP-level (דקה) — קיים מההתחלה
 const rateLimitMap = new Map<string, { count: number; resetAt: number }>();
+// Rate limiter: IP-level (שעה) — מגביל בוטים שמחליפים אצווה
+const HOURLY_RL_WINDOW_MS = 60 * 60 * 1000;
+const HOURLY_RL_MAX = 20;
+const hourlyRateLimitMap = new Map<string, { count: number; resetAt: number }>();
+// Rate limiter: contact-level (יום) — אותו מייל/טלפון לא יכול להזמין יותר מ-3 ביום
+const DAILY_CONTACT_WINDOW_MS = 24 * 60 * 60 * 1000;
+const DAILY_CONTACT_MAX = 3;
+const dailyContactRateLimitMap = new Map<string, { count: number; resetAt: number }>();
 
-function checkRateLimit(ip: string): boolean {
+function checkWindowedLimit(
+  map: Map<string, { count: number; resetAt: number }>,
+  key: string,
+  windowMs: number,
+  max: number
+): boolean {
   const now = Date.now();
-  const entry = rateLimitMap.get(ip);
+  const entry = map.get(key);
   if (!entry || now > entry.resetAt) {
-    rateLimitMap.set(ip, { count: 1, resetAt: now + BOOKING_RATE_LIMIT_WINDOW_MS });
+    map.set(key, { count: 1, resetAt: now + windowMs });
     return true;
   }
-  if (entry.count >= BOOKING_RATE_LIMIT_MAX) return false;
+  if (entry.count >= max) return false;
   entry.count++;
   return true;
+}
+
+function checkRateLimit(ip: string): boolean {
+  return checkWindowedLimit(rateLimitMap, ip, BOOKING_RATE_LIMIT_WINDOW_MS, BOOKING_RATE_LIMIT_MAX);
+}
+
+function checkHourlyRateLimit(ip: string): boolean {
+  return checkWindowedLimit(hourlyRateLimitMap, ip, HOURLY_RL_WINDOW_MS, HOURLY_RL_MAX);
+}
+
+function checkDailyContactLimit(contact: string): boolean {
+  return checkWindowedLimit(dailyContactRateLimitMap, contact.toLowerCase(), DAILY_CONTACT_WINDOW_MS, DAILY_CONTACT_MAX);
 }
 
 export const dynamic = "force-dynamic";
@@ -201,9 +269,26 @@ export async function POST(
       { status: 429 }
     );
   }
+  if (!checkHourlyRateLimit(ip)) {
+    logger.warn("[Booking] Hourly rate limit exceeded", { ip });
+    return NextResponse.json(
+      { message: "הגעת למגבלת ההזמנות לשעה. נסה שוב מאוחר יותר." },
+      { status: 429 }
+    );
+  }
 
   const body = await request.json();
-  const { date, time, clientName, clientPhone, clientEmail, notes } = body;
+  const { date, time, clientName, clientPhone, clientEmail, notes, hp } = body;
+
+  // Honeypot — שדה נסתר שבני אדם לא ממלאים, רק בוטים.
+  // אם הוא מלא → זו בקשה אוטומטית של בוט, נדחה שקט (200 כדי לא לחשוף).
+  if (typeof hp === "string" && hp.trim().length > 0) {
+    logger.warn("[Booking] Honeypot triggered", { ip, hpLength: hp.length });
+    return NextResponse.json(
+      { success: true, message: "הבקשה התקבלה" },
+      { status: 200 }
+    );
+  }
 
   if (!date || !time || !clientName) {
     return NextResponse.json(
@@ -212,10 +297,47 @@ export async function POST(
     );
   }
 
+  // ולידציה של שם לקוח — חוסמת דפוסים חשודים (test, admin, מדינת ישראל וכו')
+  const nameCheck = validateClientName(clientName);
+  if (!nameCheck.ok) {
+    logger.warn("[Booking] Invalid name rejected", { ip, reason: nameCheck.reason });
+    return NextResponse.json({ message: nameCheck.reason }, { status: 400 });
+  }
+
   if (!clientEmail && !clientPhone) {
     return NextResponse.json(
       { message: "חובה להזין מייל או טלפון" },
       { status: 400 }
+    );
+  }
+
+  // ולידציה של מייל (אם סופק)
+  if (clientEmail && !EMAIL_RE.test(String(clientEmail).trim())) {
+    return NextResponse.json(
+      { message: "כתובת מייל לא תקינה" },
+      { status: 400 }
+    );
+  }
+
+  // ולידציה של טלפון (אם סופק) + נרמול לפורמט אחיד
+  let normalizedPhone: string | null = null;
+  if (clientPhone) {
+    normalizedPhone = normalizeIsraeliPhone(String(clientPhone));
+    if (!normalizedPhone) {
+      return NextResponse.json(
+        { message: "מספר טלפון לא תקין — יש להזין מספר ישראלי (05XXXXXXXX)" },
+        { status: 400 }
+      );
+    }
+  }
+
+  // Rate limit לפי איש קשר (מייל/טלפון) — אותו איש לא יכול להזמין יותר מ-3 ביום
+  const contactKey = clientEmail ? `email:${String(clientEmail).trim().toLowerCase()}` : `phone:${normalizedPhone}`;
+  if (!checkDailyContactLimit(contactKey)) {
+    logger.warn("[Booking] Daily contact limit exceeded", { ip, contactKey: contactKey.replace(/:.*@/, ":***@") });
+    return NextResponse.json(
+      { message: "הגעת למגבלת ההזמנות היומית. ניתן להזמין שוב מחר." },
+      { status: 429 }
     );
   }
 
@@ -306,10 +428,19 @@ export async function POST(
       }
 
       let foundClient = null;
-      if (clientEmail || clientPhone) {
+      // מנרמלים להשוואה — email → lowercase, phone → normalized (05XXXXXXXX).
+      // חשוב: לקוחות ישנים יכולים להיות שמורים ב-DB עם mixed-case או פורמט שונה של טלפון.
+      const emailLower = clientEmail ? String(clientEmail).trim().toLowerCase() : null;
+      const phoneNorm = normalizedPhone; // כבר מנורמל למעלה
+      if (emailLower || phoneNorm) {
         const conditions = [];
-        if (clientEmail) conditions.push({ email: clientEmail });
-        if (clientPhone) conditions.push({ phone: clientPhone });
+        if (emailLower) conditions.push({ email: { equals: emailLower, mode: "insensitive" as const } });
+        if (phoneNorm) {
+          // תמיכה ב-2 פורמטים ישנים: 05XXXXXXXX ו-+972XXXXXXXXX
+          const intlPhone = "+972" + phoneNorm.slice(1);
+          conditions.push({ phone: phoneNorm });
+          conditions.push({ phone: intlPhone });
+        }
 
         const candidates = await tx.client.findMany({
           where: {
@@ -321,10 +452,17 @@ export async function POST(
 
         const nameNorm = clientName.trim().toLowerCase();
         const byName = (c: { name: string }) => c.name.trim().toLowerCase() === nameNorm;
+        const byEmail = (c: { email: string | null }) =>
+          !!emailLower && !!c.email && c.email.toLowerCase() === emailLower;
+        const byPhone = (c: { phone: string | null }) => {
+          if (!phoneNorm || !c.phone) return false;
+          const cNorm = normalizeIsraeliPhone(c.phone);
+          return cNorm === phoneNorm;
+        };
 
-        // 1. Exact match: name + email + phone
+        // 1. Exact match: name + email + phone (נרמול בשני הצדדים)
         foundClient = candidates.find(c =>
-          byName(c) && c.email === clientEmail && c.phone === clientPhone
+          byName(c) && byEmail(c) && byPhone(c)
         ) || null;
 
         // 2. Name match among candidates (regardless of contact info)
@@ -332,9 +470,9 @@ export async function POST(
           foundClient = candidates.find(c => byName(c)) || null;
         }
 
-        // 3. Unique email match (handles typos in name - email is a reliable identifier)
-        if (!foundClient && clientEmail) {
-          const emailMatches = candidates.filter(c => c.email === clientEmail);
+        // 3. Unique email match (מטפל גם בטעויות הקלדה בשם — אימייל זהות אמינה)
+        if (!foundClient && emailLower) {
+          const emailMatches = candidates.filter(byEmail);
           if (emailMatches.length === 1) foundClient = emailMatches[0];
         }
       }
@@ -342,9 +480,9 @@ export async function POST(
       if (!foundClient) {
         foundClient = await tx.client.create({
           data: {
-            name: clientName,
-            phone: clientPhone || null,
-            email: clientEmail || null,
+            name: clientName.trim(),
+            phone: normalizedPhone || null,
+            email: clientEmail ? String(clientEmail).trim().toLowerCase() : null,
             therapistId: settings.therapistId,
             status: "WAITING",
             defaultSessionPrice: settings.defaultPrice,
@@ -451,15 +589,15 @@ export async function POST(
     }
   }
 
-  // Send booking confirmation SMS to client
-  if (clientPhone) {
+  // Send booking confirmation SMS to client — משתמשים ב-normalizedPhone (לא בטלפון הגולמי)
+  if (normalizedPhone) {
     const isPendingSMS = sessionStatus === "PENDING_APPROVAL";
     const commSettings = await prisma.communicationSetting.findUnique({
       where: { userId: settings.therapist.id },
     });
     await sendSMSIfEnabled({
       userId: settings.therapist.id,
-      phone: clientPhone,
+      phone: normalizedPhone,
       template: commSettings?.templateBookingConfirmSMS,
       defaultTemplate: isPendingSMS
         ? "שלום {שם}, הבקשה התקבלה וממתינה לאישור. פגישה ב-{תאריך} ב-{שעה}"

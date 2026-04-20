@@ -50,6 +50,9 @@ export default function BookingPage() {
   const [clientPhone, setClientPhone] = useState("");
   const [clientEmail, setClientEmail] = useState("");
   const [clientNotes, setClientNotes] = useState("");
+  // Honeypot — שדה נסתר שבני אדם לא רואים. רק בוטים ממלאים אותו.
+  // אם הוא מלא, השרת דוחה את הבקשה.
+  const [hpField, setHpField] = useState("");
   const [submitting, setSubmitting] = useState(false);
   const [confirmationMessage, setConfirmationMessage] = useState("");
   const [bookedDate, setBookedDate] = useState("");
@@ -105,7 +108,7 @@ export default function BookingPage() {
       const res = await fetch(`/api/booking/${slug}`, {
         method: "POST",
         headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ date: dateStr, time: selectedTime, clientName, clientPhone, clientEmail, notes: clientNotes }),
+        body: JSON.stringify({ date: dateStr, time: selectedTime, clientName, clientPhone, clientEmail, notes: clientNotes, hp: hpField }),
       });
       const data = await res.json();
       if (!res.ok) { setError(data.message || data.error || "שגיאה בקביעת התור"); return; }
@@ -254,6 +257,24 @@ export default function BookingPage() {
               </div>
               {error && (<div className="bg-destructive/10 text-destructive rounded-lg p-3 text-sm flex items-center gap-2"><AlertCircle className="h-4 w-4 shrink-0" />{error}</div>)}
               <div className="space-y-2"><Label htmlFor="name" className="flex items-center gap-1"><User className="h-3.5 w-3.5" /> שם מלא *</Label><Input id="name" value={clientName} onChange={(e) => setClientName(e.target.value)} placeholder="השם שלך" required /></div>
+              {/* Honeypot — שדה נסתר לחסימת בוטים. אסור להסיר.
+                  data-lpignore + data-form-type="other" → מונע מ-password managers למלא */}
+              <div aria-hidden="true" style={{ position: "absolute", left: "-9999px", top: "-9999px", width: 0, height: 0, overflow: "hidden" }}>
+                <label htmlFor="website-url">Website (do not fill)</label>
+                <input
+                  type="text"
+                  id="website-url"
+                  name="website-url"
+                  tabIndex={-1}
+                  autoComplete="off"
+                  data-lpignore="true"
+                  data-form-type="other"
+                  data-1p-ignore="true"
+                  data-bwignore="true"
+                  value={hpField}
+                  onChange={(e) => setHpField(e.target.value)}
+                />
+              </div>
               <div className="space-y-2"><Label htmlFor="phone" className="flex items-center gap-1"><Phone className="h-3.5 w-3.5" /> טלפון {!clientEmail && "*"}</Label><Input id="phone" type="tel" value={clientPhone} onChange={(e) => setClientPhone(e.target.value)} placeholder="050-1234567" dir="ltr" /></div>
               <div className="space-y-2"><Label htmlFor="email" className="flex items-center gap-1"><Mail className="h-3.5 w-3.5" /> אימייל {!clientPhone && "*"}</Label><Input id="email" type="email" value={clientEmail} onChange={(e) => setClientEmail(e.target.value)} placeholder="your@email.com" dir="ltr" /></div>
               {!clientEmail && !clientPhone && <p className="text-xs text-amber-600">* חובה להזין מייל או טלפון</p>}
