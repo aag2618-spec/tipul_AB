@@ -1,4 +1,6 @@
 import { prisma } from "./prisma";
+import { isShabbatOrYomTov } from "./shabbat";
+import { logger } from "./logger";
 
 // ─── Pulseem API Configuration ───────────────────────────────────
 const PULSEEM_API_URL = "https://api.pulseem.com/api/v1/SmsApi/SendSms";
@@ -16,6 +18,7 @@ function getSender(): string {
 export interface SMSResult {
   success: boolean;
   error?: string;
+  shabbatBlocked?: boolean;
   messageId?: string;
 }
 
@@ -190,6 +193,30 @@ export async function sendSMS(
     type?: string;
   }
 ): Promise<SMSResult> {
+  // שבת/יו״ט — חסום מיידי, לפני כל בדיקה או קריאה חיצונית.
+  // רושמים log עם status=FAILED + errorMessage=SHABBAT_BLOCKED כדי לשמור רקורד
+  //   (מקביל להתנהגות של sendEmail שגם יוצר log FAILED דרך ה-caller).
+  if (isShabbatOrYomTov()) {
+    logger.info("[sms] חסום בשבת/חג", { to: phone, type: options?.type });
+    const normalizedForLog = normalizePhone(phone) ?? phone;
+    // Fire-and-forget — אם logSMS נכשל, הזרימה ממשיכה
+    void logSMS({
+      phone: normalizedForLog,
+      message: message.slice(0, 201),
+      status: "FAILED",
+      error: "SHABBAT_BLOCKED",
+      userId,
+      sessionId: options?.sessionId,
+      clientId: options?.clientId,
+      type: options?.type,
+    });
+    return {
+      success: false,
+      error: "SHABBAT_BLOCKED",
+      shabbatBlocked: true,
+    };
+  }
+
   const apiKey = getApiKey();
   if (!apiKey) {
     console.warn("[SMS] PULSEEM_API_KEY not set, skipping SMS");
@@ -391,6 +418,31 @@ export async function sendSMSIfEnabled(params: {
   // No phone? Skip silently
   if (!params.phone) {
     return { success: false, error: "No phone number" };
+  }
+
+  // Shabbat/Yom Tov — fast-path מוקדם כדי לחסוך 2 שאילתות DB (communicationSetting + sMSSettings).
+  // רושמים log עם status=FAILED + SHABBAT_BLOCKED — עקביות מול sendSMS הישיר שכן רושם log.
+  if (isShabbatOrYomTov()) {
+    logger.info("[sms] חסום בשבת/חג (sendSMSIfEnabled early-gate)", {
+      to: params.phone,
+      type: params.type,
+    });
+    const normalizedForLog = normalizePhone(params.phone) ?? params.phone;
+    void logSMS({
+      phone: normalizedForLog,
+      // נבנה הודעה מהתבנית כדי שיהיה רקורד שימושי (מקוצץ ל-201 תווים כמו שליחה רגילה)
+      message: replacePlaceholders(
+        params.template || params.defaultTemplate,
+        params.placeholders,
+      ).slice(0, 201),
+      status: "FAILED",
+      error: "SHABBAT_BLOCKED",
+      userId: params.userId,
+      sessionId: params.sessionId,
+      clientId: params.clientId,
+      type: params.type,
+    });
+    return { success: false, error: "SHABBAT_BLOCKED", shabbatBlocked: true };
   }
 
   // Check if this SMS type is enabled

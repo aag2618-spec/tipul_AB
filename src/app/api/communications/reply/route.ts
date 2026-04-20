@@ -5,6 +5,7 @@ import path from "path";
 import fs from "fs/promises";
 import { logger } from "@/lib/logger";
 import { requireAuth } from "@/lib/api-auth";
+import { isShabbatOrYomTov } from "@/lib/shabbat";
 
 export const dynamic = "force-dynamic";
 
@@ -13,6 +14,20 @@ export async function POST(request: NextRequest) {
     const auth = await requireAuth();
     if ("error" in auth) return auth.error;
     const { userId, session } = auth;
+
+    // ⭐ חסימת שבת/חג — ה-route הזה עוקף את ה-gate המרכזי ב-sendEmail כי הוא
+    //    צריך headers מותאמים (threading) + attachments. לכן gate ייעודי כאן.
+    if (isShabbatOrYomTov()) {
+      logger.info("[reply] חסום בשבת/חג", { userId });
+      return NextResponse.json(
+        {
+          success: false,
+          shabbatBlocked: true,
+          message: "התשובה לא נשלחה — שבת/חג. ניתן לשלוח שוב במוצאי שבת/חג.",
+        },
+        { status: 200 },
+      );
+    }
 
     let communicationLogId: string;
     let replyContent: string;
@@ -187,8 +202,8 @@ export async function POST(request: NextRequest) {
       },
     });
 
-    // Mark the original incoming email as read
-    if (originalLog.type === "INCOMING_EMAIL") {
+    // Mark the original incoming message as read
+    if (originalLog.type === "INCOMING_EMAIL" || originalLog.type === "INCOMING_SMS") {
       await prisma.communicationLog.update({
         where: { id: communicationLogId },
         data: {

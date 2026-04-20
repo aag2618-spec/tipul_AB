@@ -307,7 +307,7 @@ export async function POST(
     });
 
     // Send SMS debt reminder (independent from email)
-    await sendSMSIfEnabled({
+    const smsResult = await sendSMSIfEnabled({
       userId: userId,
       phone: client.phone,
       template: commSettings?.templateDebtReminderSMS,
@@ -320,6 +320,27 @@ export async function POST(
       clientId: clientId,
       type: "DEBT_REMINDER",
     });
+
+    // ⭐ החזרה אמיתית של תוצאת השליחה — לא "success: true" קשיח.
+    //    בשבת/חג: result.shabbatBlocked=true → מחזירים 200 עם הודעה ברורה.
+    if (result.shabbatBlocked || smsResult.shabbatBlocked) {
+      return NextResponse.json({
+        success: false,
+        shabbatBlocked: true,
+        message: "התזכורת לא נשלחה — שבת/חג. ניתן לשלוח שוב במוצאי שבת/חג.",
+      });
+    }
+
+    if (!result.success) {
+      return NextResponse.json(
+        {
+          success: false,
+          message: "שגיאה בשליחת המייל",
+          error: result.error,
+        },
+        { status: 500 },
+      );
+    }
 
     return NextResponse.json({
       success: true,

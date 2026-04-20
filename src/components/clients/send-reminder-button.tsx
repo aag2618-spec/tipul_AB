@@ -4,6 +4,7 @@ import { useState } from "react";
 import { Button } from "@/components/ui/button";
 import { Mail, Loader2 } from "lucide-react";
 import { toast } from "sonner";
+import { useShabbat } from "@/hooks/useShabbat";
 
 interface SendReminderButtonProps {
   clientId: string;
@@ -21,6 +22,7 @@ export function SendReminderButton({
   className = "",
 }: SendReminderButtonProps) {
   const [sending, setSending] = useState(false);
+  const { isShabbat, tooltip } = useShabbat();
 
   const handleSend = async () => {
     try {
@@ -28,12 +30,19 @@ export function SendReminderButton({
       const res = await fetch(`/api/clients/${clientId}/send-debt-reminder`, {
         method: "POST",
       });
-      
+
+      const data = await res.json().catch(() => ({}));
+
       if (!res.ok) {
-        const error = await res.json();
-        throw new Error(error.error || "שגיאה בשליחת התזכורת");
+        throw new Error(data.message || data.error || "שגיאה בשליחת התזכורת");
       }
-      
+
+      // גם ב-200 שרת עלול להחזיר success: false (למשל בשבת)
+      if (data.success === false) {
+        toast.error(data.message || "התזכורת לא נשלחה");
+        return;
+      }
+
       toast.success(`תזכורת נשלחה בהצלחה ל-${clientName}!`);
     } catch (error: unknown) {
       toast.error(error instanceof Error ? error.message : "שגיאה בשליחת התזכורת");
@@ -47,7 +56,8 @@ export function SendReminderButton({
       variant={variant}
       size={size}
       onClick={handleSend}
-      disabled={sending}
+      disabled={sending || isShabbat}
+      title={isShabbat ? tooltip ?? undefined : undefined}
       className={`gap-2 bg-sky-600 hover:bg-sky-700 text-white shadow-md ${className}`}
     >
       {sending ? (

@@ -2,6 +2,7 @@ import { NextRequest, NextResponse } from "next/server";
 import prisma from "@/lib/prisma";
 import { AdminAlertType, AlertPriority, Prisma } from "@prisma/client";
 import { logger } from "@/lib/logger";
+import { isShabbatOrYomTov } from "@/lib/shabbat";
 
 // API Route for generating automatic admin alerts
 // This can be called by a cron job (e.g., daily at 8:00 AM)
@@ -18,6 +19,12 @@ export async function GET(req: NextRequest) {
     const authHeader = req.headers.get("authorization");
     if (authHeader !== `Bearer ${cronSecret}`) {
       return NextResponse.json({ message: "לא מורשה" }, { status: 401 });
+    }
+
+    // Shabbat/Yom Tov — דילוג. alert-ים ייווצרו מחדש ביום המחרת כשצריך.
+    if (isShabbatOrYomTov()) {
+      logger.info("[cron generate-alerts] דילוג בשבת/חג");
+      return NextResponse.json({ skipped: true, reason: "shabbat_or_yomtov" });
     }
 
     const now = new Date();

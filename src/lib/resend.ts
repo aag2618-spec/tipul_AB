@@ -1,5 +1,7 @@
 import { Resend } from 'resend';
 import { escapeHtml } from './email-utils';
+import { isShabbatOrYomTov } from './shabbat';
+import { logger } from './logger';
 
 // Initialize lazily to avoid build errors when API key is not set
 let resendClient: Resend | null = null;
@@ -21,9 +23,29 @@ export interface EmailOptions {
   text?: string;
 }
 
+export interface SendEmailResult {
+  success: boolean;
+  error?: string;
+  shabbatBlocked?: boolean;
+  data?: unknown;
+  messageId: string | null;
+}
+
 // All replies are routed through inbox@mytipul.com so the Resend webhook
 // captures them and the system displays them in the communication history.
-export async function sendEmail({ to, subject, html, text }: EmailOptions) {
+export async function sendEmail({ to, subject, html, text }: EmailOptions): Promise<SendEmailResult> {
+  // שבת/יו״ט — חסום מיידי, לפני כל תלות חיצונית.
+  // ה-callers ממשיכים לזרום רגיל (result.success=false) ולא נזרקת חריגה.
+  if (isShabbatOrYomTov()) {
+    logger.info('[email] חסום בשבת/חג', { to, subject });
+    return {
+      success: false,
+      error: 'SHABBAT_BLOCKED',
+      shabbatBlocked: true,
+      messageId: null,
+    };
+  }
+
   const resend = getResendClient();
   
   if (!resend) {
@@ -144,4 +166,58 @@ export function createGenericEmail(
   };
 }
 
+// ─────────────────────────────────────────────────────────────────────
+// sendEmailRaw — system-only, bypasses Shabbat gate
+// ─────────────────────────────────────────────────────────────────────
+//
+// ⚠️ SYSTEM-ONLY — עוקף את בדיקת השבת/חג!
+// NEVER use for user-facing emails (לקוחות, מטפלים).
+// מיועד *רק* להתראות מערכת קריטיות שחייבות להישלח גם בשבת כדי להתריע
+// על תקלה (למשל: כשל בחישוב זמני שבת ב-hebcal).
+//
+// ההגנה: נמענים מורשים בלבד לפי env var SYSTEM_RAW_RECIPIENTS (או ADMIN_EMAIL
+// כברירת מחדל). ניסיון לשלוח לכתובת לא מורשה נכשל בשקט + לוג שגיאה.
+// ─────────────────────────────────────────────────────────────────────
 
+function getSystemRawAllowlist(): Set<string> {
+  const raw = process.env.SYSTEM_RAW_RECIPIENTS ?? process.env.ADMIN_EMAIL ?? '';
+  return new Set(
+    raw
+      .split(',')
+      .map((s) => s.trim().toLowerCase())
+      .filter(Boolean)
+  );
+}
+
+export async function sendEmailRaw(
+  params: EmailOptions,
+): Promise<{ success: boolean; error?: string }> {
+  const to = params.to.toLowerCase();
+  const allowlist = getSystemRawAllowlist();
+  if (!allowlist.has(to)) {
+    console.error('[sendEmailRaw] BLOCKED — recipient not in SYSTEM_RAW_RECIPIENTS allowlist', {
+      to,
+      allowlistSize: allowlist.size,
+    });
+    return { success: false, error: 'RECIPIENT_NOT_ALLOWED' };
+  }
+
+  const resend = getResendClient();
+  if (!resend) {
+    return { success: false, error: 'API key not configured' };
+  }
+
+  try {
+    const { error } = await resend.emails.send({
+      from: process.env.EMAIL_FROM || 'Tipul App <onboarding@resend.dev>',
+      to,
+      subject: `[SYSTEM] ${params.subject}`,
+      html: params.html,
+      text: params.text || params.html.replace(/<[^>]*>/g, ''),
+    });
+    if (error) return { success: false, error: error.message };
+    return { success: true };
+  } catch (err) {
+    return { success: false, error: err instanceof Error ? err.message : 'Unknown' };
+  }
+}

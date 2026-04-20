@@ -5,6 +5,7 @@ import { calculateSessionDebt } from "@/lib/payment-utils";
 import { escapeHtml } from "@/lib/email-utils";
 import { sendSMSIfEnabled } from "@/lib/sms";
 import { logger } from "@/lib/logger";
+import { isShabbatOrYomTov } from "@/lib/shabbat";
 
 export const dynamic = "force-dynamic";
 
@@ -170,6 +171,12 @@ export async function GET(request: NextRequest) {
   const authHeader = request.headers.get("authorization");
   if (authHeader !== `Bearer ${cronSecret}`) {
     return NextResponse.json({ message: "Unauthorized" }, { status: 401 });
+  }
+
+  // Shabbat/Yom Tov — דילוג. dedup existing ב-SENT מבטיח שליחה ביום המחרת.
+  if (isShabbatOrYomTov()) {
+    logger.info("[cron debt-reminders] דילוג בשבת/חג");
+    return NextResponse.json({ skipped: true, reason: "shabbat_or_yomtov" });
   }
 
   try {

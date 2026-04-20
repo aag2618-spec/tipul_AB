@@ -63,11 +63,14 @@ export async function POST(request: NextRequest) {
       });
     }
 
-    // Check if we already sent confirmation for this session
+    // ⭐ סינון SENT + EMAIL בלבד — log של FAILED (למשל מנסיון בשבת) לא חוסם retry,
+    //    ו-SMS SENT לא חוסם retry של EMAIL (dedup נפרד לכל ערוץ)
     const existingLog = await prisma.communicationLog.findFirst({
       where: {
         sessionId: therapySession.id,
         type: "SESSION_CONFIRMATION",
+        channel: "EMAIL",
+        status: "SENT",
       },
     });
 
@@ -121,6 +124,13 @@ export async function POST(request: NextRequest) {
       return NextResponse.json({
         message: "Confirmation email sent successfully",
         success: true,
+      });
+    } else if (result.shabbatBlocked) {
+      // חסום בשבת/חג — מחזירים 200 עם הודעה ברורה (לא 500, כי זו לא תקלה)
+      return NextResponse.json({
+        message: "אישור לא נשלח — שבת/חג. ניתן לשלוח מחדש במוצאי שבת/חג.",
+        success: false,
+        shabbatBlocked: true,
       });
     } else {
       return NextResponse.json(

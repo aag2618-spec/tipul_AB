@@ -2,6 +2,7 @@ import { NextRequest, NextResponse } from "next/server";
 import { requireAuth } from "@/lib/api-auth";
 import prisma from "@/lib/prisma";
 import { logger } from "@/lib/logger";
+import { isShabbatOrYomTov } from "@/lib/shabbat";
 
 export const dynamic = "force-dynamic";
 
@@ -10,6 +11,15 @@ export async function GET(request: NextRequest) {
     const auth = await requireAuth();
     if ("error" in auth) return auth.error;
     const { userId } = auth;
+
+    // בשבת/חג — מחזירים רשימה ריקה. הנוטיפיקציות נשמרות ב-DB ויופיעו במוצ"ש.
+    if (isShabbatOrYomTov()) {
+      return NextResponse.json({
+        notifications: [],
+        unreadCount: 0,
+        isShabbat: true,
+      });
+    }
 
     const { searchParams } = new URL(request.url);
     const unreadOnly = searchParams.get("unread") === "true";

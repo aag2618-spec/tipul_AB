@@ -33,6 +33,7 @@ import { he } from "date-fns/locale";
 import { toast } from "sonner";
 import { AddCustomTask } from "./add-custom-task";
 import { CompletionCelebration, useCompletionCelebration } from "./completion-celebration";
+import { useShabbat } from "@/hooks/useShabbat";
 
 interface Task {
   id: string;
@@ -271,8 +272,13 @@ export function PersonalTasksWidget() {
     return () => clearTimeout(timer);
   }, [tasks]);
 
+  const { isShabbat: isShabbatMode, tooltip: shabbatTooltip } = useShabbat();
+
   useEffect(() => {
     const checkReminders = () => {
+      // בשבת/חג — לא להבהב, לא להציג toast, לא להפעיל Notification API.
+      if (isShabbatMode) return;
+
       const now = new Date();
       const notifiedKey = "notified_reminders";
       const notified = JSON.parse(localStorage.getItem(notifiedKey) || "[]");
@@ -305,7 +311,7 @@ export function PersonalTasksWidget() {
     const interval = setInterval(checkReminders, 60000);
     checkReminders();
     return () => clearInterval(interval);
-  }, [tasks]);
+  }, [tasks, isShabbatMode]);
 
   const handleComplete = async (taskId: string) => {
     try {
@@ -390,6 +396,24 @@ export function PersonalTasksWidget() {
   }
 
   const highlightClass = highlight ? "ring-2 ring-teal-400 dark:ring-teal-500 ring-offset-2 ring-offset-background transition-all duration-500" : "transition-all duration-500";
+
+  // ⭐ בשבת/חג — widget מוסתר ובמקומו הודעת "שבת שלום" שלווה (בלי מטלות/תזכורות).
+  if (isShabbatMode) {
+    return (
+      <Card id="personal-tasks" className={highlightClass}>
+        <CardHeader className="pb-2">
+          <div className="flex items-center gap-2">
+            <ListTodo className="h-4 w-4 text-primary/60" />
+            <CardTitle className="text-sm font-medium text-muted-foreground">מטלות ותזכורות</CardTitle>
+          </div>
+        </CardHeader>
+        <CardContent className="py-6 text-center space-y-1">
+          <p className="text-lg font-semibold text-primary">{shabbatTooltip?.split(" — ")[0] ?? "שבת שלום"}</p>
+          <p className="text-sm text-muted-foreground">המטלות יחזרו להופיע במוצאי שבת/חג</p>
+        </CardContent>
+      </Card>
+    );
+  }
 
   if (tasks.length === 0 && reminders.length === 0 && !showHistory) {
     return (

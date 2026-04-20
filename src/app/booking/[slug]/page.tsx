@@ -18,6 +18,8 @@ interface TherapistInfo {
   welcomeMessage: string | null;
   maxAdvanceDays: number;
   enabledDays: number[];
+  shabbatBlocked?: boolean;
+  shabbatMessage?: string;
 }
 
 const HEBREW_DAYS = ["ראשון", "שני", "שלישי", "רביעי", "חמישי", "שישי", "מוצ״ש"];
@@ -59,7 +61,7 @@ export default function BookingPage() {
         const res = await fetch(`/api/booking/${slug}`);
         if (!res.ok) {
           const data = await res.json();
-          setError(data.error || "דף הזימון לא נמצא");
+          setError(data.message || data.error || "דף הזימון לא נמצא");
           return;
         }
         setTherapistInfo(await res.json());
@@ -106,7 +108,7 @@ export default function BookingPage() {
         body: JSON.stringify({ date: dateStr, time: selectedTime, clientName, clientPhone, clientEmail, notes: clientNotes }),
       });
       const data = await res.json();
-      if (!res.ok) { setError(data.error || "שגיאה בקביעת התור"); return; }
+      if (!res.ok) { setError(data.message || data.error || "שגיאה בקביעת התור"); return; }
       setConfirmationMessage(data.message);
       setBookedDate(data.date);
       setBookedTime(selectedTime);
@@ -173,6 +175,26 @@ export default function BookingPage() {
     return (<div className="min-h-screen flex items-center justify-center bg-gradient-to-br from-background via-secondary/20 to-accent/10 p-4" dir="rtl"><Card className="max-w-md w-full"><CardContent className="pt-6 text-center"><AlertCircle className="h-12 w-12 text-destructive mx-auto mb-4" /><p className="text-lg font-medium">{error}</p></CardContent></Card></div>);
   }
   if (!therapistInfo) return null;
+
+  // ⭐ בשבת/חג — הצג מסך נעילה ברור, בלי אופציית הזמנה
+  if (therapistInfo.shabbatBlocked) {
+    return (
+      <div className="min-h-screen flex items-center justify-center bg-gradient-to-br from-background via-secondary/20 to-accent/10 p-4" dir="rtl">
+        <Card className="max-w-md w-full">
+          <CardContent className="pt-8 pb-6 text-center space-y-4">
+            {therapistInfo.therapistImage && (
+              <img src={therapistInfo.therapistImage} alt={therapistInfo.therapistName} className="w-20 h-20 rounded-full mx-auto object-cover opacity-60" />
+            )}
+            <h1 className="text-2xl font-bold">{therapistInfo.therapistName}</h1>
+            <div className="text-3xl font-bold text-primary mt-6">שבת שלום</div>
+            <p className="text-base text-muted-foreground leading-relaxed">
+              {therapistInfo.shabbatMessage ?? "מערכת הזימון סגורה בשבת ובחגים. ניתן להזמין במוצאי שבת/חג."}
+            </p>
+          </CardContent>
+        </Card>
+      </div>
+    );
+  }
 
   return (
     <div className="min-h-screen bg-gradient-to-br from-background via-secondary/20 to-accent/10 py-8 px-4" dir="rtl">

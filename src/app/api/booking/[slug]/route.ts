@@ -5,6 +5,7 @@ import { sendSMSIfEnabled } from "@/lib/sms";
 import { logger } from "@/lib/logger";
 import { BOOKING_RATE_LIMIT_WINDOW_MS, BOOKING_RATE_LIMIT_MAX } from "@/lib/constants";
 import { syncSessionToGoogleCalendar } from "@/lib/google-calendar-sync";
+import { isShabbatOrYomTov } from "@/lib/shabbat";
 
 function toIsraelDate(dateStr: string, timeStr: string = "00:00"): Date {
   const testDate = new Date(`${dateStr}T12:00:00Z`);
@@ -103,6 +104,18 @@ export async function GET(
     maxAdvanceDays: settings.maxAdvanceDays,
   };
 
+  // בשבת/חג — הטופס הציבורי אינו זמין כלל. מחזירים דגל כדי שה-UI יציג הודעה מתאימה.
+  if (isShabbatOrYomTov()) {
+    return NextResponse.json({
+      ...baseResponse,
+      enabledDays: [],
+      workingHours: {},
+      slots: [],
+      shabbatBlocked: true,
+      shabbatMessage: "מערכת הזימון סגורה בשבת ובחגים. ניתן להזמין במוצאי שבת/חג.",
+    });
+  }
+
   if (!dateStr) {
     const workingHours = (settings.workingHours ?? {}) as Record<string, { start: string; end: string; enabled: boolean }>;
     const enabledDays = Object.entries(workingHours)
@@ -166,6 +179,18 @@ export async function POST(
   { params }: { params: Promise<{ slug: string }> }
 ) {
   const { slug } = await params;
+
+  // ⭐ חסימה מלאה של זימון עצמי בשבת/חג — אין יצירת פגישה, אין שליחה, אין outbox.
+  //    הלקוח מקבל הודעה ברורה לחזור במוצאי שבת/חג.
+  if (isShabbatOrYomTov()) {
+    return NextResponse.json(
+      {
+        message: "מערכת הזימון סגורה בשבת ובחגים. נא לחזור ולהזמין במוצאי שבת/חג.",
+        shabbatBlocked: true,
+      },
+      { status: 403 }
+    );
+  }
 
   const ip = request.headers.get("x-forwarded-for")?.split(",")[0]?.trim()
     || request.headers.get("x-real-ip")
@@ -330,6 +355,8 @@ export async function POST(
       const sessionStatus = settings.requireApproval ? "PENDING_APPROVAL" : "SCHEDULED";
       const price = settings.defaultPrice || foundClient.defaultSessionPrice || 0;
 
+      // הערה: אם ה-request הגיע לכאן, אנחנו לא בשבת (ה-guard בראש ה-handler חסם).
+      //        לכן pendingConfirmation* נשארים false (ברירת מחדל של ה-schema).
       const session = await tx.therapySession.create({
         data: {
           therapistId: settings.therapistId,

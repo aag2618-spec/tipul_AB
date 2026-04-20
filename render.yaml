@@ -192,3 +192,43 @@ services:
           property: url
       - key: CRON_SECRET
         sync: false
+
+  # Cron job for trial expiry reminders + expired trial handling (daily at 09:00 Israel)
+  - type: cron
+    name: trial-expiry
+    runtime: node
+    region: frankfurt
+    plan: free
+    schedule: "0 6 * * *"  # 06:00 UTC (09:00 Israel)
+    buildCommand: echo "No build needed"
+    startCommand: |
+      curl -s --max-time 60 -X GET "$RENDER_EXTERNAL_URL/api/cron/trial-expiry" \
+        -H "Authorization: Bearer $CRON_SECRET"
+    envVars:
+      - key: RENDER_EXTERNAL_URL
+        fromService:
+          type: web
+          name: tipul-app
+          property: url
+      - key: CRON_SECRET
+        sync: false
+
+  # Cron job for Shabbat outbox - sends pending booking confirmations after Shabbat/Yom Tov (every 15 min)
+  - type: cron
+    name: booking-outbox
+    runtime: node
+    region: frankfurt
+    plan: free
+    schedule: "*/15 * * * *"  # Every 15 minutes
+    buildCommand: echo "No build needed"
+    startCommand: |
+      curl -s --max-time 60 -X GET "$RENDER_EXTERNAL_URL/api/cron/booking-outbox" \
+        -H "Authorization: Bearer $CRON_SECRET"
+    envVars:
+      - key: RENDER_EXTERNAL_URL
+        fromService:
+          type: web
+          name: tipul-app
+          property: url
+      - key: CRON_SECRET
+        sync: false

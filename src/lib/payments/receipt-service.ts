@@ -164,6 +164,7 @@ export async function sendPaymentReceiptEmail(params: {
 
     if (commSettings?.sendReceiptToClient !== false && client.email) {
       const emailResult = await sendEmail({ to: client.email, subject, html });
+      // ⭐ רישום לפי תוצאה אמיתית — לא status SENT קשיח (מטעה במיוחד בשבת)
       await prisma.communicationLog.create({
         data: {
           type: "CUSTOM",
@@ -171,8 +172,9 @@ export async function sendPaymentReceiptEmail(params: {
           recipient: client.email.toLowerCase(),
           subject,
           content: html,
-          status: "SENT",
-          sentAt: new Date(),
+          status: emailResult.success ? "SENT" : "FAILED",
+          errorMessage: emailResult.success ? null : String(emailResult.error),
+          sentAt: emailResult.success ? new Date() : null,
           messageId: emailResult.messageId || null,
           clientId: params.clientId,
           userId: params.userId,
@@ -181,6 +183,8 @@ export async function sendPaymentReceiptEmail(params: {
     }
 
     if (commSettings?.sendReceiptToTherapist !== false && therapist?.email) {
+      // משלוח עותק למטפל — לא נרשם ב-log (כבר נרשם ללקוח).
+      // בשבת יחזור shabbatBlocked:true בשקט; במוצ"ש ניתן לשלוח ידנית אם רוצים.
       await sendEmail({
         to: therapist.email,
         subject: `[עותק] ${subject}`,

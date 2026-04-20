@@ -338,6 +338,11 @@ model TherapySession {
   // Google Calendar sync
   googleEventId           String?
 
+  // Shabbat outbox — מסומן true אם הפגישה נוצרה בשבת/חג ושליחת ההודעות נדחתה
+  pendingConfirmationEmail     Boolean @default(false) // מייל אישור ללקוח
+  pendingConfirmationSms       Boolean @default(false) // SMS אישור ללקוח
+  pendingTherapistNotifyEmail  Boolean @default(false) // מייל התראה למטפל
+
   createdAt DateTime @default(now())
   updatedAt DateTime @updatedAt
 
@@ -829,6 +834,15 @@ enum CommunicationType {
   DEBT_REMINDER
   CUSTOM
   INCOMING_EMAIL
+  INCOMING_SMS
+  // Subscription / Trial reminders — נוספו עבור dedup חסימת שבת
+  SUBSCRIPTION_REMINDER_7D
+  SUBSCRIPTION_REMINDER_3D
+  SUBSCRIPTION_REMINDER_1D
+  TRIAL_REMINDER_7D
+  TRIAL_REMINDER_3D
+  TRIAL_REMINDER_2D
+  TRIAL_EXPIRED
 }
 
 enum CommunicationChannel {

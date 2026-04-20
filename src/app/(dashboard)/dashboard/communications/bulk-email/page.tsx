@@ -14,6 +14,7 @@ import { toast } from "sonner";
 import { Dialog, DialogContent, DialogDescription, DialogHeader, DialogTitle } from "@/components/ui/dialog";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
 import { Badge } from "@/components/ui/badge";
+import { useShabbat } from "@/hooks/useShabbat";
 
 interface Client {
   id: string;
@@ -64,6 +65,7 @@ export default function BulkEmailPage() {
   const [isLoading, setIsLoading] = useState(true);
   const [isSending, setIsSending] = useState(false);
   const [showPreview, setShowPreview] = useState(false);
+  const { isShabbat, tooltip } = useShabbat();
   const [selectedTemplate, setSelectedTemplate] = useState("custom");
   const [searchTerm, setSearchTerm] = useState("");
   const [formData, setFormData] = useState({
@@ -310,7 +312,12 @@ export default function BulkEmailPage() {
                   <Eye className="h-4 w-4" />
                   תצוגה מקדימה
                 </Button>
-                <Button type="submit" disabled={isSending || selectedClients.size === 0} className="flex-1 gap-2">
+                <Button
+                  type="submit"
+                  disabled={isSending || selectedClients.size === 0 || isShabbat}
+                  title={isShabbat ? tooltip ?? undefined : undefined}
+                  className="flex-1 gap-2"
+                >
                   {isSending ? (
                     <>
                       <Loader2 className="h-4 w-4 animate-spin" />
@@ -379,10 +386,12 @@ export default function BulkEmailPage() {
                 setShowPreview(false);
                 handleSubmit(new Event('submit') as any);
               }} 
+              disabled={isShabbat}
+              title={isShabbat ? tooltip ?? undefined : undefined}
               className="flex-1 gap-2"
             >
               <Send className="h-4 w-4" />
-              נראה מצוין, שלח לכולם!
+              {isShabbat ? (tooltip?.split(" — ")[0] ?? "שבת שלום") : "נראה מצוין, שלח לכולם!"}
             </Button>
           </div>
         </DialogContent>

@@ -8,6 +8,7 @@ import { sendEmail } from "@/lib/resend";
 import { PLAN_NAMES, MONTHLY_PRICES } from "@/lib/pricing";
 import { escapeHtml } from "@/lib/email-utils";
 import { logger } from "@/lib/logger";
+import { isShabbatOrYomTov } from "@/lib/shabbat";
 
 // ========================================
 // הגדרות
@@ -36,6 +37,12 @@ export async function GET(req: NextRequest) {
     const authHeader = req.headers.get("authorization");
     if (authHeader !== `Bearer ${cronSecret}`) {
       return NextResponse.json({ message: "לא מורשה" }, { status: 401 });
+    }
+
+    // Shabbat/Yom Tov — דילוג. cron יומי; ייתפס שוב ביום המחרת.
+    if (isShabbatOrYomTov()) {
+      logger.info("[cron subscription-reminders] דילוג בשבת/חג");
+      return NextResponse.json({ skipped: true, reason: "shabbat_or_yomtov" });
     }
 
     const now = new Date();

@@ -4,6 +4,7 @@ import { sendEmail } from "@/lib/resend";
 import { create24HourReminderEmail, formatSessionDateTime } from "@/lib/email-templates";
 import { sendSMSIfEnabled } from "@/lib/sms";
 import { logger } from "@/lib/logger";
+import { isShabbatOrYomTov, wasShabbatInLastHours } from "@/lib/shabbat";
 
 // Send 24-hour session reminders
 // Should be called by cron job every hour
@@ -21,11 +22,24 @@ export async function GET(request: NextRequest) {
     return NextResponse.json({ message: "Unauthorized" }, { status: 401 });
   }
 
+  // Shabbat/Yom Tov — דלג לגמרי; catch-up יתבצע במוצאי שבת
+  if (isShabbatOrYomTov()) {
+    logger.info("[cron reminders-24h] דילוג בשבת/חג");
+    return NextResponse.json({ skipped: true, reason: "shabbat_or_yomtov" });
+  }
+
   try {
     const now = new Date();
-    
-    // Find sessions starting in 23-25 hours (to catch within the hour window)
-    const reminderWindowStart = new Date(now.getTime() + 23 * 60 * 60 * 1000);
+    // אם שבת הסתיימה ב-72h האחרונים — מרחיבים את חלון השאילתה אחורה
+    // כדי לתפוס פגישות שהתזכורת שלהן הוחמצה בשבת.
+    const needsCatchup = wasShabbatInLastHours(now, 72);
+
+    // Find sessions starting in 23-25 hours (to catch within the hour window).
+    // בזמן catch-up (אחרי שבת): מרחיבים מ-"now" עד +25h כדי לתפוס כל פגישה עתידית
+    // שהתזכורת שלה הוחמצה. dedup של status:SENT מונע שליחה כפולה.
+    const reminderWindowStart = needsCatchup
+      ? now
+      : new Date(now.getTime() + 23 * 60 * 60 * 1000);
     const reminderWindowEnd = new Date(now.getTime() + 25 * 60 * 60 * 1000);
 
     const upcomingSessions = await prisma.therapySession.findMany({
@@ -58,11 +72,14 @@ export async function GET(request: NextRequest) {
       const settings = session.therapist.communicationSetting;
       if (settings && !settings.send24hReminder) continue;
 
-      // Check if we already sent this reminder
+      // ⭐ סינון SENT + EMAIL בלבד — log של FAILED לא חוסם retry (למשל אחרי שבת),
+      //    ו-SMS שנשלח בהצלחה לא חוסם retry של EMAIL (זה dedup נפרד לכל ערוץ)
       const existingLog = await prisma.communicationLog.findFirst({
         where: {
           sessionId: session.id,
           type: "REMINDER_24H",
+          channel: "EMAIL",
+          status: "SENT",
         },
       });
 

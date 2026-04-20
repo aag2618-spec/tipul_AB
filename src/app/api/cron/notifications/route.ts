@@ -5,6 +5,7 @@ import { calculateDebtFromPayments } from "@/lib/payment-utils";
 import { escapeHtml } from "@/lib/email-utils";
 import { logger } from "@/lib/logger";
 import { parseIsraelTime } from "@/lib/date-utils";
+import { isShabbatOrYomTov } from "@/lib/shabbat";
 
 export const dynamic = "force-dynamic";
 
@@ -16,6 +17,12 @@ export async function GET(request: NextRequest) {
   const authHeader = request.headers.get("authorization");
   if (authHeader !== `Bearer ${cronSecret}`) {
     return NextResponse.json({ message: "Unauthorized" }, { status: 401 });
+  }
+
+  // Shabbat/Yom Tov — דלג לגמרי; סיכומי בוקר/ערב לא יישלחו (כל יום עומד בפני עצמו).
+  if (isShabbatOrYomTov()) {
+    logger.info("[cron notifications] דילוג בשבת/חג");
+    return NextResponse.json({ skipped: true, reason: "shabbat_or_yomtov" });
   }
 
   const summaryType = request.nextUrl.searchParams.get("type");
