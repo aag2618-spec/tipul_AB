@@ -1,6 +1,7 @@
 // API: פניות תמיכה — צד אדמין
 import { NextRequest, NextResponse } from "next/server";
 import prisma from "@/lib/prisma";
+import { logger } from "@/lib/logger";
 import { requirePermission } from "@/lib/api-auth";
 
 export const dynamic = "force-dynamic";
@@ -78,7 +79,9 @@ export async function GET(req: NextRequest) {
       },
     });
   } catch (error) {
-    console.error("שגיאה בטעינת פניות:", error);
+    logger.error("Error fetching support tickets:", {
+      error: error instanceof Error ? error.message : String(error),
+    });
     return NextResponse.json({ message: "שגיאה בטעינת הפניות" }, { status: 500 });
   }
 }
