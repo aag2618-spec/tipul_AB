@@ -1,6 +1,7 @@
 import { prisma } from "./prisma";
 import { isShabbatOrYomTov } from "./shabbat";
 import { logger } from "./logger";
+import { isSameIsraelMonth } from "./date-utils";
 
 // ─── Pulseem API Configuration ───────────────────────────────────
 const PULSEEM_API_URL = "https://api.pulseem.com/api/v1/SmsApi/SendSms";
@@ -103,10 +104,10 @@ async function checkAndUpdateQuota(userId: string): Promise<{
   let usage = settings.smsMonthlyUsage ?? 0;
   const alertPercent = settings.smsAlertAtPercent ?? 80;
 
-  // Monthly reset check
+  // Monthly reset check — uses Israel calendar month (quota resets at midnight Israel time)
   const now = new Date();
   const resetDate = settings.smsQuotaResetDate;
-  if (!resetDate || now.getMonth() !== resetDate.getMonth() || now.getFullYear() !== resetDate.getFullYear()) {
+  if (!resetDate || !isSameIsraelMonth(now, resetDate)) {
     // New month — reset counter
     usage = 0;
     await prisma.communicationSetting.update({

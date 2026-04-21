@@ -1,6 +1,7 @@
 import { NextRequest, NextResponse } from "next/server";
 import prisma from "@/lib/prisma";
 import { logger } from "@/lib/logger";
+import { getCurrentUsageKey } from "@/lib/date-utils";
 
 import { requireAuth } from "@/lib/api-auth";
 
@@ -82,10 +83,8 @@ export async function GET(req: NextRequest) {
       };
     }
 
-    // Get current month usage
-    const now = new Date();
-    const month = now.getMonth() + 1;
-    const year = now.getFullYear();
+    // Get current month usage — Israel timezone
+    const { month, year } = getCurrentUsageKey();
 
     let monthlyUsage = await prisma.monthlyUsage.findUnique({
       where: {

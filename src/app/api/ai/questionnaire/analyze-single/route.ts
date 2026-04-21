@@ -5,6 +5,7 @@ import { getApproachById, getApproachPrompts, buildIntegrationSection, getScales
 import { checkTrialAiLimit, updateTrialAiCost } from "@/lib/trial-limits";
 import { logger } from "@/lib/logger";
 import { requireAuth } from "@/lib/api-auth";
+import { getCurrentUsageKey } from "@/lib/date-utils";
 
 // שימוש ב-Gemini 2.0 Flash בלבד
 const genAI = new GoogleGenerativeAI(process.env.GOOGLE_AI_API_KEY || "");
@@ -65,14 +66,14 @@ export async function POST(req: NextRequest) {
       );
     }
 
-    // בדיקת מכסה חודשית
-    const now = new Date();
+    // בדיקת מכסה חודשית — לפי שעון ישראל
+    const { month, year } = getCurrentUsageKey();
     const monthlyUsage = await prisma.monthlyUsage.findUnique({
       where: {
         userId_month_year: {
           userId: user.id,
-          month: now.getMonth() + 1,
-          year: now.getFullYear(),
+          month,
+          year,
         },
       },
     });
@@ -253,19 +254,19 @@ ${getUniversalPromptsLight()}`;
       },
     });
 
-    // עדכון סטטיסטיקות שימוש חודשיות
+    // עדכון סטטיסטיקות שימוש חודשיות — לפי שעון ישראל
     await prisma.monthlyUsage.upsert({
       where: {
         userId_month_year: {
           userId: user.id,
-          month: now.getMonth() + 1,
-          year: now.getFullYear(),
+          month,
+          year,
         },
       },
       create: {
         userId: user.id,
-        month: now.getMonth() + 1,
-        year: now.getFullYear(),
+        month,
+        year,
         singleQuestionnaireCount: 1,
         totalCost: cost,
         totalTokens: totalTokens,

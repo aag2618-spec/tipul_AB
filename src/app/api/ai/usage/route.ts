@@ -1,6 +1,7 @@
 import { NextRequest, NextResponse } from "next/server";
 import { prisma } from "@/lib/prisma";
 import { logger } from "@/lib/logger";
+import { getCurrentUsageKey } from "@/lib/date-utils";
 
 import { requireAuth } from "@/lib/api-auth";
 
@@ -25,14 +26,14 @@ export async function GET(req: NextRequest) {
       return NextResponse.json({ message: "משתמש לא נמצא" }, { status: 404 });
     }
 
-    // Get current month usage
-    const now = new Date();
+    // Get current month usage — Israel timezone
+    const { month, year } = getCurrentUsageKey();
     const monthlyUsage = await prisma.monthlyUsage.findUnique({
       where: {
         userId_month_year: {
           userId: user.id,
-          month: now.getMonth() + 1,
-          year: now.getFullYear(),
+          month,
+          year,
         },
       },
     });
@@ -101,8 +102,8 @@ export async function GET(req: NextRequest) {
       success: true,
       plan: user.aiTier,
       usage: usage,
-      month: now.getMonth() + 1,
-      year: now.getFullYear(),
+      month,
+      year,
     });
   } catch (error) {
     logger.error("שגיאה בקבלת נתוני שימוש:", { error: error instanceof Error ? error.message : String(error) });

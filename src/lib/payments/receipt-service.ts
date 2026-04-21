@@ -6,6 +6,7 @@ import { getReceiptPageUrl } from "@/lib/receipt-token";
 import { mapPaymentMethod } from "@/lib/email-utils";
 import { calculateDebtFromPayments } from "@/lib/payment-utils";
 import { logger } from "@/lib/logger";
+import { getIsraelYear } from "@/lib/date-utils";
 import type { PaymentMethod, ReceiptResult } from "./types";
 
 // ================================================================
@@ -38,7 +39,8 @@ export async function issueReceipt(params: {
       select: { nextReceiptNumber: true },
     });
     const reservedNumber = (receiptUser.nextReceiptNumber ?? 2) - 1;
-    const year = new Date().getFullYear();
+    // שנת קבלה — לפי שעון ישראל (קבלה ב-1.1 00:30 ישראל חייבת לקבל את השנה החדשה)
+    const year = getIsraelYear();
     const receiptNumber = `${year}-${String(reservedNumber).padStart(4, "0")}`;
     const receiptUrl = getReceiptPageUrl(params.paymentId);
 

@@ -1,4 +1,5 @@
 import prisma from "@/lib/prisma";
+import { getCurrentUsageKey } from "@/lib/date-utils";
 
 // ברירות מחדל למכסות
 const DEFAULT_LIMITS = {
@@ -108,10 +109,8 @@ export async function checkUsageLimit(
     };
   }
 
-  // Get current month usage
-  const now = new Date();
-  const month = now.getMonth() + 1;
-  const year = now.getFullYear();
+  // Get current month usage — uses Israel timezone to match calendar month
+  const { month, year } = getCurrentUsageKey();
 
   let monthlyUsage = await prisma.monthlyUsage.findUnique({
     where: {
@@ -162,9 +161,8 @@ export async function incrementUsage(
   tokensUsed?: number,
   cost?: number
 ): Promise<void> {
-  const now = new Date();
-  const month = now.getMonth() + 1;
-  const year = now.getFullYear();
+  // Uses Israel timezone to match calendar month
+  const { month, year } = getCurrentUsageKey();
 
   const usageField = `${feature}Count`;
 

@@ -1,6 +1,7 @@
 import { NextRequest, NextResponse } from "next/server";
 import prisma from "@/lib/prisma";
 import { logger } from "@/lib/logger";
+import { getIsraelMidnight, getIsraelMonth, getIsraelYear, parseIsraelTime } from "@/lib/date-utils";
 
 import { requireAdmin } from "@/lib/api-auth";
 
@@ -12,10 +13,16 @@ export async function GET(req: NextRequest) {
     if ("error" in auth) return auth.error;
     const { userId, session } = auth;
 
+    // today / yesterday / startOfMonth / startOfYear — לפי שעון ישראל
     const now = new Date();
-    const todayStart = new Date(now.getFullYear(), now.getMonth(), now.getDate());
-    const yesterdayStart = new Date(todayStart);
-    yesterdayStart.setDate(yesterdayStart.getDate() - 1);
+    const todayStart = getIsraelMidnight(now);
+    const yesterdayStart = new Date(todayStart.getTime() - 24 * 60 * 60 * 1000);
+    const israelMonth = getIsraelMonth(now);
+    const israelYear = getIsraelYear(now);
+    const startOfMonth = parseIsraelTime(
+      `${israelYear}-${String(israelMonth).padStart(2, "0")}-01`
+    );
+    const startOfYear = parseIsraelTime(`${israelYear}-01-01`);
 
     const [
       totalUsers,
@@ -44,7 +51,7 @@ export async function GET(req: NextRequest) {
       }),
       prisma.apiUsageLog.groupBy({
         by: ["userId"],
-        where: { createdAt: { gte: new Date(now.getFullYear(), now.getMonth(), 1) } },
+        where: { createdAt: { gte: startOfMonth } },
         _count: true,
         _sum: { cost: true },
         orderBy: { _count: { userId: "desc" } },
@@ -57,7 +64,7 @@ export async function GET(req: NextRequest) {
       prisma.user.findMany({
         where: {
           role: "USER",
-          createdAt: { gte: new Date(now.getFullYear(), 0, 1) },
+          createdAt: { gte: startOfYear },
         },
         select: { createdAt: true, aiTier: true },
       }),
@@ -101,15 +108,16 @@ export async function GET(req: NextRequest) {
       cost: Math.round(dayMap.get(i)!.cost * 100) / 100,
     }));
 
+    // monthlyTrend — חודשים 1..israelMonth (כולל), לפי שעון ישראל
     const monthNames = ["ינואר", "פברואר", "מרץ", "אפריל", "מאי", "יוני", "יולי", "אוגוסט", "ספטמבר", "אוקטובר", "נובמבר", "דצמבר"];
     const prices: Record<string, number> = { ESSENTIAL: 117, PRO: 145, ENTERPRISE: 220 };
     const monthlyTrend: { month: string; users: number; revenue: number }[] = [];
-    for (let m = 0; m <= now.getMonth(); m++) {
-      const usersInMonth = monthlyUsers.filter((u) => new Date(u.createdAt).getMonth() <= m).length;
+    for (let m = 1; m <= israelMonth; m++) {
+      const usersInMonth = monthlyUsers.filter((u) => getIsraelMonth(new Date(u.createdAt)) <= m).length;
       const revenue = monthlyUsers
-        .filter((u) => new Date(u.createdAt).getMonth() <= m)
+        .filter((u) => getIsraelMonth(new Date(u.createdAt)) <= m)
         .reduce((sum, u) => sum + (prices[u.aiTier] || 117), 0);
-      monthlyTrend.push({ month: monthNames[m], users: usersInMonth, revenue });
+      monthlyTrend.push({ month: monthNames[m - 1], users: usersInMonth, revenue });
     }
 
     const todayCalls = todayLogs._count || 0;

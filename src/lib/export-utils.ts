@@ -5,6 +5,7 @@ import { jsPDF } from "jspdf";
 import "jspdf-autotable";
 import { format } from "date-fns";
 import { he } from "date-fns/locale";
+import { getIsraelMonth, getIsraelYear, getIsraelQuarter } from "@/lib/date-utils";
 
 // Extend jsPDF with autoTable
 declare module "jspdf" {
@@ -113,14 +114,13 @@ export function exportAccountantExcel(
 ) {
   const wb = XLSX.utils.book_new();
 
-  // Filter by year/quarter
+  // Filter by year/quarter — Israel calendar
   let filtered = payments.filter((p) => {
     if (!p.paidAt) return false;
     const paidDate = new Date(p.paidAt);
-    if (paidDate.getFullYear() !== year) return false;
+    if (getIsraelYear(paidDate) !== year) return false;
     if (quarter) {
-      const month = paidDate.getMonth();
-      const pQuarter = Math.floor(month / 3) + 1;
+      const pQuarter = getIsraelQuarter(paidDate);
       if (pQuarter !== quarter) return false;
     }
     return true;
@@ -284,14 +284,13 @@ export function exportAccountantPDF(
   year: number,
   quarter?: number
 ) {
-  // Filter by year/quarter
+  // Filter by year/quarter — Israel calendar
   let filtered = payments.filter((p) => {
     if (!p.paidAt) return false;
     const paidDate = new Date(p.paidAt);
-    if (paidDate.getFullYear() !== year) return false;
+    if (getIsraelYear(paidDate) !== year) return false;
     if (quarter) {
-      const month = paidDate.getMonth();
-      const pQuarter = Math.floor(month / 3) + 1;
+      const pQuarter = getIsraelQuarter(paidDate);
       if (pQuarter !== quarter) return false;
     }
     return true;
@@ -520,9 +519,9 @@ export function exportAccountantReport(
 ): boolean {
   const filtered = receipts.filter((r) => {
     const date = r.paidAt ? new Date(r.paidAt) : new Date(r.createdAt);
-    if (date.getFullYear() !== year) return false;
+    if (getIsraelYear(date) !== year) return false;
     if (quarter) {
-      const q = Math.floor(date.getMonth() / 3) + 1;
+      const q = getIsraelQuarter(date);
       if (q !== quarter) return false;
     }
     return true;
@@ -596,10 +595,11 @@ export function exportAccountantReport(
   });
   XLSX.utils.book_append_sheet(wb, detailWs, "פירוט קבלות");
 
-  // --- Sheet 3: סיכום חודשי ---
+  // --- Sheet 3: סיכום חודשי (לפי שעון ישראל) ---
   const monthMap: Record<number, { count: number; total: number }> = {};
   filtered.forEach((r) => {
-    const m = new Date(r.paidAt || r.createdAt).getMonth();
+    // getIsraelMonth מחזיר 1-12; מנרמלים ל-0-11 לצורך monthNames index
+    const m = getIsraelMonth(new Date(r.paidAt || r.createdAt)) - 1;
     if (!monthMap[m]) monthMap[m] = { count: 0, total: 0 };
     monthMap[m].count += 1;
     monthMap[m].total += Number(r.amount);
@@ -614,10 +614,10 @@ export function exportAccountantReport(
   monthWs["!cols"] = [{ wch: 14 }, { wch: 14 }, { wch: 18 }];
   XLSX.utils.book_append_sheet(wb, monthWs, "סיכום חודשי");
 
-  // --- Sheet 4: סיכום רבעוני ---
+  // --- Sheet 4: סיכום רבעוני (לפי שעון ישראל) ---
   const qMap: Record<number, { count: number; total: number }> = {};
   filtered.forEach((r) => {
-    const q = Math.floor(new Date(r.paidAt || r.createdAt).getMonth() / 3) + 1;
+    const q = getIsraelQuarter(new Date(r.paidAt || r.createdAt));
     if (!qMap[q]) qMap[q] = { count: 0, total: 0 };
     qMap[q].count += 1;
     qMap[q].total += Number(r.amount);

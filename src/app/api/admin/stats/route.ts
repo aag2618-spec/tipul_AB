@@ -1,6 +1,7 @@
 import { NextResponse } from "next/server";
 import prisma from "@/lib/prisma";
 import { logger } from "@/lib/logger";
+import { getIsraelMidnight, getIsraelMonth, getIsraelYear, parseIsraelTime } from "@/lib/date-utils";
 
 import { requireAdmin } from "@/lib/api-auth";
 
@@ -18,9 +19,13 @@ export async function GET() {
     if ("error" in auth) return auth.error;
     const { userId, session } = auth;
 
+    // start-of-month / start-of-day — לפי שעון ישראל (DST-aware)
     const now = new Date();
-    const startOfMonth = new Date(now.getFullYear(), now.getMonth(), 1);
-    const startOfDay = new Date(now.getFullYear(), now.getMonth(), now.getDate());
+    const startOfDay = getIsraelMidnight(now);
+    // תחילת חודש: 1.X.YYYY 00:00 בשעון ישראל (parseIsraelTime מטפל ב-DST אוטומטית)
+    const monthStr = String(getIsraelMonth(now)).padStart(2, "0");
+    const yearStr = String(getIsraelYear(now));
+    const startOfMonth = parseIsraelTime(`${yearStr}-${monthStr}-01`);
 
     const [
       totalUsers,

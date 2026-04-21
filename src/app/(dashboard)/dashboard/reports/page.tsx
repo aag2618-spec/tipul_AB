@@ -2,13 +2,16 @@ import { getServerSession } from "next-auth";
 import { authOptions } from "@/lib/auth";
 import prisma from "@/lib/prisma";
 import { ReportsView, type ReportData } from "@/components/reports/reports-view";
+import { getIsraelYear, parseIsraelTime } from "@/lib/date-utils";
 
 const hebrewDays = ["ראשון", "שני", "שלישי", "רביעי", "חמישי", "שישי", "שבת"];
 
 async function getReportData(userId: string): Promise<ReportData> {
   try {
+    // yearStart — 1 בינואר של השנה הישראלית הנוכחית, בשעון ישראל
     const now = new Date();
-    const yearStart = new Date(now.getFullYear(), 0, 1);
+    const israelYear = getIsraelYear(now);
+    const yearStart = parseIsraelTime(`${israelYear}-01-01`);
     const threeMonthsAgo = new Date(now);
     threeMonthsAgo.setMonth(threeMonthsAgo.getMonth() - 3);
 
@@ -59,10 +62,17 @@ async function getReportData(userId: string): Promise<ReportData> {
       prisma.client.count({ where: { therapistId: userId, status: { not: "ARCHIVED" } } }),
     ]);
 
-    // Monthly breakdown
+    // Monthly breakdown — בשעון ישראל
     const monthlyData = Array.from({ length: 12 }, (_, i) => {
-      const monthStart = new Date(now.getFullYear(), i, 1);
-      const monthEnd = new Date(now.getFullYear(), i + 1, 0, 23, 59, 59, 999);
+      // i הוא 0-11; חודש בישראל = i+1 (1-12)
+      const monthNum = i + 1;
+      const monthStr = String(monthNum).padStart(2, "0");
+      const monthStart = parseIsraelTime(`${israelYear}-${monthStr}-01`);
+      // סוף חודש = 1 של החודש הבא פחות מילישנייה
+      const nextMonth = monthNum === 12
+        ? parseIsraelTime(`${israelYear + 1}-01-01`)
+        : parseIsraelTime(`${israelYear}-${String(monthNum + 1).padStart(2, "0")}-01`);
+      const monthEnd = new Date(nextMonth.getTime() - 1);
       const msStart = monthStart.getTime();
       const msEnd = monthEnd.getTime();
 

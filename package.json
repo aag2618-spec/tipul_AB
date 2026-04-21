@@ -2,6 +2,9 @@
   "name": "tipul",
   "version": "0.1.0",
   "private": true,
+  "engines": {
+    "node": ">=20.0.0"
+  },
   "scripts": {
     "dev": "next dev",
     "build": "rm -rf .next && prisma generate && node --max-old-space-size=4096 ./node_modules/.bin/next build",

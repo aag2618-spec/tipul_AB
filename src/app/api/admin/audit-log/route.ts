@@ -1,6 +1,7 @@
 import { NextRequest, NextResponse } from "next/server";
 import { prisma } from "@/lib/prisma";
 import { logger } from "@/lib/logger";
+import { parseIsraelTime } from "@/lib/date-utils";
 
 import { requireAdmin } from "@/lib/api-auth";
 
@@ -27,11 +28,12 @@ export async function GET(request: NextRequest) {
 
     if (from || to) {
       const createdAt: Record<string, Date> = {};
-      if (from) createdAt.gte = new Date(from);
+      // from = תחילת היום ב-00:00 שעון ישראל
+      if (from) createdAt.gte = parseIsraelTime(from);
       if (to) {
-        const toDate = new Date(to);
-        toDate.setHours(23, 59, 59, 999);
-        createdAt.lte = toDate;
+        // to = סוף היום ב-23:59:59 שעון ישראל (DST-aware)
+        const endOfDay = parseIsraelTime(`${to}T23:59:59`);
+        createdAt.lte = endOfDay;
       }
       where.createdAt = createdAt;
     }

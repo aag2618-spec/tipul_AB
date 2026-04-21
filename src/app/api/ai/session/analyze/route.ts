@@ -5,6 +5,7 @@ import { getApproachPrompts, getApproachById, buildIntegrationSection, getScales
 import { checkTrialAiLimit, updateTrialAiCost } from "@/lib/trial-limits";
 import { logger } from "@/lib/logger";
 import { requireAuth } from "@/lib/api-auth";
+import { getCurrentUsageKey } from "@/lib/date-utils";
 
 // שימוש ב-Gemini Pro לכל הניתוחים
 const genAI = new GoogleGenerativeAI(process.env.GOOGLE_AI_API_KEY || "");
@@ -103,13 +104,13 @@ export async function POST(req: NextRequest) {
 
     // בדיקת מכסה חודשית (רק לניתוח מפורט)
     if (analysisType === "DETAILED") {
-      const now = new Date();
+      const { month, year } = getCurrentUsageKey();
       const monthlyUsage = await prisma.monthlyUsage.findUnique({
         where: {
           userId_month_year: {
             userId: user.id,
-            month: now.getMonth() + 1,
-            year: now.getFullYear(),
+            month,
+            year,
           },
         },
       });
@@ -280,20 +281,20 @@ export async function POST(req: NextRequest) {
       },
     });
 
-    // עדכון סטטיסטיקות שימוש חודשיות
-    const now = new Date();
+    // עדכון סטטיסטיקות שימוש חודשיות — לפי שעון ישראל
+    const usageKey = getCurrentUsageKey();
     await prisma.monthlyUsage.upsert({
       where: {
         userId_month_year: {
           userId: user.id,
-          month: now.getMonth() + 1,
-          year: now.getFullYear(),
+          month: usageKey.month,
+          year: usageKey.year,
         },
       },
       create: {
         userId: user.id,
-        month: now.getMonth() + 1,
-        year: now.getFullYear(),
+        month: usageKey.month,
+        year: usageKey.year,
         conciseAnalysisCount: analysisType === "CONCISE" ? 1 : 0,
         detailedAnalysisCount: analysisType === "DETAILED" ? 1 : 0,
         totalCost: cost,

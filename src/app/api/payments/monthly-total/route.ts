@@ -1,6 +1,7 @@
 import { NextRequest, NextResponse } from "next/server";
 import prisma from "@/lib/prisma";
 import { logger } from "@/lib/logger";
+import { getIsraelYear, getIsraelMonth } from "@/lib/date-utils";
 
 import { requireAuth } from "@/lib/api-auth";
 
@@ -30,16 +31,18 @@ export async function GET(request: NextRequest) {
       },
     });
 
-    // חישוב החודש הנוכחי בזמן ישראל
-    const israelNow = new Date(new Date().toLocaleString("en-US", { timeZone: "Asia/Jerusalem" }));
-    const israelYear = israelNow.getFullYear();
-    const israelMonth = israelNow.getMonth();
+    // חישוב החודש הנוכחי בזמן ישראל — דרך date-utils (DST-aware)
+    const now = new Date();
+    const israelYear = getIsraelYear(now);
+    const israelMonth = getIsraelMonth(now); // 1-12
 
     // סינון לחודש הנוכחי (בזמן ישראל)
     const thisMonthPaid = payments.filter((p) => {
       const paymentDate = p.paidAt || p.createdAt;
-      const israelDate = new Date(paymentDate.toLocaleString("en-US", { timeZone: "Asia/Jerusalem" }));
-      return israelDate.getFullYear() === israelYear && israelDate.getMonth() === israelMonth;
+      return (
+        getIsraelYear(paymentDate) === israelYear &&
+        getIsraelMonth(paymentDate) === israelMonth
+      );
     });
 
     const total = thisMonthPaid.reduce((sum, p) => sum + Number(p.amount), 0);
@@ -48,19 +51,24 @@ export async function GET(request: NextRequest) {
     const monthsParam = Number(request.nextUrl.searchParams.get("months")) || 1;
     if (monthsParam > 1) {
       const breakdown = [];
+      // חישוב חודשים אחורה לפי שעון ישראל — israelMonth הוא 1-12
       for (let i = monthsParam - 1; i >= 0; i--) {
-        const targetDate = new Date(israelYear, israelMonth - i, 1);
-        const tYear = targetDate.getFullYear();
-        const tMonth = targetDate.getMonth();
+        // נרמול חודש (0-11) לחישוב, חזרה ל-(1-12) לתצוגה
+        const targetMonthZeroIdx = israelMonth - 1 - i;
+        const yearOffset = Math.floor(targetMonthZeroIdx / 12);
+        const tMonth1to12 = ((targetMonthZeroIdx % 12) + 12) % 12 + 1;
+        const tYear = israelYear + yearOffset;
 
         const monthPaid = payments.filter((p) => {
           const paymentDate = p.paidAt || p.createdAt;
-          const d = new Date(paymentDate.toLocaleString("en-US", { timeZone: "Asia/Jerusalem" }));
-          return d.getFullYear() === tYear && d.getMonth() === tMonth;
+          return (
+            getIsraelYear(paymentDate) === tYear &&
+            getIsraelMonth(paymentDate) === tMonth1to12
+          );
         });
 
         const monthTotal = monthPaid.reduce((sum, p) => sum + Number(p.amount), 0);
-        const key = `${tYear}-${String(tMonth + 1).padStart(2, "0")}`;
+        const key = `${tYear}-${String(tMonth1to12).padStart(2, "0")}`;
         breakdown.push({ month: key, total: monthTotal, count: monthPaid.length });
       }
 
