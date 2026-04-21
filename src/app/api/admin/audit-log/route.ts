@@ -27,9 +27,14 @@ export async function GET(request: NextRequest) {
 
     const where: Record<string, unknown> = {};
 
-    // אכיפת הגבלת "פר-משתמש" ל-MANAGER — privacy guard
+    // אכיפת הגבלת "פר-משתמש" ל-MANAGER — privacy guard.
+    // audit.view_per_user = "timeline של משתמש-יעד", לא "היסטוריית פעולות של אדמין".
+    // לכן MANAGER מוגבל ל-targetId בלבד. אם מזכיר ישלח userId של ADMIN כ-targetId —
+    // הוא יראה פעולות שבוצעו על אותו ADMIN (למשל update_user_basic שADMIN אחר עשה עליו),
+    // לא את פעולות ה-ADMIN על מישהו אחר.
     if (!isAdmin) {
-      if (!userIdFilter && !targetIdFilter) {
+      const targetFilter = targetIdFilter || userIdFilter;
+      if (!targetFilter) {
         return NextResponse.json(
           {
             message:
@@ -38,9 +43,22 @@ export async function GET(request: NextRequest) {
           { status: 400 }
         );
       }
-      // MANAGER רואה רק רשומות שבהן הוא הפועל (adminId) או היעד (targetId)
-      const filterId = userIdFilter || targetIdFilter;
-      where.OR = [{ adminId: filterId }, { targetId: filterId }];
+      // MANAGER רואה רק רשומות שבהן המשתמש המסומן הוא ה-target.
+      // זה מונע ריגול אחרי פעולות של ADMIN-ים אחרים.
+      where.targetId = targetFilter;
+      // חסימה נוספת: לא ניתן לחקור פעולות על ADMIN-ים אחרים אלא אם target = self.
+      if (targetFilter !== session.user.id) {
+        const targetUser = await prisma.user.findUnique({
+          where: { id: targetFilter },
+          select: { role: true },
+        });
+        if (targetUser?.role === "ADMIN") {
+          return NextResponse.json(
+            { message: "אין הרשאה לצפות בלוג של מנהל מערכת" },
+            { status: 403 }
+          );
+        }
+      }
     } else {
       // ADMIN — פילטרים רק אם נשלחו במפורש (אחרת מחזיר הכל)
       if (userIdFilter) where.adminId = userIdFilter;
