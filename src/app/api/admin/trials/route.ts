@@ -4,13 +4,14 @@
 import { NextRequest, NextResponse } from "next/server";
 import prisma from "@/lib/prisma";
 import { logger } from "@/lib/logger";
-import { requireAdmin } from "@/lib/api-auth";
+import { requirePermission, requireHighestPermission } from "@/lib/api-auth";
+import type { Permission } from "@/lib/permissions";
 
 export const dynamic = "force-dynamic";
 
 export async function GET(req: NextRequest) {
   try {
-    const auth = await requireAdmin();
+    const auth = await requirePermission("users.extend_trial_14d");
     if ("error" in auth) return auth.error;
 
     const search = req.nextUrl.searchParams.get("search") || "";
@@ -92,15 +93,21 @@ export async function GET(req: NextRequest) {
 // PATCH: block/unblock trial user or convert to free subscription
 export async function PATCH(req: NextRequest) {
   try {
-    const auth = await requireAdmin();
-    if ("error" in auth) return auth.error;
-
     const body = await req.json();
     const { userId, action, aiTier, note } = body;
 
     if (!userId || !action) {
       return NextResponse.json({ message: "חסר userId או action" }, { status: 400 });
     }
+
+    // Collect+max permission pattern — פר action
+    const required: Permission[] = [];
+    if (action === "block" || action === "unblock") required.push("users.block");
+    if (action === "grantFree") required.push("users.grant_free_30d");
+    if (required.length === 0) required.push("users.extend_trial_14d");
+
+    const auth = await requireHighestPermission(required);
+    if ("error" in auth) return auth.error;
 
     const user = await prisma.user.findUnique({
       where: { id: userId },

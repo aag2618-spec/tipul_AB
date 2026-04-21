@@ -3,15 +3,14 @@ import { prisma } from "@/lib/prisma";
 import { logger } from "@/lib/logger";
 import { parseIsraelTime } from "@/lib/date-utils";
 
-import { requireAdmin } from "@/lib/api-auth";
+import { requirePermission } from "@/lib/api-auth";
 
 export const dynamic = "force-dynamic";
 
 export async function GET(request: NextRequest) {
   try {
-    const auth = await requireAdmin();
+    const auth = await requirePermission("audit.view_per_user");
     if ("error" in auth) return auth.error;
-    const { userId, session } = auth;
 
     const searchParams = request.nextUrl.searchParams;
     const page = parseInt(searchParams.get("page") || "1", 10);

@@ -2,15 +2,14 @@ import { NextRequest, NextResponse } from "next/server";
 import prisma from "@/lib/prisma";
 import { logger } from "@/lib/logger";
 
-import { requireAdmin } from "@/lib/api-auth";
+import { requirePermission } from "@/lib/api-auth";
 
 export const dynamic = "force-dynamic";
 
 export async function GET(req: NextRequest) {
   try {
-    const auth = await requireAdmin();
+    const auth = await requirePermission("settings.announcements");
     if ("error" in auth) return auth.error;
-    const { userId, session } = auth;
 
     const announcements = await prisma.systemAnnouncement.findMany({
       orderBy: { createdAt: "desc" },
@@ -44,9 +43,9 @@ export async function GET(req: NextRequest) {
 
 export async function POST(req: NextRequest) {
   try {
-    const auth = await requireAdmin();
+    const auth = await requirePermission("settings.announcements");
     if ("error" in auth) return auth.error;
-    const { userId, session } = auth;
+    const { userId } = auth;
 
     const body = await req.json();
     const { title, content, type, expiresAt, showBanner } = body;
