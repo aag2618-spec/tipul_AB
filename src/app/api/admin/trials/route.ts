@@ -6,6 +6,7 @@ import prisma from "@/lib/prisma";
 import { logger } from "@/lib/logger";
 import { requirePermission, requireHighestPermission } from "@/lib/api-auth";
 import type { Permission } from "@/lib/permissions";
+import { withAudit } from "@/lib/audit";
 
 export const dynamic = "force-dynamic";
 
@@ -86,7 +87,7 @@ export async function GET(req: NextRequest) {
     return NextResponse.json({ users: trialUsers, stats });
   } catch (error) {
     logger.error("Admin trials API error:", { error: error instanceof Error ? error.message : String(error) });
-    return NextResponse.json({ message: "שגיאת שרת" }, { status: 500 });
+    return NextResponse.json({ message: "שגיאה בטעינת משתמשי הניסיון" }, { status: 500 });
   }
 }
 
@@ -108,6 +109,7 @@ export async function PATCH(req: NextRequest) {
 
     const auth = await requireHighestPermission(required);
     if ("error" in auth) return auth.error;
+    const { session } = auth;
 
     const user = await prisma.user.findUnique({
       where: { id: userId },
@@ -118,36 +120,81 @@ export async function PATCH(req: NextRequest) {
       return NextResponse.json({ message: "משתמש לא נמצא" }, { status: 404 });
     }
 
+    // מיפוי action ל-audit action + details לפי הפעולה
+    const auditAction =
+      action === "block"
+        ? "block_user"
+        : action === "unblock"
+          ? "unblock_user"
+          : action === "grantFree"
+            ? "grant_free"
+            : "trials_update";
+
     switch (action) {
       case "block": {
-        await prisma.user.update({
-          where: { id: userId },
-          data: { isBlocked: true },
-        });
+        await withAudit(
+          { kind: "user", session },
+          {
+            action: auditAction,
+            targetType: "user",
+            targetId: userId,
+            details: { source: "trials_page" },
+          },
+          async (tx) =>
+            tx.user.update({
+              where: { id: userId },
+              data: { isBlocked: true },
+            })
+        );
         return NextResponse.json({ success: true, message: `${user.name} נחסם` });
       }
 
       case "unblock": {
-        await prisma.user.update({
-          where: { id: userId },
-          data: { isBlocked: false },
-        });
+        await withAudit(
+          { kind: "user", session },
+          {
+            action: auditAction,
+            targetType: "user",
+            targetId: userId,
+            details: { source: "trials_page" },
+          },
+          async (tx) =>
+            tx.user.update({
+              where: { id: userId },
+              data: { isBlocked: false },
+            })
+        );
         return NextResponse.json({ success: true, message: `${user.name} שוחרר מחסימה` });
       }
 
       case "grantFree": {
         // Convert trial user to free subscription on selected tier
         const tier = aiTier || "PRO";
-        await prisma.user.update({
-          where: { id: userId },
-          data: {
-            subscriptionStatus: "ACTIVE",
-            aiTier: tier,
-            isFreeSubscription: true,
-            freeSubscriptionNote: note || `הועבר מניסיון למנוי חינם ע"י מנהל`,
-            freeSubscriptionGrantedAt: new Date(),
+        await withAudit(
+          { kind: "user", session },
+          {
+            action: auditAction,
+            targetType: "user",
+            targetId: userId,
+            details: {
+              source: "trials_page",
+              tier,
+              note: note || null,
+              previousStatus: user.subscriptionStatus,
+            },
           },
-        });
+          async (tx) =>
+            tx.user.update({
+              where: { id: userId },
+              data: {
+                subscriptionStatus: "ACTIVE",
+                aiTier: tier,
+                isFreeSubscription: true,
+                freeSubscriptionNote: note || `הועבר מניסיון למנוי חינם ע"י מנהל`,
+                freeSubscriptionGrantedAt: new Date(),
+              },
+            })
+        );
         return NextResponse.json({
           success: true,
           message: `${user.name} הועבר למנוי חינם - ${tier}`
@@ -159,6 +206,6 @@ export async function PATCH(req: NextRequest) {
     }
   } catch (error) {
     logger.error("Admin trials PATCH error:", { error: error instanceof Error ? error.message : String(error) });
-    return NextResponse.json({ message: "שגיאת שרת" }, { status: 500 });
+    return NextResponse.json({ message: "שגיאה בעדכון משתמש הניסיון" }, { status: 500 });
   }
 }

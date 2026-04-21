@@ -9,8 +9,12 @@ export const dynamic = "force-dynamic";
 
 export async function GET(request: NextRequest) {
   try {
+    // MANAGER = audit.view_per_user → חייב לצרף ?userId או ?targetId (צפייה נקודתית).
+    // ADMIN = audit.view_all → רשאי לראות הכל (gate מוסף ב-where-builder למטה).
     const auth = await requirePermission("audit.view_per_user");
     if ("error" in auth) return auth.error;
+    const { session } = auth;
+    const isAdmin = session.user.role === "ADMIN";
 
     const searchParams = request.nextUrl.searchParams;
     const page = parseInt(searchParams.get("page") || "1", 10);
@@ -18,8 +22,30 @@ export async function GET(request: NextRequest) {
     const action = searchParams.get("action") || "";
     const from = searchParams.get("from") || "";
     const to = searchParams.get("to") || "";
+    const userIdFilter = searchParams.get("userId") || "";
+    const targetIdFilter = searchParams.get("targetId") || "";
 
     const where: Record<string, unknown> = {};
+
+    // אכיפת הגבלת "פר-משתמש" ל-MANAGER — privacy guard
+    if (!isAdmin) {
+      if (!userIdFilter && !targetIdFilter) {
+        return NextResponse.json(
+          {
+            message:
+              "חובה לספק userId או targetId לצפייה נקודתית בלוג (הרשאה פר-משתמש)",
+          },
+          { status: 400 }
+        );
+      }
+      // MANAGER רואה רק רשומות שבהן הוא הפועל (adminId) או היעד (targetId)
+      const filterId = userIdFilter || targetIdFilter;
+      where.OR = [{ adminId: filterId }, { targetId: filterId }];
+    } else {
+      // ADMIN — פילטרים רק אם נשלחו במפורש (אחרת מחזיר הכל)
+      if (userIdFilter) where.adminId = userIdFilter;
+      if (targetIdFilter) where.targetId = targetIdFilter;
+    }
 
     if (action) {
       where.action = action;
@@ -68,7 +94,7 @@ export async function GET(request: NextRequest) {
   } catch (error) {
     logger.error("Error fetching audit logs:", { error: error instanceof Error ? error.message : String(error) });
     return NextResponse.json(
-      { message: "Internal server error" },
+      { message: "שגיאה בטעינת לוג הביקורת" },
       { status: 500 }
     );
   }
