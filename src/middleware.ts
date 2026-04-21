@@ -8,6 +8,11 @@ import {
   ADMIN_RATE_LIMIT_BY_TIER,
 } from "@/lib/rate-limit";
 
+// חובה — rate-limit משתמש ב-Map in-memory ב-Node.js
+// ללא זה Next.js מריץ middleware ב-Edge Runtime שבו Map לא נשמר בין בקשות
+// (שיקולי ביצועים נשקלו — Node.js runtime בסדר ב-Render single-instance)
+export const runtime = "nodejs";
+
 // דפים שלא דורשים מנוי פעיל (מדויקים!)
 const SUBSCRIPTION_EXEMPT_PATHS = [
   "/dashboard/settings/billing",
