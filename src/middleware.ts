@@ -12,6 +12,30 @@ const SUBSCRIPTION_EXEMPT_EXACT = [
   "/dashboard/settings",  // רק דף הגדרות ראשי, לא תת-דפים
 ];
 
+// ========================================================================
+// Admin route permissions (Stage 1.3 of admin UI redesign)
+// ========================================================================
+// נתיבים שרק ADMIN יכול לגשת. MANAGER יקבל 403.
+// שאר /admin/* ו-/api/admin/* פתוחים ל-ADMIN ו-MANAGER.
+// הרשאה ספציפית פר-endpoint נבדקת ב-route handler עצמו דרך requirePermission().
+const ADMIN_ONLY_PATHS = [
+  // דפי admin עם הגדרות מערכת קריטיות
+  "/admin/feature-flags",
+  "/admin/tier-settings",
+  "/admin/terms",
+  // API מפתחות/הגדרות עולמיות
+  "/api/admin/set-admin",
+  "/api/admin/backfill-user-numbers",
+  "/api/admin/tier-limits",
+  "/api/admin/feature-flags",
+  "/api/admin/ai-settings",
+  "/api/admin/terms",
+];
+
+function isAdminOnlyPath(pathname: string): boolean {
+  return ADMIN_ONLY_PATHS.some((p) => pathname.startsWith(p));
+}
+
 export async function middleware(request: NextRequest) {
   const { pathname } = request.nextUrl;
 
@@ -21,7 +45,8 @@ export async function middleware(request: NextRequest) {
     secret: process.env.NEXTAUTH_SECRET 
   });
 
-  // Protect /admin routes - require ADMIN role
+  // Protect /admin routes — require ADMIN or MANAGER
+  // ADMIN_ONLY_PATHS (feature-flags, tier-settings, terms) require ADMIN specifically
   if (pathname.startsWith("/admin")) {
     // If not authenticated, redirect to login
     if (!token) {
@@ -30,16 +55,23 @@ export async function middleware(request: NextRequest) {
       return NextResponse.redirect(loginUrl);
     }
 
-    // If not admin, redirect to dashboard with error
-    if (token.role !== "ADMIN") {
+    // Neither ADMIN nor MANAGER → dashboard
+    if (token.role !== "ADMIN" && token.role !== "MANAGER") {
       const dashboardUrl = new URL("/dashboard", request.url);
       dashboardUrl.searchParams.set("error", "unauthorized");
       return NextResponse.redirect(dashboardUrl);
     }
+
+    // MANAGER trying to access ADMIN-only path → dashboard
+    if (token.role === "MANAGER" && isAdminOnlyPath(pathname)) {
+      const dashboardUrl = new URL("/admin", request.url);
+      dashboardUrl.searchParams.set("error", "admin_only");
+      return NextResponse.redirect(dashboardUrl);
+    }
   }
 
-  // Protect /api/admin routes - require ADMIN role
-  // Exception: reset-password route uses secret key instead of session
+  // Protect /api/admin routes — require ADMIN or MANAGER
+  // Exceptions: reset-password (x-admin-key header) + backfill-user-numbers (CRON_SECRET)
   if (pathname.startsWith("/api/admin") && !pathname.includes("/reset-password") && !pathname.includes("/backfill-user-numbers")) {
     if (!token) {
       return NextResponse.json(
@@ -48,9 +80,17 @@ export async function middleware(request: NextRequest) {
       );
     }
 
-    if (token.role !== "ADMIN") {
+    if (token.role !== "ADMIN" && token.role !== "MANAGER") {
       return NextResponse.json(
         { message: "לא מורשה - נדרשות הרשאות מנהל" },
+        { status: 403 }
+      );
+    }
+
+    // MANAGER trying to reach ADMIN-only API → 403
+    if (token.role === "MANAGER" && isAdminOnlyPath(pathname)) {
+      return NextResponse.json(
+        { message: "פעולה זו זמינה לבעל המערכת בלבד" },
         { status: 403 }
       );
     }

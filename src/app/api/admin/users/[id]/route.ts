@@ -4,8 +4,10 @@ import bcrypt from "bcryptjs";
 import { sendEmail } from "@/lib/resend";
 import { PLAN_NAMES } from "@/lib/pricing";
 import { logger } from "@/lib/logger";
+import { getIsraelMidnight } from "@/lib/date-utils";
 
-import { requireAdmin } from "@/lib/api-auth";
+import { requirePermission, requireHighestPermission } from "@/lib/api-auth";
+import type { Permission } from "@/lib/permissions";
 
 export const dynamic = "force-dynamic";
 
@@ -15,7 +17,7 @@ export async function GET(
   { params }: { params: Promise<{ id: string }> }
 ) {
   try {
-    const auth = await requireAdmin();
+    const auth = await requirePermission("users.view");
     if ("error" in auth) return auth.error;
     const { id } = await params;
 
@@ -92,36 +94,54 @@ export async function GET(
   }
 }
 
+/**
+ * PUT — עדכון שדות בסיסיים בלבד (name, email, phone, password).
+ *
+ * שים לב: `role` ו-`aiTier` אינם נקלטים כאן יותר (Stage 1.5 — הקשחה לפי
+ * המלצת הסוקר: פחות risk surface, הפרדה ברורה בין PUT בסיסי ל-PATCH עסקי).
+ * לשינוי role/aiTier/מנוי — חייב לעבור דרך PATCH.
+ *
+ * `users.reset_password` אסור על משתמש-יעד שהוא ADMIN (מונע privilege escalation
+ * של MANAGER שמאפס סיסמת ADMIN ונכנס במקומו).
+ */
 export async function PUT(
   request: NextRequest,
   { params }: { params: Promise<{ id: string }> }
 ) {
   try {
-    const auth = await requireAdmin();
-    if ("error" in auth) return auth.error;
-    const { userId, session } = auth;
-
     const { id } = await params;
     const body = await request.json();
-    const { name, email, password, phone, role, aiTier } = body;
+    const { name, email, password, phone } = body;
 
-    // Build update data
-    const updateData: Record<string, unknown> = {
-      name,
-      email,
-      phone,
-      role,
-    };
+    // בחירת ההרשאה לפי תוכן הבקשה
+    const required: Permission[] = ["users.update_basic"];
+    if (password) required.push("users.reset_password");
 
-    // Add aiTier if provided
-    if (aiTier !== undefined) {
-      updateData.aiTier = aiTier;
+    const auth = await requireHighestPermission(required);
+    if ("error" in auth) return auth.error;
+    const { session } = auth;
+    const isAdmin = session.user.role === "ADMIN";
+
+    // Guard: MANAGER לא יכול לאפס סיסמת ADMIN
+    if (password && !isAdmin) {
+      const target = await prisma.user.findUnique({
+        where: { id },
+        select: { role: true },
+      });
+      if (target?.role === "ADMIN") {
+        return NextResponse.json(
+          { message: "מזכיר לא יכול לאפס סיסמת מנהל" },
+          { status: 403 }
+        );
+      }
     }
 
-    // Only update password if provided
-    if (password) {
-      updateData.password = await bcrypt.hash(password, 10);
-    }
+    // Build update data — שדות בסיסיים בלבד
+    const updateData: Record<string, unknown> = {};
+    if (name !== undefined) updateData.name = name;
+    if (email !== undefined) updateData.email = email;
+    if (phone !== undefined) updateData.phone = phone;
+    if (password) updateData.password = await bcrypt.hash(password, 10);
 
     // Update user
     const updatedUser = await prisma.user.update({
@@ -131,7 +151,7 @@ export async function PUT(
 
     return NextResponse.json({
       message: "User updated successfully",
-      user: { ...updatedUser, password: undefined }
+      user: { ...updatedUser, password: undefined },
     });
   } catch (error) {
     logger.error('Error updating user:', { error: error instanceof Error ? error.message : String(error) });
@@ -147,7 +167,7 @@ export async function DELETE(
   { params }: { params: Promise<{ id: string }> }
 ) {
   try {
-    const auth = await requireAdmin();
+    const auth = await requirePermission("users.delete");
     if ("error" in auth) return auth.error;
     const { userId, session } = auth;
 
@@ -178,27 +198,110 @@ export async function DELETE(
   }
 }
 
+/**
+ * PATCH — פעולות עסקיות על מנוי משתמש.
+ *
+ * Stage 1.4-1.5:
+ * - Collect+max permission pattern: כל שדה ב-body מייצר הרשאה נדרשת,
+ *   ומחפשים את הגבוהה מביניהן. תומך ב-combos מכוונים מה-UI (handleGrantFree).
+ * - אכיפה מספרית ב-handler: MANAGER מוגבל ל-extendDays ≤14, grantFree ≤30d,
+ *   subscriptionEndsAt ישיר ≤30d קדימה, ו-`null` אסור למזכיר.
+ * - Race fix ב-extendDays: transaction + SELECT FOR UPDATE מונע
+ *   שני מזכירים שמוסיפים 7 ימים במקביל ומאבדים הארכה.
+ */
 export async function PATCH(
   request: NextRequest,
   { params }: { params: Promise<{ id: string }> }
 ) {
   try {
-    const auth = await requireAdmin();
-    if ("error" in auth) return auth.error;
-    const { userId, session } = auth;
-
     const { id } = await params;
     const body = await request.json();
-    const { 
+    const {
       isBlocked, aiTier, subscriptionStatus, subscriptionEndsAt, extendDays,
-      grantFree, revokeFree, freeNote 
+      grantFree, revokeFree, freeNote, role,
     } = body;
+
+    // === Collect+max permissions ===
+    const required: Permission[] = [];
+    if (role !== undefined) required.push("users.change_role"); // ADMIN only
+
+    if (grantFree) {
+      // days-cap לפי subscriptionEndsAt (אם null = unlimited)
+      const daysGranted =
+        subscriptionEndsAt
+          ? Math.ceil(
+              (getIsraelMidnight(new Date(subscriptionEndsAt)).getTime() -
+                getIsraelMidnight(new Date()).getTime()) / 86400000
+            )
+          : Infinity;
+      required.push(
+        daysGranted > 30
+          ? "users.grant_free_unlimited"
+          : "users.grant_free_30d"
+      );
+    }
+
+    if (revokeFree) required.push("users.revoke_free");
+    if (isBlocked !== undefined) required.push("users.block");
+    if (extendDays && extendDays > 0) required.push("users.extend_trial_14d");
+
+    // שינוי tier / תאריך תפוגה / סטטוס ללא grantFree/revokeFree
+    if (
+      !grantFree &&
+      !revokeFree &&
+      (aiTier !== undefined ||
+        subscriptionEndsAt !== undefined ||
+        subscriptionStatus !== undefined)
+    ) {
+      required.push("users.change_tier");
+    }
+
+    if (required.length === 0) required.push("users.update_basic");
+
+    const auth = await requireHighestPermission(required);
+    if ("error" in auth) return auth.error;
+    const { session } = auth;
+    const isAdmin = session.user.role === "ADMIN";
+
+    // === אכיפה מספרית (לא ב-permission — ב-handler!) ===
+    // MANAGER עם extendDays > 14 → 403
+    if (extendDays && extendDays > 14 && !isAdmin) {
+      return NextResponse.json(
+        { message: "מזכיר יכול להאריך ניסיון עד 14 יום בלבד" },
+        { status: 403 }
+      );
+    }
+
+    // Back-door closure: MANAGER עם subscriptionEndsAt ישיר (בלי grantFree)
+    if (subscriptionEndsAt !== undefined && !grantFree) {
+      // null = הסרת תאריך תפוגה = unlimited → ADMIN בלבד
+      if (subscriptionEndsAt === null && !isAdmin) {
+        return NextResponse.json(
+          { message: "מזכיר לא יכול להסיר תאריך תפוגה" },
+          { status: 403 }
+        );
+      }
+      // > 30 יום קדימה → ADMIN בלבד
+      if (subscriptionEndsAt !== null) {
+        const days = Math.ceil(
+          (getIsraelMidnight(new Date(subscriptionEndsAt)).getTime() -
+            getIsraelMidnight(new Date()).getTime()) / 86400000
+        );
+        if (days > 30 && !isAdmin) {
+          return NextResponse.json(
+            { message: "מזכיר יכול להאריך מנוי עד 30 יום קדימה בלבד" },
+            { status: 403 }
+          );
+        }
+      }
+    }
 
     const updateData: Record<string, unknown> = {};
     if (isBlocked !== undefined) updateData.isBlocked = isBlocked;
     if (aiTier !== undefined) updateData.aiTier = aiTier;
     if (subscriptionStatus !== undefined) updateData.subscriptionStatus = subscriptionStatus;
-    
+    if (role !== undefined) updateData.role = role;
+
     // ========================================
     // מנוי חינם - הענקה
     // ========================================
@@ -209,7 +312,7 @@ export async function PATCH(
       updateData.subscriptionStatus = "ACTIVE";
       updateData.subscriptionStartedAt = new Date();
     }
-    
+
     // ========================================
     // מנוי חינם - ביטול (מעבר לתשלום)
     // ========================================
@@ -220,29 +323,43 @@ export async function PATCH(
       // נותנים 7 ימים לשלם (תקופת חסד) - לא משאירים את כל התקופה החינמית!
       updateData.subscriptionEndsAt = new Date(Date.now() + 7 * 24 * 60 * 60 * 1000);
     }
-    
-    // הארכת מנוי בימים
-    if (extendDays && typeof extendDays === "number" && extendDays > 0) {
-      const currentUser = await prisma.user.findUnique({
-        where: { id },
-        select: { subscriptionEndsAt: true },
-      });
-      const baseDate = currentUser?.subscriptionEndsAt && new Date(currentUser.subscriptionEndsAt) > new Date()
-        ? new Date(currentUser.subscriptionEndsAt)
-        : new Date();
-      updateData.subscriptionEndsAt = new Date(baseDate.getTime() + extendDays * 24 * 60 * 60 * 1000);
-    }
-    
-    // תאריך תפוגה ספציפי
+
+    // תאריך תפוגה ספציפי — חייב להיות לפני ה-update כדי שיאוחד עם שאר השדות
     if (subscriptionEndsAt !== undefined) {
       updateData.subscriptionEndsAt = subscriptionEndsAt ? new Date(subscriptionEndsAt) : null;
     }
 
-    // Update user
-    const updatedUser = await prisma.user.update({
-      where: { id },
-      data: updateData,
-    });
+    // Race-safe extension: transaction + SELECT FOR UPDATE
+    // שני מזכירים שמוסיפים 7 ימים במקביל → Postgres נועל את השורה;
+    // השני יקבל את הערך המעודכן וימשיך נכון.
+    let updatedUser;
+    if (extendDays && typeof extendDays === "number" && extendDays > 0) {
+      updatedUser = await prisma.$transaction(async (tx) => {
+        // נעילה בסגנון "read-then-write בטוח"
+        await tx.$executeRaw`SELECT 1 FROM "User" WHERE "id" = ${id} FOR UPDATE`;
+        const currentUser = await tx.user.findUnique({
+          where: { id },
+          select: { subscriptionEndsAt: true },
+        });
+        const baseDate =
+          currentUser?.subscriptionEndsAt &&
+          new Date(currentUser.subscriptionEndsAt) > new Date()
+            ? new Date(currentUser.subscriptionEndsAt)
+            : new Date();
+        updateData.subscriptionEndsAt = new Date(
+          baseDate.getTime() + extendDays * 24 * 60 * 60 * 1000
+        );
+        return tx.user.update({
+          where: { id },
+          data: updateData,
+        });
+      });
+    } else {
+      updatedUser = await prisma.user.update({
+        where: { id },
+        data: updateData,
+      });
+    }
 
     const SYSTEM_URL = process.env.NEXTAUTH_URL || "";
 
