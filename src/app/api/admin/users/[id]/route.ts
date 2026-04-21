@@ -5,11 +5,29 @@ import { sendEmail } from "@/lib/resend";
 import { PLAN_NAMES } from "@/lib/pricing";
 import { logger } from "@/lib/logger";
 import { getIsraelMidnight } from "@/lib/date-utils";
+import { withAudit } from "@/lib/audit";
 
 import { requirePermission, requireHighestPermission } from "@/lib/api-auth";
 import type { Permission } from "@/lib/permissions";
 
 export const dynamic = "force-dynamic";
+
+/**
+ * Infer audit action name from PATCH/PUT body.
+ * Used by withAudit to record a meaningful action code in the audit log.
+ */
+function inferAuditAction(body: Record<string, unknown>): string {
+  if (body.grantFree) return "grant_free";
+  if (body.revokeFree) return "revoke_free";
+  if (body.extendDays && typeof body.extendDays === "number" && body.extendDays > 0) {
+    return "extend_subscription";
+  }
+  if ("isBlocked" in body) return body.isBlocked ? "block_user" : "unblock_user";
+  if ("role" in body) return "change_role";
+  if ("aiTier" in body && !("isBlocked" in body)) return "change_tier";
+  if ("subscriptionEndsAt" in body) return "change_subscription_end";
+  return "update_user";
+}
 
 // GET — פרופיל משתמש מלא
 export async function GET(
@@ -144,44 +162,74 @@ export async function PUT(
     const { session } = auth;
     const isAdmin = session.user.role === "ADMIN";
 
+    // === Input validation ===
+    if (email !== undefined) {
+      if (typeof email !== "string" || !email.includes("@")) {
+        return NextResponse.json(
+          { message: "כתובת מייל לא תקינה", field: "email" },
+          { status: 400 }
+        );
+      }
+    }
+    if (password !== undefined) {
+      if (typeof password !== "string" || password.length < 8) {
+        return NextResponse.json(
+          { message: "סיסמה חייבת להיות באורך 8 תווים לפחות", field: "password" },
+          { status: 400 }
+        );
+      }
+    }
+
     // === Guard על משתמשים שיעדם ADMIN ===
     // מזכיר אסור:
     //   (1) לאפס סיסמת ADMIN (הנחת טרויאנית של שומר סיסמה)
     //   (2) לשנות email של ADMIN (vector של password-reset-via-email-swap)
-    const needsTargetAdminCheck = (password || email !== undefined) && !isAdmin;
-    if (needsTargetAdminCheck) {
+    //   (3) לשנות name/phone של ADMIN (vector של SMS reset אם יהיה)
+    const touchesProtectedField =
+      password !== undefined ||
+      email !== undefined ||
+      name !== undefined ||
+      phone !== undefined;
+    if (touchesProtectedField && !isAdmin) {
       const target = await prisma.user.findUnique({
         where: { id },
         select: { role: true },
       });
       if (target?.role === "ADMIN") {
-        if (password) {
-          return NextResponse.json(
-            { message: "מזכיר לא יכול לאפס סיסמת מנהל" },
-            { status: 403 }
-          );
-        }
-        if (email !== undefined) {
-          return NextResponse.json(
-            { message: "מזכיר לא יכול לשנות אימייל של מנהל" },
-            { status: 403 }
-          );
-        }
+        return NextResponse.json(
+          { message: "מזכיר לא יכול לשנות פרטים של מנהל" },
+          { status: 403 }
+        );
       }
     }
 
     // Build update data — שדות בסיסיים בלבד
     const updateData: Record<string, unknown> = {};
     if (name !== undefined) updateData.name = name;
-    if (email !== undefined) updateData.email = email;
+    if (email !== undefined) updateData.email = (email as string).toLowerCase().trim();
     if (phone !== undefined) updateData.phone = phone;
     if (password) updateData.password = await bcrypt.hash(password, 10);
 
-    // Update user
-    const updatedUser = await prisma.user.update({
-      where: { id },
-      data: updateData,
-    });
+    // עטיפה ב-withAudit — רישום ב-audit log אטומית עם העדכון
+    const auditDetails = {
+      changes: Object.keys(updateData).filter((k) => k !== "password"),
+      passwordReset: Boolean(password),
+    };
+    const updatedUser = await withAudit(
+      { kind: "user", session },
+      {
+        action: password ? "reset_password" : "update_user_basic",
+        targetType: "user",
+        targetId: id,
+        details: auditDetails,
+      },
+      async (tx) => {
+        return tx.user.update({
+          where: { id },
+          data: updateData,
+        });
+      }
+    );
 
     return NextResponse.json({
       message: "User updated successfully",
@@ -215,10 +263,27 @@ export async function DELETE(
       );
     }
 
-    // Delete user
-    await prisma.user.delete({
-      where: { id }
+    // Snapshot לפני מחיקה — כדי שיהיה תיעוד גם אחרי שהמשתמש כבר לא קיים
+    const userSnapshot = await prisma.user.findUnique({
+      where: { id },
+      select: { email: true, name: true, role: true, userNumber: true },
     });
+
+    // מחיקה + audit log כיחידה אטומית
+    await withAudit(
+      { kind: "user", session },
+      {
+        action: "delete_user",
+        targetType: "user",
+        targetId: id,
+        details: {
+          deletedUserSnapshot: userSnapshot,
+        },
+      },
+      async (tx) => {
+        return tx.user.delete({ where: { id } });
+      }
+    );
 
     return NextResponse.json({
       message: "User deleted successfully"
@@ -306,6 +371,19 @@ export async function PATCH(
       );
     }
 
+    // סתירה הגיונית: extendDays + subscriptionEndsAt ללא grantFree — לא ברור מה מנצח.
+    // extendDays מוסיף ימים מהתפוגה הנוכחית; subscriptionEndsAt קובע תאריך מפורש.
+    // UX לא עקבי; דורשים מה-UI לבחור אחד.
+    if (extendDays && subscriptionEndsAt !== undefined && !grantFree) {
+      return NextResponse.json(
+        {
+          message:
+            "שלח רק אחד: extendDays או subscriptionEndsAt, לא את שניהם",
+        },
+        { status: 400 }
+      );
+    }
+
     // Back-door closure: MANAGER עם subscriptionEndsAt ישיר (בלי grantFree)
     if (subscriptionEndsAt !== undefined && !grantFree) {
       // null = הסרת תאריך תפוגה = unlimited → ADMIN בלבד
@@ -363,16 +441,29 @@ export async function PATCH(
       updateData.subscriptionEndsAt = subscriptionEndsAt ? new Date(subscriptionEndsAt) : null;
     }
 
-    // Race-safe extension: transaction + SELECT FOR UPDATE
-    // שני מזכירים שמוסיפים 7 ימים במקביל → Postgres נועל את השורה;
-    // השני יקבל את הערך המעודכן וימשיך נכון.
-    // הערה על סדר עדיפות: אם גם `extendDays` וגם `subscriptionEndsAt` נשלחו,
-    // `extendDays` זוכה — הוא מוסיף ימים מהתפוגה הנוכחית ב-DB, לא לערך מה-body.
-    let updatedUser;
-    if (extendDays && typeof extendDays === "number" && extendDays > 0) {
-      updatedUser = await prisma.$transaction(
-        async (tx) => {
-          // נעילה בסגנון "read-then-write בטוח"
+    // עטיפה ב-withAudit — יוצרת transaction Serializable + retry על 40001/40P01
+    // ורישום ב-AdminAuditLog כיחידה אטומית עם העדכון.
+    // הערה: withAudit מספקת transaction בעצמה — אין צורך ב-$transaction נוסף.
+    // Race-safe extension: SELECT FOR UPDATE בתוך ה-transaction של withAudit;
+    // שני מזכירים שמוסיפים ימים במקביל → Postgres נועל את השורה.
+    // סדר עדיפות: אם גם extendDays וגם subscriptionEndsAt נשלחו — extendDays זוכה
+    // (הוא מוסיף ימים לתפוגה הנוכחית ב-DB, לא לערך מה-body).
+    const updatedUser = await withAudit(
+      { kind: "user", session },
+      {
+        action: inferAuditAction(body),
+        targetType: "user",
+        targetId: id,
+        details: {
+          changes: Object.keys(updateData),
+          extendDays: extendDays || undefined,
+          grantFree: grantFree || undefined,
+          revokeFree: revokeFree || undefined,
+          freeNote: grantFree ? freeNote || null : undefined,
+        },
+      },
+      async (tx) => {
+        if (extendDays && typeof extendDays === "number" && extendDays > 0) {
           await tx.$executeRaw`SELECT 1 FROM "User" WHERE "id" = ${id} FOR UPDATE`;
           const currentUser = await tx.user.findUnique({
             where: { id },
@@ -386,23 +477,13 @@ export async function PATCH(
           updateData.subscriptionEndsAt = new Date(
             baseDate.getTime() + extendDays * 24 * 60 * 60 * 1000
           );
-          return tx.user.update({
-            where: { id },
-            data: updateData,
-          });
-        },
-        {
-          isolationLevel: "Serializable",
-          maxWait: 5000,
-          timeout: 10000,
         }
-      );
-    } else {
-      updatedUser = await prisma.user.update({
-        where: { id },
-        data: updateData,
-      });
-    }
+        return tx.user.update({
+          where: { id },
+          data: updateData,
+        });
+      }
+    );
 
     const SYSTEM_URL = process.env.NEXTAUTH_URL || "";
 

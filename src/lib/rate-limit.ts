@@ -134,6 +134,8 @@ export function getAdminRateLimitTier(
     "/api/admin/users/", // כולל add-package, manual-payment, toggle-block, PATCH
     "/api/admin/set-admin",
     "/api/admin/idempotency",
+    "/api/admin/billing/", // billing cycles + יצירת חיובים ידניים
+    "/api/admin/packages/", // יצירת/עדכון חבילות עם השלכות פיננסיות
   ];
   const SENSITIVE_METHODS_ON_USERS = ["POST", "PATCH", "DELETE"];
 
