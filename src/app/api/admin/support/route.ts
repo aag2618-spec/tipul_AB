@@ -1,14 +1,14 @@
 // API: פניות תמיכה — צד אדמין
 import { NextRequest, NextResponse } from "next/server";
 import prisma from "@/lib/prisma";
-import { requireAdmin } from "@/lib/api-auth";
+import { requirePermission } from "@/lib/api-auth";
 
 export const dynamic = "force-dynamic";
 
 // GET — כל הפניות עם סינון
 export async function GET(req: NextRequest) {
   try {
-    const auth = await requireAdmin();
+    const auth = await requirePermission("support.view_all");
     if ("error" in auth) return auth.error;
 
     const searchParams = req.nextUrl.searchParams;
@@ -79,6 +79,6 @@ export async function GET(req: NextRequest) {
     });
   } catch (error) {
     console.error("שגיאה בטעינת פניות:", error);
-    return NextResponse.json({ message: "שגיאה" }, { status: 500 });
+    return NextResponse.json({ message: "שגיאה בטעינת הפניות" }, { status: 500 });
   }
 }

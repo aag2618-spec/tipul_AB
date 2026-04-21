@@ -3,7 +3,7 @@ import prisma from "@/lib/prisma";
 import { logger } from "@/lib/logger";
 import { getIsraelMidnight, getIsraelMonth, getIsraelYear, parseIsraelTime } from "@/lib/date-utils";
 
-import { requireAdmin } from "@/lib/api-auth";
+import { requirePermission } from "@/lib/api-auth";
 
 const TIER_FALLBACK_PRICES: Record<string, number> = {
   ESSENTIAL: 117,
@@ -15,9 +15,8 @@ export const dynamic = "force-dynamic";
 
 export async function GET() {
   try {
-    const auth = await requireAdmin();
+    const auth = await requirePermission("users.view");
     if ("error" in auth) return auth.error;
-    const { userId, session } = auth;
 
     // start-of-month / start-of-day — לפי שעון ישראל (DST-aware)
     const now = new Date();
