@@ -52,9 +52,12 @@ export async function GET(request: NextRequest) {
           where: { id: targetFilter },
           select: { role: true },
         });
-        if (targetUser?.role === "ADMIN") {
+        if (
+          targetUser?.role === "ADMIN" ||
+          targetUser?.role === "MANAGER"
+        ) {
           return NextResponse.json(
-            { message: "אין הרשאה לצפות בלוג של מנהל מערכת" },
+            { message: "אין הרשאה לצפות בלוג של מנהל/מזכיר אחר" },
             { status: 403 }
           );
         }
