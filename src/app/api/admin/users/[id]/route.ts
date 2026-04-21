@@ -520,6 +520,73 @@ export async function PATCH(
     }
 
     // ========================================
+    // מייל כשחוסמים משתמש (הסבר במקום רק redirect)
+    // ========================================
+    if (isBlocked === true && updatedUser.email) {
+      await sendEmail({
+        to: updatedUser.email,
+        subject: "החשבון שלך נחסם",
+        html: `
+          <div dir="rtl" style="font-family: Arial, sans-serif; max-width: 600px; margin: 0 auto; padding: 20px;">
+            <div style="text-align: center; padding: 20px; background: #dc2626; border-radius: 12px 12px 0 0;">
+              <h1 style="color: white; margin: 0;">החשבון שלך נחסם</h1>
+            </div>
+            <div style="background: #fff; padding: 30px; border: 1px solid #e5e7eb; border-top: none; border-radius: 0 0 12px 12px;">
+              <h2 style="color: #333; margin-top: 0;">שלום ${updatedUser.name || ""},</h2>
+              <p style="color: #555; font-size: 16px; line-height: 1.6;">
+                החשבון שלך נחסם על ידי מנהל המערכת.
+              </p>
+              <p style="color: #555; font-size: 16px; line-height: 1.6;">
+                אם אתה חושב שזו טעות או שאתה רוצה לברר את הסיבה — אנא פנה אלינו בתשובה למייל הזה.
+              </p>
+              <div style="background: #fef2f2; border: 1px solid #fca5a5; border-radius: 8px; padding: 16px; margin: 20px 0;">
+                <p style="margin: 0; color: #991b1b;">
+                  הנתונים שלך נשמרים ומאובטחים. גישה למערכת תוחזר אחרי בירור.
+                </p>
+              </div>
+            </div>
+          </div>
+        `,
+      }).catch((err) =>
+        logger.error("Block user email failed:", {
+          error: err instanceof Error ? err.message : String(err),
+        })
+      );
+    }
+
+    // ========================================
+    // מייל כשמבטלים חסימה (שחרור)
+    // ========================================
+    if (isBlocked === false && updatedUser.email) {
+      await sendEmail({
+        to: updatedUser.email,
+        subject: "החשבון שלך שוחרר",
+        html: `
+          <div dir="rtl" style="font-family: Arial, sans-serif; max-width: 600px; margin: 0 auto; padding: 20px;">
+            <div style="text-align: center; padding: 20px; background: #10b981; border-radius: 12px 12px 0 0;">
+              <h1 style="color: white; margin: 0;">החשבון שלך הופעל מחדש</h1>
+            </div>
+            <div style="background: #fff; padding: 30px; border: 1px solid #e5e7eb; border-top: none; border-radius: 0 0 12px 12px;">
+              <h2 style="color: #333; margin-top: 0;">שלום ${updatedUser.name || ""},</h2>
+              <p style="color: #555; font-size: 16px; line-height: 1.6;">
+                החסימה על החשבון שלך הוסרה. אפשר להתחבר שוב למערכת.
+              </p>
+              <div style="text-align: center; margin: 20px 0;">
+                <a href="${SYSTEM_URL}/login" style="display: inline-block; background: #10b981; color: white; padding: 12px 28px; border-radius: 8px; text-decoration: none; font-weight: bold;">
+                  כניסה למערכת
+                </a>
+              </div>
+            </div>
+          </div>
+        `,
+      }).catch((err) =>
+        logger.error("Unblock user email failed:", {
+          error: err instanceof Error ? err.message : String(err),
+        })
+      );
+    }
+
+    // ========================================
     // מייל כשמבטלים מנוי חינם (עם קישור לתשלום)
     // ========================================
     if (revokeFree && updatedUser.email) {

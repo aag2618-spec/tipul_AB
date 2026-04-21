@@ -131,6 +131,11 @@ export async function withAudit<T>(
           // System events are captured via the details JSON for now; once
           // stage 1.7 migration adds snapshot fields + onDelete: SetNull,
           // system events will write real rows with adminId=null.
+          //
+          // TODO(stage 1.7): אחרי migration של AdminAuditLog
+          // (adminId nullable + onDelete SetNull + adminEmail/adminName snapshot)
+          // יש להחליף את ה-logger.info כאן ב-tx.adminAuditLog.create עם
+          // adminId=null. לא לשכוח להוריד את ה-if/else — כולם יעברו דרך DB.
           if (adminId !== null) {
             await tx.adminAuditLog.create({
               data: {
