@@ -153,8 +153,17 @@ model User {
   adminAuditLogs        AdminAuditLog[]       @relation("auditAdmin")
 
   // Support Tickets (פניות ותמיכה)
-  supportTickets        SupportTicket[]
-  supportResponses      SupportResponse[]
+  supportTickets              SupportTicket[]     @relation("ticketUser")
+  supportResponses            SupportResponse[]
+  supportTicketsAssigned      SupportTicket[]     @relation("ticketAssigned")
+  supportNotesAuthored        SupportTicketNote[] @relation("noteAuthor")
+
+  // Admin — undo/redo of audit actions (Stage 1.7)
+  adminAuditLogsReverted      AdminAuditLog[]     @relation("auditReverted")
+
+  // Packages — bank purchases granted manually by admin
+  packagesGranted             UserPackagePurchase[] @relation("packageGrantedBy")
+  packagePurchases            UserPackagePurchase[] @relation("packageUser")
 }
 
 // ==================== AI Tiers ====================
@@ -224,6 +233,10 @@ enum AdminAlertType {
   MANUAL_REMINDER       // תזכורת ידנית
   SYSTEM                // התראת מערכת
   SUPPORT_TICKET        // פנייה לתמיכה
+  // Stage 1.7 — alerts חדשים ל-observability
+  CREDIT_CONSUMPTION_FAILED     // consumeSms/AI — QUOTA_EXHAUSTED או retry exhausted
+  IDEMPOTENCY_REPLAY_OF_FAILURE // בקשה חוזרת עם idempotency-key של שגיאת 5xx
+  SERIALIZATION_RETRY_EXHAUSTED // retry על 40001/40P01 נגמר בלי הצלחה
 }
 
 enum AlertPriority {
@@ -711,6 +724,8 @@ model SubscriptionPayment {
   periodStart DateTime?
   periodEnd   DateTime?
   paidAt      DateTime?
+  // Stage 1.7 — שיטת תשלום (ידני: מזומן/העברה/צ'ק, אוטומטי: אשראי דרך קארדקום)
+  method      PaymentMethod?
   createdAt   DateTime                  @default(now())
   updatedAt   DateTime                  @updatedAt
 
@@ -1659,13 +1674,24 @@ model AdminAuditLog {
   targetType  String   // e.g. "user", "announcement", "coupon"
   targetId    String?
   details     String?  @db.Text // JSON details
-  adminId     String
-  admin       User     @relation("auditAdmin", fields: [adminId], references: [id])
+  // Stage 1.7 — adminId הפך nullable + SetNull כדי שניתן יהיה למחוק מזכיר
+  adminId     String?
+  admin       User?    @relation("auditAdmin", fields: [adminId], references: [id], onDelete: SetNull)
+  // Stage 1.7 — snapshot של admin בעת ביצוע (נשמר גם אחרי מחיקת המשתמש)
+  adminEmail  String?
+  adminName   String?
+  // Stage 1.7 — Undo 10 seconds infrastructure
+  undoable      Boolean   @default(false)
+  undoExpiresAt DateTime?
+  revertedAt    DateTime?
+  revertedById  String?
+  revertedBy    User?    @relation("auditReverted", fields: [revertedById], references: [id], onDelete: SetNull)
   createdAt   DateTime @default(now())
 
   @@index([adminId])
   @@index([targetType, targetId])
   @@index([createdAt])
+  @@index([undoable, undoExpiresAt])  // לcron ניקוי/validation
 }
 
 
@@ -1710,22 +1736,31 @@ model SupportTicket {
   id            String   @id @default(cuid())
   ticketNumber  Int      @unique          // מספר פנייה אוטומטי (5001+)
   userId        String                    // מי פנה
-  user          User     @relation(fields: [userId], references: [id], onDelete: Cascade)
+  user          User     @relation("ticketUser", fields: [userId], references: [id], onDelete: Cascade)
   subject       String                    // נושא הפנייה
-  message       String   @db.Text         // תוכן ההודעה
+  message       String   @db.Text         // תוכן ההודעה (שם שדה קיים — לא משנים)
   category      String   @default("general") // general, technical, billing, other
   priority      String   @default("MEDIUM")  // LOW, MEDIUM, HIGH, URGENT
   status        String   @default("OPEN")    // OPEN, IN_PROGRESS, WAITING, RESOLVED, CLOSED
-  adminNotes    String?  @db.Text         // הערות אדמין (פנימי)
+  adminNotes    String?  @db.Text         // הערות אדמין (legacy — שדה יחיד, נשאר לתאימות)
   resolvedAt    DateTime?
   resolvedBy    String?                   // מזהה אדמין שטיפל
   createdAt     DateTime @default(now())
   updatedAt     DateTime @updatedAt
   responses     SupportResponse[]
 
+  // Stage 1.7 — שדות חדשים (additive, נשאר תואם לאחור)
+  assignedToId            String?
+  assignedToNameSnapshot  String?
+  assignedTo              User?   @relation("ticketAssigned", fields: [assignedToId], references: [id], onDelete: SetNull)
+  lastReplyAt             DateTime?
+  notes                   SupportTicketNote[]
+
   @@index([userId])
   @@index([status])
   @@index([ticketNumber])
+  @@index([status, lastReplyAt])       // לסינון SLA breaches
+  @@index([assignedToId, status])      // "פניות שלי" ב-dashboard של מזכיר
 }
 
 model SupportResponse {
@@ -1739,4 +1774,101 @@ model SupportResponse {
   createdAt DateTime @default(now())
 
   @@index([ticketId])
+}
+
+// Stage 1.7 — הערות פנימיות בין מנהלים (בנוסף ל-SupportResponse הציבורי)
+model SupportTicketNote {
+  id                  String   @id @default(cuid())
+  ticketId            String
+  ticket              SupportTicket @relation(fields: [ticketId], references: [id], onDelete: Cascade)
+  authorId            String?                   // nullable — SetNull כשמזכיר נמחק
+  author              User?    @relation("noteAuthor", fields: [authorId], references: [id], onDelete: SetNull)
+  authorNameSnapshot  String                    // snapshot של שם בעת הכתיבה
+  content             String   @db.Text
+  isInternal          Boolean  @default(true)   // ברירת מחדל: הערה פנימית (לא נראית למשתמש)
+  createdAt           DateTime @default(now())
+
+  @@index([ticketId, createdAt])
+}
+
+// ==================== Stage 1.7 — Packages (bank system) ====================
+
+enum PackageType {
+  SMS
+  AI_DETAILED_ANALYSIS
+}
+
+enum PackageSource {
+  MANUAL    // מזכיר/מנהל הוסיף ידנית
+  CARDCOM   // רכישה אוטומטית דרך סליקה
+  PROMO     // קידום מכירות / מתנה
+}
+
+// קטלוג חבילות לרכישה
+model Package {
+  id          String      @id @default(cuid())
+  type        PackageType
+  name        String      // "חבילה 100 SMS"
+  credits     Int         // כמה יחידות כלולות
+  priceIls    Decimal     @db.Decimal(10, 2)
+  isActive    Boolean     @default(true)
+  createdAt   DateTime    @default(now())
+  updatedAt   DateTime    @updatedAt
+  purchases   UserPackagePurchase[]
+}
+
+// רכישות של משתמשים — "הבנק"
+model UserPackagePurchase {
+  id              String        @id @default(cuid())
+  userId          String
+  user            User          @relation("packageUser", fields: [userId], references: [id], onDelete: Cascade)
+  packageId       String?
+  package         Package?      @relation(fields: [packageId], references: [id], onDelete: SetNull)
+  type            PackageType
+  credits         Int
+  creditsUsed     Int           @default(0)
+  grantedBy       String?       // userId של המזכיר שהוסיף
+  grantedByUser   User?         @relation("packageGrantedBy", fields: [grantedBy], references: [id], onDelete: SetNull)
+  note            String?       @db.Text
+  source          PackageSource
+  externalId      String?       // מזהה עסקה מקארדקום
+  reverted        Boolean       @default(false)
+  revertedAt      DateTime?
+  revertedBy      String?       // userId של מי שביטל
+  createdAt       DateTime      @default(now())
+
+  @@index([userId, type])
+  @@index([userId, type, reverted])
+  @@index([externalId])
+}
+
+// ==================== Stage 1.7 — Webhook idempotency ====================
+
+model WebhookEvent {
+  id          String    @id @default(cuid())
+  provider    String    // "CARDCOM", "MESHULAM", etc.
+  externalId  String    // מזהה עסקה של הספק
+  rawPayload  Json
+  processed   Boolean   @default(false)
+  error       String?   @db.Text
+  attempts    Int       @default(0)
+  createdAt   DateTime  @default(now())
+  processedAt DateTime?
+
+  @@unique([provider, externalId])
+  @@index([processed, createdAt])
+}
+
+// ==================== Stage 1.7 — Request idempotency ====================
+
+model IdempotencyKey {
+  key         String   @id   // "{adminId}:{clientKey}"
+  method      String
+  path        String
+  statusCode  Int
+  response    Json
+  createdAt   DateTime @default(now())
+  expiresAt   DateTime
+
+  @@index([expiresAt])
 }
