@@ -18,7 +18,6 @@
 import type { Prisma } from "@prisma/client";
 import type { Session } from "next-auth";
 import { prisma } from "@/lib/prisma";
-import { logger } from "@/lib/logger";
 
 // ─── Actor model ────────────────────────────────────────────────────────────
 
@@ -100,18 +99,24 @@ export async function withAudit<T>(
 ): Promise<T> {
   const isolationLevel = opts.isolationLevel ?? "Serializable";
 
-  // Resolve adminId and actor metadata without additional I/O
+  // Resolve adminId and actor metadata without additional I/O.
+  // Stage 1.7 schema: adminId nullable + onDelete SetNull + adminEmail/adminName
+  // snapshot columns → system events (CRON/WEBHOOK) כותבים ל-DB עם adminId=null
+  // + source ב-details; רישום פעולות שהתבצעו על ידי אדמין שנמחק בהמשך נשמר
+  // (adminId יהפוך ל-null, snapshot נשאר).
   let adminId: string | null;
+  let adminEmail: string | null;
+  let adminName: string | null;
   let actorMeta: Record<string, unknown> = {};
   if (actor.kind === "user") {
     adminId = actor.session.user.id;
-    actorMeta = {
-      actorKind: "user",
-      adminEmail: actor.session.user.email ?? null,
-      adminName: actor.session.user.name ?? null,
-    };
+    adminEmail = actor.session.user.email ?? null;
+    adminName = actor.session.user.name ?? null;
+    actorMeta = { actorKind: "user" };
   } else {
-    adminId = null; // system — won't be attributed to a user
+    adminId = null;
+    adminEmail = null;
+    adminName = `[SYSTEM:${actor.source}]`;
     actorMeta = {
       actorKind: "system",
       source: actor.source,
@@ -127,34 +132,17 @@ export async function withAudit<T>(
         async (tx) => {
           const result = await fn(tx);
 
-          // Only write audit row if we have an adminId (FK constraint).
-          // System events are captured via the details JSON for now; once
-          // stage 1.7 migration adds snapshot fields + onDelete: SetNull,
-          // system events will write real rows with adminId=null.
-          //
-          // TODO(stage 1.7): אחרי migration של AdminAuditLog
-          // (adminId nullable + onDelete SetNull + adminEmail/adminName snapshot)
-          // יש להחליף את ה-logger.info כאן ב-tx.adminAuditLog.create עם
-          // adminId=null. לא לשכוח להוריד את ה-if/else — כולם יעברו דרך DB.
-          if (adminId !== null) {
-            await tx.adminAuditLog.create({
-              data: {
-                adminId,
-                action: opts.action,
-                targetType: opts.targetType,
-                targetId: opts.targetId ?? null,
-                details: JSON.stringify(detailsToStore),
-              },
-            });
-          } else {
-            // System event — log via logger until schema migration lands
-            logger.info("[withAudit:system] action recorded", {
+          await tx.adminAuditLog.create({
+            data: {
+              adminId,
+              adminEmail,
+              adminName,
               action: opts.action,
               targetType: opts.targetType,
-              targetId: opts.targetId,
-              ...actorMeta,
-            });
-          }
+              targetId: opts.targetId ?? null,
+              details: JSON.stringify(detailsToStore),
+            },
+          });
 
           return result;
         },

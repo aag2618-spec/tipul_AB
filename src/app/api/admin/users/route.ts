@@ -72,7 +72,7 @@ export async function GET(request: NextRequest) {
   } catch (error) {
     logger.error('Error fetching users:', { error: error instanceof Error ? error.message : String(error) });
     return NextResponse.json(
-      { message: "Internal server error" },
+      { message: "שגיאה בטעינת המשתמשים" },
       { status: 500 }
     );
   }
@@ -90,7 +90,7 @@ export async function POST(request: NextRequest) {
     // Validate required fields
     if (!email || !password) {
       return NextResponse.json(
-        { message: "Email and password are required" },
+        { message: "חובה להזין אימייל וסיסמה" },
         { status: 400 }
       );
     }
@@ -133,13 +133,13 @@ export async function POST(request: NextRequest) {
     });
 
     return NextResponse.json({
-      message: "User created successfully",
+      message: "המשתמש נוצר בהצלחה",
       user: { ...newUser, password: undefined }
     });
   } catch (error) {
     logger.error('Error creating user:', { error: error instanceof Error ? error.message : String(error) });
     return NextResponse.json(
-      { message: "Internal server error" },
+      { message: "שגיאה ביצירת המשתמש" },
       { status: 500 }
     );
   }

@@ -232,13 +232,13 @@ export async function PUT(
     );
 
     return NextResponse.json({
-      message: "User updated successfully",
+      message: "המשתמש עודכן בהצלחה",
       user: { ...updatedUser, password: undefined },
     });
   } catch (error) {
     logger.error('Error updating user:', { error: error instanceof Error ? error.message : String(error) });
     return NextResponse.json(
-      { message: "Internal server error" },
+      { message: "שגיאה בעדכון המשתמש" },
       { status: 500 }
     );
   }
@@ -286,12 +286,12 @@ export async function DELETE(
     );
 
     return NextResponse.json({
-      message: "User deleted successfully"
+      message: "המשתמש נמחק בהצלחה"
     });
   } catch (error) {
     logger.error('Error deleting user:', { error: error instanceof Error ? error.message : String(error) });
     return NextResponse.json(
-      { message: "Internal server error" },
+      { message: "שגיאה במחיקת המשתמש" },
       { status: 500 }
     );
   }
@@ -636,7 +636,7 @@ export async function PATCH(
   } catch (error) {
     logger.error('Error updating user:', { error: error instanceof Error ? error.message : String(error) });
     return NextResponse.json(
-      { message: "Internal server error" },
+      { message: "שגיאה בעדכון המשתמש" },
       { status: 500 }
     );
   }
