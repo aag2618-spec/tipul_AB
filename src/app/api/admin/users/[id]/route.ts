@@ -111,7 +111,29 @@ export async function PUT(
   try {
     const { id } = await params;
     const body = await request.json();
-    const { name, email, password, phone } = body;
+    const { name, email, password, phone, role, aiTier } = body;
+
+    // === Loud rejection: PUT לא מטפל ב-role/aiTier יותר ===
+    // לפני Stage 1.5 ה-PUT קיבל אותם בשקט, וה-UI עשוי עדיין לשלוח.
+    // זורקים 400 כדי שהמשתמש יראה מה קורה במקום שיחשוב שזה עבד.
+    if (role !== undefined) {
+      return NextResponse.json(
+        {
+          message: "שינוי תפקיד חייב לעבור דרך PATCH (לא PUT)",
+          field: "role",
+        },
+        { status: 400 }
+      );
+    }
+    if (aiTier !== undefined) {
+      return NextResponse.json(
+        {
+          message: "שינוי תוכנית חייב לעבור דרך PATCH (לא PUT)",
+          field: "aiTier",
+        },
+        { status: 400 }
+      );
+    }
 
     // בחירת ההרשאה לפי תוכן הבקשה
     const required: Permission[] = ["users.update_basic"];
@@ -122,17 +144,29 @@ export async function PUT(
     const { session } = auth;
     const isAdmin = session.user.role === "ADMIN";
 
-    // Guard: MANAGER לא יכול לאפס סיסמת ADMIN
-    if (password && !isAdmin) {
+    // === Guard על משתמשים שיעדם ADMIN ===
+    // מזכיר אסור:
+    //   (1) לאפס סיסמת ADMIN (הנחת טרויאנית של שומר סיסמה)
+    //   (2) לשנות email של ADMIN (vector של password-reset-via-email-swap)
+    const needsTargetAdminCheck = (password || email !== undefined) && !isAdmin;
+    if (needsTargetAdminCheck) {
       const target = await prisma.user.findUnique({
         where: { id },
         select: { role: true },
       });
       if (target?.role === "ADMIN") {
-        return NextResponse.json(
-          { message: "מזכיר לא יכול לאפס סיסמת מנהל" },
-          { status: 403 }
-        );
+        if (password) {
+          return NextResponse.json(
+            { message: "מזכיר לא יכול לאפס סיסמת מנהל" },
+            { status: 403 }
+          );
+        }
+        if (email !== undefined) {
+          return NextResponse.json(
+            { message: "מזכיר לא יכול לשנות אימייל של מנהל" },
+            { status: 403 }
+          );
+        }
       }
     }
 
@@ -332,28 +366,37 @@ export async function PATCH(
     // Race-safe extension: transaction + SELECT FOR UPDATE
     // שני מזכירים שמוסיפים 7 ימים במקביל → Postgres נועל את השורה;
     // השני יקבל את הערך המעודכן וימשיך נכון.
+    // הערה על סדר עדיפות: אם גם `extendDays` וגם `subscriptionEndsAt` נשלחו,
+    // `extendDays` זוכה — הוא מוסיף ימים מהתפוגה הנוכחית ב-DB, לא לערך מה-body.
     let updatedUser;
     if (extendDays && typeof extendDays === "number" && extendDays > 0) {
-      updatedUser = await prisma.$transaction(async (tx) => {
-        // נעילה בסגנון "read-then-write בטוח"
-        await tx.$executeRaw`SELECT 1 FROM "User" WHERE "id" = ${id} FOR UPDATE`;
-        const currentUser = await tx.user.findUnique({
-          where: { id },
-          select: { subscriptionEndsAt: true },
-        });
-        const baseDate =
-          currentUser?.subscriptionEndsAt &&
-          new Date(currentUser.subscriptionEndsAt) > new Date()
-            ? new Date(currentUser.subscriptionEndsAt)
-            : new Date();
-        updateData.subscriptionEndsAt = new Date(
-          baseDate.getTime() + extendDays * 24 * 60 * 60 * 1000
-        );
-        return tx.user.update({
-          where: { id },
-          data: updateData,
-        });
-      });
+      updatedUser = await prisma.$transaction(
+        async (tx) => {
+          // נעילה בסגנון "read-then-write בטוח"
+          await tx.$executeRaw`SELECT 1 FROM "User" WHERE "id" = ${id} FOR UPDATE`;
+          const currentUser = await tx.user.findUnique({
+            where: { id },
+            select: { subscriptionEndsAt: true },
+          });
+          const baseDate =
+            currentUser?.subscriptionEndsAt &&
+            new Date(currentUser.subscriptionEndsAt) > new Date()
+              ? new Date(currentUser.subscriptionEndsAt)
+              : new Date();
+          updateData.subscriptionEndsAt = new Date(
+            baseDate.getTime() + extendDays * 24 * 60 * 60 * 1000
+          );
+          return tx.user.update({
+            where: { id },
+            data: updateData,
+          });
+        },
+        {
+          isolationLevel: "Serializable",
+          maxWait: 5000,
+          timeout: 10000,
+        }
+      );
     } else {
       updatedUser = await prisma.user.update({
         where: { id },

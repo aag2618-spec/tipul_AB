@@ -33,7 +33,11 @@ const ADMIN_ONLY_PATHS = [
 ];
 
 function isAdminOnlyPath(pathname: string): boolean {
-  return ADMIN_ONLY_PATHS.some((p) => pathname.startsWith(p));
+  // חשוב: לוודא התאמה מדויקת או prefix עם גרש, כדי למנוע false positive
+  // למשל `/admin/feature-flagsomething` לא יזוהה בטעות כחלק מ-`/admin/feature-flags`.
+  return ADMIN_ONLY_PATHS.some(
+    (p) => pathname === p || pathname.startsWith(p + "/")
+  );
 }
 
 export async function middleware(request: NextRequest) {
