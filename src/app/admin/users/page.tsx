@@ -208,7 +208,10 @@ export default function AdminUsersPage() {
         body: JSON.stringify({ aiTier: editTier }),
       });
 
-      if (!response.ok) throw new Error("שגיאה בשינוי תוכנית");
+      if (!response.ok) {
+        const data = await response.json().catch(() => ({}));
+        throw new Error(data.message || "שגיאה בשינוי תוכנית");
+      }
 
       toast.success("התוכנית שונתה בהצלחה");
       fetchUsers();

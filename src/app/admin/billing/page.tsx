@@ -183,9 +183,12 @@ export default function AdminBillingPage() {
         toast.success(block ? "המשתמש נחסם" : "המשתמש שוחרר");
         fetchSubscribers();
         setActionDialog(null);
+      } else {
+        const data = await res.json().catch(() => ({}));
+        toast.error(data.message || (block ? "שגיאה בחסימה" : "שגיאה בשחרור"));
       }
     } catch {
-      toast.error("שגיאה");
+      toast.error("שגיאת רשת");
     } finally {
       setActionLoading(false);
     }
@@ -204,9 +207,12 @@ export default function AdminBillingPage() {
         toast.success("המסלול עודכן");
         fetchSubscribers();
         setActionDialog(null);
+      } else {
+        const data = await res.json().catch(() => ({}));
+        toast.error(data.message || "שגיאה בעדכון המסלול");
       }
     } catch {
-      toast.error("שגיאה");
+      toast.error("שגיאת רשת");
     } finally {
       setActionLoading(false);
     }
@@ -224,9 +230,12 @@ export default function AdminBillingPage() {
         toast.success(`המנוי הוארך ב-${extendDays} ימים`);
         fetchSubscribers();
         setActionDialog(null);
+      } else {
+        const data = await res.json().catch(() => ({}));
+        toast.error(data.message || "שגיאה בהארכת המנוי");
       }
     } catch {
-      toast.error("שגיאה");
+      toast.error("שגיאת רשת");
     } finally {
       setActionLoading(false);
     }
@@ -237,11 +246,11 @@ export default function AdminBillingPage() {
     try {
       const days = parseInt(freeDuration);
       const endDate = new Date(Date.now() + days * 24 * 60 * 60 * 1000);
-      
+
       const res = await fetch(`/api/admin/users/${userId}`, {
         method: "PATCH",
         headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ 
+        body: JSON.stringify({
           aiTier: freeTier,
           grantFree: true,
           freeNote: freeNote || undefined,
@@ -254,10 +263,11 @@ export default function AdminBillingPage() {
         setActionDialog(null);
         setFreeNote("");
       } else {
-        toast.error("שגיאה במתן מנוי חינם");
+        const data = await res.json().catch(() => ({}));
+        toast.error(data.message || "שגיאה במתן מנוי חינם");
       }
     } catch {
-      toast.error("שגיאה");
+      toast.error("שגיאת רשת");
     } finally {
       setActionLoading(false);
     }
@@ -276,10 +286,11 @@ export default function AdminBillingPage() {
         fetchSubscribers();
         setActionDialog(null);
       } else {
-        toast.error("שגיאה");
+        const data = await res.json().catch(() => ({}));
+        toast.error(data.message || "שגיאה בביטול מנוי חינם");
       }
     } catch {
-      toast.error("שגיאה");
+      toast.error("שגיאת רשת");
     } finally {
       setActionLoading(false);
     }

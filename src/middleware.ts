@@ -1,6 +1,12 @@
 import { NextResponse } from "next/server";
 import type { NextRequest } from "next/server";
 import { getToken } from "next-auth/jwt";
+import {
+  checkRateLimit,
+  getAdminRateLimitTier,
+  getAdminRateLimitKey,
+  ADMIN_RATE_LIMIT_BY_TIER,
+} from "@/lib/rate-limit";
 
 // דפים שלא דורשים מנוי פעיל (מדויקים!)
 const SUBSCRIPTION_EXEMPT_PATHS = [
@@ -97,6 +103,36 @@ export async function middleware(request: NextRequest) {
         { message: "פעולה זו זמינה לבעל המערכת בלבד" },
         { status: 403 }
       );
+    }
+
+    // === Rate limiting (Stage 1.8) — 3 שכבות אכיפה על /api/admin/* ===
+    const adminId = token.sub ?? (token.id as string | undefined);
+    if (adminId) {
+      const tier = getAdminRateLimitTier(pathname, request.method);
+      const key = getAdminRateLimitKey(pathname, adminId, tier);
+      const config = ADMIN_RATE_LIMIT_BY_TIER[tier];
+      const result = checkRateLimit(`admin:${tier}:${key}`, config);
+      if (!result.allowed) {
+        return NextResponse.json(
+          {
+            message:
+              tier === "sensitive"
+                ? "יותר מדי פעולות רגישות. חכה דקה ונסה שוב."
+                : "יותר מדי בקשות. חכה דקה ונסה שוב.",
+          },
+          {
+            status: 429,
+            headers: {
+              "Retry-After": String(
+                Math.max(1, Math.ceil((result.resetAt - Date.now()) / 1000))
+              ),
+              "X-RateLimit-Remaining": "0",
+              "X-RateLimit-Reset": String(result.resetAt),
+              "X-RateLimit-Tier": tier,
+            },
+          }
+        );
+      }
     }
   }
 

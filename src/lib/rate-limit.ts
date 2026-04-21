@@ -101,6 +101,81 @@ export const AI_RATE_LIMIT = { maxRequests: 30, windowMs: 60 * 1000 };
 export const WEBHOOK_RATE_LIMIT = { maxRequests: 50, windowMs: 60 * 1000 };
 
 // ========================================
+// Admin rate limits (Stage 1.8)
+// ========================================
+// 3 שכבות הגנה על /api/admin/*:
+//   - Read:   60/דקה  — GETs, חיפושים, דשבורד
+//   - Write:  20/דקה  — POST/PATCH/DELETE רגילים
+//   - רגיש:    5/דקה  — grantFree, manual payment, set-admin, delete, add-package
+// המפתח של 'רגיש' הוא `{adminId}:{targetUserId}` — מונע ADMIN שמבצע פעולות רגילות על
+// כמה משתמשים מלהיחסם. לפעולות ללא target מוגדר fallback של `{adminId}:global`.
+
+export const ADMIN_READ_RATE_LIMIT = { maxRequests: 60, windowMs: 60 * 1000 };
+export const ADMIN_WRITE_RATE_LIMIT = { maxRequests: 20, windowMs: 60 * 1000 };
+export const ADMIN_SENSITIVE_RATE_LIMIT = { maxRequests: 5, windowMs: 60 * 1000 };
+
+/**
+ * החזרת שכבת rate limit מתאימה ל-endpoint של admin.
+ *   - רגיש (5/דקה): add-package, manual-payment, set-admin, delete-user,
+ *     idempotency clear, grantFree (PATCH), role change.
+ *   - Write (20/דקה): שאר POST/PATCH/PUT/DELETE.
+ *   - Read (60/דקה): GET.
+ */
+export type AdminRateLimitTier = "read" | "write" | "sensitive";
+
+export function getAdminRateLimitTier(
+  pathname: string,
+  method: string
+): AdminRateLimitTier {
+  if (method === "GET" || method === "HEAD") return "read";
+
+  // endpoints רגישים — כתיבה עם השלכות פיננסיות/הרשאות
+  const SENSITIVE_PATHS = [
+    "/api/admin/users/", // כולל add-package, manual-payment, toggle-block, PATCH
+    "/api/admin/set-admin",
+    "/api/admin/idempotency",
+  ];
+  const SENSITIVE_METHODS_ON_USERS = ["POST", "PATCH", "DELETE"];
+
+  if (
+    pathname.startsWith("/api/admin/users/") &&
+    SENSITIVE_METHODS_ON_USERS.includes(method)
+  ) {
+    return "sensitive";
+  }
+  if (SENSITIVE_PATHS.some((p) => pathname === p || pathname.startsWith(p + "/"))) {
+    return "sensitive";
+  }
+  return "write";
+}
+
+/**
+ * החזרת מזהה לחישוב rate limit.
+ * פעולות רגישות עם target user → `{adminId}:{targetUserId}`.
+ * פעולות רגילות → `{adminId}` בלבד.
+ */
+export function getAdminRateLimitKey(
+  pathname: string,
+  adminId: string,
+  tier: AdminRateLimitTier
+): string {
+  if (tier !== "sensitive") return adminId;
+
+  // חילוץ targetUserId מהנתיב אם יש (למשל /api/admin/users/abc-123/add-package)
+  const usersMatch = pathname.match(/^\/api\/admin\/users\/([^/]+)/);
+  if (usersMatch) {
+    return `${adminId}:${usersMatch[1]}`;
+  }
+  return `${adminId}:global`;
+}
+
+export const ADMIN_RATE_LIMIT_BY_TIER = {
+  read: ADMIN_READ_RATE_LIMIT,
+  write: ADMIN_WRITE_RATE_LIMIT,
+  sensitive: ADMIN_SENSITIVE_RATE_LIMIT,
+} as const;
+
+// ========================================
 // Helper לשימוש ב-NextResponse
 // ========================================
 
