@@ -17,63 +17,13 @@
  */
 
 import { PrismaClient } from "@prisma/client";
+import {
+  DEFAULT_AI_SETTINGS,
+  DEFAULT_FEATURE_FLAGS,
+  GLOBAL_AI_SETTINGS_ID,
+} from "../src/lib/defaults";
 
 const prisma = new PrismaClient();
-
-const DEFAULT_FEATURE_FLAGS = [
-  {
-    key: "ai_session_prep",
-    name: "הכנה לפגישה עם AI",
-    description: "הכנה אוטומטית לפגישות באמצעות AI",
-    tiers: ["PRO", "ENTERPRISE"],
-  },
-  {
-    key: "ai_detailed_analysis",
-    name: "ניתוח מפורט AI",
-    description: "ניתוח מפורט של פגישות באמצעות AI",
-    tiers: ["ENTERPRISE"],
-  },
-  {
-    key: "ai_questionnaire",
-    name: "ניתוח שאלונים AI",
-    description: "ניתוח שאלונים אוטומטי באמצעות AI",
-    tiers: ["PRO", "ENTERPRISE"],
-  },
-  {
-    key: "email_threads",
-    name: "שרשורי מייל",
-    description: "ניהול שרשורי אימייל עם מטופלים",
-    tiers: ["PRO", "ENTERPRISE"],
-  },
-  {
-    key: "file_attachments",
-    name: "קבצים מצורפים",
-    description: "צירוף קבצים להודעות ולפגישות",
-    tiers: ["PRO", "ENTERPRISE"],
-  },
-  {
-    key: "advanced_reports",
-    name: "דוחות מתקדמים",
-    description: "גישה לדוחות ואנליטיקה מתקדמים",
-    tiers: ["ENTERPRISE"],
-  },
-] as const;
-
-const DEFAULT_AI_SETTINGS = {
-  id: "default",
-  dailyLimitEssential: 0,
-  dailyLimitPro: 30,
-  dailyLimitEnterprise: 100,
-  monthlyLimitEssential: 0,
-  monthlyLimitPro: 600,
-  monthlyLimitEnterprise: 2000,
-  maxMonthlyCostBudget: 5000,
-  alertThreshold: 4000,
-  blockOnExceed: false,
-  alertAdminOnExceed: true,
-  enableCache: true,
-  compressPrompts: true,
-} as const;
 
 async function seedFeatureFlags() {
   console.log("→ Seeding feature flags...");
@@ -115,7 +65,7 @@ async function seedAISettings() {
   }
 
   await prisma.globalAISettings.create({
-    data: DEFAULT_AI_SETTINGS,
+    data: { id: GLOBAL_AI_SETTINGS_ID, ...DEFAULT_AI_SETTINGS },
   });
   console.log("   ✓ ai settings: created");
 }

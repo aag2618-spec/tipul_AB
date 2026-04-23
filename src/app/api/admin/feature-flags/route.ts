@@ -5,45 +5,10 @@ import { logger } from "@/lib/logger";
 
 import { requirePermission } from "@/lib/api-auth";
 import { withAudit } from "@/lib/audit";
+import { DEFAULT_FEATURE_FLAGS } from "@/lib/defaults";
 
-const DEFAULT_FLAGS = [
-  {
-    key: "ai_session_prep",
-    name: "הכנה לפגישה עם AI",
-    description: "הכנה אוטומטית לפגישות באמצעות AI",
-    tiers: ["PRO", "ENTERPRISE"],
-  },
-  {
-    key: "ai_detailed_analysis",
-    name: "ניתוח מפורט AI",
-    description: "ניתוח מפורט של פגישות באמצעות AI",
-    tiers: ["ENTERPRISE"],
-  },
-  {
-    key: "ai_questionnaire",
-    name: "ניתוח שאלונים AI",
-    description: "ניתוח שאלונים אוטומטי באמצעות AI",
-    tiers: ["PRO", "ENTERPRISE"],
-  },
-  {
-    key: "email_threads",
-    name: "שרשורי מייל",
-    description: "ניהול שרשורי אימייל עם מטופלים",
-    tiers: ["PRO", "ENTERPRISE"],
-  },
-  {
-    key: "file_attachments",
-    name: "קבצים מצורפים",
-    description: "צירוף קבצים להודעות ולפגישות",
-    tiers: ["PRO", "ENTERPRISE"],
-  },
-  {
-    key: "advanced_reports",
-    name: "דוחות מתקדמים",
-    description: "גישה לדוחות ואנליטיקה מתקדמים",
-    tiers: ["ENTERPRISE"],
-  },
-];
+// alias זמני — שומר על שם ה-constant המקומי כדי למזער שינויים בהמשך הקובץ
+const DEFAULT_FLAGS = DEFAULT_FEATURE_FLAGS;
 
 async function seedDefaultFlags(session: Session) {
   // bootstrap חד-פעמי — רץ רק כאשר count=0. עטוף ב-withAudit כדי להשאיר רישום
@@ -65,7 +30,9 @@ async function seedDefaultFlags(session: Session) {
             name: flag.name,
             description: flag.description,
             isEnabled: true,
-            tiers: flag.tiers,
+            // spread נדרש כי DEFAULT_FEATURE_FLAGS הוא `as const` (readonly tuples)
+            // ו-Prisma דורש mutable string[].
+            tiers: [...flag.tiers],
           },
         });
       }

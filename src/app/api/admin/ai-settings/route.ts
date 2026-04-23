@@ -5,10 +5,15 @@ import { logger } from "@/lib/logger";
 import { requirePermission } from "@/lib/api-auth";
 import { withAudit } from "@/lib/audit";
 import { serializePrisma } from "@/lib/serialize";
+import {
+  DEFAULT_AI_SETTINGS,
+  GLOBAL_AI_SETTINGS_ID,
+} from "@/lib/defaults";
 
 export const dynamic = "force-dynamic";
 
-const GLOBAL_SETTINGS_ID = "default";
+// alias local name to keep downstream code unchanged
+const GLOBAL_SETTINGS_ID = GLOBAL_AI_SETTINGS_ID;
 
 // Allowlist נגד mass-assignment (Cursor M3). רק השדות האלה מותרים לעדכון.
 // id/updatedAt נשלטים על ידי Prisma והשרת בלבד.
@@ -61,23 +66,8 @@ export async function GET() {
         },
         async (tx) =>
           tx.globalAISettings.create({
-            data: {
-              id: GLOBAL_SETTINGS_ID,
-              // פריטי ברירת מחדל מסודרים — זהים ל-prisma/seed.ts ל-parity
-              // (Cursor round 1.18.2 — סוכן 5).
-              dailyLimitEssential: 0,
-              dailyLimitPro: 30,
-              dailyLimitEnterprise: 100,
-              monthlyLimitEssential: 0,
-              monthlyLimitPro: 600,
-              monthlyLimitEnterprise: 2000,
-              maxMonthlyCostBudget: 5000,
-              alertThreshold: 4000,
-              blockOnExceed: false,
-              alertAdminOnExceed: true,
-              enableCache: true,
-              compressPrompts: true,
-            },
+            // כל הערכים מ-src/lib/defaults.ts — מקור אמת יחיד עם seed.ts
+            data: { id: GLOBAL_SETTINGS_ID, ...DEFAULT_AI_SETTINGS },
           })
       );
     }
