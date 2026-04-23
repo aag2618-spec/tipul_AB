@@ -63,8 +63,12 @@ export async function GET() {
           tx.globalAISettings.create({
             data: {
               id: GLOBAL_SETTINGS_ID,
+              // פריטי ברירת מחדל מסודרים — זהים ל-prisma/seed.ts ל-parity
+              // (Cursor round 1.18.2 — סוכן 5).
+              dailyLimitEssential: 0,
               dailyLimitPro: 30,
               dailyLimitEnterprise: 100,
+              monthlyLimitEssential: 0,
               monthlyLimitPro: 600,
               monthlyLimitEnterprise: 2000,
               maxMonthlyCostBudget: 5000,
