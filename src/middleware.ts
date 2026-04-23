@@ -44,6 +44,7 @@ const ADMIN_ONLY_PATHS = [
   "/api/admin/ai-settings",
   "/api/admin/terms",
   "/api/admin/coupons",
+  "/api/admin/idempotency", // Stage 1.18 — ADMIN-only, defense-in-depth
 ];
 
 function isAdminOnlyPath(pathname: string): boolean {

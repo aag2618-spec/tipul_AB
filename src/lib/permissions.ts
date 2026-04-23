@@ -65,7 +65,7 @@ export type Permission =
   | "settings.terms"
   | "announcements.delete" // מחיקת הודעת מערכת — ADMIN בלבד
   | "support.delete"
-  | "idempotency.clear"; // @stage-reserved — route יבוצע ב-Stage 1.18
+  | "idempotency.clear"; // DELETE /api/admin/idempotency (Stage 1.18)
 
 /**
  * Permissions allowed for each role.
