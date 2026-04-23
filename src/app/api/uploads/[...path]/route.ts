@@ -15,6 +15,7 @@ export async function GET(
     const auth = await requireAuth();
     if ("error" in auth) return auth.error;
     const { userId, session } = auth;
+    const isAdminOrManager = session.user.role === "ADMIN" || session.user.role === "MANAGER";
 
     const { path } = await params;
 
@@ -66,6 +67,23 @@ export async function GET(
         return NextResponse.json({ message: "אין הרשאה לקובץ זה" }, { status: 403 });
       }
     }
+    // Check if it's a support ticket attachment
+    else if (pathStr.startsWith("support/")) {
+      const ticketId = path.length >= 2 ? path[1] : null;
+      if (!ticketId) {
+        return NextResponse.json({ message: "אין הרשאה לקובץ זה" }, { status: 403 });
+      }
+      // משתמש רואה רק קבצים של פניות שלו, ADMIN/MANAGER רואים הכל
+      if (!isAdminOrManager) {
+        const ticket = await prisma.supportTicket.findUnique({
+          where: { id: ticketId },
+          select: { userId: true },
+        });
+        if (!ticket || ticket.userId !== userId) {
+          return NextResponse.json({ message: "אין הרשאה לקובץ זה" }, { status: 403 });
+        }
+      }
+    }
     // Check if it's a recording
     else if (pathStr.startsWith("recordings/")) {
       const fileName = path[path.length - 1];
@@ -94,11 +112,22 @@ export async function GET(
     }
 
     const file = await readFile(filePath);
-    
+
     // Determine content type based on extension
     const extension = filePath.split(".").pop()?.toLowerCase();
     let contentType = "application/octet-stream";
-    
+
+    // עבור קבצי support — רק תוספות בטוחות, ללא html/svg שעלול לגרום ל-XSS
+    if (pathStr.startsWith("support/")) {
+      const SAFE_SUPPORT_EXTENSIONS = new Set([
+        "jpg", "jpeg", "png", "gif", "webp",
+        "pdf", "doc", "docx",
+      ]);
+      if (!extension || !SAFE_SUPPORT_EXTENSIONS.has(extension)) {
+        return NextResponse.json({ message: "סוג קובץ לא חוקי" }, { status: 400 });
+      }
+    }
+
     switch (extension) {
       case "webm":
         contentType = "audio/webm";
@@ -155,13 +184,24 @@ export async function GET(
         break;
     }
 
-    return new NextResponse(file, {
-      headers: {
-        "Content-Type": contentType,
-        "Content-Length": file.length.toString(),
-        "Cache-Control": "private, max-age=3600",
-      },
-    });
+    const responseHeaders: Record<string, string> = {
+      "Content-Type": contentType,
+      "Content-Length": file.length.toString(),
+      "Cache-Control": "private, max-age=3600",
+      "X-Content-Type-Options": "nosniff",
+    };
+    // עבור קבצי support — כפייה של הורדה/תצוגה ב-iframe עם שם קובץ נקי,
+    // כדי למנוע rendering של HTML/SVG גם אם יהיה content-type spoofing.
+    if (pathStr.startsWith("support/")) {
+      const originalFilename = path[path.length - 1] || "file";
+      // הגבל תווים ב-filename של ה-header ל-ASCII בלבד (RFC 6266),
+      // ושמור את המקורי המלא ב-filename* עם UTF-8 encoding
+      const asciiSafe = originalFilename.replace(/[^\x20-\x7E]/g, "_");
+      responseHeaders["Content-Disposition"] =
+        `inline; filename="${asciiSafe}"; filename*=UTF-8''${encodeURIComponent(originalFilename)}`;
+    }
+
+    return new NextResponse(file, { headers: responseHeaders });
   } catch (error) {
     logger.error("File serve error:", { error: error instanceof Error ? error.message : String(error) });
     return NextResponse.json(

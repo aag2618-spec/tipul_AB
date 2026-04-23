@@ -34,10 +34,13 @@ import {
   Headphones,
 } from "lucide-react";
 import { toast } from "sonner";
+import { AttachmentList, type SupportAttachment } from "@/components/support/attachment-list";
+import { AttachmentPicker } from "@/components/support/attachment-picker";
 
 interface TicketResponse {
   id: string;
   message: string;
+  attachments?: SupportAttachment[] | null;
   isAdmin: boolean;
   createdAt: string;
   author: { name: string | null };
@@ -48,6 +51,7 @@ interface Ticket {
   ticketNumber: number;
   subject: string;
   message: string;
+  attachments?: SupportAttachment[] | null;
   category: string;
   status: string;
   createdAt: string;
@@ -83,7 +87,11 @@ export default function SupportPage() {
   const [newSubject, setNewSubject] = useState("");
   const [newMessage, setNewMessage] = useState("");
   const [newCategory, setNewCategory] = useState("general");
+  const [newAttachments, setNewAttachments] = useState<File[]>([]);
   const [creating, setCreating] = useState(false);
+
+  // תגובה — קבצים מצורפים
+  const [replyAttachments, setReplyAttachments] = useState<File[]>([]);
 
   useEffect(() => {
     fetchTickets();
@@ -110,16 +118,29 @@ export default function SupportPage() {
     }
     setCreating(true);
     try {
-      const res = await fetch("/api/support", {
-        method: "POST",
-        headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({
-          subject: newSubject,
-          message: newMessage,
-          category: newCategory,
-        }),
-      });
-      if (!res.ok) throw new Error("שגיאה");
+      let res: Response;
+      if (newAttachments.length > 0) {
+        const formData = new FormData();
+        formData.append("subject", newSubject);
+        formData.append("message", newMessage);
+        formData.append("category", newCategory);
+        for (const f of newAttachments) formData.append("attachments", f);
+        res = await fetch("/api/support", { method: "POST", body: formData });
+      } else {
+        res = await fetch("/api/support", {
+          method: "POST",
+          headers: { "Content-Type": "application/json" },
+          body: JSON.stringify({
+            subject: newSubject,
+            message: newMessage,
+            category: newCategory,
+          }),
+        });
+      }
+      if (!res.ok) {
+        const data = await res.json().catch(() => ({ message: "שגיאה ביצירת פנייה" }));
+        throw new Error(data.message || "שגיאה");
+      }
 
       const data = await res.json();
       toast.success(`פנייה #${data.ticket.ticketNumber} נוצרה בהצלחה`);
@@ -127,9 +148,10 @@ export default function SupportPage() {
       setNewSubject("");
       setNewMessage("");
       setNewCategory("general");
+      setNewAttachments([]);
       fetchTickets();
-    } catch {
-      toast.error("שגיאה ביצירת פנייה");
+    } catch (error) {
+      toast.error(error instanceof Error ? error.message : "שגיאה ביצירת פנייה");
     } finally {
       setCreating(false);
     }
@@ -139,15 +161,30 @@ export default function SupportPage() {
     if (!selectedTicket || !replyText.trim()) return;
     setSending(true);
     try {
-      const res = await fetch(`/api/support/${selectedTicket.id}/responses`, {
-        method: "POST",
-        headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ message: replyText }),
-      });
-      if (!res.ok) throw new Error("שגיאה");
+      let res: Response;
+      if (replyAttachments.length > 0) {
+        const formData = new FormData();
+        formData.append("message", replyText);
+        for (const f of replyAttachments) formData.append("attachments", f);
+        res = await fetch(`/api/support/${selectedTicket.id}/responses`, {
+          method: "POST",
+          body: formData,
+        });
+      } else {
+        res = await fetch(`/api/support/${selectedTicket.id}/responses`, {
+          method: "POST",
+          headers: { "Content-Type": "application/json" },
+          body: JSON.stringify({ message: replyText }),
+        });
+      }
+      if (!res.ok) {
+        const data = await res.json().catch(() => ({ message: "שגיאה בשליחת תגובה" }));
+        throw new Error(data.message || "שגיאה");
+      }
 
       toast.success("התגובה נשלחה");
       setReplyText("");
+      setReplyAttachments([]);
       // רענון הפנייה
       const ticketRes = await fetch(`/api/support/${selectedTicket.id}`);
       if (ticketRes.ok) {
@@ -155,8 +192,8 @@ export default function SupportPage() {
         setSelectedTicket(data.ticket);
         fetchTickets();
       }
-    } catch {
-      toast.error("שגיאה בשליחת תגובה");
+    } catch (error) {
+      toast.error(error instanceof Error ? error.message : "שגיאה בשליחת תגובה");
     } finally {
       setSending(false);
     }
@@ -198,6 +235,7 @@ export default function SupportPage() {
             <div>
               <h3 className="font-semibold mb-1">{selectedTicket.subject}</h3>
               <p className="text-sm text-muted-foreground whitespace-pre-wrap">{selectedTicket.message}</p>
+              <AttachmentList attachments={selectedTicket.attachments} />
             </div>
 
             {/* שרשור תגובות */}
@@ -222,6 +260,7 @@ export default function SupportPage() {
                       </span>
                     </div>
                     <p className="text-sm whitespace-pre-wrap">{r.message}</p>
+                    <AttachmentList attachments={r.attachments} />
                   </div>
                 ))}
               </div>
@@ -229,16 +268,19 @@ export default function SupportPage() {
 
             {/* תיבת תגובה */}
             {selectedTicket.status !== "CLOSED" && (
-              <div className="border-t pt-4">
-                <div className="flex gap-2">
-                  <Textarea
-                    value={replyText}
-                    onChange={(e) => setReplyText(e.target.value)}
-                    placeholder="כתוב תגובה..."
-                    className="min-h-[80px]"
-                  />
-                </div>
-                <div className="flex justify-end mt-2">
+              <div className="border-t pt-4 space-y-2">
+                <Textarea
+                  value={replyText}
+                  onChange={(e) => setReplyText(e.target.value)}
+                  placeholder="כתוב תגובה..."
+                  className="min-h-[80px]"
+                />
+                <AttachmentPicker
+                  files={replyAttachments}
+                  onChange={setReplyAttachments}
+                  disabled={sending}
+                />
+                <div className="flex justify-end">
                   <Button onClick={handleReply} disabled={sending || !replyText.trim()} size="sm">
                     {sending ? <Loader2 className="h-4 w-4 animate-spin" /> : <Send className="ml-1 h-4 w-4" />}
                     שלח
@@ -304,6 +346,14 @@ export default function SupportPage() {
                   onChange={(e) => setNewMessage(e.target.value)}
                   placeholder="תאר את הבעיה או הבקשה שלך..."
                   className="min-h-[120px]"
+                />
+              </div>
+              <div className="space-y-2">
+                <Label>קבצים מצורפים (אופציונלי)</Label>
+                <AttachmentPicker
+                  files={newAttachments}
+                  onChange={setNewAttachments}
+                  disabled={creating}
                 />
               </div>
             </div>

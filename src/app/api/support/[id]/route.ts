@@ -2,6 +2,7 @@
 import { NextRequest, NextResponse } from "next/server";
 import prisma from "@/lib/prisma";
 import { requireAuth } from "@/lib/api-auth";
+import { logger } from "@/lib/logger";
 
 export const dynamic = "force-dynamic";
 
@@ -24,6 +25,7 @@ export async function GET(
           select: {
             id: true,
             message: true,
+            attachments: true,
             isAdmin: true,
             createdAt: true,
             author: {
@@ -40,7 +42,9 @@ export async function GET(
 
     return NextResponse.json({ ticket });
   } catch (error) {
-    console.error("שגיאה בטעינת פנייה:", error);
+    logger.error("[Support] Error fetching ticket:", {
+      error: error instanceof Error ? error.message : String(error),
+    });
     return NextResponse.json({ message: "שגיאה" }, { status: 500 });
   }
 }

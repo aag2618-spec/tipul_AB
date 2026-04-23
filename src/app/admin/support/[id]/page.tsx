@@ -25,10 +25,13 @@ import {
   StickyNote,
 } from "lucide-react";
 import { toast } from "sonner";
+import { AttachmentList, type SupportAttachment } from "@/components/support/attachment-list";
+import { AttachmentPicker } from "@/components/support/attachment-picker";
 
 interface TicketResponse {
   id: string;
   message: string;
+  attachments?: SupportAttachment[] | null;
   isAdmin: boolean;
   createdAt: string;
   author: { name: string | null; role: string };
@@ -49,6 +52,7 @@ interface Ticket {
   ticketNumber: number;
   subject: string;
   message: string;
+  attachments?: SupportAttachment[] | null;
   category: string;
   priority: string;
   status: string;
@@ -87,6 +91,7 @@ export default function AdminTicketDetailPage() {
   const [ticket, setTicket] = useState<Ticket | null>(null);
   const [loading, setLoading] = useState(true);
   const [replyText, setReplyText] = useState("");
+  const [replyAttachments, setReplyAttachments] = useState<File[]>([]);
   const [adminNotes, setAdminNotes] = useState("");
   const [sending, setSending] = useState(false);
   const [updatingStatus, setUpdatingStatus] = useState(false);
@@ -117,17 +122,32 @@ export default function AdminTicketDetailPage() {
     if (!replyText.trim()) return;
     setSending(true);
     try {
-      const res = await fetch(`/api/admin/support/${params.id}`, {
-        method: "POST",
-        headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ message: replyText }),
-      });
-      if (!res.ok) throw new Error("שגיאה");
+      let res: Response;
+      if (replyAttachments.length > 0) {
+        const formData = new FormData();
+        formData.append("message", replyText);
+        for (const f of replyAttachments) formData.append("attachments", f);
+        res = await fetch(`/api/admin/support/${params.id}`, {
+          method: "POST",
+          body: formData,
+        });
+      } else {
+        res = await fetch(`/api/admin/support/${params.id}`, {
+          method: "POST",
+          headers: { "Content-Type": "application/json" },
+          body: JSON.stringify({ message: replyText }),
+        });
+      }
+      if (!res.ok) {
+        const data = await res.json().catch(() => ({ message: "שגיאה בשליחה" }));
+        throw new Error(data.message || "שגיאה");
+      }
       toast.success("התגובה נשלחה");
       setReplyText("");
+      setReplyAttachments([]);
       fetchTicket();
-    } catch {
-      toast.error("שגיאה בשליחה");
+    } catch (error) {
+      toast.error(error instanceof Error ? error.message : "שגיאה בשליחה");
     } finally {
       setSending(false);
     }
@@ -225,6 +245,7 @@ export default function AdminTicketDetailPage() {
             </CardHeader>
             <CardContent>
               <p className="text-sm whitespace-pre-wrap">{ticket.message}</p>
+              <AttachmentList attachments={ticket.attachments} />
             </CardContent>
           </Card>
 
@@ -257,6 +278,7 @@ export default function AdminTicketDetailPage() {
                     </span>
                   </div>
                   <p className="text-sm whitespace-pre-wrap">{r.message}</p>
+                  <AttachmentList attachments={r.attachments} />
                 </div>
               ))}
             </div>
@@ -270,12 +292,17 @@ export default function AdminTicketDetailPage() {
                 תגובת אדמין
               </CardTitle>
             </CardHeader>
-            <CardContent>
+            <CardContent className="space-y-3">
               <Textarea
                 value={replyText}
                 onChange={(e) => setReplyText(e.target.value)}
                 placeholder="כתוב תגובה למשתמש..."
-                className="min-h-[100px] mb-3"
+                className="min-h-[100px]"
+              />
+              <AttachmentPicker
+                files={replyAttachments}
+                onChange={setReplyAttachments}
+                disabled={sending}
               />
               <div className="flex justify-end">
                 <Button onClick={handleReply} disabled={sending || !replyText.trim()}>

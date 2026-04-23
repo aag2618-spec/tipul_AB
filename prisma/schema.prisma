@@ -1739,6 +1739,7 @@ model SupportTicket {
   user          User     @relation("ticketUser", fields: [userId], references: [id], onDelete: Cascade)
   subject       String                    // נושא הפנייה
   message       String   @db.Text         // תוכן ההודעה (שם שדה קיים — לא משנים)
+  attachments   Json?                     // [{id, filename, contentType, size, fileUrl, uploadedAt}] — צילומי מסך ומסמכים שצורפו
   category      String   @default("general") // general, technical, billing, other
   priority      String   @default("MEDIUM")  // LOW, MEDIUM, HIGH, URGENT
   status        String   @default("OPEN")    // OPEN, IN_PROGRESS, WAITING, RESOLVED, CLOSED
@@ -1769,9 +1770,10 @@ model SupportResponse {
   ticket    SupportTicket @relation(fields: [ticketId], references: [id], onDelete: Cascade)
   authorId  String                        // מי כתב (משתמש או אדמין)
   author    User     @relation(fields: [authorId], references: [id], onDelete: Cascade)
-  message   String   @db.Text
-  isAdmin   Boolean  @default(false)      // האם זו תגובת אדמין
-  createdAt DateTime @default(now())
+  message     String   @db.Text
+  attachments Json?                         // [{id, filename, contentType, size, fileUrl, uploadedAt}] — צירופים בתגובה
+  isAdmin     Boolean  @default(false)      // האם זו תגובת אדמין
+  createdAt   DateTime @default(now())
 
   @@index([ticketId])
 }
