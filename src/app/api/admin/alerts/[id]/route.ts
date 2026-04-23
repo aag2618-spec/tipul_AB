@@ -13,11 +13,11 @@ export async function GET(
   { params }: { params: Promise<{ id: string }> }
 ) {
   try {
-    const auth = await requirePermission("users.view");
+    const auth = await requirePermission("alerts.view");
     if ("error" in auth) return auth.error;
 
     const { id } = await params;
-    
+
     const alert = await prisma.adminAlert.findUnique({
       where: { id },
     });
@@ -85,15 +85,24 @@ export async function PATCH(
     if (actionTaken) updateData.actionTaken = actionTaken;
     if (scheduledFor) updateData.scheduledFor = new Date(scheduledFor);
 
+    // snapshot של הערכים הקודמים ל-audit (סוכן 1 סיבוב 1 — forensic quality)
+    const previous = await prisma.adminAlert.findUnique({
+      where: { id },
+      select: { status: true, priority: true, actionTaken: true, scheduledFor: true },
+    });
+
     const alert = await withAudit(
       { kind: "user", session },
       {
-        action: status ? `alert_status_${String(status).toLowerCase()}` : "alert_update",
+        action: "update_alert",
         targetType: "admin_alert",
         targetId: id,
         details: {
-          statusChange: status ?? undefined,
-          priorityChange: priority ?? undefined,
+          previousStatus: previous?.status,
+          newStatus: status ?? undefined,
+          previousPriority: previous?.priority,
+          newPriority: priority ?? undefined,
+          scheduledForChanged: scheduledFor !== undefined,
           actionTakenChanged: actionTaken !== undefined,
         },
       },

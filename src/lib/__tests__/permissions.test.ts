@@ -128,8 +128,8 @@ describe("PERMISSIONS_BY_ROLE consistency", () => {
     expect(PERMISSIONS_BY_ROLE.USER).toEqual([]);
   });
 
-  it("MANAGER has 25 permissions", () => {
-    expect(PERMISSIONS_BY_ROLE.MANAGER.length).toBe(25);
+  it("MANAGER has 26 permissions", () => {
+    expect(PERMISSIONS_BY_ROLE.MANAGER.length).toBe(26);
   });
 });
 
@@ -144,6 +144,7 @@ const ALL_PERMISSIONS = [
   // קריאה מורחבת (MANAGER)
   "reports.view_ai",
   "payments.view_all",
+  "alerts.view",
   // כתיבה רגילה (MANAGER)
   "users.update_basic",
   "users.block",
@@ -197,8 +198,8 @@ describe("permission completeness (Stage 1.9 hardening)", () => {
   });
 
   it("ALL_PERMISSIONS count matches expected total", () => {
-    // 25 MANAGER + 14 ADMIN-only = 39
-    expect(ALL_PERMISSIONS.length).toBe(39);
+    // 26 MANAGER + 14 ADMIN-only = 40
+    expect(ALL_PERMISSIONS.length).toBe(40);
   });
 
   it("ADMIN has every permission via hasPermission", () => {

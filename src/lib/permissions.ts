@@ -1,10 +1,10 @@
 /**
  * Permission system — MyTipul Admin
  *
- * 39 closed-type permissions (25 MANAGER + 14 ADMIN-only) + PERMISSION_RANK
+ * 40 closed-type permissions (26 MANAGER + 14 ADMIN-only) + PERMISSION_RANK
  * for "highest wins" combo logic.
- * Built in Stage 1.1; extended in Stage 1.9 with reports.view_ai,
- * payments.view_all, alerts.manage, payments.delete, announcements.delete.
+ * Built in Stage 1.1; extended in Stages 1.9 (reports.view_ai, payments.view_all,
+ * alerts.manage, payments.delete, announcements.delete) and 1.10 (alerts.view).
  *
  * Key ideas:
  * - `type Permission` = closed union of strings → typos become compile errors
@@ -27,6 +27,7 @@ export type Permission =
   // קריאה מורחבת (MANAGER)
   | "reports.view_ai" // דשבורדי AI + api-usage
   | "payments.view_all" // צפייה בכל התשלומים
+  | "alerts.view" // צפייה בהתראות מנהל (קריאה בלבד — רישום/עדכון הוא alerts.manage)
 
   // כתיבה רגילה (MANAGER)
   | "users.update_basic" // name/email/phone בלבד
@@ -78,6 +79,7 @@ export const PERMISSIONS_BY_ROLE: Record<Role, Permission[]> = {
     "audit.view_per_user",
     "reports.view_ai",
     "payments.view_all",
+    "alerts.view",
     "users.block",
     "users.reset_password",
     "users.create",
@@ -113,6 +115,7 @@ export const PERMISSION_RANK: Record<Permission, number> = {
   "support.view_all": 0,
   "reports.view_ai": 1,
   "payments.view_all": 1,
+  "alerts.view": 0,
   "users.update_basic": 1,
   "support.view_internal": 1,
 

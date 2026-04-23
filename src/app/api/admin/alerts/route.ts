@@ -10,7 +10,7 @@ export const dynamic = "force-dynamic";
 
 export async function GET(req: NextRequest) {
   try {
-    const auth = await requirePermission("users.view");
+    const auth = await requirePermission("alerts.view");
     if ("error" in auth) return auth.error;
 
     const { searchParams } = new URL(req.url);
