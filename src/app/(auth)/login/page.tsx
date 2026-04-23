@@ -1,6 +1,6 @@
 "use client";
 
-import { useState, Suspense } from "react";
+import { useEffect, useState, Suspense } from "react";
 import { signIn } from "next-auth/react";
 import { useRouter, useSearchParams } from "next/navigation";
 import Link from "next/link";
@@ -9,7 +9,10 @@ import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import { Card, CardContent, CardDescription, CardFooter, CardHeader, CardTitle } from "@/components/ui/card";
 import { AppLogo } from "@/components/app-logo";
-import { Loader2, CheckCircle, AlertTriangle } from "lucide-react";
+import { Loader2, CheckCircle, AlertTriangle, Mail } from "lucide-react";
+import { toast } from "sonner";
+
+const RESEND_COOLDOWN_SECONDS = 60;
 
 function LoginForm() {
   const router = useRouter();
@@ -22,6 +25,51 @@ function LoginForm() {
   const [password, setPassword] = useState("");
   const [error, setError] = useState("");
   const [isLoading, setIsLoading] = useState(false);
+  const [isResending, setIsResending] = useState(false);
+  const [resendCooldown, setResendCooldown] = useState(0);
+
+  const needsVerification = error.includes("לאמת את כתובת המייל");
+
+  useEffect(() => {
+    if (resendCooldown <= 0) return;
+    const timer = setTimeout(() => setResendCooldown((s) => s - 1), 1000);
+    return () => clearTimeout(timer);
+  }, [resendCooldown]);
+
+  const handleResend = async () => {
+    if (resendCooldown > 0 || isResending) return;
+    if (!email) {
+      toast.error("נא להזין את כתובת האימייל למעלה");
+      return;
+    }
+    setIsResending(true);
+    try {
+      const response = await fetch("/api/auth/resend-verification", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ email }),
+      });
+      const data = await response.json();
+      if (response.ok) {
+        if (data.shabbatBlocked) {
+          // בשבת לא נשלח כלום — לא להדליק cooldown כי הסיבה לא הסתיימה
+          toast(data.message || "המערכת לא שולחת הודעות בשבת ובחג.");
+        } else {
+          toast.success(data.message || "אם החשבון קיים, נשלח קישור אימות חדש");
+          setResendCooldown(RESEND_COOLDOWN_SECONDS);
+        }
+      } else if (response.status === 429) {
+        toast.error("יותר מדי בקשות. נסה שוב בעוד כמה דקות.");
+        setResendCooldown(RESEND_COOLDOWN_SECONDS);
+      } else {
+        toast.error(data.message || "שגיאה בשליחת הקישור");
+      }
+    } catch {
+      toast.error("שגיאה בשליחת הקישור");
+    } finally {
+      setIsResending(false);
+    }
+  };
 
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
@@ -98,6 +146,30 @@ function LoginForm() {
             <div className="p-3 rounded-lg bg-destructive/10 text-destructive text-sm text-center animate-fade-in">
               {error}
             </div>
+          )}
+
+          {needsVerification && (
+            <Button
+              type="button"
+              variant="secondary"
+              className="w-full"
+              onClick={handleResend}
+              disabled={isResending || resendCooldown > 0}
+            >
+              {isResending ? (
+                <>
+                  <Loader2 className="ml-2 h-4 w-4 animate-spin" />
+                  שולח...
+                </>
+              ) : resendCooldown > 0 ? (
+                `אפשר לשלוח שוב בעוד ${resendCooldown} שניות`
+              ) : (
+                <>
+                  <Mail className="ml-2 h-4 w-4" />
+                  שלח שוב את מייל האימות
+                </>
+              )}
+            </Button>
           )}
           
           <div className="space-y-2">

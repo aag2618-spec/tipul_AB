@@ -1,6 +1,6 @@
 "use client";
 
-import { useState } from "react";
+import { useEffect, useState } from "react";
 import { useRouter } from "next/navigation";
 import Link from "next/link";
 import { Button } from "@/components/ui/button";
@@ -9,6 +9,9 @@ import { Label } from "@/components/ui/label";
 import { Card, CardContent, CardDescription, CardFooter, CardHeader, CardTitle } from "@/components/ui/card";
 import { AppLogo } from "@/components/app-logo";
 import { Loader2, Star, CheckCircle, ChevronDown, ChevronUp, Mail } from "lucide-react";
+import { toast } from "sonner";
+
+const RESEND_COOLDOWN_SECONDS = 60;
 
 export default function RegisterPage() {
   const router = useRouter();
@@ -25,6 +28,45 @@ export default function RegisterPage() {
   const [isLoading, setIsLoading] = useState(false);
   const [showCoupon, setShowCoupon] = useState(false);
   const [success, setSuccess] = useState(false);
+  const [isResending, setIsResending] = useState(false);
+  const [resendCooldown, setResendCooldown] = useState(0);
+
+  useEffect(() => {
+    if (resendCooldown <= 0) return;
+    const timer = setTimeout(() => setResendCooldown((s) => s - 1), 1000);
+    return () => clearTimeout(timer);
+  }, [resendCooldown]);
+
+  const handleResend = async () => {
+    if (resendCooldown > 0 || isResending) return;
+    setIsResending(true);
+    try {
+      const response = await fetch("/api/auth/resend-verification", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ email: formData.email }),
+      });
+      const data = await response.json();
+      if (response.ok) {
+        if (data.shabbatBlocked) {
+          // בשבת לא נשלח כלום — לא להדליק cooldown כי הסיבה לא הסתיימה
+          toast(data.message || "המערכת לא שולחת הודעות בשבת ובחג.");
+        } else {
+          toast.success(data.message || "אם החשבון קיים, נשלח קישור אימות חדש");
+          setResendCooldown(RESEND_COOLDOWN_SECONDS);
+        }
+      } else if (response.status === 429) {
+        toast.error("יותר מדי בקשות. נסה שוב בעוד כמה דקות.");
+        setResendCooldown(RESEND_COOLDOWN_SECONDS);
+      } else {
+        toast.error(data.message || "שגיאה בשליחת הקישור");
+      }
+    } catch {
+      toast.error("שגיאה בשליחת הקישור");
+    } finally {
+      setIsResending(false);
+    }
+  };
 
   const handleChange = (e: React.ChangeEvent<HTMLInputElement>) => {
     setFormData((prev) => ({
@@ -118,7 +160,25 @@ export default function RegisterPage() {
             </p>
           </CardContent>
           
-          <CardFooter>
+          <CardFooter className="flex flex-col gap-2">
+            <Button
+              type="button"
+              variant="secondary"
+              className="w-full"
+              onClick={handleResend}
+              disabled={isResending || resendCooldown > 0}
+            >
+              {isResending ? (
+                <>
+                  <Loader2 className="ml-2 h-4 w-4 animate-spin" />
+                  שולח שוב...
+                </>
+              ) : resendCooldown > 0 ? (
+                `אפשר לשלוח שוב בעוד ${resendCooldown} שניות`
+              ) : (
+                "לא קיבלת? שלח שוב"
+              )}
+            </Button>
             <Button variant="outline" className="w-full" onClick={() => router.push("/login")}>
               עבור לדף ההתחברות
             </Button>

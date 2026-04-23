@@ -8,6 +8,8 @@ import { parseBody } from "@/lib/validations/helpers";
 import { registerSchema } from "@/lib/validations/auth";
 import { logger } from "@/lib/logger";
 import { TRIAL_DAYS, TRIAL_AI_TIER } from "@/lib/constants";
+import { createVerificationEmailHtml } from "@/lib/email-templates";
+import { escapeHtml } from "@/lib/email-utils";
 
 export const dynamic = "force-dynamic";
 
@@ -164,62 +166,49 @@ export async function POST(request: NextRequest) {
 
     // Send verification email
     const baseUrl = process.env.NEXTAUTH_URL || "http://localhost:3000";
-    const verifyUrl = `${baseUrl}/api/auth/verify-email?token=${verificationToken}`;
+    const verifyUrl = `${baseUrl}/verify-email?token=${verificationToken}`;
 
-    await sendEmail({
-      to: email.toLowerCase().trim(),
-      subject: "אימות חשבון - Tipul",
-      html: `
-        <div dir="rtl" style="font-family: Arial, sans-serif; max-width: 600px; margin: 0 auto; padding: 20px;">
-          <div style="text-align: center; margin-bottom: 30px;">
-            <h1 style="color: #16a34a; font-size: 28px; margin: 0;">Tipul</h1>
-            <p style="color: #64748b; margin-top: 4px;">ברוכים הבאים!</p>
-          </div>
-          
-          <div style="background: #f8fafc; border-radius: 12px; padding: 30px; border: 1px solid #e2e8f0;">
-            <h2 style="color: #1e293b; font-size: 20px; margin-top: 0;">שלום ${name},</h2>
-            <p style="color: #475569; line-height: 1.6;">
-              תודה שנרשמת ל-Tipul! כדי להשלים את ההרשמה ולהתחיל את 
-              <strong>תקופת הניסיון של ${TRIAL_DAYS} ימים</strong> במסלול <strong>${TRIAL_AI_TIER}</strong>, 
-              נא לאמת את כתובת המייל שלך:
-            </p>
-            
-            <div style="text-align: center; margin: 30px 0;">
-              <a href="${verifyUrl}" 
-                 style="display: inline-block; background: linear-gradient(135deg, #0284c7, #7c3aed); color: white; 
-                        padding: 14px 40px; border-radius: 8px; text-decoration: none; font-weight: bold; font-size: 16px;">
-                אמת את החשבון שלי
-              </a>
-            </div>
-            
-            <p style="color: #64748b; font-size: 13px;">
-              הקישור תקף ל-24 שעות. אם לא נרשמת, התעלם מהודעה זו.
-            </p>
-          </div>
-          
-          <div style="text-align: center; margin-top: 20px; color: #94a3b8; font-size: 12px;">
-            <p>© Tipul ${new Date().getFullYear()}</p>
-          </div>
-        </div>
-      `,
+    const verificationEmail = createVerificationEmailHtml({
+      name,
+      verifyUrl,
+      trialDays: TRIAL_DAYS,
+      trialTier: TRIAL_AI_TIER,
     });
+
+    const emailResult = await sendEmail({
+      to: email.toLowerCase().trim(),
+      subject: verificationEmail.subject,
+      html: verificationEmail.html,
+    });
+
+    if (!emailResult?.success) {
+      logger.error("Registration verification email failed", {
+        userId: user.id,
+        error: emailResult?.error || "unknown",
+        shabbatBlocked: emailResult?.shabbatBlocked || false,
+      });
+    }
 
     // Notify admin about new registration
     const adminEmail = process.env.ADMIN_EMAIL;
     if (adminEmail) {
+      const safeName = escapeHtml(name);
+      const safeEmail = escapeHtml(email);
+      const safePhone = phone ? escapeHtml(phone) : "-";
+      const safeCouponCode = coupon ? escapeHtml(coupon.code) : "";
       await sendEmail({
         to: adminEmail,
-        subject: `משתמש חדש נרשם לניסיון: ${name}`,
+        subject: `משתמש חדש נרשם לניסיון: ${safeName}`,
         html: `
           <div dir="rtl" style="font-family: Arial, sans-serif; padding: 20px;">
             <h2>משתמש חדש נרשם לתקופת ניסיון</h2>
             <table style="border-collapse: collapse; width: 100%;">
-              <tr><td style="padding: 8px; border-bottom: 1px solid #eee; font-weight: bold;">שם</td><td style="padding: 8px; border-bottom: 1px solid #eee;">${name}</td></tr>
-              <tr><td style="padding: 8px; border-bottom: 1px solid #eee; font-weight: bold;">מייל</td><td style="padding: 8px; border-bottom: 1px solid #eee;">${email}</td></tr>
-              <tr><td style="padding: 8px; border-bottom: 1px solid #eee; font-weight: bold;">טלפון</td><td style="padding: 8px; border-bottom: 1px solid #eee;">${phone || "-"}</td></tr>
+              <tr><td style="padding: 8px; border-bottom: 1px solid #eee; font-weight: bold;">שם</td><td style="padding: 8px; border-bottom: 1px solid #eee;">${safeName}</td></tr>
+              <tr><td style="padding: 8px; border-bottom: 1px solid #eee; font-weight: bold;">מייל</td><td style="padding: 8px; border-bottom: 1px solid #eee;">${safeEmail}</td></tr>
+              <tr><td style="padding: 8px; border-bottom: 1px solid #eee; font-weight: bold;">טלפון</td><td style="padding: 8px; border-bottom: 1px solid #eee;">${safePhone}</td></tr>
               <tr><td style="padding: 8px; border-bottom: 1px solid #eee; font-weight: bold;">מסלול</td><td style="padding: 8px; border-bottom: 1px solid #eee;">Pro Trial (${TRIAL_DAYS} ימים)</td></tr>
               <tr><td style="padding: 8px; border-bottom: 1px solid #eee; font-weight: bold;">סיום ניסיון</td><td style="padding: 8px; border-bottom: 1px solid #eee;">${trialEndsAt.toLocaleDateString("he-IL", { timeZone: "Asia/Jerusalem" })}</td></tr>
-              ${coupon ? `<tr><td style="padding: 8px; border-bottom: 1px solid #eee; font-weight: bold;">קופון</td><td style="padding: 8px; border-bottom: 1px solid #eee;">${coupon.code}</td></tr>` : ""}
+              ${coupon ? `<tr><td style="padding: 8px; border-bottom: 1px solid #eee; font-weight: bold;">קופון</td><td style="padding: 8px; border-bottom: 1px solid #eee;">${safeCouponCode}</td></tr>` : ""}
             </table>
           </div>
         `,

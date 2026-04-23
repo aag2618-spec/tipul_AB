@@ -1,53 +1,14 @@
 import { NextRequest, NextResponse } from "next/server";
-import prisma from "@/lib/prisma";
-import { logger } from "@/lib/logger";
 
 export const dynamic = "force-dynamic";
 
+// תאימות לאחור — קישורים ישנים שנשלחו במייל לפני שהדף החדש נוצר
+// מפנים לדף החדש שמטפל באימות בצורה מעוצבת
 export async function GET(request: NextRequest) {
-  try {
-    const token = request.nextUrl.searchParams.get("token");
-
-    if (!token) {
-      // Redirect to login with error
-      return NextResponse.redirect(
-        new URL("/login?error=missing-token", request.nextUrl.origin)
-      );
-    }
-
-    // Find user by verification token
-    const user = await prisma.user.findFirst({
-      where: {
-        emailVerificationToken: token,
-        emailVerificationExpires: { gte: new Date() },
-      },
-    });
-
-    if (!user) {
-      // Token invalid or expired
-      return NextResponse.redirect(
-        new URL("/login?error=invalid-token", request.nextUrl.origin)
-      );
-    }
-
-    // Verify the email
-    await prisma.user.update({
-      where: { id: user.id },
-      data: {
-        emailVerified: new Date(),
-        emailVerificationToken: null,
-        emailVerificationExpires: null,
-      },
-    });
-
-    // Redirect to login with success message
-    return NextResponse.redirect(
-      new URL("/login?verified=true", request.nextUrl.origin)
-    );
-  } catch (error) {
-    logger.error("Email verification error:", { error: error instanceof Error ? error.message : String(error) });
-    return NextResponse.redirect(
-      new URL("/login?error=verification-failed", request.nextUrl.origin)
-    );
+  const token = request.nextUrl.searchParams.get("token");
+  const target = new URL("/verify-email", request.nextUrl.origin);
+  if (token) {
+    target.searchParams.set("token", token);
   }
+  return NextResponse.redirect(target);
 }

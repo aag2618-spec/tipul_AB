@@ -1,5 +1,7 @@
 // Email templates for cancellation requests and session communications
 
+import { escapeHtml } from "./email-utils";
+
 export interface EmailCustomization {
   customGreeting?: string | null;
   customClosing?: string | null;
@@ -368,4 +370,51 @@ export function getTemplateForAlertType(alertType: string): AdminEmailTemplate |
     default:
       return null;
   }
+}
+
+export function createVerificationEmailHtml(params: {
+  name: string;
+  verifyUrl: string;
+  trialDays: number;
+  trialTier: string;
+}): { subject: string; html: string } {
+  const { name, verifyUrl, trialDays, trialTier } = params;
+  const safeName = escapeHtml(name || "").trim();
+  const greeting = safeName ? `שלום ${safeName},` : "שלום,";
+  return {
+    subject: "אימות חשבון - Tipul",
+    html: `
+      <div dir="rtl" style="font-family: Arial, sans-serif; max-width: 600px; margin: 0 auto; padding: 20px;">
+        <div style="text-align: center; margin-bottom: 30px;">
+          <h1 style="color: #16a34a; font-size: 28px; margin: 0;">Tipul</h1>
+          <p style="color: #64748b; margin-top: 4px;">ברוכים הבאים!</p>
+        </div>
+
+        <div style="background: #f8fafc; border-radius: 12px; padding: 30px; border: 1px solid #e2e8f0;">
+          <h2 style="color: #1e293b; font-size: 20px; margin-top: 0;">${greeting}</h2>
+          <p style="color: #475569; line-height: 1.6;">
+            תודה שנרשמת ל-Tipul! כדי להשלים את ההרשמה ולהתחיל את
+            <strong>תקופת הניסיון של ${trialDays} ימים</strong> במסלול <strong>${trialTier}</strong>,
+            נא לאמת את כתובת המייל שלך:
+          </p>
+
+          <div style="text-align: center; margin: 30px 0;">
+            <a href="${verifyUrl}"
+               style="display: inline-block; background: linear-gradient(135deg, #0284c7, #7c3aed); color: white;
+                      padding: 14px 40px; border-radius: 8px; text-decoration: none; font-weight: bold; font-size: 16px;">
+              אמת את החשבון שלי
+            </a>
+          </div>
+
+          <p style="color: #64748b; font-size: 13px;">
+            הקישור תקף ל-24 שעות. אם לא נרשמת, התעלם מהודעה זו.
+          </p>
+        </div>
+
+        <div style="text-align: center; margin-top: 20px; color: #94a3b8; font-size: 12px;">
+          <p>© Tipul ${new Date().getFullYear()}</p>
+        </div>
+      </div>
+    `,
+  };
 }
