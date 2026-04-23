@@ -128,7 +128,88 @@ describe("PERMISSIONS_BY_ROLE consistency", () => {
     expect(PERMISSIONS_BY_ROLE.USER).toEqual([]);
   });
 
-  it("MANAGER has 22 permissions", () => {
-    expect(PERMISSIONS_BY_ROLE.MANAGER.length).toBe(22);
+  it("MANAGER has 25 permissions", () => {
+    expect(PERMISSIONS_BY_ROLE.MANAGER.length).toBe(25);
+  });
+});
+
+// מקור-אמת מפורש לכל ההרשאות. כל הוספה/הסרה ל-type Permission
+// חייבת לעבור פה — אחרת ה-tests למטה יכשלו.
+// Cursor Q5: מונע drift בין type Permission ל-PERMISSION_RANK.
+const ALL_PERMISSIONS = [
+  // קריאה
+  "users.view",
+  "audit.view_all",
+  "audit.view_per_user",
+  // קריאה מורחבת (MANAGER)
+  "reports.view_ai",
+  "payments.view_all",
+  // כתיבה רגילה (MANAGER)
+  "users.update_basic",
+  "users.block",
+  "users.reset_password",
+  "users.create",
+  "users.change_tier",
+  "users.extend_trial_14d",
+  "users.grant_free_30d",
+  "users.revoke_free",
+  "alerts.manage",
+  "packages.grant_manual",
+  "packages.revert",
+  "payments.manual",
+  "support.respond",
+  "support.view_all",
+  "support.view_internal",
+  "support.assign",
+  "support.internal_note",
+  "support.close",
+  "support.reopen",
+  "support.create_on_behalf",
+  "settings.announcements",
+  // ADMIN בלבד
+  "users.change_role",
+  "users.grant_free_unlimited",
+  "users.delete",
+  "packages.catalog_manage",
+  "payments.refund",
+  "payments.delete",
+  "settings.billing_provider",
+  "settings.pricing",
+  "settings.feature_flags",
+  "settings.terms",
+  "announcements.delete",
+  "support.delete",
+  "idempotency.clear",
+] as const satisfies readonly Permission[];
+
+describe("permission completeness (Stage 1.9 hardening)", () => {
+  it("every Permission has a rank defined", () => {
+    for (const p of ALL_PERMISSIONS) {
+      expect(PERMISSION_RANK[p]).toBeDefined();
+      expect(PERMISSION_RANK[p]).toBeGreaterThanOrEqual(0);
+    }
+  });
+
+  it("PERMISSION_RANK has no orphan keys", () => {
+    for (const key of Object.keys(PERMISSION_RANK)) {
+      expect(ALL_PERMISSIONS).toContain(key as Permission);
+    }
+  });
+
+  it("ALL_PERMISSIONS count matches expected total", () => {
+    // 25 MANAGER + 14 ADMIN-only = 39
+    expect(ALL_PERMISSIONS.length).toBe(39);
+  });
+
+  it("ADMIN has every permission via hasPermission", () => {
+    for (const p of ALL_PERMISSIONS) {
+      expect(hasPermission("ADMIN", p)).toBe(true);
+    }
+  });
+
+  it("USER has no permission via hasPermission", () => {
+    for (const p of ALL_PERMISSIONS) {
+      expect(hasPermission("USER", p)).toBe(false);
+    }
   });
 });

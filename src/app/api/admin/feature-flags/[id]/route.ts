@@ -2,7 +2,7 @@ import { NextRequest, NextResponse } from "next/server";
 import { prisma } from "@/lib/prisma";
 import { logger } from "@/lib/logger";
 
-import { requireAdmin } from "@/lib/api-auth";
+import { requirePermission } from "@/lib/api-auth";
 
 export const dynamic = "force-dynamic";
 
@@ -11,9 +11,8 @@ export async function PUT(
   { params }: { params: Promise<{ id: string }> }
 ) {
   try {
-    const auth = await requireAdmin();
+    const auth = await requirePermission("settings.feature_flags");
     if ("error" in auth) return auth.error;
-    const { userId, session } = auth;
 
     const { id } = await params;
     const body = await request.json();
@@ -22,7 +21,7 @@ export async function PUT(
     const existing = await prisma.featureFlag.findUnique({ where: { id } });
     if (!existing) {
       return NextResponse.json(
-        { message: "Feature flag not found" },
+        { message: "feature flag לא נמצא" },
         { status: 404 }
       );
     }
@@ -42,7 +41,7 @@ export async function PUT(
   } catch (error) {
     logger.error("Error updating feature flag:", { error: error instanceof Error ? error.message : String(error) });
     return NextResponse.json(
-      { message: "Internal server error" },
+      { message: "שגיאה בעדכון feature flag" },
       { status: 500 }
     );
   }
@@ -53,27 +52,26 @@ export async function DELETE(
   { params }: { params: Promise<{ id: string }> }
 ) {
   try {
-    const auth = await requireAdmin();
+    const auth = await requirePermission("settings.feature_flags");
     if ("error" in auth) return auth.error;
-    const { userId, session } = auth;
 
     const { id } = await params;
 
     const existing = await prisma.featureFlag.findUnique({ where: { id } });
     if (!existing) {
       return NextResponse.json(
-        { message: "Feature flag not found" },
+        { message: "feature flag לא נמצא" },
         { status: 404 }
       );
     }
 
     await prisma.featureFlag.delete({ where: { id } });
 
-    return NextResponse.json({ message: "Deleted" });
+    return NextResponse.json({ message: "נמחק בהצלחה" });
   } catch (error) {
     logger.error("Error deleting feature flag:", { error: error instanceof Error ? error.message : String(error) });
     return NextResponse.json(
-      { message: "Internal server error" },
+      { message: "שגיאה במחיקת feature flag" },
       { status: 500 }
     );
   }

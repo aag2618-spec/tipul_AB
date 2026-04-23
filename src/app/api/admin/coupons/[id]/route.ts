@@ -2,7 +2,8 @@ import { NextRequest, NextResponse } from "next/server";
 import prisma from "@/lib/prisma";
 import { logger } from "@/lib/logger";
 
-import { requireAdmin } from "@/lib/api-auth";
+import { requirePermission } from "@/lib/api-auth";
+import { withAudit } from "@/lib/audit";
 
 // GET - Get single coupon
 export const dynamic = "force-dynamic";
@@ -12,7 +13,7 @@ export async function GET(
   { params }: { params: Promise<{ id: string }> }
 ) {
   try {
-    const auth = await requireAdmin();
+    const auth = await requirePermission("packages.catalog_manage");
     if ("error" in auth) return auth.error;
 
     const { id } = await params;
@@ -50,27 +51,53 @@ export async function PATCH(
   { params }: { params: Promise<{ id: string }> }
 ) {
   try {
-    const auth = await requireAdmin();
+    const auth = await requirePermission("packages.catalog_manage");
     if ("error" in auth) return auth.error;
+    const { session } = auth;
 
     const { id } = await params;
     const body = await request.json();
     const { name, type, maxUses, trialDays, validUntil, isActive, discount } = body;
 
-    const coupon = await prisma.coupon.update({
+    const previous = await prisma.coupon.findUnique({
       where: { id },
-      data: {
-        ...(name !== undefined && { name }),
-        ...(type !== undefined && { type }),
-        ...(maxUses !== undefined && { maxUses }),
-        ...(trialDays !== undefined && { trialDays }),
-        ...(discount !== undefined && { discount }),
-        ...(isActive !== undefined && { isActive }),
-        ...(validUntil !== undefined && { 
-          validUntil: validUntil ? new Date(validUntil) : null 
-        }),
-      },
+      select: { code: true, discount: true, trialDays: true, isActive: true, maxUses: true },
     });
+
+    const coupon = await withAudit(
+      { kind: "user", session },
+      {
+        action: "update_coupon",
+        targetType: "coupon",
+        targetId: id,
+        details: {
+          patch: body,
+          previousValues: previous
+            ? {
+                discount: Number(previous.discount) || 0,
+                trialDays: previous.trialDays,
+                isActive: previous.isActive,
+                maxUses: previous.maxUses,
+              }
+            : null,
+        },
+      },
+      async (tx) =>
+        tx.coupon.update({
+          where: { id },
+          data: {
+            ...(name !== undefined && { name }),
+            ...(type !== undefined && { type }),
+            ...(maxUses !== undefined && { maxUses }),
+            ...(trialDays !== undefined && { trialDays }),
+            ...(discount !== undefined && { discount }),
+            ...(isActive !== undefined && { isActive }),
+            ...(validUntil !== undefined && {
+              validUntil: validUntil ? new Date(validUntil) : null,
+            }),
+          },
+        })
+    );
 
     return NextResponse.json(coupon);
   } catch (error) {
@@ -88,14 +115,39 @@ export async function DELETE(
   { params }: { params: Promise<{ id: string }> }
 ) {
   try {
-    const auth = await requireAdmin();
+    const auth = await requirePermission("packages.catalog_manage");
     if ("error" in auth) return auth.error;
+    const { session } = auth;
 
     const { id } = await params;
-    
-    await prisma.coupon.delete({
+
+    const existing = await prisma.coupon.findUnique({
       where: { id },
+      select: { code: true, name: true, type: true, discount: true, trialDays: true },
     });
+
+    if (!existing) {
+      return NextResponse.json({ message: "קופון לא נמצא" }, { status: 404 });
+    }
+
+    await withAudit(
+      { kind: "user", session },
+      {
+        action: "delete_coupon",
+        targetType: "coupon",
+        targetId: id,
+        details: {
+          code: existing.code,
+          name: existing.name,
+          type: existing.type,
+          discount: Number(existing.discount) || 0,
+          trialDays: existing.trialDays,
+        },
+      },
+      async (tx) => {
+        await tx.coupon.delete({ where: { id } });
+      }
+    );
 
     return NextResponse.json({ message: "הקופון נמחק בהצלחה" });
   } catch (error) {

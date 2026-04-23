@@ -2,7 +2,7 @@ import { NextRequest, NextResponse } from "next/server";
 import prisma from "@/lib/prisma";
 import { logger } from "@/lib/logger";
 
-import { requireAdmin } from "@/lib/api-auth";
+import { requirePermission } from "@/lib/api-auth";
 
 /**
  * GET /api/admin/ai-dashboard
@@ -12,9 +12,8 @@ export const dynamic = "force-dynamic";
 
 export async function GET(req: NextRequest) {
   try {
-    const auth = await requireAdmin();
+    const auth = await requirePermission("reports.view_ai");
     if ("error" in auth) return auth.error;
-    const { userId, session } = auth;
 
     // Fetch all users with AI stats
     const users = await prisma.user.findMany({
@@ -69,7 +68,7 @@ export async function GET(req: NextRequest) {
   } catch (error) {
     logger.error("Error fetching admin AI dashboard:", { error: error instanceof Error ? error.message : String(error) });
     return NextResponse.json(
-      { message: "Failed to fetch dashboard data" },
+      { message: "שגיאה בטעינת נתוני דשבורד" },
       { status: 500 }
     );
   }

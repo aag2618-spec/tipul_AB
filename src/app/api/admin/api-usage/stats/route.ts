@@ -3,15 +3,14 @@ import prisma from "@/lib/prisma";
 import { format } from "date-fns";
 import { logger } from "@/lib/logger";
 
-import { requireAdmin } from "@/lib/api-auth";
+import { requirePermission } from "@/lib/api-auth";
 
 export const dynamic = "force-dynamic";
 
 export async function GET(request: NextRequest) {
   try {
-    const auth = await requireAdmin();
+    const auth = await requirePermission("reports.view_ai");
     if ("error" in auth) return auth.error;
-    const { userId, session } = auth;
 
     const searchParams = request.nextUrl.searchParams;
     const period = parseInt(searchParams.get("period") || "30");

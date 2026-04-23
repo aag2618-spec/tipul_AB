@@ -1,8 +1,10 @@
 /**
  * Permission system — MyTipul Admin
  *
- * 25 closed-type permissions + PERMISSION_RANK for "highest wins" combo logic.
- * Built in Stage 1.1 of the admin UI redesign (21.4.2026).
+ * 39 closed-type permissions (25 MANAGER + 14 ADMIN-only) + PERMISSION_RANK
+ * for "highest wins" combo logic.
+ * Built in Stage 1.1; extended in Stage 1.9 with reports.view_ai,
+ * payments.view_all, alerts.manage, payments.delete, announcements.delete.
  *
  * Key ideas:
  * - `type Permission` = closed union of strings → typos become compile errors
@@ -22,6 +24,10 @@ export type Permission =
   | "audit.view_all"
   | "audit.view_per_user"
 
+  // קריאה מורחבת (MANAGER)
+  | "reports.view_ai" // דשבורדי AI + api-usage
+  | "payments.view_all" // צפייה בכל התשלומים
+
   // כתיבה רגילה (MANAGER)
   | "users.update_basic" // name/email/phone בלבד
   | "users.block"
@@ -31,6 +37,7 @@ export type Permission =
   | "users.extend_trial_14d"
   | "users.grant_free_30d"
   | "users.revoke_free"
+  | "alerts.manage" // יצירה/עדכון/מחיקה של התראות מנהל
   | "packages.grant_manual"
   | "packages.revert"
   | "payments.manual"
@@ -49,11 +56,13 @@ export type Permission =
   | "users.grant_free_unlimited"
   | "users.delete"
   | "packages.catalog_manage"
-  | "payments.refund"
+  | "payments.refund" // ביטול תשלום (soft-refund, עוד לא מומש — שמור למימוש עתידי)
+  | "payments.delete" // hard-delete של רשומת תשלום — הרסני
   | "settings.billing_provider"
   | "settings.pricing"
   | "settings.feature_flags"
   | "settings.terms"
+  | "announcements.delete" // מחיקת הודעת מערכת — ADMIN בלבד
   | "support.delete"
   | "idempotency.clear";
 
@@ -67,6 +76,8 @@ export const PERMISSIONS_BY_ROLE: Record<Role, Permission[]> = {
     "users.view",
     "users.update_basic",
     "audit.view_per_user",
+    "reports.view_ai",
+    "payments.view_all",
     "users.block",
     "users.reset_password",
     "users.create",
@@ -74,6 +85,7 @@ export const PERMISSIONS_BY_ROLE: Record<Role, Permission[]> = {
     "users.extend_trial_14d",
     "users.grant_free_30d",
     "users.revoke_free",
+    "alerts.manage",
     "packages.grant_manual",
     "packages.revert",
     "payments.manual",
@@ -99,6 +111,8 @@ export const PERMISSION_RANK: Record<Permission, number> = {
   "users.view": 0,
   "audit.view_per_user": 0,
   "support.view_all": 0,
+  "reports.view_ai": 1,
+  "payments.view_all": 1,
   "users.update_basic": 1,
   "support.view_internal": 1,
 
@@ -116,6 +130,7 @@ export const PERMISSION_RANK: Record<Permission, number> = {
   "users.grant_free_30d": 3,
   "users.revoke_free": 3,
   "users.extend_trial_14d": 3,
+  "alerts.manage": 3,
   "packages.grant_manual": 3,
   "packages.revert": 3,
   "payments.manual": 3,
@@ -128,10 +143,12 @@ export const PERMISSION_RANK: Record<Permission, number> = {
   "users.delete": 10,
   "packages.catalog_manage": 10,
   "payments.refund": 10,
+  "payments.delete": 10,
   "settings.billing_provider": 10,
   "settings.pricing": 10,
   "settings.feature_flags": 10,
   "settings.terms": 10,
+  "announcements.delete": 10,
   "support.delete": 10,
   "idempotency.clear": 10,
 };

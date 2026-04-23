@@ -34,6 +34,8 @@ const ADMIN_ONLY_PATHS = [
   "/admin/feature-flags",
   "/admin/tier-settings",
   "/admin/terms",
+  "/admin/coupons",
+  "/admin/ai-usage/settings",
   // API מפתחות/הגדרות עולמיות
   "/api/admin/set-admin",
   "/api/admin/backfill-user-numbers",
@@ -41,6 +43,7 @@ const ADMIN_ONLY_PATHS = [
   "/api/admin/feature-flags",
   "/api/admin/ai-settings",
   "/api/admin/terms",
+  "/api/admin/coupons",
 ];
 
 function isAdminOnlyPath(pathname: string): boolean {

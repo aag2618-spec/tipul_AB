@@ -1,6 +1,7 @@
 "use client";
 
 import { useState, useEffect, useCallback } from "react";
+import { useSession } from "next-auth/react";
 import {
   Bell,
   Plus,
@@ -39,6 +40,9 @@ const TYPE_OPTIONS = [
 ];
 
 export default function AnnouncementsPage() {
+  const { data: session } = useSession();
+  const isAdmin = session?.user?.role === "ADMIN";
+
   const [announcements, setAnnouncements] = useState<Announcement[]>([]);
   const [loading, setLoading] = useState(true);
   const [showForm, setShowForm] = useState(false);
@@ -367,18 +371,20 @@ export default function AnnouncementsPage() {
                         <ToggleLeft className="h-5 w-5" />
                       )}
                     </button>
-                    <button
-                      onClick={() => handleDelete(announcement.id)}
-                      disabled={deletingId === announcement.id}
-                      className="p-2 rounded-lg hover:bg-red-500/20 transition-colors text-muted-foreground hover:text-red-400"
-                      title="מחק"
-                    >
-                      {deletingId === announcement.id ? (
-                        <Loader2 className="h-4 w-4 animate-spin" />
-                      ) : (
-                        <Trash2 className="h-4 w-4" />
-                      )}
-                    </button>
+                    {isAdmin && (
+                      <button
+                        onClick={() => handleDelete(announcement.id)}
+                        disabled={deletingId === announcement.id}
+                        className="p-2 rounded-lg hover:bg-red-500/20 transition-colors text-muted-foreground hover:text-red-400"
+                        title="מחק (מנהל מערכת בלבד)"
+                      >
+                        {deletingId === announcement.id ? (
+                          <Loader2 className="h-4 w-4 animate-spin" />
+                        ) : (
+                          <Trash2 className="h-4 w-4" />
+                        )}
+                      </button>
+                    )}
                   </div>
                 </div>
               </div>

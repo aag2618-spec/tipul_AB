@@ -2,7 +2,7 @@ import { NextRequest, NextResponse } from "next/server";
 import { prisma } from "@/lib/prisma";
 import { logger } from "@/lib/logger";
 
-import { requireAdmin } from "@/lib/api-auth";
+import { requirePermission } from "@/lib/api-auth";
 
 const DEFAULT_FLAGS = [
   {
@@ -63,9 +63,8 @@ export const dynamic = "force-dynamic";
 
 export async function GET() {
   try {
-    const auth = await requireAdmin();
+    const auth = await requirePermission("settings.feature_flags");
     if ("error" in auth) return auth.error;
-    const { userId, session } = auth;
 
     const count = await prisma.featureFlag.count();
     if (count === 0) {
@@ -80,7 +79,7 @@ export async function GET() {
   } catch (error) {
     logger.error("Error fetching feature flags:", { error: error instanceof Error ? error.message : String(error) });
     return NextResponse.json(
-      { message: "Internal server error" },
+      { message: "שגיאה בטעינת feature flags" },
       { status: 500 }
     );
   }
@@ -88,16 +87,15 @@ export async function GET() {
 
 export async function POST(request: NextRequest) {
   try {
-    const auth = await requireAdmin();
+    const auth = await requirePermission("settings.feature_flags");
     if ("error" in auth) return auth.error;
-    const { userId, session } = auth;
 
     const body = await request.json();
     const { key, name, description, tiers } = body;
 
     if (!key || !name) {
       return NextResponse.json(
-        { message: "key and name are required" },
+        { message: "חובה לציין key ו-name" },
         { status: 400 }
       );
     }
@@ -105,7 +103,7 @@ export async function POST(request: NextRequest) {
     const existing = await prisma.featureFlag.findUnique({ where: { key } });
     if (existing) {
       return NextResponse.json(
-        { message: "Feature flag with this key already exists" },
+        { message: "כבר קיים feature flag עם key זה" },
         { status: 400 }
       );
     }
@@ -124,7 +122,7 @@ export async function POST(request: NextRequest) {
   } catch (error) {
     logger.error("Error creating feature flag:", { error: error instanceof Error ? error.message : String(error) });
     return NextResponse.json(
-      { message: "Internal server error" },
+      { message: "שגיאה ביצירת feature flag" },
       { status: 500 }
     );
   }

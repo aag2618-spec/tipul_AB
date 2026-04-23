@@ -2,7 +2,8 @@ import { NextRequest, NextResponse } from "next/server";
 import prisma from "@/lib/prisma";
 import { logger } from "@/lib/logger";
 
-import { requireAdmin } from "@/lib/api-auth";
+import { requirePermission } from "@/lib/api-auth";
+import { withAudit } from "@/lib/audit";
 
 // ברירות מחדל למכסות לפי תוכנית
 const DEFAULT_LIMITS = {
@@ -49,9 +50,8 @@ export const dynamic = "force-dynamic";
 
 export async function GET(req: NextRequest) {
   try {
-    const auth = await requireAdmin();
+    const auth = await requirePermission("settings.pricing");
     if ("error" in auth) return auth.error;
-    const { userId, session } = auth;
 
     // Try to get from DB, fallback to defaults
     let limits = await prisma.tierLimits.findMany({
@@ -89,9 +89,9 @@ export async function GET(req: NextRequest) {
 // PUT - עדכון מכסות לתוכנית
 export async function PUT(req: NextRequest) {
   try {
-    const auth = await requireAdmin();
+    const auth = await requirePermission("settings.pricing");
     if ("error" in auth) return auth.error;
-    const { userId, session } = auth;
+    const { session } = auth;
 
     const body = await req.json();
     const { tier, ...updateData } = body;
@@ -103,15 +103,38 @@ export async function PUT(req: NextRequest) {
       );
     }
 
-    const updatedLimit = await prisma.tierLimits.upsert({
-      where: { tier },
-      update: updateData,
-      create: {
-        tier,
-        ...DEFAULT_LIMITS[tier as keyof typeof DEFAULT_LIMITS],
-        ...updateData,
+    const previous = await prisma.tierLimits.findUnique({ where: { tier } });
+
+    const updatedLimit = await withAudit(
+      { kind: "user", session },
+      {
+        action: "update_tier_limits",
+        targetType: "tier_limits",
+        targetId: tier,
+        details: {
+          tier,
+          patch: updateData,
+          previousValues: previous
+            ? {
+                priceMonthly: Number(previous.priceMonthly) || 0,
+                sessionPrepLimit: previous.sessionPrepLimit,
+                conciseAnalysisLimit: previous.conciseAnalysisLimit,
+                detailedAnalysisLimit: previous.detailedAnalysisLimit,
+              }
+            : null,
+        },
       },
-    });
+      async (tx) =>
+        tx.tierLimits.upsert({
+          where: { tier },
+          update: updateData,
+          create: {
+            tier,
+            ...DEFAULT_LIMITS[tier as keyof typeof DEFAULT_LIMITS],
+            ...updateData,
+          },
+        })
+    );
 
     return NextResponse.json({
       success: true,
@@ -127,30 +150,63 @@ export async function PUT(req: NextRequest) {
   }
 }
 
-// POST - אתחול המכסות לברירות מחדל
+// POST - אתחול המכסות לברירות מחדל (פעולה הרסנית!)
+const RESET_CONFIRM_TOKEN = "RESET_TIER_LIMITS";
+
 export async function POST(req: NextRequest) {
   try {
-    const auth = await requireAdmin();
+    const auth = await requirePermission("settings.pricing");
     if ("error" in auth) return auth.error;
-    const { userId, session } = auth;
+    const { session } = auth;
 
-    // Reset all to defaults
-    await prisma.tierLimits.deleteMany({});
-    
-    await Promise.all(
-      Object.entries(DEFAULT_LIMITS).map(([tier, data]) =>
-        prisma.tierLimits.create({
-          data: {
-            tier: tier as "ESSENTIAL" | "PRO" | "ENTERPRISE",
-            ...data,
-          },
-        })
-      )
-    );
+    // Double-confirm: ה-UI חייב לשלוח confirm מפורש — מונע click בטעות.
+    const body = await req.json().catch(() => ({}));
+    if (body?.confirm !== RESET_CONFIRM_TOKEN) {
+      return NextResponse.json(
+        {
+          message:
+            "פעולה הרסנית: יש לשלוח confirm=\"RESET_TIER_LIMITS\" בגוף הבקשה כדי לאשר איפוס מלא של כל המכסות.",
+        },
+        { status: 400 }
+      );
+    }
 
-    const limits = await prisma.tierLimits.findMany({
+    // שומר snapshot לפני ה-reset — כדי ש-audit יוכל לשחזר אם צריך.
+    const previousLimits = await prisma.tierLimits.findMany({
       orderBy: { priceMonthly: "asc" },
     });
+
+    const limits = await withAudit(
+      { kind: "user", session },
+      {
+        action: "reset_all_tier_limits",
+        targetType: "tier_limits",
+        details: {
+          previousLimitsSnapshot: previousLimits.map((l) => ({
+            tier: l.tier,
+            priceMonthly: Number(l.priceMonthly) || 0,
+            sessionPrepLimit: l.sessionPrepLimit,
+            conciseAnalysisLimit: l.conciseAnalysisLimit,
+            detailedAnalysisLimit: l.detailedAnalysisLimit,
+            singleQuestionnaireLimit: l.singleQuestionnaireLimit,
+            combinedQuestionnaireLimit: l.combinedQuestionnaireLimit,
+            progressReportLimit: l.progressReportLimit,
+          })),
+        },
+      },
+      async (tx) => {
+        await tx.tierLimits.deleteMany({});
+        for (const [tier, data] of Object.entries(DEFAULT_LIMITS)) {
+          await tx.tierLimits.create({
+            data: {
+              tier: tier as "ESSENTIAL" | "PRO" | "ENTERPRISE",
+              ...data,
+            },
+          });
+        }
+        return tx.tierLimits.findMany({ orderBy: { priceMonthly: "asc" } });
+      }
+    );
 
     return NextResponse.json({
       success: true,

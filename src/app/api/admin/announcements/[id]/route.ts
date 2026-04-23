@@ -3,8 +3,12 @@ import prisma from "@/lib/prisma";
 import { logger } from "@/lib/logger";
 
 import { requirePermission } from "@/lib/api-auth";
+import { withAudit } from "@/lib/audit";
 
 export const dynamic = "force-dynamic";
+
+// DELETE = ADMIN only (אין שינוי, רק מחיקה שלמה של הודעה)
+// PUT = MANAGER + ADMIN (settings.announcements)
 
 export async function PUT(
   req: NextRequest,
@@ -13,7 +17,7 @@ export async function PUT(
   try {
     const auth = await requirePermission("settings.announcements");
     if ("error" in auth) return auth.error;
-    const { userId } = auth;
+    const { session } = auth;
 
     const { id } = await params;
     const body = await req.json();
@@ -27,29 +31,29 @@ export async function PUT(
       return NextResponse.json({ message: "הודעה לא נמצאה" }, { status: 404 });
     }
 
-    const announcement = await prisma.systemAnnouncement.update({
-      where: { id },
-      data: {
-        ...(title !== undefined && { title }),
-        ...(content !== undefined && { content }),
-        ...(type !== undefined && { type }),
-        ...(isActive !== undefined && { isActive }),
-        ...(showBanner !== undefined && { showBanner }),
-        ...(expiresAt !== undefined && {
-          expiresAt: expiresAt ? new Date(expiresAt) : null,
-        }),
-      },
-    });
-
-    await prisma.adminAuditLog.create({
-      data: {
+    const announcement = await withAudit(
+      { kind: "user", session },
+      {
         action: "update_announcement",
         targetType: "announcement",
         targetId: id,
-        details: JSON.stringify(body),
-        adminId: userId,
+        details: { patch: body },
       },
-    });
+      async (tx) =>
+        tx.systemAnnouncement.update({
+          where: { id },
+          data: {
+            ...(title !== undefined && { title }),
+            ...(content !== undefined && { content }),
+            ...(type !== undefined && { type }),
+            ...(isActive !== undefined && { isActive }),
+            ...(showBanner !== undefined && { showBanner }),
+            ...(expiresAt !== undefined && {
+              expiresAt: expiresAt ? new Date(expiresAt) : null,
+            }),
+          },
+        })
+    );
 
     return NextResponse.json({ announcement });
   } catch (error) {
@@ -66,9 +70,11 @@ export async function DELETE(
   { params }: { params: Promise<{ id: string }> }
 ) {
   try {
-    const auth = await requirePermission("settings.announcements");
+    // announcements.delete = ADMIN בלבד (matrix #51).
+    // MANAGER יכול ליצור/לעדכן דרך settings.announcements אבל לא למחוק.
+    const auth = await requirePermission("announcements.delete");
     if ("error" in auth) return auth.error;
-    const { userId } = auth;
+    const { session } = auth;
 
     const { id } = await params;
 
@@ -80,19 +86,20 @@ export async function DELETE(
       return NextResponse.json({ message: "הודעה לא נמצאה" }, { status: 404 });
     }
 
-    await prisma.systemAnnouncement.delete({
-      where: { id },
-    });
-
-    await prisma.adminAuditLog.create({
-      data: {
+    await withAudit(
+      { kind: "user", session },
+      {
         action: "delete_announcement",
         targetType: "announcement",
         targetId: id,
-        details: JSON.stringify({ title: existing.title }),
-        adminId: userId,
+        details: { title: existing.title },
       },
-    });
+      async (tx) => {
+        await tx.systemAnnouncement.delete({
+          where: { id },
+        });
+      }
+    );
 
     return NextResponse.json({ success: true });
   } catch (error) {

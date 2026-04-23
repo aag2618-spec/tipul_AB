@@ -33,6 +33,7 @@ import {
   Headphones,
 } from "lucide-react";
 
+// adminOnly: true → מוסתר ל-MANAGER (התאמה למטריצה ול-middleware ADMIN_ONLY_PATHS)
 const adminNavGroups = [
   {
     label: "סקירה כללית",
@@ -53,15 +54,15 @@ const adminNavGroups = [
     label: "כספים ותוכניות",
     items: [
       { href: "/admin/billing", label: "תשלומים ומנויים", icon: CreditCard },
-      { href: "/admin/tier-settings", label: "תוכניות ומחירים", icon: Settings },
-      { href: "/admin/coupons", label: "קופונים", icon: Ticket },
+      { href: "/admin/tier-settings", label: "תוכניות ומחירים", icon: Settings, adminOnly: true },
+      { href: "/admin/coupons", label: "קופונים", icon: Ticket, adminOnly: true },
     ],
   },
   {
     label: "בינה מלאכותית",
     items: [
       { href: "/admin/ai-usage", label: "סקירת שימוש", icon: Brain, exact: true },
-      { href: "/admin/ai-usage/settings", label: "הגדרות", icon: Settings },
+      { href: "/admin/ai-usage/settings", label: "הגדרות", icon: Settings, adminOnly: true },
       { href: "/admin/ai-usage/reports", label: "דוחות ואנליטיקס", icon: BarChart3 },
     ],
   },
@@ -71,7 +72,7 @@ const adminNavGroups = [
       { href: "/admin/storage", label: "אחסון", icon: HardDrive },
       { href: "/admin/announcements", label: "הודעות", icon: Megaphone },
       { href: "/admin/questionnaires", label: "שאלונים", icon: ClipboardList },
-      { href: "/admin/feature-flags", label: "ניהול פיצ'רים", icon: Flag },
+      { href: "/admin/feature-flags", label: "ניהול פיצ'רים", icon: Flag, adminOnly: true },
       { href: "/admin/audit-log", label: "לוג פעולות", icon: Shield },
     ],
   },
@@ -189,6 +190,7 @@ function AdminLayoutContent({ children }: { children: React.ReactNode }) {
   const [sidebarOpen, setSidebarOpen] = useState(false);
   const pathname = usePathname();
   const { data: session, status } = useSession();
+  const isAdmin = session?.user?.role === "ADMIN";
 
   // Show loading while checking session
   if (status === "loading") {
@@ -255,13 +257,18 @@ function AdminLayoutContent({ children }: { children: React.ReactNode }) {
 
           {/* Navigation */}
           <nav className="flex-1 px-3 pt-2 pb-4 overflow-y-auto">
-            {adminNavGroups.map((group, groupIndex) => (
+            {adminNavGroups.map((group, groupIndex) => {
+              const visibleItems = group.items.filter(
+                (item) => !("adminOnly" in item && item.adminOnly) || isAdmin
+              );
+              if (visibleItems.length === 0) return null;
+              return (
               <div key={group.label} className={cn(groupIndex > 0 && "mt-5")}>
                 <p className="px-4 mb-2 text-[11px] font-semibold text-muted-foreground/60 tracking-wide">
                   {group.label}
                 </p>
                 <div className="space-y-1">
-                  {group.items.map((item) => {
+                  {visibleItems.map((item) => {
                     const isActive = item.exact
                       ? pathname === item.href
                       : pathname === item.href ||
@@ -286,7 +293,8 @@ function AdminLayoutContent({ children }: { children: React.ReactNode }) {
                   })}
                 </div>
               </div>
-            ))}
+              );
+            })}
           </nav>
 
           {/* User Info & Actions */}

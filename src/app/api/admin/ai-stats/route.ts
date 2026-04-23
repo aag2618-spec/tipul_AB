@@ -3,15 +3,14 @@ import prisma from "@/lib/prisma";
 import { logger } from "@/lib/logger";
 import { getIsraelMidnight, getIsraelMonth, getIsraelYear, parseIsraelTime } from "@/lib/date-utils";
 
-import { requireAdmin } from "@/lib/api-auth";
+import { requirePermission } from "@/lib/api-auth";
 
 export const dynamic = "force-dynamic";
 
 export async function GET(req: NextRequest) {
   try {
-    const auth = await requireAdmin();
+    const auth = await requirePermission("reports.view_ai");
     if ("error" in auth) return auth.error;
-    const { userId, session } = auth;
 
     // today / yesterday / startOfMonth / startOfYear — לפי שעון ישראל
     const now = new Date();
@@ -141,6 +140,6 @@ export async function GET(req: NextRequest) {
     });
   } catch (error) {
     logger.error("Error fetching AI stats:", { error: error instanceof Error ? error.message : String(error) });
-    return NextResponse.json({ message: "Failed to fetch stats" }, { status: 500 });
+    return NextResponse.json({ message: "שגיאה בטעינת סטטיסטיקות AI" }, { status: 500 });
   }
 }

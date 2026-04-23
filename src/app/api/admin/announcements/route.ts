@@ -3,6 +3,7 @@ import prisma from "@/lib/prisma";
 import { logger } from "@/lib/logger";
 
 import { requirePermission } from "@/lib/api-auth";
+import { withAudit } from "@/lib/audit";
 
 export const dynamic = "force-dynamic";
 
@@ -45,7 +46,7 @@ export async function POST(req: NextRequest) {
   try {
     const auth = await requirePermission("settings.announcements");
     if ("error" in auth) return auth.error;
-    const { userId } = auth;
+    const { session } = auth;
 
     const body = await req.json();
     const { title, content, type, expiresAt, showBanner } = body;
@@ -57,26 +58,27 @@ export async function POST(req: NextRequest) {
       );
     }
 
-    const announcement = await prisma.systemAnnouncement.create({
-      data: {
-        title,
-        content,
-        type: type || "info",
-        isActive: true,
-        showBanner: showBanner !== false,
-        expiresAt: expiresAt ? new Date(expiresAt) : null,
-      },
-    });
-
-    await prisma.adminAuditLog.create({
-      data: {
+    const announcement = await withAudit(
+      { kind: "user", session },
+      {
         action: "create_announcement",
         targetType: "announcement",
-        targetId: announcement.id,
-        details: JSON.stringify({ title, type }),
-        adminId: userId,
+        details: { title, type: type || "info" },
       },
-    });
+      async (tx) => {
+        const created = await tx.systemAnnouncement.create({
+          data: {
+            title,
+            content,
+            type: type || "info",
+            isActive: true,
+            showBanner: showBanner !== false,
+            expiresAt: expiresAt ? new Date(expiresAt) : null,
+          },
+        });
+        return created;
+      }
+    );
 
     return NextResponse.json({ announcement }, { status: 201 });
   } catch (error) {

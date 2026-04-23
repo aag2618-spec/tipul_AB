@@ -2,16 +2,16 @@ import { NextRequest, NextResponse } from "next/server";
 import prisma from "@/lib/prisma";
 import { logger } from "@/lib/logger";
 
-import { requireAdmin } from "@/lib/api-auth";
+import { requirePermission } from "@/lib/api-auth";
+import { withAudit } from "@/lib/audit";
 
 // GET - קבלת כל ההתראות
 export const dynamic = "force-dynamic";
 
 export async function GET(req: NextRequest) {
   try {
-    const auth = await requireAdmin();
+    const auth = await requirePermission("users.view");
     if ("error" in auth) return auth.error;
-    const { userId, session } = auth;
 
     const { searchParams } = new URL(req.url);
     const status = searchParams.get("status");
@@ -93,8 +93,9 @@ export async function GET(req: NextRequest) {
 // POST - יצירת התראה חדשה
 export async function POST(req: NextRequest) {
   try {
-    const auth = await requireAdmin();
+    const auth = await requirePermission("alerts.manage");
     if ("error" in auth) return auth.error;
+    const { session } = auth;
 
     const body = await req.json();
     const {
@@ -115,18 +116,27 @@ export async function POST(req: NextRequest) {
       );
     }
 
-    const alert = await prisma.adminAlert.create({
-      data: {
-        type,
-        priority,
-        title,
-        message,
-        userId,
-        actionRequired,
-        scheduledFor: scheduledFor ? new Date(scheduledFor) : null,
-        metadata,
+    const alert = await withAudit(
+      { kind: "user", session },
+      {
+        action: "create_alert",
+        targetType: "admin_alert",
+        details: { type, priority, title, targetUserId: userId ?? null },
       },
-    });
+      async (tx) =>
+        tx.adminAlert.create({
+          data: {
+            type,
+            priority,
+            title,
+            message,
+            userId,
+            actionRequired,
+            scheduledFor: scheduledFor ? new Date(scheduledFor) : null,
+            metadata,
+          },
+        })
+    );
 
     return NextResponse.json({
       success: true,

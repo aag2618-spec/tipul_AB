@@ -2,7 +2,8 @@ import { NextRequest, NextResponse } from "next/server";
 import prisma from "@/lib/prisma";
 import { logger } from "@/lib/logger";
 
-import { requireAdmin } from "@/lib/api-auth";
+import { requirePermission } from "@/lib/api-auth";
+import { withAudit } from "@/lib/audit";
 
 /**
  * API endpoint to set a user as admin
@@ -12,9 +13,9 @@ export const dynamic = "force-dynamic";
 
 export async function POST(request: NextRequest) {
   try {
-    const auth = await requireAdmin();
+    const auth = await requirePermission("users.change_role");
     if ("error" in auth) return auth.error;
-    const { userId, session } = auth;
+    const { session } = auth;
 
     const body = await request.json();
     const { email } = body;
@@ -44,16 +45,30 @@ export async function POST(request: NextRequest) {
       );
     }
 
-    const updatedUser = await prisma.user.update({
-      where: { id: user.id },
-      data: { role: "ADMIN" },
-      select: {
-        id: true,
-        name: true,
-        email: true,
-        role: true,
+    const updatedUser = await withAudit(
+      { kind: "user", session },
+      {
+        action: "set_admin",
+        targetType: "user",
+        targetId: user.id,
+        details: {
+          email: user.email,
+          previousRole: user.role,
+          newRole: "ADMIN",
+        },
       },
-    });
+      async (tx) =>
+        tx.user.update({
+          where: { id: user.id },
+          data: { role: "ADMIN" },
+          select: {
+            id: true,
+            name: true,
+            email: true,
+            role: true,
+          },
+        })
+    );
 
     return NextResponse.json({
       message: "המשתמש הוגדר כמנהל בהצלחה",

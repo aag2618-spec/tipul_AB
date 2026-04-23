@@ -2,14 +2,15 @@ import { NextRequest, NextResponse } from "next/server";
 import prisma from "@/lib/prisma";
 import { logger } from "@/lib/logger";
 
-import { requireAdmin } from "@/lib/api-auth";
+import { requirePermission } from "@/lib/api-auth";
+import { withAudit } from "@/lib/audit";
 import { serializePrisma } from "@/lib/serialize";
 
 export const dynamic = "force-dynamic";
 
 export async function GET(request: NextRequest) {
   try {
-    const auth = await requireAdmin();
+    const auth = await requirePermission("payments.view_all");
     if ("error" in auth) return auth.error;
 
     const { searchParams } = new URL(request.url);
@@ -80,8 +81,9 @@ export async function GET(request: NextRequest) {
 
 export async function POST(request: NextRequest) {
   try {
-    const auth = await requireAdmin();
+    const auth = await requirePermission("payments.manual");
     if ("error" in auth) return auth.error;
+    const { session } = auth;
 
     const body = await request.json();
     const { userId, amount, description, periodStart, periodEnd, status } = body;
@@ -93,25 +95,39 @@ export async function POST(request: NextRequest) {
       );
     }
 
-    const payment = await prisma.subscriptionPayment.create({
-      data: {
-        userId,
-        amount,
-        description,
-        periodStart: periodStart ? new Date(periodStart) : null,
-        periodEnd: periodEnd ? new Date(periodEnd) : null,
-        status: status || "PENDING",
-      },
-      include: {
-        user: {
-          select: {
-            id: true,
-            name: true,
-            email: true,
-          },
+    const payment = await withAudit(
+      { kind: "user", session },
+      {
+        action: "create_manual_payment",
+        targetType: "payment",
+        details: {
+          userId,
+          amount: Number(amount) || 0,
+          status: status || "PENDING",
+          descriptionPreview: description ? String(description).slice(0, 200) : null,
         },
       },
-    });
+      async (tx) =>
+        tx.subscriptionPayment.create({
+          data: {
+            userId,
+            amount,
+            description,
+            periodStart: periodStart ? new Date(periodStart) : null,
+            periodEnd: periodEnd ? new Date(periodEnd) : null,
+            status: status || "PENDING",
+          },
+          include: {
+            user: {
+              select: {
+                id: true,
+                name: true,
+                email: true,
+              },
+            },
+          },
+        })
+    );
 
     return NextResponse.json(serializePrisma(payment), { status: 201 });
   } catch (error) {

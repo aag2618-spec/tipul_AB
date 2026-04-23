@@ -2,14 +2,15 @@ import { NextRequest, NextResponse } from "next/server";
 import prisma from "@/lib/prisma";
 import { logger } from "@/lib/logger";
 
-import { requireAdmin } from "@/lib/api-auth";
+import { requirePermission } from "@/lib/api-auth";
+import { withAudit } from "@/lib/audit";
 
 // GET - List all coupons
 export const dynamic = "force-dynamic";
 
 export async function GET() {
   try {
-    const auth = await requireAdmin();
+    const auth = await requirePermission("packages.catalog_manage");
     if ("error" in auth) return auth.error;
 
     const coupons = await prisma.coupon.findMany({
@@ -42,8 +43,9 @@ export async function GET() {
 // POST - Create new coupon
 export async function POST(request: NextRequest) {
   try {
-    const auth = await requireAdmin();
+    const auth = await requirePermission("packages.catalog_manage");
     if ("error" in auth) return auth.error;
+    const { session } = auth;
 
     const body = await request.json();
     const { code, name, type, maxUses, trialDays, validUntil, discount } = body;
@@ -55,9 +57,11 @@ export async function POST(request: NextRequest) {
       );
     }
 
+    const normalizedCode = code.trim().toUpperCase();
+
     // Check if code already exists
     const existingCoupon = await prisma.coupon.findUnique({
-      where: { code: code.trim().toUpperCase() },
+      where: { code: normalizedCode },
     });
 
     if (existingCoupon) {
@@ -67,17 +71,33 @@ export async function POST(request: NextRequest) {
       );
     }
 
-    const coupon = await prisma.coupon.create({
-      data: {
-        code: code.trim().toUpperCase(),
-        name: name.trim(),
-        type: type || "LIMITED",
-        maxUses: type === "UNLIMITED" ? null : (maxUses || 1),
-        trialDays: trialDays || 30,
-        discount: discount || 0,
-        validUntil: validUntil ? new Date(validUntil) : null,
+    const coupon = await withAudit(
+      { kind: "user", session },
+      {
+        action: "create_coupon",
+        targetType: "coupon",
+        details: {
+          code: normalizedCode,
+          name: name.trim(),
+          type: type || "LIMITED",
+          discount: discount || 0,
+          trialDays: trialDays || 30,
+          validUntil: validUntil || null,
+        },
       },
-    });
+      async (tx) =>
+        tx.coupon.create({
+          data: {
+            code: normalizedCode,
+            name: name.trim(),
+            type: type || "LIMITED",
+            maxUses: type === "UNLIMITED" ? null : (maxUses || 1),
+            trialDays: trialDays || 30,
+            discount: discount || 0,
+            validUntil: validUntil ? new Date(validUntil) : null,
+          },
+        })
+    );
 
     return NextResponse.json(coupon, { status: 201 });
   } catch (error) {

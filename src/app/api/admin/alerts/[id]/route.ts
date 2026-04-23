@@ -2,7 +2,8 @@ import { NextRequest, NextResponse } from "next/server";
 import prisma from "@/lib/prisma";
 import { logger } from "@/lib/logger";
 
-import { requireAdmin } from "@/lib/api-auth";
+import { requirePermission } from "@/lib/api-auth";
+import { withAudit } from "@/lib/audit";
 
 // GET - קבלת התראה ספציפית
 export const dynamic = "force-dynamic";
@@ -12,9 +13,8 @@ export async function GET(
   { params }: { params: Promise<{ id: string }> }
 ) {
   try {
-    const auth = await requireAdmin();
+    const auth = await requirePermission("users.view");
     if ("error" in auth) return auth.error;
-    const { userId, session } = auth;
 
     const { id } = await params;
     
@@ -58,13 +58,13 @@ export async function PATCH(
   { params }: { params: Promise<{ id: string }> }
 ) {
   try {
-    const auth = await requireAdmin();
+    const auth = await requirePermission("alerts.manage");
     if ("error" in auth) return auth.error;
     const { userId, session } = auth;
 
     const { id } = await params;
     const body = await req.json();
-    
+
     const {
       status,
       priority,
@@ -85,10 +85,24 @@ export async function PATCH(
     if (actionTaken) updateData.actionTaken = actionTaken;
     if (scheduledFor) updateData.scheduledFor = new Date(scheduledFor);
 
-    const alert = await prisma.adminAlert.update({
-      where: { id },
-      data: updateData,
-    });
+    const alert = await withAudit(
+      { kind: "user", session },
+      {
+        action: status ? `alert_status_${String(status).toLowerCase()}` : "alert_update",
+        targetType: "admin_alert",
+        targetId: id,
+        details: {
+          statusChange: status ?? undefined,
+          priorityChange: priority ?? undefined,
+          actionTakenChanged: actionTaken !== undefined,
+        },
+      },
+      async (tx) =>
+        tx.adminAlert.update({
+          where: { id },
+          data: updateData,
+        })
+    );
 
     return NextResponse.json({
       success: true,
@@ -110,15 +124,38 @@ export async function DELETE(
   { params }: { params: Promise<{ id: string }> }
 ) {
   try {
-    const auth = await requireAdmin();
+    const auth = await requirePermission("alerts.manage");
     if ("error" in auth) return auth.error;
-    const { userId, session } = auth;
+    const { session } = auth;
 
     const { id } = await params;
 
-    await prisma.adminAlert.delete({
+    const existing = await prisma.adminAlert.findUnique({
       where: { id },
+      select: { id: true, type: true, priority: true, title: true, status: true },
     });
+
+    if (!existing) {
+      return NextResponse.json({ message: "התראה לא נמצאה" }, { status: 404 });
+    }
+
+    await withAudit(
+      { kind: "user", session },
+      {
+        action: "delete_alert",
+        targetType: "admin_alert",
+        targetId: id,
+        details: {
+          type: existing.type,
+          priority: existing.priority,
+          title: existing.title,
+          status: existing.status,
+        },
+      },
+      async (tx) => {
+        await tx.adminAlert.delete({ where: { id } });
+      }
+    );
 
     return NextResponse.json({
       success: true,

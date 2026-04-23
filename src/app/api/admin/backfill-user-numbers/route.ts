@@ -13,8 +13,7 @@ export async function POST(req: NextRequest) {
 
     if (!cronAuth) {
       const auth = await requireAdmin();
-    if ("error" in auth) return auth.error;
-    const { userId, session } = auth;
+      if ("error" in auth) return auth.error;
     }
 
     const result = await prisma.$transaction(async (tx) => {
@@ -45,7 +44,7 @@ export async function POST(req: NextRequest) {
   } catch (error) {
     logger.error("Backfill error:", { error: error instanceof Error ? error.message : String(error) });
     return NextResponse.json(
-      { message: "Internal server error" },
+      { message: "שגיאה במילוי מספרי משתמשים" },
       { status: 500 }
     );
   }

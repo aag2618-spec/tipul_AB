@@ -2,7 +2,8 @@ import { NextRequest, NextResponse } from "next/server";
 import prisma from "@/lib/prisma";
 import { logger } from "@/lib/logger";
 
-import { requireAdmin } from "@/lib/api-auth";
+import { requirePermission } from "@/lib/api-auth";
+import { withAudit } from "@/lib/audit";
 import { serializePrisma } from "@/lib/serialize";
 
 export const dynamic = "force-dynamic";
@@ -12,9 +13,9 @@ export async function PUT(
   { params }: { params: Promise<{ id: string }> }
 ) {
   try {
-    const auth = await requireAdmin();
+    const auth = await requirePermission("payments.manual");
     if ("error" in auth) return auth.error;
-    const { userId, session } = auth;
+    const { session } = auth;
 
     const { id } = await params;
     const body = await request.json();
@@ -40,19 +41,33 @@ export async function PUT(
       updateData.paidAt = new Date();
     }
 
-    const payment = await prisma.subscriptionPayment.update({
-      where: { id },
-      data: updateData,
-      include: {
-        user: {
-          select: {
-            id: true,
-            name: true,
-            email: true,
-          },
+    const payment = await withAudit(
+      { kind: "user", session },
+      {
+        action: "update_payment",
+        targetType: "payment",
+        targetId: id,
+        details: {
+          patch: updateData,
+          previousStatus: existingPayment.status,
+          previousAmount: Number(existingPayment.amount) || 0,
         },
       },
-    });
+      async (tx) =>
+        tx.subscriptionPayment.update({
+          where: { id },
+          data: updateData,
+          include: {
+            user: {
+              select: {
+                id: true,
+                name: true,
+                email: true,
+              },
+            },
+          },
+        })
+    );
 
     return NextResponse.json(serializePrisma(payment));
   } catch (error) {
@@ -69,9 +84,11 @@ export async function DELETE(
   { params }: { params: Promise<{ id: string }> }
 ) {
   try {
-    const auth = await requireAdmin();
+    // payments.delete — hard-delete של רשומה פיננסית, ADMIN בלבד.
+    // (שם הרשאה נפרד מ-payments.refund — refund היא פעולה אחרת שעוד לא מומשה).
+    const auth = await requirePermission("payments.delete");
     if ("error" in auth) return auth.error;
-    const { userId, session } = auth;
+    const { session } = auth;
 
     const { id } = await params;
 
@@ -83,9 +100,25 @@ export async function DELETE(
       return NextResponse.json({ message: "תשלום לא נמצא" }, { status: 404 });
     }
 
-    await prisma.subscriptionPayment.delete({
-      where: { id },
-    });
+    await withAudit(
+      { kind: "user", session },
+      {
+        action: "delete_payment",
+        targetType: "payment",
+        targetId: id,
+        details: {
+          userId: payment.userId,
+          amount: Number(payment.amount) || 0,
+          status: payment.status,
+          description: payment.description,
+        },
+      },
+      async (tx) => {
+        await tx.subscriptionPayment.delete({
+          where: { id },
+        });
+      }
+    );
 
     return NextResponse.json({ message: "התשלום נמחק בהצלחה" });
   } catch (error) {

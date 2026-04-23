@@ -123,11 +123,24 @@ export default function TierSettingsPage() {
   };
 
   const handleReset = async () => {
-    if (!confirm("האם לאפס את כל ההגדרות לברירות המחדל?")) return;
+    const confirmMsg =
+      "פעולה הרסנית: כל ההתאמות האישיות של מחירים ומכסות יימחקו.\n" +
+      "כדי לאשר, הקלד בדיוק: RESET_TIER_LIMITS";
+    const input = window.prompt(confirmMsg);
+    if (input !== "RESET_TIER_LIMITS") {
+      if (input !== null) {
+        toast.error("הטקסט לא תואם — האיפוס בוטל");
+      }
+      return;
+    }
 
     setSaving(true);
     try {
-      const response = await fetch("/api/admin/tier-limits", { method: "POST" });
+      const response = await fetch("/api/admin/tier-limits", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ confirm: "RESET_TIER_LIMITS" }),
+      });
       if (response.ok) {
         toast.success("ההגדרות אופסו בהצלחה");
         fetchLimits();
