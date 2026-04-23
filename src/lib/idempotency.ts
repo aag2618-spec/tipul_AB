@@ -1,25 +1,41 @@
 /**
- * Idempotency wrapper — Stage 1.11 של שדרוג ניהול
+ * Idempotency wrapper — Stage 1.11 של שדרוג ניהול; hardened ב-Stage 1.17 pre-work
  *
  * מטרה: אותה בקשת POST (או webhook) שמגיעה פעמיים עם אותו idempotency-key
  * תחזיר את אותה תוצאה — לא תיצור עסקה/חיוב כפול.
  *
  * תשתית: מודל `IdempotencyKey` (prisma/schema.prisma:1864) נוצר ב-Stage 1.7.
  *
- * שימוש טיפוסי:
+ * ⚠️  T JSON-serializable REQUIREMENT:
+ *   התוצאה של `fn` נשמרת ב-`Prisma.InputJsonValue`. זה אומר: רק primitives,
+ *   arrays, ו-plain objects. אסור Date (משמש ISO string), BigInt, Map, Set,
+ *   class instances, או פונקציות. סריאליזציה כושלת → Prisma error ב-update.
+ *   (Cursor L-R2-3 — סיבוב 2.)
+ *
+ * שימוש טיפוסי (UI-facing POST, "conflict" = לא להמתין):
  *   const result = await withIdempotency(
- *     { key: `${session.user.id}:${clientKey}`, method: "POST", path: "/api/x" },
- *     async () => {
- *       // הלוגיקה שחייבת להיות idempotent
- *       return { ok: true, orderId: "..." };
- *     }
+ *     { key: `${session.user.id}:${clientKey}`, method: "POST", path: "/api/x",
+ *       inFlight: "conflict" },  // 409 מיידי אם בקשה זהה בתהליך
+ *     async () => ({ ok: true, orderId: "..." })
  *   );
- *   // result.replay = true → הריצה הנוכחית קיבלה תשובה שמורה
- *   // result.replay = false → הפעלה ראשונה, נשמר ל-24 שעות
+ *   if (result.replay === "in_flight") return new Response(..., { status: 409 });
+ *   if (result.replay === true) return Response.json(result.data);
+ *   return Response.json(result.data);
+ *
+ * שימוש webhook (Cardcom — "wait" = להמתין עד 15s):
+ *   const result = await withIdempotency(
+ *     { key: `cardcom:${txId}`, method: "POST", path: "/api/webhooks/cardcom",
+ *       inFlight: "wait" },  // ברירת מחדל — פולר עד 15s
+ *     async () => processCardcomTransaction(payload)
+ *   );
  *
  * Alert: אם בקשה חוזרת תואמת ל-failure (statusCode >= 500) שנשמר,
  * נכתב AdminAlert מסוג IDEMPOTENCY_REPLAY_OF_FAILURE.
- * זאת התנהגות מודעת — לא אוטומטית-מוצלחת.
+ *
+ * ⚠️ לפני wire-up לראוט webhook/POST:
+ *   חובה להוסיף rate-limit לפני withIdempotency כדי למנוע DoS amplification
+ *   (אחרת 100 בקשות מקבילות עם אותו key יחזיקו 100 × 15s של polling).
+ *   ראה `src/lib/rate-limit.ts` — נעבור לזה ב-Stage 1.17.
  */
 
 import type { Prisma } from "@prisma/client";
@@ -30,13 +46,37 @@ import { logger } from "@/lib/logger";
 // cron ניקוי קיים (schedulerToken... כל יום) — לא חוסם.
 const DEFAULT_TTL_MS = 24 * 60 * 60 * 1000;
 
+// עומק רקורסיה מקסימלי ל-withIdempotency — מגן מפני infinite loop תיאורטי
+// אם winner מת ומחדש את ההזמנה שוב ושוב. בפרקטיקה 1-2 מספיקים.
+const MAX_RECURSION_DEPTH = 3;
+
 export interface IdempotencyContext {
-  /** מפתח ייחודי בסקופ של המשתמש/ספק. צורה מומלצת: `${userId}:${clientKey}` או `cardcom:${transactionId}`. */
+  /**
+   * מפתח ייחודי בסקופ של המשתמש/ספק.
+   *
+   * 🚨 חובת namespacing — אחרת cross-tenant leak:
+   *   ✅ `${session.user.id}:${clientKey}` — user scoping
+   *   ✅ `cardcom:${transactionId}` — provider scoping
+   *   ✅ `webhook:meshulam:${eventId}` — provider+type scoping
+   *   ❌ `${body.orderId}` — אסור! משתמש B ישלח אותו orderId ויקבל את התגובה של A.
+   *
+   * כלל: המפתח חייב לכלול prefix של המשתמש או הספק המוסמך, לא רק
+   * identifier חיצוני שגורם נוסף שולט בו.
+   */
   key: string;
   method: string;
   path: string;
   /** TTL בסקונדות; ברירת מחדל 24 שעות. */
   ttlMs?: number;
+  /**
+   * התנהגות כאשר אותו key נמצא כרגע בתהליך (statusCode=0, in-flight):
+   *  - "wait" (default): פולר עד 15s למלא את התוצאה. מתאים ל-webhooks.
+   *  - "conflict": מחזיר מיידית {replay: "in_flight"} כדי שה-caller יחזיר 409.
+   *    מתאים ל-POSTים של UI שלא רוצים לחסום את המשתמש.
+   */
+  inFlight?: "wait" | "conflict";
+  /** כמה זמן לפולר ב-"wait" mode. ברירת מחדל 15 שניות. */
+  waitTimeoutMs?: number;
 }
 
 export interface IdempotencySuccess<T> {
@@ -51,7 +91,18 @@ export interface IdempotencyReplay<T> {
   data: T;
 }
 
-export type IdempotencyResult<T> = IdempotencySuccess<T> | IdempotencyReplay<T>;
+/**
+ * בקשה עם idempotency-key שכרגע בתהליך אצל caller אחר.
+ * Caller אמור להמיר זאת ל-HTTP 409 Conflict.
+ */
+export interface IdempotencyInFlight {
+  replay: "in_flight";
+}
+
+export type IdempotencyResult<T> =
+  | IdempotencySuccess<T>
+  | IdempotencyReplay<T>
+  | IdempotencyInFlight;
 
 /**
  * מריץ `fn` פעם אחת בלבד לכל `key`. ריצה נוספת עם אותו key תחזיר replay.
@@ -62,8 +113,8 @@ export type IdempotencyResult<T> = IdempotencySuccess<T> | IdempotencyReplay<T>;
  *   2. EXECUTE — רק המפעיל המנצח (זה שהצליח ליצור) מריץ את fn.
  *   3. PERSIST — עדכון הרשומה ל-statusCode=200 עם התוצאה.
  *
- * אם fn זורק — הרשומה נשארת עם statusCode=0 עד שתפוג. התמודדות: replay יתבצע
- * כ-"לא יודע" ויגרום שגיאה לקורא הבא, במקום להכפיל side-effect.
+ * אם fn זורק — הרשומה נמחקת כדי שקורא אחר יוכל לנסות שוב. פולרים פעילים
+ * שממתינים על הרשומה יבצעו retry רקורסיבי (עם MAX_RECURSION_DEPTH=3).
  *
  * שימוש: webhooks של Cardcom, POST ליצירת תשלום ידני, וכל route עם side-effect
  * יקר (אימייל, סליקה).
@@ -72,8 +123,27 @@ export async function withIdempotency<T>(
   ctx: IdempotencyContext,
   fn: () => Promise<T>
 ): Promise<IdempotencyResult<T>> {
+  return withIdempotencyImpl(ctx, fn, 0);
+}
+
+/**
+ * Impl פנימי עם depth counter. לא חשוף לקוראים (LOW #2 סבב 3).
+ * Callers תמיד יקראו ל-withIdempotency בלי depth.
+ */
+async function withIdempotencyImpl<T>(
+  ctx: IdempotencyContext,
+  fn: () => Promise<T>,
+  depth: number
+): Promise<IdempotencyResult<T>> {
+  if (depth > MAX_RECURSION_DEPTH) {
+    throw new Error(
+      `withIdempotency: exceeded max recursion depth (${MAX_RECURSION_DEPTH}) for key ${ctx.key}`
+    );
+  }
+
   const ttl = ctx.ttlMs ?? DEFAULT_TTL_MS;
   const expiresAt = new Date(Date.now() + ttl);
+  const inFlightMode = ctx.inFlight ?? "wait";
 
   // ─ שלב 1: נסה להזמין את המפתח. statusCode=0 = "in-flight" (סנטינל). ─
   let reserved = false;
@@ -99,37 +169,34 @@ export async function withIdempotency<T>(
 
   // ─ שלב 2: אם לא הצלחנו להזמין, ייתכן שיש רשומה קיימת. ─
   if (!reserved) {
-    const existing = await waitForIdempotencyResolution(ctx.key);
+    // השגת הרשומה: בהתאם ל-mode. "conflict" = findUnique חד-פעמי, "wait" = פולר.
+    const existing =
+      inFlightMode === "conflict"
+        ? await prisma.idempotencyKey.findUnique({ where: { key: ctx.key } })
+        : await waitForIdempotencyResolution(ctx.key, ctx.waitTimeoutMs ?? 15_000);
 
-    // רשומה שפגה — מחק וקרא לעצמנו פעם נוספת (רקורסיה עם היקף קבוע).
-    if (existing && existing.expiresAt < new Date()) {
+    // Cursor M-R2-2 (סיבוב 2): winner מחק את ההזמנה (למשל fn זרקה).
+    // ננסה שוב — ה-depth counter מגן מפני לולאה אינסופית.
+    if (!existing) {
+      return withIdempotencyImpl(ctx, fn, depth + 1);
+    }
+
+    // רשומה שפגה — מחק וננסה להיות ה-winner החדש.
+    // (מטפל בשתי מצבים: in-flight שתקוע כבר 24h+ או completed שעבר TTL.)
+    // Cursor M-R2 סיבוב 3: בדיקה אחידה ב-"conflict" וב-"wait".
+    if (existing.expiresAt < new Date()) {
       await prisma.idempotencyKey.delete({ where: { key: ctx.key } }).catch(() => undefined);
-      return withIdempotency(ctx, fn);
+      return withIdempotencyImpl(ctx, fn, depth + 1);
     }
 
-    if (existing) {
-      if (existing.statusCode >= 500) {
-        await createReplayOfFailureAlert({
-          key: ctx.key,
-          method: existing.method,
-          path: existing.path,
-          storedStatusCode: existing.statusCode,
-        }).catch((alertErr) => {
-          logger.error("Failed to create IDEMPOTENCY_REPLAY_OF_FAILURE alert", {
-            error: alertErr instanceof Error ? alertErr.message : String(alertErr),
-          });
-        });
-      }
-      return {
-        replay: true,
-        storedStatusCode: existing.statusCode,
-        data: existing.response as T,
-      };
+    // עדיין in-flight אחרי timeout (wait) או לפני שהמפתח הושלם (conflict):
+    // מדווח ל-caller שיש בקשה פעילה — caller אמור להחזיר 409.
+    if (existing.statusCode === 0) {
+      return { replay: "in_flight" };
     }
 
-    // לא מצאנו רשומה בכלל אחרי ההמתנה (edge case — רשומה נמחקה בדיוק בתזמון).
-    // מחזירים שגיאה ברורה כדי שהקורא יוכל לנסות שוב עם מפתח חדש.
-    throw new Error("withIdempotency: key reservation failed and no stored result found");
+    // תוצאה סופית — replay.
+    return handleExistingRow<T>(ctx, existing);
   }
 
   // ─ שלב 3: אנחנו המנצחים — מריצים את fn. ─
@@ -167,6 +234,38 @@ export async function withIdempotency<T>(
 }
 
 /**
+ * עוטף רשומה קיימת (statusCode != 0) לתוצאת replay. מעלה alert על 5xx.
+ */
+async function handleExistingRow<T>(
+  ctx: IdempotencyContext,
+  existing: {
+    key: string;
+    method: string;
+    path: string;
+    statusCode: number;
+    response: unknown;
+  }
+): Promise<IdempotencyReplay<T>> {
+  if (existing.statusCode >= 500) {
+    await createReplayOfFailureAlert({
+      key: ctx.key,
+      method: existing.method,
+      path: existing.path,
+      storedStatusCode: existing.statusCode,
+    }).catch((alertErr) => {
+      logger.error("Failed to create IDEMPOTENCY_REPLAY_OF_FAILURE alert", {
+        error: alertErr instanceof Error ? alertErr.message : String(alertErr),
+      });
+    });
+  }
+  return {
+    replay: true,
+    storedStatusCode: existing.statusCode,
+    data: existing.response as T,
+  };
+}
+
+/**
  * ממתין עד שרשומת idempotency תהפוך לסופית (statusCode != 0) או עד timeout.
  *
  * בזמן המתנה, ייתכן שהפעולה תיכשל (רשומה נמחקה) — במקרה כזה נחזיר null.
@@ -190,8 +289,8 @@ async function waitForIdempotencyResolution(
     if (row.statusCode !== 0) return row;
     await new Promise((r) => setTimeout(r, pollIntervalMs));
   }
-  // timeout — מחזירים מה שיש. אם עדיין in-flight, הקורא יקבל replay של "0"
-  // שמשמעותו "in-progress" (הקורא מטפל ב-409).
+  // timeout — מחזירים מה שיש (ייתכן עדיין statusCode=0). הקורא ב-withIdempotency
+  // ממיר את זה ל-{replay: "in_flight"} כדי ש-caller יכול להחזיר 409.
   return prisma.idempotencyKey.findUnique({ where: { key } });
 }
 

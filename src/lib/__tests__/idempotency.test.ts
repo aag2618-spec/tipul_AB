@@ -81,7 +81,7 @@ describe("withIdempotency — reserve/execute/finalize flow", () => {
 
     expect(fn).not.toHaveBeenCalled();
     expect(result.replay).toBe(true);
-    if (result.replay) {
+    if (result.replay === true) {
       expect(result.data).toEqual({ ok: true, stored: "yes" });
       expect(result.storedStatusCode).toBe(200);
     }
@@ -171,6 +171,132 @@ describe("withIdempotency — reserve/execute/finalize flow", () => {
 
     const fn = vi.fn();
     await expect(withIdempotency(ctx, fn)).rejects.toThrow("db down");
+    expect(fn).not.toHaveBeenCalled();
+  });
+});
+
+// ─── Stage 1.17 pre-work tests (M-R2-1, M-R2-2) ───────────────────────────
+
+describe("withIdempotency — inFlight: 'conflict' variant", () => {
+  beforeEach(() => {
+    vi.resetAllMocks();
+  });
+
+  it("returns {replay: 'in_flight'} immediately when key is in-flight", async () => {
+    const uniqueErr = Object.assign(new Error("unique"), { code: "P2002" });
+    create.mockRejectedValueOnce(uniqueErr);
+    const future = new Date(Date.now() + 60 * 60 * 1000);
+    findUnique.mockResolvedValueOnce({
+      key: ctx.key,
+      method: ctx.method,
+      path: ctx.path,
+      statusCode: 0, // in-flight
+      response: {},
+      expiresAt: future,
+    });
+
+    const fn = vi.fn();
+    const result = await withIdempotency(
+      { ...ctx, inFlight: "conflict" },
+      fn
+    );
+
+    expect(fn).not.toHaveBeenCalled();
+    expect(result.replay).toBe("in_flight");
+  });
+
+  it("conflict mode still returns final result when already completed", async () => {
+    const uniqueErr = Object.assign(new Error("unique"), { code: "P2002" });
+    create.mockRejectedValueOnce(uniqueErr);
+    const future = new Date(Date.now() + 60 * 60 * 1000);
+    findUnique.mockResolvedValueOnce({
+      key: ctx.key,
+      method: ctx.method,
+      path: ctx.path,
+      statusCode: 200,
+      response: { final: true },
+      expiresAt: future,
+    });
+
+    const fn = vi.fn();
+    const result = await withIdempotency(
+      { ...ctx, inFlight: "conflict" },
+      fn
+    );
+
+    expect(fn).not.toHaveBeenCalled();
+    expect(result.replay).toBe(true);
+    if (result.replay === true) {
+      expect(result.data).toEqual({ final: true });
+    }
+  });
+});
+
+describe("withIdempotency — wait mode timeout → in_flight", () => {
+  beforeEach(() => {
+    vi.resetAllMocks();
+  });
+
+  it("returns {replay: 'in_flight'} when winner exceeds waitTimeoutMs", async () => {
+    const uniqueErr = Object.assign(new Error("unique"), { code: "P2002" });
+    create.mockRejectedValueOnce(uniqueErr);
+    const future = new Date(Date.now() + 60 * 60 * 1000);
+    // waitForIdempotencyResolution polls findUnique — always sees statusCode=0.
+    findUnique.mockResolvedValue({
+      key: ctx.key,
+      method: ctx.method,
+      path: ctx.path,
+      statusCode: 0,
+      response: {},
+      expiresAt: future,
+    });
+
+    const fn = vi.fn();
+    const result = await withIdempotency(
+      { ...ctx, waitTimeoutMs: 100 }, // timeout קצר לטסט
+      fn
+    );
+
+    expect(fn).not.toHaveBeenCalled();
+    expect(result.replay).toBe("in_flight");
+  });
+});
+
+describe("withIdempotency — stuck-poller retry (M-R2-2)", () => {
+  beforeEach(() => {
+    vi.resetAllMocks();
+  });
+
+  it("retries when winner deletes row during wait (fn throws)", async () => {
+    // Scenario: caller B gets P2002, enters wait, but winner A deletes the
+    // row because A's fn threw. B should retry as a new winner, not throw.
+    const uniqueErr = Object.assign(new Error("unique"), { code: "P2002" });
+    create
+      .mockRejectedValueOnce(uniqueErr) // first: conflict with winner
+      .mockResolvedValueOnce({}); // second (recursive): success
+    // poller sees null (winner deleted row)
+    findUnique.mockResolvedValue(null);
+    update.mockResolvedValueOnce({});
+
+    const fn = vi.fn().mockResolvedValueOnce({ retryWon: true });
+    const result = await withIdempotency(
+      { ...ctx, waitTimeoutMs: 100 },
+      fn
+    );
+
+    expect(fn).toHaveBeenCalledTimes(1);
+    expect(result).toEqual({ replay: false, data: { retryWon: true } });
+  });
+
+  it("throws after max recursion depth exceeded", async () => {
+    const uniqueErr = Object.assign(new Error("unique"), { code: "P2002" });
+    create.mockRejectedValue(uniqueErr); // אינסופי — תמיד P2002
+    findUnique.mockResolvedValue(null); // אינסופי — תמיד אין רשומה
+
+    const fn = vi.fn();
+    await expect(
+      withIdempotency({ ...ctx, waitTimeoutMs: 50 }, fn)
+    ).rejects.toThrow(/max recursion depth/);
     expect(fn).not.toHaveBeenCalled();
   });
 });
