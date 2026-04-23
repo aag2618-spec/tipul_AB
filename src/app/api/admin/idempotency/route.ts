@@ -24,6 +24,8 @@ export async function DELETE(_req: NextRequest) {
     if ("error" in auth) return auth.error;
     const { session } = auth;
 
+    // tx חובה — cleanupExpiredIdempotencyKeys חייב לרוץ בתוך אותה טרנזקציה
+    // של audit log כדי לשמור אטומיות תחת retry (Cursor סיבוב 1.18 MEDIUM).
     const count = await withAudit(
       { kind: "user", session },
       {
@@ -31,7 +33,7 @@ export async function DELETE(_req: NextRequest) {
         targetType: "idempotency_key",
         details: { reason: "manual_admin_trigger" },
       },
-      async () => cleanupExpiredIdempotencyKeys()
+      async (tx) => cleanupExpiredIdempotencyKeys(tx)
     );
 
     return NextResponse.json({

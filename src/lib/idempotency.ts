@@ -334,9 +334,16 @@ export async function persistIdempotencyFailure(
 /**
  * מנקה רשומות שפגו. cron יומי יקרא לזה.
  * החזרה: מספר רשומות שנמחקו.
+ *
+ * אם `tx` מועבר — ה-deleteMany רץ בתוכו (אטומי עם audit/retries).
+ * Cursor MEDIUM סיבוב 1.18 — בלי `tx` ה-deleteMany רץ ב-global prisma
+ * ואינו אטומי עם withAudit, מה שיכול לגרום ל-audit log שקרי ב-retry.
  */
-export async function cleanupExpiredIdempotencyKeys(): Promise<number> {
-  const result = await prisma.idempotencyKey.deleteMany({
+export async function cleanupExpiredIdempotencyKeys(
+  tx?: Prisma.TransactionClient
+): Promise<number> {
+  const client = tx ?? prisma;
+  const result = await client.idempotencyKey.deleteMany({
     where: { expiresAt: { lt: new Date() } },
   });
   return result.count;

@@ -323,12 +323,27 @@ describe("cleanupExpiredIdempotencyKeys", () => {
     vi.resetAllMocks();
   });
 
-  it("deletes all rows with expiresAt < now and returns count", async () => {
+  it("deletes all rows with expiresAt < now and returns count (global prisma)", async () => {
     deleteMany.mockResolvedValueOnce({ count: 7 });
     const count = await cleanupExpiredIdempotencyKeys();
     expect(count).toBe(7);
 
     const call = deleteMany.mock.calls[0][0];
     expect(call.where.expiresAt.lt).toBeInstanceOf(Date);
+  });
+
+  it("uses supplied tx client when provided (atomicity with withAudit)", async () => {
+    // Cursor MEDIUM סיבוב 1.18 — כאשר tx מועבר, ה-deleteMany חייב לרוץ עליו
+    // (לא על global prisma) כדי לשמור אטומיות עם audit log תחת retry.
+    const txDeleteMany = vi.fn().mockResolvedValueOnce({ count: 3 });
+    const fakeTx = {
+      idempotencyKey: { deleteMany: txDeleteMany },
+    } as unknown as Parameters<typeof cleanupExpiredIdempotencyKeys>[0];
+
+    const count = await cleanupExpiredIdempotencyKeys(fakeTx);
+    expect(count).toBe(3);
+    // אימות: הטבלה ב-tx נקראה, לא ב-global prisma mock.
+    expect(txDeleteMany).toHaveBeenCalledTimes(1);
+    expect(deleteMany).not.toHaveBeenCalled();
   });
 });
