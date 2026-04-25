@@ -68,6 +68,11 @@ const mainNavItems = [
     icon: FileText,
   },
   {
+    title: "תשלומים",
+    href: "/dashboard/payments",
+    icon: CreditCard,
+  },
+  {
     title: "ממתינים לסיכום",
     href: "/dashboard/tasks",
     icon: ListTodo,
