@@ -5,6 +5,7 @@ import { create2HourReminderEmail, formatSessionDateTime } from "@/lib/email-tem
 import { sendSMSIfEnabled } from "@/lib/sms";
 import { logger } from "@/lib/logger";
 import { isShabbatOrYomTov, wasShabbatInLastHours } from "@/lib/shabbat";
+import { checkCronAuth } from "@/lib/cron-auth";
 
 // Send custom-timed session reminders (replaces fixed 2h reminders)
 // Should be called by cron job every 15 minutes
@@ -12,14 +13,8 @@ import { isShabbatOrYomTov, wasShabbatInLastHours } from "@/lib/shabbat";
 export const dynamic = "force-dynamic";
 
 export async function GET(request: NextRequest) {
-  const cronSecret = process.env.CRON_SECRET;
-  if (!cronSecret) {
-    return NextResponse.json({ message: "CRON_SECRET not configured" }, { status: 503 });
-  }
-  const authHeader = request.headers.get("authorization");
-  if (authHeader !== `Bearer ${cronSecret}`) {
-    return NextResponse.json({ message: "Unauthorized" }, { status: 401 });
-  }
+  const guard = await checkCronAuth(request);
+  if (guard) return guard;
 
   // Shabbat/Yom Tov — דלג לגמרי; catch-up יתבצע במוצאי שבת
   if (isShabbatOrYomTov()) {

@@ -5,6 +5,7 @@ import { sendEmail } from "@/lib/resend";
 import { sendSMSIfEnabled } from "@/lib/sms";
 import { isShabbatOrYomTov } from "@/lib/shabbat";
 import { logger } from "@/lib/logger";
+import { checkCronAuth } from "@/lib/cron-auth";
 
 /**
  * Booking Outbox Cron — פוסטמן לשליחת הודעות שנדחו בשבת/חג.
@@ -31,13 +32,8 @@ type SessionWithRelations = Prisma.TherapySessionGetPayload<{
 }>;
 
 export async function GET(request: NextRequest) {
-  const cronSecret = process.env.CRON_SECRET;
-  if (!cronSecret) {
-    return NextResponse.json({ message: "CRON_SECRET not configured" }, { status: 503 });
-  }
-  if (request.headers.get("authorization") !== `Bearer ${cronSecret}`) {
-    return NextResponse.json({ message: "Unauthorized" }, { status: 401 });
-  }
+  const guard = await checkCronAuth(request);
+  if (guard) return guard;
 
   if (isShabbatOrYomTov()) {
     logger.info("[cron booking-outbox] דילוג בשבת/חג");

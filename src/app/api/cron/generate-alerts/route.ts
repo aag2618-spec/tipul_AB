@@ -3,6 +3,7 @@ import prisma from "@/lib/prisma";
 import { AdminAlertType, AlertPriority, Prisma } from "@prisma/client";
 import { logger } from "@/lib/logger";
 import { isShabbatOrYomTov } from "@/lib/shabbat";
+import { checkCronAuth } from "@/lib/cron-auth";
 
 // API Route for generating automatic admin alerts
 // This can be called by a cron job (e.g., daily at 8:00 AM)
@@ -11,15 +12,9 @@ export const dynamic = "force-dynamic";
 
 export async function GET(req: NextRequest) {
   try {
-    // Verify cron secret (for security)
-    const cronSecret = process.env.CRON_SECRET;
-    if (!cronSecret) {
-      return NextResponse.json({ message: "CRON_SECRET not configured" }, { status: 503 });
-    }
-    const authHeader = req.headers.get("authorization");
-    if (authHeader !== `Bearer ${cronSecret}`) {
-      return NextResponse.json({ message: "לא מורשה" }, { status: 401 });
-    }
+    // CRON_SECRET + per-IP rate-limit (Stage 1.17 — checkCronAuth helper)
+    const guard = await checkCronAuth(req);
+    if (guard) return guard;
 
     // Shabbat/Yom Tov — דילוג. alert-ים ייווצרו מחדש ביום המחרת כשצריך.
     if (isShabbatOrYomTov()) {

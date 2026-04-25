@@ -9,6 +9,7 @@ import { PLAN_NAMES, MONTHLY_PRICES } from "@/lib/pricing";
 import { escapeHtml } from "@/lib/email-utils";
 import { logger } from "@/lib/logger";
 import { isShabbatOrYomTov } from "@/lib/shabbat";
+import { checkCronAuth } from "@/lib/cron-auth";
 
 // ========================================
 // הגדרות
@@ -29,15 +30,8 @@ export const dynamic = "force-dynamic";
 
 export async function GET(req: NextRequest) {
   try {
-    // אימות CRON secret
-    const cronSecret = process.env.CRON_SECRET;
-    if (!cronSecret) {
-      return NextResponse.json({ message: "CRON_SECRET not configured" }, { status: 503 });
-    }
-    const authHeader = req.headers.get("authorization");
-    if (authHeader !== `Bearer ${cronSecret}`) {
-      return NextResponse.json({ message: "לא מורשה" }, { status: 401 });
-    }
+    const guard = await checkCronAuth(req);
+    if (guard) return guard;
 
     // Shabbat/Yom Tov — דילוג. cron יומי; ייתפס שוב ביום המחרת.
     if (isShabbatOrYomTov()) {

@@ -3,6 +3,7 @@ import { logger } from "@/lib/logger";
 
 import { withAudit } from "@/lib/audit";
 import { cleanupExpiredIdempotencyKeys } from "@/lib/idempotency";
+import { checkCronAuth } from "@/lib/cron-auth";
 
 export const dynamic = "force-dynamic";
 
@@ -23,19 +24,10 @@ export const dynamic = "force-dynamic";
  */
 export async function GET(req: NextRequest) {
   try {
-    // אימות cron secret — מגן מפני קריאה חיצונית.
-    const cronSecret = process.env.CRON_SECRET;
-    if (!cronSecret) {
-      logger.error("[cron cleanup-idempotency] CRON_SECRET not configured");
-      return NextResponse.json(
-        { message: "CRON_SECRET not configured" },
-        { status: 503 }
-      );
-    }
-    const authHeader = req.headers.get("authorization");
-    if (authHeader !== `Bearer ${cronSecret}`) {
-      return NextResponse.json({ message: "לא מורשה" }, { status: 401 });
-    }
+    // checkCronAuth: CRON_SECRET + per-IP rate limit (10/min) + הודעה גנרית
+    // ל-401 (לא מסגיר אם CRON_SECRET חסר). Stage 1.17 — סוכן 5 security.
+    const guard = await checkCronAuth(req);
+    if (guard) return guard;
 
     const count = await withAudit(
       { kind: "system", source: "CRON", externalRef: "cleanup-idempotency" },

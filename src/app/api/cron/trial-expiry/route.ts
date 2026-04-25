@@ -4,6 +4,8 @@ import { sendEmail } from "@/lib/resend";
 import { escapeHtml } from "@/lib/email-utils";
 import { logger } from "@/lib/logger";
 import { isShabbatOrYomTov } from "@/lib/shabbat";
+import { checkCronAuth } from "@/lib/cron-auth";
+import { withAudit } from "@/lib/audit";
 
 const SYSTEM_URL = process.env.NEXTAUTH_URL || "https://your-app.onrender.com";
 const ADMIN_EMAIL = process.env.ADMIN_EMAIL;
@@ -12,14 +14,8 @@ export const dynamic = "force-dynamic";
 
 export async function GET(req: NextRequest) {
   try {
-    const cronSecret = process.env.CRON_SECRET;
-    if (!cronSecret) {
-      return NextResponse.json({ message: "CRON_SECRET not configured" }, { status: 503 });
-    }
-    const authHeader = req.headers.get("authorization");
-    if (authHeader !== `Bearer ${cronSecret}`) {
-      return NextResponse.json({ message: "לא מורשה" }, { status: 401 });
-    }
+    const guard = await checkCronAuth(req);
+    if (guard) return guard;
 
     // Shabbat/Yom Tov — דילוג. cron יומי; ייתפס שוב ביום המחרת.
     if (isShabbatOrYomTov()) {
@@ -130,13 +126,35 @@ export async function GET(req: NextRequest) {
 
     for (const user of expiredTrials) {
       try {
-        await prisma.user.update({
-          where: { id: user.id },
-          data: {
-            isBlocked: true,
-            subscriptionStatus: "CANCELLED",
+        // Cursor סיבוב 1.17 Bug 3: לעטוף ב-withAudit כדי לרשום ש-cron חסם
+        // משתמש (אחרת אם המשתמש שואל "למה חסמתם?", אין רישום).
+        await withAudit(
+          { kind: "system", source: "CRON", externalRef: "trial-expiry" },
+          {
+            action: "block_user_trial_expired",
+            targetType: "user",
+            targetId: user.id,
+            details: {
+              // forensic snapshot — אם המשתמש יישאל "למה חסמתם?" בעוד שנה,
+              // השדות האלה עוזרים לאתר אותו גם אם נמחק/שונה (Cursor סוכן 2).
+              email: user.email,
+              name: user.name,
+              previousStatus: "TRIALING",
+              newStatus: "CANCELLED",
+              trialEndsAt: user.trialEndsAt?.toISOString() ?? null,
+              blockedAt: now.toISOString(),
+              reason: "trial_period_ended",
+            },
           },
-        });
+          async (tx) =>
+            tx.user.update({
+              where: { id: user.id },
+              data: {
+                isBlocked: true,
+                subscriptionStatus: "CANCELLED",
+              },
+            })
+        );
 
         if (user.email) {
           const billingUrl = `${SYSTEM_URL}/dashboard/settings/billing`;

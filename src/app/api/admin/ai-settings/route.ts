@@ -12,9 +12,6 @@ import {
 
 export const dynamic = "force-dynamic";
 
-// alias local name to keep downstream code unchanged
-const GLOBAL_SETTINGS_ID = GLOBAL_AI_SETTINGS_ID;
-
 // Allowlist נגד mass-assignment (Cursor M3). רק השדות האלה מותרים לעדכון.
 // id/updatedAt נשלטים על ידי Prisma והשרת בלבד.
 const ALLOWED_FIELDS = [
@@ -61,13 +58,13 @@ export async function GET() {
         {
           action: "seed_default_ai_settings",
           targetType: "global_ai_settings",
-          targetId: GLOBAL_SETTINGS_ID,
+          targetId: GLOBAL_AI_SETTINGS_ID,
           details: { reason: "first-time bootstrap" },
         },
         async (tx) =>
           tx.globalAISettings.create({
             // כל הערכים מ-src/lib/defaults.ts — מקור אמת יחיד עם seed.ts
-            data: { id: GLOBAL_SETTINGS_ID, ...DEFAULT_AI_SETTINGS },
+            data: { id: GLOBAL_AI_SETTINGS_ID, ...DEFAULT_AI_SETTINGS },
           })
       );
     }
@@ -97,7 +94,7 @@ export async function POST(request: NextRequest) {
     // הגדרות AI משפיעות על כסף (maxMonthlyCostBudget, alertThreshold) ועל
     // יכולת המשתמש (dailyLimit*) — שינוי חייב להיות מתועד באופן מלא.
     const previous = await prisma.globalAISettings.findUnique({
-      where: { id: GLOBAL_SETTINGS_ID },
+      where: { id: GLOBAL_AI_SETTINGS_ID },
     });
     const previousSnapshot: Record<string, unknown> = {};
     const newSnapshot: Record<string, unknown> = {};
@@ -115,7 +112,7 @@ export async function POST(request: NextRequest) {
       {
         action: "update_ai_settings",
         targetType: "global_ai_settings",
-        targetId: GLOBAL_SETTINGS_ID,
+        targetId: GLOBAL_AI_SETTINGS_ID,
         details: {
           changedFields: Object.keys(data),
           previous: previousSnapshot,
@@ -124,9 +121,9 @@ export async function POST(request: NextRequest) {
       },
       async (tx) =>
         tx.globalAISettings.upsert({
-          where: { id: GLOBAL_SETTINGS_ID },
+          where: { id: GLOBAL_AI_SETTINGS_ID },
           create: {
-            id: GLOBAL_SETTINGS_ID,
+            id: GLOBAL_AI_SETTINGS_ID,
             ...data,
           },
           update: data,

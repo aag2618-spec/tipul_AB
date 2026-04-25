@@ -7,9 +7,6 @@ import { requirePermission } from "@/lib/api-auth";
 import { withAudit } from "@/lib/audit";
 import { DEFAULT_FEATURE_FLAGS } from "@/lib/defaults";
 
-// alias זמני — שומר על שם ה-constant המקומי כדי למזער שינויים בהמשך הקובץ
-const DEFAULT_FLAGS = DEFAULT_FEATURE_FLAGS;
-
 async function seedDefaultFlags(session: Session) {
   // bootstrap חד-פעמי — רץ רק כאשר count=0. עטוף ב-withAudit כדי להשאיר רישום
   // של מי גרם לראיות החשאיות לצוץ בפעם הראשונה.
@@ -18,10 +15,10 @@ async function seedDefaultFlags(session: Session) {
     {
       action: "seed_default_feature_flags",
       targetType: "feature_flag",
-      details: { keys: DEFAULT_FLAGS.map((f) => f.key) },
+      details: { keys: DEFAULT_FEATURE_FLAGS.map((f) => f.key) },
     },
     async (tx) => {
-      for (const flag of DEFAULT_FLAGS) {
+      for (const flag of DEFAULT_FEATURE_FLAGS) {
         await tx.featureFlag.upsert({
           where: { key: flag.key },
           update: {},

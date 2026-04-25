@@ -6,6 +6,20 @@ import { checkTrialAiLimit, updateTrialAiCost } from "@/lib/trial-limits";
 import { logger } from "@/lib/logger";
 import { requireAuth } from "@/lib/api-auth";
 import { getCurrentUsageKey } from "@/lib/date-utils";
+import { consumeAiAnalysis, QuotaExhaustedError } from "@/lib/credits";
+
+/**
+ * Feature flag — Stage 1.17 wire-up.
+ *
+ * OFF (default): legacy flow — בודק `monthlyUsage.detailedAnalysisCount` ידנית
+ *   ואז upsert עם increment.
+ * ON: שימוש ב-`consumeAiAnalysis` החדש (atomic check+deduct + bank, FIFO).
+ *
+ * env var `USE_NEW_CONSUME_AI=true` להפעלה.
+ */
+function isNewConsumeAiEnabled(): boolean {
+  return process.env.USE_NEW_CONSUME_AI === "true";
+}
 
 // שימוש ב-Gemini Pro לכל הניתוחים
 const genAI = new GoogleGenerativeAI(process.env.GOOGLE_AI_API_KEY || "");
@@ -58,12 +72,6 @@ export async function POST(req: NextRequest) {
         approachDescription: true,
       }
     });
-    
-    console.log('🔍 User fetched:', {
-      id: user?.id,
-      aiTier: user?.aiTier,
-      therapeuticApproaches: user?.therapeuticApproaches,
-    });
 
     if (!user) {
       return NextResponse.json({ message: "משתמש לא נמצא" }, { status: 404 });
@@ -104,28 +112,65 @@ export async function POST(req: NextRequest) {
 
     // בדיקת מכסה חודשית (רק לניתוח מפורט)
     if (analysisType === "DETAILED") {
-      const { month, year } = getCurrentUsageKey();
-      const monthlyUsage = await prisma.monthlyUsage.findUnique({
-        where: {
-          userId_month_year: {
+      if (isNewConsumeAiEnabled()) {
+        // Stage 1.17 wire-up — consumeAiAnalysis עושה atomic check+deduct.
+        // ה-FOR UPDATE על MonthlyUsage מונע race בין 2 ניתוחים מקבילים.
+        //
+        // ⚠️ הבדל סמנטי מהזרימה הישנה (Cursor יזהה זאת):
+        //   Legacy: limit=20 hardcoded. Wire-up חדש: limit נלקח מ-TierLimits
+        //   ולפי `usage-limits.ts` ENTERPRISE=50. **הפעלת flag = העלאת
+        //   המכסה האפקטיבית מ-20 ל-50** עבור ENTERPRISE. זה תיקון של
+        //   חוסר עקביות ישן, לא רגרסיה.
+        //
+        // ⚠️ TODO Stage 1.17.2 — refund gap:
+        // אם ה-AI call נכשל אחרי deduct מוצלח, המשתמש מאבד מכסה.
+        // בעתיד: refundAiAnalysis(userId, count, tx?) ב-credits.ts.
+        try {
+          await consumeAiAnalysis(user.id, 1);
+        } catch (err) {
+          if (err instanceof QuotaExhaustedError) {
+            return NextResponse.json(
+              {
+                message: "הגעת למכסה החודשית של ניתוחים מפורטים",
+                errorEn: "Monthly limit reached for detailed analyses",
+              },
+              { status: 429 }
+            );
+          }
+          logger.error("[ai/analyze] consumeAiAnalysis failed", {
             userId: user.id,
-            month,
-            year,
+            error: err instanceof Error ? err.message : String(err),
+          });
+          return NextResponse.json(
+            { message: "שגיאה בבדיקת מכסת AI" },
+            { status: 500 }
+          );
+        }
+      } else {
+        // Legacy flow — בדיקה ידנית, deduction ב-upsert בהמשך הראוט.
+        const { month, year } = getCurrentUsageKey();
+        const monthlyUsage = await prisma.monthlyUsage.findUnique({
+          where: {
+            userId_month_year: {
+              userId: user.id,
+              month,
+              year,
+            },
           },
-        },
-      });
+        });
 
-      const currentCount = monthlyUsage?.detailedAnalysisCount || 0;
-      const limit = 20; // מכסה חודשית לניתוחים מפורטים
+        const currentCount = monthlyUsage?.detailedAnalysisCount || 0;
+        const limit = 20; // מכסה חודשית לניתוחים מפורטים
 
-      if (currentCount >= limit) {
-        return NextResponse.json(
-          { 
-            message: `הגעת למכסה החודשית (${limit} ניתוחים מפורטים)`,
-            errorEn: `Monthly limit reached (${limit} detailed analyses)`
-          },
-          { status: 429 }
-        );
+        if (currentCount >= limit) {
+          return NextResponse.json(
+            {
+              message: `הגעת למכסה החודשית (${limit} ניתוחים מפורטים)`,
+              errorEn: `Monthly limit reached (${limit} detailed analyses)`
+            },
+            { status: 429 }
+          );
+        }
       }
     }
 
@@ -144,11 +189,6 @@ export async function POST(req: NextRequest) {
         },
         sessionNote: true,
       },
-    });
-    
-    console.log('🔍 TherapySession client:', {
-      clientName: therapySession?.client?.name,
-      clientApproaches: therapySession?.client?.therapeuticApproaches,
     });
 
     if (!therapySession) {
@@ -186,19 +226,6 @@ export async function POST(req: NextRequest) {
         ? therapySession.client!.therapeuticApproaches
         : user.therapeuticApproaches;
 
-    // Debug logging - מפורט יותר
-    console.log('🔍 Session Analysis Debug - FULL:', {
-      userTier: user.aiTier,
-      analysisType,
-      userApproaches: user.therapeuticApproaches,
-      userApproachesLength: user.therapeuticApproaches?.length || 0,
-      clientApproaches: therapySession.client?.therapeuticApproaches,
-      clientApproachesLength: therapySession.client?.therapeuticApproaches?.length || 0,
-      selectedApproaches: approaches,
-      selectedApproachesLength: approaches?.length || 0,
-      isEnterprise: user.aiTier === 'ENTERPRISE',
-    });
-
     // קבלת שמות הגישות לתצוגה
     const approachNames = (approaches || [])
       .map(id => {
@@ -207,8 +234,6 @@ export async function POST(req: NextRequest) {
       })
       .filter(Boolean)
       .join(", ");
-    
-    console.log('🔍 Approach Names:', approachNames);
 
     // בניית ה-prompt לפי סוג הניתוח
     let prompt: string;
@@ -244,10 +269,6 @@ export async function POST(req: NextRequest) {
       );
     }
 
-    // Debug - הדפסת התחלת ה-prompt
-    console.log('🔍 Prompt Preview (first 500 chars):', prompt.substring(0, 500));
-    console.log('🔍 Prompt contains approach section:', prompt.includes('גישות טיפוליות'));
-    
     // קריאה ל-Gemini 2.0 Flash
     const model = genAI.getGenerativeModel({ model: DEFAULT_MODEL });
     const result = await model.generateContent(prompt);
@@ -282,6 +303,12 @@ export async function POST(req: NextRequest) {
     });
 
     // עדכון סטטיסטיקות שימוש חודשיות — לפי שעון ישראל
+    // עדכון MonthlyUsage:
+    // - ב-new flow: detailedAnalysisCount כבר עודכן ב-consumeAiAnalysis
+    //   (atomic check+deduct לפני ה-AI call). פה רק מוסיפים cost/tokens
+    //   ואת conciseAnalysisCount (שלא עובר דרך consumeAiAnalysis).
+    // - ב-legacy flow: כל השדות עולים בבת אחת (כולל detailed).
+    const isNewFlow = isNewConsumeAiEnabled() && analysisType === "DETAILED";
     const usageKey = getCurrentUsageKey();
     await prisma.monthlyUsage.upsert({
       where: {
@@ -296,13 +323,26 @@ export async function POST(req: NextRequest) {
         month: usageKey.month,
         year: usageKey.year,
         conciseAnalysisCount: analysisType === "CONCISE" ? 1 : 0,
-        detailedAnalysisCount: analysisType === "DETAILED" ? 1 : 0,
+        // ב-new flow היצירה כבר נעשתה ב-consumeAiAnalysis עם count=1.
+        // אם בפועל הגענו לכאן עם new flow + DETAILED, זה אומר שהיתה race
+        // והרשומה נוצרה ב-consumeAiAnalysis. ה-create הזה לא ירוץ.
+        detailedAnalysisCount: isNewFlow
+          ? 0
+          : analysisType === "DETAILED"
+            ? 1
+            : 0,
         totalCost: cost,
         totalTokens: totalTokens,
       },
       update: {
-        conciseAnalysisCount: analysisType === "CONCISE" ? { increment: 1 } : undefined,
-        detailedAnalysisCount: analysisType === "DETAILED" ? { increment: 1 } : undefined,
+        conciseAnalysisCount:
+          analysisType === "CONCISE" ? { increment: 1 } : undefined,
+        // ב-new flow: לא להגדיל שוב — consumeAiAnalysis כבר הגדיל.
+        detailedAnalysisCount: isNewFlow
+          ? undefined
+          : analysisType === "DETAILED"
+            ? { increment: 1 }
+            : undefined,
         totalCost: { increment: cost },
         totalTokens: { increment: totalTokens },
       },

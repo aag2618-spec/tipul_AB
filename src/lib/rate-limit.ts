@@ -2,6 +2,8 @@
 // Rate Limiter פשוט בזיכרון (in-memory) - ללא תלות חיצונית
 // מתאים לסביבת production עם שרת אחד (Render)
 
+import { NextResponse } from "next/server";
+
 interface RateLimitEntry {
   count: number;
   resetAt: number;
@@ -9,8 +11,10 @@ interface RateLimitEntry {
 
 const store = new Map<string, RateLimitEntry>();
 
-// ניקוי אוטומטי כל 5 דקות
-setInterval(() => {
+// ניקוי אוטומטי כל 5 דקות.
+// Cursor סיבוב 1.17 Quality 1: unref() כדי שה-timer לא ימנע exit נקי של Node
+// (חשוב ל-vitest, ל-build, ול-graceful shutdown של Render).
+const cleanupTimer = setInterval(() => {
   const now = Date.now();
   for (const [key, entry] of store.entries()) {
     if (entry.resetAt < now) {
@@ -18,6 +22,9 @@ setInterval(() => {
     }
   }
 }, 5 * 60 * 1000);
+if (typeof cleanupTimer.unref === "function") {
+  cleanupTimer.unref();
+}
 
 interface RateLimitConfig {
   /** מספר בקשות מותר */
@@ -100,6 +107,13 @@ export const AI_RATE_LIMIT = { maxRequests: 30, windowMs: 60 * 1000 };
 /** Webhooks - 50 בקשות לדקה */
 export const WEBHOOK_RATE_LIMIT = { maxRequests: 50, windowMs: 60 * 1000 };
 
+/**
+ * Cron jobs — 10 בקשות לדקה לכל IP.
+ * הגנה אם CRON_SECRET נחשף + מונע replay storms.
+ * Stage 1.17 — זוהה ע"י סוכן 5 (security review של cleanup-idempotency).
+ */
+export const CRON_RATE_LIMIT = { maxRequests: 10, windowMs: 60 * 1000 };
+
 // ========================================
 // Admin rate limits (Stage 1.8)
 // ========================================
@@ -180,8 +194,6 @@ export const ADMIN_RATE_LIMIT_BY_TIER = {
 // ========================================
 // Helper לשימוש ב-NextResponse
 // ========================================
-
-import { NextResponse } from "next/server";
 
 /**
  * מחזיר תגובת 429 עם headers מתאימים

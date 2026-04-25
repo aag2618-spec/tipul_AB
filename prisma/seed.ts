@@ -27,21 +27,14 @@ const prisma = new PrismaClient();
 
 async function seedFeatureFlags() {
   console.log("→ Seeding feature flags...");
-  let created = 0;
-  let skipped = 0;
-
+  // upsert pattern — עקביות עם lazy-init ב-feature-flags route.
+  // update: {} שומר על שדות קיימים (לא מאלץ override של isEnabled/tiers
+  // ש-admin יכול היה לשנות).
   for (const flag of DEFAULT_FEATURE_FLAGS) {
-    const existing = await prisma.featureFlag.findUnique({
+    await prisma.featureFlag.upsert({
       where: { key: flag.key },
-    });
-
-    if (existing) {
-      skipped++;
-      continue;
-    }
-
-    await prisma.featureFlag.create({
-      data: {
+      update: {},
+      create: {
         key: flag.key,
         name: flag.name,
         description: flag.description,
@@ -49,25 +42,21 @@ async function seedFeatureFlags() {
         tiers: [...flag.tiers],
       },
     });
-    created++;
   }
 
-  console.log(`   ✓ feature flags: ${created} created, ${skipped} skipped`);
+  console.log(`   ✓ feature flags: ${DEFAULT_FEATURE_FLAGS.length} ensured`);
 }
 
 async function seedAISettings() {
   console.log("→ Seeding global AI settings...");
 
-  const existing = await prisma.globalAISettings.findFirst();
-  if (existing) {
-    console.log("   ✓ ai settings: already present, skipped");
-    return;
-  }
-
-  await prisma.globalAISettings.create({
-    data: { id: GLOBAL_AI_SETTINGS_ID, ...DEFAULT_AI_SETTINGS },
+  // upsert על id קבוע (singleton). update:{} שומר על שינויי admin.
+  await prisma.globalAISettings.upsert({
+    where: { id: GLOBAL_AI_SETTINGS_ID },
+    update: {},
+    create: { id: GLOBAL_AI_SETTINGS_ID, ...DEFAULT_AI_SETTINGS },
   });
-  console.log("   ✓ ai settings: created");
+  console.log("   ✓ ai settings: ensured");
 }
 
 async function main() {

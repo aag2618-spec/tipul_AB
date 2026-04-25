@@ -6,18 +6,13 @@ import { escapeHtml } from "@/lib/email-utils";
 import { logger } from "@/lib/logger";
 import { parseIsraelTime } from "@/lib/date-utils";
 import { isShabbatOrYomTov } from "@/lib/shabbat";
+import { checkCronAuth } from "@/lib/cron-auth";
 
 export const dynamic = "force-dynamic";
 
 export async function GET(request: NextRequest) {
-  const cronSecret = process.env.CRON_SECRET;
-  if (!cronSecret) {
-    return NextResponse.json({ message: "CRON_SECRET not configured" }, { status: 503 });
-  }
-  const authHeader = request.headers.get("authorization");
-  if (authHeader !== `Bearer ${cronSecret}`) {
-    return NextResponse.json({ message: "Unauthorized" }, { status: 401 });
-  }
+  const guard = await checkCronAuth(request);
+  if (guard) return guard;
 
   // Shabbat/Yom Tov — דלג לגמרי; סיכומי בוקר/ערב לא יישלחו (כל יום עומד בפני עצמו).
   if (isShabbatOrYomTov()) {

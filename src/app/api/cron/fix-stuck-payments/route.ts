@@ -1,6 +1,7 @@
 import { NextRequest, NextResponse } from "next/server";
 import prisma from "@/lib/prisma";
 import { logger } from "@/lib/logger";
+import { checkCronAuth } from "@/lib/cron-auth";
 
 /**
  * תיקון אוטומטי של תשלומים תקועים
@@ -11,14 +12,8 @@ import { logger } from "@/lib/logger";
 export const dynamic = "force-dynamic";
 
 export async function GET(request: NextRequest) {
-  const cronSecret = process.env.CRON_SECRET;
-  if (!cronSecret) {
-    return NextResponse.json({ message: "CRON_SECRET not configured" }, { status: 503 });
-  }
-  const authHeader = request.headers.get("authorization");
-  if (authHeader !== `Bearer ${cronSecret}`) {
-    return NextResponse.json({ message: "לא מורשה" }, { status: 401 });
-  }
+  const guard = await checkCronAuth(request);
+  if (guard) return guard;
 
   try {
     const stuckPayments = await prisma.payment.findMany({

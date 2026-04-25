@@ -21,6 +21,7 @@
 import type { Prisma, PackageType } from "@prisma/client";
 import prisma from "@/lib/prisma";
 import { logger } from "@/lib/logger";
+import { getCurrentUsageKey } from "@/lib/date-utils";
 
 // ─── Errors ───────────────────────────────────────────────────────────────
 
@@ -331,16 +332,9 @@ export async function consumeAiAnalysis(
       tierLimits?.detailedAnalysisLimit ??
       (tier === "ENTERPRISE" ? 50 : 0); // ברירת מחדל לפי usage-limits.ts
 
-    // תאריך נוכחי — מפתח חודש/שנה ישראלי.
-    const now = new Date();
-    const jerusalemFormatter = new Intl.DateTimeFormat("en-US", {
-      timeZone: "Asia/Jerusalem",
-      year: "numeric",
-      month: "numeric",
-    });
-    const parts = jerusalemFormatter.formatToParts(now);
-    const month = Number(parts.find((p) => p.type === "month")?.value ?? 0);
-    const year = Number(parts.find((p) => p.type === "year")?.value ?? 0);
+    // תאריך נוכחי — מפתח חודש/שנה ישראלי. שימוש במקור-אמת יחיד מ-date-utils
+    // (Cursor סיבוב 1.17 Bug 1 — מנע drift בין credits ל-routes אחרים).
+    const { month, year } = getCurrentUsageKey();
 
     // נעילה על MonthlyUsage (יוצרים עם upsert אם לא קיים).
     await tx.monthlyUsage.upsert({
