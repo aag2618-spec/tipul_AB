@@ -2,7 +2,12 @@ import { prisma } from "./prisma";
 import { isShabbatOrYomTov } from "./shabbat";
 import { logger } from "./logger";
 import { isSameIsraelMonth } from "./date-utils";
-import { consumeSms, QuotaExhaustedError } from "./credits";
+import {
+  consumeSms,
+  refundSms,
+  QuotaExhaustedError,
+  type ConsumeResult,
+} from "./credits";
 
 /**
  * Feature flag — Stage 1.17 wire-up.
@@ -277,21 +282,19 @@ export async function sendSMS(
   }
 
   // Check quota
+  // Stage 1.17.2: שמירת ה-receipt מ-consumeSms — אם ה-send נכשל בהמשך, נריץ
+  // refund כדי להחזיר את הקרדיט (monthly bucket + packages).
+  let consumeReceipt: ConsumeResult | null = null;
   if (!options?.skipQuotaCheck) {
     if (isNewConsumeSmsEnabled()) {
       // Stage 1.17 wire-up — consumeSms עושה atomic check+deduct עם FOR UPDATE
-      // ב-Serializable isolation.
-      //
-      // ⚠️ TODO Stage 1.17.2 — refund gap:
-      // אם ה-send נכשל אחרי deduct מוצלח, המשתמש מאבד קרדיט. כרגע רק רושמים
-      // warning ב-logger. בעתיד: להוסיף `refundSms(userId, count, tx?)`
-      // ל-credits.ts ולקרוא לזה בכל branch של failure (HTTP 5xx, exception).
+      // ב-Serializable isolation. אם ה-send נכשל → refundSms (ראה למטה).
       //
       // ⚠️ TODO bulk: sendBulkSMS לא עושה pre-check של מכסה. אם quota=10
       // ושולחים 100 → 10 יישלחו ו-90 יקבלו QuotaExhaustedError בודד.
       // בעתיד: להוסיף `consumeSmsBatch(userId, count)` שעושה atomic batch.
       try {
-        await consumeSms(userId, 1);
+        consumeReceipt = await consumeSms(userId, 1);
       } catch (err) {
         if (err instanceof QuotaExhaustedError) {
           logger.warn("[SMS] Quota exhausted (new flow)", {
@@ -340,7 +343,10 @@ export async function sendSMS(
 
     if (!response.ok) {
       const errorText = await response.text().catch(() => "Unknown error");
-      console.error("[SMS] Pulseem API error:", response.status, errorText);
+      logger.error("[SMS] Pulseem API error", {
+        status: response.status,
+        errorText,
+      });
 
       await logSMS({
         phone: normalizedPhone,
@@ -353,6 +359,9 @@ export async function sendSMS(
         type: options?.type,
       });
 
+      // Stage 1.17.2: refund של הקרדיט שהורד ב-consumeSms.
+      await refundConsumedSms(userId, consumeReceipt);
+
       return { success: false, error: `API error: ${response.status}` };
     }
 
@@ -360,7 +369,7 @@ export async function sendSMS(
 
     if (data?.status !== "Success" || data?.success === 0) {
       const errMsg = data?.error || data?.items?.[0]?.message || "Send failed";
-      console.error("[SMS] Pulseem send failed:", errMsg);
+      logger.error("[SMS] Pulseem send failed", { errMsg });
 
       await logSMS({
         phone: normalizedPhone,
@@ -372,6 +381,9 @@ export async function sendSMS(
         clientId: options?.clientId,
         type: options?.type,
       });
+
+      // Stage 1.17.2: refund של הקרדיט שהורד ב-consumeSms.
+      await refundConsumedSms(userId, consumeReceipt);
 
       return { success: false, error: errMsg };
     }
@@ -400,7 +412,7 @@ export async function sendSMS(
     };
   } catch (error) {
     const errMsg = error instanceof Error ? error.message : "Unknown error";
-    console.error("[SMS] Send error:", errMsg);
+    logger.error("[SMS] Send error", { errMsg });
 
     await logSMS({
       phone: normalizedPhone,
@@ -413,7 +425,66 @@ export async function sendSMS(
       type: options?.type,
     });
 
+    // Stage 1.17.2: refund של הקרדיט שהורד ב-consumeSms.
+    await refundConsumedSms(userId, consumeReceipt);
+
     return { success: false, error: errMsg };
+  }
+}
+
+/**
+ * Stage 1.17.2: refund helper פנימי — מחזיר קרדיט שהורד ב-consumeSms.
+ *
+ * Synchronous: ה-caller ממתין ל-refund להסתיים לפני שמחזיר response.
+ * נבחר במכוון על-פני fire-and-forget — אם ה-USER מקבל "send failed",
+ * עדיף שכשנודע לו זה כבר אחרי ה-refund. השפעה: עד ~3 שניות נוספות
+ * בכשלי DB (Serializable retry).
+ *
+ * אם refund נכשל → URGENT AdminAlert עם receipt מלא.
+ */
+async function refundConsumedSms(
+  userId: string,
+  receipt: ConsumeResult | null
+): Promise<void> {
+  if (!receipt || receipt.consumed === 0) return;
+  try {
+    await refundSms(userId, receipt);
+    logger.info("[SMS] Refunded credit after send failure", {
+      userId,
+      consumed: receipt.consumed,
+    });
+  } catch (refundErr) {
+    const errMsg =
+      refundErr instanceof Error ? refundErr.message : String(refundErr);
+    logger.error("[SMS] Refund FAILED — manual intervention needed", {
+      userId,
+      receipt,
+      error: errMsg,
+    });
+    // Alert חמור — refund נכשל = איבוד קרדיט ידוע. URGENT, לא HIGH.
+    void prisma.adminAlert
+      .create({
+        data: {
+          type: "CREDIT_CONSUMPTION_FAILED",
+          priority: "URGENT",
+          title: "כשל ב-refund של SMS — איבוד קרדיט ידוע",
+          message: `consumeSms הצליח, send נכשל, refundSms נכשל. צריך לתקן ידנית. userId=${userId}`,
+          userId,
+          metadata: {
+            kind: "sms_refund_failed",
+            receipt: receipt as unknown as object,
+            errorMessage: errMsg,
+          },
+          actionRequired:
+            "תקן ידנית את smsMonthlyUsage ו-creditsUsed לפי ה-receipt ב-metadata.",
+        },
+      })
+      .catch((alertErr) => {
+        logger.error("[SMS] Also failed to create refund-failed alert", {
+          userId,
+          error: alertErr instanceof Error ? alertErr.message : String(alertErr),
+        });
+      });
   }
 }
 

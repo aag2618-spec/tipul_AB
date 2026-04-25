@@ -59,6 +59,8 @@ vi.mock("@/lib/logger", () => ({
 import {
   consumeSms,
   consumeAiAnalysis,
+  refundSms,
+  refundAiAnalysis,
   QuotaExhaustedError,
   CreditConsumptionError,
 } from "../credits";
@@ -129,7 +131,7 @@ describe("consumeSms", () => {
 
     expect(result.fromMonthly).toBe(0);
     expect(result.fromPackages).toBe(3);
-    expect(result.packagesTouched).toEqual(["p1"]);
+    expect(result.packagesTouched).toEqual([{ id: "p1", amount: 3 }]);
     expect(purchaseUpdate).toHaveBeenCalledWith({
       where: { id: "p1" },
       data: { creditsUsed: 13 },
@@ -161,7 +163,10 @@ describe("consumeSms", () => {
 
     expect(result.fromMonthly).toBe(0);
     expect(result.fromPackages).toBe(5);
-    expect(result.packagesTouched).toEqual(["p1", "p2"]);
+    expect(result.packagesTouched).toEqual([
+      { id: "p1", amount: 2 },
+      { id: "p2", amount: 3 },
+    ]);
     // p1 had 2 left (5-3), so 2 taken from p1, 3 from p2
     expect(purchaseUpdate).toHaveBeenNthCalledWith(1, {
       where: { id: "p1" },
@@ -225,7 +230,7 @@ describe("consumeSms", () => {
     const result = await consumeSms("u1", 2, tx as any);
 
     expect(result.fromPackages).toBe(2);
-    expect(result.packagesTouched).toEqual(["p2"]);
+    expect(result.packagesTouched).toEqual([{ id: "p2", amount: 2 }]);
   });
 });
 
@@ -278,5 +283,181 @@ describe("consumeAiAnalysis", () => {
     await expect(
       consumeAiAnalysis("bad-id", 1, tx as any)
     ).rejects.toBeInstanceOf(CreditConsumptionError);
+  });
+});
+
+// ─── Stage 1.17.2 — Refund tests ──────────────────────────────────────────
+
+describe("refundSms", () => {
+  it("decrements monthly bucket and packages by exact amounts", async () => {
+    commSettingUpdate.mockResolvedValueOnce({});
+    purchaseUpdate.mockResolvedValueOnce({}).mockResolvedValueOnce({});
+
+    const receipt = {
+      consumed: 5,
+      fromMonthly: 2,
+      fromPackages: 3,
+      packagesTouched: [
+        { id: "p1", amount: 1 },
+        { id: "p2", amount: 2 },
+      ],
+      month: 4,
+      year: 2026,
+    };
+
+    await refundSms("u1", receipt, tx as any);
+
+    expect(commSettingUpdate).toHaveBeenCalledWith({
+      where: { userId: "u1" },
+      data: { smsMonthlyUsage: { decrement: 2 } },
+    });
+    expect(purchaseUpdate).toHaveBeenNthCalledWith(1, {
+      where: { id: "p1" },
+      data: { creditsUsed: { decrement: 1 } },
+    });
+    expect(purchaseUpdate).toHaveBeenNthCalledWith(2, {
+      where: { id: "p2" },
+      data: { creditsUsed: { decrement: 2 } },
+    });
+  });
+
+  it("no-op on consumed=0", async () => {
+    const receipt = {
+      consumed: 0,
+      fromMonthly: 0,
+      fromPackages: 0,
+      packagesTouched: [],
+      month: 4,
+      year: 2026,
+    };
+    await refundSms("u1", receipt, tx as any);
+    expect(commSettingUpdate).not.toHaveBeenCalled();
+    expect(purchaseUpdate).not.toHaveBeenCalled();
+  });
+
+  it("only packages — no monthly decrement when fromMonthly=0", async () => {
+    purchaseUpdate.mockResolvedValueOnce({});
+    const receipt = {
+      consumed: 3,
+      fromMonthly: 0,
+      fromPackages: 3,
+      packagesTouched: [{ id: "p1", amount: 3 }],
+      month: 4,
+      year: 2026,
+    };
+    await refundSms("u1", receipt, tx as any);
+    expect(commSettingUpdate).not.toHaveBeenCalled();
+    expect(purchaseUpdate).toHaveBeenCalledTimes(1);
+  });
+
+  it("rejects negative fromMonthly (security guard)", async () => {
+    const receipt = {
+      consumed: 1,
+      fromMonthly: -1,
+      fromPackages: 0,
+      packagesTouched: [],
+      month: 4,
+      year: 2026,
+    };
+    await expect(refundSms("u1", receipt, tx as any)).rejects.toBeInstanceOf(
+      CreditConsumptionError
+    );
+    expect(commSettingUpdate).not.toHaveBeenCalled();
+  });
+});
+
+describe("refundAiAnalysis", () => {
+  it("decrements MonthlyUsage.detailedAnalysisCount and packages", async () => {
+    monthlyUsageUpdate.mockResolvedValueOnce({});
+    purchaseUpdate.mockResolvedValueOnce({});
+
+    const receipt = {
+      consumed: 2,
+      fromMonthly: 1,
+      fromPackages: 1,
+      packagesTouched: [{ id: "p1", amount: 1 }],
+      month: 4,
+      year: 2026,
+    };
+
+    await refundAiAnalysis("u1", receipt, tx as any);
+
+    expect(monthlyUsageUpdate).toHaveBeenCalled();
+    const monthlyCall = monthlyUsageUpdate.mock.calls[0][0];
+    // אימות: ה-where משתמש ב-month/year מהreceipt, לא getCurrentUsageKey
+    expect(monthlyCall.where.userId_month_year.month).toBe(4);
+    expect(monthlyCall.where.userId_month_year.year).toBe(2026);
+    expect(monthlyCall.data.detailedAnalysisCount.decrement).toBe(1);
+    expect(purchaseUpdate).toHaveBeenCalledWith({
+      where: { id: "p1" },
+      data: { creditsUsed: { decrement: 1 } },
+    });
+  });
+
+  it("uses receipt.month/year not current — month boundary safety", async () => {
+    monthlyUsageUpdate.mockResolvedValueOnce({});
+    purchaseUpdate.mockResolvedValueOnce({});
+    const receipt = {
+      consumed: 1,
+      fromMonthly: 1,
+      fromPackages: 0,
+      packagesTouched: [],
+      // consume happened in March; refund runs in April — must target March.
+      month: 3,
+      year: 2026,
+    };
+
+    await refundAiAnalysis("u1", receipt, tx as any);
+
+    const monthlyCall = monthlyUsageUpdate.mock.calls[0][0];
+    expect(monthlyCall.where.userId_month_year.month).toBe(3);
+    expect(monthlyCall.where.userId_month_year.year).toBe(2026);
+  });
+});
+
+// ─── Stage 1.17.2 סבב 3 — skipAlert regression ────────────────────────────
+//
+// Cursor ביקש test שיתעד את ה-skipAlert behavior כך שלא ייעלם בריפקטור עתידי.
+// השומרים על "1 alert לכל refund failure" (לא 2 כמו שהיה לפני).
+
+describe("skipAlert option in runWithRetryAndAlert", () => {
+  it("refundSms with skipAlert:true does NOT call adminAlert.create on DB failure", async () => {
+    // הפעלה ללא existingTx → נכנס ל-runWithRetryAndAlert.
+    // קוראים ל-commSettingUpdate שזורק non-retryable.
+    // אם skipAlert עבד נכון: alertCreate לא ייקרא.
+    const fatalErr = Object.assign(new Error("fatal db"), { code: "P9999" });
+    commSettingUpdate.mockRejectedValue(fatalErr);
+
+    const receipt = {
+      consumed: 1,
+      fromMonthly: 1,
+      fromPackages: 0,
+      packagesTouched: [],
+      month: 4,
+      year: 2026,
+    };
+
+    await expect(refundSms("u1", receipt)).rejects.toThrow("fatal db");
+    // קריטי: alertCreate לא נקרא מתוך runWithRetryAndAlert — skipAlert: true עובד.
+    // (ה-caller-side helper יוצר alert URGENT מפורט יותר, אבל זה לא בנדון פה.)
+    expect(alertCreate).not.toHaveBeenCalled();
+  });
+
+  it("refundAiAnalysis with skipAlert:true does NOT call adminAlert.create on DB failure", async () => {
+    // אותו דפוס — סימטריה עם refundSms (Cursor סוכן 4 סבב 3).
+    const fatalErr = Object.assign(new Error("fatal ai db"), { code: "P9999" });
+    monthlyUsageUpdate.mockRejectedValue(fatalErr);
+
+    const receipt = {
+      consumed: 1,
+      fromMonthly: 1,
+      fromPackages: 0,
+      packagesTouched: [],
+      month: 4,
+      year: 2026,
+    };
+
+    await expect(refundAiAnalysis("u1", receipt)).rejects.toThrow("fatal ai db");
+    expect(alertCreate).not.toHaveBeenCalled();
   });
 });

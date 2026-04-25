@@ -59,12 +59,28 @@ function isRetryableError(err: unknown): boolean {
 
 // ─── Generic FIFO consumption logic ───────────────────────────────────────
 
-interface ConsumeResult {
+/**
+ * תוצאת consumeSms / consumeAiAnalysis.
+ *
+ * Stage 1.17.2: `packagesTouched` מכיל את הסכום שנמשך מכל חבילה — חיוני
+ * ל-`refundSms` / `refundAiAnalysis` כדי להחזיר במדויק לחבילה הנכונה.
+ * `month`/`year` נשמרים מ-consume time כדי שה-refund יחזיר ל-MonthlyUsage
+ * הנכון גם אם נחצה גבול חודש בין consume ל-refund (סוכן 2 — סבב 1.17.2).
+ *
+ * חוזה: סכום של `fromMonthly + fromPackages` שווה ל-`consumed`.
+ */
+export interface ConsumeResult {
   consumed: number;
   fromMonthly: number;
   fromPackages: number;
-  /** מזהי UserPackagePurchase שנגעו (לצורך audit). */
-  packagesTouched: string[];
+  /** רשומות UserPackagePurchase שנגעו: id + amount. */
+  packagesTouched: Array<{ id: string; amount: number }>;
+  /**
+   * חודש/שנה (ישראל) של ה-consume — רלוונטי רק ל-AI (MonthlyUsage).
+   * ב-SMS תמיד נכתב — לא נצרך כי SMS משתמש ב-CommunicationSetting global.
+   */
+  month: number;
+  year: number;
 }
 
 /**
@@ -80,7 +96,7 @@ async function consumeInTx(
     /** פונקציה שטופלת במכסה חודשית — אם אין (כמו sessionPrep), מחזירה {used:0, available:0}. */
     monthlyTap: () => Promise<{ used: number; available: number }>;
   }
-): Promise<ConsumeResult> {
+): Promise<Omit<ConsumeResult, "month" | "year">> {
   if (params.count <= 0) {
     throw new CreditConsumptionError("count חייב להיות מספר חיובי", {
       count: params.count,
@@ -125,7 +141,7 @@ async function consumeInTx(
   `;
 
   let remaining = stillNeeded;
-  const touched: string[] = [];
+  const touched: Array<{ id: string; amount: number }> = [];
   let drawnFromPackages = 0;
 
   for (const p of purchases) {
@@ -138,7 +154,7 @@ async function consumeInTx(
       where: { id: p.id },
       data: { creditsUsed: p.creditsUsed + take },
     });
-    touched.push(p.id);
+    touched.push({ id: p.id, amount: take });
     drawnFromPackages += take;
     remaining -= take;
   }
@@ -166,7 +182,8 @@ async function consumeInTx(
 async function runWithRetryAndAlert<T>(
   userId: string,
   alertMeta: Record<string, unknown>,
-  run: (tx: Prisma.TransactionClient) => Promise<T>
+  run: (tx: Prisma.TransactionClient) => Promise<T>,
+  options: { skipAlert?: boolean } = {}
 ): Promise<T> {
   for (let attempt = 0; attempt <= MAX_RETRIES; attempt++) {
     try {
@@ -176,11 +193,13 @@ async function runWithRetryAndAlert<T>(
       );
     } catch (err) {
       if (err instanceof QuotaExhaustedError) {
-        await emitAlert("CREDIT_CONSUMPTION_FAILED", userId, {
-          ...alertMeta,
-          reason: "QUOTA_EXHAUSTED",
-          meta: err.meta,
-        });
+        if (!options.skipAlert) {
+          await emitAlert("CREDIT_CONSUMPTION_FAILED", userId, {
+            ...alertMeta,
+            reason: "QUOTA_EXHAUSTED",
+            meta: err.meta,
+          });
+        }
         throw err;
       }
       if (isRetryableError(err) && attempt < MAX_RETRIES) {
@@ -188,18 +207,20 @@ async function runWithRetryAndAlert<T>(
         continue;
       }
       // retry exhausted or non-retryable non-quota error
-      if (isRetryableError(err)) {
-        await emitAlert("SERIALIZATION_RETRY_EXHAUSTED", userId, {
-          ...alertMeta,
-          reason: "RETRY_EXHAUSTED",
-          errorCode: (err as { code?: string }).code,
-        });
-      } else {
-        await emitAlert("CREDIT_CONSUMPTION_FAILED", userId, {
-          ...alertMeta,
-          reason: "UNEXPECTED_ERROR",
-          errorMessage: err instanceof Error ? err.message : String(err),
-        });
+      if (!options.skipAlert) {
+        if (isRetryableError(err)) {
+          await emitAlert("SERIALIZATION_RETRY_EXHAUSTED", userId, {
+            ...alertMeta,
+            reason: "RETRY_EXHAUSTED",
+            errorCode: (err as { code?: string }).code,
+          });
+        } else {
+          await emitAlert("CREDIT_CONSUMPTION_FAILED", userId, {
+            ...alertMeta,
+            reason: "UNEXPECTED_ERROR",
+            errorMessage: err instanceof Error ? err.message : String(err),
+          });
+        }
       }
       throw err;
     }
@@ -293,7 +314,10 @@ export async function consumeSms(
       });
     }
 
-    return result;
+    // הוספת month/year ל-receipt — נדרש ל-refundAiAnalysis (לא ל-SMS, אבל
+    // משאירים אחיד לפי החוזה של ConsumeResult).
+    const { month, year } = getCurrentUsageKey();
+    return { ...result, month, year };
   };
 
   if (existingTx) {
@@ -373,7 +397,8 @@ export async function consumeAiAnalysis(
       });
     }
 
-    return result;
+    // החזרת month/year מ-consume time — חיוני ל-refund שלא יחצה גבול חודש.
+    return { ...result, month, year };
   };
 
   if (existingTx) {
@@ -383,5 +408,136 @@ export async function consumeAiAnalysis(
     userId,
     { kind: "ai_detailed_analysis", count },
     body
+  );
+}
+
+// ─── Refund API (Stage 1.17.2) ────────────────────────────────────────────
+//
+// אם consumeSms / consumeAiAnalysis הצליחו אבל ה-API החיצוני (Pulseem/Gemini)
+// נכשל אחר כך, צריך להחזיר את הקרדיט בדיוק כפי שהורד:
+//   1. fromMonthly → decrement של החודש (CommunicationSetting / MonthlyUsage)
+//   2. כל package ב-packagesTouched → decrement של creditsUsed לפי amount.
+//
+// חשוב: ה-refund משחזר את המצב הקודם רק בערכים. הוא לא בודק תקינות
+// (לא בודק אם creditsUsed יורד מתחת ל-0) — מנהל מערכת עלול לשנות ידנית
+// בין consume ל-refund. במקרה כזה: alert + log, ה-decrement עדיין נכון.
+
+/**
+ * אימות שה-receipt תקין — מגן מפני receipts זדוניים אם המנגנון יוצא ל-API
+ * חיצוני בעתיד (סוכן 5 סבב 1.17.2 — security).
+ *
+ * ⚠️ CALLER WARNING:
+ *   `receipt` חייב להגיע מקריאה קודמת ל-consumeSms/consumeAiAnalysis.
+ *   לא לקבל קלט חיצוני ולא לבנות receipt ידני — חוץ מ-test mocks.
+ */
+function validateReceipt(receipt: ConsumeResult): void {
+  if (receipt.fromMonthly < 0) {
+    throw new CreditConsumptionError("receipt.fromMonthly negative", {
+      receipt: receipt as unknown as Record<string, unknown>,
+    });
+  }
+  for (const pkg of receipt.packagesTouched) {
+    if (pkg.amount < 0) {
+      throw new CreditConsumptionError("package amount negative", {
+        receipt: receipt as unknown as Record<string, unknown>,
+      });
+    }
+  }
+}
+
+/**
+ * Helper משותף ל-refundSms / refundAiAnalysis.
+ */
+async function refundInTx(
+  tx: Prisma.TransactionClient,
+  receipt: ConsumeResult,
+  monthlyDecrement: () => Promise<void>
+): Promise<void> {
+  validateReceipt(receipt);
+  if (receipt.fromMonthly > 0) {
+    await monthlyDecrement();
+  }
+  for (const pkg of receipt.packagesTouched) {
+    await tx.userPackagePurchase.update({
+      where: { id: pkg.id },
+      data: { creditsUsed: { decrement: pkg.amount } },
+    });
+  }
+}
+
+/**
+ * מחזיר קרדיטי SMS שהוסרו ב-consumeSms. נקרא רק כאשר ה-send נכשל.
+ *
+ * ⚠️ `receipt` חייב להגיע מ-consumeSms קודמת — לא input חיצוני.
+ * negative amounts יזרקו CreditConsumptionError לפני שינוי ה-DB.
+ */
+export async function refundSms(
+  userId: string,
+  receipt: ConsumeResult,
+  existingTx?: Prisma.TransactionClient
+): Promise<void> {
+  if (receipt.consumed === 0) return;
+  const body = async (tx: Prisma.TransactionClient) =>
+    refundInTx(tx, receipt, async () => {
+      await tx.communicationSetting.update({
+        where: { userId },
+        data: { smsMonthlyUsage: { decrement: receipt.fromMonthly } },
+      });
+    });
+
+  if (existingTx) return body(existingTx);
+  // skipAlert: caller-side `refundConsumedSms`/`refundConsumedAi` יצור URGENT
+  // alert מפורט יותר (עם receipt). מונע double-alert flood (Cursor סבב 1.17.2).
+  await runWithRetryAndAlert(
+    userId,
+    { kind: "sms_refund", consumed: receipt.consumed },
+    async (tx) => {
+      await body(tx);
+      return null;
+    },
+    { skipAlert: true }
+  );
+}
+
+/**
+ * מחזיר קרדיטי AI analysis שהוסרו ב-consumeAiAnalysis.
+ *
+ * חשוב: משתמש ב-month/year שמ-receipt (זמן ה-consume), לא ב-getCurrentUsageKey
+ * הנוכחי — אחרת חציית גבול חודש בין consume ל-refund תפגע ב-MonthlyUsage הלא נכון.
+ *
+ * ⚠️ `receipt` חייב להגיע מ-consumeAiAnalysis קודמת — לא input חיצוני.
+ */
+export async function refundAiAnalysis(
+  userId: string,
+  receipt: ConsumeResult,
+  existingTx?: Prisma.TransactionClient
+): Promise<void> {
+  if (receipt.consumed === 0) return;
+  const body = async (tx: Prisma.TransactionClient) =>
+    refundInTx(tx, receipt, async () => {
+      // משתמש ב-month/year מ-receipt — לא ב-getCurrentUsageKey() הנוכחי.
+      // (סוכן 2 סבב 1.17.2 — month boundary edge case.)
+      await tx.monthlyUsage.update({
+        where: {
+          userId_month_year: {
+            userId,
+            month: receipt.month,
+            year: receipt.year,
+          },
+        },
+        data: { detailedAnalysisCount: { decrement: receipt.fromMonthly } },
+      });
+    });
+
+  if (existingTx) return body(existingTx);
+  // skipAlert: ראה הסבר ב-refundSms — מניעת double-alert.
+  await runWithRetryAndAlert(
+    userId,
+    { kind: "ai_refund", consumed: receipt.consumed },
+    async (tx) => {
+      await body(tx);
+      return null;
+    },
+    { skipAlert: true }
   );
 }

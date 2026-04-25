@@ -6,7 +6,12 @@ import { checkTrialAiLimit, updateTrialAiCost } from "@/lib/trial-limits";
 import { logger } from "@/lib/logger";
 import { requireAuth } from "@/lib/api-auth";
 import { getCurrentUsageKey } from "@/lib/date-utils";
-import { consumeAiAnalysis, QuotaExhaustedError } from "@/lib/credits";
+import {
+  consumeAiAnalysis,
+  refundAiAnalysis,
+  QuotaExhaustedError,
+  type ConsumeResult,
+} from "@/lib/credits";
 
 /**
  * Feature flag — Stage 1.17 wire-up.
@@ -45,6 +50,10 @@ const COSTS_PER_1M_TOKENS = {
 export const dynamic = "force-dynamic";
 
 export async function POST(req: NextRequest) {
+  // Stage 1.17.2: declared at function scope so the catch block can refund.
+  let aiConsumeReceipt: ConsumeResult | null = null;
+  let userIdForRefund: string | null = null;
+
   try {
     const auth = await requireAuth();
     if ("error" in auth) return auth.error;
@@ -110,7 +119,36 @@ export async function POST(req: NextRequest) {
       );
     }
 
+    // 🔴 Cursor BLOCKER (סבב 1.17.2 + סבב 3): כל return point בין consume
+    // ל-AI call יוצר double-charge אם לא נקרא refund.
+    //
+    // ⚠️ FUTURE MAINTAINERS: כל return חדש בין consumeAiAnalysis ל-AI call
+    // (model.generateContent) חייב לקרוא `await issueRefund()` לפני ה-return.
+    //
+    // 4 ה-return points הנוכחיים:
+    //   1. !therapySession (404)
+    //   2. ownership mismatch (403)
+    //   3. !sessionNote (404 — תרחיש יומיומי: מטפל לוחץ ניתוח לפני סיכום)
+    //   4. cache hit (200 cached)
+    //
+    // תיקון נכון לטווח ארוך (אופציה ג' — Stage 1.17.3): להזיז את כל
+    // ה-lookups (therapySession + existingAnalysis + ownership) לפני
+    // ה-consume, כך שהקרדיט יורד רק כשבאמת רץ AI. אז ה-issueRefund
+    // helper הזה יהיה מיותר.
+    //
+    // הערה: ה-helper גם מאפס `aiConsumeReceipt = null` (side effect מכוון)
+    // כדי שה-outer catch לא ינסה refund שני.
+    const issueRefund = async () => {
+      if (userIdForRefund && aiConsumeReceipt) {
+        await refundConsumedAi(userIdForRefund, aiConsumeReceipt);
+        aiConsumeReceipt = null;
+      }
+    };
+
     // בדיקת מכסה חודשית (רק לניתוח מפורט)
+    // Stage 1.17.2: ה-receipt נשמר במשתנה function-scope (declared למעלה)
+    // כדי שה-catch יוכל להריץ refund על Gemini/DB failures.
+    userIdForRefund = user.id;
     if (analysisType === "DETAILED") {
       if (isNewConsumeAiEnabled()) {
         // Stage 1.17 wire-up — consumeAiAnalysis עושה atomic check+deduct.
@@ -121,12 +159,8 @@ export async function POST(req: NextRequest) {
         //   ולפי `usage-limits.ts` ENTERPRISE=50. **הפעלת flag = העלאת
         //   המכסה האפקטיבית מ-20 ל-50** עבור ENTERPRISE. זה תיקון של
         //   חוסר עקביות ישן, לא רגרסיה.
-        //
-        // ⚠️ TODO Stage 1.17.2 — refund gap:
-        // אם ה-AI call נכשל אחרי deduct מוצלח, המשתמש מאבד מכסה.
-        // בעתיד: refundAiAnalysis(userId, count, tx?) ב-credits.ts.
         try {
-          await consumeAiAnalysis(user.id, 1);
+          aiConsumeReceipt = await consumeAiAnalysis(user.id, 1);
         } catch (err) {
           if (err instanceof QuotaExhaustedError) {
             return NextResponse.json(
@@ -192,15 +226,18 @@ export async function POST(req: NextRequest) {
     });
 
     if (!therapySession) {
+      await issueRefund();
       return NextResponse.json({ message: "פגישה לא נמצאה" }, { status: 404 });
     }
 
     // וידוא בעלות
     if (therapySession.therapistId !== user.id) {
+      await issueRefund();
       return NextResponse.json({ message: "אין הרשאה" }, { status: 403 });
     }
 
     if (!therapySession.sessionNote) {
+      await issueRefund();
       return NextResponse.json(
         { message: "לא נמצא סיכום לפגישה זו" },
         { status: 404 }
@@ -213,6 +250,7 @@ export async function POST(req: NextRequest) {
     });
 
     if (!force && existingAnalysis && existingAnalysis.analysisType === analysisType) {
+      await issueRefund();
       return NextResponse.json({
         success: true,
         analysis: existingAnalysis,
@@ -361,10 +399,67 @@ export async function POST(req: NextRequest) {
     });
   } catch (error) {
     logger.error("שגיאה בניתוח פגישה:", { error: error instanceof Error ? error.message : String(error) });
+
+    // Stage 1.17.2: refund אם consumeAiAnalysis הצליח אבל Gemini/DB נכשלו.
+    if (userIdForRefund && aiConsumeReceipt) {
+      await refundConsumedAi(userIdForRefund, aiConsumeReceipt);
+    }
+
     return NextResponse.json(
       { message: "שגיאה בניתוח הפגישה" },
       { status: 500 }
     );
+  }
+}
+
+/**
+ * Stage 1.17.2: refund helper — מחזיר מכסת AI שהורדה ב-consumeAiAnalysis.
+ *
+ * Synchronous: ה-caller ממתין ל-refund לפני return של ה-error response.
+ * URGENT alert אם גם ה-refund נכשל.
+ */
+async function refundConsumedAi(
+  userId: string,
+  receipt: ConsumeResult
+): Promise<void> {
+  if (receipt.consumed === 0) return;
+  try {
+    await refundAiAnalysis(userId, receipt);
+    logger.info("[ai/analyze] Refunded AI credit after failure", {
+      userId,
+      consumed: receipt.consumed,
+    });
+  } catch (refundErr) {
+    const errMsg =
+      refundErr instanceof Error ? refundErr.message : String(refundErr);
+    logger.error("[ai/analyze] Refund FAILED — manual intervention needed", {
+      userId,
+      receipt,
+      error: errMsg,
+    });
+    void prisma.adminAlert
+      .create({
+        data: {
+          type: "CREDIT_CONSUMPTION_FAILED",
+          priority: "URGENT",
+          title: "כשל ב-refund של ניתוח AI — איבוד מכסה ידוע",
+          message: `consumeAiAnalysis הצליח, generateContent נכשל, refundAiAnalysis נכשל. userId=${userId}`,
+          userId,
+          metadata: {
+            kind: "ai_refund_failed",
+            receipt: receipt as unknown as object,
+            errorMessage: errMsg,
+          },
+          actionRequired:
+            "תקן ידנית את MonthlyUsage.detailedAnalysisCount ו-creditsUsed לפי ה-receipt.",
+        },
+      })
+      .catch((alertErr) => {
+        logger.error("[ai/analyze] Also failed to create refund-failed alert", {
+          userId,
+          error: alertErr instanceof Error ? alertErr.message : String(alertErr),
+        });
+      });
   }
 }
 
