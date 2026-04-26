@@ -10,6 +10,7 @@ import { escapeHtml } from "@/lib/email-utils";
 import { logger } from "@/lib/logger";
 import { isShabbatOrYomTov } from "@/lib/shabbat";
 import { checkCronAuth } from "@/lib/cron-auth";
+import { withAudit } from "@/lib/audit";
 
 // ========================================
 // הגדרות
@@ -46,6 +47,7 @@ export async function GET(req: NextRequest) {
       reminders1day: 0,
       gracePeriodReminders: 0,
       expiredBlocked: 0,
+      giftsExpiredBlocked: 0,
       adminNotifications: 0,
       errors: [] as string[],
     };
@@ -64,6 +66,7 @@ export async function GET(req: NextRequest) {
           lte: sevenDaysFromNow,
         },
         isBlocked: false,
+        isFreeSubscription: false,
       },
       select: {
         id: true,
@@ -98,6 +101,7 @@ export async function GET(req: NextRequest) {
           lte: threeDaysFromNow,
         },
         isBlocked: false,
+        isFreeSubscription: false,
       },
       select: {
         id: true,
@@ -131,6 +135,7 @@ export async function GET(req: NextRequest) {
           lte: oneDayFromNow,
         },
         isBlocked: false,
+        isFreeSubscription: false,
       },
       select: {
         id: true,
@@ -164,6 +169,7 @@ export async function GET(req: NextRequest) {
           gte: gracePeriodEnd,
         },
         isBlocked: false,
+        isFreeSubscription: false,
       },
       select: {
         id: true,
@@ -200,8 +206,9 @@ export async function GET(req: NextRequest) {
     }
 
     // ========================================
-    // 5. חסימת מנויים שתקופת החסד נגמרה
+    // 5. חסימת מנויים שתקופת החסד נגמרה (תשלום שנכשל)
     // ========================================
+    // מתנות (isFreeSubscription) מטופלות בנפרד בשלב 5b — אין להן תקופת חסד.
     const fullyExpired = await prisma.user.findMany({
       where: {
         subscriptionStatus: { in: ["ACTIVE", "CANCELLED"] },
@@ -209,24 +216,48 @@ export async function GET(req: NextRequest) {
           lt: gracePeriodEnd,
         },
         isBlocked: false,
+        isFreeSubscription: false,
       },
       select: {
         id: true,
         name: true,
         email: true,
         aiTier: true,
+        subscriptionEndsAt: true,
+        subscriptionStatus: true,
       },
     });
 
     for (const user of fullyExpired) {
       try {
-        // עדכון סטטוס ל-CANCELLED
-        await prisma.user.update({
-          where: { id: user.id },
-          data: {
-            subscriptionStatus: "CANCELLED",
+        // forensic snapshot — אם המשתמש יישאל "למה חסמתם?" בעוד שנה,
+        // השדות האלה עוזרים לאתר אותו גם אם נמחק/שונה.
+        await withAudit(
+          { kind: "system", source: "CRON", externalRef: "subscription-reminders" },
+          {
+            action: "block_user_subscription_grace_expired",
+            targetType: "user",
+            targetId: user.id,
+            details: {
+              email: user.email,
+              name: user.name,
+              previousStatus: user.subscriptionStatus,
+              newStatus: "CANCELLED",
+              subscriptionEndsAt: user.subscriptionEndsAt?.toISOString() ?? null,
+              gracePeriodEndedAt: gracePeriodEnd.toISOString(),
+              blockedAt: now.toISOString(),
+              reason: "subscription_grace_period_ended",
+            },
           },
-        });
+          async (tx) =>
+            tx.user.update({
+              where: { id: user.id },
+              data: {
+                isBlocked: true,
+                subscriptionStatus: "CANCELLED",
+              },
+            })
+        );
 
         // שליחת מייל סופי למנוי
         if (user.email) {
@@ -243,6 +274,95 @@ export async function GET(req: NextRequest) {
       } catch (err) {
         results.errors.push(`Expired blocking failed for ${user.email}: ${err}`);
       }
+    }
+
+    // ========================================
+    // 5b. חסימת מתנות (isFreeSubscription) שפגו — מיידי, ללא תקופת חסד
+    // ========================================
+    // מתנה היא מנוי חינם שניתן ידנית על ידי האדמין. כשהיא פגה — חסימה מיידית
+    // כי אין כאן עניין של תשלום שנכשל. האדמין יכול להאריך ידנית בכל עת
+    // ע״י עדכון subscriptionEndsAt + isBlocked=false בפאנל הניהול.
+    //
+    // הערה: subscriptionEndsAt: null = "מתנה לכל החיים" (כוונה). מתנה ניתנת
+    // מ-/admin/trials grantFree בלי תאריך תפוגה לא תיתפס פה — זה הדפוס.
+    // אם רוצים תפוגה אוטומטית, יש להציב subscriptionEndsAt בפאנל המשתמש.
+    const expiredGifts = await prisma.user.findMany({
+      where: {
+        isFreeSubscription: true,
+        subscriptionEndsAt: {
+          lt: now,
+        },
+        isBlocked: false,
+      },
+      select: {
+        id: true,
+        name: true,
+        email: true,
+        aiTier: true,
+        subscriptionEndsAt: true,
+        subscriptionStatus: true,
+      },
+    });
+
+    // Chunked Promise.all למניעת N+1 latency ו-Render 60s timeout.
+    // CHUNK_SIZE=5 בטוח מבחינת Resend rate limit (10/sec בתוכנית בתשלום).
+    const GIFT_CHUNK_SIZE = 5;
+    for (let i = 0; i < expiredGifts.length; i += GIFT_CHUNK_SIZE) {
+      const chunk = expiredGifts.slice(i, i + GIFT_CHUNK_SIZE);
+      await Promise.all(
+        chunk.map(async (user) => {
+          try {
+            // אזהרת observability: מתנה במצב לא צפוי. הפילטר לא דורש סטטוס,
+            // אז זה תופס גם TRIALING/PAST_DUE — תקין לחסימה אך ראוי לתעד.
+            if (user.subscriptionStatus !== "ACTIVE" && user.subscriptionStatus !== "CANCELLED") {
+              logger.warn("[cron subscription-reminders] expired gift in unexpected status", {
+                userId: user.id,
+                email: user.email,
+                subscriptionStatus: user.subscriptionStatus,
+              });
+            }
+
+            await withAudit(
+              { kind: "system", source: "CRON", externalRef: "subscription-reminders" },
+              {
+                action: "block_user_gift_expired",
+                targetType: "user",
+                targetId: user.id,
+                details: {
+                  email: user.email,
+                  name: user.name,
+                  previousStatus: user.subscriptionStatus,
+                  newStatus: "CANCELLED",
+                  subscriptionEndsAt: user.subscriptionEndsAt?.toISOString() ?? null,
+                  blockedAt: now.toISOString(),
+                  reason: "free_subscription_period_ended",
+                },
+              },
+              async (tx) =>
+                tx.user.update({
+                  where: { id: user.id },
+                  data: {
+                    isBlocked: true,
+                    subscriptionStatus: "CANCELLED",
+                  },
+                })
+            );
+
+            if (user.email) {
+              await sendGiftExpiredEmail(user);
+            }
+
+            if (ADMIN_EMAIL) {
+              await sendAdminGiftExpiredAlert(user);
+              results.adminNotifications++;
+            }
+
+            results.giftsExpiredBlocked++;
+          } catch (err) {
+            results.errors.push(`Gift expiry block failed for ${user.email}: ${err}`);
+          }
+        })
+      );
     }
 
     // ========================================
@@ -340,6 +460,9 @@ export async function GET(req: NextRequest) {
     // ========================================
     // 6. TRIAL שפג תוקף
     // ========================================
+    // מתנות (isFreeSubscription) מסוננות החוצה — מטופלות בלעדית בשלב 5b
+    // עם טון מייל מתאים. אחרת קבל-מתנה היה מקבל מייל "תקופת ניסיון הסתיימה"
+    // שלא מתאים סמנטית.
     const expiredTrials = await prisma.user.findMany({
       where: {
         subscriptionStatus: "TRIALING",
@@ -347,6 +470,7 @@ export async function GET(req: NextRequest) {
           lt: now,
         },
         isBlocked: false,
+        isFreeSubscription: false,
       },
       select: {
         id: true,
@@ -626,6 +750,91 @@ async function sendSubscriptionExpiredEmail(
         </div>
       </div>
     `,
+  });
+}
+
+async function sendGiftExpiredEmail(
+  user: { name: string | null; email: string | null; subscriptionEndsAt: Date | null }
+) {
+  if (!user.email) return;
+
+  const billingUrl = `${SYSTEM_URL}/dashboard/settings/billing`;
+  const expiryDate = user.subscriptionEndsAt
+    ? new Date(user.subscriptionEndsAt).toLocaleDateString("he-IL", { timeZone: 'Asia/Jerusalem' })
+    : "";
+
+  await sendEmail({
+    to: user.email,
+    subject: "תקופת המתנה הסתיימה - תודה שהצטרפת ל-Tipul",
+    html: `
+      <div dir="rtl" style="font-family: Arial, sans-serif; max-width: 600px; margin: 0 auto; padding: 20px;">
+        <div style="text-align: center; padding: 20px; background: linear-gradient(135deg, #6366f1 0%, #8b5cf6 100%); border-radius: 12px 12px 0 0;">
+          <h1 style="color: white; margin: 0; font-size: 24px;">תקופת המתנה הסתיימה</h1>
+        </div>
+
+        <div style="background: #ffffff; padding: 30px; border: 1px solid #e5e7eb; border-top: none; border-radius: 0 0 12px 12px;">
+          <h2 style="color: #333; margin-top: 0;">שלום ${escapeHtml(user.name || "")},</h2>
+
+          <p style="color: #555; font-size: 16px; line-height: 1.6;">
+            תקופת המתנה שהענקנו לך לשימוש במערכת Tipul הסתיימה${expiryDate ? ` בתאריך <strong>${expiryDate}</strong>` : ""}.
+          </p>
+
+          <p style="color: #555; font-size: 16px; line-height: 1.6;">
+            זכינו ללוות אותך בתקופה הזו, ואנו מקווים שהמערכת היוותה עבורך כלי מועיל בעבודתך עם המטופלים.
+          </p>
+
+          <div style="background: #eff6ff; border: 1px solid #bfdbfe; border-radius: 8px; padding: 16px; margin: 20px 0;">
+            <p style="margin: 0; color: #1e40af; font-size: 15px; line-height: 1.6;">
+              כל הנתונים שלך — תיקי המטופלים, פגישות, חשבוניות והגדרות — שמורים במלואם ויחכו לך.
+            </p>
+          </div>
+
+          <p style="color: #555; font-size: 16px; line-height: 1.6;">
+            אם תרצה להמשיך לעבוד עם המערכת באופן קבוע, אנו שמחים להציע לך מגוון מסלולי מנוי המתאימים לגודל הקליניקה שלך:
+          </p>
+
+          <div style="text-align: center; margin: 25px 0;">
+            <a href="${billingUrl}"
+               style="display: inline-block; background: linear-gradient(135deg, #6366f1, #8b5cf6); color: white; padding: 16px 40px; border-radius: 8px; text-decoration: none; font-weight: bold; font-size: 18px;">
+              בחר מסלול מנוי
+            </a>
+          </div>
+
+          <p style="color: #555; font-size: 14px; line-height: 1.6;">
+            לכל שאלה או בקשה אישית — נשמח לעמוד לרשותך:
+            <a href="mailto:support@tipul.co.il" style="color: #6366f1; text-decoration: none;">support@tipul.co.il</a>
+          </p>
+
+          <p style="color: #9ca3af; font-size: 13px; text-align: center; margin-top: 24px;">
+            בברכה,<br/>צוות Tipul
+          </p>
+        </div>
+      </div>
+    `,
+  });
+}
+
+async function sendAdminGiftExpiredAlert(
+  user: { id: string; name: string | null; email: string | null; subscriptionEndsAt: Date | null }
+) {
+  if (!ADMIN_EMAIL) return;
+
+  const expiryDate = user.subscriptionEndsAt
+    ? new Date(user.subscriptionEndsAt).toLocaleDateString("he-IL", { timeZone: 'Asia/Jerusalem' })
+    : "לא זמין";
+
+  const userPanelUrl = `${SYSTEM_URL}/admin/users/${user.id}`;
+
+  await sendEmail({
+    to: ADMIN_EMAIL,
+    subject: `מתנה הסתיימה - ${user.name || user.email}`,
+    html: createAdminNotificationHtml(
+      `המתנה למשתמש <strong>${escapeHtml(user.name || "")}</strong> (${escapeHtml(user.email ?? "")}) הסתיימה.<br/>
+       תאריך סיום המתנה: <strong>${expiryDate}</strong><br/>
+       המשתמש קיבל מייל מכובד עם הצעה למסלול מנוי.`,
+      `להארכת המתנה — <a href="${userPanelUrl}" style="color:#0ea5e9;">פתח פאנל משתמש</a> ועדכן subscriptionEndsAt + בטל isBlocked.`,
+      "info"
+    ),
   });
 }
 
