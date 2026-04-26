@@ -1,7 +1,14 @@
 import prisma from "@/lib/prisma";
 import { getCurrentUsageKey } from "@/lib/date-utils";
+import type { AITier as PrismaAITier, Role } from "@prisma/client";
 
-// ברירות מחדל למכסות
+// ברירות מחדל למכסות.
+// הסמנטיקה: -1 = חסום (פיצ'ר לא זמין), 0 = ללא הגבלה, N>0 = מכסה חודשית.
+// `satisfies TierFeatureLimits` למטה מבטיח שעדכון ל-interface יתפוס כאן באמת.
+//
+// ⚠️ Drift warning: הערכים האלה משוכפלים ב-`src/app/api/admin/tier-limits/route.ts`
+// (DEFAULT_LIMITS שם, עם metadata של displayName/priceMonthly). אם משנים מספר
+// כאן — לעדכן גם שם. רefactor עתידי: לאחד ב-`src/lib/defaults.ts`.
 const DEFAULT_LIMITS = {
   ESSENTIAL: {
     sessionPrepLimit: -1,
@@ -27,7 +34,7 @@ const DEFAULT_LIMITS = {
     combinedQuestionnaireLimit: 40,
     progressReportLimit: 20,
   },
-};
+} as const;
 
 type AITier = "ESSENTIAL" | "PRO" | "ENTERPRISE";
 type FeatureType = 
@@ -208,18 +215,69 @@ export function isFeatureAvailable(tier: AITier, feature: FeatureType): boolean 
 }
 
 /**
- * קבלת כל המכסות לתוכנית
+ * Stage 1.17.4: מכסות לפיצ'ר ספציפי, מהDB עם fallback ל-DEFAULT_LIMITS.
+ * סמנטיקה: -1 = חסום, 0 = ללא הגבלה, N>0 = מכסה חודשית.
  */
-export async function getTierLimits(tier: AITier) {
+export interface TierFeatureLimits {
+  sessionPrepLimit: number;
+  conciseAnalysisLimit: number;
+  detailedAnalysisLimit: number;
+  singleQuestionnaireLimit: number;
+  combinedQuestionnaireLimit: number;
+  progressReportLimit: number;
+}
+
+/**
+ * קבלת מכסות הפיצ'רים לתוכנית — נקרא ל-DB דרך `prisma.tierLimits`,
+ * עם fallback ל-DEFAULT_LIMITS אם הרשומה חסרה (boot-strap או מצב חירום).
+ *
+ * חשוב: זו הפונקציה היחידה שצריכה להיקרא מ-routes שאוכפים מכסות.
+ * אסור hardcode של מספרים ב-routes — לא יכובד `/admin/tier-settings`.
+ *
+ * הערה על types: מקבל `PrismaAITier` ישירות (מהsכמה) במקום string union ידני.
+ * אם יוסיפו tier רביעי לסכמה, TypeScript יתפוס את החוסר ב-DEFAULT_LIMITS דרך
+ * ה-runtime guard למטה (זריקה מפורשת במקום undefined שקט).
+ */
+export async function getTierLimits(tier: PrismaAITier): Promise<TierFeatureLimits> {
   const tierLimits = await prisma.tierLimits.findUnique({
     where: { tier },
+    select: {
+      sessionPrepLimit: true,
+      conciseAnalysisLimit: true,
+      detailedAnalysisLimit: true,
+      singleQuestionnaireLimit: true,
+      combinedQuestionnaireLimit: true,
+      progressReportLimit: true,
+    },
   });
 
-  return tierLimits || {
-    tier,
-    ...DEFAULT_LIMITS[tier],
-    displayNameHe: getTierDisplayName(tier),
-    displayNameEn: tier,
-    priceMonthly: tier === "ESSENTIAL" ? 117 : tier === "PRO" ? 145 : 220,
-  };
+  // Runtime guard: אם הוסיפו tier חדש לסכמה אבל לא ל-DEFAULT_LIMITS, ניזרק
+  // במקום להחזיר undefined שקט שיגרום לחישובי limit שגויים אצל ה-callers.
+  if (!(tier in DEFAULT_LIMITS)) {
+    throw new Error(`[usage-limits] Missing DEFAULT_LIMITS entry for tier: ${tier}`);
+  }
+
+  // satisfies מאלץ ש-DEFAULT_LIMITS יכלול בדיוק את כל השדות שמופיעים ב-interface.
+  const defaults: TierFeatureLimits = DEFAULT_LIMITS[tier] satisfies TierFeatureLimits;
+  return tierLimits ?? defaults;
+}
+
+/**
+ * Stage 1.17.4 (סבב 3): bypass של כל מגבלות ה-AI לאדמין/מזכיר.
+ *
+ * ADMIN ו-MANAGER מקבלים גישה ללא הגבלה לכל פיצ'רי ה-AI ללא תלות ב:
+ *   - tier (גם אם הם ESSENTIAL — לא ייחסם)
+ *   - מצב ניסיון (`subscriptionStatus === "TRIALING"` + ₪5 cap)
+ *   - מכסה חודשית (`/admin/tier-settings`)
+ *   - rate-limit גלובלי (`GlobalAISettings`)
+ *
+ * USER (כולל TRIALING ו-`isFreeSubscription === true`) ממשיכים לעבור את
+ * כל ה-gates הרגילים לפי ה-tier שלהם.
+ *
+ * חשוב: counters של שימוש ועלויות (`MonthlyUsage`, `aIUsageStats`,
+ * `trialAiUsedCost`) ממשיכים להתעדכן גם ל-staff — bypass של אכיפה,
+ * לא bypass של tracking. זה משאיר נראות אנליטית למי שמבצע קריאות.
+ */
+export function isStaff(role: Role): boolean {
+  return role === "ADMIN" || role === "MANAGER";
 }

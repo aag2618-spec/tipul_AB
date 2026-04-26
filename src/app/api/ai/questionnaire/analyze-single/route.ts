@@ -6,6 +6,7 @@ import { checkTrialAiLimit, updateTrialAiCost } from "@/lib/trial-limits";
 import { logger } from "@/lib/logger";
 import { requireAuth } from "@/lib/api-auth";
 import { getCurrentUsageKey } from "@/lib/date-utils";
+import { getTierLimits, isStaff } from "@/lib/usage-limits";
 
 // שימוש ב-Gemini 2.0 Flash בלבד
 const genAI = new GoogleGenerativeAI(process.env.GOOGLE_AI_API_KEY || "");
@@ -21,9 +22,9 @@ const COSTS_PER_1M_TOKENS = {
  * POST /api/ai/questionnaire/analyze-single
  * ניתוח שאלון בודד
  * 
- * תוכניות:
+ * תוכניות (ברירות מחדל — ניתנות לעריכה ב-`/admin/tier-settings`):
  * - ESSENTIAL: אין גישה
- * - PROFESSIONAL: עד 60 ניתוחים בחודש
+ * - PRO: עד 60 ניתוחים בחודש
  * - ENTERPRISE: עד 80 ניתוחים בחודש
  */
 export const dynamic = "force-dynamic";
@@ -46,27 +47,10 @@ export async function POST(req: NextRequest) {
       return NextResponse.json({ message: "משתמש לא נמצא" }, { status: 404 });
     }
 
-    // תוכנית בסיסית - אין גישה
-    if (user.aiTier === "ESSENTIAL") {
-      return NextResponse.json(
-        { 
-          message: "תכונות AI אינן זמינות בתוכנית הבסיסית",
-          upgradeLink: "/dashboard/settings/billing"
-        },
-        { status: 403 }
-      );
-    }
+    // Stage 1.17.4 (סבב 3): ADMIN/MANAGER עוברים את כל ה-gates ללא הגבלה.
+    // counters עדיין מתעדכנים (tracking ולא enforcement).
+    const staffBypass = isStaff(user.role);
 
-    // בדיקת מגבלות ניסיון
-    const trialCheck = await checkTrialAiLimit(userId);
-    if (!trialCheck.allowed) {
-      return NextResponse.json(
-        { message: trialCheck.message, upgradeLink: "/dashboard/settings/billing", trialLimitReached: true },
-        { status: 429 }
-      );
-    }
-
-    // בדיקת מכסה חודשית — לפי שעון ישראל
     const { month, year } = getCurrentUsageKey();
     const monthlyUsage = await prisma.monthlyUsage.findUnique({
       where: {
@@ -77,23 +61,55 @@ export async function POST(req: NextRequest) {
         },
       },
     });
-
-    // מגבלות לפי תוכנית
-    const limits: Record<string, number> = {
-      PRO: 60,
-      ENTERPRISE: 80,
-    };
-
     const currentCount = monthlyUsage?.singleQuestionnaireCount || 0;
-    const limit = limits[user.aiTier as keyof typeof limits] || 0;
+    // limit=0 ל-staff → response יציג remaining: null ("ללא הגבלה").
+    let limit = 0;
 
-    if (currentCount >= limit) {
-      return NextResponse.json(
-        {
-          message: `הגעת למכסה החודשית (${limit} ניתוחים). שדרג את התוכנית שלך לעוד ניתוחים.`,
-        },
-        { status: 429 }
-      );
+    if (!staffBypass) {
+      // תוכנית בסיסית - אין גישה
+      if (user.aiTier === "ESSENTIAL") {
+        return NextResponse.json(
+          {
+            message: "תכונות AI אינן זמינות בתוכנית הבסיסית",
+            upgradeLink: "/dashboard/settings/billing"
+          },
+          { status: 403 }
+        );
+      }
+
+      // בדיקת מגבלות ניסיון
+      const trialCheck = await checkTrialAiLimit(userId);
+      if (!trialCheck.allowed) {
+        return NextResponse.json(
+          { message: trialCheck.message, upgradeLink: "/dashboard/settings/billing", trialLimitReached: true },
+          { status: 429 }
+        );
+      }
+
+      // Stage 1.17.4: מגבלות נטענות מ-`/admin/tier-settings` דרך `getTierLimits`.
+      // fallback ל-DEFAULT_LIMITS אם הרשומה חסרה. סמנטיקה: -1 חסום, 0 ללא הגבלה.
+      const tierLimits = await getTierLimits(user.aiTier);
+      limit = tierLimits.singleQuestionnaireLimit;
+
+      if (limit === -1) {
+        return NextResponse.json(
+          {
+            message: "ניתוח שאלון בודד אינו זמין בתוכנית הנוכחית. שדרג את התוכנית שלך.",
+            upgradeLink: "/dashboard/settings/billing",
+          },
+          { status: 403 }
+        );
+      }
+
+      if (limit > 0 && currentCount >= limit) {
+        return NextResponse.json(
+          {
+            message: `הגעת למכסה החודשית (${limit} ניתוחים). שדרג את התוכנית שלך לקבלת מכסה נוספת.`,
+            upgradeLink: "/dashboard/settings/billing",
+          },
+          { status: 429 }
+        );
+      }
     }
 
     // קבלת תשובות השאלון
@@ -287,7 +303,8 @@ ${getUniversalPromptsLight()}`;
       usage: {
         current: currentCount + 1,
         limit: limit,
-        remaining: limit - currentCount - 1,
+        // null = ללא הגבלה (limit===0). frontend מציג "ללא הגבלה" כש-null.
+        remaining: limit === 0 ? null : Math.max(0, limit - currentCount - 1),
       },
     });
   } catch (error) {

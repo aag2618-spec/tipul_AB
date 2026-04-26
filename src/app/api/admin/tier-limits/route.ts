@@ -5,7 +5,11 @@ import { logger } from "@/lib/logger";
 import { requirePermission } from "@/lib/api-auth";
 import { withAudit } from "@/lib/audit";
 
-// ברירות מחדל למכסות לפי תוכנית
+// ברירות מחדל למכסות לפי תוכנית.
+//
+// ⚠️ Drift warning (Stage 1.17.4): המספרים הללו משוכפלים ב-
+// `src/lib/usage-limits.ts` (שם `DEFAULT_LIMITS` בלי metadata). כל שינוי כאן
+// חייב להיות מסונכרן גם שם. רefactor עתידי: לאחד ב-`src/lib/defaults.ts`.
 const DEFAULT_LIMITS = {
   ESSENTIAL: {
     displayNameHe: "בסיסי",

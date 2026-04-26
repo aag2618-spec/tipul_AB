@@ -8,6 +8,8 @@ import { checkTrialAiLimit, updateTrialAiCost } from "@/lib/trial-limits";
 import { logger } from "@/lib/logger";
 
 import { requireAuth } from "@/lib/api-auth";
+import { getTierLimits, isStaff } from "@/lib/usage-limits";
+import { getCurrentUsageKey } from "@/lib/date-utils";
 
 // שימוש ב-Gemini 2.0 Flash בלבד
 const genAI = new GoogleGenerativeAI(process.env.GOOGLE_AI_API_KEY || "");
@@ -119,59 +121,108 @@ export async function POST(request: NextRequest) {
       return NextResponse.json({ message: "משתמש לא נמצא" }, { status: 404 });
     }
 
-    // תוכנית בסיסית - אין גישה ל-AI
-    if (user.aiTier === 'ESSENTIAL') {
-      return NextResponse.json(
-        { 
-          message: "תכונות AI אינן זמינות בתוכנית הבסיסית. שדרג לתוכנית מקצועית או ארגונית.",
-          upgradeLink: "/dashboard/settings/billing"
-        },
-        { status: 403 }
-      );
-    }
+    // Stage 1.17.4 (סבב 3): ADMIN/MANAGER עוברים את כל ה-gates ללא הגבלה.
+    // counters עדיין מתעדכנים בהמשך הראוט (tracking ולא enforcement).
+    const staffBypass = isStaff(user.role);
 
-    // בדיקת מגבלות ניסיון (₪5 cap)
-    const trialCheck = await checkTrialAiLimit(userId);
-    if (!trialCheck.allowed) {
-      return NextResponse.json(
-        { 
-          message: trialCheck.message || "הגעת למגבלת השימוש בתקופת הניסיון.",
-          upgradeLink: "/dashboard/settings/billing",
-          trialLimitReached: true,
-        },
-        { status: 429 }
-      );
-    }
+    // משתנים שצריך גם ב-staff path להגדיר כדי שה-upsert בסוף הראוט יעבוד.
+    const { month: usageMonth, year: usageYear } = getCurrentUsageKey();
 
-    // בדיקת מגבלות שימוש
-    const globalSettings = await prisma.globalAISettings.findFirst();
-    
-    if (globalSettings) {
-      const dailyLimit = user.aiTier === 'PRO' 
-        ? globalSettings.dailyLimitPro 
-        : globalSettings.dailyLimitEnterprise;
-      
-      const monthlyLimit = user.aiTier === 'PRO'
-        ? globalSettings.monthlyLimitPro
-        : globalSettings.monthlyLimitEnterprise;
-      
-      // בדיקת מגבלה יומית
-      if (user.aiUsageStats && user.aiUsageStats.dailyCalls >= dailyLimit) {
-        if (globalSettings.blockOnExceed) {
-          return NextResponse.json(
-            { message: `הגעת למכסה היומית (${dailyLimit} קריאות). נסה שוב מחר.` },
-            { status: 429 }
-          );
-        }
+    if (!staffBypass) {
+      // תוכנית בסיסית - אין גישה ל-AI
+      if (user.aiTier === 'ESSENTIAL') {
+        return NextResponse.json(
+          {
+            message: "תכונות AI אינן זמינות בתוכנית הבסיסית. שדרג לתוכנית מקצועית או ארגונית.",
+            upgradeLink: "/dashboard/settings/billing"
+          },
+          { status: 403 }
+        );
       }
-      
-      // בדיקת מגבלה חודשית
-      if (user.aiUsageStats && user.aiUsageStats.currentMonthCalls >= monthlyLimit) {
-        if (globalSettings.blockOnExceed) {
-          return NextResponse.json(
-            { message: `הגעת למכסה החודשית (${monthlyLimit} קריאות).` },
-            { status: 429 }
-          );
+
+      // בדיקת מגבלות ניסיון (₪5 cap)
+      const trialCheck = await checkTrialAiLimit(userId);
+      if (!trialCheck.allowed) {
+        return NextResponse.json(
+          {
+            message: trialCheck.message || "הגעת למגבלת השימוש בתקופת הניסיון.",
+            upgradeLink: "/dashboard/settings/billing",
+            trialLimitReached: true,
+          },
+          { status: 429 }
+        );
+      }
+
+      // Stage 1.17.4: בדיקת מכסה ספציפית של הכנות לפגישה לפי
+      // `/admin/tier-settings` (TierLimits.sessionPrepLimit) על MonthlyUsage.
+      // -1 = חסום (פיצ'ר לא זמין), 0 = ללא הגבלה, N>0 = מכסה חודשית.
+      //
+      // שינוי התנהגות מ-pre-1.17.4: עד עכשיו `MonthlyUsage.sessionPrepCount`
+      // לא עודכן בראוט הזה (כל המגבלות באו מ-`aIUsageStats` הכללי). מההפעלה
+      // המונה יתחיל מ-0 לכל המשתמשים → משתמש PRO/ENTERPRISE שכבר ניצל הרבה
+      // הכנות החודש לא ייחסם רטרואקטיבית, אך המכסה החדשה (default 200/400)
+      // תיכנס לתוקף מההפעלה.
+      const tierLimitsSP = await getTierLimits(user.aiTier);
+      const sessionPrepLimit = tierLimitsSP.sessionPrepLimit;
+      const monthlyUsageSP = await prisma.monthlyUsage.findUnique({
+        where: {
+          userId_month_year: { userId: userId, month: usageMonth, year: usageYear },
+        },
+        select: { sessionPrepCount: true },
+      });
+      const currentSpCount = monthlyUsageSP?.sessionPrepCount || 0;
+
+      if (sessionPrepLimit === -1) {
+        return NextResponse.json(
+          {
+            message: "הכנה לפגישה אינה זמינה בתוכנית הנוכחית. שדרג את התוכנית שלך.",
+            upgradeLink: "/dashboard/settings/billing",
+          },
+          { status: 403 }
+        );
+      }
+
+      if (sessionPrepLimit > 0 && currentSpCount >= sessionPrepLimit) {
+        return NextResponse.json(
+          {
+            message: `הגעת למכסה החודשית (${sessionPrepLimit} הכנות לפגישה). שדרג את התוכנית שלך לקבלת מכסה נוספת.`,
+            upgradeLink: "/dashboard/settings/billing",
+          },
+          { status: 429 }
+        );
+      }
+
+      // בדיקת מגבלות rate-limit כלליות (אופציונלי, מנוהל מ-GlobalAISettings).
+      // משלים את TierLimits — נותן לאדמין שליטה גלובלית ביומיים/חודשי על כלל הקריאות.
+      const globalSettings = await prisma.globalAISettings.findFirst();
+
+      if (globalSettings) {
+        const dailyLimit = user.aiTier === 'PRO'
+          ? globalSettings.dailyLimitPro
+          : globalSettings.dailyLimitEnterprise;
+
+        const monthlyLimit = user.aiTier === 'PRO'
+          ? globalSettings.monthlyLimitPro
+          : globalSettings.monthlyLimitEnterprise;
+
+        // בדיקת מגבלה יומית
+        if (user.aiUsageStats && user.aiUsageStats.dailyCalls >= dailyLimit) {
+          if (globalSettings.blockOnExceed) {
+            return NextResponse.json(
+              { message: `הגעת למכסה היומית (${dailyLimit} קריאות). נסה שוב מחר.` },
+              { status: 429 }
+            );
+          }
+        }
+
+        // בדיקת מגבלה חודשית
+        if (user.aiUsageStats && user.aiUsageStats.currentMonthCalls >= monthlyLimit) {
+          if (globalSettings.blockOnExceed) {
+            return NextResponse.json(
+              { message: `הגעת למכסה החודשית (${monthlyLimit} קריאות).` },
+              { status: 429 }
+            );
+          }
         }
       }
     }
@@ -250,12 +301,11 @@ export async function POST(request: NextRequest) {
       ? client.therapeuticApproaches
       : (user.therapeuticApproaches || []);
 
-    // Debug logging
-    console.log('🔍 Session Prep Debug:', {
+    logger.info("[ai/session-prep] Approaches selected", {
       userTier: user.aiTier,
-      userApproaches: user.therapeuticApproaches,
-      clientApproaches: client.therapeuticApproaches,
-      selectedApproaches: therapeuticApproaches,
+      userApproachCount: user.therapeuticApproaches?.length ?? 0,
+      clientApproachCount: client.therapeuticApproaches?.length ?? 0,
+      selectedApproachCount: therapeuticApproaches.length,
     });
 
     // בניית שמות הגישות (לשימוש בכל התוכניות)
@@ -267,17 +317,15 @@ export async function POST(request: NextRequest) {
       .filter(Boolean)
       .join(", ");
 
-    console.log('🔍 Session Prep - Approach Names:', approachNames);
-
     // בניית ה-prompt לפי התוכנית
     let prompt: string;
-    
+
     if (user.aiTier === 'ENTERPRISE') {
       // תוכנית ארגונית - הכנה מפורטת עם גישות
       const approachPrompts = getApproachPrompts(therapeuticApproaches);
-      
-      console.log('🔍 Enterprise Prompt Debug:', {
-        approachNames,
+
+      logger.info("[ai/session-prep] Enterprise prompt built", {
+        approachCount: therapeuticApproaches.length,
         approachPromptsLength: approachPrompts.length,
       });
       
@@ -336,28 +384,52 @@ export async function POST(request: NextRequest) {
     // עדכון סטטיסטיקות שימוש
     const today = new Date();
     today.setHours(0, 0, 0, 0);
-    
-    await prisma.aIUsageStats.upsert({
-      where: { userId: userId },
-      create: {
-        userId: userId,
-        dailyCalls: 1,
-        currentMonthCalls: 1,
-        currentMonthTokens: totalTokens,
-        currentMonthCost: cost,
-        totalCalls: 1,
-        totalCost: cost,
-        lastResetDate: today,
-      },
-      update: {
-        dailyCalls: { increment: 1 },
-        currentMonthCalls: { increment: 1 },
-        currentMonthTokens: { increment: totalTokens },
-        currentMonthCost: { increment: cost },
-        totalCalls: { increment: 1 },
-        totalCost: { increment: cost }
-      }
-    });
+
+    // Stage 1.17.4: שני ה-upserts אטומיים יחד — `aIUsageStats` (rate-limit
+    // גלובלי) ו-`MonthlyUsage.sessionPrepCount` (אכיפת tierLimits) חייבים
+    // להיות קונסיסטנטיים. ללא transaction, כשל בשני יוצר drift בין שני
+    // המקורות (rate-limit מתעדכן אבל המכסה לא, או להפך).
+    await prisma.$transaction([
+      prisma.aIUsageStats.upsert({
+        where: { userId: userId },
+        create: {
+          userId: userId,
+          dailyCalls: 1,
+          currentMonthCalls: 1,
+          currentMonthTokens: totalTokens,
+          currentMonthCost: cost,
+          totalCalls: 1,
+          totalCost: cost,
+          lastResetDate: today,
+        },
+        update: {
+          dailyCalls: { increment: 1 },
+          currentMonthCalls: { increment: 1 },
+          currentMonthTokens: { increment: totalTokens },
+          currentMonthCost: { increment: cost },
+          totalCalls: { increment: 1 },
+          totalCost: { increment: cost },
+        },
+      }),
+      prisma.monthlyUsage.upsert({
+        where: {
+          userId_month_year: { userId: userId, month: usageMonth, year: usageYear },
+        },
+        create: {
+          userId: userId,
+          month: usageMonth,
+          year: usageYear,
+          sessionPrepCount: 1,
+          totalCost: cost,
+          totalTokens: totalTokens,
+        },
+        update: {
+          sessionPrepCount: { increment: 1 },
+          totalCost: { increment: cost },
+          totalTokens: { increment: totalTokens },
+        },
+      }),
+    ]);
 
     // עדכון עלות ניסיון
     await updateTrialAiCost(userId, cost);

@@ -12,6 +12,7 @@ import {
   QuotaExhaustedError,
   type ConsumeResult,
 } from "@/lib/credits";
+import { getTierLimits, isStaff } from "@/lib/usage-limits";
 
 /**
  * Feature flag — Stage 1.17 wire-up.
@@ -76,6 +77,7 @@ export async function POST(req: NextRequest) {
         id: true,
         name: true,
         email: true,
+        role: true,
         aiTier: true,
         therapeuticApproaches: true,
         approachDescription: true,
@@ -86,37 +88,43 @@ export async function POST(req: NextRequest) {
       return NextResponse.json({ message: "משתמש לא נמצא" }, { status: 404 });
     }
 
-    // תוכנית בסיסית - אין גישה ל-AI
-    if (user.aiTier === "ESSENTIAL") {
-      return NextResponse.json(
-        { 
-          message: "תכונות AI אינן זמינות בתוכנית הבסיסית",
-          errorEn: "AI features not available in Essential plan",
-          upgradeLink: "/dashboard/settings/billing"
-        },
-        { status: 403 }
-      );
-    }
+    // Stage 1.17.4 (סבב 3): ADMIN/MANAGER עוברים את כל ה-gates ללא הגבלה.
+    // שום `consumeAiAnalysis` לא ירוץ עבורם בהמשך → אין דדאקציית קרדיט.
+    const staffBypass = isStaff(user.role);
 
-    // בדיקת מגבלות ניסיון
-    const trialCheck = await checkTrialAiLimit(userId);
-    if (!trialCheck.allowed) {
-      return NextResponse.json(
-        { message: trialCheck.message, upgradeLink: "/dashboard/settings/billing", trialLimitReached: true },
-        { status: 429 }
-      );
-    }
+    if (!staffBypass) {
+      // תוכנית בסיסית - אין גישה ל-AI
+      if (user.aiTier === "ESSENTIAL") {
+        return NextResponse.json(
+          {
+            message: "תכונות AI אינן זמינות בתוכנית הבסיסית",
+            errorEn: "AI features not available in Essential plan",
+            upgradeLink: "/dashboard/settings/billing"
+          },
+          { status: 403 }
+        );
+      }
 
-    // ניתוח מפורט - רק לתוכנית ארגונית
-    if (analysisType === "DETAILED" && user.aiTier !== "ENTERPRISE") {
-      return NextResponse.json(
-        { 
-          message: "ניתוח מפורט זמין רק בתוכנית הארגונית",
-          errorEn: "Detailed analysis is only available in Enterprise plan",
-          upgradeLink: "/dashboard/settings/billing"
-        },
-        { status: 403 }
-      );
+      // בדיקת מגבלות ניסיון
+      const trialCheck = await checkTrialAiLimit(userId);
+      if (!trialCheck.allowed) {
+        return NextResponse.json(
+          { message: trialCheck.message, upgradeLink: "/dashboard/settings/billing", trialLimitReached: true },
+          { status: 429 }
+        );
+      }
+
+      // ניתוח מפורט - רק לתוכנית ארגונית
+      if (analysisType === "DETAILED" && user.aiTier !== "ENTERPRISE") {
+        return NextResponse.json(
+          {
+            message: "ניתוח מפורט זמין רק בתוכנית הארגונית",
+            errorEn: "Detailed analysis is only available in Enterprise plan",
+            upgradeLink: "/dashboard/settings/billing"
+          },
+          { status: 403 }
+        );
+      }
     }
 
     // 🔴 Cursor BLOCKER (סבב 1.17.2 + סבב 3): כל return point בין consume
@@ -148,8 +156,9 @@ export async function POST(req: NextRequest) {
     // בדיקת מכסה חודשית (רק לניתוח מפורט)
     // Stage 1.17.2: ה-receipt נשמר במשתנה function-scope (declared למעלה)
     // כדי שה-catch יוכל להריץ refund על Gemini/DB failures.
+    // Stage 1.17.4 (סבב 3): staff (ADMIN/MANAGER) מדלגים על consume — אין דדאקציה.
     userIdForRefund = user.id;
-    if (analysisType === "DETAILED") {
+    if (analysisType === "DETAILED" && !staffBypass) {
       if (isNewConsumeAiEnabled()) {
         // Stage 1.17 wire-up — consumeAiAnalysis עושה atomic check+deduct.
         // ה-FOR UPDATE על MonthlyUsage מונע race בין 2 ניתוחים מקבילים.
@@ -163,10 +172,13 @@ export async function POST(req: NextRequest) {
           aiConsumeReceipt = await consumeAiAnalysis(user.id, 1);
         } catch (err) {
           if (err instanceof QuotaExhaustedError) {
+            // Stage 1.17.4 (סבב 3): הודעה ו-upgradeLink תואמים לשאר
+            // הראוטים (legacy branch למטה + 3 שאלון routes + session-prep).
             return NextResponse.json(
               {
-                message: "הגעת למכסה החודשית של ניתוחים מפורטים",
+                message: "הגעת למכסה החודשית של ניתוחים מפורטים. שדרג את התוכנית שלך לקבלת מכסה נוספת.",
                 errorEn: "Monthly limit reached for detailed analyses",
+                upgradeLink: "/dashboard/settings/billing",
               },
               { status: 429 }
             );
@@ -182,6 +194,8 @@ export async function POST(req: NextRequest) {
         }
       } else {
         // Legacy flow — בדיקה ידנית, deduction ב-upsert בהמשך הראוט.
+        // Stage 1.17.4: limit נטען מ-`/admin/tier-settings` דרך `getTierLimits`
+        // במקום hardcode קודם של 20. fallback ל-DEFAULT_LIMITS אם ה-DB ריק.
         const { month, year } = getCurrentUsageKey();
         const monthlyUsage = await prisma.monthlyUsage.findUnique({
           where: {
@@ -193,14 +207,27 @@ export async function POST(req: NextRequest) {
           },
         });
 
+        const tierLimits = await getTierLimits(user.aiTier);
+        const limit = tierLimits.detailedAnalysisLimit;
         const currentCount = monthlyUsage?.detailedAnalysisCount || 0;
-        const limit = 20; // מכסה חודשית לניתוחים מפורטים
 
-        if (currentCount >= limit) {
+        if (limit === -1) {
           return NextResponse.json(
             {
-              message: `הגעת למכסה החודשית (${limit} ניתוחים מפורטים)`,
-              errorEn: `Monthly limit reached (${limit} detailed analyses)`
+              message: "ניתוח מפורט אינו זמין בתוכנית הנוכחית. שדרג את התוכנית שלך.",
+              errorEn: "Detailed analysis not available in current plan",
+              upgradeLink: "/dashboard/settings/billing",
+            },
+            { status: 403 }
+          );
+        }
+
+        if (limit > 0 && currentCount >= limit) {
+          return NextResponse.json(
+            {
+              message: `הגעת למכסה החודשית (${limit} ניתוחים מפורטים). שדרג את התוכנית שלך לקבלת מכסה נוספת.`,
+              errorEn: `Monthly limit reached (${limit} detailed analyses)`,
+              upgradeLink: "/dashboard/settings/billing",
             },
             { status: 429 }
           );
@@ -346,7 +373,11 @@ export async function POST(req: NextRequest) {
     //   (atomic check+deduct לפני ה-AI call). פה רק מוסיפים cost/tokens
     //   ואת conciseAnalysisCount (שלא עובר דרך consumeAiAnalysis).
     // - ב-legacy flow: כל השדות עולים בבת אחת (כולל detailed).
-    const isNewFlow = isNewConsumeAiEnabled() && analysisType === "DETAILED";
+    // - Stage 1.17.4 (סבב 3): staff (ADMIN/MANAGER) דילגו על consumeAiAnalysis,
+    //   אז גם ב-new flow צריך לקדם את `detailedAnalysisCount` כאן (אחרת tracking
+    //   חסר). מטפלים בזה ע"י החרגת staff מ-`isNewFlow` — נופלים ל-branch הלגאסי.
+    const isNewFlow =
+      isNewConsumeAiEnabled() && analysisType === "DETAILED" && !staffBypass;
     const usageKey = getCurrentUsageKey();
     await prisma.monthlyUsage.upsert({
       where: {
