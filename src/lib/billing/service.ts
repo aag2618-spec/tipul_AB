@@ -8,7 +8,8 @@ import { ICountClient } from '@/lib/icount';
 import { GreenInvoiceClient } from '@/lib/green-invoice';
 import { SumitClient } from '@/lib/sumit';
 
-export type BillingProviderType = 'MESHULAM' | 'ICOUNT' | 'GREEN_INVOICE' | 'SUMIT';
+export type { BillingProviderType } from './types';
+import type { BillingProviderType } from './types';
 
 interface ReceiptRequest {
   clientName: string;

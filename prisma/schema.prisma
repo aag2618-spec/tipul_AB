@@ -48,130 +48,147 @@ model VerificationToken {
 
 enum Role {
   USER
-  MANAGER  // משתמש עם הרשאות ניהול
+  MANAGER // משתמש עם הרשאות ניהול
   ADMIN
 }
 
 model User {
-  id                      String    @id @default(cuid())
-  name                    String?
-  email                   String?   @unique
-  emailVerified           DateTime?
-  image                   String?
-  password                String?
-  phone                   String?
-  license                 String?
-  role                    Role      @default(USER)
-  isBlocked               Boolean   @default(false)
-  defaultSessionDuration  Int       @default(50) // משך פגישה סטנדרטית בדקות
-  defaultSessionPrice     Decimal?  @db.Decimal(10, 2) // מחיר ברירת מחדל לפגישה
-  
+  id                     String    @id @default(cuid())
+  name                   String?
+  email                  String?   @unique
+  emailVerified          DateTime?
+  image                  String?
+  password               String?
+  phone                  String?
+  license                String?
+  role                   Role      @default(USER)
+  isBlocked              Boolean   @default(false)
+  defaultSessionDuration Int       @default(50) // משך פגישה סטנדרטית בדקות
+  defaultSessionPrice    Decimal?  @db.Decimal(10, 2) // מחיר ברירת מחדל לפגישה
+
   // AI & Billing Settings
-  aiTier                  AITier    @default(ESSENTIAL) // Essential, Pro, Enterprise
-  therapeuticApproaches   String[]  @default([]) // Array of approaches: ["CBT", "Psychodynamic", etc.]
-  approachDescription     String?   @db.Text // Custom description for eclectic approach
-  analysisStyle           String    @default("professional") // professional, practical, emotional
-  aiTone                  String    @default("formal") // formal, warm, direct
-  customAIInstructions    String?   @db.Text // Custom instructions for AI
-  
+  aiTier                AITier   @default(ESSENTIAL) // Essential, Pro, Enterprise
+  therapeuticApproaches String[] @default([]) // Array of approaches: ["CBT", "Psychodynamic", etc.]
+  approachDescription   String?  @db.Text // Custom description for eclectic approach
+  analysisStyle         String   @default("professional") // professional, practical, emotional
+  aiTone                String   @default("formal") // formal, warm, direct
+  customAIInstructions  String?  @db.Text // Custom instructions for AI
+
   // Billing
-  stripeCustomerId        String?   @unique // Stripe customer ID
-  stripeSubscriptionId    String?   @unique // Stripe subscription ID
-  subscriptionStatus      SubscriptionStatus @default(ACTIVE)
-  subscriptionStartedAt   DateTime?
-  subscriptionEndsAt      DateTime?
-  trialEndsAt             DateTime?
-  
+  stripeCustomerId      String?            @unique // Stripe customer ID
+  stripeSubscriptionId  String?            @unique // Stripe subscription ID
+  subscriptionStatus    SubscriptionStatus @default(ACTIVE)
+  subscriptionStartedAt DateTime?
+  subscriptionEndsAt    DateTime?
+  trialEndsAt           DateTime?
+
   // Email verification
-  emailVerificationToken  String?   // טוקן אימות מייל
+  emailVerificationToken   String? // טוקן אימות מייל
   emailVerificationExpires DateTime? // תפוגת טוקן אימות
-  
+
   // Trial AI usage limit
-  trialAiCostLimit        Decimal   @default(5) @db.Decimal(10, 2) // תקרת עלות AI בניסיון (₪)
-  trialAiUsedCost         Decimal   @default(0) @db.Decimal(10, 4) // עלות AI שנוצלה בניסיון
+  trialAiCostLimit Decimal @default(5) @db.Decimal(10, 2) // תקרת עלות AI בניסיון (₪)
+  trialAiUsedCost  Decimal @default(0) @db.Decimal(10, 4) // עלות AI שנוצלה בניסיון
 
   // Free Subscription (מנוי חינם - ניתן ע"י מנהל)
-  isFreeSubscription      Boolean   @default(false)
-  freeSubscriptionNote    String?   // הערה למה ניתן חינם
+  isFreeSubscription        Boolean   @default(false)
+  freeSubscriptionNote      String? // הערה למה ניתן חינם
   freeSubscriptionGrantedAt DateTime? // מתי ניתן
-  
-  // Usage limits
-  maxActiveClients        Int       @default(40) // Maximum active clients allowed
-  userNumber              Int?      @unique // מספר משתמש ייחודי (1001+)
-  
-  // Business & Receipt Settings (הגדרות עסק וקבלות)
-  businessType            BusinessType @default(NONE) // סוג עסק
-  businessName            String?   // שם העסק
-  businessPhone           String?   // טלפון עסקי
-  businessAddress         String?   // כתובת העסק
-  nextReceiptNumber       Int       @default(1) // מספר הקבלה הבא
-  receiptDefaultMode      ReceiptMode @default(ASK) // ברירת מחדל לקבלות
-  
-  createdAt               DateTime  @default(now())
-  updatedAt               DateTime  @updatedAt
 
-  accounts              Account[]
-  sessions              Session[]
-  clients               Client[]
-  therapySessions       TherapySession[]
-  documents             Document[]
-  notifications         Notification[]
-  tasks                 Task[]
-  notificationSettings  NotificationSetting[]
-  recurringPatterns     RecurringPattern[]
-  intakeTemplates       IntakeTemplate[]
-  apiUsageLogs          ApiUsageLog[]
-  subscriptionPayments  SubscriptionPayment[]
-  reviewedCancellations CancellationRequest[]
-  communicationLogs     CommunicationLog[]
-  communicationSetting  CommunicationSetting?
-  couponUsages          CouponUsage[]
+  // Usage limits
+  maxActiveClients Int  @default(40) // Maximum active clients allowed
+  userNumber       Int? @unique // מספר משתמש ייחודי (1001+)
+
+  // Business & Receipt Settings (הגדרות עסק וקבלות)
+  businessType       BusinessType     @default(NONE) // סוג עסק
+  businessName       String? // שם העסק
+  businessIdNumber   String? // ת.ז./ח.פ./מספר עוסק — חובה חוקית לחשבונית מס (LICENSED)
+  businessPhone      String? // טלפון עסקי
+  businessAddress    String? // כתובת העסק
+  // שיטת חשבונאות (CASH = מקבל-תשלום: חשבונית מוצאת בעת תשלום;
+  // ACCRUAL = מצטבר: חשבונית מס בעת הסכם, קבלה בעת תשלום — שני מסמכים).
+  // עוסק מורשה במחזור 50K+ עובר אוטומטית למצטבר. שדה זה משפיע על document type
+  // שנשלח ל-Cardcom (ב-CASH=TaxInvoiceAndReceipt; ב-ACCRUAL נדרשת זרימה דו-שלבית).
+  accountingMethod   AccountingMethod @default(CASH)
+  nextReceiptNumber  Int              @default(1) // מספר הקבלה הבא
+  receiptDefaultMode ReceiptMode      @default(ASK) // ברירת מחדל לקבלות
+
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+
+  accounts               Account[]
+  sessions               Session[]
+  clients                Client[]
+  therapySessions        TherapySession[]
+  documents              Document[]
+  notifications          Notification[]
+  tasks                  Task[]
+  notificationSettings   NotificationSetting[]
+  recurringPatterns      RecurringPattern[]
+  intakeTemplates        IntakeTemplate[]
+  apiUsageLogs           ApiUsageLog[]
+  subscriptionPayments   SubscriptionPayment[]
+  reviewedCancellations  CancellationRequest[]
+  communicationLogs      CommunicationLog[]
+  communicationSetting   CommunicationSetting?
+  couponUsages           CouponUsage[]
   questionnaireResponses QuestionnaireResponse[]
-  intakeQuestionnaires  IntakeQuestionnaire[] @relation("intakeQuestionnaires")
-  passwordResets        PasswordReset[]
-  smsSettings           SMSSettings?
-  consentForms          ConsentForm[]
-  insurerSettings       InsurerSettings?
-  insurerReports        InsurerReport[]
-  billingProviders      BillingProvider[]
-  aiUsageStats          AIUsageStats?
-  sessionPreps          SessionPrep[]
-  
+  intakeQuestionnaires   IntakeQuestionnaire[]   @relation("intakeQuestionnaires")
+  passwordResets         PasswordReset[]
+  smsSettings            SMSSettings?
+  consentForms           ConsentForm[]
+  insurerSettings        InsurerSettings?
+  insurerReports         InsurerReport[]
+  billingProviders       BillingProvider[]
+  aiUsageStats           AIUsageStats?
+  sessionPreps           SessionPrep[]
+
   // Online Booking
-  bookingSettings       BookingSettings?
-  
+  bookingSettings BookingSettings?
+
   // AI Insights Relations
-  aiInsights            AIInsight[]
-  therapeuticGoals      TherapeuticGoal[]
-  emotionLogs           EmotionLog[]
-  termsAcceptances      TermsAcceptance[]
-  
+  aiInsights       AIInsight[]
+  therapeuticGoals TherapeuticGoal[]
+  emotionLogs      EmotionLog[]
+  termsAcceptances TermsAcceptance[]
+
   // AI Analysis Relations
   questionnaireAnalyses QuestionnaireAnalysis[]
   sessionAnalyses       SessionAnalysis[]
   monthlyUsages         MonthlyUsage[]
-  adminAuditLogs        AdminAuditLog[]       @relation("auditAdmin")
+  adminAuditLogs        AdminAuditLog[]         @relation("auditAdmin")
 
   // Support Tickets (פניות ותמיכה)
-  supportTickets              SupportTicket[]     @relation("ticketUser")
-  supportResponses            SupportResponse[]
-  supportTicketsAssigned      SupportTicket[]     @relation("ticketAssigned")
-  supportNotesAuthored        SupportTicketNote[] @relation("noteAuthor")
+  supportTickets         SupportTicket[]     @relation("ticketUser")
+  supportResponses       SupportResponse[]
+  supportTicketsAssigned SupportTicket[]     @relation("ticketAssigned")
+  supportNotesAuthored   SupportTicketNote[] @relation("noteAuthor")
 
   // Admin — undo/redo of audit actions (Stage 1.7)
-  adminAuditLogsReverted      AdminAuditLog[]     @relation("auditReverted")
+  adminAuditLogsReverted AdminAuditLog[] @relation("auditReverted")
 
   // Packages — bank purchases granted manually by admin
-  packagesGranted             UserPackagePurchase[] @relation("packageGrantedBy")
-  packagePurchases            UserPackagePurchase[] @relation("packageUser")
+  packagesGranted  UserPackagePurchase[] @relation("packageGrantedBy")
+  packagePurchases UserPackagePurchase[] @relation("packageUser")
+
+  // Site Settings — admin who last updated a global setting
+  siteSettingsUpdated SiteSetting[] @relation("SiteSettingUpdater")
+
+  // Cardcom relations
+  cardcomTransactions         CardcomTransaction[]    @relation("CardcomTxUser")
+  savedCardTokens             SavedCardToken[]        @relation("SavedCardTokenUser")
+  subscriberTokens            SavedCardToken[]        @relation("SavedCardTokenSubscriber")
+  cardcomInvoicesAsSubscriber CardcomInvoice[]        @relation("CardcomInvoiceSubscriber")
+  cardcomInvoicesAsIssuer     CardcomInvoice[]        @relation("CardcomInvoiceIssuer")
+  orphanCardcomDocuments      OrphanCardcomDocument[] @relation("OrphanCardcomUser")
 }
 
 // ==================== AI Tiers ====================
 
 enum AITier {
-  ESSENTIAL    // 117₪ - ללא AI
-  PRO          // 145₪ - Gemini 2.0 Flash (תמציתי) - מוצג כ"מקצועי" בממשק
-  ENTERPRISE   // 220₪ - Gemini 2.0 Flash (מפורט עם גישות) - מוצג כ"ארגוני" בממשק
+  ESSENTIAL // 117₪ - ללא AI
+  PRO // 145₪ - Gemini 2.0 Flash (תמציתי) - מוצג כ"מקצועי" בממשק
+  ENTERPRISE // 220₪ - Gemini 2.0 Flash (מפורט עם גישות) - מוצג כ"ארגוני" בממשק
 }
 
 enum SubscriptionStatus {
@@ -185,35 +202,35 @@ enum SubscriptionStatus {
 // ==================== Admin Alerts System ====================
 
 model AdminAlert {
-  id            String          @id @default(cuid())
-  type          AdminAlertType
-  priority      AlertPriority   @default(MEDIUM)
-  status        AlertStatus     @default(PENDING)
-  
+  id       String         @id @default(cuid())
+  type     AdminAlertType
+  priority AlertPriority  @default(MEDIUM)
+  status   AlertStatus    @default(PENDING)
+
   // Alert details
-  title         String
-  message       String          @db.Text
-  
+  title   String
+  message String @db.Text
+
   // Related entities (optional)
-  userId        String?
-  
+  userId String?
+
   // Action tracking
-  actionRequired String?        // מה צריך לעשות
-  actionTaken   String?         @db.Text // מה נעשה
-  resolvedAt    DateTime?
-  resolvedBy    String?         // Admin ID who resolved
-  
+  actionRequired String? // מה צריך לעשות
+  actionTaken    String?   @db.Text // מה נעשה
+  resolvedAt     DateTime?
+  resolvedBy     String? // Admin ID who resolved
+
   // Scheduling for reminders
-  scheduledFor  DateTime?       // מתי להציג/לשלוח
-  emailSent     Boolean         @default(false)
-  emailSentAt   DateTime?
-  
+  scheduledFor DateTime? // מתי להציג/לשלוח
+  emailSent    Boolean   @default(false)
+  emailSentAt  DateTime?
+
   // Metadata
-  metadata      Json?           // Additional data (payment IDs, amounts, etc.)
-  
-  createdAt     DateTime        @default(now())
-  updatedAt     DateTime        @updatedAt
-  
+  metadata Json? // Additional data (payment IDs, amounts, etc.)
+
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+
   @@index([type, status])
   @@index([userId])
   @@index([scheduledFor])
@@ -221,20 +238,20 @@ model AdminAlert {
 }
 
 enum AdminAlertType {
-  PAYMENT_DUE           // תשלום קרב
-  PAYMENT_OVERDUE       // תשלום באיחור
-  PAYMENT_FAILED        // תשלום נכשל
+  PAYMENT_DUE // תשלום קרב
+  PAYMENT_OVERDUE // תשלום באיחור
+  PAYMENT_FAILED // תשלום נכשל
   SUBSCRIPTION_EXPIRING // מנוי עומד לפוג
-  SUBSCRIPTION_EXPIRED  // מנוי פג
-  HIGH_AI_USAGE         // שימוש גבוה ב-AI
-  NEW_USER              // משתמש חדש נרשם
-  USER_BLOCKED          // משתמש נחסם
-  TIER_CHANGE_REQUEST   // בקשה לשינוי תוכנית
-  MANUAL_REMINDER       // תזכורת ידנית
-  SYSTEM                // התראת מערכת
-  SUPPORT_TICKET        // פנייה לתמיכה
+  SUBSCRIPTION_EXPIRED // מנוי פג
+  HIGH_AI_USAGE // שימוש גבוה ב-AI
+  NEW_USER // משתמש חדש נרשם
+  USER_BLOCKED // משתמש נחסם
+  TIER_CHANGE_REQUEST // בקשה לשינוי תוכנית
+  MANUAL_REMINDER // תזכורת ידנית
+  SYSTEM // התראת מערכת
+  SUPPORT_TICKET // פנייה לתמיכה
   // Stage 1.7 — alerts חדשים ל-observability
-  CREDIT_CONSUMPTION_FAILED     // consumeSms/AI — QUOTA_EXHAUSTED או retry exhausted
+  CREDIT_CONSUMPTION_FAILED // consumeSms/AI — QUOTA_EXHAUSTED או retry exhausted
   IDEMPOTENCY_REPLAY_OF_FAILURE // בקשה חוזרת עם idempotency-key של שגיאת 5xx
   SERIALIZATION_RETRY_EXHAUSTED // retry על 40001/40P01 נגמר בלי הצלחה
 }
@@ -247,23 +264,23 @@ enum AlertPriority {
 }
 
 enum AlertStatus {
-  PENDING     // טרם טופל
+  PENDING // טרם טופל
   IN_PROGRESS // בטיפול
-  RESOLVED    // טופל
-  DISMISSED   // נדחה
-  SNOOZED     // נדחה לזמן מאוחר
+  RESOLVED // טופל
+  DISMISSED // נדחה
+  SNOOZED // נדחה לזמן מאוחר
 }
 
 // ==================== Password Reset ====================
 
 model PasswordReset {
-  id        String   @id @default(cuid())
-  token     String   @unique
+  id        String    @id @default(cuid())
+  token     String    @unique
   userId    String
-  user      User     @relation(fields: [userId], references: [id], onDelete: Cascade)
+  user      User      @relation(fields: [userId], references: [id], onDelete: Cascade)
   expiresAt DateTime
   usedAt    DateTime?
-  createdAt DateTime @default(now())
+  createdAt DateTime  @default(now())
 
   @@index([token])
   @@index([userId])
@@ -279,47 +296,53 @@ model Client {
   birthDate           DateTime?
   address             String?
   status              ClientStatus @default(ACTIVE)
-  isQuickClient       Boolean      @default(false)   // פונה מזדמן — נוצר מהיומן עם מינימום פרטים
+  isQuickClient       Boolean      @default(false) // פונה מזדמן — נוצר מהיומן עם מינימום פרטים
   defaultSessionPrice Decimal?     @db.Decimal(10, 2)
   creditBalance       Decimal      @default(0) @db.Decimal(10, 2) // יתרת קרדיט
   medicalHistory      Json?
   notes               String?      @db.Text
   initialDiagnosis    String?      @db.Text
   intakeNotes         String?      @db.Text
-  
+
   // AI Settings - client-specific therapeutic approaches (override therapist defaults)
-  therapeuticApproaches String[]   @default([]) // Override therapist's default approaches
-  approachNotes         String?    @db.Text     // Special notes about therapeutic approach for this client
-  culturalContext       String?    @db.Text     // Cultural context for AI analysis sensitivity
+  therapeuticApproaches String[] @default([]) // Override therapist's default approaches
+  approachNotes         String?  @db.Text // Special notes about therapeutic approach for this client
+  culturalContext       String?  @db.Text // Cultural context for AI analysis sensitivity
 
   // Comprehensive AI analysis (saved from "all summaries" page)
-  comprehensiveAnalysis   String?    @db.Text
+  comprehensiveAnalysis   String?   @db.Text
   comprehensiveAnalysisAt DateTime?
-  
-  createdAt           DateTime     @default(now())
-  updatedAt           DateTime     @updatedAt
+
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
 
   therapistId String
   therapist   User   @relation(fields: [therapistId], references: [id], onDelete: Cascade)
 
-  therapySessions      TherapySession[]
-  payments             Payment[]
-  documents            Document[]
-  recordings           Recording[]
-  recurringPatterns    RecurringPattern[]
-  cancellationRequests CancellationRequest[]
-  communicationLogs    CommunicationLog[]
+  therapySessions        TherapySession[]
+  payments               Payment[]
+  documents              Document[]
+  recordings             Recording[]
+  recurringPatterns      RecurringPattern[]
+  cancellationRequests   CancellationRequest[]
+  communicationLogs      CommunicationLog[]
   questionnaireResponses QuestionnaireResponse[]
-  intakeResponses      IntakeResponse[] @relation("intakeResponses")
-  consentForms         ConsentForm[]
-  
+  intakeResponses        IntakeResponse[]        @relation("intakeResponses")
+  consentForms           ConsentForm[]
+
   // AI Analysis Relations
   questionnaireAnalyses QuestionnaireAnalysis[]
-  
+
   // AI Insights Relations
-  aiInsights            AIInsight[]
-  therapeuticGoals      TherapeuticGoal[]
-  emotionLogs           EmotionLog[]
+  aiInsights       AIInsight[]
+  therapeuticGoals TherapeuticGoal[]
+  emotionLogs      EmotionLog[]
+
+  // Cardcom — saved tokens for recurring billing
+  savedCardTokens SavedCardToken[]
+
+  // Cardcom — invoices issued TO this client (USER tenant)
+  cardcomInvoicesReceived CardcomInvoice[] @relation("CardcomInvoiceRecipient")
 }
 
 enum ClientStatus {
@@ -336,7 +359,7 @@ model TherapySession {
   status      SessionStatus @default(SCHEDULED)
   type        SessionType   @default(IN_PERSON)
   price       Decimal       @db.Decimal(10, 2)
-  topic       String?       @db.Text  // נושא הפגישה (חובה לפגישת ייעוץ)
+  topic       String?       @db.Text // נושא הפגישה (חובה לפגישת ייעוץ)
   notes       String?       @db.Text
   location    String?
   isRecurring Boolean       @default(false)
@@ -349,12 +372,12 @@ model TherapySession {
   cancelledBy             String? // 'CLIENT', 'THERAPIST', 'SYSTEM'
 
   // Google Calendar sync
-  googleEventId           String?
+  googleEventId String?
 
   // Shabbat outbox — מסומן true אם הפגישה נוצרה בשבת/חג ושליחת ההודעות נדחתה
-  pendingConfirmationEmail     Boolean @default(false) // מייל אישור ללקוח
-  pendingConfirmationSms       Boolean @default(false) // SMS אישור ללקוח
-  pendingTherapistNotifyEmail  Boolean @default(false) // מייל התראה למטפל
+  pendingConfirmationEmail    Boolean @default(false) // מייל אישור ללקוח
+  pendingConfirmationSms      Boolean @default(false) // SMS אישור ללקוח
+  pendingTherapistNotifyEmail Boolean @default(false) // מייל התראה למטפל
 
   createdAt DateTime @default(now())
   updatedAt DateTime @updatedAt
@@ -372,10 +395,10 @@ model TherapySession {
   communicationLogs    CommunicationLog[]
   smsReminders         SMSReminder[]
   insurerReports       InsurerReport[]
-  
+
   // AI Analysis
-  sessionAnalysis      SessionAnalysis?
-  emotionLogs          EmotionLog[]
+  sessionAnalysis SessionAnalysis?
+  emotionLogs     EmotionLog[]
 }
 
 enum SessionStatus {
@@ -482,10 +505,18 @@ model Payment {
   paidAt         DateTime?
   createdAt      DateTime      @default(now())
   updatedAt      DateTime      @updatedAt
-  
+
   // Receipt tracking
-  receiptNumber  String?       // מספר קבלה (לעוסק פטור)
-  hasReceipt     Boolean       @default(false) // האם הוצאה קבלה
+  receiptNumber String? // מספר קבלה (לעוסק פטור)
+  hasReceipt    Boolean @default(false) // האם הוצאה קבלה
+
+  // Cardcom decline tracking — surfaced to the therapist UI as "ניסיון אחרון נכשל"
+  lastDeclineReason String?   @db.Text
+  lastDeclineAt     DateTime?
+
+  // Currency — ILS today; column exists so multi-currency work in V2 doesn't
+  // require a row-by-row migration on production data.
+  currency String @default("ILS")
 
   clientId String
   client   Client @relation(fields: [clientId], references: [id], onDelete: Cascade)
@@ -497,6 +528,10 @@ model Payment {
   parentPaymentId String?
   parentPayment   Payment?  @relation("PaymentChildren", fields: [parentPaymentId], references: [id], onDelete: Cascade)
   childPayments   Payment[] @relation("PaymentChildren")
+
+  // Cardcom — transactions and invoices linked to this payment
+  cardcomTransactions CardcomTransaction[]
+  cardcomInvoices     CardcomInvoice[]
 
   @@index([parentPaymentId])
   @@index([clientId])
@@ -516,16 +551,24 @@ enum PaymentMethod {
 
 // Business type for receipt handling
 enum BusinessType {
-  NONE          // לא רוצה קבלות
-  EXEMPT        // עוסק פטור - קבלות פנימיות
-  LICENSED      // עוסק מורשה - מחובר למערכת חיצונית
+  NONE // לא רוצה קבלות
+  EXEMPT // עוסק פטור - קבלות פנימיות
+  LICENSED // עוסק מורשה - מחובר למערכת חיצונית
+}
+
+// Israeli accounting method:
+//   CASH    — מקבל-תשלום: invoice issued at payment time (most freelancers).
+//   ACCRUAL — מצטבר: tax invoice at agreement, separate receipt at payment.
+enum AccountingMethod {
+  CASH
+  ACCRUAL
 }
 
 // Default receipt mode
 enum ReceiptMode {
-  ALWAYS        // תמיד להוציא קבלה
-  ASK           // לשאול בכל תשלום
-  NEVER         // לעולם לא
+  ALWAYS // תמיד להוציא קבלה
+  ASK // לשאול בכל תשלום
+  NEVER // לעולם לא
 }
 
 enum PaymentStatus {
@@ -536,9 +579,9 @@ enum PaymentStatus {
 }
 
 enum PaymentType {
-  FULL     // תשלום מלא
-  PARTIAL  // תשלום חלקי
-  ADVANCE  // תשלום מראש (קרדיט)
+  FULL // תשלום מלא
+  PARTIAL // תשלום חלקי
+  ADVANCE // תשלום מראש (קרדיט)
 }
 
 // ==================== Documents ====================
@@ -731,6 +774,14 @@ model SubscriptionPayment {
 
   userId String
   user   User   @relation(fields: [userId], references: [id], onDelete: Cascade)
+
+  // Cardcom — auto-charge fields (V2: cron) + relations
+  autoChargeEnabled   Boolean              @default(false)
+  savedCardTokenId    String?
+  savedCardToken      SavedCardToken?      @relation(fields: [savedCardTokenId], references: [id], onDelete: SetNull)
+  nextChargeAt        DateTime?
+  cardcomTransactions CardcomTransaction[]
+  cardcomInvoices     CardcomInvoice[]
 }
 
 enum SubscriptionPaymentStatus {
@@ -745,31 +796,31 @@ enum SubscriptionPaymentStatus {
 // רשומות הוכחה חוקיות - לעולם לא למחוק!
 
 model TermsAcceptance {
-  id              String   @id @default(cuid())
-  
+  id String @id @default(cuid())
+
   // מי אישר
-  userId          String
-  user            User     @relation(fields: [userId], references: [id]) // NO cascade - שומר הוכחה גם אם המשתמש נמחק
-  userEmail       String   // מייל בזמן האישור (backup אם המשתמש ישנה מייל)
-  userName        String?  // שם בזמן האישור
-  
+  userId    String
+  user      User    @relation(fields: [userId], references: [id]) // NO cascade - שומר הוכחה גם אם המשתמש נמחק
+  userEmail String // מייל בזמן האישור (backup אם המשתמש ישנה מייל)
+  userName  String? // שם בזמן האישור
+
   // מה אושר
-  termsVersion    String   @default("1.0") // גרסת התנאים שאושרו
-  termsType       String   // SUBSCRIPTION_TERMS | PRIVACY_POLICY | CANCELLATION_POLICY
-  acceptedContent String   @db.Text // תקציר התנאים שאושרו
-  
+  termsVersion    String @default("1.0") // גרסת התנאים שאושרו
+  termsType       String // SUBSCRIPTION_TERMS | PRIVACY_POLICY | CANCELLATION_POLICY
+  acceptedContent String @db.Text // תקציר התנאים שאושרו
+
   // הקשר הפעולה
-  action          String   // SUBSCRIPTION_CREATE | SUBSCRIPTION_UPGRADE | SUBSCRIPTION_RENEW
-  planSelected    String?  // ESSENTIAL | PRO | ENTERPRISE
-  billingMonths   Int?     // 1 | 3 | 6 | 12
-  amountAgreed    Decimal? @db.Decimal(10, 2) // הסכום שהוסכם
+  action        String // SUBSCRIPTION_CREATE | SUBSCRIPTION_UPGRADE | SUBSCRIPTION_RENEW
+  planSelected  String? // ESSENTIAL | PRO | ENTERPRISE
+  billingMonths Int? // 1 | 3 | 6 | 12
+  amountAgreed  Decimal? @db.Decimal(10, 2) // הסכום שהוסכם
 
   // פרטי זיהוי (הוכחה חוקית)
-  ipAddress       String?  // כתובת IP
-  userAgent       String?  @db.Text // דפדפן/מכשיר
-  
-  createdAt       DateTime @default(now())
-  
+  ipAddress String? // כתובת IP
+  userAgent String? @db.Text // דפדפן/מכשיר
+
+  createdAt DateTime @default(now())
+
   @@index([userId])
   @@index([createdAt])
   @@index([termsType])
@@ -815,13 +866,13 @@ model CommunicationLog {
   errorMessage String?              @db.Text
   sentAt       DateTime?
   createdAt    DateTime             @default(now())
-  
+
   // Email tracking fields
-  messageId    String?              // Resend message ID for tracking replies
-  inReplyTo    String?              // ID of the message this is replying to
-  isRead       Boolean              @default(false) // Has therapist read this reply?
-  readAt       DateTime?            // When was it read?
-  attachments  Json?                // [{id, filename, contentType, size, resendEmailId}]
+  messageId   String? // Resend message ID for tracking replies
+  inReplyTo   String? // ID of the message this is replying to
+  isRead      Boolean   @default(false) // Has therapist read this reply?
+  readAt      DateTime? // When was it read?
+  attachments Json? // [{id, filename, contentType, size, resendEmailId}]
 
   sessionId String?
   session   TherapySession? @relation(fields: [sessionId], references: [id], onDelete: SetNull)
@@ -871,7 +922,7 @@ enum CommunicationStatus {
   SENT
   FAILED
   RECEIVED
-  DISMISSED   // כשל שסומן כטופל ע"י המשתמש
+  DISMISSED // כשל שסומן כטופל ע"י המשתמש
 }
 
 // ==================== Communication Settings ====================
@@ -880,64 +931,64 @@ model CommunicationSetting {
   id String @id @default(cuid())
 
   // Session notifications
-  sendConfirmationEmail  Boolean @default(true)
-  send24hReminder        Boolean @default(true)
-  send2hReminder         Boolean @default(false)
-  customReminderEnabled  Boolean @default(false)
-  customReminderHours    Int     @default(2)
+  sendConfirmationEmail Boolean @default(true)
+  send24hReminder       Boolean @default(true)
+  send2hReminder        Boolean @default(false)
+  customReminderEnabled Boolean @default(false)
+  customReminderHours   Int     @default(2)
 
   // Cancellation policy
   allowClientCancellation Boolean @default(true)
   minCancellationHours    Int     @default(24)
 
   // Debt reminders
-  sendDebtReminders       Boolean @default(false) // שליחת תזכורות חוב אוטומטיות
-  debtReminderDayOfMonth  Int     @default(1)     // יום בחודש (1-28)
-  debtReminderMinAmount   Decimal @default(50)    // סכום מינימלי לשליחת תזכורת
+  sendDebtReminders      Boolean @default(false) // שליחת תזכורות חוב אוטומטיות
+  debtReminderDayOfMonth Int     @default(1) // יום בחודש (1-28)
+  debtReminderMinAmount  Decimal @default(50) // סכום מינימלי לשליחת תזכורת
 
   // Payment receipts
-  sendPaymentReceipt      Boolean @default(false) // שליחת קבלה אוטומטית אחרי תשלום
-  sendReceiptToClient     Boolean @default(true)  // שלח קבלה למטופל
-  sendReceiptToTherapist  Boolean @default(false) // שלח עותק למטפל
-  receiptEmailTemplate    String? @db.Text        // תבנית מותאמת אישית לקבלה
+  sendPaymentReceipt     Boolean @default(false) // שליחת קבלה אוטומטית אחרי תשלום
+  sendReceiptToClient    Boolean @default(true) // שלח קבלה למטופל
+  sendReceiptToTherapist Boolean @default(false) // שלח עותק למטפל
+  receiptEmailTemplate   String? @db.Text // תבנית מותאמת אישית לקבלה
 
   // Email customization
-  paymentInstructions     String? @db.Text // הוראות תשלום מותאמות אישית
-  paymentLink             String? // קישור לתשלום ישיר (ביט/פייבוקס וכו')
-  emailSignature          String? @db.Text // חתימה אישית
-  logoUrl                 String? // URL ללוגו
-  customGreeting          String? // ברכת פתיחה מותאמת (למשל: "היי {שם}, מקווה שהשבוע עבר בטוב")
-  customClosing           String? // ברכת סיום מותאמת (למשל: "תודה ומחכה לראותך")
-  businessHours           String? // שעות פעילות (טקסט חופשי)
+  paymentInstructions String? @db.Text // הוראות תשלום מותאמות אישית
+  paymentLink         String? // קישור לתשלום ישיר (ביט/פייבוקס וכו')
+  emailSignature      String? @db.Text // חתימה אישית
+  logoUrl             String? // URL ללוגו
+  customGreeting      String? // ברכת פתיחה מותאמת (למשל: "היי {שם}, מקווה שהשבוע עבר בטוב")
+  customClosing       String? // ברכת סיום מותאמת (למשל: "תודה ומחכה לראותך")
+  businessHours       String? // שעות פעילות (טקסט חופשי)
 
   // ── SMS toggles (per-type, independent from email) ──
-  sendBookingConfirmationSMS Boolean @default(true)  // אישור הזמנה ב-SMS
-  sendReminder24hSMS         Boolean @default(true)  // תזכורת 24 שעות ב-SMS
+  sendBookingConfirmationSMS Boolean @default(true) // אישור הזמנה ב-SMS
+  sendReminder24hSMS         Boolean @default(true) // תזכורת 24 שעות ב-SMS
   sendReminderCustomSMS      Boolean @default(false) // תזכורת מותאמת ב-SMS
-  sendCancellationSMS        Boolean @default(true)  // הודעת ביטול ב-SMS
-  sendSessionChangeSMS       Boolean @default(true)  // הודעת שינוי פגישה ב-SMS
+  sendCancellationSMS        Boolean @default(true) // הודעת ביטול ב-SMS
+  sendSessionChangeSMS       Boolean @default(true) // הודעת שינוי פגישה ב-SMS
   sendNoShowSMS              Boolean @default(false) // הודעת "לא הגיע" ב-SMS
   sendDebtReminderSMS        Boolean @default(false) // תזכורת חוב ב-SMS
 
   // ── Email toggles for new types ──
-  sendCancellationEmail      Boolean @default(true)  // הודעת ביטול במייל
-  sendSessionChangeEmail     Boolean @default(true)  // הודעת שינוי פגישה במייל
-  sendNoShowEmail            Boolean @default(false) // הודעת "לא הגיע" במייל
+  sendCancellationEmail  Boolean @default(true) // הודעת ביטול במייל
+  sendSessionChangeEmail Boolean @default(true) // הודעת שינוי פגישה במייל
+  sendNoShowEmail        Boolean @default(false) // הודעת "לא הגיע" במייל
 
   // ── SMS quota management ──
-  smsMonthlyQuota     Int       @default(200)  // מכסה חודשית
-  smsMonthlyUsage     Int       @default(0)    // שימוש החודש
-  smsQuotaResetDate   DateTime?                // תאריך איפוס אחרון
-  smsAlertAtPercent   Int       @default(80)   // התראה באחוז ניצול
+  smsMonthlyQuota   Int       @default(200) // מכסה חודשית
+  smsMonthlyUsage   Int       @default(0) // שימוש החודש
+  smsQuotaResetDate DateTime? // תאריך איפוס אחרון
+  smsAlertAtPercent Int       @default(80) // התראה באחוז ניצול
 
   // ── SMS templates (customizable per type) ──
-  templateBookingConfirmSMS  String? @db.Text // "שלום {שם}, ההזמנה התקבלה! פגישה ב-{תאריך} ב-{שעה}"
-  templateReminder24hSMS     String? @db.Text // "שלום {שם}, תזכורת לפגישה מחר ({יום}) ב-{שעה}"
-  templateReminderCustomSMS  String? @db.Text // "שלום {שם}, פגישה בעוד {שעות} שעות ב-{שעה}"
-  templateCancellationSMS    String? @db.Text // "שלום {שם}, הפגישה ב-{תאריך} ב-{שעה} בוטלה"
-  templateSessionChangeSMS   String? @db.Text // "שלום {שם}, הפגישה הועברה ל-{תאריך} ב-{שעה}"
-  templateNoShowSMS          String? @db.Text // "שלום {שם}, חבל שלא הגעת היום. ליצירת קשר: {טלפון}"
-  templateDebtReminderSMS    String? @db.Text // "שלום {שם}, יש יתרה פתוחה של {סכום}. פרטים נשלחו במייל"
+  templateBookingConfirmSMS String? @db.Text // "שלום {שם}, ההזמנה התקבלה! פגישה ב-{תאריך} ב-{שעה}"
+  templateReminder24hSMS    String? @db.Text // "שלום {שם}, תזכורת לפגישה מחר ({יום}) ב-{שעה}"
+  templateReminderCustomSMS String? @db.Text // "שלום {שם}, פגישה בעוד {שעות} שעות ב-{שעה}"
+  templateCancellationSMS   String? @db.Text // "שלום {שם}, הפגישה ב-{תאריך} ב-{שעה} בוטלה"
+  templateSessionChangeSMS  String? @db.Text // "שלום {שם}, הפגישה הועברה ל-{תאריך} ב-{שעה}"
+  templateNoShowSMS         String? @db.Text // "שלום {שם}, חבל שלא הגעת היום. ליצירת קשר: {טלפון}"
+  templateDebtReminderSMS   String? @db.Text // "שלום {שם}, יש יתרה פתוחה של {סכום}. פרטים נשלחו במייל"
 
   createdAt DateTime @default(now())
   updatedAt DateTime @updatedAt
@@ -949,42 +1000,47 @@ model CommunicationSetting {
 // ==================== Billing & Payment Integration ====================
 
 enum BillingProviderType {
-  MESHULAM      // משולם - סליקה + קבלות
-  ICOUNT        // iCount - קבלות בלבד
+  MESHULAM // משולם - סליקה + קבלות
+  ICOUNT // iCount - קבלות בלבד
   GREEN_INVOICE // חשבונית ירוקה - קבלות בלבד
-  SUMIT         // סאמיט - קבלות + סליקה
-  PAYPLUS       // PayPlus - סליקה בלבד
-  CARDCOM       // CardCom - סליקה בלבד
-  TRANZILA      // טרנזילה - סליקה בלבד
+  SUMIT // סאמיט - קבלות + סליקה
+  PAYPLUS // PayPlus - סליקה בלבד
+  CARDCOM // CardCom - סליקה בלבד
+  TRANZILA // טרנזילה - סליקה בלבד
 }
 
 model BillingProvider {
-  id            String              @id @default(cuid())
-  provider      BillingProviderType
-  displayName   String              // שם להצגה (למשל: "Meshulam - חשבון ראשי")
-  
+  id          String              @id @default(cuid())
+  provider    BillingProviderType
+  displayName String // שם להצגה (למשל: "Meshulam - חשבון ראשי")
+
   // API Credentials (מוצפן!)
-  apiKey        String              @db.Text // ENCRYPTED
-  apiSecret     String?             @db.Text // ENCRYPTED (אופציונלי)
-  webhookSecret String?             @db.Text // לאימות Webhooks
-  
+  apiKey                          String    @db.Text // ENCRYPTED
+  apiSecret                       String?   @db.Text // ENCRYPTED (אופציונלי)
+  webhookSecret                   String?   @db.Text // לאימות Webhooks
+  // Previous webhook secret kept for `previousWebhookSecretValidUntil` so
+  // rotating credentials doesn't reject in-flight retries. Set automatically
+  // when `webhookSecret` is updated, expires after 24 hours.
+  previousWebhookSecret           String?   @db.Text
+  previousWebhookSecretValidUntil DateTime?
+
   // הגדרות נוספות
-  isActive      Boolean             @default(true)
-  isPrimary     Boolean             @default(false) // האם זה הספק הראשי
-  
+  isActive  Boolean @default(true)
+  isPrimary Boolean @default(false) // האם זה הספק הראשי
+
   // הגדרות התנהגות
-  settings      Json?               // { discreteMode: true, defaultDescription: "ייעוץ", autoSendReceipt: true }
-  
+  settings Json? // { discreteMode: true, defaultDescription: "ייעוץ", autoSendReceipt: true }
+
   // מטא-דאטה
-  lastSyncAt    DateTime?           // מתי התבצע סנכרון אחרון
-  lastError     String?             @db.Text
-  createdAt     DateTime            @default(now())
-  updatedAt     DateTime            @updatedAt
-  
+  lastSyncAt DateTime? // מתי התבצע סנכרון אחרון
+  lastError  String?   @db.Text
+  createdAt  DateTime  @default(now())
+  updatedAt  DateTime  @updatedAt
+
   // קשר למשתמש
-  userId        String
-  user          User                @relation(fields: [userId], references: [id], onDelete: Cascade)
-  
+  userId String
+  user   User   @relation(fields: [userId], references: [id], onDelete: Cascade)
+
   @@index([userId])
   @@index([provider])
   @@index([userId, isPrimary])
@@ -993,44 +1049,44 @@ model BillingProvider {
 // ==================== Coupon System ====================
 
 enum CouponType {
-  SINGLE_USE     // קופון חד-פעמי - לקוח ספציפי
-  LIMITED        // מוגבל למספר שימושים
-  UNLIMITED      // ללא הגבלה
+  SINGLE_USE // קופון חד-פעמי - לקוח ספציפי
+  LIMITED // מוגבל למספר שימושים
+  UNLIMITED // ללא הגבלה
 }
 
 model Coupon {
-  id          String      @id @default(cuid())
-  code        String      @unique // הקוד עצמו
-  name        String      // שם לתיאור (לנוחות ניהול)
-  type        CouponType  @default(LIMITED)
-  
-  maxUses     Int?        // מקסימום שימושים (null = ללא הגבלה)
-  usedCount   Int         @default(0) // כמה פעמים השתמשו
-  
-  discount    Int         @default(0) // אחוז הנחה (לעתיד)
-  trialDays   Int         @default(30) // ימי ניסיון
-  
-  validFrom   DateTime    @default(now()) // תחילת תוקף
-  validUntil  DateTime?   // תאריך תפוגה (null = ללא תפוגה)
-  
-  isActive    Boolean     @default(true) // האם פעיל
-  
-  createdAt   DateTime    @default(now())
-  updatedAt   DateTime    @updatedAt
-  
+  id   String     @id @default(cuid())
+  code String     @unique // הקוד עצמו
+  name String // שם לתיאור (לנוחות ניהול)
+  type CouponType @default(LIMITED)
+
+  maxUses   Int? // מקסימום שימושים (null = ללא הגבלה)
+  usedCount Int  @default(0) // כמה פעמים השתמשו
+
+  discount  Int @default(0) // אחוז הנחה (לעתיד)
+  trialDays Int @default(30) // ימי ניסיון
+
+  validFrom  DateTime  @default(now()) // תחילת תוקף
+  validUntil DateTime? // תאריך תפוגה (null = ללא תפוגה)
+
+  isActive Boolean @default(true) // האם פעיל
+
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+
   // מי השתמש בקופון
-  usages      CouponUsage[]
+  usages CouponUsage[]
 }
 
 model CouponUsage {
-  id        String   @id @default(cuid())
-  couponId  String
-  userId    String
-  usedAt    DateTime @default(now())
-  
-  coupon    Coupon   @relation(fields: [couponId], references: [id], onDelete: Cascade)
-  user      User     @relation(fields: [userId], references: [id], onDelete: Cascade)
-  
+  id       String   @id @default(cuid())
+  couponId String
+  userId   String
+  usedAt   DateTime @default(now())
+
+  coupon Coupon @relation(fields: [couponId], references: [id], onDelete: Cascade)
+  user   User   @relation(fields: [userId], references: [id], onDelete: Cascade)
+
   @@unique([couponId, userId]) // משתמש יכול להשתמש בקופון פעם אחת
 }
 
@@ -1039,52 +1095,52 @@ model CouponUsage {
 model QuestionnaireTemplate {
   id          String   @id @default(cuid())
   code        String   @unique // e.g., "BDI2", "PCL5", "HAMA"
-  name        String   // e.g., "מדד דיכאון בק"
-  nameEn      String?  // e.g., "Beck Depression Inventory"
+  name        String // e.g., "מדד דיכאון בק"
+  nameEn      String? // e.g., "Beck Depression Inventory"
   description String?  @db.Text
-  category    String?  // e.g., "דיכאון", "חרדה", "טראומה"
+  category    String? // e.g., "דיכאון", "חרדה", "טראומה"
   testType    TestType @default(SELF_REPORT) // סוג המבחן
-  questions   Json     // Array of questions with options
-  scoring     Json?    // Scoring instructions
-  stimuli     Json?    // For projective tests - images/cards
-  subtests    Json?    // For intelligence tests - subtests
+  questions   Json // Array of questions with options
+  scoring     Json? // Scoring instructions
+  stimuli     Json? // For projective tests - images/cards
+  subtests    Json? // For intelligence tests - subtests
   isActive    Boolean  @default(true)
   createdAt   DateTime @default(now())
   updatedAt   DateTime @updatedAt
-  
-  responses   QuestionnaireResponse[]
+
+  responses QuestionnaireResponse[]
 }
 
 enum TestType {
-  SELF_REPORT      // שאלון דיווח עצמי (BDI, PCL-5)
-  CLINICIAN_RATED  // הערכה קלינית (HAM-A)
-  PROJECTIVE       // מבחן השלכתי (רורשאך, TAT)
-  INTELLIGENCE     // מבחן אינטליגנציה (וקסלר)
-  NEUROPSYCH       // מבחן נוירופסיכולוגי (Bender)
-  INTERVIEW        // ראיון מובנה (SCID)
+  SELF_REPORT // שאלון דיווח עצמי (BDI, PCL-5)
+  CLINICIAN_RATED // הערכה קלינית (HAM-A)
+  PROJECTIVE // מבחן השלכתי (רורשאך, TAT)
+  INTELLIGENCE // מבחן אינטליגנציה (וקסלר)
+  NEUROPSYCH // מבחן נוירופסיכולוגי (Bender)
+  INTERVIEW // ראיון מובנה (SCID)
 }
 
 model QuestionnaireResponse {
-  id            String   @id @default(cuid())
-  answers       Json     // Array of answers
-  totalScore    Int?     // Calculated total score
-  subscores     Json?    // Category/criterion scores
-  aiAnalysis    String?  @db.Text // AI analysis of results
-  status        QuestionnaireStatus @default(IN_PROGRESS)
-  startedAt     DateTime @default(now())
-  completedAt   DateTime?
-  createdAt     DateTime @default(now())
-  updatedAt     DateTime @updatedAt
-  
-  templateId    String
-  template      QuestionnaireTemplate @relation(fields: [templateId], references: [id], onDelete: Cascade)
-  
-  clientId      String
-  client        Client @relation(fields: [clientId], references: [id], onDelete: Cascade)
-  
-  therapistId   String
-  therapist     User   @relation(fields: [therapistId], references: [id], onDelete: Cascade)
-  
+  id          String              @id @default(cuid())
+  answers     Json // Array of answers
+  totalScore  Int? // Calculated total score
+  subscores   Json? // Category/criterion scores
+  aiAnalysis  String?             @db.Text // AI analysis of results
+  status      QuestionnaireStatus @default(IN_PROGRESS)
+  startedAt   DateTime            @default(now())
+  completedAt DateTime?
+  createdAt   DateTime            @default(now())
+  updatedAt   DateTime            @updatedAt
+
+  templateId String
+  template   QuestionnaireTemplate @relation(fields: [templateId], references: [id], onDelete: Cascade)
+
+  clientId String
+  client   Client @relation(fields: [clientId], references: [id], onDelete: Cascade)
+
+  therapistId String
+  therapist   User   @relation(fields: [therapistId], references: [id], onDelete: Cascade)
+
   // AI Analysis Relations
   questionnaireAnalyses QuestionnaireAnalysis[]
 }
@@ -1098,36 +1154,36 @@ enum QuestionnaireStatus {
 // ==================== Intake Questionnaires (Simple) ====================
 
 model IntakeQuestionnaire {
-  id          String   @id @default(cuid())
-  userId      String
-  user        User     @relation("intakeQuestionnaires", fields: [userId], references: [id], onDelete: Cascade)
-  
-  name        String   // "תשאול ראשוני"
-  description String?  // תיאור קצר
-  isDefault   Boolean  @default(false)  // ברירת מחדל?
-  isActive    Boolean  @default(true)   // פעיל?
-  questions   Json     // מערך שאלות פשוטות
-  
-  createdAt   DateTime @default(now())
-  updatedAt   DateTime @updatedAt
-  
-  responses   IntakeResponse[]
-  
+  id     String @id @default(cuid())
+  userId String
+  user   User   @relation("intakeQuestionnaires", fields: [userId], references: [id], onDelete: Cascade)
+
+  name        String // "תשאול ראשוני"
+  description String? // תיאור קצר
+  isDefault   Boolean @default(false) // ברירת מחדל?
+  isActive    Boolean @default(true) // פעיל?
+  questions   Json // מערך שאלות פשוטות
+
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+
+  responses IntakeResponse[]
+
   @@index([userId])
   @@index([userId, isDefault])
 }
 
 model IntakeResponse {
-  id         String   @id @default(cuid())
+  id         String              @id @default(cuid())
   clientId   String
-  client     Client   @relation("intakeResponses", fields: [clientId], references: [id], onDelete: Cascade)
+  client     Client              @relation("intakeResponses", fields: [clientId], references: [id], onDelete: Cascade)
   templateId String
   template   IntakeQuestionnaire @relation(fields: [templateId], references: [id], onDelete: Cascade)
-  
-  responses  Json     // התשובות (key-value pairs)
-  filledAt   DateTime @default(now())
-  updatedAt  DateTime @updatedAt
-  
+
+  responses Json // התשובות (key-value pairs)
+  filledAt  DateTime @default(now())
+  updatedAt DateTime @updatedAt
+
   @@index([clientId])
   @@index([templateId])
 }
@@ -1135,15 +1191,15 @@ model IntakeResponse {
 // ==================== SMS Reminders ====================
 
 model SMSReminder {
-  id            String   @id @default(cuid())
-  phoneNumber   String
-  message       String   @db.Text
-  scheduledFor  DateTime
-  sentAt        DateTime?
-  status        SMSStatus @default(PENDING)
-  errorMessage  String?  @db.Text
-  createdAt     DateTime @default(now())
-  updatedAt     DateTime @updatedAt
+  id           String    @id @default(cuid())
+  phoneNumber  String
+  message      String    @db.Text
+  scheduledFor DateTime
+  sentAt       DateTime?
+  status       SMSStatus @default(PENDING)
+  errorMessage String?   @db.Text
+  createdAt    DateTime  @default(now())
+  updatedAt    DateTime  @updatedAt
 
   sessionId String
   session   TherapySession @relation(fields: [sessionId], references: [id], onDelete: Cascade)
@@ -1160,13 +1216,13 @@ enum SMSStatus {
 }
 
 model SMSSettings {
-  id                    String   @id @default(cuid())
-  enabled               Boolean  @default(false)
-  hoursBeforeReminder   Int      @default(24) // Hours before session to send reminder
-  customMessage         String?  @db.Text
-  sendOnWeekends        Boolean  @default(true)
-  createdAt             DateTime @default(now())
-  updatedAt             DateTime @updatedAt
+  id                  String   @id @default(cuid())
+  enabled             Boolean  @default(false)
+  hoursBeforeReminder Int      @default(24) // Hours before session to send reminder
+  customMessage       String?  @db.Text
+  sendOnWeekends      Boolean  @default(true)
+  createdAt           DateTime @default(now())
+  updatedAt           DateTime @updatedAt
 
   therapistId String @unique
   therapist   User   @relation(fields: [therapistId], references: [id], onDelete: Cascade)
@@ -1175,15 +1231,15 @@ model SMSSettings {
 // ==================== Consent Forms ====================
 
 model ConsentForm {
-  id            String   @id @default(cuid())
+  id            String      @id @default(cuid())
   type          ConsentType
   title         String
-  content       String   @db.Text // HTML content of the form
-  isTemplate    Boolean  @default(false) // Is this a reusable template?
+  content       String      @db.Text // HTML content of the form
+  isTemplate    Boolean     @default(false) // Is this a reusable template?
   signedAt      DateTime?
-  signatureData String?  @db.Text // Base64 signature image
-  createdAt     DateTime @default(now())
-  updatedAt     DateTime @updatedAt
+  signatureData String?     @db.Text // Base64 signature image
+  createdAt     DateTime    @default(now())
+  updatedAt     DateTime    @updatedAt
 
   clientId String?
   client   Client? @relation(fields: [clientId], references: [id], onDelete: Cascade)
@@ -1196,59 +1252,59 @@ model ConsentForm {
 }
 
 enum ConsentType {
-  TREATMENT_AGREEMENT    // הסכם טיפול
-  INFORMED_CONSENT       // הסכמה מדעת
-  CONFIDENTIALITY        // הסכם סודיות
-  RECORDING_CONSENT      // הסכמה להקלטה
-  TELEHEALTH_CONSENT     // הסכמה לטיפול מרחוק
-  PARENTAL_CONSENT       // הסכמת הורים (קטינים)
-  CUSTOM                 // טופס מותאם אישית
+  TREATMENT_AGREEMENT // הסכם טיפול
+  INFORMED_CONSENT // הסכמה מדעת
+  CONFIDENTIALITY // הסכם סודיות
+  RECORDING_CONSENT // הסכמה להקלטה
+  TELEHEALTH_CONSENT // הסכמה לטיפול מרחוק
+  PARENTAL_CONSENT // הסכמת הורים (קטינים)
+  CUSTOM // טופס מותאם אישית
 }
 
 // ==================== Health Insurance Integration ====================
 
 model InsurerSettings {
-  id          String   @id @default(cuid())
-  enabled     Boolean  @default(false)
-  
+  id      String  @id @default(cuid())
+  enabled Boolean @default(false)
+
   // Clalit - כללית
   clalitEnabled    Boolean @default(false)
   clalitApiKey     String?
   clalitFacilityId String?
-  
+
   // Maccabi - מכבי
   maccabiEnabled    Boolean @default(false)
   maccabiApiKey     String?
   maccabiProviderId String?
-  
+
   // Meuhedet - מאוחדת
   meuhedetEnabled  Boolean @default(false)
   meuhedetUsername String?
   meuhedetPassword String?
-  
+
   // Leumit - לאומית
-  leumitEnabled   Boolean @default(false)
-  leumitApiKey    String?
+  leumitEnabled    Boolean @default(false)
+  leumitApiKey     String?
   leumitClinicCode String?
-  
-  autoSubmit      Boolean @default(false) // Auto-submit reports after session
-  createdAt       DateTime @default(now())
-  updatedAt       DateTime @updatedAt
+
+  autoSubmit Boolean  @default(false) // Auto-submit reports after session
+  createdAt  DateTime @default(now())
+  updatedAt  DateTime @updatedAt
 
   therapistId String @unique
   therapist   User   @relation(fields: [therapistId], references: [id], onDelete: Cascade)
 }
 
 model InsurerReport {
-  id              String   @id @default(cuid())
-  insurer         HealthInsurer
-  reportData      String   @db.Text // JSON formatted report
-  status          ReportStatus @default(DRAFT)
-  submittedAt     DateTime?
+  id               String        @id @default(cuid())
+  insurer          HealthInsurer
+  reportData       String        @db.Text // JSON formatted report
+  status           ReportStatus  @default(DRAFT)
+  submittedAt      DateTime?
   confirmationCode String?
-  errorMessage    String?  @db.Text
-  createdAt       DateTime @default(now())
-  updatedAt       DateTime @updatedAt
+  errorMessage     String?       @db.Text
+  createdAt        DateTime      @default(now())
+  updatedAt        DateTime      @updatedAt
 
   sessionId String
   session   TherapySession @relation(fields: [sessionId], references: [id], onDelete: Cascade)
@@ -1280,50 +1336,50 @@ enum ReportStatus {
 // ==================== AI Usage Tracking ====================
 
 model AIUsageStats {
-  id                String   @id @default(cuid())
-  userId            String   @unique
-  user              User     @relation(fields: [userId], references: [id], onDelete: Cascade)
-  
+  id     String @id @default(cuid())
+  userId String @unique
+  user   User   @relation(fields: [userId], references: [id], onDelete: Cascade)
+
   // Current month stats
-  currentMonthCalls   Int      @default(0)
-  currentMonthTokens  Int      @default(0)
-  currentMonthCost    Decimal  @default(0) @db.Decimal(10, 4)
-  
+  currentMonthCalls  Int     @default(0)
+  currentMonthTokens Int     @default(0)
+  currentMonthCost   Decimal @default(0) @db.Decimal(10, 4)
+
   // Daily stats (reset every day)
-  dailyCalls          Int      @default(0)
-  lastResetDate       DateTime @default(now())
-  
+  dailyCalls    Int      @default(0)
+  lastResetDate DateTime @default(now())
+
   // All-time stats
-  totalCalls          Int      @default(0)
-  totalCost           Decimal  @default(0) @db.Decimal(10, 4)
-  
-  createdAt           DateTime @default(now())
-  updatedAt           DateTime @updatedAt
-  
+  totalCalls Int     @default(0)
+  totalCost  Decimal @default(0) @db.Decimal(10, 4)
+
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+
   @@index([userId])
 }
 
 model SessionPrep {
-  id                String   @id @default(cuid())
-  userId            String
-  user              User     @relation(fields: [userId], references: [id], onDelete: Cascade)
-  
-  clientId          String
-  sessionDate       DateTime
-  
+  id     String @id @default(cuid())
+  userId String
+  user   User   @relation(fields: [userId], references: [id], onDelete: Cascade)
+
+  clientId    String
+  sessionDate DateTime
+
   // AI Analysis content
-  content           String   @db.Text
-  insights          Json?    // Structured insights
-  recommendations   Json?    // Structured recommendations
-  
+  content         String @db.Text
+  insights        Json? // Structured insights
+  recommendations Json? // Structured recommendations
+
   // Metadata
-  aiModel           String   // "gpt-4o", "gpt-4o-mini", "gemini-1.5-flash"
-  tokensUsed        Int
-  cost              Decimal  @db.Decimal(10, 4)
-  generatedAt       DateTime @default(now())
-  
-  createdAt         DateTime @default(now())
-  
+  aiModel     String // "gpt-4o", "gpt-4o-mini", "gemini-1.5-flash"
+  tokensUsed  Int
+  cost        Decimal  @db.Decimal(10, 4)
+  generatedAt DateTime @default(now())
+
+  createdAt DateTime @default(now())
+
   @@index([userId, sessionDate])
   @@index([clientId])
 }
@@ -1331,100 +1387,100 @@ model SessionPrep {
 // ==================== Admin Global Settings ====================
 
 model GlobalAISettings {
-  id                    String   @id @default(cuid())
-  
+  id String @id @default(cuid())
+
   // Rate limits
-  dailyLimitEssential   Int      @default(0)    // 0 = no AI
-  dailyLimitPro         Int      @default(30)   // 30 calls/day
-  dailyLimitEnterprise  Int      @default(100)  // 100 calls/day
-  
-  monthlyLimitEssential Int      @default(0)    // 0 = no AI
-  monthlyLimitPro       Int      @default(600)  // 600 calls/month
-  monthlyLimitEnterprise Int     @default(2000) // 2000 calls/month
-  
+  dailyLimitEssential  Int @default(0) // 0 = no AI
+  dailyLimitPro        Int @default(30) // 30 calls/day
+  dailyLimitEnterprise Int @default(100) // 100 calls/day
+
+  monthlyLimitEssential  Int @default(0) // 0 = no AI
+  monthlyLimitPro        Int @default(600) // 600 calls/month
+  monthlyLimitEnterprise Int @default(2000) // 2000 calls/month
+
   // Cost controls
-  maxMonthlyCostBudget  Decimal  @default(5000) @db.Decimal(10, 2) // Total budget cap
-  alertThreshold        Decimal  @default(4000) @db.Decimal(10, 2) // Alert at 80%
-  
+  maxMonthlyCostBudget Decimal @default(5000) @db.Decimal(10, 2) // Total budget cap
+  alertThreshold       Decimal @default(4000) @db.Decimal(10, 2) // Alert at 80%
+
   // Behavior on limit exceed
-  blockOnExceed         Boolean  @default(false) // Block user or just alert
-  alertAdminOnExceed    Boolean  @default(true)
-  
+  blockOnExceed      Boolean @default(false) // Block user or just alert
+  alertAdminOnExceed Boolean @default(true)
+
   // Feature flags
-  enableCache           Boolean  @default(true)  // Cache identical requests
-  compressPrompts       Boolean  @default(true)  // Compress long prompts
-  
-  updatedAt             DateTime @updatedAt
-  
+  enableCache     Boolean @default(true) // Cache identical requests
+  compressPrompts Boolean @default(true) // Compress long prompts
+
+  updatedAt DateTime @updatedAt
+
   @@map("global_ai_settings")
 }
 
 // ==================== AI Insights System ====================
 
 model AIInsight {
-  id          String       @id @default(cuid())
-  userId      String
-  user        User         @relation(fields: [userId], references: [id], onDelete: Cascade)
-  clientId    String
-  client      Client       @relation(fields: [clientId], references: [id], onDelete: Cascade)
-  
-  type        InsightType  // Type of insight
-  title       String       // Short title
-  content     String       @db.Text // Full content
-  confidence  Float        // 0-1, how confident the AI is
-  
-  metadata    Json?        // Additional structured data
-  
+  id       String @id @default(cuid())
+  userId   String
+  user     User   @relation(fields: [userId], references: [id], onDelete: Cascade)
+  clientId String
+  client   Client @relation(fields: [clientId], references: [id], onDelete: Cascade)
+
+  type       InsightType // Type of insight
+  title      String // Short title
+  content    String      @db.Text // Full content
+  confidence Float // 0-1, how confident the AI is
+
+  metadata Json? // Additional structured data
+
   // Caching and validity
-  validUntil  DateTime     // When this insight expires
-  isStale     Boolean      @default(false)
-  
-  createdAt   DateTime     @default(now())
-  updatedAt   DateTime     @updatedAt
-  
+  validUntil DateTime // When this insight expires
+  isStale    Boolean  @default(false)
+
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+
   @@index([clientId, type])
   @@index([userId, createdAt])
   @@index([validUntil])
 }
 
 enum InsightType {
-  PATTERN           // Behavioral patterns
-  EMOTION_TREND     // Emotional tracking
-  GOAL_PROGRESS     // Goal achievement
-  TECHNIQUE_REC     // Technique recommendations
-  OPEN_ISSUE        // Unresolved topics
-  RELATIONSHIP_MAP  // Key relationships
-  RISK_FLAG         // Warning signs
+  PATTERN // Behavioral patterns
+  EMOTION_TREND // Emotional tracking
+  GOAL_PROGRESS // Goal achievement
+  TECHNIQUE_REC // Technique recommendations
+  OPEN_ISSUE // Unresolved topics
+  RELATIONSHIP_MAP // Key relationships
+  RISK_FLAG // Warning signs
 }
 
 model TherapeuticGoal {
-  id            String   @id @default(cuid())
-  userId        String
-  user          User     @relation(fields: [userId], references: [id], onDelete: Cascade)
-  clientId      String
-  client        Client   @relation(fields: [clientId], references: [id], onDelete: Cascade)
-  
-  title         String   // Goal description
-  category      String?  // e.g., "anxiety", "depression", "relationships"
-  
+  id       String @id @default(cuid())
+  userId   String
+  user     User   @relation(fields: [userId], references: [id], onDelete: Cascade)
+  clientId String
+  client   Client @relation(fields: [clientId], references: [id], onDelete: Cascade)
+
+  title    String // Goal description
+  category String? // e.g., "anxiety", "depression", "relationships"
+
   // Progress tracking
-  startValue    Int      // Initial score (e.g., 8/10)
-  targetValue   Int      // Target score (e.g., 3/10)
-  currentValue  Int      // Current score
-  unit          String   @default("scale") // "scale", "frequency", "percentage"
-  
+  startValue   Int // Initial score (e.g., 8/10)
+  targetValue  Int // Target score (e.g., 3/10)
+  currentValue Int // Current score
+  unit         String @default("scale") // "scale", "frequency", "percentage"
+
   // Calculated
-  progress      Float    // Percentage progress (0-100)
-  trend         String   // "improving", "stable", "declining"
-  
+  progress Float // Percentage progress (0-100)
+  trend    String // "improving", "stable", "declining"
+
   // Timeline
-  startDate     DateTime @default(now())
-  targetDate    DateTime?
-  lastUpdated   DateTime @updatedAt
-  status        GoalStatus @default(ACTIVE)
-  
-  createdAt     DateTime @default(now())
-  
+  startDate   DateTime   @default(now())
+  targetDate  DateTime?
+  lastUpdated DateTime   @updatedAt
+  status      GoalStatus @default(ACTIVE)
+
+  createdAt DateTime @default(now())
+
   @@index([clientId, status])
   @@index([userId])
 }
@@ -1437,28 +1493,28 @@ enum GoalStatus {
 }
 
 model EmotionLog {
-  id          String   @id @default(cuid())
-  userId      String
-  user        User     @relation(fields: [userId], references: [id], onDelete: Cascade)
-  clientId    String
-  client      Client   @relation(fields: [clientId], references: [id], onDelete: Cascade)
-  sessionId   String?
-  session     TherapySession? @relation(fields: [sessionId], references: [id], onDelete: Cascade)
-  
+  id        String          @id @default(cuid())
+  userId    String
+  user      User            @relation(fields: [userId], references: [id], onDelete: Cascade)
+  clientId  String
+  client    Client          @relation(fields: [clientId], references: [id], onDelete: Cascade)
+  sessionId String?
+  session   TherapySession? @relation(fields: [sessionId], references: [id], onDelete: Cascade)
+
   // Emotion data
-  emotion     String   // Primary emotion detected
-  intensity   Int      // 1-10
-  valence     String   // "positive", "negative", "neutral"
-  
+  emotion   String // Primary emotion detected
+  intensity Int // 1-10
+  valence   String // "positive", "negative", "neutral"
+
   // Context
-  context     String?  @db.Text
-  triggers    Json?    // Array of trigger keywords
-  
+  context  String? @db.Text
+  triggers Json? // Array of trigger keywords
+
   // Source
-  source      String   @default("ai_analysis") // "ai_analysis", "manual", "questionnaire"
-  
-  recordedAt  DateTime @default(now())
-  
+  source String @default("ai_analysis") // "ai_analysis", "manual", "questionnaire"
+
+  recordedAt DateTime @default(now())
+
   @@index([clientId, recordedAt])
   @@index([userId])
 }
@@ -1466,175 +1522,175 @@ model EmotionLog {
 // ==================== Questionnaire Analysis ====================
 
 model QuestionnaireAnalysis {
-  id                String   @id @default(cuid())
-  userId            String
-  user              User     @relation(fields: [userId], references: [id], onDelete: Cascade)
-  clientId          String
-  client            Client   @relation(fields: [clientId], references: [id], onDelete: Cascade)
-  
+  id       String @id @default(cuid())
+  userId   String
+  user     User   @relation(fields: [userId], references: [id], onDelete: Cascade)
+  clientId String
+  client   Client @relation(fields: [clientId], references: [id], onDelete: Cascade)
+
   // Analysis type
-  analysisType      QuestionnaireAnalysisType
-  
+  analysisType QuestionnaireAnalysisType
+
   // Single questionnaire analysis
-  responseId        String?
-  response          QuestionnaireResponse? @relation(fields: [responseId], references: [id], onDelete: Cascade)
-  
+  responseId String?
+  response   QuestionnaireResponse? @relation(fields: [responseId], references: [id], onDelete: Cascade)
+
   // Combined analysis - multiple questionnaires
-  responseIds       String[] // Array of response IDs if combined analysis
-  
+  responseIds String[] // Array of response IDs if combined analysis
+
   // Progress report - questionnaires + session summaries
-  sessionIds        String[] // Array of session IDs if progress report
-  dateFrom          DateTime?
-  dateTo            DateTime?
-  
+  sessionIds String[] // Array of session IDs if progress report
+  dateFrom   DateTime?
+  dateTo     DateTime?
+
   // Analysis content
-  content           String   @db.Text
-  insights          Json?    // Structured insights
-  recommendations   Json?    // Structured recommendations
-  
+  content         String @db.Text
+  insights        Json? // Structured insights
+  recommendations Json? // Structured recommendations
+
   // Metadata
-  aiModel           String   // "gpt-4o", "gpt-4o-mini", "gemini-1.5-flash"
-  tokensUsed        Int
-  cost              Decimal  @db.Decimal(10, 4)
-  
-  createdAt         DateTime @default(now())
-  
+  aiModel    String // "gpt-4o", "gpt-4o-mini", "gemini-1.5-flash"
+  tokensUsed Int
+  cost       Decimal @db.Decimal(10, 4)
+
+  createdAt DateTime @default(now())
+
   @@index([userId, clientId])
   @@index([clientId, createdAt])
   @@index([analysisType])
 }
 
 enum QuestionnaireAnalysisType {
-  SINGLE           // Single questionnaire
-  COMBINED         // All questionnaires for a client
-  PROGRESS_REPORT  // Questionnaires + session summaries over time
+  SINGLE // Single questionnaire
+  COMBINED // All questionnaires for a client
+  PROGRESS_REPORT // Questionnaires + session summaries over time
 }
 
 // ==================== Session Analysis (Detailed/Concise) ====================
 
 model SessionAnalysis {
-  id          String   @id @default(cuid())
-  userId      String
-  user        User     @relation(fields: [userId], references: [id], onDelete: Cascade)
-  sessionId   String   @unique
-  session     TherapySession @relation(fields: [sessionId], references: [id], onDelete: Cascade)
-  
+  id        String         @id @default(cuid())
+  userId    String
+  user      User           @relation(fields: [userId], references: [id], onDelete: Cascade)
+  sessionId String         @unique
+  session   TherapySession @relation(fields: [sessionId], references: [id], onDelete: Cascade)
+
   // Analysis type
   analysisType AnalysisType
-  
+
   // Content
-  content     String   @db.Text
-  insights    Json?    // Structured insights
-  
+  content  String @db.Text
+  insights Json? // Structured insights
+
   // Metadata
-  aiModel     String   // "gpt-4o", "gemini-1.5-flash"
-  tokensUsed  Int
-  cost        Decimal  @db.Decimal(10, 4)
-  
-  createdAt   DateTime @default(now())
-  
+  aiModel    String // "gpt-4o", "gemini-1.5-flash"
+  tokensUsed Int
+  cost       Decimal @db.Decimal(10, 4)
+
+  createdAt DateTime @default(now())
+
   @@index([userId, sessionId])
   @@index([analysisType])
 }
 
 enum AnalysisType {
-  CONCISE   // Short analysis (0.5 pages)
-  DETAILED  // Detailed analysis (2-3 pages)
+  CONCISE // Short analysis (0.5 pages)
+  DETAILED // Detailed analysis (2-3 pages)
 }
 
 // ==================== Tier Usage Limits ====================
 
 model TierLimits {
-  id                    String   @id @default(cuid())
-  tier                  AITier   @unique
-  
+  id   String @id @default(cuid())
+  tier AITier @unique
+
   // הכנות לפגישה
-  sessionPrepLimit      Int      @default(0)      // 0 = ללא הגבלה, -1 = חסום
-  
+  sessionPrepLimit Int @default(0) // 0 = ללא הגבלה, -1 = חסום
+
   // ניתוחי פגישה
-  conciseAnalysisLimit  Int      @default(0)      // תמציתי
-  detailedAnalysisLimit Int      @default(0)      // מפורט
-  
+  conciseAnalysisLimit  Int @default(0) // תמציתי
+  detailedAnalysisLimit Int @default(0) // מפורט
+
   // ניתוחי שאלונים
-  singleQuestionnaireLimit  Int  @default(0)      // שאלון בודד
-  combinedQuestionnaireLimit Int @default(0)      // ניתוח משולב
-  progressReportLimit       Int  @default(0)      // דוח התקדמות
-  
+  singleQuestionnaireLimit   Int @default(0) // שאלון בודד
+  combinedQuestionnaireLimit Int @default(0) // ניתוח משולב
+  progressReportLimit        Int @default(0) // דוח התקדמות
+
   // תיאור התוכנית
-  displayNameHe         String   @default("")     // שם בעברית
-  displayNameEn         String   @default("")     // שם באנגלית
-  priceMonthly          Int      @default(0)      // מחיר חודשי בשקלים
-  description           String?  @db.Text         // תיאור התוכנית
-  
-  createdAt             DateTime @default(now())
-  updatedAt             DateTime @updatedAt
-  
+  displayNameHe String  @default("") // שם בעברית
+  displayNameEn String  @default("") // שם באנגלית
+  priceMonthly  Int     @default(0) // מחיר חודשי בשקלים
+  description   String? @db.Text // תיאור התוכנית
+
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+
   @@map("tier_limits")
 }
 
 // ==================== Admin Email Templates ====================
 
 model AdminEmailTemplate {
-  id            String            @id @default(cuid())
-  type          EmailTemplateType
-  
+  id   String            @id @default(cuid())
+  type EmailTemplateType
+
   // Email content
-  subject       String
-  bodyHtml      String            @db.Text
-  bodyText      String?           @db.Text
-  
+  subject  String
+  bodyHtml String  @db.Text
+  bodyText String? @db.Text
+
   // Placeholders documentation
-  placeholders  Json?             // { "{name}": "שם המשתמש", "{amount}": "סכום" }
-  
-  isActive      Boolean           @default(true)
-  
-  createdAt     DateTime          @default(now())
-  updatedAt     DateTime          @updatedAt
-  
+  placeholders Json? // { "{name}": "שם המשתמש", "{amount}": "סכום" }
+
+  isActive Boolean @default(true)
+
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+
   @@unique([type])
   @@map("admin_email_templates")
 }
 
 enum EmailTemplateType {
-  PAYMENT_REMINDER        // תזכורת תשלום
-  PAYMENT_OVERDUE         // תשלום באיחור
-  SUBSCRIPTION_EXPIRING   // מנוי עומד לפוג
-  SUBSCRIPTION_EXPIRED    // מנוי פג
-  WELCOME_NEW_USER        // ברוך הבא
-  TIER_UPGRADE            // שדרוג תוכנית
-  TIER_DOWNGRADE          // שנמוך תוכנית
-  CUSTOM                  // מותאם אישית
+  PAYMENT_REMINDER // תזכורת תשלום
+  PAYMENT_OVERDUE // תשלום באיחור
+  SUBSCRIPTION_EXPIRING // מנוי עומד לפוג
+  SUBSCRIPTION_EXPIRED // מנוי פג
+  WELCOME_NEW_USER // ברוך הבא
+  TIER_UPGRADE // שדרוג תוכנית
+  TIER_DOWNGRADE // שנמוך תוכנית
+  CUSTOM // מותאם אישית
 }
 
 // ==================== Monthly Usage Tracking ====================
 
 model MonthlyUsage {
-  id                        String   @id @default(cuid())
-  userId                    String
-  user                      User     @relation(fields: [userId], references: [id], onDelete: Cascade)
-  
-  month                     Int      // 1-12
-  year                      Int      // 2024, 2025, etc.
-  
+  id     String @id @default(cuid())
+  userId String
+  user   User   @relation(fields: [userId], references: [id], onDelete: Cascade)
+
+  month Int // 1-12
+  year  Int // 2024, 2025, etc.
+
   // Session Prep (daily automatic)
-  sessionPrepCount          Int      @default(0)
-  
+  sessionPrepCount Int @default(0)
+
   // Session Analysis
-  conciseAnalysisCount      Int      @default(0)  // Unlimited (1 per session)
-  detailedAnalysisCount     Int      @default(0)  // Enterprise: 10/month
-  
+  conciseAnalysisCount  Int @default(0) // Unlimited (1 per session)
+  detailedAnalysisCount Int @default(0) // Enterprise: 10/month
+
   // Questionnaire Analysis
-  singleQuestionnaireCount  Int      @default(0)  // Pro: 60, Enterprise: 80
-  combinedQuestionnaireCount Int     @default(0)  // Pro: 30, Enterprise: 40
-  progressReportCount       Int      @default(0)  // Pro: 15, Enterprise: 20
-  
+  singleQuestionnaireCount   Int @default(0) // Pro: 60, Enterprise: 80
+  combinedQuestionnaireCount Int @default(0) // Pro: 30, Enterprise: 40
+  progressReportCount        Int @default(0) // Pro: 15, Enterprise: 20
+
   // Total costs
-  totalCost                 Decimal  @default(0) @db.Decimal(10, 4)
-  totalTokens               Int      @default(0)
-  
-  createdAt                 DateTime @default(now())
-  updatedAt                 DateTime @updatedAt
-  
+  totalCost   Decimal @default(0) @db.Decimal(10, 4)
+  totalTokens Int     @default(0)
+
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+
   @@unique([userId, month, year])
   @@index([userId, year, month])
 }
@@ -1642,26 +1698,26 @@ model MonthlyUsage {
 // ==================== System Announcements ====================
 
 model SystemAnnouncement {
-  id          String    @id @default(cuid())
-  title       String
-  content     String    @db.Text
-  type        String    @default("info") // info, warning, success, update
-  isActive    Boolean   @default(true)
-  showBanner  Boolean   @default(true) // show as top banner on dashboard
-  expiresAt   DateTime?
-  createdAt   DateTime  @default(now())
-  updatedAt   DateTime  @updatedAt
+  id         String    @id @default(cuid())
+  title      String
+  content    String    @db.Text
+  type       String    @default("info") // info, warning, success, update
+  isActive   Boolean   @default(true)
+  showBanner Boolean   @default(true) // show as top banner on dashboard
+  expiresAt  DateTime?
+  createdAt  DateTime  @default(now())
+  updatedAt  DateTime  @updatedAt
 
-  dismissals  AnnouncementDismissal[]
+  dismissals AnnouncementDismissal[]
 }
 
 model AnnouncementDismissal {
-  id              String   @id @default(cuid())
-  announcementId  String
-  userId          String
-  dismissedAt     DateTime @default(now())
+  id             String   @id @default(cuid())
+  announcementId String
+  userId         String
+  dismissedAt    DateTime @default(now())
 
-  announcement    SystemAnnouncement @relation(fields: [announcementId], references: [id], onDelete: Cascade)
+  announcement SystemAnnouncement @relation(fields: [announcementId], references: [id], onDelete: Cascade)
 
   @@unique([announcementId, userId])
 }
@@ -1669,60 +1725,60 @@ model AnnouncementDismissal {
 // ==================== Admin Audit Log ====================
 
 model AdminAuditLog {
-  id          String   @id @default(cuid())
-  action      String   // e.g. "block_user", "grant_trial", "change_tier"
-  targetType  String   // e.g. "user", "announcement", "coupon"
-  targetId    String?
-  details     String?  @db.Text // JSON details
+  id            String    @id @default(cuid())
+  action        String // e.g. "block_user", "grant_trial", "change_tier"
+  targetType    String // e.g. "user", "announcement", "coupon"
+  targetId      String?
+  details       String?   @db.Text // JSON details
   // Stage 1.7 — adminId הפך nullable + SetNull כדי שניתן יהיה למחוק מזכיר
-  adminId     String?
-  admin       User?    @relation("auditAdmin", fields: [adminId], references: [id], onDelete: SetNull)
+  adminId       String?
+  admin         User?     @relation("auditAdmin", fields: [adminId], references: [id], onDelete: SetNull)
   // Stage 1.7 — snapshot של admin בעת ביצוע (נשמר גם אחרי מחיקת המשתמש)
-  adminEmail  String?
-  adminName   String?
+  adminEmail    String?
+  adminName     String?
   // Stage 1.7 — Undo 10 seconds infrastructure
   undoable      Boolean   @default(false)
   undoExpiresAt DateTime?
   revertedAt    DateTime?
   revertedById  String?
-  revertedBy    User?    @relation("auditReverted", fields: [revertedById], references: [id], onDelete: SetNull)
-  createdAt   DateTime @default(now())
+  revertedBy    User?     @relation("auditReverted", fields: [revertedById], references: [id], onDelete: SetNull)
+  createdAt     DateTime  @default(now())
 
   @@index([adminId])
   @@index([targetType, targetId])
   @@index([createdAt])
-  @@index([undoable, undoExpiresAt])  // לcron ניקוי/validation
+  @@index([undoable, undoExpiresAt]) // לcron ניקוי/validation
 }
-
 
 // ==================== Online Booking ====================
 
 model BookingSettings {
-  id                String   @id @default(cuid())
-  enabled           Boolean  @default(false)
-  slug              String   @unique
-  workingHours      Json     @default("{}")
-  breaks            Json     @default("[]")
-  sessionDuration   Int      @default(50)
-  bufferBetween     Int      @default(10)
-  maxAdvanceDays    Int      @default(30)
-  minAdvanceHours   Int      @default(24)
-  requireApproval   Boolean  @default(true)
-  welcomeMessage    String?  @db.Text
-  confirmationMessage String? @db.Text
-  defaultSessionType SessionType @default(IN_PERSON)
-  defaultPrice      Decimal?  @db.Decimal(10, 2)
-  createdAt         DateTime @default(now())
-  updatedAt         DateTime @updatedAt
-  therapistId       String   @unique
-  therapist         User     @relation(fields: [therapistId], references: [id], onDelete: Cascade)
+  id                  String      @id @default(cuid())
+  enabled             Boolean     @default(false)
+  slug                String      @unique
+  workingHours        Json        @default("{}")
+  breaks              Json        @default("[]")
+  sessionDuration     Int         @default(50)
+  bufferBetween       Int         @default(10)
+  maxAdvanceDays      Int         @default(30)
+  minAdvanceHours     Int         @default(24)
+  requireApproval     Boolean     @default(true)
+  welcomeMessage      String?     @db.Text
+  confirmationMessage String?     @db.Text
+  defaultSessionType  SessionType @default(IN_PERSON)
+  defaultPrice        Decimal?    @db.Decimal(10, 2)
+  createdAt           DateTime    @default(now())
+  updatedAt           DateTime    @updatedAt
+  therapistId         String      @unique
+  therapist           User        @relation(fields: [therapistId], references: [id], onDelete: Cascade)
 }
+
 // ==================== Feature Flags ====================
 
 model FeatureFlag {
   id          String   @id @default(cuid())
   key         String   @unique // e.g. "ai_session_prep", "email_threads"
-  name        String   // display name
+  name        String // display name
   description String?
   isEnabled   Boolean  @default(true) // global on/off
   tiers       String[] @default([]) // allowed tiers: ["ESSENTIAL", "PRO", "ENTERPRISE"]
@@ -1733,62 +1789,62 @@ model FeatureFlag {
 // ==================== Support Tickets (פניות ותמיכה) ====================
 
 model SupportTicket {
-  id            String   @id @default(cuid())
-  ticketNumber  Int      @unique          // מספר פנייה אוטומטי (5001+)
-  userId        String                    // מי פנה
-  user          User     @relation("ticketUser", fields: [userId], references: [id], onDelete: Cascade)
-  subject       String                    // נושא הפנייה
-  message       String   @db.Text         // תוכן ההודעה (שם שדה קיים — לא משנים)
-  attachments   Json?                     // [{id, filename, contentType, size, fileUrl, uploadedAt}] — צילומי מסך ומסמכים שצורפו
-  category      String   @default("general") // general, technical, billing, other
-  priority      String   @default("MEDIUM")  // LOW, MEDIUM, HIGH, URGENT
-  status        String   @default("OPEN")    // OPEN, IN_PROGRESS, WAITING, RESOLVED, CLOSED
-  adminNotes    String?  @db.Text         // הערות אדמין (legacy — שדה יחיד, נשאר לתאימות)
-  resolvedAt    DateTime?
-  resolvedBy    String?                   // מזהה אדמין שטיפל
-  createdAt     DateTime @default(now())
-  updatedAt     DateTime @updatedAt
-  responses     SupportResponse[]
+  id           String            @id @default(cuid())
+  ticketNumber Int               @unique // מספר פנייה אוטומטי (5001+)
+  userId       String // מי פנה
+  user         User              @relation("ticketUser", fields: [userId], references: [id], onDelete: Cascade)
+  subject      String // נושא הפנייה
+  message      String            @db.Text // תוכן ההודעה (שם שדה קיים — לא משנים)
+  attachments  Json? // [{id, filename, contentType, size, fileUrl, uploadedAt}] — צילומי מסך ומסמכים שצורפו
+  category     String            @default("general") // general, technical, billing, other
+  priority     String            @default("MEDIUM") // LOW, MEDIUM, HIGH, URGENT
+  status       String            @default("OPEN") // OPEN, IN_PROGRESS, WAITING, RESOLVED, CLOSED
+  adminNotes   String?           @db.Text // הערות אדמין (legacy — שדה יחיד, נשאר לתאימות)
+  resolvedAt   DateTime?
+  resolvedBy   String? // מזהה אדמין שטיפל
+  createdAt    DateTime          @default(now())
+  updatedAt    DateTime          @updatedAt
+  responses    SupportResponse[]
 
   // Stage 1.7 — שדות חדשים (additive, נשאר תואם לאחור)
-  assignedToId            String?
-  assignedToNameSnapshot  String?
-  assignedTo              User?   @relation("ticketAssigned", fields: [assignedToId], references: [id], onDelete: SetNull)
-  lastReplyAt             DateTime?
-  notes                   SupportTicketNote[]
+  assignedToId           String?
+  assignedToNameSnapshot String?
+  assignedTo             User?               @relation("ticketAssigned", fields: [assignedToId], references: [id], onDelete: SetNull)
+  lastReplyAt            DateTime?
+  notes                  SupportTicketNote[]
 
   @@index([userId])
   @@index([status])
   @@index([ticketNumber])
-  @@index([status, lastReplyAt])       // לסינון SLA breaches
-  @@index([assignedToId, status])      // "פניות שלי" ב-dashboard של מזכיר
+  @@index([status, lastReplyAt]) // לסינון SLA breaches
+  @@index([assignedToId, status]) // "פניות שלי" ב-dashboard של מזכיר
 }
 
 model SupportResponse {
-  id        String   @id @default(cuid())
-  ticketId  String
-  ticket    SupportTicket @relation(fields: [ticketId], references: [id], onDelete: Cascade)
-  authorId  String                        // מי כתב (משתמש או אדמין)
-  author    User     @relation(fields: [authorId], references: [id], onDelete: Cascade)
-  message     String   @db.Text
-  attachments Json?                         // [{id, filename, contentType, size, fileUrl, uploadedAt}] — צירופים בתגובה
-  isAdmin     Boolean  @default(false)      // האם זו תגובת אדמין
-  createdAt   DateTime @default(now())
+  id          String        @id @default(cuid())
+  ticketId    String
+  ticket      SupportTicket @relation(fields: [ticketId], references: [id], onDelete: Cascade)
+  authorId    String // מי כתב (משתמש או אדמין)
+  author      User          @relation(fields: [authorId], references: [id], onDelete: Cascade)
+  message     String        @db.Text
+  attachments Json? // [{id, filename, contentType, size, fileUrl, uploadedAt}] — צירופים בתגובה
+  isAdmin     Boolean       @default(false) // האם זו תגובת אדמין
+  createdAt   DateTime      @default(now())
 
   @@index([ticketId])
 }
 
 // Stage 1.7 — הערות פנימיות בין מנהלים (בנוסף ל-SupportResponse הציבורי)
 model SupportTicketNote {
-  id                  String   @id @default(cuid())
-  ticketId            String
-  ticket              SupportTicket @relation(fields: [ticketId], references: [id], onDelete: Cascade)
-  authorId            String?                   // nullable — SetNull כשמזכיר נמחק
-  author              User?    @relation("noteAuthor", fields: [authorId], references: [id], onDelete: SetNull)
-  authorNameSnapshot  String                    // snapshot של שם בעת הכתיבה
-  content             String   @db.Text
-  isInternal          Boolean  @default(true)   // ברירת מחדל: הערה פנימית (לא נראית למשתמש)
-  createdAt           DateTime @default(now())
+  id                 String        @id @default(cuid())
+  ticketId           String
+  ticket             SupportTicket @relation(fields: [ticketId], references: [id], onDelete: Cascade)
+  authorId           String? // nullable — SetNull כשמזכיר נמחק
+  author             User?         @relation("noteAuthor", fields: [authorId], references: [id], onDelete: SetNull)
+  authorNameSnapshot String // snapshot של שם בעת הכתיבה
+  content            String        @db.Text
+  isInternal         Boolean       @default(true) // ברירת מחדל: הערה פנימית (לא נראית למשתמש)
+  createdAt          DateTime      @default(now())
 
   @@index([ticketId, createdAt])
 }
@@ -1801,43 +1857,43 @@ enum PackageType {
 }
 
 enum PackageSource {
-  MANUAL    // מזכיר/מנהל הוסיף ידנית
-  CARDCOM   // רכישה אוטומטית דרך סליקה
-  PROMO     // קידום מכירות / מתנה
+  MANUAL // מזכיר/מנהל הוסיף ידנית
+  CARDCOM // רכישה אוטומטית דרך סליקה
+  PROMO // קידום מכירות / מתנה
 }
 
 // קטלוג חבילות לרכישה
 model Package {
-  id          String      @id @default(cuid())
-  type        PackageType
-  name        String      // "חבילה 100 SMS"
-  credits     Int         // כמה יחידות כלולות
-  priceIls    Decimal     @db.Decimal(10, 2)
-  isActive    Boolean     @default(true)
-  createdAt   DateTime    @default(now())
-  updatedAt   DateTime    @updatedAt
-  purchases   UserPackagePurchase[]
+  id        String                @id @default(cuid())
+  type      PackageType
+  name      String // "חבילה 100 SMS"
+  credits   Int // כמה יחידות כלולות
+  priceIls  Decimal               @db.Decimal(10, 2)
+  isActive  Boolean               @default(true)
+  createdAt DateTime              @default(now())
+  updatedAt DateTime              @updatedAt
+  purchases UserPackagePurchase[]
 }
 
 // רכישות של משתמשים — "הבנק"
 model UserPackagePurchase {
-  id              String        @id @default(cuid())
-  userId          String
-  user            User          @relation("packageUser", fields: [userId], references: [id], onDelete: Cascade)
-  packageId       String?
-  package         Package?      @relation(fields: [packageId], references: [id], onDelete: SetNull)
-  type            PackageType
-  credits         Int
-  creditsUsed     Int           @default(0)
-  grantedBy       String?       // userId של המזכיר שהוסיף
-  grantedByUser   User?         @relation("packageGrantedBy", fields: [grantedBy], references: [id], onDelete: SetNull)
-  note            String?       @db.Text
-  source          PackageSource
-  externalId      String?       // מזהה עסקה מקארדקום
-  reverted        Boolean       @default(false)
-  revertedAt      DateTime?
-  revertedBy      String?       // userId של מי שביטל
-  createdAt       DateTime      @default(now())
+  id            String        @id @default(cuid())
+  userId        String
+  user          User          @relation("packageUser", fields: [userId], references: [id], onDelete: Cascade)
+  packageId     String?
+  package       Package?      @relation(fields: [packageId], references: [id], onDelete: SetNull)
+  type          PackageType
+  credits       Int
+  creditsUsed   Int           @default(0)
+  grantedBy     String? // userId של המזכיר שהוסיף
+  grantedByUser User?         @relation("packageGrantedBy", fields: [grantedBy], references: [id], onDelete: SetNull)
+  note          String?       @db.Text
+  source        PackageSource
+  externalId    String? // מזהה עסקה מקארדקום
+  reverted      Boolean       @default(false)
+  revertedAt    DateTime?
+  revertedBy    String? // userId של מי שביטל
+  createdAt     DateTime      @default(now())
 
   @@index([userId, type])
   @@index([userId, type, reverted])
@@ -1848,29 +1904,327 @@ model UserPackagePurchase {
 
 model WebhookEvent {
   id          String    @id @default(cuid())
-  provider    String    // "CARDCOM", "MESHULAM", etc.
-  externalId  String    // מזהה עסקה של הספק
+  provider    String // "CARDCOM", "MESHULAM", etc.
+  externalId  String // מזהה עסקה של הספק
   rawPayload  Json
   processed   Boolean   @default(false)
   error       String?   @db.Text
   attempts    Int       @default(0)
   createdAt   DateTime  @default(now())
   processedAt DateTime?
+  // Lease-based claim — set when a worker starts processing.
+  // If claimedAt is older than the lease window AND processed=false,
+  // a retrying worker may take over (recovers from crashed workers).
+  claimedAt   DateTime?
 
   @@unique([provider, externalId])
   @@index([processed, createdAt])
+  @@index([claimedAt])
 }
 
 // ==================== Stage 1.7 — Request idempotency ====================
 
 model IdempotencyKey {
-  key         String   @id   // "{adminId}:{clientKey}"
-  method      String
-  path        String
-  statusCode  Int
-  response    Json
-  createdAt   DateTime @default(now())
-  expiresAt   DateTime
+  key        String   @id // "{adminId}:{clientKey}"
+  method     String
+  path       String
+  statusCode Int
+  response   Json
+  createdAt  DateTime @default(now())
+  expiresAt  DateTime
 
   @@index([expiresAt])
+}
+
+// ==================== Cardcom Stage — Site Settings ====================
+// Generic key-value store for global ADMIN settings (business type, receipt prefix, etc.)
+// Sensitive credentials (API passwords, webhook secrets) belong in env vars, NOT here.
+
+model SiteSetting {
+  key         String   @id
+  value       Json
+  createdAt   DateTime @default(now())
+  updatedAt   DateTime @updatedAt
+  updatedById String?
+  updatedBy   User?    @relation("SiteSettingUpdater", fields: [updatedById], references: [id], onDelete: SetNull)
+}
+
+// ==================== Cardcom Stage — Transactions, Tokens, Invoices ====================
+
+enum CardcomTenant {
+  ADMIN // עסקאות מנוי (גלובליות)
+  USER // עסקאות מטפל (לכל מטפל credentials משלו)
+}
+
+enum CardcomTxStatus {
+  PENDING // נוצר דף תשלום, ממתין ל-webhook
+  APPROVED // אושר
+  DECLINED // נדחה (קוד שגיאה מהבנק)
+  FAILED // כשל טכני (network, timeout)
+  CANCELLED // המשתמש ביטל
+  EXPIRED // דף תשלום פג תוקף
+  REFUNDED // הוחזר
+}
+
+model CardcomTransaction {
+  id String @id @default(cuid())
+
+  // tenancy
+  tenant CardcomTenant
+  userId String?
+  user   User?         @relation("CardcomTxUser", fields: [userId], references: [id], onDelete: SetNull)
+
+  // קישור לאובייקט עסקי
+  subscriptionPaymentId String?
+  subscriptionPayment   SubscriptionPayment? @relation(fields: [subscriptionPaymentId], references: [id], onDelete: SetNull)
+  paymentId             String?
+  payment               Payment?             @relation(fields: [paymentId], references: [id], onDelete: SetNull)
+
+  // נתוני Cardcom
+  lowProfileId   String? @unique
+  transactionId  String?
+  approvalNumber String?
+  cardLast4      String?
+  cardHolder     String?
+  cardBrand      String?
+
+  // טוקן
+  token            String?
+  tokenExpiryMonth Int?
+  tokenExpiryYear  Int?
+
+  // כספי
+  amount        Decimal @db.Decimal(10, 2)
+  currency      String  @default("ILS")
+  numOfPayments Int     @default(1)
+
+  // סטטוס
+  status       CardcomTxStatus @default(PENDING)
+  errorCode    String?
+  errorMessage String?         @db.Text
+  rawResponse  Json?
+
+  // ניסיונות חוזרים
+  attemptNumber       Int     @default(1)
+  parentTransactionId String?
+
+  // Refund tracking — supports multiple partial refunds; full refund when refundedAmount === amount
+  refundedAmount Decimal @default(0) @db.Decimal(10, 2)
+
+  createdAt   DateTime  @default(now())
+  completedAt DateTime?
+
+  cardcomInvoices  CardcomInvoice[]
+  chargebackEvents ChargebackEvent[]
+
+  @@index([tenant, userId, status])
+  @@index([subscriptionPaymentId])
+  @@index([paymentId])
+}
+
+model SavedCardToken {
+  id String @id @default(cuid())
+
+  tenant CardcomTenant
+  userId String?
+  user   User?         @relation("SavedCardTokenUser", fields: [userId], references: [id], onDelete: Cascade)
+
+  // אצל מי הטוקן נרשם
+  subscriberId String?
+  subscriber   User?   @relation("SavedCardTokenSubscriber", fields: [subscriberId], references: [id], onDelete: Cascade)
+  clientId     String?
+  client       Client? @relation(fields: [clientId], references: [id], onDelete: Cascade)
+
+  token       String
+  cardLast4   String
+  cardHolder  String
+  cardBrand   String?
+  expiryMonth Int
+  expiryYear  Int
+
+  isActive   Boolean   @default(true)
+  deletedAt  DateTime?
+  lastUsedAt DateTime?
+
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+
+  subscriptionPayments SubscriptionPayment[]
+
+  // Same Cardcom token should never appear twice within a tenant.
+  @@unique([tenant, token])
+  @@index([tenant, subscriberId, isActive])
+  @@index([tenant, clientId, isActive])
+}
+
+enum CardcomInvoiceStatus {
+  ISSUED
+  VOIDED
+  REFUNDED
+}
+
+// Records of Cardcom-side reversals (chargeback / cancel / refund initiated
+// by Cardcom or the cardholder, not by us). Distinct from `payments.refund`
+// which is admin-initiated. Used for monthly chargeback reports and to
+// build a block-list of clients with repeated chargebacks.
+model ChargebackEvent {
+  id String @id @default(cuid())
+
+  cardcomTransactionId String
+  cardcomTransaction   CardcomTransaction @relation(fields: [cardcomTransactionId], references: [id], onDelete: Cascade)
+
+  tenant    CardcomTenant
+  // Original Cardcom Operation field that triggered detection
+  // (e.g. "Chargeback", "Reverse", "Cancel"). Free-form for flexibility.
+  operation String
+  amount    Decimal       @db.Decimal(10, 2)
+  currency  String        @default("ILS")
+
+  /// Webhook payload at the moment of detection.
+  rawPayload Json
+  /// Manual disposition by admin once verified.
+  reviewedAt DateTime?
+  reviewNote String?   @db.Text
+  // Did we issue a follow-up local refund/void to align our books?
+  reconciled Boolean   @default(false)
+
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+
+  @@index([tenant, createdAt])
+  @@index([reconciled, createdAt])
+}
+
+// Documents found in Cardcom that we don't have a local match for.
+// invoice-sync cron writes here when it sees a Cardcom document number with no
+// CardcomInvoice/CardcomTransaction. AdminAlert is raised so the admin can
+// resolve manually (link to a payment / write off / contact Cardcom).
+model OrphanCardcomDocument {
+  id     String        @id @default(cuid())
+  tenant CardcomTenant
+  // The therapist whose Cardcom credentials surfaced this orphan (USER tenant only).
+  userId String?
+  user   User?         @relation("OrphanCardcomUser", fields: [userId], references: [id], onDelete: SetNull)
+
+  cardcomDocumentNumber String   @unique
+  cardcomDocumentType   String
+  amount                Decimal  @db.Decimal(10, 2)
+  currency              String   @default("ILS")
+  customerName          String?
+  customerEmail         String?
+  pdfUrl                String?
+  allocationNumber      String?
+  occurredAt            DateTime
+  rawDocument           Json
+
+  resolved         Boolean   @default(false)
+  resolvedAt       DateTime?
+  resolvedByUserId String?
+  resolutionNote   String?   @db.Text
+  // Optional manual link to the local invoice an admin attached this orphan to.
+  linkedInvoiceId  String?
+
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+
+  @@index([resolved, occurredAt])
+  @@index([tenant, userId])
+  // Used by the per-therapist "open orphans for this user" view.
+  @@index([userId, resolved])
+}
+
+// אינדקס מקומי של חשבוניות Cardcom — Cardcom מארחים את ה-PDF, אנחנו שומרים metadata + backup
+model CardcomInvoice {
+  id String @id @default(cuid())
+
+  // === Tenant — denormalized snapshot (avoids relying on cardcomTransaction.tenant
+  // when the transaction may be SetNull'd later, and saves a join on listing) ===
+  tenant CardcomTenant
+
+  // === פרטים מ-Cardcom (מקור האמת) ===
+  cardcomDocumentNumber String  @unique
+  cardcomDocumentType   String
+  cardcomDocumentId     String?
+  pdfUrl                String?
+  viewUrl               String?
+
+  // === backup מקומי (חוק 7 שנים) ===
+  localPdfPath        String?
+  localPdfHash        String?
+  backupAttempts      Int       @default(0)
+  lastBackupAttemptAt DateTime?
+  backupFailedReason  String?   @db.Text
+
+  // === מערך חשבוניות ישראל (חוק 2024) ===
+  allocationNumber String?
+
+  // === snapshot של פרטי המנפיק (חוקית — לא משתנים עם מעבר פטור↔מורשה) ===
+  // For ADMIN tenant: issuer = MyTipul; for USER tenant: issuer = the therapist.
+  issuerUserId       String?
+  issuer             User?    @relation("CardcomInvoiceIssuer", fields: [issuerUserId], references: [id], onDelete: SetNull)
+  issuerBusinessType String
+  issuerBusinessName String
+  issuerIdNumber     String
+  vatRateSnapshot    Decimal? @db.Decimal(5, 2)
+  amountBeforeVat    Decimal? @db.Decimal(10, 2)
+  vatAmount          Decimal? @db.Decimal(10, 2)
+
+  // === הקשר עסקי — מי הלקוח של החשבונית ===
+  // ADMIN tenant: subscriber = the therapist paying for MyTipul (User row).
+  // USER tenant:  subscriber = the therapist (issuer); recipientClientId points
+  //               at the actual Client row that received the invoice.
+  // Queries:
+  //   "all invoices the system issued TO me as a paying user" → subscriberId=me, tenant=ADMIN
+  //   "all invoices issued BY me as a therapist"              → issuerUserId=me, tenant=USER
+  //   "all invoices issued TO this client of mine"            → recipientClientId=client, tenant=USER
+  subscriberId            String
+  subscriber              User    @relation("CardcomInvoiceSubscriber", fields: [subscriberId], references: [id], onDelete: Restrict)
+  subscriberNameSnapshot  String
+  subscriberEmailSnapshot String?
+
+  // For USER tenant: the Client row this invoice was issued to (FK).
+  // For ADMIN tenant: null.
+  recipientClientId String?
+  recipientClient   Client? @relation("CardcomInvoiceRecipient", fields: [recipientClientId], references: [id], onDelete: SetNull)
+
+  subscriptionPaymentId String?
+  subscriptionPayment   SubscriptionPayment? @relation(fields: [subscriptionPaymentId], references: [id], onDelete: SetNull)
+  paymentId             String?
+  payment               Payment?             @relation(fields: [paymentId], references: [id], onDelete: SetNull)
+  cardcomTransactionId  String?
+  cardcomTransaction    CardcomTransaction?  @relation(fields: [cardcomTransactionId], references: [id], onDelete: SetNull)
+
+  // === סכומים (תצוגה — מקור האמת ב-Cardcom) ===
+  amount      Decimal @db.Decimal(10, 2)
+  currency    String  @default("ILS")
+  description String
+
+  // === סטטוס ===
+  status     CardcomInvoiceStatus @default(ISSUED)
+  voidedAt   DateTime?
+  voidReason String?              @db.Text
+
+  // === Refund linkage ===
+  refundInvoiceId String?
+  refundInvoice   CardcomInvoice?  @relation("RefundLink", fields: [refundInvoiceId], references: [id], onDelete: SetNull)
+  refundOf        CardcomInvoice[] @relation("RefundLink")
+
+  // === Resend tracking (rate-limit, cross-instance safe) ===
+  lastResendAt DateTime?
+  resendCount  Int       @default(0)
+
+  // === תאריכים ===
+  occurredAt DateTime
+  issuedAt   DateTime
+  syncedAt   DateTime @default(now())
+  createdAt  DateTime @default(now())
+  updatedAt  DateTime @updatedAt
+
+  @@index([tenant, issuedAt])
+  @@index([subscriberId, issuedAt])
+  @@index([issuerUserId, issuedAt])
+  @@index([recipientClientId, issuedAt])
+  @@index([status, issuedAt])
+  @@index([cardcomDocumentType, issuedAt])
+  @@index([allocationNumber])
 }

@@ -42,7 +42,7 @@ export function CorrespondenceTab({
     (log) => log.type === "CUSTOM" && log.status === "SENT"
   );
   const receivedEmails = communicationLogs.filter(
-    (log) => log.type === "INCOMING_EMAIL"
+    (log) => log.type === "INCOMING_EMAIL" || log.type === "INCOMING_SMS"
   );
 
   const handleMarkAsRead = async (logId: string) => {
@@ -132,7 +132,7 @@ export function CorrespondenceTab({
           {communicationLogs.length > 0 ? (
             <div className="space-y-4">
               {communicationLogs.map((log) => {
-                const isIncoming = log.type === "INCOMING_EMAIL";
+                const isIncoming = log.type === "INCOMING_EMAIL" || log.type === "INCOMING_SMS";
                 const isSent = log.type === "CUSTOM" && log.status === "SENT";
 
                 if (!isIncoming && !isSent) return null;

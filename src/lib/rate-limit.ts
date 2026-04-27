@@ -150,6 +150,8 @@ export function getAdminRateLimitTier(
     "/api/admin/idempotency",
     "/api/admin/billing/", // billing cycles + יצירת חיובים ידניים
     "/api/admin/packages/", // יצירת/עדכון חבילות עם השלכות פיננסיות
+    "/api/admin/cardcom/", // Cardcom — setup, charge, refund, test (כל קריאה יוצרת LowProfile)
+    "/api/admin/business-settings", // שינוי סוג עסק / מע"מ — רגיש חוקית
   ];
   const SENSITIVE_METHODS_ON_USERS = ["POST", "PATCH", "DELETE"];
 

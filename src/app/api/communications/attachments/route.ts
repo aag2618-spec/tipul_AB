@@ -35,7 +35,7 @@ export async function GET(request: NextRequest) {
     }
 
     // For sent emails, attachments aren't stored in Resend after sending
-    if (log.type !== "INCOMING_EMAIL") {
+    if (log.type !== "INCOMING_EMAIL" && log.type !== "INCOMING_SMS") {
       return NextResponse.json({ 
         message: "קבצים שנשלחו על ידך לא ניתנים להורדה חוזרת. ניתן להוריד רק קבצים שנשלחו ע\"י מטופלים." 
       }, { status: 410 });

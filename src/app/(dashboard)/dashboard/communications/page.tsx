@@ -94,6 +94,11 @@ interface Thread {
 type FilterType = "all" | "SENT" | "FAILED" | "PENDING" | "RECEIVED";
 // ChannelType removed - channel filter dropdown removed
 
+// Check if message is incoming (email or SMS reply from client)
+function isIncomingMessage(msg: { type: string }): boolean {
+  return msg.type === "INCOMING_EMAIL" || msg.type === "INCOMING_SMS";
+}
+
 // Normalize subject by removing Re: / Fwd: prefixes
 function normalizeSubject(subject: string): string {
   return subject
@@ -179,7 +184,7 @@ export default function CommunicationsPage() {
       messages.sort((a, b) => new Date(b.createdAt).getTime() - new Date(a.createdAt).getTime());
 
       const latestMessage = messages[0];
-      const hasUnread = messages.some(m => m.type === "INCOMING_EMAIL" && !m.isRead);
+      const hasUnread = messages.some(m => isIncomingMessage(m) && !m.isRead);
 
       const msgWithClient = messages.find(m => m.client?.name);
       const clientName = msgWithClient?.client?.name || "מטופל";
@@ -238,8 +243,8 @@ export default function CommunicationsPage() {
   const handleSendReply = async () => {
     if (!selectedThread || !replyText.trim()) return;
 
-    // Find the latest incoming email to reply to, or fallback to latest message
-    const replyTo = selectedThread.messages.find(m => m.type === "INCOMING_EMAIL") 
+    // Find the latest incoming message to reply to, or fallback to latest message
+    const replyTo = selectedThread.messages.find(m => isIncomingMessage(m))
       || selectedThread.latestMessage;
 
     setIsSendingReply(true);
@@ -356,7 +361,7 @@ export default function CommunicationsPage() {
     // Mark unread incoming messages in this thread as read
     const unreadIds = new Set<string>();
     thread.messages.forEach(msg => {
-      if (msg.type === "INCOMING_EMAIL" && !msg.isRead) {
+      if (isIncomingMessage(msg) && !msg.isRead) {
         unreadIds.add(msg.id);
         fetch(`/api/communications/logs/${msg.id}/read`, { method: "POST" }).catch(() => {});
       }
@@ -457,7 +462,7 @@ export default function CommunicationsPage() {
           (a, b) => new Date(b.createdAt).getTime() - new Date(a.createdAt).getTime()
         );
         const latestMessage = sorted[0];
-        const hasUnread = remaining.some(m => m.type === "INCOMING_EMAIL" && !m.isRead);
+        const hasUnread = remaining.some(m => isIncomingMessage(m) && !m.isRead);
         return {
           ...prev,
           messages: sorted,
@@ -491,7 +496,7 @@ export default function CommunicationsPage() {
 
   const getLatestMessagePreview = (thread: Thread) => {
     const msg = thread.latestMessage;
-    const isIncoming = msg.type === "INCOMING_EMAIL";
+    const isIncoming = isIncomingMessage(msg);
     // Clean incoming content then strip HTML for preview
     const rawContent = isIncoming ? cleanIncomingContent(msg.content || "") : (msg.content || "");
     const textContent = rawContent.replace(/<[^>]*>/g, "").trim();
@@ -507,7 +512,7 @@ export default function CommunicationsPage() {
     );
   }
 
-  const unreadReplies = logs.filter(l => l.type === "INCOMING_EMAIL" && !l.isRead).length;
+  const unreadReplies = logs.filter(l => isIncomingMessage(l) && !l.isRead).length;
   const failedThreadCount = threads.filter(t => t.messages.some(m => m.status === "FAILED")).length;
 
   return (
@@ -520,7 +525,7 @@ export default function CommunicationsPage() {
             <button
               onClick={() => {
                 const unreadIds = logs
-                  .filter(l => l.type === "INCOMING_EMAIL" && !l.isRead)
+                  .filter(l => isIncomingMessage(l) && !l.isRead)
                   .map(l => l.id);
                 if (unreadIds.length > 0) {
                   setLogs(prev => prev.map(l => unreadIds.includes(l.id) ? { ...l, isRead: true } : l));
@@ -798,7 +803,7 @@ export default function CommunicationsPage() {
               {/* Messages - newest first (scrollable) */}
               <div className="flex-1 overflow-y-auto p-4 space-y-4">
                 {selectedThread.messages.map((msg) => {
-                  const isIncoming = msg.type === "INCOMING_EMAIL";
+                  const isIncoming = isIncomingMessage(msg);
                   const msgDate = msg.sentAt || msg.createdAt;
                   return (
                     <div
@@ -818,6 +823,9 @@ export default function CommunicationsPage() {
                               <span className="font-medium text-sky-800 dark:text-sky-300 text-sm">
                                 {msg.client?.name || "מטופל"}
                               </span>
+                              {msg.channel === "SMS" && (
+                                <span className="text-[10px] px-1 py-0.5 rounded bg-violet-100 text-violet-700">SMS</span>
+                              )}
                               {!msg.isRead && (
                                 <Badge className="bg-sky-600 text-white text-xs py-0">חדש</Badge>
                               )}
@@ -897,7 +905,7 @@ export default function CommunicationsPage() {
                           </div>
                           <div className="flex flex-col gap-1">
                             {msg.attachments.map((att: { id?: string; filename: string; size?: number; resendEmailId?: string; fileUrl?: string }, attIdx: number) => {
-                              const msgIsIncoming = msg.type === "INCOMING_EMAIL";
+                              const msgIsIncoming = isIncomingMessage(msg);
                               const hasSavedFile = !!att.fileUrl;
                               return (
                                 <div key={attIdx} className="flex items-center gap-2 bg-muted/50 rounded px-2 py-1.5 text-xs">

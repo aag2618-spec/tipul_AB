@@ -11,6 +11,7 @@ import { logBillingApiCall } from "@/lib/billing-logger";
 import { decrypt } from "@/lib/encryption";
 import { logger } from "@/lib/logger";
 import { requireAuth } from "@/lib/api-auth";
+import type { BillingProviderType } from "@/lib/billing/types";
 
 export const dynamic = "force-dynamic";
 
@@ -92,7 +93,7 @@ export async function POST(request: NextRequest) {
     // לוג הקריאה ל-API
     await logBillingApiCall({
       userId: userId,
-      provider: provider.provider as "MESHULAM" | "SUMIT" | "ICOUNT" | "GREEN_INVOICE",
+      provider: provider.provider as BillingProviderType,
       action: "testConnection",
       success,
       error: success ? undefined : message,

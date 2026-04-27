@@ -2,10 +2,11 @@
 // לוג מרכזי לכל קריאות API לספקי חיוב
 
 import prisma from "@/lib/prisma";
+import type { BillingProviderType } from "@/lib/billing/types";
 
 export interface BillingLogEntry {
   userId?: string;
-  provider: "MESHULAM" | "SUMIT" | "ICOUNT" | "GREEN_INVOICE";
+  provider: BillingProviderType;
   action: string;
   request?: Record<string, unknown>;
   response?: Record<string, unknown>;

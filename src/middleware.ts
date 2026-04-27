@@ -36,6 +36,9 @@ const ADMIN_ONLY_PATHS = [
   "/admin/terms",
   "/admin/coupons",
   "/admin/ai-usage/settings",
+  // Cardcom — Stage Cardcom (ADMIN בלבד: הגדרות מסוף, פרטי עסק)
+  "/admin/billing/cardcom-setup",
+  "/admin/billing/business-settings",
   // API מפתחות/הגדרות עולמיות
   "/api/admin/set-admin",
   "/api/admin/backfill-user-numbers",
@@ -45,6 +48,10 @@ const ADMIN_ONLY_PATHS = [
   "/api/admin/terms",
   "/api/admin/coupons",
   "/api/admin/idempotency", // Stage 1.18 — ADMIN-only, defense-in-depth
+  // Cardcom API — ADMIN בלבד רק עבור setup + business-settings
+  // (charge/transactions/create-payment-page זמינים ל-MANAGER דרך requirePermission)
+  "/api/admin/cardcom/setup",
+  "/api/admin/business-settings",
 ];
 
 function isAdminOnlyPath(pathname: string): boolean {

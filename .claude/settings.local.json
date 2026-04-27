@@ -43,7 +43,15 @@
       "Bash(which:*)",
       "Bash(env:*)",
       "Bash(while read:*)",
-      "Bash(do head:*)"
+      "Bash(do head:*)",
+      "Bash(do if:*)",
+      "Bash(then echo:*)",
+      "Bash(fi)",
+      "Bash(done)",
+      "Bash(ls -la c:/Users/User/Documents/tipul_AB/tipul_AB-main/src/app/\\\\\\(dashboard\\\\\\)/dashboard/)",
+      "Bash(ls -la c:/Users/User/Documents/tipul_AB/tipul_AB-main/src/app/\\\\\\(dashboard\\\\\\)/dashboard/notifications/)",
+      "Bash(find /c/Users/User/Documents/tipul_AB/tipul_AB-main/src/app/'\\(dashboard\\)'/dashboard/clients -name \"error.tsx\")",
+      "Bash(cat /c/Users/User/Documents/tipul_AB/tipul_AB-main/src/app/'\\(dashboard\\)'/dashboard/clients/'[id]'/page.tsx)"
     ]
   }
 }

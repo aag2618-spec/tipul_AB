@@ -1,0 +1,89 @@
+---
+description: Core project conventions for tipul_AB - Hebrew therapy management platform
+globs: src/**/*.{ts,tsx}
+alwaysApply: true
+---
+
+# MyTipul Project Conventions
+
+## Language & Direction
+- The app UI is 100% Hebrew (RTL). All user-facing strings must be in Hebrew.
+- Always use `dir="rtl"` where needed. Tailwind classes like `text-right`, `mr-*` may need RTL equivalents.
+- Date formatting: use `he-IL` locale and `Asia/Jerusalem` timezone.
+
+## Prisma & Data Safety
+
+### Decimal Fields
+Prisma `Decimal` values (price, amount, expectedAmount, creditBalance) do NOT serialize safely.
+- **Always** convert with `Number(value) || 0` — never use raw Decimal in JSX or JSON.
+- In `getClient`-style functions that pass data to components, always do:
+  ```typescript
+  return JSON.parse(JSON.stringify(data)) as typeof data;
+  ```
+  And wrap the entire function (including the Prisma query) in try-catch.
+
+### Date Fields
+After `JSON.parse(JSON.stringify())`, Dates become ISO strings.
+- Always guard nullable dates: `date ? format(new Date(date), "dd/MM/yyyy") : "לא צוין"`
+- Never call `format(new Date(nullableField))` without a null check.
+
+### Query Safety
+- Wrap all Prisma queries in try-catch with `logger.error(...)`.
+- Heavy Server Component pages (loading many relations) should catch errors gracefully.
+- Use `|| []` when accessing arrays that might be undefined after serialization:
+  ```typescript
+  const sessions = (client.therapySessions || []).filter(...)
+  ```
+
+## Authentication Pattern
+
+### API Routes
+```typescript
+import { requireAuth } from "@/lib/api-auth";
+
+export async function GET(request: NextRequest) {
+  const auth = await requireAuth();
+  if ("error" in auth) return auth.error;
+  const { userId } = auth;
+  // ...
+}
+```
+
+### Server Components
+```typescript
+const session = await getServerSession(authOptions);
+if (!session?.user?.id) return null;
+```
+
+## Logging
+Use `import { logger } from "@/lib/logger"` — never use raw `console.log/error` in production code.
+```typescript
+logger.error("[FeatureName] Description:", {
+  userId,
+  error: error instanceof Error ? error.message : String(error),
+});
+```
+
+## Payment & Debt Calculations
+- Import from `@/lib/payment-utils` — these are pure functions safe for both server and client.
+- `calculateSessionDebt(session)` — calculates debt for a single session.
+- `calculateDebtFromPayments(payments)` — calculates total debt from payment records.
+- A session with `payment: null` means NO payment record exists (not necessarily unpaid).
+- A session with `payment.status === "PENDING"` means payment exists but not yet paid.
+
+## Error Handling in Pages
+- Server Component pages should catch data-loading errors and return null or throw to error boundary.
+- Every route group should have an `error.tsx` that shows the actual error message.
+- Use `notFound()` from `next/navigation` when a resource doesn't exist.
+
+## Component Patterns
+- Use `"use client"` only when hooks or interactivity are needed.
+- Pass serialized (plain object) data from Server Components to Client Components.
+- Never pass Prisma model instances directly to Client Components.
+
+## File Structure
+- API routes: `src/app/api/[feature]/route.ts`
+- Pages: `src/app/(dashboard)/dashboard/[feature]/page.tsx`
+- Components: `src/components/[feature]/[component-name].tsx`
+- Utilities: `src/lib/[feature].ts`
+- All file names use kebab-case, all variables/functions use camelCase.

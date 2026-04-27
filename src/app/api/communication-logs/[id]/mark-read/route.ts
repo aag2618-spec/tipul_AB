@@ -22,7 +22,7 @@ export async function POST(
       where: {
         id,
         userId: userId,
-        type: "INCOMING_EMAIL",
+        type: { in: ["INCOMING_EMAIL", "INCOMING_SMS"] },
       },
     });
 

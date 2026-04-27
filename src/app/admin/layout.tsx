@@ -54,6 +54,9 @@ const adminNavGroups = [
     label: "כספים ותוכניות",
     items: [
       { href: "/admin/billing", label: "תשלומים ומנויים", icon: CreditCard },
+      { href: "/admin/billing/cardcom-setup", label: "מסוף סליקה (Cardcom)", icon: CreditCard, adminOnly: true },
+      { href: "/admin/receipts", label: "קבלות", icon: ClipboardList },
+      { href: "/admin/billing/business-settings", label: "הגדרות עסק שלי", icon: Settings, adminOnly: true },
       { href: "/admin/tier-settings", label: "תוכניות ומחירים", icon: Settings, adminOnly: true },
       { href: "/admin/coupons", label: "קופונים", icon: Ticket, adminOnly: true },
     ],

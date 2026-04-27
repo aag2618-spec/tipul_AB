@@ -52,6 +52,12 @@ export type Permission =
   | "support.create_on_behalf"
   | "settings.announcements"
 
+  // Cardcom & Receipts (MANAGER) — Stage Cardcom
+  | "billing.cardcom.view_transactions" // צפייה בעסקאות Cardcom
+  | "billing.cardcom.charge_subscriber" // יצירת חיוב/קישור תשלום ידני
+  | "receipts.view" // צפייה בקבלות
+  | "receipts.resend" // שליחה מחדש של קבלה ללקוח
+
   // ADMIN בלבד
   | "users.change_role"
   | "users.grant_free_unlimited"
@@ -65,7 +71,8 @@ export type Permission =
   | "settings.terms"
   | "announcements.delete" // מחיקת הודעת מערכת — ADMIN בלבד
   | "support.delete"
-  | "idempotency.clear"; // DELETE /api/admin/idempotency (Stage 1.18)
+  | "idempotency.clear" // DELETE /api/admin/idempotency (Stage 1.18)
+  | "receipts.void"; // ביטול קבלה ב-Cardcom (ADMIN בלבד)
 
 /**
  * Permissions allowed for each role.
@@ -100,6 +107,11 @@ export const PERMISSIONS_BY_ROLE: Record<Role, Permission[]> = {
     "support.reopen",
     "support.create_on_behalf",
     "settings.announcements",
+    // Cardcom & Receipts
+    "billing.cardcom.view_transactions",
+    "billing.cardcom.charge_subscriber",
+    "receipts.view",
+    "receipts.resend",
   ],
   ADMIN: [], // special-cased — ADMIN has all permissions
 };
@@ -139,6 +151,12 @@ export const PERMISSION_RANK: Record<Permission, number> = {
   "payments.manual": 3,
   "settings.announcements": 3,
 
+  // Cardcom & Receipts (MANAGER tier)
+  "billing.cardcom.view_transactions": 1,
+  "receipts.view": 1,
+  "receipts.resend": 2,
+  "billing.cardcom.charge_subscriber": 3,
+
   // 10: ADMIN בלבד
   "audit.view_all": 10,
   "users.grant_free_unlimited": 10,
@@ -154,6 +172,7 @@ export const PERMISSION_RANK: Record<Permission, number> = {
   "announcements.delete": 10,
   "support.delete": 10,
   "idempotency.clear": 10,
+  "receipts.void": 10,
 };
 
 /**

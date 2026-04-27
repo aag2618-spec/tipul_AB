@@ -16,9 +16,27 @@
  * הפתרון: per-IP rate limit כ-defense-in-depth.
  */
 
+import { timingSafeEqual } from "node:crypto";
 import { NextRequest, NextResponse } from "next/server";
 import { logger } from "@/lib/logger";
 import { checkRateLimit, CRON_RATE_LIMIT } from "@/lib/rate-limit";
+
+/** Constant-time Bearer compare — protects against timing side channels. */
+function bearerEquals(authHeader: string | null, expected: string): boolean {
+  if (!authHeader) return false;
+  const prefix = "Bearer ";
+  if (!authHeader.startsWith(prefix)) return false;
+  const provided = authHeader.slice(prefix.length);
+  if (provided.length !== expected.length) return false;
+  try {
+    return timingSafeEqual(
+      Buffer.from(provided, "utf8"),
+      Buffer.from(expected, "utf8")
+    );
+  } catch {
+    return false;
+  }
+}
 
 /**
  * מחזיר NextResponse של שגיאה אם cron auth/rate-limit נכשלים.
@@ -35,7 +53,7 @@ export async function checkCronAuth(
     return NextResponse.json({ message: "לא מורשה" }, { status: 401 });
   }
   const authHeader = req.headers.get("authorization");
-  if (authHeader !== `Bearer ${cronSecret}`) {
+  if (!bearerEquals(authHeader, cronSecret)) {
     return NextResponse.json({ message: "לא מורשה" }, { status: 401 });
   }
 
