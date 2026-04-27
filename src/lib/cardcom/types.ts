@@ -154,4 +154,8 @@ export type SiteSettingKey =
   // Accounting method for MyTipul itself ("CASH" | "ACCRUAL"). Same semantics
   // as User.accountingMethod but stored centrally for the ADMIN tenant.
   // Stored as a Json string so the SiteSetting key-value store stays uniform.
-  | 'admin_accounting_method';
+  | 'admin_accounting_method'
+  // Country-wide VAT rate (Israel). Used for USER-tenant tax invoices and
+  // ADMIN-tenant receipts when the issuer is LICENSED. Stored centrally so a
+  // legislated rate change (e.g. 18→17) becomes a single DB update, no deploy.
+  | 'country_vat_rate';
