@@ -3,13 +3,16 @@ import prisma from "@/lib/prisma";
 import { logger } from "@/lib/logger";
 
 import { requireAdmin } from "@/lib/api-auth";
+import { bearerEquals } from "@/lib/cron-auth";
 
 export const dynamic = "force-dynamic";
 
 export async function POST(req: NextRequest) {
   try {
+    // Stage 1.19 — timing-safe Bearer compare (was `===`).
+    const cronSecret = process.env.CRON_SECRET;
     const authHeader = req.headers.get("authorization");
-    const cronAuth = authHeader === `Bearer ${process.env.CRON_SECRET}`;
+    const cronAuth = !!cronSecret && bearerEquals(authHeader, cronSecret);
 
     if (!cronAuth) {
       const auth = await requireAdmin();

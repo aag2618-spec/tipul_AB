@@ -1,4 +1,5 @@
 import { NextRequest, NextResponse } from "next/server";
+import { timingSafeEqual } from "node:crypto";
 import prisma from "@/lib/prisma";
 import { questionnaires } from "@/data/questionnaire-seeds";
 import { logger } from "@/lib/logger";
@@ -7,13 +8,28 @@ import { requireAuth } from "@/lib/api-auth";
 // POST - Seed questionnaires to database
 export const dynamic = "force-dynamic";
 
+function safeEqual(a: string, b: string): boolean {
+  const aBuf = Buffer.from(a, "utf8");
+  const bBuf = Buffer.from(b, "utf8");
+  if (aBuf.length !== bBuf.length) return false;
+  return timingSafeEqual(aBuf, bBuf);
+}
+
 export async function POST(request: NextRequest) {
   try {
-    // Allow with secret key or session with ADMIN/MANAGER role
+    // Allow with secret key OR with session (ADMIN/MANAGER).
+    // Stage 1.19 — removed weak hardcoded fallback ("tipul-seed-2024"); if
+    // SEED_SECRET is missing or short, the secret-based path is disabled and
+    // only session auth is honored.
     const secretKey = request.headers.get("x-seed-key");
-    const validSecret = process.env.SEED_SECRET || "tipul-seed-2024";
+    const validSecret = process.env.SEED_SECRET;
+    const secretAuthOk =
+      !!validSecret &&
+      validSecret.length >= 32 &&
+      !!secretKey &&
+      safeEqual(secretKey, validSecret);
 
-    if (secretKey !== validSecret) {
+    if (!secretAuthOk) {
       const auth = await requireAuth();
       if ("error" in auth) return auth.error;
       const { session } = auth;

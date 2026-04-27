@@ -114,6 +114,12 @@ export const WEBHOOK_RATE_LIMIT = { maxRequests: 50, windowMs: 60 * 1000 };
  */
 export const CRON_RATE_LIMIT = { maxRequests: 10, windowMs: 60 * 1000 };
 
+/** Admin password reset by secret — 3 ניסיונות לשעה לכל IP.
+ * Stage 1.19 (security hardening) — endpoint רגיש במיוחד שמבסס על ADMIN_SECRET.
+ * אם ה-secret נחשף, מגביל את היקף הנזק לפני rotation.
+ */
+export const PASSWORD_RESET_RATE_LIMIT = { maxRequests: 3, windowMs: 60 * 60 * 1000 };
+
 // ========================================
 // Admin rate limits (Stage 1.8)
 // ========================================

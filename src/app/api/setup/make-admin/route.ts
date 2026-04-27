@@ -1,16 +1,44 @@
 import { NextRequest, NextResponse } from "next/server";
+import { timingSafeEqual } from "node:crypto";
 import prisma from "@/lib/prisma";
 import { logger } from "@/lib/logger";
 
 // POST - One-time setup to make ADMIN_EMAIL user an ADMIN
 export const dynamic = "force-dynamic";
 
+const MIN_SETUP_SECRET_LENGTH = 32;
+
+function safeCompare(a: string, b: string): boolean {
+  const aBuf = Buffer.from(a, "utf8");
+  const bBuf = Buffer.from(b, "utf8");
+  if (aBuf.length !== bBuf.length) return false;
+  return timingSafeEqual(aBuf, bBuf);
+}
+
 export async function POST(request: NextRequest) {
   try {
-    const secretKey = request.headers.get("x-setup-key");
+    // Stage 1.19 — kill-switch. Endpoint is inert unless SETUP_ENABLED=true.
+    // Re-enable only during bootstrap, then unset SETUP_ENABLED.
+    if (process.env.SETUP_ENABLED !== "true") {
+      logger.warn("[setup/make-admin] disabled-endpoint hit", {
+        ip: request.headers.get("x-forwarded-for") || "unknown",
+      });
+      return NextResponse.json(
+        { message: "Endpoint disabled. Set SETUP_ENABLED=true to enable temporarily." },
+        { status: 410 }
+      );
+    }
+
     const validSecret = process.env.SETUP_SECRET;
-    
-    if (!validSecret || secretKey !== validSecret) {
+    if (!validSecret || validSecret.length < MIN_SETUP_SECRET_LENGTH) {
+      logger.error("[setup/make-admin] SETUP_SECRET missing or too weak");
+      return NextResponse.json({ message: "Service unavailable" }, { status: 503 });
+    }
+    const secretKey = request.headers.get("x-setup-key") ?? "";
+    if (!safeCompare(secretKey, validSecret)) {
+      logger.warn("[setup/make-admin] unauthorized attempt", {
+        ip: request.headers.get("x-forwarded-for") || "unknown",
+      });
       return NextResponse.json({ message: "Unauthorized" }, { status: 401 });
     }
 

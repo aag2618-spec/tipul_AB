@@ -3,6 +3,7 @@ import prisma from "@/lib/prisma";
 import { logger } from "@/lib/logger";
 
 import { requireAuth } from "@/lib/api-auth";
+import { bearerEquals } from "@/lib/cron-auth";
 
 export const dynamic = "force-dynamic";
 
@@ -13,8 +14,9 @@ export async function POST(request: NextRequest) {
     if (!webhookSecret) {
       return NextResponse.json({ message: "INCOMING_EMAIL_SECRET not configured" }, { status: 503 });
     }
+    // Stage 1.19 — timing-safe Bearer compare (was `!==`).
     const authHeader = request.headers.get("authorization");
-    if (authHeader !== `Bearer ${webhookSecret}`) {
+    if (!bearerEquals(authHeader, webhookSecret)) {
       return NextResponse.json({ message: "Unauthorized" }, { status: 401 });
     }
 

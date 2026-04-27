@@ -32,6 +32,7 @@ import {
 } from "@/lib/cardcom/webhook-claim";
 import { getAdminWebhookSecret } from "@/lib/cardcom/admin-config";
 import { getAdminBusinessProfile } from "@/lib/site-settings";
+import { sanitizeCardcomPayload, sanitizeChargebackPayload } from "@/lib/cardcom/sanitize";
 import type { CardcomWebhookPayload } from "@/lib/cardcom/types";
 
 export const dynamic = "force-dynamic";
@@ -189,7 +190,8 @@ async function processAdminWebhook(payload: CardcomWebhookPayload): Promise<void
           operation: String(payload.Operation ?? "unknown"),
           amount: transaction.amount,
           currency: transaction.currency,
-          rawPayload: payload as object,
+          // Stricter PII scrub for chargeback rows (kept long-term for audit).
+          rawPayload: sanitizeChargebackPayload(payload as unknown as object),
         },
       }),
       // AdminAlert — surfaced to the admin UI; subtype distinguishes from
@@ -385,15 +387,9 @@ async function processAdminWebhook(payload: CardcomWebhookPayload): Promise<void
 }
 
 /**
- * Strip credentials from rawResponse before persisting (defence in depth).
- * Cardcom does not echo back our ApiPassword, but we strip blindly anyway.
+ * Strip credentials and sensitive card data from rawResponse before persisting.
+ * Stage 1.19 — uses shared deep redactor in @/lib/cardcom/sanitize.
  */
 function sanitizeRawResponse(payload: CardcomWebhookPayload): object {
-  // Shallow clone, drop anything that looks sensitive.
-  // eslint-disable-next-line @typescript-eslint/no-explicit-any
-  const cloned: any = { ...payload };
-  for (const key of ["ApiPassword", "ApiName", "ApiKey", "Password"]) {
-    if (key in cloned) delete cloned[key];
-  }
-  return cloned;
+  return sanitizeCardcomPayload(payload as unknown as object);
 }

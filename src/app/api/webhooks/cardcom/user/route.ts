@@ -23,7 +23,13 @@ import {
   finalizeWebhook,
   releaseWebhookClaim,
 } from "@/lib/cardcom/webhook-claim";
+import { sanitizeCardcomPayload, sanitizeChargebackPayload } from "@/lib/cardcom/sanitize";
+import { getSiteSetting } from "@/lib/site-settings";
 import type { CardcomWebhookPayload } from "@/lib/cardcom/types";
+
+// Default to the standard Israeli VAT rate (18%) when SiteSetting is unset.
+// Allows a future legislated change to be a single DB update instead of a deploy.
+const DEFAULT_COUNTRY_VAT_RATE = 18;
 
 export const dynamic = "force-dynamic";
 
@@ -215,7 +221,8 @@ async function processUserWebhook(userId: string, payload: CardcomWebhookPayload
           operation: String(payload.Operation ?? "unknown"),
           amount: transaction.amount,
           currency: transaction.currency,
-          rawPayload: payload as object,
+          // Stricter PII scrub for chargeback rows (kept long-term for audit).
+          rawPayload: sanitizeChargebackPayload(payload as unknown as object),
         },
       }),
       prisma.adminAlert.create({
@@ -358,9 +365,16 @@ async function processUserWebhook(userId: string, payload: CardcomWebhookPayload
         const documentType = payload.DocumentInfo.DocumentType ?? "Receipt";
         const isLicensed = therapist.businessType === "LICENSED";
         const amountTotal = Number(transaction.amount);
-        // VAT rate — for now use the standard Israeli rate; future: read from a
-        // central settings table so a rate change in 2030 doesn't require deploy.
-        const vatRate = isLicensed ? 18 : null;
+        // Read country-wide VAT rate from SiteSetting (e.g. Israel 18%).
+        // Falls back to DEFAULT_COUNTRY_VAT_RATE when the row is missing —
+        // boot-strap safety so the first invoice doesn't crash before settings
+        // are seeded. EXEMPT issuers stay at null (no VAT line on the receipt).
+        const settingVatRate = await getSiteSetting<number>("country_vat_rate");
+        const vatRate = isLicensed
+          ? (typeof settingVatRate === "number" && settingVatRate >= 0
+              ? settingVatRate
+              : DEFAULT_COUNTRY_VAT_RATE)
+          : null;
         const amountBeforeVat = isLicensed && vatRate ? amountTotal / (1 + vatRate / 100) : null;
         const vatAmount =
           isLicensed && amountBeforeVat !== null ? amountTotal - amountBeforeVat : null;

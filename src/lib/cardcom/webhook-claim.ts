@@ -15,22 +15,17 @@
 
 import prisma from "@/lib/prisma";
 import { logger } from "@/lib/logger";
+import { sanitizeCardcomPayload } from "@/lib/cardcom/sanitize";
 
 /** Lease window — workers can re-claim if a previous claim is older than this. */
 const WEBHOOK_LEASE_MS = 5 * 60 * 1000; // 5 minutes
 
 /**
- * Strip any credential-shaped keys from a webhook payload before persisting.
- * Cardcom should never echo our own ApiPassword/ApiName back, but defense in
- * depth: if a future API change starts including them, our DB stays clean.
+ * Strip credentials AND sensitive card data from a webhook payload before
+ * persisting. Stage 1.19 — uses shared deep redactor (was shallow).
  */
 function sanitizePayload(payload: object): object {
-  const SENSITIVE_KEYS = ["ApiPassword", "ApiName", "ApiKey", "Password"];
-  const cloned: Record<string, unknown> = { ...(payload as Record<string, unknown>) };
-  for (const key of SENSITIVE_KEYS) {
-    if (key in cloned) delete cloned[key];
-  }
-  return cloned;
+  return sanitizeCardcomPayload(payload);
 }
 
 export interface ClaimResult {
@@ -54,11 +49,23 @@ export async function claimWebhook(
   const leaseCutoff = new Date(now.getTime() - WEBHOOK_LEASE_MS);
 
   // Upsert keeps the row across retries. Payload is sanitized before storage.
-  const event = await prisma.webhookEvent.upsert({
-    where: { provider_externalId: { provider, externalId } },
-    update: { attempts: { increment: 1 } },
-    create: { provider, externalId, rawPayload: sanitizePayload(rawPayload) },
-  });
+  // On DB errors we log + re-throw — silently returning a fake claim would
+  // risk double-processing the same Cardcom event.
+  let event;
+  try {
+    event = await prisma.webhookEvent.upsert({
+      where: { provider_externalId: { provider, externalId } },
+      update: { attempts: { increment: 1 } },
+      create: { provider, externalId, rawPayload: sanitizePayload(rawPayload) },
+    });
+  } catch (err) {
+    logger.error("[webhook-claim] upsert WebhookEvent failed", {
+      provider,
+      externalId,
+      error: err instanceof Error ? err.message : String(err),
+    });
+    throw err;
+  }
 
   if (event.processed) {
     return { status: "already_processed", eventId: event.id };
@@ -68,14 +75,23 @@ export async function claimWebhook(
   //  - same id we just upserted (don't claim a different row)
   //  - processed still false
   //  - claimedAt is null OR older than lease cutoff
-  const claim = await prisma.webhookEvent.updateMany({
-    where: {
-      id: event.id,
-      processed: false,
-      OR: [{ claimedAt: null }, { claimedAt: { lt: leaseCutoff } }],
-    },
-    data: { claimedAt: now },
-  });
+  let claim;
+  try {
+    claim = await prisma.webhookEvent.updateMany({
+      where: {
+        id: event.id,
+        processed: false,
+        OR: [{ claimedAt: null }, { claimedAt: { lt: leaseCutoff } }],
+      },
+      data: { claimedAt: now },
+    });
+  } catch (err) {
+    logger.error("[webhook-claim] updateMany claim failed", {
+      eventId: event.id,
+      error: err instanceof Error ? err.message : String(err),
+    });
+    throw err;
+  }
 
   if (claim.count === 0) {
     return { status: "in_progress", eventId: event.id };
@@ -83,12 +99,27 @@ export async function claimWebhook(
   return { status: "claimed", eventId: event.id };
 }
 
-/** Mark the event as fully processed. */
+/**
+ * Mark the event as fully processed.
+ *
+ * If this DB write fails after successful business-logic processing, the
+ * Cardcom retry will reprocess — but downstream handlers must be idempotent
+ * (claimWebhook handles that by checking `processed`). We log + re-throw so
+ * the caller's response is honest about the partial failure.
+ */
 export async function finalizeWebhook(eventId: string): Promise<void> {
-  await prisma.webhookEvent.updateMany({
-    where: { id: eventId, processed: false },
-    data: { processed: true, processedAt: new Date(), error: null },
-  });
+  try {
+    await prisma.webhookEvent.updateMany({
+      where: { id: eventId, processed: false },
+      data: { processed: true, processedAt: new Date(), error: null },
+    });
+  } catch (err) {
+    logger.error("[webhook-claim] finalizeWebhook failed", {
+      eventId,
+      error: err instanceof Error ? err.message : String(err),
+    });
+    throw err;
+  }
 }
 
 /**

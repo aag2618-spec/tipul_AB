@@ -1,4 +1,5 @@
 import { NextRequest, NextResponse } from "next/server";
+import { z } from "zod";
 import prisma from "@/lib/prisma";
 import { sendEmail, createGenericEmail } from "@/lib/resend";
 import { logger } from "@/lib/logger";
@@ -6,21 +7,38 @@ import { requireAuth } from "@/lib/api-auth";
 
 export const dynamic = "force-dynamic";
 
+// Stage 1.19 — input validation hardening.
+// Subject is hard-bounded + CRLF-stripped (header injection guard).
+// Content is bounded (DoS guard); HTML escaping happens inside createGenericEmail.
+const sendEmailSchema = z.object({
+  clientId: z.string().min(1).max(100),
+  subject: z
+    .string()
+    .min(1, "נושא חסר")
+    .max(200, "נושא ארוך מדי")
+    .refine((s) => !/[\r\n]/.test(s), "הנושא מכיל תווי שורה אסורים"),
+  content: z.string().min(1, "תוכן חסר").max(50_000, "תוכן ארוך מדי"),
+});
+
 export async function POST(request: NextRequest) {
   try {
     const auth = await requireAuth();
     if ("error" in auth) return auth.error;
-    const { userId, session } = auth;
+    const { userId } = auth;
 
-    const body = await request.json();
-    const { clientId, subject, content } = body;
-
-    if (!clientId || !subject || !content) {
-      return NextResponse.json(
-        { message: "נא למלא את כל השדות" },
-        { status: 400 }
-      );
+    let raw: unknown;
+    try {
+      raw = await request.json();
+    } catch {
+      return NextResponse.json({ message: "גוף הבקשה לא תקין" }, { status: 400 });
     }
+
+    const parsed = sendEmailSchema.safeParse(raw);
+    if (!parsed.success) {
+      const firstIssue = parsed.error.issues[0]?.message ?? "נתונים לא תקינים";
+      return NextResponse.json({ message: firstIssue }, { status: 400 });
+    }
+    const { clientId, subject, content } = parsed.data;
 
     // Get client and therapist info
     const client = await prisma.client.findFirst({

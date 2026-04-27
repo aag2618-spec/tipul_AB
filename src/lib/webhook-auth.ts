@@ -24,6 +24,7 @@
  */
 
 import { NextRequest, NextResponse } from 'next/server';
+import { bearerEquals } from '@/lib/cron-auth';
 
 // ---------------------------------------------------------------------------
 // Types
@@ -91,9 +92,10 @@ export function withWebhookAuth(options: WebhookAuthOptions) {
       if (verifyRequest) {
         isValid = await verifyRequest(req, rawBody);
       } else if (secretEnvVar) {
-        // Default: Bearer token check
+        // Default: Bearer token check (timing-safe — Stage 1.19).
         const authHeader = req.headers.get('authorization');
-        isValid = authHeader === `Bearer ${process.env[secretEnvVar]}`;
+        const expected = process.env[secretEnvVar] ?? '';
+        isValid = bearerEquals(authHeader, expected);
       } else {
         // No verification configured — reject by default
         console.error(`[webhook:${name}] No verification method configured`);

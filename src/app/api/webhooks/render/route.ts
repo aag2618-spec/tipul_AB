@@ -1,5 +1,6 @@
 import { NextRequest, NextResponse } from "next/server";
 import { logger } from "@/lib/logger";
+import { bearerEquals } from "@/lib/cron-auth";
 
 export const dynamic = "force-dynamic";
 
@@ -9,8 +10,9 @@ export async function POST(req: NextRequest) {
     if (!webhookSecret) {
       return NextResponse.json({ error: "Service unavailable" }, { status: 503 });
     }
+    // Stage 1.19 — timing-safe Bearer compare (was `!==`).
     const authHeader = req.headers.get("authorization");
-    if (authHeader !== `Bearer ${webhookSecret}`) {
+    if (!bearerEquals(authHeader, webhookSecret)) {
       return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
     }
 

@@ -22,7 +22,7 @@ import { logger } from "@/lib/logger";
 import { checkRateLimit, CRON_RATE_LIMIT } from "@/lib/rate-limit";
 
 /** Constant-time Bearer compare — protects against timing side channels. */
-function bearerEquals(authHeader: string | null, expected: string): boolean {
+export function bearerEquals(authHeader: string | null, expected: string): boolean {
   if (!authHeader) return false;
   const prefix = "Bearer ";
   if (!authHeader.startsWith(prefix)) return false;

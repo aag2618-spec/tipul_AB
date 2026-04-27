@@ -15,6 +15,20 @@ export const dynamic = "force-dynamic";
 
 export async function POST(request: NextRequest) {
   try {
+    // Stage 1.19 — kill-switch. Endpoint is inert unless SETUP_ENABLED=true.
+    // Reason: race-condition risk where attacker reaches this URL before the
+    // legitimate first-time admin is provisioned. Re-enable only during initial
+    // bootstrap, then unset SETUP_ENABLED.
+    if (process.env.SETUP_ENABLED !== "true") {
+      logger.warn("[setup/create-admin] disabled-endpoint hit", {
+        ip: request.headers.get("x-forwarded-for") || "unknown",
+      });
+      return NextResponse.json(
+        { message: "Endpoint disabled. Set SETUP_ENABLED=true to enable temporarily." },
+        { status: 410 }
+      );
+    }
+
     // Check if any admin already exists - this endpoint only works for first setup
     const existingAdmin = await prisma.user.findFirst({
       where: { role: "ADMIN" },
