@@ -54,11 +54,38 @@ export async function POST(request: NextRequest) {
     return NextResponse.json({ message: "סכום זיכוי לא חוקי" }, { status: 400 });
   }
 
-  const transaction = await prisma.cardcomTransaction.findUnique({
-    where: { id: body.cardcomTransactionId },
-  });
+  let transaction;
+  try {
+    transaction = await prisma.cardcomTransaction.findUnique({
+      where: { id: body.cardcomTransactionId },
+    });
+  } catch (dbErr) {
+    logger.error("[admin/cardcom/refund] DB lookup failed", {
+      cardcomTransactionId: body.cardcomTransactionId,
+      error: dbErr instanceof Error ? dbErr.message : String(dbErr),
+    });
+    return NextResponse.json({ message: "שגיאה בחיפוש העסקה" }, { status: 500 });
+  }
   if (!transaction) {
     return NextResponse.json({ message: "עסקה לא נמצאה" }, { status: 404 });
+  }
+  // Tenant guard: this route uses getAdminCardcomClient() (ADMIN terminal).
+  // Refunding a USER-tenant transaction here would call the WRONG Cardcom
+  // terminal and corrupt accounting. USER refunds must go through a
+  // dedicated user-tenant route (separate concern, not implemented here).
+  if (transaction.tenant !== "ADMIN") {
+    logger.warn("[admin/cardcom/refund] blocked non-ADMIN tenant refund", {
+      cardcomTransactionId: transaction.id,
+      tenant: transaction.tenant,
+      adminUserId: session.user.id,
+    });
+    return NextResponse.json(
+      {
+        message:
+          "ניתן לזכות מסלול זה רק עסקאות של מנויי המערכת (ADMIN). עסקת מטפל→לקוח מטופלת במסלול נפרד.",
+      },
+      { status: 403 }
+    );
   }
   if (transaction.status !== "APPROVED") {
     return NextResponse.json(
