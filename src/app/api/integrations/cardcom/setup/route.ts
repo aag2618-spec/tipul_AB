@@ -31,34 +31,45 @@ export async function GET() {
   if ("error" in auth) return auth.error;
   const { userId } = auth;
 
-  const provider = await prisma.billingProvider.findFirst({
-    where: { userId, provider: "CARDCOM" },
-    select: {
-      id: true,
-      isActive: true,
-      isPrimary: true,
-      displayName: true,
-      lastSyncAt: true,
-      settings: true,
-      createdAt: true,
-    },
-  });
+  try {
+    const provider = await prisma.billingProvider.findFirst({
+      where: { userId, provider: "CARDCOM" },
+      select: {
+        id: true,
+        isActive: true,
+        isPrimary: true,
+        displayName: true,
+        lastSyncAt: true,
+        settings: true,
+        createdAt: true,
+      },
+    });
 
-  if (!provider) {
-    return NextResponse.json({ connected: false });
+    if (!provider) {
+      return NextResponse.json({ connected: false });
+    }
+
+    const settings = (provider.settings as { mode?: string } | null) ?? null;
+    return NextResponse.json({
+      connected: true,
+      id: provider.id,
+      isActive: provider.isActive,
+      isPrimary: provider.isPrimary,
+      displayName: provider.displayName,
+      mode: settings?.mode ?? "sandbox",
+      lastSyncAt: provider.lastSyncAt?.toISOString() ?? null,
+      createdAt: provider.createdAt.toISOString(),
+    });
+  } catch (err) {
+    logger.error("[integrations/cardcom/setup GET] failed", {
+      userId,
+      error: err instanceof Error ? err.message : String(err),
+    });
+    return NextResponse.json(
+      { message: "שגיאה בטעינת הגדרות הסליקה" },
+      { status: 500 }
+    );
   }
-
-  const settings = (provider.settings as { mode?: string } | null) ?? null;
-  return NextResponse.json({
-    connected: true,
-    id: provider.id,
-    isActive: provider.isActive,
-    isPrimary: provider.isPrimary,
-    displayName: provider.displayName,
-    mode: settings?.mode ?? "sandbox",
-    lastSyncAt: provider.lastSyncAt?.toISOString() ?? null,
-    createdAt: provider.createdAt.toISOString(),
-  });
 }
 
 export async function POST(request: NextRequest) {

@@ -8,6 +8,7 @@ import { requirePermission } from "@/lib/api-auth";
 import { logger } from "@/lib/logger";
 import { withAudit } from "@/lib/audit";
 import { getAdminCardcomClient } from "@/lib/cardcom/admin-config";
+import { scrubCardcomMessage } from "@/lib/cardcom/verify-webhook";
 
 export const dynamic = "force-dynamic";
 
@@ -117,12 +118,16 @@ export async function POST(request: NextRequest) {
       },
       async (tx) => {
         if (cardcomResult.responseCode !== "0") {
+          // Scrub PAN fragments and truncate before storing — Cardcom error
+          // bodies have rarely echoed card digits in `Description`. Persist a
+          // safe value to DB and surface the same to UI.
+          const scrubbedError = scrubCardcomMessage(cardcomResult.errorMessage);
           await tx.cardcomTransaction.update({
             where: { id: transaction.id },
             data: {
               status: "DECLINED",
               errorCode: cardcomResult.responseCode,
-              errorMessage: cardcomResult.errorMessage,
+              errorMessage: scrubbedError,
               completedAt: new Date(),
             },
           });
@@ -130,7 +135,7 @@ export async function POST(request: NextRequest) {
             success: false,
             transactionId: transaction.id,
             errorCode: cardcomResult.responseCode,
-            errorMessage: cardcomResult.errorMessage ?? "החיוב נדחה",
+            errorMessage: scrubbedError ?? "החיוב נדחה",
           };
         }
 

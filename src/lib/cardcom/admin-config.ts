@@ -5,13 +5,23 @@
 // Sandbox mode is selected via SiteSetting `admin_cardcom_mode`.
 
 import prisma from '@/lib/prisma';
+import { logger } from '@/lib/logger';
 import { CardcomClient, CARDCOM_SANDBOX_TERMINAL, CARDCOM_SANDBOX_API_NAME } from './client';
 import type { CardcomConfig, CardcomMode } from './types';
 
+// On a transient DB outage we'd rather charge against sandbox (safe default)
+// than crash the request — the failure is logged and surfaces in observability.
 async function readMode(): Promise<CardcomMode> {
-  const setting = await prisma.siteSetting.findUnique({ where: { key: 'admin_cardcom_mode' } });
-  const value = setting?.value as string | undefined;
-  return value === 'production' ? 'production' : 'sandbox';
+  try {
+    const setting = await prisma.siteSetting.findUnique({ where: { key: 'admin_cardcom_mode' } });
+    const value = setting?.value as string | undefined;
+    return value === 'production' ? 'production' : 'sandbox';
+  } catch (err) {
+    logger.error('[admin-config] failed reading admin_cardcom_mode — falling back to sandbox', {
+      error: err instanceof Error ? err.message : String(err),
+    });
+    return 'sandbox';
+  }
 }
 
 /**

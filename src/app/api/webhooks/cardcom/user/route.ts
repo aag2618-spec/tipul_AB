@@ -36,6 +36,10 @@ export const dynamic = "force-dynamic";
 export async function POST(request: NextRequest) {
   const ip = resolveClientIp(request.headers);
 
+  // ⚠️ Per-instance + per-IP — NOT a real DoS shield. Real protection comes
+  // from `isCardcomIp` (allowlist) below. The 100/min cap only bounds DB cost
+  // when an attacker spoofs a Cardcom IP; with multiple Render instances or a
+  // botnet of IPs the limit scales linearly.
   const rateLimitResult = checkRateLimit(`webhook:cardcom:user:${ip ?? "unknown"}`, {
     windowMs: 60 * 1000,
     maxRequests: 100,
@@ -208,6 +212,56 @@ async function processUserWebhook(userId: string, payload: CardcomWebhookPayload
     operationLower.includes("reverse") ||
     operationLower.includes("refund") ||
     operationLower === "cancel";
+  // ── Cancelled link guard ───────────────────────────────────────
+  // המטפל ביטל את הקישור לפני שהלקוח שילם. אם בכל זאת הגיע webhook:
+  //   • success === true  → הלקוח הצליח לשלם בכל זאת. לא דורסים את הסטטוס
+  //                         (נשאר CANCELLED) אבל פותחים אזהרה דחופה למטפל
+  //                         לבצע זיכוי ידני ב-Cardcom — הכסף נגבה אבל
+  //                         במערכת זה כבר "מבוטל".
+  //   • success === false → הלקוח ניסה ונכשל; אין מה לעשות.
+  // בכל מקרה — לא עוברים ל-withAudit שמעדכן את ה-CardcomTransaction, כדי
+  // למנוע דריסה של הסטטוס CANCELLED.
+  if (transaction.status === "CANCELLED") {
+    logger.warn("[Cardcom User Webhook] webhook arrived after link cancellation", {
+      transactionId: transaction.id,
+      paymentId: transaction.paymentId,
+      success,
+      lowProfileId: payload.LowProfileId,
+    });
+    if (success) {
+      try {
+        await prisma.adminAlert.create({
+          data: {
+            type: "PAYMENT_FAILED",
+            priority: "URGENT",
+            status: "PENDING",
+            title: `[cardcom-cancel-conflict] לקוח שילם דרך קישור מבוטל (USER)`,
+            message:
+              `המטפל ${userId} ביטל את הקישור לעסקה ${transaction.id} ובכל זאת הלקוח שילם דרכו ב-Cardcom. ` +
+              `הכסף נגבה לחשבון המסוף אך במערכת התשלום מסומן כמבוטל. נדרש זיכוי ידני ב-Cardcom וקשר עם המטפל.`,
+            actionRequired:
+              "בצע refund/void ב-Cardcom עבור LowProfileId המצורף, ועדכן את המטפל. אם המטפל רוצה לקבל את הכסף — שחזר את הסטטוס ידנית ל-APPROVED.",
+            userId,
+            metadata: {
+              alertSubtype: "cancelled_link_paid",
+              transactionId: transaction.id,
+              paymentId: transaction.paymentId,
+              lowProfileId: payload.LowProfileId,
+              tranzactionId: payload.TranzactionId ?? null,
+              amount: Number(transaction.amount),
+            },
+          },
+        });
+      } catch (alertErr) {
+        logger.error("[Cardcom User Webhook] failed creating cancel-conflict alert", {
+          transactionId: transaction.id,
+          error: alertErr instanceof Error ? alertErr.message : String(alertErr),
+        });
+      }
+    }
+    return;
+  }
+
   if (isReversal && transaction.status === "APPROVED") {
     logger.warn("[Cardcom User Webhook] reversal/chargeback detected", {
       transactionId: transaction.id,

@@ -191,8 +191,13 @@ export async function POST(request: NextRequest) {
 
     // Generate a guaranteed-unique document number: prefer Cardcom's refundId,
     // fall back to a FULL uuid suffix (32 hex chars = 128 bits, collision-free
-    // even at billions of partial refunds — vs an 8-char slice which gives
-    // only 32 bits and would have ~50% collision odds at 65k partial refunds).
+    // even at billions of partial refunds).
+    //
+    // RECONCILIATION CAVEAT: when we fall back to the synthetic
+    // `REFUND-${tx}-${uuid}` form, the value is NOT a real Cardcom document
+    // number. Operations that reconcile by document number (e.g. searching
+    // Cardcom's portal) must filter out rows whose number starts with
+    // `REFUND-` and look them up by `cardcomTransactionId` instead.
     const fallbackDocNumber =
       refundResult.refundId || `REFUND-${transaction.id}-${crypto.randomUUID()}`;
 

@@ -5,6 +5,7 @@
 
 import prisma from '@/lib/prisma';
 import { decrypt } from '@/lib/encryption';
+import { logger } from '@/lib/logger';
 import { CardcomClient } from './client';
 import type { CardcomConfig } from './types';
 
@@ -25,10 +26,22 @@ interface UserCardcomCredentials {
  */
 export async function getUserCardcomCredentials(userId: string): Promise<UserCardcomCredentials | null> {
   // Pick primary first if multi-terminal; fall back to oldest active.
-  const provider = await prisma.billingProvider.findFirst({
-    where: { userId, provider: 'CARDCOM', isActive: true },
-    orderBy: [{ isPrimary: 'desc' }, { createdAt: 'asc' }],
-  });
+  // On a transient DB error treat as "no provider" rather than crashing the
+  // caller — the request will degrade gracefully (e.g. "Cardcom not configured")
+  // and the failure surfaces in observability.
+  let provider;
+  try {
+    provider = await prisma.billingProvider.findFirst({
+      where: { userId, provider: 'CARDCOM', isActive: true },
+      orderBy: [{ isPrimary: 'desc' }, { createdAt: 'asc' }],
+    });
+  } catch (err) {
+    logger.error('[user-config] failed loading BillingProvider — returning null', {
+      userId,
+      error: err instanceof Error ? err.message : String(err),
+    });
+    return null;
+  }
 
   if (!provider) return null;
 

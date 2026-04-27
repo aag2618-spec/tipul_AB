@@ -318,6 +318,12 @@ async function processAdminWebhook(payload: CardcomWebhookPayload): Promise<void
       // mark it resolved now that the late webhook arrived. Otherwise the
       // admin sees a stuck "orphan" alert for a doc that's actually fine.
       //
+      // INTENTIONAL: this block runs ONLY in the success branch (the whole
+      // function early-returns on !success above). A chargeback/reverse webhook
+      // arriving on an orphan is NOT an "all clear" — the chargeback handler
+      // higher up raised its own URGENT alert and the orphan row stays open
+      // for manual resolution.
+      //
       // We deliberately do NOT auto-dismiss the parent AdminAlert here. A
       // single rolling alert may reference MANY orphans (different days /
       // tenants / users); dismissing the alert just because ONE orphan in

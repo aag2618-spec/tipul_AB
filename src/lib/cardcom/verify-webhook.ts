@@ -1,7 +1,7 @@
 // src/lib/cardcom/verify-webhook.ts
 // Webhook signature + timestamp verification.
 
-import { createHmac, timingSafeEqual } from 'node:crypto';
+import { createHash, createHmac, timingSafeEqual } from 'node:crypto';
 import { logger } from '@/lib/logger';
 
 /** Allow webhooks at most 5 minutes old (anti-replay). */
@@ -55,33 +55,55 @@ export function verifyWebhookTimestamp(timestamp: string | undefined): boolean {
 }
 
 /**
- * Strip PAN-like digit sequences from a free-text Cardcom message before
- * persisting it. Cardcom's `Description` is meant for end-customer display
- * but in rare cases includes card data fragments — we never want PAN in
- * our DB or in `/p/failed` URLs.
+ * Strip sensitive fragments from a free-text Cardcom message before persisting.
+ * Cardcom's `Description` is meant for end-customer display, but in rare cases
+ * may include PAN fragments, CVV, email addresses or cardholder names. None
+ * should appear in our DB or in pages exposed via referrer leakage.
  *
- * Replaces sequences of 13-19 digits (with optional separators) with
- * `[card-redacted]`. Errs on the side of over-redacting any long digit run.
+ * Layers (applied in order):
+ *   1. PAN — sequences of 13-19 digits with optional separators.
+ *   2. Email — `name@host.tld`.
+ *   3. CVV — 3 or 4 stand-alone digits prefixed by "CVV"/"cvc"/"בטיחות".
+ *   4. Likely cardholder names — ASCII or Hebrew runs prefixed by
+ *      "name"/"בעל הכרטיס" (best-effort).
+ * Always errs on the side of over-redacting.
  */
 export function scrubCardcomMessage(message: string | null | undefined): string | null {
   if (!message) return null;
-  return message.replace(/(?:\d[ -]?){13,19}/g, "[card-redacted]").slice(0, 500);
+  return message
+    // PAN
+    .replace(/(?:\d[ -]?){13,19}/g, "[card-redacted]")
+    // Email
+    .replace(/[a-zA-Z0-9._%+-]+@[a-zA-Z0-9.-]+\.[a-zA-Z]{2,}/g, "[email-redacted]")
+    // CVV (English + Hebrew context cues)
+    .replace(/\b(?:cvv|cvc|בטיחות)\s*[:#]?\s*\d{3,4}\b/gi, "[cvv-redacted]")
+    // Cardholder name patterns
+    .replace(
+      /(?:name|cardholder|בעל הכרטיס|שם בעל הכרטיס)\s*[:#]?\s*[A-Za-z֐-׿][A-Za-z֐-׿ '-]{1,40}/gi,
+      "[name-redacted]"
+    )
+    .slice(0, 500);
 }
 
 /**
  * Cap a UniqueAsmachta key to 30 chars to stay within Cardcom's likely max.
- * If the key is longer, hash the tail so the prefix stays identifying.
+ *
+ * Uses SHA-256 of the FULL key (truncated to 7 hex = 28 bits) so collisions
+ * are uniformly distributed: ~1 in 268M for arbitrary inputs. The earlier
+ * polynomial 32-bit non-crypto hash had real collision risk for
+ * structured inputs that share a 22-char prefix (e.g. two partial refunds
+ * to the same transaction with different amounts).
+ *
+ * If two distinct keys nevertheless map to the same 30-char output, only the
+ * second call to Cardcom would be rejected as duplicate — a recoverable
+ * 4xx, not a financial loss.
  */
 export function capAsmachta(key: string): string {
   const MAX = 30;
   if (key.length <= MAX) return key;
-  // Keep the first 22 chars (still unique-ish for our keys), append 7-char
-  // hex of the rest for collision resistance.
-  let hash = 0;
-  for (let i = 22; i < key.length; i++) {
-    hash = ((hash << 5) - hash + key.charCodeAt(i)) | 0;
-  }
-  return key.slice(0, 22) + "-" + (hash >>> 0).toString(16).slice(0, 7);
+  const sha = createHash('sha256').update(key, 'utf8').digest('hex');
+  // 22 prefix chars (semantically meaningful) + 1 separator + 7 sha hex.
+  return key.slice(0, 22) + '-' + sha.slice(0, 7);
 }
 
 /**

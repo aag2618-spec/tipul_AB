@@ -31,6 +31,7 @@ import {
   Flag,
   BarChart3,
   Headphones,
+  AlertTriangle,
 } from "lucide-react";
 
 // adminOnly: true → מוסתר ל-MANAGER (התאמה למטריצה ול-middleware ADMIN_ONLY_PATHS)
@@ -56,6 +57,7 @@ const adminNavGroups = [
       { href: "/admin/billing", label: "תשלומים ומנויים", icon: CreditCard },
       { href: "/admin/billing/cardcom-setup", label: "מסוף סליקה (Cardcom)", icon: CreditCard, adminOnly: true },
       { href: "/admin/receipts", label: "קבלות", icon: ClipboardList },
+      { href: "/admin/chargebacks", label: "החזרות חיוב", icon: AlertTriangle },
       { href: "/admin/billing/business-settings", label: "הגדרות עסק שלי", icon: Settings, adminOnly: true },
       { href: "/admin/tier-settings", label: "תוכניות ומחירים", icon: Settings, adminOnly: true },
       { href: "/admin/coupons", label: "קופונים", icon: Ticket, adminOnly: true },
