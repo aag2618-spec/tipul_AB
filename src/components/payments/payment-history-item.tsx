@@ -5,7 +5,8 @@ import { format } from 'date-fns';
 import { he } from 'date-fns/locale';
 import { Badge } from '@/components/ui/badge';
 import { Button } from '@/components/ui/button';
-import { ChevronDown, ChevronUp, Calendar, Clock, CheckCircle } from 'lucide-react';
+import { ChevronDown, ChevronUp, Calendar, Clock, CheckCircle, CreditCard } from 'lucide-react';
+import { CardcomTransactionPanel } from './cardcom-transaction-panel';
 
 interface ChildPayment {
   id: string;
@@ -32,9 +33,11 @@ interface Payment {
 
 interface PaymentHistoryItemProps {
   payment: Payment;
+  /** קולבק לרענון אחרי זיכוי מוצלח (רענון רשימה ב-parent). */
+  onRefundSuccess?: () => Promise<void> | void;
 }
 
-export function PaymentHistoryItem({ payment }: PaymentHistoryItemProps) {
+export function PaymentHistoryItem({ payment, onRefundSuccess }: PaymentHistoryItemProps) {
   const [showDetails, setShowDetails] = useState(false);
 
   const amount = typeof payment.amount === 'number' 
@@ -123,6 +126,16 @@ export function PaymentHistoryItem({ payment }: PaymentHistoryItemProps) {
                     {paymentCount} תשלומים
                   </span>
                 </>
+              )}
+
+              {payment.method === 'CREDIT_CARD' && (
+                <span
+                  className="text-sm text-blue-600 inline-flex items-center gap-1"
+                  title="חויב באשראי דרך Cardcom"
+                  aria-label="כרטיס אשראי"
+                >
+                  <CreditCard className="h-3.5 w-3.5" />
+                </span>
               )}
             </div>
 
@@ -261,7 +274,10 @@ export function PaymentHistoryItem({ payment }: PaymentHistoryItemProps) {
                           <span className="text-muted-foreground">•</span>
                           <span className="font-semibold">₪{childAmount}</span>
                           <span className="text-muted-foreground">•</span>
-                          <span className="text-xs text-muted-foreground">
+                          <span className="text-xs text-muted-foreground inline-flex items-center gap-1">
+                            {child.method === 'CREDIT_CARD' && (
+                              <CreditCard className="h-3 w-3 text-blue-600" />
+                            )}
                             {getMethodText(child.method)}
                           </span>
                           {isLast && isCompleted && (
@@ -307,6 +323,14 @@ export function PaymentHistoryItem({ payment }: PaymentHistoryItemProps) {
                 </div>
               </div>
             ) : null}
+
+            {/* Cardcom transaction details — נטען רק כששיטת התשלום אשראי. */}
+            {payment.method === 'CREDIT_CARD' && (
+              <CardcomTransactionPanel
+                paymentId={payment.id}
+                onRefundSuccess={onRefundSuccess}
+              />
+            )}
           </div>
         )}
       </div>

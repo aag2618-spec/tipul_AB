@@ -234,8 +234,11 @@ export async function createPaymentForSession(params: {
       });
     }
 
-    // Email — send for any actual payment
-    if (amount > 0) {
+    // Email — send only when there is an actual completed payment.
+    // ⚠️ אסור לשלוח "התשלום בוצע" כש-status=PENDING (למשל בזרימת Cardcom שבה
+    // קודם יוצרים שורה PENDING ורק אחרי webhook הופך ל-PAID). אחרת הלקוח
+    // יקבל מייל מטעה לפני שבכלל שילם.
+    if (amount > 0 && payment.status === "PAID") {
       const emailAmount = childPayment ? amount : Number(payment.amount);
       const sessionRemaining = Number(payment.expectedAmount || 0) - Number(payment.amount);
       await sendPaymentReceiptEmail({

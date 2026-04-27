@@ -1,6 +1,7 @@
 'use client';
 
 import { useState, useMemo } from 'react';
+import { useRouter } from 'next/navigation';
 import { format, subMonths } from 'date-fns';
 import { he } from 'date-fns/locale';
 import { Card, CardContent } from '@/components/ui/card';
@@ -73,6 +74,7 @@ interface PaymentHistoryGridProps {
 }
 
 export function PaymentHistoryGrid({ payments }: PaymentHistoryGridProps) {
+  const router = useRouter();
   const [selectedDate, setSelectedDate] = useState<Date | undefined>(undefined);
   const [isCalendarOpen, setIsCalendarOpen] = useState(false);
   const [selectedMonth, setSelectedMonth] = useState<string>("all");
@@ -356,6 +358,7 @@ export function PaymentHistoryGrid({ payments }: PaymentHistoryGridProps) {
                   paidAt: child.paidAt || child.createdAt,
                 })),
               }}
+              onRefundSuccess={() => router.refresh()}
             />
           ))}
         </div>

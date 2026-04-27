@@ -26,11 +26,16 @@ import { Checkbox } from "@/components/ui/checkbox";
 import { toast } from "sonner";
 import { useRouter } from "next/navigation";
 import Link from "next/link";
+import { ChargeCardcomDialog } from "./charge-cardcom-dialog";
 
 interface QuickMarkPaidProps {
   sessionId: string;
   clientId: string;
   clientName?: string;
+  /** מספר טלפון לשליחת לינק Cardcom ב-SMS (לא חובה — אם חסר, יוסתר ה-SMS). */
+  clientPhone?: string | null;
+  /** מייל לשליחת לינק Cardcom (לא חובה — אם חסר, יוסתר). */
+  clientEmail?: string | null;
   amount: number;
   creditBalance?: number;
   existingPayment?: {
@@ -54,6 +59,8 @@ export function QuickMarkPaid({
   sessionId,
   clientId,
   clientName,
+  clientPhone,
+  clientEmail,
   amount,
   creditBalance = 0,
   existingPayment,
@@ -86,6 +93,7 @@ export function QuickMarkPaid({
   };
   const [isLoading, setIsLoading] = useState(false);
   const [method, setMethod] = useState<string>("CASH");
+  const [cardcomOpen, setCardcomOpen] = useState(false);
   const [showAdvanced, setShowAdvanced] = useState(false);
   const [paymentType, setPaymentType] = useState<"FULL" | "PARTIAL" | "CREDIT">("FULL");
   const [partialAmount, setPartialAmount] = useState<string>("");
@@ -154,6 +162,30 @@ export function QuickMarkPaid({
   }
 
   const handleMarkPaid = async () => {
+    // אם נבחר "כרטיס אשראי" → לא רושמים ידנית; פותחים את דיאלוג Cardcom
+    // שיבצע סליקה אמיתית, יקבל webhook, ויעדכן את ה-Payment ל-PAID.
+    if (method === "CREDIT_CARD") {
+      // חוסם שילוב לא נתמך: "השתמש בקרדיט" + "כרטיס אשראי" — Cardcom
+      // יחייב את כל הסכום ולא יקזז את הקרדיט. עד שיתמך פיצול, מציגים שגיאה.
+      if (paymentType === "CREDIT") {
+        toast.error("לא ניתן לשלב שימוש בקרדיט עם חיוב באשראי. בחרי תשלום מלא או חלקי.");
+        return;
+      }
+      // Validate partial amount before opening the Cardcom dialog.
+      if (paymentType === "PARTIAL") {
+        const partialNum = parseFloat(partialAmount);
+        if (!partialNum || partialNum <= 0 || partialNum > amount) {
+          toast.error("סכום חלקי לא תקין");
+          return;
+        }
+      }
+      setIsOpen(false);
+      // Defer ~220ms — מעבר לאנימציית הסגירה של Radix Dialog (~200ms)
+      // כדי למנוע התנגשות חזותית.
+      setTimeout(() => setCardcomOpen(true), 220);
+      return;
+    }
+
     setIsLoading(true);
     try {
       // Calculate payment amounts
@@ -240,7 +272,10 @@ export function QuickMarkPaid({
     }
   };
 
+  const computedAmount = paymentType === "PARTIAL" ? (parseFloat(partialAmount) || 0) || amount : amount;
+
   return (
+    <>
     <Dialog open={isOpen} onOpenChange={setIsOpen}>
       {children ? (
         <DialogTrigger asChild>
@@ -451,6 +486,11 @@ export function QuickMarkPaid({
                 <Loader2 className="h-4 w-4 animate-spin" />
                 מעבד...
               </>
+            ) : method === "CREDIT_CARD" ? (
+              <>
+                <CreditCard className="h-4 w-4" />
+                {`המשך לסליקה ב-Cardcom (₪${(paymentType === "PARTIAL" ? (parseFloat(partialAmount) || 0) : amount).toFixed(0)})`}
+              </>
             ) : (
               <>
                 <Check className="h-4 w-4" />
@@ -493,5 +533,29 @@ export function QuickMarkPaid({
         )}
       </DialogContent>
     </Dialog>
+
+    <ChargeCardcomDialog
+      open={cardcomOpen}
+      onOpenChange={setCardcomOpen}
+      paymentId={existingPayment?.id}
+      sessionId={sessionId}
+      clientId={clientId}
+      clientName={clientName ?? "מטופל"}
+      clientPhone={clientPhone}
+      clientEmail={clientEmail}
+      amount={computedAmount}
+      defaultDescription={`פגישה`}
+      onPaymentSuccess={async () => {
+        if (onPaymentSuccess) {
+          try {
+            await onPaymentSuccess();
+          } catch (err) {
+            console.error("onPaymentSuccess error:", err);
+          }
+        }
+        router.refresh();
+      }}
+    />
+    </>
   );
 }
