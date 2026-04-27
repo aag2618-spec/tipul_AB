@@ -408,7 +408,7 @@ export function ConnectionsTab() {
 
       {/* Billing Dialog */}
       <Dialog open={showBillingDialog} onOpenChange={setShowBillingDialog}>
-        <DialogContent className="max-w-md">
+        <DialogContent className="max-w-md max-h-[90vh] overflow-y-auto">
           <DialogHeader>
             <DialogTitle>חיבור {currentProviderInfo?.name}</DialogTitle>
             <DialogDescription>הזן את פרטי ה-API שלך. המידע נשמר מוצפן ומאובטח.</DialogDescription>
