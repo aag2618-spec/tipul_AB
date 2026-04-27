@@ -9,6 +9,7 @@ import { toast } from "sonner";
 import {
   CreditCard, FileText, Eye, EyeOff,
   Shield, Loader2, Link as LinkIcon,
+  Copy, RefreshCw,
 } from "lucide-react";
 import {
   Dialog, DialogContent, DialogDescription, DialogFooter, DialogHeader, DialogTitle,
@@ -149,6 +150,31 @@ const providerInfo: Record<string, ProviderInfo> = {
     ],
     signupUrl: "https://www.sumit.co.il",
   },
+  CARDCOM: {
+    name: "Cardcom",
+    description: "סליקת אשראי + הנפקת חשבוניות",
+    icon: CreditCard,
+    features: ["סליקת אשראי בדף מאובטח", "חשבונית מס/קבלה אוטומטית", "תשלום בקישור"],
+    fields: {
+      apiKeyLabel: "מספר מסוף (TerminalNumber)",
+      apiKeyPlaceholder: "למשל: 1000 לסנדבוקס",
+      apiSecretLabel: "שם משתמש API (ApiName)",
+      apiSecretPlaceholder: "מ-Cardcom פאנל ← API",
+      apiSecretRequired: true,
+      extraFieldLabel: "סיסמת API (ApiPassword)",
+      extraFieldPlaceholder: "הסיסמה הסודית של ה-API",
+      extraFieldIsPassword: true,
+    },
+    instructions: [
+      "פתח חשבון ב-Cardcom (cardcom.solutions) ובקש פרטי API: מסוף, ApiName, ApiPassword",
+      "להתחלה אפשר להשתמש בסנדבוקס: מסוף 1000 / CardTest1994 / Terminaltest2026",
+      "מלא את שלושת הפרטים בשדות שמתחת",
+      'בחר מצב "סנדבוקס" עד שהכל יעבוד, ואז עבור ל"פרודקשן" עם פרטים אמיתיים',
+      "לחץ על אייקון הריענון (🔄) ליד שדה הסוד כדי ליצור סוד אקראי ל-Webhook, העתק אותו",
+      "לאחר שמירה: היכנס לפאנל Cardcom ← הגדרות ← Webhook, הדבק את הסוד והוסף את כתובת ה-Webhook שתוצג",
+    ],
+    signupUrl: "https://www.cardcom.solutions",
+  },
 };
 
 export function ConnectionsTab() {
@@ -168,6 +194,11 @@ export function ConnectionsTab() {
   const [showExtraField, setShowExtraField] = useState(false);
   const [saving, setSaving] = useState(false);
   const [testingConnection, setTestingConnection] = useState<string | null>(null);
+
+  const [cardcomWebhookSecret, setCardcomWebhookSecret] = useState("");
+  const [cardcomMode, setCardcomMode] = useState<"sandbox" | "production">("sandbox");
+  const [showCardcomSecret, setShowCardcomSecret] = useState(false);
+  const [cardcomAlreadyConnected, setCardcomAlreadyConnected] = useState(false);
 
   const [insurerSettings, setInsurerSettings] = useState<InsurerSettings>({
     enabled: false,
@@ -228,9 +259,42 @@ export function ConnectionsTab() {
     finally { setTestingConnection(null); }
   };
 
-  const openBillingDialog = (provider: string) => {
+  const generateCardcomSecret = () => {
+    const buf = new Uint8Array(24);
+    crypto.getRandomValues(buf);
+    return Array.from(buf, (b) => b.toString(16).padStart(2, "0")).join("");
+  };
+
+  const openBillingDialog = async (provider: string) => {
     setSelectedProvider(provider); setApiKey(""); setApiSecret(""); setExtraField("");
-    setShowApiKey(false); setShowApiSecret(false); setShowExtraField(false); setShowBillingDialog(true);
+    setShowApiKey(false); setShowApiSecret(false); setShowExtraField(false);
+    setShowCardcomSecret(false);
+    setCardcomAlreadyConnected(false);
+
+    if (provider === "CARDCOM") {
+      // Try to load existing connection so re-edit doesn't silently rotate the
+      // webhook secret or reset mode to sandbox.
+      try {
+        const res = await fetch("/api/integrations/cardcom/setup");
+        if (res.ok) {
+          const data = await res.json();
+          if (data.connected) {
+            setCardcomAlreadyConnected(true);
+            setCardcomMode(data.mode === "production" ? "production" : "sandbox");
+            setCardcomWebhookSecret(""); // empty = keep existing
+            setShowBillingDialog(true);
+            return;
+          }
+        }
+      } catch {
+        // fall through to fresh-setup defaults
+      }
+      setCardcomWebhookSecret(generateCardcomSecret());
+      setCardcomMode("sandbox");
+    } else {
+      setCardcomWebhookSecret("");
+    }
+    setShowBillingDialog(true);
   };
 
   const currentProviderInfo = selectedProvider ? providerInfo[selectedProvider] : null;
@@ -238,16 +302,49 @@ export function ConnectionsTab() {
   const saveBillingProvider = async () => {
     if (!selectedProvider || !apiKey) { toast.error(`יש למלא ${currentProviderInfo?.fields.apiKeyLabel || "API Key"}`); return; }
     if (currentProviderInfo?.fields.apiSecretRequired && !apiSecret) { toast.error(`יש למלא ${currentProviderInfo?.fields.apiSecretLabel || "API Secret"}`); return; }
-    if (currentProviderInfo?.fields.extraFieldLabel && !extraField) { toast.error(`יש למלא ${currentProviderInfo?.fields.extraFieldLabel}`); return; }
+    if (currentProviderInfo?.fields.extraFieldLabel && !extraField && selectedProvider !== "CARDCOM") {
+      toast.error(`יש למלא ${currentProviderInfo?.fields.extraFieldLabel}`);
+      return;
+    }
+    if (selectedProvider === "CARDCOM" && !cardcomAlreadyConnected && !cardcomWebhookSecret.trim()) {
+      toast.error("חסר סוד Webhook — לחץ על כפתור היצירה");
+      return;
+    }
     setSaving(true);
     try {
-      let finalApiSecret = apiSecret || null;
-      if (currentProviderInfo?.fields.extraFieldLabel && apiSecret && extraField) {
-        finalApiSecret = `${apiSecret}|||${extraField}`;
+      let res: Response;
+      if (selectedProvider === "CARDCOM") {
+        res = await fetch("/api/integrations/cardcom/setup", {
+          method: "POST",
+          headers: { "Content-Type": "application/json" },
+          body: JSON.stringify({
+            terminalNumber: apiKey.trim(),
+            apiName: apiSecret.trim(),
+            apiPassword: extraField.trim() || undefined,
+            webhookSecret: cardcomWebhookSecret.trim(),
+            mode: cardcomMode,
+            isPrimary: false,
+          }),
+        });
+      } else {
+        let finalApiSecret = apiSecret || null;
+        if (currentProviderInfo?.fields.extraFieldLabel && apiSecret && extraField) {
+          finalApiSecret = `${apiSecret}|||${extraField}`;
+        }
+        res = await fetch("/api/integrations/billing", { method: "POST", headers: { "Content-Type": "application/json" }, body: JSON.stringify({ provider: selectedProvider, apiKey, apiSecret: finalApiSecret }) });
       }
-      const res = await fetch("/api/integrations/billing", { method: "POST", headers: { "Content-Type": "application/json" }, body: JSON.stringify({ provider: selectedProvider, apiKey, apiSecret: finalApiSecret }) });
-      if (res.ok) { toast.success("נוסף!"); setShowBillingDialog(false); const data = await fetch("/api/integrations/billing").then(r => r.json()); setBillingProviders(data); }
-      else { const err = await res.json(); toast.error(err.error || "שגיאה"); }
+      if (res.ok) {
+        toast.success("נוסף!");
+        if (selectedProvider === "CARDCOM" && cardcomWebhookSecret.trim()) {
+          toast.message("העתק את סוד ה-Webhook לפאנל Cardcom — הוא לא יוצג שוב.");
+        }
+        setShowBillingDialog(false);
+        const data = await fetch("/api/integrations/billing").then(r => r.json());
+        setBillingProviders(data);
+      } else {
+        const err = await res.json().catch(() => ({}));
+        toast.error(err.message || err.error || "שגיאה");
+      }
     } catch { toast.error("שגיאה"); }
     finally { setSaving(false); }
   };
@@ -377,7 +474,10 @@ export function ConnectionsTab() {
 
             {currentProviderInfo?.fields.extraFieldLabel && (
               <div className="space-y-2">
-                <Label>{currentProviderInfo.fields.extraFieldLabel} *</Label>
+                <Label>
+                  {currentProviderInfo.fields.extraFieldLabel}
+                  {selectedProvider !== "CARDCOM" && " *"}
+                </Label>
                 <div className="relative">
                   <Input
                     type={currentProviderInfo.fields.extraFieldIsPassword && !showExtraField ? "password" : "text"}
@@ -394,6 +494,96 @@ export function ConnectionsTab() {
                 </div>
               </div>
             )}
+
+            {selectedProvider === "CARDCOM" && (
+              <>
+                <div className="space-y-2">
+                  <Label>מצב עבודה *</Label>
+                  <div className="flex gap-2">
+                    <Button
+                      type="button"
+                      variant={cardcomMode === "sandbox" ? "default" : "outline"}
+                      size="sm"
+                      className="flex-1 text-xs"
+                      onClick={() => setCardcomMode("sandbox")}
+                    >
+                      סנדבוקס (בדיקה)
+                    </Button>
+                    <Button
+                      type="button"
+                      variant={cardcomMode === "production" ? "default" : "outline"}
+                      size="sm"
+                      className="flex-1 text-xs"
+                      onClick={() => setCardcomMode("production")}
+                    >
+                      פרודקשן (אמיתי)
+                    </Button>
+                  </div>
+                </div>
+
+                <div className="space-y-2">
+                  <Label>
+                    סוד Webhook
+                    {!cardcomAlreadyConnected && " *"}
+                  </Label>
+                  <div className="relative">
+                    <Input
+                      type={showCardcomSecret ? "text" : "password"}
+                      value={cardcomWebhookSecret}
+                      onChange={(e) => setCardcomWebhookSecret(e.target.value)}
+                      placeholder={
+                        cardcomAlreadyConnected
+                          ? "השאר ריק כדי לא לשנות את הסוד הקיים"
+                          : "סוד אקראי לאימות Webhooks"
+                      }
+                      className="pl-24"
+                    />
+                    <div className="absolute left-0 top-0 h-full flex items-center">
+                      <Button type="button" variant="ghost" size="sm" className="h-full px-2" title="הצג/הסתר" onClick={() => setShowCardcomSecret(!showCardcomSecret)}>
+                        {showCardcomSecret ? <EyeOff className="h-4 w-4" /> : <Eye className="h-4 w-4" />}
+                      </Button>
+                      <Button
+                        type="button"
+                        variant="ghost"
+                        size="sm"
+                        className="h-full px-2"
+                        title="העתק"
+                        onClick={async () => {
+                          if (cardcomWebhookSecret) {
+                            await navigator.clipboard.writeText(cardcomWebhookSecret);
+                            toast.success("הועתק");
+                          }
+                        }}
+                      >
+                        <Copy className="h-4 w-4" />
+                      </Button>
+                      <Button
+                        type="button"
+                        variant="ghost"
+                        size="sm"
+                        className="h-full px-2"
+                        title="צור סוד חדש"
+                        onClick={() => setCardcomWebhookSecret(generateCardcomSecret())}
+                      >
+                        <RefreshCw className="h-4 w-4" />
+                      </Button>
+                    </div>
+                  </div>
+                  <p className="text-[11px] text-muted-foreground">
+                    {cardcomAlreadyConnected
+                      ? "אם תכניס סוד חדש כאן ותשמור, הוא יחליף את הקיים — צריך לעדכן גם בפאנל Cardcom. השאר ריק כדי לא לסובב."
+                      : "הסוד הזה משמש לאימות שה-Webhook מגיע באמת מ-Cardcom. אחרי שמירה הדבק אותו בפאנל Cardcom (הגדרות → Webhook)."}
+                  </p>
+                </div>
+
+                <div className="bg-muted/50 border rounded p-2 space-y-1">
+                  <p className="text-[11px] font-medium">כתובת ה-Webhook להגדרה ב-Cardcom:</p>
+                  <code dir="ltr" className="block text-[10px] break-all text-left">
+                    {(typeof window !== "undefined" ? window.location.origin : "") + "/api/webhooks/cardcom/user"}
+                  </code>
+                </div>
+              </>
+            )}
           </div>
 
           <div className="flex items-center gap-2 text-xs text-muted-foreground bg-muted/30 rounded p-2">
@@ -405,7 +595,13 @@ export function ConnectionsTab() {
             <Button variant="outline" onClick={() => setShowBillingDialog(false)}>ביטול</Button>
             <Button
               onClick={saveBillingProvider}
-              disabled={!apiKey || (currentProviderInfo?.fields.apiSecretRequired && !apiSecret) || (currentProviderInfo?.fields.extraFieldLabel && !extraField) || saving}
+              disabled={
+                !apiKey ||
+                (currentProviderInfo?.fields.apiSecretRequired && !apiSecret) ||
+                (currentProviderInfo?.fields.extraFieldLabel && !extraField && selectedProvider !== "CARDCOM") ||
+                (selectedProvider === "CARDCOM" && !cardcomAlreadyConnected && !cardcomWebhookSecret.trim()) ||
+                saving
+              }
             >
               {saving ? "שומר..." : "שמור וחבר"}
             </Button>

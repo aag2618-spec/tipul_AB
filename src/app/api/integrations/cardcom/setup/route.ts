@@ -73,9 +73,9 @@ export async function POST(request: NextRequest) {
     return NextResponse.json({ message: "גוף הבקשה אינו JSON תקין" }, { status: 400 });
   }
 
-  if (!body.terminalNumber?.trim() || !body.apiName?.trim() || !body.webhookSecret?.trim()) {
+  if (!body.terminalNumber?.trim() || !body.apiName?.trim()) {
     return NextResponse.json(
-      { message: "TerminalNumber, ApiName ו-webhookSecret חובה" },
+      { message: "TerminalNumber ו-ApiName חובה" },
       { status: 400 }
     );
   }
@@ -112,26 +112,39 @@ export async function POST(request: NextRequest) {
           where: { userId, provider: "CARDCOM" },
         });
 
-        const newWebhookSecret = encrypt(body.webhookSecret.trim());
+        // For new connections webhookSecret is mandatory.
+        // For updates, an empty webhookSecret means "keep existing" — prevents
+        // accidental rotation when the user only wants to change credentials/mode.
+        if (!existing && !body.webhookSecret?.trim()) {
+          throw new Error("CARDCOM_MISSING_WEBHOOK_SECRET");
+        }
+
+        const newWebhookSecret = body.webhookSecret?.trim()
+          ? encrypt(body.webhookSecret.trim())
+          : null;
+
         const baseData = {
           provider: "CARDCOM" as const,
           displayName: body.displayName?.trim() || "Cardcom",
           apiKey: encrypt(body.terminalNumber.trim()),
           apiSecret: encrypt(apiSecretCombined),
-          webhookSecret: newWebhookSecret,
           isActive: true,
           isPrimary: body.isPrimary ?? false,
           settings: { mode } satisfies Record<string, unknown>,
         };
 
         if (existing) {
-          // Rotation: keep the OLD secret valid for 24h so in-flight Cardcom
-          // retries signed with it still verify. Only stash if it actually changed.
-          const isRotation = existing.webhookSecret && existing.webhookSecret !== newWebhookSecret;
+          // Rotation: only when a NEW secret was provided. Keep the OLD secret
+          // valid for 24h so in-flight Cardcom retries signed with it still verify.
+          const isRotation =
+            !!newWebhookSecret &&
+            !!existing.webhookSecret &&
+            existing.webhookSecret !== newWebhookSecret;
           return tx.billingProvider.update({
             where: { id: existing.id },
             data: {
               ...baseData,
+              ...(newWebhookSecret ? { webhookSecret: newWebhookSecret } : {}),
               ...(isRotation && existing.webhookSecret
                 ? {
                     previousWebhookSecret: existing.webhookSecret,
@@ -143,7 +156,10 @@ export async function POST(request: NextRequest) {
             },
           });
         }
-        return tx.billingProvider.create({ data: { ...baseData, userId } });
+        // newWebhookSecret is guaranteed non-null here (checked above).
+        return tx.billingProvider.create({
+          data: { ...baseData, webhookSecret: newWebhookSecret!, userId },
+        });
       }
     );
 
@@ -154,6 +170,12 @@ export async function POST(request: NextRequest) {
       mode,
     });
   } catch (err) {
+    if (err instanceof Error && err.message === "CARDCOM_MISSING_WEBHOOK_SECRET") {
+      return NextResponse.json(
+        { message: "סוד Webhook חובה ליצירת חיבור חדש" },
+        { status: 400 }
+      );
+    }
     logger.error("[integrations/cardcom/setup POST] failed", {
       userId,
       error: err instanceof Error ? err.message : String(err),
