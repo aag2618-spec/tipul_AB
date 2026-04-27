@@ -89,20 +89,36 @@ export function ChargeCardcomDialog({
   sessionId,
   clientId,
   clientName,
-  clientPhone,
-  clientEmail,
+  // ⚠️ Renamed to "prop*" so the rest of the component can refer to
+  // `clientPhone`/`clientEmail` as the EFFECTIVE values (props OR
+  // lazily-fetched fallback). See `effectivePhone`/`effectiveEmail` below.
+  clientPhone: propClientPhone,
+  clientEmail: propClientEmail,
   amount,
   defaultDescription,
   onPaymentSuccess,
 }: ChargeCardcomDialogProps) {
+  // ── Lazy contact fallback ──────────────────────────────────
+  // Many call sites of QuickMarkPaid don't have phone/email at hand
+  // (they live in the client record but aren't always passed through).
+  // Rather than thread the props through 8 different parents, we fetch
+  // them on first open via the lightweight /api/clients/[id]/contact
+  // endpoint. Props always take priority if provided.
+  const [fetchedContact, setFetchedContact] = useState<{
+    phone: string | null;
+    email: string | null;
+  } | null>(null);
+  const clientPhone = propClientPhone ?? fetchedContact?.phone ?? null;
+  const clientEmail = propClientEmail ?? fetchedContact?.email ?? null;
+
   // ── Form state ──────────────────────────────────────────────
   const [installments, setInstallments] = useState<number>(1);
   const [description, setDescription] = useState<string>(defaultDescription ?? "");
   const [payMode, setPayMode] = useState<PayMode>("link");
   const [channel, setChannel] = useState<Channel>(() => {
-    if (clientEmail && clientPhone) return "both";
-    if (clientEmail) return "email";
-    if (clientPhone) return "sms";
+    if (propClientEmail && propClientPhone) return "both";
+    if (propClientEmail) return "email";
+    if (propClientPhone) return "sms";
     return "email";
   });
   const [saveCard, setSaveCard] = useState<boolean>(false);
@@ -116,6 +132,15 @@ export function ChargeCardcomDialog({
   const [linkResults, setLinkResults] = useState<
     Array<{ channel: "sms" | "email"; success: boolean; error?: string }>
   >([]);
+  // ── Resend cooldown ─────────────────────────────────────────
+  // After every successful re-send, lock the button for 30s. Two reasons:
+  //  1) Backend is rate-limited; better to surface that visually instead of
+  //     letting the therapist hammer the button until it 429s.
+  //  2) Reduces SMS-cost waste from accidental double-clicks.
+  const RESEND_COOLDOWN_MS = 30_000;
+  const [resendCooldownEndsAt, setResendCooldownEndsAt] = useState<number>(0);
+  const [resendCooldownLeft, setResendCooldownLeft] = useState<number>(0);
+  const [isResending, setIsResending] = useState<boolean>(false);
 
   // Idempotency-Key מתקיים ל-window אחד של ניסיון (שני קליקים מהירים → אותה תוצאה).
   const idempotencyKeyRef = useRef<string>("");
@@ -157,6 +182,78 @@ export function ChargeCardcomDialog({
     };
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [open]);
+
+  // ── Resend cooldown ticker ──────────────────────────────────
+  // While a cooldown is active, refresh the visible "Xs" countdown every
+  // second. Cleans itself up when cooldown ends or dialog closes.
+  useEffect(() => {
+    if (resendCooldownEndsAt <= 0) return;
+    const tick = (): void => {
+      const left = Math.max(
+        0,
+        Math.ceil((resendCooldownEndsAt - Date.now()) / 1000)
+      );
+      setResendCooldownLeft(left);
+      if (left <= 0) {
+        setResendCooldownEndsAt(0);
+      }
+    };
+    tick();
+    const id = setInterval(tick, 500);
+    return () => clearInterval(id);
+  }, [resendCooldownEndsAt]);
+
+  // Reset cooldown whenever the dialog closes (avoid stale lock on next open).
+  useEffect(() => {
+    if (!open) {
+      setResendCooldownEndsAt(0);
+      setResendCooldownLeft(0);
+      setIsResending(false);
+    }
+  }, [open]);
+
+  // ── Lazy fetch of phone/email when not provided as props ───
+  // Triggers only on first open with both props missing AND no fetch yet.
+  useEffect(() => {
+    if (!open) return;
+    if (propClientPhone || propClientEmail) return;
+    if (fetchedContact) return;
+    let cancelled = false;
+    void (async () => {
+      try {
+        const res = await fetch(`/api/clients/${clientId}/contact`);
+        if (!res.ok) {
+          if (!cancelled) setFetchedContact({ phone: null, email: null });
+          return;
+        }
+        const data = (await res.json()) as {
+          phone: string | null;
+          email: string | null;
+        };
+        if (!cancelled) {
+          setFetchedContact({
+            phone: data.phone ?? null,
+            email: data.email ?? null,
+          });
+          // Auto-pick channel once we know what's available.
+          setChannel((prev) => {
+            const hasPhone = !!data.phone;
+            const hasEmail = !!data.email;
+            if (hasPhone && hasEmail) return prev === "email" ? "both" : prev;
+            if (hasEmail) return "email";
+            if (hasPhone) return "sms";
+            return prev;
+          });
+        }
+      } catch {
+        if (!cancelled) setFetchedContact({ phone: null, email: null });
+      }
+    })();
+    return () => {
+      cancelled = true;
+    };
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [open, clientId, propClientPhone, propClientEmail]);
 
   // ── Helpers ─────────────────────────────────────────────────
   const channels: Array<"sms" | "email"> =
@@ -361,6 +458,9 @@ export function ChargeCardcomDialog({
 
   const handleResendLink = async (): Promise<void> => {
     if (!paymentPageUrl || !paymentId) return;
+    if (isResending) return;
+    if (resendCooldownLeft > 0) return;
+    setIsResending(true);
     try {
       const res = await fetch(`/api/payments/${paymentId}/send-cardcom-link`, {
         method: "POST",
@@ -378,11 +478,17 @@ export function ChargeCardcomDialog({
       if (res.ok && data.success) {
         setLinkResults(data.results ?? []);
         toast.success("הלינק נשלח שוב");
+        // Start cooldown only on a successful re-send.
+        const endsAt = Date.now() + RESEND_COOLDOWN_MS;
+        setResendCooldownEndsAt(endsAt);
+        setResendCooldownLeft(Math.ceil(RESEND_COOLDOWN_MS / 1000));
       } else {
         toast.error(data.message ?? "שליחה חוזרת נכשלה");
       }
     } catch (err) {
       toast.error(err instanceof Error ? err.message : "שליחה חוזרת נכשלה");
+    } finally {
+      setIsResending(false);
     }
   };
 
@@ -609,9 +715,25 @@ export function ChargeCardcomDialog({
               </span>
             </div>
             <div className="flex flex-wrap gap-2 pt-2 border-t">
-              <Button variant="outline" size="sm" onClick={handleResendLink}>
-                <RefreshCw className="h-4 w-4 ml-1" />
-                שלח שוב
+              <Button
+                variant="outline"
+                size="sm"
+                onClick={handleResendLink}
+                disabled={isResending || resendCooldownLeft > 0}
+                title={
+                  resendCooldownLeft > 0
+                    ? "המתן לפני שליחה נוספת"
+                    : undefined
+                }
+              >
+                {isResending ? (
+                  <Loader2 className="h-4 w-4 ml-1 animate-spin" />
+                ) : (
+                  <RefreshCw className="h-4 w-4 ml-1" />
+                )}
+                {resendCooldownLeft > 0
+                  ? `שלח שוב (${resendCooldownLeft}s)`
+                  : "שלח שוב"}
               </Button>
               <Button variant="outline" size="sm" onClick={handleCopyLink}>
                 העתק קישור

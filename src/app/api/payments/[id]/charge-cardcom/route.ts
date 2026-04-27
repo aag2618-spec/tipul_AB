@@ -3,6 +3,7 @@
 // המטפל חייב להיות קישור הבעלים של ה-Payment (דרך Client.therapistId).
 
 import { NextRequest, NextResponse } from "next/server";
+import { Prisma } from "@prisma/client";
 import prisma from "@/lib/prisma";
 import { requireAuth } from "@/lib/api-auth";
 import { logger } from "@/lib/logger";
@@ -150,20 +151,79 @@ export async function POST(
 
   const baseUrl = process.env.NEXT_PUBLIC_BASE_URL ?? "https://mytipul.co.il";
 
+  // Declared outside the try so the outer catch can read it for cleanup.
+  let cardcomSucceeded = false;
+
   try {
     // Cardcom HTTP outside withAudit (timeout race) — see admin/create-payment-page.
-    const transaction = await prisma.cardcomTransaction.create({
-      data: {
-        tenant: "USER",
-        userId,
-        paymentId: payment.id,
-        amount: payment.amount,
-        currency: "ILS",
-        numOfPayments,
-        status: "PENDING",
-      },
-    });
+    // Atomic guard against double-charges: two parallel callers (e.g. therapist
+    // double-clicks "צור לינק", or two devices try concurrently) must not each
+    // create their own PENDING transaction. Use a SERIALIZABLE transaction to
+    // (a) detect any existing in-flight charge and (b) atomically claim a new
+    // one. Mirrors the same pattern used in `charge-saved-token`.
+    let transaction;
+    try {
+      transaction = await prisma.$transaction(
+        async (tx) => {
+          const inFlight = await tx.cardcomTransaction.findFirst({
+            where: {
+              paymentId: payment.id,
+              tenant: "USER",
+              status: { in: ["PENDING", "APPROVED"] },
+            },
+            select: { id: true, status: true },
+          });
+          if (inFlight) {
+            throw new Error(
+              inFlight.status === "APPROVED"
+                ? "ALREADY_PAID"
+                : "CHARGE_IN_PROGRESS"
+            );
+          }
+          return tx.cardcomTransaction.create({
+            data: {
+              tenant: "USER",
+              userId,
+              paymentId: payment.id,
+              amount: payment.amount,
+              currency: "ILS",
+              numOfPayments,
+              status: "PENDING",
+            },
+          });
+        },
+        { isolationLevel: Prisma.TransactionIsolationLevel.Serializable }
+      );
+    } catch (claimErr) {
+      const msg = claimErr instanceof Error ? claimErr.message : String(claimErr);
+      if (msg === "ALREADY_PAID") {
+        return NextResponse.json(
+          { message: "התשלום כבר שולם" },
+          { status: 409 }
+        );
+      }
+      if (msg === "CHARGE_IN_PROGRESS") {
+        return NextResponse.json(
+          { message: "כבר קיים חיוב פתוח לתשלום זה. המתן לסיומו או בטל אותו." },
+          { status: 409 }
+        );
+      }
+      // Serialization failure → ask the caller to retry once.
+      const code = (claimErr as { code?: string })?.code;
+      if (code === "P2034" || code === "40001") {
+        return NextResponse.json(
+          { message: "המערכת עמוסה — נסה שוב בעוד רגע" },
+          { status: 503 }
+        );
+      }
+      throw claimErr;
+    }
 
+    // Track if Cardcom already accepted the request — if a downstream step
+    // (withAudit, DB updates) throws AFTER this point, we need to mark the
+    // transaction FAILED so the next attempt isn't blocked by the
+    // CHARGE_IN_PROGRESS guard above. Without this, an audit-log failure
+    // leaves a permanent PENDING zombie that locks the payment.
     let cardcomResult;
     try {
       cardcomResult = await cardcomClient.createPaymentPage({
@@ -204,6 +264,7 @@ export async function POST(
       });
       throw cardcomErr;
     }
+    cardcomSucceeded = true;
 
     const result = await withAudit(
       { kind: "user", session },
@@ -232,16 +293,31 @@ export async function POST(
     );
 
     if (idempotencyKey) {
-      await prisma.idempotencyKey.create({
-        data: {
-          key: `${userId}:${idempotencyKey}`,
-          method: "POST",
-          path: `/api/payments/${paymentId}/charge-cardcom`,
-          statusCode: 200,
-          response: result,
-          expiresAt: new Date(Date.now() + 24 * 60 * 60 * 1000),
-        },
-      });
+      // Tolerate the race where two concurrent identical Idempotency-Key
+      // requests both pass the `findUnique` check above and try to `create`.
+      // The second one trips P2002; we silently accept it because both
+      // requests will return the same `result` payload anyway.
+      try {
+        await prisma.idempotencyKey.create({
+          data: {
+            key: `${userId}:${idempotencyKey}`,
+            method: "POST",
+            path: `/api/payments/${paymentId}/charge-cardcom`,
+            statusCode: 200,
+            response: result,
+            expiresAt: new Date(Date.now() + 24 * 60 * 60 * 1000),
+          },
+        });
+      } catch (storeErr) {
+        if (
+          storeErr instanceof Prisma.PrismaClientKnownRequestError &&
+          storeErr.code === "P2002"
+        ) {
+          // Concurrent duplicate — idempotency-by-design.
+        } else {
+          throw storeErr;
+        }
+      }
     }
 
     return NextResponse.json(result);
@@ -249,8 +325,43 @@ export async function POST(
     logger.error("[payments/charge-cardcom] failed", {
       userId,
       paymentId,
+      cardcomSucceeded,
       error: err instanceof Error ? err.message : String(err),
     });
+    // If Cardcom already issued a low-profile (URL exists in their system) but
+    // a later step here failed, the transaction is currently PENDING with no
+    // lowProfileId — and the `CHARGE_IN_PROGRESS` guard would block the next
+    // attempt forever. Mark it FAILED so the user can retry. Best-effort:
+    // we suppress errors here so the original error still propagates.
+    if (cardcomSucceeded) {
+      try {
+        await prisma.cardcomTransaction.updateMany({
+          where: {
+            paymentId,
+            tenant: "USER",
+            status: "PENDING",
+            lowProfileId: null,
+          },
+          data: {
+            status: "FAILED",
+            errorMessage:
+              err instanceof Error
+                ? `post-cardcom failure: ${err.message}`
+                : "post-cardcom failure",
+            completedAt: new Date(),
+          },
+        });
+      } catch (cleanupErr) {
+        logger.error("[payments/charge-cardcom] post-success cleanup failed", {
+          userId,
+          paymentId,
+          error:
+            cleanupErr instanceof Error
+              ? cleanupErr.message
+              : String(cleanupErr),
+        });
+      }
+    }
     return NextResponse.json({ message: "שגיאה ביצירת דף תשלום" }, { status: 502 });
   }
 }

@@ -27,6 +27,7 @@ import { toast } from "sonner";
 import { useRouter } from "next/navigation";
 import Link from "next/link";
 import { ChargeCardcomDialog } from "./charge-cardcom-dialog";
+import { ChargeSavedCardButton } from "./charge-saved-card-button";
 
 interface QuickMarkPaidProps {
   sessionId: string;
@@ -311,6 +312,42 @@ export function QuickMarkPaid({
         </DialogHeader>
 
         <div className="space-y-4 py-4">
+          {/* קיצור-דרך: חיוב מיידי בכרטיס שמור (מוצג רק אם קיים paymentId
+              קיים וקיים טוקן פעיל ללקוח. הכפתור מטפל בעצמו ב-fetch ובהסתרה). */}
+          {existingPayment?.id && (
+            <div className="border rounded-lg p-3 bg-blue-50 border-blue-200 flex items-center justify-between gap-3">
+              <div className="text-sm text-blue-900">
+                <p className="font-semibold">כרטיס שמור זמין</p>
+                <p className="text-xs text-blue-700">
+                  חיוב מיידי בלחיצה אחת — בלי לשלוח לינק.
+                </p>
+              </div>
+              <ChargeSavedCardButton
+                paymentId={existingPayment.id}
+                clientId={clientId}
+                amount={computedAmount}
+                clientName={clientName}
+                size="sm"
+                onPaymentSuccess={async () => {
+                  if (onPaymentSuccess) {
+                    try {
+                      await onPaymentSuccess();
+                    } catch {
+                      // refresh failure non-fatal
+                    }
+                  }
+                  router.refresh();
+                  // Defer closing the OUTER QuickMarkPaid dialog so the
+                  // INNER ChargeSavedCardButton dialog can complete its own
+                  // close (called immediately after this handler returns).
+                  // Without the defer, the outer dialog unmounts the inner
+                  // one and Radix logs a setState-after-unmount warning.
+                  setTimeout(() => setIsOpen(false), 0);
+                }}
+              />
+            </div>
+          )}
+
           {/* תיבת רישום תשלום - עיצוב זהה ליומן */}
           <div className="border rounded-lg p-4 bg-orange-50 border-orange-200">
             <h3 className="text-center font-bold text-lg mb-4 flex items-center justify-center gap-2">
