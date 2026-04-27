@@ -9,6 +9,7 @@ import { sendSMSIfEnabled } from "@/lib/sms";
 import { logger } from "@/lib/logger";
 import { serializePrisma } from "@/lib/serialize";
 import { syncSessionUpdateToGoogleCalendar, syncSessionDeletionToGoogleCalendar } from "@/lib/google-calendar-sync";
+import { logDataAccess } from "@/lib/audit-logger";
 
 export const dynamic = "force-dynamic";
 
@@ -43,6 +44,20 @@ export async function GET(
     if (!therapySession) {
       return NextResponse.json({ message: "פגישה לא נמצאה" }, { status: 404 });
     }
+
+    // Audit log — קריאה לפגישה כוללת sessionNote.content + transcription.content
+    logDataAccess({
+      userId,
+      recordType: "SESSION_DETAIL",
+      recordId: id,
+      action: "READ",
+      clientId: therapySession.clientId,
+      request,
+      meta: {
+        hasNote: !!therapySession.sessionNote,
+        hasTranscription: therapySession.recordings.some((r) => r.transcription),
+      },
+    });
 
     return NextResponse.json(serializePrisma(therapySession));
   } catch (error) {

@@ -6,6 +6,7 @@ import prisma from "@/lib/prisma";
 import { verifySumitWebhook, SumitWebhookPayload } from "@/lib/sumit";
 import { logger } from "@/lib/logger";
 import { completeWebhookPayment } from "@/lib/payments/receipt-service";
+import { verifyPaymentByExternalId } from "@/lib/webhook-verification";
 
 export const dynamic = "force-dynamic";
 
@@ -60,49 +61,57 @@ export async function POST(request: NextRequest) {
 async function handlePaymentSuccess(payload: SumitWebhookPayload) {
   const { PaymentID, Amount, DocumentURL, Customer } = payload;
 
-  // מחפשים תשלום שמחכה לעדכון לפי PaymentID
-  // ה-PaymentID נשמר בשדה notes או בשדה ייעודי
-  const payment = await prisma.payment.findFirst({
-    where: {
-      notes: {
-        contains: PaymentID || "",
-      },
-      status: "PENDING",
-    },
-    include: {
-      client: {
-        include: {
-          therapist: true,
-        },
-      },
-    },
-  });
+  // ── אימות בעלות + lookup atomic ──
+  // מחפשים payment PENDING לפי PaymentID החיצוני (Sumit), ומקבלים
+  // את ה-therapistId האמיתי מ-DB. שום payload field לא משמש כסמכות.
+  const verified = await verifyPaymentByExternalId(PaymentID);
 
-  if (payment) {
-    await prisma.payment.update({
-      where: { id: payment.id },
+  if (verified) {
+    // קבל את ה-notes הנוכחי לעדכון string replacement
+    const currentPayment = await prisma.payment.findUnique({
+      where: { id: verified.paymentId },
+      select: { notes: true },
+    });
+
+    // עדכון atomic — count check מבטיח שהפעולה הצליחה
+    const updateResult = await prisma.payment.updateMany({
+      where: {
+        id: verified.paymentId,
+        client: { therapistId: verified.therapistId },
+        status: "PENDING", // race-safe: רק אם עדיין PENDING
+      },
       data: {
         status: "PAID",
         paidAt: new Date(),
         receiptUrl: DocumentURL,
         hasReceipt: !!DocumentURL,
-        notes: payment.notes?.replace(`[PENDING:${PaymentID}]`, `[PAID:${PaymentID}]`),
+        notes: currentPayment?.notes?.replace(
+          `[PENDING:${PaymentID}]`,
+          `[PAID:${PaymentID}]`
+        ),
       },
     });
 
-    // יצירת התראה למטפל
+    if (updateResult.count === 0) {
+      logger.warn("[Sumit] payment.success — already paid or not PENDING", {
+        paymentId: verified.paymentId,
+      });
+      return;
+    }
+
+    // יצירת התראה למטפל — תמיד עם therapistId המאומת
     await prisma.notification.create({
       data: {
-        userId: payment.client.therapistId,
+        userId: verified.therapistId,
         type: "PAYMENT_REMINDER",
         title: "💳 תשלום התקבל",
-        content: `התקבל תשלום בסך ₪${Amount} מ-${payment.client.name}`,
+        content: `התקבל תשלום בסך ₪${Amount} מ-${verified.clientName || "המטופל"}`,
         status: "PENDING",
       },
     });
 
     // Send receipt email + complete COLLECT_PAYMENT task
-    await completeWebhookPayment(payment.id);
+    await completeWebhookPayment(verified.paymentId);
   } else if (Customer?.Email) {
     // אולי זה תשלום מנוי
     const user = await prisma.user.findFirst({
@@ -142,32 +151,38 @@ async function handlePaymentSuccess(payload: SumitWebhookPayload) {
 async function handlePaymentFailed(payload: SumitWebhookPayload) {
   const { PaymentID, ErrorMessage, Customer } = payload;
 
-  const payment = await prisma.payment.findFirst({
-    where: {
-      notes: {
-        contains: PaymentID || "",
-      },
-      status: "PENDING",
-    },
-    include: {
-      client: true,
-    },
-  });
+  // ── אימות בעלות + lookup atomic ──
+  const verified = await verifyPaymentByExternalId(PaymentID);
 
-  if (payment) {
-    await prisma.payment.update({
-      where: { id: payment.id },
+  if (verified) {
+    const currentPayment = await prisma.payment.findUnique({
+      where: { id: verified.paymentId },
+      select: { notes: true },
+    });
+
+    const updateResult = await prisma.payment.updateMany({
+      where: {
+        id: verified.paymentId,
+        client: { therapistId: verified.therapistId },
+      },
       data: {
-        notes: `${payment.notes || ""}\nתשלום נכשל: ${ErrorMessage}`,
+        notes: `${currentPayment?.notes || ""}\nתשלום נכשל: ${ErrorMessage}`,
       },
     });
 
+    if (updateResult.count === 0) {
+      logger.warn("[Sumit] payment.failed update — no rows affected", {
+        paymentId: verified.paymentId,
+      });
+      return;
+    }
+
     await prisma.notification.create({
       data: {
-        userId: payment.client.therapistId,
+        userId: verified.therapistId,
         type: "CUSTOM",
         title: "❌ תשלום נכשל",
-        content: `התשלום מ-${payment.client.name} נכשל: ${ErrorMessage}`,
+        content: `התשלום מ-${verified.clientName || "המטופל"} נכשל: ${ErrorMessage}`,
         status: "PENDING",
       },
     });
@@ -206,22 +221,34 @@ async function handleDocumentCreated(payload: SumitWebhookPayload) {
 
   if (!PaymentID) return;
 
-  // עדכון ה-Payment עם קישור למסמך
+  // ── אימות שPaymentID שייך באמת לpayment במערכת ──
+  // עדכון ה-Payment עם קישור למסמך — אבל רק אם payment לגיטימי קיים
+  // ולא נחסם ע"י תוקף שיודע סנגנון של PaymentID חיצוני.
   const payment = await prisma.payment.findFirst({
     where: {
-      notes: {
-        contains: PaymentID,
-      },
+      notes: { contains: PaymentID },
+    },
+    select: {
+      id: true,
+      client: { select: { therapistId: true } },
     },
   });
 
-  if (payment) {
-    await prisma.payment.update({
-      where: { id: payment.id },
+  if (payment && payment.client?.therapistId) {
+    await prisma.payment.updateMany({
+      where: {
+        id: payment.id,
+        client: { therapistId: payment.client.therapistId },
+      },
       data: {
         receiptUrl: DocumentURL,
         hasReceipt: true,
       },
+    });
+  } else {
+    logger.warn("[Sumit] document.created — no matching payment found", {
+      PaymentID,
+      DocumentID,
     });
   }
 }

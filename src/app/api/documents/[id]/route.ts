@@ -5,6 +5,7 @@ import { join } from "path";
 import { logger } from "@/lib/logger";
 
 import { requireAuth } from "@/lib/api-auth";
+import { logDataAccess } from "@/lib/audit-logger";
 
 export const dynamic = "force-dynamic";
 
@@ -60,8 +61,9 @@ export async function PUT(
       return NextResponse.json({ message: "מסמך לא נמצא" }, { status: 404 });
     }
 
-    const document = await prisma.document.update({
-      where: { id },
+    // Atomic update with ownership check ב-WHERE — מונע race condition
+    const updateResult = await prisma.document.updateMany({
+      where: { id, therapistId: userId },
       data: {
         name: body.name ?? existing.name,
         type: body.type ?? existing.type,
@@ -70,6 +72,11 @@ export async function PUT(
       },
     });
 
+    if (updateResult.count === 0) {
+      return NextResponse.json({ message: "מסמך לא נמצא" }, { status: 404 });
+    }
+
+    const document = await prisma.document.findUnique({ where: { id } });
     return NextResponse.json(document);
   } catch (error) {
     logger.error("Update document error:", { error: error instanceof Error ? error.message : String(error) });
@@ -99,7 +106,16 @@ export async function DELETE(
       return NextResponse.json({ message: "מסמך לא נמצא" }, { status: 404 });
     }
 
-    // Delete file
+    // Atomic delete — ownership ב-WHERE מונע race condition
+    const deleteResult = await prisma.document.deleteMany({
+      where: { id, therapistId: userId },
+    });
+
+    if (deleteResult.count === 0) {
+      return NextResponse.json({ message: "מסמך לא נמצא" }, { status: 404 });
+    }
+
+    // Delete file (after DB delete succeeded)
     try {
       const filePath = join(process.cwd(), document.fileUrl);
       await unlink(filePath);
@@ -107,7 +123,15 @@ export async function DELETE(
       // File might not exist, continue anyway
     }
 
-    await prisma.document.delete({ where: { id } });
+    // Audit log — פעולה הרסנית על מסמך רפואי
+    logDataAccess({
+      userId,
+      recordType: "DOCUMENT",
+      recordId: id,
+      action: "DELETE",
+      clientId: document.clientId,
+      request,
+    });
 
     return NextResponse.json({ message: "המסמך נמחק בהצלחה" });
   } catch (error) {

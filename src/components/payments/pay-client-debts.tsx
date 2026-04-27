@@ -118,6 +118,17 @@ export function PayClientDebts({
 
   // בדיקת תקינות ואישור לפני תשלום
   const handlePaymentClick = () => {
+    // CRITICAL: סליקה מצרפית אמיתית ב-Cardcom דורשת "umbrella payment" + עדכון
+    // children אטומי ב-webhook. עד שהמנגנון הזה ייבנה — חוסמים CREDIT_CARD
+    // בתשלום מצרפי כדי למנוע מצב של "אומברלה PAID + children PENDING" שיוביל
+    // לספירה כפולה בהכנסה או חוב מובלע. מפנים למסלול אישי-לפגישה.
+    if (method === "CREDIT_CARD") {
+      toast.error(
+        "תשלום מצרפי באשראי טרם נתמך. כדי לחייב באשראי - היכנסי לכל פגישה ושלמי בנפרד, או בחרי אמצעי אחר (מזומן/בנק/המחאה) לתשלום מצרפי."
+      );
+      return;
+    }
+
     if (paymentMode === "PARTIAL") {
       const amount = parseFloat(partialAmount) || 0;
       if (amount <= 0 || amount > totalDebt) {

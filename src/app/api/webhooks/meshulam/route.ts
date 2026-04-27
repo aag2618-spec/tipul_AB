@@ -11,6 +11,7 @@ import { PLAN_NAMES, detectPeriodFromAmount as detectPeriodCentral } from "@/lib
 import { escapeHtml } from "@/lib/email-utils";
 import { logger } from "@/lib/logger";
 import { completeWebhookPayment } from "@/lib/payments/receipt-service";
+import { verifyPaymentOwnership } from "@/lib/webhook-verification";
 
 const ADMIN_EMAIL = process.env.ADMIN_EMAIL;
 const SYSTEM_URL = process.env.NEXTAUTH_URL || "";
@@ -90,9 +91,28 @@ async function handlePaymentSuccess(payload: MeshulamWebhookPayload) {
   
   // בדיקה אם זה תשלום מנוי (לבעל המערכת) או תשלום מטופל
   if (customFields?.paymentId) {
-    // תשלום מטופל - עדכון Payment במערכת
-    await prisma.payment.update({
-      where: { id: customFields.paymentId },
+    // ── אימות בעלות (anti-IDOR) ──
+    // אסור לסמוך על customFields.therapistId מהpayload — תוקף עם חתימה
+    // תקפה (חולשה לחילוצף secret) יכול לזייף את ה-paymentId/therapistId.
+    // נאמת מול DB ונשתמש ב-therapistId האמיתי משם.
+    const verified = await verifyPaymentOwnership(
+      customFields.paymentId,
+      customFields.therapistId
+    );
+    if (!verified) {
+      logger.error(
+        "[Meshulam] payment.success rejected — ownership verification failed",
+        { paymentId: customFields.paymentId }
+      );
+      return; // לא לעדכן כלום — מתעלמים מ-webhook חשוד
+    }
+
+    // תשלום מטופל - עדכון Payment במערכת (atomic — count check)
+    const updateResult = await prisma.payment.updateMany({
+      where: {
+        id: verified.paymentId,
+        client: { therapistId: verified.therapistId }, // double-check בWHERE
+      },
       data: {
         status: "PAID",
         paidAt: new Date(),
@@ -101,21 +121,26 @@ async function handlePaymentSuccess(payload: MeshulamWebhookPayload) {
       },
     });
 
-    // יצירת התראה למטפל
-    if (customFields.therapistId) {
-      await prisma.notification.create({
-        data: {
-          userId: customFields.therapistId,
-          type: "PAYMENT_REMINDER",
-          title: "💳 תשלום התקבל",
-          content: `התקבל תשלום בסך ₪${amount} מהמטופל`,
-          status: "PENDING",
-        },
+    if (updateResult.count === 0) {
+      logger.error("[Meshulam] payment.update failed — no rows affected", {
+        paymentId: verified.paymentId,
       });
+      return;
     }
 
+    // יצירת התראה למטפל — תמיד עם therapistId המאומת מ-DB
+    await prisma.notification.create({
+      data: {
+        userId: verified.therapistId,
+        type: "PAYMENT_REMINDER",
+        title: "💳 תשלום התקבל",
+        content: `התקבל תשלום בסך ₪${amount} מהמטופל`,
+        status: "PENDING",
+      },
+    });
+
     // Send receipt email + complete COLLECT_PAYMENT task
-    await completeWebhookPayment(customFields.paymentId);
+    await completeWebhookPayment(verified.paymentId);
   } else if (payload.customerId) {
     // תשלום מנוי - מחפשים לפי המייל
     const user = await prisma.user.findFirst({
@@ -215,26 +240,47 @@ async function handlePaymentFailed(payload: MeshulamWebhookPayload) {
   const { customFields, errorMessage, customerEmail } = payload;
 
   if (customFields?.paymentId) {
-    // תשלום מטופל שנכשל
-    await prisma.payment.update({
-      where: { id: customFields.paymentId },
+    // ── אימות בעלות (anti-IDOR) ──
+    const verified = await verifyPaymentOwnership(
+      customFields.paymentId,
+      customFields.therapistId
+    );
+    if (!verified) {
+      logger.error(
+        "[Meshulam] payment.failed rejected — ownership verification failed",
+        { paymentId: customFields.paymentId }
+      );
+      return;
+    }
+
+    // תשלום מטופל שנכשל (atomic update)
+    const updateResult = await prisma.payment.updateMany({
+      where: {
+        id: verified.paymentId,
+        client: { therapistId: verified.therapistId },
+      },
       data: {
         status: "PENDING", // נשאר ממתין
         notes: `תשלום נכשל: ${errorMessage}`,
       },
     });
 
-    if (customFields.therapistId) {
-      await prisma.notification.create({
-        data: {
-          userId: customFields.therapistId,
-          type: "CUSTOM",
-          title: "❌ תשלום נכשל",
-          content: `התשלום נכשל: ${errorMessage}`,
-          status: "PENDING",
-        },
+    if (updateResult.count === 0) {
+      logger.error("[Meshulam] payment.failed update — no rows affected", {
+        paymentId: verified.paymentId,
       });
+      return;
     }
+
+    await prisma.notification.create({
+      data: {
+        userId: verified.therapistId,
+        type: "CUSTOM",
+        title: "❌ תשלום נכשל",
+        content: `התשלום נכשל: ${errorMessage}`,
+        status: "PENDING",
+      },
+    });
   } else {
     // תשלום מנוי שנכשל
     const user = await prisma.user.findFirst({

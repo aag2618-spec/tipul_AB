@@ -72,8 +72,9 @@ export async function PUT(
       });
     }
 
-    const template = await prisma.intakeQuestionnaire.update({
-      where: { id },
+    // Atomic update — ownership (userId) ב-WHERE מונע IDOR
+    const updateResult = await prisma.intakeQuestionnaire.updateMany({
+      where: { id, userId },
       data: {
         name,
         description,
@@ -82,6 +83,16 @@ export async function PUT(
       },
     });
 
+    if (updateResult.count === 0) {
+      return NextResponse.json(
+        { message: "Template not found" },
+        { status: 404 }
+      );
+    }
+
+    const template = await prisma.intakeQuestionnaire.findUnique({
+      where: { id },
+    });
     return NextResponse.json(template);
   } catch (error) {
     logger.error("Error updating intake questionnaire:", { error: error instanceof Error ? error.message : String(error) });
@@ -104,19 +115,45 @@ export async function DELETE(
 
     const { id } = await params;
 
+    // אימות בעלות לפני כל פעולה — ownership ב-WHERE מונע IDOR
+    const ownsTemplate = await prisma.intakeQuestionnaire.findFirst({
+      where: { id, userId },
+      select: { id: true },
+    });
+
+    if (!ownsTemplate) {
+      return NextResponse.json(
+        { message: "Template not found" },
+        { status: 404 }
+      );
+    }
+
     const responseCount = await prisma.intakeResponse.count({
       where: { templateId: id },
     });
 
     if (responseCount > 0) {
-      await prisma.intakeQuestionnaire.update({
-        where: { id },
+      // Soft delete — מצומצם רק לטמפלטים של המשתמש הנוכחי
+      const updateResult = await prisma.intakeQuestionnaire.updateMany({
+        where: { id, userId },
         data: { isActive: false },
       });
+      if (updateResult.count === 0) {
+        return NextResponse.json(
+          { message: "Template not found" },
+          { status: 404 }
+        );
+      }
     } else {
-      await prisma.intakeQuestionnaire.delete({
-        where: { id },
+      const deleteResult = await prisma.intakeQuestionnaire.deleteMany({
+        where: { id, userId },
       });
+      if (deleteResult.count === 0) {
+        return NextResponse.json(
+          { message: "Template not found" },
+          { status: 404 }
+        );
+      }
     }
 
     return NextResponse.json({ success: true });

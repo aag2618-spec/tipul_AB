@@ -30,16 +30,23 @@ export async function POST(
   if ("error" in auth) return auth.error;
   const { userId, session } = auth;
 
-  // Idempotency
-  const idempotencyKey = request.headers.get("Idempotency-Key") ?? request.headers.get("idempotency-key");
-  if (idempotencyKey) {
-    const existing = await prisma.idempotencyKey.findUnique({
-      where: { key: `${userId}:${idempotencyKey}` },
-    });
-    if (existing) return NextResponse.json(existing.response, { status: existing.statusCode });
-  }
-
   const { id: paymentId } = await context.params;
+
+  // Idempotency — המפתח חייב להיות מקובע ל-(userId, route, paymentId, header)
+  // אחרת replay בין routes/תשלומים שונים יחזיר תגובה שגויה. ה-TTL נאכף גם
+  // בקריאה (לא רק ב-cron) — שורה שפג תוקפה לא מוחזרת מהקאש.
+  const idempotencyKey = request.headers.get("Idempotency-Key") ?? request.headers.get("idempotency-key");
+  const idempotencyDbKey = idempotencyKey
+    ? `${userId}:POST:/api/payments/${paymentId}/charge-cardcom:${idempotencyKey}`
+    : null;
+  if (idempotencyDbKey) {
+    const existing = await prisma.idempotencyKey.findUnique({
+      where: { key: idempotencyDbKey },
+    });
+    if (existing && existing.expiresAt > new Date()) {
+      return NextResponse.json(existing.response, { status: existing.statusCode });
+    }
+  }
 
   let body: ChargeBody;
   try {
@@ -292,7 +299,7 @@ export async function POST(
       }
     );
 
-    if (idempotencyKey) {
+    if (idempotencyDbKey) {
       // Tolerate the race where two concurrent identical Idempotency-Key
       // requests both pass the `findUnique` check above and try to `create`.
       // The second one trips P2002; we silently accept it because both
@@ -300,7 +307,7 @@ export async function POST(
       try {
         await prisma.idempotencyKey.create({
           data: {
-            key: `${userId}:${idempotencyKey}`,
+            key: idempotencyDbKey,
             method: "POST",
             path: `/api/payments/${paymentId}/charge-cardcom`,
             statusCode: 200,

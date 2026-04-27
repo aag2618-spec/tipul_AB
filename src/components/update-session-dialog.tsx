@@ -21,8 +21,9 @@ import {
   SelectTrigger,
   SelectValue,
 } from "@/components/ui/select";
-import { CheckCircle2, Ban, UserX, Loader2, ChevronDown, ChevronUp, AlertCircle, Wallet, FileText, ArrowLeft } from "lucide-react";
+import { CheckCircle2, Ban, UserX, Loader2, ChevronDown, ChevronUp, AlertCircle, Wallet, FileText, ArrowLeft, CreditCard } from "lucide-react";
 import { Checkbox } from "@/components/ui/checkbox";
+import { ChargeCardcomDialog } from "@/components/payments/charge-cardcom-dialog";
 
 export interface UpdateSessionDialogParams {
   updateStatus: string;
@@ -48,6 +49,19 @@ export interface UpdateSessionDialogProps {
   onClose: () => void;
   onUpdate: (params: UpdateSessionDialogParams) => Promise<void>;
   onRecordDebt: (params: { updateStatus: string; updateReason: string }) => Promise<void>;
+  /**
+   * נקרא כשהדיאלוג סיים להכין Payment לסליקת Cardcom והאב צריך לפתוח את
+   * ה-ChargeCardcomDialog בעצמו. חיוני בעמודים שבהם הדיאלוג נטען בתנאי
+   * (למשל calendar/page.tsx) ולכן יורד מה-DOM ברגע שקוראים ל-onClose() —
+   * שם דיאלוג מקומי לא יוכל להיפתח. אם prop זה לא מועבר, נשתמש
+   * בדיאלוג Cardcom מקומי כמו עד עכשיו.
+   */
+  onCardcomRequested?: (params: {
+    paymentId: string;
+    amount: number;
+    clientName: string;
+    clientId: string;
+  }) => void;
 }
 
 export function UpdateSessionDialog({
@@ -61,6 +75,7 @@ export function UpdateSessionDialog({
   onClose,
   onUpdate,
   onRecordDebt,
+  onCardcomRequested,
 }: UpdateSessionDialogProps) {
   const router = useRouter();
   const [updateStatus, setUpdateStatus] = useState<string>("");
@@ -76,6 +91,12 @@ export function UpdateSessionDialog({
   const [issueReceipt, setIssueReceipt] = useState(false);
   const [receiptMode, setReceiptMode] = useState<string>("ASK");
   const [businessType, setBusinessType] = useState<string>("NONE");
+  // ── Cardcom intercept state ────────────────────────────────
+  // נדלק כשהמשתמש בוחר אשראי. נסגרים כדי לפתוח את ChargeCardcomDialog.
+  const [cardcomOpen, setCardcomOpen] = useState(false);
+  const [cardcomPaymentId, setCardcomPaymentId] = useState<string | undefined>(undefined);
+  const [cardcomAmount, setCardcomAmount] = useState<number>(0);
+  const [routingToCardcom, setRoutingToCardcom] = useState(false);
 
   useEffect(() => {
     if (open && clientId) {
@@ -127,6 +148,110 @@ export function UpdateSessionDialog({
   };
 
   const handleUpdateClick = async () => {
+    // ── Cardcom intercept ───────────────────────────────────────
+    // אם המשתמש בחר תשלום באשראי — חייבים לבצע סליקה אמיתית במקום
+    // לרשום PAID ידנית. הזרימה: מעדכנים את סטטוס הפגישה (CANCELLED/NO_SHOW)
+    // אם נדרש, יוצרים Payment ב-PENDING, פותחים את ChargeCardcomDialog. אחרי
+    // הצלחת הסליקה ה-webhook יסמן את ה-Payment כ-PAID. אם נכשל, הפגישה
+    // עדיין מעודכנת והחוב יישאר ל-pickup ידני.
+    if (
+      paymentMethod === "CREDIT_CARD" &&
+      showPayment &&
+      price > 0 &&
+      updateStatus // סטטוס נבחר — אחרת לא נכון לפעול
+    ) {
+      // PARTIAL + Cardcom חסום זמנית: ה-webhook מסמן PAID בלי לבדוק
+      // amount==expectedAmount, ולכן מצב חלקי+אשראי משאיר Payment ב-PAID
+      // עם חוב מובלע — לא עקבי עם partial cash. נפתח לאחר תיקון מקיף.
+      if (paymentType === "PARTIAL") {
+        toast.error("תשלום חלקי באשראי טרם נתמך. בחרי תשלום מלא או אמצעי אחר.");
+        return;
+      }
+      const amt = parseFloat(paymentAmount) || 0;
+      if (amt <= 0) {
+        toast.error("סכום לתשלום לא תקין");
+        return;
+      }
+      setRoutingToCardcom(true);
+      try {
+        // עדכון סטטוס תחילה — כדי שהפגישה תהיה מסונכרנת גם אם הסליקה נכשלת.
+        // CRITICAL: בודקים response.ok — אחרת ניצור Payment על פגישה שלא עודכנה.
+        if (updateStatus === "COMPLETED") {
+          const sessRes = await fetch(`/api/sessions/${sessionId}`, {
+            method: "PUT",
+            headers: { "Content-Type": "application/json" },
+            body: JSON.stringify({ status: "COMPLETED" }),
+          });
+          if (!sessRes.ok) {
+            const err = await sessRes.json().catch(() => ({}));
+            toast.error(err?.message || "עדכון סטטוס הפגישה נכשל");
+            return;
+          }
+        } else if (updateStatus === "CANCELLED" || updateStatus === "NO_SHOW") {
+          const statusBody: Record<string, unknown> = { status: updateStatus };
+          if (updateReason.trim()) statusBody.cancellationReason = updateReason.trim();
+          const sessRes = await fetch(`/api/sessions/${sessionId}/status`, {
+            method: "PATCH",
+            headers: { "Content-Type": "application/json" },
+            body: JSON.stringify(statusBody),
+          });
+          if (!sessRes.ok) {
+            const err = await sessRes.json().catch(() => ({}));
+            toast.error(err?.message || "עדכון סטטוס הפגישה נכשל");
+            return;
+          }
+        }
+
+        // יצירת Payment ב-PENDING — Cardcom יעדכן ל-PAID דרך webhook.
+        const paymentRes = await fetch("/api/payments", {
+          method: "POST",
+          headers: { "Content-Type": "application/json" },
+          body: JSON.stringify({
+            clientId,
+            sessionId,
+            amount: amt,
+            expectedAmount: amt,
+            paymentType: "FULL",
+            method: "CREDIT_CARD",
+            status: "PENDING",
+            // הקבלה תופק ע״י Cardcom Documents API ב-webhook.
+            issueReceipt: false,
+          }),
+        });
+        if (!paymentRes.ok) {
+          const err = await paymentRes.json().catch(() => ({}));
+          toast.error(err?.message || "יצירת רישום תשלום נכשלה");
+          return;
+        }
+        const created = (await paymentRes.json()) as { id: string };
+
+        // אם הוגדר callback מהאב — הוא יחזיק את ChargeCardcomDialog בעצמו
+        // (חובה בעמודים שמשחררים את ה-UpdateSessionDialog מה-DOM ב-onClose,
+        // למשל calendar/page.tsx). אחרת — נופלים ל-Dialog מקומי.
+        if (onCardcomRequested) {
+          onCardcomRequested({
+            paymentId: created.id,
+            amount: amt,
+            clientName,
+            clientId,
+          });
+          onClose();
+        } else {
+          setCardcomPaymentId(created.id);
+          setCardcomAmount(amt);
+          // לדיאלוג מקומי: סוגרים אבל ה-state מקומי שורד כי האב משאיר
+          // את הקומפוננט mounted (today-session-card וכד׳).
+          onClose();
+          setTimeout(() => setCardcomOpen(true), 220);
+        }
+      } catch (err) {
+        toast.error(err instanceof Error ? err.message : "מעבר לסליקה נכשל");
+      } finally {
+        setRoutingToCardcom(false);
+      }
+      return;
+    }
+
     await onUpdate({
       updateStatus,
       showPayment,
@@ -140,6 +265,18 @@ export function UpdateSessionDialog({
       noChargeReason,
     });
     resetAndClose();
+  };
+
+  // אחרי תשלום מוצלח של Cardcom — רענון נתונים לאם.
+  // נסמך על ה-onClose של הדיאלוג הראשי שכבר רץ; כאן רק להודיע למסך האב.
+  const handleCardcomSuccess = async (): Promise<void> => {
+    // ה-Cardcom webhook כבר עדכן את ה-Payment ל-PAID. צריך גם לרענן את
+    // נתוני היומן כדי שהשינוי יופיע. אין לנו refetch ישיר, נשתמש ב-router.
+    if (typeof window !== "undefined") {
+      router.refresh();
+    }
+    setCardcomPaymentId(undefined);
+    setCardcomAmount(0);
   };
 
   const handleRecordDebtClick = async () => {
@@ -163,6 +300,7 @@ export function UpdateSessionDialog({
   const hasOldDebts = clientDebt && clientDebt.count > 0 && clientDebt.total > 0;
 
   return (
+    <>
     <Dialog open={open} onOpenChange={(o) => { if (!o) resetAndClose(); }}>
       <DialogContent className="sm:max-w-[550px] max-h-[90vh] overflow-y-auto" dir="rtl">
         <DialogHeader>
@@ -438,11 +576,19 @@ export function UpdateSessionDialog({
               {showPayment && price > 0 ? (
                 <Button
                   onClick={handleUpdateClick}
-                  disabled={updating || !updateStatus}
+                  disabled={updating || routingToCardcom || !updateStatus}
                   className="gap-2 font-bold bg-emerald-600 hover:bg-emerald-700"
                 >
-                  {updating ? <Loader2 className="h-4 w-4 animate-spin" /> : <CheckCircle2 className="h-4 w-4" />}
-                  {updateStatus === "COMPLETED" ? "עדכון ושלם" : updateStatus === "CANCELLED" ? "בטל וחייב" : updateStatus === "NO_SHOW" ? "עדכון וחייב" : "עדכון"}
+                  {updating || routingToCardcom ? (
+                    <Loader2 className="h-4 w-4 animate-spin" />
+                  ) : paymentMethod === "CREDIT_CARD" ? (
+                    <CreditCard className="h-4 w-4" />
+                  ) : (
+                    <CheckCircle2 className="h-4 w-4" />
+                  )}
+                  {paymentMethod === "CREDIT_CARD"
+                    ? "המשך לסליקה ב-Cardcom"
+                    : updateStatus === "COMPLETED" ? "עדכון ושלם" : updateStatus === "CANCELLED" ? "בטל וחייב" : updateStatus === "NO_SHOW" ? "עדכון וחייב" : "עדכון"}
                 </Button>
               ) : (
                 <Button
@@ -463,5 +609,18 @@ export function UpdateSessionDialog({
         </DialogFooter>
       </DialogContent>
     </Dialog>
+
+    <ChargeCardcomDialog
+      open={cardcomOpen}
+      onOpenChange={setCardcomOpen}
+      paymentId={cardcomPaymentId}
+      sessionId={sessionId}
+      clientId={clientId}
+      clientName={clientName}
+      amount={cardcomAmount}
+      defaultDescription="פגישה"
+      onPaymentSuccess={handleCardcomSuccess}
+    />
+    </>
   );
 }

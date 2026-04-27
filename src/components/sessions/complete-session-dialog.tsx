@@ -23,9 +23,10 @@ import { Textarea } from "@/components/ui/textarea";
 import { Input } from "@/components/ui/input";
 import { Badge } from "@/components/ui/badge";
 import { Checkbox } from "@/components/ui/checkbox";
-import { CheckCircle, Loader2, FileText, ChevronDown, ChevronUp } from "lucide-react";
+import { CheckCircle, Loader2, FileText, ChevronDown, ChevronUp, CreditCard } from "lucide-react";
 import { toast } from "sonner";
 import { useRouter } from "next/navigation";
+import { ChargeCardcomDialog } from "@/components/payments/charge-cardcom-dialog";
 
 // New interface with session object
 interface NewCompleteSessionDialogProps {
@@ -77,6 +78,11 @@ export function CompleteSessionDialog(props: CompleteSessionDialogProps) {
   const [isLoading, setIsLoading] = useState(false);
   const [summary, setSummary] = useState("");
   const [paymentMethod, setPaymentMethod] = useState<string>("CASH");
+  // Cardcom flow — נפתח בנפרד אחרי שיצרנו Payment ב-PENDING. ה-paymentId נדרש
+  // ל-ChargeCardcomDialog שאחראי על הסליקה האמיתית מול Cardcom.
+  const [cardcomOpen, setCardcomOpen] = useState(false);
+  const [cardcomPaymentId, setCardcomPaymentId] = useState<string | undefined>(undefined);
+  const [cardcomAmount, setCardcomAmount] = useState<number>(0);
   const [amount, setAmount] = useState(defaultAmount.toString());
   const [includePayment, setIncludePayment] = useState(!hasPayment);
   const [showAdvanced, setShowAdvanced] = useState(false);
@@ -126,6 +132,85 @@ export function CompleteSessionDialog(props: CompleteSessionDialogProps) {
       } else if (paymentType === "ADVANCE") {
         actualPaymentType = "ADVANCE";
         actualAmount = parseFloat(partialAmount) || 0;
+      }
+
+      // ── Cardcom intercept ─────────────────────────────────────
+      // אם אמצעי התשלום הוא כרטיס אשראי — חייבים לבצע סליקה אמיתית דרך Cardcom
+      // ולא לרשום PAID ידנית. חריגים שחוסמים:
+      //   • CREDIT (משיכה מקרדיט) — לא משתמש בכרטיס בכלל.
+      //   • ADVANCE (טעינת קרדיט) — ‎createPaymentForSession מגדיל את
+      //     client.creditBalance מיידית גם ב-PENDING. אם Cardcom ייכשל,
+      //     הקרדיט כבר נוסף → סנכרון שבור. עד שננתק את הגדלת הקרדיט
+      //     לאירוע PAID בלבד, חוסמים ADVANCE + אשראי.
+      //   • PARTIAL — createPaymentForSession יוצר child PAID מיידית עבור
+      //     הסכום החלקי גם כשהאב ב-PENDING. אם Cardcom ייכשל יישאר child
+      //     PAID זומבי. בנוסף ה-webhook מסמן PAID בלי לבדוק amount==expected,
+      //     מה שמשאיר חוב מובלע. נחסום עד תיקון מקיף של ה-flow.
+      if (
+        paymentMethod === "CREDIT_CARD" &&
+        paymentType !== "CREDIT" &&
+        paymentType !== "ADVANCE" &&
+        paymentType !== "PARTIAL"
+      ) {
+        // לפני פתיחת Cardcom: מסמנים את הפגישה כ-COMPLETED. אם המשתמש יסגור
+        // את הדיאלוג באמצע הסליקה, הפגישה כבר תהיה במצב נכון — ה-Payment פשוט
+        // יישאר PENDING (חוב גלוי בהיסטוריה) ולא תיוצר חוסר עקביות.
+        try {
+          await fetch(`/api/sessions/${sessionId}`, {
+            method: "PUT",
+            headers: { "Content-Type": "application/json" },
+            body: JSON.stringify({ status: "COMPLETED" }),
+          });
+        } catch (sessErr) {
+          // אם עדכון הפגישה נכשל לא ממשיכים — אחרת נישאר עם Payment בלי פגישה.
+          toast.error("עדכון סטטוס הפגישה נכשל. נסה שוב.");
+          console.error(sessErr);
+          return;
+        }
+
+        // יוצרים Payment ב-PENDING (Cardcom יעדכן ל-PAID דרך webhook).
+        const paymentRes = await fetch("/api/payments", {
+          method: "POST",
+          headers: { "Content-Type": "application/json" },
+          body: JSON.stringify({
+            clientId,
+            sessionId,
+            amount: actualAmount,
+            expectedAmount: actualAmount,
+            paymentType: actualPaymentType,
+            method: "CREDIT_CARD",
+            status: "PENDING",
+            // הקבלה תופק ע״י Cardcom Documents API ב-webhook — לא ידנית כאן.
+            issueReceipt: false,
+          }),
+        });
+        if (!paymentRes.ok) throw new Error("יצירת רישום תשלום נכשלה");
+        const paymentResult = (await paymentRes.json()) as { id: string };
+        setCardcomPaymentId(paymentResult.id);
+        setCardcomAmount(actualAmount);
+        // סוגרים את הדיאלוג הראשי ומאפשרים לאנימציה של Radix לסיים לפני
+        // פתיחת הדיאלוג השני (~220ms = משך אנימציית סגירה).
+        setIsOpen(false);
+        setTimeout(() => setCardcomOpen(true), 220);
+        return;
+      }
+
+      // ADVANCE + אשראי לא נתמך עדיין (ראו הערה למעלה).
+      if (paymentMethod === "CREDIT_CARD" && paymentType === "ADVANCE") {
+        toast.error(
+          "טעינת קרדיט באשראי טרם נתמכת ב-Cardcom. בחרי אמצעי תשלום אחר (מזומן/העברה) לטעינת קרדיט."
+        );
+        setIsLoading(false);
+        return;
+      }
+
+      // PARTIAL + אשראי לא נתמך עדיין (ראו הערה למעלה).
+      if (paymentMethod === "CREDIT_CARD" && paymentType === "PARTIAL") {
+        toast.error(
+          "תשלום חלקי באשראי טרם נתמך. בחרי תשלום מלא באשראי, או אמצעי תשלום אחר לחלקי."
+        );
+        setIsLoading(false);
+        return;
       }
 
       // Step 1: Create payment first (with receipt)
@@ -180,7 +265,26 @@ export function CompleteSessionDialog(props: CompleteSessionDialogProps) {
     }
   };
 
+  // נקרא רק אחרי תשלום מוצלח של Cardcom (webhook עדכן את ה-Payment ל-PAID).
+  // עכשיו מסיימים את המפגש (אם זה לא ADVANCE שלא קשור לפגישה ספציפית).
+  const handleCardcomSuccess = async (): Promise<void> => {
+    // הפגישה כבר סומנה COMPLETED לפני פתיחת Cardcom (ראה handleComplete),
+    // לכן כאן רק מנקים סטייט, מציגים הודעה ומנווטים. ה-Payment עבר ל-PAID
+    // אוטומטית דרך ה-webhook של Cardcom — לא צריך עדכון ידני נוסף.
+    toast.success("המפגש הושלם והתשלום נסלק בהצלחה!");
+    setSummary("");
+    setShowAdvanced(false);
+    setPaymentType("FULL");
+    setPartialAmount("");
+    if (onSuccess) {
+      onSuccess();
+    } else if (sessionId) {
+      router.push(`/dashboard/sessions/${sessionId}`);
+    }
+  };
+
   return (
+    <>
     <Dialog open={isOpen} onOpenChange={setIsOpen}>
       <DialogTrigger asChild>
         <Button
@@ -428,6 +532,11 @@ export function CompleteSessionDialog(props: CompleteSessionDialogProps) {
                   <Loader2 className="h-4 w-4 animate-spin" />
                   שומר...
                 </>
+              ) : paymentMethod === "CREDIT_CARD" && paymentType !== "CREDIT" ? (
+                <>
+                  <CreditCard className="h-4 w-4" />
+                  המשך לסליקה ב-Cardcom
+                </>
               ) : (
                 <>
                   <CheckCircle className="h-4 w-4" />
@@ -439,5 +548,18 @@ export function CompleteSessionDialog(props: CompleteSessionDialogProps) {
         </DialogFooter>
       </DialogContent>
     </Dialog>
+
+    <ChargeCardcomDialog
+      open={cardcomOpen}
+      onOpenChange={setCardcomOpen}
+      paymentId={cardcomPaymentId}
+      sessionId={sessionId}
+      clientId={clientId}
+      clientName={clientName ?? "מטופל"}
+      amount={cardcomAmount}
+      defaultDescription={`פגישה`}
+      onPaymentSuccess={handleCardcomSuccess}
+    />
+    </>
   );
 }

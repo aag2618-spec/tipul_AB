@@ -15,7 +15,7 @@ import {
   DialogTitle,
 } from "@/components/ui/dialog";
 import { Button } from "@/components/ui/button";
-import { Loader2, CreditCard, AlertCircle } from "lucide-react";
+import { Loader2, CreditCard, AlertCircle, Trash2 } from "lucide-react";
 import { toast } from "sonner";
 
 interface SavedToken {
@@ -56,6 +56,8 @@ export function ChargeSavedCardButton({
   const [dialogOpen, setDialogOpen] = useState(false);
   const [selectedTokenId, setSelectedTokenId] = useState<string | null>(null);
   const [isCharging, setIsCharging] = useState(false);
+  // Per-token delete state (id מסומן כמתחייב מחיקה).
+  const [deletingTokenId, setDeletingTokenId] = useState<string | null>(null);
   const inFlightRef = useRef<boolean>(false);
   const idempotencyKeyRef = useRef<string | null>(null);
 
@@ -110,6 +112,45 @@ export function ChargeSavedCardButton({
       idempotencyKeyRef.current = null;
     }
     setDialogOpen(next);
+  };
+
+  const handleDeleteToken = async (tokenId: string, last4: string): Promise<void> => {
+    if (deletingTokenId) return;
+    if (
+      typeof window !== "undefined" &&
+      !window.confirm(
+        `למחוק את הכרטיס המסתיים ב-${last4}? לא ניתן יהיה לחייב אותו יותר. ` +
+          `(החיובים הקודמים יישמרו בהיסטוריה.)`
+      )
+    ) {
+      return;
+    }
+    setDeletingTokenId(tokenId);
+    try {
+      const res = await fetch(
+        `/api/clients/${clientId}/saved-cards/${tokenId}`,
+        { method: "DELETE" }
+      );
+      const data = (await res.json().catch(() => ({}))) as {
+        success?: boolean;
+        message?: string;
+        alreadyDeleted?: boolean;
+      };
+      if (!res.ok) {
+        toast.error(data.message ?? "מחיקת הכרטיס נכשלה");
+        return;
+      }
+      // הסרה אופטימית מהרשימה. אם זה היה הכרטיס הנבחר, מאפסים את הבחירה.
+      setTokens((prev) => (prev ? prev.filter((t) => t.id !== tokenId) : prev));
+      setSelectedTokenId((prev) => (prev === tokenId ? null : prev));
+      toast.success(
+        data.alreadyDeleted ? "הכרטיס כבר היה מחוק" : "הכרטיס נמחק"
+      );
+    } catch (err) {
+      toast.error(err instanceof Error ? err.message : "מחיקת הכרטיס נכשלה");
+    } finally {
+      setDeletingTokenId(null);
+    }
   };
 
   const handleCharge = async () => {
@@ -204,41 +245,67 @@ export function ChargeSavedCardButton({
 
             <div className="space-y-2">
               <p className="text-sm font-medium">בחר כרטיס</p>
-              {usableTokens.map((t) => (
-                <label
-                  key={t.id}
-                  className="flex items-center gap-3 cursor-pointer p-3 rounded border hover:bg-muted/50"
-                >
-                  <input
-                    type="radio"
-                    name="saved-card"
-                    value={t.id}
-                    checked={selectedTokenId === t.id}
-                    onChange={() => setSelectedTokenId(t.id)}
-                    className="h-4 w-4"
-                  />
-                  <div className="flex-1">
-                    <div className="flex items-center gap-2">
-                      <CreditCard className="h-4 w-4 text-blue-600" />
-                      <span dir="ltr" className="font-mono text-sm">
-                        **** {t.cardLast4}
-                      </span>
-                      {t.cardBrand && (
-                        <span className="text-xs text-muted-foreground">
-                          ({t.cardBrand})
-                        </span>
+              {usableTokens.length === 0 ? (
+                <p className="text-sm text-muted-foreground py-2">
+                  אין כרטיסים שמורים זמינים. סגור את הדיאלוג ופתח חיוב חדש כדי לשמור כרטיס.
+                </p>
+              ) : (
+                usableTokens.map((t) => (
+                  <div
+                    key={t.id}
+                    className="flex items-center gap-2 p-3 rounded border hover:bg-muted/50"
+                  >
+                    <label className="flex items-center gap-3 cursor-pointer flex-1">
+                      <input
+                        type="radio"
+                        name="saved-card"
+                        value={t.id}
+                        checked={selectedTokenId === t.id}
+                        onChange={() => setSelectedTokenId(t.id)}
+                        className="h-4 w-4"
+                      />
+                      <div className="flex-1">
+                        <div className="flex items-center gap-2">
+                          <CreditCard className="h-4 w-4 text-blue-600" />
+                          <span dir="ltr" className="font-mono text-sm">
+                            **** {t.cardLast4}
+                          </span>
+                          {t.cardBrand && (
+                            <span className="text-xs text-muted-foreground">
+                              ({t.cardBrand})
+                            </span>
+                          )}
+                        </div>
+                        <div className="text-xs text-muted-foreground mt-1">
+                          {t.cardHolder} · תוקף{" "}
+                          <span dir="ltr">
+                            {String(t.expiryMonth).padStart(2, "0")}/
+                            {String(t.expiryYear).slice(-2)}
+                          </span>
+                        </div>
+                      </div>
+                    </label>
+                    <Button
+                      type="button"
+                      variant="ghost"
+                      size="sm"
+                      className="text-red-600 hover:text-red-700 hover:bg-red-50 shrink-0"
+                      onClick={() => handleDeleteToken(t.id, t.cardLast4)}
+                      disabled={
+                        deletingTokenId === t.id || isCharging
+                      }
+                      title="מחק כרטיס שמור"
+                      aria-label={`מחק כרטיס המסתיים ב-${t.cardLast4}`}
+                    >
+                      {deletingTokenId === t.id ? (
+                        <Loader2 className="h-4 w-4 animate-spin" />
+                      ) : (
+                        <Trash2 className="h-4 w-4" />
                       )}
-                    </div>
-                    <div className="text-xs text-muted-foreground mt-1">
-                      {t.cardHolder} · תוקף{" "}
-                      <span dir="ltr">
-                        {String(t.expiryMonth).padStart(2, "0")}/
-                        {String(t.expiryYear).slice(-2)}
-                      </span>
-                    </div>
+                    </Button>
                   </div>
-                </label>
-              ))}
+                ))
+              )}
             </div>
           </div>
 

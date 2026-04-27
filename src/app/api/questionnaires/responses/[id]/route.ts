@@ -66,35 +66,20 @@ export async function PATCH(
     const body = await request.json();
     const { answers, status, totalScore, subscores } = body;
 
-    // Verify ownership
-    const existing = await prisma.questionnaireResponse.findFirst({
-      where: {
-        id,
-        therapistId: userId,
-      },
-    });
-
-    if (!existing) {
-      return NextResponse.json(
-        { message: "Response not found" },
-        { status: 404 }
-      );
-    }
-
     const updateData: Record<string, unknown> = {};
-    
+
     if (answers !== undefined) {
       updateData.answers = answers;
     }
-    
+
     if (totalScore !== undefined) {
       updateData.totalScore = totalScore;
     }
-    
+
     if (subscores !== undefined) {
       updateData.subscores = subscores;
     }
-    
+
     if (status === "COMPLETED") {
       updateData.status = "COMPLETED";
       updateData.completedAt = new Date();
@@ -102,9 +87,21 @@ export async function PATCH(
       updateData.status = status;
     }
 
-    const response = await prisma.questionnaireResponse.update({
-      where: { id },
+    // Atomic update — ownership ב-WHERE מונע race condition
+    const updateResult = await prisma.questionnaireResponse.updateMany({
+      where: { id, therapistId: userId },
       data: updateData,
+    });
+
+    if (updateResult.count === 0) {
+      return NextResponse.json(
+        { message: "Response not found" },
+        { status: 404 }
+      );
+    }
+
+    const response = await prisma.questionnaireResponse.findUnique({
+      where: { id },
       include: {
         template: true,
         client: {
@@ -138,24 +135,17 @@ export async function DELETE(
 
     const { id } = await params;
 
-    // Verify ownership
-    const existing = await prisma.questionnaireResponse.findFirst({
-      where: {
-        id,
-        therapistId: userId,
-      },
+    // Atomic delete — ownership ב-WHERE מונע race condition
+    const deleteResult = await prisma.questionnaireResponse.deleteMany({
+      where: { id, therapistId: userId },
     });
 
-    if (!existing) {
+    if (deleteResult.count === 0) {
       return NextResponse.json(
         { message: "Response not found" },
         { status: 404 }
       );
     }
-
-    await prisma.questionnaireResponse.delete({
-      where: { id },
-    });
 
     return NextResponse.json({ success: true });
   } catch (error) {

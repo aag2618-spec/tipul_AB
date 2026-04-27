@@ -13,6 +13,7 @@ import { Loader2, Check, ChevronDown, CreditCard, Wallet, FileText } from "lucid
 import { Checkbox } from "@/components/ui/checkbox";
 import { toast } from "sonner";
 import { format } from "date-fns";
+import { ChargeCardcomDialog } from "@/components/payments/charge-cardcom-dialog";
 
 interface Payment {
   id: string;
@@ -46,6 +47,9 @@ export default function MarkPaidPage({ params }: { params: Promise<{ id: string 
   const [issueReceipt, setIssueReceipt] = useState(false);
   const [receiptMode, setReceiptMode] = useState<string>("ASK");
   const [businessType, setBusinessType] = useState<string>("NONE");
+  // ── Cardcom flow state ────────────────────────────────────
+  const [cardcomOpen, setCardcomOpen] = useState(false);
+  const [cardcomAmount, setCardcomAmount] = useState<number>(0);
 
   useEffect(() => {
     const fetchPayment = async () => {
@@ -108,6 +112,61 @@ export default function MarkPaidPage({ params }: { params: Promise<{ id: string 
     if (useCredit && safeCredit > 0) {
       creditUsed = Math.min(amountToPay, safeCredit);
       amountToPay = amountToPay - creditUsed;
+    }
+
+    // ── Cardcom intercept ──────────────────────────────────────
+    // אם נבחר אשראי — לא רושמים PAID ידנית; מכינים את ה-Payment הקיים
+    // (prepareCardcom) ופותחים את ChargeCardcomDialog לסליקה אמיתית.
+    if (method === "CREDIT_CARD") {
+      if (useCredit && creditUsed > 0) {
+        toast.error("לא ניתן לשלב שימוש בקרדיט עם חיוב באשראי. בטלי את השימוש בקרדיט.");
+        return;
+      }
+      // PARTIAL + Cardcom חסום זמנית: ה-webhook מסמן PAID בלי לבדוק
+      // amount==expectedAmount, ולכן partial-cardcom משאיר Payment ב-PAID
+      // עם חוב מובלע (לא עקבי עם addPartialPayment של מזומן).
+      if (paymentMode === "PARTIAL") {
+        toast.error(
+          "תשלום חלקי באשראי טרם נתמך. בחרי 'תשלום מלא' באשראי, או אמצעי תשלום אחר לחלקי."
+        );
+        return;
+      }
+      // עוד מנע: prepareCardcom דורס payment.amount; אם כבר היו תשלומים
+      // חלקיים (במזומן/בנק) על אותו חוב, הסכום כבר מצטבר ב-payment.amount —
+      // אסור לדרוס אותו. חוסמים כאן לפני הקריאה כדי לתת שגיאה ברורה.
+      if (Number(payment.amount) > 0) {
+        toast.error(
+          "כבר נרשמו תשלומים חלקיים על חוב זה. סליקת אשראי על שארית טרם נתמכת — בקש שלם את היתרה במזומן/העברה."
+        );
+        return;
+      }
+      if (amountToPay <= 0) {
+        toast.error("סכום החיוב חייב להיות חיובי");
+        return;
+      }
+      setIsSaving(true);
+      try {
+        const res = await fetch(`/api/payments/${id}`, {
+          method: "PUT",
+          headers: { "Content-Type": "application/json" },
+          body: JSON.stringify({
+            prepareCardcom: true,
+            amount: amountToPay,
+          }),
+        });
+        if (!res.ok) {
+          const data = await res.json().catch(() => ({}));
+          toast.error(data?.message || "הכנת התשלום לסליקה נכשלה");
+          return;
+        }
+        setCardcomAmount(amountToPay);
+        setCardcomOpen(true);
+      } catch (err) {
+        toast.error(err instanceof Error ? err.message : "הכנת התשלום נכשלה");
+      } finally {
+        setIsSaving(false);
+      }
+      return;
     }
 
     // Confirmation for large amounts
@@ -377,6 +436,11 @@ export default function MarkPaidPage({ params }: { params: Promise<{ id: string 
                   <Loader2 className="h-4 w-4 animate-spin" />
                   מעבד...
                 </>
+              ) : method === "CREDIT_CARD" ? (
+                <>
+                  <CreditCard className="h-4 w-4" />
+                  {`המשך לסליקה ב-Cardcom (₪${(paymentMode === "FULL" ? debtAmount : (parseFloat(partialAmount) || 0)).toFixed(0)})`}
+                </>
               ) : (
                 <>
                   <Check className="h-4 w-4" />
@@ -419,6 +483,20 @@ export default function MarkPaidPage({ params }: { params: Promise<{ id: string 
           )}
         </CardContent>
       </Card>
+
+      <ChargeCardcomDialog
+        open={cardcomOpen}
+        onOpenChange={setCardcomOpen}
+        paymentId={id}
+        clientId={payment.client.id}
+        clientName={payment.client.name}
+        amount={cardcomAmount}
+        defaultDescription="פגישה"
+        onPaymentSuccess={async () => {
+          toast.success("התשלום בוצע בהצלחה");
+          router.push("/dashboard/payments");
+        }}
+      />
     </div>
   );
 }

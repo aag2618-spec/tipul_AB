@@ -87,6 +87,16 @@ export default function ClientPaymentsPage() {
       return;
     }
 
+    // CRITICAL: סליקה מצרפית אמיתית ב-Cardcom דורשת "umbrella payment" + עדכון
+    // children אטומי ב-webhook. עד שייבנה — חוסמים CREDIT_CARD בתשלום מצרפי
+    // (אחרת ייווצר מצב של "אומברלה PAID + children PENDING" → ספירה כפולה).
+    if (paymentMethod === "CREDIT_CARD") {
+      toast.error(
+        "תשלום מצרפי באשראי טרם נתמך. כדי לחייב באשראי - היכנסי לכל פגישה ושלמי בנפרד, או בחרי אמצעי אחר (מזומן/בנק/המחאה)."
+      );
+      return;
+    }
+
     try {
       setProcessing(true);
       const res = await fetch(`/api/clients/${clientId}/bulk-payment`, {

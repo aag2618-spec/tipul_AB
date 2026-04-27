@@ -30,6 +30,20 @@ export async function POST(req: NextRequest) {
       return NextResponse.json({ message: "אמצעי תשלום לא תקין" }, { status: 400 });
     }
 
+    // CRITICAL: CREDIT_CARD בתשלום מצרפי לא נתמך כרגע. ה-route הזה רושם
+    // PAID ידנית על מספר Payments — ל-Cardcom צריך מסלול נפרד עם
+    // umbrella payment + עדכון אטומי ב-webhook. עד שהמנגנון יוטמע
+    // נחסום כאן (defense-in-depth מעל החסימה ב-UI).
+    if (method === "CREDIT_CARD") {
+      return NextResponse.json(
+        {
+          message:
+            "תשלום מצרפי באשראי טרם נתמך. בצעי סליקה לכל פגישה בנפרד, או בחרי אמצעי תשלום אחר.",
+        },
+        { status: 400 }
+      );
+    }
+
     if (totalAmount <= 0) {
       return NextResponse.json(
         { message: "סכום התשלום חייב להיות חיובי" },

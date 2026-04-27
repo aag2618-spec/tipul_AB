@@ -8,12 +8,12 @@
 //
 // טעינה lazy — מצא רק כשהסקציה הזו מורחבת בהיסטוריה.
 
-import { useEffect, useState } from "react";
+import { useEffect, useRef, useState } from "react";
 import { format } from "date-fns";
 import { he } from "date-fns/locale";
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
-import { Loader2, CreditCard, RotateCcw } from "lucide-react";
+import { Loader2, CreditCard, RotateCcw, Ban } from "lucide-react";
 import { toast } from "sonner";
 import { RefundCardcomDialog } from "./refund-cardcom-dialog";
 
@@ -57,6 +57,10 @@ export function CardcomTransactionPanel({
   const [tx, setTx] = useState<CardcomTx | null>(null);
   const [refund, setRefund] = useState<RefundInfo | null>(null);
   const [refundOpen, setRefundOpen] = useState(false);
+  // ── Cancel-link state ──────────────────────────────────────
+  // נשמר ברפ נגד לחיצה כפולה אגב Idempotency-Key מצד שרת.
+  const [isCancelling, setIsCancelling] = useState(false);
+  const cancelInFlightRef = useRef<boolean>(false);
 
   const load = async () => {
     setLoading(true);
@@ -82,6 +86,57 @@ export function CardcomTransactionPanel({
     load();
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [paymentId]);
+
+  const handleCancelLink = async (txId: string): Promise<void> => {
+    if (cancelInFlightRef.current) return;
+    if (
+      typeof window !== "undefined" &&
+      !window.confirm(
+        "לבטל את קישור התשלום? הלקוח לא יוכל לשלם דרכו יותר. אם הוא כבר התחיל לשלם, ייתכן שהביטול יחסם."
+      )
+    ) {
+      return;
+    }
+    cancelInFlightRef.current = true;
+    setIsCancelling(true);
+    try {
+      const r = crypto.getRandomValues(new Uint8Array(16));
+      const cancelKey =
+        "cancel-hist-" +
+        Date.now().toString(36) +
+        "-" +
+        Array.from(r, (b) => b.toString(16).padStart(2, "0")).join("");
+      const res = await fetch(
+        `/api/payments/${paymentId}/cardcom-cancel-link`,
+        {
+          method: "POST",
+          headers: {
+            "Content-Type": "application/json",
+            "Idempotency-Key": cancelKey,
+          },
+          body: JSON.stringify({ transactionId: txId }),
+        }
+      );
+      const data = (await res.json().catch(() => ({}))) as {
+        success?: boolean;
+        message?: string;
+        alreadyCancelled?: boolean;
+      };
+      if (!res.ok) {
+        toast.error(data.message ?? "ביטול הקישור נכשל");
+        return;
+      }
+      toast.success(
+        data.alreadyCancelled ? "הקישור כבר היה מבוטל" : "הקישור בוטל"
+      );
+      await load();
+    } catch (err) {
+      toast.error(err instanceof Error ? err.message : "ביטול הקישור נכשל");
+    } finally {
+      setIsCancelling(false);
+      cancelInFlightRef.current = false;
+    }
+  };
 
   if (loading) {
     return (
@@ -191,6 +246,29 @@ export function CardcomTransactionPanel({
                 (קוד {tx.errorCode})
               </span>
             )}
+          </div>
+        )}
+
+        {tx.status === "PENDING" && (
+          <div className="flex items-center justify-between pt-2 border-t border-blue-200 gap-2">
+            <span className="text-xs text-muted-foreground">
+              נשלח קישור / נפתח iframe — ממתין לתשלום הלקוח
+            </span>
+            <Button
+              variant="outline"
+              size="sm"
+              className="gap-1 text-red-700 border-red-300 hover:bg-red-50 hover:text-red-800"
+              onClick={() => handleCancelLink(tx.id)}
+              disabled={isCancelling}
+              title="בטל את הקישור — הלקוח לא יוכל לשלם דרכו יותר"
+            >
+              {isCancelling ? (
+                <Loader2 className="h-3.5 w-3.5 animate-spin" />
+              ) : (
+                <Ban className="h-3.5 w-3.5" />
+              )}
+              בטל קישור
+            </Button>
           </div>
         )}
 

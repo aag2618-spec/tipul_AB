@@ -11,6 +11,7 @@ import { Textarea } from "@/components/ui/textarea";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
 import { Loader2, CreditCard } from "lucide-react";
 import { toast } from "sonner";
+import { ChargeCardcomDialog } from "@/components/payments/charge-cardcom-dialog";
 
 interface Client {
   id: string;
@@ -31,6 +32,11 @@ function NewPaymentContent() {
     notes: "",
     status: "PENDING", // Default to pending (debt)
   });
+  // ── Cardcom flow state ────────────────────────────────────
+  const [cardcomOpen, setCardcomOpen] = useState(false);
+  const [cardcomPaymentId, setCardcomPaymentId] = useState<string | undefined>(undefined);
+  const [cardcomAmount, setCardcomAmount] = useState<number>(0);
+  const [cardcomClientName, setCardcomClientName] = useState<string>("");
 
   useEffect(() => {
     const fetchClients = async () => {
@@ -58,6 +64,54 @@ function NewPaymentContent() {
       return;
     }
 
+    const amt = parseFloat(formData.amount);
+    if (!Number.isFinite(amt) || amt <= 0) {
+      toast.error("סכום לא תקין");
+      return;
+    }
+
+    // ── Cardcom intercept ────────────────────────────────────
+    // אם המשתמש בחר "שולם" + "כרטיס אשראי" — חייבים סליקה אמיתית.
+    // יוצרים תחילה Payment ב-PENDING ופותחים ChargeCardcomDialog. ה-webhook
+    // יעדכן ל-PAID. אם המשתמש בחר "חוב" + אשראי, לא נריץ Cardcom — זו רק
+    // רישום של חוב עתידי שיתבצע ידנית.
+    if (formData.status === "PAID" && formData.method === "CREDIT_CARD") {
+      setIsSaving(true);
+      try {
+        const res = await fetch("/api/payments", {
+          method: "POST",
+          headers: { "Content-Type": "application/json" },
+          body: JSON.stringify({
+            clientId: formData.clientId,
+            amount: amt,
+            expectedAmount: amt,
+            paymentType: "FULL",
+            method: "CREDIT_CARD",
+            notes: formData.notes,
+            status: "PENDING",
+            // הקבלה תופק ע״י Cardcom Documents API ב-webhook.
+            issueReceipt: false,
+          }),
+        });
+        if (!res.ok) {
+          const data = await res.json().catch(() => ({}));
+          throw new Error(data?.message || "שגיאה ביצירת התשלום");
+        }
+        const created = (await res.json()) as { id: string };
+        const clientName =
+          clients.find((c) => c.id === formData.clientId)?.name || "מטופל";
+        setCardcomPaymentId(created.id);
+        setCardcomAmount(amt);
+        setCardcomClientName(clientName);
+        setCardcomOpen(true);
+      } catch (err) {
+        toast.error(err instanceof Error ? err.message : "שגיאה ביצירת התשלום");
+      } finally {
+        setIsSaving(false);
+      }
+      return;
+    }
+
     setIsSaving(true);
 
     try {
@@ -66,8 +120,8 @@ function NewPaymentContent() {
         headers: { "Content-Type": "application/json" },
         body: JSON.stringify({
           clientId: formData.clientId,
-          amount: formData.status === "PAID" ? parseFloat(formData.amount) : 0,
-          expectedAmount: parseFloat(formData.amount),
+          amount: formData.status === "PAID" ? amt : 0,
+          expectedAmount: amt,
           paymentType: "FULL",
           method: formData.method,
           notes: formData.notes,
@@ -204,6 +258,11 @@ function NewPaymentContent() {
                     <Loader2 className="ml-2 h-4 w-4 animate-spin" />
                     שומר...
                   </>
+                ) : formData.status === "PAID" && formData.method === "CREDIT_CARD" ? (
+                  <>
+                    <CreditCard className="ml-2 h-4 w-4" />
+                    המשך לסליקה ב-Cardcom
+                  </>
                 ) : (
                   <>
                     <CreditCard className="ml-2 h-4 w-4" />
@@ -218,6 +277,20 @@ function NewPaymentContent() {
           </CardContent>
         </Card>
       </form>
+
+      <ChargeCardcomDialog
+        open={cardcomOpen}
+        onOpenChange={setCardcomOpen}
+        paymentId={cardcomPaymentId}
+        clientId={formData.clientId}
+        clientName={cardcomClientName}
+        amount={cardcomAmount}
+        defaultDescription="תשלום"
+        onPaymentSuccess={async () => {
+          toast.success("התשלום בוצע בהצלחה");
+          router.push("/dashboard/payments");
+        }}
+      />
     </div>
   );
 }

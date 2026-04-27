@@ -24,6 +24,7 @@ import { RecurringPatternDialog } from "@/components/calendar/recurring-pattern-
 import { SessionDetailDialog, type PaymentRequest } from "@/components/calendar/session-detail-dialog";
 import { ChargeConfirmationDialog } from "@/components/calendar/charge-confirmation-dialog";
 import { CalendarEventContent } from "@/components/calendar/calendar-event-content";
+import { ChargeCardcomDialog } from "@/components/payments/charge-cardcom-dialog";
 
 // Dynamic import for FullCalendar to avoid SSR issues
 const FullCalendar = dynamic(
@@ -104,6 +105,18 @@ function CalendarPageContent() {
 
   const [updateDialogOpen, setUpdateDialogOpen] = useState(false);
   const [isPaymentDialogOpen, setIsPaymentDialogOpen] = useState(false);
+  // ── Cardcom intercept (lifted from UpdateSessionDialog) ──────────
+  // ה-UpdateSessionDialog נטען בתנאי updateDialogOpen && selectedSession,
+  // ולכן ברגע שקוראים ל-onClose() הוא יורד מה-DOM וכל ה-state המקומי שלו
+  // נעלם. כדי שהמעבר ל-Cardcom לא ייקטע, מחזיקים את הדיאלוג כאן ברמת
+  // העמוד עצמו (שורד את unmount של הדיאלוג הפנימי).
+  const [calendarCardcomOpen, setCalendarCardcomOpen] = useState(false);
+  const [calendarCardcomData, setCalendarCardcomData] = useState<{
+    paymentId: string;
+    amount: number;
+    clientName: string;
+    clientId: string;
+  } | null>(null);
   const [paymentData, setPaymentData] = useState<{
     sessionId: string;
     clientId: string;
@@ -525,6 +538,33 @@ function CalendarPageContent() {
           updating={updating}
           onUpdate={handleCalendarUpdate}
           onRecordDebt={handleCalendarRecordDebt}
+          onCardcomRequested={(p) => {
+            // ה-Payment כבר נוצר ב-PENDING בתוך הדיאלוג. כאן רק נפתח את
+            // ה-ChargeCardcomDialog שחי ברמת העמוד (לא יושפע מ-unmount של
+            // ה-UpdateSessionDialog).
+            setCalendarCardcomData(p);
+            setCalendarCardcomOpen(true);
+          }}
+        />
+      )}
+
+      {calendarCardcomData && (
+        <ChargeCardcomDialog
+          open={calendarCardcomOpen}
+          onOpenChange={(open) => {
+            setCalendarCardcomOpen(open);
+            if (!open) setCalendarCardcomData(null);
+          }}
+          paymentId={calendarCardcomData.paymentId}
+          clientId={calendarCardcomData.clientId}
+          clientName={calendarCardcomData.clientName}
+          amount={calendarCardcomData.amount}
+          defaultDescription="פגישה"
+          onPaymentSuccess={async () => {
+            // CRITICAL: לא להסתפק ב-router.refresh — useCalendarData מחזיק
+            // session-state ב-React state שמתעדכן רק דרך fetchData המפורש.
+            await fetchData();
+          }}
         />
       )}
 

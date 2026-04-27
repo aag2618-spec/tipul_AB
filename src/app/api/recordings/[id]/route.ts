@@ -3,6 +3,7 @@ import prisma from "@/lib/prisma";
 import { logger } from "@/lib/logger";
 
 import { requireAuth } from "@/lib/api-auth";
+import { logDataAccess } from "@/lib/audit-logger";
 
 export const dynamic = "force-dynamic";
 
@@ -42,6 +43,20 @@ export async function GET(
       return NextResponse.json({ message: "הקלטה לא נמצאה" }, { status: 404 });
     }
 
+    // Audit log — קריאה להקלטה (audio URL + transcription content + analysis)
+    logDataAccess({
+      userId,
+      recordType: "RECORDING",
+      recordId: id,
+      action: "READ",
+      clientId: recording.clientId,
+      request,
+      meta: {
+        hasTranscription: !!recording.transcription,
+        hasAnalysis: !!recording.transcription?.analysis,
+      },
+    });
+
     return NextResponse.json(recording);
   } catch (error) {
     logger.error("Get recording error:", { error: error instanceof Error ? error.message : String(error) });
@@ -63,7 +78,8 @@ export async function DELETE(
 
     const { id } = await params;
 
-    const recording = await prisma.recording.findFirst({
+    // Atomic delete — ownership נבדק ב-WHERE עצמו, מונע race condition
+    const deleteResult = await prisma.recording.deleteMany({
       where: {
         id,
         OR: [
@@ -73,11 +89,18 @@ export async function DELETE(
       },
     });
 
-    if (!recording) {
+    if (deleteResult.count === 0) {
       return NextResponse.json({ message: "הקלטה לא נמצאה" }, { status: 404 });
     }
 
-    await prisma.recording.delete({ where: { id } });
+    // Audit log — פעולה הרסנית
+    logDataAccess({
+      userId,
+      recordType: "RECORDING",
+      recordId: id,
+      action: "DELETE",
+      request,
+    });
 
     return NextResponse.json({ message: "ההקלטה נמחקה בהצלחה" });
   } catch (error) {

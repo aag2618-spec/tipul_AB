@@ -46,6 +46,7 @@ import {
   AlertCircle,
   ExternalLink,
   RefreshCw,
+  Ban,
 } from "lucide-react";
 import { toast } from "sonner";
 
@@ -141,6 +142,10 @@ export function ChargeCardcomDialog({
   const [resendCooldownEndsAt, setResendCooldownEndsAt] = useState<number>(0);
   const [resendCooldownLeft, setResendCooldownLeft] = useState<number>(0);
   const [isResending, setIsResending] = useState<boolean>(false);
+  // ── Cancel-link state ──────────────────────────────────────
+  // Single in-flight + ref guard against double-click. Same pattern as resend.
+  const [isCancellingLink, setIsCancellingLink] = useState<boolean>(false);
+  const cancelInFlightRef = useRef<boolean>(false);
 
   // Idempotency-Key מתקיים ל-window אחד של ניסיון (שני קליקים מהירים → אותה תוצאה).
   const idempotencyKeyRef = useRef<string>("");
@@ -492,6 +497,66 @@ export function ChargeCardcomDialog({
     }
   };
 
+  const handleCancelLink = async (): Promise<void> => {
+    if (!paymentId) return;
+    if (cancelInFlightRef.current) return;
+    if (
+      typeof window !== "undefined" &&
+      !window.confirm(
+        "לבטל את קישור התשלום? הלקוח לא יוכל לשלם דרכו יותר. אם הוא כבר התחיל לשלם, ייתכן שהביטול יחסם."
+      )
+    ) {
+      return;
+    }
+    cancelInFlightRef.current = true;
+    setIsCancellingLink(true);
+    try {
+      // Idempotency-Key חדש לפעולת הביטול (לא משותף עם ה-create).
+      const r = crypto.getRandomValues(new Uint8Array(16));
+      const cancelKey =
+        "cancel-" +
+        Date.now().toString(36) +
+        "-" +
+        Array.from(r, (b) => b.toString(16).padStart(2, "0")).join("");
+      const res = await fetch(
+        `/api/payments/${paymentId}/cardcom-cancel-link`,
+        {
+          method: "POST",
+          headers: {
+            "Content-Type": "application/json",
+            "Idempotency-Key": cancelKey,
+          },
+          body: JSON.stringify({ transactionId: transactionId || undefined }),
+        }
+      );
+      const data = (await res.json().catch(() => ({}))) as {
+        success?: boolean;
+        message?: string;
+        alreadyCancelled?: boolean;
+      };
+      if (!res.ok) {
+        toast.error(data.message ?? "ביטול הקישור נכשל");
+        return;
+      }
+      // עוצרים polling ועדכוני סטטוס שיגיעו אחרי הביטול: bump generation +
+      // ניקוי טיימר. כל pollOnce שיחזור עכשיו פשוט יחזור מיד.
+      generationRef.current++;
+      if (pollTimerRef.current) {
+        clearTimeout(pollTimerRef.current);
+        pollTimerRef.current = null;
+      }
+      toast.success(
+        data.alreadyCancelled ? "הקישור כבר היה מבוטל" : "הקישור בוטל"
+      );
+      onOpenChange(false);
+    } catch (err) {
+      toast.error(err instanceof Error ? err.message : "ביטול הקישור נכשל");
+    } finally {
+      setIsCancellingLink(false);
+      cancelInFlightRef.current = false;
+    }
+  };
+
   const handleCopyLink = async (): Promise<void> => {
     if (!paymentPageUrl) return;
     try {
@@ -746,6 +811,21 @@ export function ChargeCardcomDialog({
                 <ExternalLink className="h-4 w-4 ml-1" />
                 פתח בכרטיסייה חדשה
               </Button>
+              <Button
+                variant="outline"
+                size="sm"
+                onClick={handleCancelLink}
+                disabled={isCancellingLink || !paymentId}
+                className="text-red-700 border-red-300 hover:bg-red-50 hover:text-red-800"
+                title="בטל את הקישור — הלקוח לא יוכל לשלם דרכו יותר"
+              >
+                {isCancellingLink ? (
+                  <Loader2 className="h-4 w-4 ml-1 animate-spin" />
+                ) : (
+                  <Ban className="h-4 w-4 ml-1" />
+                )}
+                בטל קישור
+              </Button>
             </div>
           </div>
           );
@@ -766,9 +846,26 @@ export function ChargeCardcomDialog({
 
         {step === "iframe" && (
           <div className="space-y-3">
-            <div className="flex items-center gap-2 text-sm">
-              <Loader2 className="h-4 w-4 animate-spin text-primary" />
-              <Badge variant="secondary">ממתין לתשלום</Badge>
+            <div className="flex items-center justify-between gap-2 text-sm">
+              <div className="flex items-center gap-2">
+                <Loader2 className="h-4 w-4 animate-spin text-primary" />
+                <Badge variant="secondary">ממתין לתשלום</Badge>
+              </div>
+              <Button
+                variant="outline"
+                size="sm"
+                onClick={handleCancelLink}
+                disabled={isCancellingLink || !paymentId}
+                className="text-red-700 border-red-300 hover:bg-red-50 hover:text-red-800"
+                title="בטל את העסקה — אם הלקוח כבר התחיל למלא, הביטול יחסם"
+              >
+                {isCancellingLink ? (
+                  <Loader2 className="h-4 w-4 ml-1 animate-spin" />
+                ) : (
+                  <Ban className="h-4 w-4 ml-1" />
+                )}
+                בטל
+              </Button>
             </div>
             <div className="border rounded-lg overflow-hidden bg-white">
               <iframe

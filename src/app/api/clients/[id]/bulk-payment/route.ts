@@ -33,6 +33,20 @@ export async function POST(
       );
     }
 
+    // CRITICAL: CREDIT_CARD בתשלום מצרפי לא נתמך כרגע — ה-route הזה רושם
+    // PAID ידנית על מספר Payments. ל-Cardcom צריך מסלול נפרד עם umbrella
+    // payment + עדכון אטומי ב-webhook. עד שייבנה — חוסמים (defense-in-depth
+    // מעל החסימה ב-UI).
+    if (method === "CREDIT_CARD") {
+      return NextResponse.json(
+        {
+          message:
+            "תשלום מצרפי באשראי טרם נתמך. בצעי סליקה לכל פגישה בנפרד, או בחרי אמצעי תשלום אחר.",
+        },
+        { status: 400 }
+      );
+    }
+
     const client = await prisma.client.findFirst({
       where: { id: clientId, therapistId: userId },
     });

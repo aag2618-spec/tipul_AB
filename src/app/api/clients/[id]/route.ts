@@ -3,6 +3,7 @@ import { requireAuth } from "@/lib/api-auth";
 import prisma from "@/lib/prisma";
 import { logger } from "@/lib/logger";
 import { serializePrisma } from "@/lib/serialize";
+import { logDataAccess } from "@/lib/audit-logger";
 
 export const dynamic = "force-dynamic";
 
@@ -43,6 +44,16 @@ export async function GET(
     if (!client) {
       return NextResponse.json({ message: "מטופל לא נמצא" }, { status: 404 });
     }
+
+    // Audit log — קריאה לפרופיל מטופל כוללת notes/initialDiagnosis/intakeNotes
+    logDataAccess({
+      userId,
+      recordType: "CLIENT_PROFILE",
+      recordId: id,
+      action: "READ",
+      clientId: id,
+      request,
+    });
 
     return NextResponse.json(serializePrisma(client));
   } catch (error) {

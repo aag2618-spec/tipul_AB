@@ -28,19 +28,23 @@ export async function POST(
   if ("error" in auth) return auth.error;
   const { userId, session } = auth;
 
-  // Idempotency
+  const { id: paymentId } = await context.params;
+
+  // Idempotency — מפתח חייב לכלול route+paymentId כדי למנוע replay בין routes
+  // ו-TTL נאכף בקריאה (לא רק ב-cron) — שורה שפג תוקפה לא תוחזר.
   const idempotencyKey =
     request.headers.get("Idempotency-Key") ?? request.headers.get("idempotency-key");
-  if (idempotencyKey) {
+  const idempotencyDbKey = idempotencyKey
+    ? `${userId}:POST:/api/payments/${paymentId}/charge-saved-token:${idempotencyKey}`
+    : null;
+  if (idempotencyDbKey) {
     const existing = await prisma.idempotencyKey.findUnique({
-      where: { key: `${userId}:${idempotencyKey}` },
+      where: { key: idempotencyDbKey },
     });
-    if (existing) {
+    if (existing && existing.expiresAt > new Date()) {
       return NextResponse.json(existing.response, { status: existing.statusCode });
     }
   }
-
-  const { id: paymentId } = await context.params;
 
   let body: ChargeTokenBody;
   try {
@@ -303,11 +307,11 @@ export async function POST(
       }
     );
 
-    if (idempotencyKey) {
+    if (idempotencyDbKey) {
       try {
         await prisma.idempotencyKey.create({
           data: {
-            key: `${userId}:${idempotencyKey}`,
+            key: idempotencyDbKey,
             method: "POST",
             path: `/api/payments/${payment.id}/charge-saved-token`,
             statusCode: 200,
