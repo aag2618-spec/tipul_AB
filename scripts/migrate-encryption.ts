@@ -15,9 +15,22 @@
  */
 
 import { PrismaClient } from '@prisma/client';
+import { PrismaPg } from '@prisma/adapter-pg';
+import { Pool } from 'pg';
 import crypto from 'crypto';
 
-const prisma = new PrismaClient();
+const connectionString = process.env.DATABASE_URL;
+if (!connectionString) {
+  console.error('DATABASE_URL environment variable is required.');
+  process.exit(1);
+}
+const pool = new Pool({ connectionString });
+const adapter = new PrismaPg(pool);
+// NOTE: Using base PrismaClient (no encryption extension). The extension
+// auto-encrypts on write, but here we use $executeRawUnsafe / $queryRawUnsafe
+// to bypass it — we want raw access to read plaintext and write ciphertext
+// without going through the extension's hooks.
+const prisma = new PrismaClient({ adapter });
 
 // ---- Encryption helpers (inlined to avoid import issues with tsx) ----
 
@@ -82,20 +95,46 @@ interface EncryptedFieldDef {
 }
 
 const ENCRYPTED_FIELDS: EncryptedFieldDef[] = [
+  // Existing — kept for backward-compatibility migration of legacy 3-part format.
   {
     model: 'BillingProvider',
     table: 'BillingProvider',
     idField: 'id',
     fields: ['apiKey', 'apiSecret'],
   },
-  // Add more models/fields here if encryption is applied to other tables
-  // e.g.:
-  // {
-  //   model: 'SessionNote',
-  //   table: 'SessionNote',
-  //   idField: 'id',
-  //   fields: ['content'],
-  // },
+  // Phase 4 — clinical data encryption. אותם שדות שב-`src/lib/encrypted-fields.ts`.
+  // אחרי deploy של הextension, רץ legacy plaintext דרך migrateField שממיר
+  // אותו ל-new format (4-part). אחרי migration זה — כל read יפענח אוטומטית.
+  {
+    model: 'Client',
+    table: 'Client',
+    idField: 'id',
+    fields: ['notes', 'initialDiagnosis', 'intakeNotes', 'approachNotes', 'culturalContext', 'comprehensiveAnalysis'],
+  },
+  {
+    model: 'SessionNote',
+    table: 'SessionNote',
+    idField: 'id',
+    fields: ['content'],
+  },
+  {
+    model: 'Transcription',
+    table: 'Transcription',
+    idField: 'id',
+    fields: ['content'],
+  },
+  {
+    model: 'Analysis',
+    table: 'Analysis',
+    idField: 'id',
+    fields: ['summary', 'nextSessionNotes'],
+  },
+  {
+    model: 'TherapySession',
+    table: 'TherapySession',
+    idField: 'id',
+    fields: ['topic', 'notes'],
+  },
 ];
 
 // ---- Migration logic ----
@@ -126,16 +165,20 @@ async function migrateField(
     return { model, rowId, field, status: 'already_new' };
   }
 
-  if (!isLegacyFormat(value)) {
-    return { model, rowId, field, status: 'not_encrypted' };
-  }
-
+  // Determine the plaintext to encrypt:
+  // - Legacy 3-part format → decrypt with legacy key, then re-encrypt
+  // - Plaintext (anything else) → encrypt as-is
+  let plaintext: string;
   try {
-    const plaintext = decryptLegacy(value);
+    if (isLegacyFormat(value)) {
+      plaintext = decryptLegacy(value);
+    } else {
+      plaintext = value; // pre-encryption plaintext data
+    }
+
     const newCiphertext = encryptNew(plaintext);
 
     if (!dryRun) {
-      // Use raw query to update the specific field
       await prisma.$executeRawUnsafe(
         `UPDATE "${model}" SET "${field}" = $1 WHERE "${idField}" = $2`,
         newCiphertext,
