@@ -130,6 +130,12 @@ export function ChargeCardcomDialog({
   const [paymentPageUrl, setPaymentPageUrl] = useState<string>("");
   const [transactionId, setTransactionId] = useState<string>("");
   const [paymentId, setPaymentId] = useState<string | undefined>(incomingPaymentId);
+  // True when startCardcom failed because a previous PENDING transaction is
+  // still open server-side (server returns 409 CHARGE_IN_PROGRESS). The
+  // failure step will offer "cancel pending charge and retry" so the user
+  // isn't permanently stuck — see "המתן לסיומו או בטל אותו" UX flow.
+  const [hasOpenCharge, setHasOpenCharge] = useState<boolean>(false);
+  const [recoveringOpenCharge, setRecoveringOpenCharge] = useState<boolean>(false);
   const [linkResults, setLinkResults] = useState<
     Array<{ channel: "sms" | "email"; success: boolean; error?: string }>
   >([]);
@@ -319,6 +325,7 @@ export function ChargeCardcomDialog({
     setStep("creating");
     setErrorMessage("");
 
+    setHasOpenCharge(false);
     try {
       const pid = await ensurePaymentId();
       if (gen !== generationRef.current) return;
@@ -343,6 +350,15 @@ export function ChargeCardcomDialog({
       };
 
       if (!res.ok || !data.url || !data.transactionId) {
+        // 409 with the specific "open charge" copy → unlock recovery UI.
+        // The server message is stable: "כבר קיים חיוב פתוח לתשלום זה..."
+        if (
+          res.status === 409 &&
+          typeof data.message === "string" &&
+          data.message.includes("חיוב פתוח")
+        ) {
+          if (gen === generationRef.current) setHasOpenCharge(true);
+        }
         throw new Error(data.message ?? "שגיאה ביצירת דף תשלום");
       }
       if (gen !== generationRef.current) return;
@@ -574,7 +590,59 @@ export function ChargeCardcomDialog({
     setTransactionId("");
     setPaymentId(incomingPaymentId);
     setLinkResults([]);
+    setHasOpenCharge(false);
     idempotencyKeyRef.current = "";
+  };
+
+  // Recovery for the "open charge" 409: cancel the orphaned PENDING tx
+  // server-side, then re-try startCardcom. Used when the user closed an
+  // earlier Cardcom dialog without entering card details — without this,
+  // they'd be permanently stuck because every retry hits CHARGE_IN_PROGRESS.
+  const handleCancelOpenAndRetry = async (): Promise<void> => {
+    if (!paymentId) return;
+    if (recoveringOpenCharge) return;
+    setRecoveringOpenCharge(true);
+    try {
+      const r = crypto.getRandomValues(new Uint8Array(16));
+      const cancelKey =
+        "recover-" +
+        Date.now().toString(36) +
+        "-" +
+        Array.from(r, (b) => b.toString(16).padStart(2, "0")).join("");
+      const res = await fetch(`/api/payments/${paymentId}/cardcom-cancel-link`, {
+        method: "POST",
+        headers: {
+          "Content-Type": "application/json",
+          "Idempotency-Key": cancelKey,
+        },
+        body: JSON.stringify({ reason: "המשתמש בחר לבטל חיוב פתוח ולנסות שוב" }),
+      });
+      const data = (await res.json().catch(() => ({}))) as {
+        success?: boolean;
+        message?: string;
+        alreadyCancelled?: boolean;
+      };
+      if (!res.ok && !data.alreadyCancelled) {
+        toast.error(data.message ?? "ביטול החיוב הקודם נכשל");
+        return;
+      }
+      // bump generation so any stale poll from a previous open dialog
+      // doesn't interfere with the new attempt.
+      generationRef.current++;
+      idempotencyKeyRef.current = "";
+      setHasOpenCharge(false);
+      setErrorMessage("");
+      // Kick off a fresh startCardcom — same UX as "נסה שוב" but after the
+      // server-side state was actually cleared. Awaited so the button stays
+      // disabled until the next dialog state (creating/link-sent/iframe)
+      // is in place — otherwise it briefly flashes back to "active" between
+      // the cancel returning and startCardcom updating step.
+      await startCardcom();
+    } catch (err) {
+      toast.error(err instanceof Error ? err.message : "ביטול החיוב נכשל");
+    } finally {
+      setRecoveringOpenCharge(false);
+    }
   };
 
   // ── Render ───────────────────────────────────────────────────
@@ -939,7 +1007,27 @@ export function ChargeCardcomDialog({
               <Button variant="outline" onClick={() => onOpenChange(false)}>
                 סגור
               </Button>
-              <Button onClick={reset}>נסה שוב</Button>
+              {hasOpenCharge ? (
+                <Button
+                  onClick={handleCancelOpenAndRetry}
+                  disabled={recoveringOpenCharge}
+                  className="bg-amber-600 hover:bg-amber-700"
+                >
+                  {recoveringOpenCharge ? (
+                    <>
+                      <Loader2 className="h-4 w-4 ml-2 animate-spin" />
+                      מבטל ופותח חדש...
+                    </>
+                  ) : (
+                    <>
+                      <Ban className="h-4 w-4 ml-2" />
+                      בטל חיוב פתוח ונסה שוב
+                    </>
+                  )}
+                </Button>
+              ) : (
+                <Button onClick={reset}>נסה שוב</Button>
+              )}
             </>
           )}
         </DialogFooter>

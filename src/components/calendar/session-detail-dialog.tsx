@@ -19,6 +19,15 @@ export interface PaymentRequest {
   clientId: string;
   amount: number;
   pendingSessionStatus: string;
+  /**
+   * If a Payment row already exists for this session, pass its id. The
+   * Cardcom flow needs to operate on the existing row (e.g. a previous
+   * abandoned attempt left a PENDING Payment with the right amount and
+   * an in-flight CardcomTransaction). Without this, ChargeCardcomDialog's
+   * ensurePaymentId() would POST /api/payments and createPaymentForSession
+   * would create cascading child PAID rows and corrupt status.
+   */
+  paymentId?: string;
 }
 
 // ── Props ──
@@ -555,10 +564,19 @@ export function SessionDetailDialog({
                   onClick={() => {
                     if (!session.client) return;
                     onOpenChange(false);
+                    // Only PAID amounts reduce the bill. PENDING (e.g. an
+                    // abandoned Cardcom attempt that left payment.amount=350
+                    // but status=PENDING) means the customer still owes the
+                    // full amount — subtracting it would send 0 to Cardcom.
+                    const paidAmount =
+                      session.payment?.status === "PAID"
+                        ? Number(session.payment?.amount || 0)
+                        : 0;
                     onRequestPayment({
                       sessionId: session.id,
                       clientId: session.client.id,
-                      amount: session.price - Number(session.payment?.amount || 0),
+                      amount: session.price - paidAmount,
+                      paymentId: session.payment?.id,
                       pendingSessionStatus: "COMPLETED",
                     });
                   }}
