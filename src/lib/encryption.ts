@@ -73,12 +73,31 @@ export function decrypt(encryptedText: string): string {
   }
 }
 
+// Tighter detection: each chunk must be valid hex (not just any 32-char string).
+// Prevents false-positive on user content that happens to contain ":" with
+// 32-char segments. New 4-part format starts with salt (32 hex), iv (32 hex),
+// authTag (32 hex), then ciphertext (≥2 hex chars).
+const HEX32 = /^[0-9a-f]{32}$/i;
+const HEX_MIN2 = /^[0-9a-f]{2,}$/i;
+
 export function isEncrypted(text: string): boolean {
   const parts = text.split(':');
-  if (parts.length === 4 && parts[0].length === 32 && parts[1].length === 32 && parts[2].length === 32) {
-    return true;
+  if (parts.length === 4) {
+    return (
+      HEX32.test(parts[0]) &&
+      HEX32.test(parts[1]) &&
+      HEX32.test(parts[2]) &&
+      HEX_MIN2.test(parts[3])
+    );
   }
-  return parts.length === 3 && parts[0].length === 32 && parts[1].length === 32;
+  if (parts.length === 3) {
+    return (
+      HEX32.test(parts[0]) &&
+      HEX32.test(parts[1]) &&
+      HEX_MIN2.test(parts[2])
+    );
+  }
+  return false;
 }
 
 export function hashApiKey(apiKey: string): string {
