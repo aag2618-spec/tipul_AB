@@ -169,9 +169,10 @@ export async function POST(request: NextRequest) {
       const sentDir = path.join(uploadsDir, "sent", originalLog.clientId);
       await fs.mkdir(sentDir, { recursive: true });
 
+      const { randomUUID } = await import("crypto");
       for (const att of resendAttachments) {
         const safeFilename = att.filename.replace(/[^a-zA-Z0-9._\u0590-\u05FF -]/g, "_");
-        const uniqueFilename = `${Date.now()}_${safeFilename}`;
+        const uniqueFilename = `${randomUUID()}_${safeFilename}`;
         const filePath = path.join(sentDir, uniqueFilename);
         await fs.writeFile(filePath, att.content);
 

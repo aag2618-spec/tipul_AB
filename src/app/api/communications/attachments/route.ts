@@ -163,7 +163,8 @@ export async function POST(request: NextRequest) {
     await fs.mkdir(clientDir, { recursive: true });
 
     const safeFilename = (filename || "file").replace(/[^a-zA-Z0-9._\u0590-\u05FF -]/g, "_");
-    const uniqueFilename = `${Date.now()}_${safeFilename}`;
+    const { randomUUID } = await import("crypto");
+    const uniqueFilename = `${randomUUID()}_${safeFilename}`;
     const filePath = path.join(clientDir, uniqueFilename);
 
     const buffer = Buffer.from(await fileResponse.arrayBuffer());

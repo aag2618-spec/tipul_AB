@@ -64,8 +64,11 @@ export const authOptions: NextAuthOptions = {
           where: { email: { equals: credentials.email, mode: "insensitive" } },
         });
 
+        // הודעת שגיאה אחידה — מונעת Email Enumeration (תוקף לא יכול לדעת אם האימייל קיים)
+        const INVALID_CREDENTIALS = "אימייל או סיסמה שגויים";
+
         if (!user || !user.password) {
-          throw new Error("משתמש לא נמצא");
+          throw new Error(INVALID_CREDENTIALS);
         }
 
         // Check if user is blocked
@@ -91,7 +94,7 @@ export const authOptions: NextAuthOptions = {
         const isValid = await bcrypt.compare(credentials.password, user.password);
 
         if (!isValid) {
-          throw new Error("סיסמה שגויה");
+          throw new Error(INVALID_CREDENTIALS);
         }
 
         return {
@@ -106,6 +109,9 @@ export const authOptions: NextAuthOptions = {
   ],
   session: {
     strategy: "jwt",
+    // 24 שעות תוקף — אם המשתמש פעיל פעם בשעה, ה-session מתחדש אוטומטית
+    maxAge: 24 * 60 * 60,
+    updateAge: 60 * 60,
   },
   pages: {
     signIn: "/login",

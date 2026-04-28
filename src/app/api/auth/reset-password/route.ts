@@ -23,9 +23,9 @@ export async function POST(request: NextRequest) {
       );
     }
 
-    if (password.length < 6) {
+    if (password.length < 8) {
       return NextResponse.json(
-        { error: "הסיסמה חייבת להכיל לפחות 6 תווים" },
+        { error: "הסיסמה חייבת להכיל לפחות 8 תווים" },
         { status: 400 }
       );
     }

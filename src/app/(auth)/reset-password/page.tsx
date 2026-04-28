@@ -61,8 +61,8 @@ function ResetPasswordForm() {
       return;
     }
 
-    if (password.length < 6) {
-      toast.error("הסיסמה חייבת להכיל לפחות 6 תווים");
+    if (password.length < 8) {
+      toast.error("הסיסמה חייבת להכיל לפחות 8 תווים");
       return;
     }
 
@@ -192,7 +192,7 @@ function ResetPasswordForm() {
               <Input
                 id="password"
                 type="password"
-                placeholder="לפחות 6 תווים"
+                placeholder="לפחות 8 תווים"
                 value={password}
                 onChange={(e) => setPassword(e.target.value)}
                 className="bg-slate-700/50 border-slate-600 text-white placeholder:text-slate-500"
