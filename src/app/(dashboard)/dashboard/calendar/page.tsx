@@ -112,10 +112,13 @@ function CalendarPageContent() {
   // העמוד עצמו (שורד את unmount של הדיאלוג הפנימי).
   const [calendarCardcomOpen, setCalendarCardcomOpen] = useState(false);
   const [calendarCardcomData, setCalendarCardcomData] = useState<{
-    paymentId: string;
+    paymentId?: string;
+    sessionId?: string;
     amount: number;
     clientName: string;
     clientId: string;
+    clientPhone?: string | null;
+    clientEmail?: string | null;
   } | null>(null);
   const [paymentData, setPaymentData] = useState<{
     sessionId: string;
@@ -524,6 +527,41 @@ function CalendarPageContent() {
             });
             fetchData();
           } : undefined}
+          onCardcomRequested={(p) => {
+            // Lift Cardcom dialog to page level. ה-QuickMarkPaid נטען בתנאי
+            // (paymentData && ...) — ברגע ש-onOpenChange(false) רץ, האב מנקה
+            // paymentData והקומפוננט יורד מה-DOM יחד עם ה-ChargeCardcomDialog
+            // הפנימי. ה-ChargeCardcomDialog ברמת העמוד שורד את ה-unmount.
+            //
+            // CRITICAL: סיום הפגישה — אם המשתמש בא דרך "סיים ושלם" יש לנו
+            // pendingSessionStatus (COMPLETED). הסליקה תיכשל אם הפגישה
+            // עדיין SCHEDULED (auto-create של Payment ב-amount=0 לא יקרה,
+            // ויהיה race עם ה-Cardcom flow). מסמנים COMPLETED לפני פתיחת
+            // הסליקה כדי שהמצב יהיה עקבי גם אם המשתמש סוגר באמצע.
+            (async () => {
+              if (paymentData?.pendingSessionStatus) {
+                try {
+                  await fetch(`/api/sessions/${paymentData.sessionId}`, {
+                    method: "PUT",
+                    headers: { "Content-Type": "application/json" },
+                    body: JSON.stringify({ status: paymentData.pendingSessionStatus }),
+                  });
+                } catch {
+                  // non-fatal — Cardcom flow will still create a Payment
+                }
+              }
+              setCalendarCardcomData({
+                paymentId: p.paymentId,
+                sessionId: p.sessionId,
+                clientId: p.clientId,
+                clientName: p.clientName ?? "מטופל",
+                clientPhone: p.clientPhone,
+                clientEmail: p.clientEmail,
+                amount: p.amount,
+              });
+              setCalendarCardcomOpen(true);
+            })();
+          }}
         />
       )}
 
@@ -556,8 +594,11 @@ function CalendarPageContent() {
             if (!open) setCalendarCardcomData(null);
           }}
           paymentId={calendarCardcomData.paymentId}
+          sessionId={calendarCardcomData.sessionId}
           clientId={calendarCardcomData.clientId}
           clientName={calendarCardcomData.clientName}
+          clientPhone={calendarCardcomData.clientPhone}
+          clientEmail={calendarCardcomData.clientEmail}
           amount={calendarCardcomData.amount}
           defaultDescription="פגישה"
           onPaymentSuccess={async () => {

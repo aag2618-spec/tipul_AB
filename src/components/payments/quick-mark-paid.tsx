@@ -54,6 +54,21 @@ interface QuickMarkPaidProps {
   hideButton?: boolean;
   children?: React.ReactNode;
   onPaymentSuccess?: () => Promise<void> | void;
+  /**
+   * נקרא כשהמשתמש בוחר אשראי ויש לפתוח את ChargeCardcomDialog. חיוני בעמודים
+   * שבהם הקומפוננט הזה נטען בתנאי (calendar/page.tsx משחרר אותו ברגע שהדיאלוג
+   * הראשי נסגר → ה-ChargeCardcomDialog הפנימי נעלם איתו לפני שהוא בכלל מוצג).
+   * אם prop זה לא מועבר, נשתמש בדיאלוג Cardcom פנימי כמו עד עכשיו.
+   */
+  onCardcomRequested?: (params: {
+    paymentId?: string;
+    sessionId: string;
+    clientId: string;
+    clientName?: string;
+    clientPhone?: string | null;
+    clientEmail?: string | null;
+    amount: number;
+  }) => void;
 }
 
 export function QuickMarkPaid({
@@ -74,6 +89,7 @@ export function QuickMarkPaid({
   hideButton = false,
   children,
   onPaymentSuccess,
+  onCardcomRequested,
 }: QuickMarkPaidProps) {
   const [internalOpen, setInternalOpen] = useState(false);
   
@@ -172,13 +188,31 @@ export function QuickMarkPaid({
         toast.error("לא ניתן לשלב שימוש בקרדיט עם חיוב באשראי. בחרי תשלום מלא או חלקי.");
         return;
       }
+      const cardcomAmount =
+        paymentType === "PARTIAL" ? parseFloat(partialAmount) || 0 : amount;
       // Validate partial amount before opening the Cardcom dialog.
       if (paymentType === "PARTIAL") {
-        const partialNum = parseFloat(partialAmount);
-        if (!partialNum || partialNum <= 0 || partialNum > amount) {
+        if (!cardcomAmount || cardcomAmount <= 0 || cardcomAmount > amount) {
           toast.error("סכום חלקי לא תקין");
           return;
         }
+      }
+      // אם האב מספק callback — מעביר אליו את האחריות לפתוח Cardcom (חובה
+      // בעמודים שבהם הקומפוננט הזה רק "נטען בתנאי", כמו calendar/page.tsx).
+      // הדיאלוג הפנימי לא ייפתח אם נסגרים מיידית — האב משחרר את הקומפוננט
+      // לפני ש-setTimeout מספיק לרוץ.
+      if (onCardcomRequested) {
+        onCardcomRequested({
+          paymentId: existingPayment?.id,
+          sessionId,
+          clientId,
+          clientName,
+          clientPhone,
+          clientEmail,
+          amount: cardcomAmount,
+        });
+        setIsOpen(false);
+        return;
       }
       setIsOpen(false);
       // Defer ~220ms — מעבר לאנימציית הסגירה של Radix Dialog (~200ms)
