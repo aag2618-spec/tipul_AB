@@ -5,7 +5,7 @@ services:
     region: frankfurt
     plan: free
     buildCommand: npm install --include=dev && npx prisma generate && rm -rf .next node_modules/.cache && npm run build
-    startCommand: npx prisma db push --accept-data-loss && npm start
+    startCommand: npx prisma db push --accept-data-loss && (npx prisma db execute --file=prisma/sql/session-time-constraint.sql --schema=prisma/schema.prisma || true) && npm start
     envVars:
       - key: NODE_ENV
         value: production
