@@ -88,39 +88,50 @@ export async function POST(request: NextRequest) {
       }
       case "CARDCOM": {
         // For Cardcom we stored apiKey=TerminalNumber, apiSecret=`${ApiName}:${ApiPassword}`.
-        // Use a direct fetch (bypassing CardcomClient constructor) so sandbox terminal
-        // can be ping-tested even when NODE_ENV=production. Documents/Search with a
-        // 1-day window works as a lightweight credentials check.
+        // Connection check via LowProfile/Create (₪1 dummy page). Two reasons to
+        // prefer it over Documents/Search:
+        //   1. LowProfile/Create requires only TerminalNumber + ApiName, so it
+        //      works even for accounts that didn't enable Documents/Search.
+        //   2. Sandbox terminal 1000 always accepts LowProfile/Create with
+        //      personal sandbox credentials (Documents/Search occasionally
+        //      rejects with "permission denied" on fresh sandbox accounts).
+        // The dummy page never gets visited, so no real document is created.
         const controller = new AbortController();
         const timeout = setTimeout(() => controller.abort(), 15_000);
         try {
-          // Split on FIRST colon only — passwords may contain ':' (matches user-config.ts).
           const colonIdx = apiSecret.indexOf(":");
           const apiName = colonIdx === -1 ? apiSecret : apiSecret.slice(0, colonIdx);
-          const apiPassword = colonIdx === -1 ? "" : apiSecret.slice(colonIdx + 1);
           if (!apiName) throw new Error("חסר ApiName");
-          const today = new Date().toISOString().slice(0, 10); // YYYY-MM-DD, matches cron
-          const res = await fetch("https://secure.cardcom.solutions/api/v11/Documents/Search", {
+
+          const res = await fetch("https://secure.cardcom.solutions/api/v11/LowProfile/Create", {
             method: "POST",
             headers: { "Content-Type": "application/json" },
             body: JSON.stringify({
               TerminalNumber: apiKey,
               ApiName: apiName,
-              ApiPassword: apiPassword,
-              FromDate: today,
-              ToDate: today,
+              Operation: "ChargeOnly",
+              ReturnValue: `connection-test-${Date.now()}`,
+              Amount: 1,
+              SuccessRedirectUrl: "https://example.com/success",
+              FailedRedirectUrl: "https://example.com/failed",
+              WebHookUrl: "https://example.com/webhook",
+              ProductName: "Connection test",
+              Language: "he",
+              ISOCoinId: 1,
             }),
             signal: controller.signal,
           });
           const data = (await res.json().catch(() => ({}))) as {
             ResponseCode?: number;
             Description?: string;
+            LowProfileId?: string;
+            Url?: string;
           };
-          if (res.ok && data.ResponseCode === 0) {
+          if (res.ok && data.ResponseCode === 0 && data.LowProfileId && data.Url) {
             success = true;
             message = "חיבור ל-Cardcom תקין!";
           } else {
-            message = `Cardcom דחה את הבקשה: ${data.Description || `HTTP ${res.status}`}`;
+            message = `Cardcom דחה את הבקשה: ${data.Description || `HTTP ${res.status}`} (קוד ${data.ResponseCode ?? "לא ידוע"})`;
           }
         } catch (err) {
           const isAbort = err instanceof Error && err.name === "AbortError";

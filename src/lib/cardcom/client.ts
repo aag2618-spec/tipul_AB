@@ -43,10 +43,15 @@ export class CardcomClient {
   constructor(private config: CardcomConfig) {
     if (!config.terminalNumber) throw new Error('CARDCOM_MISSING_TERMINAL');
     if (!config.apiName) throw new Error('CARDCOM_MISSING_API_NAME');
-    // Refuse to run with sandbox credentials in production — silent fall-through
-    // would mean real customers see "PAID" while no actual money moves.
+    // Refuse a config that LOOKS LIKE production (mode!=='sandbox') but uses
+    // sandbox credentials — that's a misconfiguration that would silently fall
+    // through to a fake terminal and show customers "PAID" without real money.
+    //
+    // ALLOWED: a therapist running on Render (NODE_ENV=production) who
+    // explicitly set mode='sandbox' to test against terminal 1000.
     if (
       process.env.NODE_ENV === 'production' &&
+      config.mode !== 'sandbox' &&
       (config.terminalNumber === CARDCOM_SANDBOX_TERMINAL ||
         config.apiName === CARDCOM_SANDBOX_API_NAME)
     ) {
