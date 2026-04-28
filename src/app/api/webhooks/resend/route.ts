@@ -6,6 +6,12 @@ import { logger } from "@/lib/logger";
 
 export const dynamic = "force-dynamic";
 
+// Stage 1.20 — DoS guard. Cap stored fields to reasonable upper bounds.
+// (Email subject is RFC-limited to 998 chars; content rarely > 64KB.)
+const MAX_SUBJECT_LENGTH = 998;
+const MAX_EMAIL_CONTENT_LENGTH = 200_000;
+const MAX_HEADER_LENGTH = 998;
+
 // Extract email from "Name <email@example.com>" format or plain email
 function extractEmail(raw: string): string {
   const match = raw.match(/<(.+?)>/);
@@ -70,7 +76,10 @@ export async function POST(request: NextRequest) {
         attachments: rawAttachments,
       } = data;
 
-      const senderEmail = extractEmail(rawFrom || "");
+      const senderEmail = extractEmail(rawFrom || "").slice(0, 320); // RFC max email
+      // Stage 1.20 — bound subject + headers (DoS guard).
+      const safeSubject = String(subject || "").slice(0, MAX_SUBJECT_LENGTH);
+      const safeInReplyTo = String(in_reply_to || "").slice(0, MAX_HEADER_LENGTH) || null;
 
       // Parse attachment metadata from Resend
       const attachmentMeta = Array.isArray(rawAttachments)
@@ -110,7 +119,9 @@ export async function POST(request: NextRequest) {
         }
       }
 
-      const content = emailHtml || emailText || "(לא ניתן לטעון את תוכן המייל)";
+      // Stage 1.20 — bound stored body to prevent unbounded DB growth.
+      const contentFull = emailHtml || emailText || "(לא ניתן לטעון את תוכן המייל)";
+      const content = contentFull.slice(0, MAX_EMAIL_CONTENT_LENGTH);
 
       // Strategy 1: Find original email by in_reply_to header
       let originalEmail = null;
@@ -193,12 +204,12 @@ export async function POST(request: NextRequest) {
           type: "INCOMING_EMAIL",
           channel: "EMAIL",
           recipient: recipientAddress,
-          subject: subject || "ללא נושא",
+          subject: safeSubject || "ללא נושא",
           content: content,
           status: "RECEIVED",
           sentAt: new Date(),
           messageId: message_id || email_id,
-          inReplyTo: in_reply_to || originalEmail?.messageId || null,
+          inReplyTo: safeInReplyTo || originalEmail?.messageId || null,
           isRead: false,
           clientId: clientRecord.id,
           userId: therapistId,
@@ -214,7 +225,7 @@ export async function POST(request: NextRequest) {
           userId: therapistId,
           type: "EMAIL_RECEIVED",
           title: `תשובה חדשה מ-${clientRecord.name || "מטופל"} 📧`,
-          content: `נושא: ${subject || "ללא נושא"}`,
+          content: `נושא: ${safeSubject || "ללא נושא"}`,
           status: "PENDING",
           sentAt: new Date(),
         },

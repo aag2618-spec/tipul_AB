@@ -2,8 +2,16 @@ import { NextRequest, NextResponse } from "next/server";
 import crypto from "crypto";
 import prisma from "@/lib/prisma";
 import { logger } from "@/lib/logger";
+import { bearerEquals } from "@/lib/cron-auth";
 
 export const dynamic = "force-dynamic";
+
+// Stage 1.20 — DoS guard. Pulseem could (in principle) deliver an SMS body
+// of arbitrary length; storing 1MB of text per row would balloon the DB.
+// SMS is hard-capped at 1530 chars by the carriers anyway.
+const MAX_SMS_LENGTH = 2000;
+const MAX_PHONE_LENGTH = 32;
+const MAX_MESSAGE_ID_LENGTH = 200;
 
 /**
  * בדיקת חתימת HMAC-SHA256 בצורה timing-safe.
@@ -73,10 +81,13 @@ export async function POST(request: NextRequest) {
       }
     } else if (bearerSecret) {
       // HMAC לא מוגדר — נופלים חזרה ל-Bearer token (תאימות לאחור)
+      // Stage 1.20 — timing-safe compare (was `!==`).
       const authHeader = request.headers.get("authorization") || "";
-      const queryToken = new URL(request.url).searchParams.get("token");
-      const provided = authHeader.replace("Bearer ", "") || queryToken || "";
-      if (provided !== bearerSecret) {
+      const queryToken = new URL(request.url).searchParams.get("token") || "";
+      // bearerEquals expects the FULL "Bearer X" header. For the query-string
+      // fallback we pass through a synthetic header.
+      const headerToCheck = authHeader || (queryToken ? `Bearer ${queryToken}` : null);
+      if (!bearerEquals(headerToCheck, bearerSecret)) {
         logger.error("[Pulseem Webhook] Invalid auth token");
         return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
       }
@@ -93,16 +104,15 @@ export async function POST(request: NextRequest) {
     logger.info("[Pulseem Webhook] Received:", { data: body });
 
     // --- חילוץ שדות (תמיכה במספר פורמטים) ---
-    const senderPhone = normalizePhone(
-      body.from || body.sender || body.originator || ""
-    );
-    const recipientPhone = normalizePhone(
-      body.to || body.recipient || body.destination || ""
-    );
-    const messageText =
-      body.text || body.body || body.content || body.message || "";
+    // Stage 1.20 — coerce to string + bound length to prevent DoS via large payloads.
+    const fromRaw = String(body.from || body.sender || body.originator || "").slice(0, MAX_PHONE_LENGTH);
+    const toRaw = String(body.to || body.recipient || body.destination || "").slice(0, MAX_PHONE_LENGTH);
+    const senderPhone = normalizePhone(fromRaw);
+    const recipientPhone = normalizePhone(toRaw);
+    const messageTextFull = String(body.text || body.body || body.content || body.message || "");
+    const messageText = messageTextFull.slice(0, MAX_SMS_LENGTH);
     const externalMessageId =
-      body.messageId || body.message_id || body.id || "";
+      String(body.messageId || body.message_id || body.id || "").slice(0, MAX_MESSAGE_ID_LENGTH);
 
     if (!senderPhone || !messageText) {
       logger.error("[Pulseem Webhook] Missing sender or text", {
