@@ -289,7 +289,28 @@ export function ChargeCardcomDialog({
   };
 
   const ensurePaymentId = async (): Promise<string> => {
-    if (paymentId) return paymentId;
+    if (paymentId) {
+      // CRITICAL: existing Payment may have amount=0 (auto-created by the
+      // session PUT to COMPLETED inserts a debt record at amount=0 and never
+      // touches it again). Without this prep, charge-cardcom would read
+      // amount=0 from the DB and pass it to Cardcom — Cardcom would render
+      // "סה״כ 0 ₪" in the iframe and reject submit ("transaction amount is
+      // required"). The prep endpoint:
+      //   • succeeds when currentAmount=0 → updates to `amount` + sets method
+      //   • returns 409 when currentAmount > 0 → already prepared (good
+      //     enough; charge-cardcom will read the existing amount)
+      // We tolerate 409 specifically, surface other errors.
+      const prepRes = await fetch(`/api/payments/${paymentId}`, {
+        method: "PUT",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ prepareCardcom: true, amount }),
+      });
+      if (!prepRes.ok && prepRes.status !== 409) {
+        const data = (await prepRes.json().catch(() => ({}))) as { message?: string };
+        throw new Error(data.message ?? "שגיאה בהכנת התשלום לסליקה");
+      }
+      return paymentId;
+    }
     // יוצרים Payment חדש (PENDING) — webhook יסמן PAID אחר כך.
     const res = await fetch("/api/payments", {
       method: "POST",
