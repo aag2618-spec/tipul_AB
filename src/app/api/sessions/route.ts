@@ -103,6 +103,24 @@ export async function POST(request: NextRequest) {
     const parsedStartTime = parseIsraelTime(startTime);
     const parsedEndTime = parseIsraelTime(endTime);
 
+    // Sanity guard against malformed input that would silently corrupt the
+    // calendar — e.g. swapped start/end (a 20-hour ghost session that blocks
+    // every slot), or absurd durations from a buggy client.
+    if (parsedEndTime.getTime() <= parsedStartTime.getTime()) {
+      return NextResponse.json(
+        { message: "שעת הסיום חייבת להיות אחרי שעת ההתחלה" },
+        { status: 400 }
+      );
+    }
+    const durationMs = parsedEndTime.getTime() - parsedStartTime.getTime();
+    const TWELVE_HOURS_MS = 12 * 60 * 60 * 1000;
+    if (durationMs > TWELVE_HOURS_MS) {
+      return NextResponse.json(
+        { message: "משך פגישה לא יכול לעלות על 12 שעות" },
+        { status: 400 }
+      );
+    }
+
     // Check for conflicts
     const conflict = await prisma.therapySession.findFirst({
       where: {

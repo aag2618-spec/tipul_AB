@@ -109,6 +109,21 @@ export async function PUT(
       const newStart = startTime ? parseIsraelTime(startTime) : existingSession.startTime;
       const newEnd = endTime ? parseIsraelTime(endTime) : existingSession.endTime;
 
+      // Same sanity guard as POST — see /api/sessions/route.ts.
+      if (newEnd.getTime() <= newStart.getTime()) {
+        return NextResponse.json(
+          { message: "שעת הסיום חייבת להיות אחרי שעת ההתחלה" },
+          { status: 400 }
+        );
+      }
+      const durationMs = newEnd.getTime() - newStart.getTime();
+      if (durationMs > 12 * 60 * 60 * 1000) {
+        return NextResponse.json(
+          { message: "משך פגישה לא יכול לעלות על 12 שעות" },
+          { status: 400 }
+        );
+      }
+
       const conflict = await prisma.therapySession.findFirst({
         where: {
           therapistId: userId,
