@@ -3,9 +3,15 @@ import { PrismaPg } from '@prisma/adapter-pg';
 import { Pool } from 'pg';
 import {
   ENCRYPTED_FIELDS,
+  ENCRYPTED_JSON_FIELDS,
   encryptFields,
   decryptDeep,
 } from './encrypted-fields';
+
+// Returns true if a model has ANY encrypted field (string or JSON).
+function hasEncryptedFields(model: string): boolean {
+  return model in ENCRYPTED_FIELDS || model in ENCRYPTED_JSON_FIELDS;
+}
 
 const globalForPrisma = globalThis as unknown as {
   prisma: PrismaClient | undefined;
@@ -39,16 +45,16 @@ function createPrismaClient(): PrismaClient {
       $allModels: {
         async create({ args, query, model }) {
           const lower = lowerFirst(model);
-          if (lower in ENCRYPTED_FIELDS && args.data) {
+          if (hasEncryptedFields(lower) && args.data) {
             encryptFields(lower, args.data);
           }
           const result = await query(args);
-          if (lower in ENCRYPTED_FIELDS) decryptDeep(lower, result);
+          if (hasEncryptedFields(lower)) decryptDeep(lower, result);
           return result;
         },
         async createMany({ args, query, model }) {
           const lower = lowerFirst(model);
-          if (lower in ENCRYPTED_FIELDS && args.data) {
+          if (hasEncryptedFields(lower) && args.data) {
             const arr = Array.isArray(args.data) ? args.data : [args.data];
             for (const row of arr) encryptFields(lower, row);
           }
@@ -56,28 +62,28 @@ function createPrismaClient(): PrismaClient {
         },
         async update({ args, query, model }) {
           const lower = lowerFirst(model);
-          if (lower in ENCRYPTED_FIELDS && args.data) {
+          if (hasEncryptedFields(lower) && args.data) {
             encryptFields(lower, args.data);
           }
           const result = await query(args);
-          if (lower in ENCRYPTED_FIELDS) decryptDeep(lower, result);
+          if (hasEncryptedFields(lower)) decryptDeep(lower, result);
           return result;
         },
         async updateMany({ args, query, model }) {
           const lower = lowerFirst(model);
-          if (lower in ENCRYPTED_FIELDS && args.data) {
+          if (hasEncryptedFields(lower) && args.data) {
             encryptFields(lower, args.data);
           }
           return query(args);
         },
         async upsert({ args, query, model }) {
           const lower = lowerFirst(model);
-          if (lower in ENCRYPTED_FIELDS) {
+          if (hasEncryptedFields(lower)) {
             if (args.create) encryptFields(lower, args.create);
             if (args.update) encryptFields(lower, args.update);
           }
           const result = await query(args);
-          if (lower in ENCRYPTED_FIELDS) decryptDeep(lower, result);
+          if (hasEncryptedFields(lower)) decryptDeep(lower, result);
           return result;
         },
         async findUnique({ args, query, model }) {

@@ -92,7 +92,11 @@ interface EncryptedFieldDef {
   table: string;
   idField: string;
   fields: string[];
+  /** JSON fields — מאוחסנים כ-jsonb ב-DB, נצפנים כ-{ "__enc__": "<encrypted>" } */
+  jsonFields?: string[];
 }
+
+const JSON_ENC_MARKER = "__enc__";
 
 const ENCRYPTED_FIELDS: EncryptedFieldDef[] = [
   // Existing — kept for backward-compatibility migration of legacy 3-part format.
@@ -110,12 +114,14 @@ const ENCRYPTED_FIELDS: EncryptedFieldDef[] = [
     table: 'Client',
     idField: 'id',
     fields: ['notes', 'initialDiagnosis', 'intakeNotes', 'approachNotes', 'culturalContext', 'comprehensiveAnalysis'],
+    jsonFields: ['medicalHistory'],
   },
   {
     model: 'SessionNote',
     table: 'SessionNote',
     idField: 'id',
     fields: ['content'],
+    jsonFields: ['aiAnalysis'],
   },
   {
     model: 'Transcription',
@@ -128,6 +134,7 @@ const ENCRYPTED_FIELDS: EncryptedFieldDef[] = [
     table: 'Analysis',
     idField: 'id',
     fields: ['summary', 'nextSessionNotes'],
+    jsonFields: ['keyTopics', 'emotionalMarkers', 'recommendations'],
   },
   {
     model: 'TherapySession',
@@ -193,6 +200,59 @@ async function migrateField(
   }
 }
 
+/**
+ * Migrate a single JSON field. JSON values are stored as jsonb in Postgres.
+ * Encrypted JSON has the marker shape: { "__enc__": "<encrypted-string>" }.
+ *
+ * Logic:
+ * - null / undefined → skip
+ * - already a marker { __enc__: "..." } → already encrypted, skip
+ * - any other JSON value → JSON.stringify, encrypt, wrap in marker
+ */
+async function migrateJsonField(
+  row: Record<string, unknown>,
+  idField: string,
+  field: string,
+  model: string,
+  dryRun: boolean,
+): Promise<MigrationResult> {
+  const rowId = String(row[idField]);
+  const value = row[field];
+
+  if (value === null || value === undefined) {
+    return { model, rowId, field, status: 'not_encrypted' };
+  }
+
+  // Already encrypted (has marker)?
+  if (
+    typeof value === 'object' &&
+    !Array.isArray(value) &&
+    JSON_ENC_MARKER in (value as object) &&
+    typeof (value as Record<string, unknown>)[JSON_ENC_MARKER] === 'string'
+  ) {
+    return { model, rowId, field, status: 'already_new' };
+  }
+
+  try {
+    const stringified = JSON.stringify(value);
+    const encrypted = encryptNew(stringified);
+    const wrapped = JSON.stringify({ [JSON_ENC_MARKER]: encrypted });
+
+    if (!dryRun) {
+      await prisma.$executeRawUnsafe(
+        `UPDATE "${model}" SET "${field}" = $1::jsonb WHERE "${idField}" = $2`,
+        wrapped,
+        rowId,
+      );
+    }
+
+    return { model, rowId, field, status: 'migrated' };
+  } catch (err) {
+    const message = err instanceof Error ? err.message : String(err);
+    return { model, rowId, field, status: 'error', error: message };
+  }
+}
+
 async function main() {
   const args = process.argv.slice(2);
   const dryRun = !args.includes('--execute');
@@ -209,18 +269,26 @@ async function main() {
   const results: MigrationResult[] = [];
 
   for (const def of ENCRYPTED_FIELDS) {
-    console.log(`--- Scanning ${def.model} (fields: ${def.fields.join(', ')}) ---`);
+    const allFields = [...def.fields, ...(def.jsonFields || [])];
+    console.log(`--- Scanning ${def.model} (fields: ${allFields.join(', ')}) ---`);
 
-    // Fetch all rows from the table
+    // Fetch all rows from the table — include both string and JSON fields
+    const selectCols = allFields.map(f => `"${f}"`).join(', ');
     const rows: Record<string, unknown>[] = await prisma.$queryRawUnsafe(
-      `SELECT "${def.idField}", ${def.fields.map(f => `"${f}"`).join(', ')} FROM "${def.table}"`,
+      `SELECT "${def.idField}", ${selectCols} FROM "${def.table}"`,
     );
 
     console.log(`  Found ${rows.length} rows`);
 
     for (const row of rows) {
+      // String fields
       for (const field of def.fields) {
         const result = await migrateField(row, def.idField, field, def.table, dryRun);
+        results.push(result);
+      }
+      // JSON fields
+      for (const field of def.jsonFields || []) {
+        const result = await migrateJsonField(row, def.idField, field, def.table, dryRun);
         results.push(result);
       }
     }

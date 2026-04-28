@@ -32,6 +32,32 @@ export const ENCRYPTED_FIELDS: Record<string, readonly string[]> = {
   therapySession: ["topic", "notes"],
 } as const;
 
+/**
+ * Phase 4.5 — שדות JSON שצריכים להיות מוצפנים.
+ *
+ * JSON ב-Prisma הוא `Json?` — לא string. אנחנו לא יכולים להחליף אותו ב-string
+ * המוצפן ישירות (Prisma יידחה את הכתיבה). במקום, אנחנו עוטפים את ה-value
+ * המוצפן ב-marker object: `{ "__enc__": "<encrypted-string>" }`.
+ *
+ * בקריאה — מחפשים את ה-marker, מפענחים, ומחזירים את ה-value המקורי.
+ *
+ * תועלת: לא דורש schema change. JSON field נשאר Json בschema.
+ *
+ * שדות שמכילים מידע קליני רגיש:
+ * - Client.medicalHistory — היסטוריה רפואית
+ * - SessionNote.aiAnalysis — ניתוח AI של פגישה
+ * - Analysis.keyTopics, emotionalMarkers, recommendations — נושאים, רגשות, המלצות
+ *
+ * Transcription.timestamps לא נכלל — חותמות זמן בלבד, פחות רגיש.
+ */
+export const ENCRYPTED_JSON_FIELDS: Record<string, readonly string[]> = {
+  client: ["medicalHistory"],
+  sessionNote: ["aiAnalysis"],
+  analysis: ["keyTopics", "emotionalMarkers", "recommendations"],
+} as const;
+
+const JSON_ENC_MARKER = "__enc__";
+
 export type EncryptedModel = keyof typeof ENCRYPTED_FIELDS;
 
 /**
@@ -79,28 +105,109 @@ function maybeDecrypt(value: unknown): unknown {
 }
 
 /**
+ * Helper: מצפין JSON value (אובייקט/מערך/primitive) → object marker עם
+ * encrypted string. אם ה-value כבר marker (idempotency) — מחזיר as-is.
+ */
+function maybeEncryptJson(value: unknown): unknown {
+  if (value === null || value === undefined) return value;
+  // כבר marker — לא להצפין שוב
+  if (
+    typeof value === "object" &&
+    !Array.isArray(value) &&
+    JSON_ENC_MARKER in (value as object)
+  ) {
+    return value;
+  }
+  try {
+    const stringified = JSON.stringify(value);
+    if (stringified === undefined) return value;
+    const encrypted = encrypt(stringified);
+    return { [JSON_ENC_MARKER]: encrypted };
+  } catch (err) {
+    logger.error("[Encryption] Failed to encrypt JSON field", {
+      error: err instanceof Error ? err.message : String(err),
+    });
+    throw new Error("JSON encryption failed — refusing to write plaintext");
+  }
+}
+
+/**
+ * Helper: מפענח JSON value אם הוא marker עם encrypted string.
+ * מחזיר את הoriginal value אם:
+ * - null / undefined
+ * - לא marker (legacy plaintext JSON)
+ */
+function maybeDecryptJson(value: unknown): unknown {
+  if (value === null || value === undefined) return value;
+  if (
+    typeof value !== "object" ||
+    Array.isArray(value) ||
+    !(JSON_ENC_MARKER in (value as object))
+  ) {
+    return value; // legacy plaintext JSON — pass-through
+  }
+  const encStr = (value as Record<string, unknown>)[JSON_ENC_MARKER];
+  if (typeof encStr !== "string") return value;
+  try {
+    const plaintext = decrypt(encStr);
+    return JSON.parse(plaintext);
+  } catch (err) {
+    logger.error("[Encryption] Failed to decrypt JSON field", {
+      error: err instanceof Error ? err.message : String(err),
+    });
+    return { error: "[שגיאת פענוח JSON — צור קשר עם תמיכה]" };
+  }
+}
+
+/**
  * מצפין שדות רגישים ב-data לפני create/update.
  * משנה את ה-data in place וגם מחזיר אותו.
  */
 export function encryptFields(model: string, data: unknown): unknown {
-  const fields = ENCRYPTED_FIELDS[model];
-  if (!fields || !data || typeof data !== "object") return data;
-
+  if (!data || typeof data !== "object") return data;
   const obj = data as Record<string, unknown>;
-  for (const field of fields) {
-    if (field in obj) {
-      // Prisma operators: { set: "..." } | { unset: true } — handle נכון
-      const v = obj[field];
-      if (v && typeof v === "object" && "set" in v) {
-        const op = v as { set?: unknown };
-        if (typeof op.set === "string") {
-          op.set = maybeEncrypt(op.set);
+
+  // 1. String fields
+  const fields = ENCRYPTED_FIELDS[model];
+  if (fields) {
+    for (const field of fields) {
+      if (field in obj) {
+        const v = obj[field];
+        if (v && typeof v === "object" && "set" in v) {
+          const op = v as { set?: unknown };
+          if (typeof op.set === "string") {
+            op.set = maybeEncrypt(op.set);
+          }
+        } else {
+          obj[field] = maybeEncrypt(v);
         }
-      } else {
-        obj[field] = maybeEncrypt(v);
       }
     }
   }
+
+  // 2. JSON fields
+  const jsonFields = ENCRYPTED_JSON_FIELDS[model];
+  if (jsonFields) {
+    for (const field of jsonFields) {
+      if (field in obj) {
+        const v = obj[field];
+        // Prisma JSON operators: { set: ... } — handle
+        if (
+          v &&
+          typeof v === "object" &&
+          !Array.isArray(v) &&
+          "set" in v &&
+          !(JSON_ENC_MARKER in v)
+        ) {
+          const op = v as { set?: unknown };
+          op.set = maybeEncryptJson(op.set);
+        } else {
+          obj[field] = maybeEncryptJson(v);
+        }
+      }
+    }
+  }
+
   return data;
 }
 
@@ -160,12 +267,22 @@ function decryptDeepOne(model: string, obj: unknown): void {
   if (!obj || typeof obj !== "object") return;
   const record = obj as Record<string, unknown>;
 
-  // 1. Decrypt fields של ה-model הנוכחי
+  // 1a. Decrypt string fields של ה-model הנוכחי
   const fields = ENCRYPTED_FIELDS[model];
   if (fields) {
     for (const field of fields) {
       if (field in record) {
         record[field] = maybeDecrypt(record[field]);
+      }
+    }
+  }
+
+  // 1b. Decrypt JSON fields של ה-model הנוכחי
+  const jsonFields = ENCRYPTED_JSON_FIELDS[model];
+  if (jsonFields) {
+    for (const field of jsonFields) {
+      if (field in record) {
+        record[field] = maybeDecryptJson(record[field]);
       }
     }
   }
