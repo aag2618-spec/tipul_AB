@@ -67,8 +67,36 @@ export async function POST(
   if (payment.client.therapistId !== userId) {
     return NextResponse.json({ message: "אין הרשאה לחייב תשלום זה" }, { status: 403 });
   }
+  // PAID transitions:
+  //  - PAID + CREDIT_CARD: real Cardcom charge already happened → block (would
+  //    double-charge the customer).
+  //  - PAID + any other method (CASH/CHECK/...): the therapist marked it paid
+  //    manually first ("סיים ושלם" creates a paid record), then changed their
+  //    mind and wants to actually charge a card. Convert back to PENDING so
+  //    the Cardcom flow can run cleanly.
   if (payment.status === "PAID") {
-    return NextResponse.json({ message: "התשלום כבר שולם" }, { status: 409 });
+    if (payment.method === "CREDIT_CARD") {
+      return NextResponse.json(
+        {
+          message:
+            "התשלום כבר חויב באשראי בעבר. אם הכרטיס לא חויב בפועל — בטל את התשלום הקיים ונסה שוב.",
+        },
+        { status: 409 }
+      );
+    }
+    // Reset to PENDING + clear the prior receipt linkage so a new Cardcom
+    // receipt won't collide with whatever was registered manually.
+    await prisma.payment.update({
+      where: { id: payment.id },
+      data: {
+        status: "PENDING",
+        paidAt: null,
+        method: "CREDIT_CARD",
+        receiptNumber: null,
+        hasReceipt: false,
+        receiptUrl: null,
+      },
+    });
   }
 
   const cardcomClient = await getUserCardcomClient(userId);
