@@ -1,6 +1,6 @@
 "use client";
 
-import { useState, useEffect } from "react";
+import { useState, useEffect, useRef } from "react";
 import { Button } from "@/components/ui/button";
 import {
   Dialog,
@@ -76,6 +76,12 @@ export function CompleteSessionDialog(props: CompleteSessionDialogProps) {
 
   const [isOpen, setIsOpen] = useState(false);
   const [isLoading, setIsLoading] = useState(false);
+  // CRITICAL: setIsLoading (state) הוא אסינכרוני — שני קליקים רצופים יכולים
+  // שניהם לעבור את `if (isLoading)` לפני שה-state מתעדכן. useRef מתעדכן
+  // סינכרונית ⇒ בלוק אטומי אמיתי. בלעדיו, יש סיכון תיאורטי ל-2 PUT על
+  // אותה פגישה + 2 POST /api/payments (מוגן ברמת DB ע"י Payment.sessionId
+  // @unique, אבל זה defense-in-depth ב-UI).
+  const handleCompleteInFlightRef = useRef(false);
   const [summary, setSummary] = useState("");
   const [paymentMethod, setPaymentMethod] = useState<string>("CASH");
   // Cardcom flow — נפתח בנפרד אחרי שיצרנו Payment ב-PENDING. ה-paymentId נדרש
@@ -108,6 +114,12 @@ export function CompleteSessionDialog(props: CompleteSessionDialogProps) {
   }, [isOpen]);
 
   const handleComplete = async () => {
+    // mutex סינכרוני — מונע race של שני קליקים בו-זמנית. לבדוק לפני
+    // setIsLoading (אסינכרוני).
+    if (handleCompleteInFlightRef.current) {
+      return;
+    }
+    handleCompleteInFlightRef.current = true;
     setIsLoading(true);
     try {
       let actualAmount = parseFloat(amount);

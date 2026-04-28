@@ -13,6 +13,7 @@ import { logger } from "@/lib/logger";
 import { withAudit } from "@/lib/audit";
 import { getUserCardcomClient } from "@/lib/cardcom/user-config";
 import { scrubCardcomMessage } from "@/lib/cardcom/verify-webhook";
+import type { CardcomDocumentType } from "@/lib/cardcom/types";
 
 export const dynamic = "force-dynamic";
 
@@ -98,6 +99,79 @@ export async function POST(
       { status: 400 }
     );
   }
+
+  // Multi-currency guard: כל ה-flow מניח ILS (ISOCoinId=1, VAT 18%).
+  // defense-in-depth מקביל ל-charge-cardcom — בלי זה ניתן לחייב במטבע
+  // לא נתמך ולקבל קבלה שגויה.
+  if (payment.currency !== "ILS") {
+    return NextResponse.json(
+      {
+        message: `מטבע ${payment.currency} עדיין לא נתמך בסליקת אשראי. רק ILS נתמך כעת.`,
+      },
+      { status: 501 }
+    );
+  }
+
+  // ── Therapist legal/business validations + documentType ─────
+  // CRITICAL: בלי הבדיקות האלה ובלי בלוק Document בחיוב הטוקן —
+  // ה-route חייב כרטיס בלי להפיק קבלה כלל (הפרת חוק חשבוניות
+  // ישראל 2024). מקביל בדיוק ל-charge-cardcom.
+  const therapist = await prisma.user.findUnique({
+    where: { id: userId },
+    select: {
+      businessType: true,
+      businessIdNumber: true,
+      accountingMethod: true,
+      name: true,
+    },
+  });
+  if (
+    therapist &&
+    (therapist.businessType === "LICENSED" || therapist.businessType === "EXEMPT") &&
+    !therapist.businessIdNumber?.trim()
+  ) {
+    await prisma.adminAlert.create({
+      data: {
+        type: "SYSTEM",
+        priority: "HIGH",
+        status: "PENDING",
+        title: `[cardcom] חיוב כרטיס שמור נחסם — חסר ת.ז./מספר עוסק אצל ${therapist.name ?? userId}`,
+        message: `מטפל מסוג ${therapist.businessType} ניסה לחייב כרטיס שמור בלי שהוזן businessIdNumber. הקריאה נחסמה כדי למנוע הנפקת מסמך לא חוקי.`,
+        actionRequired: "פנה למטפל ובקש להזין ת.ז./מספר עוסק בהגדרות העסק",
+        userId,
+        metadata: { paymentId, therapistId: userId, businessType: therapist.businessType },
+      },
+    });
+    return NextResponse.json(
+      {
+        message:
+          "לא ניתן להנפיק מסמך חשבונאי ללא ת.ז./מספר עוסק. הזן את הפרטים בהגדרות העסק לפני גביית תשלום.",
+      },
+      { status: 409 }
+    );
+  }
+  if (
+    therapist?.businessType === "LICENSED" &&
+    therapist?.accountingMethod === "ACCRUAL"
+  ) {
+    return NextResponse.json(
+      {
+        message:
+          "מסלול חשבונאות מצטבר (ACCRUAL) טרם נתמך. צור קשר עם תמיכה ל-MyTipul, או חזור למסלול 'מקבל-תשלום' (CASH) זמנית.",
+      },
+      { status: 501 }
+    );
+  }
+  const documentType: CardcomDocumentType =
+    therapist?.businessType === "LICENSED" ? "TaxInvoiceAndReceipt" : "Receipt";
+
+  // לטעינת פרטי לקוח לבלוק המסמך — email מועבר אם קיים כדי שהקבלה
+  // תישלח אוטומטית. clientFull חייב להיטען בנפרד מ-payment.client (שכבר
+  // קיים ל-ownership) כי select על client לא כלל email.
+  const clientFull = await prisma.client.findUnique({
+    where: { id: payment.client.id },
+    select: { name: true, email: true },
+  });
 
   // ── Load saved token + ownership ────────────────────────────
   const savedToken = await prisma.savedCardToken.findUnique({
@@ -225,6 +299,22 @@ export async function POST(
         description: payment.notes ?? `תשלום עבור ${payment.client.name}`,
         // Cardcom-side idempotency: same internal tx.id ⇒ duplicate detection.
         uniqueAsmachta: transaction.id,
+        // CRITICAL: בלוק Document — בלעדיו Cardcom יחייב את הכרטיס בלי
+        // להפיק קבלה כלל ⇒ הפרת חוק חשבוניות + הלקוח לא רואה תיעוד.
+        document: {
+          documentType,
+          customer: {
+            name: clientFull?.name ?? payment.client.name,
+            email: clientFull?.email ?? undefined,
+          },
+          products: [
+            {
+              description: payment.notes ?? "פגישה",
+              unitCost: Number(payment.amount),
+              quantity: 1,
+            },
+          ],
+        },
       });
     } catch (cardcomErr) {
       // Scrub possible PAN fragments from the error before persisting/displaying.
@@ -286,12 +376,23 @@ export async function POST(
             completedAt,
           },
         });
+        // עדכון Payment עם receiptNumber/hasReceipt/receiptUrl רק אם Cardcom
+        // החזיר DocumentInfo. אם Cardcom חייב בהצלחה אך לא הפיק מסמך —
+        // נסמן את התשלום כ-PAID (החיוב אכן בוצע, אסור להחזיר את הכסף),
+        // ונייצר AdminAlert URGENT כדי שהמטפל יפיק קבלה ידנית.
         await tx.payment.update({
           where: { id: payment.id },
           data: {
             status: "PAID",
             paidAt: completedAt,
             method: "CREDIT_CARD",
+            ...(cardcomResult.documentNumber
+              ? {
+                  receiptNumber: cardcomResult.documentNumber,
+                  hasReceipt: true,
+                  receiptUrl: cardcomResult.documentLink ?? undefined,
+                }
+              : {}),
           },
         });
         await tx.savedCardToken.update({
@@ -299,10 +400,36 @@ export async function POST(
           data: { lastUsedAt: completedAt },
         });
 
+        // אזהרה למקרה הקצה: Cardcom החזיר ResponseCode=0 אבל DocumentInfo
+        // ריק. הלקוח חויב, אבל אין קבלה ⇒ הפרת חוק חשבוניות. מעבירים
+        // ל-AdminAlert URGENT (לא חוסם — הכסף כבר עבר) כדי שיפיקו ידנית.
+        if (!cardcomResult.documentNumber) {
+          await tx.adminAlert.create({
+            data: {
+              type: "PAYMENT_FAILED",
+              priority: "URGENT",
+              status: "PENDING",
+              title: `[cardcom-saved-token] כרטיס שמור חויב בלי שהופקה קבלה אוטומטית`,
+              message: `החיוב בוצע בהצלחה (₪${Number(payment.amount)}, אישור ${cardcomResult.approvalNumber}) אבל Cardcom לא החזיר DocumentInfo. יש להפיק קבלה ידנית מהר ככל הניתן (חוק חשבוניות ישראל 2024).`,
+              actionRequired: "הפק קבלה ידנית עבור התשלום הזה ועדכן את receiptNumber",
+              userId,
+              metadata: {
+                paymentId: payment.id,
+                transactionId: transaction.id,
+                cardcomTransactionId: cardcomResult.transactionId,
+                amount: Number(payment.amount),
+                clientName: payment.client.name,
+              },
+            },
+          });
+        }
+
         return {
           success: true,
           transactionId: transaction.id,
           approvalNumber: cardcomResult.approvalNumber,
+          receiptNumber: cardcomResult.documentNumber ?? null,
+          receiptUrl: cardcomResult.documentLink ?? null,
         };
       }
     );

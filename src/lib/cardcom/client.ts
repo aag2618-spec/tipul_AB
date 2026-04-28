@@ -128,6 +128,10 @@ export class CardcomClient {
   /**
    * Step 3 — Charge an existing Low-Profile token (recurring billing).
    * Requires apiPassword in config.
+   *
+   * אם מועבר `opts.document` — נשלח בלוק Document שמורה ל-Cardcom להפיק קבלה
+   * סינכרונית (אותו תוקף שיטה כמו LowProfile/Create). בלי זה החיוב יבוצע אבל
+   * הלקוח/המטפל לא יקבלו תיעוד חשבונאי, וזה הפרת חוק חשבוניות ישראל 2024.
    */
   async chargeToken(opts: ChargeTokenOptions): Promise<ChargeTokenResult> {
     if (!this.config.apiPassword) {
@@ -149,6 +153,22 @@ export class CardcomClient {
         ? { NumOfPayments: opts.numOfPayments, ChargeType: 8 }
         : {}),
       ...(opts.description ? { ProductName: opts.description } : {}),
+      ...(opts.document
+        ? {
+            Document: {
+              DocumentTypeToCreate: opts.document.documentType,
+              Name: opts.document.customer.name,
+              TaxId: opts.document.customer.taxId,
+              Email: opts.document.customer.email,
+              IsSendByEmail: !!opts.document.customer.email,
+              Products: opts.document.products.map((p) => ({
+                Description: p.description,
+                UnitCost: p.unitCost,
+                Quantity: p.quantity,
+              })),
+            },
+          }
+        : {}),
     };
 
     const response = await this.post<{
@@ -156,6 +176,11 @@ export class CardcomClient {
       Description?: string;
       ApprovalNumber?: string;
       TranzactionId?: number;
+      DocumentInfo?: {
+        DocumentNumber?: string;
+        DocumentType?: string;
+        DocumentLink?: string;
+      };
     }>('/Transactions/Transaction', body);
 
     if (response.ResponseCode !== 0) {
@@ -169,6 +194,9 @@ export class CardcomClient {
       responseCode: '0',
       approvalNumber: response.ApprovalNumber,
       transactionId: response.TranzactionId ? String(response.TranzactionId) : undefined,
+      documentNumber: response.DocumentInfo?.DocumentNumber,
+      documentType: response.DocumentInfo?.DocumentType,
+      documentLink: response.DocumentInfo?.DocumentLink,
     };
   }
 

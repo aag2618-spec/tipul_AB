@@ -71,6 +71,17 @@ export interface ChargeTokenOptions {
    * Cardcom rejects a second call with the same key as a duplicate.
    */
   uniqueAsmachta?: string;
+  /**
+   * אופציונלי: בלוק מסמך להפקת קבלה/חשבונית סינכרונית בעת חיוב הטוקן.
+   * בלי זה — Cardcom מחייב את הכרטיס בהצלחה אבל לא מפיק שום קבלה,
+   * ולכן הלקוח לא מקבל אישור והעסק נשאר בלי תיעוד חשבונאי לחיוב הזה.
+   * חובה ל-USER tenant (חוק חשבוניות ישראל 2024). ב-ADMIN flow זה אופציונלי.
+   */
+  document?: {
+    documentType: CardcomDocumentType;
+    customer: CardcomCustomer;
+    products: CardcomProduct[];
+  };
 }
 
 export interface ChargeTokenResult {
@@ -78,6 +89,14 @@ export interface ChargeTokenResult {
   approvalNumber?: string;
   transactionId?: string;
   errorMessage?: string;
+  /**
+   * פרטי המסמך שהופק ע״י Cardcom (כש-`document` נשלח). אם Cardcom החזיר
+   * ResponseCode=0 אבל לא הפיק מסמך, השדות יהיו undefined — צריך לטפל בזה
+   * כסיכון אבטחה (חיוב בלי קבלה) ולא להתעלם.
+   */
+  documentNumber?: string;
+  documentType?: string;
+  documentLink?: string;
 }
 
 export interface RefundOptions {

@@ -1,6 +1,6 @@
 "use client";
 
-import { useState, useEffect } from "react";
+import { useState, useEffect, useRef } from "react";
 import { useRouter } from "next/navigation";
 import { toast } from "sonner";
 import { Button } from "@/components/ui/button";
@@ -97,6 +97,12 @@ export function UpdateSessionDialog({
   const [cardcomPaymentId, setCardcomPaymentId] = useState<string | undefined>(undefined);
   const [cardcomAmount, setCardcomAmount] = useState<number>(0);
   const [routingToCardcom, setRoutingToCardcom] = useState(false);
+  // CRITICAL: setRoutingToCardcom (state) הוא אסינכרוני — שני קליקים רצופים
+  // יכולים שניהם לעבור את `if (routingToCardcom)` לפני שה-state מתעדכן.
+  // useRef מתעדכן סינכרונית ⇒ בלוק אטומי אמיתי. בלעדיו, יש סיכון תיאורטי
+  // ל-2 PUT/PATCH על אותה פגישה + 2 POST /api/payments (מוגן ברמת DB
+  // ע"י Payment.sessionId @unique, אבל זה defense-in-depth ב-UI).
+  const routingInFlightRef = useRef(false);
 
   useEffect(() => {
     if (open && clientId) {
@@ -172,6 +178,12 @@ export function UpdateSessionDialog({
         toast.error("סכום לתשלום לא תקין");
         return;
       }
+      // mutex סינכרוני — מונע race של שני קליקים בו-זמנית. לבדוק לפני
+      // setRoutingToCardcom (שאסינכרוני).
+      if (routingInFlightRef.current) {
+        return;
+      }
+      routingInFlightRef.current = true;
       setRoutingToCardcom(true);
       try {
         // עדכון סטטוס תחילה — כדי שהפגישה תהיה מסונכרנת גם אם הסליקה נכשלת.
@@ -248,6 +260,7 @@ export function UpdateSessionDialog({
         toast.error(err instanceof Error ? err.message : "מעבר לסליקה נכשל");
       } finally {
         setRoutingToCardcom(false);
+        routingInFlightRef.current = false;
       }
       return;
     }

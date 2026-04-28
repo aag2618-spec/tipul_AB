@@ -94,8 +94,22 @@ export async function PUT(
         );
       }
       // הגנה: לא לאפשר חיוב מעל הסכום המצופה.
+      // CRITICAL: אם expectedAmount <= 0, חוסמים את prepareCardcom לחלוטין
+      // (ולא רק "מדלגים על הבדיקה"). expectedAmount=0 משמעו תשלום בלי יעד
+      // מוגדר — לקוח מזויף יכול היה להעלות desired לכל סכום. כל מסלול
+      // שיוצר Payment דרך ה-UI מציב expectedAmount = amount או price,
+      // ולכן 0 הוא אינדיקציה לתשלום פגום או למניפולציה.
       const expected = Number(existing.expectedAmount) || 0;
-      if (expected > 0 && desired > expected + 0.001) {
+      if (expected <= 0) {
+        return NextResponse.json(
+          {
+            message:
+              "תשלום ללא סכום מצופה (expectedAmount=0) לא נתמך לסליקת אשראי. צור תשלום חדש עם סכום מוגדר.",
+          },
+          { status: 409 }
+        );
+      }
+      if (desired > expected + 0.001) {
         return NextResponse.json(
           { message: `סכום החיוב חורג מהמצופה (₪${expected})` },
           { status: 400 }
