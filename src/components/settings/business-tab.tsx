@@ -13,6 +13,7 @@ import { Loader2, Building2, Receipt, Save, FileText } from "lucide-react";
 interface BusinessSettings {
   businessType: "NONE" | "EXEMPT" | "LICENSED";
   businessName: string;
+  businessIdNumber: string;
   businessPhone: string;
   businessAddress: string;
   nextReceiptNumber: number;
@@ -25,6 +26,7 @@ export function BusinessTab() {
   const [settings, setSettings] = useState<BusinessSettings>({
     businessType: "NONE",
     businessName: "",
+    businessIdNumber: "",
     businessPhone: "",
     businessAddress: "",
     nextReceiptNumber: 1,
@@ -45,6 +47,7 @@ export function BusinessTab() {
       setSettings({
         businessType: bizData.businessType || "NONE",
         businessName: bizData.businessName || "",
+        businessIdNumber: bizData.businessIdNumber || "",
         businessPhone: bizData.businessPhone || "",
         businessAddress: bizData.businessAddress || "",
         nextReceiptNumber: bizData.nextReceiptNumber || 1,
@@ -137,7 +140,7 @@ export function BusinessTab() {
         </CardContent>
       </Card>
 
-      {settings.businessType === "EXEMPT" && (
+      {settings.businessType !== "NONE" && (
         <Card>
           <CardHeader>
             <CardTitle className="flex items-center gap-2">
@@ -154,21 +157,43 @@ export function BusinessTab() {
                 <Input value={settings.businessName} onChange={(e) => setSettings({ ...settings, businessName: e.target.value })} placeholder="לדוגמה: קליניקה לטיפול רגשי" />
               </div>
               <div className="space-y-2">
+                <Label>
+                  ת.ז. / ח.פ. / מספר עוסק
+                  <span className="text-red-600 mr-1">*</span>
+                </Label>
+                <p className="text-xs text-muted-foreground">
+                  {settings.businessType === "LICENSED"
+                    ? "חובה חוקית להופיע בחשבונית מס (חוק חשבוניות ישראל 2024)"
+                    : "חובה להופיע בקבלה (גם לעוסק פטור)"}
+                </p>
+                <Input
+                  value={settings.businessIdNumber}
+                  onChange={(e) => setSettings({ ...settings, businessIdNumber: e.target.value })}
+                  placeholder="9 ספרות"
+                  inputMode="numeric"
+                  required
+                />
+              </div>
+            </div>
+            <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+              <div className="space-y-2">
                 <Label>טלפון</Label>
                 <p className="text-xs text-muted-foreground">טלפון העסק שיופיע בקבלה</p>
                 <Input value={settings.businessPhone} onChange={(e) => setSettings({ ...settings, businessPhone: e.target.value })} placeholder="050-1234567" />
               </div>
+              <div className="space-y-2">
+                <Label>כתובת</Label>
+                <p className="text-xs text-muted-foreground">כתובת העסק שתופיע בקבלה</p>
+                <Input value={settings.businessAddress} onChange={(e) => setSettings({ ...settings, businessAddress: e.target.value })} placeholder="רחוב, עיר" />
+              </div>
             </div>
-            <div className="space-y-2">
-              <Label>כתובת</Label>
-              <p className="text-xs text-muted-foreground">כתובת העסק שתופיע בקבלה</p>
-              <Input value={settings.businessAddress} onChange={(e) => setSettings({ ...settings, businessAddress: e.target.value })} placeholder="רחוב, עיר" />
-            </div>
-            <div className="space-y-2">
-              <Label>מספר קבלה הבא</Label>
-              <p className="text-xs text-muted-foreground">הקבלה הבאה שתופק תקבל את המספר הזה. המערכת מעלה אוטומטית ב-1 אחרי כל קבלה.</p>
-              <Input type="number" min={1} value={settings.nextReceiptNumber} onChange={(e) => setSettings({ ...settings, nextReceiptNumber: parseInt(e.target.value) || 1 })} className="w-32" />
-            </div>
+            {settings.businessType === "EXEMPT" && (
+              <div className="space-y-2">
+                <Label>מספר קבלה הבא</Label>
+                <p className="text-xs text-muted-foreground">הקבלה הבאה שתופק תקבל את המספר הזה. המערכת מעלה אוטומטית ב-1 אחרי כל קבלה.</p>
+                <Input type="number" min={1} value={settings.nextReceiptNumber} onChange={(e) => setSettings({ ...settings, nextReceiptNumber: parseInt(e.target.value) || 1 })} className="w-32" />
+              </div>
+            )}
           </CardContent>
         </Card>
       )}

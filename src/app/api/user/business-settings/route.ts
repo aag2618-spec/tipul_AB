@@ -19,6 +19,7 @@ export async function GET() {
         name: true,
         businessType: true,
         businessName: true,
+        businessIdNumber: true,
         businessPhone: true,
         businessAddress: true,
         nextReceiptNumber: true,
@@ -34,6 +35,7 @@ export async function GET() {
       name: user.name || "",
       businessType: user.businessType || "NONE",
       businessName: user.businessName || "",
+      businessIdNumber: user.businessIdNumber || "",
       businessPhone: user.businessPhone || "",
       businessAddress: user.businessAddress || "",
       nextReceiptNumber: user.nextReceiptNumber || 1,
@@ -59,6 +61,7 @@ export async function PUT(request: NextRequest) {
     const {
       businessType,
       businessName,
+      businessIdNumber,
       businessPhone,
       businessAddress,
       nextReceiptNumber,
@@ -70,6 +73,7 @@ export async function PUT(request: NextRequest) {
       data: {
         businessType: businessType || undefined,
         businessName: businessName !== undefined ? businessName : undefined,
+        businessIdNumber: businessIdNumber !== undefined ? businessIdNumber : undefined,
         businessPhone: businessPhone !== undefined ? businessPhone : undefined,
         businessAddress: businessAddress !== undefined ? businessAddress : undefined,
         nextReceiptNumber: nextReceiptNumber !== undefined ? nextReceiptNumber : undefined,
@@ -78,6 +82,7 @@ export async function PUT(request: NextRequest) {
       select: {
         businessType: true,
         businessName: true,
+        businessIdNumber: true,
         businessPhone: true,
         businessAddress: true,
         nextReceiptNumber: true,
