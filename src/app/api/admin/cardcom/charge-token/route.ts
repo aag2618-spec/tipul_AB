@@ -92,11 +92,16 @@ export async function POST(request: NextRequest) {
         uniqueAsmachta: transaction.id,
       });
     } catch (cardcomErr) {
+      // Cardcom HTTP error bodies have rarely echoed PAN fragments — scrub
+      // before persisting (defense-in-depth even though the typical message
+      // is "ECONNREFUSED" or similar).
+      const rawMessage =
+        cardcomErr instanceof Error ? cardcomErr.message : String(cardcomErr);
       await prisma.cardcomTransaction.update({
         where: { id: transaction.id },
         data: {
           status: "FAILED",
-          errorMessage: cardcomErr instanceof Error ? cardcomErr.message : String(cardcomErr),
+          errorMessage: scrubCardcomMessage(rawMessage),
           completedAt: new Date(),
         },
       });

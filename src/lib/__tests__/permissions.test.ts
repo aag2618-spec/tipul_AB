@@ -128,8 +128,9 @@ describe("PERMISSIONS_BY_ROLE consistency", () => {
     expect(PERMISSIONS_BY_ROLE.USER).toEqual([]);
   });
 
-  it("MANAGER has 26 permissions", () => {
-    expect(PERMISSIONS_BY_ROLE.MANAGER.length).toBe(26);
+  it("MANAGER has 30 permissions", () => {
+    // 26 base + 4 Cardcom (view_transactions, charge_subscriber, receipts.view, receipts.resend).
+    expect(PERMISSIONS_BY_ROLE.MANAGER.length).toBe(30);
   });
 });
 
@@ -167,6 +168,11 @@ const ALL_PERMISSIONS = [
   "support.reopen",
   "support.create_on_behalf",
   "settings.announcements",
+  // Cardcom & Receipts (MANAGER tier)
+  "billing.cardcom.view_transactions",
+  "billing.cardcom.charge_subscriber",
+  "receipts.view",
+  "receipts.resend",
   // ADMIN בלבד
   "users.change_role",
   "users.grant_free_unlimited",
@@ -181,6 +187,8 @@ const ALL_PERMISSIONS = [
   "announcements.delete",
   "support.delete",
   "idempotency.clear",
+  // Cardcom & Receipts (ADMIN-only)
+  "receipts.void",
 ] as const satisfies readonly Permission[];
 
 describe("permission completeness (Stage 1.9 hardening)", () => {
@@ -198,8 +206,8 @@ describe("permission completeness (Stage 1.9 hardening)", () => {
   });
 
   it("ALL_PERMISSIONS count matches expected total", () => {
-    // 26 MANAGER + 14 ADMIN-only = 40
-    expect(ALL_PERMISSIONS.length).toBe(40);
+    // 30 MANAGER (26 base + 4 Cardcom) + 15 ADMIN-only (14 base + receipts.void) = 45
+    expect(ALL_PERMISSIONS.length).toBe(45);
   });
 
   it("ADMIN has every permission via hasPermission", () => {

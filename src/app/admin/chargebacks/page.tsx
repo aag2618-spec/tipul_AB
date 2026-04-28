@@ -20,10 +20,12 @@ export default async function ChargebacksPage() {
 
   const canReview = hasPermission(session.user.role, "payments.refund");
 
-  // Initial load — first 50, newest first
+  // Initial load — first 50, newest first.
+  // Tiebreaker on id keeps the order consistent with the API route when two
+  // rows share createdAt (otherwise a "load more" call would skip/duplicate).
   const rows = await prisma.chargebackEvent.findMany({
     take: 50,
-    orderBy: { createdAt: "desc" },
+    orderBy: [{ createdAt: "desc" }, { id: "desc" }],
     select: {
       id: true,
       cardcomTransactionId: true,

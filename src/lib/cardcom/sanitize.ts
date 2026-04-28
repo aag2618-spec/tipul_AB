@@ -18,6 +18,11 @@ const SENSITIVE_KEY_PATTERNS: RegExp[] = [
 // Additional PII keys redacted for ChargebackEvent records, which are kept
 // long-term for legal/audit and don't need cardholder identifying details
 // (the link to the user is already via cardcomTransactionId → userId).
+//
+// `^token$` is included because the LowProfile token is itself a billing
+// credential (reusable for future charges) — already encrypted in the
+// dedicated `SavedCardToken` table, so there's no need to keep it in the
+// long-lived chargeback audit row.
 const CHARGEBACK_PII_KEY_PATTERNS: RegExp[] = [
   /cardownername/i,
   /cardownerphone/i,
@@ -28,6 +33,7 @@ const CHARGEBACK_PII_KEY_PATTERNS: RegExp[] = [
   /\bphone\b/i,
   /\bemail\b/i,
   /\bfullname\b/i,
+  /^token$/i,
 ];
 
 const MAX_DEPTH = 8;

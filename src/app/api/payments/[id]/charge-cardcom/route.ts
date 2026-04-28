@@ -9,6 +9,7 @@ import { requireAuth } from "@/lib/api-auth";
 import { logger } from "@/lib/logger";
 import { withAudit } from "@/lib/audit";
 import { getUserCardcomClient } from "@/lib/cardcom/user-config";
+import { scrubCardcomMessage } from "@/lib/cardcom/verify-webhook";
 import type { CardcomDocumentType } from "@/lib/cardcom/types";
 
 export const dynamic = "force-dynamic";
@@ -261,11 +262,14 @@ export async function POST(
         ],
       });
     } catch (cardcomErr) {
+      // Scrub PAN fragments from Cardcom error body before persisting.
+      const rawMessage =
+        cardcomErr instanceof Error ? cardcomErr.message : String(cardcomErr);
       await prisma.cardcomTransaction.update({
         where: { id: transaction.id },
         data: {
           status: "FAILED",
-          errorMessage: cardcomErr instanceof Error ? cardcomErr.message : String(cardcomErr),
+          errorMessage: scrubCardcomMessage(rawMessage),
           completedAt: new Date(),
         },
       });
@@ -351,9 +355,11 @@ export async function POST(
           },
           data: {
             status: "FAILED",
+            // Scrub the post-cardcom failure message — it may include the
+            // raw upstream error which can echo PAN fragments.
             errorMessage:
               err instanceof Error
-                ? `post-cardcom failure: ${err.message}`
+                ? scrubCardcomMessage(`post-cardcom failure: ${err.message}`)
                 : "post-cardcom failure",
             completedAt: new Date(),
           },

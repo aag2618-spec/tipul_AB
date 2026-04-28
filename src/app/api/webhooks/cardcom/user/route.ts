@@ -420,14 +420,26 @@ async function processUserWebhook(userId: string, payload: CardcomWebhookPayload
         const isLicensed = therapist.businessType === "LICENSED";
         const amountTotal = Number(transaction.amount);
         // Read country-wide VAT rate from SiteSetting (e.g. Israel 18%).
-        // Falls back to DEFAULT_COUNTRY_VAT_RATE when the row is missing —
-        // boot-strap safety so the first invoice doesn't crash before settings
-        // are seeded. EXEMPT issuers stay at null (no VAT line on the receipt).
+        // Falls back to DEFAULT_COUNTRY_VAT_RATE when the setting is missing OR
+        // explicitly zero for a LICENSED issuer — Israeli VAT law applies to
+        // every עוסק מורשה, so vatRate=0 is treated as misconfig (logged loud).
+        // EXEMPT issuers stay at null (no VAT line on the receipt).
         const settingVatRate = await getSiteSetting<number>("country_vat_rate");
+        const settingIsValidPositive =
+          typeof settingVatRate === "number" && settingVatRate > 0;
+
+        if (isLicensed && typeof settingVatRate === "number" && settingVatRate === 0) {
+          logger.error(
+            "[Cardcom User Webhook] LICENSED issuer with country_vat_rate=0 — falling back to default; fix SiteSetting",
+            {
+              userId,
+              documentNumber: payload.DocumentInfo.DocumentNumber,
+            }
+          );
+        }
+
         const vatRate = isLicensed
-          ? (typeof settingVatRate === "number" && settingVatRate >= 0
-              ? settingVatRate
-              : DEFAULT_COUNTRY_VAT_RATE)
+          ? (settingIsValidPositive ? settingVatRate : DEFAULT_COUNTRY_VAT_RATE)
           : null;
         const amountBeforeVat = isLicensed && vatRate ? amountTotal / (1 + vatRate / 100) : null;
         const vatAmount =

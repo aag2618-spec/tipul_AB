@@ -8,6 +8,7 @@ import { requirePermission } from "@/lib/api-auth";
 import { logger } from "@/lib/logger";
 import { withAudit } from "@/lib/audit";
 import { getAdminCardcomClient } from "@/lib/cardcom/admin-config";
+import { scrubCardcomMessage } from "@/lib/cardcom/verify-webhook";
 import { getAdminBusinessProfile } from "@/lib/site-settings";
 import type { CardcomDocumentType } from "@/lib/cardcom/types";
 
@@ -120,11 +121,14 @@ export async function POST(request: NextRequest) {
         ],
       });
     } catch (cardcomErr) {
+      // Scrub PAN fragments from Cardcom error body before persisting.
+      const rawMessage =
+        cardcomErr instanceof Error ? cardcomErr.message : String(cardcomErr);
       await prisma.cardcomTransaction.update({
         where: { id: transaction.id },
         data: {
           status: "FAILED",
-          errorMessage: cardcomErr instanceof Error ? cardcomErr.message : String(cardcomErr),
+          errorMessage: scrubCardcomMessage(rawMessage),
           completedAt: new Date(),
         },
       });

@@ -5,6 +5,7 @@ import { NextRequest, NextResponse } from "next/server";
 import prisma from "@/lib/prisma";
 import { requirePermission } from "@/lib/api-auth";
 import { logger } from "@/lib/logger";
+import { scrubCardcomMessage } from "@/lib/cardcom/verify-webhook";
 import type { CardcomTxStatus, Prisma } from "@prisma/client";
 
 export const dynamic = "force-dynamic";
@@ -74,7 +75,9 @@ export async function GET(request: NextRequest) {
         cardHolder: t.cardHolder,
         approvalNumber: t.approvalNumber,
         errorCode: t.errorCode,
-        errorMessage: t.errorMessage,
+        // Defense-in-depth: scrub on read in case any older row was written
+        // before the persist-side scrub was added (Stage Cardcom-bata1).
+        errorMessage: scrubCardcomMessage(t.errorMessage),
         createdAt: t.createdAt.toISOString(),
         completedAt: t.completedAt?.toISOString() ?? null,
       })),

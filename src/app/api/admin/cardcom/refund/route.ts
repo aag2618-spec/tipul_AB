@@ -12,7 +12,7 @@ import { requirePermission } from "@/lib/api-auth";
 import { logger } from "@/lib/logger";
 import { withAudit } from "@/lib/audit";
 import { getAdminCardcomClient } from "@/lib/cardcom/admin-config";
-import { capAsmachta } from "@/lib/cardcom/verify-webhook";
+import { capAsmachta, scrubCardcomMessage } from "@/lib/cardcom/verify-webhook";
 
 export const dynamic = "force-dynamic";
 
@@ -176,14 +176,21 @@ export async function POST(request: NextRequest) {
       });
     } catch (cardcomErr) {
       await releaseClaim();
-      throw cardcomErr;
+      // Re-wrap with scrubbed message so the outer catch + UI surface don't
+      // leak PAN fragments echoed in Cardcom's HTTP error body.
+      const rawMessage =
+        cardcomErr instanceof Error ? cardcomErr.message : String(cardcomErr);
+      throw new Error(scrubCardcomMessage(rawMessage) ?? "Cardcom HTTP error");
     }
 
     if (refundResult.responseCode !== "0") {
       await releaseClaim();
-      throw new Error(
-        `Cardcom refund failed: ${refundResult.errorMessage ?? refundResult.responseCode}`
-      );
+      // Cardcom errorMessage occasionally echoes card digits — scrub before
+      // throwing (caught + logged + returned to UI as-is downstream).
+      const scrubbedReason =
+        scrubCardcomMessage(refundResult.errorMessage ?? null) ??
+        refundResult.responseCode;
+      throw new Error(`Cardcom refund failed: ${scrubbedReason}`);
     }
 
     // originalInvoice is fetched INSIDE the audit tx below to avoid a TOCTOU
