@@ -90,8 +90,12 @@ export async function createPaymentForSession(params: {
       const expAmt = Number(existingPayment.expectedAmount) || expectedAmount;
 
       if (existingAmount === 0 && paymentType !== "PARTIAL") {
-        // First actual payment on a zero-amount debt record — update directly
-        const finalStatus = amount >= expAmt ? "PAID" : "PENDING";
+        // First actual payment on a zero-amount debt record — update directly.
+        // CRITICAL: בזרימת Cardcom המבקש שולח status="PENDING" כי הסליקה עדיין
+        // לא בוצעה — ה-webhook יעדכן ל-PAID אחרי חיוב אמיתי. אם ניגזור PAID
+        // מהשוואת amount==expected, נסמן את החוב כשולם בלי שום סליקה אמיתית.
+        const finalStatus =
+          requestedStatus || (amount >= expAmt ? "PAID" : "PENDING");
         payment = await prisma.payment.update({
           where: { sessionId: sessionId! },
           data: {
