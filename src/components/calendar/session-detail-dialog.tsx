@@ -159,7 +159,16 @@ export function SessionDetailDialog({
   const renderPaymentSection = () => {
     const price = session.price;
     const payment = session.payment;
-    const paidAmount = Number(payment?.amount || 0);
+    // For a Cardcom-in-flight Payment (method=CREDIT_CARD, status=PENDING),
+    // `amount` represents the charge target — not money already paid. Treating
+    // it as paid would compute remaining=0 and send Amount=0 to Cardcom. For
+    // partial-cash flow (PENDING with method != CREDIT_CARD), `amount` is the
+    // cumulative paid total — keep the original semantics.
+    const paidAmount =
+      payment?.status === "PAID" ||
+      (payment?.status === "PENDING" && payment?.method !== "CREDIT_CARD")
+        ? Number(payment?.amount || 0)
+        : 0;
     const remaining = price - paidAmount;
 
     // מחיר 0
