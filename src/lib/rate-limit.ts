@@ -43,6 +43,15 @@ interface RateLimitResult {
 }
 
 /**
+ * איפוס rate limit ל-key מסוים.
+ * שימושי אחרי login מוצלח — מאפס את המונה כדי שמשתמש לגיטימי לא יחסם בעקבות
+ * תוקף שניסה brute force על אותו email לפניו (DoS prevention).
+ */
+export function resetRateLimit(identifier: string): void {
+  store.delete(identifier);
+}
+
+/**
  * בדיקת rate limit
  * @param identifier - מזהה ייחודי (IP, userId, etc.)
  * @param config - הגדרות rate limit
@@ -92,8 +101,12 @@ export function checkRateLimit(
 /** API כללי - 100 בקשות לדקה */
 export const API_RATE_LIMIT = { maxRequests: 100, windowMs: 60 * 1000 };
 
-/** התחברות - 10 ניסיונות ל-15 דקות */
+/** התחברות - 10 ניסיונות ל-15 דקות (משמש לפי IP) */
 export const AUTH_RATE_LIMIT = { maxRequests: 10, windowMs: 15 * 60 * 1000 };
+
+/** התחברות לפי email — 5 ניסיונות ל-5 דקות.
+ *  חלון קצר יותר מ-AUTH_RATE_LIMIT כדי למזער DoS על משתמש לגיטימי שתוקף יודע את ה-email שלו. */
+export const LOGIN_EMAIL_RATE_LIMIT = { maxRequests: 5, windowMs: 5 * 60 * 1000 };
 
 /** יצירת מנוי - 5 ניסיונות לשעה */
 export const SUBSCRIPTION_RATE_LIMIT = { maxRequests: 5, windowMs: 60 * 60 * 1000 };

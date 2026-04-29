@@ -4,6 +4,7 @@ import GoogleProvider from "next-auth/providers/google";
 import { PrismaAdapter } from "@auth/prisma-adapter";
 import bcrypt from "bcryptjs";
 import prisma from "./prisma";
+import { checkRateLimit, resetRateLimit, AUTH_RATE_LIMIT, LOGIN_EMAIL_RATE_LIMIT } from "./rate-limit";
 
 // Cache for JWT user data — avoids DB query on every request
 const JWT_CACHE_TTL = 2 * 60 * 1000; // 2 דקות
@@ -54,7 +55,26 @@ export const authOptions: NextAuthOptions = {
         email: { label: "אימייל", type: "email" },
         password: { label: "סיסמה", type: "password" },
       },
-      async authorize(credentials) {
+      async authorize(credentials, req) {
+        // Rate limit כפול על login — 10 ניסיונות ל-15 דקות, גם לפי IP וגם לפי email.
+        // לפי IP — מונע brute force פשוט מ-IP בודד.
+        // לפי email — מונע distributed brute force (תוקף עם בוטנט של 100 IPs).
+        // ה-counters מתאפסים אחרי login מוצלח (resetRateLimit למטה) כדי למנוע DoS על משתמש לגיטימי.
+        const headers = req?.headers as Record<string, string | string[] | undefined> | undefined;
+        const xff = headers?.["x-forwarded-for"];
+        const xri = headers?.["x-real-ip"];
+        const ipRaw = (Array.isArray(xff) ? xff[0] : xff) || (Array.isArray(xri) ? xri[0] : xri);
+        const ip = ipRaw ? String(ipRaw).split(",")[0].trim() : null;
+        const emailLower = credentials?.email?.toLowerCase() || "anon";
+        const ipKey = ip ? `login:ip:${ip}` : null;
+        const emailKey = `login:email:${emailLower}`;
+        const ipResult = ipKey ? checkRateLimit(ipKey, AUTH_RATE_LIMIT) : { allowed: true };
+        // חלון קצר יותר ל-email (5 דק' / 5 ניסיונות) — מקטין DoS על משתמש לגיטימי
+        const emailResult = checkRateLimit(emailKey, LOGIN_EMAIL_RATE_LIMIT);
+        if (!ipResult.allowed || !emailResult.allowed) {
+          throw new Error("יותר מדי ניסיונות התחברות. נסה שוב בעוד 15 דקות");
+        }
+
         if (!credentials?.email || !credentials?.password) {
           throw new Error("אנא הזן אימייל וסיסמה");
         }
@@ -96,6 +116,11 @@ export const authOptions: NextAuthOptions = {
         if (!isValid) {
           throw new Error(INVALID_CREDENTIALS);
         }
+
+        // Login הצליח — איפוס מוני ה-rate limit כדי שתוקף שניסה brute force
+        // לא ימשיך לחסום את המשתמש הלגיטימי אחרי שזה נכנס בהצלחה.
+        if (ipKey) resetRateLimit(ipKey);
+        resetRateLimit(emailKey);
 
         return {
           id: user.id,
