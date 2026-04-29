@@ -1,17 +1,29 @@
 // src/app/api/webhooks/cardcom/user/route.ts
 // Webhook handler for USER-tenant Cardcom transactions (therapist→client billing).
 //
-// VERIFICATION STRATEGY: GetLpResult callback (Cardcom's recommended approach,
-// not HMAC). Cardcom v11 LowProfile webhooks are NOT HMAC-signed — instead, we
-// re-fetch the canonical transaction state from Cardcom using the LowProfileId
-// in the payload. The fetch requires our terminal credentials, so an attacker
-// cannot fabricate "approved" webhooks for transactions that don't exist on
-// Cardcom's side. We use GetLpResult's response as the source of truth and
-// ignore the webhook body's data fields beyond the LowProfileId.
+// VERIFICATION STRATEGY: GetLpResult callback (Cardcom v11 LowProfile webhooks
+// are NOT HMAC-signed — instead, we re-fetch the canonical state from Cardcom
+// using the LowProfileId in the body). The fetch requires the therapist's
+// terminal credentials (loaded via getUserCardcomClient), so an attacker
+// cannot fabricate "approved" notifications for transactions that don't exist
+// on Cardcom's side.
 //
 // Critical: do NOT trust ?userId= in the URL. We use it only to load the
-// therapist's CardcomClient credentials, then verify the LowProfileId belongs
-// to a transaction WE created — only then act.
+// therapist's CardcomClient credentials; the LowProfileId must independently
+// resolve to a CardcomTransaction WE created for that user.
+//
+// Flow:
+//  1. Rate-limit (per-instance + per-IP)
+//  2. IP allowlist (defense-in-depth — soft warn, real verification is GetLpResult)
+//  3. Parse body — used only for LowProfileId; data fields are re-fetched
+//  4. GetLpResult against the therapist's USER credentials → canonical payload
+//  5. Timestamp anti-replay (±5 minutes)
+//  6. claimWebhook — lease-based idempotency (recovers from worker crashes)
+//  7. Inside withAudit (system actor):
+//      - Update CardcomTransaction status
+//      - Update Payment.status = PAID
+//      - Save token to SavedCardToken (if CreateToken)
+//      - Create CardcomInvoice with metadata (PDF backup runs separately)
 
 import { NextRequest, NextResponse } from "next/server";
 import prisma from "@/lib/prisma";
