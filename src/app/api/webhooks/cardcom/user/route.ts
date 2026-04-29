@@ -408,9 +408,13 @@ async function processUserWebhook(userId: string, payload: CardcomWebhookPayload
             paidAt: now,
             lastDeclineReason: null,
             lastDeclineAt: null,
+            // CRITICAL: GetLpResult returns DocumentNumber as a number
+            // (e.g. 639145), but Payment.receiptNumber is a String column.
+            // Coerce explicitly to avoid Prisma "Expected String, provided
+            // Int" errors that would roll back the whole transaction.
             ...(payload.DocumentInfo?.DocumentNumber
               ? {
-                  receiptNumber: payload.DocumentInfo.DocumentNumber,
+                  receiptNumber: String(payload.DocumentInfo.DocumentNumber),
                   hasReceipt: true,
                   receiptUrl: payload.DocumentInfo.DocumentLink ?? undefined,
                 }
@@ -519,9 +523,19 @@ async function processUserWebhook(userId: string, payload: CardcomWebhookPayload
               : now;
           // Auto-resolve any orphan row captured for this document by the
           // sync cron (late-webhook recovery).
+          // Coerce — Cardcom returns these as numbers in GetLpResult; the
+          // schema columns are String. Without this Prisma rejects with
+          // "Expected String, provided Int".
+          const docNumStr = String(payload.DocumentInfo.DocumentNumber);
+          const allocationStr =
+            payload.DocumentInfo.AllocationNumber !== undefined &&
+            payload.DocumentInfo.AllocationNumber !== null
+              ? String(payload.DocumentInfo.AllocationNumber)
+              : null;
+
           await tx.orphanCardcomDocument.updateMany({
             where: {
-              cardcomDocumentNumber: payload.DocumentInfo.DocumentNumber,
+              cardcomDocumentNumber: docNumStr,
               resolved: false,
             },
             data: {
@@ -534,10 +548,10 @@ async function processUserWebhook(userId: string, payload: CardcomWebhookPayload
           await tx.cardcomInvoice.create({
             data: {
               tenant: "USER",
-              cardcomDocumentNumber: payload.DocumentInfo.DocumentNumber,
+              cardcomDocumentNumber: docNumStr,
               cardcomDocumentType: documentType,
               pdfUrl: payload.DocumentInfo.DocumentLink ?? null,
-              allocationNumber: payload.DocumentInfo.AllocationNumber ?? null,
+              allocationNumber: allocationStr,
               // Issuer = the therapist
               issuerUserId: userId,
               issuerBusinessType: therapist.businessType ?? "NONE",

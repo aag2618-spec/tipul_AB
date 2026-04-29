@@ -155,10 +155,23 @@ async function syncCardcomTransactionInner(transactionId: string): Promise<SyncR
   }
 
   // ─── Apply success ────────────────────────────────────────────
-  const documentNumber = fetched.DocumentInfo?.DocumentNumber ?? null;
+  // CRITICAL: Cardcom's GetLpResult returns DocumentNumber as a number
+  // (e.g. 639145), but Prisma's Payment.receiptNumber + CardcomInvoice
+  // .cardcomDocumentNumber are String columns. Without explicit coercion
+  // Prisma throws "Expected String, provided Int" and the whole transaction
+  // rolls back. Same applies to AllocationNumber.
+  const rawDocNum = fetched.DocumentInfo?.DocumentNumber;
+  const documentNumber =
+    rawDocNum !== undefined && rawDocNum !== null && String(rawDocNum).trim() !== ''
+      ? String(rawDocNum)
+      : null;
   const documentLink = fetched.DocumentInfo?.DocumentLink ?? null;
   const documentType = fetched.DocumentInfo?.DocumentType ?? 'Receipt';
-  const allocationNumber = fetched.DocumentInfo?.AllocationNumber ?? null;
+  const rawAllocation = fetched.DocumentInfo?.AllocationNumber;
+  const allocationNumber =
+    rawAllocation !== undefined && rawAllocation !== null && String(rawAllocation).trim() !== ''
+      ? String(rawAllocation)
+      : null;
 
   // Therapist business profile — needed for CardcomInvoice metadata.
   const therapist =

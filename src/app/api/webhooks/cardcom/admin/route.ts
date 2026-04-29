@@ -372,10 +372,22 @@ async function processAdminWebhook(payload: CardcomWebhookPayload): Promise<void
       // tenants / users); dismissing the alert just because ONE orphan in
       // it resolved would hide the rest. The admin dismisses the alert
       // manually after all referenced orphans are resolved.
-      if (payload.DocumentInfo?.DocumentNumber) {
+      // Coerce — Cardcom returns DocumentNumber/AllocationNumber as numbers
+      // in GetLpResult; the schema columns are String. Without coercion
+      // Prisma rejects with "Expected String, provided Int".
+      const adminDocNumStr = payload.DocumentInfo?.DocumentNumber !== undefined &&
+        payload.DocumentInfo?.DocumentNumber !== null
+          ? String(payload.DocumentInfo.DocumentNumber)
+          : null;
+      const adminAllocationStr = payload.DocumentInfo?.AllocationNumber !== undefined &&
+        payload.DocumentInfo?.AllocationNumber !== null
+          ? String(payload.DocumentInfo.AllocationNumber)
+          : null;
+
+      if (adminDocNumStr) {
         await tx.orphanCardcomDocument.updateMany({
           where: {
-            cardcomDocumentNumber: payload.DocumentInfo.DocumentNumber,
+            cardcomDocumentNumber: adminDocNumStr,
             resolved: false,
           },
           data: {
@@ -387,7 +399,7 @@ async function processAdminWebhook(payload: CardcomWebhookPayload): Promise<void
       }
 
       // Create CardcomInvoice with metadata (PDF backup runs in separate cron)
-      if (payload.DocumentInfo?.DocumentNumber && transaction.subscriptionPayment) {
+      if (adminDocNumStr && transaction.subscriptionPayment) {
         const sp = transaction.subscriptionPayment;
         // occurredAt = the date the income was actually received (per Israeli
         // tax reporting law). For ADMIN: the webhook's transaction completion is
@@ -395,7 +407,7 @@ async function processAdminWebhook(payload: CardcomWebhookPayload): Promise<void
         // Cardcom rendered the document (also = now).
         const economicDate =
           sp.paidAt ?? transaction.completedAt ?? now;
-        const documentType = payload.DocumentInfo.DocumentType ?? "Receipt";
+        const documentType = payload.DocumentInfo?.DocumentType ?? "Receipt";
         const isLicensed = businessProfile.type === "LICENSED";
         const amountTotal = Number(transaction.amount);
         const vatRate = isLicensed ? businessProfile.vatRate : null;
@@ -406,10 +418,10 @@ async function processAdminWebhook(payload: CardcomWebhookPayload): Promise<void
         await tx.cardcomInvoice.create({
           data: {
             tenant: "ADMIN",
-            cardcomDocumentNumber: payload.DocumentInfo.DocumentNumber,
+            cardcomDocumentNumber: adminDocNumStr,
             cardcomDocumentType: documentType,
-            pdfUrl: payload.DocumentInfo.DocumentLink ?? null,
-            allocationNumber: payload.DocumentInfo.AllocationNumber ?? null,
+            pdfUrl: payload.DocumentInfo?.DocumentLink ?? null,
+            allocationNumber: adminAllocationStr,
             // ADMIN tenant — issuer is MyTipul itself (not a User row).
             issuerUserId: null,
             issuerBusinessType: businessProfile.type,
