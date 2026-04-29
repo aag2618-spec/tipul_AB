@@ -1,29 +1,36 @@
 // src/app/api/webhooks/cardcom/user/route.ts
 // Webhook handler for USER-tenant Cardcom transactions (therapist→client billing).
 //
-// Critical: do NOT trust ?userId= in the URL. We use it only to fetch the
-// per-therapist BillingProvider row, then verify HMAC against that row's
-// webhookSecret BEFORE acting on the payload.
+// VERIFICATION STRATEGY: GetLpResult callback (Cardcom's recommended approach,
+// not HMAC). Cardcom v11 LowProfile webhooks are NOT HMAC-signed — instead, we
+// re-fetch the canonical transaction state from Cardcom using the LowProfileId
+// in the payload. The fetch requires our terminal credentials, so an attacker
+// cannot fabricate "approved" webhooks for transactions that don't exist on
+// Cardcom's side. We use GetLpResult's response as the source of truth and
+// ignore the webhook body's data fields beyond the LowProfileId.
+//
+// Critical: do NOT trust ?userId= in the URL. We use it only to load the
+// therapist's CardcomClient credentials, then verify the LowProfileId belongs
+// to a transaction WE created — only then act.
 
 import { NextRequest, NextResponse } from "next/server";
 import prisma from "@/lib/prisma";
 import { logger } from "@/lib/logger";
 import { withAudit } from "@/lib/audit";
-import { decrypt } from "@/lib/encryption";
 import {
-  verifyWebhookSignature,
   verifyWebhookTimestamp,
   isCardcomIp,
   resolveClientIp,
   scrubCardcomMessage,
 } from "@/lib/cardcom/verify-webhook";
+import { getUserCardcomClient } from "@/lib/cardcom/user-config";
 import { checkRateLimit } from "@/lib/rate-limit";
 import {
   claimWebhook,
   finalizeWebhook,
   releaseWebhookClaim,
 } from "@/lib/cardcom/webhook-claim";
-import { sanitizeCardcomPayload, sanitizeChargebackPayload } from "@/lib/cardcom/sanitize";
+import { sanitizeChargebackPayload } from "@/lib/cardcom/sanitize";
 import { getSiteSetting } from "@/lib/site-settings";
 import type { CardcomWebhookPayload } from "@/lib/cardcom/types";
 
@@ -56,9 +63,11 @@ export async function POST(request: NextRequest) {
     });
   }
 
+  // IP allowlist as defense-in-depth, but soft (warn, don't reject). The real
+  // verification is GetLpResult — an attacker can't fake an approval for a
+  // transaction we didn't create, regardless of source IP.
   if (!isCardcomIp(ip)) {
-    logger.warn("[Cardcom User Webhook] rejected IP", { ip });
-    return new NextResponse("Forbidden", { status: 403 });
+    logger.warn("[Cardcom User Webhook] non-Cardcom IP (continuing — verified via GetLpResult)", { ip });
   }
 
   const { searchParams } = new URL(request.url);
@@ -74,63 +83,71 @@ export async function POST(request: NextRequest) {
     return new NextResponse("Bad Request", { status: 400 });
   }
 
-  // Look up therapist's BillingProvider — required for HMAC verification
-  const provider = await prisma.billingProvider.findFirst({
-    where: { userId, provider: "CARDCOM", isActive: true },
-  });
-  if (!provider?.webhookSecret) {
-    logger.warn("[Cardcom User Webhook] no provider/secret for user", { userId });
-    return new NextResponse("Unauthorized", { status: 401 });
-  }
-
-  let secret: string;
+  // Parse the notification body. Cardcom doesn't HMAC-sign LowProfile webhooks,
+  // so the body is treated as a notification only — the LowProfileId tells us
+  // WHICH transaction was acted upon, but the response codes etc. are
+  // re-fetched from Cardcom (GetLpResult) below.
+  let bodyPayload: CardcomWebhookPayload;
   try {
-    secret = decrypt(provider.webhookSecret);
-  } catch {
-    return new NextResponse("Server error", { status: 500 });
-  }
-
-  const signature = request.headers.get("x-cardcom-signature");
-  // Verify against current webhook secret first; if rotation happened recently,
-  // also try the previous secret (grace window of 24h). decrypt() of the
-  // previous secret is wrapped — if the encryption key was rotated and we
-  // can't decode the legacy ciphertext, we MUST NOT crash the webhook (would
-  // mean Cardcom retries forever). We just skip the fallback.
-  let validSig = verifyWebhookSignature(rawBody, signature, secret);
-  if (
-    !validSig &&
-    provider.previousWebhookSecret &&
-    provider.previousWebhookSecretValidUntil &&
-    provider.previousWebhookSecretValidUntil > new Date()
-  ) {
-    try {
-      const prev = decrypt(provider.previousWebhookSecret);
-      validSig = verifyWebhookSignature(rawBody, signature, prev);
-    } catch (err) {
-      logger.warn("[Cardcom User Webhook] previousWebhookSecret decrypt failed", {
-        userId,
-        error: err instanceof Error ? err.message : String(err),
-      });
-    }
-  }
-  if (!validSig) {
-    logger.warn("[Cardcom User Webhook] invalid signature", { userId, ip });
-    return new NextResponse("Invalid signature", { status: 401 });
-  }
-
-  let payload: CardcomWebhookPayload;
-  try {
-    payload = JSON.parse(rawBody) as CardcomWebhookPayload;
+    bodyPayload = JSON.parse(rawBody) as CardcomWebhookPayload;
   } catch {
     return new NextResponse("Invalid JSON", { status: 400 });
   }
 
-  if (!verifyWebhookTimestamp(payload.Timestamp)) {
+  if (!verifyWebhookTimestamp(bodyPayload.Timestamp)) {
     return new NextResponse("Stale webhook", { status: 400 });
   }
 
-  if (!payload.LowProfileId) {
+  if (!bodyPayload.LowProfileId) {
     return new NextResponse("Missing LowProfileId", { status: 400 });
+  }
+
+  // ── Verification: GetLpResult callback ────────────────────────
+  // Load the therapist's CardcomClient and re-fetch the canonical state for
+  // this LowProfileId. Three guarantees this provides:
+  //   1. Authenticity — only Cardcom can return success for a real
+  //      transaction; we use our own credentials to fetch.
+  //   2. Tenant isolation — getUserCardcomClient resolves credentials by
+  //      `?userId=`. A LowProfileId from another terminal will return an
+  //      error or mismatch, which we reject.
+  //   3. Source of truth — we ignore the body's data fields beyond
+  //      LowProfileId and process the GetLpResult response. Even a tampered
+  //      body cannot promote a declined transaction to approved.
+  const cardcomClient = await getUserCardcomClient(userId);
+  if (!cardcomClient) {
+    logger.warn("[Cardcom User Webhook] no Cardcom provider configured", { userId });
+    return new NextResponse("Provider not configured", { status: 401 });
+  }
+
+  let payload: CardcomWebhookPayload;
+  try {
+    const fetched = (await cardcomClient.getLpResult(
+      bodyPayload.LowProfileId
+    )) as CardcomWebhookPayload & { ResponseCode?: number | string };
+    if (!fetched || fetched.LowProfileId !== bodyPayload.LowProfileId) {
+      logger.warn("[Cardcom User Webhook] GetLpResult returned mismatched LowProfileId", {
+        userId,
+        bodyLpId: bodyPayload.LowProfileId,
+        fetchedLpId: fetched?.LowProfileId,
+      });
+      return new NextResponse("Verification failed", { status: 401 });
+    }
+    payload = {
+      ...fetched,
+      // Cardcom returns ResponseCode as a number from GetLpResult but as a
+      // string in their webhook spec; normalize to the type the rest of this
+      // handler already expects (string).
+      ResponseCode: String(fetched.ResponseCode ?? bodyPayload.ResponseCode ?? ""),
+      LowProfileId: bodyPayload.LowProfileId,
+      Timestamp: bodyPayload.Timestamp,
+    } as CardcomWebhookPayload;
+  } catch (err) {
+    logger.error("[Cardcom User Webhook] GetLpResult verification failed", {
+      userId,
+      lowProfileId: bodyPayload.LowProfileId,
+      error: err instanceof Error ? err.message : String(err),
+    });
+    return new NextResponse("Verification failed", { status: 401 });
   }
 
   // Lease-based idempotent claim — recovers from worker crashes.

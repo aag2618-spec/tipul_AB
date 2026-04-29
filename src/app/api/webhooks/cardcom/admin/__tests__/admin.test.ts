@@ -1,16 +1,15 @@
 /**
  * Unit tests — POST /api/webhooks/cardcom/admin
  *
- * Walk the security envelope: IP allowlist → HMAC → timestamp → idempotent
- * claim. Each guard is the only thing standing between an attacker and a
- * write to financial DB rows, so each gets its own test.
+ * Walk the security envelope: IP allowlist (soft) → GetLpResult verification →
+ * timestamp → idempotent claim. Each guard is the only thing standing between
+ * an attacker and a write to financial DB rows, so each gets its own test.
  *
  * Body-processing logic (CardcomTransaction.update, SubscriptionPayment, etc.)
  * is exercised via the integration suite — too noisy to fake here.
  */
 
 import { describe, it, expect, beforeEach, afterEach, vi } from "vitest";
-import { createHmac } from "node:crypto";
 
 // ─── Mocks ────────────────────────────────────────────────────────────────
 
@@ -18,7 +17,8 @@ const claimWebhookMock = vi.fn();
 const finalizeWebhookMock = vi.fn();
 const releaseWebhookClaimMock = vi.fn();
 const checkRateLimitMock = vi.fn();
-const getAdminWebhookSecretMock = vi.fn();
+const getAdminCardcomClientMock = vi.fn();
+const getLpResultMock = vi.fn();
 
 vi.mock("@/lib/cardcom/webhook-claim", () => ({
   claimWebhook: (...a: unknown[]) => claimWebhookMock(...a),
@@ -31,7 +31,7 @@ vi.mock("@/lib/rate-limit", () => ({
 }));
 
 vi.mock("@/lib/cardcom/admin-config", () => ({
-  getAdminWebhookSecret: () => getAdminWebhookSecretMock(),
+  getAdminCardcomClient: () => getAdminCardcomClientMock(),
 }));
 
 vi.mock("@/lib/site-settings", () => ({
@@ -85,21 +85,25 @@ vi.mock("@/lib/logger", () => ({
 
 // ─── Helpers ──────────────────────────────────────────────────────────────
 
-const SECRET = "test-webhook-secret";
-
-function signed(body: object, opts: { ip?: string; sig?: string; ts?: string } = {}) {
-  const raw = JSON.stringify({
-    LowProfileId: "lp-1",
+/**
+ * Build a Cardcom-like webhook request. The body is just a notification — no
+ * HMAC signing since the new verification fetches canonical state from
+ * GetLpResult. Tests control GetLpResult's behavior via getLpResultMock.
+ */
+function buildRequest(
+  body: object = {},
+  opts: { ip?: string; ts?: string; lowProfileId?: string | null } = {}
+) {
+  const lpId = opts.lowProfileId === undefined ? "lp-1" : opts.lowProfileId;
+  const payload: Record<string, unknown> = {
     ResponseCode: "0",
     Timestamp: opts.ts ?? new Date().toISOString(),
     ...body,
-  });
-  const sig =
-    opts.sig ??
-    createHmac("sha256", SECRET).update(raw, "utf8").digest("hex");
+  };
+  if (lpId !== null) payload.LowProfileId = lpId;
+  const raw = JSON.stringify(payload);
   const headers = new Headers({
     "content-type": "application/json",
-    "x-cardcom-signature": sig,
     "x-forwarded-for": opts.ip ?? "1.2.3.4",
   });
   return new Request("https://test.local/api/webhooks/cardcom/admin", {
@@ -123,7 +127,6 @@ async function callPOST(
 
 beforeEach(async () => {
   vi.resetAllMocks();
-  process.env.CARDCOM_ADMIN_WEBHOOK_SECRET = SECRET;
   process.env.CARDCOM_WEBHOOK_IP_ALLOWLIST = "1.2.3.4,5.6.7.8";
   // Allow timestamp checks to skip the prod-strict branch.
   (process.env as { NODE_ENV?: string }).NODE_ENV = "development";
@@ -133,7 +136,15 @@ beforeEach(async () => {
     resetAt: Date.now() + 60_000,
     remaining: 99,
   });
-  getAdminWebhookSecretMock.mockReturnValue(SECRET);
+  // Default: GetLpResult returns the same LowProfileId — verification passes.
+  getLpResultMock.mockResolvedValue({
+    LowProfileId: "lp-1",
+    ResponseCode: 0,
+    Operation: "ChargeOnly",
+  });
+  getAdminCardcomClientMock.mockResolvedValue({
+    getLpResult: (...a: unknown[]) => getLpResultMock(...a),
+  });
   claimWebhookMock.mockResolvedValue({ status: "claimed", eventId: "ev-1" });
   finalizeWebhookMock.mockResolvedValue(undefined);
 
@@ -143,70 +154,88 @@ beforeEach(async () => {
 });
 
 afterEach(() => {
-  delete process.env.CARDCOM_ADMIN_WEBHOOK_SECRET;
   delete process.env.CARDCOM_WEBHOOK_IP_ALLOWLIST;
 });
 
 // ─── Tests ────────────────────────────────────────────────────────────────
 
-describe("POST /api/webhooks/cardcom/admin — IP allowlist", () => {
-  it("rejects an IP outside the allowlist with 403", async () => {
-    const req = signed({}, { ip: "9.9.9.9" });
+describe("POST /api/webhooks/cardcom/admin — IP allowlist (soft)", () => {
+  it("admits an IP outside the allowlist (real verification is GetLpResult)", async () => {
+    // After the GetLpResult flip, IP allowlist is defense-in-depth only.
+    // A non-allowlisted IP must NOT short-circuit with 403 — Cardcom may rotate
+    // outbound IPs without notice, and GetLpResult is the source of truth.
+    const req = buildRequest({}, { ip: "9.9.9.9" });
     const res = await callPOST(req);
-    expect(res.status).toBe(403);
-    // No DB work attempted.
-    expect(claimWebhookMock).not.toHaveBeenCalled();
+    expect(res.status).not.toBe(403);
+    // GetLpResult was called — verification proceeded past IP check.
+    expect(getLpResultMock).toHaveBeenCalledTimes(1);
   });
 
   it("admits an allowlisted IP", async () => {
-    const req = signed({}, { ip: "1.2.3.4" });
+    const req = buildRequest({}, { ip: "1.2.3.4" });
     const res = await callPOST(req);
-    // Claim called → IP guard passed (and HMAC + timestamp).
     expect(claimWebhookMock).toHaveBeenCalledTimes(1);
     expect(res.status).not.toBe(403);
   });
 });
 
-describe("POST /api/webhooks/cardcom/admin — HMAC signature", () => {
-  it("rejects an invalid signature with 401", async () => {
-    const req = signed({}, { sig: "deadbeef".repeat(8) });
+describe("POST /api/webhooks/cardcom/admin — GetLpResult verification", () => {
+  it("rejects a body whose LowProfileId differs from GetLpResult's response", async () => {
+    // Attacker POSTs a webhook claiming LowProfileId "lp-1" but GetLpResult
+    // returns a different id (or none) → body cannot be trusted.
+    getLpResultMock.mockResolvedValue({ LowProfileId: "different-id", ResponseCode: 0 });
+    const req = buildRequest();
     const res = await callPOST(req);
     expect(res.status).toBe(401);
     expect(claimWebhookMock).not.toHaveBeenCalled();
   });
 
-  it("rejects a missing signature with 401", async () => {
-    const raw = JSON.stringify({
-      LowProfileId: "lp-x",
-      ResponseCode: "0",
-      Timestamp: new Date().toISOString(),
-    });
-    const req = new Request("https://test.local/api/webhooks/cardcom/admin", {
-      method: "POST",
-      headers: {
-        "content-type": "application/json",
-        "x-forwarded-for": "1.2.3.4",
-      },
-      body: raw,
-    }) as unknown as import("next/server").NextRequest;
+  it("rejects when GetLpResult throws (Cardcom unreachable / unknown LP)", async () => {
+    getLpResultMock.mockRejectedValue(new Error("CARDCOM_HTTP_500"));
+    const req = buildRequest();
     const res = await callPOST(req);
     expect(res.status).toBe(401);
+    expect(claimWebhookMock).not.toHaveBeenCalled();
+  });
+
+  it("rejects when no admin client can be loaded (missing credentials)", async () => {
+    getAdminCardcomClientMock.mockRejectedValue(new Error("CARDCOM_MISSING_TERMINAL"));
+    const req = buildRequest();
+    const res = await callPOST(req);
+    expect(res.status).toBe(500);
+    expect(claimWebhookMock).not.toHaveBeenCalled();
+  });
+
+  it("uses GetLpResult's ResponseCode (string-coerced) for the verified payload", async () => {
+    // Cardcom returns ResponseCode as a number from GetLpResult; the rest of
+    // the handler compares with === "0" (string equality).
+    getLpResultMock.mockResolvedValue({
+      LowProfileId: "lp-1",
+      ResponseCode: 0,
+      Operation: "ChargeOnly",
+    });
+    const req = buildRequest();
+    const res = await callPOST(req);
+    expect(claimWebhookMock).toHaveBeenCalledTimes(1);
+    expect(res.status).not.toBe(401);
   });
 });
 
 describe("POST /api/webhooks/cardcom/admin — timestamp anti-replay", () => {
   it("rejects a stale timestamp (>5 minutes old)", async () => {
     const stale = new Date(Date.now() - 6 * 60 * 1000).toISOString();
-    const req = signed({}, { ts: stale });
+    const req = buildRequest({}, { ts: stale });
     const res = await callPOST(req);
     expect(res.status).toBe(400);
+    // Verification must short-circuit before GetLpResult — saves a Cardcom call.
+    expect(getLpResultMock).not.toHaveBeenCalled();
   });
 });
 
 describe("POST /api/webhooks/cardcom/admin — idempotency", () => {
   it("returns 200 idempotent:true when claim says already_processed", async () => {
     claimWebhookMock.mockResolvedValue({ status: "already_processed", eventId: "ev-1" });
-    const req = signed({});
+    const req = buildRequest();
     const res = await callPOST(req);
     expect(res.status).toBe(200);
     const body = await res.json();
@@ -217,30 +246,18 @@ describe("POST /api/webhooks/cardcom/admin — idempotency", () => {
 
   it("returns 503 with Retry-After when claim is in_progress", async () => {
     claimWebhookMock.mockResolvedValue({ status: "in_progress", eventId: "ev-1" });
-    const req = signed({});
+    const req = buildRequest();
     const res = await callPOST(req);
     expect(res.status).toBe(503);
     expect(res.headers.get("retry-after")).toBe("60");
     expect(finalizeWebhookMock).not.toHaveBeenCalled();
   });
 
-  it("rejects a payload without LowProfileId before claiming", async () => {
-    const raw = JSON.stringify({
-      ResponseCode: "0",
-      Timestamp: new Date().toISOString(),
-    });
-    const sig = createHmac("sha256", SECRET).update(raw, "utf8").digest("hex");
-    const req = new Request("https://test.local/api/webhooks/cardcom/admin", {
-      method: "POST",
-      headers: {
-        "content-type": "application/json",
-        "x-cardcom-signature": sig,
-        "x-forwarded-for": "1.2.3.4",
-      },
-      body: raw,
-    }) as unknown as import("next/server").NextRequest;
+  it("rejects a payload without LowProfileId before any verification work", async () => {
+    const req = buildRequest({}, { lowProfileId: null });
     const res = await callPOST(req);
     expect(res.status).toBe(400);
+    expect(getLpResultMock).not.toHaveBeenCalled();
     expect(claimWebhookMock).not.toHaveBeenCalled();
   });
 });

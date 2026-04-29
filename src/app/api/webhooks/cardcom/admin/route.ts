@@ -1,12 +1,20 @@
 // src/app/api/webhooks/cardcom/admin/route.ts
 // Webhook handler for ADMIN-tenant Cardcom transactions (subscription payments).
 //
+// VERIFICATION STRATEGY: GetLpResult callback (Cardcom v11 LowProfile webhooks
+// are NOT HMAC-signed — instead, we re-fetch the canonical state from Cardcom
+// using the LowProfileId in the body). The fetch requires our terminal
+// credentials, so an attacker cannot fabricate "approved" notifications for
+// transactions that don't exist on Cardcom's side.
+//
 // Flow:
-//  1. IP allowlist check (defense-in-depth)
-//  2. HMAC signature verification (env: CARDCOM_ADMIN_WEBHOOK_SECRET)
-//  3. Timestamp anti-replay (±5 minutes)
-//  4. WebhookEvent.upsert — idempotency (avoid double-processing)
-//  5. Inside withAudit (system actor):
+//  1. Rate-limit (per-instance + per-IP)
+//  2. IP allowlist (defense-in-depth — soft warn, real verification is GetLpResult)
+//  3. Parse body — used only for LowProfileId; data fields are re-fetched
+//  4. GetLpResult against ADMIN credentials → canonical payload
+//  5. Timestamp anti-replay (±5 minutes)
+//  6. claimWebhook — lease-based idempotency (recovers from worker crashes)
+//  7. Inside withAudit (system actor):
 //      - Update CardcomTransaction status
 //      - Update SubscriptionPayment.status = PAID
 //      - Update User.subscriptionStatus
@@ -18,7 +26,6 @@ import prisma from "@/lib/prisma";
 import { logger } from "@/lib/logger";
 import { withAudit } from "@/lib/audit";
 import {
-  verifyWebhookSignature,
   verifyWebhookTimestamp,
   isCardcomIp,
   resolveClientIp,
@@ -30,7 +37,7 @@ import {
   finalizeWebhook,
   releaseWebhookClaim,
 } from "@/lib/cardcom/webhook-claim";
-import { getAdminWebhookSecret } from "@/lib/cardcom/admin-config";
+import { getAdminCardcomClient } from "@/lib/cardcom/admin-config";
 import { getAdminBusinessProfile } from "@/lib/site-settings";
 import { sanitizeCardcomPayload, sanitizeChargebackPayload } from "@/lib/cardcom/sanitize";
 import type { CardcomWebhookPayload } from "@/lib/cardcom/types";
@@ -64,12 +71,13 @@ export async function POST(request: NextRequest) {
     });
   }
 
+  // IP allowlist as defense-in-depth, but soft. Real verification is GetLpResult.
   if (!isCardcomIp(ip)) {
-    logger.warn("[Cardcom Admin Webhook] rejected IP", { ip });
-    return new NextResponse("Forbidden", { status: 403 });
+    logger.warn("[Cardcom Admin Webhook] non-Cardcom IP (continuing — verified via GetLpResult)", { ip });
   }
 
-  // Read raw body for HMAC verification
+  // Body is just a notification — Cardcom v11 LowProfile webhooks aren't
+  // HMAC-signed. We re-fetch the canonical state via GetLpResult below.
   let rawBody: string;
   try {
     rawBody = await request.text();
@@ -77,34 +85,60 @@ export async function POST(request: NextRequest) {
     return new NextResponse("Bad Request", { status: 400 });
   }
 
-  let secret: string;
+  let bodyPayload: CardcomWebhookPayload;
   try {
-    secret = getAdminWebhookSecret();
-  } catch {
-    logger.error("[Cardcom Admin Webhook] secret not configured");
-    return new NextResponse("Server misconfiguration", { status: 500 });
-  }
-
-  const signature = request.headers.get("x-cardcom-signature");
-  if (!verifyWebhookSignature(rawBody, signature, secret)) {
-    logger.warn("[Cardcom Admin Webhook] invalid signature", { ip });
-    return new NextResponse("Invalid signature", { status: 401 });
-  }
-
-  let payload: CardcomWebhookPayload;
-  try {
-    payload = JSON.parse(rawBody) as CardcomWebhookPayload;
+    bodyPayload = JSON.parse(rawBody) as CardcomWebhookPayload;
   } catch {
     return new NextResponse("Invalid JSON", { status: 400 });
   }
 
-  if (!verifyWebhookTimestamp(payload.Timestamp)) {
-    logger.warn("[Cardcom Admin Webhook] stale timestamp", { ts: payload.Timestamp });
+  if (!verifyWebhookTimestamp(bodyPayload.Timestamp)) {
+    logger.warn("[Cardcom Admin Webhook] stale timestamp", { ts: bodyPayload.Timestamp });
     return new NextResponse("Stale webhook", { status: 400 });
   }
 
-  if (!payload.LowProfileId) {
+  if (!bodyPayload.LowProfileId) {
     return new NextResponse("Missing LowProfileId", { status: 400 });
+  }
+
+  // ── Verification: GetLpResult callback ────────────────────────
+  // Re-fetch canonical state from Cardcom using the global ADMIN credentials.
+  // The fetch requires our terminal credentials, so an attacker can't fake an
+  // approval for a transaction we didn't create.
+  let cardcomClient;
+  try {
+    cardcomClient = await getAdminCardcomClient();
+  } catch (err) {
+    logger.error("[Cardcom Admin Webhook] admin client not configured", {
+      error: err instanceof Error ? err.message : String(err),
+    });
+    return new NextResponse("Server misconfiguration", { status: 500 });
+  }
+
+  let payload: CardcomWebhookPayload;
+  try {
+    const fetched = (await cardcomClient.getLpResult(
+      bodyPayload.LowProfileId
+    )) as CardcomWebhookPayload & { ResponseCode?: number | string };
+    if (!fetched || fetched.LowProfileId !== bodyPayload.LowProfileId) {
+      logger.warn("[Cardcom Admin Webhook] GetLpResult returned mismatched LowProfileId", {
+        bodyLpId: bodyPayload.LowProfileId,
+        fetchedLpId: fetched?.LowProfileId,
+      });
+      return new NextResponse("Verification failed", { status: 401 });
+    }
+    payload = {
+      ...fetched,
+      ResponseCode: String(fetched.ResponseCode ?? bodyPayload.ResponseCode ?? ""),
+      LowProfileId: bodyPayload.LowProfileId,
+      Timestamp: bodyPayload.Timestamp,
+    } as CardcomWebhookPayload;
+  } catch (err) {
+    logger.error("[Cardcom Admin Webhook] GetLpResult verification failed", {
+      lowProfileId: bodyPayload.LowProfileId,
+      error: err instanceof Error ? err.message : String(err),
+    });
+    return new NextResponse("Verification failed", { status: 401 });
   }
 
   // Lease-based idempotent claim — recovers from worker crashes.
