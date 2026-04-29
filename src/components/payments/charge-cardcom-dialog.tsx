@@ -429,7 +429,13 @@ export function ChargeCardcomDialog({
         setStep("link-sent");
         startPolling(data.transactionId, gen);
       } else {
-        // iframe
+        // "iframe" mode → open Cardcom in a new browser tab. Cardcom blocks
+        // embedded iframes on sandbox + many production terminals, so we use
+        // window.open and let the customer pay in a top-level context. The
+        // dialog stays open and polls for the result like the link flow.
+        if (typeof window !== "undefined") {
+          window.open(data.url, "_blank", "noopener,noreferrer");
+        }
         setStep("iframe");
         startPolling(data.transactionId, gen);
       }
@@ -774,25 +780,52 @@ export function ChargeCardcomDialog({
             </div>
 
             {/*
-              "iframe" mode removed from the UI: Cardcom's hosted payment page
-              refuses to be embedded by sandbox terminal 1000 (and many production
-              terminals also send X-Frame-Options: DENY). The "blocked content"
-              browser page would surface to the customer instead of the form.
-              We keep the type "link" | "iframe" in case a future Cardcom config
-              re-enables it, but force payMode=link in the UI.
+              Two modes:
+                - "link"   → email/SMS the customer a Cardcom link (they pay later).
+                - "iframe" → open Cardcom in a NEW BROWSER TAB so the therapist can
+                             hand the device to the customer right now. The original
+                             "iframe" implementation embedded Cardcom inside our
+                             dialog, but Cardcom serves X-Frame-Options: DENY on
+                             sandbox terminal 1000 and many production terminals,
+                             so embedding hits a generic "blocked content" page.
+                             We keep the internal name `iframe` for state continuity
+                             but the rendering is now a new-tab redirect.
             */}
             <div className="border rounded-lg p-3 space-y-2 bg-blue-50/40">
               <Label className="font-semibold">איך לגבות?</Label>
               <div className="space-y-2">
-                <div className="flex items-center gap-3 p-2 rounded bg-white/60">
-                  <Mail className="h-4 w-4 text-blue-600" />
+                <label className="flex items-center gap-3 cursor-pointer p-2 rounded hover:bg-white/60">
+                  <input
+                    type="radio"
+                    name="cc-paymode"
+                    value="link"
+                    checked={payMode === "link"}
+                    onChange={() => setPayMode("link")}
+                    className="h-4 w-4"
+                  />
                   <span>
                     <span className="font-medium">קישור תשלום במייל / SMS</span>
                     <span className="block text-xs text-muted-foreground">
                       ללקוח יישלח קישור — הוא משלם בזמן שלו דרך Cardcom
                     </span>
                   </span>
-                </div>
+                </label>
+                <label className="flex items-center gap-3 cursor-pointer p-2 rounded hover:bg-white/60">
+                  <input
+                    type="radio"
+                    name="cc-paymode"
+                    value="iframe"
+                    checked={payMode === "iframe"}
+                    onChange={() => setPayMode("iframe")}
+                    className="h-4 w-4"
+                  />
+                  <span>
+                    <span className="font-medium">תשלום מיידי בכרטיסייה חדשה</span>
+                    <span className="block text-xs text-muted-foreground">
+                      Cardcom ייפתח בחלון חדש — תוכלי להעביר את המכשיר ללקוח
+                    </span>
+                  </span>
+                </label>
               </div>
             </div>
 
@@ -1006,35 +1039,56 @@ export function ChargeCardcomDialog({
         )}
 
         {step === "iframe" && (
-          <div className="space-y-3">
-            <div className="flex items-center justify-between gap-2 text-sm">
-              <div className="flex items-center gap-2">
+          <div className="space-y-4 py-4">
+            <div className="flex items-center justify-center">
+              <Badge variant="secondary" className="gap-1.5 text-sm py-1.5 px-3">
                 <Loader2 className="h-4 w-4 animate-spin text-primary" />
-                <Badge variant="secondary">ממתין לתשלום</Badge>
-              </div>
-              <div className="flex items-center gap-2">
-                <Button
-                  variant="outline"
-                  size="sm"
-                  onClick={handleSyncStatus}
-                  disabled={isSyncing || !paymentId}
-                  className="text-emerald-700 border-emerald-300 hover:bg-emerald-50"
-                  title="בדוק עכשיו מול Cardcom אם התשלום הצליח"
-                >
-                  {isSyncing ? (
-                    <Loader2 className="h-4 w-4 ml-1 animate-spin" />
-                  ) : (
-                    <RefreshCw className="h-4 w-4 ml-1" />
-                  )}
-                  סנכרן
-                </Button>
-                <Button
-                  variant="outline"
-                  size="sm"
-                  onClick={handleCancelLink}
-                  disabled={isCancellingLink || !paymentId}
-                  className="text-red-700 border-red-300 hover:bg-red-50 hover:text-red-800"
-                  title="בטל את העסקה — אם הלקוח כבר התחיל למלא, הביטול יחסם"
+                ממתין לתשלום ב-Cardcom
+              </Badge>
+            </div>
+            <div className="border rounded-lg p-4 bg-blue-50/50 space-y-2 text-center">
+              <p className="font-medium text-blue-900">
+                Cardcom נפתח בחלון חדש
+              </p>
+              <p className="text-sm text-blue-800">
+                תוכלי להעביר את המכשיר ללקוח כדי שיזין פרטי כרטיס.<br />
+                המסך כאן יתעדכן אוטומטית כשהתשלום יושלם.
+              </p>
+            </div>
+            <div className="flex flex-wrap gap-2 justify-center">
+              <Button
+                variant="outline"
+                size="sm"
+                onClick={() => window.open(paymentPageUrl, "_blank", "noopener,noreferrer")}
+              >
+                <ExternalLink className="h-4 w-4 ml-1" />
+                פתח שוב
+              </Button>
+              <Button variant="outline" size="sm" onClick={handleCopyLink}>
+                העתק קישור
+              </Button>
+              <Button
+                variant="outline"
+                size="sm"
+                onClick={handleSyncStatus}
+                disabled={isSyncing || !paymentId}
+                className="text-emerald-700 border-emerald-300 hover:bg-emerald-50"
+                title="בדוק עכשיו מול Cardcom אם התשלום הצליח"
+              >
+                {isSyncing ? (
+                  <Loader2 className="h-4 w-4 ml-1 animate-spin" />
+                ) : (
+                  <RefreshCw className="h-4 w-4 ml-1" />
+                )}
+                סנכרן
+              </Button>
+              <Button
+                variant="outline"
+                size="sm"
+                onClick={handleCancelLink}
+                disabled={isCancellingLink || !paymentId}
+                className="text-red-700 border-red-300 hover:bg-red-50 hover:text-red-800"
+                title="בטל את העסקה — אם הלקוח כבר התחיל למלא, הביטול יחסם"
               >
                 {isCancellingLink ? (
                   <Loader2 className="h-4 w-4 ml-1 animate-spin" />
@@ -1043,20 +1097,7 @@ export function ChargeCardcomDialog({
                 )}
                 בטל
               </Button>
-              </div>
             </div>
-            <div className="border rounded-lg overflow-hidden bg-white">
-              <iframe
-                src={paymentPageUrl}
-                title="Cardcom Payment"
-                className="w-full"
-                style={{ height: 600, border: 0 }}
-                allow="payment"
-              />
-            </div>
-            <p className="text-xs text-muted-foreground text-center">
-              המסך יתעדכן אוטומטית בתום התשלום
-            </p>
           </div>
         )}
 

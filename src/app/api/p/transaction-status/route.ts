@@ -15,8 +15,16 @@ import prisma from "@/lib/prisma";
 import { logger } from "@/lib/logger";
 import { checkRateLimit } from "@/lib/rate-limit";
 import { resolveClientIp } from "@/lib/cardcom/verify-webhook";
+import { syncCardcomTransaction } from "@/lib/cardcom/sync-cardcom-payment";
 
 export const dynamic = "force-dynamic";
+
+// Auto-sync window: if the transaction has been PENDING this long, the next
+// poll will trigger a server-side GetLpResult before responding. Cardcom's
+// webhook usually arrives within 1-5s; 15s is a comfortable buffer that
+// protects against missed/delayed webhooks (especially on sandbox terminal
+// 1000 which doesn't reliably deliver them).
+const AUTO_SYNC_THRESHOLD_MS = 15_000;
 
 export async function GET(request: NextRequest) {
   const ip = resolveClientIp(request.headers);
@@ -61,6 +69,28 @@ export async function GET(request: NextRequest) {
     if (ageMs > 24 * 60 * 60 * 1000) {
       return NextResponse.json({ status: "unknown" });
     }
+
+    // Auto-sync for PENDING transactions older than the threshold. Cardcom's
+    // webhook should have arrived by now; if it hasn't (sandbox or delayed),
+    // we fetch canonical state ourselves so the polling caller sees APPROVED
+    // without needing the user to click "סנכרן" manually. syncCardcomTransaction
+    // is idempotent and bounded — at most one Cardcom call per poll cycle.
+    if (tx.status === "PENDING" && ageMs > AUTO_SYNC_THRESHOLD_MS) {
+      try {
+        const result = await syncCardcomTransaction(t);
+        // Use the freshly-synced status as the response — saves the client
+        // an extra polling round-trip.
+        return NextResponse.json({ status: result.status });
+      } catch (err) {
+        // Sync failure is not fatal — fall through to returning the stored
+        // status. The caller will keep polling and we'll retry next cycle.
+        logger.warn("[p/transaction-status] auto-sync failed", {
+          tIdPrefix: t.slice(0, 8),
+          error: err instanceof Error ? err.message : String(err),
+        });
+      }
+    }
+
     return NextResponse.json({ status: tx.status });
   } catch (err) {
     logger.warn("[p/transaction-status] DB lookup failed", {
