@@ -148,6 +148,11 @@ export function ChargeCardcomDialog({
   const [resendCooldownEndsAt, setResendCooldownEndsAt] = useState<number>(0);
   const [resendCooldownLeft, setResendCooldownLeft] = useState<number>(0);
   const [isResending, setIsResending] = useState<boolean>(false);
+  // Manual sync state — lets the therapist pull canonical state from Cardcom
+  // when the webhook hasn't arrived. Useful for sandbox terminal 1000 (which
+  // doesn't reliably send webhooks) and for production cases where the webhook
+  // is delayed beyond the polling timeout.
+  const [isSyncing, setIsSyncing] = useState<boolean>(false);
   // ── Cancel-link state ──────────────────────────────────────
   // Single in-flight + ref guard against double-click. Same pattern as resend.
   const [isCancellingLink, setIsCancellingLink] = useState<boolean>(false);
@@ -594,6 +599,56 @@ export function ChargeCardcomDialog({
     }
   };
 
+  // Manual fallback when webhook doesn't arrive (sandbox terminal 1000, or
+  // production with a slow/blocked webhook). Calls our /sync endpoint which
+  // re-queries Cardcom GetLpResult with the same three-part success criterion
+  // as the webhook handler, and promotes Payment to PAID if Cardcom confirms.
+  const handleSyncStatus = async (): Promise<void> => {
+    if (!paymentId) return;
+    if (isSyncing) return;
+    setIsSyncing(true);
+    try {
+      const res = await fetch(`/api/payments/${paymentId}/sync-cardcom-status`, {
+        method: "POST",
+      });
+      const data = (await res.json().catch(() => ({}))) as {
+        status?: string;
+        message?: string;
+        cardcomResponseCode?: string;
+        hasTranzactionId?: boolean;
+        hasApprovalNumber?: boolean;
+      };
+      if (!res.ok) {
+        toast.error(data.message ?? "סנכרון נכשל");
+        return;
+      }
+      if (data.status === "APPROVED") {
+        toast.success("התשלום אושר ב-Cardcom — סטטוס עודכן");
+        setStep("success");
+        if (onPaymentSuccess) {
+          try {
+            await onPaymentSuccess();
+          } catch (err) {
+            console.error("onPaymentSuccess error:", err);
+          }
+        }
+        setTimeout(() => onOpenChange(false), 2000);
+      } else if (data.status === "CANCELLED") {
+        toast.error("העסקה בוטלה");
+        setStep("failure");
+        setErrorMessage("העסקה בוטלה");
+      } else {
+        // Still pending — the customer hasn't paid yet, OR Cardcom hasn't
+        // recorded the bank's approval. Keep the dialog where it is.
+        toast.message("עדיין ממתין לאישור מ-Cardcom — נסי שוב בעוד דקה");
+      }
+    } catch (err) {
+      toast.error(err instanceof Error ? err.message : "שגיאת רשת");
+    } finally {
+      setIsSyncing(false);
+    }
+  };
+
   const handleCopyLink = async (): Promise<void> => {
     if (!paymentPageUrl) return;
     try {
@@ -903,6 +958,21 @@ export function ChargeCardcomDialog({
               <Button
                 variant="outline"
                 size="sm"
+                onClick={handleSyncStatus}
+                disabled={isSyncing || !paymentId}
+                className="text-emerald-700 border-emerald-300 hover:bg-emerald-50"
+                title="בדוק עכשיו מול Cardcom אם התשלום הצליח"
+              >
+                {isSyncing ? (
+                  <Loader2 className="h-4 w-4 ml-1 animate-spin" />
+                ) : (
+                  <RefreshCw className="h-4 w-4 ml-1" />
+                )}
+                סנכרן עם Cardcom
+              </Button>
+              <Button
+                variant="outline"
+                size="sm"
                 onClick={handleCancelLink}
                 disabled={isCancellingLink || !paymentId}
                 className="text-red-700 border-red-300 hover:bg-red-50 hover:text-red-800"
@@ -928,8 +998,25 @@ export function ChargeCardcomDialog({
             <p className="font-bold text-amber-800 text-lg">לא קיבלנו עדיין אישור</p>
             <p className="text-sm text-muted-foreground text-center max-w-md">
               ייתכן שהלקוח עדיין משלם או שהאישור יגיע בהמשך.<br />
-              אם בוצע תשלום, הוא יופיע אוטומטית בהיסטוריית התשלומים.
+              אם בוצע תשלום, לחצי &quot;סנכרן עם Cardcom&quot; כדי לבדוק עכשיו.
             </p>
+            <Button
+              onClick={handleSyncStatus}
+              disabled={isSyncing || !paymentId}
+              className="bg-emerald-600 hover:bg-emerald-700 mt-2"
+            >
+              {isSyncing ? (
+                <>
+                  <Loader2 className="h-4 w-4 ml-2 animate-spin" />
+                  בודק...
+                </>
+              ) : (
+                <>
+                  <RefreshCw className="h-4 w-4 ml-2" />
+                  סנכרן עם Cardcom עכשיו
+                </>
+              )}
+            </Button>
           </div>
         )}
 
@@ -940,13 +1027,29 @@ export function ChargeCardcomDialog({
                 <Loader2 className="h-4 w-4 animate-spin text-primary" />
                 <Badge variant="secondary">ממתין לתשלום</Badge>
               </div>
-              <Button
-                variant="outline"
-                size="sm"
-                onClick={handleCancelLink}
-                disabled={isCancellingLink || !paymentId}
-                className="text-red-700 border-red-300 hover:bg-red-50 hover:text-red-800"
-                title="בטל את העסקה — אם הלקוח כבר התחיל למלא, הביטול יחסם"
+              <div className="flex items-center gap-2">
+                <Button
+                  variant="outline"
+                  size="sm"
+                  onClick={handleSyncStatus}
+                  disabled={isSyncing || !paymentId}
+                  className="text-emerald-700 border-emerald-300 hover:bg-emerald-50"
+                  title="בדוק עכשיו מול Cardcom אם התשלום הצליח"
+                >
+                  {isSyncing ? (
+                    <Loader2 className="h-4 w-4 ml-1 animate-spin" />
+                  ) : (
+                    <RefreshCw className="h-4 w-4 ml-1" />
+                  )}
+                  סנכרן
+                </Button>
+                <Button
+                  variant="outline"
+                  size="sm"
+                  onClick={handleCancelLink}
+                  disabled={isCancellingLink || !paymentId}
+                  className="text-red-700 border-red-300 hover:bg-red-50 hover:text-red-800"
+                  title="בטל את העסקה — אם הלקוח כבר התחיל למלא, הביטול יחסם"
               >
                 {isCancellingLink ? (
                   <Loader2 className="h-4 w-4 ml-1 animate-spin" />
@@ -955,6 +1058,7 @@ export function ChargeCardcomDialog({
                 )}
                 בטל
               </Button>
+              </div>
             </div>
             <div className="border rounded-lg overflow-hidden bg-white">
               <iframe
