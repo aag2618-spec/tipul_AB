@@ -195,8 +195,17 @@ async function processAdminWebhook(payload: CardcomWebhookPayload): Promise<void
     throw new Error("CARDCOM_ADMIN_WEBHOOK_WRONG_TENANT");
   }
 
+  // CRITICAL — same three-part success criterion as USER webhook. See
+  // user/route.ts for the rationale: ResponseCode=0 from GetLpResult only
+  // means "API call ok", not "customer paid". An empty TranzactionInfo means
+  // a session was created but never charged.
   const responseCode = String(payload.ResponseCode);
-  const success = responseCode === "0";
+  const tranzactionIdNum = Number(payload.TranzactionId ?? 0);
+  const approvalNumber = payload.TranzactionInfo?.ApprovalNumber ?? "";
+  const success =
+    responseCode === "0" &&
+    tranzactionIdNum > 0 &&
+    !!approvalNumber.trim();
   const businessProfile = await getAdminBusinessProfile();
 
   // Chargeback / Reverse / Cancel — Cardcom uses the Operation field to signal

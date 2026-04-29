@@ -230,8 +230,23 @@ async function processUserWebhook(userId: string, payload: CardcomWebhookPayload
     },
   });
 
+  // CRITICAL — three-part success criterion:
+  //   1. ResponseCode === "0"           → API call to Cardcom succeeded
+  //   2. TranzactionId is non-zero      → Cardcom recorded an actual transaction
+  //   3. ApprovalNumber is set          → the bank (shva) approved the charge
+  //
+  // Cardcom's GetLpResult returns ResponseCode=0 to mean "the LowProfile
+  // session was found and read successfully" — NOT "the customer paid". A
+  // freshly-created LowProfile (link sent, dialog opened, page closed without
+  // paying) returns ResponseCode=0 with EMPTY TranzactionInfo. Without the
+  // extra checks below, every such webhook poke would flip Payment to PAID.
   const responseCode = String(payload.ResponseCode);
-  const success = responseCode === "0";
+  const tranzactionIdNum = Number(payload.TranzactionId ?? 0);
+  const approvalNumber = payload.TranzactionInfo?.ApprovalNumber ?? "";
+  const success =
+    responseCode === "0" &&
+    tranzactionIdNum > 0 &&
+    !!approvalNumber.trim();
 
   // Chargeback / Reverse / Cancel — surfaced as ChargebackEvent + URGENT alert.
   // Same logic as ADMIN webhook (kept in sync deliberately).

@@ -249,7 +249,7 @@ export async function processMultiSessionPayment(params: {
 
 async function autoFixStuckPayments(
   userId: string,
-  pendingPayments: Array<{ id: string; amount: unknown; expectedAmount: unknown }>
+  pendingPayments: Array<{ id: string; amount: unknown; expectedAmount: unknown; method?: string | null }>
 ): Promise<string[]> {
   const stuck = pendingPayments.filter((p) => {
     const paid = Number(p.amount);
@@ -259,7 +259,30 @@ async function autoFixStuckPayments(
 
   if (stuck.length === 0) return [];
 
-  const stuckIds = stuck.map((p) => p.id);
+  // CRITICAL guard — same protection as the daily fix-stuck-payments cron.
+  // prepareCardcom flips a Payment to method=CREDIT_CARD with amount=expected
+  // BEFORE Cardcom actually charges; promoting it to PAID here would mark
+  // the row "paid" without any real charge. The Cardcom webhook is the only
+  // source of truth for credit-card PAID transitions.
+  const candidates = stuck.filter((p) => p.method !== "CREDIT_CARD");
+  if (candidates.length === 0) return [];
+  const candidateIds = candidates.map((p) => p.id);
+
+  // Defense in depth — even non-CREDIT_CARD rows get blocked if there's
+  // an in-flight Cardcom transaction on the same Payment.
+  const blocking = await prisma.cardcomTransaction.findMany({
+    where: {
+      paymentId: { in: candidateIds },
+      status: { in: ["PENDING", "APPROVED"] },
+    },
+    select: { paymentId: true },
+  });
+  const blockedSet = new Set(
+    blocking.map((t) => t.paymentId).filter(Boolean) as string[]
+  );
+  const stuckIds = candidateIds.filter((id) => !blockedSet.has(id));
+  if (stuckIds.length === 0) return [];
+
   await prisma.payment.updateMany({
     where: { id: { in: stuckIds } },
     data: { status: "PAID", paidAt: new Date() },
@@ -302,6 +325,7 @@ export async function getClientDebtSummary(
       amount: true,
       expectedAmount: true,
       status: true,
+      method: true,
     },
   });
 
@@ -366,6 +390,7 @@ export async function getAllClientsDebtSummary(
           createdAt: true,
           updatedAt: true,
           sessionId: true,
+          method: true,
         },
         orderBy: { createdAt: "desc" },
       },
