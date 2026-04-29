@@ -42,9 +42,11 @@ const securityHeaders = [
     value: [
       "default-src 'self'",
       "script-src 'self' 'unsafe-inline' 'unsafe-eval'",
-      "style-src 'self' 'unsafe-inline'",
+      // Google Fonts CSS (fonts.googleapis.com) — נדרש לטעינת הגופן Heebo בעברית
+      "style-src 'self' 'unsafe-inline' https://fonts.googleapis.com",
       "img-src 'self' data: blob: https:",
-      "font-src 'self' data:",
+      // Google Fonts WOFF/WOFF2 files (fonts.gstatic.com) — קבצי הגופן עצמם
+      "font-src 'self' data: https://fonts.gstatic.com",
       "connect-src 'self' https://*.cardcom.solutions https://*.googleapis.com https://generativelanguage.googleapis.com https://api.resend.com",
       "frame-src 'self' https://*.cardcom.solutions",
       "frame-ancestors 'none'",
