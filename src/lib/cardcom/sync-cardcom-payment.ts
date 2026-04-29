@@ -23,6 +23,7 @@
 // credentials. An attacker who guesses a transaction id can only trigger
 // a no-op sync — they cannot cause anything malicious to happen.
 
+import { Prisma } from '@prisma/client';
 import prisma from '@/lib/prisma';
 import { logger } from '@/lib/logger';
 import { getUserCardcomClient } from '@/lib/cardcom/user-config';
@@ -125,43 +126,52 @@ export async function syncCardcomTransaction(transactionId: string): Promise<Syn
 
   const now = new Date();
 
-  await prisma.$transaction(async (atx) => {
-    await atx.cardcomTransaction.update({
-      where: { id: tx.id },
-      data: {
-        status: 'APPROVED',
-        transactionId: String(tranzactionIdNum),
-        approvalNumber,
-        completedAt: now,
-        rawResponse: fetched as object,
-      },
-    });
-
-    if (tx.payment) {
-      await atx.payment.update({
-        where: { id: tx.payment.id },
+  // The whole apply step runs inside one transaction. UNIQUE-violation aware
+  // helpers below treat P2002 as "already done" — handles the race where the
+  // webhook handler and a concurrent auto-sync poll arrive within ms.
+  try {
+    await prisma.$transaction(async (atx) => {
+      // Idempotent on transaction.id — re-update is harmless even if a
+      // concurrent webhook already moved status to APPROVED.
+      await atx.cardcomTransaction.update({
+        where: { id: tx.id },
         data: {
-          status: 'PAID',
-          paidAt: now,
-          method: 'CREDIT_CARD',
-          ...(documentNumber
-            ? {
-                receiptNumber: documentNumber,
-                hasReceipt: true,
-                receiptUrl: documentLink ?? undefined,
-              }
-            : {}),
+          status: 'APPROVED',
+          transactionId: String(tranzactionIdNum),
+          approvalNumber,
+          completedAt: now,
+          rawResponse: fetched as object,
         },
       });
-    }
 
-    // CardcomInvoice mirror — only when Cardcom actually issued the document.
-    if (documentNumber && tx.tenant === 'USER' && therapist && tx.userId && tx.payment?.client) {
-      const existing = await atx.cardcomInvoice.findFirst({
-        where: { cardcomDocumentNumber: documentNumber },
-        select: { id: true },
-      });
-      if (!existing) {
+      if (tx.payment) {
+        await atx.payment.update({
+          where: { id: tx.payment.id },
+          data: {
+            status: 'PAID',
+            paidAt: now,
+            method: 'CREDIT_CARD',
+            ...(documentNumber
+              ? {
+                  receiptNumber: documentNumber,
+                  hasReceipt: true,
+                  receiptUrl: documentLink ?? undefined,
+                }
+              : {}),
+          },
+        });
+      }
+
+      // CardcomInvoice mirror — only when Cardcom actually issued the document.
+      if (documentNumber && tx.tenant === 'USER' && therapist && tx.userId && tx.payment?.client) {
+        const isLicensed = therapist.businessType === 'LICENSED';
+        const amountTotal = Number(tx.amount);
+        const vatRate = isLicensed ? 18 : null;
+        const amountBeforeVat =
+          isLicensed && vatRate ? amountTotal / (1 + vatRate / 100) : null;
+        const vatAmount =
+          isLicensed && amountBeforeVat !== null ? amountTotal - amountBeforeVat : null;
+
         await atx.orphanCardcomDocument.updateMany({
           where: { cardcomDocumentNumber: documentNumber, resolved: false },
           data: {
@@ -171,93 +181,120 @@ export async function syncCardcomTransaction(transactionId: string): Promise<Syn
           },
         });
 
-        // VAT calculation — simple default (18% for LICENSED, null for EXEMPT).
-        // The webhook handler does a SiteSetting lookup with misconfig warnings;
-        // here we use the constant fallback for simplicity. Rare-case overrides
-        // remain available via the webhook flow.
-        const isLicensed = therapist.businessType === 'LICENSED';
-        const amountTotal = Number(tx.amount);
-        const vatRate = isLicensed ? 18 : null;
-        const amountBeforeVat =
-          isLicensed && vatRate ? amountTotal / (1 + vatRate / 100) : null;
-        const vatAmount =
-          isLicensed && amountBeforeVat !== null ? amountTotal - amountBeforeVat : null;
+        // Try-create-on-unique idiom: race-safe upsert without findFirst+create
+        // (which has a TOCTOU window allowing a concurrent webhook to sneak in
+        // between, then create() trips P2002 and rolls back the WHOLE
+        // transaction — losing the cardcomTransaction/payment updates above).
+        try {
+          await atx.cardcomInvoice.create({
+            data: {
+              tenant: 'USER',
+              cardcomDocumentNumber: documentNumber,
+              cardcomDocumentType: documentType,
+              pdfUrl: documentLink,
+              allocationNumber,
+              issuerUserId: tx.userId,
+              issuerBusinessType: therapist.businessType ?? 'NONE',
+              issuerBusinessName: therapist.businessName ?? therapist.name ?? '',
+              issuerIdNumber: therapist.businessIdNumber ?? '',
+              vatRateSnapshot: vatRate ? String(vatRate) : null,
+              amountBeforeVat: amountBeforeVat !== null ? amountBeforeVat.toFixed(2) : null,
+              vatAmount: vatAmount !== null ? vatAmount.toFixed(2) : null,
+              subscriberId: tx.userId,
+              subscriberNameSnapshot: tx.payment.client.name,
+              subscriberEmailSnapshot: tx.payment.client.email ?? null,
+              recipientClientId: tx.payment.client.id,
+              paymentId: tx.payment.id,
+              cardcomTransactionId: tx.id,
+              amount: tx.amount,
+              currency: tx.currency,
+              description: tx.payment.notes ?? 'תשלום על פגישה',
+              issuedAt: now,
+              occurredAt:
+                therapist.accountingMethod === 'ACCRUAL'
+                  ? (tx.payment.session?.startTime ?? now)
+                  : now,
+            },
+          });
+        } catch (err) {
+          if (
+            err instanceof Prisma.PrismaClientKnownRequestError &&
+            err.code === 'P2002'
+          ) {
+            // Another caller (webhook or parallel sync) already created the
+            // invoice — fine, the row exists, we're done.
+            logger.info('[sync-cardcom-payment] CardcomInvoice already exists', {
+              transactionId: tx.id,
+              documentNumber,
+            });
+          } else {
+            throw err;
+          }
+        }
+      }
 
-        await atx.cardcomInvoice.create({
-          data: {
-            tenant: 'USER',
-            cardcomDocumentNumber: documentNumber,
-            cardcomDocumentType: documentType,
-            pdfUrl: documentLink,
-            allocationNumber,
-            issuerUserId: tx.userId,
-            issuerBusinessType: therapist.businessType ?? 'NONE',
-            issuerBusinessName: therapist.businessName ?? therapist.name ?? '',
-            issuerIdNumber: therapist.businessIdNumber ?? '',
-            vatRateSnapshot: vatRate ? String(vatRate) : null,
-            amountBeforeVat: amountBeforeVat !== null ? amountBeforeVat.toFixed(2) : null,
-            vatAmount: vatAmount !== null ? vatAmount.toFixed(2) : null,
-            subscriberId: tx.userId,
-            subscriberNameSnapshot: tx.payment.client.name,
-            subscriberEmailSnapshot: tx.payment.client.email ?? null,
-            recipientClientId: tx.payment.client.id,
-            paymentId: tx.payment.id,
-            cardcomTransactionId: tx.id,
-            amount: tx.amount,
-            currency: tx.currency,
-            description: tx.payment.notes ?? 'תשלום על פגישה',
-            issuedAt: now,
-            occurredAt:
-              therapist.accountingMethod === 'ACCRUAL'
-                ? (tx.payment.session?.startTime ?? now)
-                : now,
+      // Saved card token (when valid expiry).
+      const expMM = fetched.TranzactionInfo?.CardExpirationMM;
+      const expYY = fetched.TranzactionInfo?.CardExpirationYY;
+      const tokenStr = fetched.TranzactionInfo?.Token;
+      if (
+        tokenStr &&
+        expMM &&
+        expYY &&
+        Number(expMM) >= 1 &&
+        Number(expMM) <= 12 &&
+        tx.tenant === 'USER' &&
+        tx.userId &&
+        tx.payment?.client
+      ) {
+        try {
+          await atx.savedCardToken.upsert({
+            where: { tenant_token: { tenant: 'USER', token: tokenStr } },
+            update: { lastUsedAt: now, isActive: true, deletedAt: null },
+            create: {
+              tenant: 'USER',
+              userId: tx.userId,
+              clientId: tx.payment.client.id,
+              token: tokenStr,
+              cardLast4: fetched.TranzactionInfo?.Last4CardDigits ?? '0000',
+              cardHolder: fetched.TranzactionInfo?.CardOwnerName ?? '',
+              cardBrand: fetched.TranzactionInfo?.CardName ?? null,
+              expiryMonth: Number(expMM),
+              expiryYear: 2000 + Number(expYY),
+            },
+          });
+        } catch (err) {
+          // Token save is non-critical — never let it abort the transaction.
+          logger.warn('[sync-cardcom-payment] SavedCardToken upsert failed', {
+            transactionId: tx.id,
+            error: err instanceof Error ? err.message : String(err),
+          });
+        }
+      }
+
+      if (tx.payment) {
+        await atx.task.updateMany({
+          where: {
+            relatedEntityId: tx.payment.id,
+            type: 'COLLECT_PAYMENT',
+            status: { in: ['PENDING', 'IN_PROGRESS'] },
           },
+          data: { status: 'COMPLETED' },
         });
       }
-    }
-
-    // Saved card token (when valid expiry).
-    const expMM = fetched.TranzactionInfo?.CardExpirationMM;
-    const expYY = fetched.TranzactionInfo?.CardExpirationYY;
-    const tokenStr = fetched.TranzactionInfo?.Token;
-    if (
-      tokenStr &&
-      expMM &&
-      expYY &&
-      Number(expMM) >= 1 &&
-      Number(expMM) <= 12 &&
-      tx.tenant === 'USER' &&
-      tx.userId &&
-      tx.payment?.client
-    ) {
-      await atx.savedCardToken.upsert({
-        where: { tenant_token: { tenant: 'USER', token: tokenStr } },
-        update: { lastUsedAt: now, isActive: true, deletedAt: null },
-        create: {
-          tenant: 'USER',
-          userId: tx.userId,
-          clientId: tx.payment.client.id,
-          token: tokenStr,
-          cardLast4: fetched.TranzactionInfo?.Last4CardDigits ?? '0000',
-          cardHolder: fetched.TranzactionInfo?.CardOwnerName ?? '',
-          cardBrand: fetched.TranzactionInfo?.CardName ?? null,
-          expiryMonth: Number(expMM),
-          expiryYear: 2000 + Number(expYY),
-        },
-      });
-    }
-
-    if (tx.payment) {
-      await atx.task.updateMany({
-        where: {
-          relatedEntityId: tx.payment.id,
-          type: 'COLLECT_PAYMENT',
-          status: { in: ['PENDING', 'IN_PROGRESS'] },
-        },
-        data: { status: 'COMPLETED' },
-      });
-    }
-  });
+    });
+  } catch (err) {
+    // Surface the underlying cause to the caller via a clear log line. The
+    // function itself returns PENDING so the manual-sync UI doesn't show a
+    // generic "communication error" — instead the caller knows the helper
+    // bailed for a known DB reason.
+    logger.error('[sync-cardcom-payment] DB transaction failed', {
+      transactionId: tx.id,
+      error: err instanceof Error ? err.message : String(err),
+      code: (err as { code?: string })?.code,
+    });
+    throw err;
+  }
 
   logger.info('[sync-cardcom-payment] promoted to APPROVED', {
     transactionId: tx.id,
