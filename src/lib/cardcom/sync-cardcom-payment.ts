@@ -33,9 +33,37 @@ import type { CardcomWebhookPayload } from '@/lib/cardcom/types';
 export interface SyncResult {
   status: 'APPROVED' | 'PENDING' | 'CANCELLED' | 'FAILED' | 'unknown';
   changed: boolean;
+  /**
+   * Optional human-friendly reason explaining why we did NOT promote the
+   * payment, OR what went wrong. Empty when status === 'APPROVED'. Surfaced
+   * to the manual-sync UI so the therapist sees the real cause instead of a
+   * generic "communication error".
+   */
+  reason?: string;
 }
 
 export async function syncCardcomTransaction(transactionId: string): Promise<SyncResult> {
+  try {
+    return await syncCardcomTransactionInner(transactionId);
+  } catch (err) {
+    // The function itself MUST NOT throw — the caller may be a public polling
+    // endpoint that should never 502 on transient sync issues. Surface the
+    // reason via the result instead.
+    logger.error('[sync-cardcom-payment] unexpected error', {
+      transactionId,
+      error: err instanceof Error ? err.message : String(err),
+      code: (err as { code?: string })?.code,
+      stack: err instanceof Error ? err.stack?.split('\n').slice(0, 5).join('\n') : undefined,
+    });
+    return {
+      status: 'PENDING',
+      changed: false,
+      reason: err instanceof Error ? err.message : String(err),
+    };
+  }
+}
+
+async function syncCardcomTransactionInner(transactionId: string): Promise<SyncResult> {
   const tx = await prisma.cardcomTransaction.findUnique({
     where: { id: transactionId },
     include: {
@@ -48,31 +76,38 @@ export async function syncCardcomTransaction(transactionId: string): Promise<Syn
     },
   });
 
-  if (!tx) return { status: 'unknown', changed: false };
+  if (!tx) return { status: 'unknown', changed: false, reason: 'transaction not found' };
   // Already settled — no work to do, return current state.
   if (tx.status === 'APPROVED') return { status: 'APPROVED', changed: false };
-  if (tx.status === 'CANCELLED') return { status: 'CANCELLED', changed: false };
-  if (tx.status === 'FAILED') return { status: 'FAILED', changed: false };
-  if (!tx.lowProfileId) return { status: 'PENDING', changed: false };
+  if (tx.status === 'CANCELLED') return { status: 'CANCELLED', changed: false, reason: 'cancelled' };
+  if (tx.status === 'FAILED') return { status: 'FAILED', changed: false, reason: 'failed' };
+  if (!tx.lowProfileId) {
+    return { status: 'PENDING', changed: false, reason: 'no LowProfileId yet' };
+  }
 
   // Resolve credentials for the right tenant. ADMIN tenant uses global env
   // credentials; USER tenant uses the per-therapist BillingProvider row.
   let cardcomClient;
   try {
     if (tx.tenant === 'USER') {
-      if (!tx.userId) return { status: 'PENDING', changed: false };
+      if (!tx.userId) {
+        return { status: 'PENDING', changed: false, reason: 'no userId on transaction' };
+      }
       cardcomClient = await getUserCardcomClient(tx.userId);
-      if (!cardcomClient) return { status: 'PENDING', changed: false };
+      if (!cardcomClient) {
+        return { status: 'PENDING', changed: false, reason: 'Cardcom provider not configured for this therapist' };
+      }
     } else {
       cardcomClient = await getAdminCardcomClient();
     }
   } catch (err) {
+    const reason = err instanceof Error ? err.message : String(err);
     logger.warn('[sync-cardcom-payment] credentials unavailable', {
       transactionId,
       tenant: tx.tenant,
-      error: err instanceof Error ? err.message : String(err),
+      error: reason,
     });
-    return { status: 'PENDING', changed: false };
+    return { status: 'PENDING', changed: false, reason: `credentials: ${reason}` };
   }
 
   let fetched: (CardcomWebhookPayload & { ResponseCode?: number | string }) | null;
@@ -81,15 +116,19 @@ export async function syncCardcomTransaction(transactionId: string): Promise<Syn
       | (CardcomWebhookPayload & { ResponseCode?: number | string })
       | null;
   } catch (err) {
+    const reason = err instanceof Error ? err.message : String(err);
     logger.warn('[sync-cardcom-payment] GetLpResult failed', {
       transactionId,
-      error: err instanceof Error ? err.message : String(err),
+      error: reason,
     });
-    return { status: 'PENDING', changed: false };
+    return { status: 'PENDING', changed: false, reason: `Cardcom: ${reason}` };
   }
 
-  if (!fetched || fetched.LowProfileId !== tx.lowProfileId) {
-    return { status: 'PENDING', changed: false };
+  if (!fetched) {
+    return { status: 'PENDING', changed: false, reason: 'Cardcom returned empty response' };
+  }
+  if (fetched.LowProfileId !== tx.lowProfileId) {
+    return { status: 'PENDING', changed: false, reason: 'Cardcom returned mismatched LowProfileId' };
   }
 
   // Same three-part success criterion as the webhook handler — kept in sync
@@ -101,7 +140,19 @@ export async function syncCardcomTransaction(transactionId: string): Promise<Syn
   const success =
     responseCode === '0' && tranzactionIdNum > 0 && !!approvalNumber.trim();
 
-  if (!success) return { status: 'PENDING', changed: false };
+  if (!success) {
+    const cardcomDescription = (fetched as { Description?: string }).Description ?? '';
+    const reasonParts: string[] = [];
+    if (responseCode !== '0') reasonParts.push(`ResponseCode=${responseCode}`);
+    if (tranzactionIdNum <= 0) reasonParts.push('no TranzactionId');
+    if (!approvalNumber.trim()) reasonParts.push('no ApprovalNumber');
+    if (cardcomDescription) reasonParts.push(`(${cardcomDescription})`);
+    return {
+      status: 'PENDING',
+      changed: false,
+      reason: `Cardcom not approved yet: ${reasonParts.join(', ')}`,
+    };
+  }
 
   // ─── Apply success ────────────────────────────────────────────
   const documentNumber = fetched.DocumentInfo?.DocumentNumber ?? null;

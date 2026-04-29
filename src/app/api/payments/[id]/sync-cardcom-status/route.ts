@@ -63,20 +63,25 @@ export async function POST(
     return NextResponse.json({ status: "CANCELLED" });
   }
 
-  let result;
-  try {
-    result = await syncCardcomTransaction(tx.id);
-  } catch (err) {
-    logger.error("[payments/sync-cardcom-status] sync failed", {
+  // syncCardcomTransaction never throws (its outer try/catch returns
+  // PENDING + reason). This wrapper just propagates the result + reason
+  // so the dialog can surface the actual cause to the therapist.
+  const result = await syncCardcomTransaction(tx.id);
+  if (result.status === "APPROVED") {
+    logger.info("[payments/sync-cardcom-status] sync promoted to APPROVED", {
       userId,
       paymentId,
-      error: err instanceof Error ? err.message : String(err),
     });
-    return NextResponse.json(
-      { message: "שגיאת תקשורת עם Cardcom — נסי שוב בעוד רגע" },
-      { status: 502 }
-    );
+  } else if (result.reason) {
+    logger.info("[payments/sync-cardcom-status] sync did not promote", {
+      userId,
+      paymentId,
+      status: result.status,
+      reason: result.reason,
+    });
   }
-
-  return NextResponse.json({ status: result.status });
+  return NextResponse.json({
+    status: result.status,
+    reason: result.reason ?? null,
+  });
 }

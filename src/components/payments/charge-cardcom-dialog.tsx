@@ -620,12 +620,10 @@ export function ChargeCardcomDialog({
       const data = (await res.json().catch(() => ({}))) as {
         status?: string;
         message?: string;
-        cardcomResponseCode?: string;
-        hasTranzactionId?: boolean;
-        hasApprovalNumber?: boolean;
+        reason?: string | null;
       };
       if (!res.ok) {
-        toast.error(data.message ?? "סנכרון נכשל");
+        toast.error(data.message ?? data.reason ?? "סנכרון נכשל");
         return;
       }
       if (data.status === "APPROVED") {
@@ -644,9 +642,18 @@ export function ChargeCardcomDialog({
         setStep("failure");
         setErrorMessage("העסקה בוטלה");
       } else {
-        // Still pending — the customer hasn't paid yet, OR Cardcom hasn't
-        // recorded the bank's approval. Keep the dialog where it is.
-        toast.message("עדיין ממתין לאישור מ-Cardcom — נסי שוב בעוד דקה");
+        // Still pending — surface the real reason so the therapist isn't
+        // staring at a generic message. Common reasons:
+        //   "Cardcom not approved yet: ResponseCode=700"
+        //     → customer didn't pay yet
+        //   "Cardcom: timeout / ECONNREFUSED"
+        //     → network blip, retry shortly
+        //   "Cardcom provider not configured for this therapist"
+        //     → setup issue
+        const detail = data.reason
+          ? `: ${data.reason}`
+          : " — נסי שוב בעוד דקה";
+        toast.message(`עדיין ממתין לאישור${detail}`, { duration: 6000 });
       }
     } catch (err) {
       toast.error(err instanceof Error ? err.message : "שגיאת רשת");
