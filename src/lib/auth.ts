@@ -31,6 +31,17 @@ if (!cleanupInitialized) {
   }, 60 * 1000);
 }
 
+// Hash דמה ל-bcrypt.compare כש-user לא קיים — מונע timing attack שמזהה אילו אימיילים רשומים.
+// ה-Promise נוצר מיד כש-module נטען (eager init), כך שאין first-call overhead שיוצר
+// הפרש זמן בין הקריאה הראשונה אחרי startup לקריאות הבאות.
+const dummyBcryptHashPromise: Promise<string> = bcrypt.hash(
+  "placeholder-for-timing-protection",
+  12
+);
+function getDummyBcryptHash(): Promise<string> {
+  return dummyBcryptHashPromise;
+}
+
 export const authOptions: NextAuthOptions = {
   adapter: PrismaAdapter(prisma) as NextAuthOptions["adapter"],
   providers: [
@@ -87,11 +98,18 @@ export const authOptions: NextAuthOptions = {
         // הודעת שגיאה אחידה — מונעת Email Enumeration (תוקף לא יכול לדעת אם האימייל קיים)
         const INVALID_CREDENTIALS = "אימייל או סיסמה שגויים";
 
-        if (!user || !user.password) {
+        // bcrypt.compare תמיד רץ — אם user לא קיים, מול hash דמה.
+        // זה מבטיח שזמן התגובה זהה לכל הנתיבים של INVALID_CREDENTIALS,
+        // ומונע timing attack שמזהה אילו אימיילים רשומים.
+        const hashToCompare = user?.password || (await getDummyBcryptHash());
+        const isValid = await bcrypt.compare(credentials.password, hashToCompare);
+
+        if (!user || !user.password || !isValid) {
           throw new Error(INVALID_CREDENTIALS);
         }
 
-        // Check if user is blocked
+        // מכאן הסיסמה אומתה. בדיקות ספציפיות שמדליפות מידע על החשבון —
+        // רק לאחר אימות הסיסמה (תוקף שלא יודע את הסיסמה לא יראה את ההודעות האלה).
         if (user.isBlocked) {
           throw new Error("המשתמש חסום. אנא פנה למנהל המערכת");
         }
@@ -109,12 +127,6 @@ export const authOptions: NextAuthOptions = {
           } else {
             throw new Error("יש לאמת את כתובת המייל לפני ההתחברות. בדוק את תיבת הדואר שלך.");
           }
-        }
-
-        const isValid = await bcrypt.compare(credentials.password, user.password);
-
-        if (!isValid) {
-          throw new Error(INVALID_CREDENTIALS);
         }
 
         // Login הצליח — איפוס מוני ה-rate limit כדי שתוקף שניסה brute force

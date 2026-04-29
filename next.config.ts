@@ -33,14 +33,12 @@ const securityHeaders = [
     key: "Cross-Origin-Resource-Policy",
     value: "same-origin",
   },
-  // Stage 1.20 — CSP in REPORT-ONLY mode.
-  // Browsers will report violations but NOT block them. Lets us collect data
-  // about what 3rd-party origins the app actually pulls from before flipping
-  // to enforcement. Allows current Cardcom + Google + Resend + own domain.
-  // Once browser-console reports stay clean for ~2 weeks, switch the header
-  // name to plain "Content-Security-Policy" to enforce.
+  // CSP — Enforced (Stage 1.20 → enforcement).
+  // היה במצב Report-Only לאיסוף נתונים על 3rd-party origins.
+  // עכשיו אכוף — הדפדפן יחסום inline scripts/styles שלא תואמים למדיניות.
+  // אם משהו נשבר אחרי deploy → בדוק DevTools console להפרות, והוסף את ה-origin.
   {
-    key: "Content-Security-Policy-Report-Only",
+    key: "Content-Security-Policy",
     value: [
       "default-src 'self'",
       "script-src 'self' 'unsafe-inline' 'unsafe-eval'",
