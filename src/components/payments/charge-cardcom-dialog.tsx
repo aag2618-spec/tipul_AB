@@ -773,41 +773,26 @@ export function ChargeCardcomDialog({
               </Select>
             </div>
 
+            {/*
+              "iframe" mode removed from the UI: Cardcom's hosted payment page
+              refuses to be embedded by sandbox terminal 1000 (and many production
+              terminals also send X-Frame-Options: DENY). The "blocked content"
+              browser page would surface to the customer instead of the form.
+              We keep the type "link" | "iframe" in case a future Cardcom config
+              re-enables it, but force payMode=link in the UI.
+            */}
             <div className="border rounded-lg p-3 space-y-2 bg-blue-50/40">
               <Label className="font-semibold">איך לגבות?</Label>
               <div className="space-y-2">
-                <label className="flex items-center gap-3 cursor-pointer p-2 rounded hover:bg-white/60">
-                  <input
-                    type="radio"
-                    name="cc-paymode"
-                    value="link"
-                    checked={payMode === "link"}
-                    onChange={() => setPayMode("link")}
-                    className="h-4 w-4"
-                  />
+                <div className="flex items-center gap-3 p-2 rounded bg-white/60">
+                  <Mail className="h-4 w-4 text-blue-600" />
                   <span>
-                    <span className="font-medium">שלח קישור במייל/SMS</span>
+                    <span className="font-medium">קישור תשלום במייל / SMS</span>
                     <span className="block text-xs text-muted-foreground">
-                      הלקוח משלם בזמן שלו
+                      ללקוח יישלח קישור — הוא משלם בזמן שלו דרך Cardcom
                     </span>
                   </span>
-                </label>
-                <label className="flex items-center gap-3 cursor-pointer p-2 rounded hover:bg-white/60">
-                  <input
-                    type="radio"
-                    name="cc-paymode"
-                    value="iframe"
-                    checked={payMode === "iframe"}
-                    onChange={() => setPayMode("iframe")}
-                    className="h-4 w-4"
-                  />
-                  <span>
-                    <span className="font-medium">הזן פרטי כרטיס עכשיו (iframe)</span>
-                    <span className="block text-xs text-muted-foreground">
-                      תשלום מיידי — הלקוח מולך
-                    </span>
-                  </span>
-                </label>
+                </div>
               </div>
             </div>
 
