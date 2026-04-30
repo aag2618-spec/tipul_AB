@@ -98,15 +98,11 @@ export async function POST(request: NextRequest) {
         filePath = join(process.cwd(), relativePath);
       }
       
-      console.log("Audio URL:", recording.audioUrl);
-      console.log("UPLOADS_DIR:", process.env.UPLOADS_DIR);
-      console.log("Attempting to read file from:", filePath);
-      
+      // H6 — הסרנו console.log שדלפו PII (audioUrl, filePath, UPLOADS_DIR).
+      // אם נדרש debug — להשתמש ב-logger.debug שלא רץ ב-production.
       const audioBuffer = await readFile(filePath);
-      console.log("File read successfully, size:", audioBuffer.length);
-      
       const audioBase64 = audioBuffer.toString("base64");
-      
+
       // Determine mime type
       const mimeType = recording.audioUrl.endsWith(".webm")
         ? "audio/webm"
@@ -114,11 +110,8 @@ export async function POST(request: NextRequest) {
         ? "audio/ogg"
         : "audio/mpeg";
 
-      console.log("Calling Google AI with mimeType:", mimeType);
-      
       // Transcribe with Google AI Studio
       const result = await transcribeAudio(audioBase64, mimeType);
-      console.log("Transcription completed successfully");
 
       // Save transcription
       const transcription = await prisma.transcription.create({

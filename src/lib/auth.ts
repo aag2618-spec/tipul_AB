@@ -8,7 +8,9 @@ import { checkRateLimit, resetRateLimit, AUTH_RATE_LIMIT, LOGIN_EMAIL_RATE_LIMIT
 import { requires2FA } from "./two-factor";
 
 // Cache for JWT user data — avoids DB query on every request
-const JWT_CACHE_TTL = 2 * 60 * 1000; // 2 דקות
+// 30s ב-Production: מאזן בין performance (פחות DB queries) ל-revocation
+// (block/role change ישפיע תוך 30s במקום 2 דקות).
+const JWT_CACHE_TTL = 30 * 1000; // 30 שניות
 interface JwtUserData {
   role: "USER" | "MANAGER" | "ADMIN";
   isBlocked: boolean;

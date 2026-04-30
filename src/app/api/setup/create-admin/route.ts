@@ -1,4 +1,5 @@
 import { NextRequest, NextResponse } from "next/server";
+import crypto from "crypto";
 import prisma from "@/lib/prisma";
 import bcrypt from "bcryptjs";
 import { logger } from "@/lib/logger";
@@ -29,6 +30,34 @@ export async function POST(request: NextRequest) {
       );
     }
 
+    // C3 — defense-in-depth: גם אם SETUP_ENABLED נשאר true בטעות, נדרש סוד
+    // משותף ב-header x-setup-key. השוואה constant-time עם timingSafeEqual
+    // מונעת timing attacks.
+    const setupSecret = process.env.SETUP_SECRET;
+    if (!setupSecret || setupSecret.length < 32) {
+      logger.error("[setup/create-admin] SETUP_SECRET not configured (>=32 chars required)");
+      return NextResponse.json(
+        { message: "Setup secret not configured" },
+        { status: 500 }
+      );
+    }
+
+    const providedKey = request.headers.get("x-setup-key") || "";
+    const providedBuf = Buffer.from(providedKey);
+    const expectedBuf = Buffer.from(setupSecret);
+    const keyValid =
+      providedBuf.length === expectedBuf.length &&
+      crypto.timingSafeEqual(providedBuf, expectedBuf);
+    if (!keyValid) {
+      logger.warn("[setup/create-admin] invalid setup key", {
+        ip: request.headers.get("x-forwarded-for") || "unknown",
+      });
+      return NextResponse.json(
+        { message: "Invalid setup key" },
+        { status: 403 }
+      );
+    }
+
     // Check if any admin already exists - this endpoint only works for first setup
     const existingAdmin = await prisma.user.findFirst({
       where: { role: "ADMIN" },
@@ -36,7 +65,7 @@ export async function POST(request: NextRequest) {
 
     if (existingAdmin) {
       return NextResponse.json(
-        { 
+        {
           message: "Admin already exists. Use /admin panel to manage users.",
           hint: "Login with existing admin credentials"
         },

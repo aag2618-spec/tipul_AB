@@ -28,10 +28,10 @@ export async function transcribeAudio(audioBase64: string, mimeType: string): Pr
     throw new Error('GOOGLE_AI_API_KEY is not configured');
   }
   
-  console.log('Starting transcription with mimeType:', mimeType);
-  console.log('Audio data length:', audioBase64.length);
-  console.log('API Key prefix:', apiKey.substring(0, 10) + '...');
-  
+  // H6 — לא מדפיסים API key prefix (סייע ל-credential discovery בlogs).
+  // לא מדפיסים PII (גם לא mimeType/אורך — כדי לא להציף לוגים בproduction).
+
+
   try {
     const model = getGenAI().getGenerativeModel({ model: DEFAULT_MODEL });
 
@@ -51,8 +51,7 @@ export async function transcribeAudio(audioBase64: string, mimeType: string): Pr
 
     const response = await result.response;
     const text = response.text();
-    
-    console.log('Transcription successful, text length:', text.length);
+    // H6 — הסרנו console.log שדלף מטא-דאטה של תוכן פגישה.
 
     return {
       text,

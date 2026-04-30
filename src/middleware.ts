@@ -86,6 +86,26 @@ export async function middleware(request: NextRequest) {
     return NextResponse.redirect(verifyUrl);
   }
 
+  // H1: isBlocked gate ל-API. ה-middleware בודק כבר את isBlocked לדפי
+  // dashboard בהמשך, אבל ה-API צריך הגנה מקבילה — אחרת משתמש חסום
+  // עם cookie תקף יוכל להמשיך לקרוא לAPI ישירות.
+  // Allowlist: נתיבים שמותרים גם למשתמשים חסומים — כדי שיוכלו להתנתק
+  // ולשלם חוב (ה-billing flows ב-/api/payments ו-/api/integrations/billing).
+  // הערה: /api/auth, /api/webhooks, /api/cron, /api/health כבר מוחרגים
+  // מ-matcher של middleware בכלל — אז ה-block לא רץ עליהם.
+  if (token?.isBlocked === true && pathname.startsWith("/api/")) {
+    const blockedAllowlist =
+      pathname.startsWith("/api/payments/") ||
+      pathname.startsWith("/api/integrations/billing/") ||
+      pathname.startsWith("/api/admin/billing/");
+    if (!blockedAllowlist) {
+      return NextResponse.json(
+        { message: "החשבון חסום. אנא פנה לתמיכה." },
+        { status: 403 }
+      );
+    }
+  }
+
   // Protect /admin routes — require ADMIN or MANAGER
   // ADMIN_ONLY_PATHS (feature-flags, tier-settings, terms) require ADMIN specifically
   if (pathname.startsWith("/admin")) {

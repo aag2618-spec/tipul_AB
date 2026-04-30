@@ -18,18 +18,21 @@ export async function POST(
   { params }: { params: Promise<{ id: string }> }
 ) {
   try {
+    // אימות חובה: רק מטפל מחובר יכול לבקש ביטול עבור פגישה משלו.
+    // לפני התיקון, ה-API קיבל clientId מה-body והשווה אותו ל-session.clientId
+    // ללא אימות הקורא — מה שיצר IDOR (כל אחד יכול לבטל פגישות של כל לקוח).
+    // אם בעתיד יידרש flow של "לקוח מבטל מבחוץ" — לממש דרך HMAC token חתום בלינק.
+    const auth = await requireAuth();
+    if ("error" in auth) {
+      return auth.error;
+    }
+    const userId = auth.userId;
+
     const { id: sessionId } = await params;
     const body = await request.json();
-    const { reason, clientId } = body;
+    const { reason } = body;
 
-    if (!clientId) {
-      return NextResponse.json(
-        { success: false, message: "מזהה מטופל חסר" },
-        { status: 400 }
-      );
-    }
-
-    // Get the session with client and thexxxxxx xxxx
+    // Get the session with client and therapist
     const therapySession = await prisma.therapySession.findUnique({
       where: { id: sessionId },
       include: {
@@ -45,21 +48,25 @@ export async function POST(
       );
     }
 
+    // הרשאה: רק המטפל בעל הפגישה רשאי לבטל אותה.
+    // (Admin/Manager אינם נכללים כאן — הם משתמשים בנתיב אחר ב-dashboard
+    //  שמטפל בכל הפגישות, לא בפעולה ספציפית של לקוח.)
+    if (therapySession.therapistId !== userId) {
+      return NextResponse.json(
+        { success: false, message: "אין הרשאה לבטל פגישה זו" },
+        { status: 403 }
+      );
+    }
+
     // BREAK sessions cannot be cancelled by clients (no client exists)
-    if (!therapySession.client || therapySession.type === "BREAK") {
+    if (!therapySession.client || !therapySession.clientId || therapySession.type === "BREAK") {
       return NextResponse.json(
         { success: false, message: "לא ניתן לבטל פגישה זו" },
         { status: 400 }
       );
     }
 
-    // Verify the session belongs to this client
-    if (therapySession.clientId !== clientId) {
-      return NextResponse.json(
-        { success: false, message: "אין הרשאה לבטל פגישה זו" },
-        { status: 403 }
-      );
-    }
+    const clientId = therapySession.clientId;
 
     // Check if session is already cancelled or pending cancellation
     if (therapySession.status === "CANCELLED") {

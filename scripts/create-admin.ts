@@ -14,10 +14,24 @@ import bcrypt from "bcryptjs";
 const prisma = new PrismaClient();
 
 async function main() {
-  // Default admin credentials - CHANGE THESE!
-  const email = process.env.ADMIN_EMAIL || "admin@tipul.app";
-  const password = process.env.ADMIN_PASSWORD || "Admin123!";
+  // H8 — fail-fast: לא להשתמש ב-credentials ברירת מחדל. אם הסקריפט
+  // רץ ללא env מוגדר, נכשל מיידית במקום ליצור אדמין עם סיסמה ידועה
+  // (admin@tipul.app / Admin123!) שכל מי שיודע את ה-default יכול להיכנס איתה.
+  const email = process.env.ADMIN_EMAIL;
+  const password = process.env.ADMIN_PASSWORD;
   const name = process.env.ADMIN_NAME || "מנהל המערכת";
+
+  if (!email || !password) {
+    console.error("❌ ERROR: ADMIN_EMAIL ו-ADMIN_PASSWORD חייבים להיות מוגדרים ב-env");
+    console.error("דוגמה:");
+    console.error("  ADMIN_EMAIL=admin@example.com ADMIN_PASSWORD=YourSecurePass npx tsx scripts/create-admin.ts");
+    process.exit(1);
+  }
+
+  if (password.length < 12) {
+    console.error("❌ ERROR: סיסמה חייבת להיות באורך 12 תווים לפחות");
+    process.exit(1);
+  }
 
   console.log("Creating admin user...");
   console.log(`Email: ${email}`);
@@ -84,9 +98,8 @@ async function main() {
   console.log("\n✅ Admin user created successfully!");
   console.log(`   Name: ${user.name}`);
   console.log(`   Email: ${user.email}`);
-  console.log(`   Password: ${password}`);
   console.log(`   Role: ${user.role}`);
-  console.log("\n⚠️  Please change the password after first login!");
+  // לא מדפיסים את הסיסמה ל-stdout — היא ב-env, וההדפסה עשויה לדלוף ל-logs.
   console.log("\n🔗 Login at: /login");
   console.log("🔗 Admin panel at: /admin");
 }

@@ -41,7 +41,10 @@ const securityHeaders = [
     key: "Content-Security-Policy",
     value: [
       "default-src 'self'",
-      "script-src 'self' 'unsafe-inline' 'unsafe-eval'",
+      // H3: הסרנו 'unsafe-eval' — קוד שעושה eval()/new Function() ייחסם.
+      // 'unsafe-inline' נשאר כי Next.js משתמש ב-inline scripts ל-hydration;
+      // הסרתו תדרוש nonces על כל inline script.
+      "script-src 'self' 'unsafe-inline'",
       // Google Fonts CSS (fonts.googleapis.com) — נדרש לטעינת הגופן Heebo בעברית
       "style-src 'self' 'unsafe-inline' https://fonts.googleapis.com",
       "img-src 'self' data: blob: https:",
