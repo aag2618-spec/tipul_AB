@@ -100,7 +100,7 @@ export function NewSessionDialog({
 
   // התנגשות בפגישה בודדת — state
   const [conflictPrompt, setConflictPrompt] = useState<{
-    conflictWith: { id: string; clientName: string; startTime: string; endTime: string };
+    conflicts: Array<{ id: string; clientName: string; startTime: string; endTime: string }>;
     pendingPayload: {
       clientId: string;
       startTime: string;
@@ -316,7 +316,9 @@ export function NewSessionDialog({
         setIsSubmitting(false);
         return;
       }
-      const conflict = sessions.find((s) => {
+      // איתור כל הפגישות החופפות — לא רק הראשונה. אחרת בחירת "החלף"
+      // מבטלת רק אחת ומשאירה את האחרות, וזה יוצר חפיפה חדשה.
+      const conflicts = sessions.filter((s) => {
         if (s.status === "CANCELLED" || s.status === "COMPLETED" || s.status === "NO_SHOW") return false;
         const sStart = new Date(s.startTime);
         const sEnd = new Date(s.endTime);
@@ -332,15 +334,15 @@ export function NewSessionDialog({
         topic: formData.topic.trim() || undefined,
       };
 
-      if (conflict) {
-        // נמצאה התנגשות — מציגים דיאלוג אישור עם 3 אפשרויות (ביטול / החלף / צור בכל זאת)
+      if (conflicts.length > 0) {
+        // נמצאה התנגשות (אחת או יותר) — מציגים דיאלוג אישור עם 3 אפשרויות
         setConflictPrompt({
-          conflictWith: {
-            id: conflict.id,
-            clientName: conflict.client?.name || (conflict.type === "BREAK" ? "הפסקה" : "ללא שם"),
-            startTime: typeof conflict.startTime === "string" ? conflict.startTime : new Date(conflict.startTime).toISOString(),
-            endTime: typeof conflict.endTime === "string" ? conflict.endTime : new Date(conflict.endTime).toISOString(),
-          },
+          conflicts: conflicts.map((c) => ({
+            id: c.id,
+            clientName: c.client?.name || (c.type === "BREAK" ? "הפסקה" : "ללא שם"),
+            startTime: typeof c.startTime === "string" ? c.startTime : new Date(c.startTime).toISOString(),
+            endTime: typeof c.endTime === "string" ? c.endTime : new Date(c.endTime).toISOString(),
+          })),
           pendingPayload: payload,
         });
         setConflictDecision("replace");
@@ -364,12 +366,12 @@ export function NewSessionDialog({
       price: number;
       topic: string | undefined;
     },
-    options?: { allowOverlap?: boolean; replaceSessionId?: string }
+    options?: { allowOverlap?: boolean; replaceSessionIds?: string[] }
   ) => {
     try {
       // יוצרים את הפגישה החדשה קודם (עם allowOverlap כדי לעקוף את בדיקת ההתנגשות בשרת
-      // במצב "החלף" ובמצב "צור בכל זאת"). אם POST ייכשל — לא נבטל את הקיימת ולא נאבד מידע.
-      const willOverlap = options?.allowOverlap || !!options?.replaceSessionId;
+      // במצב "החלף" ובמצב "צור בכל זאת"). אם POST ייכשל — לא נבטל את הקיימות ולא נאבד מידע.
+      const willOverlap = options?.allowOverlap || (options?.replaceSessionIds?.length ?? 0) > 0;
       const response = await fetch("/api/sessions", {
         method: "POST",
         headers: { "Content-Type": "application/json" },
@@ -385,22 +387,33 @@ export function NewSessionDialog({
         throw new Error(errData?.message || "שגיאה ביצירת הפגישה");
       }
 
-      // POST הצליח. אם המשתמש בחר "החלף" — מבטלים את הפגישה הקיימת.
-      // אם הביטול נכשל — לא משחזרים, רק מתריעים: הפגישה החדשה כבר נוצרה.
-      if (options?.replaceSessionId) {
-        const cancelRes = await fetch(`/api/sessions/${options.replaceSessionId}`, {
-          method: "PUT",
-          headers: { "Content-Type": "application/json" },
-          body: JSON.stringify({ status: "CANCELLED" }),
-        });
-        if (!cancelRes.ok) {
-          toast.warning("הפגישה החדשה נוצרה, אך ביטול הפגישה הקיימת נכשל. בטל/י אותה ידנית.");
-          setConflictPrompt(null);
-          onOpenChange(false);
-          onSessionCreated();
-          return;
+      // POST הצליח. אם המשתמש בחר "החלף" — מבטלים את כל הפגישות הקיימות החופפות.
+      // אם ביטול של חלקן נכשל — לא משחזרים, רק מתריעים: הפגישה החדשה כבר נוצרה.
+      const idsToCancel = options?.replaceSessionIds ?? [];
+      if (idsToCancel.length > 0) {
+        const cancelResults = await Promise.all(
+          idsToCancel.map((id) =>
+            fetch(`/api/sessions/${id}`, {
+              method: "PUT",
+              headers: { "Content-Type": "application/json" },
+              body: JSON.stringify({ status: "CANCELLED" }),
+            }).then((r) => r.ok).catch(() => false)
+          )
+        );
+        const failedCount = cancelResults.filter((ok) => !ok).length;
+        if (failedCount > 0) {
+          toast.warning(
+            failedCount === idsToCancel.length
+              ? "הפגישה החדשה נוצרה, אך ביטול הפגישות הקיימות נכשל. בטל/י אותן ידנית."
+              : `הפגישה החדשה נוצרה, אך ${failedCount} מתוך ${idsToCancel.length} פגישות לא בוטלו. בדוק/י ידנית.`
+          );
+        } else {
+          toast.success(
+            idsToCancel.length === 1
+              ? "הפגישה הקיימת בוטלה והפגישה החדשה נוצרה"
+              : `${idsToCancel.length} פגישות קיימות בוטלו והפגישה החדשה נוצרה`
+          );
         }
-        toast.success("הפגישה הקיימת בוטלה והפגישה החדשה נוצרה");
       } else {
         toast.success("הפגישה נוצרה בהצלחה");
       }
@@ -797,17 +810,28 @@ export function NewSessionDialog({
 
           {conflictPrompt && (
             <div className="space-y-4">
-              <div className="text-xs text-amber-700 bg-amber-100 rounded px-3 py-2 flex items-start gap-2">
-                <AlertTriangle className="inline h-3.5 w-3.5 mt-0.5 shrink-0" />
-                <span>
-                  חופפת עם: <strong>{conflictPrompt.conflictWith.clientName}</strong>
-                  {" • "}
-                  {new Date(conflictPrompt.conflictWith.startTime).toLocaleDateString("he-IL", { weekday: "long", day: "numeric", month: "long", timeZone: "Asia/Jerusalem" })}
-                  {" • "}
-                  {new Date(conflictPrompt.conflictWith.startTime).toLocaleTimeString("he-IL", { hour: "2-digit", minute: "2-digit", timeZone: "Asia/Jerusalem" })}
-                  {" - "}
-                  {new Date(conflictPrompt.conflictWith.endTime).toLocaleTimeString("he-IL", { hour: "2-digit", minute: "2-digit", timeZone: "Asia/Jerusalem" })}
-                </span>
+              <div className="space-y-1.5">
+                <p className="text-xs font-medium text-amber-800">
+                  {conflictPrompt.conflicts.length === 1
+                    ? "פגישה חופפת:"
+                    : `${conflictPrompt.conflicts.length} פגישות חופפות:`}
+                </p>
+                <div className="space-y-1.5 max-h-48 overflow-y-auto">
+                  {conflictPrompt.conflicts.map((c) => (
+                    <div
+                      key={c.id}
+                      className="text-xs text-amber-700 bg-amber-100 rounded px-3 py-2"
+                    >
+                      <strong>{c.clientName}</strong>
+                      {" • "}
+                      {new Date(c.startTime).toLocaleDateString("he-IL", { weekday: "long", day: "numeric", month: "long", timeZone: "Asia/Jerusalem" })}
+                      {" • "}
+                      {new Date(c.startTime).toLocaleTimeString("he-IL", { hour: "2-digit", minute: "2-digit", timeZone: "Asia/Jerusalem" })}
+                      {" - "}
+                      {new Date(c.endTime).toLocaleTimeString("he-IL", { hour: "2-digit", minute: "2-digit", timeZone: "Asia/Jerusalem" })}
+                    </div>
+                  ))}
+                </div>
               </div>
 
               <div className="flex flex-col gap-2">
@@ -821,8 +845,16 @@ export function NewSessionDialog({
                     disabled={isSubmitting}
                   />
                   <div>
-                    <p className="font-medium">בטל את הפגישה הקיימת וצור חדשה</p>
-                    <p className="text-xs text-muted-foreground">הפגישה הקיימת תסומן כמבוטלת</p>
+                    <p className="font-medium">
+                      {conflictPrompt.conflicts.length === 1
+                        ? "בטל את הפגישה הקיימת וצור חדשה"
+                        : `בטל את כל ${conflictPrompt.conflicts.length} הפגישות החופפות וצור חדשה`}
+                    </p>
+                    <p className="text-xs text-muted-foreground">
+                      {conflictPrompt.conflicts.length === 1
+                        ? "הפגישה הקיימת תסומן כמבוטלת"
+                        : "כל הפגישות החופפות יסומנו כמבוטלות"}
+                    </p>
                   </div>
                 </label>
                 <label className="flex items-start gap-2 text-sm cursor-pointer p-2 rounded hover:bg-muted/50">
@@ -836,7 +868,11 @@ export function NewSessionDialog({
                   />
                   <div>
                     <p className="font-medium">צור בכל זאת (חפיפה)</p>
-                    <p className="text-xs text-muted-foreground">שתי הפגישות יישארו ביומן באותו זמן</p>
+                    <p className="text-xs text-muted-foreground">
+                      {conflictPrompt.conflicts.length === 1
+                        ? "שתי הפגישות יישארו ביומן באותו זמן"
+                        : "כל הפגישות יישארו ביומן באותו זמן"}
+                    </p>
                   </div>
                 </label>
               </div>
@@ -863,7 +899,7 @@ export function NewSessionDialog({
                 setIsSubmitting(true);
                 if (conflictDecision === "replace") {
                   submitSingleSession(conflictPrompt.pendingPayload, {
-                    replaceSessionId: conflictPrompt.conflictWith.id,
+                    replaceSessionIds: conflictPrompt.conflicts.map((c) => c.id),
                   });
                 } else {
                   submitSingleSession(conflictPrompt.pendingPayload, { allowOverlap: true });
