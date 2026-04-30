@@ -283,7 +283,17 @@ export async function searchCardcomDocuments(
     FromDate: fromDate,
     ToDate: toDate,
   };
-  const response = await postCardcom<{
+  // Try multiple known v11 paths — Cardcom shipped this under different
+  // names over the years and not every terminal exposes the same one. A 404
+  // on one path falls through to the next; any other error short-circuits.
+  const candidatePaths = [
+    '/Documents/Search',
+    '/Documents/SearchDocuments',
+    '/Documents/Find',
+    '/Operations/SearchDocument',
+    '/Operations/SearchDocuments',
+  ];
+  let response: {
     ResponseCode: number;
     Description?: string;
     Documents?: Array<{
@@ -291,13 +301,34 @@ export async function searchCardcomDocuments(
       DocumentType: string;
       Amount: number;
       DocumentDate: string;
-      CustomerName?: string;
-      CustomerEmail?: string;
+      ClientName?: string;
+      Email?: string;
       DocumentLink?: string;
-      AllocationNumber?: string;
+      AllocationNumber?: string | number;
     }>;
-  }>('/Documents/Search', body);
-
+  } | undefined;
+  let lastErr: Error | null = null;
+  for (const path of candidatePaths) {
+    try {
+      response = await postCardcom(path, body);
+      lastErr = null;
+      break;
+    } catch (err) {
+      lastErr = err instanceof Error ? err : new Error(String(err));
+      if (lastErr.message === 'CARDCOM_HTTP_404') continue;
+      throw err;
+    }
+  }
+  if (!response) {
+    if (lastErr?.message === 'CARDCOM_HTTP_404') {
+      logger.warn('[Cardcom Invoice] Documents/Search not exposed on this terminal — all candidate paths 404', {
+        terminal: config.terminalNumber,
+        triedPaths: candidatePaths,
+      });
+      return [];
+    }
+    throw lastErr ?? new Error('Cardcom search failed');
+  }
   if (response.ResponseCode !== 0) {
     logger.warn('[Cardcom Invoice] search failed', { description: response.Description });
     return [];
@@ -308,9 +339,12 @@ export async function searchCardcomDocuments(
     documentType: d.DocumentType,
     amount: d.Amount,
     issuedAt: d.DocumentDate,
-    customerName: d.CustomerName,
-    customerEmail: d.CustomerEmail,
+    customerName: d.ClientName,
+    customerEmail: d.Email,
     pdfUrl: d.DocumentLink,
-    allocationNumber: d.AllocationNumber,
+    allocationNumber:
+      d.AllocationNumber !== undefined && d.AllocationNumber !== null
+        ? String(d.AllocationNumber)
+        : undefined,
   }));
 }
