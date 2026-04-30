@@ -97,6 +97,113 @@ export async function resendCardcomDocument(
   return { success: true };
 }
 
+export interface CreateCardcomDocumentParams {
+  /** "Receipt" — קבלה (פטור), "TaxInvoiceAndReceipt" — חשבונית מס-קבלה (מורשה) */
+  documentType: 'Receipt' | 'TaxInvoiceAndReceipt' | 'TaxInvoice';
+  customerName: string;
+  customerEmail?: string;
+  customerTaxId?: string;
+  amount: number;
+  description: string;
+  /**
+   * Cardcom payment-method codes for receipts that are NOT credit-card-charged
+   * via Cardcom. Used when the therapist already collected the money (cash,
+   * cheque, bank transfer) and now needs Cardcom to issue an official receipt.
+   *   1 = cash (מזומן)
+   *   2 = cheque (צ'ק)
+   *   3 = credit card already processed externally (אשראי שכבר נסלק)
+   *   4 = bank transfer (העברה בנקאית)
+   */
+  paymentType: 1 | 2 | 3 | 4;
+  /** Send the receipt PDF to the customer email automatically. */
+  sendByEmail?: boolean;
+}
+
+export interface CreateCardcomDocumentResult {
+  success: boolean;
+  documentNumber?: string;
+  documentLink?: string;
+  allocationNumber?: string;
+  error?: string;
+}
+
+/**
+ * Issue a standalone Cardcom document — used for cash/cheque/bank-transfer
+ * receipts where the money didn't flow through Cardcom's gateway. Returns the
+ * official document number that Cardcom assigned (registered with מערך
+ * חשבוניות ישראל).
+ */
+export async function createCardcomDocument(
+  config: CardcomConfig,
+  params: CreateCardcomDocumentParams,
+): Promise<CreateCardcomDocumentResult> {
+  if (!config.apiPassword) {
+    return { success: false, error: 'נדרשת סיסמת API להפקת מסמך Cardcom' };
+  }
+  const body = {
+    TerminalNumber: config.terminalNumber,
+    ApiName: config.apiName,
+    ApiPassword: config.apiPassword,
+    ISOCoinId: 1, // ILS
+    Document: {
+      DocumentTypeToCreate: params.documentType,
+      Name: params.customerName,
+      TaxId: params.customerTaxId ?? '',
+      Email: params.customerEmail ?? '',
+      IsSendByEmail: !!params.sendByEmail && !!params.customerEmail,
+      Products: [
+        {
+          Description: params.description,
+          UnitCost: params.amount,
+          Quantity: 1,
+        },
+      ],
+      AdvancedDefinition: {
+        IsLoadInfoFromAccountID: false,
+      },
+    },
+    Payments: [
+      {
+        Payment_Type: params.paymentType,
+        Amount: params.amount,
+      },
+    ],
+  };
+
+  let response;
+  try {
+    response = await postCardcom<{
+      ResponseCode: number;
+      Description?: string;
+      DocumentInfo?: {
+        DocumentNumber?: number | string;
+        DocumentLink?: string;
+        AllocationNumber?: string | number;
+      };
+    }>('/Documents/Create', body);
+  } catch (err) {
+    return {
+      success: false,
+      error: err instanceof Error ? err.message : 'Cardcom request failed',
+    };
+  }
+
+  if (response.ResponseCode !== 0) {
+    return { success: false, error: response.Description ?? `Cardcom ${response.ResponseCode}` };
+  }
+
+  const docNum = response.DocumentInfo?.DocumentNumber;
+  const alloc = response.DocumentInfo?.AllocationNumber;
+  return {
+    success: true,
+    documentNumber:
+      docNum !== undefined && docNum !== null ? String(docNum) : undefined,
+    documentLink: response.DocumentInfo?.DocumentLink,
+    allocationNumber:
+      alloc !== undefined && alloc !== null ? String(alloc) : undefined,
+  };
+}
+
 export interface CardcomDocumentSummary {
   documentNumber: string;
   documentType: string;

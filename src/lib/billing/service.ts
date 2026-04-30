@@ -20,6 +20,13 @@ interface ReceiptRequest {
   paymentMethod?: 'cash' | 'check' | 'bank_transfer' | 'credit_card' | 'other';
   sendEmail?: boolean;
   notes?: string;
+  /** Optional — when present, providers that support a CardcomInvoice
+   *  mirror (currently only Cardcom) link the issued document back to this
+   *  Payment row. Without this the receipt page can't tell that the receipt
+   *  came from Cardcom (and would show the misleading internal "הורד PDF"
+   *  button alongside it).
+   */
+  paymentId?: string;
 }
 
 interface ReceiptResult {
@@ -153,6 +160,21 @@ export class BillingService {
         case 'SUMIT':
           // Sumit: apiKey = API Key, apiSecret = Company ID
           return await this.createSumitReceipt(apiKey, apiSecret || '', request);
+        case 'CARDCOM':
+          // Cardcom: apiKey = TerminalNumber, apiSecret = `${ApiName}:${ApiPassword}`.
+          // For non-credit-card payments the therapist still wants Cardcom to
+          // issue the legal receipt (their numbering, registered with מערך
+          // חשבוניות ישראל). Cardcom's Documents/Create accepts a payment-type
+          // code (1=cash, 2=cheque, 3=credit-card-already-processed,
+          // 4=bank-transfer) so the resulting receipt reflects how the money
+          // was actually collected. Pass the full providerData so we can read
+          // the configured mode (sandbox vs production).
+          return await this.createCardcomReceipt(
+            apiKey,
+            apiSecret || '',
+            providerData,
+            request,
+          );
         default:
           return {
             success: false,
@@ -402,6 +424,158 @@ export class BillingService {
       receiptNumber: String(response.Data.DocumentNumber || ''),
       receiptUrl: response.Data.DocumentURL || '',
       pdfUrl: response.Data.DocumentPDF || '',
+    };
+  }
+
+  /**
+   * Issue a receipt through Cardcom's Documents/Create API. Used for
+   * non-credit-card payments (cash / cheque / bank-transfer) where the
+   * therapist still wants the legal document to come from Cardcom (their
+   * official numbering, registered with מערך חשבוניות ישראל).
+   *
+   * For credit-card payments processed via Cardcom's LowProfile flow, the
+   * receipt is already issued automatically — that path goes through
+   * /api/payments/[id]/charge-cardcom, not through this method.
+   */
+  private async createCardcomReceipt(
+    terminalNumber: string,
+    apiSecretCombined: string,
+    providerData: { settings: unknown },
+    request: ReceiptRequest,
+  ): Promise<ReceiptResult> {
+    const { createCardcomDocument } = await import('@/lib/cardcom/invoice-api');
+
+    // Split apiSecret on FIRST colon — ApiPassword may itself contain colons.
+    const sepIndex = apiSecretCombined.indexOf(':');
+    const apiName = sepIndex === -1 ? apiSecretCombined : apiSecretCombined.slice(0, sepIndex);
+    const apiPassword = sepIndex === -1 ? '' : apiSecretCombined.slice(sepIndex + 1);
+    if (!apiName || !apiPassword) {
+      return { success: false, error: 'חסרים פרטי גישה ל-Cardcom (ApiName / ApiPassword)' };
+    }
+
+    // Map MyTipul payment method → Cardcom Payment_Type code.
+    //   1 = cash, 2 = cheque, 3 = credit-card-already-processed, 4 = bank transfer.
+    // For "OTHER" / unknown we default to "cash" — Cardcom requires a code.
+    const cardcomPaymentType: 1 | 2 | 3 | 4 = (() => {
+      const m = request.paymentMethod?.toLowerCase() ?? '';
+      if (m.includes('cash')) return 1;
+      if (m.includes('check') || m.includes('cheque')) return 2;
+      if (m.includes('bank') || m.includes('transfer')) return 4;
+      if (m.includes('card')) return 3;
+      return 1;
+    })();
+
+    const therapist = await prisma.user.findUnique({
+      where: { id: this.userId },
+      select: {
+        name: true,
+        businessType: true,
+        businessName: true,
+        businessIdNumber: true,
+        accountingMethod: true,
+      },
+    });
+    const documentType: 'Receipt' | 'TaxInvoiceAndReceipt' =
+      therapist?.businessType === 'LICENSED' ? 'TaxInvoiceAndReceipt' : 'Receipt';
+
+    // Honor the BillingProvider.settings.mode that the therapist configured —
+    // hardcoding 'production' would refuse sandbox terminals (CardcomClient
+    // throws CARDCOM_REFUSE_SANDBOX_IN_PRODUCTION on prod NODE_ENV).
+    const settingsTyped = providerData.settings as { mode?: 'sandbox' | 'production' } | null;
+    const mode: 'sandbox' | 'production' =
+      settingsTyped?.mode === 'production' ? 'production' : 'sandbox';
+
+    const result = await createCardcomDocument(
+      { terminalNumber, apiName, apiPassword, mode },
+      {
+        documentType,
+        customerName: request.clientName,
+        customerEmail: request.clientEmail,
+        amount: request.amount,
+        description: request.description,
+        paymentType: cardcomPaymentType,
+        sendByEmail: !!request.sendEmail && !!request.clientEmail,
+      },
+    );
+
+    if (!result.success || !result.documentNumber) {
+      return { success: false, error: result.error ?? 'Cardcom לא החזיר מספר מסמך' };
+    }
+
+    // Mirror as CardcomInvoice so the receipts page knows this came from Cardcom
+    // (the page hides the internal "הורד PDF" button when a CardcomInvoice
+    // exists for the Payment). Wrapped in try/catch + P2002-tolerant since
+    // a webhook on a credit-card flow could race us — for cash flows this
+    // is the only place creating the row.
+    if (request.paymentId && therapist) {
+      const { Prisma } = await import('@prisma/client');
+      const isLicensed = therapist.businessType === 'LICENSED';
+      const amountTotal = request.amount;
+      const vatRate = isLicensed ? 18 : null;
+      const amountBeforeVat =
+        isLicensed && vatRate ? amountTotal / (1 + vatRate / 100) : null;
+      const vatAmount =
+        isLicensed && amountBeforeVat !== null ? amountTotal - amountBeforeVat : null;
+
+      // We need the related Client.id and the Payment's session for occurredAt.
+      const payment = await prisma.payment.findUnique({
+        where: { id: request.paymentId },
+        select: {
+          clientId: true,
+          session: { select: { startTime: true } },
+        },
+      });
+
+      const now = new Date();
+      try {
+        await prisma.cardcomInvoice.create({
+          data: {
+            tenant: 'USER',
+            cardcomDocumentNumber: result.documentNumber,
+            cardcomDocumentType: documentType,
+            pdfUrl: result.documentLink ?? null,
+            allocationNumber: result.allocationNumber ?? null,
+            issuerUserId: this.userId,
+            issuerBusinessType: therapist.businessType ?? 'NONE',
+            issuerBusinessName: therapist.businessName ?? therapist.name ?? '',
+            issuerIdNumber: therapist.businessIdNumber ?? '',
+            vatRateSnapshot: vatRate ? String(vatRate) : null,
+            amountBeforeVat: amountBeforeVat !== null ? amountBeforeVat.toFixed(2) : null,
+            vatAmount: vatAmount !== null ? vatAmount.toFixed(2) : null,
+            subscriberId: this.userId,
+            subscriberNameSnapshot: request.clientName,
+            subscriberEmailSnapshot: request.clientEmail ?? null,
+            recipientClientId: payment?.clientId ?? null,
+            paymentId: request.paymentId,
+            amount: request.amount,
+            currency: 'ILS',
+            description: request.description,
+            issuedAt: now,
+            occurredAt:
+              therapist.accountingMethod === 'ACCRUAL'
+                ? (payment?.session?.startTime ?? now)
+                : now,
+          },
+        });
+      } catch (err) {
+        if (
+          err instanceof Prisma.PrismaClientKnownRequestError &&
+          err.code === 'P2002'
+        ) {
+          // Already mirrored (race with webhook on a CC flow). Fine — receipt
+          // still issued by Cardcom; the existing CardcomInvoice row covers UI.
+        } else {
+          throw err;
+        }
+      }
+    }
+
+    return {
+      success: true,
+      receiptId: result.documentNumber,
+      receiptNumber: result.documentNumber,
+      receiptUrl: result.documentLink,
+      pdfUrl: result.documentLink,
     };
   }
 
