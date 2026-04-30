@@ -42,6 +42,14 @@ interface SessionDetailDialogProps {
   onRequestCharge: (action: "CANCELLED" | "NO_SHOW") => void;
   onOpenNewSession: (formData: { startTime: string; endTime: string; type: string }) => void;
   onDataChanged: () => void;
+  onRequestTimeUpdate: (params: {
+    sessionId: string;
+    oldStart: Date;
+    oldEnd: Date;
+    newStart: Date;
+    newEnd: Date;
+    source?: "manual" | "drag";
+  }) => void;
 }
 
 // ── Component ──
@@ -55,6 +63,7 @@ export function SessionDetailDialog({
   onRequestCharge,
   onOpenNewSession,
   onDataChanged,
+  onRequestTimeUpdate,
 }: SessionDetailDialogProps) {
   const router = useRouter();
   const [previousSessions, setPreviousSessions] = useState<Array<{
@@ -99,36 +108,40 @@ export function SessionDetailDialog({
     }
   };
 
-  const handleTimeUpdate = async (field: "startTime" | "endTime", value: string) => {
+  const handleTimeUpdate = (field: "startTime" | "endTime", value: string) => {
+    if (!value) return;
     const newTime = new Date(value);
-    const body: Record<string, string> = {};
+    if (Number.isNaN(newTime.getTime())) {
+      toast.error("שעה לא תקינה");
+      return;
+    }
+    const oldStart = new Date(session.startTime);
+    const oldEnd = new Date(session.endTime);
 
+    let newStart: Date;
+    let newEnd: Date;
     if (field === "startTime") {
-      const duration = new Date(session.endTime).getTime() - new Date(session.startTime).getTime();
-      body.startTime = newTime.toISOString();
-      body.endTime = new Date(newTime.getTime() + duration).toISOString();
+      const duration = oldEnd.getTime() - oldStart.getTime();
+      newStart = newTime;
+      newEnd = new Date(newTime.getTime() + duration);
     } else {
-      body.endTime = newTime.toISOString();
+      newStart = oldStart;
+      newEnd = newTime;
     }
 
-    try {
-      const res = await fetch(`/api/sessions/${session.id}`, {
-        method: "PUT",
-        headers: { "Content-Type": "application/json" },
-        body: JSON.stringify(body),
-      });
-      if (res.ok) {
-        toast.success("הזמן עודכן בהצלחה");
-        onDataChanged();
-        const updated = await res.json();
-        onSessionChange(updated);
-      } else {
-        const err = await res.json().catch(() => null);
-        toast.error(err?.message || "שגיאה בעדכון הזמן");
-      }
-    } catch {
-      toast.error("שגיאה בעדכון הזמן");
+    // אם לא השתנה כלום — לא שווה לפתוח דיאלוג
+    if (newStart.getTime() === oldStart.getTime() && newEnd.getTime() === oldEnd.getTime()) {
+      return;
     }
+
+    onRequestTimeUpdate({
+      sessionId: session.id,
+      oldStart,
+      oldEnd,
+      newStart,
+      newEnd,
+      source: "manual",
+    });
   };
 
   const handleSaveNote = async (note: string) => {

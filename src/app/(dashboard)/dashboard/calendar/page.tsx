@@ -9,7 +9,7 @@ import { Card, CardContent } from "@/components/ui/card";
 import { Plus, Loader2, Repeat, AlertTriangle } from "lucide-react";
 import { format } from "date-fns";
 import { toast } from "sonner";
-import type { EventClickArg, DatesSetArg } from "@fullcalendar/core";
+import type { EventClickArg, DatesSetArg, EventDropArg } from "@fullcalendar/core";
 import type { DateClickArg } from "@fullcalendar/interaction";
 import { QuickMarkPaid } from "@/components/payments/quick-mark-paid";
 
@@ -22,6 +22,7 @@ import { getEventColors } from "@/lib/calendar/event-colors";
 import { NewSessionDialog, DEFAULT_FORM_DATA, type SessionFormData, type RecurringPreviewItem, type PendingFormRecurring } from "@/components/calendar/new-session-dialog";
 import { RecurringPatternDialog } from "@/components/calendar/recurring-pattern-dialog";
 import { SessionDetailDialog, type PaymentRequest } from "@/components/calendar/session-detail-dialog";
+import { TimeUpdateConfirmDialog, type TimeUpdatePromptData } from "@/components/calendar/time-update-confirm-dialog";
 import { ChargeConfirmationDialog } from "@/components/calendar/charge-confirmation-dialog";
 import { CalendarEventContent } from "@/components/calendar/calendar-event-content";
 import { ChargeCardcomDialog } from "@/components/payments/charge-cardcom-dialog";
@@ -102,6 +103,10 @@ function CalendarPageContent() {
   const [selectedSession, setSelectedSession] = useState<CalendarSession | null>(null);
   const [isChargeDialogOpen, setIsChargeDialogOpen] = useState(false);
   const [pendingAction, setPendingAction] = useState<"CANCELLED" | "NO_SHOW" | null>(null);
+
+  // ── אישור שינוי שעת פגישה (גם בעריכה ידנית וגם בגרירה) ──
+  const [timeUpdatePrompt, setTimeUpdatePrompt] = useState<TimeUpdatePromptData | null>(null);
+  const [timeUpdateSubmitting, setTimeUpdateSubmitting] = useState(false);
 
   const [updateDialogOpen, setUpdateDialogOpen] = useState(false);
   const [isPaymentDialogOpen, setIsPaymentDialogOpen] = useState(false);
@@ -269,6 +274,127 @@ function CalendarPageContent() {
     }
   };
 
+  // ── שינוי שעת פגישה (משותף לעריכה ידנית ב-SessionDetailDialog ולגרירה ב-FullCalendar) ──
+  const requestTimeUpdate = (params: {
+    sessionId: string;
+    oldStart: Date;
+    oldEnd: Date;
+    newStart: Date;
+    newEnd: Date;
+    source?: "manual" | "drag";
+    onCancel?: () => void;
+  }) => {
+    // איתור פגישות חופפות לוקאלית — מחריגים את הפגישה עצמה
+    const conflicts = sessions
+      .filter((s) => {
+        if (s.id === params.sessionId) return false;
+        if (s.status === "CANCELLED" || s.status === "COMPLETED" || s.status === "NO_SHOW") return false;
+        const sStart = new Date(s.startTime);
+        const sEnd = new Date(s.endTime);
+        return params.newStart < sEnd && params.newEnd > sStart;
+      })
+      .map((s) => ({
+        id: s.id,
+        clientName: s.client?.name || (s.type === "BREAK" ? "הפסקה" : "ללא שם"),
+        startTime: typeof s.startTime === "string" ? s.startTime : new Date(s.startTime).toISOString(),
+        endTime: typeof s.endTime === "string" ? s.endTime : new Date(s.endTime).toISOString(),
+      }));
+
+    setTimeUpdatePrompt({ ...params, conflicts });
+  };
+
+  const handleTimeUpdateClose = () => {
+    if (timeUpdatePrompt?.onCancel) timeUpdatePrompt.onCancel();
+    setTimeUpdatePrompt(null);
+  };
+
+  const handleTimeUpdateConfirm = async (opts: { allowOverlap?: boolean; replaceSessionIds?: string[] }) => {
+    if (!timeUpdatePrompt) return;
+    setTimeUpdateSubmitting(true);
+    try {
+      const willOverlap = opts.allowOverlap || (opts.replaceSessionIds?.length ?? 0) > 0;
+
+      // עדכון הפגישה תחילה — אם יש replace, השרת יקבל allowOverlap כדי לא לחסום ב-409.
+      // הביטולים של הקיימות יבוצעו רק אחרי שהעדכון הצליח (atomicity).
+      const updateRes = await fetch(`/api/sessions/${timeUpdatePrompt.sessionId}`, {
+        method: "PUT",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({
+          startTime: timeUpdatePrompt.newStart.toISOString(),
+          endTime: timeUpdatePrompt.newEnd.toISOString(),
+          allowOverlap: willOverlap || undefined,
+        }),
+      });
+
+      if (!updateRes.ok) {
+        const err = await updateRes.json().catch(() => null);
+        throw new Error(err?.message || "שגיאה בעדכון שעת הפגישה");
+      }
+
+      // העדכון עבר. אם המשתמש ביקש "החלף" — מבטלים את כל הפגישות החופפות.
+      const idsToCancel = opts.replaceSessionIds ?? [];
+      if (idsToCancel.length > 0) {
+        const cancelResults = await Promise.all(
+          idsToCancel.map((id) =>
+            fetch(`/api/sessions/${id}`, {
+              method: "PUT",
+              headers: { "Content-Type": "application/json" },
+              body: JSON.stringify({ status: "CANCELLED" }),
+            }).then((r) => r.ok).catch(() => false)
+          )
+        );
+        const failedCount = cancelResults.filter((ok) => !ok).length;
+        if (failedCount > 0) {
+          toast.warning(
+            failedCount === idsToCancel.length
+              ? "השעה עודכנה, אך ביטול הפגישות הקיימות נכשל. בטל/י אותן ידנית."
+              : `השעה עודכנה, אך ${failedCount} מתוך ${idsToCancel.length} פגישות לא בוטלו. בדוק/י ידנית.`
+          );
+        } else {
+          toast.success(
+            idsToCancel.length === 1
+              ? "הפגישה הקיימת בוטלה והשעה עודכנה"
+              : `${idsToCancel.length} פגישות בוטלו והשעה עודכנה`
+          );
+        }
+      } else {
+        toast.success("שעת הפגישה עודכנה");
+      }
+
+      // עדכון ה-session הנבחר אם הדיאלוג פתוח עליו
+      if (selectedSession?.id === timeUpdatePrompt.sessionId) {
+        const updated = await updateRes.json().catch(() => null);
+        if (updated) setSelectedSession(updated);
+      }
+      setTimeUpdatePrompt(null);
+      fetchData();
+    } catch (err) {
+      toast.error(err instanceof Error ? err.message : "שגיאה בעדכון שעת הפגישה");
+      // כשל בעדכון — להחזיר את הגרירה אם הייתה
+      if (timeUpdatePrompt.onCancel) timeUpdatePrompt.onCancel();
+      setTimeUpdatePrompt(null);
+    } finally {
+      setTimeUpdateSubmitting(false);
+    }
+  };
+
+  const handleEventDrop = (info: EventDropArg) => {
+    const session = sessions.find((s) => s.id === info.event.id);
+    if (!session || !info.event.start || !info.event.end) {
+      info.revert();
+      return;
+    }
+    requestTimeUpdate({
+      sessionId: session.id,
+      oldStart: new Date(session.startTime),
+      oldEnd: new Date(session.endTime),
+      newStart: info.event.start,
+      newEnd: info.event.end,
+      source: "drag",
+      onCancel: () => info.revert(),
+    });
+  };
+
   const handleCalendarUpdate = async (params: UpdateSessionDialogParams) => {
     if (!selectedSession) return;
     const result = await updateSessionWithPayment(selectedSession, params);
@@ -381,6 +507,10 @@ function CalendarPageContent() {
             datesSet={handleDatesSet}
             dateClick={handleDateClick}
             eventClick={handleEventClick}
+            editable
+            eventStartEditable
+            eventDurationEditable={false}
+            eventDrop={handleEventDrop}
             eventContent={(eventInfo) => (
               <CalendarEventContent
                 eventInfo={eventInfo}
@@ -481,6 +611,15 @@ function CalendarPageContent() {
           setIsDialogOpen(true);
         }}
         onDataChanged={() => fetchData()}
+        onRequestTimeUpdate={requestTimeUpdate}
+      />
+
+      {/* Time Update Confirm Dialog (משותף לעריכה ידנית ולגרירה) */}
+      <TimeUpdateConfirmDialog
+        prompt={timeUpdatePrompt}
+        isSubmitting={timeUpdateSubmitting}
+        onConfirm={handleTimeUpdateConfirm}
+        onClose={handleTimeUpdateClose}
       />
 
       {/* Charge Confirmation Dialog */}

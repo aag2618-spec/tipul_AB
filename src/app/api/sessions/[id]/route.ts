@@ -80,7 +80,7 @@ export async function PUT(
 
     const { id } = await params;
     const body = await request.json();
-    const { startTime, endTime, type, price, location, notes, topic, status, createPayment, markAsPaid, cancellationReason } = body;
+    const { startTime, endTime, type, price, location, notes, topic, status, createPayment, markAsPaid, cancellationReason, allowOverlap } = body;
 
     const existingSession = await prisma.therapySession.findFirst({
       where: { id, therapistId: userId },
@@ -155,7 +155,7 @@ export async function PUT(
         },
       });
 
-      if (conflict) {
+      if (conflict && !allowOverlap) {
         const conflictName = conflict.client?.name || (conflict.type === "BREAK" ? "הפסקה" : "פגישה");
         const conflictStart = new Intl.DateTimeFormat("he-IL", { timeZone: "Asia/Jerusalem", hour: "2-digit", minute: "2-digit", hour12: false }).format(conflict.startTime);
         const conflictEnd = new Intl.DateTimeFormat("he-IL", { timeZone: "Asia/Jerusalem", hour: "2-digit", minute: "2-digit", hour12: false }).format(conflict.endTime);
