@@ -602,30 +602,35 @@ export default function ReceiptsPage() {
                         const cardcomLink = cardcomInv?.viewUrl ?? cardcomInv?.pdfUrl ?? payment.receiptUrl;
 
                         if (isCardcom) {
+                          // ALWAYS show "צפה" for Cardcom rows, even when the
+                          // CardcomInvoice has no cached pdfUrl yet (Cardcom
+                          // sometimes omits DocumentLink in GetLpResult). The
+                          // /api/payments/{id}/cardcom-receipt-pdf endpoint
+                          // lazy-resolves the URL via Documents/Search on
+                          // first click and caches it on CardcomInvoice for
+                          // subsequent clicks.
+                          const viewHref = cardcomLink
+                            ? cardcomLink
+                            : `/api/payments/${payment.id}/cardcom-receipt-pdf`;
                           return (
                             <>
                               <Badge variant="outline" className="text-xs border-emerald-300 text-emerald-700">
                                 Cardcom
                               </Badge>
-                              {cardcomLink ? (
-                                <a
-                                  href={cardcomLink}
-                                  target="_blank"
-                                  rel="noopener noreferrer"
-                                  className="inline-flex items-center gap-1 text-teal-600 hover:text-teal-700 font-medium text-xs"
-                                  title="פתח קבלה ב-Cardcom"
-                                >
-                                  <ExternalLink className="h-3.5 w-3.5" />
-                                  צפה
-                                </a>
-                              ) : (
-                                <span
-                                  className="text-xs text-muted-foreground"
-                                  title="ה-PDF נשלח ללקוח במייל ע״י Cardcom — אפשר לצפות בו דרך המייל או דרך לוח Cardcom"
-                                >
-                                  נשלחה ללקוח במייל
-                                </span>
-                              )}
+                              <a
+                                href={viewHref}
+                                target="_blank"
+                                rel="noopener noreferrer"
+                                className="inline-flex items-center gap-1 text-teal-600 hover:text-teal-700 font-medium text-xs"
+                                title={
+                                  cardcomLink
+                                    ? "פתח קבלה ב-Cardcom"
+                                    : "טען קבלה מ-Cardcom (פעם ראשונה איטית בכמה שניות)"
+                                }
+                              >
+                                <ExternalLink className="h-3.5 w-3.5" />
+                                צפה
+                              </a>
                             </>
                           );
                         }
