@@ -15,6 +15,12 @@ import {
  * לכל API routes המוגנים ע"י requireAuth. זה defense-in-depth מעבר למידלוור,
  * ומבטיח שגם API routes שלא בmatcher של middleware (clients/sessions/billing)
  * לא ייגשו על ידי טוקן חצי-מאומת.
+ *
+ * isBlocked: לא נבדק כאן (במכוון). חסימת isBlocked ל-API נאכפת ב-middleware
+ * עם allowlist מינימלי (/api/payments, /api/integrations/billing,
+ * /api/subscription/status|create, GET-only של /api/user/*) — מאפשר תשלום
+ * חוב ויציאה מחסימה. שאר ה-routes שמשתמשים ב-requireAuth ייחסמו
+ * ב-middleware לפני שהroute רץ, אז אין צורך בbדיקה כפולה כאן.
  */
 export async function requireAuth() {
   const session = await getServerSession(authOptions);
@@ -24,7 +30,7 @@ export async function requireAuth() {
   if (session.user.requires2FA) {
     return {
       error: NextResponse.json(
-        { message: "נדרש אימות דו-שלבי. אנא חזור לדף האימות." },
+        { message: "נדרש אימות דו-שלבי. נא לחזור לדף האימות." },
         { status: 403 }
       ),
     };

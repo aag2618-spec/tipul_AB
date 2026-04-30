@@ -119,7 +119,7 @@ export const authOptions: NextAuthOptions = {
         // מכאן הסיסמה אומתה. בדיקות ספציפיות שמדליפות מידע על החשבון —
         // רק לאחר אימות הסיסמה (תוקף שלא יודע את הסיסמה לא יראה את ההודעות האלה).
         if (user.isBlocked) {
-          throw new Error("המשתמש חסום. אנא פנה למנהל המערכת");
+          throw new Error("החשבון מושבת. נא ליצור קשר עם מנהל המערכת");
         }
 
         // Check email verification - skip for ADMIN users and users created before verification system
@@ -321,7 +321,7 @@ export const authOptions: NextAuthOptions = {
         }
       }
 
-      // Refresh role and subscription status from database (cached for 5 minutes)
+      // Refresh role and subscription status from database (cached for 30 seconds)
       if (token.id) {
         const userId = token.id as string;
         const cached = jwtUserCache.get(userId);

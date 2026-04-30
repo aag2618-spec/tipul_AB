@@ -1,5 +1,12 @@
 import type { NextConfig } from "next";
 
+// בdev mode, Next.js webpack משתמש ב-eval() ל-HMR ול-source maps.
+// בproduction אסור — היה rich attack vector. נכלול 'unsafe-eval' רק בdev.
+const isDev = process.env.NODE_ENV !== "production";
+const scriptSrc = isDev
+  ? "script-src 'self' 'unsafe-inline' 'unsafe-eval'"
+  : "script-src 'self' 'unsafe-inline'";
+
 const securityHeaders = [
   {
     key: "X-Frame-Options",
@@ -41,10 +48,10 @@ const securityHeaders = [
     key: "Content-Security-Policy",
     value: [
       "default-src 'self'",
-      // H3: הסרנו 'unsafe-eval' — קוד שעושה eval()/new Function() ייחסם.
+      // H3: 'unsafe-eval' מותר רק בdev (Next.js HMR משתמש בו). בproduction חסום.
       // 'unsafe-inline' נשאר כי Next.js משתמש ב-inline scripts ל-hydration;
       // הסרתו תדרוש nonces על כל inline script.
-      "script-src 'self' 'unsafe-inline'",
+      scriptSrc,
       // Google Fonts CSS (fonts.googleapis.com) — נדרש לטעינת הגופן Heebo בעברית
       "style-src 'self' 'unsafe-inline' https://fonts.googleapis.com",
       "img-src 'self' data: blob: https:",

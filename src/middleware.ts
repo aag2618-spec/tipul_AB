@@ -89,18 +89,31 @@ export async function middleware(request: NextRequest) {
   // H1: isBlocked gate ל-API. ה-middleware בודק כבר את isBlocked לדפי
   // dashboard בהמשך, אבל ה-API צריך הגנה מקבילה — אחרת משתמש חסום
   // עם cookie תקף יוכל להמשיך לקרוא לAPI ישירות.
-  // Allowlist: נתיבים שמותרים גם למשתמשים חסומים — כדי שיוכלו להתנתק
-  // ולשלם חוב (ה-billing flows ב-/api/payments ו-/api/integrations/billing).
-  // הערה: /api/auth, /api/webhooks, /api/cron, /api/health כבר מוחרגים
-  // מ-matcher של middleware בכלל — אז ה-block לא רץ עליהם.
+  //
+  // Allowlist (מינימלי בכוונה): רק נתיבים שמשתמש חסום צריך כדי לשלם
+  // חוב ולצאת מחסימה, או לראות מצב.
+  // - /api/payments/* — flow תשלום
+  // - /api/integrations/billing/* — Cardcom/Meshulam
+  // - /api/admin/billing/* — לחסום אדמינים גם, אך הם לרוב לא חסומים
+  // - GET-only של פרופיל/usage/tier כדי שדף billing יוכל להציג מידע
+  // - /api/subscription/status — קריאה
+  // - /api/subscription/create — משתמש חסום משלם כדי לצאת מחסימה (POST)
+  // **לא** מאפשרים: /api/subscription/cancel (אחרת חסום יבטל במקום לשלם),
+  // PUT/DELETE על /api/user/* (אחרת ניתן לערוך פרופיל/businessSettings/קלנדר),
+  // /api/user/booking-settings/send-link (וקטור spam).
   if (token?.isBlocked === true && pathname.startsWith("/api/")) {
+    const isReadOnly = request.method === "GET" || request.method === "HEAD";
+    const isUserReadOnly = isReadOnly && pathname.startsWith("/api/user/");
     const blockedAllowlist =
       pathname.startsWith("/api/payments/") ||
       pathname.startsWith("/api/integrations/billing/") ||
-      pathname.startsWith("/api/admin/billing/");
+      pathname.startsWith("/api/admin/billing/") ||
+      pathname === "/api/subscription/status" ||
+      pathname === "/api/subscription/create" ||
+      isUserReadOnly;
     if (!blockedAllowlist) {
       return NextResponse.json(
-        { message: "החשבון חסום. אנא פנה לתמיכה." },
+        { message: "החשבון מושבת. נא ליצור קשר עם התמיכה." },
         { status: 403 }
       );
     }
