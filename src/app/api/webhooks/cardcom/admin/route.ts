@@ -310,13 +310,19 @@ async function processAdminWebhook(payload: CardcomWebhookPayload): Promise<void
         });
       }
 
-      // Update User.subscriptionStatus → ACTIVE (unless PAUSED)
+      // Update User.subscriptionStatus → ACTIVE (unless PAUSED).
+      // אם המשתמש היה חסום (ככל הנראה בגלל חוב על מנוי) — תשלום מוצלח
+      // משחרר את החסימה אוטומטית. אם החסימה היא מסיבה אחרת (ToS וכו'),
+      // אדמין צריך להוסיף blockReason ולסנן כאן (לעת עתה אין).
       if (transaction.userId) {
         const user = await tx.user.findUnique({ where: { id: transaction.userId } });
         if (user && user.subscriptionStatus !== "PAUSED") {
           await tx.user.update({
             where: { id: transaction.userId },
-            data: { subscriptionStatus: "ACTIVE" },
+            data: {
+              subscriptionStatus: "ACTIVE",
+              ...(user.isBlocked && { isBlocked: false }),
+            },
           });
         }
       }

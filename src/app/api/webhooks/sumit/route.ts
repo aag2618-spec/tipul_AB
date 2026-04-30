@@ -119,14 +119,20 @@ async function handlePaymentSuccess(payload: SumitWebhookPayload) {
     });
 
     if (user) {
+      const wasBlocked = user.isBlocked;
       await prisma.user.update({
         where: { id: user.id },
         data: {
           subscriptionStatus: "ACTIVE",
           subscriptionStartedAt: user.subscriptionStartedAt || new Date(),
           subscriptionEndsAt: new Date(Date.now() + 30 * 24 * 60 * 60 * 1000),
+          // שחרור חסימה אם הייתה (ככל הנראה בגלל חוב)
+          ...(wasBlocked && { isBlocked: false }),
         },
       });
+      if (wasBlocked) {
+        logger.info("[sumit] auto-unblock on subscription payment", { userId: user.id });
+      }
 
       await prisma.subscriptionPayment.create({
         data: {

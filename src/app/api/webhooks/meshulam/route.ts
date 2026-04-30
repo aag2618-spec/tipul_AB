@@ -156,7 +156,8 @@ async function handlePaymentSuccess(payload: MeshulamWebhookPayload) {
       const periodMs = periodDays * 24 * 60 * 60 * 1000;
       const periodLabel = periodDays <= 31 ? "חודשי" : periodDays <= 91 ? "רבעוני" : periodDays <= 181 ? "חצי שנתי" : "שנתי";
 
-      // עדכון סטטוס המנוי
+      // עדכון סטטוס המנוי. אם המשתמש היה חסום בגלל חוב — תשלום משחרר.
+      const wasBlocked = user.isBlocked;
       await prisma.user.update({
         where: { id: user.id },
         data: {
@@ -168,8 +169,13 @@ async function handlePaymentSuccess(payload: MeshulamWebhookPayload) {
             isFreeSubscription: false,
             freeSubscriptionNote: null,
           }),
+          // שחרור חסימה אם הייתה (ככל הנראה בגלל חוב)
+          ...(wasBlocked && { isBlocked: false }),
         },
       });
+      if (wasBlocked) {
+        logger.info("[meshulam] auto-unblock on subscription payment", { userId: user.id });
+      }
 
       // רישום תשלום מנוי
       await prisma.subscriptionPayment.create({
@@ -372,6 +378,8 @@ async function handleSubscriptionCreated(payload: MeshulamWebhookPayload) {
         subscriptionStatus: "ACTIVE",
         subscriptionStartedAt: new Date(),
         subscriptionEndsAt: new Date(Date.now() + periodMs),
+        // שחרור חסימה אם הייתה (ככל הנראה בגלל חוב)
+        ...(user.isBlocked && { isBlocked: false }),
       },
     });
 
@@ -445,6 +453,8 @@ async function handleSubscriptionRenewed(payload: MeshulamWebhookPayload) {
           isFreeSubscription: false,
           freeSubscriptionNote: null,
         }),
+        // שחרור חסימה אם הייתה (ככל הנראה בגלל חוב)
+        ...(user.isBlocked && { isBlocked: false }),
       },
     });
 
