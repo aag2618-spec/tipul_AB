@@ -222,6 +222,59 @@ export async function issueReceipt(params: {
       claimResolved = true;
       return { receiptNumber, receiptUrl, hasReceipt: true };
     }
+    // Cardcom returned `notSupported` — the standalone Documents/Create
+    // endpoint isn't enabled on this terminal. Fall back to internal numbering
+    // for EXEMPT (legitimate — the therapist IS the legal issuer). For
+    // LICENSED, fail loudly because internal numbering would NOT be a valid
+    // tax invoice.
+    if (result.notSupported) {
+      logger.warn("[issueReceipt] Cardcom Documents/Create not supported on terminal — falling back", {
+        userId: params.userId,
+        businessType: therapist.businessType,
+      });
+      await releaseClaim();
+      // Don't mark claimResolved=true yet — if any of the fallback DB writes
+      // throw, the finally-block's releaseClaim is a safe no-op (claimMarker
+      // already cleared) and the row stays in a clean PENDING-eligible state.
+      if (therapist.businessType === "EXEMPT") {
+        // EXEMPT therapist's internal numbering is the legitimate fallback —
+        // they ARE the legal issuer, so internal sequential numbers are valid.
+        const receiptUser = await prisma.user.update({
+          where: { id: params.userId },
+          data: { nextReceiptNumber: { increment: 1 } },
+          select: { nextReceiptNumber: true },
+        });
+        const reservedNumber = (receiptUser.nextReceiptNumber ?? 2) - 1;
+        const year = getIsraelYear();
+        const internalReceiptNumber = `${year}-${String(reservedNumber).padStart(4, "0")}`;
+        const internalReceiptUrl = getReceiptPageUrl(params.paymentId);
+        await prisma.payment.update({
+          where: { id: params.paymentId },
+          data: {
+            receiptNumber: internalReceiptNumber,
+            receiptUrl: internalReceiptUrl,
+            hasReceipt: true,
+          },
+        });
+        // Mark resolved AFTER the writes succeed — if user.update or
+        // payment.update throws, the function propagates the error and the
+        // finally calls releaseClaim() (no-op safe).
+        claimResolved = true;
+        return {
+          receiptNumber: internalReceiptNumber,
+          receiptUrl: internalReceiptUrl,
+          hasReceipt: true,
+        };
+      }
+      claimResolved = true;
+      return {
+        receiptNumber: null,
+        receiptUrl: null,
+        hasReceipt: false,
+        error:
+          "Cardcom לא תומך בהפקת קבלת מזומן ישירה במסוף זה. עוסק מורשה דורש קבלה מספק מוסמך — חברי iCount או Green Invoice בנוסף.",
+      };
+    }
     logger.error("[issueReceipt] Cardcom receipt creation failed", {
       userId: params.userId,
       error: String(result.error),

@@ -19,7 +19,21 @@ async function postCardcom<T>(path: string, body: unknown): Promise<T> {
       signal: controller.signal,
     });
     if (!res.ok) {
-      logger.error('[Cardcom Invoice] HTTP error', { path, status: res.status });
+      // Capture the response body for diagnosis — Cardcom's error responses
+      // sometimes contain a JSON `Description` we can surface to the user
+      // (e.g. "Endpoint not enabled for terminal" vs an outright route 404).
+      let bodySnippet: string | null = null;
+      try {
+        const text = await res.text();
+        bodySnippet = text.slice(0, 500);
+      } catch {
+        bodySnippet = null;
+      }
+      logger.error('[Cardcom Invoice] HTTP error', {
+        path,
+        status: res.status,
+        body: bodySnippet,
+      });
       throw new Error(`CARDCOM_HTTP_${res.status}`);
     }
     return (await res.json()) as T;
@@ -125,6 +139,14 @@ export interface CreateCardcomDocumentResult {
   documentLink?: string;
   allocationNumber?: string;
   error?: string;
+  /**
+   * True when Cardcom's standalone Documents/Create endpoint is unavailable
+   * (HTTP 404 — the path doesn't exist on this terminal, or the feature
+   * isn't enabled). Receipt-service uses this to gracefully fall back to
+   * internal numbering for EXEMPT therapists rather than blocking them
+   * from issuing any receipt at all.
+   */
+  notSupported?: boolean;
 }
 
 /**
@@ -170,21 +192,53 @@ export async function createCardcomDocument(
     ],
   };
 
+  // Try multiple known v11 paths — Cardcom has shipped this under different
+  // names over the years and many terminals only expose one of them. We try
+  // in order of likelihood and treat HTTP 404 as "endpoint not on this path"
+  // rather than a hard failure, falling through to the next candidate.
+  const candidatePaths = [
+    '/Documents/Create',
+    '/Documents/CreateDocument',
+    '/Operations/CreateDocument',
+  ];
+
   let response;
-  try {
-    response = await postCardcom<{
-      ResponseCode: number;
-      Description?: string;
-      DocumentInfo?: {
-        DocumentNumber?: number | string;
-        DocumentLink?: string;
-        AllocationNumber?: string | number;
+  let lastErr: Error | null = null;
+  for (const path of candidatePaths) {
+    try {
+      response = await postCardcom<{
+        ResponseCode: number;
+        Description?: string;
+        DocumentInfo?: {
+          DocumentNumber?: number | string;
+          DocumentLink?: string;
+          AllocationNumber?: string | number;
+        };
+      }>(path, body);
+      // If this path responded (any 2xx), use it.
+      lastErr = null;
+      break;
+    } catch (err) {
+      lastErr = err instanceof Error ? err : new Error(String(err));
+      // 404 → try the next path. Anything else → real error, abort.
+      if (lastErr.message === 'CARDCOM_HTTP_404') {
+        continue;
+      }
+      break;
+    }
+  }
+  if (!response) {
+    // All candidates 404'd → endpoint genuinely not on this terminal.
+    if (lastErr?.message === 'CARDCOM_HTTP_404') {
+      return {
+        success: false,
+        notSupported: true,
+        error: 'Cardcom לא תומך בהפקת קבלה ישירה במסוף זה',
       };
-    }>('/Documents/Create', body);
-  } catch (err) {
+    }
     return {
       success: false,
-      error: err instanceof Error ? err.message : 'Cardcom request failed',
+      error: lastErr?.message ?? 'Cardcom request failed',
     };
   }
 

@@ -36,6 +36,11 @@ interface ReceiptResult {
   receiptUrl?: string;
   pdfUrl?: string;
   error?: string;
+  /** True if the provider doesn't support standalone receipt creation on
+   *  this terminal/account (e.g. Cardcom's Documents/Create endpoint isn't
+   *  enabled). Receipt-service uses this to gracefully fall back to internal
+   *  numbering rather than blocking the therapist from any receipt at all. */
+  notSupported?: boolean;
 }
 
 interface PaymentLinkRequest {
@@ -506,7 +511,11 @@ export class BillingService {
     );
 
     if (!result.success || !result.documentNumber) {
-      return { success: false, error: result.error ?? 'Cardcom לא החזיר מספר מסמך' };
+      return {
+        success: false,
+        error: result.error ?? 'Cardcom לא החזיר מספר מסמך',
+        notSupported: result.notSupported,
+      };
     }
 
     // Mirror as CardcomInvoice so the receipts page knows this came from Cardcom
