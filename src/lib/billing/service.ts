@@ -74,12 +74,19 @@ export class BillingService {
     provider: BillingProviderType;
     id: string;
   } | null> {
+    // Prefer rows explicitly flagged isPrimary, but FALL BACK to the first
+    // active provider when none is flagged. Many therapists configure
+    // exactly one BillingProvider (e.g. Cardcom alone) and never tick the
+    // "primary" checkbox in the UI — that's the obvious primary, and
+    // refusing to issue a receipt because of a missing flag would be a
+    // user-experience trap. Same ordering as receipt-service uses to pick
+    // the Cardcom-preferred branch, so the two stay in sync.
     const provider = await prisma.billingProvider.findFirst({
       where: {
         userId: this.userId,
         isActive: true,
-        isPrimary: true,
       },
+      orderBy: [{ isPrimary: 'desc' }, { createdAt: 'asc' }],
     });
 
     if (!provider) {
