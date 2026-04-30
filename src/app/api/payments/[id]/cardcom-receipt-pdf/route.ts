@@ -85,11 +85,11 @@ export async function GET(
   // Search a ±2-day window around the issuance date — Cardcom's date filter
   // is inclusive but timezone behavior is fuzzy; a small window prevents
   // off-by-one misses without dragging back too many results to scan.
+  // Format YYYY-MM-DD (matches cardcom-invoice-sync cron exactly).
   const issuedAt = invoice.issuedAt;
   const fromDate = new Date(issuedAt.getTime() - 2 * 24 * 60 * 60 * 1000);
   const toDate = new Date(issuedAt.getTime() + 2 * 24 * 60 * 60 * 1000);
-  const fmt = (d: Date) =>
-    `${d.getFullYear()}${String(d.getMonth() + 1).padStart(2, "0")}${String(d.getDate()).padStart(2, "0")}`;
+  const fmt = (d: Date) => d.toISOString().slice(0, 10);
 
   let documents;
   try {
