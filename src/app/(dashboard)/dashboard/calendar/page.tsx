@@ -46,6 +46,7 @@ interface CalendarEvent {
   textColor: string;
   borderColor: string;
   classNames?: string[];
+  editable?: boolean;
   extendedProps: {
     clientId: string;
     status: string;
@@ -190,6 +191,10 @@ function CalendarPageContent() {
     })
     .map((session) => {
       const colors = getEventColors(session);
+      // אפשר לגרור רק פגישות מתוכננות שעדיין לא הסתיימו.
+      // פגישות שעבר זמנן / הושלמו / בוטלו / ממתינות לאישור — נעולות.
+      const isFuture = new Date(session.endTime) > new Date();
+      const isDraggable = isFuture && session.status === "SCHEDULED";
       return {
         id: session.id,
         title: session.type === "BREAK" ? "🌊 הפסקה" : (session.client?.name || "ללא שם"),
@@ -202,6 +207,7 @@ function CalendarPageContent() {
           ...(session.status === "PENDING_APPROVAL" ? ["fc-event-pending-pulse"] : []),
           ...(highlightParam === session.id ? ["fc-event-highlighted"] : []),
         ],
+        editable: isDraggable,
         extendedProps: {
           clientId: session.client?.id || "",
           status: session.status,
@@ -381,6 +387,13 @@ function CalendarPageContent() {
   const handleEventDrop = (info: EventDropArg) => {
     const session = sessions.find((s) => s.id === info.event.id);
     if (!session || !info.event.start || !info.event.end) {
+      info.revert();
+      return;
+    }
+    // הגנת עומק — אסור לגרור פגישה שעבר זמנה או שאינה מתוכננת.
+    // ה-editable ברמת event אמור למנוע זאת, אבל אם איכשהו עברנו את הסינון —
+    // להחזיר ולא לפתוח דיאלוג.
+    if (session.status !== "SCHEDULED" || new Date(session.endTime) <= new Date()) {
       info.revert();
       return;
     }
