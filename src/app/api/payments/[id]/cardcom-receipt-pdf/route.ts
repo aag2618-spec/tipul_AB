@@ -95,12 +95,23 @@ export async function GET(
   try {
     documents = await searchCardcomDocuments(creds.config, fmt(fromDate), fmt(toDate));
   } catch (err) {
+    const rawMsg = err instanceof Error ? err.message : String(err);
     logger.error("[cardcom-receipt-pdf] Documents/Search failed", {
       paymentId,
-      error: err instanceof Error ? err.message : String(err),
+      error: rawMsg,
+      docNumber: invoice.cardcomDocumentNumber,
+      fromDate: fmt(fromDate),
+      toDate: fmt(toDate),
     });
+    // Surface the actual Cardcom error to the therapist so we can diagnose
+    // (HTTP code, missing-credential msg, date-format reject, etc.) instead
+    // of a useless generic "communication error".
     return NextResponse.json(
-      { message: "שגיאת תקשורת עם Cardcom — נסי שוב בעוד רגע" },
+      {
+        message: `שגיאת תקשורת עם Cardcom: ${rawMsg}`,
+        docNumber: invoice.cardcomDocumentNumber,
+        searchedRange: { fromDate: fmt(fromDate), toDate: fmt(toDate) },
+      },
       { status: 502 }
     );
   }
