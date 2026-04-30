@@ -53,16 +53,21 @@ enum Role {
 }
 
 model User {
-  id                     String    @id @default(cuid())
-  name                   String?
-  email                  String?   @unique
-  emailVerified          DateTime?
-  image                  String?
-  password               String?
-  phone                  String?
-  license                String?
-  role                   Role      @default(USER)
-  isBlocked              Boolean   @default(false)
+  id            String    @id @default(cuid())
+  name          String?
+  email         String?   @unique
+  emailVerified DateTime?
+  image         String?
+  password      String?
+  phone         String?
+  license       String?
+  role          Role      @default(USER)
+  isBlocked     Boolean   @default(false)
+
+  // Two-Factor Authentication (2FA) — נאכף בקוד רק לאנשי צוות (USER/MANAGER/ADMIN)
+  twoFactorEnabled       Boolean   @default(true)
+  lastLoginAt            DateTime?
+  lastActivityAt         DateTime? // מתי הייתה הפעולה האחרונה — בסיס לחישוב 3 שעות חוסר פעילות
   defaultSessionDuration Int       @default(50) // משך פגישה סטנדרטית בדקות
   defaultSessionPrice    Decimal?  @db.Decimal(10, 2) // מחיר ברירת מחדל לפגישה
 
@@ -181,6 +186,9 @@ model User {
   cardcomInvoicesAsSubscriber CardcomInvoice[]        @relation("CardcomInvoiceSubscriber")
   cardcomInvoicesAsIssuer     CardcomInvoice[]        @relation("CardcomInvoiceIssuer")
   orphanCardcomDocuments      OrphanCardcomDocument[] @relation("OrphanCardcomUser")
+
+  // 2FA codes
+  twoFactorCodes TwoFactorCode[]
 }
 
 // ==================== AI Tiers ====================
@@ -2227,4 +2235,23 @@ model CardcomInvoice {
   @@index([status, issuedAt])
   @@index([cardcomDocumentType, issuedAt])
   @@index([allocationNumber])
+}
+
+// ==================== Two-Factor Authentication ====================
+
+// קודי אימות 2FA — נשלחים למייל וגם ל-SMS, תוקפם 10 דקות.
+// codeHash הוא sha256 — לא שומרים plaintext.
+model TwoFactorCode {
+  id         String    @id @default(cuid())
+  userId     String
+  user       User      @relation(fields: [userId], references: [id], onDelete: Cascade)
+  codeHash   String // sha256 hex של הקוד
+  channel    String    @default("BOTH") // BOTH | EMAIL | SMS
+  expiresAt  DateTime
+  attempts   Int       @default(0) // ניסיונות שגויים — חוסם אחרי 5
+  verifiedAt DateTime? // null = לא אומת, ערך = אומת בהצלחה
+  createdAt  DateTime  @default(now())
+
+  @@index([userId, verifiedAt])
+  @@index([expiresAt])
 }

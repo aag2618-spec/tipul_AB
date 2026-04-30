@@ -66,10 +66,25 @@ export async function middleware(request: NextRequest) {
   const { pathname } = request.nextUrl;
 
   // Get the token from the request
-  const token = await getToken({ 
-    req: request, 
-    secret: process.env.NEXTAUTH_SECRET 
+  const token = await getToken({
+    req: request,
+    secret: process.env.NEXTAUTH_SECRET
   });
+
+  // 2FA gate: משתמש עם token.requires2FA לא יכול לגשת ל-dashboard/admin/API.
+  // ל-API: 403 JSON. לדפים: redirect ל-/auth/2fa-verify.
+  // ה-matcher של middleware מוגדר באופן שלא תופס את /auth/2fa-verify
+  // ולא את /api/auth/* (כדי שה-flow של 2FA יוכל לרוץ — אין loop).
+  if (token?.requires2FA === true) {
+    if (pathname.startsWith("/api/")) {
+      return NextResponse.json(
+        { message: "נדרש אימות דו-שלבי" },
+        { status: 403 }
+      );
+    }
+    const verifyUrl = new URL("/auth/2fa-verify", request.url);
+    return NextResponse.redirect(verifyUrl);
+  }
 
   // Protect /admin routes — require ADMIN or MANAGER
   // ADMIN_ONLY_PATHS (feature-flags, tier-settings, terms) require ADMIN specifically
@@ -199,12 +214,17 @@ export async function middleware(request: NextRequest) {
   return NextResponse.next();
 }
 
-// Configure which paths should be processed by the middleware
+// Configure which paths should be processed by the middleware.
+// Note: matcher uses negative lookahead via Next.js syntax to exclude
+// /api/auth/* (NextAuth + 2FA endpoints), /api/health, /api/webhooks/*
+// (signed webhooks have their own auth), and /api/cron/* (CRON_SECRET).
+// This ensures the 2FA gate covers all sensitive APIs without breaking
+// the 2FA flow itself.
 export const config = {
   matcher: [
     "/admin/:path*",
-    "/api/admin/:path*",
     "/dashboard/:path*",
+    "/api/((?!auth/|health|webhooks/|cron/).*)",
   ],
 };
 

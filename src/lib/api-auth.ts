@@ -10,11 +10,24 @@ import {
 
 /**
  * User must be signed in. Returns userId + session, or an error response.
+ *
+ * 2FA gate: אם המשתמש בעיצומו של אימות 2FA (requires2FA=true), חוסמים גישה
+ * לכל API routes המוגנים ע"י requireAuth. זה defense-in-depth מעבר למידלוור,
+ * ומבטיח שגם API routes שלא בmatcher של middleware (clients/sessions/billing)
+ * לא ייגשו על ידי טוקן חצי-מאומת.
  */
 export async function requireAuth() {
   const session = await getServerSession(authOptions);
   if (!session?.user?.id) {
     return { error: NextResponse.json({ message: "אין הרשאה" }, { status: 401 }) };
+  }
+  if (session.user.requires2FA) {
+    return {
+      error: NextResponse.json(
+        { message: "נדרש אימות דו-שלבי. אנא חזור לדף האימות." },
+        { status: 403 }
+      ),
+    };
   }
   return { userId: session.user.id, session };
 }
@@ -27,6 +40,14 @@ export async function requireAdmin() {
   const session = await getServerSession(authOptions);
   if (!session?.user?.id) {
     return { error: NextResponse.json({ message: "אין הרשאה" }, { status: 401 }) };
+  }
+  if (session.user.requires2FA) {
+    return {
+      error: NextResponse.json(
+        { message: "נדרש אימות דו-שלבי" },
+        { status: 403 }
+      ),
+    };
   }
   if (session.user.role !== "ADMIN") {
     return { error: NextResponse.json({ message: "אין הרשאת מנהל" }, { status: 403 }) };
@@ -42,6 +63,14 @@ export async function requireAdminOrManager() {
   const session = await getServerSession(authOptions);
   if (!session?.user?.id) {
     return { error: NextResponse.json({ message: "אין הרשאה" }, { status: 401 }) };
+  }
+  if (session.user.requires2FA) {
+    return {
+      error: NextResponse.json(
+        { message: "נדרש אימות דו-שלבי" },
+        { status: 403 }
+      ),
+    };
   }
   if (session.user.role !== "ADMIN" && session.user.role !== "MANAGER") {
     return {
@@ -60,6 +89,14 @@ export async function requirePermission(perm: Permission) {
   const session = await getServerSession(authOptions);
   if (!session?.user?.id) {
     return { error: NextResponse.json({ message: "אין הרשאה" }, { status: 401 }) };
+  }
+  if (session.user.requires2FA) {
+    return {
+      error: NextResponse.json(
+        { message: "נדרש אימות דו-שלבי" },
+        { status: 403 }
+      ),
+    };
   }
   if (!hasPermission(session.user.role, perm)) {
     return {

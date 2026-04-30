@@ -1,4 +1,6 @@
 import { NextRequest, NextResponse } from "next/server";
+import { getServerSession } from "next-auth";
+import { authOptions } from "@/lib/auth";
 import { google } from "googleapis";
 import prisma from "@/lib/prisma";
 import { logger } from "@/lib/logger";
@@ -15,6 +17,21 @@ export async function GET(request: NextRequest) {
     const baseUrl = process.env.NEXTAUTH_URL || "http://localhost:3000";
     const redirectUrl = `${baseUrl}/dashboard/settings?tab=connections`;
 
+    // 2FA gate + ownership check: ה-route תחת /api/auth/* (מוחרג מ-middleware),
+    // אז דרושות בדיקות מפורשות.
+    // 1. session חייב להיות (אחרת מישהו יכול להריץ OAuth ל-userId של מישהו אחר).
+    // 2. requires2FA — חוסם משתמש חצי-מאומת.
+    // 3. state.userId חייב להתאים ל-session.user.id — מונע confused-deputy:
+    //    תוקף שמתחיל OAuth כ-A, מטיל לינק על B שלחוץ עליו, ה-callback רץ
+    //    בסשן של B אבל יקשר את החשבון של Google ל-userId של A.
+    const session = await getServerSession(authOptions);
+    if (!session?.user?.id) {
+      return NextResponse.redirect(`${redirectUrl}&google_error=not_authenticated`);
+    }
+    if (session.user.requires2FA) {
+      return NextResponse.redirect(new URL("/auth/2fa-verify", baseUrl));
+    }
+
     if (error) {
       logger.error("[GoogleCalendar] OAuth error:", { error });
       return NextResponse.redirect(`${redirectUrl}&google_error=denied`);
@@ -22,6 +39,14 @@ export async function GET(request: NextRequest) {
 
     if (!code || !userId) {
       return NextResponse.redirect(`${redirectUrl}&google_error=missing_params`);
+    }
+
+    // ownership check — state.userId חייב להתאים ל-session.user.id
+    if (userId !== session.user.id) {
+      logger.error("[GoogleCalendar] state mismatch — possible confused-deputy attack", {
+        sessionUserId: session.user.id,
+      });
+      return NextResponse.redirect(`${redirectUrl}&google_error=invalid_state`);
     }
 
     // Verify user exists

@@ -5,6 +5,7 @@ import { PrismaAdapter } from "@auth/prisma-adapter";
 import bcrypt from "bcryptjs";
 import prisma from "./prisma";
 import { checkRateLimit, resetRateLimit, AUTH_RATE_LIMIT, LOGIN_EMAIL_RATE_LIMIT } from "./rate-limit";
+import { requires2FA } from "./two-factor";
 
 // Cache for JWT user data — avoids DB query on every request
 const JWT_CACHE_TTL = 2 * 60 * 1000; // 2 דקות
@@ -16,6 +17,11 @@ interface JwtUserData {
   trialEndsAt: Date | null;
 }
 const jwtUserCache = new Map<string, { data: JwtUserData; timestamp: number }>();
+
+// Debounce עדכוני lastActivityAt ב-DB — מונע flood של writes.
+// 5 דקות = ~12 updates/שעה למשתמש פעיל.
+const ACTIVITY_UPDATE_DEBOUNCE_MS = 5 * 60 * 1000;
+const activityUpdateCache = new Map<string, number>();
 
 // ניקוי cache כל דקה — מונע גדילה בלתי מוגבלת (guard מונע כפילויות ב-hot reload)
 let cleanupInitialized = false;
@@ -134,12 +140,26 @@ export const authOptions: NextAuthOptions = {
         if (ipKey) resetRateLimit(ipKey);
         resetRateLimit(emailKey);
 
+        // 2FA: לאנשי צוות שלא היו פעילים ב-3 שעות האחרונות, מסמנים את
+        // המשתמש כ-"דורש 2FA". ה-flag עובר ל-token (jwt callback) ולסשן,
+        // וה-middleware מעביר ל-/auth/2fa-verify עד שיאמת.
+        const needs2FA = requires2FA({
+          role: user.role,
+          twoFactorEnabled: user.twoFactorEnabled,
+          lastActivityAt: user.lastActivityAt,
+        });
+
+        // loginAt = רגע ההתחברות. נשמר ב-token, וב-update flow נשווה
+        // verifiedAt > loginAt — מבטיח שה-flag נמחק רק ע"י verify טרי
+        // שקרה אחרי הlogin הזה (ולא מ-verifyים קודמים).
         return {
           id: user.id,
           email: user.email,
           name: user.name,
           image: user.image,
           role: user.role,
+          requires2FA: needs2FA,
+          loginAt: Date.now(),
         };
       },
     }),
@@ -232,12 +252,73 @@ export const authOptions: NextAuthOptions = {
 
       return true;
     },
-    async jwt({ token, user, account }) {
+    async jwt({ token, user, account, trigger }) {
       if (user) {
         token.id = user.id;
         token.role = user.role;
+        // העברת flag של 2FA אל token. אם המשתמש דורש 2FA, ה-middleware
+        // ימנע ממנו גישה ל-dashboard עד שיאמת קוד ב-/auth/2fa-verify.
+        const u = user as { requires2FA?: boolean; loginAt?: number };
+        if (u.requires2FA) {
+          token.requires2FA = true;
+        }
+        if (typeof u.loginAt === "number") {
+          token.loginAt = u.loginAt;
+        }
+
+        // OAuth (Google): authorize לא רץ → flags לא הוגדרו על user.
+        // טוענים את המשתמש מ-DB ומחשבים requires2FA + loginAt גם להם.
+        // מבטיח ש-staff שמתחברים דרך Google גם יעברו דרך 2FA.
+        if (account?.provider === "google" && !u.requires2FA && typeof u.loginAt !== "number") {
+          const dbUser = await prisma.user.findUnique({
+            where: { id: user.id },
+            select: { role: true, twoFactorEnabled: true, lastActivityAt: true },
+          });
+          if (dbUser && requires2FA(dbUser)) {
+            token.requires2FA = true;
+          }
+          token.loginAt = Date.now();
+        }
       }
-      
+
+      // אחרי 2FA verify מוצלח, ה-frontend קורא ל-update() של NextAuth →
+      // trigger === "update". בודקים שיש TwoFactorCode עם verifiedAt **אחרי**
+      // ה-loginAt של ה-token הנוכחי. ככה הflag נמחק רק על ידי verify טרי
+      // שקרה אחרי הlogin הזה (ולא מ-verifyים קודמים, login קודם, וכו').
+      if (trigger === "update" && token.id && token.requires2FA && token.loginAt) {
+        const loginAtDate = new Date(token.loginAt);
+        const recentlyVerified = await prisma.twoFactorCode.findFirst({
+          where: {
+            userId: token.id as string,
+            verifiedAt: { not: null, gt: loginAtDate },
+          },
+          orderBy: { verifiedAt: "desc" },
+          select: { id: true },
+        });
+        if (recentlyVerified) {
+          token.requires2FA = false;
+        }
+      }
+
+
+      // עדכון lastActivityAt (debounced) — בסיס ל-2FA inactivity check.
+      // לא מעדכנים אם הטוקן עדיין דורש 2FA (כדי לא ליצור חלון פטור מ-2FA לפני verify).
+      if (token.id && !token.requires2FA) {
+        const userId = token.id as string;
+        const lastUpdate = activityUpdateCache.get(userId) || 0;
+        const nowMs = Date.now();
+        if (nowMs - lastUpdate >= ACTIVITY_UPDATE_DEBOUNCE_MS) {
+          activityUpdateCache.set(userId, nowMs);
+          // fire-and-forget — JWT callback חייב להישאר מהיר.
+          prisma.user
+            .update({ where: { id: userId }, data: { lastActivityAt: new Date() } })
+            .catch(() => {
+              // אם נכשל — מסירים מה-cache כדי לנסות שוב בקריאה הבאה
+              activityUpdateCache.delete(userId);
+            });
+        }
+      }
+
       // Refresh role and subscription status from database (cached for 5 minutes)
       if (token.id) {
         const userId = token.id as string;
@@ -332,6 +413,7 @@ export const authOptions: NextAuthOptions = {
       if (session.user) {
         session.user.id = token.id as string;
         session.user.role = token.role as "USER" | "MANAGER" | "ADMIN";
+        session.user.requires2FA = token.requires2FA === true;
       }
       return session;
     },
@@ -342,8 +424,10 @@ export const authOptions: NextAuthOptions = {
 declare module "next-auth" {
   interface User {
     role?: "USER" | "MANAGER" | "ADMIN";
+    requires2FA?: boolean;
+    loginAt?: number;
   }
-  
+
   interface Session {
     user: {
       id: string;
@@ -351,6 +435,7 @@ declare module "next-auth" {
       email?: string | null;
       image?: string | null;
       role: "USER" | "MANAGER" | "ADMIN";
+      requires2FA?: boolean;
     };
   }
 }
@@ -362,5 +447,7 @@ declare module "next-auth/jwt" {
     subscriptionStatus?: "ACTIVE" | "TRIALING" | "PAST_DUE" | "CANCELLED" | "PAUSED";
     isBlocked?: boolean;
     gracePeriodEndsAt?: string; // ISO date string - מתי נגמרת תקופת החסד
+    requires2FA?: boolean;
+    loginAt?: number; // epoch ms — login timestamp; משמש לשיוך verify ל-token
   }
 }
