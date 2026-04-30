@@ -36,6 +36,14 @@ import {
   DropdownMenuTrigger,
 } from "@/components/ui/dropdown-menu";
 
+interface CardcomInvoiceRef {
+  id: string;
+  cardcomDocumentNumber: string;
+  cardcomDocumentType: string;
+  pdfUrl: string | null;
+  viewUrl: string | null;
+}
+
 interface ReceiptPayment {
   id: string;
   amount: number;
@@ -56,6 +64,7 @@ interface ReceiptPayment {
     id: string;
     startTime: string;
   } | null;
+  cardcomInvoices?: CardcomInvoiceRef[];
 }
 
 const METHOD_LABELS: Record<string, string> = {
@@ -578,28 +587,94 @@ export default function ReceiptsPage() {
                   </td>
                   <td className="py-3 px-4 text-sm">
                     <div className="flex items-center gap-2">
-                      {payment.receiptUrl ? (
-                        <>
-                          {payment.receiptUrl.includes("icount") && (
-                            <Badge variant="outline" className="text-xs border-blue-300 text-blue-600">iCount</Badge>
-                          )}
-                          <a
-                            href={payment.receiptUrl}
-                            target="_blank"
-                            rel="noopener noreferrer"
-                            className="inline-flex items-center gap-1 text-teal-600 hover:text-teal-700 font-medium text-xs"
-                            title={payment.receiptUrl.includes("icount") ? "פתח קבלה באתר iCount" : "צפה בקבלה"}
-                          >
-                            <ExternalLink className="h-3.5 w-3.5" />
-                            צפה
-                          </a>
-                        </>
-                      ) : payment.hasReceipt ? (
-                        <Badge variant="secondary" className="text-xs">הופקה</Badge>
-                      ) : (
-                        <span className="text-muted-foreground text-xs">לא הופקה</span>
-                      )}
-                      {payment.hasReceipt && (
+                      {(() => {
+                        // Decide which "issuer" the receipt belongs to.
+                        //   - cardcomInvoices[] populated → Cardcom (legal issuer).
+                        //   - receiptUrl contains "icount" → iCount (legal issuer).
+                        //   - hasReceipt only          → internal MyTipul receipt.
+                        // For Cardcom and iCount we only show a "צפה" link to
+                        // the original — generating an internal PDF labeled
+                        // with their official document number would be misleading
+                        // (the legal document is theirs, not ours).
+                        const cardcomInv = payment.cardcomInvoices?.[0];
+                        const isCardcom = !!cardcomInv;
+                        const isIcount = !isCardcom && !!payment.receiptUrl?.includes("icount");
+                        const cardcomLink = cardcomInv?.viewUrl ?? cardcomInv?.pdfUrl ?? payment.receiptUrl;
+
+                        if (isCardcom) {
+                          return (
+                            <>
+                              <Badge variant="outline" className="text-xs border-emerald-300 text-emerald-700">
+                                Cardcom
+                              </Badge>
+                              {cardcomLink ? (
+                                <a
+                                  href={cardcomLink}
+                                  target="_blank"
+                                  rel="noopener noreferrer"
+                                  className="inline-flex items-center gap-1 text-teal-600 hover:text-teal-700 font-medium text-xs"
+                                  title="פתח קבלה ב-Cardcom"
+                                >
+                                  <ExternalLink className="h-3.5 w-3.5" />
+                                  צפה
+                                </a>
+                              ) : (
+                                <span
+                                  className="text-xs text-muted-foreground"
+                                  title="ה-PDF נשלח ללקוח במייל ע״י Cardcom — אפשר לצפות בו דרך המייל או דרך לוח Cardcom"
+                                >
+                                  נשלחה ללקוח במייל
+                                </span>
+                              )}
+                            </>
+                          );
+                        }
+
+                        if (isIcount) {
+                          return (
+                            <>
+                              <Badge variant="outline" className="text-xs border-blue-300 text-blue-600">iCount</Badge>
+                              <a
+                                href={payment.receiptUrl!}
+                                target="_blank"
+                                rel="noopener noreferrer"
+                                className="inline-flex items-center gap-1 text-teal-600 hover:text-teal-700 font-medium text-xs"
+                                title="פתח קבלה באתר iCount"
+                              >
+                                <ExternalLink className="h-3.5 w-3.5" />
+                                צפה
+                              </a>
+                            </>
+                          );
+                        }
+
+                        if (payment.receiptUrl) {
+                          return (
+                            <a
+                              href={payment.receiptUrl}
+                              target="_blank"
+                              rel="noopener noreferrer"
+                              className="inline-flex items-center gap-1 text-teal-600 hover:text-teal-700 font-medium text-xs"
+                              title="צפה בקבלה"
+                            >
+                              <ExternalLink className="h-3.5 w-3.5" />
+                              צפה
+                            </a>
+                          );
+                        }
+
+                        if (payment.hasReceipt) {
+                          return <Badge variant="secondary" className="text-xs">הופקה</Badge>;
+                        }
+                        return <span className="text-muted-foreground text-xs">לא הופקה</span>;
+                      })()}
+                      {/* Internal "הורד PDF" only for receipts we ourselves issued.
+                          Cardcom/iCount payments use the original document (above)
+                          — generating an internal PDF labeled with their
+                          official number would misrepresent the legal record. */}
+                      {payment.hasReceipt &&
+                        !payment.cardcomInvoices?.length &&
+                        !payment.receiptUrl?.includes("icount") && (
                         <button
                           onClick={() => downloadReceiptPdf(payment)}
                           className="inline-flex items-center gap-1 text-xs text-blue-600 hover:text-blue-700 hover:underline"

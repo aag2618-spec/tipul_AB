@@ -21,6 +21,23 @@ export async function GET() {
       include: {
         client: { select: { id: true, name: true } },
         session: { select: { id: true, startTime: true } },
+        // Surface CardcomInvoice metadata so the receipts page can show
+        // Cardcom-issued documents as such (badge + link to Cardcom's PDF)
+        // instead of generating an internal PDF that misrepresents Cardcom's
+        // receipt number — Cardcom is the legal issuer when the payment
+        // went through them, and our internal PDF is not the authoritative
+        // document.
+        cardcomInvoices: {
+          orderBy: { issuedAt: "desc" },
+          take: 1,
+          select: {
+            id: true,
+            cardcomDocumentNumber: true,
+            cardcomDocumentType: true,
+            pdfUrl: true,
+            viewUrl: true,
+          },
+        },
       },
     });
 
