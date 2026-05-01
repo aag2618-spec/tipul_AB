@@ -63,6 +63,12 @@ model User {
   license       String?
   role          Role      @default(USER)
   isBlocked     Boolean   @default(false)
+  // סיבת חסימה — null אם isBlocked=false. ערכים: DEBT | TOS_VIOLATION | MANUAL.
+  // משמש את ה-webhooks לאוטו-שחרור: רק DEBT משתחרר אוטומטית בתשלום מוצלח;
+  // TOS_VIOLATION ו-MANUAL נשארים חסומים עד החלטה ידנית של אדמין.
+  blockReason   String?
+  blockedAt     DateTime?
+  blockedBy     String? // userId של האדמין שחסם; null אם נחסם אוטומטית (cron / system)
 
   // Two-Factor Authentication (2FA) — נאכף בקוד רק לאנשי צוות (USER/MANAGER/ADMIN)
   twoFactorEnabled       Boolean   @default(true)
