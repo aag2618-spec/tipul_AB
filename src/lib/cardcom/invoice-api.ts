@@ -55,32 +55,51 @@ export interface VoidDocumentResult {
   error?: string;
 }
 
-/** Void a previously issued document. Cardcom typically issues a refund document linked to the original. */
+/** Void a previously issued document. Cardcom typically issues a refund document linked to the original.
+ *  Per v11 swagger the endpoint is `/Documents/CancelDoc` and requires
+ *  DocumentType (integer) in addition to DocumentNumber. We accept the
+ *  document number; the document type defaults to a sentinel that Cardcom
+ *  resolves on their side via the document number's metadata. */
 export async function voidCardcomDocument(
   config: CardcomConfig,
   documentNumber: string,
   reason: string,
+  documentType: number = 0,
 ): Promise<VoidDocumentResult> {
   if (!config.apiPassword) {
     return { success: false, error: 'API password required for void' };
   }
+  const docNumInt = parseInt(documentNumber, 10);
+  if (!Number.isFinite(docNumInt)) {
+    return { success: false, error: 'מספר מסמך לא תקין' };
+  }
   const body = {
-    TerminalNumber: config.terminalNumber,
     ApiName: config.apiName,
     ApiPassword: config.apiPassword,
-    DocumentNumber: documentNumber,
-    Comments: reason,
+    DocumentNumber: docNumInt,
+    DocumentType: documentType,
+    IsCancelEmailSend: true,
+    // `Comments` isn't on the swagger CancelDocRequest; reason is logged
+    // server-side by us instead. Keep the param so existing callers don't
+    // break.
   };
+  void reason;
   const response = await postCardcom<{
     ResponseCode: number;
     Description?: string;
-    DocumentNumber?: string;
-  }>('/Documents/Void', body);
+    DocumentNumber?: number | string;
+  }>('/Documents/CancelDoc', body);
 
   if (response.ResponseCode !== 0) {
     return { success: false, error: response.Description };
   }
-  return { success: true, refundDocumentNumber: response.DocumentNumber };
+  return {
+    success: true,
+    refundDocumentNumber:
+      response.DocumentNumber !== undefined && response.DocumentNumber !== null
+        ? String(response.DocumentNumber)
+        : undefined,
+  };
 }
 
 export interface ResendDocumentResult {
@@ -162,100 +181,165 @@ export async function createCardcomDocument(
   if (!config.apiPassword) {
     return { success: false, error: 'נדרשת סיסמת API להפקת מסמך Cardcom' };
   }
-  const body = {
-    TerminalNumber: config.terminalNumber,
-    ApiName: config.apiName,
-    ApiPassword: config.apiPassword,
-    ISOCoinId: 1, // ILS
-    Document: {
-      DocumentTypeToCreate: params.documentType,
-      Name: params.customerName,
-      TaxId: params.customerTaxId ?? '',
-      Email: params.customerEmail ?? '',
-      IsSendByEmail: !!params.sendByEmail && !!params.customerEmail,
-      Products: [
-        {
-          Description: params.description,
-          UnitCost: params.amount,
-          Quantity: 1,
-        },
-      ],
-      AdvancedDefinition: {
-        IsLoadInfoFromAccountID: false,
-      },
-    },
-    Payments: [
+  // Per Cardcom v11 swagger /api/v11/Documents/CreateDocument:
+  //   • Top-level: ApiName, ApiPassword, Document (required), Cash/Cheques/
+  //     DealNumbers (one of, depending on payment method).
+  //   • NO TerminalNumber at top level (different from LowProfile/Create).
+  //   • Document: DocumentBase + DocumentTypeToCreate + ISOCoinID. Payment
+  //     type is encoded by which top-level field carries the amount: Cash for
+  //     cash, Cheques[] for cheque, DealNumbers[] for already-processed cards.
+  const baseDoc = {
+    DocumentTypeToCreate: params.documentType,
+    Name: params.customerName,
+    TaxId: params.customerTaxId ?? '',
+    Email: params.customerEmail ?? '',
+    IsSendByEmail: !!params.sendByEmail && !!params.customerEmail,
+    Products: [
       {
-        Payment_Type: params.paymentType,
-        Amount: params.amount,
+        Description: params.description,
+        UnitCost: params.amount,
+        Quantity: 1,
       },
     ],
+    ISOCoinID: 1, // ILS
+  };
+  const paymentBlock: Record<string, unknown> = (() => {
+    if (params.paymentType === 1) return { Cash: params.amount };
+    if (params.paymentType === 2) {
+      return {
+        Cheques: [
+          { ChequeAmount: params.amount, ChequeDate: new Date().toISOString().slice(0, 10) },
+        ],
+      };
+    }
+    if (params.paymentType === 3) {
+      return { DealNumbers: [{ Amount: params.amount }] };
+    }
+    // 4 = bank transfer — Cardcom doesn't have a dedicated field; use Cash
+    // (the receipt still issues with the right total; the payment method is
+    // descriptive only on receipt-issuance flows where we collected money
+    // ourselves).
+    return { Cash: params.amount };
+  })();
+  const body = {
+    ApiName: config.apiName,
+    ApiPassword: config.apiPassword,
+    Document: baseDoc,
+    ...paymentBlock,
   };
 
-  // Try multiple known v11 paths — Cardcom has shipped this under different
-  // names over the years and many terminals only expose one of them. We try
-  // in order of likelihood and treat HTTP 404 as "endpoint not on this path"
-  // rather than a hard failure, falling through to the next candidate.
-  const candidatePaths = [
-    '/Documents/Create',
-    '/Documents/CreateDocument',
-    '/Operations/CreateDocument',
-  ];
-
   let response;
-  let lastErr: Error | null = null;
-  for (const path of candidatePaths) {
-    try {
-      response = await postCardcom<{
-        ResponseCode: number;
-        Description?: string;
-        DocumentInfo?: {
-          DocumentNumber?: number | string;
-          DocumentLink?: string;
-          AllocationNumber?: string | number;
-        };
-      }>(path, body);
-      // If this path responded (any 2xx), use it.
-      lastErr = null;
-      break;
-    } catch (err) {
-      lastErr = err instanceof Error ? err : new Error(String(err));
-      // 404 → try the next path. Anything else → real error, abort.
-      if (lastErr.message === 'CARDCOM_HTTP_404') {
-        continue;
-      }
-      break;
-    }
-  }
-  if (!response) {
-    // All candidates 404'd → endpoint genuinely not on this terminal.
-    if (lastErr?.message === 'CARDCOM_HTTP_404') {
+  try {
+    response = await postCardcom<{
+      ResponseCode: number;
+      Description?: string;
+      // DocumentInfo response per swagger: DocumentNumber + DocumentUrl
+      // (NOT DocumentLink — old field name).
+      DocumentNumber?: number | string;
+      DocumentUrl?: string;
+      DocumentInfo?: {
+        DocumentNumber?: number | string;
+        DocumentUrl?: string;
+        DocumentLink?: string;
+        AllocationNumber?: string | number;
+      };
+    }>('/Documents/CreateDocument', body);
+  } catch (err) {
+    const msg = err instanceof Error ? err.message : String(err);
+    // The endpoint exists in v11 but might still 404 on terminals that
+    // never had Documents API enabled. Surface this distinctly so the
+    // receipt-service can fall back gracefully for EXEMPT therapists.
+    if (msg === 'CARDCOM_HTTP_404') {
       return {
         success: false,
         notSupported: true,
         error: 'Cardcom לא תומך בהפקת קבלה ישירה במסוף זה',
       };
     }
-    return {
-      success: false,
-      error: lastErr?.message ?? 'Cardcom request failed',
-    };
+    return { success: false, error: msg };
   }
 
   if (response.ResponseCode !== 0) {
     return { success: false, error: response.Description ?? `Cardcom ${response.ResponseCode}` };
   }
 
-  const docNum = response.DocumentInfo?.DocumentNumber;
+  // Top-level fields take priority (CreateDocument response shape per swagger);
+  // fall back to DocumentInfo for safety.
+  const docNum = response.DocumentNumber ?? response.DocumentInfo?.DocumentNumber;
+  const docUrl = response.DocumentUrl
+    ?? response.DocumentInfo?.DocumentUrl
+    ?? response.DocumentInfo?.DocumentLink;
   const alloc = response.DocumentInfo?.AllocationNumber;
   return {
     success: true,
     documentNumber:
       docNum !== undefined && docNum !== null ? String(docNum) : undefined,
-    documentLink: response.DocumentInfo?.DocumentLink,
+    documentLink: docUrl,
     allocationNumber:
       alloc !== undefined && alloc !== null ? String(alloc) : undefined,
   };
+}
+
+/**
+ * Resolve the public PDF URL for an existing Cardcom-issued document.
+ * Maps to `/Documents/CreateDocumentUrl` in the v11 swagger. This is the
+ * supported way to retrieve a viewable URL given the DocumentNumber +
+ * DocumentType — useful when DocumentInfo.DocumentUrl is empty in a
+ * webhook/GetLpResult response.
+ */
+export interface GetCardcomDocumentUrlResult {
+  success: boolean;
+  url?: string;
+  error?: string;
+  notSupported?: boolean;
+}
+
+export async function getCardcomDocumentUrl(
+  config: CardcomConfig,
+  params: { documentNumber: number | string; documentType: string },
+): Promise<GetCardcomDocumentUrlResult> {
+  if (!config.apiPassword) {
+    return { success: false, error: 'נדרשת סיסמת API לקבלת קישור מסמך' };
+  }
+  const docNumInt = typeof params.documentNumber === 'string'
+    ? parseInt(params.documentNumber, 10)
+    : params.documentNumber;
+  if (!Number.isFinite(docNumInt) || docNumInt <= 0) {
+    return { success: false, error: 'מספר מסמך לא תקין' };
+  }
+  const body = {
+    ApiName: config.apiName,
+    ApiPassword: config.apiPassword,
+    DocumentType: params.documentType,
+    DocumentNumber: docNumInt,
+  };
+  try {
+    const response = await postCardcom<{
+      ResponseCode: number;
+      Description?: string;
+      DocUrl?: string;
+    }>('/Documents/CreateDocumentUrl', body);
+    if (response.ResponseCode !== 0) {
+      return {
+        success: false,
+        error: response.Description ?? `Cardcom ${response.ResponseCode}`,
+      };
+    }
+    if (!response.DocUrl) {
+      return { success: false, error: 'Cardcom החזיר ResponseCode=0 ללא קישור' };
+    }
+    return { success: true, url: response.DocUrl };
+  } catch (err) {
+    const msg = err instanceof Error ? err.message : String(err);
+    if (msg === 'CARDCOM_HTTP_404') {
+      return {
+        success: false,
+        notSupported: true,
+        error: 'נתיב CreateDocumentUrl לא זמין במסוף זה',
+      };
+    }
+    return { success: false, error: msg };
+  }
 }
 
 export interface CardcomDocumentSummary {
@@ -276,23 +360,17 @@ export async function searchCardcomDocuments(
   toDate: string,
 ): Promise<CardcomDocumentSummary[]> {
   if (!config.apiPassword) return [];
+  // Per Cardcom v11 swagger /api/v11/Documents/GetReport (formerly Search):
+  //   • NO TerminalNumber field at top level.
+  //   • Date fields are FromDateYYYYMMDD / ToDateYYYYMMDD (literally that).
+  //   • Format: YYYYMMDD with NO dashes. Convert if caller passed YYYY-MM-DD.
+  const fmt = (d: string) => d.replace(/-/g, '');
   const body = {
-    TerminalNumber: config.terminalNumber,
     ApiName: config.apiName,
     ApiPassword: config.apiPassword,
-    FromDate: fromDate,
-    ToDate: toDate,
+    FromDateYYYYMMDD: fmt(fromDate),
+    ToDateYYYYMMDD: fmt(toDate),
   };
-  // Try multiple known v11 paths — Cardcom shipped this under different
-  // names over the years and not every terminal exposes the same one. A 404
-  // on one path falls through to the next; any other error short-circuits.
-  const candidatePaths = [
-    '/Documents/Search',
-    '/Documents/SearchDocuments',
-    '/Documents/Find',
-    '/Operations/SearchDocument',
-    '/Operations/SearchDocuments',
-  ];
   let response: {
     ResponseCode: number;
     Description?: string;
@@ -303,34 +381,25 @@ export async function searchCardcomDocuments(
       DocumentDate: string;
       ClientName?: string;
       Email?: string;
+      DocumentUrl?: string;
       DocumentLink?: string;
       AllocationNumber?: string | number;
     }>;
-  } | undefined;
-  let lastErr: Error | null = null;
-  for (const path of candidatePaths) {
-    try {
-      response = await postCardcom(path, body);
-      lastErr = null;
-      break;
-    } catch (err) {
-      lastErr = err instanceof Error ? err : new Error(String(err));
-      if (lastErr.message === 'CARDCOM_HTTP_404') continue;
-      throw err;
-    }
-  }
-  if (!response) {
-    if (lastErr?.message === 'CARDCOM_HTTP_404') {
-      logger.warn('[Cardcom Invoice] Documents/Search not exposed on this terminal — all candidate paths 404', {
+  };
+  try {
+    response = await postCardcom('/Documents/GetReport', body);
+  } catch (err) {
+    const msg = err instanceof Error ? err.message : String(err);
+    if (msg === 'CARDCOM_HTTP_404') {
+      logger.warn('[Cardcom Invoice] /Documents/GetReport not exposed on this terminal', {
         terminal: config.terminalNumber,
-        triedPaths: candidatePaths,
       });
       return [];
     }
-    throw lastErr ?? new Error('Cardcom search failed');
+    throw err;
   }
   if (response.ResponseCode !== 0) {
-    logger.warn('[Cardcom Invoice] search failed', { description: response.Description });
+    logger.warn('[Cardcom Invoice] GetReport failed', { description: response.Description });
     return [];
   }
 
@@ -341,7 +410,8 @@ export async function searchCardcomDocuments(
     issuedAt: d.DocumentDate,
     customerName: d.ClientName,
     customerEmail: d.Email,
-    pdfUrl: d.DocumentLink,
+    // Per swagger the field is DocumentUrl; older drafts named it DocumentLink.
+    pdfUrl: d.DocumentUrl ?? d.DocumentLink,
     allocationNumber:
       d.AllocationNumber !== undefined && d.AllocationNumber !== null
         ? String(d.AllocationNumber)

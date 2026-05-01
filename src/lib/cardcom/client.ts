@@ -182,8 +182,10 @@ export class CardcomClient {
       ApprovalNumber?: string;
       TranzactionId?: number;
       DocumentInfo?: {
-        DocumentNumber?: string;
+        DocumentNumber?: string | number;
         DocumentType?: string;
+        // v11 swagger uses DocumentUrl; legacy responses may carry DocumentLink.
+        DocumentUrl?: string;
         DocumentLink?: string;
       };
     }>('/Transactions/Transaction', body);
@@ -199,9 +201,13 @@ export class CardcomClient {
       responseCode: '0',
       approvalNumber: response.ApprovalNumber,
       transactionId: response.TranzactionId ? String(response.TranzactionId) : undefined,
-      documentNumber: response.DocumentInfo?.DocumentNumber,
+      documentNumber:
+        response.DocumentInfo?.DocumentNumber !== undefined &&
+        response.DocumentInfo?.DocumentNumber !== null
+          ? String(response.DocumentInfo.DocumentNumber)
+          : undefined,
       documentType: response.DocumentInfo?.DocumentType,
-      documentLink: response.DocumentInfo?.DocumentLink,
+      documentLink: response.DocumentInfo?.DocumentUrl ?? response.DocumentInfo?.DocumentLink,
     };
   }
 

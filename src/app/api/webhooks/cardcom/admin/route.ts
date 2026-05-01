@@ -311,19 +311,35 @@ async function processAdminWebhook(payload: CardcomWebhookPayload): Promise<void
       }
 
       // Update User.subscriptionStatus → ACTIVE (unless PAUSED).
-      // אם המשתמש היה חסום (ככל הנראה בגלל חוב על מנוי) — תשלום מוצלח
-      // משחרר את החסימה אוטומטית. אם החסימה היא מסיבה אחרת (ToS וכו'),
-      // אדמין צריך להוסיף blockReason ולסנן כאן (לעת עתה אין).
+      // auto-unblock רק אם החסימה היא בגלל חוב (DEBT). חסימות TOS_VIOLATION /
+      // MANUAL לא משתחררות בתשלום — דורשות החלטה ידנית של אדמין, כדי שתשלום
+      // לא יעקוף סנקציה משמעתית או חקירה פתוחה.
       if (transaction.userId) {
         const user = await tx.user.findUnique({ where: { id: transaction.userId } });
         if (user && user.subscriptionStatus !== "PAUSED") {
+          const shouldUnblock = user.isBlocked && user.blockReason === "DEBT";
           await tx.user.update({
             where: { id: transaction.userId },
             data: {
               subscriptionStatus: "ACTIVE",
-              ...(user.isBlocked && { isBlocked: false }),
+              ...(shouldUnblock && {
+                isBlocked: false,
+                blockReason: null,
+                blockedAt: null,
+                blockedBy: null,
+              }),
             },
           });
+          if (shouldUnblock) {
+            logger.info("[cardcom-admin] auto-unblock on subscription payment (DEBT)", {
+              userId: user.id,
+            });
+          } else if (user.isBlocked) {
+            logger.info("[cardcom-admin] payment received but user stays blocked (non-DEBT)", {
+              userId: user.id,
+              blockReason: user.blockReason,
+            });
+          }
         }
       }
 
@@ -426,7 +442,10 @@ async function processAdminWebhook(payload: CardcomWebhookPayload): Promise<void
             tenant: "ADMIN",
             cardcomDocumentNumber: adminDocNumStr,
             cardcomDocumentType: documentType,
-            pdfUrl: payload.DocumentInfo?.DocumentLink ?? null,
+            pdfUrl:
+              payload.DocumentInfo?.DocumentUrl
+              ?? payload.DocumentInfo?.DocumentLink
+              ?? null,
             allocationNumber: adminAllocationStr,
             // ADMIN tenant — issuer is MyTipul itself (not a User row).
             issuerUserId: null,

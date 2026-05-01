@@ -2,19 +2,31 @@
 //
 // Lazy-resolve a Cardcom-issued receipt's PDF URL and redirect the caller to
 // it. Cardcom's GetLpResult sometimes returns DocumentInfo.DocumentNumber
-// without DocumentLink (the link is generated asynchronously), which leaves
-// the CardcomInvoice.pdfUrl empty and the receipts page with no "צפה" link.
+// without DocumentUrl (the link generation is async on their side), which
+// leaves CardcomInvoice.pdfUrl empty and the receipts page with no "צפה" link.
 //
-// On first call we fall back to Documents/Search to fetch the URL by date
-// range + document number, persist it on CardcomInvoice.pdfUrl so the next
-// click is instant, and 302-redirect the therapist to the PDF.
+// Resolution path (in order):
+//   1. Fast path — cached pdfUrl/viewUrl on CardcomInvoice → redirect.
+//   2. /Documents/CreateDocumentUrl — official v11 endpoint that returns a
+//      public URL by DocumentNumber + DocumentType. Per Cardcom support
+//      (https://cardcomapi.zendesk.com/hc/he/articles/25565747889682) this
+//      is THE supported way to get a viewable URL after the fact.
+//   3. /Documents/GetReport — date-range search; finds matching DocumentNumber
+//      and reads its DocumentUrl. Used as a fallback if CreateDocumentUrl
+//      isn't enabled on the terminal.
+//
+// Successful resolves are cached on CardcomInvoice.pdfUrl so subsequent
+// clicks are instant.
 
 import { NextRequest, NextResponse } from "next/server";
 import prisma from "@/lib/prisma";
 import { requireAuth } from "@/lib/api-auth";
 import { logger } from "@/lib/logger";
 import { getUserCardcomCredentials } from "@/lib/cardcom/user-config";
-import { searchCardcomDocuments } from "@/lib/cardcom/invoice-api";
+import {
+  getCardcomDocumentUrl,
+  searchCardcomDocuments,
+} from "@/lib/cardcom/invoice-api";
 
 export const dynamic = "force-dynamic";
 
@@ -39,6 +51,7 @@ export async function GET(
         select: {
           id: true,
           cardcomDocumentNumber: true,
+          cardcomDocumentType: true,
           pdfUrl: true,
           viewUrl: true,
           issuedAt: true,
@@ -58,7 +71,7 @@ export async function GET(
     );
   }
 
-  // Fast path — link already cached.
+  // 1. Fast path — link already cached.
   if (invoice.pdfUrl) {
     return NextResponse.redirect(invoice.pdfUrl, 302);
   }
@@ -66,8 +79,6 @@ export async function GET(
     return NextResponse.redirect(invoice.viewUrl, 302);
   }
 
-  // Slow path — Cardcom didn't return the link in GetLpResult/Documents/Create
-  // at issuance time. Fetch it from Documents/Search now.
   const creds = await getUserCardcomCredentials(userId);
   if (!creds) {
     return NextResponse.json(
@@ -77,15 +88,54 @@ export async function GET(
   }
   if (!creds.config.apiPassword) {
     return NextResponse.json(
-      { message: "חסרה סיסמת API ב-Cardcom — לא ניתן לחפש מסמכים" },
+      { message: "חסרה סיסמת API ב-Cardcom — לא ניתן לבקש קישור מסמך" },
       { status: 400 }
     );
   }
 
-  // Search a ±2-day window around the issuance date — Cardcom's date filter
-  // is inclusive but timezone behavior is fuzzy; a small window prevents
-  // off-by-one misses without dragging back too many results to scan.
-  // Format YYYY-MM-DD (matches cardcom-invoice-sync cron exactly).
+  // 2. Preferred path — /Documents/CreateDocumentUrl. Direct lookup by
+  //    DocumentNumber + DocumentType. Confirmed via Cardcom support article
+  //    25565747889682 as the canonical way to materialize a public URL.
+  const urlResult = await getCardcomDocumentUrl(creds.config, {
+    documentNumber: invoice.cardcomDocumentNumber,
+    documentType: invoice.cardcomDocumentType,
+  });
+
+  if (urlResult.success && urlResult.url) {
+    // Persist for next click — best-effort, don't block the redirect on error.
+    try {
+      await prisma.cardcomInvoice.update({
+        where: { id: invoice.id },
+        data: { pdfUrl: urlResult.url },
+      });
+    } catch (err) {
+      logger.warn("[cardcom-receipt-pdf] failed to cache pdfUrl on CardcomInvoice", {
+        invoiceId: invoice.id,
+        error: err instanceof Error ? err.message : String(err),
+      });
+    }
+    return NextResponse.redirect(urlResult.url, 302);
+  }
+
+  if (!urlResult.notSupported) {
+    // CreateDocumentUrl is exposed but returned an error (bad doc num,
+    // expired credentials, etc.). Surface the actual Cardcom message.
+    logger.warn("[cardcom-receipt-pdf] CreateDocumentUrl failed", {
+      paymentId,
+      docNumber: invoice.cardcomDocumentNumber,
+      error: urlResult.error,
+    });
+    return NextResponse.json(
+      {
+        message: `Cardcom לא החזיר קישור: ${urlResult.error ?? "שגיאה לא ידועה"}`,
+        docNumber: invoice.cardcomDocumentNumber,
+      },
+      { status: 502 }
+    );
+  }
+
+  // 3. Fallback — /Documents/GetReport (date-range scan). Use only when
+  //    CreateDocumentUrl isn't enabled on the terminal.
   const issuedAt = invoice.issuedAt;
   const fromDate = new Date(issuedAt.getTime() - 2 * 24 * 60 * 60 * 1000);
   const toDate = new Date(issuedAt.getTime() + 2 * 24 * 60 * 60 * 1000);
@@ -96,21 +146,17 @@ export async function GET(
     documents = await searchCardcomDocuments(creds.config, fmt(fromDate), fmt(toDate));
   } catch (err) {
     const rawMsg = err instanceof Error ? err.message : String(err);
-    logger.error("[cardcom-receipt-pdf] Documents/Search failed", {
+    logger.error("[cardcom-receipt-pdf] Documents/GetReport fallback failed", {
       paymentId,
       error: rawMsg,
       docNumber: invoice.cardcomDocumentNumber,
       fromDate: fmt(fromDate),
       toDate: fmt(toDate),
     });
-    // Surface the actual Cardcom error to the therapist so we can diagnose
-    // (HTTP code, missing-credential msg, date-format reject, etc.) instead
-    // of a useless generic "communication error".
     return NextResponse.json(
       {
         message: `שגיאת תקשורת עם Cardcom: ${rawMsg}`,
         docNumber: invoice.cardcomDocumentNumber,
-        searchedRange: { fromDate: fmt(fromDate), toDate: fmt(toDate) },
       },
       { status: 502 }
     );
@@ -135,7 +181,6 @@ export async function GET(
     );
   }
 
-  // Persist for next click — best-effort, don't block the redirect on error.
   try {
     await prisma.cardcomInvoice.update({
       where: { id: invoice.id },

@@ -410,13 +410,17 @@ async function processUserWebhook(userId: string, payload: CardcomWebhookPayload
             lastDeclineAt: null,
             // CRITICAL: GetLpResult returns DocumentNumber as a number
             // (e.g. 639145), but Payment.receiptNumber is a String column.
-            // Coerce explicitly to avoid Prisma "Expected String, provided
-            // Int" errors that would roll back the whole transaction.
+            // Coerce explicitly. The URL field is `DocumentUrl` per Cardcom
+            // v11 swagger; legacy payloads carried `DocumentLink` — read both
+            // so we don't lose the link on either format.
             ...(payload.DocumentInfo?.DocumentNumber
               ? {
                   receiptNumber: String(payload.DocumentInfo.DocumentNumber),
                   hasReceipt: true,
-                  receiptUrl: payload.DocumentInfo.DocumentLink ?? undefined,
+                  receiptUrl:
+                    payload.DocumentInfo.DocumentUrl
+                    ?? payload.DocumentInfo.DocumentLink
+                    ?? undefined,
                 }
               : {}),
           },
@@ -550,7 +554,10 @@ async function processUserWebhook(userId: string, payload: CardcomWebhookPayload
               tenant: "USER",
               cardcomDocumentNumber: docNumStr,
               cardcomDocumentType: documentType,
-              pdfUrl: payload.DocumentInfo.DocumentLink ?? null,
+              pdfUrl:
+                payload.DocumentInfo.DocumentUrl
+                ?? payload.DocumentInfo.DocumentLink
+                ?? null,
               allocationNumber: allocationStr,
               // Issuer = the therapist
               issuerUserId: userId,

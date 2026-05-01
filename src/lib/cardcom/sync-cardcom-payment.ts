@@ -165,7 +165,12 @@ async function syncCardcomTransactionInner(transactionId: string): Promise<SyncR
     rawDocNum !== undefined && rawDocNum !== null && String(rawDocNum).trim() !== ''
       ? String(rawDocNum)
       : null;
-  const documentLink = fetched.DocumentInfo?.DocumentLink ?? null;
+  // Cardcom v11 returns this as `DocumentUrl`; some legacy webhook payloads
+  // shipped under `DocumentLink`. Read both — prefer the v11 name.
+  const documentLink =
+    (fetched.DocumentInfo as { DocumentUrl?: string; DocumentLink?: string } | undefined)?.DocumentUrl
+    ?? fetched.DocumentInfo?.DocumentLink
+    ?? null;
   const documentType = fetched.DocumentInfo?.DocumentType ?? 'Receipt';
   const rawAllocation = fetched.DocumentInfo?.AllocationNumber;
   const allocationNumber =

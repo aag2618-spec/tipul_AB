@@ -141,12 +141,16 @@ export interface CardcomWebhookPayload {
     NumberOfPayments?: number;
     Token?: string;
   };
-  // Document info (only if a Receipt/Invoice was created)
+  // Document info (only if a Receipt/Invoice was created).
+  // NOTE: per Cardcom v11 swagger the field is `DocumentUrl` — older drafts
+  // and some legacy webhook payloads used `DocumentLink`. Keep both so reader
+  // code can do `DocumentUrl ?? DocumentLink` for forward compatibility.
   DocumentInfo?: {
-    DocumentNumber?: string;
+    DocumentNumber?: string | number;
     DocumentType?: string;
+    DocumentUrl?: string;
     DocumentLink?: string;
-    AllocationNumber?: string;
+    AllocationNumber?: string | number;
   };
   // Anti-replay
   Timestamp?: string;
