@@ -10,6 +10,7 @@ Allow: /pricing
 Allow: /faq
 Allow: /contact
 Allow: /about
+Allow: /legal/
 
 Disallow: /admin
 Disallow: /admin/
