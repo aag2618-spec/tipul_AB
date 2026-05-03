@@ -25,6 +25,7 @@ export async function GET(req: NextRequest) {
         userNumber: true,
         aiTier: true,
         isBlocked: true,
+        blockReason: true,
         subscriptionStatus: true,
         createdAt: true,
         _count: {
@@ -55,6 +56,7 @@ export async function GET(req: NextRequest) {
       userNumber: user.userNumber,
       aiTier: user.aiTier,
       isBlocked: user.isBlocked,
+      blockReason: user.blockReason,
       subscriptionStatus: user.subscriptionStatus,
       createdAt: user.createdAt,
       _count: user._count,

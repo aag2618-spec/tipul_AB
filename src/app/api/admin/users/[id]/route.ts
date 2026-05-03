@@ -48,6 +48,9 @@ export async function GET(
         phone: true,
         role: true,
         isBlocked: true,
+        blockReason: true,
+        blockedAt: true,
+        blockedBy: true,
         aiTier: true,
         subscriptionStatus: true,
         subscriptionStartedAt: true,
@@ -316,9 +319,12 @@ export async function PATCH(
     const { id } = await params;
     const body = await request.json();
     const {
-      isBlocked, aiTier, subscriptionStatus, subscriptionEndsAt, extendDays,
+      isBlocked, blockReason, aiTier, subscriptionStatus, subscriptionEndsAt, extendDays,
       grantFree, revokeFree, freeNote, role,
     } = body;
+
+    const VALID_BLOCK_REASONS = ["DEBT", "TOS_VIOLATION", "MANUAL"] as const;
+    type ValidBlockReason = typeof VALID_BLOCK_REASONS[number];
 
     // === Collect+max permissions ===
     const required: Permission[] = [];
@@ -361,6 +367,30 @@ export async function PATCH(
     if ("error" in auth) return auth.error;
     const { session } = auth;
     const isAdmin = session.user.role === "ADMIN";
+
+    // === ולידציית blockReason — אחרי authorization כדי לא להדליף schema ===
+    // אם חוסמים — חייבים לציין סיבה תקפה (DEBT/TOS_VIOLATION/MANUAL).
+    // המגבלה דרושה כדי שה-webhooks (auto-unblock) ידעו אם מותר לשחרר את
+    // המשתמש אוטומטית בתשלום: רק DEBT — לא TOS/MANUAL.
+    if (isBlocked === true) {
+      if (!blockReason || !VALID_BLOCK_REASONS.includes(blockReason as ValidBlockReason)) {
+        return NextResponse.json(
+          { message: "חובה לציין סיבת חסימה תקפה: DEBT / TOS_VIOLATION / MANUAL" },
+          { status: 400 }
+        );
+      }
+      // MANAGER מוגבל ל-DEBT בלבד. TOS_VIOLATION חמור משמעתית; MANUAL יוצר
+      // חסימה דביקה שלא משתחררת אוטומטית — שתיהן דורשות ADMIN שפיט.
+      if (!isAdmin && blockReason !== "DEBT") {
+        return NextResponse.json(
+          {
+            message:
+              "מזכיר יכול לחסום רק על חוב פתוח (DEBT). חסימת ToS/ידנית דורשת אדמין",
+          },
+          { status: 403 }
+        );
+      }
+    }
 
     // === אכיפה מספרית (לא ב-permission — ב-handler!) ===
     // MANAGER עם extendDays > 14 → 403
@@ -409,7 +439,21 @@ export async function PATCH(
     }
 
     const updateData: Record<string, unknown> = {};
-    if (isBlocked !== undefined) updateData.isBlocked = isBlocked;
+    if (isBlocked !== undefined) {
+      updateData.isBlocked = isBlocked;
+      if (isBlocked === true) {
+        // חסימה — שומרים את הסיבה, מי חסם ומתי. blockedBy=null אם נחסם
+        // אוטומטית (לא ע"י אדמין), אבל כאן אנחנו תמיד תחת session של אדמין.
+        updateData.blockReason = blockReason;
+        updateData.blockedAt = new Date();
+        updateData.blockedBy = session.user.id;
+      } else {
+        // שחרור — מנקים את כל המטא-דאטה כדי לא להשאיר רשומה מטעה.
+        updateData.blockReason = null;
+        updateData.blockedAt = null;
+        updateData.blockedBy = null;
+      }
+    }
     if (aiTier !== undefined) updateData.aiTier = aiTier;
     if (subscriptionStatus !== undefined) updateData.subscriptionStatus = subscriptionStatus;
     if (role !== undefined) updateData.role = role;

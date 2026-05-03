@@ -89,6 +89,7 @@ interface Subscriber {
   subscriptionEndsAt: string | null;
   trialEndsAt: string | null;
   isBlocked: boolean;
+  blockReason: string | null;
   isFreeSubscription: boolean;
   freeSubscriptionNote: string | null;
   freeSubscriptionGrantedAt: string | null;
@@ -129,6 +130,8 @@ export default function AdminBillingPage() {
   const [freeTier, setFreeTier] = useState("PRO");
   const [freeDuration, setFreeDuration] = useState("365"); // ימים
   const [freeNote, setFreeNote] = useState("");
+  // סיבת חסימה — נדרשת ע"י ה-API כשחוסמים. דיפולט DEBT (השכיח ביותר).
+  const [blockReasonInput, setBlockReasonInput] = useState<"DEBT" | "TOS_VIOLATION" | "MANUAL">("DEBT");
 
   const fetchSubscribers = useCallback(async () => {
     setLoading(true);
@@ -174,15 +177,20 @@ export default function AdminBillingPage() {
   const handleBlock = async (userId: string, block: boolean) => {
     setActionLoading(true);
     try {
+      // PATCH דורש blockReason כשחוסמים (DEBT/TOS_VIOLATION/MANUAL).
+      // שחרור — לא מצריך blockReason; ה-API מנקה את כל שדות החסימה.
+      const payload: Record<string, unknown> = { isBlocked: block };
+      if (block) payload.blockReason = blockReasonInput;
       const res = await fetch(`/api/admin/users/${userId}`, {
         method: "PATCH",
         headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ isBlocked: block }),
+        body: JSON.stringify(payload),
       });
       if (res.ok) {
         toast.success(block ? "המשתמש נחסם" : "המשתמש שוחרר");
         fetchSubscribers();
         setActionDialog(null);
+        setBlockReasonInput("DEBT"); // איפוס לדיפולט
       } else {
         const data = await res.json().catch(() => ({}));
         toast.error(data.message || (block ? "שגיאה בחסימה" : "שגיאה בשחרור"));
@@ -852,11 +860,36 @@ export default function AdminBillingPage() {
           </DialogHeader>
 
           {actionDialog?.type === "block" && (
-            <p className="text-sm">
-              {actionDialog.user.isBlocked 
-                ? "האם לשחרר את החסימה? המשתמש יוכל להתחבר מחדש."
-                : "האם לחסום את המשתמש? לא יוכל להתחבר למערכת."}
-            </p>
+            <div className="space-y-3">
+              <p className="text-sm">
+                {actionDialog.user.isBlocked
+                  ? "האם לשחרר את החסימה? המשתמש יוכל להתחבר מחדש."
+                  : "האם לחסום את המשתמש? לא יוכל להתחבר למערכת."}
+              </p>
+              {!actionDialog.user.isBlocked && (
+                <div>
+                  <Label>סיבת חסימה</Label>
+                  <Select
+                    value={blockReasonInput}
+                    onValueChange={(v) =>
+                      setBlockReasonInput(v as "DEBT" | "TOS_VIOLATION" | "MANUAL")
+                    }
+                  >
+                    <SelectTrigger>
+                      <SelectValue />
+                    </SelectTrigger>
+                    <SelectContent>
+                      <SelectItem value="DEBT">חוב פתוח (תשלום ישחרר אוטומטית)</SelectItem>
+                      <SelectItem value="TOS_VIOLATION">הפרת תנאי שימוש</SelectItem>
+                      <SelectItem value="MANUAL">חסימה ידנית — סיבה אחרת</SelectItem>
+                    </SelectContent>
+                  </Select>
+                  <p className="mt-1 text-xs text-muted-foreground">
+                    רק חוב פתוח משתחרר אוטומטית בתשלום מנוי. השאר דורש שחרור ידני.
+                  </p>
+                </div>
+              )}
+            </div>
           )}
 
           {actionDialog?.type === "upgrade" && (

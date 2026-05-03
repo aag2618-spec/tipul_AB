@@ -45,6 +45,7 @@ import {
 import { toast } from "sonner";
 import { format } from "date-fns";
 import { he } from "date-fns/locale";
+import { BlockUserDialog, type BlockReason } from "@/components/admin/block-user-dialog";
 
 interface UserData {
   id: string;
@@ -54,6 +55,7 @@ interface UserData {
   userNumber: number | null;
   aiTier: "ESSENTIAL" | "PRO" | "ENTERPRISE";
   isBlocked: boolean;
+  blockReason: string | null;
   subscriptionStatus: string;
   createdAt: string;
   _count: {
@@ -78,6 +80,9 @@ export default function AdminAIDashboard() {
   const [editDialogOpen, setEditDialogOpen] = useState(false);
   const [editingUser, setEditingUser] = useState<UserData | null>(null);
   const [newTier, setNewTier] = useState<string>("");
+
+  // Block dialog
+  const [blockTargetUser, setBlockTargetUser] = useState<UserData | null>(null);
 
   // Stats
   const [stats, setStats] = useState({
@@ -162,19 +167,46 @@ export default function AdminAIDashboard() {
     }
   };
 
-  const handleToggleBlock = async (userId: string, currentStatus: boolean) => {
-    try {
-      const response = await fetch(`/api/admin/users/${userId}/toggle-block`, {
-        method: "POST",
-      });
+  // שחרור — לא דורש סיבה. חסימה דורשת בחירת blockReason דרך BlockUserDialog.
+  const handleToggleBlock = async (user: UserData) => {
+    if (user.isBlocked) {
+      try {
+        const response = await fetch(`/api/admin/users/${user.id}/toggle-block`, {
+          method: "POST",
+        });
 
+        if (response.ok) {
+          toast.success("משתמש שוחרר");
+          fetchUsers();
+        } else {
+          toast.error("שגיאה");
+        }
+      } catch {
+        toast.error("שגיאה");
+      }
+      return;
+    }
+    setBlockTargetUser(user);
+  };
+
+  const handleBlockConfirm = async (blockReason: BlockReason) => {
+    if (!blockTargetUser) return;
+    try {
+      const response = await fetch(
+        `/api/admin/users/${blockTargetUser.id}/toggle-block`,
+        {
+          method: "POST",
+          headers: { "Content-Type": "application/json" },
+          body: JSON.stringify({ blockReason }),
+        }
+      );
       if (response.ok) {
-        toast.success(currentStatus ? "משתמש שוחרר" : "משתמש נחסם");
+        toast.success("משתמש נחסם");
         fetchUsers();
       } else {
         toast.error("שגיאה");
       }
-    } catch (error) {
+    } catch {
       toast.error("שגיאה");
     }
   };
@@ -430,7 +462,7 @@ export default function AdminAIDashboard() {
                           <Button
                             size="sm"
                             variant={user.isBlocked ? "default" : "destructive"}
-                            onClick={() => handleToggleBlock(user.id, user.isBlocked)}
+                            onClick={() => handleToggleBlock(user)}
                           >
                             {user.isBlocked ? <Unlock className="h-4 w-4" /> : <Lock className="h-4 w-4" />}
                           </Button>
@@ -484,6 +516,13 @@ export default function AdminAIDashboard() {
           </DialogFooter>
         </DialogContent>
       </Dialog>
+
+      <BlockUserDialog
+        open={blockTargetUser !== null}
+        onOpenChange={(open) => !open && setBlockTargetUser(null)}
+        userName={blockTargetUser?.name || blockTargetUser?.email || "המשתמש"}
+        onConfirm={handleBlockConfirm}
+      />
     </div>
   );
 }

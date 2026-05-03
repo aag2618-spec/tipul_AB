@@ -21,6 +21,7 @@ import {
 } from "lucide-react";
 import { toast } from "sonner";
 import Link from "next/link";
+import { BlockUserDialog, type BlockReason } from "@/components/admin/block-user-dialog";
 
 interface UserProfile {
   id: string;
@@ -29,6 +30,8 @@ interface UserProfile {
   phone: string | null;
   role: string;
   isBlocked: boolean;
+  blockReason: string | null;
+  blockedAt: string | null;
   aiTier: string;
   subscriptionStatus: string | null;
   subscriptionStartedAt: string | null;
@@ -91,11 +94,18 @@ const TICKET_STATUS: Record<string, { label: string; color: string }> = {
   CLOSED: { label: "סגור", color: "bg-gray-500" },
 };
 
+const BLOCK_REASON_LABELS: Record<string, string> = {
+  DEBT: "חוב",
+  TOS_VIOLATION: "תקנון",
+  MANUAL: "ידנית",
+};
+
 export default function UserProfilePage() {
   const params = useParams();
   const router = useRouter();
   const [user, setUser] = useState<UserProfile | null>(null);
   const [loading, setLoading] = useState(true);
+  const [blockDialogOpen, setBlockDialogOpen] = useState(false);
 
   useEffect(() => {
     fetchUser();
@@ -118,19 +128,40 @@ export default function UserProfilePage() {
     }
   };
 
-  const handleToggleBlock = async () => {
+  // שחרור — לא דורש סיבה. החסימה דורשת דיאלוג עם בחירת סיבה.
+  // PATCH הוא ה-endpoint שמטפל ב-isBlocked (לא PUT — PUT מתעלם מהשדה בשקט).
+  const handleUnblock = async () => {
     if (!user) return;
     try {
       const res = await fetch(`/api/admin/users/${user.id}`, {
-        method: "PUT",
+        method: "PATCH",
         headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ isBlocked: !user.isBlocked }),
+        body: JSON.stringify({ isBlocked: false }),
       });
       if (!res.ok) throw new Error("שגיאה");
-      toast.success(user.isBlocked ? "המשתמש הופעל" : "המשתמש נחסם");
+      toast.success("המשתמש הופעל");
       fetchUser();
     } catch {
       toast.error("שגיאה");
+    }
+  };
+
+  const handleBlockConfirm = async (blockReason: BlockReason) => {
+    if (!user) return;
+    try {
+      const res = await fetch(`/api/admin/users/${user.id}`, {
+        method: "PATCH",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ isBlocked: true, blockReason }),
+      });
+      if (!res.ok) {
+        const data = await res.json().catch(() => ({}));
+        throw new Error(data?.message || "שגיאה");
+      }
+      toast.success("המשתמש נחסם");
+      fetchUser();
+    } catch (err) {
+      toast.error(err instanceof Error ? err.message : "שגיאה");
     }
   };
 
@@ -160,19 +191,30 @@ export default function UserProfilePage() {
                 #{user.userNumber}
               </Badge>
             )}
-            {user.isBlocked && <Badge variant="destructive">חסום</Badge>}
+            {user.isBlocked && (
+              <Badge variant="destructive" title={user.blockReason ? `סיבת חסימה: ${BLOCK_REASON_LABELS[user.blockReason] || user.blockReason}` : undefined}>
+                חסום{user.blockReason ? ` (${BLOCK_REASON_LABELS[user.blockReason] || user.blockReason})` : ""}
+              </Badge>
+            )}
           </h1>
           <p className="text-muted-foreground mt-1">{user.email} {user.phone && `| ${user.phone}`}</p>
         </div>
         <Button
           variant={user.isBlocked ? "default" : "destructive"}
           size="sm"
-          onClick={handleToggleBlock}
+          onClick={() => (user.isBlocked ? handleUnblock() : setBlockDialogOpen(true))}
         >
           {user.isBlocked ? <CheckCircle className="ml-1 h-4 w-4" /> : <Ban className="ml-1 h-4 w-4" />}
           {user.isBlocked ? "הפעל משתמש" : "חסום משתמש"}
         </Button>
       </div>
+
+      <BlockUserDialog
+        open={blockDialogOpen}
+        onOpenChange={setBlockDialogOpen}
+        userName={user.name || user.email || "המשתמש"}
+        onConfirm={handleBlockConfirm}
+      />
 
       {/* שורה ראשונה — פרטים + מנוי */}
       <div className="grid gap-6 lg:grid-cols-2">

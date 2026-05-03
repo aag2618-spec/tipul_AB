@@ -254,6 +254,10 @@ export async function GET(req: NextRequest) {
               where: { id: user.id },
               data: {
                 isBlocked: true,
+                // אי-תשלום מנוי = DEBT, תשלום עתידי משחרר אוטומטית
+                blockReason: "DEBT",
+                blockedAt: now,
+                blockedBy: null,
                 subscriptionStatus: "CANCELLED",
               },
             })
@@ -343,6 +347,10 @@ export async function GET(req: NextRequest) {
                   where: { id: user.id },
                   data: {
                     isBlocked: true,
+                    // סיום מנוי חינם = "אי-תשלום" — תשלום משחרר אוטומטית
+                    blockReason: "DEBT",
+                    blockedAt: now,
+                    blockedBy: null,
                     subscriptionStatus: "CANCELLED",
                   },
                 })

@@ -113,25 +113,46 @@ async function handlePaymentSuccess(payload: SumitWebhookPayload) {
     // Send receipt email + complete COLLECT_PAYMENT task
     await completeWebhookPayment(verified.paymentId);
   } else if (Customer?.Email) {
-    // אולי זה תשלום מנוי
-    const user = await prisma.user.findFirst({
-      where: { email: Customer.Email },
-    });
+    // אולי זה תשלום מנוי. עוטפים ב-tx כדי שקריאת blockReason ועדכון יהיו
+    // אטומיים מול PATCH אדמין שעלול לרוץ במקביל.
+    const txResult = await prisma.$transaction(async (tx) => {
+      const user = await tx.user.findFirst({
+        where: { email: Customer.Email },
+      });
+      if (!user) return null;
 
-    if (user) {
-      const wasBlocked = user.isBlocked;
-      await prisma.user.update({
+      // auto-unblock רק על DEBT או חסימה ישנה (legacy null — נחסמו לפני הוספת
+      // השדה, כולן היסטורית על חוב). TOS/MANUAL נשארים חסומים.
+      const isLegacyOrDebt =
+        user.blockReason === "DEBT" || user.blockReason === null;
+      const shouldUnblock = user.isBlocked && isLegacyOrDebt;
+      await tx.user.update({
         where: { id: user.id },
         data: {
           subscriptionStatus: "ACTIVE",
           subscriptionStartedAt: user.subscriptionStartedAt || new Date(),
           subscriptionEndsAt: new Date(Date.now() + 30 * 24 * 60 * 60 * 1000),
-          // שחרור חסימה אם הייתה (ככל הנראה בגלל חוב)
-          ...(wasBlocked && { isBlocked: false }),
+          ...(shouldUnblock && {
+            isBlocked: false,
+            blockReason: null,
+            blockedAt: null,
+            blockedBy: null,
+          }),
         },
       });
-      if (wasBlocked) {
-        logger.info("[sumit] auto-unblock on subscription payment", { userId: user.id });
+
+      return { user, shouldUnblock };
+    });
+
+    if (txResult) {
+      const { user, shouldUnblock } = txResult;
+      if (shouldUnblock) {
+        logger.info("[sumit] auto-unblock on subscription payment (DEBT)", { userId: user.id });
+      } else if (user.isBlocked) {
+        logger.info("[sumit] payment received but user stays blocked (non-DEBT)", {
+          userId: user.id,
+          blockReason: user.blockReason,
+        });
       }
 
       await prisma.subscriptionPayment.create({

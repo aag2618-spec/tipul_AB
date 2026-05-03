@@ -130,20 +130,38 @@ export async function PATCH(req: NextRequest) {
             ? "grant_free"
             : "trials_update";
 
+    const isAdmin = session.user.role === "ADMIN";
+
     switch (action) {
       case "block": {
+        // חסימה מ-trials page = ידנית (MANUAL — דביקה, לא משתחררת אוטומטית).
+        // לכן רק ADMIN יכול. MANAGER יבצע חסימת DEBT דרך מסך החיובים.
+        if (!isAdmin) {
+          return NextResponse.json(
+            {
+              message:
+                "חסימה מ-Trials page היא ידנית (לא משתחררת בתשלום) — דורשת אדמין. לחסימת חוב יש להשתמש במסך החיובים",
+            },
+            { status: 403 }
+          );
+        }
         await withAudit(
           { kind: "user", session },
           {
             action: auditAction,
             targetType: "user",
             targetId: userId,
-            details: { source: "trials_page" },
+            details: { source: "trials_page", blockReason: "MANUAL" },
           },
           async (tx) =>
             tx.user.update({
               where: { id: userId },
-              data: { isBlocked: true },
+              data: {
+                isBlocked: true,
+                blockReason: "MANUAL",
+                blockedAt: new Date(),
+                blockedBy: session.user.id,
+              },
             })
         );
         return NextResponse.json({ success: true, message: `${user.name} נחסם` });
@@ -161,7 +179,12 @@ export async function PATCH(req: NextRequest) {
           async (tx) =>
             tx.user.update({
               where: { id: userId },
-              data: { isBlocked: false },
+              data: {
+                isBlocked: false,
+                blockReason: null,
+                blockedAt: null,
+                blockedBy: null,
+              },
             })
         );
         return NextResponse.json({ success: true, message: `${user.name} שוחרר מחסימה` });

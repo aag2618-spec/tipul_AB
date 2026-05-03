@@ -62,6 +62,7 @@ import {
 import { toast } from "sonner";
 import Link from "next/link";
 import { exportToCSV } from "@/lib/export-utils";
+import { BlockUserDialog, type BlockReason } from "@/components/admin/block-user-dialog";
 
 interface User {
   id: string;
@@ -72,6 +73,7 @@ interface User {
   aiTier: "ESSENTIAL" | "PRO" | "ENTERPRISE";
   subscriptionStatus: string | null;
   isBlocked: boolean;
+  blockReason: string | null;
   userNumber: number | null;
   createdAt: string;
   aiUsageStats: {
@@ -110,6 +112,8 @@ export default function AdminUsersPage() {
   // דיאלוג עריכה/יצירה
   const [isDialogOpen, setIsDialogOpen] = useState(false);
   const [editingUser, setEditingUser] = useState<User | null>(null);
+  // דיאלוג חסימה — נפתח עם המשתמש שנבחר; null = סגור
+  const [blockTargetUser, setBlockTargetUser] = useState<User | null>(null);
   const [formData, setFormData] = useState({
     name: "",
     email: "",
@@ -236,15 +240,40 @@ export default function AdminUsersPage() {
     }
   };
 
+  // שחרור — לא דורש סיבה. חסימה דורשת בחירת blockReason — דרך BlockUserDialog.
+  // PATCH הוא ה-endpoint שמטפל ב-isBlocked (PUT מתעלם בשקט).
   const handleToggleBlock = async (user: User) => {
+    if (user.isBlocked) {
+      try {
+        const response = await fetch(`/api/admin/users/${user.id}`, {
+          method: "PATCH",
+          headers: { "Content-Type": "application/json" },
+          body: JSON.stringify({ isBlocked: false }),
+        });
+        if (!response.ok) throw new Error("שגיאה");
+        toast.success("המשתמש הופעל");
+        fetchUsers();
+      } catch (error) {
+        toast.error(error instanceof Error ? error.message : "אירעה שגיאה");
+      }
+      return;
+    }
+    setBlockTargetUser(user);
+  };
+
+  const handleBlockConfirm = async (blockReason: BlockReason) => {
+    if (!blockTargetUser) return;
     try {
-      const response = await fetch(`/api/admin/users/${user.id}`, {
-        method: "PUT",
+      const response = await fetch(`/api/admin/users/${blockTargetUser.id}`, {
+        method: "PATCH",
         headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ isBlocked: !user.isBlocked }),
+        body: JSON.stringify({ isBlocked: true, blockReason }),
       });
-      if (!response.ok) throw new Error("שגיאה");
-      toast.success(user.isBlocked ? "המשתמש הופעל" : "המשתמש נחסם");
+      if (!response.ok) {
+        const data = await response.json().catch(() => ({}));
+        throw new Error(data?.message || "שגיאה");
+      }
+      toast.success("המשתמש נחסם");
       fetchUsers();
     } catch (error) {
       toast.error(error instanceof Error ? error.message : "אירעה שגיאה");
@@ -656,8 +685,29 @@ export default function AdminUsersPage() {
                       </Badge>
                     </TableCell>
                     <TableCell>
-                      <Badge variant={user.isBlocked ? "destructive" : "outline"}>
-                        {user.isBlocked ? "חסום" : "פעיל"}
+                      <Badge
+                        variant={user.isBlocked ? "destructive" : "outline"}
+                        title={
+                          user.isBlocked && user.blockReason
+                            ? `סיבה: ${
+                                user.blockReason === "DEBT"
+                                  ? "חוב פתוח"
+                                  : user.blockReason === "TOS_VIOLATION"
+                                  ? "הפרת תנאי שימוש"
+                                  : "ידנית"
+                              }`
+                            : undefined
+                        }
+                      >
+                        {user.isBlocked
+                          ? user.blockReason === "DEBT"
+                            ? "חסום (חוב)"
+                            : user.blockReason === "TOS_VIOLATION"
+                            ? "חסום (תקנון)"
+                            : user.blockReason === "MANUAL"
+                            ? "חסום (ידנית)"
+                            : "חסום"
+                          : "פעיל"}
                       </Badge>
                     </TableCell>
                     <TableCell>{user._count.clients}</TableCell>
@@ -714,6 +764,13 @@ export default function AdminUsersPage() {
           )}
         </CardContent>
       </Card>
+
+      <BlockUserDialog
+        open={blockTargetUser !== null}
+        onOpenChange={(open) => !open && setBlockTargetUser(null)}
+        userName={blockTargetUser?.name || blockTargetUser?.email || "המשתמש"}
+        onConfirm={handleBlockConfirm}
+      />
     </div>
   );
 }

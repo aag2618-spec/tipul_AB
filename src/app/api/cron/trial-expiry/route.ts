@@ -151,6 +151,10 @@ export async function GET(req: NextRequest) {
               where: { id: user.id },
               data: {
                 isBlocked: true,
+                // trial expiry שווה ערך ל"אי-תשלום" — תשלום מנוי משחרר אוטומטית
+                blockReason: "DEBT",
+                blockedAt: now,
+                blockedBy: null, // system / cron
                 subscriptionStatus: "CANCELLED",
               },
             })

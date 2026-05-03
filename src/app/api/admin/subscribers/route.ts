@@ -59,6 +59,7 @@ export async function GET(request: NextRequest) {
           subscriptionEndsAt: true,
           trialEndsAt: true,
           isBlocked: true,
+          blockReason: true,
           isFreeSubscription: true,
           freeSubscriptionNote: true,
           freeSubscriptionGrantedAt: true,

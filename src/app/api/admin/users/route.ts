@@ -40,6 +40,7 @@ export async function GET(request: NextRequest) {
         phone: true,
         role: true,
         isBlocked: true,
+        blockReason: true,
         aiTier: true,
         subscriptionStatus: true,
         userNumber: true,

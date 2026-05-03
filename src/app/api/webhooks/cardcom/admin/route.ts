@@ -311,13 +311,17 @@ async function processAdminWebhook(payload: CardcomWebhookPayload): Promise<void
       }
 
       // Update User.subscriptionStatus → ACTIVE (unless PAUSED).
-      // auto-unblock רק אם החסימה היא בגלל חוב (DEBT). חסימות TOS_VIOLATION /
-      // MANUAL לא משתחררות בתשלום — דורשות החלטה ידנית של אדמין, כדי שתשלום
-      // לא יעקוף סנקציה משמעתית או חקירה פתוחה.
+      // auto-unblock רק אם החסימה היא בגלל חוב (DEBT) או חסימה ישנה ללא reason.
+      // משתמשים שנחסמו לפני הוספת blockReason — `blockReason=null` — היסטורית
+      // נחסמו כולם על חוב מנוי (זה היה הקוד הישן). אנחנו מתייחסים אליהם כ-DEBT
+      // כדי לא ליצור רגרסיה. חסימות TOS_VIOLATION / MANUAL **לא** משתחררות
+      // בתשלום — דורשות החלטה ידנית של אדמין.
       if (transaction.userId) {
         const user = await tx.user.findUnique({ where: { id: transaction.userId } });
         if (user && user.subscriptionStatus !== "PAUSED") {
-          const shouldUnblock = user.isBlocked && user.blockReason === "DEBT";
+          const isLegacyOrDebt =
+            user.blockReason === "DEBT" || user.blockReason === null;
+          const shouldUnblock = user.isBlocked && isLegacyOrDebt;
           await tx.user.update({
             where: { id: transaction.userId },
             data: {

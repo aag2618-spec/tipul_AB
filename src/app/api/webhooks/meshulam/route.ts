@@ -142,39 +142,59 @@ async function handlePaymentSuccess(payload: MeshulamWebhookPayload) {
     // Send receipt email + complete COLLECT_PAYMENT task
     await completeWebhookPayment(verified.paymentId);
   } else if (payload.customerId) {
-    // תשלום מנוי - מחפשים לפי המייל
-    const user = await prisma.user.findFirst({
-      where: { email: customerEmail },
-    });
+    // תשלום מנוי - מחפשים לפי המייל. עוטפים ב-transaction כדי שקריאת
+    // user (ובפרט blockReason) ועדכונו יהיו אטומיים — מונע race עם PATCH
+    // אדמין שמשנה blockReason באותו רגע.
+    const txResult = await prisma.$transaction(async (tx) => {
+      const user = await tx.user.findFirst({
+        where: { email: customerEmail },
+      });
 
-    if (user) {
-      // אם היה מנוי חינם - מעבירים לרגיל
+      if (!user) return null;
+
       const wasFree = user.isFreeSubscription;
-
-      // חישוב תקופה לפי הסכום שנגבה (לא תמיד 30 יום!)
       const periodDays = detectPeriodCentral(user.aiTier, amount || 0);
       const periodMs = periodDays * 24 * 60 * 60 * 1000;
       const periodLabel = periodDays <= 31 ? "חודשי" : periodDays <= 91 ? "רבעוני" : periodDays <= 181 ? "חצי שנתי" : "שנתי";
 
-      // עדכון סטטוס המנוי. אם המשתמש היה חסום בגלל חוב — תשלום משחרר.
-      const wasBlocked = user.isBlocked;
-      await prisma.user.update({
+      // שחרור אוטומטי רק אם DEBT או חסימה ישנה (blockReason=null — נחסמו לפני
+      // הוספת השדה, כולן היסטורית על חוב). TOS_VIOLATION / MANUAL נשארים חסומים.
+      const isLegacyOrDebt =
+        user.blockReason === "DEBT" || user.blockReason === null;
+      const shouldUnblock = user.isBlocked && isLegacyOrDebt;
+
+      await tx.user.update({
         where: { id: user.id },
         data: {
           subscriptionStatus: "ACTIVE",
           subscriptionStartedAt: user.subscriptionStartedAt || new Date(),
           subscriptionEndsAt: new Date(Date.now() + periodMs),
-          // ניקוי שדות חינם אחרי תשלום
           ...(wasFree && {
             isFreeSubscription: false,
             freeSubscriptionNote: null,
           }),
-          // שחרור חסימה אם הייתה (ככל הנראה בגלל חוב)
-          ...(wasBlocked && { isBlocked: false }),
+          ...(shouldUnblock && {
+            isBlocked: false,
+            blockReason: null,
+            blockedAt: null,
+            blockedBy: null,
+          }),
         },
       });
-      if (wasBlocked) {
-        logger.info("[meshulam] auto-unblock on subscription payment", { userId: user.id });
+
+      return { user, periodDays, periodMs, periodLabel, wasFree, shouldUnblock };
+    });
+
+    if (txResult) {
+      const { user, periodMs, periodLabel, shouldUnblock } = txResult;
+
+      if (shouldUnblock) {
+        logger.info("[meshulam] auto-unblock on subscription payment (DEBT)", { userId: user.id });
+      } else if (user.isBlocked) {
+        logger.info("[meshulam] payment received but user stays blocked (non-DEBT)", {
+          userId: user.id,
+          blockReason: user.blockReason,
+        });
       }
 
       // רישום תשלום מנוי
@@ -362,26 +382,46 @@ async function handlePaymentFailed(payload: MeshulamWebhookPayload) {
 async function handleSubscriptionCreated(payload: MeshulamWebhookPayload) {
   const { customerEmail, amount } = payload;
 
-  const user = await prisma.user.findFirst({
-    where: { email: customerEmail },
-  });
+  // עוטפים ב-transaction כדי שקריאת blockReason ועדכון יהיו אטומיים
+  // (מונע race עם PATCH אדמין שמשנה blockReason באותו זמן).
+  const txResult = await prisma.$transaction(async (tx) => {
+    const user = await tx.user.findFirst({
+      where: { email: customerEmail },
+    });
+    if (!user) return null;
 
-  if (user) {
-    // חישוב תקופה לפי הסכום (לא תמיד 30 יום!)
     const periodDays = detectPeriodCentral(user.aiTier, amount || 0);
     const periodMs = periodDays * 24 * 60 * 60 * 1000;
     const periodLabel = periodDays <= 31 ? "חודשי" : periodDays <= 91 ? "רבעוני" : periodDays <= 181 ? "חצי שנתי" : "שנתי";
 
-    await prisma.user.update({
+    // auto-unblock רק על DEBT או חסימה ישנה (legacy null) — TOS/MANUAL נשארים
+    const shouldUnblockOnCreate =
+      user.isBlocked &&
+      (user.blockReason === "DEBT" || user.blockReason === null);
+    await tx.user.update({
       where: { id: user.id },
       data: {
         subscriptionStatus: "ACTIVE",
         subscriptionStartedAt: new Date(),
         subscriptionEndsAt: new Date(Date.now() + periodMs),
-        // שחרור חסימה אם הייתה (ככל הנראה בגלל חוב)
-        ...(user.isBlocked && { isBlocked: false }),
+        ...(shouldUnblockOnCreate && {
+          isBlocked: false,
+          blockReason: null,
+          blockedAt: null,
+          blockedBy: null,
+        }),
       },
     });
+
+    return { user, periodMs, periodLabel, shouldUnblockOnCreate };
+  });
+
+  if (txResult) {
+    const { user, periodLabel, shouldUnblockOnCreate } = txResult;
+
+    if (shouldUnblockOnCreate) {
+      logger.info("[meshulam] auto-unblock on subscription created (DEBT)", { userId: user.id });
+    }
 
     // יצירת התראה למשתמש
     await prisma.notification.create({
@@ -436,27 +476,51 @@ async function handleSubscriptionRenewed(payload: MeshulamWebhookPayload) {
     where: { email: customerEmail },
   });
 
+  // הערה: ה-user שמופיע בלוקיג'ר נטען מהסקופ של ההורה (שורה 475 שכבר קיימת
+  // בקוד בעת שכבר תוקן ל-tx). אבל בעצם, אנחנו מעבירים את הקוד ל-tx פנימי.
   if (user) {
-    // חישוב תקופה לפי הסכום שנגבה
-    const periodDays = detectPeriodCentral(user.aiTier, amount || 0);
-    const periodMs = periodDays * 24 * 60 * 60 * 1000;
-    const periodLabel = periodDays <= 31 ? "חודשי" : periodDays <= 91 ? "רבעוני" : periodDays <= 181 ? "חצי שנתי" : "שנתי";
-    const wasFree = user.isFreeSubscription;
+    // עוטפים בעדכון תוך-tx — מבטיח שקריאת blockReason ועדכון אטומיים מול
+    // PATCH אדמין שעלול לרוץ במקביל.
+    const renewResult = await prisma.$transaction(async (tx) => {
+      const fresh = await tx.user.findUnique({ where: { id: user.id } });
+      if (!fresh) return null;
 
-    await prisma.user.update({
-      where: { id: user.id },
-      data: {
-        subscriptionStatus: "ACTIVE",
-        subscriptionEndsAt: new Date(Date.now() + periodMs),
-        // ניקוי שדות חינם אחרי חידוש בתשלום
-        ...(wasFree && {
-          isFreeSubscription: false,
-          freeSubscriptionNote: null,
-        }),
-        // שחרור חסימה אם הייתה (ככל הנראה בגלל חוב)
-        ...(user.isBlocked && { isBlocked: false }),
-      },
+      const periodDays = detectPeriodCentral(fresh.aiTier, amount || 0);
+      const periodMs = periodDays * 24 * 60 * 60 * 1000;
+      const periodLabel = periodDays <= 31 ? "חודשי" : periodDays <= 91 ? "רבעוני" : periodDays <= 181 ? "חצי שנתי" : "שנתי";
+      const wasFree = fresh.isFreeSubscription;
+
+      // auto-unblock רק על DEBT או חסימה ישנה (legacy null) — TOS/MANUAL נשארים
+      const shouldUnblockOnRenew =
+        fresh.isBlocked &&
+        (fresh.blockReason === "DEBT" || fresh.blockReason === null);
+      await tx.user.update({
+        where: { id: fresh.id },
+        data: {
+          subscriptionStatus: "ACTIVE",
+          subscriptionEndsAt: new Date(Date.now() + periodMs),
+          ...(wasFree && {
+            isFreeSubscription: false,
+            freeSubscriptionNote: null,
+          }),
+          ...(shouldUnblockOnRenew && {
+            isBlocked: false,
+            blockReason: null,
+            blockedAt: null,
+            blockedBy: null,
+          }),
+        },
+      });
+
+      return { fresh, periodMs, periodLabel, shouldUnblockOnRenew };
     });
+
+    if (!renewResult) return;
+    const { periodMs, periodLabel, shouldUnblockOnRenew } = renewResult;
+
+    if (shouldUnblockOnRenew) {
+      logger.info("[meshulam] auto-unblock on subscription renewed (DEBT)", { userId: user.id });
+    }
 
     await prisma.subscriptionPayment.create({
       data: {
