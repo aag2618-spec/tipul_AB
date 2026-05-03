@@ -119,6 +119,39 @@ export async function middleware(request: NextRequest) {
     }
   }
 
+  // Protect /clinic-admin routes — require CLINIC_OWNER or ADMIN.
+  // הסשן לא מכיל clinicRole/organizationId; ה-layout עושה את הבדיקה העמוקה.
+  // כאן רק חוסמים את הברורים: לא מחובר → login; CLINIC_SECRETARY/USER → dashboard.
+  if (pathname.startsWith("/clinic-admin")) {
+    if (!token) {
+      const loginUrl = new URL("/login", request.url);
+      loginUrl.searchParams.set("callbackUrl", pathname);
+      return NextResponse.redirect(loginUrl);
+    }
+    // ADMIN/CLINIC_OWNER מותרים. אחרים — מועברים לדשבורד.
+    if (token.role !== "ADMIN" && token.role !== "CLINIC_OWNER") {
+      const dashboardUrl = new URL("/dashboard", request.url);
+      dashboardUrl.searchParams.set("error", "clinic_owner_only");
+      return NextResponse.redirect(dashboardUrl);
+    }
+  }
+
+  // Protect /api/clinic-admin routes — require CLINIC_OWNER or ADMIN.
+  if (pathname.startsWith("/api/clinic-admin")) {
+    if (!token) {
+      return NextResponse.json(
+        { message: "לא מורשה - נדרשת התחברות" },
+        { status: 401 }
+      );
+    }
+    if (token.role !== "ADMIN" && token.role !== "CLINIC_OWNER") {
+      return NextResponse.json(
+        { message: "לא מורשה - הפעולה זמינה לבעלי קליניקה בלבד" },
+        { status: 403 }
+      );
+    }
+  }
+
   // Protect /admin routes — require ADMIN or MANAGER
   // ADMIN_ONLY_PATHS (feature-flags, tier-settings, terms) require ADMIN specifically
   if (pathname.startsWith("/admin")) {
@@ -256,6 +289,7 @@ export async function middleware(request: NextRequest) {
 export const config = {
   matcher: [
     "/admin/:path*",
+    "/clinic-admin/:path*",
     "/dashboard/:path*",
     "/api/((?!auth/|health|webhooks/|cron/).*)",
   ],
