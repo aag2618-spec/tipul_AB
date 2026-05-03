@@ -42,7 +42,7 @@ export function CalendarEventContent({ eventInfo, sessions, onAddSessionAfter }:
               e.stopPropagation();
               onAddSessionAfter(session);
             }}
-            className="relative z-30 opacity-0 group-hover:opacity-100 bg-white hover:bg-green-50 text-green-600 rounded-full w-6 h-6 flex items-center justify-center text-lg font-bold shadow-sm"
+            className="relative z-30 opacity-100 sm:opacity-0 sm:group-hover:opacity-100 bg-white hover:bg-green-50 text-green-600 rounded-full w-8 h-8 sm:w-6 sm:h-6 flex items-center justify-center text-lg font-bold shadow-sm"
             title="הוסף פגישה מיד אחרי"
           >
             +
@@ -60,17 +60,17 @@ export function CalendarEventContent({ eventInfo, sessions, onAddSessionAfter }:
   }
 
   return (
-    <div className="flex items-center justify-between w-full px-1 group">
-      <div className="flex-1 overflow-hidden">
-        <div className="font-semibold text-xs truncate">{eventInfo.event.title}</div>
-        <div className="text-xs opacity-90">{eventInfo.timeText}</div>
+    <div className="flex items-center justify-between w-full px-1 gap-1 group">
+      <div className="flex-1 min-w-0 overflow-hidden">
+        <div className="font-semibold text-xs leading-tight break-words">{eventInfo.event.title}</div>
+        <div className="text-xs font-semibold opacity-90">{eventInfo.timeText}</div>
       </div>
       <button
         onClick={(e) => {
           e.stopPropagation();
           onAddSessionAfter(session);
         }}
-        className="opacity-0 group-hover:opacity-100 transition-opacity bg-white hover:bg-green-50 text-green-600 rounded-full w-6 h-6 flex items-center justify-center text-lg font-bold shadow-sm ml-1"
+        className="shrink-0 opacity-100 sm:opacity-0 sm:group-hover:opacity-100 transition-opacity bg-white hover:bg-green-50 text-green-600 rounded-full w-8 h-8 sm:w-6 sm:h-6 flex items-center justify-center text-lg font-bold shadow-sm"
         title="הוסף פגישה מיד אחרי"
       >
         +

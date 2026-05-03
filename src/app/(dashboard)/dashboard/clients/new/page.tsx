@@ -320,7 +320,7 @@ function NewClientContent() {
               <CardDescription>מלא את הפרטים הבסיסיים של המטופל</CardDescription>
             </CardHeader>
             <CardContent className="space-y-4">
-              <div className="grid grid-cols-2 gap-4">
+              <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
                 <div className="space-y-2">
                   <Label htmlFor="firstName">שם פרטי *</Label>
                   <Input
@@ -348,7 +348,7 @@ function NewClientContent() {
                 </div>
               </div>
 
-              <div className="grid grid-cols-2 gap-4">
+              <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
                 <div className="space-y-2">
                   <Label htmlFor="phone">טלפון</Label>
                   <Input
@@ -380,7 +380,7 @@ function NewClientContent() {
                 </div>
               </div>
 
-              <div className="grid grid-cols-2 gap-4">
+              <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
                 <div className="space-y-2">
                   <Label htmlFor="birthDate">תאריך לידה</Label>
                   <Input
@@ -407,7 +407,7 @@ function NewClientContent() {
                 </div>
               </div>
 
-              <div className="grid grid-cols-2 gap-4">
+              <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
                 <div className="space-y-2">
                   <Label htmlFor="status">סטטוס</Label>
                   <Select

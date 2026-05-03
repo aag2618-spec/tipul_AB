@@ -478,7 +478,7 @@ export default function BillingPage() {
         </div>
 
         {/* כרטיסי מסלולים */}
-        <div className="grid gap-4 md:grid-cols-3">
+        <div className="grid gap-4 sm:grid-cols-2 lg:grid-cols-3">
           {Object.entries(PLANS).map(([key, plan]) => {
             const Icon = plan.icon;
             const isCurrent = subscription?.plan === key;

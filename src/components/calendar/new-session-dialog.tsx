@@ -431,7 +431,7 @@ export function NewSessionDialog({
   return (
     <>
     <Dialog open={open} onOpenChange={onOpenChange}>
-      <DialogContent className="sm:max-w-md max-h-[90vh] overflow-y-auto">
+      <DialogContent className="max-w-[calc(100vw-2rem)] sm:max-w-md max-h-[90vh] overflow-y-auto">
         <DialogHeader>
           <DialogTitle>פגישה חדשה</DialogTitle>
           <DialogDescription>
@@ -548,7 +548,7 @@ export function NewSessionDialog({
                 </div>
               )}
 
-              <div className="grid grid-cols-2 gap-2">
+              <div className="grid grid-cols-1 sm:grid-cols-2 gap-2">
                 <div className="space-y-1">
                   <Label htmlFor="quickPhone" className="text-xs">טלפון</Label>
                   <Input
@@ -593,7 +593,7 @@ export function NewSessionDialog({
             </div>
           )}
 
-          <div className="grid grid-cols-2 gap-4">
+          <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
             <div className="space-y-2">
               <Label htmlFor="startTime">שעת התחלה</Label>
               <Input
@@ -670,7 +670,7 @@ export function NewSessionDialog({
                       variant={customDuration === minutes ? "default" : "outline"}
                       size="sm"
                       onClick={() => handleDurationChange(minutes)}
-                      className="text-xs"
+                      className="text-xs h-10 sm:h-8 min-w-[60px]"
                     >
                       {minutes} דק׳
                     </Button>
@@ -680,7 +680,7 @@ export function NewSessionDialog({
             )}
           </div>
 
-          <div className="grid grid-cols-2 gap-4">
+          <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
             <div className="space-y-2">
               <Label htmlFor="type">סוג פגישה</Label>
               <Select

@@ -264,7 +264,7 @@ export default async function ClientPage({
             </p>
           </div>
         </div>
-        <div className="flex gap-2">
+        <div className="flex flex-wrap gap-2 w-full sm:w-auto">
           <ExportClientButton clientId={client.id} clientName={client.name} />
           <Button variant="outline" asChild>
             <Link href={`/dashboard/clients/${client.id}/edit`}>
@@ -302,7 +302,7 @@ export default async function ClientPage({
               {/* Email */}
               <div className="flex items-center gap-2">
                 <Mail className="h-4 w-4 text-slate-400" />
-                <span className="text-sm font-medium text-muted-foreground truncate max-w-[200px]" dir="ltr">
+                <span className="text-sm font-medium text-muted-foreground truncate max-w-full sm:max-w-[200px]" dir="ltr">
                   {client.email || "לא צוין"}
                 </span>
               </div>
@@ -326,7 +326,7 @@ export default async function ClientPage({
             totalDebt > 0 ? "border-red-200 bg-red-50/50" : "border-emerald-200 bg-emerald-50/50"
           }`}>
             <CardContent className="py-4">
-              <div className="flex items-center justify-between">
+              <div className="flex flex-col sm:flex-row sm:items-center sm:justify-between gap-3">
                 <div className="flex items-center gap-3">
                   <CreditCard className={`h-5 w-5 ${
                     totalDebt > 0 ? "text-red-500" : "text-emerald-500"
@@ -341,7 +341,7 @@ export default async function ClientPage({
                   )}
                 </div>
                 {(Number(client.creditBalance) || 0) > 0 && (
-                  <div className="text-left">
+                  <div className="text-right sm:text-left">
                     <p className="text-sm text-muted-foreground">קרדיט</p>
                     <p className="text-lg font-bold text-emerald-600">₪{Number(client.creditBalance) || 0}</p>
                   </div>
@@ -372,28 +372,28 @@ export default async function ClientPage({
       {/* Tabs */}
       <Tabs defaultValue={defaultTab} key={defaultTab} className="w-full">
         <div className="flex w-full gap-2">
-          <TabsList className="flex w-full gap-1.5 h-auto p-0 bg-transparent">
-          <TabsTrigger value="sessions" className="flex-1 gap-2 rounded-xl py-2.5 border border-muted-foreground/10 bg-muted/40 data-[state=active]:bg-white data-[state=active]:text-primary data-[state=active]:shadow-md data-[state=active]:border-primary/30 font-medium">
+          <TabsList className="flex w-full flex-wrap gap-1.5 h-auto p-0 bg-transparent">
+          <TabsTrigger value="sessions" className="flex-1 min-w-[110px] gap-2 rounded-xl py-2.5 border border-muted-foreground/10 bg-muted/40 data-[state=active]:bg-white data-[state=active]:text-primary data-[state=active]:shadow-md data-[state=active]:border-primary/30 font-medium">
             <Calendar className="h-4 w-4" />
             פגישות
           </TabsTrigger>
-          <TabsTrigger value="ai" className="flex-1 gap-2 rounded-xl py-2.5 border border-muted-foreground/10 bg-muted/40 data-[state=active]:bg-primary/10 data-[state=active]:text-primary data-[state=active]:shadow-md data-[state=active]:border-primary/30 font-medium">
+          <TabsTrigger value="ai" className="flex-1 min-w-[110px] gap-2 rounded-xl py-2.5 border border-muted-foreground/10 bg-muted/40 data-[state=active]:bg-primary/10 data-[state=active]:text-primary data-[state=active]:shadow-md data-[state=active]:border-primary/30 font-medium">
             <Sparkles className="h-4 w-4" />
             AI · ניתוח
           </TabsTrigger>
-          <TabsTrigger value="summaries" className="flex-1 gap-2 rounded-xl py-2.5 border border-muted-foreground/10 bg-muted/40 data-[state=active]:bg-white data-[state=active]:text-primary data-[state=active]:shadow-md data-[state=active]:border-primary/30 font-medium">
+          <TabsTrigger value="summaries" className="flex-1 min-w-[110px] gap-2 rounded-xl py-2.5 border border-muted-foreground/10 bg-muted/40 data-[state=active]:bg-white data-[state=active]:text-primary data-[state=active]:shadow-md data-[state=active]:border-primary/30 font-medium">
             <FileText className="h-4 w-4" />
             סיכומים
           </TabsTrigger>
-          <TabsTrigger value="payments" className="flex-1 gap-2 rounded-xl py-2.5 border border-muted-foreground/10 bg-muted/40 data-[state=active]:bg-white data-[state=active]:text-primary data-[state=active]:shadow-md data-[state=active]:border-primary/30 font-medium">
+          <TabsTrigger value="payments" className="flex-1 min-w-[110px] gap-2 rounded-xl py-2.5 border border-muted-foreground/10 bg-muted/40 data-[state=active]:bg-white data-[state=active]:text-primary data-[state=active]:shadow-md data-[state=active]:border-primary/30 font-medium">
             <CreditCard className="h-4 w-4" />
             תשלומים
           </TabsTrigger>
-          <TabsTrigger value="files" className="flex-1 gap-2 rounded-xl py-2.5 border border-muted-foreground/10 bg-muted/40 data-[state=active]:bg-white data-[state=active]:text-primary data-[state=active]:shadow-md data-[state=active]:border-primary/30 font-medium">
+          <TabsTrigger value="files" className="flex-1 min-w-[110px] gap-2 rounded-xl py-2.5 border border-muted-foreground/10 bg-muted/40 data-[state=active]:bg-white data-[state=active]:text-primary data-[state=active]:shadow-md data-[state=active]:border-primary/30 font-medium">
             <FolderOpen className="h-4 w-4" />
             קבצים
           </TabsTrigger>
-          <TabsTrigger value="profile" className="flex-1 gap-2 rounded-xl py-2.5 border border-muted-foreground/10 bg-muted/40 data-[state=active]:bg-white data-[state=active]:text-primary data-[state=active]:shadow-md data-[state=active]:border-primary/30 font-medium">
+          <TabsTrigger value="profile" className="flex-1 min-w-[110px] gap-2 rounded-xl py-2.5 border border-muted-foreground/10 bg-muted/40 data-[state=active]:bg-white data-[state=active]:text-primary data-[state=active]:shadow-md data-[state=active]:border-primary/30 font-medium">
             <UserIcon className="h-4 w-4" />
             פרופיל
           </TabsTrigger>

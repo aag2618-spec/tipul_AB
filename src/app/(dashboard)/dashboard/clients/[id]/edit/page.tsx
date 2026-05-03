@@ -147,7 +147,7 @@ export default function EditClientPage({ params }: { params: Promise<{ id: strin
             <CardDescription>מידע בסיסי על המטופל</CardDescription>
           </CardHeader>
           <CardContent className="space-y-4">
-            <div className="grid grid-cols-2 gap-4">
+            <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
               <div className="space-y-2">
                 <Label htmlFor="firstName">שם פרטי *</Label>
                 <Input
@@ -169,7 +169,7 @@ export default function EditClientPage({ params }: { params: Promise<{ id: strin
               </div>
             </div>
 
-            <div className="grid grid-cols-2 gap-4">
+            <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
               <div className="space-y-2">
                 <Label htmlFor="phone">טלפון</Label>
                 <Input
@@ -183,7 +183,7 @@ export default function EditClientPage({ params }: { params: Promise<{ id: strin
               </div>
             </div>
 
-            <div className="grid grid-cols-2 gap-4">
+            <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
               <div className="space-y-2">
                 <Label htmlFor="email">אימייל</Label>
                 <Input
@@ -208,7 +208,7 @@ export default function EditClientPage({ params }: { params: Promise<{ id: strin
               </div>
             </div>
 
-            <div className="grid grid-cols-2 gap-4">
+            <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
               <div className="space-y-2">
                 <Label htmlFor="address">כתובת</Label>
                 <Input

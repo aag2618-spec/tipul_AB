@@ -158,7 +158,7 @@ export default function BookingPage() {
             const isToday = date.toDateString() === today.toDateString();
             return (
               <button key={date.toISOString()} onClick={() => !isDisabled && handleDateSelect(date)} disabled={isDisabled}
-                className={`aspect-square rounded-lg text-sm font-medium transition-all
+                className={`aspect-square min-h-[44px] rounded-lg text-sm font-medium transition-all
                   ${isDisabled ? "text-muted-foreground/30 cursor-not-allowed" : "hover:bg-primary/10 cursor-pointer"}
                   ${isSelected ? "bg-primary text-primary-foreground hover:bg-primary" : ""}
                   ${isToday && !isSelected ? "ring-1 ring-primary" : ""}`}>

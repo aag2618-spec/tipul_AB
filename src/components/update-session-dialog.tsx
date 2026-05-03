@@ -315,7 +315,7 @@ export function UpdateSessionDialog({
   return (
     <>
     <Dialog open={open} onOpenChange={(o) => { if (!o) resetAndClose(); }}>
-      <DialogContent className="sm:max-w-[550px] max-h-[90vh] overflow-y-auto" dir="rtl">
+      <DialogContent className="max-w-[calc(100vw-2rem)] sm:max-w-[550px] max-h-[90vh] overflow-y-auto" dir="rtl">
         <DialogHeader>
           <DialogTitle className="flex items-center gap-2">
             <AlertCircle className="h-5 w-5 text-orange-500" />
@@ -325,7 +325,7 @@ export function UpdateSessionDialog({
         <div className="space-y-4 py-2">
           <p className="text-sm text-muted-foreground">הפגישה לא עודכנה. מה קרה?</p>
 
-          <div className="grid grid-cols-3 gap-2">
+          <div className="grid grid-cols-1 sm:grid-cols-3 gap-2">
             <Button
               type="button"
               variant={updateStatus === "COMPLETED" ? "default" : "outline"}
@@ -456,7 +456,7 @@ export function UpdateSessionDialog({
                     </Label>
                   </div>
 
-                  <div className="grid grid-cols-2 gap-3">
+                  <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
                     <div className="space-y-2">
                       <Label htmlFor="update-amount">סכום</Label>
                       <div className="relative">

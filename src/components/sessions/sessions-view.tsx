@@ -593,7 +593,7 @@ export function SessionsView({ initialSessions }: SessionsViewProps) {
                 type="date"
                 value={dateFrom}
                 onChange={e => setDateFrom(e.target.value)}
-                className="h-9 w-[140px] bg-white border-muted-foreground/15 text-sm"
+                className="h-9 w-full sm:w-[140px] bg-white border-muted-foreground/15 text-sm"
                 placeholder="מתאריך"
               />
               <span className="text-muted-foreground/50 text-xs">—</span>
@@ -601,7 +601,7 @@ export function SessionsView({ initialSessions }: SessionsViewProps) {
                 type="date"
                 value={dateTo}
                 onChange={e => setDateTo(e.target.value)}
-                className="h-9 w-[140px] bg-white border-muted-foreground/15 text-sm"
+                className="h-9 w-full sm:w-[140px] bg-white border-muted-foreground/15 text-sm"
                 placeholder="עד תאריך"
               />
               {(dateFrom || dateTo) && (

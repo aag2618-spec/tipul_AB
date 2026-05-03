@@ -349,7 +349,7 @@ export function SessionDetailDialog({
 
   return (
     <Dialog open={open} onOpenChange={onOpenChange}>
-      <DialogContent className="sm:max-w-[500px]">
+      <DialogContent className="max-w-[calc(100vw-2rem)] sm:max-w-[500px]">
         <DialogHeader>
           <DialogTitle>פרטי פגישה</DialogTitle>
           <DialogDescription>
@@ -419,7 +419,7 @@ export function SessionDetailDialog({
             </div>
           )}
 
-          <div className="grid grid-cols-2 gap-4">
+          <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
             <div>
               <p className="text-sm text-muted-foreground">סוג</p>
               <p className="font-medium">

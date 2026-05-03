@@ -749,7 +749,7 @@ export default function PaymentsPage() {
             {/* סינון לפי חודש */}
             <div className="flex items-center gap-3">
               <Select value={selectedMonth} onValueChange={setSelectedMonth}>
-                <SelectTrigger className="w-[200px] bg-white shadow-sm">
+                <SelectTrigger className="w-full sm:w-[200px] bg-white shadow-sm">
                   <CalendarIcon className="h-4 w-4 ml-2 text-muted-foreground" />
                   <SelectValue placeholder="כל החודשים" />
                 </SelectTrigger>

@@ -26,6 +26,7 @@ import { TimeUpdateConfirmDialog, type TimeUpdatePromptData } from "@/components
 import { ChargeConfirmationDialog } from "@/components/calendar/charge-confirmation-dialog";
 import { CalendarEventContent } from "@/components/calendar/calendar-event-content";
 import { ChargeCardcomDialog } from "@/components/payments/charge-cardcom-dialog";
+import { useIsMobile } from "@/hooks/use-mobile";
 
 // Dynamic import for FullCalendar to avoid SSR issues
 const FullCalendar = dynamic(
@@ -72,7 +73,12 @@ function CalendarPageContent() {
   const highlightParam = searchParams.get('highlight');
   const clientParam = searchParams.get('client');
   const newParam = searchParams.get('new');
-  const initialCalendarView = viewParam === 'month' ? 'dayGridMonth' : 'timeGridWeek';
+  const isMobile = useIsMobile();
+  // ביומן בטלפון: יום בודד עם רשת שעות (שומר drag-and-drop). במחשב/טאבלט: שבוע מלא (כמו היום)
+  const initialCalendarView =
+    viewParam === 'month' ? 'dayGridMonth' :
+    isMobile ? 'timeGridDay' :
+    'timeGridWeek';
   const initialDate = dateParam && /^\d{4}-\d{2}-\d{2}$/.test(dateParam) ? dateParam : undefined;
 
   const scrollTime = (() => {
@@ -489,13 +495,17 @@ function CalendarPageContent() {
       <Card>
         <CardContent className="p-4">
           <FullCalendar
-            key={`${initialDate || "today"}-${scrollTime}-${highlightParam || ""}`}
+            key={`${initialDate || "today"}-${scrollTime}-${highlightParam || ""}-${isMobile ? "m" : "d"}`}
             plugins={[dayGridPlugin, timeGridPlugin, interactionPlugin]}
             initialView={initialCalendarView}
             initialDate={initialDate}
             locale="he"
             direction="rtl"
-            headerToolbar={{
+            headerToolbar={isMobile ? {
+              right: "prev,next today",
+              center: "title",
+              left: "timeGridDay,timeGridWeek,dayGridMonth",
+            } : {
               right: "prev,next today",
               center: "title",
               left: "dayGridMonth,timeGridWeek,timeGridDay",

@@ -475,7 +475,7 @@ export default function ReceiptsPage() {
       </div>
 
       {/* Stats */}
-      <div className="grid grid-cols-3 gap-4">
+      <div className="grid grid-cols-1 sm:grid-cols-3 gap-4">
         <div className="bg-white dark:bg-background border rounded-lg p-4 text-center">
           <p className="text-sm text-muted-foreground">סה״כ תשלומים</p>
           <p className="text-2xl font-bold">{filteredPayments.length}</p>

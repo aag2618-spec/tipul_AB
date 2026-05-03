@@ -228,7 +228,7 @@ export function DashboardHeader({ user }: DashboardHeaderProps) {
               <span className="sr-only">התראות</span>
             </Button>
           </DropdownMenuTrigger>
-          <DropdownMenuContent align="start" className="w-80">
+          <DropdownMenuContent align="start" className="w-80 max-w-[calc(100vw-2rem)]">
             <DropdownMenuLabel className="flex items-center justify-between">
               <span>התראות</span>
               {unreadCount > 0 && (
