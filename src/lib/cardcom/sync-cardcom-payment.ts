@@ -28,6 +28,7 @@ import prisma from '@/lib/prisma';
 import { logger } from '@/lib/logger';
 import { getUserCardcomClient } from '@/lib/cardcom/user-config';
 import { getAdminCardcomClient } from '@/lib/cardcom/admin-config';
+import { hashCardcomToken } from '@/lib/cardcom/token-hash';
 import type { CardcomWebhookPayload } from '@/lib/cardcom/types';
 
 export interface SyncResult {
@@ -317,21 +318,36 @@ async function syncCardcomTransactionInner(transactionId: string): Promise<SyncR
         tx.payment?.client
       ) {
         try {
-          await atx.savedCardToken.upsert({
-            where: { tenant_token: { tenant: 'USER', token: tokenStr } },
-            update: { lastUsedAt: now, isActive: true, deletedAt: null },
-            create: {
-              tenant: 'USER',
-              userId: tx.userId,
-              clientId: tx.payment.client.id,
-              token: tokenStr,
-              cardLast4: fetched.TranzactionInfo?.Last4CardDigits ?? '0000',
-              cardHolder: fetched.TranzactionInfo?.CardOwnerName ?? '',
-              cardBrand: fetched.TranzactionInfo?.CardName ?? null,
-              expiryMonth: Number(expMM),
-              expiryYear: 2000 + Number(expYY),
-            },
-          });
+          const tokenHash = hashCardcomToken(tokenStr);
+          // upsert לפי tokenHash + legacy fallback (ראה הסבר ב-cardcom/admin).
+          const existing =
+            (await atx.savedCardToken.findFirst({
+              where: { tenant: 'USER', tokenHash },
+            })) ??
+            (await atx.savedCardToken.findFirst({
+              where: { tenant: 'USER', token: tokenStr, tokenHash: null },
+            }));
+          if (existing) {
+            await atx.savedCardToken.update({
+              where: { id: existing.id },
+              data: { lastUsedAt: now, isActive: true, deletedAt: null, tokenHash },
+            });
+          } else {
+            await atx.savedCardToken.create({
+              data: {
+                tenant: 'USER',
+                userId: tx.userId,
+                clientId: tx.payment.client.id,
+                token: tokenStr,
+                tokenHash,
+                cardLast4: fetched.TranzactionInfo?.Last4CardDigits ?? '0000',
+                cardHolder: fetched.TranzactionInfo?.CardOwnerName ?? '',
+                cardBrand: fetched.TranzactionInfo?.CardName ?? null,
+                expiryMonth: Number(expMM),
+                expiryYear: 2000 + Number(expYY),
+              },
+            });
+          }
         } catch (err) {
           // Token save is non-critical — never let it abort the transaction.
           logger.warn('[sync-cardcom-payment] SavedCardToken upsert failed', {

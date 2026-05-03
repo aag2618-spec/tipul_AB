@@ -2050,6 +2050,11 @@ model SavedCardToken {
   client       Client? @relation(fields: [clientId], references: [id], onDelete: Cascade)
 
   token       String
+  // SHA-256 דטרמיניסטי של ה-token, לחיפוש ולuniqueness אחרי שה-token יוצפן
+  // (AES-GCM לא דטרמיניסטי — לא יכול להיות unique constraint עליו). השדה
+  // אופציונלי כרגע: רשומות legacy (לפני השינוי) יש להן null. data migration
+  // ימלא אותן בעתיד כדי לאפשר הצפנה מלאה של token.
+  tokenHash   String?
   cardLast4   String
   cardHolder  String
   cardBrand   String?
@@ -2065,8 +2070,10 @@ model SavedCardToken {
 
   subscriptionPayments SubscriptionPayment[]
 
-  // Same Cardcom token should never appear twice within a tenant.
-  @@unique([tenant, token])
+  // unique על tokenHash במקום token — מאפשר הצפנה לא-דטרמיניסטית של token
+  // עתידית. Postgres unique לא נכשל על NULL, אז רשומות legacy עם
+  // tokenHash=null לא יפרו את ה-constraint.
+  @@unique([tenant, tokenHash])
   @@index([tenant, subscriberId, isActive])
   @@index([tenant, clientId, isActive])
 }

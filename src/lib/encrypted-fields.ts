@@ -35,6 +35,11 @@ export const ENCRYPTED_FIELDS: Record<string, readonly string[]> = {
   // revoke. אם DB ידלוף — תוקף יקבל גישה רציפה ל-Google של כל המטפלים.
   // הצפנה ב-AES-256-GCM מבטיחה שגם dump של DB לא חושף.
   account: ["access_token", "refresh_token", "id_token"],
+  // הגדרות חיבור לקופות חולים — credentials של פורטלי הקופות.
+  // meuhedetUsername + meuhedetPassword (login user/pass של פורטל מאוחדת).
+  // אם DB ידלוף, תוקף יוכל להגיש דוחות בשם המטפל. הצפנה חובה.
+  // (clalit/maccabi/leumit משתמשים ב-apiKey שכבר מטופל ע"י BillingProvider).
+  insurerSettings: ["meuhedetUsername", "meuhedetPassword"],
 } as const;
 
 /**

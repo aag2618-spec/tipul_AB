@@ -43,6 +43,7 @@ import {
   releaseWebhookClaim,
 } from "@/lib/cardcom/webhook-claim";
 import { sanitizeChargebackPayload } from "@/lib/cardcom/sanitize";
+import { hashCardcomToken } from "@/lib/cardcom/token-hash";
 import { getSiteSetting } from "@/lib/site-settings";
 import type { CardcomWebhookPayload } from "@/lib/cardcom/types";
 
@@ -439,21 +440,36 @@ async function processUserWebhook(userId: string, payload: CardcomWebhookPayload
         Number(expMM) <= 12
       ) {
         const tokenStr = payload.TranzactionInfo.Token;
-        await tx.savedCardToken.upsert({
-          where: { tenant_token: { tenant: "USER", token: tokenStr } },
-          update: { lastUsedAt: now, isActive: true, deletedAt: null },
-          create: {
-            tenant: "USER",
-            userId,
-            clientId: transaction.payment.clientId,
-            token: tokenStr,
-            cardLast4: payload.TranzactionInfo.Last4CardDigits ?? "0000",
-            cardHolder: payload.TranzactionInfo.CardOwnerName ?? "",
-            cardBrand: payload.TranzactionInfo.CardName ?? null,
-            expiryMonth: Number(expMM),
-            expiryYear: 2000 + Number(expYY),
-          },
-        });
+        const tokenHash = hashCardcomToken(tokenStr);
+        // upsert לפי tokenHash + legacy fallback (ראה הסבר ב-cardcom/admin).
+        const existing =
+          (await tx.savedCardToken.findFirst({
+            where: { tenant: "USER", tokenHash },
+          })) ??
+          (await tx.savedCardToken.findFirst({
+            where: { tenant: "USER", token: tokenStr, tokenHash: null },
+          }));
+        if (existing) {
+          await tx.savedCardToken.update({
+            where: { id: existing.id },
+            data: { lastUsedAt: now, isActive: true, deletedAt: null, tokenHash },
+          });
+        } else {
+          await tx.savedCardToken.create({
+            data: {
+              tenant: "USER",
+              userId,
+              clientId: transaction.payment.clientId,
+              token: tokenStr,
+              tokenHash,
+              cardLast4: payload.TranzactionInfo.Last4CardDigits ?? "0000",
+              cardHolder: payload.TranzactionInfo.CardOwnerName ?? "",
+              cardBrand: payload.TranzactionInfo.CardName ?? null,
+              expiryMonth: Number(expMM),
+              expiryYear: 2000 + Number(expYY),
+            },
+          });
+        }
       } else if (payload.TranzactionInfo?.Token) {
         logger.warn("[Cardcom User Webhook] token returned without valid expiry — not saved", {
           transactionId: transaction.id,

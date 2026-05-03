@@ -40,6 +40,7 @@ import {
 import { getAdminCardcomClient } from "@/lib/cardcom/admin-config";
 import { getAdminBusinessProfile } from "@/lib/site-settings";
 import { sanitizeCardcomPayload, sanitizeChargebackPayload } from "@/lib/cardcom/sanitize";
+import { hashCardcomToken } from "@/lib/cardcom/token-hash";
 import type { CardcomWebhookPayload } from "@/lib/cardcom/types";
 
 export const dynamic = "force-dynamic";
@@ -361,20 +362,37 @@ async function processAdminWebhook(payload: CardcomWebhookPayload): Promise<void
         Number(expMM) <= 12
       ) {
         const tokenStr = payload.TranzactionInfo.Token;
-        await tx.savedCardToken.upsert({
-          where: { tenant_token: { tenant: "ADMIN", token: tokenStr } },
-          update: { lastUsedAt: now, isActive: true, deletedAt: null },
-          create: {
-            tenant: "ADMIN",
-            subscriberId: transaction.userId,
-            token: tokenStr,
-            cardLast4: payload.TranzactionInfo.Last4CardDigits ?? "0000",
-            cardHolder: payload.TranzactionInfo.CardOwnerName ?? "",
-            cardBrand: payload.TranzactionInfo.CardName ?? null,
-            expiryMonth: Number(expMM),
-            expiryYear: 2000 + Number(expYY),
-          },
-        });
+        const tokenHash = hashCardcomToken(tokenStr);
+        // upsert לפי tokenHash. legacy fallback: רשומה ישנה עם tokenHash=null
+        // אבל אותו plaintext token — נמצא ידנית ונעדכן את ה-tokenHash. כך
+        // לא יווצרו רשומות כפולות אחרי הוספת השדה החדש.
+        const existing =
+          (await tx.savedCardToken.findFirst({
+            where: { tenant: "ADMIN", tokenHash },
+          })) ??
+          (await tx.savedCardToken.findFirst({
+            where: { tenant: "ADMIN", token: tokenStr, tokenHash: null },
+          }));
+        if (existing) {
+          await tx.savedCardToken.update({
+            where: { id: existing.id },
+            data: { lastUsedAt: now, isActive: true, deletedAt: null, tokenHash },
+          });
+        } else {
+          await tx.savedCardToken.create({
+            data: {
+              tenant: "ADMIN",
+              subscriberId: transaction.userId,
+              token: tokenStr,
+              tokenHash,
+              cardLast4: payload.TranzactionInfo.Last4CardDigits ?? "0000",
+              cardHolder: payload.TranzactionInfo.CardOwnerName ?? "",
+              cardBrand: payload.TranzactionInfo.CardName ?? null,
+              expiryMonth: Number(expMM),
+              expiryYear: 2000 + Number(expYY),
+            },
+          });
+        }
       } else if (payload.TranzactionInfo?.Token) {
         logger.warn("[Cardcom Admin Webhook] token returned without valid expiry — not saved", {
           transactionId: transaction.id,
