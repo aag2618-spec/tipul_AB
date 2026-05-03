@@ -36,10 +36,23 @@ export const ENCRYPTED_FIELDS: Record<string, readonly string[]> = {
   // הצפנה ב-AES-256-GCM מבטיחה שגם dump של DB לא חושף.
   account: ["access_token", "refresh_token", "id_token"],
   // הגדרות חיבור לקופות חולים — credentials של פורטלי הקופות.
-  // meuhedetUsername + meuhedetPassword (login user/pass של פורטל מאוחדת).
-  // אם DB ידלוף, תוקף יוכל להגיש דוחות בשם המטפל. הצפנה חובה.
-  // (clalit/maccabi/leumit משתמשים ב-apiKey שכבר מטופל ע"י BillingProvider).
-  insurerSettings: ["meuhedetUsername", "meuhedetPassword"],
+  // meuhedetUsername + meuhedetPassword: login user/pass של פורטל מאוחדת.
+  // clalitApiKey + clalitFacilityId: מזהה מתקן + מפתח API של כללית.
+  // maccabiApiKey + maccabiProviderId: מזהה ספק + מפתח API של מכבי.
+  // leumitApiKey + leumitClinicCode: קוד מרפאה + מפתח API של לאומית.
+  // אם DB ידלוף — תוקף יוכל להגיש דוחות בשם המטפל ו/או לחייב כוזב.
+  // ה-IDs (facilityId/providerId/clinicCode) פחות רגישים בעצמם, אבל הם
+  // משלימים לזיהוי מטפל מול קופה — מצפינים יחד עם ה-API key.
+  insurerSettings: [
+    "meuhedetUsername",
+    "meuhedetPassword",
+    "clalitApiKey",
+    "clalitFacilityId",
+    "maccabiApiKey",
+    "maccabiProviderId",
+    "leumitApiKey",
+    "leumitClinicCode",
+  ],
 } as const;
 
 /**
