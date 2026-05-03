@@ -1,0 +1,48 @@
+# MyTipul — robots.txt
+# מאפשרים אינדוקס של עמודי שיווק בלבד (דף הבית, /login, /register, /pricing).
+# כל שאר הנתיבים — חסומים. גיבוי גם ב-X-Robots-Tag headers (ראה next.config.ts).
+
+User-agent: *
+Allow: /$
+Allow: /login
+Allow: /register
+Allow: /pricing
+Allow: /faq
+Allow: /contact
+Allow: /about
+
+Disallow: /admin
+Disallow: /admin/
+Disallow: /dashboard
+Disallow: /dashboard/
+Disallow: /clinic-admin
+Disallow: /clinic-admin/
+Disallow: /api
+Disallow: /api/
+Disallow: /p/
+Disallow: /auth/
+Disallow: /onboarding
+Disallow: /blocked
+Disallow: /worksheets/
+
+# חסימת bots ידועים שאוספים תוכן ל-LLMs (אופציונלי, אך מקובל למערכת רפואית).
+User-agent: GPTBot
+Disallow: /
+
+User-agent: ChatGPT-User
+Disallow: /
+
+User-agent: CCBot
+Disallow: /
+
+User-agent: anthropic-ai
+Disallow: /
+
+User-agent: Claude-Web
+Disallow: /
+
+User-agent: Google-Extended
+Disallow: /
+
+User-agent: PerplexityBot
+Disallow: /

@@ -2,20 +2,41 @@ import { NextRequest, NextResponse } from "next/server";
 import prisma from "@/lib/prisma";
 import { logger } from "@/lib/logger";
 import { withAudit } from "@/lib/audit";
+import { checkRateLimit } from "@/lib/rate-limit";
 
 export const dynamic = "force-dynamic";
 
 // public endpoint — אין auth. הטוקן עצמו הוא ה-secret (~190 ביטים אנטרופיה).
-// rate-limit נשען על Render-edge (במידת הצורך נוסיף בעתיד).
+// Stage 6-A.5 — anti-scraping: rate-limit פר-IP מונע ניחוש brute-force של טוקנים
+// וגם מונע scraping אוטומטי של הדף. הוקרן GET (60/דקה) ו-POST (10/דקה).
+const GET_LIMIT = { maxRequests: 60, windowMs: 60_000 };
+const POST_LIMIT = { maxRequests: 10, windowMs: 60_000 };
+
+function getIp(request: NextRequest): string {
+  const xff = request.headers.get("x-forwarded-for");
+  const realIp = request.headers.get("x-real-ip");
+  return xff?.split(",")[0]?.trim() || realIp || "unknown";
+}
+
+function tooManyRequests(): NextResponse {
+  return NextResponse.json(
+    { message: "יותר מדי בקשות. נסו שוב בעוד דקה." },
+    { status: 429, headers: { "Retry-After": "60" } }
+  );
+}
 
 type ClientChoice = "STAY_WITH_CLINIC" | "FOLLOW_THERAPIST";
 
 // GET — טוען מצב הבחירה לפי token
 export async function GET(
-  _request: NextRequest,
+  request: NextRequest,
   { params }: { params: Promise<{ token: string }> }
 ) {
   try {
+    const ip = getIp(request);
+    const rl = checkRateLimit(`departure-choice:get:${ip}`, GET_LIMIT);
+    if (!rl.allowed) return tooManyRequests();
+
     const { token } = await params;
     if (!token || typeof token !== "string" || token.length < 16) {
       return NextResponse.json({ message: "קישור לא תקין" }, { status: 400 });
@@ -78,6 +99,10 @@ export async function POST(
   { params }: { params: Promise<{ token: string }> }
 ) {
   try {
+    const ip = getIp(request);
+    const rl = checkRateLimit(`departure-choice:post:${ip}`, POST_LIMIT);
+    if (!rl.allowed) return tooManyRequests();
+
     const { token } = await params;
     if (!token || typeof token !== "string" || token.length < 16) {
       return NextResponse.json({ message: "קישור לא תקין" }, { status: 400 });
@@ -135,10 +160,8 @@ export async function POST(
       );
     }
 
-    // נסה לקבל IP מה-headers (Render/Vercel/Nginx)
-    const xff = request.headers.get("x-forwarded-for");
-    const realIp = request.headers.get("x-real-ip");
-    const ip = xff?.split(",")[0]?.trim() || realIp || null;
+    // ה-IP חושב כבר בראש הפונקציה ל-rate-limit. נשתמש בו גם ל-audit.
+    const ipForAudit = ip === "unknown" ? null : ip;
 
     // עדכון אטומי: רק אם decidedAt עדיין null. שתי בקשות מקבילות
     // ייכשלו השנייה עם updateMany count=0 ולא ידרסו.
@@ -152,7 +175,7 @@ export async function POST(
         action: "client_departure_choice_recorded",
         targetType: "ClientDepartureChoice",
         targetId: existing.id,
-        details: { choice, ip, tokenPrefix: token.slice(0, 8) },
+        details: { choice, ip: ipForAudit, tokenPrefix: token.slice(0, 8) },
       },
       async (tx) => {
         const updated = await tx.clientDepartureChoice.updateMany({
@@ -160,7 +183,7 @@ export async function POST(
           data: {
             choice,
             decidedAt: new Date(),
-            ipAddress: ip,
+            ipAddress: ipForAudit,
           },
         });
         return { updatedCount: updated.count };

@@ -67,15 +67,37 @@ const securityHeaders = [
   },
 ];
 
+// Stage 6-A.1 — anti-reverse-engineering: לוודא שלא נחשפים source-maps בייצור.
+// ברירת המחדל של Next.js היא false, אך מציינים מפורש כדי שלא יוחלף בטעות.
+// אם מישהו ינסה להפעיל debugger / DevTools / sources tab — יקבל קוד מינופי בלבד.
+const productionBrowserSourceMaps = false;
+
+// Stage 6-A.4 — Headers שחוסמים מנועי חיפוש מנתיבים פרטיים.
+// זה defense-in-depth מעבר ל-public/robots.txt: גם מי שמתעלם מ-robots
+// (scrapers זדוניים, archive.org) יקבל הוראת noindex/nofollow ברמת ה-HTTP header.
+const noIndexHeaders = [
+  { key: "X-Robots-Tag", value: "noindex, nofollow, noarchive, nosnippet" },
+];
+
 const nextConfig: NextConfig = {
   // Stage 1.19 — hide framework fingerprint from response headers.
   poweredByHeader: false,
+  productionBrowserSourceMaps,
   async headers() {
     return [
       {
         source: "/(.*)",
         headers: securityHeaders,
       },
+      // נתיבים פרטיים — חסומים מאינדוקס ברמת HTTP header.
+      { source: "/admin/:path*", headers: noIndexHeaders },
+      { source: "/dashboard/:path*", headers: noIndexHeaders },
+      { source: "/clinic-admin/:path*", headers: noIndexHeaders },
+      { source: "/api/:path*", headers: noIndexHeaders },
+      // עמודי ציבור עם טוקן (departure-choice, receipts/public וכו') —
+      // הקישורים נשלחים ישירות למטופל ולא צריכים להופיע בחיפוש.
+      { source: "/p/:path*", headers: noIndexHeaders },
+      { source: "/auth/:path*", headers: noIndexHeaders },
     ];
   },
 };

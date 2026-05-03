@@ -3,6 +3,7 @@ import { redirect } from "next/navigation";
 import { authOptions } from "@/lib/auth";
 import { Button } from "@/components/ui/button";
 import { AppLogo } from "@/components/app-logo";
+import { SiteFooter } from "@/components/site-footer";
 import {
   Calendar, Users, Brain, ClipboardList, CreditCard,
   FileCheck, Sparkles, Shield, Lock, Star, CheckCircle, Zap,
@@ -253,13 +254,7 @@ export default async function HomePage() {
         </div>
       </div>
 
-      {/* Footer */}
-      <footer className="border-t mt-8 py-8">
-        <div className="container mx-auto px-4 flex flex-col items-center gap-3 text-sm text-muted-foreground landing-centered">
-          <AppLogo className="w-[120px] h-auto opacity-80" />
-          <p className="landing-centered">© {new Date().getFullYear()} MyTipul - מערכת ניהול לפרקטיקה טיפולית</p>
-        </div>
-      </footer>
+      <SiteFooter />
     </div>
   );
 }
