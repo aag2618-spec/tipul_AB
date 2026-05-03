@@ -12,6 +12,12 @@ import { escapeHtml } from "@/lib/email-utils";
 import { logger } from "@/lib/logger";
 import { completeWebhookPayment } from "@/lib/payments/receipt-service";
 import { verifyPaymentOwnership } from "@/lib/webhook-verification";
+import {
+  verifyWebhookTimestamp,
+  claimWebhook,
+  finalizeWebhook,
+  releaseWebhookClaim,
+} from "@/lib/webhook-replay-protection";
 
 const ADMIN_EMAIL = process.env.ADMIN_EMAIL;
 const SYSTEM_URL = process.env.NEXTAUTH_URL || "";
@@ -46,6 +52,48 @@ export async function POST(request: NextRequest) {
       return NextResponse.json({ error: "Too many requests" }, { status: 429 });
     }
 
+    // ── Anti-replay timestamp check (±5 דק') ──
+    // HMAC לבד לא מספיק: תוקף שלכד payload חתום ושולח אותו שוב מאוחר יקבל
+    // שוב חתימה תקפה. בדיקת timestamp חוסמת זאת.
+    if (!verifyWebhookTimestamp(payload.timestamp, "meshulam")) {
+      logger.warn("[meshulam] webhook timestamp out of range (replay rejected)");
+      return NextResponse.json({ error: "Webhook expired" }, { status: 400 });
+    }
+
+    // ── Idempotency claim ──
+    // Meshulam עלולים לשלוח retry על אותו אירוע (network duplication, server
+    // crash). claimWebhook מבטיח שכל transactionId/paymentId יעובד פעם אחת.
+    // ה-event type נכלל ב-key כדי שאירועים שונים על אותו ID לא יתערבבו.
+    const idPart =
+      payload.transactionId ?? payload.paymentId ?? payload.documentId;
+    const externalId = idPart ? `${payload.type}:${idPart}` : null;
+    if (!externalId) {
+      logger.warn("[meshulam] webhook missing identifying ID — skipping idempotency", {
+        type: payload.type,
+      });
+      // ממשיכים בלי claim — מסתמכים על rate-limit. ספק לא תקני שלא שולח ID
+      // לא יקבל הגנת replay מלאה, אבל לפחות 5-min timestamp window כן עובד.
+    }
+
+    let claim: { eventId: string } | null = null;
+    if (externalId) {
+      const claimResult = await claimWebhook("MESHULAM", externalId, payload as object);
+      if (claimResult.status === "already_processed") {
+        logger.info("[meshulam] webhook already processed — idempotent", { externalId });
+        // מחזיר תשובה זהה למסלול הרגיל — מונע info-disclosure על אילו
+        // transactionIds כבר עובדו (חשוב אם ה-secret דולף ותוקף enumerates).
+        return NextResponse.json({ received: true });
+      }
+      if (claimResult.status === "in_progress") {
+        // worker אחר עוד עובד — Meshulam ינסה שוב.
+        return new NextResponse("Webhook in progress", {
+          status: 503,
+          headers: { "Retry-After": "60" },
+        });
+      }
+      claim = { eventId: claimResult.eventId };
+    }
+
     // עיבוד עם retry אוטומטי - שגיאות נשמרות לניסיון חוזר
     const result = await withWebhookRetry("meshulam", payload.type, body, async () => {
       switch (payload.type) {
@@ -71,6 +119,13 @@ export async function POST(request: NextRequest) {
 
     if (!result.success) {
       logger.error("Webhook handler failed but saved for retry", { error: String(result.error) });
+      // משחררים את ה-claim כדי ש-Meshulam יוכלו retry מאוחר.
+      if (claim) {
+        await releaseWebhookClaim(claim.eventId, String(result.error));
+      }
+    } else if (claim) {
+      // עיבוד הושלם — מסמנים כסופי.
+      await finalizeWebhook(claim.eventId);
     }
 
     return NextResponse.json({ received: true });

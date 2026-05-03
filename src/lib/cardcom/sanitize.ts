@@ -19,20 +19,29 @@ const SENSITIVE_KEY_PATTERNS: RegExp[] = [
 // long-term for legal/audit and don't need cardholder identifying details
 // (the link to the user is already via cardcomTransactionId → userId).
 //
+// משמש גם ב-`claimWebhook` של Meshulam ו-Sumit (ראה
+// `webhook-replay-protection.ts`) כדי שהשמירה ב-WebhookEvent.rawPayload לא
+// תכיל PII של לקוחות (חוק הגנת הפרטיות / GDPR).
+//
+// **patterns בלי `\b`**: ב-camelCase ("customerEmail") אין word-boundary בין
+// אותיות. אנחנו משתמשים ב-substring match (no `\b`) על מנת לתפוס:
+//   `email`            — `email`, `Email`, `customerEmail`, `userEmail`
+//   `phone`            — `phone`, `Phone`, `customerPhone`
+//   `name` (rooted)    — `name`, `Name`, `customerName`, `cardOwnerName`
+//   `address` (rooted) — `address`, `Address`, `customerAddress`
+// השימוש ב-`name` הוא רחב — הוא יתפוס גם `firstName`/`lastName`/`itemName`/
+// `eventName`. זה סייד-אפקט מקובל: עדיף over-redact על under-redact, וה-
+// rawPayload משמש רק ל-audit/forensics, לא לעיבוד.
+//
 // `^token$` is included because the LowProfile token is itself a billing
 // credential (reusable for future charges) — already encrypted in the
 // dedicated `SavedCardToken` table, so there's no need to keep it in the
 // long-lived chargeback audit row.
 const CHARGEBACK_PII_KEY_PATTERNS: RegExp[] = [
-  /cardownername/i,
-  /cardownerphone/i,
-  /cardowneremail/i,
-  /^ownername$/i,
-  /^ownerphone$/i,
-  /^owneremail$/i,
-  /\bphone\b/i,
-  /\bemail\b/i,
-  /\bfullname\b/i,
+  /email/i,
+  /phone/i,
+  /name/i,
+  /address/i,
   /^token$/i,
 ];
 

@@ -7,6 +7,14 @@ import { verifySumitWebhook, SumitWebhookPayload } from "@/lib/sumit";
 import { logger } from "@/lib/logger";
 import { completeWebhookPayment } from "@/lib/payments/receipt-service";
 import { verifyPaymentByExternalId } from "@/lib/webhook-verification";
+import { checkRateLimit, WEBHOOK_RATE_LIMIT } from "@/lib/rate-limit";
+import { saveFailedWebhook } from "@/lib/webhook-retry";
+import {
+  verifyWebhookTimestamp,
+  claimWebhook,
+  finalizeWebhook,
+  releaseWebhookClaim,
+} from "@/lib/webhook-replay-protection";
 
 export const dynamic = "force-dynamic";
 
@@ -31,18 +39,79 @@ export async function POST(request: NextRequest) {
     const payload: SumitWebhookPayload = JSON.parse(body);
     logger.info("Sumit webhook received:", { data: payload.Event });
 
-    switch (payload.Event) {
-      case "payment.success":
-        await handlePaymentSuccess(payload);
-        break;
-      case "payment.failed":
-        await handlePaymentFailed(payload);
-        break;
-      case "document.created":
-        await handleDocumentCreated(payload);
-        break;
-      default:
-        logger.info("Unhandled webhook event:", { data: payload.Event });
+    // Rate limiting per-IP — מקביל ל-Meshulam, מגן מפני flooding גם אם ה-secret דלף.
+    const clientIp = request.headers.get("x-forwarded-for") || "unknown";
+    const rateCheck = checkRateLimit(`webhook:sumit:${clientIp}`, WEBHOOK_RATE_LIMIT);
+    if (!rateCheck.allowed) {
+      return NextResponse.json({ error: "Too many requests" }, { status: 429 });
+    }
+
+    // ── Anti-replay timestamp check (±5 דק') ──
+    if (!verifyWebhookTimestamp(payload.Timestamp, "sumit")) {
+      logger.warn("[sumit] webhook timestamp out of range (replay rejected)");
+      return NextResponse.json({ error: "Webhook expired" }, { status: 400 });
+    }
+
+    // ── Idempotency claim ──
+    // externalId כולל את ה-Event כדי שאירועים שונים על אותו PaymentID יעובדו
+    // בנפרד. דוגמה: payment.success (יוצר התראה) + document.created (כותב
+    // receiptUrl) — אם נשתמש רק ב-PaymentID, השני ייחסם כ-already_processed.
+    const idPart = payload.PaymentID ?? payload.DocumentID;
+    const externalId = idPart ? `${payload.Event}:${idPart}` : null;
+    let claim: { eventId: string } | null = null;
+    if (externalId) {
+      const claimResult = await claimWebhook("SUMIT", externalId, payload as object);
+      if (claimResult.status === "already_processed") {
+        logger.info("[sumit] webhook already processed — idempotent", { externalId });
+        // מחזיר תשובה זהה למסלול הרגיל — מונע info-disclosure על אילו
+        // PaymentIDs כבר עובדו.
+        return NextResponse.json({ received: true });
+      }
+      if (claimResult.status === "in_progress") {
+        return new NextResponse("Webhook in progress", {
+          status: 503,
+          headers: { "Retry-After": "60" },
+        });
+      }
+      claim = { eventId: claimResult.eventId };
+    } else {
+      logger.warn("[sumit] webhook missing identifying ID — skipping idempotency", {
+        event: payload.Event,
+      });
+    }
+
+    try {
+      switch (payload.Event) {
+        case "payment.success":
+          await handlePaymentSuccess(payload);
+          break;
+        case "payment.failed":
+          await handlePaymentFailed(payload);
+          break;
+        case "document.created":
+          await handleDocumentCreated(payload);
+          break;
+        default:
+          logger.info("Unhandled webhook event:", { data: payload.Event });
+      }
+      if (claim) {
+        await finalizeWebhook(claim.eventId);
+      }
+    } catch (handlerErr) {
+      const errMsg = handlerErr instanceof Error ? handlerErr.message : String(handlerErr);
+      // משחררים את ה-claim כדי ש-Sumit יוכלו retry.
+      if (claim) {
+        await releaseWebhookClaim(claim.eventId, errMsg);
+      }
+      // רושמים AdminAlert (כמו Meshulam מקבל מ-withWebhookRetry) — מבטיח שאדמין
+      // יראה כל webhook שנכשל ב-Sumit, גם אם retry מאוחר יותר יצליח.
+      await saveFailedWebhook({
+        provider: "sumit",
+        eventType: payload.Event,
+        payload: body,
+        error: errMsg,
+      });
+      throw handlerErr;
     }
 
     return NextResponse.json({ received: true });
