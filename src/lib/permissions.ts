@@ -80,6 +80,10 @@ export type Permission =
  */
 export const PERMISSIONS_BY_ROLE: Record<Role, Permission[]> = {
   USER: [],
+  // CLINIC_OWNER/CLINIC_SECRETARY מקבלים הרשאות דרך scope ב-clinic-admin (לא דרך admin global).
+  // עבור Permissions של ה-/admin הגלובלי — הם זהים ל-USER רגיל (אין הרשאות).
+  CLINIC_OWNER: [],
+  CLINIC_SECRETARY: [],
   MANAGER: [
     "users.view",
     "users.update_basic",

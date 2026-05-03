@@ -50,6 +50,27 @@ enum Role {
   USER
   MANAGER // משתמש עם הרשאות ניהול
   ADMIN
+  CLINIC_OWNER // בעל/ת קליניקה רב-מטפלים — רואה את כל המטפלים והמזכירות בארגון
+  CLINIC_SECRETARY // מזכיר/ה בקליניקה — לפי secretaryPermissions, חסום מתוכן קליני
+}
+
+// תפקיד בתוך הקליניקה — relevant only when User.organizationId != null.
+enum ClinicRole {
+  OWNER
+  THERAPIST
+  SECRETARY
+}
+
+enum DepartureStatus {
+  PENDING
+  COMPLETED
+  CANCELLED
+}
+
+enum DepartureChoice {
+  UNDECIDED
+  STAY_WITH_CLINIC
+  FOLLOW_THERAPIST
 }
 
 model User {
@@ -109,6 +130,17 @@ model User {
   // Usage limits
   maxActiveClients Int  @default(40) // Maximum active clients allowed
   userNumber       Int? @unique // מספר משתמש ייחודי (1001+)
+
+  // ==================== Clinic Multi-Tenancy ====================
+  // null = מטפל עצמאי (התנהגות קיימת, ללא שינוי).
+  // ערך = שייך לארגון/קליניקה רב-מטפלים. clinicRole חייב להיות מוגדר.
+  organizationId       String?
+  organization         Organization? @relation("OrgMembers", fields: [organizationId], references: [id], onDelete: SetNull)
+  clinicRole           ClinicRole? // OWNER/THERAPIST/SECRETARY — null אם organizationId=null.
+  // מטריצת הרשאות מזכירה — רלוונטי רק ל-clinicRole=SECRETARY.
+  // Shape: { canViewPayments, canIssueReceipts, canSendReminders, canCreateClient, canViewDebts, canViewStats }
+  // NOTE: גישה לתוכן קליני (סיכומים/אבחנות/AI/הקלטות) חסומה קשיחות בקוד — לא ניתנת לעריכה דרך השדה הזה.
+  secretaryPermissions Json?
 
   // Business & Receipt Settings (הגדרות עסק וקבלות)
   businessType       BusinessType     @default(NONE) // סוג עסק
@@ -195,6 +227,12 @@ model User {
 
   // 2FA codes
   twoFactorCodes TwoFactorCode[]
+
+  // ==================== Clinic relations (inverse) ====================
+  ownedOrganization        Organization?        @relation("OrgOwner")
+  customContractsCreated   CustomContract[]     @relation("ContractCreator")
+  clientTransfersPerformed ClientTransferLog[]  @relation("TransferPerformer")
+  departureInitiated       TherapistDeparture[] @relation("DepartingTherapist")
 }
 
 // ==================== AI Tiers ====================
@@ -333,6 +371,11 @@ model Client {
   therapistId String
   therapist   User   @relation(fields: [therapistId], references: [id], onDelete: Cascade)
 
+  // Clinic multi-tenancy — null = מטופל של מטפל עצמאי (התנהגות קיימת).
+  // ערך = משתייך לקליניקה (חייב להיות זהה ל-organizationId של המטפל).
+  organizationId String?
+  organization   Organization? @relation(fields: [organizationId], references: [id], onDelete: SetNull)
+
   therapySessions        TherapySession[]
   payments               Payment[]
   documents              Document[]
@@ -357,6 +400,12 @@ model Client {
 
   // Cardcom — invoices issued TO this client (USER tenant)
   cardcomInvoicesReceived CardcomInvoice[] @relation("CardcomInvoiceRecipient")
+
+  // Clinic departure flow — בחירות שמטופל זה עשה כשמטפלת עוזבת
+  departureChoices ClientDepartureChoice[]
+
+  @@index([organizationId])
+  @@index([organizationId, therapistId])
 }
 
 enum ClientStatus {
@@ -413,6 +462,13 @@ model TherapySession {
   // AI Analysis
   sessionAnalysis SessionAnalysis?
   emotionLogs     EmotionLog[]
+
+  // Clinic multi-tenancy
+  organizationId String?
+  organization   Organization? @relation(fields: [organizationId], references: [id], onDelete: SetNull)
+
+  @@index([organizationId])
+  @@index([organizationId, startTime])
 }
 
 enum SessionStatus {
@@ -547,11 +603,16 @@ model Payment {
   cardcomTransactions CardcomTransaction[]
   cardcomInvoices     CardcomInvoice[]
 
+  // Clinic multi-tenancy
+  organizationId String?
+  organization   Organization? @relation(fields: [organizationId], references: [id], onDelete: SetNull)
+
   @@index([parentPaymentId])
   @@index([clientId])
   @@index([status])
   @@index([clientId, status])
   @@index([hasReceipt])
+  @@index([organizationId])
 }
 
 enum PaymentMethod {
@@ -615,6 +676,11 @@ model Document {
 
   clientId String?
   client   Client? @relation(fields: [clientId], references: [id], onDelete: SetNull)
+
+  // Clinic multi-tenancy — FK bareback (ללא @relation). null = מטפל עצמאי.
+  organizationId String?
+
+  @@index([organizationId])
 }
 
 enum DocumentType {
@@ -896,6 +962,11 @@ model CommunicationLog {
 
   userId String?
   user   User?   @relation(fields: [userId], references: [id], onDelete: SetNull)
+
+  // Clinic multi-tenancy — FK bareback. null = מטפל עצמאי.
+  organizationId String?
+
+  @@index([organizationId])
 }
 
 enum CommunicationType {
@@ -1157,6 +1228,11 @@ model QuestionnaireResponse {
 
   // AI Analysis Relations
   questionnaireAnalyses QuestionnaireAnalysis[]
+
+  // Clinic multi-tenancy — FK bareback. null = מטפל עצמאי.
+  organizationId String?
+
+  @@index([organizationId])
 }
 
 enum QuestionnaireStatus {
@@ -1198,8 +1274,12 @@ model IntakeResponse {
   filledAt  DateTime @default(now())
   updatedAt DateTime @updatedAt
 
+  // Clinic multi-tenancy — FK bareback. null = מטפל עצמאי.
+  organizationId String?
+
   @@index([clientId])
   @@index([templateId])
+  @@index([organizationId])
 }
 
 // ==================== SMS Reminders ====================
@@ -1261,8 +1341,12 @@ model ConsentForm {
   therapistId String
   therapist   User   @relation(fields: [therapistId], references: [id], onDelete: Cascade)
 
+  // Clinic multi-tenancy — FK bareback. null = מטפל עצמאי.
+  organizationId String?
+
   @@index([type])
   @@index([clientId])
+  @@index([organizationId])
 }
 
 enum ConsentType {
@@ -1569,9 +1653,13 @@ model QuestionnaireAnalysis {
 
   createdAt DateTime @default(now())
 
+  // Clinic multi-tenancy — FK bareback. null = מטפל עצמאי.
+  organizationId String?
+
   @@index([userId, clientId])
   @@index([clientId, createdAt])
   @@index([analysisType])
+  @@index([organizationId])
 }
 
 enum QuestionnaireAnalysisType {
@@ -1603,8 +1691,12 @@ model SessionAnalysis {
 
   createdAt DateTime @default(now())
 
+  // Clinic multi-tenancy — FK bareback. null = מטפל עצמאי.
+  organizationId String?
+
   @@index([userId, sessionId])
   @@index([analysisType])
+  @@index([organizationId])
 }
 
 enum AnalysisType {
@@ -2267,4 +2359,206 @@ model TwoFactorCode {
 
   @@index([userId, verifiedAt])
   @@index([expiresAt])
+}
+
+// ==================== Clinic Multi-Tenancy ====================
+// משתמשים עצמאיים (organizationId=null) אינם נוגעים בטבלאות הללו.
+
+// Organization — קליניקה רב-מטפלים. כל המטפלים, המזכירות, והבעלים שייכים לה.
+// המבנה: Organization 1—N User (members דרך User.organizationId).
+//        Organization 1—1 User (owner דרך Organization.ownerUserId — נפרד מ-members).
+model Organization {
+  id               String  @id @default(cuid())
+  name             String
+  businessIdNumber String?
+  businessName     String?
+  businessAddress  String?
+  businessPhone    String?
+  logoUrl          String?
+
+  // הבעלים — User יחיד שמשליט. ownerIsTherapist קובע אם הוא גם מקבל מטופלים.
+  ownerUserId      String  @unique
+  owner            User    @relation("OrgOwner", fields: [ownerUserId], references: [id], onDelete: Restrict)
+  ownerIsTherapist Boolean @default(false)
+
+  // תוכנית התמחור — משויכת אוטומטית ב-default plan ביצירה.
+  pricingPlanId String
+  pricingPlan   ClinicPricingPlan @relation(fields: [pricingPlanId], references: [id], onDelete: Restrict)
+
+  aiTier                AITier             @default(ESSENTIAL)
+  subscriptionStatus    SubscriptionStatus @default(TRIALING)
+  subscriptionStartedAt DateTime?
+  subscriptionEndsAt    DateTime?
+
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+
+  members        User[]               @relation("OrgMembers")
+  customContract CustomContract?
+  smsUsage       OrgSmsUsage[]
+  transferLogs   ClientTransferLog[]
+  departures     TherapistDeparture[]
+
+  // Inverse relations מהמודלים הקיימים שמכילים organizationId עם @relation
+  clients         Client[]
+  therapySessions TherapySession[]
+  payments        Payment[]
+
+  @@index([ownerUserId])
+  @@index([subscriptionStatus, subscriptionEndsAt])
+  @@index([pricingPlanId])
+}
+
+// תוכנית תמחור לקליניקה — אדמין יוצר ועורך מ-/admin/pricing/clinic-plans.
+// כל קליניקה מצביעה לתוכנית אחת. שינוי מחיר בתוכנית משפיע על כל הקליניקות שמצביעות עליה.
+// לחוזה מותאם אישית — שימוש ב-CustomContract שגובר על התוכנית.
+model ClinicPricingPlan {
+  id           String  @id @default(cuid())
+  name         String  @unique // "תוכנית קליניקה רגילה"
+  internalCode String  @unique // "CLINIC_STANDARD"
+  isActive     Boolean @default(true)
+  isDefault    Boolean @default(false) // ברירת מחדל ביצירת קליניקה חדשה
+
+  // תמחור בסיס
+  baseFeeIls         Decimal @db.Decimal(10, 2)
+  includedTherapists Int     @default(1) // כמה מטפלים כלולים במחיר הבסיס
+  perTherapistFeeIls Decimal @db.Decimal(10, 2) // לכל מטפל מעבר ל-includedTherapists
+
+  // הנחת נפח — אופציונלי
+  volumeDiscountAtCount   Int? // מ-X מטפלים ומעלה
+  perTherapistAtVolumeIls Decimal? @db.Decimal(10, 2) // מחיר חלופי בנפח
+
+  // מזכירות
+  freeSecretaries    Int      @default(3)
+  perSecretaryFeeIls Decimal? @db.Decimal(10, 2) // null = ללא חיוב
+
+  // SMS
+  smsQuotaPerMonth Int @default(500)
+
+  // AI — אופציונלי, אם null אז AI נמכר בנפרד
+  aiTierIncluded         AITier?
+  aiAddonDiscountPercent Int? // הנחה על תוסף AI מעבר ל-aiTierIncluded
+
+  // תקרות
+  maxTherapists  Int? // null = ללא הגבלה
+  maxSecretaries Int?
+
+  description String?  @db.Text
+  createdAt   DateTime @default(now())
+  updatedAt   DateTime @updatedAt
+
+  organizations Organization[]
+}
+
+// חוזה מותאם אישית — גובר על ClinicPricingPlan עבור Organization יחיד.
+// כשקיים חוזה פעיל (status active + endDate בעתיד), המחיר נלקח ממנו.
+model CustomContract {
+  id             String       @id @default(cuid())
+  organizationId String       @unique
+  organization   Organization @relation(fields: [organizationId], references: [id], onDelete: Cascade)
+
+  monthlyEquivPriceIls Decimal @db.Decimal(10, 2) // המחיר החודשי האפקטיבי
+  billingCycleMonths   Int     @default(1) // 1 = חודשי, 12 = שנתי
+  customSmsQuota       Int? // null = להשתמש ב-pricingPlan.smsQuotaPerMonth
+  customAiTier         AITier? // null = להשתמש ב-organization.aiTier
+
+  startDate         DateTime
+  endDate           DateTime
+  autoRenew         Boolean  @default(false)
+  renewalMonths     Int      @default(12)
+  annualIncreasePct Decimal? @db.Decimal(5, 2) // למשל 5.00 = 5% עלייה שנתית
+
+  signedDocumentUrl String? // קישור ל-PDF חתום (אופציונלי)
+  notes             String?  @db.Text
+  createdById       String
+  createdBy         User     @relation("ContractCreator", fields: [createdById], references: [id], onDelete: Restrict)
+  createdAt         DateTime @default(now())
+  updatedAt         DateTime @updatedAt
+
+  @@index([endDate, autoRenew])
+  @@index([createdById])
+}
+
+// מעקב שימוש SMS חודשי לקליניקה — קלוסטר חודשי.
+// שונה מ-CommunicationSetting.smsMonthlyUsage שהוא ברמת User בודד.
+model OrgSmsUsage {
+  id             String       @id @default(cuid())
+  organizationId String
+  organization   Organization @relation(fields: [organizationId], references: [id], onDelete: Cascade)
+  month          Int // 1-12
+  year           Int
+  smsCount       Int          @default(0)
+
+  @@unique([organizationId, year, month])
+  @@index([organizationId, year, month])
+}
+
+// תהליך עזיבת מטפלת מקליניקה — Patient-driven.
+// המטפלת לוחצת "אני עוזבת"; כל מטופל מקבל קישור עם token לבחירה.
+// cron יומי משלים את התהליך ב-decisionDeadline (ברירת מחדל 14 יום).
+model TherapistDeparture {
+  id                   String       @id @default(cuid())
+  organizationId       String
+  organization         Organization @relation(fields: [organizationId], references: [id], onDelete: Cascade)
+  departingTherapistId String
+  departingTherapist   User         @relation("DepartingTherapist", fields: [departingTherapistId], references: [id], onDelete: Cascade)
+
+  status           DepartureStatus @default(PENDING)
+  decisionDeadline DateTime
+  reason           String?         @db.Text
+
+  initiatedAt DateTime  @default(now())
+  completedAt DateTime?
+
+  choices ClientDepartureChoice[]
+
+  @@index([organizationId, status])
+  @@index([decisionDeadline])
+  @@index([departingTherapistId])
+}
+
+// בחירת מטופל — האם להישאר בקליניקה או ללכת עם המטפלת.
+// decisionToken: cuid ייחודי שנשלח במייל/SMS למטופל; דף ציבורי /p/departure-choice/{token}.
+// ברירת מחדל ב-deadline = STAY_WITH_CLINIC (UNDECIDED הופך לכך).
+model ClientDepartureChoice {
+  id          String             @id @default(cuid())
+  departureId String
+  departure   TherapistDeparture @relation(fields: [departureId], references: [id], onDelete: Cascade)
+  clientId    String
+  // Cascade — אם מטופל נמחק, גם רשומת הבחירה שלו נמחקת. אין משמעות לבחירה ללא מטופל.
+  client      Client             @relation(fields: [clientId], references: [id], onDelete: Cascade)
+
+  choice        DepartureChoice @default(UNDECIDED)
+  decidedAt     DateTime?
+  decisionToken String          @unique
+  ipAddress     String?
+
+  @@unique([departureId, clientId])
+  @@index([decisionToken])
+  @@index([clientId])
+}
+
+// לוג העברת מטופל בין מטפלים בתוך אותה קליניקה (העברה פנימית).
+// שונה מ-TherapistDeparture שהוא יציאה מהקליניקה.
+// snapshot של שמות נשמר למקרה שמשתמש נמחק לאחר ההעברה.
+model ClientTransferLog {
+  id              String       @id @default(cuid())
+  organizationId  String
+  organization    Organization @relation(fields: [organizationId], references: [id], onDelete: Cascade)
+  clientId        String
+  fromTherapistId String
+  toTherapistId   String
+  performedById   String
+  performedBy     User         @relation("TransferPerformer", fields: [performedById], references: [id], onDelete: Restrict)
+  reason          String?      @db.Text
+
+  fromTherapistNameSnapshot String
+  toTherapistNameSnapshot   String
+  performedByNameSnapshot   String
+
+  transferredAt DateTime @default(now())
+
+  @@index([organizationId, transferredAt])
+  @@index([clientId, transferredAt])
+  @@index([performedById])
 }

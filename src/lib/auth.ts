@@ -12,7 +12,7 @@ import { requires2FA } from "./two-factor";
 // (block/role change ישפיע תוך 30s במקום 2 דקות).
 const JWT_CACHE_TTL = 30 * 1000; // 30 שניות
 interface JwtUserData {
-  role: "USER" | "MANAGER" | "ADMIN";
+  role: "USER" | "MANAGER" | "ADMIN" | "CLINIC_OWNER" | "CLINIC_SECRETARY";
   isBlocked: boolean;
   subscriptionStatus: "ACTIVE" | "TRIALING" | "PAST_DUE" | "CANCELLED" | "PAUSED" | null;
   subscriptionEndsAt: Date | null;
@@ -258,7 +258,7 @@ export const authOptions: NextAuthOptions = {
 
           // Override user.id so JWT callback uses the existing user
           user.id = existingUser.id;
-          user.role = existingUser.role as "USER" | "MANAGER" | "ADMIN";
+          user.role = existingUser.role as "USER" | "MANAGER" | "ADMIN" | "CLINIC_OWNER" | "CLINIC_SECRETARY";
         }
       }
 
@@ -424,7 +424,7 @@ export const authOptions: NextAuthOptions = {
     async session({ session, token }) {
       if (session.user) {
         session.user.id = token.id as string;
-        session.user.role = token.role as "USER" | "MANAGER" | "ADMIN";
+        session.user.role = token.role as "USER" | "MANAGER" | "ADMIN" | "CLINIC_OWNER" | "CLINIC_SECRETARY";
         session.user.requires2FA = token.requires2FA === true;
       }
       return session;
@@ -435,7 +435,7 @@ export const authOptions: NextAuthOptions = {
 // Extend NextAuth types
 declare module "next-auth" {
   interface User {
-    role?: "USER" | "MANAGER" | "ADMIN";
+    role?: "USER" | "MANAGER" | "ADMIN" | "CLINIC_OWNER" | "CLINIC_SECRETARY";
     requires2FA?: boolean;
     loginAt?: number;
   }
@@ -446,7 +446,7 @@ declare module "next-auth" {
       name?: string | null;
       email?: string | null;
       image?: string | null;
-      role: "USER" | "MANAGER" | "ADMIN";
+      role: "USER" | "MANAGER" | "ADMIN" | "CLINIC_OWNER" | "CLINIC_SECRETARY";
       requires2FA?: boolean;
     };
   }
@@ -455,7 +455,7 @@ declare module "next-auth" {
 declare module "next-auth/jwt" {
   interface JWT {
     id: string;
-    role?: "USER" | "MANAGER" | "ADMIN";
+    role?: "USER" | "MANAGER" | "ADMIN" | "CLINIC_OWNER" | "CLINIC_SECRETARY";
     subscriptionStatus?: "ACTIVE" | "TRIALING" | "PAST_DUE" | "CANCELLED" | "PAUSED";
     isBlocked?: boolean;
     gracePeriodEndsAt?: string; // ISO date string - מתי נגמרת תקופת החסד
