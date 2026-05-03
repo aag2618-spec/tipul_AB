@@ -32,6 +32,12 @@ import {
   BarChart3,
   Headphones,
   AlertTriangle,
+  Building2,
+  ArrowLeftRight,
+  UserMinus,
+  DollarSign,
+  MessageSquare,
+  FileSignature,
 } from "lucide-react";
 
 // adminOnly: true → מוסתר ל-MANAGER (התאמה למטריצה ול-middleware ADMIN_ONLY_PATHS)
@@ -69,6 +75,17 @@ const adminNavGroups = [
       { href: "/admin/ai-usage", label: "סקירת שימוש", icon: Brain, exact: true },
       { href: "/admin/ai-usage/settings", label: "הגדרות", icon: Settings, adminOnly: true },
       { href: "/admin/ai-usage/reports", label: "דוחות ואנליטיקס", icon: BarChart3 },
+    ],
+  },
+  {
+    label: "קליניקות רב-מטפלים",
+    items: [
+      { href: "/admin/clinics", label: "כל הקליניקות", icon: Building2, exact: true, adminOnly: true },
+      { href: "/admin/clinics/transfers", label: "העברות מטופלים", icon: ArrowLeftRight, adminOnly: true },
+      { href: "/admin/clinics/departures", label: "תהליכי עזיבה", icon: UserMinus, adminOnly: true },
+      { href: "/admin/pricing/clinic-plans", label: "תוכניות תמחור קליניקה", icon: DollarSign, adminOnly: true },
+      { href: "/admin/pricing/sms-packages", label: "חבילות SMS", icon: MessageSquare, adminOnly: true },
+      { href: "/admin/pricing/custom-contracts", label: "חוזים מותאמים", icon: FileSignature, adminOnly: true },
     ],
   },
   {
