@@ -6,7 +6,8 @@ import dynamic from "next/dynamic";
 import { Button } from "@/components/ui/button";
 import { Card, CardContent } from "@/components/ui/card";
 
-import { Plus, Loader2, Repeat, AlertTriangle } from "lucide-react";
+import { Plus, Loader2, Repeat, AlertTriangle, Search, X } from "lucide-react";
+import { Input } from "@/components/ui/input";
 import { format } from "date-fns";
 import { toast } from "sonner";
 import type { EventClickArg, DatesSetArg, EventDropArg } from "@fullcalendar/core";
@@ -189,6 +190,17 @@ function CalendarPageContent() {
   // שמירת מטופל מהכתובת - ישמש כשלוחצים על שעה ביומן
   const [preselectedClientId, setPreselectedClientId] = useState<string | null>(clientParam);
 
+  // חיפוש ביומן — שם מטופל וקפיצה לתאריך
+  const [searchTerm, setSearchTerm] = useState("");
+
+  // קפיצה לתאריך מסוים: עדכון URL כדי לטעון מחדש את היומן עם initialDate חדש
+  const handleDateJump = useCallback((dateStr: string) => {
+    if (!dateStr || !/^\d{4}-\d{2}-\d{2}$/.test(dateStr)) return;
+    const params = new URLSearchParams(searchParams.toString());
+    params.set("date", dateStr);
+    router.push(`/dashboard/calendar?${params.toString()}`);
+  }, [searchParams, router]);
+
   // הצג פגישות מבוטלות שכבר עברו, הסתר מבוטלות עתידיות
   const events: CalendarEvent[] = sessions
     .filter((session) => {
@@ -221,6 +233,14 @@ function CalendarPageContent() {
         },
       };
     });
+
+  // סינון אירועים לפי חיפוש לפי שם מטופל. אם השדה ריק — מחזיר את אותו reference (אין שינוי)
+  const filteredEvents: CalendarEvent[] = searchTerm.trim()
+    ? events.filter((e) => {
+        if (e.extendedProps?.type === "BREAK") return false; // הפסקות לא תואמות לחיפוש לפי שם
+        return (e.title || "").toLowerCase().includes(searchTerm.trim().toLowerCase());
+      })
+    : events;
 
   // Update date range when calendar view changes (month/week navigation)
   const handleDatesSet = useCallback((info: DatesSetArg) => {
@@ -492,6 +512,51 @@ function CalendarPageContent() {
         </div>
       </div>
 
+      {/* שורת חיפוש: שם מטופל + קפיצה לתאריך — בכל גודל מסך */}
+      <div className="flex flex-col sm:flex-row gap-2 sm:items-center">
+        <div className="relative flex-1 min-w-0">
+          <Search className="absolute right-3 top-1/2 -translate-y-1/2 h-4 w-4 text-muted-foreground pointer-events-none" />
+          <Input
+            type="text"
+            placeholder="חפש פגישה לפי שם מטופל..."
+            className="pr-10 pl-10"
+            value={searchTerm}
+            onChange={(e) => setSearchTerm(e.target.value)}
+            aria-label="חיפוש פגישה לפי שם מטופל"
+          />
+          {searchTerm && (
+            <button
+              type="button"
+              onClick={() => setSearchTerm("")}
+              className="absolute left-1 top-1/2 -translate-y-1/2 inline-flex items-center justify-center w-9 h-9 rounded hover:bg-muted text-muted-foreground"
+              aria-label="נקה חיפוש"
+            >
+              <X className="h-4 w-4" />
+            </button>
+          )}
+        </div>
+        <div className="flex items-center gap-2">
+          <label htmlFor="calendar-date-jump" className="text-sm text-muted-foreground whitespace-nowrap">
+            קפיצה לתאריך:
+          </label>
+          <Input
+            id="calendar-date-jump"
+            type="date"
+            dir="ltr"
+            value={initialDate || ""}
+            onChange={(e) => handleDateJump(e.target.value)}
+            className="w-full sm:w-[160px]"
+            aria-label="קפיצה לתאריך ביומן"
+          />
+        </div>
+      </div>
+
+      {searchTerm && filteredEvents.length === 0 && (
+        <div className="text-sm text-muted-foreground py-2 px-3 rounded bg-muted/40 border border-muted">
+          לא נמצאו פגישות עם השם &quot;{searchTerm}&quot; בטווח התאריכים המוצג. נסה לקפוץ לתאריך אחר באמצעות שדה &quot;קפיצה לתאריך&quot;, או לעבור לתצוגת חודש/שבוע.
+        </div>
+      )}
+
       <Card>
         <CardContent className="p-4">
           <FullCalendar
@@ -526,7 +591,7 @@ function CalendarPageContent() {
             slotMaxTime="24:00:00"
             allDaySlot={false}
             slotDuration="00:30:00"
-            events={events}
+            events={filteredEvents}
             datesSet={handleDatesSet}
             dateClick={handleDateClick}
             eventClick={handleEventClick}
