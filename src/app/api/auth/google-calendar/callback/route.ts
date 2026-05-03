@@ -4,6 +4,7 @@ import { authOptions } from "@/lib/auth";
 import { google } from "googleapis";
 import prisma from "@/lib/prisma";
 import { logger } from "@/lib/logger";
+import { verifyGoogleOAuthState } from "@/lib/google-oauth-state";
 
 export const dynamic = "force-dynamic";
 
@@ -11,7 +12,7 @@ export async function GET(request: NextRequest) {
   try {
     const { searchParams } = new URL(request.url);
     const code = searchParams.get("code");
-    const userId = searchParams.get("state");
+    const stateParam = searchParams.get("state");
     const error = searchParams.get("error");
 
     const baseUrl = process.env.NEXTAUTH_URL || "http://localhost:3000";
@@ -21,9 +22,8 @@ export async function GET(request: NextRequest) {
     // אז דרושות בדיקות מפורשות.
     // 1. session חייב להיות (אחרת מישהו יכול להריץ OAuth ל-userId של מישהו אחר).
     // 2. requires2FA — חוסם משתמש חצי-מאומת.
-    // 3. state.userId חייב להתאים ל-session.user.id — מונע confused-deputy:
-    //    תוקף שמתחיל OAuth כ-A, מטיל לינק על B שלחוץ עליו, ה-callback רץ
-    //    בסשן של B אבל יקשר את החשבון של Google ל-userId של A.
+    // 3. state חתום עם HMAC + תוקף 10 דק' (verifyGoogleOAuthState).
+    // 4. state.userId חייב להתאים ל-session.user.id — מונע confused-deputy.
     const session = await getServerSession(authOptions);
     if (!session?.user?.id) {
       return NextResponse.redirect(`${redirectUrl}&google_error=not_authenticated`);
@@ -37,9 +37,20 @@ export async function GET(request: NextRequest) {
       return NextResponse.redirect(`${redirectUrl}&google_error=denied`);
     }
 
-    if (!code || !userId) {
+    if (!code || !stateParam) {
       return NextResponse.redirect(`${redirectUrl}&google_error=missing_params`);
     }
+
+    // אימות state HMAC — חוסם זיוף, replay (state ישן), וערך לא תקני.
+    const stateCheck = verifyGoogleOAuthState(stateParam);
+    if (!stateCheck.valid || !stateCheck.userId) {
+      logger.error("[GoogleCalendar] invalid OAuth state", {
+        reason: stateCheck.reason,
+        sessionUserId: session.user.id,
+      });
+      return NextResponse.redirect(`${redirectUrl}&google_error=invalid_state`);
+    }
+    const userId = stateCheck.userId;
 
     // ownership check — state.userId חייב להתאים ל-session.user.id
     if (userId !== session.user.id) {

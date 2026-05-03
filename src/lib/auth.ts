@@ -60,9 +60,11 @@ export const authOptions: NextAuthOptions = {
             clientSecret: process.env.GOOGLE_CLIENT_SECRET,
             authorization: {
               params: {
-                scope: "openid email profile https://www.googleapis.com/auth/calendar",
-                access_type: "offline",
-                prompt: "consent",
+                // login רגיל: רק זהות (openid email profile). הרשאת Calendar
+                // (ה-scope הרגיש) נדרשת רק בעת חיבור היומן הפעיל מ-Settings,
+                // דרך `/api/auth/google-calendar/connect`. לא מבקשים מהמשתמש
+                // הרשאה רגישה כשהוא רק נרשם או נכנס.
+                scope: "openid email profile",
               },
             },
           }),
@@ -234,14 +236,22 @@ export const authOptions: NextAuthOptions = {
               },
             });
           } else {
-            // Update existing tokens
+            // Update existing tokens — אבל **לא לדרוס** tokens קיימים אם
+            // Google לא שלח אותם ב-login הזה. זה קריטי במיוחד אחרי שהוסרה
+            // הרשאת Calendar מ-login הראשי: login רגיל לא יחזיר calendar
+            // refresh_token, ולכן אסור לדרוס את ה-refresh_token הקיים שיש בו
+            // את ההרשאה (Google לא שולחים refresh_token ב-login חוזר ללא
+            // prompt=consent — זה ההתנהגות הסטנדרטית שלהם).
             await prisma.account.update({
               where: { id: existingAccount.id },
               data: {
-                access_token: account.access_token || null,
-                refresh_token: account.refresh_token || null,
-                expires_at: account.expires_at || null,
-                id_token: account.id_token || null,
+                access_token: account.access_token ?? existingAccount.access_token,
+                refresh_token: account.refresh_token ?? existingAccount.refresh_token,
+                expires_at: account.expires_at ?? existingAccount.expires_at,
+                id_token: account.id_token ?? existingAccount.id_token,
+                // scope יכול להיצמצם בlogin חדש (calendar הוסר מהראשי) —
+                // שומרים את ה-scope המקורי שכולל calendar אם היה.
+                scope: account.scope ?? existingAccount.scope,
               },
             });
           }

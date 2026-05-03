@@ -30,6 +30,11 @@ export const ENCRYPTED_FIELDS: Record<string, readonly string[]> = {
   transcription: ["content"],
   analysis: ["summary", "nextSessionNotes"],
   therapySession: ["topic", "notes"],
+  // OAuth tokens של Google (Calendar). access_token יכול לקרוא/לכתוב אירועים
+  // ביומן של המשתמש; refresh_token מאפשר לחדש את access_token לתמיד עד
+  // revoke. אם DB ידלוף — תוקף יקבל גישה רציפה ל-Google של כל המטפלים.
+  // הצפנה ב-AES-256-GCM מבטיחה שגם dump של DB לא חושף.
+  account: ["access_token", "refresh_token", "id_token"],
 } as const;
 
 /**

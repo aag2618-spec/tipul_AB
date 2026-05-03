@@ -2,6 +2,7 @@ import { NextResponse } from "next/server";
 import { getServerSession } from "next-auth";
 import { authOptions } from "@/lib/auth";
 import { google } from "googleapis";
+import { createGoogleOAuthState } from "@/lib/google-oauth-state";
 
 export const dynamic = "force-dynamic";
 
@@ -23,6 +24,10 @@ export async function GET() {
     `${process.env.NEXTAUTH_URL}/api/auth/google-calendar/callback`
   );
 
+  // state חתום עם HMAC כולל nonce + תוקף (10 דק'). מונע CSRF/forgery —
+  // תוקף לא יכול לזייף state גם אם הוא יודע את ה-userId.
+  const state = createGoogleOAuthState(session.user.id);
+
   const authUrl = oauth2Client.generateAuthUrl({
     access_type: "offline",
     prompt: "consent",
@@ -30,7 +35,7 @@ export async function GET() {
       "https://www.googleapis.com/auth/calendar",
       "https://www.googleapis.com/auth/userinfo.email",
     ],
-    state: session.user.id,
+    state,
   });
 
   return NextResponse.redirect(authUrl);
