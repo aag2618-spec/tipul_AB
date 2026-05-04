@@ -301,6 +301,35 @@ export async function POST(
     }
     cardcomSucceeded = true;
 
+    // Defense-in-depth: לוודא שה-URL שמחזיר Cardcom הוא אכן של Cardcom
+    // לפני שמירה ב-DB. אם משהו השתבש (MITM/data corruption), לא לאחסן URL
+    // זדוני שיגיע אחר כך ל-/p/pay/[lpId] gateway.
+    {
+      try {
+        const u = new URL(cardcomResult.url);
+        const allowed = ["cardcom.solutions", "cardcom.co.il"];
+        const okHost = allowed.some(
+          (d) => u.hostname === d || u.hostname.endsWith(`.${d}`)
+        );
+        if (u.protocol !== "https:" || !okHost) {
+          throw new Error("CARDCOM_URL_NOT_TRUSTED");
+        }
+      } catch {
+        await prisma.cardcomTransaction.update({
+          where: { id: transaction.id },
+          data: {
+            status: "FAILED",
+            errorMessage: "Cardcom החזיר URL לא צפוי — לא נשמר",
+            completedAt: new Date(),
+          },
+        });
+        return NextResponse.json(
+          { message: "Cardcom החזיר תגובה לא תקינה. נסה שוב." },
+          { status: 502 }
+        );
+      }
+    }
+
     const result = await withAudit(
       { kind: "user", session },
       {
@@ -317,7 +346,10 @@ export async function POST(
       async (tx) => {
         const updated = await tx.cardcomTransaction.update({
           where: { id: transaction.id },
-          data: { lowProfileId: cardcomResult.lowProfileId },
+          data: {
+            lowProfileId: cardcomResult.lowProfileId,
+            paymentPageUrl: cardcomResult.url,
+          },
         });
         return {
           transactionId: updated.id,

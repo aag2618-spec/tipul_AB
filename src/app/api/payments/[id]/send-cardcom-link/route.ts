@@ -121,6 +121,20 @@ export async function POST(
     select: { name: true, email: true },
   });
 
+  // ה-URL שיישלח ללקוח הוא URL שלנו (gateway), לא URL ישיר של Cardcom.
+  // ה-gateway חוסם בשבת/יו״ט ומפנה ל-Cardcom רק כשמותר. ל-LowProfileId
+  // מאתרים את ה-CardcomTransaction לפי paymentPageUrl שנשמר ב-DB.
+  // אם לא נמצא (legacy / data race) — נופלים חזרה ל-URL הישיר.
+  const baseUrl = process.env.NEXT_PUBLIC_BASE_URL ?? "https://mytipul.co.il";
+  const tx = await prisma.cardcomTransaction.findFirst({
+    where: { paymentId, paymentPageUrl: body.paymentPageUrl },
+    select: { lowProfileId: true },
+    orderBy: { createdAt: "desc" },
+  });
+  const linkToSend = tx?.lowProfileId
+    ? `${baseUrl}/p/pay/${tx.lowProfileId}`
+    : body.paymentPageUrl;
+
   const amountStr = String(Number(payment.amount));
   const description = payment.notes ?? `פגישה`;
   const therapistName = therapist?.name ?? "המטפל שלך";
@@ -135,7 +149,7 @@ export async function POST(
       const smsMessage =
         `שלום ${clientName},\n` +
         `${therapistName} שולח/ת לך לינק לתשלום ₪${amountStr} עבור ${description}.\n` +
-        `${body.paymentPageUrl}`;
+        `${linkToSend}`;
 
       try {
         const r = await sendSMS(payment.client.phone, smsMessage, userId, {
@@ -164,7 +178,7 @@ export async function POST(
       const safeName = escapeHtml(clientName);
       const safeTherapist = escapeHtml(therapistName);
       const safeDesc = escapeHtml(description);
-      const safeUrl = escapeHtml(body.paymentPageUrl);
+      const safeUrl = escapeHtml(linkToSend);
       // Strip CR/LF + other control chars from subject to prevent email header injection
       // (display names from User.name are user-controlled).
       const safeSubjectName = therapistName.replace(/[\r\n\u0000-\u001f]/g, " ").trim();

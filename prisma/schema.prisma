@@ -2088,6 +2088,9 @@ model CardcomTransaction {
 
   // נתוני Cardcom
   lowProfileId   String? @unique
+  // URL של דף התשלום ב-Cardcom (שנשלח ב-/p/pay/[lpId] gateway).
+  // שמורים ב-DB כי Cardcom לא נותן API לשחזר אותו לפי LowProfileId.
+  paymentPageUrl String?
   transactionId  String?
   approvalNumber String?
   cardLast4      String?
