@@ -3,6 +3,7 @@ import prisma from "@/lib/prisma";
 import { logger } from "@/lib/logger";
 
 import { requireAuth } from "@/lib/api-auth";
+import { buildSessionWhere, isSecretary, loadScopeUser } from "@/lib/scope";
 
 export const dynamic = "force-dynamic";
 
@@ -17,9 +18,21 @@ export async function DELETE(
 
     const { id } = await params;
 
-    // בדיקה שהפגישה שייכת למטפל
+    const scopeUser = await loadScopeUser(userId);
+
+    // SessionNote is clinical content — secretaries are blocked.
+    if (isSecretary(scopeUser)) {
+      return NextResponse.json(
+        { message: "אין הרשאה לתוכן קליני" },
+        { status: 403 }
+      );
+    }
+
+    const sessionScopeWhere = buildSessionWhere(scopeUser);
+
+    // בדיקה שהפגישה שייכת למטפל / לקליניקה
     const existingSession = await prisma.therapySession.findFirst({
-      where: { id, therapistId: userId },
+      where: { AND: [{ id }, sessionScopeWhere] },
       include: { sessionNote: true },
     });
 

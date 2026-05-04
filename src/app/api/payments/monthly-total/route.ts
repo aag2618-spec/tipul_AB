@@ -4,6 +4,7 @@ import { logger } from "@/lib/logger";
 import { getIsraelYear, getIsraelMonth } from "@/lib/date-utils";
 
 import { requireAuth } from "@/lib/api-auth";
+import { buildPaymentWhere, loadScopeUser } from "@/lib/scope";
 
 export const dynamic = "force-dynamic";
 
@@ -13,15 +14,22 @@ export async function GET(request: NextRequest) {
     if ("error" in auth) return auth.error;
     const { userId, session } = auth;
 
+    const scopeUser = await loadScopeUser(userId);
+    const paymentWhere = buildPaymentWhere(scopeUser);
+
     // שליפת תשלומים אמיתיים (ילדים חלקיים + הורים ללא ילדים)
     // מונע כפילות: הורה עם ילדים לא נספר כי הילדים כבר נספרים
     const payments = await prisma.payment.findMany({
       where: {
-        client: { therapistId: userId },
-        status: "PAID",
-        OR: [
-          { parentPaymentId: { not: null } },                        // ילדים (תשלומים חלקיים)
-          { parentPaymentId: null, childPayments: { none: {} } },    // הורים ללא ילדים (תשלום מלא בודד)
+        AND: [
+          paymentWhere,
+          {
+            status: "PAID",
+            OR: [
+              { parentPaymentId: { not: null } },                        // ילדים (תשלומים חלקיים)
+              { parentPaymentId: null, childPayments: { none: {} } },    // הורים ללא ילדים (תשלום מלא בודד)
+            ],
+          },
         ],
       },
       select: {

@@ -7,6 +7,12 @@ import { logger } from "@/lib/logger";
 import { requireAuth } from "@/lib/api-auth";
 import { getCurrentUsageKey } from "@/lib/date-utils";
 import { getTierLimits, isStaff } from "@/lib/usage-limits";
+import {
+  loadScopeUser,
+  buildClientWhere,
+  buildSessionWhere,
+  canSecretaryAccessModel,
+} from "@/lib/scope";
 
 // שימוש ב-Gemini 2.0 Flash בלבד
 const genAI = new GoogleGenerativeAI(process.env.GOOGLE_AI_API_KEY || "");
@@ -33,7 +39,16 @@ export async function POST(req: NextRequest) {
   try {
     const auth = await requireAuth();
     if ("error" in auth) return auth.error;
-    const { userId, session } = auth;
+    const { userId } = auth;
+
+    const scopeUser = await loadScopeUser(userId);
+    // דוח התקדמות מייצר ניתוח קליני — חסום למזכירה
+    if (!canSecretaryAccessModel(scopeUser, "QuestionnaireAnalysis")) {
+      return NextResponse.json(
+        { message: "אין הרשאה לתוכן קליני" },
+        { status: 403 }
+      );
+    }
 
     const { clientId, dateFrom, dateTo } = await req.json();
 
@@ -115,9 +130,10 @@ export async function POST(req: NextRequest) {
     const fromDate = new Date(dateFrom);
     const toDate = new Date(dateTo);
 
-    // קבלת פרטי המטופל
-    const client = await prisma.client.findUnique({
-      where: { id: clientId },
+    // קבלת פרטי המטופל — בהתאמה ל-scope (מטפל עצמאי / קליניקה)
+    const clientWhere = buildClientWhere(scopeUser);
+    const client = await prisma.client.findFirst({
+      where: { AND: [{ id: clientId }, clientWhere] },
       select: {
         id: true,
         name: true,
@@ -128,20 +144,24 @@ export async function POST(req: NextRequest) {
       },
     });
 
-    if (!client || client.therapistId !== user.id) {
+    if (!client) {
       return NextResponse.json({ message: "מטופל לא נמצא" }, { status: 404 });
     }
 
-    // קבלת שאלונים בטווח התאריכים
+    // קבלת שאלונים בטווח התאריכים — דרך scope של client
     const questionnaires = await prisma.questionnaireResponse.findMany({
       where: {
-        clientId: clientId,
-        therapistId: user.id,
-        status: "COMPLETED",
-        completedAt: {
-          gte: fromDate,
-          lte: toDate,
-        },
+        AND: [
+          { client: clientWhere },
+          {
+            clientId: clientId,
+            status: "COMPLETED",
+            completedAt: {
+              gte: fromDate,
+              lte: toDate,
+            },
+          },
+        ],
       },
       include: {
         template: true,
@@ -151,16 +171,21 @@ export async function POST(req: NextRequest) {
       },
     });
 
-    // קבלת פגישות בטווח התאריכים
+    // קבלת פגישות בטווח התאריכים — דרך scope של sessions
+    const sessionWhere = buildSessionWhere(scopeUser);
     const sessions = await prisma.therapySession.findMany({
       where: {
-        clientId: clientId,
-        therapistId: user.id,
-        status: "COMPLETED",
-        startTime: {
-          gte: fromDate,
-          lte: toDate,
-        },
+        AND: [
+          sessionWhere,
+          {
+            clientId: clientId,
+            status: "COMPLETED",
+            startTime: {
+              gte: fromDate,
+              lte: toDate,
+            },
+          },
+        ],
       },
       include: {
         sessionNote: true,
@@ -312,6 +337,7 @@ ${getUniversalPrompts()}`;
         aiModel: GEMINI_MODEL,
         tokensUsed: totalTokens,
         cost: cost,
+        organizationId: scopeUser.organizationId,
       },
     });
 

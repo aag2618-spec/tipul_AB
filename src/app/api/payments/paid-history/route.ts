@@ -3,6 +3,7 @@ import prisma from "@/lib/prisma";
 import { logger } from "@/lib/logger";
 
 import { requireAuth } from "@/lib/api-auth";
+import { buildPaymentWhere, loadScopeUser } from "@/lib/scope";
 
 export const dynamic = "force-dynamic";
 
@@ -12,12 +13,16 @@ export async function GET() {
     if ("error" in auth) return auth.error;
     const { userId, session } = auth;
 
+    const scopeUser = await loadScopeUser(userId);
+    const paymentWhere = buildPaymentWhere(scopeUser);
+
     // קבלת כל התשלומים ששולמו במלואם
     const payments = await prisma.payment.findMany({
       where: {
-        client: { therapistId: userId },
-        status: "PAID",
-        parentPaymentId: null,
+        AND: [
+          paymentWhere,
+          { status: "PAID", parentPaymentId: null },
+        ],
       },
       include: {
         client: {

@@ -2,6 +2,7 @@ import { getServerSession } from "next-auth";
 import { authOptions } from "@/lib/auth";
 import { redirect } from "next/navigation";
 import prisma from "@/lib/prisma";
+import { Prisma } from "@prisma/client";
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
 import { Badge } from "@/components/ui/badge";
 import { Brain, Calendar, Lock, Sparkles } from "lucide-react";
@@ -10,8 +11,9 @@ import { he } from "date-fns/locale";
 import Link from "next/link";
 import { Button } from "@/components/ui/button";
 import { SessionPrepCard } from "@/components/ai/session-prep-card";
+import { loadScopeUser, buildSessionWhere } from "@/lib/scope";
 
-async function getTodaysSessions(userId: string) {
+async function getTodaysSessions(sessionWhere: Prisma.TherapySessionWhereInput) {
   const today = new Date();
   today.setHours(0, 0, 0, 0);
   const tomorrow = new Date(today);
@@ -19,15 +21,19 @@ async function getTodaysSessions(userId: string) {
 
   const sessions = await prisma.therapySession.findMany({
     where: {
-      therapistId: userId,
-      startTime: {
-        gte: today,
-        lt: tomorrow,
-      },
-      status: {
-        in: ['SCHEDULED', 'COMPLETED']
-      },
-      clientId: { not: null }
+      AND: [
+        sessionWhere,
+        {
+          startTime: {
+            gte: today,
+            lt: tomorrow,
+          },
+          status: {
+            in: ['SCHEDULED', 'COMPLETED']
+          },
+          clientId: { not: null }
+        },
+      ],
     },
     include: {
       client: true,
@@ -56,8 +62,11 @@ export default async function AIPrepPage() {
     redirect("/login");
   }
 
+  const scopeUser = await loadScopeUser(session.user.id);
+  const sessionWhere = buildSessionWhere(scopeUser);
+
   const user = await getUserWithTier(session.user.id);
-  const sessions = await getTodaysSessions(session.user.id);
+  const sessions = await getTodaysSessions(sessionWhere);
 
   if (!user) {
     redirect("/login");

@@ -20,19 +20,31 @@ import prisma from "@/lib/prisma";
 import { requireAuth } from "@/lib/api-auth";
 import { logger } from "@/lib/logger";
 import { serializePrisma } from "@/lib/serialize";
+import {
+  buildPaymentWhere,
+  isSecretary,
+  loadScopeUser,
+  secretaryCan,
+  type ScopeUser,
+} from "@/lib/scope";
 
 export const dynamic = "force-dynamic";
 
-async function findFakePaid(userId: string) {
-  // Pull all CREDIT_CARD parent Payments owned by this therapist that are
+async function findFakePaid(scopeUser: ScopeUser) {
+  const paymentWhere = buildPaymentWhere(scopeUser);
+  // Pull all CREDIT_CARD parent Payments accessible to this user that are
   // currently PAID. Then verify each has a real Cardcom transaction backing
   // it; the ones without are the corruption candidates.
   const candidates = await prisma.payment.findMany({
     where: {
-      status: "PAID",
-      method: "CREDIT_CARD",
-      parentPaymentId: null,
-      client: { therapistId: userId },
+      AND: [
+        paymentWhere,
+        {
+          status: "PAID",
+          method: "CREDIT_CARD",
+          parentPaymentId: null,
+        },
+      ],
     },
     include: {
       client: { select: { id: true, name: true } },
@@ -59,7 +71,16 @@ export async function GET() {
     if ("error" in auth) return auth.error;
     const { userId } = auth;
 
-    const fake = await findFakePaid(userId);
+    const scopeUser = await loadScopeUser(userId);
+    // route תחזוקה — מציג תשלומים. מזכירה ללא canViewPayments חסומה.
+    if (isSecretary(scopeUser) && !secretaryCan(scopeUser, "canViewPayments")) {
+      return NextResponse.json(
+        { message: "אין הרשאה לצפייה בתשלומים" },
+        { status: 403 }
+      );
+    }
+
+    const fake = await findFakePaid(scopeUser);
     return NextResponse.json({
       count: fake.length,
       payments: serializePrisma(
@@ -94,7 +115,17 @@ export async function POST(_request: NextRequest) {
     if ("error" in auth) return auth.error;
     const { userId } = auth;
 
-    const fake = await findFakePaid(userId);
+    const scopeUser = await loadScopeUser(userId);
+    // mutation — מזכירה צריכה לפחות canViewPayments כדי להריץ את התיקון.
+    if (isSecretary(scopeUser) && !secretaryCan(scopeUser, "canViewPayments")) {
+      return NextResponse.json(
+        { message: "אין הרשאה לתיקון תשלומים" },
+        { status: 403 }
+      );
+    }
+    const paymentWhere = buildPaymentWhere(scopeUser);
+
+    const fake = await findFakePaid(scopeUser);
     if (fake.length === 0) {
       return NextResponse.json({ count: 0, reverted: [] });
     }
@@ -105,13 +136,14 @@ export async function POST(_request: NextRequest) {
     await prisma.$transaction([
       prisma.payment.updateMany({
         where: {
-          id: { in: ids },
-          // Re-check ownership in the WHERE — defense in depth against any
-          // race that could have changed therapist between findFakePaid and
-          // here.
-          client: { therapistId: userId },
-          status: "PAID",
-          method: "CREDIT_CARD",
+          AND: [
+            paymentWhere,
+            {
+              id: { in: ids },
+              status: "PAID",
+              method: "CREDIT_CARD",
+            },
+          ],
         },
         data: { status: "PENDING", paidAt: null },
       }),

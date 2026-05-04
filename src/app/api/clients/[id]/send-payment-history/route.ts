@@ -6,6 +6,7 @@ import { subMonths, startOfDay, endOfDay } from "date-fns";
 import { logger } from "@/lib/logger";
 
 import { requireAuth } from "@/lib/api-auth";
+import { buildClientWhere, isSecretary, loadScopeUser, secretaryCan } from "@/lib/scope";
 
 export const dynamic = "force-dynamic";
 
@@ -22,12 +23,20 @@ export async function POST(
     const body = await req.json();
     const { period = "all" } = body; // "all", "month", "3months", "year"
 
+    const scopeUser = await loadScopeUser(userId);
+
+    if (isSecretary(scopeUser) && !secretaryCan(scopeUser, "canViewPayments")) {
+      return NextResponse.json(
+        { message: "אין הרשאה לצפייה בתשלומים" },
+        { status: 403 }
+      );
+    }
+
+    const scopeWhere = buildClientWhere(scopeUser);
+
     // Get client
     const client = await prisma.client.findFirst({
-      where: {
-        id,
-        therapistId: userId,
-      },
+      where: { AND: [{ id }, scopeWhere] },
     });
 
     if (!client) {

@@ -3,6 +3,7 @@ import prisma from "@/lib/prisma";
 import { logger } from "@/lib/logger";
 import { requireAuth } from "@/lib/api-auth";
 import { serializePrisma } from "@/lib/serialize";
+import { buildClientWhere, isSecretary, loadScopeUser } from "@/lib/scope";
 
 export const dynamic = "force-dynamic";
 
@@ -19,9 +20,21 @@ export async function PATCH(
     const body = await request.json();
     const { therapeuticApproaches, approachNotes, culturalContext } = body;
 
-    // Verify client belongs to therapist
+    const scopeUser = await loadScopeUser(userId);
+
+    // Therapeutic approaches are clinical content — secretaries cannot edit it.
+    if (isSecretary(scopeUser)) {
+      return NextResponse.json(
+        { message: "אין הרשאה לעריכת תוכן קליני" },
+        { status: 403 }
+      );
+    }
+
+    const scopeWhere = buildClientWhere(scopeUser);
+
+    // Verify client is in scope
     const client = await prisma.client.findFirst({
-      where: { id: clientId, therapistId: userId },
+      where: { AND: [{ id: clientId }, scopeWhere] },
     });
 
     if (!client) {

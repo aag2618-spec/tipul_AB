@@ -7,6 +7,11 @@ import { logger } from "@/lib/logger";
 import { parseIsraelTime } from "@/lib/date-utils";
 import { isShabbatOrYomTov } from "@/lib/shabbat";
 import { checkCronAuth } from "@/lib/cron-auth";
+import {
+  loadScopeUser,
+  buildClientWhere,
+  buildSessionWhere,
+} from "@/lib/scope";
 
 export const dynamic = "force-dynamic";
 
@@ -81,6 +86,24 @@ export async function GET(request: NextRequest) {
       const emailSetting = user.notificationSettings.find((s) => s.channel === "email");
       if (emailSetting && !emailSetting.enabled) continue;
 
+      // טעינת scope למשתמש הספציפי — כך שבקליניקה:
+      // • מטפל/ת רואה רק את הפגישות/תשלומים שלה (התנהגות קיימת).
+      // • בעל/ת קליניקה שהיא גם מטפל/ת רואה את כל הקליניקה בסיכום היומי.
+      // • מטפל עצמאי: ללא שינוי.
+      // אם טעינת ה-scope נכשלת (משתמש חסום וכד') — דלג בשקט.
+      let scopeUser;
+      try {
+        scopeUser = await loadScopeUser(user.id);
+      } catch (scopeErr) {
+        logger.error("[cron notifications] loadScopeUser failed", {
+          userId: user.id,
+          error: scopeErr instanceof Error ? scopeErr.message : String(scopeErr),
+        });
+        continue;
+      }
+      const sessionWhere = buildSessionWhere(scopeUser);
+      const clientWhere = buildClientWhere(scopeUser);
+
       const settings = user.notificationSettings[0] || { debtThresholdDays: 30 };
       const shouldSendEmail = !!user.email;
 
@@ -112,9 +135,13 @@ export async function GET(request: NextRequest) {
         if (!alreadySentMorning) {
           const todaySessions = await prisma.therapySession.findMany({
             where: {
-              therapistId: user.id,
-              startTime: { gte: today, lt: tomorrow },
-              status: { notIn: ["CANCELLED"] },
+              AND: [
+                sessionWhere,
+                {
+                  startTime: { gte: today, lt: tomorrow },
+                  status: { notIn: ["CANCELLED"] },
+                },
+              ],
             },
             include: { client: true },
             orderBy: { startTime: "asc" },
@@ -123,7 +150,7 @@ export async function GET(request: NextRequest) {
           // תשלומים ממתינים — משולב במייל הבוקר
           const morningPayments = await prisma.payment.findMany({
             where: {
-              client: { therapistId: user.id },
+              client: clientWhere,
               status: "PENDING",
               parentPaymentId: null,
             },
@@ -233,7 +260,7 @@ export async function GET(request: NextRequest) {
 
           const allPayments = await prisma.payment.findMany({
             where: {
-              client: { therapistId: user.id },
+              client: clientWhere,
               status: "PENDING",
               parentPaymentId: null,
             },
@@ -299,9 +326,13 @@ export async function GET(request: NextRequest) {
         if (!alreadySentEvening) {
           const tomorrowSessions = await prisma.therapySession.findMany({
             where: {
-              therapistId: user.id,
-              startTime: { gte: eveTomorrow, lt: eveDayAfter },
-              status: "SCHEDULED",
+              AND: [
+                sessionWhere,
+                {
+                  startTime: { gte: eveTomorrow, lt: eveDayAfter },
+                  status: "SCHEDULED",
+                },
+              ],
             },
             include: { client: true },
             orderBy: { startTime: "asc" },
@@ -310,12 +341,16 @@ export async function GET(request: NextRequest) {
           // פגישות של "היום" בלי סיכום (אם אחרי חצות — אתמול)
           const sessionsPendingSummary = await prisma.therapySession.findMany({
             where: {
-              therapistId: user.id,
-              startTime: { gte: eveToday, lt: eveTomorrow },
-              skipSummary: { not: true },
-              type: { not: "BREAK" },
-              status: "COMPLETED",
-              sessionNote: { is: null },
+              AND: [
+                sessionWhere,
+                {
+                  startTime: { gte: eveToday, lt: eveTomorrow },
+                  skipSummary: { not: true },
+                  type: { not: "BREAK" },
+                  status: "COMPLETED",
+                  sessionNote: { is: null },
+                },
+              ],
             },
             include: { client: { select: { name: true } } },
             orderBy: { startTime: "asc" },
@@ -324,11 +359,15 @@ export async function GET(request: NextRequest) {
           // פגישות שהזמן שלהן עבר אבל הסטטוס לא עודכן
           const notUpdatedSessions = await prisma.therapySession.findMany({
             where: {
-              therapistId: user.id,
-              startTime: { gte: eveToday, lt: eveTomorrow },
-              endTime: { lt: now },
-              type: { not: "BREAK" },
-              status: "SCHEDULED",
+              AND: [
+                sessionWhere,
+                {
+                  startTime: { gte: eveToday, lt: eveTomorrow },
+                  endTime: { lt: now },
+                  type: { not: "BREAK" },
+                  status: "SCHEDULED",
+                },
+              ],
             },
             include: { client: { select: { name: true } } },
             orderBy: { startTime: "asc" },
@@ -337,7 +376,7 @@ export async function GET(request: NextRequest) {
           // תשלומים ממתינים — אותו query כמו בבוקר
           const eveningPayments = await prisma.payment.findMany({
             where: {
-              client: { therapistId: user.id },
+              client: clientWhere,
               status: "PENDING",
               parentPaymentId: null,
             },

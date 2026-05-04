@@ -3,6 +3,7 @@ import prisma from "@/lib/prisma";
 import { calculateDebtFromSessions } from "@/lib/payment-utils";
 import { logger } from "@/lib/logger";
 import { requireAuth } from "@/lib/api-auth";
+import { buildClientWhere, isSecretary, loadScopeUser, secretaryCan } from "@/lib/scope";
 
 export const dynamic = "force-dynamic";
 
@@ -17,12 +18,20 @@ export async function GET(
 
     const { id: clientId } = await params;
 
+    const scopeUser = await loadScopeUser(userId);
+
+    if (isSecretary(scopeUser) && !secretaryCan(scopeUser, "canViewDebts")) {
+      return NextResponse.json(
+        { message: "אין הרשאה לצפייה בחובות" },
+        { status: 403 }
+      );
+    }
+
+    const scopeWhere = buildClientWhere(scopeUser);
+
     // Get client with unpaid/partially paid sessions
     const client = await prisma.client.findFirst({
-      where: {
-        id: clientId,
-        therapistId: userId,
-      },
+      where: { AND: [{ id: clientId }, scopeWhere] },
       select: {
         id: true,
         name: true,

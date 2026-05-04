@@ -49,11 +49,13 @@ import { format } from "date-fns";
 import { he } from "date-fns/locale";
 import { calculateDebtFromPayments, calculateSessionDebt } from "@/lib/payment-utils";
 import { logger } from "@/lib/logger";
+import { loadScopeUser, buildClientWhere } from "@/lib/scope";
+import type { Prisma } from "@prisma/client";
 
-async function getClient(clientId: string, userId: string) {
+async function getClient(clientId: string, clientWhere: Prisma.ClientWhereInput) {
   try {
     const client = await prisma.client.findFirst({
-      where: { id: clientId, therapistId: userId },
+      where: { AND: [{ id: clientId }, clientWhere] },
       include: {
         recurringPatterns: {
           where: { isActive: true },
@@ -173,7 +175,9 @@ export default async function ClientPage({
   
   let client;
   try {
-    client = await getClient(id, session.user.id);
+    const scopeUser = await loadScopeUser(session.user.id);
+    const clientWhere = buildClientWhere(scopeUser);
+    client = await getClient(id, clientWhere);
   } catch (error) {
     logger.error("[ClientPage] Unexpected error loading client:", {
       clientId: id,

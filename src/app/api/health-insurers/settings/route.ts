@@ -4,6 +4,8 @@ import { logger } from "@/lib/logger";
 
 import { requireAuth } from "@/lib/api-auth";
 
+// scope.ts: ההגדרות הללו הן per-user (InsurerSettings.therapistId @unique).
+// אין צורך ב-buildClientWhere/Org filtering — נשארות כמות שהן (Pattern G).
 export const dynamic = "force-dynamic";
 
 export async function GET(request: Request) {

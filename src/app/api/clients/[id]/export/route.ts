@@ -5,6 +5,7 @@ import { format } from "date-fns";
 import { calculateDebtFromPayments } from "@/lib/payment-utils";
 import { logger } from "@/lib/logger";
 import { requireAuth } from "@/lib/api-auth";
+import { buildClientWhere, loadScopeUser } from "@/lib/scope";
 
 export const dynamic = "force-dynamic";
 
@@ -19,9 +20,12 @@ export async function GET(
 
     const { id } = await params;
 
+    const scopeUser = await loadScopeUser(userId);
+    const scopeWhere = buildClientWhere(scopeUser);
+
     // Fetch all client data
     const client = await prisma.client.findFirst({
-      where: { id, therapistId: userId },
+      where: { AND: [{ id }, scopeWhere] },
       include: {
         therapySessions: {
           include: {

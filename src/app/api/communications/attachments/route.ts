@@ -6,6 +6,7 @@ import fs from "fs/promises";
 import { logger } from "@/lib/logger";
 
 import { requireAuth } from "@/lib/api-auth";
+import { loadScopeUser, buildClientWhere } from "@/lib/scope";
 
 // GET - Download attachment from Resend
 export const dynamic = "force-dynamic";
@@ -16,6 +17,9 @@ export async function GET(request: NextRequest) {
     if ("error" in auth) return auth.error;
     const { userId, session } = auth;
 
+    const scopeUser = await loadScopeUser(userId);
+    const clientWhere = buildClientWhere(scopeUser);
+
     const { searchParams } = new URL(request.url);
     const logId = searchParams.get("logId");
     const attachmentId = searchParams.get("attachmentId");
@@ -25,9 +29,15 @@ export async function GET(request: NextRequest) {
       return NextResponse.json({ message: "חסרים פרמטרים" }, { status: 400 });
     }
 
-    // Verify this log belongs to the user
+    // Verify this log belongs to the user OR to a client in the user's scope.
     const log = await prisma.communicationLog.findFirst({
-      where: { id: logId, userId: userId },
+      where: {
+        id: logId,
+        OR: [
+          { userId: userId },
+          { client: clientWhere },
+        ],
+      },
     });
 
     if (!log) {
@@ -105,19 +115,37 @@ export async function POST(request: NextRequest) {
     if ("error" in auth) return auth.error;
     const { userId, session } = auth;
 
+    const scopeUser = await loadScopeUser(userId);
+    const clientWhere = buildClientWhere(scopeUser);
+
     const { logId, attachmentId, filename, clientId } = await request.json();
 
     if (!logId || !clientId) {
       return NextResponse.json({ message: "חסרים פרמטרים" }, { status: 400 });
     }
 
-    // Verify this log belongs to the user
+    // Verify this log belongs to the user OR to a client in user's scope.
     const log = await prisma.communicationLog.findFirst({
-      where: { id: logId, userId: userId },
+      where: {
+        id: logId,
+        OR: [
+          { userId: userId },
+          { client: clientWhere },
+        ],
+      },
     });
 
     if (!log) {
       return NextResponse.json({ message: "לא נמצא" }, { status: 404 });
+    }
+
+    // Verify target client is in user's scope before linking the attachment.
+    const targetClient = await prisma.client.findFirst({
+      where: { AND: [{ id: clientId }, clientWhere] },
+      select: { id: true },
+    });
+    if (!targetClient) {
+      return NextResponse.json({ message: "מטופל לא נמצא" }, { status: 404 });
     }
 
     // Get Resend email ID
@@ -178,6 +206,7 @@ export async function POST(request: NextRequest) {
         fileUrl: `/api/uploads/clients/${clientId}/${uniqueFilename}`,
         clientId: clientId,
         therapistId: userId,
+        organizationId: scopeUser.organizationId,
       },
     });
 

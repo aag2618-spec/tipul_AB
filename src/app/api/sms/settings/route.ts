@@ -3,6 +3,7 @@ import prisma from "@/lib/prisma";
 import { logger } from "@/lib/logger";
 
 import { requireAuth } from "@/lib/api-auth";
+import { loadScopeUser, isSecretary, secretaryCan } from "@/lib/scope";
 
 export const dynamic = "force-dynamic";
 
@@ -41,6 +42,15 @@ export async function PUT(request: Request) {
     const auth = await requireAuth();
     if ("error" in auth) return auth.error;
     const { userId, session } = auth;
+
+    // הגדרות תזכורות SMS — חסומות למזכירה ללא canSendReminders.
+    const scopeUser = await loadScopeUser(userId);
+    if (isSecretary(scopeUser) && !secretaryCan(scopeUser, "canSendReminders")) {
+      return NextResponse.json(
+        { message: "אין הרשאה לשליחת תזכורות" },
+        { status: 403 }
+      );
+    }
 
     const body = await request.json();
     const { enabled, hoursBeforeReminder, customMessage, sendOnWeekends } = body;

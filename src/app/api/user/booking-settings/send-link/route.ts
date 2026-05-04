@@ -5,6 +5,12 @@ import { escapeHtml } from "@/lib/email-utils";
 import { logger } from "@/lib/logger";
 
 import { requireAuth } from "@/lib/api-auth";
+import {
+  loadScopeUser,
+  buildClientWhere,
+  isSecretary,
+  secretaryCan,
+} from "@/lib/scope";
 
 export const dynamic = "force-dynamic";
 
@@ -12,6 +18,15 @@ export async function POST(request: NextRequest) {
   const auth = await requireAuth();
   if ("error" in auth) return auth.error;
   const { userId, session } = auth;
+
+  const scopeUser = await loadScopeUser(userId);
+  if (isSecretary(scopeUser) && !secretaryCan(scopeUser, "canSendReminders")) {
+    return NextResponse.json(
+      { message: "אין הרשאה לשליחת תזכורות" },
+      { status: 403 }
+    );
+  }
+  const clientWhere = buildClientWhere(scopeUser);
 
   const body = await request.json();
   const { clientIds, customMessage } = body as {
@@ -45,8 +60,10 @@ export async function POST(request: NextRequest) {
 
   const clients = await prisma.client.findMany({
     where: {
-      id: { in: clientIds },
-      therapistId: userId,
+      AND: [
+        { id: { in: clientIds } },
+        clientWhere,
+      ],
     },
     select: { id: true, name: true, email: true },
   });
@@ -97,6 +114,7 @@ export async function POST(request: NextRequest) {
           sentAt: result.success ? new Date() : null,
           clientId: client.id,
           userId: userId,
+          organizationId: scopeUser.organizationId,
         },
       });
 

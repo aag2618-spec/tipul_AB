@@ -2,6 +2,7 @@ import { NextRequest, NextResponse } from "next/server";
 import { requireAuth } from "@/lib/api-auth";
 import prisma from "@/lib/prisma";
 import { logger } from "@/lib/logger";
+import { buildClientWhere, loadScopeUser } from "@/lib/scope";
 
 export const dynamic = "force-dynamic";
 
@@ -16,8 +17,11 @@ export async function GET(
 
     const { id } = await params;
 
+    const scopeUser = await loadScopeUser(userId);
+    const scopeWhere = buildClientWhere(scopeUser);
+
     const client = await prisma.client.findFirst({
-      where: { id, therapistId: userId },
+      where: { AND: [{ id }, scopeWhere] },
       select: {
         id: true,
         firstName: true,

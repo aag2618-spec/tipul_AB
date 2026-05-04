@@ -5,6 +5,7 @@ import { writeFile, mkdir } from "fs/promises";
 import { join } from "path";
 import { v4 as uuidv4 } from "uuid";
 import { logger } from "@/lib/logger";
+import { loadScopeUser, buildClientWhere } from "@/lib/scope";
 
 export const dynamic = "force-dynamic";
 
@@ -17,10 +18,27 @@ export async function GET(request: NextRequest) {
     const { searchParams } = new URL(request.url);
     const clientId = searchParams.get("clientId");
 
+    const scopeUser = await loadScopeUser(userId);
+    const clientWhere = buildClientWhere(scopeUser);
+
+    // Documents may be linked to a Client (visible via clientWhere) or be
+    // "general" docs without a client — for the latter fall back to
+    // therapistId/organizationId ownership so clinic owners still see them.
+    const ownershipFilter = scopeUser.organizationId
+      ? { organizationId: scopeUser.organizationId }
+      : { therapistId: userId };
+
     const documents = await prisma.document.findMany({
       where: {
-        therapistId: userId,
-        ...(clientId ? { clientId } : {}),
+        AND: [
+          {
+            OR: [
+              { client: clientWhere },
+              { AND: [{ clientId: null }, ownershipFilter] },
+            ],
+          },
+          ...(clientId ? [{ clientId }] : []),
+        ],
       },
       orderBy: { createdAt: "desc" },
       include: {
@@ -57,10 +75,13 @@ export async function POST(request: NextRequest) {
       );
     }
 
+    const scopeUser = await loadScopeUser(userId);
+    const clientWhere = buildClientWhere(scopeUser);
+
     // Verify client ownership if provided
     if (clientId) {
       const client = await prisma.client.findFirst({
-        where: { id: clientId, therapistId: userId },
+        where: { AND: [{ id: clientId }, clientWhere] },
       });
       if (!client) {
         return NextResponse.json({ message: "מטופל לא נמצא" }, { status: 404 });
@@ -95,6 +116,7 @@ export async function POST(request: NextRequest) {
       data: {
         therapistId: userId,
         clientId: clientId || null,
+        organizationId: scopeUser.organizationId,
         name,
         type: type as "CONSENT_FORM" | "INTAKE_FORM" | "TREATMENT_PLAN" | "REPORT" | "OTHER",
         fileUrl: `/api/uploads/documents/${fileName}`,

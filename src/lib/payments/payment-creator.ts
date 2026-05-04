@@ -3,6 +3,7 @@ import { type Prisma } from "@prisma/client";
 import { logger } from "@/lib/logger";
 import type { PaymentMethod, PaymentType, PaymentResult, PaymentStatus, ReceiptResult } from "./types";
 import { issueReceipt, sendPaymentReceiptEmail, buildReceiptDescription } from "./receipt-service";
+import { buildClientWhere, buildPaymentWhere, type ScopeUser } from "@/lib/scope";
 
 // ================================================================
 // Helpers
@@ -47,6 +48,12 @@ export async function createPaymentForSession(params: {
   issueReceipt?: boolean;
   notes?: string;
   creditUsed?: number;
+  // Clinic multi-tenancy. אופציונלי לשמירה על תאימות עם callers ישנים שעדיין
+  // לא נדרש לעדכן (TODO(scope) — agent-coordinated migration). כשיש
+  // scopeUser, ownership נקבע דרך buildClientWhere ו-organizationId נכתב
+  // ל-Payment החדש; אחרת נשמרת התנהגות הסולו-מטפל הישנה.
+  scopeUser?: ScopeUser;
+  organizationId?: string | null;
 }): Promise<PaymentResult> {
   try {
     const {
@@ -61,11 +68,19 @@ export async function createPaymentForSession(params: {
       issueReceipt: shouldIssueReceipt,
       notes,
       creditUsed,
+      scopeUser,
+      organizationId: explicitOrganizationId,
     } = params;
 
-    const client = await prisma.client.findFirst({
-      where: { id: clientId, therapistId: userId },
-    });
+    const organizationId = scopeUser
+      ? scopeUser.organizationId
+      : explicitOrganizationId ?? null;
+
+    const clientWhere = scopeUser
+      ? { AND: [{ id: clientId }, buildClientWhere(scopeUser)] }
+      : { id: clientId, therapistId: userId };
+
+    const client = await prisma.client.findFirst({ where: clientWhere });
     if (!client) return { success: false, error: "מטופל לא נמצא" };
 
     // Credit deduction
@@ -121,6 +136,7 @@ export async function createPaymentForSession(params: {
             status: "PAID",
             paidAt: new Date(),
             paymentType: "PARTIAL",
+            organizationId,
           },
         });
         const newTotal = existingAmount + amount;
@@ -156,6 +172,7 @@ export async function createPaymentForSession(params: {
           status: derivedStatus,
           paidAt: derivedStatus === "PAID" ? new Date() : null,
           notes: notes || null,
+          organizationId,
         },
         include: { client: true, session: true },
       });
@@ -171,6 +188,7 @@ export async function createPaymentForSession(params: {
             status: "PAID",
             paidAt: new Date(),
             paymentType: "PARTIAL",
+            organizationId,
           },
         });
       }
@@ -287,6 +305,8 @@ export async function addPartialPayment(params: {
   method: PaymentMethod;
   issueReceipt?: boolean;
   creditUsed?: number;
+  scopeUser?: ScopeUser;
+  organizationId?: string | null;
 }): Promise<PaymentResult> {
   try {
     const {
@@ -296,10 +316,20 @@ export async function addPartialPayment(params: {
       method,
       issueReceipt: shouldIssueReceipt,
       creditUsed,
+      scopeUser,
+      organizationId: explicitOrganizationId,
     } = params;
 
+    const organizationId = scopeUser
+      ? scopeUser.organizationId
+      : explicitOrganizationId ?? null;
+
+    const paymentWhere = scopeUser
+      ? { AND: [{ id: parentPaymentId }, buildPaymentWhere(scopeUser)] }
+      : { id: parentPaymentId, client: { therapistId: userId } };
+
     const existingPayment = await prisma.payment.findFirst({
-      where: { id: parentPaymentId, client: { therapistId: userId } },
+      where: paymentWhere,
       include: { client: true, session: true },
     });
     if (!existingPayment)
@@ -324,6 +354,7 @@ export async function addPartialPayment(params: {
         status: "PAID",
         paidAt: new Date(),
         paymentType: "PARTIAL",
+        organizationId: organizationId ?? existingPayment.organizationId ?? null,
       },
     });
 
@@ -419,12 +450,30 @@ export async function markFullyPaid(params: {
   method: PaymentMethod;
   issueReceipt?: boolean;
   creditUsed?: number;
+  scopeUser?: ScopeUser;
+  organizationId?: string | null;
 }): Promise<PaymentResult> {
   try {
-    const { userId, paymentId, method, issueReceipt: shouldIssueReceipt, creditUsed } = params;
+    const {
+      userId,
+      paymentId,
+      method,
+      issueReceipt: shouldIssueReceipt,
+      creditUsed,
+      scopeUser,
+      organizationId: explicitOrganizationId,
+    } = params;
+
+    const organizationId = scopeUser
+      ? scopeUser.organizationId
+      : explicitOrganizationId ?? null;
+
+    const paymentWhere = scopeUser
+      ? { AND: [{ id: paymentId }, buildPaymentWhere(scopeUser)] }
+      : { id: paymentId, client: { therapistId: userId } };
 
     const existingPayment = await prisma.payment.findFirst({
-      where: { id: paymentId, client: { therapistId: userId } },
+      where: paymentWhere,
       include: { client: true, session: true },
     });
     if (!existingPayment)
@@ -453,6 +502,7 @@ export async function markFullyPaid(params: {
           status: "PAID",
           paidAt: new Date(),
           paymentType: "FULL",
+          organizationId: organizationId ?? existingPayment.organizationId ?? null,
         },
       });
     }

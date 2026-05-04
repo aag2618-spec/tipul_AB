@@ -3,6 +3,11 @@ import prisma from "@/lib/prisma";
 import { logger } from "@/lib/logger";
 
 import { requireAuth } from "@/lib/api-auth";
+import {
+  loadScopeUser,
+  buildClientWhere,
+  canSecretaryAccessModel,
+} from "@/lib/scope";
 
 // GET - Get specific response
 export const dynamic = "force-dynamic";
@@ -14,15 +19,21 @@ export async function GET(
   try {
     const auth = await requireAuth();
     if ("error" in auth) return auth.error;
-    const { userId, session } = auth;
+    const { userId } = auth;
+
+    const scopeUser = await loadScopeUser(userId);
+    if (!canSecretaryAccessModel(scopeUser, "QuestionnaireAnalysis")) {
+      return NextResponse.json(
+        { message: "אין הרשאה לתוכן קליני" },
+        { status: 403 }
+      );
+    }
 
     const { id } = await params;
+    const clientWhere = buildClientWhere(scopeUser);
 
     const response = await prisma.questionnaireResponse.findFirst({
-      where: {
-        id,
-        therapistId: userId,
-      },
+      where: { AND: [{ id }, { client: clientWhere }] },
       include: {
         template: true,
         client: {
@@ -60,7 +71,15 @@ export async function PATCH(
   try {
     const auth = await requireAuth();
     if ("error" in auth) return auth.error;
-    const { userId, session } = auth;
+    const { userId } = auth;
+
+    const scopeUser = await loadScopeUser(userId);
+    if (!canSecretaryAccessModel(scopeUser, "QuestionnaireAnalysis")) {
+      return NextResponse.json(
+        { message: "אין הרשאה לתוכן קליני" },
+        { status: 403 }
+      );
+    }
 
     const { id } = await params;
     const body = await request.json();
@@ -87,9 +106,11 @@ export async function PATCH(
       updateData.status = status;
     }
 
+    const clientWhere = buildClientWhere(scopeUser);
+
     // Atomic update — ownership ב-WHERE מונע race condition
     const updateResult = await prisma.questionnaireResponse.updateMany({
-      where: { id, therapistId: userId },
+      where: { AND: [{ id }, { client: clientWhere }] },
       data: updateData,
     });
 
@@ -131,13 +152,22 @@ export async function DELETE(
   try {
     const auth = await requireAuth();
     if ("error" in auth) return auth.error;
-    const { userId, session } = auth;
+    const { userId } = auth;
+
+    const scopeUser = await loadScopeUser(userId);
+    if (!canSecretaryAccessModel(scopeUser, "QuestionnaireAnalysis")) {
+      return NextResponse.json(
+        { message: "אין הרשאה לתוכן קליני" },
+        { status: 403 }
+      );
+    }
 
     const { id } = await params;
+    const clientWhere = buildClientWhere(scopeUser);
 
     // Atomic delete — ownership ב-WHERE מונע race condition
     const deleteResult = await prisma.questionnaireResponse.deleteMany({
-      where: { id, therapistId: userId },
+      where: { AND: [{ id }, { client: clientWhere }] },
     });
 
     if (deleteResult.count === 0) {

@@ -8,6 +8,10 @@ import { FolderOpen, Plus, FileText, CheckCircle, Clock, User, Download } from "
 import Link from "next/link";
 import { format } from "date-fns";
 
+// TODO(scope): integrate scope helper here — Document has its own `therapistId`
+// field (document creator) but no scope.ts builder yet. Clinic owners/secretaries
+// should also see documents for all clients in their organization. Extend
+// scope.ts with buildDocumentWhere and swap this filter when available.
 async function getDocuments(userId: string) {
   return prisma.document.findMany({
     where: { therapistId: userId },

@@ -10,6 +10,7 @@ import { logger } from "@/lib/logger";
 import { serializePrisma } from "@/lib/serialize";
 import { syncSessionUpdateToGoogleCalendar, syncSessionDeletionToGoogleCalendar } from "@/lib/google-calendar-sync";
 import { logDataAccess } from "@/lib/audit-logger";
+import { buildSessionWhere, loadScopeUser } from "@/lib/scope";
 
 export const dynamic = "force-dynamic";
 
@@ -24,8 +25,11 @@ export async function GET(
 
     const { id } = await params;
 
+    const scopeUser = await loadScopeUser(userId);
+    const sessionScopeWhere = buildSessionWhere(scopeUser);
+
     const therapySession = await prisma.therapySession.findFirst({
-      where: { id, therapistId: userId },
+      where: { AND: [{ id }, sessionScopeWhere] },
       include: {
         client: true,
         sessionNote: true,
@@ -82,8 +86,11 @@ export async function PUT(
     const body = await request.json();
     const { startTime, endTime, type, price, location, notes, topic, status, createPayment, markAsPaid, cancellationReason, allowOverlap } = body;
 
+    const scopeUser = await loadScopeUser(userId);
+    const sessionScopeWhere = buildSessionWhere(scopeUser);
+
     const existingSession = await prisma.therapySession.findFirst({
-      where: { id, therapistId: userId },
+      where: { AND: [{ id }, sessionScopeWhere] },
       include: {
         client: {
           select: {
@@ -352,8 +359,11 @@ export async function PATCH(
     const body = await request.json();
     const { skipSummary } = body;
 
+    const scopeUser = await loadScopeUser(userId);
+    const sessionScopeWhere = buildSessionWhere(scopeUser);
+
     const existingSession = await prisma.therapySession.findFirst({
-      where: { id, therapistId: userId },
+      where: { AND: [{ id }, sessionScopeWhere] },
     });
 
     if (!existingSession) {
@@ -390,8 +400,11 @@ export async function DELETE(
 
     const { id } = await params;
 
+    const scopeUser = await loadScopeUser(userId);
+    const sessionScopeWhere = buildSessionWhere(scopeUser);
+
     const existingSession = await prisma.therapySession.findFirst({
-      where: { id, therapistId: userId },
+      where: { AND: [{ id }, sessionScopeWhere] },
     });
 
     if (!existingSession) {

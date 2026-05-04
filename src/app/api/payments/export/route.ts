@@ -5,6 +5,7 @@ import { NextRequest, NextResponse } from "next/server";
 import prisma from "@/lib/prisma";
 import { logger } from "@/lib/logger";
 import { requireAuth } from "@/lib/api-auth";
+import { buildPaymentWhere, loadScopeUser } from "@/lib/scope";
 
 export const dynamic = "force-dynamic";
 
@@ -21,10 +22,10 @@ export async function GET(request: NextRequest) {
     const status = searchParams.get("status"); // PAID, PENDING, ALL
     const format = searchParams.get("format") || "csv"; // csv or json
 
-    const where: Record<string, unknown> = {
-      client: {
-        therapistId: userId,
-      },
+    const scopeUser = await loadScopeUser(userId);
+    const paymentWhere = buildPaymentWhere(scopeUser);
+
+    const extraFilters: Record<string, unknown> = {
       parentPaymentId: null,
     };
 
@@ -39,17 +40,17 @@ export async function GET(request: NextRequest) {
         end.setHours(23, 59, 59, 999);
         dateFilter.lte = end;
       }
-      where.createdAt = dateFilter;
+      extraFilters.createdAt = dateFilter;
     }
 
     // סינון לפי סטטוס
     if (status && status !== "ALL") {
-      where.status = status;
+      extraFilters.status = status;
     }
 
     // שליפת התשלומים
     const payments = await prisma.payment.findMany({
-      where,
+      where: { AND: [paymentWhere, extraFilters] },
       orderBy: { createdAt: "desc" },
       include: {
         client: {

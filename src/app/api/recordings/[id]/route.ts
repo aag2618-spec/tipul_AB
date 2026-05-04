@@ -4,6 +4,12 @@ import { logger } from "@/lib/logger";
 
 import { requireAuth } from "@/lib/api-auth";
 import { logDataAccess } from "@/lib/audit-logger";
+import {
+  loadScopeUser,
+  buildClientWhere,
+  buildSessionWhere,
+  canSecretaryAccessModel,
+} from "@/lib/scope";
 
 export const dynamic = "force-dynamic";
 
@@ -14,7 +20,15 @@ export async function GET(
   try {
     const auth = await requireAuth();
     if ("error" in auth) return auth.error;
-    const { userId, session } = auth;
+    const { userId } = auth;
+
+    const scopeUser = await loadScopeUser(userId);
+    if (!canSecretaryAccessModel(scopeUser, "Recording")) {
+      return NextResponse.json({ message: "אין הרשאה" }, { status: 403 });
+    }
+
+    const clientWhere = buildClientWhere(scopeUser);
+    const sessionWhere = buildSessionWhere(scopeUser);
 
     const { id } = await params;
 
@@ -22,8 +36,8 @@ export async function GET(
       where: {
         id,
         OR: [
-          { client: { therapistId: userId } },
-          { session: { therapistId: userId } },
+          { client: clientWhere },
+          { session: sessionWhere },
         ],
       },
       include: {
@@ -74,7 +88,15 @@ export async function DELETE(
   try {
     const auth = await requireAuth();
     if ("error" in auth) return auth.error;
-    const { userId, session } = auth;
+    const { userId } = auth;
+
+    const scopeUser = await loadScopeUser(userId);
+    if (!canSecretaryAccessModel(scopeUser, "Recording")) {
+      return NextResponse.json({ message: "אין הרשאה" }, { status: 403 });
+    }
+
+    const clientWhere = buildClientWhere(scopeUser);
+    const sessionWhere = buildSessionWhere(scopeUser);
 
     const { id } = await params;
 
@@ -83,8 +105,8 @@ export async function DELETE(
       where: {
         id,
         OR: [
-          { client: { therapistId: userId } },
-          { session: { therapistId: userId } },
+          { client: clientWhere },
+          { session: sessionWhere },
         ],
       },
     });
@@ -111,16 +133,3 @@ export async function DELETE(
     );
   }
 }
-
-
-
-
-
-
-
-
-
-
-
-
-

@@ -3,10 +3,20 @@ import { authOptions } from "@/lib/auth";
 import prisma from "@/lib/prisma";
 import { ReportsView, type ReportData } from "@/components/reports/reports-view";
 import { getIsraelYear, parseIsraelTime } from "@/lib/date-utils";
+import {
+  loadScopeUser,
+  buildClientWhere,
+  buildSessionWhere,
+  buildPaymentWhere,
+  type ScopeUser,
+} from "@/lib/scope";
 
 const hebrewDays = ["ראשון", "שני", "שלישי", "רביעי", "חמישי", "שישי", "שבת"];
 
-async function getReportData(userId: string): Promise<ReportData> {
+async function getReportData(scopeUser: ScopeUser): Promise<ReportData> {
+  const clientWhere = buildClientWhere(scopeUser);
+  const sessionWhere = buildSessionWhere(scopeUser);
+  const paymentWhere = buildPaymentWhere(scopeUser);
   try {
     // yearStart — 1 בינואר של השנה הישראלית הנוכחית, בשעון ישראל
     const now = new Date();
@@ -25,15 +35,24 @@ async function getReportData(userId: string): Promise<ReportData> {
       totalNonArchived,
     ] = await Promise.all([
       prisma.therapySession.findMany({
-        where: { therapistId: userId, startTime: { gte: yearStart }, type: { not: "BREAK" } },
+        where: {
+          AND: [
+            sessionWhere,
+            { startTime: { gte: yearStart }, type: { not: "BREAK" } },
+          ],
+        },
         select: { startTime: true, status: true, type: true },
       }),
       prisma.payment.findMany({
         where: {
-          client: { therapistId: userId },
-          OR: [
-            { status: "PAID", paidAt: { gte: yearStart } },
-            { status: "PENDING" },
+          AND: [
+            paymentWhere,
+            {
+              OR: [
+                { status: "PAID", paidAt: { gte: yearStart } },
+                { status: "PENDING" },
+              ],
+            },
           ],
         },
         select: {
@@ -47,19 +66,23 @@ async function getReportData(userId: string): Promise<ReportData> {
         },
       }),
       prisma.client.findMany({
-        where: { therapistId: userId, createdAt: { gte: yearStart } },
+        where: { AND: [clientWhere, { createdAt: { gte: yearStart } }] },
         select: { createdAt: true },
       }),
-      prisma.client.count({ where: { therapistId: userId } }),
-      prisma.client.groupBy({ by: ["status"], where: { therapistId: userId }, _count: true }),
+      prisma.client.count({ where: clientWhere }),
+      prisma.client.groupBy({ by: ["status"], where: clientWhere, _count: true }),
       prisma.client.count({
         where: {
-          therapistId: userId,
-          status: { not: "ARCHIVED" },
-          therapySessions: { some: { startTime: { gte: threeMonthsAgo }, status: "COMPLETED" } },
+          AND: [
+            clientWhere,
+            {
+              status: { not: "ARCHIVED" },
+              therapySessions: { some: { startTime: { gte: threeMonthsAgo }, status: "COMPLETED" } },
+            },
+          ],
         },
       }),
-      prisma.client.count({ where: { therapistId: userId, status: { not: "ARCHIVED" } } }),
+      prisma.client.count({ where: { AND: [clientWhere, { status: { not: "ARCHIVED" } }] } }),
     ]);
 
     // Monthly breakdown — בשעון ישראל
@@ -189,7 +212,8 @@ export default async function ReportsPage() {
   const session = await getServerSession(authOptions);
   if (!session?.user?.id) return null;
 
-  const data = await getReportData(session.user.id);
+  const scopeUser = await loadScopeUser(session.user.id);
+  const data = await getReportData(scopeUser);
 
   return <ReportsView data={data} />;
 }

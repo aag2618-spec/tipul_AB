@@ -6,6 +6,12 @@ import { logger } from "@/lib/logger";
 import { parseBody } from "@/lib/validations/helpers";
 import { createPaymentSchema } from "@/lib/validations/payment";
 import { serializePrisma } from "@/lib/serialize";
+import {
+  buildPaymentWhere,
+  isSecretary,
+  loadScopeUser,
+  secretaryCan,
+} from "@/lib/scope";
 
 export const dynamic = "force-dynamic";
 
@@ -15,8 +21,11 @@ export async function GET() {
     if ("error" in auth) return auth.error;
     const { userId } = auth;
 
+    const scopeUser = await loadScopeUser(userId);
+    const paymentWhere = buildPaymentWhere(scopeUser);
+
     const payments = await prisma.payment.findMany({
-      where: { client: { therapistId: userId } },
+      where: paymentWhere,
       orderBy: { createdAt: "desc" },
       include: {
         client: { select: { id: true, name: true } },
@@ -57,6 +66,15 @@ export async function POST(request: NextRequest) {
     if ("error" in auth) return auth.error;
     const { userId } = auth;
 
+    const scopeUser = await loadScopeUser(userId);
+    // יצירת תשלום ע"י מזכירה דורשת canViewPayments — יצירה מחייבת צפייה.
+    if (isSecretary(scopeUser) && !secretaryCan(scopeUser, "canViewPayments")) {
+      return NextResponse.json(
+        { message: "אין הרשאה לצפייה/יצירת תשלומים" },
+        { status: 403 }
+      );
+    }
+
     const parsed = await parseBody(request, createPaymentSchema);
     if ("error" in parsed) return parsed.error;
     const {
@@ -72,6 +90,18 @@ export async function POST(request: NextRequest) {
       issueReceipt,
     } = parsed.data;
 
+    // הוצאת קבלה (issueReceipt=true) מחייבת canIssueReceipts אצל מזכירה.
+    if (
+      issueReceipt &&
+      isSecretary(scopeUser) &&
+      !secretaryCan(scopeUser, "canIssueReceipts")
+    ) {
+      return NextResponse.json(
+        { message: "אין הרשאה להוצאת קבלות" },
+        { status: 403 }
+      );
+    }
+
     const result = await createPaymentForSession({
       userId,
       clientId,
@@ -84,6 +114,7 @@ export async function POST(request: NextRequest) {
       issueReceipt,
       notes,
       creditUsed: creditUsed ? Number(creditUsed) : undefined,
+      scopeUser,
     });
 
     if (!result.success) {

@@ -7,6 +7,7 @@ import { logger } from "@/lib/logger";
 
 import { requireAuth } from "@/lib/api-auth";
 import { syncSessionToGoogleCalendar, syncSessionDeletionToGoogleCalendar } from "@/lib/google-calendar-sync";
+import { buildSessionWhere, loadScopeUser } from "@/lib/scope";
 
 export const dynamic = "force-dynamic";
 
@@ -54,14 +55,11 @@ export async function PATCH(
       return NextResponse.json({ message: "Invalid status" }, { status: 400 });
     }
 
+    const scopeUser = await loadScopeUser(userId);
+    const sessionScopeWhere = buildSessionWhere(scopeUser);
+
     const therapySession = await prisma.therapySession.findFirst({
-      where: {
-        id: sessionId,
-        OR: [
-          { therapistId: userId },
-          { client: { therapistId: userId } },
-        ],
-      },
+      where: { AND: [{ id: sessionId }, sessionScopeWhere] },
       include: {
         client: { select: { name: true, firstName: true, email: true, phone: true } },
         therapist: { select: { name: true, email: true, phone: true, businessPhone: true } },

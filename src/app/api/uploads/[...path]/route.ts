@@ -4,6 +4,11 @@ import { readFile, stat } from "fs/promises";
 import { join, resolve } from "path";
 import { logger } from "@/lib/logger";
 import { requireAuth } from "@/lib/api-auth";
+import {
+  loadScopeUser,
+  buildClientWhere,
+  canSecretaryAccessModel,
+} from "@/lib/scope";
 
 export const dynamic = "force-dynamic";
 
@@ -17,6 +22,9 @@ export async function GET(
     const { userId, session } = auth;
     const isAdminOrManager = session.user.role === "ADMIN" || session.user.role === "MANAGER";
 
+    const scopeUser = await loadScopeUser(userId);
+    const clientWhere = buildClientWhere(scopeUser);
+
     const { path } = await params;
 
     if (path.some((segment) => segment === ".." || segment.includes("\0"))) {
@@ -26,13 +34,25 @@ export async function GET(
     const pathStr = path.join("/");
 
     // Security: Verify file ownership
+    // בעלות מסמך/קליינט נבדקת דרך ה-scope (org-aware) במקום therapistId ישיר.
+    const orgOrTherapistOwnership = scopeUser.organizationId
+      ? { organizationId: scopeUser.organizationId }
+      : { therapistId: userId };
+
     // Check if it's a document
     if (pathStr.startsWith("documents/")) {
       const fileName = path[path.length - 1];
       const document = await prisma.document.findFirst({
         where: {
-          fileUrl: { endsWith: '/' + fileName },
-          therapistId: userId,
+          AND: [
+            { fileUrl: { endsWith: '/' + fileName } },
+            {
+              OR: [
+                { client: clientWhere },
+                { AND: [{ clientId: null }, orgOrTherapistOwnership] },
+              ],
+            },
+          ],
         },
       });
       if (!document) {
@@ -44,8 +64,10 @@ export async function GET(
       const fileName = path[path.length - 1];
       const document = await prisma.document.findFirst({
         where: {
-          fileUrl: { endsWith: '/' + fileName },
-          therapistId: userId,
+          AND: [
+            { fileUrl: { endsWith: '/' + fileName } },
+            { client: clientWhere },
+          ],
         },
       });
       if (!document) {
@@ -59,8 +81,11 @@ export async function GET(
       }
       const log = await prisma.communicationLog.findFirst({
         where: {
-          userId: userId,
           clientId: clientId,
+          OR: [
+            { userId: userId },
+            { client: clientWhere },
+          ],
         },
       });
       if (!log) {
@@ -86,11 +111,15 @@ export async function GET(
     }
     // Check if it's a recording
     else if (pathStr.startsWith("recordings/")) {
+      // הקלטה היא תוכן קליני — חסום קשיח למזכירה.
+      if (!canSecretaryAccessModel(scopeUser, "Recording")) {
+        return NextResponse.json({ message: "אין הרשאה לקובץ זה" }, { status: 403 });
+      }
       const fileName = path[path.length - 1];
       const recording = await prisma.recording.findFirst({
         where: {
           audioUrl: { endsWith: '/' + fileName },
-          client: { therapistId: userId },
+          client: clientWhere,
         },
       });
       if (!recording) {

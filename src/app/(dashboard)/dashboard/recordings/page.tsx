@@ -1,19 +1,28 @@
 import { getServerSession } from "next-auth";
 import { authOptions } from "@/lib/auth";
 import prisma from "@/lib/prisma";
+import { Prisma } from "@prisma/client";
 import { Button } from "@/components/ui/button";
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
 import { Badge } from "@/components/ui/badge";
 import { Mic, Plus, Clock, User } from "lucide-react";
 import Link from "next/link";
 import { format } from "date-fns";
+import {
+  loadScopeUser,
+  buildClientWhere,
+  buildSessionWhere,
+} from "@/lib/scope";
 
-async function getRecordings(userId: string) {
+async function getRecordings(
+  clientWhere: Prisma.ClientWhereInput,
+  sessionWhere: Prisma.TherapySessionWhereInput
+) {
   return prisma.recording.findMany({
     where: {
       OR: [
-        { client: { therapistId: userId } },
-        { session: { therapistId: userId } },
+        { client: clientWhere },
+        { session: sessionWhere },
       ],
     },
     orderBy: { createdAt: "desc" },
@@ -31,7 +40,11 @@ export default async function RecordingsPage() {
   const session = await getServerSession(authOptions);
   if (!session?.user?.id) return null;
 
-  const recordings = await getRecordings(session.user.id);
+  const scopeUser = await loadScopeUser(session.user.id);
+  const clientWhere = buildClientWhere(scopeUser);
+  const sessionWhere = buildSessionWhere(scopeUser);
+
+  const recordings = await getRecordings(clientWhere, sessionWhere);
 
   const getStatusBadge = (status: string) => {
     switch (status) {

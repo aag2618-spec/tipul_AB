@@ -13,6 +13,13 @@ import { PersonalTasksWidget } from "@/components/tasks/personal-tasks-widget";
 import { TodaySessionCard } from "@/components/dashboard/today-session-card";
 import { SubBoxLink } from "@/components/dashboard-stat-card";
 import { calculateDebtFromPayments } from "@/lib/payment-utils";
+import {
+  loadScopeUser,
+  buildClientWhere,
+  buildSessionWhere,
+  buildPaymentWhere,
+  type ScopeUser,
+} from "@/lib/scope";
 
 function getIsraelOffsetHours(date: Date): number {
   const dateStr = date.toISOString().split("T")[0];
@@ -33,7 +40,11 @@ function toIsraelTime(utcDate: Date): Date {
   return date;
 }
 
-async function getDashboardStats(userId: string) {
+async function getDashboardStats(scopeUser: ScopeUser) {
+  const clientWhere = buildClientWhere(scopeUser);
+  const sessionWhere = buildSessionWhere(scopeUser);
+  const paymentWhere = buildPaymentWhere(scopeUser);
+
   // SIMPLE SOLUTION: Use a wide time range to catch all sessions
   // This avoids complex timezone calculations
   const now = new Date();
@@ -68,32 +79,44 @@ async function getDashboardStats(userId: string) {
     todaySessions,
     todaySessionPreps,
   ] = await Promise.all([
-    prisma.client.count({ where: { therapistId: userId } }),
-    prisma.client.count({ where: { therapistId: userId, status: "ACTIVE" } }),
-    prisma.client.count({ where: { therapistId: userId, status: "WAITING" } }),
-    prisma.client.count({ where: { therapistId: userId, status: { in: ["INACTIVE", "ARCHIVED"] } } }),
+    prisma.client.count({ where: clientWhere }),
+    prisma.client.count({ where: { AND: [clientWhere, { status: "ACTIVE" }] } }),
+    prisma.client.count({ where: { AND: [clientWhere, { status: "WAITING" }] } }),
+    prisma.client.count({ where: { AND: [clientWhere, { status: { in: ["INACTIVE", "ARCHIVED"] } }] } }),
     prisma.therapySession.count({
       where: {
-        therapistId: userId,
-        startTime: { gte: weekStart, lt: weekEnd },
-        status: { not: "CANCELLED" },
-        type: { not: "BREAK" }
+        AND: [
+          sessionWhere,
+          {
+            startTime: { gte: weekStart, lt: weekEnd },
+            status: { not: "CANCELLED" },
+            type: { not: "BREAK" },
+          },
+        ],
       },
     }),
     prisma.therapySession.count({
       where: {
-        therapistId: userId,
-        startTime: { gte: monthStart, lte: monthEnd },
-        status: { not: "CANCELLED" },
-        type: { not: "BREAK" }
+        AND: [
+          sessionWhere,
+          {
+            startTime: { gte: monthStart, lte: monthEnd },
+            status: { not: "CANCELLED" },
+            type: { not: "BREAK" },
+          },
+        ],
       },
     }),
     // Fetch pending payments to properly filter only truly unpaid ones
     prisma.payment.findMany({
       where: {
-        client: { therapistId: userId },
-        status: "PENDING",
-        parentPaymentId: null,
+        AND: [
+          paymentWhere,
+          {
+            status: "PENDING",
+            parentPaymentId: null,
+          },
+        ],
       },
       select: {
         amount: true,
@@ -104,18 +127,24 @@ async function getDashboardStats(userId: string) {
     // Only COMPLETED sessions should appear as pending summary.
     prisma.therapySession.count({
       where: {
-        therapistId: userId,
-        startTime: { gte: new Date(Date.now() - 30 * 24 * 60 * 60 * 1000) },
-        skipSummary: { not: true },
-        type: { not: "BREAK" },
-        status: "COMPLETED",
-        sessionNote: { is: null },
+        AND: [
+          sessionWhere,
+          {
+            startTime: { gte: new Date(Date.now() - 30 * 24 * 60 * 60 * 1000) },
+            skipSummary: { not: true },
+            type: { not: "BREAK" },
+            status: "COMPLETED",
+            sessionNote: { is: null },
+          },
+        ],
       },
     }),
     prisma.therapySession.findMany({
       where: {
-        therapistId: userId,
-        startTime: { gte: today, lt: tomorrow },
+        AND: [
+          sessionWhere,
+          { startTime: { gte: today, lt: tomorrow } },
+        ],
       },
       select: {
         id: true,
@@ -159,7 +188,7 @@ async function getDashboardStats(userId: string) {
     // הכנות לפגישות שנוצרו היום
     prisma.sessionPrep.findMany({
       where: {
-        userId,
+        userId: scopeUser.id,
         createdAt: { gte: today, lt: tomorrow },
       },
       select: {
@@ -230,7 +259,8 @@ export default async function DashboardPage() {
     return <div>טוען...</div>;
   }
 
-  const stats = await getDashboardStats(session.user.id);
+  const scopeUser = await loadScopeUser(session.user.id);
+  const stats = await getDashboardStats(scopeUser);
 
   // Get stat cards
   const statCards = [

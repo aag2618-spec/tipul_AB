@@ -1,11 +1,13 @@
 import { getServerSession } from "next-auth";
 import { authOptions } from "@/lib/auth";
 import prisma from "@/lib/prisma";
+import { Prisma } from "@prisma/client";
 import { SessionsView } from "@/components/sessions/sessions-view";
+import { loadScopeUser, buildSessionWhere } from "@/lib/scope";
 
-async function getSessions(userId: string) {
+async function getSessions(sessionWhere: Prisma.TherapySessionWhereInput) {
   return prisma.therapySession.findMany({
-    where: { therapistId: userId },
+    where: sessionWhere,
     orderBy: { startTime: "desc" },
     // No limit - load all sessions
     include: {
@@ -29,8 +31,11 @@ export default async function SessionsPage() {
   const session = await getServerSession(authOptions);
   if (!session?.user?.id) return null;
 
+  const scopeUser = await loadScopeUser(session.user.id);
+  const sessionWhere = buildSessionWhere(scopeUser);
+
   const [sessions, prepKeys] = await Promise.all([
-    getSessions(session.user.id),
+    getSessions(sessionWhere),
     getPreparedSessionKeys(session.user.id),
   ]);
 

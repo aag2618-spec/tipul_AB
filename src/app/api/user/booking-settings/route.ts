@@ -5,6 +5,8 @@ import { nanoid } from "nanoid";
 
 import { requireAuth } from "@/lib/api-auth";
 
+// scope.ts: BookingSettings הן per-user (therapistId @unique). הגדרות פרטיות
+// של המטפל/ת — לא חלות עליהן הרשאות clinic-wide (Pattern G).
 export const dynamic = "force-dynamic";
 
 export async function GET() {

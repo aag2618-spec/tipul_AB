@@ -3,6 +3,8 @@ import prisma from "@/lib/prisma";
 import { logger } from "@/lib/logger";
 
 import { requireAuth } from "@/lib/api-auth";
+import { buildSessionWhere, loadScopeUser } from "@/lib/scope";
+import type { Prisma } from "@prisma/client";
 
 // GET /api/cancellation-requests
 // Get all cancellation requests for the therapist
@@ -18,15 +20,18 @@ export async function GET(request: NextRequest) {
     const status = searchParams.get("status");
     const countOnly = searchParams.get("countOnly") === "true";
 
-    // Build where clause - get requests for sessions that belong to this thexxxxxx
-    const where: Record<string, unknown> = {
-      session: {
-        therapistId: userId,
-      },
+    const scopeUser = await loadScopeUser(userId);
+    const sessionWhere = buildSessionWhere(scopeUser);
+
+    // Build where clause — בקשות ביטול נגישות אם הפגישה הקשורה נגישה למשתמש
+    // לפי scope (סולו/קליניקה/מזכירה).
+    const where: Prisma.CancellationRequestWhereInput = {
+      session: sessionWhere,
     };
 
     if (status) {
-      where.status = status;
+      // שמירה על הסמנטיקה הקיימת (אין ולידציה — מועבר כמו שהוא ל-Prisma).
+      where.status = status as Prisma.CancellationRequestWhereInput["status"];
     }
 
     // If only counting, return count

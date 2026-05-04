@@ -14,6 +14,12 @@ import { withAudit } from "@/lib/audit";
 import { getUserCardcomClient } from "@/lib/cardcom/user-config";
 import { scrubCardcomMessage } from "@/lib/cardcom/verify-webhook";
 import type { CardcomDocumentType } from "@/lib/cardcom/types";
+import {
+  buildPaymentWhere,
+  isSecretary,
+  loadScopeUser,
+  secretaryCan,
+} from "@/lib/scope";
 
 export const dynamic = "force-dynamic";
 
@@ -60,11 +66,31 @@ export async function POST(
     );
   }
 
+  // Scope-based ownership: כולל קליניקות רב-מטפלים. סליקת כרטיס שמור
+  // מחייבת canIssueReceipts אצל מזכירה.
+  let scopeUser;
+  try {
+    scopeUser = await loadScopeUser(userId);
+  } catch (scopeErr) {
+    logger.error("[user/charge-saved-token] scope load failed", {
+      userId,
+      error: scopeErr instanceof Error ? scopeErr.message : String(scopeErr),
+    });
+    return NextResponse.json({ message: "אין הרשאה" }, { status: 403 });
+  }
+  if (isSecretary(scopeUser) && !secretaryCan(scopeUser, "canIssueReceipts")) {
+    return NextResponse.json(
+      { message: "אין הרשאה לסליקת אשראי / הוצאת קבלות" },
+      { status: 403 }
+    );
+  }
+  const paymentWhere = buildPaymentWhere(scopeUser);
+
   // ── Load payment + ownership ────────────────────────────────
   let payment;
   try {
-    payment = await prisma.payment.findUnique({
-      where: { id: paymentId },
+    payment = await prisma.payment.findFirst({
+      where: { AND: [{ id: paymentId }, paymentWhere] },
       include: {
         client: { select: { id: true, name: true, therapistId: true } },
       },
@@ -78,9 +104,6 @@ export async function POST(
   }
   if (!payment) {
     return NextResponse.json({ message: "תשלום לא נמצא" }, { status: 404 });
-  }
-  if (payment.client.therapistId !== userId) {
-    return NextResponse.json({ message: "אין הרשאה לתשלום זה" }, { status: 403 });
   }
   if (payment.status === "PAID") {
     return NextResponse.json({ message: "התשלום כבר שולם" }, { status: 409 });

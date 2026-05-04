@@ -2,6 +2,7 @@ import prisma from "@/lib/prisma";
 import { logger } from "@/lib/logger";
 import type { PaymentMethod, BulkPaymentResult, ClientDebtSummary, AllClientsDebtItem } from "./types";
 import { issueReceipt, sendPaymentReceiptEmail, buildReceiptDescription } from "./receipt-service";
+import { buildClientWhere, type ScopeUser } from "@/lib/scope";
 
 // Re-export pure calculation helpers from payment-utils
 export { calculateDebtFromPayments } from "@/lib/payment-utils";
@@ -19,6 +20,11 @@ export async function processMultiSessionPayment(params: {
   paymentMode: "FULL" | "PARTIAL";
   creditUsed?: number;
   issueReceipt?: boolean;
+  // Clinic multi-tenancy. אופציונלי לשמירה על תאימות. כשיש scopeUser
+  // ownership נקבע דרך buildClientWhere ו-organizationId נכתב לתשלומים
+  // החדשים שנוצרים בתוך ה-transaction.
+  scopeUser?: ScopeUser;
+  organizationId?: string | null;
 }): Promise<BulkPaymentResult> {
   try {
     const {
@@ -30,11 +36,19 @@ export async function processMultiSessionPayment(params: {
       paymentMode,
       creditUsed = 0,
       issueReceipt: shouldIssueReceipt = true,
+      scopeUser,
+      organizationId: explicitOrganizationId,
     } = params;
 
-    const client = await prisma.client.findFirst({
-      where: { id: clientId, therapistId: userId },
-    });
+    const organizationId = scopeUser
+      ? scopeUser.organizationId
+      : explicitOrganizationId ?? null;
+
+    const clientWhere = scopeUser
+      ? { AND: [{ id: clientId }, buildClientWhere(scopeUser)] }
+      : { id: clientId, therapistId: userId };
+
+    const client = await prisma.client.findFirst({ where: clientWhere });
     if (!client) {
       return {
         success: false,
@@ -88,6 +102,7 @@ export async function processMultiSessionPayment(params: {
             status: "PAID",
             paidAt: new Date(),
             paymentType: "PARTIAL",
+            organizationId: organizationId ?? payment.organizationId ?? null,
           },
         });
 
@@ -304,6 +319,10 @@ async function autoFixStuckPayments(
 // getClientDebtSummary
 // ================================================================
 
+// TODO(scope): callers in routes outside Agent 3's file list
+// (api/payments/client-debt/[clientId], api/payments/client-debts) still pass
+// userId only. Once those routes adopt scope helpers, switch signature to
+// accept ScopeUser and use buildClientWhere/buildPaymentWhere here too.
 export async function getClientDebtSummary(
   userId: string,
   clientId: string

@@ -5,6 +5,7 @@ import { format } from "date-fns";
 import { logger } from "@/lib/logger";
 
 import { requireAuth } from "@/lib/api-auth";
+import { buildClientWhere, loadScopeUser } from "@/lib/scope";
 
 export const dynamic = "force-dynamic";
 
@@ -14,9 +15,12 @@ export async function GET() {
     if ("error" in auth) return auth.error;
     const { userId, session } = auth;
 
+    const scopeUser = await loadScopeUser(userId);
+    const scopeWhere = buildClientWhere(scopeUser);
+
     // Fetch all clients with their related data
     const clients = await prisma.client.findMany({
-      where: { therapistId: userId },
+      where: scopeWhere,
       include: {
         therapySessions: {
           orderBy: { startTime: "desc" },

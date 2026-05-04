@@ -3,6 +3,13 @@ import prisma from "@/lib/prisma";
 import { createPaymentForSession, processMultiSessionPayment } from "@/lib/payment-service";
 import { logger } from "@/lib/logger";
 import { requireAuth } from "@/lib/api-auth";
+import {
+  buildClientWhere,
+  buildSessionWhere,
+  isSecretary,
+  loadScopeUser,
+  secretaryCan,
+} from "@/lib/scope";
 
 export const dynamic = "force-dynamic";
 
@@ -18,6 +25,16 @@ export async function POST(
     const { id: clientId } = await params;
     const body = await request.json();
     const { amount, method } = body;
+
+    const scopeUser = await loadScopeUser(userId);
+    if (isSecretary(scopeUser) && !secretaryCan(scopeUser, "canViewPayments")) {
+      return NextResponse.json(
+        { message: "אין הרשאה לצפייה/יצירת תשלומים" },
+        { status: 403 }
+      );
+    }
+    const clientWhere = buildClientWhere(scopeUser);
+    const sessionWhere = buildSessionWhere(scopeUser);
 
     if (!amount || amount <= 0) {
       return NextResponse.json(
@@ -48,7 +65,7 @@ export async function POST(
     }
 
     const client = await prisma.client.findFirst({
-      where: { id: clientId, therapistId: userId },
+      where: { AND: [{ id: clientId }, clientWhere] },
     });
 
     if (!client) {
@@ -58,12 +75,17 @@ export async function POST(
     // Find unpaid/partially-paid completed sessions (oldest first)
     const sessions = await prisma.therapySession.findMany({
       where: {
-        clientId,
-        status: "COMPLETED",
-        type: { not: "BREAK" },
-        OR: [
-          { payment: null },
-          { payment: { status: "PENDING" } },
+        AND: [
+          sessionWhere,
+          {
+            clientId,
+            status: "COMPLETED",
+            type: { not: "BREAK" },
+            OR: [
+              { payment: null },
+              { payment: { status: "PENDING" } },
+            ],
+          },
         ],
       },
       include: { payment: true },
@@ -91,6 +113,7 @@ export async function POST(
           expectedAmount: Number(s.price),
           method: "CASH",
           paymentType: "FULL",
+          scopeUser,
         });
         if (result.success && result.payment) {
           paymentIds.push(result.payment.id);
@@ -105,6 +128,7 @@ export async function POST(
       totalAmount: Number(amount),
       method,
       paymentMode: "FULL",
+      scopeUser,
     });
 
     if (!result.success) {
@@ -122,6 +146,7 @@ export async function POST(
         paymentType: "ADVANCE",
         issueReceipt: false,
         notes: `עודף מתשלום מרוכז — נוסף לקרדיט`,
+        scopeUser,
       });
     }
 

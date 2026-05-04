@@ -11,6 +11,12 @@ import { withAudit } from "@/lib/audit";
 import { getUserCardcomClient } from "@/lib/cardcom/user-config";
 import { scrubCardcomMessage } from "@/lib/cardcom/verify-webhook";
 import type { CardcomDocumentType } from "@/lib/cardcom/types";
+import {
+  buildPaymentWhere,
+  isSecretary,
+  loadScopeUser,
+  secretaryCan,
+} from "@/lib/scope";
 
 export const dynamic = "force-dynamic";
 
@@ -58,15 +64,23 @@ export async function POST(
 
   const numOfPayments = Math.min(Math.max(body.numOfPayments ?? 1, 1), 36);
 
-  const payment = await prisma.payment.findUnique({
-    where: { id: paymentId },
+  // Scope-based ownership: כולל קליניקות רב-מטפלים. גישה לסליקת אשראי גם
+  // מצריכה הרשאת קבלות אצל מזכירה (sליקה מנפיקה קבלת/חשבונית).
+  const scopeUser = await loadScopeUser(userId);
+  if (isSecretary(scopeUser) && !secretaryCan(scopeUser, "canIssueReceipts")) {
+    return NextResponse.json(
+      { message: "אין הרשאה לסליקת אשראי / הוצאת קבלות" },
+      { status: 403 }
+    );
+  }
+  const paymentWhere = buildPaymentWhere(scopeUser);
+
+  const payment = await prisma.payment.findFirst({
+    where: { AND: [{ id: paymentId }, paymentWhere] },
     include: { client: true },
   });
   if (!payment) {
     return NextResponse.json({ message: "תשלום לא נמצא" }, { status: 404 });
-  }
-  if (payment.client.therapistId !== userId) {
-    return NextResponse.json({ message: "אין הרשאה לחייב תשלום זה" }, { status: 403 });
   }
   if (payment.status === "PAID") {
     return NextResponse.json({ message: "התשלום כבר שולם" }, { status: 409 });

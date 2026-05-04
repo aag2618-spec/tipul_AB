@@ -1,6 +1,7 @@
 import { getServerSession } from "next-auth";
 import { authOptions } from "@/lib/auth";
 import prisma from "@/lib/prisma";
+import { Prisma } from "@prisma/client";
 import { Button } from "@/components/ui/button";
 import { Badge } from "@/components/ui/badge";
 import { Plus, Users } from "lucide-react";
@@ -8,10 +9,14 @@ import Link from "next/link";
 import { ExportAllClientsButton } from "@/components/clients/export-all-clients-button";
 import { ConsultationClientsSection } from "@/components/clients/consultation-clients-section";
 import { ClientsGridWithSearch } from "@/components/clients/clients-grid-with-search";
+import { loadScopeUser, buildClientWhere } from "@/lib/scope";
 
 type ClientStatus = "ACTIVE" | "WAITING" | "ARCHIVED";
 
-async function getClients(userId: string, status?: ClientStatus) {
+async function getClients(
+  clientWhere: Prisma.ClientWhereInput,
+  status?: ClientStatus
+) {
   const statusFilter = status === "ARCHIVED" 
     ? { status: { in: ["ARCHIVED" as const, "INACTIVE" as const] } }
     : status 
@@ -20,9 +25,10 @@ async function getClients(userId: string, status?: ClientStatus) {
 
   return prisma.client.findMany({
     where: {
-      therapistId: userId,
-      isQuickClient: false,
-      ...statusFilter,
+      AND: [
+        clientWhere,
+        { isQuickClient: false, ...statusFilter },
+      ],
     },
     orderBy: { lastName: "asc" },
     include: {
@@ -36,12 +42,12 @@ async function getClients(userId: string, status?: ClientStatus) {
   });
 }
 
-async function getClientCounts(userId: string) {
+async function getClientCounts(clientWhere: Prisma.ClientWhereInput) {
   const [active, waiting, inactiveAndArchived, total] = await Promise.all([
-    prisma.client.count({ where: { therapistId: userId, status: "ACTIVE", isQuickClient: false } }),
-    prisma.client.count({ where: { therapistId: userId, status: "WAITING", isQuickClient: false } }),
-    prisma.client.count({ where: { therapistId: userId, status: { in: ["INACTIVE", "ARCHIVED"] }, isQuickClient: false } }),
-    prisma.client.count({ where: { therapistId: userId, isQuickClient: false } }),
+    prisma.client.count({ where: { AND: [clientWhere, { status: "ACTIVE", isQuickClient: false }] } }),
+    prisma.client.count({ where: { AND: [clientWhere, { status: "WAITING", isQuickClient: false }] } }),
+    prisma.client.count({ where: { AND: [clientWhere, { status: { in: ["INACTIVE", "ARCHIVED"] }, isQuickClient: false }] } }),
+    prisma.client.count({ where: { AND: [clientWhere, { isQuickClient: false }] } }),
   ]);
   return { active, waiting, archived: inactiveAndArchived, total };
 }
@@ -81,11 +87,14 @@ export default async function ClientsPage({ searchParams }: PageProps) {
   const mappedStatus = rawStatus === "INACTIVE" ? "ARCHIVED" : rawStatus;
   const activeStatus = validStatuses.includes(mappedStatus as ClientStatus) ? mappedStatus as ClientStatus : undefined;
 
+  const scopeUser = await loadScopeUser(session.user.id);
+  const clientWhere = buildClientWhere(scopeUser);
+
   const [clients, counts, quickClients] = await Promise.all([
-    getClients(session.user.id, activeStatus),
-    getClientCounts(session.user.id),
+    getClients(clientWhere, activeStatus),
+    getClientCounts(clientWhere),
     prisma.client.findMany({
-      where: { therapistId: session.user.id, isQuickClient: true },
+      where: { AND: [clientWhere, { isQuickClient: true }] },
       orderBy: { updatedAt: "desc" },
       include: {
         therapySessions: {

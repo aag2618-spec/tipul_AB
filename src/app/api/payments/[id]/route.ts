@@ -4,6 +4,12 @@ import { addPartialPayment, markFullyPaid } from "@/lib/payment-service";
 import { logger } from "@/lib/logger";
 import { requireAuth } from "@/lib/api-auth";
 import { serializePrisma } from "@/lib/serialize";
+import {
+  buildPaymentWhere,
+  isSecretary,
+  loadScopeUser,
+  secretaryCan,
+} from "@/lib/scope";
 
 export const dynamic = "force-dynamic";
 
@@ -18,8 +24,11 @@ export async function GET(
 
     const { id } = await params;
 
+    const scopeUser = await loadScopeUser(userId);
+    const paymentWhere = buildPaymentWhere(scopeUser);
+
     const payment = await prisma.payment.findFirst({
-      where: { id, client: { therapistId: userId } },
+      where: { AND: [{ id }, paymentWhere] },
       include: {
         client: true,
         session: true,
@@ -53,6 +62,29 @@ export async function PUT(
     const body = await request.json();
     const { status, method, notes, amount, creditUsed, issueReceipt, prepareCardcom } = body;
 
+    const scopeUser = await loadScopeUser(userId);
+    const paymentWhere = buildPaymentWhere(scopeUser);
+
+    // עדכון תשלום ע"י מזכירה דורש canViewPayments — שינוי תשלום מחייב צפייה.
+    if (isSecretary(scopeUser) && !secretaryCan(scopeUser, "canViewPayments")) {
+      return NextResponse.json(
+        { message: "אין הרשאה לצפייה/עדכון תשלומים" },
+        { status: 403 }
+      );
+    }
+
+    // הוצאת קבלה אצל מזכירה — דורשת canIssueReceipts.
+    if (
+      issueReceipt &&
+      isSecretary(scopeUser) &&
+      !secretaryCan(scopeUser, "canIssueReceipts")
+    ) {
+      return NextResponse.json(
+        { message: "אין הרשאה להוצאת קבלות" },
+        { status: 403 }
+      );
+    }
+
     // ── prepareCardcom flow ────────────────────────────────────
     // עדכון מקדים של תשלום קיים לפני פתיחת ChargeCardcomDialog: מעדכן את
     // השדות `amount` ו-`method` בלבד, ללא טריגר ל-addPartialPayment שיוצר
@@ -67,7 +99,7 @@ export async function PUT(
         return NextResponse.json({ message: "סכום לא תקין" }, { status: 400 });
       }
       const existing = await prisma.payment.findFirst({
-        where: { id, client: { therapistId: userId } },
+        where: { AND: [{ id }, paymentWhere] },
         select: { id: true, status: true, expectedAmount: true, amount: true },
       });
       if (!existing) {
@@ -139,7 +171,7 @@ export async function PUT(
       }
       // Atomic update — ownership נבדק ב-WHERE, מונע race condition
       const updateResult = await prisma.payment.updateMany({
-        where: { id, client: { therapistId: userId }, status: "PENDING" },
+        where: { AND: [{ id }, paymentWhere, { status: "PENDING" }] },
         data: {
           amount: desired,
           method: "CREDIT_CARD",
@@ -168,6 +200,7 @@ export async function PUT(
         method: method || "CASH",
         issueReceipt,
         creditUsed: creditUsed ? Number(creditUsed) : undefined,
+        scopeUser,
       });
 
       if (!result.success) {
@@ -176,9 +209,9 @@ export async function PUT(
 
       if (notes !== undefined) {
         // ownership נבדק כבר ב-addPartialPayment service. עוטפים ב-updateMany
-        // עם ownership ב-WHERE כdefense-in-depth מפני race condition.
+        // עם scope ב-WHERE כdefense-in-depth מפני race condition.
         await prisma.payment.updateMany({
-          where: { id, client: { therapistId: userId } },
+          where: { AND: [{ id }, paymentWhere] },
           data: { notes },
         });
       }
@@ -197,6 +230,7 @@ export async function PUT(
         method: method || "CASH",
         issueReceipt,
         creditUsed: creditUsed ? Number(creditUsed) : undefined,
+        scopeUser,
       });
 
       if (!result.success) {
@@ -205,7 +239,7 @@ export async function PUT(
 
       if (notes !== undefined) {
         await prisma.payment.updateMany({
-          where: { id, client: { therapistId: userId } },
+          where: { AND: [{ id }, paymentWhere] },
           data: { notes },
         });
       }
@@ -217,9 +251,9 @@ export async function PUT(
     }
 
     // Simple field update (status change, notes, method — no payment action)
-    // Atomic — ownership ב-WHERE מונע race condition / IDOR.
+    // Atomic — scope ב-WHERE מונע race condition / IDOR.
     const updateResult = await prisma.payment.updateMany({
-      where: { id, client: { therapistId: userId } },
+      where: { AND: [{ id }, paymentWhere] },
       data: {
         status: status || undefined,
         method: method || undefined,

@@ -3,6 +3,7 @@ import prisma from "@/lib/prisma";
 import { logger } from "@/lib/logger";
 
 import { requireAuth } from "@/lib/api-auth";
+import { buildSessionWhere, isSecretary, loadScopeUser } from "@/lib/scope";
 
 export const dynamic = "force-dynamic";
 
@@ -19,9 +20,21 @@ export async function POST(
     const body = await request.json();
     const { content, isPrivate, aiAnalysis } = body;
 
-    // Verify session belongs to therapist
+    const scopeUser = await loadScopeUser(userId);
+
+    // SessionNote is clinical content — secretaries are blocked.
+    if (isSecretary(scopeUser)) {
+      return NextResponse.json(
+        { message: "אין הרשאה לתוכן קליני" },
+        { status: 403 }
+      );
+    }
+
+    const sessionScopeWhere = buildSessionWhere(scopeUser);
+
+    // Verify session belongs to therapist / clinic scope
     const therapySession = await prisma.therapySession.findFirst({
-      where: { id, therapistId: userId },
+      where: { AND: [{ id }, sessionScopeWhere] },
     });
 
     if (!therapySession) {
@@ -80,9 +93,20 @@ export async function PUT(
     const body = await request.json();
     const { content, isPrivate, aiAnalysis } = body;
 
-    // Verify session belongs to therapist
+    const scopeUser = await loadScopeUser(userId);
+
+    if (isSecretary(scopeUser)) {
+      return NextResponse.json(
+        { message: "אין הרשאה לתוכן קליני" },
+        { status: 403 }
+      );
+    }
+
+    const sessionScopeWhere = buildSessionWhere(scopeUser);
+
+    // Verify session belongs to therapist / clinic scope
     const therapySession = await prisma.therapySession.findFirst({
-      where: { id, therapistId: userId },
+      where: { AND: [{ id }, sessionScopeWhere] },
       include: { sessionNote: true },
     });
 

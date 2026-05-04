@@ -6,6 +6,7 @@ import { escapeHtml } from "@/lib/email-utils";
 import { sendSMSIfEnabled } from "@/lib/sms";
 import { logger } from "@/lib/logger";
 import { requireAuth } from "@/lib/api-auth";
+import { buildClientWhere, isSecretary, loadScopeUser, secretaryCan } from "@/lib/scope";
 
 export const dynamic = "force-dynamic";
 
@@ -194,12 +195,20 @@ export async function POST(
 
     const { id: clientId } = await params;
 
+    const scopeUser = await loadScopeUser(userId);
+
+    if (isSecretary(scopeUser) && !secretaryCan(scopeUser, "canSendReminders")) {
+      return NextResponse.json(
+        { message: "אין הרשאה לשליחת תזכורות" },
+        { status: 403 }
+      );
+    }
+
+    const scopeWhere = buildClientWhere(scopeUser);
+
     // Get client
     const client = await prisma.client.findFirst({
-      where: {
-        id: clientId,
-        therapistId: userId,
-      },
+      where: { AND: [{ id: clientId }, scopeWhere] },
     });
 
     if (!client) {

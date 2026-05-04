@@ -6,6 +6,7 @@ import { parseIsraelTime } from "@/lib/date-utils";
 import { syncSessionToGoogleCalendar } from "@/lib/google-calendar-sync";
 
 import { requireAuth } from "@/lib/api-auth";
+import { loadScopeUser } from "@/lib/scope";
 
 export const dynamic = "force-dynamic";
 
@@ -35,6 +36,12 @@ export async function POST(request: NextRequest) {
     const auth = await requireAuth();
     if ("error" in auth) return auth.error;
     const { userId } = auth;
+
+    // scope — recurring patterns מיועדים ליומן האישי של המטפל/ת. מזכירה/בעלים
+    // לא מפעילים תבניות של מטפלים אחרים מכאן (הראוט מסנן לפי userId בדיוק).
+    // הסיבה היחידה לטעון ScopeUser כאן: לגזור organizationId לרשומות פגישה
+    // חדשות (preserves clinic FK).
+    const scopeUser = await loadScopeUser(userId);
 
     const body = await request.json();
     const weeksAhead = body.weeksAhead || 4;
@@ -178,6 +185,7 @@ export async function POST(request: NextRequest) {
           type: "IN_PERSON",
           price: defaultPrice,
           isRecurring: true,
+          organizationId: scopeUser.organizationId,
         });
       }
     }

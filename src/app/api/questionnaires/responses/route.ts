@@ -3,6 +3,11 @@ import prisma from "@/lib/prisma";
 import { logger } from "@/lib/logger";
 
 import { requireAuth } from "@/lib/api-auth";
+import {
+  loadScopeUser,
+  buildClientWhere,
+  canSecretaryAccessModel,
+} from "@/lib/scope";
 
 // POST - Create a new questionnaire response
 export const dynamic = "force-dynamic";
@@ -11,7 +16,16 @@ export async function POST(request: NextRequest) {
   try {
     const auth = await requireAuth();
     if ("error" in auth) return auth.error;
-    const { userId, session } = auth;
+    const { userId } = auth;
+
+    const scopeUser = await loadScopeUser(userId);
+    // תוכן קליני (שאלונים) חסום למזכירה — בדיקה קשיחה לפי scope.ts
+    if (!canSecretaryAccessModel(scopeUser, "QuestionnaireAnalysis")) {
+      return NextResponse.json(
+        { message: "אין הרשאה לתוכן קליני" },
+        { status: 403 }
+      );
+    }
 
     const body = await request.json();
     const { templateId, clientId } = body;
@@ -23,7 +37,6 @@ export async function POST(request: NextRequest) {
       );
     }
 
-    // Verify template exists
     const template = await prisma.questionnaireTemplate.findUnique({
       where: { id: templateId },
     });
@@ -35,12 +48,9 @@ export async function POST(request: NextRequest) {
       );
     }
 
-    // Verify client exists and belongs to this therapist
+    const clientWhere = buildClientWhere(scopeUser);
     const client = await prisma.client.findFirst({
-      where: {
-        id: clientId,
-        therapistId: userId,
-      },
+      where: { AND: [{ id: clientId }, clientWhere] },
     });
 
     if (!client) {
@@ -50,12 +60,12 @@ export async function POST(request: NextRequest) {
       );
     }
 
-    // Create questionnaire response
     const response = await prisma.questionnaireResponse.create({
       data: {
         templateId,
         clientId,
-        therapistId: userId,
+        therapistId: client.therapistId,
+        organizationId: scopeUser.organizationId,
         status: "IN_PROGRESS",
         answers: [],
       },
@@ -81,19 +91,29 @@ export async function POST(request: NextRequest) {
   }
 }
 
-// GET - Get all questionnaire responses for this therapist
+// GET - Get all questionnaire responses visible to this user
 export async function GET(request: NextRequest) {
   try {
     const auth = await requireAuth();
     if ("error" in auth) return auth.error;
-    const { userId, session } = auth;
+    const { userId } = auth;
+
+    const scopeUser = await loadScopeUser(userId);
+    // תוכן קליני חסום למזכירה — תשובות גולמיות של שאלון אסורות לצפייה
+    if (!canSecretaryAccessModel(scopeUser, "QuestionnaireAnalysis")) {
+      return NextResponse.json(
+        { message: "אין הרשאה לתוכן קליני" },
+        { status: 403 }
+      );
+    }
 
     const { searchParams } = new URL(request.url);
     const clientId = searchParams.get("clientId");
     const status = searchParams.get("status");
 
+    const clientWhere = buildClientWhere(scopeUser);
     const where: Record<string, unknown> = {
-      therapistId: userId,
+      client: clientWhere,
     };
 
     if (clientId) {

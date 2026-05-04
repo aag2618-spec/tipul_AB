@@ -7,6 +7,11 @@ import { logger } from "@/lib/logger";
 import { requireAuth } from "@/lib/api-auth";
 import { getCurrentUsageKey } from "@/lib/date-utils";
 import { getTierLimits, isStaff } from "@/lib/usage-limits";
+import {
+  loadScopeUser,
+  buildClientWhere,
+  canSecretaryAccessModel,
+} from "@/lib/scope";
 
 // שימוש ב-Gemini 2.0 Flash בלבד
 const genAI = new GoogleGenerativeAI(process.env.GOOGLE_AI_API_KEY || "");
@@ -33,7 +38,16 @@ export async function POST(req: NextRequest) {
   try {
     const auth = await requireAuth();
     if ("error" in auth) return auth.error;
-    const { userId, session } = auth;
+    const { userId } = auth;
+
+    const scopeUser = await loadScopeUser(userId);
+    // ניתוח שאלונים משולב מייצר תוכן קליני — חסום למזכירה
+    if (!canSecretaryAccessModel(scopeUser, "QuestionnaireAnalysis")) {
+      return NextResponse.json(
+        { message: "אין הרשאה לתוכן קליני" },
+        { status: 403 }
+      );
+    }
 
     const { clientId } = await req.json();
 
@@ -111,12 +125,34 @@ export async function POST(req: NextRequest) {
       }
     }
 
-    // קבלת כל תשובות השאלונים של המטופל
+    // וידוא שהמטופל נגיש לפי scope (מטפל עצמאי / קליניקה)
+    const clientWhere = buildClientWhere(scopeUser);
+    const client = await prisma.client.findFirst({
+      where: { AND: [{ id: clientId }, clientWhere] },
+      select: {
+        id: true,
+        name: true,
+        therapistId: true,
+        therapeuticApproaches: true,
+        approachNotes: true,
+        culturalContext: true,
+      },
+    });
+
+    if (!client) {
+      return NextResponse.json({ message: "מטופל לא נמצא" }, { status: 404 });
+    }
+
+    // קבלת כל תשובות השאלונים של המטופל — דרך scope
     const responses = await prisma.questionnaireResponse.findMany({
       where: {
-        clientId: clientId,
-        therapistId: user.id,
-        status: "COMPLETED",
+        AND: [
+          { client: clientWhere },
+          {
+            clientId: clientId,
+            status: "COMPLETED",
+          },
+        ],
       },
       include: {
         template: true,
@@ -131,23 +167,6 @@ export async function POST(req: NextRequest) {
         { message: "לא נמצאו שאלונים שהושלמו עבור מטופל זה" },
         { status: 404 }
       );
-    }
-
-    // קבלת פרטי המטופל
-    const client = await prisma.client.findUnique({
-      where: { id: clientId },
-      select: {
-        id: true,
-        name: true,
-        therapistId: true,
-        therapeuticApproaches: true,
-        approachNotes: true,
-        culturalContext: true,
-      },
-    });
-
-    if (!client) {
-      return NextResponse.json({ message: "מטופל לא נמצא" }, { status: 404 });
     }
 
     // הכנת סיכום השאלונים
@@ -275,6 +294,7 @@ ${getUniversalPromptsLight()}`;
         aiModel: GEMINI_MODEL,
         tokensUsed: totalTokens,
         cost: cost,
+        organizationId: scopeUser.organizationId,
       },
     });
 

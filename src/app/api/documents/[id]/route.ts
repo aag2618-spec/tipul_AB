@@ -6,8 +6,27 @@ import { logger } from "@/lib/logger";
 
 import { requireAuth } from "@/lib/api-auth";
 import { logDataAccess } from "@/lib/audit-logger";
+import { loadScopeUser, buildClientWhere } from "@/lib/scope";
 
 export const dynamic = "force-dynamic";
+
+// בונה filter לבעלות על Document — תומך גם במסמכים בלי clientId (general docs).
+async function buildDocumentOwnershipWhere(userId: string) {
+  const scopeUser = await loadScopeUser(userId);
+  const clientWhere = buildClientWhere(scopeUser);
+  const ownershipFilter = scopeUser.organizationId
+    ? { organizationId: scopeUser.organizationId }
+    : { therapistId: userId };
+  return {
+    scopeUser,
+    where: {
+      OR: [
+        { client: clientWhere },
+        { AND: [{ clientId: null }, ownershipFilter] },
+      ],
+    },
+  };
+}
 
 export async function GET(
   request: NextRequest,
@@ -20,8 +39,10 @@ export async function GET(
 
     const { id } = await params;
 
+    const { where: ownershipWhere } = await buildDocumentOwnershipWhere(userId);
+
     const document = await prisma.document.findFirst({
-      where: { id, therapistId: userId },
+      where: { AND: [{ id }, ownershipWhere] },
       include: {
         client: { select: { id: true, name: true } },
       },
@@ -53,8 +74,10 @@ export async function PUT(
     const { id } = await params;
     const body = await request.json();
 
+    const { where: ownershipWhere } = await buildDocumentOwnershipWhere(userId);
+
     const existing = await prisma.document.findFirst({
-      where: { id, therapistId: userId },
+      where: { AND: [{ id }, ownershipWhere] },
     });
 
     if (!existing) {
@@ -63,7 +86,7 @@ export async function PUT(
 
     // Atomic update with ownership check ב-WHERE — מונע race condition
     const updateResult = await prisma.document.updateMany({
-      where: { id, therapistId: userId },
+      where: { AND: [{ id }, ownershipWhere] },
       data: {
         name: body.name ?? existing.name,
         type: body.type ?? existing.type,
@@ -98,8 +121,10 @@ export async function DELETE(
 
     const { id } = await params;
 
+    const { where: ownershipWhere } = await buildDocumentOwnershipWhere(userId);
+
     const document = await prisma.document.findFirst({
-      where: { id, therapistId: userId },
+      where: { AND: [{ id }, ownershipWhere] },
     });
 
     if (!document) {
@@ -108,7 +133,7 @@ export async function DELETE(
 
     // Atomic delete — ownership ב-WHERE מונע race condition
     const deleteResult = await prisma.document.deleteMany({
-      where: { id, therapistId: userId },
+      where: { AND: [{ id }, ownershipWhere] },
     });
 
     if (deleteResult.count === 0) {

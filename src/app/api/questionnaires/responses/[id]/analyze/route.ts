@@ -4,6 +4,11 @@ import { GoogleGenerativeAI } from "@google/generative-ai";
 import { getApproachById, getApproachPrompts, buildIntegrationSection, getScalesPrompt, getUniversalPromptsLight } from "@/lib/therapeutic-approaches";
 import { logger } from "@/lib/logger";
 import { requireAuth } from "@/lib/api-auth";
+import {
+  loadScopeUser,
+  buildClientWhere,
+  canSecretaryAccessModel,
+} from "@/lib/scope";
 
 // POST - Analyze questionnaire with AI
 export const dynamic = "force-dynamic";
@@ -15,16 +20,23 @@ export async function POST(
   try {
     const auth = await requireAuth();
     if ("error" in auth) return auth.error;
-    const { userId, session } = auth;
+    const { userId } = auth;
+
+    const scopeUser = await loadScopeUser(userId);
+    // ניתוח AI של שאלונים מייצר תוכן קליני — חסום למזכירה
+    if (!canSecretaryAccessModel(scopeUser, "QuestionnaireAnalysis")) {
+      return NextResponse.json(
+        { message: "אין הרשאה לתוכן קליני" },
+        { status: 403 }
+      );
+    }
 
     const { id } = await params;
+    const clientWhere = buildClientWhere(scopeUser);
 
     // Get response with template and client approaches
     const response = await prisma.questionnaireResponse.findFirst({
-      where: {
-        id,
-        therapistId: userId,
-      },
+      where: { AND: [{ id }, { client: clientWhere }] },
       include: {
         template: true,
         client: {

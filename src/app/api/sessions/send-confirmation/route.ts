@@ -4,6 +4,7 @@ import { sendEmail } from "@/lib/resend";
 import { createSessionConfirmationEmail, formatSessionDateTime } from "@/lib/email-templates";
 import { logger } from "@/lib/logger";
 import { requireAuth } from "@/lib/api-auth";
+import { buildSessionWhere, isSecretary, loadScopeUser, secretaryCan } from "@/lib/scope";
 
 // Send session confirmation email immediately after session creation
 export const dynamic = "force-dynamic";
@@ -23,12 +24,20 @@ export async function POST(request: NextRequest) {
       );
     }
 
+    const scopeUser = await loadScopeUser(userId);
+
+    if (isSecretary(scopeUser) && !secretaryCan(scopeUser, "canSendReminders")) {
+      return NextResponse.json(
+        { message: "אין הרשאה לשליחת אישורים" },
+        { status: 403 }
+      );
+    }
+
+    const sessionScopeWhere = buildSessionWhere(scopeUser);
+
     // Fetch session with client and therapist
     const therapySession = await prisma.therapySession.findFirst({
-      where: {
-        id: sessionId,
-        therapistId: userId,
-      },
+      where: { AND: [{ id: sessionId }, sessionScopeWhere] },
       include: {
         client: true,
         therapist: {

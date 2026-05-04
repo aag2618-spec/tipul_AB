@@ -4,6 +4,7 @@ import prisma from "@/lib/prisma";
 import { logger } from "@/lib/logger";
 import { requireAuth } from "@/lib/api-auth";
 import { withAudit } from "@/lib/audit";
+import { loadScopeUser, buildClientWhere } from "@/lib/scope";
 
 export const dynamic = "force-dynamic";
 
@@ -53,10 +54,14 @@ export async function GET() {
       );
     }
 
+    // scope.ts: עבור THERAPIST בקליניקה buildClientWhere מחזיר
+    // `{ organizationId, therapistId }` — זהה בדיוק לסינון הידני. משתמשים
+    // בעזר ה-scope ליצירת עקביות עם שאר הראוטים.
+    const scopeUser = await loadScopeUser(userId);
+    const clientWhere = buildClientWhere(scopeUser);
+
     const [activeClients, existingDeparture] = await Promise.all([
-      prisma.client.count({
-        where: { therapistId: userId, organizationId: me.organizationId },
-      }),
+      prisma.client.count({ where: clientWhere }),
       prisma.therapistDeparture.findFirst({
         where: { departingTherapistId: userId, status: "PENDING" },
         select: { id: true, decisionDeadline: true, initiatedAt: true },
@@ -138,8 +143,12 @@ export async function POST(request: NextRequest) {
     const decisionDeadline = new Date();
     decisionDeadline.setDate(decisionDeadline.getDate() + days);
 
+    // scope.ts: THERAPIST → { organizationId, therapistId } — זהה לסינון הידני.
+    const scopeUser = await loadScopeUser(userId);
+    const clientWhere = buildClientWhere(scopeUser);
+
     const clients = await prisma.client.findMany({
-      where: { therapistId: userId, organizationId: me.organizationId },
+      where: clientWhere,
       select: { id: true, firstName: true, lastName: true, email: true, phone: true },
     });
 

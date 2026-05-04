@@ -2,6 +2,11 @@ import { NextRequest, NextResponse } from "next/server";
 import { requireAuth } from "@/lib/api-auth";
 import prisma from "@/lib/prisma";
 import { logger } from "@/lib/logger";
+import {
+  loadScopeUser,
+  buildClientWhere,
+  canSecretaryAccessModel,
+} from "@/lib/scope";
 
 export const dynamic = "force-dynamic";
 
@@ -11,12 +16,20 @@ export async function GET(request: NextRequest) {
     if ("error" in auth) return auth.error;
     const { userId } = auth;
 
+    const scopeUser = await loadScopeUser(userId);
+    // הקלטה היא תוכן קליני — חסום קשיח למזכירה.
+    if (!canSecretaryAccessModel(scopeUser, "Recording")) {
+      return NextResponse.json({ message: "אין הרשאה" }, { status: 403 });
+    }
+
+    const clientWhere = buildClientWhere(scopeUser);
+
     const { searchParams } = new URL(request.url);
     const clientId = searchParams.get("clientId");
     const status = searchParams.get("status");
 
     const where: Record<string, unknown> = {
-      client: { therapistId: userId },
+      client: clientWhere,
     };
 
     if (clientId) {
@@ -62,6 +75,13 @@ export async function POST(request: NextRequest) {
     if ("error" in auth) return auth.error;
     const { userId } = auth;
 
+    const scopeUser = await loadScopeUser(userId);
+    if (!canSecretaryAccessModel(scopeUser, "Recording")) {
+      return NextResponse.json({ message: "אין הרשאה" }, { status: 403 });
+    }
+
+    const clientWhere = buildClientWhere(scopeUser);
+
     const body = await request.json();
     const { audioData, mimeType, durationSeconds, type, clientId, sessionId } = body;
 
@@ -72,10 +92,10 @@ export async function POST(request: NextRequest) {
       );
     }
 
-    // Verify client belongs to therapist
+    // Verify client belongs to therapist (or visible scope)
     if (clientId) {
       const client = await prisma.client.findFirst({
-        where: { id: clientId, therapistId: userId },
+        where: { AND: [{ id: clientId }, clientWhere] },
       });
 
       if (!client) {

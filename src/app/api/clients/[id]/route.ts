@@ -4,6 +4,7 @@ import prisma from "@/lib/prisma";
 import { logger } from "@/lib/logger";
 import { serializePrisma } from "@/lib/serialize";
 import { logDataAccess } from "@/lib/audit-logger";
+import { buildClientWhere, isSecretary, loadScopeUser, secretaryCan } from "@/lib/scope";
 
 export const dynamic = "force-dynamic";
 
@@ -18,8 +19,11 @@ export async function GET(
 
     const { id } = await params;
 
+    const scopeUser = await loadScopeUser(userId);
+    const scopeWhere = buildClientWhere(scopeUser);
+
     const client = await prisma.client.findFirst({
-      where: { id, therapistId: userId },
+      where: { AND: [{ id }, scopeWhere] },
       include: {
         therapySessions: {
           orderBy: { startTime: "desc" },
@@ -78,9 +82,19 @@ export async function PUT(
     const body = await request.json();
     const { firstName, lastName, phone, email, birthDate, address, notes, status, initialDiagnosis, intakeNotes, defaultSessionPrice, isQuickClient } = body;
 
-    // Verify ownership
+    const scopeUser = await loadScopeUser(userId);
+    const scopeWhere = buildClientWhere(scopeUser);
+
+    if (isSecretary(scopeUser) && !secretaryCan(scopeUser, "canCreateClient")) {
+      return NextResponse.json(
+        { message: "אין הרשאה לעדכון מטופל" },
+        { status: 403 }
+      );
+    }
+
+    // Verify ownership / scope
     const existingClient = await prisma.client.findFirst({
-      where: { id, therapistId: userId },
+      where: { AND: [{ id }, scopeWhere] },
     });
 
     if (!existingClient) {
@@ -132,9 +146,19 @@ export async function DELETE(
 
     const { id } = await params;
 
-    // Verify ownership
+    const scopeUser = await loadScopeUser(userId);
+    const scopeWhere = buildClientWhere(scopeUser);
+
+    if (isSecretary(scopeUser) && !secretaryCan(scopeUser, "canCreateClient")) {
+      return NextResponse.json(
+        { message: "אין הרשאה למחיקת מטופל" },
+        { status: 403 }
+      );
+    }
+
+    // Verify ownership / scope
     const existingClient = await prisma.client.findFirst({
-      where: { id, therapistId: userId },
+      where: { AND: [{ id }, scopeWhere] },
     });
 
     if (!existingClient) {

@@ -5,6 +5,8 @@ import { parseBody } from "@/lib/validations/helpers";
 import { createClientSchema, createQuickClientSchema } from "@/lib/validations/client";
 import { logger } from "@/lib/logger";
 import { serializePrisma } from "@/lib/serialize";
+import { buildClientWhere, isSecretary, loadScopeUser, secretaryCan } from "@/lib/scope";
+import type { Prisma } from "@prisma/client";
 
 export const dynamic = "force-dynamic";
 
@@ -18,16 +20,18 @@ export async function GET(request: NextRequest) {
     const status = searchParams.get("status");
     const includeQuick = searchParams.get("includeQuick") === "true";
 
-    const where: Record<string, unknown> = { therapistId: userId };
+    const scopeUser = await loadScopeUser(userId);
+    const scopeWhere = buildClientWhere(scopeUser);
 
+    const extraConditions: Prisma.ClientWhereInput = {};
     if (status) {
-      where.status = status;
+      extraConditions.status = status as Prisma.ClientWhereInput["status"];
+    }
+    if (!includeQuick) {
+      extraConditions.isQuickClient = false;
     }
 
-    // סינון פונים מזדמנים — ברירת מחדל: לא מציגים אותם
-    if (!includeQuick) {
-      where.isQuickClient = false;
-    }
+    const where: Prisma.ClientWhereInput = { AND: [scopeWhere, extraConditions] };
 
     const clients = await prisma.client.findMany({
       where,
@@ -73,6 +77,14 @@ export async function POST(request: NextRequest) {
     if ("error" in auth) return auth.error;
     const { userId } = auth;
 
+    const scopeUser = await loadScopeUser(userId);
+    if (isSecretary(scopeUser) && !secretaryCan(scopeUser, "canCreateClient")) {
+      return NextResponse.json(
+        { message: "אין הרשאה ליצירת מטופל" },
+        { status: 403 }
+      );
+    }
+
     // בדיקה אם זו יצירת פונה מהיר (פגישת ייעוץ)
     const rawBody = await request.clone().json();
     const isQuickClient = rawBody.isQuickClient === true;
@@ -102,6 +114,7 @@ export async function POST(request: NextRequest) {
       const client = await prisma.client.create({
         data: {
           therapistId: userId,
+          organizationId: scopeUser.organizationId,
           firstName,
           lastName: lastName || null,
           name: name.trim(),
@@ -136,6 +149,7 @@ export async function POST(request: NextRequest) {
     const client = await prisma.client.create({
       data: {
         therapistId: userId,
+        organizationId: scopeUser.organizationId,
         firstName: firstName.trim(),
         lastName: lastName.trim(),
         name: `${firstName.trim()} ${lastName.trim()}`,

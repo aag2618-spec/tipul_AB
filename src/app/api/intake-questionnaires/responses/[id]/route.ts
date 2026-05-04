@@ -3,6 +3,11 @@ import prisma from "@/lib/prisma";
 import { logger } from "@/lib/logger";
 
 import { requireAuth } from "@/lib/api-auth";
+import {
+  loadScopeUser,
+  buildClientWhere,
+  canSecretaryAccessModel,
+} from "@/lib/scope";
 
 // GET - קבל תשובה ספציפית
 export const dynamic = "force-dynamic";
@@ -14,17 +19,21 @@ export async function GET(
   try {
     const auth = await requireAuth();
     if ("error" in auth) return auth.error;
-    const { userId, session } = auth;
+    const { userId } = auth;
+
+    const scopeUser = await loadScopeUser(userId);
+    if (!canSecretaryAccessModel(scopeUser, "QuestionnaireAnalysis")) {
+      return NextResponse.json(
+        { message: "אין הרשאה לתוכן קליני" },
+        { status: 403 }
+      );
+    }
 
     const { id } = await params;
+    const clientWhere = buildClientWhere(scopeUser);
 
     const response = await prisma.intakeResponse.findFirst({
-      where: { 
-        id,
-        client: {
-          therapistId: userId,
-        },
-      },
+      where: { AND: [{ id }, { client: clientWhere }] },
       include: {
         template: true,
         client: {

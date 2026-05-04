@@ -3,6 +3,12 @@ import prisma from "@/lib/prisma";
 import { sendEmail, createGenericEmail } from "@/lib/resend";
 import { logger } from "@/lib/logger";
 import { requireAuth } from "@/lib/api-auth";
+import {
+  loadScopeUser,
+  buildClientWhere,
+  isSecretary,
+  secretaryCan,
+} from "@/lib/scope";
 
 export const dynamic = "force-dynamic";
 
@@ -11,6 +17,15 @@ export async function POST(request: NextRequest) {
     const auth = await requireAuth();
     if ("error" in auth) return auth.error;
     const { userId, session } = auth;
+
+    const scopeUser = await loadScopeUser(userId);
+    if (isSecretary(scopeUser) && !secretaryCan(scopeUser, "canSendReminders")) {
+      return NextResponse.json(
+        { message: "אין הרשאה לשליחת תזכורות" },
+        { status: 403 }
+      );
+    }
+    const clientWhere = buildClientWhere(scopeUser);
 
     const body = await request.json();
     const { clientIds, subject, content } = body;
@@ -34,11 +49,14 @@ export async function POST(request: NextRequest) {
       where: { id: userId },
     });
 
-    // Get all selected clients
+    // Get all selected clients (scoped: independent therapist sees own; clinic
+    // owner sees all in org; clinic therapist sees own; secretary sees all in org).
     const clients = await prisma.client.findMany({
       where: {
-        id: { in: clientIds },
-        therapistId: userId,
+        AND: [
+          { id: { in: clientIds } },
+          clientWhere,
+        ],
       },
     });
 
@@ -89,6 +107,7 @@ export async function POST(request: NextRequest) {
             messageId: result.messageId || null,
             clientId: client.id,
             userId: userId,
+            organizationId: scopeUser.organizationId,
           },
         });
 

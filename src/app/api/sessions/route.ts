@@ -7,6 +7,8 @@ import { createSessionSchema } from "@/lib/validations/session";
 import { logger } from "@/lib/logger";
 import { serializePrisma } from "@/lib/serialize";
 import { syncSessionToGoogleCalendar } from "@/lib/google-calendar-sync";
+import { buildClientWhere, buildSessionWhere, loadScopeUser } from "@/lib/scope";
+import type { Prisma } from "@prisma/client";
 
 export const dynamic = "force-dynamic";
 
@@ -21,10 +23,12 @@ export async function GET(request: NextRequest) {
     const startDate = searchParams.get("startDate");
     const endDate = searchParams.get("endDate");
 
-    const where: Record<string, unknown> = { therapistId: userId };
+    const scopeUser = await loadScopeUser(userId);
+    const scopeWhere = buildSessionWhere(scopeUser);
 
+    const extraConditions: Prisma.TherapySessionWhereInput = {};
     if (clientId) {
-      where.clientId = clientId;
+      extraConditions.clientId = clientId;
     }
 
     // Overlap with [startDate, endDate]: include any session that isn't entirely before/after the window.
@@ -32,11 +36,15 @@ export async function GET(request: NextRequest) {
     if (startDate && endDate) {
       const rangeStart = parseIsraelTime(startDate);
       const rangeEnd = parseIsraelTime(endDate);
-      where.AND = [
+      extraConditions.AND = [
         { startTime: { lt: rangeEnd } },
         { endTime: { gt: rangeStart } },
       ];
     }
+
+    const where: Prisma.TherapySessionWhereInput = {
+      AND: [scopeWhere, extraConditions],
+    };
 
     const sessions = await prisma.therapySession.findMany({
       where,
@@ -70,11 +78,14 @@ export async function POST(request: NextRequest) {
     if ("error" in parsed) return parsed.error;
     const { clientId, startTime, endTime, type, price, location, notes, topic, isRecurring, allowOverlap } = parsed.data;
 
-    // Verify client belongs to therapist (skip for BREAK)
+    const scopeUser = await loadScopeUser(userId);
+    const clientScopeWhere = buildClientWhere(scopeUser);
+
+    // Verify client belongs to therapist / clinic scope (skip for BREAK)
     let clientDefaultPrice = 0;
     if (type !== "BREAK") {
       const client = await prisma.client.findFirst({
-        where: { id: clientId, therapistId: userId },
+        where: { AND: [{ id: clientId }, clientScopeWhere] },
       });
 
       if (!client) {
@@ -173,6 +184,7 @@ export async function POST(request: NextRequest) {
     const therapySession = await prisma.therapySession.create({
       data: {
         therapistId: userId,
+        organizationId: scopeUser.organizationId,
         clientId: type === "BREAK" ? null : clientId,
         startTime: parsedStartTime,
         endTime: parsedEndTime,
