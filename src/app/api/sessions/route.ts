@@ -7,7 +7,7 @@ import { createSessionSchema } from "@/lib/validations/session";
 import { logger } from "@/lib/logger";
 import { serializePrisma } from "@/lib/serialize";
 import { syncSessionToGoogleCalendar } from "@/lib/google-calendar-sync";
-import { buildClientWhere, buildSessionWhere, loadScopeUser } from "@/lib/scope";
+import { buildClientWhere, buildSessionWhere, isSecretary, loadScopeUser } from "@/lib/scope";
 import type { Prisma } from "@prisma/client";
 
 export const dynamic = "force-dynamic";
@@ -46,16 +46,27 @@ export async function GET(request: NextRequest) {
       AND: [scopeWhere, extraConditions],
     };
 
+    // Privacy: secretary users must NOT receive clinical content (sessionNote).
+    // חוק זכויות החולה — מזכירה לא רואה תוכן קליני.
+    const includeForRole = isSecretary(scopeUser)
+      ? {
+          client: {
+            select: { id: true, name: true, firstName: true, lastName: true, phone: true, email: true },
+          },
+          payment: true,
+        }
+      : {
+          client: {
+            select: { id: true, name: true, email: true, phone: true, creditBalance: true, defaultSessionPrice: true, isQuickClient: true },
+          },
+          sessionNote: true,
+          payment: true,
+        };
+
     const sessions = await prisma.therapySession.findMany({
       where,
       orderBy: { startTime: "asc" },
-      include: {
-        client: {
-          select: { id: true, name: true, email: true, phone: true, creditBalance: true, defaultSessionPrice: true, isQuickClient: true },
-        },
-        sessionNote: true,
-        payment: true,
-      },
+      include: includeForRole,
     });
 
     return NextResponse.json(serializePrisma(sessions));

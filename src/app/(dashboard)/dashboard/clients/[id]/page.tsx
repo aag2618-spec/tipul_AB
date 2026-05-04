@@ -49,93 +49,194 @@ import { format } from "date-fns";
 import { he } from "date-fns/locale";
 import { calculateDebtFromPayments, calculateSessionDebt } from "@/lib/payment-utils";
 import { logger } from "@/lib/logger";
-import { loadScopeUser, buildClientWhere } from "@/lib/scope";
+import {
+  loadScopeUser,
+  buildClientWhere,
+  isSecretary,
+  getClientSafeSelectForSecretary,
+} from "@/lib/scope";
 import type { Prisma } from "@prisma/client";
 
-async function getClient(clientId: string, clientWhere: Prisma.ClientWhereInput) {
-  try {
-    const client = await prisma.client.findFirst({
-      where: { AND: [{ id: clientId }, clientWhere] },
-      include: {
-        recurringPatterns: {
-          where: { isActive: true },
-          orderBy: { dayOfWeek: "asc" },
+// Wide include for non-secretary roles. Defined as `as const` כדי לגזור את
+// ה-shape ב-TS, ולהשתמש בו גם בענף secretary לצורך type unification — שדות
+// קליניים יהיו `undefined` ב-runtime למזכירה, וה-JSX מסתיר אותם.
+const WIDE_CLIENT_INCLUDE = {
+  recurringPatterns: {
+    where: { isActive: true },
+    orderBy: { dayOfWeek: "asc" },
+  },
+  therapySessions: {
+    take: 100,
+    orderBy: { startTime: "desc" },
+    include: {
+      sessionNote: { select: { content: true } },
+      sessionAnalysis: { select: { id: true } },
+      payment: {
+        select: {
+          id: true,
+          amount: true,
+          expectedAmount: true,
+          status: true,
+          paidAt: true,
+          childPayments: {
+            select: { id: true, amount: true, paidAt: true, method: true },
+            orderBy: { paidAt: "asc" },
+          },
         },
-        therapySessions: {
-          take: 100,
-          orderBy: { startTime: "desc" },
-          include: {
-            sessionNote: { select: { content: true } },
-            sessionAnalysis: { select: { id: true } },
-            payment: {
-              select: {
-                id: true,
-                amount: true,
-                expectedAmount: true,
-                status: true,
-                paidAt: true,
-                childPayments: {
-                  select: { id: true, amount: true, paidAt: true, method: true },
-                  orderBy: { paidAt: "asc" },
+      },
+    },
+  },
+  payments: {
+    take: 100,
+    where: { parentPaymentId: null },
+    orderBy: { createdAt: "desc" },
+    include: {
+      session: { select: { id: true, startTime: true, type: true } },
+      childPayments: {
+        select: { id: true, amount: true, method: true, paidAt: true, createdAt: true },
+        orderBy: { paidAt: "asc" },
+      },
+    },
+  },
+  recordings: {
+    orderBy: { createdAt: "desc" },
+    take: 5,
+    select: {
+      id: true, type: true, status: true, durationSeconds: true, createdAt: true,
+      transcription: { select: { id: true, analysis: { select: { id: true } } } },
+    },
+  },
+  documents: {
+    take: 50,
+    orderBy: { createdAt: "desc" },
+    select: { id: true, name: true, fileUrl: true, createdAt: true },
+  },
+  questionnaireResponses: {
+    take: 20,
+    orderBy: { completedAt: "desc" },
+    select: {
+      id: true, status: true, completedAt: true, totalScore: true,
+      template: { select: { id: true, name: true } },
+    },
+  },
+  intakeResponses: {
+    take: 10,
+    orderBy: { filledAt: "desc" },
+    select: {
+      id: true, filledAt: true,
+      template: { select: { id: true, name: true } },
+    },
+  },
+  _count: {
+    select: {
+      therapySessions: { where: { type: { not: "BREAK" } } },
+      payments: true,
+      recordings: true,
+      questionnaireResponses: true,
+      intakeResponses: true,
+    },
+  },
+} as const satisfies Prisma.ClientInclude;
+
+type WideClient = Prisma.ClientGetPayload<{ include: typeof WIDE_CLIENT_INCLUDE }>;
+
+async function getClient(
+  clientId: string,
+  clientWhere: Prisma.ClientWhereInput,
+  asSecretary: boolean,
+): Promise<WideClient | null> {
+  try {
+    if (asSecretary) {
+      // למזכירה: select אדמיניסטרטיבי בלבד, ללא sessionNote/sessionAnalysis,
+      // ללא recordings/transcription/analysis, ללא questionnaireResponses
+      // (answers = תוכן קליני), ללא intakeResponses. ה-JSX מסתיר את הסקציות
+      // הקליניות עבור secretary, אבל שכבת ההגנה היא ברמת ה-query.
+      const client = await prisma.client.findFirst({
+        where: { AND: [{ id: clientId }, clientWhere] },
+        select: {
+          ...getClientSafeSelectForSecretary(),
+          recurringPatterns: {
+            where: { isActive: true },
+            orderBy: { dayOfWeek: "asc" },
+          },
+          therapySessions: {
+            take: 100,
+            orderBy: { startTime: "desc" },
+            select: {
+              id: true,
+              startTime: true,
+              endTime: true,
+              type: true,
+              status: true,
+              price: true,
+              location: true,
+              skipSummary: true,
+              cancellationReason: true,
+              payment: {
+                select: {
+                  id: true,
+                  amount: true,
+                  expectedAmount: true,
+                  status: true,
+                  paidAt: true,
+                  childPayments: {
+                    select: { id: true, amount: true, paidAt: true, method: true },
+                    orderBy: { paidAt: "asc" },
+                  },
                 },
               },
             },
           },
-        },
-        payments: {
-          take: 100,
-          where: { parentPaymentId: null },
-          orderBy: { createdAt: "desc" },
-          include: {
-            session: { select: { id: true, startTime: true, type: true } },
-            childPayments: {
-              select: { id: true, amount: true, method: true, paidAt: true, createdAt: true },
-              orderBy: { paidAt: "asc" },
+          payments: {
+            take: 100,
+            where: { parentPaymentId: null },
+            orderBy: { createdAt: "desc" },
+            select: {
+              id: true,
+              amount: true,
+              expectedAmount: true,
+              method: true,
+              status: true,
+              createdAt: true,
+              paidAt: true,
+              notes: true,
+              session: { select: { id: true, startTime: true, type: true } },
+              childPayments: {
+                select: { id: true, amount: true, method: true, paidAt: true, createdAt: true },
+                orderBy: { paidAt: "asc" },
+              },
+            },
+          },
+          documents: {
+            take: 50,
+            orderBy: { createdAt: "desc" },
+            select: { id: true, name: true, fileUrl: true, createdAt: true },
+          },
+          _count: {
+            select: {
+              therapySessions: { where: { type: { not: "BREAK" } } },
+              payments: true,
+              recordings: true,
+              questionnaireResponses: true,
+              intakeResponses: true,
             },
           },
         },
-        recordings: {
-          orderBy: { createdAt: "desc" },
-          take: 5,
-          select: {
-            id: true, type: true, status: true, durationSeconds: true, createdAt: true,
-            transcription: { select: { id: true, analysis: { select: { id: true } } } },
-          },
-        },
-        documents: {
-          take: 50,
-          orderBy: { createdAt: "desc" },
-          select: { id: true, name: true, fileUrl: true, createdAt: true },
-        },
-        questionnaireResponses: {
-          take: 20,
-          orderBy: { completedAt: "desc" },
-          select: {
-            id: true, status: true, completedAt: true, totalScore: true,
-            template: { select: { id: true, name: true } },
-          },
-        },
-        intakeResponses: {
-          take: 10,
-          orderBy: { filledAt: "desc" },
-          select: {
-            id: true, filledAt: true,
-            template: { select: { id: true, name: true } },
-          },
-        },
-        _count: {
-          select: {
-            therapySessions: { where: { type: { not: "BREAK" } } },
-            payments: true,
-            recordings: true,
-            questionnaireResponses: true,
-            intakeResponses: true
-          },
-        },
-      },
+      });
+      if (!client) return null;
+      // השדות הקליניים החסרים (notes/initialDiagnosis/intakeNotes/recordings/
+      // questionnaireResponses/intakeResponses/sessionNote/sessionAnalysis וכו')
+      // יהיו undefined ב-runtime; ה-cast הזה נחוץ כי TS לא יודע שה-JSX סוגר
+      // אותם ב-`asSecretary` gates.
+      return JSON.parse(JSON.stringify(client)) as unknown as WideClient;
+    }
+
+    const client = await prisma.client.findFirst({
+      where: { AND: [{ id: clientId }, clientWhere] },
+      include: WIDE_CLIENT_INCLUDE,
     });
     if (!client) return null;
-    return JSON.parse(JSON.stringify(client)) as typeof client;
+    return JSON.parse(JSON.stringify(client)) as WideClient;
   } catch (error) {
     logger.error("[ClientPage] Failed to load client data:", {
       clientId,
@@ -157,7 +258,6 @@ export default async function ClientPage({
 
   const { id } = await params;
   const { tab, upgrade } = await searchParams;
-  const defaultTab = tab || "sessions";
   const showUpgradeBanner = upgrade === "true";
   
   let user: { aiTier: string } | null = null;
@@ -174,10 +274,12 @@ export default async function ClientPage({
   }
   
   let client;
+  let asSecretary = false;
   try {
     const scopeUser = await loadScopeUser(session.user.id);
+    asSecretary = isSecretary(scopeUser);
     const clientWhere = buildClientWhere(scopeUser);
-    client = await getClient(id, clientWhere);
+    client = await getClient(id, clientWhere, asSecretary);
   } catch (error) {
     logger.error("[ClientPage] Unexpected error loading client:", {
       clientId: id,
@@ -189,6 +291,12 @@ export default async function ClientPage({
   if (!client) {
     notFound();
   }
+
+  // הסתרת טאבים קליניים למזכירה (AI/סיכומים) + sanitize של ה-tab מה-URL.
+  const allowedTabs = asSecretary
+    ? ["sessions", "payments", "files", "profile"]
+    : ["sessions", "ai", "summaries", "payments", "files", "profile"];
+  const defaultTab = tab && allowedTabs.includes(tab) ? tab : "sessions";
 
   const getInitials = (name: string) => {
     return name
@@ -381,14 +489,18 @@ export default async function ClientPage({
             <Calendar className="h-4 w-4" />
             פגישות
           </TabsTrigger>
-          <TabsTrigger value="ai" className="flex-1 min-w-[110px] gap-2 rounded-xl py-2.5 border border-muted-foreground/10 bg-muted/40 data-[state=active]:bg-primary/10 data-[state=active]:text-primary data-[state=active]:shadow-md data-[state=active]:border-primary/30 font-medium">
-            <Sparkles className="h-4 w-4" />
-            AI · ניתוח
-          </TabsTrigger>
-          <TabsTrigger value="summaries" className="flex-1 min-w-[110px] gap-2 rounded-xl py-2.5 border border-muted-foreground/10 bg-muted/40 data-[state=active]:bg-white data-[state=active]:text-primary data-[state=active]:shadow-md data-[state=active]:border-primary/30 font-medium">
-            <FileText className="h-4 w-4" />
-            סיכומים
-          </TabsTrigger>
+          {!asSecretary && (
+            <TabsTrigger value="ai" className="flex-1 min-w-[110px] gap-2 rounded-xl py-2.5 border border-muted-foreground/10 bg-muted/40 data-[state=active]:bg-primary/10 data-[state=active]:text-primary data-[state=active]:shadow-md data-[state=active]:border-primary/30 font-medium">
+              <Sparkles className="h-4 w-4" />
+              AI · ניתוח
+            </TabsTrigger>
+          )}
+          {!asSecretary && (
+            <TabsTrigger value="summaries" className="flex-1 min-w-[110px] gap-2 rounded-xl py-2.5 border border-muted-foreground/10 bg-muted/40 data-[state=active]:bg-white data-[state=active]:text-primary data-[state=active]:shadow-md data-[state=active]:border-primary/30 font-medium">
+              <FileText className="h-4 w-4" />
+              סיכומים
+            </TabsTrigger>
+          )}
           <TabsTrigger value="payments" className="flex-1 min-w-[110px] gap-2 rounded-xl py-2.5 border border-muted-foreground/10 bg-muted/40 data-[state=active]:bg-white data-[state=active]:text-primary data-[state=active]:shadow-md data-[state=active]:border-primary/30 font-medium">
             <CreditCard className="h-4 w-4" />
             תשלומים
@@ -772,7 +884,8 @@ export default async function ClientPage({
           </Tabs>
         </TabsContent>
 
-        {/* AI Tab */}
+        {/* AI Tab — תוכן קליני, מוסתר למזכירה */}
+        {!asSecretary && (
         <TabsContent value="ai" className="mt-6">
           <div className="space-y-6">
             {/* הכנה לפגישה הקרובה */}
@@ -881,9 +994,11 @@ export default async function ClientPage({
             </Card>
           </div>
         </TabsContent>
+        )}
 
+        {!asSecretary && (
         <TabsContent value="summaries" className="mt-6">
-          <SummariesTab clientId={client.id} sessions={client.therapySessions.map(s => ({
+          <SummariesTab clientId={client.id} sessions={client.therapySessions.map((s) => ({
             id: s.id,
             startTime: s.startTime?.toString() || "",
             endTime: s.endTime?.toString() || "",
@@ -894,6 +1009,7 @@ export default async function ClientPage({
             hasAiAnalysis: !!s.sessionAnalysis,
           }))} />
         </TabsContent>
+        )}
 
         <TabsContent value="files" className="mt-6">
           <Tabs defaultValue="documents" className="w-full">
@@ -1045,7 +1161,9 @@ export default async function ClientPage({
           <Tabs defaultValue="details" className="w-full">
             <TabsList>
               <TabsTrigger value="details">פרטים אישיים</TabsTrigger>
-              <TabsTrigger value="questionnaires">שאלונים ואבחון</TabsTrigger>
+              {!asSecretary && (
+                <TabsTrigger value="questionnaires">שאלונים ואבחון</TabsTrigger>
+              )}
             </TabsList>
 
             <TabsContent value="details" className="mt-4">
@@ -1114,6 +1232,7 @@ export default async function ClientPage({
           </div>
             </TabsContent>
 
+            {!asSecretary && (
             <TabsContent value="questionnaires" className="mt-4">
               <div className="space-y-6">
                 {/* תשאול ראשוני */}
@@ -1131,7 +1250,7 @@ export default async function ClientPage({
                   <CardContent>
                     {client.intakeResponses && client.intakeResponses.length > 0 ? (
                       <div className="space-y-3">
-                        {client.intakeResponses.map((response: any) => (
+                        {client.intakeResponses.map((response) => (
                           <div
                             key={response.id}
                             className="p-4 rounded-lg border bg-card"
@@ -1311,6 +1430,7 @@ export default async function ClientPage({
                 </div>
               </div>
             </TabsContent>
+            )}
 
           </Tabs>
         </TabsContent>

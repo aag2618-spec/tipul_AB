@@ -11,7 +11,7 @@ export async function GET(request: Request) {
   try {
     const auth = await requireAuth();
     if ("error" in auth) return auth.error;
-    const { userId, session } = auth;
+    const { userId } = auth;
 
     const { searchParams } = new URL(request.url);
     const clientId = searchParams.get("clientId");
@@ -71,7 +71,7 @@ export async function POST(request: Request) {
   try {
     const auth = await requireAuth();
     if ("error" in auth) return auth.error;
-    const { userId, session } = auth;
+    const { userId } = auth;
 
     const scopeUser = await loadScopeUser(userId);
     if (isSecretary(scopeUser) && !secretaryCan(scopeUser, "canViewConsentForms")) {

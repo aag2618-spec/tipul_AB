@@ -9,7 +9,7 @@ import Link from "next/link";
 import { ExportAllClientsButton } from "@/components/clients/export-all-clients-button";
 import { ConsultationClientsSection } from "@/components/clients/consultation-clients-section";
 import { ClientsGridWithSearch } from "@/components/clients/clients-grid-with-search";
-import { loadScopeUser, buildClientWhere } from "@/lib/scope";
+import { loadScopeUser, buildClientWhere, isSecretary } from "@/lib/scope";
 
 type ClientStatus = "ACTIVE" | "WAITING" | "ARCHIVED";
 
@@ -89,6 +89,7 @@ export default async function ClientsPage({ searchParams }: PageProps) {
 
   const scopeUser = await loadScopeUser(session.user.id);
   const clientWhere = buildClientWhere(scopeUser);
+  const asSecretary = isSecretary(scopeUser);
 
   const [clients, counts, quickClients] = await Promise.all([
     getClients(clientWhere, activeStatus),
@@ -100,18 +101,18 @@ export default async function ClientsPage({ searchParams }: PageProps) {
         therapySessions: {
           orderBy: { startTime: "desc" },
           select: {
-            id: true, startTime: true, status: true, topic: true,
+            id: true,
+            startTime: true,
+            status: true,
+            // topic נחשב לתוכן קליני של פגישת ייעוץ (חלק מ-CLINICAL_FIELDS_BLOCKED_FOR_SECRETARY.session)
+            // — לא טוענים אותו עבור מזכירה.
+            ...(asSecretary ? {} : { topic: true }),
             payment: { select: { status: true, amount: true } },
           },
         },
       },
     }),
   ]);
-
-  const getStatusTitle = () => {
-    if (!activeStatus) return "כל המטופלים";
-    return statusConfig[activeStatus].label;
-  };
 
   return (
     <div className="space-y-6 animate-fade-in">

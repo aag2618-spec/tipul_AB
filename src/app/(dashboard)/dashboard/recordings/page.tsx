@@ -3,7 +3,7 @@ import { authOptions } from "@/lib/auth";
 import prisma from "@/lib/prisma";
 import { Prisma } from "@prisma/client";
 import { Button } from "@/components/ui/button";
-import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
+import { Card, CardContent, CardDescription, CardTitle } from "@/components/ui/card";
 import { Badge } from "@/components/ui/badge";
 import { Mic, Plus, Clock, User } from "lucide-react";
 import Link from "next/link";
@@ -12,6 +12,7 @@ import {
   loadScopeUser,
   buildClientWhere,
   buildSessionWhere,
+  canSecretaryAccessModel,
 } from "@/lib/scope";
 
 async function getRecordings(
@@ -41,6 +42,19 @@ export default async function RecordingsPage() {
   if (!session?.user?.id) return null;
 
   const scopeUser = await loadScopeUser(session.user.id);
+
+  // Recording הוא תוכן קליני — חסום קשיחות למזכירה (ראה blockedModels ב-scope.ts).
+  // הגייט הזה קודם לכל query כדי לא להדליף metadata דרך הוצאות חישוב.
+  if (!canSecretaryAccessModel(scopeUser, "Recording")) {
+    return (
+      <div className="p-6 text-center text-gray-600" dir="rtl">
+        <h2 className="text-xl font-bold">אין הרשאה</h2>
+        <p>תוכן קליני (הקלטות) אינו זמין לתפקיד הנוכחי.</p>
+      </div>
+    );
+  }
+
+  // TODO(scope): consider buildRecordingWhere when org-wide recording lists are needed
   const clientWhere = buildClientWhere(scopeUser);
   const sessionWhere = buildSessionWhere(scopeUser);
 

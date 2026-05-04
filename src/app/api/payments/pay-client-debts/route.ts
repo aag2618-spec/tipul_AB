@@ -2,6 +2,7 @@ import { NextRequest, NextResponse } from "next/server";
 import { processMultiSessionPayment } from "@/lib/payment-service";
 import { logger } from "@/lib/logger";
 import { requireAuth } from "@/lib/api-auth";
+import { loadScopeUser } from "@/lib/scope";
 
 export const dynamic = "force-dynamic";
 
@@ -9,7 +10,8 @@ export async function POST(req: NextRequest) {
   try {
     const auth = await requireAuth();
     if ("error" in auth) return auth.error;
-    const { userId, session } = auth;
+    const { userId } = auth;
+    const scopeUser = await loadScopeUser(userId);
 
     const {
       clientId,
@@ -67,6 +69,7 @@ export async function POST(req: NextRequest) {
       paymentMode: paymentMode || "FULL",
       creditUsed: Number(creditUsed) || undefined,
       issueReceipt,
+      scopeUser,
     });
 
     if (!result.success) {

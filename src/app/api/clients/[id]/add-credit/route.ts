@@ -3,7 +3,7 @@ import prisma from "@/lib/prisma";
 import { createPaymentForSession } from "@/lib/payment-service";
 import { logger } from "@/lib/logger";
 import { requireAuth } from "@/lib/api-auth";
-import { serializePrisma } from "@/lib/serialize";
+import { loadScopeUser } from "@/lib/scope";
 
 export const dynamic = "force-dynamic";
 
@@ -14,7 +14,7 @@ export async function POST(
   try {
     const auth = await requireAuth();
     if ("error" in auth) return auth.error;
-    const { userId, session } = auth;
+    const { userId } = auth;
 
     const { id } = await params;
     const body = await request.json();
@@ -24,6 +24,10 @@ export async function POST(
       return NextResponse.json({ message: "סכום לא תקין" }, { status: 400 });
     }
 
+    // טען scope לפי המשתמש כדי לוודא שה-Payment החדש משויך ל-organizationId
+    // הנכון (אחרת ה-Payment שנוצר בלי organizationId לא ייראה לבעלי הקליניקה).
+    const scopeUser = await loadScopeUser(userId);
+
     const result = await createPaymentForSession({
       userId: userId,
       clientId: id,
@@ -32,6 +36,7 @@ export async function POST(
       method: "CREDIT",
       paymentType: "ADVANCE",
       notes: notes || `הוספת קרדיט: ₪${amount}`,
+      scopeUser,
     });
 
     if (!result.success) {

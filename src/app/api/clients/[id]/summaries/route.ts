@@ -2,7 +2,7 @@ import { NextRequest, NextResponse } from "next/server";
 import { requireAuth } from "@/lib/api-auth";
 import prisma from "@/lib/prisma";
 import { logger } from "@/lib/logger";
-import { buildClientWhere, loadScopeUser } from "@/lib/scope";
+import { buildClientWhere, isSecretary, loadScopeUser } from "@/lib/scope";
 
 export const dynamic = "force-dynamic";
 
@@ -18,6 +18,20 @@ export async function GET(
     const { id } = await params;
 
     const scopeUser = await loadScopeUser(userId);
+
+    // סיכומי טיפול = תוכן קליני טהור (sessionNote.content + comprehensiveAnalysis).
+    // מזכירה חסומה לחלוטין.
+    if (isSecretary(scopeUser)) {
+      logger.warn("[clients/summaries] Secretary attempted clinical access", {
+        userId,
+        clientId: id,
+      });
+      return NextResponse.json(
+        { message: "אין הרשאה לתוכן קליני (סיכומי טיפול)" },
+        { status: 403 }
+      );
+    }
+
     const scopeWhere = buildClientWhere(scopeUser);
 
     const client = await prisma.client.findFirst({

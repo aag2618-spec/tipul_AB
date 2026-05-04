@@ -10,6 +10,10 @@ import {
   secretaryCan,
   canSecretaryAccessModel,
   getClientSafeSelectForSecretary,
+  getSessionSafeSelectForSecretary,
+  getSessionIncludeForRole,
+  getPaymentIncludeForRole,
+  isSecretaryClinicalDenied,
   CLINICAL_FIELDS_BLOCKED_FOR_SECRETARY,
   type ScopeUser,
 } from "@/lib/scope";
@@ -265,10 +269,22 @@ describe("buildPaymentWhere", () => {
 });
 
 describe("getClientSafeSelectForSecretary", () => {
-  it("excludes initialDiagnosis and intakeNotes", () => {
+  it("excludes all clinical fields on Client", () => {
     const sel = getClientSafeSelectForSecretary() as Record<string, unknown>;
-    expect(sel.initialDiagnosis).toBeUndefined();
-    expect(sel.intakeNotes).toBeUndefined();
+    const clinicalFields = [
+      "notes",
+      "intakeNotes",
+      "initialDiagnosis",
+      "medicalHistory",
+      "therapeuticApproaches",
+      "approachNotes",
+      "culturalContext",
+      "comprehensiveAnalysis",
+      "comprehensiveAnalysisAt",
+    ];
+    for (const field of clinicalFields) {
+      expect(sel[field], `clinical field leaked: ${field}`).toBeUndefined();
+    }
   });
 
   it("includes basic identity fields", () => {
@@ -277,20 +293,198 @@ describe("getClientSafeSelectForSecretary", () => {
     expect(sel.lastName).toBe(true);
     expect(sel.email).toBe(true);
     expect(sel.phone).toBe(true);
+    expect(sel.name).toBe(true);
+  });
+
+  it("includes administrative / scheduling / financial metadata", () => {
+    const sel = getClientSafeSelectForSecretary() as Record<string, unknown>;
+    expect(sel.birthDate).toBe(true);
+    expect(sel.address).toBe(true);
+    expect(sel.status).toBe(true);
+    expect(sel.isQuickClient).toBe(true);
+    expect(sel.creditBalance).toBe(true);
+    expect(sel.defaultSessionPrice).toBe(true);
+    expect(sel.therapistId).toBe(true);
+    expect(sel.organizationId).toBe(true);
+    expect(sel.createdAt).toBe(true);
+    expect(sel.updatedAt).toBe(true);
+  });
+});
+
+describe("getSessionSafeSelectForSecretary", () => {
+  it("excludes notes (therapist's free-text summary) and topic", () => {
+    const sel = getSessionSafeSelectForSecretary() as Record<string, unknown>;
+    expect(sel.notes).toBeUndefined();
+    expect(sel.topic).toBeUndefined();
+  });
+
+  it("includes scheduling and cancellation metadata", () => {
+    const sel = getSessionSafeSelectForSecretary() as Record<string, unknown>;
+    expect(sel.startTime).toBe(true);
+    expect(sel.endTime).toBe(true);
+    expect(sel.status).toBe(true);
+    expect(sel.type).toBe(true);
+    expect(sel.price).toBe(true);
+    expect(sel.cancelledAt).toBe(true);
+    expect(sel.cancellationReason).toBe(true);
+    expect(sel.clientId).toBe(true);
+    expect(sel.therapistId).toBe(true);
+    expect(sel.organizationId).toBe(true);
+  });
+});
+
+describe("getSessionIncludeForRole", () => {
+  it("secretary — excludes sessionNote, sessionAnalysis, recordings", () => {
+    const include = getSessionIncludeForRole(secretaryFull) as Record<string, unknown>;
+    expect(include.sessionNote).toBeUndefined();
+    expect(include.sessionAnalysis).toBeUndefined();
+    expect(include.recordings).toBeUndefined();
+  });
+
+  it("secretary — includes client with safe select (no clinical fields)", () => {
+    const include = getSessionIncludeForRole(secretaryFull) as {
+      client?: { select?: Record<string, unknown> };
+    };
+    expect(include.client).toBeDefined();
+    expect(include.client?.select).toBeDefined();
+    expect(include.client?.select?.initialDiagnosis).toBeUndefined();
+    expect(include.client?.select?.notes).toBeUndefined();
+    expect(include.client?.select?.firstName).toBe(true);
+  });
+
+  it("therapist — includes clinical relations (sessionNote, sessionAnalysis, recordings)", () => {
+    const include = getSessionIncludeForRole(clinicTherapist) as Record<string, unknown>;
+    expect(include.sessionNote).toBe(true);
+    expect(include.sessionAnalysis).toBe(true);
+    expect(include.recordings).toBeDefined();
+    expect(include.client).toBe(true);
+  });
+
+  it("owner — includes clinical relations", () => {
+    const include = getSessionIncludeForRole(owner) as Record<string, unknown>;
+    expect(include.sessionNote).toBe(true);
+    expect(include.sessionAnalysis).toBe(true);
+    expect(include.recordings).toBeDefined();
+  });
+
+  it("standalone user — includes clinical relations", () => {
+    const include = getSessionIncludeForRole(standaloneUser) as Record<string, unknown>;
+    expect(include.sessionNote).toBe(true);
+    expect(include.sessionAnalysis).toBe(true);
+    expect(include.recordings).toBeDefined();
+  });
+});
+
+describe("getPaymentIncludeForRole", () => {
+  it("secretary — uses safe selects for client and session", () => {
+    const include = getPaymentIncludeForRole(secretaryFull) as {
+      client?: { select?: Record<string, unknown> };
+      session?: { select?: Record<string, unknown> };
+    };
+    expect(include.client?.select).toBeDefined();
+    expect(include.session?.select).toBeDefined();
+    expect(include.client?.select?.initialDiagnosis).toBeUndefined();
+    expect(include.client?.select?.notes).toBeUndefined();
+    expect(include.session?.select?.notes).toBeUndefined();
+    expect(include.session?.select?.topic).toBeUndefined();
+    expect(include.client?.select?.firstName).toBe(true);
+    expect(include.session?.select?.startTime).toBe(true);
+  });
+
+  it("therapist / owner — uses plain relation include (full clinical)", () => {
+    expect(getPaymentIncludeForRole(clinicTherapist)).toEqual({
+      client: true,
+      session: true,
+    });
+    expect(getPaymentIncludeForRole(owner)).toEqual({
+      client: true,
+      session: true,
+    });
+    expect(getPaymentIncludeForRole(standaloneUser)).toEqual({
+      client: true,
+      session: true,
+    });
+  });
+});
+
+describe("isSecretaryClinicalDenied", () => {
+  it("secretary (even with full permissions) is denied SessionNote", () => {
+    expect(isSecretaryClinicalDenied(secretaryFull, "SessionNote")).toBe(true);
+  });
+
+  it("secretary without permissions is denied all clinical models", () => {
+    expect(isSecretaryClinicalDenied(secretaryNoPerms, "SessionNote")).toBe(true);
+    expect(isSecretaryClinicalDenied(secretaryNoPerms, "SessionAnalysis")).toBe(true);
+    expect(isSecretaryClinicalDenied(secretaryNoPerms, "Recording")).toBe(true);
+    expect(isSecretaryClinicalDenied(secretaryNoPerms, "Transcription")).toBe(true);
+    expect(isSecretaryClinicalDenied(secretaryNoPerms, "AIInsight")).toBe(true);
+    expect(isSecretaryClinicalDenied(secretaryNoPerms, "QuestionnaireAnalysis")).toBe(
+      true
+    );
+    expect(isSecretaryClinicalDenied(secretaryNoPerms, "QuestionnaireResponse")).toBe(
+      true
+    );
+  });
+
+  it("therapist is never denied (returns false)", () => {
+    expect(isSecretaryClinicalDenied(clinicTherapist, "SessionNote")).toBe(false);
+    expect(isSecretaryClinicalDenied(clinicTherapist, "SessionAnalysis")).toBe(false);
+    expect(isSecretaryClinicalDenied(clinicTherapist, "Recording")).toBe(false);
+    expect(isSecretaryClinicalDenied(clinicTherapist, "AIInsight")).toBe(false);
+  });
+
+  it("clinic owner is never denied (returns false)", () => {
+    expect(isSecretaryClinicalDenied(owner, "SessionNote")).toBe(false);
+    expect(isSecretaryClinicalDenied(owner, "SessionAnalysis")).toBe(false);
+    expect(isSecretaryClinicalDenied(owner, "Recording")).toBe(false);
+    expect(isSecretaryClinicalDenied(owner, "AIInsight")).toBe(false);
+  });
+
+  it("standalone user / admin are never denied", () => {
+    expect(isSecretaryClinicalDenied(standaloneUser, "SessionNote")).toBe(false);
+    expect(isSecretaryClinicalDenied(adminUser, "SessionNote")).toBe(false);
   });
 });
 
 describe("CLINICAL_FIELDS_BLOCKED_FOR_SECRETARY", () => {
   it("documents blocked clinical fields on Client", () => {
-    expect(CLINICAL_FIELDS_BLOCKED_FOR_SECRETARY.client).toContain("initialDiagnosis");
-    expect(CLINICAL_FIELDS_BLOCKED_FOR_SECRETARY.client).toContain("intakeNotes");
+    const clientBlocked = CLINICAL_FIELDS_BLOCKED_FOR_SECRETARY.client as readonly string[];
+    expect(clientBlocked).toContain("initialDiagnosis");
+    expect(clientBlocked).toContain("intakeNotes");
+    expect(clientBlocked).toContain("notes");
+    expect(clientBlocked).toContain("medicalHistory");
+    expect(clientBlocked).toContain("comprehensiveAnalysis");
+    expect(clientBlocked).toContain("approachNotes");
+    expect(clientBlocked).toContain("culturalContext");
   });
 
-  it("blocks Recording, AI, and analysis models", () => {
+  it("documents blocked clinical fields on TherapySession", () => {
+    const sessionBlocked = CLINICAL_FIELDS_BLOCKED_FOR_SECRETARY.session as readonly string[];
+    expect(sessionBlocked).toContain("notes");
+  });
+
+  it("blocks Recording, AI, and analysis models (including QuestionnaireResponse)", () => {
     const blocked = CLINICAL_FIELDS_BLOCKED_FOR_SECRETARY.blockedModels as readonly string[];
     expect(blocked).toContain("SessionNote");
     expect(blocked).toContain("SessionAnalysis");
+    expect(blocked).toContain("QuestionnaireAnalysis");
+    expect(blocked).toContain("QuestionnaireResponse");
     expect(blocked).toContain("Recording");
+    expect(blocked).toContain("Transcription");
     expect(blocked).toContain("AIInsight");
+  });
+
+  it("blocked fields on Client safe select are never present", () => {
+    const sel = getClientSafeSelectForSecretary() as Record<string, unknown>;
+    for (const field of CLINICAL_FIELDS_BLOCKED_FOR_SECRETARY.client) {
+      expect(sel[field], `blocked field present in safe select: ${field}`).toBeUndefined();
+    }
+  });
+
+  it("blocked fields on TherapySession safe select are never present", () => {
+    const sel = getSessionSafeSelectForSecretary() as Record<string, unknown>;
+    for (const field of CLINICAL_FIELDS_BLOCKED_FOR_SECRETARY.session) {
+      expect(sel[field], `blocked field present in safe select: ${field}`).toBeUndefined();
+    }
   });
 });

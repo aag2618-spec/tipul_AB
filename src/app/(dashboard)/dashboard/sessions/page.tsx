@@ -3,16 +3,17 @@ import { authOptions } from "@/lib/auth";
 import prisma from "@/lib/prisma";
 import { Prisma } from "@prisma/client";
 import { SessionsView } from "@/components/sessions/sessions-view";
-import { loadScopeUser, buildSessionWhere } from "@/lib/scope";
+import { loadScopeUser, buildSessionWhere, isSecretary } from "@/lib/scope";
 
-async function getSessions(sessionWhere: Prisma.TherapySessionWhereInput) {
+async function getSessions(sessionWhere: Prisma.TherapySessionWhereInput, includeNote: boolean) {
   return prisma.therapySession.findMany({
     where: sessionWhere,
     orderBy: { startTime: "desc" },
     // No limit - load all sessions
     include: {
       client: { select: { id: true, name: true, isQuickClient: true } },
-      sessionNote: { select: { content: true } },
+      // Privacy: secretary must NOT receive clinical note content.
+      ...(includeNote ? { sessionNote: { select: { content: true } } } : {}),
       payment: { select: { id: true, status: true, amount: true, expectedAmount: true } },
     },
   });
@@ -33,9 +34,10 @@ export default async function SessionsPage() {
 
   const scopeUser = await loadScopeUser(session.user.id);
   const sessionWhere = buildSessionWhere(scopeUser);
+  const includeNote = !isSecretary(scopeUser);
 
   const [sessions, prepKeys] = await Promise.all([
-    getSessions(sessionWhere),
+    getSessions(sessionWhere, includeNote),
     getPreparedSessionKeys(session.user.id),
   ]);
 
@@ -48,10 +50,11 @@ export default async function SessionsPage() {
       status: s.status,
       type: s.type,
       price: Number(s.price),
-      topic: s.topic,
+      // Privacy: topic is clinical content — strip for secretary.
+      topic: includeNote ? s.topic : null,
       cancellationReason: s.cancellationReason,
       cancelledAt: s.cancelledAt?.toISOString() || null,
-      sessionNote: s.sessionNote?.content || null,
+      sessionNote: includeNote ? (s.sessionNote?.content || null) : null,
       payment: s.payment ? { id: s.payment.id, status: s.payment.status, amount: Number(s.payment.amount), expectedAmount: Number(s.payment.expectedAmount) } : null,
       client: s.client ? { id: s.client.id, name: s.client.name, isQuickClient: s.client.isQuickClient } : null,
       hasPrepReady: prepKeys.has(sessionDateKey),

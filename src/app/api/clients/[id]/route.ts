@@ -4,7 +4,13 @@ import prisma from "@/lib/prisma";
 import { logger } from "@/lib/logger";
 import { serializePrisma } from "@/lib/serialize";
 import { logDataAccess } from "@/lib/audit-logger";
-import { buildClientWhere, isSecretary, loadScopeUser, secretaryCan } from "@/lib/scope";
+import {
+  buildClientWhere,
+  getClientSafeSelectForSecretary,
+  isSecretary,
+  loadScopeUser,
+  secretaryCan,
+} from "@/lib/scope";
 
 export const dynamic = "force-dynamic";
 
@@ -22,28 +28,59 @@ export async function GET(
     const scopeUser = await loadScopeUser(userId);
     const scopeWhere = buildClientWhere(scopeUser);
 
-    const client = await prisma.client.findFirst({
-      where: { AND: [{ id }, scopeWhere] },
-      include: {
-        therapySessions: {
-          orderBy: { startTime: "desc" },
-          take: 10,
-          include: { sessionNote: true },
-        },
-        payments: {
-          orderBy: { createdAt: "desc" },
-          take: 10,
-        },
-        recordings: {
-          orderBy: { createdAt: "desc" },
-          take: 5,
-          include: { transcription: { include: { analysis: true } } },
-        },
-        documents: {
-          orderBy: { createdAt: "desc" },
-        },
-      },
-    });
+    // הגנה על תוכן קליני: מזכירה מקבלת select מצומצם בלבד (ללא sessionNote/recordings/transcription/analysis).
+    const client = isSecretary(scopeUser)
+      ? await prisma.client.findFirst({
+          where: { AND: [{ id }, scopeWhere] },
+          select: {
+            ...getClientSafeSelectForSecretary(),
+            therapySessions: {
+              orderBy: { startTime: "desc" },
+              take: 10,
+              select: {
+                id: true,
+                startTime: true,
+                endTime: true,
+                status: true,
+                type: true,
+                price: true,
+                location: true,
+                clientId: true,
+                therapistId: true,
+                organizationId: true,
+              },
+            },
+            payments: {
+              orderBy: { createdAt: "desc" },
+              take: 10,
+            },
+            documents: {
+              orderBy: { createdAt: "desc" },
+            },
+          },
+        })
+      : await prisma.client.findFirst({
+          where: { AND: [{ id }, scopeWhere] },
+          include: {
+            therapySessions: {
+              orderBy: { startTime: "desc" },
+              take: 10,
+              include: { sessionNote: true },
+            },
+            payments: {
+              orderBy: { createdAt: "desc" },
+              take: 10,
+            },
+            recordings: {
+              orderBy: { createdAt: "desc" },
+              take: 5,
+              include: { transcription: { include: { analysis: true } } },
+            },
+            documents: {
+              orderBy: { createdAt: "desc" },
+            },
+          },
+        });
 
     if (!client) {
       return NextResponse.json({ message: "מטופל לא נמצא" }, { status: 404 });
@@ -90,6 +127,35 @@ export async function PUT(
         { message: "אין הרשאה לעדכון מטופל" },
         { status: 403 }
       );
+    }
+
+    // חסימת מזכירה מעדכון שדות קליניים (חוק זכויות החולה / חוק הפסיכולוגים).
+    if (isSecretary(scopeUser)) {
+      const CLINICAL_KEYS_BLOCKED = [
+        "notes",
+        "intakeNotes",
+        "initialDiagnosis",
+        "medicalHistory",
+        "therapeuticApproaches",
+        "approachNotes",
+        "culturalContext",
+        "comprehensiveAnalysis",
+        "comprehensiveAnalysisAt",
+      ];
+      const sentClinicalKeys = CLINICAL_KEYS_BLOCKED.filter(
+        (k) => k in body && body[k] !== undefined
+      );
+      if (sentClinicalKeys.length > 0) {
+        logger.warn("[clients/PUT] Secretary attempted to update clinical fields", {
+          userId,
+          clientId: id,
+          sentClinicalKeys,
+        });
+        return NextResponse.json(
+          { message: "אין הרשאה לעדכון שדות קליניים" },
+          { status: 403 }
+        );
+      }
     }
 
     // Verify ownership / scope

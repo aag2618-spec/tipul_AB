@@ -1,8 +1,9 @@
 import prisma from "@/lib/prisma";
+import { Prisma } from "@prisma/client";
 import { logger } from "@/lib/logger";
 import type { PaymentMethod, BulkPaymentResult, ClientDebtSummary, AllClientsDebtItem } from "./types";
 import { issueReceipt, sendPaymentReceiptEmail, buildReceiptDescription } from "./receipt-service";
-import { buildClientWhere, type ScopeUser } from "@/lib/scope";
+import { buildClientWhere, buildPaymentWhere, type ScopeUser } from "@/lib/scope";
 
 // Re-export pure calculation helpers from payment-utils
 export { calculateDebtFromPayments } from "@/lib/payment-utils";
@@ -336,8 +337,19 @@ export async function getClientDebtSummary(
   });
   if (!client) return null;
 
+  // Scope-aware: כשיש scopeUser, החל את buildPaymentWhere כדי לכבד הרשאות
+  // (למשל מזכירה ללא canViewPayments מקבלת deny). אחרת — סינון ישן לפי clientId.
+  const pendingPaymentsWhere: Prisma.PaymentWhereInput = scopeUser
+    ? {
+        AND: [
+          buildPaymentWhere(scopeUser),
+          { clientId, status: "PENDING", parentPaymentId: null },
+        ],
+      }
+    : { clientId, status: "PENDING", parentPaymentId: null };
+
   const allPending = await prisma.payment.findMany({
-    where: { clientId, status: "PENDING", parentPaymentId: null },
+    where: pendingPaymentsWhere,
     orderBy: { createdAt: "asc" },
     select: {
       id: true,
@@ -399,6 +411,19 @@ export async function getAllClientsDebtSummary(
   const clientWhere = scopeUser
     ? buildClientWhere(scopeUser)
     : { therapistId: userId };
+
+  // Scope-aware: על המזכירה ללא canViewPayments — buildPaymentWhere מחזיר
+  // { id: "__deny__" } שמסנן את כל ה-payments של הלקוח (לכן יוחזרו 0 חובות).
+  // הסינון מוחל בתוך ה-nested include כדי לא לסבך את ה-where של ה-Client.
+  const nestedPaymentsWhere: Prisma.PaymentWhereInput = scopeUser
+    ? {
+        AND: [
+          buildPaymentWhere(scopeUser),
+          { status: "PENDING", parentPaymentId: null },
+        ],
+      }
+    : { status: "PENDING", parentPaymentId: null };
+
   const clients = await prisma.client.findMany({
     where: { AND: [clientWhere, { status: { not: "ARCHIVED" } }] },
     select: {
@@ -408,7 +433,7 @@ export async function getAllClientsDebtSummary(
       name: true,
       creditBalance: true,
       payments: {
-        where: { status: "PENDING", parentPaymentId: null },
+        where: nestedPaymentsWhere,
         select: {
           id: true,
           amount: true,

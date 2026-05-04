@@ -5,7 +5,7 @@ import { format } from "date-fns";
 import { calculateDebtFromPayments } from "@/lib/payment-utils";
 import { logger } from "@/lib/logger";
 import { requireAuth } from "@/lib/api-auth";
-import { buildClientWhere, loadScopeUser } from "@/lib/scope";
+import { buildClientWhere, isSecretary, loadScopeUser } from "@/lib/scope";
 
 export const dynamic = "force-dynamic";
 
@@ -16,11 +16,25 @@ export async function GET(
   try {
     const auth = await requireAuth();
     if ("error" in auth) return auth.error;
-    const { userId, session } = auth;
+    const { userId } = auth;
 
     const { id } = await params;
 
     const scopeUser = await loadScopeUser(userId);
+
+    // ייצוא תיק מטופל = הקלטות, תמלולים, סיכומים, אבחנות, ניתוחי AI — כולם
+    // קליניים. מזכירה חסומה לחלוטין מייצוא תיק קליני.
+    if (isSecretary(scopeUser)) {
+      logger.warn("[clients/export] Secretary attempted clinical export", {
+        userId,
+        clientId: id,
+      });
+      return NextResponse.json(
+        { message: "אין הרשאה לייצוא תיק קליני" },
+        { status: 403 }
+      );
+    }
+
     const scopeWhere = buildClientWhere(scopeUser);
 
     // Fetch all client data

@@ -2,7 +2,6 @@
 import { getServerSession } from "next-auth";
 import { authOptions } from "@/lib/auth";
 import prisma from "@/lib/prisma";
-import { Prisma } from "@prisma/client";
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
@@ -18,6 +17,7 @@ import {
   buildClientWhere,
   buildSessionWhere,
   buildPaymentWhere,
+  isSecretary,
   type ScopeUser,
 } from "@/lib/scope";
 
@@ -34,16 +34,12 @@ function getIsraelOffsetHours(date: Date): number {
   return israelHour - 12;
 }
 
-function toIsraelTime(utcDate: Date): Date {
-  const date = new Date(utcDate);
-  date.setUTCHours(date.getUTCHours() + getIsraelOffsetHours(date));
-  return date;
-}
-
 async function getDashboardStats(scopeUser: ScopeUser) {
   const clientWhere = buildClientWhere(scopeUser);
   const sessionWhere = buildSessionWhere(scopeUser);
   const paymentWhere = buildPaymentWhere(scopeUser);
+  // Privacy: secretary must NOT receive clinical note content on todaySessions.
+  const includeNote = !isSecretary(scopeUser);
 
   // SIMPLE SOLUTION: Use a wide time range to catch all sessions
   // This avoids complex timezone calculations
@@ -154,12 +150,16 @@ async function getDashboardStats(scopeUser: ScopeUser) {
         price: true,
         status: true,
         cancellationReason: true,
-        sessionNote: {
-          select: {
-            id: true,
-            content: true,
-          },
-        },
+        ...(includeNote
+          ? {
+              sessionNote: {
+                select: {
+                  id: true,
+                  content: true,
+                },
+              },
+            }
+          : {}),
         client: {
           select: {
             id: true,
@@ -214,14 +214,6 @@ async function getDashboardStats(scopeUser: ScopeUser) {
       sessionIsraelTime.getUTCDate() === nowIsraelTime.getUTCDate()
     );
   });
-
-  // DEBUG: Log found sessions
-  console.log('📅 All sessions in range:', todaySessions.length);
-  console.log('📅 Filtered today sessions:', filteredTodaySessions.map(s => ({
-    id: s.id,
-    client: s.client?.name,
-    startTime: s.startTime.toISOString(),
-  })));
 
   // יצירת מפת הכנות לפי clientId
   const prepsByClientId = new Map(

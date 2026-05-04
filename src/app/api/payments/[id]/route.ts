@@ -6,6 +6,7 @@ import { requireAuth } from "@/lib/api-auth";
 import { serializePrisma } from "@/lib/serialize";
 import {
   buildPaymentWhere,
+  getClientSafeSelectForSecretary,
   isSecretary,
   loadScopeUser,
   secretaryCan,
@@ -20,19 +21,34 @@ export async function GET(
   try {
     const auth = await requireAuth();
     if ("error" in auth) return auth.error;
-    const { userId, session } = auth;
+    const { userId } = auth;
 
     const { id } = await params;
 
     const scopeUser = await loadScopeUser(userId);
     const paymentWhere = buildPaymentWhere(scopeUser);
 
+    // include role-aware: למזכירה חושפים שדות אדמיניסטרטיביים בלבד —
+    // ללא session.notes, session.topic, וללא סיבות ביטול (תוכן קליני).
+    // Client נטען דרך safe-select הקיים שמסיר notes/intakeNotes וכו'.
+    const secretaryInclude = {
+      client: { select: getClientSafeSelectForSecretary() },
+      session: {
+        select: {
+          id: true,
+          startTime: true,
+          endTime: true,
+          type: true,
+          status: true,
+          price: true,
+        },
+      },
+    } as const;
+    const fullInclude = { client: true, session: true } as const;
+
     const payment = await prisma.payment.findFirst({
       where: { AND: [{ id }, paymentWhere] },
-      include: {
-        client: true,
-        session: true,
-      },
+      include: isSecretary(scopeUser) ? secretaryInclude : fullInclude,
     });
 
     if (!payment) {
@@ -56,7 +72,7 @@ export async function PUT(
   try {
     const auth = await requireAuth();
     if ("error" in auth) return auth.error;
-    const { userId, session } = auth;
+    const { userId } = auth;
 
     const { id } = await params;
     const body = await request.json();

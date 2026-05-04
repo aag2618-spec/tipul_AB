@@ -10,7 +10,7 @@ import { logger } from "@/lib/logger";
 import { serializePrisma } from "@/lib/serialize";
 import { syncSessionUpdateToGoogleCalendar, syncSessionDeletionToGoogleCalendar } from "@/lib/google-calendar-sync";
 import { logDataAccess } from "@/lib/audit-logger";
-import { buildSessionWhere, loadScopeUser } from "@/lib/scope";
+import { buildSessionWhere, isSecretary, loadScopeUser } from "@/lib/scope";
 
 export const dynamic = "force-dynamic";
 
@@ -28,21 +28,32 @@ export async function GET(
     const scopeUser = await loadScopeUser(userId);
     const sessionScopeWhere = buildSessionWhere(scopeUser);
 
-    const therapySession = await prisma.therapySession.findFirst({
-      where: { AND: [{ id }, sessionScopeWhere] },
-      include: {
-        client: true,
-        sessionNote: true,
-        sessionAnalysis: true,
-        payment: true,
-        recordings: {
-          include: {
-            transcription: {
-              include: { analysis: true },
+    // Privacy: secretary must NOT receive clinical content
+    // (sessionNote, sessionAnalysis, recordings/transcription).
+    const includeForRole = isSecretary(scopeUser)
+      ? {
+          client: {
+            select: { id: true, name: true, firstName: true, lastName: true, phone: true, email: true },
+          },
+          payment: true,
+        }
+      : {
+          client: true,
+          sessionNote: true,
+          sessionAnalysis: true,
+          payment: true,
+          recordings: {
+            include: {
+              transcription: {
+                include: { analysis: true },
+              },
             },
           },
-        },
-      },
+        };
+
+    const therapySession = await prisma.therapySession.findFirst({
+      where: { AND: [{ id }, sessionScopeWhere] },
+      include: includeForRole,
     });
 
     if (!therapySession) {
@@ -50,6 +61,13 @@ export async function GET(
     }
 
     // Audit log — קריאה לפגישה כוללת sessionNote.content + transcription.content
+    // For secretary the include omits these so the meta flags are simply false.
+    // The dual-shape result confuses TS narrowing, so cast through `unknown` to
+    // a structural type just for meta extraction.
+    const sessionForMeta = therapySession as unknown as {
+      sessionNote?: unknown;
+      recordings?: Array<{ transcription?: unknown }>;
+    };
     logDataAccess({
       userId,
       recordType: "SESSION_DETAIL",
@@ -58,8 +76,8 @@ export async function GET(
       clientId: therapySession.clientId,
       request,
       meta: {
-        hasNote: !!therapySession.sessionNote,
-        hasTranscription: therapySession.recordings.some((r) => r.transcription),
+        hasNote: !!sessionForMeta.sessionNote,
+        hasTranscription: (sessionForMeta.recordings ?? []).some((r) => !!r.transcription),
       },
     });
 
@@ -88,6 +106,30 @@ export async function PUT(
 
     const scopeUser = await loadScopeUser(userId);
     const sessionScopeWhere = buildSessionWhere(scopeUser);
+
+    // Privacy: a secretary may update only administrative fields.
+    // Clinical fields (notes/topic) are blocked at the route layer.
+    if (isSecretary(scopeUser)) {
+      const ALLOWED_FOR_SECRETARY: string[] = [
+        "startTime",
+        "endTime",
+        "type",
+        "status",
+        "price",
+        "location",
+        "cancellationReason",
+        "createPayment",
+        "markAsPaid",
+        "allowOverlap",
+      ];
+      const disallowed = Object.keys(body).filter((k) => !ALLOWED_FOR_SECRETARY.includes(k));
+      if (disallowed.length > 0) {
+        return NextResponse.json(
+          { message: `מזכירה לא יכולה לעדכן שדות אלו: ${disallowed.join(", ")}` },
+          { status: 403 }
+        );
+      }
+    }
 
     const existingSession = await prisma.therapySession.findFirst({
       where: { AND: [{ id }, sessionScopeWhere] },
@@ -173,6 +215,17 @@ export async function PUT(
       }
     }
 
+    const updateIncludeForRole = isSecretary(scopeUser)
+      ? {
+          client: {
+            select: { id: true, name: true, firstName: true, lastName: true, phone: true, email: true },
+          },
+        }
+      : {
+          client: true,
+          sessionNote: true,
+        };
+
     const therapySession = await prisma.therapySession.update({
       where: { id },
       data: {
@@ -191,10 +244,7 @@ export async function PUT(
           cancelledBy: "THERAPIST",
         } : {}),
       },
-      include: {
-        client: true,
-        sessionNote: true,
-      },
+      include: updateIncludeForRole,
     });
 
     // Google Calendar sync (non-blocking)
@@ -235,6 +285,7 @@ export async function PUT(
           expectedAmount: Number(therapySession.price),
           method: "CASH",
           paymentType: "FULL",
+          scopeUser,
         });
 
         // אם יצירת התשלום נכשלה - מחזירים את הפגישה למצב הקודם
@@ -327,13 +378,23 @@ export async function PUT(
       });
     }
 
-    // Fetch updated session with payment info
+    // Fetch updated session with payment info.
+    // Role-aware: secretary doesn't get full Client (clinical fields stripped).
+    const finalIncludeForRole = isSecretary(scopeUser)
+      ? {
+          client: {
+            select: { id: true, name: true, firstName: true, lastName: true, phone: true, email: true },
+          },
+          payment: true,
+        }
+      : {
+          client: true,
+          payment: true,
+        };
+
     const updatedSession = await prisma.therapySession.findUnique({
       where: { id: therapySession.id },
-      include: {
-        client: true,
-        payment: true,
-      },
+      include: finalIncludeForRole,
     });
 
     return NextResponse.json(serializePrisma(updatedSession));
