@@ -53,6 +53,13 @@ services:
       # --- אדמין ---
       - key: ADMIN_SECRET
         sync: false
+      # SETUP_SECRET נדרש ע"י /api/setup/create-admin ו-/api/setup/make-admin (header x-setup-key)
+      # יש להגדיר ידנית ב-Render dashboard (≥32 תווים, openssl rand -base64 32)
+      - key: SETUP_SECRET
+        sync: false
+      # RECEIPT_TOKEN_SECRET — סוד לחתימה על קישורי קבלה ציבוריים
+      - key: RECEIPT_TOKEN_SECRET
+        sync: false
   # Cron job for 24-hour session reminders (runs every hour)
   - type: cron
     name: session-reminders-24h

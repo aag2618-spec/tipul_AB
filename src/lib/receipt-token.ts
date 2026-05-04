@@ -1,9 +1,15 @@
 import crypto from 'crypto';
 
 const getSecret = () => {
-  const key = process.env.ENCRYPTION_KEY || process.env.NEXTAUTH_SECRET;
+  // M4 — סוד ייחודי לחתימת קישורי קבלה ציבוריים (לא לערבב עם NEXTAUTH_SECRET).
+  // השארנו fallback ל-ENCRYPTION_KEY/NEXTAUTH_SECRET כדי שמערכות קיימות לא יישברו
+  // לפני ש-RECEIPT_TOKEN_SECRET יוגדר ב-Render. ברגע שהוא מוגדר, הוא יקדים.
+  const key =
+    process.env.RECEIPT_TOKEN_SECRET ||
+    process.env.ENCRYPTION_KEY ||
+    process.env.NEXTAUTH_SECRET;
   if (!key) {
-    throw new Error('חסר מפתח הצפנה — יש להגדיר ENCRYPTION_KEY או NEXTAUTH_SECRET');
+    throw new Error('חסר מפתח חתימה — יש להגדיר RECEIPT_TOKEN_SECRET');
   }
   return key;
 };

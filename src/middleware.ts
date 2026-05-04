@@ -108,6 +108,7 @@ export async function middleware(request: NextRequest) {
       pathname.startsWith("/api/payments/") ||
       pathname.startsWith("/api/integrations/billing/") ||
       pathname.startsWith("/api/admin/billing/") ||
+      pathname.startsWith("/api/p/") ||
       pathname === "/api/subscription/status" ||
       pathname === "/api/subscription/create" ||
       isUserReadOnly;

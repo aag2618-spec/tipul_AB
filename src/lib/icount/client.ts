@@ -160,10 +160,13 @@ export class ICountClient {
   async createReceipt(
     request: CreateDocumentRequest
   ): Promise<ICountResponse<CreateDocumentResponse>> {
+    // H6: console.log כאן מכילים נתוני PII (פרטי קבלה: שם לקוח, סכומים).
+    // עוטפים ב-NODE_ENV === 'development' כדי שלא ידלוף ל-Render logs בפרודקשן.
+    const isDev = process.env.NODE_ENV === 'development';
     let availableTypes: Record<string, string> = {};
     try {
       availableTypes = await this.getAvailableDocTypes();
-      console.log('iCount available doc types:', JSON.stringify(availableTypes));
+      if (isDev) console.log('iCount available doc types:', JSON.stringify(availableTypes));
     } catch (e) {
       console.error('Failed to fetch doc types:', e);
     }
@@ -176,17 +179,17 @@ export class ICountClient {
     const errors: string[] = [];
 
     for (const docType of typesToTry) {
-      console.log('iCount trying doctype:', docType, '=', availableTypes[docType] || 'unknown');
+      if (isDev) console.log('iCount trying doctype:', docType, '=', availableTypes[docType] || 'unknown');
       const data = this.buildDocumentData(request, docType);
       const raw = await this.request<ICountRawDocResponse>('doc/create', data);
 
       if (raw.success && raw.data) {
-        console.log('iCount doc/create SUCCESS with doctype', docType, ':', JSON.stringify(raw.data));
+        if (isDev) console.log('iCount doc/create SUCCESS with doctype', docType, ':', JSON.stringify(raw.data));
         return { ...raw, data: this.normalizeDocResponse(raw.data) };
       }
 
       const errMsg = raw.message || 'unknown error';
-      console.log('iCount doctype', docType, 'failed:', errMsg);
+      if (isDev) console.log('iCount doctype', docType, 'failed:', errMsg);
       errors.push(`${docType}: ${errMsg}`);
 
       if (!errMsg.includes('מסמך') && !errMsg.includes('doctype') && !errMsg.includes('type')) {
