@@ -17,6 +17,7 @@ import {
   loadScopeUser,
   secretaryCan,
 } from "@/lib/scope";
+import { isShabbatOrYomTov } from "@/lib/shabbat";
 
 export const dynamic = "force-dynamic";
 
@@ -36,6 +37,15 @@ export async function POST(
   const auth = await requireAuth();
   if ("error" in auth) return auth.error;
   const { userId, session } = auth;
+
+  // חסימה הלכתית — אסור ליצור קישור תשלום בשבת/יו״ט.
+  // קישור שייווצר עכשיו פותח דף תשלום אצל Cardcom שיכול להיות בשימוש מיידי.
+  if (isShabbatOrYomTov()) {
+    return NextResponse.json(
+      { message: "לא ניתן ליצור קישור תשלום בשבת ויום טוב" },
+      { status: 403 }
+    );
+  }
 
   const { id: paymentId } = await context.params;
 

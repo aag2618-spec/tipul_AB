@@ -11,6 +11,7 @@ import { sendSMS } from "@/lib/sms";
 import { sendEmail } from "@/lib/resend";
 import { escapeHtml } from "@/lib/email-utils";
 import { checkRateLimit } from "@/lib/rate-limit";
+import { isShabbatOrYomTov } from "@/lib/shabbat";
 
 export const dynamic = "force-dynamic";
 
@@ -28,6 +29,16 @@ export async function POST(
   const auth = await requireAuth();
   if ("error" in auth) return auth.error;
   const { userId } = auth;
+
+  // חסימה הלכתית — אסור לשלוח קישור תשלום בשבת/יו״ט (גם sendSMS/sendEmail
+  // חוסמים, אבל נחסום פה מוקדם כדי להחזיר הודעה ברורה למטפל ולא רישום
+  // CommunicationLog ריק).
+  if (isShabbatOrYomTov()) {
+    return NextResponse.json(
+      { message: "לא ניתן לשלוח קישור תשלום בשבת ויום טוב" },
+      { status: 403 }
+    );
+  }
 
   // Rate-limit per-user: 30 שליחות לשעה (מספיק לצורכי גבייה רגילה,
   // חוסם spam במקרה של חשבון מטפל שנפרץ).
