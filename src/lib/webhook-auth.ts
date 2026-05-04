@@ -25,6 +25,7 @@
 
 import { NextRequest, NextResponse } from 'next/server';
 import { bearerEquals } from '@/lib/cron-auth';
+import { logger } from '@/lib/logger';
 
 // ---------------------------------------------------------------------------
 // Types
@@ -71,14 +72,14 @@ export function withWebhookAuth(options: WebhookAuthOptions) {
     const startTime = Date.now();
     const requestId = crypto.randomUUID();
 
-    console.log(`[webhook:${name}] Incoming request ${requestId}`);
+    logger.info(`[webhook:${name}] Incoming request ${requestId}`);
 
     try {
       // 1. Check that the secret env var is configured
       if (secretEnvVar) {
         const secret = process.env[secretEnvVar];
         if (!secret) {
-          console.error(`[webhook:${name}] ${secretEnvVar} not configured`);
+          logger.error(`[webhook:${name}] ${secretEnvVar} not configured`);
           return NextResponse.json({ error: 'Service unavailable' }, { status: 503 });
         }
       }
@@ -98,12 +99,12 @@ export function withWebhookAuth(options: WebhookAuthOptions) {
         isValid = bearerEquals(authHeader, expected);
       } else {
         // No verification configured — reject by default
-        console.error(`[webhook:${name}] No verification method configured`);
+        logger.error(`[webhook:${name}] No verification method configured`);
         return NextResponse.json({ error: 'Service unavailable' }, { status: 503 });
       }
 
       if (!isValid) {
-        console.error(`[webhook:${name}] Authentication failed for ${requestId}`);
+        logger.error(`[webhook:${name}] Authentication failed for ${requestId}`);
         return NextResponse.json({ error: 'Invalid signature' }, { status: 401 });
       }
 
@@ -111,12 +112,12 @@ export function withWebhookAuth(options: WebhookAuthOptions) {
       const response = await handler(req, rawBody);
 
       const duration = Date.now() - startTime;
-      console.log(`[webhook:${name}] ${requestId} completed in ${duration}ms — status ${response.status}`);
+      logger.info(`[webhook:${name}] ${requestId} completed in ${duration}ms — status ${response.status}`);
 
       return response;
     } catch (error) {
       const duration = Date.now() - startTime;
-      console.error(`[webhook:${name}] ${requestId} failed after ${duration}ms:`, error);
+      logger.error(`[webhook:${name}] ${requestId} failed after ${duration}ms:`, { error: error instanceof Error ? error.message : String(error) });
 
       return NextResponse.json(
         { error: 'Webhook processing failed' },

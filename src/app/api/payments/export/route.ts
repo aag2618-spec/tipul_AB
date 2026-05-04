@@ -9,6 +9,18 @@ import { buildPaymentWhere, loadScopeUser } from "@/lib/scope";
 
 export const dynamic = "force-dynamic";
 
+// L4: מונע Excel formula injection — אם תא מתחיל ב-=/+/-/@/Tab/CR
+// Excel מפרש אותו כנוסחה (=cmd|... מאפשר RCE עם CSV מורעלים).
+// פתרון סטנדרטי: prefix של גרש בודד.
+function sanitizeCsvCell(value: string | number | null | undefined): string {
+  if (value === null || value === undefined) return "";
+  const str = String(value);
+  if (/^[=+\-@\t\r]/.test(str)) {
+    return "'" + str;
+  }
+  return str;
+}
+
 export async function GET(request: NextRequest) {
   try {
     const auth = await requireAuth();
@@ -154,9 +166,14 @@ export async function GET(request: NextRequest) {
 
     // בניית CSV עם BOM לתמיכה בעברית ב-Excel
     const BOM = "\uFEFF";
-    const csvContent = BOM + 
-      headers.join(",") + "\n" + 
-      rows.map((row) => row.map((cell) => `"${cell}"`).join(",")).join("\n");
+    // L4: כל תא עובר sanitizeCsvCell (formula injection) + escape של גרשיים פנימיים.
+    const escapeCsv = (cell: string | number | null | undefined) => {
+      const sanitized = sanitizeCsvCell(cell);
+      return `"${sanitized.replace(/"/g, '""')}"`;
+    };
+    const csvContent = BOM +
+      headers.join(",") + "\n" +
+      rows.map((row) => row.map(escapeCsv).join(",")).join("\n");
 
     // סיכום
     const totalAmount = payments.reduce((sum, p) => sum + Number(p.amount), 0);

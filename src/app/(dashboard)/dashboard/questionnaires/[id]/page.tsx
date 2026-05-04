@@ -304,7 +304,18 @@ export default function QuestionnaireResultsPage() {
             <CardContent>
               {response.aiAnalysis ? (
                 <div className="prose prose-sm max-w-none dark:prose-invert">
-                  <ReactMarkdown>{response.aiAnalysis}</ReactMarkdown>
+                  {/* M12: urlTransform חוסם javascript:/data:/vbscript: בלינקים שמגיעים מתוצר AI */}
+                  <ReactMarkdown
+                    urlTransform={(url) => {
+                      const lower = (url || "").trim().toLowerCase();
+                      if (lower.startsWith("javascript:") || lower.startsWith("data:") || lower.startsWith("vbscript:")) {
+                        return "";
+                      }
+                      return url;
+                    }}
+                  >
+                    {response.aiAnalysis}
+                  </ReactMarkdown>
                 </div>
               ) : (
                 <div className="text-center py-8 space-y-4">

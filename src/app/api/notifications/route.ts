@@ -23,7 +23,9 @@ export async function GET(request: NextRequest) {
 
     const { searchParams } = new URL(request.url);
     const unreadOnly = searchParams.get("unread") === "true";
-    const limit = parseInt(searchParams.get("limit") || "50");
+    // M1: clamp 1..100 — מונע DoS דרך limit ענקי וגם limit אפס/שלילי
+    const rawLimit = parseInt(searchParams.get("limit") || "50");
+    const limit = Math.max(1, Math.min(100, isNaN(rawLimit) ? 50 : rawLimit));
     const typeFilter = searchParams.get("type"); // e.g. "EMAIL_RECEIVED"
 
     const where: Record<string, unknown> = {
