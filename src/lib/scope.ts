@@ -227,6 +227,57 @@ export function buildPaymentWhere(user: ScopeUser): Prisma.PaymentWhereInput | {
 }
 
 /**
+ * מחזיר Prisma where clause למסמכים הנגישים למשתמש.
+ *
+ * Document עם `clientId` מסונן דרך הקליינט (תורש את ה-scope של המטופל).
+ * Document בלי clientId (template / general) מסונן לפי בעלות:
+ * - מטפל עצמאי: `therapistId=user.id`.
+ * - בעל קליניקה / מזכירה: `organizationId=user.organizationId`.
+ * - מטפלת בקליניקה: `therapistId=user.id` (המסמכים האישיים שלה בלבד).
+ */
+export function buildDocumentWhere(user: ScopeUser): Prisma.DocumentWhereInput {
+  if (user.role === "ADMIN" || user.role === "MANAGER") {
+    return {};
+  }
+
+  const clientWhere = buildClientWhere(user);
+
+  if (!user.organizationId) {
+    return {
+      OR: [
+        { client: clientWhere },
+        { AND: [{ clientId: null }, { therapistId: user.id }] },
+      ],
+    };
+  }
+
+  if (isClinicOwner(user) || isSecretary(user)) {
+    return {
+      OR: [
+        { client: clientWhere },
+        { AND: [{ clientId: null }, { organizationId: user.organizationId }] },
+      ],
+    };
+  }
+
+  if (isClinicTherapist(user)) {
+    return {
+      OR: [
+        { client: clientWhere },
+        { AND: [{ clientId: null }, { therapistId: user.id }] },
+      ],
+    };
+  }
+
+  return {
+    OR: [
+      { client: clientWhere },
+      { AND: [{ clientId: null }, { therapistId: user.id }] },
+    ],
+  };
+}
+
+/**
  * מחזיר select-mask שבטוח למזכירה — מסיר שדות קליניים מ-Client.
  * שימוש:
  *   const select = isSecretary(user)

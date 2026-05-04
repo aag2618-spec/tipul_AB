@@ -2,6 +2,7 @@ import { NextRequest, NextResponse } from "next/server";
 import { getClientDebtSummary } from "@/lib/payment-service";
 import { logger } from "@/lib/logger";
 import { requireAuth } from "@/lib/api-auth";
+import { loadScopeUser } from "@/lib/scope";
 
 export const dynamic = "force-dynamic";
 
@@ -15,7 +16,8 @@ export async function GET(
     const { userId, session } = auth;
 
     const { clientId } = await params;
-    const result = await getClientDebtSummary(userId, clientId);
+    const scopeUser = await loadScopeUser(userId);
+    const result = await getClientDebtSummary(userId, clientId, scopeUser);
 
     if (!result) {
       return NextResponse.json({ message: "מטופל לא נמצא" }, { status: 404 });

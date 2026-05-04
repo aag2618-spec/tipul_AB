@@ -7,14 +7,11 @@ import { Badge } from "@/components/ui/badge";
 import { FolderOpen, Plus, FileText, CheckCircle, Clock, User, Download } from "lucide-react";
 import Link from "next/link";
 import { format } from "date-fns";
+import { loadScopeUser, buildDocumentWhere, type ScopeUser } from "@/lib/scope";
 
-// TODO(scope): integrate scope helper here — Document has its own `therapistId`
-// field (document creator) but no scope.ts builder yet. Clinic owners/secretaries
-// should also see documents for all clients in their organization. Extend
-// scope.ts with buildDocumentWhere and swap this filter when available.
-async function getDocuments(userId: string) {
+async function getDocuments(scopeUser: ScopeUser) {
   return prisma.document.findMany({
-    where: { therapistId: userId },
+    where: buildDocumentWhere(scopeUser),
     orderBy: { createdAt: "desc" },
     include: {
       client: { select: { id: true, name: true } },
@@ -26,7 +23,8 @@ export default async function DocumentsPage() {
   const session = await getServerSession(authOptions);
   if (!session?.user?.id) return null;
 
-  const documents = await getDocuments(session.user.id);
+  const scopeUser = await loadScopeUser(session.user.id);
+  const documents = await getDocuments(scopeUser);
   
   const getTypeLabel = (type: string) => {
     switch (type) {

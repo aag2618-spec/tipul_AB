@@ -319,16 +319,19 @@ async function autoFixStuckPayments(
 // getClientDebtSummary
 // ================================================================
 
-// TODO(scope): callers in routes outside Agent 3's file list
-// (api/payments/client-debt/[clientId], api/payments/client-debts) still pass
-// userId only. Once those routes adopt scope helpers, switch signature to
-// accept ScopeUser and use buildClientWhere/buildPaymentWhere here too.
+// אופציונלי `scopeUser`: כשמועבר, ownership עובר דרך buildClientWhere/
+// buildPaymentWhere (תמיכה במזכירות/בעלי קליניקה). אחרת — ההתנהגות הישנה
+// (סולו-מטפל בלבד) נשמרת כדי לא לשבור קוראים שטרם עברו.
 export async function getClientDebtSummary(
   userId: string,
-  clientId: string
+  clientId: string,
+  scopeUser?: ScopeUser
 ): Promise<ClientDebtSummary | null> {
+  const clientWhere = scopeUser
+    ? buildClientWhere(scopeUser)
+    : { therapistId: userId };
   const client = await prisma.client.findFirst({
-    where: { id: clientId, therapistId: userId },
+    where: { AND: [{ id: clientId }, clientWhere] },
     select: { id: true, name: true, email: true, creditBalance: true },
   });
   if (!client) return null;
@@ -390,10 +393,14 @@ export async function getClientDebtSummary(
 // ================================================================
 
 export async function getAllClientsDebtSummary(
-  userId: string
+  userId: string,
+  scopeUser?: ScopeUser
 ): Promise<AllClientsDebtItem[]> {
+  const clientWhere = scopeUser
+    ? buildClientWhere(scopeUser)
+    : { therapistId: userId };
   const clients = await prisma.client.findMany({
-    where: { therapistId: userId, status: { not: "ARCHIVED" } },
+    where: { AND: [clientWhere, { status: { not: "ARCHIVED" } }] },
     select: {
       id: true,
       firstName: true,
