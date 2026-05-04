@@ -52,9 +52,14 @@ async function main() {
   console.log(`  Tipul DB Backup → ${outFile}`);
   console.log(`========================================\n`);
 
+  // L6: rejectUnauthorized:true ב-default (אם ה-DB מציע self-signed cert,
+  // אפשר לעקוף עם DANGEROUS_DISABLE_SSL_VERIFY=true — לא מומלץ אלא ל-debug).
+  const allowInsecure = process.env.DANGEROUS_DISABLE_SSL_VERIFY === "true";
   const client = new Client({
     connectionString,
-    ssl: { rejectUnauthorized: false },
+    ssl: allowInsecure
+      ? { rejectUnauthorized: false }
+      : { rejectUnauthorized: true },
   });
 
   await client.connect();

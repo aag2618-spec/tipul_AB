@@ -1,6 +1,9 @@
 import { NextResponse } from "next/server";
 import type { NextRequest } from "next/server";
 import { getToken } from "next-auth/jwt";
+// M3 — מאלץ הרצת validateEnv() ב-startup (env.ts קורא לזה ב-import time).
+// בלי import זה, ה-validation היה dead code.
+import "@/lib/env";
 import {
   checkRateLimit,
   getAdminRateLimitTier,

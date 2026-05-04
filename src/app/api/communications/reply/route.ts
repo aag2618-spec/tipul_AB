@@ -6,6 +6,9 @@ import fs from "fs/promises";
 import { logger } from "@/lib/logger";
 import { requireAuth } from "@/lib/api-auth";
 import { isShabbatOrYomTov } from "@/lib/shabbat";
+import { validateFileBuffer } from "@/lib/file-validation";
+
+const MAX_ATTACHMENTS_PER_REPLY = 5;
 
 export const dynamic = "force-dynamic";
 
@@ -41,16 +44,28 @@ export async function POST(request: NextRequest) {
       communicationLogId = formData.get("communicationLogId") as string;
       replyContent = formData.get("replyContent") as string;
       
-      // Process file attachments
+      // H5: validate כל attachment — count + size + MIME + magic-bytes.
       const files = formData.getAll("attachments") as File[];
-      for (const file of files) {
-        if (file && file.size > 0) {
-          const buffer = Buffer.from(await file.arrayBuffer());
-          resendAttachments.push({
-            filename: file.name,
-            content: buffer,
-          });
+      const realFiles = files.filter((f) => f && f.size > 0);
+      if (realFiles.length > MAX_ATTACHMENTS_PER_REPLY) {
+        return NextResponse.json(
+          { message: `מותר עד ${MAX_ATTACHMENTS_PER_REPLY} קבצים` },
+          { status: 400 }
+        );
+      }
+      for (const file of realFiles) {
+        const buffer = Buffer.from(await file.arrayBuffer());
+        const validation = validateFileBuffer(buffer, file.type, "attachment");
+        if (!validation.ok) {
+          return NextResponse.json(
+            { message: `${file.name}: ${validation.error}` },
+            { status: 400 }
+          );
         }
+        resendAttachments.push({
+          filename: file.name,
+          content: buffer,
+        });
       }
     } else {
       const body = await request.json();

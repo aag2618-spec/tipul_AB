@@ -7,6 +7,7 @@ import {
   buildClientWhere,
   canSecretaryAccessModel,
 } from "@/lib/scope";
+import { validateBase64Size, validateFileBuffer } from "@/lib/file-validation";
 
 export const dynamic = "force-dynamic";
 
@@ -85,11 +86,17 @@ export async function POST(request: NextRequest) {
     const body = await request.json();
     const { audioData, mimeType, durationSeconds, type, clientId, sessionId } = body;
 
-    if (!audioData) {
+    if (!audioData || typeof audioData !== "string") {
       return NextResponse.json(
         { message: "לא נשלח קובץ אודיו" },
         { status: 400 }
       );
+    }
+
+    // H5: בדיקת גודל ל-base64 לפני המרה ל-Buffer (חוסך זיכרון ב-DoS).
+    const sizeCheck = validateBase64Size(audioData, "recording");
+    if (!sizeCheck.ok) {
+      return NextResponse.json({ message: sizeCheck.error }, { status: 413 });
     }
 
     // Verify client belongs to therapist (or visible scope)
@@ -108,6 +115,13 @@ export async function POST(request: NextRequest) {
 
     // Convert base64 to buffer
     const buffer = Buffer.from(audioData, "base64");
+
+    // H5: validate magic-bytes + MIME של ה-buffer.
+    const declaredMime = typeof mimeType === "string" && mimeType ? mimeType : "audio/webm";
+    const validation = validateFileBuffer(buffer, declaredMime, "recording");
+    if (!validation.ok) {
+      return NextResponse.json({ message: validation.error }, { status: 400 });
+    }
 
     // Determine file extension from mime type
     let extension = "webm";

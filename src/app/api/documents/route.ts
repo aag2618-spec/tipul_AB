@@ -6,6 +6,7 @@ import { join } from "path";
 import { v4 as uuidv4 } from "uuid";
 import { logger } from "@/lib/logger";
 import { loadScopeUser, buildClientWhere } from "@/lib/scope";
+import { validateFileBuffer } from "@/lib/file-validation";
 
 export const dynamic = "force-dynamic";
 
@@ -75,6 +76,13 @@ export async function POST(request: NextRequest) {
       );
     }
 
+    // H5: validate size + MIME + magic-bytes לפני שמירה לדיסק.
+    const fileBuffer = Buffer.from(await file.arrayBuffer());
+    const validation = validateFileBuffer(fileBuffer, file.type, "document");
+    if (!validation.ok) {
+      return NextResponse.json({ message: validation.error }, { status: 400 });
+    }
+
     const scopeUser = await loadScopeUser(userId);
     const clientWhere = buildClientWhere(scopeUser);
 
@@ -99,8 +107,7 @@ export async function POST(request: NextRequest) {
     await mkdir(uploadsDir, { recursive: true });
 
     const filePath = join(uploadsDir, fileName);
-    const buffer = Buffer.from(await file.arrayBuffer());
-    await writeFile(filePath, buffer);
+    await writeFile(filePath, fileBuffer);
 
     // Validate document type
     const validTypes = ["CONSENT_FORM", "INTAKE_FORM", "TREATMENT_PLAN", "REPORT", "OTHER"];
