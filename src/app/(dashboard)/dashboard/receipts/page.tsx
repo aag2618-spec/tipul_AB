@@ -602,37 +602,27 @@ export default function ReceiptsPage() {
                         const cardcomLink = cardcomInv?.viewUrl ?? cardcomInv?.pdfUrl ?? payment.receiptUrl;
 
                         if (isCardcom) {
-                          // Cardcom is the legal issuer. Show "צפה" only when
-                          // a real URL is available; otherwise the receipt is
-                          // in the customer's email (and Cardcom's
-                          // Documents/Search API isn't always reachable from
-                          // sandbox terminals — see /api/payments/{id}/
-                          // cardcom-receipt-pdf for the lazy-resolve fallback
-                          // that works on real production terminals).
+                          // Cardcom is the legal issuer. When pdfUrl/viewUrl
+                          // are cached locally — link directly. Otherwise hand
+                          // the click to /api/payments/{id}/cardcom-receipt-pdf,
+                          // which lazy-resolves via /Documents/CreateDocumentUrl
+                          // (Cardcom KB 25565747889682) and caches the result.
+                          const href = cardcomLink ?? `/api/payments/${payment.id}/cardcom-receipt-pdf`;
                           return (
                             <>
                               <Badge variant="outline" className="text-xs border-emerald-300 text-emerald-700">
                                 Cardcom
                               </Badge>
-                              {cardcomLink ? (
-                                <a
-                                  href={cardcomLink}
-                                  target="_blank"
-                                  rel="noopener noreferrer"
-                                  className="inline-flex items-center gap-1 text-teal-600 hover:text-teal-700 font-medium text-xs"
-                                  title="פתח קבלה ב-Cardcom"
-                                >
-                                  <ExternalLink className="h-3.5 w-3.5" />
-                                  צפה
-                                </a>
-                              ) : (
-                                <span
-                                  className="text-xs text-muted-foreground"
-                                  title="ה-PDF נשלח ללקוח במייל ע״י Cardcom — אפשר לצפות בו דרך המייל או דרך לוח Cardcom"
-                                >
-                                  נשלחה במייל
-                                </span>
-                              )}
+                              <a
+                                href={href}
+                                target="_blank"
+                                rel="noopener noreferrer"
+                                className="inline-flex items-center gap-1 text-teal-600 hover:text-teal-700 font-medium text-xs"
+                                title="פתח קבלה ב-Cardcom"
+                              >
+                                <ExternalLink className="h-3.5 w-3.5" />
+                                צפה
+                              </a>
                             </>
                           );
                         }
