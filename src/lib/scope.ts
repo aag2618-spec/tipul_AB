@@ -43,6 +43,7 @@ export type SecretaryPermissions = {
   canCreateClient?: boolean; // יצירת מטופל חדש
   canViewDebts?: boolean; // צפייה בחובות
   canViewStats?: boolean; // צפייה בסטטיסטיקות עסקיות
+  canViewConsentForms?: boolean; // צפייה בטפסי הסכמה (אדמיניסטרטיבי)
 };
 
 // ============================================================================

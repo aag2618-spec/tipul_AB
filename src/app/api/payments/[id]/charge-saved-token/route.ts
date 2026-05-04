@@ -16,6 +16,7 @@ import { scrubCardcomMessage } from "@/lib/cardcom/verify-webhook";
 import type { CardcomDocumentType } from "@/lib/cardcom/types";
 import {
   buildPaymentWhere,
+  isClinicOwner,
   isSecretary,
   loadScopeUser,
   secretaryCan,
@@ -135,12 +136,88 @@ export async function POST(
     );
   }
 
+  // ── Load saved token + ownership ────────────────────────────
+  // נטען לפני הבדיקות העסקיות כי `chargingTherapistId` (בעל הטוקן) הוא זה
+  // שהמסוף שלו ב-Cardcom יבצע את הסליקה ושעל שמו תוצא הקבלה — לא בהכרח
+  // המשתמש המבצע (`userId`). בלי זה, בעלת קליניקה שמחייבת טוקן של מטפלת
+  // אחרת תקבל כשל ב-Cardcom (טוקן לא שייך למסוף) או תפיק קבלה משם העסק
+  // הלא-נכון (הפרת חוק חשבוניות).
+  const savedToken = await prisma.savedCardToken.findUnique({
+    where: { id: body.savedCardTokenId },
+  });
+  if (!savedToken || !savedToken.isActive || savedToken.deletedAt !== null) {
+    return NextResponse.json(
+      { message: "כרטיס שמור לא נמצא או לא פעיל" },
+      { status: 404 }
+    );
+  }
+  // savedToken.userId הוא nullable בסכמה (ADMIN tenant יכול להיות בלי בעלים).
+  // בזרימה הזאת אנחנו דורשים USER tenant + token-owner — defensive guard
+  // שמייצב את הטיפוס לכל המשך הקוד וגם דוחה שורות פגומות.
+  if (!savedToken.userId) {
+    logger.error("[user/charge-saved-token] saved token missing userId", {
+      savedTokenId: savedToken.id,
+    });
+    return NextResponse.json(
+      { message: "שגיאה פנימית בכרטיס השמור" },
+      { status: 500 }
+    );
+  }
+  // בעלות על הטוקן:
+  //   • מטפל עצמאי / מטפלת בקליניקה — חייבים להיות בעלי הטוקן.
+  //   • בעל/ת קליניקה — מותר לחייב גם טוקן ששמרה מטפלת אחרת באותו ארגון
+  //     (לסגירת חובות אם מטפלת עזבה / לא זמינה). נבדוק שמשתמש שמר-הטוקן
+  //     עדיין שייך לאותו organizationId.
+  if (savedToken.userId !== userId) {
+    if (isClinicOwner(scopeUser) && scopeUser.organizationId) {
+      const tokenOwner = await prisma.user.findUnique({
+        where: { id: savedToken.userId },
+        select: { organizationId: true },
+      });
+      if ((tokenOwner?.organizationId ?? null) !== scopeUser.organizationId) {
+        return NextResponse.json(
+          { message: "הכרטיס לא שייך לקליניקה שלך" },
+          { status: 403 }
+        );
+      }
+    } else {
+      return NextResponse.json(
+        { message: "הכרטיס שמור אצל מטפל אחר" },
+        { status: 403 }
+      );
+    }
+  }
+  if (
+    savedToken.tenant !== "USER" ||
+    savedToken.clientId !== payment.client.id
+  ) {
+    return NextResponse.json(
+      { message: "הכרטיס לא שייך ללקוח זה" },
+      { status: 403 }
+    );
+  }
+
+  // Defensive: token expiration
+  const now = new Date();
+  const tokenMonthEnd = new Date(savedToken.expiryYear, savedToken.expiryMonth, 0, 23, 59, 59);
+  if (tokenMonthEnd < now) {
+    return NextResponse.json(
+      { message: "תוקף הכרטיס השמור פג. יש לבקש מהלקוח כרטיס חדש." },
+      { status: 409 }
+    );
+  }
+
+  // המטפל שמחייב — בעל הטוקן. כל הולידציות העסקיות, פרטי הקבלה,
+  // ה-Cardcom client, ו-cardcomTransaction.userId יתבצעו על שמו.
+  const chargingTherapistId: string = savedToken.userId;
+  const isCrossTherapistCharge = chargingTherapistId !== userId;
+
   // ── Therapist legal/business validations + documentType ─────
   // CRITICAL: בלי הבדיקות האלה ובלי בלוק Document בחיוב הטוקן —
   // ה-route חייב כרטיס בלי להפיק קבלה כלל (הפרת חוק חשבוניות
   // ישראל 2024). מקביל בדיוק ל-charge-cardcom.
   const therapist = await prisma.user.findUnique({
-    where: { id: userId },
+    where: { id: chargingTherapistId },
     select: {
       businessType: true,
       businessIdNumber: true,
@@ -158,11 +235,16 @@ export async function POST(
         type: "SYSTEM",
         priority: "HIGH",
         status: "PENDING",
-        title: `[cardcom] חיוב כרטיס שמור נחסם — חסר ת.ז./מספר עוסק אצל ${therapist.name ?? userId}`,
+        title: `[cardcom] חיוב כרטיס שמור נחסם — חסר ת.ז./מספר עוסק אצל ${therapist.name ?? chargingTherapistId}`,
         message: `מטפל מסוג ${therapist.businessType} ניסה לחייב כרטיס שמור בלי שהוזן businessIdNumber. הקריאה נחסמה כדי למנוע הנפקת מסמך לא חוקי.`,
         actionRequired: "פנה למטפל ובקש להזין ת.ז./מספר עוסק בהגדרות העסק",
-        userId,
-        metadata: { paymentId, therapistId: userId, businessType: therapist.businessType },
+        userId: chargingTherapistId,
+        metadata: {
+          paymentId,
+          therapistId: chargingTherapistId,
+          businessType: therapist.businessType,
+          ...(isCrossTherapistCharge ? { actorUserId: userId } : {}),
+        },
       },
     });
     return NextResponse.json(
@@ -196,38 +278,6 @@ export async function POST(
     select: { name: true, email: true },
   });
 
-  // ── Load saved token + ownership ────────────────────────────
-  const savedToken = await prisma.savedCardToken.findUnique({
-    where: { id: body.savedCardTokenId },
-  });
-  if (!savedToken || !savedToken.isActive || savedToken.deletedAt !== null) {
-    return NextResponse.json(
-      { message: "כרטיס שמור לא נמצא או לא פעיל" },
-      { status: 404 }
-    );
-  }
-  // Strict tenant + ownership: USER tenant, this therapist, and the same client.
-  if (
-    savedToken.tenant !== "USER" ||
-    savedToken.userId !== userId ||
-    savedToken.clientId !== payment.client.id
-  ) {
-    return NextResponse.json(
-      { message: "הכרטיס לא שייך ללקוח זה" },
-      { status: 403 }
-    );
-  }
-
-  // Defensive: token expiration
-  const now = new Date();
-  const tokenMonthEnd = new Date(savedToken.expiryYear, savedToken.expiryMonth, 0, 23, 59, 59);
-  if (tokenMonthEnd < now) {
-    return NextResponse.json(
-      { message: "תוקף הכרטיס השמור פג. יש לבקש מהלקוח כרטיס חדש." },
-      { status: 409 }
-    );
-  }
-
   try {
     // ⚠️ CRITICAL: prevent concurrent charges on the same Payment.
     // Two parallel POSTs would otherwise both pass the status check above
@@ -258,7 +308,7 @@ export async function POST(
           return tx.cardcomTransaction.create({
             data: {
               tenant: "USER",
-              userId,
+              userId: chargingTherapistId,
               paymentId: payment.id,
               amount: payment.amount,
               currency: "ILS",
@@ -300,7 +350,7 @@ export async function POST(
 
     let cardcomResult;
     try {
-      const client = await getUserCardcomClient(userId);
+      const client = await getUserCardcomClient(chargingTherapistId);
       if (!client) {
         await prisma.cardcomTransaction.update({
           where: { id: transaction.id },
@@ -366,6 +416,11 @@ export async function POST(
           tokenLast4: savedToken.cardLast4,
           responseCode: cardcomResult.responseCode,
           transactionId: transaction.id,
+          // למקרה שבעלת קליניקה חייבה טוקן ששמרה מטפלת אחרת באותו ארגון —
+          // נשמר בנפרד את המבצע (`actorUserId`) ובעל הטוקן (`tokenOwnerId`).
+          ...(isCrossTherapistCharge
+            ? { actorUserId: userId, tokenOwnerId: chargingTherapistId }
+            : {}),
         },
       },
       async (tx) => {
@@ -435,13 +490,14 @@ export async function POST(
               title: `[cardcom-saved-token] כרטיס שמור חויב בלי שהופקה קבלה אוטומטית`,
               message: `החיוב בוצע בהצלחה (₪${Number(payment.amount)}, אישור ${cardcomResult.approvalNumber}) אבל Cardcom לא החזיר DocumentInfo. יש להפיק קבלה ידנית מהר ככל הניתן (חוק חשבוניות ישראל 2024).`,
               actionRequired: "הפק קבלה ידנית עבור התשלום הזה ועדכן את receiptNumber",
-              userId,
+              userId: chargingTherapistId,
               metadata: {
                 paymentId: payment.id,
                 transactionId: transaction.id,
                 cardcomTransactionId: cardcomResult.transactionId,
                 amount: Number(payment.amount),
                 clientName: payment.client.name,
+                ...(isCrossTherapistCharge ? { actorUserId: userId } : {}),
               },
             },
           });

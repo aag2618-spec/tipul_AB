@@ -3,7 +3,7 @@ import prisma from "@/lib/prisma";
 import { logger } from "@/lib/logger";
 
 import { requireAuth } from "@/lib/api-auth";
-import { loadScopeUser, buildClientWhere } from "@/lib/scope";
+import { loadScopeUser, buildClientWhere, isSecretary, secretaryCan } from "@/lib/scope";
 
 export const dynamic = "force-dynamic";
 
@@ -18,13 +18,19 @@ export async function GET(request: Request) {
     const isTemplate = searchParams.get("isTemplate") === "true";
 
     const scopeUser = await loadScopeUser(userId);
+    // גייט מזכירה — בעלת הקליניקה מגדירה ב-/clinic-admin/members אם
+    // המזכירה רואה טפסי הסכמה. ברירת מחדל בטוחה: false.
+    if (isSecretary(scopeUser) && !secretaryCan(scopeUser, "canViewConsentForms")) {
+      return NextResponse.json(
+        { message: "אין הרשאה לצפייה בטפסי הסכמה" },
+        { status: 403 }
+      );
+    }
     const clientWhere = buildClientWhere(scopeUser);
     const ownershipFilter = scopeUser.organizationId
       ? { organizationId: scopeUser.organizationId }
       : { therapistId: userId };
 
-    // TODO(scope): סיווג ConsentForm לפי תוכן (אדמיניסטרטיבי vs קליני) —
-    // כרגע מזכירה רואה את כל הטפסים בארגון; שיפור אפשרי: חסימה לפי type.
     const where: Record<string, unknown> = {
       OR: [
         { client: clientWhere },
@@ -68,6 +74,12 @@ export async function POST(request: Request) {
     const { userId, session } = auth;
 
     const scopeUser = await loadScopeUser(userId);
+    if (isSecretary(scopeUser) && !secretaryCan(scopeUser, "canViewConsentForms")) {
+      return NextResponse.json(
+        { message: "אין הרשאה ליצירת טפסי הסכמה" },
+        { status: 403 }
+      );
+    }
     const clientWhere = buildClientWhere(scopeUser);
 
     const body = await request.json();

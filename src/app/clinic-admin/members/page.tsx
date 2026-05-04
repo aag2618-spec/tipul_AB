@@ -55,6 +55,7 @@ interface SecretaryPermissions {
   canCreateClient?: boolean;
   canViewDebts?: boolean;
   canViewStats?: boolean;
+  canViewConsentForms?: boolean;
 }
 
 interface Member {
@@ -82,6 +83,7 @@ const SECRETARY_PERMS: { key: keyof SecretaryPermissions; label: string; help: s
   { key: "canIssueReceipts", label: "הוצאת קבלות", help: "Cardcom — קבלה דיגיטלית" },
   { key: "canViewDebts", label: "צפייה בחובות", help: "מי לא שילם" },
   { key: "canViewStats", label: "סטטיסטיקות עסק", help: "דוחות ביצועים" },
+  { key: "canViewConsentForms", label: "צפייה בטפסי הסכמה", help: "טפסי קבלה ותוכניות (אדמיניסטרטיבי)" },
 ];
 
 const DEFAULT_SECRETARY_PERMS: SecretaryPermissions = {
@@ -91,6 +93,7 @@ const DEFAULT_SECRETARY_PERMS: SecretaryPermissions = {
   canCreateClient: true,
   canViewDebts: false,
   canViewStats: false,
+  canViewConsentForms: false,
 };
 
 function MemberRoleBadge({ role }: { role: ClinicRole | null }) {
