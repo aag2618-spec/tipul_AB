@@ -46,6 +46,8 @@ import { sanitizeChargebackPayload } from "@/lib/cardcom/sanitize";
 import { hashCardcomToken } from "@/lib/cardcom/token-hash";
 import { getSiteSetting } from "@/lib/site-settings";
 import type { CardcomWebhookPayload } from "@/lib/cardcom/types";
+import { sendEmail } from "@/lib/resend";
+import { escapeHtml } from "@/lib/email-utils";
 
 // Default to the standard Israeli VAT rate (18%) when SiteSetting is unset.
 // Allows a future legislated change to be a single DB update instead of a deploy.
@@ -428,6 +430,23 @@ async function processUserWebhook(userId: string, payload: CardcomWebhookPayload
         });
       }
 
+      // התראת פעמון למטפל על תשלום נכנס — תמיד עם userId המאומת מ-DB
+      // (אותו דפוס כמו ב-Meshulam webhook). רק על תשלום חד-פעמי, לא על
+      // טוקנים בלי payment.
+      if (transaction.payment) {
+        const clientName = transaction.payment.client?.name ?? "מטופל";
+        const amountStr = `₪${Number(transaction.amount).toLocaleString("he-IL")}`;
+        await tx.notification.create({
+          data: {
+            userId,
+            type: "PAYMENT_REMINDER",
+            title: "💳 תשלום התקבל",
+            content: `התקבל תשלום בסך ${amountStr} מ${clientName}`,
+            status: "PENDING",
+          },
+        });
+      }
+
       // Save token for the client (if Cardcom returned one) — only with a real expiry.
       const expMM = payload.TranzactionInfo?.CardExpirationMM;
       const expYY = payload.TranzactionInfo?.CardExpirationYY;
@@ -602,4 +621,39 @@ async function processUserWebhook(userId: string, payload: CardcomWebhookPayload
       }
     }
   );
+
+  // מייל למטפל על תשלום נכנס — best-effort, מחוץ לטרנזקציה כדי שכשל
+  // בשליחה לא יבטל את עדכון התשלום. נשלח רק על success + payment קיים +
+  // למטפל יש מייל. נחסם אוטומטית בשבת ע״י sendEmail.
+  if (success && therapist?.email && transaction.payment) {
+    const clientName = transaction.payment.client?.name ?? "מטופל";
+    const amountStr = `₪${Number(transaction.amount).toLocaleString("he-IL")}`;
+    const therapistName = therapist.name ?? "";
+    const safeClient = escapeHtml(clientName);
+    const safeAmount = escapeHtml(amountStr);
+    const safeTherapist = escapeHtml(therapistName);
+
+    void sendEmail({
+      to: therapist.email,
+      subject: `תשלום התקבל: ${amountStr} מ${clientName}`,
+      html: `
+        <div dir="rtl" style="font-family: Arial, sans-serif; max-width: 600px; margin: 0 auto; padding: 20px;">
+          <h2 style="color: #0f766e;">💳 תשלום התקבל</h2>
+          <p>שלום ${safeTherapist},</p>
+          <p>התקבל תשלום בסך <strong>${safeAmount}</strong> מ-${safeClient} דרך Cardcom.</p>
+          <p style="color: #666; font-size: 14px; margin-top: 30px;">
+            ניתן לצפות בקבלה ובפרטי התשלום במערכת תחת "תשלומים" או "קבלות".
+          </p>
+          <p style="color: #666; font-size: 12px; margin-top: 40px;">
+            הודעה זו נשלחה אוטומטית. אין צורך להשיב.
+          </p>
+        </div>
+      `,
+    }).catch((err) => {
+      logger.error("[Cardcom User Webhook] failed to send therapist payment email", {
+        transactionId: transaction.id,
+        error: err instanceof Error ? err.message : String(err),
+      });
+    });
+  }
 }
