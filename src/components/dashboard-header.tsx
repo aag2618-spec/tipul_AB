@@ -2,7 +2,7 @@
 
 import { useState, useEffect, useCallback } from "react";
 import { useRouter, usePathname } from "next/navigation";
-import { signOut } from "next-auth/react";
+import { signOut, useSession } from "next-auth/react";
 import { SidebarTrigger } from "@/components/ui/sidebar";
 import { Button } from "@/components/ui/button";
 import {
@@ -15,7 +15,7 @@ import {
 } from "@/components/ui/dropdown-menu";
 import { Avatar, AvatarFallback, AvatarImage } from "@/components/ui/avatar";
 import { Badge } from "@/components/ui/badge";
-import { Bell, LogOut, Settings, User, XCircle, Mail, Calendar, X, ListTodo, Sun, Moon, CreditCard, Info, AlertTriangle, CheckCircle, Sparkles } from "lucide-react";
+import { Bell, LogOut, Settings, User, XCircle, Mail, Calendar, X, ListTodo, Sun, Moon, CreditCard, Info, AlertTriangle, CheckCircle, Sparkles, Building2 } from "lucide-react";
 import Link from "next/link";
 import { getNotificationIconInfo, extractBookingInfo as extractBookingInfoUtil } from "@/lib/notification-utils";
 
@@ -55,6 +55,9 @@ interface DashboardHeaderProps {
 export function DashboardHeader({ user }: DashboardHeaderProps) {
   const router = useRouter();
   const pathname = usePathname();
+  const { data: session } = useSession();
+  const isClinicOwner =
+    session?.user?.role === "CLINIC_OWNER" || session?.user?.role === "ADMIN";
   const [notifications, setNotifications] = useState<Notification[]>([]);
   const [unreadCount, setUnreadCount] = useState(0);
   const [announcements, setAnnouncements] = useState<SystemAnnouncement[]>([]);
@@ -314,11 +317,19 @@ export function DashboardHeader({ user }: DashboardHeaderProps) {
             </DropdownMenuLabel>
             <DropdownMenuSeparator />
             <DropdownMenuItem asChild>
-              <Link href="/dashboard/settings/profile" className="cursor-pointer">
+              <Link href="/dashboard/settings?tab=profile" className="cursor-pointer">
                 <User className="ml-2 h-4 w-4" />
                 <span>פרופיל</span>
               </Link>
             </DropdownMenuItem>
+            {isClinicOwner && (
+              <DropdownMenuItem asChild>
+                <Link href="/clinic-admin" className="cursor-pointer">
+                  <Building2 className="ml-2 h-4 w-4" />
+                  <span>ניהול הקליניקה</span>
+                </Link>
+              </DropdownMenuItem>
+            )}
             <DropdownMenuItem asChild>
               <Link href="/dashboard/settings" className="cursor-pointer">
                 <Settings className="ml-2 h-4 w-4" />

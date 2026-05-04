@@ -35,6 +35,7 @@ import {
   CreditCard,
   BookOpen,
   Headphones,
+  Building2,
 } from "lucide-react";
 
 interface AppSidebarProps {
@@ -160,6 +161,8 @@ export function AppSidebar({ user }: AppSidebarProps) {
   const pathname = usePathname();
   const { data: session } = useSession();
   const isAdmin = session?.user?.role === "ADMIN" || session?.user?.role === "MANAGER";
+  const isClinicOwner =
+    session?.user?.role === "CLINIC_OWNER" || session?.user?.role === "ADMIN";
 
   const isActive = (href: string) => {
     if (href === "/dashboard") {
@@ -305,6 +308,32 @@ export function AppSidebar({ user }: AppSidebarProps) {
           </SidebarGroupContent>
         </SidebarGroup>
 
+        {/* Clinic Admin Section — בעלי קליניקה (וגם ADMIN לבדיקות) */}
+        {isClinicOwner && (
+          <SidebarGroup>
+            <SidebarGroupLabel className="text-emerald-600">ניהול קליניקה</SidebarGroupLabel>
+            <SidebarGroupContent>
+              <SidebarMenu>
+                <SidebarMenuItem>
+                  <SidebarMenuButton
+                    asChild
+                    isActive={pathname.startsWith("/clinic-admin")}
+                    tooltip="לוח הבקרה של הקליניקה"
+                  >
+                    <Link
+                      href="/clinic-admin"
+                      className="text-emerald-600 hover:text-emerald-500"
+                    >
+                      <Building2 className="h-4 w-4" />
+                      <span>הקליניקה שלי</span>
+                    </Link>
+                  </SidebarMenuButton>
+                </SidebarMenuItem>
+              </SidebarMenu>
+            </SidebarGroupContent>
+          </SidebarGroup>
+        )}
+
         {/* Admin Section - Only visible to admins */}
         {isAdmin && (
           <SidebarGroup>
@@ -333,7 +362,7 @@ export function AppSidebar({ user }: AppSidebarProps) {
         <SidebarMenu>
           <SidebarMenuItem>
             <SidebarMenuButton asChild>
-              <Link href="/dashboard/settings/profile" className="flex items-center gap-3">
+              <Link href="/dashboard/settings?tab=profile" className="flex items-center gap-3">
                 <Avatar className="h-8 w-8">
                   <AvatarImage src={user.image || undefined} alt={user.name || "User"} />
                   <AvatarFallback className="bg-primary/10 text-primary text-sm">
