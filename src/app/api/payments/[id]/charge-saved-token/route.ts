@@ -21,6 +21,7 @@ import {
   loadScopeUser,
   secretaryCan,
 } from "@/lib/scope";
+import { isShabbatOrYomTov } from "@/lib/shabbat";
 
 export const dynamic = "force-dynamic";
 
@@ -35,6 +36,15 @@ export async function POST(
   const auth = await requireAuth();
   if ("error" in auth) return auth.error;
   const { userId, session } = auth;
+
+  // חסימה הלכתית — חיוב מיידי בכרטיס שמור הוא פעולה חמורה יותר מקישור,
+  // כי המטפל הוא היוזם הישיר (לא המתנה ללחיצה של הלקוח). חוסמים בשבת/יו״ט.
+  if (isShabbatOrYomTov()) {
+    return NextResponse.json(
+      { message: "לא ניתן לחייב כרטיס שמור בשבת ויום טוב" },
+      { status: 403 }
+    );
+  }
 
   const { id: paymentId } = await context.params;
 
