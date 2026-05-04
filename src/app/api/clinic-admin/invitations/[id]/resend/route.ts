@@ -5,6 +5,7 @@ import { requireAuth } from "@/lib/api-auth";
 import { withAudit } from "@/lib/audit";
 import { sendEmail } from "@/lib/resend";
 import { sendSMS } from "@/lib/sms";
+import { checkRateLimit, rateLimitResponse } from "@/lib/rate-limit";
 import { generateOtp, hashOtp, isExpired } from "@/lib/clinic-invitations";
 import {
   createClinicInviteEmail,
@@ -13,7 +14,12 @@ import {
 
 export const dynamic = "force-dynamic";
 
-const RESEND_COOLDOWN_MS = 60 * 1000; // דקה אחת
+const RESEND_COOLDOWN_MS = 60 * 1000; // דקה אחת ל-invitation בודד.
+
+// גג ארגוני: 60 resends לשעה לכל קליניקה — מונע SMS-flooding גם אם owner session
+// נחטף + מסך עם 100 הזמנות פעילות. עקבי עם הרציונל של ADMIN_INVITE_RATE_LIMIT
+// ב-route הראשי (30 הזמנות חדשות לשעה).
+const RESEND_ORG_RATE_LIMIT = { maxRequests: 60, windowMs: 60 * 60 * 1000 };
 
 async function requireClinicOwner() {
   const auth = await requireAuth();
@@ -65,6 +71,13 @@ export async function POST(
     const auth = await requireClinicOwner();
     if ("error" in auth) return auth.error;
     const { organizationId, userId, session, inviterName } = auth;
+
+    // Per-org rate limit — מונע ספאם של SMS גם אם session נחטף.
+    const rl = checkRateLimit(
+      `clinic-invite-resend:${organizationId}`,
+      RESEND_ORG_RATE_LIMIT
+    );
+    if (!rl.allowed) return rateLimitResponse(rl);
 
     const { id } = await params;
 
@@ -119,6 +132,8 @@ export async function POST(
     // שיהיה לו זמן.
     const refreshedExpiresAt = new Date(Date.now() + 48 * 60 * 60 * 1000);
 
+    // updateMany עם guard `status='PENDING'` — race-safe על revoke/accept מקבילים.
+    let resentOk = false;
     await withAudit(
       { kind: "user", session },
       {
@@ -132,8 +147,8 @@ export async function POST(
         },
       },
       async (tx) => {
-        return tx.clinicInvitation.update({
-          where: { id },
+        const result = await tx.clinicInvitation.updateMany({
+          where: { id, status: "PENDING" },
           data: {
             lastResentAt: new Date(),
             smsOtpHash: newOtpHash,
@@ -141,8 +156,17 @@ export async function POST(
             expiresAt: refreshedExpiresAt,
           },
         });
+        resentOk = result.count > 0;
+        return result;
       }
     );
+
+    if (!resentOk) {
+      return NextResponse.json(
+        { message: "ההזמנה כבר אינה פעילה (התקבלה/בוטלה במקביל)" },
+        { status: 409 }
+      );
+    }
 
     const baseUrl = process.env.NEXTAUTH_URL || "http://localhost:3000";
     const inviteUrl = `${baseUrl}/invite/${invitation.token}`;

@@ -13,7 +13,7 @@ import {
   OTP_MAX_ATTEMPTS,
   verifyOtp,
 } from "@/lib/clinic-invitations";
-import type { Prisma, SubscriptionStatus } from "@prisma/client";
+import type { SubscriptionStatus } from "@prisma/client";
 import { TRIAL_DAYS, TRIAL_AI_TIER } from "@/lib/constants";
 
 export const dynamic = "force-dynamic";
@@ -190,10 +190,14 @@ export async function POST(
 
     if (existingUser) {
       // ─── משתמש קיים: re-auth ───
+      // השוואה lowercase משני הצדדים — defense-in-depth:
+      // POST invitations כבר עושה toLowerCase, אבל אם בעתיד תווסף יצירה ממקום אחר
+      // בלי normalization, לא נעקוף את ה-re-auth בלי כוונה.
       const session = await getServerSession(authOptions);
       if (
         !session?.user?.email ||
-        session.user.email.toLowerCase() !== invitation.email
+        session.user.email.toLowerCase() !==
+          invitation.email.toLowerCase()
       ) {
         return NextResponse.json(
           {
@@ -506,6 +510,3 @@ class HandledError extends Error {
   }
 }
 
-// silence unused imports lint: Prisma type is referenced for future B-stage tx parameter typing.
-type _PrismaTx = Prisma.TransactionClient;
-void (null as unknown as _PrismaTx);

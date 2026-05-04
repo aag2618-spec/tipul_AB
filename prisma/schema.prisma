@@ -252,6 +252,13 @@ model User {
   customContractsCreated   CustomContract[]     @relation("ContractCreator")
   clientTransfersPerformed ClientTransferLog[]  @relation("TransferPerformer")
   departureInitiated       TherapistDeparture[] @relation("DepartingTherapist")
+
+  // Clinic invitations — inverse relations.
+  // createdBy: Restrict — אסור למחוק owner עם הזמנות פעילות (forensics).
+  // acceptedBy/revokedBy: SetNull — מחיקת user שומרת את audit trail של ההזמנה.
+  clinicInvitationsCreated  ClinicInvitation[] @relation("ClinicInvitationsCreated")
+  clinicInvitationsAccepted ClinicInvitation[] @relation("ClinicInvitationsAccepted")
+  clinicInvitationsRevoked  ClinicInvitation[] @relation("ClinicInvitationsRevoked")
 }
 
 // ==================== AI Tiers ====================
@@ -2595,7 +2602,8 @@ model ClientTransferLog {
 //   3. המוזמן/ת לוחץ/ת על הקישור → אם user קיים: re-auth + OTP; אם לא: רישום + OTP.
 //   4. accept מאחד את ה-User לארגון, ובהתאם ל-billingPaidByClinic — משעה את המנוי שלו.
 //
-// טוקן: cuid (~190 ביט) — סטטיסטית בלתי-ניחוש. expiresAt = now + 48h.
+// טוקן: 32 בייטים רנדומליים ב-base64url = 43 תווים, 256 ביט אנטרופיה
+// (חזק יותר מ-cuid). expiresAt = now + 48h.
 // OTP: 6 ספרות, hash ב-bcrypt(10). max 5 ניסיונות → REVOKED אוטומטית.
 model ClinicInvitation {
   id             String       @id @default(cuid())
@@ -2612,22 +2620,32 @@ model ClinicInvitation {
   // Shape זהה ל-User.secretaryPermissions.
   secretaryPermissions Json?
 
-  token          String  @unique // cuid (190 ביט)
+  token          String  @unique // 32 בייטים base64url = 256 ביט
   smsOtpHash     String? // bcrypt(10) של 6 ספרות; null אם phone לא ניתן
   smsOtpAttempts Int     @default(0)
 
-  status           InvitationStatus @default(PENDING)
+  status InvitationStatus @default(PENDING)
+
+  // FK relations: מונע references מתים אחרי מחיקת user.
+  // createdBy: Restrict — אסור למחוק owner שיש לו הזמנות פעילות. מאלץ ניקוי מסודר.
+  // acceptedBy/revokedBy: SetNull — אם user נמחק, audit הזמנה נשמר ללא reference מת.
   createdById      String
+  createdBy        User      @relation("ClinicInvitationsCreated", fields: [createdById], references: [id], onDelete: Restrict)
   expiresAt        DateTime // now + 48h
-  createdAt        DateTime         @default(now())
+  createdAt        DateTime  @default(now())
   acceptedAt       DateTime?
   acceptedByUserId String? // userId אחרי accept מוצלח
+  acceptedBy       User?     @relation("ClinicInvitationsAccepted", fields: [acceptedByUserId], references: [id], onDelete: SetNull)
   revokedAt        DateTime?
   revokedById      String?
+  revokedBy        User?     @relation("ClinicInvitationsRevoked", fields: [revokedById], references: [id], onDelete: SetNull)
   // משמש את ה-resend cooldown: rate-limit 1/דקה לכל invitation.
   lastResentAt     DateTime?
 
   @@index([organizationId, status])
   @@index([email, status])
   @@index([expiresAt])
+  @@index([createdById])
+  @@index([acceptedByUserId])
+  @@index([revokedById])
 }

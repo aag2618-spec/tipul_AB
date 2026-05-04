@@ -129,13 +129,13 @@ export async function POST(request: NextRequest) {
     if (existingUser?.organizationId && existingUser.organizationId !== organizationId) {
       return NextResponse.json(
         { message: "המשתמש כבר משויך לקליניקה אחרת" },
-        { status: 400 }
+        { status: 409 }
       );
     }
     if (existingUser?.organizationId === organizationId) {
       return NextResponse.json(
         { message: "המשתמש כבר חבר/ה בקליניקה שלך" },
-        { status: 400 }
+        { status: 409 }
       );
     }
     if (existingUser?.isBlocked) {
@@ -162,7 +162,7 @@ export async function POST(request: NextRequest) {
     }
 
     // הכנת token + OTP אם יש phone.
-    const token = await generateUniqueToken();
+    const token = await generateInvitationToken();
     let otpPlain: string | null = null;
     let smsOtpHash: string | null = null;
     if (phoneNormalized) {
@@ -331,10 +331,15 @@ export async function GET() {
 
 // ─── Helpers ───
 
-async function generateUniqueToken(): Promise<string> {
-  // cuid נוצר ע"י Prisma על השדה. אבל אנחנו צריכים את הערך לפני ה-create
-  // כדי לכלול ב-URL. cuid2 אינו זמין; משתמשים ב-randomBytes ב-base64url
-  // ל-32 בייטים = 256 ביט אנטרופיה — חזק יותר מ-cuid וגם בלתי-ניחוש.
+/**
+ * Generates an invitation token.
+ *
+ * Format: 32 random bytes encoded as base64url = 43 chars, 256 bits of entropy.
+ * Cryptographically unguessable — no DB uniqueness check needed (collision
+ * probability is astronomical). The `@unique` constraint provides a final safety
+ * net; if a collision did occur, Prisma would throw P2002 → 500 to client.
+ */
+async function generateInvitationToken(): Promise<string> {
   const { randomBytes } = await import("node:crypto");
   return randomBytes(32).toString("base64url");
 }

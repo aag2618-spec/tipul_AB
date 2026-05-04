@@ -1,4 +1,5 @@
 import { NextRequest, NextResponse } from "next/server";
+import { Prisma } from "@prisma/client";
 import prisma from "@/lib/prisma";
 import { logger } from "@/lib/logger";
 import { requireAuth } from "@/lib/api-auth";
@@ -102,8 +103,9 @@ export async function PATCH(
       }
       updates.secretaryPermissions = body.secretaryPermissions;
     } else if (updates.clinicRole === "THERAPIST") {
-      // המעבר ל-THERAPIST — מאפסים secretaryPermissions
-      updates.secretaryPermissions = null;
+      // המעבר ל-THERAPIST — מאפסים secretaryPermissions.
+      // ל-Json? נדרש Prisma.DbNull (null/undefined ב-data לא מנקים את השדה).
+      updates.secretaryPermissions = Prisma.DbNull;
     }
 
     if (Object.keys(updates).length === 0) {
@@ -181,6 +183,7 @@ export async function DELETE(
         subscriptionPausedReason: true,
         subscriptionStatusBeforeClinic: true,
         trialEndsAt: true,
+        subscriptionEndsAt: true,
         _count: { select: { clients: true } },
       },
     });
@@ -224,6 +227,7 @@ export async function DELETE(
       const plan = computeBillingRestore({
         subscriptionStatusBeforeClinic: member.subscriptionStatusBeforeClinic,
         trialEndsAt: member.trialEndsAt,
+        subscriptionEndsAt: member.subscriptionEndsAt,
       });
       restoreTo = plan.newStatus;
       grantedFreshTrial = plan.grantedFreshTrial;
@@ -231,6 +235,7 @@ export async function DELETE(
 
       billingFields.subscriptionStatus = plan.newStatus;
       billingFields.trialEndsAt = plan.newTrialEndsAt;
+      billingFields.subscriptionEndsAt = plan.newSubscriptionEndsAt;
       billingFields.subscriptionStatusBeforeClinic = null;
       billingFields.subscriptionPausedReason = null;
       billingFields.subscriptionPausedAt = null;
@@ -261,7 +266,9 @@ export async function DELETE(
           data: {
             organizationId: null,
             clinicRole: null,
-            secretaryPermissions: undefined,
+            // Prisma.DbNull על Json? — undefined/null ב-Prisma data לא מנקים את השדה,
+            // והרשאות ישנות יישארו בעת הצטרפות לארגון אחר.
+            secretaryPermissions: Prisma.DbNull,
             ...billingFields,
             // אם היה CLINIC_SECRETARY — מחזירים ל-USER
             ...(member.role === "CLINIC_SECRETARY" && { role: "USER" }),

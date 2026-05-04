@@ -301,6 +301,27 @@ export default function ClinicInvitePage({
         </CardHeader>
 
         <CardContent>
+          {/* hint למישהו שלא מחובר: ה-API לא יודע אם יש לו חשבון, אז מציעים
+              login כצעד ראשון לנוחות. ה-form עדיין זמין — אם אין חשבון, הוא
+              ימלא ויצור חשבון; אם יש חשבון, ה-API ידחה ויפנה ל-login. */}
+          {!isExistingUser && (
+            <div className="mb-4 p-3 bg-muted/40 border border-border rounded-md text-xs text-muted-foreground">
+              כבר יש לך חשבון ב-MyTipul?{" "}
+              <button
+                type="button"
+                onClick={() =>
+                  signIn(undefined, {
+                    callbackUrl: `/invite/${encodeURIComponent(token)}`,
+                  })
+                }
+                className="text-primary hover:underline font-medium"
+              >
+                התחבר/י תחילה
+              </button>
+              {" "}ואחר כך לאשר את ההצטרפות.
+            </div>
+          )}
+
           <form onSubmit={handleAccept} className="space-y-4">
             {!isExistingUser && (
               <>

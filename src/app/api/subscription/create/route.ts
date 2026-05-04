@@ -53,6 +53,22 @@ export async function POST(request: NextRequest) {
       return NextResponse.json({ message: "משתמש לא נמצא" }, { status: 404 });
     }
 
+    // MyTipul-B: חסום רכישת מנוי אישי כשמשתמש משויך לקליניקה שמשלמת עליו.
+    // אם הוא ירכוש כעת — ה-PAUSED יידרס ל-TRIALING (שורה 96), הקליניקה תפסיק
+    // להופיע כמשלמת, אבל subscriptionStatusBeforeClinic יישאר ויגרום לבלגן בהסרה.
+    if (
+      user.billingPaidByClinic &&
+      user.subscriptionPausedReason === "PAID_BY_CLINIC"
+    ) {
+      return NextResponse.json(
+        {
+          message:
+            "המנוי שלך משולם ע״י הקליניקה — לא ניתן לרכוש מנוי אישי כל זמן השיוך. אם ברצונך לעבור לתשלום אישי, פנה/י לבעל/ת הקליניקה.",
+        },
+        { status: 403 }
+      );
+    }
+
     const meshulamApiKey = process.env.MESHULAM_API_KEY;
     if (!meshulamApiKey) {
       return NextResponse.json(
