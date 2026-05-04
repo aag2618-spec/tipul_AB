@@ -11,6 +11,7 @@ import {
   Building2,
   LayoutDashboard,
   Users,
+  UserPlus,
   ArrowLeftRight,
   Receipt,
   Settings,
@@ -43,6 +44,7 @@ interface ClinicContext {
 const navItems = [
   { href: "/clinic-admin", label: "סקירה כללית", icon: LayoutDashboard, exact: true },
   { href: "/clinic-admin/members", label: "חברי קליניקה", icon: Users },
+  { href: "/clinic-admin/invitations", label: "הזמנות פעילות", icon: UserPlus },
   { href: "/clinic-admin/transfer", label: "העברת מטופל", icon: ArrowLeftRight },
   { href: "/clinic-admin/billing", label: "חיוב ומחיר", icon: Receipt },
   { href: "/clinic-admin/settings", label: "הגדרות קליניקה", icon: Settings },

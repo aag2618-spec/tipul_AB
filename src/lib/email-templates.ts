@@ -418,3 +418,103 @@ export function createVerificationEmailHtml(params: {
     `,
   };
 }
+
+// ==================== Clinic Invitation (MyTipul A) ====================
+//
+// תבנית מייל הזמנה לקליניקה. נשלחת ע"י POST /api/clinic-admin/invitations
+// (ושוב ע"י endpoint resend) למוזמנים פוטנציאליים.
+//
+// שיקולי אבטחה:
+//   - הקישור מכיל את ה-token ואסור שיודלף ב-headers/query של אתרים אחרים — האימייל
+//     הוא ערוץ סגור יחסית. אם מצורף phone, ה-OTP מקטין את הסיכון של דליפת קישור.
+//   - escapeHtml על כל קלט שמגיע מהמשתמש (name, organizationName, intendedName)
+//     כדי למנוע XSS באימייל (לקוחות מייל מסוימים מציגים HTML).
+export function createClinicInviteEmail(params: {
+  organizationName: string;
+  inviterName: string;
+  intendedName: string | null;
+  clinicRole: "THERAPIST" | "SECRETARY";
+  inviteUrl: string;
+  otpRequired: boolean;
+  expiresAt: Date;
+}): { subject: string; html: string } {
+  const safeOrg = escapeHtml(params.organizationName);
+  const safeInviter = escapeHtml(params.inviterName);
+  const safeIntended = params.intendedName
+    ? escapeHtml(params.intendedName)
+    : null;
+  const greeting = safeIntended ? `שלום ${safeIntended},` : "שלום,";
+  const roleLabel =
+    params.clinicRole === "THERAPIST" ? "מטפל/ת בקליניקה" : "מזכיר/ה בקליניקה";
+  const expiresFormatted = params.expiresAt.toLocaleString("he-IL", {
+    timeZone: "Asia/Jerusalem",
+    weekday: "long",
+    day: "numeric",
+    month: "long",
+    hour: "2-digit",
+    minute: "2-digit",
+  });
+
+  const otpNote = params.otpRequired
+    ? `<p style="color: #475569; line-height: 1.6;">
+         לאישור ההצטרפות יישלח אלייך גם <strong>קוד אימות בן 6 ספרות ב-SMS</strong>.
+         יש להזין אותו במסך ההצטרפות.
+       </p>`
+    : "";
+
+  // כותרת מייל: סינון \r\n מונע header-injection; קיצור ל-100 תווים מונע subjects ענקיים.
+  const safeOrgSubject = params.organizationName
+    .replace(/[\r\n]/g, " ")
+    .slice(0, 100);
+  return {
+    subject: `הזמנה להצטרף לקליניקה ${safeOrgSubject}`,
+    html: `
+      <div dir="rtl" style="font-family: Arial, sans-serif; max-width: 600px; margin: 0 auto; padding: 20px;">
+        <div style="text-align: center; margin-bottom: 30px;">
+          <h1 style="color: #16a34a; font-size: 28px; margin: 0;">MyTipul</h1>
+          <p style="color: #64748b; margin-top: 4px;">הזמנה להצטרף לקליניקה</p>
+        </div>
+
+        <div style="background: #f8fafc; border-radius: 12px; padding: 30px; border: 1px solid #e2e8f0;">
+          <h2 style="color: #1e293b; font-size: 20px; margin-top: 0;">${greeting}</h2>
+
+          <p style="color: #475569; line-height: 1.6;">
+            ${safeInviter} מזמין/ה אותך להצטרף לקליניקה
+            <strong>${safeOrg}</strong> בתפקיד <strong>${roleLabel}</strong>.
+          </p>
+
+          ${otpNote}
+
+          <div style="text-align: center; margin: 30px 0;">
+            <a href="${params.inviteUrl}"
+               style="display: inline-block; background: linear-gradient(135deg, #0284c7, #7c3aed); color: white;
+                      padding: 14px 40px; border-radius: 8px; text-decoration: none; font-weight: bold; font-size: 16px;">
+              לאישור ההצטרפות
+            </a>
+          </div>
+
+          <p style="color: #64748b; font-size: 13px; margin: 0;">
+            ההזמנה תקפה עד <strong>${expiresFormatted}</strong>. אם לא ביקשת זאת — אפשר להתעלם.
+          </p>
+        </div>
+
+        <div style="text-align: center; margin-top: 20px; color: #94a3b8; font-size: 12px;">
+          <p>© MyTipul ${new Date().getFullYear()}</p>
+        </div>
+      </div>
+    `,
+  };
+}
+
+/**
+ * תבנית SMS להזמנה לקליניקה — קצרה, בעברית, מכילה את הקוד 6 ספרות.
+ * Pulseem חותך ל-201 תווים, אז שומרים את ההודעה תמציתית. שם ארגון מקוצץ
+ * ל-40 תווים ומסונן \n כדי למנוע split של ה-SMS.
+ */
+export function createClinicInviteSmsText(params: {
+  organizationName: string;
+  otp: string;
+}): string {
+  const safeOrg = params.organizationName.replace(/[\r\n]/g, " ").slice(0, 40);
+  return `קוד אימות להצטרפות לקליניקת ${safeOrg}: ${params.otp}. בדוק/י את המייל לקישור האישור. תקף 48ש'. MyTipul`;
+}

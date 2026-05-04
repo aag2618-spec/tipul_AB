@@ -43,7 +43,9 @@ import {
   Settings,
   Check,
   AlertCircle,
+  UserPlus,
 } from "lucide-react";
+import Link from "next/link";
 import { toast } from "sonner";
 
 type ClinicRole = "OWNER" | "THERAPIST" | "SECRETARY";
@@ -289,10 +291,18 @@ export default function ClinicMembersPage() {
             </p>
           </div>
         </div>
-        <Button onClick={openAddDialog}>
-          <Plus className="ml-2 h-4 w-4" />
-          הוסף חבר/ה
-        </Button>
+        <div className="flex gap-2">
+          <Button asChild>
+            <Link href="/clinic-admin/invitations">
+              <UserPlus className="ml-2 h-4 w-4" />
+              הזמנת חבר/ה חדש/ה
+            </Link>
+          </Button>
+          <Button variant="outline" onClick={openAddDialog} title="קישור משתמש קיים שכבר אישר">
+            <Plus className="ml-2 h-4 w-4" />
+            קישור מהיר
+          </Button>
+        </div>
       </div>
 
       {loading ? (
@@ -372,9 +382,11 @@ export default function ClinicMembersPage() {
       <Dialog open={addDialogOpen} onOpenChange={setAddDialogOpen}>
         <DialogContent dir="rtl">
           <DialogHeader>
-            <DialogTitle>הוספת חבר/ה לקליניקה</DialogTitle>
+            <DialogTitle>קישור מהיר של משתמש קיים</DialogTitle>
             <DialogDescription>
-              חיפוש משתמשים קיימים שעדיין לא משויכים לקליניקה אחרת.
+              לרוב המקרים — השתמשו ב&quot;הזמנת חבר/ה חדש/ה&quot; שתשלח מייל.
+              <br />
+              קישור מהיר זה מתאים רק כשהמשתמש כבר אישר בעל-פה ופנה אליכם.
             </DialogDescription>
           </DialogHeader>
 

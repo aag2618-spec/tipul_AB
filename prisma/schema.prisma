@@ -73,6 +73,17 @@ enum DepartureChoice {
   FOLLOW_THERAPIST
 }
 
+// סטטוס הזמנה לקליניקה — שולט ב-flow של ClinicInvitation.
+// PENDING → ACCEPTED (מוזמן/ת אישר/ה) | EXPIRED (expiresAt עבר) |
+// REVOKED (בעל/ת הקליניקה ביטל/ה) | REJECTED (מוזמן/ת דחה/תה — אופציונלי).
+enum InvitationStatus {
+  PENDING
+  ACCEPTED
+  EXPIRED
+  REVOKED
+  REJECTED
+}
+
 model User {
   id            String    @id @default(cuid())
   name          String?
@@ -2401,6 +2412,7 @@ model Organization {
   smsUsage       OrgSmsUsage[]
   transferLogs   ClientTransferLog[]
   departures     TherapistDeparture[]
+  invitations    ClinicInvitation[]
 
   // Inverse relations מהמודלים הקיימים שמכילים organizationId עם @relation
   clients         Client[]
@@ -2564,4 +2576,50 @@ model ClientTransferLog {
   @@index([organizationId, transferredAt])
   @@index([clientId, transferredAt])
   @@index([performedById])
+}
+
+// הזמנת חבר/ה חדש/ה לקליניקה — Email-first, עם אימות SMS OTP אופציונלי.
+// מחליף את החיפוש הישן של משתמש קיים (שאיפשר להוסיף בלי הסכמת המוזמן).
+//
+// Flow:
+//   1. בעל/ת קליניקה יוצר/ת invitation עם email + (phone? + intendedName?).
+//   2. נשלח מייל עם {NEXTAUTH_URL}/invite/{token}; אם יש phone → SMS עם OTP.
+//   3. המוזמן/ת לוחץ/ת על הקישור → אם user קיים: re-auth + OTP; אם לא: רישום + OTP.
+//   4. accept מאחד את ה-User לארגון, ובהתאם ל-billingPaidByClinic — משעה את המנוי שלו.
+//
+// טוקן: cuid (~190 ביט) — סטטיסטית בלתי-ניחוש. expiresAt = now + 48h.
+// OTP: 6 ספרות, hash ב-bcrypt(10). max 5 ניסיונות → REVOKED אוטומטית.
+model ClinicInvitation {
+  id             String       @id @default(cuid())
+  organizationId String
+  organization   Organization @relation(fields: [organizationId], references: [id], onDelete: Cascade)
+
+  email                String // lowercase, trimmed
+  phone                String? // E.164 format (אופציונלי)
+  intendedName         String? // רמז למוזמן/ת — לא קובע, רק מציג ב-UI
+  clinicRole           ClinicRole // THERAPIST או SECRETARY (לא OWNER)
+  // מי משלם על המנוי של המוזמן/ת — שייך ל-MyTipul-B (השעיית מנוי).
+  billingPaidByClinic  Boolean    @default(true)
+  // הרשאות מזכירה — null אם clinicRole=THERAPIST.
+  // Shape זהה ל-User.secretaryPermissions.
+  secretaryPermissions Json?
+
+  token          String  @unique // cuid (190 ביט)
+  smsOtpHash     String? // bcrypt(10) של 6 ספרות; null אם phone לא ניתן
+  smsOtpAttempts Int     @default(0)
+
+  status           InvitationStatus @default(PENDING)
+  createdById      String
+  expiresAt        DateTime // now + 48h
+  createdAt        DateTime         @default(now())
+  acceptedAt       DateTime?
+  acceptedByUserId String? // userId אחרי accept מוצלח
+  revokedAt        DateTime?
+  revokedById      String?
+  // משמש את ה-resend cooldown: rate-limit 1/דקה לכל invitation.
+  lastResentAt     DateTime?
+
+  @@index([organizationId, status])
+  @@index([email, status])
+  @@index([expiresAt])
 }
