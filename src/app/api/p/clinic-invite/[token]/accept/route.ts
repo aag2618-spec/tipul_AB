@@ -287,6 +287,8 @@ export async function POST(
             email: invitation.email,
             clinicRole: invitation.clinicRole,
             isNewUser: true,
+            billingPaidByClinic: invitation.billingPaidByClinic,
+            subscriptionPaused: invitation.billingPaidByClinic,
           },
         },
         async (tx) => {
@@ -309,6 +311,10 @@ export async function POST(
           });
           const nextUserNumber = (maxResult._max.userNumber ?? 1000) + 1;
 
+          // אם הקליניקה משלמת — המשתמש החדש נכנס ישר ל-PAUSED.
+          // subscriptionStatusBeforeClinic נשאר null (= "אף פעם לא היה מנוי אישי"),
+          // ובהסרה מהקליניקה יקבל TRIALING + 30d חדש (ראה DELETE members/[id]).
+          const billingPaused = invitation.billingPaidByClinic;
           const newUser = await tx.user.create({
             data: {
               email: invitation.email,
@@ -316,11 +322,15 @@ export async function POST(
               password: passwordHash,
               phone: phoneNormalized,
               aiTier: TRIAL_AI_TIER as "ESSENTIAL" | "PRO" | "ENTERPRISE",
-              subscriptionStatus: "TRIALING",
-              trialEndsAt,
+              subscriptionStatus: billingPaused ? "PAUSED" : "TRIALING",
+              trialEndsAt: billingPaused ? null : trialEndsAt,
               userNumber: nextUserNumber,
               organizationId: invitation.organizationId,
               clinicRole: invitation.clinicRole,
+              billingPaidByClinic: billingPaused,
+              subscriptionPausedReason: billingPaused ? "PAID_BY_CLINIC" : null,
+              subscriptionPausedAt: billingPaused ? new Date() : null,
+              // subscriptionStatusBeforeClinic נשאר null — מסמן "אף פעם לא היה לו מנוי אישי".
               ...(invitation.clinicRole === "SECRETARY" && {
                 role: "CLINIC_SECRETARY",
                 secretaryPermissions: invitation.secretaryPermissions ?? undefined,
@@ -374,15 +384,35 @@ export async function POST(
               clinicRole: invitation.clinicRole,
               isNewUser: false,
               acceptedByUserId: userId,
+              billingPaidByClinic: invitation.billingPaidByClinic,
+              subscriptionPausedFromStatus:
+                invitation.billingPaidByClinic
+                  ? userBeforeJoin?.subscriptionStatus ?? null
+                  : null,
             },
           },
           async (tx) => {
+            // אם הקליניקה משלמת — שומרים את הסטטוס הקודם ב-subscriptionStatusBeforeClinic
+            // ומשעים את המנוי. בהסרה מהקליניקה (DELETE members/[id]) זה ישוחזר.
+            const billingPaused = invitation.billingPaidByClinic;
+            const billingFields = billingPaused
+              ? {
+                  subscriptionStatusBeforeClinic:
+                    userBeforeJoin?.subscriptionStatus ?? null,
+                  subscriptionStatus: "PAUSED" as const,
+                  subscriptionPausedReason: "PAID_BY_CLINIC",
+                  subscriptionPausedAt: new Date(),
+                  billingPaidByClinic: true,
+                }
+              : {};
+
             // guard: organizationId still null (race-safe).
             const userUpdate = await tx.user.updateMany({
               where: { id: userId, organizationId: null },
               data: {
                 organizationId: invitation.organizationId,
                 clinicRole: invitation.clinicRole,
+                ...billingFields,
                 ...(invitation.clinicRole === "SECRETARY" && {
                   role: "CLINIC_SECRETARY",
                   secretaryPermissions:
@@ -437,7 +467,6 @@ export async function POST(
       })
       .catch(() => {});
 
-    void userBeforeJoin; // נשמר כאן כדי שהשלב B יקרא לו (השעיית מנוי).
 
     return NextResponse.json({
       ok: true,

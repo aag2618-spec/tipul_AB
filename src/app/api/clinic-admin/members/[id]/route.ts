@@ -3,6 +3,7 @@ import prisma from "@/lib/prisma";
 import { logger } from "@/lib/logger";
 import { requireAuth } from "@/lib/api-auth";
 import { withAudit } from "@/lib/audit";
+import { computeBillingRestore } from "@/lib/clinic-invitations";
 
 export const dynamic = "force-dynamic";
 
@@ -175,6 +176,11 @@ export async function DELETE(
         organizationId: true,
         clinicRole: true,
         role: true,
+        // נדרש ל-MyTipul-B כדי לשחרר מנוי שהושעה ע"י הקליניקה.
+        billingPaidByClinic: true,
+        subscriptionPausedReason: true,
+        subscriptionStatusBeforeClinic: true,
+        trialEndsAt: true,
         _count: { select: { clients: true } },
       },
     });
@@ -202,6 +208,35 @@ export async function DELETE(
       );
     }
 
+    // MyTipul-B: שחרור מנוי שהושעה ע"י הקליניקה.
+    // הלוגיקה ב-computeBillingRestore (lib/clinic-invitations.ts) — pure, מכוסה בטסטים.
+    let billingReleased = false;
+    let restoreTo: string | null = null;
+    let grantedFreshTrial = false;
+    let appliedGrace = false;
+    const billingFields: Record<string, unknown> = {};
+
+    if (
+      member.billingPaidByClinic &&
+      member.subscriptionPausedReason === "PAID_BY_CLINIC"
+    ) {
+      billingReleased = true;
+      const plan = computeBillingRestore({
+        subscriptionStatusBeforeClinic: member.subscriptionStatusBeforeClinic,
+        trialEndsAt: member.trialEndsAt,
+      });
+      restoreTo = plan.newStatus;
+      grantedFreshTrial = plan.grantedFreshTrial;
+      appliedGrace = plan.appliedGrace;
+
+      billingFields.subscriptionStatus = plan.newStatus;
+      billingFields.trialEndsAt = plan.newTrialEndsAt;
+      billingFields.subscriptionStatusBeforeClinic = null;
+      billingFields.subscriptionPausedReason = null;
+      billingFields.subscriptionPausedAt = null;
+      billingFields.billingPaidByClinic = false;
+    }
+
     await withAudit(
       { kind: "user", session },
       {
@@ -212,19 +247,30 @@ export async function DELETE(
           organizationId,
           memberEmail: member.email,
           previousClinicRole: member.clinicRole,
+          // forensics לסקירה: האם DELETE שחרר מנוי, ואם כן — לאיזה סטטוס.
+          billingReleased,
+          restoreTo,
+          grantedFreshTrial,
+          appliedGrace,
         },
       },
       async (tx) => {
-        return tx.user.update({
-          where: { id },
+        // guard: organizationId === current org (race-safe על concurrent transfers).
+        const result = await tx.user.updateMany({
+          where: { id, organizationId },
           data: {
             organizationId: null,
             clinicRole: null,
             secretaryPermissions: undefined,
+            ...billingFields,
             // אם היה CLINIC_SECRETARY — מחזירים ל-USER
             ...(member.role === "CLINIC_SECRETARY" && { role: "USER" }),
           },
         });
+        if (result.count === 0) {
+          throw new Error("Member is no longer in this organization");
+        }
+        return result;
       }
     );
 

@@ -104,3 +104,71 @@ export function isAcceptable(
 ): boolean {
   return effectiveStatus(status, expiresAt) === "PENDING";
 }
+
+// ─── Billing pause restore (MyTipul-B) ──────────────────────────────────────
+
+export const RESTORE_FRESH_TRIAL_DAYS = 30;
+export const RESTORE_GRACE_DAYS = 7;
+
+interface RestorePlan {
+  newStatus: string;
+  newTrialEndsAt: Date;
+  grantedFreshTrial: boolean;
+  appliedGrace: boolean;
+}
+
+/**
+ * חישוב המעבר של מנוי לאחר הסרה מקליניקה (DELETE /clinic-admin/members/[id]).
+ * pure — מקבל את כל המצב כפרמטרים, מחזיר את הסטטוס + trialEndsAt החדשים.
+ *
+ * החלטות:
+ *   1. אם wasNeverActive (subscriptionStatusBeforeClinic=null) → TRIALING + 30 ימים חדשים.
+ *      רציונל: המשתמש הצטרף ישירות דרך הזמנה ולא הספיק להחליט על מנוי. נותנים לו זמן.
+ *   2. אם trialEndsAt פג (כי עברו חודשים בקליניקה) → סטטוס קודם + grace 7 ימים.
+ *      רציונל: לא רוצים לחזור למצב חסום מיד; מאפשרים זמן לחדש תשלום.
+ *   3. אחרת → סטטוס קודם + trialEndsAt המקורי.
+ */
+export function computeBillingRestore(params: {
+  subscriptionStatusBeforeClinic: string | null;
+  trialEndsAt: Date | null;
+  now?: Date;
+}): RestorePlan {
+  const now = params.now ?? new Date();
+  const wasNeverActive = params.subscriptionStatusBeforeClinic === null;
+
+  if (wasNeverActive) {
+    return {
+      newStatus: "TRIALING",
+      newTrialEndsAt: new Date(
+        now.getTime() + RESTORE_FRESH_TRIAL_DAYS * 24 * 60 * 60 * 1000
+      ),
+      grantedFreshTrial: true,
+      appliedGrace: false,
+    };
+  }
+
+  const trialExpired =
+    params.trialEndsAt !== null && params.trialEndsAt.getTime() < now.getTime();
+
+  if (trialExpired) {
+    return {
+      newStatus: params.subscriptionStatusBeforeClinic ?? "TRIALING",
+      newTrialEndsAt: new Date(
+        now.getTime() + RESTORE_GRACE_DAYS * 24 * 60 * 60 * 1000
+      ),
+      grantedFreshTrial: false,
+      appliedGrace: true,
+    };
+  }
+
+  // trialEndsAt could be null here (e.g., ACTIVE without trial); we still need to set
+  // a value because ה-update כתוב כך שתמיד מציב trialEndsAt. נשמור על המקור.
+  return {
+    newStatus: params.subscriptionStatusBeforeClinic ?? "TRIALING",
+    newTrialEndsAt:
+      params.trialEndsAt ??
+      new Date(now.getTime() + RESTORE_GRACE_DAYS * 24 * 60 * 60 * 1000),
+    grantedFreshTrial: false,
+    appliedGrace: false,
+  };
+}

@@ -24,6 +24,10 @@ export async function GET() {
         subscriptionStartedAt: true,
         subscriptionEndsAt: true,
         trialEndsAt: true,
+        // MyTipul-B: שדות לתצוגת באנר "הקליניקה משלמת".
+        billingPaidByClinic: true,
+        subscriptionPausedReason: true,
+        organization: { select: { name: true } },
       },
     });
 
@@ -64,6 +68,10 @@ export async function GET() {
       trialEndsAt: user.trialEndsAt,
       monthlyPrice: MONTHLY_PRICES[user.aiTier] || 0,
       recentPayments,
+      // MyTipul-B: מאפשר ל-UI להציג באנר "הקליניקה משלמת" + לחסום קנייה אישית.
+      billingPaidByClinic: user.billingPaidByClinic,
+      subscriptionPausedReason: user.subscriptionPausedReason,
+      clinicName: user.organization?.name ?? null,
     });
   } catch (error) {
     logger.error("Subscription status error:", { error: error instanceof Error ? error.message : String(error) });

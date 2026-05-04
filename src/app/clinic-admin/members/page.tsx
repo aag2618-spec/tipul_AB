@@ -69,6 +69,8 @@ interface Member {
   secretaryPermissions: SecretaryPermissions | null;
   isBlocked: boolean;
   createdAt: string;
+  billingPaidByClinic?: boolean;
+  subscriptionPausedReason?: string | null;
   _count: { clients: number };
 }
 
@@ -338,6 +340,19 @@ export default function ClinicMembersPage() {
                           <div className="flex items-center gap-2 flex-wrap">
                             <span className="font-medium truncate">{m.name || "—"}</span>
                             <MemberRoleBadge role={m.clinicRole} />
+                            {m.billingPaidByClinic &&
+                              m.clinicRole === "THERAPIST" && (
+                                <span
+                                  title="הקליניקה משלמת על המנוי האישי של המטפל/ת ב-MyTipul. המנוי האישי מושהה כל זמן השיוך."
+                                >
+                                  <Badge
+                                    variant="outline"
+                                    className="text-[10px] border-blue-500/40 text-blue-400"
+                                  >
+                                    הקליניקה משלמת
+                                  </Badge>
+                                </span>
+                              )}
                             {m.isBlocked && (
                               <Badge variant="destructive" className="text-[10px]">חסום</Badge>
                             )}
@@ -539,9 +554,30 @@ export default function ClinicMembersPage() {
               המטופלים למטפל/ת אחר/ת.
             </AlertDialogDescription>
           </AlertDialogHeader>
+          {(() => {
+            const removingMember = members.find((m) => m.id === removeId);
+            if (
+              removingMember?.billingPaidByClinic &&
+              removingMember?.subscriptionPausedReason === "PAID_BY_CLINIC"
+            ) {
+              return (
+                <div className="mt-2 p-3 bg-amber-500/10 border border-amber-500/40 rounded-md text-sm text-amber-700 dark:text-amber-300">
+                  ⚠ <strong>שים/י לב:</strong> הקליניקה משלמת כעת על מנוי MyTipul
+                  של {removingMember.name || "החבר/ה"}. הסרה תחזיר את החיוב למטפל/ת
+                  באופן אישי — מיד עם ההסרה. אם זה לא מה שרצית — בטל/י עכשיו.
+                </div>
+              );
+            }
+            return null;
+          })()}
           <AlertDialogFooter>
             <AlertDialogCancel>ביטול</AlertDialogCancel>
-            <AlertDialogAction onClick={handleRemove}>הסר/י</AlertDialogAction>
+            <AlertDialogAction
+              onClick={handleRemove}
+              className="bg-destructive text-destructive-foreground hover:bg-destructive/90"
+            >
+              הסר/י
+            </AlertDialogAction>
           </AlertDialogFooter>
         </AlertDialogContent>
       </AlertDialog>

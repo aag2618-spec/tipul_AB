@@ -59,6 +59,9 @@ export async function GET() {
         secretaryPermissions: true,
         isBlocked: true,
         createdAt: true,
+        // MyTipul-B: מציג ב-UI אם הקליניקה משלמת.
+        billingPaidByClinic: true,
+        subscriptionPausedReason: true,
         _count: {
           select: {
             clients: true,

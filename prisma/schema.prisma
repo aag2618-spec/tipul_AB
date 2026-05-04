@@ -138,6 +138,14 @@ model User {
   freeSubscriptionNote      String? // הערה למה ניתן חינם
   freeSubscriptionGrantedAt DateTime? // מתי ניתן
 
+  // Clinic billing pause (MyTipul B) — כש-billingPaidByClinic=true, המנוי האישי
+  // מושעה ל-PAUSED. בעזיבה/הסרה מהקליניקה, חוזרים ל-subscriptionStatusBeforeClinic
+  // (או TRIALING חדש אם זה היה null).
+  billingPaidByClinic            Boolean             @default(false)
+  subscriptionPausedReason       String? // "PAID_BY_CLINIC" כעת; ערכים נוספים בעתיד.
+  subscriptionPausedAt           DateTime?
+  subscriptionStatusBeforeClinic SubscriptionStatus? // לשחזור בעזיבה.
+
   // Usage limits
   maxActiveClients Int  @default(40) // Maximum active clients allowed
   userNumber       Int? @unique // מספר משתמש ייחודי (1001+)

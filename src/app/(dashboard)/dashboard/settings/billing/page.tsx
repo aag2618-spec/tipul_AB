@@ -127,6 +127,9 @@ interface SubscriptionStatus {
   subscriptionEndsAt: string | null;
   trialEndsAt: string | null;
   monthlyPrice: number;
+  billingPaidByClinic?: boolean;
+  subscriptionPausedReason?: string | null;
+  clinicName?: string | null;
   recentPayments: Array<{
     id: string;
     amount: number;
@@ -319,6 +322,28 @@ export default function BillingPage() {
         <h1 className="text-2xl font-bold tracking-tight">ניהול מנוי וחיוב</h1>
         <p className="text-muted-foreground">צפייה, שדרוג, שינוי ותנאי המנוי שלך - הכל במקום אחד</p>
       </div>
+
+      {/* MyTipul-B: באנר "המנוי משולם ע״י הקליניקה" — מוצג למשתמש PAUSED שזה PAID_BY_CLINIC.
+          אינדיקציה ברורה למה לא ניתן לקנות מנוי ולמה לא יורד חיוב. */}
+      {subscription?.billingPaidByClinic &&
+        subscription?.subscriptionPausedReason === 'PAID_BY_CLINIC' && (
+          <Card className="border-blue-500/40 bg-blue-500/5">
+            <CardHeader>
+              <CardTitle className="flex items-center gap-2 text-blue-700 dark:text-blue-400">
+                <Building className="h-5 w-5" />
+                המנוי שלך משולם ע״י הקליניקה
+              </CardTitle>
+              <CardDescription>
+                {subscription.clinicName
+                  ? `הקליניקה ${subscription.clinicName} `
+                  : 'הקליניקה '}
+                משלמת על המנוי האישי שלך ב-MyTipul. אינך נדרש/ת לבצע תשלום אישי
+                כל זמן השיוך לקליניקה. אם תעזב/י את הקליניקה — החיוב יחזור אליך
+                אוטומטית.
+              </CardDescription>
+            </CardHeader>
+          </Card>
+        )}
 
       {/* ========================================
           סעיף 1: המנוי הנוכחי שלי

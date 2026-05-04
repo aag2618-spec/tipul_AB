@@ -9,9 +9,12 @@ import {
   isAcceptable,
   maskEmail,
   normalizeE164,
+  computeBillingRestore,
   OTP_LENGTH,
   OTP_MAX_ATTEMPTS,
   INVITATION_TTL_MS,
+  RESTORE_FRESH_TRIAL_DAYS,
+  RESTORE_GRACE_DAYS,
 } from "@/lib/clinic-invitations";
 
 describe("generateOtp", () => {
@@ -140,5 +143,96 @@ describe("OTP_MAX_ATTEMPTS constant", () => {
   it("is reasonable (3-10)", () => {
     expect(OTP_MAX_ATTEMPTS).toBeGreaterThanOrEqual(3);
     expect(OTP_MAX_ATTEMPTS).toBeLessThanOrEqual(10);
+  });
+});
+
+// ─── MyTipul-B: computeBillingRestore ─────────────────────────────────────
+
+describe("computeBillingRestore (MyTipul-B)", () => {
+  const NOW = new Date("2026-05-04T12:00:00Z");
+  const day = 24 * 60 * 60 * 1000;
+
+  it("wasNeverActive (status=null) → TRIALING + 30 ימים חדשים", () => {
+    const plan = computeBillingRestore({
+      subscriptionStatusBeforeClinic: null,
+      trialEndsAt: null,
+      now: NOW,
+    });
+    expect(plan.newStatus).toBe("TRIALING");
+    expect(plan.grantedFreshTrial).toBe(true);
+    expect(plan.appliedGrace).toBe(false);
+    const expectedTrial = new Date(NOW.getTime() + RESTORE_FRESH_TRIAL_DAYS * day);
+    expect(plan.newTrialEndsAt.getTime()).toBe(expectedTrial.getTime());
+  });
+
+  it("ACTIVE לפני + trialEndsAt בעתיד → ACTIVE + שמירת trialEndsAt", () => {
+    const future = new Date(NOW.getTime() + 60 * day);
+    const plan = computeBillingRestore({
+      subscriptionStatusBeforeClinic: "ACTIVE",
+      trialEndsAt: future,
+      now: NOW,
+    });
+    expect(plan.newStatus).toBe("ACTIVE");
+    expect(plan.grantedFreshTrial).toBe(false);
+    expect(plan.appliedGrace).toBe(false);
+    expect(plan.newTrialEndsAt.getTime()).toBe(future.getTime());
+  });
+
+  it("TRIALING לפני + trialEndsAt בעבר → TRIALING + grace 7 ימים", () => {
+    const past = new Date(NOW.getTime() - 30 * day);
+    const plan = computeBillingRestore({
+      subscriptionStatusBeforeClinic: "TRIALING",
+      trialEndsAt: past,
+      now: NOW,
+    });
+    expect(plan.newStatus).toBe("TRIALING");
+    expect(plan.grantedFreshTrial).toBe(false);
+    expect(plan.appliedGrace).toBe(true);
+    const expectedGrace = new Date(NOW.getTime() + RESTORE_GRACE_DAYS * day);
+    expect(plan.newTrialEndsAt.getTime()).toBe(expectedGrace.getTime());
+  });
+
+  it("PAST_DUE לפני + trialEndsAt בעבר → PAST_DUE + grace", () => {
+    const past = new Date(NOW.getTime() - 5 * day);
+    const plan = computeBillingRestore({
+      subscriptionStatusBeforeClinic: "PAST_DUE",
+      trialEndsAt: past,
+      now: NOW,
+    });
+    expect(plan.newStatus).toBe("PAST_DUE");
+    expect(plan.appliedGrace).toBe(true);
+  });
+
+  it("CANCELLED לפני + trialEndsAt בעבר → CANCELLED + grace", () => {
+    const past = new Date(NOW.getTime() - 5 * day);
+    const plan = computeBillingRestore({
+      subscriptionStatusBeforeClinic: "CANCELLED",
+      trialEndsAt: past,
+      now: NOW,
+    });
+    expect(plan.newStatus).toBe("CANCELLED");
+    expect(plan.appliedGrace).toBe(true);
+  });
+
+  it("ACTIVE לפני + trialEndsAt=null → ACTIVE + grace fallback", () => {
+    const plan = computeBillingRestore({
+      subscriptionStatusBeforeClinic: "ACTIVE",
+      trialEndsAt: null,
+      now: NOW,
+    });
+    expect(plan.newStatus).toBe("ACTIVE");
+    // טיפול ב-trialEndsAt=null: שומר על המקור (=null במקור) או נותן grace.
+    // הקוד נותן grace fallback.
+    const expectedGrace = new Date(NOW.getTime() + RESTORE_GRACE_DAYS * day);
+    expect(plan.newTrialEndsAt.getTime()).toBe(expectedGrace.getTime());
+  });
+
+  it("ברירת מחדל ל-now=Date.now() אם לא מועבר", () => {
+    const plan = computeBillingRestore({
+      subscriptionStatusBeforeClinic: null,
+      trialEndsAt: null,
+    });
+    // לא חמור — רק לוודא שהפונקציה לא קורסת ושיש trialEndsAt תקף.
+    expect(plan.newTrialEndsAt.getTime()).toBeGreaterThan(Date.now());
   });
 });
