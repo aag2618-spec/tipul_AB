@@ -15,6 +15,8 @@ import {
   Stethoscope,
   Briefcase,
   AlertCircle,
+  Wallet,
+  UserMinus,
 } from "lucide-react";
 import { toast } from "sonner";
 
@@ -54,6 +56,22 @@ interface OverviewData {
   } | null;
 }
 
+// התראת קרדיט בעזיבה — מקור: PLAN-CLINIC-מטופלים-רב-מטפלים.md סעיף 5.
+// מטופל בעזיבה שבחר ללכת עם המטפל/ת ויש לו יתרת קרדיט פתוחה אצל הקליניקה.
+interface CreditAlertItem {
+  choiceId: string;
+  decidedAt: string | null;
+  client: { id: string; name: string; creditBalance: number };
+  departure: { id: string; decisionDeadline: string };
+  departingTherapist: { id: string; name: string };
+}
+
+interface CreditAlertResponse {
+  count: number;
+  totalCreditIls: number;
+  items: CreditAlertItem[];
+}
+
 const SUBSCRIPTION_LABEL: Record<string, string> = {
   ACTIVE: "פעיל",
   TRIALING: "ניסיון",
@@ -72,6 +90,9 @@ const SUBSCRIPTION_BADGE: Record<string, string> = {
 
 export default function ClinicAdminOverviewPage() {
   const [data, setData] = useState<OverviewData | null>(null);
+  const [creditAlerts, setCreditAlerts] = useState<CreditAlertResponse | null>(
+    null
+  );
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
 
@@ -93,6 +114,21 @@ export default function ClinicAdminOverviewPage() {
         toast.error("שגיאה בטעינת הסקירה");
       } finally {
         setLoading(false);
+      }
+    })();
+  }, []);
+
+  // טעינה נפרדת של התראות קרדיט בעזיבה — לא חוסמת את שאר הדף ולא
+  // מציגה toast במקרה של כשל (זו תוספת אזהרה, לא מידע ליבה).
+  useEffect(() => {
+    (async () => {
+      try {
+        const res = await fetch("/api/clinic-admin/departures/credit-alerts");
+        if (!res.ok) return;
+        const json = (await res.json()) as CreditAlertResponse;
+        setCreditAlerts(json);
+      } catch {
+        // שקט מכוון — דף הסקירה ממשיך לעבוד גם בלי האזהרה.
       }
     })();
   }, []);
@@ -140,6 +176,97 @@ export default function ClinicAdminOverviewPage() {
           {SUBSCRIPTION_LABEL[data.organization.subscriptionStatus]}
         </Badge>
       </div>
+
+      {/* התראת יתרת קרדיט במטופלים בעזיבה — דרישת PLAN סעיף 5.
+          מוצגת רק כשיש מטופלים שבחרו ללכת עם המטפל/ת ויש להם קרדיט >0.
+          ההסדרה מתבצעת ידנית מחוץ למערכת (העברת כסף מבעל הקליניקה
+          למטפל/ת היוצא/ת, או החזר למטופל/ת — החלטה ניהולית). */}
+      {creditAlerts && creditAlerts.count > 0 && (
+        <Card
+          className="border-amber-500/40 bg-amber-500/5"
+          role="region"
+          aria-labelledby="credit-alerts-title"
+        >
+          <CardHeader className="pb-3">
+            <CardTitle
+              id="credit-alerts-title"
+              className="text-base flex items-center gap-2 text-amber-700 dark:text-amber-400"
+            >
+              <Wallet className="h-4 w-4" aria-hidden="true" />
+              יתרת קרדיט פתוחה במטופלים בעזיבה
+              <Badge className="bg-amber-500/20 text-amber-700 dark:text-amber-300 ms-auto">
+                {creditAlerts.count} מטופלים · סה&quot;כ{" "}
+                {creditAlerts.totalCreditIls.toLocaleString("he-IL")} ₪
+              </Badge>
+            </CardTitle>
+          </CardHeader>
+          <CardContent className="space-y-3">
+            <p className="text-sm text-muted-foreground leading-relaxed">
+              המטופלים הבאים בחרו לעבור עם המטפל/ת היוצא/ת ויש להם יתרת קרדיט
+              פתוחה אצל הקליניקה. <strong>חשוב להסדיר את הקרדיט עם המטפל/ת
+              והמטופל/ת לפני המועד הסופי</strong> — לאחר סיום תהליך העזיבה
+              הקרדיט נשאר בקליניקה (כספים לא מועברים אוטומטית).
+            </p>
+            <div className="space-y-2">
+              {creditAlerts.items.map((item) => {
+                const deadline = new Date(item.departure.decisionDeadline);
+                const msLeft = deadline.getTime() - Date.now();
+                const daysLeft = Math.ceil(msLeft / (1000 * 60 * 60 * 24));
+                const deadlineLabel = deadline.toLocaleDateString("he-IL", {
+                  day: "2-digit",
+                  month: "2-digit",
+                  year: "numeric",
+                  timeZone: "Asia/Jerusalem",
+                });
+                let timeLeftLabel: string;
+                let timeLeftClass = "text-muted-foreground";
+                if (msLeft <= 0) {
+                  timeLeftLabel = `פג תוקף (${deadlineLabel})`;
+                  timeLeftClass = "text-red-600 dark:text-red-400 font-medium";
+                } else if (daysLeft === 1) {
+                  timeLeftLabel = `יום אחרון (${deadlineLabel})`;
+                  timeLeftClass =
+                    "text-amber-700 dark:text-amber-400 font-medium";
+                } else {
+                  timeLeftLabel = `נותרו ${daysLeft} ימים (${deadlineLabel})`;
+                }
+                return (
+                  <div
+                    key={item.choiceId}
+                    className="flex flex-wrap items-center justify-between gap-2 py-2 px-3 bg-background/60 rounded-md border border-amber-500/20"
+                  >
+                    <div className="flex items-center gap-2 min-w-0">
+                      <UserMinus
+                        className="h-4 w-4 text-amber-600 dark:text-amber-400 shrink-0"
+                        aria-hidden="true"
+                      />
+                      <div className="min-w-0">
+                        <p className="font-medium truncate">
+                          {item.client.name || "מטופל/ת ללא שם"}
+                        </p>
+                        <p className={`text-xs truncate ${timeLeftClass}`}>
+                          עוזב/ת עם {item.departingTherapist.name} ·{" "}
+                          {timeLeftLabel}
+                        </p>
+                      </div>
+                    </div>
+                    <div className="flex items-center gap-2">
+                      <span className="font-bold text-emerald-600 dark:text-emerald-400">
+                        ₪{item.client.creditBalance.toLocaleString("he-IL")}
+                      </span>
+                      <Button asChild variant="outline" size="sm">
+                        <Link href={`/dashboard/clients/${item.client.id}`}>
+                          לכרטיס המטופל
+                        </Link>
+                      </Button>
+                    </div>
+                  </div>
+                );
+              })}
+            </div>
+          </CardContent>
+        </Card>
+      )}
 
       {/* כרטיסים מהירים */}
       <div className="grid grid-cols-2 sm:grid-cols-4 gap-3">
