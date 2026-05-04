@@ -176,6 +176,7 @@ describe("computeBillingRestore (MyTipul-B)", () => {
       now: NOW,
     });
     expect(plan.newStatus).toBe("ACTIVE");
+    expect(plan.grantedFreshTrial).toBe(false);
     expect(plan.appliedGrace).toBe(false);
     expect(plan.newTrialEndsAt.getTime()).toBe(future.getTime());
     expect(plan.newSubscriptionEndsAt?.getTime()).toBe(subEnd.getTime());
@@ -189,6 +190,7 @@ describe("computeBillingRestore (MyTipul-B)", () => {
       now: NOW,
     });
     expect(plan.newStatus).toBe("TRIALING");
+    expect(plan.grantedFreshTrial).toBe(false);
     expect(plan.appliedGrace).toBe(true);
     const expectedGrace = new Date(NOW.getTime() + RESTORE_GRACE_DAYS * day);
     expect(plan.newTrialEndsAt.getTime()).toBe(expectedGrace.getTime());
