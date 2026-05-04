@@ -4,6 +4,7 @@ import prisma from "@/lib/prisma";
 import { getApproachById, getApproachPrompts, buildIntegrationSection, getScalesPrompt, getUniversalPrompts } from "@/lib/therapeutic-approaches";
 import { logger } from "@/lib/logger";
 import { requireAuth } from "@/lib/api-auth";
+import { sanitizeUserHtml } from "@/lib/sanitize-html";
 
 // Lazy initialization
 let genAI: GoogleGenerativeAI | null = null;
@@ -50,6 +51,10 @@ export async function POST(request: NextRequest) {
         { status: 400 }
       );
     }
+
+    // H4: sanitize HTML לפני שליחה ל-LLM. ה-LLM יכול להחזיר את התוכן
+    // ב-output שלו (או בעיבוד עתידי), ואם נכניס HTML זדוני נחזיר אותו ל-DB.
+    const safeNoteContent = sanitizeUserHtml(noteContent);
 
     // קבלת פרטי המשתמש כולל גישות טיפוליות
     const user = await prisma.user.findUnique({
@@ -133,9 +138,9 @@ ${approachPrompts}
     // בניית prompt מותאם לפי רמת הפירוט
     const isEnterprise = user.aiTier === 'ENTERPRISE' && therapeuticApproaches.length > 0;
     
-    const prompt = isEnterprise 
-      ? buildEnterpriseAnalysisPrompt(clientName, approachSection, noteContent, approachNames, therapeuticApproaches, clientCulturalContext)
-      : buildBasicAnalysisPrompt(clientName, noteContent);
+    const prompt = isEnterprise
+      ? buildEnterpriseAnalysisPrompt(clientName, approachSection, safeNoteContent, approachNames, therapeuticApproaches, clientCulturalContext)
+      : buildBasicAnalysisPrompt(clientName, safeNoteContent);
 
     const result = await model.generateContent(prompt);
     const response = await result.response;

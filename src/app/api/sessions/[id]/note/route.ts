@@ -4,6 +4,7 @@ import { logger } from "@/lib/logger";
 
 import { requireAuth } from "@/lib/api-auth";
 import { buildSessionWhere, isSecretary, loadScopeUser } from "@/lib/scope";
+import { sanitizeUserHtml } from "@/lib/sanitize-html";
 
 export const dynamic = "force-dynamic";
 
@@ -46,12 +47,16 @@ export async function POST(
       where: { sessionId: id },
     });
 
+    // H4: sanitize HTML מ-TipTap לפני שמירה ל-DB.
+    // aiAnalysis הוא תוצר LLM (text רגיל) ולא נכתב ע"י משתמש — לא דורש sanitize.
+    const safeContent = sanitizeUserHtml(content);
+
     if (existingNote) {
       // Update existing note
       const note = await prisma.sessionNote.update({
         where: { sessionId: id },
         data: {
-          content,
+          content: safeContent,
           isPrivate: isPrivate || false,
           aiAnalysis: aiAnalysis || null,
         },
@@ -62,7 +67,7 @@ export async function POST(
     const note = await prisma.sessionNote.create({
       data: {
         sessionId: id,
-        content,
+        content: safeContent,
         isPrivate: isPrivate || false,
         aiAnalysis: aiAnalysis || null,
       },
@@ -121,10 +126,11 @@ export async function PUT(
       );
     }
 
+    // H4: sanitize HTML רק אם content הוגש (PUT הוא partial update).
     const note = await prisma.sessionNote.update({
       where: { sessionId: id },
       data: {
-        content: content !== undefined ? content : undefined,
+        content: content !== undefined ? sanitizeUserHtml(content) : undefined,
         isPrivate: isPrivate !== undefined ? isPrivate : undefined,
         aiAnalysis: aiAnalysis !== undefined ? aiAnalysis : undefined,
       },

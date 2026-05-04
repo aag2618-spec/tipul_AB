@@ -4,6 +4,7 @@ import prisma from "@/lib/prisma";
 import { getApproachById, getApproachPrompts, getUniversalPrompts } from "@/lib/therapeutic-approaches";
 import { logger } from "@/lib/logger";
 import { requireAuth } from "@/lib/api-auth";
+import { sanitizeUserHtml } from "@/lib/sanitize-html";
 
 export const dynamic = "force-dynamic";
 
@@ -88,9 +89,11 @@ ${approachPrompts}
         );
       }
 
-      // Build the prompt for comprehensive analysis
+      // H4: sanitize HTML של summaries[i].content לפני שליחה ל-LLM.
+      // המקור הוא sessionNote.content (HTML מ-TipTap). אחרי המיגרציה
+      // הוא יהיה מסונן ב-DB, אבל רישומים ישנים לא — לכן sanitize גם כאן.
       const summariesText = summaries
-        .map((s: any) => `תאריך: ${s.date}\n${s.content}`)
+        .map((s: any) => `תאריך: ${s.date}\n${sanitizeUserHtml(s.content)}`)
         .join("\n\n---\n\n");
 
       const culturalSection = clientCulturalContext
