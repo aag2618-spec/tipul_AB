@@ -1,4 +1,4 @@
-import { type PaymentStatus } from "@prisma/client";
+import { type PaymentStatus, type Prisma } from "@prisma/client";
 
 // ================================================================
 // Types
@@ -23,12 +23,21 @@ export type PaymentType = "FULL" | "PARTIAL" | "ADVANCE";
 // הזאת — תוסיף לו כל מי שמחשב סכומים או מציג רשימת תשלומים.
 export const BULK_UMBRELLA_NOTES_PREFIX = "[BULK_UMBRELLA]";
 
-/** Prisma where clause שמסנן Umbrella payments מתצוגות/חישובים. */
-export const EXCLUDE_BULK_UMBRELLA_WHERE = {
-  NOT: {
-    notes: { startsWith: BULK_UMBRELLA_NOTES_PREFIX },
-  },
-} as const;
+/**
+ * Prisma where clause שמסנן Umbrella payments מתצוגות/חישובים.
+ *
+ * CRITICAL — Postgres NULL handling: `NOT (notes LIKE 'x%')` כש-notes הוא NULL
+ * מחזיר NULL, ו-Postgres מסנן NULL ב-WHERE כאילו זה FALSE. זה היה גורם לכל
+ * Payment עם notes ריק (= רוב התשלומים הישנים שלא דרך bulk) להיעלם מתצוגות
+ * הקבלות, הדוחות והסיכומים. הפתרון: OR מפורש שמתיר notes=null וגם notes
+ * שלא מתחיל ב-prefix. בלי NOT מסביב, רק תנאים חיוביים — אין שום NULL trap.
+ */
+export const EXCLUDE_BULK_UMBRELLA_WHERE: Prisma.PaymentWhereInput = {
+  OR: [
+    { notes: null },
+    { notes: { not: { startsWith: BULK_UMBRELLA_NOTES_PREFIX } } },
+  ],
+};
 
 export interface PaymentResult {
   success: boolean;
