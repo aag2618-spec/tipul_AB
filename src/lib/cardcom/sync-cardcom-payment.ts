@@ -30,6 +30,7 @@ import { getUserCardcomClient } from '@/lib/cardcom/user-config';
 import { getAdminCardcomClient } from '@/lib/cardcom/admin-config';
 import { hashCardcomToken } from '@/lib/cardcom/token-hash';
 import type { CardcomWebhookPayload } from '@/lib/cardcom/types';
+import { distributeBulkCardcomPayment } from '@/lib/payments';
 
 export interface SyncResult {
   status: 'APPROVED' | 'PENDING' | 'CANCELLED' | 'FAILED' | 'unknown';
@@ -381,10 +382,65 @@ async function syncCardcomTransactionInner(transactionId: string): Promise<SyncR
     throw err;
   }
 
+  // Bulk distribution — אם זה היה charge-cardcom-bulk, ה-Umbrella PAID
+  // עכשיו אבל ה-children טרם נוצרו. ה-webhook הראשי קורא ל-distribute אחרי
+  // success, אבל ב-auto-sync (כשה-webhook לא הגיע) זה לא קורה אוטומטית.
+  // בלי הקריאה הזאת, החיוב נגבה ב-Cardcom והקבלה הופקה — אבל ה-Payments
+  // האמיתיים נשארו PENDING והמטפלת לא רואה תיעוד במערכת.
+  if (tx.bulkPaymentIds.length > 0 && tx.payment) {
+    try {
+      const distributionResult = await distributeBulkCardcomPayment({
+        umbrellaPaymentId: tx.payment.id,
+        bulkPaymentIds: tx.bulkPaymentIds,
+        amountPaid: Number(tx.amount),
+        cardcomTransactionId: tx.id,
+      });
+      if (!distributionResult.success && !distributionResult.transient) {
+        await prisma.adminAlert.create({
+          data: {
+            type: 'PAYMENT_FAILED',
+            priority: 'URGENT',
+            status: 'PENDING',
+            title: `[cardcom-bulk-sync] חילוק תשלום מצרפי נכשל (auto-sync)`,
+            message:
+              `התשלום באשראי על ₪${Number(tx.amount).toLocaleString('he-IL')} ` +
+              `אושר ב-Cardcom (umbrella ${tx.payment.id}) אבל החילוק ל-${tx.bulkPaymentIds.length} ` +
+              `הפגישות נכשל ב-auto-sync. נדרש חילוק ידני.`,
+            actionRequired:
+              'בצע חילוק ידני של ה-Payment ל-children לפי bulkPaymentIds, או הפעל את ה-distribution שוב.',
+            userId: tx.userId,
+            metadata: {
+              alertSubtype: 'bulk_distribution_sync_failed',
+              umbrellaPaymentId: tx.payment.id,
+              cardcomTransactionId: tx.id,
+              bulkPaymentIds: tx.bulkPaymentIds,
+              amountPaid: Number(tx.amount),
+              error: distributionResult.error,
+            },
+          },
+        });
+      }
+      // תרחיש transient (P2034) — לתעד אבל לא לזרוק; ה-status עצמו APPROVED
+      // ויחזור ב-polling הבא של auto-sync שינסה שוב.
+      if (distributionResult.transient) {
+        logger.warn('[sync-cardcom-payment] bulk distribute transient — will retry next poll', {
+          transactionId: tx.id,
+        });
+      }
+    } catch (distErr) {
+      // best-effort: כשל בחילוק לא יבטל את ה-APPROVED של ה-Umbrella.
+      logger.error('[sync-cardcom-payment] bulk distribute threw', {
+        transactionId: tx.id,
+        error: distErr instanceof Error ? distErr.message : String(distErr),
+      });
+    }
+  }
+
   logger.info('[sync-cardcom-payment] promoted to APPROVED', {
     transactionId: tx.id,
     paymentId: tx.payment?.id ?? null,
     documentNumber,
+    isBulk: tx.bulkPaymentIds.length > 0,
   });
 
   return { status: 'APPROVED', changed: true };
