@@ -45,16 +45,32 @@ export function bearerEquals(authHeader: string | null, expected: string): boole
 export async function checkCronAuth(
   req: NextRequest
 ): Promise<NextResponse | null> {
-  // ─ שלב 1: CRON_SECRET ─
-  const cronSecret = process.env.CRON_SECRET;
-  if (!cronSecret) {
+  // ─ שלב 1: CRON_SECRET (עם rotation support) ─
+  // Stage 2.0 hardening: תומך ב-CRON_SECRET_PREVIOUS לתקופת חפיפה של
+  // zero-downtime rotation. רוטציה: (1) להגדיר את הנוכחי כ-PREVIOUS,
+  // (2) להגדיר סוד חדש כ-CRON_SECRET, (3) לאחר 24-48ש' שכל ה-cron בריאים — להסיר את PREVIOUS.
+  const primarySecret = process.env.CRON_SECRET;
+  const previousSecret = process.env.CRON_SECRET_PREVIOUS;
+  if (!primarySecret) {
     logger.error("[cron-auth] CRON_SECRET not configured");
     // החזר 401 עם הודעה גנרית — לא מסגיר ל-attacker שה-secret חסר.
     return NextResponse.json({ message: "לא מורשה" }, { status: 401 });
   }
   const authHeader = req.headers.get("authorization");
-  if (!bearerEquals(authHeader, cronSecret)) {
+  const matchesPrimary = bearerEquals(authHeader, primarySecret);
+  const matchesPrevious = previousSecret
+    ? bearerEquals(authHeader, previousSecret)
+    : false;
+
+  if (!matchesPrimary && !matchesPrevious) {
     return NextResponse.json({ message: "לא מורשה" }, { status: 401 });
+  }
+
+  // אם נכנסנו דרך הסוד הישן — מתעדים אזהרה כדי שאדמין יראה שצריך לסיים rotation.
+  if (matchesPrevious) {
+    logger.warn(
+      "[cron-auth] cron called with CRON_SECRET_PREVIOUS — finish rotation by removing it"
+    );
   }
 
   // ─ שלב 2: Rate limit per-IP ─

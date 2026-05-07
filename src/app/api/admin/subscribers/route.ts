@@ -14,6 +14,8 @@ export async function GET(request: NextRequest) {
   try {
     const auth = await requirePermission("users.view");
     if ("error" in auth) return auth.error;
+    const { session } = auth;
+    const isAdmin = session.user.role === "ADMIN";
 
     const { searchParams } = new URL(request.url);
     const search = searchParams.get("search")?.trim() || "";
@@ -43,30 +45,32 @@ export async function GET(request: NextRequest) {
       where.aiTier = tier;
     }
 
-    // שליפת מנויים עם כל המידע
-    const [subscribers, total, statsData] = await Promise.all([
-      prisma.user.findMany({
-        where,
-        select: {
-          id: true,
-          name: true,
-          email: true,
-          phone: true,
-          userNumber: true,
-          aiTier: true,
-          subscriptionStatus: true,
-          subscriptionStartedAt: true,
-          subscriptionEndsAt: true,
-          trialEndsAt: true,
-          isBlocked: true,
-          blockReason: true,
-          isFreeSubscription: true,
-          freeSubscriptionNote: true,
-          freeSubscriptionGrantedAt: true,
-          createdAt: true,
-          // תשלומים אחרונים
+    // Stage 2.0 — סינון שדות לפי role.
+    // ADMIN: כל השדות כולל subscriptionPayments, termsAcceptances (כולל ipAddress + amountAgreed).
+    // MANAGER: רק base fields. לא חושפים תשלומי מנוי, IP של אישורי תנאים, וסכומים.
+    const baseSelect = {
+      id: true,
+      name: true,
+      email: true,
+      phone: true,
+      userNumber: true,
+      aiTier: true,
+      subscriptionStatus: true,
+      subscriptionStartedAt: true,
+      subscriptionEndsAt: true,
+      trialEndsAt: true,
+      isBlocked: true,
+      blockReason: true,
+      isFreeSubscription: true,
+      freeSubscriptionNote: true,
+      freeSubscriptionGrantedAt: true,
+      createdAt: true,
+    };
+
+    const adminOnlySelect = isAdmin
+      ? {
           subscriptionPayments: {
-            orderBy: { createdAt: "desc" },
+            orderBy: { createdAt: "desc" } as const,
             take: 5,
             select: {
               id: true,
@@ -77,9 +81,8 @@ export async function GET(request: NextRequest) {
               createdAt: true,
             },
           },
-          // אישורי תנאים
           termsAcceptances: {
-            orderBy: { createdAt: "desc" },
+            orderBy: { createdAt: "desc" } as const,
             take: 3,
             select: {
               id: true,
@@ -91,7 +94,13 @@ export async function GET(request: NextRequest) {
               createdAt: true,
             },
           },
-        },
+        }
+      : {};
+
+    const [subscribersRaw, total, statsData] = await Promise.all([
+      prisma.user.findMany({
+        where,
+        select: { ...baseSelect, ...adminOnlySelect },
         orderBy: { createdAt: "desc" },
         skip,
         take: limit,
@@ -109,6 +118,15 @@ export async function GET(request: NextRequest) {
     ]);
 
     const [activeCount, cancelledCount, trialingCount, pastDueCount, blockedCount, totalUsers] = statsData;
+
+    // ל-MANAGER מחזירים [] במקום undefined כדי שה-UI לא יקרוס על .map() / .length
+    const subscribers = isAdmin
+      ? subscribersRaw
+      : subscribersRaw.map((s) => ({
+          ...s,
+          subscriptionPayments: [],
+          termsAcceptances: [],
+        }));
 
     return NextResponse.json({
       subscribers,

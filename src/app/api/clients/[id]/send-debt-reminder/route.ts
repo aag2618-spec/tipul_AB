@@ -7,6 +7,7 @@ import { sendSMSIfEnabled } from "@/lib/sms";
 import { logger } from "@/lib/logger";
 import { requireAuth } from "@/lib/api-auth";
 import { buildClientWhere, isSecretary, loadScopeUser, secretaryCan } from "@/lib/scope";
+import { checkRateLimit } from "@/lib/rate-limit";
 
 export const dynamic = "force-dynamic";
 
@@ -194,6 +195,28 @@ export async function POST(
     const { userId, session } = auth;
 
     const { id: clientId } = await params;
+
+    // Stage 2.0 — rate limit per (user,client): 3 תזכורות חוב/שעה לאותו לקוח.
+    // המוטיבציה: מטפל לגיטימי שצריך לשלוח תזכורות ל-12 לקוחות שונים בבוקר אחד
+    // לא ייחסם (כל לקוח מונה משלו). השליחה החוזרת לאותו לקוח 3+ פעמים בשעה היא
+    // ה-spam pattern שאנחנו מונעים.
+    const rateLimitResult = checkRateLimit(
+      `debt-reminder:${userId}:${clientId}`,
+      { maxRequests: 3, windowMs: 60 * 60 * 1000 }
+    );
+    if (!rateLimitResult.allowed) {
+      return NextResponse.json(
+        { message: "שלחת תזכורת ללקוח זה לאחרונה. אפשר לנסות שוב בעוד שעה." },
+        {
+          status: 429,
+          headers: {
+            "Retry-After": String(
+              Math.max(1, Math.ceil((rateLimitResult.resetAt - Date.now()) / 1000))
+            ),
+          },
+        }
+      );
+    }
 
     const scopeUser = await loadScopeUser(userId);
 

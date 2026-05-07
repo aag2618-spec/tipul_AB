@@ -29,7 +29,14 @@ function inferAuditAction(body: Record<string, unknown>): string {
   return "update_user";
 }
 
-// GET — פרופיל משתמש מלא
+// GET — פרופיל משתמש.
+// Stage 2.0 hardening: סינון שדות לפי role.
+//   - ADMIN: כל הפרופיל המלא (כולל subscriptionPayments, supportTickets, AI stats)
+//   - MANAGER (וכל role אחר): רק שדות זיהוי וסטטוס בסיסי. אין subscriptionPayments,
+//     אין AI cost data, אין supportTickets (PII רגיש של לקוחות פנייה).
+//
+// המוטיבציה: ל-MANAGER יש users.view (רואה את הרשימה ובסיס), אבל אין סיבה
+// שיראה את כל היסטוריית התשלומים והעלויות הפרטיות של כל משתמש במערכת.
 export async function GET(
   request: NextRequest,
   { params }: { params: Promise<{ id: string }> }
@@ -37,78 +44,105 @@ export async function GET(
   try {
     const auth = await requirePermission("users.view");
     if ("error" in auth) return auth.error;
+    const { session } = auth;
     const { id } = await params;
+
+    const isAdmin = session.user.role === "ADMIN";
+
+    // Stage 2.0 — שדות בסיסיים (מותר לכל role עם users.view).
+    // _count תמיד כולל את אותם השדות (כולל apiUsageLogs) כדי שה-UI לא יקרוס
+    // אצל MANAGER. ל-MANAGER פשוט "לא מציגים" subscriptionPayments/supportTickets
+    // (מחזירים [] במקום undefined כדי לשמור על compat).
+    const select = {
+      id: true,
+      name: true,
+      email: true,
+      phone: true,
+      role: true,
+      isBlocked: true,
+      blockReason: true,
+      blockedAt: true,
+      blockedBy: true,
+      aiTier: true,
+      subscriptionStatus: true,
+      subscriptionStartedAt: true,
+      subscriptionEndsAt: true,
+      trialEndsAt: true,
+      isFreeSubscription: true,
+      freeSubscriptionNote: true,
+      userNumber: true,
+      createdAt: true,
+      _count: {
+        select: {
+          clients: true,
+          therapySessions: true,
+          documents: true,
+          supportTickets: true,
+          apiUsageLogs: true,
+        },
+      },
+      ...(isAdmin
+        ? {
+            aiUsageStats: {
+              select: {
+                currentMonthCalls: true,
+                currentMonthCost: true,
+                totalCalls: true,
+                totalCost: true,
+                dailyCalls: true,
+              },
+            },
+            subscriptionPayments: {
+              orderBy: { createdAt: "desc" } as const,
+              take: 10,
+              select: {
+                id: true,
+                amount: true,
+                status: true,
+                description: true,
+                paidAt: true,
+                createdAt: true,
+              },
+            },
+            supportTickets: {
+              orderBy: { createdAt: "desc" } as const,
+              take: 5,
+              select: {
+                id: true,
+                ticketNumber: true,
+                subject: true,
+                status: true,
+                createdAt: true,
+              },
+            },
+          }
+        : {}),
+    };
 
     const user = await prisma.user.findUnique({
       where: { id },
-      select: {
-        id: true,
-        name: true,
-        email: true,
-        phone: true,
-        role: true,
-        isBlocked: true,
-        blockReason: true,
-        blockedAt: true,
-        blockedBy: true,
-        aiTier: true,
-        subscriptionStatus: true,
-        subscriptionStartedAt: true,
-        subscriptionEndsAt: true,
-        trialEndsAt: true,
-        isFreeSubscription: true,
-        freeSubscriptionNote: true,
-        userNumber: true,
-        createdAt: true,
-        aiUsageStats: {
-          select: {
-            currentMonthCalls: true,
-            currentMonthCost: true,
-            totalCalls: true,
-            totalCost: true,
-            dailyCalls: true,
-          },
-        },
-        _count: {
-          select: {
-            clients: true,
-            therapySessions: true,
-            documents: true,
-            supportTickets: true,
-            apiUsageLogs: true,
-          },
-        },
-        subscriptionPayments: {
-          orderBy: { createdAt: "desc" },
-          take: 10,
-          select: {
-            id: true,
-            amount: true,
-            status: true,
-            description: true,
-            paidAt: true,
-            createdAt: true,
-          },
-        },
-        supportTickets: {
-          orderBy: { createdAt: "desc" },
-          take: 5,
-          select: {
-            id: true,
-            ticketNumber: true,
-            subject: true,
-            status: true,
-            createdAt: true,
-          },
-        },
-      },
+      select,
     });
 
     if (!user) {
       return NextResponse.json({ message: "משתמש לא נמצא" }, { status: 404 });
     }
 
-    return NextResponse.json({ user });
+    // Defense-in-depth ל-UI: גם אם המשתמש אינו ADMIN (אין subscriptionPayments/
+    // supportTickets/aiUsageStats בתוצאה), מחזירים arrays ריקים + null במקום
+    // undefined כדי שה-UI לא יקרוס על `.length` ללא optional chaining.
+    const userResponse = {
+      ...user,
+      ...(isAdmin
+        ? {}
+        : {
+            subscriptionPayments: [],
+            supportTickets: [],
+            aiUsageStats: null,
+          }),
+    };
+
+    return NextResponse.json({ user: userResponse });
   } catch (error) {
     logger.error("Error fetching user profile:", { error: error instanceof Error ? error.message : String(error) });
     return NextResponse.json({ message: "שגיאה בטעינת פרופיל" }, { status: 500 });

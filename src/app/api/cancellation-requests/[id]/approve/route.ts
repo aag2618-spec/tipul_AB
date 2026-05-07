@@ -7,6 +7,7 @@ import {
 } from "@/lib/email-templates";
 import { logger } from "@/lib/logger";
 import { requireAuth } from "@/lib/api-auth";
+import { checkRateLimit, EMAIL_SEND_USER_RATE_LIMIT } from "@/lib/rate-limit";
 
 // POST /api/cancellation-requests/[id]/approve
 // Approve a cancellation request
@@ -20,6 +21,25 @@ export async function POST(
     const auth = await requireAuth();
     if ("error" in auth) return auth.error;
     const { userId, session } = auth;
+
+    // Stage 2.0 — rate limit לפי userId על פעולת אישור (שולחת מייל ללקוח).
+    const rateLimitResult = checkRateLimit(
+      `cancellation-approve:${userId}`,
+      EMAIL_SEND_USER_RATE_LIMIT
+    );
+    if (!rateLimitResult.allowed) {
+      return NextResponse.json(
+        { message: "הגעת למכסת השליחה השעתית. נסה שוב בעוד שעה." },
+        {
+          status: 429,
+          headers: {
+            "Retry-After": String(
+              Math.max(1, Math.ceil((rateLimitResult.resetAt - Date.now()) / 1000))
+            ),
+          },
+        }
+      );
+    }
 
     const { id: requestId } = await params;
     const body = await request.json().catch(() => ({}));

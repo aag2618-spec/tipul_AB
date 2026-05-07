@@ -5,6 +5,7 @@ import { createSessionConfirmationEmail, formatSessionDateTime } from "@/lib/ema
 import { logger } from "@/lib/logger";
 import { requireAuth } from "@/lib/api-auth";
 import { buildSessionWhere, isSecretary, loadScopeUser, secretaryCan } from "@/lib/scope";
+import { checkRateLimit, EMAIL_SEND_USER_RATE_LIMIT } from "@/lib/rate-limit";
 
 // Send session confirmation email immediately after session creation
 export const dynamic = "force-dynamic";
@@ -15,11 +16,30 @@ export async function POST(request: NextRequest) {
   const { userId, session } = auth;
 
   try {
+    // Stage 2.0 — rate limit לפי userId: 30 אישורי פגישה/שעה.
+    const rateLimitResult = checkRateLimit(
+      `send-confirmation:${userId}`,
+      EMAIL_SEND_USER_RATE_LIMIT
+    );
+    if (!rateLimitResult.allowed) {
+      return NextResponse.json(
+        { message: "הגעת למכסת השליחה השעתית. נסה שוב בעוד שעה." },
+        {
+          status: 429,
+          headers: {
+            "Retry-After": String(
+              Math.max(1, Math.ceil((rateLimitResult.resetAt - Date.now()) / 1000))
+            ),
+          },
+        }
+      );
+    }
+
     const { sessionId } = await request.json();
 
-    if (!sessionId) {
+    if (!sessionId || typeof sessionId !== "string" || sessionId.length > 100) {
       return NextResponse.json(
-        { message: "sessionId is required" },
+        { message: "sessionId לא תקין" },
         { status: 400 }
       );
     }

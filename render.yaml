@@ -27,6 +27,10 @@ services:
         value: /opt/render/project/uploads
       - key: CRON_SECRET
         sync: false
+      # CRON_SECRET_PREVIOUS — תקופת חפיפה ל-rotation של CRON_SECRET (Stage 2.0).
+      # להגדיר ידנית רק בעת רוטציה; להסיר אחרי 24-48ש' שכל ה-cron jobs בריאים.
+      - key: CRON_SECRET_PREVIOUS
+        sync: false
       - key: ADMIN_EMAIL
         sync: false
       - key: MESHULAM_API_KEY
@@ -210,6 +214,29 @@ services:
     buildCommand: echo "No build needed"
     startCommand: |
       curl -s --max-time 60 -X GET "$RENDER_EXTERNAL_URL/api/cron/trial-expiry" \
+        -H "Authorization: Bearer $CRON_SECRET"
+    envVars:
+      - key: RENDER_EXTERNAL_URL
+        fromService:
+          type: web
+          name: tipul-app
+          property: url
+      - key: CRON_SECRET
+        sync: false
+
+  # Cron job for impersonation hardkill — terminates impersonation sessions
+  # that exceeded 4 hours (Stage 2.0 hardening). Runs every 30 min.
+  # Without this, ImpersonationSession rows stay endedAt=null forever when the
+  # browser closes without explicit stop, blocking the partial unique index.
+  - type: cron
+    name: impersonation-hardkill
+    runtime: node
+    region: frankfurt
+    plan: free
+    schedule: "*/30 * * * *"  # Every 30 minutes
+    buildCommand: echo "No build needed"
+    startCommand: |
+      curl -s --max-time 60 -X GET "$RENDER_EXTERNAL_URL/api/cron/impersonation-hardkill" \
         -H "Authorization: Bearer $CRON_SECRET"
     envVars:
       - key: RENDER_EXTERNAL_URL

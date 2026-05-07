@@ -60,6 +60,23 @@ export async function POST(req: NextRequest) {
       );
     }
 
+    // Stage 2.0 — DoS guard: cap על מספר ה-payments בקריאה אחת.
+    // 200 הוא חציון בין שימוש לגיטימי (גם לקליניקה גדולה) להגנה מפני
+    // body מעוות שגורם ל-IN(...) קטסטרופלי בpostgres.
+    if (paymentIds.length > 200) {
+      return NextResponse.json(
+        { message: "ניתן לעדכן עד 200 תשלומים בקריאה אחת" },
+        { status: 400 }
+      );
+    }
+    // ודא ש-paymentIds הם strings תקינים (לא objects/arrays של NoSQL injection)
+    if (!paymentIds.every((id) => typeof id === "string" && id.length > 0 && id.length <= 100)) {
+      return NextResponse.json(
+        { message: "מזהי תשלום לא תקינים" },
+        { status: 400 }
+      );
+    }
+
     const result = await processMultiSessionPayment({
       userId: userId,
       clientId,

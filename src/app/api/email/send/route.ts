@@ -10,6 +10,7 @@ import {
   isSecretary,
   secretaryCan,
 } from "@/lib/scope";
+import { checkRateLimit, EMAIL_SEND_USER_RATE_LIMIT } from "@/lib/rate-limit";
 
 export const dynamic = "force-dynamic";
 
@@ -31,6 +32,26 @@ export async function POST(request: NextRequest) {
     const auth = await requireAuth();
     if ("error" in auth) return auth.error;
     const { userId } = auth;
+
+    // Stage 2.0 — rate limit לפי userId: 30 מיילים/שעה.
+    // מונע spam במקרה של חשבון נפרץ או UI bug שלוחץ "שלח" מאות פעמים.
+    const rateLimitResult = checkRateLimit(
+      `email-send:${userId}`,
+      EMAIL_SEND_USER_RATE_LIMIT
+    );
+    if (!rateLimitResult.allowed) {
+      return NextResponse.json(
+        { message: "הגעת למכסת שליחת המיילים השעתית. נסה שוב בעוד שעה." },
+        {
+          status: 429,
+          headers: {
+            "Retry-After": String(
+              Math.max(1, Math.ceil((rateLimitResult.resetAt - Date.now()) / 1000))
+            ),
+          },
+        }
+      );
+    }
 
     const scopeUser = await loadScopeUser(userId);
     if (isSecretary(scopeUser) && !secretaryCan(scopeUser, "canSendReminders")) {

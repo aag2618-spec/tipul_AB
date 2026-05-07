@@ -1,4 +1,5 @@
 import { NextRequest, NextResponse } from "next/server";
+import { z } from "zod";
 import { requireAuth } from "@/lib/api-auth";
 import prisma from "@/lib/prisma";
 import { logger } from "@/lib/logger";
@@ -13,6 +14,41 @@ import {
 } from "@/lib/scope";
 
 export const dynamic = "force-dynamic";
+
+// Stage 2.0 — Zod schema לעדכון מטופל. כל השדות אופציונליים (PATCH semantics).
+// .passthrough() נשמר במכוון כדי שבדיקת השדות הקליניים החסומים למזכירה
+// (CLINICAL_KEYS_BLOCKED) תוכל לקרוא את ה-body המקורי. השדות הקליניים האלה
+// **אינם** ב-schema, אז גם אם הם passthrough — ה-destructuring למטה לא קולט
+// אותם, והם לא מגיעים ל-Prisma update.data. אם תוסיפו שדות חדשים ל-Zod,
+// כיסו גם אותם ב-CLINICAL_KEYS_BLOCKED אם רגישים קלינית.
+// המגבלות:
+//   - אורך מקסימום על שדות טקסט (DoS guard)
+//   - email תקין (אם נשלח)
+//   - phone — תווי טלפון בלבד
+//   - birthDate — ISO date string (refine בודק תקינות) או null
+//   - status — enum מותר (תואם Prisma ClientStatus)
+//   - defaultSessionPrice — מספר חיובי או null
+const UpdateClientSchema = z.object({
+  firstName: z.string().max(100).optional(),
+  lastName: z.string().max(100).optional(),
+  // phone — מקבל ספרות + תווי הפרדה רגילים + נקודה + פסיק + סלאש (ext, country
+  // codes נוסחה בינלאומית). הרגישות העיקרית היא DoS דרך אורך — לא הצמדה לפורמט.
+  phone: z.string().max(50).optional().nullable(),
+  email: z.string().max(254).email("מייל לא תקין").optional().nullable().or(z.literal("")),
+  birthDate: z
+    .string()
+    .refine((s) => !Number.isNaN(Date.parse(s)), "תאריך לא תקין")
+    .optional()
+    .nullable()
+    .or(z.literal("")),
+  address: z.string().max(500).optional().nullable(),
+  notes: z.string().max(20_000).optional().nullable(),
+  status: z.enum(["ACTIVE", "WAITING", "INACTIVE", "ARCHIVED"]).optional(),
+  initialDiagnosis: z.string().max(20_000).optional().nullable(),
+  intakeNotes: z.string().max(20_000).optional().nullable(),
+  defaultSessionPrice: z.union([z.number().min(0).max(100_000), z.null()]).optional(),
+  isQuickClient: z.boolean().optional(),
+}).passthrough();
 
 export async function GET(
   request: NextRequest,
@@ -116,8 +152,28 @@ export async function PUT(
     const { userId } = auth;
 
     const { id } = await params;
-    const body = await request.json();
-    const { firstName, lastName, phone, email, birthDate, address, notes, status, initialDiagnosis, intakeNotes, defaultSessionPrice, isQuickClient } = body;
+
+    let body: Record<string, unknown>;
+    try {
+      body = await request.json();
+    } catch {
+      return NextResponse.json({ message: "גוף הבקשה לא תקין" }, { status: 400 });
+    }
+
+    // Stage 2.0 — Zod input validation. דוחה body עם שדות לא-תקינים (סוגים, אורכים, פורמט).
+    const parsed = UpdateClientSchema.safeParse(body);
+    if (!parsed.success) {
+      const firstIssue = parsed.error.issues[0];
+      return NextResponse.json(
+        {
+          message: firstIssue?.message ?? "נתונים לא תקינים",
+          field: firstIssue?.path.join(".") ?? null,
+        },
+        { status: 400 }
+      );
+    }
+
+    const { firstName, lastName, phone, email, birthDate, address, notes, status, initialDiagnosis, intakeNotes, defaultSessionPrice, isQuickClient } = parsed.data;
 
     const scopeUser = await loadScopeUser(userId);
     const scopeWhere = buildClientWhere(scopeUser);
@@ -179,7 +235,7 @@ export async function PUT(
         address: address?.trim() || null,
         notes: notes !== undefined ? (notes?.trim() || null) : existingClient.notes,
         status: status || existingClient.status,
-        defaultSessionPrice: defaultSessionPrice !== undefined ? (defaultSessionPrice !== null ? parseFloat(defaultSessionPrice) : null) : existingClient.defaultSessionPrice,
+        defaultSessionPrice: defaultSessionPrice !== undefined ? defaultSessionPrice : existingClient.defaultSessionPrice,
         initialDiagnosis: initialDiagnosis !== undefined ? (initialDiagnosis?.trim() || null) : existingClient.initialDiagnosis,
         intakeNotes: intakeNotes !== undefined ? (intakeNotes?.trim() || null) : existingClient.intakeNotes,
         // שדרוג פונה למטופל קבוע — אוטומטי אם יש firstName+lastName, או ידני

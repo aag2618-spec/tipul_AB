@@ -7,6 +7,7 @@ import { logger } from "@/lib/logger";
 import { requireAuth } from "@/lib/api-auth";
 import { isShabbatOrYomTov } from "@/lib/shabbat";
 import { validateFileBuffer } from "@/lib/file-validation";
+import { checkRateLimit, EMAIL_SEND_USER_RATE_LIMIT } from "@/lib/rate-limit";
 
 const MAX_ATTACHMENTS_PER_REPLY = 5;
 
@@ -17,6 +18,26 @@ export async function POST(request: NextRequest) {
     const auth = await requireAuth();
     if ("error" in auth) return auth.error;
     const { userId, session } = auth;
+
+    // Stage 2.0 — rate limit לפי userId: 30 תשובות/שעה.
+    // אותה מכסה כמו /api/email/send כי שני ה-endpoints משלחים מיילים ע"י input משתמש.
+    const rateLimitResult = checkRateLimit(
+      `comm-reply:${userId}`,
+      EMAIL_SEND_USER_RATE_LIMIT
+    );
+    if (!rateLimitResult.allowed) {
+      return NextResponse.json(
+        { message: "הגעת למכסת השליחה השעתית. נסה שוב בעוד שעה." },
+        {
+          status: 429,
+          headers: {
+            "Retry-After": String(
+              Math.max(1, Math.ceil((rateLimitResult.resetAt - Date.now()) / 1000))
+            ),
+          },
+        }
+      );
+    }
 
     // ⭐ חסימת שבת/חג — ה-route הזה עוקף את ה-gate המרכזי ב-sendEmail כי הוא
     //    צריך headers מותאמים (threading) + attachments. לכן gate ייעודי כאן.
@@ -76,6 +97,20 @@ export async function POST(request: NextRequest) {
     if (!communicationLogId || !replyContent) {
       return NextResponse.json(
         { message: "חסרים שדות חובה" },
+        { status: 400 }
+      );
+    }
+
+    // Stage 2.0 — DoS guard: מגבלות אורך על input.
+    if (typeof communicationLogId !== "string" || communicationLogId.length > 100) {
+      return NextResponse.json(
+        { message: "מזהה התקשורת לא תקין" },
+        { status: 400 }
+      );
+    }
+    if (typeof replyContent !== "string" || replyContent.length > 50_000) {
+      return NextResponse.json(
+        { message: "תוכן התשובה ארוך מדי (מקסימום 50,000 תווים)" },
         { status: 400 }
       );
     }

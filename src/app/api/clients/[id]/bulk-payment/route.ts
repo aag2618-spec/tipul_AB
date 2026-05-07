@@ -1,4 +1,5 @@
 import { NextRequest, NextResponse } from "next/server";
+import { z } from "zod";
 import prisma from "@/lib/prisma";
 import { createPaymentForSession, processMultiSessionPayment } from "@/lib/payment-service";
 import { logger } from "@/lib/logger";
@@ -13,6 +14,14 @@ import {
 
 export const dynamic = "force-dynamic";
 
+// Stage 2.0 — Zod schema לתשלום מצרפי. amount חיובי בלבד, method מ-enum סגור.
+// שני הבדיקות היו קיימות בעבר באופן ידני; Zod מחליף אותן וגם דוחה body מעוות
+// (e.g. amount: { $gt: 0 } — NoSQL-style operator injection).
+const BulkPaymentSchema = z.object({
+  amount: z.number().positive("הסכום חייב להיות חיובי").max(1_000_000),
+  method: z.enum(["CASH", "CREDIT_CARD", "BANK_TRANSFER", "CHECK", "CREDIT", "OTHER"]),
+});
+
 export async function POST(
   request: NextRequest,
   { params }: { params: Promise<{ id: string }> }
@@ -23,8 +32,23 @@ export async function POST(
     const { userId, session } = auth;
 
     const { id: clientId } = await params;
-    const body = await request.json();
-    const { amount, method } = body;
+
+    let rawBody: unknown;
+    try {
+      rawBody = await request.json();
+    } catch {
+      return NextResponse.json({ message: "גוף הבקשה לא תקין" }, { status: 400 });
+    }
+
+    const parsed = BulkPaymentSchema.safeParse(rawBody);
+    if (!parsed.success) {
+      const firstIssue = parsed.error.issues[0];
+      return NextResponse.json(
+        { message: firstIssue?.message ?? "נתונים לא תקינים" },
+        { status: 400 }
+      );
+    }
+    const { amount, method } = parsed.data;
 
     const scopeUser = await loadScopeUser(userId);
     if (isSecretary(scopeUser) && !secretaryCan(scopeUser, "canViewPayments")) {
@@ -36,24 +60,10 @@ export async function POST(
     const clientWhere = buildClientWhere(scopeUser);
     const sessionWhere = buildSessionWhere(scopeUser);
 
-    if (!amount || amount <= 0) {
-      return NextResponse.json(
-        { message: "Invalid payment amount" },
-        { status: 400 }
-      );
-    }
-
-    if (!["CASH", "CREDIT_CARD", "BANK_TRANSFER", "CHECK", "CREDIT", "OTHER"].includes(method)) {
-      return NextResponse.json(
-        { message: "Invalid payment method" },
-        { status: 400 }
-      );
-    }
-
     // CREDIT_CARD חייב לעבור דרך /api/payments/charge-cardcom-bulk (סליקה
     // אמיתית עם umbrella + webhook). ה-route הזה רושם PAID ידנית, אז
     // CREDIT_CARD פה אסור — defense-in-depth מעל החסימה ב-UI.
-    if (method === "CREDIT_CARD") {
+    if ((method as string) === "CREDIT_CARD") {
       return NextResponse.json(
         {
           message:

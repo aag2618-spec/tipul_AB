@@ -7,6 +7,9 @@ import prisma from "./prisma";
 import { checkRateLimit, resetRateLimit, AUTH_RATE_LIMIT, LOGIN_EMAIL_RATE_LIMIT } from "./rate-limit";
 import { requires2FA } from "./two-factor";
 import { loadVerifiedImpersonation, type JwtActingAs } from "./impersonation";
+import { sendEmail } from "./resend";
+import { logger } from "./logger";
+import { escapeHtml } from "./email-utils";
 
 // Cache for JWT user data — avoids DB query on every request
 // 30s ב-Production: מאזן בין performance (פחות DB queries) ל-revocation
@@ -236,6 +239,41 @@ export const authOptions: NextAuthOptions = {
                 id_token: account.id_token || null,
               },
             });
+
+            // Stage 2.0 — security notification: שולחים מייל למשתמש הקיים
+            // שחשבון Google חדש קושר לחשבונו. הכרחי כדי שמישהו שגנב גישה לדוא"ל
+            // יזהה לינקינג זדוני. fire-and-forget — כשל בשליחה לא חוסם את ההתחברות
+            // (שלא נכשיל login לגיטימי בגלל בעיית שירות מייל). חסום בשבת ע"י sendEmail.
+            if (existingUser.email) {
+              const safeEmail = escapeHtml(existingUser.email);
+              const safeName = escapeHtml(existingUser.name ?? "");
+              void sendEmail({
+                to: existingUser.email,
+                subject: "התחברות חדשה דרך Google לחשבון שלך ב-MyTipul",
+                html: `
+                  <div dir="rtl" style="font-family: Arial, sans-serif; max-width: 600px; margin: 0 auto; padding: 20px;">
+                    <h2 style="color: #0f766e;">🔐 התחברות חדשה דרך Google</h2>
+                    <p>שלום ${safeName},</p>
+                    <p>חשבון Google חובר לחשבון שלך ב-MyTipul (${safeEmail}).</p>
+                    <p style="background: #fef3c7; border-right: 4px solid #f59e0b; padding: 12px; border-radius: 6px;">
+                      <strong>אם זה היה אתה</strong> — אין צורך לעשות כלום. תוכל להתחבר מעכשיו דרך Google.
+                    </p>
+                    <p style="background: #fee2e2; border-right: 4px solid #dc2626; padding: 12px; border-radius: 6px;">
+                      <strong>אם זה לא היית אתה</strong> — שנה מיד את סיסמת ה-Gmail שלך, נתק את החיבור מהחשבון שלך ב-MyTipul,
+                      ושלח לנו מייל בתשובה כדי שנבדוק את האירוע.
+                    </p>
+                    <p style="color: #666; font-size: 12px; margin-top: 30px;">
+                      הודעה זו נשלחה אוטומטית מטעמי אבטחה.
+                    </p>
+                  </div>
+                `,
+              }).catch((err) => {
+                logger.error("[auth] failed to send OAuth-link notification", {
+                  userId: existingUser.id,
+                  error: err instanceof Error ? err.message : String(err),
+                });
+              });
+            }
           } else {
             // Update existing tokens — אבל **לא לדרוס** tokens קיימים אם
             // Google לא שלח אותם ב-login הזה. זה קריטי במיוחד אחרי שהוסרה

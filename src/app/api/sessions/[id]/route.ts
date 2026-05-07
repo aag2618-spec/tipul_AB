@@ -1,4 +1,5 @@
 import { NextRequest, NextResponse } from "next/server";
+import { z } from "zod";
 import { requireAuth } from "@/lib/api-auth";
 import prisma from "@/lib/prisma";
 import { parseIsraelTime } from "@/lib/date-utils";
@@ -13,6 +14,34 @@ import { logDataAccess } from "@/lib/audit-logger";
 import { buildSessionWhere, isSecretary, loadScopeUser } from "@/lib/scope";
 
 export const dynamic = "force-dynamic";
+
+// Stage 2.0 — Zod schema לעדכון פגישה (PUT). ולידציה רכה: שומרת על type-safety
+// ומונעת body מעוות (NoSQL operator injection, NaN במחיר). ההיגיון העסקי
+// (שעות, חפיפות, סטטוסים) נשאר במקום בהמשך ה-handler.
+// .passthrough() כדי שבדיקת ALLOWED_FOR_SECRETARY תוכל לקרוא את הbody המקורי.
+const UpdateSessionSchema = z.object({
+  startTime: z.string().optional(),
+  endTime: z.string().optional(),
+  type: z.enum(["IN_PERSON", "ONLINE", "PHONE", "BREAK"]).optional(),
+  price: z.number().min(0).max(100_000).optional(),
+  location: z.string().max(500).optional().nullable(),
+  notes: z.string().max(50_000).optional().nullable(),
+  topic: z.string().max(500).optional().nullable(),
+  status: z
+    .enum([
+      "SCHEDULED",
+      "COMPLETED",
+      "CANCELLED",
+      "PENDING_CANCELLATION",
+      "PENDING_APPROVAL",
+      "NO_SHOW",
+    ])
+    .optional(),
+  createPayment: z.boolean().optional(),
+  markAsPaid: z.boolean().optional(),
+  cancellationReason: z.string().max(500).optional().nullable(),
+  allowOverlap: z.boolean().optional(),
+}).passthrough();
 
 export async function GET(
   request: NextRequest,
@@ -101,8 +130,24 @@ export async function PUT(
     const { userId } = auth;
 
     const { id } = await params;
-    const body = await request.json();
-    const { startTime, endTime, type, price, location, notes, topic, status, createPayment, markAsPaid, cancellationReason, allowOverlap } = body;
+
+    let body: Record<string, unknown>;
+    try {
+      body = await request.json();
+    } catch {
+      return NextResponse.json({ message: "גוף הבקשה לא תקין" }, { status: 400 });
+    }
+
+    const parsed = UpdateSessionSchema.safeParse(body);
+    if (!parsed.success) {
+      const firstIssue = parsed.error.issues[0];
+      return NextResponse.json(
+        { message: firstIssue?.message ?? "נתונים לא תקינים" },
+        { status: 400 }
+      );
+    }
+
+    const { startTime, endTime, type, price, location, notes, topic, status, createPayment, markAsPaid, cancellationReason, allowOverlap } = parsed.data;
 
     const scopeUser = await loadScopeUser(userId);
     const sessionScopeWhere = buildSessionWhere(scopeUser);

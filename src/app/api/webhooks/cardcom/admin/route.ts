@@ -31,7 +31,11 @@ import {
   resolveClientIp,
   scrubCardcomMessage,
 } from "@/lib/cardcom/verify-webhook";
-import { checkRateLimit } from "@/lib/rate-limit";
+import {
+  checkRateLimit,
+  CARDCOM_WEBHOOK_PER_IP,
+  CARDCOM_WEBHOOK_GLOBAL,
+} from "@/lib/rate-limit";
 import {
   claimWebhook,
   finalizeWebhook,
@@ -48,25 +52,40 @@ export const dynamic = "force-dynamic";
 export async function POST(request: NextRequest) {
   const ip = resolveClientIp(request.headers);
 
-  // Rate-limit before any DB / HMAC work — bounds CPU+DB cost of a flood of
-  // bad requests. Cardcom's legitimate retry rate is well under 100/min.
-  //
-  // ⚠️ PER-INSTANCE LIMIT: checkRateLimit uses an in-memory Map. On Render
-  // multi-instance plans this means each Node instance has its OWN counter —
-  // 3 instances → effective 300/min global. MyTipul is single-instance today;
-  // the assumption MUST be re-evaluated before scaling. Migrate to Upstash
-  // Redis or a Postgres-backed counter when adding a second instance.
-  const rateLimitResult = checkRateLimit(`webhook:cardcom:admin:${ip ?? "unknown"}`, {
-    windowMs: 60 * 1000,
-    maxRequests: 100,
-  });
-  if (!rateLimitResult.allowed) {
-    logger.warn("[Cardcom Admin Webhook] rate limited", { ip });
+  // ── Layered rate limiting (Stage 2.0 hardening) ──────────────
+  // שכבה 1 — per-IP (30/min): הוקשח מ-100→30. IP יחיד אמיתי של Cardcom
+  // לא צריך לעבור 30/min בנסיבות נורמליות.
+  // שכבה 2 — global (200/min): מונע botnet על מאות IPs.
+  // שתי השכבות per-instance (in-memory). multi-instance ידרוש Redis (fix #2).
+  const ipResult = checkRateLimit(
+    `webhook:cardcom:admin:${ip ?? "unknown"}`,
+    CARDCOM_WEBHOOK_PER_IP
+  );
+  if (!ipResult.allowed) {
+    logger.warn("[Cardcom Admin Webhook] per-IP rate limited", { ip });
     return new NextResponse("Too Many Requests", {
       status: 429,
       headers: {
         "Retry-After": String(
-          Math.max(1, Math.ceil((rateLimitResult.resetAt - Date.now()) / 1000))
+          Math.max(1, Math.ceil((ipResult.resetAt - Date.now()) / 1000))
+        ),
+      },
+    });
+  }
+
+  const globalResult = checkRateLimit(
+    "webhook:cardcom:admin:global",
+    CARDCOM_WEBHOOK_GLOBAL
+  );
+  if (!globalResult.allowed) {
+    logger.error("[Cardcom Admin Webhook] GLOBAL rate limit hit — possible attack or surge", {
+      ip,
+    });
+    return new NextResponse("Service Overloaded", {
+      status: 503,
+      headers: {
+        "Retry-After": String(
+          Math.max(1, Math.ceil((globalResult.resetAt - Date.now()) / 1000))
         ),
       },
     });
