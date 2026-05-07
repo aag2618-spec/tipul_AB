@@ -3,6 +3,7 @@ import { authOptions } from "@/lib/auth";
 import prisma from "@/lib/prisma";
 import { ReportsView, type ReportData } from "@/components/reports/reports-view";
 import { getIsraelYear, parseIsraelTime } from "@/lib/date-utils";
+import { EXCLUDE_BULK_UMBRELLA_WHERE } from "@/lib/payments/types";
 import {
   loadScopeUser,
   buildClientWhere,
@@ -47,6 +48,7 @@ async function getReportData(scopeUser: ScopeUser): Promise<ReportData> {
         where: {
           AND: [
             paymentWhere,
+            EXCLUDE_BULK_UMBRELLA_WHERE,
             {
               OR: [
                 { status: "PAID", paidAt: { gte: yearStart } },

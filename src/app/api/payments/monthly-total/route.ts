@@ -5,6 +5,7 @@ import { getIsraelYear, getIsraelMonth } from "@/lib/date-utils";
 
 import { requireAuth } from "@/lib/api-auth";
 import { buildPaymentWhere, loadScopeUser } from "@/lib/scope";
+import { EXCLUDE_BULK_UMBRELLA_WHERE } from "@/lib/payments/types";
 
 export const dynamic = "force-dynamic";
 
@@ -18,11 +19,15 @@ export async function GET(request: NextRequest) {
     const paymentWhere = buildPaymentWhere(scopeUser);
 
     // שליפת תשלומים אמיתיים (ילדים חלקיים + הורים ללא ילדים)
-    // מונע כפילות: הורה עם ילדים לא נספר כי הילדים כבר נספרים
+    // מונע כפילות: הורה עם ילדים לא נספר כי הילדים כבר נספרים.
+    // EXCLUDE_BULK_UMBRELLA_WHERE — מסנן Umbrella payments של תשלום מצרפי
+    // באשראי (childPayments שלהם ריקים, אבל הסכום כבר נספר דרך החילוק
+    // ל-children של ה-payments המקוריים תחת bulkPaymentIds).
     const payments = await prisma.payment.findMany({
       where: {
         AND: [
           paymentWhere,
+          EXCLUDE_BULK_UMBRELLA_WHERE,
           {
             status: "PAID",
             OR: [

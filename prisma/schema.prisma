@@ -2150,6 +2150,14 @@ model CardcomTransaction {
   attemptNumber       Int     @default(1)
   parentTransactionId String?
 
+  // Bulk-payment support — when the transaction was created via the bulk
+  // (multi-debt) Cardcom flow, `paymentId` points at an "umbrella" Payment
+  // (PENDING, holds the receipt) and `bulkPaymentIds` carries the real
+  // child Payment ids to mark PAID after the webhook reports success.
+  // Empty for single-payment flows. Stored on the transaction itself so
+  // the webhook is self-contained (no extra lookup needed).
+  bulkPaymentIds String[] @default([])
+
   // Refund tracking — supports multiple partial refunds; full refund when refundedAmount === amount
   refundedAmount Decimal @default(0) @db.Decimal(10, 2)
 

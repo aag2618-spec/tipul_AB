@@ -7,6 +7,8 @@ import { logger } from "@/lib/logger";
 
 import { requireAuth } from "@/lib/api-auth";
 import { buildClientWhere, isSecretary, loadScopeUser, secretaryCan } from "@/lib/scope";
+import { EXCLUDE_BULK_UMBRELLA_WHERE } from "@/lib/payments/types";
+import { checkRateLimit, PAYMENT_HISTORY_RATE_LIMIT } from "@/lib/rate-limit";
 
 export const dynamic = "force-dynamic";
 
@@ -20,6 +22,28 @@ export async function POST(
     const { userId, session } = auth;
 
     const { id } = await params;
+
+    // Stage 2.0 — rate limit לפי clientId: 3 שליחות/שעה.
+    // מונע ניצול לרעה (spam) ועלות שליחת מייל מיותרת. המפתח כולל את ה-userId
+    // כדי שמטפלים שונים שמטפלים באותו לקוח (לא טיפוסי, אבל אפשרי בקליניקה) לא יחסמו זה את זה.
+    const rateLimitResult = checkRateLimit(
+      `send-payment-history:${userId}:${id}`,
+      PAYMENT_HISTORY_RATE_LIMIT
+    );
+    if (!rateLimitResult.allowed) {
+      return NextResponse.json(
+        { message: "שלחת היסטוריית תשלומים ללקוח זה לאחרונה. אפשר לנסות שוב בעוד שעה." },
+        {
+          status: 429,
+          headers: {
+            "Retry-After": String(
+              Math.max(1, Math.ceil((rateLimitResult.resetAt - Date.now()) / 1000))
+            ),
+          },
+        }
+      );
+    }
+
     const body = await req.json();
     const { period = "all" } = body; // "all", "month", "3months", "year"
 
@@ -72,14 +96,19 @@ export async function POST(
 
     const payments = await prisma.payment.findMany({
       where: {
-        session: {
-          clientId: id,
-        },
-        parentPaymentId: null,
-        paidAt: {
-          gte: startOfDay(fromDate),
-          lte: endOfDay(now),
-        },
+        AND: [
+          EXCLUDE_BULK_UMBRELLA_WHERE,
+          {
+            session: {
+              clientId: id,
+            },
+            parentPaymentId: null,
+            paidAt: {
+              gte: startOfDay(fromDate),
+              lte: endOfDay(now),
+            },
+          },
+        ],
       },
       include: {
         session: {

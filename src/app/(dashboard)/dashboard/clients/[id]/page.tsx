@@ -2,6 +2,7 @@ import { getServerSession } from "next-auth";
 import { notFound } from "next/navigation";
 import { authOptions } from "@/lib/auth";
 import prisma from "@/lib/prisma";
+import { EXCLUDE_BULK_UMBRELLA_WHERE } from "@/lib/payments/types";
 import { Button } from "@/components/ui/button";
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
 import { Badge } from "@/components/ui/badge";
@@ -88,7 +89,7 @@ const WIDE_CLIENT_INCLUDE = {
   },
   payments: {
     take: 100,
-    where: { parentPaymentId: null },
+    where: { AND: [{ parentPaymentId: null }, EXCLUDE_BULK_UMBRELLA_WHERE] },
     orderBy: { createdAt: "desc" },
     include: {
       session: { select: { id: true, startTime: true, type: true } },
@@ -189,7 +190,7 @@ async function getClient(
           },
           payments: {
             take: 100,
-            where: { parentPaymentId: null },
+            where: { AND: [{ parentPaymentId: null }, EXCLUDE_BULK_UMBRELLA_WHERE] },
             orderBy: { createdAt: "desc" },
             select: {
               id: true,

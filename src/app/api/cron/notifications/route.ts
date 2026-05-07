@@ -7,6 +7,7 @@ import { logger } from "@/lib/logger";
 import { parseIsraelTime } from "@/lib/date-utils";
 import { isShabbatOrYomTov } from "@/lib/shabbat";
 import { checkCronAuth } from "@/lib/cron-auth";
+import { EXCLUDE_BULK_UMBRELLA_WHERE } from "@/lib/payments/types";
 import {
   loadScopeUser,
   buildClientWhere,
@@ -150,9 +151,14 @@ export async function GET(request: NextRequest) {
           // תשלומים ממתינים — משולב במייל הבוקר
           const morningPayments = await prisma.payment.findMany({
             where: {
-              client: clientWhere,
-              status: "PENDING",
-              parentPaymentId: null,
+              AND: [
+                EXCLUDE_BULK_UMBRELLA_WHERE,
+                {
+                  client: clientWhere,
+                  status: "PENDING",
+                  parentPaymentId: null,
+                },
+              ],
             },
             include: { client: true },
           });
@@ -260,9 +266,14 @@ export async function GET(request: NextRequest) {
 
           const allPayments = await prisma.payment.findMany({
             where: {
-              client: clientWhere,
-              status: "PENDING",
-              parentPaymentId: null,
+              AND: [
+                EXCLUDE_BULK_UMBRELLA_WHERE,
+                {
+                  client: clientWhere,
+                  status: "PENDING",
+                  parentPaymentId: null,
+                },
+              ],
             },
             include: { client: true },
           });
@@ -376,9 +387,14 @@ export async function GET(request: NextRequest) {
           // תשלומים ממתינים — אותו query כמו בבוקר
           const eveningPayments = await prisma.payment.findMany({
             where: {
-              client: clientWhere,
-              status: "PENDING",
-              parentPaymentId: null,
+              AND: [
+                EXCLUDE_BULK_UMBRELLA_WHERE,
+                {
+                  client: clientWhere,
+                  status: "PENDING",
+                  parentPaymentId: null,
+                },
+              ],
             },
             include: { client: true },
           });

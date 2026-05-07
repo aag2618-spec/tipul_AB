@@ -1,16 +1,10 @@
 "use client";
 
-import { useState } from "react";
-import { useRouter } from "next/navigation";
-import { Button } from "@/components/ui/button";
-import {
-  Dialog,
-  DialogContent,
-  DialogDescription,
-  DialogHeader,
-  DialogTitle,
-} from "@/components/ui/dialog";
-import { CreditCard } from "lucide-react";
+// קומפוננטת wrapper פשוטה ל-PayClientDebts. במקור עטפנו אותה ב-Dialog
+// חיצוני, אבל זה גרם להתנגשות עם ChargeCardcomDialog (שני dialogs פתוחים
+// בו-זמנית — z-index לא ברור). PayClientDebts כבר מנהל את ה-Dialog שלו
+// (ואת המעבר ל-ChargeCardcomDialog בעת אשראי), כך שאין צורך בעטיפה.
+
 import { PayClientDebts } from "@/components/payments/pay-client-debts";
 
 interface PayDebtButtonProps {
@@ -31,38 +25,13 @@ export function PayDebtButton({
   creditBalance,
   unpaidPayments,
 }: PayDebtButtonProps) {
-  const router = useRouter();
-  const [isOpen, setIsOpen] = useState(false);
-
   return (
-    <>
-      <Button size="sm" onClick={() => setIsOpen(true)}>
-        <CreditCard className="h-4 w-4 ml-1" />
-        שלם
-      </Button>
-      <Dialog open={isOpen} onOpenChange={setIsOpen}>
-        <DialogContent className="sm:max-w-[500px]">
-          <DialogHeader>
-            <DialogTitle>תשלום חובות - {clientName}</DialogTitle>
-            <DialogDescription>
-              בחר אמצעי תשלום ואופן התשלום
-            </DialogDescription>
-          </DialogHeader>
-          <div className="flex justify-center p-4">
-            <PayClientDebts
-              clientId={clientId}
-              clientName={clientName}
-              totalDebt={totalDebt}
-              creditBalance={creditBalance}
-              unpaidPayments={unpaidPayments}
-              onPaymentComplete={() => {
-                setIsOpen(false);
-                router.refresh();
-              }}
-            />
-          </div>
-        </DialogContent>
-      </Dialog>
-    </>
+    <PayClientDebts
+      clientId={clientId}
+      clientName={clientName}
+      totalDebt={totalDebt}
+      creditBalance={creditBalance}
+      unpaidPayments={unpaidPayments}
+    />
   );
 }

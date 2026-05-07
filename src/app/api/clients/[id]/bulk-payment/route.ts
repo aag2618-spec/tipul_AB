@@ -50,15 +50,14 @@ export async function POST(
       );
     }
 
-    // CRITICAL: CREDIT_CARD בתשלום מצרפי לא נתמך כרגע — ה-route הזה רושם
-    // PAID ידנית על מספר Payments. ל-Cardcom צריך מסלול נפרד עם umbrella
-    // payment + עדכון אטומי ב-webhook. עד שייבנה — חוסמים (defense-in-depth
-    // מעל החסימה ב-UI).
+    // CREDIT_CARD חייב לעבור דרך /api/payments/charge-cardcom-bulk (סליקה
+    // אמיתית עם umbrella + webhook). ה-route הזה רושם PAID ידנית, אז
+    // CREDIT_CARD פה אסור — defense-in-depth מעל החסימה ב-UI.
     if (method === "CREDIT_CARD") {
       return NextResponse.json(
         {
           message:
-            "תשלום מצרפי באשראי טרם נתמך. בצעי סליקה לכל פגישה בנפרד, או בחרי אמצעי תשלום אחר.",
+            "תשלום באשראי חייב לעבור דרך מסך הסליקה — חזרי לדיאלוג ובחרי 'כרטיס אשראי' שוב.",
         },
         { status: 400 }
       );

@@ -36,6 +36,7 @@ import {
   AlertDialogHeader,
   AlertDialogTitle,
 } from "@/components/ui/alert-dialog";
+import { ChargeCardcomDialog } from "@/components/payments/charge-cardcom-dialog";
 
 const METHOD_LABELS: Record<string, string> = {
   CASH: "מזומן",
@@ -80,6 +81,11 @@ export function PayClientDebts({
   const [receiptMode, setReceiptMode] = useState<"ALWAYS" | "ASK" | "NEVER">("ASK");
   const [businessType, setBusinessType] = useState<"NONE" | "EXEMPT" | "LICENSED">("NONE");
   const [showConfirmDialog, setShowConfirmDialog] = useState(false);
+  // Cardcom flow state — נפתח כשבוחרים CREDIT_CARD. שמורה את הסכום הסופי
+  // (לאחר ולידציה של partial/full) שיועבר ל-ChargeCardcomDialog. הדיאלוג עצמו
+  // מחליט על מסלול בודד / מצרפי לפי `bulkPaymentIds`.
+  const [showCardcomDialog, setShowCardcomDialog] = useState(false);
+  const [cardcomAmount, setCardcomAmount] = useState<number>(0);
   const router = useRouter();
 
   // Fetch business settings for receipt handling
@@ -118,17 +124,6 @@ export function PayClientDebts({
 
   // בדיקת תקינות ואישור לפני תשלום
   const handlePaymentClick = () => {
-    // CRITICAL: סליקה מצרפית אמיתית ב-Cardcom דורשת "umbrella payment" + עדכון
-    // children אטומי ב-webhook. עד שהמנגנון הזה ייבנה — חוסמים CREDIT_CARD
-    // בתשלום מצרפי כדי למנוע מצב של "אומברלה PAID + children PENDING" שיוביל
-    // לספירה כפולה בהכנסה או חוב מובלע. מפנים למסלול אישי-לפגישה.
-    if (method === "CREDIT_CARD") {
-      toast.error(
-        "תשלום מצרפי באשראי טרם נתמך. כדי לחייב באשראי - היכנסי לכל פגישה ושלמי בנפרד, או בחרי אמצעי אחר (מזומן/בנק/המחאה) לתשלום מצרפי."
-      );
-      return;
-    }
-
     if (paymentMode === "PARTIAL") {
       const amount = parseFloat(partialAmount) || 0;
       if (amount <= 0 || amount > totalDebt) {
@@ -139,6 +134,20 @@ export function PayClientDebts({
 
     const totalAmount = paymentMode === "FULL" ? (Number(totalDebt) || 0) : (parseFloat(partialAmount) || 0);
 
+    // CREDIT_CARD — מסלול נפרד דרך Cardcom (charge-cardcom או charge-cardcom-bulk).
+    // לא רץ את executePayment; במקום זה פותח ChargeCardcomDialog. אם יותר מתשלום
+    // אחד או PARTIAL → bulk endpoint, אחרת → המסלול הרגיל ב-charge-cardcom.
+    if (method === "CREDIT_CARD") {
+      // קרדיט עם אשראי — לא מאפשרים בו-זמנית כדי להימנע מסיבוכים בפיצול.
+      // המשתמשת תוכל לחייב באשראי, ואחר כך ידנית להוסיף את הקרדיט.
+      if (useCredit && safeCredit > 0) {
+        toast.error("שילוב קרדיט עם אשראי לא נתמך כרגע — בטלי 'השתמש בקרדיט' או בחרי אמצעי תשלום אחר");
+        return;
+      }
+      void startCardcomFlow(totalAmount);
+      return;
+    }
+
     // אישור לתשלום מעל 500 שח
     if (totalAmount > 500) {
       setShowConfirmDialog(true);
@@ -146,6 +155,22 @@ export function PayClientDebts({
     }
 
     executePayment();
+  };
+
+  // יצירת זרימת Cardcom: תשלום בודד → ChargeCardcomDialog ישיר על ה-paymentId.
+  // תשלום מצרפי (כמה payments או PARTIAL) → ChargeCardcomDialog במצב bulk —
+  // הוא יקרא ל-/api/payments/charge-cardcom-bulk ויטפל בכל הזרימה (link/iframe/
+  // polling/sync) באותו דפוס כמו תשלום בודד.
+  const startCardcomFlow = (totalAmount: number) => {
+    if (totalAmount <= 0) {
+      toast.error("סכום התשלום חייב להיות חיובי");
+      return;
+    }
+    setCardcomAmount(totalAmount);
+    setShowCardcomDialog(true);
+    // סוגרים את דיאלוג רישום-התשלום ברגע שעוברים לזרימת Cardcom — אחרת יש
+    // 2 דיאלוגים פתוחים בו-זמנית עם z-index לא ברור.
+    setIsOpen(false);
   };
 
   const executePayment = async () => {
@@ -513,6 +538,40 @@ export function PayClientDebts({
         </AlertDialogFooter>
       </AlertDialogContent>
     </AlertDialog>
+
+    {/* Cardcom flow — נפתח רק כשהמשתמשת בחרה אשראי. תשלום בודד => מסלול
+        רגיל עם paymentId; מצרפי (≥2 או PARTIAL) => bulk endpoint יוצר
+        umbrella + CardcomTransaction בצד server. */}
+    {showCardcomDialog && (
+      <ChargeCardcomDialog
+        open={showCardcomDialog}
+        onOpenChange={(open) => {
+          setShowCardcomDialog(open);
+          if (!open) {
+            setCardcomAmount(0);
+          }
+        }}
+        clientId={clientId}
+        clientName={clientName}
+        amount={cardcomAmount}
+        defaultDescription={`תשלום על ${unpaidPayments.length} פגישות — ${clientName}`}
+        // מסלול בודד עובר דרך paymentId; מצרפי דרך bulkPaymentIds.
+        paymentId={
+          unpaidPayments.length === 1 && paymentMode === "FULL"
+            ? unpaidPayments[0].paymentId
+            : undefined
+        }
+        bulkPaymentIds={
+          unpaidPayments.length > 1 || paymentMode === "PARTIAL"
+            ? unpaidPayments.map((p) => p.paymentId)
+            : undefined
+        }
+        onPaymentSuccess={async () => {
+          if (onPaymentComplete) onPaymentComplete();
+          router.refresh();
+        }}
+      />
+    )}
     </>
   );
 }

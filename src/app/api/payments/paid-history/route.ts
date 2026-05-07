@@ -4,6 +4,7 @@ import { logger } from "@/lib/logger";
 
 import { requireAuth } from "@/lib/api-auth";
 import { buildPaymentWhere, loadScopeUser } from "@/lib/scope";
+import { EXCLUDE_BULK_UMBRELLA_WHERE } from "@/lib/payments/types";
 
 export const dynamic = "force-dynamic";
 
@@ -16,11 +17,15 @@ export async function GET() {
     const scopeUser = await loadScopeUser(userId);
     const paymentWhere = buildPaymentWhere(scopeUser);
 
-    // קבלת כל התשלומים ששולמו במלואם
+    // קבלת כל התשלומים ששולמו במלואם.
+    // EXCLUDE_BULK_UMBRELLA_WHERE — מסנן Umbrella payments של תשלום מצרפי
+    // באשראי (אחרת ההיסטוריה תציג את ה-umbrella + את ה-payments המקוריים
+    // = כפילות בסכום הכולל לרו"ח/לדוח חודשי).
     const payments = await prisma.payment.findMany({
       where: {
         AND: [
           paymentWhere,
+          EXCLUDE_BULK_UMBRELLA_WHERE,
           { status: "PAID", parentPaymentId: null },
         ],
       },

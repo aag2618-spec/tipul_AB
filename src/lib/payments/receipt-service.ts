@@ -8,6 +8,7 @@ import { calculateDebtFromPayments } from "@/lib/payment-utils";
 import { logger } from "@/lib/logger";
 import { getIsraelYear } from "@/lib/date-utils";
 import type { PaymentMethod, ReceiptResult } from "./types";
+import { EXCLUDE_BULK_UMBRELLA_WHERE } from "./types";
 
 // ================================================================
 // issueReceipt
@@ -401,11 +402,19 @@ export async function sendPaymentReceiptEmail(params: {
     });
     if (!client) return;
 
+    // EXCLUDE_BULK_UMBRELLA_WHERE — Umbrella במצב PENDING (לפני webhook) יזיף
+    // את חישוב remainingDebt למייל הקבלה. הסכום שלו ייספר ממילא דרך
+    // ה-children אחרי PAID, אז עדיף לא לכלול אותו בחלון הזמני.
     const allPending = await prisma.payment.findMany({
       where: {
-        clientId: params.clientId,
-        status: "PENDING",
-        parentPaymentId: null,
+        AND: [
+          EXCLUDE_BULK_UMBRELLA_WHERE,
+          {
+            clientId: params.clientId,
+            status: "PENDING",
+            parentPaymentId: null,
+          },
+        ],
       },
     });
     const remainingDebt = calculateDebtFromPayments(allPending);

@@ -36,7 +36,11 @@ import {
   scrubCardcomMessage,
 } from "@/lib/cardcom/verify-webhook";
 import { getUserCardcomClient } from "@/lib/cardcom/user-config";
-import { checkRateLimit } from "@/lib/rate-limit";
+import {
+  checkRateLimit,
+  CARDCOM_WEBHOOK_PER_IP,
+  CARDCOM_WEBHOOK_GLOBAL,
+} from "@/lib/rate-limit";
 import {
   claimWebhook,
   finalizeWebhook,
@@ -48,6 +52,7 @@ import { getSiteSetting } from "@/lib/site-settings";
 import type { CardcomWebhookPayload } from "@/lib/cardcom/types";
 import { sendEmail } from "@/lib/resend";
 import { escapeHtml } from "@/lib/email-utils";
+import { distributeBulkCardcomPayment } from "@/lib/payments";
 
 // Default to the standard Israeli VAT rate (18%) when SiteSetting is unset.
 // Allows a future legislated change to be a single DB update instead of a deploy.
@@ -58,21 +63,42 @@ export const dynamic = "force-dynamic";
 export async function POST(request: NextRequest) {
   const ip = resolveClientIp(request.headers);
 
-  // ⚠️ Per-instance + per-IP — NOT a real DoS shield. Real protection comes
-  // from `isCardcomIp` (allowlist) below. The 100/min cap only bounds DB cost
-  // when an attacker spoofs a Cardcom IP; with multiple Render instances or a
-  // botnet of IPs the limit scales linearly.
-  const rateLimitResult = checkRateLimit(`webhook:cardcom:user:${ip ?? "unknown"}`, {
-    windowMs: 60 * 1000,
-    maxRequests: 100,
-  });
-  if (!rateLimitResult.allowed) {
-    logger.warn("[Cardcom User Webhook] rate limited", { ip });
+  // ── Layered rate limiting ─────────────────────────────────────
+  // שכבה 1 — per-IP (30/min): הגנה ראשונה נגד IP בודד. הוקשח מ-100→30
+  // (Stage 2.0 security review).
+  // שכבה 2 — global (200/min): מונע botnet עם מאות IPs לציף את ה-DB.
+  // עומס legit מקסימלי של Cardcom ≈3-4 webhooks/sec, אז 200/min מספיק.
+  // המגבלות שניהן per-instance (in-memory) — multi-instance תרחיב את
+  // הסך, אבל זה צפוי בלי Redis. בעת scaling להוסיף Redis (ראה fix #2).
+  const ipResult = checkRateLimit(
+    `webhook:cardcom:user:${ip ?? "unknown"}`,
+    CARDCOM_WEBHOOK_PER_IP
+  );
+  if (!ipResult.allowed) {
+    logger.warn("[Cardcom User Webhook] per-IP rate limited", { ip });
     return new NextResponse("Too Many Requests", {
       status: 429,
       headers: {
         "Retry-After": String(
-          Math.max(1, Math.ceil((rateLimitResult.resetAt - Date.now()) / 1000))
+          Math.max(1, Math.ceil((ipResult.resetAt - Date.now()) / 1000))
+        ),
+      },
+    });
+  }
+
+  const globalResult = checkRateLimit(
+    "webhook:cardcom:user:global",
+    CARDCOM_WEBHOOK_GLOBAL
+  );
+  if (!globalResult.allowed) {
+    logger.error("[Cardcom User Webhook] GLOBAL rate limit hit — possible attack or surge", {
+      ip,
+    });
+    return new NextResponse("Service Overloaded", {
+      status: 503,
+      headers: {
+        "Retry-After": String(
+          Math.max(1, Math.ceil((globalResult.resetAt - Date.now()) / 1000))
         ),
       },
     });
@@ -313,7 +339,43 @@ async function processUserWebhook(userId: string, payload: CardcomWebhookPayload
     logger.warn("[Cardcom User Webhook] reversal/chargeback detected", {
       transactionId: transaction.id,
       operation: payload.Operation,
+      isBulk: transaction.bulkPaymentIds.length > 0,
     });
+
+    // אם זה chargeback על תשלום מצרפי, צריך לפרט באלרט את כל ה-N children
+    // שכבר חולקו (ע"י distributeBulkCardcomPayment). ה-AdminAlert מכיל את
+    // הרשימה כדי שהאדמין/מטפל יידע מה ל-undo בצד שלנו (אצל Cardcom החזר אחד
+    // על totalAmount; אצלנו N children + N parents שצריכים לחזור ל-PENDING).
+    let bulkChildren: Array<{
+      id: string;
+      parentPaymentId: string | null;
+      amount: number;
+    }> = [];
+    if (transaction.bulkPaymentIds.length > 0) {
+      const children = await prisma.payment.findMany({
+        where: {
+          parentPaymentId: { in: transaction.bulkPaymentIds },
+          notes: { contains: transaction.id },
+        },
+        select: { id: true, parentPaymentId: true, amount: true },
+      });
+      bulkChildren = children.map((c) => ({
+        id: c.id,
+        parentPaymentId: c.parentPaymentId,
+        amount: Number(c.amount),
+      }));
+    }
+
+    const isBulkChargeback = transaction.bulkPaymentIds.length > 0;
+    const chargebackMessage = isBulkChargeback
+      ? `מטופל ביצע chargeback אצל Cardcom על תשלום מצרפי (Operation="${payload.Operation}"). ` +
+        `במערכת קיימים ${bulkChildren.length} child payments + ${transaction.bulkPaymentIds.length} parent payments ` +
+        `שצריכים rollback ידני — הסכום כולו הוחזר ב-Cardcom אבל ה-DB עדיין מציג שולם.`
+      : `מטופל ביצע chargeback אצל Cardcom (Operation="${payload.Operation}"). המטפל ${userId} רשם הכנסה — נדרש refund/void ידני.`;
+    const chargebackAction = isBulkChargeback
+      ? "Rollback ידני: לעדכן את ה-children ל-CANCELLED, את ה-parents חזרה ל-PENDING, ולוודא שהכסף הוחזר ב-Cardcom. הרשימה המלאה ב-metadata."
+      : "פנה למטפל, וודא ב-Cardcom שהכסף הוחזר, בצע refund/void בצד שלנו.";
+
     await prisma.$transaction([
       prisma.chargebackEvent.create({
         data: {
@@ -331,20 +393,36 @@ async function processUserWebhook(userId: string, payload: CardcomWebhookPayload
           type: "PAYMENT_FAILED",
           priority: "URGENT",
           status: "PENDING",
-          title: `[cardcom-chargeback] עסקה ${transaction.id} (USER)`,
-          message: `מטופל ביצע chargeback אצל Cardcom (Operation="${payload.Operation}"). המטפל ${userId} רשם הכנסה — נדרש refund/void ידני.`,
-          actionRequired: "פנה למטפל, וודא ב-Cardcom שהכסף הוחזר, בצע refund/void בצד שלנו.",
+          title: isBulkChargeback
+            ? `[cardcom-chargeback-bulk] עסקה מצרפית ${transaction.id} (USER)`
+            : `[cardcom-chargeback] עסקה ${transaction.id} (USER)`,
+          message: chargebackMessage,
+          actionRequired: chargebackAction,
           userId,
           metadata: {
-            alertSubtype: "chargeback",
+            alertSubtype: isBulkChargeback ? "chargeback_bulk" : "chargeback",
             transactionId: transaction.id,
             operation: payload.Operation,
             paymentId: transaction.paymentId,
+            // Bulk-specific rollback context
+            isBulk: isBulkChargeback,
+            bulkPaymentIds: transaction.bulkPaymentIds,
+            bulkChildren,
+            amountCharged: Number(transaction.amount),
           },
         },
       }),
     ]);
   }
+
+  // Idempotency guard נגד retries של webhook (Cardcom שולח 3-5 retries
+   // אגרסיביים, ובמסלול bulk גם זריקה מכוונת ב-transient distribute failure).
+   // אם transaction.status כבר APPROVED ב-DB, זה אומר ש-webhook קודם הצליח
+   // לעבור את withAudit (שעדכן ל-APPROVED) ועלה כשל אחר כך → side-effects כמו
+   // notification/email/cardcomInvoice כבר נוצרו פעם אחת ולא צריך ליצור שוב.
+   // העדכון של cardcomTransaction עצמו idempotent (אותם ערכים), אבל יצירת
+   // notification/invoice/שליחת email — לא, ויוצרת כפילויות אם לא נשמר guard.
+  const isFirstApproval = transaction.status !== "APPROVED";
 
   await withAudit(
     { kind: "system", source: "WEBHOOK_CARDCOM", externalRef: payload.LowProfileId },
@@ -357,6 +435,7 @@ async function processUserWebhook(userId: string, payload: CardcomWebhookPayload
         responseCode,
         amount: Number(transaction.amount),
         last4: payload.TranzactionInfo?.Last4CardDigits,
+        isRetry: !isFirstApproval,
       },
     },
     async (tx) => {
@@ -432,8 +511,9 @@ async function processUserWebhook(userId: string, payload: CardcomWebhookPayload
 
       // התראת פעמון למטפל על תשלום נכנס — תמיד עם userId המאומת מ-DB
       // (אותו דפוס כמו ב-Meshulam webhook). רק על תשלום חד-פעמי, לא על
-      // טוקנים בלי payment.
-      if (transaction.payment) {
+      // טוקנים בלי payment. isFirstApproval guard מונע כפילות ברטרי
+      // (Cardcom יכול לשלוח webhook 3-5 פעמים אם distribute זרק transient).
+      if (transaction.payment && isFirstApproval) {
         const clientName = transaction.payment.client?.name ?? "מטופל";
         const amountStr = `₪${Number(transaction.amount).toLocaleString("he-IL")}`;
         await tx.notification.create({
@@ -497,8 +577,12 @@ async function processUserWebhook(userId: string, payload: CardcomWebhookPayload
         });
       }
 
-      // Mirror metadata as CardcomInvoice for unified visibility (USER tenant invoices)
+      // Mirror metadata as CardcomInvoice for unified visibility (USER tenant invoices).
+      // isFirstApproval guard: ב-retry של webhook (אחרי transient distribute)
+      // ה-CardcomInvoice כבר נוצר בריצה הקודמת. לא ליצור שוב — אחרת חשבונית
+      // כפולה ברישום הפנימי (Cardcom עצמה כבר idempotent ע"י uniqueAsmachta).
       if (
+        isFirstApproval &&
         payload.DocumentInfo?.DocumentNumber &&
         therapist &&
         transaction.payment?.client
@@ -622,10 +706,165 @@ async function processUserWebhook(userId: string, payload: CardcomWebhookPayload
     }
   );
 
+  // ── Bulk-payment distribution ──────────────────────────────
+  // אם ה-CardcomTransaction נוצר במסלול charge-cardcom-bulk (umbrella), צריך
+  // לחלק את הכסף בין ה-Payments האמיתיים ב-bulkPaymentIds. הקריאה רצה מחוץ
+  // ל-withAudit כי ל-distributeBulkCardcomPayment יש $transaction משלו (Prisma
+  // לא תומך nested $transaction עם isolation שונה). אם ה-distribution נכשל
+  // — ה-umbrella כבר PAID (כסף נגבה אצל Cardcom), אז יוצרים AdminAlert
+  // דחוף שמטפל יחלק ידנית במקום לסכן rollback של החיוב.
+  if (success && transaction.bulkPaymentIds.length > 0 && transaction.paymentId) {
+    const distributionResult = await distributeBulkCardcomPayment({
+      umbrellaPaymentId: transaction.paymentId,
+      bulkPaymentIds: transaction.bulkPaymentIds,
+      amountPaid: Number(transaction.amount),
+      cardcomTransactionId: transaction.id,
+    });
+    if (!distributionResult.success) {
+      logger.error("[Cardcom User Webhook] bulk distribution failed", {
+        userId,
+        umbrellaPaymentId: transaction.paymentId,
+        cardcomTransactionId: transaction.id,
+        transient: distributionResult.transient ?? false,
+        error: distributionResult.error,
+      });
+      // Transient (serialization conflict / deadlock) → זורקים כדי ש-
+      // releaseWebhookClaim יקרא ב-route POST handler, ו-Cardcom יבצע retry
+      // אוטומטי. בלי זריקה, finalizeWebhook היה נקרא וה-webhook היה מסומן
+      // processed אחרי כשל זמני — והחיוב היה נשאר תלוי ללא חילוק לעולם.
+      if (distributionResult.transient) {
+        throw new Error(
+          `BULK_DISTRIBUTION_TRANSIENT_FAILURE: ${distributionResult.error ?? "unknown"}`
+        );
+      }
+      try {
+        await prisma.adminAlert.create({
+          data: {
+            type: "PAYMENT_FAILED",
+            priority: "URGENT",
+            status: "PENDING",
+            title: `[cardcom-bulk] חילוק תשלום מצרפי נכשל (USER ${userId})`,
+            message:
+              `התשלום באשראי על ₪${Number(transaction.amount).toLocaleString("he-IL")} ` +
+              `אושר ב-Cardcom (umbrella ${transaction.paymentId}) אבל החילוק ל-${transaction.bulkPaymentIds.length} ` +
+              `הפגישות נכשל. נדרש חילוק ידני או הפעלה חוזרת.`,
+            actionRequired: "פנה למטפל ובצע חילוק ידני של ה-Payment ל-children, או הפעל את ה-distribution שוב",
+            userId,
+            metadata: {
+              alertSubtype: "bulk_distribution_failed",
+              umbrellaPaymentId: transaction.paymentId,
+              cardcomTransactionId: transaction.id,
+              bulkPaymentIds: transaction.bulkPaymentIds,
+              amountPaid: Number(transaction.amount),
+              error: distributionResult.error,
+            },
+          },
+        });
+      } catch (alertErr) {
+        logger.error("[Cardcom User Webhook] failed creating distribution-failed alert", {
+          transactionId: transaction.id,
+          error: alertErr instanceof Error ? alertErr.message : String(alertErr),
+        });
+      }
+    }
+    // הצלחה חלקית — distribute הסתיים בהצלחה אבל לא חילק את כל הסכום (למשל
+    // מטופל שהיה ב-bulkPaymentIds כבר שולם ידנית בין יצירת ה-umbrella ל-webhook,
+    // או status שלו השתנה). הכסף נגבה ב-Cardcom, ה-umbrella PAID, אבל לא כל
+    // ה-children קיבלו את חלקם — נדרש חילוק ידני של ה-remainder לקרדיט הלקוח
+    // או לפגישות אחרות. ללא alert זה היה נשאר במצב שקט.
+    // Audit log על הצלחת ה-distribute (יצירת N children + עדכון N parents).
+    // ה-distribute רץ ב-$transaction משלו (SERIALIZABLE) — אי אפשר nested
+    // עם ה-withAudit של ה-webhook. לכן רושמים audit ידני מחוץ ל-TX,
+    // best-effort: כשל ברישום לא יבטל את ה-PAID של ה-umbrella.
+    // נרשם תמיד על success — גם כש-processed=[] (כל ה-bulkPaymentIds כבר
+    // שונו בין יצירת ה-umbrella ל-webhook). כך אדמין רואה ב-audit log גם
+    // את התרחיש "ניסינו לחלק ולא היה מה לחלק" — חשוב לשחזור עתידי.
+    if (distributionResult.success) {
+      try {
+        await prisma.adminAuditLog.create({
+          data: {
+            adminId: null,
+            adminEmail: null,
+            adminName: "[SYSTEM:WEBHOOK_CARDCOM]",
+            action: "cardcom_user_bulk_distribute",
+            targetType: "payment",
+            targetId: transaction.paymentId,
+            details: JSON.stringify({
+              actorKind: "system",
+              source: "WEBHOOK_CARDCOM",
+              externalRef: payload.LowProfileId,
+              userId,
+              cardcomTransactionId: transaction.id,
+              umbrellaPaymentId: transaction.paymentId,
+              amountPaid: Number(transaction.amount),
+              processedCount: distributionResult.processed.length,
+              processed: distributionResult.processed.map((p) => ({
+                parentId: p.parentId,
+                childId: p.childId,
+                amountPaid: p.amountPaid,
+                isFullyPaid: p.isFullyPaid,
+              })),
+              remainingAmount: distributionResult.remainingAmount,
+            }),
+          },
+        });
+      } catch (auditErr) {
+        logger.error("[Cardcom User Webhook] failed writing distribute audit log", {
+          transactionId: transaction.id,
+          error: auditErr instanceof Error ? auditErr.message : String(auditErr),
+        });
+      }
+    }
+    if (distributionResult.success && distributionResult.remainingAmount > 0.01) {
+      logger.warn("[Cardcom User Webhook] bulk distribution had remainder", {
+        userId,
+        umbrellaPaymentId: transaction.paymentId,
+        cardcomTransactionId: transaction.id,
+        remainingAmount: distributionResult.remainingAmount,
+        processedCount: distributionResult.processed.length,
+      });
+      try {
+        await prisma.adminAlert.create({
+          data: {
+            type: "PAYMENT_FAILED",
+            priority: "URGENT",
+            status: "PENDING",
+            title: `[cardcom-bulk] עודף לא מחולק בתשלום מצרפי (USER ${userId})`,
+            message:
+              `התשלום באשראי על ₪${Number(transaction.amount).toLocaleString("he-IL")} ` +
+              `אושר ב-Cardcom (umbrella ${transaction.paymentId}). חולק בהצלחה ל-${distributionResult.processed.length} ` +
+              `מתוך ${transaction.bulkPaymentIds.length} פגישות, אבל נשארו ₪${distributionResult.remainingAmount.toFixed(2)} ` +
+              `שלא חולקו (כנראה אחת הפגישות שולמה ידנית או שינתה סטטוס בין יצירת החיוב ל-webhook). ` +
+              `יש לחלק את העודף ידנית או להעבירו לקרדיט הלקוח.`,
+            actionRequired:
+              "בדוק את הפגישות שלא חולקו (ייתכן שכבר שולמו), ו/או העבר את העודף לקרדיט המטופל / פגישה אחרת.",
+            userId,
+            metadata: {
+              alertSubtype: "bulk_distribution_remainder",
+              umbrellaPaymentId: transaction.paymentId,
+              cardcomTransactionId: transaction.id,
+              bulkPaymentIds: transaction.bulkPaymentIds,
+              processedParents: distributionResult.processed.map((p) => p.parentId),
+              amountCharged: Number(transaction.amount),
+              remainingAmount: distributionResult.remainingAmount,
+            },
+          },
+        });
+      } catch (alertErr) {
+        logger.error("[Cardcom User Webhook] failed creating remainder alert", {
+          transactionId: transaction.id,
+          error: alertErr instanceof Error ? alertErr.message : String(alertErr),
+        });
+      }
+    }
+  }
+
   // מייל למטפל על תשלום נכנס — best-effort, מחוץ לטרנזקציה כדי שכשל
   // בשליחה לא יבטל את עדכון התשלום. נשלח רק על success + payment קיים +
   // למטפל יש מייל. נחסם אוטומטית בשבת ע״י sendEmail.
-  if (success && therapist?.email && transaction.payment) {
+  // isFirstApproval guard: ב-retry של webhook (אחרי transient distribute) המייל
+  // כבר נשלח בריצה הקודמת. לא לשלוח שוב — אחרת המטפל מקבל "תשלום התקבל" כפול.
+  if (success && isFirstApproval && therapist?.email && transaction.payment) {
     const clientName = transaction.payment.client?.name ?? "מטופל";
     const amountStr = `₪${Number(transaction.amount).toLocaleString("he-IL")}`;
     const therapistName = therapist.name ?? "";

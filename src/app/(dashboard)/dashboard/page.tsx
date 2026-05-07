@@ -12,6 +12,7 @@ import { PersonalTasksWidget } from "@/components/tasks/personal-tasks-widget";
 import { TodaySessionCard } from "@/components/dashboard/today-session-card";
 import { SubBoxLink } from "@/components/dashboard-stat-card";
 import { calculateDebtFromPayments } from "@/lib/payment-utils";
+import { EXCLUDE_BULK_UMBRELLA_WHERE } from "@/lib/payments/types";
 import {
   loadScopeUser,
   buildClientWhere,
@@ -103,11 +104,14 @@ async function getDashboardStats(scopeUser: ScopeUser) {
         ],
       },
     }),
-    // Fetch pending payments to properly filter only truly unpaid ones
+    // Fetch pending payments to properly filter only truly unpaid ones.
+    // EXCLUDE_BULK_UMBRELLA_WHERE — מסנן Umbrella payments של תשלום מצרפי
+    // באשראי (PENDING רק עד ה-webhook; הסכום ייספר דרך ה-children אחרי PAID).
     prisma.payment.findMany({
       where: {
         AND: [
           paymentWhere,
+          EXCLUDE_BULK_UMBRELLA_WHERE,
           {
             status: "PENDING",
             parentPaymentId: null,

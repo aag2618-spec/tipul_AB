@@ -6,6 +6,7 @@ import prisma from "@/lib/prisma";
 import { logger } from "@/lib/logger";
 import { requireAuth } from "@/lib/api-auth";
 import { buildPaymentWhere, loadScopeUser } from "@/lib/scope";
+import { EXCLUDE_BULK_UMBRELLA_WHERE } from "@/lib/payments/types";
 
 export const dynamic = "force-dynamic";
 
@@ -60,9 +61,11 @@ export async function GET(request: NextRequest) {
       extraFilters.status = status;
     }
 
-    // שליפת התשלומים
+    // שליפת התשלומים — EXCLUDE_BULK_UMBRELLA_WHERE מסנן Umbrella payments של
+    // תשלום מצרפי באשראי כדי שלא יופיעו ב-CSV לרו"ח (הסכום נספר דרך
+    // ה-children תחת ה-Payments המקוריים).
     const payments = await prisma.payment.findMany({
-      where: { AND: [paymentWhere, extraFilters] },
+      where: { AND: [paymentWhere, EXCLUDE_BULK_UMBRELLA_WHERE, extraFilters] },
       orderBy: { createdAt: "desc" },
       include: {
         client: {

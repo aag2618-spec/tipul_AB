@@ -14,6 +14,22 @@ export type PaymentMethod =
 
 export type PaymentType = "FULL" | "PARTIAL" | "ADVANCE";
 
+// ================================================================
+// Bulk Cardcom Umbrella marker
+// ================================================================
+// Payment שנוצר במסלול charge-cardcom-bulk הוא "מטה" שמאחסן את החיוב הכולל
+// + הקבלה. אסור להציג אותו ב-totals/exports/history כי הסכום שלו כבר נספר
+// דרך ה-children שתחת ה-Payments האמיתיים. הסימון נשמר ב-notes עם הקידומת
+// הזאת — תוסיף לו כל מי שמחשב סכומים או מציג רשימת תשלומים.
+export const BULK_UMBRELLA_NOTES_PREFIX = "[BULK_UMBRELLA]";
+
+/** Prisma where clause שמסנן Umbrella payments מתצוגות/חישובים. */
+export const EXCLUDE_BULK_UMBRELLA_WHERE = {
+  NOT: {
+    notes: { startsWith: BULK_UMBRELLA_NOTES_PREFIX },
+  },
+} as const;
+
 export interface PaymentResult {
   success: boolean;
   // eslint-disable-next-line @typescript-eslint/no-explicit-any -- Prisma model with many fields

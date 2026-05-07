@@ -12,6 +12,7 @@ import {
   loadScopeUser,
   secretaryCan,
 } from "@/lib/scope";
+import { EXCLUDE_BULK_UMBRELLA_WHERE } from "@/lib/payments/types";
 
 export const dynamic = "force-dynamic";
 
@@ -24,8 +25,12 @@ export async function GET() {
     const scopeUser = await loadScopeUser(userId);
     const paymentWhere = buildPaymentWhere(scopeUser);
 
+    // EXCLUDE_BULK_UMBRELLA_WHERE — מסנן Umbrella payments של תשלום מצרפי
+    // באשראי. ה-Umbrella יוצר CardcomInvoice משלו ולכן יוצג כקבלה כפולה
+    // ב-/dashboard/receipts; הסכום נספר דרך ה-children תחת ה-Payments
+    // המקוריים.
     const payments = await prisma.payment.findMany({
-      where: paymentWhere,
+      where: { AND: [paymentWhere, EXCLUDE_BULK_UMBRELLA_WHERE] },
       orderBy: { createdAt: "desc" },
       include: {
         client: { select: { id: true, name: true } },

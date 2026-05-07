@@ -2,6 +2,7 @@ import prisma from "@/lib/prisma";
 import { Prisma } from "@prisma/client";
 import { logger } from "@/lib/logger";
 import type { PaymentMethod, BulkPaymentResult, ClientDebtSummary, AllClientsDebtItem } from "./types";
+import { EXCLUDE_BULK_UMBRELLA_WHERE } from "./types";
 import { issueReceipt, sendPaymentReceiptEmail, buildReceiptDescription } from "./receipt-service";
 import { buildClientWhere, buildPaymentWhere, type ScopeUser } from "@/lib/scope";
 
@@ -260,6 +261,183 @@ export async function processMultiSessionPayment(params: {
 }
 
 // ================================================================
+// distributeBulkCardcomPayment
+// ================================================================
+// נקרא מתוך webhook Cardcom אחרי APPROVED על umbrella Payment שנוצר ב-
+// charge-cardcom-bulk. מטרה: לחלק את הסכום ששולם בפועל בין ה-Payments
+// האמיתיים (children תחתם), ולשמר את הקבלה ב-umbrella (Cardcom יוצר קבלה
+// אחת על totalAmount).
+//
+// קלט:
+//   - umbrellaPaymentId: ה-Payment "המטה" שהcardcom-tx מצביע אליו (status=PAID).
+//   - bulkPaymentIds: רשימת ה-Payments האמיתיים (parent payments) שצריך לסמן PAID.
+//   - amountPaid: הסכום בפועל ש-Cardcom גבה (= umbrella.amount; webhook עדכן).
+//
+// הפלט: { processed: [{parentId, childId, amountPaid, isFullyPaid}], remaining }
+//
+// חשוב: הפונקציה הזאת רצה אחרי שה-umbrella כבר סומן PAID + נשמר ה-receiptUrl.
+// היא רק מחלקת את הכסף ל-children. אם רץ פעמיים בטעות (idempotency), היא
+// עוצרת אם ה-children כבר קיימים — לפי `cardcomTransactionId` שמסומן עליהם.
+
+export async function distributeBulkCardcomPayment(params: {
+  umbrellaPaymentId: string;
+  bulkPaymentIds: string[];
+  amountPaid: number;
+  cardcomTransactionId: string;
+}): Promise<{
+  success: boolean;
+  /** True כש-failure נובע מ-serialization conflict זמני (P2034/40001).
+      ה-webhook יזרוק במקום AdminAlert כדי לאפשר ל-Cardcom retry. */
+  transient?: boolean;
+  processed: Array<{ parentId: string; childId: string; amountPaid: number; isFullyPaid: boolean }>;
+  remainingAmount: number;
+  error?: string;
+}> {
+  const { umbrellaPaymentId, bulkPaymentIds, amountPaid, cardcomTransactionId } = params;
+
+  try {
+    const result = await prisma.$transaction(async (tx) => {
+      // Idempotency guard בתוך SERIALIZABLE TX — webhook עלול להגיע פעמיים
+      // (Cardcom retry). הבדיקה הקודמת רצה לפני ה-$transaction → race window
+      // שני webhooks יכולים לראות `[]` ושניהם ליצור children = כפילות. עכשיו
+      // הבדיקה נעולה: אם כבר יצרנו children עם reference ל-cardcomTransactionId
+      // — נחזיר ריק. כל webhook שני שינסה לאחר שהראשון commit יראה את
+      // ה-children הקיימים, וייצא בלי אפקט.
+      const existingChildren = await tx.payment.findFirst({
+        where: {
+          parentPaymentId: { in: bulkPaymentIds },
+          notes: { contains: cardcomTransactionId },
+        },
+        select: { id: true },
+      });
+      if (existingChildren) {
+        logger.info("[distributeBulkCardcomPayment] already distributed — skipping", {
+          umbrellaPaymentId,
+          cardcomTransactionId,
+        });
+        return { processed: [], remainingAmount: 0, alreadyDistributed: true };
+      }
+
+      // ל-children ננעל את ה-parents בסדר createdAt (oldest first) — כמו
+      // ב-processMultiSessionPayment.
+      const parents = await tx.payment.findMany({
+        where: {
+          id: { in: bulkPaymentIds },
+          status: "PENDING",
+          parentPaymentId: null,
+        },
+        orderBy: { createdAt: "asc" },
+      });
+
+      let remainingAmount = amountPaid;
+      const processed: Array<{
+        parentId: string;
+        childId: string;
+        amountPaid: number;
+        isFullyPaid: boolean;
+      }> = [];
+
+      for (const parent of parents) {
+        if (remainingAmount <= 0) break;
+
+        const expAmt = Number(parent.expectedAmount) || 0;
+        const currentAmt = Number(parent.amount);
+        const debt = expAmt - currentAmt;
+        if (debt <= 0) continue;
+
+        const allocation = Math.min(remainingAmount, debt);
+        const newTotal = currentAmt + allocation;
+        const isFullyPaid = newTotal >= expAmt;
+
+        const child = await tx.payment.create({
+          data: {
+            parentPaymentId: parent.id,
+            clientId: parent.clientId,
+            amount: allocation,
+            expectedAmount: allocation,
+            method: "CREDIT_CARD",
+            status: "PAID",
+            paidAt: new Date(),
+            paymentType: "PARTIAL",
+            organizationId: parent.organizationId,
+            // Reference ל-CardcomTransaction מאפשר idempotency check
+            // ומחבר את ה-child לחיוב המקורי לאודיט.
+            notes: `Bulk Cardcom distribution — tx:${cardcomTransactionId}`,
+          },
+        });
+
+        await tx.payment.update({
+          where: { id: parent.id },
+          data: {
+            amount: newTotal,
+            status: isFullyPaid ? "PAID" : "PENDING",
+            method: "CREDIT_CARD",
+            paymentType: isFullyPaid ? "FULL" : "PARTIAL",
+            paidAt: isFullyPaid ? new Date() : undefined,
+          },
+        });
+
+        processed.push({
+          parentId: parent.id,
+          childId: child.id,
+          amountPaid: allocation,
+          isFullyPaid,
+        });
+
+        remainingAmount -= allocation;
+      }
+
+      // השלמת COLLECT_PAYMENT tasks למטופלים שהושלמו.
+      const fullyPaidIds = processed.filter((p) => p.isFullyPaid).map((p) => p.parentId);
+      if (fullyPaidIds.length > 0) {
+        await tx.task.updateMany({
+          where: {
+            relatedEntityId: { in: fullyPaidIds },
+            type: "COLLECT_PAYMENT",
+            status: { in: ["PENDING", "IN_PROGRESS"] },
+          },
+          data: { status: "COMPLETED" },
+        });
+      }
+
+      return { processed, remainingAmount, alreadyDistributed: false };
+    },
+    { isolationLevel: Prisma.TransactionIsolationLevel.Serializable }
+    );
+
+    return {
+      success: true,
+      processed: result.processed,
+      remainingAmount: result.remainingAmount,
+    };
+  } catch (error) {
+    // טיפול נפרד ב-serialization conflicts (40001 / Prisma P2034) — שאלו הם
+    // זמניים ויפתרו עם retry. אנחנו מסמנים `transient: true` כדי שה-webhook
+    // יזרוק שגיאה במקום לפתוח AdminAlert, וכך Cardcom יבצע retry של ה-webhook.
+    const code = (error as { code?: string })?.code;
+    const message = error instanceof Error ? error.message : String(error);
+    const isTransient =
+      code === "P2034" ||
+      code === "40001" ||
+      message.includes("could not serialize") ||
+      message.includes("deadlock");
+    logger.error("[distributeBulkCardcomPayment] failed", {
+      umbrellaPaymentId,
+      cardcomTransactionId,
+      transient: isTransient,
+      error: message,
+    });
+    return {
+      success: false,
+      transient: isTransient,
+      processed: [],
+      remainingAmount: params.amountPaid,
+      error: message || "שגיאה בחילוק תשלום מצרפי",
+    };
+  }
+}
+
+// ================================================================
 // Auto-fix stuck payments
 // ================================================================
 
@@ -343,10 +521,11 @@ export async function getClientDebtSummary(
     ? {
         AND: [
           buildPaymentWhere(scopeUser),
+          EXCLUDE_BULK_UMBRELLA_WHERE,
           { clientId, status: "PENDING", parentPaymentId: null },
         ],
       }
-    : { clientId, status: "PENDING", parentPaymentId: null };
+    : { AND: [EXCLUDE_BULK_UMBRELLA_WHERE, { clientId, status: "PENDING", parentPaymentId: null }] };
 
   const allPending = await prisma.payment.findMany({
     where: pendingPaymentsWhere,
@@ -419,10 +598,11 @@ export async function getAllClientsDebtSummary(
     ? {
         AND: [
           buildPaymentWhere(scopeUser),
+          EXCLUDE_BULK_UMBRELLA_WHERE,
           { status: "PENDING", parentPaymentId: null },
         ],
       }
-    : { status: "PENDING", parentPaymentId: null };
+    : { AND: [EXCLUDE_BULK_UMBRELLA_WHERE, { status: "PENDING", parentPaymentId: null }] };
 
   const clients = await prisma.client.findMany({
     where: { AND: [clientWhere, { status: { not: "ARCHIVED" } }] },

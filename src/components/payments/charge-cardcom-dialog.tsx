@@ -78,6 +78,13 @@ interface ChargeCardcomDialogProps {
   defaultDescription?: string;
   /** קולבק אחרי תשלום מוצלח (לרענון UI חיצוני). */
   onPaymentSuccess?: () => Promise<void> | void;
+  /**
+   * מצב תשלום מצרפי: רשימת paymentIds אמיתיים שצריך לסמן PAID אחרי ה-webhook.
+   * כשהשדה הזה קיים ולא ריק — הדיאלוג קורא ל-/api/payments/charge-cardcom-bulk
+   * (במקום /api/payments/[id]/charge-cardcom) כדי ליצור umbrella Payment +
+   * CardcomTransaction עם הרשימה הזאת. אחרת זרימת תשלום בודד רגילה.
+   */
+  bulkPaymentIds?: string[];
 }
 
 const POLL_INTERVAL_MS = 2500;
@@ -98,7 +105,9 @@ export function ChargeCardcomDialog({
   amount,
   defaultDescription,
   onPaymentSuccess,
+  bulkPaymentIds,
 }: ChargeCardcomDialogProps) {
+  const isBulk = !!bulkPaymentIds && bulkPaymentIds.length > 0;
   // ── Lazy contact fallback ──────────────────────────────────
   // Many call sites of QuickMarkPaid don't have phone/email at hand
   // (they live in the client record but aren't always passed through).
@@ -353,26 +362,47 @@ export function ChargeCardcomDialog({
 
     setHasOpenCharge(false);
     try {
-      const pid = await ensurePaymentId();
+      // במסלול bulk לא מכינים Payment מראש — ה-API יוצר את ה-umbrella
+      // עצמו (בתוך SERIALIZABLE transaction יחד עם CardcomTransaction).
+      const pid = isBulk ? undefined : await ensurePaymentId();
       if (gen !== generationRef.current) return;
 
-      // יצירת דף תשלום ב-Cardcom
-      const res = await fetch(`/api/payments/${pid}/charge-cardcom`, {
-        method: "POST",
-        headers: {
-          "Content-Type": "application/json",
-          "Idempotency-Key": buildIdempotencyKey(),
-        },
-        body: JSON.stringify({
-          numOfPayments: installments,
-          createToken: saveCard,
-        }),
-      });
+      // יצירת דף תשלום ב-Cardcom — מסלול בודד או מצרפי לפי isBulk.
+      const res = isBulk
+        ? await fetch(`/api/payments/charge-cardcom-bulk`, {
+            method: "POST",
+            headers: {
+              "Content-Type": "application/json",
+              "Idempotency-Key": buildIdempotencyKey(),
+            },
+            body: JSON.stringify({
+              clientId,
+              paymentIds: bulkPaymentIds,
+              totalAmount: amount,
+              numOfPayments: installments,
+              createToken: saveCard,
+              description: description || undefined,
+            }),
+          })
+        : await fetch(`/api/payments/${pid}/charge-cardcom`, {
+            method: "POST",
+            headers: {
+              "Content-Type": "application/json",
+              "Idempotency-Key": buildIdempotencyKey(),
+            },
+            body: JSON.stringify({
+              numOfPayments: installments,
+              createToken: saveCard,
+            }),
+          });
 
       const data = (await res.json().catch(() => ({}))) as {
         message?: string;
         url?: string;
         transactionId?: string;
+        // bulk flow מחזיר גם את ה-umbrella paymentId — נשמור אותו ב-state
+        // כדי ש-send-cardcom-link, polling ו-cancel יוכלו לעבוד עליו.
+        umbrellaPaymentId?: string;
       };
 
       if (!res.ok || !data.url || !data.transactionId) {
@@ -389,12 +419,23 @@ export function ChargeCardcomDialog({
       }
       if (gen !== generationRef.current) return;
 
+      // ב-bulk flow ה-paymentId הסופי הוא ה-umbrella שנוצר בצד server.
+      // נשמור אותו ב-state כדי ש-send-cardcom-link / sync / cancel יפעלו על
+      // ה-umbrella (אותו דפוס API כמו תשלום בודד).
+      const effectivePid = isBulk ? data.umbrellaPaymentId : pid;
+      if (isBulk && data.umbrellaPaymentId) {
+        setPaymentId(data.umbrellaPaymentId);
+      }
+      if (!effectivePid) {
+        throw new Error("חסר מזהה תשלום בתשובת השרת");
+      }
+
       setPaymentPageUrl(data.url);
       setTransactionId(data.transactionId);
 
       if (payMode === "link") {
         // שליחת לינק
-        const sendRes = await fetch(`/api/payments/${pid}/send-cardcom-link`, {
+        const sendRes = await fetch(`/api/payments/${effectivePid}/send-cardcom-link`, {
           method: "POST",
           headers: { "Content-Type": "application/json" },
           body: JSON.stringify({
@@ -745,7 +786,13 @@ export function ChargeCardcomDialog({
           </DialogTitle>
           {step === "setup" && (
             <DialogDescription>
-              סליקה מאובטחת דרך Cardcom. הסכום בש&quot;ח.
+              {isBulk ? (
+                <>
+                  סליקה מאובטחת דרך Cardcom — תשלום מצרפי על {bulkPaymentIds!.length} פגישות. הסכום בש&quot;ח.
+                </>
+              ) : (
+                <>סליקה מאובטחת דרך Cardcom. הסכום בש&quot;ח.</>
+              )}
             </DialogDescription>
           )}
         </DialogHeader>
