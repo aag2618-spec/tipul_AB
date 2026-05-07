@@ -38,6 +38,7 @@ import {
   TrendingUp
 } from "lucide-react";
 import { QuickMarkPaid } from "@/components/payments/quick-mark-paid";
+import { ChargeCardcomDialog } from "@/components/payments/charge-cardcom-dialog";
 import { PaymentHistoryItem } from "@/components/payments/payment-history-item";
 import {
   DropdownMenu,
@@ -139,6 +140,19 @@ export default function PaymentsPage() {
   // תשלום מהיר
   const [selectedPaymentSession, setSelectedPaymentSession] = useState<UnpaidSession | null>(null);
   const [isPaymentDialogOpen, setIsPaymentDialogOpen] = useState(false);
+
+  // Cardcom dialog ברמת העמוד — חיוני כדי שלא יעלם כש-QuickMarkPaid יורד
+  // מה-DOM (selectedPaymentSession=null אחרי close). אותו דפוס כמו בעמוד היומן.
+  const [cardcomData, setCardcomData] = useState<{
+    paymentId?: string;
+    sessionId?: string;
+    clientId: string;
+    clientName: string;
+    clientPhone?: string | null;
+    clientEmail?: string | null;
+    amount: number;
+  } | null>(null);
+  const [cardcomOpen, setCardcomOpen] = useState(false);
   
   // שליחת מיילים
   const [isSendingEmail, setIsSendingEmail] = useState(false);
@@ -1079,6 +1093,45 @@ export default function PaymentsPage() {
               }
             }}
             hideButton={true}
+            onCardcomRequested={(p) => {
+              // Lift Cardcom dialog לרמת העמוד — אם נשאיר אותו בתוך QuickMarkPaid
+              // הוא יעלם ברגע ש-onOpenChange(false) רץ ו-selectedPaymentSession=null
+              // יסיר את QuickMarkPaid מה-DOM. תיעוד ההסבר ב-quick-mark-paid.tsx
+              // ואותו דפוס כמו בעמוד היומן.
+              setCardcomData({
+                paymentId: p.paymentId,
+                sessionId: p.sessionId,
+                clientId: p.clientId,
+                clientName: p.clientName ?? "מטופל",
+                clientPhone: p.clientPhone,
+                clientEmail: p.clientEmail,
+                amount: p.amount,
+              });
+              setCardcomOpen(true);
+            }}
+          />
+        )}
+
+        {/* Cardcom dialog ברמת העמוד — חי בלי תלות ב-QuickMarkPaid */}
+        {cardcomData && (
+          <ChargeCardcomDialog
+            open={cardcomOpen}
+            onOpenChange={(open) => {
+              setCardcomOpen(open);
+              if (!open) {
+                setCardcomData(null);
+              }
+            }}
+            paymentId={cardcomData.paymentId}
+            sessionId={cardcomData.sessionId}
+            clientId={cardcomData.clientId}
+            clientName={cardcomData.clientName}
+            clientPhone={cardcomData.clientPhone}
+            clientEmail={cardcomData.clientEmail}
+            amount={cardcomData.amount}
+            onPaymentSuccess={async () => {
+              fetchData();
+            }}
           />
         )}
       </div>

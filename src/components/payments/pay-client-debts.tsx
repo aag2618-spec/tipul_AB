@@ -250,7 +250,10 @@ export function PayClientDebts({
   const safeDebt = Number(totalDebt) || 0;
   const safeCredit = Number(creditBalance) || 0;
 
-  if (safeDebt <= 0) {
+  // אם החוב התאפס (לדוגמה אחרי תשלום מצליח שהפעיל router.refresh) אבל
+  // ChargeCardcomDialog עדיין פתוח — לא להחזיר null. אחרת ChargeCardcomDialog
+  // מסומלץ unmount באמצע הזרימה ונראה למשתמש כ"דיאלוג שנעלם בלי אזהרה".
+  if (safeDebt <= 0 && !showCardcomDialog) {
     return null;
   }
 
