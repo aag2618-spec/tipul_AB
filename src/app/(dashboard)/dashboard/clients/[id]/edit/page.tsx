@@ -8,14 +8,22 @@ import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/com
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import { Textarea } from "@/components/ui/textarea";
-import { Loader2, Save, Archive, Clock, UserCheck } from "lucide-react";
+import { Loader2, Save, Archive, Clock, UserCheck, Trash2, AlertTriangle } from "lucide-react";
 import { toast } from "sonner";
+import {
+  Dialog,
+  DialogContent,
+  DialogDescription,
+  DialogFooter,
+  DialogHeader,
+  DialogTitle,
+} from "@/components/ui/dialog";
 
 interface Client {
   id: string;
-  firstName: string;
-  lastName: string;
-  name?: string | null;
+  firstName: string | null;
+  lastName: string | null;
+  name: string;
   phone: string | null;
   email: string | null;
   birthDate: string | null;
@@ -33,6 +41,9 @@ export default function EditClientPage({ params }: { params: Promise<{ id: strin
   const [client, setClient] = useState<Client | null>(null);
   const [isLoading, setIsLoading] = useState(true);
   const [isSaving, setIsSaving] = useState(false);
+  const [deleteDialogOpen, setDeleteDialogOpen] = useState(false);
+  const [confirmName, setConfirmName] = useState("");
+  const [isDeleting, setIsDeleting] = useState(false);
   const [formData, setFormData] = useState({
     firstName: "",
     lastName: "",
@@ -111,6 +122,39 @@ export default function EditClientPage({ params }: { params: Promise<{ id: strin
     }
   };
 
+  // firstName/lastName יכולים להיות null ב-DB; משתמשים ב-name כ-fallback בטוח
+  const fullName = client
+    ? [client.firstName, client.lastName]
+        .filter((s): s is string => Boolean(s))
+        .join(" ")
+        .trim() || client.name
+    : "";
+
+  const handleDelete = async () => {
+    if (confirmName.trim() !== fullName) {
+      toast.error("השם שהוקלד אינו תואם");
+      return;
+    }
+
+    setIsDeleting(true);
+    try {
+      const response = await fetch(`/api/clients/${id}`, { method: "DELETE" });
+
+      if (!response.ok) {
+        const data = await response.json().catch(() => ({}));
+        throw new Error(data?.message || "שגיאה במחיקה");
+      }
+
+      toast.success("המטופל נמחק בהצלחה");
+      router.refresh();
+      router.push("/dashboard/clients");
+    } catch (error) {
+      console.error("Delete error:", error);
+      toast.error(error instanceof Error ? error.message : "אירעה שגיאה במחיקה");
+      setIsDeleting(false);
+    }
+  };
+
   if (isLoading) {
     return (
       <div className="h-[50vh] flex items-center justify-center">
@@ -135,7 +179,7 @@ export default function EditClientPage({ params }: { params: Promise<{ id: strin
       <div className="flex items-center gap-4">
         <div>
           <h1 className="text-2xl font-bold tracking-tight">עריכת מטופל</h1>
-          <p className="text-muted-foreground">{client.firstName} {client.lastName}</p>
+          <p className="text-muted-foreground">{fullName}</p>
         </div>
       </div>
 
@@ -327,6 +371,100 @@ export default function EditClientPage({ params }: { params: Promise<{ id: strin
           </Button>
         </div>
       </form>
+
+      <Card className="border-destructive/40">
+        <CardHeader>
+          <CardTitle className="text-destructive flex items-center gap-2">
+            <AlertTriangle className="h-5 w-5" />
+            אזור מסוכן
+          </CardTitle>
+          <CardDescription>
+            מחיקת מטופל היא פעולה <strong>בלתי הפיכה</strong>. כל הפגישות, התשלומים, ההקלטות, הסיכומים והמסמכים של המטופל יימחקו לצמיתות.
+            לפני מחיקה — מומלץ להעביר את המטופל ל"ארכיון" במקום (שדה הסטטוס למעלה), או לייצא תחילה את הנתונים מעמוד המטופל.
+          </CardDescription>
+        </CardHeader>
+        <CardContent>
+          <Button
+            type="button"
+            variant="destructive"
+            onClick={() => {
+              setConfirmName("");
+              setDeleteDialogOpen(true);
+            }}
+          >
+            <Trash2 className="ml-2 h-4 w-4" />
+            מחק מטופל לצמיתות
+          </Button>
+        </CardContent>
+      </Card>
+
+      <Dialog open={deleteDialogOpen} onOpenChange={(open) => {
+        if (!isDeleting) setDeleteDialogOpen(open);
+      }}>
+        <DialogContent>
+          <DialogHeader>
+            <DialogTitle className="flex items-center gap-2 text-destructive">
+              <AlertTriangle className="h-5 w-5" />
+              מחיקת מטופל לצמיתות
+            </DialogTitle>
+            <DialogDescription asChild>
+              <div className="space-y-2 text-right">
+                <p>
+                  פעולה זו תמחק את <strong>{fullName}</strong> ואת <strong>כל</strong> הנתונים הקשורים אליו:
+                  פגישות, תשלומים, חשבוניות, הקלטות, תמלולים, סיכומים, מסמכים והערות.
+                </p>
+                <p className="font-semibold text-destructive">
+                  אי אפשר לשחזר את הנתונים אחרי המחיקה.
+                </p>
+                <p>
+                  כדי לאשר, הקלד את השם המלא של המטופל: <strong>{fullName}</strong>
+                </p>
+              </div>
+            </DialogDescription>
+          </DialogHeader>
+
+          <div className="space-y-2">
+            <Label htmlFor="confirmName">שם מלא לאישור</Label>
+            <Input
+              id="confirmName"
+              value={confirmName}
+              onChange={(e) => setConfirmName(e.target.value)}
+              placeholder={fullName}
+              disabled={isDeleting}
+              autoComplete="off"
+            />
+          </div>
+
+          <DialogFooter className="gap-2">
+            <Button
+              type="button"
+              variant="outline"
+              onClick={() => setDeleteDialogOpen(false)}
+              disabled={isDeleting}
+            >
+              ביטול
+            </Button>
+            <Button
+              type="button"
+              variant="destructive"
+              onClick={handleDelete}
+              disabled={isDeleting || !fullName || confirmName.trim() !== fullName}
+            >
+              {isDeleting ? (
+                <>
+                  <Loader2 className="ml-2 h-4 w-4 animate-spin" />
+                  מוחק...
+                </>
+              ) : (
+                <>
+                  <Trash2 className="ml-2 h-4 w-4" />
+                  כן, מחק לצמיתות
+                </>
+              )}
+            </Button>
+          </DialogFooter>
+        </DialogContent>
+      </Dialog>
 
     </div>
   );

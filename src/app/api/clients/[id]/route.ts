@@ -5,6 +5,7 @@ import prisma from "@/lib/prisma";
 import { logger } from "@/lib/logger";
 import { serializePrisma } from "@/lib/serialize";
 import { logDataAccess } from "@/lib/audit-logger";
+import { checkRateLimit } from "@/lib/rate-limit";
 import {
   buildClientWhere,
   getClientSafeSelectForSecretary,
@@ -268,6 +269,27 @@ export async function DELETE(
 
     const { id } = await params;
 
+    // Rate limit — מחיקת מטופל היא פעולה הרסנית בלתי-הפיכה. מקסימום 5/שעה
+    // למשתמש מונע שגיאות UI (לחיצה כפולה), טעות אנוש המונית ו-abuse של חשבון
+    // נפרץ. גם מטפל פעיל לא צריך למחוק יותר מ-5 מטופלים בשעה בנסיבות נורמליות.
+    const rateLimitResult = checkRateLimit(`delete-client:${userId}`, {
+      maxRequests: 5,
+      windowMs: 60 * 60 * 1000,
+    });
+    if (!rateLimitResult.allowed) {
+      return NextResponse.json(
+        { message: "ביצעת מחיקות רבות לאחרונה. אפשר לנסות שוב בעוד שעה." },
+        {
+          status: 429,
+          headers: {
+            "Retry-After": String(
+              Math.max(1, Math.ceil((rateLimitResult.resetAt - Date.now()) / 1000))
+            ),
+          },
+        }
+      );
+    }
+
     const scopeUser = await loadScopeUser(userId);
     const scopeWhere = buildClientWhere(scopeUser);
 
@@ -288,6 +310,26 @@ export async function DELETE(
     }
 
     await prisma.client.delete({ where: { id } });
+
+    // Audit log — מחיקה היא פעולה הרסנית. רושמים מי מחק, את מי, ומתי.
+    // שומרים גם את שם המטופל ב-meta כי הרשומה כבר לא קיימת ב-DB אחרי המחיקה.
+    // firstName/lastName הם nullable ב-schema; ה-name (חובה) משמש כ-fallback בטוח.
+    const auditDeletedName =
+      [existingClient.firstName, existingClient.lastName]
+        .filter((s): s is string => Boolean(s))
+        .join(" ")
+        .trim() || existingClient.name;
+    logDataAccess({
+      userId,
+      recordType: "CLIENT_PROFILE",
+      recordId: id,
+      action: "DELETE",
+      clientId: id,
+      request,
+      meta: {
+        deletedClientName: auditDeletedName,
+      },
+    });
 
     return NextResponse.json({ message: "המטופל נמחק בהצלחה" });
   } catch (error) {
