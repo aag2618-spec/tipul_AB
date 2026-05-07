@@ -277,6 +277,19 @@ export async function DELETE(
         if (result.count === 0) {
           throw new Error("Member is no longer in this organization");
         }
+
+        // Defense-in-depth: סוגרים כל impersonation פעיל שמכוון/מבוצע ע"י
+        // החבר הזה. אם הוא ה-target — אסור שמישהו ימשיך להתחזות לו אחרי
+        // שהוסר מהקליניקה. אם הוא impersonator (לא אמור לקרות כי OWNER לא ניתן
+        // להסרה כאן, אבל הגנה כפולה) — סוגרים גם.
+        await tx.impersonationSession.updateMany({
+          where: {
+            OR: [{ targetUserId: id }, { impersonatorId: id }],
+            endedAt: null,
+          },
+          data: { endedAt: new Date(), endedReason: "TARGET_REMOVED" },
+        });
+
         return result;
       }
     );

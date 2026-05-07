@@ -83,8 +83,8 @@ export async function POST(
           ...(newBlockedState && { blockReason }),
         },
       },
-      async (tx) =>
-        tx.user.update({
+      async (tx) => {
+        const result = await tx.user.update({
           where: { id },
           data: newBlockedState
             ? {
@@ -105,7 +105,23 @@ export async function POST(
             isBlocked: true,
             blockReason: true,
           },
-        })
+        });
+
+        // Defense-in-depth: אם חוסמים user שיש כנגדו impersonation פעיל
+        // — סוגרים אותו. בלי זה, ה-OWNER ימשיך לפעול בזהות של חבר שכבר חסום.
+        // אם החסום הוא דווקא ה-OWNER — סוגרים גם את ה-impersonation שהוא ביצע.
+        if (newBlockedState) {
+          await tx.impersonationSession.updateMany({
+            where: {
+              OR: [{ targetUserId: id }, { impersonatorId: id }],
+              endedAt: null,
+            },
+            data: { endedAt: new Date(), endedReason: "USER_BLOCKED" },
+          });
+        }
+
+        return result;
+      }
     );
 
     return NextResponse.json({

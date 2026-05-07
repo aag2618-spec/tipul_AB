@@ -73,7 +73,9 @@ export async function GET() {
 }
 
 export async function POST(request: NextRequest) {
-  const auth = await requireAuth();
+  // disallowImpersonation: חיבור Cardcom אישי הוא פעולה רגישה שעלולה
+  // לקשר חשבון בנק של ה-target; OWNER במצב impersonation לא יקשר אותה.
+  const auth = await requireAuth({ disallowImpersonation: true });
   if ("error" in auth) return auth.error;
   const { userId, session } = auth;
 
@@ -196,7 +198,8 @@ export async function POST(request: NextRequest) {
 }
 
 export async function DELETE() {
-  const auth = await requireAuth();
+  // disallowImpersonation: ראה הערה ב-POST.
+  const auth = await requireAuth({ disallowImpersonation: true });
   if ("error" in auth) return auth.error;
   const { userId, session } = auth;
 

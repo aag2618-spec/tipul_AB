@@ -109,10 +109,32 @@ export async function withAudit<T>(
   let adminName: string | null;
   let actorMeta: Record<string, unknown> = {};
   if (actor.kind === "user") {
-    adminId = actor.session.user.id;
-    adminEmail = actor.session.user.email ?? null;
-    adminName = actor.session.user.name ?? null;
-    actorMeta = { actorKind: "user" };
+    // Impersonation: בעת ש-OWNER מתחזה ל-target, ה-session.user.id הוא של
+    // ה-target (כדי לזרום data scope טבעי). אבל ב-audit, אחריות הפעולה
+    // היא של ה-OWNER — ולכן adminId נרשם כ-OWNER (originalUserId), עם
+    // metadata שמתעד שהפעולה בוצעה תחת impersonation של target ספציפי.
+    // ככה queries "מי עשה X?" תמיד מחזירות את האדם שאחראי באמת.
+    const actingAs = actor.session.user.actingAs;
+    const isImpersonating = !!actingAs;
+    if (isImpersonating && actor.session.user.originalUserId) {
+      adminId = actor.session.user.originalUserId;
+      adminEmail = actor.session.user.email ?? null; // OWNER's email (לא הוחלף ב-session)
+      adminName = `${actor.session.user.name ?? "—"} (impersonating)`;
+      actorMeta = {
+        actorKind: "user",
+        impersonation: {
+          impersonatorId: actor.session.user.originalUserId,
+          impersonationSessionId: actingAs!.sessionId,
+          targetUserId: actingAs!.userId,
+          targetName: actingAs!.name,
+        },
+      };
+    } else {
+      adminId = actor.session.user.id;
+      adminEmail = actor.session.user.email ?? null;
+      adminName = actor.session.user.name ?? null;
+      actorMeta = { actorKind: "user" };
+    }
   } else {
     adminId = null;
     adminEmail = null;

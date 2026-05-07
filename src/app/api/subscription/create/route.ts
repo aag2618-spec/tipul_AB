@@ -15,7 +15,9 @@ export const dynamic = "force-dynamic";
 
 export async function POST(request: NextRequest) {
   try {
-    const auth = await requireAuth();
+    // disallowImpersonation: יצירת מנוי הוא פעולת חיוב — OWNER לא יוצר מנוי
+    // בשם target (חיוב לכרטיס שלו).
+    const auth = await requireAuth({ disallowImpersonation: true });
     if ("error" in auth) return auth.error;
     const { userId, session } = auth;
 

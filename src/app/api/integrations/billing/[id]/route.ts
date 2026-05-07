@@ -12,7 +12,8 @@ export async function DELETE(
   { params }: { params: Promise<{ id: string }> }
 ) {
   try {
-    const auth = await requireAuth();
+    // disallowImpersonation: הסרת ספק חיוב היא פעולת ניהול אישית רגישה.
+    const auth = await requireAuth({ disallowImpersonation: true });
     if ("error" in auth) return auth.error;
     const { userId, session } = auth;
 
@@ -54,7 +55,8 @@ export async function PATCH(
   { params }: { params: Promise<{ id: string }> }
 ) {
   try {
-    const auth = await requireAuth();
+    // disallowImpersonation: שינוי הגדרות ספק חיוב — פעולה אישית רגישה.
+    const auth = await requireAuth({ disallowImpersonation: true });
     if ("error" in auth) return auth.error;
     const { userId, session } = auth;
 

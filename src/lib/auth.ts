@@ -6,6 +6,7 @@ import bcrypt from "bcryptjs";
 import prisma from "./prisma";
 import { checkRateLimit, resetRateLimit, AUTH_RATE_LIMIT, LOGIN_EMAIL_RATE_LIMIT } from "./rate-limit";
 import { requires2FA } from "./two-factor";
+import { loadVerifiedImpersonation, type JwtActingAs } from "./impersonation";
 
 // Cache for JWT user data — avoids DB query on every request
 // 30s ב-Production: מאזן בין performance (פחות DB queries) ל-revocation
@@ -264,7 +265,7 @@ export const authOptions: NextAuthOptions = {
 
       return true;
     },
-    async jwt({ token, user, account, trigger }) {
+    async jwt({ token, user, account, trigger, session }) {
       if (user) {
         token.id = user.id;
         token.role = user.role;
@@ -290,6 +291,63 @@ export const authOptions: NextAuthOptions = {
             token.requires2FA = true;
           }
           token.loginAt = Date.now();
+        }
+      }
+
+      // Impersonation start/stop — UI קורא ל-update({ actingAs: { sessionId } | null })
+      // אחרי שה-API החזיר success. **לא סומכים על שאר השדות** — נטענים מה-DB.
+      // הסיבה: trigger=update מגיע מהcclient, ויכול להישלח גם דרך DevTools.
+      // נטילת sessionId בלבד (שכמובן יבדק שהוא שייך ל-impersonatorId הנכון)
+      // מונעת privilege escalation בו ה-client זייף actingAs.role=ADMIN.
+      //
+      // fail-secure: אם נשלח update עם actingAs לא תקף (sessionId זויף, DB down),
+      // מוחקים את ה-actingAs הקיים גם אם היה. עדיף שהמשתמש יצטרך לבצע start
+      // מחדש מאשר להישאר עם זהות לא מאומתת.
+      if (trigger === "update") {
+        const upd = session as { actingAs?: unknown } | undefined;
+        if (upd && "actingAs" in (upd ?? {})) {
+          if (upd.actingAs === null) {
+            delete token.actingAs;
+          } else if (upd.actingAs && typeof upd.actingAs === "object") {
+            const candidate = upd.actingAs as { sessionId?: unknown };
+            const sessionId =
+              typeof candidate.sessionId === "string" ? candidate.sessionId : null;
+            if (sessionId) {
+              const verified = await loadVerifiedImpersonation(sessionId, token.id as string);
+              if (verified) {
+                token.actingAs = verified;
+              } else {
+                // לא ניתן לאמת — מוחקים כל actingAs קיים (fail-secure)
+                delete token.actingAs;
+              }
+            } else {
+              // update עם actingAs בלי sessionId תקף — דחיה
+              delete token.actingAs;
+            }
+          }
+        }
+      }
+
+      // Impersonation timeout + ongoing verification — lazy check בכל קריאה.
+      // מאמתים מול ה-DB שהסשן עדיין פעיל (endedAt IS NULL) ושייך ל-OWNER הנכון.
+      // ככה אם cron/admin סגר את הסשן (USER_BLOCKED, TARGET_REMOVED) — ה-token
+      // מתעדכן בקריאה הבאה ולא נשאר עם actingAs מיותם.
+      // בנוסף, 4-hour timeout (lazy) — מנקים גם אם ה-DB עדיין פתוח.
+      if (token.actingAs) {
+        const aa = token.actingAs;
+        const tooOld =
+          typeof aa.startedAt === "number" &&
+          Date.now() - aa.startedAt > 4 * 60 * 60 * 1000;
+        if (tooOld) {
+          delete token.actingAs;
+        } else {
+          const verified = await loadVerifiedImpersonation(aa.sessionId, token.id as string);
+          if (!verified) {
+            delete token.actingAs;
+          } else {
+            // refresh שם אם השתנה (cosmetic)
+            token.actingAs = verified;
+          }
         }
       }
 
@@ -426,6 +484,18 @@ export const authOptions: NextAuthOptions = {
         session.user.id = token.id as string;
         session.user.role = token.role as "USER" | "MANAGER" | "ADMIN" | "CLINIC_OWNER" | "CLINIC_SECRETARY";
         session.user.requires2FA = token.requires2FA === true;
+
+        // Impersonation: בעת ש-OWNER מתחזה ל-target, ה"זהות אפקטיבית"
+        // היא של ה-target — ככה data scope, queries, ו-permissions זורמים
+        // לחוויית ה-target. אבל שומרים את המקור ב-originalUserId כדי
+        // לאפשר stop, banner, ו-audit עם זהות ה-OWNER האמיתי.
+        if (token.actingAs) {
+          session.user.originalUserId = token.id as string;
+          session.user.actingAs = token.actingAs;
+          session.user.id = token.actingAs.userId;
+          session.user.role = token.actingAs.role;
+          session.user.name = token.actingAs.name;
+        }
       }
       return session;
     },
@@ -448,6 +518,11 @@ declare module "next-auth" {
       image?: string | null;
       role: "USER" | "MANAGER" | "ADMIN" | "CLINIC_OWNER" | "CLINIC_SECRETARY";
       requires2FA?: boolean;
+      // Impersonation: כש-OWNER מתחזה ל-target, ה-id/role/name מוחלפים לאלו
+      // של ה-target (למניעת לחזור ולשכפל data scope), ו-originalUserId שומר
+      // את ה-OWNER המקורי. actingAs מכיל את כל ה-metadata של ה-impersonation.
+      originalUserId?: string;
+      actingAs?: JwtActingAs;
     };
   }
 }
@@ -461,5 +536,6 @@ declare module "next-auth/jwt" {
     gracePeriodEndsAt?: string; // ISO date string - מתי נגמרת תקופת החסד
     requires2FA?: boolean;
     loginAt?: number; // epoch ms — login timestamp; משמש לשיוך verify ל-token
+    actingAs?: JwtActingAs; // null/undefined = לא מתחזה
   }
 }

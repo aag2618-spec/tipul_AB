@@ -46,7 +46,9 @@ export const dynamic = "force-dynamic";
 
 export async function POST() {
   try {
-    const auth = await requireAuth();
+    // disallowImpersonation: ביטול מנוי הוא פעולה משמעותית שמשפיעה על
+    // החיוב של ה-target; OWNER במצב impersonation לא יבטל מנוי בשמו.
+    const auth = await requireAuth({ disallowImpersonation: true });
     if ("error" in auth) return auth.error;
     const { userId, session } = auth;
 

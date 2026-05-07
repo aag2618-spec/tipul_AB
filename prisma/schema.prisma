@@ -259,6 +259,13 @@ model User {
   clinicInvitationsCreated  ClinicInvitation[] @relation("ClinicInvitationsCreated")
   clinicInvitationsAccepted ClinicInvitation[] @relation("ClinicInvitationsAccepted")
   clinicInvitationsRevoked  ClinicInvitation[] @relation("ClinicInvitationsRevoked")
+
+  // Impersonation — inverse relations.
+  // OWNER מבצע impersonation על THERAPIST/SECRETARY של אותה קליניקה לצורך
+  // ביקורת בלבד. שני הצדדים נשמרים ב-Cascade: מחיקת user מנקה גם את
+  // הסשנים שלו (audit נשאר ב-AdminAuditLog שמכיל snapshot).
+  impersonationsPerformed ImpersonationSession[] @relation("Impersonator")
+  impersonatedAs          ImpersonationSession[] @relation("ImpersonationTarget")
 }
 
 // ==================== AI Tiers ====================
@@ -2428,6 +2435,7 @@ model Organization {
   transferLogs   ClientTransferLog[]
   departures     TherapistDeparture[]
   invitations    ClinicInvitation[]
+  impersonationSessions ImpersonationSession[]
 
   // Inverse relations מהמודלים הקיימים שמכילים organizationId עם @relation
   clients         Client[]
@@ -2648,4 +2656,52 @@ model ClinicInvitation {
   @@index([createdById])
   @@index([acceptedByUserId])
   @@index([revokedById])
+}
+
+// ==================== Impersonation ====================
+// בעל/ת קליניקה (OWNER) יכול/ה להיכנס "כעין" מטפל/ת או מזכיר/ה באותה קליניקה
+// לצורך ביקורת בלבד. הפעולות המתבצעות תחת impersonation נרשמות ב-AdminAuditLog
+// עם metadata שמזהה את ה-OWNER הפועל מאחורי הקלעים (impersonatorId +
+// impersonationSessionId), כך ששרשרת האחריות נשמרת.
+//
+// אילוצים:
+// - יכול להיות רק impersonation אחד פעיל ל-OWNER בו-זמנית. ה-DB אוכף את זה
+//   באמצעות partial unique index על (impersonatorId) WHERE endedAt IS NULL.
+// - 4 שעות מקסימום — אחרי זה auto-stop בקריאה הבאה ל-API (lazy check).
+// - ADMIN/OWNER אחר/ים אינם target חוקי.
+// - target חייב להיות באותו organization של ה-OWNER.
+//
+// snapshot של שמות נשמר ל-deletes (Cascade ינקה את הסשן עצמו, אבל ה-AdminAuditLog
+// שומר את ה-metadata בנפרד).
+model ImpersonationSession {
+  id             String       @id @default(cuid())
+  organizationId String
+  organization   Organization @relation(fields: [organizationId], references: [id], onDelete: Cascade)
+
+  // מי מתחזה (תמיד OWNER)
+  impersonatorId String
+  impersonator   User   @relation("Impersonator", fields: [impersonatorId], references: [id], onDelete: Cascade)
+
+  // מי המוצר של ה-impersonation
+  targetUserId String
+  targetUser   User   @relation("ImpersonationTarget", fields: [targetUserId], references: [id], onDelete: Cascade)
+
+  reason      String    @db.Text // חובה — סיבה ל-compliance
+  startedAt   DateTime  @default(now())
+  endedAt     DateTime? // null = פעיל
+  endedReason String? // "MANUAL" | "TIMEOUT_4H" | "USER_BLOCKED" | "TARGET_REMOVED" | "TARGET_BLOCKED"
+
+  // snapshot של שמות לעמידות ל-deletes
+  impersonatorNameSnapshot String
+  targetNameSnapshot       String
+
+  // IP + user-agent לאודיט
+  ipAddress String?
+  userAgent String? @db.Text
+
+  @@index([organizationId, startedAt])
+  @@index([impersonatorId, startedAt])
+  @@index([targetUserId, startedAt])
+  // PARTIAL UNIQUE INDEX (impersonatorId WHERE endedAt IS NULL) נוצר ב-migration SQL.
+  // Prisma לא תומך ב-partial unique index ב-schema, ולכן יוצרים ידנית.
 }

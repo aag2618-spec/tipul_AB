@@ -38,7 +38,9 @@ export async function GET() {
 
 export async function PUT(request: NextRequest) {
   try {
-    const auth = await requireAuth();
+    // disallowImpersonation: עריכת פרופיל אישי (שם, טלפון, רישיון) —
+    // OWNER לא ישנה פרטים אישיים של ה-target בשמו.
+    const auth = await requireAuth({ disallowImpersonation: true });
     if ("error" in auth) return auth.error;
     const { userId, session } = auth;
 

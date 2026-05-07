@@ -1,11 +1,14 @@
 "use client";
 
 import { useEffect, useState, useCallback } from "react";
+import { useRouter } from "next/navigation";
+import { useSession } from "next-auth/react";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import { Badge } from "@/components/ui/badge";
+import { Textarea } from "@/components/ui/textarea";
 import {
   Dialog,
   DialogContent,
@@ -44,6 +47,7 @@ import {
   Check,
   AlertCircle,
   UserPlus,
+  LogIn,
 } from "lucide-react";
 import Link from "next/link";
 import { toast } from "sonner";
@@ -129,6 +133,9 @@ function MemberRoleBadge({ role }: { role: ClinicRole | null }) {
 }
 
 export default function ClinicMembersPage() {
+  const router = useRouter();
+  const { update: updateSession } = useSession();
+
   const [members, setMembers] = useState<Member[]>([]);
   const [loading, setLoading] = useState(true);
 
@@ -149,6 +156,11 @@ export default function ClinicMembersPage() {
 
   // הסרה
   const [removeId, setRemoveId] = useState<string | null>(null);
+
+  // Impersonation
+  const [impersonateTarget, setImpersonateTarget] = useState<Member | null>(null);
+  const [impersonateReason, setImpersonateReason] = useState("");
+  const [startingImpersonation, setStartingImpersonation] = useState(false);
 
   const fetchMembers = useCallback(async () => {
     setLoading(true);
@@ -257,6 +269,39 @@ export default function ClinicMembersPage() {
     }
   }
 
+  async function handleStartImpersonation() {
+    if (!impersonateTarget) return;
+    if (impersonateReason.trim().length < 5) {
+      toast.error("יש להזין סיבה (לפחות 5 תווים)");
+      return;
+    }
+    setStartingImpersonation(true);
+    try {
+      const res = await fetch("/api/clinic-admin/impersonate/start", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({
+          targetUserId: impersonateTarget.id,
+          reason: impersonateReason.trim(),
+        }),
+      });
+      const data = await res.json();
+      if (!res.ok) throw new Error(data.message || "שגיאה");
+      // שמירת actingAs ב-token דרך update
+      await updateSession({ actingAs: data.actingAs });
+      toast.success(`נכנסת לחווית המשתמש של ${impersonateTarget.name || "החבר/ה"}`);
+      setImpersonateTarget(null);
+      setImpersonateReason("");
+      // ניווט לדשבורד של ה-target — שם רוב הביקורת
+      router.push("/dashboard");
+      router.refresh();
+    } catch (err) {
+      toast.error(err instanceof Error ? err.message : "שגיאה");
+    } finally {
+      setStartingImpersonation(false);
+    }
+  }
+
   async function handleRemove() {
     if (!removeId) return;
     try {
@@ -361,7 +406,7 @@ export default function ClinicMembersPage() {
                             {m.email} · {m._count.clients} מטופלים
                           </div>
                         </div>
-                        <div className="flex gap-1.5">
+                        <div className="flex gap-1.5 flex-wrap">
                           {m.clinicRole === "SECRETARY" && (
                             <Button
                               variant="outline"
@@ -370,6 +415,20 @@ export default function ClinicMembersPage() {
                             >
                               <Settings className="ml-1.5 h-3.5 w-3.5" />
                               הרשאות
+                            </Button>
+                          )}
+                          {m.clinicRole !== "OWNER" && !m.isBlocked && (
+                            <Button
+                              variant="outline"
+                              size="sm"
+                              onClick={() => {
+                                setImpersonateTarget(m);
+                                setImpersonateReason("");
+                              }}
+                              title="כניסה כעין החבר/ה לצורך ביקורת — כל פעולה תתועד"
+                            >
+                              <LogIn className="ml-1.5 h-3.5 w-3.5" />
+                              היכנס/י כעין
                             </Button>
                           )}
                           {m.clinicRole !== "OWNER" && (
@@ -535,6 +594,73 @@ export default function ClinicMembersPage() {
             <Button onClick={handleSavePerms} disabled={savingPerms}>
               {savingPerms && <Loader2 className="ml-2 h-4 w-4 animate-spin" />}
               שמור הרשאות
+            </Button>
+          </DialogFooter>
+        </DialogContent>
+      </Dialog>
+
+      {/* התחזות (Impersonation) */}
+      <Dialog
+        open={!!impersonateTarget}
+        onOpenChange={(o) => {
+          if (!o) {
+            setImpersonateTarget(null);
+            setImpersonateReason("");
+          }
+        }}
+      >
+        <DialogContent dir="rtl">
+          <DialogHeader>
+            <DialogTitle>כניסה כעין {impersonateTarget?.name || "החבר/ה"}?</DialogTitle>
+            <DialogDescription>
+              כל פעולה שתבצע/י במצב ההתחזות תיוחס ל-{impersonateTarget?.name || "החבר/ה"} במערכת,
+              אך תיתועד באודיט עם זהותך האמיתית כאחראי/ת לפעולה.
+            </DialogDescription>
+          </DialogHeader>
+
+          <div className="space-y-2 text-sm">
+            <p className="text-amber-600 dark:text-amber-400 font-medium">
+              ⚠ השתמש/י רק לביקורת ובדיקה — לא לפעולות יזומות בשם החבר/ה.
+            </p>
+            <p className="text-xs text-muted-foreground">
+              מקסימום 4 שעות. ניתן לצאת בכל רגע מהבאנר העליון.
+            </p>
+          </div>
+
+          <div className="space-y-2 py-2">
+            <Label htmlFor="impersonate-reason">סיבה (חובה — לפחות 5 תווים)</Label>
+            <Textarea
+              id="impersonate-reason"
+              value={impersonateReason}
+              onChange={(e) => setImpersonateReason(e.target.value)}
+              rows={3}
+              placeholder="לדוגמה: בדיקת תקלה שדווחה, בירור מצב הרשאות, ביקורת תקופתית..."
+              maxLength={500}
+            />
+            <p className="text-xs text-muted-foreground text-left">
+              {impersonateReason.length} / 500
+            </p>
+          </div>
+
+          <DialogFooter>
+            <Button
+              variant="outline"
+              onClick={() => {
+                setImpersonateTarget(null);
+                setImpersonateReason("");
+              }}
+              disabled={startingImpersonation}
+            >
+              ביטול
+            </Button>
+            <Button
+              onClick={handleStartImpersonation}
+              disabled={startingImpersonation || impersonateReason.trim().length < 5}
+            >
+              {startingImpersonation && (
+                <Loader2 className="ml-2 h-4 w-4 animate-spin" />
+              )}
+              היכנס/י למצב התחזות
             </Button>
           </DialogFooter>
         </DialogContent>

@@ -3,18 +3,24 @@ import prisma from "@/lib/prisma";
 import { logger } from "@/lib/logger";
 import { requireAuth } from "@/lib/api-auth";
 import { withAudit } from "@/lib/audit";
+import { cancelOrDeleteFutureSessions } from "@/lib/transfer-cancel-or-delete";
 
 export const dynamic = "force-dynamic";
 
 // POST — העברת מטופל בין מטפלים באותה קליניקה.
-// body: { clientId, toTherapistId, reason? }
+// body: {
+//   clientId, toTherapistId, reason?,
+//   transferFutureSessions?: boolean (default false),
+//   sessionsToTransfer?: string[] (sessionIds עם בדיקת חפיפה),
+//   sessionsToTransferWithOverride?: string[] (sessionIds עם override של חפיפה),
+//   sessionsToCancel?: string[] (sessionIds לביטול),
+// }
 //
-// תיעוד: יוצר ClientTransferLog עם snapshot של שמות (לעמידות ל-deletes
-// עתידיים), מעדכן Client.therapistId, ואת TherapySession הקשורות
-// (organizationId נשמר; therapistId לא מוחלף — שומרים את ההיסטוריה).
+// transferFutureSessions=false (ברירת מחדל): פגישות עתידיות מבוטלות/נמחקות.
+// transferFutureSessions=true: פגישות עתידיות מועברות לפי הרשימות (כל פגישה
+// חייבת להיות באחת מהרשימות, אחרת היא לא מטופלת — שומרים על קוו ההיסטוריה).
 //
-// במכוון: לא מעבירים TherapySession הקיימים — הסטוריה משוייכת למטפל המקורי.
-// רק מטופל עתידי + פגישות חדשות יזרמו למטפל היעד.
+// תמיד: היסטוריה (פגישות בעבר + COMPLETED/CANCELLED) נשארת משויכת למטפל המקורי.
 export async function POST(request: NextRequest) {
   try {
     const auth = await requireAuth();
@@ -46,7 +52,23 @@ export async function POST(request: NextRequest) {
     }
 
     const body = await request.json();
-    const { clientId, toTherapistId, reason } = body;
+    const {
+      clientId,
+      toTherapistId,
+      reason,
+      transferFutureSessions = false,
+      sessionsToTransfer = [],
+      sessionsToTransferWithOverride = [],
+      sessionsToCancel = [],
+    } = body as {
+      clientId?: string;
+      toTherapistId?: string;
+      reason?: string;
+      transferFutureSessions?: boolean;
+      sessionsToTransfer?: string[];
+      sessionsToTransferWithOverride?: string[];
+      sessionsToCancel?: string[];
+    };
 
     if (!clientId || !toTherapistId) {
       return NextResponse.json(
@@ -127,9 +149,29 @@ export async function POST(request: NextRequest) {
           fromTherapistId: client.therapistId,
           toTherapistId,
           clientName: `${client.firstName} ${client.lastName}`.trim(),
+          transferFutureSessions,
+          requestedTransferIds: sessionsToTransfer,
+          requestedOverrideIds: sessionsToTransferWithOverride,
+          requestedCancelIds: sessionsToCancel,
         },
       },
       async (tx) => {
+        // Race guard: קוראים את הclient שוב בתוך ה-tx ומוודאים ש-therapistId
+        // לא השתנה בזמן הבדיקות. ככה שני OWNERs (או 2 tabs) שמבצעים העברה
+        // בו-זמנית — אחד מצליח, השני מקבל שגיאה ידידותית במקום סטיית נתונים.
+        const currentClient = await tx.client.findUnique({
+          where: { id: clientId },
+          select: { therapistId: true, organizationId: true },
+        });
+        if (!currentClient || currentClient.organizationId !== me.organizationId) {
+          throw new Error("המטופל לא נמצא בקליניקה (ייתכן שהוסר)");
+        }
+        if (currentClient.therapistId !== client.therapistId) {
+          throw new Error(
+            "המטופל הועבר למטפל אחר בין-זמן. רענני את הדף ובדקי שוב."
+          );
+        }
+
         // 1. יצירת לוג עם snapshot של השמות
         const log = await tx.clientTransferLog.create({
           data: {
@@ -151,7 +193,165 @@ export async function POST(request: NextRequest) {
           data: { therapistId: toTherapistId },
         });
 
-        return log;
+        // 3. טיפול בפגישות עתידיות
+        const now = new Date();
+        let transferredSessionIds: string[] = [];
+        let overriddenSessionIds: string[] = [];
+        let deletedSessionIds: string[] = [];
+        let cancelledSessionIds: string[] = [];
+
+        if (transferFutureSessions) {
+          // מצב מתקדם: ה-OWNER בחר ב-dialog פר פגישה
+          if (sessionsToTransfer.length > 0) {
+            // SELECT-then-update: מסננים תחילה את ה-IDs התקפים בלבד
+            // (לקוח נכון, מטפל נכון, עתידי). updateMany מחזיר רק count, אבל
+            // אנחנו צריכים את ה-IDs האמיתיים לאודיט. ה-loop גם בודק חפיפה.
+            const validForTransfer: string[] = [];
+            for (const sid of sessionsToTransfer) {
+              const s = await tx.therapySession.findUnique({
+                where: { id: sid },
+                select: {
+                  startTime: true,
+                  endTime: true,
+                  clientId: true,
+                  therapistId: true,
+                  status: true,
+                },
+              });
+              if (
+                !s ||
+                s.clientId !== clientId ||
+                s.therapistId !== client.therapistId ||
+                s.startTime <= now
+              ) {
+                continue;
+              }
+              const conflict = await tx.therapySession.findFirst({
+                where: {
+                  therapistId: toTherapistId,
+                  status: { notIn: ["CANCELLED", "COMPLETED", "NO_SHOW"] },
+                  OR: [
+                    {
+                      AND: [
+                        { startTime: { lte: s.startTime } },
+                        { endTime: { gt: s.startTime } },
+                      ],
+                    },
+                    {
+                      AND: [
+                        { startTime: { lt: s.endTime } },
+                        { endTime: { gte: s.endTime } },
+                      ],
+                    },
+                    {
+                      AND: [
+                        { startTime: { gte: s.startTime } },
+                        { endTime: { lte: s.endTime } },
+                      ],
+                    },
+                  ],
+                },
+                select: { id: true },
+              });
+              if (conflict) {
+                throw new Error(
+                  "התגלתה התנגשות חדשה בפגישה. רענני את הדף ובחרי שוב."
+                );
+              }
+              validForTransfer.push(sid);
+            }
+            if (validForTransfer.length > 0) {
+              await tx.therapySession.updateMany({
+                where: { id: { in: validForTransfer } },
+                data: { therapistId: toTherapistId },
+              });
+            }
+            transferredSessionIds = validForTransfer;
+          }
+
+          // העברה עם override של חפיפה — בכוונה ללא בדיקת חפיפה
+          if (sessionsToTransferWithOverride.length > 0) {
+            const validForOverride = await tx.therapySession.findMany({
+              where: {
+                id: { in: sessionsToTransferWithOverride },
+                clientId,
+                therapistId: client.therapistId,
+                startTime: { gt: now },
+              },
+              select: { id: true },
+            });
+            const validIds = validForOverride.map((s) => s.id);
+            if (validIds.length > 0) {
+              await tx.therapySession.updateMany({
+                where: { id: { in: validIds } },
+                data: { therapistId: toTherapistId },
+              });
+            }
+            overriddenSessionIds = validIds;
+          }
+
+          if (sessionsToCancel.length > 0) {
+            // helper מחזיר את ה-IDs האמיתיים שטופלו (deleted/cancelled)
+            const { deleted, cancelled } = await cancelOrDeleteFutureSessions(
+              tx,
+              sessionsToCancel,
+              { transferLogId: log.id }
+            );
+            deletedSessionIds = deleted;
+            cancelledSessionIds = cancelled;
+          }
+        } else {
+          // ברירת מחדל: כל הפגישות העתידיות הפעילות מבוטלות/נמחקות
+          const allFuture = await tx.therapySession.findMany({
+            where: {
+              clientId,
+              therapistId: client.therapistId,
+              startTime: { gt: now },
+              status: {
+                in: ["SCHEDULED", "PENDING_APPROVAL", "PENDING_CANCELLATION"],
+              },
+            },
+            select: { id: true },
+          });
+          const { deleted, cancelled } = await cancelOrDeleteFutureSessions(
+            tx,
+            allFuture.map((s) => s.id),
+            { transferLogId: log.id }
+          );
+          deletedSessionIds = deleted;
+          cancelledSessionIds = cancelled;
+        }
+
+        // עדכון ה-log עם summary של מה שקרה (כדי שיהיה visible באודיט)
+        const summaryParts: string[] = [];
+        if (transferredSessionIds.length)
+          summaryParts.push(`הועברו ${transferredSessionIds.length}`);
+        if (overriddenSessionIds.length)
+          summaryParts.push(`הועברו עם התנגשות ${overriddenSessionIds.length}`);
+        if (deletedSessionIds.length)
+          summaryParts.push(`נמחקו ${deletedSessionIds.length}`);
+        if (cancelledSessionIds.length)
+          summaryParts.push(`בוטלו ${cancelledSessionIds.length}`);
+
+        if (summaryParts.length > 0) {
+          const baseReason = reason?.trim() || "";
+          const postfix = summaryParts.join(", ");
+          const updatedReason = baseReason
+            ? `${baseReason}; ${postfix}`
+            : postfix;
+          await tx.clientTransferLog.update({
+            where: { id: log.id },
+            data: { reason: updatedReason },
+          });
+        }
+
+        return {
+          ...log,
+          transferredSessionIds,
+          overriddenSessionIds,
+          deletedSessionIds,
+          cancelledSessionIds,
+        };
       }
     );
 

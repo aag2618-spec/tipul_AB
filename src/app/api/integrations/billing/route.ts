@@ -45,7 +45,9 @@ export async function GET() {
 // POST - Add/Update a billing provider
 export async function POST(request: NextRequest) {
   try {
-    const auth = await requireAuth();
+    // disallowImpersonation: הוספת/עדכון ספק חיוב = שיוך מפתחות API לחשבון.
+    // פעולה רגישה — OWNER לא ישייך apiKey/apiSecret של ה-target בשמו.
+    const auth = await requireAuth({ disallowImpersonation: true });
     if ("error" in auth) return auth.error;
     const { userId, session } = auth;
 

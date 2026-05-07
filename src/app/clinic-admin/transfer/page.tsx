@@ -6,6 +6,7 @@ import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import { Textarea } from "@/components/ui/textarea";
+import { Switch } from "@/components/ui/switch";
 import {
   Select,
   SelectContent,
@@ -24,6 +25,7 @@ import {
   Crown,
 } from "lucide-react";
 import { toast } from "sonner";
+import { TransferFutureSessionsDialog } from "@/components/clinic-admin/transfer-future-sessions-dialog";
 
 type ClinicRole = "OWNER" | "THERAPIST" | "SECRETARY";
 
@@ -57,6 +59,8 @@ export default function TransferClientPage() {
   const [toTherapistId, setToTherapistId] = useState<string>("");
   const [reason, setReason] = useState("");
   const [transferring, setTransferring] = useState(false);
+  const [transferFutureSessions, setTransferFutureSessions] = useState(false);
+  const [futureDialogOpen, setFutureDialogOpen] = useState(false);
 
   const fetchClients = useCallback(async () => {
     try {
@@ -105,8 +109,11 @@ export default function TransferClientPage() {
     setSelectedClient(client);
     setToTherapistId("");
     setReason("");
+    setTransferFutureSessions(false);
   }
 
+  // ביצוע העברה במצב "ביטול" — בלי dialog (transferFutureSessions=false).
+  // כל הפגישות העתידיות מבוטלות/נמחקות אוטומטית בשרת.
   async function handleTransfer() {
     if (!selectedClient || !toTherapistId) {
       toast.error("יש לבחור מטופל ומטפל/ת יעד");
@@ -125,6 +132,7 @@ export default function TransferClientPage() {
           clientId: selectedClient.id,
           toTherapistId,
           reason: reason.trim() || undefined,
+          transferFutureSessions: false,
         }),
       });
       if (!res.ok) {
@@ -135,6 +143,7 @@ export default function TransferClientPage() {
       setSelectedClient(null);
       setToTherapistId("");
       setReason("");
+      setTransferFutureSessions(false);
       fetchClients();
     } catch (err) {
       toast.error(err instanceof Error ? err.message : "שגיאה בהעברה");
@@ -297,13 +306,47 @@ export default function TransferClientPage() {
                   />
                 </div>
 
+                <div className="flex items-start gap-3 p-3 bg-muted/50 rounded-md">
+                  <Switch
+                    id="transfer-future"
+                    checked={transferFutureSessions}
+                    onCheckedChange={setTransferFutureSessions}
+                  />
+                  <div className="space-y-1 flex-1">
+                    <Label htmlFor="transfer-future" className="cursor-pointer">
+                      להעביר גם את הפגישות העתידיות למטפל/ת היעד?
+                    </Label>
+                    <p className="text-xs text-muted-foreground">
+                      ברירת מחדל: לא. אם לא — כל הפגישות העתידיות יבוטלו ולא
+                      יישארו אצל אף מטפל (היסטוריה של עבר תישאר במטפל המקורי).
+                    </p>
+                  </div>
+                </div>
+
                 <div className="bg-amber-500/10 border border-amber-500/30 rounded-md p-3 text-xs text-muted-foreground">
-                  <strong className="text-amber-400">לתשומת לב:</strong> פגישות עבר נשארות
-                  משויכות למטפל המקורי (היסטוריה). רק פגישות עתידיות יוקצו למטפל היעד.
+                  <strong className="text-amber-400">לתשומת לב:</strong> פגישות עבר תמיד
+                  נשארות משויכות למטפל המקורי (היסטוריה).{" "}
+                  {transferFutureSessions
+                    ? "פגישות עתידיות תוצגנה במסך הבא לאישור פר-פגישה."
+                    : "כל הפגישות העתידיות יבוטלו (פגישות עם תשלום/קבלה — בסטטוס בוטל)."}
                 </div>
 
                 <Button
-                  onClick={handleTransfer}
+                  onClick={() => {
+                    if (!selectedClient || !toTherapistId) {
+                      toast.error("יש לבחור מטופל ומטפל/ת יעד");
+                      return;
+                    }
+                    if (toTherapistId === selectedClient.therapistId) {
+                      toast.error("המטופל כבר מטופל ע״י המטפל/ת היעד");
+                      return;
+                    }
+                    if (transferFutureSessions) {
+                      setFutureDialogOpen(true);
+                    } else {
+                      handleTransfer();
+                    }
+                  }}
                   disabled={!toTherapistId || transferring}
                   className="w-full"
                 >
@@ -312,13 +355,42 @@ export default function TransferClientPage() {
                   ) : (
                     <Check className="ml-2 h-4 w-4" />
                   )}
-                  בצע/י העברה
+                  {transferFutureSessions ? "המשך/י לאישור פגישות" : "בצע/י העברה"}
                 </Button>
               </>
             )}
           </CardContent>
         </Card>
       </div>
+
+      {/* דיאלוג העברת פגישות עתידיות */}
+      {selectedClient && toTherapistId && (
+        <TransferFutureSessionsDialog
+          open={futureDialogOpen}
+          onOpenChange={setFutureDialogOpen}
+          clientId={selectedClient.id}
+          clientName={`${selectedClient.firstName} ${selectedClient.lastName}`}
+          toTherapistId={toTherapistId}
+          fromTherapistName={
+            selectedClient.therapist.name || selectedClient.therapist.email
+          }
+          toTherapistName={
+            members.find((m) => m.id === toTherapistId)?.name ||
+            members.find((m) => m.id === toTherapistId)?.email ||
+            "—"
+          }
+          reason={reason.trim() || undefined}
+          onSuccess={() => {
+            toast.success("המטופל והפגישות הועברו בהצלחה");
+            setSelectedClient(null);
+            setToTherapistId("");
+            setReason("");
+            setTransferFutureSessions(false);
+            setFutureDialogOpen(false);
+            fetchClients();
+          }}
+        />
+      )}
 
       {/* רשימת מטפלים בקליניקה */}
       <Card>

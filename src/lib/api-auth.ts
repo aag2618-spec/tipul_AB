@@ -21,8 +21,17 @@ import {
  * /api/subscription/status|create, GET-only של /api/user/*) — מאפשר תשלום
  * חוב ויציאה מחסימה. שאר ה-routes שמשתמשים ב-requireAuth ייחסמו
  * ב-middleware לפני שהroute רץ, אז אין צורך בbדיקה כפולה כאן.
+ *
+ * Impersonation: בעת ש-OWNER מתחזה ל-target, ה-userId המוחזר הוא של ה-target
+ * — כך שכל data scope, queries, ו-permissions זורמים לחוויית ה-target.
+ * ה-OWNER האמיתי זמין ב-originalUserId. isImpersonating + actingAs מאפשרים
+ * ל-routes שמכירים ב-impersonation (audit, banner, stop) לטפל אחרת.
+ *
+ * `disallowImpersonation: true` — חוסם בכוח את ה-route בעת impersonation.
+ * נדרש ל-routes רגישים שאסור ל-OWNER להפעיל בשם target: חיבור Cardcom אישי,
+ * שינוי סיסמה, הפעלת/ביטול 2FA, ביטול מנוי, עריכת פרופיל.
  */
-export async function requireAuth() {
+export async function requireAuth(opts?: { disallowImpersonation?: boolean }) {
   const session = await getServerSession(authOptions);
   if (!session?.user?.id) {
     return { error: NextResponse.json({ message: "אין הרשאה" }, { status: 401 }) };
@@ -35,7 +44,24 @@ export async function requireAuth() {
       ),
     };
   }
-  return { userId: session.user.id, session };
+  if (opts?.disallowImpersonation && session.user.actingAs) {
+    return {
+      error: NextResponse.json(
+        {
+          message:
+            "פעולה זו אינה זמינה במצב התחזות. צא/י ממצב ההתחזות תחילה ונסה/י שוב.",
+        },
+        { status: 403 }
+      ),
+    };
+  }
+  return {
+    userId: session.user.id,
+    originalUserId: session.user.originalUserId ?? session.user.id,
+    isImpersonating: !!session.user.actingAs,
+    actingAs: session.user.actingAs,
+    session,
+  };
 }
 
 /**
