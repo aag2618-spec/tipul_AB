@@ -121,6 +121,38 @@ export const AI_RATE_LIMIT = { maxRequests: 30, windowMs: 60 * 1000 };
 export const WEBHOOK_RATE_LIMIT = { maxRequests: 50, windowMs: 60 * 1000 };
 
 /**
+ * Cardcom webhook (per-IP) — 30/דקה. הוקשח מ-100/דקה לשכבת הגנה ראשונה
+ * נגד botnet שמזייפים IP של Cardcom. הצמצום אגרסיבי כי IP יחיד אמיתי
+ * של Cardcom לא צריך לעבור 30/דקה בנסיבות נורמליות.
+ */
+export const CARDCOM_WEBHOOK_PER_IP = { maxRequests: 30, windowMs: 60 * 1000 };
+
+/**
+ * Cardcom webhook (global) — 200/דקה לכל ה-instance. שכבה שנייה: גם אם
+ * תוקף מתפצל על מאות IPs, לא יוכל לעלות על 200 webhook calls/min.
+ * הסכום משקף עומס legit מקסימלי (≈3-4 webhooks/sec בשעת שיא של חברת תשלומים בינונית).
+ */
+export const CARDCOM_WEBHOOK_GLOBAL = { maxRequests: 200, windowMs: 60 * 1000 };
+
+/**
+ * Send Payment History — 3/שעה לפי clientId.
+ * משתמש לא צריך לשלוח היסטוריית תשלומים יותר מ-3 פעמים בשעה לאותו לקוח.
+ * מונע ניצול לרעה (spam) בעלות שליחת מייל.
+ */
+export const PAYMENT_HISTORY_RATE_LIMIT = { maxRequests: 3, windowMs: 60 * 60 * 1000 };
+
+/**
+ * Email Send (per-user) — 30/שעה. מונע שמטפל ייצור spam לאחר חשבון נפרץ
+ * או UI bug שלוחץ "שלח" מאות פעמים.
+ */
+export const EMAIL_SEND_USER_RATE_LIMIT = { maxRequests: 30, windowMs: 60 * 60 * 1000 };
+
+/**
+ * SMS Send (per-user) — 10/שעה. נמוך יותר מ-email כי SMS עולה כסף לכל הודעה.
+ */
+export const SMS_SEND_USER_RATE_LIMIT = { maxRequests: 10, windowMs: 60 * 60 * 1000 };
+
+/**
  * Cron jobs — 10 בקשות לדקה לכל IP.
  * הגנה אם CRON_SECRET נחשף + מונע replay storms.
  * Stage 1.17 — זוהה ע"י סוכן 5 (security review של cleanup-idempotency).
