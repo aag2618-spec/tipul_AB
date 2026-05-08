@@ -509,6 +509,17 @@ export interface ReceiptExportData {
   receiptNumber: string | null;
   receiptUrl: string | null;
   clientName: string;
+  /**
+   * תשלום מצרפי באשראי דרך Cardcom יוצר קבלה רשמית אחת על הסכום הכולל,
+   * אבל במערכת מוצגות שורות נפרדות לכל פגישה (350+350 על קבלה 639145).
+   * לרו"ח 2 שורות עם אותו receiptNumber יכולות להיראות כמו כפילות. השדה
+   * הזה מוסיף עמודה הסבר: "חלק 1/2 (קבלה כוללת ₪700)". null = תשלום בודד.
+   */
+  bulkPart?: {
+    index: number;
+    total: number;
+    totalAmount: number;
+  } | null;
 }
 
 export function exportAccountantReport(
@@ -572,11 +583,24 @@ export function exportAccountantReport(
   XLSX.utils.book_append_sheet(wb, summaryWs, quarter ? "סיכום רבעוני" : "סיכום שנתי");
 
   // --- Sheet 2: פירוט קבלות ---
-  const detailHeaders = ["תאריך", "מספר קבלה", "שם מטופל", "סכום (₪)", "אמצעי תשלום", "מקור קבלה", "קישור לקבלה"];
+  const detailHeaders = [
+    "תאריך",
+    "מספר קבלה",
+    "חלק מקבלה",
+    "שם מטופל",
+    "סכום (₪)",
+    "אמצעי תשלום",
+    "מקור קבלה",
+    "קישור לקבלה",
+  ];
   const detailRows = sorted.map((r) => {
+    const bulkLabel = r.bulkPart
+      ? `חלק ${r.bulkPart.index}/${r.bulkPart.total} (קבלה כוללת ₪${r.bulkPart.totalAmount.toLocaleString()})`
+      : "";
     return [
       r.paidAt ? format(new Date(r.paidAt), "dd/MM/yyyy") : format(new Date(r.createdAt), "dd/MM/yyyy"),
       r.receiptNumber || "-",
+      bulkLabel,
       r.clientName,
       Number(r.amount),
       getMethodLabel(r.method),
@@ -585,11 +609,20 @@ export function exportAccountantReport(
     ];
   });
   const detailWs = XLSX.utils.aoa_to_sheet([detailHeaders, ...detailRows]);
-  detailWs["!cols"] = [{ wch: 12 }, { wch: 14 }, { wch: 22 }, { wch: 12 }, { wch: 16 }, { wch: 12 }, { wch: 40 }];
-  // Make receipt URLs clickable
+  detailWs["!cols"] = [
+    { wch: 12 },
+    { wch: 14 },
+    { wch: 30 },
+    { wch: 22 },
+    { wch: 12 },
+    { wch: 16 },
+    { wch: 12 },
+    { wch: 40 },
+  ];
+  // Make receipt URLs clickable (column index shifted by 1 due to new "חלק מקבלה" col)
   sorted.forEach((r, i) => {
     if (r.receiptUrl) {
-      const cell = XLSX.utils.encode_cell({ r: i + 1, c: 6 });
+      const cell = XLSX.utils.encode_cell({ r: i + 1, c: 7 });
       detailWs[cell] = { t: "s", v: r.receiptUrl, l: { Target: r.receiptUrl, Tooltip: "פתח קבלה" } };
     }
   });

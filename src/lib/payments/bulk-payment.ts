@@ -318,6 +318,18 @@ export async function distributeBulkCardcomPayment(params: {
         return { processed: [], remainingAmount: 0, alreadyDistributed: true };
       }
 
+      // קריאת ה-Umbrella לקבלת receipt info — Cardcom יוצר קבלה אחת על
+      // הסכום הכולל וה-webhook/sync שומרים אותה על ה-umbrella. בלי לשכפל את
+      // השדות לכל child, דף /dashboard/receipts מסנן את ה-Umbrella ע״י
+      // EXCLUDE_BULK_UMBRELLA_WHERE → המטפלת לא רואה שום קבלה לתשלום מצרפי
+      // למרות ש-Cardcom גבה את הכסף ויצר קבלה תקינה. זאת הצמדה משפטית
+      // לגיטימית: הילדים מצביעים על אותו documentNumber של Cardcom (מקור
+      // האמת), והמטפלת מקבלת שורה לכל פגישה בדף הקבלות.
+      const umbrella = await tx.payment.findUnique({
+        where: { id: umbrellaPaymentId },
+        select: { hasReceipt: true, receiptNumber: true, receiptUrl: true },
+      });
+
       // ל-children ננעל את ה-parents בסדר createdAt (oldest first) — כמו
       // ב-processMultiSessionPayment.
       const parents = await tx.payment.findMany({
@@ -363,6 +375,16 @@ export async function distributeBulkCardcomPayment(params: {
             // Reference ל-CardcomTransaction מאפשר idempotency check
             // ומחבר את ה-child לחיוב המקורי לאודיט.
             notes: `Bulk Cardcom distribution — tx:${cardcomTransactionId}`,
+            // Inherit receipt info from umbrella — הקבלה הרשמית של Cardcom
+            // היא משותפת לכל ה-children. בלי זה הילדים נראים בלי קבלה
+            // למרות שיש מסמך תקף (umbrella מסונן מתצוגות).
+            ...(umbrella?.hasReceipt && umbrella.receiptNumber
+              ? {
+                  hasReceipt: true,
+                  receiptNumber: umbrella.receiptNumber,
+                  receiptUrl: umbrella.receiptUrl,
+                }
+              : {}),
           },
         });
 

@@ -53,6 +53,10 @@ import type { CardcomWebhookPayload } from "@/lib/cardcom/types";
 import { sendEmail } from "@/lib/resend";
 import { escapeHtml } from "@/lib/email-utils";
 import { distributeBulkCardcomPayment } from "@/lib/payments";
+import {
+  completeWebhookPayment,
+  notifyBulkClients,
+} from "@/lib/payments/receipt-service";
 
 // Default to the standard Israeli VAT rate (18%) when SiteSetting is unset.
 // Allows a future legislated change to be a single DB update instead of a deploy.
@@ -713,6 +717,15 @@ async function processUserWebhook(userId: string, payload: CardcomWebhookPayload
   // לא תומך nested $transaction עם isolation שונה). אם ה-distribution נכשל
   // — ה-umbrella כבר PAID (כסף נגבה אצל Cardcom), אז יוצרים AdminAlert
   // דחוף שמטפל יחלק ידנית במקום לסכן rollback של החיוב.
+  // distributionProcessed נשמר ל-scope חיצוני כדי שמייל הקבלה ללקוח יידע
+  // איזה parents/children באמת חולקו (לא לשלוח מייל ל-bulkPaymentIds שהיו
+  // PAID לפני התשלום הזה — אלו תשלומים אחרים, לא קשורים).
+  let distributionProcessed: Array<{
+    parentId: string;
+    childId: string;
+    amountPaid: number;
+    isFullyPaid: boolean;
+  }> = [];
   if (success && transaction.bulkPaymentIds.length > 0 && transaction.paymentId) {
     const distributionResult = await distributeBulkCardcomPayment({
       umbrellaPaymentId: transaction.paymentId,
@@ -780,6 +793,7 @@ async function processUserWebhook(userId: string, payload: CardcomWebhookPayload
     // שונו בין יצירת ה-umbrella ל-webhook). כך אדמין רואה ב-audit log גם
     // את התרחיש "ניסינו לחלק ולא היה מה לחלק" — חשוב לשחזור עתידי.
     if (distributionResult.success) {
+      distributionProcessed = distributionResult.processed;
       try {
         await prisma.adminAuditLog.create({
           data: {
@@ -856,6 +870,45 @@ async function processUserWebhook(userId: string, payload: CardcomWebhookPayload
           error: alertErr instanceof Error ? alertErr.message : String(alertErr),
         });
       }
+    }
+  }
+
+  // ── Client receipt email — best-effort, מחוץ לטרנזקציה ──
+  // ה-webhooks של Sumit/Meshulam קוראים ל-completeWebhookPayment שמייצר
+  // מייל קבלה ללקוח (sendPaymentReceiptEmail). Cardcom מעולם לא קרא לזה
+  // — הלקוח קיבל קבלה רק אם Cardcom עצמו שלח דרך IsSendByEmail (ורק אם
+  // הוגדר client.email בעת יצירת ה-LowProfile). עכשיו אנחנו שולחים את
+  // המייל המעוצב של MyTipul (כולל יתרה, חוב, שם המטפלת) — זה תוכן שונה
+  // מ-PDF הקבלה של Cardcom ומשלים אותו.
+  // isFirstApproval guard מונע מייל כפול ב-retry של webhook.
+  if (success && isFirstApproval && transaction.payment) {
+    if (transaction.bulkPaymentIds.length > 0) {
+      // תשלום מצרפי: לכל child שנוצר ב-distribute, נשלח מייל בנפרד עם
+      // הסכום המדויק של ההקצאה (allocation) — לא ה-newTotal של ה-parent.
+      // אסור לשלוח לפי `findMany status:PAID` כי זה היה כולל גם parents
+      // שהיו PAID מתשלום קודם (לא קשור לחיוב הנוכחי) ושולחים עליהם מייל
+      // כפול. distributionProcessed כולל בדיוק את ה-children שהפעם
+      // הזו נוצרו ע"י distribute.
+      void notifyBulkClients(
+        userId,
+        transaction.id,
+        distributionProcessed,
+      ).catch((err) => {
+        logger.error("[Cardcom User Webhook] bulk client emails failed", {
+          transactionId: transaction.id,
+          error: err instanceof Error ? err.message : String(err),
+        });
+      });
+    } else {
+      // תשלום בודד: ה-Payment של ה-transaction הוא ה-Payment המקורי
+      // (לא umbrella) — מצביע על session, מסומן PAID + hasReceipt.
+      void completeWebhookPayment(transaction.payment.id).catch((err) => {
+        logger.error("[Cardcom User Webhook] completeWebhookPayment failed", {
+          transactionId: transaction.id,
+          paymentId: transaction.payment?.id,
+          error: err instanceof Error ? err.message : String(err),
+        });
+      });
     }
   }
 

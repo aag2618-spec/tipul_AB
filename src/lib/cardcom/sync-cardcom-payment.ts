@@ -26,11 +26,17 @@
 import { Prisma } from '@prisma/client';
 import prisma from '@/lib/prisma';
 import { logger } from '@/lib/logger';
+import { sendEmail } from '@/lib/resend';
+import { escapeHtml } from '@/lib/email-utils';
 import { getUserCardcomClient } from '@/lib/cardcom/user-config';
 import { getAdminCardcomClient } from '@/lib/cardcom/admin-config';
 import { hashCardcomToken } from '@/lib/cardcom/token-hash';
 import type { CardcomWebhookPayload } from '@/lib/cardcom/types';
 import { distributeBulkCardcomPayment } from '@/lib/payments';
+import {
+  completeWebhookPayment,
+  notifyBulkClients,
+} from '@/lib/payments/receipt-service';
 
 export interface SyncResult {
   status: 'APPROVED' | 'PENDING' | 'CANCELLED' | 'FAILED' | 'unknown';
@@ -181,12 +187,14 @@ async function syncCardcomTransactionInner(transactionId: string): Promise<SyncR
       : null;
 
   // Therapist business profile — needed for CardcomInvoice metadata.
+  // email נדרש כדי לשלוח "תשלום התקבל" אחרי auto-sync (parity עם webhook).
   const therapist =
     tx.tenant === 'USER' && tx.userId
       ? await prisma.user.findUnique({
           where: { id: tx.userId },
           select: {
             name: true,
+            email: true,
             businessType: true,
             businessName: true,
             businessIdNumber: true,
@@ -387,6 +395,14 @@ async function syncCardcomTransactionInner(transactionId: string): Promise<SyncR
   // success, אבל ב-auto-sync (כשה-webhook לא הגיע) זה לא קורה אוטומטית.
   // בלי הקריאה הזאת, החיוב נגבה ב-Cardcom והקבלה הופקה — אבל ה-Payments
   // האמיתיים נשארו PENDING והמטפלת לא רואה תיעוד במערכת.
+  // distributionProcessed נשמר כדי לקרוא ל-notifyBulkClients עם הסכום
+  // המדויק לכל פגישה (לא ה-newTotal של ה-parent).
+  let distributionProcessed: Array<{
+    parentId: string;
+    childId: string;
+    amountPaid: number;
+    isFullyPaid: boolean;
+  }> = [];
   if (tx.bulkPaymentIds.length > 0 && tx.payment) {
     try {
       const distributionResult = await distributeBulkCardcomPayment({
@@ -395,6 +411,9 @@ async function syncCardcomTransactionInner(transactionId: string): Promise<SyncR
         amountPaid: Number(tx.amount),
         cardcomTransactionId: tx.id,
       });
+      if (distributionResult.success) {
+        distributionProcessed = distributionResult.processed;
+      }
       if (!distributionResult.success && !distributionResult.transient) {
         await prisma.adminAlert.create({
           data: {
@@ -432,6 +451,92 @@ async function syncCardcomTransactionInner(transactionId: string): Promise<SyncR
       logger.error('[sync-cardcom-payment] bulk distribute threw', {
         transactionId: tx.id,
         error: distErr instanceof Error ? distErr.message : String(distErr),
+      });
+    }
+  }
+
+  // ── Notification + emails (parity with webhook) ──────────────────
+  // ה-webhook הראשי שולח התראה למטפל + מייל "תשלום התקבל" + מייל קבלה
+  // ללקוח. כשה-webhook לא מגיע ו-auto-sync מטפל בתשלום, היו 2 רגרסיות:
+  //   1. המטפלת לא קיבלה מייל "תשלום התקבל" (only in webhook)
+  //   2. הלקוח לא קיבל מייל קבלה (only via webhook → completeWebhookPayment)
+  //
+  // Race guard: ה-early return בראש הפונקציה (`if (tx.status === 'APPROVED')`)
+  // מונע re-run אחרי commit — sync שני שיגיע אחרי הראשון יראה APPROVED
+  // ויחזור בשקט. אם webhook יגיע במקביל (שני flows רצים יחד), webhook
+  // בודק `isFirstApproval = transaction.status !== "APPROVED"` לפני שליחת
+  // מיילים — לכן מי שעדכן ל-APPROVED שני יראה את הראשון וידלג.
+  // ה-window הצר שבו שניהם רצים בו-זמנית עם isFirstApproval=true בכל אחד
+  // (race milliseconds) ייצור 2 מיילים — מטריד אך לא הרסני, ועדיף על
+  // שליחה אטומית מורכבת שעלולה לחסום סנכרון לגיטימי.
+  if (tx.payment) {
+    try {
+      await prisma.notification.create({
+        data: {
+          userId: tx.userId ?? '',
+          type: 'PAYMENT_REMINDER',
+          title: '💳 תשלום התקבל',
+          content: `התקבל תשלום בסך ₪${Number(tx.amount).toLocaleString('he-IL')} מ${
+            tx.payment.client?.name ?? 'מטופל'
+          }`,
+          status: 'PENDING',
+        },
+      });
+    } catch (err) {
+      logger.error('[sync-cardcom-payment] notification create failed', {
+        transactionId: tx.id,
+        error: err instanceof Error ? err.message : String(err),
+      });
+    }
+
+    if (therapist?.email && tx.userId) {
+      const clientName = tx.payment.client?.name ?? 'מטופל';
+      const amountStr = `₪${Number(tx.amount).toLocaleString('he-IL')}`;
+      const safeClient = escapeHtml(clientName);
+      const safeAmount = escapeHtml(amountStr);
+      const safeTherapist = escapeHtml(therapist.name ?? '');
+      void sendEmail({
+        to: therapist.email,
+        subject: `תשלום התקבל: ${amountStr} מ${clientName}`,
+        html: `
+          <div dir="rtl" style="font-family: Arial, sans-serif; max-width: 600px; margin: 0 auto; padding: 20px;">
+            <h2 style="color: #0f766e;">💳 תשלום התקבל</h2>
+            <p>שלום ${safeTherapist},</p>
+            <p>התקבל תשלום בסך <strong>${safeAmount}</strong> מ-${safeClient} דרך Cardcom.</p>
+            <p style="color: #666; font-size: 14px; margin-top: 30px;">
+              ניתן לצפות בקבלה ובפרטי התשלום במערכת תחת "תשלומים" או "קבלות".
+            </p>
+            <p style="color: #666; font-size: 12px; margin-top: 40px;">
+              הודעה זו נשלחה אוטומטית. אין צורך להשיב.
+            </p>
+          </div>
+        `,
+      }).catch((err) => {
+        logger.error('[sync-cardcom-payment] therapist email failed', {
+          transactionId: tx.id,
+          error: err instanceof Error ? err.message : String(err),
+        });
+      });
+    }
+
+    // מייל קבלה ללקוח — bulk: לכל child ב-distributionProcessed (סכום
+    // מדויק לפי allocation); non-bulk: ה-payment עצמו.
+    if (tx.bulkPaymentIds.length > 0) {
+      void notifyBulkClients(tx.userId ?? '', tx.id, distributionProcessed).catch(
+        (err) => {
+          logger.error('[sync-cardcom-payment] notifyBulkClients failed', {
+            transactionId: tx.id,
+            error: err instanceof Error ? err.message : String(err),
+          });
+        },
+      );
+    } else {
+      void completeWebhookPayment(tx.payment.id).catch((err) => {
+        logger.error('[sync-cardcom-payment] completeWebhookPayment failed', {
+          transactionId: tx.id,
+          paymentId: tx.payment?.id,
+          error: err instanceof Error ? err.message : String(err),
+        });
       });
     }
   }

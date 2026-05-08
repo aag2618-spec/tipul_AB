@@ -485,6 +485,81 @@ export async function sendPaymentReceiptEmail(params: {
 }
 
 // ================================================================
+// notifyBulkClients — webhook/sync helper for bulk Cardcom flow
+// ================================================================
+// כשה-distributeBulkCardcomPayment מסיים בהצלחה, יש N children חדשים שכל
+// אחד מייצג allocation אחר. לא נכון לקרוא ל-completeWebhookPayment(parentId)
+// כי המייל ייקח את payment.amount של ה-parent (= ה-newTotal המצטבר אחרי
+// שכל ה-allocations נוספו), לא את ה-allocation של אותה פגישה. גם לא נכון
+// לקרוא עם childId כי ה-child לא יש לו session.
+//
+// במקום זה: עבור כל פריט ב-processed, טוען את ה-parent (לקבלת session +
+// expectedAmount), ושולח sendPaymentReceiptEmail עם amountPaid=allocation
+// המדויק. זה מתאים לחישוב הנכון של "כמה שילם לפגישה הזו".
+//
+// concurrency: ה-loop רץ סדרתית (await בכל איטרציה) כדי לא להציף את
+// connection pool של Prisma או את rate limit של Resend ב-bulk גדול
+// (50 paymentIds → 50 promises במקביל = ~200 queries + 50 emails ב-spike
+// אחד). סדרתי = לאט יותר אבל בטוח.
+export async function notifyBulkClients(
+  userId: string,
+  cardcomTransactionId: string,
+  processed: Array<{
+    parentId: string;
+    childId: string;
+    amountPaid: number;
+    isFullyPaid: boolean;
+  }>,
+): Promise<void> {
+  for (const item of processed) {
+    if (item.amountPaid <= 0) continue;
+    try {
+      const parent = await prisma.payment.findUnique({
+        where: { id: item.parentId },
+        include: {
+          session: { select: { startTime: true, type: true } },
+          client: { select: { id: true } },
+        },
+      });
+      if (!parent || !parent.client) continue;
+
+      // Re-fetch the child to get the canonical receiptNumber/Url (set by
+      // distribute as inheritance from umbrella). Falling back to parent
+      // values if for some reason the child lacks them.
+      const child = await prisma.payment.findUnique({
+        where: { id: item.childId },
+        select: { receiptNumber: true, receiptUrl: true },
+      });
+
+      const expectedAmount = Number(parent.expectedAmount) || item.amountPaid;
+      const sessionRemaining = item.isFullyPaid
+        ? 0
+        : Math.max(0, expectedAmount - Number(parent.amount));
+
+      await sendPaymentReceiptEmail({
+        userId,
+        clientId: parent.client.id,
+        amountPaid: item.amountPaid,
+        expectedAmount,
+        method: "CREDIT_CARD",
+        paidAt: new Date(),
+        session: parent.session ?? null,
+        receiptUrl: child?.receiptUrl ?? parent.receiptUrl,
+        receiptNumber: child?.receiptNumber ?? parent.receiptNumber,
+        sessionRemainingAfterPayment: sessionRemaining,
+      });
+    } catch (err) {
+      logger.error("[notifyBulkClients] failed for one child", {
+        cardcomTransactionId,
+        parentId: item.parentId,
+        childId: item.childId,
+        error: err instanceof Error ? err.message : String(err),
+      });
+    }
+  }
+}
+
+// ================================================================
 // completeWebhookPayment - called by webhooks after updating Payment
 // Sends receipt email + completes COLLECT_PAYMENT task
 // This is the "connector pipe" between webhooks and the payment trunk

@@ -84,6 +84,78 @@ interface TherapistInfo {
   businessType: string;
 }
 
+/**
+ * בונה את הנתונים לייצוא דוח רו"ח, עם זיהוי תשלומים מצרפיים.
+ *
+ * תשלום מצרפי באשראי דרך Cardcom יוצר קבלה רשמית אחת על הסכום הכולל,
+ * אבל המערכת מציגה שורה לכל פגישה (350+350 על קבלה 639145). 2 שורות עם
+ * אותו receiptNumber נראות לרו"ח כמו כפילות. הוספת עמודת "חלק מקבלה" עם
+ * "חלק 1/2 (קבלה כוללת ₪700)" מבהירה שזה תיעוד אמיתי, לא טעות.
+ *
+ * זיהוי: receiptNumber שחוזר ביותר מ-payment אחד בקלט = תשלום מצרפי.
+ */
+function buildReceiptExportData(payments: ReceiptPayment[]): ReceiptExportData[] {
+  // ספירה כמה פעמים כל receiptNumber מופיע — חזרה = bulk.
+  const groups = new Map<string, ReceiptPayment[]>();
+  for (const p of payments) {
+    if (!p.receiptNumber) continue;
+    const existing = groups.get(p.receiptNumber);
+    if (existing) {
+      existing.push(p);
+    } else {
+      groups.set(p.receiptNumber, [p]);
+    }
+  }
+
+  const indexInGroup = new Map<string, number>();
+  return payments.map((p) => {
+    const group = p.receiptNumber ? groups.get(p.receiptNumber) : undefined;
+    let bulkPart: ReceiptExportData["bulkPart"] = null;
+    if (group && group.length > 1) {
+      const idx = (indexInGroup.get(p.receiptNumber!) ?? 0) + 1;
+      indexInGroup.set(p.receiptNumber!, idx);
+      const totalAmount = group.reduce(
+        (sum, x) =>
+          sum +
+          (() => {
+            const raw = Number(x.amount);
+            if (!x.parentPaymentId) {
+              const kids = payments.filter((c) => c.parentPaymentId === x.id);
+              if (kids.length > 0) {
+                const kSum = kids.reduce((s, c) => s + Number(c.amount), 0);
+                const orig = raw - kSum;
+                return orig > 0 ? orig : raw;
+              }
+            }
+            return raw;
+          })(),
+        0,
+      );
+      bulkPart = { index: idx, total: group.length, totalAmount };
+    }
+    const rawAmount = Number(p.amount);
+    let displayAmount = rawAmount;
+    if (!p.parentPaymentId) {
+      const kids = payments.filter((c) => c.parentPaymentId === p.id);
+      if (kids.length > 0) {
+        const kSum = kids.reduce((s, c) => s + Number(c.amount), 0);
+        const orig = rawAmount - kSum;
+        displayAmount = orig > 0 ? orig : rawAmount;
+      }
+    }
+    return {
+      amount: displayAmount,
+      method: p.method,
+      paidAt: p.paidAt,
+      createdAt: p.createdAt,
+      receiptNumber: p.receiptNumber,
+      receiptUrl: p.receiptUrl,
+      clientName: p.client.name,
+      bulkPart,
+    };
+  });
+}
+
 export default function ReceiptsPage() {
   const [payments, setPayments] = useState<ReceiptPayment[]>([]);
   const [isLoading, setIsLoading] = useState(true);
@@ -413,15 +485,7 @@ export default function ReceiptsPage() {
                 <DropdownMenuItem
                   key={y}
                   onClick={() => {
-                    const data: ReceiptExportData[] = payments.map((p) => ({
-                      amount: getReceiptDisplayAmount(p),
-                      method: p.method,
-                      paidAt: p.paidAt,
-                      createdAt: p.createdAt,
-                      receiptNumber: p.receiptNumber,
-                      receiptUrl: p.receiptUrl,
-                      clientName: p.client.name,
-                    }));
+                    const data: ReceiptExportData[] = buildReceiptExportData(payments);
                     const ok = exportAccountantReport(data, y, therapist?.businessName || therapist?.name || "");
                     if (ok) {
                       toast.success(`דוח שנת ${y} הורד בהצלחה`);

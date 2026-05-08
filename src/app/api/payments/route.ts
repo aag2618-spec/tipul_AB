@@ -29,12 +29,49 @@ export async function GET() {
     // באשראי. ה-Umbrella יוצר CardcomInvoice משלו ולכן יוצג כקבלה כפולה
     // ב-/dashboard/receipts; הסכום נספר דרך ה-children תחת ה-Payments
     // המקוריים.
+    //
+    // parentPaymentId: null — מציג רק parents, לא children. אחרי תיקון
+    // distribute שמעביר hasReceipt+receiptNumber מה-umbrella לילדים, אם
+    // היינו מציגים גם children זה היה גורם לשורה כפולה לאותה קבלה ב-CSV
+    // לרו"ח (כפילות חוקית = דגל). ה-receipt נשלף דרך childPayments
+    // (אותו דפוס כמו /api/payments/paid-history).
     const payments = await prisma.payment.findMany({
-      where: { AND: [paymentWhere, EXCLUDE_BULK_UMBRELLA_WHERE] },
+      where: {
+        AND: [
+          paymentWhere,
+          EXCLUDE_BULK_UMBRELLA_WHERE,
+          { parentPaymentId: null },
+        ],
+      },
       orderBy: { createdAt: "desc" },
       include: {
         client: { select: { id: true, name: true } },
         session: { select: { id: true, startTime: true } },
+        // Children carry the canonical receipt info for bulk-Cardcom flows
+        // (umbrella's receiptNumber/Url is propagated to each child by
+        // distributeBulkCardcomPayment). For non-bulk flows the parent itself
+        // holds the receipt and childPayments is empty — the merge below
+        // handles both.
+        childPayments: {
+          select: {
+            id: true,
+            hasReceipt: true,
+            receiptNumber: true,
+            receiptUrl: true,
+            cardcomInvoices: {
+              orderBy: { issuedAt: "desc" },
+              take: 1,
+              select: {
+                id: true,
+                cardcomDocumentNumber: true,
+                cardcomDocumentType: true,
+                pdfUrl: true,
+                viewUrl: true,
+              },
+            },
+          },
+          orderBy: { paidAt: "asc" },
+        },
         // Surface CardcomInvoice metadata so the receipts page can show
         // Cardcom-issued documents as such (badge + link to Cardcom's PDF)
         // instead of generating an internal PDF that misrepresents Cardcom's
@@ -55,7 +92,26 @@ export async function GET() {
       },
     });
 
-    return NextResponse.json(serializePrisma(payments));
+    // Merge child receipt up to the parent — for bulk-Cardcom flows the
+    // child holds the canonical receipt; for non-bulk the parent's own
+    // fields remain authoritative.
+    const merged = payments.map((p) => {
+      if (p.hasReceipt) return p;
+      const childWithReceipt = p.childPayments.find((c) => c.hasReceipt);
+      if (!childWithReceipt) return p;
+      return {
+        ...p,
+        hasReceipt: true,
+        receiptNumber: p.receiptNumber ?? childWithReceipt.receiptNumber,
+        receiptUrl: p.receiptUrl ?? childWithReceipt.receiptUrl,
+        cardcomInvoices:
+          p.cardcomInvoices.length > 0
+            ? p.cardcomInvoices
+            : childWithReceipt.cardcomInvoices,
+      };
+    });
+
+    return NextResponse.json(serializePrisma(merged));
   } catch (error) {
     logger.error("Get payments error", { error: error instanceof Error ? error.message : String(error) });
     return NextResponse.json(
