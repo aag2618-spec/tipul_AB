@@ -95,7 +95,7 @@ export async function GET() {
     // Merge child receipt up to the parent — for bulk-Cardcom flows the
     // child holds the canonical receipt; for non-bulk the parent's own
     // fields remain authoritative.
-    const merged = payments.map((p) => {
+    let merged = payments.map((p) => {
       if (p.hasReceipt) return p;
       const childWithReceipt = p.childPayments.find((c) => c.hasReceipt);
       if (!childWithReceipt) return p;
@@ -110,6 +110,44 @@ export async function GET() {
             : childWithReceipt.cardcomInvoices,
       };
     });
+
+    // Bulk-Cardcom backfill — ה-CardcomInvoice של ה-Umbrella אוצר את המסמך
+    // החוקי (cardcomDocumentNumber UNIQUE → לא יכול להיות מקושר ל-2 Payments
+    // דרך paymentId). ה-children ירשו receiptNumber/receiptUrl ב-distribute,
+    // אבל ה-cardcomInvoices שלהם ריק → דף הקבלות יציג "הופקה" + "הורד PDF"
+    // (קבלה פנימית) במקום "Cardcom צפה". זה גם UX רע וגם לא תקין משפטית —
+    // Cardcom הוא המנפיק החוקי. הפתרון: מעמיסים את ה-CardcomInvoice של
+    // ה-Umbrella דרך cardcomDocumentNumber התואם ל-receiptNumber של ה-parent.
+    const orphanReceiptNumbers = merged
+      .filter((p) => p.hasReceipt && p.receiptNumber && p.cardcomInvoices.length === 0)
+      .map((p) => p.receiptNumber!)
+      .filter((n, i, a) => a.indexOf(n) === i);
+    if (orphanReceiptNumbers.length > 0) {
+      const umbrellaInvoices = await prisma.cardcomInvoice.findMany({
+        where: { cardcomDocumentNumber: { in: orphanReceiptNumbers } },
+        select: {
+          id: true,
+          cardcomDocumentNumber: true,
+          cardcomDocumentType: true,
+          pdfUrl: true,
+          viewUrl: true,
+        },
+      });
+      const invoiceByNumber = new Map(
+        umbrellaInvoices.map((inv) => [inv.cardcomDocumentNumber, inv]),
+      );
+      merged = merged.map((p) => {
+        if (
+          p.hasReceipt &&
+          p.receiptNumber &&
+          p.cardcomInvoices.length === 0 &&
+          invoiceByNumber.has(p.receiptNumber)
+        ) {
+          return { ...p, cardcomInvoices: [invoiceByNumber.get(p.receiptNumber)!] };
+        }
+        return p;
+      });
+    }
 
     return NextResponse.json(serializePrisma(merged));
   } catch (error) {
