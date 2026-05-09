@@ -27,26 +27,58 @@ export async function GET() {
 
     // EXCLUDE_BULK_UMBRELLA_WHERE — מסנן Umbrella payments של תשלום מצרפי
     // באשראי. ה-Umbrella יוצר CardcomInvoice משלו ולכן יוצג כקבלה כפולה
-    // ב-/dashboard/receipts; הסכום נספר דרך ה-children תחת ה-Payments
-    // המקוריים.
+    // ב-/dashboard/receipts.
     //
-    // parentPaymentId: null — מציג רק parents, לא children. אחרי תיקון
-    // distribute שמעביר hasReceipt+receiptNumber מה-umbrella לילדים, אם
-    // היינו מציגים גם children זה היה גורם לשורה כפולה לאותה קבלה ב-CSV
-    // לרו"ח (כפילות חוקית = דגל). ה-receipt נשלף דרך childPayments
-    // (אותו דפוס כמו /api/payments/paid-history).
+    // OR-clause לתרחיש partial-cash + Cardcom completion:
+    //   • כל ה-parents (parentPaymentId: null) — חלקם עם hasReceipt משלהם
+    //     (Cardcom completion), חלקם עם merge מ-children (bulk distribution).
+    //   • + children שיש להם receipt **ולא** מ-bulk distribution — אלו children
+    //     שנוצרו ע"י issueReceipt על תשלום חלקי במזומן/צ'ק. אם נסתיר אותם,
+    //     הקבלה הראשונית של המזומן נעלמת מהתצוגה כש-parent מתקבל ב-Cardcom.
+    //   • מסננים children של "Bulk Cardcom distribution" — אלו מוצגים דרך
+    //     merge של ה-parent (שורה אחת לכל פגישה במצרפי).
     const payments = await prisma.payment.findMany({
       where: {
         AND: [
           paymentWhere,
           EXCLUDE_BULK_UMBRELLA_WHERE,
-          { parentPaymentId: null },
+          {
+            OR: [
+              { parentPaymentId: null },
+              {
+                // partial-cash children: hasReceipt=true, notes=null. ב-Postgres
+                // `NOT (notes LIKE '%...%')` עם notes=null מחזיר NULL, ו-WHERE
+                // מסנן NULL כאילו זה FALSE → ה-children הללו היו נסתרים בטעות
+                // (אותו NULL trap שתועד ב-EXCLUDE_BULK_UMBRELLA_WHERE ב-types.ts).
+                // הפתרון: OR מפורש שמתיר notes=null.
+                AND: [
+                  { parentPaymentId: { not: null } },
+                  { hasReceipt: true },
+                  {
+                    OR: [
+                      { notes: null },
+                      { notes: { not: { contains: "Bulk Cardcom distribution" } } },
+                    ],
+                  },
+                ],
+              },
+            ],
+          },
         ],
       },
       orderBy: { createdAt: "desc" },
       include: {
         client: { select: { id: true, name: true } },
         session: { select: { id: true, startTime: true } },
+        // Parent reference — children of partial-cash flows don't have their
+        // own session/client (they hang off a parent that does). The merge
+        // below copies these onto the child for display purposes.
+        parentPayment: {
+          select: {
+            client: { select: { id: true, name: true } },
+            session: { select: { id: true, startTime: true } },
+          },
+        },
         // Children carry the canonical receipt info for bulk-Cardcom flows
         // (umbrella's receiptNumber/Url is propagated to each child by
         // distributeBulkCardcomPayment). For non-bulk flows the parent itself
@@ -92,10 +124,20 @@ export async function GET() {
       },
     });
 
-    // Merge child receipt up to the parent — for bulk-Cardcom flows the
-    // child holds the canonical receipt; for non-bulk the parent's own
-    // fields remain authoritative.
+    // Merge logic — three cases:
+    //   1. Child of partial-cash (parentPaymentId set + hasReceipt) → copy
+    //      parent's session/client onto it for display, then return as-is.
+    //   2. Parent without own receipt but with bulk-Cardcom child → merge
+    //      child's receipt up (1 row per session for bulk).
+    //   3. Parent with own receipt → return as-is (regular payment).
     let merged = payments.map((p) => {
+      if (p.parentPaymentId) {
+        return {
+          ...p,
+          session: p.session ?? p.parentPayment?.session ?? null,
+          client: p.parentPayment?.client ?? p.client,
+        };
+      }
       if (p.hasReceipt) return p;
       const childWithReceipt = p.childPayments.find((c) => c.hasReceipt);
       if (!childWithReceipt) return p;
