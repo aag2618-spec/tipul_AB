@@ -65,6 +65,57 @@ interface ReceiptPayment {
     startTime: string;
   } | null;
   cardcomInvoices?: CardcomInvoiceRef[];
+  /** כש-2+ payments התאחדו לקבלה אחת (תשלום מצרפי) — IDs המקוריים. */
+  mergedFromIds?: string[];
+  /** מספר הפגישות המצרפיות המאוחדות בקבלה (1 = רגיל, 2+ = מצרפי). */
+  mergedSessionsCount?: number;
+}
+
+/**
+ * מאחד payments עם אותו receiptNumber לשורה אחת מאוחדת.
+ *
+ * כשתשלום מצרפי באשראי מסליק ₪700 על 2 פגישות של ₪350, נוצרת קבלת Cardcom
+ * אחת עם cardcomDocumentNumber=N ושני parents מקבלים inherit של אותו
+ * receiptNumber. בלי איחוד, דף /dashboard/receipts מציג 2 שורות של ₪350
+ * שמובילות לאותה קבלת Cardcom — מבלבל ולא נכון משפטית (יש קבלה אחת).
+ *
+ * האיחוד מתבצע רק כש-receiptNumber זהה. הסכום מסוכם, mergedFromIds משמר
+ * את כל ה-payment IDs המקוריים (לבחירה מרובה / הורדת PDF), ושאר השדות
+ * לקוחים מהראשון (אותו client, אותו תאריך, אותו receiptNumber, אותם
+ * cardcomInvoices). שורות בלי receiptNumber לא מאוחדות (שונות מהותית).
+ */
+function mergeReceiptsByDocumentNumber(
+  payments: ReceiptPayment[],
+): ReceiptPayment[] {
+  const groups = new Map<string, ReceiptPayment[]>();
+  const noReceiptNumber: ReceiptPayment[] = [];
+  for (const p of payments) {
+    if (!p.receiptNumber) {
+      noReceiptNumber.push(p);
+      continue;
+    }
+    const arr = groups.get(p.receiptNumber);
+    if (arr) arr.push(p);
+    else groups.set(p.receiptNumber, [p]);
+  }
+  const merged: ReceiptPayment[] = [];
+  for (const [, group] of groups) {
+    if (group.length === 1) {
+      merged.push(group[0]);
+      continue;
+    }
+    const first = group[0];
+    const totalAmount = group.reduce((s, x) => s + Number(x.amount), 0);
+    const totalExpected = group.reduce((s, x) => s + Number(x.expectedAmount), 0);
+    merged.push({
+      ...first,
+      amount: totalAmount,
+      expectedAmount: totalExpected,
+      mergedFromIds: group.map((x) => x.id),
+      mergedSessionsCount: group.length,
+    });
+  }
+  return [...merged, ...noReceiptNumber];
 }
 
 const METHOD_LABELS: Record<string, string> = {
@@ -95,47 +146,15 @@ interface TherapistInfo {
  * זיהוי: receiptNumber שחוזר ביותר מ-payment אחד בקלט = תשלום מצרפי.
  */
 function buildReceiptExportData(payments: ReceiptPayment[]): ReceiptExportData[] {
-  // ספירה כמה פעמים כל receiptNumber מופיע — חזרה = bulk.
-  const groups = new Map<string, ReceiptPayment[]>();
-  for (const p of payments) {
-    if (!p.receiptNumber) continue;
-    const existing = groups.get(p.receiptNumber);
-    if (existing) {
-      existing.push(p);
-    } else {
-      groups.set(p.receiptNumber, [p]);
-    }
-  }
-
-  const indexInGroup = new Map<string, number>();
+  // הקלט כבר מאוחד ע"י mergeReceiptsByDocumentNumber — כל receiptNumber מופיע
+  // פעם אחת. למסמך לרו"ח מוסיפים תיוג "תשלום מצרפי על N פגישות, סה"כ ₪X"
+  // דרך bulkPart, מבוסס על mergedSessionsCount/amount של השורה המאוחדת.
   return payments.map((p) => {
-    const group = p.receiptNumber ? groups.get(p.receiptNumber) : undefined;
-    let bulkPart: ReceiptExportData["bulkPart"] = null;
-    if (group && group.length > 1) {
-      const idx = (indexInGroup.get(p.receiptNumber!) ?? 0) + 1;
-      indexInGroup.set(p.receiptNumber!, idx);
-      const totalAmount = group.reduce(
-        (sum, x) =>
-          sum +
-          (() => {
-            const raw = Number(x.amount);
-            if (!x.parentPaymentId) {
-              const kids = payments.filter((c) => c.parentPaymentId === x.id);
-              if (kids.length > 0) {
-                const kSum = kids.reduce((s, c) => s + Number(c.amount), 0);
-                const orig = raw - kSum;
-                return orig > 0 ? orig : raw;
-              }
-            }
-            return raw;
-          })(),
-        0,
-      );
-      bulkPart = { index: idx, total: group.length, totalAmount };
-    }
     const rawAmount = Number(p.amount);
     let displayAmount = rawAmount;
-    if (!p.parentPaymentId) {
+    // legacy children-subtraction (ל-payments שלא עברו merge — בעיקר
+    // partial-cash כש-parent כולל את ה-roll-up של children).
+    if (!p.parentPaymentId && (!p.mergedSessionsCount || p.mergedSessionsCount <= 1)) {
       const kids = payments.filter((c) => c.parentPaymentId === p.id);
       if (kids.length > 0) {
         const kSum = kids.reduce((s, c) => s + Number(c.amount), 0);
@@ -143,6 +162,10 @@ function buildReceiptExportData(payments: ReceiptPayment[]): ReceiptExportData[]
         displayAmount = orig > 0 ? orig : rawAmount;
       }
     }
+    const bulkPart: ReceiptExportData["bulkPart"] =
+      p.mergedSessionsCount && p.mergedSessionsCount > 1
+        ? { index: 1, total: p.mergedSessionsCount, totalAmount: rawAmount }
+        : null;
     return {
       amount: displayAmount,
       method: p.method,
@@ -186,7 +209,17 @@ export default function ReceiptsPage() {
       const response = await fetch("/api/payments");
       if (response.ok) {
         const data = await response.json();
-        setPayments(data.filter((p: ReceiptPayment) => p.hasReceipt));
+        const withReceipts: ReceiptPayment[] = data.filter(
+          (p: ReceiptPayment) => p.hasReceipt,
+        );
+        // ⭐ איחוד שורות מצרפיות — תשלום מצרפי באשראי מציב את אותו
+        // receiptNumber על N parents (כל פגישה כשורה נפרדת). למשתמשת זה
+        // נראה ככפילות ("2 קבלות של ₪350" במקום "1 קבלה של ₪700").
+        // הפתרון: לקבץ לפי receiptNumber + Cardcom doc, לאחד לשורה אחת
+        // עם הסכום המצטבר, ולשמור את ה-IDs המקוריים ב-`mergedFromIds`
+        // כדי שבחירה מרובה / הורדת PDF / ייצוא יוכלו להתייחס לכולם.
+        const merged = mergeReceiptsByDocumentNumber(withReceipts);
+        setPayments(merged);
       } else {
         toast.error("שגיאה בטעינת נתונים");
       }
@@ -198,6 +231,10 @@ export default function ReceiptsPage() {
   };
 
   const getReceiptDisplayAmount = (payment: ReceiptPayment): number => {
+    // שורה מאוחדת — amount הוא כבר הסכום המצטבר (mergeReceiptsByDocumentNumber).
+    if (payment.mergedSessionsCount && payment.mergedSessionsCount > 1) {
+      return Number(payment.amount);
+    }
     const rawAmount = Number(payment.amount);
     if (!payment.parentPaymentId) {
       const children = payments.filter(p => p.parentPaymentId === payment.id);
@@ -361,8 +398,26 @@ export default function ReceiptsPage() {
   };
 
   const downloadSelectedPdf = async () => {
-    const selected = filteredPayments.filter((p) => selectedIds.has(p.id));
-    if (selected.length === 0) { toast.error("לא נבחרו קבלות"); return; }
+    const allSelected = filteredPayments.filter((p) => selectedIds.has(p.id));
+    if (allSelected.length === 0) { toast.error("לא נבחרו קבלות"); return; }
+    // ה-PDF הפנימי הוא רק ל-internal-numbered receipts. עבור Cardcom/iCount
+    // המסמך הרשמי הוא של הספק (מספר הקבלה רשום במערך חשבוניות ישראל),
+    // ויצירת PDF פנימי עם אותו מספר היא הטעיה. מסננים אותם בשקט.
+    const selected = allSelected.filter(
+      (p) => !p.cardcomInvoices?.length && !p.receiptUrl?.includes("icount"),
+    );
+    if (selected.length === 0) {
+      toast.error(
+        "הקבלות שנבחרו הופקו ע\"י Cardcom/iCount — לחצי \"צפה\" כדי לפתוח את המסמך הרשמי",
+      );
+      return;
+    }
+    if (selected.length < allSelected.length) {
+      toast.message(
+        `${allSelected.length - selected.length} קבלות Cardcom/iCount דולגו — פותחים רק קבלות פנימיות`,
+        { duration: 5000 },
+      );
+    }
 
     setIsDownloading(true);
     try {
@@ -511,15 +566,9 @@ export default function ReceiptsPage() {
                     <DropdownMenuItem
                       key={`${qYear}-${q}`}
                       onClick={() => {
-                        const data: ReceiptExportData[] = payments.map((p) => ({
-                          amount: getReceiptDisplayAmount(p),
-                          method: p.method,
-                          paidAt: p.paidAt,
-                          createdAt: p.createdAt,
-                          receiptNumber: p.receiptNumber,
-                          receiptUrl: p.receiptUrl,
-                          clientName: p.client.name,
-                        }));
+                        // משתמש ב-buildReceiptExportData הקנוני כדי לקבל
+                        // bulkPart נכון לתשלומים מצרפיים מאוחדים.
+                        const data: ReceiptExportData[] = buildReceiptExportData(payments);
                         const ok = exportAccountantReport(data, qYear, therapist?.businessName || therapist?.name || "", q);
                         if (ok) {
                           toast.success(`דוח ${label} ${qYear} הורד בהצלחה`);
@@ -637,7 +686,14 @@ export default function ReceiptsPage() {
                         : format(new Date(payment.createdAt), "dd/MM/yyyy", { locale: he })}
                     </div>
                   </td>
-                  <td className="py-3 px-4 text-sm font-medium">{payment.client.name}</td>
+                  <td className="py-3 px-4 text-sm font-medium">
+                    {payment.client.name}
+                    {payment.mergedSessionsCount && payment.mergedSessionsCount > 1 && (
+                      <span className="block text-xs text-muted-foreground mt-0.5">
+                        תשלום מצרפי על {payment.mergedSessionsCount} פגישות
+                      </span>
+                    )}
+                  </td>
                   <td className="py-3 px-4 text-sm font-semibold">₪{getReceiptDisplayAmount(payment).toLocaleString()}</td>
                   <td className="py-3 px-4 text-sm text-muted-foreground">
                     {METHOD_LABELS[payment.method] || payment.method}
