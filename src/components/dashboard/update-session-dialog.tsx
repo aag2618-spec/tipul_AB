@@ -11,6 +11,8 @@ interface UpdateSessionDialogProps {
     client: {
       id: string;
       name: string;
+      email?: string | null;
+      phone?: string | null;
     } | null;
   };
   onUpdate: (params: {
@@ -46,6 +48,8 @@ export function UpdateSessionDialog({
       sessionId={session.id}
       clientName={session.client?.name ?? "מטופל"}
       clientId={session.client?.id ?? ""}
+      clientEmail={session.client?.email ?? null}
+      clientPhone={session.client?.phone ?? null}
       price={session.price}
       updating={updating}
       onClose={() => onOpenChange(false)}

@@ -292,6 +292,47 @@ export async function PUT(
       include: updateIncludeForRole,
     });
 
+    // ── Sync expectedAmount on PENDING payment when price changes ────
+    // אם המחיר שונה לפגישה שיש לה תשלום PENDING (לא PAID/REFUNDED), חייבים
+    // לעדכן את `expectedAmount` כדי ש-`calculateSessionDebt` ויתר ה-flows
+    // יראו את החוב המעודכן. לא נוגעים ב-amount (שמייצג את מה ששולם בפועל),
+    // וגם לא בתשלומים PAID או REFUNDED. גם לא יורדים מתחת ל-amount הקיים.
+    if (
+      price !== undefined &&
+      finalPrice !== undefined &&
+      existingSession.price !== null &&
+      Number(existingSession.price) !== Number(finalPrice)
+    ) {
+      try {
+        const pendingPayment = await prisma.payment.findFirst({
+          where: { sessionId: therapySession.id, status: "PENDING" },
+          select: { id: true, amount: true },
+        });
+        if (pendingPayment) {
+          const safeExpected = Math.max(
+            Number(finalPrice),
+            Number(pendingPayment.amount),
+          );
+          await prisma.payment.update({
+            where: { id: pendingPayment.id },
+            data: { expectedAmount: safeExpected },
+          });
+          logger.info("[sessions PUT] synced expectedAmount on price change", {
+            sessionId: therapySession.id,
+            paymentId: pendingPayment.id,
+            oldPrice: Number(existingSession.price),
+            newPrice: Number(finalPrice),
+            newExpected: safeExpected,
+          });
+        }
+      } catch (syncErr) {
+        logger.error("[sessions PUT] expectedAmount sync failed", {
+          sessionId: therapySession.id,
+          error: syncErr instanceof Error ? syncErr.message : String(syncErr),
+        });
+      }
+    }
+
     // Google Calendar sync (non-blocking)
     if (existingSession.googleEventId) {
       if (status === "CANCELLED" || status === "NO_SHOW") {

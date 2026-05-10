@@ -208,12 +208,20 @@ async function syncCardcomTransactionInner(transactionId: string): Promise<SyncR
   // The whole apply step runs inside one transaction. UNIQUE-violation aware
   // helpers below treat P2002 as "already done" — handles the race where the
   // webhook handler and a concurrent auto-sync poll arrive within ms.
+  // ── Race guard for sync vs webhook (parent bump) ──────────────────
+  // הצילום של tx נטען בשורות 75–85 לפני הטרנזקציה. ייתכן שבזמן הזה
+  // ה-webhook הספיק לרוץ במקביל ולסמן APPROVED. בלי בדיקה אטומית בתוך
+  // ה-tx, גם sync וגם webhook ירוצו על אותה עסקה ויעלו את parent.amount
+  // פעמיים. הפתרון: updateMany מותנה בסטטוס != APPROVED, ובדיקת count
+  // לפני המשך הצדדים האפקטיביים.
+  let isFirstApproval = false;
   try {
     await prisma.$transaction(async (atx) => {
-      // Idempotent on transaction.id — re-update is harmless even if a
-      // concurrent webhook already moved status to APPROVED.
-      await atx.cardcomTransaction.update({
-        where: { id: tx.id },
+      // Conditional approval — מנצח יחיד.
+      const claimResult = await atx.cardcomTransaction.updateMany({
+        // אסור להוריד REFUNDED/CANCELLED חזרה ל-APPROVED. אלה מצבים
+        // טרמינליים שהושגו כברו במסלול אחר, ו-sync מאוחר חייב לכבד אותם.
+        where: { id: tx.id, status: { notIn: ['APPROVED', 'REFUNDED', 'CANCELLED'] } },
         data: {
           status: 'APPROVED',
           transactionId: String(tranzactionIdNum),
@@ -222,13 +230,39 @@ async function syncCardcomTransactionInner(transactionId: string): Promise<SyncR
           rawResponse: fetched as object,
         },
       });
+      isFirstApproval = claimResult.count > 0;
+      if (!isFirstApproval) {
+        // webhook (או sync אחר) כבר השלים את עדכון הסטטוס. לא להריץ
+        // payment update / parent bump שוב — הם כבר רצו במסלול האחר.
+        logger.info('[sync-cardcom-payment] race lost — already APPROVED', {
+          transactionId: tx.id,
+        });
+        return;
+      }
 
       if (tx.payment) {
+        // partial-aware: סטטוס נקבע לפי amount מול expectedAmount עם סף 0.001
+        // (אגורות). עקבי עם Cardcom user webhook (route.ts:498-525) ועם
+        // charge-saved-token. ה-amount הוא המצב הנוכחי של ה-Payment (כפי
+        // שעודכן ב-DB; ב-additive flow ה-child אמור להיות בסכום שלו).
+        // טוענים מחדש מתוך ה-tx (atx) כדי לקבל מצב עדכני.
+        const freshPayment = await atx.payment.findUnique({
+          where: { id: tx.payment.id },
+          select: {
+            amount: true,
+            expectedAmount: true,
+            parentPaymentId: true,
+          },
+        });
+        const paymentExpected = Number(freshPayment?.expectedAmount) || 0;
+        const paymentAmount = Number(freshPayment?.amount);
+        const isFullyCovered = paymentAmount >= paymentExpected - 0.001;
+        const finalStatus = isFullyCovered ? 'PAID' : 'PENDING';
         await atx.payment.update({
           where: { id: tx.payment.id },
           data: {
-            status: 'PAID',
-            paidAt: now,
+            status: finalStatus,
+            paidAt: finalStatus === 'PAID' ? now : null,
             method: 'CREDIT_CARD',
             ...(documentNumber
               ? {
@@ -239,6 +273,51 @@ async function syncCardcomTransactionInner(transactionId: string): Promise<SyncR
               : {}),
           },
         });
+
+        // ── Parent bump (additive completion) ──────────────────────
+        // אם sync רץ כ-backfill (webhook לא הגיע) ויש parentPaymentId,
+        // צריך לחקות את ה-bump שה-webhook היה עושה. בלי זה, ה-parent
+        // נשאר עם ה-amount הישן והמשימה לא נסגרת. עקבי עם
+        // src/app/api/webhooks/cardcom/user/route.ts:540-573.
+        //
+        // Idempotency: ה-status של cardcomTransaction מתעדכן ל-APPROVED
+        // ב-line 218 בתוך אותה atx. ה-early return בשורות 88-89
+        // (`tx.status === 'APPROVED'`) מונע ריצה נוספת של sync על אותה
+        // טרנזקציה. כך parent.amount לא מתעלה פעמיים.
+        if (
+          freshPayment?.parentPaymentId &&
+          finalStatus === 'PAID'
+        ) {
+          const parent = await atx.payment.findUnique({
+            where: { id: freshPayment.parentPaymentId },
+            select: { amount: true, expectedAmount: true, paidAt: true },
+          });
+          if (parent) {
+            const parentExpected = Number(parent.expectedAmount) || 0;
+            const newTotal = Number(parent.amount) + paymentAmount;
+            const parentFullyPaid = newTotal >= parentExpected - 0.001;
+            await atx.payment.update({
+              where: { id: freshPayment.parentPaymentId },
+              data: {
+                amount: newTotal,
+                status: parentFullyPaid ? 'PAID' : 'PENDING',
+                paymentType: parentFullyPaid ? 'FULL' : 'PARTIAL',
+                method: 'CREDIT_CARD',
+                paidAt: parentFullyPaid ? (parent.paidAt ?? now) : null,
+              },
+            });
+            if (parentFullyPaid) {
+              await atx.task.updateMany({
+                where: {
+                  relatedEntityId: freshPayment.parentPaymentId,
+                  type: 'COLLECT_PAYMENT',
+                  status: { in: ['PENDING', 'IN_PROGRESS'] },
+                },
+                data: { status: 'COMPLETED' },
+              });
+            }
+          }
+        }
       }
 
       // CardcomInvoice mirror — only when Cardcom actually issued the document.
@@ -367,14 +446,36 @@ async function syncCardcomTransactionInner(transactionId: string): Promise<SyncR
       }
 
       if (tx.payment) {
-        await atx.task.updateMany({
-          where: {
-            relatedEntityId: tx.payment.id,
-            type: 'COLLECT_PAYMENT',
-            status: { in: ['PENDING', 'IN_PROGRESS'] },
+        // partial-aware: סוגרים COLLECT_PAYMENT רק אם ה-Payment שולם במלואו.
+        // נטען מחדש כדי לקבל את ה-amount העדכני (אחרי ה-update למעלה).
+        // ה-task נוצר ב-payment-creator עם relatedEntityId של ה-parent
+        // ל-additive flows, אז מנסים גם את ה-parent וגם את ה-Payment עצמו.
+        // ה-bump של ה-parent למעלה כבר סוגר את ה-task של ה-parent כש-PAID,
+        // אז כאן נטפל רק במקרה הלא-additive (Payment עצמאי PAID).
+        const fresh = await atx.payment.findUnique({
+          where: { id: tx.payment.id },
+          select: {
+            amount: true,
+            expectedAmount: true,
+            parentPaymentId: true,
           },
-          data: { status: 'COMPLETED' },
         });
+        const expected = Number(fresh?.expectedAmount) || 0;
+        const current = Number(fresh?.amount);
+        if (
+          fresh &&
+          !fresh.parentPaymentId && // additive children — סגירה ב-parent bump
+          current >= expected - 0.001
+        ) {
+          await atx.task.updateMany({
+            where: {
+              relatedEntityId: tx.payment.id,
+              type: 'COLLECT_PAYMENT',
+              status: { in: ['PENDING', 'IN_PROGRESS'] },
+            },
+            data: { status: 'COMPLETED' },
+          });
+        }
       }
     });
   } catch (err) {
@@ -403,6 +504,16 @@ async function syncCardcomTransactionInner(transactionId: string): Promise<SyncR
     amountPaid: number;
     isFullyPaid: boolean;
   }> = [];
+  // ⚠️ ה-side-effects שאחרי ה-transaction (notification, emails, distribute)
+  // חייבים לרוץ רק אם sync **ניצח** את ה-claim. אם isFirstApproval=false —
+  // המסלול האחר (webhook) כבר טיפל בכל אלה, וריצה שלנו תיצור כפילות.
+  if (!isFirstApproval) {
+    logger.info('[sync-cardcom-payment] skipping post-tx side-effects (race lost)', {
+      transactionId: tx.id,
+    });
+    return { status: 'APPROVED', changed: false, reason: 'race lost to concurrent webhook' };
+  }
+
   if (tx.bulkPaymentIds.length > 0 && tx.payment) {
     try {
       const distributionResult = await distributeBulkCardcomPayment({

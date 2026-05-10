@@ -56,7 +56,15 @@ export async function GET(request: NextRequest) {
   try {
     const tx = await prisma.cardcomTransaction.findUnique({
       where: { id: t },
-      select: { status: true, createdAt: true },
+      select: {
+        status: true,
+        createdAt: true,
+        // צריך לדעת אם החוב נסגר במלואו (Payment.status=PAID), לא רק
+        // אם החיוב הספציפי אושר. בתשלום חלקי באשראי, העסקה APPROVED
+        // אבל ה-Payment עדיין PENDING (יש יתרה). דף התודה ישתמש בזה
+        // כדי להציג מסר מדויק.
+        payment: { select: { status: true, parentPaymentId: true } },
+      },
     });
     if (!tx) {
       return NextResponse.json({ status: "unknown" });
@@ -78,12 +86,17 @@ export async function GET(request: NextRequest) {
     if (tx.status === "PENDING" && ageMs > AUTO_SYNC_THRESHOLD_MS) {
       try {
         const result = await syncCardcomTransaction(t);
-        // Use the freshly-synced status as the response — saves the client
-        // an extra polling round-trip.
-        return NextResponse.json({ status: result.status });
+        // אחרי sync — לטעון מחדש את ה-Payment כדי להחזיר debtFullyPaid טרי.
+        const fresh = await prisma.cardcomTransaction.findUnique({
+          where: { id: t },
+          select: { payment: { select: { status: true } } },
+        });
+        return NextResponse.json({
+          status: result.status,
+          debtFullyPaid:
+            !fresh?.payment || fresh.payment.status === "PAID",
+        });
       } catch (err) {
-        // Sync failure is not fatal — fall through to returning the stored
-        // status. The caller will keep polling and we'll retry next cycle.
         logger.warn("[p/transaction-status] auto-sync failed", {
           tIdPrefix: t.slice(0, 8),
           error: err instanceof Error ? err.message : String(err),
@@ -91,7 +104,12 @@ export async function GET(request: NextRequest) {
       }
     }
 
-    return NextResponse.json({ status: tx.status });
+    // debtFullyPaid: אם אין Payment מקושר → אין חוב בכלל (true).
+    // אחרת — true רק כש-Payment.status=PAID.
+    return NextResponse.json({
+      status: tx.status,
+      debtFullyPaid: !tx.payment || tx.payment.status === "PAID",
+    });
   } catch (err) {
     logger.warn("[p/transaction-status] DB lookup failed", {
       tIdPrefix: t.slice(0, 8),

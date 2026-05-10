@@ -136,36 +136,99 @@ async function handlePaymentSuccess(payload: SumitWebhookPayload) {
   const verified = await verifyPaymentByExternalId(PaymentID);
 
   if (verified) {
-    // קבל את ה-notes הנוכחי לעדכון string replacement
+    // partial-aware: סטטוס נקבע לפי amount מול expectedAmount עם סף 0.001.
+    // עקבי עם Cardcom user webhook + Meshulam webhook + charge-saved-token.
     const currentPayment = await prisma.payment.findUnique({
       where: { id: verified.paymentId },
-      select: { notes: true },
+      select: {
+        notes: true,
+        amount: true,
+        expectedAmount: true,
+        parentPaymentId: true,
+      },
     });
+    if (!currentPayment) {
+      logger.warn("[Sumit] payment.success — payment not found", {
+        paymentId: verified.paymentId,
+      });
+      return;
+    }
+    const paymentExpected = Number(currentPayment.expectedAmount) || 0;
+    const paymentAmount = Number(currentPayment.amount);
+    const isFullyCovered = paymentAmount >= paymentExpected - 0.001;
+    const finalStatus = isFullyCovered ? "PAID" : "PENDING";
 
-    // עדכון atomic — count check מבטיח שהפעולה הצליחה
+    // ── Idempotency guard: replay defense ─────────────────────────
+    // Sumit עלול לחזור על webhook הצלחה. במצב PARTIAL — status נשאר
+    // PENDING גם אחרי הריצה הראשונה, אז שדה status לבדו לא מספיק כ-guard.
+    // ⚠️ הגרסה הקודמת חיפשה [PENDING:${PaymentID}] שלא נכתב באף נקודת
+    // יצירה (legacy data) — מה שגרם לכל ה-Sumit לכשול. עכשיו אנחנו
+    // משתמשים בסימון negative: [PAID:${PaymentID}] = "כבר עיבדנו". בריצה
+    // ראשונה הסימון חסר → ה-WHERE מתאים ועדכון מצליח (כולל הוספת הסימון).
+    // ב-replay הסימון קיים → count=0 ואנחנו מחזירים בלי לחזור על האפקטים.
+    const paidMarker = `[PAID:${PaymentID}]`;
+    const baseNotes = currentPayment.notes ?? "";
+    const newNotes = baseNotes.includes(paidMarker)
+      ? baseNotes
+      : (baseNotes + (baseNotes.length ? " " : "") + paidMarker).trim();
     const updateResult = await prisma.payment.updateMany({
       where: {
         id: verified.paymentId,
         client: { therapistId: verified.therapistId },
-        status: "PENDING", // race-safe: רק אם עדיין PENDING
+        OR: [
+          { notes: null },
+          { notes: { not: { contains: paidMarker } } },
+        ],
       },
       data: {
-        status: "PAID",
-        paidAt: new Date(),
+        status: finalStatus,
+        paidAt: finalStatus === "PAID" ? new Date() : null,
         receiptUrl: DocumentURL,
         hasReceipt: !!DocumentURL,
-        notes: currentPayment?.notes?.replace(
-          `[PENDING:${PaymentID}]`,
-          `[PAID:${PaymentID}]`
-        ),
+        notes: newNotes,
       },
     });
 
     if (updateResult.count === 0) {
-      logger.warn("[Sumit] payment.success — already paid or not PENDING", {
+      logger.warn("[Sumit] payment.success — already processed (replay)", {
         paymentId: verified.paymentId,
       });
-      return;
+      return; // replay — לא לחזור על bump/notification/email
+    }
+
+    // ── parent bump (additive completion via Sumit) ──────────────
+    // עקבי עם Meshulam/Cardcom: cash partial → Sumit completion → parent bump.
+    if (currentPayment.parentPaymentId && finalStatus === "PAID") {
+      const parent = await prisma.payment.findUnique({
+        where: { id: currentPayment.parentPaymentId },
+        select: { amount: true, expectedAmount: true, paidAt: true },
+      });
+      if (parent) {
+        const parentExpected = Number(parent.expectedAmount) || 0;
+        const newTotal = Number(parent.amount) + paymentAmount;
+        const parentFullyPaid = newTotal >= parentExpected - 0.001;
+        await prisma.payment.update({
+          where: { id: currentPayment.parentPaymentId },
+          data: {
+            amount: newTotal,
+            status: parentFullyPaid ? "PAID" : "PENDING",
+            paymentType: parentFullyPaid ? "FULL" : "PARTIAL",
+            method: "CREDIT_CARD",
+            paidAt: parentFullyPaid ? (parent.paidAt ?? new Date()) : null,
+          },
+        });
+        if (parentFullyPaid) {
+          await prisma.task.updateMany({
+            where: {
+              userId: verified.therapistId,
+              relatedEntityId: currentPayment.parentPaymentId,
+              type: "COLLECT_PAYMENT",
+              status: { in: ["PENDING", "IN_PROGRESS"] },
+            },
+            data: { status: "COMPLETED" },
+          });
+        }
+      }
     }
 
     // יצירת התראה למטפל — תמיד עם therapistId המאומת

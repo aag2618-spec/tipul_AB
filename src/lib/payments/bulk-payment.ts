@@ -3,7 +3,12 @@ import { Prisma } from "@prisma/client";
 import { logger } from "@/lib/logger";
 import type { PaymentMethod, BulkPaymentResult, ClientDebtSummary, AllClientsDebtItem } from "./types";
 import { EXCLUDE_BULK_UMBRELLA_WHERE } from "./types";
-import { issueReceipt, sendPaymentReceiptEmail, buildReceiptDescription } from "./receipt-service";
+import {
+  issueReceipt,
+  sendPaymentReceiptEmail,
+  buildReceiptDescription,
+  isCardcomPrimary,
+} from "./receipt-service";
 import { buildClientWhere, buildPaymentWhere, type ScopeUser } from "@/lib/scope";
 
 // Re-export pure calculation helpers from payment-utils
@@ -175,10 +180,14 @@ export async function processMultiSessionPayment(params: {
         const expAmt = Number(paymentWithSession.expectedAmount) || 0;
         const isStillPartial = !item.isFullyPaid;
 
-        // הוצאת קבלה - רק אם המשתמש ביקש
+        // הוצאת קבלה - לפי המדיניות. כש-Cardcom primary: אילוץ הפקה תמיד
+        // (זה החוק — Cardcom חייבת להפיק מסמך רשמי). אחרת: לפי checkbox.
         let receiptUrl: string | null = null;
         let receiptNumber: string | null = null;
-        if (shouldIssueReceipt !== false) {
+        const cardcomForcesReceipt = await isCardcomPrimary(userId);
+        const effectiveIssueReceipt =
+          cardcomForcesReceipt || shouldIssueReceipt !== false;
+        if (effectiveIssueReceipt) {
           const receiptResult = await issueReceipt({
             userId,
             paymentId: item.childId,
@@ -211,6 +220,7 @@ export async function processMultiSessionPayment(params: {
           receiptUrl,
           receiptNumber,
           sessionRemainingAfterPayment: sessionRemaining,
+          paymentId: paymentWithSession.id,
         });
       } catch (receiptEmailError) {
         logger.error("Error processing receipt/email for payment", {

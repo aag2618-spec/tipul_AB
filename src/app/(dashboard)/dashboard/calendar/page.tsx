@@ -799,6 +799,8 @@ function CalendarPageContent() {
           sessionId={selectedSession.id}
           clientId={selectedSession.client?.id ?? ""}
           clientName={selectedSession.client?.name ?? "מטופל"}
+          clientEmail={selectedSession.client?.email ?? null}
+          clientPhone={selectedSession.client?.phone ?? null}
           price={selectedSession.price}
           updating={updating}
           onUpdate={handleCalendarUpdate}

@@ -295,9 +295,17 @@ async function processAdminWebhook(payload: CardcomWebhookPayload): Promise<void
     async (tx) => {
       const now = new Date();
 
-      // Update CardcomTransaction
-      await tx.cardcomTransaction.update({
-        where: { id: transaction.id },
+      // Update CardcomTransaction — מוגן מפני downgrade של מצבים טרמינליים.
+      // success: רק אם הסטטוס לא APPROVED/REFUNDED/CANCELLED (אחרת מסלול
+      // אחר כבר טיפל). decline: רק אם הסטטוס לא APPROVED/REFUNDED (לא
+      // מורידים אישור/זיכוי שהתקבל קודם).
+      const upd = await tx.cardcomTransaction.updateMany({
+        where: {
+          id: transaction.id,
+          status: success
+            ? { notIn: ["APPROVED", "REFUNDED", "CANCELLED"] }
+            : { notIn: ["APPROVED", "REFUNDED"] },
+        },
         data: {
           status: success ? "APPROVED" : "DECLINED",
           transactionId: payload.TranzactionId ?? null,
@@ -313,12 +321,18 @@ async function processAdminWebhook(payload: CardcomWebhookPayload): Promise<void
             ? 2000 + Number(payload.TranzactionInfo.CardExpirationYY)
             : null,
           errorCode: success ? null : responseCode,
-          // PAN scrub — Cardcom Description may rarely echo card fragments.
           errorMessage: success ? null : scrubCardcomMessage(payload.Description),
           rawResponse: sanitizeRawResponse(payload),
           completedAt: now,
         },
       });
+      if (upd.count === 0) {
+        logger.info("[cardcom-admin-webhook] state already terminal — skipping", {
+          transactionId: transaction.id,
+          attempted: success ? "APPROVED" : "DECLINED",
+        });
+        return;
+      }
 
       if (!success) return;
 

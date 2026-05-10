@@ -310,10 +310,15 @@ export function ChargeCardcomDialog({
       // amount=0 from the DB and pass it to Cardcom — Cardcom would render
       // "סה״כ 0 ₪" in the iframe and reject submit ("transaction amount is
       // required"). The prep endpoint:
-      //   • succeeds when currentAmount=0 → updates to `amount` + sets method
-      //   • returns 409 when currentAmount > 0 → already prepared (good
-      //     enough; charge-cardcom will read the existing amount)
-      // We tolerate 409 specifically, surface other errors.
+      //   • succeeds when currentAmount=0 (REPLACE) → updates to `amount`
+      //   • succeeds when currentAmount === amount && method=CC (NO-OP)
+      //   • succeeds with NEW child id when currentAmount > 0 (ADDITIVE,
+      //     completion of partial-cash with credit card). חובה לסלוק על
+      //     ה-CHILD החדש, לא על ה-parent — כי charge-cardcom קורא
+      //     payment.amount מה-DB, וה-parent עוד מציג את ה-200 cash
+      //     המצטבר. אם נישאר עם ה-parentId, Cardcom יחויב על 200 (סכום
+      //     הקאש המצטבר) במקום 150 (היתרה לסליקה).
+      //   • 409 — already prepared / status changed; tolerated.
       const prepRes = await fetch(`/api/payments/${paymentId}`, {
         method: "PUT",
         headers: { "Content-Type": "application/json" },
@@ -322,6 +327,12 @@ export function ChargeCardcomDialog({
       if (!prepRes.ok && prepRes.status !== 409) {
         const data = (await prepRes.json().catch(() => ({}))) as { message?: string };
         throw new Error(data.message ?? "שגיאה בהכנת התשלום לסליקה");
+      }
+      if (prepRes.ok) {
+        const data = (await prepRes.json().catch(() => ({}))) as { id?: string };
+        if (data?.id && data.id !== paymentId) {
+          return data.id;
+        }
       }
       return paymentId;
     }

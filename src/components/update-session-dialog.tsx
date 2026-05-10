@@ -43,6 +43,14 @@ export interface UpdateSessionDialogProps {
   sessionId: string;
   clientName: string;
   clientId: string;
+  /**
+   * פרטי התקשרות של הלקוח. אם מועברים — יועברו ישירות ל-ChargeCardcomDialog
+   * (חוסך lazy fetch של /api/clients/[id]/contact ומקטין את הסיכוי שהלקוח
+   * יראה "אין מייל" גם כשיש לו). אם undefined, ChargeCardcomDialog יבצע
+   * fetch בעצמו.
+   */
+  clientEmail?: string | null;
+  clientPhone?: string | null;
   price: number;
   existingPaymentId?: string;
   updating: boolean;
@@ -61,6 +69,8 @@ export interface UpdateSessionDialogProps {
     amount: number;
     clientName: string;
     clientId: string;
+    clientEmail?: string | null;
+    clientPhone?: string | null;
   }) => void;
 }
 
@@ -69,6 +79,8 @@ export function UpdateSessionDialog({
   sessionId,
   clientName,
   clientId,
+  clientEmail,
+  clientPhone,
   price,
   existingPaymentId,
   updating,
@@ -166,16 +178,20 @@ export function UpdateSessionDialog({
       price > 0 &&
       updateStatus // סטטוס נבחר — אחרת לא נכון לפעול
     ) {
-      // PARTIAL + Cardcom חסום זמנית: ה-webhook מסמן PAID בלי לבדוק
-      // amount==expectedAmount, ולכן מצב חלקי+אשראי משאיר Payment ב-PAID
-      // עם חוב מובלע — לא עקבי עם partial cash. נפתח לאחר תיקון מקיף.
-      if (paymentType === "PARTIAL") {
-        toast.error("תשלום חלקי באשראי טרם נתמך. בחרי תשלום מלא או אמצעי אחר.");
-        return;
-      }
-      const amt = parseFloat(paymentAmount) || 0;
+      // PARTIAL+CC נתמך: ה-webhook מודע לחלקי (ראה src/app/api/webhooks/
+      // cardcom/user/route.ts) — יוצר child עם amount=transaction.amount,
+      // parent נשאר PENDING עד שsum>=expected. הסכום שעובר ל-Cardcom הוא
+      // הסכום החלקי בלבד, לא ה-price המלא.
+      const amt =
+        paymentType === "PARTIAL"
+          ? parseFloat(partialAmount) || 0
+          : parseFloat(paymentAmount) || 0;
       if (amt <= 0) {
         toast.error("סכום לתשלום לא תקין");
+        return;
+      }
+      if (paymentType === "PARTIAL" && amt > price) {
+        toast.error("סכום חלקי לא יכול לעלות על מחיר הפגישה");
         return;
       }
       // mutex סינכרוני — מונע race של שני קליקים בו-זמנית. לבדוק לפני
@@ -215,6 +231,11 @@ export function UpdateSessionDialog({
         }
 
         // יצירת Payment ב-PENDING — Cardcom יעדכן ל-PAID דרך webhook.
+        // לפי paymentType: עבור PARTIAL ה-expectedAmount הוא מחיר הפגישה
+        // המלא (price), והסכום שמועבר ל-Cardcom הוא הסכום החלקי בלבד.
+        // ה-webhook יחשב את הסטטוס לפי amount>=expectedAmount (ראה
+        // src/app/api/webhooks/cardcom/user/route.ts).
+        const isPartialCC = paymentType === "PARTIAL";
         const paymentRes = await fetch("/api/payments", {
           method: "POST",
           headers: { "Content-Type": "application/json" },
@@ -222,8 +243,8 @@ export function UpdateSessionDialog({
             clientId,
             sessionId,
             amount: amt,
-            expectedAmount: amt,
-            paymentType: "FULL",
+            expectedAmount: isPartialCC ? price : amt,
+            paymentType: isPartialCC ? "PARTIAL" : "FULL",
             method: "CREDIT_CARD",
             status: "PENDING",
             // הקבלה תופק ע״י Cardcom Documents API ב-webhook.
@@ -246,6 +267,8 @@ export function UpdateSessionDialog({
             amount: amt,
             clientName,
             clientId,
+            clientEmail,
+            clientPhone,
           });
           onClose();
         } else {
@@ -630,6 +653,8 @@ export function UpdateSessionDialog({
       sessionId={sessionId}
       clientId={clientId}
       clientName={clientName}
+      clientEmail={clientEmail ?? undefined}
+      clientPhone={clientPhone ?? undefined}
       amount={cardcomAmount}
       defaultDescription="פגישה"
       onPaymentSuccess={handleCardcomSuccess}

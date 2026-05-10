@@ -7,6 +7,7 @@ import { parseBody } from "@/lib/validations/helpers";
 import { createPaymentSchema } from "@/lib/validations/payment";
 import { serializePrisma } from "@/lib/serialize";
 import {
+  buildClientWhere,
   buildPaymentWhere,
   isSecretary,
   loadScopeUser,
@@ -87,6 +88,7 @@ export async function GET() {
         childPayments: {
           select: {
             id: true,
+            amount: true,
             hasReceipt: true,
             receiptNumber: true,
             receiptUrl: true,
@@ -130,6 +132,12 @@ export async function GET() {
     //   2. Parent without own receipt but with bulk-Cardcom child → merge
     //      child's receipt up (1 row per session for bulk).
     //   3. Parent with own receipt → return as-is (regular payment).
+    //
+    // NOTE: לא מחסרים כאן sums מ-children. הצד הלקוח (receipts/page.tsx
+    // ב-getReceiptDisplayAmount + buildReceiptExportData) כבר מטפל בחיסור
+    // לתצוגה: כש-parent.amount הוא ה-roll-up (350) וצריך להציג את החלק
+    // המקורי שלו (200), הלקוח מחסר את סכום ה-children מהשורה של ה-parent.
+    // חיסור גם בשרת ייצור double-subtract → הצגה שגויה (50 במקום 200).
     let merged = payments.map((p) => {
       if (p.parentPaymentId) {
         return {
@@ -243,8 +251,17 @@ export async function POST(request: NextRequest) {
       );
     }
 
+    // ⚠️ userId לקבלות חייב להיות של המטפל בעל הלקוח (billing owner),
+    // לא של המזכירה. החבילה billing/Cardcom של המטפל היא זו שמנפיקה,
+    // והקבלה חייבת לשאת את זהותו (חוק חשבוניות 2024).
+    const clientForBilling = await prisma.client.findFirst({
+      where: { id: clientId, ...buildClientWhere(scopeUser) },
+      select: { therapistId: true },
+    });
+    const billingUserId = clientForBilling?.therapistId ?? userId;
+
     const result = await createPaymentForSession({
-      userId,
+      userId: billingUserId,
       clientId,
       sessionId,
       amount: Number(amount),

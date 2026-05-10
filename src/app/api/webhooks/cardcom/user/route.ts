@@ -426,7 +426,13 @@ async function processUserWebhook(userId: string, payload: CardcomWebhookPayload
    // notification/email/cardcomInvoice כבר נוצרו פעם אחת ולא צריך ליצור שוב.
    // העדכון של cardcomTransaction עצמו idempotent (אותם ערכים), אבל יצירת
    // notification/invoice/שליחת email — לא, ויוצרת כפילויות אם לא נשמר guard.
-  const isFirstApproval = transaction.status !== "APPROVED";
+  // ── isFirstApproval: snapshot baseline (will be re-validated in tx) ──
+  // הצילום שנקרא משורה 228 יכול להיות stale אם sync רץ במקביל. אנחנו
+  // מתחילים מההנחה לפי הצילום, ואז re-validating אטומית בתוך ה-tx
+  // עם updateMany מותנה (status != APPROVED → APPROVED) — אם count===0,
+  // המסלול הסינכרוני (sync-cardcom-payment) כבר השלים את הבאמפ והעדכון
+  // ולא נריץ אותם שוב כאן.
+  let isFirstApproval = transaction.status !== "APPROVED";
 
   await withAudit(
     { kind: "system", source: "WEBHOOK_CARDCOM", externalRef: payload.LowProfileId },
@@ -445,28 +451,90 @@ async function processUserWebhook(userId: string, payload: CardcomWebhookPayload
     async (tx) => {
       const now = new Date();
 
-      await tx.cardcomTransaction.update({
-        where: { id: transaction.id },
-        data: {
-          status: success ? "APPROVED" : "DECLINED",
-          transactionId: payload.TranzactionId ?? null,
-          approvalNumber: payload.TranzactionInfo?.ApprovalNumber ?? null,
-          cardLast4: payload.TranzactionInfo?.Last4CardDigits ?? transaction.cardLast4,
-          cardHolder: payload.TranzactionInfo?.CardOwnerName ?? transaction.cardHolder,
-          cardBrand: payload.TranzactionInfo?.CardName ?? null,
-          token: payload.TranzactionInfo?.Token ?? null,
-          tokenExpiryMonth: payload.TranzactionInfo?.CardExpirationMM
-            ? Number(payload.TranzactionInfo.CardExpirationMM)
-            : null,
-          tokenExpiryYear: payload.TranzactionInfo?.CardExpirationYY
-            ? 2000 + Number(payload.TranzactionInfo.CardExpirationYY)
-            : null,
-          errorCode: success ? null : responseCode,
-          // PAN scrub — Cardcom Description may rarely echo card fragments.
-          errorMessage: success ? null : scrubCardcomMessage(payload.Description),
-          completedAt: now,
-        },
-      });
+      // ── Atomic claim: re-validate isFirstApproval inside the tx ────
+      // updateMany עם status != APPROVED מאפשר רק למסלול אחד (webhook
+      // או sync) להעלות את הסטטוס. count===0 ⇒ המסלול השני כבר עשה
+      // את העבודה ⇒ מורידים את isFirstApproval ל-false כדי לא לבצע
+      // bump/notification/email/invoice פעמיים.
+      if (success) {
+        const claim = await tx.cardcomTransaction.updateMany({
+          // ⚠️ צריך לחסום החזרת REFUNDED ל-APPROVED. אם עסקה כבר זוכתה
+          // (REFUNDED), webhook מאוחר/חוזר לא צריך "להחזיר אותה לחיים".
+          // CANCELLED הוא טרמינלי גם כן ולא ניתן לשחזור דרך webhook.
+          where: {
+            id: transaction.id,
+            status: { notIn: ["APPROVED", "REFUNDED", "CANCELLED"] },
+          },
+          data: {
+            status: "APPROVED",
+            transactionId: payload.TranzactionId ?? null,
+            approvalNumber: payload.TranzactionInfo?.ApprovalNumber ?? null,
+            cardLast4: payload.TranzactionInfo?.Last4CardDigits ?? transaction.cardLast4,
+            cardHolder: payload.TranzactionInfo?.CardOwnerName ?? transaction.cardHolder,
+            cardBrand: payload.TranzactionInfo?.CardName ?? null,
+            token: payload.TranzactionInfo?.Token ?? null,
+            tokenExpiryMonth: payload.TranzactionInfo?.CardExpirationMM
+              ? Number(payload.TranzactionInfo.CardExpirationMM)
+              : null,
+            tokenExpiryYear: payload.TranzactionInfo?.CardExpirationYY
+              ? 2000 + Number(payload.TranzactionInfo.CardExpirationYY)
+              : null,
+            errorCode: null,
+            errorMessage: null,
+            completedAt: now,
+          },
+        });
+        // אם count===0: sync (או webhook אחר) ניצח את המרוץ. נכבה את
+        // isFirstApproval כדי לדלג על כל ה-side-effects (bump/email/invoice),
+        // ⚠️ וגם נחזור מיד מה-callback של ה-tx — אסור להריץ את payment.update
+        // הבא (סטטוס/קבלה/decline-clear) כי המסלול שניצח כבר עשה אותם, ולנו
+        // אין מידע מעודכן (transaction.payment הוא snapshot ישן).
+        if (claim.count === 0) {
+          isFirstApproval = false;
+          logger.info("[cardcom-user-webhook] APPROVED — race lost, skipping post-claim updates", {
+            transactionId: transaction.id,
+          });
+          return;
+        }
+      } else {
+        // נתיב decline — אסור לדרוס APPROVED. ייתכן שב-replay של webhook
+        // אחרי sync שכבר אישר את העסקה, מגיע webhook נוסף שפענוח שגוי
+        // / מדגם מאוחר. אם נעדכן בלי תנאי, נשנה APPROVED → DECLINED ונקלקל
+        // את ההיסטוריה. ה-WHERE כאן מסנן: רק אם הסטטוס לא APPROVED או
+        // REFUNDED (=מצב טרמינלי שלא ניגרר אחורה).
+        const declineUpd = await tx.cardcomTransaction.updateMany({
+          where: {
+            id: transaction.id,
+            status: { notIn: ["APPROVED", "REFUNDED"] },
+          },
+          data: {
+            status: "DECLINED",
+            transactionId: payload.TranzactionId ?? null,
+            approvalNumber: payload.TranzactionInfo?.ApprovalNumber ?? null,
+            cardLast4: payload.TranzactionInfo?.Last4CardDigits ?? transaction.cardLast4,
+            cardHolder: payload.TranzactionInfo?.CardOwnerName ?? transaction.cardHolder,
+            cardBrand: payload.TranzactionInfo?.CardName ?? null,
+            token: payload.TranzactionInfo?.Token ?? null,
+            tokenExpiryMonth: payload.TranzactionInfo?.CardExpirationMM
+              ? Number(payload.TranzactionInfo.CardExpirationMM)
+              : null,
+            tokenExpiryYear: payload.TranzactionInfo?.CardExpirationYY
+              ? 2000 + Number(payload.TranzactionInfo.CardExpirationYY)
+              : null,
+            errorCode: responseCode,
+            errorMessage: scrubCardcomMessage(payload.Description),
+            completedAt: now,
+          },
+        });
+        // ⚠️ אם ה-claim לא תפס (count=0) — העסקה כבר APPROVED/REFUNDED.
+        // אסור לדרוס lastDeclineReason על Payment שמשקף תשלום שאושר/הוחזר.
+        if (declineUpd.count === 0) {
+          logger.info("[cardcom-user-webhook] DECLINED ignored — terminal state", {
+            transactionId: transaction.id,
+          });
+          return;
+        }
+      }
 
       if (!success) {
         // Surface the decline reason on Payment so the therapist sees it in UI
@@ -485,20 +553,32 @@ async function processUserWebhook(userId: string, payload: CardcomWebhookPayload
       }
 
       // Mark Payment as paid + clear any prior decline notice.
+      // ── Partial-aware logic ─────────────────────────────────
+      // Status = PAID רק אם ה-amount של ה-Payment >= expectedAmount. לתשלום
+      // חלקי באשראי (fresh partial: parent.amount=200, expected=350) ה-status
+      // נשאר PENDING גם אחרי אישור Cardcom — זה עקבי עם partial cash.
+      //
+      // ── Child completion bump ───────────────────────────────
+      // אם ה-Payment הוא child (יש לו parentPaymentId), אישור ה-Cardcom
+      // מסמן את ה-child PAID, ואז מעדכנים את ה-parent: parent.amount +=
+      // child.amount, status נחשב מחדש. זה מטפל בתרחיש "השלמת חוב" שבו
+      // היה תשלום חלקי במזומן (parent=200, expected=350) ועכשיו אשראי
+      // משלים (child=150 → parent=350 PAID).
       if (transaction.paymentId && transaction.payment) {
+        const paymentAmount = Number(transaction.payment.amount);
+        const paymentExpected = Number(transaction.payment.expectedAmount) || 0;
+        const isFullyCovered = paymentAmount >= paymentExpected - 0.001;
+        const finalStatus = isFullyCovered ? "PAID" : "PENDING";
         await tx.payment.update({
           where: { id: transaction.paymentId },
           data: {
-            status: "PAID",
+            status: finalStatus,
             method: "CREDIT_CARD",
-            paidAt: now,
+            paidAt: finalStatus === "PAID" ? now : null,
             lastDeclineReason: null,
             lastDeclineAt: null,
             // CRITICAL: GetLpResult returns DocumentNumber as a number
             // (e.g. 639145), but Payment.receiptNumber is a String column.
-            // Coerce explicitly. The URL field is `DocumentUrl` per Cardcom
-            // v11 swagger; legacy payloads carried `DocumentLink` — read both
-            // so we don't lose the link on either format.
             ...(payload.DocumentInfo?.DocumentNumber
               ? {
                   receiptNumber: String(payload.DocumentInfo.DocumentNumber),
@@ -511,6 +591,60 @@ async function processUserWebhook(userId: string, payload: CardcomWebhookPayload
               : {}),
           },
         });
+
+        // ── Bump parent if this is a child (additive completion) ─────
+        // ה-child נוצר ע"י prepareCardcom additive או ע"י createPaymentForSession
+        // לתשלום השלמה באשראי. סוכמים ל-parent.amount, מסמנים PAID/PENDING
+        // לפי ה-total החדש מול expected של ה-parent.
+        //
+        // CRITICAL — Idempotency: parent.amount += paymentAmount הוא NON-IDEMPOTENT.
+        // אם withAudit הצליח אבל finalizeWebhook נכשל / process crashed לפני
+        // ה-finalize, replay של ה-webhook יקרה (claimWebhook מתיר את זה
+        // במפורש, ראה src/lib/cardcom/webhook-claim.ts:105-107). ב-replay,
+        // ה-cardcomTransaction.status כבר APPROVED מהריצה הקודמת, ולכן
+        // isFirstApproval=false — וזה בדיוק ה-flag שנכפה כאן: לא לבצע bump
+        // פעמיים על אותו אישור Cardcom. בלי זה parent.amount היה גדל ב-150
+        // נוסף בכל retry, ויוצר חוב שלילי בדוחות.
+        if (isFirstApproval && transaction.payment.parentPaymentId) {
+          const parent = await tx.payment.findUnique({
+            where: { id: transaction.payment.parentPaymentId },
+            select: { amount: true, expectedAmount: true, paidAt: true },
+          });
+          if (parent) {
+            const parentExpected = Number(parent.expectedAmount) || 0;
+            const newTotal = Number(parent.amount) + paymentAmount;
+            const parentFullyPaid = newTotal >= parentExpected - 0.001;
+            await tx.payment.update({
+              where: { id: transaction.payment.parentPaymentId },
+              data: {
+                amount: newTotal,
+                status: parentFullyPaid ? "PAID" : "PENDING",
+                paymentType: parentFullyPaid ? "FULL" : "PARTIAL",
+                // method: לאחר השלמת חוב באשראי, parent.method מתעדכן
+                // ל-CREDIT_CARD (כמו ב-addPartialPayment שמשנה את method
+                // ל-method של ההפקדה האחרונה). ה-childPayments רשומים בנפרד
+                // עם ה-method המדויק שלהם, כך שהיסטוריית ה-method של כל
+                // installment נשמרת. parent.method משקף את הפעולה האחרונה.
+                method: "CREDIT_CARD",
+                paidAt: parentFullyPaid
+                  ? (parent.paidAt ?? now)
+                  : null,
+              },
+            });
+            // לסגור משימת "גבה תשלום" אם ה-parent בעצם שולם.
+            if (parentFullyPaid) {
+              await tx.task.updateMany({
+                where: {
+                  userId,
+                  relatedEntityId: transaction.payment.parentPaymentId,
+                  type: "COLLECT_PAYMENT",
+                  status: { in: ["PENDING", "IN_PROGRESS"] },
+                },
+                data: { status: "COMPLETED" },
+              });
+            }
+          }
+        }
       }
 
       // התראת פעמון למטפל על תשלום נכנס — תמיד עם userId המאומת מ-DB
@@ -726,6 +860,12 @@ async function processUserWebhook(userId: string, payload: CardcomWebhookPayload
     amountPaid: number;
     isFullyPaid: boolean;
   }> = [];
+  // ⚠️ distributeBulkCardcomPayment הוא **אידמפוטנטי** (בודק existingChildren
+  // לפי cardcomTransactionId ב-notes ולא יוצר ילדים כפולים). לכן אין לסנן
+  // אותו ב-isFirstApproval — סינון כזה גרם לרגרסיה: אם החלוקה נכשלה זמנית
+  // (P2034), ה-claim כבר עדכן ל-APPROVED, ובreplay של ה-webhook
+  // isFirstApproval=false והחלוקה לא רצה לעולם → כסף נגבה ב-Cardcom אבל
+  // הילדים לא נוצרו → חוב מנופח לעד. אסור לחזור על הרגרסיה הזו.
   if (success && transaction.bulkPaymentIds.length > 0 && transaction.paymentId) {
     const distributionResult = await distributeBulkCardcomPayment({
       umbrellaPaymentId: transaction.paymentId,
@@ -915,9 +1055,29 @@ async function processUserWebhook(userId: string, payload: CardcomWebhookPayload
   // מייל למטפל על תשלום נכנס — best-effort, מחוץ לטרנזקציה כדי שכשל
   // בשליחה לא יבטל את עדכון התשלום. נשלח רק על success + payment קיים +
   // למטפל יש מייל. נחסם אוטומטית בשבת ע״י sendEmail.
-  // isFirstApproval guard: ב-retry של webhook (אחרי transient distribute) המייל
-  // כבר נשלח בריצה הקודמת. לא לשלוח שוב — אחרת המטפל מקבל "תשלום התקבל" כפול.
-  if (success && isFirstApproval && therapist?.email && transaction.payment) {
+  // isFirstApproval guard: ב-retry של webhook המייל כבר נשלח בריצה הקודמת.
+  // ⚠️ Cardcom-primary suppression: כשמטפל מחובר ל-Cardcom, Cardcom שולחת
+  // לו ולקוח אישור משלה (כולל קבלה). הוספת מייל "תשלום התקבל" של MyTipul
+  // יוצרת רעש כפול. אם הופקה קבלה דרך Cardcom (יש receiptNumber/הוקצה
+  // CardcomInvoice), נדלג — המטפל רואה הכל ב-UI ובמייל של Cardcom.
+  let shouldSendTherapistNotification = success && isFirstApproval && !!therapist?.email && !!transaction.payment;
+  if (shouldSendTherapistNotification) {
+    try {
+      const cardcomEvidence = await prisma.cardcomInvoice.findFirst({
+        where: { cardcomTransactionId: transaction.id, status: "ISSUED" },
+        select: { id: true },
+      });
+      if (cardcomEvidence) {
+        shouldSendTherapistNotification = false;
+        logger.info("[cardcom-user-webhook] suppressing therapist notification — Cardcom invoice exists", {
+          transactionId: transaction.id,
+        });
+      }
+    } catch {
+      // best-effort — אם הבדיקה כושלת, נשלח את המייל (טוב יותר רעש מאפס תיעוד).
+    }
+  }
+  if (shouldSendTherapistNotification && therapist?.email && transaction.payment) {
     const clientName = transaction.payment.client?.name ?? "מטופל";
     const amountStr = `₪${Number(transaction.amount).toLocaleString("he-IL")}`;
     const therapistName = therapist.name ?? "";

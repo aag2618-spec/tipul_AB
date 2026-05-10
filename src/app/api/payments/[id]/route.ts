@@ -1,5 +1,6 @@
 import { NextRequest, NextResponse } from "next/server";
 import prisma from "@/lib/prisma";
+import { Prisma } from "@prisma/client";
 import { addPartialPayment, markFullyPaid } from "@/lib/payment-service";
 import { logger } from "@/lib/logger";
 import { requireAuth } from "@/lib/api-auth";
@@ -76,7 +77,7 @@ export async function PUT(
 
     const { id } = await params;
     const body = await request.json();
-    const { status, method, notes, amount, creditUsed, issueReceipt, prepareCardcom } = body;
+    const { status, method, notes, amount, creditUsed, issueReceipt, prepareCardcom, paymentMode } = body;
 
     const scopeUser = await loadScopeUser(userId);
     const paymentWhere = buildPaymentWhere(scopeUser);
@@ -116,7 +117,18 @@ export async function PUT(
       }
       const existing = await prisma.payment.findFirst({
         where: { AND: [{ id }, paymentWhere] },
-        select: { id: true, status: true, expectedAmount: true, amount: true },
+        select: {
+          id: true,
+          status: true,
+          expectedAmount: true,
+          amount: true,
+          clientId: true,
+          sessionId: true,
+          notes: true,
+          organizationId: true,
+          method: true,
+          parentPaymentId: true,
+        },
       });
       if (!existing) {
         return NextResponse.json({ message: "תשלום לא נמצא" }, { status: 404 });
@@ -127,26 +139,21 @@ export async function PUT(
           { status: 409 }
         );
       }
-      // CRITICAL: לא לדרוס סכום מצטבר. אם payment.amount > 0 כבר נצברו
-      // תשלומים חלקיים (מזומן/בנק) → דריסה תאבד את ההיסטוריה ותשבור
-      // את חישוב החוב. עד שננתב partial-cardcom דרך addPartialPayment,
-      // חוסמים זאת ברמת ה-API (defense-in-depth מעל החסימה ב-UI).
-      const currentAmount = Number(existing.amount) || 0;
-      if (currentAmount > 0) {
-        return NextResponse.json(
-          {
-            message:
-              "כבר נרשמו תשלומים על חוב זה. סליקת אשראי על שארית טרם נתמכת.",
-          },
-          { status: 409 }
-        );
+      // ── NO-OP: כבר מוכן לסליקה ───────────────────────────────────
+      // ה-Payment כבר נוצר עם method=CREDIT_CARD והסכום הנכון
+      // (למשל ע״י createPaymentForSession ב-update-session-dialog flow,
+      // או ע״י prepareCardcom additive mode שיצר child). אין צורך
+      // לעדכן שוב — מחזירים את ה-Payment כפי שהוא, וה-flow ימשיך לסליקה.
+      if (
+        existing.method === "CREDIT_CARD" &&
+        Math.abs(Number(existing.amount) - Number(amount)) < 0.001
+      ) {
+        const updated = await prisma.payment.findUnique({
+          where: { id },
+          include: { client: true, session: true },
+        });
+        return NextResponse.json(serializePrisma(updated));
       }
-      // הגנה: לא לאפשר חיוב מעל הסכום המצופה.
-      // CRITICAL: אם expectedAmount <= 0, חוסמים את prepareCardcom לחלוטין
-      // (ולא רק "מדלגים על הבדיקה"). expectedAmount=0 משמעו תשלום בלי יעד
-      // מוגדר — לקוח מזויף יכול היה להעלות desired לכל סכום. כל מסלול
-      // שיוצר Payment דרך ה-UI מציב expectedAmount = amount או price,
-      // ולכן 0 הוא אינדיקציה לתשלום פגום או למניפולציה.
       const expected = Number(existing.expectedAmount) || 0;
       if (expected <= 0) {
         return NextResponse.json(
@@ -157,15 +164,104 @@ export async function PUT(
           { status: 409 }
         );
       }
-      if (desired > expected + 0.001) {
+      const currentAmount = Number(existing.amount) || 0;
+      const remaining = expected - currentAmount;
+      if (remaining < -0.001) {
         return NextResponse.json(
-          { message: `סכום החיוב חורג מהמצופה (₪${expected})` },
+          { message: `התשלום כבר שולם (סה"כ ₪${currentAmount} מתוך ₪${expected})` },
+          { status: 409 }
+        );
+      }
+      const maxChargeable = Math.max(0, remaining);
+      if (desired > maxChargeable + 0.001) {
+        return NextResponse.json(
+          { message: `סכום החיוב (₪${desired}) חורג מהיתרה לתשלום (₪${maxChargeable})` },
           { status: 400 }
         );
       }
-      // עוד הגנה: אם כבר קיים CardcomTransaction PENDING/APPROVED על
+
+      // ── ADDITIVE mode (השלמת חוב חלקי באשראי) ──────────────────
+      // אם כבר נצברו תשלומים על החוב (currentAmount > 0), אסור לדרוס את
+      // payment.amount כי זה ימחק את ההיסטוריה. במקום, יוצרים child
+      // Payment חדש שייצג את חיוב האשראי. ה-charge-cardcom והעובדה ש-
+      // ה-webhook יסמן את ה-child כ-PAID + יעדכן את ה-parent דרך
+      // bumpParentOnChildApproval (ראה webhooks/cardcom/user/route.ts).
+      if (currentAmount > 0) {
+        // ⚠️ Serializable: בדיקת in-flight + יצירת child חייבים להיות
+        // אטומיים. בלי זה, שני prepareCardcom מקבילים ייצרו 2 children
+        // PENDING — שניהם יסלקו, והתשלום יחויב כפול.
+        try {
+          const child = await prisma.$transaction(
+            async (tx) => {
+              const inFlightChildTx = await tx.cardcomTransaction.findFirst({
+                where: {
+                  payment: { parentPaymentId: id },
+                  tenant: "USER",
+                  status: { in: ["PENDING", "APPROVED"] },
+                },
+                select: { id: true, paymentId: true, status: true },
+              });
+              if (inFlightChildTx) {
+                throw new Error(
+                  inFlightChildTx.status === "APPROVED"
+                    ? "ALREADY_APPROVED"
+                    : "CHARGE_IN_PROGRESS"
+                );
+              }
+              return tx.payment.create({
+                data: {
+                  parentPaymentId: id,
+                  clientId: existing.clientId,
+                  // sessionId @unique — לא מעתיקים מ-parent.
+                  amount: desired,
+                  expectedAmount: desired,
+                  method: "CREDIT_CARD",
+                  status: "PENDING",
+                  paymentType: "PARTIAL",
+                  notes: existing.notes,
+                  organizationId: existing.organizationId,
+                },
+                include: { client: true, session: true },
+              });
+            },
+            { isolationLevel: Prisma.TransactionIsolationLevel.Serializable }
+          );
+          return NextResponse.json(
+            serializePrisma({ ...child, _additiveCompletion: true })
+          );
+        } catch (txErr) {
+          const msg = txErr instanceof Error ? txErr.message : String(txErr);
+          if (msg === "ALREADY_APPROVED") {
+            return NextResponse.json(
+              { message: "תשלום השלמה כבר אושר — נסי לרענן." },
+              { status: 409 }
+            );
+          }
+          if (msg === "CHARGE_IN_PROGRESS") {
+            return NextResponse.json(
+              {
+                message:
+                  "כבר קיים חיוב פתוח להשלמת תשלום זה. בטלי אותו לפני הכנה מחדש.",
+              },
+              { status: 409 }
+            );
+          }
+          if (
+            txErr instanceof Prisma.PrismaClientKnownRequestError &&
+            (txErr.code === "P2034" || txErr.code === "40001")
+          ) {
+            return NextResponse.json(
+              { message: "המערכת עמוסה — נסי שוב בעוד רגע" },
+              { status: 503 }
+            );
+          }
+          throw txErr;
+        }
+      }
+
+      // ── REPLACE mode (חוב טרי, אין תשלומים מצטברים) ────────────
+      // הגנה: אם כבר קיים CardcomTransaction PENDING/APPROVED על
       // ה-Payment הזה, אסור לשנות את הסכום מתחת לרגליו של חיוב פעיל.
-      // ה-charge-cardcom יחסום בעצמו, אבל עדיף להחזיר שגיאה ברורה כאן.
       const inFlightTx = await prisma.cardcomTransaction.findFirst({
         where: {
           paymentId: id,
@@ -185,12 +281,17 @@ export async function PUT(
           { status: 409 }
         );
       }
-      // Atomic update — ownership נבדק ב-WHERE, מונע race condition
+      // Atomic update — ownership נבדק ב-WHERE, מונע race condition.
+      // paymentType — לפי המצב הנוכחי: PARTIAL אם desired<expected (חיוב
+      // חלקי על חוב טרי, ה-webhook ישאיר PENDING), אחרת FULL.
+      const isPartialPayment =
+        paymentMode === "PARTIAL" || desired < expected - 0.001;
       const updateResult = await prisma.payment.updateMany({
         where: { AND: [{ id }, paymentWhere, { status: "PENDING" }] },
         data: {
           amount: desired,
           method: "CREDIT_CARD",
+          paymentType: isPartialPayment ? "PARTIAL" : "FULL",
         },
       });
       if (updateResult.count === 0) {
@@ -199,7 +300,6 @@ export async function PUT(
           { status: 404 }
         );
       }
-      // include client + session — frontend מצפה לזה (mark-paid page וכו')
       const updated = await prisma.payment.findUnique({
         where: { id },
         include: { client: true, session: true },
@@ -209,8 +309,15 @@ export async function PUT(
 
     // Adding a payment amount (partial or completing)
     if (amount !== undefined) {
+      // ⚠️ userId לקבלות חייב להיות של המטפל (בעל החיוב), לא של המבצע
+      // (כשמזכירה פועלת בשם המטפל). נטען את התשלום כדי לזהות את המטפל.
+      const ownerLookup = await prisma.payment.findFirst({
+        where: { id, ...buildPaymentWhere(scopeUser) },
+        select: { client: { select: { therapistId: true } } },
+      });
+      const billingUserId = ownerLookup?.client.therapistId ?? userId;
       const result = await addPartialPayment({
-        userId: userId,
+        userId: billingUserId,
         parentPaymentId: id,
         amount: Number(amount),
         method: method || "CASH",
@@ -240,8 +347,13 @@ export async function PUT(
 
     // Marking as fully paid (no specific amount)
     if (status === "PAID") {
+      const ownerLookupFull = await prisma.payment.findFirst({
+        where: { id, ...buildPaymentWhere(scopeUser) },
+        select: { client: { select: { therapistId: true } } },
+      });
+      const billingUserIdFull = ownerLookupFull?.client.therapistId ?? userId;
       const result = await markFullyPaid({
-        userId: userId,
+        userId: billingUserIdFull,
         paymentId: id,
         method: method || "CASH",
         issueReceipt,

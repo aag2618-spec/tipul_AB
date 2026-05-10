@@ -38,6 +38,8 @@ interface TodaySessionCardProps {
     client: {
       id: string;
       name: string;
+      email?: string | null;
+      phone?: string | null;
       creditBalance: number;
       totalDebt?: number;
       unpaidSessionsCount?: number;

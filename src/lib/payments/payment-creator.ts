@@ -1,9 +1,60 @@
 import prisma from "@/lib/prisma";
-import { type Prisma } from "@prisma/client";
+import { Prisma } from "@prisma/client";
 import { logger } from "@/lib/logger";
+
+// ──────────────────────────────────────────────────────────────────
+// withSerializableRetry — עוטף קריאת DB ב-Serializable עם retry על
+// כשלי serialization (P2034 / 40001). חיוני לזרמים שקוראים-ואז-כותבים
+// על אותה שורת parent (כמו addPartialPayment), כדי למנוע lost updates
+// כששתי קריאות מקבילות מעדכנות את `parent.amount`.
+// ──────────────────────────────────────────────────────────────────
+async function withSerializableRetry<T>(
+  fn: (tx: Prisma.TransactionClient) => Promise<T>,
+  max = 5,
+): Promise<T> {
+  for (let attempt = 0; attempt < max; attempt++) {
+    try {
+      return await prisma.$transaction(fn, {
+        isolationLevel: Prisma.TransactionIsolationLevel.Serializable,
+      });
+    } catch (e) {
+      if (
+        e instanceof Prisma.PrismaClientKnownRequestError &&
+        (e.code === "P2034" || e.code === "40001")
+      ) {
+        if (attempt === max - 1) throw e;
+        await new Promise((r) => setTimeout(r, 25 * (attempt + 1)));
+        continue;
+      }
+      throw e;
+    }
+  }
+  throw new Error("withSerializableRetry: unreachable");
+}
 import type { PaymentMethod, PaymentType, PaymentResult, PaymentStatus, ReceiptResult } from "./types";
-import { issueReceipt, sendPaymentReceiptEmail, buildReceiptDescription } from "./receipt-service";
+import {
+  issueReceipt,
+  sendPaymentReceiptEmail,
+  buildReceiptDescription,
+  isCardcomPrimary,
+} from "./receipt-service";
 import { buildClientWhere, buildPaymentWhere, type ScopeUser } from "@/lib/scope";
+
+// ──────────────────────────────────────────────────────────────────
+// resolveIssueReceipt — מדיניות אחידה לכל זרימות התשלום (cash/credit,
+// FULL/PARTIAL, completing existing/new):
+//   • Cardcom פעיל ⇒ TRUE (override של ה-checkbox; Cardcom חייב להפיק
+//     קבלה רשמית — זה החוק).
+//   • אחרת ⇒ ערך ה-checkbox (true/false). undefined מתקבל כ-true (תאימות
+//     לאחור — זרימות שלא מעבירות את השדה צריכות לקבל קבלה כברירת מחדל).
+// ──────────────────────────────────────────────────────────────────
+async function resolveIssueReceipt(
+  userId: string,
+  shouldIssueReceipt: boolean | undefined,
+): Promise<boolean> {
+  if (await isCardcomPrimary(userId)) return true;
+  return shouldIssueReceipt !== false;
+}
 
 // ================================================================
 // Helpers
@@ -55,10 +106,13 @@ export async function createPaymentForSession(params: {
   scopeUser?: ScopeUser;
   organizationId?: string | null;
 }): Promise<PaymentResult> {
+  // ⚠️ creditDeducted מוצהר מחוץ ל-try כדי שה-catch יוכל לבצע rollback.
+  let creditDeducted = 0;
+  let clientId = "";
   try {
     const {
       userId,
-      clientId,
+      clientId: clientIdParam,
       sessionId,
       amount,
       expectedAmount,
@@ -72,6 +126,8 @@ export async function createPaymentForSession(params: {
       organizationId: explicitOrganizationId,
     } = params;
 
+    clientId = clientIdParam;
+
     const organizationId = scopeUser
       ? scopeUser.organizationId
       : explicitOrganizationId ?? null;
@@ -84,9 +140,14 @@ export async function createPaymentForSession(params: {
     if (!client) return { success: false, error: "מטופל לא נמצא" };
 
     // Credit deduction
+    // ⚠️ זוהי הפחתה לפני יצירת ה-Payment בפועל. אם משהו אחרי הנקודה הזו
+    // יזרוק (DB / Cardcom / לוגיקה), הקרדיט נחתך מהלקוח אבל שום Payment
+    // לא נוצר. במקום זאת — עוקבים ב-`creditDeducted` ובמקרה כשל ב-catch
+    // אנו מחזירים את הקרדיט (best-effort rollback).
     if (creditUsed && creditUsed > 0) {
       const cr = await deductCredit(clientId, creditUsed);
       if (!cr.success) return { success: false, error: cr.error };
+      creditDeducted = creditUsed;
     }
 
     // Check for existing session payment
@@ -104,19 +165,64 @@ export async function createPaymentForSession(params: {
       const existingAmount = Number(existingPayment.amount);
       const expAmt = Number(existingPayment.expectedAmount) || expectedAmount;
 
-      if (existingAmount === 0 && paymentType !== "PARTIAL") {
+      // ── תשלום באשראי על partial קיים → child PENDING, parent untouched ──
+      // ה-Cardcom webhook יסמן את ה-child PAID + יעדכן את ה-parent דרך
+      // bumpParentOnChildApproval. עד אז: parent.amount נשאר על העבר,
+      // child PENDING מסמן את החיוב המתוכנן.
+      if (
+        existingAmount > 0 &&
+        method === "CREDIT_CARD" &&
+        requestedStatus === "PENDING"
+      ) {
+        childPayment = await prisma.payment.create({
+          data: {
+            parentPaymentId: existingPayment.id,
+            clientId,
+            amount,
+            expectedAmount: amount,
+            method: "CREDIT_CARD",
+            status: "PENDING",
+            paymentType: "PARTIAL",
+            notes: notes || null,
+            organizationId,
+          },
+        });
+        // החזרת ה-child כ-"payment" כדי שה-caller (update-session-dialog)
+        // יפתח את ChargeCardcomDialog עם ה-child.id (הוא זה שייכנס לסליקה).
+        payment = (await prisma.payment.findUnique({
+          where: { id: childPayment.id },
+          include: { client: true, session: true },
+        }))!;
+        // אין child notification, אין email — ה-webhook ינהל את כל זה.
+        return {
+          success: true,
+          payment,
+          childPayment: null,
+          receiptNumber: undefined,
+          receiptUrl: undefined,
+        };
+      }
+
+      if (existingAmount === 0) {
         // First actual payment on a zero-amount debt record — update directly.
+        // הענף תופס גם FULL וגם PARTIAL כש-amount=0 (טרם נצברו תשלומים).
+        // יצירת child PAID במצב כזה היא טעות — אין סיבה לפצל בעוד שאפשר
+        // פשוט להגדיר את ה-parent.
         // CRITICAL: בזרימת Cardcom המבקש שולח status="PENDING" כי הסליקה עדיין
         // לא בוצעה — ה-webhook יעדכן ל-PAID אחרי חיוב אמיתי. אם ניגזור PAID
         // מהשוואת amount==expected, נסמן את החוב כשולם בלי שום סליקה אמיתית.
         const finalStatus =
           requestedStatus || (amount >= expAmt ? "PAID" : "PENDING");
+        const finalPaymentType =
+          paymentType === "PARTIAL" || amount < expAmt - 0.001
+            ? "PARTIAL"
+            : paymentType;
         payment = await prisma.payment.update({
           where: { sessionId: sessionId! },
           data: {
             amount,
             expectedAmount: expAmt,
-            paymentType,
+            paymentType: finalPaymentType,
             method,
             status: finalStatus,
             paidAt: finalStatus === "PAID" ? new Date() : null,
@@ -125,32 +231,51 @@ export async function createPaymentForSession(params: {
           include: { client: true, session: true },
         });
       } else {
-        // Has existing amount OR paymentType is PARTIAL → create child
-        childPayment = await prisma.payment.create({
-          data: {
-            parentPaymentId: existingPayment.id,
-            clientId,
-            amount,
-            expectedAmount: amount,
-            method,
-            status: "PAID",
-            paidAt: new Date(),
-            paymentType: "PARTIAL",
-            organizationId,
-          },
+        // Has existing amount → create child + update parent atomically.
+        // ⚠️ Serializable + retry: בלי זה, שתי קריאות מקבילות יקראו אותו
+        // existingAmount ויכתבו amount שגוי (lost-update). מקביל בדיוק
+        // ל-addPartialPayment.
+        const txResult = await withSerializableRetry(async (tx) => {
+          const freshParent = await tx.payment.findUnique({
+            where: { id: existingPayment.id },
+            include: { client: true, session: true },
+          });
+          if (!freshParent) {
+            throw new Error("PARENT_DISAPPEARED");
+          }
+          const freshExisting = Number(freshParent.amount);
+          const freshExpected = Number(freshParent.expectedAmount) || expectedAmount;
+
+          const child = await tx.payment.create({
+            data: {
+              parentPaymentId: freshParent.id,
+              clientId,
+              amount,
+              expectedAmount: amount,
+              method,
+              status: "PAID",
+              paidAt: new Date(),
+              paymentType: "PARTIAL",
+              organizationId,
+            },
+          });
+          const newTotal = freshExisting + amount;
+          const finalStatus = newTotal >= freshExpected ? "PAID" : "PENDING";
+          const updated = await tx.payment.update({
+            where: { id: freshParent.id },
+            data: {
+              amount: newTotal,
+              status: finalStatus,
+              paymentType: finalStatus === "PAID" ? "FULL" : "PARTIAL",
+              paidAt:
+                finalStatus === "PAID" ? new Date() : freshParent.paidAt,
+            },
+            include: { client: true, session: true },
+          });
+          return { child, updated };
         });
-        const newTotal = existingAmount + amount;
-        const finalStatus = newTotal >= expAmt ? "PAID" : "PENDING";
-        payment = await prisma.payment.update({
-          where: { id: existingPayment.id },
-          data: {
-            amount: newTotal,
-            status: finalStatus,
-            paymentType: finalStatus === "PAID" ? "FULL" : "PARTIAL",
-            paidAt: finalStatus === "PAID" ? new Date() : existingPayment.paidAt,
-          },
-          include: { client: true, session: true },
-        });
+        childPayment = txResult.child;
+        payment = txResult.updated;
       }
     } else {
       // No existing payment — create new
@@ -178,19 +303,27 @@ export async function createPaymentForSession(params: {
       });
 
       if (isFirstPartial) {
-        childPayment = await prisma.payment.create({
-          data: {
-            parentPaymentId: payment.id,
-            clientId,
-            amount,
-            expectedAmount: amount,
-            method,
-            status: "PAID",
-            paidAt: new Date(),
-            paymentType: "PARTIAL",
-            organizationId,
-          },
-        });
+        // עבור CC PENDING (טרם סלק) — לא יוצרים child PAID זמני, כי
+        // ה-webhook לא מצפה לו ולא יעדכן אותו. ה-status של ה-parent יישאר
+        // PENDING; ה-webhook יחזיר PAID/PENDING לפי amount>=expectedAmount.
+        // עבור מזומן/בנק/צ'ק — יוצרים child PAID כרגיל (audit trail).
+        const isCardcomPending =
+          method === "CREDIT_CARD" && derivedStatus === "PENDING";
+        if (!isCardcomPending) {
+          childPayment = await prisma.payment.create({
+            data: {
+              parentPaymentId: payment.id,
+              clientId,
+              amount,
+              expectedAmount: amount,
+              method,
+              status: "PAID",
+              paidAt: new Date(),
+              paymentType: "PARTIAL",
+              organizationId,
+            },
+          });
+        }
       }
     }
 
@@ -233,9 +366,20 @@ export async function createPaymentForSession(params: {
       });
     }
 
-    // Receipt — issue for any actual payment (not just when parent is PAID)
+    // Receipt — issue for any actual payment (not just when parent is PAID).
+    // resolveIssueReceipt forces TRUE כש-Cardcom primary, גם אם המשתמש לא
+    // סימן "הוצא קבלה" — Cardcom חייב להפיק את המסמך הרשמי.
+    //
+    // EXCEPTION: כש-method=CREDIT_CARD + status=PENDING — לא להפיק כעת.
+    // ה-LowProfile של Cardcom יפיק Document אוטומטית בעת אישור הסליקה
+    // (דרך ה-webhook). הפקה נוספת כאן תיצור 2 מסמכים.
+    const isCardcomPendingFlow =
+      method === "CREDIT_CARD" && payment.status === "PENDING";
+    const effectiveIssueReceipt =
+      !isCardcomPendingFlow &&
+      (await resolveIssueReceipt(userId, shouldIssueReceipt));
     let receiptResult: ReceiptResult | null = null;
-    if (amount > 0 && shouldIssueReceipt !== false) {
+    if (amount > 0 && effectiveIssueReceipt) {
       const receiptPaymentId = childPayment ? childPayment.id : payment.id;
       const receiptAmount = childPayment ? amount : Number(payment.amount);
       const sessionRemaining = Number(payment.expectedAmount || 0) - Number(payment.amount);
@@ -274,6 +418,7 @@ export async function createPaymentForSession(params: {
         receiptUrl: receiptResult?.receiptUrl || null,
         receiptNumber: receiptResult?.receiptNumber || null,
         sessionRemainingAfterPayment: Math.max(0, sessionRemaining),
+        paymentId: payment.id,
       });
     }
 
@@ -287,6 +432,28 @@ export async function createPaymentForSession(params: {
     };
   } catch (error) {
     logger.error("createPaymentForSession error", { error: error instanceof Error ? error.message : String(error) });
+    // ⚠️ best-effort rollback של קרדיט שהוחתך לפני שהתרחש כשל. המשתנה
+    // creditDeducted מוגדר רק אם הצלחנו להפחית. בכשל החזרה — לוגים בלבד,
+    // לא לזרוק (אנו כבר ב-catch הראשי וחייבים להחזיר תשובת שגיאה ללקוח).
+    if (creditDeducted > 0) {
+      try {
+        await prisma.client.update({
+          where: { id: clientId },
+          data: { creditBalance: { increment: creditDeducted } },
+        });
+        logger.info("[createPaymentForSession] credit refunded after failure", {
+          clientId,
+          creditDeducted,
+        });
+      } catch (refundErr) {
+        logger.error("[createPaymentForSession] CRITICAL: credit deducted but refund failed", {
+          clientId,
+          creditDeducted,
+          originalError: error instanceof Error ? error.message : String(error),
+          refundError: refundErr instanceof Error ? refundErr.message : String(refundErr),
+        });
+      }
+    }
     return {
       success: false,
       error: error instanceof Error ? error.message : "שגיאה ביצירת התשלום",
@@ -328,66 +495,125 @@ export async function addPartialPayment(params: {
       ? { AND: [{ id: parentPaymentId }, buildPaymentWhere(scopeUser)] }
       : { id: parentPaymentId, client: { therapistId: userId } };
 
-    const existingPayment = await prisma.payment.findFirst({
-      where: paymentWhere,
-      include: { client: true, session: true },
-    });
-    if (!existingPayment)
-      return { success: false, error: "תשלום לא נמצא" };
+    // ⚠️ Serializable + retry: קריאת parent + יצירת child + עדכון
+    // parent.amount = existingAmount + amount חייבים להיות אטומיים.
+    // בלי זה, שני addPartialPayment מקבילים יקראו את אותו existingAmount
+    // ויכתבו amount שגוי (lost update).
+    let result;
+    try {
+      result = await withSerializableRetry(async (tx) => {
+        const existingPayment = await tx.payment.findFirst({
+          where: paymentWhere,
+          include: { client: true, session: true },
+        });
+        if (!existingPayment) {
+          return { kind: "not_found" as const };
+        }
 
+        const existingAmount = Number(existingPayment.amount);
+        const expectedAmount = Number(existingPayment.expectedAmount) || 0;
+
+        const childPayment = await tx.payment.create({
+          data: {
+            parentPaymentId,
+            clientId: existingPayment.clientId,
+            amount,
+            expectedAmount: amount,
+            method,
+            status: "PAID",
+            paidAt: new Date(),
+            paymentType: "PARTIAL",
+            organizationId: organizationId ?? existingPayment.organizationId ?? null,
+          },
+        });
+
+        const newTotal = existingAmount + amount;
+        const finalStatus = newTotal >= expectedAmount ? "PAID" : "PENDING";
+
+        const updatedParent = await tx.payment.update({
+          where: { id: parentPaymentId },
+          data: {
+            amount: newTotal,
+            status: finalStatus,
+            method,
+            paymentType: finalStatus === "PAID" ? "FULL" : "PARTIAL",
+            paidAt: finalStatus === "PAID" ? new Date() : existingPayment.paidAt,
+          },
+          include: { client: true, session: true },
+        });
+
+        if (finalStatus === "PAID") {
+          await tx.task.updateMany({
+            where: {
+              userId,
+              relatedEntityId: parentPaymentId,
+              type: "COLLECT_PAYMENT",
+              status: { in: ["PENDING", "IN_PROGRESS"] },
+            },
+            data: { status: "COMPLETED" },
+          });
+        }
+
+        return {
+          kind: "ok" as const,
+          existingPayment,
+          childPayment,
+          payment: updatedParent,
+          existingAmount,
+          expectedAmount,
+          newTotal,
+          finalStatus,
+        };
+      });
+    } catch (e) {
+      logger.error("[addPartialPayment] serializable transaction failed", {
+        parentPaymentId,
+        error: e instanceof Error ? e.message : String(e),
+      });
+      throw e;
+    }
+
+    if (result.kind === "not_found") {
+      return { success: false, error: "תשלום לא נמצא" };
+    }
+
+    const { existingPayment, childPayment, payment, expectedAmount, newTotal, finalStatus } =
+      result;
+
+    // ⚠️ deductCredit אחרי הטרנזקציה — אם נכשל, נחזיר rollback ידני
+    // ע"י ביטול ה-child שיצרנו. זה לא מושלם אטומית (שני TX), אבל עדיף
+    // על ניסיון להריץ את deductCredit בתוך Serializable שיכביד מאוד
+    // את הסיכוי לקונפליקטים על שורת ה-Client.
     if (creditUsed && creditUsed > 0) {
       const cr = await deductCredit(existingPayment.clientId, creditUsed);
-      if (!cr.success) return { success: false, error: cr.error };
+      if (!cr.success) {
+        try {
+          await prisma.payment.delete({ where: { id: childPayment.id } });
+          await prisma.payment.update({
+            where: { id: parentPaymentId },
+            data: {
+              amount: Number(existingPayment.amount),
+              status: existingPayment.status,
+              paymentType: existingPayment.paymentType,
+              method: existingPayment.method,
+              paidAt: existingPayment.paidAt,
+            },
+          });
+        } catch (rollbackErr) {
+          logger.error("[addPartialPayment] credit deduct failed and rollback failed", {
+            parentPaymentId,
+            childId: childPayment.id,
+            error: rollbackErr instanceof Error ? rollbackErr.message : String(rollbackErr),
+          });
+        }
+        return { success: false, error: cr.error };
+      }
     }
 
-    const existingAmount = Number(existingPayment.amount);
-    const expectedAmount = Number(existingPayment.expectedAmount) || 0;
-
-    // Always create child for partial payments — clear audit trail
-    const childPayment = await prisma.payment.create({
-      data: {
-        parentPaymentId,
-        clientId: existingPayment.clientId,
-        amount,
-        expectedAmount: amount,
-        method,
-        status: "PAID",
-        paidAt: new Date(),
-        paymentType: "PARTIAL",
-        organizationId: organizationId ?? existingPayment.organizationId ?? null,
-      },
-    });
-
-    const newTotal = existingAmount + amount;
-    const finalStatus = newTotal >= expectedAmount ? "PAID" : "PENDING";
-
-    const payment = await prisma.payment.update({
-      where: { id: parentPaymentId },
-      data: {
-        amount: newTotal,
-        status: finalStatus,
-        method,
-        paymentType: finalStatus === "PAID" ? "FULL" : "PARTIAL",
-        paidAt: finalStatus === "PAID" ? new Date() : existingPayment.paidAt,
-      },
-      include: { client: true, session: true },
-    });
-
-    if (finalStatus === "PAID") {
-      await prisma.task.updateMany({
-        where: {
-          userId,
-          relatedEntityId: parentPaymentId,
-          type: "COLLECT_PAYMENT",
-          status: { in: ["PENDING", "IN_PROGRESS"] },
-        },
-        data: { status: "COMPLETED" },
-      });
-    }
-
-    // Receipt on child payment (default: issue unless explicitly disabled)
+    // Receipt on child payment — Cardcom override (see resolveIssueReceipt).
+    const effectiveIssueReceipt = await resolveIssueReceipt(userId, shouldIssueReceipt);
     let receiptResult: ReceiptResult | null = null;
-    if (shouldIssueReceipt !== false) {
+    if (effectiveIssueReceipt) {
       const isStillPartial = newTotal < expectedAmount;
       receiptResult = await issueReceipt({
         userId,
@@ -420,6 +646,7 @@ export async function addPartialPayment(params: {
         receiptUrl: receiptResult?.receiptUrl || null,
         receiptNumber: receiptResult?.receiptNumber || null,
         sessionRemainingAfterPayment: sessionRemaining,
+        paymentId: payment.id,
       });
     }
 
@@ -472,65 +699,119 @@ export async function markFullyPaid(params: {
       ? { AND: [{ id: paymentId }, buildPaymentWhere(scopeUser)] }
       : { id: paymentId, client: { therapistId: userId } };
 
-    const existingPayment = await prisma.payment.findFirst({
-      where: paymentWhere,
-      include: { client: true, session: true },
-    });
-    if (!existingPayment)
-      return { success: false, error: "תשלום לא נמצא" };
+    // ⚠️ Serializable + retry: read existingPayment, create child (אם צריך),
+    // update parent — באטומיות. בלי זה: שני markFullyPaid מקבילים יוצרים
+    // 2 children (כל אחד עם remaining מלא לפי snapshot ישן) ועדכון parent
+    // לא עקבי. Identical race-class ל-addPartialPayment.
+    let result;
+    try {
+      result = await withSerializableRetry(async (tx) => {
+        const existingPayment = await tx.payment.findFirst({
+          where: paymentWhere,
+          include: { client: true, session: true },
+        });
+        if (!existingPayment) {
+          return { kind: "not_found" as const };
+        }
 
+        const existingAmount = Number(existingPayment.amount);
+        const expectedAmount = Number(existingPayment.expectedAmount) || 0;
+        const remaining = Math.max(0, expectedAmount - existingAmount);
+
+        let childPayment = null;
+        if (remaining > 0 && existingAmount > 0) {
+          childPayment = await tx.payment.create({
+            data: {
+              parentPaymentId: paymentId,
+              clientId: existingPayment.clientId,
+              amount: remaining,
+              expectedAmount: remaining,
+              method,
+              status: "PAID",
+              paidAt: new Date(),
+              paymentType: "FULL",
+              organizationId: organizationId ?? existingPayment.organizationId ?? null,
+            },
+          });
+        }
+
+        const payment = await tx.payment.update({
+          where: { id: paymentId },
+          data: {
+            amount: expectedAmount > 0 ? expectedAmount : existingAmount,
+            status: "PAID",
+            method,
+            paymentType: "FULL",
+            paidAt: new Date(),
+          },
+          include: { client: true, session: true },
+        });
+
+        await tx.task.updateMany({
+          where: {
+            userId,
+            relatedEntityId: paymentId,
+            type: "COLLECT_PAYMENT",
+            status: { in: ["PENDING", "IN_PROGRESS"] },
+          },
+          data: { status: "COMPLETED" },
+        });
+
+        return {
+          kind: "ok" as const,
+          existingPayment,
+          childPayment,
+          payment,
+          existingAmount,
+          expectedAmount,
+          remaining,
+        };
+      });
+    } catch (e) {
+      logger.error("[markFullyPaid] serializable transaction failed", {
+        paymentId,
+        error: e instanceof Error ? e.message : String(e),
+      });
+      throw e;
+    }
+
+    if (result.kind === "not_found") {
+      return { success: false, error: "תשלום לא נמצא" };
+    }
+    const { existingPayment, childPayment, payment, existingAmount, expectedAmount, remaining } =
+      result;
+
+    // deductCredit אחרי tx (כמו ב-addPartialPayment) — עם rollback ידני אם נכשל.
     if (creditUsed && creditUsed > 0) {
       const cr = await deductCredit(existingPayment.clientId, creditUsed);
-      if (!cr.success) return { success: false, error: cr.error };
+      if (!cr.success) {
+        try {
+          if (childPayment) {
+            await prisma.payment.delete({ where: { id: childPayment.id } });
+          }
+          await prisma.payment.update({
+            where: { id: paymentId },
+            data: {
+              amount: Number(existingPayment.amount),
+              status: existingPayment.status,
+              paymentType: existingPayment.paymentType,
+              method: existingPayment.method,
+              paidAt: existingPayment.paidAt,
+            },
+          });
+        } catch (rollbackErr) {
+          logger.error("[markFullyPaid] credit deduct failed and rollback failed", {
+            paymentId,
+            error: rollbackErr instanceof Error ? rollbackErr.message : String(rollbackErr),
+          });
+        }
+        return { success: false, error: cr.error };
+      }
     }
 
-    const existingAmount = Number(existingPayment.amount);
-    const expectedAmount = Number(existingPayment.expectedAmount) || 0;
-    const remaining = Math.max(0, expectedAmount - existingAmount);
-
-    let childPayment = null;
-
-    if (remaining > 0 && existingAmount > 0) {
-      // Has partial history → record final installment as child
-      childPayment = await prisma.payment.create({
-        data: {
-          parentPaymentId: paymentId,
-          clientId: existingPayment.clientId,
-          amount: remaining,
-          expectedAmount: remaining,
-          method,
-          status: "PAID",
-          paidAt: new Date(),
-          paymentType: "FULL",
-          organizationId: organizationId ?? existingPayment.organizationId ?? null,
-        },
-      });
-    }
-
-    const payment = await prisma.payment.update({
-      where: { id: paymentId },
-      data: {
-        amount: expectedAmount > 0 ? expectedAmount : existingAmount,
-        status: "PAID",
-        method,
-        paymentType: "FULL",
-        paidAt: new Date(),
-      },
-      include: { client: true, session: true },
-    });
-
-    await prisma.task.updateMany({
-      where: {
-        userId,
-        relatedEntityId: paymentId,
-        type: "COLLECT_PAYMENT",
-        status: { in: ["PENDING", "IN_PROGRESS"] },
-      },
-      data: { status: "COMPLETED" },
-    });
-
+    const effectiveIssueReceipt = await resolveIssueReceipt(userId, shouldIssueReceipt);
     let receiptResult: ReceiptResult | null = null;
-    if (shouldIssueReceipt !== false) {
+    if (effectiveIssueReceipt) {
       const receiptPaymentId = childPayment ? childPayment.id : paymentId;
       const receiptAmount = remaining > 0 ? remaining : expectedAmount || existingAmount;
       receiptResult = await issueReceipt({
@@ -563,6 +844,7 @@ export async function markFullyPaid(params: {
         receiptUrl: receiptResult?.receiptUrl || null,
         receiptNumber: receiptResult?.receiptNumber || null,
         sessionRemainingAfterPayment: 0,
+        paymentId: payment.id,
       });
     }
 

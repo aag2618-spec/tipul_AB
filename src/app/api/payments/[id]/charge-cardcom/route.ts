@@ -96,7 +96,14 @@ export async function POST(
     return NextResponse.json({ message: "התשלום כבר שולם" }, { status: 409 });
   }
 
-  const cardcomClient = await getUserCardcomClient(userId);
+  // ⚠️ billingUserId = המטפל בעל החיוב (תמיד מ-payment.client.therapistId).
+  // זה חיוני כשמזכירה (userId שונה) פועלת בשם המטפל — Cardcom client,
+  // הקבלה, ה-CardcomTransaction.userId ו-webhookUrl חייבים להיות של המטפל.
+  // userId נשמר בנפרד כ-actor ל-audit trail.
+  const billingUserId = payment.client.therapistId;
+  const isSecretaryActor = billingUserId !== userId;
+
+  const cardcomClient = await getUserCardcomClient(billingUserId);
   if (!cardcomClient) {
     return NextResponse.json(
       { message: "לא הוגדר מסוף Cardcom — יש לחבר אותו בהגדרות אינטגרציות חיוב" },
@@ -106,7 +113,7 @@ export async function POST(
 
   // Determine document type from therapist's businessType + accountingMethod
   const therapist = await prisma.user.findUnique({
-    where: { id: userId },
+    where: { id: billingUserId },
     select: {
       businessType: true,
       businessIdNumber: true,
@@ -129,11 +136,16 @@ export async function POST(
         type: "SYSTEM",
         priority: "HIGH",
         status: "PENDING",
-        title: `[cardcom] חיוב נחסם — חסר ת.ז./מספר עוסק אצל ${therapist.name ?? userId}`,
+        title: `[cardcom] חיוב נחסם — חסר ת.ז./מספר עוסק אצל ${therapist.name ?? billingUserId}`,
         message: `מטפל מסוג ${therapist.businessType} ניסה ליצור דף תשלום בלי שהוזן businessIdNumber. הקריאה נחסמה כדי למנוע הנפקת מסמך לא חוקי.`,
         actionRequired: "פנה למטפל ובקש להזין ת.ז./מספר עוסק בהגדרות העסק",
-        userId,
-        metadata: { paymentId, therapistId: userId, businessType: therapist.businessType },
+        userId: billingUserId,
+        metadata: {
+          paymentId,
+          therapistId: billingUserId,
+          businessType: therapist.businessType,
+          ...(isSecretaryActor ? { actorUserId: userId } : {}),
+        },
       },
     });
     return NextResponse.json(
@@ -215,7 +227,7 @@ export async function POST(
           return tx.cardcomTransaction.create({
             data: {
               tenant: "USER",
-              userId,
+              userId: billingUserId,
               paymentId: payment.id,
               amount: payment.amount,
               currency: "ILS",
@@ -266,7 +278,7 @@ export async function POST(
           body.successRedirectUrl ?? `${baseUrl}/p/thanks?t=${transaction.id}`,
         failedRedirectUrl:
           body.failedRedirectUrl ?? `${baseUrl}/p/failed?t=${transaction.id}`,
-        webhookUrl: `${baseUrl}/api/webhooks/cardcom/user?userId=${userId}`,
+        webhookUrl: `${baseUrl}/api/webhooks/cardcom/user?userId=${billingUserId}`,
         createToken: !!body.createToken,
         numOfPayments,
         language: "he",
@@ -341,6 +353,8 @@ export async function POST(
           clientId: payment.clientId,
           numOfPayments,
           transactionId: transaction.id,
+          billingUserId,
+          ...(isSecretaryActor ? { actorUserId: userId } : {}),
         },
       },
       async (tx) => {

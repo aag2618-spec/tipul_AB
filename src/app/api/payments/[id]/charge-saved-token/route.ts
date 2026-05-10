@@ -127,6 +127,74 @@ export async function POST(
   }
   // ⚠️ Defensive: amount must be positive. Cardcom may accept 0/negative
   // depending on acquirer, leading to bizarre receipts.
+  if (Number(payment.amount) <= 0 && Number(payment.expectedAmount) <= 0) {
+    return NextResponse.json(
+      { message: "סכום התשלום חייב להיות גדול מאפס" },
+      { status: 400 }
+    );
+  }
+
+  // ── Additive partial: charge ONLY the remainder, never the full ─
+  // אם ה-Payment הוא parent חלקי (אצלו `amount > 0` ו-`expectedAmount > amount`)
+  // זה אומר שכבר התקבל תשלום חלקי (למשל מזומן) ועכשיו מחייבים אשראי על
+  // היתרה. אם נחייב לפי `payment.amount` נחייב את מה שכבר שולם, וזה כמובן
+  // שגוי. במקום זאת — יוצרים child PENDING בסכום היתרה (כמו ב-prepareCardcom
+  // ADDITIVE), ומבצעים את כל הסליקה על ה-child. ההורה יעודכן ע"י ה-bump
+  // ב-webhook/finalize בהצלחה. אין שינוי לזרמי FULL רגילים.
+  const _existingAmount = Number(payment.amount);
+  const _expectedAmount = Number(payment.expectedAmount) || 0;
+  const _isAdditiveParent =
+    !payment.parentPaymentId &&
+    _existingAmount > 0 &&
+    _expectedAmount > _existingAmount + 0.001;
+  if (_isAdditiveParent) {
+    const remainder = Math.max(0, _expectedAmount - _existingAmount);
+    if (remainder <= 0) {
+      return NextResponse.json(
+        { message: "אין יתרה לחיוב" },
+        { status: 409 }
+      );
+    }
+    try {
+      // ⚠️ Payment.sessionId הוא @unique — אסור להעתיק את ה-sessionId
+      // של ה-parent ל-child (יזרוק unique-violation). ה-parent לבדו
+      // משוייך ל-session; ה-child קשור ל-parent דרך parentPaymentId.
+      // דפוס זהה ל-prepareCardcom additive ב-/api/payments/[id]/route.ts.
+      const child = await prisma.payment.create({
+        data: {
+          parentPaymentId: payment.id,
+          clientId: payment.clientId,
+          amount: remainder,
+          expectedAmount: remainder,
+          method: "CREDIT_CARD",
+          status: "PENDING",
+          paymentType: "PARTIAL",
+          notes: payment.notes ?? null,
+          currency: payment.currency,
+          organizationId: payment.organizationId ?? null,
+        },
+        include: {
+          client: { select: { id: true, name: true, therapistId: true } },
+        },
+      });
+      logger.info("[user/charge-saved-token] additive child created for remainder", {
+        parentId: payment.id,
+        childId: child.id,
+        remainder,
+      });
+      payment = child;
+    } catch (createErr) {
+      logger.error("[user/charge-saved-token] additive child create failed", {
+        parentId: payment.id,
+        error: createErr instanceof Error ? createErr.message : String(createErr),
+      });
+      return NextResponse.json(
+        { message: "יצירת תשלום משלים נכשלה" },
+        { status: 500 }
+      );
+    }
+  }
+
   if (Number(payment.amount) <= 0) {
     return NextResponse.json(
       { message: "סכום התשלום חייב להיות גדול מאפס" },
@@ -466,13 +534,22 @@ export async function POST(
         });
         // עדכון Payment עם receiptNumber/hasReceipt/receiptUrl רק אם Cardcom
         // החזיר DocumentInfo. אם Cardcom חייב בהצלחה אך לא הפיק מסמך —
-        // נסמן את התשלום כ-PAID (החיוב אכן בוצע, אסור להחזיר את הכסף),
-        // ונייצר AdminAlert URGENT כדי שהמטפל יפיק קבלה ידנית.
+        // נסמן את התשלום (לפי partial-aware: PAID אם amount>=expected, אחרת
+        // PENDING) ונייצר AdminAlert URGENT כדי שהמטפל יפיק קבלה ידנית.
+        //
+        // partial-aware: אם payment.amount<expectedAmount → status=PENDING.
+        // עקבי עם ה-Cardcom user webhook (ראה src/app/api/webhooks/cardcom/
+        // user/route.ts:498-525). חיוב באשראי על חוב חלקי ב-charge-saved-token
+        // משאיר את ה-Payment ב-PENDING עם amount מצטבר ללא דריסה.
+        const paymentExpected = Number(payment.expectedAmount) || 0;
+        const paymentAmount = Number(payment.amount);
+        const isFullyCovered = paymentAmount >= paymentExpected - 0.001;
+        const finalStatus = isFullyCovered ? "PAID" : "PENDING";
         await tx.payment.update({
           where: { id: payment.id },
           data: {
-            status: "PAID",
-            paidAt: completedAt,
+            status: finalStatus,
+            paidAt: finalStatus === "PAID" ? completedAt : null,
             method: "CREDIT_CARD",
             ...(cardcomResult.documentNumber
               ? {
@@ -483,6 +560,45 @@ export async function POST(
               : {}),
           },
         });
+
+        // ── parent bump (additive completion via saved-token) ──────
+        // אם ה-Payment הזה הוא child של parent עם תשלום מצטבר — סוכמים
+        // ל-parent. עקבי עם הלוגיקה ב-Cardcom user webhook. ה-parent
+        // מקבל את הסכום של ה-child + status נכון לפי total>=expected.
+        if (payment.parentPaymentId) {
+          const parent = await tx.payment.findUnique({
+            where: { id: payment.parentPaymentId },
+            select: { amount: true, expectedAmount: true, paidAt: true },
+          });
+          if (parent) {
+            const parentExpected = Number(parent.expectedAmount) || 0;
+            const newTotal = Number(parent.amount) + paymentAmount;
+            const parentFullyPaid = newTotal >= parentExpected - 0.001;
+            await tx.payment.update({
+              where: { id: payment.parentPaymentId },
+              data: {
+                amount: newTotal,
+                status: parentFullyPaid ? "PAID" : "PENDING",
+                paymentType: parentFullyPaid ? "FULL" : "PARTIAL",
+                method: "CREDIT_CARD",
+                paidAt: parentFullyPaid
+                  ? (parent.paidAt ?? completedAt)
+                  : null,
+              },
+            });
+            if (parentFullyPaid) {
+              await tx.task.updateMany({
+                where: {
+                  userId: chargingTherapistId,
+                  relatedEntityId: payment.parentPaymentId,
+                  type: "COLLECT_PAYMENT",
+                  status: { in: ["PENDING", "IN_PROGRESS"] },
+                },
+                data: { status: "COMPLETED" },
+              });
+            }
+          }
+        }
         await tx.savedCardToken.update({
           where: { id: savedToken.id },
           data: { lastUsedAt: completedAt },

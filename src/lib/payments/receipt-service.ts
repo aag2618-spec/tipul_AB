@@ -11,6 +11,47 @@ import type { PaymentMethod, ReceiptResult } from "./types";
 import { EXCLUDE_BULK_UMBRELLA_WHERE } from "./types";
 
 // ================================================================
+// isCardcomPrimary — מדיניות מרכזית: האם Cardcom הוא ספק הקבלות הראשי
+// ================================================================
+//
+// Cardcom הוא חברת הפקת חשבוניות מוסמכת — מספרי הקבלה שלהם רשומים במערך
+// חשבוניות ישראל ולכן הם המסמך המשפטי. כשהוא מחובר:
+//   1. הקבלה מופקת תמיד דרכו (ללא תלות ב-checkbox "הוצא קבלה" — זה החוק).
+//   2. המייל שולח ע"י Cardcom (לא ע"י MyTipul) — אסור לשלוח מייל פנימי
+//      כי זה יוצר רושם של 2 קבלות שונות.
+//
+// In-process cache קצר (5 שניות) — בקשת תשלום אחת קוראת ל-helper הזה
+// 2-3 פעמים (issueReceipt + payment-creator + sendPaymentReceiptEmail).
+// בלי cache זה 3 SELECTs רצופים על אותו הוא BillingProvider. cache קצר
+// כי שינויי מדיניות (כיבוי/הפעלת ספק) לא צריכים לחכות לדקה.
+const CARDCOM_PRIMARY_CACHE_TTL_MS = 5_000;
+const cardcomPrimaryCache = new Map<string, { value: boolean; expiresAt: number }>();
+
+export async function isCardcomPrimary(userId: string): Promise<boolean> {
+  const cached = cardcomPrimaryCache.get(userId);
+  if (cached && cached.expiresAt > Date.now()) return cached.value;
+  try {
+    const primary = await prisma.billingProvider.findFirst({
+      where: { userId, isActive: true },
+      orderBy: [{ isPrimary: "desc" }, { createdAt: "asc" }],
+      select: { provider: true },
+    });
+    const value = primary?.provider === "CARDCOM";
+    cardcomPrimaryCache.set(userId, {
+      value,
+      expiresAt: Date.now() + CARDCOM_PRIMARY_CACHE_TTL_MS,
+    });
+    return value;
+  } catch (err) {
+    logger.warn("[isCardcomPrimary] DB lookup failed — assuming false", {
+      userId,
+      error: err instanceof Error ? err.message : String(err),
+    });
+    return false;
+  }
+}
+
+// ================================================================
 // issueReceipt
 // ================================================================
 
@@ -147,22 +188,7 @@ export async function issueReceipt(params: {
   // (EXEMPT or LICENSED) when Cardcom is the primary BillingProvider. Cardcom
   // is a חברת הפקת חשבוניות מוסמכת — their numbering is registered with מערך
   // חשבוניות ישראל, so the receipt is the legal document.
-  let cardcomIsPrimary = false;
-  try {
-    const primary = await prisma.billingProvider.findFirst({
-      where: {
-        userId: params.userId,
-        isActive: true,
-      },
-      orderBy: [{ isPrimary: "desc" }, { createdAt: "asc" }],
-      select: { provider: true },
-    });
-    cardcomIsPrimary = primary?.provider === "CARDCOM";
-  } catch (err) {
-    logger.warn("[issueReceipt] failed to load primary BillingProvider — falling back", {
-      error: err instanceof Error ? err.message : String(err),
-    });
-  }
+  const cardcomIsPrimary = await isCardcomPrimary(params.userId);
 
   if (cardcomIsPrimary) {
     const billingService = createBillingService(params.userId);
@@ -176,7 +202,11 @@ export async function issueReceipt(params: {
         description: params.description,
         paymentMethod: mapPaymentMethod(params.method),
         paymentId: params.paymentId,
-        sendEmail: false,
+        // CHANGED — לפי המדיניות החדשה: כש-Cardcom הוא הספק הראשי, Cardcom
+        // הוא המנפיק החוקי וצריך לשלוח את הקבלה ללקוח ישירות (בלי שאנחנו
+        // נשלח מייל פנימי כפול). אם אין מייל ללקוח Cardcom פשוט יחזיר
+        // בלי לשלוח — זה לא מפיל את ההפקה.
+        sendEmail: !!params.clientEmail,
       });
     } catch (err) {
       logger.error("[issueReceipt] Cardcom call threw", {
@@ -387,8 +417,137 @@ export async function sendPaymentReceiptEmail(params: {
   receiptUrl?: string | null;
   receiptNumber?: string | null;
   sessionRemainingAfterPayment?: number;
+  // אופציונלי — paymentId של ה-Payment הספציפי. כש-מועבר, ה-skip של
+  // מייל פנימי מתבצע באופן context-aware: רק אם ל-Payment הזה כבר נוצר
+  // CardcomInvoice (Cardcom שלח/ישלח קבלה משלו), או שזה זרם CC LowProfile
+  // עם Cardcom primary (Cardcom ישלח אחרי ה-webhook). אם paymentId לא
+  // מועבר — fallback ל-skip-by-primary (שמרני, מתאים לקריאות ישירות
+  // שאינן קשורות ל-Payment ספציפי).
+  paymentId?: string | null;
 }): Promise<void> {
   try {
+    // ── מדיניות: skip מייל פנימי רק כשבטוח שצד שלישי (Cardcom) שלח ──────
+    // Cardcom (כשהוא primary ויש לו CardcomInvoice לתשלום) שולח קבלה
+    // רשמית עם מייל ללקוח. שליחת מייל פנימי במקביל יוצרת 2 הודעות מבלבלות.
+    //
+    // החלטה (context-aware):
+    //   • יש CardcomInvoice לתשלום הזה (parent או child) → skip; Cardcom
+    //     ישלח/שלח את הקבלה.
+    //   • method=CREDIT_CARD + Cardcom primary + אין עדיין CardcomInvoice →
+    //     זרם LowProfile pending; Cardcom יפיק/ישלח אחרי ה-webhook → skip.
+    //   • כל מקרה אחר (cash/check/bank_transfer ללא CardcomInvoice, או
+    //     CC דרך ספק אחר כמו Meshulam) → לא לדלג; שולחים מייל פנימי.
+    //     זה מבטיח שהלקוח תמיד מקבל הודעת אישור על תשלום שלו, גם אם
+    //     הפקת המסמך נכשלה ב-Cardcom או שהתשלום עבר דרך ספק שאינו שולח מייל.
+    //
+    // קלט paymentId מאפשר לבדוק CardcomInvoice של ה-Payment הספציפי. אם
+    // לא הועבר (call sites ישנים) — fallback שמרני: skip אם Cardcom primary,
+    // כדי לא לשבור את ההתנהגות הקיימת. כל call sites פעילים מעבירים
+    // paymentId ולכן fallback זה כמעט לא נתפס.
+    const cardcomPrimaryUser = await isCardcomPrimary(params.userId);
+    if (cardcomPrimaryUser) {
+      let shouldSkip = false;
+      if (params.paymentId) {
+        try {
+          // ── זיהוי האם Cardcom הוא הספק *בפועל* לתשלום הזה ──────────
+          // Cardcom primary לבד לא מספיק: המטפל יכול להיות מחובר לכמה
+          // ספקים (Meshulam/Sumit) במקביל, ותשלום נתון יכול לעבור דרך כל
+          // אחד מהם. אנחנו מדלגים על המייל הפנימי רק אם ראיות בקוד מראות
+          // ש-Cardcom הוא המנפיק / המעבד של התשלום הזה.
+          //
+          // ראיה 1 — CardcomInvoice ישיר על ה-paymentId / parent / children.
+          // ראיה 2 — CardcomInvoice של Umbrella ב-bulk: ה-distribute מעתיק
+          //          receiptNumber ל-children, ולכן payment.receiptNumber
+          //          תואם ל-cardcomDocumentNumber של ה-Umbrella.
+          // ראיה 3 — CardcomTransaction ישיר (LowProfile pending לפני webhook).
+          //
+          // Meshulam/Sumit-CC לא יצרו אף אחד מאלה → shouldSkip=false →
+          // הלקוח מקבל את מייל ה-MyTipul הרגיל (אישור תשלום).
+          const payment = await prisma.payment.findUnique({
+            where: { id: params.paymentId },
+            select: {
+              id: true,
+              receiptNumber: true,
+              parentPaymentId: true,
+              childPayments: {
+                select: { id: true, receiptNumber: true },
+              },
+              parentPayment: {
+                select: { id: true, receiptNumber: true },
+              },
+            },
+          });
+
+          const idsToCheck = new Set<string>([params.paymentId]);
+          const receiptNumbers = new Set<string>();
+          if (payment?.receiptNumber) receiptNumbers.add(payment.receiptNumber);
+          if (payment?.parentPayment) {
+            idsToCheck.add(payment.parentPayment.id);
+            if (payment.parentPayment.receiptNumber) {
+              receiptNumbers.add(payment.parentPayment.receiptNumber);
+            }
+          }
+          if (payment?.childPayments) {
+            for (const c of payment.childPayments) {
+              idsToCheck.add(c.id);
+              if (c.receiptNumber) receiptNumbers.add(c.receiptNumber);
+            }
+          }
+
+          // ראיה 1+2 במכה אחת: או paymentId ישיר, או documentNumber של ה-Umbrella.
+          const orFilters: Array<Record<string, unknown>> = [
+            { paymentId: { in: Array.from(idsToCheck) } },
+          ];
+          if (receiptNumbers.size > 0) {
+            orFilters.push({
+              cardcomDocumentNumber: { in: Array.from(receiptNumbers) },
+            });
+          }
+          const cardcomInvoice = await prisma.cardcomInvoice.findFirst({
+            where: { OR: orFilters },
+            select: { id: true },
+          });
+
+          if (cardcomInvoice) {
+            shouldSkip = true;
+          } else if (params.method === "CREDIT_CARD") {
+            // CC + אין CardcomInvoice → ייתכן זרם Cardcom Low-Profile
+            // pending (webhook עוד לא הגיע) או ספק CC אחר (Meshulam/Sumit).
+            // נבדוק CardcomTransaction להבחין: יש ⇒ Cardcom יפיק וישלח
+            // אחרי webhook. אין ⇒ ספק אחר ⇒ שולחים מייל פנימי כרגיל.
+            const cardcomTx = await prisma.cardcomTransaction.findFirst({
+              where: { paymentId: { in: Array.from(idsToCheck) } },
+              select: { id: true },
+            });
+            shouldSkip = !!cardcomTx;
+          } else {
+            // Cash/check/transfer/Meshulam-CC בלי CardcomInvoice →
+            // לא Cardcom הוא המעבד. שולחים מייל פנימי כדי שהלקוח יקבל
+            // הודעת אישור גם כש-issueReceipt נכשל ב-Cardcom או שהתשלום
+            // עבר דרך ספק אחר.
+            shouldSkip = false;
+          }
+        } catch (lookupErr) {
+          logger.warn("[sendPaymentReceiptEmail] Cardcom evidence lookup failed — sending email", {
+            paymentId: params.paymentId,
+            error: lookupErr instanceof Error ? lookupErr.message : String(lookupErr),
+          });
+          shouldSkip = false;
+        }
+      } else {
+        // אין paymentId — fallback שמרני (התנהגות מקורית: skip ל-Cardcom primary).
+        shouldSkip = true;
+      }
+      if (shouldSkip) {
+        logger.info("[sendPaymentReceiptEmail] skipped — Cardcom is the actual provider", {
+          userId: params.userId,
+          clientId: params.clientId,
+          paymentId: params.paymentId,
+        });
+        return;
+      }
+    }
+
     const commSettings = await prisma.communicationSetting.findUnique({
       where: { userId: params.userId },
     });
@@ -547,6 +706,7 @@ export async function notifyBulkClients(
         receiptUrl: child?.receiptUrl ?? parent.receiptUrl,
         receiptNumber: child?.receiptNumber ?? parent.receiptNumber,
         sessionRemainingAfterPayment: sessionRemaining,
+        paymentId: item.childId ?? item.parentId,
       });
     } catch (err) {
       logger.error("[notifyBulkClients] failed for one child", {
@@ -590,6 +750,7 @@ export async function completeWebhookPayment(paymentId: string): Promise<void> {
       session: payment.session,
       receiptUrl: payment.receiptUrl,
       receiptNumber: payment.receiptNumber,
+      paymentId: payment.id,
     }).catch(err => logger.error("Webhook receipt email failed", { error: err instanceof Error ? err.message : String(err) }));
 
     // 2. Complete COLLECT_PAYMENT task if this payment is now fully paid

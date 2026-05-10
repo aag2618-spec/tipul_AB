@@ -112,11 +112,15 @@ export async function POST(request: NextRequest) {
   const clientWhere = buildClientWhere(scopeUser);
   const client = await prisma.client.findFirst({
     where: { AND: [{ id: clientId }, clientWhere] },
-    select: { id: true, name: true, email: true },
+    select: { id: true, name: true, email: true, therapistId: true },
   });
   if (!client) {
     return NextResponse.json({ message: "מטופל לא נמצא" }, { status: 404 });
   }
+  // ⚠️ billingUserId = המטפל בעל הלקוח. כל קריאות Cardcom (מסוף, transaction.userId,
+  // webhookUrl, ולידציות עוסק) חייבות להיות עליו ולא על המבצע (מזכירה).
+  const billingUserId = client.therapistId;
+  const isSecretaryActor = billingUserId !== userId;
 
   const paymentWhere = buildPaymentWhere(scopeUser);
   const payments = await prisma.payment.findMany({
@@ -185,7 +189,7 @@ export async function POST(request: NextRequest) {
     );
   }
 
-  const cardcomClient = await getUserCardcomClient(userId);
+  const cardcomClient = await getUserCardcomClient(billingUserId);
   if (!cardcomClient) {
     return NextResponse.json(
       { message: "לא הוגדר מסוף Cardcom — יש לחבר אותו בהגדרות אינטגרציות חיוב" },
@@ -195,7 +199,7 @@ export async function POST(request: NextRequest) {
 
   // ולידציה משפטית — ת.ז./מספר עוסק חובה ל-LICENSED/EXEMPT (ראה charge-cardcom).
   const therapist = await prisma.user.findUnique({
-    where: { id: userId },
+    where: { id: billingUserId },
     select: {
       businessType: true,
       businessIdNumber: true,
@@ -214,11 +218,16 @@ export async function POST(request: NextRequest) {
         type: "SYSTEM",
         priority: "HIGH",
         status: "PENDING",
-        title: `[cardcom-bulk] חיוב נחסם — חסר ת.ז./מספר עוסק אצל ${therapist.name ?? userId}`,
+        title: `[cardcom-bulk] חיוב נחסם — חסר ת.ז./מספר עוסק אצל ${therapist.name ?? billingUserId}`,
         message: `מטפל מסוג ${therapist.businessType} ניסה ליצור דף תשלום מצרפי בלי businessIdNumber. נחסם.`,
         actionRequired: "פנה למטפל ובקש להזין ת.ז./מספר עוסק בהגדרות העסק",
-        userId,
-        metadata: { paymentIds, therapistId: userId, businessType: therapist.businessType },
+        userId: billingUserId,
+        metadata: {
+          paymentIds,
+          therapistId: billingUserId,
+          businessType: therapist.businessType,
+          ...(isSecretaryActor ? { actorUserId: userId } : {}),
+        },
       },
     });
     return NextResponse.json(
@@ -313,7 +322,7 @@ export async function POST(request: NextRequest) {
           const tx_ = await tx.cardcomTransaction.create({
             data: {
               tenant: "USER",
-              userId,
+              userId: billingUserId,
               paymentId: umb.id,
               bulkPaymentIds: paymentIds,
               amount: totalAmount,
@@ -360,7 +369,7 @@ export async function POST(request: NextRequest) {
           body.successRedirectUrl ?? `${baseUrl}/p/thanks?t=${transaction.id}`,
         failedRedirectUrl:
           body.failedRedirectUrl ?? `${baseUrl}/p/failed?t=${transaction.id}`,
-        webhookUrl: `${baseUrl}/api/webhooks/cardcom/user?userId=${userId}`,
+        webhookUrl: `${baseUrl}/api/webhooks/cardcom/user?userId=${billingUserId}`,
         createToken: !!body.createToken,
         numOfPayments,
         language: "he",

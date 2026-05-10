@@ -1,6 +1,6 @@
 "use client";
 
-import { useState, useEffect, use } from "react";
+import { useState, useEffect, use, useRef } from "react";
 import { useRouter } from "next/navigation";
 import Link from "next/link";
 import { Button } from "@/components/ui/button";
@@ -23,7 +23,13 @@ interface Payment {
   status: string;
   notes: string | null;
   createdAt: string;
-  client: { id: string; name: string; creditBalance: number };
+  client: {
+    id: string;
+    name: string;
+    email?: string | null;
+    phone?: string | null;
+    creditBalance: number;
+  };
 }
 
 interface ClientDebtInfo {
@@ -50,6 +56,10 @@ export default function MarkPaidPage({ params }: { params: Promise<{ id: string 
   // ── Cardcom flow state ────────────────────────────────────
   const [cardcomOpen, setCardcomOpen] = useState(false);
   const [cardcomAmount, setCardcomAmount] = useState<number>(0);
+  // המזהה שעליו מבצעים את הסליקה: יכול להיות ה-Payment המקורי (REPLACE,
+  // כשעוד אין תשלומים על החוב) או child חדש שנוצר ע"י prepareCardcom
+  // ב-ADDITIVE mode (כשמשלימים יתרה אחרי תשלום חלקי במזומן/בנק/צ'ק).
+  const [cardcomChargeOnPaymentId, setCardcomChargeOnPaymentId] = useState<string>("");
 
   useEffect(() => {
     const fetchPayment = async () => {
@@ -95,129 +105,130 @@ export default function MarkPaidPage({ params }: { params: Promise<{ id: string 
       .catch(() => {});
   }, []);
 
+  // ── inFlightRef: מונע double-submit על handleMarkPaid (במיוחד ל-CC זרם
+  // שעובר prepareCardcom + ChargeCardcomDialog). isSaving לבד לא מספיק כי
+  // setState אסינכרוני; שני קליקים תוך מסגרת render זהה רואים isSaving=false
+  // ושניהם מבצעים POST → 2 children מיותרים, חיוב כפול. ref מסונכרן.
+  const inFlightRef = useRef(false);
+
   const handleMarkPaid = async () => {
     if (!payment) return;
-    
-    const debtAmount = Number(payment.expectedAmount) - Number(payment.amount);
-    let amountToPay = paymentMode === "FULL" ? debtAmount : (parseFloat(partialAmount) || 0);
-    
-    if (paymentMode === "PARTIAL" && (amountToPay <= 0 || amountToPay > debtAmount)) {
-      toast.error("סכום חלקי לא תקין");
-      return;
-    }
+    if (inFlightRef.current) return;
+    inFlightRef.current = true;
+    try {
+      const debtAmount = Number(payment.expectedAmount) - Number(payment.amount);
+      let amountToPay = paymentMode === "FULL" ? debtAmount : (parseFloat(partialAmount) || 0);
 
-    const safeCredit = Number(payment.client.creditBalance) || 0;
-    let creditUsed = 0;
-    
-    if (useCredit && safeCredit > 0) {
-      creditUsed = Math.min(amountToPay, safeCredit);
-      amountToPay = amountToPay - creditUsed;
-    }
+      if (paymentMode === "PARTIAL" && (amountToPay <= 0 || amountToPay > debtAmount)) {
+        toast.error("סכום חלקי לא תקין");
+        return;
+      }
 
-    // ── Cardcom intercept ──────────────────────────────────────
-    // אם נבחר אשראי — לא רושמים PAID ידנית; מכינים את ה-Payment הקיים
-    // (prepareCardcom) ופותחים את ChargeCardcomDialog לסליקה אמיתית.
-    if (method === "CREDIT_CARD") {
-      if (useCredit && creditUsed > 0) {
-        toast.error("לא ניתן לשלב שימוש בקרדיט עם חיוב באשראי. בטלי את השימוש בקרדיט.");
+      const safeCredit = Number(payment.client.creditBalance) || 0;
+      let creditUsed = 0;
+
+      if (useCredit && safeCredit > 0) {
+        creditUsed = Math.min(amountToPay, safeCredit);
+        amountToPay = amountToPay - creditUsed;
+      }
+
+      // ── Cardcom intercept ──────────────────────────────────────
+      // אם נבחר אשראי — לא רושמים PAID ידנית; מכינים את ה-Payment הקיים
+      // (prepareCardcom) ופותחים את ChargeCardcomDialog לסליקה אמיתית.
+      if (method === "CREDIT_CARD") {
+        if (useCredit && creditUsed > 0) {
+          toast.error("לא ניתן לשלב שימוש בקרדיט עם חיוב באשראי. בטלי את השימוש בקרדיט.");
+          return;
+        }
+        if (amountToPay <= 0) {
+          toast.error("סכום החיוב חייב להיות חיובי");
+          return;
+        }
+        setIsSaving(true);
+        try {
+          const res = await fetch(`/api/payments/${id}`, {
+            method: "PUT",
+            headers: { "Content-Type": "application/json" },
+            body: JSON.stringify({
+              prepareCardcom: true,
+              amount: amountToPay,
+              paymentMode,
+            }),
+          });
+          if (!res.ok) {
+            const data = await res.json().catch(() => ({}));
+            toast.error(data?.message || "הכנת התשלום לסליקה נכשלה");
+            return;
+          }
+          const data = (await res.json()) as { id?: string };
+          setCardcomAmount(amountToPay);
+          if (data?.id && data.id !== id) {
+            setCardcomChargeOnPaymentId(data.id);
+          } else {
+            setCardcomChargeOnPaymentId(id);
+          }
+          setCardcomOpen(true);
+        } catch (err) {
+          toast.error(err instanceof Error ? err.message : "הכנת התשלום נכשלה");
+        } finally {
+          setIsSaving(false);
+        }
         return;
       }
-      // PARTIAL + Cardcom חסום זמנית: ה-webhook מסמן PAID בלי לבדוק
-      // amount==expectedAmount, ולכן partial-cardcom משאיר Payment ב-PAID
-      // עם חוב מובלע (לא עקבי עם addPartialPayment של מזומן).
-      if (paymentMode === "PARTIAL") {
-        toast.error(
-          "תשלום חלקי באשראי טרם נתמך. בחרי 'תשלום מלא' באשראי, או אמצעי תשלום אחר לחלקי."
+
+      if (amountToPay > 1000 && method === "CASH") {
+        const confirmed = window.confirm(
+          `האם אתה בטוח שברצונך לרשום תשלום של ₪${amountToPay.toFixed(0)} במזומן?`
         );
-        return;
+        if (!confirmed) {
+          return;
+        }
       }
-      // עוד מנע: prepareCardcom דורס payment.amount; אם כבר היו תשלומים
-      // חלקיים (במזומן/בנק) על אותו חוב, הסכום כבר מצטבר ב-payment.amount —
-      // אסור לדרוס אותו. חוסמים כאן לפני הקריאה כדי לתת שגיאה ברורה.
-      if (Number(payment.amount) > 0) {
-        toast.error(
-          "כבר נרשמו תשלומים חלקיים על חוב זה. סליקת אשראי על שארית טרם נתמכת — בקש שלם את היתרה במזומן/העברה."
-        );
-        return;
-      }
-      if (amountToPay <= 0) {
-        toast.error("סכום החיוב חייב להיות חיובי");
-        return;
-      }
+
       setIsSaving(true);
       try {
-        const res = await fetch(`/api/payments/${id}`, {
+        const response = await fetch(`/api/payments/${id}`, {
           method: "PUT",
           headers: { "Content-Type": "application/json" },
           body: JSON.stringify({
-            prepareCardcom: true,
-            amount: amountToPay,
+            status: paymentMode === "FULL" ? "PAID" : "PENDING",
+            method,
+            paidAt: new Date().toISOString(),
+            amount: amountToPay + creditUsed,
+            paymentMode,
+            creditUsed,
+            issueReceipt: businessType !== "NONE" && issueReceipt,
           }),
         });
-        if (!res.ok) {
-          const data = await res.json().catch(() => ({}));
-          toast.error(data?.message || "הכנת התשלום לסליקה נכשלה");
-          return;
+
+        if (!response.ok) {
+          throw new Error("שגיאה בעדכון");
         }
-        setCardcomAmount(amountToPay);
-        setCardcomOpen(true);
-      } catch (err) {
-        toast.error(err instanceof Error ? err.message : "הכנת התשלום נכשלה");
+
+        let successMessage = "";
+        if (creditUsed > 0 && amountToPay > 0) {
+          successMessage = `נרשם תשלום של ₪${amountToPay.toFixed(0)} + קרדיט ₪${creditUsed.toFixed(0)}`;
+        } else if (creditUsed > 0) {
+          successMessage = `נרשם תשלום מקרדיט ₪${creditUsed.toFixed(0)}`;
+        } else {
+          successMessage = paymentMode === "PARTIAL"
+            ? `תשלום חלקי של ₪${amountToPay.toFixed(0)} נרשם בהצלחה`
+            : "התשלום סומן כשולם";
+        }
+
+        toast.success(successMessage);
+        router.push("/dashboard/payments");
+      } catch (error) {
+        console.error("Update error:", error);
+        toast.error("אירעה שגיאה בעדכון");
       } finally {
         setIsSaving(false);
       }
-      return;
-    }
-
-    // Confirmation for large amounts
-    if (amountToPay > 1000 && method === "CASH") {
-      const confirmed = window.confirm(
-        `האם אתה בטוח שברצונך לרשום תשלום של ₪${amountToPay.toFixed(0)} במזומן?`
-      );
-      if (!confirmed) {
-        return;
-      }
-    }
-
-    setIsSaving(true);
-
-    try {
-      const response = await fetch(`/api/payments/${id}`, {
-        method: "PUT",
-        headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({
-          status: paymentMode === "FULL" ? "PAID" : "PENDING",
-          method,
-          paidAt: new Date().toISOString(),
-          amount: amountToPay + creditUsed,
-          paymentMode,
-          creditUsed,
-          issueReceipt: businessType !== "NONE" && issueReceipt,
-        }),
-      });
-
-      if (!response.ok) {
-        throw new Error("שגיאה בעדכון");
-      }
-
-      let successMessage = "";
-      if (creditUsed > 0 && amountToPay > 0) {
-        successMessage = `נרשם תשלום של ₪${amountToPay.toFixed(0)} + קרדיט ₪${creditUsed.toFixed(0)}`;
-      } else if (creditUsed > 0) {
-        successMessage = `נרשם תשלום מקרדיט ₪${creditUsed.toFixed(0)}`;
-      } else {
-        successMessage = paymentMode === "PARTIAL" 
-          ? `תשלום חלקי של ₪${amountToPay.toFixed(0)} נרשם בהצלחה`
-          : "התשלום סומן כשולם";
-      }
-
-      toast.success(successMessage);
-      router.push("/dashboard/payments");
-    } catch (error) {
-      console.error("Update error:", error);
-      toast.error("אירעה שגיאה בעדכון");
     } finally {
-      setIsSaving(false);
+      // משחרר את הנעילה רק אחרי שכל המסלול הסתיים — כולל early returns.
+      // ChargeCardcomDialog הוא רכיב נפרד עם ה-inFlightRef שלו, אז אחרי
+      // שפתחנו אותו, מותר לשחרר; הוא ישמור על ה-flow שלו.
+      inFlightRef.current = false;
     }
   };
 
@@ -487,9 +498,11 @@ export default function MarkPaidPage({ params }: { params: Promise<{ id: string 
       <ChargeCardcomDialog
         open={cardcomOpen}
         onOpenChange={setCardcomOpen}
-        paymentId={id}
+        paymentId={cardcomChargeOnPaymentId || id}
         clientId={payment.client.id}
         clientName={payment.client.name}
+        clientEmail={payment.client.email ?? undefined}
+        clientPhone={payment.client.phone ?? undefined}
         amount={cardcomAmount}
         defaultDescription="פגישה"
         onPaymentSuccess={async () => {

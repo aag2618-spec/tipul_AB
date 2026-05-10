@@ -130,6 +130,24 @@ export async function POST(
     );
   }
 
+  // ── Bulk-umbrella refund guard ─────────────────────────────────
+  // אם העסקה היא מצרפית (umbrella בעלת bulkPaymentIds.length>0), זיכוי
+  // ב-route זה לא יבטל את החלוקה ל-children — מצב שיגרום לכפילויות
+  // חשבונאיות (Cardcom החזיר כסף, אבל הילדים נשארים PAID). עד שיהיה
+  // rollback מלא של החלוקה, חוסמים זיכוי לקוח על umbrella ומפנים לתמיכה.
+  if (
+    Array.isArray(transaction.bulkPaymentIds) &&
+    transaction.bulkPaymentIds.length > 0
+  ) {
+    return NextResponse.json(
+      {
+        message:
+          "תשלום מצרפי לא ניתן לזיכוי דרך מסך זה. פנה/י לתמיכה לזיכוי ידני שיכלול ביטול חלוקה.",
+      },
+      { status: 409 }
+    );
+  }
+
   // ── 14-day window (חוק הגנת הצרכן) ─────────────────────────
   const approvedAt = transaction.completedAt ?? transaction.createdAt;
   const ageMs = Date.now() - approvedAt.getTime();
@@ -273,6 +291,14 @@ export async function POST(
             : { status: "REFUNDED", completedAt: now },
         });
 
+        // ── Compute the actual refund amount for unbump ─────────────────
+        // ב-FULL: refundAmount = payment.amount; ב-PARTIAL: refundAmount =
+        // הסכום שהוחזר בפועל בקריאה הזו (provisional). שני המקרים מצריכים
+        // unbump של parent (אם יש), כדי שלא יישאר עם amount מנופח.
+        const refundAmountForUnbump = isPartial
+          ? provisionalRefundDec.toNumber()
+          : Number(payment.amount);
+
         // Update parent Payment.status to REFUNDED on FULL refund.
         // For partial refund we leave the payment as PAID (the therapist sees
         // the partial refund in the cardcom transaction details).
@@ -281,6 +307,46 @@ export async function POST(
             where: { id: payment.id },
             data: { status: "REFUNDED" },
           });
+        }
+
+        // ── Unbump parent (additive completion reversal) ─────────────
+        // גם בריפאון מלא וגם בחלקי של child additive — להפחית מהורה את
+        // הסכום שהוחזר. תרחיש: cash 200 + Cardcom 150 → parent.amount=350
+        // PAID. ריפאון 50 חלקי של ה-Cardcom → parent.amount=300, חוזר ל-
+        // PENDING. עקבי עם ה-bump הראשוני, רק בכיוון הפוך.
+        if (payment.parentPaymentId && refundAmountForUnbump > 0) {
+          const parent = await tx.payment.findUnique({
+            where: { id: payment.parentPaymentId },
+            select: { amount: true, expectedAmount: true },
+          });
+          if (parent) {
+            const newParentTotal = Math.max(
+              0,
+              Number(parent.amount) - refundAmountForUnbump,
+            );
+            const parentExpected = Number(parent.expectedAmount) || 0;
+            const stillFullyPaid =
+              newParentTotal >= parentExpected - 0.001;
+            await tx.payment.update({
+              where: { id: payment.parentPaymentId },
+              data: {
+                amount: newParentTotal,
+                status: stillFullyPaid ? "PAID" : "PENDING",
+                paymentType: stillFullyPaid ? "FULL" : "PARTIAL",
+                paidAt: stillFullyPaid ? undefined : null,
+              },
+            });
+            if (!stillFullyPaid) {
+              await tx.task.updateMany({
+                where: {
+                  relatedEntityId: payment.parentPaymentId,
+                  type: "COLLECT_PAYMENT",
+                  status: "COMPLETED",
+                },
+                data: { status: "PENDING" },
+              });
+            }
+          }
         }
 
         // Create a refund-credit invoice record + link to the original.

@@ -161,8 +161,7 @@ export function CompleteSessionDialog(props: CompleteSessionDialogProps) {
       if (
         paymentMethod === "CREDIT_CARD" &&
         paymentType !== "CREDIT" &&
-        paymentType !== "ADVANCE" &&
-        paymentType !== "PARTIAL"
+        paymentType !== "ADVANCE"
       ) {
         // לפני פתיחת Cardcom: מסמנים את הפגישה כ-COMPLETED. אם המשתמש יסגור
         // את הדיאלוג באמצע הסליקה, הפגישה כבר תהיה במצב נכון — ה-Payment פשוט
@@ -181,6 +180,11 @@ export function CompleteSessionDialog(props: CompleteSessionDialogProps) {
         }
 
         // יוצרים Payment ב-PENDING (Cardcom יעדכן ל-PAID דרך webhook).
+        // ⚠️ ב-PARTIAL: expectedAmount הוא מחיר הפגישה המלא (defaultAmount)
+        // כדי שהמערכת תזהה שיש יתרה. ה-webhook יחשב status=PAID רק
+        // כשהסכום המצטבר >= expected. ב-FULL: expectedAmount=actualAmount.
+        const expectedForPost =
+          actualPaymentType === "PARTIAL" ? defaultAmount : actualAmount;
         const paymentRes = await fetch("/api/payments", {
           method: "POST",
           headers: { "Content-Type": "application/json" },
@@ -188,7 +192,7 @@ export function CompleteSessionDialog(props: CompleteSessionDialogProps) {
             clientId,
             sessionId,
             amount: actualAmount,
-            expectedAmount: actualAmount,
+            expectedAmount: expectedForPost,
             paymentType: actualPaymentType,
             method: "CREDIT_CARD",
             status: "PENDING",
@@ -216,14 +220,11 @@ export function CompleteSessionDialog(props: CompleteSessionDialogProps) {
         return;
       }
 
-      // PARTIAL + אשראי לא נתמך עדיין (ראו הערה למעלה).
-      if (paymentMethod === "CREDIT_CARD" && paymentType === "PARTIAL") {
-        toast.error(
-          "תשלום חלקי באשראי טרם נתמך. בחרי תשלום מלא באשראי, או אמצעי תשלום אחר לחלקי."
-        );
-        setIsLoading(false);
-        return;
-      }
+      // PARTIAL + אשראי נתמך כעת: createPaymentForSession + prepareCardcom
+      // יוצרים child PENDING באשראי כשהורה ב-PARTIAL. ה-webhook מודע לחלקי
+      // וקובע status נכון (PAID רק כשעמוד>=expected). ראו את הזרמים החלקיים
+      // ב-payment-creator.ts, prepareCardcom additive ב-/api/payments/[id],
+      // ו-webhook ב-/api/webhooks/cardcom/user.
 
       // Step 1: Create payment first (with receipt)
       const paymentRes = await fetch("/api/payments", {
@@ -274,6 +275,11 @@ export function CompleteSessionDialog(props: CompleteSessionDialogProps) {
       console.error(error);
     } finally {
       setIsLoading(false);
+      // ⚠️ חיוני: בלי איפוס ה-ref, לחיצה אחת על "סיים פגישה" תחסום
+      // לצמיתות את הכפתור (גם אחרי שגיאה או הצלחה רגילה). חוץ מהמסלול
+      // שפותח Cardcom-dialog ועושה setIsOpen(false) — בו ה-component יישלף
+      // ויאופס מאליו, אז גם אם נאפס פה זה לא מזיק.
+      handleCompleteInFlightRef.current = false;
     }
   };
 

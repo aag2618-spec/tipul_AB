@@ -14,9 +14,10 @@
 //   • לכתיבה אמיתית: APPLY=1 npx tsx scripts/backfill-bulk-cardcom-receipts.ts
 //   • Idempotent: רץ פעמיים = אותה תוצאה (מתעלם מ-children שכבר תוקנו).
 
-import { PrismaClient } from '@prisma/client';
+// Use the project's configured Prisma client (Prisma 7 requires the
+// PrismaPg adapter — set up in src/lib/prisma.ts).
+import { prisma } from '../src/lib/prisma';
 
-const prisma = new PrismaClient();
 const APPLY = process.env.APPLY === '1';
 
 async function backfill() {
