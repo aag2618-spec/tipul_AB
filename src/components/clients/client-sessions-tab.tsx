@@ -6,6 +6,7 @@ import { Calendar, Repeat, Clock, Edit } from "lucide-react";
 import Link from "next/link";
 import { TodaySessionCard } from "@/components/dashboard/today-session-card";
 import { SessionHistoryGrid } from "@/components/clients/session-history-grid";
+import { calculatePaidAmount } from "@/lib/payment-utils";
 
 interface RecurringPattern {
   id: string;
@@ -20,8 +21,16 @@ interface SessionPayment {
   status: string;
   amount: unknown;
   expectedAmount: unknown;
+  method?: string | null;
+  hasReceipt?: boolean;
   paidAt?: Date | string | null;
-  childPayments?: Array<{ id: string; amount: unknown; paidAt: Date | string | null }>;
+  /** child status מועבר לחישוב — fallback ל-PAID אם חסר. */
+  childPayments?: Array<{
+    id: string;
+    amount: unknown;
+    paidAt: Date | string | null;
+    status?: string;
+  }>;
 }
 
 interface TherapySession {
@@ -136,7 +145,20 @@ export function ClientSessionsTab({
                           id: session.payment.id,
                           status: session.payment.status as string,
                           amount: Number(session.payment.amount),
+                          // ⭐ paidAmount קנוני — ראה payment-utils.
+                          paidAmount: calculatePaidAmount({
+                            amount: session.payment.amount,
+                            status: session.payment.status,
+                            method: session.payment.method ?? undefined,
+                            hasReceipt: session.payment.hasReceipt,
+                            childPayments: session.payment.childPayments?.map((c) => ({
+                              amount: c.amount,
+                              status: c.status ?? "PAID",
+                            })),
+                          }),
                           expectedAmount: Number(session.payment.expectedAmount),
+                          method: session.payment.method ?? undefined,
+                          hasReceipt: session.payment.hasReceipt,
                         } : null,
                         client: {
                           id: clientId,
@@ -178,7 +200,20 @@ export function ClientSessionsTab({
                               id: session.payment.id,
                               status: session.payment.status as string,
                               amount: Number(session.payment.amount),
+                              // ⭐ paidAmount קנוני — ראה payment-utils.
+                              paidAmount: calculatePaidAmount({
+                                amount: session.payment.amount,
+                                status: session.payment.status,
+                                method: session.payment.method ?? undefined,
+                                hasReceipt: session.payment.hasReceipt,
+                                childPayments: session.payment.childPayments?.map((c) => ({
+                                  amount: c.amount,
+                                  status: c.status ?? "PAID",
+                                })),
+                              }),
                               expectedAmount: Number(session.payment.expectedAmount),
+                              method: session.payment.method ?? undefined,
+                              hasReceipt: session.payment.hasReceipt,
                             } : null,
                             client: {
                               id: clientId,

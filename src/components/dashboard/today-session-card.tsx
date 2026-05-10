@@ -33,7 +33,11 @@ interface TodaySessionCardProps {
       id: string;
       status: string;
       amount: number;
+      /** הסכום ששולם בפועל — מחושב ע"י /api/sessions ו-/api/dashboard. */
+      paidAmount?: number;
       expectedAmount?: number;
+      method?: string;
+      hasReceipt?: boolean;
     } | null;
     client: {
       id: string;
@@ -541,11 +545,18 @@ export function TodaySessionCard({ session, context = "dashboard" }: TodaySessio
           onPaymentClick={() => {
             if (!session.client) return;
             if (session.payment && session.payment.status !== "PAID") {
-              // existing payment - complete it
+              // existing payment - complete it.
+              // ⭐ paidAmount מהשרת מטפל נכון בכל הזרמים — בלי זה, אשראי
+              // חלקי שסולק (parent.amount=200, status=PENDING+CC) היה חוזר
+              // 0 ו-amount הופך שלילי. ראה /api/sessions.
+              const paidAmount =
+                typeof session.payment.paidAmount === "number"
+                  ? Number(session.payment.paidAmount)
+                  : Number(session.payment.amount || 0);
               setPaymentData({
                 sessionId: session.id,
                 clientId: session.client.id,
-                amount: Number(session.price) - Number(session.payment.amount || 0),
+                amount: Number(session.price) - paidAmount,
                 paymentId: session.payment.id,
               });
             } else if (!session.payment) {

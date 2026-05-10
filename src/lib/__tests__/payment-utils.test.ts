@@ -3,6 +3,7 @@ import {
   calculateDebtFromPayments,
   calculateSessionDebt,
   calculateDebtFromSessions,
+  calculatePaidAmount,
 } from '@/lib/payment-utils';
 
 describe('calculateDebtFromPayments', () => {
@@ -62,5 +63,81 @@ describe('calculateDebtFromSessions', () => {
     ];
     // 100 + 150 + 0 = 250
     expect(calculateDebtFromSessions(sessions)).toBe(250);
+  });
+});
+
+describe('calculatePaidAmount', () => {
+  it('PAID parent: returns amount', () => {
+    expect(
+      calculatePaidAmount({ amount: 300, status: 'PAID', method: 'CASH' })
+    ).toBe(300);
+  });
+
+  it('PENDING + CC + hasReceipt=true: returns amount (אשראי חלקי שסולק)', () => {
+    // ⭐ ה-bug המרכזי: parent CC ישיר אחרי REPLACE+sale → status=PENDING
+    // (כי amount<expectedAmount), method=CC, hasReceipt=true. הסכום הוא שולם.
+    expect(
+      calculatePaidAmount({
+        amount: 200,
+        status: 'PENDING',
+        method: 'CREDIT_CARD',
+        hasReceipt: true,
+      })
+    ).toBe(200);
+  });
+
+  it('PENDING + CC ללא receipt/children: returns 0 (placeholder לסליקה)', () => {
+    expect(
+      calculatePaidAmount({
+        amount: 300,
+        status: 'PENDING',
+        method: 'CREDIT_CARD',
+        hasReceipt: false,
+      })
+    ).toBe(0);
+  });
+
+  it('PENDING + CC + children PAID: returns sum(children) (השלמת אשראי על מזומן)', () => {
+    // bumpParentOnChildApproval: parent.amount=200, status=PENDING+CC, וגם
+    // child PAID amount=200 (השלמה דרך אשראי על תשלום מזומן 50 קודם).
+    // sum(children PAID) = 200 → paidAmount=200.
+    expect(
+      calculatePaidAmount({
+        amount: 200,
+        status: 'PENDING',
+        method: 'CREDIT_CARD',
+        hasReceipt: false,
+        childPayments: [
+          { amount: 50, status: 'PAID' },
+          { amount: 150, status: 'PAID' },
+        ],
+      })
+    ).toBe(200);
+  });
+
+  it('PENDING + CASH: returns amount (תשלום חלקי במזומן שכבר התקבל)', () => {
+    expect(
+      calculatePaidAmount({
+        amount: 150,
+        status: 'PENDING',
+        method: 'CASH',
+        hasReceipt: false,
+      })
+    ).toBe(150);
+  });
+
+  it('children with status non-PAID are ignored', () => {
+    expect(
+      calculatePaidAmount({
+        amount: 100,
+        status: 'PENDING',
+        method: 'CREDIT_CARD',
+        hasReceipt: false,
+        childPayments: [
+          { amount: 50, status: 'PENDING' },
+          { amount: 75, status: 'PAID' },
+        ],
+      })
+    ).toBe(75);
   });
 });

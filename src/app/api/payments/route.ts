@@ -92,6 +92,11 @@ export async function GET() {
             hasReceipt: true,
             receiptNumber: true,
             receiptUrl: true,
+            // notes — מבדיל "Bulk Cardcom distribution" (child שמסונן מהתצוגה
+            // ולכן ה-parent חייב לרשת את הקבלה) מ-partial-cash child (child
+            // שמוצג בעצמו ולכן ה-parent לא צריך inherit). בלי זה היו 2 שורות
+            // קבלה לתשלום מזומן חלקי: ה-child העצמאי + ה-parent עם inherit.
+            notes: true,
             cardcomInvoices: {
               orderBy: { issuedAt: "desc" },
               take: 1,
@@ -147,17 +152,27 @@ export async function GET() {
         };
       }
       if (p.hasReceipt) return p;
-      const childWithReceipt = p.childPayments.find((c) => c.hasReceipt);
-      if (!childWithReceipt) return p;
+      // Inherit מ-child רק כש-child מסונן מהתצוגה (Bulk Cardcom distribution).
+      // ב-partial-cash, ה-child המקורי מוצג בעצמו (notes=null, hasReceipt=true)
+      // ולא מסומן Bulk; אם נירש את ה-receipt על ה-parent, נראה 2 שורות לאותה
+      // קבלה: ה-child + ה-parent עם inherit.
+      const inheritableChild = p.childPayments.find((c) => {
+        if (!c.hasReceipt) return false;
+        const isBulkDistChild =
+          typeof c.notes === "string" &&
+          c.notes.includes("Bulk Cardcom distribution");
+        return isBulkDistChild;
+      });
+      if (!inheritableChild) return p;
       return {
         ...p,
         hasReceipt: true,
-        receiptNumber: p.receiptNumber ?? childWithReceipt.receiptNumber,
-        receiptUrl: p.receiptUrl ?? childWithReceipt.receiptUrl,
+        receiptNumber: p.receiptNumber ?? inheritableChild.receiptNumber,
+        receiptUrl: p.receiptUrl ?? inheritableChild.receiptUrl,
         cardcomInvoices:
           p.cardcomInvoices.length > 0
             ? p.cardcomInvoices
-            : childWithReceipt.cardcomInvoices,
+            : inheritableChild.cardcomInvoices,
       };
     });
 

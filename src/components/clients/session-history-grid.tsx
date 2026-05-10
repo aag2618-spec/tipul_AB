@@ -20,7 +20,11 @@ interface SessionData {
     id: string;
     status: string;
     amount: number;
+    /** הסכום ששולם בפועל (calculatePaidAmount) — נדרש לחישוב יתרה נכון. */
+    paidAmount?: number;
     expectedAmount?: number;
+    method?: string;
+    hasReceipt?: boolean;
   } | null;
   client: {
     id: string;

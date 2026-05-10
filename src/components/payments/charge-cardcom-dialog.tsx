@@ -196,6 +196,10 @@ export function ChargeCardcomDialog({
         setTransactionId("");
         setPaymentId(incomingPaymentId);
         setLinkResults([]);
+        // hasOpenCharge חייב להתאפס בסגירה — אחרת פתיחה הבאה (גם על תשלום
+        // אחר) תציג מיד את ההערה הצהובה "💡 בטל חיוב פתוח" ברגע שיש
+        // failure, גם אם לא באמת קיימת CardcomTransaction PENDING.
+        setHasOpenCharge(false);
         idempotencyKeyRef.current = "";
       }
     }
@@ -413,7 +417,9 @@ export function ChargeCardcomDialog({
         transactionId?: string;
         // bulk flow מחזיר גם את ה-umbrella paymentId — נשמור אותו ב-state
         // כדי ש-send-cardcom-link, polling ו-cancel יוכלו לעבוד עליו.
-        umbrellaPaymentId?: string;
+        // גם ב-409 ה-API החדש מחזיר umbrellaPaymentId של ה-umbrella הקיים
+        // → מאפשר recovery (סנכרן/בטל) במקום שהמשתמש יישאר תקוע.
+        umbrellaPaymentId?: string | null;
       };
 
       if (!res.ok || !data.url || !data.transactionId) {
@@ -424,7 +430,15 @@ export function ChargeCardcomDialog({
           typeof data.message === "string" &&
           data.message.includes("חיוב פתוח")
         ) {
-          if (gen === generationRef.current) setHasOpenCharge(true);
+          if (gen === generationRef.current) {
+            setHasOpenCharge(true);
+            // Bulk recovery: ב-pid אין לנו עדיין (לא יצרנו payment דרך
+            // ensurePaymentId). השרת מחזיר umbrellaPaymentId הקיים — נטען
+            // אותו ל-state כדי שכפתורי "סנכרן" / "בטל" יהיו פעילים.
+            if (isBulk && data.umbrellaPaymentId) {
+              setPaymentId(data.umbrellaPaymentId);
+            }
+          }
         }
         throw new Error(data.message ?? "שגיאה ביצירת דף תשלום");
       }
@@ -1187,6 +1201,12 @@ export function ChargeCardcomDialog({
             <p className="text-sm text-muted-foreground text-center max-w-md">
               {errorMessage || "אנא נסה שוב, או בחר שיטת תשלום אחרת"}
             </p>
+            {hasOpenCharge && (
+              <p className="text-xs text-amber-700 bg-amber-50 border border-amber-200 rounded px-3 py-2 max-w-md text-center">
+                💡 אם הלקוח כבר השלים תשלום ב-Cardcom — לחצי <strong>סנכרן</strong> במקום
+                ביטול, אחרת הביטול יבטל סליקה שהצליחה.
+              </p>
+            )}
           </div>
         )}
 
@@ -1224,23 +1244,42 @@ export function ChargeCardcomDialog({
                 סגור
               </Button>
               {hasOpenCharge ? (
-                <Button
-                  onClick={handleCancelOpenAndRetry}
-                  disabled={recoveringOpenCharge}
-                  className="bg-amber-600 hover:bg-amber-700"
-                >
-                  {recoveringOpenCharge ? (
-                    <>
+                <>
+                  {/* סנכרן ראשון — מטפל במקרה השכיח שבו הלקוח כבר שילם
+                      בפועל אבל ה-webhook לא הגיע (sandbox 1000 / רשת איטית).
+                      ביטול במצב כזה ישבור עסקה תקפה. */}
+                  <Button
+                    variant="outline"
+                    onClick={handleSyncStatus}
+                    disabled={isSyncing || !paymentId}
+                    className="text-emerald-700 border-emerald-300 hover:bg-emerald-50 whitespace-nowrap"
+                    title="בדוק עכשיו מול Cardcom אם התשלום הצליח"
+                  >
+                    {isSyncing ? (
                       <Loader2 className="h-4 w-4 ml-2 animate-spin" />
-                      מבטל ופותח חדש...
-                    </>
-                  ) : (
-                    <>
-                      <Ban className="h-4 w-4 ml-2" />
-                      בטל חיוב פתוח ונסה שוב
-                    </>
-                  )}
-                </Button>
+                    ) : (
+                      <RefreshCw className="h-4 w-4 ml-2" />
+                    )}
+                    סנכרן עם Cardcom
+                  </Button>
+                  <Button
+                    onClick={handleCancelOpenAndRetry}
+                    disabled={recoveringOpenCharge || !paymentId}
+                    className="bg-amber-600 hover:bg-amber-700 whitespace-nowrap"
+                  >
+                    {recoveringOpenCharge ? (
+                      <>
+                        <Loader2 className="h-4 w-4 ml-2 animate-spin" />
+                        מבטל...
+                      </>
+                    ) : (
+                      <>
+                        <Ban className="h-4 w-4 ml-2" />
+                        בטל ונסה שוב
+                      </>
+                    )}
+                  </Button>
+                </>
               ) : (
                 <Button onClick={reset}>נסה שוב</Button>
               )}

@@ -51,7 +51,16 @@ export function ChargeConfirmationDialog({
     const status = pendingAction;
     const clientId = session.client.id;
     const sessionId = session.id;
-    const amount = session.price - Number(session.payment?.amount || 0);
+    // ⭐ paidAmount מהשרת — בלעדיו, חישוב על payment.amount בלבד מטעה אחרי
+    // אשראי חלקי שסולק (parent.amount כבר 200 אבל status=PENDING+CC, חישוב
+    // amount-paid יחזיר 0 וננסה לחייב את כל ה-300 שוב). ראה /api/sessions.
+    const paidAmount =
+      typeof session.payment?.paidAmount === "number"
+        ? Number(session.payment.paidAmount)
+        : session.payment?.status === "PAID"
+        ? Number(session.payment?.amount || 0)
+        : 0;
+    const amount = session.price - paidAmount;
 
     // סוגר את כל הדיאלוגים מיד (כמו בקוד המקורי)
     onDismissAll();

@@ -27,8 +27,15 @@ export interface CalendarSession {
     id: string;
     status: string;
     amount?: number;
+    /**
+     * הסכום ששולם בפועל (מחושב ע"י /api/sessions). השדה הזה הוא הקנון לחישוב
+     * "כמה נותר לתשלום" — `amount` לבד יכול להיות מטעה כש-status=PENDING+CC
+     * (placeholder לסליקה ממתינה, או אחרי השלמת אשראי חלקי).
+     */
+    paidAmount?: number;
     expectedAmount?: number;
     method?: string;
+    hasReceipt?: boolean;
     paidAt?: string | null;
     paymentType?: string;
   } | null;

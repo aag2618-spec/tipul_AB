@@ -332,16 +332,21 @@ export async function POST(request: NextRequest) {
           // מבטיחים שאין CardcomTransaction חי (PENDING/APPROVED) על אף אחד
           // מה-payments — לא ב-paymentId הישיר, ולא ברשימה bulkPaymentIds
           // של umbrella אחר שעדיין לא הסתיים.
+          // ⚠️ נחזיר את ה-paymentId של ה-umbrella הקיים ב-409 כדי שה-frontend
+          // (charge-cardcom-dialog) יוכל לסנכרן/לבטל. בלי זה ה-frontend
+          // היה תקוע — שני הכפתורים disabled כי paymentId לא נטען.
           const inFlightDirect = await tx.cardcomTransaction.findFirst({
             where: {
               tenant: "USER",
               status: { in: ["PENDING", "APPROVED"] },
               paymentId: { in: paymentIds },
             },
-            select: { id: true },
+            select: { id: true, paymentId: true },
           });
           if (inFlightDirect) {
-            throw new Error("CHARGE_IN_PROGRESS");
+            throw Object.assign(new Error("CHARGE_IN_PROGRESS"), {
+              existingPaymentId: inFlightDirect.paymentId ?? null,
+            });
           }
           const inFlightBulk = await tx.cardcomTransaction.findFirst({
             where: {
@@ -349,10 +354,12 @@ export async function POST(request: NextRequest) {
               status: { in: ["PENDING", "APPROVED"] },
               bulkPaymentIds: { hasSome: paymentIds },
             },
-            select: { id: true },
+            select: { id: true, paymentId: true },
           });
           if (inFlightBulk) {
-            throw new Error("CHARGE_IN_PROGRESS");
+            throw Object.assign(new Error("CHARGE_IN_PROGRESS"), {
+              existingPaymentId: inFlightBulk.paymentId ?? null,
+            });
           }
 
           const umb = await tx.payment.create({
@@ -391,8 +398,15 @@ export async function POST(request: NextRequest) {
     } catch (claimErr) {
       const msg = claimErr instanceof Error ? claimErr.message : String(claimErr);
       if (msg === "CHARGE_IN_PROGRESS") {
+        // umbrellaPaymentId חוזר מהשגיאה (אם קיים) — מאפשר ל-frontend
+        // (charge-cardcom-dialog) לפעיל "סנכרן עם Cardcom" / "בטל חיוב פתוח".
+        const existingPaymentId =
+          (claimErr as { existingPaymentId?: string | null }).existingPaymentId ?? null;
         return NextResponse.json(
-          { message: "כבר קיים חיוב פתוח על אחת מהפגישות. המתיני לסיומו או בטלי אותו." },
+          {
+            message: "כבר קיים חיוב פתוח על אחת מהפגישות. המתיני לסיומו או בטלי אותו.",
+            umbrellaPaymentId: existingPaymentId,
+          },
           { status: 409 }
         );
       }

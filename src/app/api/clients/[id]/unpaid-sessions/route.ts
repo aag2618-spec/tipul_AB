@@ -1,6 +1,6 @@
 import { NextRequest, NextResponse } from "next/server";
 import prisma from "@/lib/prisma";
-import { calculateDebtFromSessions } from "@/lib/payment-utils";
+import { calculatePaidAmount } from "@/lib/payment-utils";
 import { logger } from "@/lib/logger";
 import { requireAuth } from "@/lib/api-auth";
 import { buildClientWhere, isSecretary, loadScopeUser, secretaryCan } from "@/lib/scope";
@@ -52,7 +52,15 @@ export async function GET(
             ],
           },
           include: {
-            payment: true,
+            payment: {
+              include: {
+                // ⭐ נדרש ל-calculatePaidAmount — ראה ההערה ב-payment-utils.
+                childPayments: {
+                  where: { status: "PAID" },
+                  select: { id: true, amount: true, status: true },
+                },
+              },
+            },
           },
           orderBy: {
             startTime: "asc", // Oldest first for auto-deduction
@@ -65,29 +73,48 @@ export async function GET(
       return NextResponse.json({ message: "Client not found" }, { status: 404 });
     }
 
-    const sessions = client.therapySessions.map((session) => ({
-      id: session.id,
-      startTime: session.startTime,
-      endTime: session.endTime,
-      price: Number(session.price),
-      type: session.type,
-      status: session.status,
-      payment: session.payment
-        ? {
-            id: session.payment.id,
-            amount: Number(session.payment.amount),
-            expectedAmount: Number(session.payment.expectedAmount),
-            status: session.payment.status,
-            method: session.payment.method,
-          }
-        : null,
-    }));
+    // ⭐ paidAmount קנוני — מטפל באשראי חלקי שסולק (PENDING+CC עם hasReceipt
+    // → amount הוא שולם בפועל, לא placeholder). amount בתשובה הוא הכרך
+    // ששולם בפועל; ה-frontend מחשב יתרה כ-expectedAmount - amount.
+    const sessions = client.therapySessions.map((session) => {
+      const paidAmount = session.payment
+        ? calculatePaidAmount(session.payment)
+        : 0;
+      return {
+        id: session.id,
+        startTime: session.startTime,
+        endTime: session.endTime,
+        price: Number(session.price),
+        type: session.type,
+        status: session.status,
+        payment: session.payment
+          ? {
+              id: session.payment.id,
+              amount: paidAmount,
+              paidAmount,
+              expectedAmount: Number(session.payment.expectedAmount),
+              status: session.payment.status,
+              method: session.payment.method,
+              hasReceipt: session.payment.hasReceipt,
+            }
+          : null,
+      };
+    });
+
+    const totalDebt = sessions.reduce((sum, s) => {
+      if (!s.payment) return sum + s.price;
+      const expected = s.payment.expectedAmount;
+      if (expected > 0 && s.payment.paidAmount < expected) {
+        return sum + (expected - s.payment.paidAmount);
+      }
+      return sum;
+    }, 0);
 
     return NextResponse.json({
       id: client.id,
       name: client.name,
       creditBalance: Number(client.creditBalance),
-      totalDebt: calculateDebtFromSessions(sessions),
+      totalDebt,
       sessions,
     });
   } catch (error) {

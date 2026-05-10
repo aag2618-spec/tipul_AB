@@ -37,10 +37,13 @@ interface Session {
   status: string;
   payment?: {
     id: string;
+    /** הסכום ששולם בפועל (מקור-אמת מהשרת — calculatePaidAmount). */
     amount: number;
+    paidAmount?: number;
     expectedAmount: number;
     status: string;
     method: string;
+    hasReceipt?: boolean;
   } | null;
 }
 

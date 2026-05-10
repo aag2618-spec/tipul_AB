@@ -132,6 +132,13 @@ export interface EmotionalMarker {
 export interface Payment {
   id: string;
   amount: number;
+  /**
+   * הסכום ששולם בפועל (לא placeholder לסליקה ממתינה).
+   * מחושב ע"י /api/sessions: status=PAID → amount; יש children PAID → sum;
+   * PENDING+CC ללא children → 0; אחרת → amount.
+   * אופציונלי: לא כל endpoint מחזיר אותו (רק /api/sessions).
+   */
+  paidAmount?: number;
   method: PaymentMethod;
   status: PaymentStatus;
   receiptUrl: string | null;

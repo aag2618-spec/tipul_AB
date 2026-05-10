@@ -79,13 +79,56 @@ export async function GET(
           issuerUserId: true,
         },
       },
+      // child payments — מאפשר fallback ב-bulk parents שלא קיבלו receiptNumber
+      // ב-distributeBulkCardcomPayment (הוא מעדכן רק amount/status/method,
+      // לא receiptNumber → ה-receiptNumber/Cardcom נמצא רק על ה-children
+      // עם notes "Bulk Cardcom distribution").
+      // orderBy paidAt:desc — אם תרחיש hand-recovery ידני יצר 2 children
+      // Bulk לאותו parent, נבחר את החדש ביותר.
+      childPayments: {
+        where: { notes: { contains: "Bulk Cardcom distribution" } },
+        select: { receiptNumber: true },
+        orderBy: { paidAt: "desc" },
+        take: 1,
+      },
     },
   });
   if (!payment) {
     return NextResponse.json({ message: "תשלום לא נמצא" }, { status: 404 });
   }
 
-  const invoice = payment.cardcomInvoices[0];
+  // ⚠️ Bulk-Cardcom backfill — בתשלום מצרפי ה-CardcomInvoice מקושר רק
+  // ל-Umbrella Payment (cardcomDocumentNumber UNIQUE → לא יכול להיות
+  // מקושר ל-N parents). distributeBulkCardcomPayment מעתיק את
+  // receiptNumber/Url ל-children, אבל לא ל-parent ולא ל-CardcomInvoice.
+  // אם payment.cardcomInvoices ריק:
+  //   1. אם payment.receiptNumber קיים — לחפש Invoice לפי cardcomDocumentNumber.
+  //      (תרחיש: child שנוצר ע"י distribute, או parent של partial-cash שמקבל
+  //      receipt שלו, או umbrella ישיר.)
+  //   2. אם זה parent של bulk (receiptNumber=null אבל יש child Bulk) — לחפש
+  //      דרך ה-receiptNumber של ה-child.
+  // false-positive collision מנוטרל ע"י paymentWhere (ownership) + העובדה
+  // ש-cardcomDocumentNumber UNIQUE גלובלי.
+  const lookupReceiptNumber =
+    payment.receiptNumber ?? payment.childPayments[0]?.receiptNumber ?? null;
+  let invoice = payment.cardcomInvoices[0];
+  if (!invoice && lookupReceiptNumber) {
+    const umbrellaInvoice = await prisma.cardcomInvoice.findUnique({
+      where: { cardcomDocumentNumber: lookupReceiptNumber },
+      select: {
+        id: true,
+        cardcomDocumentNumber: true,
+        cardcomDocumentType: true,
+        pdfUrl: true,
+        viewUrl: true,
+        issuedAt: true,
+        issuerUserId: true,
+      },
+    });
+    if (umbrellaInvoice) {
+      invoice = umbrellaInvoice;
+    }
+  }
   if (!invoice) {
     return NextResponse.json(
       { message: "אין קבלת Cardcom מקושרת לתשלום זה" },

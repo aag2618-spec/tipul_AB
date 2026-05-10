@@ -3,6 +3,7 @@ import { notFound } from "next/navigation";
 import { authOptions } from "@/lib/auth";
 import prisma from "@/lib/prisma";
 import { EXCLUDE_BULK_UMBRELLA_WHERE } from "@/lib/payments/types";
+import { calculatePaidAmount } from "@/lib/payment-utils";
 import { Button } from "@/components/ui/button";
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
 import { Badge } from "@/components/ui/badge";
@@ -48,7 +49,7 @@ import { QuestionnaireAnalysis } from "@/components/ai/questionnaire-analysis";
 import { SessionPrepCard } from "@/components/ai/session-prep-card";
 import { format } from "date-fns";
 import { he } from "date-fns/locale";
-import { calculateDebtFromPayments, calculateSessionDebt } from "@/lib/payment-utils";
+import { calculateDebtFromPayments } from "@/lib/payment-utils";
 import { logger } from "@/lib/logger";
 import {
   loadScopeUser,
@@ -78,9 +79,13 @@ const WIDE_CLIENT_INCLUDE = {
           amount: true,
           expectedAmount: true,
           status: true,
+          method: true,
+          // נדרשים ל-calculatePaidAmount להבדיל בין placeholder לסליקה
+          // ממתינה (CC ללא קבלה) לבין אשראי חלקי שסולק (CC עם קבלה).
+          hasReceipt: true,
           paidAt: true,
           childPayments: {
-            select: { id: true, amount: true, paidAt: true, method: true },
+            select: { id: true, amount: true, paidAt: true, method: true, status: true },
             orderBy: { paidAt: "asc" },
           },
         },
@@ -179,9 +184,11 @@ async function getClient(
                   amount: true,
                   expectedAmount: true,
                   status: true,
+                  method: true,
+                  hasReceipt: true,
                   paidAt: true,
                   childPayments: {
-                    select: { id: true, amount: true, paidAt: true, method: true },
+                    select: { id: true, amount: true, paidAt: true, method: true, status: true },
                     orderBy: { paidAt: "asc" },
                   },
                 },
@@ -326,13 +333,19 @@ export default async function ClientPage({
     : null;
   const summarizedSessionsCount = (client.therapySessions || []).filter(s => s.sessionNote).length;
 
-  // Get unpaid sessions for the Payments tab (exclude cancelled sessions)
+  // Get unpaid sessions for the Payments tab (exclude cancelled sessions).
+  // ⭐ paidAmount קנוני — אם payment הוא PENDING+CC ללא קבלה, calculatePaidAmount
+  // יחזיר 0 (placeholder לסליקה ממתינה). אם הוא PENDING+CC עם קבלה, יחזיר
+  // amount (אשראי חלקי שסולק). זה מונע הצגת "חוב חלקי" לתשלום שכבר התקבל.
   const unpaidSessions = (client.therapySessions || []).filter(
-    (session) =>
-      session.status !== "CANCELLED" &&
-      session.payment &&
-      session.payment.status === "PENDING" &&
-      Number(session.payment.expectedAmount || 0) > Number(session.payment.amount || 0)
+    (session) => {
+      if (session.status === "CANCELLED") return false;
+      if (!session.payment) return false;
+      if (session.payment.status !== "PENDING") return false;
+      const expected = Number(session.payment.expectedAmount || 0);
+      const paid = calculatePaidAmount(session.payment);
+      return expected > paid;
+    }
   );
 
   return (
@@ -596,7 +609,11 @@ export default async function ClientPage({
                               id: session.payment.id,
                               status: session.payment.status as string,
                               amount: Number(session.payment.amount || 0),
+                              // ⭐ paidAmount קנוני — ראה payment-utils.
+                              paidAmount: calculatePaidAmount(session.payment),
                               expectedAmount: Number(session.payment.expectedAmount || 0),
+                              method: (session.payment as { method?: string }).method,
+                              hasReceipt: (session.payment as { hasReceipt?: boolean }).hasReceipt,
                             } : null,
                             client: {
                               id: client.id,
@@ -638,7 +655,11 @@ export default async function ClientPage({
                                   id: session.payment.id,
                                   status: session.payment.status as string,
                                   amount: Number(session.payment.amount || 0),
+                                  // ⭐ paidAmount קנוני — ראה payment-utils.
+                                  paidAmount: calculatePaidAmount(session.payment),
                                   expectedAmount: Number(session.payment.expectedAmount || 0),
+                                  method: (session.payment as { method?: string }).method,
+                                  hasReceipt: (session.payment as { hasReceipt?: boolean }).hasReceipt,
                                 } : null,
                                 client: {
                                   id: client.id,
@@ -647,7 +668,7 @@ export default async function ClientPage({
                                   totalDebt,
                                   unpaidSessionsCount: unpaidSessions.length,
                                 },
-                              }} 
+                              }}
                             />
                           ))}
                       </div>
@@ -737,8 +758,13 @@ export default async function ClientPage({
                 {unpaidSessions.length > 0 ? (
                   <div className="grid gap-4 grid-cols-1 sm:grid-cols-2 lg:grid-cols-3">
                     {unpaidSessions.map((session) => {
-                      const debt = calculateSessionDebt(session);
-                      const alreadyPaid = session.payment ? (Number(session.payment.amount) || 0) : 0;
+                      // ⭐ alreadyPaid דרך calculatePaidAmount — אחרת לאחר אשראי
+                      // חלקי שסולק (PENDING+CC, hasReceipt=true), הכרטיס היה
+                      // מציג 0 ששולם ו-debt=300 במקום 100 שנותר באמת.
+                      const alreadyPaid = session.payment ? calculatePaidAmount(session.payment) : 0;
+                      const debt = session.payment
+                        ? Math.max(0, Number(session.payment.expectedAmount || 0) - alreadyPaid)
+                        : Number(session.price) || 0;
 
                       const cardContent = (
                         <Card className="cursor-pointer hover:shadow-lg transition-all hover:scale-[1.02] h-full">

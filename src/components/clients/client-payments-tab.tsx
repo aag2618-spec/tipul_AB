@@ -11,7 +11,7 @@ import { SendPaymentHistoryButton } from "@/components/clients/send-payment-hist
 import { PaymentHistoryGrid } from "@/components/payments/payment-history-grid";
 import { format } from "date-fns";
 import { he } from "date-fns/locale";
-import { calculateSessionDebt } from "@/lib/payment-utils";
+import { calculatePaidAmount } from "@/lib/payment-utils";
 
 interface ChildPayment {
   id: string;
@@ -25,7 +25,11 @@ interface SessionPayment {
   id: string;
   status: string;
   amount: unknown;
+  /** הסכום ששולם בפועל — מחושב ע"י calculatePaidAmount בשרת. */
+  paidAmount?: number;
   expectedAmount: unknown;
+  method?: string | null;
+  hasReceipt?: boolean;
   paidAt?: Date | string | null;
   childPayments?: ChildPayment[];
 }
@@ -130,8 +134,25 @@ export function ClientPaymentsTab({
           {unpaidSessions.length > 0 ? (
             <div className="grid gap-4 grid-cols-1 sm:grid-cols-2 lg:grid-cols-3">
               {unpaidSessions.map((session) => {
-                const debt = calculateSessionDebt(session);
-                const alreadyPaid = session.payment ? Number(session.payment.amount) : 0;
+                // ⭐ alreadyPaid דרך calculatePaidAmount — מטפל באשראי חלקי
+                // שסולק (PENDING+CC + hasReceipt → amount הוא שולם בפועל).
+                const alreadyPaid = session.payment
+                  ? typeof session.payment.paidAmount === "number"
+                    ? session.payment.paidAmount
+                    : calculatePaidAmount({
+                        amount: session.payment.amount,
+                        status: session.payment.status,
+                        method: session.payment.method ?? undefined,
+                        hasReceipt: session.payment.hasReceipt,
+                        childPayments: session.payment.childPayments?.map((c) => ({
+                          amount: c.amount,
+                          status: "PAID",
+                        })),
+                      })
+                  : 0;
+                const debt = session.payment
+                  ? Math.max(0, Number(session.payment.expectedAmount || 0) - alreadyPaid)
+                  : Number(session.price) || 0;
 
                 const cardContent = (
                   <Card className="cursor-pointer hover:shadow-lg transition-all hover:scale-[1.02] h-full">

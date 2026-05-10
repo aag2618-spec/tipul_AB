@@ -10,6 +10,7 @@ import {
   resolveCardcomReceiptOwner,
 } from "./receipt-service";
 import { buildClientWhere, buildPaymentWhere, type ScopeUser } from "@/lib/scope";
+import { calculatePaidAmount } from "@/lib/payment-utils";
 
 // Re-export pure calculation helpers from payment-utils
 export { calculateDebtFromPayments } from "@/lib/payment-utils";
@@ -564,6 +565,10 @@ export async function getClientDebtSummary(
       }
     : { AND: [EXCLUDE_BULK_UMBRELLA_WHERE, { clientId, status: "PENDING", parentPaymentId: null }] };
 
+  // ⭐ hasReceipt + childPayments — נדרשים ל-calculatePaidAmount כדי להבדיל
+  // בין placeholder לסליקה ממתינה (CC + amount=expected, hasReceipt=false,
+  // paidAmount=0) לבין אשראי חלקי שסולק (CC + amount=200, hasReceipt=true,
+  // paidAmount=200) או השלמה דרך children PAID. ראה ההערה ב-payment-utils.
   const allPending = await prisma.payment.findMany({
     where: pendingPaymentsWhere,
     orderBy: { createdAt: "asc" },
@@ -576,19 +581,30 @@ export async function getClientDebtSummary(
       expectedAmount: true,
       status: true,
       method: true,
+      hasReceipt: true,
+      childPayments: {
+        where: { status: "PAID" },
+        select: { id: true, amount: true, status: true },
+      },
     },
   });
 
   await autoFixStuckPayments(userId, allPending);
 
-  const unpaid = allPending.filter((p) => {
-    const paid = Number(p.amount);
+  // ⭐ paidAmount קנוני לכל תשלום — בלעדיו, חישוב חוב היה מסתמך על
+  // payment.amount הגולמי שיכול להיות placeholder לסליקה ממתינה (CC).
+  const enriched = allPending.map((p) => ({
+    ...p,
+    paidAmount: calculatePaidAmount(p),
+  }));
+
+  const unpaid = enriched.filter((p) => {
     const expected = Number(p.expectedAmount) || 0;
-    return expected > 0 && paid < expected;
+    return expected > 0 && p.paidAmount < expected;
   });
 
   const totalDebt = unpaid.reduce(
-    (sum, p) => sum + (Number(p.expectedAmount) - Number(p.amount)),
+    (sum, p) => sum + (Number(p.expectedAmount) - p.paidAmount),
     0
   );
 
@@ -599,18 +615,17 @@ export async function getClientDebtSummary(
     creditBalance: Number(client.creditBalance),
     totalDebt,
     unpaidSessions: unpaid.map((p) => {
-      const paidAmount = Number(p.amount);
       const expectedAmount = Number(p.expectedAmount) || 0;
       return {
         paymentId: p.id,
         sessionId: p.sessionId,
         date: p.createdAt,
-        amount: paidAmount,
+        amount: p.paidAmount,
         expectedAmount,
-        paidAmount,
+        paidAmount: p.paidAmount,
         status: p.status,
         partialPaymentDate:
-          paidAmount > 0 && paidAmount < expectedAmount ? p.updatedAt : null,
+          p.paidAmount > 0 && p.paidAmount < expectedAmount ? p.updatedAt : null,
       };
     }),
   };
@@ -659,6 +674,12 @@ export async function getAllClientsDebtSummary(
           updatedAt: true,
           sessionId: true,
           method: true,
+          status: true,
+          hasReceipt: true,
+          childPayments: {
+            where: { status: "PAID" },
+            select: { id: true, amount: true, status: true },
+          },
         },
         orderBy: { createdAt: "desc" },
       },
@@ -670,25 +691,25 @@ export async function getAllClientsDebtSummary(
 
   return clients
     .map((client) => {
+      // ⭐ paidAmount קנוני (calculatePaidAmount) — מטפל באשראי חלקי שסולק
+      // ובהשלמות דרך children PAID. בלעדיו, רשימת חובות בכרטיסי לקוחות
+      // יכולה להציג חוב חלקי לתשלום שכבר התקבל בפועל.
       const unpaid = client.payments
+        .map((p) => ({ ...p, _paid: calculatePaidAmount(p) }))
         .filter((p) => {
-          const paid = Number(p.amount);
           const expected = Number(p.expectedAmount) || 0;
-          return expected > 0 && paid < expected;
+          return expected > 0 && p._paid < expected;
         })
         .map((p) => {
-          const paidAmount = Number(p.amount);
           const expectedAmount = Number(p.expectedAmount) || 0;
           return {
             paymentId: p.id,
             amount: expectedAmount,
-            paidAmount,
+            paidAmount: p._paid,
             date: p.createdAt,
             sessionId: p.sessionId,
             partialPaymentDate:
-              paidAmount > 0 && paidAmount < expectedAmount
-                ? p.updatedAt
-                : null,
+              p._paid > 0 && p._paid < expectedAmount ? p.updatedAt : null,
           };
         });
 

@@ -11,7 +11,7 @@ import { Suspense } from "react";
 import { PersonalTasksWidget } from "@/components/tasks/personal-tasks-widget";
 import { TodaySessionCard } from "@/components/dashboard/today-session-card";
 import { SubBoxLink } from "@/components/dashboard-stat-card";
-import { calculateDebtFromPayments } from "@/lib/payment-utils";
+import { calculateDebtFromPayments, calculatePaidAmount } from "@/lib/payment-utils";
 import { EXCLUDE_BULK_UMBRELLA_WHERE } from "@/lib/payments/types";
 import {
   loadScopeUser,
@@ -184,6 +184,15 @@ async function getDashboardStats(scopeUser: ScopeUser) {
             status: true,
             amount: true,
             expectedAmount: true,
+            method: true,
+            hasReceipt: true,
+            // נדרש ל-calculatePaidAmount (sum children PAID) — בלי זה
+            // ההשלמה דרך הכפתור בכרטיס "פגישות היום" תחשב יתרה שגויה
+            // אחרי השלמת אשראי חלקי על מזומן קיים.
+            childPayments: {
+              where: { status: "PAID" },
+              select: { id: true, amount: true, status: true },
+            },
           },
         },
       },
@@ -410,7 +419,21 @@ export default async function DashboardPage() {
                           id: therapySession.payment.id,
                           status: therapySession.payment.status as string,
                           amount: Number(therapySession.payment.amount),
+                          // ⭐ paidAmount — חישוב מקבילי ל-/api/sessions
+                          // (src/lib/payment-utils.ts:calculatePaidAmount).
+                          // מטפל באשראי חלקי שסולק (parent.amount=200,
+                          // status=PENDING+CC) — בלי זה הכפתור "השלם תשלום"
+                          // בכרטיס היום היה מנסה לחייב את כל ה-300 שוב.
+                          paidAmount: calculatePaidAmount({
+                            amount: therapySession.payment.amount,
+                            status: therapySession.payment.status as string,
+                            method: therapySession.payment.method,
+                            hasReceipt: therapySession.payment.hasReceipt,
+                            childPayments: therapySession.payment.childPayments,
+                          }),
                           expectedAmount: Number(therapySession.payment.expectedAmount),
+                          method: therapySession.payment.method as string | undefined,
+                          hasReceipt: therapySession.payment.hasReceipt,
                         } : null,
                         client: therapySession.client ? {
                           id: therapySession.client.id,

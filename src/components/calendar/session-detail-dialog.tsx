@@ -172,14 +172,19 @@ export function SessionDetailDialog({
   const renderPaymentSection = () => {
     const price = session.price;
     const payment = session.payment;
-    // For a Cardcom-in-flight Payment (method=CREDIT_CARD, status=PENDING),
-    // `amount` represents the charge target — not money already paid. Treating
-    // it as paid would compute remaining=0 and send Amount=0 to Cardcom. For
-    // partial-cash flow (PENDING with method != CREDIT_CARD), `amount` is the
-    // cumulative paid total — keep the original semantics.
+    // ⭐ paidAmount מחושב ע"י השרת (/api/sessions) — מטפל נכון בכל הזרמים:
+    //   • PAID                              → amount (שולם מלא).
+    //   • PENDING+CC + children PAID        → sum(children) (השלמת אשראי חלקי
+    //                                          אחרי bumpParentOnChildApproval).
+    //   • PENDING+CC + hasReceipt           → amount (אשראי חלקי ישיר).
+    //   • PENDING+CC ללא receipt/children   → 0 (placeholder לסליקה ממתינה).
+    //   • PENDING+CASH/CHECK/BANK           → amount (תשלום חלקי שכבר התקבל).
+    // fallback ל-`Number(amount)` אם השרת לא מחזיר paidAmount (call sites ישנים).
     const paidAmount =
-      payment?.status === "PAID" ||
-      (payment?.status === "PENDING" && payment?.method !== "CREDIT_CARD")
+      typeof payment?.paidAmount === "number"
+        ? Number(payment.paidAmount)
+        : payment?.status === "PAID" ||
+          (payment?.status === "PENDING" && payment?.method !== "CREDIT_CARD")
         ? Number(payment?.amount || 0)
         : 0;
     const remaining = price - paidAmount;
@@ -586,12 +591,14 @@ export function SessionDetailDialog({
                   onClick={() => {
                     if (!session.client) return;
                     onOpenChange(false);
-                    // Only PAID amounts reduce the bill. PENDING (e.g. an
-                    // abandoned Cardcom attempt that left payment.amount=350
-                    // but status=PENDING) means the customer still owes the
-                    // full amount — subtracting it would send 0 to Cardcom.
+                    // ⭐ paidAmount מהשרת — מטפל נכון גם בהשלמת אשראי חלקי
+                    // (parent.amount כבר מעודכן אבל status=PENDING+CC, לכן
+                    // הבדיקה הישנה החזירה 0 וניסתה לחייב את המטופל סכום מלא
+                    // נוסף → 400 "חורג מהיתרה"). ראה ההערה ב-/api/sessions.
                     const paidAmount =
-                      session.payment?.status === "PAID"
+                      typeof session.payment?.paidAmount === "number"
+                        ? Number(session.payment.paidAmount)
+                        : session.payment?.status === "PAID"
                         ? Number(session.payment?.amount || 0)
                         : 0;
                     onRequestPayment({

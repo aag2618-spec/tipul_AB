@@ -8,6 +8,7 @@ import { logger } from "@/lib/logger";
 import { serializePrisma } from "@/lib/serialize";
 import { syncSessionToGoogleCalendar } from "@/lib/google-calendar-sync";
 import { buildClientWhere, buildSessionWhere, isSecretary, loadScopeUser } from "@/lib/scope";
+import { calculatePaidAmount } from "@/lib/payment-utils";
 import type { Prisma } from "@prisma/client";
 
 export const dynamic = "force-dynamic";
@@ -48,19 +49,35 @@ export async function GET(request: NextRequest) {
 
     // Privacy: secretary users must NOT receive clinical content (sessionNote).
     // חוק זכויות החולה — מזכירה לא רואה תוכן קליני.
+    //
+    // ⚠️ payment.childPayments — נדרש לחישוב paidAmount הנכון בכל זרם:
+    // אחרי השלמה חלקית באשראי דרך Cardcom, ה-parent.amount כבר משקף את הסכום
+    // שסולק (bumpParentOnChildApproval), אבל ה-status נשאר PENDING (כי
+    // amount<expectedAmount), ה-method=CREDIT_CARD. ה-frontend לא יכול
+    // להבדיל בין:
+    //   (א) parent placeholder לסליקה (amount=expectedAmount, אף אגורה לא שולמה)
+    //   (ב) parent עם תשלום חלקי שכבר סוכם (amount<expectedAmount, child PAID)
+    // לכן השרת מחשב paidAmount = sum(children PAID).amount, וה-frontend
+    // משתמש בערך הזה ישירות.
+    const paymentInclude = {
+      childPayments: {
+        where: { status: "PAID" as const },
+        select: { id: true, amount: true, status: true },
+      },
+    };
     const includeForRole = isSecretary(scopeUser)
       ? {
           client: {
             select: { id: true, name: true, firstName: true, lastName: true, phone: true, email: true },
           },
-          payment: true,
+          payment: { include: paymentInclude },
         }
       : {
           client: {
             select: { id: true, name: true, email: true, phone: true, creditBalance: true, defaultSessionPrice: true, isQuickClient: true },
           },
           sessionNote: true,
-          payment: true,
+          payment: { include: paymentInclude },
         };
 
     const sessions = await prisma.therapySession.findMany({
@@ -69,7 +86,23 @@ export async function GET(request: NextRequest) {
       include: includeForRole,
     });
 
-    return NextResponse.json(serializePrisma(sessions));
+    // Enrich payment עם paidAmount מחושב — מקור-אמת אחד ב-`calculatePaidAmount`
+    // (src/lib/payment-utils.ts) שמטפל בכל הזרמים (PAID / children PAID /
+    // PENDING+CC עם/בלי קבלה / PENDING+CASH).
+    const enriched = sessions.map((s) => {
+      if (!s.payment) return s;
+      const p = s.payment;
+      const paidAmount = calculatePaidAmount({
+        amount: p.amount,
+        status: p.status,
+        method: p.method,
+        hasReceipt: p.hasReceipt,
+        childPayments: p.childPayments,
+      });
+      return { ...s, payment: { ...p, paidAmount } };
+    });
+
+    return NextResponse.json(serializePrisma(enriched));
   } catch (error) {
     logger.error("Get sessions error:", { error: error instanceof Error ? error.message : String(error) });
     return NextResponse.json(

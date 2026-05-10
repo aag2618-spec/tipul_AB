@@ -12,7 +12,11 @@ interface SessionStatusIndicatorsProps {
       id: string;
       status: string;
       amount: number;
+      /** הסכום ששולם בפועל — מחושב ע"י /api/sessions ו-/api/dashboard. */
+      paidAmount?: number;
       expectedAmount?: number;
+      method?: string;
+      hasReceipt?: boolean;
     } | null;
     client: {
       id: string;
@@ -23,6 +27,13 @@ interface SessionStatusIndicatorsProps {
 }
 
 export function SessionStatusIndicators({ session, onPaymentClick }: SessionStatusIndicatorsProps) {
+  // ⭐ paidAmount הקנוני לחישוב יתרה — מטפל גם באשראי חלקי שסולק
+  // (parent.amount=200 אבל status=PENDING+CC). ראה /api/sessions.
+  const paidAmount = session.payment
+    ? typeof session.payment.paidAmount === "number"
+      ? Number(session.payment.paidAmount)
+      : Number(session.payment.amount || 0)
+    : 0;
   // Indicators for completed sessions
   if (session.status === "COMPLETED" && session.client) {
     return (
@@ -32,12 +43,12 @@ export function SessionStatusIndicators({ session, onPaymentClick }: SessionStat
           <span className="text-muted-foreground">💵 תשלום:</span>
           {session.payment?.status === "PAID" ? (
             <span className="text-green-600 font-medium">✓ שולם</span>
-          ) : session.payment && session.payment.amount > 0 && session.payment.amount < Number(session.price) ? (
+          ) : session.payment && paidAmount > 0 && paidAmount < Number(session.price) ? (
             <span
               onClick={onPaymentClick}
               className="text-orange-600 font-medium hover:text-orange-700 hover:underline transition-colors cursor-pointer"
             >
-              להשלמת תשלום (₪{Number(session.price) - session.payment.amount})
+              להשלמת תשלום (₪{Number(session.price) - paidAmount})
             </span>
           ) : (
             <span
@@ -80,12 +91,12 @@ export function SessionStatusIndicators({ session, onPaymentClick }: SessionStat
           <span className="text-muted-foreground">💵 תשלום:</span>
           {session.payment?.status === "PAID" ? (
             <span className="text-green-600 font-medium">✓ שולם</span>
-          ) : session.payment && session.payment.amount > 0 && session.payment.amount < Number(session.price) ? (
+          ) : session.payment && paidAmount > 0 && paidAmount < Number(session.price) ? (
             <span
               onClick={onPaymentClick}
               className="text-orange-600 font-medium hover:text-orange-700 hover:underline transition-colors cursor-pointer"
             >
-              להשלמת תשלום (₪{Number(session.price) - session.payment.amount})
+              להשלמת תשלום (₪{Number(session.price) - paidAmount})
             </span>
           ) : session.payment ? (
             <span
