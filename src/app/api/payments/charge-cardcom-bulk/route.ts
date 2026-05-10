@@ -22,6 +22,7 @@ import { requireAuth } from "@/lib/api-auth";
 import { logger } from "@/lib/logger";
 import { withAudit } from "@/lib/audit";
 import { getUserCardcomClient } from "@/lib/cardcom/user-config";
+import { resolveCardcomBilling } from "@/lib/cardcom/billing-resolver";
 import { scrubCardcomMessage } from "@/lib/cardcom/verify-webhook";
 import type { CardcomDocumentType } from "@/lib/cardcom/types";
 import {
@@ -119,8 +120,9 @@ export async function POST(request: NextRequest) {
   }
   // ⚠️ billingUserId = המטפל בעל הלקוח. כל קריאות Cardcom (מסוף, transaction.userId,
   // webhookUrl, ולידציות עוסק) חייבות להיות עליו ולא על המבצע (מזכירה).
-  const billingUserId = client.therapistId;
-  const isSecretaryActor = billingUserId !== userId;
+  // resolveCardcomBilling מחפש Cardcom גם אצל בעל הקליניקה אם המטפל לא חיבר
+  // — מקביל ל-charge-cardcom (single).
+  const intendedTherapistId = client.therapistId;
 
   const paymentWhere = buildPaymentWhere(scopeUser);
   const payments = await prisma.payment.findMany({
@@ -189,11 +191,60 @@ export async function POST(request: NextRequest) {
     );
   }
 
-  const cardcomClient = await getUserCardcomClient(billingUserId);
-  if (!cardcomClient) {
+  // ── הגנה: כל ה-Payments חייבים לשתף אותו organizationId ─────────────
+  // ב-bulk umbrella אנחנו בוחרים organizationId אחד להעברת ה-resolver
+  // ולכותרת ה-umbrella. אם איכשהו (אנומליית נתונים, מיגרציה מסולפת, או baגlogic
+  // שעוקף את buildPaymentWhere) נכנסה לתוך הקבוצה רשומה מארגון אחר — נסרב
+  // לבצע במקום לסכן ניתוב שגוי לבעלות אחרת.
+  const distinctOrgIds = Array.from(
+    new Set(payments.map((p) => p.organizationId ?? "__none__")),
+  );
+  if (distinctOrgIds.length > 1) {
+    logger.error("[payments/charge-cardcom-bulk] mixed-org payments rejected", {
+      clientId,
+      paymentIds,
+      distinctOrgIds,
+    });
+    return NextResponse.json(
+      {
+        message:
+          "לא ניתן לחייב יחד תשלומים השייכים לארגונים שונים. בחרי תשלומים מאותו ארגון בלבד.",
+      },
+      { status: 409 }
+    );
+  }
+  const sharedOrganizationId = payments[0]?.organizationId ?? null;
+
+  const resolved = await resolveCardcomBilling(
+    intendedTherapistId,
+    sharedOrganizationId,
+  );
+  if (!resolved) {
+    logger.warn("[payments/charge-cardcom-bulk] no Cardcom resolved → 400", {
+      clientId,
+      intendedTherapistId,
+      organizationId: sharedOrganizationId,
+      actorUserId: userId,
+    });
     return NextResponse.json(
       { message: "לא הוגדר מסוף Cardcom — יש לחבר אותו בהגדרות אינטגרציות חיוב" },
       { status: 400 }
+    );
+  }
+  const billingUserId = resolved.cardcomOwnerUserId;
+  const isSecretaryActor = billingUserId !== userId;
+
+  const cardcomClient = await getUserCardcomClient(billingUserId);
+  if (!cardcomClient) {
+    logger.error("[payments/charge-cardcom-bulk] resolved owner has no usable client", {
+      clientId,
+      intendedTherapistId,
+      cardcomOwnerUserId: billingUserId,
+      fellbackToOrgOwner: resolved.fellbackToOrgOwner,
+    });
+    return NextResponse.json(
+      { message: "תקלה בטעינת פרטי מסוף Cardcom — נסי שוב או פני לתמיכה" },
+      { status: 500 }
     );
   }
 
@@ -264,8 +315,8 @@ export async function POST(request: NextRequest) {
   // ה-children תחת ה-Payments האמיתיים).
   const umbrellaNotes = `${BULK_UMBRELLA_NOTES_PREFIX} ${cardcomDescription}`;
 
-  // organizationId — נורש מה-payments (כולם שייכים לאותה קליניקה אם בכלל).
-  const organizationId = payments[0]?.organizationId ?? null;
+  // organizationId — אותו ערך שאומת למעלה כאחיד לכל ה-payments בקבוצה.
+  const organizationId = sharedOrganizationId;
 
   let cardcomSucceeded = false;
 
@@ -447,6 +498,10 @@ export async function POST(request: NextRequest) {
           numOfPayments,
           transactionId: transaction.id,
           umbrellaPaymentId: umbrella.id,
+          billingUserId,
+          intendedTherapistId,
+          fellbackToOrgOwner: resolved.fellbackToOrgOwner,
+          ...(isSecretaryActor ? { actorUserId: userId } : {}),
         },
       },
       async (tx) => {

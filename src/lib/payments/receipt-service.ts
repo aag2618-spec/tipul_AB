@@ -7,6 +7,7 @@ import { mapPaymentMethod } from "@/lib/email-utils";
 import { calculateDebtFromPayments } from "@/lib/payment-utils";
 import { logger } from "@/lib/logger";
 import { getIsraelYear } from "@/lib/date-utils";
+import { resolveCardcomBilling } from "@/lib/cardcom/billing-resolver";
 import type { PaymentMethod, ReceiptResult } from "./types";
 import { EXCLUDE_BULK_UMBRELLA_WHERE } from "./types";
 
@@ -49,6 +50,53 @@ export async function isCardcomPrimary(userId: string): Promise<boolean> {
     });
     return false;
   }
+}
+
+// ================================================================
+// resolveCardcomReceiptOwner — היכן באמת נמצא ה-Cardcom שייצור את הקבלה
+// ================================================================
+//
+// זהה ל-resolveCardcomBilling אבל מיושם כשליפה ל-receipt routing:
+//   • אם למטפל (intendedUserId) יש Cardcom פעיל → קבלה דרכו.
+//   • אחרת אם הלקוח שייך לקליניקה ולבעל הקליניקה יש Cardcom → fallback.
+//   • אחרת null (אין Cardcom בכלל בסקופ הזה).
+//
+// שימוש: issueReceipt קורא ל-helper הזה כדי לדעת:
+//   (א) האם להפעיל את מסלול Cardcom (החלפה ל-isCardcomPrimary שמסתכל רק על
+//       ה-userId הישיר ומחמיץ את ה-fallback של בעל הקליניקה).
+//   (ב) באיזה userId להשתמש כשקוראים ל-billingService.createReceipt — בלי
+//       זה הקבלה הייתה נכשלת על "לא נמצא ספק" כי billingService מחפש לפי
+//       userId שאין לו BillingProvider.
+//
+// In-process cache קצר (5s) זהה ל-isCardcomPrimary — אותה בקשת תשלום קוראת
+// כמה פעמים. הקאש ממופתח לפי `${intendedUserId}|${organizationId ?? ""}`
+// כדי שלא נדרוס תוצאות בין clients מקליניקות שונות.
+const CARDCOM_RECEIPT_OWNER_CACHE_TTL_MS = 5_000;
+const cardcomReceiptOwnerCache = new Map<
+  string,
+  { value: { ownerUserId: string; fellbackToOrgOwner: boolean } | null; expiresAt: number }
+>();
+
+export async function resolveCardcomReceiptOwner(
+  intendedUserId: string,
+  organizationId?: string | null,
+): Promise<{ ownerUserId: string; fellbackToOrgOwner: boolean } | null> {
+  const key = `${intendedUserId}|${organizationId ?? ""}`;
+  const cached = cardcomReceiptOwnerCache.get(key);
+  if (cached && cached.expiresAt > Date.now()) return cached.value;
+
+  const resolved = await resolveCardcomBilling(intendedUserId, organizationId);
+  const value = resolved
+    ? {
+        ownerUserId: resolved.cardcomOwnerUserId,
+        fellbackToOrgOwner: resolved.fellbackToOrgOwner,
+      }
+    : null;
+  cardcomReceiptOwnerCache.set(key, {
+    value,
+    expiresAt: Date.now() + CARDCOM_RECEIPT_OWNER_CACHE_TTL_MS,
+  });
+  return value;
 }
 
 // ================================================================
@@ -178,7 +226,7 @@ export async function issueReceipt(params: {
     select: { businessType: true },
   });
 
-  if (!therapist || therapist.businessType === "NONE") {
+  if (!therapist) {
     await releaseClaim();
     claimResolved = true;
     return { receiptNumber: null, receiptUrl: null, hasReceipt: false };
@@ -188,10 +236,58 @@ export async function issueReceipt(params: {
   // (EXEMPT or LICENSED) when Cardcom is the primary BillingProvider. Cardcom
   // is a חברת הפקת חשבוניות מוסמכת — their numbering is registered with מערך
   // חשבוניות ישראל, so the receipt is the legal document.
-  const cardcomIsPrimary = await isCardcomPrimary(params.userId);
+  //
+  // CLINIC FALLBACK — אם המטפל הספציפי לא חיבר Cardcom אבל יש לו ארגון,
+  // resolveCardcomReceiptOwner מחזיר את ה-userId של בעל הקליניקה (שכן חיבר
+  // Cardcom). זה גם הכרחי לתשלומי מזומן: בלי זה issueReceipt היה משתמש
+  // ב-isCardcomPrimary(therapistId) → false → לא מנפיק קבלת Cardcom גם
+  // כשהקליניקה כן מחוברת.
+  //
+  // אנחנו טוענים את organizationId של ה-Payment כדי לאפשר את ה-fallback.
+  const paymentOrg = await prisma.payment.findUnique({
+    where: { id: params.paymentId },
+    select: { organizationId: true },
+  });
+  const cardcomOwner = await resolveCardcomReceiptOwner(
+    params.userId,
+    paymentOrg?.organizationId ?? null,
+  );
+  const cardcomIsPrimary = !!cardcomOwner;
 
-  if (cardcomIsPrimary) {
-    const billingService = createBillingService(params.userId);
+  // ⚠️ businessType גייט — חשוב שהבדיקה תבוצע על ה-EFFECTIVE ISSUER:
+  //   • אם Cardcom פעיל (כולל פלבק לבעל הקליניקה) — היוצר החוקי הוא בעל
+  //     המסוף (cardcomOwner.ownerUserId). הוא חייב להיות EXEMPT/LICENSED;
+  //     ה-businessType של המטפל לא רלוונטי כי הקבלה לא יוצאת בשמו.
+  //   • אם אין Cardcom — חוזרים למסלול הפנימי (numbering לפי המטפל); אז
+  //     ה-businessType של המטפל הוא שקובע (NONE = לא יוצא קבלה).
+  // בלי זה: מטפל בקליניקה עם businessType=NONE היה חוסם הפקת קבלת Cardcom
+  // למרות שהמסוף של ה-OWNER (LICENSED/EXEMPT) זמין ולגיטימי משפטית.
+  let issuerBusinessType: "NONE" | "EXEMPT" | "LICENSED" = therapist.businessType;
+  if (cardcomIsPrimary && cardcomOwner) {
+    if (cardcomOwner.ownerUserId !== params.userId) {
+      const issuer = await prisma.user.findUnique({
+        where: { id: cardcomOwner.ownerUserId },
+        select: { businessType: true },
+      });
+      issuerBusinessType = issuer?.businessType ?? "NONE";
+    }
+  }
+  if (issuerBusinessType === "NONE") {
+    await releaseClaim();
+    claimResolved = true;
+    return { receiptNumber: null, receiptUrl: null, hasReceipt: false };
+  }
+
+  if (cardcomIsPrimary && cardcomOwner) {
+    if (cardcomOwner.fellbackToOrgOwner) {
+      logger.info("[issueReceipt] using clinic-owner Cardcom for receipt", {
+        paymentId: params.paymentId,
+        intendedTherapistId: params.userId,
+        cardcomOwnerUserId: cardcomOwner.ownerUserId,
+        method: params.method,
+      });
+    }
+    const billingService = createBillingService(cardcomOwner.ownerUserId);
     let result;
     try {
       result = await billingService.createReceipt({
@@ -444,7 +540,24 @@ export async function sendPaymentReceiptEmail(params: {
     // לא הועבר (call sites ישנים) — fallback שמרני: skip אם Cardcom primary,
     // כדי לא לשבור את ההתנהגות הקיימת. כל call sites פעילים מעבירים
     // paymentId ולכן fallback זה כמעט לא נתפס.
-    const cardcomPrimaryUser = await isCardcomPrimary(params.userId);
+    // ── ה-gate הזה צריך להיות עקבי עם issueReceipt — אם issueReceipt
+    // הפעיל את מסלול Cardcom (כולל פלבק לבעל הקליניקה), מדלגים על המייל
+    // הפנימי. בלי resolveCardcomReceiptOwner היינו שולחים מייל פנימי
+    // נוסף בקליניקה שבה רק ה-OWNER חיבר Cardcom — Cardcom ישלח את שלו +
+    // אנחנו את שלנו = 2 הודעות מבלבלות.
+    let orgIdForReceipt: string | null = null;
+    if (params.paymentId) {
+      const orgForReceipt = await prisma.payment.findUnique({
+        where: { id: params.paymentId },
+        select: { organizationId: true },
+      }).catch(() => null);
+      orgIdForReceipt = orgForReceipt?.organizationId ?? null;
+    }
+    const cardcomReceiptOwner = await resolveCardcomReceiptOwner(
+      params.userId,
+      orgIdForReceipt,
+    );
+    const cardcomPrimaryUser = !!cardcomReceiptOwner;
     if (cardcomPrimaryUser) {
       let shouldSkip = false;
       if (params.paymentId) {

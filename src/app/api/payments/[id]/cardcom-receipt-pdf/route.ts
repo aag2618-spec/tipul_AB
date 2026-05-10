@@ -27,6 +27,10 @@ import {
   getCardcomDocumentUrl,
   searchCardcomDocuments,
 } from "@/lib/cardcom/invoice-api";
+import {
+  buildPaymentWhere,
+  loadScopeUser,
+} from "@/lib/scope";
 
 export const dynamic = "force-dynamic";
 
@@ -40,9 +44,26 @@ export async function GET(
 
   const { id: paymentId } = await context.params;
 
-  // Ownership check + load the most recent CardcomInvoice for this payment.
-  const payment = await prisma.payment.findUnique({
-    where: { id: paymentId },
+  // Ownership check via scope (תומך גם בקליניקה רב-מטפלים).
+  // ⚠️ הסקופ ההיסטורי השתמש ב-`payment.client.therapistId !== userId`, שחוסם
+  // בעלת קליניקה / מזכירה מלצפות בקבלות של מטפלים אחרים בארגון, וגם נכשל
+  // אחרי הפלבק החדש: הקבלה הונפקה ע"י בעל הקליניקה (issuerUserId שונה
+  // מ-therapistId), והבדיקה הישנה הייתה תקינה אבל ה-credentials לא — ראה
+  // למטה.
+  let scopeUser;
+  try {
+    scopeUser = await loadScopeUser(userId);
+  } catch (scopeErr) {
+    logger.error("[cardcom-receipt-pdf] scope load failed", {
+      userId,
+      error: scopeErr instanceof Error ? scopeErr.message : String(scopeErr),
+    });
+    return NextResponse.json({ message: "אין הרשאה" }, { status: 403 });
+  }
+  const paymentWhere = buildPaymentWhere(scopeUser);
+
+  const payment = await prisma.payment.findFirst({
+    where: { AND: [{ id: paymentId }, paymentWhere] },
     include: {
       client: { select: { therapistId: true } },
       cardcomInvoices: {
@@ -55,11 +76,12 @@ export async function GET(
           pdfUrl: true,
           viewUrl: true,
           issuedAt: true,
+          issuerUserId: true,
         },
       },
     },
   });
-  if (!payment || payment.client.therapistId !== userId) {
+  if (!payment) {
     return NextResponse.json({ message: "תשלום לא נמצא" }, { status: 404 });
   }
 
@@ -79,8 +101,20 @@ export async function GET(
     return NextResponse.redirect(invoice.viewUrl, 302);
   }
 
-  const creds = await getUserCardcomCredentials(userId);
+  // ⚠️ ה-credentials חייבים להיות של ה-ISSUER של הקבלה (issuerUserId), לא
+  // של ה-actor הנוכחי. אחרי הפלבק לבעל הקליניקה הקבלה הונפקה במסוף של
+  // ה-OWNER, וטעינת credentials של ה-actor (המטפלת/המזכירה) הייתה מחזירה
+  // null או credentials של מסוף שונה — ושאילתת CreateDocumentUrl על מסוף
+  // לא נכון נכשלת. fallback ל-actor רק אם issuerUserId חסר (קבלות ישנות).
+  const credsUserId = invoice.issuerUserId ?? userId;
+  const creds = await getUserCardcomCredentials(credsUserId);
   if (!creds) {
+    logger.warn("[cardcom-receipt-pdf] no Cardcom credentials for issuer", {
+      paymentId,
+      invoiceId: invoice.id,
+      issuerUserId: invoice.issuerUserId,
+      actorUserId: userId,
+    });
     return NextResponse.json(
       { message: "מסוף Cardcom אינו מוגדר" },
       { status: 400 }

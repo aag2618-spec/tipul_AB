@@ -9,6 +9,7 @@ import { requireAuth } from "@/lib/api-auth";
 import { logger } from "@/lib/logger";
 import { withAudit } from "@/lib/audit";
 import { getUserCardcomClient } from "@/lib/cardcom/user-config";
+import { resolveCardcomBilling } from "@/lib/cardcom/billing-resolver";
 import { scrubCardcomMessage } from "@/lib/cardcom/verify-webhook";
 import type { CardcomDocumentType } from "@/lib/cardcom/types";
 import {
@@ -100,14 +101,45 @@ export async function POST(
   // זה חיוני כשמזכירה (userId שונה) פועלת בשם המטפל — Cardcom client,
   // הקבלה, ה-CardcomTransaction.userId ו-webhookUrl חייבים להיות של המטפל.
   // userId נשמר בנפרד כ-actor ל-audit trail.
-  const billingUserId = payment.client.therapistId;
+  //
+  // resolveCardcomBilling מוסיף fallback לבעל הקליניקה אם המטפל הספציפי לא
+  // חיבר Cardcom — תרחיש נפוץ בקליניקה רב-מטפלים שבה רק ה-OWNER חיבר את
+  // המסוף. בלי הפלבק היינו מחזירים "לא הוגדר מסוף Cardcom" למרות שהקליניקה
+  // כן מחוברת. כשמשתמשים בפלבק — האודיט שומר את ה-intendedTherapistId יחד
+  // עם ה-cardcomOwnerUserId כדי לשקף שהקבלה הונפקה ע"י ה-OWNER.
+  const intendedTherapistId = payment.client.therapistId;
+  const resolved = await resolveCardcomBilling(
+    intendedTherapistId,
+    payment.organizationId,
+  );
+  if (!resolved) {
+    logger.warn("[payments/charge-cardcom] no Cardcom resolved → 400", {
+      paymentId,
+      intendedTherapistId,
+      organizationId: payment.organizationId,
+      actorUserId: userId,
+    });
+    return NextResponse.json(
+      { message: "לא הוגדר מסוף Cardcom — יש לחבר אותו בהגדרות אינטגרציות חיוב" },
+      { status: 400 }
+    );
+  }
+  const billingUserId = resolved.cardcomOwnerUserId;
   const isSecretaryActor = billingUserId !== userId;
 
   const cardcomClient = await getUserCardcomClient(billingUserId);
   if (!cardcomClient) {
+    // resolved.cardcomOwnerUserId הובטח כבעל BillingProvider פעיל. אם זה
+    // עדיין מחזיר null זה כשל decrypt/DB transient — לוג ברור והודעה ידידותית.
+    logger.error("[payments/charge-cardcom] resolved owner has no usable client", {
+      paymentId,
+      intendedTherapistId,
+      cardcomOwnerUserId: billingUserId,
+      fellbackToOrgOwner: resolved.fellbackToOrgOwner,
+    });
     return NextResponse.json(
-      { message: "לא הוגדר מסוף Cardcom — יש לחבר אותו בהגדרות אינטגרציות חיוב" },
-      { status: 400 }
+      { message: "תקלה בטעינת פרטי מסוף Cardcom — נסי שוב או פני לתמיכה" },
+      { status: 500 }
     );
   }
 
@@ -354,6 +386,8 @@ export async function POST(
           numOfPayments,
           transactionId: transaction.id,
           billingUserId,
+          intendedTherapistId,
+          fellbackToOrgOwner: resolved.fellbackToOrgOwner,
           ...(isSecretaryActor ? { actorUserId: userId } : {}),
         },
       },

@@ -16,6 +16,12 @@ import { logger } from "@/lib/logger";
 import { withAudit } from "@/lib/audit";
 import { getUserCardcomClient } from "@/lib/cardcom/user-config";
 import { capAsmachta } from "@/lib/cardcom/verify-webhook";
+import {
+  buildPaymentWhere,
+  isSecretary,
+  loadScopeUser,
+  secretaryCan,
+} from "@/lib/scope";
 
 export const dynamic = "force-dynamic";
 
@@ -71,10 +77,33 @@ export async function POST(
   }
 
   // ── Load payment + ownership ────────────────────────────────
+  // ownership נבדק דרך scope (כולל קליניקות רב-מטפלים): מזכירה עם הרשאת
+  // הוצאת קבלות, בעלת קליניקה, או המטפל עצמו. בלי זה רק actor===therapistId
+  // יכול היה לזכות, מה שחוסם בעלת קליניקה לזכות תשלום של מטפלת בארגון שלה
+  // אחרי הפלבק החדש (charge נעשה בשם ה-OWNER, אבל therapistId של המטופל
+  // עדיין שונה).
+  let scopeUser;
+  try {
+    scopeUser = await loadScopeUser(userId);
+  } catch (scopeErr) {
+    logger.error("[user/cardcom-refund] scope load failed", {
+      userId,
+      error: scopeErr instanceof Error ? scopeErr.message : String(scopeErr),
+    });
+    return NextResponse.json({ message: "אין הרשאה" }, { status: 403 });
+  }
+  if (isSecretary(scopeUser) && !secretaryCan(scopeUser, "canIssueReceipts")) {
+    return NextResponse.json(
+      { message: "אין הרשאה לזיכוי / הוצאת קבלות" },
+      { status: 403 }
+    );
+  }
+  const paymentWhere = buildPaymentWhere(scopeUser);
+
   let payment;
   try {
-    payment = await prisma.payment.findUnique({
-      where: { id: paymentId },
+    payment = await prisma.payment.findFirst({
+      where: { AND: [{ id: paymentId }, paymentWhere] },
       include: { client: { select: { id: true, therapistId: true } } },
     });
   } catch (dbErr) {
@@ -87,18 +116,19 @@ export async function POST(
   if (!payment) {
     return NextResponse.json({ message: "תשלום לא נמצא" }, { status: 404 });
   }
-  if (payment.client.therapistId !== userId) {
-    return NextResponse.json({ message: "אין הרשאה לתשלום זה" }, { status: 403 });
-  }
 
   // ── Find the latest APPROVED CardcomTransaction for this payment ───
+  // ⚠️ אסור לסנן ב-userId — עם הפלבק לבעל הקליניקה, transaction.userId הוא
+  // ה-OWNER (= cardcomOwnerUserId), לא המטפל ולא ה-actor הנוכחי. סינון לפי
+  // userId היה גורם ל-"לא נמצאה עסקה" עבור מטפלת בקליניקה (או בעלת קליניקה
+  // שמזכה תשלום שנעשה ע"י מטפלת אחרת באותו ארגון). הסקופ של ה-Payment כבר
+  // אושר למעלה, אז כאן מספיק לוודא tenant=USER + APPROVED.
   let transaction;
   try {
     transaction = await prisma.cardcomTransaction.findFirst({
       where: {
         paymentId: payment.id,
         tenant: "USER",
-        userId,
         status: "APPROVED",
       },
       orderBy: { completedAt: "desc" },
@@ -223,11 +253,23 @@ export async function POST(
     // Cardcom HTTP outside the audit transaction (timeout race).
     let refundResult;
     try {
-      const client = await getUserCardcomClient(userId);
+      // ⚠️ ה-Cardcom client חייב להיות של ה-MERCHANT שביצע את החיוב המקורי
+      // (transaction.userId), לא ה-actor הנוכחי. אחרת:
+      //   • עם פלבק קליניקה: actor=מטפלת/בעלת, merchant=OWNER → טעינת
+      //     credentials של ה-actor תיכשל ("Cardcom not configured").
+      //   • Cardcom חייב את אותו מסוף שביצע את ה-charge כדי לבצע refund על
+      //     ה-transactionId (transactionId הוא סקופ-מסוף).
+      const merchantUserId = transaction.userId ?? userId;
+      const client = await getUserCardcomClient(merchantUserId);
       if (!client) {
+        logger.error("[user/cardcom-refund] merchant has no Cardcom client", {
+          paymentId,
+          merchantUserId,
+          actorUserId: userId,
+        });
         await releaseClaim();
         return NextResponse.json(
-          { message: "אין למטפל הגדרות Cardcom פעילות" },
+          { message: "מסוף ה-Cardcom שביצע את החיוב לא זמין כעת לזיכוי" },
           { status: 409 }
         );
       }
@@ -270,6 +312,14 @@ export async function POST(
           isPartial,
           reason: body.reason,
           cardcomRefundId: refundResult.refundId,
+          // שקיפות אודיט — מי ביצע (actor) מול מי באמת ה-merchant של ה-Cardcom
+          // (חשוב כשבעלת קליניקה מזכה תשלום שנעשה ע"י מטפלת אחרת באותו ארגון
+          // אחרי הפלבק החדש).
+          merchantUserId: transaction.userId ?? null,
+          intendedTherapistId: payment.client.therapistId,
+          ...(transaction.userId && transaction.userId !== userId
+            ? { actorUserId: userId }
+            : {}),
         },
       },
       async (tx) => {

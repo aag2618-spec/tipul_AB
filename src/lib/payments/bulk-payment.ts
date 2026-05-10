@@ -7,7 +7,7 @@ import {
   issueReceipt,
   sendPaymentReceiptEmail,
   buildReceiptDescription,
-  isCardcomPrimary,
+  resolveCardcomReceiptOwner,
 } from "./receipt-service";
 import { buildClientWhere, buildPaymentWhere, type ScopeUser } from "@/lib/scope";
 
@@ -182,11 +182,16 @@ export async function processMultiSessionPayment(params: {
 
         // הוצאת קבלה - לפי המדיניות. כש-Cardcom primary: אילוץ הפקה תמיד
         // (זה החוק — Cardcom חייבת להפיק מסמך רשמי). אחרת: לפי checkbox.
+        // resolveCardcomReceiptOwner מכליל את הפלבק לבעל הקליניקה — הכרחי
+        // ל-bulk payment בקליניקה שבה רק ה-OWNER חיבר Cardcom.
         let receiptUrl: string | null = null;
         let receiptNumber: string | null = null;
-        const cardcomForcesReceipt = await isCardcomPrimary(userId);
+        const cardcomReceiptOwner = await resolveCardcomReceiptOwner(
+          userId,
+          paymentWithSession.organizationId ?? null,
+        );
         const effectiveIssueReceipt =
-          cardcomForcesReceipt || shouldIssueReceipt !== false;
+          !!cardcomReceiptOwner || shouldIssueReceipt !== false;
         if (effectiveIssueReceipt) {
           const receiptResult = await issueReceipt({
             userId,
