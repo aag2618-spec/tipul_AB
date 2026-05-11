@@ -1,12 +1,31 @@
 import { NextRequest, NextResponse } from "next/server";
 import prisma from "@/lib/prisma";
-import { unlink } from "fs/promises";
-import { join } from "path";
 import { logger } from "@/lib/logger";
 
 import { requireAuth } from "@/lib/api-auth";
 import { logDataAccess } from "@/lib/audit-logger";
 import { loadScopeUser, buildClientWhere } from "@/lib/scope";
+import storage from "@/lib/storage";
+
+// C6: ממיר fileUrl שמור ב-DB ל-relative path בתוך UPLOADS_DIR.
+// פורמטים מותרים: "/api/uploads/<rel>" או "/uploads/<rel>". כל אחר נדחה
+// כדי למנוע path-traversal דרך רשומת DB מזויפת. storage.delete מאמת
+// בנוסף שה-resolve מסתיים בתוך baseDir.
+function fileUrlToRelative(fileUrl: string | null | undefined): string | null {
+  if (!fileUrl || typeof fileUrl !== "string") return null;
+  const prefixes = ["/api/uploads/", "/uploads/"];
+  for (const p of prefixes) {
+    if (fileUrl.startsWith(p)) {
+      const rel = fileUrl.slice(p.length);
+      // חסימת תווי traversal בסיסיים (defense-in-depth מעבר ל-storage)
+      if (rel.includes("..") || rel.startsWith("/") || rel.startsWith("\\")) {
+        return null;
+      }
+      return rel;
+    }
+  }
+  return null;
+}
 
 export const dynamic = "force-dynamic";
 
@@ -140,12 +159,25 @@ export async function DELETE(
       return NextResponse.json({ message: "מסמך לא נמצא" }, { status: 404 });
     }
 
-    // Delete file (after DB delete succeeded)
-    try {
-      const filePath = join(process.cwd(), document.fileUrl);
-      await unlink(filePath);
-    } catch {
-      // File might not exist, continue anyway
+    // Delete file (after DB delete succeeded) — C6: דרך storage.delete
+    // עם validation של path traversal. אם fileUrl לא בפורמט מצופה (לדוגמה
+    // legacy/manual edit ב-DB) — לא ננסה למחוק, רק נרשום warning.
+    const relPath = fileUrlToRelative(document.fileUrl);
+    if (relPath) {
+      try {
+        await storage.delete(relPath);
+      } catch (err) {
+        // File might not exist on disk — לא חוסם את המחיקה הלוגית.
+        logger.warn("[documents] file delete failed", {
+          documentId: id,
+          relPath,
+          error: err instanceof Error ? err.message : String(err),
+        });
+      }
+    } else {
+      logger.warn("[documents] unexpected fileUrl format, skipping file delete", {
+        documentId: id,
+      });
     }
 
     // Audit log — פעולה הרסנית על מסמך רפואי
