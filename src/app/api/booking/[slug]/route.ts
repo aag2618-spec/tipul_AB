@@ -141,12 +141,14 @@ export async function GET(
   const { searchParams } = new URL(request.url);
   const dateStr = searchParams.get("date");
 
+  // H13: id הוסר מ-select של therapist — אין סיבה לחשוף את ה-User ID בעמוד
+  // הציבורי, וזה היה מאפשר enumeration של User IDs בכל המערכת.
+  // הקוד הפנימי משתמש ב-settings.therapistId (שדה ה-FK) לכל הצרכים.
   const settings = await prisma.bookingSettings.findUnique({
     where: { slug },
     include: {
       therapist: {
         select: {
-          id: true,
           name: true,
           image: true,
           defaultSessionDuration: true,

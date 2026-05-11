@@ -86,13 +86,16 @@ export async function POST(request: NextRequest) {
       return NextResponse.json({ message: GENERIC_MESSAGE });
     }
 
+    // H14: שומרים sha256(token) ב-DB ולא plain. URL במייל מכיל plain.
+    const { createHash } = await import("node:crypto");
     const verificationToken = randomBytes(32).toString("hex");
+    const verificationTokenHash = createHash("sha256").update(verificationToken).digest("hex");
     const verificationExpires = new Date(Date.now() + 24 * 60 * 60 * 1000);
 
     await prisma.user.update({
       where: { id: user.id },
       data: {
-        emailVerificationToken: verificationToken,
+        emailVerificationToken: verificationTokenHash,
         emailVerificationExpires: verificationExpires,
       },
     });

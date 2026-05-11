@@ -26,6 +26,20 @@ export async function POST(request: NextRequest) {
       );
     }
 
+    // H15: rate-limit לפי email — מונע mail-bomb על משתמש ספציפי דרך botnet
+    // של IPs רבים. 3 בקשות לשעה לאותו email.
+    const emailLower = String(email).toLowerCase().trim();
+    const emailRl = checkRateLimit(
+      `forgot-password:email:${emailLower}`,
+      { maxRequests: 3, windowMs: 60 * 60 * 1000 }
+    );
+    if (!emailRl.allowed) {
+      // החזרה אחידה מונעת enumeration גם במצב rate-limited.
+      return NextResponse.json({
+        message: "אם האימייל קיים במערכת, נשלח אליך קישור לאיפוס סיסמה",
+      });
+    }
+
     // חיפוש case-insensitive — חלק מהמשתמשים נרשמו עם אותיות גדולות
     const user = await prisma.user.findFirst({
       where: { email: { equals: email, mode: "insensitive" } },

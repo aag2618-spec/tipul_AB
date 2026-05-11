@@ -25,9 +25,20 @@ export async function POST(request: NextRequest) {
     if ("error" in parsed) return parsed.error;
     const { name, email, password, phone, license, couponCode } = parsed.data;
 
+    // H15: rate-limit לפי email — מונע bulk registration מ-botnet שמשתמש
+    // ב-IPs שונים אבל אותו אימייל (או email enumeration על-ידי הודעות שגיאה).
+    const emailLower = email.toLowerCase().trim();
+    const emailRl = checkRateLimit(
+      `register:email:${emailLower}`,
+      { maxRequests: 5, windowMs: 60 * 60 * 1000 }
+    );
+    if (!emailRl.allowed) {
+      return rateLimitResponse(emailRl);
+    }
+
     // Check if user already exists by email
     const existingUser = await prisma.user.findUnique({
-      where: { email: email.toLowerCase().trim() },
+      where: { email: emailLower },
     });
 
     if (existingUser) {
@@ -97,8 +108,11 @@ export async function POST(request: NextRequest) {
     // Hash password
     const hashedPassword = await bcrypt.hash(password, 12);
 
-    // Generate email verification token
+    // Generate email verification token. H14: שומרים sha256(token) ב-DB ולא
+    // plain — אם DB נחשף, ה-tokens לא ניתנים לשימוש. ה-URL במייל מכיל את ה-plain.
+    const { createHash } = await import("node:crypto");
     const verificationToken = randomBytes(32).toString("hex");
+    const verificationTokenHash = createHash("sha256").update(verificationToken).digest("hex");
     const verificationExpires = new Date(Date.now() + 24 * 60 * 60 * 1000); // 24 hours
 
     // Trial end date
@@ -120,7 +134,7 @@ export async function POST(request: NextRequest) {
           aiTier: TRIAL_AI_TIER as "ESSENTIAL" | "PRO" | "ENTERPRISE",
           subscriptionStatus: "TRIALING",
           trialEndsAt,
-          emailVerificationToken: verificationToken,
+          emailVerificationToken: verificationTokenHash,
           emailVerificationExpires: verificationExpires,
           userNumber: nextUserNumber,
         },

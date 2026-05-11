@@ -1,4 +1,5 @@
 import Link from "next/link";
+import { createHash } from "node:crypto";
 import prisma from "@/lib/prisma";
 import { logger } from "@/lib/logger";
 import { Button } from "@/components/ui/button";
@@ -17,12 +18,27 @@ export const dynamic = "force-dynamic";
 
 type VerifyState = "success" | "expired" | "invalid" | "missing" | "error";
 
+// H14: ה-token שמוצג במייל לא נשמר plain ב-DB. במקום זאת נשמר
+// sha256(token), והאימות עושה hash על הקלט והשוואה מול ה-hash.
+// מונע דליפת tokens אם DB נחשף.
+// Backward-compat: אם משתמש קיים עדיין מחזיק token plain ב-DB (לפני המיגרציה),
+// בודקים גם את ה-plain. לאחר תקופת מעבר אפשר להסיר את ה-fallback.
+function hashToken(token: string): string {
+  return createHash("sha256").update(token).digest("hex");
+}
+
 async function verifyToken(token: string | undefined): Promise<VerifyState> {
   if (!token) return "missing";
 
   try {
+    const tokenHash = hashToken(token);
     const user = await prisma.user.findFirst({
-      where: { emailVerificationToken: token },
+      where: {
+        OR: [
+          { emailVerificationToken: tokenHash }, // tokens חדשים (hashed)
+          { emailVerificationToken: token }, // legacy plain — להסיר אחרי תקופת מעבר
+        ],
+      },
       select: {
         id: true,
         emailVerified: true,
