@@ -150,6 +150,14 @@ function LoginForm() {
             </div>
           )}
 
+          {/* C8: Google OAuth נדחה כי המייל לא אומת ב-MyTipul (אנטי-takeover) */}
+          {tokenError === "AccessDenied" && (
+            <div className="p-3 rounded-lg bg-amber-50 dark:bg-amber-900/20 text-amber-700 dark:text-amber-300 text-sm text-center animate-fade-in flex items-center justify-center gap-2">
+              <AlertTriangle className="h-4 w-4" />
+              כדי להתחבר דרך Google, יש להתחבר תחילה עם סיסמה כדי לאמת את החשבון.
+            </div>
+          )}
+
           {error && (
             <div className="p-3 rounded-lg bg-destructive/10 text-destructive text-sm text-center animate-fade-in">
               {error}

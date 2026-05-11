@@ -192,6 +192,9 @@ export const authOptions: NextAuthOptions = {
   pages: {
     signIn: "/login",
     newUser: "/register",
+    // C8: שגיאות OAuth (לרבות AccessDenied שמוחזר ע"י signIn callback)
+    // יופנו ל-/login במקום עמוד NextAuth הגנרי באנגלית.
+    error: "/login",
   },
   events: {
     async createUser({ user }) {
@@ -216,6 +219,21 @@ export const authOptions: NextAuthOptions = {
         }
       }
     },
+    async linkAccount({ user, account }) {
+      // C8: כש-NextAuth יוצר משתמש חדש דרך Google OAuth, PrismaAdapter
+      // מאלץ emailVerified=null. Google מאמת אימייל בעצמו, כך שאנחנו
+      // יכולים לסמן מאומת. בלי זה — login שני דרך Google ייכשל בבדיקת C8.
+      if (account.provider === "google" && user.id) {
+        await prisma.user
+          .update({
+            where: { id: user.id, emailVerified: null },
+            data: { emailVerified: new Date() },
+          })
+          .catch(() => {
+            // אם כבר מאומת (login חוזר), no-op — Prisma תזרוק; מתעלמים.
+          });
+      }
+    },
   },
   callbacks: {
     async signIn({ user, account, profile }) {
@@ -235,6 +253,21 @@ export const authOptions: NextAuthOptions = {
           });
 
           if (!existingAccount) {
+            // C8: account takeover protection. אם משתמש קיים ב-MyTipul לא
+            // אומת אימייל (emailVerified=null), אסור לקשר חשבון Google חדש
+            // אוטומטית. תרחיש התקיפה: תוקף יוצר Gmail עם email של victim legacy
+            // שלא אומת ב-MyTipul → Google מאשר → linking אוטומטי → תוקף נכנס
+            // לחשבון של ה-victim. הפתרון: לדחות עד שה-victim יאמת את האימייל
+            // דרך MyTipul (אם הוא יודע על החשבון בכלל).
+            // ADMIN חריג כי תפקיד admin לרוב נוצר ידנית בלי email verification flow.
+            if (!existingUser.emailVerified && existingUser.role !== "ADMIN") {
+              logger.warn("[auth] blocked Google OAuth link to unverified user", {
+                userId: existingUser.id,
+                email: existingUser.email,
+              });
+              return false;
+            }
+
             // Link Google account to existing user
             await prisma.account.create({
               data: {
