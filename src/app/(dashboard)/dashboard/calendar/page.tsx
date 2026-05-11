@@ -97,6 +97,7 @@ function CalendarPageContent() {
     recurringPatterns,
     isLoading,
     defaultSessionDuration,
+    defaultSessionPrice,
     fetchData,
     checkOverlaps,
     overlaps,
@@ -268,9 +269,10 @@ function CalendarPageContent() {
     const endTime = new Date(clickedTime);
     endTime.setMinutes(endTime.getMinutes() + defaultSessionDuration);
     
-    // אם הגיעו מדף מטופל, למלא את המטופל והמחיר אוטומטית
+    // אם הגיעו מדף מטופל, למלא את המטופל והמחיר אוטומטית.
+    // אחרת — שימוש במחיר ברירת המחדל של המטפל (מההגדרות) ככרית פתיחה.
     let clientId = "";
-    let price = "";
+    let price = defaultSessionPrice != null ? String(defaultSessionPrice) : "";
     if (preselectedClientId) {
       clientId = preselectedClientId;
       const client = clients.find(c => c.id === preselectedClientId);
@@ -627,6 +629,7 @@ function CalendarPageContent() {
         onOpenChange={setIsDialogOpen}
         clients={clients}
         defaultSessionDuration={defaultSessionDuration}
+        defaultSessionPrice={defaultSessionPrice}
         selectedDate={selectedDate}
         initialFormData={initialFormData}
         sessions={sessions}

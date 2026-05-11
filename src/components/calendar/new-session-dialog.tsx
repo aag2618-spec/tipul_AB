@@ -1,13 +1,13 @@
 "use client";
 
-import { useState, useEffect } from "react";
+import { useState, useEffect, useMemo } from "react";
 import { Button } from "@/components/ui/button";
 import { Dialog, DialogContent, DialogDescription, DialogHeader, DialogTitle, DialogFooter } from "@/components/ui/dialog";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
 import { Switch } from "@/components/ui/switch";
-import { Loader2, Repeat, Settings, Waves, UserPlus, ArrowRight, AlertTriangle } from "lucide-react";
+import { Loader2, Repeat, Settings, Waves, UserPlus, ArrowRight, AlertTriangle, Search } from "lucide-react";
 import { format, addWeeks } from "date-fns";
 import { toast } from "sonner";
 import type { CalendarClient, CalendarSession } from "@/hooks/use-calendar-data";
@@ -62,6 +62,11 @@ interface NewSessionDialogProps {
   onOpenChange: (open: boolean) => void;
   clients: CalendarClient[];
   defaultSessionDuration: number;
+  /**
+   * מחיר ברירת מחדל לטיפול מהגדרות המטפל. משמש כשנבחר מטופל ללא מחיר
+   * אישי משלו. null = לא הוגדר בהגדרות.
+   */
+  defaultSessionPrice?: number | null;
   selectedDate: Date | null;
   initialFormData: SessionFormData;
   sessions: CalendarSession[];
@@ -73,6 +78,22 @@ interface NewSessionDialogProps {
   ) => void;
 }
 
+// שם משפחה = המילה האחרונה אחרי רווח. אם השם הוא מילה אחת — היא תשמש כשם משפחה.
+// קידומות נפוצות לשמות משפחה (במיוחד לקהל חרדי): "בן דוד", "בר אילן", "הלוי", "דה לה" וכו'.
+const SURNAME_PREFIXES = new Set(["בן", "בר", "אבן", "הלוי", "הכהן", "דה", "אל", "אבו", "ابن", "بن"]);
+function getLastName(fullName: string): string {
+  const trimmed = (fullName || "").trim();
+  if (!trimmed) return "";
+  const parts = trimmed.split(/\s+/);
+  if (parts.length >= 2) {
+    const prev = parts[parts.length - 2];
+    if (SURNAME_PREFIXES.has(prev)) {
+      return `${prev} ${parts[parts.length - 1]}`;
+    }
+  }
+  return parts[parts.length - 1] || "";
+}
+
 // ── Component ──
 
 export function NewSessionDialog({
@@ -80,6 +101,7 @@ export function NewSessionDialog({
   onOpenChange,
   clients,
   defaultSessionDuration,
+  defaultSessionPrice,
   selectedDate,
   initialFormData,
   sessions,
@@ -90,6 +112,9 @@ export function NewSessionDialog({
   const [isSubmitting, setIsSubmitting] = useState(false);
   const [showDurationCustomizer, setShowDurationCustomizer] = useState(false);
   const [customDuration, setCustomDuration] = useState(defaultSessionDuration);
+
+  // חיפוש מטופל בתוך ה-Select
+  const [clientSearch, setClientSearch] = useState("");
 
   // פגישת ייעוץ — state
   const [isQuickClientMode, setIsQuickClientMode] = useState(false);
@@ -126,8 +151,35 @@ export function NewSessionDialog({
       setMatchedClient(null);
       setConflictPrompt(null);
       setConflictDecision("replace");
+      setClientSearch("");
     }
   }, [open, initialFormData, defaultSessionDuration]);
+
+  // רשימת מטופלים קבועים, ממוינת לפי שם משפחה (א"ב) ומסוננת לפי החיפוש.
+  // החיפוש מתאים גם בשם פרטי וגם בשם משפחה — לפי קלט כלשהו של המשתמש.
+  // המטופל הנבחר נשאר ברשימה תמיד — אחרת Radix Select יציג placeholder.
+  const sortedFilteredClients = useMemo(() => {
+    const regular = clients.filter((c) => !c.isQuickClient);
+    const collator = new Intl.Collator("he", { sensitivity: "base", numeric: true });
+    const sorted = [...regular].sort((a, b) => {
+      const lastA = getLastName(a.name);
+      const lastB = getLastName(b.name);
+      const byLast = collator.compare(lastA, lastB);
+      if (byLast !== 0) return byLast;
+      return collator.compare(a.name || "", b.name || "");
+    });
+
+    const term = clientSearch.trim().toLowerCase();
+    if (!term) return sorted;
+    const filtered = sorted.filter((c) => (c.name || "").toLowerCase().includes(term));
+    // אם החיפוש סינן החוצה את המטופל הנבחר — מוסיפים אותו חזרה כדי
+    // שה-Select ימשיך להציג את שמו ב-Trigger.
+    if (formData.clientId && !filtered.some((c) => c.id === formData.clientId)) {
+      const selected = sorted.find((c) => c.id === formData.clientId);
+      if (selected) return [selected, ...filtered];
+    }
+    return filtered;
+  }, [clients, clientSearch, formData.clientId]);
 
   // זיהוי חזרה — כשמקלידים שם, חיפוש בפונים קיימים
   useEffect(() => {
@@ -456,16 +508,34 @@ export function NewSessionDialog({
                   פגישת ייעוץ
                 </button>
               </div>
+              {/* שדה חיפוש — מסנן את הרשימה למטה. תמיד נגיש,
+                  לא דורש לפתוח את הסלקט קודם. */}
+              <div className="relative">
+                <Search aria-hidden="true" className="absolute right-2 top-1/2 -translate-y-1/2 h-4 w-4 text-muted-foreground pointer-events-none" />
+                <Input
+                  aria-label="חיפוש מטופל"
+                  placeholder="חיפוש מטופל..."
+                  value={clientSearch}
+                  onChange={(e) => setClientSearch(e.target.value)}
+                  className="h-9 pr-8"
+                />
+              </div>
               <Select
                 value={formData.clientId}
                 onValueChange={(value) => {
                   const selectedClient = clients.find((c) => c.id === value);
+                  const clientPrice = selectedClient?.defaultSessionPrice;
+                  // מחיר: עדיפות למחיר אישי של המטופל; אם אין —
+                  // משתמשים במחיר ברירת המחדל של המטפל (אם הוגדר);
+                  // אחרת — שומרים על מה שכבר היה בטופס.
                   setFormData((prev) => ({
                     ...prev,
                     clientId: value,
-                    price: selectedClient?.defaultSessionPrice
-                      ? String(selectedClient.defaultSessionPrice)
-                      : prev.price,
+                    price: clientPrice
+                      ? String(clientPrice)
+                      : defaultSessionPrice != null
+                        ? String(defaultSessionPrice)
+                        : prev.price,
                   }));
                 }}
               >
@@ -473,11 +543,17 @@ export function NewSessionDialog({
                   <SelectValue placeholder="בחר מטופל" />
                 </SelectTrigger>
                 <SelectContent>
-                  {clients.filter((c) => !c.isQuickClient).map((client) => (
-                    <SelectItem key={client.id} value={client.id}>
-                      {client.name}
-                    </SelectItem>
-                  ))}
+                  {sortedFilteredClients.length === 0 ? (
+                    <div className="px-3 py-6 text-center text-sm text-muted-foreground">
+                      לא נמצאו מטופלים
+                    </div>
+                  ) : (
+                    sortedFilteredClients.map((client) => (
+                      <SelectItem key={client.id} value={client.id}>
+                        {client.name}
+                      </SelectItem>
+                    ))
+                  )}
                 </SelectContent>
               </Select>
             </div>

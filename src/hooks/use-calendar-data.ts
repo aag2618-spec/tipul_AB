@@ -63,6 +63,7 @@ export function useCalendarData() {
   const [recurringPatterns, setRecurringPatterns] = useState<RecurringPattern[]>([]);
   const [isLoading, setIsLoading] = useState(true);
   const [defaultSessionDuration, setDefaultSessionDuration] = useState(50);
+  const [defaultSessionPrice, setDefaultSessionPrice] = useState<number | null>(null);
   const [overlaps, setOverlaps] = useState<SessionOverlap[]>([]);
   const [dateRange, setDateRange] = useState<{ start: string; end: string } | null>(null);
 
@@ -95,6 +96,10 @@ export function useCalendarData() {
       if (profileRes.ok) {
         const profileData = await profileRes.json();
         setDefaultSessionDuration(profileData.defaultSessionDuration || 50);
+        // מחיר ברירת מחדל לטיפול (מהגדרות המטפל) — null אם לא הוגדר
+        const priceRaw = profileData.defaultSessionPrice;
+        const priceNum = priceRaw === null || priceRaw === undefined ? null : Number(priceRaw);
+        setDefaultSessionPrice(priceNum !== null && Number.isFinite(priceNum) ? priceNum : null);
       }
     } catch (error) {
       console.error("Failed to fetch data:", error);
@@ -158,6 +163,7 @@ export function useCalendarData() {
     recurringPatterns,
     isLoading,
     defaultSessionDuration,
+    defaultSessionPrice,
     fetchData,
     checkOverlaps,
     overlaps,
