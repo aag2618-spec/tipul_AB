@@ -173,13 +173,13 @@ export function canSecretaryAccessModel(
  * - מטפלת בקליניקה (THERAPIST): המטופלים שלה בארגון בלבד.
  * - מזכירה (SECRETARY): כל המטופלים בארגון (אבל הקוד שקורא חייב להחיל
  *   `select` שמסיר שדות קליניים — ראה getClientSafeSelectForSecretary).
- * - ADMIN/MANAGER גלובליים: where ריק (רואים הכל). שימוש זהיר!
+ *
+ * ADMIN/MANAGER (תפקיד תוכנה גלובלי) אינו עוקף את ה-scope הזה — אדמין שיש
+ * לו clinicRole/organizationId יראה את הקליניקה שלו ככל בעלים אחר, ואדמין
+ * עצמאי יראה רק את שלו. גישת "ראה הכל" מיועדת אך ורק ל-/api/admin/* שמכריזים
+ * על דריסה מפורשת ולא משתמשים ב-buildClientWhere.
  */
 export function buildClientWhere(user: ScopeUser): Prisma.ClientWhereInput {
-  if (user.role === "ADMIN" || user.role === "MANAGER") {
-    return {};
-  }
-
   if (!user.organizationId) {
     return { therapistId: user.id };
   }
@@ -204,10 +204,6 @@ export function buildClientWhere(user: ScopeUser): Prisma.ClientWhereInput {
  * מבוסס על buildClientWhere — פגישות נגזרות מהמטופל.
  */
 export function buildSessionWhere(user: ScopeUser): Prisma.TherapySessionWhereInput {
-  if (user.role === "ADMIN" || user.role === "MANAGER") {
-    return {};
-  }
-
   if (!user.organizationId) {
     return { therapistId: user.id };
   }
@@ -231,10 +227,6 @@ export function buildPaymentWhere(user: ScopeUser): Prisma.PaymentWhereInput | {
   if (isSecretary(user) && !secretaryCan(user, "canViewPayments")) {
     // מזכירה ללא הרשאת תשלומים — מחזיר filter שלא מתאים לאף רשומה
     return { id: "__deny__" };
-  }
-
-  if (user.role === "ADMIN" || user.role === "MANAGER") {
-    return {};
   }
 
   if (!user.organizationId) {
@@ -262,10 +254,6 @@ export function buildPaymentWhere(user: ScopeUser): Prisma.PaymentWhereInput | {
  * - מטפלת בקליניקה: `therapistId=user.id` (המסמכים האישיים שלה בלבד).
  */
 export function buildDocumentWhere(user: ScopeUser): Prisma.DocumentWhereInput {
-  if (user.role === "ADMIN" || user.role === "MANAGER") {
-    return {};
-  }
-
   const clientWhere = buildClientWhere(user);
 
   if (!user.organizationId) {

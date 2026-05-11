@@ -200,13 +200,24 @@ describe("buildClientWhere", () => {
     expect(buildClientWhere(secretaryFull)).toEqual({ organizationId: "org1" });
   });
 
-  it("ADMIN — empty where (sees everything, dangerous)", () => {
-    expect(buildClientWhere(adminUser)).toEqual({});
+  it("ADMIN (standalone) — sees only own (admin no longer bypasses scope in UI)", () => {
+    // adminUser has organizationId=null, so falls back to therapistId.
+    // Full system access for admins goes through /api/admin/* endpoints.
+    expect(buildClientWhere(adminUser)).toEqual({ therapistId: "u6" });
   });
 
-  it("MANAGER — empty where", () => {
+  it("MANAGER (standalone) — sees only own (manager no longer bypasses scope in UI)", () => {
     const manager: ScopeUser = { ...adminUser, role: "MANAGER" };
-    expect(buildClientWhere(manager)).toEqual({});
+    expect(buildClientWhere(manager)).toEqual({ therapistId: "u6" });
+  });
+
+  it("ADMIN with clinic OWNER role — sees the clinic, not the whole system", () => {
+    const adminOwner: ScopeUser = {
+      ...adminUser,
+      organizationId: "org1",
+      clinicRole: "OWNER",
+    };
+    expect(buildClientWhere(adminOwner)).toEqual({ organizationId: "org1" });
   });
 
   it("safety fallback: organizationId+null clinicRole — sees only own", () => {

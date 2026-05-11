@@ -17,6 +17,7 @@ import { escapeHtml } from "./email-utils";
 const JWT_CACHE_TTL = 30 * 1000; // 30 שניות
 interface JwtUserData {
   role: "USER" | "MANAGER" | "ADMIN" | "CLINIC_OWNER" | "CLINIC_SECRETARY";
+  clinicRole: "OWNER" | "THERAPIST" | "SECRETARY" | null;
   isBlocked: boolean;
   subscriptionStatus: "ACTIVE" | "TRIALING" | "PAST_DUE" | "CANCELLED" | "PAUSED" | null;
   subscriptionEndsAt: Date | null;
@@ -441,6 +442,7 @@ export const authOptions: NextAuthOptions = {
             where: { id: userId },
             select: {
               role: true,
+              clinicRole: true,
               isBlocked: true,
               subscriptionStatus: true,
               subscriptionEndsAt: true,
@@ -453,6 +455,7 @@ export const authOptions: NextAuthOptions = {
         }
         if (dbUser) {
           token.role = dbUser.role;
+          token.clinicRole = dbUser.clinicRole ?? null;
           token.subscriptionStatus = dbUser.subscriptionStatus || undefined;
           token.isBlocked = dbUser.isBlocked || false;
           
@@ -521,6 +524,7 @@ export const authOptions: NextAuthOptions = {
       if (session.user) {
         session.user.id = token.id as string;
         session.user.role = token.role as "USER" | "MANAGER" | "ADMIN" | "CLINIC_OWNER" | "CLINIC_SECRETARY";
+        session.user.clinicRole = (token.clinicRole as "OWNER" | "THERAPIST" | "SECRETARY" | null | undefined) ?? null;
         session.user.requires2FA = token.requires2FA === true;
 
         // Impersonation: בעת ש-OWNER מתחזה ל-target, ה"זהות אפקטיבית"
@@ -555,6 +559,7 @@ declare module "next-auth" {
       email?: string | null;
       image?: string | null;
       role: "USER" | "MANAGER" | "ADMIN" | "CLINIC_OWNER" | "CLINIC_SECRETARY";
+      clinicRole: "OWNER" | "THERAPIST" | "SECRETARY" | null;
       requires2FA?: boolean;
       // Impersonation: כש-OWNER מתחזה ל-target, ה-id/role/name מוחלפים לאלו
       // של ה-target (למניעת לחזור ולשכפל data scope), ו-originalUserId שומר
@@ -569,6 +574,7 @@ declare module "next-auth/jwt" {
   interface JWT {
     id: string;
     role?: "USER" | "MANAGER" | "ADMIN" | "CLINIC_OWNER" | "CLINIC_SECRETARY";
+    clinicRole?: "OWNER" | "THERAPIST" | "SECRETARY" | null;
     subscriptionStatus?: "ACTIVE" | "TRIALING" | "PAST_DUE" | "CANCELLED" | "PAUSED";
     isBlocked?: boolean;
     gracePeriodEndsAt?: string; // ISO date string - מתי נגמרת תקופת החסד

@@ -57,7 +57,9 @@ export function DashboardHeader({ user }: DashboardHeaderProps) {
   const pathname = usePathname();
   const { data: session } = useSession();
   const isClinicOwner =
-    session?.user?.role === "CLINIC_OWNER" || session?.user?.role === "ADMIN";
+    session?.user?.role === "CLINIC_OWNER" ||
+    session?.user?.role === "ADMIN" ||
+    session?.user?.clinicRole === "OWNER";
   const [notifications, setNotifications] = useState<Notification[]>([]);
   const [unreadCount, setUnreadCount] = useState(0);
   const [announcements, setAnnouncements] = useState<SystemAnnouncement[]>([]);

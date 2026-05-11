@@ -162,7 +162,9 @@ export function AppSidebar({ user }: AppSidebarProps) {
   const { data: session } = useSession();
   const isAdmin = session?.user?.role === "ADMIN" || session?.user?.role === "MANAGER";
   const isClinicOwner =
-    session?.user?.role === "CLINIC_OWNER" || session?.user?.role === "ADMIN";
+    session?.user?.role === "CLINIC_OWNER" ||
+    session?.user?.role === "ADMIN" ||
+    session?.user?.clinicRole === "OWNER";
 
   const isActive = (href: string) => {
     if (href === "/dashboard") {
