@@ -3,6 +3,7 @@ import prisma from "@/lib/prisma";
 import bcrypt from "bcryptjs";
 import { checkRateLimit, AUTH_RATE_LIMIT, rateLimitResponse } from "@/lib/rate-limit";
 import { logger } from "@/lib/logger";
+import { invalidateJwtCache } from "@/lib/auth";
 
 export const dynamic = "force-dynamic";
 
@@ -63,17 +64,22 @@ export async function POST(request: NextRequest) {
     // Hash new password
     const hashedPassword = await bcrypt.hash(password, 12);
 
-    // Update password and mark token as used
+    // C7: עדכון passwordChangedAt — מבטל tokens קיימים שהונפקו לפני שינוי
+    // הסיסמה (defense-in-depth מול cookie גנוב שעדיין פעיל בזמן ההחלפה).
     await prisma.$transaction([
       prisma.user.update({
         where: { id: resetRecord.userId },
-        data: { password: hashedPassword },
+        data: { password: hashedPassword, passwordChangedAt: new Date() },
       }),
       prisma.passwordReset.update({
         where: { id: resetRecord.id },
         data: { usedAt: new Date() },
       }),
     ]);
+
+    // C7: סגירת חלון 30s של JWT cache — אחרת token גנוב היה ממשיך לעבוד
+    // עד שה-cache פג. מסיר את הרשומה מיד כדי שהבקשה הבאה תקרא טרי מ-DB.
+    invalidateJwtCache(resetRecord.userId);
 
     return NextResponse.json({
       message: "הסיסמה עודכנה בהצלחה! ניתן להתחבר עכשיו",

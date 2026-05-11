@@ -85,22 +85,26 @@ enum InvitationStatus {
 }
 
 model User {
-  id            String    @id @default(cuid())
-  name          String?
-  email         String?   @unique
-  emailVerified DateTime?
-  image         String?
-  password      String?
-  phone         String?
-  license       String?
-  role          Role      @default(USER)
-  isBlocked     Boolean   @default(false)
+  id                String    @id @default(cuid())
+  name              String?
+  email             String?   @unique
+  emailVerified     DateTime?
+  image             String?
+  password          String?
+  // C7: זמן שינוי סיסמה אחרון — משמש להבטלת tokens שהונפקו לפני שינוי הסיסמה.
+  // אם token.iat < passwordChangedAt, ה-JWT callback מסמן את ה-token כ-stale
+  // ומידלוור/requireAuth דוחים את הבקשה (302 ל-login).
+  passwordChangedAt DateTime?
+  phone             String?
+  license           String?
+  role              Role      @default(USER)
+  isBlocked         Boolean   @default(false)
   // סיבת חסימה — null אם isBlocked=false. ערכים: DEBT | TOS_VIOLATION | MANUAL.
   // משמש את ה-webhooks לאוטו-שחרור: רק DEBT משתחרר אוטומטית בתשלום מוצלח;
   // TOS_VIOLATION ו-MANUAL נשארים חסומים עד החלטה ידנית של אדמין.
-  blockReason   String?
-  blockedAt     DateTime?
-  blockedBy     String? // userId של האדמין שחסם; null אם נחסם אוטומטית (cron / system)
+  blockReason       String?
+  blockedAt         DateTime?
+  blockedBy         String? // userId של האדמין שחסם; null אם נחסם אוטומטית (cron / system)
 
   // Two-Factor Authentication (2FA) — נאכף בקוד רק לאנשי צוות (USER/MANAGER/ADMIN)
   twoFactorEnabled       Boolean   @default(true)
@@ -2441,12 +2445,12 @@ model Organization {
   createdAt DateTime @default(now())
   updatedAt DateTime @updatedAt
 
-  members        User[]               @relation("OrgMembers")
-  customContract CustomContract?
-  smsUsage       OrgSmsUsage[]
-  transferLogs   ClientTransferLog[]
-  departures     TherapistDeparture[]
-  invitations    ClinicInvitation[]
+  members               User[]                 @relation("OrgMembers")
+  customContract        CustomContract?
+  smsUsage              OrgSmsUsage[]
+  transferLogs          ClientTransferLog[]
+  departures            TherapistDeparture[]
+  invitations           ClinicInvitation[]
   impersonationSessions ImpersonationSession[]
 
   // Inverse relations מהמודלים הקיימים שמכילים organizationId עם @relation
@@ -2710,10 +2714,10 @@ model ImpersonationSession {
   // IP + user-agent לאודיט
   ipAddress String?
   userAgent String? @db.Text
+  // PARTIAL UNIQUE INDEX (impersonatorId WHERE endedAt IS NULL) נוצר ב-migration SQL.
+  // Prisma לא תומך ב-partial unique index ב-schema, ולכן יוצרים ידנית.
 
   @@index([organizationId, startedAt])
   @@index([impersonatorId, startedAt])
   @@index([targetUserId, startedAt])
-  // PARTIAL UNIQUE INDEX (impersonatorId WHERE endedAt IS NULL) נוצר ב-migration SQL.
-  // Prisma לא תומך ב-partial unique index ב-schema, ולכן יוצרים ידנית.
 }

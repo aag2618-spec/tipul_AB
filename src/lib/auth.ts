@@ -22,8 +22,18 @@ interface JwtUserData {
   subscriptionStatus: "ACTIVE" | "TRIALING" | "PAST_DUE" | "CANCELLED" | "PAUSED" | null;
   subscriptionEndsAt: Date | null;
   trialEndsAt: Date | null;
+  passwordChangedAt: Date | null;
 }
 const jwtUserCache = new Map<string, { data: JwtUserData; timestamp: number }>();
+
+/**
+ * C7: ייצוא helper לביטול cache JWT עבור משתמש ספציפי.
+ * נקרא אחרי שינוי passwordChangedAt/role/isBlocked כדי למנוע חלון פגיעות
+ * של עד 30 שניות שבו cache עדיין מחזיק נתונים ישנים.
+ */
+export function invalidateJwtCache(userId: string): void {
+  jwtUserCache.delete(userId);
+}
 
 // Debounce עדכוני lastActivityAt ב-DB — מונע flood של writes.
 // 5 דקות = ~12 updates/שעה למשתמש פעיל.
@@ -447,6 +457,7 @@ export const authOptions: NextAuthOptions = {
               subscriptionStatus: true,
               subscriptionEndsAt: true,
               trialEndsAt: true,
+              passwordChangedAt: true,
             },
           });
           if (dbUser) {
@@ -454,6 +465,23 @@ export const authOptions: NextAuthOptions = {
           }
         }
         if (dbUser) {
+          // C7: password rotation invalidation. אם הסיסמה השתנתה אחרי
+          // שהונפק ה-token (token.iat ב-seconds; passwordChangedAt ב-DB),
+          // אסור להמשיך להשתמש ב-token הזה — מסמנים passwordStale.
+          // ה-middleware וה-requireAuth ידחו את הבקשה.
+          // הערה: כשם שה-flag הזה נכבד, ה-`iat` של NextAuth מתעדכן ב-updateAge
+          // (כל שעה במצב הנוכחי), כך שאחרי login מחדש (iat חדש) הבעיה נפתרת.
+          if (
+            dbUser.passwordChangedAt &&
+            typeof token.iat === "number" &&
+            dbUser.passwordChangedAt.getTime() > token.iat * 1000
+          ) {
+            token.passwordStale = true;
+          } else if (token.passwordStale) {
+            // refresh — token חדש (iat עודכן) אחרי שינוי הסיסמה: נקה את הflag
+            delete token.passwordStale;
+          }
+
           token.role = dbUser.role;
           token.clinicRole = dbUser.clinicRole ?? null;
           token.subscriptionStatus = dbUser.subscriptionStatus || undefined;
@@ -526,6 +554,7 @@ export const authOptions: NextAuthOptions = {
         session.user.role = token.role as "USER" | "MANAGER" | "ADMIN" | "CLINIC_OWNER" | "CLINIC_SECRETARY";
         session.user.clinicRole = (token.clinicRole as "OWNER" | "THERAPIST" | "SECRETARY" | null | undefined) ?? null;
         session.user.requires2FA = token.requires2FA === true;
+        session.user.passwordStale = token.passwordStale === true;
 
         // Impersonation: בעת ש-OWNER מתחזה ל-target, ה"זהות אפקטיבית"
         // היא של ה-target — ככה data scope, queries, ו-permissions זורמים
@@ -561,6 +590,7 @@ declare module "next-auth" {
       role: "USER" | "MANAGER" | "ADMIN" | "CLINIC_OWNER" | "CLINIC_SECRETARY";
       clinicRole: "OWNER" | "THERAPIST" | "SECRETARY" | null;
       requires2FA?: boolean;
+      passwordStale?: boolean; // C7: token הונפק לפני שינוי סיסמה
       // Impersonation: כש-OWNER מתחזה ל-target, ה-id/role/name מוחלפים לאלו
       // של ה-target (למניעת לחזור ולשכפל data scope), ו-originalUserId שומר
       // את ה-OWNER המקורי. actingAs מכיל את כל ה-metadata של ה-impersonation.
@@ -581,5 +611,8 @@ declare module "next-auth/jwt" {
     requires2FA?: boolean;
     loginAt?: number; // epoch ms — login timestamp; משמש לשיוך verify ל-token
     actingAs?: JwtActingAs; // null/undefined = לא מתחזה
+    // C7: token הונפק לפני שינוי סיסמה — אסור להשתמש בו.
+    // middleware/requireAuth דוחים בקשות עם passwordStale=true.
+    passwordStale?: boolean;
   }
 }

@@ -8,6 +8,7 @@ import {
   rateLimitResponse,
 } from "@/lib/rate-limit";
 import { logger } from "@/lib/logger";
+import { invalidateJwtCache } from "@/lib/auth";
 
 // POST - Reset password for a user (requires ADMIN_SECRET via x-admin-key header)
 // Stage 1.19 — security hardening: timingSafe compare, stricter rate limit,
@@ -112,10 +113,15 @@ export async function POST(request: NextRequest) {
     }
 
     const hashedPassword = await bcrypt.hash(newPassword, 12);
+    // C7: עדכון passwordChangedAt — מאלץ logout של כל הסשנים הקיימים.
+    // זה קריטי באיפוס סיסמה ע"י admin: אם החשבון נגנב, ה-admin מאפס את
+    // הסיסמה והגנבים מאבדים את הגישה מיד (גם אם יש להם cookie פעיל).
     await prisma.user.update({
       where: { id: user.id },
-      data: { password: hashedPassword },
+      data: { password: hashedPassword, passwordChangedAt: new Date() },
     });
+    // C7: סגירת חלון 30s של JWT cache.
+    invalidateJwtCache(user.id);
 
     // ── High-priority audit trail ──
     logger.warn("[admin/reset-password] PASSWORD RESET PERFORMED", {

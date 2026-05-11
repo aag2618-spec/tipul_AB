@@ -36,6 +36,17 @@ export async function requireAuth(opts?: { disallowImpersonation?: boolean }) {
   if (!session?.user?.id) {
     return { error: NextResponse.json({ message: "אין הרשאה" }, { status: 401 }) };
   }
+  // C7: defense-in-depth מעבר ל-middleware. routes שלא נכנסים ב-matcher
+  // (api/auth/*) יעברו כאן אם בכלל יקראו ל-requireAuth, ולא ישתמשו ב-token
+  // שהונפק לפני שינוי סיסמה.
+  if (session.user.passwordStale) {
+    return {
+      error: NextResponse.json(
+        { message: "הסיסמה שונתה. נא להתחבר מחדש." },
+        { status: 401 }
+      ),
+    };
+  }
   if (session.user.requires2FA) {
     return {
       error: NextResponse.json(

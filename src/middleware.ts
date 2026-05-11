@@ -74,6 +74,22 @@ export async function middleware(request: NextRequest) {
     secret: process.env.NEXTAUTH_SECRET
   });
 
+  // C7: password rotation gate. אם token.passwordStale=true (הסיסמה
+  // הוחלפה אחרי הנפקת ה-token), מאלצים login מחדש. ל-API: 401 JSON.
+  // לדפים: redirect ל-/login. מבוצע לפני 2FA gate כי הוא יותר חמור
+  // (token גנוב צריך להפסיק לעבוד מיד).
+  if (token?.passwordStale === true) {
+    if (pathname.startsWith("/api/")) {
+      return NextResponse.json(
+        { message: "הסיסמה שונתה. נא להתחבר מחדש." },
+        { status: 401 }
+      );
+    }
+    const loginUrl = new URL("/login", request.url);
+    loginUrl.searchParams.set("error", "password_changed");
+    return NextResponse.redirect(loginUrl);
+  }
+
   // 2FA gate: משתמש עם token.requires2FA לא יכול לגשת ל-dashboard/admin/API.
   // ל-API: 403 JSON. לדפים: redirect ל-/auth/2fa-verify.
   // ה-matcher של middleware מוגדר באופן שלא תופס את /auth/2fa-verify

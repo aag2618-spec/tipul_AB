@@ -9,6 +9,7 @@ import { withAudit } from "@/lib/audit";
 
 import { requirePermission, requireHighestPermission } from "@/lib/api-auth";
 import type { Permission } from "@/lib/permissions";
+import { invalidateJwtCache } from "@/lib/auth";
 
 export const dynamic = "force-dynamic";
 
@@ -245,7 +246,12 @@ export async function PUT(
     if (name !== undefined) updateData.name = name;
     if (email !== undefined) updateData.email = (email as string).toLowerCase().trim();
     if (phone !== undefined) updateData.phone = phone;
-    if (password) updateData.password = await bcrypt.hash(password, 10);
+    if (password) {
+      // bcrypt cost 12 (עקבי עם שאר הקוד). C7: passwordChangedAt מבטל
+      // tokens קיימים — אם admin משנה סיסמה של משתמש, כל הסשנים שלו מתבטלים.
+      updateData.password = await bcrypt.hash(password, 12);
+      updateData.passwordChangedAt = new Date();
+    }
 
     // עטיפה ב-withAudit — רישום ב-audit log אטומית עם העדכון
     const auditDetails = {
@@ -267,6 +273,11 @@ export async function PUT(
         });
       }
     );
+
+    // C7: סגירת חלון 30s של JWT cache כש-admin שינה סיסמה.
+    if (password) {
+      invalidateJwtCache(id);
+    }
 
     return NextResponse.json({
       message: "המשתמש עודכן בהצלחה",
