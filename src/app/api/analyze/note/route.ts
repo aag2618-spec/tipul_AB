@@ -5,6 +5,7 @@ import { getApproachById, getApproachPrompts, buildIntegrationSection, getScales
 import { logger } from "@/lib/logger";
 import { requireAuth } from "@/lib/api-auth";
 import { sanitizeUserHtml } from "@/lib/sanitize-html";
+import { loadScopeUser, buildClientWhere, isSecretary } from "@/lib/scope";
 
 // Lazy initialization
 let genAI: GoogleGenerativeAI | null = null;
@@ -40,7 +41,16 @@ export async function POST(request: NextRequest) {
   try {
     const auth = await requireAuth();
     if ("error" in auth) return auth.error;
-    const { userId, session } = auth;
+    const { userId } = auth;
+
+    // C2 + clinical block: SECRETARY חסומה מ-AI ניתוחים קליניים (תוכן רפואי).
+    const scopeUser = await loadScopeUser(userId);
+    if (isSecretary(scopeUser)) {
+      return NextResponse.json(
+        { message: "פעולה זו אינה זמינה למזכירה" },
+        { status: 403 }
+      );
+    }
 
     const body = await request.json();
     const { noteContent, clientName, clientId } = body;
@@ -66,13 +76,6 @@ export async function POST(request: NextRequest) {
       }
     });
 
-    console.log('🔍 ANALYZE NOTE - User data:', {
-      userId: user?.id,
-      aiTier: user?.aiTier,
-      therapeuticApproaches: user?.therapeuticApproaches,
-      clientIdReceived: clientId,
-    });
-
     if (!user) {
       return NextResponse.json({ message: "משתמש לא נמצא" }, { status: 404 });
     }
@@ -80,27 +83,25 @@ export async function POST(request: NextRequest) {
     // קבלת גישות מהמטופל אם יש
     let therapeuticApproaches = user.therapeuticApproaches || [];
     let clientCulturalContext: string | null = null;
-    
+
     if (clientId) {
-      const client = await prisma.client.findUnique({
-        where: { id: clientId },
-        select: { therapeuticApproaches: true, culturalContext: true }
+      // C2: אימות בעלות על המטופל דרך scope — תוקף לא יוכל לטעון נתונים
+      // קליניים (culturalContext/therapeuticApproaches) של מטופל מארגון אחר.
+      const client = await prisma.client.findFirst({
+        where: { AND: [{ id: clientId }, buildClientWhere(scopeUser)] },
+        select: { therapeuticApproaches: true, culturalContext: true },
       });
-      console.log('🔍 ANALYZE NOTE - Client data:', {
-        clientId,
-        clientApproaches: client?.therapeuticApproaches,
-      });
-      if (client?.therapeuticApproaches && client.therapeuticApproaches.length > 0) {
+      if (!client) {
+        return NextResponse.json(
+          { message: "מטופל לא נמצא" },
+          { status: 404 }
+        );
+      }
+      if (client.therapeuticApproaches && client.therapeuticApproaches.length > 0) {
         therapeuticApproaches = client.therapeuticApproaches;
       }
-      clientCulturalContext = client?.culturalContext || null;
+      clientCulturalContext = client.culturalContext || null;
     }
-
-    console.log('🔍 ANALYZE NOTE - Final approaches:', {
-      therapeuticApproaches,
-      isEnterprise: user.aiTier === 'ENTERPRISE',
-      willUseApproaches: user.aiTier === 'ENTERPRISE' && therapeuticApproaches.length > 0,
-    });
 
     // בניית שמות הגישות
     const approachNames = therapeuticApproaches
@@ -130,7 +131,6 @@ ${approachPrompts}
 • זהה דפוסים רלוונטיים לפי המסגרת התיאורטית
 
 `;
-      console.log('🔍 Analyze Note - Using approaches:', approachNames);
     }
 
     const model = getGenAI().getGenerativeModel({ model: "gemini-2.0-flash" });

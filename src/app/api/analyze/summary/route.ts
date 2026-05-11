@@ -5,6 +5,7 @@ import { getApproachById, getApproachPrompts, getUniversalPrompts } from "@/lib/
 import { logger } from "@/lib/logger";
 import { requireAuth } from "@/lib/api-auth";
 import { sanitizeUserHtml } from "@/lib/sanitize-html";
+import { loadScopeUser, buildClientWhere, isSecretary } from "@/lib/scope";
 
 export const dynamic = "force-dynamic";
 
@@ -12,7 +13,17 @@ export async function POST(request: NextRequest) {
   try {
     const auth = await requireAuth();
     if ("error" in auth) return auth.error;
-    const { userId, session } = auth;
+    const { userId } = auth;
+
+    // C2 + clinical block: SECRETARY חסומה מ-AI ניתוחים קליניים
+    // (כותב comprehensiveAnalysis ל-Client — תוכן רפואי).
+    const scopeUser = await loadScopeUser(userId);
+    if (isSecretary(scopeUser)) {
+      return NextResponse.json(
+        { message: "פעולה זו אינה זמינה למזכירה" },
+        { status: 403 }
+      );
+    }
 
     const body = await request.json();
     const { transcription, summaries, clientName, clientId, analysisType } = body;
@@ -33,17 +44,25 @@ export async function POST(request: NextRequest) {
 
     // קבלת גישות מהמטופל אם יש
     let therapeuticApproaches = user.therapeuticApproaches || [];
-    
+
     let clientCulturalContext: string | null = null;
     if (clientId) {
-      const client = await prisma.client.findUnique({
-        where: { id: clientId },
-        select: { therapeuticApproaches: true, culturalContext: true }
+      // C2: אימות בעלות על המטופל. תוקף לא יוכל יותר לקרוא culturalContext
+      // ולא יוכל לדרוס את comprehensiveAnalysis (ראה גם המעבר ל-updateMany למטה).
+      const client = await prisma.client.findFirst({
+        where: { AND: [{ id: clientId }, buildClientWhere(scopeUser)] },
+        select: { therapeuticApproaches: true, culturalContext: true },
       });
-      if (client?.therapeuticApproaches && client.therapeuticApproaches.length > 0) {
+      if (!client) {
+        return NextResponse.json(
+          { message: "מטופל לא נמצא" },
+          { status: 404 }
+        );
+      }
+      if (client.therapeuticApproaches && client.therapeuticApproaches.length > 0) {
         therapeuticApproaches = client.therapeuticApproaches;
       }
-      clientCulturalContext = client?.culturalContext || null;
+      clientCulturalContext = client.culturalContext || null;
     }
 
     // בניית section של גישות טיפוליות - רק ל-ENTERPRISE
@@ -92,8 +111,8 @@ ${approachPrompts}
       // H4: sanitize HTML של summaries[i].content לפני שליחה ל-LLM.
       // המקור הוא sessionNote.content (HTML מ-TipTap). אחרי המיגרציה
       // הוא יהיה מסונן ב-DB, אבל רישומים ישנים לא — לכן sanitize גם כאן.
-      const summariesText = summaries
-        .map((s: any) => `תאריך: ${s.date}\n${sanitizeUserHtml(s.content)}`)
+      const summariesText = (summaries as Array<{ date: string; content: string }>)
+        .map((s) => `תאריך: ${s.date}\n${sanitizeUserHtml(s.content)}`)
         .join("\n\n---\n\n");
 
       const culturalSection = clientCulturalContext
@@ -150,15 +169,23 @@ ${summariesText}`;
 
       const analysis = await analyzeText(prompt);
 
-      // שמירת הניתוח המקיף ב-DB
+      // C2: שמירת הניתוח רק על מטופל ששייך ל-scope של המשתמש.
+      // updateMany עם buildClientWhere — אטומי ומונע IDOR גם אם הfindFirst
+      // למעלה הוחלף בעתיד בטעות. כשל update לא נחשב שגיאה אם הניתוח כן הופק.
       if (clientId) {
-        await prisma.client.update({
-          where: { id: clientId },
+        const updated = await prisma.client.updateMany({
+          where: { AND: [{ id: clientId }, buildClientWhere(scopeUser)] },
           data: {
             comprehensiveAnalysis: analysis,
             comprehensiveAnalysisAt: new Date(),
           },
         });
+        if (updated.count === 0) {
+          logger.warn("[analyze/summary] update skipped — client not in scope", {
+            userId,
+            clientId,
+          });
+        }
       }
 
       return NextResponse.json({ analysis });
