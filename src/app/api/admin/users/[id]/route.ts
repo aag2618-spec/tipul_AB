@@ -718,6 +718,12 @@ export async function PATCH(
       }).catch(err => logger.error("Revoke free email failed:", { error: err instanceof Error ? err.message : String(err) }));
     }
 
+    // H2: סגירת חלון 30s של JWT cache. שינוי role/isBlocked חייב להיכנס
+    // לתוקף מיד — אחרת משתמש שחסום או הורד דרגה יכול להמשיך לפעול עד 30s.
+    if (role !== undefined || isBlocked !== undefined) {
+      invalidateJwtCache(id);
+    }
+
     return NextResponse.json({
       message: "עודכן בהצלחה",
       user: updatedUser

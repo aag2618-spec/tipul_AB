@@ -4,6 +4,7 @@ import { logger } from "@/lib/logger";
 
 import { requirePermission } from "@/lib/api-auth";
 import { withAudit } from "@/lib/audit";
+import { invalidateJwtCache } from "@/lib/auth";
 
 /**
  * POST /api/admin/users/[id]/toggle-block
@@ -123,6 +124,10 @@ export async function POST(
         return result;
       }
     );
+
+    // H2: סגירת חלון 30s של JWT cache. בלי זה, משתמש שחסום ימשיך לפעול
+    // עד 30 שניות (chunk זמן ניכר אם הוא בעיצומה של פעולה רגישה).
+    invalidateJwtCache(id);
 
     return NextResponse.json({
       success: true,

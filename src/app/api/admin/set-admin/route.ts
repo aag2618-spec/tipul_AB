@@ -4,6 +4,7 @@ import { logger } from "@/lib/logger";
 
 import { requirePermission } from "@/lib/api-auth";
 import { withAudit } from "@/lib/audit";
+import { invalidateJwtCache } from "@/lib/auth";
 
 /**
  * API endpoint to set a user as admin
@@ -69,6 +70,9 @@ export async function POST(request: NextRequest) {
           },
         })
     );
+
+    // H2: ה-token של המשתמש יקבל role: ADMIN בקריאה הבאה במקום אחרי 30s.
+    invalidateJwtCache(user.id);
 
     return NextResponse.json({
       message: "המשתמש הוגדר כמנהל בהצלחה",
