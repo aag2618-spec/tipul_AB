@@ -23,6 +23,10 @@ export async function GET() {
         image: true,
         defaultSessionDuration: true,
         defaultSessionPrice: true,
+        // H4: 2FA status — נצרך ע"י SecurityTab. twoFactorSecret לעולם לא
+        // נחזר ל-client.
+        twoFactorEnabled: true,
+        twoFactorMethod: true,
       },
     });
 

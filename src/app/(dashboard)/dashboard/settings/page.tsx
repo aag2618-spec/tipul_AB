@@ -4,12 +4,13 @@ import { useState } from "react";
 import { useSearchParams } from "next/navigation";
 import { Suspense } from "react";
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
-import { User, Bell, Link2, Building2 } from "lucide-react";
+import { User, Bell, Link2, Building2, Shield } from "lucide-react";
 import { Loader2 } from "lucide-react";
 import { ProfileTab } from "@/components/settings/profile-tab";
 import { NotificationsTab } from "@/components/settings/notifications-tab";
 import { ConnectionsTab } from "@/components/settings/connections-tab";
 import { BusinessTab } from "@/components/settings/business-tab";
+import { SecurityTab } from "@/components/settings/security-tab";
 
 function SettingsContent() {
   const searchParams = useSearchParams();
@@ -53,6 +54,13 @@ function SettingsContent() {
             <Building2 className="h-4 w-4" />
             עסק וקבלות
           </TabsTrigger>
+          <TabsTrigger
+            value="security"
+            className="gap-2 data-[state=active]:bg-primary data-[state=active]:text-primary-foreground rounded-t-lg rounded-b-none border-b-2 border-transparent data-[state=active]:border-primary"
+          >
+            <Shield className="h-4 w-4" />
+            אבטחה
+          </TabsTrigger>
         </TabsList>
 
         <div className="pt-6">
@@ -67,6 +75,9 @@ function SettingsContent() {
           </TabsContent>
           <TabsContent value="business" className="mt-0">
             <BusinessTab />
+          </TabsContent>
+          <TabsContent value="security" className="mt-0">
+            <SecurityTab />
           </TabsContent>
         </div>
       </Tabs>
