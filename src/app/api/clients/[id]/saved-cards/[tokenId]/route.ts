@@ -13,6 +13,7 @@ import prisma from "@/lib/prisma";
 import { requireAuth } from "@/lib/api-auth";
 import { logger } from "@/lib/logger";
 import { withAudit } from "@/lib/audit";
+import { loadScopeUser, buildClientWhere } from "@/lib/scope";
 
 export const dynamic = "force-dynamic";
 
@@ -26,12 +27,12 @@ export async function DELETE(
 
   const { id: clientId, tokenId } = await context.params;
 
-  // Ownership check on Client first — מחזיר 403 ברור (לא 404) אם הלקוח שייך
-  // למטפל אחר, כדי לא לדלוף קיום לקוחות לאחרים.
+  // H1: scope-based ownership check — 404 אחיד מונע enumeration.
+  const scopeUser = await loadScopeUser(userId);
   let client;
   try {
-    client = await prisma.client.findUnique({
-      where: { id: clientId },
+    client = await prisma.client.findFirst({
+      where: { AND: [{ id: clientId }, buildClientWhere(scopeUser)] },
       select: { id: true, therapistId: true },
     });
   } catch (dbErr) {
@@ -44,9 +45,6 @@ export async function DELETE(
   }
   if (!client) {
     return NextResponse.json({ message: "לקוח לא נמצא" }, { status: 404 });
-  }
-  if (client.therapistId !== userId) {
-    return NextResponse.json({ message: "אין הרשאה ללקוח זה" }, { status: 403 });
   }
 
   // ⚠️ אבטחה: כל האימותים יחד — tenant=USER, userId, clientId. אסור להסתמך
@@ -73,10 +71,12 @@ export async function DELETE(
     });
     return NextResponse.json({ message: "שגיאה בטעינת כרטיס" }, { status: 500 });
   }
+  // H1: ה-Client כבר אומת בסקופ למעלה. לא נסנן לפי userId של הקורא כדי
+  // לאפשר ל-CLINIC_OWNER למחוק כרטיסים שמורים של מטופלים בצוות שלו.
+  // הסינון על clientId+tenant מספיק לאחר scope על ה-client.
   if (
     !token ||
     token.tenant !== "USER" ||
-    token.userId !== userId ||
     token.clientId !== clientId
   ) {
     // החזרה אחידה גם כשהטוקן באמת לא קיים וגם כשבעלות לא תואמת — לא לדלוף קיום.

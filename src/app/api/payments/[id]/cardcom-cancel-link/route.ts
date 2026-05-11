@@ -22,6 +22,7 @@ import prisma from "@/lib/prisma";
 import { requireAuth } from "@/lib/api-auth";
 import { logger } from "@/lib/logger";
 import { withAudit } from "@/lib/audit";
+import { loadScopeUser, buildPaymentWhere } from "@/lib/scope";
 
 export const dynamic = "force-dynamic";
 
@@ -66,10 +67,17 @@ export async function POST(
   }
   const reason = (body.reason ?? "").slice(0, 500);
 
+  // H1: scope-based ownership (החלפת therapistId === userId).
+  const scopeUser = await loadScopeUser(userId);
+  const paymentScope = buildPaymentWhere(scopeUser);
+  if ("id" in paymentScope && paymentScope.id === "__deny__") {
+    return NextResponse.json({ message: "אין הרשאה" }, { status: 403 });
+  }
+
   let payment;
   try {
-    payment = await prisma.payment.findUnique({
-      where: { id: paymentId },
+    payment = await prisma.payment.findFirst({
+      where: { AND: [{ id: paymentId }, paymentScope] },
       include: { client: { select: { id: true, therapistId: true } } },
     });
   } catch (dbErr) {
@@ -82,12 +90,11 @@ export async function POST(
   if (!payment) {
     return NextResponse.json({ message: "תשלום לא נמצא" }, { status: 404 });
   }
-  if (payment.client.therapistId !== userId) {
-    return NextResponse.json({ message: "אין הרשאה לבטל קישור זה" }, { status: 403 });
-  }
 
   // איתור עסקה לביטול. אם המשתמש שלח transactionId נצמד אליו (תרחיש: ביטול ספציפי
   // מההיסטוריה כש-Payment היה כבר עם כמה ניסיונות). אחרת — ה-PENDING האחרון.
+  // H1: ה-Payment כבר אומת בסקופ למעלה — מסירים סינון userId כדי שגם
+  // CLINIC_OWNER יוכל לבטל קישור pending של מטפל בצוות. paymentId+tenant מספיק.
   let preTx;
   try {
     preTx = body.transactionId
@@ -96,7 +103,6 @@ export async function POST(
             id: body.transactionId,
             paymentId: payment.id,
             tenant: "USER",
-            userId,
           },
           select: { id: true, status: true, lowProfileId: true },
         })
@@ -104,7 +110,6 @@ export async function POST(
           where: {
             paymentId: payment.id,
             tenant: "USER",
-            userId,
             status: "PENDING",
           },
           orderBy: { createdAt: "desc" },

@@ -7,6 +7,7 @@ import { NextRequest, NextResponse } from "next/server";
 import prisma from "@/lib/prisma";
 import { requireAuth } from "@/lib/api-auth";
 import { logger } from "@/lib/logger";
+import { loadScopeUser, buildClientWhere } from "@/lib/scope";
 
 export const dynamic = "force-dynamic";
 
@@ -21,21 +22,22 @@ export async function GET(
   const { id: clientId } = await context.params;
 
   try {
-    const client = await prisma.client.findUnique({
-      where: { id: clientId },
+    // H1: scope-based ownership (החלפת therapistId === userId).
+    const scopeUser = await loadScopeUser(userId);
+    const client = await prisma.client.findFirst({
+      where: { AND: [{ id: clientId }, buildClientWhere(scopeUser)] },
       select: { id: true, therapistId: true },
     });
     if (!client) {
       return NextResponse.json({ message: "לקוח לא נמצא" }, { status: 404 });
     }
-    if (client.therapistId !== userId) {
-      return NextResponse.json({ message: "אין הרשאה ללקוח זה" }, { status: 403 });
-    }
 
+    // H1: ה-Client כבר אומת בסקופ למעלה — לא נסנן לפי userId של הקורא כדי
+    // שגם CLINIC_OWNER יראה טוקנים של מטופלי הצוות (שהמטפל ה"רשום" הוא
+    // עמית בארגון). הסינון על clientId מספיק לאחר scope-validation של הclient.
     const tokens = await prisma.savedCardToken.findMany({
       where: {
         tenant: "USER",
-        userId,
         clientId,
         isActive: true,
         deletedAt: null,

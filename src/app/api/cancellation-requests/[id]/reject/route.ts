@@ -8,6 +8,7 @@ import {
 import { logger } from "@/lib/logger";
 import { requireAuth } from "@/lib/api-auth";
 import { checkRateLimit, EMAIL_SEND_USER_RATE_LIMIT } from "@/lib/rate-limit";
+import { loadScopeUser, buildSessionWhere } from "@/lib/scope";
 
 // POST /api/cancellation-requests/[id]/reject
 // Reject a cancellation request
@@ -20,7 +21,7 @@ export async function POST(
   try {
     const auth = await requireAuth();
     if ("error" in auth) return auth.error;
-    const { userId, session } = auth;
+    const { userId } = auth;
 
     // Stage 2.0 — rate limit לפי userId על פעולת דחייה (שולחת מייל ללקוח).
     const rateLimitResult = checkRateLimit(
@@ -52,9 +53,12 @@ export async function POST(
       );
     }
 
-    // Get the cancellation request
-    const cancellationRequest = await prisma.cancellationRequest.findUnique({
-      where: { id: requestId },
+    // H1: scope-based ownership — מאפשר CLINIC_OWNER לדחות ביטולים של צוות.
+    const scopeUser = await loadScopeUser(userId);
+    const cancellationRequest = await prisma.cancellationRequest.findFirst({
+      where: {
+        AND: [{ id: requestId }, { session: buildSessionWhere(scopeUser) }],
+      },
       include: {
         session: {
           include: {
@@ -67,17 +71,10 @@ export async function POST(
     });
 
     if (!cancellationRequest) {
+      // 404 אחיד — מונע enumeration.
       return NextResponse.json(
         { success: false, message: "בקשת הביטול לא נמצאה" },
         { status: 404 }
-      );
-    }
-
-    // Verify the therapist owns this session
-    if (cancellationRequest.session.therapistId !== userId) {
-      return NextResponse.json(
-        { success: false, message: "אין הרשאה לטפל בבקשה זו" },
-        { status: 403 }
       );
     }
 

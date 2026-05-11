@@ -9,6 +9,7 @@ import {
 import { logger } from "@/lib/logger";
 import { requireAuth } from "@/lib/api-auth";
 import { checkRateLimit, EMAIL_SEND_USER_RATE_LIMIT } from "@/lib/rate-limit";
+import { loadScopeUser, buildSessionWhere } from "@/lib/scope";
 
 // POST /api/sessions/[id]/request-cancellation
 // Allows a client to request cancellation of a session
@@ -53,9 +54,11 @@ export async function POST(
     const body = await request.json();
     const { reason } = body;
 
-    // Get the session with client and therapist
-    const therapySession = await prisma.therapySession.findUnique({
-      where: { id: sessionId },
+    // H1: scope-based ownership. CLINIC_OWNER יכול לבטל פגישות של צוות
+    // בארגון שלו; cross-clinic חסום.
+    const scopeUser = await loadScopeUser(userId);
+    const therapySession = await prisma.therapySession.findFirst({
+      where: { AND: [{ id: sessionId }, buildSessionWhere(scopeUser)] },
       include: {
         client: true,
         therapist: true,
@@ -63,19 +66,10 @@ export async function POST(
     });
 
     if (!therapySession) {
+      // 404 אחיד — מונע enumeration.
       return NextResponse.json(
         { success: false, message: "הפגישה לא נמצאה" },
         { status: 404 }
-      );
-    }
-
-    // הרשאה: רק המטפל בעל הפגישה רשאי לבטל אותה.
-    // (Admin/Manager אינם נכללים כאן — הם משתמשים בנתיב אחר ב-dashboard
-    //  שמטפל בכל הפגישות, לא בפעולה ספציפית של לקוח.)
-    if (therapySession.therapistId !== userId) {
-      return NextResponse.json(
-        { success: false, message: "אין הרשאה לבטל פגישה זו" },
-        { status: 403 }
       );
     }
 

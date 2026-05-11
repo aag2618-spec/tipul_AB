@@ -12,6 +12,7 @@ import { sendEmail } from "@/lib/resend";
 import { escapeHtml } from "@/lib/email-utils";
 import { checkRateLimit, SMS_SEND_USER_RATE_LIMIT } from "@/lib/rate-limit";
 import { isShabbatOrYomTov } from "@/lib/shabbat";
+import { loadScopeUser, buildPaymentWhere } from "@/lib/scope";
 
 export const dynamic = "force-dynamic";
 
@@ -116,11 +117,19 @@ export async function POST(
     }
   }
 
+  // H1: scope-based ownership. החלפת therapistId === userId שעבד למטפל
+  // יחיד אבל שבר CLINIC_OWNER. buildPaymentWhere מטפל בכל התפקידים נכון.
+  const scopeUser = await loadScopeUser(userId);
+  const paymentScope = buildPaymentWhere(scopeUser);
+  if ("id" in paymentScope && paymentScope.id === "__deny__") {
+    return NextResponse.json({ message: "אין הרשאה" }, { status: 403 });
+  }
+
   // Load payment + ownership
   let payment;
   try {
-    payment = await prisma.payment.findUnique({
-      where: { id: paymentId },
+    payment = await prisma.payment.findFirst({
+      where: { AND: [{ id: paymentId }, paymentScope] },
       include: { client: true },
     });
   } catch (err) {
@@ -132,9 +141,6 @@ export async function POST(
   }
   if (!payment) {
     return NextResponse.json({ message: "תשלום לא נמצא" }, { status: 404 });
-  }
-  if (payment.client.therapistId !== userId) {
-    return NextResponse.json({ message: "אין הרשאה לתשלום זה" }, { status: 403 });
   }
 
   const therapist = await prisma.user.findUnique({

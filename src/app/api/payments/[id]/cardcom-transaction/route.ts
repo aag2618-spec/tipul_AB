@@ -7,6 +7,7 @@ import { NextRequest, NextResponse } from "next/server";
 import prisma from "@/lib/prisma";
 import { requireAuth } from "@/lib/api-auth";
 import { logger } from "@/lib/logger";
+import { loadScopeUser, buildPaymentWhere } from "@/lib/scope";
 
 export const dynamic = "force-dynamic";
 
@@ -23,17 +24,20 @@ export async function GET(
   const { id: paymentId } = await context.params;
 
   try {
-    const payment = await prisma.payment.findUnique({
-      where: { id: paymentId },
+    // H1: scope-based ownership (החלפת therapistId === userId).
+    const scopeUser = await loadScopeUser(userId);
+    const paymentScope = buildPaymentWhere(scopeUser);
+    if ("id" in paymentScope && paymentScope.id === "__deny__") {
+      return NextResponse.json({ message: "אין הרשאה" }, { status: 403 });
+    }
+    const payment = await prisma.payment.findFirst({
+      where: { AND: [{ id: paymentId }, paymentScope] },
       include: {
         client: { select: { id: true, therapistId: true } },
       },
     });
     if (!payment) {
       return NextResponse.json({ message: "תשלום לא נמצא" }, { status: 404 });
-    }
-    if (payment.client.therapistId !== userId) {
-      return NextResponse.json({ message: "אין הרשאה לתשלום זה" }, { status: 403 });
     }
 
     // ⚠️ Selection priority is critical when a Payment has multiple Cardcom
@@ -60,11 +64,12 @@ export async function GET(
       errorCode: true,
       errorMessage: true,
     } as const;
+    // H1: ה-Payment כבר אומת בסקופ למעלה — מסירים סינון userId כדי שגם
+    // CLINIC_OWNER יראה את עסקת ה-Cardcom של מטפל בצוות. paymentId+tenant מספיק.
     let tx = await prisma.cardcomTransaction.findFirst({
       where: {
         paymentId: payment.id,
         tenant: "USER",
-        userId,
         status: { in: ["APPROVED", "REFUNDED"] },
       },
       orderBy: { createdAt: "desc" },
@@ -72,7 +77,7 @@ export async function GET(
     });
     if (!tx) {
       tx = await prisma.cardcomTransaction.findFirst({
-        where: { paymentId: payment.id, tenant: "USER", userId },
+        where: { paymentId: payment.id, tenant: "USER" },
         orderBy: { createdAt: "desc" },
         select: SELECT,
       });

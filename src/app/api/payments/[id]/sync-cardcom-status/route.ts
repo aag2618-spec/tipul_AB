@@ -12,6 +12,7 @@ import prisma from "@/lib/prisma";
 import { requireAuth } from "@/lib/api-auth";
 import { logger } from "@/lib/logger";
 import { syncCardcomTransaction } from "@/lib/cardcom/sync-cardcom-payment";
+import { loadScopeUser, buildPaymentWhere } from "@/lib/scope";
 
 export const dynamic = "force-dynamic";
 
@@ -25,9 +26,15 @@ export async function POST(
 
   const { id: paymentId } = await context.params;
 
-  // Ownership check + locate the latest CardcomTransaction.
-  const payment = await prisma.payment.findUnique({
-    where: { id: paymentId },
+  // H1: scope-based ownership (החלפת therapistId === userId).
+  const scopeUser = await loadScopeUser(userId);
+  const paymentScope = buildPaymentWhere(scopeUser);
+  if ("id" in paymentScope && paymentScope.id === "__deny__") {
+    return NextResponse.json({ message: "אין הרשאה" }, { status: 403 });
+  }
+
+  const payment = await prisma.payment.findFirst({
+    where: { AND: [{ id: paymentId }, paymentScope] },
     include: {
       client: { select: { therapistId: true } },
       cardcomTransactions: {
@@ -37,7 +44,7 @@ export async function POST(
       },
     },
   });
-  if (!payment || payment.client.therapistId !== userId) {
+  if (!payment) {
     return NextResponse.json({ message: "תשלום לא נמצא" }, { status: 404 });
   }
 
