@@ -1,4 +1,5 @@
 import { NextRequest, NextResponse } from "next/server";
+import { z } from "zod";
 import prisma from "@/lib/prisma";
 import { Prisma } from "@prisma/client";
 import { addPartialPayment, markFullyPaid } from "@/lib/payment-service";
@@ -14,6 +15,29 @@ import {
 } from "@/lib/scope";
 
 export const dynamic = "force-dynamic";
+
+// Stage 2.0 — Zod schema לעדכון תשלום. PUT מטפל בכמה תרחישים מובחנים
+// (prepareCardcom / addPartial / markPaid / simple field update), והעדכון
+// היה עד כה ידני עם Number()/string casts פזורים. Zod מבטיח:
+//   • amount/creditUsed → numbers חיוביים בלבד (חסום NoSQL operator injection
+//     כמו {amount:{$gt:0}} שיגרום ל-Prisma לזרוק ולהדליף סכימה).
+//   • method → enum סגור (מונע "DROP TABLE" וכד' להגיע ל-DB columns).
+//   • status → enum צר של ערכים ש-PUT באמת מטפל בהם (PAID / PENDING / FAILED).
+//   • notes → bounded length (DoS guard).
+//   • prepareCardcom / issueReceipt — booleans בלבד.
+// כל השדות אופציונליים — PUT semantics.
+const UpdatePaymentSchema = z.object({
+  amount: z.number().positive().max(1_000_000).optional(),
+  creditUsed: z.number().min(0).max(1_000_000).optional(),
+  method: z
+    .enum(["CASH", "CREDIT_CARD", "BANK_TRANSFER", "CHECK", "CREDIT", "OTHER"])
+    .optional(),
+  status: z.enum(["PAID", "PENDING", "FAILED", "CANCELLED"]).optional(),
+  notes: z.string().max(20_000).optional().nullable(),
+  issueReceipt: z.boolean().optional(),
+  prepareCardcom: z.boolean().optional(),
+  paymentMode: z.enum(["FULL", "PARTIAL"]).optional(),
+});
 
 export async function GET(
   request: NextRequest,
@@ -76,8 +100,28 @@ export async function PUT(
     const { userId } = auth;
 
     const { id } = await params;
-    const body = await request.json();
-    const { status, method, notes, amount, creditUsed, issueReceipt, prepareCardcom, paymentMode } = body;
+
+    let rawBody: unknown;
+    try {
+      rawBody = await request.json();
+    } catch {
+      return NextResponse.json({ message: "גוף הבקשה לא תקין" }, { status: 400 });
+    }
+
+    // Stage 2.0 — Zod validation. דוחה body עם types/values לא תקינים לפני
+    // שהשדות מגיעים ל-Prisma או ל-payment-service.
+    const parsed = UpdatePaymentSchema.safeParse(rawBody);
+    if (!parsed.success) {
+      const firstIssue = parsed.error.issues[0];
+      return NextResponse.json(
+        {
+          message: firstIssue?.message ?? "נתונים לא תקינים",
+          field: firstIssue?.path.join(".") ?? null,
+        },
+        { status: 400 }
+      );
+    }
+    const { status, method, notes, amount, creditUsed, issueReceipt, prepareCardcom, paymentMode } = parsed.data;
 
     const scopeUser = await loadScopeUser(userId);
     const paymentWhere = buildPaymentWhere(scopeUser);

@@ -1887,6 +1887,10 @@ model AdminAuditLog {
   @@index([targetType, targetId])
   @@index([createdAt])
   @@index([undoable, undoExpiresAt]) // לcron ניקוי/validation
+  // Stage 2.0 (#13) — compound index לדשבורד "פעולות אדמין לאורך זמן".
+  // מאיץ את ה-query הנפוץ "מה X עשה ב-30 הימים האחרונים" — ובמיוחד אחרי
+  // שטבלת ה-audit גדלה. createdAt קודם ב-key כדי שגם range scan יעיל.
+  @@index([createdAt, adminId])
 }
 
 // ==================== Online Booking ====================

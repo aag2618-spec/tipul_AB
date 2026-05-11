@@ -17,18 +17,48 @@ export function hashCode(code: string): string {
   return crypto.createHash("sha256").update(code).digest("hex");
 }
 
-// 2FA נדרש רק לאנשי צוות (USER/MANAGER/ADMIN), כשהפעילות האחרונה הייתה לפני יותר מ-3 שעות
-// או שאין פעילות בכלל (כניסה ראשונה).
+// 2FA נדרש רק לאנשי צוות (USER/MANAGER/ADMIN/CLINIC_OWNER/CLINIC_SECRETARY),
+// כשהפעילות האחרונה הייתה לפני יותר מ-3 שעות או שאין פעילות בכלל (כניסה ראשונה).
+//
+// Stage 2.0 hardening (security review #14):
+//   • ADMIN ו-CLINIC_OWNER — תפקידים בכירים עם גישה רחבה. אצלם 2FA מופעל
+//     בכל login (גם אם הפעילות האחרונה הייתה לפני שעה), כדי לצמצם חלון
+//     הזדמנות אחרי גניבת קוקי. הגרציה של 3 שעות לא חלה עליהם.
+//   • ADMIN/CLINIC_OWNER ללא twoFactorEnabled — נכנסים בלוג אזהרה (כדי שאדמין
+//     ראשי יראה ויתעדף הפעלת 2FA), אבל login לא נחסם — אחרת חשבונות שטרם
+//     הפעילו 2FA יינעלו. UX של "force-setup" דורש דף onboarding ייעודי
+//     ויטופל בנפרד.
+//   • USER/MANAGER/CLINIC_SECRETARY — מתנהגים כפי שהיה: 2FA רק אם מופעל
+//     ורק אחרי 3 שעות חוסר פעילות.
 export function requires2FA(user: {
   role: string;
   twoFactorEnabled: boolean;
   lastActivityAt: Date | null;
 }): boolean {
-  const isStaff = user.role === "USER" || user.role === "MANAGER" || user.role === "ADMIN";
+  const isStaff =
+    user.role === "USER" ||
+    user.role === "MANAGER" ||
+    user.role === "ADMIN" ||
+    user.role === "CLINIC_OWNER" ||
+    user.role === "CLINIC_SECRETARY";
   if (!isStaff) return false;
-  if (!user.twoFactorEnabled) return false;
-  if (!user.lastActivityAt) return true;
 
+  const isSeniorRole = user.role === "ADMIN" || user.role === "CLINIC_OWNER";
+
+  if (!user.twoFactorEnabled) {
+    if (isSeniorRole) {
+      logger.warn("[2FA] senior role logged in without 2FA enabled — operator should enable", {
+        role: user.role,
+      });
+    }
+    return false;
+  }
+
+  if (isSeniorRole) {
+    return true;
+  }
+
+  if (!user.lastActivityAt) return true;
   const elapsed = Date.now() - new Date(user.lastActivityAt).getTime();
   return elapsed > INACTIVITY_THRESHOLD_MS;
 }

@@ -266,3 +266,25 @@ services:
           property: url
       - key: CRON_SECRET
         sync: false
+
+  # Cron job for AdminAuditLog retention — מוחק רשומות > 12 חודש
+  # (Stage 2.0 hardening #13). שבועי, יום ראשון 03:00 ישראל = 00:00 UTC.
+  # max-time 300s כי ייתכן שצריך כמה batches של 10K (50 max per run).
+  - type: cron
+    name: audit-log-retention
+    runtime: node
+    region: frankfurt
+    plan: free
+    schedule: "0 0 * * 0"  # Every Sunday at 00:00 UTC (03:00 Israel)
+    buildCommand: echo "No build needed"
+    startCommand: |
+      curl -s --max-time 300 -X GET "$RENDER_EXTERNAL_URL/api/cron/audit-log-retention" \
+        -H "Authorization: Bearer $CRON_SECRET"
+    envVars:
+      - key: RENDER_EXTERNAL_URL
+        fromService:
+          type: web
+          name: tipul-app
+          property: url
+      - key: CRON_SECRET
+        sync: false

@@ -1,6 +1,49 @@
 // src/lib/rate-limit.ts
 // Rate Limiter פשוט בזיכרון (in-memory) - ללא תלות חיצונית
-// מתאים לסביבת production עם שרת אחד (Render)
+// מתאים לסביבת production עם שרת אחד (Render).
+//
+// ════════════════════════════════════════════════════════════════════
+// ⚠️ Scaling note (Stage 2.0 — security review fix #2)
+// ════════════════════════════════════════════════════════════════════
+// המימוש הזה הוא in-memory בכל instance של Node. ברגע שעוברים מ-1
+// instance ל-multi-instance (horizontal scaling, Render plan upgrade,
+// או deploy של multiple regions) — ה-counters לא משותפים בין instances:
+//   • ל-`webhook:cardcom:user:global` כל instance שומר 200/דקה משלו →
+//     הסך האפקטיבי מתרבה ב-N (N=מספר ה-instances).
+//   • לrate limit per-IP, אם load balancer דוחף בקשות round-robin,
+//     תוקף יקבל אפקטיבית 30*N/דקה במקום 30/דקה.
+//   • ל-login ולכל פעולה sensitive — ה-counters per-user יכולים
+//     להתאפס "כאילו" כשבקשה הבאה נופלת על instance אחר.
+//
+// ── מתי לעבור ל-Redis ──
+// אינדיקטורים שזה הזמן:
+//   1. Render plan upgrade ל-multi-instance (Pro / Standard).
+//   2. שינוי ל-Vercel/AWS Lambda (serverless = process קצר חיים → store
+//      נמחק בכל invocation, rate limit לא עובד).
+//   3. תקריות אבטחה שמראות שתוקפים מצליחים להרוויח יותר ממה שצפוי.
+//
+// ── איך לעבור (Upstash Redis המומלץ — חינם 10K commands/day) ──
+//   1. `npm i @upstash/ratelimit @upstash/redis`
+//   2. ב-Render: להגדיר UPSTASH_REDIS_REST_URL + UPSTASH_REDIS_REST_TOKEN
+//      (sync: false, ידני בדאשבורד).
+//   3. להחליף את checkRateLimit כך ש-store יהיה Upstash במקום Map:
+//      ```ts
+//      import { Ratelimit } from "@upstash/ratelimit";
+//      import { Redis } from "@upstash/redis";
+//      const limiter = new Ratelimit({
+//        redis: Redis.fromEnv(),
+//        limiter: Ratelimit.slidingWindow(maxRequests, `${windowMs} ms`),
+//      });
+//      const { success, remaining, reset } = await limiter.limit(identifier);
+//      ```
+//   4. השאיר את הסיגנטורה זהה (sync API → async) — קריאה אחת ב-route,
+//      `await checkRateLimit(...)` במקום checkRateLimit(...) sync.
+//      רוב ה-routes כבר ב-async function אז זה change מינורי.
+//   5. בדיקה: deploy ל-staging עם 2 instances → להריץ load test → לוודא
+//      שה-counters משותפים (limit על IP אחד נשמר גם אחרי חציית load
+//      balancer לinstance השני).
+//
+// עד שזה קורה — לעקוב אחר render metrics ולא לאשר scale-out בלי המעבר.
 
 import { NextResponse } from "next/server";
 

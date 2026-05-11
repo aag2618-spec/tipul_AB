@@ -10,7 +10,7 @@ import { logger } from "@/lib/logger";
 import { sendSMS } from "@/lib/sms";
 import { sendEmail } from "@/lib/resend";
 import { escapeHtml } from "@/lib/email-utils";
-import { checkRateLimit } from "@/lib/rate-limit";
+import { checkRateLimit, SMS_SEND_USER_RATE_LIMIT } from "@/lib/rate-limit";
 import { isShabbatOrYomTov } from "@/lib/shabbat";
 
 export const dynamic = "force-dynamic";
@@ -93,6 +93,27 @@ export async function POST(
       { message: "channels חייב להכיל לפחות אחד מ: sms, email" },
       { status: 400 }
     );
+  }
+
+  // Stage 2.0 — שכבה נוספת ל-SMS: 10/שעה למשתמש כי SMS יקר משמעותית מ-email
+  // (מעלות ל-SMS, חיוב לפי הודעה). מופעל רק כששליחת SMS מבוקשת.
+  // הגבלה זו עומדת מעל ה-rate-limit הכללי (30/שעה לכל ה-channels) — אם
+  // המשתמש שולח רק email, לא נופל בשכבה הזו.
+  if (channels.includes("sms")) {
+    const smsResult = checkRateLimit(`send-sms:${userId}`, SMS_SEND_USER_RATE_LIMIT);
+    if (!smsResult.allowed) {
+      return NextResponse.json(
+        { message: "נשלחו יותר מדי SMS. נסה שוב בעוד שעה (או שלח רק במייל)." },
+        {
+          status: 429,
+          headers: {
+            "Retry-After": String(
+              Math.max(1, Math.ceil((smsResult.resetAt - Date.now()) / 1000))
+            ),
+          },
+        }
+      );
+    }
   }
 
   // Load payment + ownership
