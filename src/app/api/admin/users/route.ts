@@ -1,10 +1,35 @@
 import { NextRequest, NextResponse } from "next/server";
+import { z } from "zod";
 import prisma from "@/lib/prisma";
 import bcrypt from "bcryptjs";
 import { logger } from "@/lib/logger";
-import { requirePermission } from "@/lib/api-auth";
+import { requirePermission, requireHighestPermission } from "@/lib/api-auth";
+import { parseBody } from "@/lib/validations/helpers";
+import type { Permission } from "@/lib/permissions";
 
 export const dynamic = "force-dynamic";
+
+// Zod schema ליצירת משתמש. role הוא enum סגור — מונע mass-assignment.
+// תפקידים מורשים (ADMIN/MANAGER/CLINIC_OWNER/CLINIC_SECRETARY) יאכפו דרך
+// requireHighestPermission עם users.change_role נוסף ל-users.create.
+const createUserSchema = z.object({
+  // .min(1) הוסר במכוון — ה-UI שולח לעיתים string ריק עבור שם/טלפון לא ממולאים,
+  // וה-API הקיים קיבל את זה כ-fallback לrole=USER עם שם ריק. שמירה על תאימות.
+  name: z.string().trim().max(100).optional().nullable(),
+  email: z.string().trim().toLowerCase().email("אימייל לא תקין").max(200),
+  password: z.string().min(8, "הסיסמה חייבת להכיל לפחות 8 תווים").max(128),
+  phone: z.string().trim().max(30).optional().nullable(),
+  role: z
+    .enum(["USER", "MANAGER", "ADMIN", "CLINIC_OWNER", "CLINIC_SECRETARY"])
+    .optional(),
+});
+
+const PRIVILEGED_ROLES = new Set([
+  "MANAGER",
+  "ADMIN",
+  "CLINIC_OWNER",
+  "CLINIC_SECRETARY",
+]);
 
 export async function GET(request: NextRequest) {
   try {
@@ -80,28 +105,30 @@ export async function GET(request: NextRequest) {
 
 export async function POST(request: NextRequest) {
   try {
-    const auth = await requirePermission("users.create");
-    if ("error" in auth) return auth.error;
+    // ולידציה של ה-body לפני בדיקת ההרשאה — schema enum סגור על role
+    // מונע mass-assignment של תפקיד privileged דרך מסעדה הbody.
+    const parsed = await parseBody(request, createUserSchema);
+    if ("error" in parsed) return parsed.error;
+    const { name, email, password, phone, role } = parsed.data;
 
-    const body = await request.json();
-    const { name, email, password, phone, role } = body;
-
-    // Validate required fields
-    if (!email || !password) {
-      return NextResponse.json(
-        { message: "חובה להזין אימייל וסיסמה" },
-        { status: 400 }
-      );
+    // אכיפת הרשאה כפולה: users.create + users.change_role כאשר מבוקש תפקיד
+    // privileged. MANAGER עם users.create בלבד יכול ליצור USER, אבל לא ADMIN.
+    const requestedRole = role ?? "USER";
+    const perms: Permission[] = ["users.create"];
+    if (PRIVILEGED_ROLES.has(requestedRole)) {
+      perms.push("users.change_role");
     }
+    const auth = await requireHighestPermission(perms);
+    if ("error" in auth) return auth.error;
 
     // Check if user exists
     const existingUser = await prisma.user.findFirst({
       where: {
         OR: [
-          { email: email || undefined },
-          { phone: phone || undefined },
-        ].filter(Boolean)
-      }
+          { email },
+          ...(phone ? [{ phone }] : []),
+        ],
+      },
     });
 
     if (existingUser) {
@@ -111,8 +138,8 @@ export async function POST(request: NextRequest) {
       );
     }
 
-    // Hash password
-    const hashedPassword = await bcrypt.hash(password, 10);
+    // Hash password — cost 12 (עקבי עם שאר הקוד)
+    const hashedPassword = await bcrypt.hash(password, 12);
 
     // Create user with auto-assigned userNumber
     const newUser = await prisma.$transaction(async (tx) => {
@@ -125,15 +152,22 @@ export async function POST(request: NextRequest) {
           email,
           phone,
           password: hashedPassword,
-          role: role || 'USER',
+          role: requestedRole,
           userNumber: nextUserNumber,
-        }
+        },
       });
+    });
+
+    logger.info("[admin/users] user created", {
+      createdBy: auth.userId,
+      newUserId: newUser.id,
+      role: requestedRole,
+      privileged: PRIVILEGED_ROLES.has(requestedRole),
     });
 
     return NextResponse.json({
       message: "המשתמש נוצר בהצלחה",
-      user: { ...newUser, password: undefined }
+      user: { ...newUser, password: undefined },
     });
   } catch (error) {
     logger.error('Error creating user:', { error: error instanceof Error ? error.message : String(error) });
