@@ -179,3 +179,32 @@ export function getCategoryMaxSize(category: FileCategory): number {
 export function getCategoryAllowedMimes(category: FileCategory): readonly string[] {
   return CONFIG[category].allowedMimes;
 }
+
+/**
+ * H10: ממיר MIME מאומת ל-extension בטוח לשמירה לדיסק.
+ * מונע התקפת "trap.html עם תוכן PDF" — תוקף שולח file.name="trap.html"
+ * + file.type="application/pdf" + תוכן PDF → magic-bytes validation עוברת,
+ * אבל אם נשתמש בקובץ שם של המשתמש, נשמור כ-.html ונגיש כ-text/html.
+ *
+ * השתמש רק אחרי validateFileBuffer() שהוודא ש-MIME תואם ל-magic bytes.
+ */
+const MIME_TO_EXT: Record<string, string> = {
+  "application/pdf": "pdf",
+  "application/msword": "doc",
+  "application/vnd.openxmlformats-officedocument.wordprocessingml.document": "docx",
+  "image/jpeg": "jpg",
+  "image/png": "png",
+  "image/gif": "gif",
+  "image/webp": "webp",
+  "audio/webm": "webm",
+  "audio/ogg": "ogg",
+  "audio/mpeg": "mp3",
+  "audio/mp3": "mp3",
+  "audio/wav": "wav",
+  "audio/x-wav": "wav",
+  "text/plain": "txt",
+};
+
+export function safeExtensionForMime(mime: string): string {
+  return MIME_TO_EXT[mime] ?? "bin";
+}

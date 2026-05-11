@@ -48,7 +48,7 @@ export async function loadVerifiedImpersonation(
           select: { role: true, clinicRole: true, isBlocked: true, organizationId: true },
         },
         impersonator: {
-          select: { organizationId: true, isBlocked: true },
+          select: { organizationId: true, isBlocked: true, role: true, clinicRole: true },
         },
       },
     });
@@ -57,6 +57,16 @@ export async function loadVerifiedImpersonation(
     if (dbSession.impersonatorId !== expectedImpersonatorId) return null;
     if (dbSession.targetUser.isBlocked) return null;
     if (dbSession.impersonator.isBlocked) return null;
+    // H16: אם ה-impersonator איבד את תפקיד OWNER (שונה ע"י ADMIN לזמן
+    // ההתחזות), חייבים לסיים את הסשן. רק בעלי קליניקה (role=CLINIC_OWNER
+    // או clinicRole=OWNER) מותרים להתחזות.
+    if (
+      dbSession.impersonator.role !== "CLINIC_OWNER" &&
+      dbSession.impersonator.role !== "ADMIN" &&
+      dbSession.impersonator.clinicRole !== "OWNER"
+    ) {
+      return null;
+    }
     // הגנה חוצה-קליניקה: אם ה-target הועבר לקליניקה אחרת אחרי שההתחזות
     // התחילה — ניתוק מיידי. impersonator.organizationId הוא ה-truth החי,
     // dbSession.organizationId הוא snapshot מזמן ה-start.

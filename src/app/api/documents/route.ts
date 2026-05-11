@@ -6,7 +6,7 @@ import { join } from "path";
 import { v4 as uuidv4 } from "uuid";
 import { logger } from "@/lib/logger";
 import { loadScopeUser, buildClientWhere } from "@/lib/scope";
-import { validateFileBuffer } from "@/lib/file-validation";
+import { validateFileBuffer, safeExtensionForMime } from "@/lib/file-validation";
 
 export const dynamic = "force-dynamic";
 
@@ -96,8 +96,9 @@ export async function POST(request: NextRequest) {
       }
     }
 
-    // Save file
-    const fileExtension = file.name.split(".").pop() || "pdf";
+    // H10: extension נקבע לפי ה-MIME שאומת ע"י validateFileBuffer (magic bytes)
+    // ולא לפי file.name של המשתמש. מונע "trap.html עם תוכן PDF" שיוגש כ-HTML.
+    const fileExtension = safeExtensionForMime(file.type);
     const fileName = `${uuidv4()}.${fileExtension}`;
 
     // Use persistent disk on Render, fallback to local for development

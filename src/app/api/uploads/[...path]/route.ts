@@ -195,10 +195,9 @@ export async function GET(
       case "webp":
         contentType = "image/webp";
         break;
-      case "htm":
-      case "html":
-        contentType = "text/html";
-        break;
+      // H10: htm/html הוסרו במכוון. אין שום שימוש לגיטימי שמגיש HTML
+      // מ-uploads — וזה היה וקטור Stored XSS עם file.name="trap.html"
+      // וב-magic-bytes של PDF/image. אם בעתיד נדרש HTML יוגש דרך static.
       case "csv":
         contentType = "text/csv";
         break;

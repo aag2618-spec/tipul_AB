@@ -1,9 +1,30 @@
 import { NextRequest, NextResponse } from "next/server";
 import { Prisma } from "@prisma/client";
+import { z } from "zod";
 import prisma from "@/lib/prisma";
 import { logger } from "@/lib/logger";
 import { requirePermission } from "@/lib/api-auth";
 import { withAudit } from "@/lib/audit";
+import { parseBody } from "@/lib/validations/helpers";
+
+// H19: Zod schema ליצירת קליניקה — חוסם mass-assignment.
+// לפני: subscriptionStatus/aiTier נקראו מה-body בלי allowlist; MANAGER עם
+// settings.pricing יכל לעקוף billing ע"י שליחת subscriptionStatus:"ACTIVE".
+const createClinicSchema = z.object({
+  name: z.string().trim().min(1).max(120),
+  ownerUserId: z.string().min(1),
+  pricingPlanId: z.string().min(1),
+  ownerIsTherapist: z.boolean().optional(),
+  businessIdNumber: z.string().trim().max(30).optional().nullable(),
+  businessName: z.string().trim().max(200).optional().nullable(),
+  businessAddress: z.string().trim().max(500).optional().nullable(),
+  businessPhone: z.string().trim().max(30).optional().nullable(),
+  logoUrl: z.string().url().max(500).optional().nullable(),
+  aiTier: z.enum(["ESSENTIAL", "PRO", "ENTERPRISE"]).optional(),
+  subscriptionStatus: z
+    .enum(["ACTIVE", "TRIALING", "PAST_DUE", "CANCELLED", "PAUSED"])
+    .optional(),
+});
 
 export const dynamic = "force-dynamic";
 
@@ -68,7 +89,10 @@ export async function POST(request: NextRequest) {
     if ("error" in auth) return auth.error;
     const { session } = auth;
 
-    const body = await request.json();
+    // H19: parseBody עם enum סגור על subscriptionStatus/aiTier — מונע
+    // mass-assignment של שדות privileged.
+    const parsed = await parseBody(request, createClinicSchema);
+    if ("error" in parsed) return parsed.error;
     const {
       name,
       ownerUserId,
@@ -81,17 +105,7 @@ export async function POST(request: NextRequest) {
       logoUrl,
       aiTier,
       subscriptionStatus,
-    } = body;
-
-    if (!name || !String(name).trim()) {
-      return NextResponse.json({ message: "נדרש שם קליניקה" }, { status: 400 });
-    }
-    if (!ownerUserId) {
-      return NextResponse.json({ message: "נדרש לבחור בעל/ת קליניקה" }, { status: 400 });
-    }
-    if (!pricingPlanId) {
-      return NextResponse.json({ message: "נדרש לבחור תוכנית תמחור" }, { status: 400 });
-    }
+    } = parsed.data;
 
     const plan = await prisma.clinicPricingPlan.findUnique({ where: { id: pricingPlanId } });
     if (!plan) {
