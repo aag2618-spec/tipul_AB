@@ -34,14 +34,15 @@ export async function syncSessionToGoogleCalendar(
     // לא מסנכרנים הפסקות ליומן
     if (session.type === "BREAK") return;
 
-    const summary = session.clientName
-      ? `פגישה עם ${session.clientName}`
-      : "פגישה";
+    // H3: לא שולחים שם מטופל ונושא פגישה ליומן Google — זה PHI/PII לצד שלישי
+    // בלי הסכמה של המטופל. הסיכום הכללי שומר על פרטיות; המטפל יכול לפתוח
+    // את המערכת לפרטים מלאים.
+    const summary = "פגישה טיפולית";
 
     const descriptionParts: string[] = [];
     const typeLabel = SESSION_TYPE_HEBREW[session.type] || session.type;
     descriptionParts.push(`סוג: ${typeLabel}`);
-    if (session.topic) descriptionParts.push(`נושא: ${session.topic}`);
+    // session.topic ו-session.clientName נשמטו במכוון (H3).
 
     const eventId = await addToGoogleCalendar(userId, {
       summary,
@@ -86,9 +87,8 @@ export async function syncSessionUpdateToGoogleCalendar(
       location?: string;
     } = {};
 
-    if (session.clientName) {
-      updateData.summary = `פגישה עם ${session.clientName}`;
-    }
+    // H3: לא מעדכנים summary עם שם מטופל — PHI/PII לא יוצא ל-Google.
+    // ה-summary המקורי "פגישה טיפולית" נשאר.
     if (session.startTime) {
       updateData.startTime = new Date(session.startTime);
     }
