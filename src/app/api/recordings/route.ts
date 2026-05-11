@@ -5,6 +5,7 @@ import { logger } from "@/lib/logger";
 import {
   loadScopeUser,
   buildClientWhere,
+  buildSessionWhere,
   canSecretaryAccessModel,
 } from "@/lib/scope";
 import { validateBase64Size, validateFileBuffer } from "@/lib/file-validation";
@@ -109,6 +110,30 @@ export async function POST(request: NextRequest) {
         return NextResponse.json(
           { message: "מטופל לא נמצא" },
           { status: 404 }
+        );
+      }
+    }
+
+    // C5: וידוא שה-sessionId שייך ל-scope של המשתמש. לפני התיקון תוקף יכל
+    // לשלוח sessionId של פגישה בארגון אחר → recording נקשרה לפגישה זרה,
+    // עם audio זדוני שיופיע אצל המטפל הקורבן. עכשיו: scope-gated.
+    if (sessionId) {
+      const sess = await prisma.therapySession.findFirst({
+        where: { AND: [{ id: sessionId }, buildSessionWhere(scopeUser)] },
+        select: { id: true, clientId: true },
+      });
+      if (!sess) {
+        return NextResponse.json(
+          { message: "פגישה לא נמצאה" },
+          { status: 404 }
+        );
+      }
+      // אם גם clientId וגם sessionId סופקו — וידוא שהם מתואמים. מונע
+      // צירוף audio של מטופל אחד לפגישה של מטופל שני (גם אם שניהם בסקופ).
+      if (clientId && sess.clientId && sess.clientId !== clientId) {
+        return NextResponse.json(
+          { message: "פגישה ומטופל אינם תואמים" },
+          { status: 400 }
         );
       }
     }
