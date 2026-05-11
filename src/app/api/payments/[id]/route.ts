@@ -32,7 +32,7 @@ const UpdatePaymentSchema = z.object({
   method: z
     .enum(["CASH", "CREDIT_CARD", "BANK_TRANSFER", "CHECK", "CREDIT", "OTHER"])
     .optional(),
-  status: z.enum(["PAID", "PENDING", "FAILED", "CANCELLED"]).optional(),
+  status: z.enum(["PAID", "PENDING", "CANCELLED", "REFUNDED"]).optional(),
   notes: z.string().max(20_000).optional().nullable(),
   issueReceipt: z.boolean().optional(),
   prepareCardcom: z.boolean().optional(),
