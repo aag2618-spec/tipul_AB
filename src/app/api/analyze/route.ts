@@ -5,6 +5,12 @@ import { logApiUsage, estimateTokens, estimateCost } from "@/lib/api-logger";
 import { logger } from "@/lib/logger";
 
 import { requireAuth } from "@/lib/api-auth";
+import {
+  loadScopeUser,
+  buildClientWhere,
+  buildSessionWhere,
+  canSecretaryAccessModel,
+} from "@/lib/scope";
 
 export const dynamic = "force-dynamic";
 
@@ -12,7 +18,16 @@ export async function POST(request: NextRequest) {
   try {
     const auth = await requireAuth();
     if ("error" in auth) return auth.error;
-    const { userId, session } = auth;
+    const { userId } = auth;
+
+    // C4: SECRETARY חסומה — ניתוח AI הוא תוכן קליני.
+    const scopeUser = await loadScopeUser(userId);
+    if (!canSecretaryAccessModel(scopeUser, "Transcription")) {
+      return NextResponse.json(
+        { message: "פעולה זו אינה זמינה למזכירה" },
+        { status: 403 }
+      );
+    }
 
     const body = await request.json();
     const { transcriptionId, type } = body;
@@ -24,9 +39,22 @@ export async function POST(request: NextRequest) {
       );
     }
 
-    // Get transcription with recording
+    // C4: scope-based ownership — מצרף תנאי על client או session בסקופ.
+    // CLINIC_OWNER יוכל לנתח תמלולים של מטפלים בצוות; cross-clinic חסום.
     const transcription = await prisma.transcription.findFirst({
-      where: { id: transcriptionId },
+      where: {
+        AND: [
+          { id: transcriptionId },
+          {
+            recording: {
+              OR: [
+                { client: buildClientWhere(scopeUser) },
+                { session: buildSessionWhere(scopeUser) },
+              ],
+            },
+          },
+        ],
+      },
       include: {
         recording: {
           include: {
@@ -38,16 +66,8 @@ export async function POST(request: NextRequest) {
     });
 
     if (!transcription) {
+      // 404 אחיד — לא חושף קיום של תמלול בארגון אחר.
       return NextResponse.json({ message: "תמלול לא נמצא" }, { status: 404 });
-    }
-
-    // Verify ownership
-    const isOwner =
-      transcription.recording.client?.therapistId === userId ||
-      transcription.recording.session?.therapistId === userId;
-
-    if (!isOwner) {
-      return NextResponse.json({ message: "לא מורשה" }, { status: 403 });
     }
 
     const startTime = Date.now();

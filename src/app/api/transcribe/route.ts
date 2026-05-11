@@ -7,6 +7,12 @@ import { logApiUsage, estimateTokens, estimateCost } from "@/lib/api-logger";
 import { logger } from "@/lib/logger";
 
 import { requireAuth } from "@/lib/api-auth";
+import {
+  loadScopeUser,
+  buildClientWhere,
+  buildSessionWhere,
+  canSecretaryAccessModel,
+} from "@/lib/scope";
 
 export const dynamic = "force-dynamic";
 
@@ -15,6 +21,16 @@ export async function POST(request: NextRequest) {
     const auth = await requireAuth();
     if ("error" in auth) return auth.error;
     const { userId } = auth;
+
+    // C4: scope-based ownership. החלפת isOwner הישן (therapistId===userId)
+    // שעבד למטפל יחיד אבל שבר את CLINIC_OWNER ולא הגן מ-cross-clinic write.
+    const scopeUser = await loadScopeUser(userId);
+    if (!canSecretaryAccessModel(scopeUser, "Transcription")) {
+      return NextResponse.json(
+        { message: "פעולה זו אינה זמינה למזכירה" },
+        { status: 403 }
+      );
+    }
 
     const body = await request.json();
     const { recordingId, force } = body;
@@ -26,9 +42,21 @@ export async function POST(request: NextRequest) {
       );
     }
 
-    // Get recording - simplified query
-    const recording = await prisma.recording.findUnique({
-      where: { id: recordingId },
+    // Get recording within scope: או דרך client בסקופ או דרך session בסקופ.
+    // findFirst עם OR מבטיח שמשתמש לא יוכל לקרוא הקלטה מארגון אחר, אבל
+    // CLINIC_OWNER יוכל לתמלל הקלטה של מטפל בצוות שלו.
+    const recording = await prisma.recording.findFirst({
+      where: {
+        AND: [
+          { id: recordingId },
+          {
+            OR: [
+              { client: buildClientWhere(scopeUser) },
+              { session: buildSessionWhere(scopeUser) },
+            ],
+          },
+        ],
+      },
       include: {
         client: true,
         session: true,
@@ -36,16 +64,8 @@ export async function POST(request: NextRequest) {
     });
 
     if (!recording) {
+      // 404 אחיד — לא חושף האם ההקלטה קיימת בארגון אחר.
       return NextResponse.json({ message: "הקלטה לא נמצאה" }, { status: 404 });
-    }
-
-    // Verify ownership
-    const isOwner = 
-      (recording.client && recording.client.therapistId === userId) ||
-      (recording.session && recording.session.therapistId === userId);
-    
-    if (!isOwner) {
-      return NextResponse.json({ message: "לא מורשה" }, { status: 403 });
     }
 
     // If force re-transcribe, delete existing transcription
