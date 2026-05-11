@@ -95,6 +95,10 @@ model User {
   // אם token.iat < passwordChangedAt, ה-JWT callback מסמן את ה-token כ-stale
   // ומידלוור/requireAuth דוחים את הבקשה (302 ל-login).
   passwordChangedAt DateTime?
+  // H11: account lockout. failedLoginAttempts מתאפס על login מוצלח או כאשר
+  // lockedUntil עבר. lockedUntil > now() חוסם — גם אם הסיסמה נכונה.
+  failedLoginAttempts Int       @default(0)
+  lockedUntil         DateTime?
   phone             String?
   license           String?
   role              Role      @default(USER)

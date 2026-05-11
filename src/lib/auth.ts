@@ -123,6 +123,13 @@ export const authOptions: NextAuthOptions = {
         // הודעת שגיאה אחידה — מונעת Email Enumeration (תוקף לא יכול לדעת אם האימייל קיים)
         const INVALID_CREDENTIALS = "אימייל או סיסמה שגויים";
 
+        // H11: account lockout — אם lockedUntil > now(), חוסמים גם אם הסיסמה
+        // נכונה. ה-counter לא מתאפס על login מוצלח (counter עוסק בכשלים בלבד);
+        // ה-counter מתאפס רק כאשר lockedUntil עבר ונפתח חלון חדש.
+        if (user?.lockedUntil && user.lockedUntil > new Date()) {
+          throw new Error(INVALID_CREDENTIALS);
+        }
+
         // bcrypt.compare תמיד רץ — אם user לא קיים, מול hash דמה.
         // זה מבטיח שזמן התגובה זהה לכל הנתיבים של INVALID_CREDENTIALS,
         // ומונע timing attack שמזהה אילו אימיילים רשומים.
@@ -130,7 +137,34 @@ export const authOptions: NextAuthOptions = {
         const isValid = await bcrypt.compare(credentials.password, hashToCompare);
 
         if (!user || !user.password || !isValid) {
+          // H11: increment failedLoginAttempts; lock אחרי 10 כשלים ל-30 דקות.
+          // נעשה fire-and-forget כדי לא להאט response לכשל login. אם הכתיבה
+          // נכשלת, ה-counter לא יתעדכן הפעם — מקובל (timer בכל מקרה ינסה שוב).
+          if (user) {
+            const MAX_ATTEMPTS = 10;
+            const LOCK_DURATION_MS = 30 * 60 * 1000;
+            const newCount = (user.failedLoginAttempts ?? 0) + 1;
+            const updateData: { failedLoginAttempts: number; lockedUntil?: Date } = {
+              failedLoginAttempts: newCount,
+            };
+            if (newCount >= MAX_ATTEMPTS) {
+              updateData.lockedUntil = new Date(Date.now() + LOCK_DURATION_MS);
+            }
+            prisma.user
+              .update({ where: { id: user.id }, data: updateData })
+              .catch(() => { /* fire-and-forget */ });
+          }
           throw new Error(INVALID_CREDENTIALS);
+        }
+
+        // H11: סיסמה נכונה — איפוס counter ו-lockedUntil. fire-and-forget.
+        if ((user.failedLoginAttempts ?? 0) > 0 || user.lockedUntil) {
+          prisma.user
+            .update({
+              where: { id: user.id },
+              data: { failedLoginAttempts: 0, lockedUntil: null },
+            })
+            .catch(() => { /* fire-and-forget */ });
         }
 
         // מכאן הסיסמה אומתה. בדיקות ספציפיות שמדליפות מידע על החשבון —
