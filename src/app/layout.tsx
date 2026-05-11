@@ -1,5 +1,4 @@
 import type { Metadata } from "next";
-import Script from "next/script";
 import { Toaster } from "@/components/ui/sonner";
 import { Providers } from "@/components/providers";
 import { APP_LOGO } from "@/config/branding";
@@ -46,15 +45,9 @@ export default function RootLayout({
           {children}
           <Toaster position="top-center" richColors />
         </Providers>
-        {/* Client Hub CRM Chat Widget */}
-        {process.env.NEXT_PUBLIC_CRM_URL && process.env.NEXT_PUBLIC_CRM_API_KEY && (
-          <Script
-            src={`${process.env.NEXT_PUBLIC_CRM_URL}/widget.js`}
-            data-api-key={process.env.NEXT_PUBLIC_CRM_API_KEY}
-            data-position="bottom-left"
-            strategy="lazyOnload"
-          />
-        )}
+        {/* H9: הוסר widget של Client Hub CRM — ה-URL לא הצביע על שירות פעיל
+            (widget.js מחזיר 404) וה-NEXT_PUBLIC_CRM_API_KEY נחשף ב-bundle ללא צורך.
+            אם יוטמע CRM אמיתי בעתיד — לעבור דרך server-side proxy. */}
       </body>
     </html>
   );
