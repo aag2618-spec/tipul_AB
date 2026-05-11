@@ -164,7 +164,11 @@ export async function issueReceipt(params: {
     });
   }
 
-  const claimMarker = `PENDING-${Date.now()}-${Math.random().toString(36).slice(2, 8)}`;
+  // H7: שימוש ב-crypto.randomBytes במקום Math.random — PRNG לא קריפטוגרפי
+  // מנחש marker פעיל יכול לגרום ל-race ב-issueReceipt וקבלה כפולה (מסמך
+  // משפטי כפול במערך חשבוניות ישראל).
+  const { randomBytes } = await import("node:crypto");
+  const claimMarker = `PENDING-${Date.now()}-${randomBytes(6).toString("hex")}`;
   const claim = await prisma.payment.updateMany({
     where: { id: params.paymentId, hasReceipt: false },
     data: { hasReceipt: true, receiptNumber: claimMarker },

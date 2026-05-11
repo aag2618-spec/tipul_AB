@@ -61,21 +61,6 @@ export async function POST(request: NextRequest) {
     );
   }
 
-  // Idempotency — מפתח קישור ל-(userId, route, header). שני קליקים מהירים עם
-  // אותו header → אותה תוצאה (לא 2 umbrella payments + 2 חיובים).
-  const idempotencyKey = request.headers.get("Idempotency-Key") ?? request.headers.get("idempotency-key");
-  const idempotencyDbKey = idempotencyKey
-    ? `${userId}:POST:/api/payments/charge-cardcom-bulk:${idempotencyKey}`
-    : null;
-  if (idempotencyDbKey) {
-    const existing = await prisma.idempotencyKey.findUnique({
-      where: { key: idempotencyDbKey },
-    });
-    if (existing && existing.expiresAt > new Date()) {
-      return NextResponse.json(existing.response, { status: existing.statusCode });
-    }
-  }
-
   let body: ChargeBulkBody;
   try {
     body = (await request.json()) as ChargeBulkBody;
@@ -84,6 +69,28 @@ export async function POST(request: NextRequest) {
   }
 
   const { clientId, paymentIds, totalAmount } = body;
+
+  // H8: Idempotency — מפתח קישור ל-(userId, route, header, clientId, paymentIds).
+  // לפני התיקון: לחיצה ראשונה עם paymentIds=[A,B] ולחיצה שנייה עם אותו key אבל
+  // paymentIds=[C,D] החזירה את הסליקה של הראשונה. עכשיו ה-clientId + hash של
+  // paymentIds.sort() נכנסים ל-key כדי לאתר בקשות שונות באמת.
+  const idempotencyKey = request.headers.get("Idempotency-Key") ?? request.headers.get("idempotency-key");
+  let idempotencyDbKey: string | null = null;
+  if (idempotencyKey) {
+    const { createHash } = await import("node:crypto");
+    const paymentIdsForHash = Array.isArray(paymentIds) ? [...paymentIds].sort().join(",") : "";
+    const bodyHash = createHash("sha256")
+      .update(`${clientId ?? ""}|${paymentIdsForHash}`)
+      .digest("hex")
+      .slice(0, 16);
+    idempotencyDbKey = `${userId}:POST:/api/payments/charge-cardcom-bulk:${idempotencyKey}:${bodyHash}`;
+    const existing = await prisma.idempotencyKey.findUnique({
+      where: { key: idempotencyDbKey },
+    });
+    if (existing && existing.expiresAt > new Date()) {
+      return NextResponse.json(existing.response, { status: existing.statusCode });
+    }
+  }
   const numOfPayments = Math.min(Math.max(body.numOfPayments ?? 1, 1), 36);
 
   if (!clientId || typeof clientId !== "string") {

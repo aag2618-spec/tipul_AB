@@ -242,16 +242,19 @@ export function verifyMeshulamWebhook(
   secret: string
 ): boolean {
   // Meshulam משתמש ב-HMAC-SHA256 לאימות
-  const { createHmac } = require('node:crypto');
+  const { createHmac, timingSafeEqual } = require('node:crypto');
   const expectedSignature = createHmac('sha256', secret)
     .update(payload)
     .digest('hex');
-  
-  // השוואה בטוחה נגד timing attacks
-  if (signature.length !== expectedSignature.length) return false;
-  const { timingSafeEqual } = require('node:crypto');
-  return timingSafeEqual(
-    Buffer.from(signature),
-    Buffer.from(expectedSignature)
-  );
+
+  // H5: encoding מפורש 'hex'. ה-signature מ-Meshulam הוא hex string;
+  // בלי encoding ה-Buffer.from היה מפרש utf-8 (2 bytes per hex char).
+  // עובד היום בפועל (השוואה אחידה), אבל יהיה רגרסיה אם יחליפו ל-base64.
+  // ניקוי prefix אופציונלי "sha256=" (סטנדרטי בחתימות webhook).
+  const cleanSig = signature.startsWith("sha256=") ? signature.slice(7) : signature;
+  if (cleanSig.length !== expectedSignature.length) return false;
+  const sigBuf = Buffer.from(cleanSig.toLowerCase(), "hex");
+  const expBuf = Buffer.from(expectedSignature, "hex");
+  if (sigBuf.length !== expBuf.length) return false;
+  return timingSafeEqual(sigBuf, expBuf);
 }
