@@ -35,12 +35,22 @@ export async function POST(req: NextRequest) {
 
     const user = await prisma.user.findFirst({
       where: { email: { equals: email, mode: "insensitive" } },
-      select: { id: true, email: true, phone: true, name: true },
+      select: {
+        id: true, email: true, phone: true, name: true,
+        twoFactorMethod: true,
+      },
     });
 
     // לא לחשוף enumeration — תמיד "הצלחה" כלפי הלקוח, גם אם המשתמש לא קיים.
     if (!user) {
       return NextResponse.json({ success: true });
+    }
+
+    // H4: משתמש עם TOTP לא צריך קוד שנשלח — האפליקציה (Authenticator) מייצרת
+    // את הקוד מקומית. הflow ב-frontend מוביל ל-/auth/2fa-verify עם input של 6
+    // ספרות, ולא צריך להזמין send.
+    if (user.twoFactorMethod === "TOTP") {
+      return NextResponse.json({ success: true, method: "TOTP" });
     }
 
     const result = await sendCode(user);

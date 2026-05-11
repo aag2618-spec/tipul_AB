@@ -31,6 +31,8 @@ export default function TwoFactorVerifyPage() {
   const [codeSent, setCodeSent] = useState(false);
   const [isSending, setIsSending] = useState(false);
   const [shabbatBlocked, setShabbatBlocked] = useState(false);
+  // H4: TOTP mode — לא שולחים מייל/SMS, המשתמש מקבל קוד מהאפליקציה.
+  const [isTotpMode, setIsTotpMode] = useState(false);
 
   // אם המשתמש לא מחובר → הפניה ל-login
   useEffect(() => {
@@ -87,7 +89,13 @@ export default function TwoFactorVerifyPage() {
       }
       setCodeSent(true);
       setResendCooldown(RESEND_COOLDOWN_SECONDS);
-      toast.success("קוד אימות נשלח למייל ול-SMS שלך");
+      // H4: אם המשתמש בTOTP, ה-server לא שולח כלום — הקוד מגיע מהאפליקציה.
+      if (data.method === "TOTP") {
+        setIsTotpMode(true);
+        // אין צורך בtoast — UI יציג בעצמו את ההוראה לקבל קוד מ-Authenticator.
+      } else {
+        toast.success("קוד אימות נשלח למייל ול-SMS שלך");
+      }
     } catch {
       toast.error("שגיאת רשת. אנא נסה שוב.");
     } finally {
@@ -160,7 +168,9 @@ export default function TwoFactorVerifyPage() {
           <div>
             <CardTitle className="text-2xl font-bold">אימות דו-שלבי</CardTitle>
             <CardDescription className="mt-2">
-              שלחנו קוד אימות בן {CODE_LENGTH} ספרות למייל ולנייד שלך
+              {isTotpMode
+                ? `הזן/י את הקוד בן ${CODE_LENGTH} הספרות מאפליקציית האימות (Authenticator)`
+                : `שלחנו קוד אימות בן ${CODE_LENGTH} ספרות למייל ולנייד שלך`}
             </CardDescription>
           </div>
         </CardHeader>
@@ -209,26 +219,30 @@ export default function TwoFactorVerifyPage() {
               )}
             </Button>
 
-            <Button
-              type="button"
-              variant="ghost"
-              className="w-full"
-              onClick={sendCode}
-              disabled={resendCooldown > 0 || isSending || shabbatBlocked}
-            >
-              {isSending ? (
-                <>
-                  <Loader2 className="ml-2 h-4 w-4 animate-spin" />
-                  שולח...
-                </>
-              ) : shabbatBlocked ? (
-                "לא ניתן לשלוח בשבת/חג"
-              ) : resendCooldown > 0 ? (
-                `שלח קוד מחדש בעוד ${resendCooldown} שניות`
-              ) : (
-                "שלח קוד מחדש"
-              )}
-            </Button>
+            {/* H4: כפתור "שלח קוד מחדש" לא רלוונטי ל-TOTP — האפליקציה מייצרת
+                את הקוד מקומית כל 30 שניות, אין מה לשלוח. */}
+            {!isTotpMode && (
+              <Button
+                type="button"
+                variant="ghost"
+                className="w-full"
+                onClick={sendCode}
+                disabled={resendCooldown > 0 || isSending || shabbatBlocked}
+              >
+                {isSending ? (
+                  <>
+                    <Loader2 className="ml-2 h-4 w-4 animate-spin" />
+                    שולח...
+                  </>
+                ) : shabbatBlocked ? (
+                  "לא ניתן לשלוח בשבת/חג"
+                ) : resendCooldown > 0 ? (
+                  `שלח קוד מחדש בעוד ${resendCooldown} שניות`
+                ) : (
+                  "שלח קוד מחדש"
+                )}
+              </Button>
+            )}
 
             <Button
               type="button"

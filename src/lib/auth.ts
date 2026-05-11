@@ -486,16 +486,30 @@ export const authOptions: NextAuthOptions = {
       // שקרה אחרי הlogin הזה (ולא מ-verifyים קודמים, login קודם, וכו').
       if (trigger === "update" && token.id && token.requires2FA && token.loginAt) {
         const loginAtDate = new Date(token.loginAt);
-        const recentlyVerified = await prisma.twoFactorCode.findFirst({
-          where: {
-            userId: token.id as string,
-            verifiedAt: { not: null, gt: loginAtDate },
-          },
-          orderBy: { verifiedAt: "desc" },
-          select: { id: true },
+        // H4: עבור משתמשי TOTP, אין רשומת TwoFactorCode (האימות מקומי מול secret).
+        // במקום זאת, נסתמך על lastLoginAt — verifyTotp מעדכן אותו אטומית בעת
+        // אימות מוצלח. אם lastLoginAt > loginAt → המשתמש אומת בהצלחה.
+        const dbUserTotp = await prisma.user.findUnique({
+          where: { id: token.id as string },
+          select: { twoFactorMethod: true, lastLoginAt: true },
         });
-        if (recentlyVerified) {
-          token.requires2FA = false;
+        if (dbUserTotp?.twoFactorMethod === "TOTP") {
+          if (dbUserTotp.lastLoginAt && dbUserTotp.lastLoginAt > loginAtDate) {
+            token.requires2FA = false;
+          }
+        } else {
+          // נתיב OTP-by-email המסורתי — TwoFactorCode עם verifiedAt.
+          const recentlyVerified = await prisma.twoFactorCode.findFirst({
+            where: {
+              userId: token.id as string,
+              verifiedAt: { not: null, gt: loginAtDate },
+            },
+            orderBy: { verifiedAt: "desc" },
+            select: { id: true },
+          });
+          if (recentlyVerified) {
+            token.requires2FA = false;
+          }
         }
       }
 

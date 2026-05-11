@@ -85,33 +85,40 @@ enum InvitationStatus {
 }
 
 model User {
-  id                String    @id @default(cuid())
-  name              String?
-  email             String?   @unique
-  emailVerified     DateTime?
-  image             String?
-  password          String?
+  id                  String    @id @default(cuid())
+  name                String?
+  email               String?   @unique
+  emailVerified       DateTime?
+  image               String?
+  password            String?
   // C7: זמן שינוי סיסמה אחרון — משמש להבטלת tokens שהונפקו לפני שינוי הסיסמה.
   // אם token.iat < passwordChangedAt, ה-JWT callback מסמן את ה-token כ-stale
   // ומידלוור/requireAuth דוחים את הבקשה (302 ל-login).
-  passwordChangedAt DateTime?
+  passwordChangedAt   DateTime?
   // H11: account lockout. failedLoginAttempts מתאפס על login מוצלח או כאשר
   // lockedUntil עבר. lockedUntil > now() חוסם — גם אם הסיסמה נכונה.
   failedLoginAttempts Int       @default(0)
   lockedUntil         DateTime?
-  phone             String?
-  license           String?
-  role              Role      @default(USER)
-  isBlocked         Boolean   @default(false)
+  phone               String?
+  license             String?
+  role                Role      @default(USER)
+  isBlocked           Boolean   @default(false)
   // סיבת חסימה — null אם isBlocked=false. ערכים: DEBT | TOS_VIOLATION | MANUAL.
   // משמש את ה-webhooks לאוטו-שחרור: רק DEBT משתחרר אוטומטית בתשלום מוצלח;
   // TOS_VIOLATION ו-MANUAL נשארים חסומים עד החלטה ידנית של אדמין.
-  blockReason       String?
-  blockedAt         DateTime?
-  blockedBy         String? // userId של האדמין שחסם; null אם נחסם אוטומטית (cron / system)
+  blockReason         String?
+  blockedAt           DateTime?
+  blockedBy           String? // userId של האדמין שחסם; null אם נחסם אוטומטית (cron / system)
 
   // Two-Factor Authentication (2FA) — נאכף בקוד רק לאנשי צוות (USER/MANAGER/ADMIN)
   twoFactorEnabled       Boolean   @default(true)
+  // H4: שיטת 2FA. "OTP" = קוד שנשלח במייל/SMS (legacy). "TOTP" = Google
+  // Authenticator (RFC 6238) — חזק יותר, מתנגד SIM-swap.
+  // null = ברירת מחדל OTP (תאימות אחורית עד שהמשתמש משדרג).
+  twoFactorMethod        String? // "OTP" | "TOTP" | null
+  // H4: TOTP secret (base32). מוצפן ב-DB דרך ENCRYPTED_FIELDS.user.twoFactorSecret
+  // (ב-src/lib/encrypted-fields.ts). null עד שהמשתמש מסיים flow הגדרת TOTP.
+  twoFactorSecret        String?   @db.Text
   lastLoginAt            DateTime?
   lastActivityAt         DateTime? // מתי הייתה הפעולה האחרונה — בסיס לחישוב 3 שעות חוסר פעילות
   defaultSessionDuration Int       @default(50) // משך פגישה סטנדרטית בדקות

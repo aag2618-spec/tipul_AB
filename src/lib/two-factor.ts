@@ -1,4 +1,5 @@
 import crypto from "crypto";
+import { generateSecret, generateURI, verifySync } from "otplib";
 import prisma from "./prisma";
 import { sendEmail } from "./resend";
 import { sendSMS } from "./sms";
@@ -7,6 +8,54 @@ import { logger } from "./logger";
 const CODE_EXPIRY_MINUTES = 10;
 const MAX_ATTEMPTS = 5;
 const INACTIVITY_THRESHOLD_MS = 3 * 60 * 60 * 1000;
+
+// H4: TOTP — RFC 6238, 6 ספרות, חלון 30s. epochTolerance=30s מתיר קוד
+// מהחלון הקודם/הבא (סטיית שעון של עד ±30s).
+const TOTP_EPOCH_TOLERANCE_SECONDS = 30;
+
+/**
+ * H4: יוצר TOTP secret חדש (base32). ה-secret נשמר ב-DB (מוצפן דרך
+ * ENCRYPTED_FIELDS.user.twoFactorSecret) ומוצג למשתמש כ-QR code לסריקה
+ * עם Google Authenticator/Authy/1Password.
+ */
+export function generateTotpSecret(): string {
+  return generateSecret();
+}
+
+/**
+ * H4: בונה otpauth:// URI שמוצג כ-QR code. ה-issuer (MyTipul) וה-label
+ * (email) מוצגים ב-authenticator app של המשתמש.
+ */
+export function buildTotpUri(email: string, secret: string): string {
+  return generateURI({
+    strategy: "totp",
+    issuer: "MyTipul",
+    label: email,
+    secret,
+  });
+}
+
+/**
+ * H4: אימות קוד TOTP בן 6 ספרות מול secret של המשתמש.
+ * verifySync של otplib משתמש ב-timing-safe compare פנימי.
+ */
+export function verifyTotpCode(secret: string, code: string): boolean {
+  if (!secret || !code) return false;
+  // strip whitespace — אנשים מקלידים "123 456" לפעמים
+  const clean = code.replace(/\s+/g, "").trim();
+  if (!/^\d{6}$/.test(clean)) return false;
+  try {
+    const result = verifySync({
+      strategy: "totp",
+      token: clean,
+      secret,
+      epochTolerance: TOTP_EPOCH_TOLERANCE_SECONDS,
+    });
+    return result.valid === true;
+  } catch {
+    return false;
+  }
+}
 
 export function generateCode(): string {
   const code = crypto.randomInt(0, 1000000);
@@ -147,11 +196,47 @@ export async function sendCode(user: {
 
 export type VerifyCodeResult = { success: true } | { success: false; error: string };
 
+// H4: אימות קוד TOTP. אם המשתמש הגדיר twoFactorMethod="TOTP", הקוד נכנס
+// מ-Authenticator app ולא מ-DB. ביצוע verify מול ה-secret המוצפן ב-User,
+// ועדכון lastLoginAt + lastActivityAt בהצלחה. עוטף ב-transaction לאטומיות
+// (ולמנוע race של 2 verifies סימולטניים שיגמרו ב-2 lastLogin updates).
+async function verifyTotp(userId: string, inputCode: string): Promise<VerifyCodeResult> {
+  const user = await prisma.user.findUnique({
+    where: { id: userId },
+    select: { twoFactorSecret: true },
+  });
+  if (!user?.twoFactorSecret) {
+    return { success: false, error: "לא הוגדר אימות TOTP. אנא הגדר/י מחדש." };
+  }
+  const ok = verifyTotpCode(user.twoFactorSecret, inputCode);
+  if (!ok) {
+    return { success: false, error: "קוד שגוי. נסה/י שוב." };
+  }
+  const now = new Date();
+  await prisma.user.update({
+    where: { id: userId },
+    data: { lastLoginAt: now, lastActivityAt: now },
+  });
+  return { success: true };
+}
+
 // מאמת קוד שהמשתמש הזין. ב-success — מעדכן lastLoginAt + lastActivityAt.
 //
 // אטומיות: הבדיקה+ההגדלה+ה-mark-as-verified עוטפים בטרנזקציה,
 // כדי שניסיונות מקבילים לא יוכלו לעקוף את MAX_ATTEMPTS.
+//
+// H4: אם המשתמש בחר twoFactorMethod="TOTP", פונקציה זו עוברת לנתיב TOTP
+// (אימות מול secret במקום קוד שנשלח). אחרת — נתיב OTP-by-email/SMS (legacy).
 export async function verifyCode(userId: string, inputCode: string): Promise<VerifyCodeResult> {
+  // בדוק שיטה תחילה — אם TOTP, לא נוגעים ב-TwoFactorCode בכלל.
+  const u = await prisma.user.findUnique({
+    where: { id: userId },
+    select: { twoFactorMethod: true },
+  });
+  if (u?.twoFactorMethod === "TOTP") {
+    return verifyTotp(userId, inputCode);
+  }
+
   const inputHash = hashCode(inputCode);
 
   return await prisma.$transaction(async (tx) => {

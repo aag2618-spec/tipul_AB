@@ -53,6 +53,9 @@ export const ENCRYPTED_FIELDS: Record<string, readonly string[]> = {
     "leumitApiKey",
     "leumitClinicCode",
   ],
+  // H4: TOTP secret (base32) של User. אם DB דולף, תוקף יכול ליצור קודים
+  // תקפים ולעבור את ה-2FA. הצפנת AES-256-GCM הופכת את ה-leak לחסר ערך.
+  user: ["twoFactorSecret"],
 } as const;
 
 /**
