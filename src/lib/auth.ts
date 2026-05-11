@@ -410,6 +410,19 @@ export const authOptions: NextAuthOptions = {
         }
       }
 
+      // C9: absolute max session lifetime — 30 ימים מ-loginAt. למרות
+      // ש-updateAge מרענן את ה-iat כל שעה (rolling expiration), token.loginAt
+      // נקבע פעם אחת ב-authorize() ולא משתנה. בלי המקסימום הזה, משתמש פעיל
+      // היה נשאר מחובר לנצח. במערכת רפואית — לא מקובל.
+      // legacy tokens ללא loginAt מקבלים פטור עד login הבא (אז loginAt ייקבע).
+      const ABSOLUTE_MAX_SESSION_MS = 30 * 24 * 60 * 60 * 1000;
+      if (
+        typeof token.loginAt === "number" &&
+        Date.now() - token.loginAt > ABSOLUTE_MAX_SESSION_MS
+      ) {
+        token.sessionExpired = true;
+      }
+
       // Impersonation timeout + ongoing verification — lazy check בכל קריאה.
       // מאמתים מול ה-DB שהסשן עדיין פעיל (endedAt IS NULL) ושייך ל-OWNER הנכון.
       // ככה אם cron/admin סגר את הסשן (USER_BLOCKED, TARGET_REMOVED) — ה-token
@@ -588,6 +601,7 @@ export const authOptions: NextAuthOptions = {
         session.user.clinicRole = (token.clinicRole as "OWNER" | "THERAPIST" | "SECRETARY" | null | undefined) ?? null;
         session.user.requires2FA = token.requires2FA === true;
         session.user.passwordStale = token.passwordStale === true;
+        session.user.sessionExpired = token.sessionExpired === true;
 
         // Impersonation: בעת ש-OWNER מתחזה ל-target, ה"זהות אפקטיבית"
         // היא של ה-target — ככה data scope, queries, ו-permissions זורמים
@@ -624,6 +638,7 @@ declare module "next-auth" {
       clinicRole: "OWNER" | "THERAPIST" | "SECRETARY" | null;
       requires2FA?: boolean;
       passwordStale?: boolean; // C7: token הונפק לפני שינוי סיסמה
+      sessionExpired?: boolean; // C9: סשן חצה max-lifetime של 30 ימים
       // Impersonation: כש-OWNER מתחזה ל-target, ה-id/role/name מוחלפים לאלו
       // של ה-target (למניעת לחזור ולשכפל data scope), ו-originalUserId שומר
       // את ה-OWNER המקורי. actingAs מכיל את כל ה-metadata של ה-impersonation.
@@ -647,5 +662,8 @@ declare module "next-auth/jwt" {
     // C7: token הונפק לפני שינוי סיסמה — אסור להשתמש בו.
     // middleware/requireAuth דוחים בקשות עם passwordStale=true.
     passwordStale?: boolean;
+    // C9: session חצה את ה-absolute max lifetime (30 ימים).
+    // middleware/requireAuth דוחים ומאלצים login מחדש.
+    sessionExpired?: boolean;
   }
 }

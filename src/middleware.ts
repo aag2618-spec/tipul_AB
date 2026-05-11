@@ -90,6 +90,20 @@ export async function middleware(request: NextRequest) {
     return NextResponse.redirect(loginUrl);
   }
 
+  // C9: absolute session lifetime gate. סשן ישן יותר מ-30 ימים נדחה
+  // ומאלץ login מחדש. מונע "infinite session" — חיוני במערכת רפואית.
+  if (token?.sessionExpired === true) {
+    if (pathname.startsWith("/api/")) {
+      return NextResponse.json(
+        { message: "הסשן פג. נא להתחבר מחדש." },
+        { status: 401 }
+      );
+    }
+    const loginUrl = new URL("/login", request.url);
+    loginUrl.searchParams.set("error", "session_expired");
+    return NextResponse.redirect(loginUrl);
+  }
+
   // 2FA gate: משתמש עם token.requires2FA לא יכול לגשת ל-dashboard/admin/API.
   // ל-API: 403 JSON. לדפים: redirect ל-/auth/2fa-verify.
   // ה-matcher של middleware מוגדר באופן שלא תופס את /auth/2fa-verify

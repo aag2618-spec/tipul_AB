@@ -47,6 +47,15 @@ export async function requireAuth(opts?: { disallowImpersonation?: boolean }) {
       ),
     };
   }
+  // C9: defense-in-depth — סשן חצה max-lifetime.
+  if (session.user.sessionExpired) {
+    return {
+      error: NextResponse.json(
+        { message: "הסשן פג. נא להתחבר מחדש." },
+        { status: 401 }
+      ),
+    };
+  }
   if (session.user.requires2FA) {
     return {
       error: NextResponse.json(
