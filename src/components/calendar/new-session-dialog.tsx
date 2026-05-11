@@ -81,17 +81,33 @@ interface NewSessionDialogProps {
 // שם משפחה = המילה האחרונה אחרי רווח. אם השם הוא מילה אחת — היא תשמש כשם משפחה.
 // קידומות נפוצות לשמות משפחה (במיוחד לקהל חרדי): "בן דוד", "בר אילן", "הלוי", "דה לה" וכו'.
 const SURNAME_PREFIXES = new Set(["בן", "בר", "אבן", "הלוי", "הכהן", "דה", "אל", "אבו", "ابن", "بن"]);
+
+// מחזיר את אורך החלק האחרון של השם המשמש כשם משפחה — 1 לרוב המקרים,
+// 2 כשיש קידומת ("בן דוד" = 2 מילים).
+function lastNameWordCount(parts: string[]): number {
+  if (parts.length >= 2 && SURNAME_PREFIXES.has(parts[parts.length - 2])) return 2;
+  return 1;
+}
+
 function getLastName(fullName: string): string {
   const trimmed = (fullName || "").trim();
   if (!trimmed) return "";
   const parts = trimmed.split(/\s+/);
-  if (parts.length >= 2) {
-    const prev = parts[parts.length - 2];
-    if (SURNAME_PREFIXES.has(prev)) {
-      return `${prev} ${parts[parts.length - 1]}`;
-    }
-  }
-  return parts[parts.length - 1] || "";
+  const count = lastNameWordCount(parts);
+  return parts.slice(parts.length - count).join(" ");
+}
+
+// מציג את השם בסדר "שם משפחה ושם פרטי" — למשל "בן דוד ישראל".
+// אם השם מילה אחת — מוחזר כמו שהוא.
+function formatNameLastFirst(fullName: string): string {
+  const trimmed = (fullName || "").trim();
+  if (!trimmed) return "";
+  const parts = trimmed.split(/\s+/);
+  if (parts.length < 2) return trimmed;
+  const count = lastNameWordCount(parts);
+  const lastName = parts.slice(parts.length - count).join(" ");
+  const firstName = parts.slice(0, parts.length - count).join(" ");
+  return firstName ? `${lastName} ${firstName}` : lastName;
 }
 
 // ── Component ──
@@ -171,7 +187,13 @@ export function NewSessionDialog({
 
     const term = clientSearch.trim().toLowerCase();
     if (!term) return sorted;
-    const filtered = sorted.filter((c) => (c.name || "").toLowerCase().includes(term));
+    // התאמה גם לפורמט המקורי ("ישראל בן דוד") וגם לפורמט התצוגה
+    // ("בן דוד ישראל"), כדי שהמשתמש יוכל להקליד בכל סדר.
+    const filtered = sorted.filter((c) => {
+      const name = (c.name || "").toLowerCase();
+      const reordered = formatNameLastFirst(c.name || "").toLowerCase();
+      return name.includes(term) || reordered.includes(term);
+    });
     // אם החיפוש סינן החוצה את המטופל הנבחר — מוסיפים אותו חזרה כדי
     // שה-Select ימשיך להציג את שמו ב-Trigger.
     if (formData.clientId && !filtered.some((c) => c.id === formData.clientId)) {
@@ -550,7 +572,7 @@ export function NewSessionDialog({
                   ) : (
                     sortedFilteredClients.map((client) => (
                       <SelectItem key={client.id} value={client.id}>
-                        {client.name}
+                        {formatNameLastFirst(client.name)}
                       </SelectItem>
                     ))
                   )}
