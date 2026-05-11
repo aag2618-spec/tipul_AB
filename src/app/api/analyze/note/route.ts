@@ -6,6 +6,7 @@ import { logger } from "@/lib/logger";
 import { requireAuth } from "@/lib/api-auth";
 import { sanitizeUserHtml } from "@/lib/sanitize-html";
 import { loadScopeUser, buildClientWhere, isSecretary } from "@/lib/scope";
+import { getClientPseudonym } from "@/lib/ai-pseudonymize";
 
 // Lazy initialization
 let genAI: GoogleGenerativeAI | null = null;
@@ -53,7 +54,10 @@ export async function POST(request: NextRequest) {
     }
 
     const body = await request.json();
-    const { noteContent, clientName, clientId } = body;
+    // C3: לא מקבלים יותר clientName מה-body. אם בעבר ה-UI שלח שם —
+    // מתעלמים. ה-prompt מקבל pseudonym מבוסס clientId בלבד.
+    const { noteContent, clientId } = body;
+    const clientPseudo = getClientPseudonym(clientId);
 
     if (!noteContent || noteContent.trim().length < 10) {
       return NextResponse.json(
@@ -139,8 +143,8 @@ ${approachPrompts}
     const isEnterprise = user.aiTier === 'ENTERPRISE' && therapeuticApproaches.length > 0;
     
     const prompt = isEnterprise
-      ? buildEnterpriseAnalysisPrompt(clientName, approachSection, safeNoteContent, approachNames, therapeuticApproaches, clientCulturalContext)
-      : buildBasicAnalysisPrompt(clientName, safeNoteContent);
+      ? buildEnterpriseAnalysisPrompt(clientPseudo, approachSection, safeNoteContent, approachNames, therapeuticApproaches, clientCulturalContext)
+      : buildBasicAnalysisPrompt(clientPseudo, safeNoteContent);
 
     const result = await model.generateContent(prompt);
     const response = await result.response;
@@ -169,7 +173,7 @@ ${approachPrompts}
  * גרסה 3.0 - כולל Red Flags, סולמות, אינטגרציה, רגישות תרבותית
  */
 function buildEnterpriseAnalysisPrompt(
-  clientName: string | undefined,
+  clientPseudo: string,
   approachSection: string,
   noteContent: string,
   approachNames: string,
@@ -193,7 +197,7 @@ function buildEnterpriseAnalysisPrompt(
 אתה פסיכולוג קליני מומחה ברמה אקדמית גבוהה.
 המשימה: סיכום וניתוח מעמיק של פגישה שכבר התקיימה.
 
-${clientName ? `שם המטופל: ${clientName}` : ""}
+מזהה מטופל (לעבודה הפנימית): ${clientPseudo}
 ${approachSection}
 ${integrationSection}
 ${universalSection}
@@ -324,7 +328,7 @@ ${noteContent}
  * בניית prompt בסיסי לתוכניות רגילות
  */
 function buildBasicAnalysisPrompt(
-  clientName: string | undefined,
+  clientPseudo: string,
   noteContent: string
 ): string {
   return `חשוב מאוד - כללי פורמט (חובה לציית):
@@ -336,7 +340,7 @@ function buildBasicAnalysisPrompt(
 
 אתה פסיכולוג קליני מנוסה. נתח את סיכום הפגישה הבא שנכתב על ידי מטפל והחזר ניתוח מקצועי.
 
-${clientName ? `שם המטופל: ${clientName}` : ""}
+מזהה מטופל (לעבודה הפנימית): ${clientPseudo}
 
 סיכום הפגישה שנכתב:
 ${noteContent}

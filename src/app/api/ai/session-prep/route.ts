@@ -16,6 +16,7 @@ import {
   buildSessionWhere,
   canSecretaryAccessModel,
 } from "@/lib/scope";
+import { getClientPseudonym } from "@/lib/ai-pseudonymize";
 
 // שימוש ב-Gemini 2.0 Flash בלבד
 const genAI = new GoogleGenerativeAI(process.env.GOOGLE_AI_API_KEY || "");
@@ -373,7 +374,7 @@ export async function POST(request: NextRequest) {
       });
       
       prompt = buildEnterprisePrompt(
-        client.name,
+        getClientPseudonym(client.id),
         sessionDate || format(new Date(), 'dd/MM/yyyy', { locale: he }),
         recentNotes,
         approachNames,
@@ -385,7 +386,7 @@ export async function POST(request: NextRequest) {
     } else {
       // תוכנית מקצועית - הכנה תמציתית (בלי גישות!)
       prompt = buildProfessionalPrompt(
-        client.name,
+        getClientPseudonym(client.id),
         sessionDate || format(new Date(), 'dd/MM/yyyy', { locale: he }),
         recentNotes
       );

@@ -13,6 +13,7 @@ import {
   type ConsumeResult,
 } from "@/lib/credits";
 import { getTierLimits, isStaff } from "@/lib/usage-limits";
+import { getClientPseudonym } from "@/lib/ai-pseudonymize";
 
 /**
  * Feature flag — Stage 1.17 wire-up.
@@ -235,14 +236,13 @@ export async function POST(req: NextRequest) {
       }
     }
 
-    // קבלת פרטי הפגישה
+    // קבלת פרטי הפגישה. C3: לא טוענים יותר client.name — לא נכנס ל-prompt.
     const therapySession = await prisma.therapySession.findUnique({
       where: { id: sessionId },
       include: {
         client: {
           select: {
             id: true,
-            name: true,
             therapeuticApproaches: true,
             approachNotes: true,
             culturalContext: true,
@@ -309,7 +309,7 @@ export async function POST(req: NextRequest) {
       const approachPrompts = user.aiTier === 'ENTERPRISE' ? getApproachPrompts(approaches) : '';
       
       prompt = buildConcisePrompt(
-        therapySession.client?.name || "לא ידוע",
+        getClientPseudonym(therapySession.client?.id),
         therapySession.startTime,
         therapySession.type,
         therapySession.sessionNote.content,
@@ -321,9 +321,9 @@ export async function POST(req: NextRequest) {
     } else {
       // ניתוח מפורט - רק לתוכנית ארגונית
       const approachPrompts = getApproachPrompts(approaches);
-      
+
       prompt = buildDetailedPrompt(
-        therapySession.client?.name || "לא ידוע",
+        getClientPseudonym(therapySession.client?.id),
         therapySession.startTime,
         therapySession.type,
         therapySession.sessionNote.content,
@@ -509,7 +509,7 @@ function calculateCost(inputTokens: number, outputTokens: number): number {
  * (Professional + Enterprise)
  */
 function buildConcisePrompt(
-  clientName: string,
+  clientPseudo: string,
   sessionDate: Date,
   sessionType: string,
   noteContent: string,
@@ -518,6 +518,8 @@ function buildConcisePrompt(
   approachIds?: string[],
   culturalContext?: string | null
 ): string {
+  // C3: clientPseudo במקום שם מטופל אמיתי — מונע שליחת PII ל-Gemini.
+  const clientName = clientPseudo;
   const sessionTypeHe = sessionType === "IN_PERSON" 
     ? "פנים אל פנים" 
     : sessionType === "ONLINE" 
@@ -593,7 +595,7 @@ ${approachNames ? `ניתוח לפי הגישה (${approachNames}):
  * (Enterprise בלבד)
  */
 function buildDetailedPrompt(
-  clientName: string,
+  clientPseudo: string,
   sessionDate: Date,
   sessionType: string,
   noteContent: string,
@@ -602,6 +604,8 @@ function buildDetailedPrompt(
   clientApproachNotes?: string | null,
   culturalContext?: string | null
 ): string {
+  // C3: clientPseudo במקום שם מטופל אמיתי.
+  const clientName = clientPseudo;
   const sessionTypeHe = sessionType === "IN_PERSON" 
     ? "פנים אל פנים" 
     : sessionType === "ONLINE" 

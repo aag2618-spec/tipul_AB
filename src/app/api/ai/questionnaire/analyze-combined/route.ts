@@ -12,6 +12,7 @@ import {
   buildClientWhere,
   canSecretaryAccessModel,
 } from "@/lib/scope";
+import { getClientPseudonym } from "@/lib/ai-pseudonymize";
 
 // שימוש ב-Gemini 2.0 Flash בלבד
 const genAI = new GoogleGenerativeAI(process.env.GOOGLE_AI_API_KEY || "");
@@ -125,13 +126,13 @@ export async function POST(req: NextRequest) {
       }
     }
 
-    // וידוא שהמטופל נגיש לפי scope (מטפל עצמאי / קליניקה)
+    // וידוא שהמטופל נגיש לפי scope (מטפל עצמאי / קליניקה).
+    // C3: name הוסר מ-select — לא נשלח ל-LLM.
     const clientWhere = buildClientWhere(scopeUser);
     const client = await prisma.client.findFirst({
       where: { AND: [{ id: clientId }, clientWhere] },
       select: {
         id: true,
-        name: true,
         therapistId: true,
         therapeuticApproaches: true,
         approachNotes: true,
@@ -229,7 +230,7 @@ ${integrationSection}
 ${approachSection}
 ${culturalSection}
 פרטים:
-• מטופל: ${client.name}
+• מזהה מטופל (לעבודה הפנימית): ${getClientPseudonym(client.id)}
 • מספר שאלונים: ${responses.length}
 
 שאלונים שמולאו:

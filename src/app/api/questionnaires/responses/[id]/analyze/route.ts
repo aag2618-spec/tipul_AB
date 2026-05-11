@@ -9,6 +9,7 @@ import {
   buildClientWhere,
   canSecretaryAccessModel,
 } from "@/lib/scope";
+import { getClientPseudonym, ageRangeFromBirthDate } from "@/lib/ai-pseudonymize";
 
 // POST - Analyze questionnaire with AI
 export const dynamic = "force-dynamic";
@@ -34,7 +35,8 @@ export async function POST(
     const { id } = await params;
     const clientWhere = buildClientWhere(scopeUser);
 
-    // Get response with template and client approaches
+    // Get response with template and client approaches.
+    // C3: name הוסר; birthDate נשמר רק לחישוב טווח גיל (לא נשלח גולמי ל-LLM).
     const response = await prisma.questionnaireResponse.findFirst({
       where: { AND: [{ id }, { client: clientWhere }] },
       include: {
@@ -42,7 +44,6 @@ export async function POST(
         client: {
           select: {
             id: true,
-            name: true,
             birthDate: true,
             therapeuticApproaches: true,
             culturalContext: true,
@@ -121,19 +122,24 @@ ${integrationSection}
       : '';
 
     // Build analysis prompt based on test type
+    type AnswerEntry = { value?: string | number };
+    type QuestionOption = { value: string | number; text?: string };
+    type Question = { id: string | number; title: string; options?: QuestionOption[] };
+    type Scoring = Record<string, unknown> | null;
+
     const template = response.template;
-    const testType = (template as any).testType || "SELF_REPORT";
-    const answers = response.answers as any[];
-    const questions = template.questions as any[];
-    const scoring = template.scoring as any;
+    const testType = (template as unknown as { testType?: string }).testType || "SELF_REPORT";
+    const answers = (response.answers as unknown as AnswerEntry[]) ?? [];
+    const questions = (template.questions as unknown as Question[]) ?? [];
+    const scoring = template.scoring as unknown as Scoring;
 
     let prompt = "";
-    
+
     if (testType === "SELF_REPORT" || testType === "CLINICIAN_RATED") {
       // Standard questionnaire analysis
-      const answersText = questions.map((q: any, i: number) => {
+      const answersText = questions.map((q, i) => {
         const answer = answers[i];
-        const selectedOption = q.options?.find((o: any) => o.value === answer?.value);
+        const selectedOption = q.options?.find((o) => o.value === answer?.value);
         return `${q.id}. ${q.title}: ${selectedOption?.text || answer?.value || "לא נענה"} (ציון: ${answer?.value || 0})`;
       }).join("\n");
 
@@ -155,8 +161,8 @@ ${culturalSection}
 תיאור: ${template.description || ""}
 
 פרטי הנבדק:
-- שם: ${response.client.name}
-- גיל: ${response.client.birthDate ? Math.floor((Date.now() - new Date(response.client.birthDate).getTime()) / (365.25 * 24 * 60 * 60 * 1000)) : "לא ידוע"}
+- מזהה מטופל (לעבודה הפנימית): ${getClientPseudonym(response.client.id)}
+- טווח גיל: ${ageRangeFromBirthDate(response.client.birthDate) ?? "לא ידוע"}
 
 ציון כולל: ${response.totalScore || "לא חושב"}
 
@@ -211,8 +217,8 @@ ${culturalSection}
 מבחן: ${template.name} (${template.nameEn || template.code})
 
 פרטי הנבדק:
-- שם: ${response.client.name}
-- גיל: ${response.client.birthDate ? Math.floor((Date.now() - new Date(response.client.birthDate).getTime()) / (365.25 * 24 * 60 * 60 * 1000)) : "לא ידוע"}
+- מזהה מטופל (לעבודה הפנימית): ${getClientPseudonym(response.client.id)}
+- טווח גיל: ${ageRangeFromBirthDate(response.client.birthDate) ?? "לא ידוע"}
 
 תגובות ונתונים:
 ${JSON.stringify(answers, null, 2)}
@@ -273,8 +279,8 @@ ${culturalSection}
 מבחן: ${template.name} (${template.nameEn || template.code})
 
 פרטי הנבדק:
-- שם: ${response.client.name}
-- גיל: ${response.client.birthDate ? Math.floor((Date.now() - new Date(response.client.birthDate).getTime()) / (365.25 * 24 * 60 * 60 * 1000)) : "לא ידוע"}
+- מזהה מטופל (לעבודה הפנימית): ${getClientPseudonym(response.client.id)}
+- טווח גיל: ${ageRangeFromBirthDate(response.client.birthDate) ?? "לא ידוע"}
 
 ציונים:
 ${JSON.stringify(answers, null, 2)}

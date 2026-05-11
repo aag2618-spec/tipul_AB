@@ -7,6 +7,7 @@ import { logger } from "@/lib/logger";
 import { requireAuth } from "@/lib/api-auth";
 import { getCurrentUsageKey } from "@/lib/date-utils";
 import { getTierLimits, isStaff } from "@/lib/usage-limits";
+import { getClientPseudonym } from "@/lib/ai-pseudonymize";
 
 // שימוש ב-Gemini 2.0 Flash בלבד
 const genAI = new GoogleGenerativeAI(process.env.GOOGLE_AI_API_KEY || "");
@@ -112,7 +113,7 @@ export async function POST(req: NextRequest) {
       }
     }
 
-    // קבלת תשובות השאלון
+    // קבלת תשובות השאלון. C3: לא טוענים יותר name/birthDate — לא ב-prompt.
     const response = await prisma.questionnaireResponse.findUnique({
       where: { id: responseId },
       include: {
@@ -120,8 +121,6 @@ export async function POST(req: NextRequest) {
         client: {
           select: {
             id: true,
-            name: true,
-            birthDate: true,
             therapeuticApproaches: true,
             approachNotes: true,
             culturalContext: true,
@@ -204,7 +203,7 @@ ${culturalSection}
 שאלון: ${response.template.name} (${response.template.nameEn || ""})
 קטגוריה: ${response.template.category || "כללי"}
 תאריך מילוי: ${response.completedAt?.toLocaleDateString("he-IL", { timeZone: "Asia/Jerusalem" }) || "לא הושלם"}
-מטופל: ${response.client?.name || "לא ידוע"}
+מזהה מטופל (לעבודה הפנימית): ${getClientPseudonym(response.client?.id)}
 
 תוצאות:
 ציון כולל: ${response.totalScore || "N/A"}

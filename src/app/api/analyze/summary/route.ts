@@ -6,6 +6,7 @@ import { logger } from "@/lib/logger";
 import { requireAuth } from "@/lib/api-auth";
 import { sanitizeUserHtml } from "@/lib/sanitize-html";
 import { loadScopeUser, buildClientWhere, isSecretary } from "@/lib/scope";
+import { getClientPseudonym } from "@/lib/ai-pseudonymize";
 
 export const dynamic = "force-dynamic";
 
@@ -26,7 +27,10 @@ export async function POST(request: NextRequest) {
     }
 
     const body = await request.json();
-    const { transcription, summaries, clientName, clientId, analysisType } = body;
+    // C3: לא משתמשים יותר ב-clientName מה-body. גם אם ה-UI שולח שם —
+    // ה-prompt ל-Gemini מקבל pseudonym בלבד.
+    const { transcription, summaries, clientId, analysisType } = body;
+    const clientPseudo = getClientPseudonym(clientId);
 
     // קבלת פרטי המשתמש כולל גישות טיפוליות
     const user = await prisma.user.findUnique({
@@ -129,7 +133,7 @@ ${approachPrompts}
 
 הנחיה: חפש את מה שהשתנה ואת מה שנשאר תקוע. חפש את הפרדוקסים.
 
-אתה פסיכולוג קליני ברמה אקדמית גבוהה. קיבלת ${summaries.length} סיכומי פגישות של מטופל${clientName ? ` בשם ${clientName}` : ""}.
+אתה פסיכולוג קליני ברמה אקדמית גבוהה. קיבלת ${summaries.length} סיכומי פגישות של ${clientPseudo}.
 ${approachSection}
 ${culturalSection}
 ניתח בצורה מעמיקה ברמה של פסיכולוג בכיר:

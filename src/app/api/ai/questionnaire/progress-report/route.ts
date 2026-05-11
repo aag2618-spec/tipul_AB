@@ -13,6 +13,7 @@ import {
   buildSessionWhere,
   canSecretaryAccessModel,
 } from "@/lib/scope";
+import { getClientPseudonym } from "@/lib/ai-pseudonymize";
 
 // שימוש ב-Gemini 2.0 Flash בלבד
 const genAI = new GoogleGenerativeAI(process.env.GOOGLE_AI_API_KEY || "");
@@ -136,7 +137,7 @@ export async function POST(req: NextRequest) {
       where: { AND: [{ id: clientId }, clientWhere] },
       select: {
         id: true,
-        name: true,
+        // C3: name הוסר — לא נשלח ל-LLM. השם מוחלף ב-pseudonym ב-prompt.
         therapistId: true,
         therapeuticApproaches: true,
         approachNotes: true,
@@ -262,7 +263,7 @@ ${integrationSection}
 ${approachSection}
 ${culturalSection}
 פרטים:
-• מטופל: ${client.name}
+• מזהה מטופל (לעבודה הפנימית): ${getClientPseudonym(client.id)}
 • תקופה: ${fromDate.toLocaleDateString("he-IL", { timeZone: "Asia/Jerusalem" })} - ${toDate.toLocaleDateString("he-IL", { timeZone: "Asia/Jerusalem" })}
 • מספר פגישות: ${sessions.length}
 • מספר שאלונים: ${questionnaires.length}
