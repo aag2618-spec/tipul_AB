@@ -82,6 +82,27 @@ export async function POST(req: NextRequest) {
       return NextResponse.json({ message: "יש למלא נושא והודעה" }, { status: 400 });
     }
 
+    // M-validation: length caps + category whitelist.
+    // subject נכנס ל-AdminAlert.title; ללא cap = רשומות ענקיות שמכבידות על UI אדמין.
+    const MAX_SUBJECT = 200;
+    const MAX_MESSAGE = 10000;
+    const ALLOWED_CATEGORIES = ["general", "technical", "billing", "feature", "bug", "other"];
+    if (subject.length > MAX_SUBJECT) {
+      return NextResponse.json(
+        { message: `נושא ארוך מדי (מקסימום ${MAX_SUBJECT} תווים)` },
+        { status: 400 }
+      );
+    }
+    if (message.length > MAX_MESSAGE) {
+      return NextResponse.json(
+        { message: `הודעה ארוכה מדי (מקסימום ${MAX_MESSAGE} תווים)` },
+        { status: 400 }
+      );
+    }
+    if (!ALLOWED_CATEGORIES.includes(category)) {
+      return NextResponse.json({ message: "קטגוריה לא תקינה" }, { status: 400 });
+    }
+
     // ולידציית קבצים לפני יצירת הפנייה
     if (files.length > 0) {
       const validation = validateAttachments(files);

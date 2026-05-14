@@ -3,6 +3,8 @@ import prisma from "@/lib/prisma";
 import { logger } from "@/lib/logger";
 
 import { requireAuth } from "@/lib/api-auth";
+import { loadScopeUser } from "@/lib/scope";
+import { validateRecurringPatternInput } from "@/lib/validation/recurring-pattern";
 
 export const dynamic = "force-dynamic";
 
@@ -34,18 +36,32 @@ export async function POST(request: NextRequest) {
   try {
     const auth = await requireAuth();
     if ("error" in auth) return auth.error;
-    const { userId, session } = auth;
+    const { userId } = auth;
 
-    const body = await request.json();
+    let body: Record<string, unknown>;
+    try {
+      const raw = await request.json();
+      if (!raw || typeof raw !== "object" || Array.isArray(raw)) {
+        return NextResponse.json({ message: "גוף בקשה לא תקין" }, { status: 400 });
+      }
+      body = raw as Record<string, unknown>;
+    } catch {
+      return NextResponse.json({ message: "גוף בקשה לא תקין (JSON)" }, { status: 400 });
+    }
+
+    const scopeUser = await loadScopeUser(userId);
+    const err = await validateRecurringPatternInput({ body, scopeUser, requireClient: false });
+    if (err) return err;
+
     const { dayOfWeek, time, duration, clientId } = body;
 
     const pattern = await prisma.recurringPattern.create({
       data: {
         userId: userId,
-        dayOfWeek,
-        time,
-        duration: duration || 50,
-        clientId: clientId || null,
+        dayOfWeek: dayOfWeek as number,
+        time: time as string,
+        duration: (duration as number | undefined) || 50,
+        clientId: (clientId as string | undefined) || null,
         isActive: true,
       },
       include: {

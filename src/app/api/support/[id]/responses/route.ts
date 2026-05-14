@@ -41,6 +41,14 @@ export async function POST(
       return NextResponse.json({ message: "יש לכתוב הודעה" }, { status: 400 });
     }
 
+    // M-validation: length cap על message (DoS guard).
+    if (message.length > 10000) {
+      return NextResponse.json(
+        { message: "הודעה ארוכה מדי (מקסימום 10,000 תווים)" },
+        { status: 400 }
+      );
+    }
+
     // ולידציית קבצים לפני יצירת התגובה
     if (files.length > 0) {
       const validation = validateAttachments(files);
