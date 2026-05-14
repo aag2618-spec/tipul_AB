@@ -514,7 +514,15 @@ async function syncCardcomTransactionInner(transactionId: string): Promise<SyncR
     return { status: 'APPROVED', changed: false, reason: 'race lost to concurrent webhook' };
   }
 
-  if (tx.bulkPaymentIds.length > 0 && tx.payment) {
+  // Stage 5 — bulkPaymentIds משמש גם כ-storage ל-packageId כשpurpose=PACKAGE_PURCHASE
+  // (CardcomTransaction בtenant=ADMIN). שם זה לא bulk payment אמיתי, אסור לקרוא
+  // ל-distributeBulkCardcomPayment כי אין Payment קשור. ה-`tx.payment` ממילא null
+  // ב-ADMIN tenant, אבל מוסיפים guard מפורש על purpose ב-defense-in-depth.
+  if (
+    tx.bulkPaymentIds.length > 0 &&
+    tx.payment &&
+    tx.purpose !== "PACKAGE_PURCHASE"
+  ) {
     try {
       const distributionResult = await distributeBulkCardcomPayment({
         umbrellaPaymentId: tx.payment.id,

@@ -2129,6 +2129,11 @@ model UserPackagePurchase {
   revertedBy    String? // userId של מי שביטל
   createdAt     DateTime      @default(now())
 
+  // Stage 5 — מניעת race שיוצר 2 UserPackagePurchase לאותה עסקת Cardcom.
+  // PostgreSQL מתייחס ל-null כשונה מ-null באינדקסים standard, אז רשומות עם
+  // externalId=null (source=ADMIN/PROMO) לא מושפעות; רק (source=CARDCOM,
+  // externalId=cuid) נאכף ל-unique.
+  @@unique([externalId, source])
   @@index([userId, type])
   @@index([userId, type, reverted])
   @@index([externalId])

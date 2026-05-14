@@ -321,13 +321,22 @@ export default function BillingPage() {
       <div>
         <h1 className="text-2xl font-bold tracking-tight">ניהול מנוי וחיוב</h1>
         <p className="text-muted-foreground">צפייה, שדרוג, שינוי ותנאי המנוי שלך - הכל במקום אחד</p>
-        <a
-          href="/dashboard/settings/subscription"
-          className="inline-flex items-center gap-1 text-sm text-primary hover:underline mt-2"
-        >
-          <CreditCard className="h-3 w-3" />
-          ניהול תשלום שוטף, כרטיס שמור והיסטוריית חיובים
-        </a>
+        <div className="flex flex-wrap gap-x-4 gap-y-1 mt-2">
+          <a
+            href="/dashboard/settings/subscription"
+            className="inline-flex items-center gap-1 text-sm text-primary hover:underline"
+          >
+            <CreditCard className="h-3 w-3" />
+            ניהול תשלום שוטף, כרטיס שמור והיסטוריית חיובים
+          </a>
+          <a
+            href="/dashboard/settings/packages"
+            className="inline-flex items-center gap-1 text-sm text-primary hover:underline"
+          >
+            <FileText className="h-3 w-3" />
+            רכישת חבילות SMS / AI נוספות
+          </a>
+        </div>
       </div>
 
       {/* MyTipul-B: באנר "המנוי משולם ע״י הקליניקה" — מוצג למשתמש PAUSED שזה PAID_BY_CLINIC.

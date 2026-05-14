@@ -12,6 +12,7 @@
 // אבטחה: getServerSession + originalUserId (לא target אם impersonation —
 // העמוד מראה את המנוי האישי של המשתמש האמיתי).
 
+import { Suspense } from "react";
 import { getServerSession } from "next-auth";
 import { authOptions } from "@/lib/auth";
 import { redirect } from "next/navigation";
@@ -159,7 +160,12 @@ export default async function SubscriptionSettingsPage() {
     },
   };
 
-  return <SubscriptionClient view={view} />;
+  return (
+    // Suspense boundary — Next.js 14+ דורש wrapping ל-useSearchParams.
+    <Suspense fallback={null}>
+      <SubscriptionClient view={view} />
+    </Suspense>
+  );
 }
 
 // ── DB helpers ──

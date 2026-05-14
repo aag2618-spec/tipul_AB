@@ -46,6 +46,7 @@ import { getAdminBusinessProfile } from "@/lib/site-settings";
 import { sanitizeCardcomPayload, sanitizeChargebackPayload } from "@/lib/cardcom/sanitize";
 import { hashCardcomToken } from "@/lib/cardcom/token-hash";
 import { resolveUpdateCardWebhookOutcome } from "@/lib/payments/subscription-settings";
+import { resolvePackagePurchaseWebhookOutcome } from "@/lib/payments/package-purchase";
 import type { CardcomWebhookPayload } from "@/lib/cardcom/types";
 
 export const dynamic = "force-dynamic";
@@ -287,6 +288,19 @@ async function processAdminWebhook(payload: CardcomWebhookPayload): Promise<void
   // PAST_DUE). branch מוקדם מטפל בזה ייעודית.
   if (transaction.purpose === "UPDATE_CARD") {
     await processUpdateCardWebhook(transaction, payload, success, responseCode);
+    return;
+  }
+
+  // ── Stage 5: PACKAGE_PURCHASE branch ─────────────────────────────
+  // רכישת חבילת SMS/AI חד-פעמית. ללא subscriptionPaymentId, ללא token.
+  // יוצרים UserPackagePurchase + cardcomInvoice. לא נוגעים ב-User.subscriptionStatus.
+  if (transaction.purpose === "PACKAGE_PURCHASE") {
+    await processPackagePurchaseWebhook(
+      transaction,
+      payload,
+      success,
+      responseCode
+    );
     return;
   }
 
@@ -910,4 +924,322 @@ async function processUpdateCardWebhook(
       });
     }
   );
+}
+
+// ============================================================================
+// processPackagePurchaseWebhook — Stage 5: רכישת חבילות SMS/AI
+// ============================================================================
+// יוצר UserPackagePurchase עם source=CARDCOM, externalId=transactionId,
+// type/credits מקוטלוג ה-Package. idempotent דרך alreadyGranted (חיפוש לפי
+// externalId). ה-tx ב-withAudit Serializable מבטיח אטומיות.
+async function processPackagePurchaseWebhook(
+  transaction: Awaited<
+    ReturnType<typeof prisma.cardcomTransaction.findUnique>
+  > & { userId: string | null },
+  payload: CardcomWebhookPayload,
+  success: boolean,
+  responseCode: string
+): Promise<void> {
+  if (!transaction) return;
+
+  if (!transaction.userId) {
+    logger.error("[cardcom-admin] PACKAGE_PURCHASE transaction missing userId", {
+      transactionId: transaction.id,
+    });
+    throw new Error("CARDCOM_PACKAGE_PURCHASE_MISSING_USER");
+  }
+
+  // בודקים אם כבר ניתנו credits לעסקה הזו (idempotency).
+  // ה-externalId שלנו הוא ה-CardcomTransaction.id.
+  const existingPurchase = await prisma.userPackagePurchase.findFirst({
+    where: {
+      externalId: transaction.id,
+      source: "CARDCOM",
+      reverted: false,
+    },
+    select: { id: true },
+  });
+
+  const outcome = resolvePackagePurchaseWebhookOutcome({
+    success,
+    alreadyGranted: existingPurchase !== null,
+  });
+
+  await withAudit(
+    {
+      kind: "system",
+      source: "WEBHOOK_CARDCOM",
+      externalRef: payload.LowProfileId,
+    },
+    {
+      action:
+        outcome.action === "GRANT_CREDITS"
+          ? "cardcom_package_purchase_approved"
+          : outcome.action === "SKIP_ALREADY"
+            ? "cardcom_package_purchase_skipped_idempotent"
+            : "cardcom_package_purchase_declined",
+      targetType: "cardcom_transaction",
+      targetId: transaction.id,
+      details: {
+        responseCode,
+        outcome: outcome.action,
+        amount: Number(transaction.amount),
+      },
+    },
+    async (tx) => {
+      const now = new Date();
+      const newStatus =
+        outcome.action === "GRANT_CREDITS" ? "APPROVED" : "DECLINED";
+
+      // עדכון CardcomTransaction — מוגן מ-downgrade.
+      // SKIP_ALREADY: אם success=true (duplicate webhook אחרי הצלחה), עדיין
+      // מעדכנים ל-APPROVED אם זה PENDING (סוכן 1 ממצא #3 — סטטוס לא נשאר
+      // PENDING לנצח). אם success=false ו-alreadyGranted, השאר APPROVED.
+      const shouldUpdateStatus =
+        outcome.action !== "SKIP_ALREADY" ||
+        (outcome.action === "SKIP_ALREADY" && success);
+      const effectiveStatus =
+        outcome.action === "SKIP_ALREADY" ? "APPROVED" : newStatus;
+      if (shouldUpdateStatus) {
+        const upd = await tx.cardcomTransaction.updateMany({
+          where: {
+            id: transaction.id,
+            status:
+              effectiveStatus === "APPROVED"
+                ? { notIn: ["APPROVED", "REFUNDED", "CANCELLED"] }
+                : { notIn: ["APPROVED", "REFUNDED"] },
+          },
+          data: {
+            status: effectiveStatus,
+            transactionId: payload.TranzactionId ?? null,
+            approvalNumber: payload.TranzactionInfo?.ApprovalNumber ?? null,
+            cardLast4:
+              payload.TranzactionInfo?.Last4CardDigits ?? transaction.cardLast4,
+            cardHolder:
+              payload.TranzactionInfo?.CardOwnerName ?? transaction.cardHolder,
+            cardBrand: payload.TranzactionInfo?.CardName ?? null,
+            errorCode: effectiveStatus === "APPROVED" ? null : responseCode,
+            errorMessage:
+              effectiveStatus === "APPROVED"
+                ? null
+                : scrubCardcomMessage(payload.Description),
+            rawResponse: sanitizeCardcomPayload(payload as unknown as object),
+            completedAt: now,
+          },
+        });
+        if (upd.count === 0) {
+          logger.info(
+            "[cardcom-admin] PACKAGE_PURCHASE already terminal — skipping",
+            { transactionId: transaction.id }
+          );
+          return;
+        }
+      }
+
+      if (outcome.action !== "GRANT_CREDITS") {
+        // DECLINE או SKIP_ALREADY — לא יוצרים UserPackagePurchase
+        logger.info(
+          "[cardcom-admin] PACKAGE_PURCHASE not granting credits",
+          {
+            transactionId: transaction.id,
+            outcome: outcome.action,
+          }
+        );
+        return;
+      }
+
+      // packageId מאוחסן ב-bulkPaymentIds[0] (purchase/route.ts).
+      // sync-cardcom-payment + refund route מוגנים ב-purpose !== PACKAGE_PURCHASE
+      // כך שהשימוש הזה ב-bulkPaymentIds לא יוצר התנגשות עם bulk payments אמיתיים.
+      const packageIdFromBulk = transaction.bulkPaymentIds?.[0] ?? null;
+      if (!packageIdFromBulk) {
+        // הכסף נגבה אבל אין packageId — מצב חמור.
+        logger.error(
+          "[cardcom-admin] PACKAGE_PURCHASE missing packageId in bulkPaymentIds",
+          { transactionId: transaction.id }
+        );
+        await raisePackageMissingAlert(
+          tx,
+          transaction.id,
+          transaction.userId!,
+          Number(transaction.amount),
+          "missing_package_id"
+        );
+        return;
+      }
+      const pkg = await tx.package.findUnique({
+        where: { id: packageIdFromBulk },
+        select: { id: true, type: true, credits: true, name: true },
+      });
+      if (!pkg) {
+        // הכסף נגבה אבל ה-Package נמחק — נדרש refund ידני.
+        logger.error("[cardcom-admin] PACKAGE_PURCHASE — package not found", {
+          transactionId: transaction.id,
+          packageId: packageIdFromBulk,
+        });
+        await raisePackageMissingAlert(
+          tx,
+          transaction.id,
+          transaction.userId!,
+          Number(transaction.amount),
+          "package_deleted",
+          packageIdFromBulk
+        );
+        return;
+      }
+
+      // יצירת UserPackagePurchase + תיעוד source=CARDCOM.
+      // ה-unique constraint על (externalId, source) מבטיח שגם race יתפס ע"י DB.
+      let created;
+      try {
+        created = await tx.userPackagePurchase.create({
+          data: {
+            userId: transaction.userId!,
+            packageId: pkg.id,
+            type: pkg.type,
+            credits: pkg.credits,
+            creditsUsed: 0,
+            source: "CARDCOM",
+            externalId: transaction.id,
+            note: pkg.name,
+          },
+        });
+      } catch (err) {
+        // P2002 = unique constraint violation. race עם webhook duplicate — בסדר.
+        if (
+          err &&
+          typeof err === "object" &&
+          "code" in err &&
+          err.code === "P2002"
+        ) {
+          logger.info(
+            "[cardcom-admin] PACKAGE_PURCHASE — duplicate caught by DB unique constraint",
+            { transactionId: transaction.id }
+          );
+          return;
+        }
+        throw err;
+      }
+
+      // יצירת CardcomInvoice (אם Cardcom החזיר DocumentNumber) + orphan resolution.
+      // קריטי לדיווחי מע"מ — לפי חוק חשבוניות 2024.
+      const businessProfile = await getAdminBusinessProfile();
+      const adminDocNumStr =
+        payload.DocumentInfo?.DocumentNumber !== undefined &&
+        payload.DocumentInfo?.DocumentNumber !== null
+          ? String(payload.DocumentInfo.DocumentNumber)
+          : null;
+      const adminAllocationStr =
+        payload.DocumentInfo?.AllocationNumber !== undefined &&
+        payload.DocumentInfo?.AllocationNumber !== null
+          ? String(payload.DocumentInfo.AllocationNumber)
+          : null;
+
+      if (adminDocNumStr) {
+        // resolve orphan אם נרשם
+        await tx.orphanCardcomDocument.updateMany({
+          where: {
+            cardcomDocumentNumber: adminDocNumStr,
+            resolved: false,
+          },
+          data: {
+            resolved: true,
+            resolvedAt: new Date(),
+            resolutionNote: "Auto-resolved by package purchase webhook",
+          },
+        });
+
+        // יצירת CardcomInvoice — מחיר/מע"מ כמו ב-SUBSCRIPTION_CREATE
+        const documentType = payload.DocumentInfo?.DocumentType ?? "Receipt";
+        const isLicensed = businessProfile.type === "LICENSED";
+        const amountTotal = Number(transaction.amount);
+        const vatRate = isLicensed ? businessProfile.vatRate : null;
+        const amountBeforeVat =
+          isLicensed && vatRate ? amountTotal / (1 + vatRate / 100) : null;
+        const vatAmount =
+          isLicensed && amountBeforeVat !== null
+            ? amountTotal - amountBeforeVat
+            : null;
+
+        const subscriberUser = await tx.user.findUnique({
+          where: { id: transaction.userId! },
+          select: { name: true, email: true },
+        });
+
+        await tx.cardcomInvoice.create({
+          data: {
+            tenant: "ADMIN",
+            cardcomDocumentNumber: adminDocNumStr,
+            cardcomDocumentType: documentType,
+            pdfUrl:
+              payload.DocumentInfo?.DocumentUrl ??
+              payload.DocumentInfo?.DocumentLink ??
+              null,
+            allocationNumber: adminAllocationStr,
+            issuerUserId: null,
+            issuerBusinessType: businessProfile.type,
+            issuerBusinessName: businessProfile.name,
+            issuerIdNumber: businessProfile.idNumber,
+            vatRateSnapshot: vatRate ? String(vatRate) : null,
+            amountBeforeVat:
+              amountBeforeVat !== null ? amountBeforeVat.toFixed(2) : null,
+            vatAmount: vatAmount !== null ? vatAmount.toFixed(2) : null,
+            subscriberId: transaction.userId!,
+            subscriberNameSnapshot: subscriberUser?.name ?? "",
+            subscriberEmailSnapshot: subscriberUser?.email ?? null,
+            subscriptionPaymentId: null,
+            cardcomTransactionId: transaction.id,
+            amount: transaction.amount,
+            currency: transaction.currency,
+            description: pkg.name,
+            occurredAt: transaction.completedAt ?? new Date(),
+            issuedAt: new Date(),
+          },
+        });
+      }
+
+      logger.info("[cardcom-admin] PACKAGE_PURCHASE granted credits", {
+        userId: transaction.userId,
+        transactionId: transaction.id,
+        purchaseId: created.id,
+        packageId: pkg.id,
+        credits: pkg.credits,
+        invoiceCreated: adminDocNumStr !== null,
+      });
+    }
+  );
+}
+
+// raisePackageMissingAlert — סוכן 5 ממצא #2: הכסף נגבה אבל אין Package להעניק.
+// מעלים AdminAlert URGENT עם הוראת פעולה ל-refund ידני. CardcomTransaction
+// כבר במצב APPROVED (ה-updateMany קודם הצליח), כך שהיא לא נשארת PENDING.
+async function raisePackageMissingAlert(
+  tx: Parameters<Parameters<typeof withAudit>[2]>[0],
+  transactionId: string,
+  userId: string,
+  amount: number,
+  reason: "missing_package_id" | "package_deleted",
+  packageId?: string
+): Promise<void> {
+  await tx.adminAlert.create({
+    data: {
+      type: "PAYMENT_FAILED",
+      priority: "URGENT",
+      status: "PENDING",
+      title: `[package-purchase] חבילה לא נמצאה אחרי תשלום (${transactionId})`,
+      message:
+        reason === "missing_package_id"
+          ? `התקבל תשלום של ₪${amount.toLocaleString("he-IL")} עבור חבילה, אבל ב-CardcomTransaction חסר packageId. הכסף נגבה ולא הוענקו credits.`
+          : `התקבל תשלום של ₪${amount.toLocaleString("he-IL")} עבור Package id=${packageId} שלא קיים יותר. הכסף נגבה ולא הוענקו credits.`,
+      actionRequired:
+        "נדרש refund ידני ב-Cardcom + יצירת CardcomTransaction מתאים לזיכוי, או הענקת credits שווה ערך ידנית.",
+      userId,
+      metadata: {
+        alertSubtype: "package_purchase_orphan",
+        transactionId,
+        packageId: packageId ?? null,
+        reason,
+      },
+    },
+  });
 }
