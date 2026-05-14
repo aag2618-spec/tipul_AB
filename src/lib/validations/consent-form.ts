@@ -32,7 +32,7 @@ export const createConsentFormSchema = z.object({
     .string()
     .min(1, "תוכן חובה")
     .max(MAX_CONTENT_LENGTH, `תוכן ארוך מדי (מקסימום ${MAX_CONTENT_LENGTH} תווים)`),
-  isTemplate: z.boolean(),
+  isTemplate: z.boolean().optional().default(false),
   clientId: z.string().max(64).optional().nullable(),
 });
 export type CreateConsentFormInput = z.infer<typeof createConsentFormSchema>;

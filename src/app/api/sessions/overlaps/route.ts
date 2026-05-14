@@ -91,12 +91,19 @@ export async function GET() {
     // רץ רק במצב קליניקה (organizationId !== null). מאתר חפיפות גם בין
     // מטפלים שונים שמשתפים חדר. מקבץ לפי location מנורמלת ומפעיל את אותו
     // אלגוריתם sweep.
+    //
+    // חלון זמן: -14 ימים עד +90 ימים מעכשיו. בלי חלון, בקליניקות גדולות
+    // עם היסטוריה ארוכה findMany היה מושך 10k+ סשנים לזיכרון.
     if (scopeUser.organizationId) {
+      const now = new Date();
+      const windowStart = new Date(now.getTime() - 14 * 24 * 60 * 60 * 1000);
+      const windowEnd = new Date(now.getTime() + 90 * 24 * 60 * 60 * 1000);
       const clinicSessions = await prisma.therapySession.findMany({
         where: {
           organizationId: scopeUser.organizationId,
           status: { notIn: ["CANCELLED", "COMPLETED", "NO_SHOW"] },
           location: { not: null },
+          startTime: { gte: windowStart, lt: windowEnd },
         },
         orderBy: { startTime: "asc" },
         include: {

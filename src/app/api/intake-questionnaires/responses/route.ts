@@ -39,7 +39,7 @@ export async function POST(req: NextRequest) {
     });
 
     if (!client) {
-      return NextResponse.json({ message: "Client not found" }, { status: 404 });
+      return NextResponse.json({ message: "מטופל לא נמצא" }, { status: 404 });
     }
 
     // templateId מאומת דרך ה-userId שיצר את התבנית — במקרה של קליניקה, לאפשר
@@ -55,7 +55,7 @@ export async function POST(req: NextRequest) {
           where: { id: templateId, userId: userId },
         });
     if (!template) {
-      return NextResponse.json({ message: "Template not found" }, { status: 404 });
+      return NextResponse.json({ message: "שאלון לא נמצא" }, { status: 404 });
     }
 
     const response = await prisma.intakeResponse.create({
@@ -74,7 +74,7 @@ export async function POST(req: NextRequest) {
   } catch (error) {
     logger.error("Error saving intake response:", { error: error instanceof Error ? error.message : String(error) });
     return NextResponse.json(
-      { message: "Failed to save response" },
+      { message: "שגיאה בשמירת התשובות" },
       { status: 500 }
     );
   }
@@ -99,7 +99,7 @@ export async function GET(req: NextRequest) {
     const clientId = searchParams.get("clientId");
 
     if (!clientId) {
-      return NextResponse.json({ message: "Client ID required" }, { status: 400 });
+      return NextResponse.json({ message: "חסר מזהה מטופל" }, { status: 400 });
     }
 
     const clientWhere = buildClientWhere(scopeUser);
@@ -108,7 +108,7 @@ export async function GET(req: NextRequest) {
     });
 
     if (!client) {
-      return NextResponse.json({ message: "Client not found" }, { status: 404 });
+      return NextResponse.json({ message: "מטופל לא נמצא" }, { status: 404 });
     }
 
     const responses = await prisma.intakeResponse.findMany({
@@ -125,7 +125,7 @@ export async function GET(req: NextRequest) {
   } catch (error) {
     logger.error("Error fetching intake responses:", { error: error instanceof Error ? error.message : String(error) });
     return NextResponse.json(
-      { message: "Failed to fetch responses" },
+      { message: "שגיאה בטעינת התשובות" },
       { status: 500 }
     );
   }

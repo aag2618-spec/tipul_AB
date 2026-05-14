@@ -7,24 +7,24 @@ const TIME_RE = /^([01]?\d|2[0-3]):[0-5]\d$/;
 
 const dayOfWeek = z
   .number()
-  .int("יום השבוע חייב להיות מספר שלם")
-  .min(0, "dayOfWeek חייב להיות בין 0 ל-6")
-  .max(6, "dayOfWeek חייב להיות בין 0 ל-6");
+  .int("יום בשבוע חייב להיות מספר שלם")
+  .min(0, "יום בשבוע חייב להיות בין 0 ל-6")
+  .max(6, "יום בשבוע חייב להיות בין 0 ל-6");
 
 const time = z
   .string()
-  .regex(TIME_RE, "time חייב להיות בפורמט HH:MM (00:00-23:59)");
+  .regex(TIME_RE, "שעה חייבת להיות בפורמט HH:MM (00:00-23:59)");
 
 const duration = z
   .number()
   .int()
-  .min(5, "duration חייב להיות בין 5 ל-720 דקות")
-  .max(720, "duration חייב להיות בין 5 ל-720 דקות");
+  .min(5, "משך חייב להיות בין 5 ל-720 דקות")
+  .max(720, "משך חייב להיות בין 5 ל-720 דקות");
 
 const clientIdField = z
   .string()
-  .min(1, "clientId לא תקין")
-  .max(64, "clientId לא תקין");
+  .min(1, "מזהה מטופל לא תקין")
+  .max(64, "מזהה מטופל לא תקין");
 
 export const createRecurringPatternSchema = z.object({
   dayOfWeek,
