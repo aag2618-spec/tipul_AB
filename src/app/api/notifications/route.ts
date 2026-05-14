@@ -3,6 +3,11 @@ import { requireAuth } from "@/lib/api-auth";
 import prisma from "@/lib/prisma";
 import { logger } from "@/lib/logger";
 import { isShabbatOrYomTov } from "@/lib/shabbat";
+import { parseBody } from "@/lib/validations/helpers";
+import {
+  createNotificationSchema,
+  updateNotificationSchema,
+} from "@/lib/validations/notification";
 
 export const dynamic = "force-dynamic";
 
@@ -81,11 +86,9 @@ export async function POST(request: NextRequest) {
     if ("error" in auth) return auth.error;
     const { userId } = auth;
 
-    const { type, title, content } = await request.json();
-
-    if (!title || !content) {
-      return NextResponse.json({ message: "חסרים שדות חובה" }, { status: 400 });
-    }
+    const parsed = await parseBody(request, createNotificationSchema);
+    if ("error" in parsed) return parsed.error;
+    const { type, title, content } = parsed.data;
 
     const notification = await prisma.notification.create({
       data: {
@@ -114,8 +117,9 @@ export async function PUT(request: NextRequest) {
     if ("error" in auth) return auth.error;
     const { userId } = auth;
 
-    const body = await request.json();
-    const { id, status, markAllAsRead } = body;
+    const parsed = await parseBody(request, updateNotificationSchema);
+    if ("error" in parsed) return parsed.error;
+    const { id, status, markAllAsRead } = parsed.data;
 
     if (markAllAsRead) {
       await prisma.notification.updateMany({

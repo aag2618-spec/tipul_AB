@@ -3,6 +3,8 @@ import prisma from "@/lib/prisma";
 import { logger } from "@/lib/logger";
 
 import { requireAuth } from "@/lib/api-auth";
+import { parseBody } from "@/lib/validations/helpers";
+import { updateTaskSchema } from "@/lib/validations/task";
 
 export const dynamic = "force-dynamic";
 
@@ -45,7 +47,10 @@ export async function PATCH(
     const { userId, session } = auth;
 
     const { id } = await params;
-    const body = await request.json();
+    // H12: zod אוכף caps + enum על status/priority. כל השדות אופציונליים (PATCH).
+    const parsed = await parseBody(request, updateTaskSchema);
+    if ("error" in parsed) return parsed.error;
+    const { title, description, status, priority, dueDate, reminderAt } = parsed.data;
 
     // Verify task belongs to user
     const existingTask = await prisma.task.findFirst({
@@ -55,8 +60,6 @@ export async function PATCH(
     if (!existingTask) {
       return NextResponse.json({ message: "משימה לא נמצאה" }, { status: 404 });
     }
-
-    const { title, description, status, priority, dueDate, reminderAt } = body;
 
     const task = await prisma.task.update({
       where: { id },

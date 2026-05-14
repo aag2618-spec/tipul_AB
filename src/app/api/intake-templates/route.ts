@@ -1,10 +1,32 @@
 import { NextRequest, NextResponse } from "next/server";
+import { z } from "zod";
+import type { Prisma } from "@prisma/client";
 import prisma from "@/lib/prisma";
 import { logger } from "@/lib/logger";
 
 import { requireAuth } from "@/lib/api-auth";
+import { parseBody } from "@/lib/validations/helpers";
 
 export const dynamic = "force-dynamic";
+
+// H12: schema לתבנית אינטייק. questions הוא JSON field אבל UI (intake/[clientId]/page.tsx:49)
+// קורא ל-.map() — חייב להישאר array. cap על גודל JSON כדי למנוע DoS.
+const intakeTemplateSchema = z.object({
+  name: z.string().trim().min(1, "שם התבנית חובה").max(200, "שם ארוך מדי"),
+  questions: z
+    .array(z.unknown())
+    .refine(
+      (v) => {
+        try {
+          return JSON.stringify(v).length <= 50_000;
+        } catch {
+          return false;
+        }
+      },
+      { message: "שאלון גדול מדי (מקסימום 50,000 תווים)" }
+    ),
+  isDefault: z.boolean().optional(),
+});
 
 export async function GET() {
   try {
@@ -33,15 +55,9 @@ export async function POST(request: NextRequest) {
     if ("error" in auth) return auth.error;
     const { userId, session } = auth;
 
-    const body = await request.json();
-    const { name, questions, isDefault } = body;
-
-    if (!name || !questions) {
-      return NextResponse.json(
-        { message: "נא למלא את כל השדות" },
-        { status: 400 }
-      );
-    }
+    const parsed = await parseBody(request, intakeTemplateSchema);
+    if ("error" in parsed) return parsed.error;
+    const { name, questions, isDefault } = parsed.data;
 
     // If this is marked as default, unmark all others
     if (isDefault) {
@@ -55,7 +71,7 @@ export async function POST(request: NextRequest) {
       data: {
         userId: userId,
         name,
-        questions,
+        questions: questions as Prisma.InputJsonValue,
         isDefault: isDefault || false,
       },
     });

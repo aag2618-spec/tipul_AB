@@ -3,6 +3,8 @@ import prisma from "@/lib/prisma";
 import { logger } from "@/lib/logger";
 
 import { requireAuth } from "@/lib/api-auth";
+import { parseBody } from "@/lib/validations/helpers";
+import { markBySubjectSchema } from "@/lib/validations/notification";
 
 export const dynamic = "force-dynamic";
 
@@ -12,11 +14,9 @@ export async function POST(request: NextRequest) {
     if ("error" in auth) return auth.error;
     const { userId, session } = auth;
 
-    const { subject } = await request.json();
-
-    if (!subject) {
-      return NextResponse.json({ message: "חסר נושא" }, { status: 400 });
-    }
+    const parsed = await parseBody(request, markBySubjectSchema);
+    if ("error" in parsed) return parsed.error;
+    const { subject } = parsed.data;
 
     // Mark notifications as read where the content contains the subject
     await prisma.notification.updateMany({
