@@ -62,17 +62,42 @@ export async function POST(request: NextRequest) {
       },
     });
 
-    const result = { count: noLp.count + withLp.count };
+    // 3) SubscriptionPayment יתום: PENDING שהcardcomTransaction שלו ב-FAILED/EXPIRED/CANCELLED.
+    //    בלי זה — המשתמש רואה "תשלום בהמתנה" לנצח ב-/dashboard/settings/subscription.
+    //    הסינון לפי `cardcomTransactions.every` תופס מצבים שכל ה-transactions
+    //    המקושרים נכשלו (לפעמים יש כמה ניסיונות).
+    const orphanSp = await prisma.subscriptionPayment.updateMany({
+      where: {
+        status: "PENDING",
+        createdAt: { lt: longCutoff },
+        cardcomTransactions: {
+          some: {}, // יש לפחות transaction אחד
+          every: { status: { in: ["FAILED", "EXPIRED", "CANCELLED", "DECLINED"] } },
+        },
+      },
+      data: {
+        status: "CANCELLED",
+        autoChargeEnabled: false,
+        nextChargeAt: null,
+      },
+    });
+
+    const result = { count: noLp.count + withLp.count + orphanSp.count };
 
     logger.info("[Cron cardcom-cleanup-pending] completed", {
       expired: result.count,
       noLowProfileExpired: noLp.count,
       withLowProfileExpired: withLp.count,
+      orphanSubscriptionsCancelled: orphanSp.count,
       shortCutoff: shortCutoff.toISOString(),
       longCutoff: longCutoff.toISOString(),
     });
 
-    return NextResponse.json({ ok: true, expired: result.count });
+    return NextResponse.json({
+      ok: true,
+      expired: result.count,
+      orphanSubscriptionsCancelled: orphanSp.count,
+    });
   } catch (err) {
     logger.error("[Cron cardcom-cleanup-pending] failed", {
       error: err instanceof Error ? err.message : String(err),

@@ -118,13 +118,20 @@ export async function POST() {
     }
 
     // ========================================
-    // עדכון סטטוס המנוי
+    // עדכון סטטוס המנוי + ביטול חיובים אוטומטיים עתידיים
     // ========================================
     await prisma.user.update({
       where: { id: user.id },
       data: {
         subscriptionStatus: "CANCELLED",
       },
+    });
+
+    // עצירת cron החיוב החוזר: ביטול autoChargeEnabled על כל המנויים הפעילים.
+    // המשתמש כבר ביטל — אסור שיחויב שוב בחודש הבא דרך savedCardToken.
+    await prisma.subscriptionPayment.updateMany({
+      where: { userId: user.id, autoChargeEnabled: true },
+      data: { autoChargeEnabled: false, nextChargeAt: null },
     });
 
     // יצירת רשומת חיוב אם יש הפרש

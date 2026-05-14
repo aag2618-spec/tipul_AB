@@ -3,11 +3,15 @@
 // מקור אמת מרכזי לתמחור - כל המחירים מוגדרים כאן בלבד
 // ========================================
 
+/** שמות תוכניות בעברית — מקור אמת יחיד. השתמש בכל מקום שמוצג למשתמש (UI, מיילים, קבלות). */
 export const PLAN_NAMES: Record<string, string> = {
-  ESSENTIAL: "Essential",
-  PRO: "Pro",
-  ENTERPRISE: "Enterprise",
+  ESSENTIAL: "בסיסי",
+  PRO: "מקצועי",
+  ENTERPRISE: "ארגוני",
 };
+
+/** alias ל-PLAN_NAMES — נשמר לתאימות עם קוד ישן שהשתמש בשם PLAN_LABELS_HE. */
+export const PLAN_LABELS_HE = PLAN_NAMES;
 
 /**
  * תמחור לפי מסלול ותקופה

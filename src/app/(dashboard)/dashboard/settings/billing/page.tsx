@@ -189,7 +189,7 @@ export default function BillingPage() {
         window.location.href = data.paymentUrl;
       } else {
         const error = await res.json();
-        toast.error(error.error || 'שגיאה ביצירת מנוי');
+        toast.error(error.message || error.error || 'שגיאה ביצירת מנוי');
       }
     } catch (error) {
       console.error('Error creating subscription:', error);
@@ -210,7 +210,7 @@ export default function BillingPage() {
         fetchSubscription();
       } else {
         const error = await res.json();
-        toast.error(error.error || 'שגיאה בביטול המנוי');
+        toast.error(error.message || error.error || 'שגיאה בביטול המנוי');
       }
     } catch (error) {
       console.error('Error cancelling subscription:', error);

@@ -165,6 +165,11 @@ model User {
   subscriptionPausedAt           DateTime?
   subscriptionStatusBeforeClinic SubscriptionStatus? // לשחזור בעזיבה.
 
+  // שדרוג tier בתוך תקופה פעילה: שילם עבור תקופה עתידית, ה-tier יחול רק
+  // אחרי שהתקופה הקודמת מסתיימת. cron יומי מקדם pendingTier→aiTier כש-now >= pendingTierEffectiveAt.
+  pendingTier            AITier?
+  pendingTierEffectiveAt DateTime?
+
   // Usage limits
   maxActiveClients Int  @default(40) // Maximum active clients allowed
   userNumber       Int? @unique // מספר משתמש ייחודי (1001+)
@@ -928,6 +933,9 @@ model SubscriptionPayment {
   chargeAttempts      Int                  @default(0)
   lastChargeError     String?              @db.Text
   lastAttemptAt       DateTime?
+  // ה-tier שהמשתמש בחר בעת יצירת המנוי. נשמר כאן כדי שה-webhook
+  // יוכל להפעיל את ה-tier הנכון רק אחרי APPROVED (לא לפני התשלום).
+  planTier            AITier?
   cardcomTransactions CardcomTransaction[]
   cardcomInvoices     CardcomInvoice[]
 
@@ -1943,22 +1951,22 @@ model AdminAuditLog {
 // למחוק יחידנית — אכיפה ברמת ה-API (אין endpoint למחיקה).
 
 model DataAccessAuditLog {
-  id          String    @id @default(cuid())
+  id         String   @id @default(cuid())
   // userId nullable + SetNull — במחיקת משתמש, ה-audit log נשאר עם snapshot
   // ב-userEmail/userName. חיוני: לא מאבדים תיעוד היסטורי במחיקת חשבון.
-  userId      String?
-  user        User?     @relation("dataAuditUser", fields: [userId], references: [id], onDelete: SetNull)
+  userId     String?
+  user       User?    @relation("dataAuditUser", fields: [userId], references: [id], onDelete: SetNull)
   // snapshot של המשתמש בעת הפעולה — לא מסתמך על JOIN (audit-safe)
-  userEmail   String?
-  userName    String?
-  recordType  String // RECORDING | SESSION_NOTE | TRANSCRIPTION | ANALYSIS | CLIENT_NOTES | CLIENT_PROFILE | SESSION_DETAIL | PAYMENT | DOCUMENT
-  recordId    String
-  action      String // READ | EXPORT | PRINT | DELETE | UPDATE
-  clientId    String? // אם הרשומה קשורה ללקוח (לסינון פר-לקוח)
-  ipAddress   String?
-  userAgent   String?   @db.Text
-  meta        String?   @db.Text // JSON metadata
-  createdAt   DateTime  @default(now())
+  userEmail  String?
+  userName   String?
+  recordType String // RECORDING | SESSION_NOTE | TRANSCRIPTION | ANALYSIS | CLIENT_NOTES | CLIENT_PROFILE | SESSION_DETAIL | PAYMENT | DOCUMENT
+  recordId   String
+  action     String // READ | EXPORT | PRINT | DELETE | UPDATE
+  clientId   String? // אם הרשומה קשורה ללקוח (לסינון פר-לקוח)
+  ipAddress  String?
+  userAgent  String?  @db.Text
+  meta       String?  @db.Text // JSON metadata
+  createdAt  DateTime @default(now())
 
   // אינדקסים לשליפת audit:
   @@index([userId, createdAt]) // "מה X עשה לאורך זמן"

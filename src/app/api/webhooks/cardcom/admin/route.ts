@@ -334,14 +334,50 @@ async function processAdminWebhook(payload: CardcomWebhookPayload): Promise<void
         return;
       }
 
-      if (!success) return;
+      if (!success) {
+        // תשלום נדחה — חייב לבטל SubscriptionPayment ולנקות nextChargeAt.
+        // אחרת cron החיוב החוזר ינסה לחייב טוקן שלא נשמר → לולאת כשלון.
+        if (transaction.subscriptionPaymentId) {
+          await tx.subscriptionPayment.updateMany({
+            where: {
+              id: transaction.subscriptionPaymentId,
+              status: "PENDING",
+            },
+            data: {
+              status: "CANCELLED",
+              autoChargeEnabled: false,
+              nextChargeAt: null,
+              lastChargeError: scrubCardcomMessage(payload.Description),
+              lastAttemptAt: now,
+            },
+          });
+        }
+        return;
+      }
 
-      // Update SubscriptionPayment
+      // Update SubscriptionPayment — מעבר ל-PAID + העתקת periodStart/End ל-User
+      let activatedSubscription: {
+        periodStart: Date | null;
+        periodEnd: Date | null;
+        planTier: "ESSENTIAL" | "PRO" | "ENTERPRISE" | null;
+      } | null = null;
       if (transaction.subscriptionPaymentId) {
-        await tx.subscriptionPayment.update({
+        const sp = await tx.subscriptionPayment.update({
           where: { id: transaction.subscriptionPaymentId },
-          data: { status: "PAID", paidAt: now, method: "CREDIT_CARD" },
+          data: {
+            status: "PAID",
+            paidAt: now,
+            method: "CREDIT_CARD",
+            // איפוס מונה ניסיונות (אם זה תשלום ראשון או חידוש מוצלח אחרי כשלון)
+            chargeAttempts: 0,
+            lastChargeError: null,
+          },
         });
+        activatedSubscription = {
+          periodStart: sp.periodStart,
+          periodEnd: sp.periodEnd,
+          planTier: sp.planTier,
+        };
       }
 
       // Update User.subscriptionStatus → ACTIVE (unless PAUSED).
@@ -356,10 +392,82 @@ async function processAdminWebhook(payload: CardcomWebhookPayload): Promise<void
           const isLegacyOrDebt =
             user.blockReason === "DEBT" || user.blockReason === null;
           const shouldUnblock = user.isBlocked && isLegacyOrDebt;
+
+          // Activation: עדכון תאריכי תקופת המנוי + סיום תקופת ניסיון + tier.
+          const activationUpdates: {
+            subscriptionStatus: "ACTIVE";
+            subscriptionStartedAt?: Date;
+            subscriptionEndsAt?: Date;
+            trialEndsAt?: null;
+            aiTier?: "ESSENTIAL" | "PRO" | "ENTERPRISE";
+            pendingTier?: "ESSENTIAL" | "PRO" | "ENTERPRISE" | null;
+            pendingTierEffectiveAt?: Date | null;
+          } = { subscriptionStatus: "ACTIVE" };
+
+          if (activatedSubscription?.periodStart && activatedSubscription?.periodEnd) {
+            // המנוי "חדש" אם המשתמש לא היה ב-ACTIVE קודם
+            // (TRIALING, CANCELLED, PAST_DUE, או חדש לגמרי)
+            const isNewSubscriptionStart =
+              user.subscriptionStatus !== "ACTIVE" || !user.subscriptionStartedAt;
+            if (isNewSubscriptionStart) {
+              activationUpdates.subscriptionStartedAt =
+                activatedSubscription.periodStart;
+            }
+            // איפוס trialEndsAt רק כשעוברים מ-TRIALING ל-ACTIVE
+            if (user.subscriptionStatus === "TRIALING") {
+              activationUpdates.trialEndsAt = null;
+            }
+            // subscriptionEndsAt: לא לקצר תקופה משולמת קיימת!
+            // אם המשתמש כבר ACTIVE עם תוקף עתידי — שמור את המאוחר משניהם
+            // (חידוש מוקדם / שדרוג כבר חישב periodStart=max(now,currentEnd) בcreate)
+            const candidateEnd = activatedSubscription.periodEnd;
+            const currentEnd = user.subscriptionEndsAt;
+            activationUpdates.subscriptionEndsAt =
+              currentEnd && currentEnd.getTime() > candidateEnd.getTime()
+                ? currentEnd
+                : candidateEnd;
+          }
+
+          // עדכון aiTier — לוגיקה שונה לפי האם השדרוג מתחיל מיד או בעתיד:
+          //
+          // תרחיש A — מנוי חדש / חידוש של אותו tier / משתמש לא-ACTIVE:
+          //   periodStart = now → aiTier מתעדכן מיד.
+          //
+          // תרחיש B — שדרוג tier בתוך תקופה ששולמה (PRO ACTIVE → ENTERPRISE):
+          //   periodStart = subscriptionEndsAt הקיים (בעתיד), planTier שונה מ-aiTier.
+          //   מניעת "ימי tier חינם": שומרים את ה-tier הישן עד תאריך התחילה.
+          //   pendingTier ייקדם ל-aiTier ע"י cron יומי כש-now >= pendingTierEffectiveAt.
+          if (activatedSubscription?.planTier) {
+            const newTier = activatedSubscription.planTier;
+            const periodStart = activatedSubscription.periodStart;
+            const isFutureStart =
+              periodStart && periodStart.getTime() > now.getTime();
+            const isTierUpgrade = user.aiTier !== newTier;
+
+            if (isFutureStart && isTierUpgrade) {
+              // שדרוג עתידי — שמור pending, אל תדרוס aiTier הנוכחי
+              activationUpdates.pendingTier = newTier;
+              activationUpdates.pendingTierEffectiveAt = periodStart;
+              logger.info("[cardcom-admin] tier upgrade scheduled for future", {
+                userId: user.id,
+                currentTier: user.aiTier,
+                pendingTier: newTier,
+                effectiveAt: periodStart.toISOString(),
+              });
+            } else {
+              // מיידי — עדכון aiTier וניקוי pending אם היה קיים
+              activationUpdates.aiTier = newTier;
+              if (user.pendingTier) {
+                activationUpdates.pendingTier = null;
+                activationUpdates.pendingTierEffectiveAt = null;
+              }
+            }
+          }
+
           await tx.user.update({
             where: { id: transaction.userId },
             data: {
-              subscriptionStatus: "ACTIVE",
+              ...activationUpdates,
               ...(shouldUnblock && {
                 isBlocked: false,
                 blockReason: null,
@@ -376,6 +484,13 @@ async function processAdminWebhook(payload: CardcomWebhookPayload): Promise<void
             logger.info("[cardcom-admin] payment received but user stays blocked (non-DEBT)", {
               userId: user.id,
               blockReason: user.blockReason,
+            });
+          }
+          if (activationUpdates.subscriptionStartedAt) {
+            logger.info("[cardcom-admin] subscription activated", {
+              userId: user.id,
+              subscriptionPaymentId: transaction.subscriptionPaymentId,
+              periodEnd: activatedSubscription?.periodEnd?.toISOString(),
             });
           }
         }
@@ -406,13 +521,15 @@ async function processAdminWebhook(payload: CardcomWebhookPayload): Promise<void
           (await tx.savedCardToken.findFirst({
             where: { tenant: "ADMIN", token: tokenStr, tokenHash: null },
           }));
+        let savedTokenId: string;
         if (existing) {
-          await tx.savedCardToken.update({
+          const updated = await tx.savedCardToken.update({
             where: { id: existing.id },
             data: { lastUsedAt: now, isActive: true, deletedAt: null, tokenHash },
           });
+          savedTokenId = updated.id;
         } else {
-          await tx.savedCardToken.create({
+          const created = await tx.savedCardToken.create({
             data: {
               tenant: "ADMIN",
               subscriberId: transaction.userId,
@@ -423,6 +540,19 @@ async function processAdminWebhook(payload: CardcomWebhookPayload): Promise<void
               cardBrand: payload.TranzactionInfo.CardName ?? null,
               expiryMonth: Number(expMM),
               expiryYear: 2000 + Number(expYY),
+            },
+          });
+          savedTokenId = created.id;
+        }
+
+        // Wire the saved token to the SubscriptionPayment for the recurring-charge cron.
+        // nextChargeAt = periodEnd (אם זמין מ-activatedSubscription) או fallback.
+        if (transaction.subscriptionPaymentId && activatedSubscription?.periodEnd) {
+          await tx.subscriptionPayment.update({
+            where: { id: transaction.subscriptionPaymentId },
+            data: {
+              savedCardTokenId: savedTokenId,
+              nextChargeAt: activatedSubscription.periodEnd,
             },
           });
         }

@@ -113,11 +113,12 @@ ALTER TABLE "PackagePricingPolicy"
       (scope = 'USER' AND "organizationId" IS NULL AND "userId" IS NOT NULL)
     );
 
--- ========== 3) שדות dunning ל-SubscriptionPayment ==========
+-- ========== 3) שדות dunning + planTier ל-SubscriptionPayment ==========
 ALTER TABLE "SubscriptionPayment"
     ADD COLUMN "chargeAttempts"  INTEGER NOT NULL DEFAULT 0,
     ADD COLUMN "lastChargeError" TEXT,
-    ADD COLUMN "lastAttemptAt"   TIMESTAMP(3);
+    ADD COLUMN "lastAttemptAt"   TIMESTAMP(3),
+    ADD COLUMN "planTier"        "AITier";
 
 -- אינדקסים לקרון החודשי: סינון מהיר של מי שצריך חיוב חוזר
 CREATE INDEX "SubscriptionPayment_autoChargeEnabled_nextChargeAt_idx"
@@ -129,3 +130,12 @@ CREATE INDEX "SubscriptionPayment_status_nextChargeAt_idx"
 ALTER TABLE "CustomContract"
     ADD COLUMN "customMaxTherapists"  INTEGER,
     ADD COLUMN "customMaxSecretaries" INTEGER;
+
+-- ========== 5) שדרוג tier מוקדם ל-User ==========
+-- כשמשתמש ACTIVE משדרג tier באמצע תקופה ששילם עליה, ה-tier החדש יחול
+-- רק בתחילת התקופה החדשה (subscriptionEndsAt הקיים). cron יומי יקדם.
+ALTER TABLE "User"
+    ADD COLUMN "pendingTier"            "AITier",
+    ADD COLUMN "pendingTierEffectiveAt" TIMESTAMP(3);
+CREATE INDEX "User_pendingTierEffectiveAt_idx"
+    ON "User"("pendingTierEffectiveAt");
