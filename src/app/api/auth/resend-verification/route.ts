@@ -12,6 +12,8 @@ import {
   RESEND_VERIFICATION_PER_EMAIL_RATE_LIMIT,
 } from "@/lib/constants";
 import { createVerificationEmailHtml } from "@/lib/email-templates";
+import { parseBody } from "@/lib/validations/helpers";
+import { resendVerificationSchema } from "@/lib/validations/auth";
 
 export const dynamic = "force-dynamic";
 
@@ -42,21 +44,10 @@ export async function POST(request: NextRequest) {
       return rateLimitResponse(ipRateLimit);
     }
 
-    const body = (await request.json().catch(() => null)) as { email?: string } | null;
-    const rawEmail = body?.email;
-
-    if (
-      !rawEmail ||
-      typeof rawEmail !== "string" ||
-      !/^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(rawEmail.trim())
-    ) {
-      return NextResponse.json(
-        { message: "נא להזין כתובת אימייל תקינה" },
-        { status: 400 }
-      );
-    }
-
-    const email = rawEmail.toLowerCase().trim();
+    // H12: zod אוכף email תקין + cap 254 תווים. email מגיע trim+lowercase.
+    const parsed = await parseBody(request, resendVerificationSchema);
+    if ("error" in parsed) return parsed.error;
+    const { email } = parsed.data;
 
     // הגנה נוספת — limit לפי כתובת אימייל בנפרד מ-IP, מונע email flooding מצולב
     const emailRateLimit = checkRateLimit(

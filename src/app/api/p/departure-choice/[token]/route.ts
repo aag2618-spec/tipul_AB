@@ -1,10 +1,18 @@
 import { NextRequest, NextResponse } from "next/server";
+import { z } from "zod";
 import prisma from "@/lib/prisma";
 import { logger } from "@/lib/logger";
 import { withAudit } from "@/lib/audit";
 import { checkRateLimit } from "@/lib/rate-limit";
 
 export const dynamic = "force-dynamic";
+
+// H12: zod schema ל-POST. choice חייב להיות אחד משני enum-values בלבד.
+const departureChoiceSchema = z.object({
+  choice: z.enum(["STAY_WITH_CLINIC", "FOLLOW_THERAPIST"], {
+    errorMap: () => ({ message: "יש לבחור באחת האפשרויות" }),
+  }),
+});
 
 // public endpoint — אין auth. הטוקן עצמו הוא ה-secret (~190 ביטים אנטרופיה).
 // Stage 6-A.5 — anti-scraping: rate-limit פר-IP מונע ניחוש brute-force של טוקנים
@@ -25,7 +33,6 @@ function tooManyRequests(): NextResponse {
   );
 }
 
-type ClientChoice = "STAY_WITH_CLINIC" | "FOLLOW_THERAPIST";
 
 // GET — טוען מצב הבחירה לפי token
 export async function GET(
@@ -108,15 +115,16 @@ export async function POST(
       return NextResponse.json({ message: "קישור לא תקין" }, { status: 400 });
     }
 
+    // H12: zod אוכף שה-choice הוא אחד משני enum-values.
     const body = await request.json().catch(() => ({}));
-    const choice = body?.choice as ClientChoice | undefined;
-
-    if (choice !== "STAY_WITH_CLINIC" && choice !== "FOLLOW_THERAPIST") {
+    const parsedChoice = departureChoiceSchema.safeParse(body);
+    if (!parsedChoice.success) {
       return NextResponse.json(
         { message: "יש לבחור באחת האפשרויות" },
         { status: 400 }
       );
     }
+    const { choice } = parsedChoice.data;
 
     const existing = await prisma.clientDepartureChoice.findUnique({
       where: { decisionToken: token },

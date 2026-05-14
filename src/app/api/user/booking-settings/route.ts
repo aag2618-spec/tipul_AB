@@ -76,6 +76,39 @@ export async function PUT(request: NextRequest) {
     return NextResponse.json({ message: "סוג פגישה לא תקין" }, { status: 400 });
   }
 
+  // H12: caps על welcomeMessage/confirmationMessage. נטמעים ב-HTML email ובדף
+  // הזימון הציבורי — DoS דרך 10MB string היה אפשרי בלי cap. גם type check.
+  const MAX_MESSAGE = 2000;
+  if (welcomeMessage !== undefined && welcomeMessage !== null) {
+    if (typeof welcomeMessage !== "string") {
+      return NextResponse.json({ message: "הודעת קבלת פנים חייבת להיות טקסט" }, { status: 400 });
+    }
+    if (welcomeMessage.length > MAX_MESSAGE) {
+      return NextResponse.json(
+        { message: `הודעת קבלת פנים ארוכה מדי (מקסימום ${MAX_MESSAGE} תווים)` },
+        { status: 400 }
+      );
+    }
+  }
+  if (confirmationMessage !== undefined && confirmationMessage !== null) {
+    if (typeof confirmationMessage !== "string") {
+      return NextResponse.json({ message: "הודעת אישור חייבת להיות טקסט" }, { status: 400 });
+    }
+    if (confirmationMessage.length > MAX_MESSAGE) {
+      return NextResponse.json(
+        { message: `הודעת אישור ארוכה מדי (מקסימום ${MAX_MESSAGE} תווים)` },
+        { status: 400 }
+      );
+    }
+  }
+  // booleans חייבים להיות boolean מפורש (לא truthy).
+  if (enabled !== undefined && typeof enabled !== "boolean") {
+    return NextResponse.json({ message: "enabled חייב להיות boolean" }, { status: 400 });
+  }
+  if (requireApproval !== undefined && typeof requireApproval !== "boolean") {
+    return NextResponse.json({ message: "requireApproval חייב להיות boolean" }, { status: 400 });
+  }
+
   const existing = await prisma.bookingSettings.findUnique({
     where: { therapistId: userId },
   });

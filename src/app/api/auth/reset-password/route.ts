@@ -4,6 +4,8 @@ import bcrypt from "bcryptjs";
 import { checkRateLimit, AUTH_RATE_LIMIT, rateLimitResponse } from "@/lib/rate-limit";
 import { logger } from "@/lib/logger";
 import { invalidateJwtCache } from "@/lib/auth";
+import { parseBodyWithErrorField } from "@/lib/validations/helpers";
+import { resetPasswordSchema } from "@/lib/validations/auth";
 
 export const dynamic = "force-dynamic";
 
@@ -15,21 +17,12 @@ export async function POST(request: NextRequest) {
       return rateLimitResponse(rateLimitResult);
     }
 
-    const { token, password } = await request.json();
-
-    if (!token || !password) {
-      return NextResponse.json(
-        { error: "נא למלא את כל השדות" },
-        { status: 400 }
-      );
-    }
-
-    if (password.length < 8) {
-      return NextResponse.json(
-        { error: "הסיסמה חייבת להכיל לפחות 8 תווים" },
-        { status: 400 }
-      );
-    }
+    // H12: zod schema אוכף — token אלפא-נומרי (16-128) + password 8-128.
+    // מחליף את הבדיקות הידניות. הגנת אורך מקסימלי על password מונעת DoS על bcrypt
+    // (חישוב hash על 10MB string היה תוקע worker לדקות).
+    const parsed = await parseBodyWithErrorField(request, resetPasswordSchema);
+    if ("error" in parsed) return parsed.error;
+    const { token, password } = parsed.data;
 
     // Find the reset token
     const resetRecord = await prisma.passwordReset.findUnique({

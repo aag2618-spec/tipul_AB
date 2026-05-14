@@ -6,6 +6,8 @@ import { checkRateLimit, rateLimitResponse } from "@/lib/rate-limit";
 import { escapeHtml } from "@/lib/email-utils";
 import { logger } from "@/lib/logger";
 import { FORGOT_PASSWORD_RATE_LIMIT } from "@/lib/constants";
+import { parseBodyWithErrorField } from "@/lib/validations/helpers";
+import { forgotPasswordSchema } from "@/lib/validations/auth";
 
 export const dynamic = "force-dynamic";
 
@@ -17,18 +19,15 @@ export async function POST(request: NextRequest) {
       return rateLimitResponse(rateLimitResult);
     }
 
-    const { email } = await request.json();
-
-    if (!email) {
-      return NextResponse.json(
-        { error: "נא להזין כתובת אימייל" },
-        { status: 400 }
-      );
-    }
+    // H12: zod validation — מחליף בדיקה ידנית של email. ה-schema כבר עושה
+    // trim + lowercase, אז email מגיע מנורמל מכאן והלאה.
+    const parsed = await parseBodyWithErrorField(request, forgotPasswordSchema);
+    if ("error" in parsed) return parsed.error;
+    const { email } = parsed.data;
 
     // H15: rate-limit לפי email — מונע mail-bomb על משתמש ספציפי דרך botnet
     // של IPs רבים. 3 בקשות לשעה לאותו email.
-    const emailLower = String(email).toLowerCase().trim();
+    const emailLower = email; // כבר trim+lowercase מ-zod
     const emailRl = checkRateLimit(
       `forgot-password:email:${emailLower}`,
       { maxRequests: 3, windowMs: 60 * 60 * 1000 }
@@ -42,7 +41,7 @@ export async function POST(request: NextRequest) {
 
     // חיפוש case-insensitive — חלק מהמשתמשים נרשמו עם אותיות גדולות
     const user = await prisma.user.findFirst({
-      where: { email: { equals: email, mode: "insensitive" } },
+      where: { email: { equals: emailLower, mode: "insensitive" } },
       select: { id: true, email: true, name: true },
     });
 

@@ -3,6 +3,8 @@ import prisma from "@/lib/prisma";
 import { logger } from "@/lib/logger";
 
 import { requireAuth } from "@/lib/api-auth";
+import { parseBody } from "@/lib/validations/helpers";
+import { updateAiSettingsSchema } from "@/lib/validations/ai-settings";
 
 export const dynamic = "force-dynamic";
 
@@ -25,14 +27,14 @@ export async function GET(request: NextRequest) {
     });
 
     if (!user) {
-      return NextResponse.json({ message: "User not found" }, { status: 404 });
+      return NextResponse.json({ message: "משתמש לא נמצא" }, { status: 404 });
     }
 
     return NextResponse.json(user);
   } catch (error) {
     logger.error('Error fetching AI settings:', { error: error instanceof Error ? error.message : String(error) });
     return NextResponse.json(
-      { message: "Internal server error" },
+      { message: "שגיאה פנימית בשרת" },
       { status: 500 }
     );
   }
@@ -44,22 +46,18 @@ export async function POST(request: NextRequest) {
     if ("error" in auth) return auth.error;
     const { userId, session } = auth;
 
-    const body = await request.json();
+    // H12: zod אוכף caps על customAIInstructions ו-approachDescription.
+    // ה-instructions נשלחות כ-system prompt ל-LLM — cap קריטי למניעת prompt
+    // injection ענק/abuse של tokens.
+    const parsed = await parseBody(request, updateAiSettingsSchema);
+    if ("error" in parsed) return parsed.error;
     const {
       therapeuticApproaches,
       approachDescription,
       analysisStyle,
       aiTone,
       customAIInstructions,
-    } = body;
-
-    // Validate therapeutic approaches
-    if (!Array.isArray(therapeuticApproaches)) {
-      return NextResponse.json(
-        { message: "Invalid therapeutic approaches" },
-        { status: 400 }
-      );
-    }
+    } = parsed.data;
 
     const updatedUser = await prisma.user.update({
       where: { id: userId },
@@ -84,7 +82,7 @@ export async function POST(request: NextRequest) {
   } catch (error) {
     logger.error('Error saving AI settings:', { error: error instanceof Error ? error.message : String(error) });
     return NextResponse.json(
-      { message: "Internal server error" },
+      { message: "שגיאה פנימית בשרת" },
       { status: 500 }
     );
   }

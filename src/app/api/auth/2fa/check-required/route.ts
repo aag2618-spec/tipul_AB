@@ -2,8 +2,15 @@ import { NextRequest, NextResponse } from "next/server";
 import prisma from "@/lib/prisma";
 import { requires2FA } from "@/lib/two-factor";
 import { checkRateLimit, AUTH_RATE_LIMIT } from "@/lib/rate-limit";
+import { twoFactorCheckRequiredSchema } from "@/lib/validations/auth";
 
 export const dynamic = "force-dynamic";
+
+// H12: לא משתמשים ב-parseBody כאן — endpoint זה צריך להשיב אחיד
+// (`{ required: false }` תמיד) כדי למנוע enumeration. החזרת 400 על input
+// לא תקין הייתה חושפת לתוקף "האימייל לא תקין" vs "האימייל קיים אבל אינו staff",
+// מה שמאפשר ניחוש דרך timing/status. הולידציה כאן soft — אם schema נכשלת,
+// פשוט מחזירים { required: false } עם ה-timing mask הרגיל.
 
 // בודק אם email נתון דורש 2FA. תמיד מחזיר { required: boolean } —
 // לא חושף enumeration (מחזיר false גם למשתמש שלא קיים, וגם מוסיף
@@ -31,12 +38,13 @@ export async function POST(req: NextRequest) {
     }
 
     const body = await req.json().catch(() => ({}));
-    const email = typeof body?.email === "string" ? body.email.trim() : "";
-
-    if (!email) {
+    // soft validation דרך zod — אם נכשל, אותו timing-mask + תשובה אחידה.
+    const result = twoFactorCheckRequiredSchema.safeParse(body);
+    if (!result.success) {
       await timingMask;
       return NextResponse.json({ required: false });
     }
+    const { email } = result.data;
 
     const user = await prisma.user.findFirst({
       where: { email: { equals: email, mode: "insensitive" } },

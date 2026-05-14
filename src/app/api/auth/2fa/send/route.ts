@@ -3,24 +3,24 @@ import prisma from "@/lib/prisma";
 import { sendCode } from "@/lib/two-factor";
 import { checkRateLimit, AUTH_RATE_LIMIT } from "@/lib/rate-limit";
 import { logger } from "@/lib/logger";
+import { parseBodyWithErrorField } from "@/lib/validations/helpers";
+import { twoFactorSendSchema } from "@/lib/validations/auth";
 
 export const dynamic = "force-dynamic";
 
 export async function POST(req: NextRequest) {
   try {
-    const body = await req.json().catch(() => ({}));
-    const email = typeof body?.email === "string" ? body.email.trim() : "";
-
-    if (!email) {
-      return NextResponse.json({ error: "מייל לא תקף" }, { status: 400 });
-    }
+    // H12: zod מוודא email תקין + cap. email מנורמל (trim+lowercase) במוצא.
+    const parsed = await parseBodyWithErrorField(req, twoFactorSendSchema);
+    if ("error" in parsed) return parsed.error;
+    const { email } = parsed.data;
 
     // Rate limit כפול: לפי IP (מונע ספאם רחב) ולפי email (מונע ספאם ממוקד).
     // הגבלת email נוקשה יותר — 3 בקשות לכל 15 דקות — מונע flooding של inbox/SMS
     // של משתמש לגיטימי + מונע burning של credit ל-SMS.
     const ipHeader = req.headers.get("x-forwarded-for") || req.headers.get("x-real-ip") || "";
     const ip = ipHeader.split(",")[0]?.trim() || "unknown";
-    const emailLower = email.toLowerCase();
+    const emailLower = email; // כבר trim+lowercase מ-zod
     const ipResult = checkRateLimit(`2fa:send:ip:${ip}`, AUTH_RATE_LIMIT);
     const emailResult = checkRateLimit(`2fa:send:email:${emailLower}`, {
       maxRequests: 3,

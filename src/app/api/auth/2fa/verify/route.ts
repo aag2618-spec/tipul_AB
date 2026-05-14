@@ -9,29 +9,22 @@ import {
   RECOVERY_CODE_EMAIL_RATE_LIMIT,
 } from "@/lib/rate-limit";
 import { logger } from "@/lib/logger";
+import { parseBodyWithErrorField } from "@/lib/validations/helpers";
+import { twoFactorVerifySchema } from "@/lib/validations/auth";
 
 export const dynamic = "force-dynamic";
 
 export async function POST(req: NextRequest) {
   try {
-    const body = await req.json().catch(() => ({}));
-    const email = typeof body?.email === "string" ? body.email.trim() : "";
-    // H18: code יכול להיות 6 ספרות (TOTP/OTP) או 10 תווים (recovery code).
-    // הנרמול עצמו (strip whitespace/dashes) קורה בlayer הפנימי של two-factor.
-    const code = typeof body?.code === "string" ? body.code.trim() : "";
-
-    if (!email || !code) {
-      return NextResponse.json({ error: "פרמטרים לא תקפים" }, { status: 400 });
-    }
-
-    // הגנת אורך מקסימלי — לא לאמת מחרוזות עצומות (DoS על bcrypt).
-    if (code.length > 32) {
-      return NextResponse.json({ error: "קוד לא תקין" }, { status: 400 });
-    }
+    // H12: zod אוכף email + code (≤32). cap על code חיוני כדי למנוע DoS על bcrypt
+    // (recovery codes משתמשים ב-bcrypt compare).
+    const parsed = await parseBodyWithErrorField(req, twoFactorVerifySchema);
+    if ("error" in parsed) return parsed.error;
+    const { email, code } = parsed.data;
 
     // Rate limit כפול: email + IP. מונע גם brute-force ממוקד (לפי email),
     // וגם distributed brute-force (לפי IP).
-    const emailLower = email.toLowerCase();
+    const emailLower = email; // trim+lowercase מ-zod
     const ipHeader = req.headers.get("x-forwarded-for") || req.headers.get("x-real-ip") || "";
     const ip = ipHeader.split(",")[0]?.trim() || "unknown";
     const emailRl = checkRateLimit(`2fa:verify:email:${emailLower}`, LOGIN_EMAIL_RATE_LIMIT);

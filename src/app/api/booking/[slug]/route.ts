@@ -6,6 +6,7 @@ import { logger } from "@/lib/logger";
 import { BOOKING_RATE_LIMIT_WINDOW_MS, BOOKING_RATE_LIMIT_MAX } from "@/lib/constants";
 import { syncSessionToGoogleCalendar } from "@/lib/google-calendar-sync";
 import { isShabbatOrYomTov } from "@/lib/shabbat";
+import { bookingPostSchema } from "@/lib/validations/booking";
 
 function toIsraelDate(dateStr: string, timeStr: string = "00:00"): Date {
   const testDate = new Date(`${dateStr}T12:00:00Z`);
@@ -279,61 +280,33 @@ export async function POST(
     );
   }
 
-  // M14: הגנה על body — אם גוף הבקשה אינו object (null/array/string) זרוק 400
-  // לפני destructuring (שיוצר undefined silently ועלול לעבור validation לא עקבי).
-  let body: Record<string, unknown>;
+  // H12: zod schema אוכף שלד בסיסי — date/time/name חובה, caps על כל שדה,
+  // טיפוסים נכונים. הregex-validation של תאריך, שעה, NAME_RE, ופונקציות
+  // נרמול הטלפון נשארות מתחת — zod זה רק שלב 1 שמונע strings ענקיים ועושה
+  // ה-destructuring בטוח.
+  let raw: unknown;
   try {
-    const raw = await request.json();
-    if (!raw || typeof raw !== "object" || Array.isArray(raw)) {
-      return NextResponse.json({ message: "גוף בקשה לא תקין" }, { status: 400 });
-    }
-    body = raw as Record<string, unknown>;
+    raw = await request.json();
   } catch {
     return NextResponse.json({ message: "גוף בקשה לא תקין (JSON)" }, { status: 400 });
   }
-  const { date, time, clientName, clientPhone, clientEmail, notes, hp } = body;
+  const parsed = bookingPostSchema.safeParse(raw);
+  if (!parsed.success) {
+    const firstError =
+      Object.values(parsed.error.flatten().fieldErrors).flat()[0] ||
+      "פורמט שדות לא תקין";
+    return NextResponse.json({ message: firstError }, { status: 400 });
+  }
+  const { date, time, clientName, clientPhone, clientEmail, notes, hp } = parsed.data;
 
   // Honeypot — שדה נסתר שבני אדם לא ממלאים, רק בוטים.
   // אם הוא מלא → זו בקשה אוטומטית של בוט, נדחה שקט (200 כדי לא לחשוף).
-  if (typeof hp === "string" && hp.trim().length > 0) {
+  if (hp && hp.trim().length > 0) {
     logger.warn("[Booking] Honeypot triggered", { ip, hpLength: hp.length });
     return NextResponse.json(
       { success: true, message: "הבקשה התקבלה" },
       { status: 200 }
     );
-  }
-
-  if (!date || !time || !clientName) {
-    return NextResponse.json(
-      { message: "חסרים שדות חובה: תאריך, שעה ושם" },
-      { status: 400 }
-    );
-  }
-
-  // M14: notes חייב להיות string או undefined. מקסימום 1000 תווים — תואם
-  // ל-slice ב-DB write (שורה למטה בקריאת prisma.therapySession.create).
-  if (notes !== undefined && notes !== null && typeof notes !== "string") {
-    return NextResponse.json({ message: "הערות חייבות להיות טקסט" }, { status: 400 });
-  }
-  if (typeof notes === "string" && notes.length > 1000) {
-    return NextResponse.json(
-      { message: "הערות ארוכות מדי (מקסימום 1000 תווים)" },
-      { status: 400 }
-    );
-  }
-  // Type-guards לשדות הבסיסיים (date/time/name) — destructuring יוצר unknown,
-  // הregex-validation שלמטה מפיל הכל מלבד strings תקפים, אבל עדיף שגיאה ברורה.
-  if (typeof date !== "string" || typeof time !== "string" || typeof clientName !== "string") {
-    return NextResponse.json(
-      { message: "פורמט שדות לא תקין" },
-      { status: 400 }
-    );
-  }
-  if (clientPhone !== undefined && clientPhone !== null && typeof clientPhone !== "string") {
-    return NextResponse.json({ message: "טלפון חייב להיות טקסט" }, { status: 400 });
-  }
-  if (clientEmail !== undefined && clientEmail !== null && typeof clientEmail !== "string") {
-    return NextResponse.json({ message: "מייל חייב להיות טקסט" }, { status: 400 });
   }
 
   // ולידציה של שם לקוח — חוסמת דפוסים חשודים (test, admin, מדינת ישראל וכו')
