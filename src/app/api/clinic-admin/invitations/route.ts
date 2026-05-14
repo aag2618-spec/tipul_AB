@@ -2,7 +2,6 @@ import { NextRequest, NextResponse } from "next/server";
 import { z } from "zod";
 import prisma from "@/lib/prisma";
 import { logger } from "@/lib/logger";
-import { requireAuth } from "@/lib/api-auth";
 import { withAudit } from "@/lib/audit";
 import { parseBody } from "@/lib/validations/helpers";
 import { sendEmail } from "@/lib/resend";
@@ -18,58 +17,14 @@ import {
   createClinicInviteEmail,
   createClinicInviteSmsText,
 } from "@/lib/email-templates";
+import { checkLimitInTx, ClinicLimitExceededError } from "@/lib/clinic/limits";
+import { requireClinicOwner } from "@/lib/clinic/require-clinic-owner";
 
 export const dynamic = "force-dynamic";
 
 // 30 הזמנות לשעה לכל ארגון — מונע ספאם של email/SMS גם אם CLINIC_OWNER session
 // נפרץ. אדמינים רגילים יוצרים 1-5 הזמנות בסשן.
 const ADMIN_INVITE_RATE_LIMIT = { maxRequests: 30, windowMs: 60 * 60 * 1000 };
-
-// ─── Auth gate (משותף ל-routes של invitations) ───
-async function requireClinicOwner() {
-  const auth = await requireAuth();
-  if ("error" in auth) return { error: auth.error };
-  const { userId, session } = auth;
-
-  const user = await prisma.user.findUnique({
-    where: { id: userId },
-    select: {
-      id: true,
-      role: true,
-      clinicRole: true,
-      organizationId: true,
-      name: true,
-    },
-  });
-  if (!user) {
-    return {
-      error: NextResponse.json({ message: "המשתמש לא נמצא" }, { status: 404 }),
-    };
-  }
-  const isOwner = user.role === "CLINIC_OWNER" || user.clinicRole === "OWNER";
-  if (!isOwner && user.role !== "ADMIN") {
-    return {
-      error: NextResponse.json(
-        { message: "הפעולה זמינה לבעלי קליניקה בלבד" },
-        { status: 403 }
-      ),
-    };
-  }
-  if (!user.organizationId) {
-    return {
-      error: NextResponse.json(
-        { message: "אינך משויך/ת לקליניקה" },
-        { status: 400 }
-      ),
-    };
-  }
-  return {
-    userId,
-    session,
-    organizationId: user.organizationId,
-    inviterName: user.name,
-  };
-}
 
 // ─── Validation ───
 const secretaryPermissionsSchema = z
@@ -99,7 +54,7 @@ export async function POST(request: NextRequest) {
   try {
     const auth = await requireClinicOwner();
     if ("error" in auth) return auth.error;
-    const { organizationId, userId, session, inviterName } = auth;
+    const { organizationId, userId, session, name: inviterName } = auth;
 
     // Rate limit per organization — מונע ספאם של מיילים/SMS אם session נחטף.
     const rl = checkRateLimit(
@@ -178,48 +133,78 @@ export async function POST(request: NextRequest) {
     });
     const organizationName = orgRow?.name ?? "הקליניקה";
 
-    const created = await withAudit(
-      { kind: "user", session },
-      {
-        action: "invitation_created",
-        targetType: "ClinicInvitation",
-        details: {
-          organizationId,
-          email,
-          clinicRole: data.clinicRole,
-          billingPaidByClinic: data.billingPaidByClinic,
-          otpRequired: !!smsOtpHash,
-        },
-      },
-      async (tx) => {
-        return tx.clinicInvitation.create({
-          data: {
+    // race-safe limit check + create בתוך אותו Serializable tx —
+    // מונע TOCTOU כששני OWNERs יוצרים הזמנות במקביל.
+    // withAudit פנימית עוטף ב-Serializable (default) + retry על 40001.
+    let created;
+    try {
+      created = await withAudit(
+        { kind: "user", session },
+        {
+          action: "invitation_created",
+          targetType: "ClinicInvitation",
+          details: {
             organizationId,
             email,
-            phone: phoneNormalized,
-            intendedName: data.intendedName?.trim() || null,
             clinicRole: data.clinicRole,
             billingPaidByClinic: data.billingPaidByClinic,
-            secretaryPermissions:
-              data.clinicRole === "SECRETARY"
-                ? data.secretaryPermissions ?? {
-                    canViewPayments: false,
-                    canIssueReceipts: false,
-                    canSendReminders: true,
-                    canCreateClient: true,
-                    canViewDebts: false,
-                    canViewStats: false,
-                    canViewConsentForms: false,
-                  }
-                : undefined,
-            token,
-            smsOtpHash,
-            expiresAt,
-            createdById: userId,
+            otpRequired: !!smsOtpHash,
           },
-        });
+        },
+        async (tx) => {
+          // limit check בתוך tx — לא סופר invitation חדשה (עוד לא קיימת),
+          // אז excludeInvitationId="" — נספר את כל ה-PENDING הקיימים.
+          const limit = await checkLimitInTx({
+            tx,
+            organizationId,
+            clinicRole: data.clinicRole,
+            excludeInvitationId: "",
+          });
+          if (!limit.allowed) {
+            throw new ClinicLimitExceededError(
+              limit.message ?? "הגעת לתקרת המקומות בתוכנית",
+              limit.current,
+              limit.max
+            );
+          }
+
+          return tx.clinicInvitation.create({
+            data: {
+              organizationId,
+              email,
+              phone: phoneNormalized,
+              intendedName: data.intendedName?.trim() || null,
+              clinicRole: data.clinicRole,
+              billingPaidByClinic: data.billingPaidByClinic,
+              secretaryPermissions:
+                data.clinicRole === "SECRETARY"
+                  ? data.secretaryPermissions ?? {
+                      canViewPayments: false,
+                      canIssueReceipts: false,
+                      canSendReminders: true,
+                      canCreateClient: true,
+                      canViewDebts: false,
+                      canViewStats: false,
+                      canViewConsentForms: false,
+                    }
+                  : undefined,
+              token,
+              smsOtpHash,
+              expiresAt,
+              createdById: userId,
+            },
+          });
+        }
+      );
+    } catch (err) {
+      if (err instanceof ClinicLimitExceededError) {
+        return NextResponse.json(
+          { message: err.message, limit: { current: err.current, max: err.max } },
+          { status: 403 }
+        );
       }
-    );
+      throw err;
+    }
 
     // שליחות תקשורת — fire-and-forget מבחינת ה-response, אבל ממתינים כדי לדווח על הצלחה.
     const baseUrl = process.env.NEXTAUTH_URL || "http://localhost:3000";
@@ -343,3 +328,4 @@ async function generateInvitationToken(): Promise<string> {
   const { randomBytes } = await import("node:crypto");
   return randomBytes(32).toString("base64url");
 }
+

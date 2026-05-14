@@ -2,37 +2,11 @@ import { NextRequest, NextResponse } from "next/server";
 import { Prisma } from "@prisma/client";
 import prisma from "@/lib/prisma";
 import { logger } from "@/lib/logger";
-import { requireAuth } from "@/lib/api-auth";
 import { withAudit } from "@/lib/audit";
 import { computeBillingRestore } from "@/lib/clinic-invitations";
+import { requireClinicOwner } from "@/lib/clinic/require-clinic-owner";
 
 export const dynamic = "force-dynamic";
-
-async function requireClinicOwner() {
-  const auth = await requireAuth();
-  if ("error" in auth) return { error: auth.error };
-  const { userId, session } = auth;
-
-  const user = await prisma.user.findUnique({
-    where: { id: userId },
-    select: { id: true, role: true, clinicRole: true, organizationId: true },
-  });
-  if (!user) {
-    return { error: NextResponse.json({ message: "המשתמש לא נמצא" }, { status: 404 }) };
-  }
-  const isOwner = user.role === "CLINIC_OWNER" || user.clinicRole === "OWNER";
-  if (!isOwner && user.role !== "ADMIN") {
-    return {
-      error: NextResponse.json({ message: "אין הרשאה" }, { status: 403 }),
-    };
-  }
-  if (!user.organizationId) {
-    return {
-      error: NextResponse.json({ message: "אינך משויך/ת לקליניקה" }, { status: 400 }),
-    };
-  }
-  return { userId, session, organizationId: user.organizationId };
-}
 
 // PATCH — עדכון הרשאות מזכירה / שינוי clinicRole בתוך הקליניקה.
 // אסור לשנות את ה-OWNER דרך כאן (זה דרך admin: העברת בעלות).

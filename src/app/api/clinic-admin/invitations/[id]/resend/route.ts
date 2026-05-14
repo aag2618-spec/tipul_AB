@@ -1,7 +1,6 @@
 import { NextRequest, NextResponse } from "next/server";
 import prisma from "@/lib/prisma";
 import { logger } from "@/lib/logger";
-import { requireAuth } from "@/lib/api-auth";
 import { withAudit } from "@/lib/audit";
 import { sendEmail } from "@/lib/resend";
 import { sendSMS } from "@/lib/sms";
@@ -11,6 +10,7 @@ import {
   createClinicInviteEmail,
   createClinicInviteSmsText,
 } from "@/lib/email-templates";
+import { requireClinicOwner } from "@/lib/clinic/require-clinic-owner";
 
 export const dynamic = "force-dynamic";
 
@@ -21,48 +21,6 @@ const RESEND_COOLDOWN_MS = 60 * 1000; // דקה אחת ל-invitation בודד.
 // ב-route הראשי (30 הזמנות חדשות לשעה).
 const RESEND_ORG_RATE_LIMIT = { maxRequests: 60, windowMs: 60 * 60 * 1000 };
 
-async function requireClinicOwner() {
-  const auth = await requireAuth();
-  if ("error" in auth) return { error: auth.error };
-  const { userId, session } = auth;
-
-  const user = await prisma.user.findUnique({
-    where: { id: userId },
-    select: {
-      id: true,
-      role: true,
-      clinicRole: true,
-      organizationId: true,
-      name: true,
-    },
-  });
-  if (!user) {
-    return {
-      error: NextResponse.json({ message: "המשתמש לא נמצא" }, { status: 404 }),
-    };
-  }
-  const isOwner = user.role === "CLINIC_OWNER" || user.clinicRole === "OWNER";
-  if (!isOwner && user.role !== "ADMIN") {
-    return {
-      error: NextResponse.json({ message: "אין הרשאה" }, { status: 403 }),
-    };
-  }
-  if (!user.organizationId) {
-    return {
-      error: NextResponse.json(
-        { message: "אינך משויך/ת לקליניקה" },
-        { status: 400 }
-      ),
-    };
-  }
-  return {
-    userId,
-    session,
-    organizationId: user.organizationId,
-    inviterName: user.name,
-  };
-}
-
 export async function POST(
   _request: NextRequest,
   { params }: { params: Promise<{ id: string }> }
@@ -70,7 +28,7 @@ export async function POST(
   try {
     const auth = await requireClinicOwner();
     if ("error" in auth) return auth.error;
-    const { organizationId, userId, session, inviterName } = auth;
+    const { organizationId, userId, session, name: inviterName } = auth;
 
     // Per-org rate limit — מונע ספאם של SMS גם אם session נחטף.
     const rl = checkRateLimit(

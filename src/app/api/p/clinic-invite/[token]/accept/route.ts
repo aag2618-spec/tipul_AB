@@ -15,6 +15,7 @@ import {
 } from "@/lib/clinic-invitations";
 import type { SubscriptionStatus } from "@prisma/client";
 import { TRIAL_DAYS, TRIAL_AI_TIER } from "@/lib/constants";
+import { checkLimitInTx } from "@/lib/clinic/limits";
 
 export const dynamic = "force-dynamic";
 
@@ -175,6 +176,17 @@ export async function POST(
     }
     const invitation = otpResult.invitation;
 
+    // Defensive: invitations נוצרות עם clinicRole ∈ {THERAPIST, SECRETARY} בלבד
+    // (z.enum ב-POST invitations), אבל ה-DB schema מאפשר OWNER. אם כן הגיע OWNER
+    // — שגיאה ברורה ולא חולש ל-checkLimit שמצפה ל-2 ערכים.
+    if (invitation.clinicRole !== "THERAPIST" && invitation.clinicRole !== "SECRETARY") {
+      return NextResponse.json(
+        { message: "תפקיד הזמנה לא תקין" },
+        { status: 400 }
+      );
+    }
+    const invitedRole: "THERAPIST" | "SECRETARY" = invitation.clinicRole;
+
     // ─── זיהוי משתמש: קיים או חדש ───
     const existingUser = await prisma.user.findUnique({
       where: { email: invitation.email },
@@ -310,6 +322,21 @@ export async function POST(
             }
           }
 
+          // race-safe limit re-check בתוך Serializable tx — מגן מפני
+          // 2 invitations מקבילים שעוברים accept בו-זמנית.
+          const limit = await checkLimitInTx({
+            tx,
+            organizationId: invitation.organizationId,
+            clinicRole: invitedRole,
+            excludeInvitationId: invitation.id,
+          });
+          if (!limit.allowed) {
+            throw new HandledError(
+              403,
+              limit.message ?? "הגעת לתקרת המקומות בתוכנית הקליניקה"
+            );
+          }
+
           const maxResult = await tx.user.aggregate({
             _max: { userNumber: true },
           });
@@ -396,6 +423,20 @@ export async function POST(
             },
           },
           async (tx) => {
+            // race-safe limit re-check (זהה למסלול user חדש).
+            const limit = await checkLimitInTx({
+              tx,
+              organizationId: invitation.organizationId,
+              clinicRole: invitedRole,
+              excludeInvitationId: invitation.id,
+            });
+            if (!limit.allowed) {
+              throw new HandledError(
+                403,
+                limit.message ?? "הגעת לתקרת המקומות בתוכנית הקליניקה"
+              );
+            }
+
             // אם הקליניקה משלמת — שומרים את הסטטוס הקודם ב-subscriptionStatusBeforeClinic
             // ומשעים את המנוי. בהסרה מהקליניקה (DELETE members/[id]) זה ישוחזר.
             const billingPaused = invitation.billingPaidByClinic;

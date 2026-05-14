@@ -1,46 +1,35 @@
 import { NextRequest, NextResponse } from "next/server";
+import { z } from "zod";
 import { Prisma } from "@prisma/client";
 import prisma from "@/lib/prisma";
 import { logger } from "@/lib/logger";
-import { requireAuth } from "@/lib/api-auth";
 import { withAudit } from "@/lib/audit";
+import { parseBody } from "@/lib/validations/helpers";
+import { checkLimitInTx, ClinicLimitExceededError } from "@/lib/clinic/limits";
+import { requireClinicOwner } from "@/lib/clinic/require-clinic-owner";
 
 export const dynamic = "force-dynamic";
 
-// בדיקת הרשאה משותפת — מחזיר את ה-userId + organizationId אם מותר.
-async function requireClinicOwner() {
-  const auth = await requireAuth();
-  if ("error" in auth) return { error: auth.error };
-  const { userId, session } = auth;
+// secretaryPermissions — schema זהה ל-clinic-invitations/route.ts (לא משתפים
+// type כי הוא מוגדר באותו קובץ).
+const secretaryPermissionsSchema = z
+  .object({
+    canViewPayments: z.boolean().optional(),
+    canIssueReceipts: z.boolean().optional(),
+    canSendReminders: z.boolean().optional(),
+    canCreateClient: z.boolean().optional(),
+    canViewDebts: z.boolean().optional(),
+    canViewStats: z.boolean().optional(),
+    canViewConsentForms: z.boolean().optional(),
+  })
+  .strict()
+  .partial();
 
-  const user = await prisma.user.findUnique({
-    where: { id: userId },
-    select: { id: true, role: true, clinicRole: true, organizationId: true },
-  });
-  if (!user) {
-    return {
-      error: NextResponse.json({ message: "המשתמש לא נמצא" }, { status: 404 }),
-    };
-  }
-  const isOwner = user.role === "CLINIC_OWNER" || user.clinicRole === "OWNER";
-  if (!isOwner && user.role !== "ADMIN") {
-    return {
-      error: NextResponse.json(
-        { message: "הפעולה זמינה לבעלי קליניקה בלבד" },
-        { status: 403 }
-      ),
-    };
-  }
-  if (!user.organizationId) {
-    return {
-      error: NextResponse.json(
-        { message: "אינך משויך/ת לקליניקה" },
-        { status: 400 }
-      ),
-    };
-  }
-  return { userId, session, organizationId: user.organizationId };
-}
+const addMemberSchema = z.object({
+  userId: z.string().min(1, "נדרש בחירת משתמש"),
+  clinicRole: z.enum(["THERAPIST", "SECRETARY"]),
+  secretaryPermissions: secretaryPermissionsSchema.optional(),
+});
 
 // GET — רשימת חברי הקליניקה של המשתמש המחובר.
 export async function GET() {
@@ -85,25 +74,15 @@ export async function GET() {
 }
 
 // POST — הוספת חבר חדש לקליניקה (מקשר משתמש קיים שלא משויך לארגון).
-// body: { userId, clinicRole: "THERAPIST" | "SECRETARY", secretaryPermissions? }
 export async function POST(request: NextRequest) {
   try {
     const auth = await requireClinicOwner();
     if ("error" in auth) return auth.error;
     const { organizationId, session } = auth;
 
-    const body = await request.json();
-    const { userId: newMemberId, clinicRole, secretaryPermissions } = body;
-
-    if (!newMemberId) {
-      return NextResponse.json({ message: "נדרש בחירת משתמש" }, { status: 400 });
-    }
-    if (clinicRole !== "THERAPIST" && clinicRole !== "SECRETARY") {
-      return NextResponse.json(
-        { message: "תפקיד חייב להיות THERAPIST או SECRETARY" },
-        { status: 400 }
-      );
-    }
+    const parsed = await parseBody(request, addMemberSchema);
+    if ("error" in parsed) return parsed.error;
+    const { userId: newMemberId, clinicRole, secretaryPermissions } = parsed.data;
 
     const candidate = await prisma.user.findUnique({
       where: { id: newMemberId },
@@ -132,41 +111,68 @@ export async function POST(request: NextRequest) {
       );
     }
 
-    const updated = await withAudit(
-      { kind: "user", session },
-      {
-        action: "add_clinic_member",
-        targetType: "User",
-        targetId: newMemberId,
-        details: {
-          organizationId,
-          clinicRole,
-          memberEmail: candidate.email,
-        },
-      },
-      async (tx) => {
-        return tx.user.update({
-          where: { id: newMemberId },
-          data: {
+    // race-safe: limit check + update בתוך אותו Serializable tx —
+    // מונע TOCTOU כששני OWNERs מוסיפים חברים במקביל.
+    let updated;
+    try {
+      updated = await withAudit(
+        { kind: "user", session },
+        {
+          action: "add_clinic_member",
+          targetType: "User",
+          targetId: newMemberId,
+          details: {
             organizationId,
             clinicRole,
-            // role ב-User רמה גלובלית — מעדכנים רק ל-SECRETARY (THERAPIST נשאר USER)
-            ...(clinicRole === "SECRETARY" && { role: "CLINIC_SECRETARY" }),
-            secretaryPermissions:
-              clinicRole === "SECRETARY"
-                ? secretaryPermissions ?? {
-                    canViewPayments: false,
-                    canIssueReceipts: false,
-                    canSendReminders: true,
-                    canCreateClient: true,
-                    canViewDebts: false,
-                    canViewStats: false,
-                  }
-                : Prisma.DbNull, // Prisma.DbNull על Json? — null פשוט לא מנקה.
+            memberEmail: candidate.email,
           },
-        });
+        },
+        async (tx) => {
+          const limit = await checkLimitInTx({
+            tx,
+            organizationId,
+            clinicRole,
+            excludeInvitationId: "",
+          });
+          if (!limit.allowed) {
+            throw new ClinicLimitExceededError(
+              limit.message ?? "הגעת לתקרת המקומות בתוכנית",
+              limit.current,
+              limit.max
+            );
+          }
+
+          return tx.user.update({
+            where: { id: newMemberId },
+            data: {
+              organizationId,
+              clinicRole,
+              // role ב-User רמה גלובלית — מעדכנים רק ל-SECRETARY (THERAPIST נשאר USER)
+              ...(clinicRole === "SECRETARY" && { role: "CLINIC_SECRETARY" }),
+              secretaryPermissions:
+                clinicRole === "SECRETARY"
+                  ? secretaryPermissions ?? {
+                      canViewPayments: false,
+                      canIssueReceipts: false,
+                      canSendReminders: true,
+                      canCreateClient: true,
+                      canViewDebts: false,
+                      canViewStats: false,
+                    }
+                  : Prisma.DbNull, // Prisma.DbNull על Json? — null פשוט לא מנקה.
+            },
+          });
+        }
+      );
+    } catch (err) {
+      if (err instanceof ClinicLimitExceededError) {
+        return NextResponse.json(
+          { message: err.message, limit: { current: err.current, max: err.max } },
+          { status: 403 }
+        );
       }
-    );
+      throw err;
+    }
 
     return NextResponse.json(JSON.parse(JSON.stringify(updated)));
   } catch (error) {
@@ -179,3 +185,4 @@ export async function POST(request: NextRequest) {
     );
   }
 }
+

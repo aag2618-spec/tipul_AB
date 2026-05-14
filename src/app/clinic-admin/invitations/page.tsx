@@ -1,6 +1,7 @@
 "use client";
 
 import { useEffect, useState, useCallback } from "react";
+import { PlanLimitsCard } from "@/components/clinic/plan-limits-card";
 import {
   Card,
   CardContent,
@@ -121,6 +122,10 @@ export default function ClinicInvitationsPage() {
   // Resend
   const [resendingId, setResendingId] = useState<string | null>(null);
 
+  // refreshKey עבור PlanLimitsCard — מועלה אחרי שינוי כדי לאלץ refetch.
+  const [limitsRefreshKey, setLimitsRefreshKey] = useState(0);
+  const bumpLimitsRefresh = useCallback(() => setLimitsRefreshKey((k) => k + 1), []);
+
   const fetchInvitations = useCallback(async () => {
     setLoading(true);
     try {
@@ -185,6 +190,7 @@ export default function ClinicInvitationsPage() {
       toast.success(`ההזמנה נשלחה. ${detail}`);
       setCreateOpen(false);
       fetchInvitations();
+      bumpLimitsRefresh();
     } catch {
       setCreateError("שגיאת רשת");
     } finally {
@@ -227,6 +233,7 @@ export default function ClinicInvitationsPage() {
       toast.success("ההזמנה בוטלה");
       setRevokeId(null);
       fetchInvitations();
+      bumpLimitsRefresh();
     } catch {
       toast.error("שגיאת רשת");
     }
@@ -256,6 +263,8 @@ export default function ClinicInvitationsPage() {
           הזמנה חדשה
         </Button>
       </div>
+
+      <PlanLimitsCard refreshKey={limitsRefreshKey} />
 
       {loading ? (
         <div className="flex justify-center py-16">

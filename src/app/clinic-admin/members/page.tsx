@@ -1,6 +1,7 @@
 "use client";
 
 import { useEffect, useState, useCallback } from "react";
+import { PlanLimitsCard } from "@/components/clinic/plan-limits-card";
 import { useRouter } from "next/navigation";
 import { useSession } from "next-auth/react";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
@@ -157,6 +158,10 @@ export default function ClinicMembersPage() {
   // הסרה
   const [removeId, setRemoveId] = useState<string | null>(null);
 
+  // refreshKey עבור PlanLimitsCard — מועלה אחרי שינוי שמשפיע על תקרה.
+  const [limitsRefreshKey, setLimitsRefreshKey] = useState(0);
+  const bumpLimitsRefresh = useCallback(() => setLimitsRefreshKey((k) => k + 1), []);
+
   // Impersonation
   const [impersonateTarget, setImpersonateTarget] = useState<Member | null>(null);
   const [impersonateReason, setImpersonateReason] = useState("");
@@ -233,6 +238,7 @@ export default function ClinicMembersPage() {
       toast.success("החבר/ה נוספ/ה לקליניקה");
       setAddDialogOpen(false);
       fetchMembers();
+      bumpLimitsRefresh();
     } catch (err) {
       toast.error(err instanceof Error ? err.message : "שגיאה בהוספה");
     } finally {
@@ -315,6 +321,7 @@ export default function ClinicMembersPage() {
       toast.success("החבר/ה הוסר/ה מהקליניקה");
       setRemoveId(null);
       fetchMembers();
+      bumpLimitsRefresh();
     } catch (err) {
       toast.error(err instanceof Error ? err.message : "שגיאה");
     }
@@ -351,6 +358,8 @@ export default function ClinicMembersPage() {
           </Button>
         </div>
       </div>
+
+      <PlanLimitsCard refreshKey={limitsRefreshKey} />
 
       {loading ? (
         <div className="flex justify-center py-16">
