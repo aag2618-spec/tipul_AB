@@ -72,7 +72,8 @@ export type Permission =
   | "announcements.delete" // מחיקת הודעת מערכת — ADMIN בלבד
   | "support.delete"
   | "idempotency.clear" // DELETE /api/admin/idempotency (Stage 1.18)
-  | "receipts.void"; // ביטול קבלה ב-Cardcom (ADMIN בלבד)
+  | "receipts.void" // ביטול קבלה ב-Cardcom (ADMIN בלבד)
+  | "users.disable_2fa"; // H18 follow-up: כיבוי 2FA למשתמש שאיבד טלפון ואין לו קודי שחזור
 
 /**
  * Permissions allowed for each role.
@@ -177,6 +178,7 @@ export const PERMISSION_RANK: Record<Permission, number> = {
   "support.delete": 10,
   "idempotency.clear": 10,
   "receipts.void": 10,
+  "users.disable_2fa": 10,
 };
 
 /**

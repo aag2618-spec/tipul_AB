@@ -33,6 +33,8 @@ export default function TwoFactorVerifyPage() {
   const [shabbatBlocked, setShabbatBlocked] = useState(false);
   // H4: TOTP mode — לא שולחים מייל/SMS, המשתמש מקבל קוד מהאפליקציה.
   const [isTotpMode, setIsTotpMode] = useState(false);
+  // H18: recovery mode — המשתמש בחר להשתמש בקוד שחזור (10 תווים) במקום TOTP (6 ספרות)
+  const [isRecoveryMode, setIsRecoveryMode] = useState(false);
 
   // אם המשתמש לא מחובר → הפניה ל-login
   useEffect(() => {
@@ -105,7 +107,16 @@ export default function TwoFactorVerifyPage() {
 
   async function handleSubmit(e: React.FormEvent) {
     e.preventDefault();
-    if (!session?.user?.email || code.length !== CODE_LENGTH) {
+    if (!session?.user?.email) return;
+    // H18: ב-recovery mode מצפים ל-10 תווים אלפא-נומריים (אפשר עם מקף).
+    // נורמליזציה לבדיקת אורך מינימלי בלבד — ה-server עושה את הנרמול הסופי.
+    if (isRecoveryMode) {
+      const normalized = code.replace(/[\s-]/g, "");
+      if (normalized.length !== 10) {
+        setError("קוד שחזור: 10 תווים (אפשר עם או בלי מקף)");
+        return;
+      }
+    } else if (code.length !== CODE_LENGTH) {
       setError(`אנא הזן קוד ${CODE_LENGTH} ספרות`);
       return;
     }
@@ -168,7 +179,9 @@ export default function TwoFactorVerifyPage() {
           <div>
             <CardTitle className="text-2xl font-bold">אימות דו-שלבי</CardTitle>
             <CardDescription className="mt-2">
-              {isTotpMode
+              {isRecoveryMode
+                ? "הזן/י את אחד מקודי השחזור ששמרת בעת הפעלת ה-2FA (10 תווים)"
+                : isTotpMode
                 ? `הזן/י את הקוד בן ${CODE_LENGTH} הספרות מאפליקציית האימות (Authenticator)`
                 : `שלחנו קוד אימות בן ${CODE_LENGTH} ספרות למייל ולנייד שלך`}
             </CardDescription>
@@ -184,20 +197,30 @@ export default function TwoFactorVerifyPage() {
             )}
 
             <div className="space-y-2">
-              <Label htmlFor="code">קוד אימות</Label>
+              <Label htmlFor="code">{isRecoveryMode ? "קוד שחזור" : "קוד אימות"}</Label>
               <Input
                 id="code"
                 type="text"
-                inputMode="numeric"
+                inputMode={isRecoveryMode ? "text" : "numeric"}
                 autoComplete="one-time-code"
-                maxLength={CODE_LENGTH}
-                pattern="[0-9]{6}"
+                maxLength={isRecoveryMode ? 11 : CODE_LENGTH}
                 value={code}
-                onChange={(e) => setCode(e.target.value.replace(/[^0-9]/g, ""))}
+                onChange={(e) => {
+                  if (isRecoveryMode) {
+                    // recovery: אלפא-נומרי בלבד עם מקף אופציונלי. Uppercase.
+                    setCode(e.target.value.replace(/[^a-zA-Z0-9-]/g, "").toUpperCase().slice(0, 11));
+                  } else {
+                    setCode(e.target.value.replace(/[^0-9]/g, ""));
+                  }
+                }}
                 disabled={isVerifying}
                 autoFocus
-                className="text-center text-2xl tracking-[0.5em] font-mono"
-                placeholder="------"
+                className={
+                  isRecoveryMode
+                    ? "text-center text-xl tracking-widest font-mono"
+                    : "text-center text-2xl tracking-[0.5em] font-mono"
+                }
+                placeholder={isRecoveryMode ? "XXXXX-XXXXX" : "------"}
                 dir="ltr"
               />
             </div>
@@ -207,7 +230,12 @@ export default function TwoFactorVerifyPage() {
             <Button
               type="submit"
               className="w-full"
-              disabled={isVerifying || code.length !== CODE_LENGTH}
+              disabled={
+                isVerifying ||
+                (isRecoveryMode
+                  ? code.replace(/[\s-]/g, "").length !== 10
+                  : code.length !== CODE_LENGTH)
+              }
             >
               {isVerifying ? (
                 <>
@@ -218,6 +246,24 @@ export default function TwoFactorVerifyPage() {
                 "אמת קוד"
               )}
             </Button>
+
+            {/* H18: החלפה בין TOTP לקוד שחזור — רק אם המשתמש ב-TOTP mode */}
+            {isTotpMode && (
+              <Button
+                type="button"
+                variant="link"
+                className="w-full text-sm"
+                onClick={() => {
+                  setIsRecoveryMode((v) => !v);
+                  setCode("");
+                  setError("");
+                }}
+              >
+                {isRecoveryMode
+                  ? "חזרה לקוד מאפליקציית Authenticator"
+                  : "אין לי גישה לטלפון — השתמש בקוד שחזור"}
+              </Button>
+            )}
 
             {/* H4: כפתור "שלח קוד מחדש" לא רלוונטי ל-TOTP — האפליקציה מייצרת
                 את הקוד מקומית כל 30 שניות, אין מה לשלוח. */}

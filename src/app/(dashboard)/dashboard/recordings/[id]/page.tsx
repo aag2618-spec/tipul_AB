@@ -60,10 +60,47 @@ export default function RecordingPage({ params }: { params: Promise<{ id: string
   const [isEditingTranscript, setIsEditingTranscript] = useState(false);
   const [editedTranscript, setEditedTranscript] = useState("");
   const [isSavingTranscript, setIsSavingTranscript] = useState(false);
+  // H17: signed URL נוצר on-demand, פג תוקף תוך 15 דקות.
+  // נטען בעת רענון או pre-emptively כשמתקרבים לפקיעה.
+  const [signedAudioUrl, setSignedAudioUrl] = useState<string | null>(null);
+  const [audioExpiresAt, setAudioExpiresAt] = useState<number | null>(null);
 
   useEffect(() => {
     fetchRecording();
   }, [id]);
+
+  // H17: בקש signed URL ברגע שיש לנו recording. רענון אוטומטי כל 12 דקות
+  // (לפני exp של 15 דקות) כדי שהאזנה ארוכה לא תפסיק באמצע.
+  useEffect(() => {
+    if (!recording) return;
+    let cancelled = false;
+    let timer: ReturnType<typeof setTimeout> | null = null;
+
+    const refresh = async () => {
+      try {
+        const res = await fetch(`/api/recordings/${id}/signed-url`, { method: "POST" });
+        if (!res.ok) {
+          if (!cancelled) toast.error("שגיאה בטעינת ההקלטה");
+          return;
+        }
+        const data = await res.json();
+        if (cancelled) return;
+        setSignedAudioUrl(data.url);
+        setAudioExpiresAt(data.expiresAt);
+        // רענון אוטומטי לפני פקיעה (12 דקות)
+        timer = setTimeout(refresh, 12 * 60 * 1000);
+      } catch {
+        if (!cancelled) toast.error("שגיאת רשת בטעינת הקלטה");
+      }
+    };
+
+    refresh();
+    return () => {
+      cancelled = true;
+      if (timer) clearTimeout(timer);
+    };
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [recording?.id]);
 
   const fetchRecording = async () => {
     try {
@@ -180,11 +217,29 @@ export default function RecordingPage({ params }: { params: Promise<{ id: string
     }
   };
 
-  const handleDownload = () => {
+  const handleDownload = async () => {
     if (!recording) return;
-    
+    // H17: ההורדה משתמשת ב-signed URL טרי (לא מסתמכת על ה-state הקיים שעלול
+    // להיות קרוב לפקיעה). אם signedAudioUrl זמין ולא קרוב לפקיעה (>2 דקות) — נשתמש.
+    let urlToUse = signedAudioUrl;
+    const nowSec = Math.floor(Date.now() / 1000);
+    if (!urlToUse || (audioExpiresAt && audioExpiresAt - nowSec < 120)) {
+      try {
+        const res = await fetch(`/api/recordings/${id}/signed-url`, { method: "POST" });
+        if (!res.ok) {
+          toast.error("שגיאה בהורדה");
+          return;
+        }
+        const data = await res.json();
+        urlToUse = data.url;
+      } catch {
+        toast.error("שגיאת רשת בהורדה");
+        return;
+      }
+    }
+    if (!urlToUse) return;
     const link = document.createElement("a");
-    link.href = `/api${recording.audioUrl}`;
+    link.href = urlToUse;
     link.download = `recording-${recording.id}.${recording.audioUrl.split('.').pop()}`;
     document.body.appendChild(link);
     link.click();
@@ -358,14 +413,21 @@ export default function RecordingPage({ params }: { params: Promise<{ id: string
           </CardTitle>
         </CardHeader>
         <CardContent>
-          <audio
-            src={`/api${recording.audioUrl}`}
-            controls
-            className="w-full"
-            controlsList="nodownload"
-          >
-            הדפדפן שלך לא תומך בנגן אודיו.
-          </audio>
+          {signedAudioUrl ? (
+            <audio
+              src={signedAudioUrl}
+              controls
+              className="w-full"
+              controlsList="nodownload"
+            >
+              הדפדפן שלך לא תומך בנגן אודיו.
+            </audio>
+          ) : (
+            <div className="flex items-center gap-2 text-sm text-muted-foreground py-2">
+              <Loader2 className="h-4 w-4 animate-spin" />
+              טוען הקלטה...
+            </div>
+          )}
         </CardContent>
       </Card>
 

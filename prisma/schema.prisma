@@ -119,6 +119,10 @@ model User {
   // H4: TOTP secret (base32). מוצפן ב-DB דרך ENCRYPTED_FIELDS.user.twoFactorSecret
   // (ב-src/lib/encrypted-fields.ts). null עד שהמשתמש מסיים flow הגדרת TOTP.
   twoFactorSecret        String?   @db.Text
+  // H18: Recovery codes — JSON של מערך bcrypt hashes (10 קודים חד-פעמיים).
+  // נוצרים בעת הפעלת TOTP; כל קוד שמנוצל מוסר מהמערך.
+  // null עד הפעלת TOTP. ריק (מערך עם [] שווה ערך ל-null) = המשתמש ניצל את כולם.
+  twoFactorRecoveryCodes String?   @db.Text
   lastLoginAt            DateTime?
   lastActivityAt         DateTime? // מתי הייתה הפעולה האחרונה — בסיס לחישוב 3 שעות חוסר פעילות
   defaultSessionDuration Int       @default(50) // משך פגישה סטנדרטית בדקות

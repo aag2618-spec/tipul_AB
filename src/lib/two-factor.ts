@@ -1,4 +1,5 @@
 import crypto from "crypto";
+import bcrypt from "bcryptjs";
 import { generateSecret, generateURI, verifySync } from "otplib";
 import prisma from "./prisma";
 import { sendEmail } from "./resend";
@@ -8,6 +9,17 @@ import { logger } from "./logger";
 const CODE_EXPIRY_MINUTES = 10;
 const MAX_ATTEMPTS = 5;
 const INACTIVITY_THRESHOLD_MS = 3 * 60 * 60 * 1000;
+
+// H18: Recovery codes — 10 קודים חד-פעמיים, כל אחד 10 תווים אלפא-נומריים
+// (ללא תווים מבלבלים כמו 0/O/1/l/I) בפורמט XXXXX-XXXXX.
+// bcrypt cost 10 — אבטחה סבירה ו-~50ms לאימות יחיד (10 קודים = ~500ms סה"כ
+// בתרחיש הגרוע — מקובל כיוון שזה רק בעת shutdown של הטלפון).
+const RECOVERY_CODES_COUNT = 10;
+const RECOVERY_CODE_LENGTH = 10;
+// 31 תווים: 24 אותיות (ללא I/L/O) + 7 ספרות (ללא 0/1) = 31^10 ≈ 8.2×10^14
+// קומבינציות = ~49.5 bits אנטרופיה. מספיק בהינתן rate-limit + bcrypt.
+const RECOVERY_CODE_ALPHABET = "ABCDEFGHJKLMNPQRSTUVWXYZ23456789";
+const BCRYPT_COST = 10;
 
 // H4: TOTP — RFC 6238, 6 ספרות, חלון 30s. epochTolerance=30s מתיר קוד
 // מהחלון הקודם/הבא (סטיית שעון של עד ±30s).
@@ -200,7 +212,27 @@ export type VerifyCodeResult = { success: true } | { success: false; error: stri
 // מ-Authenticator app ולא מ-DB. ביצוע verify מול ה-secret המוצפן ב-User,
 // ועדכון lastLoginAt + lastActivityAt בהצלחה. עוטף ב-transaction לאטומיות
 // (ולמנוע race של 2 verifies סימולטניים שיגמרו ב-2 lastLogin updates).
+//
+// H18: אם הקוד נראה כמו recovery code (10 תווים אלפא-נומריים, לא 6 ספרות),
+// עובר ל-verifyAndConsumeRecoveryCode במקום TOTP. זה מאפשר למשתמש שאיבד
+// טלפון להיכנס בעזרת קוד שחזור.
 async function verifyTotp(userId: string, inputCode: string): Promise<VerifyCodeResult> {
+  // H18: אם נראה כמו recovery code — ננתב אליו.
+  if (looksLikeRecoveryCode(inputCode)) {
+    try {
+      return await verifyAndConsumeRecoveryCode(userId, inputCode);
+    } catch (err) {
+      if (err instanceof Error && err.message === "RECOVERY_RACE") {
+        return { success: false, error: "קוד שחזור כבר בשימוש. אנא נסה/י קוד אחר." };
+      }
+      logger.error("[2fa/recovery] verify error", {
+        userId,
+        err: err instanceof Error ? err.message : String(err),
+      });
+      return { success: false, error: "שגיאה באימות קוד שחזור." };
+    }
+  }
+
   const user = await prisma.user.findUnique({
     where: { id: userId },
     select: { twoFactorSecret: true },
@@ -306,6 +338,145 @@ export async function verifyCode(userId: string, inputCode: string): Promise<Ver
 
     return { success: true };
   });
+}
+
+// H18: יוצר 10 קודי שחזור חד-פעמיים. הקודים עצמם מוחזרים פעם אחת בלבד
+// (frontend מציג אותם למשתמש להורדה/הדפסה). ב-DB נשמרים רק bcrypt hashes.
+//
+// משתמשים ב-crypto.randomInt(0, N) במקום `byte % N` — randomInt עושה
+// rejection sampling פנימית, כך שאין modulo bias (חיוני כי 31 לא מחלק 256).
+export function generateRecoveryCodes(): string[] {
+  const codes: string[] = [];
+  for (let i = 0; i < RECOVERY_CODES_COUNT; i++) {
+    let code = "";
+    for (let j = 0; j < RECOVERY_CODE_LENGTH; j++) {
+      const idx = crypto.randomInt(0, RECOVERY_CODE_ALPHABET.length);
+      code += RECOVERY_CODE_ALPHABET[idx];
+    }
+    // פורמט XXXXX-XXXXX לקריאות
+    codes.push(`${code.slice(0, 5)}-${code.slice(5, 10)}`);
+  }
+  return codes;
+}
+
+// H18: hash של כל הקודים. נקרא בעת הפעלת TOTP או בעת regenerate.
+export async function hashRecoveryCodes(codes: string[]): Promise<string[]> {
+  return Promise.all(codes.map((c) => bcrypt.hash(normalizeRecoveryCode(c), BCRYPT_COST)));
+}
+
+// נורמליזציה: להסיר רווחים, מקפים, ולעלות ל-uppercase כדי שלא ייכשל
+// על "abcde-12345" או "ABCDE 12345".
+export function normalizeRecoveryCode(code: string): string {
+  return code.replace(/[\s-]/g, "").toUpperCase().trim();
+}
+
+// H18: בודק אם הקלט נראה כמו recovery code (לא 6 ספרות אלא 10 תווים אלפא-נום).
+export function looksLikeRecoveryCode(input: string): boolean {
+  const normalized = normalizeRecoveryCode(input);
+  return /^[A-Z0-9]{10}$/.test(normalized);
+}
+
+// H18: מאמת קוד שחזור ומסיר אותו מהרשימה (one-time use). אטומי דרך transaction.
+// בהצלחה — מעדכן lastLoginAt + lastActivityAt בדומה ל-verifyTotp.
+//
+// אבטחה:
+//   • כל ה-hashes נבדקים גם בכישלון (לא יוצאים מוקדם) כדי למנוע timing attack
+//     שמדליף אילו hashes כבר נוצלו.
+//   • הקוד שנמצא מוסר מהמערך באטומיות (write-back עם compareAndSet logic).
+export async function verifyAndConsumeRecoveryCode(
+  userId: string,
+  inputCode: string,
+): Promise<VerifyCodeResult> {
+  const normalized = normalizeRecoveryCode(inputCode);
+  if (!looksLikeRecoveryCode(normalized)) {
+    return { success: false, error: "פורמט קוד שחזור לא תקין." };
+  }
+
+  const user = await prisma.user.findUnique({
+    where: { id: userId },
+    select: { twoFactorRecoveryCodes: true },
+  });
+  if (!user?.twoFactorRecoveryCodes) {
+    return { success: false, error: "אין קודי שחזור זמינים. אנא צור/י קודים חדשים." };
+  }
+
+  let hashes: string[];
+  try {
+    const parsed = JSON.parse(user.twoFactorRecoveryCodes);
+    if (!Array.isArray(parsed) || parsed.length === 0) {
+      return { success: false, error: "כל קודי השחזור נוצלו. אנא צור/י קודים חדשים." };
+    }
+    hashes = parsed.filter((h): h is string => typeof h === "string");
+  } catch {
+    logger.error("[2fa/recovery] failed to parse recovery codes JSON", { userId });
+    return { success: false, error: "שגיאה בקריאת קודי שחזור." };
+  }
+
+  // בודק את כל ה-hashes (לא יוצא מוקדם — constant-time-ish).
+  let matchedIndex = -1;
+  for (let i = 0; i < hashes.length; i++) {
+    const ok = await bcrypt.compare(normalized, hashes[i]);
+    if (ok && matchedIndex === -1) {
+      matchedIndex = i;
+    }
+  }
+
+  if (matchedIndex === -1) {
+    return { success: false, error: "קוד שחזור שגוי." };
+  }
+
+  // הסר את הקוד שנוצל. אטומיות אמיתית: optimistic CAS ב-WHERE clause —
+  // עדכון יבוצע רק אם הערך ב-DB עדיין זהה למה שקראנו. אם בקשה מקבילה
+  // הקדימה ושינתה — count===0 ונחזיר RECOVERY_RACE.
+  //
+  // הערה: ב-Prisma transaction בלבד (בלי `FOR UPDATE`) הקריאה והכתיבה לא
+  // ננעלות אטומית ב-READ COMMITTED. ה-CAS על העמודה הוא הדרך הנכונה לסגור
+  // race condition של "אותו קוד נוצל פעמיים" בלי lock מיותר.
+  const remaining = hashes.filter((_, idx) => idx !== matchedIndex);
+  const newJson = remaining.length > 0 ? JSON.stringify(remaining) : null;
+  const now = new Date();
+
+  const updated = await prisma.user.updateMany({
+    where: {
+      id: userId,
+      // CAS: רק אם הערך הנוכחי תואם מה שקראנו (לפני שהשתמשנו בקוד).
+      twoFactorRecoveryCodes: user.twoFactorRecoveryCodes,
+    },
+    data: {
+      twoFactorRecoveryCodes: newJson,
+      lastLoginAt: now,
+      lastActivityAt: now,
+    },
+  });
+
+  if (updated.count === 0) {
+    // בקשה מקבילה כבר שינתה את ה-codes — אסור לאשר את הlogin הזה,
+    // אחרת אותו קוד עלול להתפרש כ"מנוצל" בכפילות.
+    throw new Error("RECOVERY_RACE");
+  }
+
+  logger.info("[2fa/recovery] recovery code consumed", {
+    userId,
+    remainingCount: remaining.length,
+  });
+
+  return { success: true };
+}
+
+// H18: ספירת הקודים שנותרו לשימוש (לא חשיפת ה-hashes עצמם).
+export async function countRemainingRecoveryCodes(userId: string): Promise<number> {
+  const user = await prisma.user.findUnique({
+    where: { id: userId },
+    select: { twoFactorRecoveryCodes: true },
+  });
+  if (!user?.twoFactorRecoveryCodes) return 0;
+  try {
+    const parsed = JSON.parse(user.twoFactorRecoveryCodes);
+    if (!Array.isArray(parsed)) return 0;
+    return parsed.filter((h) => typeof h === "string").length;
+  } catch {
+    return 0;
+  }
 }
 
 function buildEmailTemplate(code: string, name: string): string {

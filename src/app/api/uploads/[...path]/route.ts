@@ -4,11 +4,7 @@ import { readFile, stat } from "fs/promises";
 import { join, resolve } from "path";
 import { logger } from "@/lib/logger";
 import { requireAuth } from "@/lib/api-auth";
-import {
-  loadScopeUser,
-  buildClientWhere,
-  canSecretaryAccessModel,
-} from "@/lib/scope";
+import { loadScopeUser, buildClientWhere } from "@/lib/scope";
 
 export const dynamic = "force-dynamic";
 
@@ -109,22 +105,21 @@ export async function GET(
         }
       }
     }
-    // Check if it's a recording
+    // H17: הקלטות חייבות לעבור דרך /api/recordings/[id]/audio עם signed URL.
+    // ה-path הישן /api/uploads/recordings/* נחסם כדי שגישה תהיה אך ורק דרך
+    // URLs עם תוקף של 15 דקות. אם cookie דולף — חלון ההזדמנות מצומצם משמעותית.
     else if (pathStr.startsWith("recordings/")) {
-      // הקלטה היא תוכן קליני — חסום קשיח למזכירה.
-      if (!canSecretaryAccessModel(scopeUser, "Recording")) {
-        return NextResponse.json({ message: "אין הרשאה לקובץ זה" }, { status: 403 });
-      }
-      const fileName = path[path.length - 1];
-      const recording = await prisma.recording.findFirst({
-        where: {
-          audioUrl: { endsWith: '/' + fileName },
-          client: clientWhere,
-        },
+      logger.warn("[uploads] legacy recording path blocked — use signed URL", {
+        userId,
+        pathStr,
       });
-      if (!recording) {
-        return NextResponse.json({ message: "אין הרשאה לקובץ זה" }, { status: 403 });
-      }
+      return NextResponse.json(
+        {
+          message:
+            "נתיב הקלטות זה הוצא משימוש. אנא רענן/י את הדף — ההקלטה תיטען דרך קישור חתום.",
+        },
+        { status: 410 }
+      );
     }
 
     const baseDir = resolve(process.env.UPLOADS_DIR || join(process.cwd(), "uploads"));

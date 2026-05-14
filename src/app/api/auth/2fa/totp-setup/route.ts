@@ -23,6 +23,8 @@ import {
   buildTotpUri,
   generateTotpSecret,
   verifyTotpCode,
+  generateRecoveryCodes,
+  hashRecoveryCodes,
 } from "@/lib/two-factor";
 import { invalidateJwtCache } from "@/lib/auth";
 import QRCode from "qrcode";
@@ -107,6 +109,12 @@ export async function PATCH(request: NextRequest) {
     );
   }
 
+  // H18: יצירת 10 קודי שחזור. הקודים עצמם מוחזרים פעם אחת בלבד —
+  // frontend אחראי להציג למשתמש להורדה/הדפסה לפני סגירת הדיאלוג.
+  // ב-DB נשמרים רק bcrypt hashes.
+  const recoveryCodes = generateRecoveryCodes();
+  const recoveryHashes = await hashRecoveryCodes(recoveryCodes);
+
   // שמירה — ה-secret מוצפן אוטומטית דרך ENCRYPTED_FIELDS.user.twoFactorSecret
   // (ראה src/lib/encrypted-fields.ts).
   await prisma.user.update({
@@ -115,15 +123,19 @@ export async function PATCH(request: NextRequest) {
       twoFactorEnabled: true,
       twoFactorMethod: "TOTP",
       twoFactorSecret: secret,
+      twoFactorRecoveryCodes: JSON.stringify(recoveryHashes),
     },
   });
 
   // מנקה את ה-JWT cache כדי שהבקשה הבאה תראה את המצב החדש.
   invalidateJwtCache(userId);
 
-  logger.info("[2fa/totp-setup] TOTP enabled", { userId });
+  logger.info("[2fa/totp-setup] TOTP enabled with recovery codes", {
+    userId,
+    recoveryCodesCount: recoveryCodes.length,
+  });
 
-  return NextResponse.json({ success: true });
+  return NextResponse.json({ success: true, recoveryCodes });
 }
 
 // DELETE — מבטל TOTP וחוזר ל-OTP-by-email. דורש קוד תקף תחילה.
@@ -170,6 +182,8 @@ export async function DELETE(request: NextRequest) {
     data: {
       twoFactorMethod: null,
       twoFactorSecret: null,
+      // H18: מנקים גם את קודי השחזור — לא רלוונטיים ל-OTP במייל.
+      twoFactorRecoveryCodes: null,
       // twoFactorEnabled נשאר true — המשתמש עדיין רוצה 2FA, חוזר ל-OTP-email.
     },
   });

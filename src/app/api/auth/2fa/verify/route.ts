@@ -10,10 +10,17 @@ export async function POST(req: NextRequest) {
   try {
     const body = await req.json().catch(() => ({}));
     const email = typeof body?.email === "string" ? body.email.trim() : "";
+    // H18: code יכול להיות 6 ספרות (TOTP/OTP) או 10 תווים (recovery code).
+    // הנרמול עצמו (strip whitespace/dashes) קורה בlayer הפנימי של two-factor.
     const code = typeof body?.code === "string" ? body.code.trim() : "";
 
     if (!email || !code) {
       return NextResponse.json({ error: "פרמטרים לא תקפים" }, { status: 400 });
+    }
+
+    // הגנת אורך מקסימלי — לא לאמת מחרוזות עצומות (DoS על bcrypt).
+    if (code.length > 32) {
+      return NextResponse.json({ error: "קוד לא תקין" }, { status: 400 });
     }
 
     // Rate limit כפול: email + IP. מונע גם brute-force ממוקד (לפי email),

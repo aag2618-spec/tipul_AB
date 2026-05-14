@@ -27,7 +27,7 @@ import {
   DialogHeader,
   DialogTitle,
 } from "@/components/ui/dialog";
-import { Shield, Loader2, ShieldCheck, AlertTriangle } from "lucide-react";
+import { Shield, Loader2, ShieldCheck, AlertTriangle, Key, Copy, Download, RefreshCw } from "lucide-react";
 import { toast } from "sonner";
 import { useSession } from "next-auth/react";
 
@@ -46,6 +46,13 @@ export function SecurityTab() {
   const [disableOpen, setDisableOpen] = useState(false);
   const [disableCode, setDisableCode] = useState("");
   const [disableBusy, setDisableBusy] = useState(false);
+  // H18: Recovery codes state
+  const [recoveryCodes, setRecoveryCodes] = useState<string[] | null>(null);
+  const [recoveryOpen, setRecoveryOpen] = useState(false);
+  const [remainingCodes, setRemainingCodes] = useState<number | null>(null);
+  const [regenOpen, setRegenOpen] = useState(false);
+  const [regenCode, setRegenCode] = useState("");
+  const [regenBusy, setRegenBusy] = useState(false);
 
   // טעינת הסטטוס הנוכחי מ-/api/user/profile (existing endpoint)
   useEffect(() => {
@@ -70,6 +77,82 @@ export function SecurityTab() {
       cancelled = true;
     };
   }, []);
+
+  // H18: טעינת מספר קודי שחזור שנותרו — רק כשהמצב הוא TOTP.
+  useEffect(() => {
+    if (status !== "totp") {
+      setRemainingCodes(null);
+      return;
+    }
+    let cancelled = false;
+    (async () => {
+      try {
+        const res = await fetch("/api/auth/2fa/recovery-codes");
+        if (!res.ok) return;
+        const data = await res.json();
+        if (!cancelled) setRemainingCodes(typeof data.remaining === "number" ? data.remaining : 0);
+      } catch {
+        // לא קריטי — UI יציג "—" במקום מספר
+      }
+    })();
+    return () => {
+      cancelled = true;
+    };
+  }, [status]);
+
+  function copyRecoveryCodes() {
+    if (!recoveryCodes) return;
+    const text = recoveryCodes.join("\n");
+    void navigator.clipboard.writeText(text).then(
+      () => toast.success("הקודים הועתקו"),
+      () => toast.error("לא ניתן להעתיק. אנא בחר/י ידנית והעתק/י.")
+    );
+  }
+
+  function downloadRecoveryCodes() {
+    if (!recoveryCodes) return;
+    const header = "MyTipul — קודי שחזור ל-2FA\n";
+    const warning =
+      "שמור/י את הקודים האלה במקום מאובטח (סיסמתון/הדפסה).\nכל קוד תקף לשימוש פעם אחת בלבד.\nאם איבדת את הטלפון, השתמש/י בקוד שחזור במקום קוד מהאפליקציה.\n\n";
+    const body = recoveryCodes.join("\n");
+    const blob = new Blob([header + warning + body + "\n"], { type: "text/plain;charset=utf-8" });
+    const url = URL.createObjectURL(blob);
+    const a = document.createElement("a");
+    a.href = url;
+    a.download = "mytipul-recovery-codes.txt";
+    a.click();
+    URL.revokeObjectURL(url);
+  }
+
+  async function regenerateRecoveryCodes() {
+    if (regenCode.length !== 6) {
+      toast.error("הזן/י קוד בן 6 ספרות מהאפליקציה");
+      return;
+    }
+    setRegenBusy(true);
+    try {
+      const res = await fetch("/api/auth/2fa/recovery-codes", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ code: regenCode }),
+      });
+      const data = await res.json();
+      if (!res.ok) {
+        toast.error(data.message || "שגיאה ביצירת קודים חדשים");
+        return;
+      }
+      setRecoveryCodes(data.recoveryCodes);
+      setRegenOpen(false);
+      setRegenCode("");
+      setRecoveryOpen(true);
+      setRemainingCodes(data.recoveryCodes.length);
+      toast.success("נוצרו קודי שחזור חדשים. הישנים בוטלו.");
+    } catch {
+      toast.error("שגיאת רשת");
+    } finally {
+      setRegenBusy(false);
+    }
+  }
 
   async function startSetup() {
     setSetupBusy(true);
@@ -114,6 +197,13 @@ export function SecurityTab() {
       setSetupQr("");
       setSetupCode("");
       setStatus("totp");
+      // H18: אם הוחזרו recovery codes, פותחים אוטומטית את דיאלוג הקודים.
+      // המשתמש חייב לשמור אותם — לא יוצגו שוב!
+      if (Array.isArray(data.recoveryCodes) && data.recoveryCodes.length > 0) {
+        setRecoveryCodes(data.recoveryCodes);
+        setRemainingCodes(data.recoveryCodes.length);
+        setRecoveryOpen(true);
+      }
       // refresh session — token מתעדכן
       await update();
     } catch {
@@ -183,6 +273,34 @@ export function SecurityTab() {
                   </div>
                 </div>
               </div>
+
+              {/* H18: סטטוס קודי שחזור */}
+              <div className="flex items-start gap-2 rounded-md border border-amber-200 dark:border-amber-800 bg-amber-50/50 dark:bg-amber-900/10 p-3">
+                <Key className="h-5 w-5 shrink-0 mt-0.5 text-amber-600 dark:text-amber-400" />
+                <div className="flex-1 space-y-2">
+                  <div>
+                    <div className="font-semibold text-sm">קודי שחזור</div>
+                    <div className="text-xs text-muted-foreground">
+                      {remainingCodes === null
+                        ? "טוען..."
+                        : remainingCodes === 0
+                        ? "אין קודים זמינים. צור/י קודים חדשים — חיוני למקרה של אובדן טלפון."
+                        : remainingCodes < 3
+                        ? `נותרו ${remainingCodes} קודים בלבד. מומלץ לייצר קודים חדשים.`
+                        : `נותרו ${remainingCodes} קודים זמינים לשימוש חד-פעמי.`}
+                    </div>
+                  </div>
+                  <Button
+                    variant="outline"
+                    size="sm"
+                    onClick={() => setRegenOpen(true)}
+                  >
+                    <RefreshCw className="ml-2 h-4 w-4" />
+                    צור קודים חדשים
+                  </Button>
+                </div>
+              </div>
+
               <Button
                 variant="outline"
                 onClick={() => setDisableOpen(true)}
@@ -274,6 +392,115 @@ export function SecurityTab() {
                 </>
               ) : (
                 "הפעל"
+              )}
+            </Button>
+          </DialogFooter>
+        </DialogContent>
+      </Dialog>
+
+      {/* H18: Recovery codes display dialog — מוצג פעם אחת אחרי הפעלה/regen */}
+      <Dialog
+        open={recoveryOpen}
+        onOpenChange={(o) => {
+          // לא מאפשרים סגירה בלחיצה מחוץ אם הקודים עוד לא הועתקו —
+          // יציאה רק דרך כפתור "סגור" כדי לוודא שהמשתמש שמר
+          if (!o) {
+            setRecoveryOpen(false);
+            // מנקים את הקודים מ-state כדי שלא יהיו בזיכרון יותר מהנדרש
+            setTimeout(() => setRecoveryCodes(null), 300);
+          }
+        }}
+      >
+        <DialogContent dir="rtl" className="max-w-md">
+          <DialogHeader>
+            <DialogTitle className="flex items-center gap-2">
+              <Key className="h-5 w-5 text-amber-600" />
+              קודי שחזור — שמור/י עכשיו!
+            </DialogTitle>
+            <DialogDescription>
+              הקודים האלה יוצגו <strong>פעם אחת בלבד</strong>. שמור/י אותם במקום מאובטח —
+              סיסמתון, מנהל סיסמאות, או הדפסה. ללא הקודים, אם תאבד/י את הטלפון —
+              לא תוכל/י להיכנס לחשבון.
+            </DialogDescription>
+          </DialogHeader>
+          {recoveryCodes && (
+            <div className="space-y-3">
+              <div className="rounded-md bg-muted p-4 grid grid-cols-2 gap-2 font-mono text-sm">
+                {recoveryCodes.map((c, i) => (
+                  <div
+                    key={i}
+                    className="px-2 py-1 bg-background rounded border text-center select-all"
+                  >
+                    {c}
+                  </div>
+                ))}
+              </div>
+              <div className="rounded-md bg-amber-50 dark:bg-amber-900/20 p-3 text-amber-800 dark:text-amber-200 text-xs">
+                <strong>חשוב:</strong> כל קוד תקף לשימוש פעם אחת בלבד. אם תייצר/י קודים חדשים,
+                כל הקודים הישנים יבוטלו אוטומטית.
+              </div>
+              <div className="flex gap-2">
+                <Button variant="outline" size="sm" onClick={copyRecoveryCodes} className="flex-1">
+                  <Copy className="ml-2 h-4 w-4" />
+                  העתק/י
+                </Button>
+                <Button variant="outline" size="sm" onClick={downloadRecoveryCodes} className="flex-1">
+                  <Download className="ml-2 h-4 w-4" />
+                  הורד/י קובץ
+                </Button>
+              </div>
+            </div>
+          )}
+          <DialogFooter>
+            <Button
+              onClick={() => {
+                setRecoveryOpen(false);
+                setTimeout(() => setRecoveryCodes(null), 300);
+              }}
+            >
+              שמרתי את הקודים — סגור
+            </Button>
+          </DialogFooter>
+        </DialogContent>
+      </Dialog>
+
+      {/* H18: Regenerate recovery codes dialog */}
+      <Dialog open={regenOpen} onOpenChange={(o) => !regenBusy && setRegenOpen(o)}>
+        <DialogContent dir="rtl">
+          <DialogHeader>
+            <DialogTitle>יצירת קודי שחזור חדשים</DialogTitle>
+            <DialogDescription>
+              <strong>שים/י לב:</strong> יצירת קודים חדשים תבטל את כל הקודים הקיימים.
+              הזן/י קוד תקף מאפליקציית האימות לאישור.
+            </DialogDescription>
+          </DialogHeader>
+          <div className="space-y-2">
+            <Label htmlFor="regen-code">קוד בן 6 ספרות מהאפליקציה</Label>
+            <Input
+              id="regen-code"
+              inputMode="numeric"
+              maxLength={6}
+              value={regenCode}
+              onChange={(e) => setRegenCode(e.target.value.replace(/\D/g, "").slice(0, 6))}
+              placeholder="123456"
+              autoComplete="one-time-code"
+            />
+          </div>
+          <DialogFooter>
+            <Button variant="ghost" onClick={() => setRegenOpen(false)} disabled={regenBusy}>
+              ביטול
+            </Button>
+            <Button
+              onClick={regenerateRecoveryCodes}
+              disabled={regenBusy || regenCode.length !== 6}
+            >
+              {regenBusy ? (
+                <>
+                  <Loader2 className="ml-2 h-4 w-4 animate-spin" />
+                  יוצר...
+                </>
+              ) : (
+                "צור קודים חדשים"
               )}
             </Button>
           </DialogFooter>
