@@ -1,5 +1,20 @@
 import { escapeHtml } from "../email-utils";
 
+// M-XSS-1 defense-in-depth: render-time URL guard.
+// גם אם communication-settings PUT מקבל validation, רשומות ישנות ב-DB
+// עלולות להכיל javascript:/data:/file: schemes. נחסום גם בעת הרינדור.
+function safeHttpUrl(input: string | null | undefined): string | null {
+  if (!input) return null;
+  if (input.length > 2000) return null;
+  try {
+    const u = new URL(input);
+    if (u.protocol !== "http:" && u.protocol !== "https:") return null;
+    return u.toString();
+  } catch {
+    return null;
+  }
+}
+
 function formatIsraelDateTime(date: Date, includeWeekday = false): string {
   const options: Intl.DateTimeFormatOptions = {
     timeZone: "Asia/Jerusalem",
@@ -214,19 +229,21 @@ export function createPaymentReceiptEmail({
           `
           }
 
-          ${
-            customization?.paymentLink
-              ? `
+          ${(() => {
+            // M-XSS-1: validate URL ב-render time. אם לא תקין — מסתירים את הכפתור
+            // לגמרי במקום ליצור href זדוני.
+            const safeLink = safeHttpUrl(customization?.paymentLink ?? null);
+            if (!safeLink) return "";
+            return `
           <!-- Payment Link -->
           <div style="background: #f0f9ff; border: 1px solid #bae6fd; border-radius: 8px; padding: 20px; margin: 20px 0; text-align: center;">
             <p style="margin: 0 0 12px 0; color: #075985; font-weight: 600; font-size: 15px;">💳 תשלום מהיר</p>
-            <a href="${customization.paymentLink}" style="display: inline-block; background: #0ea5e9; color: #ffffff; padding: 12px 24px; border-radius: 6px; text-decoration: none; font-weight: 600; font-size: 14px;">
+            <a href="${escapeHtml(safeLink)}" style="display: inline-block; background: #0ea5e9; color: #ffffff; padding: 12px 24px; border-radius: 6px; text-decoration: none; font-weight: 600; font-size: 14px;">
               שלם עכשיו בקליק
             </a>
           </div>
-          `
-              : ""
-          }
+          `;
+          })()}
 
           ${
             customization?.paymentInstructions

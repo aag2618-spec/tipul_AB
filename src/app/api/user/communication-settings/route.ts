@@ -183,15 +183,81 @@ export async function PUT(request: NextRequest) {
 
     // Validate customReminderHours (1-72)
     const validCustomHours = Math.max(1, Math.min(72, customReminderHours || 2));
-    
+
     // Validate minCancellationHours
     const validMinHours = Math.max(1, Math.min(168, minCancellationHours || 24));
-    
+
     // Validate debtReminderDayOfMonth (1-28)
     const validDayOfMonth = Math.max(1, Math.min(28, debtReminderDayOfMonth || 1));
-    
+
     // Validate debtReminderMinAmount (0+)
     const validMinAmount = Math.max(0, debtReminderMinAmount || 50);
+
+    // M-XSS-1: URL validation — paymentLink/logoUrl יוטמעו ב-HTML emails
+    // (href= ו-src=). חיוני לחסום javascript:/data:/vbscript:/file: URIs
+    // וכל סכמה לא-http(s) שעלולה להיות וקטור XSS או פישינג.
+    // null/undefined מותרים (ניקוי השדה).
+    const isSafeHttpUrl = (val: unknown): val is string | null | undefined => {
+      if (val === null || val === undefined) return true;
+      if (typeof val !== "string") return false;
+      if (val.length === 0) return true; // empty = clear
+      if (val.length > 2000) return false;
+      try {
+        const url = new URL(val);
+        return url.protocol === "http:" || url.protocol === "https:";
+      } catch {
+        return false;
+      }
+    };
+
+    if (!isSafeHttpUrl(paymentLink)) {
+      return NextResponse.json(
+        {
+          message:
+            "קישור תשלום לא תקין — יש להזין URL מלא עם https:// (כתובות javascript:/data: חסומות).",
+        },
+        { status: 400 }
+      );
+    }
+    if (!isSafeHttpUrl(logoUrl)) {
+      return NextResponse.json(
+        {
+          message:
+            "כתובת לוגו לא תקינה — יש להזין URL מלא עם https://.",
+        },
+        { status: 400 }
+      );
+    }
+
+    // M-XSS-2: cap גודל לשדות טקסט שמוזרקים ל-HTML email.
+    // ה-escape עצמו צריך לקרות ברמת ה-template (email-templates), אבל
+    // ה-cap כאן מונע DoS על email rendering.
+    const TEXT_FIELDS_MAX = 2000;
+    const checkTextField = (name: string, val: unknown): NextResponse | null => {
+      if (val === null || val === undefined) return null;
+      if (typeof val !== "string") {
+        return NextResponse.json({ message: `${name} חייב להיות טקסט` }, { status: 400 });
+      }
+      if (val.length > TEXT_FIELDS_MAX) {
+        return NextResponse.json(
+          { message: `${name} ארוך מדי (מקסימום ${TEXT_FIELDS_MAX} תווים)` },
+          { status: 400 }
+        );
+      }
+      return null;
+    };
+    const textChecks: Array<[string, unknown]> = [
+      ["חתימת מייל", emailSignature],
+      ["ברכת פתיחה", customGreeting],
+      ["ברכת סיום", customClosing],
+      ["שעות פעילות", businessHours],
+      ["הוראות תשלום", paymentInstructions],
+      ["תבנית מייל קבלה", receiptEmailTemplate],
+    ];
+    for (const [name, val] of textChecks) {
+      const err = checkTextField(name, val);
+      if (err) return err;
+    }
 
     const settings = await prisma.communicationSetting.upsert({
       where: { userId: userId },

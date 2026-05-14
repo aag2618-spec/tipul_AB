@@ -132,13 +132,20 @@ export async function PUT(request: NextRequest) {
     }
 
     if (id && status) {
-      const notification = await prisma.notification.update({
-        where: { id },
+      // M-IDOR: בעבר עדכון לפי id בלבד — משתמש יכול היה לשנות status של
+      // notification של אחר. updateMany עם userId ב-WHERE = אטומי + מבטיח
+      // שרק ההתראות שלו מתעדכנות. count===0 → לא נמצא/לא שייך → 404.
+      const result = await prisma.notification.updateMany({
+        where: { id, userId },
         data: {
           status,
           readAt: status === "READ" ? new Date() : undefined,
         },
       });
+      if (result.count === 0) {
+        return NextResponse.json({ message: "התראה לא נמצאה" }, { status: 404 });
+      }
+      const notification = await prisma.notification.findUnique({ where: { id } });
       return NextResponse.json(notification);
     }
 

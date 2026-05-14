@@ -47,18 +47,24 @@ export function formatSessionDateTime(date: Date): { date: string; time: string 
 }
 
 // פונקציות עזר להתאמה אישית
+// M-XSS-3: כל ערך user-supplied (customGreeting/Closing/emailSignature/businessHours)
+// עובר escapeHtml לפני הזרקה ל-HTML email. מטפל compromised או מטפל זדוני
+// יכול להזריק תגיות (<script> חוסם בדפדפנים, אבל style/img/href עדיין מסוכנים
+// לפישינג ו-tracking pixels).
 function getGreeting(clientName: string, customization?: EmailCustomization | null): string {
   if (customization?.customGreeting) {
-    return customization.customGreeting.replace(/{שם}/g, clientName);
+    // escape אחרי replace — כדי שגם clientName וגם הטמפלייט עברו escape.
+    const replaced = customization.customGreeting.replace(/{שם}/g, clientName);
+    return escapeHtml(replaced);
   }
-  return `שלום ${clientName}`;
+  return `שלום ${escapeHtml(clientName)}`;
 }
 
 function getFooter(therapistName: string, customization?: EmailCustomization | null): string {
-  const closing = customization?.customClosing || "בברכה";
-  const signature = customization?.emailSignature || therapistName;
+  const closing = escapeHtml(customization?.customClosing || "בברכה");
+  const signature = escapeHtml(customization?.emailSignature || therapistName);
   const hours = customization?.businessHours
-    ? `<p style="color: #9ca3af; font-size: 12px; margin-top: 12px;">⏰ ${customization.businessHours}</p>`
+    ? `<p style="color: #9ca3af; font-size: 12px; margin-top: 12px;">⏰ ${escapeHtml(customization.businessHours)}</p>`
     : "";
   return `
     <p style="color: #666; font-size: 14px; margin-top: 30px;">
@@ -149,20 +155,38 @@ export function createCancellationRequestToClientEmail(data: EmailTemplateData) 
 }
 
 // ==================== Cancellation Request - To Therapist ====================
+// M-XSS-3: clientName/reason/dashboardLink מגיעים מ-API ציבורי (cancellation-requests)
+// ומוטמעים ב-HTML email למטפל. escape כדי לחסום הזרקת תגיות שיכולה לעזוב
+// את ה-context הצפוי (פישינג בתוך מייל פנימי).
 export function createCancellationRequestToTherapistEmail(data: EmailTemplateData) {
+  const safeName = escapeHtml(data.clientName);
+  const safeReason = data.reason ? escapeHtml(data.reason) : "";
+  // dashboardLink אמור להיגזר מ-NEXTAUTH_URL פנימי, אבל defense-in-depth.
+  // עוטף ב-try/catch — אם הקישור לא תקין, פשוט לא מציגים את הכפתור.
+  let safeDashboardLink: string | null = null;
+  if (data.dashboardLink) {
+    try {
+      const u = new URL(data.dashboardLink);
+      if (u.protocol === "http:" || u.protocol === "https:") {
+        safeDashboardLink = u.toString();
+      }
+    } catch {
+      safeDashboardLink = null;
+    }
+  }
   return {
     subject: `🔔 בקשת ביטול חדשה - ${data.clientName}`,
     html: wrapInEmailTemplate(`
       <h2 style="color: #333;">יש לך בקשת ביטול חדשה ממתינה לאישור</h2>
       <div style="background: #fff3e0; padding: 20px; border-radius: 8px; margin: 20px 0; border-right: 4px solid #ff9800;">
-        <p style="margin: 8px 0;"><strong>👤 מטופל/ת:</strong> ${data.clientName}</p>
+        <p style="margin: 8px 0;"><strong>👤 מטופל/ת:</strong> ${safeName}</p>
         <p style="margin: 8px 0;"><strong>📅 תור:</strong> ${data.date} בשעה ${data.time}</p>
-        ${data.reason ? `<p style="margin: 8px 0;"><strong>💬 סיבה:</strong> ${data.reason}</p>` : ''}
+        ${safeReason ? `<p style="margin: 8px 0;"><strong>💬 סיבה:</strong> ${safeReason}</p>` : ''}
       </div>
       <p>היכנס/י למערכת לאישור או דחייה.</p>
-      ${data.dashboardLink ? `
+      ${safeDashboardLink ? `
         <p style="margin-top: 20px;">
-          <a href="${data.dashboardLink}" style="display: inline-block; background: #0ea5e9; color: white; padding: 12px 24px; text-decoration: none; border-radius: 4px;">
+          <a href="${escapeHtml(safeDashboardLink)}" style="display: inline-block; background: #0ea5e9; color: white; padding: 12px 24px; text-decoration: none; border-radius: 4px;">
             צפייה בבקשה
           </a>
         </p>
