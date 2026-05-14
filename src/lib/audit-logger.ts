@@ -1,16 +1,19 @@
 // src/lib/audit-logger.ts
 // Audit logging לקריאות של נתונים רגישים (סיכומי פגישה, תמלולים, ניתוחים).
 //
-// המטרה: רישום של "מי קרא מה ומתי" — חובה לפי תקציב 13 (2025) על
+// המטרה: רישום של "מי קרא מה ומתי" — חובה לפי תקנות הגנת הפרטיות (2017) על
 // מידע רפואי-נפשי, וגם דרישה אתית של הפ"י.
 //
-// הגישה הנוכחית: logger-based (כותב ל-stdout/stderr שמסונכרנים ל-Render
-// Logs). אפשר לקרוא את הלוגים דרך Render Dashboard → Logs.
+// M2 (Stage 2.0 hardening): כתיבה כפולה — stdout/Render Logs (כפי שהיה)
+// ובמקביל DataAccessAuditLog ב-DB. ה-DB משמש מקור tamper-proof:
+//   • אסור UPDATE על השורות (אכיפה ברמת API — אין endpoint למחיקה/עדכון).
+//   • cron retention מוחק רק מעל 12 חודשים.
+//   • ADMIN רואה דרך /api/admin/audit/data-access.
 //
-// בעתיד (Phase 6 מורחב): לעבור ל-DB-backed audit log עם AuditLog model.
-// זה ידרוש Prisma migration שלא בטוח להריץ בלי backup. נחזור לזה אחרי
-// שיהיה backup רשמי.
+// כשלים: הכתיבה ל-DB אסינכרונית (fire-and-forget) ולא חוסמת את ה-user flow.
+// stdout נשאר תמיד — אם DB נופל, יש את הלוג ב-Render.
 
+import prisma from "@/lib/prisma";
 import { logger } from "@/lib/logger";
 import type { NextRequest } from "next/server";
 
@@ -71,6 +74,19 @@ export function logDataAccess(params: AuditLogParams): void {
       meta,
       timestamp: new Date().toISOString(),
     });
+
+    // M2: כתיבה ל-DB tamper-proof — fire-and-forget, לא חוסם.
+    // נכשל בשקט (רק warn ל-stderr) כדי שלא לשבור את ה-flow של המשתמש.
+    void writeAuditToDb({
+      userId,
+      recordType,
+      recordId,
+      action,
+      clientId,
+      ipAddress,
+      userAgent,
+      meta,
+    });
   } catch (err) {
     // אסור שlogging ישבור backend
     try {
@@ -80,5 +96,52 @@ export function logDataAccess(params: AuditLogParams): void {
     } catch {
       // silent
     }
+  }
+}
+
+interface DbAuditWriteParams {
+  userId: string;
+  recordType: AuditRecordType;
+  recordId: string;
+  action: AuditAction;
+  clientId?: string | null;
+  ipAddress?: string;
+  userAgent?: string;
+  meta?: Record<string, unknown>;
+}
+
+// M2: כתיבת ה-audit log ל-DB. אסינכרונית, fire-and-forget.
+// כולל snapshot של userEmail/userName — חיוני: גם אחרי מחיקת user,
+// יש לדעת מי ביצע את הפעולה (FK הוא SetNull, אבל ה-snapshot מוטמע ברשומה).
+async function writeAuditToDb(params: DbAuditWriteParams): Promise<void> {
+  try {
+    // snapshot של email/name — read-time (ולא ב-trigger) כי snapshot של
+    // user שהוסר אינו זמין יותר. כאן ה-user עדיין קיים בעת הקריאה.
+    const user = await prisma.user.findUnique({
+      where: { id: params.userId },
+      select: { email: true, name: true },
+    });
+
+    await prisma.dataAccessAuditLog.create({
+      data: {
+        userId: params.userId,
+        userEmail: user?.email ?? null,
+        userName: user?.name ?? null,
+        recordType: params.recordType,
+        recordId: params.recordId,
+        action: params.action,
+        clientId: params.clientId ?? null,
+        ipAddress: params.ipAddress ?? null,
+        userAgent: params.userAgent?.substring(0, 500) ?? null,
+        meta: params.meta ? JSON.stringify(params.meta) : null,
+      },
+    });
+  } catch (err) {
+    // לא קריטי — יש את ה-stdout log כ-fallback
+    logger.warn("[AUDIT] Failed to persist to DB (stdout log preserved)", {
+      recordType: params.recordType,
+      action: params.action,
+      error: err instanceof Error ? err.message : String(err),
+    });
   }
 }

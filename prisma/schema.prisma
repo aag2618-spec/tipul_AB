@@ -293,6 +293,10 @@ model User {
   // Pricing policies — policies שמטרגטות את המשתמש (Cascade במחיקת המשתמש).
   pricingPoliciesTargetingMe        PricingPolicy[]        @relation("PricingPolicyForUser")
   packagePricingPoliciesTargetingMe PackagePricingPolicy[] @relation("PackagePricingPolicyForUser")
+
+  // M2 — Data access audit log (קריאות לנתונים רגישים).
+  // SetNull: שמירת היסטוריית audit גם אחרי מחיקת המשתמש (snapshot של email/name נשמר).
+  dataAccessAudits DataAccessAuditLog[] @relation("dataAuditUser")
 }
 
 // ==================== AI Tiers ====================
@@ -1925,6 +1929,43 @@ model AdminAuditLog {
   // מאיץ את ה-query הנפוץ "מה X עשה ב-30 הימים האחרונים" — ובמיוחד אחרי
   // שטבלת ה-audit גדלה. createdAt קודם ב-key כדי שגם range scan יעיל.
   @@index([createdAt, adminId])
+}
+
+// ==================== Data Access Audit Log (M2) ====================
+//
+// טבלה מבודלת מ-AdminAuditLog. בעוד AdminAuditLog מתעדת *פעולות ניהול*
+// (חסימה, הענקת תוקף, וכו'), הטבלה הזו מתעדת *קריאות לנתונים רגישים*:
+// מי קרא תמלול/סיכום פגישה/הקלטה/אבחנה/וכו'. חיוני להתאמה לתקנת
+// ההגנה על מידע רפואי-נפשי (תקנות הגנת הפרטיות 2017 + חוק חולה הנפש).
+//
+// Tamper-proof: אסור UPDATE על השורות לאחר insert. רק cron retention יכול
+// למחוק (אחרי 12 חודשים). ADMIN רואה ב-/admin/audit/data-access אבל לא יכול
+// למחוק יחידנית — אכיפה ברמת ה-API (אין endpoint למחיקה).
+
+model DataAccessAuditLog {
+  id          String    @id @default(cuid())
+  // userId nullable + SetNull — במחיקת משתמש, ה-audit log נשאר עם snapshot
+  // ב-userEmail/userName. חיוני: לא מאבדים תיעוד היסטורי במחיקת חשבון.
+  userId      String?
+  user        User?     @relation("dataAuditUser", fields: [userId], references: [id], onDelete: SetNull)
+  // snapshot של המשתמש בעת הפעולה — לא מסתמך על JOIN (audit-safe)
+  userEmail   String?
+  userName    String?
+  recordType  String // RECORDING | SESSION_NOTE | TRANSCRIPTION | ANALYSIS | CLIENT_NOTES | CLIENT_PROFILE | SESSION_DETAIL | PAYMENT | DOCUMENT
+  recordId    String
+  action      String // READ | EXPORT | PRINT | DELETE | UPDATE
+  clientId    String? // אם הרשומה קשורה ללקוח (לסינון פר-לקוח)
+  ipAddress   String?
+  userAgent   String?   @db.Text
+  meta        String?   @db.Text // JSON metadata
+  createdAt   DateTime  @default(now())
+
+  // אינדקסים לשליפת audit:
+  @@index([userId, createdAt]) // "מה X עשה לאורך זמן"
+  @@index([recordType, recordId]) // "מי ניגש ל-X"
+  @@index([clientId, createdAt]) // "מי ניגש לנתוני לקוח Y"
+  @@index([createdAt]) // לcron retention + dashboards לאורך זמן
+  @@index([action, createdAt]) // לדשבורדים לפי סוג פעולה
 }
 
 // ==================== Online Booking ====================
