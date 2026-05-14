@@ -51,7 +51,7 @@ export async function GET(
 
     if (!response) {
       return NextResponse.json(
-        { message: "Response not found" },
+        { message: "תגובה לא נמצאה" },
         { status: 404 }
       );
     }
@@ -60,7 +60,7 @@ export async function GET(
   } catch (error) {
     logger.error("Error fetching questionnaire response:", { error: error instanceof Error ? error.message : String(error) });
     return NextResponse.json(
-      { message: "Failed to fetch questionnaire response" },
+      { message: "שגיאה בטעינת תגובה" },
       { status: 500 }
     );
   }
@@ -121,7 +121,7 @@ export async function PATCH(
 
     if (updateResult.count === 0) {
       return NextResponse.json(
-        { message: "Response not found" },
+        { message: "תגובה לא נמצאה" },
         { status: 404 }
       );
     }
@@ -143,7 +143,7 @@ export async function PATCH(
   } catch (error) {
     logger.error("Error updating questionnaire response:", { error: error instanceof Error ? error.message : String(error) });
     return NextResponse.json(
-      { message: "Failed to update questionnaire response" },
+      { message: "שגיאה בעדכון תגובה" },
       { status: 500 }
     );
   }
@@ -177,7 +177,7 @@ export async function DELETE(
 
     if (deleteResult.count === 0) {
       return NextResponse.json(
-        { message: "Response not found" },
+        { message: "תגובה לא נמצאה" },
         { status: 404 }
       );
     }
@@ -186,7 +186,7 @@ export async function DELETE(
   } catch (error) {
     logger.error("Error deleting questionnaire response:", { error: error instanceof Error ? error.message : String(error) });
     return NextResponse.json(
-      { message: "Failed to delete questionnaire response" },
+      { message: "שגיאה במחיקת תגובה" },
       { status: 500 }
     );
   }

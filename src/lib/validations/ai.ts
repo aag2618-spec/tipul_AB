@@ -55,10 +55,17 @@ export type AiAnalyzeCombinedQuestionnaireInput = z.infer<
 >;
 
 // POST /api/ai/questionnaire/progress-report — דוח התקדמות.
-// dateFrom/dateTo חובה — ה-route משתמש בהם ל-new Date() ללא fallback.
+// dateFrom/dateTo חובה ובפורמט נפרס — ה-route משתמש בהם ל-new Date(); אם
+// המחרוזת לא ניתנת לפירוש Prisma היה זורק 500. refine מחזיר 400 ידידותי.
+const parsableDate = z
+  .string()
+  .min(1, "תאריך חובה")
+  .max(64)
+  .refine((s) => !Number.isNaN(Date.parse(s)), "תאריך לא תקין");
+
 export const aiProgressReportSchema = z.object({
   clientId: zId,
-  dateFrom: z.string().min(1, "תאריך התחלה חובה").max(64),
-  dateTo: z.string().min(1, "תאריך סיום חובה").max(64),
+  dateFrom: parsableDate,
+  dateTo: parsableDate,
 });
 export type AiProgressReportInput = z.infer<typeof aiProgressReportSchema>;

@@ -39,7 +39,7 @@ export async function POST(request: NextRequest) {
 
     if (!template) {
       return NextResponse.json(
-        { message: "Questionnaire template not found" },
+        { message: "שאלון לא נמצא" },
         { status: 404 }
       );
     }
@@ -51,7 +51,7 @@ export async function POST(request: NextRequest) {
 
     if (!client) {
       return NextResponse.json(
-        { message: "Client not found or access denied" },
+        { message: "מטופל לא נמצא או אין הרשאה" },
         { status: 404 }
       );
     }
@@ -81,7 +81,7 @@ export async function POST(request: NextRequest) {
   } catch (error) {
     logger.error("Error creating questionnaire response:", { error: error instanceof Error ? error.message : String(error) });
     return NextResponse.json(
-      { message: "Failed to create questionnaire response" },
+      { message: "שגיאה ביצירת תגובה לשאלון" },
       { status: 500 }
     );
   }
@@ -146,7 +146,7 @@ export async function GET(request: NextRequest) {
   } catch (error) {
     logger.error("Error fetching questionnaire responses:", { error: error instanceof Error ? error.message : String(error) });
     return NextResponse.json(
-      { message: "Failed to fetch questionnaire responses" },
+      { message: "שגיאה בטעינת תגובות לשאלון" },
       { status: 500 }
     );
   }

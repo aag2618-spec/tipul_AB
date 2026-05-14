@@ -67,12 +67,12 @@ export async function POST(
     });
 
     if (!client) {
-      return NextResponse.json({ message: "Client not found" }, { status: 404 });
+      return NextResponse.json({ message: "מטופל לא נמצא" }, { status: 404 });
     }
 
     if (!client.email) {
       return NextResponse.json(
-        { message: "Client does not have an email address" },
+        { message: "למטופל אין כתובת מייל" },
         { status: 400 }
       );
     }
@@ -128,7 +128,7 @@ export async function POST(
 
     if (payments.length === 0) {
       return NextResponse.json(
-        { message: "No payments found in this period" },
+        { message: "לא נמצאו תשלומים בתקופה זו" },
         { status: 400 }
       );
     }
@@ -190,14 +190,14 @@ export async function POST(
 
     return NextResponse.json({
       success: true,
-      message: "Payment history sent successfully",
+      message: "היסטוריית התשלומים נשלחה בהצלחה",
       paymentsCount: payments.length,
       totalPaid,
     });
   } catch (error) {
     logger.error("Error sending payment history:", { error: error instanceof Error ? error.message : String(error) });
     return NextResponse.json(
-      { message: "Failed to send payment history" },
+      { message: "שגיאה בשליחת היסטוריית התשלומים" },
       { status: 500 }
     );
   }

@@ -42,7 +42,7 @@ export async function PATCH(
     });
 
     if (!client) {
-      return NextResponse.json({ message: "Client not found" }, { status: 404 });
+      return NextResponse.json({ message: "מטופל לא נמצא" }, { status: 404 });
     }
 
     // Update client approaches and cultural context
@@ -56,13 +56,13 @@ export async function PATCH(
     });
 
     return NextResponse.json({
-      message: "Client approaches updated successfully",
+      message: "הגישות עודכנו בהצלחה",
       client: serializePrisma(updatedClient),
     });
   } catch (error) {
     logger.error("Error updating client approaches:", { error: error instanceof Error ? error.message : String(error) });
     return NextResponse.json(
-      { message: "Internal server error" },
+      { message: "שגיאה פנימית בשרת" },
       { status: 500 }
     );
   }
