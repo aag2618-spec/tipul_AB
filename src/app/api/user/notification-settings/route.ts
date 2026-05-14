@@ -54,8 +54,11 @@ export async function PUT(request: NextRequest) {
     if (pushEnabled !== undefined && typeof pushEnabled !== "boolean") {
       return NextResponse.json({ message: "pushEnabled חייב להיות boolean" }, { status: 400 });
     }
+    const emailEnabledSafe: boolean | undefined = typeof emailEnabled === "boolean" ? emailEnabled : undefined;
+    const pushEnabledSafe: boolean | undefined = typeof pushEnabled === "boolean" ? pushEnabled : undefined;
 
-    // debtThresholdDays — מספר שלם 0-365.
+    // debtThresholdDays — מספר שלם 0-365 (Int non-nullable ב-Prisma).
+    let debtThresholdDaysSafe: number | undefined = undefined;
     if (debtThresholdDays !== undefined && debtThresholdDays !== null) {
       if (
         typeof debtThresholdDays !== "number" ||
@@ -68,10 +71,14 @@ export async function PUT(request: NextRequest) {
           { status: 400 }
         );
       }
+      debtThresholdDaysSafe = debtThresholdDays;
     }
 
     // monthlyReminderDay — מספר 1-31 או null.
-    if (monthlyReminderDay !== undefined && monthlyReminderDay !== null) {
+    let monthlyReminderDaySafe: number | null | undefined = undefined;
+    if (monthlyReminderDay === null) {
+      monthlyReminderDaySafe = null;
+    } else if (monthlyReminderDay !== undefined) {
       if (
         typeof monthlyReminderDay !== "number" ||
         !Number.isInteger(monthlyReminderDay) ||
@@ -83,24 +90,33 @@ export async function PUT(request: NextRequest) {
           { status: 400 }
         );
       }
+      monthlyReminderDaySafe = monthlyReminderDay;
     }
 
-    // morningTime/eveningTime — HH:MM או null.
-    if (morningTime !== undefined && morningTime !== null && morningTime !== "") {
+    // morningTime/eveningTime — HH:MM או null/"".
+    let morningTimeSafe: string | null | undefined = undefined;
+    if (morningTime === null || morningTime === "") {
+      morningTimeSafe = null;
+    } else if (morningTime !== undefined) {
       if (typeof morningTime !== "string" || !HHMM_RE.test(morningTime)) {
         return NextResponse.json(
           { message: "שעת בוקר חייבת להיות בפורמט HH:MM" },
           { status: 400 }
         );
       }
+      morningTimeSafe = morningTime;
     }
-    if (eveningTime !== undefined && eveningTime !== null && eveningTime !== "") {
+    let eveningTimeSafe: string | null | undefined = undefined;
+    if (eveningTime === null || eveningTime === "") {
+      eveningTimeSafe = null;
+    } else if (eveningTime !== undefined) {
       if (typeof eveningTime !== "string" || !HHMM_RE.test(eveningTime)) {
         return NextResponse.json(
           { message: "שעת ערב חייבת להיות בפורמט HH:MM" },
           { status: 400 }
         );
       }
+      eveningTimeSafe = eveningTime;
     }
 
     // Update or create email settings
@@ -112,11 +128,11 @@ export async function PUT(request: NextRequest) {
       await prisma.notificationSetting.update({
         where: { id: existingEmail.id },
         data: {
-          enabled: emailEnabled,
-          debtThresholdDays,
-          monthlyReminderDay: monthlyReminderDay || null,
-          morningTime: morningTime || null,
-          eveningTime: eveningTime || null,
+          enabled: emailEnabledSafe,
+          debtThresholdDays: debtThresholdDaysSafe,
+          monthlyReminderDay: monthlyReminderDaySafe,
+          morningTime: morningTimeSafe,
+          eveningTime: eveningTimeSafe,
         },
       });
     } else {
@@ -124,11 +140,11 @@ export async function PUT(request: NextRequest) {
         data: {
           userId: userId,
           channel: "email",
-          enabled: emailEnabled,
-          debtThresholdDays,
-          monthlyReminderDay: monthlyReminderDay || null,
-          morningTime: morningTime || null,
-          eveningTime: eveningTime || null,
+          enabled: emailEnabledSafe ?? true,
+          debtThresholdDays: debtThresholdDaysSafe ?? 30,
+          monthlyReminderDay: monthlyReminderDaySafe ?? null,
+          morningTime: morningTimeSafe ?? null,
+          eveningTime: eveningTimeSafe ?? null,
         },
       });
     }
@@ -142,8 +158,8 @@ export async function PUT(request: NextRequest) {
       await prisma.notificationSetting.update({
         where: { id: existingPush.id },
         data: {
-          enabled: pushEnabled,
-          debtThresholdDays,
+          enabled: pushEnabledSafe,
+          debtThresholdDays: debtThresholdDaysSafe,
         },
       });
     } else {
@@ -151,8 +167,8 @@ export async function PUT(request: NextRequest) {
         data: {
           userId: userId,
           channel: "push",
-          enabled: pushEnabled,
-          debtThresholdDays,
+          enabled: pushEnabledSafe ?? true,
+          debtThresholdDays: debtThresholdDaysSafe ?? 30,
         },
       });
     }
