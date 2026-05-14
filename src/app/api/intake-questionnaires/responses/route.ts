@@ -8,6 +8,8 @@ import {
   buildClientWhere,
   canSecretaryAccessModel,
 } from "@/lib/scope";
+import { parseBody } from "@/lib/validations/helpers";
+import { createIntakeResponseSchema } from "@/lib/validations/intake-questionnaire";
 
 // POST - שמור תשובות
 export const dynamic = "force-dynamic";
@@ -27,8 +29,9 @@ export async function POST(req: NextRequest) {
       );
     }
 
-    const body = await req.json();
-    const { clientId, templateId, responses } = body;
+    const parsed = await parseBody(req, createIntakeResponseSchema);
+    if ("error" in parsed) return parsed.error;
+    const { clientId, templateId, responses } = parsed.data;
 
     const clientWhere = buildClientWhere(scopeUser);
     const client = await prisma.client.findFirst({
@@ -39,22 +42,20 @@ export async function POST(req: NextRequest) {
       return NextResponse.json({ message: "Client not found" }, { status: 404 });
     }
 
-    if (templateId) {
-      // templateId מאומת דרך ה-userId שיצר את התבנית — במקרה של קליניקה, לאפשר
-      // גם תבניות של מטפלים אחרים באותו ארגון.
-      const template = scopeUser.organizationId
-        ? await prisma.intakeQuestionnaire.findFirst({
-            where: {
-              id: templateId,
-              user: { organizationId: scopeUser.organizationId },
-            },
-          })
-        : await prisma.intakeQuestionnaire.findFirst({
-            where: { id: templateId, userId: userId },
-          });
-      if (!template) {
-        return NextResponse.json({ message: "Template not found" }, { status: 404 });
-      }
+    // templateId מאומת דרך ה-userId שיצר את התבנית — במקרה של קליניקה, לאפשר
+    // גם תבניות של מטפלים אחרים באותו ארגון.
+    const template = scopeUser.organizationId
+      ? await prisma.intakeQuestionnaire.findFirst({
+          where: {
+            id: templateId,
+            user: { organizationId: scopeUser.organizationId },
+          },
+        })
+      : await prisma.intakeQuestionnaire.findFirst({
+          where: { id: templateId, userId: userId },
+        });
+    if (!template) {
+      return NextResponse.json({ message: "Template not found" }, { status: 404 });
     }
 
     const response = await prisma.intakeResponse.create({

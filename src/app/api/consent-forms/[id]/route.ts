@@ -10,6 +10,8 @@ import {
   secretaryCan,
   type ScopeUser,
 } from "@/lib/scope";
+import { parseBody } from "@/lib/validations/helpers";
+import { signConsentFormSchema } from "@/lib/validations/consent-form";
 
 export const dynamic = "force-dynamic";
 
@@ -80,20 +82,8 @@ export async function GET(
   }
 }
 
-// M16: signatureData validation למניעת:
-//   • XSS דרך SVG data URI עם <script> (אם החתימה תוצג כ-<img src>)
-//   • DoS דרך data URI ענק
-//   • Type confusion (json/html/text במקום image)
-// פורמט מותר: data:image/(png|jpeg);base64,<base64>
-// SVG נחסם מכוונה — SVG יכול להריץ JS, וחתימה אמיתית היא תמיד PNG/JPEG.
-const MAX_SIGNATURE_DATA_LENGTH = 200_000; // ~150KB base64 = ~110KB PNG מקורי
-const SIGNATURE_DATA_PATTERN = /^data:image\/(png|jpeg|jpg);base64,[A-Za-z0-9+/=]+$/;
-
-function isValidSignatureData(input: unknown): input is string {
-  if (typeof input !== "string") return false;
-  if (input.length > MAX_SIGNATURE_DATA_LENGTH) return false;
-  return SIGNATURE_DATA_PATTERN.test(input);
-}
+// M16: signatureData validation דרך zod — מונע XSS דרך SVG (נחסם בכוונה),
+// DoS דרך data URI ענק, ו-type confusion. ראה signConsentFormSchema.
 
 export async function PATCH(
   request: Request,
@@ -105,19 +95,11 @@ export async function PATCH(
     const { userId } = auth;
 
     const { id } = await params;
-    const body = await request.json();
-    const { signatureData } = body;
 
     // M16: ולידציה לפני כל גישה ל-DB.
-    if (!isValidSignatureData(signatureData)) {
-      return NextResponse.json(
-        {
-          message:
-            "פורמט חתימה לא תקין. נדרשת תמונה (PNG/JPEG) בקידוד base64, עד 150KB.",
-        },
-        { status: 400 }
-      );
-    }
+    const parsed = await parseBody(request, signConsentFormSchema);
+    if ("error" in parsed) return parsed.error;
+    const { signatureData } = parsed.data;
 
     const scopeUser = await loadScopeUser(userId);
     // POST/יצירה דורש canViewConsentForms — חתימה/עדכון אדמיניסטרטיבי גם.

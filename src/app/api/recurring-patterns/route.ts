@@ -3,8 +3,9 @@ import prisma from "@/lib/prisma";
 import { logger } from "@/lib/logger";
 
 import { requireAuth } from "@/lib/api-auth";
-import { loadScopeUser } from "@/lib/scope";
-import { validateRecurringPatternInput } from "@/lib/validation/recurring-pattern";
+import { loadScopeUser, buildClientWhere } from "@/lib/scope";
+import { parseBody } from "@/lib/validations/helpers";
+import { createRecurringPatternSchema } from "@/lib/validations/recurring-pattern";
 
 export const dynamic = "force-dynamic";
 
@@ -38,30 +39,29 @@ export async function POST(request: NextRequest) {
     if ("error" in auth) return auth.error;
     const { userId } = auth;
 
-    let body: Record<string, unknown>;
-    try {
-      const raw = await request.json();
-      if (!raw || typeof raw !== "object" || Array.isArray(raw)) {
-        return NextResponse.json({ message: "גוף בקשה לא תקין" }, { status: 400 });
+    const parsed = await parseBody(request, createRecurringPatternSchema);
+    if ("error" in parsed) return parsed.error;
+    const { dayOfWeek, time, duration, clientId } = parsed.data;
+
+    // M-IDOR: clientId חייב להיות ב-scope של המשתמש לפני קישור pattern.
+    if (clientId) {
+      const scopeUser = await loadScopeUser(userId);
+      const exists = await prisma.client.findFirst({
+        where: { AND: [{ id: clientId }, buildClientWhere(scopeUser)] },
+        select: { id: true },
+      });
+      if (!exists) {
+        return NextResponse.json({ message: "מטופל לא נמצא" }, { status: 404 });
       }
-      body = raw as Record<string, unknown>;
-    } catch {
-      return NextResponse.json({ message: "גוף בקשה לא תקין (JSON)" }, { status: 400 });
     }
-
-    const scopeUser = await loadScopeUser(userId);
-    const err = await validateRecurringPatternInput({ body, scopeUser, requireClient: false });
-    if (err) return err;
-
-    const { dayOfWeek, time, duration, clientId } = body;
 
     const pattern = await prisma.recurringPattern.create({
       data: {
         userId: userId,
-        dayOfWeek: dayOfWeek as number,
-        time: time as string,
-        duration: (duration as number | undefined) || 50,
-        clientId: (clientId as string | undefined) || null,
+        dayOfWeek,
+        time,
+        duration: duration ?? 50,
+        clientId: clientId || null,
         isActive: true,
       },
       include: {

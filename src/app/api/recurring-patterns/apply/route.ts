@@ -7,6 +7,8 @@ import { syncSessionToGoogleCalendar } from "@/lib/google-calendar-sync";
 
 import { requireAuth } from "@/lib/api-auth";
 import { loadScopeUser } from "@/lib/scope";
+import { parseBody } from "@/lib/validations/helpers";
+import { applyRecurringPatternsSchema } from "@/lib/validations/recurring-pattern";
 
 export const dynamic = "force-dynamic";
 
@@ -43,10 +45,11 @@ export async function POST(request: NextRequest) {
     // חדשות (preserves clinic FK).
     const scopeUser = await loadScopeUser(userId);
 
-    const body = await request.json();
-    const weeksAhead = body.weeksAhead || 4;
-    const dryRun = body.dryRun === true;
-    const resolutions: ConflictResolution[] = body.resolutions || [];
+    const parsed = await parseBody(request, applyRecurringPatternsSchema);
+    if ("error" in parsed) return parsed.error;
+    const weeksAhead = parsed.data.weeksAhead ?? 4;
+    const dryRun = parsed.data.dryRun === true;
+    const resolutions: ConflictResolution[] = parsed.data.resolutions ?? [];
     const noStore = { "Cache-Control": "no-store, must-revalidate" };
 
     // Get active recurring patterns with client names

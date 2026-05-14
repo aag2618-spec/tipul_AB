@@ -4,7 +4,8 @@ import { Prisma } from "@prisma/client";
 import { logger } from "@/lib/logger";
 
 import { requireAuth } from "@/lib/api-auth";
-import { validateQuestionnaireInput } from "@/lib/validation/intake-questionnaire";
+import { parseBody } from "@/lib/validations/helpers";
+import { updateQuestionnaireSchema } from "@/lib/validations/intake-questionnaire";
 
 // GET - קבל שאלון ספציפי
 export const dynamic = "force-dynamic";
@@ -58,23 +59,10 @@ export async function PUT(
 
     const { id } = await params;
 
-    let body: Record<string, unknown>;
-    try {
-      const raw = await req.json();
-      if (!raw || typeof raw !== "object" || Array.isArray(raw)) {
-        return NextResponse.json({ message: "גוף בקשה לא תקין" }, { status: 400 });
-      }
-      body = raw as Record<string, unknown>;
-    } catch {
-      return NextResponse.json({ message: "גוף בקשה לא תקין (JSON)" }, { status: 400 });
-    }
-
-    // M-validation: validation עם requireName=false (PUT הוא partial update).
-    // אם name נשלח — חייב להיות תקין. אם לא — נשמור את הקיים.
-    const err = validateQuestionnaireInput({ body, requireName: false });
-    if (err) return err;
-
-    const { name, description, questions, isDefault } = body;
+    // H12: validation עם partial schema (PUT — אם name נשלח חייב תקין, אחרת נשמור).
+    const parsed = await parseBody(req, updateQuestionnaireSchema);
+    if ("error" in parsed) return parsed.error;
+    const { name, description, questions, isDefault } = parsed.data;
 
     if (isDefault) {
       await prisma.intakeQuestionnaire.updateMany({
@@ -94,10 +82,11 @@ export async function PUT(
     const updateResult = await prisma.intakeQuestionnaire.updateMany({
       where: { id, userId },
       data: {
-        name: typeof name === "string" ? name.trim() : undefined,
-        description: typeof description === "string" ? description : (description === null ? null : undefined),
-        questions: questions !== undefined ? (questions as Prisma.InputJsonValue) : undefined,
-        isDefault: typeof isDefault === "boolean" ? isDefault : undefined,
+        name: name ?? undefined,
+        description: description === undefined ? undefined : description,
+        questions:
+          questions !== undefined ? (questions as Prisma.InputJsonValue) : undefined,
+        isDefault: isDefault ?? undefined,
       },
     });
 

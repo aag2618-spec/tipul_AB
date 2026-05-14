@@ -3,8 +3,9 @@ import prisma from "@/lib/prisma";
 import { logger } from "@/lib/logger";
 
 import { requireAuth } from "@/lib/api-auth";
-import { loadScopeUser } from "@/lib/scope";
-import { validateRecurringPatternInput } from "@/lib/validation/recurring-pattern";
+import { loadScopeUser, buildClientWhere } from "@/lib/scope";
+import { parseBody } from "@/lib/validations/helpers";
+import { updateRecurringPatternSchema } from "@/lib/validations/recurring-pattern";
 
 export const dynamic = "force-dynamic";
 
@@ -19,16 +20,9 @@ export async function PUT(
 
     const { id } = await params;
 
-    let body: Record<string, unknown>;
-    try {
-      const raw = await request.json();
-      if (!raw || typeof raw !== "object" || Array.isArray(raw)) {
-        return NextResponse.json({ message: "גוף בקשה לא תקין" }, { status: 400 });
-      }
-      body = raw as Record<string, unknown>;
-    } catch {
-      return NextResponse.json({ message: "גוף בקשה לא תקין (JSON)" }, { status: 400 });
-    }
+    const parsed = await parseBody(request, updateRecurringPatternSchema);
+    if ("error" in parsed) return parsed.error;
+    const body = parsed.data;
 
     const existing = await prisma.recurringPattern.findFirst({
       where: { id, userId: userId },
@@ -38,32 +32,39 @@ export async function PUT(
       return NextResponse.json({ message: "תבנית לא נמצאה" }, { status: 404 });
     }
 
-    // M-validation: רק שדות שנשלחו עוברים validation. שדות חסרים יורשו מ-existing.
-    // אם לא נשלח dayOfWeek — לא מאמתים (נשאר existing). אם כן — חייב להיות תקין.
-    const fieldsToValidate: Record<string, unknown> = {
-      dayOfWeek: body.dayOfWeek ?? existing.dayOfWeek,
-      time: body.time ?? existing.time,
-      duration: body.duration ?? existing.duration,
-      clientId: body.clientId !== undefined ? body.clientId : existing.clientId,
-    };
-    const scopeUser = await loadScopeUser(userId);
-    const err = await validateRecurringPatternInput({
-      body: fieldsToValidate,
-      scopeUser,
-      requireClient: false,
-    });
-    if (err) return err;
+    // M-validation: שדות חסרים יורשו מ-existing; אם נשלחו — כבר אומתו ב-zod.
+    const finalDayOfWeek = body.dayOfWeek ?? existing.dayOfWeek;
+    const finalTime = body.time ?? existing.time;
+    const finalDuration = body.duration ?? existing.duration;
+    const finalClientId =
+      body.clientId !== undefined ? body.clientId : existing.clientId;
+
+    // M-IDOR: אם clientId השתנה (או נשלח) — אימות שייכות ל-scope.
+    if (
+      body.clientId !== undefined &&
+      finalClientId &&
+      finalClientId !== existing.clientId
+    ) {
+      const scopeUser = await loadScopeUser(userId);
+      const exists = await prisma.client.findFirst({
+        where: { AND: [{ id: finalClientId }, buildClientWhere(scopeUser)] },
+        select: { id: true },
+      });
+      if (!exists) {
+        return NextResponse.json({ message: "מטופל לא נמצא" }, { status: 404 });
+      }
+    }
 
     // updateMany עם userId ב-WHERE לאטומיות. אם race condition הסיר/העביר
     // ownership בין findFirst ל-כאן — count===0 → 404.
     const updateResult = await prisma.recurringPattern.updateMany({
       where: { id, userId },
       data: {
-        dayOfWeek: fieldsToValidate.dayOfWeek as number,
-        time: fieldsToValidate.time as string,
-        duration: fieldsToValidate.duration as number,
-        clientId: fieldsToValidate.clientId as string | null,
-        isActive: typeof body.isActive === "boolean" ? body.isActive : existing.isActive,
+        dayOfWeek: finalDayOfWeek,
+        time: finalTime,
+        duration: finalDuration,
+        clientId: finalClientId,
+        isActive: body.isActive ?? existing.isActive,
       },
     });
     if (updateResult.count === 0) {
