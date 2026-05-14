@@ -6,6 +6,8 @@ import { requireAuth } from "@/lib/api-auth";
 import { logDataAccess } from "@/lib/audit-logger";
 import { loadScopeUser, buildClientWhere } from "@/lib/scope";
 import storage from "@/lib/storage";
+import { parseBody } from "@/lib/validations/helpers";
+import { updateDocumentSchema } from "@/lib/validations/document";
 
 // C6: ממיר fileUrl שמור ב-DB ל-relative path בתוך UPLOADS_DIR.
 // פורמטים מותרים: "/api/uploads/<rel>" או "/uploads/<rel>". כל אחר נדחה
@@ -91,7 +93,10 @@ export async function PUT(
     const { userId, session } = auth;
 
     const { id } = await params;
-    const body = await request.json();
+
+    const parsed = await parseBody(request, updateDocumentSchema);
+    if ("error" in parsed) return parsed.error;
+    const body = parsed.data;
 
     const { where: ownershipWhere } = await buildDocumentOwnershipWhere(userId);
 

@@ -7,6 +7,7 @@ import { v4 as uuidv4 } from "uuid";
 import { logger } from "@/lib/logger";
 import { loadScopeUser, buildClientWhere } from "@/lib/scope";
 import { validateFileBuffer, safeExtensionForMime } from "@/lib/file-validation";
+import { documentFormFieldsSchema } from "@/lib/validations/document";
 
 export const dynamic = "force-dynamic";
 
@@ -65,16 +66,28 @@ export async function POST(request: NextRequest) {
 
     const formData = await request.formData();
     const file = formData.get("file") as File | null;
-    const name = formData.get("name") as string;
-    const type = formData.get("type") as string;
-    const clientId = formData.get("clientId") as string | null;
+    if (!file) {
+      return NextResponse.json({ message: "נא לספק קובץ" }, { status: 400 });
+    }
 
-    if (!file || !name || !type) {
+    // H12: validation של השדות הטקסטואליים דרך zod (formData ⇒ object).
+    const fieldsRaw = {
+      name: formData.get("name"),
+      type: formData.get("type"),
+      clientId: formData.get("clientId") ?? undefined,
+    };
+    const fieldsParsed = documentFormFieldsSchema.safeParse(fieldsRaw);
+    if (!fieldsParsed.success) {
+      const fieldErrors = fieldsParsed.error.flatten().fieldErrors;
+      const firstMessage =
+        Object.values(fieldErrors).flat().filter(Boolean)[0] ||
+        "נתונים לא תקינים";
       return NextResponse.json(
-        { message: "נא לספק קובץ, שם וסוג" },
+        { message: firstMessage, errors: fieldErrors },
         { status: 400 }
       );
     }
+    const { name, type, clientId } = fieldsParsed.data;
 
     // H5: validate size + MIME + magic-bytes לפני שמירה לדיסק.
     const fileBuffer = Buffer.from(await file.arrayBuffer());
@@ -110,15 +123,6 @@ export async function POST(request: NextRequest) {
     const filePath = join(uploadsDir, fileName);
     await writeFile(filePath, fileBuffer);
 
-    // Validate document type
-    const validTypes = ["CONSENT_FORM", "INTAKE_FORM", "TREATMENT_PLAN", "REPORT", "OTHER"];
-    if (!validTypes.includes(type)) {
-      return NextResponse.json(
-        { message: "סוג מסמך לא תקין" },
-        { status: 400 }
-      );
-    }
-
     // Create document record
     const document = await prisma.document.create({
       data: {
@@ -126,7 +130,7 @@ export async function POST(request: NextRequest) {
         clientId: clientId || null,
         organizationId: scopeUser.organizationId,
         name,
-        type: type as "CONSENT_FORM" | "INTAKE_FORM" | "TREATMENT_PLAN" | "REPORT" | "OTHER",
+        type,
         fileUrl: `/api/uploads/documents/${fileName}`,
         signed: false,
       },

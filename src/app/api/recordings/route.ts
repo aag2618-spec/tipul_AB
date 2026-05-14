@@ -9,6 +9,8 @@ import {
   canSecretaryAccessModel,
 } from "@/lib/scope";
 import { validateBase64Size, validateFileBuffer } from "@/lib/file-validation";
+import { parseBody, parseSearchParams } from "@/lib/validations/helpers";
+import { createRecordingSchema, listRecordingsQuerySchema } from "@/lib/validations/recording";
 
 export const dynamic = "force-dynamic";
 
@@ -26,9 +28,9 @@ export async function GET(request: NextRequest) {
 
     const clientWhere = buildClientWhere(scopeUser);
 
-    const { searchParams } = new URL(request.url);
-    const clientId = searchParams.get("clientId");
-    const status = searchParams.get("status");
+    const parsedQuery = parseSearchParams(request.url, listRecordingsQuerySchema);
+    if ("error" in parsedQuery) return parsedQuery.error;
+    const { clientId, status } = parsedQuery.data;
 
     const where: Record<string, unknown> = {
       client: clientWhere,
@@ -84,15 +86,9 @@ export async function POST(request: NextRequest) {
 
     const clientWhere = buildClientWhere(scopeUser);
 
-    const body = await request.json();
-    const { audioData, mimeType, durationSeconds, type, clientId, sessionId } = body;
-
-    if (!audioData || typeof audioData !== "string") {
-      return NextResponse.json(
-        { message: "לא נשלח קובץ אודיו" },
-        { status: 400 }
-      );
-    }
+    const parsed = await parseBody(request, createRecordingSchema);
+    if ("error" in parsed) return parsed.error;
+    const { audioData, mimeType, durationSeconds, type, clientId, sessionId } = parsed.data;
 
     // H5: בדיקת גודל ל-base64 לפני המרה ל-Buffer (חוסך זיכרון ב-DoS).
     const sizeCheck = validateBase64Size(audioData, "recording");
@@ -176,7 +172,7 @@ export async function POST(request: NextRequest) {
       data: {
         audioUrl: `/uploads/recordings/${fileName}`,
         durationSeconds: durationSeconds || Math.round(buffer.length / 16000),
-        type: (type as "INTAKE" | "SESSION") || "SESSION",
+        type: type || "SESSION",
         status: "PENDING",
         clientId: clientId || null,
         sessionId: sessionId || null,

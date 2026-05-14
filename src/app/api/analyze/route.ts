@@ -11,6 +11,8 @@ import {
   buildSessionWhere,
   canSecretaryAccessModel,
 } from "@/lib/scope";
+import { parseBody } from "@/lib/validations/helpers";
+import { analyzeTranscriptionSchema } from "@/lib/validations/analyze";
 
 export const dynamic = "force-dynamic";
 
@@ -29,15 +31,9 @@ export async function POST(request: NextRequest) {
       );
     }
 
-    const body = await request.json();
-    const { transcriptionId, type } = body;
-
-    if (!transcriptionId) {
-      return NextResponse.json(
-        { message: "נא לספק מזהה תמלול" },
-        { status: 400 }
-      );
-    }
+    const parsed = await parseBody(request, analyzeTranscriptionSchema);
+    if ("error" in parsed) return parsed.error;
+    const { transcriptionId, type } = parsed.data;
 
     // C4: scope-based ownership — מצרף תנאי על client או session בסקופ.
     // CLINIC_OWNER יוכל לנתח תמלולים של מטפלים בצוות; cross-clinic חסום.

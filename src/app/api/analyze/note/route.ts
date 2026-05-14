@@ -7,6 +7,8 @@ import { requireAuth } from "@/lib/api-auth";
 import { sanitizeUserHtml } from "@/lib/sanitize-html";
 import { loadScopeUser, buildClientWhere, isSecretary } from "@/lib/scope";
 import { getClientPseudonym } from "@/lib/ai-pseudonymize";
+import { parseBody } from "@/lib/validations/helpers";
+import { analyzeNoteSchema } from "@/lib/validations/analyze";
 
 // Lazy initialization
 let genAI: GoogleGenerativeAI | null = null;
@@ -53,18 +55,12 @@ export async function POST(request: NextRequest) {
       );
     }
 
-    const body = await request.json();
+    const parsed = await parseBody(request, analyzeNoteSchema);
+    if ("error" in parsed) return parsed.error;
     // C3: לא מקבלים יותר clientName מה-body. אם בעבר ה-UI שלח שם —
     // מתעלמים. ה-prompt מקבל pseudonym מבוסס clientId בלבד.
-    const { noteContent, clientId } = body;
-    const clientPseudo = getClientPseudonym(clientId);
-
-    if (!noteContent || noteContent.trim().length < 10) {
-      return NextResponse.json(
-        { message: "נא לכתוב סיכום מפורט יותר לפני הניתוח" },
-        { status: 400 }
-      );
-    }
+    const { noteContent, clientId } = parsed.data;
+    const clientPseudo = getClientPseudonym(clientId ?? null);
 
     // H4: sanitize HTML לפני שליחה ל-LLM. ה-LLM יכול להחזיר את התוכן
     // ב-output שלו (או בעיבוד עתידי), ואם נכניס HTML זדוני נחזיר אותו ל-DB.

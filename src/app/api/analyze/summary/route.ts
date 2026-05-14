@@ -7,6 +7,8 @@ import { requireAuth } from "@/lib/api-auth";
 import { sanitizeUserHtml } from "@/lib/sanitize-html";
 import { loadScopeUser, buildClientWhere, isSecretary } from "@/lib/scope";
 import { getClientPseudonym } from "@/lib/ai-pseudonymize";
+import { parseBody } from "@/lib/validations/helpers";
+import { analyzeSummarySchema } from "@/lib/validations/analyze";
 
 export const dynamic = "force-dynamic";
 
@@ -26,11 +28,12 @@ export async function POST(request: NextRequest) {
       );
     }
 
-    const body = await request.json();
+    const parsed = await parseBody(request, analyzeSummarySchema);
+    if ("error" in parsed) return parsed.error;
     // C3: לא משתמשים יותר ב-clientName מה-body. גם אם ה-UI שולח שם —
     // ה-prompt ל-Gemini מקבל pseudonym בלבד.
-    const { transcription, summaries, clientId, analysisType } = body;
-    const clientPseudo = getClientPseudonym(clientId);
+    const { transcription, summaries, clientId, analysisType } = parsed.data;
+    const clientPseudo = getClientPseudonym(clientId ?? null);
 
     // קבלת פרטי המשתמש כולל גישות טיפוליות
     const user = await prisma.user.findUnique({
@@ -115,7 +118,7 @@ ${approachPrompts}
       // H4: sanitize HTML של summaries[i].content לפני שליחה ל-LLM.
       // המקור הוא sessionNote.content (HTML מ-TipTap). אחרי המיגרציה
       // הוא יהיה מסונן ב-DB, אבל רישומים ישנים לא — לכן sanitize גם כאן.
-      const summariesText = (summaries as Array<{ date: string; content: string }>)
+      const summariesText = summaries
         .map((s) => `תאריך: ${s.date}\n${sanitizeUserHtml(s.content)}`)
         .join("\n\n---\n\n");
 
