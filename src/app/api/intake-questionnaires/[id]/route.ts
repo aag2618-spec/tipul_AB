@@ -4,6 +4,7 @@ import { Prisma } from "@prisma/client";
 import { logger } from "@/lib/logger";
 
 import { requireAuth } from "@/lib/api-auth";
+import { validateQuestionnaireInput } from "@/lib/validation/intake-questionnaire";
 
 // GET - קבל שאלון ספציפי
 export const dynamic = "force-dynamic";
@@ -53,10 +54,26 @@ export async function PUT(
   try {
     const auth = await requireAuth();
     if ("error" in auth) return auth.error;
-    const { userId, session } = auth;
+    const { userId } = auth;
 
     const { id } = await params;
-    const body = await req.json();
+
+    let body: Record<string, unknown>;
+    try {
+      const raw = await req.json();
+      if (!raw || typeof raw !== "object" || Array.isArray(raw)) {
+        return NextResponse.json({ message: "גוף בקשה לא תקין" }, { status: 400 });
+      }
+      body = raw as Record<string, unknown>;
+    } catch {
+      return NextResponse.json({ message: "גוף בקשה לא תקין (JSON)" }, { status: 400 });
+    }
+
+    // M-validation: validation עם requireName=false (PUT הוא partial update).
+    // אם name נשלח — חייב להיות תקין. אם לא — נשמור את הקיים.
+    const err = validateQuestionnaireInput({ body, requireName: false });
+    if (err) return err;
+
     const { name, description, questions, isDefault } = body;
 
     if (isDefault) {
@@ -72,14 +89,15 @@ export async function PUT(
       });
     }
 
-    // Atomic update — ownership (userId) ב-WHERE מונע IDOR
+    // Atomic update — ownership (userId) ב-WHERE מונע IDOR.
+    // שדות שלא נשלחו → undefined → Prisma לא יעדכן (partial update).
     const updateResult = await prisma.intakeQuestionnaire.updateMany({
       where: { id, userId },
       data: {
-        name,
-        description,
-        questions: questions as Prisma.InputJsonValue,
-        isDefault,
+        name: typeof name === "string" ? name.trim() : undefined,
+        description: typeof description === "string" ? description : (description === null ? null : undefined),
+        questions: questions !== undefined ? (questions as Prisma.InputJsonValue) : undefined,
+        isDefault: typeof isDefault === "boolean" ? isDefault : undefined,
       },
     });
 

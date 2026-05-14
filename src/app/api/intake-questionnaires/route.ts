@@ -4,6 +4,7 @@ import { Prisma } from "@prisma/client";
 import { logger } from "@/lib/logger";
 
 import { requireAuth } from "@/lib/api-auth";
+import { validateQuestionnaireInput } from "@/lib/validation/intake-questionnaire";
 
 // GET - קבל את כל השאלונים של המטפל
 export const dynamic = "force-dynamic";
@@ -45,9 +46,22 @@ export async function POST(req: NextRequest) {
   try {
     const auth = await requireAuth();
     if ("error" in auth) return auth.error;
-    const { userId, session } = auth;
+    const { userId } = auth;
 
-    const body = await req.json();
+    let body: Record<string, unknown>;
+    try {
+      const raw = await req.json();
+      if (!raw || typeof raw !== "object" || Array.isArray(raw)) {
+        return NextResponse.json({ message: "גוף בקשה לא תקין" }, { status: 400 });
+      }
+      body = raw as Record<string, unknown>;
+    } catch {
+      return NextResponse.json({ message: "גוף בקשה לא תקין (JSON)" }, { status: 400 });
+    }
+
+    const err = validateQuestionnaireInput({ body, requireName: true });
+    if (err) return err;
+
     const { name, description, questions, isDefault } = body;
 
     if (isDefault) {
@@ -65,10 +79,10 @@ export async function POST(req: NextRequest) {
     const template = await prisma.intakeQuestionnaire.create({
       data: {
         userId: userId,
-        name,
-        description,
-        questions: questions as Prisma.InputJsonValue,
-        isDefault: isDefault || false,
+        name: (name as string).trim(),
+        description: (description as string | undefined) ?? null,
+        questions: (questions ?? []) as Prisma.InputJsonValue,
+        isDefault: typeof isDefault === "boolean" ? isDefault : false,
       },
     });
 
