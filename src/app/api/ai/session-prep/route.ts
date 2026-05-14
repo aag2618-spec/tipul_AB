@@ -17,6 +17,8 @@ import {
   canSecretaryAccessModel,
 } from "@/lib/scope";
 import { getClientPseudonym } from "@/lib/ai-pseudonymize";
+import { parseBody } from "@/lib/validations/helpers";
+import { aiSessionPrepSchema } from "@/lib/validations/ai";
 
 // שימוש ב-Gemini 2.0 Flash בלבד
 const genAI = new GoogleGenerativeAI(process.env.GOOGLE_AI_API_KEY || "");
@@ -136,15 +138,9 @@ export async function POST(request: NextRequest) {
       );
     }
 
-    const body = await request.json();
-    const { clientId, sessionDate } = body;
-
-    if (!clientId) {
-      return NextResponse.json(
-        { message: "נדרש מזהה מטופל" },
-        { status: 400 }
-      );
-    }
+    const parsed = await parseBody(request, aiSessionPrepSchema);
+    if ("error" in parsed) return parsed.error;
+    const { clientId, sessionDate } = parsed.data;
 
     // קבלת פרטי המשתמש
     const user = await prisma.user.findUnique({

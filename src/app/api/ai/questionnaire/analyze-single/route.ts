@@ -8,6 +8,8 @@ import { requireAuth } from "@/lib/api-auth";
 import { getCurrentUsageKey } from "@/lib/date-utils";
 import { getTierLimits, isStaff } from "@/lib/usage-limits";
 import { getClientPseudonym } from "@/lib/ai-pseudonymize";
+import { parseBody } from "@/lib/validations/helpers";
+import { aiAnalyzeSingleQuestionnaireSchema } from "@/lib/validations/ai";
 
 // שימוש ב-Gemini 2.0 Flash בלבד
 const genAI = new GoogleGenerativeAI(process.env.GOOGLE_AI_API_KEY || "");
@@ -36,7 +38,9 @@ export async function POST(req: NextRequest) {
     if ("error" in auth) return auth.error;
     const { userId, session } = auth;
 
-    const { responseId } = await req.json();
+    const parsed = await parseBody(req, aiAnalyzeSingleQuestionnaireSchema);
+    if ("error" in parsed) return parsed.error;
+    const { responseId } = parsed.data;
 
     // קבלת פרטי המשתמש
     const user = await prisma.user.findUnique({

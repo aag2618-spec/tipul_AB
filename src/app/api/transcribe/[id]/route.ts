@@ -10,6 +10,8 @@ import {
   canSecretaryAccessModel,
 } from "@/lib/scope";
 import { sanitizeUserHtml } from "@/lib/sanitize-html";
+import { parseBody } from "@/lib/validations/helpers";
+import { updateTranscriptionSchema } from "@/lib/validations/ai";
 
 export const dynamic = "force-dynamic";
 
@@ -32,14 +34,9 @@ export async function PATCH(
     }
 
     const { id } = await params;
-    const { content } = await request.json();
-
-    if (!content || typeof content !== "string") {
-      return NextResponse.json(
-        { message: "תוכן התמלול חסר" },
-        { status: 400 }
-      );
-    }
+    const parsed = await parseBody(request, updateTranscriptionSchema);
+    if ("error" in parsed) return parsed.error;
+    const { content } = parsed.data;
 
     // קלט המשתמש מסונן לפני שמירה — תוכן התמלול עלול לעלות ל-DOM
     // ב-UI שמציג תמלול עם html (כפי שעושים session-note + summary).

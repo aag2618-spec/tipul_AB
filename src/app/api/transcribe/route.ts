@@ -13,6 +13,8 @@ import {
   buildSessionWhere,
   canSecretaryAccessModel,
 } from "@/lib/scope";
+import { parseBody } from "@/lib/validations/helpers";
+import { transcribeRecordingSchema } from "@/lib/validations/ai";
 
 export const dynamic = "force-dynamic";
 
@@ -32,15 +34,9 @@ export async function POST(request: NextRequest) {
       );
     }
 
-    const body = await request.json();
-    const { recordingId, force } = body;
-
-    if (!recordingId) {
-      return NextResponse.json(
-        { message: "נא לספק מזהה הקלטה" },
-        { status: 400 }
-      );
-    }
+    const parsed = await parseBody(request, transcribeRecordingSchema);
+    if ("error" in parsed) return parsed.error;
+    const { recordingId, force } = parsed.data;
 
     // Get recording within scope: או דרך client בסקופ או דרך session בסקופ.
     // findFirst עם OR מבטיח שמשתמש לא יוכל לקרוא הקלטה מארגון אחר, אבל

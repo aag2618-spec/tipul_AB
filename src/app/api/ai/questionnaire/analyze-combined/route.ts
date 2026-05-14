@@ -13,6 +13,8 @@ import {
   canSecretaryAccessModel,
 } from "@/lib/scope";
 import { getClientPseudonym } from "@/lib/ai-pseudonymize";
+import { parseBody } from "@/lib/validations/helpers";
+import { aiAnalyzeCombinedQuestionnaireSchema } from "@/lib/validations/ai";
 
 // שימוש ב-Gemini 2.0 Flash בלבד
 const genAI = new GoogleGenerativeAI(process.env.GOOGLE_AI_API_KEY || "");
@@ -50,7 +52,9 @@ export async function POST(req: NextRequest) {
       );
     }
 
-    const { clientId } = await req.json();
+    const parsed = await parseBody(req, aiAnalyzeCombinedQuestionnaireSchema);
+    if ("error" in parsed) return parsed.error;
+    const { clientId } = parsed.data;
 
     // קבלת פרטי המשתמש
     const user = await prisma.user.findUnique({

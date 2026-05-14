@@ -14,6 +14,8 @@ import {
 } from "@/lib/credits";
 import { getTierLimits, isStaff } from "@/lib/usage-limits";
 import { getClientPseudonym } from "@/lib/ai-pseudonymize";
+import { parseBody } from "@/lib/validations/helpers";
+import { aiSessionAnalyzeSchema } from "@/lib/validations/ai";
 
 /**
  * Feature flag — Stage 1.17 wire-up.
@@ -61,15 +63,9 @@ export async function POST(req: NextRequest) {
     if ("error" in auth) return auth.error;
     const { userId, session } = auth;
 
-    const { sessionId, analysisType, force } = await req.json();
-
-    // סוג ניתוח: תמציתי או מפורט
-    if (!["CONCISE", "DETAILED"].includes(analysisType)) {
-      return NextResponse.json(
-        { message: "סוג ניתוח לא תקין" },
-        { status: 400 }
-      );
-    }
+    const parsed = await parseBody(req, aiSessionAnalyzeSchema);
+    if ("error" in parsed) return parsed.error;
+    const { sessionId, analysisType, force } = parsed.data;
 
     // בדיקת משתמש ותוכנית - כולל גישות טיפוליות
     const user = await prisma.user.findUnique({
