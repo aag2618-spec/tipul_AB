@@ -1,7 +1,13 @@
 import { NextRequest, NextResponse } from "next/server";
 import prisma from "@/lib/prisma";
-import { verifyCode } from "@/lib/two-factor";
-import { checkRateLimit, LOGIN_EMAIL_RATE_LIMIT, AUTH_RATE_LIMIT } from "@/lib/rate-limit";
+import { verifyCode, looksLikeRecoveryCode } from "@/lib/two-factor";
+import {
+  checkRateLimit,
+  LOGIN_EMAIL_RATE_LIMIT,
+  AUTH_RATE_LIMIT,
+  RECOVERY_CODE_RATE_LIMIT,
+  RECOVERY_CODE_EMAIL_RATE_LIMIT,
+} from "@/lib/rate-limit";
 import { logger } from "@/lib/logger";
 
 export const dynamic = "force-dynamic";
@@ -35,6 +41,27 @@ export async function POST(req: NextRequest) {
         { error: "יותר מדי ניסיונות. אנא נסה שוב בעוד מספר דקות." },
         { status: 429 }
       );
+    }
+
+    // H18: rate-limit מחמיר ספציפית ל-recovery codes — כל אימות = 10 bcrypt
+    // compares (~500ms CPU). מונע DoS על worker וגם brute-force מעבר ל-
+    // 49.5-bit entropy של הקודים. נבדק *לפני* bcrypt.
+    // שתי שכבות: per-IP (DoS על worker) + per-email (brute-force מבוזר).
+    if (looksLikeRecoveryCode(code)) {
+      const recoveryIpRl = checkRateLimit(
+        `2fa:recovery:ip:${ip}`,
+        RECOVERY_CODE_RATE_LIMIT,
+      );
+      const recoveryEmailRl = checkRateLimit(
+        `2fa:recovery:email:${emailLower}`,
+        RECOVERY_CODE_EMAIL_RATE_LIMIT,
+      );
+      if (!recoveryIpRl.allowed || !recoveryEmailRl.allowed) {
+        return NextResponse.json(
+          { error: "יותר מדי ניסיונות עם קודי שחזור. נסה/י שוב בעוד 15 דקות." },
+          { status: 429 }
+        );
+      }
     }
 
     const user = await prisma.user.findFirst({

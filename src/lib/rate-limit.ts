@@ -223,6 +223,30 @@ export const ADMIN_WRITE_RATE_LIMIT = { maxRequests: 20, windowMs: 60 * 1000 };
 export const ADMIN_SENSITIVE_RATE_LIMIT = { maxRequests: 5, windowMs: 60 * 1000 };
 
 /**
+ * H18 — Recovery code verification (per-IP): 3 ניסיונות ל-15 דקות.
+ * הגבלה מחמירה כי כל אימות = 10 השוואות bcrypt cost-10 (~500ms CPU).
+ * תוקף שעובר על 100 IPs יבזבז את ה-worker. המגבלה צרה במכוון —
+ * משתמש לגיטימי שאיבד טלפון ישתמש בקוד פעם אחת או שתיים, לא 5+.
+ */
+export const RECOVERY_CODE_RATE_LIMIT = { maxRequests: 3, windowMs: 15 * 60 * 1000 };
+
+/**
+ * H18 — Recovery code verification (per-email): 5 ניסיונות ל-15 דקות.
+ * הגנה משלימה ל-RECOVERY_CODE_RATE_LIMIT (שהוא per-IP).
+ * תוקף עם 100 IPs מבוזרים יכול לעבור 3×100=300 ניסיונות מ-IP-based בלבד —
+ * שכבת ה-per-email סוגרת את ה-vector הזה (5 לכל email/15 דק', בלי קשר ל-IP).
+ */
+export const RECOVERY_CODE_EMAIL_RATE_LIMIT = { maxRequests: 5, windowMs: 15 * 60 * 1000 };
+
+/**
+ * Admin disable-2FA — global rate limit per-admin: 10 בקשות / 15 דקות.
+ * שכבה שנייה מעל ADMIN_SENSITIVE_RATE_LIMIT (שמוגבל per adminId:targetId).
+ * תרחיש: אדמין compromised מנסה לכבות 2FA למאסה של משתמשים — ייחסם
+ * לאחר 10 קורבנות בחלון של 15 דקות.
+ */
+export const ADMIN_DISABLE_2FA_GLOBAL_RATE_LIMIT = { maxRequests: 10, windowMs: 15 * 60 * 1000 };
+
+/**
  * החזרת שכבת rate limit מתאימה ל-endpoint של admin.
  *   - רגיש (5/דקה): add-package, manual-payment, set-admin, delete-user,
  *     idempotency clear, grantFree (PATCH), role change.

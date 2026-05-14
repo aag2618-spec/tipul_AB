@@ -25,6 +25,7 @@ import {
   canSecretaryAccessModel,
 } from "@/lib/scope";
 import { requireAuth } from "@/lib/api-auth";
+import { logDataAccess } from "@/lib/audit-logger";
 
 export const dynamic = "force-dynamic";
 
@@ -93,12 +94,26 @@ export async function GET(
         id: recordingId,
         OR: [{ client: clientWhere }, { session: sessionWhere }],
       },
-      select: { id: true, audioUrl: true },
+      select: { id: true, audioUrl: true, clientId: true },
     });
 
     if (!recording) {
       return NextResponse.json({ message: "הקלטה לא נמצאה" }, { status: 404 });
     }
+
+    // H17 follow-up: audit log גם בעת הגשת הקובץ עצמו (בנוסף לאודיט של
+    // signed-url generation). זה נותן ראייה מלאה — לא רק "מי קיבל הרשאה
+    // לגישה" אלא גם "מי בפועל הוריד/האזין". חיוני להתאמה לתקנת ההגנה
+    // על מידע רפואי-נפשי.
+    logDataAccess({
+      userId: auth.userId,
+      recordType: "RECORDING",
+      recordId: recordingId,
+      action: "READ",
+      clientId: recording.clientId,
+      request,
+      meta: { signedUrlServed: true },
+    });
 
     // audioUrl לרוב נראה כמו "/uploads/recordings/abc/xxx.webm".
     // strip prefix כדי לקבל path יחסי ל-baseDir.
