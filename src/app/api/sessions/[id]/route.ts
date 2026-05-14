@@ -14,6 +14,10 @@ import { logDataAccess } from "@/lib/audit-logger";
 import { buildSessionWhere, isSecretary, loadScopeUser } from "@/lib/scope";
 import { parseBody } from "@/lib/validations/helpers";
 import { patchSessionSchema } from "@/lib/validations/session";
+import {
+  findClinicLocationConflict,
+  buildClinicConflictMessage,
+} from "@/lib/session-overlap";
 
 export const dynamic = "force-dynamic";
 
@@ -259,6 +263,26 @@ export async function PUT(
           { message: `יש התנגשות עם ${conflictName} בשעה ${conflictStart}-${conflictEnd}` },
           { status: 409 }
         );
+      }
+
+      // M5/M11: cross-therapist conflict ברמת הארגון על אותו location.
+      // location החדש (אם נשלח) או הקיים. excludeSessionId — לא להחזיר את עצמה.
+      if (!allowOverlap) {
+        const effectiveLocation =
+          location !== undefined ? location : existingSession.location;
+        const clinicConflict = await findClinicLocationConflict({
+          organizationId: existingSession.organizationId,
+          location: effectiveLocation,
+          startTime: newStart,
+          endTime: newEnd,
+          excludeSessionId: id,
+        });
+        if (clinicConflict) {
+          return NextResponse.json(
+            { message: buildClinicConflictMessage(clinicConflict) },
+            { status: 409 }
+          );
+        }
       }
     }
 

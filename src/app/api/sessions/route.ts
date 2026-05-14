@@ -9,6 +9,10 @@ import { serializePrisma } from "@/lib/serialize";
 import { syncSessionToGoogleCalendar } from "@/lib/google-calendar-sync";
 import { buildClientWhere, buildSessionWhere, isSecretary, loadScopeUser } from "@/lib/scope";
 import { calculatePaidAmount } from "@/lib/payment-utils";
+import {
+  findClinicLocationConflict,
+  buildClinicConflictMessage,
+} from "@/lib/session-overlap";
 import type { Prisma } from "@prisma/client";
 
 export const dynamic = "force-dynamic";
@@ -223,6 +227,24 @@ export async function POST(request: NextRequest) {
         { message: `יש התנגשות עם פגישה קיימת: ${conflictName} (${conflictStart}-${conflictEnd}), סטטוס: ${statusHeb}` },
         { status: 400 }
       );
+    }
+
+    // M5/M11: בקליניקה רב-מטפלית — בדיקת חפיפה ברמת הארגון על אותו location.
+    // ה-check הקודם תפס רק התנגשות אצל אותו therapistId; מטפל אחר יכול לקבוע
+    // פגישה באותו חדר ובאותה שעה. עוטף את הבדיקה רק אם sit ב-clinic + location.
+    if (!allowOverlap) {
+      const clinicConflict = await findClinicLocationConflict({
+        organizationId: scopeUser.organizationId,
+        location: location || null,
+        startTime: parsedStartTime,
+        endTime: parsedEndTime,
+      });
+      if (clinicConflict) {
+        return NextResponse.json(
+          { message: buildClinicConflictMessage(clinicConflict) },
+          { status: 400 }
+        );
+      }
     }
 
     const therapySession = await prisma.therapySession.create({
