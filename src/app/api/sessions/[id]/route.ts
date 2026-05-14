@@ -12,6 +12,8 @@ import { serializePrisma } from "@/lib/serialize";
 import { syncSessionUpdateToGoogleCalendar, syncSessionDeletionToGoogleCalendar } from "@/lib/google-calendar-sync";
 import { logDataAccess } from "@/lib/audit-logger";
 import { buildSessionWhere, isSecretary, loadScopeUser } from "@/lib/scope";
+import { parseBody } from "@/lib/validations/helpers";
+import { patchSessionSchema } from "@/lib/validations/session";
 
 export const dynamic = "force-dynamic";
 
@@ -503,8 +505,10 @@ export async function PATCH(
     const { userId } = auth;
 
     const { id } = await params;
-    const body = await request.json();
-    const { skipSummary } = body;
+    // H12: zod אוכף שה-skipSummary הוא boolean (לא truthy של כל ערך).
+    const parsed = await parseBody(request, patchSessionSchema);
+    if ("error" in parsed) return parsed.error;
+    const { skipSummary } = parsed.data;
 
     const scopeUser = await loadScopeUser(userId);
     const sessionScopeWhere = buildSessionWhere(scopeUser);

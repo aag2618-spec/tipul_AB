@@ -1,4 +1,5 @@
 import { NextRequest, NextResponse } from "next/server";
+import { z } from "zod";
 import prisma from "@/lib/prisma";
 import { sendEmail } from "@/lib/resend";
 import {
@@ -10,10 +11,17 @@ import { logger } from "@/lib/logger";
 import { requireAuth } from "@/lib/api-auth";
 import { checkRateLimit, EMAIL_SEND_USER_RATE_LIMIT } from "@/lib/rate-limit";
 import { loadScopeUser, buildSessionWhere } from "@/lib/scope";
+import { parseBody } from "@/lib/validations/helpers";
 
 // POST /api/sessions/[id]/request-cancellation
 // Allows a client to request cancellation of a session
 export const dynamic = "force-dynamic";
+
+// H12: cap על reason — נכנס ל-cancellationReason ב-DB, ל-notification.content,
+// ול-emails. בלי cap אפשר לדחוף 10MB string.
+const requestCancellationSchema = z.object({
+  reason: z.string().max(500, "סיבת ביטול ארוכה מדי (מקסימום 500 תווים)").optional().or(z.literal("")),
+});
 
 export async function POST(
   request: NextRequest,
@@ -51,8 +59,9 @@ export async function POST(
     }
 
     const { id: sessionId } = await params;
-    const body = await request.json();
-    const { reason } = body;
+    const parsed = await parseBody(request, requestCancellationSchema);
+    if ("error" in parsed) return parsed.error;
+    const { reason } = parsed.data;
 
     // H1: scope-based ownership. CLINIC_OWNER יכול לבטל פגישות של צוות
     // בארגון שלו; cross-clinic חסום.

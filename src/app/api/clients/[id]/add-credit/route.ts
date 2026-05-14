@@ -4,6 +4,8 @@ import { createPaymentForSession } from "@/lib/payment-service";
 import { logger } from "@/lib/logger";
 import { requireAuth } from "@/lib/api-auth";
 import { loadScopeUser } from "@/lib/scope";
+import { parseBody } from "@/lib/validations/helpers";
+import { addCreditSchema } from "@/lib/validations/client";
 
 export const dynamic = "force-dynamic";
 
@@ -17,12 +19,10 @@ export async function POST(
     const { userId } = auth;
 
     const { id } = await params;
-    const body = await request.json();
-    const { amount, notes } = body;
-
-    if (!amount || amount <= 0) {
-      return NextResponse.json({ message: "סכום לא תקין" }, { status: 400 });
-    }
+    // H12: zod אוכף amount חיובי (≤1M) + cap על notes (500 תווים).
+    const parsed = await parseBody(request, addCreditSchema);
+    if ("error" in parsed) return parsed.error;
+    const { amount, notes } = parsed.data;
 
     // טען scope לפי המשתמש כדי לוודא שה-Payment החדש משויך ל-organizationId
     // הנכון (אחרת ה-Payment שנוצר בלי organizationId לא ייראה לבעלי הקליניקה).

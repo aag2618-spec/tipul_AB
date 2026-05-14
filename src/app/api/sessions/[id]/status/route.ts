@@ -8,6 +8,8 @@ import { logger } from "@/lib/logger";
 import { requireAuth } from "@/lib/api-auth";
 import { syncSessionToGoogleCalendar, syncSessionDeletionToGoogleCalendar } from "@/lib/google-calendar-sync";
 import { buildSessionWhere, loadScopeUser } from "@/lib/scope";
+import { parseBody } from "@/lib/validations/helpers";
+import { sessionStatusSchema } from "@/lib/validations/session";
 
 export const dynamic = "force-dynamic";
 
@@ -18,6 +20,15 @@ const VALID_TRANSITIONS: Record<string, string[]> = {
   CANCELLED: [],
   NO_SHOW: [],
   PENDING_CANCELLATION: ["CANCELLED", "SCHEDULED"],
+};
+
+const STATUS_LABELS_HE: Record<string, string> = {
+  SCHEDULED: "מתוכננת",
+  PENDING_APPROVAL: "ממתינה לאישור",
+  COMPLETED: "הושלמה",
+  CANCELLED: "בוטלה",
+  NO_SHOW: "לא הגיע/ה",
+  PENDING_CANCELLATION: "ממתינה לביטול",
 };
 
 function formatDateHebrew(date: Date): string {
@@ -48,12 +59,12 @@ export async function PATCH(
     const { userId, session } = auth;
 
     const { id: sessionId } = await params;
-    const { status, cancellationReason } = await req.json();
-
-    const validStatuses = Object.keys(VALID_TRANSITIONS);
-    if (!validStatuses.includes(status)) {
-      return NextResponse.json({ message: "Invalid status" }, { status: 400 });
-    }
+    // H12: zod אוכף status מ-enum (חלופה ל-validStatuses.includes) + cap על
+    // cancellationReason. הבדיקה של VALID_TRANSITIONS (מ-currentStatus) נשארת
+    // למטה כי היא תלויה ב-DB.
+    const parsed = await parseBody(req, sessionStatusSchema);
+    if ("error" in parsed) return parsed.error;
+    const { status, cancellationReason } = parsed.data;
 
     const scopeUser = await loadScopeUser(userId);
     const sessionScopeWhere = buildSessionWhere(scopeUser);
@@ -67,14 +78,16 @@ export async function PATCH(
     });
 
     if (!therapySession) {
-      return NextResponse.json({ message: "Session not found" }, { status: 404 });
+      return NextResponse.json({ message: "פגישה לא נמצאה" }, { status: 404 });
     }
 
     const currentStatus = therapySession.status;
     const allowedNext = VALID_TRANSITIONS[currentStatus] || [];
     if (!allowedNext.includes(status)) {
+      const fromHe = STATUS_LABELS_HE[currentStatus] || currentStatus;
+      const toHe = STATUS_LABELS_HE[status] || status;
       return NextResponse.json(
-        { error: `לא ניתן לשנות סטטוס מ-${currentStatus} ל-${status}` },
+        { error: `לא ניתן לשנות סטטוס מ-${fromHe} ל-${toHe}` },
         { status: 400 }
       );
     }
@@ -350,7 +363,7 @@ export async function PATCH(
   } catch (error) {
     logger.error("Error updating session status:", { error: error instanceof Error ? error.message : String(error) });
     return NextResponse.json(
-      { error: "Failed to update session status" },
+      { error: "שגיאה בעדכון סטטוס הפגישה" },
       { status: 500 }
     );
   }

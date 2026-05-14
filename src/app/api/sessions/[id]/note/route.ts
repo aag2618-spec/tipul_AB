@@ -1,12 +1,22 @@
 import { NextRequest, NextResponse } from "next/server";
+import type { Prisma } from "@prisma/client";
 import prisma from "@/lib/prisma";
 import { logger } from "@/lib/logger";
 
 import { requireAuth } from "@/lib/api-auth";
 import { buildSessionWhere, isSecretary, loadScopeUser } from "@/lib/scope";
 import { sanitizeUserHtml } from "@/lib/sanitize-html";
+import { parseBody } from "@/lib/validations/helpers";
+import { sessionNoteSchema, sessionNoteUpdateSchema } from "@/lib/validations/session";
 
 export const dynamic = "force-dynamic";
+
+// Prisma Json field accepts InputJsonValue (Recursive). הקלט שלנו עבר zod
+// validation (string | object | array) — מספיק cast לטיפוס שPrisma מצפה לו.
+function toJsonInput(v: unknown): Prisma.InputJsonValue | undefined {
+  if (v === undefined || v === null || v === "") return undefined;
+  return v as Prisma.InputJsonValue;
+}
 
 export async function POST(
   request: NextRequest,
@@ -18,8 +28,11 @@ export async function POST(
     const { userId, session } = auth;
 
     const { id } = await params;
-    const body = await request.json();
-    const { content, isPrivate, aiAnalysis } = body;
+    // H12: zod אוכף cap על content (50K) ו-aiAnalysis (20K). cap קריטי כי שניהם
+    // נכתבים ל-DB ועלולים להיות 10MB+ ללא הגבלה.
+    const parsed = await parseBody(request, sessionNoteSchema);
+    if ("error" in parsed) return parsed.error;
+    const { content, isPrivate, aiAnalysis } = parsed.data;
 
     const scopeUser = await loadScopeUser(userId);
 
@@ -58,7 +71,7 @@ export async function POST(
         data: {
           content: safeContent,
           isPrivate: isPrivate || false,
-          aiAnalysis: aiAnalysis || null,
+          aiAnalysis: toJsonInput(aiAnalysis),
         },
       });
       return NextResponse.json(note);
@@ -69,7 +82,7 @@ export async function POST(
         sessionId: id,
         content: safeContent,
         isPrivate: isPrivate || false,
-        aiAnalysis: aiAnalysis || null,
+        aiAnalysis: toJsonInput(aiAnalysis),
       },
     });
 
@@ -95,8 +108,10 @@ export async function PUT(
     const { userId, session } = auth;
 
     const { id } = await params;
-    const body = await request.json();
-    const { content, isPrivate, aiAnalysis } = body;
+    // H12: partial schema — כל השדות אופציונליים בעדכון.
+    const parsed = await parseBody(request, sessionNoteUpdateSchema);
+    if ("error" in parsed) return parsed.error;
+    const { content, isPrivate, aiAnalysis } = parsed.data;
 
     const scopeUser = await loadScopeUser(userId);
 
@@ -132,7 +147,7 @@ export async function PUT(
       data: {
         content: content !== undefined ? sanitizeUserHtml(content) : undefined,
         isPrivate: isPrivate !== undefined ? isPrivate : undefined,
-        aiAnalysis: aiAnalysis !== undefined ? aiAnalysis : undefined,
+        aiAnalysis: toJsonInput(aiAnalysis),
       },
     });
 
