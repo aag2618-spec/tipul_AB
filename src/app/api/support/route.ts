@@ -8,6 +8,7 @@ import {
   saveAttachments,
   validateAttachments,
 } from "@/lib/support-attachments";
+import { createTicketSchema } from "@/lib/validations/support";
 
 export const dynamic = "force-dynamic";
 
@@ -60,48 +61,34 @@ export async function POST(req: NextRequest) {
     const contentType = req.headers.get("content-type") || "";
     const isMultipart = contentType.includes("multipart/form-data");
 
-    let subject = "";
-    let message = "";
-    let category = "general";
+    let rawFields: unknown;
     let files: File[] = [];
 
     if (isMultipart) {
       const formData = await req.formData();
-      subject = String(formData.get("subject") || "");
-      message = String(formData.get("message") || "");
-      category = String(formData.get("category") || "general");
+      rawFields = {
+        subject: formData.get("subject") ?? undefined,
+        message: formData.get("message") ?? undefined,
+        category: formData.get("category") ?? undefined,
+      };
       files = parseAttachmentsFromFormData(formData);
     } else {
-      const body = await req.json();
-      subject = body.subject || "";
-      message = body.message || "";
-      category = body.category || "general";
+      rawFields = await req.json().catch(() => ({}));
     }
 
-    if (!subject.trim() || !message.trim()) {
-      return NextResponse.json({ message: "יש למלא נושא והודעה" }, { status: 400 });
-    }
-
-    // M-validation: length caps + category whitelist.
+    // H12: caps + category whitelist דרך zod.
     // subject נכנס ל-AdminAlert.title; ללא cap = רשומות ענקיות שמכבידות על UI אדמין.
-    const MAX_SUBJECT = 200;
-    const MAX_MESSAGE = 10000;
-    const ALLOWED_CATEGORIES = ["general", "technical", "billing", "feature", "bug", "other"];
-    if (subject.length > MAX_SUBJECT) {
+    const fieldsParsed = createTicketSchema.safeParse(rawFields);
+    if (!fieldsParsed.success) {
+      const fieldErrors = fieldsParsed.error.flatten().fieldErrors;
+      const firstMessage =
+        Object.values(fieldErrors).flat().filter(Boolean)[0] || "נתונים לא תקינים";
       return NextResponse.json(
-        { message: `נושא ארוך מדי (מקסימום ${MAX_SUBJECT} תווים)` },
+        { message: firstMessage, errors: fieldErrors },
         { status: 400 }
       );
     }
-    if (message.length > MAX_MESSAGE) {
-      return NextResponse.json(
-        { message: `הודעה ארוכה מדי (מקסימום ${MAX_MESSAGE} תווים)` },
-        { status: 400 }
-      );
-    }
-    if (!ALLOWED_CATEGORIES.includes(category)) {
-      return NextResponse.json({ message: "קטגוריה לא תקינה" }, { status: 400 });
-    }
+    const { subject, message, category } = fieldsParsed.data;
 
     // ולידציית קבצים לפני יצירת הפנייה
     if (files.length > 0) {
@@ -120,9 +107,9 @@ export async function POST(req: NextRequest) {
         data: {
           ticketNumber: nextNumber,
           userId,
-          subject: subject.trim(),
-          message: message.trim(),
-          category: category || "general",
+          subject,
+          message,
+          category,
         },
       });
 
@@ -131,8 +118,8 @@ export async function POST(req: NextRequest) {
         data: {
           type: "SUPPORT_TICKET",
           priority: "MEDIUM",
-          title: `פנייה חדשה #${nextNumber}: ${subject.trim()}`,
-          message: message.trim().substring(0, 200),
+          title: `פנייה חדשה #${nextNumber}: ${subject}`,
+          message: message.substring(0, 200),
           userId,
         },
       });

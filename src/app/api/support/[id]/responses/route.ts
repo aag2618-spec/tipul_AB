@@ -8,6 +8,7 @@ import {
   saveAttachments,
   validateAttachments,
 } from "@/lib/support-attachments";
+import { ticketResponseSchema } from "@/lib/validations/support";
 
 export const dynamic = "force-dynamic";
 
@@ -25,29 +26,29 @@ export async function POST(
     const contentType = req.headers.get("content-type") || "";
     const isMultipart = contentType.includes("multipart/form-data");
 
-    let message = "";
+    let rawFields: unknown;
     let files: File[] = [];
 
     if (isMultipart) {
       const formData = await req.formData();
-      message = String(formData.get("message") || "");
+      rawFields = { message: formData.get("message") ?? undefined };
       files = parseAttachmentsFromFormData(formData);
     } else {
-      const body = await req.json();
-      message = body.message || "";
+      rawFields = await req.json().catch(() => ({}));
     }
 
-    if (!message.trim()) {
-      return NextResponse.json({ message: "יש לכתוב הודעה" }, { status: 400 });
-    }
-
-    // M-validation: length cap על message (DoS guard).
-    if (message.length > 10000) {
+    // H12: validate message length + cap דרך zod.
+    const fieldsParsed = ticketResponseSchema.safeParse(rawFields);
+    if (!fieldsParsed.success) {
+      const fieldErrors = fieldsParsed.error.flatten().fieldErrors;
+      const firstMessage =
+        Object.values(fieldErrors).flat().filter(Boolean)[0] || "נתונים לא תקינים";
       return NextResponse.json(
-        { message: "הודעה ארוכה מדי (מקסימום 10,000 תווים)" },
+        { message: firstMessage, errors: fieldErrors },
         { status: 400 }
       );
     }
+    const { message } = fieldsParsed.data;
 
     // ולידציית קבצים לפני יצירת התגובה
     if (files.length > 0) {
@@ -93,7 +94,7 @@ export async function POST(
       data: {
         ticketId: id,
         authorId: userId,
-        message: message.trim(),
+        message,
         isAdmin: false,
         attachments:
           savedAttachments.length > 0

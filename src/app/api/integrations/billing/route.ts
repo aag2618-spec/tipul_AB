@@ -4,6 +4,8 @@ import { encrypt, decrypt } from "@/lib/encryption";
 import { logger } from "@/lib/logger";
 
 import { requireAuth } from "@/lib/api-auth";
+import { parseBody } from "@/lib/validations/helpers";
+import { createBillingProviderSchema } from "@/lib/validations/integration";
 
 // GET - Get all billing providers for the current user
 export const dynamic = "force-dynamic";
@@ -51,33 +53,9 @@ export async function POST(request: NextRequest) {
     if ("error" in auth) return auth.error;
     const { userId, session } = auth;
 
-    const body = await request.json();
-    const { provider, apiKey, apiSecret, displayName } = body;
-
-    if (!provider || !apiKey) {
-      return NextResponse.json(
-        { message: "Missing required fields: provider, apiKey" },
-        { status: 400 }
-      );
-    }
-
-    // Valid provider types
-    const validProviders = [
-      "MESHULAM",
-      "ICOUNT",
-      "GREEN_INVOICE",
-      "SUMIT",
-      "PAYPLUS",
-      "CARDCOM",
-      "TRANZILA",
-    ];
-
-    if (!validProviders.includes(provider)) {
-      return NextResponse.json(
-        { message: "Invalid provider type" },
-        { status: 400 }
-      );
-    }
+    const parsed = await parseBody(request, createBillingProviderSchema);
+    if ("error" in parsed) return parsed.error;
+    const { provider, apiKey, apiSecret, displayName } = parsed.data;
 
     // הצפנת ה-API Key
     const encryptedApiKey = encrypt(apiKey);

@@ -1,8 +1,11 @@
 import { NextRequest, NextResponse } from "next/server";
 import prisma from "@/lib/prisma";
+import { Prisma } from "@prisma/client";
 import { logger } from "@/lib/logger";
 
 import { requireAuth } from "@/lib/api-auth";
+import { parseBody } from "@/lib/validations/helpers";
+import { updateBillingProviderSchema } from "@/lib/validations/integration";
 
 // DELETE - Remove a billing provider
 export const dynamic = "force-dynamic";
@@ -61,8 +64,9 @@ export async function PATCH(
     const { userId, session } = auth;
 
     const { id } = await params;
-    const body = await request.json();
-    const { isActive, isPrimary, settings } = body;
+    const parsed = await parseBody(request, updateBillingProviderSchema);
+    if ("error" in parsed) return parsed.error;
+    const { isActive, isPrimary, settings } = parsed.data;
 
     // בדיקה שהספק שייך למשתמש
     const provider = await prisma.billingProvider.findFirst({
@@ -85,7 +89,7 @@ export async function PATCH(
       data: {
         ...(isActive !== undefined && { isActive }),
         ...(isPrimary !== undefined && { isPrimary }),
-        ...(settings !== undefined && { settings }),
+        ...(settings !== undefined && { settings: settings as Prisma.InputJsonValue }),
         updatedAt: new Date(),
       },
     });

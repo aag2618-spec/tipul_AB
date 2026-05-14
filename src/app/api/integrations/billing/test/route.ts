@@ -12,6 +12,8 @@ import { decrypt } from "@/lib/encryption";
 import { logger } from "@/lib/logger";
 import { requireAuth } from "@/lib/api-auth";
 import type { BillingProviderType } from "@/lib/billing/types";
+import { parseBody } from "@/lib/validations/helpers";
+import { testBillingProviderSchema } from "@/lib/validations/integration";
 
 export const dynamic = "force-dynamic";
 
@@ -21,11 +23,9 @@ export async function POST(request: NextRequest) {
     if ("error" in auth) return auth.error;
     const { userId, session } = auth;
 
-    const { providerId } = await request.json();
-
-    if (!providerId) {
-      return NextResponse.json({ message: "חסר מזהה ספק" }, { status: 400 });
-    }
+    const parsed = await parseBody(request, testBillingProviderSchema);
+    if ("error" in parsed) return parsed.error;
+    const { providerId } = parsed.data;
 
     // שליפת הספק
     const provider = await prisma.billingProvider.findFirst({
