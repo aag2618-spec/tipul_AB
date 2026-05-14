@@ -2,6 +2,8 @@ import { NextRequest, NextResponse } from "next/server";
 import prisma from "@/lib/prisma";
 import { logger } from "@/lib/logger";
 import { requireAuth } from "@/lib/api-auth";
+import { parseBody } from "@/lib/validations/helpers";
+import { deleteCommunicationLogsSchema } from "@/lib/validations/communications";
 
 export const dynamic = "force-dynamic";
 
@@ -11,16 +13,9 @@ export async function POST(request: NextRequest) {
     if ("error" in auth) return auth.error;
     const { userId } = auth;
 
-    const body = await request.json().catch(() => null);
-    const rawIds = body?.ids;
-    if (!Array.isArray(rawIds) || rawIds.length === 0) {
-      return NextResponse.json({ message: "חסרים מזהי הודעות" }, { status: 400 });
-    }
-
-    const ids = rawIds.filter((id: unknown): id is string => typeof id === "string" && id.length > 0);
-    if (ids.length === 0) {
-      return NextResponse.json({ message: "מזהים לא תקינים" }, { status: 400 });
-    }
+    const parsed = await parseBody(request, deleteCommunicationLogsSchema);
+    if ("error" in parsed) return parsed.error;
+    const { ids } = parsed.data;
 
     const result = await prisma.communicationLog.deleteMany({
       where: {

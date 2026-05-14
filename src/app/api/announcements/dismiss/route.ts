@@ -3,6 +3,8 @@ import prisma from "@/lib/prisma";
 import { logger } from "@/lib/logger";
 
 import { requireAuth } from "@/lib/api-auth";
+import { parseBody } from "@/lib/validations/helpers";
+import { dismissAnnouncementSchema } from "@/lib/validations/communications";
 
 export const dynamic = "force-dynamic";
 
@@ -12,15 +14,9 @@ export async function POST(req: NextRequest) {
     if ("error" in auth) return auth.error;
     const { userId, session } = auth;
 
-    const body = await req.json();
-    const { announcementId } = body;
-
-    if (!announcementId) {
-      return NextResponse.json(
-        { message: "מזהה הודעה חסר" },
-        { status: 400 }
-      );
-    }
+    const parsed = await parseBody(req, dismissAnnouncementSchema);
+    if ("error" in parsed) return parsed.error;
+    const { announcementId } = parsed.data;
 
     const announcement = await prisma.systemAnnouncement.findUnique({
       where: { id: announcementId },

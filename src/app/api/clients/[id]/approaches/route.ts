@@ -4,6 +4,8 @@ import { logger } from "@/lib/logger";
 import { requireAuth } from "@/lib/api-auth";
 import { serializePrisma } from "@/lib/serialize";
 import { buildClientWhere, isSecretary, loadScopeUser } from "@/lib/scope";
+import { parseBody } from "@/lib/validations/helpers";
+import { updateClientApproachesSchema } from "@/lib/validations/client-clinical";
 
 export const dynamic = "force-dynamic";
 
@@ -17,8 +19,10 @@ export async function PATCH(
     const { userId, session } = auth;
 
     const { id: clientId } = await params;
-    const body = await request.json();
-    const { therapeuticApproaches, approachNotes, culturalContext } = body;
+
+    const parsed = await parseBody(request, updateClientApproachesSchema);
+    if ("error" in parsed) return parsed.error;
+    const { therapeuticApproaches, approachNotes, culturalContext } = parsed.data;
 
     const scopeUser = await loadScopeUser(userId);
 

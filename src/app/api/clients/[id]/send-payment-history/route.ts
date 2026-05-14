@@ -9,6 +9,8 @@ import { requireAuth } from "@/lib/api-auth";
 import { buildClientWhere, isSecretary, loadScopeUser, secretaryCan } from "@/lib/scope";
 import { EXCLUDE_BULK_UMBRELLA_WHERE } from "@/lib/payments/types";
 import { checkRateLimit, PAYMENT_HISTORY_RATE_LIMIT } from "@/lib/rate-limit";
+import { parseBody } from "@/lib/validations/helpers";
+import { sendPaymentHistorySchema } from "@/lib/validations/communications";
 
 export const dynamic = "force-dynamic";
 
@@ -44,8 +46,9 @@ export async function POST(
       );
     }
 
-    const body = await req.json();
-    const { period = "all" } = body; // "all", "month", "3months", "year"
+    const parsed = await parseBody(req, sendPaymentHistorySchema);
+    if ("error" in parsed) return parsed.error;
+    const { period } = parsed.data;
 
     const scopeUser = await loadScopeUser(userId);
 

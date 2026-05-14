@@ -3,11 +3,14 @@ import prisma from "@/lib/prisma";
 import { logger } from "@/lib/logger";
 
 import { requireAuth } from "@/lib/api-auth";
+import { Prisma } from "@prisma/client";
 import {
   loadScopeUser,
   buildClientWhere,
   canSecretaryAccessModel,
 } from "@/lib/scope";
+import { parseBody } from "@/lib/validations/helpers";
+import { updateQuestionnaireResponseSchema } from "@/lib/validations/questionnaire-response";
 
 // GET - Get specific response
 export const dynamic = "force-dynamic";
@@ -82,13 +85,15 @@ export async function PATCH(
     }
 
     const { id } = await params;
-    const body = await request.json();
-    const { answers, status, totalScore, subscores } = body;
+
+    const parsed = await parseBody(request, updateQuestionnaireResponseSchema);
+    if ("error" in parsed) return parsed.error;
+    const { answers, status, totalScore, subscores } = parsed.data;
 
     const updateData: Record<string, unknown> = {};
 
     if (answers !== undefined) {
-      updateData.answers = answers;
+      updateData.answers = answers as Prisma.InputJsonValue;
     }
 
     if (totalScore !== undefined) {
@@ -96,7 +101,7 @@ export async function PATCH(
     }
 
     if (subscores !== undefined) {
-      updateData.subscores = subscores;
+      updateData.subscores = subscores as Prisma.InputJsonValue;
     }
 
     if (status === "COMPLETED") {

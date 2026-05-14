@@ -8,6 +8,8 @@ import {
   buildClientWhere,
   canSecretaryAccessModel,
 } from "@/lib/scope";
+import { parseBody } from "@/lib/validations/helpers";
+import { createQuestionnaireResponseSchema } from "@/lib/validations/questionnaire-response";
 
 // POST - Create a new questionnaire response
 export const dynamic = "force-dynamic";
@@ -27,15 +29,9 @@ export async function POST(request: NextRequest) {
       );
     }
 
-    const body = await request.json();
-    const { templateId, clientId } = body;
-
-    if (!templateId || !clientId) {
-      return NextResponse.json(
-        { message: "Missing required fields: templateId, clientId" },
-        { status: 400 }
-      );
-    }
+    const parsed = await parseBody(request, createQuestionnaireResponseSchema);
+    if ("error" in parsed) return parsed.error;
+    const { templateId, clientId } = parsed.data;
 
     const template = await prisma.questionnaireTemplate.findUnique({
       where: { id: templateId },
