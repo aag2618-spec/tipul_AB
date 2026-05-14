@@ -136,14 +136,16 @@ export async function PUT(request: NextRequest) {
       nextReceiptNumberSafe = parsed;
     }
 
+    // .trim() על כל השדות — מונע שמירת 200 רווחים שתעבור את ה-length check
+    // ויראה תקין ב-DB אבל ריק ב-UI.
     const updatedUser = await prisma.user.update({
       where: { id: userId },
       data: {
         businessType: typeof businessType === "string" ? (businessType as (typeof ALLOWED_BUSINESS_TYPES)[number]) : undefined,
-        businessName: typeof businessName === "string" ? businessName : (businessName === null ? null : undefined),
-        businessIdNumber: typeof businessIdNumber === "string" ? businessIdNumber : (businessIdNumber === null ? null : undefined),
-        businessPhone: typeof businessPhone === "string" ? businessPhone : (businessPhone === null ? null : undefined),
-        businessAddress: typeof businessAddress === "string" ? businessAddress : (businessAddress === null ? null : undefined),
+        businessName: typeof businessName === "string" ? businessName.trim() : (businessName === null ? null : undefined),
+        businessIdNumber: typeof businessIdNumber === "string" ? businessIdNumber.trim() : (businessIdNumber === null ? null : undefined),
+        businessPhone: typeof businessPhone === "string" ? businessPhone.trim() : (businessPhone === null ? null : undefined),
+        businessAddress: typeof businessAddress === "string" ? businessAddress.trim() : (businessAddress === null ? null : undefined),
         nextReceiptNumber: nextReceiptNumberSafe,
         receiptDefaultMode: typeof receiptDefaultMode === "string" ? (receiptDefaultMode as (typeof ALLOWED_RECEIPT_MODES)[number]) : undefined,
       },
