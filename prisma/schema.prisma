@@ -285,6 +285,14 @@ model User {
   // הסשנים שלו (audit נשאר ב-AdminAuditLog שמכיל snapshot).
   impersonationsPerformed ImpersonationSession[] @relation("Impersonator")
   impersonatedAs          ImpersonationSession[] @relation("ImpersonationTarget")
+
+  // Pricing policies — inverse relations.
+  // SetNull: מחיקת admin שיצר policy שומרת את ההיסטוריה (audit-safe).
+  pricingPoliciesCreated            PricingPolicy[]        @relation("PricingPolicyCreator")
+  packagePricingPoliciesCreated     PackagePricingPolicy[] @relation("PackagePricingPolicyCreator")
+  // Pricing policies — policies שמטרגטות את המשתמש (Cascade במחיקת המשתמש).
+  pricingPoliciesTargetingMe        PricingPolicy[]        @relation("PricingPolicyForUser")
+  packagePricingPoliciesTargetingMe PackagePricingPolicy[] @relation("PackagePricingPolicyForUser")
 }
 
 // ==================== AI Tiers ====================
@@ -912,8 +920,15 @@ model SubscriptionPayment {
   savedCardTokenId    String?
   savedCardToken      SavedCardToken?      @relation(fields: [savedCardTokenId], references: [id], onDelete: SetNull)
   nextChargeAt        DateTime?
+  // Dunning — מעקב ניסיונות חיוב חוזרים (3 ניסיונות: יום 1, 3, 7)
+  chargeAttempts      Int                  @default(0)
+  lastChargeError     String?              @db.Text
+  lastAttemptAt       DateTime?
   cardcomTransactions CardcomTransaction[]
   cardcomInvoices     CardcomInvoice[]
+
+  @@index([autoChargeEnabled, nextChargeAt])
+  @@index([status, nextChargeAt])
 }
 
 enum SubscriptionPaymentStatus {
@@ -2473,6 +2488,10 @@ model Organization {
   therapySessions TherapySession[]
   payments        Payment[]
 
+  // Pricing — קליניקה יכולה להחזיק policies מותאמות (cascade במחיקה)
+  pricingPolicies        PricingPolicy[]        @relation("PricingPolicyForOrg")
+  packagePricingPolicies PackagePricingPolicy[] @relation("PackagePricingPolicyForOrg")
+
   @@index([ownerUserId])
   @@index([subscriptionStatus, subscriptionEndsAt])
   @@index([pricingPlanId])
@@ -2530,6 +2549,9 @@ model CustomContract {
   billingCycleMonths   Int     @default(1) // 1 = חודשי, 12 = שנתי
   customSmsQuota       Int? // null = להשתמש ב-pricingPlan.smsQuotaPerMonth
   customAiTier         AITier? // null = להשתמש ב-organization.aiTier
+  // תקרות מותאמות (null = להשתמש ב-pricingPlan)
+  customMaxTherapists  Int?
+  customMaxSecretaries Int?
 
   startDate         DateTime
   endDate           DateTime
@@ -2735,4 +2757,65 @@ model ImpersonationSession {
   @@index([organizationId, startedAt])
   @@index([impersonatorId, startedAt])
   @@index([targetUserId, startedAt])
+}
+
+// ==================== Pricing Policies — תמחור גמיש ====================
+// מקור אמת לתמחור מנויים + חבילות. סדר עדיפות בעת resolve:
+//   USER → CLINIC_MEMBER → ORGANIZATION → GLOBAL → fallback ל-src/lib/pricing.ts
+// כל policy הוא immutable point-in-time. שינוי = יצירת רשומה חדשה עם validFrom/Until.
+
+enum PricingScope {
+  GLOBAL // מחיר ברירת מחדל לכלל המערכת
+  ORGANIZATION // מחיר ספציפי לקליניקה
+  CLINIC_MEMBER // מחיר ספציפי למטפלת בתוך קליניקה (מתאר User.id, אבל היררכית מתחת ל-Org)
+  USER // מחיר ספציפי למשתמש (override יחיד, הגבוה ביותר)
+}
+
+model PricingPolicy {
+  id             String        @id @default(cuid())
+  scope          PricingScope
+  organizationId String? // null אם scope=GLOBAL/USER
+  organization   Organization? @relation("PricingPolicyForOrg", fields: [organizationId], references: [id], onDelete: Cascade)
+  userId         String? // null אם scope=GLOBAL/ORGANIZATION; required אם USER/CLINIC_MEMBER
+  targetUser     User?         @relation("PricingPolicyForUser", fields: [userId], references: [id], onDelete: Cascade)
+  planTier       AITier // ESSENTIAL | PRO | ENTERPRISE
+  // מחירים בש"ח כולל מע"מ
+  monthlyIls     Decimal       @db.Decimal(10, 2)
+  quarterlyIls   Decimal?      @db.Decimal(10, 2)
+  halfYearIls    Decimal?      @db.Decimal(10, 2)
+  yearlyIls      Decimal?      @db.Decimal(10, 2)
+  validFrom      DateTime      @default(now())
+  validUntil     DateTime? // null = פעיל ללא הגבלה
+  notes          String?       @db.Text
+  createdById    String?
+  createdBy      User?         @relation("PricingPolicyCreator", fields: [createdById], references: [id], onDelete: SetNull)
+  createdAt      DateTime      @default(now())
+  updatedAt      DateTime      @updatedAt
+
+  @@index([scope, planTier, validFrom, validUntil])
+  @@index([organizationId, planTier])
+  @@index([userId, planTier])
+}
+
+model PackagePricingPolicy {
+  id             String        @id @default(cuid())
+  scope          PricingScope
+  organizationId String?
+  organization   Organization? @relation("PackagePricingPolicyForOrg", fields: [organizationId], references: [id], onDelete: Cascade)
+  userId         String?
+  targetUser     User?         @relation("PackagePricingPolicyForUser", fields: [userId], references: [id], onDelete: Cascade)
+  packageType    PackageType // SMS | AI_DETAILED_ANALYSIS
+  credits        Int // כמה יחידות בחבילה (לדוגמה 100, 500, 1000)
+  priceIls       Decimal       @db.Decimal(10, 2)
+  validFrom      DateTime      @default(now())
+  validUntil     DateTime?
+  notes          String?       @db.Text
+  createdById    String?
+  createdBy      User?         @relation("PackagePricingPolicyCreator", fields: [createdById], references: [id], onDelete: SetNull)
+  createdAt      DateTime      @default(now())
+  updatedAt      DateTime      @updatedAt
+
+  @@index([scope, packageType, credits, validFrom, validUntil])
+  @@index([organizationId, packageType])
+  @@index([userId, packageType])
 }

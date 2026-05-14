@@ -86,6 +86,7 @@ const adminNavGroups = [
       { href: "/admin/pricing/clinic-plans", label: "תוכניות תמחור קליניקה", icon: DollarSign, adminOnly: true },
       { href: "/admin/pricing/sms-packages", label: "חבילות SMS", icon: MessageSquare, adminOnly: true },
       { href: "/admin/pricing/custom-contracts", label: "חוזים מותאמים", icon: FileSignature, adminOnly: true },
+      { href: "/admin/pricing/policies", label: "מדיניות תמחור גמיש", icon: DollarSign, adminOnly: true },
     ],
   },
   {
