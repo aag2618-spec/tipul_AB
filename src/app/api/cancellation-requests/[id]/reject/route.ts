@@ -9,6 +9,8 @@ import { logger } from "@/lib/logger";
 import { requireAuth } from "@/lib/api-auth";
 import { checkRateLimit, EMAIL_SEND_USER_RATE_LIMIT } from "@/lib/rate-limit";
 import { loadScopeUser, buildSessionWhere } from "@/lib/scope";
+import { parseBody } from "@/lib/validations/helpers";
+import { rejectCancellationSchema } from "@/lib/validations/misc";
 
 // POST /api/cancellation-requests/[id]/reject
 // Reject a cancellation request
@@ -43,15 +45,9 @@ export async function POST(
     }
 
     const { id: requestId } = await params;
-    const body = await request.json();
-    const { reason, adminNotes } = body;
-
-    if (!reason) {
-      return NextResponse.json(
-        { success: false, message: "נא לציין סיבת דחייה" },
-        { status: 400 }
-      );
-    }
+    const parsed = await parseBody(request, rejectCancellationSchema);
+    if ("error" in parsed) return parsed.error;
+    const { reason, adminNotes } = parsed.data;
 
     // H1: scope-based ownership — מאפשר CLINIC_OWNER לדחות ביטולים של צוות.
     const scopeUser = await loadScopeUser(userId);

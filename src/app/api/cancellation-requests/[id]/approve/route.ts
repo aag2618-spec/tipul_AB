@@ -9,6 +9,8 @@ import { logger } from "@/lib/logger";
 import { requireAuth } from "@/lib/api-auth";
 import { checkRateLimit, EMAIL_SEND_USER_RATE_LIMIT } from "@/lib/rate-limit";
 import { loadScopeUser, buildSessionWhere } from "@/lib/scope";
+import { parseBody } from "@/lib/validations/helpers";
+import { approveCancellationSchema } from "@/lib/validations/misc";
 
 // POST /api/cancellation-requests/[id]/approve
 // Approve a cancellation request
@@ -43,8 +45,9 @@ export async function POST(
     }
 
     const { id: requestId } = await params;
-    const body = await request.json().catch(() => ({}));
-    const { adminNotes } = body;
+    const parsed = await parseBody(request, approveCancellationSchema);
+    if ("error" in parsed) return parsed.error;
+    const { adminNotes } = parsed.data;
 
     // H1: scope-based ownership — מאפשר CLINIC_OWNER לאשר ביטולים של צוות.
     const scopeUser = await loadScopeUser(userId);

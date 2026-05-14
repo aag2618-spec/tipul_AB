@@ -3,6 +3,8 @@ import prisma from "@/lib/prisma";
 import { logger } from "@/lib/logger";
 
 import { requireAuth } from "@/lib/api-auth";
+import { parseBody } from "@/lib/validations/helpers";
+import { updateInsurerSettingsSchema } from "@/lib/validations/misc";
 
 // scope.ts: ההגדרות הללו הן per-user (InsurerSettings.therapistId @unique).
 // אין צורך ב-buildClientWhere/Org filtering — נשארות כמות שהן (Pattern G).
@@ -46,7 +48,12 @@ export async function PUT(request: Request) {
     if ("error" in auth) return auth.error;
     const { userId, session } = auth;
 
-    const body = await request.json();
+    // H12: validation דרך zod — .strict() כדי לחסום שדות לא מוכרים שיכלו
+    // להיכנס ל-upsert כתוצאה מפריסת body גולמי. בלי זה תוקף יכל להזריק שדה
+    // שלא קיים ב-schema ולקבל 500.
+    const parsed = await parseBody(request, updateInsurerSettingsSchema);
+    if ("error" in parsed) return parsed.error;
+    const body = parsed.data;
 
     const settings = await prisma.insurerSettings.upsert({
       where: { therapistId: userId },
