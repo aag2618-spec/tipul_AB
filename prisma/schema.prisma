@@ -2200,6 +2200,14 @@ enum CardcomTxStatus {
   REFUNDED // הוחזר
 }
 
+// מטרת CardcomTransaction — מבדיל בין זרימות שונות שמשתמשות באותו webhook.
+// מאפשר ל-webhook לבחור branch נכון בלי לנחש לפי שדות אחרים.
+enum CardcomTransactionPurpose {
+  SUBSCRIPTION_CREATE // יצירת מנוי חדש / חידוש (זרימה רגילה — subscriptionPaymentId יהיה != null)
+  UPDATE_CARD // עדכון כרטיס שמור (CreateTokenOnly, ללא חיוב, subscriptionPaymentId = null)
+  PACKAGE_PURCHASE // רכישת חבילת SMS/AI חד-פעמית (שלב 5)
+}
+
 model CardcomTransaction {
   id String @id @default(cuid())
 
@@ -2213,6 +2221,11 @@ model CardcomTransaction {
   subscriptionPayment   SubscriptionPayment? @relation(fields: [subscriptionPaymentId], references: [id], onDelete: SetNull)
   paymentId             String?
   payment               Payment?             @relation(fields: [paymentId], references: [id], onDelete: SetNull)
+
+  // מטרת העסקה — מאפשר ל-webhook להבחין בין יצירת מנוי לעדכון כרטיס/רכישת חבילה.
+  // null = legacy (רשומות לפני הוספת השדה). webhook מתייחס ל-null כ-SUBSCRIPTION_CREATE
+  // לתאימות לאחור.
+  purpose CardcomTransactionPurpose?
 
   // נתוני Cardcom
   lowProfileId   String? @unique

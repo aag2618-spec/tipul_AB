@@ -45,6 +45,7 @@ import { getAdminCardcomClient } from "@/lib/cardcom/admin-config";
 import { getAdminBusinessProfile } from "@/lib/site-settings";
 import { sanitizeCardcomPayload, sanitizeChargebackPayload } from "@/lib/cardcom/sanitize";
 import { hashCardcomToken } from "@/lib/cardcom/token-hash";
+import { resolveUpdateCardWebhookOutcome } from "@/lib/payments/subscription-settings";
 import type { CardcomWebhookPayload } from "@/lib/cardcom/types";
 
 export const dynamic = "force-dynamic";
@@ -277,6 +278,16 @@ async function processAdminWebhook(payload: CardcomWebhookPayload): Promise<void
         },
       }),
     ]);
+  }
+
+  // ── Stage 4: UPDATE_CARD branch ─────────────────────────────────
+  // עדכון כרטיס שמור — Operation=CreateTokenOnly, ללא חיוב, ללא
+  // subscriptionPaymentId. הזרימה הרגילה (פעולות על SubscriptionPayment/User)
+  // לא רלוונטית כאן ועלולה לגרום נזק (לדוגמה — לעדכן user ל-ACTIVE כשהוא
+  // PAST_DUE). branch מוקדם מטפל בזה ייעודית.
+  if (transaction.purpose === "UPDATE_CARD") {
+    await processUpdateCardWebhook(transaction, payload, success, responseCode);
+    return;
   }
 
   await withAudit(
@@ -663,4 +674,240 @@ async function processAdminWebhook(payload: CardcomWebhookPayload): Promise<void
  */
 function sanitizeRawResponse(payload: CardcomWebhookPayload): object {
   return sanitizeCardcomPayload(payload as unknown as object);
+}
+
+// ============================================================================
+// processUpdateCardWebhook — Stage 4: עדכון כרטיס שמור (Operation=CreateTokenOnly)
+// ============================================================================
+// זרימה ייעודית: לא נוגעים ב-User.subscriptionStatus / SubscriptionPayment.status.
+// רק שומרים SavedCardToken חדש, מסמנים את הישנים כ-isActive=false, ומחברים
+// את כל המנויים הפעילים של המשתמש לטוקן החדש כדי שחיוב חוזר ידרך עליו.
+//
+// idempotency: ה-claimWebhook הראשי כבר מנע double processing של אותו LowProfileId.
+// race בין 2 update_card שונים של אותו user: שני transactions אטומיים — האחרון
+// שמסיים הוא ה-isActive=true; הקודם נסמן כ-inactive ע"י setOtherTokensInactiveForUser.
+async function processUpdateCardWebhook(
+  transaction: Awaited<
+    ReturnType<typeof prisma.cardcomTransaction.findUnique>
+  > & { userId: string | null },
+  payload: CardcomWebhookPayload,
+  success: boolean,
+  responseCode: string
+): Promise<void> {
+  if (!transaction) return; // type-narrowing safety
+
+  if (!transaction.userId) {
+    logger.error("[cardcom-admin] UPDATE_CARD transaction missing userId", {
+      transactionId: transaction.id,
+    });
+    throw new Error("CARDCOM_UPDATE_CARD_MISSING_USER");
+  }
+
+  const outcome = resolveUpdateCardWebhookOutcome({
+    success,
+    token: payload.TranzactionInfo?.Token ?? null,
+    expiryMonth: payload.TranzactionInfo?.CardExpirationMM
+      ? Number(payload.TranzactionInfo.CardExpirationMM)
+      : null,
+    expiryYear: payload.TranzactionInfo?.CardExpirationYY
+      ? Number(payload.TranzactionInfo.CardExpirationYY)
+      : null,
+  });
+
+  await withAudit(
+    {
+      kind: "system",
+      source: "WEBHOOK_CARDCOM",
+      externalRef: payload.LowProfileId,
+    },
+    {
+      action:
+        outcome.action === "CREATE_TOKEN"
+          ? "cardcom_update_card_approved"
+          : "cardcom_update_card_declined",
+      targetType: "cardcom_transaction",
+      targetId: transaction.id,
+      details: {
+        responseCode,
+        outcome: outcome.action,
+        last4: payload.TranzactionInfo?.Last4CardDigits,
+      },
+    },
+    async (tx) => {
+      const now = new Date();
+
+      // עדכון CardcomTransaction — מצב טרמינלי בלבד (לא לדרוס APPROVED/DECLINED קודם).
+      const newStatus =
+        outcome.action === "CREATE_TOKEN" ? "APPROVED" : "DECLINED";
+      const upd = await tx.cardcomTransaction.updateMany({
+        where: {
+          id: transaction.id,
+          status:
+            newStatus === "APPROVED"
+              ? { notIn: ["APPROVED", "REFUNDED", "CANCELLED"] }
+              : { notIn: ["APPROVED", "REFUNDED"] },
+        },
+        data: {
+          status: newStatus,
+          cardLast4:
+            payload.TranzactionInfo?.Last4CardDigits ?? transaction.cardLast4,
+          cardHolder:
+            payload.TranzactionInfo?.CardOwnerName ?? transaction.cardHolder,
+          cardBrand: payload.TranzactionInfo?.CardName ?? null,
+          token: payload.TranzactionInfo?.Token ?? null,
+          tokenExpiryMonth: payload.TranzactionInfo?.CardExpirationMM
+            ? Number(payload.TranzactionInfo.CardExpirationMM)
+            : null,
+          tokenExpiryYear: payload.TranzactionInfo?.CardExpirationYY
+            ? 2000 + Number(payload.TranzactionInfo.CardExpirationYY)
+            : null,
+          errorCode: outcome.action === "CREATE_TOKEN" ? null : responseCode,
+          errorMessage:
+            outcome.action === "CREATE_TOKEN"
+              ? null
+              : scrubCardcomMessage(payload.Description),
+          rawResponse: sanitizeCardcomPayload(payload as unknown as object),
+          completedAt: now,
+        },
+      });
+      if (upd.count === 0) {
+        logger.info(
+          "[cardcom-admin] UPDATE_CARD already terminal — skipping",
+          { transactionId: transaction.id }
+        );
+        return;
+      }
+
+      if (outcome.action !== "CREATE_TOKEN") {
+        // נכשל / לא נשמר טוקן — אין מה לעדכן עוד.
+        logger.warn("[cardcom-admin] UPDATE_CARD did not produce token", {
+          transactionId: transaction.id,
+          outcome: outcome.action,
+          responseCode,
+        });
+        return;
+      }
+
+      const tokenStr = payload.TranzactionInfo?.Token;
+      if (!tokenStr) {
+        // type-narrowing — outcome.action === CREATE_TOKEN מבטיח שזה לא יקרה
+        logger.error("[cardcom-admin] UPDATE_CARD: outcome=CREATE_TOKEN but token missing", {
+          transactionId: transaction.id,
+        });
+        return;
+      }
+
+      const tokenHash = hashCardcomToken(tokenStr);
+      const userId = transaction.userId!;
+
+      // upsert לפי tokenHash. אם המשתמש מעדכן ל-token שכבר היה לו (אותו כרטיס) —
+      // נשתמש ברשומה הקיימת. אחרת — ניצור חדשה.
+      const existing =
+        (await tx.savedCardToken.findFirst({
+          where: { tenant: "ADMIN", tokenHash, subscriberId: userId },
+        })) ??
+        (await tx.savedCardToken.findFirst({
+          where: {
+            tenant: "ADMIN",
+            token: tokenStr,
+            tokenHash: null,
+            subscriberId: userId,
+          },
+        }));
+      let savedTokenId: string;
+      if (existing) {
+        const updated = await tx.savedCardToken.update({
+          where: { id: existing.id },
+          data: {
+            isActive: true,
+            deletedAt: null,
+            lastUsedAt: now,
+            tokenHash,
+            cardLast4:
+              payload.TranzactionInfo?.Last4CardDigits ?? existing.cardLast4,
+            cardHolder:
+              payload.TranzactionInfo?.CardOwnerName ?? existing.cardHolder,
+            cardBrand: payload.TranzactionInfo?.CardName ?? existing.cardBrand,
+            expiryMonth: outcome.expiryMonth,
+            expiryYear: outcome.expiryYear,
+          },
+        });
+        savedTokenId = updated.id;
+      } else {
+        const created = await tx.savedCardToken.create({
+          data: {
+            tenant: "ADMIN",
+            subscriberId: userId,
+            token: tokenStr,
+            tokenHash,
+            cardLast4: payload.TranzactionInfo?.Last4CardDigits ?? "0000",
+            cardHolder: payload.TranzactionInfo?.CardOwnerName ?? "",
+            cardBrand: payload.TranzactionInfo?.CardName ?? null,
+            expiryMonth: outcome.expiryMonth,
+            expiryYear: outcome.expiryYear,
+          },
+        });
+        savedTokenId = created.id;
+      }
+
+      // סימון שאר הטוקנים של אותו user כ-inactive (idempotent).
+      // סוכן 4 #8 + סוכן 5 #11: מסננים במפורש `clientId: null` כדי לא להשפיע
+      // על טוקני clinic-clients (טוקנים שהמטפל שמר עבור הלקוחות שלו).
+      // Race UPDATE_CARD: ה-tx כאן בתוך withAudit Serializable + מסומן
+      // last-writer-wins ע"י `id: not: savedTokenId`. תיאורטית 2 webhooks
+      // מקבילים יוצרים זמן קצר עם 2 active, אבל הסופי דטרמיניסטי לפי סדר
+      // commit. אם זה יהפוך לבעיה אמיתית — לעבור ל-advisory_xact_lock.
+      await tx.savedCardToken.updateMany({
+        where: {
+          tenant: "ADMIN",
+          subscriberId: userId,
+          clientId: null,
+          isActive: true,
+          id: { not: savedTokenId },
+        },
+        data: {
+          isActive: false,
+          deletedAt: now,
+        },
+      });
+
+      // סוכן 4 #9 — TOCTOU: בדיקה מחודשת של billingPaidByClinic לפני wiring.
+      // אם הקליניקה שינתה אותו ל-true בין יצירת ה-transaction להגעת ה-webhook,
+      // אסור לחבר את הטוקן ל-SPs — אחרת cron החיוב יחייב את המשתמש למרות
+      // שהקליניקה משלמת.
+      const userNow = await tx.user.findUnique({
+        where: { id: userId },
+        select: { billingPaidByClinic: true },
+      });
+      if (userNow?.billingPaidByClinic) {
+        logger.warn(
+          "[cardcom-admin] UPDATE_CARD: billingPaidByClinic became true mid-flow — saving token but not wiring",
+          { userId, transactionId: transaction.id }
+        );
+        return;
+      }
+
+      // חיבור כל ה-SubscriptionPayments הפעילים של המשתמש לטוקן החדש כדי
+      // שחיוב חוזר ייגע בכרטיס המעודכן. autoChargeEnabled לא משתנה — אם
+      // המשתמש ביטל חידוש, ה-update לא מחזיר חיוב.
+      const wired = await tx.subscriptionPayment.updateMany({
+        where: {
+          userId,
+          status: { in: ["PAID", "PENDING"] },
+          nextChargeAt: { not: null },
+        },
+        data: {
+          savedCardTokenId: savedTokenId,
+        },
+      });
+
+      logger.info("[cardcom-admin] UPDATE_CARD complete", {
+        userId,
+        transactionId: transaction.id,
+        savedTokenId,
+        wiredSubscriptions: wired.count,
+        last4: payload.TranzactionInfo?.Last4CardDigits,
+      });
+    }
+  );
 }

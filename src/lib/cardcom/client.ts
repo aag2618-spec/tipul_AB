@@ -65,7 +65,14 @@ export class CardcomClient {
    * arrives later via webhook to `webhookUrl`.
    */
   async createPaymentPage(opts: CreatePaymentPageOptions): Promise<CreatePaymentPageResult> {
-    const operation = opts.createToken ? 'ChargeAndCreateToken' : 'ChargeOnly';
+    // CreateTokenOnly גובר על createToken. ב-CreateTokenOnly Cardcom שומר
+    // טוקן בלי לחייב כסף — משמש לעדכון כרטיס שמור (Stage 4) בלי לחייב את
+    // הלקוח. החיסרון: לא נוצרת קבלה (אין חיוב), אז אנחנו לא שולחים Document.
+    const operation = opts.createTokenOnly
+      ? 'CreateTokenOnly'
+      : opts.createToken
+        ? 'ChargeAndCreateToken'
+        : 'ChargeOnly';
 
     const body = {
       TerminalNumber: this.config.terminalNumber,
@@ -82,18 +89,23 @@ export class CardcomClient {
       // Cardcom-side idempotency: prevents creating a second LowProfile if our
       // HTTP retries after Cardcom already accepted the first request.
       ...(opts.uniqueAsmachta ? { UniqueAsmachta: opts.uniqueAsmachta } : {}),
-      Document: {
-        DocumentTypeToCreate: opts.documentType,
-        Name: opts.customer.name,
-        TaxId: opts.customer.taxId,
-        Email: opts.customer.email,
-        IsSendByEmail: !!opts.customer.email,
-        Products: opts.products.map((p) => ({
-          Description: p.description,
-          UnitCost: p.unitCost,
-          Quantity: p.quantity,
-        })),
-      },
+      // Document — רק אם יש חיוב בפועל. ב-CreateTokenOnly אין חיוב → אין קבלה.
+      ...(opts.createTokenOnly
+        ? {}
+        : {
+            Document: {
+              DocumentTypeToCreate: opts.documentType,
+              Name: opts.customer.name,
+              TaxId: opts.customer.taxId,
+              Email: opts.customer.email,
+              IsSendByEmail: !!opts.customer.email,
+              Products: opts.products.map((p) => ({
+                Description: p.description,
+                UnitCost: p.unitCost,
+                Quantity: p.quantity,
+              })),
+            },
+          }),
       ...(opts.numOfPayments && opts.numOfPayments > 1
         ? {
             UIDefinition: {

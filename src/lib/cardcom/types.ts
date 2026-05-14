@@ -39,6 +39,14 @@ export interface CreatePaymentPageOptions {
   webhookUrl: string;
   /** Should Cardcom save a token (Low-Profile token) for recurring billing? */
   createToken?: boolean;
+  /**
+   * Operation=CreateTokenOnly — שמירת טוקן בלי חיוב כסף.
+   * משמש לעדכון כרטיס שמור (שלב 4). אם true:
+   *  - createToken מתעלם (Operation = CreateTokenOnly ממילא שומר טוקן).
+   *  - amount עדיין נשלח ל-Cardcom (חלק מסכמות API) אבל לא ייגבה. מקובל לשלוח 0.
+   *  - Document לא נוצר (אין חיוב → אין קבלה).
+   */
+  createTokenOnly?: boolean;
   /** 1 = single payment (default for ADMIN). 2-36 allowed for USER flow. */
   numOfPayments?: number;
   language?: 'he' | 'en';
