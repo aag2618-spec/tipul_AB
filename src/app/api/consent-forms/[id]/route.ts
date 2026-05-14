@@ -80,6 +80,21 @@ export async function GET(
   }
 }
 
+// M16: signatureData validation למניעת:
+//   • XSS דרך SVG data URI עם <script> (אם החתימה תוצג כ-<img src>)
+//   • DoS דרך data URI ענק
+//   • Type confusion (json/html/text במקום image)
+// פורמט מותר: data:image/(png|jpeg);base64,<base64>
+// SVG נחסם מכוונה — SVG יכול להריץ JS, וחתימה אמיתית היא תמיד PNG/JPEG.
+const MAX_SIGNATURE_DATA_LENGTH = 200_000; // ~150KB base64 = ~110KB PNG מקורי
+const SIGNATURE_DATA_PATTERN = /^data:image\/(png|jpeg|jpg);base64,[A-Za-z0-9+/=]+$/;
+
+function isValidSignatureData(input: unknown): input is string {
+  if (typeof input !== "string") return false;
+  if (input.length > MAX_SIGNATURE_DATA_LENGTH) return false;
+  return SIGNATURE_DATA_PATTERN.test(input);
+}
+
 export async function PATCH(
   request: Request,
   { params }: { params: Promise<{ id: string }> }
@@ -92,6 +107,17 @@ export async function PATCH(
     const { id } = await params;
     const body = await request.json();
     const { signatureData } = body;
+
+    // M16: ולידציה לפני כל גישה ל-DB.
+    if (!isValidSignatureData(signatureData)) {
+      return NextResponse.json(
+        {
+          message:
+            "פורמט חתימה לא תקין. נדרשת תמונה (PNG/JPEG) בקידוד base64, עד 150KB.",
+        },
+        { status: 400 }
+      );
+    }
 
     const scopeUser = await loadScopeUser(userId);
     // POST/יצירה דורש canViewConsentForms — חתימה/עדכון אדמיניסטרטיבי גם.

@@ -279,7 +279,18 @@ export async function POST(
     );
   }
 
-  const body = await request.json();
+  // M14: הגנה על body — אם גוף הבקשה אינו object (null/array/string) זרוק 400
+  // לפני destructuring (שיוצר undefined silently ועלול לעבור validation לא עקבי).
+  let body: Record<string, unknown>;
+  try {
+    const raw = await request.json();
+    if (!raw || typeof raw !== "object" || Array.isArray(raw)) {
+      return NextResponse.json({ message: "גוף בקשה לא תקין" }, { status: 400 });
+    }
+    body = raw as Record<string, unknown>;
+  } catch {
+    return NextResponse.json({ message: "גוף בקשה לא תקין (JSON)" }, { status: 400 });
+  }
   const { date, time, clientName, clientPhone, clientEmail, notes, hp } = body;
 
   // Honeypot — שדה נסתר שבני אדם לא ממלאים, רק בוטים.
@@ -297,6 +308,32 @@ export async function POST(
       { message: "חסרים שדות חובה: תאריך, שעה ושם" },
       { status: 400 }
     );
+  }
+
+  // M14: notes חייב להיות string או undefined. מקסימום 1000 תווים — תואם
+  // ל-slice ב-DB write (שורה למטה בקריאת prisma.therapySession.create).
+  if (notes !== undefined && notes !== null && typeof notes !== "string") {
+    return NextResponse.json({ message: "הערות חייבות להיות טקסט" }, { status: 400 });
+  }
+  if (typeof notes === "string" && notes.length > 1000) {
+    return NextResponse.json(
+      { message: "הערות ארוכות מדי (מקסימום 1000 תווים)" },
+      { status: 400 }
+    );
+  }
+  // Type-guards לשדות הבסיסיים (date/time/name) — destructuring יוצר unknown,
+  // הregex-validation שלמטה מפיל הכל מלבד strings תקפים, אבל עדיף שגיאה ברורה.
+  if (typeof date !== "string" || typeof time !== "string" || typeof clientName !== "string") {
+    return NextResponse.json(
+      { message: "פורמט שדות לא תקין" },
+      { status: 400 }
+    );
+  }
+  if (clientPhone !== undefined && clientPhone !== null && typeof clientPhone !== "string") {
+    return NextResponse.json({ message: "טלפון חייב להיות טקסט" }, { status: 400 });
+  }
+  if (clientEmail !== undefined && clientEmail !== null && typeof clientEmail !== "string") {
+    return NextResponse.json({ message: "מייל חייב להיות טקסט" }, { status: 400 });
   }
 
   // ולידציה של שם לקוח — חוסמת דפוסים חשודים (test, admin, מדינת ישראל וכו')

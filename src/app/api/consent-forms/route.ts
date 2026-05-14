@@ -1,4 +1,5 @@
 import { NextResponse } from "next/server";
+import { ConsentType } from "@prisma/client";
 import prisma from "@/lib/prisma";
 import { logger } from "@/lib/logger";
 
@@ -67,6 +68,22 @@ export async function GET(request: Request) {
   }
 }
 
+// M14/M15: input validation למניעת stored XSS וDoS.
+// content יכול להכיל HTML formatted (rich text editor) — לא נחסום HTML
+// אבל נגביל גודל. ה-rendering בצד client חייב להשתמש ב-sanitizer נפרד
+// (DOMPurify / sanitize-html) — אכיפה דו-שכבתית.
+const MAX_TITLE_LENGTH = 200;
+const MAX_CONTENT_LENGTH = 50_000; // ~10 דפי A4
+const ALLOWED_FORM_TYPES = [
+  "TREATMENT_AGREEMENT",
+  "INFORMED_CONSENT",
+  "CONFIDENTIALITY",
+  "RECORDING_CONSENT",
+  "TELEHEALTH_CONSENT",
+  "PARENTAL_CONSENT",
+  "CUSTOM",
+] as const satisfies readonly ConsentType[];
+
 export async function POST(request: Request) {
   try {
     const auth = await requireAuth();
@@ -82,8 +99,47 @@ export async function POST(request: Request) {
     }
     const clientWhere = buildClientWhere(scopeUser);
 
-    const body = await request.json();
+    const body = (await request.json()) as Record<string, unknown>;
     const { type, title, content, isTemplate, clientId } = body;
+
+    // M14/M15: validation מקיף לפני יצירת רשומה.
+    if (typeof title !== "string" || title.trim().length === 0) {
+      return NextResponse.json({ message: "כותרת חובה" }, { status: 400 });
+    }
+    if (title.length > MAX_TITLE_LENGTH) {
+      return NextResponse.json(
+        { message: `כותרת ארוכה מדי (מקסימום ${MAX_TITLE_LENGTH} תווים)` },
+        { status: 400 }
+      );
+    }
+    if (typeof content !== "string" || content.trim().length === 0) {
+      return NextResponse.json({ message: "תוכן חובה" }, { status: 400 });
+    }
+    if (content.length > MAX_CONTENT_LENGTH) {
+      return NextResponse.json(
+        { message: `תוכן ארוך מדי (מקסימום ${MAX_CONTENT_LENGTH} תווים)` },
+        { status: 400 }
+      );
+    }
+    if (typeof type !== "string" || !ALLOWED_FORM_TYPES.includes(type as (typeof ALLOWED_FORM_TYPES)[number])) {
+      return NextResponse.json(
+        { message: "סוג טופס לא תקין" },
+        { status: 400 }
+      );
+    }
+    const validatedType = type as (typeof ALLOWED_FORM_TYPES)[number];
+    if (typeof isTemplate !== "boolean") {
+      return NextResponse.json(
+        { message: "isTemplate חייב להיות boolean" },
+        { status: 400 }
+      );
+    }
+    if (clientId !== undefined && clientId !== null && typeof clientId !== "string") {
+      return NextResponse.json(
+        { message: "clientId לא תקין" },
+        { status: 400 }
+      );
+    }
 
     // אם נשלח clientId — וודא שהוא בתוך ה-scope של המשתמש.
     if (clientId) {
@@ -98,8 +154,8 @@ export async function POST(request: Request) {
 
     const form = await prisma.consentForm.create({
       data: {
-        type,
-        title,
+        type: validatedType,
+        title: title.trim(),
         content,
         isTemplate,
         clientId: clientId || null,
