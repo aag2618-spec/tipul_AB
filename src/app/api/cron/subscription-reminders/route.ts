@@ -11,6 +11,7 @@ import { logger } from "@/lib/logger";
 import { isShabbatOrYomTov } from "@/lib/shabbat";
 import { checkCronAuth } from "@/lib/cron-auth";
 import { withAudit } from "@/lib/audit";
+import { sendAccountBlockedEmail } from "@/lib/emails/dunning";
 
 // ========================================
 // הגדרות
@@ -519,12 +520,95 @@ export async function GET(req: NextRequest) {
       }
     }
 
+    // ========================================
+    // 7. PAST_DUE safety net — חיוב חוזר נכשל 3 פעמים + grace עבר
+    // ========================================
+    // chargeNextSubscription מטפל בחסימה אחרי 3 ניסיונות, אבל אם הוא נכשל
+    // (DB error, deploy crash), המשתמש יישאר תקוע ב-PAST_DUE לעד.
+    // ה-branch הזה הוא safety net: מחפש sp עם chargeAttempts>=3 שעברו
+    // GRACE_PERIOD_DAYS מהניסיון האחרון — חוסם + שולח accountBlocked.
+    const graceCutoffForPastDue = new Date(
+      now.getTime() - GRACE_PERIOD_DAYS * 24 * 60 * 60 * 1000
+    );
+    const stuckPastDue = await prisma.subscriptionPayment.findMany({
+      where: {
+        chargeAttempts: { gte: 3 },
+        lastAttemptAt: { lt: graceCutoffForPastDue },
+        user: {
+          isBlocked: false,
+          isFreeSubscription: false,
+          // הקליניקה משלמת — אין dunning אישי
+          billingPaidByClinic: false,
+        },
+      },
+      select: {
+        id: true,
+        amount: true,
+        user: {
+          select: {
+            id: true,
+            name: true,
+            email: true,
+            aiTier: true,
+            subscriptionStatus: true,
+          },
+        },
+      },
+      take: 50,
+    });
+
+    for (const sp of stuckPastDue) {
+      if (!sp.user) continue;
+      try {
+        await withAudit(
+          { kind: "system", source: "CRON", externalRef: "subscription-reminders-past-due-safety-net" },
+          {
+            action: "block_user_past_due_grace_expired",
+            targetType: "user",
+            targetId: sp.user.id,
+            details: {
+              subscriptionPaymentId: sp.id,
+              email: sp.user.email,
+              previousStatus: sp.user.subscriptionStatus,
+              reason: "past_due_3_attempts_grace_ended",
+              blockedAt: now.toISOString(),
+            },
+          },
+          async (tx) =>
+            tx.user.update({
+              where: { id: sp.user.id },
+              data: {
+                isBlocked: true,
+                blockReason: "DEBT",
+                blockedAt: now,
+                blockedBy: null,
+              },
+            })
+        );
+
+        // dunning final email (אם chargeNextSubscription לא הספיק לשלוח).
+        // sendAccountBlockedEmail עצמו תופס errors כך שלא יפיל את הflow.
+        if (sp.user.email) {
+          await sendAccountBlockedEmail({
+            email: sp.user.email,
+            name: sp.user.name,
+            planTier: sp.user.aiTier,
+            amount: Number(sp.amount),
+          });
+        }
+      } catch (err) {
+        const msg = err instanceof Error ? err.message : String(err);
+        results.errors.push(`Past-due block failed for sp ${sp.id}: ${msg}`);
+      }
+    }
+
     logger.info("Subscription reminders results:", { data: results });
 
     return NextResponse.json({
       success: true,
       timestamp: now.toISOString(),
       results,
+      pastDueBlocked: stuckPastDue.length,
     });
   } catch (error) {
     logger.error("Subscription reminders cron error:", { error: error instanceof Error ? error.message : String(error) });
