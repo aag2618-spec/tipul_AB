@@ -12,29 +12,27 @@ import { NextRequest, NextResponse } from "next/server";
 import prisma from "@/lib/prisma";
 import { logger } from "@/lib/logger";
 import { requirePermission } from "@/lib/api-auth";
+import { parseSearchParams } from "@/lib/validations/helpers";
+import { dataAccessAuditQuerySchema } from "@/lib/validations/admin";
 
 export const dynamic = "force-dynamic";
-
-const PAGE_SIZE = 50;
-const MAX_PAGE_SIZE = 200;
 
 export async function GET(request: NextRequest) {
   try {
     const auth = await requirePermission("audit.view_all");
     if ("error" in auth) return auth.error;
 
-    const sp = request.nextUrl.searchParams;
-    const page = Math.max(1, parseInt(sp.get("page") || "1", 10));
-    const requestedSize = parseInt(sp.get("size") || String(PAGE_SIZE), 10);
-    const size = Math.min(MAX_PAGE_SIZE, Math.max(1, requestedSize));
-
-    const userId = sp.get("userId")?.trim() || undefined;
-    const recordType = sp.get("recordType")?.trim() || undefined;
-    const recordId = sp.get("recordId")?.trim() || undefined;
-    const action = sp.get("action")?.trim() || undefined;
-    const clientId = sp.get("clientId")?.trim() || undefined;
-    const fromRaw = sp.get("from")?.trim();
-    const toRaw = sp.get("to")?.trim();
+    const parsedQuery = parseSearchParams(request.url, dataAccessAuditQuerySchema);
+    if ("error" in parsedQuery) return parsedQuery.error;
+    const page = parsedQuery.data.page ?? 1;
+    const size = parsedQuery.data.size ?? 50;
+    const userId = parsedQuery.data.userId?.trim() || undefined;
+    const recordType = parsedQuery.data.recordType?.trim() || undefined;
+    const recordId = parsedQuery.data.recordId?.trim() || undefined;
+    const action = parsedQuery.data.action?.trim() || undefined;
+    const clientId = parsedQuery.data.clientId?.trim() || undefined;
+    const fromRaw = parsedQuery.data.from?.trim();
+    const toRaw = parsedQuery.data.to?.trim();
 
     const where: Record<string, unknown> = {};
     if (userId) where.userId = userId;

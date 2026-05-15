@@ -3,6 +3,8 @@ import { Prisma } from "@prisma/client";
 import prisma from "@/lib/prisma";
 import { logger } from "@/lib/logger";
 import { requirePermission } from "@/lib/api-auth";
+import { parseSearchParams } from "@/lib/validations/helpers";
+import { ownerCandidatesQuerySchema } from "@/lib/validations/admin";
 
 export const dynamic = "force-dynamic";
 
@@ -14,10 +16,11 @@ export async function GET(request: NextRequest) {
     const auth = await requirePermission("settings.pricing");
     if ("error" in auth) return auth.error;
 
-    const { searchParams } = new URL(request.url);
-    const q = searchParams.get("q")?.trim() || "";
-    const excludeOrgId = searchParams.get("excludeOrgId") || undefined;
-    const limit = Math.min(Number(searchParams.get("limit") || "20"), 50);
+    const parsedQuery = parseSearchParams(request.url, ownerCandidatesQuerySchema);
+    if ("error" in parsedQuery) return parsedQuery.error;
+    const q = (parsedQuery.data.q ?? "").trim();
+    const excludeOrgId = parsedQuery.data.excludeOrgId ?? undefined;
+    const limit = parsedQuery.data.limit ?? 20;
 
     if (q.length < 2) {
       return NextResponse.json([]);

@@ -3,6 +3,8 @@ import { prisma } from "@/lib/prisma";
 import { logger } from "@/lib/logger";
 
 import { requirePermission } from "@/lib/api-auth";
+import { parseSearchParams } from "@/lib/validations/helpers";
+import { adminSearchQuerySchema } from "@/lib/validations/admin";
 
 export const dynamic = "force-dynamic";
 
@@ -11,7 +13,9 @@ export async function GET(request: NextRequest) {
     const auth = await requirePermission("users.view");
     if ("error" in auth) return auth.error;
 
-    const q = request.nextUrl.searchParams.get("q")?.trim() || "";
+    const parsedQuery = parseSearchParams(request.url, adminSearchQuerySchema);
+    if ("error" in parsedQuery) return parsedQuery.error;
+    const q = (parsedQuery.data.q ?? "").trim();
     if (!q) {
       return NextResponse.json({ results: [] });
     }

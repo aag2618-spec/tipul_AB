@@ -348,6 +348,54 @@ const SUBSCRIPTION_STATUSES = [
   "PAUSED",
 ] as const;
 
+// === GET /api/admin/clinics/transfers (search params) =========================
+export const clinicTransfersQuerySchema = z.object({
+  orgId: z.string().max(64).optional().nullable(),
+  from: z.string().max(64).optional().nullable(),
+  to: z.string().max(64).optional().nullable(),
+  limit: z.coerce.number().int().min(1).max(1000).default(200),
+});
+export type ClinicTransfersQuery = z.infer<typeof clinicTransfersQuerySchema>;
+
+// === GET /api/admin/clinics/owner-candidates (search params) ==================
+export const ownerCandidatesQuerySchema = z.object({
+  q: z.string().max(200).optional().nullable(),
+  excludeOrgId: z.string().max(64).optional().nullable(),
+  limit: z.coerce.number().int().min(1).max(50).default(20),
+});
+export type OwnerCandidatesQuery = z.infer<typeof ownerCandidatesQuerySchema>;
+
+// === GET /api/admin/audit-log (search params) ================================
+export const auditLogQuerySchema = z.object({
+  page: z.coerce.number().int().min(1).max(10_000).default(1),
+  action: z.string().max(100).optional().nullable(),
+  from: z.string().max(64).optional().nullable(),
+  to: z.string().max(64).optional().nullable(),
+  userId: zId.optional().nullable(),
+  targetId: zId.optional().nullable(),
+});
+export type AuditLogQuery = z.infer<typeof auditLogQuerySchema>;
+
+// === GET /api/admin/audit/data-access (search params) ========================
+export const dataAccessAuditQuerySchema = z.object({
+  page: z.coerce.number().int().min(1).max(10_000).default(1),
+  size: z.coerce.number().int().min(1).max(200).default(50),
+  userId: zId.optional().nullable(),
+  recordType: z.string().max(64).optional().nullable(),
+  recordId: zId.optional().nullable(),
+  action: z.string().max(64).optional().nullable(),
+  clientId: zId.optional().nullable(),
+  from: z.string().max(64).optional().nullable(),
+  to: z.string().max(64).optional().nullable(),
+});
+export type DataAccessAuditQuery = z.infer<typeof dataAccessAuditQuerySchema>;
+
+// === GET /api/admin/search (search params) ===================================
+export const adminSearchQuerySchema = z.object({
+  q: z.string().max(200).optional().nullable(),
+});
+export type AdminSearchQuery = z.infer<typeof adminSearchQuerySchema>;
+
 export const updateClinicSchema = z
   .object({
     name: z.string().trim().max(MAX_NAME_LEN).optional(),

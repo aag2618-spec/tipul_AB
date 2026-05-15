@@ -4,6 +4,8 @@ import { logger } from "@/lib/logger";
 import { parseIsraelTime } from "@/lib/date-utils";
 
 import { requirePermission } from "@/lib/api-auth";
+import { parseSearchParams } from "@/lib/validations/helpers";
+import { auditLogQuerySchema } from "@/lib/validations/admin";
 
 export const dynamic = "force-dynamic";
 
@@ -16,14 +18,15 @@ export async function GET(request: NextRequest) {
     const { session } = auth;
     const isAdmin = session.user.role === "ADMIN";
 
-    const searchParams = request.nextUrl.searchParams;
-    const page = parseInt(searchParams.get("page") || "1", 10);
+    const parsedQuery = parseSearchParams(request.url, auditLogQuerySchema);
+    if ("error" in parsedQuery) return parsedQuery.error;
+    const page = parsedQuery.data.page ?? 1;
     const limit = 20;
-    const action = searchParams.get("action") || "";
-    const from = searchParams.get("from") || "";
-    const to = searchParams.get("to") || "";
-    const userIdFilter = searchParams.get("userId") || "";
-    const targetIdFilter = searchParams.get("targetId") || "";
+    const action = parsedQuery.data.action || "";
+    const from = parsedQuery.data.from || "";
+    const to = parsedQuery.data.to || "";
+    const userIdFilter = parsedQuery.data.userId || "";
+    const targetIdFilter = parsedQuery.data.targetId || "";
 
     const where: Record<string, unknown> = {};
 

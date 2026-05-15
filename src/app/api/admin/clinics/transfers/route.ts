@@ -3,6 +3,8 @@ import { Prisma } from "@prisma/client";
 import prisma from "@/lib/prisma";
 import { logger } from "@/lib/logger";
 import { requirePermission } from "@/lib/api-auth";
+import { parseSearchParams } from "@/lib/validations/helpers";
+import { clinicTransfersQuerySchema } from "@/lib/validations/admin";
 
 export const dynamic = "force-dynamic";
 
@@ -12,11 +14,10 @@ export async function GET(request: NextRequest) {
     const auth = await requirePermission("settings.pricing");
     if ("error" in auth) return auth.error;
 
-    const { searchParams } = new URL(request.url);
-    const orgId = searchParams.get("orgId") || undefined;
-    const fromDate = searchParams.get("from") || undefined;
-    const toDate = searchParams.get("to") || undefined;
-    const limit = Math.min(Number(searchParams.get("limit") || "200"), 1000);
+    const parsedQuery = parseSearchParams(request.url, clinicTransfersQuerySchema);
+    if ("error" in parsedQuery) return parsedQuery.error;
+    const { orgId, from: fromDate, to: toDate } = parsedQuery.data;
+    const limit = parsedQuery.data.limit ?? 200;
 
     const where: Prisma.ClientTransferLogWhereInput = {};
     if (orgId) where.organizationId = orgId;
