@@ -22,6 +22,8 @@ import {
 import { toast } from "sonner";
 import Link from "next/link";
 import { BlockUserDialog, type BlockReason } from "@/components/admin/block-user-dialog";
+import { SubscriptionActionsCard } from "@/components/admin/subscription-actions-card";
+import SubscriptionAdminCard from "@/components/admin/subscription-admin-card";
 
 interface UserProfile {
   id: string;
@@ -240,22 +242,11 @@ export default function UserProfilePage() {
               <span className="text-muted-foreground">סטטוס מנוי</span>
               <span>{STATUS_LABELS[user.subscriptionStatus || ""] || user.subscriptionStatus || "לא מוגדר"}</span>
             </div>
-            {user.isFreeSubscription && (
-              <div className="flex justify-between">
-                <span className="text-muted-foreground">מנוי חינם</span>
-                <Badge className="bg-green-500">כן</Badge>
-              </div>
-            )}
+            {/* isFreeSubscription + trialEndsAt — מוצגים בכרטיס SubscriptionActionsCard למטה (לא לכפול) */}
             <div className="flex justify-between">
               <span className="text-muted-foreground">נרשם</span>
               <span>{new Date(user.createdAt).toLocaleDateString("he-IL")}</span>
             </div>
-            {user.trialEndsAt && (
-              <div className="flex justify-between">
-                <span className="text-muted-foreground">סיום ניסיון</span>
-                <span>{new Date(user.trialEndsAt).toLocaleDateString("he-IL")}</span>
-              </div>
-            )}
           </CardContent>
         </Card>
 
@@ -288,6 +279,19 @@ export default function UserProfilePage() {
           </CardContent>
         </Card>
       </div>
+
+      {/* Stage 6 — פעולות אדמין על מנוי המשתמש */}
+      <SubscriptionActionsCard
+        userId={user.id}
+        aiTier={user.aiTier as "ESSENTIAL" | "PRO" | "ENTERPRISE"}
+        isFreeSubscription={user.isFreeSubscription}
+        freeSubscriptionNote={user.freeSubscriptionNote}
+        trialEndsAtIso={user.trialEndsAt}
+        onUpdated={fetchUser}
+      />
+
+      {/* Stage 6 — היסטוריית תשלומים+חבילות+החזר כספי (משלים ל-Actions). */}
+      <SubscriptionAdminCard userId={user.id} />
 
       {/* שורה שניה — סטטיסטיקות */}
       <div className="grid gap-4 md:grid-cols-3 lg:grid-cols-5">
@@ -328,41 +332,8 @@ export default function UserProfilePage() {
         </Card>
       </div>
 
-      {/* שורה שלישית — תשלומים + פניות */}
+      {/* שורה רביעית — פניות בלבד */}
       <div className="grid gap-6 lg:grid-cols-2">
-        <Card>
-          <CardHeader>
-            <CardTitle className="text-base flex items-center gap-2">
-              <CreditCard className="h-4 w-4" />
-              תשלומים אחרונים
-            </CardTitle>
-          </CardHeader>
-          <CardContent>
-            {user.subscriptionPayments.length === 0 ? (
-              <p className="text-sm text-muted-foreground text-center py-4">אין תשלומים</p>
-            ) : (
-              <div className="space-y-2">
-                {user.subscriptionPayments.map((p) => (
-                  <div key={p.id} className="flex items-center justify-between py-2 border-b border-border last:border-0">
-                    <div>
-                      <p className="text-sm font-medium">{p.description || "תשלום"}</p>
-                      <p className="text-xs text-muted-foreground">
-                        {new Date(p.paidAt || p.createdAt).toLocaleDateString("he-IL")}
-                      </p>
-                    </div>
-                    <div className="text-left">
-                      <p className="font-medium">₪{Number(p.amount).toLocaleString()}</p>
-                      <Badge variant={p.status === "PAID" ? "outline" : "secondary"} className="text-xs">
-                        {p.status === "PAID" ? "שולם" : p.status === "PENDING" ? "ממתין" : p.status}
-                      </Badge>
-                    </div>
-                  </div>
-                ))}
-              </div>
-            )}
-          </CardContent>
-        </Card>
-
         <Card>
           <CardHeader>
             <CardTitle className="text-base flex items-center gap-2">
