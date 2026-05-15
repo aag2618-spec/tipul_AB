@@ -7,6 +7,8 @@ import prisma from "@/lib/prisma";
 import { logger } from "@/lib/logger";
 
 import { requirePermission } from "@/lib/api-auth";
+import { parseSearchParams } from "@/lib/validations/helpers";
+import { termsQuerySchema } from "@/lib/validations/admin";
 
 export const dynamic = "force-dynamic";
 
@@ -15,11 +17,13 @@ export async function GET(request: NextRequest) {
     const auth = await requirePermission("settings.terms");
     if ("error" in auth) return auth.error;
 
-    // פרמטרים
-    const { searchParams } = new URL(request.url);
-    const userId = searchParams.get("userId");
-    const page = parseInt(searchParams.get("page") || "1");
-    const limit = parseInt(searchParams.get("limit") || "50");
+    const parsedQuery = parseSearchParams(request.url, termsQuerySchema);
+    if ("error" in parsedQuery) return parsedQuery.error;
+    // .default() ב-zod ממלא ערכים אבל ה-T שמופץ ל-parseSearchParams עוטף עם
+    // optional — לכן fallback מפורש כאן ל-TS narrowing.
+    const userId = parsedQuery.data.userId;
+    const page = parsedQuery.data.page ?? 1;
+    const limit = parsedQuery.data.limit ?? 50;
     const skip = (page - 1) * limit;
 
     // בניית query

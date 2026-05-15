@@ -4,6 +4,8 @@ import { logger } from "@/lib/logger";
 
 import { requirePermission } from "@/lib/api-auth";
 import { withAudit } from "@/lib/audit";
+import { parseBody } from "@/lib/validations/helpers";
+import { updateFeatureFlagSchema } from "@/lib/validations/admin";
 
 export const dynamic = "force-dynamic";
 
@@ -17,8 +19,9 @@ export async function PUT(
     const { session } = auth;
 
     const { id } = await params;
-    const body = await request.json();
-    const { isEnabled, tiers, name, description } = body;
+    const parsed = await parseBody(request, updateFeatureFlagSchema);
+    if ("error" in parsed) return parsed.error;
+    const { isEnabled, tiers, name, description } = parsed.data;
 
     const existing = await prisma.featureFlag.findUnique({ where: { id } });
     if (!existing) {

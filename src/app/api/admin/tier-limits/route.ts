@@ -4,6 +4,11 @@ import { logger } from "@/lib/logger";
 
 import { requirePermission } from "@/lib/api-auth";
 import { withAudit } from "@/lib/audit";
+import { parseBody } from "@/lib/validations/helpers";
+import {
+  updateTierLimitsSchema,
+  resetTierLimitsSchema,
+} from "@/lib/validations/admin";
 
 // ברירות מחדל למכסות לפי תוכנית.
 //
@@ -97,15 +102,9 @@ export async function PUT(req: NextRequest) {
     if ("error" in auth) return auth.error;
     const { session } = auth;
 
-    const body = await req.json();
-    const { tier, ...updateData } = body;
-
-    if (!tier) {
-      return NextResponse.json(
-        { message: "חסר שדה תוכנית" },
-        { status: 400 }
-      );
-    }
+    const parsed = await parseBody(req, updateTierLimitsSchema);
+    if ("error" in parsed) return parsed.error;
+    const { tier, ...updateData } = parsed.data;
 
     const previous = await prisma.tierLimits.findUnique({ where: { tier } });
 
@@ -155,8 +154,6 @@ export async function PUT(req: NextRequest) {
 }
 
 // POST - אתחול המכסות לברירות מחדל (פעולה הרסנית!)
-const RESET_CONFIRM_TOKEN = "RESET_TIER_LIMITS";
-
 export async function POST(req: NextRequest) {
   try {
     const auth = await requirePermission("settings.pricing");
@@ -164,16 +161,8 @@ export async function POST(req: NextRequest) {
     const { session } = auth;
 
     // Double-confirm: ה-UI חייב לשלוח confirm מפורש — מונע click בטעות.
-    const body = await req.json().catch(() => ({}));
-    if (body?.confirm !== RESET_CONFIRM_TOKEN) {
-      return NextResponse.json(
-        {
-          message:
-            "פעולה הרסנית: יש לשלוח confirm=\"RESET_TIER_LIMITS\" בגוף הבקשה כדי לאשר איפוס מלא של כל המכסות.",
-        },
-        { status: 400 }
-      );
-    }
+    const parsed = await parseBody(req, resetTierLimitsSchema);
+    if ("error" in parsed) return parsed.error;
 
     // שומר snapshot לפני ה-reset — כדי ש-audit יוכל לשחזר אם צריך.
     const previousLimits = await prisma.tierLimits.findMany({

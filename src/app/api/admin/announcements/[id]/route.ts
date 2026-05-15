@@ -4,6 +4,8 @@ import { logger } from "@/lib/logger";
 
 import { requirePermission } from "@/lib/api-auth";
 import { withAudit } from "@/lib/audit";
+import { parseBody } from "@/lib/validations/helpers";
+import { updateAnnouncementSchema } from "@/lib/validations/admin";
 
 export const dynamic = "force-dynamic";
 
@@ -20,7 +22,9 @@ export async function PUT(
     const { session } = auth;
 
     const { id } = await params;
-    const body = await req.json();
+    const parsed = await parseBody(req, updateAnnouncementSchema);
+    if ("error" in parsed) return parsed.error;
+    const body = parsed.data;
     const { title, content, type, isActive, showBanner, expiresAt } = body;
 
     const existing = await prisma.systemAnnouncement.findUnique({

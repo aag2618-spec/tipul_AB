@@ -9,6 +9,11 @@ import {
   saveAttachments,
   validateAttachments,
 } from "@/lib/support-attachments";
+import { parseBody } from "@/lib/validations/helpers";
+import {
+  updateSupportTicketSchema,
+  supportReplySchema,
+} from "@/lib/validations/admin";
 
 export const dynamic = "force-dynamic";
 
@@ -74,8 +79,9 @@ export async function PATCH(
     const { userId, session } = auth;
     const { id } = await params;
 
-    const body = await req.json();
-    const { status, adminNotes, priority } = body;
+    const parsed = await parseBody(req, updateSupportTicketSchema);
+    if ("error" in parsed) return parsed.error;
+    const { status, adminNotes, priority } = parsed.data;
 
     const updateData: Record<string, unknown> = {};
 
@@ -143,13 +149,13 @@ export async function POST(
       const formData = await req.formData();
       message = String(formData.get("message") || "");
       files = parseAttachmentsFromFormData(formData);
+      if (!message.trim()) {
+        return NextResponse.json({ message: "יש לכתוב הודעה" }, { status: 400 });
+      }
     } else {
-      const body = await req.json();
-      message = body.message || "";
-    }
-
-    if (!message.trim()) {
-      return NextResponse.json({ message: "יש לכתוב הודעה" }, { status: 400 });
+      const parsed = await parseBody(req, supportReplySchema);
+      if ("error" in parsed) return parsed.error;
+      message = parsed.data.message;
     }
 
     // ולידציית קבצים לפני הכל

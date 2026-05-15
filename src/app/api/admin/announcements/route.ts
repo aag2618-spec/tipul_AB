@@ -4,6 +4,8 @@ import { logger } from "@/lib/logger";
 
 import { requirePermission } from "@/lib/api-auth";
 import { withAudit } from "@/lib/audit";
+import { parseBody } from "@/lib/validations/helpers";
+import { createAnnouncementSchema } from "@/lib/validations/admin";
 
 export const dynamic = "force-dynamic";
 
@@ -48,15 +50,9 @@ export async function POST(req: NextRequest) {
     if ("error" in auth) return auth.error;
     const { session } = auth;
 
-    const body = await req.json();
-    const { title, content, type, expiresAt, showBanner } = body;
-
-    if (!title || !content) {
-      return NextResponse.json(
-        { message: "כותרת ותוכן הם שדות חובה" },
-        { status: 400 }
-      );
-    }
+    const parsed = await parseBody(req, createAnnouncementSchema);
+    if ("error" in parsed) return parsed.error;
+    const { title, content, type, expiresAt, showBanner } = parsed.data;
 
     const announcement = await withAudit(
       { kind: "user", session },

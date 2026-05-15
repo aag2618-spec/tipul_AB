@@ -6,6 +6,8 @@ import { logger } from "@/lib/logger";
 import { requirePermission } from "@/lib/api-auth";
 import { withAudit } from "@/lib/audit";
 import { DEFAULT_FEATURE_FLAGS } from "@/lib/defaults";
+import { parseBody } from "@/lib/validations/helpers";
+import { createFeatureFlagSchema } from "@/lib/validations/admin";
 
 async function seedDefaultFlags(session: Session) {
   // bootstrap חד-פעמי — רץ רק כאשר count=0. עטוף ב-withAudit כדי להשאיר רישום
@@ -69,15 +71,9 @@ export async function POST(request: NextRequest) {
     if ("error" in auth) return auth.error;
     const { session } = auth;
 
-    const body = await request.json();
-    const { key, name, description, tiers } = body;
-
-    if (!key || !name) {
-      return NextResponse.json(
-        { message: "חובה לציין key ו-name" },
-        { status: 400 }
-      );
-    }
+    const parsed = await parseBody(request, createFeatureFlagSchema);
+    if ("error" in parsed) return parsed.error;
+    const { key, name, description, tiers } = parsed.data;
 
     const existing = await prisma.featureFlag.findUnique({ where: { key } });
     if (existing) {

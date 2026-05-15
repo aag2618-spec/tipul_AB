@@ -7,6 +7,8 @@ import { logger } from "@/lib/logger";
 import { requirePermission, requireHighestPermission } from "@/lib/api-auth";
 import type { Permission } from "@/lib/permissions";
 import { withAudit } from "@/lib/audit";
+import { parseBody } from "@/lib/validations/helpers";
+import { updateTrialUserSchema } from "@/lib/validations/admin";
 
 export const dynamic = "force-dynamic";
 
@@ -94,12 +96,9 @@ export async function GET(req: NextRequest) {
 // PATCH: block/unblock trial user or convert to free subscription
 export async function PATCH(req: NextRequest) {
   try {
-    const body = await req.json();
-    const { userId, action, aiTier, note } = body;
-
-    if (!userId || !action) {
-      return NextResponse.json({ message: "חסר userId או action" }, { status: 400 });
-    }
+    const parsed = await parseBody(req, updateTrialUserSchema);
+    if ("error" in parsed) return parsed.error;
+    const { userId, action, aiTier, note } = parsed.data;
 
     // Collect+max permission pattern — פר action
     const required: Permission[] = [];

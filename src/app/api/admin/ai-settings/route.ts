@@ -9,6 +9,8 @@ import {
   DEFAULT_AI_SETTINGS,
   GLOBAL_AI_SETTINGS_ID,
 } from "@/lib/defaults";
+import { parseBody } from "@/lib/validations/helpers";
+import { updateAiSettingsSchema } from "@/lib/validations/admin";
 
 export const dynamic = "force-dynamic";
 
@@ -87,8 +89,11 @@ export async function POST(request: NextRequest) {
     if ("error" in auth) return auth.error;
     const { session } = auth;
 
-    const rawBody = (await request.json()) as Record<string, unknown>;
-    const data = pickAllowed(rawBody);
+    // zod אוכף את ALLOWED_FIELDS (strict). pickAllowed הופך למיותר אבל נשאר
+    // לשמור על audit trail עקבי של "אילו שדות באמת השתנו".
+    const parsedBody = await parseBody(request, updateAiSettingsSchema);
+    if ("error" in parsedBody) return parsedBody.error;
+    const data = pickAllowed(parsedBody.data as Record<string, unknown>);
 
     // snapshot של הערכים הקודמים ל-audit (forensic quality — סוכן 1 סיבוב 1)
     // הגדרות AI משפיעות על כסף (maxMonthlyCostBudget, alertThreshold) ועל

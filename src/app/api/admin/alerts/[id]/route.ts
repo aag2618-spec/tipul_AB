@@ -4,6 +4,8 @@ import { logger } from "@/lib/logger";
 
 import { requirePermission } from "@/lib/api-auth";
 import { withAudit } from "@/lib/audit";
+import { parseBody } from "@/lib/validations/helpers";
+import { updateAlertSchema } from "@/lib/validations/admin";
 
 // GET - קבלת התראה ספציפית
 export const dynamic = "force-dynamic";
@@ -63,14 +65,9 @@ export async function PATCH(
     const { userId, session } = auth;
 
     const { id } = await params;
-    const body = await req.json();
-
-    const {
-      status,
-      priority,
-      actionTaken,
-      scheduledFor,
-    } = body;
+    const parsed = await parseBody(req, updateAlertSchema);
+    if ("error" in parsed) return parsed.error;
+    const { status, priority, actionTaken, scheduledFor } = parsed.data;
 
     const updateData: Record<string, unknown> = {};
 

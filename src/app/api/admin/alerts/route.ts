@@ -1,9 +1,12 @@
 import { NextRequest, NextResponse } from "next/server";
+import { Prisma } from "@prisma/client";
 import prisma from "@/lib/prisma";
 import { logger } from "@/lib/logger";
 
 import { requirePermission } from "@/lib/api-auth";
 import { withAudit } from "@/lib/audit";
+import { parseBody, parseSearchParams } from "@/lib/validations/helpers";
+import { alertsQuerySchema, createAlertSchema } from "@/lib/validations/admin";
 
 // GET - קבלת כל ההתראות
 export const dynamic = "force-dynamic";
@@ -13,11 +16,9 @@ export async function GET(req: NextRequest) {
     const auth = await requirePermission("alerts.view");
     if ("error" in auth) return auth.error;
 
-    const { searchParams } = new URL(req.url);
-    const status = searchParams.get("status");
-    const type = searchParams.get("type");
-    const priority = searchParams.get("priority");
-    const limit = parseInt(searchParams.get("limit") || "50");
+    const parsedQuery = parseSearchParams(req.url, alertsQuerySchema);
+    if ("error" in parsedQuery) return parsedQuery.error;
+    const { status, type, priority, limit } = parsedQuery.data;
 
     const where: Record<string, unknown> = {};
     
@@ -97,24 +98,18 @@ export async function POST(req: NextRequest) {
     if ("error" in auth) return auth.error;
     const { session } = auth;
 
-    const body = await req.json();
+    const parsed = await parseBody(req, createAlertSchema);
+    if ("error" in parsed) return parsed.error;
     const {
       type,
-      priority = "MEDIUM",
+      priority,
       title,
       message,
       userId,
       actionRequired,
       scheduledFor,
       metadata,
-    } = body;
-
-    if (!type || !title || !message) {
-      return NextResponse.json(
-        { message: "חסרים שדות חובה: סוג, כותרת, הודעה" },
-        { status: 400 }
-      );
-    }
+    } = parsed.data;
 
     const alert = await withAudit(
       { kind: "user", session },
@@ -130,10 +125,13 @@ export async function POST(req: NextRequest) {
             priority,
             title,
             message,
-            userId,
-            actionRequired,
+            userId: userId ?? undefined,
+            actionRequired: actionRequired ?? undefined,
             scheduledFor: scheduledFor ? new Date(scheduledFor) : null,
-            metadata,
+            metadata:
+              metadata == null
+                ? Prisma.DbNull
+                : (metadata as Prisma.InputJsonValue),
           },
         })
     );

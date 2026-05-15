@@ -4,6 +4,8 @@ import prisma from "@/lib/prisma";
 import { logger } from "@/lib/logger";
 import { requirePermission } from "@/lib/api-auth";
 import { withAudit } from "@/lib/audit";
+import { parseBody } from "@/lib/validations/helpers";
+import { updateClinicSchema } from "@/lib/validations/admin";
 
 export const dynamic = "force-dynamic";
 
@@ -80,7 +82,9 @@ export async function PATCH(
     const { session } = auth;
 
     const { id } = await params;
-    const body = await request.json();
+    const parsed = await parseBody(request, updateClinicSchema);
+    if ("error" in parsed) return parsed.error;
+    const body = parsed.data;
 
     const existing = await prisma.organization.findUnique({
       where: { id },

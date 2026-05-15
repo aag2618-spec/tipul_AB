@@ -10,20 +10,10 @@ import { logger } from "@/lib/logger";
 import { withAudit } from "@/lib/audit";
 import { getAdminBusinessProfile } from "@/lib/site-settings";
 import type { SiteSettingKey } from "@/lib/cardcom/types";
+import { parseBody } from "@/lib/validations/helpers";
+import { updateAdminBusinessSettingsSchema } from "@/lib/validations/admin";
 
 export const dynamic = "force-dynamic";
-
-interface BusinessSettingsBody {
-  type?: "EXEMPT" | "LICENSED";
-  name?: string;
-  idNumber?: string;
-  address?: string;
-  phone?: string;
-  email?: string;
-  vatRate?: number;
-  logoUrl?: string | null;
-  footerText?: string | null;
-}
 
 export async function GET() {
   const auth = await requirePermission("settings.billing_provider");
@@ -48,29 +38,9 @@ export async function POST(request: NextRequest) {
   if ("error" in auth) return auth.error;
   const { session } = auth;
 
-  let body: BusinessSettingsBody;
-  try {
-    body = await request.json();
-  } catch {
-    return NextResponse.json({ message: "גוף הבקשה אינו JSON תקין" }, { status: 400 });
-  }
-
-  // ולידציה
-  if (body.type && body.type !== "EXEMPT" && body.type !== "LICENSED") {
-    return NextResponse.json(
-      { message: "סוג עסק לא חוקי — חייב להיות EXEMPT או LICENSED" },
-      { status: 400 }
-    );
-  }
-  if (body.vatRate !== undefined && (body.vatRate < 0 || body.vatRate > 100)) {
-    return NextResponse.json(
-      { message: "אחוז מע\"מ חייב להיות בין 0 ל-100" },
-      { status: 400 }
-    );
-  }
-  if (body.email !== undefined && body.email && !/^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(body.email)) {
-    return NextResponse.json({ message: "כתובת מייל לא תקינה" }, { status: 400 });
-  }
+  const parsed = await parseBody(request, updateAdminBusinessSettingsSchema);
+  if ("error" in parsed) return parsed.error;
+  const body = parsed.data;
 
   // עדכוני type/vat נחשבים רגישים → withAudit. עדכוני קישורי-טקסט (logo/footer) עדינים יותר.
   const isSensitiveChange = body.type !== undefined || body.vatRate !== undefined;

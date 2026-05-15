@@ -5,6 +5,8 @@ import { logger } from "@/lib/logger";
 import { requirePermission } from "@/lib/api-auth";
 import { withAudit } from "@/lib/audit";
 import { invalidateJwtCache } from "@/lib/auth";
+import { parseBody } from "@/lib/validations/helpers";
+import { setAdminSchema } from "@/lib/validations/admin";
 
 /**
  * API endpoint to set a user as admin
@@ -18,15 +20,9 @@ export async function POST(request: NextRequest) {
     if ("error" in auth) return auth.error;
     const { session } = auth;
 
-    const body = await request.json();
-    const { email } = body;
-
-    if (!email) {
-      return NextResponse.json(
-        { message: "נא לספק כתובת אימייל" },
-        { status: 400 }
-      );
-    }
+    const parsed = await parseBody(request, setAdminSchema);
+    if ("error" in parsed) return parsed.error;
+    const { email } = parsed.data;
 
     const user = await prisma.user.findUnique({
       where: { email },
