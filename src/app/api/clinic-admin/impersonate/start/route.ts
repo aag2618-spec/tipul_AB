@@ -4,11 +4,10 @@ import { logger } from "@/lib/logger";
 import { requireAuth } from "@/lib/api-auth";
 import { withAudit } from "@/lib/audit";
 import { checkRateLimit } from "@/lib/rate-limit";
+import { parseBody } from "@/lib/validations/helpers";
+import { impersonateStartSchema } from "@/lib/validations/clinic-admin";
 
 export const dynamic = "force-dynamic";
-
-const MAX_REASON_LEN = 500;
-const MIN_REASON_LEN = 5;
 
 // Rate limit: 10 ניסיונות התחלת impersonation בדקה לכל OWNER.
 // אכיפה של DoS על ה-DB אם credential של OWNER נגנב או שיש באג ב-UI.
@@ -55,27 +54,10 @@ export async function POST(request: NextRequest) {
       );
     }
 
-    const body = await request.json();
-    const { targetUserId, reason } = body as {
-      targetUserId?: unknown;
-      reason?: unknown;
-    };
+    const parsed = await parseBody(request, impersonateStartSchema);
+    if ("error" in parsed) return parsed.error;
+    const { targetUserId, reason } = parsed.data;
 
-    if (!targetUserId || typeof targetUserId !== "string") {
-      return NextResponse.json({ message: "חסר targetUserId" }, { status: 400 });
-    }
-    if (!reason || typeof reason !== "string" || reason.trim().length < MIN_REASON_LEN) {
-      return NextResponse.json(
-        { message: `סיבה לא תקינה (לפחות ${MIN_REASON_LEN} תווים)` },
-        { status: 400 }
-      );
-    }
-    if (reason.length > MAX_REASON_LEN) {
-      return NextResponse.json(
-        { message: `הסיבה ארוכה מדי (מקסימום ${MAX_REASON_LEN} תווים)` },
-        { status: 400 }
-      );
-    }
     if (targetUserId === userId) {
       return NextResponse.json(
         { message: "לא ניתן להתחזות לעצמך" },

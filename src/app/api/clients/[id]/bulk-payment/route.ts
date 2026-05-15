@@ -1,5 +1,4 @@
 import { NextRequest, NextResponse } from "next/server";
-import { z } from "zod";
 import prisma from "@/lib/prisma";
 import { createPaymentForSession, processMultiSessionPayment } from "@/lib/payment-service";
 import { logger } from "@/lib/logger";
@@ -11,16 +10,10 @@ import {
   loadScopeUser,
   secretaryCan,
 } from "@/lib/scope";
+import { parseBody } from "@/lib/validations/helpers";
+import { bulkPaymentSchema } from "@/lib/validations/misc";
 
 export const dynamic = "force-dynamic";
-
-// Stage 2.0 — Zod schema לתשלום מצרפי. amount חיובי בלבד, method מ-enum סגור.
-// שני הבדיקות היו קיימות בעבר באופן ידני; Zod מחליף אותן וגם דוחה body מעוות
-// (e.g. amount: { $gt: 0 } — NoSQL-style operator injection).
-const BulkPaymentSchema = z.object({
-  amount: z.number().positive("הסכום חייב להיות חיובי").max(1_000_000),
-  method: z.enum(["CASH", "CREDIT_CARD", "BANK_TRANSFER", "CHECK", "CREDIT", "OTHER"]),
-});
 
 export async function POST(
   request: NextRequest,
@@ -33,21 +26,8 @@ export async function POST(
 
     const { id: clientId } = await params;
 
-    let rawBody: unknown;
-    try {
-      rawBody = await request.json();
-    } catch {
-      return NextResponse.json({ message: "גוף הבקשה לא תקין" }, { status: 400 });
-    }
-
-    const parsed = BulkPaymentSchema.safeParse(rawBody);
-    if (!parsed.success) {
-      const firstIssue = parsed.error.issues[0];
-      return NextResponse.json(
-        { message: firstIssue?.message ?? "נתונים לא תקינים" },
-        { status: 400 }
-      );
-    }
+    const parsed = await parseBody(request, bulkPaymentSchema);
+    if ("error" in parsed) return parsed.error;
     const { amount, method } = parsed.data;
 
     const scopeUser = await loadScopeUser(userId);
@@ -78,7 +58,7 @@ export async function POST(
     });
 
     if (!client) {
-      return NextResponse.json({ message: "Client not found" }, { status: 404 });
+      return NextResponse.json({ message: "מטופל לא נמצא" }, { status: 404 });
     }
 
     // Find unpaid/partially-paid completed sessions (oldest first)
@@ -103,7 +83,7 @@ export async function POST(
 
     if (sessions.length === 0) {
       return NextResponse.json(
-        { message: "No sessions to pay" },
+        { message: "אין פגישות לחיוב" },
         { status: 400 }
       );
     }
@@ -171,7 +151,7 @@ export async function POST(
   } catch (error) {
     logger.error("Error processing bulk payment:", { error: error instanceof Error ? error.message : String(error) });
     return NextResponse.json(
-      { message: "Internal server error" },
+      { message: "שגיאה בעיבוד התשלום" },
       { status: 500 }
     );
   }

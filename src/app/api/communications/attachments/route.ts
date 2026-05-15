@@ -7,6 +7,11 @@ import { logger } from "@/lib/logger";
 
 import { requireAuth } from "@/lib/api-auth";
 import { loadScopeUser, buildClientWhere } from "@/lib/scope";
+import { parseBody, parseSearchParams } from "@/lib/validations/helpers";
+import {
+  attachmentDownloadQuerySchema,
+  saveAttachmentSchema,
+} from "@/lib/validations/communications";
 
 // GET - Download attachment from Resend
 export const dynamic = "force-dynamic";
@@ -20,14 +25,9 @@ export async function GET(request: NextRequest) {
     const scopeUser = await loadScopeUser(userId);
     const clientWhere = buildClientWhere(scopeUser);
 
-    const { searchParams } = new URL(request.url);
-    const logId = searchParams.get("logId");
-    const attachmentId = searchParams.get("attachmentId");
-    const filename = searchParams.get("filename");
-
-    if (!logId) {
-      return NextResponse.json({ message: "חסרים פרמטרים" }, { status: 400 });
-    }
+    const parsedQuery = parseSearchParams(request.url, attachmentDownloadQuerySchema);
+    if ("error" in parsedQuery) return parsedQuery.error;
+    const { logId, attachmentId, filename } = parsedQuery.data;
 
     // Verify this log belongs to the user OR to a client in the user's scope.
     const log = await prisma.communicationLog.findFirst({
@@ -41,7 +41,7 @@ export async function GET(request: NextRequest) {
     });
 
     if (!log) {
-      return NextResponse.json({ message: "לא נמצא" }, { status: 404 });
+      return NextResponse.json({ message: "רשומת ההודעה לא נמצאה" }, { status: 404 });
     }
 
     // For sent emails, attachments aren't stored in Resend after sending
@@ -67,7 +67,7 @@ export async function GET(request: NextRequest) {
 
     const resendApiKey = process.env.RESEND_API_KEY;
     if (!resendApiKey) {
-      return NextResponse.json({ message: "Resend API not configured" }, { status: 500 });
+      return NextResponse.json({ message: "שירות שליחת המיילים אינו מוגדר" }, { status: 500 });
     }
 
     // Fetch attachment metadata from Resend receiving API
@@ -118,11 +118,9 @@ export async function POST(request: NextRequest) {
     const scopeUser = await loadScopeUser(userId);
     const clientWhere = buildClientWhere(scopeUser);
 
-    const { logId, attachmentId, filename, clientId } = await request.json();
-
-    if (!logId || !clientId) {
-      return NextResponse.json({ message: "חסרים פרמטרים" }, { status: 400 });
-    }
+    const parsedBody = await parseBody(request, saveAttachmentSchema);
+    if ("error" in parsedBody) return parsedBody.error;
+    const { logId, attachmentId, filename, clientId } = parsedBody.data;
 
     // Verify this log belongs to the user OR to a client in user's scope.
     const log = await prisma.communicationLog.findFirst({
@@ -136,7 +134,7 @@ export async function POST(request: NextRequest) {
     });
 
     if (!log) {
-      return NextResponse.json({ message: "לא נמצא" }, { status: 404 });
+      return NextResponse.json({ message: "רשומת ההודעה לא נמצאה" }, { status: 404 });
     }
 
     // Verify target client is in user's scope before linking the attachment.
@@ -161,7 +159,7 @@ export async function POST(request: NextRequest) {
 
     const resendApiKey = process.env.RESEND_API_KEY;
     if (!resendApiKey) {
-      return NextResponse.json({ message: "Resend API not configured" }, { status: 500 });
+      return NextResponse.json({ message: "שירות שליחת המיילים אינו מוגדר" }, { status: 500 });
     }
 
     // Fetch attachment metadata from Resend (returns download_url)

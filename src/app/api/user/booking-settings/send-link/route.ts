@@ -12,6 +12,8 @@ import {
   secretaryCan,
 } from "@/lib/scope";
 import { checkRateLimit, EMAIL_SEND_USER_RATE_LIMIT } from "@/lib/rate-limit";
+import { parseBody } from "@/lib/validations/helpers";
+import { sendBookingLinkSchema } from "@/lib/validations/user-settings";
 
 export const dynamic = "force-dynamic";
 
@@ -50,19 +52,9 @@ export async function POST(request: NextRequest) {
   }
   const clientWhere = buildClientWhere(scopeUser);
 
-  const body = await request.json();
-  const { clientIds, customMessage } = body as {
-    clientIds: string[];
-    customMessage?: string;
-  };
-
-  if (!Array.isArray(clientIds) || clientIds.length === 0) {
-    return NextResponse.json({ message: "חובה לבחור לפחות מטופל אחד" }, { status: 400 });
-  }
-
-  if (clientIds.length > 50) {
-    return NextResponse.json({ message: "ניתן לשלוח עד 50 מטופלים בפעם אחת" }, { status: 400 });
-  }
+  const parsed = await parseBody(request, sendBookingLinkSchema);
+  if ("error" in parsed) return parsed.error;
+  const { clientIds, customMessage } = parsed.data;
 
   const settings = await prisma.bookingSettings.findUnique({
     where: { therapistId: userId },

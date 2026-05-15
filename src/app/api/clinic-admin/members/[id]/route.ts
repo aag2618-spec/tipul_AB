@@ -5,6 +5,8 @@ import { logger } from "@/lib/logger";
 import { withAudit } from "@/lib/audit";
 import { computeBillingRestore } from "@/lib/clinic-invitations";
 import { requireClinicOwner } from "@/lib/clinic/require-clinic-owner";
+import { parseBody } from "@/lib/validations/helpers";
+import { updateMemberSchema } from "@/lib/validations/clinic-admin";
 
 export const dynamic = "force-dynamic";
 
@@ -20,7 +22,9 @@ export async function PATCH(
     const { organizationId, session } = auth;
 
     const { id } = await params;
-    const body = await request.json();
+    const parsed = await parseBody(request, updateMemberSchema);
+    if ("error" in parsed) return parsed.error;
+    const body = parsed.data;
 
     const member = await prisma.user.findUnique({
       where: { id },
@@ -51,12 +55,6 @@ export async function PATCH(
     const updates: { clinicRole?: "THERAPIST" | "SECRETARY"; secretaryPermissions?: unknown; role?: string } = {};
 
     if (body.clinicRole !== undefined) {
-      if (body.clinicRole !== "THERAPIST" && body.clinicRole !== "SECRETARY") {
-        return NextResponse.json(
-          { message: "תפקיד חייב להיות THERAPIST או SECRETARY" },
-          { status: 400 }
-        );
-      }
       updates.clinicRole = body.clinicRole;
       // עדכון role גלובלי
       if (body.clinicRole === "SECRETARY") {
@@ -68,7 +66,7 @@ export async function PATCH(
 
     // עדכון secretaryPermissions — רק אם המשתמש הוא או יהיה SECRETARY
     const finalRole = updates.clinicRole ?? member.clinicRole;
-    if (body.secretaryPermissions !== undefined) {
+    if (body.secretaryPermissions !== undefined && body.secretaryPermissions !== null) {
       if (finalRole !== "SECRETARY") {
         return NextResponse.json(
           { message: "ניתן להגדיר הרשאות רק למזכירות" },

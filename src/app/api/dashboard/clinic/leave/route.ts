@@ -5,6 +5,8 @@ import { logger } from "@/lib/logger";
 import { requireAuth } from "@/lib/api-auth";
 import { withAudit } from "@/lib/audit";
 import { loadScopeUser, buildClientWhere } from "@/lib/scope";
+import { parseBody } from "@/lib/validations/helpers";
+import { leaveClinicSchema } from "@/lib/validations/clinic-admin";
 
 export const dynamic = "force-dynamic";
 
@@ -129,16 +131,9 @@ export async function POST(request: NextRequest) {
       );
     }
 
-    const body = await request.json();
-    const { reason, decisionDeadlineDays } = body;
-
-    const days = Number(decisionDeadlineDays);
-    if (!Number.isInteger(days) || days < 7 || days > 90) {
-      return NextResponse.json(
-        { message: "תקופת ההחלטה חייבת להיות בין 7 ל-90 ימים" },
-        { status: 400 }
-      );
-    }
+    const parsed = await parseBody(request, leaveClinicSchema);
+    if ("error" in parsed) return parsed.error;
+    const { reason, decisionDeadlineDays: days } = parsed.data;
 
     const decisionDeadline = new Date();
     decisionDeadline.setDate(decisionDeadline.getDate() + days);

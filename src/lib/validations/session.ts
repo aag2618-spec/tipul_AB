@@ -37,6 +37,37 @@ export const patchSessionSchema = z.object({
 });
 export type PatchSessionInput = z.infer<typeof patchSessionSchema>;
 
+// PUT של [id]/route.ts — עדכון פגישה. ולידציה רכה: שומרת על type-safety
+// ומונעת body מעוות (NoSQL operator injection, NaN במחיר). ההיגיון העסקי
+// (שעות, חפיפות, סטטוסים) נשאר במקום ב-handler.
+// .passthrough() כדי שבדיקת ALLOWED_FOR_SECRETARY תוכל לקרוא את ה-body המקורי.
+export const updateSessionSchema = z
+  .object({
+    startTime: z.string().max(64).optional(),
+    endTime: z.string().max(64).optional(),
+    type: z.nativeEnum(SessionType).optional(),
+    price: z.number().min(0).max(100_000).optional(),
+    location: z.string().max(MAX_LOCATION).optional().nullable(),
+    notes: z.string().max(MAX_NOTES).optional().nullable(),
+    topic: z.string().max(MAX_TOPIC).optional().nullable(),
+    status: z
+      .enum([
+        "SCHEDULED",
+        "COMPLETED",
+        "CANCELLED",
+        "PENDING_CANCELLATION",
+        "PENDING_APPROVAL",
+        "NO_SHOW",
+      ])
+      .optional(),
+    createPayment: z.boolean().optional(),
+    markAsPaid: z.boolean().optional(),
+    cancellationReason: z.string().max(500).optional().nullable(),
+    allowOverlap: z.boolean().optional(),
+  })
+  .passthrough();
+export type UpdateSessionInput = z.infer<typeof updateSessionSchema>;
+
 // PATCH של [id]/status/route.ts — שינוי סטטוס + reason.
 export const sessionStatusSchema = z.object({
   status: z.enum([

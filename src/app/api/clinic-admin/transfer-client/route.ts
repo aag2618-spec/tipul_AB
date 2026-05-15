@@ -4,6 +4,8 @@ import { logger } from "@/lib/logger";
 import { requireAuth } from "@/lib/api-auth";
 import { withAudit } from "@/lib/audit";
 import { cancelOrDeleteFutureSessions } from "@/lib/transfer-cancel-or-delete";
+import { parseBody } from "@/lib/validations/helpers";
+import { transferClientSchema } from "@/lib/validations/clinic-admin";
 
 export const dynamic = "force-dynamic";
 
@@ -51,7 +53,8 @@ export async function POST(request: NextRequest) {
       );
     }
 
-    const body = await request.json();
+    const parsed = await parseBody(request, transferClientSchema);
+    if ("error" in parsed) return parsed.error;
     const {
       clientId,
       toTherapistId,
@@ -60,22 +63,7 @@ export async function POST(request: NextRequest) {
       sessionsToTransfer = [],
       sessionsToTransferWithOverride = [],
       sessionsToCancel = [],
-    } = body as {
-      clientId?: string;
-      toTherapistId?: string;
-      reason?: string;
-      transferFutureSessions?: boolean;
-      sessionsToTransfer?: string[];
-      sessionsToTransferWithOverride?: string[];
-      sessionsToCancel?: string[];
-    };
-
-    if (!clientId || !toTherapistId) {
-      return NextResponse.json(
-        { message: "נדרש לבחור מטופל ויעד" },
-        { status: 400 }
-      );
-    }
+    } = parsed.data;
 
     // ולידציות
     const client = await prisma.client.findUnique({

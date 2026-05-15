@@ -4,6 +4,8 @@ import { format } from "date-fns";
 import { logger } from "@/lib/logger";
 
 import { requireAuth } from "@/lib/api-auth";
+import { parseBody } from "@/lib/validations/helpers";
+import { insurerReportSchema } from "@/lib/validations/misc";
 
 // Types of health insurance companies in Israel
 enum HealthInsurer {
@@ -33,8 +35,9 @@ export async function POST(request: Request) {
     if ("error" in auth) return auth.error;
     const { userId, session } = auth;
 
-    const body = await request.json();
-    const { insurer, sessionId } = body;
+    const parsed = await parseBody(request, insurerReportSchema);
+    if ("error" in parsed) return parsed.error;
+    const { insurer, sessionId } = parsed.data;
 
     // Get therapist details
     const therapist = await prisma.user.findUnique({

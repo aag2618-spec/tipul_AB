@@ -1,6 +1,7 @@
 // H12: zod schemas שונים — cancellation, health insurers, וכו'.
 
 import { z } from "zod";
+import { zId } from "./shared";
 
 const MAX_NOTES = 2_000;
 const MAX_REASON = 500;
@@ -58,3 +59,27 @@ export const updateInsurerSettingsSchema = z
   })
   .strict();
 export type UpdateInsurerSettingsInput = z.infer<typeof updateInsurerSettingsSchema>;
+
+// === POST /api/health-insurers/report ==========================================
+// בנייה של דיווח לקופת חולים (XML/JSON/CSV לפי הקופה). insurer enum סגור.
+export const insurerReportSchema = z.object({
+  insurer: z.enum(["CLALIT", "MACCABI", "MEUHEDET", "LEUMIT"], {
+    errorMap: () => ({ message: "קופת חולים לא תקינה" }),
+  }),
+  sessionId: zId,
+});
+export type InsurerReportInput = z.infer<typeof insurerReportSchema>;
+
+// === POST /api/clients/[id]/bulk-payment =======================================
+// תשלום מצרפי על מספר פגישות. amount חיובי בלבד, method מ-enum סגור.
+// Zod גם דוחה body מעוות (e.g. amount: { $gt: 0 } — NoSQL operator injection).
+export const bulkPaymentSchema = z.object({
+  amount: z
+    .number()
+    .positive("הסכום חייב להיות חיובי")
+    .max(1_000_000, "סכום לא תקין"),
+  method: z.enum(["CASH", "CREDIT_CARD", "BANK_TRANSFER", "CHECK", "CREDIT", "OTHER"], {
+    errorMap: () => ({ message: "אמצעי תשלום לא תקין" }),
+  }),
+});
+export type BulkPaymentInput = z.infer<typeof bulkPaymentSchema>;
