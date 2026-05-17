@@ -22,12 +22,11 @@ import {
   secretaryCan,
 } from "@/lib/scope";
 import { isShabbatOrYomTov } from "@/lib/shabbat";
+import { chargeSavedTokenSchema } from "@/lib/validations/payment";
 
 export const dynamic = "force-dynamic";
 
-interface ChargeTokenBody {
-  savedCardTokenId: string;
-}
+type ChargeTokenBody = import("zod").infer<typeof chargeSavedTokenSchema>;
 
 export async function POST(
   request: NextRequest,
@@ -64,17 +63,21 @@ export async function POST(
     }
   }
 
+  // H2: zod strict — savedCardTokenId חובה, חוסם שדות לא ידועים.
   let body: ChargeTokenBody;
   try {
-    body = await request.json();
+    const raw = await request.json();
+    const parsed = chargeSavedTokenSchema.safeParse(raw);
+    if (!parsed.success) {
+      const first = parsed.error.issues[0];
+      return NextResponse.json(
+        { message: first?.message ?? "נתונים לא תקינים", field: first?.path.join(".") ?? null },
+        { status: 400 }
+      );
+    }
+    body = parsed.data;
   } catch {
     return NextResponse.json({ message: "גוף הבקשה אינו JSON תקין" }, { status: 400 });
-  }
-  if (!body.savedCardTokenId) {
-    return NextResponse.json(
-      { message: "savedCardTokenId חובה" },
-      { status: 400 }
-    );
   }
 
   // Scope-based ownership: כולל קליניקות רב-מטפלים. סליקת כרטיס שמור

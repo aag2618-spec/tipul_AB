@@ -434,6 +434,13 @@ model Client {
   comprehensiveAnalysis   String?   @db.Text
   comprehensiveAnalysisAt DateTime?
 
+  // M1 (2026-05-17): הסכמת מטופל לעיבוד נתוניו בכלי AI חיצוניים (Gemini).
+  // ברירת מחדל true — לא רוצים לשבור AI למטופלים קיימים. UI בעתיד יאפשר
+  // למטפל לסמן false למטופל שמסרב במפורש. השדה נבדק ב-requireAiConsent
+  // — אם false יוחזר 403; null/true עוברים.
+  consentToAI   Boolean?  @default(true)
+  consentToAIAt DateTime?
+
   createdAt DateTime @default(now())
   updatedAt DateTime @updatedAt
 

@@ -32,9 +32,12 @@ import {
 
 export const dynamic = "force-dynamic";
 
-const toggleSchema = z.object({
-  enabled: z.boolean(),
-});
+// H3: strict — חוסם שדות נוספים (אין מאיפה להעביר mass-assignment).
+const toggleSchema = z
+  .object({
+    enabled: z.boolean(),
+  })
+  .strict();
 
 export async function POST(request: NextRequest) {
   try {

@@ -208,3 +208,74 @@ const MIME_TO_EXT: Record<string, string> = {
 export function safeExtensionForMime(mime: string): string {
   return MIME_TO_EXT[mime] ?? "bin";
 }
+
+/**
+ * H5 (2026-05-17): מסיר EXIF/metadata מתמונות לפני אחסון.
+ *
+ * הבעיה: JPG/PNG שמועלה מתוך טלפון מכיל GPS coordinates, סוג מצלמה,
+ * תאריך/שעה מדויקים, ולעיתים thumbnail. במערכת PHI אסור לאפשר דליפת
+ * מיקום של מטופל דרך תיעוד תמונות. EXIF נשמר בתמונה גם אם המשתמש לא
+ * מתכוון לחשוף.
+ *
+ * הפתרון: sharp().rotate() קורא את ה-orientation EXIF flag ומסובב
+ * פיזית את התמונה — מאפשר להסיר את כל ה-EXIF אחר כך מבלי לפגוע
+ * בכיוון. ב-output: JPG/PNG/WebP ללא שום metadata.
+ *
+ * שימוש:
+ *   if (mime.startsWith("image/")) buffer = await stripImageMetadata(buffer, mime);
+ *
+ * בכשל (sharp נופל על SVG/HEIC לא צפויים): מחזיר את ה-buffer המקורי
+ * + לוג warning. עדיף לאחסן את התמונה עם EXIF מאשר לחסום העלאה לגיטימית.
+ */
+const IMAGE_MIMES_FOR_STRIPPING = new Set([
+  "image/jpeg",
+  "image/png",
+  "image/webp",
+]);
+
+export async function stripImageMetadata(
+  buffer: Buffer,
+  mime: string
+): Promise<Buffer> {
+  if (!IMAGE_MIMES_FOR_STRIPPING.has(mime)) {
+    return buffer; // לא תמונה תומכת (PDF/audio/HEIC) — לא נוגעים
+  }
+
+  try {
+    // dynamic import — sharp הוא native module, לא נטעון אותו ב-edge runtime.
+    const sharpModule = await import("sharp");
+    const sharp = sharpModule.default;
+
+    // rotate() ללא ארגומנט = "auto-rotate" לפי EXIF orientation, ואז מסירים
+    // את כל ה-EXIF. ללא rotate() — תמונת iPhone שצולמה אופקית תיראה הפוכה
+    // אחרי הסרת ה-orientation flag.
+    const pipeline = sharp(buffer, { failOn: "none" }).rotate();
+
+    // Buffer.from עוטף את התוצאה של sharp ב-Buffer<ArrayBuffer> אחיד —
+    // sharp.toBuffer() מחזיר Buffer<ArrayBufferLike> שיוצר אי-תאימות בקריאה.
+    if (mime === "image/jpeg") {
+      const out = await pipeline.jpeg({ quality: 90, mozjpeg: true }).toBuffer();
+      return Buffer.from(out);
+    }
+    if (mime === "image/png") {
+      const out = await pipeline.png({ compressionLevel: 9 }).toBuffer();
+      return Buffer.from(out);
+    }
+    if (mime === "image/webp") {
+      const out = await pipeline.webp({ quality: 90 }).toBuffer();
+      return Buffer.from(out);
+    }
+    return buffer;
+  } catch (err) {
+    // sharp נכשל (תמונה פגומה, תקלת native binary) — מחזירים את המקורי.
+    // לוג לידיעת ה-operator. אל מערכת PHI שיש לה דליפה תיאורטית של GPS
+    // עדיף לקבל את התמונה כפי שהיא מאשר לחסום upload.
+    if (typeof globalThis !== "undefined" && globalThis.console) {
+      console.warn("[file-validation/stripImageMetadata] sharp failed", {
+        mime,
+        err: err instanceof Error ? err.message : String(err),
+      });
+    }
+    return buffer;
+  }
+}

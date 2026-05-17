@@ -6,11 +6,12 @@ import { useRouter } from "next/navigation";
 import { AlertTriangle, X, Loader2 } from "lucide-react";
 import { toast } from "sonner";
 
-// 4 שעות — חייב להיות זהה ל-IMPERSONATION_MAX_DURATION_MS ב-auth.ts.
-const IMPERSONATION_MAX_DURATION_MS = 4 * 60 * 60 * 1000;
+// H4 (2026-05-17): 30 דקות — חייב להיות זהה ל-IMPERSONATION timeout ב-auth.ts
+// וב-cron impersonation-hardkill. קוצר מ-4 שעות מטעמי PHI/אבטחה.
+const IMPERSONATION_MAX_DURATION_MS = 30 * 60 * 1000;
 
 // pluralization עברית: יחיד "דקה אחת" / "שעה אחת" (לא "1 דקות" שגוי דקדוקית).
-// מטה: ms = remaining time עד 4-hour timeout. שעון המשתמש משמש (לא השרת),
+// מטה: ms = remaining time עד timeout. שעון המשתמש משמש (לא השרת),
 // אז הצגה עשויה להיות מעט לא מדויקת אם השעון לא מסונכרן — קוסמטי בלבד,
 // ה-server עדיין יבדוק את הtimeout ב-JWT callback.
 function formatRemaining(ms: number): string {

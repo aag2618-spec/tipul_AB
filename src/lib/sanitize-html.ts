@@ -57,3 +57,47 @@ export function sanitizeUserHtml(input: unknown): string {
     USE_PROFILES: { html: true }, // לא SVG, לא MathML (וקטור XSS)
   });
 }
+
+/**
+ * M3 (2026-05-17): מסיר כל HTML מטקסט שחוזר מ-LLM (Gemini). תגובות AI
+ * אמורות להיות JSON עם strings, אבל אם המודל הוזה <img onerror> או
+ * <script>, נחזיר תוצאה שיכולה להתפרש כ-HTML אצל הצרכן (DB → render).
+ *
+ * בניגוד ל-sanitizeUserHtml שמשאיר tags לתצוגה, הפונקציה הזו מוחקת
+ * הכל. AI לא אמור להחזיר HTML, ואם הוא עושה — סימן לבעיה.
+ */
+export function sanitizeAiText(input: unknown): string {
+  if (typeof input !== "string") return "";
+  if (input.length === 0) return "";
+  return DOMPurify.sanitize(input, {
+    ALLOWED_TAGS: [],
+    ALLOWED_ATTR: [],
+    KEEP_CONTENT: true,
+  });
+}
+
+/**
+ * עובר רקורסיבית על אובייקט/מערך ומנקה כל string דרך sanitizeAiText.
+ * שימושי לתוצאות AI מובנות (NoteAnalysis, SessionAnalysis וכו').
+ *
+ * MAX_DEPTH מונע stack overflow על JSON שגוי (Gemini hallucination ל-self-
+ * reference). אם נחצה — נחזיר ה-value כפי שהוא, או null למקרים מקוננים.
+ */
+const SANITIZE_MAX_DEPTH = 8;
+
+export function sanitizeAiResponse<T>(value: T, depth = 0): T {
+  if (depth > SANITIZE_MAX_DEPTH) return value;
+  if (value === null || value === undefined) return value;
+  if (typeof value === "string") return sanitizeAiText(value) as unknown as T;
+  if (Array.isArray(value)) {
+    return value.map((v) => sanitizeAiResponse(v, depth + 1)) as unknown as T;
+  }
+  if (typeof value === "object") {
+    const out: Record<string, unknown> = {};
+    for (const [k, v] of Object.entries(value as Record<string, unknown>)) {
+      out[k] = sanitizeAiResponse(v, depth + 1);
+    }
+    return out as unknown as T;
+  }
+  return value;
+}

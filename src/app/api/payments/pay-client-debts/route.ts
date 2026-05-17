@@ -3,6 +3,8 @@ import { processMultiSessionPayment } from "@/lib/payment-service";
 import { logger } from "@/lib/logger";
 import { requireAuth } from "@/lib/api-auth";
 import { loadScopeUser } from "@/lib/scope";
+import { parseBody } from "@/lib/validations/helpers";
+import { payClientDebtsSchema } from "@/lib/validations/payment";
 
 export const dynamic = "force-dynamic";
 
@@ -13,6 +15,10 @@ export async function POST(req: NextRequest) {
     const { userId } = auth;
     const scopeUser = await loadScopeUser(userId);
 
+    // H2: zod (strict) — אוכף סוגי שדות + מסיר שדות לא ידועים שעלולים
+    // להיכנס כ-mass assignment לתוך processMultiSessionPayment.
+    const parsed = await parseBody(req, payClientDebtsSchema);
+    if ("error" in parsed) return parsed.error;
     const {
       clientId,
       paymentIds,
@@ -21,16 +27,7 @@ export async function POST(req: NextRequest) {
       paymentMode,
       creditUsed = 0,
       issueReceipt = true,
-    } = await req.json();
-
-    if (!clientId || !paymentIds || !totalAmount || !method) {
-      return NextResponse.json({ message: "חסרים פרמטרים" }, { status: 400 });
-    }
-
-    const validMethods = ["CASH", "CREDIT_CARD", "BANK_TRANSFER", "CHECK", "CREDIT", "OTHER"];
-    if (!validMethods.includes(method)) {
-      return NextResponse.json({ message: "אמצעי תשלום לא תקין" }, { status: 400 });
-    }
+    } = parsed.data;
 
     // CREDIT_CARD חייב לעבור דרך /api/payments/charge-cardcom-bulk (יוצר
     // umbrella Payment + CardcomTransaction ומפעיל סליקה אמיתית). ה-route
@@ -42,37 +39,6 @@ export async function POST(req: NextRequest) {
           message:
             "תשלום באשראי חייב לעבור דרך מסך הסליקה — חזרי לדיאלוג ובחרי 'כרטיס אשראי' שוב.",
         },
-        { status: 400 }
-      );
-    }
-
-    if (totalAmount <= 0) {
-      return NextResponse.json(
-        { message: "סכום התשלום חייב להיות חיובי" },
-        { status: 400 }
-      );
-    }
-
-    if (!Array.isArray(paymentIds) || paymentIds.length === 0) {
-      return NextResponse.json(
-        { message: "אין תשלומים לעדכון" },
-        { status: 400 }
-      );
-    }
-
-    // Stage 2.0 — DoS guard: cap על מספר ה-payments בקריאה אחת.
-    // 200 הוא חציון בין שימוש לגיטימי (גם לקליניקה גדולה) להגנה מפני
-    // body מעוות שגורם ל-IN(...) קטסטרופלי בpostgres.
-    if (paymentIds.length > 200) {
-      return NextResponse.json(
-        { message: "ניתן לעדכן עד 200 תשלומים בקריאה אחת" },
-        { status: 400 }
-      );
-    }
-    // ודא ש-paymentIds הם strings תקינים (לא objects/arrays של NoSQL injection)
-    if (!paymentIds.every((id) => typeof id === "string" && id.length > 0 && id.length <= 100)) {
-      return NextResponse.json(
-        { message: "מזהי תשלום לא תקינים" },
         { status: 400 }
       );
     }

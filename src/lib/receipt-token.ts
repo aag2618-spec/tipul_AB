@@ -14,20 +14,41 @@ const getSecret = () => {
   return key;
 };
 
-export function generateReceiptToken(paymentId: string): string {
+// M4 (2026-05-17): שודרג מ-24 hex chars (96 bits) ל-32 (128 bits). PHI כמו
+// קבלות רפואיות מצריך 128-bit לפחות. הפונקציה verifyReceiptToken מקבלת
+// גם טוקנים ישנים באורך 24 כדי לא לשבור קישורי קבלות שכבר נשלחו במייל.
+const TOKEN_LENGTH_HEX = 32; // 128 bits
+const LEGACY_TOKEN_LENGTH_HEX = 24; // 96 bits — תמיכה לאחור
+
+function computeHmac(paymentId: string): string {
   return crypto
     .createHmac('sha256', getSecret())
     .update(paymentId)
-    .digest('hex')
-    .slice(0, 24);
+    .digest('hex');
+}
+
+export function generateReceiptToken(paymentId: string): string {
+  return computeHmac(paymentId).slice(0, TOKEN_LENGTH_HEX);
 }
 
 export function verifyReceiptToken(paymentId: string, token: string): boolean {
-  const expected = generateReceiptToken(paymentId);
-  return crypto.timingSafeEqual(
-    Buffer.from(expected, 'utf8'),
-    Buffer.from(token, 'utf8')
-  );
+  if (typeof token !== 'string') return false;
+  const tokenLen = token.length;
+  // קבל אורכי טוקן חוקיים בלבד (חדש או ישן). כל אורך אחר → false ללא comparing.
+  if (tokenLen !== TOKEN_LENGTH_HEX && tokenLen !== LEGACY_TOKEN_LENGTH_HEX) {
+    return false;
+  }
+  const full = computeHmac(paymentId);
+  const expected = full.slice(0, tokenLen);
+  // timingSafeEqual דורש אורכים זהים — וידאנו זאת לעיל.
+  try {
+    return crypto.timingSafeEqual(
+      Buffer.from(expected, 'utf8'),
+      Buffer.from(token, 'utf8')
+    );
+  } catch {
+    return false;
+  }
 }
 
 export function getReceiptPageUrl(paymentId: string): string {

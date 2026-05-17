@@ -1,4 +1,5 @@
 import { NextRequest, NextResponse } from "next/server";
+import crypto from "crypto";
 import prisma from "@/lib/prisma";
 import bcrypt from "bcryptjs";
 import { checkRateLimit, AUTH_RATE_LIMIT, rateLimitResponse } from "@/lib/rate-limit";
@@ -8,6 +9,11 @@ import { parseBodyWithErrorField } from "@/lib/validations/helpers";
 import { resetPasswordSchema } from "@/lib/validations/auth";
 
 export const dynamic = "force-dynamic";
+
+// M6: ה-token שמגיע מהמשתמש הוא plaintext; ב-DB שמור רק sha256 hash.
+function hashResetToken(plaintext: string): string {
+  return crypto.createHash("sha256").update(plaintext).digest("hex");
+}
 
 export async function POST(request: NextRequest) {
   try {
@@ -24,9 +30,9 @@ export async function POST(request: NextRequest) {
     if ("error" in parsed) return parsed.error;
     const { token, password } = parsed.data;
 
-    // Find the reset token
+    // Find the reset token — מחפשים לפי hash של ה-plaintext שהמשתמש שלח.
     const resetRecord = await prisma.passwordReset.findUnique({
-      where: { token },
+      where: { token: hashResetToken(token) },
       include: { user: true },
     });
 
@@ -59,16 +65,27 @@ export async function POST(request: NextRequest) {
 
     // C7: עדכון passwordChangedAt — מבטל tokens קיימים שהונפקו לפני שינוי
     // הסיסמה (defense-in-depth מול cookie גנוב שעדיין פעיל בזמן ההחלפה).
-    await prisma.$transaction([
-      prisma.user.update({
+    // M6: אטומיות מול race — updateMany עם תנאי usedAt:null. אם בקשה
+    // מקבילה כבר השתמשה בtoken, count=0 ולא נעדכן את ה-password.
+    const consumed = await prisma.$transaction(async (tx) => {
+      const r = await tx.passwordReset.updateMany({
+        where: { id: resetRecord.id, usedAt: null },
+        data: { usedAt: new Date() },
+      });
+      if (r.count === 0) return false; // race: someone consumed the token first
+      await tx.user.update({
         where: { id: resetRecord.userId },
         data: { password: hashedPassword, passwordChangedAt: new Date() },
-      }),
-      prisma.passwordReset.update({
-        where: { id: resetRecord.id },
-        data: { usedAt: new Date() },
-      }),
-    ]);
+      });
+      return true;
+    });
+
+    if (!consumed) {
+      return NextResponse.json(
+        { error: "קישור זה כבר נוצל. נא לבקש קישור חדש" },
+        { status: 400 }
+      );
+    }
 
     // C7: סגירת חלון 30s של JWT cache — אחרת token גנוב היה ממשיך לעבוד
     // עד שה-cache פג. מסיר את הרשומה מיד כדי שהבקשה הבאה תקרא טרי מ-DB.
@@ -97,7 +114,7 @@ export async function GET(request: NextRequest) {
     }
 
     const resetRecord = await prisma.passwordReset.findUnique({
-      where: { token },
+      where: { token: hashResetToken(token) },
     });
 
     if (!resetRecord) {

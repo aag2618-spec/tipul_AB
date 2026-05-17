@@ -632,7 +632,7 @@ export default function ClinicMembersPage() {
               ⚠ השתמש/י רק לביקורת ובדיקה — לא לפעולות יזומות בשם החבר/ה.
             </p>
             <p className="text-xs text-muted-foreground">
-              מקסימום 4 שעות. ניתן לצאת בכל רגע מהבאנר העליון.
+              מקסימום 30 דקות. ניתן לצאת בכל רגע מהבאנר העליון.
             </p>
           </div>
 

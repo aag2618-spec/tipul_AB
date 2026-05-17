@@ -6,6 +6,7 @@
 
 import { randomUUID } from "crypto";
 import storage from "@/lib/storage";
+import { stripImageMetadata } from "@/lib/file-validation";
 import {
   ALLOWED_MIME_TYPES,
   MAX_ATTACHMENTS,
@@ -80,7 +81,9 @@ export async function saveAttachments(
   const saved: SupportAttachment[] = [];
 
   for (const file of files) {
-    const buffer = Buffer.from(await file.arrayBuffer());
+    let buffer: Buffer = Buffer.from(await file.arrayBuffer());
+    // H5 (2026-05-17): EXIF stripping \u2014 \u05DE\u05E1\u05D9\u05E8 GPS/\u05DE\u05D8\u05D0-\u05D3\u05D0\u05D8\u05D4 \u05DE\u05EA\u05DE\u05D5\u05E0\u05D5\u05EA.
+    buffer = await stripImageMetadata(buffer, file.type);
     const safeFilename = file.name.replace(/[^a-zA-Z0-9._\u0590-\u05FF -]/g, "_");
     const uniqueFilename = `${Date.now()}_${randomUUID().slice(0, 8)}_${safeFilename}`;
     const relativePath = `support/${ticketId}/${uniqueFilename}`;

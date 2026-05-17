@@ -461,12 +461,14 @@ export const authOptions: NextAuthOptions = {
       // מאמתים מול ה-DB שהסשן עדיין פעיל (endedAt IS NULL) ושייך ל-OWNER הנכון.
       // ככה אם cron/admin סגר את הסשן (USER_BLOCKED, TARGET_REMOVED) — ה-token
       // מתעדכן בקריאה הבאה ולא נשאר עם actingAs מיותם.
-      // בנוסף, 4-hour timeout (lazy) — מנקים גם אם ה-DB עדיין פתוח.
+      // H4 (2026-05-17): קוצר מ-4 שעות ל-30 דקות. במערכת רפואית, חלון של 4
+      // שעות על cookie גנוב = יותר מדי. cron impersonation-hardkill עדיין רץ
+      // ב-DB, אבל ה-lazy check כאן הוא ההגנה הרגעית.
       if (token.actingAs) {
         const aa = token.actingAs;
         const tooOld =
           typeof aa.startedAt === "number" &&
-          Date.now() - aa.startedAt > 4 * 60 * 60 * 1000;
+          Date.now() - aa.startedAt > 30 * 60 * 1000;
         if (tooOld) {
           delete token.actingAs;
         } else {

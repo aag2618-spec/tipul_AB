@@ -23,15 +23,11 @@ import { requireAuth } from "@/lib/api-auth";
 import { logger } from "@/lib/logger";
 import { withAudit } from "@/lib/audit";
 import { loadScopeUser, buildPaymentWhere } from "@/lib/scope";
+import { cancelCardcomLinkSchema } from "@/lib/validations/payment";
 
 export const dynamic = "force-dynamic";
 
-interface CancelBody {
-  /** מזהה ספציפי של CardcomTransaction לבטל (אופציונלי). אם חסר — ה-PENDING האחרון. */
-  transactionId?: string;
-  /** סיבת ביטול חופשית (לאודיט בלבד). */
-  reason?: string;
-}
+type CancelBody = import("zod").infer<typeof cancelCardcomLinkSchema>;
 
 export async function POST(
   request: NextRequest,
@@ -59,13 +55,23 @@ export async function POST(
     }
   }
 
+  // H2: zod strict — body כולו אופציונלי, אבל אם נשלחו שדות הם חייבים להיות תקינים.
   let body: CancelBody = {};
   try {
-    body = (await request.json().catch(() => ({}))) as CancelBody;
+    const raw = await request.json().catch(() => ({}));
+    const parsed = cancelCardcomLinkSchema.safeParse(raw ?? {});
+    if (!parsed.success) {
+      const first = parsed.error.issues[0];
+      return NextResponse.json(
+        { message: first?.message ?? "נתונים לא תקינים", field: first?.path.join(".") ?? null },
+        { status: 400 }
+      );
+    }
+    body = parsed.data;
   } catch {
     body = {};
   }
-  const reason = (body.reason ?? "").slice(0, 500);
+  const reason = body.reason ?? "";
 
   // H1: scope-based ownership (החלפת therapistId === userId).
   const scopeUser = await loadScopeUser(userId);

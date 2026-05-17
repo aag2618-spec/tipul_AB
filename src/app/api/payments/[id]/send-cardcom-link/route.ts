@@ -13,15 +13,11 @@ import { escapeHtml } from "@/lib/email-utils";
 import { checkRateLimit, SMS_SEND_USER_RATE_LIMIT } from "@/lib/rate-limit";
 import { isShabbatOrYomTov } from "@/lib/shabbat";
 import { loadScopeUser, buildPaymentWhere } from "@/lib/scope";
+import { sendCardcomLinkSchema } from "@/lib/validations/payment";
 
 export const dynamic = "force-dynamic";
 
-interface SendLinkBody {
-  /** ה-URL שהוחזר מ-/api/payments/[id]/charge-cardcom (חובה). */
-  paymentPageUrl: string;
-  /** האם לשלוח SMS, מייל, או שניהם. */
-  channels: Array<"sms" | "email">;
-}
+type SendLinkBody = import("zod").infer<typeof sendCardcomLinkSchema>;
 
 export async function POST(
   request: NextRequest,
@@ -56,17 +52,24 @@ export async function POST(
 
   const { id: paymentId } = await context.params;
 
+  // H2: zod strict — אוכף paymentPageUrl כ-URL וקאנלים כ-enum, וחוסם שדות זרים.
   let body: SendLinkBody;
   try {
-    body = await request.json();
+    const raw = await request.json();
+    const parsed = sendCardcomLinkSchema.safeParse(raw);
+    if (!parsed.success) {
+      const first = parsed.error.issues[0];
+      return NextResponse.json(
+        { message: first?.message ?? "נתונים לא תקינים", field: first?.path.join(".") ?? null },
+        { status: 400 }
+      );
+    }
+    body = parsed.data;
   } catch {
     return NextResponse.json({ message: "גוף הבקשה אינו JSON תקין" }, { status: 400 });
   }
 
-  if (!body.paymentPageUrl || typeof body.paymentPageUrl !== "string") {
-    return NextResponse.json({ message: "paymentPageUrl חובה" }, { status: 400 });
-  }
-  // Basic URL validation — must be HTTPS Cardcom domain.
+  // ולידציית domain — חייב להיות HTTPS על Cardcom (zod מאמת רק URL כללי).
   // CRITICAL: require dot-boundary or exact equality so attacker-registered hosts
   // like `evilcardcom.co.il` won't pass `endsWith("cardcom.co.il")`.
   const isCardcomHost = (hostname: string): boolean => {
@@ -88,13 +91,7 @@ export async function POST(
     return NextResponse.json({ message: "paymentPageUrl אינו URL תקין" }, { status: 400 });
   }
 
-  const channels = Array.isArray(body.channels) ? body.channels : [];
-  if (channels.length === 0 || !channels.every((c) => c === "sms" || c === "email")) {
-    return NextResponse.json(
-      { message: "channels חייב להכיל לפחות אחד מ: sms, email" },
-      { status: 400 }
-    );
-  }
+  const channels = body.channels;
 
   // Stage 2.0 — שכבה נוספת ל-SMS: 10/שעה למשתמש כי SMS יקר משמעותית מ-email
   // (מעלות ל-SMS, חיוב לפי הודעה). מופעל רק כששליחת SMS מבוקשת.

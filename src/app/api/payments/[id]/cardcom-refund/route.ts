@@ -22,15 +22,11 @@ import {
   loadScopeUser,
   secretaryCan,
 } from "@/lib/scope";
+import { cardcomRefundSchema } from "@/lib/validations/payment";
 
 export const dynamic = "force-dynamic";
 
-interface RefundBody {
-  /** סכום זיכוי חלקי (₪). השמטה = זיכוי מלא של היתרה. */
-  amount?: number;
-  /** סיבת הזיכוי — חובה (לאודיט וחשבונית הזיכוי). */
-  reason: string;
-}
+type RefundBody = import("zod").infer<typeof cardcomRefundSchema>;
 
 /** חלון זיכוי לחוק הגנת הצרכן — 14 יום מאישור העסקה. */
 const REFUND_WINDOW_DAYS = 14;
@@ -55,25 +51,21 @@ export async function POST(
 
   const { id: paymentId } = await context.params;
 
+  // H2: zod strict — reason חובה, amount אופציונלי, חוסם שדות לא ידועים.
   let body: RefundBody;
   try {
-    body = await request.json();
+    const raw = await request.json();
+    const parsed = cardcomRefundSchema.safeParse(raw);
+    if (!parsed.success) {
+      const first = parsed.error.issues[0];
+      return NextResponse.json(
+        { message: first?.message ?? "נתונים לא תקינים", field: first?.path.join(".") ?? null },
+        { status: 400 }
+      );
+    }
+    body = parsed.data;
   } catch {
     return NextResponse.json({ message: "גוף הבקשה אינו JSON תקין" }, { status: 400 });
-  }
-  if (!body.reason?.trim()) {
-    return NextResponse.json({ message: "סיבת זיכוי (reason) חובה" }, { status: 400 });
-  }
-  // Cap reason length server-side to match the UI dialog (500 chars) — defense
-  // against arbitrary-length payloads that bloat the audit log / DB.
-  if (body.reason.length > 500) {
-    return NextResponse.json(
-      { message: "סיבת זיכוי ארוכה מדי (מקסימום 500 תווים)" },
-      { status: 400 }
-    );
-  }
-  if (body.amount !== undefined && (body.amount <= 0 || !Number.isFinite(body.amount))) {
-    return NextResponse.json({ message: "סכום זיכוי לא חוקי" }, { status: 400 });
   }
 
   // ── Load payment + ownership ────────────────────────────────

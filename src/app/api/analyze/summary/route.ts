@@ -4,7 +4,8 @@ import prisma from "@/lib/prisma";
 import { getApproachById, getApproachPrompts, getUniversalPrompts } from "@/lib/therapeutic-approaches";
 import { logger } from "@/lib/logger";
 import { requireAuth } from "@/lib/api-auth";
-import { sanitizeUserHtml } from "@/lib/sanitize-html";
+import { sanitizeUserHtml, sanitizeAiText } from "@/lib/sanitize-html";
+import { requireAiConsent } from "@/lib/ai-consent";
 import { loadScopeUser, buildClientWhere, isSecretary } from "@/lib/scope";
 import { getClientPseudonym } from "@/lib/ai-pseudonymize";
 import { parseBody } from "@/lib/validations/helpers";
@@ -33,6 +34,11 @@ export async function POST(request: NextRequest) {
     // C3: לא משתמשים יותר ב-clientName מה-body. גם אם ה-UI שולח שם —
     // ה-prompt ל-Gemini מקבל pseudonym בלבד.
     const { transcription, summaries, clientId, analysisType } = parsed.data;
+
+    // M1: דורש הסכמת מטופל לעיבוד AI אם הניתוח קשור למטופל ספציפי.
+    const consent = await requireAiConsent(clientId);
+    if (!consent.ok) return consent.response;
+
     const clientPseudo = getClientPseudonym(clientId ?? null);
 
     // קבלת פרטי המשתמש כולל גישות טיפוליות
@@ -102,7 +108,8 @@ ${approachPrompts}
 
     // Case 1: Generate summary from transcription
     if (transcription) {
-      const summary = await generateSessionSummary(transcription);
+      // M3: sanitize — מסיר HTML שעלול להופיע ב-AI output.
+      const summary = sanitizeAiText(await generateSessionSummary(transcription));
       return NextResponse.json({ summary });
     }
 
@@ -174,7 +181,8 @@ ${getUniversalPrompts()}
 
 ${summariesText}`;
 
-      const analysis = await analyzeText(prompt);
+      // M3: sanitize AI output לפני שמירה ב-comprehensiveAnalysis (יוצג ב-UI).
+      const analysis = sanitizeAiText(await analyzeText(prompt));
 
       // C2: שמירת הניתוח רק על מטופל ששייך ל-scope של המשתמש.
       // updateMany עם buildClientWhere — אטומי ומונע IDOR גם אם הfindFirst

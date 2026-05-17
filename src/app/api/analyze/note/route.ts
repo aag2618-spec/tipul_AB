@@ -4,7 +4,8 @@ import prisma from "@/lib/prisma";
 import { getApproachById, getApproachPrompts, buildIntegrationSection, getScalesPrompt, getUniversalPrompts } from "@/lib/therapeutic-approaches";
 import { logger } from "@/lib/logger";
 import { requireAuth } from "@/lib/api-auth";
-import { sanitizeUserHtml } from "@/lib/sanitize-html";
+import { sanitizeUserHtml, sanitizeAiResponse } from "@/lib/sanitize-html";
+import { requireAiConsent } from "@/lib/ai-consent";
 import { loadScopeUser, buildClientWhere, isSecretary } from "@/lib/scope";
 import { getClientPseudonym } from "@/lib/ai-pseudonymize";
 import { parseBody } from "@/lib/validations/helpers";
@@ -60,6 +61,11 @@ export async function POST(request: NextRequest) {
     // C3: לא מקבלים יותר clientName מה-body. אם בעבר ה-UI שלח שם —
     // מתעלמים. ה-prompt מקבל pseudonym מבוסס clientId בלבד.
     const { noteContent, clientId } = parsed.data;
+
+    // M1: דורש הסכמת מטופל לעיבוד AI אם הניתוח קשור למטופל ספציפי.
+    const consent = await requireAiConsent(clientId);
+    if (!consent.ok) return consent.response;
+
     const clientPseudo = getClientPseudonym(clientId ?? null);
 
     // H4: sanitize HTML לפני שליחה ל-LLM. ה-LLM יכול להחזיר את התוכן
@@ -152,7 +158,9 @@ ${approachPrompts}
       throw new Error("Failed to parse AI response");
     }
 
-    const analysis: NoteAnalysis = JSON.parse(jsonMatch[0]);
+    // M3: AI hallucination guard — אם Gemini החזיר HTML בתוך string fields,
+    // sanitizeAiResponse מסיר אותו לפני שמירה ב-DB או render ב-UI.
+    const analysis: NoteAnalysis = sanitizeAiResponse(JSON.parse(jsonMatch[0]));
 
     return NextResponse.json({ analysis });
   } catch (error) {

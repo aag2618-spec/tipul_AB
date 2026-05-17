@@ -1,6 +1,8 @@
 import { NextRequest, NextResponse } from "next/server";
 import prisma from "@/lib/prisma";
 import { analyzeSession, analyzeIntake } from "@/lib/google-ai";
+import { sanitizeAiResponse } from "@/lib/sanitize-html";
+import { requireAiConsent } from "@/lib/ai-consent";
 import { logApiUsage, estimateTokens, estimateCost } from "@/lib/api-logger";
 import { logger } from "@/lib/logger";
 
@@ -54,8 +56,8 @@ export async function POST(request: NextRequest) {
       include: {
         recording: {
           include: {
-            client: { select: { therapistId: true } },
-            session: { select: { therapistId: true } },
+            client: { select: { id: true, therapistId: true } },
+            session: { select: { clientId: true, therapistId: true } },
           },
         },
       },
@@ -66,14 +68,24 @@ export async function POST(request: NextRequest) {
       return NextResponse.json({ message: "תמלול לא נמצא" }, { status: 404 });
     }
 
+    // M1: דורש הסכמת מטופל לעיבוד AI. clientId נשלף דרך ה-recording.
+    const recordingClientId =
+      transcription.recording?.client?.id ??
+      transcription.recording?.session?.clientId ??
+      null;
+    const consent = await requireAiConsent(recordingClientId);
+    if (!consent.ok) return consent.response;
+
     const startTime = Date.now();
     
     try {
       // Analyze based on type
-      const analysisResult =
+      // M3: sanitizeAiResponse — ניקוי HTML שעלול להופיע ב-string fields של AI.
+      const analysisResult = sanitizeAiResponse(
         type === "INTAKE"
           ? await analyzeIntake(transcription.content)
-          : await analyzeSession(transcription.content);
+          : await analyzeSession(transcription.content)
+      );
 
       // Save analysis
       const analysis = await prisma.analysis.create({

@@ -102,7 +102,9 @@ export default async function ImpersonationHistoryPage() {
                     case "MANUAL":
                       return "הסתיים ידנית";
                     case "TIMEOUT_4H":
-                      return "הסתיים אוטומטית (4 שעות)";
+                      return "הסתיים אוטומטית (4 שעות)"; // legacy — סשנים שנסגרו לפני 2026-05-17
+                    case "TIMEOUT_30M":
+                      return "הסתיים אוטומטית (30 דקות)";
                     case "USER_BLOCKED":
                       return "הסתיים — חשבון נחסם";
                     case "TARGET_REMOVED":

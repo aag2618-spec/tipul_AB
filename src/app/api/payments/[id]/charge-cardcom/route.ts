@@ -19,17 +19,9 @@ import {
   secretaryCan,
 } from "@/lib/scope";
 import { isShabbatOrYomTov } from "@/lib/shabbat";
+import { chargeCardcomSchema } from "@/lib/validations/payment";
 
 export const dynamic = "force-dynamic";
-
-interface ChargeBody {
-  /** Number of installments, 1-36 (USER may set >1 for client). */
-  numOfPayments?: number;
-  /** Save the card token for future recurring charges. */
-  createToken?: boolean;
-  successRedirectUrl?: string;
-  failedRedirectUrl?: string;
-}
 
 export async function POST(
   request: NextRequest,
@@ -66,9 +58,19 @@ export async function POST(
     }
   }
 
-  let body: ChargeBody;
+  // H2: zod strict — דוחה שדות לא ידועים שעלולים להגיע ל-Cardcom payload.
+  let body: import("zod").infer<typeof chargeCardcomSchema> = {};
   try {
-    body = await request.json().catch(() => ({}));
+    const raw = await request.json().catch(() => ({}));
+    const parsed = chargeCardcomSchema.safeParse(raw ?? {});
+    if (!parsed.success) {
+      const first = parsed.error.issues[0];
+      return NextResponse.json(
+        { message: first?.message ?? "נתונים לא תקינים", field: first?.path.join(".") ?? null },
+        { status: 400 }
+      );
+    }
+    body = parsed.data;
   } catch {
     body = {};
   }

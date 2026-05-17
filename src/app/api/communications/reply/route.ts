@@ -6,7 +6,7 @@ import fs from "fs/promises";
 import { logger } from "@/lib/logger";
 import { requireAuth } from "@/lib/api-auth";
 import { isShabbatOrYomTov } from "@/lib/shabbat";
-import { validateFileBuffer } from "@/lib/file-validation";
+import { validateFileBuffer, stripImageMetadata } from "@/lib/file-validation";
 import { checkRateLimit, EMAIL_SEND_USER_RATE_LIMIT } from "@/lib/rate-limit";
 
 const MAX_ATTACHMENTS_PER_REPLY = 5;
@@ -75,7 +75,7 @@ export async function POST(request: NextRequest) {
         );
       }
       for (const file of realFiles) {
-        const buffer = Buffer.from(await file.arrayBuffer());
+        let buffer: Buffer = Buffer.from(await file.arrayBuffer());
         const validation = validateFileBuffer(buffer, file.type, "attachment");
         if (!validation.ok) {
           return NextResponse.json(
@@ -83,6 +83,9 @@ export async function POST(request: NextRequest) {
             { status: 400 }
           );
         }
+        // H5 (2026-05-17): EXIF stripping — מסיר GPS/מטא-דאטה מתמונות לפני
+        // שליחתן במייל. PHI: מטופלים ששולחים תמונה למטפל לא חושפים מיקום.
+        buffer = await stripImageMetadata(buffer, file.type);
         resendAttachments.push({
           filename: file.name,
           content: buffer,

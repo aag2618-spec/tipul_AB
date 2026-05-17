@@ -52,8 +52,12 @@ export async function POST(request: NextRequest) {
       });
     }
 
-    // Generate secure token
-    const token = crypto.randomBytes(32).toString("hex");
+    // M6 (2026-05-17): מייצרים plaintext token (32 bytes hex) שנשלח במייל,
+    // אבל ב-DB שומרים רק SHA-256 hash שלו. אם DB דולף, התוקף לא יכול
+    // להשתמש ב-tokens שלא הופעלו עדיין. אין צורך ב-HMAC כי האקראיות
+    // של 256 bits מספיקה — sha256 ראשון מספיק כדי למנוע lookup ישיר.
+    const plaintextToken = crypto.randomBytes(32).toString("hex");
+    const tokenHash = crypto.createHash("sha256").update(plaintextToken).digest("hex");
     const expiresAt = new Date(Date.now() + 60 * 60 * 1000); // 1 hour
 
     // Delete any existing reset tokens for this user
@@ -61,14 +65,16 @@ export async function POST(request: NextRequest) {
       where: { userId: user.id },
     });
 
-    // Create new reset token
+    // Create new reset token — ה-DB מקבל hash, המייל מקבל plaintext.
     await prisma.passwordReset.create({
       data: {
-        token,
+        token: tokenHash,
         userId: user.id,
         expiresAt,
       },
     });
+
+    const token = plaintextToken;
 
     // Send email
     const baseUrl = process.env.NEXTAUTH_URL || "https://tipul-mh2t.onrender.com";

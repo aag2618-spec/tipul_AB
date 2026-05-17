@@ -13,7 +13,8 @@ export async function GET(
     const { id } = await params;
     const token = request.nextUrl.searchParams.get("t");
 
-    if (!token || token.length !== 24) {
+    // M4 (2026-05-17): מקבל גם 24 (legacy 96-bit) וגם 32 (128-bit חדש).
+    if (!token || (token.length !== 24 && token.length !== 32)) {
       return NextResponse.json({ message: "אין הרשאה" }, { status: 403 });
     }
 

@@ -34,19 +34,11 @@ import {
 } from "@/lib/scope";
 import { isShabbatOrYomTov } from "@/lib/shabbat";
 import { BULK_UMBRELLA_NOTES_PREFIX } from "@/lib/payments/types";
+import { chargeCardcomBulkSchema } from "@/lib/validations/payment";
 
 export const dynamic = "force-dynamic";
 
-interface ChargeBulkBody {
-  clientId: string;
-  paymentIds: string[];
-  totalAmount: number;
-  numOfPayments?: number;
-  createToken?: boolean;
-  description?: string;
-  successRedirectUrl?: string;
-  failedRedirectUrl?: string;
-}
+type ChargeBulkBody = import("zod").infer<typeof chargeCardcomBulkSchema>;
 
 export async function POST(request: NextRequest) {
   const auth = await requireAuth();
@@ -61,9 +53,19 @@ export async function POST(request: NextRequest) {
     );
   }
 
+  // H2: zod strict — אוכף clientId/paymentIds/totalAmount + חוסם שדות לא ידועים.
   let body: ChargeBulkBody;
   try {
-    body = (await request.json()) as ChargeBulkBody;
+    const raw = await request.json();
+    const parsed = chargeCardcomBulkSchema.safeParse(raw);
+    if (!parsed.success) {
+      const first = parsed.error.issues[0];
+      return NextResponse.json(
+        { message: first?.message ?? "נתונים לא תקינים", field: first?.path.join(".") ?? null },
+        { status: 400 }
+      );
+    }
+    body = parsed.data;
   } catch {
     return NextResponse.json({ message: "גוף הבקשה לא תקין" }, { status: 400 });
   }
@@ -92,20 +94,7 @@ export async function POST(request: NextRequest) {
     }
   }
   const numOfPayments = Math.min(Math.max(body.numOfPayments ?? 1, 1), 36);
-
-  if (!clientId || typeof clientId !== "string") {
-    return NextResponse.json({ message: "חסר מזהה מטופל" }, { status: 400 });
-  }
-  if (!Array.isArray(paymentIds) || paymentIds.length === 0) {
-    return NextResponse.json({ message: "אין תשלומים לחיוב" }, { status: 400 });
-  }
-  if (paymentIds.length > 50) {
-    // הגנה מפני body מנופח — Cardcom Products array גם מוגבל בפועל.
-    return NextResponse.json({ message: "ניתן לצרף עד 50 פגישות בחיוב יחיד" }, { status: 400 });
-  }
-  if (typeof totalAmount !== "number" || !Number.isFinite(totalAmount) || totalAmount <= 0) {
-    return NextResponse.json({ message: "סכום התשלום חייב להיות חיובי" }, { status: 400 });
-  }
+  // ולידציה בסיסית כבר נעשתה ע"י zod (strict). הבדיקות המקוריות הוסרו.
 
   // Scope-based ownership + הרשאת קבלות למזכירה (סליקה מנפיקה קבלה/חשבונית).
   const scopeUser = await loadScopeUser(userId);

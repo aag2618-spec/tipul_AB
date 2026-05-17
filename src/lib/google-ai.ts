@@ -18,6 +18,47 @@ function getGenAI(): GoogleGenerativeAI {
 // Updated model to Gemini 2.0 Flash (33x cheaper than Gemini 3 Pro!)
 const DEFAULT_MODEL = 'gemini-2.0-flash';
 
+// M2 (2026-05-17): מגבלות עלות + timeout על קריאות AI.
+//   • AI_TIMEOUT_MS = 30s — מעבר לזה מבטלים. timeout מונע worker תקוע.
+//   • AI_TRANSCRIPTION_TIMEOUT_MS = 180s — תמלול של פגישה ארוכה (50MB audio)
+//     יכול להגיע ל-2-3 דקות ב-Gemini Flash. הגדלנו מ-90s כדי לא להפיל פגישות אמת.
+//   • MAX_TRANSCRIPTION_CHARS = 100K — שווה ~25K-30K tokens עבריים.
+//     מעבר לזה — חיתוך עם הערה. עלות per-call נשארת חזויה.
+const AI_TIMEOUT_MS = 30_000;
+const AI_TRANSCRIPTION_TIMEOUT_MS = 180_000;
+const MAX_TRANSCRIPTION_CHARS = 100_000;
+
+/**
+ * עוטף promise ב-timeout. אם חורג — דוחה עם Error("AI_TIMEOUT").
+ * שמרני: לא משתמש ב-AbortController כי ה-SDK של Gemini לא תמיד מכבד אותו.
+ * Promise.race לפחות מבטיח שה-route יחזיר 504 מהיר במקום להחזיק connection.
+ */
+async function withAiTimeout<T>(promise: Promise<T>, ms: number = AI_TIMEOUT_MS): Promise<T> {
+  let timer: NodeJS.Timeout | undefined;
+  try {
+    return await Promise.race([
+      promise,
+      new Promise<never>((_, reject) => {
+        timer = setTimeout(() => reject(new Error("AI_TIMEOUT")), ms);
+      }),
+    ]);
+  } finally {
+    if (timer) clearTimeout(timer);
+  }
+}
+
+/**
+ * חיתוך טקסט ארוך — מונע request ענק שעולה כסף ועלול לעבור context window.
+ * חותך לתחילת + סוף כדי לשמר context (אופנינג + closing) במקרי קצה.
+ */
+function capTranscription(text: string): string {
+  if (typeof text !== "string") return "";
+  if (text.length <= MAX_TRANSCRIPTION_CHARS) return text;
+  const head = text.slice(0, Math.floor(MAX_TRANSCRIPTION_CHARS * 0.7));
+  const tail = text.slice(-Math.floor(MAX_TRANSCRIPTION_CHARS * 0.25));
+  return `${head}\n\n[...טקסט ארוך — נחתך אוטומטית לחיסכון בעלות AI...]\n\n${tail}`;
+}
+
 export async function transcribeAudio(audioBase64: string, mimeType: string): Promise<{
   text: string;
   confidence?: number;
@@ -35,23 +76,26 @@ export async function transcribeAudio(audioBase64: string, mimeType: string): Pr
   try {
     const model = getGenAI().getGenerativeModel({ model: DEFAULT_MODEL });
 
-    const result = await model.generateContent([
-      {
-        inlineData: {
-          mimeType,
-          data: audioBase64,
+    // M2: timeout — תמלול עלול לקחת הרבה. 90s סף סביר; מעבר לזה ככל הנראה תקיעה.
+    const result = await withAiTimeout(
+      model.generateContent([
+        {
+          inlineData: {
+            mimeType,
+            data: audioBase64,
+          },
         },
-      },
-      {
-        text: `תמלל את ההקלטה הזו לעברית. 
+        {
+          text: `תמלל את ההקלטה הזו לעברית.
         אם יש יותר מדובר אחד, סמן אותם כ"מטפל:" ו"מטופל:".
         החזר רק את התמלול, בלי הערות נוספות.`,
-      },
-    ]);
+        },
+      ]),
+      AI_TRANSCRIPTION_TIMEOUT_MS
+    );
 
     const response = await result.response;
     const text = response.text();
-    // H6 — הסרנו console.log שדלף מטא-דאטה של תוכן פגישה.
 
     return {
       text,
@@ -75,7 +119,7 @@ export async function transcribeAudioWithTimestamps(
   try {
     const model = getGenAI().getGenerativeModel({ model: DEFAULT_MODEL });
 
-    const result = await model.generateContent([
+    const result = await withAiTimeout(model.generateContent([
       {
         inlineData: {
           mimeType,
@@ -93,11 +137,11 @@ export async function transcribeAudioWithTimestamps(
         }
         החזר רק את ה-JSON, בלי הסברים נוספים.`,
       },
-    ]);
+    ]), AI_TRANSCRIPTION_TIMEOUT_MS);
 
     const response = await result.response;
     const jsonText = response.text();
-    
+
     // Try to parse JSON from the response
     const jsonMatch = jsonText.match(/\{[\s\S]*\}/);
     if (jsonMatch) {
@@ -193,10 +237,13 @@ export async function analyzeSession(
   try {
     const model = getGenAI().getGenerativeModel({ model: DEFAULT_MODEL });
 
+    // M2: חיתוך אינפוט ארוך — מונע עלות לא חזויה.
+    transcription = capTranscription(transcription);
+
     // Build approach-specific prompts
     let approachGuidance = '';
     let approachNames = 'כללי';
-    
+
     if (approachIds.length > 0) {
       const approachPrompts = getApproachPrompts(approachIds);
       approachNames = approachIds.join(', ');
@@ -214,7 +261,7 @@ ${approachPrompts}
 `;
     }
 
-    const result = await model.generateContent([
+    const result = await withAiTimeout(model.generateContent([
       {
         text: `אתה פסיכולוג קליני מנוסה עם מומחיות עמוקה. ${approachGuidance}
 
@@ -309,7 +356,7 @@ ${transcription}
 - וודא שכל הניתוח מבוסס על הגישה/ות שנבחרו בלבד: ${approachNames}
 - אל תערבב מונחים מגישות אחרות!`,
       },
-    ]);
+    ]));
 
     const response = await result.response;
     const content = response.text();
@@ -354,6 +401,8 @@ export async function generateSessionSummary(
   try {
     const model = getGenAI().getGenerativeModel({ model: DEFAULT_MODEL });
 
+    transcription = capTranscription(transcription); // M2
+
     // Build approach-specific prompts
     let approachGuidance = '';
     if (approachIds.length > 0) {
@@ -367,7 +416,7 @@ ${approachPrompts}
 `;
     }
 
-    const result = await model.generateContent([
+    const result = await withAiTimeout(model.generateContent([
       {
         text: `אתה פסיכולוג קליני מנוסה. ${approachGuidance}
 
@@ -379,7 +428,7 @@ ${transcription}
 
 כתוב סיכום של 3-5 משפטים.`,
       },
-    ]);
+    ]));
 
     const response = await result.response;
     return response.text();
@@ -402,7 +451,9 @@ export async function analyzeIntake(transcription: string): Promise<{
   try {
     const model = getGenAI().getGenerativeModel({ model: DEFAULT_MODEL });
 
-    const result = await model.generateContent([
+    transcription = capTranscription(transcription); // M2
+
+    const result = await withAiTimeout(model.generateContent([
       {
         text: `אתה פסיכולוג קליני מנוסה. נתח את שיחת הקבלה/פתיחת תיק הבאה ובנה פרופיל ראשוני של המטופל.
 
@@ -422,7 +473,7 @@ ${transcription}
 
 החזר רק את ה-JSON, בלי הסברים נוספים.`,
       },
-    ]);
+    ]));
 
     const response = await result.response;
     const content = response.text();
@@ -445,11 +496,13 @@ export async function analyzeText(prompt: string): Promise<string> {
   try {
     const model = getGenAI().getGenerativeModel({ model: DEFAULT_MODEL });
 
-    const result = await model.generateContent([
+    const cappedPrompt = capTranscription(prompt); // M2 — מגביל אורך input.
+
+    const result = await withAiTimeout(model.generateContent([
       {
-        text: prompt,
+        text: cappedPrompt,
       },
-    ]);
+    ]));
 
     const response = await result.response;
     return response.text();

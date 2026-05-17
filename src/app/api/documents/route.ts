@@ -6,7 +6,7 @@ import { join } from "path";
 import { v4 as uuidv4 } from "uuid";
 import { logger } from "@/lib/logger";
 import { loadScopeUser, buildClientWhere } from "@/lib/scope";
-import { validateFileBuffer, safeExtensionForMime } from "@/lib/file-validation";
+import { validateFileBuffer, safeExtensionForMime, stripImageMetadata } from "@/lib/file-validation";
 import { documentFormFieldsSchema } from "@/lib/validations/document";
 
 export const dynamic = "force-dynamic";
@@ -90,11 +90,15 @@ export async function POST(request: NextRequest) {
     const { name, type, clientId } = fieldsParsed.data;
 
     // H5: validate size + MIME + magic-bytes לפני שמירה לדיסק.
-    const fileBuffer = Buffer.from(await file.arrayBuffer());
+    let fileBuffer: Buffer = Buffer.from(await file.arrayBuffer());
     const validation = validateFileBuffer(fileBuffer, file.type, "document");
     if (!validation.ok) {
       return NextResponse.json({ message: validation.error }, { status: 400 });
     }
+
+    // H5 (2026-05-17): EXIF stripping — מסיר GPS/מטא-דאטה מתמונות (JPG/PNG).
+    // PDF/Word לא נוגעים בהם. תמונה שעוברת אותה ביד מוסרים שכבת PHI.
+    fileBuffer = await stripImageMetadata(fileBuffer, file.type);
 
     const scopeUser = await loadScopeUser(userId);
     const clientWhere = buildClientWhere(scopeUser);
