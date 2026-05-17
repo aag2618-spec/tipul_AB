@@ -43,6 +43,33 @@ export async function parseBodyWithErrorField<T>(
 }
 
 /**
+ * parseOptionalBody — גרסת parseBody לנתיבים שבהם ה-UI עשוי לקרוא ללא body
+ * (למשל כפתור "פעולה" שלא שולח body). אם הגוף ריק או לא תקין, מתפרש כ-{}
+ * וה-schema מאומת מולו. שימושי רק לסכמות שכל השדות שלהן optional.
+ */
+export async function parseOptionalBody<T>(
+  request: Request,
+  schema: z.ZodSchema<T>
+): Promise<{ data: T } | { error: NextResponse }> {
+  let body: unknown = {};
+  try {
+    body = await request.json();
+  } catch {
+    body = {};
+  }
+  const result = schema.safeParse(body);
+  if (!result.success) {
+    return {
+      error: NextResponse.json(
+        { message: "נתונים לא תקינים", errors: result.error.flatten().fieldErrors },
+        { status: 400 }
+      ),
+    };
+  }
+  return { data: result.data };
+}
+
+/**
  * Search-params parser — עוטף URLSearchParams ב-zod. שימושי ל-GET endpoints
  * שמקבלים query params (date, status, etc.) ולא body.
  */

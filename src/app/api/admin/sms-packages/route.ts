@@ -3,6 +3,8 @@ import prisma from "@/lib/prisma";
 import { logger } from "@/lib/logger";
 import { requirePermission } from "@/lib/api-auth";
 import { withAudit } from "@/lib/audit";
+import { parseBody } from "@/lib/validations/helpers";
+import { createSmsPackageSchema } from "@/lib/validations/billing";
 
 export const dynamic = "force-dynamic";
 
@@ -39,37 +41,22 @@ export async function POST(request: NextRequest) {
     if ("error" in auth) return auth.error;
     const { session } = auth;
 
-    const body = await request.json();
-    const { name, credits, priceIls, isActive } = body;
-
-    if (!name || !String(name).trim()) {
-      return NextResponse.json({ message: "נדרש שם חבילה" }, { status: 400 });
-    }
-    if (typeof credits !== "number" || credits <= 0 || !Number.isInteger(credits)) {
-      return NextResponse.json(
-        { message: "כמות יחידות חייבת להיות מספר שלם חיובי" },
-        { status: 400 }
-      );
-    }
-    if (typeof priceIls !== "number" || priceIls < 0) {
-      return NextResponse.json(
-        { message: "מחיר חייב להיות מספר אי-שלילי" },
-        { status: 400 }
-      );
-    }
+    const parsed = await parseBody(request, createSmsPackageSchema);
+    if ("error" in parsed) return parsed.error;
+    const { name, credits, priceIls, isActive } = parsed.data;
 
     const pkg = await withAudit(
       { kind: "user", session },
       {
         action: "create_sms_package",
         targetType: "Package",
-        details: { name: String(name).trim(), credits, priceIls },
+        details: { name, credits, priceIls },
       },
       async (tx) => {
         return tx.package.create({
           data: {
             type: "SMS",
-            name: String(name).trim(),
+            name,
             credits,
             priceIls,
             isActive: isActive !== false,

@@ -4,6 +4,8 @@ import { logger } from "@/lib/logger";
 
 import { requirePermission } from "@/lib/api-auth";
 import { withAudit } from "@/lib/audit";
+import { parseBody } from "@/lib/validations/helpers";
+import { createCouponSchema } from "@/lib/validations/billing";
 
 // GET - List all coupons
 export const dynamic = "force-dynamic";
@@ -47,17 +49,11 @@ export async function POST(request: NextRequest) {
     if ("error" in auth) return auth.error;
     const { session } = auth;
 
-    const body = await request.json();
-    const { code, name, type, maxUses, trialDays, validUntil, discount } = body;
+    const parsed = await parseBody(request, createCouponSchema);
+    if ("error" in parsed) return parsed.error;
+    const { code, name, type, maxUses, trialDays, validUntil, discount } = parsed.data;
 
-    if (!code || !name) {
-      return NextResponse.json(
-        { message: "נא למלא קוד ושם לקופון" },
-        { status: 400 }
-      );
-    }
-
-    const normalizedCode = code.trim().toUpperCase();
+    const normalizedCode = code.toUpperCase();
 
     // Check if code already exists
     const existingCoupon = await prisma.coupon.findUnique({

@@ -8,6 +8,8 @@ import { logger } from "@/lib/logger";
 import { withAudit } from "@/lib/audit";
 import { getAdminCardcomConfig } from "@/lib/cardcom/admin-config";
 import { voidCardcomDocument } from "@/lib/cardcom/invoice-api";
+import { parseOptionalBody } from "@/lib/validations/helpers";
+import { receiptVoidSchema } from "@/lib/validations/billing";
 
 export const dynamic = "force-dynamic";
 
@@ -20,13 +22,9 @@ export async function POST(
   const { session } = auth;
   const { id } = await context.params;
 
-  let body: { reason?: string };
-  try {
-    body = await request.json();
-  } catch {
-    body = {};
-  }
-  const reason = body.reason?.trim() || "ביטול קבלה ע\"י ADMIN";
+  const parsed = await parseOptionalBody(request, receiptVoidSchema);
+  if ("error" in parsed) return parsed.error;
+  const reason = parsed.data.reason?.trim() || "ביטול קבלה ע\"י ADMIN";
 
   const invoice = await prisma.cardcomInvoice.findUnique({ where: { id } });
   if (!invoice) {

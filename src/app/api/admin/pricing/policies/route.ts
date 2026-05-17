@@ -3,36 +3,14 @@ import prisma from "@/lib/prisma";
 import { logger } from "@/lib/logger";
 import { requirePermission } from "@/lib/api-auth";
 import { withAudit } from "@/lib/audit";
-import type { Prisma, PricingScope, AITier } from "@prisma/client";
+import type { Prisma, PricingScope } from "@prisma/client";
+import { parseBody, parseSearchParams } from "@/lib/validations/helpers";
+import {
+  pricingPoliciesQuerySchema,
+  createPricingPolicySchema,
+} from "@/lib/validations/billing";
 
 export const dynamic = "force-dynamic";
-
-const VALID_SCOPES: readonly PricingScope[] = [
-  "GLOBAL",
-  "ORGANIZATION",
-  "CLINIC_MEMBER",
-  "USER",
-];
-const VALID_TIERS: readonly AITier[] = ["ESSENTIAL", "PRO", "ENTERPRISE"];
-
-const MAX_PAGE_SIZE = 500;
-
-function isPricingScope(v: unknown): v is PricingScope {
-  return typeof v === "string" && (VALID_SCOPES as readonly string[]).includes(v);
-}
-
-function isAITier(v: unknown): v is AITier {
-  return typeof v === "string" && (VALID_TIERS as readonly string[]).includes(v);
-}
-
-function isFiniteNonNegativeNumber(v: unknown): v is number {
-  return typeof v === "number" && Number.isFinite(v) && v >= 0;
-}
-
-function isValidDecimal2(v: number): boolean {
-  // Decimal(10,2) — מקסימום 2 ספרות אחרי הנקודה.
-  return Math.round(v * 100) === v * 100;
-}
 
 /**
  * Validation לפי scope (תואם ל-CHECK constraint ב-DB):
@@ -88,24 +66,17 @@ export async function GET(request: NextRequest) {
     const auth = await requirePermission("settings.pricing");
     if ("error" in auth) return auth.error;
 
-    const { searchParams } = new URL(request.url);
-    const scopeParam = searchParams.get("scope");
-    const organizationId = searchParams.get("organizationId");
-    const userId = searchParams.get("userId");
-    const planTierParam = searchParams.get("planTier");
-    const activeOnly = searchParams.get("activeOnly") === "true";
-    const takeParam = Number(searchParams.get("take") ?? "200");
-    const take = Math.min(
-      Math.max(Number.isFinite(takeParam) ? takeParam : 200, 1),
-      MAX_PAGE_SIZE
-    );
+    const parsed = parseSearchParams(request.url, pricingPoliciesQuerySchema);
+    if ("error" in parsed) return parsed.error;
+    const { scope, organizationId, userId, planTier, activeOnly, take } =
+      parsed.data;
 
     const where: Prisma.PricingPolicyWhereInput = {};
-    if (scopeParam !== null && isPricingScope(scopeParam)) where.scope = scopeParam;
+    if (scope) where.scope = scope;
     if (organizationId) where.organizationId = organizationId;
     if (userId) where.userId = userId;
-    if (planTierParam !== null && isAITier(planTierParam)) where.planTier = planTierParam;
-    if (activeOnly) {
+    if (planTier) where.planTier = planTier;
+    if (activeOnly === "true") {
       const now = new Date();
       where.validFrom = { lte: now };
       where.AND = [{ OR: [{ validUntil: null }, { validUntil: { gt: now } }] }];
@@ -164,7 +135,8 @@ export async function POST(request: NextRequest) {
       );
     }
 
-    const body = (await request.json()) as Record<string, unknown>;
+    const parsed = await parseBody(request, createPricingPolicySchema);
+    if ("error" in parsed) return parsed.error;
     const {
       scope,
       organizationId,
@@ -177,54 +149,10 @@ export async function POST(request: NextRequest) {
       validFrom,
       validUntil,
       notes,
-    } = body;
+    } = parsed.data;
 
-    if (!isPricingScope(scope)) {
-      return NextResponse.json(
-        { message: "ערך 'היקף' לא חוקי" },
-        { status: 400 }
-      );
-    }
-    if (!isAITier(planTier)) {
-      return NextResponse.json(
-        { message: "ערך 'רמת תוכנית' לא חוקי" },
-        { status: 400 }
-      );
-    }
-    if (!isFiniteNonNegativeNumber(monthlyIls)) {
-      return NextResponse.json(
-        { message: "מחיר חודשי חייב להיות מספר אי-שלילי" },
-        { status: 400 }
-      );
-    }
-    if (!isValidDecimal2(monthlyIls)) {
-      return NextResponse.json(
-        { message: "מחיר חודשי יכול להכיל עד 2 ספרות אחרי הנקודה" },
-        { status: 400 }
-      );
-    }
-    for (const [keyHe, val] of [
-      ["מחיר רבעוני", quarterlyIls],
-      ["מחיר חצי-שנתי", halfYearIls],
-      ["מחיר שנתי", yearlyIls],
-    ] as const) {
-      if (val === null || val === undefined) continue;
-      if (!isFiniteNonNegativeNumber(val)) {
-        return NextResponse.json(
-          { message: `${keyHe} חייב להיות מספר אי-שלילי או ריק` },
-          { status: 400 }
-        );
-      }
-      if (!isValidDecimal2(val)) {
-        return NextResponse.json(
-          { message: `${keyHe} יכול להכיל עד 2 ספרות אחרי הנקודה` },
-          { status: 400 }
-        );
-      }
-    }
-
-    const orgIdStr = typeof organizationId === "string" ? organizationId : null;
-    const userIdStr = typeof userId === "string" ? userId : null;
+    const orgIdStr = organizationId ?? null;
+    const userIdStr = userId ?? null;
     const scopeCheck = validateScopeIds(scope, orgIdStr, userIdStr);
     if (!scopeCheck.ok) {
       return NextResponse.json({ message: scopeCheck.message }, { status: 400 });
@@ -243,21 +171,8 @@ export async function POST(request: NextRequest) {
       );
     }
 
-    // Validation של תאריכים — תופס Invalid Date
-    const validFromDate = validFrom ? new Date(validFrom as string) : new Date();
-    if (Number.isNaN(validFromDate.getTime())) {
-      return NextResponse.json(
-        { message: "תאריך התחלה לא חוקי" },
-        { status: 400 }
-      );
-    }
-    const validUntilDate = validUntil ? new Date(validUntil as string) : null;
-    if (validUntilDate && Number.isNaN(validUntilDate.getTime())) {
-      return NextResponse.json(
-        { message: "תאריך סיום לא חוקי" },
-        { status: 400 }
-      );
-    }
+    const validFromDate = validFrom ? new Date(validFrom) : new Date();
+    const validUntilDate = validUntil ? new Date(validUntil) : null;
     if (validUntilDate && validUntilDate.getTime() <= validFromDate.getTime()) {
       return NextResponse.json(
         { message: "תאריך סיום חייב להיות אחרי תאריך התחלה" },
@@ -317,12 +232,12 @@ export async function POST(request: NextRequest) {
             userId: userIdStr,
             planTier,
             monthlyIls,
-            quarterlyIls: typeof quarterlyIls === "number" ? quarterlyIls : null,
-            halfYearIls: typeof halfYearIls === "number" ? halfYearIls : null,
-            yearlyIls: typeof yearlyIls === "number" ? yearlyIls : null,
+            quarterlyIls: quarterlyIls ?? null,
+            halfYearIls: halfYearIls ?? null,
+            yearlyIls: yearlyIls ?? null,
             validFrom: validFromDate,
             validUntil: validUntilDate,
-            notes: typeof notes === "string" ? notes : null,
+            notes: notes ?? null,
             createdById: adminId,
           },
         })

@@ -3,6 +3,8 @@ import prisma from "@/lib/prisma";
 import { logger } from "@/lib/logger";
 import { requirePermission } from "@/lib/api-auth";
 import { withAudit } from "@/lib/audit";
+import { parseBody } from "@/lib/validations/helpers";
+import { updateClinicPlanSchema } from "@/lib/validations/billing";
 
 export const dynamic = "force-dynamic";
 
@@ -17,19 +19,13 @@ export async function PATCH(
     const { session } = auth;
 
     const { id } = await params;
-    const body = await request.json();
+    const parsed = await parseBody(request, updateClinicPlanSchema);
+    if ("error" in parsed) return parsed.error;
+    const body = parsed.data;
 
     const existing = await prisma.clinicPricingPlan.findUnique({ where: { id } });
     if (!existing) {
       return NextResponse.json({ message: "תוכנית לא נמצאה" }, { status: 404 });
-    }
-
-    // ולידציה של מספרים אם הועברו
-    if (body.baseFeeIls !== undefined && (typeof body.baseFeeIls !== "number" || body.baseFeeIls < 0)) {
-      return NextResponse.json({ message: "מחיר בסיס שגוי" }, { status: 400 });
-    }
-    if (body.perTherapistFeeIls !== undefined && (typeof body.perTherapistFeeIls !== "number" || body.perTherapistFeeIls < 0)) {
-      return NextResponse.json({ message: "מחיר לכל מטפל שגוי" }, { status: 400 });
     }
 
     const plan = await withAudit(

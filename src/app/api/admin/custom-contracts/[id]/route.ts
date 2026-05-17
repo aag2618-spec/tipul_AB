@@ -3,6 +3,8 @@ import prisma from "@/lib/prisma";
 import { logger } from "@/lib/logger";
 import { requirePermission } from "@/lib/api-auth";
 import { withAudit } from "@/lib/audit";
+import { parseBody } from "@/lib/validations/helpers";
+import { updateCustomContractSchema } from "@/lib/validations/billing";
 
 export const dynamic = "force-dynamic";
 
@@ -17,29 +19,18 @@ export async function PATCH(
     const { session } = auth;
 
     const { id } = await params;
-    const body = await request.json();
+    const parsed = await parseBody(request, updateCustomContractSchema);
+    if ("error" in parsed) return parsed.error;
+    const body = parsed.data;
 
     const existing = await prisma.customContract.findUnique({ where: { id } });
     if (!existing) {
       return NextResponse.json({ message: "חוזה לא נמצא" }, { status: 404 });
     }
 
-    if (
-      body.monthlyEquivPriceIls !== undefined &&
-      (typeof body.monthlyEquivPriceIls !== "number" || body.monthlyEquivPriceIls < 0)
-    ) {
-      return NextResponse.json(
-        { message: "מחיר חודשי שגוי" },
-        { status: 400 }
-      );
-    }
-
     const newStart = body.startDate ? new Date(body.startDate) : existing.startDate;
     const newEnd = body.endDate ? new Date(body.endDate) : existing.endDate;
-    if (
-      (body.startDate || body.endDate) &&
-      (isNaN(newStart.getTime()) || isNaN(newEnd.getTime()) || newEnd <= newStart)
-    ) {
+    if ((body.startDate || body.endDate) && newEnd <= newStart) {
       return NextResponse.json(
         { message: "תאריכים לא תקינים — סיום חייב להיות אחרי תחילה" },
         { status: 400 }

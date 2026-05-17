@@ -5,6 +5,8 @@ import { logger } from "@/lib/logger";
 import { requirePermission } from "@/lib/api-auth";
 import { withAudit } from "@/lib/audit";
 import { serializePrisma } from "@/lib/serialize";
+import { parseBody, parseSearchParams } from "@/lib/validations/helpers";
+import { billingQuerySchema, createBillingSchema } from "@/lib/validations/billing";
 
 export const dynamic = "force-dynamic";
 
@@ -13,11 +15,9 @@ export async function GET(request: NextRequest) {
     const auth = await requirePermission("payments.view_all");
     if ("error" in auth) return auth.error;
 
-    const { searchParams } = new URL(request.url);
-    const limit = parseInt(searchParams.get("limit") || "50");
-    const offset = parseInt(searchParams.get("offset") || "0");
-    const userId = searchParams.get("userId");
-    const status = searchParams.get("status");
+    const parsed = parseSearchParams(request.url, billingQuerySchema);
+    if ("error" in parsed) return parsed.error;
+    const { limit, offset, userId, status } = parsed.data;
 
     const where: Record<string, unknown> = {};
     if (userId) where.userId = userId;
@@ -85,15 +85,9 @@ export async function POST(request: NextRequest) {
     if ("error" in auth) return auth.error;
     const { session } = auth;
 
-    const body = await request.json();
-    const { userId, amount, description, periodStart, periodEnd, status } = body;
-
-    if (!userId || !amount) {
-      return NextResponse.json(
-        { message: "נא למלא משתמש וסכום" },
-        { status: 400 }
-      );
-    }
+    const parsed = await parseBody(request, createBillingSchema);
+    if ("error" in parsed) return parsed.error;
+    const { userId, amount, description, periodStart, periodEnd, status } = parsed.data;
 
     const payment = await withAudit(
       { kind: "user", session },

@@ -3,6 +3,8 @@ import prisma from "@/lib/prisma";
 import { logger } from "@/lib/logger";
 import { requirePermission } from "@/lib/api-auth";
 import { withAudit } from "@/lib/audit";
+import { parseBody } from "@/lib/validations/helpers";
+import { updateSmsPackageSchema } from "@/lib/validations/billing";
 
 export const dynamic = "force-dynamic";
 
@@ -17,7 +19,9 @@ export async function PATCH(
     const { session } = auth;
 
     const { id } = await params;
-    const body = await request.json();
+    const parsed = await parseBody(request, updateSmsPackageSchema);
+    if ("error" in parsed) return parsed.error;
+    const body = parsed.data;
 
     const existing = await prisma.package.findUnique({ where: { id } });
     if (!existing) {
@@ -28,23 +32,6 @@ export async function PATCH(
         { message: "חבילה זו אינה חבילת SMS — לא ניתן לערוך מכאן" },
         { status: 400 }
       );
-    }
-
-    if (body.credits !== undefined) {
-      if (typeof body.credits !== "number" || body.credits <= 0 || !Number.isInteger(body.credits)) {
-        return NextResponse.json(
-          { message: "כמות יחידות חייבת להיות מספר שלם חיובי" },
-          { status: 400 }
-        );
-      }
-    }
-    if (body.priceIls !== undefined) {
-      if (typeof body.priceIls !== "number" || body.priceIls < 0) {
-        return NextResponse.json(
-          { message: "מחיר חייב להיות מספר אי-שלילי" },
-          { status: 400 }
-        );
-      }
     }
 
     const pkg = await withAudit(
@@ -59,10 +46,10 @@ export async function PATCH(
         return tx.package.update({
           where: { id },
           data: {
-            ...(body.name !== undefined && { name: String(body.name).trim() }),
+            ...(body.name !== undefined && { name: body.name }),
             ...(body.credits !== undefined && { credits: body.credits }),
             ...(body.priceIls !== undefined && { priceIls: body.priceIls }),
-            ...(body.isActive !== undefined && { isActive: Boolean(body.isActive) }),
+            ...(body.isActive !== undefined && { isActive: body.isActive }),
           },
         });
       }

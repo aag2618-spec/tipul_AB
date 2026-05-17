@@ -3,6 +3,8 @@ import prisma from "@/lib/prisma";
 import { logger } from "@/lib/logger";
 import { requirePermission } from "@/lib/api-auth";
 import { withAudit } from "@/lib/audit";
+import { parseBody } from "@/lib/validations/helpers";
+import { updatePricingPolicySchema } from "@/lib/validations/billing";
 
 export const dynamic = "force-dynamic";
 
@@ -28,7 +30,9 @@ export async function PATCH(
     }
 
     const { id } = await params;
-    const body = (await request.json()) as Record<string, unknown>;
+    const parsed = await parseBody(request, updatePricingPolicySchema);
+    if ("error" in parsed) return parsed.error;
+    const body = parsed.data as Record<string, unknown>;
 
     const existing = await prisma.pricingPolicy.findUnique({ where: { id } });
     if (!existing) {

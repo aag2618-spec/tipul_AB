@@ -3,17 +3,13 @@
 // and optionally flag it as reconciled (we issued the local refund/void).
 
 import { NextRequest, NextResponse } from "next/server";
-import prisma from "@/lib/prisma";
 import { requirePermission } from "@/lib/api-auth";
 import { logger } from "@/lib/logger";
 import { withAudit } from "@/lib/audit";
+import { parseBody } from "@/lib/validations/helpers";
+import { chargebackReviewSchema } from "@/lib/validations/billing";
 
 export const dynamic = "force-dynamic";
-
-interface ReviewBody {
-  note?: string;
-  reconciled?: boolean;
-}
 
 export async function POST(
   request: NextRequest,
@@ -27,22 +23,9 @@ export async function POST(
   if ("error" in auth) return auth.error;
   const { session } = auth;
 
-  let body: ReviewBody;
-  try {
-    body = await request.json();
-  } catch {
-    return NextResponse.json({ message: "גוף הבקשה אינו JSON תקין" }, { status: 400 });
-  }
-
-  if (body.note !== undefined && typeof body.note !== "string") {
-    return NextResponse.json({ message: "הערה חייבת להיות מחרוזת" }, { status: 400 });
-  }
-  if (body.note && body.note.length > 2000) {
-    return NextResponse.json({ message: "הערה ארוכה מדי (מקסימום 2000 תווים)" }, { status: 400 });
-  }
-  if (body.reconciled !== undefined && typeof body.reconciled !== "boolean") {
-    return NextResponse.json({ message: "reconciled חייב להיות boolean" }, { status: 400 });
-  }
+  const parsed = await parseBody(request, chargebackReviewSchema);
+  if ("error" in parsed) return parsed.error;
+  const body: { note?: string; reconciled?: boolean } = { ...parsed.data };
 
   // Sanitize the free-form note before persistence to short-circuit XSS in
   // any future UI that renders the text without escaping. We:
@@ -51,7 +34,6 @@ export async function POST(
   //     dropped into HTML safely even by buggy code.
   if (body.note) {
     body.note = body.note
-      // eslint-disable-next-line no-control-regex
       .replace(/[\x00-\x08\x0B\x0C\x0E-\x1F\x7F]/g, "")
       .replace(/</g, "&lt;")
       .replace(/>/g, "&gt;");

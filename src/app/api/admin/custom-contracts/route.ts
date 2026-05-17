@@ -4,6 +4,11 @@ import prisma from "@/lib/prisma";
 import { logger } from "@/lib/logger";
 import { requirePermission } from "@/lib/api-auth";
 import { withAudit } from "@/lib/audit";
+import { parseBody, parseSearchParams } from "@/lib/validations/helpers";
+import {
+  customContractsQuerySchema,
+  createCustomContractSchema,
+} from "@/lib/validations/billing";
 
 export const dynamic = "force-dynamic";
 
@@ -13,8 +18,9 @@ export async function GET(request: NextRequest) {
     const auth = await requirePermission("settings.pricing");
     if ("error" in auth) return auth.error;
 
-    const { searchParams } = new URL(request.url);
-    const status = searchParams.get("status") || "all";
+    const queryParsed = parseSearchParams(request.url, customContractsQuerySchema);
+    if ("error" in queryParsed) return queryParsed.error;
+    const status = queryParsed.data.status ?? "all";
     const now = new Date();
     const expiringIn30Days = new Date(now.getTime() + 30 * 24 * 60 * 60 * 1000);
 
@@ -66,7 +72,8 @@ export async function POST(request: NextRequest) {
     if ("error" in auth) return auth.error;
     const { session, userId } = auth;
 
-    const body = await request.json();
+    const parsed = await parseBody(request, createCustomContractSchema);
+    if ("error" in parsed) return parsed.error;
     const {
       organizationId,
       monthlyEquivPriceIls,
@@ -80,28 +87,10 @@ export async function POST(request: NextRequest) {
       annualIncreasePct,
       signedDocumentUrl,
       notes,
-    } = body;
+    } = parsed.data;
 
-    if (!organizationId) {
-      return NextResponse.json({ message: "נדרש לבחור קליניקה" }, { status: 400 });
-    }
-    if (typeof monthlyEquivPriceIls !== "number" || monthlyEquivPriceIls < 0) {
-      return NextResponse.json(
-        { message: "מחיר חודשי חייב להיות מספר אי-שלילי" },
-        { status: 400 }
-      );
-    }
-    if (!startDate || !endDate) {
-      return NextResponse.json(
-        { message: "נדרש תאריך תחילה וסיום" },
-        { status: 400 }
-      );
-    }
     const start = new Date(startDate);
     const end = new Date(endDate);
-    if (isNaN(start.getTime()) || isNaN(end.getTime())) {
-      return NextResponse.json({ message: "תאריך לא תקין" }, { status: 400 });
-    }
     if (end <= start) {
       return NextResponse.json(
         { message: "תאריך סיום חייב להיות אחרי תאריך תחילה" },

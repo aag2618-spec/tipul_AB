@@ -9,6 +9,8 @@ import { logAdminAction } from "@/lib/audit";
 import { getAdminCardcomConfig } from "@/lib/cardcom/admin-config";
 import { getUserCardcomCredentials } from "@/lib/cardcom/user-config";
 import { resendCardcomDocument } from "@/lib/cardcom/invoice-api";
+import { parseOptionalBody } from "@/lib/validations/helpers";
+import { receiptResendSchema } from "@/lib/validations/billing";
 
 export const dynamic = "force-dynamic";
 
@@ -26,22 +28,21 @@ export async function POST(
   const { session } = auth;
   const { id } = await context.params;
 
-  let body: { email?: string };
-  try {
-    body = await request.json();
-  } catch {
-    body = {};
-  }
+  const parsed = await parseOptionalBody(request, receiptResendSchema);
+  if ("error" in parsed) return parsed.error;
+  const body = parsed.data;
 
   const invoice = await prisma.cardcomInvoice.findUnique({ where: { id } });
   if (!invoice) {
     return NextResponse.json({ message: "קבלה לא נמצאה" }, { status: 404 });
   }
 
-  const targetEmail = body.email?.trim() || invoice.subscriberEmailSnapshot;
+  const targetEmail = body.email || invoice.subscriberEmailSnapshot;
   if (!targetEmail) {
     return NextResponse.json({ message: "נדרשת כתובת מייל" }, { status: 400 });
   }
+  // safety-net על email שמגיע מ-DB snapshot (לא נכנס דרך zod) — אם snapshot
+  // נשמר בעבר עם email פגום, נחסום לפני שליחה ל-Cardcom.
   if (!/^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(targetEmail)) {
     return NextResponse.json({ message: "כתובת מייל לא תקינה" }, { status: 400 });
   }

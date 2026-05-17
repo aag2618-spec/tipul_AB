@@ -4,6 +4,8 @@ import { logger } from "@/lib/logger";
 
 import { requirePermission } from "@/lib/api-auth";
 import { withAudit } from "@/lib/audit";
+import { parseBody } from "@/lib/validations/helpers";
+import { updateCouponSchema } from "@/lib/validations/billing";
 
 // GET - Get single coupon
 export const dynamic = "force-dynamic";
@@ -56,7 +58,9 @@ export async function PATCH(
     const { session } = auth;
 
     const { id } = await params;
-    const body = await request.json();
+    const parsed = await parseBody(request, updateCouponSchema);
+    if ("error" in parsed) return parsed.error;
+    const body = parsed.data;
     const { name, type, maxUses, trialDays, validUntil, isActive, discount } = body;
 
     const previous = await prisma.coupon.findUnique({

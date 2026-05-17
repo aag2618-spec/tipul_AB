@@ -5,6 +5,8 @@ import { logger } from "@/lib/logger";
 import { requirePermission } from "@/lib/api-auth";
 import { withAudit } from "@/lib/audit";
 import { serializePrisma } from "@/lib/serialize";
+import { parseBody } from "@/lib/validations/helpers";
+import { updateBillingSchema } from "@/lib/validations/billing";
 
 export const dynamic = "force-dynamic";
 
@@ -18,8 +20,9 @@ export async function PUT(
     const { session } = auth;
 
     const { id } = await params;
-    const body = await request.json();
-    const { amount, description, status, paidAt, invoiceUrl } = body;
+    const parsed = await parseBody(request, updateBillingSchema);
+    if ("error" in parsed) return parsed.error;
+    const { amount, description, status, paidAt, invoiceUrl } = parsed.data;
 
     const existingPayment = await prisma.subscriptionPayment.findUnique({
       where: { id },

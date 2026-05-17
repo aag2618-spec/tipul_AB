@@ -3,6 +3,8 @@ import prisma from "@/lib/prisma";
 import { logger } from "@/lib/logger";
 import { requirePermission } from "@/lib/api-auth";
 import { withAudit } from "@/lib/audit";
+import { parseBody } from "@/lib/validations/helpers";
+import { createClinicPlanSchema } from "@/lib/validations/billing";
 
 export const dynamic = "force-dynamic";
 
@@ -38,7 +40,8 @@ export async function POST(request: NextRequest) {
     if ("error" in auth) return auth.error;
     const { session } = auth;
 
-    const body = await request.json();
+    const parsed = await parseBody(request, createClinicPlanSchema);
+    if ("error" in parsed) return parsed.error;
     const {
       name,
       internalCode,
@@ -57,28 +60,9 @@ export async function POST(request: NextRequest) {
       maxTherapists,
       maxSecretaries,
       description,
-    } = body;
+    } = parsed.data;
 
-    if (!name || !internalCode) {
-      return NextResponse.json(
-        { message: "נדרש שם תוכנית וקוד פנימי" },
-        { status: 400 }
-      );
-    }
-    if (typeof baseFeeIls !== "number" || baseFeeIls < 0) {
-      return NextResponse.json(
-        { message: "מחיר בסיס חייב להיות מספר אי-שלילי" },
-        { status: 400 }
-      );
-    }
-    if (typeof perTherapistFeeIls !== "number" || perTherapistFeeIls < 0) {
-      return NextResponse.json(
-        { message: "מחיר לכל מטפל חייב להיות מספר אי-שלילי" },
-        { status: 400 }
-      );
-    }
-
-    const normalizedCode = String(internalCode).trim().toUpperCase();
+    const normalizedCode = internalCode.toUpperCase();
 
     const existing = await prisma.clinicPricingPlan.findFirst({
       where: { OR: [{ name }, { internalCode: normalizedCode }] },
