@@ -164,6 +164,30 @@ services:
       - key: CRON_SECRET
         sync: false
 
+  # Cron job for evening notifications - LATE NIGHT slot (covers user-customized
+  # evening times in the 23:00-03:00 Israel range, e.g. 01:00).
+  # מסביר: ה-cron הראשי רץ ב-20:00 ישראל; משתמשים שבחרו שעת ערב מאוחרת
+  # נכשלו בבדיקת חלון [שעה, שעה+30) של ה-route ולא קיבלו סיכום.
+  # פתרון: יריות נוספות בלילה. duplicate prevention שב-route מבטיח רק שליחה אחת.
+  - type: cron
+    name: evening-notifications-night
+    runtime: node
+    region: frankfurt
+    plan: free
+    schedule: "0 21,22,23,0 * * *"  # 21,22,23,00 UTC = 00:00/01:00/02:00/03:00 Israel DST
+    buildCommand: echo "No build needed"
+    startCommand: |
+      curl -s --max-time 60 -X GET "$RENDER_EXTERNAL_URL/api/cron/notifications?type=evening" \
+        -H "Authorization: Bearer $CRON_SECRET"
+    envVars:
+      - key: RENDER_EXTERNAL_URL
+        fromService:
+          type: web
+          name: tipul-app
+          property: url
+      - key: CRON_SECRET
+        sync: false
+
   # Cron job for monthly debt reminders (runs daily at 09:00 Israel time)
   - type: cron
     name: debt-reminders
