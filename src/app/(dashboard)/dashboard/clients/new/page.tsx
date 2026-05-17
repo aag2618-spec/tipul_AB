@@ -27,9 +27,15 @@ interface IntakeQuestionnaireTemplate {
   name: string;
   description?: string;
   isDefault: boolean;
-  questions: {
-    questions: Question[];
-  };
+  // Bug #3: שאלונים ישנים נשמרו בפורמט { questions: [...] }; חדשים שטוחים [...].
+  questions: Question[] | { questions: Question[] };
+}
+
+// Bug #3: normalize שאלונים בכל דרך שהם הגיעו ממאגר הנתונים.
+function getQuestionsArray(raw: IntakeQuestionnaireTemplate["questions"]): Question[] {
+  if (Array.isArray(raw)) return raw;
+  if (raw && typeof raw === "object" && Array.isArray(raw.questions)) return raw.questions;
+  return [];
 }
 
 export default function NewClientPage() {
@@ -119,8 +125,9 @@ function NewClientContent() {
 
     // Validate required questionnaire questions
     if (!skipQuestionnaire && defaultQuestionnaire) {
-      const requiredQuestions = defaultQuestionnaire.questions.questions.filter(q => q.required);
-      const missingRequired = requiredQuestions.find(q => !questionnaireResponses[q.id]?.trim());
+      // Bug #3: שאלונים ישנים נשמרו כ-{questions: [...]}; חדשים כ-[...]
+      const requiredQuestions = getQuestionsArray(defaultQuestionnaire.questions).filter((q) => q.required);
+      const missingRequired = requiredQuestions.find((q) => !questionnaireResponses[q.id]?.trim());
       
       if (missingRequired) {
         toast.error("יש שאלות חובה בשאלון שלא מולאו");
@@ -299,7 +306,7 @@ function NewClientContent() {
                 </div>
               ) : (
                 <div className="space-y-6">
-                  {defaultQuestionnaire.questions.questions.map((question, index) => (
+                  {getQuestionsArray(defaultQuestionnaire.questions).map((question, index) => (
                     <div key={question.id} className="space-y-2">
                       <Label className="text-base">
                         {index + 1}. {question.text}

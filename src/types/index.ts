@@ -60,11 +60,17 @@ export interface SessionOverlapItem {
   clientName: string | null;
   startTime: string;
   endTime: string;
+  // M5/M11: שדות נוספים שמוחזרים מהשרת — אופציונליים לתאימות עם consumers ישנים
+  therapistId?: string;
+  therapistName?: string | null;
+  location?: string | null;
 }
 
 export interface SessionOverlap {
   session1: SessionOverlapItem;
   session2: SessionOverlapItem;
+  /** M5/M11: "self" — אותו מטפל. "clinic_location" — שני מטפלים, אותו מיקום. */
+  reason?: "self" | "clinic_location";
 }
 
 export interface SessionNote {

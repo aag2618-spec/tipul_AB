@@ -24,14 +24,19 @@ interface IntakeResponse {
   responses: Record<string, string>;
   template: {
     name: string;
-    questions: {
-      questions: Question[];
-    };
+    // Bug #3: שאלונים ישנים נשמרו בפורמט {questions: [...]}; חדשים שטוחים [...].
+    questions: Question[] | { questions: Question[] };
   };
   client: {
     name: string;
     id: string;
   };
+}
+
+function getQuestionsArray(raw: IntakeResponse["template"]["questions"]): Question[] {
+  if (Array.isArray(raw)) return raw;
+  if (raw && typeof raw === "object" && Array.isArray(raw.questions)) return raw.questions;
+  return [];
 }
 
 export default function ViewIntakeResponsePage({
@@ -79,7 +84,7 @@ export default function ViewIntakeResponsePage({
     return null;
   }
 
-  const questions = response.template.questions.questions;
+  const questions = getQuestionsArray(response.template.questions);
 
   return (
     <div className="space-y-6 max-w-4xl mx-auto">

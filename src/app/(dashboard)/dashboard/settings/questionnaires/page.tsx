@@ -162,7 +162,10 @@ export default function QuestionnairesPage() {
       ) : (
         <div className="grid gap-4">
           {templates.map((template) => {
-            const questionCount = template.questions?.questions?.length || 0;
+            // תמיכה בשני פורמטים: ישן { questions: [...] } וחדש [...] (אחרי תיקון Bug #3)
+            const rawQ = template.questions;
+            const questionsArr = Array.isArray(rawQ) ? rawQ : (rawQ?.questions ?? []);
+            const questionCount = questionsArr.length;
             
             return (
               <Card key={template.id}>

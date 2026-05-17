@@ -61,7 +61,9 @@ export default function EditQuestionnairePage({
         setName(data.name);
         setDescription(data.description || "");
         setIsDefault(data.isDefault);
-        setQuestions(data.questions?.questions || []);
+        // תמיכה בשני פורמטים: ישן { questions: [...] } וחדש [...] (אחרי תיקון Bug #3)
+        const raw = data.questions;
+        setQuestions(Array.isArray(raw) ? raw : (raw?.questions ?? []));
       } else {
         toast.error("שגיאה בטעינת השאלון");
         router.push("/dashboard/settings/questionnaires");
@@ -148,7 +150,7 @@ export default function EditQuestionnairePage({
           name,
           description,
           isDefault,
-          questions: { questions },
+          questions,
         }),
       });
 

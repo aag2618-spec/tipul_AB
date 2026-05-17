@@ -10,6 +10,7 @@ import { getTierLimits, isStaff } from "@/lib/usage-limits";
 import { getClientPseudonym } from "@/lib/ai-pseudonymize";
 import { parseBody } from "@/lib/validations/helpers";
 import { aiAnalyzeSingleQuestionnaireSchema } from "@/lib/validations/ai";
+import { loadScopeUser, buildClientWhere, isSecretary } from "@/lib/scope";
 
 // שימוש ב-Gemini 2.0 Flash בלבד
 const genAI = new GoogleGenerativeAI(process.env.GOOGLE_AI_API_KEY || "");
@@ -117,9 +118,22 @@ export async function POST(req: NextRequest) {
       }
     }
 
-    // קבלת תשובות השאלון. C3: לא טוענים יותר name/birthDate — לא ב-prompt.
-    const response = await prisma.questionnaireResponse.findUnique({
-      where: { id: responseId },
+    // וידוא scope: CLINIC_OWNER יכול להריץ ניתוח על מטופלים של מטפלים בארגון שלו.
+    // מזכירה חסומה — אין לה גישה לתוכן קליני (גם לא דרך scope).
+    const scopeUser = await loadScopeUser(userId);
+    if (isSecretary(scopeUser)) {
+      return NextResponse.json({ message: "אין הרשאה לניתוח AI" }, { status: 403 });
+    }
+
+    // קבלת תשובות השאלון — סינון לפי scope של המטופל (buildClientWhere תומך
+    // ב-OWNER + THERAPIST + solo). C3: לא טוענים יותר name/birthDate — לא ב-prompt.
+    const response = await prisma.questionnaireResponse.findFirst({
+      where: {
+        AND: [
+          { id: responseId },
+          { client: buildClientWhere(scopeUser) },
+        ],
+      },
       include: {
         template: true,
         client: {
@@ -138,11 +152,6 @@ export async function POST(req: NextRequest) {
         { message: "תשובות השאלון לא נמצאו" },
         { status: 404 }
       );
-    }
-
-    // וידוא בעלות
-    if (response.therapistId !== user.id) {
-      return NextResponse.json({ message: "אין הרשאה" }, { status: 403 });
     }
 
     // קבלת גישות טיפוליות

@@ -149,7 +149,7 @@ export default function NewQuestionnairePage() {
           name,
           description,
           isDefault,
-          questions: { questions },
+          questions,
         }),
       });
 

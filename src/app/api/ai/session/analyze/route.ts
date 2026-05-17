@@ -16,6 +16,7 @@ import { getTierLimits, isStaff } from "@/lib/usage-limits";
 import { getClientPseudonym } from "@/lib/ai-pseudonymize";
 import { parseBody } from "@/lib/validations/helpers";
 import { aiSessionAnalyzeSchema } from "@/lib/validations/ai";
+import { loadScopeUser, buildSessionWhere, isSecretary } from "@/lib/scope";
 
 /**
  * Feature flag — Stage 1.17 wire-up.
@@ -232,9 +233,23 @@ export async function POST(req: NextRequest) {
       }
     }
 
-    // קבלת פרטי הפגישה. C3: לא טוענים יותר client.name — לא נכנס ל-prompt.
-    const therapySession = await prisma.therapySession.findUnique({
-      where: { id: sessionId },
+    // וידוא scope: CLINIC_OWNER יכול להריץ ניתוח על מטפלים בארגון שלו.
+    // מזכירה חסומה ידנית — אין לה גישה לתוכן קליני (וגם לא צריכה AI).
+    const scopeUser = await loadScopeUser(userId);
+    if (isSecretary(scopeUser)) {
+      await issueRefund();
+      return NextResponse.json({ message: "אין הרשאה לניתוח AI" }, { status: 403 });
+    }
+
+    // קבלת פרטי הפגישה — סינון לפי scope (buildSessionWhere תומך ב-OWNER + THERAPIST + solo).
+    // C3: לא טוענים יותר client.name — לא נכנס ל-prompt.
+    const therapySession = await prisma.therapySession.findFirst({
+      where: {
+        AND: [
+          { id: sessionId },
+          buildSessionWhere(scopeUser),
+        ],
+      },
       include: {
         client: {
           select: {
@@ -251,12 +266,6 @@ export async function POST(req: NextRequest) {
     if (!therapySession) {
       await issueRefund();
       return NextResponse.json({ message: "פגישה לא נמצאה" }, { status: 404 });
-    }
-
-    // וידוא בעלות
-    if (therapySession.therapistId !== user.id) {
-      await issueRefund();
-      return NextResponse.json({ message: "אין הרשאה" }, { status: 403 });
     }
 
     if (!therapySession.sessionNote) {
