@@ -15,6 +15,8 @@ import {
 import { getClientPseudonym } from "@/lib/ai-pseudonymize";
 import { parseBody } from "@/lib/validations/helpers";
 import { aiAnalyzeCombinedQuestionnaireSchema } from "@/lib/validations/ai";
+import { requireAiConsent } from "@/lib/ai-consent";
+import { sanitizeAiText } from "@/lib/sanitize-html";
 
 // שימוש ב-Gemini 2.0 Flash בלבד
 const genAI = new GoogleGenerativeAI(process.env.GOOGLE_AI_API_KEY || "");
@@ -148,6 +150,11 @@ export async function POST(req: NextRequest) {
       return NextResponse.json({ message: "מטופל לא נמצא" }, { status: 404 });
     }
 
+    // M1: דורש הסכמת מטופל לעיבוד AI — לאחר scope check כדי לא לחשוף existence
+    // של clientId בארגון אחר דרך הבדל בהודעות שגיאה.
+    const consent = await requireAiConsent(client.id);
+    if (!consent.ok) return consent.response;
+
     // קבלת כל תשובות השאלונים של המטופל — דרך scope
     const responses = await prisma.questionnaireResponse.findMany({
       where: {
@@ -277,7 +284,8 @@ ${getUniversalPromptsLight()}`;
     // קריאה ל-Gemini 2.0 Flash
     const model = genAI.getGenerativeModel({ model: GEMINI_MODEL });
     const result = await model.generateContent(prompt);
-    const analysis = result.response.text();
+    // M3: ניקוי HTML hallucination מתשובת Gemini לפני שמירה ל-DB / רינדור ב-UI
+    const analysis = sanitizeAiText(result.response.text());
 
     // חישוב עלויות
     const estimatedInputTokens = Math.round(prompt.length / 4);

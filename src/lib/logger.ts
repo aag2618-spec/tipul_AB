@@ -21,8 +21,11 @@ interface LogEntry {
 // `authorized`/`customizable`/`realized` נחסמו מהלוגים בטעות. PII אמיתי
 // (`nationalId`, `2faCode`, `verificationCode`) עדיין נתפס דרך
 // `nationalId|codeHash|verificationCode|otp`.
+// vat דורש word-boundary כדי לא ללכוד "private" (priVATe), "innovate", "elevator".
+// `\bvat` עם flag /i מכסה vat, VAT, vatId, vatRate, vat_id — אבל לא private/innovate.
+// tax(?!onomy) חוסם tax/taxId/taxRate אבל לא taxonomy.
 const SENSITIVE_KEY_REGEX =
-  /password|secret|token|notes?|content|transcription|nationalId|phone|email|signature|access_token|refresh_token|id_token|otp|codeHash|verificationCode|twoFaCode|recoveryCodes|twoFactorSecret|apiKey|api_key|cardcomToken|creditCard|cvv|pan|iban|swift|authorization|cookie|sessionId|sessionToken|emotionalMarkers|keyTopics|medicalHistory|aiAnalysis|recommendations|intakeNotes|initialDiagnosis|approachNotes|culturalContext|comprehensiveAnalysis|prompt|summary|transcript|description|freeText|firstName|lastName|address|birthDate|dob|dateOfBirth|idNumber/i;
+  /password|secret|token|notes?|content|transcription|nationalId|phone|email|signature|access_token|refresh_token|id_token|otp|codeHash|verificationCode|twoFaCode|recoveryCodes|twoFactorSecret|apiKey|api_key|cardcomToken|creditCard|cvv|pan|iban|swift|authorization|cookie|sessionId|sessionToken|emotionalMarkers|keyTopics|medicalHistory|aiAnalysis|recommendations|intakeNotes|initialDiagnosis|approachNotes|culturalContext|comprehensiveAnalysis|prompt|summary|transcript|description|freeText|firstName|lastName|address|birthDate|dob|dateOfBirth|idNumber|tax(?!onomy)|\bvat|salary|income|passport/i;
 
 // אורך מקסימלי של ערך טקסט בלוג. ערכים ארוכים מקוצרים — מונע flooding
 // של הלוגים בתכני transcription/PHI גם אם המפתח לא נכנס לרשימה.

@@ -15,6 +15,8 @@ import {
 } from "@/lib/scope";
 import { parseBody } from "@/lib/validations/helpers";
 import { transcribeRecordingSchema } from "@/lib/validations/ai";
+import { requireAiConsent } from "@/lib/ai-consent";
+import { sanitizeAiText } from "@/lib/sanitize-html";
 
 export const dynamic = "force-dynamic";
 
@@ -63,6 +65,13 @@ export async function POST(request: NextRequest) {
       // 404 אחיד — לא חושף האם ההקלטה קיימת בארגון אחר.
       return NextResponse.json({ message: "הקלטה לא נמצאה" }, { status: 404 });
     }
+
+    // M1: דורש הסכמת מטופל לעיבוד AI לפני שליחה ל-Gemini.
+    // ההקלטה יכולה להיות מחוברת ישירות ל-client או דרך session — בודקים שניהם.
+    const recordingClientId =
+      recording.clientId ?? recording.session?.clientId ?? null;
+    const consent = await requireAiConsent(recordingClientId);
+    if (!consent.ok) return consent.response;
 
     // If force re-transcribe, delete existing transcription
     if (force) {
@@ -129,11 +138,14 @@ export async function POST(request: NextRequest) {
       // Transcribe with Google AI Studio
       const result = await transcribeAudio(audioBase64, mimeType);
 
+      // M3: ניקוי HTML hallucination מתמלול Gemini לפני שמירה ב-DB
+      const safeText = sanitizeAiText(result.text);
+
       // Save transcription
       const transcription = await prisma.transcription.create({
         data: {
           recordingId,
-          content: result.text,
+          content: safeText,
           language: "he",
           confidence: result.confidence,
         },

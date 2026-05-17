@@ -177,6 +177,8 @@ const ALL_PERMISSIONS = [
   "users.change_role",
   "users.grant_free_unlimited",
   "users.delete",
+  "users.extend_subscription",
+  "users.disable_2fa",
   "packages.catalog_manage",
   "payments.refund",
   "payments.delete",
@@ -206,8 +208,8 @@ describe("permission completeness (Stage 1.9 hardening)", () => {
   });
 
   it("ALL_PERMISSIONS count matches expected total", () => {
-    // 30 MANAGER (26 base + 4 Cardcom) + 15 ADMIN-only (14 base + receipts.void) = 45
-    expect(ALL_PERMISSIONS.length).toBe(45);
+    // 30 MANAGER (26 base + 4 Cardcom) + 17 ADMIN-only (14 base + receipts.void + extend_subscription + disable_2fa) = 47
+    expect(ALL_PERMISSIONS.length).toBe(47);
   });
 
   it("ADMIN has every permission via hasPermission", () => {

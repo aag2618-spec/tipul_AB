@@ -17,6 +17,8 @@ import { getClientPseudonym } from "@/lib/ai-pseudonymize";
 import { parseBody } from "@/lib/validations/helpers";
 import { aiSessionAnalyzeSchema } from "@/lib/validations/ai";
 import { loadScopeUser, buildSessionWhere, isSecretary } from "@/lib/scope";
+import { requireAiConsent } from "@/lib/ai-consent";
+import { sanitizeAiText } from "@/lib/sanitize-html";
 
 /**
  * Feature flag — Stage 1.17 wire-up.
@@ -276,6 +278,14 @@ export async function POST(req: NextRequest) {
       );
     }
 
+    // M1: דורש הסכמת מטופל לעיבוד AI לפני שליחה ל-Gemini.
+    // refund חיוני — consume נעשה כבר למעלה.
+    const consent = await requireAiConsent(therapySession.client?.id ?? null);
+    if (!consent.ok) {
+      await issueRefund();
+      return consent.response;
+    }
+
     // בדיקה אם כבר קיים ניתוח מאותו סוג (אלא אם ביקשו יצירה מחדש)
     const existingAnalysis = await prisma.sessionAnalysis.findUnique({
       where: { sessionId: sessionId },
@@ -342,7 +352,8 @@ export async function POST(req: NextRequest) {
     // קריאה ל-Gemini 2.0 Flash
     const model = genAI.getGenerativeModel({ model: DEFAULT_MODEL });
     const result = await model.generateContent(prompt);
-    const analysis = result.response.text();
+    // M3: ניקוי HTML hallucination מתשובת Gemini
+    const analysis = sanitizeAiText(result.response.text());
 
     // חישוב עלויות
     const estimatedInputTokens = Math.round(prompt.length / 4);

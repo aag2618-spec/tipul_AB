@@ -11,6 +11,8 @@ import { getClientPseudonym } from "@/lib/ai-pseudonymize";
 import { parseBody } from "@/lib/validations/helpers";
 import { aiAnalyzeSingleQuestionnaireSchema } from "@/lib/validations/ai";
 import { loadScopeUser, buildClientWhere, isSecretary } from "@/lib/scope";
+import { requireAiConsent } from "@/lib/ai-consent";
+import { sanitizeAiText } from "@/lib/sanitize-html";
 
 // שימוש ב-Gemini 2.0 Flash בלבד
 const genAI = new GoogleGenerativeAI(process.env.GOOGLE_AI_API_KEY || "");
@@ -154,6 +156,10 @@ export async function POST(req: NextRequest) {
       );
     }
 
+    // M1: דורש הסכמת מטופל לעיבוד AI לפני שליחה ל-Gemini
+    const consent = await requireAiConsent(response.client?.id ?? null);
+    if (!consent.ok) return consent.response;
+
     // קבלת גישות טיפוליות
     let approachNames = '';
     let approachSection = '';
@@ -257,7 +263,8 @@ ${getUniversalPromptsLight()}`;
     // קריאה ל-Gemini 2.0 Flash
     const model = genAI.getGenerativeModel({ model: GEMINI_MODEL });
     const result = await model.generateContent(prompt);
-    const analysis = result.response.text();
+    // M3: ניקוי HTML hallucination מתשובת Gemini
+    const analysis = sanitizeAiText(result.response.text());
 
     // חישוב עלויות
     const estimatedInputTokens = Math.round(prompt.length / 4);

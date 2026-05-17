@@ -246,15 +246,23 @@ export async function stripImageMetadata(
     const sharpModule = await import("sharp");
     const sharp = sharpModule.default;
 
+    // limitInputPixels: PNG/WebP bomb mitigation — חוסם דקודינג של תמונה
+    // שאחרי decompress תפיץ זיכרון. 50M pixels ≈ 5MB RGB raw, מספיק לסריקה
+    // 8K אבל לא יכפיל buffer 1KB→1GB.
     // rotate() ללא ארגומנט = "auto-rotate" לפי EXIF orientation, ואז מסירים
     // את כל ה-EXIF. ללא rotate() — תמונת iPhone שצולמה אופקית תיראה הפוכה
     // אחרי הסרת ה-orientation flag.
-    const pipeline = sharp(buffer, { failOn: "none" }).rotate();
+    const pipeline = sharp(buffer, {
+      failOn: "none",
+      limitInputPixels: 50_000_000,
+    }).rotate();
 
+    // quality 95 (לא 90) — סריקות מסמכים כבר דחוסות פעם, דחיסה שנייה ב-90
+    // הורידה איכות גלויה לטקסט קטן. 95 שומר על קריאות עם תוספת ~10% בגודל.
     // Buffer.from עוטף את התוצאה של sharp ב-Buffer<ArrayBuffer> אחיד —
     // sharp.toBuffer() מחזיר Buffer<ArrayBufferLike> שיוצר אי-תאימות בקריאה.
     if (mime === "image/jpeg") {
-      const out = await pipeline.jpeg({ quality: 90, mozjpeg: true }).toBuffer();
+      const out = await pipeline.jpeg({ quality: 95, mozjpeg: true }).toBuffer();
       return Buffer.from(out);
     }
     if (mime === "image/png") {
@@ -262,20 +270,18 @@ export async function stripImageMetadata(
       return Buffer.from(out);
     }
     if (mime === "image/webp") {
-      const out = await pipeline.webp({ quality: 90 }).toBuffer();
+      const out = await pipeline.webp({ quality: 95 }).toBuffer();
       return Buffer.from(out);
     }
     return buffer;
   } catch (err) {
-    // sharp נכשל (תמונה פגומה, תקלת native binary) — מחזירים את המקורי.
-    // לוג לידיעת ה-operator. אל מערכת PHI שיש לה דליפה תיאורטית של GPS
-    // עדיף לקבל את התמונה כפי שהיא מאשר לחסום upload.
-    if (typeof globalThis !== "undefined" && globalThis.console) {
-      console.warn("[file-validation/stripImageMetadata] sharp failed", {
-        mime,
-        err: err instanceof Error ? err.message : String(err),
-      });
-    }
+    // sharp נכשל (תמונה פגומה, תקלת native binary, PNG bomb מעל הגבול) —
+    // מחזירים את המקורי. PNG bomb כבר נחסם ב-limitInputPixels; כאן זה fallback.
+    const { logger } = await import("./logger");
+    logger.warn("file-validation.stripImageMetadata sharp failed", {
+      mime,
+      errorMessage: err instanceof Error ? err.message : String(err),
+    });
     return buffer;
   }
 }

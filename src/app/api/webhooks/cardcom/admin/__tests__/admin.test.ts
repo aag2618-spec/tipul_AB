@@ -28,6 +28,8 @@ vi.mock("@/lib/cardcom/webhook-claim", () => ({
 
 vi.mock("@/lib/rate-limit", () => ({
   checkRateLimit: (...a: unknown[]) => checkRateLimitMock(...a),
+  CARDCOM_WEBHOOK_PER_IP: { maxRequests: 30, windowMs: 60 * 1000 },
+  CARDCOM_WEBHOOK_GLOBAL: { maxRequests: 200, windowMs: 60 * 1000 },
 }));
 
 vi.mock("@/lib/cardcom/admin-config", () => ({

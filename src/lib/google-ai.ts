@@ -1,5 +1,6 @@
 import { GoogleGenerativeAI } from '@google/generative-ai';
 import { getApproachPrompts } from './therapeutic-approaches';
+import { logger } from './logger';
 
 // Lazy initialization to ensure environment variable is available
 let genAI: GoogleGenerativeAI | null = null;
@@ -104,7 +105,7 @@ export async function transcribeAudio(audioBase64: string, mimeType: string): Pr
   } catch (error: unknown) {
     const errorMessage = error instanceof Error ? error.message : String(error);
     const errorDetails = error instanceof Error && 'cause' in error ? String(error.cause) : '';
-    console.error('Transcription error:', errorMessage, errorDetails, error);
+    logger.error('Transcription error', { errorMessage, errorDetails });
     throw new Error(`Failed to transcribe audio: ${errorMessage}`);
   }
 }
@@ -154,7 +155,8 @@ export async function transcribeAudioWithTimestamps(
       segments: [],
     };
   } catch (error) {
-    console.error('Transcription with timestamps error:', error);
+    const errorMessage = error instanceof Error ? error.message : String(error);
+    logger.error('Transcription with timestamps error', { errorMessage });
     throw new Error('Failed to transcribe audio with timestamps');
   }
 }
@@ -389,7 +391,7 @@ ${transcription}
     throw new Error('No valid JSON in response');
   } catch (error) {
     const errorMessage = error instanceof Error ? error.message : String(error);
-    console.error('Analysis error:', errorMessage, error);
+    logger.error('Analysis error', { errorMessage });
     throw new Error(`Failed to analyze session: ${errorMessage}`);
   }
 }
@@ -434,7 +436,7 @@ ${transcription}
     return response.text();
   } catch (error) {
     const errorMessage = error instanceof Error ? error.message : String(error);
-    console.error('Summary generation error:', errorMessage, error);
+    logger.error('Summary generation error', { errorMessage });
     throw new Error(`Failed to generate summary: ${errorMessage}`);
   }
 }
@@ -486,7 +488,7 @@ ${transcription}
     throw new Error('No valid JSON in response');
   } catch (error) {
     const errorMessage = error instanceof Error ? error.message : String(error);
-    console.error('Intake analysis error:', errorMessage, error);
+    logger.error('Intake analysis error', { errorMessage });
     throw new Error(`Failed to analyze intake: ${errorMessage}`);
   }
 }
@@ -508,7 +510,7 @@ export async function analyzeText(prompt: string): Promise<string> {
     return response.text();
   } catch (error) {
     const errorMessage = error instanceof Error ? error.message : String(error);
-    console.error('Text analysis error:', errorMessage, error);
+    logger.error('Text analysis error', { errorMessage });
     throw new Error(`Failed to analyze text: ${errorMessage}`);
   }
 }

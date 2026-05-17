@@ -10,6 +10,8 @@ import {
   canSecretaryAccessModel,
 } from "@/lib/scope";
 import { getClientPseudonym, ageRangeFromBirthDate } from "@/lib/ai-pseudonymize";
+import { requireAiConsent } from "@/lib/ai-consent";
+import { sanitizeAiText } from "@/lib/sanitize-html";
 
 // POST - Analyze questionnaire with AI
 export const dynamic = "force-dynamic";
@@ -67,6 +69,10 @@ export async function POST(
         { status: 404 }
       );
     }
+
+    // M1: דורש הסכמת מטופל לעיבוד AI לפני שליחה ל-Gemini
+    const consent = await requireAiConsent(response.client?.id ?? null);
+    if (!consent.ok) return consent.response;
 
     if (response.status !== "COMPLETED") {
       return NextResponse.json(
@@ -339,7 +345,8 @@ ${approachSection}
     }
 
     const result = await model.generateContent(prompt);
-    const analysisText = result.response.text();
+    // M3: ניקוי HTML hallucination מתשובת Gemini
+    const analysisText = sanitizeAiText(result.response.text());
 
     // Save analysis to response
     const updatedResponse = await prisma.questionnaireResponse.update({

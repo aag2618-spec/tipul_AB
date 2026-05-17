@@ -249,7 +249,9 @@ services:
         sync: false
 
   # Cron job for impersonation hardkill — terminates impersonation sessions
-  # that exceeded 4 hours (Stage 2.0 hardening). Runs every 30 min.
+  # that exceeded 30 minutes (H4 hardening, 2026-05-17). Runs every 30 min.
+  # JWT lazy check ב-auth.ts ממילא חוסם את הסשן מיידית; ה-cron רק מנקה את
+  # ה-DB rows כדי לא לחסום את ה-partial unique index.
   # Without this, ImpersonationSession rows stay endedAt=null forever when the
   # browser closes without explicit stop, blocking the partial unique index.
   - type: cron
