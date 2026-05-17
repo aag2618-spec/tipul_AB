@@ -19,6 +19,8 @@ export const createClientSchema = z.object({
   notes: z.string().max(MAX_NOTES, "הערות ארוכות מדי").optional(),
   status: z.nativeEnum(ClientStatus).optional(),
   defaultSessionPrice: z.union([z.number().min(0).max(100_000), z.string().max(20)]).optional(),
+  // M1 — הסכמה לעיבוד AI בזמן יצירת המטופל. אם לא נשלח, ה-default ב-DB הוא true.
+  consentToAI: z.boolean().optional(),
 });
 
 export type CreateClientInput = z.infer<typeof createClientSchema>;

@@ -325,6 +325,10 @@ export function getClientSafeSelectForSecretary() {
     organizationId: true,
     createdAt: true,
     updatedAt: true,
+    // M1 — סטטוס הסכמת AI הוא אדמיניסטרטיבי/משפטי, לא קליני. מזכירה צריכה
+    // לראות כדי שתבין למה פעולות AI חוזרות עם 403.
+    consentToAI: true,
+    consentToAIAt: true,
   } as const;
 }
 

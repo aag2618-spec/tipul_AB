@@ -8,7 +8,8 @@ import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/com
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import { Textarea } from "@/components/ui/textarea";
-import { Loader2, Save, Archive, Clock, UserCheck, Trash2, AlertTriangle } from "lucide-react";
+import { Switch } from "@/components/ui/switch";
+import { Loader2, Save, Archive, Clock, UserCheck, Trash2, AlertTriangle, Sparkles } from "lucide-react";
 import { toast } from "sonner";
 import {
   Dialog,
@@ -33,6 +34,8 @@ interface Client {
   notes: string | null;
   initialDiagnosis: string | null;
   intakeNotes: string | null;
+  consentToAI: boolean | null;
+  consentToAIAt: string | null;
 }
 
 export default function EditClientPage({ params }: { params: Promise<{ id: string }> }) {
@@ -56,6 +59,10 @@ export default function EditClientPage({ params }: { params: Promise<{ id: strin
     notes: "",
     initialDiagnosis: "",
   });
+  // M1 — consentToAI ב-state נפרד כי הוא boolean (לא string כמו שאר ה-formData).
+  // null = ערך מקורי לפני המיגרציה; ב-UI מציגים כ-"ברירת מחדל (מאשר)".
+  const [consentToAI, setConsentToAI] = useState<boolean | null>(null);
+  const [consentToAIAt, setConsentToAIAt] = useState<string | null>(null);
 
   useEffect(() => {
     const fetchClient = async () => {
@@ -76,6 +83,8 @@ export default function EditClientPage({ params }: { params: Promise<{ id: strin
             notes: data.notes || "",
             initialDiagnosis: data.initialDiagnosis || "",
           });
+          setConsentToAI(data.consentToAI ?? null);
+          setConsentToAIAt(data.consentToAIAt ?? null);
         }
       } catch (error) {
         console.error("Failed to fetch client:", error);
@@ -105,6 +114,7 @@ export default function EditClientPage({ params }: { params: Promise<{ id: strin
           ...formData,
           birthDate: formData.birthDate || null,
           defaultSessionPrice: formData.defaultSessionPrice ? parseFloat(formData.defaultSessionPrice) : null,
+          consentToAI,
         }),
       });
 
@@ -349,6 +359,50 @@ export default function EditClientPage({ params }: { params: Promise<{ id: strin
               placeholder="הערות נוספות..."
               rows={4}
             />
+          </CardContent>
+        </Card>
+
+        {/* M1 — הסכמה לעיבוד AI (חוק הגנת הפרטיות §13) */}
+        <Card>
+          <CardHeader>
+            <CardTitle className="flex items-center gap-2">
+              <Sparkles className="h-5 w-5 text-primary" />
+              הסכמה לעיבוד נתונים ב-AI
+            </CardTitle>
+            <CardDescription>
+              חוק הגנת הפרטיות (סעיף 13) מחייב הסכמה מפורשת של המטופל לפני עיבוד
+              נתוניו הקליניים בכלי AI חיצוניים (כולל ניתוח שאלונים, תמלולים וסיכומים).
+            </CardDescription>
+          </CardHeader>
+          <CardContent className="space-y-4">
+            <div className="flex items-start justify-between gap-4 p-4 rounded-lg border bg-muted/30">
+              <div className="space-y-1 flex-1">
+                <Label htmlFor="consentToAI" className="text-base font-medium cursor-pointer">
+                  המטופל אישר עיבוד נתוניו ב-AI
+                </Label>
+                <p className="text-sm text-muted-foreground">
+                  {consentToAI === false
+                    ? "המטופל סירב במפורש — כל פעולות ה-AI על נתוניו חסומות."
+                    : "המטופל אישר (או טרם הוחתם) — פעולות ה-AI מאופשרות."}
+                </p>
+                {consentToAIAt && (
+                  <p className="text-xs text-muted-foreground">
+                    עודכן בתאריך: {new Date(consentToAIAt).toLocaleString("he-IL", { timeZone: "Asia/Jerusalem" })}
+                  </p>
+                )}
+              </div>
+              <Switch
+                id="consentToAI"
+                checked={consentToAI !== false}
+                onCheckedChange={(checked) => setConsentToAI(checked)}
+              />
+            </div>
+            {consentToAI === false && (
+              <div className="p-3 rounded-md bg-amber-50 border border-amber-200 text-amber-900 text-sm">
+                <strong>שים לב:</strong> כל ניסיון להפעיל ניתוח AI, תמלול או סיכום על נתוני המטופל
+                יוחזר עם הודעת שגיאה למטפל. ניתן להחזיר את ההסכמה בכל עת.
+              </div>
+            )}
           </CardContent>
         </Card>
 

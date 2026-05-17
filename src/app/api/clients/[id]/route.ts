@@ -49,6 +49,10 @@ const UpdateClientSchema = z.object({
   intakeNotes: z.string().max(20_000).optional().nullable(),
   defaultSessionPrice: z.union([z.number().min(0).max(100_000), z.null()]).optional(),
   isQuickClient: z.boolean().optional(),
+  // M1 — הסכמת המטופל לעיבוד נתוניו ב-AI (חוק הגנת הפרטיות §13).
+  // true = הסכים, false = סירב במפורש (חוסם AI), null = ביטול בחירה (חוזר ל-default).
+  // השדה לא חסום למזכירה כי זו החלטה משפטית של המטופל מטופס שהוא חתם — לא קביעה קלינית.
+  consentToAI: z.boolean().nullable().optional(),
 }).passthrough();
 
 export async function GET(
@@ -174,7 +178,7 @@ export async function PUT(
       );
     }
 
-    const { firstName, lastName, phone, email, birthDate, address, notes, status, initialDiagnosis, intakeNotes, defaultSessionPrice, isQuickClient } = parsed.data;
+    const { firstName, lastName, phone, email, birthDate, address, notes, status, initialDiagnosis, intakeNotes, defaultSessionPrice, isQuickClient, consentToAI } = parsed.data;
 
     const scopeUser = await loadScopeUser(userId);
     const scopeWhere = buildClientWhere(scopeUser);
@@ -224,6 +228,11 @@ export async function PUT(
       return NextResponse.json({ message: "מטופל לא נמצא" }, { status: 404 });
     }
 
+    // M1 — consentToAI: עדכון consentToAIAt רק כשהערך באמת משתנה, כדי לתעד מתי
+    // המטופל חתם על הסכמה/סירוב. נחשב כשינוי גם המעבר null → true/false (החלטה ראשונית).
+    const consentChanged =
+      consentToAI !== undefined && consentToAI !== existingClient.consentToAI;
+
     const client = await prisma.client.update({
       where: { id },
       data: {
@@ -245,8 +254,20 @@ export async function PUT(
           : existingClient.isQuickClient && firstName?.trim() && lastName?.trim()
             ? { isQuickClient: false }
             : {}),
+        ...(consentChanged
+          ? { consentToAI, consentToAIAt: new Date() }
+          : {}),
       },
     });
+
+    if (consentChanged) {
+      logger.info("[clients/PUT] consentToAI updated", {
+        userId,
+        clientId: id,
+        previousValue: existingClient.consentToAI,
+        newValue: consentToAI,
+      });
+    }
 
     return NextResponse.json(serializePrisma(client));
   } catch (error) {

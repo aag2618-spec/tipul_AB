@@ -132,7 +132,7 @@ export async function POST(request: NextRequest) {
     // --- מטופל רגיל: זרימה קיימת ללא שינוי ---
     const parsed = await parseBody(request, createClientSchema);
     if ("error" in parsed) return parsed.error;
-    const { firstName, lastName, phone, email, birthDate, address, notes, status, defaultSessionPrice } = parsed.data;
+    const { firstName, lastName, phone, email, birthDate, address, notes, status, defaultSessionPrice, consentToAI } = parsed.data;
 
     // אם לא הוגדר מחיר למטופל, להשתמש במחיר ברירת המחדל של המטפל
     let finalPrice = defaultSessionPrice ? parseFloat(String(defaultSessionPrice)) : null;
@@ -160,6 +160,11 @@ export async function POST(request: NextRequest) {
         notes: notes || null,
         status: status || "ACTIVE",
         defaultSessionPrice: finalPrice,
+        // M1 — אם המטפל סימן ידנית בטופס היצירה, שומרים גם תאריך החלטה.
+        // אם לא נשלח, ה-default ב-DB הוא true (תאימות לאחור) ואין consentToAIAt.
+        ...(consentToAI !== undefined
+          ? { consentToAI, consentToAIAt: new Date() }
+          : {}),
       },
     });
 

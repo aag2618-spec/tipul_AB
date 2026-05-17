@@ -370,10 +370,10 @@ export default async function ClientPage({
                     : "outline"
                 }
                 className={
-                  client.status === "ACTIVE" 
-                    ? "bg-emerald-50 text-emerald-900 font-semibold border border-emerald-200" 
-                    : client.status === "WAITING" 
-                    ? "bg-amber-50 text-amber-900 font-semibold border border-amber-200" 
+                  client.status === "ACTIVE"
+                    ? "bg-emerald-50 text-emerald-900 font-semibold border border-emerald-200"
+                    : client.status === "WAITING"
+                    ? "bg-amber-50 text-amber-900 font-semibold border border-amber-200"
                     : "bg-slate-50 text-slate-900 font-semibold border border-slate-200"
                 }
               >
@@ -383,6 +383,18 @@ export default async function ClientPage({
                   ? "ממתין"
                   : "ארכיון"}
               </Badge>
+              {/* M1 — מציגים badge רק כשהמטופל סירב במפורש (false), כדי להזהיר
+                  את המטפל ש-AI חסום. ערכים true/null = ברירת מחדל שקטה. */}
+              {client.consentToAI === false && (
+                <Badge
+                  variant="outline"
+                  className="bg-red-50 text-red-900 font-semibold border border-red-200"
+                  title="המטופל סירב לעיבוד נתוניו ב-AI. ניתן לעדכן בעריכת המטופל."
+                >
+                  <Lock className="ml-1 h-3 w-3" />
+                  AI חסום
+                </Badge>
+              )}
             </div>
             <p className="text-muted-foreground">
               {client._count.therapySessions} פגישות | מטופל מאז{" "}
