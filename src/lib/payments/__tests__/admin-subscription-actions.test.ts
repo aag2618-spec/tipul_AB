@@ -15,13 +15,16 @@
 import { describe, it, expect } from "vitest";
 import {
   validateExtendTrial,
+  validateExtendSubscription,
   validateGrantPackage,
   validateChangeTier,
   validateOverridePrice,
   validateSetFree,
   validateRefundPayment,
   calculateNewTrialEndsAt,
+  calculateNewSubscriptionEndsAt,
   MAX_TRIAL_EXTENSION_DAYS,
+  MAX_SUBSCRIPTION_EXTENSION_DAYS,
 } from "@/lib/payments/admin-subscription-actions";
 
 const day = (iso: string) => new Date(iso);
@@ -98,6 +101,119 @@ describe("calculateNewTrialEndsAt", () => {
       now,
     });
     expect(r.toISOString()).toBe("2026-06-22T00:00:00.000Z");
+  });
+});
+
+// ============================================================================
+// validateExtendSubscription — הארכת מנוי פעיל
+// ============================================================================
+
+describe("validateExtendSubscription", () => {
+  it("days=30 + note תקפה — מותר", () => {
+    const r = validateExtendSubscription({ days: 30, note: "פיצוי על תקלה" });
+    expect(r.allowed).toBe(true);
+  });
+
+  it("days=0 — אסור", () => {
+    const r = validateExtendSubscription({ days: 0, note: "test note" });
+    expect(r.allowed).toBe(false);
+  });
+
+  it("days שלילי — אסור", () => {
+    const r = validateExtendSubscription({ days: -5, note: "test note" });
+    expect(r.allowed).toBe(false);
+  });
+
+  it("days > MAX_SUBSCRIPTION_EXTENSION_DAYS — אסור", () => {
+    const r = validateExtendSubscription({
+      days: MAX_SUBSCRIPTION_EXTENSION_DAYS + 1,
+      note: "test note",
+    });
+    expect(r.allowed).toBe(false);
+    if (!r.allowed) expect(r.reason).toContain("מקסימום");
+  });
+
+  it("days = MAX_SUBSCRIPTION_EXTENSION_DAYS — מותר (boundary)", () => {
+    const r = validateExtendSubscription({
+      days: MAX_SUBSCRIPTION_EXTENSION_DAYS,
+      note: "test note",
+    });
+    expect(r.allowed).toBe(true);
+  });
+
+  it("days עשרוני — אסור", () => {
+    const r = validateExtendSubscription({ days: 7.5, note: "test note" });
+    expect(r.allowed).toBe(false);
+  });
+
+  it("note ריקה — אסור (תיעוד חובה)", () => {
+    const r = validateExtendSubscription({ days: 7, note: "" });
+    expect(r.allowed).toBe(false);
+    if (!r.allowed) expect(r.reason).toContain("הערה");
+  });
+
+  it("note רק רווחים — אסור", () => {
+    const r = validateExtendSubscription({ days: 7, note: "   " });
+    expect(r.allowed).toBe(false);
+  });
+
+  it("note null — אסור", () => {
+    const r = validateExtendSubscription({ days: 7, note: null });
+    expect(r.allowed).toBe(false);
+  });
+
+  it("note 2 תווים — אסור (מינימום 3)", () => {
+    const r = validateExtendSubscription({ days: 7, note: "ab" });
+    expect(r.allowed).toBe(false);
+  });
+});
+
+// ============================================================================
+// calculateNewSubscriptionEndsAt — חישוב תאריך סיום חדש
+// ============================================================================
+
+describe("calculateNewSubscriptionEndsAt", () => {
+  it("מנוי פעיל בעתיד — מוסיף ימים מ-currentEndsAt", () => {
+    const current = day("2026-08-15T00:00:00Z");
+    const now = day("2026-05-17T00:00:00Z");
+    const r = calculateNewSubscriptionEndsAt({
+      currentEndsAt: current,
+      daysToAdd: 30,
+      now,
+    });
+    expect(r.toISOString()).toBe("2026-09-14T00:00:00.000Z");
+  });
+
+  it("מנוי שפג — מוסיף ימים מ-now (לא מאריך עבר)", () => {
+    const current = day("2026-04-01T00:00:00Z"); // עבר
+    const now = day("2026-05-17T00:00:00Z");
+    const r = calculateNewSubscriptionEndsAt({
+      currentEndsAt: current,
+      daysToAdd: 30,
+      now,
+    });
+    expect(r.toISOString()).toBe("2026-06-16T00:00:00.000Z");
+  });
+
+  it("currentEndsAt=null — מוסיף ימים מ-now", () => {
+    const now = day("2026-05-17T00:00:00Z");
+    const r = calculateNewSubscriptionEndsAt({
+      currentEndsAt: null,
+      daysToAdd: 14,
+      now,
+    });
+    expect(r.toISOString()).toBe("2026-05-31T00:00:00.000Z");
+  });
+
+  it("מנוי שנתי + 30 ימים = 13 חודשים", () => {
+    const current = day("2027-05-17T00:00:00Z");
+    const now = day("2026-05-17T00:00:00Z");
+    const r = calculateNewSubscriptionEndsAt({
+      currentEndsAt: current,
+      daysToAdd: 30,
+      now,
+    });
+    expect(r.toISOString()).toBe("2027-06-16T00:00:00.000Z");
   });
 });
 

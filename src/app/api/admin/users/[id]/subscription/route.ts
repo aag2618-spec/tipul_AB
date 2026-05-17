@@ -21,11 +21,13 @@ import { parseBody } from "@/lib/validations/helpers";
 import { fetchAndResolveSubscriptionPrice, getPriceForPeriod } from "@/lib/pricing/resolve";
 import {
   validateExtendTrial,
+  validateExtendSubscription,
   validateGrantPackage,
   validateChangeTier,
   validateOverridePrice,
   validateSetFree,
   calculateNewTrialEndsAt,
+  calculateNewSubscriptionEndsAt,
 } from "@/lib/payments/admin-subscription-actions";
 import type { Session } from "next-auth";
 
@@ -35,6 +37,7 @@ type AdminSession = Session;
 // rank נמוך; ADMIN לבצע את כולם.
 const ACTION_PERMISSIONS: Record<string, Permission> = {
   extend_trial: "users.extend_trial_14d",
+  extend_subscription: "users.extend_subscription", // ADMIN בלבד
   grant_package: "packages.grant_manual",
   change_tier: "users.change_tier",
   override_price: "settings.pricing", // ADMIN בלבד
@@ -50,6 +53,12 @@ export const dynamic = "force-dynamic";
 const extendTrialSchema = z.object({
   action: z.literal("extend_trial"),
   days: z.number().int().positive(),
+});
+
+const extendSubscriptionSchema = z.object({
+  action: z.literal("extend_subscription"),
+  days: z.number().int().positive(),
+  note: z.string().min(3).max(500),
 });
 
 const grantPackageSchema = z.object({
@@ -83,6 +92,7 @@ const setFreeSchema = z.object({
 
 const actionSchema = z.discriminatedUnion("action", [
   extendTrialSchema,
+  extendSubscriptionSchema,
   grantPackageSchema,
   changeTierSchema,
   overridePriceSchema,
@@ -134,7 +144,12 @@ export async function POST(
     // וידוא שהמשתמש קיים לפני כניסה ל-tx
     const targetUser = await prisma.user.findUnique({
       where: { id: targetUserId },
-      select: { id: true, aiTier: true, trialEndsAt: true },
+      select: {
+        id: true,
+        aiTier: true,
+        trialEndsAt: true,
+        subscriptionEndsAt: true,
+      },
     });
     if (!targetUser) {
       return NextResponse.json(
@@ -151,6 +166,14 @@ export async function POST(
           targetUserId,
           targetUser.trialEndsAt,
           body.days
+        );
+      case "extend_subscription":
+        return await handleExtendSubscription(
+          session,
+          targetUserId,
+          targetUser.subscriptionEndsAt,
+          body.days,
+          body.note
         );
       case "grant_package":
         return await handleGrantPackage(
@@ -241,6 +264,95 @@ async function handleExtendTrial(
     success: true,
     message: `הניסיון הוארך ב-${days} ימים.`,
     trialEndsAt: result.trialEndsAt,
+  });
+}
+
+// ============================================================================
+// handleExtendSubscription — הוספת ימים למנוי פעיל (לא ניסיון)
+// ============================================================================
+// מוסיף ימים ל-subscriptionEndsAt של המשתמש. בנוסף, מעדכן את nextChargeAt
+// של ה-SP הפעיל (אם יש) — דוחה את החיוב החוזר ב-X ימים. **לא נוגעים ב-periodEnd**
+// כי ה-cron מסיק ממנו את אורך התקופה (chargeNextSubscription) — שינוי שלו
+// יגרום ל-cron לחשב periodMonths שגוי וליצור SP חדש בתקופה לא נכונה.
+async function handleExtendSubscription(
+  session: AdminSession,
+  targetUserId: string,
+  currentSubscriptionEndsAt: Date | null,
+  days: number,
+  note: string
+) {
+  const v = validateExtendSubscription({ days, note });
+  if (!v.allowed) {
+    return NextResponse.json({ message: v.reason }, { status: 400 });
+  }
+  const now = new Date();
+  const newSubscriptionEndsAt = calculateNewSubscriptionEndsAt({
+    currentEndsAt: currentSubscriptionEndsAt,
+    daysToAdd: days,
+    now,
+  });
+  const daysInMs = days * 24 * 60 * 60 * 1000;
+
+  const result = await withAudit(
+    { kind: "user", session },
+    {
+      action: "extend_subscription",
+      targetType: "user",
+      targetId: targetUserId,
+      details: {
+        days,
+        note,
+        oldSubscriptionEndsAt:
+          currentSubscriptionEndsAt?.toISOString() ?? null,
+        newSubscriptionEndsAt: newSubscriptionEndsAt.toISOString(),
+      },
+    },
+    async (tx) => {
+      await tx.$executeRaw`SELECT 1 FROM "User" WHERE "id" = ${targetUserId} FOR UPDATE`;
+      const updated = await tx.user.update({
+        where: { id: targetUserId },
+        data: { subscriptionEndsAt: newSubscriptionEndsAt },
+        select: { id: true, subscriptionEndsAt: true },
+      });
+
+      // עדכון ה-SP הפעיל: דוחה nextChargeAt בלבד. periodEnd נשאר כפי שהיה
+      // כדי שה-cron יוכל לחשב periodMonths נכון בעת חיוב חוזר.
+      const activeSp = await tx.subscriptionPayment.findFirst({
+        where: {
+          userId: targetUserId,
+          status: { in: ["PAID", "PENDING"] },
+          nextChargeAt: { not: null, gt: now },
+          autoChargeEnabled: true,
+        },
+        orderBy: { createdAt: "desc" },
+        select: { id: true, nextChargeAt: true },
+      });
+      if (activeSp) {
+        // SELECT FOR UPDATE על ה-SP — חוסם race עם cron חיוב חוזר שמנסה
+        // לתפוס lease על אותה שורה.
+        await tx.$executeRaw`SELECT 1 FROM "SubscriptionPayment" WHERE "id" = ${activeSp.id} FOR UPDATE`;
+        await tx.subscriptionPayment.update({
+          where: { id: activeSp.id },
+          data: {
+            nextChargeAt: activeSp.nextChargeAt
+              ? new Date(activeSp.nextChargeAt.getTime() + daysInMs)
+              : newSubscriptionEndsAt,
+          },
+        });
+      }
+      return updated;
+    }
+  );
+
+  logger.info("[admin] extend_subscription", {
+    targetUserId,
+    days,
+    newSubscriptionEndsAt: result.subscriptionEndsAt?.toISOString(),
+  });
+  return NextResponse.json({
+    success: true,
+    message: `המנוי הוארך ב-${days} ימים. סיום חדש: ${result.subscriptionEndsAt?.toLocaleDateString("he-IL", { timeZone: "Asia/Jerusalem" })}.`,
+    subscriptionEndsAt: result.subscriptionEndsAt,
   });
 }
 

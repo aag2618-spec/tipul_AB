@@ -287,6 +287,7 @@ export default function UserProfilePage() {
         isFreeSubscription={user.isFreeSubscription}
         freeSubscriptionNote={user.freeSubscriptionNote}
         trialEndsAtIso={user.trialEndsAt}
+        subscriptionEndsAtIso={user.subscriptionEndsAt}
         onUpdated={fetchUser}
       />
 

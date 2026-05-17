@@ -385,9 +385,15 @@ export async function chargeNextSubscription(params: {
   // ── הצלחה — withAudit transaction ──────────────────────
   // מחשבים תקופה חדשה לפי מספר חודשים (calendar-aware, לא ms קשיח) —
   // כך 1/3/6/12 חודשים שומרים על אותו יום בחודש לאורך זמן.
+  // periodMonths נחשב מ-periodStart/periodEnd המקוריים של ה-SP — לא מושפע
+  // מהארכה ידנית של אדמין שדוחה רק את nextChargeAt.
   const periodMonths = getPeriodMonthsFromDates(sp.periodStart, sp.periodEnd);
   const oldEnd = sp.periodEnd ?? now;
-  const newPeriodStart = oldEnd;
+  // newPeriodStart = max(periodEnd, now) — אם אדמין הריץ extend_subscription
+  // שדחה את nextChargeAt קדימה (periodEnd נשאר ישן), התקופה החדשה תתחיל מעכשיו
+  // ולא מ-periodEnd הישן. אחרת היה נוצר SP חדש בעבר ש-subscriptionEndsAt
+  // היה יורד לאחור מתחת לערך הנוכחי.
+  const newPeriodStart = oldEnd.getTime() > now.getTime() ? oldEnd : now;
   const newPeriodEnd = addCalendarMonths(newPeriodStart, periodMonths);
 
   const newSpId = await withAudit(
@@ -471,10 +477,19 @@ export async function chargeNextSubscription(params: {
         sp.user.isBlocked &&
         (sp.user.blockReason === "DEBT" || sp.user.blockReason === null);
 
+      // הגנה כפולה: subscriptionEndsAt לעולם לא יורד. אם אדמין הריץ
+      // extend_subscription והוסיף ימים מעבר ל-newPeriodEnd, נשמור את הערך
+      // הגבוה יותר כדי שהמשתמש לא יאבד את ההארכה.
+      const currentEndsAt = sp.user.subscriptionEndsAt;
+      const finalEndsAt =
+        currentEndsAt && currentEndsAt.getTime() > newPeriodEnd.getTime()
+          ? currentEndsAt
+          : newPeriodEnd;
+
       await tx.user.update({
         where: { id: sp.user.id },
         data: {
-          subscriptionEndsAt: newPeriodEnd,
+          subscriptionEndsAt: finalEndsAt,
           ...(sp.user.subscriptionStatus !== "PAUSED" && {
             subscriptionStatus: "ACTIVE",
           }),

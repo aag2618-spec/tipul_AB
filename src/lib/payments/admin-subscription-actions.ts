@@ -18,6 +18,9 @@ export type ValidationResult =
 /** מקסימום ימי הארכת ניסיון בפעולה אחת. אדמין יכול לבצע 2 הארכות. */
 export const MAX_TRIAL_EXTENSION_DAYS = 90;
 
+/** מקסימום ימי הארכת מנוי פעיל בפעולה אחת. גבול הגיוני: שנה אחת. */
+export const MAX_SUBSCRIPTION_EXTENSION_DAYS = 365;
+
 /** מקסימום מחיר ידני (defense-in-depth). */
 export const MAX_OVERRIDE_PRICE_ILS = 100_000;
 
@@ -56,6 +59,54 @@ export function calculateNewTrialEndsAt(input: {
     input.currentTrialEndsAt &&
     input.currentTrialEndsAt.getTime() > input.now.getTime()
       ? input.currentTrialEndsAt
+      : input.now;
+  return new Date(base.getTime() + input.daysToAdd * 24 * 60 * 60 * 1000);
+}
+
+// ============================================================================
+// validateExtendSubscription — הארכת מנוי פעיל (לא ניסיון!)
+// ============================================================================
+// מוסיף ימים ל-subscriptionEndsAt של משתמש פעיל. שונה מ-extend_trial שעובד
+// רק על trialEndsAt. השימוש: פיצוי על תקלה, הענקת ימים על חשבון בית.
+
+export function validateExtendSubscription(input: {
+  days: number;
+  note: string | null;
+}): ValidationResult {
+  if (!Number.isInteger(input.days) || input.days <= 0) {
+    return { allowed: false, reason: "מספר ימים חייב להיות שלם וחיובי." };
+  }
+  if (input.days > MAX_SUBSCRIPTION_EXTENSION_DAYS) {
+    return {
+      allowed: false,
+      reason: `מקסימום ${MAX_SUBSCRIPTION_EXTENSION_DAYS} ימים לפעולה אחת.`,
+    };
+  }
+  const noteTrimmed = (input.note ?? "").trim();
+  if (noteTrimmed.length < 3) {
+    return {
+      allowed: false,
+      reason: "נדרשת הערה (תיעוד הסיבה) — לפחות 3 תווים.",
+    };
+  }
+  return { allowed: true };
+}
+
+// ============================================================================
+// calculateNewSubscriptionEndsAt — תאריך סיום מנוי חדש
+// ============================================================================
+// בסיס: subscriptionEndsAt הקיים אם הוא בעתיד, אחרת now (לא מאפשרים להאריך
+// מנוי שכבר פג ל"מנוי בעבר"). מוסיף את ה-days מהבסיס.
+
+export function calculateNewSubscriptionEndsAt(input: {
+  currentEndsAt: Date | null;
+  daysToAdd: number;
+  now: Date;
+}): Date {
+  const base =
+    input.currentEndsAt &&
+    input.currentEndsAt.getTime() > input.now.getTime()
+      ? input.currentEndsAt
       : input.now;
   return new Date(base.getTime() + input.daysToAdd * 24 * 60 * 60 * 1000);
 }

@@ -35,6 +35,7 @@ import {
 import { toast } from "sonner";
 import {
   Calendar,
+  CalendarPlus,
   Gift,
   Crown,
   DollarSign,
@@ -49,12 +50,14 @@ interface Props {
   isFreeSubscription: boolean;
   freeSubscriptionNote: string | null;
   trialEndsAtIso: string | null;
+  subscriptionEndsAtIso: string | null;
   onUpdated: () => void;
 }
 
 type DialogKind =
   | null
   | "extend_trial"
+  | "extend_subscription"
   | "grant_package"
   | "change_tier"
   | "override_price"
@@ -66,6 +69,7 @@ export function SubscriptionActionsCard({
   isFreeSubscription,
   freeSubscriptionNote,
   trialEndsAtIso,
+  subscriptionEndsAtIso,
   onUpdated,
 }: Props) {
   const [dialog, setDialog] = useState<DialogKind>(null);
@@ -73,6 +77,10 @@ export function SubscriptionActionsCard({
 
   // ── extend_trial state ──
   const [extendDays, setExtendDays] = useState<string>("14");
+
+  // ── extend_subscription state ──
+  const [extendSubDays, setExtendSubDays] = useState<string>("30");
+  const [extendSubNote, setExtendSubNote] = useState<string>("");
 
   // ── grant_package state ──
   const [packageType, setPackageType] = useState<"SMS" | "AI_DETAILED_ANALYSIS">(
@@ -155,6 +163,15 @@ export function SubscriptionActionsCard({
             >
               <Calendar className="h-4 w-4 ml-1" />
               הארכת ניסיון
+            </Button>
+            <Button
+              variant="outline"
+              size="sm"
+              onClick={() => setDialog("extend_subscription")}
+              className="justify-start"
+            >
+              <CalendarPlus className="h-4 w-4 ml-1" />
+              הוסף ימים למנוי
             </Button>
             <Button
               variant="outline"
@@ -277,6 +294,143 @@ export function SubscriptionActionsCard({
             >
               {submitting && <Loader2 className="h-4 w-4 ml-1 animate-spin" />}
               הארך/י
+            </Button>
+          </DialogFooter>
+        </DialogContent>
+      </Dialog>
+
+      {/* === Dialog: Extend Subscription === */}
+      <Dialog
+        open={dialog === "extend_subscription"}
+        onOpenChange={closeDialog}
+      >
+        <DialogContent dir="rtl">
+          <DialogHeader>
+            <DialogTitle>הוספת ימים למנוי פעיל</DialogTitle>
+            <DialogDescription>
+              הוספת ימים לתאריך סיום המנוי של המשתמש (לא לתקופת ניסיון).
+              השימוש: פיצוי על תקלה, מתנה, יישוב חוב.
+              {subscriptionEndsAtIso && (() => {
+                const daysNum = parseInt(extendSubDays, 10);
+                const validDays =
+                  Number.isInteger(daysNum) && daysNum > 0 && daysNum <= 365;
+                return (
+                  <span className="block mt-2 text-foreground">
+                    תוקף נוכחי:{" "}
+                    <strong>
+                      {new Date(subscriptionEndsAtIso).toLocaleDateString(
+                        "he-IL"
+                      )}
+                    </strong>
+                    {validDays && (
+                      <>
+                        {" → תוקף חדש: "}
+                        <strong>
+                          {new Date(
+                            Math.max(
+                              new Date(subscriptionEndsAtIso).getTime(),
+                              Date.now()
+                            ) +
+                              daysNum * 24 * 60 * 60 * 1000
+                          ).toLocaleDateString("he-IL")}
+                        </strong>
+                      </>
+                    )}
+                  </span>
+                );
+              })()}
+              {!subscriptionEndsAtIso && (
+                <span className="block mt-2 text-amber-700 dark:text-amber-400">
+                  ⚠ למשתמש אין מנוי פעיל. הפעולה תיצור תוקף חדש שמתחיל מהיום
+                  (ללא חיוב). עדיף ליצור מנוי חינמי דרך &quot;הגדר כמנוי
+                  חינמי&quot;.
+                </span>
+              )}
+            </DialogDescription>
+          </DialogHeader>
+          <div className="space-y-3">
+            <div>
+              <Label htmlFor="extend-sub-days">מספר ימים (1-365)</Label>
+              <Input
+                id="extend-sub-days"
+                type="number"
+                min={1}
+                max={365}
+                value={extendSubDays}
+                onChange={(e) => setExtendSubDays(e.target.value)}
+                aria-required="true"
+                aria-describedby="extend-sub-days-hint"
+              />
+              {(() => {
+                const d = parseInt(extendSubDays, 10);
+                if (!Number.isInteger(d) || d <= 0 || d > 365) {
+                  return (
+                    <p
+                      id="extend-sub-days-hint"
+                      className="text-xs text-destructive mt-1"
+                    >
+                      יש להזין מספר שלם בין 1 ל-365.
+                    </p>
+                  );
+                }
+                return null;
+              })()}
+            </div>
+            <div>
+              <Label htmlFor="extend-sub-note">סיבה (חובה — תיעוד)</Label>
+              <Textarea
+                id="extend-sub-note"
+                placeholder="לדוגמה: פיצוי על תקלת תשלום מ-15/5/2026 / מתנה / יישוב חוב"
+                value={extendSubNote}
+                onChange={(e) => setExtendSubNote(e.target.value)}
+                aria-required="true"
+                aria-describedby="extend-sub-note-hint"
+              />
+              {extendSubNote.trim().length > 0 &&
+                extendSubNote.trim().length < 3 && (
+                  <p
+                    id="extend-sub-note-hint"
+                    className="text-xs text-muted-foreground mt-1"
+                  >
+                    יש למלא לפחות 3 תווים.
+                  </p>
+                )}
+            </div>
+          </div>
+          <DialogFooter>
+            <Button variant="ghost" onClick={closeDialog} disabled={submitting}>
+              ביטול
+            </Button>
+            <Button
+              disabled={submitting || extendSubNote.trim().length < 3}
+              onClick={async () => {
+                const days = parseInt(extendSubDays, 10);
+                if (!Number.isInteger(days) || days <= 0) {
+                  toast.error("מספר ימים לא תקין");
+                  return;
+                }
+                if (days > 365) {
+                  toast.error("מקסימום 365 ימים לפעולה אחת");
+                  return;
+                }
+                if (extendSubNote.trim().length < 3) {
+                  toast.error("חובה למלא הערה (לפחות 3 תווים)");
+                  return;
+                }
+                const ok = await callApi({
+                  action: "extend_subscription",
+                  days,
+                  note: extendSubNote.trim(),
+                });
+                if (ok) {
+                  setDialog(null);
+                  setExtendSubNote("");
+                  setExtendSubDays("30");
+                }
+              }}
+            >
+              {submitting && <Loader2 className="h-4 w-4 ml-1 animate-spin" />}
+              הוסף ימים
             </Button>
           </DialogFooter>
         </DialogContent>

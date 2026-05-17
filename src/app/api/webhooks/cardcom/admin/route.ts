@@ -443,8 +443,11 @@ async function processAdminWebhook(payload: CardcomWebhookPayload): Promise<void
               activationUpdates.trialEndsAt = null;
             }
             // subscriptionEndsAt: לא לקצר תקופה משולמת קיימת!
-            // אם המשתמש כבר ACTIVE עם תוקף עתידי — שמור את המאוחר משניהם
-            // (חידוש מוקדם / שדרוג כבר חישב periodStart=max(now,currentEnd) בcreate)
+            // אם המשתמש כבר ACTIVE עם תוקף עתידי — שמור את המאוחר משניהם.
+            // בשדרוג: create בנה periodEnd=currentEnd+interval, ולכן candidateEnd
+            // גדול מ-currentEnd ויתעדף. בחידוש/הורדה: periodStart=currentEnd ולכן
+            // candidateEnd=currentEnd+interval, וגם הוא גדול. ההגנה רלוונטית בעיקר
+            // למקרי הרצה מחודשת של webhook לאחר שכבר ACTIVE.
             const candidateEnd = activatedSubscription.periodEnd;
             const currentEnd = user.subscriptionEndsAt;
             activationUpdates.subscriptionEndsAt =

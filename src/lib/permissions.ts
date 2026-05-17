@@ -36,6 +36,7 @@ export type Permission =
   | "users.create"
   | "users.change_tier"
   | "users.extend_trial_14d"
+  | "users.extend_subscription" // הארכת ימי מנוי פעיל (ADMIN בלבד — כסף)
   | "users.grant_free_30d"
   | "users.revoke_free"
   | "alerts.manage" // יצירה/עדכון/מחיקה של התראות מנהל
@@ -150,6 +151,7 @@ export const PERMISSION_RANK: Record<Permission, number> = {
   "users.grant_free_30d": 3,
   "users.revoke_free": 3,
   "users.extend_trial_14d": 3,
+  "users.extend_subscription": 10, // ADMIN בלבד — מעניק ימי מנוי בשווי כסף ממשי
   "alerts.manage": 3,
   "packages.grant_manual": 3,
   "packages.revert": 3,

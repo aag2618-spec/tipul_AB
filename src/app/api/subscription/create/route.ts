@@ -101,6 +101,7 @@ export async function POST(request: NextRequest) {
         subscriptionPausedReason: true,
         subscriptionStatus: true,
         subscriptionEndsAt: true,
+        aiTier: true,
       },
     });
 
@@ -167,18 +168,54 @@ export async function POST(request: NextRequest) {
     const intervalDays = PERIOD_DAYS[months];
     const description = `מנוי ${PLAN_NAMES[plan]} ${PERIOD_LABELS[months]} - MyTipul`;
 
-    // חידוש מוקדם של משתמש פעיל: התקופה החדשה מתחילה אחרי תאריך הסיום הקיים,
-    // כך שלא נאבדים ימים ששולמו. עבור משתמש בניסיון/חדש — periodStart=now.
+    // קביעת periodStart/periodEnd לפי סוג הפעולה:
+    //
+    //   1. משתמש חדש / בניסיון / לא-פעיל:
+    //      periodStart = now, periodEnd = now + interval.
+    //
+    //   2. משתמש ACTIVE, חידוש (אותו tier):
+    //      periodStart = subscriptionEndsAt הקיים (לא מאבדים ימים ששולמו),
+    //      periodEnd = currentEnd + interval. cron החיוב החוזר עובד ככה.
+    //
+    //   3. משתמש ACTIVE, שדרוג (tier יקר יותר):
+    //      periodStart = now (תוקף מיידי ל-tier החדש),
+    //      periodEnd = currentEnd + interval (הארכת תקופה כדי שלא יאבד ימים
+    //      ששילם בעבור ה-tier הישן). המשתמש מקבל את ה-tier החדש מיד +
+    //      ימי ה-tier הישן ששנותרו "מתורגמים" לתוספת זמן ב-tier החדש.
+    //
+    //   4. משתמש ACTIVE, הורדה (tier זול יותר):
+    //      periodStart = currentEnd, periodEnd = currentEnd + interval.
+    //      שומר את ה-tier הגבוה ששילם עליו עד סוף התקופה, אז עובר לחדש.
+    //      (אותו התנהגות כמו חידוש — webhook + cron promote-pending-tiers מטפלים).
+    // השוואה לפי דירוג tier ישיר (לא לפי PRICING) — כדי שדריסות מחיר
+    // (override_price / isFreeSubscription) לא יסתירו את האבחנה בין שדרוג להורדה.
+    const TIER_LEVEL: Record<AITier, number> = {
+      ESSENTIAL: 0,
+      PRO: 1,
+      ENTERPRISE: 2,
+    };
+    const isUpgrade = TIER_LEVEL[plan] > TIER_LEVEL[user.aiTier];
     const userCurrentEndsAt =
       user.subscriptionStatus === "ACTIVE" &&
       user.subscriptionEndsAt &&
       user.subscriptionEndsAt.getTime() > now.getTime()
         ? user.subscriptionEndsAt
         : null;
-    const periodStart = userCurrentEndsAt ?? now;
-    const periodEnd = new Date(
-      periodStart.getTime() + intervalDays * 24 * 60 * 60 * 1000
-    );
+    let periodStart: Date;
+    let periodEnd: Date;
+    if (userCurrentEndsAt && isUpgrade) {
+      // שדרוג של משתמש ACTIVE — מיידי + הארכה
+      periodStart = now;
+      periodEnd = new Date(
+        userCurrentEndsAt.getTime() + intervalDays * 24 * 60 * 60 * 1000
+      );
+    } else {
+      // חידוש / הורדה / משתמש לא-ACTIVE
+      periodStart = userCurrentEndsAt ?? now;
+      periodEnd = new Date(
+        periodStart.getTime() + intervalDays * 24 * 60 * 60 * 1000
+      );
+    }
 
     // === יצירת רשומות PENDING — atomic transaction ===
     // שתי הקריאות חייבות להצליח יחדיו, אחרת SubscriptionPayment יתום ייוותר.
