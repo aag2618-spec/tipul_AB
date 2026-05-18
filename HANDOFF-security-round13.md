@@ -151,8 +151,31 @@
 - הוספת `report-uri /api/csp-report` ל-CSP ב-`next.config.ts`
 - TypeScript: נקי
 
-**✅ M13.8 — DONE** (commit pending)
+**✅ M13.8 — DONE** (commit `8183007`)
 - field filtering ב-`GET /api/admin/users` לפי role (consistent עם `/api/admin/users/[id]`)
 - ADMIN: כולל `aiUsageStats` (currentMonthCalls/Cost/dailyCalls)
 - MANAGER + שאר: בלי `aiUsageStats`
 - UI כבר עם `?.` + fallback `|| 0` — לא קורס
+
+### 🛡️ Pre-Push Validation — סבב 1
+
+| Agent | Status | הערות |
+|-------|--------|-------|
+| Auth/Session/2FA | ✅ PASS | לא רלוונטי — השינויים לא נוגעים ב-auth |
+| Payments/Cardcom/Webhooks | ✅ PASS | webhook flows + subscription + refund שלמים |
+| AI/Scope/Cron/Audit | ⚠️ FAIL | באג סדר checks ב-`analyze-single` — scope אחרי tier/quota |
+| Build + TS + Tests | ✅ PASS | tsc נקי, tests baseline (4 files / 3 tests fail / 538 passed) |
+| Code Quality | ✅ PASS עם 2 הערות קוסמטיות | `{ error }` vs `{ message }`, סדר rate-limit/scope ב-payments/export |
+
+### 🔧 Fix לסבב 1
+
+**fix(M13.7 pre-push):** `analyze-single/route.ts` — הזזת `loadScopeUser` + `isSecretary` לפני `prisma.user.findUnique` + tier checks. עקבי עם 3 ה-routes האחרים. אין הוספה — רק reorder + הסרת בלוק כפול.
+
+### 🛡️ Pre-Push Validation — סבב 2
+
+| Agent | Status | הערות |
+|-------|--------|-------|
+| AI/Scope (אימות תיקון) | ✅ PASS | סדר checks תקין: auth → parseBody → scope → user → tier → DB findFirst → consent. אין double-decl. M13.7 XML coverage נשמר. |
+| Build + TS + Tests | ✅ PASS | tsc=0 errors, tests=baseline בדיוק (28 passed / 4 failed / 1 skipped files; 538 passed / 3 failed / 4 todo). |
+
+**מסקנה:** 2/2 PASS. מוכן ל-push בכפוף לאישור משתמש.

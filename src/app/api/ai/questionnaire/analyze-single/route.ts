@@ -45,6 +45,14 @@ export async function POST(req: NextRequest) {
     if ("error" in parsed) return parsed.error;
     const { responseId } = parsed.data;
 
+    // M13.7 (סבב 13 pre-push fix): scope check לפני tier/quota checks — עקבי עם
+    // analyze-combined/progress-report/session-prep. מונע secretary מלקבל
+    // מידע על tier/quota errors לפני שנחסם ב-403 (info disclosure מינורי).
+    const scopeUser = await loadScopeUser(userId);
+    if (isSecretary(scopeUser)) {
+      return NextResponse.json({ message: "אין הרשאה לניתוח AI" }, { status: 403 });
+    }
+
     // קבלת פרטי המשתמש
     const user = await prisma.user.findUnique({
       where: { id: userId },
@@ -120,15 +128,9 @@ export async function POST(req: NextRequest) {
       }
     }
 
-    // וידוא scope: CLINIC_OWNER יכול להריץ ניתוח על מטופלים של מטפלים בארגון שלו.
-    // מזכירה חסומה — אין לה גישה לתוכן קליני (גם לא דרך scope).
-    const scopeUser = await loadScopeUser(userId);
-    if (isSecretary(scopeUser)) {
-      return NextResponse.json({ message: "אין הרשאה לניתוח AI" }, { status: 403 });
-    }
-
     // קבלת תשובות השאלון — סינון לפי scope של המטופל (buildClientWhere תומך
     // ב-OWNER + THERAPIST + solo). C3: לא טוענים יותר name/birthDate — לא ב-prompt.
+    // scope+secretary כבר נבדק למעלה (לפני tier checks) — לא נדרשת בדיקה כפולה.
     const response = await prisma.questionnaireResponse.findFirst({
       where: {
         AND: [
