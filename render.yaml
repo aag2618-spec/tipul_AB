@@ -124,60 +124,27 @@ services:
       - key: CRON_SECRET
         sync: false
 
-  # Cron job for morning notifications - today's sessions summary (08:00 Israel)
+  # Cron job for daily summary notifications (morning + evening) — רץ כל חצי שעה 24/7.
+  # למה כל 30 דקות 24/7:
+  #   • ה-route בודק window של 30 דק' מסביב ל-userMorningTime/userEveningTime.
+  #   • cron כל 30 דק' מבטיח שלכל שעה שמשתמש יבחר (00:00-23:30, כל 15 דק')
+  #     יהיה cron אחד שייפול בתוך ה-window.
+  #   • 24/7 מסלק את כל בעיות ה-DST ושעות הקצה (חורף/קיץ, 04:45, 13:45 וכו').
+  # למה cron יחיד (לא נפרד morning/evening):
+  #   • ה-route בלי parameter ?type בודק גם morning וגם evening בו-זמנית.
+  #   • duplicate prevention בקוד (לפי userId + type + date) מבטיח שליחה
+  #     אחת בלבד ליום לכל משתמש לכל סיכום, גם אם 48 cron jobs ירוצו ביום.
+  # עלות: 48 ריצות/יום (במקום 43 בהפרדה הקודמת); שיא ב-XX:00 = ~7 בקשות —
+  # מתחת ל-CRON_RATE_LIMIT (10/דקה).
   - type: cron
-    name: morning-notifications
+    name: daily-summary-notifications
     runtime: node
     region: frankfurt
     plan: free
-    schedule: "0 5 * * *"  # 05:00 UTC (08:00 Israel)
+    schedule: "0,30 * * * *"  # כל חצי שעה, 24/7
     buildCommand: echo "No build needed"
     startCommand: |
-      curl -s --max-time 60 -X GET "$RENDER_EXTERNAL_URL/api/cron/notifications?type=morning" \
-        -H "Authorization: Bearer $CRON_SECRET"
-    envVars:
-      - key: RENDER_EXTERNAL_URL
-        fromService:
-          type: web
-          name: tipul-app
-          property: url
-      - key: CRON_SECRET
-        sync: false
-
-  # Cron job for evening notifications - tomorrow's sessions + tasks (20:00 Israel)
-  - type: cron
-    name: evening-notifications
-    runtime: node
-    region: frankfurt
-    plan: free
-    schedule: "0 17 * * *"  # 17:00 UTC (20:00 Israel)
-    buildCommand: echo "No build needed"
-    startCommand: |
-      curl -s --max-time 60 -X GET "$RENDER_EXTERNAL_URL/api/cron/notifications?type=evening" \
-        -H "Authorization: Bearer $CRON_SECRET"
-    envVars:
-      - key: RENDER_EXTERNAL_URL
-        fromService:
-          type: web
-          name: tipul-app
-          property: url
-      - key: CRON_SECRET
-        sync: false
-
-  # Cron job for evening notifications - LATE NIGHT slot (covers user-customized
-  # evening times in the 23:00-03:00 Israel range, e.g. 01:00).
-  # מסביר: ה-cron הראשי רץ ב-20:00 ישראל; משתמשים שבחרו שעת ערב מאוחרת
-  # נכשלו בבדיקת חלון [שעה, שעה+30) של ה-route ולא קיבלו סיכום.
-  # פתרון: יריות נוספות בלילה. duplicate prevention שב-route מבטיח רק שליחה אחת.
-  - type: cron
-    name: evening-notifications-night
-    runtime: node
-    region: frankfurt
-    plan: free
-    schedule: "0 21,22,23,0 * * *"  # 21,22,23,00 UTC = 00:00/01:00/02:00/03:00 Israel DST
-    buildCommand: echo "No build needed"
-    startCommand: |
-      curl -s --max-time 60 -X GET "$RENDER_EXTERNAL_URL/api/cron/notifications?type=evening" \
+      curl -s --max-time 60 -X GET "$RENDER_EXTERNAL_URL/api/cron/notifications" \
         -H "Authorization: Bearer $CRON_SECRET"
     envVars:
       - key: RENDER_EXTERNAL_URL
