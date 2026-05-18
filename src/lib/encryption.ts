@@ -1,11 +1,22 @@
 import crypto from 'crypto';
 
+// M11.L2: בעבר dev mode יצר random key בכל restart → encrypted data ב-DB
+// לא היה ניתן לפענוח אחרי restart. עכשיו: בdev — key דטרמיניסטי שמחושב
+// מ-DATABASE_URL (כך שלא נכתב לקובץ ולא משתנה בין restarts, אבל גם לא
+// מוסתר ב-git). זו פשרה — לdev בלבד; ב-prod חייב env var ENCRYPTION_KEY.
 const ENCRYPTION_KEY = process.env.ENCRYPTION_KEY || (() => {
   if (process.env.NODE_ENV === "production") {
     throw new Error("ENCRYPTION_KEY must be set in production");
   }
-  console.warn("⚠️ Using random development encryption key - encrypted data will not persist across restarts");
-  return crypto.randomBytes(32).toString("hex").slice(0, 42);
+  // מבסס על DATABASE_URL (שיש לכל מפתח dev) כדי שיהיה דטרמיניסטי
+  // וכך data תפוענח אחרי restart. ב-CI ללא DATABASE_URL — fallback ל-random.
+  const devSeed = process.env.DATABASE_URL || "tipul-dev-fallback-seed";
+  const devKey = crypto.createHash("sha256").update(devSeed).digest("hex").slice(0, 42);
+  console.warn(
+    "⚠️ ENCRYPTION_KEY לא הוגדר. משתמש ב-key dev דטרמיניסטי (לdev בלבד). " +
+    "ב-prod חובה להגדיר ENCRYPTION_KEY ב-env."
+  );
+  return devKey;
 })();
 const ALGORITHM = 'aes-256-gcm';
 
