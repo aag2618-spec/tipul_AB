@@ -265,22 +265,10 @@ export async function POST(
           { status: 400 }
         );
       }
-      // unique-by-phone — אין constraint ב-DB, אז בודקים ידנית. ה-create יורץ
-      // בתוך ה-transaction של withAudit למטה (שם נריץ findFirst מחדש כדי למזער race).
-      // כדי לאזן בין UX (מסר מוקדם על "טלפון תפוס") ל-correctness, בודקים גם כאן —
-      // race שאר אפשרי, אבל החלון מצומצם.
-      if (phoneNormalized) {
-        const phoneInUse = await prisma.user.findFirst({
-          where: { phone: phoneNormalized },
-          select: { id: true },
-        });
-        if (phoneInUse) {
-          return NextResponse.json(
-            { message: "מספר טלפון זה כבר רשום במערכת" },
-            { status: 400 }
-          );
-        }
-      }
+      // M11.M2: unique-by-phone — בעבר בדקנו פעמיים (פעם לפני withAudit ופעם בתוך).
+      // ה-pre-check יצר TOCTOU (race window). עכשיו בודקים רק בתוך ה-tx של withAudit
+      // (Serializable isolation + retry על 40001 = race-safe). ה-UX זהה: אם
+      // טלפון תפוס, ה-tx יזרוק HandledError(400) שיוחזר ל-client כ-400.
       const passwordHash = await bcrypt.hash(parsed.data.password, 12);
       const trialEndsAt = new Date(
         Date.now() + TRIAL_DAYS * 24 * 60 * 60 * 1000
