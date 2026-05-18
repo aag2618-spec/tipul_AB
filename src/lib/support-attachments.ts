@@ -6,6 +6,7 @@
 
 import { randomUUID } from "crypto";
 import storage from "@/lib/storage";
+import { logger } from "@/lib/logger";
 import { stripImageMetadata } from "@/lib/file-validation";
 import {
   ALLOWED_MIME_TYPES,
@@ -83,12 +84,23 @@ export async function saveAttachments(
   for (const file of files) {
     let buffer: Buffer = Buffer.from(await file.arrayBuffer());
     // H5 (2026-05-17): EXIF stripping \u2014 \u05DE\u05E1\u05D9\u05E8 GPS/\u05DE\u05D8\u05D0-\u05D3\u05D0\u05D8\u05D4 \u05DE\u05EA\u05DE\u05D5\u05E0\u05D5\u05EA.
+    const originalSize = buffer.length;
     buffer = await stripImageMetadata(buffer, file.type);
 
     // \u05E1\u05D1\u05D1 8 (2026-05-18): re-check size \u05D0\u05D7\u05E8\u05D9 sharp. \u05D4-output \u05D9\u05DB\u05D5\u05DC \u05EA\u05D9\u05D0\u05D5\u05E8\u05D8\u05D9\u05EA
     // \u05DC\u05D4\u05D9\u05D5\u05EA \u05D2\u05D3\u05D5\u05DC \u05DE-input (PNG/JPEG quality 95 \u05E2\u05DC \u05E7\u05D5\u05D1\u05E5 \u05DC\u05D0 \u05D3\u05D7\u05D5\u05E1). \u05D6\u05D5\u05E8\u05E7\u05D9\u05DD \u2014 \u05D4-caller
     // (route handler \u05E9\u05DC support) \u05D9\u05D9\u05EA\u05E4\u05D5\u05E1 \u05D1-outer try/catch \u05D5\u05D9\u05D7\u05D6\u05D9\u05E8 500/400.
     if (buffer.length > MAX_FILE_SIZE_BYTES) {
+      // M10.5: \u05EA\u05D9\u05E2\u05D5\u05D3 \u05E0\u05D9\u05E1\u05D9\u05D5\u05E0\u05D5\u05EA \u05DC\u05E2\u05E7\u05D5\u05E3 maxSize \u05D3\u05E8\u05DA sharp expansion.
+      logger.warn("[upload] size exceeded after strip", {
+        ticketId,
+        filename: file.name,
+        mime: file.type,
+        originalSize,
+        newSize: buffer.length,
+        limit: MAX_FILE_SIZE_BYTES,
+        endpoint: "support-attachments",
+      });
       throw new Error(
         `\u05D4\u05E7\u05D5\u05D1\u05E5 "${file.name}" \u05D2\u05D3\u05DC \u05DE\u05E2\u05D1\u05E8 \u05DC\u05D2\u05D1\u05D5\u05DC (${MAX_FILE_SIZE_BYTES / (1024 * 1024)}MB) \u05D0\u05D7\u05E8\u05D9 \u05E0\u05D9\u05E7\u05D5\u05D9 metadata`
       );

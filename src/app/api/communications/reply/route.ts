@@ -85,11 +85,22 @@ export async function POST(request: NextRequest) {
         }
         // H5 (2026-05-17): EXIF stripping — מסיר GPS/מטא-דאטה מתמונות לפני
         // שליחתן במייל. PHI: מטופלים ששולחים תמונה למטפל לא חושפים מיקום.
+        const originalSize = buffer.length;
         buffer = await stripImageMetadata(buffer, file.type);
 
         // סבב 8 (2026-05-18): re-check size אחרי sharp. ה-output יכול תיאורטית
         // להיות גדול מ-input (PNG/JPEG עם quality 95 על קובץ לא דחוס).
         if (buffer.length > getCategoryMaxSize("attachment")) {
+          // M10.5: תיעוד ניסיונות לעקוף maxSize דרך sharp expansion.
+          logger.warn("[upload] size exceeded after strip", {
+            userId,
+            filename: file.name,
+            mime: file.type,
+            originalSize,
+            newSize: buffer.length,
+            limit: getCategoryMaxSize("attachment"),
+            endpoint: "communications/reply",
+          });
           return NextResponse.json(
             { message: `${file.name}: הקובץ גדל מעבר לגבול אחרי ניקוי metadata` },
             { status: 400 }

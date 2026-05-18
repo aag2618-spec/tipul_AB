@@ -98,6 +98,7 @@ export async function POST(request: NextRequest) {
 
     // H5 (2026-05-17): EXIF stripping — מסיר GPS/מטא-דאטה מתמונות (JPG/PNG).
     // PDF/Word לא נוגעים בהם. תמונה שעוברת אותה ביד מוסרים שכבת PHI.
+    const originalSize = fileBuffer.length;
     fileBuffer = await stripImageMetadata(fileBuffer, file.type);
 
     // סבב 8 (2026-05-18): re-check size אחרי sharp. ה-output יכול תיאורטית
@@ -105,6 +106,17 @@ export async function POST(request: NextRequest) {
     // קובץ לא דחוס). בלי ה-check, התוקף יכול לעקוף את maxSizeBytes ע"י
     // העלאת תמונה קטנה שמתפיחה אחרי decompress.
     if (fileBuffer.length > getCategoryMaxSize("document")) {
+      // M10.5: תיעוד ניסיונות לעקוף maxSize דרך sharp expansion. עוזר לזהות
+      // ניסיונות זדוניים (PNG bomb / נסיון מסודר) או lib regression.
+      logger.warn("[upload] size exceeded after strip", {
+        userId,
+        filename: file.name,
+        mime: file.type,
+        originalSize,
+        newSize: fileBuffer.length,
+        limit: getCategoryMaxSize("document"),
+        endpoint: "documents",
+      });
       return NextResponse.json(
         { message: "הקובץ גדל מעבר לגבול אחרי ניקוי metadata" },
         { status: 400 }
