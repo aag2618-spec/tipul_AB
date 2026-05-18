@@ -86,7 +86,8 @@ export function QuestionnaireAnalysis({
       if (!response.ok) {
         // M1 + סבב 8: AI routes מחזירים `message` (לא `error`). הודעת consent
         // כוללת הנחיה למטפל איך לעדכן את ההסכמה בכרטיס המטופל.
-        throw new Error(data.message || data.error || "Failed to analyze");
+        // M9.4: fallback בעברית (לא Failed to ...) — feedback_hebrew_ui.
+        throw new Error(data.message || data.error || "שגיאה בניתוח");
       }
 
       setAnalysisResult(data.analysis.content);
@@ -124,7 +125,8 @@ export function QuestionnaireAnalysis({
       if (!response.ok) {
         // M1 + סבב 8: AI routes מחזירים `message` (לא `error`). הודעת consent
         // כוללת הנחיה למטפל איך לעדכן את ההסכמה בכרטיס המטופל.
-        throw new Error(data.message || data.error || "Failed to analyze");
+        // M9.4: fallback בעברית (לא Failed to ...) — feedback_hebrew_ui.
+        throw new Error(data.message || data.error || "שגיאה בניתוח");
       }
 
       setAnalysisResult(data.analysis.content);
@@ -169,7 +171,8 @@ export function QuestionnaireAnalysis({
 
       if (!response.ok) {
         // M1 + סבב 8: AI routes מחזירים `message` (לא `error`).
-        throw new Error(data.message || data.error || "Failed to generate report");
+        // M9.4: fallback בעברית (לא Failed to ...) — feedback_hebrew_ui.
+        throw new Error(data.message || data.error || "שגיאה ביצירת הדו\"ח");
       }
 
       setAnalysisResult(data.analysis.content);

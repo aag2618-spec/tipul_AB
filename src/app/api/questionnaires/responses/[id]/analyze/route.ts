@@ -375,8 +375,9 @@ ${approachSection}
     });
   } catch (error) {
     logger.error("Error analyzing questionnaire:", { error: error instanceof Error ? error.message : String(error) });
+    // M9.4: error message בעברית (לא Failed to ...) — feedback_hebrew_ui.
     return NextResponse.json(
-      { message: "Failed to analyze questionnaire" },
+      { message: "שגיאה בניתוח השאלון" },
       { status: 500 }
     );
   }

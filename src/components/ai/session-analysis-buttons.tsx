@@ -49,7 +49,8 @@ export function SessionAnalysisButtons({
       if (!response.ok) {
         // M1 + סבב 8: AI routes מחזירים `message` (לא `error`). הודעת consent
         // כוללת הנחיה למטפל איך לעדכן את ההסכמה בכרטיס המטופל.
-        throw new Error(data.message || data.error || "Failed to analyze session");
+        // M9.4: fallback בעברית (לא Failed to ...) — feedback_hebrew_ui.
+        throw new Error(data.message || data.error || "שגיאה בניתוח הפגישה");
       }
 
       setAnalysisResult(data.analysis.content);
