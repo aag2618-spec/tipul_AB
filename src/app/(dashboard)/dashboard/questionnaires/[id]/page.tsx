@@ -112,8 +112,10 @@ export default function QuestionnaireResultsPage() {
         } : null);
         toast.success("הניתוח הושלם בהצלחה!");
       } else {
-        const error = await res.json();
-        toast.error(error.error || "שגיאה בניתוח");
+        // M1 + סבב 8: AI routes מחזירים `message` (לא `error`). הודעת consent
+        // כוללת הנחיה למטפל איך לעדכן את ההסכמה בכרטיס המטופל.
+        const data = await res.json();
+        toast.error(data.message || data.error || "שגיאה בניתוח");
       }
     } catch (error) {
       console.error("Error analyzing:", error);

@@ -84,7 +84,9 @@ export function QuestionnaireAnalysis({
       const data = await response.json();
 
       if (!response.ok) {
-        throw new Error(data.error || "Failed to analyze");
+        // M1 + סבב 8: AI routes מחזירים `message` (לא `error`). הודעת consent
+        // כוללת הנחיה למטפל איך לעדכן את ההסכמה בכרטיס המטופל.
+        throw new Error(data.message || data.error || "Failed to analyze");
       }
 
       setAnalysisResult(data.analysis.content);
@@ -120,7 +122,9 @@ export function QuestionnaireAnalysis({
       const data = await response.json();
 
       if (!response.ok) {
-        throw new Error(data.error || "Failed to analyze");
+        // M1 + סבב 8: AI routes מחזירים `message` (לא `error`). הודעת consent
+        // כוללת הנחיה למטפל איך לעדכן את ההסכמה בכרטיס המטופל.
+        throw new Error(data.message || data.error || "Failed to analyze");
       }
 
       setAnalysisResult(data.analysis.content);
@@ -164,7 +168,8 @@ export function QuestionnaireAnalysis({
       const data = await response.json();
 
       if (!response.ok) {
-        throw new Error(data.error || "Failed to generate report");
+        // M1 + סבב 8: AI routes מחזירים `message` (לא `error`).
+        throw new Error(data.message || data.error || "Failed to generate report");
       }
 
       setAnalysisResult(data.analysis.content);
