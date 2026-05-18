@@ -1,3 +1,5 @@
+import crypto from "node:crypto";
+
 type LogLevel = "info" | "warn" | "error";
 
 interface LogEntry {
@@ -27,10 +29,29 @@ interface LogEntry {
 const SENSITIVE_KEY_REGEX =
   /password|secret|token|notes?|content|transcription|nationalId|phone|email|signature|access_token|refresh_token|id_token|otp|codeHash|verificationCode|twoFaCode|recoveryCodes|twoFactorSecret|apiKey|api_key|cardcomToken|creditCard|cvv|pan|iban|swift|authorization|cookie|sessionId|sessionToken|emotionalMarkers|keyTopics|medicalHistory|aiAnalysis|recommendations|intakeNotes|initialDiagnosis|approachNotes|culturalContext|comprehensiveAnalysis|prompt|summary|transcript|description|freeText|firstName|lastName|address|birthDate|dob|dateOfBirth|idNumber|tax(?!onomy)|\bvat|salary|income|passport/i;
 
+// M11.M1: filename keys מקבלים hash במקום redact מלא, כדי לאפשר debug של
+// "אותו קובץ עלה פעמיים" בלי לחשוף PII (שם מטופל בקובץ "שרה כהן_פגישה.pdf").
+// Match: filename, fileName, originalFilename, originalFileName — לא name לבד
+// (שמכיל גם actionName/templateName/tierName שאינם PII).
+const FILENAME_KEY_REGEX = /^(original)?[Ff]ile[Nn]ame$/;
+
+function hashFilename(value: unknown): string {
+  if (typeof value !== "string") return "[REDACTED]";
+  const hash = crypto.createHash("sha256").update(value).digest("hex").slice(0, 8);
+  // נשמרת סיומת הקובץ — לא PII, מועיל לdebug של בעיות תאימות סוג קובץ.
+  const dot = value.lastIndexOf(".");
+  const ext = dot > 0 && dot < value.length - 1 && dot >= value.length - 6
+    ? value.slice(dot).toLowerCase()
+    : "";
+  return `[FILE:${hash}${ext}]`;
+}
+
 // אורך מקסימלי של ערך טקסט בלוג. ערכים ארוכים מקוצרים — מונע flooding
 // של הלוגים בתכני transcription/PHI גם אם המפתח לא נכנס לרשימה.
 const MAX_VALUE_LENGTH = 500;
-const MAX_DEPTH = 4;
+// M11.L3: עלה מ-4 ל-6 — webhook payloads (meshulam/sumit) מקננים עמוק יותר
+// ו-[DEPTH_LIMIT] על 4 חיתך פרטי debug שימושיים. 6 עדיין מוגן מ-stack overflow.
+const MAX_DEPTH = 6;
 
 function sanitizeValue(value: unknown, depth: number): unknown {
   if (value === null || value === undefined) return value;
@@ -66,7 +87,10 @@ function sanitizeObject(obj: Record<string, unknown>, depth: number): Record<str
   if (depth >= MAX_DEPTH) return { _truncated: "[DEPTH_LIMIT]" };
   const out: Record<string, unknown> = {};
   for (const [key, value] of Object.entries(obj)) {
-    if (SENSITIVE_KEY_REGEX.test(key)) {
+    if (FILENAME_KEY_REGEX.test(key)) {
+      // hash במקום redact מלא — שומר על debug context (ext, יוניקליות)
+      out[key] = hashFilename(value);
+    } else if (SENSITIVE_KEY_REGEX.test(key)) {
       out[key] = "[REDACTED]";
     } else {
       out[key] = sanitizeValue(value, depth);
