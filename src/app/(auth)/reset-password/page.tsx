@@ -19,7 +19,12 @@ import { toast } from "sonner";
 function ResetPasswordForm() {
   const router = useRouter();
   const searchParams = useSearchParams();
-  const token = searchParams.get("token");
+
+  // סבב 8: ה-token מגיע כברירת מחדל ב-URL fragment (#token=...) כדי שלא
+  // ידלוף ב-Referer header. fallback ל-?token= לתאימות עם URLs ישנים
+  // שנשלחו במייל לפני התיקון.
+  const [token, setToken] = useState<string | null>(null);
+  const [tokenReady, setTokenReady] = useState(false);
 
   const [password, setPassword] = useState("");
   const [confirmPassword, setConfirmPassword] = useState("");
@@ -29,7 +34,29 @@ function ResetPasswordForm() {
   const [isSuccess, setIsSuccess] = useState(false);
   const [error, setError] = useState("");
 
+  // שלב 1: שליפת ה-token (קודם מ-fragment, אחר כך מ-querystring)
   useEffect(() => {
+    let extracted: string | null = null;
+    if (typeof window !== "undefined") {
+      const hash = window.location.hash;
+      if (hash.startsWith("#token=")) {
+        extracted = decodeURIComponent(hash.substring("#token=".length));
+        // הסרת ה-token מ-URL כדי שלא יישאר ב-history/clipboard אם המשתמש
+        // יבחר לשתף את הקישור או לרענן (history.replaceState לא מבצע navigation).
+        window.history.replaceState(null, "", window.location.pathname);
+      }
+    }
+    if (!extracted) {
+      // Legacy fallback — URLs ישנים שכבר נשלחו במייל לפני התיקון.
+      extracted = searchParams.get("token");
+    }
+    setToken(extracted);
+    setTokenReady(true);
+  }, [searchParams]);
+
+  // שלב 2: validation אחרי שה-token נקרא
+  useEffect(() => {
+    if (!tokenReady) return;
     if (!token) {
       setIsValidating(false);
       setError("חסר קישור לאיפוס");
@@ -37,7 +64,7 @@ function ResetPasswordForm() {
     }
 
     // Validate token
-    fetch(`/api/auth/reset-password?token=${token}`)
+    fetch(`/api/auth/reset-password?token=${encodeURIComponent(token)}`)
       .then((res) => res.json())
       .then((data) => {
         setIsValid(data.valid);
@@ -51,7 +78,7 @@ function ResetPasswordForm() {
       .finally(() => {
         setIsValidating(false);
       });
-  }, [token]);
+  }, [token, tokenReady]);
 
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();

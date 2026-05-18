@@ -78,7 +78,11 @@ export async function POST(request: NextRequest) {
 
     // Send email
     const baseUrl = process.env.NEXTAUTH_URL || "https://tipul-mh2t.onrender.com";
-    const resetUrl = `${baseUrl}/reset-password?token=${token}`;
+    // סבב 8 (2026-05-18): token עובר כ-URL fragment (#token=...) ולא ב-querystring.
+    // Fragment לא נשלח ב-Referer header → אם דף ה-reset טוען scripts/images
+    // חיצוניים, ה-token לא דולף לצד שלישי. הדף קורא אותו מ-window.location.hash
+    // עם fallback ל-?token= לתאימות עם URLs ישנים שכבר נשלחו במייל.
+    const resetUrl = `${baseUrl}/reset-password#token=${token}`;
 
     const emailResult = await sendEmail({
       to: user.email!,
