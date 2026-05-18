@@ -6,7 +6,7 @@ import fs from "fs/promises";
 import { logger } from "@/lib/logger";
 import { requireAuth } from "@/lib/api-auth";
 import { isShabbatOrYomTov } from "@/lib/shabbat";
-import { validateFileBuffer, stripImageMetadata } from "@/lib/file-validation";
+import { validateFileBuffer, stripImageMetadata, getCategoryMaxSize } from "@/lib/file-validation";
 import { checkRateLimit, EMAIL_SEND_USER_RATE_LIMIT } from "@/lib/rate-limit";
 
 const MAX_ATTACHMENTS_PER_REPLY = 5;
@@ -86,6 +86,16 @@ export async function POST(request: NextRequest) {
         // H5 (2026-05-17): EXIF stripping — מסיר GPS/מטא-דאטה מתמונות לפני
         // שליחתן במייל. PHI: מטופלים ששולחים תמונה למטפל לא חושפים מיקום.
         buffer = await stripImageMetadata(buffer, file.type);
+
+        // סבב 8 (2026-05-18): re-check size אחרי sharp. ה-output יכול תיאורטית
+        // להיות גדול מ-input (PNG/JPEG עם quality 95 על קובץ לא דחוס).
+        if (buffer.length > getCategoryMaxSize("attachment")) {
+          return NextResponse.json(
+            { message: `${file.name}: הקובץ גדל מעבר לגבול אחרי ניקוי metadata` },
+            { status: 400 }
+          );
+        }
+
         resendAttachments.push({
           filename: file.name,
           content: buffer,

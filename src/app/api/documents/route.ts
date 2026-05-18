@@ -6,7 +6,7 @@ import { join } from "path";
 import { v4 as uuidv4 } from "uuid";
 import { logger } from "@/lib/logger";
 import { loadScopeUser, buildClientWhere } from "@/lib/scope";
-import { validateFileBuffer, safeExtensionForMime, stripImageMetadata } from "@/lib/file-validation";
+import { validateFileBuffer, safeExtensionForMime, stripImageMetadata, getCategoryMaxSize } from "@/lib/file-validation";
 import { documentFormFieldsSchema } from "@/lib/validations/document";
 
 export const dynamic = "force-dynamic";
@@ -99,6 +99,17 @@ export async function POST(request: NextRequest) {
     // H5 (2026-05-17): EXIF stripping — מסיר GPS/מטא-דאטה מתמונות (JPG/PNG).
     // PDF/Word לא נוגעים בהם. תמונה שעוברת אותה ביד מוסרים שכבת PHI.
     fileBuffer = await stripImageMetadata(fileBuffer, file.type);
+
+    // סבב 8 (2026-05-18): re-check size אחרי sharp. ה-output יכול תיאורטית
+    // להיות גדול מ-input (PNG עם compressionLevel 9, או JPEG quality 95 על
+    // קובץ לא דחוס). בלי ה-check, התוקף יכול לעקוף את maxSizeBytes ע"י
+    // העלאת תמונה קטנה שמתפיחה אחרי decompress.
+    if (fileBuffer.length > getCategoryMaxSize("document")) {
+      return NextResponse.json(
+        { message: "הקובץ גדל מעבר לגבול אחרי ניקוי metadata" },
+        { status: 400 }
+      );
+    }
 
     const scopeUser = await loadScopeUser(userId);
     const clientWhere = buildClientWhere(scopeUser);
