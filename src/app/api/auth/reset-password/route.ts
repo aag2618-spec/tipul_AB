@@ -30,11 +30,18 @@ export async function POST(request: NextRequest) {
     if ("error" in parsed) return parsed.error;
     const { token, password } = parsed.data;
 
-    // Find the reset token — מחפשים לפי hash של ה-plaintext שהמשתמש שלח.
-    const resetRecord = await prisma.passwordReset.findUnique({
-      where: { token: hashResetToken(token) },
-      include: { user: true },
-    });
+    // סבב 8: Timing-attack mitigation — תמיד מחשבים bcrypt.hash גם כש-token לא תקף.
+    // לפני התיקון: bcrypt רץ רק אם הרשומה נמצאה ותקפה → הפרש זמן 150-300ms בין
+    // token פעיל לטוקן שגוי, ומאפשר לתוקף למפות emails (לבקש reset לאימייל ולמדוד).
+    // עכשיו: מריצים את ה-DB lookup ואת ה-bcrypt במקביל ב-Promise.all, כך שגם
+    // כשהtoken לא תקף ה-response מגיע אחרי ~bcrypt latency (~250ms קבועים).
+    const [hashedPassword, resetRecord] = await Promise.all([
+      bcrypt.hash(password, 12),
+      prisma.passwordReset.findUnique({
+        where: { token: hashResetToken(token) },
+        include: { user: true },
+      }),
+    ]);
 
     if (!resetRecord) {
       return NextResponse.json(
@@ -59,9 +66,6 @@ export async function POST(request: NextRequest) {
         { status: 400 }
       );
     }
-
-    // Hash new password
-    const hashedPassword = await bcrypt.hash(password, 12);
 
     // C7: עדכון passwordChangedAt — מבטל tokens קיימים שהונפקו לפני שינוי
     // הסיסמה (defense-in-depth מול cookie גנוב שעדיין פעיל בזמן ההחלפה).
