@@ -45,6 +45,26 @@ export async function GET(request: NextRequest) {
 
     const scopeWhere = buildClientWhere(scopeUser);
 
+    // M13.5 (סבב 13): defensive guard — מונע memory crash בארגון ענק (1000+ מטופלים).
+    // היום אין ארגון בגודל זה; כשיהיה — נחליף ב-pagination/streaming אמיתי.
+    // 500 = שמרני (כל client יכול לכלול עשרות sessions+recordings → easily 50MB+ ב-memory).
+    // אם הגענו לכאן — admin של הארגון יקבל הודעה ברורה ויידע ליצור קשר עם תמיכה.
+    const MAX_CLIENTS_PER_BULK_EXPORT = 500;
+    const clientCount = await prisma.client.count({ where: scopeWhere });
+    if (clientCount > MAX_CLIENTS_PER_BULK_EXPORT) {
+      logger.warn("[clients/export-all] bulk export blocked — client count exceeds guard", {
+        userId,
+        clientCount,
+        limit: MAX_CLIENTS_PER_BULK_EXPORT,
+      });
+      return NextResponse.json(
+        {
+          message: `ייצוא ארגוני של ${clientCount} מטופלים חורג ממגבלה זמנית של ${MAX_CLIENTS_PER_BULK_EXPORT}. אנא פנה לתמיכה לקבלת ייצוא מותאם.`,
+        },
+        { status: 413 }
+      );
+    }
+
     // Fetch all clients with their related data
     const clients = await prisma.client.findMany({
       where: scopeWhere,

@@ -182,6 +182,52 @@
 
 ---
 
+### 🆕 M13.10 — DONE (2026-05-19)
+
+**מה בוצע:**
+- `git rm src/lib/claude.ts` (dead code — אף route לא ייבא ממנו)
+- `npm uninstall @anthropic-ai/sdk` — חבילה הוסרה מ-package.json + package-lock.json
+- ניקוי `src/lib/env.ts`: הסרת `ANTHROPIC_API_KEY` (לא היה בשימוש)
+- ניקוי `render.yaml`: הסרת env var `ANTHROPIC_API_KEY`
+- robots.txt: השאיר User-Agent `anthropic-ai` (זה bot של Anthropic לסקרייפ, לא קשור ל-SDK)
+
+**ירידה:** ~5MB מ-node_modules, attack surface פחות (חבילה אחת פחות לפגיעות).
+
+**אם תרצה להחזיר Claude SDK בעתיד:** `npm install @anthropic-ai/sdk`, ולשחזר אחד הקבצים מ-git history.
+
+---
+
+### 🆕 M13.5 — DONE partial (2026-05-19)
+
+**מה בוצע:**
+- guard ב-`export-all` route: לפני findMany — `prisma.client.count({ where: scopeWhere })`. אם > 500 → 413 עם הודעה ברורה.
+- מונע memory crash בארגון 1000+ מטופלים שעדיין לא קיים בפועל.
+
+**מה לא בוצע (pagination/streaming אמיתי):**
+- ידחה לסבב עתידי כשיהיה ארגון בגודל זה — נראה ה-bottleneck האמיתי ונתכנן data-driven.
+
+---
+
+### 🆕 M13.9 — INFRASTRUCTURE ACTION REQUIRED (2026-05-19)
+
+**מה צריך לעשות (משתמש, לא קוד):**
+
+1. **לוגין ל-Render dashboard** → https://dashboard.render.com
+2. **לבחור את ה-service** "tipul-app"
+3. **לעבור ללשונית "Disks"** (או "Persistent Disks")
+4. **לבחור את ה-disk** שמוגדר ב-`UPLOADS_DIR` (כרגע: `/opt/render/project/uploads`)
+5. **לבדוק האם "Encryption at rest" כבר מופעל**:
+   - אם **כן** — לא צריך לעשות כלום
+   - אם **לא** — לחפש "Enable encryption" (יתכן שיופיע רק ב-plan upgraded; ב-free plan לא תמיד זמין)
+
+**הערה חשובה:** ב-Render's free tier יתכן ש-disk encryption לא זמין/אוטומטי. אם זה ה-case — לשקול שדרוג ל-Starter ($7/m) שכולל disk encryption.
+
+**גיבוי (אופציה ב' — application-level encryption):**
+- אם Render לא מאפשר מ-disk encryption, יש לתעד החלטה האם לעבור ל-application-level encryption (encrypt/decrypt לכל audio file בקוד).
+- זה דורש עבודת קוד בסבב נפרד.
+
+---
+
 ### 🆕 M13.6 — DONE (2026-05-19)
 
 **מה בוצע:**

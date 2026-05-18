@@ -5,7 +5,6 @@
 // NEXTAUTH_SECRET="your-secret-key-here"
 // NEXTAUTH_URL="http://localhost:3000"
 // GOOGLE_AI_API_KEY="your-google-ai-api-key"
-// ANTHROPIC_API_KEY="your-anthropic-api-key"
 // RESEND_API_KEY="your-resend-api-key"
 
 // M3 — Validate critical environment variables (basic schema, ללא תלות חיצונית).
@@ -67,7 +66,6 @@ export const env = {
   NEXTAUTH_SECRET: process.env.NEXTAUTH_SECRET!,
   NEXTAUTH_URL: process.env.NEXTAUTH_URL || 'http://localhost:3000',
   GOOGLE_AI_API_KEY: process.env.GOOGLE_AI_API_KEY || process.env.GOOGLE_GENERATIVE_AI_API_KEY || '',
-  ANTHROPIC_API_KEY: process.env.ANTHROPIC_API_KEY || '', // Optional - no longer used
   RESEND_API_KEY: process.env.RESEND_API_KEY || '',
 } as const;
 
