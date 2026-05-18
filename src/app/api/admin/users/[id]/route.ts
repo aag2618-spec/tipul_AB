@@ -65,6 +65,8 @@ export async function GET(
       blockedAt: true,
       blockedBy: true,
       aiTier: true,
+      pendingTier: true,
+      pendingTierEffectiveAt: true,
       subscriptionStatus: true,
       subscriptionStartedAt: true,
       subscriptionEndsAt: true,

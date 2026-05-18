@@ -35,6 +35,8 @@ interface UserProfile {
   blockReason: string | null;
   blockedAt: string | null;
   aiTier: string;
+  pendingTier: string | null;
+  pendingTierEffectiveAt: string | null;
   subscriptionStatus: string | null;
   subscriptionStartedAt: string | null;
   subscriptionEndsAt: string | null;
@@ -290,6 +292,89 @@ export default function UserProfilePage() {
         subscriptionEndsAtIso={user.subscriptionEndsAt}
         onUpdated={fetchUser}
       />
+
+      {/* אבחנת מנוי — שדות קריטיים לפתרון בעיות שדרוג tier */}
+      <Card className="border-amber-500/40 bg-amber-500/5">
+        <CardHeader className="pb-3">
+          <CardTitle className="text-base flex items-center gap-2">
+            <Shield className="h-4 w-4" />
+            אבחנת מנוי (לצורכי debug)
+          </CardTitle>
+        </CardHeader>
+        <CardContent>
+          <div className="grid gap-2 text-sm md:grid-cols-2">
+            <div className="flex justify-between">
+              <span className="text-muted-foreground">aiTier (פעיל)</span>
+              <Badge variant="outline">{user.aiTier}</Badge>
+            </div>
+            <div className="flex justify-between">
+              <span className="text-muted-foreground">pendingTier (ממתין)</span>
+              {user.pendingTier ? (
+                <Badge variant="outline" className="border-amber-500 text-amber-700">
+                  {user.pendingTier}
+                </Badge>
+              ) : (
+                <span className="text-muted-foreground">—</span>
+              )}
+            </div>
+            <div className="flex justify-between">
+              <span className="text-muted-foreground">pendingTier יחול ב-</span>
+              <span>
+                {user.pendingTierEffectiveAt
+                  ? new Date(user.pendingTierEffectiveAt).toLocaleString("he-IL", {
+                      timeZone: "Asia/Jerusalem",
+                    })
+                  : "—"}
+              </span>
+            </div>
+            <div className="flex justify-between">
+              <span className="text-muted-foreground">subscriptionStatus</span>
+              <span>{user.subscriptionStatus ?? "—"}</span>
+            </div>
+            <div className="flex justify-between">
+              <span className="text-muted-foreground">subscriptionStartedAt</span>
+              <span>
+                {user.subscriptionStartedAt
+                  ? new Date(user.subscriptionStartedAt).toLocaleString("he-IL", {
+                      timeZone: "Asia/Jerusalem",
+                    })
+                  : "—"}
+              </span>
+            </div>
+            <div className="flex justify-between">
+              <span className="text-muted-foreground">subscriptionEndsAt</span>
+              <span>
+                {user.subscriptionEndsAt
+                  ? new Date(user.subscriptionEndsAt).toLocaleString("he-IL", {
+                      timeZone: "Asia/Jerusalem",
+                    })
+                  : "—"}
+              </span>
+            </div>
+            <div className="flex justify-between">
+              <span className="text-muted-foreground">trialEndsAt</span>
+              <span>
+                {user.trialEndsAt
+                  ? new Date(user.trialEndsAt).toLocaleString("he-IL", {
+                      timeZone: "Asia/Jerusalem",
+                    })
+                  : "—"}
+              </span>
+            </div>
+          </div>
+          {user.pendingTier && user.pendingTier !== user.aiTier && (
+            <div className="mt-3 p-2 rounded bg-amber-500/10 border border-amber-500/30 text-xs">
+              ⚠ <strong>שדרוג ממתין:</strong> התוכנית תקפוץ ל-{user.pendingTier} ב-
+              {user.pendingTierEffectiveAt
+                ? new Date(user.pendingTierEffectiveAt).toLocaleDateString("he-IL", {
+                    timeZone: "Asia/Jerusalem",
+                  })
+                : "תאריך לא ידוע"}
+              . כדי להעלות מיד — לחץ על &quot;שינוי תוכנית&quot; בכרטיס פעולות האדמין למעלה.
+            </div>
+          )}
+        </CardContent>
+      </Card>
 
       {/* Stage 6 — היסטוריית תשלומים+חבילות+החזר כספי (משלים ל-Actions). */}
       <SubscriptionAdminCard userId={user.id} />

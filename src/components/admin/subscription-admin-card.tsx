@@ -247,6 +247,11 @@ export default function SubscriptionAdminCard({ userId }: { userId: string }) {
                         `· ****${sp.cardcomTransaction.cardLast4}`}
                     </div>
                   )}
+                  {(sp.periodStartIso || sp.periodEndIso) && (
+                    <div className="text-xs text-muted-foreground">
+                      תקופה: {formatDate(sp.periodStartIso)} — {formatDate(sp.periodEndIso)}
+                    </div>
+                  )}
                   {sp.chargeAttempts > 0 && (
                     <div className="text-xs text-amber-700">
                       <AlertCircle className="h-3 w-3 inline ml-1" />
