@@ -447,6 +447,12 @@ function validateReceipt(receipt: ConsumeResult): void {
 
 /**
  * Helper משותף ל-refundSms / refundAiAnalysis.
+ *
+ * M11.L1: underflow guard — בעבר ה-decrement רץ ללא בדיקה. אם מנהל מערכת
+ * עדכן ידנית את creditsUsed בין consume ל-refund, ה-decrement יכול להוביל
+ * ל-creditsUsed שלילי (מקור לפגיעה: משתמש בעל creditsUsed=-100 מקבל 100
+ * שירותים חינם). עכשיו: קוראים לפני ה-decrement; אם החישוב יוצר ערך שלילי,
+ * נכנסים ל-clamp ל-0 + AdminAlert (לא משתיקים — חייב מעקב human).
  */
 async function refundInTx(
   tx: Prisma.TransactionClient,
@@ -458,10 +464,40 @@ async function refundInTx(
     await monthlyDecrement();
   }
   for (const pkg of receipt.packagesTouched) {
-    await tx.userPackagePurchase.update({
+    const before = await tx.userPackagePurchase.findUnique({
       where: { id: pkg.id },
-      data: { creditsUsed: { decrement: pkg.amount } },
+      select: { creditsUsed: true },
     });
+    if (!before) {
+      // הרכישה נמחקה בין consume ל-refund — לוג בלבד, לא חוסם refund.
+      logger.warn("[credits] refund: package missing", { packageId: pkg.id });
+      continue;
+    }
+    const newUsed = before.creditsUsed - pkg.amount;
+    if (newUsed < 0) {
+      logger.error("[credits] refund underflow detected — clamping to 0", {
+        packageId: pkg.id,
+        creditsUsedBefore: before.creditsUsed,
+        attemptingDecrement: pkg.amount,
+      });
+      await tx.adminAlert.create({
+        data: {
+          type: "CREDIT_CONSUMPTION_FAILED",
+          priority: "HIGH",
+          title: "Credits refund underflow",
+          message: `Package ${pkg.id} creditsUsed ${before.creditsUsed} - refund ${pkg.amount} = ${newUsed} (clamped to 0)`,
+        },
+      });
+      await tx.userPackagePurchase.update({
+        where: { id: pkg.id },
+        data: { creditsUsed: 0 },
+      });
+    } else {
+      await tx.userPackagePurchase.update({
+        where: { id: pkg.id },
+        data: { creditsUsed: { decrement: pkg.amount } },
+      });
+    }
   }
 }
 

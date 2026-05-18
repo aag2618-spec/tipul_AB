@@ -23,7 +23,9 @@ const monthlyUsageUpsert = vi.fn().mockResolvedValue({});
 const monthlyUsageFindUnique = vi.fn();
 const monthlyUsageUpdate = vi.fn();
 const purchaseUpdate = vi.fn();
+const purchaseFindUnique = vi.fn();
 const alertCreate = vi.fn().mockResolvedValue({});
+const txAlertCreate = vi.fn().mockResolvedValue({});
 
 const tx = {
   $executeRaw: (...a: unknown[]) => executeRaw(...a),
@@ -42,6 +44,10 @@ const tx = {
   },
   userPackagePurchase: {
     update: (...a: unknown[]) => purchaseUpdate(...a),
+    findUnique: (...a: unknown[]) => purchaseFindUnique(...a),
+  },
+  adminAlert: {
+    create: (...a: unknown[]) => txAlertCreate(...a),
   },
 };
 
@@ -75,8 +81,12 @@ beforeEach(() => {
   alertCreate.mockResolvedValue({});
   // defaults לטסטים שלא מתעניינים בהם:
   purchaseUpdate.mockResolvedValue({});
+  // M11.L1: refundInTx קורא ל-findUnique לפני decrement (underflow guard).
+  // ברירת מחדל: creditsUsed גבוה כדי לא ליצור underflow ב-tests רגילים.
+  purchaseFindUnique.mockResolvedValue({ creditsUsed: 1000 });
   commSettingUpdate.mockResolvedValue({});
   monthlyUsageUpdate.mockResolvedValue({});
+  txAlertCreate.mockResolvedValue({});
 });
 
 // ─── consumeSms ──────────────────────────────────────────────────────────
