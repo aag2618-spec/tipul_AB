@@ -55,6 +55,62 @@ export function verifyWebhookTimestamp(timestamp: string | undefined): boolean {
 }
 
 /**
+ * Normalize a Cardcom webhook / GetLpResult payload so all string-typed DB
+ * columns receive strings even when Cardcom returns numbers.
+ *
+ * **Background:** Cardcom's LowProfile v11 occasionally returns numeric
+ * values for fields the OpenAPI documents as strings (e.g. sandbox terminals
+ * have been observed returning `TranzactionId: 248402990` as an Int and
+ * `Last4CardDigits: 8` as an Int). Our Prisma schema declares these as
+ * `String?` — passing a number triggers
+ * `Invalid value provided. Expected String ... provided Int.` mid-transaction,
+ * which rolls the whole webhook back.
+ *
+ * Centralizing the normalization here means every DB-writing site in the
+ * webhook handlers can trust the types without local `String(...)` calls.
+ *
+ * Notes:
+ *   - `Last4CardDigits` is pad-zeroed to 4 chars so an Int `8` becomes "0008"
+ *     (matching what Cardcom's `Last4CardDigitsString` field would have given).
+ *   - `DocumentNumber` / `AllocationNumber` are kept as-is here because the
+ *     existing callers already do explicit `String(...)` coercion at use sites.
+ */
+export function normalizeCardcomPayload<T extends Record<string, unknown>>(
+  fetched: T
+): T {
+  const out: Record<string, unknown> = { ...fetched };
+
+  const tx = (fetched as { TranzactionId?: unknown }).TranzactionId;
+  if (tx !== undefined && tx !== null && tx !== "") {
+    out.TranzactionId = String(tx);
+  }
+
+  const info = (fetched as { TranzactionInfo?: Record<string, unknown> })
+    .TranzactionInfo;
+  if (info && typeof info === "object") {
+    const normInfo: Record<string, unknown> = { ...info };
+
+    const last4 = info.Last4CardDigits;
+    const last4Str = (info as { Last4CardDigitsString?: unknown })
+      .Last4CardDigitsString;
+    if (typeof last4Str === "string" && last4Str.length > 0) {
+      normInfo.Last4CardDigits = last4Str;
+    } else if (last4 !== undefined && last4 !== null && last4 !== "") {
+      normInfo.Last4CardDigits = String(last4).padStart(4, "0");
+    }
+
+    const approval = info.ApprovalNumber;
+    if (approval !== undefined && approval !== null && approval !== "") {
+      normInfo.ApprovalNumber = String(approval);
+    }
+
+    out.TranzactionInfo = normInfo;
+  }
+
+  return out as T;
+}
+
+/**
  * Strip sensitive fragments from a free-text Cardcom message before persisting.
  * Cardcom's `Description` is meant for end-customer display, but in rare cases
  * may include PAN fragments, CVV, email addresses or cardholder names. None

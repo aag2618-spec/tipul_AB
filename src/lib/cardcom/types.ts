@@ -128,6 +128,13 @@ export interface RefundResult {
  * Webhook payload sent by Cardcom after a payment attempt.
  * Field names match Cardcom's actual response shape (LowProfile v11).
  */
+/**
+ * NOTE: This interface describes the payload AFTER `normalizeCardcomPayload`
+ * has been applied. The raw GetLpResult / webhook body may carry Ints in
+ * `TranzactionId` and `Last4CardDigits` (observed on sandbox terminals);
+ * always run the raw payload through `normalizeCardcomPayload` before treating
+ * it as this type.
+ */
 export interface CardcomWebhookPayload {
   ResponseCode: string;
   Description?: string;
@@ -139,6 +146,9 @@ export interface CardcomWebhookPayload {
   TranzactionInfo?: {
     ApprovalNumber?: string;
     Last4CardDigits?: string;
+    // Cardcom provides this zero-padded ("0008") in parallel to Last4CardDigits.
+    // Prefer it when present — normalizeCardcomPayload() copies it over Last4CardDigits.
+    Last4CardDigitsString?: string;
     CardOwnerName?: string;
     CardOwnerPhone?: string;
     CardOwnerEmail?: string;

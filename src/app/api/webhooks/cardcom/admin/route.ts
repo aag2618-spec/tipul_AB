@@ -31,6 +31,7 @@ import {
   isCardcomIp,
   resolveClientIp,
   scrubCardcomMessage,
+  normalizeCardcomPayload,
 } from "@/lib/cardcom/verify-webhook";
 import {
   checkRateLimit,
@@ -150,12 +151,15 @@ export async function POST(request: NextRequest) {
       });
       return new NextResponse("Verification failed", { status: 401 });
     }
-    payload = {
+    // normalizeCardcomPayload: ה-sandbox של Cardcom (ולעיתים גם הפרודקשן) מחזיר
+    // TranzactionId ו-Last4CardDigits כ-Int למרות ש-Prisma שלנו מצפה ל-String.
+    // הנירמול הזה ממיר אותם פעם אחת כאן ⇒ כל ה-DB writes למטה בטוחים.
+    payload = normalizeCardcomPayload({
       ...fetched,
       ResponseCode: String(fetched.ResponseCode ?? bodyPayload.ResponseCode ?? ""),
       LowProfileId: bodyPayload.LowProfileId,
       Timestamp: bodyPayload.Timestamp,
-    } as CardcomWebhookPayload;
+    }) as CardcomWebhookPayload;
   } catch (err) {
     logger.error("[Cardcom Admin Webhook] GetLpResult verification failed", {
       lowProfileId: bodyPayload.LowProfileId,
