@@ -247,7 +247,12 @@ export const authOptions: NextAuthOptions = {
           break; // הצלחה — יוצא מהלולאה
         } catch (error) {
           if (attempt === 2) {
-            console.error(`נכשל בהקצאת מספר משתמש ל-${user.id} אחרי 3 ניסיונות:`, error);
+            // M12: console.error → logger.error (חוק 5 ב-feedback_security_fixes).
+            logger.error("נכשל בהקצאת מספר משתמש", {
+              userId: user.id,
+              attempts: 3,
+              errorMessage: error instanceof Error ? error.message : String(error),
+            });
           }
           // ממתין קצרה לפני ניסיון נוסף
         }
