@@ -62,10 +62,6 @@ export async function POST(request: NextRequest) {
     // מתעלמים. ה-prompt מקבל pseudonym מבוסס clientId בלבד.
     const { noteContent, clientId } = parsed.data;
 
-    // M1: דורש הסכמת מטופל לעיבוד AI אם הניתוח קשור למטופל ספציפי.
-    const consent = await requireAiConsent(clientId);
-    if (!consent.ok) return consent.response;
-
     const clientPseudo = getClientPseudonym(clientId ?? null);
 
     // H4: sanitize HTML לפני שליחה ל-LLM. ה-LLM יכול להחזיר את התוכן
@@ -107,6 +103,13 @@ export async function POST(request: NextRequest) {
         therapeuticApproaches = client.therapeuticApproaches;
       }
       clientCulturalContext = client.culturalContext || null;
+
+      // M1 + סבב 8 (Info Disclosure): consent רק אחרי scope check. בלי הסדר
+      // הזה, תוקף שיודע clientId של ארגון אחר היה יכול לעורר 403 שמגלה את
+      // ערך consentToAI של מטופל זר (הבדל בהודעת השגיאה). חוק 3 ב-
+      // feedback_security_fixes.md.
+      const consent = await requireAiConsent(clientId);
+      if (!consent.ok) return consent.response;
     }
 
     // בניית שמות הגישות

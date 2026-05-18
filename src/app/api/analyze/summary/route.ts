@@ -35,10 +35,6 @@ export async function POST(request: NextRequest) {
     // ה-prompt ל-Gemini מקבל pseudonym בלבד.
     const { transcription, summaries, clientId, analysisType } = parsed.data;
 
-    // M1: דורש הסכמת מטופל לעיבוד AI אם הניתוח קשור למטופל ספציפי.
-    const consent = await requireAiConsent(clientId);
-    if (!consent.ok) return consent.response;
-
     const clientPseudo = getClientPseudonym(clientId ?? null);
 
     // קבלת פרטי המשתמש כולל גישות טיפוליות
@@ -76,6 +72,13 @@ export async function POST(request: NextRequest) {
         therapeuticApproaches = client.therapeuticApproaches;
       }
       clientCulturalContext = client.culturalContext || null;
+
+      // M1 + סבב 8 (Info Disclosure): consent רק אחרי scope check. בלי הסדר
+      // הזה, תוקף שיודע clientId של ארגון אחר היה יכול לעורר 403 שמגלה את
+      // ערך consentToAI של מטופל זר (הבדל בהודעת השגיאה: requiresConsent vs
+      // "מטופל לא נמצא"). חוק 3 ב-feedback_security_fixes.md.
+      const consent = await requireAiConsent(clientId);
+      if (!consent.ok) return consent.response;
     }
 
     // בניית section של גישות טיפוליות - רק ל-ENTERPRISE
