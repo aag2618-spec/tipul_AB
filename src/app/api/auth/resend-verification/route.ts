@@ -91,8 +91,9 @@ export async function POST(request: NextRequest) {
       },
     });
 
+    // M9.1: ה-token עובר ב-URL fragment (#token=) כדי שלא ידלוף ב-Referer.
     const baseUrl = process.env.NEXTAUTH_URL || "http://localhost:3000";
-    const verifyUrl = `${baseUrl}/verify-email?token=${verificationToken}`;
+    const verifyUrl = `${baseUrl}/verify-email#token=${verificationToken}`;
 
     const verificationEmail = createVerificationEmailHtml({
       name: user.name || "",

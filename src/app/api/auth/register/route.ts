@@ -178,9 +178,12 @@ export async function POST(request: NextRequest) {
       return newUser;
     });
 
-    // Send verification email
+    // Send verification email.
+    // M9.1: ה-token עובר ב-URL fragment (#token=) כדי שלא ידלוף ב-Referer header
+    // אם משתמש לוחץ על הקישור מהמייל ואז מנווט לעמוד אחר. fragments אינם נשלחים
+    // לשרת/לדומיינים אחרים. הדף verify-email/page.tsx קורא את ה-token מ-hash.
     const baseUrl = process.env.NEXTAUTH_URL || "http://localhost:3000";
-    const verifyUrl = `${baseUrl}/verify-email?token=${verificationToken}`;
+    const verifyUrl = `${baseUrl}/verify-email#token=${verificationToken}`;
 
     const verificationEmail = createVerificationEmailHtml({
       name,

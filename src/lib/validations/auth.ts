@@ -38,6 +38,13 @@ export const resendVerificationSchema = z.object({
 });
 export type ResendVerificationInput = z.infer<typeof resendVerificationSchema>;
 
+// M9.1: verify-email POST — token מ-fragment שמועבר על ידי ה-page (Client Component).
+// token = randomBytes(32).toString("hex") = 64 hex chars; zSecretToken מקבל 16-128 alnum.
+export const verifyEmailSchema = z.object({
+  token: zSecretToken,
+});
+export type VerifyEmailInput = z.infer<typeof verifyEmailSchema>;
+
 // H12: 2FA send — רק email. אותו schema כמו check-required.
 export const twoFactorSendSchema = z.object({
   email: zEmail,

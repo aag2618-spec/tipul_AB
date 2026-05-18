@@ -1,7 +1,7 @@
+"use client";
+
+import { useEffect, useState, Suspense } from "react";
 import Link from "next/link";
-import { createHash } from "node:crypto";
-import prisma from "@/lib/prisma";
-import { logger } from "@/lib/logger";
 import { Button } from "@/components/ui/button";
 import {
   Card,
@@ -11,80 +11,81 @@ import {
   CardHeader,
   CardTitle,
 } from "@/components/ui/card";
-import { CheckCircle, AlertTriangle, XCircle } from "lucide-react";
+import { CheckCircle, AlertTriangle, XCircle, Loader2 } from "lucide-react";
 import { ResendVerificationForm } from "./resend-form";
 
-export const dynamic = "force-dynamic";
+type VerifyState = "loading" | "success" | "expired" | "invalid" | "missing" | "error";
 
-type VerifyState = "success" | "expired" | "invalid" | "missing" | "error";
+// M9.1: ה-token מגיע כברירת מחדל ב-URL fragment (#token=...) כדי שלא ידלוף
+// ב-Referer header. fallback ל-?token= לתאימות עם URLs ישנים שנשלחו במייל
+// לפני התיקון, ועם redirect הישן מ-/api/auth/verify-email?token=...
+function VerifyEmailContent() {
+  const [state, setState] = useState<VerifyState>("loading");
 
-// H14: ה-token שמוצג במייל לא נשמר plain ב-DB. במקום זאת נשמר
-// sha256(token), והאימות עושה hash על הקלט והשוואה מול ה-hash.
-// מונע דליפת tokens אם DB נחשף.
-// Backward-compat: אם משתמש קיים עדיין מחזיק token plain ב-DB (לפני המיגרציה),
-// בודקים גם את ה-plain. לאחר תקופת מעבר אפשר להסיר את ה-fallback.
-function hashToken(token: string): string {
-  return createHash("sha256").update(token).digest("hex");
-}
+  useEffect(() => {
+    if (typeof window === "undefined") return;
 
-async function verifyToken(token: string | undefined): Promise<VerifyState> {
-  if (!token) return "missing";
-
-  try {
-    const tokenHash = hashToken(token);
-    const user = await prisma.user.findFirst({
-      where: {
-        OR: [
-          { emailVerificationToken: tokenHash }, // tokens חדשים (hashed)
-          { emailVerificationToken: token }, // legacy plain — להסיר אחרי תקופת מעבר
-        ],
-      },
-      select: {
-        id: true,
-        emailVerified: true,
-        emailVerificationExpires: true,
-      },
-    });
-
-    if (!user) return "invalid";
-
-    if (user.emailVerified) return "success";
-
-    if (!user.emailVerificationExpires || user.emailVerificationExpires < new Date()) {
-      return "expired";
+    let token: string | null = null;
+    const url = new URL(window.location.href);
+    const hash = url.hash;
+    if (hash.startsWith("#token=")) {
+      token = decodeURIComponent(hash.substring("#token=".length));
+      // הסרת ה-token מ-URL כדי שלא יישאר ב-history/clipboard.
+      window.history.replaceState(null, "", window.location.pathname);
+    } else {
+      // Legacy fallback — URLs ישנים שנשלחו במייל לפני התיקון, או GET redirect ישן.
+      token = url.searchParams.get("token");
+      if (token) {
+        // גם כשמגיע מ-query, ננקה את ה-URL כדי שלא יישאר.
+        window.history.replaceState(null, "", window.location.pathname);
+      }
     }
 
-    await prisma.user.update({
-      where: { id: user.id },
-      data: {
-        emailVerified: new Date(),
-        emailVerificationToken: null,
-        emailVerificationExpires: null,
-      },
-    });
+    if (!token) {
+      setState("missing");
+      return;
+    }
 
-    return "success";
-  } catch (error) {
-    logger.error("Email verification page error:", {
-      error: error instanceof Error ? error.message : String(error),
-    });
-    return "error";
-  }
-}
+    let cancelled = false;
+    (async () => {
+      try {
+        const res = await fetch("/api/auth/verify-email", {
+          method: "POST",
+          headers: { "Content-Type": "application/json" },
+          body: JSON.stringify({ token }),
+        });
+        const data = await res.json().catch(() => ({}));
+        if (cancelled) return;
+        const next: VerifyState =
+          data?.state === "success" ||
+          data?.state === "expired" ||
+          data?.state === "invalid" ||
+          data?.state === "error"
+            ? data.state
+            : "error";
+        setState(next);
+      } catch {
+        if (!cancelled) setState("error");
+      }
+    })();
 
-export default async function VerifyEmailPage({
-  searchParams,
-}: {
-  searchParams: Promise<{ token?: string }>;
-}) {
-  const { token } = await searchParams;
-  const state = await verifyToken(token);
+    return () => {
+      cancelled = true;
+    };
+  }, []);
 
   return (
     <div className="min-h-screen flex items-center justify-center bg-gradient-to-br from-background via-secondary/30 to-accent/20 p-4">
       <div className="absolute inset-0 bg-[radial-gradient(ellipse_at_top_right,_var(--tw-gradient-stops))] from-primary/5 via-transparent to-transparent" />
 
       <Card className="w-full max-w-md animate-fade-in relative text-center">
+        {state === "loading" && (
+          <CardContent className="flex flex-col items-center justify-center py-12">
+            <Loader2 className="h-12 w-12 text-primary animate-spin mb-4" />
+            <p className="text-muted-foreground">מאמת את החשבון...</p>
+          </CardContent>
+        )}
+
         {state === "success" && (
           <>
             <CardHeader className="space-y-4">
@@ -188,5 +189,19 @@ export default async function VerifyEmailPage({
         )}
       </Card>
     </div>
+  );
+}
+
+export default function VerifyEmailPage() {
+  return (
+    <Suspense
+      fallback={
+        <div className="min-h-screen flex items-center justify-center bg-gradient-to-br from-background via-secondary/30 to-accent/20 p-4">
+          <Loader2 className="h-12 w-12 text-primary animate-spin" />
+        </div>
+      }
+    >
+      <VerifyEmailContent />
+    </Suspense>
   );
 }
