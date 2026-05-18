@@ -6,6 +6,7 @@ import { PLAN_NAMES } from "@/lib/pricing";
 import { logger } from "@/lib/logger";
 import { getIsraelMidnight } from "@/lib/date-utils";
 import { withAudit } from "@/lib/audit";
+import { escapeHtml } from "@/lib/email-utils";
 
 import { requirePermission, requireHighestPermission } from "@/lib/api-auth";
 import type { Permission } from "@/lib/permissions";
@@ -592,7 +593,7 @@ export async function PATCH(
               <h1 style="color: white; margin: 0;">🎉 המנוי שלך הופעל!</h1>
             </div>
             <div style="background: #fff; padding: 30px; border: 1px solid #e5e7eb; border-top: none; border-radius: 0 0 12px 12px;">
-              <h2 style="color: #333; margin-top: 0;">שלום ${updatedUser.name || ""},</h2>
+              <h2 style="color: #333; margin-top: 0;">שלום ${escapeHtml(updatedUser.name || "")},</h2>
               <p style="color: #555; font-size: 16px; line-height: 1.6;">
                 קיבלת גישה למסלול <strong>${tierName}</strong> ללא חיוב.
               </p>
@@ -623,7 +624,7 @@ export async function PATCH(
               <h1 style="color: white; margin: 0;">החשבון שלך נחסם</h1>
             </div>
             <div style="background: #fff; padding: 30px; border: 1px solid #e5e7eb; border-top: none; border-radius: 0 0 12px 12px;">
-              <h2 style="color: #333; margin-top: 0;">שלום ${updatedUser.name || ""},</h2>
+              <h2 style="color: #333; margin-top: 0;">שלום ${escapeHtml(updatedUser.name || "")},</h2>
               <p style="color: #555; font-size: 16px; line-height: 1.6;">
                 החשבון שלך נחסם על ידי מנהל המערכת.
               </p>
@@ -658,7 +659,7 @@ export async function PATCH(
               <h1 style="color: white; margin: 0;">החשבון שלך הופעל מחדש</h1>
             </div>
             <div style="background: #fff; padding: 30px; border: 1px solid #e5e7eb; border-top: none; border-radius: 0 0 12px 12px;">
-              <h2 style="color: #333; margin-top: 0;">שלום ${updatedUser.name || ""},</h2>
+              <h2 style="color: #333; margin-top: 0;">שלום ${escapeHtml(updatedUser.name || "")},</h2>
               <p style="color: #555; font-size: 16px; line-height: 1.6;">
                 החסימה על החשבון שלך הוסרה. אפשר להתחבר שוב למערכת.
               </p>
@@ -692,7 +693,7 @@ export async function PATCH(
               <h1 style="color: white; margin: 0;">תקופת המנוי החינמי הסתיימה</h1>
             </div>
             <div style="background: #fff; padding: 30px; border: 1px solid #e5e7eb; border-top: none; border-radius: 0 0 12px 12px;">
-              <h2 style="color: #333; margin-top: 0;">שלום ${updatedUser.name || ""},</h2>
+              <h2 style="color: #333; margin-top: 0;">שלום ${escapeHtml(updatedUser.name || "")},</h2>
               <p style="color: #555; font-size: 16px; line-height: 1.6;">
                 תקופת המנוי החינמי שלך במסלול <strong>${tierName}</strong> הסתיימה.
               </p>
@@ -720,9 +721,21 @@ export async function PATCH(
       }).catch(err => logger.error("Revoke free email failed:", { error: err instanceof Error ? err.message : String(err) }));
     }
 
-    // H2: סגירת חלון 30s של JWT cache. שינוי role/isBlocked חייב להיכנס
-    // לתוקף מיד — אחרת משתמש שחסום או הורד דרגה יכול להמשיך לפעול עד 30s.
-    if (role !== undefined || isBlocked !== undefined) {
+    // M11.H1: סגירת חלון 30s של JWT cache.
+    // ה-JWT cache שומר role/clinicRole/isBlocked/subscriptionStatus/subscriptionEndsAt/
+    // trialEndsAt/passwordChangedAt — כל שינוי באחד מהם חייב לבטל cache מיד,
+    // אחרת משתמש שבוטל/הוגבל יכול להמשיך לגשת לדשבורד עד 30s. ה-middleware
+    // בודק את כל השדות הללו (subscription gates ב-middleware.ts:283-310).
+    if (
+      role !== undefined ||
+      isBlocked !== undefined ||
+      subscriptionStatus !== undefined ||
+      subscriptionEndsAt !== undefined ||
+      aiTier !== undefined ||
+      grantFree ||
+      revokeFree ||
+      (typeof extendDays === "number" && extendDays > 0)
+    ) {
       invalidateJwtCache(id);
     }
 
