@@ -81,9 +81,15 @@ export function verifyReceiptToken(paymentId: string, token: string, version: nu
 /**
  * getReceiptPageUrl — בונה URL ציבורי עם token. payments חדשים תמיד מקבלים v=1.
  * Callers שיוצרים URLs לpayments ישנים (legacy) יכולים להעביר version=0 (נדיר).
+ *
+ * M9.2: ה-token עובר ב-URL fragment (#t=) במקום querystring כדי שלא ידלוף
+ * ב-Referer header. דף הקבלה (/receipt/[id]/page.tsx) טוען html2canvas+jspdf
+ * דינמית — Referer של ה-CDN/script-src היה חושף את ה-token. fragments אינם
+ * נשלחים בבקשות HTTP. הדף קורא את ה-token מ-window.location.hash, fallback
+ * ל-querystring לתאימות עם URLs ישנים שכבר נשלחו במייל.
  */
 export function getReceiptPageUrl(paymentId: string, version: number = 1): string {
   const token = generateReceiptToken(paymentId, version);
   const baseUrl = process.env.NEXTAUTH_URL || 'http://localhost:3000';
-  return `${baseUrl}/receipt/${paymentId}?t=${token}`;
+  return `${baseUrl}/receipt/${paymentId}#t=${token}`;
 }

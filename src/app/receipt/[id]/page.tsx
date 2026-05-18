@@ -45,14 +45,30 @@ export default function PublicReceiptPage({
   const receiptRef = useRef<HTMLDivElement>(null);
 
   useEffect(() => {
-    const token = new URLSearchParams(window.location.search).get("t");
+    // M9.2: ה-token מגיע כברירת מחדל ב-URL fragment (#t=...) כדי שלא ידלוף
+    // ב-Referer header (CDN/jspdf/html2canvas script-src). fallback ל-?t=
+    // לתאימות עם URLs ישנים שנשלחו במייל לפני התיקון.
+    let token: string | null = null;
+    const url = new URL(window.location.href);
+    const hash = url.hash;
+    if (hash.startsWith("#t=")) {
+      token = decodeURIComponent(hash.substring("#t=".length));
+      // מנקים את ה-token מ-URL כדי שלא יישאר ב-history/clipboard.
+      window.history.replaceState(null, "", window.location.pathname);
+    } else {
+      token = url.searchParams.get("t");
+      if (token) {
+        window.history.replaceState(null, "", window.location.pathname);
+      }
+    }
+
     if (!token) {
       setError("קישור לא תקין");
       setLoading(false);
       return;
     }
 
-    fetch(`/api/receipts/${id}/public?t=${token}`)
+    fetch(`/api/receipts/${id}/public?t=${encodeURIComponent(token)}`)
       .then((res) => {
         if (!res.ok) throw new Error("not found");
         return res.json();
