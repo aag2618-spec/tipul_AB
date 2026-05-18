@@ -31,6 +31,7 @@ import { escapeHtml } from '@/lib/email-utils';
 import { getUserCardcomClient } from '@/lib/cardcom/user-config';
 import { getAdminCardcomClient } from '@/lib/cardcom/admin-config';
 import { hashCardcomToken } from '@/lib/cardcom/token-hash';
+import { normalizeCardcomPayload } from '@/lib/cardcom/verify-webhook';
 import type { CardcomWebhookPayload } from '@/lib/cardcom/types';
 import { distributeBulkCardcomPayment } from '@/lib/payments';
 import {
@@ -120,9 +121,12 @@ async function syncCardcomTransactionInner(transactionId: string): Promise<SyncR
 
   let fetched: (CardcomWebhookPayload & { ResponseCode?: number | string }) | null;
   try {
-    fetched = (await cardcomClient.getLpResult(tx.lowProfileId)) as
+    const raw = (await cardcomClient.getLpResult(tx.lowProfileId)) as
       | (CardcomWebhookPayload & { ResponseCode?: number | string })
       | null;
+    // נירמול Int→String של TranzactionId/Last4CardDigits — ראה verify-webhook.ts.
+    // קריטי לפני שמירה ל-DB (Prisma מצפה String למרות שסכמת Cardcom מתעדת String).
+    fetched = raw ? (normalizeCardcomPayload(raw) as typeof raw) : null;
   } catch (err) {
     const reason = err instanceof Error ? err.message : String(err);
     logger.warn('[sync-cardcom-payment] GetLpResult failed', {

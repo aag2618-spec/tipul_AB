@@ -75,10 +75,8 @@ export function verifyWebhookTimestamp(timestamp: string | undefined): boolean {
  *   - `DocumentNumber` / `AllocationNumber` are kept as-is here because the
  *     existing callers already do explicit `String(...)` coercion at use sites.
  */
-export function normalizeCardcomPayload<T extends Record<string, unknown>>(
-  fetched: T
-): T {
-  const out: Record<string, unknown> = { ...fetched };
+export function normalizeCardcomPayload<T extends object>(fetched: T): T {
+  const out = { ...fetched } as Record<string, unknown>;
 
   const tx = (fetched as { TranzactionId?: unknown }).TranzactionId;
   if (tx !== undefined && tx !== null && tx !== "") {
