@@ -5,6 +5,7 @@ import { join, resolve } from "path";
 import { logger } from "@/lib/logger";
 import { requireAuth } from "@/lib/api-auth";
 import { loadScopeUser, buildClientWhere } from "@/lib/scope";
+import { logDataAccess } from "@/lib/audit-logger";
 
 export const dynamic = "force-dynamic";
 
@@ -50,10 +51,23 @@ export async function GET(
             },
           ],
         },
+        select: { id: true, clientId: true },
       });
       if (!document) {
         return NextResponse.json({ message: "אין הרשאה לקובץ זה" }, { status: 403 });
       }
+      // M12.4: audit log על קריאת מסמך רפואי — דרישת תקנות הגנת הפרטיות.
+      // נכון להוסיף ב-uploads/[...path] (איפה שהקובץ באמת מוגש) ולא ב-
+      // documents/[id] GET שמחזיר רק metadata. כך כל "מי הוריד/צפה" מתועד.
+      logDataAccess({
+        userId,
+        recordType: "DOCUMENT",
+        recordId: document.id,
+        action: "READ",
+        clientId: document.clientId,
+        request,
+        meta: { servedFromUploads: true },
+      });
     }
     // Check if it's a client attachment (saved from email)
     else if (pathStr.startsWith("clients/")) {
@@ -65,10 +79,21 @@ export async function GET(
             { client: clientWhere },
           ],
         },
+        select: { id: true, clientId: true },
       });
       if (!document) {
         return NextResponse.json({ message: "אין הרשאה לקובץ זה" }, { status: 403 });
       }
+      // M12.4: audit log גם על קבצי מטופל (saved from email).
+      logDataAccess({
+        userId,
+        recordType: "DOCUMENT",
+        recordId: document.id,
+        action: "READ",
+        clientId: document.clientId,
+        request,
+        meta: { servedFromUploads: true, source: "client-attachment" },
+      });
     }
     else if (pathStr.startsWith("sent/")) {
       const clientId = path.length >= 2 ? path[1] : null;
