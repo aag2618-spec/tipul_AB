@@ -6,7 +6,6 @@ import { useRouter } from "next/navigation";
 import { useSession } from "next-auth/react";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
-import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import { Badge } from "@/components/ui/badge";
 import { Textarea } from "@/components/ui/textarea";
@@ -29,24 +28,13 @@ import {
   AlertDialogTitle,
 } from "@/components/ui/alert-dialog";
 import {
-  Select,
-  SelectContent,
-  SelectItem,
-  SelectTrigger,
-  SelectValue,
-} from "@/components/ui/select";
-import {
   Users,
-  Plus,
   Loader2,
-  Search,
   Crown,
   Stethoscope,
   Briefcase,
   Trash2,
   Settings,
-  Check,
-  AlertCircle,
   UserPlus,
   LogIn,
 } from "lucide-react";
@@ -77,12 +65,6 @@ interface Member {
   billingPaidByClinic?: boolean;
   subscriptionPausedReason?: string | null;
   _count: { clients: number };
-}
-
-interface SearchResult {
-  id: string;
-  name: string | null;
-  email: string;
 }
 
 const SECRETARY_PERMS: { key: keyof SecretaryPermissions; label: string; help: string }[] = [
@@ -140,15 +122,6 @@ export default function ClinicMembersPage() {
   const [members, setMembers] = useState<Member[]>([]);
   const [loading, setLoading] = useState(true);
 
-  // הוספה
-  const [addDialogOpen, setAddDialogOpen] = useState(false);
-  const [searchQuery, setSearchQuery] = useState("");
-  const [searchResults, setSearchResults] = useState<SearchResult[]>([]);
-  const [searching, setSearching] = useState(false);
-  const [selectedUser, setSelectedUser] = useState<SearchResult | null>(null);
-  const [newClinicRole, setNewClinicRole] = useState<"THERAPIST" | "SECRETARY">("THERAPIST");
-  const [adding, setAdding] = useState(false);
-
   // הרשאות
   const [permsDialogOpen, setPermsDialogOpen] = useState(false);
   const [editingMember, setEditingMember] = useState<Member | null>(null);
@@ -184,67 +157,6 @@ export default function ClinicMembersPage() {
   useEffect(() => {
     fetchMembers();
   }, [fetchMembers]);
-
-  // חיפוש משתמשים
-  useEffect(() => {
-    if (!addDialogOpen || selectedUser) return;
-    if (searchQuery.trim().length < 2) {
-      setSearchResults([]);
-      return;
-    }
-    const t = setTimeout(async () => {
-      setSearching(true);
-      try {
-        const res = await fetch(
-          `/api/clinic-admin/members/search?q=${encodeURIComponent(searchQuery.trim())}`
-        );
-        if (res.ok) {
-          const data = await res.json();
-          setSearchResults(data);
-        }
-      } catch {
-        // ignore
-      } finally {
-        setSearching(false);
-      }
-    }, 250);
-    return () => clearTimeout(t);
-  }, [searchQuery, addDialogOpen, selectedUser]);
-
-  function openAddDialog() {
-    setSelectedUser(null);
-    setSearchQuery("");
-    setSearchResults([]);
-    setNewClinicRole("THERAPIST");
-    setAddDialogOpen(true);
-  }
-
-  async function handleAdd() {
-    if (!selectedUser) return;
-    setAdding(true);
-    try {
-      const res = await fetch("/api/clinic-admin/members", {
-        method: "POST",
-        headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({
-          userId: selectedUser.id,
-          clinicRole: newClinicRole,
-        }),
-      });
-      if (!res.ok) {
-        const err = await res.json().catch(() => ({}));
-        throw new Error(err.message || "שגיאה");
-      }
-      toast.success("החבר/ה נוספ/ה לקליניקה");
-      setAddDialogOpen(false);
-      fetchMembers();
-      bumpLimitsRefresh();
-    } catch (err) {
-      toast.error(err instanceof Error ? err.message : "שגיאה בהוספה");
-    } finally {
-      setAdding(false);
-    }
-  }
 
   function openPermsDialog(member: Member) {
     setEditingMember(member);
@@ -352,10 +264,6 @@ export default function ClinicMembersPage() {
               הזמנת חבר/ה חדש/ה
             </Link>
           </Button>
-          <Button variant="outline" onClick={openAddDialog} title="קישור משתמש קיים שכבר אישר">
-            <Plus className="ml-2 h-4 w-4" />
-            קישור מהיר
-          </Button>
         </div>
       </div>
 
@@ -460,106 +368,6 @@ export default function ClinicMembersPage() {
           ))}
         </div>
       )}
-
-      {/* הוספת חבר */}
-      <Dialog open={addDialogOpen} onOpenChange={setAddDialogOpen}>
-        <DialogContent dir="rtl">
-          <DialogHeader>
-            <DialogTitle>קישור מהיר של משתמש קיים</DialogTitle>
-            <DialogDescription>
-              לרוב המקרים — השתמשו ב&quot;הזמנת חבר/ה חדש/ה&quot; שתשלח מייל.
-              <br />
-              קישור מהיר זה מתאים רק כשהמשתמש כבר אישר בעל-פה ופנה אליכם.
-            </DialogDescription>
-          </DialogHeader>
-
-          <div className="space-y-4 py-2">
-            {selectedUser ? (
-              <div className="flex items-center justify-between p-3 bg-primary/10 border border-primary/30 rounded-lg">
-                <div className="flex items-center gap-3">
-                  <Check className="h-5 w-5 text-primary" />
-                  <div>
-                    <div className="font-medium">{selectedUser.name || "—"}</div>
-                    <div className="text-xs text-muted-foreground">{selectedUser.email}</div>
-                  </div>
-                </div>
-                <Button variant="ghost" size="sm" onClick={() => setSelectedUser(null)}>
-                  החלף
-                </Button>
-              </div>
-            ) : (
-              <>
-                <div className="relative">
-                  <Search className="absolute right-3 top-1/2 -translate-y-1/2 h-4 w-4 text-muted-foreground" />
-                  <Input
-                    value={searchQuery}
-                    onChange={(e) => setSearchQuery(e.target.value)}
-                    placeholder="חיפוש לפי אימייל או שם (לפחות 2 תווים)..."
-                    className="pr-9"
-                  />
-                  {searching && (
-                    <Loader2 className="absolute left-3 top-1/2 -translate-y-1/2 h-4 w-4 animate-spin text-muted-foreground" />
-                  )}
-                </div>
-                {searchResults.length > 0 && (
-                  <div className="border border-border rounded-lg overflow-hidden max-h-60 overflow-y-auto">
-                    {searchResults.map((u) => (
-                      <button
-                        key={u.id}
-                        onClick={() => setSelectedUser(u)}
-                        className="w-full text-right px-3 py-2 hover:bg-muted transition-colors border-b border-border last:border-0"
-                      >
-                        <div className="font-medium text-sm">{u.name || u.email}</div>
-                        <div className="text-xs text-muted-foreground">{u.email}</div>
-                      </button>
-                    ))}
-                  </div>
-                )}
-                {searchQuery.trim().length >= 2 && !searching && searchResults.length === 0 && (
-                  <p className="text-xs text-muted-foreground inline-flex items-center gap-1">
-                    <AlertCircle className="h-3 w-3" />
-                    לא נמצאו משתמשים זמינים. ייתכן שהמשתמש כבר בקליניקה אחרת או חסום.
-                  </p>
-                )}
-              </>
-            )}
-
-            {selectedUser && (
-              <div className="space-y-2 pt-3 border-t border-border">
-                <Label>תפקיד בקליניקה</Label>
-                <Select
-                  value={newClinicRole}
-                  onValueChange={(v) => setNewClinicRole(v as "THERAPIST" | "SECRETARY")}
-                >
-                  <SelectTrigger>
-                    <SelectValue />
-                  </SelectTrigger>
-                  <SelectContent>
-                    <SelectItem value="THERAPIST">מטפל/ת</SelectItem>
-                    <SelectItem value="SECRETARY">מזכיר/ה</SelectItem>
-                  </SelectContent>
-                </Select>
-                {newClinicRole === "SECRETARY" && (
-                  <p className="text-xs text-muted-foreground">
-                    הרשאות ברירת מחדל: יצירת מטופלים + שליחת תזכורות. ניתן לשנות אחרי
-                    ההוספה.
-                  </p>
-                )}
-              </div>
-            )}
-          </div>
-
-          <DialogFooter>
-            <Button variant="outline" onClick={() => setAddDialogOpen(false)} disabled={adding}>
-              ביטול
-            </Button>
-            <Button onClick={handleAdd} disabled={!selectedUser || adding}>
-              {adding && <Loader2 className="ml-2 h-4 w-4 animate-spin" />}
-              הוסף לקליניקה
-            </Button>
-          </DialogFooter>
-        </DialogContent>
-      </Dialog>
 
       {/* הרשאות מזכירה */}
       <Dialog open={permsDialogOpen} onOpenChange={setPermsDialogOpen}>
