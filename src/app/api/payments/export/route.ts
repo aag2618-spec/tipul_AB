@@ -7,6 +7,7 @@ import { logger } from "@/lib/logger";
 import { requireAuth } from "@/lib/api-auth";
 import { buildPaymentWhere, loadScopeUser } from "@/lib/scope";
 import { EXCLUDE_BULK_UMBRELLA_WHERE } from "@/lib/payments/types";
+import { logDataAccess } from "@/lib/audit-logger";
 
 export const dynamic = "force-dynamic";
 
@@ -110,6 +111,24 @@ export async function GET(request: NextRequest) {
       PARTIAL: "חלקי",
       ADVANCE: "מקדמה",
     };
+
+    // M12.6: audit log על EXPORT של תשלומים — bulk PHI מינורי (שמות+טלפון+
+     // אימייל של מטופלים + סכומים). חייב לפי תקנות הגנת הפרטיות.
+    logDataAccess({
+      userId,
+      recordType: "PAYMENT",
+      recordId: scopeUser.organizationId ?? userId,
+      action: "EXPORT",
+      request,
+      meta: {
+        bulk: true,
+        paymentCount: payments.length,
+        format,
+        startDate: startDate || null,
+        endDate: endDate || null,
+        statusFilter: status || "ALL",
+      },
+    });
 
     if (format === "json") {
       const data = payments.map((p) => {

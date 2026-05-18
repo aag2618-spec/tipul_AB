@@ -6,6 +6,7 @@ import { calculateDebtFromPayments } from "@/lib/payment-utils";
 import { logger } from "@/lib/logger";
 import { requireAuth } from "@/lib/api-auth";
 import { buildClientWhere, isSecretary, loadScopeUser } from "@/lib/scope";
+import { logDataAccess } from "@/lib/audit-logger";
 
 export const dynamic = "force-dynamic";
 
@@ -72,6 +73,24 @@ export async function GET(
     if (!client) {
       return NextResponse.json({ message: "מטופל לא נמצא" }, { status: 404 });
     }
+
+    // M12.6: audit log על EXPORT של תיק מטופל — חייב לפי תקנות הגנת
+    // הפרטיות 2017 (ייצוא של PHI ענק: סשנים, תמלולים, ניתוחים, שאלונים).
+    logDataAccess({
+      userId,
+      recordType: "CLIENT_PROFILE",
+      recordId: id,
+      action: "EXPORT",
+      clientId: id,
+      request,
+      meta: {
+        sessionCount: client.therapySessions.length,
+        recordingCount: client.recordings.length,
+        questionnaireCount: client.questionnaireResponses.length,
+        paymentCount: client.payments.length,
+        documentCount: client.documents.length,
+      },
+    });
 
     // Create ZIP file
     const zip = new JSZip();

@@ -1,4 +1,4 @@
-import { NextResponse } from "next/server";
+import { NextRequest, NextResponse } from "next/server";
 import prisma from "@/lib/prisma";
 import JSZip from "jszip";
 import { format } from "date-fns";
@@ -6,10 +6,11 @@ import { logger } from "@/lib/logger";
 
 import { requireAuth } from "@/lib/api-auth";
 import { buildClientWhere, isSecretary, loadScopeUser } from "@/lib/scope";
+import { logDataAccess } from "@/lib/audit-logger";
 
 export const dynamic = "force-dynamic";
 
-export async function GET() {
+export async function GET(request: NextRequest) {
   try {
     const auth = await requireAuth();
     if ("error" in auth) return auth.error;
@@ -63,6 +64,24 @@ export async function GET() {
     if (clients.length === 0) {
       return NextResponse.json({ message: "לא נמצאו מטופלים" }, { status: 404 });
     }
+
+    // M12.6: audit log על EXPORT ארגוני של תיקי כל המטופלים — bulk PHI
+    // export, dataset הגדול ביותר ברגישות. רושמים שורת audit אחת עבור
+    // ה-bulk עם metadata על היקף; אם נדרש detail פר-client בעתיד, אפשר
+    // להוסיף logDataAccess פר-client בלולאה (כרגע נמנעים כדי לא להציף
+    // את ה-audit table בעת export רגיל של 100+ מטופלים).
+    logDataAccess({
+      userId,
+      recordType: "CLIENT_PROFILE",
+      recordId: scopeUser.organizationId ?? userId,
+      action: "EXPORT",
+      request,
+      meta: {
+        bulk: true,
+        clientCount: clients.length,
+        scope: scopeUser.organizationId ? "organization" : "solo",
+      },
+    });
 
     const zip = new JSZip();
 

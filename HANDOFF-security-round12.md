@@ -200,21 +200,39 @@
 
 ---
 
-#### M12.6 — Database direct access endpoints
+#### M12.6 — Database direct access endpoints ✅ נסקר + 3 תיקוני audit
 
-**רקע:** יש endpoints שיכולים להחזיר data רגיש בכמויות:
+**רקע:** endpoints שמחזירים data רגיש בכמויות = וקטור scraping/exfiltration.
 
-**קבצים לסקירה:**
-- `src/app/api/admin/export/**` (אם קיים)
-- `src/app/api/clients/export-all/route.ts`
-- `src/app/api/clients/[id]/export/route.ts`
-- `src/app/api/admin/users/[id]/route.ts` GET handler — שדות שמוחזרים ל-MANAGER
+**קבצים שנסקרו:**
+- `src/app/api/admin/export/**` — לא קיים (נבדק עם Glob)
+- `src/app/api/clients/export-all/route.ts` (bulk PHI: סשנים, תמלולים, ניתוחים, שאלונים, תשלומים)
+- `src/app/api/clients/[id]/export/route.ts` (תיק יחיד: כל ה-PHI)
+- `src/app/api/payments/export/route.ts` (CSV/JSON של תשלומים + שמות+טלפון+אימייל)
+- `src/app/api/admin/users/[id]/route.ts` GET handler — שדות לפי role
 
-**מה לבדוק:**
-- ✓ rate limit על exports (מנע scraping)
-- ✓ audit logging על כל export
-- ✓ pagination — האם יש routes שמחזירים את כל המטופלים בקריאה אחת?
-- ✓ data minimization — האם MANAGER רואה PHI שאין צורך?
+**מה חזק (לא דורש שינוי):**
+- ✅ requireAuth + scope (buildClientWhere/buildPaymentWhere) בכל ה-exports
+- ✅ Secretary blocked משני exports קליניים (logger.warn + 403)
+- ✅ CSV formula injection protection (`sanitizeCsvCell` ב-payments/export — L4)
+- ✅ `admin/users/[id]` GET: role-based field filtering (ADMIN רואה הכל, MANAGER רק basic — אין subscriptionPayments/supportTickets/aiUsageStats ל-MANAGER)
+- ✅ EXCLUDE_BULK_UMBRELLA_WHERE ב-payments/export — מונע double-counting
+
+**🔴 Critical finding שתוקן (2026-05-18):**
+
+**M12.6-1 — `AuditAction = "EXPORT"` הוגדר אבל לא בשימוש בכלל המערכת!** `grep "action: \"EXPORT\""` החזיר 0 תוצאות. שלושת ה-exports שלעיל ייצאו PHI ענק (תיקי מטופלים מלאים, סיכומי כל הקליניקה, רשימות תשלומים) **ללא שורת audit אחת**. זה violation של תקנות הגנת הפרטיות 2017 על PHI — חובת מעקב על data export.
+
+**תוקן** ע"י הוספת `logDataAccess({ action: "EXPORT" })` ב-3 endpoints:
+
+1. **`clients/[id]/export`**: recordType="CLIENT_PROFILE", recordId=clientId, clientId, meta={sessionCount, recordingCount, questionnaireCount, paymentCount, documentCount}
+2. **`clients/export-all`**: recordType="CLIENT_PROFILE", recordId=organizationId, meta={bulk: true, clientCount, scope: "organization"|"solo"}
+3. **`payments/export`**: recordType="PAYMENT", recordId=organizationId, meta={bulk: true, paymentCount, format, startDate, endDate, statusFilter}
+
+**Findings שלא תוקנו (לסבב עתידי):**
+
+1. 🟡 **אין rate-limit על exports** — מטפל יכול להריץ `export-all` 100 פעם ולשאוב את כל ה-data לcleared workstation. תיקון מומלץ: rate-limit פר-userId (3 exports בשעה?).
+2. 🟡 **אין pagination ב-`clients/export-all`** — אם קליניקה עם 1000+ מטופלים → memory pressure ב-server. תיקון מומלץ: streaming או pagination chunks.
+3. 🟢 **MANAGER role data minimization** — בדוק שאין לו גישה ל-`subscriptionPayments`/`aiUsageStats` (יש field filtering ב-`admin/users/[id]/route.ts`). אבל MANAGER עדיין רואה שמות + email + phone ב-`/api/admin/users` הראשי — בדיקה: מה הצורך העסקי?
 
 ---
 
