@@ -18,8 +18,47 @@
 
 import { timingSafeEqual } from "node:crypto";
 import { NextRequest, NextResponse } from "next/server";
+import prisma from "@/lib/prisma";
 import { logger } from "@/lib/logger";
 import { checkRateLimit, CRON_RATE_LIMIT } from "@/lib/rate-limit";
+
+// M10.6: AdminAlert ייווצר כש-CRON_SECRET_PREVIOUS נמצא בשימוש — מסמן rotation
+// שלא הסתיים. dedupe לפי title, fire-and-forget. cache קצר בזיכרון מונע
+// hammering של DB כש-cron רץ כל דקה (לא לבזבז query על rows כפולות).
+let lastRotationAlertCheckAt = 0;
+const ROTATION_ALERT_CHECK_INTERVAL_MS = 5 * 60 * 1000; // 5 דקות
+
+async function ensureRotationAlert(): Promise<void> {
+  try {
+    const existing = await prisma.adminAlert.findFirst({
+      where: {
+        type: "SYSTEM",
+        status: "PENDING",
+        title: "CRON_SECRET rotation incomplete",
+      },
+      select: { id: true },
+    });
+    if (!existing) {
+      await prisma.adminAlert.create({
+        data: {
+          type: "SYSTEM",
+          priority: "HIGH",
+          title: "CRON_SECRET rotation incomplete",
+          message:
+            "Cron נקרא עם CRON_SECRET_PREVIOUS — סימן ש-rotation התחיל אבל לא הסתיים. " +
+            "ה-secret הישן עדיין פעיל, וצריך להסיר אותו אחרי שכל ה-jobs בריאים עם החדש (24-48ש').",
+          actionRequired:
+            "להסיר את CRON_SECRET_PREVIOUS מ-ENV (Render dashboard → Environment).",
+        },
+      });
+    }
+  } catch (err) {
+    // לא להעיף את ה-cron אם DB לא זמין — רק logger fallback.
+    logger.warn("[cron-auth] failed to create rotation alert (continuing)", {
+      err: err instanceof Error ? err.message : String(err),
+    });
+  }
+}
 
 /** Constant-time Bearer compare — protects against timing side channels. */
 export function bearerEquals(authHeader: string | null, expected: string): boolean {
@@ -71,6 +110,14 @@ export async function checkCronAuth(
     logger.warn(
       "[cron-auth] cron called with CRON_SECRET_PREVIOUS — finish rotation by removing it"
     );
+
+    // M10.6: alert ב-AdminAlert (dedupe לפי title) — fire-and-forget +
+    // throttled ל-5 דקות כדי לא להציף את ה-DB ב-cron שרץ כל דקה.
+    const now = Date.now();
+    if (now - lastRotationAlertCheckAt > ROTATION_ALERT_CHECK_INTERVAL_MS) {
+      lastRotationAlertCheckAt = now;
+      void ensureRotationAlert();
+    }
   }
 
   // ─ שלב 2: Rate limit per-IP ─
