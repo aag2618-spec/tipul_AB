@@ -34,25 +34,29 @@ function ResetPasswordForm() {
   const [isSuccess, setIsSuccess] = useState(false);
   const [error, setError] = useState("");
 
-  // שלב 1: שליפת ה-token (קודם מ-fragment, אחר כך מ-querystring)
+  // שלב 1: שליפת ה-token (קודם מ-fragment, אחר כך מ-querystring).
+  // BUGFIX (סבב 8 follow-up): רץ פעם אחת ב-mount בלבד. dependency על
+  // searchParams גרם ל-useEffect להפעיל את עצמו שוב אחרי replaceState
+  // (Next.js עדכן את ההוק) → קרא searchParams ריק → דרס את ה-token ל-null
+  // → השרת קיבל token=null → "Expected string, received null".
   useEffect(() => {
     let extracted: string | null = null;
     if (typeof window !== "undefined") {
-      const hash = window.location.hash;
+      const url = new URL(window.location.href);
+      const hash = url.hash;
       if (hash.startsWith("#token=")) {
         extracted = decodeURIComponent(hash.substring("#token=".length));
-        // הסרת ה-token מ-URL כדי שלא יישאר ב-history/clipboard אם המשתמש
-        // יבחר לשתף את הקישור או לרענן (history.replaceState לא מבצע navigation).
+        // הסרת ה-token מ-URL כדי שלא יישאר ב-history/clipboard.
         window.history.replaceState(null, "", window.location.pathname);
+      } else {
+        // Legacy fallback — URLs ישנים שכבר נשלחו במייל לפני התיקון.
+        extracted = url.searchParams.get("token");
       }
-    }
-    if (!extracted) {
-      // Legacy fallback — URLs ישנים שכבר נשלחו במייל לפני התיקון.
-      extracted = searchParams.get("token");
     }
     setToken(extracted);
     setTokenReady(true);
-  }, [searchParams]);
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, []); // mount-only — אין dependency על searchParams (raise infinite-retrigger bug)
 
   // שלב 2: validation אחרי שה-token נקרא
   useEffect(() => {
@@ -82,6 +86,13 @@ function ResetPasswordForm() {
 
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
+
+    // BUGFIX (סבב 8 follow-up): safety — אם משהו השתבש בשליפת ה-token,
+    // לא לשלוח null לשרת (שיחזיר שגיאה באנגלית מ-zod).
+    if (!token) {
+      toast.error("חסר קישור לאיפוס. בקש קישור חדש מהמייל.");
+      return;
+    }
 
     if (!password || !confirmPassword) {
       toast.error("נא למלא את כל השדות");
