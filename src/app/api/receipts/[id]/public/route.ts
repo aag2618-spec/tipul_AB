@@ -2,6 +2,7 @@ import { NextRequest, NextResponse } from "next/server";
 import prisma from "@/lib/prisma";
 import { verifyReceiptToken } from "@/lib/receipt-token";
 import { logger } from "@/lib/logger";
+import { logDataAccess } from "@/lib/audit-logger";
 
 export const dynamic = "force-dynamic";
 
@@ -56,6 +57,23 @@ export async function GET(
     } catch {
       return NextResponse.json({ message: "אין הרשאה" }, { status: 403 });
     }
+
+    // M10.1: PHI access trail — תקנות הגנת הפרטיות (2017) דורשות תיעוד של גישה
+    // למידע רפואי. גישה ציבורית-אנונימית דרך token: userId=null, snapshot
+    // IP+userAgent + meta עם paymentId/clientId/version. נקרא רק אחרי שהtoken
+    // עבר אימות — אחרת בכל probe יהיה רישום (DoS על הטבלה).
+    logDataAccess({
+      userId: null,
+      recordType: "PAYMENT",
+      recordId: id,
+      action: "READ",
+      clientId: payment.clientId,
+      request,
+      meta: {
+        accessSource: "receipt_public_link",
+        tokenVersion: payment.receiptTokenVersion,
+      },
+    });
 
     const therapist = await prisma.user.findFirst({
       where: { clients: { some: { id: payment.clientId } } },

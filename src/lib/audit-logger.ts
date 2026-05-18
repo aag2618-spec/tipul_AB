@@ -31,7 +31,9 @@ export type AuditRecordType =
 export type AuditAction = "READ" | "EXPORT" | "PRINT" | "DELETE" | "UPDATE";
 
 export interface AuditLogParams {
-  userId: string;
+  /** ID של המשתמש שביצע את הקריאה. null עבור גישה ציבורית-אנונימית
+   *  (למשל קבלה דרך קישור public token) — נשמר עם snapshot email/name=null. */
+  userId: string | null;
   recordType: AuditRecordType;
   recordId: string;
   action: AuditAction;
@@ -39,7 +41,7 @@ export interface AuditLogParams {
   clientId?: string | null;
   /** אופציונלי: NextRequest ל-IP/user-agent extraction */
   request?: NextRequest;
-  /** אופציונלי: metadata נוסף (למשל skip-summary flag) */
+  /** אופציונלי: metadata נוסף (למשל skip-summary flag, accessSource) */
   meta?: Record<string, unknown>;
 }
 
@@ -100,7 +102,7 @@ export function logDataAccess(params: AuditLogParams): void {
 }
 
 interface DbAuditWriteParams {
-  userId: string;
+  userId: string | null;
   recordType: AuditRecordType;
   recordId: string;
   action: AuditAction;
@@ -117,10 +119,14 @@ async function writeAuditToDb(params: DbAuditWriteParams): Promise<void> {
   try {
     // snapshot של email/name — read-time (ולא ב-trigger) כי snapshot של
     // user שהוסר אינו זמין יותר. כאן ה-user עדיין קיים בעת הקריאה.
-    const user = await prisma.user.findUnique({
-      where: { id: params.userId },
-      select: { email: true, name: true },
-    });
+    // M10.1: עבור גישה ציבורית-אנונימית (userId=null) — אין user לחפש;
+    // הרשומה תיכתב עם email/name=null + meta.accessSource ל-trail.
+    const user = params.userId
+      ? await prisma.user.findUnique({
+          where: { id: params.userId },
+          select: { email: true, name: true },
+        })
+      : null;
 
     await prisma.dataAccessAuditLog.create({
       data: {
