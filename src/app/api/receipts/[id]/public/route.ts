@@ -13,19 +13,16 @@ export async function GET(
     const { id } = await params;
     const token = request.nextUrl.searchParams.get("t");
 
-    // M4 (2026-05-17): מקבל גם 24 (legacy 96-bit) וגם 32 (128-bit חדש).
+    // M4 (2026-05-17): טוקנים תקפים — 24 (legacy v0) או 32 (v1).
+    // סבב 8 (2026-05-18): סינון מקדים כדי לחסוך findUnique על input זדוני,
+    // אבל ההחלטה הסופית על תאימות נעשית אחרי טעינת payment.receiptTokenVersion.
     if (!token || (token.length !== 24 && token.length !== 32)) {
       return NextResponse.json({ message: "אין הרשאה" }, { status: 403 });
     }
 
-    try {
-      if (!verifyReceiptToken(id, token)) {
-        return NextResponse.json({ message: "אין הרשאה" }, { status: 403 });
-      }
-    } catch {
-      return NextResponse.json({ message: "אין הרשאה" }, { status: 403 });
-    }
-
+    // סבב 8: טוענים קודם את ה-payment כדי לקבל את receiptTokenVersion, ורק
+    // אז מאמתים. בלי זה, verifyReceiptToken היה מקבל גם 24 וגם 32 לכל payment
+    // ותוקף היה יכול להגדיר downgrade ל-96-bit על קבלות חדשות.
     const payment = await prisma.payment.findUnique({
       where: { id },
       include: {
@@ -48,6 +45,16 @@ export async function GET(
 
     if (!payment) {
       return NextResponse.json({ message: "קבלה לא נמצאה" }, { status: 404 });
+    }
+
+    // אימות לפי הגרסה ששמורה ב-payment. v=1 → רק 32 chars; v=0 → רק 24 chars
+    // (legacy, מוגבל ב-sunset של 30 יום).
+    try {
+      if (!verifyReceiptToken(id, token, payment.receiptTokenVersion)) {
+        return NextResponse.json({ message: "אין הרשאה" }, { status: 403 });
+      }
+    } catch {
+      return NextResponse.json({ message: "אין הרשאה" }, { status: 403 });
     }
 
     const therapist = await prisma.user.findFirst({

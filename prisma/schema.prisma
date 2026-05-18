@@ -664,6 +664,13 @@ model Payment {
   // require a row-by-row migration on production data.
   currency String @default("ILS")
 
+  // סבב אבטחה 8 (2026-05-18): גרסת ה-receipt token לאימות.
+  // 0 = legacy 96-bit (24 hex) — payments שנוצרו לפני שדרוג M4 (2026-05-17).
+  // 1 = 128-bit (32 hex) — ברירת מחדל לכל payments חדשים.
+  // לפני שדה זה, verifyReceiptToken קיבל גם 24 וגם 32 לכל payment, ותוקף
+  // היה יכול לתקוף את הגרסה החלשה (96-bit) גם על payments חדשים.
+  receiptTokenVersion Int @default(1)
+
   clientId String
   client   Client @relation(fields: [clientId], references: [id], onDelete: Cascade)
 
