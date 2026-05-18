@@ -63,6 +63,10 @@ const securityHeaders = [
       "form-action 'self' https://*.cardcom.solutions",
       "base-uri 'self'",
       "object-src 'none'",
+      // M13.2: report-uri — דפדפן ישלח violations ל-`/api/csp-report`.
+      // ה-endpoint עם rate-limit פר-IP + logger.warn (לא DB יקר).
+      // report-uri הוא ה-API הישן; אם נעבור ל-Reports API (modern) נוסיף Reporting-Endpoints header.
+      "report-uri /api/csp-report",
     ].join("; "),
   },
 ];

@@ -133,10 +133,26 @@
 - הוספת `RECORDING_UPLOAD_PER_USER` = 10/דקה ב-`src/lib/rate-limit.ts`
 - חיווט ל-`POST /api/recordings` (אחרי auth+scope, לפני parse+DB)
 
-**✅ M13.4 — DONE** (commit pending)
+**✅ M13.4 — DONE** (commit `e4aa5ab`)
 - הוספת `EXPORT_RATE_LIMIT` = 3/שעה ב-`src/lib/rate-limit.ts`
 - חיווט ל-3 endpoints:
   - `GET /api/clients/[id]/export`
   - `GET /api/clients/export-all`
   - `GET /api/payments/export`
 - TypeScript: נקי
+
+**✅ M13.2 — DONE** (commit pending)
+- בניית `POST /api/csp-report`:
+  - תומך ב-legacy format (`application/csp-report`) וב-Reports API (array)
+  - rate-limit פר-IP (`CSP_REPORT_PER_IP` = 60/דקה)
+  - body cap 16KB
+  - logger.warn (לא DB) — אין הצפת stderr
+  - אין auth (browser-initiated)
+- הוספת `report-uri /api/csp-report` ל-CSP ב-`next.config.ts`
+- TypeScript: נקי
+
+**✅ M13.8 — DONE** (commit pending)
+- field filtering ב-`GET /api/admin/users` לפי role (consistent עם `/api/admin/users/[id]`)
+- ADMIN: כולל `aiUsageStats` (currentMonthCalls/Cost/dailyCalls)
+- MANAGER + שאר: בלי `aiUsageStats`
+- UI כבר עם `?.` + fallback `|| 0` — לא קורס

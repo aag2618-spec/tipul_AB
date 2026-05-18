@@ -211,6 +211,14 @@ export const RECORDING_UPLOAD_PER_USER = { maxRequests: 10, windowMs: 60 * 1000 
 export const EXPORT_RATE_LIMIT = { maxRequests: 3, windowMs: 60 * 60 * 1000 };
 
 /**
+ * M13.2 — CSP report endpoint (per-IP): 60 reports / דקה.
+ * ה-endpoint לא דורש auth (browser-initiated). דפדפן יחיד יכול לשלוח כמה
+ * violations בעמוד אבל לא יותר מ-60/דקה בנסיבות סבירות. תוקף שמנסה להציף
+ * את ה-logs ע"י זיוף reports → ייחסם ב-60.
+ */
+export const CSP_REPORT_PER_IP = { maxRequests: 60, windowMs: 60 * 1000 };
+
+/**
  * Cron jobs — 10 בקשות לדקה לכל IP.
  * הגנה אם CRON_SECRET נחשף + מונע replay storms.
  * Stage 1.17 — זוהה ע"י סוכן 5 (security review של cleanup-idempotency).
