@@ -179,3 +179,22 @@
 | Build + TS + Tests | ✅ PASS | tsc=0 errors, tests=baseline בדיוק (28 passed / 4 failed / 1 skipped files; 538 passed / 3 failed / 4 todo). |
 
 **מסקנה:** 2/2 PASS. מוכן ל-push בכפוף לאישור משתמש.
+
+---
+
+### 🆕 M13.6 — DONE (2026-05-19)
+
+**מה בוצע:**
+- חדש: `src/app/api/cron/recording-orphan-cleanup/route.ts`
+- מוחק Recording rows + audio files של orphans (clientId=null AND sessionId=null) שעברו 90 ימים
+- Cascade ל-Transcription + Analysis אוטומטי (schema קיים)
+- audit log מלא
+- path-traversal guard
+- ENOENT idempotency
+- batch 100 × max 20 (2000/ריצה)
+- `render.yaml`: cron schedule `0 1 * * *` (01:00 UTC = 04:00 ישראל), נפרד מ-audit retention
+
+**Pre-push:** 10/10 PASS
+
+**Findings לעתיד:**
+- 🟡 ה-DELETE של recording רגיל (`/api/recordings/[id]` DELETE) **לא מוחק את ה-audio file מ-disk** — רק את ה-DB row. זה bug נפרד. לתקן בסבב 14: להוסיף `fs.unlink` ב-DELETE flow לפני `prisma.recording.deleteMany`.

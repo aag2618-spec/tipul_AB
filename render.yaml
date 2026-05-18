@@ -303,3 +303,27 @@ services:
           property: url
       - key: CRON_SECRET
         sync: false
+
+  # M13.6 (סבב אבטחה 13) — Recording orphan cleanup.
+  # מוחק הקלטות יתומות (clientId=null AND sessionId=null) שעברו 90 ימים.
+  # כולל מחיקת audio file מ-disk + DB row. עקרון "צמצום מידע" (חוק הגנת
+  # הפרטיות + תקנות 2017 על PHI). יומי 04:00 ישראל = 01:00 UTC, נפרד
+  # משאר retention crons כדי לא להעמיס DB.
+  - type: cron
+    name: recording-orphan-cleanup
+    runtime: node
+    region: frankfurt
+    plan: free
+    schedule: "0 1 * * *"  # Every day at 01:00 UTC (04:00 Israel)
+    buildCommand: echo "No build needed"
+    startCommand: |
+      curl -s --max-time 300 -X GET "$RENDER_EXTERNAL_URL/api/cron/recording-orphan-cleanup" \
+        -H "Authorization: Bearer $CRON_SECRET"
+    envVars:
+      - key: RENDER_EXTERNAL_URL
+        fromService:
+          type: web
+          name: tipul-app
+          property: url
+      - key: CRON_SECRET
+        sync: false
