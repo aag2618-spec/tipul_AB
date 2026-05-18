@@ -252,39 +252,56 @@
 
 ---
 
-#### M12.8 — Headers נוספים שלא הוגדרו
+#### M12.8 — Headers נוספים ⏸️ נדחה לסבב 13 (דורש endpoint חדש)
 
-**קובץ:** `next.config.ts`
+**רקע:** סקירת `next.config.ts` הראתה ש-CSP/security headers **חזקים מאוד** כבר:
+- CSP enforced (לא Report-Only)
+- COOP: same-origin, CORP: same-origin
+- HSTS preload, X-Frame-Options DENY, frame-ancestors 'none'
+- Permissions-Policy מצומצם
+- script-src dev/prod שונים (unsafe-eval רק dev)
 
-**מה חסר (חלקי):**
-- `Cross-Origin-Embedder-Policy: require-corp` (אם רוצים COOP+COEP isolation מלא)
-- `Reporting-Endpoints` / `Report-To` — לאסוף CSP violations
-- האם CSP מכיל `report-uri`? כדאי
+**מה חסר:**
+- 🟡 **`report-uri` ב-CSP** — לאסוף violations. דורש endpoint חדש (`/api/csp-report`) עם:
+  - parsing של CSP report format
+  - rate-limit פר-IP (defense מ-DoS, ה-endpoint לא דורש auth)
+  - logger.warn או DB table
+  - storage decision (לא להציף stdout)
+  - **לא הוספתי report-uri כי endpoint לא קיים** — להוסיף בלי endpoint גורם ל-404 noise בכל violation.
+- 🟡 **`Reporting-Endpoints` / `Report-To` headers** — modern reporting API. דורש אותו endpoint.
+- ⚪ **`Cross-Origin-Embedder-Policy: require-corp`** — **לא להפעיל** כפי שכתוב ב-HANDOFF המקורי: שובר 3rd-party iframes של Cardcom (תשלומים). אופציה: `credentialless` (חלש יותר אבל מאפשר Cardcom). דורש בדיקה ב-staging.
 
-**זהירות:** COEP יכול לשבור 3rd-party iframes (Cardcom). לבדוק לפני enforcement.
-
----
-
-#### M12.9 — Audit logs retention policy
-
-**רקע:** `AuditLog` ו-`DataAccessAudit` נצברים בקצב גבוה. בלי retention policy, ה-table יגדל לאינסוף.
-
-**מה לבדוק:**
-- האם יש cron שמוחק audit logs ישנים (>2 שנים?) לפי תקנות הגנת הפרטיות?
-- האם יש index על createdAt לconsulting אפקטיבי?
-
-**קובץ:** `prisma/schema.prisma` (AuditLog) + cron handlers.
+**החלטה (2026-05-18):** דחית M12.8 לסבב 13. ה-CSP הקיים חזק; report-uri הוא improvement, לא critical fix. בניית endpoint תקבל תקציב משלה כדי לבנות נכון (rate-limit + storage strategy).
 
 ---
 
-#### M12.10 — Session timeout policy
+#### M12.9 — Audit logs retention policy ✅ נסקר — כבר מוטמע
 
-**רקע:** ב-sessions של NextAuth — האם יש timeout אחרי inactivity?
+**ממצא:** הכל כבר קיים — אין צורך בתיקון.
 
-**מה לבדוק:**
-- `src/lib/auth.ts` — session.maxAge configuration
-- האם middleware בודק last activity?
-- האם יש "remember me" שמרחיב את ה-session ל-30 יום (כבר קיים sessionExpired gate)?
+**Crons שכבר רצים:**
+1. `src/app/api/cron/audit-log-retention/route.ts`: `AUDIT_RETENTION_MONTHS = 12` — מוחק AdminAuditLog מעל 12 חודשים.
+2. `src/app/api/cron/data-access-audit-retention/route.ts`: `RETENTION_MONTHS = 24` — מוחק DataAccessAuditLog מעל 24 חודשים.
+
+**Indexes ב-schema:**
+- `AdminAuditLog`: `@@index([createdAt])` + `@@index([createdAt, adminId])` (Stage 2.0)
+- `DataAccessAuditLog`: `@@index([createdAt])` + `@@index([userId, createdAt])` + `@@index([clientId, createdAt])` + `@@index([action, createdAt])`
+
+Tamper-proof: אסור UPDATE על השורות אחרי insert (אכיפה ב-API). רק cron retention יכול למחוק.
+
+---
+
+#### M12.10 — Session timeout policy ✅ נסקר — כבר מוטמע
+
+**ממצא:** כל ההגנות הנדרשות כבר קיימות.
+
+**הגנות session:**
+1. `auth.ts:223`: `maxAge = 24h`, `updateAge = 1h` — JWT TTL 24 שעות עם rolling refresh כל שעה של פעילות.
+2. `auth.ts:452-458`: `ABSOLUTE_MAX_SESSION_MS = 30 days` — absolute cap מ-`loginAt` (גם אם rolling renew, אחרי 30 ימים → `sessionExpired = true`).
+3. `middleware.ts:95` + `api-auth.ts:51`: `sessionExpired === true` → חוסם בכל route.
+4. `auth.ts:519+`: `lastActivityAt` מעודכן ב-debounce — בסיס ל-2FA inactivity check (`two-factor.ts:122-123`).
+5. `auth.ts:467-483`: Impersonation timeout = **30 דקות** (קוצר מ-4 שעות ב-H4) + lazy verification מול ה-DB בכל קריאה.
+6. `auth.ts:489+`: `requires2FA` flag — נמחק רק אחרי verify מוצלח שקרה אחרי ה-loginAt הנוכחי.
 
 ---
 
