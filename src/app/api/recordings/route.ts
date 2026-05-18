@@ -11,6 +11,11 @@ import {
 import { validateBase64Size, validateFileBuffer } from "@/lib/file-validation";
 import { parseBody, parseSearchParams } from "@/lib/validations/helpers";
 import { createRecordingSchema, listRecordingsQuerySchema } from "@/lib/validations/recording";
+import {
+  checkRateLimit,
+  rateLimitResponse,
+  RECORDING_UPLOAD_PER_USER,
+} from "@/lib/rate-limit";
 
 export const dynamic = "force-dynamic";
 
@@ -82,6 +87,14 @@ export async function POST(request: NextRequest) {
     const scopeUser = await loadScopeUser(userId);
     if (!canSecretaryAccessModel(scopeUser, "Recording")) {
       return NextResponse.json({ message: "אין הרשאה" }, { status: 403 });
+    }
+
+    // M13.3: rate-limit על העלאת הקלטות פר-user.
+    // הסדר: auth → scope → rate-limit → parse → DB.
+    // rate-limit אחרי scope כדי לא להציף לוגים כש-secretary חסום ממילא ב-403.
+    const rateCheck = checkRateLimit(`recording-upload:${userId}`, RECORDING_UPLOAD_PER_USER);
+    if (!rateCheck.allowed) {
+      return rateLimitResponse(rateCheck);
     }
 
     const clientWhere = buildClientWhere(scopeUser);

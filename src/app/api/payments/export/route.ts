@@ -8,6 +8,11 @@ import { requireAuth } from "@/lib/api-auth";
 import { buildPaymentWhere, loadScopeUser } from "@/lib/scope";
 import { EXCLUDE_BULK_UMBRELLA_WHERE } from "@/lib/payments/types";
 import { logDataAccess } from "@/lib/audit-logger";
+import {
+  checkRateLimit,
+  rateLimitResponse,
+  EXPORT_RATE_LIMIT,
+} from "@/lib/rate-limit";
 
 export const dynamic = "force-dynamic";
 
@@ -28,6 +33,12 @@ export async function GET(request: NextRequest) {
     const auth = await requireAuth();
     if ("error" in auth) return auth.error;
     const { userId, session } = auth;
+
+    // M13.4: rate-limit על exports — 3/שעה פר-user. מונע scraping/exfiltration.
+    const rateCheck = checkRateLimit(`payments-export:${userId}`, EXPORT_RATE_LIMIT);
+    if (!rateCheck.allowed) {
+      return rateLimitResponse(rateCheck);
+    }
 
     // קבלת פרמטרים מ-URL
     const { searchParams } = new URL(request.url);

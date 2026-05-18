@@ -7,6 +7,11 @@ import { logger } from "@/lib/logger";
 import { requireAuth } from "@/lib/api-auth";
 import { buildClientWhere, isSecretary, loadScopeUser } from "@/lib/scope";
 import { logDataAccess } from "@/lib/audit-logger";
+import {
+  checkRateLimit,
+  rateLimitResponse,
+  EXPORT_RATE_LIMIT,
+} from "@/lib/rate-limit";
 
 export const dynamic = "force-dynamic";
 
@@ -28,6 +33,14 @@ export async function GET(request: NextRequest) {
         { message: "אין הרשאה לייצוא קליני של תיקי מטופלים" },
         { status: 403 }
       );
+    }
+
+    // M13.4: rate-limit על exports — 3/שעה פר-user. מונע scraping/exfiltration.
+    // הסדר: auth → scope → rate-limit → DB. rate-limit אחרי scope כדי לא להציף
+    // לוגים כש-secretary חסום ממילא ב-403.
+    const rateCheck = checkRateLimit(`export-all:${userId}`, EXPORT_RATE_LIMIT);
+    if (!rateCheck.allowed) {
+      return rateLimitResponse(rateCheck);
     }
 
     const scopeWhere = buildClientWhere(scopeUser);

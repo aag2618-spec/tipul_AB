@@ -119,4 +119,24 @@
 
 ## 🔄 Progress Log
 
-(יתעדכן תוך כדי עבודה)
+### 2026-05-18
+
+**✅ M13.7 — DONE** (commit `fb60f9f`)
+- 4 AI routes קיבלו XML delimiters + instruction defense לפי pattern M12.5
+- `analyze-single`: `<questionnaire_answers>`/`<questionnaire_subscores>`/`<cultural_context>`
+- `analyze-combined`: `<questionnaires_data>`/`<cultural_context>`
+- `progress-report`: `<session_notes>`/`<questionnaires_data>`/`<cultural_context>`
+- `session-prep` (Professional + Enterprise): `<session_notes>`/`<approach_notes>`/`<cultural_context>`/`<questionnaires_data>`
+- TypeScript: נקי
+
+**✅ M13.3 — DONE** (commit pending)
+- הוספת `RECORDING_UPLOAD_PER_USER` = 10/דקה ב-`src/lib/rate-limit.ts`
+- חיווט ל-`POST /api/recordings` (אחרי auth+scope, לפני parse+DB)
+
+**✅ M13.4 — DONE** (commit pending)
+- הוספת `EXPORT_RATE_LIMIT` = 3/שעה ב-`src/lib/rate-limit.ts`
+- חיווט ל-3 endpoints:
+  - `GET /api/clients/[id]/export`
+  - `GET /api/clients/export-all`
+  - `GET /api/payments/export`
+- TypeScript: נקי

@@ -196,6 +196,21 @@ export const EMAIL_SEND_USER_RATE_LIMIT = { maxRequests: 30, windowMs: 60 * 60 *
 export const SMS_SEND_USER_RATE_LIMIT = { maxRequests: 10, windowMs: 60 * 60 * 1000 };
 
 /**
+ * M13.3 — Recording upload (per-user): 10 העלאות / דקה.
+ * validateBase64Size כבר מגביל גודל פר request (~50MB), אבל ללא rate-limit
+ * תוקף עם חשבון פעיל יכול להציף את ה-disk (10 × 50MB = 500MB בדקה).
+ * מטפל לגיטימי לא צריך להעלות יותר מ-10 הקלטות בדקה.
+ */
+export const RECORDING_UPLOAD_PER_USER = { maxRequests: 10, windowMs: 60 * 1000 };
+
+/**
+ * M13.4 — Bulk exports (per-user): 3 exports / שעה.
+ * exports של PHI ענקיים (clients/[id]/export, clients/export-all, payments/export)
+ * הם וקטור scraping/exfiltration. מטפל לגיטימי לא יבצע יותר מ-3 בשעה.
+ */
+export const EXPORT_RATE_LIMIT = { maxRequests: 3, windowMs: 60 * 60 * 1000 };
+
+/**
  * Cron jobs — 10 בקשות לדקה לכל IP.
  * הגנה אם CRON_SECRET נחשף + מונע replay storms.
  * Stage 1.17 — זוהה ע"י סוכן 5 (security review של cleanup-idempotency).
