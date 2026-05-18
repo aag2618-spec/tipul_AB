@@ -9,6 +9,7 @@ import {
   RECOVERY_CODE_EMAIL_RATE_LIMIT,
 } from "@/lib/rate-limit";
 import { logger } from "@/lib/logger";
+import { logAdminAction } from "@/lib/audit";
 import { parseBodyWithErrorField } from "@/lib/validations/helpers";
 import { twoFactorVerifySchema } from "@/lib/validations/auth";
 
@@ -69,6 +70,28 @@ export async function POST(req: NextRequest) {
     }
 
     const result = await verifyCode(user.id, code);
+
+    // M10.4: audit trail עבור 2FA verify (success + failed). חיוני לזיהוי
+    // ניסיונות brute-force ולחקירת חשבונות שנפרצו. fire-and-forget — לא
+    // חוסם את ה-flow של המשתמש; אם DB נופל יש את logger ב-stdout fallback.
+    const method = looksLikeRecoveryCode(code) ? "recovery_code" : "totp";
+    void logAdminAction({
+      adminId: user.id,
+      action: result.success ? "2fa_verify_success" : "2fa_verify_failed",
+      targetType: "user_auth",
+      targetId: user.id,
+      details: {
+        method,
+        ip,
+        email: emailLower,
+        error: result.success ? undefined : result.error,
+      },
+    }).catch((auditErr) => {
+      logger.warn("[2fa] audit log failed (continuing)", {
+        err: auditErr instanceof Error ? auditErr.message : String(auditErr),
+      });
+    });
+
     if (!result.success) {
       return NextResponse.json({ error: result.error }, { status: 400 });
     }
