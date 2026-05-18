@@ -194,16 +194,19 @@ export async function POST(request: NextRequest) {
         durationMs,
       });
 
+      // M12.3: לא חושפים errorMessage ל-client — ה-message יכול להכיל
+      // file paths, API key errors, internal details. ה-error כבר logged.
       return NextResponse.json(
-        { message: `שגיאה בתמלול: ${errorMessage}` },
+        { message: "שגיאה בתמלול ההקלטה" },
         { status: 500 }
       );
     }
   } catch (error: unknown) {
     const errorMessage = error instanceof Error ? error.message : "Unknown error";
     logger.error("Transcribe error:", { error: errorMessage });
+    // M12.3: כנ"ל — לא חושפים errorMessage ל-client.
     return NextResponse.json(
-      { message: `אירעה שגיאה בתמלול: ${errorMessage}` },
+      { message: "אירעה שגיאה בתמלול" },
       { status: 500 }
     );
   }
