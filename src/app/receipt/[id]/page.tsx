@@ -45,22 +45,20 @@ export default function PublicReceiptPage({
   const receiptRef = useRef<HTMLDivElement>(null);
 
   useEffect(() => {
-    // M9.2: ה-token מגיע כברירת מחדל ב-URL fragment (#t=...) כדי שלא ידלוף
-    // ב-Referer header (CDN/jspdf/html2canvas script-src). fallback ל-?t=
-    // לתאימות עם URLs ישנים שנשלחו במייל לפני התיקון.
-    let token: string | null = null;
+    // M9.2: ה-token מגיע ב-URL fragment (#t=...) כדי שלא ידלוף ב-Referer header
+    // (CDN/jspdf/html2canvas script-src).
+    // M10.8: ה-fallback ל-?t= הוסר — אין משתמשים פעילים, ה-receiptUrl ב-DB מבוסס
+    // על generator שמייצר fragment בלבד.
     const url = new URL(window.location.href);
     const hash = url.hash;
-    if (hash.startsWith("#t=")) {
-      token = decodeURIComponent(hash.substring("#t=".length));
-      // מנקים את ה-token מ-URL כדי שלא יישאר ב-history/clipboard.
-      window.history.replaceState(null, "", window.location.pathname);
-    } else {
-      token = url.searchParams.get("t");
-      if (token) {
-        window.history.replaceState(null, "", window.location.pathname);
-      }
+    if (!hash.startsWith("#t=")) {
+      setError("קישור לא תקין");
+      setLoading(false);
+      return;
     }
+    const token = decodeURIComponent(hash.substring("#t=".length));
+    // מנקים את ה-token מ-URL כדי שלא יישאר ב-history/clipboard.
+    window.history.replaceState(null, "", window.location.pathname);
 
     if (!token) {
       setError("קישור לא תקין");

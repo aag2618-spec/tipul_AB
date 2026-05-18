@@ -14,10 +14,9 @@ export async function GET(
     const { id } = await params;
     const token = request.nextUrl.searchParams.get("t");
 
-    // M4 (2026-05-17): טוקנים תקפים — 24 (legacy v0) או 32 (v1).
-    // סבב 8 (2026-05-18): סינון מקדים כדי לחסוך findUnique על input זדוני,
-    // אבל ההחלטה הסופית על תאימות נעשית אחרי טעינת payment.receiptTokenVersion.
-    if (!token || (token.length !== 24 && token.length !== 32)) {
+    // M10.8: רק v=1 (32 hex chars / 128 bit) — legacy v=0 (96-bit) הוסר.
+    // סינון מקדים כדי לחסוך findUnique על input זדוני.
+    if (!token || token.length !== 32) {
       return NextResponse.json({ message: "אין הרשאה" }, { status: 403 });
     }
 
@@ -48,10 +47,10 @@ export async function GET(
       return NextResponse.json({ message: "קבלה לא נמצאה" }, { status: 404 });
     }
 
-    // אימות לפי הגרסה ששמורה ב-payment. v=1 → רק 32 chars; v=0 → רק 24 chars
-    // (legacy, מוגבל ב-sunset של 30 יום).
+    // M10.8: verifyReceiptToken מאמת 128-bit only. receiptTokenVersion ב-DB
+    // כבר לא משפיע — נשמר ב-schema לתאימות עתידית.
     try {
-      if (!verifyReceiptToken(id, token, payment.receiptTokenVersion)) {
+      if (!verifyReceiptToken(id, token)) {
         return NextResponse.json({ message: "אין הרשאה" }, { status: 403 });
       }
     } catch {

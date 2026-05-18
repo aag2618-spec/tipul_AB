@@ -9,8 +9,8 @@ import { verifyEmailSchema } from "@/lib/validations/auth";
 export const dynamic = "force-dynamic";
 
 // M9.1: ה-token שמופיע בקישור-המייל לא נשמר plain ב-DB; שמור רק sha256(token).
-// אימות נעשה על ידי hash על הקלט והשוואה מול ה-hash. fallback ל-plain — תאימות לאחור
-// למשתמשים שעדיין מחזיקים token plain מלפני המיגרציה ל-hashed (H14).
+// אימות נעשה על ידי hash על הקלט והשוואה מול ה-hash.
+// M10.8: ה-fallback ל-plain (H14 backward-compat) הוסר — אין משתמשים פעילים.
 function hashToken(token: string): string {
   return createHash("sha256").update(token).digest("hex");
 }
@@ -32,12 +32,7 @@ export async function POST(request: NextRequest) {
 
     const tokenHash = hashToken(token);
     const user = await prisma.user.findFirst({
-      where: {
-        OR: [
-          { emailVerificationToken: tokenHash }, // tokens חדשים (hashed)
-          { emailVerificationToken: token }, // legacy plain — תאימות לאחור
-        ],
-      },
+      where: { emailVerificationToken: tokenHash },
       select: {
         id: true,
         emailVerified: true,

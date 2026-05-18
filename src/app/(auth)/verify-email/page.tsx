@@ -16,30 +16,24 @@ import { ResendVerificationForm } from "./resend-form";
 
 type VerifyState = "loading" | "success" | "expired" | "invalid" | "missing" | "error";
 
-// M9.1: ה-token מגיע כברירת מחדל ב-URL fragment (#token=...) כדי שלא ידלוף
-// ב-Referer header. fallback ל-?token= לתאימות עם URLs ישנים שנשלחו במייל
-// לפני התיקון, ועם redirect הישן מ-/api/auth/verify-email?token=...
+// M9.1: ה-token מגיע ב-URL fragment (#token=...) כדי שלא ידלוף ב-Referer header.
+// M10.8: ה-fallback ל-?token= הוסר — אין משתמשים פעילים, ה-redirect הישן מ-
+// /api/auth/verify-email?token= כבר ממיר ל-#token= בשלב ה-redirect.
 function VerifyEmailContent() {
   const [state, setState] = useState<VerifyState>("loading");
 
   useEffect(() => {
     if (typeof window === "undefined") return;
 
-    let token: string | null = null;
     const url = new URL(window.location.href);
     const hash = url.hash;
-    if (hash.startsWith("#token=")) {
-      token = decodeURIComponent(hash.substring("#token=".length));
-      // הסרת ה-token מ-URL כדי שלא יישאר ב-history/clipboard.
-      window.history.replaceState(null, "", window.location.pathname);
-    } else {
-      // Legacy fallback — URLs ישנים שנשלחו במייל לפני התיקון, או GET redirect ישן.
-      token = url.searchParams.get("token");
-      if (token) {
-        // גם כשמגיע מ-query, ננקה את ה-URL כדי שלא יישאר.
-        window.history.replaceState(null, "", window.location.pathname);
-      }
+    if (!hash.startsWith("#token=")) {
+      setState("missing");
+      return;
     }
+    const token = decodeURIComponent(hash.substring("#token=".length));
+    // הסרת ה-token מ-URL כדי שלא יישאר ב-history/clipboard.
+    window.history.replaceState(null, "", window.location.pathname);
 
     if (!token) {
       setState("missing");
