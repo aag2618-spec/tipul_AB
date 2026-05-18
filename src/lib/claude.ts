@@ -1,4 +1,8 @@
+// M12.5: קובץ זה כרגע אינו בשימוש פעיל ב-API (כל ה-routes משתמשים ב-google-ai.ts).
+// משאירים אותו לעת עתה כ-fallback פוטנציאלי ל-Claude SDK, אבל ראוי להסיר
+// בעתיד אם לא יוחזר לשימוש (מסיר תלות @anthropic-ai/sdk = פחות attack surface).
 import Anthropic from '@anthropic-ai/sdk';
+import { logger } from './logger';
 
 // Lazy initialization to ensure environment variable is available
 let anthropic: Anthropic | null = null;
@@ -72,9 +76,10 @@ ${transcription}
 
     throw new Error('No valid JSON in response');
   } catch (error) {
+    // M12.5: console.error → logger.error כדי לא לדלוף PII (transcription בstack).
     const errorMessage = error instanceof Error ? error.message : String(error);
-    console.error('Analysis error:', errorMessage, error);
-    throw new Error(`Failed to analyze session: ${errorMessage}`);
+    logger.error('claude.analyzeSession error', { errorMessage });
+    throw new Error('Failed to analyze session');
   }
 }
 
@@ -104,9 +109,10 @@ ${transcription}
 
     return content.text;
   } catch (error) {
+    // M12.5: console.error → logger.error
     const errorMessage = error instanceof Error ? error.message : String(error);
-    console.error('Summary generation error:', errorMessage, error);
-    throw new Error(`Failed to generate summary: ${errorMessage}`);
+    logger.error('claude.generateSessionSummary error', { errorMessage });
+    throw new Error('Failed to generate summary');
   }
 }
 
@@ -159,9 +165,10 @@ ${transcription}
 
     throw new Error('No valid JSON in response');
   } catch (error) {
+    // M12.5: console.error → logger.error
     const errorMessage = error instanceof Error ? error.message : String(error);
-    console.error('Intake analysis error:', errorMessage, error);
-    throw new Error(`Failed to analyze intake: ${errorMessage}`);
+    logger.error('claude.analyzeIntake error', { errorMessage });
+    throw new Error('Failed to analyze intake');
   }
 }
 
