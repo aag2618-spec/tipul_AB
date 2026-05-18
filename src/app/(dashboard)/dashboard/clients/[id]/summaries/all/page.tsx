@@ -109,12 +109,14 @@ export default function AllSummariesPage() {
         }),
       });
 
+      const data = await response.json().catch(() => ({}));
+
       if (response.ok) {
-        const data = await response.json();
         setAiAnalysis(data.analysis);
         toast.success("הניתוח הושלם בהצלחה");
       } else {
-        toast.error("שגיאה בביצוע הניתוח");
+        // M9.3: AI routes מחזירים `message` (consent). חשוב להציג את ההוראה המלאה.
+        toast.error(data?.message || data?.error || "שגיאה בביצוע הניתוח");
       }
     } catch (error) {
       console.error("Error analyzing summaries:", error);

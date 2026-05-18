@@ -77,23 +77,26 @@ function NewSessionNoteContent() {
         body: formData,
       });
 
+      const data = await response.json().catch(() => ({}));
+
       if (!response.ok) {
-        throw new Error("שגיאה בתמלול");
+        // M9.3: AI routes מחזירים `message` (consent). חשוב להציג את ההוראה המלאה.
+        throw new Error(data?.message || data?.error || "שגיאה בתמלול");
       }
 
-      const { transcript } = await response.json();
-      
+      const transcript = data.transcript;
+
       // Append transcription to existing content
       setNoteContent((prev) => {
         const newContent = prev ? `${prev}\n\n${transcript}` : transcript;
         return newContent;
       });
-      
+
       toast.success("התמלול הושלם בהצלחה");
       setShowRecorder(false);
-    } catch (error) {
+    } catch (error: unknown) {
       console.error("Transcription error:", error);
-      toast.error("אירעה שגיאה בתמלול");
+      toast.error(error instanceof Error ? error.message : "אירעה שגיאה בתמלול");
     } finally {
       setIsTranscribing(false);
     }

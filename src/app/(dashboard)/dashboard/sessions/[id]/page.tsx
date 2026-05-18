@@ -313,13 +313,18 @@ export default function SessionDetailPage({
         body: JSON.stringify({ transcription }),
       });
 
-      if (!response.ok) throw new Error();
+      const data = await response.json().catch(() => ({}));
 
-      const { summary } = await response.json();
-      setNoteContent(summary);
+      if (!response.ok) {
+        // M9.3: AI routes מחזירים `message` (consent). חשוב להציג למטפל את ההוראה
+        // המלאה ולא הודעה גנרית — בלי זה אין דרך לדעת שצריך לעדכן consent בכרטיס.
+        throw new Error(data?.message || data?.error || "שגיאה ביצירת הסיכום");
+      }
+
+      setNoteContent(data.summary);
       toast.success("סיכום נוצר בהצלחה");
-    } catch {
-      toast.error("שגיאה ביצירת הסיכום");
+    } catch (error: unknown) {
+      toast.error(error instanceof Error ? error.message : "שגיאה ביצירת הסיכום");
     } finally {
       setIsSaving(false);
     }
@@ -337,20 +342,24 @@ export default function SessionDetailPage({
       const response = await fetch("/api/analyze/note", {
         method: "POST",
         headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ 
+        body: JSON.stringify({
           noteContent,
           clientName: session?.client?.name,
-          clientId: session?.client?.id 
+          clientId: session?.client?.id
         }),
       });
 
-      if (!response.ok) throw new Error();
+      const data = await response.json().catch(() => ({}));
 
-      const { analysis } = await response.json();
-      setNoteAnalysis(analysis);
+      if (!response.ok) {
+        // M9.3: AI routes מחזירים `message` (consent). חשוב להציג את ההוראה המלאה.
+        throw new Error(data?.message || data?.error || "שגיאה בניתוח הסיכום");
+      }
+
+      setNoteAnalysis(data.analysis);
       toast.success("הניתוח הושלם בהצלחה");
-    } catch {
-      toast.error("שגיאה בניתוח הסיכום");
+    } catch (error: unknown) {
+      toast.error(error instanceof Error ? error.message : "שגיאה בניתוח הסיכום");
     } finally {
       setIsAnalyzing(false);
     }

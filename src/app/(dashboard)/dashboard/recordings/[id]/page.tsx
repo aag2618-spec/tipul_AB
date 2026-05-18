@@ -146,7 +146,7 @@ export default function RecordingPage({ params }: { params: Promise<{ id: string
 
   const handleAnalyze = async () => {
     if (!recording?.transcription) return;
-    
+
     setIsAnalyzing(true);
     try {
       const response = await fetch("/api/analyze", {
@@ -155,15 +155,18 @@ export default function RecordingPage({ params }: { params: Promise<{ id: string
         body: JSON.stringify({ transcriptionId: recording.transcription.id }),
       });
 
+      const data = await response.json().catch(() => ({}));
+
       if (!response.ok) {
-        throw new Error("שגיאה בניתוח");
+        // M9.3: AI routes מחזירים `message` (consent). חשוב להציג את ההוראה המלאה.
+        throw new Error(data?.message || data?.error || "אירעה שגיאה בניתוח");
       }
 
       toast.success("הניתוח הושלם בהצלחה");
       fetchRecording();
-    } catch (error) {
+    } catch (error: unknown) {
       console.error("Analyze error:", error);
-      toast.error("אירעה שגיאה בניתוח");
+      toast.error(error instanceof Error ? error.message : "אירעה שגיאה בניתוח");
     } finally {
       setIsAnalyzing(false);
     }
