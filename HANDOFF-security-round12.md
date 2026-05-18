@@ -16,7 +16,7 @@
 
 ### 🟠 גבוה — defense-in-depth ל-features שטופלו בסבב 11
 
-#### M12.1 — סגירת `POST /api/clinic-admin/members` (cleanup אחרי סבב 11)
+#### M12.1 — סגירת `POST /api/clinic-admin/members` (cleanup אחרי סבב 11) ✅ DONE
 
 **רקע:** בסבב 11 הסרנו את `/api/clinic-admin/members/search` + UI של "קישור מהיר". הendpoint `POST /api/clinic-admin/members` עדיין קיים — אבל ה-UI לא משתמש בו יותר.
 
@@ -30,6 +30,13 @@
 3. הוספת deprecation header + log אם נקרא.
 
 **מומלץ:** אפשרות 1 (הסרה).
+
+**מה בוצע (2026-05-18):**
+- מיפוי קודם: `grep -r "/api/clinic-admin/members"` → רק 2 קריאות GET ב-`clinic-admin/transfer/page.tsx:81` ו-`clinic-admin/members/page.tsx:146`. שום caller ל-POST. אין tests.
+- הסרת ה-POST handler מ-`src/app/api/clinic-admin/members/route.ts` (שורות 77-187 בקובץ הישן).
+- ניקוי imports שכבר לא משמשים: `NextRequest`, `z`, `Prisma`, `withAudit`, `parseBody`, `checkLimitInTx`, `ClinicLimitExceededError`, `addMemberSchema`, `secretaryPermissionsSchema`.
+- הוספת comment בסוף הקובץ שמסביר שה-POST הוסר ולמה ה-flow המאובטח הוא דרך `clinic-admin/invitations`.
+- `npx tsc --noEmit` → נקי.
 
 ---
 
