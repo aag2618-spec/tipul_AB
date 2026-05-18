@@ -238,15 +238,17 @@
 
 ### 🟢 נמוך — תחזוקה ושיפורים
 
-#### M12.7 — תיעוד ENCRYPTION_KEY ב-README
+#### M12.7 — תיעוד ENCRYPTION_KEY ב-README ✅ תוקן
 
-**רקע:** סבב 11 שיפר את ה-dev fallback ל-deterministic key. אבל למפתחים שעוברים בין מערכות, עדיף שיגדירו `ENCRYPTION_KEY` ב-`.env.local`.
+**רקע:** סבב 11 שיפר את ה-dev fallback ל-deterministic key. אבל ה-README הראשי לא תיעד את ה-env var, רק `SETUP_INSTRUCTIONS.md` (וגם שם פחות מפורש).
 
-**תיקון:** הוספת חלק ל-`README.md` או `SETUP_INSTRUCTIONS.md` עם דוגמה:
-```
-ENCRYPTION_KEY=<random 42-char hex string>
-```
-+ הסבר איך לייצר: `openssl rand -hex 21`.
+**תיקון שבוצע (2026-05-18):**
+- הוספת בלוק `ENCRYPTION_KEY` ב-`.env.local` ב-README.md (סעיף "התקנה" → "הגדרת משתני סביבה")
+- הסבר: חובה ב-production, dev fallback מ-DATABASE_URL, אזהרה על איבוד
+- אופן יצירה: `openssl rand -hex 21` או PowerShell equivalent
+- format: 42-char hex string
+
+`SETUP_INSTRUCTIONS.md` כבר מציין `ENCRYPTION_KEY` (שורות 98-106, 127) — נשאר כפי שהוא.
 
 ---
 
