@@ -216,7 +216,16 @@ export async function GET(
     // עבור קבצי support — כפייה של הורדה/תצוגה ב-iframe עם שם קובץ נקי,
     // כדי למנוע rendering של HTML/SVG גם אם יהיה content-type spoofing.
     if (pathStr.startsWith("support/")) {
-      const originalFilename = path[path.length - 1] || "file";
+      const rawFilename = path[path.length - 1] || "file";
+      // M10.7: מסירים Unicode bidi-override characters (U+202A..U+202E, U+2066..U+2069,
+      // U+200E, U+200F) — תוקף יכול לקרוא לקובץ "evil‮gpj.exe" שיוצג כ-"evilexe.jpg"
+      // בדפדפן וגורם להורדה מטעה. ה-ASCII-safe filter כבר תופס את זה ב-filename=,
+      // אבל ב-filename* (UTF-8) הם עוברים — לכן מסננים גם שם.
+      // U+200E, U+200F (LRM/RLM), U+202A-U+202E (embedding/override), U+2066-U+2069 (isolate)
+      const originalFilename = rawFilename.replace(
+        /[‎‏‪-‮⁦-⁩]/g,
+        ""
+      );
       // הגבל תווים ב-filename של ה-header ל-ASCII בלבד (RFC 6266),
       // ושמור את המקורי המלא ב-filename* עם UTF-8 encoding
       const asciiSafe = originalFilename.replace(/[^\x20-\x7E]/g, "_");
