@@ -66,6 +66,7 @@ interface SubscriptionPaymentItem {
     completedAtIso: string | null;
     transactionId: string | null;
     cardLast4: string | null;
+    lowProfileId: string | null;
   } | null;
   invoicePdfUrl: string | null;
   invoiceDocNumber: string | null;
@@ -144,6 +145,8 @@ export default function SubscriptionAdminCard({ userId }: { userId: string }) {
   const [loading, setLoading] = useState(true);
   const [showRefundDialog, setShowRefundDialog] =
     useState<SubscriptionPaymentItem | null>(null);
+  // ה-id של ה-CardcomTransaction שמסונכרן כרגע (UI disabled state).
+  const [syncingTxId, setSyncingTxId] = useState<string | null>(null);
 
   const fetchData = useCallback(async () => {
     setLoading(true);
@@ -162,6 +165,33 @@ export default function SubscriptionAdminCard({ userId }: { userId: string }) {
       setLoading(false);
     }
   }, [userId]);
+
+  // סנכרון ידני מ-Cardcom — קורא ל-endpoint שעושה self-call ל-webhook.
+  // משמש בעיקר ל-sandbox terminal שלא תמיד שולח webhook. בפרודקשן יכול
+  // לשמש כ-fallback למקרה של network failure של ה-webhook.
+  const handleSyncCardcom = useCallback(
+    async (transactionId: string) => {
+      setSyncingTxId(transactionId);
+      try {
+        const res = await fetch(
+          `/api/admin/cardcom-transactions/${transactionId}/sync-cardcom`,
+          { method: "POST" }
+        );
+        const json = await res.json().catch(() => ({}));
+        if (!res.ok) {
+          toast.error(json.message || `שגיאת סנכרון (${res.status})`);
+          return;
+        }
+        toast.success(json.message || "הסנכרון הושלם");
+        await fetchData();
+      } catch {
+        toast.error("שגיאת תקשורת בסנכרון");
+      } finally {
+        setSyncingTxId(null);
+      }
+    },
+    [fetchData]
+  );
 
   useEffect(() => {
     fetchData();
@@ -281,6 +311,30 @@ export default function SubscriptionAdminCard({ userId }: { userId: string }) {
                         >
                           <RefreshCw className="h-3 w-3 ml-1" />
                           החזר כספי (זמין: ₪{sp.cardcomTransaction.refundableAmount})
+                        </Button>
+                      )}
+                    {/* כפתור סנכרון — מוצג כשה-SP PENDING ויש CardcomTransaction עם LowProfileId.
+                        משמש כשה-webhook של Cardcom לא הגיע (sandbox / network).
+                        מבצע GetLpResult מ-Cardcom ומחיל את התוצאה (PAID/CANCELLED). */}
+                    {sp.status === "PENDING" &&
+                      sp.cardcomTransaction?.id &&
+                      sp.cardcomTransaction.lowProfileId &&
+                      sp.cardcomTransaction.status !== "APPROVED" && (
+                        <Button
+                          variant="outline"
+                          size="sm"
+                          className="text-xs h-7"
+                          disabled={syncingTxId === sp.cardcomTransaction.id}
+                          onClick={() =>
+                            handleSyncCardcom(sp.cardcomTransaction!.id)
+                          }
+                        >
+                          {syncingTxId === sp.cardcomTransaction.id ? (
+                            <Loader2 className="h-3 w-3 ml-1 animate-spin" />
+                          ) : (
+                            <RefreshCw className="h-3 w-3 ml-1" />
+                          )}
+                          סנכרן מ-Cardcom
                         </Button>
                       )}
                   </div>

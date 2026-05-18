@@ -2,7 +2,8 @@
 // Stage 6 — GET endpoint לסקירה פיננסית מלאה של משתמש לאדמין.
 //
 // מחזיר:
-//   - SubscriptionPayment[] (10 אחרונים) + CardcomTransaction APPROVED מצורף + invoice
+//   - SubscriptionPayment[] (10 אחרונים) + CardcomTransaction האחרון (כל סטטוס) + invoice
+//     CardcomTransaction נשלף כל-סטטוס כדי לאפשר sync ידני ל-SP במצב PENDING.
 //   - UserPackagePurchase[] (20 אחרונים) + מי הזין
 //   - CardcomTransaction[] (10 אחרונים, כולל FAILED/DECLINED — לצורך debug)
 //
@@ -58,8 +59,9 @@ export async function GET(
             chargeAttempts: true,
             lastChargeError: true,
             cardcomTransactions: {
-              where: { status: "APPROVED" },
-              orderBy: { completedAt: "desc" },
+              // כולל כל הסטטוסים כדי שיוצג גם ל-SP במצב PENDING (לאפשר sync).
+              // כפתור החזר כספי עדיין מוגבל ב-UI ל-status=APPROVED בלבד.
+              orderBy: { createdAt: "desc" },
               take: 1,
               select: {
                 id: true,
@@ -69,6 +71,7 @@ export async function GET(
                 completedAt: true,
                 transactionId: true,
                 cardLast4: true,
+                lowProfileId: true,
               },
             },
             cardcomInvoices: {
@@ -147,6 +150,8 @@ export async function GET(
               sp.cardcomTransactions[0].completedAt?.toISOString() ?? null,
             transactionId: sp.cardcomTransactions[0].transactionId,
             cardLast4: sp.cardcomTransactions[0].cardLast4,
+            // נדרש לתצוגת כפתור "סנכרן מ-Cardcom" ב-UI כש-SP במצב PENDING.
+            lowProfileId: sp.cardcomTransactions[0].lowProfileId,
           }
         : null,
       invoicePdfUrl: sp.cardcomInvoices[0]?.pdfUrl ?? null,
