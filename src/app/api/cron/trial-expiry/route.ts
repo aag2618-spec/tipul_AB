@@ -6,6 +6,7 @@ import { logger } from "@/lib/logger";
 import { isShabbatOrYomTov } from "@/lib/shabbat";
 import { checkCronAuth } from "@/lib/cron-auth";
 import { withAudit } from "@/lib/audit";
+import { invalidateJwtCache } from "@/lib/auth";
 
 const SYSTEM_URL = process.env.NEXTAUTH_URL || "https://your-app.onrender.com";
 const ADMIN_EMAIL = process.env.ADMIN_EMAIL;
@@ -159,6 +160,10 @@ export async function GET(req: NextRequest) {
               },
             })
         );
+
+        // M10.2: סוגרים חלון של 30s ב-JWT cache — אחרת המשתמש יקבל isBlocked=false
+        // ב-token עד שה-cache פג, וזה סיכון security (הוא אמור להיחסם מיד).
+        invalidateJwtCache(user.id);
 
         if (user.email) {
           const billingUrl = `${SYSTEM_URL}/dashboard/settings/billing`;

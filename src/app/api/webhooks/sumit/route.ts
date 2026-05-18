@@ -5,6 +5,7 @@ import { NextRequest, NextResponse } from "next/server";
 import prisma from "@/lib/prisma";
 import { verifySumitWebhook, SumitWebhookPayload } from "@/lib/sumit";
 import { logger } from "@/lib/logger";
+import { invalidateJwtCache } from "@/lib/auth";
 import { completeWebhookPayment } from "@/lib/payments/receipt-service";
 import { verifyPaymentByExternalId } from "@/lib/webhook-verification";
 import { checkRateLimit, WEBHOOK_RATE_LIMIT } from "@/lib/rate-limit";
@@ -278,6 +279,10 @@ async function handlePaymentSuccess(payload: SumitWebhookPayload) {
 
     if (txResult) {
       const { user, shouldUnblock } = txResult;
+
+      // M10.2: סוגרים חלון של 30s ב-JWT cache (subscriptionStatus/isBlocked שונו).
+      invalidateJwtCache(user.id);
+
       if (shouldUnblock) {
         logger.info("[sumit] auto-unblock on subscription payment (DEBT)", { userId: user.id });
       } else if (user.isBlocked) {
@@ -358,6 +363,10 @@ async function handlePaymentFailed(payload: SumitWebhookPayload) {
           subscriptionStatus: "PAST_DUE",
         },
       });
+
+      // M10.2: סוגרים חלון של 30s — אחרת המשתמש יקבל subscriptionStatus="ACTIVE"
+      // ב-cache עד שה-cache פג, וזה נותן לו גישה לתכונות בתשלום שגויה.
+      invalidateJwtCache(user.id);
 
       await prisma.adminAlert.create({
         data: {

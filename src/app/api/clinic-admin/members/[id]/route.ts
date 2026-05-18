@@ -3,6 +3,7 @@ import { Prisma } from "@prisma/client";
 import prisma from "@/lib/prisma";
 import { logger } from "@/lib/logger";
 import { withAudit } from "@/lib/audit";
+import { invalidateJwtCache } from "@/lib/auth";
 import { computeBillingRestore } from "@/lib/clinic-invitations";
 import { requireClinicOwner } from "@/lib/clinic/require-clinic-owner";
 import { parseBody } from "@/lib/validations/helpers";
@@ -106,6 +107,11 @@ export async function PATCH(
         });
       }
     );
+
+    // M10.2: clinicRole + role נמצאים ב-JWT cache. סוגרים חלון של 30s —
+    // אחרת הרשאות מזכירה חדשות לא יחולו עד שה-cache פג, ויש סיכון security
+    // (THERAPIST שהורד ל-SECRETARY עדיין יוכל לפעול כ-THERAPIST 30s).
+    invalidateJwtCache(id);
 
     return NextResponse.json(JSON.parse(JSON.stringify(updated)));
   } catch (error) {
@@ -265,6 +271,9 @@ export async function DELETE(
         return result;
       }
     );
+
+    // M10.2: clinicRole + role + subscriptionStatus עלולים להשתנות. סוגרים חלון של 30s.
+    invalidateJwtCache(id);
 
     return NextResponse.json({ ok: true });
   } catch (error) {

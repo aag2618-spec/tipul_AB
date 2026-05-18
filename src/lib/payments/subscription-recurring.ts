@@ -39,6 +39,7 @@ import "server-only";
 import prisma from "@/lib/prisma";
 import { logger } from "@/lib/logger";
 import { withAudit } from "@/lib/audit";
+import { invalidateJwtCache } from "@/lib/auth";
 import { getAdminCardcomClient } from "@/lib/cardcom/admin-config";
 import { getAdminBusinessProfile } from "@/lib/site-settings";
 import { scrubCardcomMessage } from "@/lib/cardcom/verify-webhook";
@@ -506,6 +507,10 @@ export async function chargeNextSubscription(params: {
     }
   );
 
+  // M10.2: subscriptionStatus/subscriptionEndsAt/isBlocked עלולים להשתנות.
+  // סוגרים חלון של 30s ב-JWT cache.
+  invalidateJwtCache(sp.user.id);
+
   logger.info("[subscription-recurring] charged successfully", {
     previousSubscriptionPaymentId: sp.id,
     newSubscriptionPaymentId: newSpId,
@@ -627,6 +632,10 @@ async function handleDeclineDb(params: {
       }
     }
   );
+
+  // M10.2: סוגרים חלון של 30s ב-JWT cache — subscriptionStatus עבר ל-PAST_DUE
+  // (ואולי isBlocked=true). בלי זה משתמש שצריך להיחסם ימשיך לפעול 30s.
+  invalidateJwtCache(sp.user.id);
 }
 
 /**

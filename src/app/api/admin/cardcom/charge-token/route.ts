@@ -7,6 +7,7 @@ import prisma from "@/lib/prisma";
 import { requirePermission } from "@/lib/api-auth";
 import { logger } from "@/lib/logger";
 import { withAudit } from "@/lib/audit";
+import { invalidateJwtCache } from "@/lib/auth";
 import { getAdminCardcomClient } from "@/lib/cardcom/admin-config";
 import { scrubCardcomMessage } from "@/lib/cardcom/verify-webhook";
 
@@ -178,9 +179,16 @@ export async function POST(request: NextRequest) {
           success: true,
           transactionId: transaction.id,
           approvalNumber: cardcomResult.approvalNumber,
+          subscriberUserId: subscriptionPayment.userId,
+          statusChanged: !!(user && user.subscriptionStatus !== "PAUSED"),
         };
       }
     );
+
+    // M10.2: subscriptionStatus עלול להשתנות ל-ACTIVE — סוגרים חלון של 30s ב-cache.
+    if (result.statusChanged && result.subscriberUserId) {
+      invalidateJwtCache(result.subscriberUserId);
+    }
 
     if (idempotencyKey) {
       await prisma.idempotencyKey.create({

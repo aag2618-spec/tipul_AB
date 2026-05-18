@@ -7,6 +7,7 @@ import { logger } from "@/lib/logger";
 import { requirePermission, requireHighestPermission } from "@/lib/api-auth";
 import type { Permission } from "@/lib/permissions";
 import { withAudit } from "@/lib/audit";
+import { invalidateJwtCache } from "@/lib/auth";
 import { parseBody } from "@/lib/validations/helpers";
 import { updateTrialUserSchema } from "@/lib/validations/admin";
 
@@ -163,6 +164,8 @@ export async function PATCH(req: NextRequest) {
               },
             })
         );
+        // M10.2: סוגרים חלון של 30s ב-JWT cache (isBlocked שונה).
+        invalidateJwtCache(userId);
         return NextResponse.json({ success: true, message: `${user.name} נחסם` });
       }
 
@@ -186,6 +189,8 @@ export async function PATCH(req: NextRequest) {
               },
             })
         );
+        // M10.2: סוגרים חלון של 30s ב-JWT cache (isBlocked שונה).
+        invalidateJwtCache(userId);
         return NextResponse.json({ success: true, message: `${user.name} שוחרר מחסימה` });
       }
 
@@ -217,6 +222,8 @@ export async function PATCH(req: NextRequest) {
               },
             })
         );
+        // M10.2: סוגרים חלון של 30s ב-JWT cache (subscriptionStatus שונה ל-ACTIVE).
+        invalidateJwtCache(userId);
         return NextResponse.json({
           success: true,
           message: `${user.name} הועבר למנוי חינם - ${tier}`

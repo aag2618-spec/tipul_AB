@@ -10,6 +10,7 @@ import { PLAN_NAMES, PRICING } from "@/lib/pricing";
 import { escapeHtml } from "@/lib/email-utils";
 import { logger } from "@/lib/logger";
 import { requireAuth } from "@/lib/api-auth";
+import { invalidateJwtCache } from "@/lib/auth";
 
 const ADMIN_EMAIL = process.env.ADMIN_EMAIL;
 const SYSTEM_URL = process.env.NEXTAUTH_URL || "";
@@ -126,6 +127,9 @@ export async function POST() {
         subscriptionStatus: "CANCELLED",
       },
     });
+
+    // M10.2: סוגרים חלון של 30s ב-JWT cache (subscriptionStatus שונה).
+    invalidateJwtCache(user.id);
 
     // עצירת cron החיוב החוזר: ביטול autoChargeEnabled על כל המנויים הפעילים.
     // המשתמש כבר ביטל — אסור שיחויב שוב בחודש הבא דרך savedCardToken.

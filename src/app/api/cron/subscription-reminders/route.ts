@@ -11,6 +11,7 @@ import { logger } from "@/lib/logger";
 import { isShabbatOrYomTov } from "@/lib/shabbat";
 import { checkCronAuth } from "@/lib/cron-auth";
 import { withAudit } from "@/lib/audit";
+import { invalidateJwtCache } from "@/lib/auth";
 import { sendAccountBlockedEmail } from "@/lib/emails/dunning";
 
 // ========================================
@@ -264,6 +265,10 @@ export async function GET(req: NextRequest) {
             })
         );
 
+        // M10.2: סוגרים חלון של 30s ב-JWT cache — סיכון security כשמשתמש
+        // נחסם אבל cache עדיין מחזיק isBlocked=false.
+        invalidateJwtCache(user.id);
+
         // שליחת מייל סופי למנוי
         if (user.email) {
           await sendSubscriptionExpiredEmail(user);
@@ -356,6 +361,9 @@ export async function GET(req: NextRequest) {
                   },
                 })
             );
+
+            // M10.2: סוגרים חלון של 30s ב-JWT cache (isBlocked + subscriptionStatus).
+            invalidateJwtCache(user.id);
 
             if (user.email) {
               await sendGiftExpiredEmail(user);

@@ -25,6 +25,7 @@ import { NextRequest, NextResponse } from "next/server";
 import prisma from "@/lib/prisma";
 import { logger } from "@/lib/logger";
 import { withAudit } from "@/lib/audit";
+import { invalidateJwtCache } from "@/lib/auth";
 import {
   verifyWebhookTimestamp,
   isCardcomIp,
@@ -683,6 +684,14 @@ async function processAdminWebhook(payload: CardcomWebhookPayload): Promise<void
       }
     }
   );
+
+  // M10.2: סוגרים חלון של 30s ב-JWT cache. ה-webhook עדכן
+  // subscriptionStatus/isBlocked/aiTier/trialEndsAt — בלי זה ה-token של המשתמש
+  // יחזיק נתונים ישנים עד שה-cache פג, וזה גם UX רע וגם סיכון security
+  // (משתמש שצריך לעבור ל-PAST_DUE עדיין נראה ACTIVE).
+  if (transaction.userId) {
+    invalidateJwtCache(transaction.userId);
+  }
 }
 
 /**

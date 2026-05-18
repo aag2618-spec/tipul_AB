@@ -17,6 +17,7 @@ import { logger } from "@/lib/logger";
 import { requirePermission } from "@/lib/api-auth";
 import { hasPermission, type Permission } from "@/lib/permissions";
 import { withAudit } from "@/lib/audit";
+import { invalidateJwtCache } from "@/lib/auth";
 import { parseBody } from "@/lib/validations/helpers";
 import { fetchAndResolveSubscriptionPrice, getPriceForPeriod } from "@/lib/pricing/resolve";
 import {
@@ -255,6 +256,9 @@ async function handleExtendTrial(
     }
   );
 
+  // M10.2: trialEndsAt נמצא ב-JWT cache. סוגרים חלון של 30s.
+  invalidateJwtCache(targetUserId);
+
   logger.info("[admin] extend_trial", {
     targetUserId,
     days,
@@ -343,6 +347,9 @@ async function handleExtendSubscription(
       return updated;
     }
   );
+
+  // M10.2: subscriptionEndsAt נמצא ב-JWT cache. סוגרים חלון של 30s.
+  invalidateJwtCache(targetUserId);
 
   logger.info("[admin] extend_subscription", {
     targetUserId,
@@ -694,6 +701,9 @@ async function handleSetFree(
       });
     }
   );
+  // M10.2: סוגרים חלון של 30s ב-JWT cache —
+  // subscriptionStatus/isBlocked עלולים להשתנות ב-set_free.
+  invalidateJwtCache(targetUserId);
   logger.info("[admin] set_free", { targetUserId, isFree });
   return NextResponse.json({
     success: true,

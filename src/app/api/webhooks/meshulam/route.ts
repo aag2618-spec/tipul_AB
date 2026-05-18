@@ -10,6 +10,7 @@ import { checkRateLimit, WEBHOOK_RATE_LIMIT } from "@/lib/rate-limit";
 import { PLAN_NAMES, detectPeriodFromAmount as detectPeriodCentral } from "@/lib/pricing";
 import { escapeHtml } from "@/lib/email-utils";
 import { logger } from "@/lib/logger";
+import { invalidateJwtCache } from "@/lib/auth";
 import { completeWebhookPayment } from "@/lib/payments/receipt-service";
 import { verifyPaymentOwnership } from "@/lib/webhook-verification";
 import {
@@ -335,6 +336,11 @@ async function handlePaymentSuccess(payload: MeshulamWebhookPayload) {
     if (txResult) {
       const { user, periodMs, periodLabel, shouldUnblock } = txResult;
 
+      // M10.2: סוגרים חלון של 30s שבו ה-JWT cache עוד מחזיק
+      // subscriptionStatus/isBlocked ישנים. בלי זה — משתמש שתשלום שלו נקלט
+      // עדיין רואה "חסום" עד שה-cache פג.
+      invalidateJwtCache(user.id);
+
       if (shouldUnblock) {
         logger.info("[meshulam] auto-unblock on subscription payment (DEBT)", { userId: user.id });
       } else if (user.isBlocked) {
@@ -468,6 +474,10 @@ async function handlePaymentFailed(payload: MeshulamWebhookPayload) {
         },
       });
 
+      // M10.2: סוגרים חלון של 30s — אחרת המשתמש ימשיך לקבל subscriptionStatus="ACTIVE"
+      // ב-JWT cache עד שה-cache פג, וזה נותן לו גישה לתכונות בתשלום שגויה.
+      invalidateJwtCache(user.id);
+
       // יצירת התראה לאדמין
       await prisma.adminAlert.create({
         data: {
@@ -565,6 +575,9 @@ async function handleSubscriptionCreated(payload: MeshulamWebhookPayload) {
 
   if (txResult) {
     const { user, periodLabel, shouldUnblockOnCreate } = txResult;
+
+    // M10.2: סוגרים חלון של 30s ב-JWT cache.
+    invalidateJwtCache(user.id);
 
     if (shouldUnblockOnCreate) {
       logger.info("[meshulam] auto-unblock on subscription created (DEBT)", { userId: user.id });
@@ -665,6 +678,9 @@ async function handleSubscriptionRenewed(payload: MeshulamWebhookPayload) {
     if (!renewResult) return;
     const { periodMs, periodLabel, shouldUnblockOnRenew } = renewResult;
 
+    // M10.2: סוגרים חלון של 30s ב-JWT cache.
+    invalidateJwtCache(user.id);
+
     if (shouldUnblockOnRenew) {
       logger.info("[meshulam] auto-unblock on subscription renewed (DEBT)", { userId: user.id });
     }
@@ -732,6 +748,9 @@ async function handleSubscriptionCancelled(payload: MeshulamWebhookPayload) {
         subscriptionStatus: "CANCELLED",
       },
     });
+
+    // M10.2: סוגרים חלון של 30s ב-JWT cache.
+    invalidateJwtCache(user.id);
 
     await prisma.notification.create({
       data: {
