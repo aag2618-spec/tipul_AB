@@ -413,6 +413,29 @@ services:
       - key: CRON_SECRET
         sync: false
 
+  # Cardcom webhook stuck — בודק SubscriptionPayments ב-PENDING > 15 דקות עם
+  # LowProfileId. אם נמצא — סביר שהמשתמש שילם וה-webhook לא הגיע. יוצר
+  # AdminAlert URGENT עם הוראה ללחוץ "סנכרן מ-Cardcom" ב-/admin/users/[id].
+  # רץ כל שעה בדקה 5 (לא 0) כדי לא להתנגש עם session-reminders-24h.
+  - type: cron
+    name: cardcom-webhook-stuck
+    runtime: node
+    region: frankfurt
+    plan: free
+    schedule: "5 * * * *"  # Every hour at minute 5
+    buildCommand: echo "No build needed"
+    startCommand: |
+      curl -s --max-time 60 -X POST "$RENDER_EXTERNAL_URL/api/cron/cardcom-webhook-stuck" \
+        -H "Authorization: Bearer $CRON_SECRET"
+    envVars:
+      - key: RENDER_EXTERNAL_URL
+        fromService:
+          type: web
+          name: tipul-app
+          property: url
+      - key: CRON_SECRET
+        sync: false
+
   # Cardcom invoice sync — מסנכרן CardcomInvoice עם Cardcom (source of truth).
   # יומי 04:00 UTC. מטפל גם ADMIN וגם USER (per BillingProvider).
   - type: cron
