@@ -5,7 +5,11 @@ services:
     region: frankfurt
     plan: free
     buildCommand: npm install --include=dev && npx prisma generate && rm -rf .next node_modules/.cache && npm run build
-    startCommand: npx prisma db push --accept-data-loss && (npx prisma db execute --file=prisma/sql/session-time-constraint.sql --schema=prisma/schema.prisma || true) && npm start
+    # C2 (סבב אבטחה 14, 2026-05-19): הוסרה הדגל `--accept-data-loss` כדי שאם
+    # יתקיים schema drift Prisma יעצור עם שגיאה במקום למחוק עמודות PHI בשקט.
+    # מעבר מלא ל-`prisma migrate deploy` ידרוש baseline ידני (`migrate resolve
+    # --applied`) — לא בוצע בסבב הזה כדי לא לשבור deploy. ל-HANDOFF הבא.
+    startCommand: npx prisma db push && (npx prisma db execute --file=prisma/sql/session-time-constraint.sql --schema=prisma/schema.prisma || true) && npm start
     envVars:
       - key: NODE_ENV
         value: production
@@ -61,6 +65,44 @@ services:
         sync: false
       # RECEIPT_TOKEN_SECRET — סוד לחתימה על קישורי קבלה ציבוריים
       - key: RECEIPT_TOKEN_SECRET
+        sync: false
+      # --- Cardcom (תשלומים, סבב אבטחה 14 — H15) ---
+      # ADMIN tenant credentials (חיובי מנוי של mytipul). USER tenant נקבע ב-BillingProvider.
+      # שמות המשתנים נקבעים ב-`src/lib/cardcom/admin-config.ts:43-45`.
+      - key: CARDCOM_ADMIN_TERMINAL_NUMBER
+        sync: false
+      - key: CARDCOM_ADMIN_API_NAME
+        sync: false
+      - key: CARDCOM_ADMIN_API_PASSWORD
+        sync: false
+      # CARDCOM_ADMIN_WEBHOOK_SECRET — HMAC לאימות webhook signatures
+      # (`admin-config.ts:53-57`). חסר → `getAdminWebhookSecret()` זורק
+      # `CARDCOM_ADMIN_WEBHOOK_SECRET_MISSING` וה-webhook נדחה.
+      - key: CARDCOM_ADMIN_WEBHOOK_SECRET
+        sync: false
+      # Sandbox credentials (אופציונלי, ל-`admin_cardcom_mode='sandbox'`).
+      # ברירת מחדל נופלת לקונסטנט בקוד (`CARDCOM_SANDBOX_TERMINAL`/`API_NAME`).
+      - key: CARDCOM_SANDBOX_TERMINAL_NUMBER
+        sync: false
+      - key: CARDCOM_SANDBOX_API_NAME
+        sync: false
+      - key: CARDCOM_SANDBOX_API_PASSWORD
+        sync: false
+      # CARDCOM_WEBHOOK_IP_ALLOWLIST — IPs מותרים ל-webhooks של Cardcom (CSV).
+      # הגנה בפני webhook forgery — חיוני כי ה-webhook מקבל הוראת חיוב.
+      - key: CARDCOM_WEBHOOK_IP_ALLOWLIST
+        sync: false
+      # CARDCOM_REQUIRE_WEBHOOK_TIMESTAMP — "true" כדי לחייב timestamp ב-webhook
+      # (הגנה בפני replay attacks).
+      - key: CARDCOM_REQUIRE_WEBHOOK_TIMESTAMP
+        sync: false
+      # TRUSTED_PROXY_HOPS — מספר proxy hops מהימנים (XFF parsing).
+      # ברירת מחדל "1" (Render proxy יחיד). שינוי רק אם יש CF/CDN לפניו.
+      - key: TRUSTED_PROXY_HOPS
+        sync: false
+      # RECORDING_URL_SECRET — חתימת קישורי הקלטות (HMAC). מונע גישה לא
+      # מאומתת להקלטות PHI דרך URL ניחוש.
+      - key: RECORDING_URL_SECRET
         sync: false
   # Cron job for 24-hour session reminders (runs every hour)
   - type: cron
@@ -302,6 +344,201 @@ services:
       - key: CRON_SECRET
         sync: false
 
+  # ===========================================================================
+  # סבב אבטחה 14 — C4: 9 crons שהיו ב-codebase אבל לא הוגדרו ב-render.yaml.
+  # ===========================================================================
+
+  # Subscription recurring charge — חיוב חוזר אוטומטי של מנויים פעילים.
+  # יומי 09:15 ישראל = 06:15 UTC. הוסטה מ-06:00 ל-06:15 כדי לא להתנגש עם
+  # debt-reminders/trial-expiry שגם רצים ב-06:00 UTC (סוכן 14a, 2026-05-19).
+  # דילוג בשבת/חג מטופל בקוד (route). POST כי הפעולה state-changing (חיוב כספי).
+  - type: cron
+    name: subscription-recurring-charge
+    runtime: node
+    region: frankfurt
+    plan: free
+    schedule: "15 6 * * *"  # 06:15 UTC (09:15 Israel)
+    buildCommand: echo "No build needed"
+    startCommand: |
+      curl -s --max-time 60 -X POST "$RENDER_EXTERNAL_URL/api/cron/subscription-recurring-charge" \
+        -H "Authorization: Bearer $CRON_SECRET"
+    envVars:
+      - key: RENDER_EXTERNAL_URL
+        fromService:
+          type: web
+          name: tipul-app
+          property: url
+      - key: CRON_SECRET
+        sync: false
+
+  # Promote pending tiers — שדרוג tier ל-AI כש-pendingTierEffectiveAt הגיע.
+  # יומי 05:00 ישראל = 02:00 UTC.
+  - type: cron
+    name: promote-pending-tiers
+    runtime: node
+    region: frankfurt
+    plan: free
+    schedule: "0 2 * * *"  # 02:00 UTC (05:00 Israel)
+    buildCommand: echo "No build needed"
+    startCommand: |
+      curl -s --max-time 60 -X POST "$RENDER_EXTERNAL_URL/api/cron/promote-pending-tiers" \
+        -H "Authorization: Bearer $CRON_SECRET"
+    envVars:
+      - key: RENDER_EXTERNAL_URL
+        fromService:
+          type: web
+          name: tipul-app
+          property: url
+      - key: CRON_SECRET
+        sync: false
+
+  # Cardcom cleanup pending — מסמן CardcomTransactions שתקעו ב-PENDING > 24h
+  # כ-EXPIRED. יומי 03:00 UTC.
+  - type: cron
+    name: cardcom-cleanup-pending
+    runtime: node
+    region: frankfurt
+    plan: free
+    schedule: "0 3 * * *"  # 03:00 UTC
+    buildCommand: echo "No build needed"
+    startCommand: |
+      curl -s --max-time 120 -X POST "$RENDER_EXTERNAL_URL/api/cron/cardcom-cleanup-pending" \
+        -H "Authorization: Bearer $CRON_SECRET"
+    envVars:
+      - key: RENDER_EXTERNAL_URL
+        fromService:
+          type: web
+          name: tipul-app
+          property: url
+      - key: CRON_SECRET
+        sync: false
+
+  # Cardcom invoice sync — מסנכרן CardcomInvoice עם Cardcom (source of truth).
+  # יומי 04:00 UTC. מטפל גם ADMIN וגם USER (per BillingProvider).
+  - type: cron
+    name: cardcom-invoice-sync
+    runtime: node
+    region: frankfurt
+    plan: free
+    schedule: "0 4 * * *"  # 04:00 UTC
+    buildCommand: echo "No build needed"
+    startCommand: |
+      curl -s --max-time 300 -X POST "$RENDER_EXTERNAL_URL/api/cron/cardcom-invoice-sync" \
+        -H "Authorization: Bearer $CRON_SECRET"
+    envVars:
+      - key: RENDER_EXTERNAL_URL
+        fromService:
+          type: web
+          name: tipul-app
+          property: url
+      - key: CRON_SECRET
+        sync: false
+
+  # Cardcom PDF backup — מגבה PDFs של חשבוניות ל-disk מקומי.
+  # כל 10 דקות (לתפוס invoices חדשים מהר).
+  - type: cron
+    name: cardcom-pdf-backup
+    runtime: node
+    region: frankfurt
+    plan: free
+    schedule: "*/10 * * * *"  # Every 10 minutes
+    buildCommand: echo "No build needed"
+    startCommand: |
+      curl -s --max-time 120 -X POST "$RENDER_EXTERNAL_URL/api/cron/cardcom-pdf-backup" \
+        -H "Authorization: Bearer $CRON_SECRET"
+    envVars:
+      - key: RENDER_EXTERNAL_URL
+        fromService:
+          type: web
+          name: tipul-app
+          property: url
+      - key: CRON_SECRET
+        sync: false
+
+  # Cardcom PDF rehash — בודק SHA-256 של PDFs מגובים מול hash שמור (bit-rot detection).
+  # חודשי, 1 לחודש 03:00 UTC. נדרש לחוק החשבונאות (7 שנים readability).
+  - type: cron
+    name: cardcom-pdf-rehash
+    runtime: node
+    region: frankfurt
+    plan: free
+    schedule: "0 3 1 * *"  # 1st of month, 03:00 UTC
+    buildCommand: echo "No build needed"
+    startCommand: |
+      curl -s --max-time 600 -X POST "$RENDER_EXTERNAL_URL/api/cron/cardcom-pdf-rehash" \
+        -H "Authorization: Bearer $CRON_SECRET"
+    envVars:
+      - key: RENDER_EXTERNAL_URL
+        fromService:
+          type: web
+          name: tipul-app
+          property: url
+      - key: CRON_SECRET
+        sync: false
+
+  # Cleanup idempotency — מוחק מפתחות idempotency שפגו (Stage 1.18.2).
+  # יומי 04:00 ישראל = 01:00 UTC. GET.
+  - type: cron
+    name: cleanup-idempotency
+    runtime: node
+    region: frankfurt
+    plan: free
+    schedule: "0 1 * * *"  # 01:00 UTC (04:00 Israel)
+    buildCommand: echo "No build needed"
+    startCommand: |
+      curl -s --max-time 60 -X GET "$RENDER_EXTERNAL_URL/api/cron/cleanup-idempotency" \
+        -H "Authorization: Bearer $CRON_SECRET"
+    envVars:
+      - key: RENDER_EXTERNAL_URL
+        fromService:
+          type: web
+          name: tipul-app
+          property: url
+      - key: CRON_SECRET
+        sync: false
+
+  # Departure deadlines — בודק deadlines של מעבר תיק מקליניקה לקליניקה.
+  # יומי 10:00 ישראל = 07:00 UTC. GET (idempotent).
+  - type: cron
+    name: departure-deadlines
+    runtime: node
+    region: frankfurt
+    plan: free
+    schedule: "0 7 * * *"  # 07:00 UTC (10:00 Israel)
+    buildCommand: echo "No build needed"
+    startCommand: |
+      curl -s --max-time 120 -X GET "$RENDER_EXTERNAL_URL/api/cron/departure-deadlines" \
+        -H "Authorization: Bearer $CRON_SECRET"
+    envVars:
+      - key: RENDER_EXTERNAL_URL
+        fromService:
+          type: web
+          name: tipul-app
+          property: url
+      - key: CRON_SECRET
+        sync: false
+
+  # Fix stuck payments — מתקן Payments שסכומם הגיע ל-expectedAmount אבל
+  # markFullyPaid לא רץ. יומי 08:00 ישראל = 05:00 UTC. GET.
+  - type: cron
+    name: fix-stuck-payments
+    runtime: node
+    region: frankfurt
+    plan: free
+    schedule: "0 5 * * *"  # 05:00 UTC (08:00 Israel)
+    buildCommand: echo "No build needed"
+    startCommand: |
+      curl -s --max-time 120 -X GET "$RENDER_EXTERNAL_URL/api/cron/fix-stuck-payments" \
+        -H "Authorization: Bearer $CRON_SECRET"
+    envVars:
+      - key: RENDER_EXTERNAL_URL
+        fromService:
+          type: web
+          name: tipul-app
+          property: url
+      - key: CRON_SECRET
+        sync: false
+
   # M13.6 (סבב אבטחה 13) — Recording orphan cleanup.
   # מוחק הקלטות יתומות (clientId=null AND sessionId=null) שעברו 90 ימים.
   # כולל מחיקת audio file מ-disk + DB row. עקרון "צמצום מידע" (חוק הגנת
@@ -312,7 +549,7 @@ services:
     runtime: node
     region: frankfurt
     plan: free
-    schedule: "0 1 * * *"  # Every day at 01:00 UTC (04:00 Israel)
+    schedule: "30 1 * * *"  # 01:30 UTC (04:30 Israel). הוסט מ-01:00 ל-01:30 כדי לא להתנגש עם cleanup-idempotency (סוכן 14a, 2026-05-19).
     buildCommand: echo "No build needed"
     startCommand: |
       curl -s --max-time 300 -X GET "$RENDER_EXTERNAL_URL/api/cron/recording-orphan-cleanup" \

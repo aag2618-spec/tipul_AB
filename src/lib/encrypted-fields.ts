@@ -56,6 +56,13 @@ export const ENCRYPTED_FIELDS: Record<string, readonly string[]> = {
   // H4: TOTP secret (base32) של User. אם DB דולף, תוקף יכול ליצור קודים
   // תקפים ולעבור את ה-2FA. הצפנת AES-256-GCM הופכת את ה-leak לחסר ערך.
   user: ["twoFactorSecret"],
+  // C3 (סבב אבטחה 14, 2026-05-19): Cardcom recurring token. ה-token מאפשר
+  // חיוב חוזר של הלקוח ב-Cardcom — דליפת DB מאפשרת לתוקף לחייב סכומים
+  // נוספים. `tokenHash` (SHA-256 דטרמיניסטי, נפרד) משמש ל-uniqueness/lookup.
+  // אין משתמשים בייצור עדיין → אין צורך ב-backfill (records חדשים יהיו
+  // מוצפנים מההתחלה; ה-legacy backfill code שמחפש `tokenHash: null` יסונן
+  // החוצה אוטומטית כי records חדשים מקבלים hash מלא).
+  savedCardToken: ["token"],
 } as const;
 
 /**
