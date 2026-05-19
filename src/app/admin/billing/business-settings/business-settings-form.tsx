@@ -145,7 +145,7 @@ export function BusinessSettingsForm({ initialProfile }: Props) {
             type="email"
             value={profile.email}
             onChange={(e) => updateField("email", e.target.value)}
-            placeholder="info@mytipul.co.il"
+            placeholder="info@mytipul.com"
           />
         </div>
       </div>

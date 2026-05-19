@@ -19,7 +19,7 @@ import { logger } from "@/lib/logger";
 const SYSTEM_URL =
   process.env.NEXTAUTH_URL ||
   process.env.NEXT_PUBLIC_BASE_URL ||
-  "https://mytipul.co.il";
+  "https://mytipul.com";
 
 interface DunningRecipient {
   email: string;
@@ -47,7 +47,7 @@ function footer(): string {
   return `
     <hr style="border: none; border-top: 1px solid #e5e7eb; margin: 20px 0;" />
     <p style="color: #9ca3af; font-size: 12px; text-align: center;">
-      מייל אוטומטי מ-MyTipul. לפניות: support@mytipul.co.il
+      מייל אוטומטי מ-MyTipul. לפניות: support@mytipul.com
     </p>`;
 }
 
@@ -230,7 +230,7 @@ export async function sendAccountBlockedEmail(
             </div>
             <p style="color: #475569; font-size: 13px; line-height: 1.7;">
               לכל עזרה או שאלה — נשמח לעמוד לרשותכם:<br/>
-              <a href="mailto:support@mytipul.co.il" style="color: #4f46e5; text-decoration: none;">support@mytipul.co.il</a>
+              <a href="mailto:support@mytipul.com" style="color: #4f46e5; text-decoration: none;">support@mytipul.com</a>
             </p>
             ${footer()}
           </div>

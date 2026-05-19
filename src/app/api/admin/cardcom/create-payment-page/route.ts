@@ -65,7 +65,7 @@ export async function POST(request: NextRequest) {
   const documentType: CardcomDocumentType =
     businessProfile.type === "LICENSED" ? "TaxInvoiceAndReceipt" : "Receipt";
 
-  const baseUrl = process.env.NEXT_PUBLIC_BASE_URL ?? "https://mytipul.co.il";
+  const baseUrl = process.env.NEXT_PUBLIC_BASE_URL ?? "https://mytipul.com";
 
   try {
     // ⚠️ Cardcom HTTP call MUST happen OUTSIDE the withAudit transaction.

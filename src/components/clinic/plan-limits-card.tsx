@@ -156,10 +156,10 @@ export function PlanLimitsCard({ refreshKey = 0 }: PlanLimitsCardProps) {
           <p className="pt-2 text-xs text-muted-foreground">
             לשדרוג התוכנית או הוספת מקומות, ניתן לפנות לתמיכה ב-
             <a
-              href="mailto:support@mytipul.co.il"
+              href="mailto:support@mytipul.com"
               className="text-primary underline"
             >
-              support@mytipul.co.il
+              support@mytipul.com
             </a>
           </p>
         ) : null}

@@ -149,7 +149,7 @@ export async function POST(
   // ה-gateway חוסם בשבת/יו״ט ומפנה ל-Cardcom רק כשמותר. ל-LowProfileId
   // מאתרים את ה-CardcomTransaction לפי paymentPageUrl שנשמר ב-DB.
   // אם לא נמצא (legacy / data race) — נופלים חזרה ל-URL הישיר.
-  const baseUrl = process.env.NEXT_PUBLIC_BASE_URL ?? "https://mytipul.co.il";
+  const baseUrl = process.env.NEXT_PUBLIC_BASE_URL ?? "https://mytipul.com";
   const tx = await prisma.cardcomTransaction.findFirst({
     where: { paymentId, paymentPageUrl: body.paymentPageUrl },
     select: { lowProfileId: true },

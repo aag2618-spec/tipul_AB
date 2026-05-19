@@ -301,7 +301,7 @@ export async function POST(request: NextRequest) {
   const documentType: CardcomDocumentType =
     therapist?.businessType === "LICENSED" ? "TaxInvoiceAndReceipt" : "Receipt";
 
-  const baseUrl = process.env.NEXT_PUBLIC_BASE_URL ?? "https://mytipul.co.il";
+  const baseUrl = process.env.NEXT_PUBLIC_BASE_URL ?? "https://mytipul.com";
   // תיאור עבור Cardcom (יוצג ללקוח / קבלה).
   const cardcomDescription =
     body.description?.trim() ||

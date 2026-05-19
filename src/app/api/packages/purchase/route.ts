@@ -124,7 +124,7 @@ export async function POST(request: NextRequest) {
     const baseUrl =
       process.env.NEXT_PUBLIC_BASE_URL ??
       process.env.NEXTAUTH_URL ??
-      "https://mytipul.co.il";
+      "https://mytipul.com";
 
     let paymentPageResult;
     try {

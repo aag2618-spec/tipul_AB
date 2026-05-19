@@ -227,7 +227,7 @@ export async function POST(
   const documentType: CardcomDocumentType =
     therapist?.businessType === "LICENSED" ? "TaxInvoiceAndReceipt" : "Receipt";
 
-  const baseUrl = process.env.NEXT_PUBLIC_BASE_URL ?? "https://mytipul.co.il";
+  const baseUrl = process.env.NEXT_PUBLIC_BASE_URL ?? "https://mytipul.com";
 
   // Declared outside the try so the outer catch can read it for cleanup.
   let cardcomSucceeded = false;
