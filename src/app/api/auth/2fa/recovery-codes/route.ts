@@ -74,9 +74,15 @@ export async function POST(request: NextRequest) {
   const recoveryCodes = generateRecoveryCodes();
   const recoveryHashes = await hashRecoveryCodes(recoveryCodes);
 
+  // H6 (סבב אבטחה 14): bump sessionVersion — קודים חדשים = credential חדש,
+  // פסילת sessions ישנות מונעת שימוש ב-cookies גנובות שעדיין מחזיקות את
+  // המצב הקודם.
   await prisma.user.update({
     where: { id: userId },
-    data: { twoFactorRecoveryCodes: JSON.stringify(recoveryHashes) },
+    data: {
+      twoFactorRecoveryCodes: JSON.stringify(recoveryHashes),
+      sessionVersion: { increment: 1 },
+    },
   });
 
   logger.info("[2fa/recovery-codes] codes regenerated", {

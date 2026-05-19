@@ -85,6 +85,9 @@ export async function POST(
         },
       },
       async (tx) => {
+        // H6 (סבב אבטחה 14): bump sessionVersion רק כשחוסמים — JWTs קיימים
+        // של המשתמש החסום נדחים מיד בקריאה הבאה. בביטול חסימה אין צורך
+        // (אין token שצריך להיפסל).
         const result = await tx.user.update({
           where: { id },
           data: newBlockedState
@@ -93,6 +96,7 @@ export async function POST(
                 blockReason,
                 blockedAt: new Date(),
                 blockedBy: session.user.id,
+                sessionVersion: { increment: 1 },
               }
             : {
                 isBlocked: false,

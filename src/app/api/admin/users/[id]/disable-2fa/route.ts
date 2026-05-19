@@ -207,6 +207,9 @@ export async function POST(
             twoFactorMethod: null,
             twoFactorSecret: null,
             twoFactorRecoveryCodes: null,
+            // H6 (סבב אבטחה 14): bump sessionVersion — admin disable של 2FA
+            // הוא פעולה רגישה. tokens קיימים של המשתמש המקור נדחים.
+            sessionVersion: { increment: 1 },
           },
         });
       }

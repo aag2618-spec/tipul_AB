@@ -90,6 +90,22 @@ export async function middleware(request: NextRequest) {
     return NextResponse.redirect(loginUrl);
   }
 
+  // H6 (סבב אבטחה 14): sessionVersion gate. אם token.sessionStale=true
+  // (DB.sessionVersion > token.sv), המשתמש ביצע 2FA enable/disable או נחסם
+  // ע"י admin אחרי הנפקת ה-token. מאלצים login מחדש — מונע שימוש ב-cookies
+  // גנובות אחרי שינוי credentials/הרשאות.
+  if (token?.sessionStale === true) {
+    if (pathname.startsWith("/api/")) {
+      return NextResponse.json(
+        { message: "ההגדרות שלך שונו. נא להתחבר מחדש." },
+        { status: 401 }
+      );
+    }
+    const loginUrl = new URL("/login", request.url);
+    loginUrl.searchParams.set("error", "session_invalidated");
+    return NextResponse.redirect(loginUrl);
+  }
+
   // C9: absolute session lifetime gate. סשן ישן יותר מ-30 ימים נדחה
   // ומאלץ login מחדש. מונע "infinite session" — חיוני במערכת רפואית.
   if (token?.sessionExpired === true) {

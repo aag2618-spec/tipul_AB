@@ -95,6 +95,13 @@ model User {
   // אם token.iat < passwordChangedAt, ה-JWT callback מסמן את ה-token כ-stale
   // ומידלוור/requireAuth דוחים את הבקשה (302 ל-login).
   passwordChangedAt   DateTime?
+  // H6 (סבב אבטחה 14, 2026-05-19): session version — מספר שמוגדל ב-2FA
+  // enable/disable, password change, admin block. JWT שמור עם `token.sv`
+  // שווה לערך בעת login. ב-jwt callback משווים מול `user.sessionVersion`
+  // הנוכחי — אם שונה, המשתמש ביצע פעולה רגישה אחרי הנפקת ה-token וה-token
+  // נפסל (`sessionStale`). מונע שימוש ב-cookies גנובות אחרי שינוי credentials.
+  // legacy tokens (ללא `token.sv`) פטורים עד login הבא — תאימות אחורית.
+  sessionVersion      Int       @default(0)
   // H11: account lockout. failedLoginAttempts מתאפס על login מוצלח או כאשר
   // lockedUntil עבר. lockedUntil > now() חוסם — גם אם הסיסמה נכונה.
   failedLoginAttempts Int       @default(0)

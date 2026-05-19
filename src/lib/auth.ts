@@ -23,6 +23,9 @@ interface JwtUserData {
   subscriptionEndsAt: Date | null;
   trialEndsAt: Date | null;
   passwordChangedAt: Date | null;
+  // H6 (סבב אבטחה 14): מונה bump'ים שהוגדל ב-2FA enable/disable או admin block.
+  // ה-jwt callback משווה ל-token.sv ומסמן sessionStale אם גדול.
+  sessionVersion: number;
 }
 const jwtUserCache = new Map<string, { data: JwtUserData; timestamp: number }>();
 
@@ -223,6 +226,11 @@ export const authOptions: NextAuthOptions = {
           role: user.role,
           requires2FA: needs2FA,
           loginAt: Date.now(),
+          // H6 (סבב אבטחה 14): שומרים את sessionVersion ברגע ה-login.
+          // כל פעולה רגישה (2FA enable/disable, password change, admin block)
+          // מגדילה את user.sessionVersion. ה-jwt callback ישווה ויסמן את
+          // ה-token כ-stale אם המשתמש ביצע פעולה כזו אחרי שה-token הונפק.
+          sessionVersion: user.sessionVersion ?? 0,
         };
       },
     }),
@@ -402,12 +410,17 @@ export const authOptions: NextAuthOptions = {
         token.role = user.role;
         // העברת flag של 2FA אל token. אם המשתמש דורש 2FA, ה-middleware
         // ימנע ממנו גישה ל-dashboard עד שיאמת קוד ב-/auth/2fa-verify.
-        const u = user as { requires2FA?: boolean; loginAt?: number };
+        const u = user as { requires2FA?: boolean; loginAt?: number; sessionVersion?: number };
         if (u.requires2FA) {
           token.requires2FA = true;
         }
         if (typeof u.loginAt === "number") {
           token.loginAt = u.loginAt;
+        }
+        // H6 (סבב אבטחה 14): שמירת sessionVersion ברגע ה-login. ערך זה לא
+        // משתנה לאורך חיי ה-token — רק bump ב-DB גורם להפרשה ב-callback למטה.
+        if (typeof u.sessionVersion === "number") {
+          token.sv = u.sessionVersion;
         }
 
         // OAuth (Google): authorize לא רץ → flags לא הוגדרו על user.
@@ -416,12 +429,14 @@ export const authOptions: NextAuthOptions = {
         if (account?.provider === "google" && !u.requires2FA && typeof u.loginAt !== "number") {
           const dbUser = await prisma.user.findUnique({
             where: { id: user.id },
-            select: { role: true, twoFactorEnabled: true, lastActivityAt: true },
+            select: { role: true, twoFactorEnabled: true, lastActivityAt: true, sessionVersion: true },
           });
           if (dbUser && requires2FA(dbUser)) {
             token.requires2FA = true;
           }
           token.loginAt = Date.now();
+          // H6: גם ל-OAuth שומרים sessionVersion ברגע ה-login.
+          token.sv = dbUser?.sessionVersion ?? 0;
         }
       }
 
@@ -569,6 +584,7 @@ export const authOptions: NextAuthOptions = {
               subscriptionEndsAt: true,
               trialEndsAt: true,
               passwordChangedAt: true,
+              sessionVersion: true,
             },
           });
           if (dbUser) {
@@ -591,6 +607,21 @@ export const authOptions: NextAuthOptions = {
           } else if (token.passwordStale) {
             // refresh — token חדש (iat עודכן) אחרי שינוי הסיסמה: נקה את הflag
             delete token.passwordStale;
+          }
+
+          // H6 (סבב אבטחה 14): השוואת sessionVersion. אם המשתמש ביצע פעולה
+          // רגישה (2FA enable/disable, admin block) אחרי שה-token הונפק,
+          // ה-DB sessionVersion יהיה גדול מ-token.sv. מסמנים sessionStale,
+          // requireAuth/middleware ידחו את הבקשה. legacy tokens (sv undefined)
+          // מקבלים פטור עד login הבא — תאימות אחורית.
+          if (
+            typeof token.sv === "number" &&
+            dbUser.sessionVersion > token.sv
+          ) {
+            token.sessionStale = true;
+          } else if (token.sessionStale) {
+            // המקרה היחיד שזה מתאפס: token חדש (login מחדש) שמביא sv עדכני.
+            delete token.sessionStale;
           }
 
           token.role = dbUser.role;
@@ -666,6 +697,7 @@ export const authOptions: NextAuthOptions = {
         session.user.clinicRole = (token.clinicRole as "OWNER" | "THERAPIST" | "SECRETARY" | null | undefined) ?? null;
         session.user.requires2FA = token.requires2FA === true;
         session.user.passwordStale = token.passwordStale === true;
+        session.user.sessionStale = token.sessionStale === true;
         session.user.sessionExpired = token.sessionExpired === true;
 
         // Impersonation: בעת ש-OWNER מתחזה ל-target, ה"זהות אפקטיבית"
@@ -691,6 +723,7 @@ declare module "next-auth" {
     role?: "USER" | "MANAGER" | "ADMIN" | "CLINIC_OWNER" | "CLINIC_SECRETARY";
     requires2FA?: boolean;
     loginAt?: number;
+    sessionVersion?: number; // H6 (סבב 14): נשמר ב-token.sv בעת login
   }
 
   interface Session {
@@ -703,6 +736,7 @@ declare module "next-auth" {
       clinicRole: "OWNER" | "THERAPIST" | "SECRETARY" | null;
       requires2FA?: boolean;
       passwordStale?: boolean; // C7: token הונפק לפני שינוי סיסמה
+      sessionStale?: boolean; // H6 (סבב 14): bump של sessionVersion (2FA/admin block) → token פסול
       sessionExpired?: boolean; // C9: סשן חצה max-lifetime של 30 ימים
       // Impersonation: כש-OWNER מתחזה ל-target, ה-id/role/name מוחלפים לאלו
       // של ה-target (למניעת לחזור ולשכפל data scope), ו-originalUserId שומר
@@ -727,6 +761,12 @@ declare module "next-auth/jwt" {
     // C7: token הונפק לפני שינוי סיסמה — אסור להשתמש בו.
     // middleware/requireAuth דוחים בקשות עם passwordStale=true.
     passwordStale?: boolean;
+    // H6 (סבב 14): sessionVersion שנשמר בעת login. השוואה ל-user.sessionVersion
+    // הנוכחי ב-jwt callback קובעת אם ה-token התיישן (sessionStale).
+    sv?: number;
+    // H6: ה-DB עבר bump של sessionVersion (2FA enable/disable, admin block)
+    // אחרי שה-token הונפק. middleware/requireAuth דוחים.
+    sessionStale?: boolean;
     // C9: session חצה את ה-absolute max lifetime (30 ימים).
     // middleware/requireAuth דוחים ומאלצים login מחדש.
     sessionExpired?: boolean;

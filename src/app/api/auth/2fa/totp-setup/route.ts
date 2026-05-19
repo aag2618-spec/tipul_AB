@@ -117,6 +117,7 @@ export async function PATCH(request: NextRequest) {
 
   // שמירה — ה-secret מוצפן אוטומטית דרך ENCRYPTED_FIELDS.user.twoFactorSecret
   // (ראה src/lib/encrypted-fields.ts).
+  // H6 (סבב אבטחה 14): bump sessionVersion → JWTs ישנים נדחים בקריאה הבאה.
   await prisma.user.update({
     where: { id: userId },
     data: {
@@ -124,6 +125,7 @@ export async function PATCH(request: NextRequest) {
       twoFactorMethod: "TOTP",
       twoFactorSecret: secret,
       twoFactorRecoveryCodes: JSON.stringify(recoveryHashes),
+      sessionVersion: { increment: 1 },
     },
   });
 
@@ -177,6 +179,7 @@ export async function DELETE(request: NextRequest) {
     );
   }
 
+  // H6 (סבב אבטחה 14): bump sessionVersion → JWTs ישנים נדחים בקריאה הבאה.
   await prisma.user.update({
     where: { id: userId },
     data: {
@@ -185,6 +188,7 @@ export async function DELETE(request: NextRequest) {
       // H18: מנקים גם את קודי השחזור — לא רלוונטיים ל-OTP במייל.
       twoFactorRecoveryCodes: null,
       // twoFactorEnabled נשאר true — המשתמש עדיין רוצה 2FA, חוזר ל-OTP-email.
+      sessionVersion: { increment: 1 },
     },
   });
   invalidateJwtCache(userId);

@@ -63,6 +63,10 @@ export const ENCRYPTED_FIELDS: Record<string, readonly string[]> = {
   // מוצפנים מההתחלה; ה-legacy backfill code שמחפש `tokenHash: null` יסונן
   // החוצה אוטומטית כי records חדשים מקבלים hash מלא).
   savedCardToken: ["token"],
+  // H13 (סבב אבטחה 14, 2026-05-19): aiAnalysis של QuestionnaireResponse —
+  // ניתוח AI על תשובות הלקוח לשאלון (PHI קליני רגיש). הוא String @db.Text,
+  // לא Json, ולכן הולך כאן ולא ב-ENCRYPTED_JSON_FIELDS.
+  questionnaireResponse: ["aiAnalysis"],
 } as const;
 
 /**
@@ -87,6 +91,13 @@ export const ENCRYPTED_JSON_FIELDS: Record<string, readonly string[]> = {
   client: ["medicalHistory"],
   sessionNote: ["aiAnalysis"],
   analysis: ["keyTopics", "emotionalMarkers", "recommendations"],
+  // H13 (סבב אבטחה 14, 2026-05-19): answers של שאלוני הערכה (התשובות הקליניות
+  // עצמן של הלקוח). dual-read: `maybeDecryptJson` (line 167-186) מטפל ב-legacy
+  // plaintext אוטומטית — records ישנים ממשיכים לעבוד.
+  questionnaireResponse: ["answers"],
+  // H13: responses של intake (שאלון קבלה קליני). מכיל מידע אישי, רקע, וכל
+  // מה שהמטופל ענה ב-onboarding. dual-read.
+  intakeResponse: ["responses"],
 } as const;
 
 const JSON_ENC_MARKER = "__enc__";

@@ -91,18 +91,30 @@ audit-log-retention, recording-orphan-cleanup.
   - **בונוס:** `cron-auth.ts` rate-limit key הועבר מ-`cron:${ip}` ל-`cron:${pathname}` — מונע חסימת כל ה-crons ב-XX:00 UTC (כל ה-crons משתפים את ה-IP של Render edge).
   - **Status:** `done` (יש שארית אחת ב-`impersonate/start:148` ב-audit logging — לא קריטי, → round 15)
 
-### 🔴 14c — Sessions + Encryption (TDD נדרש)
+### 🔴 14c — Sessions + Encryption
 
-- [ ] **H6** — `sessionVersion` לבטל sessions ישנים
-  - **Why:** כיום הפעלת 2FA / החלפת password / חסימה של משתמש לא מבטלת JWTs קיימים שנשלחו מ-cookies של עוגיות עתיקות. תוקף שגנב cookie ימשיך להיות מחובר.
-  - **קבצים:** `prisma/schema.prisma`, migration חדש, `src/lib/auth.ts`, `src/app/api/auth/2fa/enable/route.ts`, `2fa/disable`, `change-password`, `admin/users/[id]/block`
-  - **Status:** `pending`
+- [x] **H6** — `sessionVersion` לבטל sessions ישנים
+  - **Why:** הפעלת 2FA / החלפת password / חסימת משתמש לא ביטלה JWTs קיימים. תוקף שגנב cookie היה ממשיך להיות מחובר.
+  - **תיקון:** הוסף `User.sessionVersion Int @default(0)` + migration. `token.sv` נשמר בלוגין (גם Google OAuth). ה-`jwt callback` משווה `dbUser.sessionVersion > token.sv` → `sessionStale=true`. `api-auth.ts` + `middleware.ts` דוחים 401 + redirect ל-login.
+  - **bump endpoints:**
+    - `src/app/api/auth/2fa/totp-setup/route.ts` (POST + DELETE)
+    - `src/app/api/auth/2fa/recovery-codes/route.ts` (regenerate)
+    - `src/app/api/admin/users/[id]/disable-2fa/route.ts`
+    - `src/app/api/admin/users/[id]/toggle-block/route.ts` (רק בחסימה)
+  - **לא bumpים:** reset-password (passwordChangedAt + passwordStale כבר מטפלים), cron auto-block (false-positive friendly).
+  - **קבצים:** `prisma/schema.prisma`, `prisma/migrations/20260519_add_user_session_version/migration.sql`, `src/lib/auth.ts`, `src/lib/api-auth.ts`, `src/middleware.ts`, 4 endpoints.
+  - **Status:** `done`
 
-- [ ] **H13** — encryption של `QuestionnaireResponse.answers` + `IntakeResponse.responses`
-  - **Why:** מידע קליני רגיש (תשובות שאלון, intake) נשמר plaintext.
-  - **קבצים:** `src/lib/encrypted-fields.ts:79-83` (ENCRYPTED_JSON_FIELDS)
-  - **Note:** dual-read של maybeDecryptJson כבר מטפל ב-legacy plaintext (line 173-175)
-  - **Status:** `pending`
+- [x] **H13** — encryption של `QuestionnaireResponse` + `IntakeResponse`
+  - **Why:** מידע קליני רגיש (תשובות שאלון, intake, ניתוח AI) נשמר plaintext.
+  - **תיקון:**
+    - `ENCRYPTED_FIELDS.questionnaireResponse = ["aiAnalysis"]` (String)
+    - `ENCRYPTED_JSON_FIELDS.questionnaireResponse = ["answers"]` (Json)
+    - `ENCRYPTED_JSON_FIELDS.intakeResponse = ["responses"]` (Json)
+  - dual-read של `maybeDecryptJson` (line 167-186) מטפל ב-legacy plaintext אוטומטית.
+  - אין WHERE contains על השדות האלה (אומת ב-grep).
+  - **קבצים:** `src/lib/encrypted-fields.ts`
+  - **Status:** `done`
 
 ---
 

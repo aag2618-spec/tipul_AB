@@ -47,6 +47,16 @@ export async function requireAuth(opts?: { disallowImpersonation?: boolean }) {
       ),
     };
   }
+  // H6 (סבב אבטחה 14): sessionVersion bump (2FA enable/disable, admin block) →
+  // jwt callback סימן sessionStale. defense-in-depth כמו passwordStale.
+  if (session.user.sessionStale) {
+    return {
+      error: NextResponse.json(
+        { message: "ההגדרות שלך שונו. נא להתחבר מחדש." },
+        { status: 401 }
+      ),
+    };
+  }
   // C9: defense-in-depth — סשן חצה max-lifetime.
   if (session.user.sessionExpired) {
     return {
