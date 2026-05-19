@@ -5,6 +5,7 @@ import { checkRateLimit, AUTH_RATE_LIMIT, rateLimitResponse } from "@/lib/rate-l
 import { logger } from "@/lib/logger";
 import { parseBodyWithErrorField } from "@/lib/validations/helpers";
 import { verifyEmailSchema } from "@/lib/validations/auth";
+import { getClientIp } from "@/lib/get-client-ip";
 
 export const dynamic = "force-dynamic";
 
@@ -19,7 +20,8 @@ function hashToken(token: string): string {
 // מקבל token מה-Client Component של verify-email/page.tsx שקרא אותו מ-#token=...
 export async function POST(request: NextRequest) {
   try {
-    const ip = request.headers.get("x-forwarded-for") || request.headers.get("x-real-ip") || "unknown";
+    // H10 (סבב אבטחה 14): rightmost XFF.
+    const ip = getClientIp(request);
     const rateLimitResult = checkRateLimit(`verify-email:${ip}`, AUTH_RATE_LIMIT);
     if (!rateLimitResult.allowed) {
       return rateLimitResponse(rateLimitResult);

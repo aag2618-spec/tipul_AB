@@ -3,6 +3,7 @@ import prisma from "@/lib/prisma";
 import { requires2FA } from "@/lib/two-factor";
 import { checkRateLimit, AUTH_RATE_LIMIT } from "@/lib/rate-limit";
 import { twoFactorCheckRequiredSchema } from "@/lib/validations/auth";
+import { getClientIp } from "@/lib/get-client-ip";
 
 export const dynamic = "force-dynamic";
 
@@ -29,8 +30,8 @@ export async function POST(req: NextRequest) {
   );
 
   try {
-    const ipHeader = req.headers.get("x-forwarded-for") || req.headers.get("x-real-ip") || "";
-    const ip = ipHeader.split(",")[0]?.trim() || "unknown";
+    // H10 (סבב אבטחה 14): rightmost XFF.
+    const ip = getClientIp(req);
     const rl = checkRateLimit(`2fa:check:${ip}`, AUTH_RATE_LIMIT);
     if (!rl.allowed) {
       await timingMask;

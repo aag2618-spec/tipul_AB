@@ -9,6 +9,7 @@ import {
 } from "@/lib/rate-limit";
 import { logger } from "@/lib/logger";
 import { invalidateJwtCache } from "@/lib/auth";
+import { getClientIp } from "@/lib/get-client-ip";
 
 // POST - Reset password for a user (requires ADMIN_SECRET via x-admin-key header)
 // Stage 1.19 — security hardening: timingSafe compare, stricter rate limit,
@@ -26,11 +27,9 @@ function safeCompare(a: string, b: string): boolean {
   return timingSafeEqual(aBuf, bBuf);
 }
 
-function getClientIp(request: NextRequest): string {
-  const xff = request.headers.get("x-forwarded-for");
-  if (xff) return xff.split(",")[0]?.trim() || "unknown";
-  return request.headers.get("x-real-ip") || "unknown";
-}
+// H10 (סבב אבטחה 14): הוסר getClientIp local שלקח leftmost XFF —
+// תוקף יכול לזייף XFF ולעקוף rate-limit (3/שעה) ב-endpoint רגיש (ADMIN_SECRET).
+// משתמש כעת ב-`@/lib/get-client-ip` (rightmost).
 
 export async function POST(request: NextRequest) {
   const ip = getClientIp(request);

@@ -21,6 +21,7 @@ import { NextRequest, NextResponse } from "next/server";
 import prisma from "@/lib/prisma";
 import { logger } from "@/lib/logger";
 import { checkRateLimit, CRON_RATE_LIMIT } from "@/lib/rate-limit";
+import { getClientIp } from "@/lib/get-client-ip";
 
 // M10.6: AdminAlert ייווצר כש-CRON_SECRET_PREVIOUS נמצא בשימוש — מסמן rotation
 // שלא הסתיים. dedupe לפי title, fire-and-forget. cache קצר בזיכרון מונע
@@ -120,14 +121,17 @@ export async function checkCronAuth(
     }
   }
 
-  // ─ שלב 2: Rate limit per-IP ─
-  // x-forwarded-for נשלח על ידי Render proxy. fallback: x-real-ip / remote.
-  const ip =
-    req.headers.get("x-forwarded-for")?.split(",")[0]?.trim() ||
-    req.headers.get("x-real-ip") ||
-    "unknown";
-
-  const rateCheck = checkRateLimit(`cron:${ip}`, CRON_RATE_LIMIT);
+  // ─ שלב 2: Rate limit per-cron-pathname ─
+  // H10 (סבב אבטחה 14, 2026-05-19) — Bug fix מסוכן 14b:
+  // הקוד המקורי השתמש ב-leftmost XFF (`split(",")[0]`), שניתן לזייף.
+  // ניסיון ראשון: rightmost דרך getClientIp(req). אבל זה גורם לכל ה-cron
+  // jobs (שכולם רצים מ-Render edge עם אותו IP) לחלוק אותו key →
+  // 10/min global limit על כל ה-crons → חסימה בשעות עמוסות (XX:00 UTC).
+  // הפתרון: key לפי pathname. ה-CRON_SECRET כבר אומת ב-שלב 1 לכן rate-limit
+  // הוא רק defense-in-depth, ופיצול לפי endpoint לוגי הרבה יותר.
+  const ip = getClientIp(req);
+  const pathname = req.nextUrl.pathname;
+  const rateCheck = checkRateLimit(`cron:${pathname}`, CRON_RATE_LIMIT);
   if (!rateCheck.allowed) {
     logger.warn("[cron-auth] rate limit exceeded", { ip });
     return NextResponse.json(

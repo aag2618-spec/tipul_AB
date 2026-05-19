@@ -4,6 +4,8 @@ import { sendEmail } from "@/lib/resend";
 import { sendSMSIfEnabled } from "@/lib/sms";
 import { logger } from "@/lib/logger";
 import { BOOKING_RATE_LIMIT_WINDOW_MS, BOOKING_RATE_LIMIT_MAX } from "@/lib/constants";
+import { checkRateLimit as checkIpRateLimit, BOOKING_GET_RATE_LIMIT, rateLimitResponse } from "@/lib/rate-limit";
+import { getClientIp } from "@/lib/get-client-ip";
 import { syncSessionToGoogleCalendar } from "@/lib/google-calendar-sync";
 import { isShabbatOrYomTov } from "@/lib/shabbat";
 import { bookingPostSchema } from "@/lib/validations/booking";
@@ -138,6 +140,15 @@ export async function GET(
   request: NextRequest,
   { params }: { params: Promise<{ slug: string }> }
 ) {
+  // H9 (סבב אבטחה 14, 2026-05-19): rate-limit per-IP על GET ציבורי.
+  // ה-route חושף שעות עבודה + slot availability של מטפלים — מונע recon
+  // ו-slug enumeration ע"י תוקף שיודע/מנחש slugs.
+  const ip = getClientIp(request);
+  const rl = checkIpRateLimit(`booking-get:${ip}`, BOOKING_GET_RATE_LIMIT);
+  if (!rl.allowed) {
+    return rateLimitResponse(rl);
+  }
+
   const { slug } = await params;
   const { searchParams } = new URL(request.url);
   const dateStr = searchParams.get("date");
@@ -263,9 +274,9 @@ export async function POST(
     );
   }
 
-  const ip = request.headers.get("x-forwarded-for")?.split(",")[0]?.trim()
-    || request.headers.get("x-real-ip")
-    || "unknown";
+  // H10 (סבב אבטחה 14, 2026-05-19): rightmost XFF דרך getClientIp.
+  // הקוד הקודם לקח leftmost — תוקף יכל לזייף XFF שונה בכל בקשה ולעקוף rate-limit.
+  const ip = getClientIp(request);
   if (!checkRateLimit(ip)) {
     return NextResponse.json(
       { message: "יותר מדי בקשות. נסה שוב בעוד דקה." },

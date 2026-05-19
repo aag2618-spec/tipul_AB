@@ -14,6 +14,7 @@ import {
 import { createVerificationEmailHtml } from "@/lib/email-templates";
 import { parseBody } from "@/lib/validations/helpers";
 import { resendVerificationSchema } from "@/lib/validations/auth";
+import { getClientIp } from "@/lib/get-client-ip";
 
 export const dynamic = "force-dynamic";
 
@@ -31,10 +32,8 @@ export async function POST(request: NextRequest) {
       });
     }
 
-    const ip =
-      request.headers.get("x-forwarded-for") ||
-      request.headers.get("x-real-ip") ||
-      "unknown";
+    // H10 (סבב אבטחה 14): rightmost XFF.
+    const ip = getClientIp(request);
     const ipRateLimit = checkRateLimit(
       `resend-verification:ip:${ip}`,
       RESEND_VERIFICATION_RATE_LIMIT

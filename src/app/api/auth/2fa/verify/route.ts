@@ -12,6 +12,7 @@ import { logger } from "@/lib/logger";
 import { logAdminAction } from "@/lib/audit";
 import { parseBodyWithErrorField } from "@/lib/validations/helpers";
 import { twoFactorVerifySchema } from "@/lib/validations/auth";
+import { getClientIp } from "@/lib/get-client-ip";
 
 export const dynamic = "force-dynamic";
 
@@ -26,8 +27,9 @@ export async function POST(req: NextRequest) {
     // Rate limit כפול: email + IP. מונע גם brute-force ממוקד (לפי email),
     // וגם distributed brute-force (לפי IP).
     const emailLower = email; // trim+lowercase מ-zod
-    const ipHeader = req.headers.get("x-forwarded-for") || req.headers.get("x-real-ip") || "";
-    const ip = ipHeader.split(",")[0]?.trim() || "unknown";
+    // H10 (סבב אבטחה 14): rightmost XFF דרך getClientIp — מונע מתוקף
+    // לזייף leftmost ולעקוף brute-force protection ע"י rotation של IPs מזויפים.
+    const ip = getClientIp(req);
     const emailRl = checkRateLimit(`2fa:verify:email:${emailLower}`, LOGIN_EMAIL_RATE_LIMIT);
     const ipRl = checkRateLimit(`2fa:verify:ip:${ip}`, AUTH_RATE_LIMIT);
     if (!emailRl.allowed || !ipRl.allowed) {

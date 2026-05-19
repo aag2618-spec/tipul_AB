@@ -5,6 +5,7 @@ import { checkRateLimit, AUTH_RATE_LIMIT } from "@/lib/rate-limit";
 import { logger } from "@/lib/logger";
 import { parseBodyWithErrorField } from "@/lib/validations/helpers";
 import { twoFactorSendSchema } from "@/lib/validations/auth";
+import { getClientIp } from "@/lib/get-client-ip";
 
 export const dynamic = "force-dynamic";
 
@@ -18,8 +19,8 @@ export async function POST(req: NextRequest) {
     // Rate limit כפול: לפי IP (מונע ספאם רחב) ולפי email (מונע ספאם ממוקד).
     // הגבלת email נוקשה יותר — 3 בקשות לכל 15 דקות — מונע flooding של inbox/SMS
     // של משתמש לגיטימי + מונע burning של credit ל-SMS.
-    const ipHeader = req.headers.get("x-forwarded-for") || req.headers.get("x-real-ip") || "";
-    const ip = ipHeader.split(",")[0]?.trim() || "unknown";
+    // H10 (סבב אבטחה 14): rightmost XFF — לא leftmost שניתן לזייף.
+    const ip = getClientIp(req);
     const emailLower = email; // כבר trim+lowercase מ-zod
     const ipResult = checkRateLimit(`2fa:send:ip:${ip}`, AUTH_RATE_LIMIT);
     const emailResult = checkRateLimit(`2fa:send:email:${emailLower}`, {

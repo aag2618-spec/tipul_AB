@@ -8,12 +8,14 @@ import { logger } from "@/lib/logger";
 import { FORGOT_PASSWORD_RATE_LIMIT } from "@/lib/constants";
 import { parseBodyWithErrorField } from "@/lib/validations/helpers";
 import { forgotPasswordSchema } from "@/lib/validations/auth";
+import { getClientIp } from "@/lib/get-client-ip";
 
 export const dynamic = "force-dynamic";
 
 export async function POST(request: NextRequest) {
   try {
-    const ip = request.headers.get("x-forwarded-for") || request.headers.get("x-real-ip") || "unknown";
+    // H10 (סבב אבטחה 14): rightmost XFF — לא leftmost שניתן לזייף.
+    const ip = getClientIp(request);
     const rateLimitResult = checkRateLimit(`forgot-password:${ip}`, FORGOT_PASSWORD_RATE_LIMIT);
     if (!rateLimitResult.allowed) {
       return rateLimitResponse(rateLimitResult);

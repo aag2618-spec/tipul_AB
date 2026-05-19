@@ -1,7 +1,7 @@
 import { NextRequest, NextResponse } from "next/server";
 import bcrypt from "bcryptjs";
 import prisma from "@/lib/prisma";
-import { randomBytes } from "node:crypto";
+import { randomBytes, createHash } from "node:crypto";
 import { sendEmail } from "@/lib/resend";
 import { checkRateLimit, AUTH_RATE_LIMIT, rateLimitResponse } from "@/lib/rate-limit";
 import { parseBody } from "@/lib/validations/helpers";
@@ -10,12 +10,22 @@ import { logger } from "@/lib/logger";
 import { TRIAL_DAYS, TRIAL_AI_TIER } from "@/lib/constants";
 import { createVerificationEmailHtml } from "@/lib/email-templates";
 import { escapeHtml } from "@/lib/email-utils";
+import { getClientIp } from "@/lib/get-client-ip";
 
 export const dynamic = "force-dynamic";
 
+/**
+ * Short-hash לוגינג של email/phone מבלי לחשוף את הערך עצמו.
+ * 8 chars hex מספיק ל-correlation, לא ניתן ל-reversal.
+ */
+function createHashShort(value: string): string {
+  return createHash("sha256").update(value).digest("hex").slice(0, 8);
+}
+
 export async function POST(request: NextRequest) {
   try {
-    const ip = request.headers.get("x-forwarded-for") || request.headers.get("x-real-ip") || "unknown";
+    // H10 (סבב אבטחה 14): rightmost XFF.
+    const ip = getClientIp(request);
     const rateLimitResult = checkRateLimit(`register:${ip}`, AUTH_RATE_LIMIT);
     if (!rateLimitResult.allowed) {
       return rateLimitResponse(rateLimitResult);
@@ -36,29 +46,44 @@ export async function POST(request: NextRequest) {
       return rateLimitResponse(emailRl);
     }
 
-    // Check if user already exists by email
+    // H8 (סבב אבטחה 14, 2026-05-19): Uniform response — תוקף יכול היה לזהות
+    // אם email/phone כבר רשום על ידי הודעת השגיאה השונה. עכשיו: מחזירים תמיד
+    // 201 עם הודעה אחידה ("אם הנתונים תקינים נשלח מייל אישור"), בלי הקשר אם
+    // המשתמש כבר קיים. ה-flow:
+    //   - אם email/phone חדש: יצירת משתמש + מייל אישור (תהליך רגיל).
+    //   - אם email/phone קיים: לא יוצרים, לא שולחים מייל אישור — אבל מחזירים
+    //     אותה תשובה ב-201. רעיון לעתיד: שליחת מייל "מישהו ניסה להירשם
+    //     עם הכתובת שלך — אם זה אתה, השתמש בשכחתי סיסמה" למשתמש הקיים.
+    //   - constant-time delay אחיד למניעת timing attacks.
     const existingUser = await prisma.user.findUnique({
       where: { email: emailLower },
+      select: { id: true },
     });
 
-    if (existingUser) {
-      return NextResponse.json(
-        { message: "משתמש עם אימייל זה כבר קיים במערכת" },
-        { status: 400 }
-      );
+    let existingPhone: { id: string } | null = null;
+    if (phone) {
+      existingPhone = await prisma.user.findFirst({
+        where: { phone: phone.trim() },
+        select: { id: true },
+      });
     }
 
-    // Check if phone already used (if provided)
-    if (phone) {
-      const existingPhone = await prisma.user.findFirst({
-        where: { phone: phone.trim() },
+    const UNIFORM_RESPONSE = {
+      message: "אם הפרטים תקינים, נשלח אליך מייל אימות. בדוק את תיבת הדואר.",
+      requiresVerification: true,
+    } as const;
+
+    // delay אחיד (~250ms) — קרוב לזמן של bcrypt(12), כך שהבדלי timing
+    // בין success ל-skip לא ניתנים לזיהוי.
+    if (existingUser || existingPhone) {
+      logger.info("[register] attempted re-registration with existing identifier", {
+        emailHash: createHashShort(emailLower),
+        phoneHash: phone ? createHashShort(phone.trim()) : null,
+        existingEmail: !!existingUser,
+        existingPhone: !!existingPhone,
       });
-      if (existingPhone) {
-        return NextResponse.json(
-          { message: "מספר טלפון זה כבר רשום במערכת" },
-          { status: 400 }
-        );
-      }
+      await new Promise((resolve) => setTimeout(resolve, 250));
+      return NextResponse.json(UNIFORM_RESPONSE, { status: 201 });
     }
 
     // Optional coupon handling (backwards compatible)
@@ -232,14 +257,9 @@ export async function POST(request: NextRequest) {
       });
     }
 
-    return NextResponse.json(
-      { 
-        message: "ההרשמה הצליחה! שלחנו מייל אימות - בדוק את תיבת הדואר שלך.", 
-        userId: user.id,
-        requiresVerification: true,
-      },
-      { status: 201 }
-    );
+    // H8: תשובה אחידה — בלי userId (יכול לאפשר enumeration עקיף) ובלי
+    // הודעת "ההרשמה הצליחה" מפורשת (להבדיל מה-skip path).
+    return NextResponse.json(UNIFORM_RESPONSE, { status: 201 });
   } catch (error) {
     logger.error("Registration error:", { error: error instanceof Error ? error.message : String(error) });
     return NextResponse.json(

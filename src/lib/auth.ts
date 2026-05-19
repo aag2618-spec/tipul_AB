@@ -96,11 +96,21 @@ export const authOptions: NextAuthOptions = {
         // לפי IP — מונע brute force פשוט מ-IP בודד.
         // לפי email — מונע distributed brute force (תוקף עם בוטנט של 100 IPs).
         // ה-counters מתאפסים אחרי login מוצלח (resetRateLimit למטה) כדי למנוע DoS על משתמש לגיטימי.
+        // H10 (סבב אבטחה 14, 2026-05-19): rightmost X-Forwarded-For. הלוגיקה
+        // הקודמת לקחה את ה-leftmost (`split(",")[0]`) — IP שתוקף יכול לזייף
+        // (`X-Forwarded-For: 1.2.3.4, real_ip` → "1.2.3.4" שנשלט ע"י התוקף).
+        // ה-rightmost הוא ה-IP ש-Render proxy ראה בפועל. consistent עם
+        // `src/lib/get-client-ip.ts:22-32`.
         const headers = req?.headers as Record<string, string | string[] | undefined> | undefined;
         const xff = headers?.["x-forwarded-for"];
         const xri = headers?.["x-real-ip"];
-        const ipRaw = (Array.isArray(xff) ? xff[0] : xff) || (Array.isArray(xri) ? xri[0] : xri);
-        const ip = ipRaw ? String(ipRaw).split(",")[0].trim() : null;
+        const ipRaw = (Array.isArray(xff) ? xff[xff.length - 1] : xff) || (Array.isArray(xri) ? xri[xri.length - 1] : xri);
+        const ip = ipRaw
+          ? (() => {
+              const parts = String(ipRaw).split(",").map((s) => s.trim()).filter(Boolean);
+              return parts.length > 0 ? parts[parts.length - 1] : null;
+            })()
+          : null;
         const emailLower = credentials?.email?.toLowerCase() || "anon";
         const ipKey = ip ? `login:ip:${ip}` : null;
         const emailKey = `login:email:${emailLower}`;

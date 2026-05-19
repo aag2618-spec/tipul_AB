@@ -164,6 +164,16 @@ export const AI_RATE_LIMIT = { maxRequests: 30, windowMs: 60 * 1000 };
 export const WEBHOOK_RATE_LIMIT = { maxRequests: 50, windowMs: 60 * 1000 };
 
 /**
+ * H9 (סבב אבטחה 14, 2026-05-19) — Booking GET per-IP: 30/דקה.
+ * ה-route הציבורי `/api/booking/[slug]` חושף את שעות העבודה והפגישות הקיימות
+ * של המטפל (slot availability). תוקף שמשערה slug יכול לעשות recon על מטפלים
+ * (מאיזה שעות פועלים, מתי "עמוסים") + lookup של slug-ים שונים בכוח אכזרי.
+ * 30/דקה מאפשרים שימוש legitimate (לקוח שטוען slots לתאריך אחד או שניים בו-זמנית)
+ * ועוצרים scraping מהיר. ה-POST של booking כבר rate-limited (BOOKING_RATE_LIMIT).
+ */
+export const BOOKING_GET_RATE_LIMIT = { maxRequests: 30, windowMs: 60 * 1000 };
+
+/**
  * Cardcom webhook (per-IP) — 30/דקה. הוקשח מ-100/דקה לשכבת הגנה ראשונה
  * נגד botnet שמזייפים IP של Cardcom. הצמצום אגרסיבי כי IP יחיד אמיתי
  * של Cardcom לא צריך לעבור 30/דקה בנסיבות נורמליות.

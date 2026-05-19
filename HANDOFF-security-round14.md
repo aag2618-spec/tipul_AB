@@ -62,27 +62,34 @@ audit-log-retention, recording-orphan-cleanup.
 
 - **withAudit חסר ב-state-changing crons** — סוכן 3 ציין: `promote-pending-tiers`, `fix-stuck-payments`, `cardcom-invoice-sync`, `cardcom-pdf-rehash`. **Note:** `subscription-recurring-charge` ו-`cardcom-cleanup-pending` כן עוטפים withAudit פנימית (אומת). הבעיה היא pre-existing — הקוד היה כך לפני 14a; רק התראתי את ה-crons ל-render.yaml. תיקון ל-HANDOFF round 15.
 
-### 🟠 14b — High Auth (3 commits)
+### 🟠 14b — High Auth (commit אחד)
 
-- [ ] **H3** — Secretary reply ללא `canSendReminders` check
-  - **Why:** מזכירה יכולה לשלוח reply לתשובת לקוח גם אם המטפל ביטל לה את הרשאת ההזכרות. ההיגיון של `secretaryCan` כבר קיים ב-`communications/email/send/route.ts:57-62`.
-  - **קבצים:** `src/app/api/communications/reply/route.ts`
-  - **Status:** `pending`
+- [x] **H3** — Secretary reply ללא `canSendReminders` check
+  - **Why:** מזכירה יכולה לשלוח reply לתשובת לקוח גם אם המטפל ביטל לה את הרשאת ההזכרות.
+  - **קבצים:** `src/app/api/communications/reply/route.ts` (הוסף scope check אחרי requireAuth)
+  - **Status:** `done`
 
-- [ ] **H8** — Registration enumeration
+- [x] **H8** — Registration enumeration
   - **Why:** הבדל בתשובה בין email קיים ל-email חדש → תוקף ימפה את ה-DB.
-  - **קבצים:** `src/app/api/auth/register/route.ts:44-62`
-  - **Status:** `pending`
+  - **תיקון:** UNIFORM_RESPONSE 201 גם בקיים, +250ms delay, הוסר `userId` מהתשובה, hash-short ב-logging.
+  - **קבצים:** `src/app/api/auth/register/route.ts`
+  - **Status:** `done`
 
-- [ ] **H9** — Booking GET ללא rate-limit
-  - **Why:** ה-route ציבורי (slug ידוע) — תוקף יכול לעשות recon על המטפלים.
-  - **קבצים:** `src/app/api/booking/[slug]/route.ts:137-245`, `src/lib/rate-limit.ts` (קבוע חדש)
-  - **Status:** `pending`
+- [x] **H9** — Booking GET ללא rate-limit
+  - **תיקון:** `BOOKING_GET_RATE_LIMIT=30/min` per-IP.
+  - **קבצים:** `src/lib/rate-limit.ts` (קבוע חדש), `src/app/api/booking/[slug]/route.ts` (חיבור)
+  - **Status:** `done`
 
-- [ ] **H10** — `getClientIp` עוזב leftmost X-Forwarded-For
-  - **Why:** תוקף יכול לזייף `X-Forwarded-For: spoofed,real` ולגרום ל-rate-limit/audit להירשם על IP מזויף.
-  - **קבצים:** `src/lib/auth.ts:100-103`
-  - **Status:** `pending`
+- [x] **H10** — `getClientIp` עוזב leftmost X-Forwarded-For
+  - **תיקון:** חיבור helper `getClientIp` (rightmost) ב-**12 מקומות** (חוק 2 — חיווט מלא):
+    - `src/lib/auth.ts` (login rate-limit)
+    - `src/lib/audit-logger.ts` (forensics)
+    - `src/lib/cron-auth.ts` (cron rate-limit)
+    - `src/app/api/booking/[slug]/route.ts` (POST)
+    - `src/app/api/auth/{2fa/verify,2fa/send,2fa/check-required,forgot-password,reset-password,verify-email,resend-verification,register}/route.ts`
+    - `src/app/api/admin/reset-password/route.ts` (הוסר local שלקח leftmost)
+  - **בונוס:** `cron-auth.ts` rate-limit key הועבר מ-`cron:${ip}` ל-`cron:${pathname}` — מונע חסימת כל ה-crons ב-XX:00 UTC (כל ה-crons משתפים את ה-IP של Render edge).
+  - **Status:** `done` (יש שארית אחת ב-`impersonate/start:148` ב-audit logging — לא קריטי, → round 15)
 
 ### 🔴 14c — Sessions + Encryption (TDD נדרש)
 

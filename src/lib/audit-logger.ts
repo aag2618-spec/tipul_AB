@@ -15,6 +15,7 @@
 
 import prisma from "@/lib/prisma";
 import { logger } from "@/lib/logger";
+import { getClientIp } from "@/lib/get-client-ip";
 import type { NextRequest } from "next/server";
 
 export type AuditRecordType =
@@ -56,10 +57,10 @@ export function logDataAccess(params: AuditLogParams): void {
     const { userId, recordType, recordId, action, clientId, request, meta } =
       params;
 
-    const ipAddress =
-      request?.headers.get("x-forwarded-for")?.split(",")[0]?.trim() ||
-      request?.headers.get("x-real-ip") ||
-      undefined;
+    // H10 (סבב אבטחה 14, 2026-05-19): rightmost XFF דרך getClientIp.
+    // הקוד הקודם לקח leftmost — IP שתוקף יכול לזייף → audit היה נרשם
+    // עם IP מזויף ופוגע ב-forensics. עכשיו: ה-IP ש-Render proxy ראה בפועל.
+    const ipAddress = request ? getClientIp(request) : undefined;
     const userAgent = request?.headers.get("user-agent") || undefined;
 
     // Format: [AUDIT] {action} {recordType} — userId={X} recordId={Y} ...

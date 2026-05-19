@@ -5,6 +5,7 @@ import path from "path";
 import fs from "fs/promises";
 import { logger } from "@/lib/logger";
 import { requireAuth } from "@/lib/api-auth";
+import { loadScopeUser, isSecretary, secretaryCan } from "@/lib/scope";
 import { isShabbatOrYomTov } from "@/lib/shabbat";
 import { validateFileBuffer, stripImageMetadata, getCategoryMaxSize } from "@/lib/file-validation";
 import { checkRateLimit, EMAIL_SEND_USER_RATE_LIMIT } from "@/lib/rate-limit";
@@ -18,6 +19,17 @@ export async function POST(request: NextRequest) {
     const auth = await requireAuth();
     if ("error" in auth) return auth.error;
     const { userId, session } = auth;
+
+    // H3 (סבב אבטחה 14, 2026-05-19): scope check — מזכירה ללא canSendReminders
+    // לא תוכל לשלוח reply (שלוח מייל ללקוח = שליחת תזכורת). אותו pattern כמו
+    // `src/app/api/email/send/route.ts:57-62`.
+    const scopeUser = await loadScopeUser(userId);
+    if (isSecretary(scopeUser) && !secretaryCan(scopeUser, "canSendReminders")) {
+      return NextResponse.json(
+        { message: "אין הרשאה לשליחת תזכורות" },
+        { status: 403 }
+      );
+    }
 
     // Stage 2.0 — rate limit לפי userId: 30 תשובות/שעה.
     // אותה מכסה כמו /api/email/send כי שני ה-endpoints משלחים מיילים ע"י input משתמש.
