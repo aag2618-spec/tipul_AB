@@ -79,7 +79,19 @@ export async function POST(request: NextRequest) {
     const token = plaintextToken;
 
     // Send email
-    const baseUrl = process.env.NEXTAUTH_URL || "https://tipul-mh2t.onrender.com";
+    // M16.6 (סבב 16b): הוסר fallback hardcoded ל-production URL. בעבר אם
+    // NEXTAUTH_URL חסר בstaging — links במייל הולכים ל-prod (security mishap).
+    // עכשיו: 500 + logger.error — חוסם שליחת link שגוי.
+    const baseUrl = process.env.NEXTAUTH_URL;
+    if (!baseUrl) {
+      logger.error("NEXTAUTH_URL missing — cannot send password reset email", {
+        userId: user.id,
+      });
+      return NextResponse.json(
+        { error: "שגיאת תצורה במערכת. צור קשר עם התמיכה." },
+        { status: 500 }
+      );
+    }
     // סבב 8 (2026-05-18): token עובר כ-URL fragment (#token=...) ולא ב-querystring.
     // Fragment לא נשלח ב-Referer header → אם דף ה-reset טוען scripts/images
     // חיצוניים, ה-token לא דולף לצד שלישי. הדף קורא אותו מ-window.location.hash

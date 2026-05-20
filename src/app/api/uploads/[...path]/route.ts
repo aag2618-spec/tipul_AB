@@ -235,7 +235,11 @@ export async function GET(
     const responseHeaders: Record<string, string> = {
       "Content-Type": contentType,
       "Content-Length": file.length.toString(),
-      "Cache-Control": "private, max-age=3600",
+      // M16.5 (סבב 16b): no-store למניעת שמירת PHI ב-cache הדפדפן / CDN.
+      // קבצי uploads מכילים תיקי מטופלים, סריקות אבחון, ת"ז — אם מכשיר משותף
+      // או נגנב, no-store מבטיח שלאחר logout אין גישה ל-cache. גם CDN לא יחזיק
+      // private data. הקובץ ייטען מחדש בכל בקשה — overhead מקובל ל-PHI.
+      "Cache-Control": "private, no-store, max-age=0, must-revalidate",
       "X-Content-Type-Options": "nosniff",
     };
     // עבור קבצי support — כפייה של הורדה/תצוגה ב-iframe עם שם קובץ נקי,

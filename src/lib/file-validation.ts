@@ -261,17 +261,30 @@ export async function stripImageMetadata(
     // הורידה איכות גלויה לטקסט קטן. 95 שומר על קריאות עם תוספת ~10% בגודל.
     // Buffer.from עוטף את התוצאה של sharp ב-Buffer<ArrayBuffer> אחיד —
     // sharp.toBuffer() מחזיר Buffer<ArrayBufferLike> שיוצר אי-תאימות בקריאה.
+    //
+    // M16.7 (סבב 16b): post-processing size check. sharp עם quality 95 +
+    // mozjpeg יכול תיאורטית להגדיל buffer (תמונה דחוסה מאוד במקור → re-encode
+    // איכותי → גדל). חוסם disk fill דרך upload אגרסיבי.
+    // הגבול הוא 25MB (max document size) — אם sharp חרג, מחזירים את המקור
+    // (עדיף EXIF מאשר חריגה).
+    const MAX_OUTPUT_BYTES = 25 * 1024 * 1024;
+    const checkSize = (out: Buffer): Buffer => {
+      if (out.length > MAX_OUTPUT_BYTES) {
+        return buffer;
+      }
+      return Buffer.from(out);
+    };
     if (mime === "image/jpeg") {
       const out = await pipeline.jpeg({ quality: 95, mozjpeg: true }).toBuffer();
-      return Buffer.from(out);
+      return checkSize(out);
     }
     if (mime === "image/png") {
       const out = await pipeline.png({ compressionLevel: 9 }).toBuffer();
-      return Buffer.from(out);
+      return checkSize(out);
     }
     if (mime === "image/webp") {
       const out = await pipeline.webp({ quality: 95 }).toBuffer();
-      return Buffer.from(out);
+      return checkSize(out);
     }
     return buffer;
   } catch (err) {
