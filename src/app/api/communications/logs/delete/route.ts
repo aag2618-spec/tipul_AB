@@ -2,6 +2,7 @@ import { NextRequest, NextResponse } from "next/server";
 import prisma from "@/lib/prisma";
 import { logger } from "@/lib/logger";
 import { requireAuth } from "@/lib/api-auth";
+import { loadScopeUser, buildClientWhere } from "@/lib/scope";
 import { parseBody } from "@/lib/validations/helpers";
 import { deleteCommunicationLogsSchema } from "@/lib/validations/communications";
 
@@ -17,10 +18,20 @@ export async function POST(request: NextRequest) {
     if ("error" in parsed) return parsed.error;
     const { ids } = parsed.data;
 
+    // H16.1 (סבב 16-fix1): scope-aware deleteMany. בעבר רק `userId` —
+    // משתמש שעבר קליניקה יכול היה למחוק logs ישנים שיצר ועדיין שייכים ל-org
+    // הקודם. עכשיו: או creator (userId) או client בתוך scope הנוכחי.
+    // אותו pattern כמו read/dismiss/mark-read routes שתוקנו בסבב 16c.
+    const scopeUser = await loadScopeUser(userId);
+    const clientWhere = buildClientWhere(scopeUser);
+
     const result = await prisma.communicationLog.deleteMany({
       where: {
         id: { in: ids },
-        userId,
+        OR: [
+          { userId: userId },
+          { client: clientWhere },
+        ],
       },
     });
 

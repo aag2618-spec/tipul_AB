@@ -3,6 +3,7 @@ import prisma from "@/lib/prisma";
 import { logger } from "@/lib/logger";
 
 import { requireAuth } from "@/lib/api-auth";
+import { loadScopeUser, buildClientWhere } from "@/lib/scope";
 
 export const dynamic = "force-dynamic";
 
@@ -13,16 +14,26 @@ export async function POST(
   try {
     const auth = await requireAuth();
     if ("error" in auth) return auth.error;
-    const { userId, session } = auth;
+    const { userId } = auth;
 
     const { id } = await params;
+
+    // H16.1 (סבב 16c-fix): scope-aware findFirst. בעבר רק `userId: userId` —
+    // משתמש שעבר קליניקה (org change) יכול היה לסמן INCOMING logs ישנים
+    // שאינם בscope הנוכחי. עכשיו: OR בין creator ל-client בscope.
+    // אותו pattern כמו communications/logs/[id]/{read,dismiss}/route.ts.
+    const scopeUser = await loadScopeUser(userId);
+    const clientWhere = buildClientWhere(scopeUser);
 
     // Find the communication log and verify ownership
     const log = await prisma.communicationLog.findFirst({
       where: {
         id,
-        userId: userId,
         type: { in: ["INCOMING_EMAIL", "INCOMING_SMS"] },
+        OR: [
+          { userId: userId },
+          { client: clientWhere },
+        ],
       },
     });
 

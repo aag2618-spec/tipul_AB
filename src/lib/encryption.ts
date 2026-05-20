@@ -1,4 +1,5 @@
 import crypto from 'crypto';
+import { logger } from './logger';
 
 // M11.L2: בעבר dev mode יצר random key בכל restart → encrypted data ב-DB
 // לא היה ניתן לפענוח אחרי restart. עכשיו: בdev — key דטרמיניסטי שמחושב
@@ -10,13 +11,15 @@ const ENCRYPTION_KEY = process.env.ENCRYPTION_KEY || (() => {
   }
   // מבסס על DATABASE_URL (שיש לכל מפתח dev) כדי שיהיה דטרמיניסטי
   // וכך data תפוענח אחרי restart. ב-CI ללא DATABASE_URL — fallback ל-random.
-  // M16.8 (סבב 16a): מלא 64 hex chars (32 bytes = 256-bit entropy) במקום slice(42) ש-
-  // חתך ל-168 bits. scryptSync מגזר 32-byte key, אבל ה-input היה מקור weakened.
+  // **חשוב:** הslice(0, 42) שמור בכוונה — שינויו ישבור פענוח records
+  // ישנים בdev DB (סוכן ביקורת 16-fix1 זיהה). scryptSync תמיד מפיק 32-byte
+  // key, אבל ה-input משפיע על ה-derivation. שמירה על 42 chars שומרת תאימות
+  // לאחור עם records קיימים. דרושה migration נפרדת אם רוצים לחזק.
   const devSeed = process.env.DATABASE_URL || "tipul-dev-fallback-seed";
-  const devKey = crypto.createHash("sha256").update(devSeed).digest("hex");
-  console.warn(
-    "⚠️ ENCRYPTION_KEY לא הוגדר. משתמש ב-key dev דטרמיניסטי (לdev בלבד). " +
-    "ב-prod חובה להגדיר ENCRYPTION_KEY ב-env."
+  const devKey = crypto.createHash("sha256").update(devSeed).digest("hex").slice(0, 42);
+  logger.warn(
+    "ENCRYPTION_KEY not set — using deterministic dev key (DEV ONLY). " +
+    "Production REQUIRES ENCRYPTION_KEY env var."
   );
   return devKey;
 })();
@@ -45,7 +48,7 @@ export function encrypt(text: string): string {
 
     return `${salt.toString('hex')}:${iv.toString('hex')}:${authTag.toString('hex')}:${encrypted}`;
   } catch (error) {
-    console.error('Encryption error:', error);
+    logger.error('Encryption error', { errorMessage: error instanceof Error ? error.message : String(error) });
     throw new Error('Failed to encrypt data');
   }
 }
@@ -81,7 +84,7 @@ export function decrypt(encryptedText: string): string {
 
     return decrypted;
   } catch (error) {
-    console.error('Decryption error:', error);
+    logger.error('Decryption error', { errorMessage: error instanceof Error ? error.message : String(error) });
     throw new Error('Failed to decrypt data');
   }
 }
