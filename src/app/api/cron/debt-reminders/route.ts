@@ -250,19 +250,26 @@ export async function GET(request: NextRequest) {
           continue;
         }
 
-        // בדיקת כפילויות — אם כבר נשלח מייל חוב ללקוח הזה החודש, דלג
+        // בדיקת כפילויות — אם כבר נשלח מייל חוב ללקוח הזה החודש, דלג.
+        // M16.9 (סבב 16h fix): subject מוצפן ב-DB, אז `contains` של PostgreSQL
+        // לא ימצא ciphertext. במקום: findMany עם הסינון הוודאי + פילטר
+        // ב-app side על subject מפוענח (Prisma extension מפענח אוטומטית).
+        // ה-select של subject בלבד מצמצם memory/IO.
         const monthStart = new Date(`${israelDateStr.substring(0, 7)}-01T00:00:00Z`);
-        const existingDebtEmail = await prisma.communicationLog.findFirst({
+        const monthlyEmails = await prisma.communicationLog.findMany({
           where: {
             userId: therapist.id,
             clientId: client.id,
             type: "CUSTOM",
             channel: "EMAIL",
             status: "SENT",
-            subject: { contains: "תזכורת תשלום" },
             createdAt: { gte: monthStart },
           },
+          select: { subject: true },
         });
+        const existingDebtEmail = monthlyEmails.find((log) =>
+          log.subject?.includes("תזכורת תשלום")
+        );
         if (existingDebtEmail) {
           logger.info(`[Debt Reminders Cron] Skipping ${client.name} - already sent this month`);
           continue;
