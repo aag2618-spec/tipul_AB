@@ -148,6 +148,15 @@ export default function TwoFactorVerifyPage() {
         return;
       }
       router.refresh();
+      // M16.10 (סבב 16g): אם נוצל קוד שחזור, להציע למשתמש לחדש את כל
+      // הקודים — best practice (Google/GitHub). מעבירים flag ב-querystring
+      // לדף שיציג toast/modal עם link להגדרות 2FA.
+      if (data.recommendRotation) {
+        toast.warning(
+          "הקוד שלך נוצל. מומלץ ליצור קודי שחזור חדשים בהגדרות > אבטחה.",
+          { duration: 8000 }
+        );
+      }
       router.push("/dashboard");
     } catch {
       setError("שגיאת רשת. אנא נסה שוב.");

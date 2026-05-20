@@ -98,7 +98,12 @@ export async function POST(req: NextRequest) {
       return NextResponse.json({ error: result.error }, { status: 400 });
     }
 
-    return NextResponse.json({ success: true });
+    // M16.10 (סבב 16g): אם נוצל קוד שחזור, מחזירים flag ל-UI כדי שיציע
+    // למשתמש לחדש את כל הקודים (best practice — סטנדרט Google/GitHub).
+    return NextResponse.json({
+      success: true,
+      recommendRotation: result.recommendRotation ?? false,
+    });
   } catch (err) {
     logger.error("2FA verify route error", { err: String(err) });
     return NextResponse.json({ error: "שגיאה כללית" }, { status: 500 });

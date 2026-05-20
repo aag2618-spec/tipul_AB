@@ -206,7 +206,12 @@ export async function sendCode(user: {
   return { success: false, error: "שליחת קוד נכשלה. אנא נסה שוב מאוחר יותר." };
 }
 
-export type VerifyCodeResult = { success: true } | { success: false; error: string };
+// M16.10 (סבב 16g): recommendRotation מסמן למשתמש שכדאי לחדש את כל קודי
+// השחזור — מוחזר תמיד true אחרי שימוש בקוד recovery (סטנדרט Google/GitHub).
+// אם תוקף השיג גישה לקוד אחד, סביר שיש לו גישה גם לאחרים — rotation מנטרל.
+export type VerifyCodeResult =
+  | { success: true; recommendRotation?: boolean }
+  | { success: false; error: string };
 
 // H4: אימות קוד TOTP. אם המשתמש הגדיר twoFactorMethod="TOTP", הקוד נכנס
 // מ-Authenticator app ולא מ-DB. ביצוע verify מול ה-secret המוצפן ב-User,
@@ -460,7 +465,10 @@ export async function verifyAndConsumeRecoveryCode(
     remainingCount: remaining.length,
   });
 
-  return { success: true };
+  // M16.10 (סבב 16g): תמיד ממליצים על rotation אחרי שימוש בקוד שחזור.
+  // הקודים הם backup חד-פעמי — אם נוצל אחד, כדאי לחדש את כולם כדי לצמצם
+  // חלון פגיעות אם הם דלפו מאותו מקור.
+  return { success: true, recommendRotation: true };
 }
 
 // H18: ספירת הקודים שנותרו לשימוש (לא חשיפת ה-hashes עצמם).
