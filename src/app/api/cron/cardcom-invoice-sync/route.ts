@@ -29,6 +29,38 @@ interface SyncStats {
   skipped: boolean;
 }
 
+interface OrphanInput {
+  tenant: CardcomTenant;
+  userId: string | null;
+  cardcomDocumentNumber: string;
+  cardcomDocumentType: string;
+  amount: number;
+  customerName: string | null;
+  customerEmail: string | null;
+  pdfUrl: string | null;
+  allocationNumber: string | null;
+  occurredAt: Date;
+  rawDocument: object;
+}
+
+interface InvoicePatch {
+  id: string;
+  patch: { allocationNumber?: string; pdfUrl?: string };
+}
+
+/**
+ * Plan computed in Phase 1+2 — describes the writes that Phase 3 will apply
+ * atomically inside a single tx + audit row. Empty plan = nothing to do.
+ */
+interface SyncPlan {
+  tenant: CardcomTenant;
+  userId: string | null;
+  tenantLabel: string;
+  updates: InvoicePatch[];
+  orphans: OrphanInput[];
+  alertTitle: string | null;
+}
+
 /**
  * Strip PII from the raw Cardcom document before storing it as JSON.
  * Customer name/email are kept on dedicated columns of OrphanCardcomDocument
@@ -54,25 +86,46 @@ function sanitizeRawDocument(raw: object): object {
   return cloned;
 }
 
-async function syncForConfig(opts: {
+/**
+ * Phase 1 + 2 — fetch from Cardcom (HTTP) + read DB + compute plan.
+ * No DB writes here. Plan is applied atomically by applySyncPlan().
+ */
+async function planSyncForConfig(opts: {
   config: CardcomConfig;
   tenant: CardcomTenant;
   userId: string | null;
   fromDate: Date;
   toDate: Date;
-}): Promise<SyncStats> {
+}): Promise<{ stats: SyncStats; plan: SyncPlan }> {
   const { config, tenant, userId, fromDate, toDate } = opts;
   const fmt = (d: Date) => d.toISOString().slice(0, 10);
+  const tenantLabel = userId ? `USER:${userId}` : "ADMIN";
+  const emptyPlan: SyncPlan = {
+    tenant,
+    userId,
+    tenantLabel,
+    updates: [],
+    orphans: [],
+    alertTitle: null,
+  };
 
   if (!config.apiPassword) {
-    return { remoteCount: 0, updated: 0, orphaned: 0, skipped: true };
+    return {
+      stats: { remoteCount: 0, updated: 0, orphaned: 0, skipped: true },
+      plan: emptyPlan,
+    };
   }
 
+  // ── Phase 1 — HTTP fetch (must stay outside any tx)
   const remoteDocs = await searchCardcomDocuments(config, fmt(fromDate), fmt(toDate));
   if (remoteDocs.length === 0) {
-    return { remoteCount: 0, updated: 0, orphaned: 0, skipped: false };
+    return {
+      stats: { remoteCount: 0, updated: 0, orphaned: 0, skipped: false },
+      plan: emptyPlan,
+    };
   }
 
+  // ── Phase 1 — DB reads (no writes)
   const docNumbers = remoteDocs.map((d) => d.documentNumber);
   const [existing, existingOrphans] = await Promise.all([
     prisma.cardcomInvoice.findMany({
@@ -87,28 +140,15 @@ async function syncForConfig(opts: {
   const existingByNumber = new Map(existing.map((e) => [e.cardcomDocumentNumber, e]));
   const existingOrphanSet = new Set(existingOrphans.map((o) => o.cardcomDocumentNumber));
 
-  let updated = 0;
-  let orphaned = 0;
-
-  const orphansToCreate: Array<{
-    tenant: CardcomTenant;
-    userId: string | null;
-    cardcomDocumentNumber: string;
-    cardcomDocumentType: string;
-    amount: number;
-    customerName: string | null;
-    customerEmail: string | null;
-    pdfUrl: string | null;
-    allocationNumber: string | null;
-    occurredAt: Date;
-    rawDocument: object;
-  }> = [];
+  // ── Phase 2 — compute plan (in-memory)
+  const updates: InvoicePatch[] = [];
+  const orphans: OrphanInput[] = [];
 
   for (const doc of remoteDocs) {
     const local = existingByNumber.get(doc.documentNumber);
     if (!local) {
       if (!existingOrphanSet.has(doc.documentNumber)) {
-        orphansToCreate.push({
+        orphans.push({
           tenant,
           userId,
           cardcomDocumentNumber: doc.documentNumber,
@@ -121,48 +161,97 @@ async function syncForConfig(opts: {
           occurredAt: new Date(doc.issuedAt),
           rawDocument: sanitizeRawDocument(doc as unknown as object),
         });
-        orphaned++;
       }
       continue;
     }
-    const patch: Record<string, unknown> = {};
+    const patch: { allocationNumber?: string; pdfUrl?: string } = {};
     if (doc.allocationNumber && !local.allocationNumber) patch.allocationNumber = doc.allocationNumber;
     if (doc.pdfUrl && !local.pdfUrl) patch.pdfUrl = doc.pdfUrl;
     if (Object.keys(patch).length > 0) {
-      await prisma.cardcomInvoice.update({
-        where: { id: local.id },
-        data: { ...patch, syncedAt: new Date() },
-      });
-      updated++;
+      updates.push({ id: local.id, patch });
     }
   }
 
-  if (orphansToCreate.length > 0) {
-    await prisma.orphanCardcomDocument.createMany({ data: orphansToCreate });
-    const today = new Date().toISOString().slice(0, 10);
-    const tenantLabel = userId ? `USER:${userId}` : "ADMIN";
-    const alertTitle = `[cardcom-sync] ${orphansToCreate.length} מסמכים יתומים (${tenantLabel}) — ${today}`;
-    const alertExists = await prisma.adminAlert.findFirst({
-      where: { type: "SYSTEM", title: alertTitle },
-      select: { id: true },
-    });
-    if (!alertExists) {
-      await prisma.adminAlert.create({
-        data: {
-          type: "SYSTEM",
-          priority: "HIGH",
-          status: "PENDING",
-          title: alertTitle,
-          message: `נמצאו ${orphansToCreate.length} מסמכים ב-Cardcom שלא תואמים לרשומות מקומיות (tenant=${tenant}${userId ? `, userId=${userId}` : ""}).`,
-          actionRequired: "שייך כל מסמך ל-Payment או SubscriptionPayment המתאים, או סמן כ-write-off.",
-          userId,
-          metadata: { count: orphansToCreate.length, tenant, userId },
-        },
-      });
-    }
+  const today = new Date().toISOString().slice(0, 10);
+  const alertTitle =
+    orphans.length > 0
+      ? `[cardcom-sync] ${orphans.length} מסמכים יתומים (${tenantLabel}) — ${today}`
+      : null;
+
+  return {
+    stats: {
+      remoteCount: remoteDocs.length,
+      updated: updates.length,
+      orphaned: orphans.length,
+      skipped: false,
+    },
+    plan: { tenant, userId, tenantLabel, updates, orphans, alertTitle },
+  };
+}
+
+/**
+ * Phase 3 — apply plan inside a SINGLE tx that also writes the audit row.
+ * If anything in the tx fails, ALL writes (updates, orphan creates,
+ * adminAlert, audit row) roll back together.
+ */
+async function applySyncPlan(plan: SyncPlan): Promise<void> {
+  if (plan.updates.length === 0 && plan.orphans.length === 0) {
+    return; // nothing to apply
   }
 
-  return { remoteCount: remoteDocs.length, updated, orphaned, skipped: false };
+  await withAudit(
+    {
+      kind: "system",
+      source: "CRON",
+      externalRef: `cardcom-invoice-sync:${plan.tenantLabel}`,
+    },
+    {
+      action: "cron_cardcom_invoice_sync_apply",
+      targetType: "cardcom_invoice",
+      details: {
+        tenant: plan.tenant,
+        userId: plan.userId,
+        updated: plan.updates.length,
+        orphaned: plan.orphans.length,
+      },
+    },
+    async (tx) => {
+      for (const u of plan.updates) {
+        await tx.cardcomInvoice.update({
+          where: { id: u.id },
+          data: { ...u.patch, syncedAt: new Date() },
+        });
+      }
+
+      if (plan.orphans.length > 0) {
+        await tx.orphanCardcomDocument.createMany({ data: plan.orphans });
+        if (plan.alertTitle) {
+          const alertExists = await tx.adminAlert.findFirst({
+            where: { type: "SYSTEM", title: plan.alertTitle },
+            select: { id: true },
+          });
+          if (!alertExists) {
+            await tx.adminAlert.create({
+              data: {
+                type: "SYSTEM",
+                priority: "HIGH",
+                status: "PENDING",
+                title: plan.alertTitle,
+                message: `נמצאו ${plan.orphans.length} מסמכים ב-Cardcom שלא תואמים לרשומות מקומיות (tenant=${plan.tenant}${plan.userId ? `, userId=${plan.userId}` : ""}).`,
+                actionRequired: "שייך כל מסמך ל-Payment או SubscriptionPayment המתאים, או סמן כ-write-off.",
+                userId: plan.userId,
+                metadata: {
+                  count: plan.orphans.length,
+                  tenant: plan.tenant,
+                  userId: plan.userId,
+                },
+              },
+            });
+          }
+        }
+      }
+    },
+  );
 }
 
 export async function POST(request: NextRequest) {
@@ -176,13 +265,15 @@ export async function POST(request: NextRequest) {
 
     // ── ADMIN tenant pass ──
     const adminConfig = await getAdminCardcomConfig();
-    const adminStats = await syncForConfig({
+    const adminPlanResult = await planSyncForConfig({
       config: adminConfig,
       tenant: "ADMIN",
       userId: null,
       fromDate,
       toDate,
     });
+    await applySyncPlan(adminPlanResult.plan);
+    const adminStats = adminPlanResult.stats;
 
     // ── USER tenant pass — rotate through providers using lastSyncAt.
     // Pick the 15 oldest each run; with daily cron + 30-day window every
@@ -201,13 +292,15 @@ export async function POST(request: NextRequest) {
       const creds = await getUserCardcomCredentials(p.userId);
       if (!creds) continue;
       try {
-        perUser[p.userId] = await syncForConfig({
+        const userResult = await planSyncForConfig({
           config: creds.config,
           tenant: "USER",
           userId: p.userId,
           fromDate,
           toDate,
         });
+        await applySyncPlan(userResult.plan);
+        perUser[p.userId] = userResult.stats;
         // Stamp lastSyncAt so the next run picks a different provider.
         await prisma.billingProvider.update({
           where: { id: p.id },
@@ -230,11 +323,9 @@ export async function POST(request: NextRequest) {
       businessType: businessProfile.type,
     };
 
-    // round15: audit log חובה — orphan invoices = סוגיית compliance חשבונאית.
-    // הכתיבות עצמן (orphan creates, adminAlert) קורות בתוך syncForConfig
-    // (לא ב-tx זה) כי הן מעורבות עם HTTP calls ל-Cardcom — לכן ה-audit
-    // נכתב בסוף עם summary של מה שהתבצע. tx פנימי עושה רק את ה-INSERT
-    // לטבלת ה-audit, כך שלא חוסם פעולות אחרות.
+    // Summary audit row — written every run (also when no mutations occurred),
+    // so the audit trail records that the cron executed. Per-config audits
+    // are written by applySyncPlan() above only when there were real changes.
     const totals = {
       admin: { orphaned: adminStats.orphaned, updated: adminStats.updated },
       users: Object.entries(perUser).map(([userId, s]) => ({
@@ -258,9 +349,8 @@ export async function POST(request: NextRequest) {
         },
       },
       async () => {
-        // no-op: actual writes happened above (mixed with HTTP IO, must stay
-        // outside the audit tx); this transaction only commits the audit row.
-      }
+        // no-op summary audit — records that the run happened
+      },
     );
 
     logger.info("[Cron invoice-sync] completed", summary);
