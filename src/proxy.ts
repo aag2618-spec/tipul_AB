@@ -101,8 +101,44 @@ function isAdminOnlyPath(pathname: string): boolean {
   );
 }
 
+/**
+ * round18-fix: Next 16 לא מאפשר `export const config` בקובץ proxy.ts
+ * ("Route segment config is not allowed in Proxy file"). המtracker
+ * שהיה ב-config.matcher עבר ל-pathMatches inline בתחילת הפונקציה.
+ *
+ * הלוגיקה זהה ל-matcher הישן:
+ *   "/admin/:path*", "/clinic-admin/:path*", "/dashboard/:path*",
+ *   "/api/((?!auth/|health|webhooks/|cron/).*)"
+ */
+function pathShouldRunProxy(pathname: string): boolean {
+  if (
+    pathname.startsWith("/admin/") ||
+    pathname === "/admin" ||
+    pathname.startsWith("/clinic-admin/") ||
+    pathname === "/clinic-admin" ||
+    pathname.startsWith("/dashboard/") ||
+    pathname === "/dashboard"
+  ) {
+    return true;
+  }
+  if (pathname.startsWith("/api/")) {
+    // exclude /api/auth/*, /api/health, /api/webhooks/*, /api/cron/*
+    if (pathname.startsWith("/api/auth/")) return false;
+    if (pathname === "/api/health" || pathname.startsWith("/api/health/")) return false;
+    if (pathname.startsWith("/api/webhooks/")) return false;
+    if (pathname.startsWith("/api/cron/")) return false;
+    return true;
+  }
+  return false;
+}
+
 export async function proxy(request: NextRequest) {
   const { pathname } = request.nextUrl;
+
+  // round18-fix: matcher inline (אסור export const config ב-Next 16 proxy.ts)
+  if (!pathShouldRunProxy(pathname)) {
+    return NextResponse.next();
+  }
 
   // H16.4: ייצור nonce per-request ל-CSP nonce-based. base64 (לא hex) כי
   // CSP-spec דורש token של letter/digit/-/_/+//= (base64 charset).
@@ -383,18 +419,10 @@ export async function proxy(request: NextRequest) {
   );
 }
 
-// Configure which paths should be processed by the middleware.
-// Note: matcher uses negative lookahead via Next.js syntax to exclude
-// /api/auth/* (NextAuth + 2FA endpoints), /api/health, /api/webhooks/*
-// (signed webhooks have their own auth), and /api/cron/* (CRON_SECRET).
-// This ensures the 2FA gate covers all sensitive APIs without breaking
-// the 2FA flow itself.
-export const config = {
-  matcher: [
-    "/admin/:path*",
-    "/clinic-admin/:path*",
-    "/dashboard/:path*",
-    "/api/((?!auth/|health|webhooks/|cron/).*)",
-  ],
-};
+// round18-fix: ב-Next 16 proxy.ts לא מאפשר `export const config`.
+// ה-matcher עבר ל-pathShouldRunProxy() inline בתחילת ה-proxy() function.
+// הלוגיקה זהה:
+//   "/admin/:path*", "/clinic-admin/:path*", "/dashboard/:path*",
+//   "/api/((?!auth/|health|webhooks/|cron/).*)"
+// ה-early-return ב-NextResponse.next() שומר על אותה התנהגות.
 
