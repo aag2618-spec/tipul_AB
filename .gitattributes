@@ -1,0 +1,6 @@
+# Force text treatment for TypeScript/JavaScript test files.
+# Some tests contain Unicode bidi-override chars (RTL spoofing tests) that
+# trigger git's binary auto-detection. Tagging as text keeps diffs readable.
+*.test.ts text eol=lf diff
+*.test.tsx text eol=lf diff
+*.spec.ts text eol=lf diff
