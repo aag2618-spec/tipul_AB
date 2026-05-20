@@ -346,16 +346,27 @@ function decryptDeepOne(model: string, obj: unknown): void {
   // 2. Recurse על relations מוכרים. שם ה-relation ב-Prisma matches שם המודל
   // (camelCase, singular relation = object, plural = array).
   // אנחנו מנחשים את ה-model לפי שם השדה.
+  //
+  // round 17a (2026-05-20): התיקון `|| key in ENCRYPTED_JSON_FIELDS` הוסף
+  // עבור DSAR — לפני כן, recursion דילגה על מודלים שמוצפנים JSON-בלבד
+  // (intakeResponse עם `responses` JSON, analysis עם keyTopics/emotionalMarkers/
+  // recommendations) ולכן ייצוא דרך `decryptDeep` החזיר marker objects
+  // `{__enc__: ...}` במקום plaintext. עכשיו ה-recursion יורד לכל relation
+  // שמוצפן (string OR json) → תיקון defensive שלא משפיע על routes שכבר
+  // עובדים נכון (הוא רק *מוסיף* decryption לrelations שעד עכשיו לא קיבלו).
   for (const [key, value] of Object.entries(record)) {
     if (!value || typeof value !== "object") continue;
-    if (key in ENCRYPTED_FIELDS) {
+    if (key in ENCRYPTED_FIELDS || key in ENCRYPTED_JSON_FIELDS) {
       // Singular relation
       decryptDeepOne(key, value);
       continue;
     }
     // Plural — נסה strip של 's' להגיע ל-singular
     const singular = pluralToSingular(key);
-    if (singular && singular in ENCRYPTED_FIELDS) {
+    if (
+      singular &&
+      (singular in ENCRYPTED_FIELDS || singular in ENCRYPTED_JSON_FIELDS)
+    ) {
       if (Array.isArray(value)) {
         for (const item of value) decryptDeepOne(singular, item);
       } else {
