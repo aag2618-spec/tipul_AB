@@ -11,6 +11,7 @@ import {
 } from "./receipt-service";
 import { buildClientWhere, buildPaymentWhere, type ScopeUser } from "@/lib/scope";
 import { calculatePaidAmount } from "@/lib/payment-utils";
+import { withAudit, type AuditActor } from "@/lib/audit";
 
 // Re-export pure calculation helpers from payment-utils
 export { calculateDebtFromPayments } from "@/lib/payment-utils";
@@ -739,10 +740,19 @@ export async function getAllClientsDebtSummary(
 // migrateParentReceiptsToChildren
 // ================================================================
 
-export async function migrateParentReceiptsToChildren(): Promise<{
+/**
+ * round17 (B2): נדרש actor — הפעולה משנה receipt tokens (פעולה רגישה
+ * חשבונאית, חייבת audit log). הקורא מעביר actor (user session ל-admin tool,
+ * או system לscript ידני).
+ */
+export async function migrateParentReceiptsToChildren(
+  actor: AuditActor
+): Promise<{
   fixed: number;
   details: string[];
 }> {
+  // קריאה ראשונית מחוץ ל-tx (לא mutation). אם הרשימה גדולה — נחתוך לבאצ'ים
+  // בעתיד; כרגע cron יומי, ספירה צפויה <50.
   const parents = await prisma.payment.findMany({
     where: {
       hasReceipt: true,
@@ -755,46 +765,65 @@ export async function migrateParentReceiptsToChildren(): Promise<{
     },
   });
 
-  const details: string[] = [];
-
-  for (const parent of parents) {
-    const childSum = parent.childPayments.reduce(
-      (s, c) => s + Number(c.amount),
-      0
-    );
-    const originalAmount = Number(parent.amount) - childSum;
-    if (originalAmount <= 0) continue;
-
-    const newChild = await prisma.payment.create({
-      data: {
-        parentPaymentId: parent.id,
-        clientId: parent.clientId,
-        amount: originalAmount,
-        expectedAmount: originalAmount,
-        method: parent.method,
-        status: "PAID",
-        paidAt: parent.createdAt,
-        paymentType: "PARTIAL",
-        receiptNumber: parent.receiptNumber,
-        receiptUrl: parent.receiptUrl,
-        hasReceipt: true,
-      },
-    });
-
-    await prisma.payment.update({
-      where: { id: parent.id },
-      data: {
-        hasReceipt: false,
-        receiptNumber: null,
-        receiptUrl: null,
-      },
-    });
-
-    details.push(
-      `${parent.client.name}: moved receipt ${parent.receiptNumber} ` +
-        `(₪${originalAmount}) from parent ${parent.id} to child ${newChild.id}`
-    );
+  if (parents.length === 0) {
+    return { fixed: 0, details: [] };
   }
 
-  return { fixed: details.length, details };
+  // round17 (B2): עוטפים ב-withAudit — כל המוטציות (create+update) בתוך
+  // אותו tx, plus audit row. atomicity מלאה.
+  return await withAudit(
+    actor,
+    {
+      action: "migrate_parent_receipts_to_children",
+      targetType: "payment",
+      details: {
+        parentCount: parents.length,
+        parentIds: parents.map((p) => p.id),
+      },
+    },
+    async (tx) => {
+      const details: string[] = [];
+
+      for (const parent of parents) {
+        const childSum = parent.childPayments.reduce(
+          (s, c) => s + Number(c.amount),
+          0
+        );
+        const originalAmount = Number(parent.amount) - childSum;
+        if (originalAmount <= 0) continue;
+
+        const newChild = await tx.payment.create({
+          data: {
+            parentPaymentId: parent.id,
+            clientId: parent.clientId,
+            amount: originalAmount,
+            expectedAmount: originalAmount,
+            method: parent.method,
+            status: "PAID",
+            paidAt: parent.createdAt,
+            paymentType: "PARTIAL",
+            receiptNumber: parent.receiptNumber,
+            receiptUrl: parent.receiptUrl,
+            hasReceipt: true,
+          },
+        });
+
+        await tx.payment.update({
+          where: { id: parent.id },
+          data: {
+            hasReceipt: false,
+            receiptNumber: null,
+            receiptUrl: null,
+          },
+        });
+
+        details.push(
+          `${parent.client.name}: moved receipt ${parent.receiptNumber} ` +
+            `(₪${originalAmount}) from parent ${parent.id} to child ${newChild.id}`
+        );
+      }
+
+      return { fixed: details.length, details };
+    }
+  );
 }

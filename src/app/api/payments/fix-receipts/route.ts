@@ -14,8 +14,13 @@ export async function POST() {
     // חייבים scope/admin check, לא רק auth.
     const auth = await requireAdmin();
     if ("error" in auth) return auth.error;
+    const { session } = auth;
 
-    const result = await migrateParentReceiptsToChildren();
+    // round17 (B2): מעבירים actor=user ל-withAudit ב-bulk-payment.
+    const result = await migrateParentReceiptsToChildren({
+      kind: "user",
+      session,
+    });
 
     return NextResponse.json({
       success: true,

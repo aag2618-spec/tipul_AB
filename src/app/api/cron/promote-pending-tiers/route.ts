@@ -57,25 +57,43 @@ export async function POST(request: NextRequest) {
         },
       },
       async (tx) => {
-        let count = 0;
+        // round17 (B1): קיבוץ לפי tier + updateMany יחיד לכל קבוצה.
+        // מחליף loop של N updates (10ms × 1000 ≈ 10s tx timeout) ב-K updates
+        // (K = מספר ה-tiers הייחודיים = 3 לכל היותר: ESSENTIAL/PRO/ENTERPRISE).
+        // הסיכון מ-tx timeout בעת עומס pending גדול → אפס. ראה דוח סוכן
+        // payments סבב 15.
+        type Tier = NonNullable<(typeof candidates)[number]["pendingTier"]>;
+        const groups = new Map<Tier, string[]>();
         for (const u of candidates) {
           if (!u.pendingTier) continue;
-          await tx.user.update({
-            where: { id: u.id },
+          const arr = groups.get(u.pendingTier) ?? [];
+          arr.push(u.id);
+          groups.set(u.pendingTier, arr);
+        }
+
+        let count = 0;
+        for (const [tier, ids] of groups) {
+          const result = await tx.user.updateMany({
+            where: { id: { in: ids } },
             data: {
-              aiTier: u.pendingTier,
+              aiTier: tier,
               pendingTier: null,
               pendingTierEffectiveAt: null,
             },
           });
-          logger.info("[cron promote-pending-tiers] tier promoted", {
-            userId: u.id,
-            from: u.aiTier,
-            to: u.pendingTier,
-            scheduledFor: u.pendingTierEffectiveAt?.toISOString(),
-          });
-          count++;
+          count += result.count;
         }
+
+        // log אחרי ה-updates (לא בתוך loop). פירוט המעבר נשמר ב-audit details.
+        logger.info("[cron promote-pending-tiers] batch promoted", {
+          totalPromoted: count,
+          groupCount: groups.size,
+          groups: Array.from(groups.entries()).map(([t, ids]) => ({
+            to: t,
+            count: ids.length,
+          })),
+        });
+
         return count;
       }
     );
