@@ -7,7 +7,7 @@ import { requireAuth } from "@/lib/api-auth";
 import { sanitizeUserHtml, sanitizeAiResponse } from "@/lib/sanitize-html";
 import { requireAiConsent } from "@/lib/ai-consent";
 import { loadScopeUser, buildClientWhere, isSecretary } from "@/lib/scope";
-import { getClientPseudonym } from "@/lib/ai-pseudonymize";
+import { getClientPseudonym, redactPii } from "@/lib/ai-pseudonymize";
 import { parseBody } from "@/lib/validations/helpers";
 import { analyzeNoteSchema } from "@/lib/validations/analyze";
 
@@ -151,7 +151,10 @@ ${approachPrompts}
       ? buildEnterpriseAnalysisPrompt(clientPseudo, approachSection, safeNoteContent, approachNames, therapeuticApproaches, clientCulturalContext)
       : buildBasicAnalysisPrompt(clientPseudo, safeNoteContent);
 
-    const result = await model.generateContent(prompt);
+    // R3 (סבב 17c): redactPii על ה-prompt לפני שליחה — מסיר ת"ז/טלפון/אימייל
+    // מהערות הקליניות (טקסט חופשי).
+    const safePrompt = redactPii(prompt);
+    const result = await model.generateContent(safePrompt);
     const response = await result.response;
     const text = response.text();
 

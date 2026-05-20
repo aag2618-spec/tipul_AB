@@ -13,7 +13,7 @@ import {
   buildSessionWhere,
   canSecretaryAccessModel,
 } from "@/lib/scope";
-import { getClientPseudonym } from "@/lib/ai-pseudonymize";
+import { getClientPseudonym, redactPii } from "@/lib/ai-pseudonymize";
 import { parseBody } from "@/lib/validations/helpers";
 import { aiProgressReportSchema } from "@/lib/validations/ai";
 import { requireAiConsent } from "@/lib/ai-consent";
@@ -332,9 +332,12 @@ ${scalesSection ? `• הערכה כמותית:\n${scalesSection}` : ''}
 
 ${getUniversalPrompts()}`;
 
+    // R3 (סבב 17c): redactPii על ה-prompt — דוח התקדמות מכיל היסטוריה
+    // ארוכה של שאלונים → סיכוי מוגבר ל-PII זיהויי.
+    const safePrompt = redactPii(prompt);
     // קריאה ל-Gemini 2.0 Flash
     const model = genAI.getGenerativeModel({ model: GEMINI_MODEL });
-    const result = await model.generateContent(prompt);
+    const result = await model.generateContent(safePrompt);
     // M3: ניקוי HTML hallucination מתשובת Gemini
     const analysis = sanitizeAiText(result.response.text());
 

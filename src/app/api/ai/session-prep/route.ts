@@ -16,7 +16,7 @@ import {
   buildSessionWhere,
   canSecretaryAccessModel,
 } from "@/lib/scope";
-import { getClientPseudonym } from "@/lib/ai-pseudonymize";
+import { getClientPseudonym, redactPii } from "@/lib/ai-pseudonymize";
 import { parseBody } from "@/lib/validations/helpers";
 import { aiSessionPrepSchema } from "@/lib/validations/ai";
 import { requireAiConsent } from "@/lib/ai-consent";
@@ -395,9 +395,12 @@ export async function POST(request: NextRequest) {
       );
     }
 
+    // R3 (סבב 17c): redactPii על ה-prompt לפני שליחה — מסיר PII מטקסט חופשי
+    // של המטפל (clinical notes, cultural context).
+    const safePrompt = redactPii(prompt);
     // קריאה ל-Gemini 2.0 Flash
     const model = genAI.getGenerativeModel({ model: GEMINI_MODEL });
-    const result = await model.generateContent(prompt);
+    const result = await model.generateContent(safePrompt);
     // M3: ניקוי HTML hallucination מתשובת Gemini
     const content = sanitizeAiText(result.response.text());
 

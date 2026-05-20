@@ -13,7 +13,7 @@ import {
   type ConsumeResult,
 } from "@/lib/credits";
 import { getTierLimits, isStaff } from "@/lib/usage-limits";
-import { getClientPseudonym } from "@/lib/ai-pseudonymize";
+import { getClientPseudonym, redactPii } from "@/lib/ai-pseudonymize";
 import { parseBody } from "@/lib/validations/helpers";
 import { aiSessionAnalyzeSchema } from "@/lib/validations/ai";
 import { loadScopeUser, buildSessionWhere, isSecretary } from "@/lib/scope";
@@ -350,8 +350,13 @@ export async function POST(req: NextRequest) {
     }
 
     // קריאה ל-Gemini 2.0 Flash
+    // R3 (סבב 17c, 2026-05-20): redactPii על ה-prompt לפני שליחה — מסיר ת"ז,
+    // טלפונים, אימיילים, כרטיסי אשראי שעלולים להופיע בטקסט חופשי של המטפל
+    // (sessionNote.content, culturalContext, approachNotes). minimization
+    // principle של חוק הגנת הפרטיות + GDPR.
+    const safePrompt = redactPii(prompt);
     const model = genAI.getGenerativeModel({ model: DEFAULT_MODEL });
-    const result = await model.generateContent(prompt);
+    const result = await model.generateContent(safePrompt);
     // M3: ניקוי HTML hallucination מתשובת Gemini
     const analysis = sanitizeAiText(result.response.text());
 

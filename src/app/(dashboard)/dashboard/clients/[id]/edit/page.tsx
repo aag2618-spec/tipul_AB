@@ -47,6 +47,10 @@ export default function EditClientPage({ params }: { params: Promise<{ id: strin
   const [deleteDialogOpen, setDeleteDialogOpen] = useState(false);
   const [confirmName, setConfirmName] = useState("");
   const [isDeleting, setIsDeleting] = useState(false);
+  // R1 (סבב 17a) + R2 (סבב 17b-ui): ייצוא DSAR לפני מחיקה — חוק הגנת הפרטיות
+  // §13. המלצה למטפל לתת למטופל עותק מלא של הנתונים שלו לפני מחיקה
+  // לצמיתות.
+  const [isExporting, setIsExporting] = useState(false);
   const [formData, setFormData] = useState({
     firstName: "",
     lastName: "",
@@ -476,6 +480,62 @@ export default function EditClientPage({ params }: { params: Promise<{ id: strin
               </div>
             </DialogDescription>
           </DialogHeader>
+
+          {/* R1+R2 (סבב 17a/17b-ui): המלצה לייצא DSAR לפני מחיקה — לתת
+              למטופל עותק מלא לפי חוק הגנת הפרטיות §13. */}
+          <div className="rounded-md bg-blue-50 border border-blue-200 p-3 space-y-2">
+            <p className="text-sm text-blue-900 font-medium">
+              לפני מחיקה — מומלץ לייצא עותק של כל הנתונים האישיים של המטופל
+              (DSAR), בהתאם לחוק הגנת הפרטיות §13.
+            </p>
+            <Button
+              type="button"
+              variant="outline"
+              size="sm"
+              className="w-full"
+              disabled={isDeleting || isExporting}
+              onClick={async () => {
+                setIsExporting(true);
+                try {
+                  const res = await fetch(
+                    `/api/clients/${id}/export-personal-data`,
+                    { method: "POST" }
+                  );
+                  if (!res.ok) {
+                    if (res.status === 429) {
+                      toast.error("ביצעת ייצוא רב לאחרונה. נסה בעוד שעה.");
+                    } else {
+                      toast.error("שגיאה בייצוא הנתונים");
+                    }
+                    return;
+                  }
+                  const blob = await res.blob();
+                  const url = URL.createObjectURL(blob);
+                  const a = document.createElement("a");
+                  a.href = url;
+                  a.download = `DSAR-${fullName || "client"}.zip`;
+                  document.body.appendChild(a);
+                  a.click();
+                  a.remove();
+                  URL.revokeObjectURL(url);
+                  toast.success("הנתונים יוצאו בהצלחה");
+                } catch {
+                  toast.error("שגיאה בייצוא הנתונים");
+                } finally {
+                  setIsExporting(false);
+                }
+              }}
+            >
+              {isExporting ? (
+                <>
+                  <Loader2 className="ml-2 h-4 w-4 animate-spin" />
+                  מייצא...
+                </>
+              ) : (
+                "ייצא נתונים אישיים (DSAR) לפני מחיקה"
+              )}
+            </Button>
+          </div>
 
           <div className="space-y-2">
             <Label htmlFor="confirmName">שם מלא לאישור</Label>

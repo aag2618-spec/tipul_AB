@@ -7,7 +7,7 @@ import { logger } from "@/lib/logger";
 import { requireAuth } from "@/lib/api-auth";
 import { getCurrentUsageKey } from "@/lib/date-utils";
 import { getTierLimits, isStaff } from "@/lib/usage-limits";
-import { getClientPseudonym } from "@/lib/ai-pseudonymize";
+import { getClientPseudonym, redactPii } from "@/lib/ai-pseudonymize";
 import { parseBody } from "@/lib/validations/helpers";
 import { aiAnalyzeSingleQuestionnaireSchema } from "@/lib/validations/ai";
 import { loadScopeUser, buildClientWhere, isSecretary } from "@/lib/scope";
@@ -279,9 +279,12 @@ ${scalesSection ? `\n6. הערכה כמותית:\n${scalesSection}` : ''}
 
 ${getUniversalPromptsLight()}`;
 
+    // R3 (סבב 17c): redactPii על ה-prompt — מסיר PII זיהויי (ת"ז/טלפון/אימייל)
+    // מטקסט חופשי שמופיע ב-answers/culturalContext/approachNotes.
+    const safePrompt = redactPii(prompt);
     // קריאה ל-Gemini 2.0 Flash
     const model = genAI.getGenerativeModel({ model: GEMINI_MODEL });
-    const result = await model.generateContent(prompt);
+    const result = await model.generateContent(safePrompt);
     // M3: ניקוי HTML hallucination מתשובת Gemini
     const analysis = sanitizeAiText(result.response.text());
 

@@ -1,6 +1,7 @@
 import { GoogleGenerativeAI } from '@google/generative-ai';
 import { getApproachPrompts } from './therapeutic-approaches';
 import { logger } from './logger';
+import { redactPii } from './ai-pseudonymize';
 
 // Lazy initialization to ensure environment variable is available
 let genAI: GoogleGenerativeAI | null = null;
@@ -51,12 +52,19 @@ async function withAiTimeout<T>(promise: Promise<T>, ms: number = AI_TIMEOUT_MS)
 /**
  * חיתוך טקסט ארוך — מונע request ענק שעולה כסף ועלול לעבור context window.
  * חותך לתחילת + סוף כדי לשמר context (אופנינג + closing) במקרי קצה.
+ *
+ * R3 (סבב 17c, 2026-05-20): מחיל גם redactPii — מסיר ת"ז/טלפון/אימייל/כרטיס
+ * מתמלולים ו-prompts לפני שליחה ל-Gemini. שכבת הגנה מרכזית: כל ה-AI helpers
+ * (analyzeSession, generateSessionSummary, analyzeIntake, analyzeText) עוברים
+ * דרך כאן. ה-routes שמשתמשים ב-`new GoogleGenerativeAI(...)` ישירות מבצעים
+ * redactPii() נוסף ב-route עצמו (idempotent — לא מזיק).
  */
 function capTranscription(text: string): string {
   if (typeof text !== "string") return "";
-  if (text.length <= MAX_TRANSCRIPTION_CHARS) return text;
-  const head = text.slice(0, Math.floor(MAX_TRANSCRIPTION_CHARS * 0.7));
-  const tail = text.slice(-Math.floor(MAX_TRANSCRIPTION_CHARS * 0.25));
+  const redacted = redactPii(text);
+  if (redacted.length <= MAX_TRANSCRIPTION_CHARS) return redacted;
+  const head = redacted.slice(0, Math.floor(MAX_TRANSCRIPTION_CHARS * 0.7));
+  const tail = redacted.slice(-Math.floor(MAX_TRANSCRIPTION_CHARS * 0.25));
   return `${head}\n\n[...טקסט ארוך — נחתך אוטומטית לחיסכון בעלות AI...]\n\n${tail}`;
 }
 

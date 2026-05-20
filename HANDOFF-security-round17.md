@@ -18,14 +18,29 @@
 
 | # | מ-`R` | פריט | Status | Commit |
 |---|--------|--------|--------|--------|
-| 17a | R1 | DSAR endpoint (`POST /api/clients/[id]/export-personal-data`) | **in_progress** | — |
-| 17b | R2 | Right to be Forgotten (`DELETE /api/clients/[id]/erase-personal-data`) | pending | — |
-| 17c | R3 | Anonymization של AI requests (Gemini PII redaction) | pending | — |
+| 17a | R1 | DSAR endpoint (`POST /api/clients/[id]/export-personal-data`) | ✅ done | `5729447` |
+| 17b | R2 | Right to be Forgotten — קיים מקודם (`DELETE /api/clients/[id]`) + 17b-ui הוסיף ייצוא DSAR ב-dialog | ✅ done | (pending push) |
+| 17c | R3 | Anonymization של AI requests — redactPii() + חיווט ל-7 routes + google-ai helper | ✅ done | (pending push) |
 | 17d | R4 | DPA חתימה — Resend/Google/Render/Cardcom | **משימה ידנית** (לא קוד) | — |
-| 17e | R5 | Breach Notification Workflow (טבלה + UI) | pending | — |
-| 17f | R6 | Data Retention Policy + Auto-Deletion (cron) | pending | — |
+| 17e | R5 | Breach Notification — model + admin UI + POST/GET/PATCH | ✅ done | (pending push) |
+| 17f | R6 | Data Retention cron — CommunicationLog INCOMING (7y) + Notification (90d) | ✅ done | (pending push) |
 
-**הסבב מתחיל ב-17a (DSAR) — שלאר ידחו ל-HANDOFF הבא או יטופלו ברצף אם יש זמן.**
+**הסבב הסתיים — 5 מתוך 6 פריטים מומשו. רק R4 (חתימת DPA) נשאר כמשימה ידנית.**
+
+---
+
+## 📌 פעולה ידנית נוספת — Render Cron Schedule
+
+הוסף ל-`render.yaml` (או דרך Render Dashboard) את ה-cron החדש:
+```yaml
+- type: cron
+  name: data-retention
+  schedule: "0 4 * * 1"   # יום שני 04:00 UTC = 06:00 או 07:00 ישראל
+  buildCommand: ...
+  startCommand: curl -fsSL "$RENDER_EXTERNAL_URL/api/cron/data-retention" -H "Authorization: Bearer $CRON_SECRET"
+```
+
+`prisma db push` ב-deploy הבא ייצור את הטבלה `BreachIncident` אוטומטית.
 
 ---
 

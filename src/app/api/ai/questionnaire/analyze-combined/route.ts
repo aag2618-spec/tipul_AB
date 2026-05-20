@@ -12,7 +12,7 @@ import {
   buildClientWhere,
   canSecretaryAccessModel,
 } from "@/lib/scope";
-import { getClientPseudonym } from "@/lib/ai-pseudonymize";
+import { getClientPseudonym, redactPii } from "@/lib/ai-pseudonymize";
 import { parseBody } from "@/lib/validations/helpers";
 import { aiAnalyzeCombinedQuestionnaireSchema } from "@/lib/validations/ai";
 import { requireAiConsent } from "@/lib/ai-consent";
@@ -289,9 +289,11 @@ ${scalesSection ? `\n7. הערכה כמותית:\n${scalesSection}` : ''}
 
 ${getUniversalPromptsLight()}`;
 
+    // R3 (סבב 17c): redactPii על ה-prompt — מסיר PII מכל שאלוני המטופל.
+    const safePrompt = redactPii(prompt);
     // קריאה ל-Gemini 2.0 Flash
     const model = genAI.getGenerativeModel({ model: GEMINI_MODEL });
-    const result = await model.generateContent(prompt);
+    const result = await model.generateContent(safePrompt);
     // M3: ניקוי HTML hallucination מתשובת Gemini לפני שמירה ל-DB / רינדור ב-UI
     const analysis = sanitizeAiText(result.response.text());
 

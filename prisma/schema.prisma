@@ -283,6 +283,8 @@ model User {
   customContractsCreated   CustomContract[]     @relation("ContractCreator")
   clientTransfersPerformed ClientTransferLog[]  @relation("TransferPerformer")
   departureInitiated       TherapistDeparture[] @relation("DepartingTherapist")
+  // R5 (סבב 17e, 2026-05-20): אירועי אבטחה שאדמין דיווח עליהם.
+  breachIncidentsReported  BreachIncident[]     @relation("BreachReporter")
 
   // Clinic invitations — inverse relations.
   // createdBy: Restrict — אסור למחוק owner עם הזמנות פעילות (forensics).
@@ -2003,6 +2005,79 @@ model DataAccessAuditLog {
   @@index([clientId, createdAt]) // "מי ניגש לנתוני לקוח Y"
   @@index([createdAt]) // לcron retention + dashboards לאורך זמן
   @@index([action, createdAt]) // לדשבורדים לפי סוג פעולה
+}
+
+// ==================== Breach Incident Log (R5, סבב 17e) ====================
+//
+// תקנות הגנת הפרטיות (אבטחת מידע) 2017 §11: חובה לדווח לרשם הגנת הפרטיות
+// תוך 72 שעות על "אירוע אבטחה חמור" (פריצה, דליפה, אובדן נתוני PHI).
+//
+// המודל הזה הוא המקור הרשמי לתיעוד אירועי אבטחה. ADMIN מתעד דרך
+// /admin/breach-incidents UI. השדות עוקבים אחר ה-template של רשם הפרטיות.
+//
+// אסור למחוק רשומות — `severity=CRITICAL` חייבת להישמר לתיעוד היסטורי
+// גם אחרי שנים. אכיפה ברמת ה-API (אין DELETE endpoint).
+
+model BreachIncident {
+  id            String                @id @default(cuid())
+  // detectedAt — מתי התגלה (יכול להיות אחרי occurredAt)
+  detectedAt    DateTime              @default(now())
+  // occurredAt — מתי האירוע קרה בפועל (אם ידוע). null = לא ידוע מתי התחיל.
+  occurredAt    DateTime?
+  severity      BreachSeverity        @default(MEDIUM)
+  category      BreachCategory
+  title         String                @db.Text
+  description   String                @db.Text
+  // affectedClientIds — JSON array של clientIds שנפגעו (לתחקור צולב).
+  // אם null — לא ידוע / כלל המערכת.
+  affectedClientIds Json?
+  affectedClientsCount Int            @default(0)
+  // notifiedRegistrarAt — מתי דווח לרשם הגנת הפרטיות (72-hr clock).
+  notifiedRegistrarAt  DateTime?
+  // notifiedClientsAt — מתי המטופלים שנפגעו יודעו (אם רלוונטי).
+  notifiedClientsAt    DateTime?
+  // resolution — מה נעשה כדי לסגור (תיקון, rotation, וכו').
+  resolution           String?        @db.Text
+  resolvedAt           DateTime?
+  status        BreachStatus          @default(OPEN)
+  // reportedById — ADMIN שתיעד את האירוע (לא בהכרח שגילה).
+  reportedById  String
+  reportedBy    User                  @relation("BreachReporter", fields: [reportedById], references: [id], onDelete: Restrict)
+  // snapshot של שם המדווח — לתיעוד היסטורי אם המשתמש נמחק.
+  reportedByNameSnapshot String
+
+  createdAt     DateTime              @default(now())
+  updatedAt     DateTime              @updatedAt
+
+  @@index([severity, detectedAt])
+  @@index([status, detectedAt])
+  @@index([category, detectedAt])
+}
+
+enum BreachSeverity {
+  LOW      // לדוגמה: misconfigured cookie scope, צפייה לא מורשית של רשומה יחידה
+  MEDIUM   // לדוגמה: דליפת email/phone של מעט מטופלים
+  HIGH     // לדוגמה: PHI של 10+ מטופלים, או credentials של מטפל
+  CRITICAL // לדוגמה: פריצה למסד נתונים, חשיפת ENCRYPTION_KEY, ransomware
+}
+
+enum BreachCategory {
+  UNAUTHORIZED_ACCESS     // משתמש לא מורשה הצליח לראות נתונים
+  DATA_LEAK               // נתונים זלגו החוצה (בטעות, hack, vendor)
+  CREDENTIAL_COMPROMISE   // סיסמה/token/key נחשפו
+  PHISHING                // ניסיון/הצלחה של phishing על משתמש
+  SYSTEM_FAILURE          // תקלה שגרמה לחשיפה (bug, misconfig)
+  PHYSICAL_LOSS           // אובדן/גניבת מכשיר עם data
+  THIRD_PARTY             // ספק חיצוני (Resend, Render, Google) דיווח על אירוע
+  OTHER
+}
+
+enum BreachStatus {
+  OPEN          // נפתח, עדיין נחקר
+  INVESTIGATING // בחקירה פעילה
+  CONTAINED     // נעצרה דליפה; ייתכן ועוד תיקונים
+  RESOLVED      // נסגר לחלוטין + דווח לרשם אם נדרש
+  FALSE_ALARM   // התברר שלא היה אירוע אמיתי
 }
 
 // ==================== Online Booking ====================

@@ -9,7 +9,7 @@ import {
   buildClientWhere,
   canSecretaryAccessModel,
 } from "@/lib/scope";
-import { getClientPseudonym, ageRangeFromBirthDate } from "@/lib/ai-pseudonymize";
+import { getClientPseudonym, ageRangeFromBirthDate, redactPii } from "@/lib/ai-pseudonymize";
 import { requireAiConsent } from "@/lib/ai-consent";
 import { sanitizeAiText } from "@/lib/sanitize-html";
 
@@ -344,7 +344,9 @@ ${approachSection}
 ספק ניתוח קליני והמלצות.`;
     }
 
-    const result = await model.generateContent(prompt);
+    // R3 (סבב 17c): redactPii לפני שליחה — questionnaire answers הם user-input.
+    const safePrompt = redactPii(prompt);
+    const result = await model.generateContent(safePrompt);
     // M3: ניקוי HTML hallucination מתשובת Gemini
     const analysisText = sanitizeAiText(result.response.text());
 
