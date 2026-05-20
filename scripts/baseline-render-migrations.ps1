@@ -2,7 +2,7 @@
 # baseline-render-migrations.ps1
 # =============================================================================
 # Marks all Prisma migrations as "applied" in Render DB without changing schema.
-# Safe operation — only updates the internal _prisma_migrations table.
+# Safe operation - only updates the internal _prisma_migrations table.
 #
 # Why: production DB was created with `db push` (no migrations tracked).
 # To switch to `migrate deploy`, we must first mark existing migrations
