@@ -10,8 +10,10 @@ const ENCRYPTION_KEY = process.env.ENCRYPTION_KEY || (() => {
   }
   // מבסס על DATABASE_URL (שיש לכל מפתח dev) כדי שיהיה דטרמיניסטי
   // וכך data תפוענח אחרי restart. ב-CI ללא DATABASE_URL — fallback ל-random.
+  // M16.8 (סבב 16a): מלא 64 hex chars (32 bytes = 256-bit entropy) במקום slice(42) ש-
+  // חתך ל-168 bits. scryptSync מגזר 32-byte key, אבל ה-input היה מקור weakened.
   const devSeed = process.env.DATABASE_URL || "tipul-dev-fallback-seed";
-  const devKey = crypto.createHash("sha256").update(devSeed).digest("hex").slice(0, 42);
+  const devKey = crypto.createHash("sha256").update(devSeed).digest("hex");
   console.warn(
     "⚠️ ENCRYPTION_KEY לא הוגדר. משתמש ב-key dev דטרמיניסטי (לdev בלבד). " +
     "ב-prod חובה להגדיר ENCRYPTION_KEY ב-env."

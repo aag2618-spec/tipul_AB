@@ -33,7 +33,9 @@ const SENSITIVE_KEY_REGEX =
 // "אותו קובץ עלה פעמיים" בלי לחשוף PII (שם מטופל בקובץ "שרה כהן_פגישה.pdf").
 // Match: filename, fileName, originalFilename, originalFileName — לא name לבד
 // (שמכיל גם actionName/templateName/tierName שאינם PII).
-const FILENAME_KEY_REGEX = /^(original)?[Ff]ile[Nn]ame$/;
+// L16.11 (סבב 16a): הורחב לתפוס גם attachmentName/documentName/recordingName —
+// שדות עם שמות קבצי PHI שלא נתפסו ברגקס הקודם.
+const FILENAME_KEY_REGEX = /^(original)?([Ff]ile|[Aa]ttachment|[Dd]ocument|[Rr]ecording)[Nn]ame$/;
 
 function hashFilename(value: unknown): string {
   if (typeof value !== "string") return "[REDACTED]";

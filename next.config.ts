@@ -26,7 +26,9 @@ const securityHeaders = [
   },
   {
     key: "Permissions-Policy",
-    value: "camera=(), microphone=(self), geolocation=(), payment=(self), usb=(), magnetometer=(), gyroscope=(), accelerometer=()",
+    // L16.13 (סבב 16a): הוספת interest-cohort + browsing-topics — opt-out מ-FLoC/Topics API
+    // של Google. במערכת PHI לא רוצים שהדפדפן ישלח מטא-דאטה התנהגותית לרשתות פרסום.
+    value: "camera=(), microphone=(self), geolocation=(), payment=(self), usb=(), magnetometer=(), gyroscope=(), accelerometer=(), interest-cohort=(), browsing-topics=()",
   },
   {
     key: "Strict-Transport-Security",
