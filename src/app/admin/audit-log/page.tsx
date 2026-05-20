@@ -57,11 +57,15 @@ interface AuditLog {
   targetId: string | null;
   details: string | null;
   createdAt: string;
+  // round15: snapshot columns ל-system events (adminId=null). adminName בד"כ
+  // יהיה "[SYSTEM:CRON]" וכו'. ה-UI נופל ל-snapshot אם relation null.
+  adminName: string | null;
+  adminEmail: string | null;
   admin: {
     id: string;
     name: string | null;
     email: string | null;
-  };
+  } | null;
 }
 
 export default function AuditLogPage() {
@@ -239,7 +243,11 @@ export default function AuditLogPage() {
                       {formatDate(log.createdAt)}
                     </TableCell>
                     <TableCell className="text-sm">
-                      {log.admin.name || log.admin.email || "—"}
+                      {log.admin?.name ||
+                        log.admin?.email ||
+                        log.adminName ||
+                        log.adminEmail ||
+                        "—"}
                     </TableCell>
                     <TableCell>
                       <Badge variant="secondary" className="bg-muted text-foreground">

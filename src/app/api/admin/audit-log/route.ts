@@ -90,7 +90,19 @@ export async function GET(request: NextRequest) {
     const [logs, total] = await Promise.all([
       prisma.adminAuditLog.findMany({
         where,
-        include: {
+        // round15: כוללים את ה-snapshot columns (adminName/adminEmail) ב-select
+        // — כי ב-system events (CRON/WEBHOOK/MIGRATION) ה-adminId הוא null,
+        // ה-relation `admin` חוזרת null, אבל ה-snapshot נשמר ב-AdminAuditLog.
+        // ה-UI צריך לעבור ל-fallback chain: admin → snapshot → "—".
+        select: {
+          id: true,
+          action: true,
+          targetType: true,
+          targetId: true,
+          details: true,
+          createdAt: true,
+          adminName: true,
+          adminEmail: true,
           admin: {
             select: { id: true, name: true, email: true },
           },
