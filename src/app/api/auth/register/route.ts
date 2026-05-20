@@ -135,7 +135,8 @@ export async function POST(request: NextRequest) {
 
     // Generate email verification token. H14: שומרים sha256(token) ב-DB ולא
     // plain — אם DB נחשף, ה-tokens לא ניתנים לשימוש. ה-URL במייל מכיל את ה-plain.
-    const { createHash } = await import("node:crypto");
+    // round15 (1.3): createHash כבר מיובא בראש הקובץ (שורה 4) — אין צורך
+    // ב-dynamic import.
     const verificationToken = randomBytes(32).toString("hex");
     const verificationTokenHash = createHash("sha256").update(verificationToken).digest("hex");
     const verificationExpires = new Date(Date.now() + 24 * 60 * 60 * 1000); // 24 hours

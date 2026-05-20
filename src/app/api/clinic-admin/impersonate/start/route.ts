@@ -6,6 +6,7 @@ import { withAudit } from "@/lib/audit";
 import { checkRateLimit } from "@/lib/rate-limit";
 import { parseBody } from "@/lib/validations/helpers";
 import { impersonateStartSchema } from "@/lib/validations/clinic-admin";
+import { getClientIp } from "@/lib/get-client-ip";
 
 export const dynamic = "force-dynamic";
 
@@ -143,9 +144,10 @@ export async function POST(request: NextRequest) {
       );
     }
 
-    // IP + user-agent לאודיט (forensics)
-    const xff = request.headers.get("x-forwarded-for");
-    const ip = xff ? xff.split(",")[0].trim() : null;
+    // IP + user-agent לאודיט (forensics).
+    // round15 (1.2): שימוש ב-getClientIp (rightmost XFF) במקום leftmost —
+    // leftmost ניתן לזיוף ע"י תוקף. ראה src/lib/get-client-ip.ts.
+    const ip = getClientIp(request);
     const ua = request.headers.get("user-agent");
 
     // יצירה אטומית: ImpersonationSession + AdminAuditLog

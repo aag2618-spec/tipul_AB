@@ -10,6 +10,7 @@ import { NextRequest, NextResponse } from "next/server";
 import prisma from "@/lib/prisma";
 import { logger } from "@/lib/logger";
 import { checkCronAuth } from "@/lib/cron-auth";
+import { withAudit } from "@/lib/audit";
 
 export const dynamic = "force-dynamic";
 
@@ -20,7 +21,6 @@ export async function POST(request: NextRequest) {
   const now = new Date();
 
   try {
-    // מצא משתמשים שה-pendingTierEffectiveAt שלהם הגיע — קדם את ה-tier
     const candidates = await prisma.user.findMany({
       where: {
         pendingTier: { not: null },
@@ -34,25 +34,51 @@ export async function POST(request: NextRequest) {
       },
     });
 
-    let promoted = 0;
-    for (const u of candidates) {
-      if (!u.pendingTier) continue;
-      await prisma.user.update({
-        where: { id: u.id },
-        data: {
-          aiTier: u.pendingTier,
-          pendingTier: null,
-          pendingTierEffectiveAt: null,
-        },
-      });
-      logger.info("[cron promote-pending-tiers] tier promoted", {
-        userId: u.id,
-        from: u.aiTier,
-        to: u.pendingTier,
-        scheduledFor: u.pendingTierEffectiveAt?.toISOString(),
-      });
-      promoted++;
+    if (candidates.length === 0) {
+      return NextResponse.json({ ok: true, promoted: 0, candidates: 0 });
     }
+
+    // round15: עוטפים את המוטציה ב-withAudit — שינוי aiTier חייב audit לפי
+    // תקנות הגנת הפרטיות (שינוי scope של AI על PHI).
+    const promoted = await withAudit(
+      { kind: "system", source: "CRON", externalRef: "promote-pending-tiers" },
+      {
+        action: "cron_promote_pending_tiers",
+        targetType: "user_ai_tier",
+        details: {
+          reason: "scheduled_run",
+          candidateCount: candidates.length,
+          promotions: candidates.map((u) => ({
+            userId: u.id,
+            from: u.aiTier,
+            to: u.pendingTier,
+            scheduledFor: u.pendingTierEffectiveAt?.toISOString() ?? null,
+          })),
+        },
+      },
+      async (tx) => {
+        let count = 0;
+        for (const u of candidates) {
+          if (!u.pendingTier) continue;
+          await tx.user.update({
+            where: { id: u.id },
+            data: {
+              aiTier: u.pendingTier,
+              pendingTier: null,
+              pendingTierEffectiveAt: null,
+            },
+          });
+          logger.info("[cron promote-pending-tiers] tier promoted", {
+            userId: u.id,
+            from: u.aiTier,
+            to: u.pendingTier,
+            scheduledFor: u.pendingTierEffectiveAt?.toISOString(),
+          });
+          count++;
+        }
+        return count;
+      }
+    );
 
     return NextResponse.json({ ok: true, promoted, candidates: candidates.length });
   } catch (err) {

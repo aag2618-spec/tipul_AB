@@ -16,6 +16,7 @@ import { getUserCardcomCredentials } from "@/lib/cardcom/user-config";
 import { searchCardcomDocuments } from "@/lib/cardcom/invoice-api";
 import { getAdminBusinessProfile } from "@/lib/site-settings";
 import { checkCronAuth } from "@/lib/cron-auth";
+import { withAudit } from "@/lib/audit";
 import type { CardcomConfig } from "@/lib/cardcom/types";
 import type { CardcomTenant } from "@prisma/client";
 
@@ -228,6 +229,40 @@ export async function POST(request: NextRequest) {
       userResults: perUser,
       businessType: businessProfile.type,
     };
+
+    // round15: audit log חובה — orphan invoices = סוגיית compliance חשבונאית.
+    // הכתיבות עצמן (orphan creates, adminAlert) קורות בתוך syncForConfig
+    // (לא ב-tx זה) כי הן מעורבות עם HTTP calls ל-Cardcom — לכן ה-audit
+    // נכתב בסוף עם summary של מה שהתבצע. tx פנימי עושה רק את ה-INSERT
+    // לטבלת ה-audit, כך שלא חוסם פעולות אחרות.
+    const totals = {
+      admin: { orphaned: adminStats.orphaned, updated: adminStats.updated },
+      users: Object.entries(perUser).map(([userId, s]) => ({
+        userId,
+        orphaned: s.orphaned,
+        updated: s.updated,
+      })),
+    };
+    const totalOrphans =
+      adminStats.orphaned +
+      Object.values(perUser).reduce((sum, s) => sum + s.orphaned, 0);
+    await withAudit(
+      { kind: "system", source: "CRON", externalRef: "cardcom-invoice-sync" },
+      {
+        action: "cron_cardcom_invoice_sync",
+        targetType: "cardcom_invoice",
+        details: {
+          reason: "scheduled_run",
+          totalOrphans,
+          totals,
+        },
+      },
+      async () => {
+        // no-op: actual writes happened above (mixed with HTTP IO, must stay
+        // outside the audit tx); this transaction only commits the audit row.
+      }
+    );
+
     logger.info("[Cron invoice-sync] completed", summary);
     return NextResponse.json({ ok: true, ...summary });
   } catch (err) {

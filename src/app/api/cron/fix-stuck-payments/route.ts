@@ -2,6 +2,7 @@ import { NextRequest, NextResponse } from "next/server";
 import prisma from "@/lib/prisma";
 import { logger } from "@/lib/logger";
 import { checkCronAuth } from "@/lib/cron-auth";
+import { withAudit } from "@/lib/audit";
 
 /**
  * תיקון אוטומטי של תשלומים תקועים — תרחיש המקור:
@@ -62,20 +63,37 @@ export async function GET(request: NextRequest) {
     const stuckIds = candidateIds.filter(id => !blockedSet.has(id));
 
     if (stuckIds.length > 0) {
-      await prisma.payment.updateMany({
-        where: { id: { in: stuckIds } },
-        data: { status: "PAID", paidAt: new Date() },
-      });
-
-      // ניקוי משימות גבייה של תשלומים שתוקנו
-      await prisma.task.updateMany({
-        where: {
-          relatedEntityId: { in: stuckIds },
-          type: "COLLECT_PAYMENT",
-          status: { in: ["PENDING", "IN_PROGRESS"] },
+      // round15: עוטפים ב-withAudit — שינוי Payment.status=PAID חייב audit
+      // (מניעת תרמיות, compliance חשבונאית).
+      await withAudit(
+        { kind: "system", source: "CRON", externalRef: "fix-stuck-payments" },
+        {
+          action: "cron_fix_stuck_payments",
+          targetType: "payment",
+          details: {
+            reason: "scheduled_run",
+            fixedCount: stuckIds.length,
+            paymentIds: stuckIds,
+            skippedDueToCardcomInFlight: candidateIds.length - stuckIds.length,
+          },
         },
-        data: { status: "COMPLETED" },
-      });
+        async (tx) => {
+          await tx.payment.updateMany({
+            where: { id: { in: stuckIds } },
+            data: { status: "PAID", paidAt: new Date() },
+          });
+
+          // ניקוי משימות גבייה של תשלומים שתוקנו
+          await tx.task.updateMany({
+            where: {
+              relatedEntityId: { in: stuckIds },
+              type: "COLLECT_PAYMENT",
+              status: { in: ["PENDING", "IN_PROGRESS"] },
+            },
+            data: { status: "COMPLETED" },
+          });
+        }
+      );
 
       logger.info(`[Fix Stuck Payments] תוקנו ${stuckIds.length} תשלומים תקועים`, {
         ids: stuckIds,

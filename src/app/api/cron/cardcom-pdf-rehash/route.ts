@@ -16,6 +16,7 @@ import { NextRequest, NextResponse } from "next/server";
 import prisma from "@/lib/prisma";
 import { logger } from "@/lib/logger";
 import { checkCronAuth } from "@/lib/cron-auth";
+import { withAudit } from "@/lib/audit";
 
 export const dynamic = "force-dynamic";
 
@@ -104,37 +105,58 @@ export async function POST(request: NextRequest) {
     }
   }
 
-  // Stamp lastBackupAttemptAt on verified rows so the next cron run picks
-  // OTHER files first (the orderBy: lastBackupAttemptAt asc rotates the batch).
-  // Without this update the same 1000 invoices would be re-checked forever.
-  if (verifiedIds.length > 0) {
-    await prisma.cardcomInvoice.updateMany({
-      where: { id: { in: verifiedIds } },
-      data: { lastBackupAttemptAt: new Date() },
-    });
-  }
-
-  // Single rollup AdminAlert per cron run when problems are found.
-  if (mismatchAlerts.length > 0) {
-    const today = new Date().toISOString().slice(0, 10);
-    const title = `[pdf-rehash] ${mismatchAlerts.length} קבצי PDF פגומים/חסרים — ${today}`;
-    const exists = await prisma.adminAlert.findFirst({
-      where: { type: "SYSTEM", title },
-      select: { id: true },
-    });
-    if (!exists) {
-      await prisma.adminAlert.create({
-        data: {
-          type: "SYSTEM",
-          priority: "URGENT",
-          status: "PENDING",
-          title,
-          message: `נמצאו ${mismatched} קבצי PDF עם hash שלא תואם, ו-${missing} קבצים חסרים. זוהי הפרת חוק 7 שנים — נדרשת פעולה מיידית: שחזור מ-Cardcom CDN או חידוש אובייקטי גיבוי.`,
-          actionRequired: `הרץ /api/admin/cardcom/receipts/restore עבור invoiceIds: ${mismatchAlerts.slice(0, 20).map((a) => a.id).join(", ")}${mismatchAlerts.length > 20 ? "..." : ""}`,
-          metadata: { mismatched, missing, sampleIds: mismatchAlerts.slice(0, 50).map((a) => a.id) },
+  // round15: עוטפים updateMany + adminAlert ב-withAudit (זיהוי tampering של
+  // מסמכים חשבונאיים = compliance חוק 7 שנים, חייב audit). ה-file IO הכבד
+  // (readFile + sha256) כבר התבצע למעלה — בתוך ה-tx רק הכתיבות הקצרות ל-DB.
+  if (verifiedIds.length > 0 || mismatchAlerts.length > 0) {
+    await withAudit(
+      { kind: "system", source: "CRON", externalRef: "cardcom-pdf-rehash" },
+      {
+        action: "cron_cardcom_pdf_rehash",
+        targetType: "cardcom_invoice",
+        details: {
+          reason: "scheduled_run",
+          verified,
+          mismatched,
+          missing,
+          mismatchSampleIds: mismatchAlerts.slice(0, 50).map((a) => a.id),
         },
-      });
-    }
+      },
+      async (tx) => {
+        // Stamp lastBackupAttemptAt on verified rows so the next cron run picks
+        // OTHER files first (the orderBy: lastBackupAttemptAt asc rotates the batch).
+        // Without this update the same 1000 invoices would be re-checked forever.
+        if (verifiedIds.length > 0) {
+          await tx.cardcomInvoice.updateMany({
+            where: { id: { in: verifiedIds } },
+            data: { lastBackupAttemptAt: new Date() },
+          });
+        }
+
+        // Single rollup AdminAlert per cron run when problems are found.
+        if (mismatchAlerts.length > 0) {
+          const today = new Date().toISOString().slice(0, 10);
+          const title = `[pdf-rehash] ${mismatchAlerts.length} קבצי PDF פגומים/חסרים — ${today}`;
+          const exists = await tx.adminAlert.findFirst({
+            where: { type: "SYSTEM", title },
+            select: { id: true },
+          });
+          if (!exists) {
+            await tx.adminAlert.create({
+              data: {
+                type: "SYSTEM",
+                priority: "URGENT",
+                status: "PENDING",
+                title,
+                message: `נמצאו ${mismatched} קבצי PDF עם hash שלא תואם, ו-${missing} קבצים חסרים. זוהי הפרת חוק 7 שנים — נדרשת פעולה מיידית: שחזור מ-Cardcom CDN או חידוש אובייקטי גיבוי.`,
+                actionRequired: `הרץ /api/admin/cardcom/receipts/restore עבור invoiceIds: ${mismatchAlerts.slice(0, 20).map((a) => a.id).join(", ")}${mismatchAlerts.length > 20 ? "..." : ""}`,
+                metadata: { mismatched, missing, sampleIds: mismatchAlerts.slice(0, 50).map((a) => a.id) },
+              },
+            });
+          }
+        }
+      }
+    );
   }
 
   logger.info("[Cron pdf-rehash] completed", { verified, mismatched, missing });
