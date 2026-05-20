@@ -15,7 +15,7 @@ import {
 } from "@/components/ui/dropdown-menu";
 import { Avatar, AvatarFallback, AvatarImage } from "@/components/ui/avatar";
 import { Badge } from "@/components/ui/badge";
-import { Bell, LogOut, Settings, User, XCircle, Mail, Calendar, X, ListTodo, Sun, Moon, CreditCard, Info, AlertTriangle, CheckCircle, Sparkles, Building2 } from "lucide-react";
+import { Bell, LogOut, Settings, User, XCircle, Mail, Calendar, X, ListTodo, Sun, Moon, CreditCard, Info, AlertTriangle, CheckCircle, Sparkles, Building2, Shield } from "lucide-react";
 import Link from "next/link";
 import { getNotificationIconInfo, extractBookingInfo as extractBookingInfoUtil } from "@/lib/notification-utils";
 
@@ -60,6 +60,8 @@ export function DashboardHeader({ user }: DashboardHeaderProps) {
     session?.user?.role === "CLINIC_OWNER" ||
     session?.user?.role === "ADMIN" ||
     session?.user?.clinicRole === "OWNER";
+  const isAdmin =
+    session?.user?.role === "ADMIN" || session?.user?.role === "MANAGER";
   const [notifications, setNotifications] = useState<Notification[]>([]);
   const [unreadCount, setUnreadCount] = useState(0);
   const [announcements, setAnnouncements] = useState<SystemAnnouncement[]>([]);
@@ -329,6 +331,14 @@ export function DashboardHeader({ user }: DashboardHeaderProps) {
                 <Link href="/clinic-admin" className="cursor-pointer">
                   <Building2 className="ml-2 h-4 w-4" />
                   <span>ניהול הקליניקה</span>
+                </Link>
+              </DropdownMenuItem>
+            )}
+            {isAdmin && (
+              <DropdownMenuItem asChild>
+                <Link href="/admin" className="cursor-pointer text-amber-600 focus:text-amber-700">
+                  <Shield className="ml-2 h-4 w-4" />
+                  <span>ניהול מערכת</span>
                 </Link>
               </DropdownMenuItem>
             )}
