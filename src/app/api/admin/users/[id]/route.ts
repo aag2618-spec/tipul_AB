@@ -724,8 +724,8 @@ export async function PATCH(
     // M11.H1: סגירת חלון 30s של JWT cache.
     // ה-JWT cache שומר role/clinicRole/isBlocked/subscriptionStatus/subscriptionEndsAt/
     // trialEndsAt/passwordChangedAt — כל שינוי באחד מהם חייב לבטל cache מיד,
-    // אחרת משתמש שבוטל/הוגבל יכול להמשיך לגשת לדשבורד עד 30s. ה-middleware
-    // בודק את כל השדות הללו (subscription gates ב-middleware.ts:283-310).
+    // אחרת משתמש שבוטל/הוגבל יכול להמשיך לגשת לדשבורד עד 30s. ה-proxy
+    // בודק את כל השדות הללו (subscription gates ב-proxy.ts:283-310).
     if (
       role !== undefined ||
       isBlocked !== undefined ||

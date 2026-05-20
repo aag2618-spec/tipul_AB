@@ -101,7 +101,7 @@ function isAdminOnlyPath(pathname: string): boolean {
   );
 }
 
-export async function middleware(request: NextRequest) {
+export async function proxy(request: NextRequest) {
   const { pathname } = request.nextUrl;
 
   // H16.4: ייצור nonce per-request ל-CSP nonce-based. base64 (לא hex) כי
