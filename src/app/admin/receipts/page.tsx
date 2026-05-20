@@ -17,8 +17,12 @@ export default async function ReceiptsPage() {
 
   const isAdmin = session.user.role === "ADMIN";
 
-  // Initial page load — first 50 receipts
+  // Initial page load — first 50 receipts.
+  // SECURITY: filter to tenant=ADMIN only (subscription/admin invoices).
+  // tenant=USER invoices are PHI (therapists' clients' names) — never expose
+  // in the admin receipts page. See HANDOFF-admin-receipts-tenant-leak.md.
   const receipts = await prisma.cardcomInvoice.findMany({
+    where: { tenant: "ADMIN" },
     take: 50,
     orderBy: { issuedAt: "desc" },
     select: {
@@ -45,14 +49,16 @@ export default async function ReceiptsPage() {
   const yearStart = new Date(now.getFullYear(), 0, 1);
   const monthStart = new Date(now.getFullYear(), now.getMonth(), 1);
 
+  // Aggregates — same tenant=ADMIN filter, otherwise totals would include
+  // therapists' USER-tenant invoices and inflate the "MyTipul revenue" figure.
   const [yearAggregate, monthAggregate] = await Promise.all([
     prisma.cardcomInvoice.aggregate({
-      where: { issuedAt: { gte: yearStart }, status: "ISSUED" },
+      where: { tenant: "ADMIN", issuedAt: { gte: yearStart }, status: "ISSUED" },
       _sum: { amount: true },
       _count: true,
     }),
     prisma.cardcomInvoice.aggregate({
-      where: { issuedAt: { gte: monthStart }, status: "ISSUED" },
+      where: { tenant: "ADMIN", issuedAt: { gte: monthStart }, status: "ISSUED" },
       _sum: { amount: true },
       _count: true,
     }),

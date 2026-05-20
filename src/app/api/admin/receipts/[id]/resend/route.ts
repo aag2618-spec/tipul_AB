@@ -7,7 +7,6 @@ import { requirePermission } from "@/lib/api-auth";
 import { logger } from "@/lib/logger";
 import { logAdminAction } from "@/lib/audit";
 import { getAdminCardcomConfig } from "@/lib/cardcom/admin-config";
-import { getUserCardcomCredentials } from "@/lib/cardcom/user-config";
 import { resendCardcomDocument } from "@/lib/cardcom/invoice-api";
 import { parseOptionalBody } from "@/lib/validations/helpers";
 import { receiptResendSchema } from "@/lib/validations/billing";
@@ -35,6 +34,22 @@ export async function POST(
   const invoice = await prisma.cardcomInvoice.findUnique({ where: { id } });
   if (!invoice) {
     return NextResponse.json({ message: "קבלה לא נמצאה" }, { status: 404 });
+  }
+  // SECURITY: admin resend operates only on ADMIN-tenant invoices. USER-tenant
+  // invoices belong to therapists' clients (PHI); admin must not trigger emails
+  // to those recipients on the therapist's behalf via this endpoint. Therapists
+  // resend their own client invoices through their own UI.
+  // Pattern: 403 + logger.warn (consistent with cardcom/refund:76-89).
+  if (invoice.tenant !== "ADMIN") {
+    logger.warn("[admin/receipts/resend] blocked non-ADMIN tenant resend", {
+      invoiceId: id,
+      invoiceTenant: invoice.tenant,
+      adminUserId: session.user.id,
+    });
+    return NextResponse.json(
+      { message: "פעולה זו זמינה רק לקבלות מערכת" },
+      { status: 403 }
+    );
   }
 
   const targetEmail = body.email || invoice.subscriberEmailSnapshot;
@@ -94,46 +109,16 @@ export async function POST(
   });
 
   try {
-    // Route to the right Cardcom terminal: USER tenant uses the issuer's
-    // (therapist's) credentials; ADMIN tenant uses the global MyTipul terminal.
-    let config;
-    if (invoice.tenant === "USER" && invoice.issuerUserId) {
-      const creds = await getUserCardcomCredentials(invoice.issuerUserId);
-      if (!creds) {
-        await prisma.cardcomInvoice
-          .updateMany({ where: { id, lastResendAt: now }, data: { lastResendAt: null } })
-          .catch(() => undefined);
-        return NextResponse.json(
-          { message: "מסוף ה-Cardcom של המטפל נותק — לא ניתן לשלוח מחדש" },
-          { status: 409 }
-        );
-      }
-      // Cardcom Documents/Send requires apiPassword. Fail fast if therapist
-      // never entered one — otherwise admin would loop trying to resend.
-      if (!creds.config.apiPassword) {
-        await prisma.cardcomInvoice
-          .updateMany({ where: { id, lastResendAt: now }, data: { lastResendAt: null } })
-          .catch(() => undefined);
-        return NextResponse.json(
-          {
-            message:
-              "המטפל לא הזין ApiPassword במסוף Cardcom שלו — לא ניתן לשלוח מחדש. בקש ממנו להוסיף סיסמת API בהגדרות אינטגרציות.",
-          },
-          { status: 409 }
-        );
-      }
-      config = creds.config;
-    } else {
-      config = await getAdminCardcomConfig();
-      if (!config.apiPassword) {
-        await prisma.cardcomInvoice
-          .updateMany({ where: { id, lastResendAt: now }, data: { lastResendAt: null } })
-          .catch(() => undefined);
-        return NextResponse.json(
-          { message: "ApiPassword של MyTipul לא מוגדר ב-env — לא ניתן לשלוח מחדש." },
-          { status: 409 }
-        );
-      }
+    // ADMIN tenant only (enforced above) — always use the global MyTipul terminal.
+    const config = await getAdminCardcomConfig();
+    if (!config.apiPassword) {
+      await prisma.cardcomInvoice
+        .updateMany({ where: { id, lastResendAt: now }, data: { lastResendAt: null } })
+        .catch(() => undefined);
+      return NextResponse.json(
+        { message: "ApiPassword של MyTipul לא מוגדר ב-env — לא ניתן לשלוח מחדש." },
+        { status: 409 }
+      );
     }
     const result = await resendCardcomDocument(
       config,

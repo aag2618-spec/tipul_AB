@@ -14,6 +14,7 @@ const PAGE_SIZE = 50;
 export async function GET(request: NextRequest) {
   const auth = await requirePermission("receipts.view");
   if ("error" in auth) return auth.error;
+  const { session } = auth;
 
   const { searchParams } = new URL(request.url);
   const subscriberId = searchParams.get("subscriberId");
@@ -23,20 +24,38 @@ export async function GET(request: NextRequest) {
   const toDate = searchParams.get("toDate");
   const cursor = searchParams.get("cursor");
 
-  // Default scope: ADMIN tenant only (subscription invoices). USER tenant
-  // invoices are visible only to ADMIN with explicit `tenant=USER`/`all`.
+  // SECURITY: tenant=USER invoices contain PHI (therapists' clients' names,
+  // emails, amounts) — they must never reach a non-ADMIN role even if the
+  // role holds `receipts.view`. MANAGER/SUPPORT see only ADMIN-tenant
+  // invoices (MyTipul subscription receipts). Only role=ADMIN may request
+  // tenant=USER or tenant=all for legitimate cross-tenant audits.
+  // See HANDOFF-admin-receipts-tenant-leak.md.
   const tenantFilter = searchParams.get("tenant"); // "ADMIN" | "USER" | "all" | null
+  const isAdminRole = session.user.role === "ADMIN";
+  if (!isAdminRole && (tenantFilter === "USER" || tenantFilter === "all")) {
+    logger.warn("[admin/receipts GET] blocked non-ADMIN cross-tenant access", {
+      userId: session.user.id,
+      role: session.user.role,
+      requestedTenant: tenantFilter,
+    });
+    return NextResponse.json(
+      { message: "אין הרשאה לעיין בקבלות מטפלים" },
+      { status: 403 }
+    );
+  }
+
   const where: Prisma.CardcomInvoiceWhereInput = {};
   if (subscriberId) where.subscriberId = subscriberId;
   if (status === "ISSUED" || status === "VOIDED" || status === "REFUNDED") where.status = status;
   if (documentType) where.cardcomDocumentType = documentType;
-  if (tenantFilter !== "all") {
-    // Filter via the linked CardcomTransaction.tenant (CardcomInvoice itself
-    // does not have a tenant column — it inherits from the transaction).
-    where.cardcomTransaction = {
-      tenant: tenantFilter === "USER" ? "USER" : "ADMIN",
-    };
+  // Use the denormalized `tenant` column (schema.prisma:2506-2508) — survives
+  // cardcomTransactionId SetNull and avoids a join on every list query.
+  if (tenantFilter === "USER") {
+    where.tenant = "USER";
+  } else if (tenantFilter !== "all") {
+    where.tenant = "ADMIN";
   }
+  // tenantFilter === "all" → no tenant where clause (ADMIN-only path above).
   if (fromDate || toDate) {
     where.issuedAt = {};
     if (fromDate) {

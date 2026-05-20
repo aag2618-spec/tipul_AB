@@ -30,6 +30,20 @@ export async function POST(
   if (!invoice) {
     return NextResponse.json({ message: "קבלה לא נמצאה" }, { status: 404 });
   }
+  // SECURITY: admin void only operates on ADMIN-tenant invoices (MyTipul's own
+  // subscription receipts). USER-tenant invoices belong to therapists' clients
+  // (PHI). Pattern: 403 + logger.warn (consistent with cardcom/refund:76-89).
+  if (invoice.tenant !== "ADMIN") {
+    logger.warn("[admin/receipts/void] blocked non-ADMIN tenant void", {
+      invoiceId: id,
+      invoiceTenant: invoice.tenant,
+      adminUserId: session.user.id,
+    });
+    return NextResponse.json(
+      { message: "פעולה זו זמינה רק לקבלות מערכת" },
+      { status: 403 }
+    );
+  }
   if (invoice.status === "VOIDED") {
     return NextResponse.json({ message: "הקבלה כבר בוטלה" }, { status: 409 });
   }
