@@ -3,6 +3,7 @@ import prisma from "@/lib/prisma";
 import { logger } from "@/lib/logger";
 
 import { requireAuth } from "@/lib/api-auth";
+import { loadScopeUser, buildClientWhere } from "@/lib/scope";
 
 export const dynamic = "force-dynamic";
 
@@ -13,15 +14,23 @@ export async function POST(
   try {
     const auth = await requireAuth();
     if ("error" in auth) return auth.error;
-    const { userId, session } = auth;
+    const { userId } = auth;
 
     const { id } = await params;
+
+    // H16.1 (סבב 16c): scope-aware update — אותו תיקון כמו ב-read/route.ts.
+    // משתמש שעבר קליניקה לא יכול לבטל logs ישנים מה-scope הקודם.
+    const scopeUser = await loadScopeUser(userId);
+    const clientWhere = buildClientWhere(scopeUser);
 
     await prisma.communicationLog.updateMany({
       where: {
         id,
-        userId: userId,
         status: "FAILED",
+        OR: [
+          { userId: userId },
+          { client: clientWhere },
+        ],
       },
       data: {
         status: "DISMISSED",
