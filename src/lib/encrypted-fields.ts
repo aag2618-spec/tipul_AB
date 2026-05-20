@@ -67,6 +67,18 @@ export const ENCRYPTED_FIELDS: Record<string, readonly string[]> = {
   // ניתוח AI על תשובות הלקוח לשאלון (PHI קליני רגיש). הוא String @db.Text,
   // לא Json, ולכן הולך כאן ולא ב-ENCRYPTED_JSON_FIELDS.
   questionnaireResponse: ["aiAnalysis"],
+  // M16.9 (סבב אבטחה 16f, 2026-05-20): CommunicationLog body fields.
+  // מיילים/SMS שמטפל שולח/מקבל למטופל עלולים להכיל PHI: "תזכורת לפגישה
+  // לגבי הסוגיה ש...", "נא להביא את התרופה X", subject "תוצאות אבחון".
+  // לפי חוק זכויות החולה תקשורת רפואית = PHI.
+  //
+  // בדוק קודם שאין WHERE על content/subject בקוד (lookup חוזר במצב מוצפן
+  // לא יעבוד) — Grep לא מצא בעיה. dual-read של maybeDecrypt יטפל אוטומטית
+  // ב-records ישנים שעדיין plaintext.
+  //
+  // errorMessage: לרוב Resend/Pulseem error strings (לא PHI), אבל יכול
+  // להכיל data מהbody — מצפינים defensively.
+  communicationLog: ["content", "subject", "errorMessage"],
 } as const;
 
 /**
