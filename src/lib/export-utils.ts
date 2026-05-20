@@ -1,11 +1,26 @@
 "use client";
 
-import * as XLSX from "xlsx";
+import { Workbook } from "exceljs";
 import { jsPDF } from "jspdf";
 import "jspdf-autotable";
 import { format } from "date-fns";
 import { he } from "date-fns/locale";
 import { getIsraelMonth, getIsraelYear, getIsraelQuarter } from "@/lib/date-utils";
+
+const XLSX_MIME = "application/vnd.openxmlformats-officedocument.spreadsheetml.sheet";
+
+async function downloadWorkbook(wb: Workbook, fileName: string): Promise<void> {
+  const buffer = await wb.xlsx.writeBuffer();
+  const blob = new Blob([buffer], { type: XLSX_MIME });
+  const url = URL.createObjectURL(blob);
+  const link = document.createElement("a");
+  link.href = url;
+  link.download = fileName;
+  document.body.appendChild(link);
+  link.click();
+  document.body.removeChild(link);
+  URL.revokeObjectURL(url);
+}
 
 // Extend jsPDF with autoTable
 declare module "jspdf" {
@@ -60,25 +75,11 @@ function formatDate(date: Date | string | null): string {
 }
 
 // ============ DETAILED EXPORT (Excel) ============
-export function exportDetailedExcel(
+export async function exportDetailedExcel(
   payments: PaymentExportData[],
   title: string = "דוח תשלומים מפורט"
-) {
-  // Prepare data
-  const data = payments.map((p) => ({
-    "תאריך תשלום": formatDate(p.paidAt),
-    "שם מטופל": p.clientName,
-    "סכום": `₪${p.amount}`,
-    "סכום מצופה": `₪${p.expectedAmount}`,
-    "אמצעי תשלום": getMethodLabel(p.method),
-    "סטטוס": p.status === "PAID" ? "שולם" : (p.status === "PENDING" && Number(p.amount) > 0 && Number(p.amount) < Number(p.expectedAmount)) ? "שולם חלקית" : "ממתין",
-    "תאריך פגישה": p.sessionDate ? formatDate(p.sessionDate) : "-",
-    "סוג פגישה": p.sessionType || "-",
-    "מס' קבלה": p.receiptNumber || "-",
-    "קבלה": p.hasReceipt ? "כן" : "לא",
-  }));
-
-  const ws = XLSX.utils.json_to_sheet(data, { header: [
+): Promise<void> {
+  const headers = [
     "תאריך תשלום",
     "שם מטופל",
     "סכום",
@@ -89,121 +90,38 @@ export function exportDetailedExcel(
     "סוג פגישה",
     "מס' קבלה",
     "קבלה",
-  ]});
-
-  // Set RTL and column widths
-  ws["!cols"] = [
-    { wch: 12 }, { wch: 20 }, { wch: 10 }, { wch: 12 },
-    { wch: 15 }, { wch: 10 }, { wch: 12 }, { wch: 12 },
-    { wch: 10 }, { wch: 8 },
   ];
 
-  const wb = XLSX.utils.book_new();
-  XLSX.utils.book_append_sheet(wb, ws, "תשלומים");
+  const wb = new Workbook();
+  const ws = wb.addWorksheet("תשלומים", { views: [{ rightToLeft: true }] });
+  ws.columns = [
+    { width: 12 }, { width: 20 }, { width: 10 }, { width: 12 },
+    { width: 15 }, { width: 10 }, { width: 12 }, { width: 12 },
+    { width: 10 }, { width: 8 },
+  ];
+  ws.addRow(headers).font = { bold: true };
 
-  // Download
+  payments.forEach((p) => {
+    const partialPaid =
+      p.status === "PENDING" &&
+      Number(p.amount) > 0 &&
+      Number(p.amount) < Number(p.expectedAmount);
+    ws.addRow([
+      formatDate(p.paidAt),
+      p.clientName,
+      `₪${p.amount}`,
+      `₪${p.expectedAmount}`,
+      getMethodLabel(p.method),
+      p.status === "PAID" ? "שולם" : partialPaid ? "שולם חלקית" : "ממתין",
+      p.sessionDate ? formatDate(p.sessionDate) : "-",
+      p.sessionType || "-",
+      p.receiptNumber || "-",
+      p.hasReceipt ? "כן" : "לא",
+    ]);
+  });
+
   const fileName = `${title}_${format(new Date(), "yyyy-MM-dd")}.xlsx`;
-  XLSX.writeFile(wb, fileName);
-}
-
-// ============ ACCOUNTANT EXPORT (Excel with multiple sheets) ============
-export function exportAccountantExcel(
-  payments: PaymentExportData[],
-  year: number,
-  quarter?: number
-) {
-  const wb = XLSX.utils.book_new();
-
-  // Filter by year/quarter — Israel calendar
-  let filtered = payments.filter((p) => {
-    if (!p.paidAt) return false;
-    const paidDate = new Date(p.paidAt);
-    if (getIsraelYear(paidDate) !== year) return false;
-    if (quarter) {
-      const pQuarter = getIsraelQuarter(paidDate);
-      if (pQuarter !== quarter) return false;
-    }
-    return true;
-  });
-
-  // Sheet 1: Summary
-  const summaryData = [
-    { "": "סיכום", "סכום": "" },
-    { "": "סה\"כ הכנסות", "סכום": `₪${filtered.reduce((sum, p) => sum + p.amount, 0)}` },
-    { "": "מספר תשלומים", "סכום": filtered.length.toString() },
-    { "": "עם קבלה", "סכום": filtered.filter(p => p.hasReceipt).length.toString() },
-    { "": "ללא קבלה", "סכום": filtered.filter(p => !p.hasReceipt).length.toString() },
-  ];
-  const summaryWs = XLSX.utils.json_to_sheet(summaryData);
-  XLSX.utils.book_append_sheet(wb, summaryWs, "סיכום");
-
-  // Sheet 2: All payments
-  const allData = filtered.map((p) => ({
-    "תאריך": formatDate(p.paidAt),
-    "מטופל": p.clientName,
-    "סכום": p.amount,
-    "אמצעי תשלום": getMethodLabel(p.method),
-    "מס' קבלה": p.receiptNumber || "-",
-    "סטטוס קבלה": p.hasReceipt ? "עם קבלה" : "ללא קבלה",
-  }));
-  const allWs = XLSX.utils.json_to_sheet(allData);
-  XLSX.utils.book_append_sheet(wb, allWs, "כל התשלומים");
-
-  // Sheet 3: With receipts only
-  const withReceiptData = filtered.filter(p => p.hasReceipt).map((p) => ({
-    "תאריך": formatDate(p.paidAt),
-    "מטופל": p.clientName,
-    "סכום": p.amount,
-    "אמצעי תשלום": getMethodLabel(p.method),
-    "מס' קבלה": p.receiptNumber || "-",
-  }));
-  const withReceiptWs = XLSX.utils.json_to_sheet(withReceiptData);
-  XLSX.utils.book_append_sheet(wb, withReceiptWs, "עם קבלה");
-
-  // Sheet 4: Without receipts
-  const withoutReceiptData = filtered.filter(p => !p.hasReceipt).map((p) => ({
-    "תאריך": formatDate(p.paidAt),
-    "מטופל": p.clientName,
-    "סכום": p.amount,
-    "אמצעי תשלום": getMethodLabel(p.method),
-  }));
-  const withoutReceiptWs = XLSX.utils.json_to_sheet(withoutReceiptData);
-  XLSX.utils.book_append_sheet(wb, withoutReceiptWs, "ללא קבלה");
-
-  // Sheet 5: By month
-  const byMonth: Record<string, number> = {};
-  filtered.forEach((p) => {
-    if (p.paidAt) {
-      const monthKey = format(new Date(p.paidAt), "yyyy-MM");
-      byMonth[monthKey] = (byMonth[monthKey] || 0) + p.amount;
-    }
-  });
-  const byMonthData = Object.entries(byMonth)
-    .sort(([a], [b]) => a.localeCompare(b))
-    .map(([month, total]) => ({
-      "חודש": month,
-      "סה\"כ": `₪${total}`,
-    }));
-  const byMonthWs = XLSX.utils.json_to_sheet(byMonthData);
-  XLSX.utils.book_append_sheet(wb, byMonthWs, "לפי חודש");
-
-  // Sheet 6: By payment method
-  const byMethod: Record<string, number> = {};
-  filtered.forEach((p) => {
-    const method = getMethodLabel(p.method);
-    byMethod[method] = (byMethod[method] || 0) + p.amount;
-  });
-  const byMethodData = Object.entries(byMethod).map(([method, total]) => ({
-    "אמצעי תשלום": method,
-    "סה\"כ": `₪${total}`,
-  }));
-  const byMethodWs = XLSX.utils.json_to_sheet(byMethodData);
-  XLSX.utils.book_append_sheet(wb, byMethodWs, "לפי אמצעי תשלום");
-
-  // Download
-  const periodLabel = quarter ? `Q${quarter}_${year}` : year.toString();
-  const fileName = `דוח_רואה_חשבון_${periodLabel}.xlsx`;
-  XLSX.writeFile(wb, fileName);
+  await downloadWorkbook(wb, fileName);
 }
 
 // ============ PDF EXPORT ============
@@ -522,12 +440,12 @@ export interface ReceiptExportData {
   } | null;
 }
 
-export function exportAccountantReport(
+export async function exportAccountantReport(
   receipts: ReceiptExportData[],
   year: number,
   businessName: string,
   quarter?: number
-): boolean {
+): Promise<boolean> {
   const filtered = receipts.filter((r) => {
     const date = r.paidAt ? new Date(r.paidAt) : new Date(r.createdAt);
     if (getIsraelYear(date) !== year) return false;
@@ -540,7 +458,7 @@ export function exportAccountantReport(
 
   if (filtered.length === 0) return false;
 
-  const wb = XLSX.utils.book_new();
+  const wb = new Workbook();
 
   const sorted = [...filtered].sort((a, b) => {
     const dA = new Date(a.paidAt || a.createdAt).getTime();
@@ -578,9 +496,12 @@ export function exportAccountantReport(
     ["", ""],
     ...Object.entries(sourceCounts).map(([src, count]) => [`קבלות - ${src}`, count]),
   ];
-  const summaryWs = XLSX.utils.aoa_to_sheet([["שדה", "ערך"], ...summaryRows]);
-  summaryWs["!cols"] = [{ wch: 26 }, { wch: 20 }];
-  XLSX.utils.book_append_sheet(wb, summaryWs, quarter ? "סיכום רבעוני" : "סיכום שנתי");
+  const summaryWs = wb.addWorksheet(quarter ? "סיכום רבעוני" : "סיכום שנתי", {
+    views: [{ rightToLeft: true }],
+  });
+  summaryWs.columns = [{ width: 26 }, { width: 20 }];
+  summaryWs.addRow(["שדה", "ערך"]).font = { bold: true };
+  summaryRows.forEach((row) => summaryWs.addRow(row));
 
   // --- Sheet 2: פירוט קבלות ---
   const detailHeaders = [
@@ -593,12 +514,26 @@ export function exportAccountantReport(
     "מקור קבלה",
     "קישור לקבלה",
   ];
-  const detailRows = sorted.map((r) => {
+  const detailWs = wb.addWorksheet("פירוט קבלות", { views: [{ rightToLeft: true }] });
+  detailWs.columns = [
+    { width: 12 },
+    { width: 14 },
+    { width: 30 },
+    { width: 22 },
+    { width: 12 },
+    { width: 16 },
+    { width: 12 },
+    { width: 40 },
+  ];
+  detailWs.addRow(detailHeaders).font = { bold: true };
+  sorted.forEach((r) => {
     const bulkLabel = r.bulkPart
       ? `חלק ${r.bulkPart.index}/${r.bulkPart.total} (קבלה כוללת ₪${r.bulkPart.totalAmount.toLocaleString()})`
       : "";
-    return [
-      r.paidAt ? format(new Date(r.paidAt), "dd/MM/yyyy") : format(new Date(r.createdAt), "dd/MM/yyyy"),
+    const row = detailWs.addRow([
+      r.paidAt
+        ? format(new Date(r.paidAt), "dd/MM/yyyy")
+        : format(new Date(r.createdAt), "dd/MM/yyyy"),
       r.receiptNumber || "-",
       bulkLabel,
       r.clientName,
@@ -606,27 +541,16 @@ export function exportAccountantReport(
       getMethodLabel(r.method),
       getReceiptSource(r.receiptUrl),
       r.receiptUrl || "",
-    ];
-  });
-  const detailWs = XLSX.utils.aoa_to_sheet([detailHeaders, ...detailRows]);
-  detailWs["!cols"] = [
-    { wch: 12 },
-    { wch: 14 },
-    { wch: 30 },
-    { wch: 22 },
-    { wch: 12 },
-    { wch: 16 },
-    { wch: 12 },
-    { wch: 40 },
-  ];
-  // Make receipt URLs clickable (column index shifted by 1 due to new "חלק מקבלה" col)
-  sorted.forEach((r, i) => {
+    ]);
     if (r.receiptUrl) {
-      const cell = XLSX.utils.encode_cell({ r: i + 1, c: 7 });
-      detailWs[cell] = { t: "s", v: r.receiptUrl, l: { Target: r.receiptUrl, Tooltip: "פתח קבלה" } };
+      // Column 8 = "קישור לקבלה" — turn into clickable hyperlink
+      row.getCell(8).value = {
+        text: r.receiptUrl,
+        hyperlink: r.receiptUrl,
+        tooltip: "פתח קבלה",
+      };
     }
   });
-  XLSX.utils.book_append_sheet(wb, detailWs, "פירוט קבלות");
 
   // --- Sheet 3: סיכום חודשי (לפי שעון ישראל) ---
   const monthMap: Record<number, { count: number; total: number }> = {};
@@ -637,15 +561,17 @@ export function exportAccountantReport(
     monthMap[m].count += 1;
     monthMap[m].total += Number(r.amount);
   });
-  const monthNames = ["ינואר","פברואר","מרץ","אפריל","מאי","יוני","יולי","אוגוסט","ספטמבר","אוקטובר","נובמבר","דצמבר"];
-  const monthHeaders = ["חודש", "מספר קבלות", "סה\"כ הכנסות (₪)"];
-  const monthRows = Object.keys(monthMap)
+  const monthNames = [
+    "ינואר", "פברואר", "מרץ", "אפריל", "מאי", "יוני",
+    "יולי", "אוגוסט", "ספטמבר", "אוקטובר", "נובמבר", "דצמבר",
+  ];
+  const monthWs = wb.addWorksheet("סיכום חודשי", { views: [{ rightToLeft: true }] });
+  monthWs.columns = [{ width: 14 }, { width: 14 }, { width: 18 }];
+  monthWs.addRow(["חודש", "מספר קבלות", "סה\"כ הכנסות (₪)"]).font = { bold: true };
+  Object.keys(monthMap)
     .map(Number)
     .sort((a, b) => a - b)
-    .map((m) => [monthNames[m], monthMap[m].count, monthMap[m].total]);
-  const monthWs = XLSX.utils.aoa_to_sheet([monthHeaders, ...monthRows]);
-  monthWs["!cols"] = [{ wch: 14 }, { wch: 14 }, { wch: 18 }];
-  XLSX.utils.book_append_sheet(wb, monthWs, "סיכום חודשי");
+    .forEach((m) => monthWs.addRow([monthNames[m], monthMap[m].count, monthMap[m].total]));
 
   // --- Sheet 4: סיכום רבעוני (לפי שעון ישראל) ---
   const qMap: Record<number, { count: number; total: number }> = {};
@@ -655,17 +581,15 @@ export function exportAccountantReport(
     qMap[q].count += 1;
     qMap[q].total += Number(r.amount);
   });
-  const qHeaders = ["רבעון", "מספר קבלות", "סה\"כ הכנסות (₪)"];
-  const qRows = Object.keys(qMap)
+  const qWs = wb.addWorksheet("סיכום רבעוני", { views: [{ rightToLeft: true }] });
+  qWs.columns = [{ width: 10 }, { width: 14 }, { width: 18 }];
+  qWs.addRow(["רבעון", "מספר קבלות", "סה\"כ הכנסות (₪)"]).font = { bold: true };
+  Object.keys(qMap)
     .map(Number)
     .sort((a, b) => a - b)
-    .map((q) => [`Q${q}`, qMap[q].count, qMap[q].total]);
-  const qWs = XLSX.utils.aoa_to_sheet([qHeaders, ...qRows]);
-  qWs["!cols"] = [{ wch: 10 }, { wch: 14 }, { wch: 18 }];
-  XLSX.utils.book_append_sheet(wb, qWs, "סיכום רבעוני");
+    .forEach((q) => qWs.addRow([`Q${q}`, qMap[q].count, qMap[q].total]));
 
   // --- Sheet 5: לפי אמצעי תשלום ---
-  const methodHeaders = ["אמצעי תשלום", "מספר קבלות", "סה\"כ (₪)"];
   const methodCountMap: Record<string, { count: number; total: number }> = {};
   filtered.forEach((r) => {
     const label = getMethodLabel(r.method);
@@ -673,13 +597,13 @@ export function exportAccountantReport(
     methodCountMap[label].count += 1;
     methodCountMap[label].total += Number(r.amount);
   });
-  const methodRows = Object.entries(methodCountMap).map(([m, d]) => [m, d.count, d.total]);
-  const methodWs = XLSX.utils.aoa_to_sheet([methodHeaders, ...methodRows]);
-  methodWs["!cols"] = [{ wch: 18 }, { wch: 14 }, { wch: 14 }];
-  XLSX.utils.book_append_sheet(wb, methodWs, "לפי אמצעי תשלום");
+  const methodWs = wb.addWorksheet("לפי אמצעי תשלום", { views: [{ rightToLeft: true }] });
+  methodWs.columns = [{ width: 18 }, { width: 14 }, { width: 14 }];
+  methodWs.addRow(["אמצעי תשלום", "מספר קבלות", "סה\"כ (₪)"]).font = { bold: true };
+  Object.entries(methodCountMap).forEach(([m, d]) => methodWs.addRow([m, d.count, d.total]));
 
   const fileLabel = quarter ? `Q${quarter}_${year}` : `${year}`;
-  XLSX.writeFile(wb, `דוח_לרואה_חשבון_${fileLabel}.xlsx`);
+  await downloadWorkbook(wb, `דוח_לרואה_חשבון_${fileLabel}.xlsx`);
   return true;
 }
 

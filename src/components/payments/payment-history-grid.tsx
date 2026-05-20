@@ -214,11 +214,11 @@ export function PaymentHistoryGrid({ payments }: PaymentHistoryGridProps) {
                 <Download className="h-3.5 w-3.5" />
                 PDF
               </Button>
-              <Button 
-                variant="outline" 
-                size="sm" 
+              <Button
+                variant="outline"
+                size="sm"
                 className="gap-1.5 bg-white/80 hover:bg-white border-emerald-200 text-emerald-700 hover:text-emerald-800"
-                onClick={() => {
+                onClick={async () => {
                   const exportData: PaymentExportData[] = filteredPayments.map(p => ({
                     id: p.id,
                     clientName: "מטופל",
@@ -233,8 +233,12 @@ export function PaymentHistoryGrid({ payments }: PaymentHistoryGridProps) {
                     receiptNumber: null,
                     hasReceipt: false,
                   }));
-                  exportDetailedExcel(exportData, "היסטוריית תשלומים");
-                  toast.success("הקובץ הורד בהצלחה");
+                  try {
+                    await exportDetailedExcel(exportData, "היסטוריית תשלומים");
+                    toast.success("הקובץ הורד בהצלחה");
+                  } catch {
+                    toast.error("שגיאה בייצוא הקובץ");
+                  }
                 }}
               >
                 <Download className="h-3.5 w-3.5" />

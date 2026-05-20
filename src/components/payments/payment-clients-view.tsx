@@ -328,7 +328,7 @@ export function PaymentClientsView({
                     <DropdownMenuContent align="end">
                       <DropdownMenuLabel>ייצוא מפורט</DropdownMenuLabel>
                       <DropdownMenuSeparator />
-                      <DropdownMenuItem onClick={() => {
+                      <DropdownMenuItem onClick={async () => {
                         const exportData: PaymentExportData[] = paidPayments.map(p => ({
                           id: p.id,
                           clientName: p.clientName,
@@ -343,8 +343,12 @@ export function PaymentClientsView({
                           receiptNumber: null,
                           hasReceipt: false,
                         }));
-                        exportDetailedExcel(exportData, "דוח תשלומים מפורט");
-                        toast.success("הקובץ הורד בהצלחה");
+                        try {
+                          await exportDetailedExcel(exportData, "דוח תשלומים מפורט");
+                          toast.success("הקובץ הורד בהצלחה");
+                        } catch {
+                          toast.error("שגיאה בייצוא הקובץ");
+                        }
                       }}>
                         Excel
                       </DropdownMenuItem>

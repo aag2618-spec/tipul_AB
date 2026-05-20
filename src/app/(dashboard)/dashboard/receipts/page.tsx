@@ -539,13 +539,17 @@ export default function ReceiptsPage() {
               {[new Date().getFullYear(), new Date().getFullYear() - 1, new Date().getFullYear() - 2].map((y) => (
                 <DropdownMenuItem
                   key={y}
-                  onClick={() => {
+                  onClick={async () => {
                     const data: ReceiptExportData[] = buildReceiptExportData(payments);
-                    const ok = exportAccountantReport(data, y, therapist?.businessName || therapist?.name || "");
-                    if (ok) {
-                      toast.success(`דוח שנת ${y} הורד בהצלחה`);
-                    } else {
-                      toast.error(`אין קבלות בשנת ${y}`);
+                    try {
+                      const ok = await exportAccountantReport(data, y, therapist?.businessName || therapist?.name || "");
+                      if (ok) {
+                        toast.success(`דוח שנת ${y} הורד בהצלחה`);
+                      } else {
+                        toast.error(`אין קבלות בשנת ${y}`);
+                      }
+                    } catch {
+                      toast.error(`שגיאה בייצוא דוח שנת ${y}`);
                     }
                   }}
                 >
@@ -565,15 +569,19 @@ export default function ReceiptsPage() {
                   ].map(({ q, label }) => (
                     <DropdownMenuItem
                       key={`${qYear}-${q}`}
-                      onClick={() => {
+                      onClick={async () => {
                         // משתמש ב-buildReceiptExportData הקנוני כדי לקבל
                         // bulkPart נכון לתשלומים מצרפיים מאוחדים.
                         const data: ReceiptExportData[] = buildReceiptExportData(payments);
-                        const ok = exportAccountantReport(data, qYear, therapist?.businessName || therapist?.name || "", q);
-                        if (ok) {
-                          toast.success(`דוח ${label} ${qYear} הורד בהצלחה`);
-                        } else {
-                          toast.error(`אין קבלות ב-${label} ${qYear}`);
+                        try {
+                          const ok = await exportAccountantReport(data, qYear, therapist?.businessName || therapist?.name || "", q);
+                          if (ok) {
+                            toast.success(`דוח ${label} ${qYear} הורד בהצלחה`);
+                          } else {
+                            toast.error(`אין קבלות ב-${label} ${qYear}`);
+                          }
+                        } catch {
+                          toast.error(`שגיאה בייצוא ${label} ${qYear}`);
                         }
                       }}
                     >
