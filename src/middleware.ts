@@ -1,6 +1,7 @@
 import { NextResponse } from "next/server";
 import type { NextRequest } from "next/server";
 import { getToken } from "next-auth/jwt";
+import { randomBytes } from "node:crypto";
 // M3 — מאלץ הרצת validateEnv() ב-startup (env.ts קורא לזה ב-import time).
 // בלי import זה, ה-validation היה dead code.
 import "@/lib/env";
@@ -15,6 +16,41 @@ import {
 // ללא זה Next.js מריץ middleware ב-Edge Runtime שבו Map לא נשמר בין בקשות
 // (שיקולי ביצועים נשקלו — Node.js runtime בסדר ב-Render single-instance)
 export const runtime = "nodejs";
+
+// H16.4 (סבב 16h): CSP nonce-based — בדפדפנים מודרניים, 'strict-dynamic' עם
+// nonce ייחודי לכל בקשה מבטל את 'unsafe-inline' ומבטל גם את הצורך ב-allowlists
+// (scripts שנטענים ע"י script עם nonce תקף יורשים את ה-trust).
+// 'unsafe-inline' נשמר כ-fallback ל-browsers שלא תומכים ב-CSP3 (יתעלמו מ-
+// strict-dynamic ויכבדו unsafe-inline).
+//
+// ה-CSP הסטטי ב-next.config.ts נשאר כ-fallback ל-routes שאינם ב-matcher של
+// המידלוור (כמו /login, /register, /). middleware עוקף עם CSP חזק יותר עבור
+// routes מוגנים שעוברים דרכו.
+function buildCspWithNonce(nonce: string, isDev: boolean): string {
+  const scriptSrc = isDev
+    ? `script-src 'self' 'nonce-${nonce}' 'strict-dynamic' 'unsafe-inline' 'unsafe-eval'`
+    : `script-src 'self' 'nonce-${nonce}' 'strict-dynamic' 'unsafe-inline'`;
+  return [
+    "default-src 'self'",
+    scriptSrc,
+    "style-src 'self' 'unsafe-inline' https://fonts.googleapis.com",
+    "img-src 'self' data: blob: https:",
+    "font-src 'self' data: https://fonts.gstatic.com",
+    "connect-src 'self' https://*.cardcom.solutions https://*.googleapis.com https://generativelanguage.googleapis.com https://api.resend.com",
+    "frame-src 'self' https://*.cardcom.solutions",
+    "frame-ancestors 'none'",
+    "form-action 'self' https://*.cardcom.solutions",
+    "base-uri 'self'",
+    "object-src 'none'",
+    "report-uri /api/csp-report",
+  ].join("; ");
+}
+
+function applyCspNonce(response: NextResponse, csp: string): NextResponse {
+  // override ה-CSP הסטטי מ-next.config.ts עם הגרסה nonce-based.
+  response.headers.set("Content-Security-Policy", csp);
+  return response;
+}
 
 // דפים שלא דורשים מנוי פעיל (מדויקים!)
 const SUBSCRIPTION_EXEMPT_PATHS = [
@@ -67,6 +103,17 @@ function isAdminOnlyPath(pathname: string): boolean {
 
 export async function middleware(request: NextRequest) {
   const { pathname } = request.nextUrl;
+
+  // H16.4: ייצור nonce per-request ל-CSP nonce-based. base64 (לא hex) כי
+  // CSP-spec דורש token של letter/digit/-/_/+//= (base64 charset).
+  // העברה ל-request headers (Next.js מצרף ל-inline scripts אוטומטית) +
+  // ל-response headers (CSP override על הגרסה הסטטית).
+  const nonce = randomBytes(16).toString("base64");
+  const isDev = process.env.NODE_ENV !== "production";
+  const cspHeader = buildCspWithNonce(nonce, isDev);
+
+  const requestHeaders = new Headers(request.headers);
+  requestHeaders.set("x-nonce", nonce);
 
   // Get the token from the request
   const token = await getToken({
@@ -287,7 +334,10 @@ export async function middleware(request: NextRequest) {
   if (pathname.startsWith("/dashboard") && token) {
     // מנהלים (ADMIN) לא נחסמים על ידי בדיקת מנוי
     if (token.role === "ADMIN") {
-      return NextResponse.next();
+      return applyCspNonce(
+        NextResponse.next({ request: { headers: requestHeaders } }),
+        cspHeader
+      );
     }
 
     // בדיקה אם הדף פטור מבדיקת מנוי
@@ -316,18 +366,21 @@ export async function middleware(request: NextRequest) {
       if (subscriptionStatus === "PAST_DUE") {
         // PAST_DUE = תקופת חסד פעילה - מאפשרים גישה עם הודעת אזהרה
         // ה-header יגרום ל-UI להציג באנר אזהרה
-        const response = NextResponse.next();
+        const response = NextResponse.next({ request: { headers: requestHeaders } });
         response.headers.set("x-subscription-warning", "past_due");
         const gracePeriodEndsAt = token.gracePeriodEndsAt as string;
         if (gracePeriodEndsAt) {
           response.headers.set("x-grace-period-ends", gracePeriodEndsAt);
         }
-        return response;
+        return applyCspNonce(response, cspHeader);
       }
     }
   }
 
-  return NextResponse.next();
+  return applyCspNonce(
+    NextResponse.next({ request: { headers: requestHeaders } }),
+    cspHeader
+  );
 }
 
 // Configure which paths should be processed by the middleware.
