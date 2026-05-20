@@ -285,3 +285,42 @@ export async function stripImageMetadata(
     return buffer;
   }
 }
+
+/**
+ * round15 (L5): מנקה filename מתווי Unicode bidi-override (U+200E/F,
+ * U+202A-E, U+2066-9) שמשתמשים בהם להפיכת ההצגה של שם הקובץ — תוקף
+ * יכול לקרוא לקובץ "evil[U+202E]gpj.exe" שיוצג כ-"evilexe.jpg" בדפדפן
+ * ולגרום למשתמש להוריד executable במחשבה שזה תמונה.
+ *
+ * מחזיר אובייקט עם שתי גרסאות:
+ *   asciiSafe — לשימוש ב-Content-Disposition `filename=` (RFC 6266 ASCII)
+ *   utf8Encoded — URL-encoded UTF-8 לשימוש ב-`filename*=UTF-8''...`
+ *
+ * דפוס שימוש:
+ *   const { asciiSafe, utf8Encoded } = sanitizeDownloadFilename(rawName);
+ *   headers.set(
+ *     "Content-Disposition",
+ *     `attachment; filename="${asciiSafe}"; filename*=UTF-8''${utf8Encoded}`
+ *   );
+ *
+ * אותו pattern כבר בשימוש ב-src/app/api/uploads/[...path]/route.ts:250-258
+ * (round 10) — כאן הוצא לפונקציה משותפת כדי שכל route שמחזיר filename
+ * מ-input של משתמש יוכל להשתמש בלי כפילות.
+ */
+export function sanitizeDownloadFilename(rawName: string | null | undefined): {
+  asciiSafe: string;
+  utf8Encoded: string;
+} {
+  const base = (rawName ?? "file").slice(0, 255);
+  // U+200E, U+200F (LRM/RLM), U+202A-U+202E (embedding/override), U+2066-U+2069 (isolate)
+  const stripped = base.replace(/[‎‏‪-‮⁦-⁩]/g, "");
+  // לכל הפחות שם ברירת מחדל אם הסינון השאיר ריק.
+  const safe = stripped.trim() || "file";
+  // ASCII בלבד ב-filename=; שאר ב-filename*=UTF-8''<encoded>.
+  // גם מסיר תווים שיכולים לשבור את ה-header (`"`, `\r`, `\n`).
+  const asciiSafe = safe
+    .replace(/[\x00-\x1F\x7F"\\]/g, "_")
+    .replace(/[^\x20-\x7E]/g, "_");
+  const utf8Encoded = encodeURIComponent(safe);
+  return { asciiSafe, utf8Encoded };
+}

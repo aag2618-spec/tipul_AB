@@ -7,6 +7,7 @@ import { MeshulamClient } from '@/lib/meshulam';
 import { ICountClient } from '@/lib/icount';
 import { GreenInvoiceClient } from '@/lib/green-invoice';
 import { SumitClient } from '@/lib/sumit';
+import { logger } from '@/lib/logger';
 
 export type { BillingProviderType } from './types';
 import type { BillingProviderType } from './types';
@@ -194,7 +195,10 @@ export class BillingService {
           };
       }
     } catch (error) {
-      console.error('Error creating receipt:', error);
+      // round15 (E1): logger במקום console — sanitization של PII.
+      logger.error('[billing.service] error creating receipt', {
+        error: error instanceof Error ? error.message : String(error),
+      });
       return {
         success: false,
         error: error instanceof Error ? error.message : 'שגיאה ביצירת קבלה',
@@ -245,7 +249,10 @@ export class BillingService {
           };
       }
     } catch (error) {
-      console.error('Error creating payment link:', error);
+      // round15 (E1): logger במקום console — sanitization של PII.
+      logger.error('[billing.service] error creating payment link', {
+        error: error instanceof Error ? error.message : String(error),
+      });
       return {
         success: false,
         error: error instanceof Error ? error.message : 'שגיאה ביצירת קישור תשלום',
@@ -273,7 +280,11 @@ export class BillingService {
     });
 
     if (process.env.NODE_ENV === 'development') {
-      console.log('Meshulam createInvoice response:', JSON.stringify(response));
+      // round15 (E1): logger במקום console — לוגים מסונכרנים, אין PII leak.
+      logger.info('[billing.service] Meshulam createInvoice response', {
+        status: response.status,
+        hasData: !!response.data,
+      });
     }
     if (response.status !== 1 || !response.data) {
       return {
@@ -383,7 +394,11 @@ export class BillingService {
     });
 
     if (process.env.NODE_ENV === 'development') {
-      console.log('Green Invoice createReceipt response:', JSON.stringify(response));
+      // round15 (E1): logger במקום console.
+      logger.info('[billing.service] Green Invoice createReceipt response', {
+        success: response.success,
+        hasData: !!response.data,
+      });
     }
     if (!response.success || !response.data) {
       return {
@@ -421,7 +436,11 @@ export class BillingService {
     });
 
     if (process.env.NODE_ENV === 'development') {
-      console.log('Sumit createReceipt response:', JSON.stringify(response));
+      // round15 (E1): logger במקום console.
+      logger.info('[billing.service] Sumit createReceipt response', {
+        success: response.Success,
+        hasData: !!response.Data,
+      });
     }
     if (!response.Success || !response.Data) {
       return {

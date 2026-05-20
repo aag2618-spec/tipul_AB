@@ -1,4 +1,5 @@
 import prisma from "./prisma";
+import { logger } from "./logger";
 
 interface LogApiUsageParams {
   userId: string;
@@ -38,8 +39,11 @@ export async function logApiUsage({
       },
     });
   } catch (error) {
-    // Don't let logging failures affect the main request
-    console.error("Failed to log API usage:", error);
+    // Don't let logging failures affect the main request.
+    // round15 (E1): logger במקום console — sanitization של PII בנפילות.
+    logger.error("[api-logger] failed to log API usage", {
+      error: error instanceof Error ? error.message : String(error),
+    });
   }
 }
 

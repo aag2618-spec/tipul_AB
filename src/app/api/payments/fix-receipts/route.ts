@@ -2,15 +2,18 @@ import { NextResponse } from "next/server";
 import { migrateParentReceiptsToChildren } from "@/lib/payment-service";
 import { logger } from "@/lib/logger";
 
-import { requireAuth } from "@/lib/api-auth";
+import { requireAdmin } from "@/lib/api-auth";
 
 export const dynamic = "force-dynamic";
 
 export async function POST() {
   try {
-    const auth = await requireAuth();
+    // round15 (2.2): שדרוג מ-requireAuth ל-requireAdmin. השחזור של receipt
+    // tokens (migrateParentReceiptsToChildren) הוא פעולה רגישה שחייבת להיות
+    // מוגבלת ל-ADMIN בלבד. ב-feedback_security_fixes.md חוק 3 — admin tools
+    // חייבים scope/admin check, לא רק auth.
+    const auth = await requireAdmin();
     if ("error" in auth) return auth.error;
-    const { userId, session } = auth;
 
     const result = await migrateParentReceiptsToChildren();
 

@@ -12,6 +12,7 @@ import {
   attachmentDownloadQuerySchema,
   saveAttachmentSchema,
 } from "@/lib/validations/communications";
+import { sanitizeDownloadFilename } from "@/lib/file-validation";
 
 // GET - Download attachment from Resend
 export const dynamic = "force-dynamic";
@@ -95,7 +96,13 @@ export async function GET(request: NextRequest) {
     const buffer = Buffer.from(await fileResponse.arrayBuffer());
     const headers = new Headers();
     headers.set("Content-Type", contentType);
-    headers.set("Content-Disposition", `attachment; filename="${encodeURIComponent(filename || "file")}"` );
+    // round15 (L5): filename מגיע מ-query string של המשתמש — חייב סינון
+    // נגד Unicode bidi-override (RTL spoofing) ו-header injection.
+    const { asciiSafe, utf8Encoded } = sanitizeDownloadFilename(filename);
+    headers.set(
+      "Content-Disposition",
+      `attachment; filename="${asciiSafe}"; filename*=UTF-8''${utf8Encoded}`
+    );
     headers.set("Content-Length", buffer.length.toString());
 
     return new NextResponse(buffer, { headers });

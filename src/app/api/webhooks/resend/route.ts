@@ -27,7 +27,7 @@ export async function POST(request: NextRequest) {
     const svixSignature = headersList.get("svix-signature");
 
     if (!svixId || !svixTimestamp || !svixSignature) {
-      console.warn("Resend webhook: missing Svix headers");
+      logger.warn("[Resend webhook] missing Svix headers");
       return NextResponse.json({ error: "Missing webhook headers" }, { status: 401 });
     }
 
@@ -55,7 +55,7 @@ export async function POST(request: NextRequest) {
       });
       
       if (!isValid) {
-        console.warn("Resend webhook: invalid signature");
+        logger.warn("[Resend webhook] invalid signature");
         return NextResponse.json({ error: "Invalid signature" }, { status: 401 });
       }
     }
@@ -177,7 +177,12 @@ export async function POST(request: NextRequest) {
       }
 
       if (!clientRecord || !therapistId) {
-        console.warn("Could not find client for incoming email:", senderEmail);
+        // round15 (E1/F3): hash של email במקום plaintext — מנע דליפת PII ל-logs.
+        const { createHash } = await import("node:crypto");
+        const emailHash = createHash("sha256").update(senderEmail).digest("hex").slice(0, 8);
+        logger.warn("[Resend webhook] could not find client for incoming email", {
+          emailHash,
+        });
         return NextResponse.json(
           { message: "Client not found for sender email" },
           { status: 200 }
