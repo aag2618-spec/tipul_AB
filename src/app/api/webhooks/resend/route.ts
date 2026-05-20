@@ -2,6 +2,7 @@ import { NextRequest, NextResponse } from "next/server";
 import prisma from "@/lib/prisma";
 import { headers } from "next/headers";
 import { Resend } from "resend";
+import { createHash } from "node:crypto";
 import { logger } from "@/lib/logger";
 
 export const dynamic = "force-dynamic";
@@ -178,7 +179,7 @@ export async function POST(request: NextRequest) {
 
       if (!clientRecord || !therapistId) {
         // round15 (E1/F3): hash של email במקום plaintext — מנע דליפת PII ל-logs.
-        const { createHash } = await import("node:crypto");
+        // round17 (cosmetic): createHash מיובא static בראש הקובץ (לעקביות עם register).
         const emailHash = createHash("sha256").update(senderEmail).digest("hex").slice(0, 8);
         logger.warn("[Resend webhook] could not find client for incoming email", {
           emailHash,
