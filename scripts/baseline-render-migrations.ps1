@@ -1,21 +1,21 @@
 # =============================================================================
 # baseline-render-migrations.ps1
 # =============================================================================
-# מסמן את כל ה-Prisma migrations הקיימות כ-"applied" ב-DB של Render.
-# פעולה בטוחה — לא משנה schema, רק מעדכן טבלת _prisma_migrations הפנימית.
+# Marks all Prisma migrations as "applied" in Render DB without changing schema.
+# Safe operation — only updates the internal _prisma_migrations table.
 #
-# למה צריך את זה: DB ב-production נוצר עם `db push` (בלי migrations).
-# כדי לעבור ל-`migrate deploy` בעתיד, צריך לסמן את כל ה-migrations
-# הקיימות כ-applied (אחרת prisma ינסה להריץ הכל מ-0 = catastrophic).
+# Why: production DB was created with `db push` (no migrations tracked).
+# To switch to `migrate deploy`, we must first mark existing migrations
+# as applied (otherwise prisma will try to run them all from 0 = catastrophic).
 #
-# שימוש (מ-PowerShell):
-#   1. קח DATABASE_URL מ-Render Dashboard → Database → Connect → External Connection
-#   2. הרץ:    .\scripts\baseline-render-migrations.ps1 -DatabaseUrl "postgres://..."
-#   3. עברו על אישור כשהוא יבקש
+# Usage:
+#   1. Get DATABASE_URL from Render Dashboard -> Database -> Info -> External
+#   2. Run: .\scripts\baseline-render-migrations.ps1 -DatabaseUrl "postgres://..."
+#   3. Confirm prompts
 # =============================================================================
 
 param(
-    [Parameter(Mandatory=$true, HelpMessage="DATABASE_URL מ-Render Dashboard (External Connection)")]
+    [Parameter(Mandatory=$true, HelpMessage="DATABASE_URL from Render (External)")]
     [string]$DatabaseUrl,
 
     [switch]$DryRun
@@ -23,78 +23,80 @@ param(
 
 $ErrorActionPreference = "Stop"
 
-# צבעים
-function Write-Info($msg)  { Write-Host "ℹ  $msg" -ForegroundColor Cyan }
-function Write-Ok($msg)    { Write-Host "✓  $msg" -ForegroundColor Green }
-function Write-Warn($msg)  { Write-Host "⚠  $msg" -ForegroundColor Yellow }
-function Write-Err($msg)   { Write-Host "✗  $msg" -ForegroundColor Red }
+function Write-Info($msg)  { Write-Host "[i] $msg" -ForegroundColor Cyan }
+function Write-Ok($msg)    { Write-Host "[OK] $msg" -ForegroundColor Green }
+function Write-Warn($msg)  { Write-Host "[!] $msg" -ForegroundColor Yellow }
+function Write-Err($msg)   { Write-Host "[X] $msg" -ForegroundColor Red }
 
-# בדיקה 1: DATABASE_URL נראה תקין
+# Check 1: DATABASE_URL format
 if (-not $DatabaseUrl.StartsWith("postgres://") -and -not $DatabaseUrl.StartsWith("postgresql://")) {
-    Write-Err "DATABASE_URL לא תקין. חייב להתחיל ב-postgres:// או postgresql://"
+    Write-Err "DATABASE_URL must start with postgres:// or postgresql://"
     exit 1
 }
 
-# בדיקה 2: מציג רק את החלק הציבורי של ה-URL (לא את הסיסמה)
+# Display URL safely (mask password)
 $urlSafe = $DatabaseUrl -replace ":[^:@]+@", ":***@"
-Write-Info "מתחבר ל: $urlSafe"
+Write-Info "Connecting to: $urlSafe"
 
-# בדיקה 3: prisma/migrations קיים
+# Check 2: prisma/migrations exists
 if (-not (Test-Path "prisma/migrations")) {
-    Write-Err "תיקיית prisma/migrations לא נמצאה. הרץ מ-root של הפרויקט."
+    Write-Err "Directory prisma/migrations not found. Run from project root."
     exit 1
 }
 
-# רשימת migrations אמיתיות (תיקיות בלבד, לא קבצי .sql)
+# Find real migration directories (not loose .sql files)
 $migrations = Get-ChildItem -Path "prisma/migrations" -Directory |
     Where-Object { $_.Name -ne "migration_lock.toml" } |
     Sort-Object Name
 
 if ($migrations.Count -eq 0) {
-    Write-Err "לא נמצאו migrations ב-prisma/migrations/"
+    Write-Err "No migrations found in prisma/migrations/"
     exit 1
 }
 
 Write-Host ""
-Write-Info "נמצאו $($migrations.Count) migrations לסימון כ-applied:"
+Write-Info "Found $($migrations.Count) migrations to mark as applied:"
 foreach ($m in $migrations) {
-    Write-Host "    • $($m.Name)" -ForegroundColor Gray
+    Write-Host "    - $($m.Name)" -ForegroundColor Gray
 }
 
-# בדיקה 4: גיבוי DB
+# Check 3: Backup confirmation
 Write-Host ""
-Write-Warn "לפני שממשיכים — האם עשית גיבוי ל-DB ב-Render Dashboard?"
-Write-Warn "  (Render Dashboard → Database → Backups → Backup Now)"
-$confirmBackup = Read-Host "כתוב 'yes' אם יש גיבוי טרי"
+Write-Warn "Before continuing: did you create a DB backup in Render?"
+Write-Warn "  (Render Dashboard -> Database -> Recovery -> Backup Now)"
+$confirmBackup = Read-Host "Type 'yes' if backup is fresh"
 if ($confirmBackup -ne "yes") {
-    Write-Err "לא ממשיכים. תעשה גיבוי קודם ואז חוזר."
+    Write-Err "Aborted. Create a backup first, then run again."
     exit 1
 }
 
-# בדיקה 5: אישור סופי
+# Check 4: Final confirmation
 Write-Host ""
-Write-Warn "התרחיש:"
-Write-Warn "  - אסמן את כל ה-$($migrations.Count) migrations כ-applied ב-DB של Render"
-Write-Warn "  - לא ישתנה schema של DB. רק טבלת _prisma_migrations הפנימית"
-Write-Warn "  - לאחר מכן, npx prisma migrate status יחזיר: 'Database schema is up to date!'"
-$confirm = Read-Host "כתוב 'apply' כדי לאשר"
+Write-Warn "About to do the following:"
+Write-Warn "  - Mark all $($migrations.Count) migrations as applied in Render DB"
+Write-Warn "  - Will NOT change DB schema. Only updates _prisma_migrations table"
+Write-Warn "  - After: 'npx prisma migrate status' should say 'up to date'"
+if ($DryRun) {
+    Write-Info "DRY-RUN MODE: nothing will be changed"
+}
+$confirm = Read-Host "Type 'apply' to confirm"
 if ($confirm -ne "apply") {
-    Write-Info "ביטול. לא בוצע כלום."
+    Write-Info "Aborted. Nothing was done."
     exit 0
 }
 
-# שמירת DATABASE_URL זמנית לסביבת ה-process
+# Set DATABASE_URL for this session only
 $env:DATABASE_URL = $DatabaseUrl
 
-# הרצה
+# Process each migration
 Write-Host ""
-Write-Info "מתחיל לסמן migrations..."
+Write-Info "Starting baseline..."
 $success = 0
 $failed = 0
 $alreadyApplied = 0
 
 foreach ($m in $migrations) {
-    Write-Host -NoNewline "  • $($m.Name) ... "
+    Write-Host -NoNewline "  - $($m.Name) ... "
 
     if ($DryRun) {
         Write-Host "[DRY-RUN]" -ForegroundColor Yellow
@@ -106,46 +108,46 @@ foreach ($m in $migrations) {
         $exitCode = $LASTEXITCODE
 
         if ($exitCode -eq 0) {
-            Write-Host "✓ applied" -ForegroundColor Green
+            Write-Host "OK (applied)" -ForegroundColor Green
             $success++
         } elseif ($output -match "already") {
-            Write-Host "✓ already applied" -ForegroundColor Gray
+            Write-Host "already applied" -ForegroundColor Gray
             $alreadyApplied++
         } else {
-            Write-Host "✗ FAILED" -ForegroundColor Red
+            Write-Host "FAILED" -ForegroundColor Red
             Write-Host "      $output" -ForegroundColor DarkRed
             $failed++
         }
     } catch {
-        Write-Host "✗ ERROR" -ForegroundColor Red
+        Write-Host "ERROR" -ForegroundColor Red
         Write-Host "      $_" -ForegroundColor DarkRed
         $failed++
     }
 }
 
-# סיכום
+# Summary
 Write-Host ""
-Write-Host "═══════════════════════════════════════"
+Write-Host "======================================="
 Write-Ok "Applied:         $success"
-Write-Host "ⓘ  Already applied: $alreadyApplied" -ForegroundColor Gray
+Write-Host "[i] Already applied: $alreadyApplied" -ForegroundColor Gray
 if ($failed -gt 0) {
     Write-Err "Failed:          $failed"
     Write-Host ""
-    Write-Err "יש שגיאות. שלח לי screenshot של הפלט ותחזירו את ה-DB מהגיבוי."
+    Write-Err "Errors occurred. Send screenshot and restore DB from backup if needed."
     exit 1
 } else {
     Write-Host ""
-    Write-Ok "כל ה-migrations סומנו בהצלחה!"
+    Write-Ok "All migrations marked successfully!"
     Write-Host ""
-    Write-Info "השלב הבא — בדיקה:"
-    Write-Host "    `$env:DATABASE_URL = `"$urlSafe`"" -ForegroundColor White
+    Write-Info "Next step - verify:"
+    Write-Host "    `$env:DATABASE_URL = `"<your-url>`"" -ForegroundColor White
     Write-Host "    npx prisma migrate status" -ForegroundColor White
     Write-Host ""
-    Write-Info "מצופה לראות: 'Database schema is up to date!'"
+    Write-Info "Expected: 'Database schema is up to date!'"
     Write-Host ""
-    Write-Info "לאחר אישור — שלח לי הודעה ואשנה את render.yaml + package.json"
-    Write-Info "מ-`db push` ל-`migrate deploy`."
+    Write-Info "Then notify Claude to switch render.yaml + package.json"
+    Write-Info "from 'db push' to 'migrate deploy'."
 }
 
-# ניקוי
+# Cleanup
 $env:DATABASE_URL = $null
