@@ -12,10 +12,10 @@ import {
   ADMIN_RATE_LIMIT_BY_TIER,
 } from "@/lib/rate-limit";
 
-// חובה — rate-limit משתמש ב-Map in-memory ב-Node.js
-// ללא זה Next.js מריץ middleware ב-Edge Runtime שבו Map לא נשמר בין בקשות
-// (שיקולי ביצועים נשקלו — Node.js runtime בסדר ב-Render single-instance)
-export const runtime = "nodejs";
+// Next 16 proxy: rate-limit משתמש ב-Map in-memory. ב-Next 16 proxy תמיד
+// רץ ב-Node.js runtime (לפי docs — "Proxy always runs on Node.js runtime"),
+// אז ה-Map נשמר בין בקשות. ב-middleware הישן צריך היה `export const runtime`
+// כדי לעקוף Edge — ב-proxy זה אסור ("Route segment config is not allowed").
 
 // H16.4 (סבב 16h): CSP nonce-based — בדפדפנים מודרניים, 'strict-dynamic' עם
 // nonce ייחודי לכל בקשה מבטל את 'unsafe-inline' ומבטל גם את הצורך ב-allowlists
