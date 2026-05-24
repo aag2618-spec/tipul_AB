@@ -268,7 +268,11 @@ describe("getPriceForPeriod", () => {
     expect(getPriceForPeriod(result, 3)).toBe(413);
   });
 
-  it("3 חודשים בלי quarterlyIls — נופל ל-monthlyIls*3", () => {
+  // ── Fallback semantics (2026-05-24): כשתקופה ספציפית null, ה-fallback משתמש
+  // בהנחה הסטנדרטית של deriveMultiPeriodPrices (×0.95/×0.9/×10) במקום ×N ישן.
+  // עקבי עם TierLimits flow — אדמין שיוצר PricingPolicy עם monthly בלבד מקבל
+  // אותו מחיר כמו אדמין שמשנה ב-/admin/tier-settings.
+  it("3 חודשים בלי quarterlyIls — fallback עם הנחה (×0.95)", () => {
     const result = {
       source: "USER" as const,
       planTier: "PRO" as const,
@@ -277,10 +281,11 @@ describe("getPriceForPeriod", () => {
       halfYearIls: null,
       yearlyIls: null,
     };
-    expect(getPriceForPeriod(result, 3)).toBe(300);
+    // 100 × 3 × 0.95 = 285
+    expect(getPriceForPeriod(result, 3)).toBe(285);
   });
 
-  it("6 חודשים בלי halfYearIls — נופל ל-monthlyIls*6", () => {
+  it("6 חודשים בלי halfYearIls — fallback עם הנחה (×0.9)", () => {
     const result = {
       source: "USER" as const,
       planTier: "PRO" as const,
@@ -289,10 +294,11 @@ describe("getPriceForPeriod", () => {
       halfYearIls: null,
       yearlyIls: null,
     };
-    expect(getPriceForPeriod(result, 6)).toBe(600);
+    // 100 × 6 × 0.9 = 540
+    expect(getPriceForPeriod(result, 6)).toBe(540);
   });
 
-  it("12 חודשים בלי yearlyIls — נופל ל-monthlyIls*12", () => {
+  it("12 חודשים בלי yearlyIls — fallback עם הנחה (×10, חיסכון חודשיים)", () => {
     const result = {
       source: "USER" as const,
       planTier: "PRO" as const,
@@ -300,6 +306,35 @@ describe("getPriceForPeriod", () => {
       quarterlyIls: null,
       halfYearIls: null,
       yearlyIls: null,
+    };
+    // 100 × 10 = 1000 (לא 1200 — זאת ההנחה הסטנדרטית)
+    expect(getPriceForPeriod(result, 12)).toBe(1000);
+  });
+
+  it("monthly לא תקין (0) + fallback — מחזיר ×N הישן בלי לזרוק", () => {
+    const result = {
+      source: "USER" as const,
+      planTier: "PRO" as const,
+      monthlyIls: 0,
+      quarterlyIls: null,
+      halfYearIls: null,
+      yearlyIls: null,
+    };
+    // הגנה: deriveMultiPeriodPrices זורק על monthly<=0, אז getPriceForPeriod
+    // נופל בחזרה ל-monthly*N (כאן 0). לעולם לא לזרוק מתוך getPriceForPeriod.
+    expect(getPriceForPeriod(result, 3)).toBe(0);
+    expect(getPriceForPeriod(result, 6)).toBe(0);
+    expect(getPriceForPeriod(result, 12)).toBe(0);
+  });
+
+  it("PricingPolicy עם yearlyIls explicit — לא מחיל הנחה (override)", () => {
+    const result = {
+      source: "USER" as const,
+      planTier: "PRO" as const,
+      monthlyIls: 100,
+      quarterlyIls: null,
+      halfYearIls: null,
+      yearlyIls: 1200, // אדמין מילא explicit ×12 ללא הנחה
     };
     expect(getPriceForPeriod(result, 12)).toBe(1200);
   });

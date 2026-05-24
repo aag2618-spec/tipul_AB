@@ -612,15 +612,18 @@ async function handleOverridePrice(
           activeSp.periodStart && activeSp.periodEnd
             ? estimateMonthsBetween(activeSp.periodStart, activeSp.periodEnd)
             : 1;
-        // מחיר חדש לפי תקופה — quarterly/halfYear/yearly fallback ל-monthly*N
-        const newAmount =
-          months === 1
-            ? body.monthlyIls
-            : months === 3
-              ? body.quarterlyIls ?? body.monthlyIls * 3
-              : months === 6
-                ? body.halfYearIls ?? body.monthlyIls * 6
-                : body.yearlyIls ?? body.monthlyIls * 12;
+        // מחיר חדש לפי תקופה — דרך getPriceForPeriod ל-consistency עם resolver:
+        // fallback כשתקופה null מחיל הנחה סטנדרטית (×0.95/×0.9/×10). זהה לחיוב
+        // הבא של ה-cron שיקרא ל-resolver. אדמין שרוצה לבטל הנחה ימלא yearlyIls=monthly×12.
+        const newAmount = getPriceForPeriod(
+          {
+            monthlyIls: body.monthlyIls,
+            quarterlyIls: body.quarterlyIls ?? null,
+            halfYearIls: body.halfYearIls ?? null,
+            yearlyIls: body.yearlyIls ?? null,
+          },
+          months as 1 | 3 | 6 | 12
+        );
         await tx.subscriptionPayment.update({
           where: { id: activeSp.id },
           data: { amount: newAmount },

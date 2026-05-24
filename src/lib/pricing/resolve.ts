@@ -257,7 +257,34 @@ export function resolveSubscriptionPriceFromPolicies(
 }
 
 /**
- * מחיר לתקופה ספציפית. אם אין מחיר ספציפי לתקופה ב-policy, מכפיל את monthlyIls.
+ * fallback בטוח לתקופה: אם monthly תקין → נוסחת הנחה סטנדרטית (deriveMultiPeriodPrices),
+ * אחרת ×N (התנהגות ישנה — לא לזרוק על monthly=0/NaN).
+ *
+ * **שינוי semantics (2026-05-24):** עד תאריך זה fallback היה monthly×N ללא הנחה,
+ * מה שיצר drift עם TierLimits (שמשתמש בהנחה ×0.95/×0.9/×10). כעת הם עקביים — אם
+ * PricingPolicy מכיל monthlyIls בלבד (תקופות null), הוא יקבל אותה הנחה אוטומטית.
+ * אדמין שרוצה לבטל הנחה צריך למלא yearlyIls=monthlyIls×12 explicit.
+ */
+function safeDerivedPrice(monthly: number, months: 3 | 6 | 12): number {
+  if (!Number.isFinite(monthly) || monthly <= 0) {
+    // מחיר לא תקין — שומרים על fallback ×N הישן (לעולם לא לזרוק מתוך getPriceForPeriod)
+    return monthly * months;
+  }
+  const derived = deriveMultiPeriodPrices(monthly);
+  switch (months) {
+    case 3:
+      return derived.quarterly;
+    case 6:
+      return derived.halfYear;
+    case 12:
+      return derived.yearly;
+  }
+}
+
+/**
+ * מחיר לתקופה ספציפית. אם אין מחיר ספציפי לתקופה ב-policy, מחזיר fallback
+ * עם הנחה סטנדרטית (×0.95 quarterly, ×0.9 halfYear, ×10 yearly) — עקבי עם
+ * deriveMultiPeriodPrices ו-TierLimits flow.
  */
 export function getPriceForPeriod(
   price: Pick<
@@ -270,11 +297,11 @@ export function getPriceForPeriod(
     case 1:
       return price.monthlyIls;
     case 3:
-      return price.quarterlyIls ?? price.monthlyIls * 3;
+      return price.quarterlyIls ?? safeDerivedPrice(price.monthlyIls, 3);
     case 6:
-      return price.halfYearIls ?? price.monthlyIls * 6;
+      return price.halfYearIls ?? safeDerivedPrice(price.monthlyIls, 6);
     case 12:
-      return price.yearlyIls ?? price.monthlyIls * 12;
+      return price.yearlyIls ?? safeDerivedPrice(price.monthlyIls, 12);
     default:
       throw new Error(`Invalid period months: ${months}`);
   }

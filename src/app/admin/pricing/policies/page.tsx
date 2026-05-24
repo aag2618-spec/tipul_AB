@@ -458,6 +458,7 @@ function SubscriptionPoliciesTab() {
                   min="0"
                   value={form.quarterlyIls}
                   onChange={(e) => setForm({ ...form, quarterlyIls: e.target.value })}
+                  placeholder="ריק = ×3 × 0.95 (הנחה 5%)"
                 />
               </div>
               <div>
@@ -467,6 +468,7 @@ function SubscriptionPoliciesTab() {
                   min="0"
                   value={form.halfYearIls}
                   onChange={(e) => setForm({ ...form, halfYearIls: e.target.value })}
+                  placeholder="ריק = ×6 × 0.9 (הנחה 10%)"
                 />
               </div>
               <div>
@@ -476,9 +478,14 @@ function SubscriptionPoliciesTab() {
                   min="0"
                   value={form.yearlyIls}
                   onChange={(e) => setForm({ ...form, yearlyIls: e.target.value })}
+                  placeholder="ריק = ×10 (חיסכון חודשיים)"
                 />
               </div>
             </div>
+            <p className="text-xs text-muted-foreground">
+              שדות תקופות שיישארו ריקים יקבלו הנחה אוטומטית סטנדרטית (5%/10%/17%).
+              למניעת הנחה — מילא ידנית את הסכום המלא (למשל ×12 לשנתי).
+            </p>
 
             <div className="grid grid-cols-2 gap-3">
               <div>
