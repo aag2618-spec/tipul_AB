@@ -7,7 +7,16 @@ import { verifyMeshulamWebhook, MeshulamWebhookPayload } from "@/lib/meshulam";
 import { sendEmail } from "@/lib/resend";
 import { withWebhookRetry } from "@/lib/webhook-retry";
 import { checkRateLimit, WEBHOOK_RATE_LIMIT } from "@/lib/rate-limit";
-import { PLAN_NAMES, detectPeriodFromAmount as detectPeriodCentral } from "@/lib/pricing";
+import {
+  PLAN_NAMES,
+  PERIOD_DAYS,
+  detectPeriodFromAmount as detectPeriodCentral,
+} from "@/lib/pricing";
+import {
+  fetchAndResolveSubscriptionPrice,
+  getPriceForPeriod,
+  type SubscriptionPeriodMonths,
+} from "@/lib/pricing/resolve";
 import { escapeHtml } from "@/lib/email-utils";
 import { logger } from "@/lib/logger";
 import { invalidateJwtCache } from "@/lib/auth";
@@ -19,9 +28,66 @@ import {
   finalizeWebhook,
   releaseWebhookClaim,
 } from "@/lib/webhook-replay-protection";
+import type { AITier } from "@prisma/client";
 
 const ADMIN_EMAIL = process.env.ADMIN_EMAIL;
 const SYSTEM_URL = process.env.NEXTAUTH_URL || "";
+
+const PERIOD_MONTHS: SubscriptionPeriodMonths[] = [1, 3, 6, 12];
+
+/**
+ * מזהה תקופת חיוב לפי הסכום ששולם — תוך התחשבות במחיר המותאם אישית
+ * של המשתמש (PricingPolicy/TierLimits) ולא רק ב-PRICING hardcoded.
+ *
+ * הזרימה:
+ *   1. resolve את המחיר המותאם של המשתמש (4 תקופות)
+ *   2. exact match — איזו תקופה תואמת בדיוק לסכום?
+ *   3. approximate match — סטייה של עד 5 ש"ח (עמלות אפשריות)
+ *   4. fallback — detectPeriodCentral מ-PRICING hardcoded (אם הכל נכשל)
+ *
+ * זה מונע מצב שמשתמש עם PricingPolicy מותאם מקבל תקופה לא נכונה כי הסכום
+ * שלו לא מופיע ב-PRICING hardcoded.
+ */
+async function detectPeriodForUser(
+  userId: string,
+  organizationId: string | null,
+  tier: AITier,
+  amount: number,
+  now: Date
+): Promise<number> {
+  if (amount <= 0) {
+    return detectPeriodCentral(tier, amount);
+  }
+  try {
+    const resolved = await fetchAndResolveSubscriptionPrice({
+      userId,
+      organizationId,
+      planTier: tier,
+      now,
+    });
+    // exact match
+    for (const months of PERIOD_MONTHS) {
+      if (getPriceForPeriod(resolved, months) === amount) {
+        return PERIOD_DAYS[months] || 30;
+      }
+    }
+    // approximate match (עד 5 ש"ח סטייה)
+    for (const months of PERIOD_MONTHS) {
+      if (Math.abs(getPriceForPeriod(resolved, months) - amount) <= 5) {
+        return PERIOD_DAYS[months] || 30;
+      }
+    }
+  } catch (priceError) {
+    logger.warn("[meshulam] period detection via resolver failed, using hardcoded fallback", {
+      userId,
+      tier,
+      amount,
+      error: priceError instanceof Error ? priceError.message : String(priceError),
+    });
+  }
+  // Fallback ל-PRICING hardcoded (זוהי הלוגיקה הישנה)
+  return detectPeriodCentral(tier, amount);
+}
 
 export const dynamic = "force-dynamic";
 
@@ -290,9 +356,29 @@ async function handlePaymentSuccess(payload: MeshulamWebhookPayload) {
     // Send receipt email + complete COLLECT_PAYMENT task
     await completeWebhookPayment(verified.paymentId);
   } else if (payload.customerId) {
-    // תשלום מנוי - מחפשים לפי המייל. עוטפים ב-transaction כדי שקריאת
-    // user (ובפרט blockReason) ועדכונו יהיו אטומיים — מונע race עם PATCH
-    // אדמין שמשנה blockReason באותו רגע.
+    // תשלום מנוי - מחפשים לפי המייל.
+    // לוקאפ ראשוני מחוץ ל-tx — כדי שקריאת ה-resolver (DB query) לא תאריך
+    // את ה-transaction lock. אחר כך עוטפים בעדכון tx את הקריאה הסופית.
+    const preUser = await prisma.user.findFirst({
+      where: { email: customerEmail },
+      select: { id: true, organizationId: true, aiTier: true },
+    });
+    if (!preUser) {
+      // משתמש לא נמצא — אין מה לעדכן
+      return;
+    }
+    const periodDays = await detectPeriodForUser(
+      preUser.id,
+      preUser.organizationId,
+      preUser.aiTier,
+      amount || 0,
+      new Date()
+    );
+    const periodMs = periodDays * 24 * 60 * 60 * 1000;
+    const periodLabel = periodDays <= 31 ? "חודשי" : periodDays <= 91 ? "רבעוני" : periodDays <= 181 ? "חצי שנתי" : "שנתי";
+
+    // עוטפים ב-transaction כדי שקריאת blockReason ועדכונו יהיו אטומיים —
+    // מונע race עם PATCH אדמין שמשנה blockReason באותו רגע.
     const txResult = await prisma.$transaction(async (tx) => {
       const user = await tx.user.findFirst({
         where: { email: customerEmail },
@@ -301,9 +387,6 @@ async function handlePaymentSuccess(payload: MeshulamWebhookPayload) {
       if (!user) return null;
 
       const wasFree = user.isFreeSubscription;
-      const periodDays = detectPeriodCentral(user.aiTier, amount || 0);
-      const periodMs = periodDays * 24 * 60 * 60 * 1000;
-      const periodLabel = periodDays <= 31 ? "חודשי" : periodDays <= 91 ? "רבעוני" : periodDays <= 181 ? "חצי שנתי" : "שנתי";
 
       // שחרור אוטומטי רק אם DEBT או חסימה ישנה (blockReason=null — נחסמו לפני
       // הוספת השדה, כולן היסטורית על חוב). TOS_VIOLATION / MANUAL נשארים חסומים.
@@ -539,6 +622,24 @@ async function handlePaymentFailed(payload: MeshulamWebhookPayload) {
 async function handleSubscriptionCreated(payload: MeshulamWebhookPayload) {
   const { customerEmail, amount } = payload;
 
+  // לוקאפ ראשוני מחוץ ל-tx כדי שלא להאריך את ה-transaction lock עם קריאת DB
+  // של ה-resolver.
+  const preUser = await prisma.user.findFirst({
+    where: { email: customerEmail },
+    select: { id: true, organizationId: true, aiTier: true },
+  });
+  if (!preUser) return;
+
+  const periodDays = await detectPeriodForUser(
+    preUser.id,
+    preUser.organizationId,
+    preUser.aiTier,
+    amount || 0,
+    new Date()
+  );
+  const periodMs = periodDays * 24 * 60 * 60 * 1000;
+  const periodLabel = periodDays <= 31 ? "חודשי" : periodDays <= 91 ? "רבעוני" : periodDays <= 181 ? "חצי שנתי" : "שנתי";
+
   // עוטפים ב-transaction כדי שקריאת blockReason ועדכון יהיו אטומיים
   // (מונע race עם PATCH אדמין שמשנה blockReason באותו זמן).
   const txResult = await prisma.$transaction(async (tx) => {
@@ -546,10 +647,6 @@ async function handleSubscriptionCreated(payload: MeshulamWebhookPayload) {
       where: { email: customerEmail },
     });
     if (!user) return null;
-
-    const periodDays = detectPeriodCentral(user.aiTier, amount || 0);
-    const periodMs = periodDays * 24 * 60 * 60 * 1000;
-    const periodLabel = periodDays <= 31 ? "חודשי" : periodDays <= 91 ? "רבעוני" : periodDays <= 181 ? "חצי שנתי" : "שנתי";
 
     // auto-unblock רק על DEBT או חסימה ישנה (legacy null) — TOS/MANUAL נשארים
     const shouldUnblockOnCreate =
@@ -636,18 +733,23 @@ async function handleSubscriptionRenewed(payload: MeshulamWebhookPayload) {
     where: { email: customerEmail },
   });
 
-  // הערה: ה-user שמופיע בלוקיג'ר נטען מהסקופ של ההורה (שורה 475 שכבר קיימת
-  // בקוד בעת שכבר תוקן ל-tx). אבל בעצם, אנחנו מעבירים את הקוד ל-tx פנימי.
   if (user) {
+    // קריאת detect מחוץ ל-tx — DB query של ה-resolver לא תאריך את ה-lock.
+    const periodDays = await detectPeriodForUser(
+      user.id,
+      user.organizationId,
+      user.aiTier,
+      amount || 0,
+      new Date()
+    );
+    const periodMs = periodDays * 24 * 60 * 60 * 1000;
+    const periodLabel = periodDays <= 31 ? "חודשי" : periodDays <= 91 ? "רבעוני" : periodDays <= 181 ? "חצי שנתי" : "שנתי";
+
     // עוטפים בעדכון תוך-tx — מבטיח שקריאת blockReason ועדכון אטומיים מול
     // PATCH אדמין שעלול לרוץ במקביל.
     const renewResult = await prisma.$transaction(async (tx) => {
       const fresh = await tx.user.findUnique({ where: { id: user.id } });
       if (!fresh) return null;
-
-      const periodDays = detectPeriodCentral(fresh.aiTier, amount || 0);
-      const periodMs = periodDays * 24 * 60 * 60 * 1000;
-      const periodLabel = periodDays <= 31 ? "חודשי" : periodDays <= 91 ? "רבעוני" : periodDays <= 181 ? "חצי שנתי" : "שנתי";
       const wasFree = fresh.isFreeSubscription;
 
       // auto-unblock רק על DEBT או חסימה ישנה (legacy null) — TOS/MANUAL נשארים
@@ -672,11 +774,11 @@ async function handleSubscriptionRenewed(payload: MeshulamWebhookPayload) {
         },
       });
 
-      return { fresh, periodMs, periodLabel, shouldUnblockOnRenew };
+      return { fresh, shouldUnblockOnRenew };
     });
 
     if (!renewResult) return;
-    const { periodMs, periodLabel, shouldUnblockOnRenew } = renewResult;
+    const { shouldUnblockOnRenew } = renewResult;
 
     // M10.2: סוגרים חלון של 30s ב-JWT cache.
     invalidateJwtCache(user.id);

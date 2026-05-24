@@ -17,8 +17,10 @@ export const PLAN_LABELS_HE = PLAN_NAMES;
  * תמחור לפי מסלול ותקופה
  * מפתח ראשון = שם מסלול, מפתח שני = מספר חודשים, ערך = סכום כולל לתקופה בש"ח
  */
+// יישור עם deriveMultiPeriodPrices ב-pricing/resolve.ts (×3×0.95, ×6×0.9, ×10).
+// ESSENTIAL[6] עודכן מ-631 ל-632 כדי לתאם ל-Math.round(117*6*0.9) = 632.
 export const PRICING: Record<string, Record<number, number>> = {
-  ESSENTIAL: { 1: 117, 3: 333, 6: 631, 12: 1170 },
+  ESSENTIAL: { 1: 117, 3: 333, 6: 632, 12: 1170 },
   PRO:       { 1: 145, 3: 413, 6: 783, 12: 1450 },
   ENTERPRISE:{ 1: 220, 3: 627, 6: 1188, 12: 2200 },
 };

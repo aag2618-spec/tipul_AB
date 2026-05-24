@@ -13,6 +13,7 @@ import {
   resolveSubscriptionPriceFromPolicies,
   resolvePackagePriceFromPolicies,
   getPriceForPeriod,
+  deriveMultiPeriodPrices,
   type ResolvableSubscriptionPolicy,
   type ResolvablePackagePolicy,
   type SubscriptionResolveContext,
@@ -378,5 +379,48 @@ describe("resolvePackagePriceFromPolicies", () => {
     const r = resolvePackagePriceFromPolicies(policies, ctx);
     expect(r.priceIls).toBe(40);
     expect(r.source).toBe("ORGANIZATION");
+  });
+});
+
+// ============================================================================
+// deriveMultiPeriodPrices — חישוב מחירי תקופות מהחודשי (TierLimits fallback)
+// ============================================================================
+
+describe("deriveMultiPeriodPrices", () => {
+  it("מחיר 117 ש\"ח — מחזיר תקופות נכונות", () => {
+    const result = deriveMultiPeriodPrices(117);
+    expect(result.quarterly).toBe(333); // 117 * 3 * 0.95 = 333.45 → 333
+    expect(result.halfYear).toBe(632); // 117 * 6 * 0.9 = 631.8 → 632
+    expect(result.yearly).toBe(1170); // 117 * 10
+  });
+
+  it("מחיר 145 ש\"ח (PRO) — תואם בקירוב ל-PRICING hardcoded", () => {
+    const result = deriveMultiPeriodPrices(145);
+    expect(result.quarterly).toBe(413); // 145 * 3 * 0.95 = 413.25 → 413
+    expect(result.halfYear).toBe(783); // 145 * 6 * 0.9 = 783
+    expect(result.yearly).toBe(1450); // 145 * 10
+  });
+
+  it("מחיר 100 ש\"ח (לאחר שינוי tier-settings)", () => {
+    const result = deriveMultiPeriodPrices(100);
+    expect(result.quarterly).toBe(285); // 100 * 3 * 0.95 = 285
+    expect(result.halfYear).toBe(540); // 100 * 6 * 0.9 = 540
+    expect(result.yearly).toBe(1000); // 100 * 10
+  });
+
+  it("זורק על monthly=0 — מניעת חיוב 0 ש\"ח", () => {
+    expect(() => deriveMultiPeriodPrices(0)).toThrow(/positive finite number/);
+  });
+
+  it("זורק על monthly שלילי", () => {
+    expect(() => deriveMultiPeriodPrices(-50)).toThrow(/positive finite number/);
+  });
+
+  it("זורק על NaN", () => {
+    expect(() => deriveMultiPeriodPrices(NaN)).toThrow(/positive finite number/);
+  });
+
+  it("זורק על Infinity", () => {
+    expect(() => deriveMultiPeriodPrices(Infinity)).toThrow(/positive finite number/);
   });
 });

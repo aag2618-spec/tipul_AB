@@ -35,31 +35,63 @@
 
 ## מה לא טופל — לסבב הבא
 
-### 1. `src/app/api/cron/subscription-reminders/route.ts`
+### 1. ~~`src/app/api/cron/subscription-reminders/route.ts`~~ ✅ תוקן בסבב 2 (commit הבא)
 
-**הבעיה:** ה-cron שולח מיילי תזכורת לתום ניסיון / grace period / משלמים — וכולל מחיר מ-`MONTHLY_PRICES` hardcoded (שורות 8, 26, 641, 705, 758, 948).
+החלפנו את `MONTHLY_PRICES` hardcoded ב-`fetchAndResolveSubscriptionPrice` עבור כל משתמש בלולאה. נשאר fallback ל-MONTHLY_PRICES אם resolver נכשל.
 
-**השפעה:** משתמש עם PricingPolicy מותאם (USER scope) או שינוי גלובלי ב-tier-settings — יקבל במייל מחיר שגוי. לא קריטי כי זה רק תצוגה במייל, לא חיוב.
+### 2. ~~`src/app/api/webhooks/meshulam/route.ts`~~ ✅ תוקן בסבב 2
 
-**איך לתקן:** להחליף `MONTHLY_PRICES[tier]` בקריאה ל-`fetchAndResolveSubscriptionPrice` בתוך הלולאה (1 פעם לכל משתמש).
+הוספנו `detectPeriodForUser` שמשתמש ב-resolver לזיהוי תקופה לפי המחיר המותאם אישית. exact match → approximate ±5 ש"ח → fallback ל-detectPeriodCentral.
 
-### 2. `src/app/api/webhooks/meshulam/route.ts`
+### 3. ~~טסטים חסרים~~ ✅ נוסף בסבב 2
 
-**הבעיה:** `detectPeriodFromAmount` ב-pricing.ts מזהה תקופת חיוב לפי השוואה ל-PRICING hardcoded. למשתמש עם override של PricingPolicy, sum המתקבל מ-meshulam לא יתאים ל-PRICING → fallback ל-30 ימים תמיד.
+7 טסטים חדשים ל-`deriveMultiPeriodPrices` (happy path + guards). Integration tests ל-`fetchAndResolveSubscriptionPricesForTiers` עדיין דורשים DB — נדחה.
 
-**השפעה:** משתמש עם הסכם תמחור מיוחד שמשלם דרך meshulam — תקופת המנוי שלו עלולה להיות לא נכונה אחרי תשלום.
+---
 
-**איך לתקן:**
-- אופציה A: לקבל את התקופה מ-PricingPolicy אם קיים (לפי matching לפי amount).
-- אופציה B: עדיף — לקבל את התקופה ממטא-דאטה של ה-payment בעצמו (אם meshulam שולח), ולא להסתמך על השוואת סכומים.
+## מה עדיין לא טופל (out-of-scope לסבבים האלה)
 
-### 3. טסטים חסרים
+### A. N+1 ב-cron subscription-reminders (perf)
 
-**הבעיה:** הפונקציה החדשה `fetchAndResolveSubscriptionPricesForTiers` ומסלול `source: "TIER_LIMITS"` אין להם כיסוי בטסטים pure (כי הם דורשים DB).
+**הבעיה:** כל user בלולאה עושה 2 קריאות DB (PricingPolicy + TierLimits). ב-100 משתמשים ביום = ~200 קריאות נוספות.
 
-**איך לתקן:** ליצור integration test עם DATABASE_URL של staging או mock של prisma:
-- test שמכניס TierLimits עם priceMonthly=100, מוחק את כל PricingPolicy, ובודק שה-resolver מחזיר source="TIER_LIMITS" + monthlyIls=100 + quarterly=285 + halfYear=540 + yearly=1000.
-- test ל-batch: tier אחד עם policy + tier אחד עם TierLimits + tier אחד עם fallback.
+**איך לתקן:** prefetch של כל ה-TierLimits בתחילת ה-cron, ולעשות in-memory resolve. או להוסיף batch function דומה ל-`fetchAndResolveSubscriptionPricesForTiers` אבל לרשימת users.
+
+**עדיפות:** נמוכה — cron יומי, לא בעיה לתפעול.
+
+### B. yearly mismatch בין getPriceForPeriod ל-deriveMultiPeriodPrices
+
+**הבעיה:** `getPriceForPeriod(price, 12)` עם yearlyIls=null מחזיר `monthly*12`. אבל `deriveMultiPeriodPrices(monthly).yearly` הוא `monthly*10`. משתמש עם PricingPolicy שיש בו monthlyIls בלבד (בלי yearlyIls) יקבל מחיר אחר ממשתמש עם TierLimits.
+
+**איך לתקן:** להחליט ארכיטקטונית — האם PricingPolicy עם monthlyIls בלבד אומר "אין הנחה תקופתית" (12×) או "הנחה סטנדרטית" (10×). אם הראשון — לתעד. אם השני — לעדכן `getPriceForPeriod` להשתמש ב-`deriveMultiPeriodPrices` כ-fallback.
+
+**עדיפות:** בינונית — לפני שיוצרים PricingPolicy עם monthlyIls בלבד דרך UI הניהול.
+
+### C. IDOR פוטנציאלי דרך customerEmail spoofing ב-meshulam webhook
+
+**הבעיה (pre-existing — לא חולשה שנוצרה בסבב הזה):** ב-handlers של subscription (`subscription.created`, `subscription.renewed`, וגם payment.success ב-customerId path), המשתמש נמצא לפי `customerEmail` מה-payload — לא דרך `verifyPaymentOwnership` כמו במסלול payment-של-מטופל. תוקף עם HMAC secret + timestamp תקף יכול לזייף email של משתמש אחר.
+
+**הגנה קיימת:** HMAC verification (דורש secret) + replay protection (5 דקות) + claimWebhook idempotency. ההגנות הוואלידיות מצמצמות את החולשה משמעותית.
+
+**איך לתקן:** cross-check בין `customerEmail` ל-`customerId` של Meshulam (לוודא שה-email תואם ל-customer ID שמוכר), או signature שמאגדת את הpayload כולל email.
+
+**עדיפות:** בינונית-גבוהה — אבל **לא רגרסיה חדשה**, חולשה קיימת. דורש סבב אבטחה נפרד.
+
+### D. billingPaidByClinic לא מסונן בכל בלוקי cron-reminders
+
+**הבעיה (pre-existing):** רק safety net של PAST_DUE (שורה 585) מסנן `billingPaidByClinic`. שאר הבלוקים (תזכורות 7d/3d/1d, grace, חסימה) שולחים מייל גם למשתמש שהקליניקה משלמת עליו.
+
+**איך לתקן:** להוסיף `billingPaidByClinic: false` לפילטרים בכל ה-5 queries.
+
+**עדיפות:** נמוכה — UX issue (משתמש מקבל מייל מטריד), לא קריטי.
+
+### E. Integration tests ל-batch function ול-TIER_LIMITS source
+
+**הבעיה:** הטסטים הקיימים הם pure (ללא DB). הפונקציה `fetchAndResolveSubscriptionPricesForTiers` ומסלול `source: "TIER_LIMITS"` אין להם כיסוי.
+
+**איך לתקן:** integration test עם DATABASE_URL של staging או mock של prisma.
+
+**עדיפות:** נמוכה.
 
 ### 4. תיעוד drift אפשרי
 

@@ -6,6 +6,7 @@ import { NextRequest, NextResponse } from "next/server";
 import prisma from "@/lib/prisma";
 import { sendEmail } from "@/lib/resend";
 import { PLAN_NAMES, MONTHLY_PRICES } from "@/lib/pricing";
+import { fetchAndResolveSubscriptionPrice } from "@/lib/pricing/resolve";
 import { escapeHtml } from "@/lib/email-utils";
 import { logger } from "@/lib/logger";
 import { isShabbatOrYomTov } from "@/lib/shabbat";
@@ -13,6 +14,7 @@ import { checkCronAuth } from "@/lib/cron-auth";
 import { withAudit } from "@/lib/audit";
 import { invalidateJwtCache } from "@/lib/auth";
 import { sendAccountBlockedEmail } from "@/lib/emails/dunning";
+import type { AITier } from "@prisma/client";
 
 // ========================================
 // הגדרות
@@ -22,8 +24,32 @@ const GRACE_PERIOD_DAYS = 7;
 const SYSTEM_URL = process.env.NEXTAUTH_URL || "https://your-app.onrender.com";
 const ADMIN_EMAIL = process.env.ADMIN_EMAIL; // המייל שלך - בעל המערכת
 
-// הפניה מקוצרת למחירים (לתאימות עם שאר הקוד)
-const PLAN_PRICES = MONTHLY_PRICES;
+/**
+ * שולף את המחיר המותאם אישית למשתמש (PricingPolicy/TierLimits) כדי
+ * שמייל התזכורת יציג את המחיר הנכון, לא מחיר hardcoded ישן.
+ * fallback ל-MONTHLY_PRICES אם resolver נכשל — לא לחסום שליחת מייל.
+ */
+async function resolveUserMonthlyPrice(
+  user: { id: string; organizationId: string | null; aiTier: AITier },
+  now: Date
+): Promise<number> {
+  try {
+    const resolved = await fetchAndResolveSubscriptionPrice({
+      userId: user.id,
+      organizationId: user.organizationId,
+      planTier: user.aiTier,
+      now,
+    });
+    return resolved.monthlyIls;
+  } catch (priceError) {
+    logger.warn("[cron subscription-reminders] price resolution failed, using MONTHLY_PRICES fallback", {
+      userId: user.id,
+      plan: user.aiTier,
+      error: priceError instanceof Error ? priceError.message : String(priceError),
+    });
+    return MONTHLY_PRICES[user.aiTier] || 0;
+  }
+}
 
 // ========================================
 // API Route
@@ -75,6 +101,7 @@ export async function GET(req: NextRequest) {
         name: true,
         email: true,
         aiTier: true,
+        organizationId: true,
         subscriptionEndsAt: true,
       },
     });
@@ -82,7 +109,8 @@ export async function GET(req: NextRequest) {
     for (const user of expiringIn7Days) {
       if (!user.email) continue;
       try {
-        await sendSubscriptionReminderEmail(user, 7);
+        const price = await resolveUserMonthlyPrice(user, now);
+        await sendSubscriptionReminderEmail(user, 7, price);
         results.reminders7days++;
       } catch (err) {
         results.errors.push(`7-day reminder failed for ${user.email}: ${err}`);
@@ -110,6 +138,7 @@ export async function GET(req: NextRequest) {
         name: true,
         email: true,
         aiTier: true,
+        organizationId: true,
         subscriptionEndsAt: true,
       },
     });
@@ -117,7 +146,8 @@ export async function GET(req: NextRequest) {
     for (const user of expiringIn3Days) {
       if (!user.email) continue;
       try {
-        await sendSubscriptionReminderEmail(user, 3);
+        const price = await resolveUserMonthlyPrice(user, now);
+        await sendSubscriptionReminderEmail(user, 3, price);
         results.reminders3days++;
       } catch (err) {
         results.errors.push(`3-day reminder failed for ${user.email}: ${err}`);
@@ -144,6 +174,7 @@ export async function GET(req: NextRequest) {
         name: true,
         email: true,
         aiTier: true,
+        organizationId: true,
         subscriptionEndsAt: true,
       },
     });
@@ -151,7 +182,8 @@ export async function GET(req: NextRequest) {
     for (const user of expiringTomorrow) {
       if (!user.email) continue;
       try {
-        await sendLastDayReminderEmail(user);
+        const price = await resolveUserMonthlyPrice(user, now);
+        await sendLastDayReminderEmail(user, price);
         results.reminders1day++;
       } catch (err) {
         results.errors.push(`Last day reminder failed for ${user.email}: ${err}`);
@@ -178,22 +210,24 @@ export async function GET(req: NextRequest) {
         name: true,
         email: true,
         aiTier: true,
+        organizationId: true,
         subscriptionEndsAt: true,
       },
     });
 
     for (const user of inGracePeriod) {
       if (!user.email || !user.subscriptionEndsAt) continue;
-      
+
       const daysSinceExpiry = Math.floor(
         (now.getTime() - user.subscriptionEndsAt.getTime()) / (24 * 60 * 60 * 1000)
       );
-      
+
       // שולחים תזכורת ביום 1, 3, 5, 7 של תקופת החסד
       if ([1, 3, 5, 7].includes(daysSinceExpiry)) {
         try {
           const daysLeft = GRACE_PERIOD_DAYS - daysSinceExpiry;
-          await sendGracePeriodEmail(user, daysLeft);
+          const price = await resolveUserMonthlyPrice(user, now);
+          await sendGracePeriodEmail(user, daysLeft, price);
           results.gracePeriodReminders++;
 
           // שולחים גם הודעה לאדמין
@@ -494,6 +528,7 @@ export async function GET(req: NextRequest) {
         name: true,
         email: true,
         aiTier: true,
+        organizationId: true,
         trialEndsAt: true,
       },
     });
@@ -508,7 +543,8 @@ export async function GET(req: NextRequest) {
         });
 
         if (user.email) {
-          await sendTrialExpiredEmail(user);
+          const price = await resolveUserMonthlyPrice(user, now);
+          await sendTrialExpiredEmail(user, price);
         }
 
         if (ADMIN_EMAIL) {
@@ -633,14 +669,14 @@ export async function GET(req: NextRequest) {
 
 async function sendSubscriptionReminderEmail(
   user: { name: string | null; email: string | null; aiTier: string; subscriptionEndsAt: Date | null },
-  daysUntilExpiry: number
+  daysUntilExpiry: number,
+  price: number
 ) {
   if (!user.email) return;
-  
+
   const planName = PLAN_NAMES[user.aiTier] || user.aiTier;
-  const price = PLAN_PRICES[user.aiTier] || 0;
-  const expiryDate = user.subscriptionEndsAt 
-    ? new Date(user.subscriptionEndsAt).toLocaleDateString("he-IL", { timeZone: 'Asia/Jerusalem' }) 
+  const expiryDate = user.subscriptionEndsAt
+    ? new Date(user.subscriptionEndsAt).toLocaleDateString("he-IL", { timeZone: 'Asia/Jerusalem' })
     : "בקרוב";
   const billingUrl = `${SYSTEM_URL}/dashboard/settings/billing`;
 
@@ -697,12 +733,12 @@ async function sendSubscriptionReminderEmail(
 }
 
 async function sendLastDayReminderEmail(
-  user: { name: string | null; email: string | null; aiTier: string; subscriptionEndsAt: Date | null }
+  user: { name: string | null; email: string | null; aiTier: string; subscriptionEndsAt: Date | null },
+  price: number
 ) {
   if (!user.email) return;
-  
+
   const planName = PLAN_NAMES[user.aiTier] || user.aiTier;
-  const price = PLAN_PRICES[user.aiTier] || 0;
   const billingUrl = `${SYSTEM_URL}/dashboard/settings/billing`;
 
   await sendEmail({
@@ -748,14 +784,14 @@ async function sendLastDayReminderEmail(
 
 async function sendGracePeriodEmail(
   user: { name: string | null; email: string | null; aiTier: string },
-  daysLeft: number
+  daysLeft: number,
+  price: number
 ) {
   if (!user.email) return;
-  
+
   const billingUrl = `${SYSTEM_URL}/dashboard/settings/billing`;
   const urgencyColor = daysLeft <= 2 ? "#dc2626" : "#f59e0b";
   const planName = PLAN_NAMES[user.aiTier] || user.aiTier;
-  const price = PLAN_PRICES[user.aiTier] || 0;
   
   // חישוב תאריך חסימה
   const israelNowStr = new Date().toLocaleDateString('en-CA', { timeZone: 'Asia/Jerusalem' });
@@ -939,13 +975,13 @@ async function sendAdminGiftExpiredAlert(
 }
 
 async function sendTrialExpiredEmail(
-  user: { name: string | null; email: string | null; aiTier: string }
+  user: { name: string | null; email: string | null; aiTier: string },
+  price: number
 ) {
   if (!user.email) return;
-  
+
   const billingUrl = `${SYSTEM_URL}/dashboard/settings/billing`;
   const planName = PLAN_NAMES[user.aiTier] || user.aiTier;
-  const price = PLAN_PRICES[user.aiTier] || 0;
 
   await sendEmail({
     to: user.email,
