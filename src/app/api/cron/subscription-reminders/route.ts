@@ -6,7 +6,7 @@ import { NextRequest, NextResponse } from "next/server";
 import prisma from "@/lib/prisma";
 import { sendEmail } from "@/lib/resend";
 import { PLAN_NAMES, MONTHLY_PRICES } from "@/lib/pricing";
-import { fetchAndResolveSubscriptionPrice } from "@/lib/pricing/resolve";
+import { prefetchSubscriptionPriceResolver } from "@/lib/pricing/resolve";
 import { escapeHtml } from "@/lib/email-utils";
 import { logger } from "@/lib/logger";
 import { isShabbatOrYomTov } from "@/lib/shabbat";
@@ -24,17 +24,21 @@ const GRACE_PERIOD_DAYS = 7;
 const SYSTEM_URL = process.env.NEXTAUTH_URL || "https://your-app.onrender.com";
 const ADMIN_EMAIL = process.env.ADMIN_EMAIL; // המייל שלך - בעל המערכת
 
+type PrefetchedPriceResolver = Awaited<ReturnType<typeof prefetchSubscriptionPriceResolver>>;
+
 /**
- * שולף את המחיר המותאם אישית למשתמש (PricingPolicy/TierLimits) כדי
- * שמייל התזכורת יציג את המחיר הנכון, לא מחיר hardcoded ישן.
+ * שולף את המחיר המותאם אישית למשתמש (PricingPolicy/TierLimits) דרך resolver
+ * מוכן ש-prefetch-ed את כל הנתונים פעם אחת בתחילת ה-cron — מונע N+1 (לפני
+ * 2026-05-24 כל user עשה 2 DB queries; כעת רק 2 queries לכל ה-cron).
  * fallback ל-MONTHLY_PRICES אם resolver נכשל — לא לחסום שליחת מייל.
  */
-async function resolveUserMonthlyPrice(
+function resolveUserMonthlyPrice(
+  resolver: PrefetchedPriceResolver,
   user: { id: string; organizationId: string | null; aiTier: AITier },
   now: Date
-): Promise<number> {
+): number {
   try {
-    const resolved = await fetchAndResolveSubscriptionPrice({
+    const resolved = resolver({
       userId: user.id,
       organizationId: user.organizationId,
       planTier: user.aiTier,
@@ -69,6 +73,12 @@ export async function GET(req: NextRequest) {
     }
 
     const now = new Date();
+
+    // ── Prefetch של נתוני pricing (פעם אחת לכל ה-cron) ──
+    // לפני זה: 5 בלוקי for-loop × ~20 users ממוצע × 2 DB queries לכל user = 200 N+1.
+    // אחרי: 2 DB queries בלבד (PricingPolicy.findMany + TierLimits.findMany).
+    const priceResolver = await prefetchSubscriptionPriceResolver(now);
+
     const results = {
       reminders7days: 0,
       reminders3days: 0,
@@ -95,6 +105,8 @@ export async function GET(req: NextRequest) {
         },
         isBlocked: false,
         isFreeSubscription: false,
+        // הקליניקה משלמת — לא לשלוח תזכורות אישיות (subscriptionStatus=PAUSED).
+        billingPaidByClinic: false,
       },
       select: {
         id: true,
@@ -109,7 +121,7 @@ export async function GET(req: NextRequest) {
     for (const user of expiringIn7Days) {
       if (!user.email) continue;
       try {
-        const price = await resolveUserMonthlyPrice(user, now);
+        const price = resolveUserMonthlyPrice(priceResolver, user, now);
         await sendSubscriptionReminderEmail(user, 7, price);
         results.reminders7days++;
       } catch (err) {
@@ -132,6 +144,8 @@ export async function GET(req: NextRequest) {
         },
         isBlocked: false,
         isFreeSubscription: false,
+        // הקליניקה משלמת — לא לשלוח תזכורות אישיות (subscriptionStatus=PAUSED).
+        billingPaidByClinic: false,
       },
       select: {
         id: true,
@@ -146,7 +160,7 @@ export async function GET(req: NextRequest) {
     for (const user of expiringIn3Days) {
       if (!user.email) continue;
       try {
-        const price = await resolveUserMonthlyPrice(user, now);
+        const price = resolveUserMonthlyPrice(priceResolver, user, now);
         await sendSubscriptionReminderEmail(user, 3, price);
         results.reminders3days++;
       } catch (err) {
@@ -168,6 +182,8 @@ export async function GET(req: NextRequest) {
         },
         isBlocked: false,
         isFreeSubscription: false,
+        // הקליניקה משלמת — לא לשלוח תזכורות אישיות (subscriptionStatus=PAUSED).
+        billingPaidByClinic: false,
       },
       select: {
         id: true,
@@ -182,7 +198,7 @@ export async function GET(req: NextRequest) {
     for (const user of expiringTomorrow) {
       if (!user.email) continue;
       try {
-        const price = await resolveUserMonthlyPrice(user, now);
+        const price = resolveUserMonthlyPrice(priceResolver, user, now);
         await sendLastDayReminderEmail(user, price);
         results.reminders1day++;
       } catch (err) {
@@ -204,6 +220,8 @@ export async function GET(req: NextRequest) {
         },
         isBlocked: false,
         isFreeSubscription: false,
+        // הקליניקה משלמת — לא לשלוח תזכורות אישיות (subscriptionStatus=PAUSED).
+        billingPaidByClinic: false,
       },
       select: {
         id: true,
@@ -226,7 +244,7 @@ export async function GET(req: NextRequest) {
       if ([1, 3, 5, 7].includes(daysSinceExpiry)) {
         try {
           const daysLeft = GRACE_PERIOD_DAYS - daysSinceExpiry;
-          const price = await resolveUserMonthlyPrice(user, now);
+          const price = resolveUserMonthlyPrice(priceResolver, user, now);
           await sendGracePeriodEmail(user, daysLeft, price);
           results.gracePeriodReminders++;
 
@@ -253,6 +271,8 @@ export async function GET(req: NextRequest) {
         },
         isBlocked: false,
         isFreeSubscription: false,
+        // הקליניקה משלמת — לא לשלוח תזכורות אישיות (subscriptionStatus=PAUSED).
+        billingPaidByClinic: false,
       },
       select: {
         id: true,
@@ -433,6 +453,8 @@ export async function GET(req: NextRequest) {
         },
         isBlocked: false,
         emailVerified: { not: null },
+        // consistency עם בלוקי תזכורות אחרים — defense in depth.
+        billingPaidByClinic: false,
       },
       select: { id: true, name: true, email: true, aiTier: true, trialEndsAt: true },
     });
@@ -477,6 +499,8 @@ export async function GET(req: NextRequest) {
         },
         isBlocked: false,
         emailVerified: { not: null },
+        // consistency עם בלוקי תזכורות אחרים — defense in depth.
+        billingPaidByClinic: false,
       },
       select: { id: true, name: true, email: true, aiTier: true, trialEndsAt: true },
     });
@@ -522,6 +546,8 @@ export async function GET(req: NextRequest) {
         },
         isBlocked: false,
         isFreeSubscription: false,
+        // הקליניקה משלמת — לא לשלוח תזכורות אישיות (subscriptionStatus=PAUSED).
+        billingPaidByClinic: false,
       },
       select: {
         id: true,
@@ -543,7 +569,7 @@ export async function GET(req: NextRequest) {
         });
 
         if (user.email) {
-          const price = await resolveUserMonthlyPrice(user, now);
+          const price = resolveUserMonthlyPrice(priceResolver, user, now);
           await sendTrialExpiredEmail(user, price);
         }
 

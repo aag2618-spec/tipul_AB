@@ -562,6 +562,82 @@ export async function fetchAndResolveSubscriptionPricesForTiers(
 }
 
 /**
+ * Bulk prefetch של כל ה-PricingPolicies הפעילים + כל ה-TierLimits.
+ * משמש cron-jobs שצריכים לחשב מחיר עבור הרבה users בלי N+1.
+ *
+ * הפונקציה מחזירה PriceResolver — פונקציה pure שמקבלת ctx ומחזירה מחיר מ-cache
+ * (זהה לוגית ל-fetchAndResolveSubscriptionPrice אבל ללא DB calls).
+ *
+ * שימוש:
+ *   const resolver = await prefetchSubscriptionPriceResolver(now);
+ *   for (const user of users) {
+ *     const price = resolver({ userId: user.id, organizationId: user.organizationId, planTier: user.aiTier, now });
+ *   }
+ *
+ * חיסכון: 100 users × 2 DB queries = 200 → 2 DB queries בלבד (לכל ה-cron).
+ */
+export async function prefetchSubscriptionPriceResolver(
+  now: Date
+): Promise<(ctx: SubscriptionResolveContext) => ResolvedSubscriptionPrice> {
+  const { default: prisma } = await import("@/lib/prisma");
+
+  const [allPolicies, allTierLimits] = await Promise.all([
+    prisma.pricingPolicy.findMany({
+      where: {
+        validFrom: { lte: now },
+        OR: [{ validUntil: null }, { validUntil: { gt: now } }],
+      },
+      select: {
+        id: true,
+        scope: true,
+        organizationId: true,
+        userId: true,
+        planTier: true,
+        monthlyIls: true,
+        quarterlyIls: true,
+        halfYearIls: true,
+        yearlyIls: true,
+        validFrom: true,
+        validUntil: true,
+      },
+    }),
+    prisma.tierLimits.findMany({
+      select: { tier: true, priceMonthly: true },
+    }),
+  ]);
+
+  const tierLimitsMap = new Map<AITier, number>();
+  for (const tl of allTierLimits) {
+    if (tl.priceMonthly > 0) {
+      tierLimitsMap.set(tl.tier, Number(tl.priceMonthly));
+    }
+  }
+
+  return (ctx) => {
+    const fromPolicies = resolveSubscriptionPriceFromPolicies(allPolicies, ctx);
+    if (fromPolicies.source !== "FALLBACK") {
+      return fromPolicies;
+    }
+
+    const dbMonthly = tierLimitsMap.get(ctx.planTier);
+    if (dbMonthly !== undefined && Number.isFinite(dbMonthly) && dbMonthly > 0) {
+      const derived = deriveMultiPeriodPrices(dbMonthly);
+      return {
+        source: "TIER_LIMITS",
+        policyId: null,
+        planTier: ctx.planTier,
+        monthlyIls: dbMonthly,
+        quarterlyIls: derived.quarterly,
+        halfYearIls: derived.halfYear,
+        yearlyIls: derived.yearly,
+      };
+    }
+
+    return fromPolicies;
+  };
+}
+
+/**
  * שולף policies רלוונטיים לחבילה ומחזיר מחיר. אם אין — נופל ל-Package.priceIls מהקטלוג.
  */
 export async function fetchAndResolvePackagePrice(
