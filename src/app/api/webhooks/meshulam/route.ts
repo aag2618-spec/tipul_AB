@@ -28,12 +28,208 @@ import {
   finalizeWebhook,
   releaseWebhookClaim,
 } from "@/lib/webhook-replay-protection";
-import type { AITier } from "@prisma/client";
+import type { AITier, SubscriptionStatus } from "@prisma/client";
 
 const ADMIN_EMAIL = process.env.ADMIN_EMAIL;
 const SYSTEM_URL = process.env.NEXTAUTH_URL || "";
 
 const PERIOD_MONTHS: SubscriptionPeriodMonths[] = [1, 3, 6, 12];
+
+// סף עתידי לבדיקת "subscription פעיל" — אם user.subscriptionEndsAt נמצא מעבר
+// לסף הזה ב-subscription.created, האירוע חשוד (יש כבר מנוי פעיל משמעותי).
+const ACTIVE_SUBSCRIPTION_FUTURE_MS = 7 * 24 * 60 * 60 * 1000;
+
+type MeshulamSubEventType =
+  | "created"
+  | "renewed"
+  | "cancelled"
+  | "payment_success"
+  | "payment_failed";
+
+type VerifiedMeshulamUser = {
+  id: string;
+  email: string | null;
+  name: string | null;
+  organizationId: string | null;
+  aiTier: AITier;
+  subscriptionStatus: SubscriptionStatus;
+  subscriptionEndsAt: Date | null;
+  isBlocked: boolean;
+  blockReason: string | null;
+  isFreeSubscription: boolean;
+};
+
+/**
+ * אימות שsubscription webhook אכן שייך למשתמש שטוען payload.customerEmail.
+ *
+ * רציונל אבטחה (defense in depth):
+ * HMAC signature + replay protection (5 דק') + claimWebhook idempotency מגנים
+ * מפני זיוף — **כל עוד ה-secret לא דלף**. אם תוקף משיג את ה-secret, הוא יכול
+ * לחתום payload עם customerEmail של משתמש אחר ולגרום ל-renewed/cancelled/
+ * payment-success מזויפים. הגנה זו חוסמת תוקף כזה ע"י:
+ *   1. דרישת payload.customerId (תוקף צריך גם לנחש מה Meshulam ייתן)
+ *   2. eligibility checks לפי event type (renewed ללא היסטוריה = חשוד,
+ *      created על user ACTIVE עם endsAt עתידי = חשוד, וכו')
+ *   3. adminAlert על כל מקרה חשוד — visibility ל-forensics
+ *
+ * הערה: לא מונע IDOR מלא — תוקף שיודע email של משתמש PAST_DUE עם היסטוריה
+ * עדיין יכול לזייף renewal. תיקון מלא דורש meshulamCustomerId binding על User
+ * (schema migration — out of scope לתיקון זה).
+ *
+ * @returns user metadata אם תקין; null אם פסול (כל ה-callers צריכים לבדוק null
+ *   ולחזור בלי לעשות פעולה).
+ */
+async function verifyMeshulamSubscriptionUser(
+  customerEmail: string | undefined,
+  customerId: string | undefined,
+  eventType: MeshulamSubEventType,
+  clientIp: string
+): Promise<VerifiedMeshulamUser | null> {
+  if (!customerEmail || typeof customerEmail !== "string") {
+    logger.warn("[meshulam] subscription webhook rejected — missing customerEmail", { eventType });
+    return null;
+  }
+  // basic email format check — anti-injection + sanity
+  if (
+    !/^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(customerEmail) ||
+    customerEmail.length > 320
+  ) {
+    logger.warn("[meshulam] subscription webhook rejected — invalid customerEmail format", {
+      eventType,
+    });
+    return null;
+  }
+  if (!customerId || typeof customerId !== "string" || customerId.length < 3) {
+    logger.error(
+      "[meshulam] subscription webhook rejected — missing/invalid customerId (potential IDOR)",
+      { eventType, clientIp }
+    );
+    return null;
+  }
+
+  // email normalization (lowercase + trim) — Postgres email column הוא case-sensitive
+  // ב-default. בלי normalization, payload "User@X.com" + DB "user@x.com" יחזיר null
+  // = false negative. עקבי עם signup/login flows שמטמיעים lowercase.
+  const normalizedEmail = customerEmail.toLowerCase().trim();
+  const user = await prisma.user.findFirst({
+    where: { email: normalizedEmail },
+    select: {
+      id: true,
+      email: true,
+      name: true,
+      organizationId: true,
+      aiTier: true,
+      subscriptionStatus: true,
+      subscriptionEndsAt: true,
+      isBlocked: true,
+      blockReason: true,
+      isFreeSubscription: true,
+    },
+  });
+  if (!user) {
+    // לא לוגים על email לא קיים — מונע enumeration ע"י סריקת שגיאות
+    return null;
+  }
+
+  const suspicious = await detectSuspiciousMeshulamEvent(user, eventType);
+  if (suspicious) {
+    logger.error(
+      "[meshulam] subscription webhook suspicious — rejected (potential IDOR)",
+      {
+        userId: user.id,
+        eventType,
+        reason: suspicious,
+        subscriptionStatus: user.subscriptionStatus,
+        isBlocked: user.isBlocked,
+        blockReason: user.blockReason,
+        customerId,
+        clientIp,
+      }
+    );
+    try {
+      await prisma.adminAlert.create({
+        data: {
+          userId: user.id,
+          type: "SYSTEM",
+          title: "🚨 webhook חשוד מ-Meshulam — IDOR אפשרי",
+          message: `אירוע ${eventType} נדחה: ${suspicious}. customerId=${customerId}, IP=${clientIp}`,
+          priority: "HIGH",
+        },
+      });
+    } catch (alertErr) {
+      logger.error("[meshulam] failed to create suspicious-webhook adminAlert", {
+        userId: user.id,
+        error: alertErr instanceof Error ? alertErr.message : String(alertErr),
+      });
+    }
+    return null;
+  }
+
+  return user;
+}
+
+/**
+ * מחזיר string הסבר אם state של ה-user לא תואם ל-event type (חשוד), null אחרת.
+ */
+async function detectSuspiciousMeshulamEvent(
+  user: VerifiedMeshulamUser,
+  eventType: MeshulamSubEventType
+): Promise<string | null> {
+  // BLOCKED עם TOS_VIOLATION/MANUAL — לעולם לא ליצור/לחדש (DEBT מותר — תשלום משחרר).
+  const hardBlocked =
+    user.isBlocked &&
+    (user.blockReason === "TOS_VIOLATION" || user.blockReason === "MANUAL");
+  if (
+    hardBlocked &&
+    (eventType === "created" ||
+      eventType === "renewed" ||
+      eventType === "payment_success")
+  ) {
+    return `user hard-blocked (blockReason=${user.blockReason})`;
+  }
+
+  // PAUSED = billingPaidByClinic — מנוי אישי מושעה, לא יכול לקבל created/renewed פרטי.
+  if (
+    user.subscriptionStatus === "PAUSED" &&
+    (eventType === "created" || eventType === "renewed")
+  ) {
+    return "user PAUSED (billing paid by clinic)";
+  }
+
+  if (eventType === "created") {
+    // יש כבר ACTIVE עם endsAt עתידי משמעותי = create חדש לא הגיוני.
+    if (
+      user.subscriptionStatus === "ACTIVE" &&
+      !user.isFreeSubscription &&
+      user.subscriptionEndsAt &&
+      user.subscriptionEndsAt.getTime() >
+        Date.now() + ACTIVE_SUBSCRIPTION_FUTURE_MS
+    ) {
+      return "user already has ACTIVE subscription with >7 days remaining";
+    }
+  } else if (eventType === "renewed") {
+    // renewed חייב היסטוריה של תשלום מנוי PAID קודם.
+    const hasHistory = await prisma.subscriptionPayment.findFirst({
+      where: { userId: user.id, status: "PAID" },
+      select: { id: true },
+    });
+    if (!hasHistory) {
+      return "renewal without prior PAID SubscriptionPayment history";
+    }
+  } else if (eventType === "cancelled") {
+    // cancelled על user שמעולם לא היה לו מנוי אקטיבי = no-op חשוד.
+    if (
+      (user.subscriptionStatus === "TRIALING" ||
+        user.subscriptionStatus === "CANCELLED") &&
+      (!user.subscriptionEndsAt ||
+        user.subscriptionEndsAt.getTime() < Date.now())
+    ) {
+      return `cancelled on user with no active subscription (status=${user.subscriptionStatus})`;
+    }
+  }
+
+  return null;
+}
 
 /**
  * מזהה תקופת חיוב לפי הסכום ששולם — תוך התחשבות במחיר המותאם אישית
@@ -114,7 +310,10 @@ export async function POST(request: NextRequest) {
 
     // Rate limiting לwebhooks - הגנה מפני flooding
     const clientIp = request.headers.get("x-forwarded-for") || "unknown";
-    const rateCheck = checkRateLimit(`webhook:meshulam:${clientIp}`, WEBHOOK_RATE_LIMIT);
+    // sanitize ל-clientIp לפני loger/adminAlert — x-forwarded-for יכול להכיל
+    // chain (a.b.c.d, e.f.g.h) או injection attempts. נחתוך ל-first hop ול-64 תוים.
+    const safeClientIp = clientIp.split(",")[0].trim().slice(0, 64) || "unknown";
+    const rateCheck = checkRateLimit(`webhook:meshulam:${safeClientIp}`, WEBHOOK_RATE_LIMIT);
     if (!rateCheck.allowed) {
       return NextResponse.json({ error: "Too many requests" }, { status: 429 });
     }
@@ -165,19 +364,19 @@ export async function POST(request: NextRequest) {
     const result = await withWebhookRetry("meshulam", payload.type, body, async () => {
       switch (payload.type) {
         case "payment.success":
-          await handlePaymentSuccess(payload);
+          await handlePaymentSuccess(payload, safeClientIp);
           break;
         case "payment.failed":
-          await handlePaymentFailed(payload);
+          await handlePaymentFailed(payload, safeClientIp);
           break;
         case "subscription.created":
-          await handleSubscriptionCreated(payload);
+          await handleSubscriptionCreated(payload, safeClientIp);
           break;
         case "subscription.renewed":
-          await handleSubscriptionRenewed(payload);
+          await handleSubscriptionRenewed(payload, safeClientIp);
           break;
         case "subscription.cancelled":
-          await handleSubscriptionCancelled(payload);
+          await handleSubscriptionCancelled(payload, safeClientIp);
           break;
         default:
           logger.info("Unhandled webhook type:", { data: payload.type });
@@ -208,14 +407,17 @@ export async function POST(request: NextRequest) {
 /**
  * טיפול בתשלום מוצלח
  */
-async function handlePaymentSuccess(payload: MeshulamWebhookPayload) {
-  const { paymentId, customFields, amount, documentUrl, customerEmail } = payload;
+async function handlePaymentSuccess(
+  payload: MeshulamWebhookPayload,
+  clientIp: string
+) {
+  const { paymentId, customFields, amount, documentUrl, customerEmail, customerId } = payload;
   
   // בדיקה אם זה תשלום מנוי (לבעל המערכת) או תשלום מטופל
   if (customFields?.paymentId) {
     // ── אימות בעלות (anti-IDOR) ──
     // אסור לסמוך על customFields.therapistId מהpayload — תוקף עם חתימה
-    // תקפה (חולשה לחילוצף secret) יכול לזייף את ה-paymentId/therapistId.
+    // תקפה (חולשה לחילוץ secret) יכול לזייף את ה-paymentId/therapistId.
     // נאמת מול DB ונשתמש ב-therapistId האמיתי משם.
     const verified = await verifyPaymentOwnership(
       customFields.paymentId,
@@ -357,20 +559,22 @@ async function handlePaymentSuccess(payload: MeshulamWebhookPayload) {
     await completeWebhookPayment(verified.paymentId);
   } else if (payload.customerId) {
     // תשלום מנוי - מחפשים לפי המייל.
-    // לוקאפ ראשוני מחוץ ל-tx — כדי שקריאת ה-resolver (DB query) לא תאריך
-    // את ה-transaction lock. אחר כך עוטפים בעדכון tx את הקריאה הסופית.
-    const preUser = await prisma.user.findFirst({
-      where: { email: customerEmail },
-      select: { id: true, organizationId: true, aiTier: true },
-    });
-    if (!preUser) {
-      // משתמש לא נמצא — אין מה לעדכן
+    // ── אימות anti-IDOR ──
+    // לפני round-trip ל-resolver/tx: ודא ש-customerEmail+customerId תקפים,
+    // user קיים, וה-event מתיישב עם state נוכחי. דוחה suspect cases + adminAlert.
+    const verifiedUser = await verifyMeshulamSubscriptionUser(
+      customerEmail,
+      customerId,
+      "payment_success",
+      clientIp
+    );
+    if (!verifiedUser) {
       return;
     }
     const periodDays = await detectPeriodForUser(
-      preUser.id,
-      preUser.organizationId,
-      preUser.aiTier,
+      verifiedUser.id,
+      verifiedUser.organizationId,
+      verifiedUser.aiTier,
       amount || 0,
       new Date()
     );
@@ -379,9 +583,10 @@ async function handlePaymentSuccess(payload: MeshulamWebhookPayload) {
 
     // עוטפים ב-transaction כדי שקריאת blockReason ועדכונו יהיו אטומיים —
     // מונע race עם PATCH אדמין שמשנה blockReason באותו רגע.
+    // refetch לפי id (לא email) — שמירה על identity יציבה גם אם email משתנה.
     const txResult = await prisma.$transaction(async (tx) => {
-      const user = await tx.user.findFirst({
-        where: { email: customerEmail },
+      const user = await tx.user.findUnique({
+        where: { id: verifiedUser.id },
       });
 
       if (!user) return null;
@@ -498,8 +703,11 @@ async function handlePaymentSuccess(payload: MeshulamWebhookPayload) {
 /**
  * טיפול בתשלום שנכשל
  */
-async function handlePaymentFailed(payload: MeshulamWebhookPayload) {
-  const { customFields, errorMessage, customerEmail } = payload;
+async function handlePaymentFailed(
+  payload: MeshulamWebhookPayload,
+  clientIp: string
+) {
+  const { customFields, errorMessage, customerEmail, customerId } = payload;
 
   if (customFields?.paymentId) {
     // ── אימות בעלות (anti-IDOR) ──
@@ -544,74 +752,80 @@ async function handlePaymentFailed(payload: MeshulamWebhookPayload) {
       },
     });
   } else {
-    // תשלום מנוי שנכשל
-    const user = await prisma.user.findFirst({
-      where: { email: customerEmail },
+    // תשלום מנוי שנכשל — ── אימות anti-IDOR ──
+    // חשוב כאן: תוקף שיודע email יכול לכפות PAST_DUE + מייל מטעה על משתמש.
+    const verifiedUser = await verifyMeshulamSubscriptionUser(
+      customerEmail,
+      customerId,
+      "payment_failed",
+      clientIp
+    );
+    if (!verifiedUser) {
+      return;
+    }
+    // משתמשים ב-verifiedUser ישירות — כבר טעון עם השדות הדרושים. חוסך DB query.
+    const user = verifiedUser;
+    await prisma.user.update({
+      where: { id: user.id },
+      data: {
+        subscriptionStatus: "PAST_DUE",
+      },
     });
 
-    if (user) {
-      await prisma.user.update({
-        where: { id: user.id },
-        data: {
-          subscriptionStatus: "PAST_DUE",
-        },
-      });
+    // M10.2: סוגרים חלון של 30s — אחרת המשתמש ימשיך לקבל subscriptionStatus="ACTIVE"
+    // ב-JWT cache עד שה-cache פג, וזה נותן לו גישה לתכונות בתשלום שגויה.
+    invalidateJwtCache(user.id);
 
-      // M10.2: סוגרים חלון של 30s — אחרת המשתמש ימשיך לקבל subscriptionStatus="ACTIVE"
-      // ב-JWT cache עד שה-cache פג, וזה נותן לו גישה לתכונות בתשלום שגויה.
-      invalidateJwtCache(user.id);
+    // יצירת התראה לאדמין
+    await prisma.adminAlert.create({
+      data: {
+        userId: user.id,
+        type: "PAYMENT_FAILED",
+        title: "תשלום מנוי נכשל",
+        message: `תשלום מנוי נכשל עבור ${user.name}: ${errorMessage}`,
+        priority: "HIGH",
+      },
+    });
 
-      // יצירת התראה לאדמין
-      await prisma.adminAlert.create({
-        data: {
-          userId: user.id,
-          type: "PAYMENT_FAILED",
-          title: "תשלום מנוי נכשל",
-          message: `תשלום מנוי נכשל עבור ${user.name}: ${errorMessage}`,
-          priority: "HIGH",
-        },
-      });
-
-      // 📧 מייל למנוי שהתשלום נכשל + קישור לתשלום
-      if (user.email) {
-        const billingUrl = `${SYSTEM_URL}/dashboard/settings/billing`;
-        await sendEmail({
-          to: user.email,
-          subject: "⚠️ התשלום לא עבר - נדרשת פעולה",
-          html: `
-            <div dir="rtl" style="font-family: Arial, sans-serif; max-width: 600px; margin: 0 auto; padding: 20px;">
-              <div style="text-align: center; padding: 20px; background: #f59e0b; border-radius: 12px 12px 0 0;">
-                <h1 style="color: white; margin: 0;">⚠️ תשלום לא עבר</h1>
-              </div>
-              <div style="background: #fff; padding: 30px; border: 1px solid #e5e7eb; border-top: none; border-radius: 0 0 12px 12px;">
-                <h2 style="color: #333; margin-top: 0;">שלום ${escapeHtml(user.name || "")},</h2>
-                <p style="color: #555; font-size: 16px;">התשלום על המנוי שלך לא עבר. אנא עדכן את פרטי התשלום כדי להמשיך להשתמש במערכת.</p>
-                <div style="text-align: center; margin: 25px 0;">
-                  <a href="${billingUrl}" style="display: inline-block; background: #4f46e5; color: white; padding: 14px 32px; border-radius: 8px; text-decoration: none; font-weight: bold;">
-                    עדכן פרטי תשלום
-                  </a>
-                </div>
+    // 📧 מייל למנוי שהתשלום נכשל + קישור לתשלום
+    if (user.email) {
+      const billingUrl = `${SYSTEM_URL}/dashboard/settings/billing`;
+      await sendEmail({
+        to: user.email,
+        subject: "⚠️ התשלום לא עבר - נדרשת פעולה",
+        html: `
+          <div dir="rtl" style="font-family: Arial, sans-serif; max-width: 600px; margin: 0 auto; padding: 20px;">
+            <div style="text-align: center; padding: 20px; background: #f59e0b; border-radius: 12px 12px 0 0;">
+              <h1 style="color: white; margin: 0;">⚠️ תשלום לא עבר</h1>
+            </div>
+            <div style="background: #fff; padding: 30px; border: 1px solid #e5e7eb; border-top: none; border-radius: 0 0 12px 12px;">
+              <h2 style="color: #333; margin-top: 0;">שלום ${escapeHtml(user.name || "")},</h2>
+              <p style="color: #555; font-size: 16px;">התשלום על המנוי שלך לא עבר. אנא עדכן את פרטי התשלום כדי להמשיך להשתמש במערכת.</p>
+              <div style="text-align: center; margin: 25px 0;">
+                <a href="${billingUrl}" style="display: inline-block; background: #4f46e5; color: white; padding: 14px 32px; border-radius: 8px; text-decoration: none; font-weight: bold;">
+                  עדכן פרטי תשלום
+                </a>
               </div>
             </div>
-          `,
-        }).catch(err => logger.error("Payment failed email to user error", { error: err instanceof Error ? err.message : String(err) }));
-      }
+          </div>
+        `,
+      }).catch(err => logger.error("Payment failed email to user error", { error: err instanceof Error ? err.message : String(err) }));
+    }
 
-      // 📧 הודעה לאדמין
-      if (ADMIN_EMAIL) {
-        await sendEmail({
-          to: ADMIN_EMAIL,
-          subject: `❌ תשלום מנוי נכשל - ${user.name}`,
-          html: createAdminPaymentHtml(
-            user.name || "משתמש",
-            user.email || "",
-            user.aiTier,
-            0,
-            `תשלום נכשל: ${errorMessage}`,
-            "error"
-          ),
-        }).catch(err => logger.error("Payment failed email to admin error", { error: err instanceof Error ? err.message : String(err) }));
-      }
+    // 📧 הודעה לאדמין
+    if (ADMIN_EMAIL) {
+      await sendEmail({
+        to: ADMIN_EMAIL,
+        subject: `❌ תשלום מנוי נכשל - ${user.name}`,
+        html: createAdminPaymentHtml(
+          user.name || "משתמש",
+          user.email || "",
+          user.aiTier,
+          0,
+          `תשלום נכשל: ${errorMessage}`,
+          "error"
+        ),
+      }).catch(err => logger.error("Payment failed email to admin error", { error: err instanceof Error ? err.message : String(err) }));
     }
   }
 }
@@ -619,21 +833,27 @@ async function handlePaymentFailed(payload: MeshulamWebhookPayload) {
 /**
  * טיפול ביצירת מנוי חדש
  */
-async function handleSubscriptionCreated(payload: MeshulamWebhookPayload) {
-  const { customerEmail, amount } = payload;
+async function handleSubscriptionCreated(
+  payload: MeshulamWebhookPayload,
+  clientIp: string
+) {
+  const { customerEmail, customerId, amount } = payload;
 
-  // לוקאפ ראשוני מחוץ ל-tx כדי שלא להאריך את ה-transaction lock עם קריאת DB
-  // של ה-resolver.
-  const preUser = await prisma.user.findFirst({
-    where: { email: customerEmail },
-    select: { id: true, organizationId: true, aiTier: true },
-  });
-  if (!preUser) return;
+  // ── אימות anti-IDOR ──
+  // ודא ש-user קיים והאירוע מתיישב עם state נוכחי (לא ACTIVE עם endsAt עתידי
+  // משמעותי, לא PAUSED, לא hard-blocked). דוחה suspect cases + adminAlert.
+  const verifiedUser = await verifyMeshulamSubscriptionUser(
+    customerEmail,
+    customerId,
+    "created",
+    clientIp
+  );
+  if (!verifiedUser) return;
 
   const periodDays = await detectPeriodForUser(
-    preUser.id,
-    preUser.organizationId,
-    preUser.aiTier,
+    verifiedUser.id,
+    verifiedUser.organizationId,
+    verifiedUser.aiTier,
     amount || 0,
     new Date()
   );
@@ -642,9 +862,10 @@ async function handleSubscriptionCreated(payload: MeshulamWebhookPayload) {
 
   // עוטפים ב-transaction כדי שקריאת blockReason ועדכון יהיו אטומיים
   // (מונע race עם PATCH אדמין שמשנה blockReason באותו זמן).
+  // refetch לפי id (לא email) — identity יציבה.
   const txResult = await prisma.$transaction(async (tx) => {
-    const user = await tx.user.findFirst({
-      where: { email: customerEmail },
+    const user = await tx.user.findUnique({
+      where: { id: verifiedUser.id },
     });
     if (!user) return null;
 
@@ -726,200 +947,222 @@ async function handleSubscriptionCreated(payload: MeshulamWebhookPayload) {
 /**
  * טיפול בחידוש מנוי
  */
-async function handleSubscriptionRenewed(payload: MeshulamWebhookPayload) {
-  const { customerEmail, amount, documentUrl } = payload;
+async function handleSubscriptionRenewed(
+  payload: MeshulamWebhookPayload,
+  clientIp: string
+) {
+  const { customerEmail, customerId, amount, documentUrl } = payload;
 
-  const user = await prisma.user.findFirst({
-    where: { email: customerEmail },
-  });
+  // ── אימות anti-IDOR ──
+  // renewed דורש היסטוריה של תשלום קודם — מונע יצירת mock renewal עבור משתמש
+  // שמעולם לא היה לו תשלום מנוי דרך Meshulam.
+  const verifiedUser = await verifyMeshulamSubscriptionUser(
+    customerEmail,
+    customerId,
+    "renewed",
+    clientIp
+  );
+  if (!verifiedUser) return;
 
-  if (user) {
-    // קריאת detect מחוץ ל-tx — DB query של ה-resolver לא תאריך את ה-lock.
-    const periodDays = await detectPeriodForUser(
-      user.id,
-      user.organizationId,
-      user.aiTier,
-      amount || 0,
-      new Date()
-    );
-    const periodMs = periodDays * 24 * 60 * 60 * 1000;
-    const periodLabel = periodDays <= 31 ? "חודשי" : periodDays <= 91 ? "רבעוני" : periodDays <= 181 ? "חצי שנתי" : "שנתי";
+  // verifiedUser מספק את כל השדות שצריך מחוץ ל-tx. ה-tx עצמו יבצע refetch
+  // לפי id כדי לקבל state עדכני של isBlocked/blockReason/isFreeSubscription
+  // בצורה אטומית מול PATCH אדמין מקביל.
+  const user = verifiedUser;
 
-    // עוטפים בעדכון תוך-tx — מבטיח שקריאת blockReason ועדכון אטומיים מול
-    // PATCH אדמין שעלול לרוץ במקביל.
-    const renewResult = await prisma.$transaction(async (tx) => {
-      const fresh = await tx.user.findUnique({ where: { id: user.id } });
-      if (!fresh) return null;
-      const wasFree = fresh.isFreeSubscription;
+  // קריאת detect מחוץ ל-tx — DB query של ה-resolver לא תאריך את ה-lock.
+  const periodDays = await detectPeriodForUser(
+    user.id,
+    user.organizationId,
+    user.aiTier,
+    amount || 0,
+    new Date()
+  );
+  const periodMs = periodDays * 24 * 60 * 60 * 1000;
+  const periodLabel = periodDays <= 31 ? "חודשי" : periodDays <= 91 ? "רבעוני" : periodDays <= 181 ? "חצי שנתי" : "שנתי";
 
-      // auto-unblock רק על DEBT או חסימה ישנה (legacy null) — TOS/MANUAL נשארים
-      const shouldUnblockOnRenew =
-        fresh.isBlocked &&
-        (fresh.blockReason === "DEBT" || fresh.blockReason === null);
-      await tx.user.update({
-        where: { id: fresh.id },
-        data: {
-          subscriptionStatus: "ACTIVE",
-          subscriptionEndsAt: new Date(Date.now() + periodMs),
-          ...(wasFree && {
-            isFreeSubscription: false,
-            freeSubscriptionNote: null,
-          }),
-          ...(shouldUnblockOnRenew && {
-            isBlocked: false,
-            blockReason: null,
-            blockedAt: null,
-            blockedBy: null,
-          }),
-        },
-      });
+  // עוטפים בעדכון תוך-tx — מבטיח שקריאת blockReason ועדכון אטומיים מול
+  // PATCH אדמין שעלול לרוץ במקביל.
+  const renewResult = await prisma.$transaction(async (tx) => {
+    const fresh = await tx.user.findUnique({ where: { id: user.id } });
+    if (!fresh) return null;
+    const wasFree = fresh.isFreeSubscription;
 
-      return { fresh, shouldUnblockOnRenew };
-    });
-
-    if (!renewResult) return;
-    const { shouldUnblockOnRenew } = renewResult;
-
-    // M10.2: סוגרים חלון של 30s ב-JWT cache.
-    invalidateJwtCache(user.id);
-
-    if (shouldUnblockOnRenew) {
-      logger.info("[meshulam] auto-unblock on subscription renewed (DEBT)", { userId: user.id });
-    }
-
-    await prisma.subscriptionPayment.create({
+    // auto-unblock רק על DEBT או חסימה ישנה (legacy null) — TOS/MANUAL נשארים
+    const shouldUnblockOnRenew =
+      fresh.isBlocked &&
+      (fresh.blockReason === "DEBT" || fresh.blockReason === null);
+    await tx.user.update({
+      where: { id: fresh.id },
       data: {
-        userId: user.id,
-        amount: amount || 0,
-        currency: "ILS",
-        status: "PAID",
-        description: `חידוש מנוי ${periodLabel}`,
-        invoiceUrl: documentUrl,
-        periodStart: new Date(),
-        periodEnd: new Date(Date.now() + periodMs),
-        paidAt: new Date(),
+        subscriptionStatus: "ACTIVE",
+        subscriptionEndsAt: new Date(Date.now() + periodMs),
+        ...(wasFree && {
+          isFreeSubscription: false,
+          freeSubscriptionNote: null,
+        }),
+        ...(shouldUnblockOnRenew && {
+          isBlocked: false,
+          blockReason: null,
+          blockedAt: null,
+          blockedBy: null,
+        }),
       },
     });
 
-    // 📧 מייל אישור חידוש למנוי
-    if (user.email) {
-      await sendEmail({
-        to: user.email,
-        subject: "✅ המנוי שלך חודש בהצלחה!",
-        html: createSubscriptionConfirmHtml(
-          user.name || "משתמש",
-          amount || 0,
-          user.aiTier,
-          documentUrl
-        ),
-      }).catch(err => logger.error("Renewal email to user failed", { error: err instanceof Error ? err.message : String(err) }));
-    }
+    return { fresh, shouldUnblockOnRenew };
+  });
 
-    // 📧 הודעה לאדמין - חידוש אוטומטי הצליח
-    if (ADMIN_EMAIL) {
-      await sendEmail({
-        to: ADMIN_EMAIL,
-        subject: `✅ מנוי חודש אוטומטית - ${user.name} (₪${amount})`,
-        html: createAdminPaymentHtml(
-          user.name || "משתמש",
-          user.email || "",
-          user.aiTier,
-          amount || 0,
-          "המנוי חודש אוטומטית בהצלחה",
-          "success"
-        ),
-      }).catch(err => logger.error("Renewal email to admin failed", { error: err instanceof Error ? err.message : String(err) }));
-    }
+  if (!renewResult) return;
+  const { shouldUnblockOnRenew } = renewResult;
+
+  // M10.2: סוגרים חלון של 30s ב-JWT cache.
+  invalidateJwtCache(user.id);
+
+  if (shouldUnblockOnRenew) {
+    logger.info("[meshulam] auto-unblock on subscription renewed (DEBT)", { userId: user.id });
+  }
+
+  await prisma.subscriptionPayment.create({
+    data: {
+      userId: user.id,
+      amount: amount || 0,
+      currency: "ILS",
+      status: "PAID",
+      description: `חידוש מנוי ${periodLabel}`,
+      invoiceUrl: documentUrl,
+      periodStart: new Date(),
+      periodEnd: new Date(Date.now() + periodMs),
+      paidAt: new Date(),
+    },
+  });
+
+  // 📧 מייל אישור חידוש למנוי
+  if (user.email) {
+    await sendEmail({
+      to: user.email,
+      subject: "✅ המנוי שלך חודש בהצלחה!",
+      html: createSubscriptionConfirmHtml(
+        user.name || "משתמש",
+        amount || 0,
+        user.aiTier,
+        documentUrl
+      ),
+    }).catch(err => logger.error("Renewal email to user failed", { error: err instanceof Error ? err.message : String(err) }));
+  }
+
+  // 📧 הודעה לאדמין - חידוש אוטומטי הצליח
+  if (ADMIN_EMAIL) {
+    await sendEmail({
+      to: ADMIN_EMAIL,
+      subject: `✅ מנוי חודש אוטומטית - ${user.name} (₪${amount})`,
+      html: createAdminPaymentHtml(
+        user.name || "משתמש",
+        user.email || "",
+        user.aiTier,
+        amount || 0,
+        "המנוי חודש אוטומטית בהצלחה",
+        "success"
+      ),
+    }).catch(err => logger.error("Renewal email to admin failed", { error: err instanceof Error ? err.message : String(err) }));
   }
 }
 
 /**
  * טיפול בביטול מנוי
  */
-async function handleSubscriptionCancelled(payload: MeshulamWebhookPayload) {
-  const { customerEmail } = payload;
+async function handleSubscriptionCancelled(
+  payload: MeshulamWebhookPayload,
+  clientIp: string
+) {
+  const { customerEmail, customerId } = payload;
 
-  const user = await prisma.user.findFirst({
-    where: { email: customerEmail },
+  // ── אימות anti-IDOR ──
+  // מונע ביטול מזויף של מנוי משתמש אחר ע"י זיוף email בפיילואד חתום.
+  const verifiedUser = await verifyMeshulamSubscriptionUser(
+    customerEmail,
+    customerId,
+    "cancelled",
+    clientIp
+  );
+  if (!verifiedUser) return;
+
+  // משתמשים ב-verifiedUser ישירות — חוסך DB fetch כפול.
+  const user = verifiedUser;
+  await prisma.user.update({
+    where: { id: user.id },
+    data: {
+      subscriptionStatus: "CANCELLED",
+    },
   });
 
-  if (user) {
-    await prisma.user.update({
-      where: { id: user.id },
-      data: {
-        subscriptionStatus: "CANCELLED",
-      },
-    });
+  // M10.2: סוגרים חלון של 30s ב-JWT cache.
+  invalidateJwtCache(user.id);
 
-    // M10.2: סוגרים חלון של 30s ב-JWT cache.
-    invalidateJwtCache(user.id);
+  await prisma.notification.create({
+    data: {
+      userId: user.id,
+      type: "CUSTOM",
+      title: "⚠️ המנוי בוטל",
+      content: "המנוי שלך בוטל. תוכל להמשיך להשתמש עד לסיום התקופה הנוכחית.",
+      status: "PENDING",
+    },
+  });
 
-    await prisma.notification.create({
-      data: {
-        userId: user.id,
-        type: "CUSTOM",
-        title: "⚠️ המנוי בוטל",
-        content: "המנוי שלך בוטל. תוכל להמשיך להשתמש עד לסיום התקופה הנוכחית.",
-        status: "PENDING",
-      },
-    });
+  // התראה לאדמין
+  await prisma.adminAlert.create({
+    data: {
+      userId: user.id,
+      type: "SUBSCRIPTION_EXPIRED",
+      title: "מנוי בוטל",
+      message: `המנוי של ${user.name} בוטל`,
+      priority: "MEDIUM",
+    },
+  });
 
-    // התראה לאדמין
-    await prisma.adminAlert.create({
-      data: {
-        userId: user.id,
-        type: "SUBSCRIPTION_EXPIRED",
-        title: "מנוי בוטל",
-        message: `המנוי של ${user.name} בוטל`,
-        priority: "MEDIUM",
-      },
-    });
-
-    // 📧 מייל למנוי שהמנוי בוטל
-    if (user.email) {
-      const billingUrl = `${SYSTEM_URL}/dashboard/settings/billing`;
-      await sendEmail({
-        to: user.email,
-        subject: "המנוי שלך בוטל - נשמח לראותך חוזר",
-        html: `
-          <div dir="rtl" style="font-family: Arial, sans-serif; max-width: 600px; margin: 0 auto; padding: 20px;">
-            <div style="text-align: center; padding: 20px; background: #6b7280; border-radius: 12px 12px 0 0;">
-              <h1 style="color: white; margin: 0;">המנוי בוטל</h1>
-            </div>
-            <div style="background: #fff; padding: 30px; border: 1px solid #e5e7eb; border-top: none; border-radius: 0 0 12px 12px;">
-              <h2 style="color: #333; margin-top: 0;">שלום ${escapeHtml(user.name || "")},</h2>
-              <p style="color: #555; font-size: 16px; line-height: 1.6;">
-                המנוי שלך בוטל. תוכל להמשיך להשתמש עד סוף התקופה הנוכחית.
-              </p>
-              <p style="color: #555; font-size: 16px;">
-                <strong>הנתונים שלך שמורים במערכת</strong> ותוכל לחדש בכל עת.
-              </p>
-              <div style="text-align: center; margin: 25px 0;">
-                <a href="${billingUrl}" style="display: inline-block; background: #4f46e5; color: white; padding: 14px 32px; border-radius: 8px; text-decoration: none; font-weight: bold;">
-                  חידוש המנוי
-                </a>
-              </div>
+  // 📧 מייל למנוי שהמנוי בוטל
+  if (user.email) {
+    const billingUrl = `${SYSTEM_URL}/dashboard/settings/billing`;
+    await sendEmail({
+      to: user.email,
+      subject: "המנוי שלך בוטל - נשמח לראותך חוזר",
+      html: `
+        <div dir="rtl" style="font-family: Arial, sans-serif; max-width: 600px; margin: 0 auto; padding: 20px;">
+          <div style="text-align: center; padding: 20px; background: #6b7280; border-radius: 12px 12px 0 0;">
+            <h1 style="color: white; margin: 0;">המנוי בוטל</h1>
+          </div>
+          <div style="background: #fff; padding: 30px; border: 1px solid #e5e7eb; border-top: none; border-radius: 0 0 12px 12px;">
+            <h2 style="color: #333; margin-top: 0;">שלום ${escapeHtml(user.name || "")},</h2>
+            <p style="color: #555; font-size: 16px; line-height: 1.6;">
+              המנוי שלך בוטל. תוכל להמשיך להשתמש עד סוף התקופה הנוכחית.
+            </p>
+            <p style="color: #555; font-size: 16px;">
+              <strong>הנתונים שלך שמורים במערכת</strong> ותוכל לחדש בכל עת.
+            </p>
+            <div style="text-align: center; margin: 25px 0;">
+              <a href="${billingUrl}" style="display: inline-block; background: #4f46e5; color: white; padding: 14px 32px; border-radius: 8px; text-decoration: none; font-weight: bold;">
+                חידוש המנוי
+              </a>
             </div>
           </div>
-        `,
-      }).catch(err => logger.error("Cancellation email to user failed", { error: err instanceof Error ? err.message : String(err) }));
-    }
+        </div>
+      `,
+    }).catch(err => logger.error("Cancellation email to user failed", { error: err instanceof Error ? err.message : String(err) }));
+  }
 
-    // 📧 הודעה לאדמין
-    if (ADMIN_EMAIL) {
-      await sendEmail({
-        to: ADMIN_EMAIL,
-        subject: `⚠️ מנוי בוטל - ${user.name}`,
-        html: createAdminPaymentHtml(
-          user.name || "משתמש",
-          user.email || "",
-          user.aiTier,
-          0,
-          "המנוי בוטל על ידי המשתמש או ספק התשלום",
-          "warning"
-        ),
-      }).catch(err => logger.error("Cancellation email to admin failed", { error: err instanceof Error ? err.message : String(err) }));
-    }
+  // 📧 הודעה לאדמין
+  if (ADMIN_EMAIL) {
+    await sendEmail({
+      to: ADMIN_EMAIL,
+      subject: `⚠️ מנוי בוטל - ${user.name}`,
+      html: createAdminPaymentHtml(
+        user.name || "משתמש",
+        user.email || "",
+        user.aiTier,
+        0,
+        "המנוי בוטל על ידי המשתמש או ספק התשלום",
+        "warning"
+      ),
+    }).catch(err => logger.error("Cancellation email to admin failed", { error: err instanceof Error ? err.message : String(err) }));
   }
 }
 
