@@ -3,8 +3,9 @@
 
 import { NextResponse } from "next/server";
 import prisma from "@/lib/prisma";
-import { MONTHLY_PRICES } from "@/lib/pricing";
 import { logger } from "@/lib/logger";
+import { MONTHLY_PRICES } from "@/lib/pricing";
+import { fetchAndResolveSubscriptionPrice } from "@/lib/pricing/resolve";
 
 import { requireAuth } from "@/lib/api-auth";
 
@@ -20,6 +21,7 @@ export async function GET() {
       where: { id: userId },
       select: {
         aiTier: true,
+        organizationId: true,
         subscriptionStatus: true,
         subscriptionStartedAt: true,
         subscriptionEndsAt: true,
@@ -59,6 +61,29 @@ export async function GET() {
       },
     });
 
+    // מחיר חודשי מותאם אישית — קורא ל-resolver במקום MONTHLY_PRICES hardcoded.
+    // ככה שינוי ב-/admin/tier-settings (TierLimits) או PricingPolicy מותאם
+    // למשתמש משתקף מיד גם בכרטיס "המנוי הנוכחי שלי" ב-billing page.
+    // במצב כשלון של resolver — fallback ל-MONTHLY_PRICES (לא 0) כדי לא להציג
+    // "₪0/חודש" מטעה למשתמש פעיל.
+    let monthlyPrice = MONTHLY_PRICES[user.aiTier] || 0;
+    try {
+      const resolved = await fetchAndResolveSubscriptionPrice({
+        userId,
+        organizationId: user.organizationId,
+        planTier: user.aiTier,
+        now,
+      });
+      monthlyPrice = resolved.monthlyIls;
+    } catch (priceError) {
+      logger.warn("[subscription/status] price resolution failed, using MONTHLY_PRICES fallback", {
+        userId,
+        plan: user.aiTier,
+        fallbackPrice: monthlyPrice,
+        error: priceError instanceof Error ? priceError.message : String(priceError),
+      });
+    }
+
     return NextResponse.json({
       plan: user.aiTier,
       status: user.subscriptionStatus,
@@ -66,7 +91,7 @@ export async function GET() {
       subscriptionStartedAt: user.subscriptionStartedAt,
       subscriptionEndsAt: user.subscriptionEndsAt,
       trialEndsAt: user.trialEndsAt,
-      monthlyPrice: MONTHLY_PRICES[user.aiTier] || 0,
+      monthlyPrice,
       recentPayments,
       // MyTipul-B: מאפשר ל-UI להציג באנר "הקליניקה משלמת" + לחסום קנייה אישית.
       billingPaidByClinic: user.billingPaidByClinic,

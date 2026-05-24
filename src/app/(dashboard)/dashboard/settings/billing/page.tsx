@@ -6,13 +6,14 @@ import { Button } from '@/components/ui/button';
 import { Badge } from '@/components/ui/badge';
 import { Checkbox } from '@/components/ui/checkbox';
 import { toast } from 'sonner';
-import { 
-  CreditCard, 
-  CheckCircle, 
-  AlertCircle, 
+import {
+  CreditCard,
+  CheckCircle,
+  AlertCircle,
   Calendar,
   Download,
   Loader2,
+  RefreshCw,
   Crown,
   Zap,
   Building,
@@ -35,47 +36,45 @@ import {
 } from '@/components/ui/alert-dialog';
 
 // ========================================
-// הגדרות תמחור - מקום אחד לשנות הכל
+// הגדרות תמחור — meta-data של תוכניות
+// המחירים עצמם מגיעים דינמית מ-/api/subscription/tiers (מותאם אישית לפי PricingPolicy/TierLimits).
 // ========================================
 
-const PLANS = {
+const PLAN_META = {
   ESSENTIAL: {
     name: 'Essential',
     icon: Zap,
     color: 'bg-slate-100 text-slate-800',
     features: ['ניהול מטופלים', 'יומן פגישות', 'תשלומים וקבלות', 'תזכורות אוטומטיות'],
-    pricing: {
-      1:  117,
-      3:  333,
-      6:  631,
-      12: 1170,
-    },
+    popular: false,
   },
   PRO: {
     name: 'Pro',
     icon: Crown,
     color: 'bg-sky-100 text-sky-800',
-    popular: true,
     features: ['הכל ב-Essential', 'AI עוזר חכם (GPT-4o-mini)', 'סיכומי פגישות', 'המלצות טיפוליות'],
-    pricing: {
-      1:  145,
-      3:  413,
-      6:  783,
-      12: 1450,
-    },
+    popular: true,
   },
   ENTERPRISE: {
     name: 'Enterprise',
     icon: Building,
     color: 'bg-purple-100 text-purple-800',
     features: ['הכל ב-Pro', 'AI מתקדם (GPT-4o)', 'אחסון ללא הגבלה', 'תמיכה עדיפותית'],
-    pricing: {
-      1:  220,
-      3:  627,
-      6:  1188,
-      12: 2200,
-    },
+    popular: false,
   },
+} as const;
+
+type PlanKey = keyof typeof PLAN_META;
+
+interface TierPricing {
+  tier: PlanKey;
+  name: string;
+  priceMonthly: number;
+  pricing: { 1: number; 3: number; 6: number; 12: number };
+}
+
+type PlanData = (typeof PLAN_META)[PlanKey] & {
+  pricing: { 1: number; 3: number; 6: number; 12: number };
 };
 
 type BillingMonths = 1 | 3 | 6 | 12;
@@ -94,10 +93,14 @@ const PERIOD_OPTIONS: { months: BillingMonths; label: string }[] = [
 // הוא משלם לפי המחיר הטוב ביותר שמתאים לשימוש שלו.
 // (3 חודשים בחבילת 3 + 2 חודשים במחיר חודשי)
 
-function calculateFairPrice(planKey: string, monthsUsed: number): number {
-  const plan = PLANS[planKey as keyof typeof PLANS];
+function calculateFairPrice(
+  plans: Record<string, PlanData>,
+  planKey: string,
+  monthsUsed: number
+): number {
+  const plan = plans[planKey];
   if (!plan) return 0;
-  
+
   if (monthsUsed >= 12) return plan.pricing[12];
   if (monthsUsed >= 6) return plan.pricing[6] + (monthsUsed - 6) * plan.pricing[1];
   if (monthsUsed >= 3) return plan.pricing[3] + (monthsUsed - 3) * plan.pricing[1];
@@ -105,15 +108,16 @@ function calculateFairPrice(planKey: string, monthsUsed: number): number {
 }
 
 function calculateCancellationAdjustment(
+  plans: Record<string, PlanData>,
   planKey: string,
   totalMonths: number,
   monthsUsed: number,
   totalPaid: number
 ): { adjustment: number; fairPrice: number; paidSoFar: number } {
-  const fairPrice = calculateFairPrice(planKey, monthsUsed);
+  const fairPrice = calculateFairPrice(plans, planKey, monthsUsed);
   const paidSoFar = Math.round((totalPaid / totalMonths) * monthsUsed);
   const adjustment = Math.max(0, fairPrice - paidSoFar);
-  
+
   return { adjustment, fairPrice, paidSoFar };
 }
 
@@ -143,6 +147,10 @@ interface SubscriptionStatus {
 
 export default function BillingPage() {
   const [subscription, setSubscription] = useState<SubscriptionStatus | null>(null);
+  const [tiers, setTiers] = useState<TierPricing[] | null>(null);
+  const [tiersError, setTiersError] = useState(false);
+  const [subscriptionError, setSubscriptionError] = useState(false);
+  const [retryingTiers, setRetryingTiers] = useState(false);
   const [loading, setLoading] = useState(true);
   const [upgrading, setUpgrading] = useState(false);
   const [selectedPlan, setSelectedPlan] = useState<string | null>(null);
@@ -154,23 +162,61 @@ export default function BillingPage() {
   const [showUpgradeDialog, setShowUpgradeDialog] = useState<string | null>(null);
 
   useEffect(() => {
-    fetchSubscription();
+    void Promise.all([fetchSubscription(), fetchTiers()]).finally(() => setLoading(false));
   }, []);
 
   const fetchSubscription = async () => {
+    setSubscriptionError(false);
     try {
       const res = await fetch('/api/subscription/status');
-      if (res.ok) {
-        const data = await res.json();
-        setSubscription(data);
+      if (!res.ok) {
+        setSubscriptionError(true);
+        toast.error('שגיאה בטעינת פרטי מנוי');
+        return;
       }
+      const data = await res.json();
+      setSubscription(data);
     } catch (error) {
       console.error('Error fetching subscription:', error);
+      setSubscriptionError(true);
       toast.error('שגיאה בטעינת פרטי מנוי');
-    } finally {
-      setLoading(false);
     }
   };
+
+  const fetchTiers = async () => {
+    setTiersError(false);
+    setRetryingTiers(true);
+    try {
+      const res = await fetch('/api/subscription/tiers');
+      if (!res.ok) {
+        setTiersError(true);
+        toast.error('שגיאה בטעינת מחירי מסלולים');
+        return;
+      }
+      const data = await res.json();
+      setTiers(data.tiers);
+    } catch (error) {
+      console.error('Error fetching tiers:', error);
+      setTiersError(true);
+      toast.error('שגיאה בטעינת מחירי מסלולים');
+    } finally {
+      setRetryingTiers(false);
+    }
+  };
+
+  // מאחד את ה-meta של כל מסלול עם המחיר המותאם אישית מ-DB.
+  // מוצג במקום PLANS hardcoded — כל שינוי ב-/admin/tier-settings או PricingPolicy יופיע מיד.
+  const PLANS = useMemo<Record<string, PlanData>>(() => {
+    if (!tiers) return {};
+    const map: Record<string, PlanData> = {};
+    for (const t of tiers) {
+      map[t.tier] = {
+        ...PLAN_META[t.tier],
+        pricing: t.pricing,
+      };
+    }
+    return map;
+  }, [tiers]);
 
   const handleUpgrade = async (plan: string) => {
     if (upgrading) return;
@@ -222,7 +268,7 @@ export default function BillingPage() {
 
   // חישובים
   const getTotalPrice = (planKey: string) => {
-    const plan = PLANS[planKey as keyof typeof PLANS];
+    const plan = PLANS[planKey];
     return plan ? plan.pricing[billingMonths] : 0;
   };
 
@@ -231,15 +277,16 @@ export default function BillingPage() {
   };
 
   const getDiscount = (planKey: string) => {
-    const plan = PLANS[planKey as keyof typeof PLANS];
+    const plan = PLANS[planKey];
     if (!plan || billingMonths === 1) return 0;
     const fullPrice = plan.pricing[1] * billingMonths;
     const actualPrice = plan.pricing[billingMonths];
+    if (fullPrice === 0) return 0;
     return Math.round(((fullPrice - actualPrice) / fullPrice) * 100);
   };
 
   const getSaving = (planKey: string) => {
-    const plan = PLANS[planKey as keyof typeof PLANS];
+    const plan = PLANS[planKey];
     if (!plan || billingMonths === 1) return 0;
     return plan.pricing[1] * billingMonths - plan.pricing[billingMonths];
   };
@@ -247,30 +294,32 @@ export default function BillingPage() {
   // חישוב עלות ביטול מוקדם
   const cancellationInfo = useMemo(() => {
     if (!subscription?.subscriptionStartedAt || !subscription?.subscriptionEndsAt) return null;
-    
+    if (!tiers) return null;
+
     const start = new Date(subscription.subscriptionStartedAt);
     const end = new Date(subscription.subscriptionEndsAt);
     const now = new Date();
-    
+
     const totalMonths = Math.round((end.getTime() - start.getTime()) / (30 * 24 * 60 * 60 * 1000));
     const monthsUsed = Math.max(1, Math.ceil((now.getTime() - start.getTime()) / (30 * 24 * 60 * 60 * 1000)));
-    
+
     // רק רלוונטי למנוי עם הנחה (תקופה > 1 חודש)
     if (totalMonths <= 1) return null;
-    
+
     // חישוב הסכום ששולם
     const lastPayment = subscription.recentPayments[0];
     const totalPaid = lastPayment ? Number(lastPayment.amount) : 0;
-    
+
     if (!totalPaid) return null;
-    
+
     const { adjustment, fairPrice, paidSoFar } = calculateCancellationAdjustment(
+      PLANS,
       subscription.plan,
       totalMonths,
       monthsUsed,
       totalPaid
     );
-    
+
     return {
       totalMonths,
       monthsUsed,
@@ -281,7 +330,7 @@ export default function BillingPage() {
       adjustment,
       hasAdjustment: adjustment > 0,
     };
-  }, [subscription]);
+  }, [subscription, tiers, PLANS]);
 
   const getStatusBadge = (status: string) => {
     switch (status) {
@@ -339,6 +388,34 @@ export default function BillingPage() {
         </div>
       </div>
 
+      {/* טיפול בכשלון טעינת פרטי מנוי — באנר מתמיד שלא נעלם כמו toast */}
+      {subscriptionError && (
+        <Card className="border-amber-300 bg-amber-50 dark:bg-amber-950/20">
+          <CardContent className="pt-6">
+            <div className="flex items-start gap-3">
+              <AlertCircle className="h-5 w-5 text-amber-600 mt-0.5 shrink-0" />
+              <div className="flex-1">
+                <p className="font-semibold text-amber-900 dark:text-amber-300">
+                  לא הצלחנו לטעון את פרטי המנוי שלך
+                </p>
+                <p className="text-sm text-amber-700 dark:text-amber-400 mt-1">
+                  ייתכן שתראה מידע חלקי. נסה לרענן את הדף.
+                </p>
+                <Button
+                  variant="outline"
+                  size="sm"
+                  onClick={() => { void fetchSubscription(); }}
+                  className="mt-3 border-amber-400 text-amber-700 hover:bg-amber-100"
+                >
+                  <RefreshCw className="h-4 w-4 ml-1" />
+                  נסה שוב
+                </Button>
+              </div>
+            </div>
+          </CardContent>
+        </Card>
+      )}
+
       {/* MyTipul-B: באנר "המנוי משולם ע״י הקליניקה" — מוצג למשתמש PAUSED שזה PAID_BY_CLINIC.
           אינדיקציה ברורה למה לא ניתן לקנות מנוי ולמה לא יורד חיוב. */}
       {subscription?.billingPaidByClinic &&
@@ -374,7 +451,7 @@ export default function BillingPage() {
                   {getStatusBadge(subscription.status)}
                 </CardTitle>
                 <CardDescription>
-                  מסלול {PLANS[subscription.plan]?.name || subscription.plan}
+                  מסלול {PLANS[subscription.plan]?.name ?? PLAN_META[subscription.plan]?.name ?? subscription.plan}
                 </CardDescription>
               </div>
               <div className="text-left">
@@ -477,15 +554,48 @@ export default function BillingPage() {
           </div>
         </div>
 
+        {/* טיפול בכשלון טעינת מסלולים — מסך שגיאה במקום אזור ריק שקט */}
+        {tiersError && (
+          <Card className="border-red-300 bg-red-50 dark:bg-red-950/20">
+            <CardContent className="pt-6">
+              <div className="flex flex-col items-center gap-3 text-center py-6">
+                <AlertCircle className="h-10 w-10 text-red-500" />
+                <div>
+                  <p className="font-semibold text-red-900 dark:text-red-300">
+                    לא הצלחנו לטעון את מחירי המסלולים
+                  </p>
+                  <p className="text-sm text-red-700 dark:text-red-400 mt-1">
+                    בדוק את החיבור לאינטרנט או נסה שוב בעוד מספר רגעים
+                  </p>
+                </div>
+                <Button
+                  variant="outline"
+                  onClick={() => { void fetchTiers(); }}
+                  disabled={retryingTiers}
+                  className="border-red-400 text-red-700 hover:bg-red-100"
+                >
+                  {retryingTiers ? (
+                    <Loader2 className="h-4 w-4 ml-1 animate-spin" />
+                  ) : (
+                    <RefreshCw className="h-4 w-4 ml-1" />
+                  )}
+                  {retryingTiers ? 'מנסה שוב…' : 'נסה שוב'}
+                </Button>
+              </div>
+            </CardContent>
+          </Card>
+        )}
+
         {/* בחירת תקופה */}
         <div className="space-y-2">
           <div className="flex justify-center">
             <div className="inline-flex items-center bg-muted rounded-lg p-1 gap-1">
               {PERIOD_OPTIONS.map((option) => {
                 const isActive = billingMonths === option.months;
-                const disc = option.months > 1 ? (() => {
+                const disc = option.months > 1 && PLANS.PRO ? (() => {
                   const proMonthly = PLANS.PRO.pricing[1];
                   const proTotal = PLANS.PRO.pricing[option.months];
+                  if (!proMonthly) return 0;
                   return Math.round(((proMonthly * option.months - proTotal) / (proMonthly * option.months)) * 100);
                 })() : 0;
                 
@@ -526,8 +636,8 @@ export default function BillingPage() {
             const discount = getDiscount(key);
             const monthlyAvg = getMonthlyPrice(key);
             const saving = getSaving(key);
-            const isUpgrade = subscription?.plan && 
-              PLANS[subscription.plan as keyof typeof PLANS]?.pricing[1] < plan.pricing[1];
+            const isUpgrade = subscription?.plan &&
+              (PLANS[subscription.plan]?.pricing[1] ?? 0) < plan.pricing[1];
             
             return (
               <Card key={key} className={`relative ${isCurrent ? 'border-primary border-2' : ''} ${'popular' in plan && plan.popular && !isCurrent ? 'border-sky-300 border-2' : ''}`}>
@@ -618,8 +728,8 @@ export default function BillingPage() {
         <AlertDialogContent className="max-w-lg">
           <AlertDialogHeader>
             <AlertDialogTitle className="flex items-center gap-2">
-              {showUpgradeDialog && PLANS[showUpgradeDialog as keyof typeof PLANS] && (() => {
-                const plan = PLANS[showUpgradeDialog as keyof typeof PLANS];
+              {showUpgradeDialog && PLANS[showUpgradeDialog] && (() => {
+                const plan = PLANS[showUpgradeDialog];
                 const Icon = plan.icon;
                 return <><Icon className="h-5 w-5" />{subscription?.isActive ? 'שדרוג' : 'רכישת'} מסלול {plan.name}</>;
               })()}
@@ -631,7 +741,7 @@ export default function BillingPage() {
                   <div className="bg-slate-50 dark:bg-slate-900/50 rounded-lg p-4 border">
                     <div className="flex justify-between items-center mb-2">
                       <span className="text-sm text-muted-foreground">מסלול</span>
-                      <span className="font-semibold text-foreground">{PLANS[showUpgradeDialog as keyof typeof PLANS]?.name}</span>
+                      <span className="font-semibold text-foreground">{PLANS[showUpgradeDialog]?.name}</span>
                     </div>
                     <div className="flex justify-between items-center mb-2">
                       <span className="text-sm text-muted-foreground">תקופה</span>

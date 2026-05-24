@@ -1,6 +1,6 @@
 // ==================== Pricing Resolver ====================
 // מוצא את המחיר הנכון למשתמש לפי סדר עדיפויות:
-//   USER → CLINIC_MEMBER → ORGANIZATION → GLOBAL → fallback (pricing.ts hardcoded)
+//   USER → CLINIC_MEMBER → ORGANIZATION → GLOBAL → TierLimits (DB) → fallback (pricing.ts hardcoded)
 //
 // העיצוב הוא pure-function שמקבל מערך של policies + context, ומחזיר מחיר.
 // פעולות DB (Prisma query) נעטפו ב-`fetchAndResolveSubscriptionPrice`/`fetchAndResolvePackagePrice`
@@ -12,6 +12,33 @@
 
 import type { AITier, PackageType, PricingScope, Prisma } from "@prisma/client";
 import { MONTHLY_PRICES, PRICING } from "@/lib/pricing";
+
+/**
+ * נוסחת המרה ממחיר חודשי למחירי תקופות ארוכות (לפי הנחות סטנדרטיות):
+ *   3 חודשים → 5% הנחה (×2.85)
+ *   6 חודשים → 10% הנחה (×5.4)
+ *  12 חודשים → ~17% הנחה (×10, חיסכון חודשיים)
+ *
+ * משמש כשהמחיר מגיע מ-TierLimits (שיש בו רק priceMonthly) או מ-PRICING fallback בלי תקופות.
+ *
+ * הגנה כספית: זורק אם monthly <= 0 / NaN / Infinity — חיוב 0 ש"ח הוא באג קריטי.
+ */
+export function deriveMultiPeriodPrices(monthly: number): {
+  quarterly: number;
+  halfYear: number;
+  yearly: number;
+} {
+  if (!Number.isFinite(monthly) || monthly <= 0) {
+    throw new Error(
+      `deriveMultiPeriodPrices: invalid monthly price ${String(monthly)} — must be a positive finite number`
+    );
+  }
+  return {
+    quarterly: Math.round(monthly * 3 * 0.95),
+    halfYear: Math.round(monthly * 6 * 0.9),
+    yearly: monthly * 10,
+  };
+}
 
 // ============================================================================
 // Types
@@ -59,8 +86,16 @@ export type PackageResolveContext = {
   now: Date;
 };
 
+/**
+ * source מציין מאיפה הגיע המחיר:
+ *  - PricingScope (USER/CLINIC_MEMBER/ORGANIZATION/GLOBAL) — מ-PricingPolicy table
+ *  - "TIER_LIMITS" — מ-TierLimits table (UI ניהול ראשי, /admin/tier-settings)
+ *  - "FALLBACK" — מ-PRICING hardcoded ב-pricing.ts (last resort)
+ *
+ * חשוב ל-observability ולדיבוג של drift בין מקורות תמחור.
+ */
 export type ResolvedSubscriptionPrice = {
-  source: PricingScope | "FALLBACK";
+  source: PricingScope | "TIER_LIMITS" | "FALLBACK";
   policyId: string | null;
   planTier: AITier;
   monthlyIls: number;
@@ -309,8 +344,15 @@ export function resolvePackagePriceFromPolicies(
  * שולף policies רלוונטיים מ-DB ומחזיר מחיר מנוי. מיועד לשימוש ב:
  *   - POST /api/subscription/create (יצירת מנוי חדש)
  *   - cron של חיוב חודשי (subscription-recurring-charge)
+ *   - GET /api/subscription/tiers (תצוגת מחירים מותאמת אישית ב-UI)
  *
- * סינון מקדים ב-DB: רק policies שיכולים להיות רלוונטיים (לפי userId/orgId/global).
+ * סדר עדיפויות:
+ *   1. PricingPolicy עם scope=USER (משתמש ספציפי)
+ *   2. PricingPolicy עם scope=CLINIC_MEMBER (משתמש בקליניקה)
+ *   3. PricingPolicy עם scope=ORGANIZATION (קליניקה שלמה)
+ *   4. PricingPolicy עם scope=GLOBAL
+ *   5. TierLimits.priceMonthly מ-DB (נערך ב-/admin/tier-settings)
+ *   6. PRICING hardcoded ב-pricing.ts (last resort)
  *
  * Lazy import של prisma כדי שטסטים pure לא יידרשו DATABASE_URL.
  */
@@ -357,7 +399,139 @@ export async function fetchAndResolveSubscriptionPrice(
     },
   });
 
-  return resolveSubscriptionPriceFromPolicies(policies, ctx);
+  // משתמשים בפונקציה ה-pure פעם אחת — אם source != FALLBACK,
+  // זה אומר שמצאנו policy והוא הסמכות העליונה (חוסך סריקה כפולה).
+  const fromPolicies = resolveSubscriptionPriceFromPolicies(policies, ctx);
+  if (fromPolicies.source !== "FALLBACK") {
+    return fromPolicies;
+  }
+
+  // אין policy — ננסה TierLimits מ-DB לפני שניפול ל-PRICING hardcoded.
+  // זה המקור שמתעדכן מ-/admin/tier-settings (UI הניהול הראשי).
+  const tierLimits = await prisma.tierLimits.findUnique({
+    where: { tier: ctx.planTier },
+    select: { priceMonthly: true },
+  });
+
+  const dbMonthly =
+    tierLimits && tierLimits.priceMonthly > 0
+      ? Number(tierLimits.priceMonthly)
+      : null;
+
+  if (dbMonthly !== null && Number.isFinite(dbMonthly) && dbMonthly > 0) {
+    const derived = deriveMultiPeriodPrices(dbMonthly);
+    return {
+      source: "TIER_LIMITS",
+      policyId: null,
+      planTier: ctx.planTier,
+      monthlyIls: dbMonthly,
+      quarterlyIls: derived.quarterly,
+      halfYearIls: derived.halfYear,
+      yearlyIls: derived.yearly,
+    };
+  }
+
+  // Last resort — PRICING hardcoded (מתקבל מ-fromPolicies שכבר נתפס)
+  return fromPolicies;
+}
+
+/**
+ * Batch version של fetchAndResolveSubscriptionPrice עבור מספר tiers.
+ *
+ * אופטימיזציה ל-/api/subscription/tiers שצריך מחירים ל-3 tiers:
+ * במקום 6 קריאות DB (3 × findMany + 3 × findUnique), עושה 2 קריאות בלבד
+ * (findMany אחת על PricingPolicy עם planTier IN, ו-findMany אחת על TierLimits).
+ *
+ * סדר עדיפויות זהה ל-fetchAndResolveSubscriptionPrice.
+ */
+export async function fetchAndResolveSubscriptionPricesForTiers(
+  baseCtx: Omit<SubscriptionResolveContext, "planTier">,
+  tiers: AITier[]
+): Promise<Map<AITier, ResolvedSubscriptionPrice>> {
+  const { default: prisma } = await import("@/lib/prisma");
+
+  const orFilter: Prisma.PricingPolicyWhereInput[] = [
+    { scope: "GLOBAL" },
+    { scope: "USER", userId: baseCtx.userId },
+  ];
+  if (baseCtx.organizationId !== null) {
+    orFilter.push({ scope: "ORGANIZATION", organizationId: baseCtx.organizationId });
+    orFilter.push({
+      scope: "CLINIC_MEMBER",
+      organizationId: baseCtx.organizationId,
+      userId: baseCtx.userId,
+    });
+  }
+
+  const [allPolicies, allTierLimits] = await Promise.all([
+    prisma.pricingPolicy.findMany({
+      where: {
+        planTier: { in: tiers },
+        validFrom: { lte: baseCtx.now },
+        OR: orFilter,
+        AND: [
+          {
+            OR: [{ validUntil: null }, { validUntil: { gt: baseCtx.now } }],
+          },
+        ],
+      },
+      select: {
+        id: true,
+        scope: true,
+        organizationId: true,
+        userId: true,
+        planTier: true,
+        monthlyIls: true,
+        quarterlyIls: true,
+        halfYearIls: true,
+        yearlyIls: true,
+        validFrom: true,
+        validUntil: true,
+      },
+    }),
+    prisma.tierLimits.findMany({
+      where: { tier: { in: tiers } },
+      select: { tier: true, priceMonthly: true },
+    }),
+  ]);
+
+  const tierLimitsMap = new Map<AITier, number>();
+  for (const tl of allTierLimits) {
+    if (tl.priceMonthly > 0) {
+      tierLimitsMap.set(tl.tier, Number(tl.priceMonthly));
+    }
+  }
+
+  const result = new Map<AITier, ResolvedSubscriptionPrice>();
+  for (const tier of tiers) {
+    const ctx: SubscriptionResolveContext = { ...baseCtx, planTier: tier };
+    const policiesForTier = allPolicies.filter((p) => p.planTier === tier);
+    const fromPolicies = resolveSubscriptionPriceFromPolicies(policiesForTier, ctx);
+
+    if (fromPolicies.source !== "FALLBACK") {
+      result.set(tier, fromPolicies);
+      continue;
+    }
+
+    const dbMonthly = tierLimitsMap.get(tier);
+    if (dbMonthly !== undefined && Number.isFinite(dbMonthly) && dbMonthly > 0) {
+      const derived = deriveMultiPeriodPrices(dbMonthly);
+      result.set(tier, {
+        source: "TIER_LIMITS",
+        policyId: null,
+        planTier: tier,
+        monthlyIls: dbMonthly,
+        quarterlyIls: derived.quarterly,
+        halfYearIls: derived.halfYear,
+        yearlyIls: derived.yearly,
+      });
+      continue;
+    }
+
+    result.set(tier, fromPolicies);
+  }
+
+  return result;
 }
 
 /**

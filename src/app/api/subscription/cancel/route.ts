@@ -6,40 +6,40 @@ import { NextResponse } from "next/server";
 import prisma from "@/lib/prisma";
 import { sendEmail } from "@/lib/resend";
 import { checkRateLimit, SUBSCRIPTION_RATE_LIMIT, rateLimitResponse } from "@/lib/rate-limit";
-import { PLAN_NAMES, PRICING } from "@/lib/pricing";
+import { PLAN_NAMES } from "@/lib/pricing";
+import { fetchAndResolveSubscriptionPrice, getPriceForPeriod } from "@/lib/pricing/resolve";
 import { escapeHtml } from "@/lib/email-utils";
 import { logger } from "@/lib/logger";
 import { requireAuth } from "@/lib/api-auth";
 import { invalidateJwtCache } from "@/lib/auth";
+import type { ResolvedSubscriptionPrice } from "@/lib/pricing/resolve";
 
 const ADMIN_EMAIL = process.env.ADMIN_EMAIL;
 const SYSTEM_URL = process.env.NEXTAUTH_URL || "";
 
 // ========================================
-// חישוב מחיר הוגן לביטול מוקדם
+// חישוב מחיר הוגן לביטול מוקדם — לפי מחיר מותאם אישית מ-resolver
+// (תואם בדיוק לחישוב ב-billing/page.tsx כדי שתצוגת ה-UI = החיוב בפועל).
 // ========================================
 
-function calculateFairPrice(tier: string, monthsUsed: number): number {
-  const pricing = PRICING[tier];
-  if (!pricing) return 0;
-  
-  // בוחר את החבילה הטובה ביותר (הזולה ביותר) ללקוח
-  if (monthsUsed >= 12) return pricing[12];
-  if (monthsUsed >= 6) return pricing[6] + (monthsUsed - 6) * pricing[1];
-  if (monthsUsed >= 3) return pricing[3] + (monthsUsed - 3) * pricing[1];
-  return monthsUsed * pricing[1];
+function calculateFairPrice(price: ResolvedSubscriptionPrice, monthsUsed: number): number {
+  const monthly = getPriceForPeriod(price, 1);
+  if (monthsUsed >= 12) return getPriceForPeriod(price, 12);
+  if (monthsUsed >= 6) return getPriceForPeriod(price, 6) + (monthsUsed - 6) * monthly;
+  if (monthsUsed >= 3) return getPriceForPeriod(price, 3) + (monthsUsed - 3) * monthly;
+  return monthsUsed * monthly;
 }
 
 function calculateCancellationAdjustment(
-  tier: string,
+  price: ResolvedSubscriptionPrice,
   totalMonths: number,
   monthsUsed: number,
   totalPaid: number
 ): { adjustment: number; fairPrice: number; paidSoFar: number } {
-  const fairPrice = calculateFairPrice(tier, monthsUsed);
+  const fairPrice = calculateFairPrice(price, monthsUsed);
   const paidSoFar = Math.round((totalPaid / totalMonths) * monthsUsed);
   const adjustment = Math.max(0, fairPrice - paidSoFar);
-  
+
   return { adjustment, fairPrice, paidSoFar };
 }
 
@@ -66,6 +66,7 @@ export async function POST() {
         name: true,
         email: true,
         aiTier: true,
+        organizationId: true,
         subscriptionStatus: true,
         subscriptionStartedAt: true,
         subscriptionEndsAt: true,
@@ -104,15 +105,32 @@ export async function POST() {
           orderBy: { paidAt: "desc" },
           select: { amount: true },
         });
-        
+
         const totalPaid = lastPayment ? Number(lastPayment.amount) : 0;
-        
+
         if (totalPaid > 0) {
-          const calc = calculateCancellationAdjustment(user.aiTier, totalMonths, monthsUsed, totalPaid);
-          adjustment = calc.adjustment;
-          
-          if (adjustment > 0) {
-            adjustmentDetails = `שימוש: ${monthsUsed}/${totalMonths} חודשים. מחיר הוגן: ₪${calc.fairPrice}. שולם יחסי: ₪${calc.paidSoFar}. הפרש: ₪${adjustment}`;
+          // resolve מחיר מותאם אישית — חייב להיות זהה לחישוב ב-billing/page.tsx
+          // (משתמש באותו resolver), אחרת תוצג סכום אחר מאשר יחויב = תלונה.
+          try {
+            const resolved = await fetchAndResolveSubscriptionPrice({
+              userId: user.id,
+              organizationId: user.organizationId,
+              planTier: user.aiTier,
+              now,
+            });
+            const calc = calculateCancellationAdjustment(resolved, totalMonths, monthsUsed, totalPaid);
+            adjustment = calc.adjustment;
+
+            if (adjustment > 0) {
+              adjustmentDetails = `שימוש: ${monthsUsed}/${totalMonths} חודשים. מחיר הוגן: ₪${calc.fairPrice}. שולם יחסי: ₪${calc.paidSoFar}. הפרש: ₪${adjustment}`;
+            }
+          } catch (priceError) {
+            logger.warn("[subscription/cancel] price resolution failed — adjustment skipped", {
+              userId: user.id,
+              plan: user.aiTier,
+              error: priceError instanceof Error ? priceError.message : String(priceError),
+            });
+            // לא חוסם את הביטול — adjustment=0 (טובת המשתמש)
           }
         }
       }
