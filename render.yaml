@@ -4,7 +4,7 @@ services:
     runtime: node
     region: frankfurt
     plan: free
-    buildCommand: npm install --include=dev && npx prisma generate && rm -rf .next node_modules/.cache && npm run build
+    buildCommand: rm -rf node_modules/.prisma node_modules/@prisma/client/runtime && npm install --include=dev && npx prisma generate && rm -rf .next node_modules/.cache && npm run build
     # C2 (סבב אבטחה 14, 2026-05-19): הוסרה הדגל `--accept-data-loss` כדי שאם
     # יתקיים schema drift Prisma יעצור עם שגיאה במקום למחוק עמודות PHI בשקט.
     # מעבר מלא ל-`prisma migrate deploy` ידרוש baseline ידני (`migrate resolve
