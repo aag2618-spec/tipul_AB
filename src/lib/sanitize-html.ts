@@ -85,6 +85,10 @@ export function sanitizeAiText(input: unknown): string {
  */
 const SANITIZE_MAX_DEPTH = 8;
 
+export function stripHtmlTags(html: string): string {
+  return DOMPurify.sanitize(html, { ALLOWED_TAGS: [], KEEP_CONTENT: true });
+}
+
 export function sanitizeAiResponse<T>(value: T, depth = 0): T {
   if (depth > SANITIZE_MAX_DEPTH) return value;
   if (value === null || value === undefined) return value;

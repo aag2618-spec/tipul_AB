@@ -2,6 +2,7 @@ import { Resend } from 'resend';
 import { escapeHtml } from './email-utils';
 import { isShabbatOrYomTov } from './shabbat';
 import { logger } from './logger';
+import { stripHtmlTags } from './sanitize-html';
 
 // Initialize lazily to avoid build errors when API key is not set
 let resendClient: Resend | null = null;
@@ -37,7 +38,7 @@ export async function sendEmail({ to, subject, html, text }: EmailOptions): Prom
   // שבת/יו״ט — חסום מיידי, לפני כל תלות חיצונית.
   // ה-callers ממשיכים לזרום רגיל (result.success=false) ולא נזרקת חריגה.
   if (isShabbatOrYomTov()) {
-    logger.info('[email] חסום בשבת/חג', { to, subject });
+    logger.info('[email] חסום בשבת/חג', { subject });
     return {
       success: false,
       error: 'SHABBAT_BLOCKED',
@@ -49,7 +50,7 @@ export async function sendEmail({ to, subject, html, text }: EmailOptions): Prom
   const resend = getResendClient();
   
   if (!resend) {
-    console.warn('RESEND_API_KEY not set, skipping email');
+    logger.warn('RESEND_API_KEY not set, skipping email');
     return { success: false, error: 'API key not configured', messageId: null };
   }
 
@@ -63,12 +64,12 @@ export async function sendEmail({ to, subject, html, text }: EmailOptions): Prom
         to: normalizedTo,
         subject,
         html,
-        text: text || html.replace(/<[^>]*>/g, ''),
+        text: text || stripHtmlTags(html),
         replyTo: "inbox@mytipul.com",
       });
 
       if (error) {
-        console.error(`Resend error (attempt ${attempt}/${maxAttempts}):`, error);
+        logger.error('Resend error', { attempt, maxAttempts, errorMessage: error.message });
         if (attempt < maxAttempts) {
           await new Promise(r => setTimeout(r, 3000));
           continue;
@@ -79,7 +80,7 @@ export async function sendEmail({ to, subject, html, text }: EmailOptions): Prom
       // Return the message ID for tracking
       return { success: true, data, messageId: data?.id || null };
     } catch (error) {
-      console.error(`Send email error (attempt ${attempt}/${maxAttempts}):`, error);
+      logger.error('Send email error', { attempt, maxAttempts, errorMessage: error instanceof Error ? error.message : 'Unknown' });
       if (attempt < maxAttempts) {
         await new Promise(r => setTimeout(r, 3000));
         continue;
@@ -195,8 +196,7 @@ export async function sendEmailRaw(
   const to = params.to.toLowerCase();
   const allowlist = getSystemRawAllowlist();
   if (!allowlist.has(to)) {
-    console.error('[sendEmailRaw] BLOCKED — recipient not in SYSTEM_RAW_RECIPIENTS allowlist', {
-      to,
+    logger.error('[sendEmailRaw] BLOCKED — recipient not in SYSTEM_RAW_RECIPIENTS allowlist', {
       allowlistSize: allowlist.size,
     });
     return { success: false, error: 'RECIPIENT_NOT_ALLOWED' };
@@ -213,7 +213,7 @@ export async function sendEmailRaw(
       to,
       subject: `[SYSTEM] ${params.subject}`,
       html: params.html,
-      text: params.text || params.html.replace(/<[^>]*>/g, ''),
+      text: params.text || stripHtmlTags(params.html),
     });
     if (error) return { success: false, error: error.message };
     return { success: true };

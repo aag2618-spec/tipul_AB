@@ -117,6 +117,14 @@ export function isEncrypted(text: string): boolean {
 }
 
 export function hashApiKey(apiKey: string): string {
+  const secret = process.env.API_KEY_HMAC_SECRET;
+  if (secret) {
+    return crypto
+      .createHmac('sha256', secret)
+      .update(apiKey)
+      .digest('hex')
+      .substring(0, 16);
+  }
   return crypto
     .createHash('sha256')
     .update(apiKey)
