@@ -53,7 +53,7 @@ export default function IntakePage({ params }: { params: Promise<{ clientId: str
     const fetchData = async () => {
       try {
         const [clientRes, templatesRes] = await Promise.all([
-          fetch(`/api/clients/${clientId}`),
+          fetch(`/api/clients/${clientId}?fields=basic`),
           fetch("/api/intake-templates"),
         ]);
 

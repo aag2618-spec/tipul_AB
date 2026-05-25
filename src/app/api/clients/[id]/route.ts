@@ -68,11 +68,19 @@ export async function GET(
 
     const scopeUser = await loadScopeUser(userId);
     const scopeWhere = buildClientWhere(scopeUser);
+    const fields = request.nextUrl.searchParams.get("fields");
 
-    // הגנה על תוכן קליני: מזכירה מקבלת select מצומצם בלבד (ללא sessionNote/recordings/transcription/analysis).
-    const client = isSecretary(scopeUser)
-      ? await prisma.client.findFirst({
-          where: { AND: [{ id }, scopeWhere] },
+    // fields=basic — רק פרטי לקוח בסיסיים, בלי sessions/payments/recordings/documents.
+    // מונע over-fetching של PHI בדפי עריכה/intake/email שצריכים רק שם+טלפון.
+    const whereClause = { AND: [{ id }, scopeWhere] };
+
+    let client;
+    if (fields === "basic") {
+      client = await prisma.client.findFirst({ where: whereClause });
+    } else if (isSecretary(scopeUser)) {
+      // הגנה על תוכן קליני: מזכירה מקבלת select מצומצם בלבד (ללא sessionNote/recordings/transcription/analysis).
+      client = await prisma.client.findFirst({
+          where: whereClause,
           select: {
             ...getClientSafeSelectForSecretary(),
             therapySessions: {
@@ -99,9 +107,10 @@ export async function GET(
               orderBy: { createdAt: "desc" },
             },
           },
-        })
-      : await prisma.client.findFirst({
-          where: { AND: [{ id }, scopeWhere] },
+        });
+    } else {
+      client = await prisma.client.findFirst({
+          where: whereClause,
           include: {
             therapySessions: {
               orderBy: { startTime: "desc" },
@@ -122,6 +131,7 @@ export async function GET(
             },
           },
         });
+    }
 
     if (!client) {
       return NextResponse.json({ message: "מטופל לא נמצא" }, { status: 404 });

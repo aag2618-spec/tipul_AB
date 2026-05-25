@@ -81,7 +81,7 @@ function NewClientContent() {
 
   useEffect(() => {
     if (!fromQuickId) return;
-    fetch(`/api/clients/${fromQuickId}`)
+    fetch(`/api/clients/${fromQuickId}?fields=basic`)
       .then((res) => (res.ok ? res.json() : null))
       .then((client) => {
         if (!client) return;

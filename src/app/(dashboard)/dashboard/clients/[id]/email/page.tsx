@@ -83,7 +83,7 @@ export default function SendEmailPage({ params }: { params: Promise<{ id: string
   useEffect(() => {
     const fetchClient = async () => {
       try {
-        const response = await fetch(`/api/clients/${id}`);
+        const response = await fetch(`/api/clients/${id}?fields=basic`);
         if (response.ok) {
           const data = await response.json();
           setClient(data);
