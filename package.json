@@ -67,7 +67,7 @@
     "googleapis": "^170.1.0",
     "html2canvas": "^1.4.1",
     "isomorphic-dompurify": "^3.14.0",
-    "jspdf": "^2.5.2",
+    "jspdf": "^4.2.1",
     "jspdf-autotable": "^3.8.4",
     "jszip": "^3.10.1",
     "lucide-react": "^0.562.0",
