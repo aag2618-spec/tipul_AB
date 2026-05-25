@@ -90,7 +90,9 @@ export function replacePlaceholders(
   let result = template;
   for (const [key, value] of Object.entries(data)) {
     if (value !== undefined && value !== null) {
-      result = result.replace(new RegExp(`\\{${key}\\}`, "g"), value);
+      const escapedKey = key.replace(/[.*+?^${}()|[\]\\]/g, "\\$&");
+      // eslint-disable-next-line security/detect-non-literal-regexp -- input escaped above
+      result = result.replace(new RegExp(`\\{${escapedKey}\\}`, "g"), value);
     }
   }
   return result;

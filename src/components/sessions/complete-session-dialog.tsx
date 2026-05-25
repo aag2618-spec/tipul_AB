@@ -150,7 +150,7 @@ export function CompleteSessionDialog(props: CompleteSessionDialogProps) {
       // אם אמצעי התשלום הוא כרטיס אשראי — חייבים לבצע סליקה אמיתית דרך Cardcom
       // ולא לרשום PAID ידנית. חריגים שחוסמים:
       //   • CREDIT (משיכה מקרדיט) — לא משתמש בכרטיס בכלל.
-      //   • ADVANCE (טעינת קרדיט) — ‎createPaymentForSession מגדיל את
+      //   • ADVANCE (טעינת קרדיט) — createPaymentForSession מגדיל את
       //     client.creditBalance מיידית גם ב-PENDING. אם Cardcom ייכשל,
       //     הקרדיט כבר נוסף → סנכרון שבור. עד שננתק את הגדלת הקרדיט
       //     לאירוע PAID בלבד, חוסמים ADVANCE + אשראי.

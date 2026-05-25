@@ -1,3 +1,4 @@
+/* eslint-disable security/detect-bidi-characters */
 import { describe, it, expect } from "vitest";
 import { sanitizeDownloadFilename } from "@/lib/file-validation";
 

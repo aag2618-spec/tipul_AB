@@ -365,9 +365,12 @@ export function fillTemplate(
   let body = template.body;
 
   Object.entries(values).forEach(([key, value]) => {
-    const placeholder = key.startsWith("{") ? key : `{${key}}`;
-    subject = subject.replace(new RegExp(placeholder, "g"), value);
-    body = body.replace(new RegExp(placeholder, "g"), value);
+    const raw = key.startsWith("{") ? key : `{${key}}`;
+    const escaped = raw.replace(/[.*+?^${}()|[\]\\]/g, "\\$&");
+    // eslint-disable-next-line security/detect-non-literal-regexp -- input escaped above
+    subject = subject.replace(new RegExp(escaped, "g"), value);
+    // eslint-disable-next-line security/detect-non-literal-regexp -- input escaped above
+    body = body.replace(new RegExp(escaped, "g"), value);
   });
 
   return { subject, body };

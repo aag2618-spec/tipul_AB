@@ -44,7 +44,8 @@ export function cleanIncomingContent(html: string): string {
   cleaned = cleaned.replace(/\s*-{3,}\s*(Forwarded|Original|הודעה)[\s\S]*/gi, "");
 
   // Remove trailing <br>, empty divs, whitespace
-  cleaned = cleaned.replace(/(<br\s*\/?>|<div>\s*<\/div>|\s)*$/gi, "").trim();
+  // eslint-disable-next-line security/detect-unsafe-regex -- alternation anchored by leading <, no ambiguity
+  cleaned = cleaned.replace(/(?:<br\s*\/?>|<div>\s*<\/div>)+$/gi, "").trimEnd();
 
   // If nothing meaningful left, return original content
   const textOnly = cleaned.replace(/<[^>]*>/g, "").trim();

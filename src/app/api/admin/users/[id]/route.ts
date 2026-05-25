@@ -212,6 +212,7 @@ export async function PUT(
         );
       }
     }
+    // eslint-disable-next-line security/detect-possible-timing-attacks -- checking for presence, not comparing secrets
     if (password !== undefined) {
       if (typeof password !== "string" || password.length < 8) {
         return NextResponse.json(

@@ -119,7 +119,8 @@ export function redactPii(text: string | null | undefined): string {
   // Visa/Mastercard/Amex כולם נופלים ב-13-19. שמירת ה-boundaries (\b) כדי
   // לא לאכול חלקי תאריכים.
   out = out.replace(
-    /\b(?:\d[ -]?){13,19}\b/g,
+    // eslint-disable-next-line security/detect-unsafe-regex -- each repetition consumes a mandatory \d, linear backtracking
+    /\b\d(?:[ -]?\d){12,18}\b/g,
     (match) => {
       // בדוק שיש לפחות 13 ספרות בלי הפרדה (לא רק מקפים).
       const digits = match.replace(/[ -]/g, "");
@@ -134,7 +135,8 @@ export function redactPii(text: string | null | undefined): string {
   //    b) 0XX-XXXXXXX (3+7 ספרות עם מקף/רווח/בלי)
   //    c) 0XXXXXXXXX (10 ספרות רצופות שמתחילות ב-0)
   out = out.replace(
-    /(?:\+?972|972)[\s-]?\d(?:[\s-]?\d){7,9}/g,
+    // eslint-disable-next-line security/detect-unsafe-regex -- unrolled loop with max 2 trailing optional digits
+    /(?:\+?972|972)[\s-]?\d[\s-]?\d[\s-]?\d[\s-]?\d[\s-]?\d[\s-]?\d[\s-]?\d[\s-]?\d(?:[\s-]?\d){0,2}/g,
     REDACTION.PHONE
   );
   out = out.replace(

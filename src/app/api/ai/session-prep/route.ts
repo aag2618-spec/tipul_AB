@@ -649,7 +649,9 @@ ${getUniversalPromptsLight()}`;
  * חילוץ סעיף מהתוכן
  */
 function extractSection(content: string, sectionName: string): string | null {
-  const regex = new RegExp(`\\*\\*[^*]*${sectionName}[^*]*\\*\\*[:\\s]*([\\s\\S]*?)(?=\\*\\*|$)`, 'i');
+  const escaped = sectionName.replace(/[.*+?^${}()|[\]\\]/g, "\\$&");
+  // eslint-disable-next-line security/detect-non-literal-regexp -- input escaped above
+  const regex = new RegExp(`\\*\\*[^*]*${escaped}[^*]*\\*\\*[:\\s]*([\\s\\S]*?)(?=\\*\\*|$)`, 'i');
   const match = content.match(regex);
   return match ? match[1].trim() : null;
 }

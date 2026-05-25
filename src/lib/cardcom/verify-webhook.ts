@@ -126,7 +126,8 @@ export function scrubCardcomMessage(message: string | null | undefined): string 
   if (!message) return null;
   return message
     // PAN
-    .replace(/(?:\d[ -]?){13,19}/g, "[card-redacted]")
+    // eslint-disable-next-line security/detect-unsafe-regex -- each repetition consumes mandatory \d
+    .replace(/\d(?:[ -]?\d){12,18}/g, "[card-redacted]")
     // Email
     .replace(/[a-zA-Z0-9._%+-]+@[a-zA-Z0-9.-]+\.[a-zA-Z]{2,}/g, "[email-redacted]")
     // CVV (English + Hebrew context cues)

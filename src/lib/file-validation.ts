@@ -1,3 +1,4 @@
+/* eslint-disable security/detect-bidi-characters */
 // H5 — Server-side validation לקבצים שמועלים ל-API.
 //
 // הבעיה: 3 endpoints (documents/recordings/communications) קיבלו קבצים

@@ -104,6 +104,7 @@ function ResetPasswordForm() {
       return;
     }
 
+    // eslint-disable-next-line security/detect-possible-timing-attacks -- client-side UI validation, not secret comparison
     if (password !== confirmPassword) {
       toast.error("הסיסמאות לא תואמות");
       return;
