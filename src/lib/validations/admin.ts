@@ -259,6 +259,9 @@ export const updateTierLimitsSchema = z
     singleQuestionnaireLimit: limitInt,
     combinedQuestionnaireLimit: limitInt,
     progressReportLimit: limitInt,
+    discountQuarterly: z.coerce.number().int().min(0).max(100).optional(),
+    discountSemiAnnual: z.coerce.number().int().min(0).max(100).optional(),
+    discountAnnual: z.coerce.number().int().min(0).max(100).optional(),
   })
   .strict();
 export type UpdateTierLimitsInput = z.infer<typeof updateTierLimitsSchema>;

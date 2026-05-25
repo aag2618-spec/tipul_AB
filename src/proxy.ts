@@ -86,6 +86,8 @@ const ADMIN_ONLY_PATHS = [
   "/api/admin/ai-settings",
   "/api/admin/terms",
   "/api/admin/coupons",
+  "/admin/promotions",
+  "/api/admin/promotions",
   "/api/admin/idempotency", // Stage 1.18 — ADMIN-only, defense-in-depth
   // Cardcom API — ADMIN בלבד רק עבור setup + business-settings
   // (charge/transactions/create-payment-page זמינים ל-MANAGER דרך requirePermission)

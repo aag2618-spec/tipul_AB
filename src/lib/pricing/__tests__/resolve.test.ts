@@ -298,7 +298,7 @@ describe("getPriceForPeriod", () => {
     expect(getPriceForPeriod(result, 6)).toBe(540);
   });
 
-  it("12 חודשים בלי yearlyIls — fallback עם הנחה (×10, חיסכון חודשיים)", () => {
+  it("12 חודשים בלי yearlyIls — fallback עם הנחת 17%", () => {
     const result = {
       source: "USER" as const,
       planTier: "PRO" as const,
@@ -307,8 +307,8 @@ describe("getPriceForPeriod", () => {
       halfYearIls: null,
       yearlyIls: null,
     };
-    // 100 × 10 = 1000 (לא 1200 — זאת ההנחה הסטנדרטית)
-    expect(getPriceForPeriod(result, 12)).toBe(1000);
+    // 100 * 12 * 0.83 = 996
+    expect(getPriceForPeriod(result, 12)).toBe(996);
   });
 
   it("monthly לא תקין (0) + fallback — מחזיר ×N הישן בלי לזרוק", () => {
@@ -422,25 +422,32 @@ describe("resolvePackagePriceFromPolicies", () => {
 // ============================================================================
 
 describe("deriveMultiPeriodPrices", () => {
-  it("מחיר 117 ש\"ח — מחזיר תקופות נכונות", () => {
+  it("מחיר 117 ש\"ח — ברירת מחדל (5%/10%/17%)", () => {
     const result = deriveMultiPeriodPrices(117);
     expect(result.quarterly).toBe(333); // 117 * 3 * 0.95 = 333.45 → 333
-    expect(result.halfYear).toBe(632); // 117 * 6 * 0.9 = 631.8 → 632
-    expect(result.yearly).toBe(1170); // 117 * 10
+    expect(result.halfYear).toBe(632); // 117 * 6 * 0.90 = 631.8 → 632
+    expect(result.yearly).toBe(1165); // 117 * 12 * 0.83 = 1165.32 → 1165
   });
 
-  it("מחיר 145 ש\"ח (PRO) — תואם בקירוב ל-PRICING hardcoded", () => {
+  it("מחיר 145 ש\"ח (PRO) — ברירת מחדל", () => {
     const result = deriveMultiPeriodPrices(145);
     expect(result.quarterly).toBe(413); // 145 * 3 * 0.95 = 413.25 → 413
-    expect(result.halfYear).toBe(783); // 145 * 6 * 0.9 = 783
-    expect(result.yearly).toBe(1450); // 145 * 10
+    expect(result.halfYear).toBe(783); // 145 * 6 * 0.90 = 783
+    expect(result.yearly).toBe(1444); // 145 * 12 * 0.83 = 1444.2 → 1444
   });
 
-  it("מחיר 100 ש\"ח (לאחר שינוי tier-settings)", () => {
-    const result = deriveMultiPeriodPrices(100);
-    expect(result.quarterly).toBe(285); // 100 * 3 * 0.95 = 285
-    expect(result.halfYear).toBe(540); // 100 * 6 * 0.9 = 540
-    expect(result.yearly).toBe(1000); // 100 * 10
+  it("מחיר 100 ש\"ח עם הנחות מותאמות", () => {
+    const result = deriveMultiPeriodPrices(100, { quarterly: 10, semiAnnual: 15, annual: 20 });
+    expect(result.quarterly).toBe(270); // 100 * 3 * 0.90 = 270
+    expect(result.halfYear).toBe(510); // 100 * 6 * 0.85 = 510
+    expect(result.yearly).toBe(960);   // 100 * 12 * 0.80 = 960
+  });
+
+  it("ללא הנחה (0%) — מחיר מלא", () => {
+    const result = deriveMultiPeriodPrices(100, { quarterly: 0, semiAnnual: 0, annual: 0 });
+    expect(result.quarterly).toBe(300);
+    expect(result.halfYear).toBe(600);
+    expect(result.yearly).toBe(1200);
   });
 
   it("זורק על monthly=0 — מניעת חיוב 0 ש\"ח", () => {

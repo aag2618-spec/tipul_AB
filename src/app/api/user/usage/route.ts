@@ -79,6 +79,9 @@ export async function GET(req: NextRequest) {
         displayNameEn: TIER_DISPLAY_NAMES[tier]?.en || tier,
         priceMonthly: tier === "ESSENTIAL" ? 117 : tier === "PRO" ? 145 : 220,
         description: null,
+        discountQuarterly: 5,
+        discountSemiAnnual: 10,
+        discountAnnual: 17,
         ...DEFAULT_LIMITS[tier],
       };
     }

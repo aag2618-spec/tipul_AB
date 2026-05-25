@@ -23,6 +23,7 @@ import {
   Info,
   Shield,
   FileText,
+  Megaphone,
 } from 'lucide-react';
 import {
   AlertDialog,
@@ -131,6 +132,8 @@ interface SubscriptionStatus {
   subscriptionEndsAt: string | null;
   trialEndsAt: string | null;
   monthlyPrice: number;
+  pendingTier: 'ESSENTIAL' | 'PRO' | 'ENTERPRISE' | null;
+  pendingTierEffectiveAt: string | null;
   billingPaidByClinic?: boolean;
   subscriptionPausedReason?: string | null;
   clinicName?: string | null;
@@ -160,9 +163,15 @@ export default function BillingPage() {
   const [termsAccepted, setTermsAccepted] = useState(false);
   const [showTermsDetail, setShowTermsDetail] = useState(false);
   const [showUpgradeDialog, setShowUpgradeDialog] = useState<string | null>(null);
+  const [activePromotion, setActivePromotion] = useState<{
+    title: string;
+    description: string | null;
+    discountPercent: number;
+    validUntil: string | null;
+  } | null>(null);
 
   useEffect(() => {
-    void Promise.all([fetchSubscription(), fetchTiers()]).finally(() => setLoading(false));
+    void Promise.all([fetchSubscription(), fetchTiers(), fetchPromotion()]).finally(() => setLoading(false));
   }, []);
 
   const fetchSubscription = async () => {
@@ -204,6 +213,20 @@ export default function BillingPage() {
     }
   };
 
+  const fetchPromotion = async () => {
+    try {
+      const res = await fetch('/api/subscription/promotions');
+      if (res.ok) {
+        const data = await res.json();
+        if (data.promotions?.length > 0) {
+          setActivePromotion(data.promotions[0]);
+        }
+      }
+    } catch {
+      // מבצעים לא קריטיים — אם נכשל, פשוט לא מציגים
+    }
+  };
+
   // מאחד את ה-meta של כל מסלול עם המחיר המותאם אישית מ-DB.
   // מוצג במקום PLANS hardcoded — כל שינוי ב-/admin/tier-settings או PricingPolicy יופיע מיד.
   const PLANS = useMemo<Record<string, PlanData>>(() => {
@@ -217,6 +240,12 @@ export default function BillingPage() {
     }
     return map;
   }, [tiers]);
+
+  const isMaxTier = useMemo(() => {
+    if (!subscription || !PLANS[subscription.plan]) return false;
+    const currentPrice = PLANS[subscription.plan].pricing[1];
+    return Object.values(PLANS).every(p => p.pricing[1] <= currentPrice);
+  }, [subscription, PLANS]);
 
   const handleUpgrade = async (plan: string) => {
     if (upgrading) return;
@@ -388,6 +417,35 @@ export default function BillingPage() {
         </div>
       </div>
 
+      {/* באנר מבצע פעיל */}
+      {activePromotion && (
+        <Card className="border-green-400 bg-linear-to-l from-green-50 to-emerald-50 dark:from-green-950/30 dark:to-emerald-950/30">
+          <CardContent className="pt-6">
+            <div className="flex items-start gap-3">
+              <Megaphone className="h-6 w-6 text-green-600 mt-0.5 shrink-0" />
+              <div className="flex-1">
+                <p className="font-bold text-green-900 dark:text-green-300 text-lg">
+                  {activePromotion.title}
+                </p>
+                {activePromotion.description && (
+                  <p className="text-sm text-green-800 dark:text-green-400 mt-1">
+                    {activePromotion.description}
+                  </p>
+                )}
+                <div className="flex flex-wrap gap-3 mt-2 text-sm text-green-700 dark:text-green-400">
+                  {activePromotion.discountPercent > 0 && (
+                    <span className="font-semibold">{activePromotion.discountPercent}% הנחה</span>
+                  )}
+                  {activePromotion.validUntil && (
+                    <span>בתוקף עד {new Date(activePromotion.validUntil).toLocaleDateString('he-IL')}</span>
+                  )}
+                </div>
+              </div>
+            </div>
+          </CardContent>
+        </Card>
+      )}
+
       {/* טיפול בכשלון טעינת פרטי מנוי — באנר מתמיד שלא נעלם כמו toast */}
       {subscriptionError && (
         <Card className="border-amber-300 bg-amber-50 dark:bg-amber-950/20">
@@ -505,6 +563,23 @@ export default function BillingPage() {
               </div>
             )}
 
+            {subscription.pendingTier && subscription.pendingTierEffectiveAt && (
+              <div className="mt-4 p-4 bg-sky-50 border border-sky-200 rounded-lg">
+                <div className="flex gap-2 items-start">
+                  <Info className="h-5 w-5 text-sky-600 mt-0.5" />
+                  <div>
+                    <p className="font-medium text-sky-800">
+                      שינוי מסלול מתוכנן
+                    </p>
+                    <p className="text-sm text-sky-700">
+                      המסלול שלך ישתנה ל-{PLAN_META[subscription.pendingTier]?.name ?? subscription.pendingTier} בתאריך {formatDate(subscription.pendingTierEffectiveAt)}.
+                      החיוב הבא יתעדכן אוטומטית למחיר המסלול החדש.
+                    </p>
+                  </div>
+                </div>
+              </div>
+            )}
+
             {/* כפתורי פעולה */}
             <div className="mt-4 pt-4 border-t flex flex-wrap gap-2">
               {subscription.status === 'CANCELLED' && (
@@ -522,8 +597,11 @@ export default function BillingPage() {
                     const plansSection = document.getElementById('plans-section');
                     plansSection?.scrollIntoView({ behavior: 'smooth' });
                   }}>
-                    <ArrowUpCircle className="h-4 w-4 ml-1" />
-                    שדרג מסלול
+                    {isMaxTier ? (
+                      <><RefreshCw className="h-4 w-4 ml-1" />שנה מסלול</>
+                    ) : (
+                      <><ArrowUpCircle className="h-4 w-4 ml-1" />שדרג מסלול</>
+                    )}
                   </Button>
                   <Button 
                     variant="ghost" 
@@ -548,7 +626,11 @@ export default function BillingPage() {
         <div className="flex items-center justify-between flex-wrap gap-2">
           <div>
             <h2 className="text-xl font-semibold">
-              {subscription?.isActive ? 'שדרג את המסלול שלך' : 'בחר מסלול'}
+              {!subscription?.isActive
+                ? 'בחר מסלול'
+                : isMaxTier
+                  ? 'שנה את המסלול שלך'
+                  : 'שדרג את המסלול שלך'}
             </h2>
             <p className="text-sm text-muted-foreground">כל המסלולים כוללים 14 ימי ניסיון חינם</p>
           </div>
@@ -629,8 +711,8 @@ export default function BillingPage() {
         </div>
 
         {/* כרטיסי מסלולים */}
-        <div className="grid gap-4 sm:grid-cols-2 lg:grid-cols-3">
-          {Object.entries(PLANS).map(([key, plan]) => {
+        <div className={`grid gap-4 sm:grid-cols-2 ${isMaxTier ? '' : 'lg:grid-cols-3'}`}>
+          {Object.entries(PLANS).filter(([key]) => !(isMaxTier && subscription?.plan === key)).map(([key, plan]) => {
             const Icon = plan.icon;
             const isCurrent = subscription?.plan === key;
             const discount = getDiscount(key);
@@ -731,7 +813,14 @@ export default function BillingPage() {
               {showUpgradeDialog && PLANS[showUpgradeDialog] && (() => {
                 const plan = PLANS[showUpgradeDialog];
                 const Icon = plan.icon;
-                return <><Icon className="h-5 w-5" />{subscription?.isActive ? 'שדרוג' : 'רכישת'} מסלול {plan.name}</>;
+                const isSelectedUpgrade = subscription?.plan &&
+                  (PLANS[subscription.plan]?.pricing[1] ?? 0) < plan.pricing[1];
+                const actionLabel = !subscription?.isActive
+                  ? 'רכישת'
+                  : isSelectedUpgrade
+                    ? 'שדרוג'
+                    : 'שינוי';
+                return <><Icon className="h-5 w-5" />{actionLabel} מסלול {plan.name}</>;
               })()}
             </AlertDialogTitle>
             <AlertDialogDescription asChild>
@@ -889,7 +978,7 @@ export default function BillingPage() {
               <p className="font-semibold text-sky-900 dark:text-sky-300">צריך עזרה?</p>
               <p className="text-sky-800 dark:text-sky-400">
                 שאלות לגבי המנוי, שדרוגים או חיובים? פנה אלינו ב-{' '}
-                <a href="mailto:support@tipul.co.il" className="underline font-medium">support@tipul.co.il</a>
+                <a href="mailto:support@mytipul.com" className="underline font-medium">support@mytipul.com</a>
               </p>
             </div>
           </div>

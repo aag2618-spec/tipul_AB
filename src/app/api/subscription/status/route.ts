@@ -26,6 +26,8 @@ export async function GET() {
         subscriptionStartedAt: true,
         subscriptionEndsAt: true,
         trialEndsAt: true,
+        pendingTier: true,
+        pendingTierEffectiveAt: true,
         // MyTipul-B: שדות לתצוגת באנר "הקליניקה משלמת".
         billingPaidByClinic: true,
         subscriptionPausedReason: true,
@@ -93,6 +95,8 @@ export async function GET() {
       trialEndsAt: user.trialEndsAt,
       monthlyPrice,
       recentPayments,
+      pendingTier: user.pendingTier ?? null,
+      pendingTierEffectiveAt: user.pendingTierEffectiveAt ?? null,
       // MyTipul-B: מאפשר ל-UI להציג באנר "הקליניקה משלמת" + לחסום קנייה אישית.
       billingPaidByClinic: user.billingPaidByClinic,
       subscriptionPausedReason: user.subscriptionPausedReason,

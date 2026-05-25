@@ -17,6 +17,7 @@ import {
   FileText,
   BarChart3,
   Brain,
+  Percent,
 } from "lucide-react";
 import { toast } from "sonner";
 
@@ -33,6 +34,9 @@ interface TierLimit {
   singleQuestionnaireLimit: number;
   combinedQuestionnaireLimit: number;
   progressReportLimit: number;
+  discountQuarterly: number;
+  discountSemiAnnual: number;
+  discountAnnual: number;
 }
 
 const TIER_COLORS = {
@@ -292,6 +296,70 @@ export default function TierSettingsPage() {
                       onChange={(e) => handleChange(limit.tier, "priceMonthly", parseInt(e.target.value) || 0)}
                       className="mt-1"
                     />
+                  </div>
+                </CardContent>
+              </Card>
+
+              {/* הנחות לפי תקופה */}
+              <Card>
+                <CardHeader>
+                  <CardTitle className="flex items-center gap-2">
+                    <Percent className="h-5 w-5 text-green-400" />
+                    הנחות לפי תקופת תשלום
+                  </CardTitle>
+                  <CardDescription>אחוז הנחה לתשלום מראש לתקופות ארוכות</CardDescription>
+                </CardHeader>
+                <CardContent className="space-y-4">
+                  <div className="flex items-center justify-between py-3 border-b border-border">
+                    <div className="flex-1">
+                      <p className="text-foreground font-medium">3 חודשים</p>
+                      <p className="text-xs text-muted-foreground">הנחה לרבעון</p>
+                    </div>
+                    <div className="flex items-center gap-2">
+                      <Input
+                        type="number"
+                        min={0}
+                        max={100}
+                        value={getValue(limit, "discountQuarterly") as number}
+                        onChange={(e) => handleChange(limit.tier, "discountQuarterly", parseInt(e.target.value) || 0)}
+                        className="w-24 text-center"
+                      />
+                      <span className="text-muted-foreground text-sm">%</span>
+                    </div>
+                  </div>
+                  <div className="flex items-center justify-between py-3 border-b border-border">
+                    <div className="flex-1">
+                      <p className="text-foreground font-medium">חצי שנה</p>
+                      <p className="text-xs text-muted-foreground">הנחה ל-6 חודשים</p>
+                    </div>
+                    <div className="flex items-center gap-2">
+                      <Input
+                        type="number"
+                        min={0}
+                        max={100}
+                        value={getValue(limit, "discountSemiAnnual") as number}
+                        onChange={(e) => handleChange(limit.tier, "discountSemiAnnual", parseInt(e.target.value) || 0)}
+                        className="w-24 text-center"
+                      />
+                      <span className="text-muted-foreground text-sm">%</span>
+                    </div>
+                  </div>
+                  <div className="flex items-center justify-between py-3">
+                    <div className="flex-1">
+                      <p className="text-foreground font-medium">שנתי</p>
+                      <p className="text-xs text-muted-foreground">הנחה ל-12 חודשים</p>
+                    </div>
+                    <div className="flex items-center gap-2">
+                      <Input
+                        type="number"
+                        min={0}
+                        max={100}
+                        value={getValue(limit, "discountAnnual") as number}
+                        onChange={(e) => handleChange(limit.tier, "discountAnnual", parseInt(e.target.value) || 0)}
+                        className="w-24 text-center"
+                      />
+                      <span className="text-muted-foreground text-sm">%</span>
+                    </div>
                   </div>
                 </CardContent>
               </Card>

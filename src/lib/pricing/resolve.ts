@@ -14,16 +14,15 @@ import type { AITier, PackageType, PricingScope, Prisma } from "@prisma/client";
 import { MONTHLY_PRICES, PRICING } from "@/lib/pricing";
 
 /**
- * נוסחת המרה ממחיר חודשי למחירי תקופות ארוכות (לפי הנחות סטנדרטיות):
- *   3 חודשים → 5% הנחה (×2.85)
- *   6 חודשים → 10% הנחה (×5.4)
- *  12 חודשים → ~17% הנחה (×10, חיסכון חודשיים)
- *
- * משמש כשהמחיר מגיע מ-TierLimits (שיש בו רק priceMonthly) או מ-PRICING fallback בלי תקופות.
+ * נוסחת המרה ממחיר חודשי למחירי תקופות ארוכות.
+ * אם discounts לא מועברים — משתמש בברירת מחדל (5%/10%/17%).
  *
  * הגנה כספית: זורק אם monthly <= 0 / NaN / Infinity — חיוב 0 ש"ח הוא באג קריטי.
  */
-export function deriveMultiPeriodPrices(monthly: number): {
+export function deriveMultiPeriodPrices(
+  monthly: number,
+  discounts?: { quarterly?: number; semiAnnual?: number; annual?: number }
+): {
   quarterly: number;
   halfYear: number;
   yearly: number;
@@ -33,10 +32,13 @@ export function deriveMultiPeriodPrices(monthly: number): {
       `deriveMultiPeriodPrices: invalid monthly price ${String(monthly)} — must be a positive finite number`
     );
   }
+  const dq = discounts?.quarterly ?? 5;
+  const ds = discounts?.semiAnnual ?? 10;
+  const da = discounts?.annual ?? 17;
   return {
-    quarterly: Math.round(monthly * 3 * 0.95),
-    halfYear: Math.round(monthly * 6 * 0.9),
-    yearly: monthly * 10,
+    quarterly: Math.round(monthly * 3 * (1 - dq / 100)),
+    halfYear: Math.round(monthly * 6 * (1 - ds / 100)),
+    yearly: Math.round(monthly * 12 * (1 - da / 100)),
   };
 }
 
@@ -437,7 +439,12 @@ export async function fetchAndResolveSubscriptionPrice(
   // זה המקור שמתעדכן מ-/admin/tier-settings (UI הניהול הראשי).
   const tierLimits = await prisma.tierLimits.findUnique({
     where: { tier: ctx.planTier },
-    select: { priceMonthly: true },
+    select: {
+      priceMonthly: true,
+      discountQuarterly: true,
+      discountSemiAnnual: true,
+      discountAnnual: true,
+    },
   });
 
   const dbMonthly =
@@ -446,7 +453,11 @@ export async function fetchAndResolveSubscriptionPrice(
       : null;
 
   if (dbMonthly !== null && Number.isFinite(dbMonthly) && dbMonthly > 0) {
-    const derived = deriveMultiPeriodPrices(dbMonthly);
+    const derived = deriveMultiPeriodPrices(dbMonthly, {
+      quarterly: tierLimits!.discountQuarterly,
+      semiAnnual: tierLimits!.discountSemiAnnual,
+      annual: tierLimits!.discountAnnual,
+    });
     return {
       source: "TIER_LIMITS",
       policyId: null,
@@ -518,14 +529,25 @@ export async function fetchAndResolveSubscriptionPricesForTiers(
     }),
     prisma.tierLimits.findMany({
       where: { tier: { in: tiers } },
-      select: { tier: true, priceMonthly: true },
+      select: {
+        tier: true,
+        priceMonthly: true,
+        discountQuarterly: true,
+        discountSemiAnnual: true,
+        discountAnnual: true,
+      },
     }),
   ]);
 
-  const tierLimitsMap = new Map<AITier, number>();
+  const tierLimitsMap = new Map<AITier, { monthly: number; discountQuarterly: number; discountSemiAnnual: number; discountAnnual: number }>();
   for (const tl of allTierLimits) {
     if (tl.priceMonthly > 0) {
-      tierLimitsMap.set(tl.tier, Number(tl.priceMonthly));
+      tierLimitsMap.set(tl.tier, {
+        monthly: Number(tl.priceMonthly),
+        discountQuarterly: tl.discountQuarterly,
+        discountSemiAnnual: tl.discountSemiAnnual,
+        discountAnnual: tl.discountAnnual,
+      });
     }
   }
 
@@ -540,14 +562,18 @@ export async function fetchAndResolveSubscriptionPricesForTiers(
       continue;
     }
 
-    const dbMonthly = tierLimitsMap.get(tier);
-    if (dbMonthly !== undefined && Number.isFinite(dbMonthly) && dbMonthly > 0) {
-      const derived = deriveMultiPeriodPrices(dbMonthly);
+    const tlData = tierLimitsMap.get(tier);
+    if (tlData && Number.isFinite(tlData.monthly) && tlData.monthly > 0) {
+      const derived = deriveMultiPeriodPrices(tlData.monthly, {
+        quarterly: tlData.discountQuarterly,
+        semiAnnual: tlData.discountSemiAnnual,
+        annual: tlData.discountAnnual,
+      });
       result.set(tier, {
         source: "TIER_LIMITS",
         policyId: null,
         planTier: tier,
-        monthlyIls: dbMonthly,
+        monthlyIls: tlData.monthly,
         quarterlyIls: derived.quarterly,
         halfYearIls: derived.halfYear,
         yearlyIls: derived.yearly,
@@ -602,14 +628,25 @@ export async function prefetchSubscriptionPriceResolver(
       },
     }),
     prisma.tierLimits.findMany({
-      select: { tier: true, priceMonthly: true },
+      select: {
+        tier: true,
+        priceMonthly: true,
+        discountQuarterly: true,
+        discountSemiAnnual: true,
+        discountAnnual: true,
+      },
     }),
   ]);
 
-  const tierLimitsMap = new Map<AITier, number>();
+  const tierLimitsMap = new Map<AITier, { monthly: number; discountQuarterly: number; discountSemiAnnual: number; discountAnnual: number }>();
   for (const tl of allTierLimits) {
     if (tl.priceMonthly > 0) {
-      tierLimitsMap.set(tl.tier, Number(tl.priceMonthly));
+      tierLimitsMap.set(tl.tier, {
+        monthly: Number(tl.priceMonthly),
+        discountQuarterly: tl.discountQuarterly,
+        discountSemiAnnual: tl.discountSemiAnnual,
+        discountAnnual: tl.discountAnnual,
+      });
     }
   }
 
@@ -619,14 +656,18 @@ export async function prefetchSubscriptionPriceResolver(
       return fromPolicies;
     }
 
-    const dbMonthly = tierLimitsMap.get(ctx.planTier);
-    if (dbMonthly !== undefined && Number.isFinite(dbMonthly) && dbMonthly > 0) {
-      const derived = deriveMultiPeriodPrices(dbMonthly);
+    const tlData = tierLimitsMap.get(ctx.planTier);
+    if (tlData && Number.isFinite(tlData.monthly) && tlData.monthly > 0) {
+      const derived = deriveMultiPeriodPrices(tlData.monthly, {
+        quarterly: tlData.discountQuarterly,
+        semiAnnual: tlData.discountSemiAnnual,
+        annual: tlData.discountAnnual,
+      });
       return {
         source: "TIER_LIMITS",
         policyId: null,
         planTier: ctx.planTier,
-        monthlyIls: dbMonthly,
+        monthlyIls: tlData.monthly,
         quarterlyIls: derived.quarterly,
         halfYearIls: derived.halfYear,
         yearlyIls: derived.yearly,

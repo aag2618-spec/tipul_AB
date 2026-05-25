@@ -1838,10 +1838,39 @@ model TierLimits {
   priceMonthly  Int     @default(0) // מחיר חודשי בשקלים
   description   String? @db.Text // תיאור התוכנית
 
+  // הנחות לפי תקופת תשלום (אחוזים, 0-100)
+  discountQuarterly  Int @default(5)  // הנחה ל-3 חודשים
+  discountSemiAnnual Int @default(10) // הנחה לחצי שנה
+  discountAnnual     Int @default(17) // הנחה לשנה
+
   createdAt DateTime @default(now())
   updatedAt DateTime @updatedAt
 
   @@map("tier_limits")
+}
+
+// ==================== מבצעים זמניים ====================
+
+model Promotion {
+  id              String          @id @default(cuid())
+  title           String // כותרת — "מבצע למצטרפים חדשים!"
+  description     String?         @db.Text // תיאור מורחב
+  discountPercent Int             @default(0) // אחוז הנחה (0-100)
+  validFrom       DateTime        @default(now())
+  validUntil      DateTime? // null = ללא תוקף
+  isActive        Boolean         @default(true)
+  targetAudience  PromotionTarget @default(ALL)
+
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+
+  @@map("promotions")
+}
+
+enum PromotionTarget {
+  NEW_SUBSCRIBERS // מצטרפים חדשים בלבד
+  UPGRADERS // משדרגים מסלול בלבד
+  ALL // כולם
 }
 
 // ==================== Admin Email Templates ====================
