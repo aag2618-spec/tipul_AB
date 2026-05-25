@@ -68,7 +68,7 @@
     "html2canvas": "^1.4.1",
     "isomorphic-dompurify": "^3.14.0",
     "jspdf": "^2.5.2",
-    "jspdf-autotable": "^3.8.4",
+    "jspdf-autotable": "^5.0.8",
     "jszip": "^3.10.1",
     "lucide-react": "^0.562.0",
     "nanoid": "^5.1.6",
