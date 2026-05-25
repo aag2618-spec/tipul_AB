@@ -1,6 +1,7 @@
 import { NextRequest, NextResponse } from "next/server";
 import { requireAuth } from "@/lib/api-auth";
 import prisma from "@/lib/prisma";
+import storage from "@/lib/storage";
 import { logger } from "@/lib/logger";
 import {
   loadScopeUser,
@@ -169,7 +170,6 @@ export async function POST(request: NextRequest) {
 
     const { randomUUID } = await import("crypto");
     const fileName = `${randomUUID()}.${extension}`;
-    const { default: storage } = await import("@/lib/storage");
     await storage.write(`recordings/${fileName}`, buffer, declaredMime);
 
     const recording = await prisma.recording.create({
