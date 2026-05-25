@@ -1,13 +1,16 @@
--- AlterTable: הוספת שדות הנחה ל-tier_limits
-ALTER TABLE "tier_limits" ADD COLUMN "discountQuarterly" INTEGER NOT NULL DEFAULT 5;
-ALTER TABLE "tier_limits" ADD COLUMN "discountSemiAnnual" INTEGER NOT NULL DEFAULT 10;
-ALTER TABLE "tier_limits" ADD COLUMN "discountAnnual" INTEGER NOT NULL DEFAULT 17;
+-- AlterTable: הוספת שדות הנחה ל-tier_limits (IF NOT EXISTS למקרה שכבר קיימים)
+ALTER TABLE "tier_limits" ADD COLUMN IF NOT EXISTS "discountQuarterly" INTEGER NOT NULL DEFAULT 5;
+ALTER TABLE "tier_limits" ADD COLUMN IF NOT EXISTS "discountSemiAnnual" INTEGER NOT NULL DEFAULT 10;
+ALTER TABLE "tier_limits" ADD COLUMN IF NOT EXISTS "discountAnnual" INTEGER NOT NULL DEFAULT 17;
 
--- CreateEnum
-CREATE TYPE "PromotionTarget" AS ENUM ('NEW_SUBSCRIBERS', 'UPGRADERS', 'ALL');
+-- CreateEnum (IF NOT EXISTS)
+DO $$ BEGIN
+  CREATE TYPE "PromotionTarget" AS ENUM ('NEW_SUBSCRIBERS', 'UPGRADERS', 'ALL');
+EXCEPTION WHEN duplicate_object THEN NULL;
+END $$;
 
 -- CreateTable: מבצעים זמניים
-CREATE TABLE "promotions" (
+CREATE TABLE IF NOT EXISTS "promotions" (
     "id" TEXT NOT NULL,
     "title" TEXT NOT NULL,
     "description" TEXT,
