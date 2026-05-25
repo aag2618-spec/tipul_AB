@@ -95,12 +95,15 @@ export async function POST(
 
     // Self-call to the webhook. The webhook re-fetches via GetLpResult, so we
     // only need to provide LowProfileId + a fresh Timestamp.
-    // עקבי עם subscription/create + update-card + packages/purchase — NEXT_PUBLIC_BASE_URL
-    // ראשון, ואז NEXTAUTH_URL, ואז כ-fallback request origin (לסביבות dev בלי env).
     const origin =
       process.env.NEXT_PUBLIC_BASE_URL ??
-      process.env.NEXTAUTH_URL ??
-      new URL(request.url).origin;
+      process.env.NEXTAUTH_URL;
+    if (!origin) {
+      return NextResponse.json(
+        { message: "NEXT_PUBLIC_BASE_URL או NEXTAUTH_URL לא מוגדרים בסביבה" },
+        { status: 500 }
+      );
+    }
     const webhookUrl = `${origin}/api/webhooks/cardcom/admin`;
     let webhookRes: Response;
     try {
