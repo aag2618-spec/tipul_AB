@@ -10,7 +10,6 @@
     "build": "rm -rf .next && prisma generate && node --max-old-space-size=4096 ./node_modules/.bin/next build",
     "db:push": "prisma db push",
     "start:prod": "prisma db push && (prisma db execute --file=prisma/sql/session-time-constraint.sql --schema=prisma/schema.prisma || true) && next start",
-    "postinstall": "prisma generate",
     "start": "next start",
     "lint": "eslint",
     "db:migrate": "prisma migrate deploy",
