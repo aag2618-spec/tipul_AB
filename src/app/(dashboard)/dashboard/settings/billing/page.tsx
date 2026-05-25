@@ -72,10 +72,12 @@ interface TierPricing {
   name: string;
   priceMonthly: number;
   pricing: { 1: number; 3: number; 6: number; 12: number };
+  originalPricing: { 1: number; 3: number; 6: number; 12: number } | null;
 }
 
 type PlanData = (typeof PLAN_META)[PlanKey] & {
   pricing: { 1: number; 3: number; 6: number; 12: number };
+  originalPricing: { 1: number; 3: number; 6: number; 12: number } | null;
 };
 
 type BillingMonths = 1 | 3 | 6 | 12;
@@ -236,6 +238,7 @@ export default function BillingPage() {
       map[t.tier] = {
         ...PLAN_META[t.tier],
         pricing: t.pricing,
+        originalPricing: t.originalPricing ?? null,
       };
     }
     return map;
@@ -741,6 +744,9 @@ export default function BillingPage() {
                     <div>
                       <CardTitle className="text-lg">{plan.name}</CardTitle>
                       <div className="flex items-baseline gap-1">
+                        {plan.originalPricing && (
+                          <span className="text-lg text-muted-foreground line-through">₪{Math.round(plan.originalPricing[billingMonths] / billingMonths)}</span>
+                        )}
                         <span className="text-2xl font-bold">₪{monthlyAvg}</span>
                         <span className="text-sm text-muted-foreground">/חודש</span>
                       </div>
@@ -752,7 +758,10 @@ export default function BillingPage() {
                   {billingMonths > 1 && (
                     <div className="mb-3 p-2.5 bg-green-50 dark:bg-green-950/20 border border-green-200 dark:border-green-800 rounded-md">
                       <p className="text-xs text-green-700 dark:text-green-400 font-medium">
-                        ₪{getTotalPrice(key)} לתקופה של {billingMonths} חודשים
+                        {plan.originalPricing && (
+                          <span className="line-through text-muted-foreground ml-1">₪{plan.originalPricing[billingMonths]}</span>
+                        )}
+                        {' '}₪{getTotalPrice(key)} לתקופה של {billingMonths} חודשים
                       </p>
                       {discount > 0 && (
                         <p className="text-xs text-green-600 dark:text-green-500">

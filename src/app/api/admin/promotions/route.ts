@@ -15,6 +15,8 @@ const createPromotionSchema = z.object({
   validUntil: z.coerce.date().optional().nullable(),
   isActive: z.boolean().default(true),
   targetAudience: z.enum(["NEW_SUBSCRIBERS", "UPGRADERS", "ALL"]).default("ALL"),
+  forCurrentTier: z.enum(["ESSENTIAL", "PRO", "ENTERPRISE"]).optional().nullable(),
+  discountOnTier: z.enum(["ESSENTIAL", "PRO", "ENTERPRISE"]).optional().nullable(),
 });
 
 const updatePromotionSchema = createPromotionSchema.partial().extend({

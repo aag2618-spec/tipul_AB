@@ -52,6 +52,8 @@ interface Promotion {
   validUntil: string | null;
   isActive: boolean;
   targetAudience: "NEW_SUBSCRIBERS" | "UPGRADERS" | "ALL";
+  forCurrentTier: "ESSENTIAL" | "PRO" | "ENTERPRISE" | null;
+  discountOnTier: "ESSENTIAL" | "PRO" | "ENTERPRISE" | null;
   createdAt: string;
 }
 
@@ -59,6 +61,12 @@ const TARGET_LABELS: Record<string, string> = {
   ALL: "כולם",
   NEW_SUBSCRIBERS: "מצטרפים חדשים",
   UPGRADERS: "משדרגי מסלול",
+};
+
+const TIER_LABELS: Record<string, string> = {
+  ESSENTIAL: "בסיסי",
+  PRO: "מקצועי",
+  ENTERPRISE: "ארגוני",
 };
 
 function formatDate(date: string | null) {
@@ -90,6 +98,8 @@ export default function PromotionsPage() {
     validUntil: "",
     isActive: true,
     targetAudience: "ALL" as "NEW_SUBSCRIBERS" | "UPGRADERS" | "ALL",
+    forCurrentTier: "" as "" | "ESSENTIAL" | "PRO" | "ENTERPRISE",
+    discountOnTier: "" as "" | "ESSENTIAL" | "PRO" | "ENTERPRISE",
   });
 
   useEffect(() => {
@@ -122,6 +132,8 @@ export default function PromotionsPage() {
       validUntil: "",
       isActive: true,
       targetAudience: "ALL",
+      forCurrentTier: "",
+      discountOnTier: "",
     });
     setEditingId(null);
   };
@@ -137,6 +149,8 @@ export default function PromotionsPage() {
         : "",
       isActive: p.isActive,
       targetAudience: p.targetAudience,
+      forCurrentTier: p.forCurrentTier ?? "",
+      discountOnTier: p.discountOnTier ?? "",
     });
     setEditingId(p.id);
     setShowForm(true);
@@ -161,6 +175,8 @@ export default function PromotionsPage() {
           : null,
         isActive: form.isActive,
         targetAudience: form.targetAudience,
+        forCurrentTier: form.forCurrentTier || null,
+        discountOnTier: form.discountOnTier || null,
       };
 
       const res = await fetch("/api/admin/promotions", {
@@ -340,6 +356,54 @@ export default function PromotionsPage() {
               </div>
               <div>
                 <label className="text-sm text-muted-foreground">
+                  רק למי שנמצא במסלול (ריק = כולם)
+                </label>
+                <Select
+                  value={form.forCurrentTier}
+                  onValueChange={(v) =>
+                    setForm((f) => ({
+                      ...f,
+                      forCurrentTier: v === "ALL_TIERS" ? "" : v as typeof f.forCurrentTier,
+                    }))
+                  }
+                >
+                  <SelectTrigger className="mt-1">
+                    <SelectValue placeholder="כל המסלולים" />
+                  </SelectTrigger>
+                  <SelectContent>
+                    <SelectItem value="ALL_TIERS">כל המסלולים</SelectItem>
+                    <SelectItem value="ESSENTIAL">בסיסי</SelectItem>
+                    <SelectItem value="PRO">מקצועי</SelectItem>
+                    <SelectItem value="ENTERPRISE">ארגוני</SelectItem>
+                  </SelectContent>
+                </Select>
+              </div>
+              <div>
+                <label className="text-sm text-muted-foreground">
+                  הנחה על מסלול ספציפי (ריק = כולם)
+                </label>
+                <Select
+                  value={form.discountOnTier}
+                  onValueChange={(v) =>
+                    setForm((f) => ({
+                      ...f,
+                      discountOnTier: v === "ALL_TIERS" ? "" : v as typeof f.discountOnTier,
+                    }))
+                  }
+                >
+                  <SelectTrigger className="mt-1">
+                    <SelectValue placeholder="כל המסלולים" />
+                  </SelectTrigger>
+                  <SelectContent>
+                    <SelectItem value="ALL_TIERS">כל המסלולים</SelectItem>
+                    <SelectItem value="ESSENTIAL">בסיסי</SelectItem>
+                    <SelectItem value="PRO">מקצועי</SelectItem>
+                    <SelectItem value="ENTERPRISE">ארגוני</SelectItem>
+                  </SelectContent>
+                </Select>
+              </div>
+              <div>
+                <label className="text-sm text-muted-foreground">
                   תאריך התחלה
                 </label>
                 <Input
@@ -438,6 +502,8 @@ export default function PromotionsPage() {
                         <span className="flex items-center gap-1">
                           <Users className="h-3.5 w-3.5" />
                           {TARGET_LABELS[p.targetAudience]}
+                          {p.forCurrentTier && ` (רק ${TIER_LABELS[p.forCurrentTier]})`}
+                          {p.discountOnTier && ` → ${TIER_LABELS[p.discountOnTier]}`}
                         </span>
                       </div>
                     </div>

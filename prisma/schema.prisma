@@ -1860,6 +1860,8 @@ model Promotion {
   validUntil      DateTime? // null = ללא תוקף
   isActive        Boolean         @default(true)
   targetAudience  PromotionTarget @default(ALL)
+  forCurrentTier  AITier? // null = כולם (חוץ מהמסלול הגבוה ביותר). אם מוגדר — רק משתמשים במסלול הזה רואים את המבצע
+  discountOnTier  AITier? // null = הנחה על כל המסלולים. אם מוגדר — הנחה רק על המסלול הזה
 
   createdAt DateTime @default(now())
   updatedAt DateTime @updatedAt

@@ -49,6 +49,7 @@ export async function GET() {
       select: {
         id: true,
         organizationId: true,
+        aiTier: true,
         subscriptionStatus: true,
       },
     });
@@ -65,10 +66,11 @@ export async function GET() {
         { userId: user.id, organizationId: user.organizationId, now },
         TIERS
       ),
-      getActivePromotionForUser(userId, hasActive),
+      getActivePromotionForUser(userId, user.aiTier, hasActive),
     ]);
 
     const disc = promotion?.discountPercent ?? 0;
+    const discountTier = promotion?.discountOnTier ?? null;
 
     const tiers = TIERS.map((tier) => {
       const resolved = resolvedMap.get(tier)!;
@@ -76,20 +78,29 @@ export async function GET() {
       const p3 = getPriceForPeriod(resolved, 3);
       const p6 = getPriceForPeriod(resolved, 6);
       const p12 = getPriceForPeriod(resolved, 12);
+
+      const tierHasDiscount = disc > 0 && (!discountTier || discountTier === tier);
+
       return {
         tier,
         name: PLAN_NAMES[tier],
-        priceMonthly: disc > 0 ? applyPromotionDiscount(resolved.monthlyIls, disc) : resolved.monthlyIls,
+        priceMonthly: tierHasDiscount ? applyPromotionDiscount(resolved.monthlyIls, disc) : resolved.monthlyIls,
         pricing: {
-          1: disc > 0 ? applyPromotionDiscount(p1, disc) : p1,
-          3: disc > 0 ? applyPromotionDiscount(p3, disc) : p3,
-          6: disc > 0 ? applyPromotionDiscount(p6, disc) : p6,
-          12: disc > 0 ? applyPromotionDiscount(p12, disc) : p12,
+          1: tierHasDiscount ? applyPromotionDiscount(p1, disc) : p1,
+          3: tierHasDiscount ? applyPromotionDiscount(p3, disc) : p3,
+          6: tierHasDiscount ? applyPromotionDiscount(p6, disc) : p6,
+          12: tierHasDiscount ? applyPromotionDiscount(p12, disc) : p12,
         },
+        originalPricing: tierHasDiscount ? { 1: p1, 3: p3, 6: p6, 12: p12 } : null,
       };
     });
 
-    return NextResponse.json({ tiers });
+    return NextResponse.json({
+      tiers,
+      promotion: promotion
+        ? { title: promotion.title, description: promotion.description, discountPercent: promotion.discountPercent, validUntil: promotion.validUntil }
+        : null,
+    });
   } catch (error) {
     logger.error("[subscription/tiers] error", {
       error: error instanceof Error ? error.message : String(error),

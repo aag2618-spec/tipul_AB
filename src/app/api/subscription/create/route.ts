@@ -171,17 +171,21 @@ export async function POST(request: NextRequest) {
 
     // === מבצע פעיל — הנחה על המחיר ===
     const hasActive = user.subscriptionStatus === "ACTIVE" || user.subscriptionStatus === "TRIALING";
-    const promotion = await getActivePromotionForUser(userId, hasActive);
+    const promotion = await getActivePromotionForUser(userId, user.aiTier, hasActive);
     if (promotion && promotion.discountPercent > 0) {
-      const originalAmount = amount;
-      amount = applyPromotionDiscount(amount, promotion.discountPercent);
-      logger.info("[subscription/create] promotion applied", {
-        userId: user.id,
-        promotionId: promotion.id,
-        originalAmount,
-        discountedAmount: amount,
-        discountPercent: promotion.discountPercent,
-      });
+      const tierMatch = !promotion.discountOnTier || promotion.discountOnTier === plan;
+      if (tierMatch) {
+        const originalAmount = amount;
+        amount = applyPromotionDiscount(amount, promotion.discountPercent);
+        logger.info("[subscription/create] promotion applied", {
+          userId: user.id,
+          promotionId: promotion.id,
+          originalAmount,
+          discountedAmount: amount,
+          discountPercent: promotion.discountPercent,
+          plan,
+        });
+      }
     }
 
     const intervalDays = PERIOD_DAYS[months];
