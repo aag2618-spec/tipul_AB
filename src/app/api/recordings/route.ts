@@ -167,19 +167,10 @@ export async function POST(request: NextRequest) {
       extension = "ogg";
     }
 
-    // Save file to uploads folder
-    const fs = await import("fs/promises");
-    const path = await import("path");
     const { randomUUID } = await import("crypto");
-
-    const baseDir = process.env.UPLOADS_DIR || path.join(process.cwd(), "uploads");
-    const uploadsDir = path.join(baseDir, "recordings");
-    await fs.mkdir(uploadsDir, { recursive: true });
-
-    // שם קובץ אקראי (UUID) במקום timestamp — מונע ניחוש ההקלטות
     const fileName = `${randomUUID()}.${extension}`;
-    const filePath = path.join(uploadsDir, fileName);
-    await fs.writeFile(filePath, buffer);
+    const { default: storage } = await import("@/lib/storage");
+    await storage.write(`recordings/${fileName}`, buffer, declaredMime);
 
     const recording = await prisma.recording.create({
       data: {

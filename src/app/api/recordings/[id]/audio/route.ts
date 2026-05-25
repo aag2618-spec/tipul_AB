@@ -13,8 +13,7 @@
 //     בונים path מ-input משתמש, רק קוראים את audioUrl.
 
 import { NextRequest, NextResponse } from "next/server";
-import { readFile, stat } from "fs/promises";
-import { join, resolve } from "path";
+import storage from "@/lib/storage";
 import prisma from "@/lib/prisma";
 import { logger } from "@/lib/logger";
 import { verifyRecordingSignature } from "@/lib/recording-signed-url";
@@ -131,27 +130,20 @@ export async function GET(
       return NextResponse.json({ message: "Forbidden" }, { status: 403 });
     }
 
-    const baseDir = resolve(process.env.UPLOADS_DIR || join(process.cwd(), "uploads"));
-    const filePath = resolve(baseDir, relativePath);
-    if (!filePath.startsWith(baseDir)) {
-      return NextResponse.json({ message: "Forbidden" }, { status: 403 });
-    }
-
-    try {
-      await stat(filePath);
-    } catch {
-      return NextResponse.json({ message: "קובץ לא נמצא" }, { status: 404 });
-    }
-
-    const extension = filePath.split(".").pop()?.toLowerCase() || "";
+    const extension = relativePath.split(".").pop()?.toLowerCase() || "";
     const contentType = ALLOWED_AUDIO_EXTENSIONS[extension];
     if (!contentType) {
       return NextResponse.json({ message: "סוג קובץ לא נתמך" }, { status: 400 });
     }
 
-    const file = await readFile(filePath);
+    const fileExists = await storage.exists(relativePath);
+    if (!fileExists) {
+      return NextResponse.json({ message: "קובץ לא נמצא" }, { status: 404 });
+    }
 
-    return new NextResponse(file, {
+    const file = await storage.read(relativePath);
+
+    return new NextResponse(new Uint8Array(file), {
       headers: {
         "Content-Type": contentType,
         "Content-Length": file.length.toString(),

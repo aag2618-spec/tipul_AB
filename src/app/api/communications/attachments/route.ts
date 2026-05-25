@@ -1,8 +1,7 @@
 import { NextRequest, NextResponse } from "next/server";
 import prisma from "@/lib/prisma";
 import { Resend } from "resend";
-import path from "path";
-import fs from "fs/promises";
+import storage from "@/lib/storage";
 import { logger } from "@/lib/logger";
 
 import { requireAuth } from "@/lib/api-auth";
@@ -190,18 +189,12 @@ export async function POST(request: NextRequest) {
       return NextResponse.json({ message: "שגיאה בהורדת הקובץ מ-Resend" }, { status: 500 });
     }
 
-    // Save to disk
-    const uploadsDir = process.env.UPLOADS_DIR || "/var/data/uploads";
-    const clientDir = path.join(uploadsDir, "clients", clientId);
-    await fs.mkdir(clientDir, { recursive: true });
-
     const safeFilename = (filename || "file").replace(/[^a-zA-Z0-9._\u0590-\u05FF -]/g, "_");
     const { randomUUID } = await import("crypto");
     const uniqueFilename = `${randomUUID()}_${safeFilename}`;
-    const filePath = path.join(clientDir, uniqueFilename);
 
     const buffer = Buffer.from(await fileResponse.arrayBuffer());
-    await fs.writeFile(filePath, buffer);
+    await storage.write(`clients/${clientId}/${uniqueFilename}`, buffer);
 
     // Create Document record linked to client
     const document = await prisma.document.create({

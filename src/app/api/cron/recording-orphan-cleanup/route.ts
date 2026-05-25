@@ -23,6 +23,7 @@
 
 import { NextRequest, NextResponse } from "next/server";
 import prisma from "@/lib/prisma";
+import storage from "@/lib/storage";
 import { logger } from "@/lib/logger";
 import { withAudit } from "@/lib/audit";
 import { checkCronAuth } from "@/lib/cron-auth";
@@ -41,13 +42,8 @@ export async function GET(req: NextRequest) {
     const guard = await checkCronAuth(req);
     if (guard) return guard;
 
-    const fs = await import("fs/promises");
-    const path = await import("path");
-
     const cutoff = new Date();
     cutoff.setDate(cutoff.getDate() - ORPHAN_RETENTION_DAYS);
-
-    const baseDir = process.env.UPLOADS_DIR || path.join(process.cwd(), "uploads");
 
     let totalDeletedRows = 0;
     let totalDeletedFiles = 0;
@@ -67,21 +63,14 @@ export async function GET(req: NextRequest) {
       });
       if (batch.length === 0) break;
 
-      // 1) מחיקת קבצי audio מ-disk
       for (const rec of batch) {
         try {
-          // audioUrl נראה כמו "/uploads/recordings/abc-123.webm".
-          // נחלץ את ה-path היחסי ל-baseDir.
           const rawPath = rec.audioUrl.replace(/^\/+/, "");
           const relativePath = rawPath.startsWith("uploads/")
             ? rawPath.substring("uploads/".length)
             : rawPath;
-          const fullPath = path.join(baseDir, relativePath);
 
-          // path traversal guard — לוודא שהקובץ באמת תחת baseDir
-          const resolved = path.resolve(fullPath);
-          const baseResolved = path.resolve(baseDir);
-          if (!resolved.startsWith(baseResolved + path.sep) && resolved !== baseResolved) {
+          if (relativePath.includes("..")) {
             logger.warn("[cron recording-orphan-cleanup] skipped path-traversal candidate", {
               recordingId: rec.id,
             });
@@ -89,13 +78,11 @@ export async function GET(req: NextRequest) {
             continue;
           }
 
-          await fs.unlink(resolved);
+          await storage.delete(relativePath);
           totalDeletedFiles += 1;
         } catch (err: unknown) {
-          // ENOENT — הקובץ כבר לא קיים. זה בסדר, ממשיכים למחוק DB.
           const code = (err as NodeJS.ErrnoException)?.code;
           if (code === "ENOENT") {
-            // לא error אמיתי, רק לתעד
             logger.info("[cron recording-orphan-cleanup] file already missing", {
               recordingId: rec.id,
             });

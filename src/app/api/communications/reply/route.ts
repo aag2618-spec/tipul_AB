@@ -1,8 +1,7 @@
 import { NextRequest, NextResponse } from "next/server";
 import prisma from "@/lib/prisma";
 import { Resend } from "resend";
-import path from "path";
-import fs from "fs/promises";
+import storage from "@/lib/storage";
 import { logger } from "@/lib/logger";
 import { requireAuth } from "@/lib/api-auth";
 import { loadScopeUser, isSecretary, secretaryCan } from "@/lib/scope";
@@ -251,16 +250,11 @@ export async function POST(request: NextRequest) {
     }> = [];
 
     if (resendAttachments.length > 0 && originalLog.clientId) {
-      const uploadsDir = process.env.UPLOADS_DIR || "/var/data/uploads";
-      const sentDir = path.join(uploadsDir, "sent", originalLog.clientId);
-      await fs.mkdir(sentDir, { recursive: true });
-
       const { randomUUID } = await import("crypto");
       for (const att of resendAttachments) {
         const safeFilename = att.filename.replace(/[^a-zA-Z0-9._\u0590-\u05FF -]/g, "_");
         const uniqueFilename = `${randomUUID()}_${safeFilename}`;
-        const filePath = path.join(sentDir, uniqueFilename);
-        await fs.writeFile(filePath, att.content);
+        await storage.write(`sent/${originalLog.clientId}/${uniqueFilename}`, att.content);
 
         sentAttachmentMeta.push({
           filename: att.filename,

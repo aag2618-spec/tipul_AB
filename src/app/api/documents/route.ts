@@ -1,8 +1,7 @@
 import { NextRequest, NextResponse } from "next/server";
 import { requireAuth } from "@/lib/api-auth";
 import prisma from "@/lib/prisma";
-import { writeFile, mkdir } from "fs/promises";
-import { join } from "path";
+import storage from "@/lib/storage";
 import { v4 as uuidv4 } from "uuid";
 import { logger } from "@/lib/logger";
 import { loadScopeUser, buildClientWhere } from "@/lib/scope";
@@ -141,14 +140,7 @@ export async function POST(request: NextRequest) {
     const fileExtension = safeExtensionForMime(file.type);
     const fileName = `${uuidv4()}.${fileExtension}`;
 
-    // Use persistent disk on Render, fallback to local for development
-    const baseDir = process.env.UPLOADS_DIR || join(process.cwd(), "uploads");
-    const uploadsDir = join(baseDir, "documents");
-
-    await mkdir(uploadsDir, { recursive: true });
-
-    const filePath = join(uploadsDir, fileName);
-    await writeFile(filePath, fileBuffer);
+    await storage.write(`documents/${fileName}`, fileBuffer, file.type);
 
     // Create document record
     const document = await prisma.document.create({

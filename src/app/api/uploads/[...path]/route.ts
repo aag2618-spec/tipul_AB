@@ -1,7 +1,6 @@
 import { NextRequest, NextResponse } from "next/server";
 import prisma from "@/lib/prisma";
-import { readFile, stat } from "fs/promises";
-import { join, resolve } from "path";
+import storage from "@/lib/storage";
 import { logger } from "@/lib/logger";
 import { requireAuth } from "@/lib/api-auth";
 import { loadScopeUser, buildClientWhere, isSecretary } from "@/lib/scope";
@@ -156,23 +155,15 @@ export async function GET(
       );
     }
 
-    const baseDir = resolve(process.env.UPLOADS_DIR || join(process.cwd(), "uploads"));
-    const filePath = resolve(baseDir, ...path);
-
-    if (!filePath.startsWith(baseDir)) {
-      return NextResponse.json({ message: "Forbidden" }, { status: 403 });
-    }
-
-    try {
-      await stat(filePath);
-    } catch {
+    const fileExists = await storage.exists(pathStr);
+    if (!fileExists) {
       return NextResponse.json({ message: "File not found" }, { status: 404 });
     }
 
-    const file = await readFile(filePath);
+    const file = await storage.read(pathStr);
 
     // Determine content type based on extension
-    const extension = filePath.split(".").pop()?.toLowerCase();
+    const extension = pathStr.split(".").pop()?.toLowerCase();
     let contentType = "application/octet-stream";
 
     // עבור קבצי support — רק תוספות בטוחות, ללא html/svg שעלול לגרום ל-XSS
@@ -271,7 +262,7 @@ export async function GET(
         `inline; filename="${asciiSafe}"; filename*=UTF-8''${encodeURIComponent(originalFilename)}`;
     }
 
-    return new NextResponse(file, { headers: responseHeaders });
+    return new NextResponse(new Uint8Array(file), { headers: responseHeaders });
   } catch (error) {
     logger.error("File serve error:", { error: error instanceof Error ? error.message : String(error) });
     return NextResponse.json(
