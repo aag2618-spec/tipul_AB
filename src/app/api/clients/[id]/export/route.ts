@@ -230,6 +230,8 @@ ${i + 1}. תאריך: ${format(new Date(p.createdAt), "dd/MM/yyyy")}
       headers: {
         "Content-Type": "application/zip",
         "Content-Disposition": `attachment; filename="${safeFilename}"`,
+        "Cache-Control": "no-store, no-cache, must-revalidate, private",
+        Pragma: "no-cache",
       },
     });
   } catch (error) {

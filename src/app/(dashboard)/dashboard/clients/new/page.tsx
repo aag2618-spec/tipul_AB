@@ -58,17 +58,11 @@ function NewClientContent() {
   const [selectedQuestionnaire, setSelectedQuestionnaire] = useState<IntakeQuestionnaireTemplate | null>(null);
   const [skipQuestionnaire, setSkipQuestionnaire] = useState(false);
 
-  // פיצול שם מלא לשם פרטי ומשפחה (מפונה מזדמן)
-  const prefillName = searchParams.get("name") || "";
-  const nameParts = prefillName.trim().split(" ");
-  const prefillFirstName = nameParts[0] || "";
-  const prefillLastName = nameParts.slice(1).join(" ") || "";
-
   const [formData, setFormData] = useState({
-    firstName: prefillFirstName,
-    lastName: prefillLastName,
-    phone: searchParams.get("phone") || "",
-    email: searchParams.get("email") || "",
+    firstName: "",
+    lastName: "",
+    phone: "",
+    email: "",
     birthDate: "",
     address: "",
     notes: "",
@@ -84,6 +78,24 @@ function NewClientContent() {
   useEffect(() => {
     fetchDefaultQuestionnaire();
   }, []);
+
+  useEffect(() => {
+    if (!fromQuickId) return;
+    fetch(`/api/clients/${fromQuickId}`)
+      .then((res) => (res.ok ? res.json() : null))
+      .then((client) => {
+        if (!client) return;
+        const nameParts = (client.name || "").trim().split(" ");
+        setFormData((prev) => ({
+          ...prev,
+          firstName: nameParts[0] || "",
+          lastName: nameParts.slice(1).join(" ") || "",
+          phone: client.phone || "",
+          email: client.email || "",
+        }));
+      })
+      .catch(() => {});
+  }, [fromQuickId]);
 
   const fetchDefaultQuestionnaire = async () => {
     try {

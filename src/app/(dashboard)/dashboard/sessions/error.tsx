@@ -10,7 +10,7 @@ export default function SessionsError({
   reset: () => void;
 }) {
   useEffect(() => {
-    console.error(error);
+    console.error("Sessions error:", error.digest ?? "no-digest");
   }, [error]);
 
   return (

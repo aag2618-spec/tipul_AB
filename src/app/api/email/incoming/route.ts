@@ -39,8 +39,20 @@ export async function POST(request: NextRequest) {
       );
     }
 
-    // Find the client by email
+    // Find the client by email — with ambiguity guard for multi-tenant safety
     const senderEmail = from.toLowerCase().trim();
+    const matchCount = await prisma.client.count({
+      where: { email: { equals: senderEmail, mode: "insensitive" } },
+    });
+    if (matchCount > 1) {
+      logger.warn("[incoming-email] ambiguous sender — multiple clients share email", {
+        matchCount,
+      });
+      return NextResponse.json(
+        { message: "Ambiguous sender — multiple clients with same email" },
+        { status: 409 }
+      );
+    }
     const client = await prisma.client.findFirst({
       where: {
         email: {
@@ -54,7 +66,7 @@ export async function POST(request: NextRequest) {
     });
 
     if (!client) {
-      logger.info(`No client found for email: ${senderEmail}`);
+      logger.info("[incoming-email] no client found for sender");
       return NextResponse.json({ message: "Client not found" }, { status: 404 });
     }
 

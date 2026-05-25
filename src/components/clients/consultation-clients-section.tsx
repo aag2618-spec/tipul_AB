@@ -285,7 +285,7 @@ export function ConsultationClientsSection({ clients }: ConsultationClientsSecti
                             className="flex-1 text-xs gap-1 h-7 bg-sky-600 hover:bg-sky-700"
                           >
                             <Link
-                              href={`/dashboard/clients/new?fromQuick=${client.id}&name=${encodeURIComponent(client.name)}&phone=${encodeURIComponent(client.phone || "")}&email=${encodeURIComponent(client.email || "")}`}
+                              href={`/dashboard/clients/new?fromQuick=${client.id}`}
                             >
                               <UserCheck className="h-3 w-3" />
                               הפוך למטופל קבוע

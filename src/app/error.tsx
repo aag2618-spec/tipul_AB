@@ -11,8 +11,7 @@ export default function Error({
   reset: () => void;
 }) {
   useEffect(() => {
-    // Log the error to console for debugging
-    console.error("Application error:", error);
+    console.error("Application error:", error.digest ?? "no-digest");
   }, [error]);
 
   return (
@@ -23,10 +22,10 @@ export default function Error({
           <p className="text-xl text-muted-foreground">משהו השתבש</p>
         </div>
         
-        <div className="bg-muted p-4 rounded-lg text-sm text-right" dir="ltr">
-          <p className="font-mono break-all">{error.message}</p>
+        <div className="bg-muted p-4 rounded-lg text-sm text-right">
+          <p>אירעה שגיאה בלתי צפויה. אם הבעיה חוזרת, שלח את מזהה השגיאה לתמיכה.</p>
           {error.digest && (
-            <p className="text-xs text-muted-foreground mt-2">
+            <p className="text-xs text-muted-foreground mt-2 font-mono" dir="ltr">
               Error ID: {error.digest}
             </p>
           )}

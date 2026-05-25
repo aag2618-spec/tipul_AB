@@ -248,6 +248,8 @@ ${p.notes ? `הערות: ${p.notes}` : ""}
       headers: {
         "Content-Type": "application/zip",
         "Content-Disposition": `attachment; filename="${filename}"`,
+        "Cache-Control": "no-store, no-cache, must-revalidate, private",
+        Pragma: "no-cache",
       },
     });
   } catch (error) {

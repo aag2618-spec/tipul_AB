@@ -10,7 +10,7 @@ export default function PaymentsError({
   reset: () => void;
 }) {
   useEffect(() => {
-    console.error(error);
+    console.error("Payments error:", error.digest ?? "no-digest");
   }, [error]);
 
   return (

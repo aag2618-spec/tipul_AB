@@ -94,6 +94,34 @@ export async function requireAuth(opts?: { disallowImpersonation?: boolean }) {
   };
 }
 
+function checkSessionFreshness(session: Session) {
+  if (session.user.passwordStale) {
+    return NextResponse.json(
+      { message: "הסיסמה שונתה. נא להתחבר מחדש." },
+      { status: 401 }
+    );
+  }
+  if (session.user.sessionStale) {
+    return NextResponse.json(
+      { message: "ההגדרות שלך שונו. נא להתחבר מחדש." },
+      { status: 401 }
+    );
+  }
+  if (session.user.sessionExpired) {
+    return NextResponse.json(
+      { message: "הסשן פג. נא להתחבר מחדש." },
+      { status: 401 }
+    );
+  }
+  if (session.user.requires2FA) {
+    return NextResponse.json(
+      { message: "נדרש אימות דו-שלבי" },
+      { status: 403 }
+    );
+  }
+  return null;
+}
+
 /**
  * User must be ADMIN. Kept for backwards compatibility with 30+ existing routes.
  * New code should prefer `requirePermission(key)`.
@@ -103,14 +131,8 @@ export async function requireAdmin() {
   if (!session?.user?.id) {
     return { error: NextResponse.json({ message: "אין הרשאה" }, { status: 401 }) };
   }
-  if (session.user.requires2FA) {
-    return {
-      error: NextResponse.json(
-        { message: "נדרש אימות דו-שלבי" },
-        { status: 403 }
-      ),
-    };
-  }
+  const stale = checkSessionFreshness(session);
+  if (stale) return { error: stale };
   if (session.user.role !== "ADMIN") {
     return { error: NextResponse.json({ message: "אין הרשאת מנהל" }, { status: 403 }) };
   }
@@ -126,14 +148,8 @@ export async function requireAdminOrManager() {
   if (!session?.user?.id) {
     return { error: NextResponse.json({ message: "אין הרשאה" }, { status: 401 }) };
   }
-  if (session.user.requires2FA) {
-    return {
-      error: NextResponse.json(
-        { message: "נדרש אימות דו-שלבי" },
-        { status: 403 }
-      ),
-    };
-  }
+  const stale = checkSessionFreshness(session);
+  if (stale) return { error: stale };
   if (session.user.role !== "ADMIN" && session.user.role !== "MANAGER") {
     return {
       error: NextResponse.json({ message: "אין הרשאת מנהל" }, { status: 403 }),
@@ -152,14 +168,8 @@ export async function requirePermission(perm: Permission) {
   if (!session?.user?.id) {
     return { error: NextResponse.json({ message: "אין הרשאה" }, { status: 401 }) };
   }
-  if (session.user.requires2FA) {
-    return {
-      error: NextResponse.json(
-        { message: "נדרש אימות דו-שלבי" },
-        { status: 403 }
-      ),
-    };
-  }
+  const stale = checkSessionFreshness(session);
+  if (stale) return { error: stale };
   if (!hasPermission(session.user.role, perm)) {
     return {
       error: NextResponse.json(

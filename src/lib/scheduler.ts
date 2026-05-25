@@ -1,3 +1,5 @@
+import { logger } from "@/lib/logger";
+
 let schedulerStarted = false;
 
 export function startScheduler() {
@@ -6,7 +8,7 @@ export function startScheduler() {
 
   const INTERVAL_MS = 15 * 60 * 1000; // 15 minutes
 
-  console.log("[Scheduler] In-app cron scheduler started");
+  logger.info("[Scheduler] In-app cron scheduler started");
 
   // First run after 45 seconds (let server fully boot)
   setTimeout(runAllTasks, 45_000);
@@ -27,9 +29,7 @@ async function runAllTasks() {
   const now = new Date();
   const israelHour = getIsraelHour(now);
 
-  console.log(
-    `[Scheduler] Tick at ${now.toISOString()} (Israel hour: ${israelHour})`
-  );
+  logger.info(`[Scheduler] Tick at ${now.toISOString()} (Israel hour: ${israelHour})`);
 
   // Session reminders run on every tick (they have built-in duplicate prevention)
   await callEndpoint(`${baseUrl}/api/cron/reminders`, headers, "24h-reminders");
@@ -93,7 +93,7 @@ async function runAllTasks() {
     );
   }
 
-  console.log("[Scheduler] Tick complete");
+  logger.info("[Scheduler] Tick complete");
 }
 
 function getIsraelHour(date: Date): number {
@@ -123,9 +123,9 @@ async function callEndpoint(
     clearTimeout(timeout);
 
     const data = await res.json().catch(() => ({}));
-    console.log(`[Scheduler] ${name}: ${res.status}`, JSON.stringify(data));
+    logger.info(`[Scheduler] ${name}: ${res.status}`, { data });
   } catch (error) {
     const msg = error instanceof Error ? error.message : String(error);
-    console.error(`[Scheduler] ${name} failed: ${msg}`);
+    logger.error(`[Scheduler] ${name} failed`, { error: msg });
   }
 }

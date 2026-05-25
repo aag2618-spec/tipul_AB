@@ -79,6 +79,17 @@ export const ENCRYPTED_FIELDS: Record<string, readonly string[]> = {
   // errorMessage: לרוב Resend/Pulseem error strings (לא PHI), אבל יכול
   // להכיל data מהbody — מצפינים defensively.
   communicationLog: ["content", "subject", "errorMessage"],
+  // R18f (סבב אבטחה 18, 2026-05-25): מודלים קליניים / AI שנמצאו בביקורת GPT.
+  // כל השדות @db.Text שמכילים ניתוחים קליניים, תובנות, חתימות, נתוני דוח.
+  // אף שדה לא משמש ב-WHERE clause — אימות grep. dual-read מטפל ב-plaintext ישן.
+  sessionAnalysis: ["content"],
+  questionnaireAnalysis: ["content"],
+  sessionPrep: ["content"],
+  aIInsight: ["content"],
+  aiInsight: ["content"], // alias: decryptDeep recursion uses pluralToSingular("aiInsights")→"aiInsight"
+  emotionLog: ["context"],
+  consentForm: ["content", "signatureData"],
+  insurerReport: ["reportData", "errorMessage"],
 } as const;
 
 /**
@@ -110,6 +121,13 @@ export const ENCRYPTED_JSON_FIELDS: Record<string, readonly string[]> = {
   // H13: responses של intake (שאלון קבלה קליני). מכיל מידע אישי, רקע, וכל
   // מה שהמטופל ענה ב-onboarding. dual-read.
   intakeResponse: ["responses"],
+  // R18f: שדות Json של מודלים קליניים / AI. dual-read.
+  sessionAnalysis: ["insights"],
+  questionnaireAnalysis: ["insights", "recommendations"],
+  sessionPrep: ["insights", "recommendations"],
+  aIInsight: ["metadata"],
+  aiInsight: ["metadata"], // alias: decryptDeep recursion
+  emotionLog: ["triggers"],
 } as const;
 
 const JSON_ENC_MARKER = "__enc__";
@@ -379,6 +397,8 @@ function decryptDeepOne(model: string, obj: unknown): void {
 function pluralToSingular(name: string): string | null {
   // therapySessions → therapySession; analyses → analysis; etc.
   if (name.endsWith("ies")) return name.slice(0, -3) + "y";
+  // -yses → -ysis (e.g. sessionAnalyses → sessionAnalysis)
+  if (name.endsWith("yses")) return name.slice(0, -3) + "is";
   if (name.endsWith("ses") || name.endsWith("xes") || name.endsWith("zes")) {
     return name.slice(0, -2);
   }

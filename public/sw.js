@@ -1,5 +1,5 @@
-// Bump when caching strategy changes (v2: never cache POST/mutation API — was breaking dry-run vs apply)
-const CACHE_NAME = 'tipul-v2';
+// v3: API responses are never cached (PHI must not persist in browser cache after logout)
+const CACHE_NAME = 'tipul-v3';
 const OFFLINE_URL = '/offline.html';
 
 // Assets to cache on install
@@ -44,29 +44,9 @@ self.addEventListener('fetch', (event) => {
     return;
   }
 
-  // API: always hit network for mutations; only cache safe GET (never cache POST — same URL can be dry-run vs apply)
+  // API: network-only — never cache PHI responses
   if (event.request.url.includes('/api/')) {
-    const method = (event.request.method || 'GET').toUpperCase();
-    const isReadOnly = method === 'GET' || method === 'HEAD';
-    event.respondWith(
-      (async () => {
-        try {
-          const response = await fetch(event.request);
-          if (isReadOnly && response.ok) {
-            const copy = response.clone();
-            const cache = await caches.open(CACHE_NAME);
-            await cache.put(event.request, copy);
-          }
-          return response;
-        } catch (e) {
-          if (isReadOnly) {
-            const cached = await caches.match(event.request);
-            if (cached) return cached;
-          }
-          throw e;
-        }
-      })()
-    );
+    event.respondWith(fetch(event.request));
     return;
   }
 

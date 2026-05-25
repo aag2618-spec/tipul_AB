@@ -3,6 +3,8 @@ import prisma from "@/lib/prisma";
 import { verifyReceiptToken } from "@/lib/receipt-token";
 import { logger } from "@/lib/logger";
 import { logDataAccess } from "@/lib/audit-logger";
+import { checkRateLimit, RECEIPT_PUBLIC_RATE_LIMIT, rateLimitResponse } from "@/lib/rate-limit";
+import { getClientIp } from "@/lib/get-client-ip";
 
 export const dynamic = "force-dynamic";
 
@@ -11,6 +13,10 @@ export async function GET(
   { params }: { params: Promise<{ id: string }> }
 ) {
   try {
+    const ip = getClientIp(request);
+    const rl = checkRateLimit(`receipt-public:${ip}`, RECEIPT_PUBLIC_RATE_LIMIT);
+    if (!rl.allowed) return rateLimitResponse(rl);
+
     const { id } = await params;
     const token = request.nextUrl.searchParams.get("t");
 

@@ -4,7 +4,7 @@ import { readFile, stat } from "fs/promises";
 import { join, resolve } from "path";
 import { logger } from "@/lib/logger";
 import { requireAuth } from "@/lib/api-auth";
-import { loadScopeUser, buildClientWhere } from "@/lib/scope";
+import { loadScopeUser, buildClientWhere, isSecretary } from "@/lib/scope";
 import { logDataAccess } from "@/lib/audit-logger";
 
 export const dynamic = "force-dynamic";
@@ -35,6 +35,15 @@ export async function GET(
     const orgOrTherapistOwnership = scopeUser.organizationId
       ? { organizationId: scopeUser.organizationId }
       : { therapistId: userId };
+
+    // Secretary cannot download clinical files (documents, client attachments)
+    if (isSecretary(scopeUser) && (pathStr.startsWith("documents/") || pathStr.startsWith("clients/"))) {
+      logger.warn("[uploads] secretary access to clinical file blocked", { userId, pathStr });
+      return NextResponse.json(
+        { message: "אין הרשאה להורדת מסמכים קליניים" },
+        { status: 403 }
+      );
+    }
 
     // Check if it's a document
     if (pathStr.startsWith("documents/")) {

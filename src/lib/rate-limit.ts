@@ -279,6 +279,9 @@ export const RECOVERY_CODE_EMAIL_RATE_LIMIT = { maxRequests: 5, windowMs: 15 * 6
  */
 export const ADMIN_DISABLE_2FA_GLOBAL_RATE_LIMIT = { maxRequests: 10, windowMs: 15 * 60 * 1000 };
 
+/** R18j: public receipt endpoint — 30 req/min per IP. */
+export const RECEIPT_PUBLIC_RATE_LIMIT = { maxRequests: 30, windowMs: 60 * 1000 };
+
 /**
  * החזרת שכבת rate limit מתאימה ל-endpoint של admin.
  *   - רגיש (5/דקה): add-package, manual-payment, set-admin, delete-user,

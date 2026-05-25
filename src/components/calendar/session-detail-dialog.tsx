@@ -688,7 +688,7 @@ export function SessionDetailDialog({
                   <Button
                     onClick={() => {
                       onOpenChange(false);
-                      router.push(`/dashboard/clients/new?fromQuick=${session.client?.id}&name=${encodeURIComponent(session.client?.name || "")}&phone=${encodeURIComponent(session.client?.phone || "")}&email=${encodeURIComponent(session.client?.email || "")}`);
+                      router.push(`/dashboard/clients/new?fromQuick=${session.client?.id}`);
                     }}
                     className="w-full gap-2 bg-gradient-to-r from-blue-600 to-indigo-600 hover:from-blue-700 hover:to-indigo-700"
                   >
@@ -740,7 +740,7 @@ export function SessionDetailDialog({
                     <Button
                       onClick={() => {
                         onOpenChange(false);
-                        router.push(`/dashboard/clients/new?fromQuick=${session.client?.id}&name=${encodeURIComponent(session.client?.name || "")}&phone=${encodeURIComponent(session.client?.phone || "")}&email=${encodeURIComponent(session.client?.email || "")}`);
+                        router.push(`/dashboard/clients/new?fromQuick=${session.client?.id}`);
                       }}
                       className="w-full gap-2 bg-gradient-to-r from-blue-600 to-indigo-600 hover:from-blue-700 hover:to-indigo-700"
                     >
