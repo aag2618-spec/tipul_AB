@@ -2,7 +2,8 @@
 
 import { useEffect, useState } from "react";
 import { useRouter } from "next/navigation";
-import { useSession, signOut } from "next-auth/react";
+import { useSession } from "next-auth/react";
+import { handleLogout } from "@/lib/logout";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
@@ -303,7 +304,7 @@ export default function TwoFactorVerifyPage() {
               type="button"
               variant="link"
               className="text-sm text-muted-foreground"
-              onClick={() => signOut({ callbackUrl: "/login" })}
+              onClick={() => handleLogout()}
             >
               התחבר עם משתמש אחר
             </Button>

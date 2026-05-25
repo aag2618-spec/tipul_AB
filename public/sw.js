@@ -81,6 +81,17 @@ self.addEventListener('fetch', (event) => {
   );
 });
 
+// Logout — clear all caches so PHI pages don't persist on shared devices
+self.addEventListener('message', (event) => {
+  if (event.data?.type === 'LOGOUT') {
+    event.waitUntil(
+      caches.keys().then((names) =>
+        Promise.all(names.map((name) => caches.delete(name)))
+      )
+    );
+  }
+});
+
 // Background sync for offline actions
 self.addEventListener('sync', (event) => {
   if (event.tag === 'sync-data') {

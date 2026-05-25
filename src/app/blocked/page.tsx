@@ -1,7 +1,7 @@
 "use client";
 
 import { useEffect, useState } from "react";
-import { signOut } from "next-auth/react";
+import { handleLogout } from "@/lib/logout";
 import Link from "next/link";
 import { Button } from "@/components/ui/button";
 import {
@@ -141,7 +141,7 @@ export default function BlockedPage() {
             type="button"
             variant="outline"
             className="w-full"
-            onClick={() => signOut({ callbackUrl: "/login" })}
+            onClick={() => handleLogout()}
           >
             התנתקות
           </Button>

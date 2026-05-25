@@ -39,30 +39,52 @@ export async function POST(request: NextRequest) {
       );
     }
 
-    // Find the client by email — with ambiguity guard for multi-tenant safety
+    // Find the client by email — scoped by therapist when possible
     const senderEmail = from.toLowerCase().trim();
-    const matchCount = await prisma.client.count({
-      where: { email: { equals: senderEmail, mode: "insensitive" } },
-    });
-    if (matchCount > 1) {
-      logger.warn("[incoming-email] ambiguous sender — multiple clients share email", {
-        matchCount,
-      });
-      return NextResponse.json(
-        { message: "Ambiguous sender — multiple clients with same email" },
-        { status: 409 }
-      );
+
+    // Try to identify the receiving therapist from the 'to' field
+    let therapistFilter: { therapistId?: string } = {};
+    if (to) {
+      const toEmails = Array.isArray(to) ? to : [to];
+      const toEmail = toEmails[0]?.toLowerCase().trim();
+      if (toEmail) {
+        const matchingUser = await prisma.user.findFirst({
+          where: { email: { equals: toEmail, mode: "insensitive" } },
+          select: { id: true },
+        });
+        if (matchingUser) {
+          therapistFilter = { therapistId: matchingUser.id };
+          logger.info("[incoming-email] scoped to therapist from 'to' field", {
+            therapistId: matchingUser.id,
+          });
+        }
+      }
     }
+
+    // If no therapist scope, check for ambiguity
+    if (!therapistFilter.therapistId) {
+      const matchCount = await prisma.client.count({
+        where: { email: { equals: senderEmail, mode: "insensitive" } },
+      });
+      if (matchCount > 1) {
+        logger.warn("[incoming-email] ambiguous sender — multiple clients share email, no therapist scope", {
+          matchCount,
+        });
+        return NextResponse.json(
+          { message: "Ambiguous sender — multiple clients with same email" },
+          { status: 409 }
+        );
+      }
+    }
+
     const client = await prisma.client.findFirst({
       where: {
-        email: {
-          equals: senderEmail,
-          mode: 'insensitive'
-        }
+        email: { equals: senderEmail, mode: "insensitive" },
+        ...therapistFilter,
       },
       include: {
         therapist: true,
-      }
+      },
     });
 
     if (!client) {
