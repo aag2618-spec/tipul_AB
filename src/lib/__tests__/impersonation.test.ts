@@ -45,6 +45,8 @@ const VALID_DB_SESSION = {
   impersonator: {
     organizationId: "org_1",
     isBlocked: false,
+    role: "CLINIC_OWNER" as const,
+    clinicRole: "OWNER" as const,
   },
 };
 
