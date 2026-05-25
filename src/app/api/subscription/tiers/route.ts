@@ -23,6 +23,10 @@ import {
   rateLimitResponse,
 } from "@/lib/rate-limit";
 import type { AITier } from "@prisma/client";
+import {
+  getActivePromotionForUser,
+  applyPromotionDiscount,
+} from "@/lib/promotions";
 
 export const dynamic = "force-dynamic";
 
@@ -42,7 +46,11 @@ export async function GET() {
 
     const user = await prisma.user.findUnique({
       where: { id: userId },
-      select: { id: true, organizationId: true },
+      select: {
+        id: true,
+        organizationId: true,
+        subscriptionStatus: true,
+      },
     });
 
     if (!user) {
@@ -50,33 +58,34 @@ export async function GET() {
     }
 
     const now = new Date();
+    const hasActive = user.subscriptionStatus === "ACTIVE" || user.subscriptionStatus === "TRIALING";
 
-    // Batch resolve — קריאה אחת ל-PricingPolicy + קריאה אחת ל-TierLimits
-    // (במקום 6 קריאות נפרדות — 2 לכל tier).
-    const resolvedMap = await fetchAndResolveSubscriptionPricesForTiers(
-      {
-        userId: user.id,
-        organizationId: user.organizationId,
-        now,
-      },
-      TIERS
-    );
+    const [resolvedMap, promotion] = await Promise.all([
+      fetchAndResolveSubscriptionPricesForTiers(
+        { userId: user.id, organizationId: user.organizationId, now },
+        TIERS
+      ),
+      getActivePromotionForUser(userId, hasActive),
+    ]);
+
+    const disc = promotion?.discountPercent ?? 0;
 
     const tiers = TIERS.map((tier) => {
       const resolved = resolvedMap.get(tier)!;
+      const p1 = getPriceForPeriod(resolved, 1);
+      const p3 = getPriceForPeriod(resolved, 3);
+      const p6 = getPriceForPeriod(resolved, 6);
+      const p12 = getPriceForPeriod(resolved, 12);
       return {
         tier,
         name: PLAN_NAMES[tier],
-        priceMonthly: resolved.monthlyIls,
+        priceMonthly: disc > 0 ? applyPromotionDiscount(resolved.monthlyIls, disc) : resolved.monthlyIls,
         pricing: {
-          1: getPriceForPeriod(resolved, 1),
-          3: getPriceForPeriod(resolved, 3),
-          6: getPriceForPeriod(resolved, 6),
-          12: getPriceForPeriod(resolved, 12),
+          1: disc > 0 ? applyPromotionDiscount(p1, disc) : p1,
+          3: disc > 0 ? applyPromotionDiscount(p3, disc) : p3,
+          6: disc > 0 ? applyPromotionDiscount(p6, disc) : p6,
+          12: disc > 0 ? applyPromotionDiscount(p12, disc) : p12,
         },
-        // הערה: לא מחזירים את `source` ללקוח. זה מידע פנימי שעלול לדלוף
-        // אינדיקציה אם יש PricingPolicy מותאם אישית למשתמש. ה-source נשמר
-        // ב-server-side לdebug ב-logger במידת הצורך.
       };
     });
 

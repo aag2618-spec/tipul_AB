@@ -36,6 +36,10 @@ import { getAdminCardcomClient } from "@/lib/cardcom/admin-config";
 import { getAdminBusinessProfile } from "@/lib/site-settings";
 import { scrubCardcomMessage } from "@/lib/cardcom/verify-webhook";
 import type { AITier, PaymentMethod } from "@prisma/client";
+import {
+  getActivePromotionForUser,
+  applyPromotionDiscount,
+} from "@/lib/promotions";
 
 export const dynamic = "force-dynamic";
 
@@ -163,6 +167,21 @@ export async function POST(request: NextRequest) {
         { message: "מחיר לא תקין. פנה/י לתמיכה." },
         { status: 500 }
       );
+    }
+
+    // === מבצע פעיל — הנחה על המחיר ===
+    const hasActive = user.subscriptionStatus === "ACTIVE" || user.subscriptionStatus === "TRIALING";
+    const promotion = await getActivePromotionForUser(userId, hasActive);
+    if (promotion && promotion.discountPercent > 0) {
+      const originalAmount = amount;
+      amount = applyPromotionDiscount(amount, promotion.discountPercent);
+      logger.info("[subscription/create] promotion applied", {
+        userId: user.id,
+        promotionId: promotion.id,
+        originalAmount,
+        discountedAmount: amount,
+        discountPercent: promotion.discountPercent,
+      });
     }
 
     const intervalDays = PERIOD_DAYS[months];
