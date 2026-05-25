@@ -96,7 +96,7 @@ describe("fetchAndResolveSubscriptionPrice", () => {
     // נוסחת derive עם הנחות סטנדרטיות
     expect(result.quarterlyIls).toBe(Math.round(150 * 3 * 0.95)); // 428
     expect(result.halfYearIls).toBe(Math.round(150 * 6 * 0.9)); // 810
-    expect(result.yearlyIls).toBe(150 * 10); // 1500
+    expect(result.yearlyIls).toBe(Math.round(150 * 12 * 0.83)); // 1494
   });
 
   it("נופל ל-FALLBACK (PRICING) כשאין policy ואין TierLimits תקין", async () => {
@@ -241,7 +241,7 @@ describe("prefetchSubscriptionPriceResolver", () => {
 
     expect(result.source).toBe("TIER_LIMITS");
     expect(result.monthlyIls).toBe(150);
-    expect(result.yearlyIls).toBe(1500);
+    expect(result.yearlyIls).toBe(Math.round(150 * 12 * 0.83)); // 1494
   });
 
   it("resolver נופל ל-FALLBACK אם אין policy ולא TierLimits ל-tier", async () => {

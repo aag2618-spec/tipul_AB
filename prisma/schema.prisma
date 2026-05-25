@@ -146,6 +146,9 @@ model User {
   // Billing
   stripeCustomerId      String?            @unique // Stripe customer ID
   stripeSubscriptionId  String?            @unique // Stripe subscription ID
+  // Anti-IDOR: מזהה customer ב-Meshulam. נקבע ב-webhook subscription הראשון,
+  // ובכל webhook הבא נאמת שתואם. מונע תוקף שמזייף customerEmail של משתמש אחר.
+  meshulamCustomerId    String?            @unique
   subscriptionStatus    SubscriptionStatus @default(ACTIVE)
   subscriptionStartedAt DateTime?
   subscriptionEndsAt    DateTime?

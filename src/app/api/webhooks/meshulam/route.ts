@@ -57,6 +57,7 @@ type VerifiedMeshulamUser = {
   isBlocked: boolean;
   blockReason: string | null;
   isFreeSubscription: boolean;
+  meshulamCustomerId: string | null;
 };
 
 /**
@@ -72,9 +73,11 @@ type VerifiedMeshulamUser = {
  *      created על user ACTIVE עם endsAt עתידי = חשוד, וכו')
  *   3. adminAlert על כל מקרה חשוד — visibility ל-forensics
  *
- * הערה: לא מונע IDOR מלא — תוקף שיודע email של משתמש PAST_DUE עם היסטוריה
- * עדיין יכול לזייף renewal. תיקון מלא דורש meshulamCustomerId binding על User
- * (schema migration — out of scope לתיקון זה).
+ * כעת כולל meshulamCustomerId binding (schema migration 20260525200000):
+ *   - webhook ראשון → bind (שומר customerId על User)
+ *   - webhook הבא → validate (customerId חייב להתאים לשמור על User)
+ *   - unique constraint מונע bind של אותו customerId ל-2 users שונים
+ * תוקף שמזייף email+HMAC אבל לא יודע את ה-customerId האמיתי → נחסם.
  *
  * @returns user metadata אם תקין; null אם פסול (כל ה-callers צריכים לבדוק null
  *   ולחזור בלי לעשות פעולה).
@@ -124,12 +127,67 @@ async function verifyMeshulamSubscriptionUser(
       isBlocked: true,
       blockReason: true,
       isFreeSubscription: true,
+      meshulamCustomerId: true,
     },
   });
   if (!user) {
-    // לא לוגים על email לא קיים — מונע enumeration ע"י סריקת שגיאות
     return null;
   }
+
+  // ── customerId binding (anti-IDOR מלא) ──
+  // webhook ראשון → bind. כל webhook הבא → validate.
+  // תוקף שזייף email+HMAC אבל לא יודע את ה-customerId האמיתי → נחסם.
+  if (user.meshulamCustomerId === null) {
+    // first webhook — bind customerId ל-user.
+    try {
+      await prisma.user.update({
+        where: { id: user.id },
+        data: { meshulamCustomerId: customerId },
+      });
+    } catch (bindErr) {
+      // unique constraint violation = customerId כבר שייך ל-user אחר → IDOR
+      logger.error("[meshulam] customerId binding failed — possible IDOR (duplicate customerId)", {
+        userId: user.id,
+        customerId,
+        error: bindErr instanceof Error ? bindErr.message : String(bindErr),
+        clientIp,
+      });
+      try {
+        await prisma.adminAlert.create({
+          data: {
+            userId: user.id,
+            type: "SYSTEM",
+            title: "🚨 customerId binding נכשל — IDOR אפשרי",
+            message: `customerId=${customerId} כבר שייך למשתמש אחר. IP=${clientIp}`,
+            priority: "HIGH",
+          },
+        });
+      } catch { /* best effort */ }
+      return null;
+    }
+  } else if (user.meshulamCustomerId !== customerId) {
+    // customerId לא תואם → IDOR attempt
+    logger.error("[meshulam] customerId mismatch — IDOR rejected", {
+      userId: user.id,
+      expectedCustomerId: user.meshulamCustomerId,
+      payloadCustomerId: customerId,
+      eventType,
+      clientIp,
+    });
+    try {
+      await prisma.adminAlert.create({
+        data: {
+          userId: user.id,
+          type: "SYSTEM",
+          title: "🚨 customerId mismatch — IDOR נחסם",
+          message: `expected=${user.meshulamCustomerId}, got=${customerId}. event=${eventType}, IP=${clientIp}`,
+          priority: "HIGH",
+        },
+      });
+    } catch { /* best effort */ }
+    return null;
+  }
+  // else: user.meshulamCustomerId === customerId → תקין ✓
 
   const suspicious = await detectSuspiciousMeshulamEvent(user, eventType);
   if (suspicious) {
