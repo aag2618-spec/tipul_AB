@@ -8,8 +8,7 @@ import {
   Accordion,
 } from "@/components/ui/accordion";
 import { NotificationChannelsSection } from "@/components/settings/notification-channels-section";
-import { SmsSection } from "@/components/settings/sms-section";
-import { EmailAutomationSection } from "@/components/settings/email-automation-section";
+import { AutomatedMessagesSection } from "@/components/settings/automated-messages-section";
 
 interface NotificationSettings {
   emailEnabled: boolean;
@@ -233,20 +232,15 @@ export function NotificationsTab() {
 
   return (
     <div className="space-y-6 pb-32" ref={containerRef}>
-      <Accordion type="multiple" defaultValue={["notifications", "sms", "automation"]} className="space-y-4">
+      <Accordion type="multiple" defaultValue={["notifications", "automated-messages"]} className="space-y-4">
         <NotificationChannelsSection
           notifSettings={notifSettings}
           setNotifSettings={setNotifSettings}
         />
 
-        <SmsSection
+        <AutomatedMessagesSection
           smsSettings={smsSettings}
           setSmsSettings={setSmsSettings}
-          commSettings={commSettings}
-          setCommSettings={setCommSettings}
-        />
-
-        <EmailAutomationSection
           commSettings={commSettings}
           setCommSettings={setCommSettings}
         />
