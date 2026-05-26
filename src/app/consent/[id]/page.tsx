@@ -168,20 +168,12 @@ export default function PublicConsentPage({
             </h1>
             <p className="text-gray-600 mb-4">{form.title}</p>
             <p className="text-sm text-gray-500 mb-6">נחתם כרגע</p>
-            <div className="flex justify-center gap-3">
-              <button
-                onClick={handleDownloadPdf}
-                className="bg-teal-600 hover:bg-teal-700 text-white px-6 py-3 rounded-lg font-medium transition-colors shadow-md"
-              >
-                הורד PDF
-              </button>
-              <button
-                onClick={() => window.print()}
-                className="border border-gray-300 bg-white hover:bg-gray-50 text-gray-700 px-6 py-3 rounded-lg font-medium transition-colors"
-              >
-                הדפס
-              </button>
-            </div>
+            <button
+              onClick={() => window.print()}
+              className="bg-teal-600 hover:bg-teal-700 text-white px-6 py-3 rounded-lg font-medium transition-colors shadow-md"
+            >
+              הדפס / שמור PDF
+            </button>
           </div>
         )}
 

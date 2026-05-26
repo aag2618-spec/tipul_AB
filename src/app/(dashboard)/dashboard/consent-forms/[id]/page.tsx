@@ -297,13 +297,9 @@ export default function ConsentFormDetailPage({
 
         {isSigned && (
           <>
-            <Button variant="outline" onClick={handlePrint}>
+            <Button onClick={handlePrint}>
               <Printer className="ml-2 h-4 w-4" />
-              הדפס
-            </Button>
-            <Button variant="outline" onClick={handleDownloadPdf}>
-              <Download className="ml-2 h-4 w-4" />
-              הורד PDF
+              הדפס / שמור PDF
             </Button>
           </>
         )}
