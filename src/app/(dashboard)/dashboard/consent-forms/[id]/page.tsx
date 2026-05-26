@@ -26,7 +26,7 @@ import {
   Send,
   Trash2,
 } from "lucide-react";
-import { SignaturePad } from "@/components/ui/signature-pad";
+import { useCallback } from "react";
 import { CONSENT_TYPE_LABELS } from "@/lib/consent-templates";
 import DOMPurify from "dompurify";
 import { format } from "date-fns";
@@ -34,6 +34,91 @@ import { he } from "date-fns/locale";
 import Link from "next/link";
 import { toast } from "sonner";
 import type { ConsentType } from "@prisma/client";
+
+function InlineSignaturePad({ onSave, onCancel }: { onSave: (data: string) => void; onCancel: () => void }) {
+  const canvasRef = useRef<HTMLCanvasElement>(null);
+  const [drawing, setDrawing] = useState(false);
+  const [hasDrawn, setHasDrawn] = useState(false);
+
+  const getPos = useCallback((e: React.MouseEvent | React.TouchEvent) => {
+    const canvas = canvasRef.current;
+    if (!canvas) return { x: 0, y: 0 };
+    const rect = canvas.getBoundingClientRect();
+    if ("touches" in e) {
+      return { x: e.touches[0].clientX - rect.left, y: e.touches[0].clientY - rect.top };
+    }
+    return { x: e.clientX - rect.left, y: e.clientY - rect.top };
+  }, []);
+
+  const startDraw = useCallback((e: React.MouseEvent | React.TouchEvent) => {
+    e.preventDefault();
+    const canvas = canvasRef.current;
+    const ctx = canvas?.getContext("2d");
+    if (!ctx) return;
+    setDrawing(true);
+    setHasDrawn(true);
+    const pos = getPos(e);
+    ctx.beginPath();
+    ctx.moveTo(pos.x, pos.y);
+  }, [getPos]);
+
+  const draw = useCallback((e: React.MouseEvent | React.TouchEvent) => {
+    if (!drawing) return;
+    e.preventDefault();
+    const ctx = canvasRef.current?.getContext("2d");
+    if (!ctx) return;
+    const pos = getPos(e);
+    ctx.lineWidth = 2;
+    ctx.lineCap = "round";
+    ctx.strokeStyle = "#000";
+    ctx.lineTo(pos.x, pos.y);
+    ctx.stroke();
+  }, [drawing, getPos]);
+
+  const endDraw = useCallback(() => { setDrawing(false); }, []);
+
+  const handleClear = () => {
+    const canvas = canvasRef.current;
+    const ctx = canvas?.getContext("2d");
+    if (ctx && canvas) {
+      ctx.clearRect(0, 0, canvas.width, canvas.height);
+      setHasDrawn(false);
+    }
+  };
+
+  const handleSave = () => {
+    const canvas = canvasRef.current;
+    if (canvas && hasDrawn) {
+      onSave(canvas.toDataURL("image/png"));
+    }
+  };
+
+  return (
+    <div className="space-y-4">
+      <div className="border-2 border-dashed border-gray-300 rounded-lg bg-white touch-none">
+        <canvas
+          ref={canvasRef}
+          width={500}
+          height={180}
+          style={{ width: "100%", height: "180px", cursor: "crosshair" }}
+          onMouseDown={startDraw}
+          onMouseMove={draw}
+          onMouseUp={endDraw}
+          onMouseLeave={endDraw}
+          onTouchStart={startDraw}
+          onTouchMove={draw}
+          onTouchEnd={endDraw}
+        />
+      </div>
+      <p className="text-sm text-muted-foreground text-center">חתום/י כאן באמצעות העכבר או המגע</p>
+      <div className="flex justify-end gap-2">
+        <Button variant="outline" onClick={onCancel}>ביטול</Button>
+        <Button variant="outline" onClick={handleClear} disabled={!hasDrawn}>נקה</Button>
+        <Button onClick={handleSave} disabled={!hasDrawn}>אשר חתימה</Button>
+      </div>
+    </div>
+  );
+}
 
 interface ConsentFormData {
   id: string;
@@ -327,7 +412,7 @@ export default function ConsentFormDetailPage({
               <span className="mr-2">שומר חתימה...</span>
             </div>
           ) : (
-            <SignaturePad
+            <InlineSignaturePad
               onSave={handleSign}
               onCancel={() => setShowSignDialog(false)}
             />
