@@ -33,6 +33,12 @@ export async function GET() {
       return NextResponse.json({ message: "משתמש לא נמצא" }, { status: 404 });
     }
 
+    const primaryProvider = await prisma.billingProvider.findFirst({
+      where: { userId, isActive: true },
+      orderBy: [{ isPrimary: "desc" }, { createdAt: "asc" }],
+      select: { provider: true },
+    });
+
     return NextResponse.json({
       name: user.name || "",
       businessType: user.businessType || "NONE",
@@ -42,6 +48,7 @@ export async function GET() {
       businessAddress: user.businessAddress || "",
       nextReceiptNumber: user.nextReceiptNumber || 1,
       receiptDefaultMode: user.receiptDefaultMode || "ASK",
+      externalReceiptProvider: primaryProvider?.provider ?? null,
     });
   } catch (error) {
     logger.error("Get business settings error:", { error: error instanceof Error ? error.message : String(error) });

@@ -53,6 +53,7 @@ export default function MarkPaidPage({ params }: { params: Promise<{ id: string 
   const [issueReceipt, setIssueReceipt] = useState(false);
   const [receiptMode, setReceiptMode] = useState<string>("ASK");
   const [businessType, setBusinessType] = useState<string>("NONE");
+  const [externalReceiptProvider, setExternalReceiptProvider] = useState<string | null>(null);
   // ── Cardcom flow state ────────────────────────────────────
   const [cardcomOpen, setCardcomOpen] = useState(false);
   const [cardcomAmount, setCardcomAmount] = useState<number>(0);
@@ -99,7 +100,9 @@ export default function MarkPaidPage({ params }: { params: Promise<{ id: string 
       .then(data => {
         if (data.businessType) setBusinessType(data.businessType);
         if (data.receiptDefaultMode) setReceiptMode(data.receiptDefaultMode);
-        if (data.receiptDefaultMode === "ALWAYS") setIssueReceipt(true);
+        setExternalReceiptProvider(data.externalReceiptProvider ?? null);
+        if (data.externalReceiptProvider === "CARDCOM") setIssueReceipt(true);
+        else if (data.receiptDefaultMode === "ALWAYS") setIssueReceipt(true);
         else if (data.receiptDefaultMode === "NEVER") setIssueReceipt(false);
       })
       .catch(() => {});
@@ -417,18 +420,27 @@ export default function MarkPaidPage({ params }: { params: Promise<{ id: string 
               )}
 
               {businessType !== "NONE" && receiptMode !== "NEVER" && (
-                <div className="flex items-center gap-3 py-2 px-3 bg-sky-50 rounded-lg border border-sky-200">
-                  <Checkbox
-                    id="issue-receipt"
-                    checked={issueReceipt}
-                    onCheckedChange={(checked) => setIssueReceipt(checked === true)}
-                    disabled={receiptMode === "ALWAYS"}
-                  />
-                  <Label htmlFor="issue-receipt" className="cursor-pointer flex items-center gap-2 text-sky-800">
-                    <FileText className="h-4 w-4" />
-                    הפק קבלה
-                  </Label>
-                </div>
+                externalReceiptProvider === "CARDCOM" ? (
+                  <div className="flex items-center gap-3 py-2 px-3 bg-green-50 rounded-lg border border-green-200">
+                    <FileText className="h-4 w-4 text-green-700" />
+                    <span className="text-sm text-green-800">
+                      קבלה תופק אוטומטית דרך קארדקום
+                    </span>
+                  </div>
+                ) : (
+                  <div className="flex items-center gap-3 py-2 px-3 bg-sky-50 rounded-lg border border-sky-200">
+                    <Checkbox
+                      id="issue-receipt"
+                      checked={issueReceipt}
+                      onCheckedChange={(checked) => setIssueReceipt(checked === true)}
+                      disabled={receiptMode === "ALWAYS"}
+                    />
+                    <Label htmlFor="issue-receipt" className="cursor-pointer flex items-center gap-2 text-sky-800">
+                      <FileText className="h-4 w-4" />
+                      הפק קבלה
+                    </Label>
+                  </div>
+                )
               )}
             </div>
           </div>

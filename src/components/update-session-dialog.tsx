@@ -103,6 +103,7 @@ export function UpdateSessionDialog({
   const [issueReceipt, setIssueReceipt] = useState(false);
   const [receiptMode, setReceiptMode] = useState<string>("ASK");
   const [businessType, setBusinessType] = useState<string>("NONE");
+  const [externalReceiptProvider, setExternalReceiptProvider] = useState<string | null>(null);
   // ── Cardcom intercept state ────────────────────────────────
   // נדלק כשהמשתמש בוחר אשראי. נסגרים כדי לפתוח את ChargeCardcomDialog.
   const [cardcomOpen, setCardcomOpen] = useState(false);
@@ -139,7 +140,9 @@ export function UpdateSessionDialog({
         .then(data => {
           if (data.businessType) setBusinessType(data.businessType);
           if (data.receiptDefaultMode) setReceiptMode(data.receiptDefaultMode);
-          if (data.receiptDefaultMode === "ALWAYS") setIssueReceipt(true);
+          setExternalReceiptProvider(data.externalReceiptProvider ?? null);
+          if (data.externalReceiptProvider === "CARDCOM") setIssueReceipt(true);
+          else if (data.receiptDefaultMode === "ALWAYS") setIssueReceipt(true);
           else if (data.receiptDefaultMode === "NEVER") setIssueReceipt(false);
         })
         .catch(() => {});
@@ -512,21 +515,30 @@ export function UpdateSessionDialog({
                   </div>
 
                   {businessType !== "NONE" && receiptMode !== "NEVER" && (
-                    <div className="flex items-center gap-3 py-2 px-3 bg-sky-50 rounded-lg border border-sky-200">
-                      <Checkbox
-                        id="update-issue-receipt"
-                        checked={issueReceipt}
-                        onCheckedChange={(checked) => setIssueReceipt(checked === true)}
-                        disabled={receiptMode === "ALWAYS"}
-                      />
-                      <Label htmlFor="update-issue-receipt" className="cursor-pointer flex items-center gap-2 text-sky-800">
-                        <FileText className="h-4 w-4" />
-                        הוצא קבלה
-                        {receiptMode === "ALWAYS" && (
-                          <span className="text-xs text-sky-600">(ברירת מחדל)</span>
-                        )}
-                      </Label>
-                    </div>
+                    externalReceiptProvider === "CARDCOM" ? (
+                      <div className="flex items-center gap-3 py-2 px-3 bg-green-50 rounded-lg border border-green-200">
+                        <FileText className="h-4 w-4 text-green-700" />
+                        <span className="text-sm text-green-800">
+                          קבלה תופק אוטומטית דרך קארדקום
+                        </span>
+                      </div>
+                    ) : (
+                      <div className="flex items-center gap-3 py-2 px-3 bg-sky-50 rounded-lg border border-sky-200">
+                        <Checkbox
+                          id="update-issue-receipt"
+                          checked={issueReceipt}
+                          onCheckedChange={(checked) => setIssueReceipt(checked === true)}
+                          disabled={receiptMode === "ALWAYS"}
+                        />
+                        <Label htmlFor="update-issue-receipt" className="cursor-pointer flex items-center gap-2 text-sky-800">
+                          <FileText className="h-4 w-4" />
+                          הוצא קבלה
+                          {receiptMode === "ALWAYS" && (
+                            <span className="text-xs text-sky-600">(ברירת מחדל)</span>
+                          )}
+                        </Label>
+                      </div>
+                    )
                   )}
 
                   <div className="space-y-3">
