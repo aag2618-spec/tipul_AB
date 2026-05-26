@@ -54,6 +54,7 @@ export default function ConsentFormDetailPage({
   const { id } = use(params);
   const router = useRouter();
   const contentRef = useRef<HTMLDivElement>(null);
+  const signPadRef = useRef<HTMLDivElement>(null);
 
   const [form, setForm] = useState<ConsentFormData | null>(null);
   const [isLoading, setIsLoading] = useState(true);
@@ -286,7 +287,13 @@ export default function ConsentFormDetailPage({
       <div className="flex items-center gap-3 flex-wrap">
         {!isSigned && !form.isTemplate && (
           <>
-            <Button onClick={() => setShowSignPad(!showSignPad)}>
+            <Button onClick={() => {
+              const next = !showSignPad;
+              setShowSignPad(next);
+              if (next) {
+                setTimeout(() => signPadRef.current?.scrollIntoView({ behavior: "smooth", block: "center" }), 100);
+              }
+            }}>
               <PenTool className="ml-2 h-4 w-4" />
               חתום עכשיו
             </Button>
@@ -316,7 +323,7 @@ export default function ConsentFormDetailPage({
 
       {/* Inline signature pad */}
       {showSignPad && !isSigned && (
-        <Card>
+        <Card ref={signPadRef}>
           <CardHeader>
             <CardTitle>חתימה</CardTitle>
           </CardHeader>

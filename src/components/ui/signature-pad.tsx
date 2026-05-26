@@ -20,6 +20,7 @@ interface SignaturePadProps {
 
 export function SignaturePad({ onSave, onCancel }: SignaturePadProps) {
   const sigCanvas = useRef<ReactSignatureCanvas>(null);
+  const containerRef = useRef<HTMLDivElement>(null);
   const [isEmpty, setIsEmpty] = useState(true);
 
   const handleClear = () => {
@@ -41,11 +42,14 @@ export function SignaturePad({ onSave, onCancel }: SignaturePadProps) {
   return (
     <div className="space-y-4">
       <Card className="p-4">
-        <div className="border-2 border-dashed border-muted-foreground/20 rounded-lg bg-white">
+        <div ref={containerRef} className="border-2 border-dashed border-muted-foreground/20 rounded-lg bg-white">
           <SignatureCanvas
             ref={sigCanvas as any}
             canvasProps={{
+              width: 600,
+              height: 192,
               className: "w-full h-48 cursor-crosshair",
+              style: { width: "100%", height: "12rem" },
             }}
             onEnd={handleEnd}
           />
