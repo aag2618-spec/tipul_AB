@@ -79,17 +79,14 @@ export function useCalendarData() {
   const [overlaps, setOverlaps] = useState<SessionOverlap[]>([]);
   const [dateRange, setDateRange] = useState<{ start: string; end: string } | null>(getDefaultDateRange);
 
-  const buildSessionsUrl = useCallback(() => {
-    if (!dateRange) return "/api/sessions";
-    return `/api/sessions?startDate=${dateRange.start}&endDate=${dateRange.end}`;
+  const buildCalendarUrl = useCallback(() => {
+    if (!dateRange) return "/api/sessions/calendar";
+    return `/api/sessions/calendar?startDate=${dateRange.start}&endDate=${dateRange.end}`;
   }, [dateRange]);
 
   const fetchData = useCallback(async () => {
     try {
-      const sessionsUrl = dateRange
-        ? `/api/sessions?startDate=${dateRange.start}&endDate=${dateRange.end}`
-        : "/api/sessions";
-      const res = await fetch(sessionsUrl);
+      const res = await fetch(buildCalendarUrl());
       if (res.ok) {
         const data = await res.json();
         setSessions(mapSessions(data));
@@ -100,7 +97,7 @@ export function useCalendarData() {
     } finally {
       setIsLoading(false);
     }
-  }, [dateRange]);
+  }, [buildCalendarUrl]);
 
   const fetchSecondary = useCallback(async () => {
     try {
@@ -141,7 +138,7 @@ export function useCalendarData() {
     checkOverlaps();
 
     const interval = setInterval(() => {
-      fetch(buildSessionsUrl())
+      fetch(buildCalendarUrl())
         .then(async (res) => {
           if (res.ok) {
             const data = await res.json();
@@ -152,7 +149,7 @@ export function useCalendarData() {
     }, 120_000);
 
     const onFocus = () => {
-      fetch(buildSessionsUrl())
+      fetch(buildCalendarUrl())
         .then(async (res) => {
           if (res.ok) {
             const data = await res.json();
@@ -167,7 +164,7 @@ export function useCalendarData() {
       clearInterval(interval);
       window.removeEventListener("focus", onFocus);
     };
-  }, [fetchData, fetchSecondary, checkOverlaps, buildSessionsUrl]);
+  }, [fetchData, fetchSecondary, checkOverlaps, buildCalendarUrl]);
 
   return {
     sessions,
