@@ -160,7 +160,6 @@ export default function EditClientPage({ params }: { params: Promise<{ id: strin
       }
 
       toast.success("המטופל נמחק בהצלחה");
-      router.refresh();
       router.push("/dashboard/clients");
     } catch (error) {
       console.error("Delete error:", error);

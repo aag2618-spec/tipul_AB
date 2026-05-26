@@ -241,14 +241,11 @@ export const authOptions: NextAuthOptions = {
     maxAge: 24 * 60 * 60,
     updateAge: 60 * 60,
   },
-  // H16.2 (סבב 16e): hardening של session cookie — SameSite=Strict
-  // (במקום default Lax של NextAuth) למניעת CSRF cross-site הכי הדוקה.
-  // ה-`__Secure-` prefix בproduction אוכף HTTPS ברמת הדפדפן.
-  //
-  // **חשוב:** רק sessionToken עובר ל-Strict. cookies אחרים של NextAuth
-  // (callbackUrl, csrfToken, state, pkceCodeVerifier, nonce) נשארים בdefault
-  // (Lax) — Strict ישבור את OAuth callback flow (Google sign-in) כי הcookies
-  // לא יישלחו כשהדפדפן חוזר מ-Google.
+  // H16.2: session cookie — SameSite=Lax (ולא Strict).
+  // Strict שובר חזרה מאתרים חיצוניים (Cardcom, לינקים ממייל) — הדפדפן
+  // לא שולח את העוגיה בניווט cross-site, והמשתמש "מתנתק". Lax מגן על
+  // CSRF ב-POST/PUT/DELETE (מספיק — כל הפעולות הרגישות הן POST) ומאפשר
+  // ניווט GET תקין מאתרים חיצוניים. ה-`__Secure-` prefix אוכף HTTPS.
   cookies: {
     sessionToken: {
       name:
@@ -257,7 +254,7 @@ export const authOptions: NextAuthOptions = {
           : "next-auth.session-token",
       options: {
         httpOnly: true,
-        sameSite: "strict",
+        sameSite: "lax",
         path: "/",
         secure: process.env.NODE_ENV === "production",
       },

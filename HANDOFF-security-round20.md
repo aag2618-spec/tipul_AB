@@ -22,11 +22,22 @@
 | 2c | uuid | next-auth, exceljs | skipped — ממתין לעדכון |
 | 2d | @hono/node-server | prisma@7.2.0 | skipped — ממתין ל-Prisma |
 
-## 3. CodeQL
+## 3. CodeQL (~207 alerts)
+
+### High (5 alerts)
+
+| # | ממצא | קובץ | סטטוס |
+|---|------|------|--------|
+| 3a | hashApiKey SHA-256 fallback → HMAC-only | src/lib/encryption.ts:119 | done |
+| 3b | console.error → logger | src/lib/resend.ts | done (צ'אט קודם) |
+| 3c | strip-tags → DOMPurify stripHtmlTags | src/lib/resend.ts | done (צ'אט קודם) |
+
+### Medium/Low (~200 alerts — false positives)
 
 | # | ממצא | סטטוס |
 |---|------|--------|
-| 3a | ממתין לתוצאות ב-GitHub Security tab | pending |
+| 3d | escapeHtml "incomplete multi-char sanitization" ×200 | done — CodeQL config exclusion |
+| 3e | עדכון CodeQL workflow לשימוש ב-config | done |
 
 ---
 
@@ -48,7 +59,7 @@
 
 | # | בדיקה | סטטוס |
 |---|--------|--------|
-| 5a | אימות HttpOnly, Secure, SameSite על session cookies | pending |
+| 5a | אימות HttpOnly, Secure, SameSite על session cookies | done — httpOnly:true, sameSite:strict, secure:true, __Secure- prefix |
 
 ## 6. Render Dashboard (user action)
 

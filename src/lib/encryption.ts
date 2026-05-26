@@ -116,17 +116,21 @@ export function isEncrypted(text: string): boolean {
   return false;
 }
 
-export function hashApiKey(apiKey: string): string {
-  const secret = process.env.API_KEY_HMAC_SECRET;
-  if (secret) {
-    return crypto
-      .createHmac('sha256', secret)
-      .update(apiKey)
-      .digest('hex')
-      .substring(0, 16);
+const API_KEY_HMAC_SECRET = process.env.API_KEY_HMAC_SECRET || (() => {
+  if (process.env.NODE_ENV === "production") {
+    throw new Error("API_KEY_HMAC_SECRET must be set in production");
   }
+  const devSeed = process.env.DATABASE_URL || "tipul-dev-api-key-seed";
+  logger.warn(
+    "API_KEY_HMAC_SECRET not set — using deterministic dev key (DEV ONLY). " +
+    "Production REQUIRES API_KEY_HMAC_SECRET env var."
+  );
+  return crypto.createHash("sha256").update(devSeed).digest("hex");
+})();
+
+export function hashApiKey(apiKey: string): string {
   return crypto
-    .createHash('sha256')
+    .createHmac('sha256', API_KEY_HMAC_SECRET)
     .update(apiKey)
     .digest('hex')
     .substring(0, 16);

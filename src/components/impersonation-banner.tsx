@@ -71,7 +71,6 @@ export function ImpersonationBanner() {
       // null → ה-jwt callback מסיר את actingAs מה-token
       await update({ actingAs: null });
       toast.success("יצאת ממצב התחזות");
-      router.refresh();
       router.push("/clinic-admin/members");
     } catch (e) {
       toast.error(e instanceof Error ? e.message : "שגיאה");
