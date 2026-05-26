@@ -57,6 +57,18 @@ export interface RecurringPattern {
   client?: { name: string } | null;
 }
 
+function getDefaultDateRange(): { start: string; end: string } {
+  const now = new Date();
+  const start = new Date(now);
+  start.setDate(start.getDate() - 30);
+  const end = new Date(now);
+  end.setDate(end.getDate() + 60);
+  return {
+    start: start.toISOString().split("T")[0] + "T00:00",
+    end: end.toISOString().split("T")[0] + "T23:59",
+  };
+}
+
 export function useCalendarData() {
   const [sessions, setSessions] = useState<CalendarSession[]>([]);
   const [clients, setClients] = useState<CalendarClient[]>([]);
@@ -65,7 +77,7 @@ export function useCalendarData() {
   const [defaultSessionDuration, setDefaultSessionDuration] = useState(50);
   const [defaultSessionPrice, setDefaultSessionPrice] = useState<number | null>(null);
   const [overlaps, setOverlaps] = useState<SessionOverlap[]>([]);
-  const [dateRange, setDateRange] = useState<{ start: string; end: string } | null>(null);
+  const [dateRange, setDateRange] = useState<{ start: string; end: string } | null>(getDefaultDateRange);
 
   const buildInitUrl = useCallback(() => {
     if (!dateRange) return "/api/calendar/init";
