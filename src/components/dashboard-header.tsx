@@ -109,7 +109,7 @@ export function DashboardHeader({ user }: DashboardHeaderProps) {
     fetchNotifications();
     fetchAnnouncements();
 
-    const notifInterval = setInterval(fetchNotifications, 30000);
+    const notifInterval = setInterval(fetchNotifications, 120000);
     const announcementInterval = setInterval(fetchAnnouncements, 5 * 60 * 1000);
     // רענון מיידי כשהווידג'ט למטה מסמן התראה כנקראה
     const onNotificationRead = () => fetchNotifications();

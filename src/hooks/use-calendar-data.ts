@@ -131,11 +131,10 @@ export function useCalendarData() {
           if (res.ok) {
             const data = await res.json();
             setSessions(mapSessions(data));
-            checkOverlaps();
           }
         })
         .catch(() => {});
-    }, 30_000);
+    }, 120_000);
 
     const onFocus = () => {
       fetch(buildSessionsUrl())
@@ -143,7 +142,6 @@ export function useCalendarData() {
           if (res.ok) {
             const data = await res.json();
             setSessions(mapSessions(data));
-            checkOverlaps();
           }
         })
         .catch(() => {});

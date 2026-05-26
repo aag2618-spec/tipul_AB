@@ -1,4 +1,4 @@
-import { NextResponse } from "next/server";
+import { NextRequest, NextResponse } from "next/server";
 import prisma from "@/lib/prisma";
 import { logger } from "@/lib/logger";
 
@@ -8,7 +8,7 @@ import { EXCLUDE_BULK_UMBRELLA_WHERE } from "@/lib/payments/types";
 
 export const dynamic = "force-dynamic";
 
-export async function GET() {
+export async function GET(request: NextRequest) {
   try {
     const auth = await requireAuth();
     if ("error" in auth) return auth.error;
@@ -17,10 +17,10 @@ export async function GET() {
     const scopeUser = await loadScopeUser(userId);
     const paymentWhere = buildPaymentWhere(scopeUser);
 
-    // קבלת כל התשלומים ששולמו במלואם.
-    // EXCLUDE_BULK_UMBRELLA_WHERE — מסנן Umbrella payments של תשלום מצרפי
-    // באשראי (אחרת ההיסטוריה תציג את ה-umbrella + את ה-payments המקוריים
-    // = כפילות בסכום הכולל לרו"ח/לדוח חודשי).
+    const url = request.nextUrl;
+    const take = Math.min(Number(url.searchParams.get("take")) || 50, 200);
+    const skip = Math.max(0, Math.min(Number(url.searchParams.get("skip")) || 0, 10000));
+
     const payments = await prisma.payment.findMany({
       where: {
         AND: [
@@ -29,6 +29,8 @@ export async function GET() {
           { status: "PAID", parentPaymentId: null },
         ],
       },
+      take: take + 1,
+      skip,
       include: {
         client: {
           select: {
@@ -64,7 +66,10 @@ export async function GET() {
       },
     });
 
-    const fullyPaidPayments = payments.filter((payment) => {
+    const hasMore = payments.length > take;
+    const trimmed = hasMore ? payments.slice(0, take) : payments;
+
+    const fullyPaidPayments = trimmed.filter((payment) => {
       const amount = Number(payment.amount);
       const expectedAmount = payment.expectedAmount ? Number(payment.expectedAmount) : amount;
       return amount >= expectedAmount;
@@ -107,7 +112,7 @@ export async function GET() {
       };
     });
 
-    return NextResponse.json(result);
+    return NextResponse.json({ items: result, hasMore, nextSkip: skip + trimmed.length });
   } catch (error) {
     logger.error("Get paid history error:", { error: error instanceof Error ? error.message : String(error) });
     return NextResponse.json(

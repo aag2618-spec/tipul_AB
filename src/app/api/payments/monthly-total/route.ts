@@ -18,11 +18,13 @@ export async function GET(request: NextRequest) {
     const scopeUser = await loadScopeUser(userId);
     const paymentWhere = buildPaymentWhere(scopeUser);
 
-    // שליפת תשלומים אמיתיים (ילדים חלקיים + הורים ללא ילדים)
-    // מונע כפילות: הורה עם ילדים לא נספר כי הילדים כבר נספרים.
-    // EXCLUDE_BULK_UMBRELLA_WHERE — מסנן Umbrella payments של תשלום מצרפי
-    // באשראי (childPayments שלהם ריקים, אבל הסכום כבר נספר דרך החילוק
-    // ל-children של ה-payments המקוריים תחת bulkPaymentIds).
+    // חלון זמן — רק החודשים שביקשו, לא כל ההיסטוריה
+    const monthsParam = Math.min(Number(request.nextUrl.searchParams.get("months")) || 1, 24);
+    const windowStart = new Date();
+    windowStart.setDate(1);
+    windowStart.setMonth(windowStart.getMonth() - monthsParam);
+    windowStart.setHours(0, 0, 0, 0);
+
     const payments = await prisma.payment.findMany({
       where: {
         AND: [
@@ -31,8 +33,14 @@ export async function GET(request: NextRequest) {
           {
             status: "PAID",
             OR: [
-              { parentPaymentId: { not: null } },                        // ילדים (תשלומים חלקיים)
-              { parentPaymentId: null, childPayments: { none: {} } },    // הורים ללא ילדים (תשלום מלא בודד)
+              { parentPaymentId: { not: null } },
+              { parentPaymentId: null, childPayments: { none: {} } },
+            ],
+          },
+          {
+            OR: [
+              { paidAt: { gte: windowStart } },
+              { paidAt: null, createdAt: { gte: windowStart } },
             ],
           },
         ],
@@ -61,7 +69,6 @@ export async function GET(request: NextRequest) {
     const total = thisMonthPaid.reduce((sum, p) => sum + Number(p.amount), 0);
 
     // פירוט לפי חודשים (לגרף) - אם מבקשים months > 1
-    const monthsParam = Number(request.nextUrl.searchParams.get("months")) || 1;
     if (monthsParam > 1) {
       const breakdown = [];
       // חישוב חודשים אחורה לפי שעון ישראל — israelMonth הוא 1-12

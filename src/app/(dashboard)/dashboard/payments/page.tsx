@@ -161,6 +161,11 @@ export default function PaymentsPage() {
   // סינון לפי חודש
   const [selectedMonth, setSelectedMonth] = useState<string>("all");
 
+  // דפדוף היסטוריה
+  const [hasMoreHistory, setHasMoreHistory] = useState(false);
+  const [isLoadingMore, setIsLoadingMore] = useState(false);
+  const [nextHistorySkip, setNextHistorySkip] = useState(0);
+
   // יצירת רשימת חודשים (12 חודשים אחרונים)
   const monthOptions = useMemo(() => {
     const months = [];
@@ -227,17 +232,37 @@ export default function PaymentsPage() {
         }
       }
       
-      // טעינת היסטוריית תשלומים (תשלומים ששולמו)
-      const paidResponse = await fetch("/api/payments/paid-history", { cache: "no-store" });
+      // טעינת היסטוריית תשלומים (תשלומים ששולמו) — עם דפדוף
+      const paidResponse = await fetch("/api/payments/paid-history?take=50", { cache: "no-store" });
       if (paidResponse.ok) {
         const paidData = await paidResponse.json();
-        setPaidPayments(paidData);
+        setPaidPayments(paidData.items || paidData);
+        setHasMoreHistory(paidData.hasMore ?? false);
+        setNextHistorySkip(paidData.nextSkip ?? 50);
       }
     } catch (error) {
       console.error("Error fetching data:", error);
       toast.error("שגיאה בטעינת נתונים");
     } finally {
       setIsLoading(false);
+    }
+  };
+
+  const loadMoreHistory = async () => {
+    try {
+      setIsLoadingMore(true);
+      const res = await fetch(`/api/payments/paid-history?take=50&skip=${nextHistorySkip}`, { cache: "no-store" });
+      if (res.ok) {
+        const data = await res.json();
+        const items = data.items || data;
+        setPaidPayments(prev => [...prev, ...items]);
+        setHasMoreHistory(data.hasMore ?? false);
+        setNextHistorySkip(data.nextSkip ?? nextHistorySkip + 50);
+      }
+    } catch {
+      toast.error("שגיאה בטעינת תשלומים נוספים");
+    } finally {
+      setIsLoadingMore(false);
     }
   };
 
@@ -866,9 +891,26 @@ export default function PaymentsPage() {
                     ))}
                   </div>
                   
+                  {/* טען עוד */}
+                  {hasMoreHistory && (
+                    <div className="text-center mt-4">
+                      <Button
+                        variant="outline"
+                        onClick={loadMoreHistory}
+                        disabled={isLoadingMore}
+                      >
+                        {isLoadingMore ? (
+                          <><Loader2 className="h-4 w-4 animate-spin ml-2" />טוען...</>
+                        ) : (
+                          "טען תשלומים נוספים"
+                        )}
+                      </Button>
+                    </div>
+                  )}
+
                   {/* סיכום */}
                   <div className="text-sm text-muted-foreground text-center mt-4 py-3 bg-gradient-to-r from-transparent via-slate-100 to-transparent rounded-full">
-                    מציג {filteredHistory.length} מתוך {paidPayments.length} תשלומים
+                    מציג {filteredHistory.length} מתוך {paidPayments.length} תשלומים{hasMoreHistory ? " (יש עוד)" : ""}
                   </div>
                 </>
               );

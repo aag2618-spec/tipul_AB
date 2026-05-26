@@ -708,6 +708,7 @@ model Payment {
   @@index([clientId, status])
   @@index([hasReceipt])
   @@index([organizationId])
+  @@index([status, parentPaymentId, paidAt])
 }
 
 enum PaymentMethod {
@@ -801,6 +802,9 @@ model Notification {
 
   userId String
   user   User   @relation(fields: [userId], references: [id], onDelete: Cascade)
+
+  @@index([userId, status, createdAt])
+  @@index([userId, createdAt])
 }
 
 enum NotificationType {
