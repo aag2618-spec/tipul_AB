@@ -201,44 +201,40 @@ export default function PaymentsPage() {
   const fetchData = async () => {
     try {
       setIsLoading(true);
-      
-      // טעינת חובות מטופלים
-      const debtsResponse = await fetch("/api/payments/client-debts", { cache: "no-store" });
-      if (debtsResponse.ok) {
-        const data = await debtsResponse.json();
-        setClients(data);
-        
-        // חישוב סטטיסטיקות
-        const debt = data.reduce((sum: number, c: ClientDebt) => sum + c.totalDebt, 0);
-        const credit = data.reduce((sum: number, c: ClientDebt) => sum + c.creditBalance, 0);
-        setTotalDebt(debt);
-        setTotalCredit(credit);
-        
-        // עדכון selectedClient עם הנתונים החדשים
-        setSelectedClient((prev) => {
-          if (!prev) return null;
-          const updated = data.find((c: ClientDebt) => c.id === prev.id);
-          return updated || null;
-        });
-      }
-      
-      // טעינת תשלומים החודש + נתוני גרף (אותו חישוב, כולל תשלומים חלקיים)
-      const monthlyResponse = await fetch("/api/payments/monthly-total?months=6", { cache: "no-store" });
-      if (monthlyResponse.ok) {
-        const monthlyData = await monthlyResponse.json();
-        setPaidThisMonth(monthlyData.total || 0);
-        if (monthlyData.breakdown) {
-          setChartMonthlyData(monthlyData.breakdown);
+
+      // קריאה אחת מאוחדת — חובות + סיכום חודשי + היסטוריה
+      const response = await fetch("/api/payments/dashboard", { cache: "no-store" });
+      if (response.ok) {
+        const data = await response.json();
+
+        // חובות מטופלים
+        if (data.debts) {
+          setClients(data.debts);
+          const debt = data.debts.reduce((sum: number, c: ClientDebt) => sum + c.totalDebt, 0);
+          const credit = data.debts.reduce((sum: number, c: ClientDebt) => sum + c.creditBalance, 0);
+          setTotalDebt(debt);
+          setTotalCredit(credit);
+          setSelectedClient((prev) => {
+            if (!prev) return null;
+            const updated = data.debts.find((c: ClientDebt) => c.id === prev.id);
+            return updated || null;
+          });
         }
-      }
-      
-      // טעינת היסטוריית תשלומים (תשלומים ששולמו) — עם דפדוף
-      const paidResponse = await fetch("/api/payments/paid-history?take=50", { cache: "no-store" });
-      if (paidResponse.ok) {
-        const paidData = await paidResponse.json();
-        setPaidPayments(paidData.items || paidData);
-        setHasMoreHistory(paidData.hasMore ?? false);
-        setNextHistorySkip(paidData.nextSkip ?? 50);
+
+        // סיכום חודשי + גרף
+        if (data.monthly) {
+          setPaidThisMonth(data.monthly.total || 0);
+          if (data.monthly.breakdown) {
+            setChartMonthlyData(data.monthly.breakdown);
+          }
+        }
+
+        // היסטוריית תשלומים
+        if (data.history) {
+          setPaidPayments(data.history.items || []);
+          setHasMoreHistory(data.history.hasMore ?? false);
+          setNextHistorySkip(data.history.nextSkip ?? 50);
+        }
       }
     } catch (error) {
       console.error("Error fetching data:", error);

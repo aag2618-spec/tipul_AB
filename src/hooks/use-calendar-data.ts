@@ -67,6 +67,11 @@ export function useCalendarData() {
   const [overlaps, setOverlaps] = useState<SessionOverlap[]>([]);
   const [dateRange, setDateRange] = useState<{ start: string; end: string } | null>(null);
 
+  const buildInitUrl = useCallback(() => {
+    if (!dateRange) return "/api/calendar/init";
+    return `/api/calendar/init?startDate=${dateRange.start}&endDate=${dateRange.end}`;
+  }, [dateRange]);
+
   const buildSessionsUrl = useCallback(() => {
     if (!dateRange) return "/api/sessions";
     return `/api/sessions?startDate=${dateRange.start}&endDate=${dateRange.end}`;
@@ -74,30 +79,14 @@ export function useCalendarData() {
 
   const fetchData = useCallback(async () => {
     try {
-      const [sessionsRes, clientsRes, patternsRes, profileRes] = await Promise.all([
-        fetch(buildSessionsUrl()),
-        fetch("/api/clients?includeQuick=true"),
-        fetch("/api/recurring-patterns"),
-        fetch("/api/user/profile"),
-      ]);
-
-      if (sessionsRes.ok && clientsRes.ok) {
-        const sessionsData = await sessionsRes.json();
-        const clientsData = await clientsRes.json();
-        setSessions(mapSessions(sessionsData));
-        setClients(clientsData);
-      }
-
-      if (patternsRes.ok) {
-        const patternsData = await patternsRes.json();
-        setRecurringPatterns(patternsData);
-      }
-
-      if (profileRes.ok) {
-        const profileData = await profileRes.json();
-        setDefaultSessionDuration(profileData.defaultSessionDuration || 50);
-        // מחיר ברירת מחדל לטיפול (מהגדרות המטפל) — null אם לא הוגדר
-        const priceRaw = profileData.defaultSessionPrice;
+      const res = await fetch(buildInitUrl());
+      if (res.ok) {
+        const data = await res.json();
+        setSessions(mapSessions(data.sessions));
+        setClients(data.clients);
+        setRecurringPatterns(data.patterns);
+        setDefaultSessionDuration(data.profile?.defaultSessionDuration || 50);
+        const priceRaw = data.profile?.defaultSessionPrice;
         const priceNum = priceRaw === null || priceRaw === undefined ? null : Number(priceRaw);
         setDefaultSessionPrice(priceNum !== null && Number.isFinite(priceNum) ? priceNum : null);
       }
@@ -107,7 +96,7 @@ export function useCalendarData() {
     } finally {
       setIsLoading(false);
     }
-  }, [buildSessionsUrl]);
+  }, [buildInitUrl]);
 
   const checkOverlaps = useCallback(async () => {
     try {

@@ -3,7 +3,7 @@ services:
     name: tipul-app
     runtime: node
     region: frankfurt
-    plan: free
+    plan: starter
     buildCommand: npm ci && npx prisma generate && rm -rf .next node_modules/.cache && npm run build
     # C2 (סבב אבטחה 14, 2026-05-19): הוסרה הדגל `--accept-data-loss` כדי שאם
     # יתקיים schema drift Prisma יעצור עם שגיאה במקום למחוק עמודות PHI בשקט.
