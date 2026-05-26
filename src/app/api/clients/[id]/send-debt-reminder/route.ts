@@ -220,11 +220,24 @@ export async function POST(
 
     const scopeUser = await loadScopeUser(userId);
 
-    if (isSecretary(scopeUser) && !secretaryCan(scopeUser, "canSendReminders")) {
-      return NextResponse.json(
-        { message: "אין הרשאה לשליחת תזכורות" },
-        { status: 403 }
-      );
+    // Phase 1 (סבב 21): מזכירה ששולחת תזכורת חוב חייבת **גם** canSendReminders
+    // (לעצם השליחה) **וגם** canViewDebts (כי התזכורת חושפת לה את גובה החוב
+    // ופירוט הפגישות הלא-משולמות בתשובה / ב-UI). הפיצול היה fictive: לשליחה היה
+    // canSendReminders אך לא canViewDebts, וזה אפשר למזכירה ללא הרשאת חובות
+    // לראות סכומי חוב באמצעות פעולת השליחה.
+    if (isSecretary(scopeUser)) {
+      if (!secretaryCan(scopeUser, "canSendReminders")) {
+        return NextResponse.json(
+          { message: "אין הרשאה לשליחת תזכורות" },
+          { status: 403 }
+        );
+      }
+      if (!secretaryCan(scopeUser, "canViewDebts")) {
+        return NextResponse.json(
+          { message: "אין הרשאה לצפייה בחובות — נדרש כדי לשלוח תזכורת חוב" },
+          { status: 403 }
+        );
+      }
     }
 
     const scopeWhere = buildClientWhere(scopeUser);

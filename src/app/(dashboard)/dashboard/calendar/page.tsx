@@ -303,6 +303,9 @@ function CalendarPageContent() {
       topic: "",
       isRecurring: false,
       weeksToRepeat: 4,
+      // Phase 1 (סבב 21): location חייב להיות מוגדר ב-initial state כדי
+      // ש-formData.location.trim() ב-submit לא יזרוק TypeError. ריק = אין חדר.
+      location: "",
     });
     setIsDialogOpen(true);
   };
@@ -484,6 +487,10 @@ function CalendarPageContent() {
       topic: "",
       isRecurring: false,
       weeksToRepeat: 4,
+      // Phase 1 (סבב 21): location ריק כברירת מחדל. אם נרצה בעתיד למלא
+      // אותו אוטומטית מהפגישה הקודמת — צריך להוסיף `location` ל-CalendarSession
+      // ב-use-calendar-data.ts.
+      location: "",
     });
     setIsDialogOpen(true);
   };

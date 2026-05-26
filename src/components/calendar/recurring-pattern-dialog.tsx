@@ -201,6 +201,9 @@ export function RecurringPatternDialog({
               type: pendingFormRecurring.type,
               price: parseFloat(pendingFormRecurring.price) || 0,
               topic: pendingFormRecurring.topic || undefined,
+              // Phase 1 (סבב 21): location נשלח לסדרה חוזרת כדי שבדיקת חפיפת
+              // חדר תרוץ גם פר-פגישה. אופציונלי לתאימות לאחור.
+              location: pendingFormRecurring.location || undefined,
               isRecurring: true,
               allowOverlap: isOverlapAllowed || undefined,
             }),

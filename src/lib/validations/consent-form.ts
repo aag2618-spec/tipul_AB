@@ -50,3 +50,8 @@ export const signConsentFormSchema = z.object({
     ),
 });
 export type SignConsentFormInput = z.infer<typeof signConsentFormSchema>;
+
+export const sendConsentLinkSchema = z.object({
+  channel: z.enum(["sms", "email", "both"]),
+});
+export type SendConsentLinkInput = z.infer<typeof sendConsentLinkSchema>;

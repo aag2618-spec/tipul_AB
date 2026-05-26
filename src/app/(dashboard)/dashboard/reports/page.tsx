@@ -1,7 +1,11 @@
 import { getServerSession } from "next-auth";
 import { authOptions } from "@/lib/auth";
 import prisma from "@/lib/prisma";
+import Link from "next/link";
 import { ReportsView, type ReportData } from "@/components/reports/reports-view";
+import { Card, CardContent } from "@/components/ui/card";
+import { Button } from "@/components/ui/button";
+import { Lock } from "lucide-react";
 import { getIsraelYear, parseIsraelTime } from "@/lib/date-utils";
 import { EXCLUDE_BULK_UMBRELLA_WHERE } from "@/lib/payments/types";
 import {
@@ -9,6 +13,8 @@ import {
   buildClientWhere,
   buildSessionWhere,
   buildPaymentWhere,
+  isSecretary,
+  secretaryCan,
   type ScopeUser,
 } from "@/lib/scope";
 
@@ -215,6 +221,33 @@ export default async function ReportsPage() {
   if (!session?.user?.id) return null;
 
   const scopeUser = await loadScopeUser(session.user.id);
+
+  // Phase 1 (סבב 21): canViewStats — היה dead permission עד היום (מוגדר במטריצה
+  // אך לא נאכף בשום route). מזכירה בלי canViewStats לא תקבל גישה לדוחות
+  // העסקיים. בעלים/מטפלים: גישה תמיד. הכלל לא חל על מטפל עצמאי (אין מזכירה).
+  if (isSecretary(scopeUser) && !secretaryCan(scopeUser, "canViewStats")) {
+    return (
+      <div className="max-w-2xl mx-auto py-12" dir="rtl">
+        <Card>
+          <CardContent className="py-16 text-center space-y-4">
+            <Lock className="h-12 w-12 text-muted-foreground mx-auto" aria-hidden="true" />
+            <div>
+              <h2 className="text-xl font-bold">אין הרשאה לצפייה בדוחות</h2>
+              <p className="text-sm text-muted-foreground mt-2">
+                גישה לדוחות העסקיים מותנית בהרשאת &quot;צפייה בסטטיסטיקות&quot;.
+                <br />
+                לפתיחת ההרשאה — פנה/י לבעל/ת הקליניקה.
+              </p>
+            </div>
+            <Button asChild variant="outline">
+              <Link href="/dashboard">חזרה לדשבורד</Link>
+            </Button>
+          </CardContent>
+        </Card>
+      </div>
+    );
+  }
+
   const data = await getReportData(scopeUser);
 
   return <ReportsView data={data} />;

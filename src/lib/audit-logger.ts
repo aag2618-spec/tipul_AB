@@ -27,9 +27,10 @@ export type AuditRecordType =
   | "CLIENT_PROFILE"
   | "SESSION_DETAIL"
   | "PAYMENT"
-  | "DOCUMENT";
+  | "DOCUMENT"
+  | "CONSENT_FORM";
 
-export type AuditAction = "READ" | "EXPORT" | "PRINT" | "DELETE" | "UPDATE";
+export type AuditAction = "READ" | "EXPORT" | "PRINT" | "DELETE" | "UPDATE" | "SIGN";
 
 export interface AuditLogParams {
   /** ID של המשתמש שביצע את הקריאה. null עבור גישה ציבורית-אנונימית

@@ -115,6 +115,13 @@ export async function PATCH(
       return NextResponse.json({ message: "לא נמצא" }, { status: 404 });
     }
 
+    if (form.signedAt) {
+      return NextResponse.json(
+        { message: "הטופס כבר נחתם" },
+        { status: 400 }
+      );
+    }
+
     const updated = await prisma.consentForm.update({
       where: { id },
       data: {
@@ -163,6 +170,13 @@ export async function DELETE(
     const form = await findScopedForm(id, scopeUser);
     if (!form) {
       return NextResponse.json({ message: "לא נמצא" }, { status: 404 });
+    }
+
+    if (form.signedAt) {
+      return NextResponse.json(
+        { message: "לא ניתן למחוק טופס שנחתם" },
+        { status: 400 }
+      );
     }
 
     await prisma.consentForm.delete({

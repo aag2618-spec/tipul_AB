@@ -61,9 +61,14 @@ export default function PackagesClient({
   const router = useRouter();
   const searchParams = useSearchParams();
   const [working, setWorking] = useState<string | null>(null);
+  const [polling, setPolling] = useState(false);
+  const [liveBalances, setLiveBalances] = useState<Record<PackageType, number> | null>(null);
   const paramHandledRef = useRef(false);
+  const pollRef = useRef<ReturnType<typeof setInterval> | null>(null);
 
-  // ── הודעות חזרה מ-Cardcom ──
+  const effectiveBalances = liveBalances ?? view.balances;
+
+  // ── הודעות חזרה מ-Cardcom + polling ──
   useEffect(() => {
     const purchaseParam = searchParams.get("purchase");
     if (!purchaseParam) return;
@@ -71,14 +76,55 @@ export default function PackagesClient({
     paramHandledRef.current = true;
 
     if (purchaseParam === "success") {
-      toast.success("הרכישה הושלמה. הקרדיטים יתווספו תוך מספר שניות.");
+      toast.loading("ממתין לעדכון קרדיטים...", { id: "pkg-poll" });
       router.replace("/dashboard/settings/packages");
-      router.refresh();
+      setPolling(true);
+
+      let attempts = 0;
+      const maxAttempts = 10;
+      pollRef.current = setInterval(async () => {
+        attempts++;
+        try {
+          const res = await fetch("/api/packages/verify-purchase", {
+            method: "POST",
+          });
+          if (res.ok) {
+            const data = await res.json();
+            const b = data.balances as Record<PackageType, number>;
+            if (
+              b.SMS > view.balances.SMS ||
+              b.AI_DETAILED_ANALYSIS > view.balances.AI_DETAILED_ANALYSIS
+            ) {
+              if (pollRef.current) clearInterval(pollRef.current);
+              setPolling(false);
+              setLiveBalances(b);
+              toast.success("הקרדיטים נוספו לחשבון!", { id: "pkg-poll" });
+              router.refresh();
+              return;
+            }
+          }
+        } catch {
+          // ignore poll errors
+        }
+        if (attempts >= maxAttempts) {
+          if (pollRef.current) clearInterval(pollRef.current);
+          setPolling(false);
+          toast.error(
+            "הקרדיטים עדיין לא התעדכנו. נסה/י לרענן את הדף בעוד מספר שניות.",
+            { id: "pkg-poll" }
+          );
+          router.refresh();
+        }
+      }, 3000);
     } else if (purchaseParam === "failed") {
       toast.error("הרכישה נכשלה. נסה/י שוב או בחר/י באמצעי תשלום אחר.");
       router.replace("/dashboard/settings/packages");
     }
-  }, [searchParams, router]);
+
+    return () => {
+      if (pollRef.current) clearInterval(pollRef.current);
+    };
+  }, [searchParams, router, view.balances]);
 
   const handlePurchase = async (packageId: string) => {
     setWorking(packageId);
@@ -140,8 +186,17 @@ export default function PackagesClient({
       {/* יתרות נוכחיות */}
       <Card>
         <CardHeader>
-          <CardTitle>יתרות נוכחיות</CardTitle>
-          <CardDescription>היתרה הזמינה לשימוש כעת.</CardDescription>
+          <CardTitle className="flex items-center gap-2">
+            יתרות נוכחיות
+            {polling && (
+              <Loader2 className="h-4 w-4 animate-spin text-muted-foreground" />
+            )}
+          </CardTitle>
+          <CardDescription>
+            {polling
+              ? "ממתין לעדכון קרדיטים מ-Cardcom..."
+              : "היתרה הזמינה לשימוש כעת."}
+          </CardDescription>
         </CardHeader>
         <CardContent>
           <div className="grid gap-3 sm:grid-cols-2">
@@ -158,7 +213,7 @@ export default function PackagesClient({
                   <div className="flex-1">
                     <div className="text-sm text-muted-foreground">{label}</div>
                     <div className="font-mono text-2xl font-bold">
-                      {view.balances[type].toLocaleString("he-IL")}
+                      {effectiveBalances[type].toLocaleString("he-IL")}
                     </div>
                   </div>
                 </div>

@@ -235,6 +235,7 @@ model User {
   consentForms           ConsentForm[]
   insurerSettings        InsurerSettings?
   insurerReports         InsurerReport[]
+  clientCommitments      ClientCommitment[]
   billingProviders       BillingProvider[]
   aiUsageStats           AIUsageStats?
   sessionPreps           SessionPrep[]
@@ -368,6 +369,7 @@ model AdminAlert {
   @@index([userId])
   @@index([scheduledFor])
   @@index([priority, status])
+  @@index([type, userId, status])
 }
 
 enum AdminAlertType {
@@ -453,6 +455,8 @@ model Client {
   consentToAI   Boolean?  @default(true)
   consentToAIAt DateTime?
 
+  healthFund HealthInsurer?
+
   createdAt DateTime @default(now())
   updatedAt DateTime @updatedAt
 
@@ -492,8 +496,14 @@ model Client {
   // Clinic departure flow — בחירות שמטופל זה עשה כשמטפלת עוזבת
   departureChoices ClientDepartureChoice[]
 
+  commitments ClientCommitment[]
+
   @@index([organizationId])
   @@index([organizationId, therapistId])
+  @@index([therapistId])
+  @@index([therapistId, status, isQuickClient])
+  @@index([organizationId, status, isQuickClient])
+  @@index([organizationId, updatedAt(sort: Desc)])
 }
 
 enum ClientStatus {
@@ -557,6 +567,10 @@ model TherapySession {
 
   @@index([organizationId])
   @@index([organizationId, startTime])
+  @@index([therapistId, startTime])
+  @@index([therapistId, status, startTime])
+  @@index([clientId, startTime(sort: Desc)])
+  @@index([organizationId, status, startTime])
 }
 
 enum SessionStatus {
@@ -709,6 +723,9 @@ model Payment {
   @@index([hasReceipt])
   @@index([organizationId])
   @@index([status, parentPaymentId, paidAt])
+  @@index([organizationId, status, parentPaymentId, paidAt(sort: Desc)])
+  @@index([organizationId, status, parentPaymentId, createdAt(sort: Desc)])
+  @@index([clientId, status, parentPaymentId])
 }
 
 enum PaymentMethod {
@@ -805,6 +822,7 @@ model Notification {
 
   @@index([userId, status, createdAt])
   @@index([userId, createdAt])
+  @@index([type, status, createdAt])
 }
 
 enum NotificationType {
@@ -843,6 +861,10 @@ model Task {
 
   userId String
   user   User   @relation(fields: [userId], references: [id], onDelete: Cascade)
+
+  @@index([userId, status, type])
+  @@index([userId, relatedEntityId, type, status])
+  @@index([userId, dueDate])
 }
 
 enum TaskType {
@@ -979,6 +1001,8 @@ model SubscriptionPayment {
 
   @@index([autoChargeEnabled, nextChargeAt])
   @@index([status, nextChargeAt])
+  @@index([userId, createdAt(sort: Desc)])
+  @@index([status, createdAt])
 }
 
 enum SubscriptionPaymentStatus {
@@ -1084,6 +1108,11 @@ model CommunicationLog {
   organizationId String?
 
   @@index([organizationId])
+  @@index([sessionId, type, channel, status])
+  @@index([userId, createdAt(sort: Desc)])
+  @@index([userId, clientId, type, channel, status, createdAt])
+  @@index([createdAt, type])
+  @@index([messageId])
 }
 
 enum CommunicationType {
@@ -1442,15 +1471,17 @@ model SMSSettings {
 // ==================== Consent Forms ====================
 
 model ConsentForm {
-  id            String      @id @default(cuid())
-  type          ConsentType
-  title         String
-  content       String      @db.Text // HTML content of the form
-  isTemplate    Boolean     @default(false) // Is this a reusable template?
-  signedAt      DateTime?
-  signatureData String?     @db.Text // Base64 signature image
-  createdAt     DateTime    @default(now())
-  updatedAt     DateTime    @updatedAt
+  id                 String      @id @default(cuid())
+  type               ConsentType
+  title              String
+  content            String      @db.Text // HTML content of the form
+  isTemplate         Boolean     @default(false) // Is this a reusable template?
+  signedAt           DateTime?
+  signatureData      String?     @db.Text // Base64 signature image
+  signToken          String?     @unique @db.VarChar(32)
+  signTokenExpiresAt DateTime?
+  createdAt          DateTime    @default(now())
+  updatedAt          DateTime    @updatedAt
 
   clientId String?
   client   Client? @relation(fields: [clientId], references: [id], onDelete: Cascade)
@@ -1464,6 +1495,7 @@ model ConsentForm {
   @@index([type])
   @@index([clientId])
   @@index([organizationId])
+  @@index([organizationId, isTemplate, createdAt(sort: Desc)])
 }
 
 enum ConsentType {
@@ -1546,6 +1578,39 @@ enum ReportStatus {
   CONFIRMED
   REJECTED
   ERROR
+}
+
+enum CommitmentStatus {
+  ACTIVE
+  EXPIRED
+  CANCELLED
+}
+
+model ClientCommitment {
+  id               String           @id @default(cuid())
+  commitmentNumber String?
+  form17Number     String?
+  referringDoctor  String?
+  referralDate     DateTime?
+  approvedSessions Int?
+  usedSessions     Int              @default(0)
+  copaymentAmount  Decimal?         @db.Decimal(10, 2)
+  startDate        DateTime?
+  endDate          DateTime?
+  status           CommitmentStatus @default(ACTIVE)
+  notes            String?          @db.Text
+  createdAt        DateTime         @default(now())
+  updatedAt        DateTime         @updatedAt
+
+  clientId String
+  client   Client @relation(fields: [clientId], references: [id], onDelete: Cascade)
+
+  therapistId String
+  therapist   User   @relation(fields: [therapistId], references: [id], onDelete: Cascade)
+
+  @@index([clientId])
+  @@index([therapistId])
+  @@index([status])
 }
 
 // ==================== AI Usage Tracking ====================
@@ -1846,7 +1911,7 @@ model TierLimits {
   description   String? @db.Text // תיאור התוכנית
 
   // הנחות לפי תקופת תשלום (אחוזים, 0-100)
-  discountQuarterly  Int @default(5)  // הנחה ל-3 חודשים
+  discountQuarterly  Int @default(5) // הנחה ל-3 חודשים
   discountSemiAnnual Int @default(10) // הנחה לחצי שנה
   discountAnnual     Int @default(17) // הנחה לשנה
 
@@ -2057,35 +2122,35 @@ model DataAccessAuditLog {
 // גם אחרי שנים. אכיפה ברמת ה-API (אין DELETE endpoint).
 
 model BreachIncident {
-  id            String                @id @default(cuid())
+  id                     String         @id @default(cuid())
   // detectedAt — מתי התגלה (יכול להיות אחרי occurredAt)
-  detectedAt    DateTime              @default(now())
+  detectedAt             DateTime       @default(now())
   // occurredAt — מתי האירוע קרה בפועל (אם ידוע). null = לא ידוע מתי התחיל.
-  occurredAt    DateTime?
-  severity      BreachSeverity        @default(MEDIUM)
-  category      BreachCategory
-  title         String                @db.Text
-  description   String                @db.Text
+  occurredAt             DateTime?
+  severity               BreachSeverity @default(MEDIUM)
+  category               BreachCategory
+  title                  String         @db.Text
+  description            String         @db.Text
   // affectedClientIds — JSON array של clientIds שנפגעו (לתחקור צולב).
   // אם null — לא ידוע / כלל המערכת.
-  affectedClientIds Json?
-  affectedClientsCount Int            @default(0)
+  affectedClientIds      Json?
+  affectedClientsCount   Int            @default(0)
   // notifiedRegistrarAt — מתי דווח לרשם הגנת הפרטיות (72-hr clock).
-  notifiedRegistrarAt  DateTime?
+  notifiedRegistrarAt    DateTime?
   // notifiedClientsAt — מתי המטופלים שנפגעו יודעו (אם רלוונטי).
-  notifiedClientsAt    DateTime?
+  notifiedClientsAt      DateTime?
   // resolution — מה נעשה כדי לסגור (תיקון, rotation, וכו').
-  resolution           String?        @db.Text
-  resolvedAt           DateTime?
-  status        BreachStatus          @default(OPEN)
+  resolution             String?        @db.Text
+  resolvedAt             DateTime?
+  status                 BreachStatus   @default(OPEN)
   // reportedById — ADMIN שתיעד את האירוע (לא בהכרח שגילה).
-  reportedById  String
-  reportedBy    User                  @relation("BreachReporter", fields: [reportedById], references: [id], onDelete: Restrict)
+  reportedById           String
+  reportedBy             User           @relation("BreachReporter", fields: [reportedById], references: [id], onDelete: Restrict)
   // snapshot של שם המדווח — לתיעוד היסטורי אם המשתמש נמחק.
   reportedByNameSnapshot String
 
-  createdAt     DateTime              @default(now())
-  updatedAt     DateTime              @updatedAt
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
 
   @@index([severity, detectedAt])
   @@index([status, detectedAt])
@@ -2093,29 +2158,29 @@ model BreachIncident {
 }
 
 enum BreachSeverity {
-  LOW      // לדוגמה: misconfigured cookie scope, צפייה לא מורשית של רשומה יחידה
-  MEDIUM   // לדוגמה: דליפת email/phone של מעט מטופלים
-  HIGH     // לדוגמה: PHI של 10+ מטופלים, או credentials של מטפל
+  LOW // לדוגמה: misconfigured cookie scope, צפייה לא מורשית של רשומה יחידה
+  MEDIUM // לדוגמה: דליפת email/phone של מעט מטופלים
+  HIGH // לדוגמה: PHI של 10+ מטופלים, או credentials של מטפל
   CRITICAL // לדוגמה: פריצה למסד נתונים, חשיפת ENCRYPTION_KEY, ransomware
 }
 
 enum BreachCategory {
-  UNAUTHORIZED_ACCESS     // משתמש לא מורשה הצליח לראות נתונים
-  DATA_LEAK               // נתונים זלגו החוצה (בטעות, hack, vendor)
-  CREDENTIAL_COMPROMISE   // סיסמה/token/key נחשפו
-  PHISHING                // ניסיון/הצלחה של phishing על משתמש
-  SYSTEM_FAILURE          // תקלה שגרמה לחשיפה (bug, misconfig)
-  PHYSICAL_LOSS           // אובדן/גניבת מכשיר עם data
-  THIRD_PARTY             // ספק חיצוני (Resend, Render, Google) דיווח על אירוע
+  UNAUTHORIZED_ACCESS // משתמש לא מורשה הצליח לראות נתונים
+  DATA_LEAK // נתונים זלגו החוצה (בטעות, hack, vendor)
+  CREDENTIAL_COMPROMISE // סיסמה/token/key נחשפו
+  PHISHING // ניסיון/הצלחה של phishing על משתמש
+  SYSTEM_FAILURE // תקלה שגרמה לחשיפה (bug, misconfig)
+  PHYSICAL_LOSS // אובדן/גניבת מכשיר עם data
+  THIRD_PARTY // ספק חיצוני (Resend, Render, Google) דיווח על אירוע
   OTHER
 }
 
 enum BreachStatus {
-  OPEN          // נפתח, עדיין נחקר
+  OPEN // נפתח, עדיין נחקר
   INVESTIGATING // בחקירה פעילה
-  CONTAINED     // נעצרה דליפה; ייתכן ועוד תיקונים
-  RESOLVED      // נסגר לחלוטין + דווח לרשם אם נדרש
-  FALSE_ALARM   // התברר שלא היה אירוע אמיתי
+  CONTAINED // נעצרה דליפה; ייתכן ועוד תיקונים
+  RESOLVED // נסגר לחלוטין + דווח לרשם אם נדרש
+  FALSE_ALARM // התברר שלא היה אירוע אמיתי
 }
 
 // ==================== Online Booking ====================
@@ -2417,6 +2482,7 @@ model CardcomTransaction {
   @@index([tenant, userId, status])
   @@index([subscriptionPaymentId])
   @@index([paymentId])
+  @@index([status, lowProfileId, createdAt])
 }
 
 model SavedCardToken {
@@ -2631,6 +2697,7 @@ model CardcomInvoice {
   @@index([status, issuedAt])
   @@index([cardcomDocumentType, issuedAt])
   @@index([allocationNumber])
+  @@index([paymentId])
 }
 
 // ==================== Two-Factor Authentication ====================

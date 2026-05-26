@@ -19,6 +19,11 @@ export const createSessionSchema = z.object({
   topic: z.string().max(MAX_TOPIC, "נושא ארוך מדי").optional(),
   isRecurring: z.boolean().optional(),
   allowOverlap: z.boolean().optional(),
+  // קליניקה רב-מטפלית: בעלים/מזכירה יכולים לציין מטפל יעד.
+  // ברירת מחדל ב-route: עצמאי → self; מזכירה ללא בחירה → יורשת מהלקוח.
+  // trim() כדי שמחרוזת רווחים תיכשל ב-min(1) ולא תיפול בשקט ל-fallback.
+  // הוולידציה הסמנטית (אותה קליניקה, role-gate, ownership) ב-route.
+  therapistId: z.string().trim().min(1).max(64).optional(),
 }).refine(
   (data) => {
     if (data.type !== "BREAK" && !data.clientId) {

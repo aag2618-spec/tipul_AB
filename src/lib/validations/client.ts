@@ -1,5 +1,5 @@
 import { z } from "zod";
-import { ClientStatus } from "@prisma/client";
+import { ClientStatus, HealthInsurer } from "@prisma/client";
 
 // H12: caps על כל שדות free-text. address ו-notes נכנסים ל-UI ולמיילים — חשוב cap.
 
@@ -21,6 +21,12 @@ export const createClientSchema = z.object({
   defaultSessionPrice: z.union([z.number().min(0).max(100_000), z.string().max(20)]).optional(),
   // M1 — הסכמה לעיבוד AI בזמן יצירת המטופל. אם לא נשלח, ה-default ב-DB הוא true.
   consentToAI: z.boolean().optional(),
+  healthFund: z.nativeEnum(HealthInsurer).optional().nullable(),
+  // קליניקה רב-מטפלית: מזכירה / בעלים יכולים לבחור מטפל אחראי בעת יצירה.
+  // אורך מוגבל ל-64 (תואם ל-cuid). trim() כדי שמחרוזת רווחים תיכשל ב-min(1)
+  // ולא תיפול בשקט ל-fallback של self ב-route. הוולידציה הסמנטית (אותו
+  // ארגון, קיים, לא חסום, לא SECRETARY) ב-route.
+  therapistId: z.string().trim().min(1).max(64).optional(),
 });
 
 export type CreateClientInput = z.infer<typeof createClientSchema>;
@@ -31,6 +37,10 @@ export const createQuickClientSchema = z.object({
   phone: z.string().max(MAX_PHONE, "טלפון ארוך מדי").optional(),
   email: z.string().max(254, "מייל ארוך מדי").email("כתובת מייל לא תקינה").optional().or(z.literal("")),
   defaultSessionPrice: z.union([z.number().min(0).max(100_000), z.string().max(20)]).optional(),
+  // קליניקה רב-מטפלית: גם בפונה מהיר (פגישת ייעוץ) מזכירה חייבת לבחור מטפל
+  // אחראי, אחרת המטופל יישמר על שמה והפגישה תזרום על המטפל הלא-נכון.
+  // trim() כדי שמחרוזת רווחים תיכשל ב-min(1) ולא תיפול בשקט ל-fallback של self.
+  therapistId: z.string().trim().min(1).max(64).optional(),
 }).refine(
   (data) => data.phone || data.email,
   { message: "נדרש טלפון או מייל", path: ["phone"] }
@@ -51,6 +61,7 @@ export const updateClientSchema = z.object({
   defaultSessionPrice: z
     .union([z.number().min(0).max(100_000), z.string().max(20), z.null()])
     .optional(),
+  healthFund: z.nativeEnum(HealthInsurer).optional().nullable(),
 });
 export type UpdateClientInput = z.infer<typeof updateClientSchema>;
 
@@ -75,3 +86,33 @@ export const updateContactSchema = z.object({
   contactRelationship: z.string().max(80).optional().nullable(),
 });
 export type UpdateContactInput = z.infer<typeof updateContactSchema>;
+
+// ==================== התחייבויות קופת חולים ====================
+
+const MAX_COMMITMENT_NUMBER = 50;
+const MAX_FORM17 = 50;
+const MAX_DOCTOR_NAME = 200;
+const MAX_COMMITMENT_NOTES = 5_000;
+
+const dateStringField = z.string().max(40).refine(
+  (s) => !s || !Number.isNaN(Date.parse(s)), "תאריך לא תקין"
+).optional().nullable();
+
+export const createCommitmentSchema = z.object({
+  commitmentNumber: z.string().max(MAX_COMMITMENT_NUMBER, "מספר התחייבות ארוך מדי").optional().nullable(),
+  form17Number: z.string().max(MAX_FORM17, "מספר טופס 17 ארוך מדי").optional().nullable(),
+  referringDoctor: z.string().max(MAX_DOCTOR_NAME, "שם רופא ארוך מדי").optional().nullable(),
+  referralDate: dateStringField,
+  approvedSessions: z.number().int().min(1, "מספר טיפולים חייב להיות לפחות 1").max(9999).optional().nullable(),
+  copaymentAmount: z.union([z.number().min(0).max(100_000), z.null()]).optional(),
+  startDate: dateStringField,
+  endDate: dateStringField,
+  notes: z.string().max(MAX_COMMITMENT_NOTES, "הערות ארוכות מדי").optional().nullable(),
+});
+export type CreateCommitmentInput = z.infer<typeof createCommitmentSchema>;
+
+export const updateCommitmentSchema = createCommitmentSchema.extend({
+  usedSessions: z.number().int().min(0).max(9999).optional(),
+  status: z.enum(["ACTIVE", "EXPIRED", "CANCELLED"]).optional(),
+});
+export type UpdateCommitmentInput = z.infer<typeof updateCommitmentSchema>;

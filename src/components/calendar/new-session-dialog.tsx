@@ -23,6 +23,10 @@ export interface SessionFormData {
   topic: string;
   isRecurring: boolean;
   weeksToRepeat: number;
+  // Phase 1 (סבב 21): מיקום הפגישה. בקליניקה רב-מטפלית זה משמש את
+  // findClinicLocationConflict לאיתור double-booking על אותו חדר.
+  // אם השדה ריק — לא נבדקת חפיפת חדר (התנהגות תאימות).
+  location: string;
 }
 
 export interface RecurringPreviewItem {
@@ -41,6 +45,9 @@ export interface PendingFormRecurring {
   type: string;
   price: string;
   topic: string;
+  // Phase 1 (סבב 21): מיקום משותף לכל הפגישות בסדרה החוזרת — נשלח ל-/api/sessions
+  // POST כדי שבדיקת חפיפת חדר תרוץ. אופציונלי לתאימות לאחור.
+  location?: string;
   sessions: Array<{ startTime: string; endTime: string }>;
 }
 
@@ -53,6 +60,7 @@ export const DEFAULT_FORM_DATA: SessionFormData = {
   topic: "",
   isRecurring: false,
   weeksToRepeat: 4,
+  location: "",
 };
 
 // ── Props ──
@@ -149,6 +157,10 @@ export function NewSessionDialog({
       type: string;
       price: number;
       topic: string | undefined;
+      // Phase 1 (סבב 21): חייב להיות בטיפוס כדי להעביר אותו הלאה
+      // ל-submitSingleSession בעת replace/allowOverlap. במציאות תמיד
+      // נשלח (כי ה-payload המקורי כולל אותו) — זו רק התאמת טיפוס.
+      location: string | undefined;
     };
   } | null>(null);
   const [conflictDecision, setConflictDecision] = useState<"replace" | "create">("replace");
@@ -372,6 +384,7 @@ export function NewSessionDialog({
             type: formData.type,
             price: formData.price,
             topic: formData.topic.trim(),
+            location: formData.location.trim() || undefined,
             sessions: planned.map((p) => ({ startTime: p.startLocal, endTime: p.endLocal })),
           }
         );
@@ -406,6 +419,9 @@ export function NewSessionDialog({
         type: formData.type,
         price: parseFloat(formData.price) || 0,
         topic: formData.topic.trim() || undefined,
+        // Phase 1 (סבב 21): שולחים location לשרת כדי שבדיקת חפיפת חדר
+        // (findClinicLocationConflict) תרוץ. ריק → undefined → השרת לא יבדוק.
+        location: formData.location.trim() || undefined,
       };
 
       if (conflicts.length > 0) {
@@ -439,6 +455,7 @@ export function NewSessionDialog({
       type: string;
       price: number;
       topic: string | undefined;
+      location: string | undefined;
     },
     options?: { allowOverlap?: boolean; replaceSessionIds?: string[] }
   ) => {
@@ -818,6 +835,24 @@ export function NewSessionDialog({
               />
             </div>
           </div>
+
+          {/* Phase 1 (סבב 21): שדה מיקום/חדר. בקליניקה זה משמש לבדיקת חפיפת
+              חדר ברמת ה-organizationId. שדה אופציונלי — מטפל עצמאי שלא רושם
+              location ימשיך לעבוד כמו קודם. */}
+          {formData.type !== "BREAK" && (
+            <div className="space-y-2">
+              <Label htmlFor="location">מיקום / חדר (אופציונלי)</Label>
+              <Input
+                id="location"
+                placeholder="למשל: חדר 1, אונליין, כתובת מלאה"
+                value={formData.location}
+                onChange={(e) =>
+                  setFormData((prev) => ({ ...prev, location: e.target.value }))
+                }
+                maxLength={500}
+              />
+            </div>
+          )}
 
           {/* Recurring Options */}
           <div className="flex items-center justify-between p-4 rounded-lg bg-muted/50">

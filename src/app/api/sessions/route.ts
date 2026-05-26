@@ -7,7 +7,14 @@ import { createSessionSchema } from "@/lib/validations/session";
 import { logger } from "@/lib/logger";
 import { serializePrisma } from "@/lib/serialize";
 import { syncSessionToGoogleCalendar } from "@/lib/google-calendar-sync";
-import { buildClientWhere, buildSessionWhere, isSecretary, loadScopeUser } from "@/lib/scope";
+import {
+  buildClientWhere,
+  buildSessionWhere,
+  isClinicOwner,
+  isSecretary,
+  loadScopeUser,
+  secretaryCan,
+} from "@/lib/scope";
 import { calculatePaidAmount } from "@/lib/payment-utils";
 import {
   findClinicLocationConflict,
@@ -124,32 +131,138 @@ export async function POST(request: NextRequest) {
 
     const parsed = await parseBody(request, createSessionSchema);
     if ("error" in parsed) return parsed.error;
-    const { clientId, startTime, endTime, type, price, location, notes, topic, isRecurring, allowOverlap } = parsed.data;
+    const { clientId, startTime, endTime, type, price, location, notes, topic, isRecurring, allowOverlap, therapistId: requestedTherapistId } = parsed.data;
 
     const scopeUser = await loadScopeUser(userId);
     const clientScopeWhere = buildClientWhere(scopeUser);
 
-    // Verify client belongs to therapist / clinic scope (skip for BREAK)
-    let clientDefaultPrice = 0;
+    // Phase 1 (סבב 21): מזכירה אסור לה ליצור פגישה ללא secretaryPermissions —
+    // אכיפה שהיתה חסרה לחלוטין מ-POST. ב-PUT/PATCH יש בדיקות כאלה כבר. גם אם
+    // ה-UI יחסום לחיצה, אסור להסתמך על client-side בלבד.
+    if (isSecretary(scopeUser) && !secretaryCan(scopeUser, "canCreateClient")) {
+      // canCreateClient משמש כ-"הרשאה תפעולית בסיסית" — מי שמורשה לפתוח תיק
+      // מורשה גם לקבוע פגישות. אם זה לא יספיק בעתיד, יש להוסיף canCreateSession
+      // למטריצה ולעדכן את UI/typings.
+      return NextResponse.json(
+        { message: "אין הרשאה ליצירת פגישה" },
+        { status: 403 }
+      );
+    }
+
+    // Phase 1 (סבב 21): פתרון מטפל היעד + ולידציית בעלות הלקוח.
+    // הסדר חשוב: קודם מאתרים את הלקוח (כי מזכירה יורשת ממנו את therapistId),
+    // אחר כך פותרים את finalTherapistId, ואז מאמתים tenant + ownership.
+    //
+    // עקרונות:
+    //   • מטפל עצמאי (organizationId=null): finalTherapistId = self תמיד.
+    //   • OWNER (clinicRole=OWNER): יכול למקד כל מטפל בקליניקה; ברירת מחדל = self.
+    //   • SECRETARY: יכולה למקד כל מטפל בקליניקה; אם לא ציינה — יורשת מהלקוח
+    //     (זה מתקן את הבאג ההיסטורי שבו הפגישה הייתה נכתבת על שמה ולא על
+    //     שם המטפל האמיתי, ושומר על תאימות מלאה ל-UI הקיים).
+    //   • THERAPIST רגיל בקליניקה: חייב self (אסור לקבוע פגישה לקולגה).
+    const trimmedRequestedTherapistId = requestedTherapistId?.trim() || "";
+    const trimmedSelfRequest =
+      trimmedRequestedTherapistId && trimmedRequestedTherapistId === userId;
+
+    // Step 1: Verify client belongs to scope (skip for BREAK).
+    let client: Awaited<ReturnType<typeof prisma.client.findFirst>> | null = null;
     if (type !== "BREAK") {
-      const client = await prisma.client.findFirst({
+      client = await prisma.client.findFirst({
         where: { AND: [{ id: clientId }, clientScopeWhere] },
       });
-
       if (!client) {
         return NextResponse.json(
           { message: "מטופל לא נמצא" },
           { status: 404 }
         );
       }
+    }
 
-      // Use client's default session price if no price provided
+    // Step 2: Resolve finalTherapistId.
+    let finalTherapistId: string;
+    if (!scopeUser.organizationId) {
+      // מטפל עצמאי — חייב להיות self.
+      if (trimmedRequestedTherapistId && !trimmedSelfRequest) {
+        return NextResponse.json(
+          { message: "לא ניתן לקבוע פגישה למטפל אחר במצב עצמאי" },
+          { status: 400 }
+        );
+      }
+      finalTherapistId = userId;
+    } else if (trimmedRequestedTherapistId && !trimmedSelfRequest) {
+      // נבחר מטפל אחר במפורש — H1 role gate: רק OWNER ו-SECRETARY מורשים.
+      if (!isClinicOwner(scopeUser) && !isSecretary(scopeUser)) {
+        return NextResponse.json(
+          { message: "אין הרשאה לקבוע פגישה עבור מטפל אחר" },
+          { status: 403 }
+        );
+      }
+      finalTherapistId = trimmedRequestedTherapistId;
+    } else if (isSecretary(scopeUser) && client) {
+      // מזכירה ללא בחירה מפורשת + יש לקוח: יורשת את therapistId מהלקוח.
+      // זה התיקון לבאג ההיסטורי + שומר על תאימות מלאה ל-UI הקיים.
+      finalTherapistId = client.therapistId;
+      if (finalTherapistId !== userId) {
+        logger.info(
+          "[sessions/POST] Secretary inherited therapistId from client (legacy UI)",
+          {
+            userId,
+            clientId: client.id,
+            inheritedTherapistId: finalTherapistId,
+            organizationId: scopeUser.organizationId,
+          }
+        );
+      }
+    } else {
+      // OWNER/THERAPIST ללא בחירה, או מזכירה עם BREAK ללא לקוח — ברירת מחדל self.
+      finalTherapistId = userId;
+    }
+
+    // Step 3: אם finalTherapistId שונה מהמבצע — לוודא tenant + לא חסום + לא SECRETARY.
+    if (finalTherapistId !== userId) {
+      const target = await prisma.user.findFirst({
+        where: {
+          id: finalTherapistId,
+          organizationId: scopeUser.organizationId,
+          isBlocked: false,
+        },
+        select: { id: true, clinicRole: true },
+      });
+      if (!target) {
+        return NextResponse.json(
+          { message: "המטפל הנבחר לא נמצא בקליניקה" },
+          { status: 400 }
+        );
+      }
+      if (target.clinicRole === "SECRETARY") {
+        return NextResponse.json(
+          { message: "לא ניתן לשייך פגישה למזכירה" },
+          { status: 400 }
+        );
+      }
+    }
+
+    // Step 4: Ownership of client vs target therapist.
+    // מזכירה: אסור לה לקבוע פגישה למטפל X על מטופל ששייך למטפל Y.
+    // OWNER: יכול לקבוע לכל לקוח בקליניקה (בעלים = הרשאת-על).
+    let clientDefaultPrice = 0;
+    if (type !== "BREAK" && client) {
+      if (
+        scopeUser.organizationId &&
+        client.therapistId !== finalTherapistId &&
+        !isClinicOwner(scopeUser)
+      ) {
+        return NextResponse.json(
+          { message: "המטופל אינו משויך למטפל הנבחר" },
+          { status: 400 }
+        );
+      }
+
+      // Default session price מהלקוח, ואם 0 — מהמטפל היעד (לא מהמבצע).
       clientDefaultPrice = Number(client.defaultSessionPrice || 0);
-
-      // אם גם למטופל אין מחיר, ניקח את מחיר ברירת המחדל של המטפל
       if (clientDefaultPrice === 0) {
         const therapist = await prisma.user.findUnique({
-          where: { id: userId },
+          where: { id: finalTherapistId },
           select: { defaultSessionPrice: true },
         });
         if (therapist?.defaultSessionPrice) {
@@ -180,10 +293,12 @@ export async function POST(request: NextRequest) {
       );
     }
 
-    // Check for conflicts
+    // Check for conflicts on the **target therapist's** calendar — not the
+    // operator's. לפני התיקון, מזכירה שקבעה למטפל X לא היתה מקבלת אזהרת
+    // double-booking (כי היומן שלה ריק); עכשיו הבדיקה רצה על המטפל היעד.
     const conflict = await prisma.therapySession.findFirst({
       where: {
-        therapistId: userId,
+        therapistId: finalTherapistId,
         status: { notIn: ["CANCELLED", "COMPLETED", "NO_SHOW"] },
         OR: [
           {
@@ -249,7 +364,7 @@ export async function POST(request: NextRequest) {
 
     const therapySession = await prisma.therapySession.create({
       data: {
-        therapistId: userId,
+        therapistId: finalTherapistId,
         organizationId: scopeUser.organizationId,
         clientId: type === "BREAK" ? null : clientId,
         startTime: parsedStartTime,
@@ -273,8 +388,10 @@ export async function POST(request: NextRequest) {
       },
     });
 
-    // Sync to Google Calendar (non-blocking)
-    syncSessionToGoogleCalendar(userId, {
+    // Sync to Google Calendar — סנכרון תמיד מבוצע ב-Calendar של המטפל היעד
+    // (Calendar שייך למטפל ולא למזכירה שיצרה את הפגישה). ככה הפגישה תופיע
+    // ב-Google Calendar של המטפל הנכון.
+    syncSessionToGoogleCalendar(finalTherapistId, {
       id: therapySession.id,
       clientName: therapySession.client?.name || null,
       type: therapySession.type,

@@ -1,5 +1,6 @@
 import { NextRequest, NextResponse } from "next/server";
 import { z } from "zod";
+import { HealthInsurer } from "@prisma/client";
 import { requireAuth } from "@/lib/api-auth";
 import prisma from "@/lib/prisma";
 import { logger } from "@/lib/logger";
@@ -53,6 +54,7 @@ const UpdateClientSchema = z.object({
   // true = הסכים, false = סירב במפורש (חוסם AI), null = ביטול בחירה (חוזר ל-default).
   // השדה לא חסום למזכירה כי זו החלטה משפטית של המטופל מטופס שהוא חתם — לא קביעה קלינית.
   consentToAI: z.boolean().nullable().optional(),
+  healthFund: z.nativeEnum(HealthInsurer).optional().nullable(),
 }).passthrough();
 
 export async function GET(
@@ -79,6 +81,11 @@ export async function GET(
       client = await prisma.client.findFirst({ where: whereClause });
     } else if (isSecretary(scopeUser)) {
       // הגנה על תוכן קליני: מזכירה מקבלת select מצומצם בלבד (ללא sessionNote/recordings/transcription/analysis).
+      // Phase 1 (סבב 21): payments נחשפו תמיד למזכירה גם בלי canViewPayments —
+      // מקור פערים מול buildPaymentWhere ב-/api/payments. עכשיו: כוללים
+      // payments ב-select רק אם canViewPayments=true. אותו דין ל-canViewDebts
+      // (אם בעתיד נחלק את הצגת התשלומים להיסטוריה נטו vs יתרת חוב).
+      const canSeePayments = secretaryCan(scopeUser, "canViewPayments");
       client = await prisma.client.findFirst({
           where: whereClause,
           select: {
@@ -99,15 +106,26 @@ export async function GET(
                 organizationId: true,
               },
             },
-            payments: {
-              orderBy: { createdAt: "desc" },
-              take: 10,
-            },
+            ...(canSeePayments
+              ? {
+                  payments: {
+                    orderBy: { createdAt: "desc" as const },
+                    take: 10,
+                  },
+                }
+              : {}),
             documents: {
               orderBy: { createdAt: "desc" },
             },
           },
         });
+
+      // עקביות ב-shape ל-frontend: אם payments הוסרו, נחזיר מערך ריק
+      // במקום undefined. הקליינטים בודקים `client.payments?.length`,
+      // אבל יותר בטוח להחזיר מערך ריק עקבי.
+      if (client && !canSeePayments) {
+        (client as Record<string, unknown>).payments = [];
+      }
     } else {
       client = await prisma.client.findFirst({
           where: whereClause,
@@ -188,7 +206,7 @@ export async function PUT(
       );
     }
 
-    const { firstName, lastName, phone, email, birthDate, address, notes, status, initialDiagnosis, intakeNotes, defaultSessionPrice, isQuickClient, consentToAI } = parsed.data;
+    const { firstName, lastName, phone, email, birthDate, address, notes, status, initialDiagnosis, intakeNotes, defaultSessionPrice, isQuickClient, consentToAI, healthFund } = parsed.data;
 
     const scopeUser = await loadScopeUser(userId);
     const scopeWhere = buildClientWhere(scopeUser);
@@ -266,6 +284,9 @@ export async function PUT(
             : {}),
         ...(consentChanged
           ? { consentToAI, consentToAIAt: new Date() }
+          : {}),
+        ...(healthFund !== undefined
+          ? { healthFund: healthFund || null }
           : {}),
       },
     });

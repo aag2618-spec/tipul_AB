@@ -329,6 +329,7 @@ export function getClientSafeSelectForSecretary() {
     // לראות כדי שתבין למה פעולות AI חוזרות עם 403.
     consentToAI: true,
     consentToAIAt: true,
+    healthFund: true,
   } as const;
 }
 

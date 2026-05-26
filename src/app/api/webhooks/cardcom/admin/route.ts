@@ -49,6 +49,8 @@ import { sanitizeCardcomPayload, sanitizeChargebackPayload } from "@/lib/cardcom
 import { hashCardcomToken } from "@/lib/cardcom/token-hash";
 import { resolveUpdateCardWebhookOutcome } from "@/lib/payments/subscription-settings";
 import { resolvePackagePurchaseWebhookOutcome } from "@/lib/payments/package-purchase";
+import { sendEmail } from "@/lib/resend";
+import { escapeHtml } from "@/lib/email-utils";
 import type { CardcomWebhookPayload } from "@/lib/cardcom/types";
 
 export const dynamic = "force-dynamic";
@@ -981,6 +983,18 @@ async function processPackagePurchaseWebhook(
     alreadyGranted: existingPurchase !== null,
   });
 
+  const emailRef: {
+    data: {
+      userEmail: string;
+      userName: string;
+      packageName: string;
+      credits: number;
+      amount: number;
+      receiptUrl: string | null;
+      receiptNumber: string | null;
+    } | null;
+  } = { data: null };
+
   await withAudit(
     {
       kind: "system",
@@ -1214,6 +1228,24 @@ async function processPackagePurchaseWebhook(
         });
       }
 
+      const subscriberForEmail = await tx.user.findUnique({
+        where: { id: transaction.userId! },
+        select: { name: true, email: true },
+      });
+
+      emailRef.data = {
+        userEmail: subscriberForEmail?.email ?? "",
+        userName: subscriberForEmail?.name ?? "",
+        packageName: pkg.name,
+        credits: pkg.credits,
+        amount: Number(transaction.amount),
+        receiptUrl:
+          payload.DocumentInfo?.DocumentUrl ??
+          payload.DocumentInfo?.DocumentLink ??
+          null,
+        receiptNumber: adminDocNumStr,
+      };
+
       logger.info("[cardcom-admin] PACKAGE_PURCHASE granted credits", {
         userId: transaction.userId,
         transactionId: transaction.id,
@@ -1224,6 +1256,66 @@ async function processPackagePurchaseWebhook(
       });
     }
   );
+
+  const emailData = emailRef.data;
+  if (emailData?.userEmail) {
+    const typeLabelHe =
+      emailData.credits > 0
+        ? `${emailData.credits} קרדיטים`
+        : emailData.packageName;
+    const safeUser = escapeHtml(emailData.userName || "משתמש/ת");
+    const safePkg = escapeHtml(emailData.packageName);
+    const amountStr = `₪${emailData.amount.toLocaleString("he-IL")}`;
+    let safeReceiptUrl: string | null = null;
+    if (emailData.receiptUrl) {
+      try {
+        const u = new URL(emailData.receiptUrl);
+        if (u.protocol === "http:" || u.protocol === "https:") {
+          safeReceiptUrl = u.toString();
+        }
+      } catch { /* invalid URL — skip */ }
+    }
+    const receiptHtml = safeReceiptUrl
+      ? `<a href="${escapeHtml(safeReceiptUrl)}" style="display:inline-block;background:#10b981;color:#fff;padding:10px 24px;border-radius:6px;text-decoration:none;font-weight:600;margin-top:16px;">צפה בקבלה</a>`
+      : emailData.receiptNumber
+        ? `<p style="color:#6b7280;font-size:14px;">מספר קבלה: ${escapeHtml(emailData.receiptNumber)}</p>`
+        : "";
+
+    void sendEmail({
+      to: emailData.userEmail,
+      subject: `אישור רכישה — ${emailData.packageName}`,
+      html: `
+        <div dir="rtl" style="font-family:'Segoe UI',Tahoma,Geneva,Verdana,sans-serif;max-width:600px;margin:0 auto;padding:20px;">
+          <div style="background:linear-gradient(135deg,#10b981 0%,#059669 100%);padding:24px;border-radius:12px 12px 0 0;text-align:center;">
+            <div style="font-size:40px;margin-bottom:8px;">✓</div>
+            <h1 style="color:#fff;margin:0;font-size:22px;">הרכישה הושלמה בהצלחה</h1>
+          </div>
+          <div style="background:#fff;padding:24px;border-radius:0 0 12px 12px;border:1px solid #e5e7eb;border-top:none;">
+            <p style="color:#111827;font-size:16px;">שלום ${safeUser},</p>
+            <p style="color:#4b5563;font-size:15px;line-height:1.6;">
+              חבילת <strong>${safePkg}</strong> נרכשה בהצלחה.
+            </p>
+            <div style="background:#d1fae5;border:2px solid #10b981;border-radius:10px;padding:16px;margin:20px 0;text-align:center;">
+              <p style="margin:0;color:#065f46;font-size:13px;font-weight:600;">סכום ששולם</p>
+              <p style="margin:6px 0 0;color:#047857;font-size:28px;font-weight:800;">${escapeHtml(amountStr)}</p>
+            </div>
+            <p style="color:#4b5563;font-size:15px;">
+              <strong>${escapeHtml(typeLabelHe)}</strong> נוספו לחשבון שלך.
+            </p>
+            ${receiptHtml}
+            <p style="color:#9ca3af;font-size:12px;margin-top:30px;">
+              הודעה זו נשלחה אוטומטית. אין צורך להשיב.
+            </p>
+          </div>
+        </div>
+      `,
+    }).catch((err) => {
+      logger.error("[cardcom-admin] PACKAGE_PURCHASE receipt email failed", {
+        userId: transaction.userId,
+        error: err instanceof Error ? err.message : String(err),
+      });
+    });
+  }
 }
 
 // raisePackageMissingAlert — סוכן 5 ממצא #2: הכסף נגבה אבל אין Package להעניק.

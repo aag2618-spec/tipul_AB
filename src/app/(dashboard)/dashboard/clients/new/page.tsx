@@ -68,6 +68,7 @@ function NewClientContent() {
     notes: "",
     status: "ACTIVE",
     defaultSessionPrice: "",
+    healthFund: "",
   });
   // M1 — ברירת מחדל true: לרוב המטפל יחתים את המטופל על הסכמה כללית.
   // אפשרות לכבות כאן אם המטופל סירב במפורש כבר בפגישה הראשונה.
@@ -182,7 +183,7 @@ function NewClientContent() {
         const clientResponse = await fetch(`/api/clients/${fromQuickId}`, {
           method: "PUT",
           headers: { "Content-Type": "application/json" },
-          body: JSON.stringify({ ...formData, isQuickClient: false, consentToAI }),
+          body: JSON.stringify({ ...formData, healthFund: formData.healthFund || null, isQuickClient: false, consentToAI }),
         });
         if (!clientResponse.ok) {
           const data = await clientResponse.json();
@@ -193,7 +194,7 @@ function NewClientContent() {
         const clientResponse = await fetch("/api/clients", {
           method: "POST",
           headers: { "Content-Type": "application/json" },
-          body: JSON.stringify({ ...formData, consentToAI }),
+          body: JSON.stringify({ ...formData, healthFund: formData.healthFund || null, consentToAI }),
         });
         if (!clientResponse.ok) {
           const data = await clientResponse.json();
@@ -484,6 +485,28 @@ function NewClientContent() {
                     dir="ltr"
                     className="text-left"
                   />
+                </div>
+
+                <div className="space-y-2">
+                  <Label htmlFor="healthFund">קופת חולים</Label>
+                  <Select
+                    value={formData.healthFund}
+                    onValueChange={(value) =>
+                      setFormData((prev) => ({ ...prev, healthFund: value === "NONE" ? "" : value }))
+                    }
+                    disabled={isLoading}
+                  >
+                    <SelectTrigger id="healthFund">
+                      <SelectValue placeholder="פרטי (ללא קופה)" />
+                    </SelectTrigger>
+                    <SelectContent>
+                      <SelectItem value="NONE">פרטי (ללא קופה)</SelectItem>
+                      <SelectItem value="CLALIT">כללית</SelectItem>
+                      <SelectItem value="MACCABI">מכבי</SelectItem>
+                      <SelectItem value="MEUHEDET">מאוחדת</SelectItem>
+                      <SelectItem value="LEUMIT">לאומית</SelectItem>
+                    </SelectContent>
+                  </Select>
                 </div>
               </div>
 

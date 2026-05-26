@@ -8,6 +8,7 @@ import { Plus, FileText, CheckCircle, Clock, Trash2 } from "lucide-react";
 import Link from "next/link";
 import { format } from "date-fns";
 import { toast } from "sonner";
+import { CONSENT_TYPE_LABELS } from "@/lib/consent-templates";
 
 interface ConsentForm {
   id: string;
@@ -21,16 +22,6 @@ interface ConsentForm {
     name: string;
   } | null;
 }
-
-const CONSENT_TYPES = {
-  TREATMENT_AGREEMENT: "הסכם טיפול",
-  INFORMED_CONSENT: "הסכמה מדעת",
-  CONFIDENTIALITY: "הסכם סודיות",
-  RECORDING_CONSENT: "הסכמה להקלטה",
-  TELEHEALTH_CONSENT: "הסכמה לטיפול מרחוק",
-  PARENTAL_CONSENT: "הסכמת הורים",
-  CUSTOM: "טופס מותאם",
-};
 
 export default function ConsentFormsPage() {
   const [forms, setForms] = useState<ConsentForm[]>([]);
@@ -54,8 +45,7 @@ export default function ConsentFormsPage() {
         setForms(formsData);
         setTemplates(templatesData);
       }
-    } catch (error) {
-      console.error("Failed to fetch forms:", error);
+    } catch {
       toast.error("שגיאה בטעינת הטפסים");
     } finally {
       setIsLoading(false);
@@ -76,8 +66,7 @@ export default function ConsentFormsPage() {
       } else {
         throw new Error("Failed to delete form");
       }
-    } catch (error) {
-      console.error("Failed to delete form:", error);
+    } catch {
       toast.error("שגיאה במחיקת הטופס");
     }
   };
@@ -123,7 +112,7 @@ export default function ConsentFormsPage() {
                     <div>
                       <p className="font-medium">{template.title}</p>
                       <p className="text-sm text-muted-foreground">
-                        {CONSENT_TYPES[template.type as keyof typeof CONSENT_TYPES]}
+                        {CONSENT_TYPE_LABELS[template.type as keyof typeof CONSENT_TYPE_LABELS]}
                       </p>
                     </div>
                   </div>
@@ -186,7 +175,7 @@ export default function ConsentFormsPage() {
                         <span>{form.client?.name || "ללא מטופל"}</span>
                         <span>•</span>
                         <span>
-                          {CONSENT_TYPES[form.type as keyof typeof CONSENT_TYPES]}
+                          {CONSENT_TYPE_LABELS[form.type as keyof typeof CONSENT_TYPE_LABELS]}
                         </span>
                       </div>
                     </div>
@@ -210,13 +199,15 @@ export default function ConsentFormsPage() {
                         {form.signedAt ? "צפה" : "חתום"}
                       </Link>
                     </Button>
-                    <Button
-                      variant="ghost"
-                      size="icon"
-                      onClick={() => handleDelete(form.id)}
-                    >
-                      <Trash2 className="h-4 w-4 text-destructive" />
-                    </Button>
+                    {!form.signedAt && (
+                      <Button
+                        variant="ghost"
+                        size="icon"
+                        onClick={() => handleDelete(form.id)}
+                      >
+                        <Trash2 className="h-4 w-4 text-destructive" />
+                      </Button>
+                    )}
                   </div>
                 </div>
               ))}
