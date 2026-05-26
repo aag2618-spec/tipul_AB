@@ -638,6 +638,12 @@ export async function POST(
           approvalNumber: cardcomResult.approvalNumber,
           receiptNumber: cardcomResult.documentNumber ?? null,
           receiptUrl: cardcomResult.documentLink ?? null,
+          // ⭐ paymentId האפקטיבי — חשוב במיוחד למסלול additive partial:
+          // ה-route יוצר child (השורות 166-188) והקבלה נכתבת על ה-child.
+          // הצד הלקוח (ChargeSavedCardButton) חייב לעדכן את ה-paymentId
+          // שעליו ה-ReceiptPreviewDialog עושה polling — אחרת polling
+          // על ה-parent יחזיר receiptUrl=null ויפסיק ב-timeout.
+          paymentId: payment.id,
         };
       }
     );

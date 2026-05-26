@@ -28,7 +28,7 @@ import { useRouter } from "next/navigation";
 import Link from "next/link";
 import { ChargeCardcomDialog } from "./charge-cardcom-dialog";
 import { ChargeSavedCardButton } from "./charge-saved-card-button";
-import { openReceiptInNewTab } from "@/lib/open-receipt";
+import { ReceiptPreviewDialog } from "./receipt-preview-dialog";
 
 interface QuickMarkPaidProps {
   sessionId: string;
@@ -112,6 +112,11 @@ export function QuickMarkPaid({
   const [isLoading, setIsLoading] = useState(false);
   const [method, setMethod] = useState<string>("CASH");
   const [cardcomOpen, setCardcomOpen] = useState(false);
+  // תצוגת קבלה in-page (החלפה לפתיחה ב-tab חדש שנחסמה ע"י popup-blockers
+  // אחרי await fetch — איבוד user-gesture). הניווט/refresh נדחה לסגירת
+  // הדיאלוג כדי שהמטפל יספיק להדפיס.
+  const [receiptDialogOpen, setReceiptDialogOpen] = useState(false);
+  const [receiptDialogPaymentId, setReceiptDialogPaymentId] = useState<string | null>(null);
   const [showAdvanced, setShowAdvanced] = useState(false);
   const [paymentType, setPaymentType] = useState<"FULL" | "PARTIAL" | "CREDIT">("FULL");
   const [partialAmount, setPartialAmount] = useState<string>("");
@@ -297,22 +302,23 @@ export function QuickMarkPaid({
 
       toast.success(successMessage);
 
-      const paymentId = (result as { id?: string })?.id || existingPayment?.id;
-      if (paymentId) {
-        try {
-          const receiptRes = await fetch(`/api/payments/${paymentId}`);
-          if (receiptRes.ok) {
-            const pd = await receiptRes.json();
-            openReceiptInNewTab(pd?.receiptUrl);
-          }
-        } catch {}
-      }
-
       if (result?.receiptError) {
         toast.error(`שגיאה בהפקת קבלה: ${result.receiptError}`, { duration: 8000 });
       }
+
+      // ── הצגת קבלה in-page (במקום window.open שנחסם ע"י popup-blockers) ──
+      // נפתח Dialog עם iframe + כפתור הדפס. הניווט/refresh נדחים עד
+      // שהמטפל סוגר את הקבלה (בתוך onOpenChange של הדיאלוג).
+      const paymentId = (result as { id?: string })?.id || existingPayment?.id;
+      if (paymentId && businessType !== "NONE" && issueReceipt) {
+        setReceiptDialogPaymentId(paymentId);
+        setIsOpen(false);
+        // אנימציית סגירת Radix ~200ms — מחכים מעט יותר.
+        setTimeout(() => setReceiptDialogOpen(true), 220);
+        return;
+      }
+
       setIsOpen(false);
-      
       router.refresh();
     } catch (error) {
       toast.error("שגיאה בעדכון התשלום");
@@ -650,6 +656,23 @@ export function QuickMarkPaid({
         }
         router.refresh();
       }}
+    />
+
+    {/* תצוגת הקבלה אחרי תשלום מזומן/העברה/צ'ק/קרדיט. עבור CC־Cardcom
+        Dialog זה לא מופעל כאן — ChargeCardcomDialog מטפל בתצוגה
+        אחרי ה-webhook (עם isCardcom=true ו-polling ארוך). */}
+    <ReceiptPreviewDialog
+      open={receiptDialogOpen}
+      onOpenChange={(next) => {
+        setReceiptDialogOpen(next);
+        if (!next) {
+          // ה-router.refresh() נדחה לסגירת חלון הקבלה כדי שלא תהיה
+          // קפיצה ב-UI מתחת לדיאלוג בזמן שהמטפל מסתכל על הקבלה.
+          router.refresh();
+        }
+      }}
+      paymentId={receiptDialogPaymentId}
+      isCardcom={false}
     />
     </>
   );

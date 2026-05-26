@@ -27,7 +27,7 @@ import { CheckCircle, Loader2, FileText, ChevronDown, ChevronUp, CreditCard } fr
 import { toast } from "sonner";
 import { useRouter } from "next/navigation";
 import { ChargeCardcomDialog } from "@/components/payments/charge-cardcom-dialog";
-import { openReceiptInNewTab } from "@/lib/open-receipt";
+import { ReceiptPreviewDialog } from "@/components/payments/receipt-preview-dialog";
 
 // New interface with session object
 interface NewCompleteSessionDialogProps {
@@ -90,6 +90,14 @@ export function CompleteSessionDialog(props: CompleteSessionDialogProps) {
   const [cardcomOpen, setCardcomOpen] = useState(false);
   const [cardcomPaymentId, setCardcomPaymentId] = useState<string | undefined>(undefined);
   const [cardcomAmount, setCardcomAmount] = useState<number>(0);
+  // ── תצוגת קבלה in-page ───────────────────────────────────────
+  // אחרי תשלום מוצלח (לא-Cardcom) פותחים דיאלוג עם iframe לקבלה,
+  // עם כפתור הדפסה. ה-pendingNavigation נמתח עד שהמטפל סוגר את
+  // הקבלה — מונע ניווט חטוף בזמן צפייה.
+  const [receiptOpen, setReceiptOpen] = useState(false);
+  const [receiptPaymentId, setReceiptPaymentId] = useState<string | null>(null);
+  const [receiptIsCardcom, setReceiptIsCardcom] = useState(false);
+  const pendingNavigationRef = useRef<(() => void) | null>(null);
   const [amount, setAmount] = useState(defaultAmount.toString());
   const [includePayment, setIncludePayment] = useState(!hasPayment);
   const [showAdvanced, setShowAdvanced] = useState(false);
@@ -257,32 +265,41 @@ export function CompleteSessionDialog(props: CompleteSessionDialogProps) {
         body: JSON.stringify({ status: "COMPLETED" }),
       });
 
-      if (paymentResult?.id) {
-        try {
-          const receiptRes = await fetch(`/api/payments/${paymentResult.id}`);
-          if (receiptRes.ok) {
-            const pd = await receiptRes.json();
-            openReceiptInNewTab(pd?.receiptUrl);
-          }
-        } catch {}
-      }
       if (paymentResult?.receiptError) {
         toast.error(`שגיאה בהפקת קבלה: ${paymentResult.receiptError}`, { duration: 8000 });
       }
 
       toast.success("המפגש הושלם בהצלחה!");
-      setIsOpen(false);
       setSummary("");
       setShowAdvanced(false);
       setPaymentType("FULL");
       setPartialAmount("");
-      
-      // Call onSuccess callback if provided, otherwise navigate
-      if (onSuccess) {
-        onSuccess();
-      } else {
-        router.push(`/dashboard/sessions/${sessionId}`);
+
+      // ── הצגת קבלה מיד ב-iframe (במקום window.open שנחסם ע"י popup-blockers) ──
+      // אם יש paymentId והוא לא Cardcom (למזומן/העברה/צ'ק/קרדיט הקבלה
+      // נוצרת סינכרונית ולכן ה-receiptUrl זמין מיד), נציג Dialog פנימי
+      // עם iframe + כפתור הדפס. ה-onSuccess/router.push יידחו עד
+      // שהמטפל סוגר את חלון הקבלה — מונע ניווט חטוף.
+      const navigateAfter = () => {
+        if (onSuccess) {
+          onSuccess();
+        } else {
+          router.push(`/dashboard/sessions/${sessionId}`);
+        }
+      };
+      if (paymentResult?.id && businessType !== "NONE" && issueReceipt) {
+        pendingNavigationRef.current = navigateAfter;
+        setReceiptPaymentId(paymentResult.id);
+        setReceiptIsCardcom(false);
+        // סוגרים את הדיאלוג הראשי תחילה כדי שלא ייפתחו 2 דיאלוגים בו-זמנית
+        // (Radix Dialog supports nested but UX מבולגן). אנימציית Radix
+        // ~200ms — מחכים מעט יותר.
+        setIsOpen(false);
+        setTimeout(() => setReceiptOpen(true), 220);
+        return;
       }
+      setIsOpen(false);
+      navigateAfter();
     } catch (error) {
       toast.error("שגיאה בסיום המפגש");
       console.error(error);
@@ -599,6 +616,24 @@ export function CompleteSessionDialog(props: CompleteSessionDialogProps) {
       amount={cardcomAmount}
       defaultDescription={`פגישה`}
       onPaymentSuccess={handleCardcomSuccess}
+    />
+
+    {/* תצוגת קבלה in-page — נפתח אחרי תשלום מוצלח (לא-Cardcom).
+        כש-onOpenChange(false) → מבצע את הניווט שנדחה.
+        ⚠️ Cardcom מטופל בתוך ChargeCardcomDialog עצמו (המקום היחיד
+        שמכיר את התזמון של ה-webhook), לא כאן. */}
+    <ReceiptPreviewDialog
+      open={receiptOpen}
+      onOpenChange={(next) => {
+        setReceiptOpen(next);
+        if (!next) {
+          const nav = pendingNavigationRef.current;
+          pendingNavigationRef.current = null;
+          if (nav) nav();
+        }
+      }}
+      paymentId={receiptPaymentId}
+      isCardcom={receiptIsCardcom}
     />
     </>
   );

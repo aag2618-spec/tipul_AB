@@ -49,7 +49,7 @@ import {
   Ban,
 } from "lucide-react";
 import { toast } from "sonner";
-import { openReceiptInNewTab } from "@/lib/open-receipt";
+import { ReceiptPreviewDialog } from "@/components/payments/receipt-preview-dialog";
 
 type Step =
   | "setup"
@@ -163,6 +163,27 @@ export function ChargeCardcomDialog({
   // doesn't reliably send webhooks) and for production cases where the webhook
   // is delayed beyond the polling timeout.
   const [isSyncing, setIsSyncing] = useState<boolean>(false);
+  // ── תצוגת קבלה in-page אחרי הצלחה ──────────────────────────
+  // ב-Cardcom הקבלה נוצרת ע"י webhook אחרי הסליקה — ה-receiptUrl יכול
+  // להיות null מיידית אחרי APPROVED. ReceiptPreviewDialog יעשה polling
+  // עד 30s כדי לתת ל-webhook להגיע. אם לא הגיע, יוצג hint שיופיע בטאב
+  // "קבלות" תוך כמה דקות.
+  const [receiptDialogOpen, setReceiptDialogOpen] = useState<boolean>(false);
+  const [receiptDialogPaymentId, setReceiptDialogPaymentId] = useState<string | null>(null);
+  // ⚠️ pendingPaymentSuccessRef — חיוני למנוע unmount race:
+  // onPaymentSuccess של הקורא (לדוגמה handleCardcomSuccess ב-complete-session-
+  // dialog) קורא ל-onSuccess() שמרענן session → status=COMPLETED → ה-parent
+  // unmounts את כל הדיאלוג, כולל ה-ReceiptPreviewDialog שעוד לא הספיק
+  // להופיע. הפתרון: דוחים את ה-onPaymentSuccess עד שהמטפל סוגר את הקבלה.
+  const pendingPaymentSuccessRef = useRef<
+    (() => Promise<void> | void) | null
+  >(null);
+  // ⭐ receiptScheduledRef — מבדיל בין "המשתמש סגר לפני שהקבלה נפתחה"
+  // (cancel) לבין "סגירה אוטומטית של charge-dialog שצפויה להוביל לפתיחת
+  // receipt-dialog +220ms" (success path). flush-on-close צריך לרוץ רק
+  // ב-cancel — ב-success הוא ירוץ כש-receipt-dialog ייסגר. בלי הדגל
+  // הזה, ה-flush היה רץ פעמיים: פעם בסגירת charge ופעם בסגירת receipt.
+  const receiptScheduledRef = useRef<boolean>(false);
   // ── Cancel-link state ──────────────────────────────────────
   // Single in-flight + ref guard against double-click. Same pattern as resend.
   const [isCancellingLink, setIsCancellingLink] = useState<boolean>(false);
@@ -172,6 +193,14 @@ export function ChargeCardcomDialog({
   const idempotencyKeyRef = useRef<string>("");
   const pollTimerRef = useRef<ReturnType<typeof setTimeout> | null>(null);
   const pollStartedAtRef = useRef<number>(0);
+  // ── activePaymentIdRef — חיוני למסלול bulk + additive partial CC ──
+  // ה-state `paymentId` מתעדכן async דרך setPaymentId, אבל setTimeout/
+  // pollOnce תופסים את ה-paymentId מה-render שלהם. ב-bulk: incomingPaymentId
+  // הוא undefined; setPaymentId(umbrellaId) קורה, אבל ה-pollOnce שכבר נוצר
+  // ב-startPolling חי עם paymentId=undefined לנצח → setReceiptDialogPaymentId
+  // לעולם לא מקבל את ה-umbrella id. תיקון: ref שמתעדכן סינכרונית בעת
+  // ש-effectivePid ידוע, ונקרא ב-pollOnce ובכל handler אחר אחרי APPROVED.
+  const activePaymentIdRef = useRef<string | null>(null);
   // Generation id — מתעדכן בכל פתיחה/reset/סגירה. מונע race-condition של polls
   // ישנים שמסיימים אחרי שהדיאלוג נסגר/אופס ומפעילים setStep("success") מטעה.
   const generationRef = useRef<number>(0);
@@ -189,6 +218,33 @@ export function ChargeCardcomDialog({
       // Bump generation — כל poll/fetch ישן שיחזור עכשיו יתעלם.
       generationRef.current++;
       inFlightRef.current = false;
+
+      // ⚠️ flush pendingPaymentSuccessRef רק ב-cancel-path —
+      // למנוע stranded callback בתרחיש: APPROVED → set pending →
+      // המשתמש לחץ Esc/X לפני 800ms → setReceiptDialogOpen(true) לא רץ →
+      // ה-pending נשאר תקוע.
+      // ⭐ receiptScheduledRef מבטיח שלא נריץ flush ב-success path
+      // (כי ה-charge-dialog נסגר במכוון לפני ש-receipt-dialog פתוח).
+      // ה-receipt-dialog בעצמו יריץ את ה-pending כשהמשתמש יסגור אותו.
+      if (
+        !receiptScheduledRef.current &&
+        !receiptDialogOpen &&
+        pendingPaymentSuccessRef.current
+      ) {
+        const pending = pendingPaymentSuccessRef.current;
+        pendingPaymentSuccessRef.current = null;
+        // queueMicrotask כדי לא לעדכן state במהלך unmount/effect.
+        queueMicrotask(async () => {
+          try {
+            await pending();
+          } catch (err) {
+            console.error("onPaymentSuccess (flush on close) error:", err);
+          }
+        });
+      }
+      // איפוס receiptScheduledRef — מחכה לסבב הבא של תשלום.
+      receiptScheduledRef.current = false;
+
       // Reset only if we're past setup (avoid resetting while user is typing).
       if (step !== "setup") {
         setStep("setup");
@@ -203,6 +259,10 @@ export function ChargeCardcomDialog({
         setHasOpenCharge(false);
         idempotencyKeyRef.current = "";
       }
+      // ⭐ איפוס activePaymentIdRef — מונע שתפתיח עתידית של הדיאלוג על
+      // תשלום אחר תפתח את דיאלוג הקבלה עם paymentId ישן. מאפסים
+      // unconditionally (גם ב-setup) — ה-ref לא בשימוש לפני startCardcom.
+      activePaymentIdRef.current = null;
     }
     return () => {
       if (pollTimerRef.current) {
@@ -455,6 +515,17 @@ export function ChargeCardcomDialog({
       if (!effectivePid) {
         throw new Error("חסר מזהה תשלום בתשובת השרת");
       }
+      // ⭐ activePaymentIdRef — מעדכנים סינכרונית ב-ref כדי שכל handler
+      // עתידי (pollOnce/handleSyncStatus) יוכל לקרוא את ה-id האמיתי גם
+      // אם setPaymentId state עוד לא התרשם. רלוונטי במיוחד ב-bulk
+      // (incomingPaymentId=undefined) וב-additive partial CC (pid הוא
+      // child שונה מה-incomingPaymentId).
+      activePaymentIdRef.current = effectivePid;
+      if (!isBulk && pid !== incomingPaymentId) {
+        // additive partial: ensurePaymentId יצר child חדש; setPaymentId
+        // חייב להתעדכן כדי ש-cancel/sync ירוצו על ה-child.
+        setPaymentId(pid);
+      }
 
       setPaymentPageUrl(data.url);
       setTransactionId(data.transactionId);
@@ -539,27 +610,38 @@ export function ChargeCardcomDialog({
         if (data.status === "APPROVED") {
           setStep("success");
           toast.success("התשלום בוצע בהצלחה");
-          if (paymentId) {
-            try {
-              const receiptRes = await fetch(`/api/payments/${paymentId}`);
-              if (receiptRes.ok) {
-                const pd = await receiptRes.json();
-                openReceiptInNewTab(pd?.receiptUrl);
-              }
-            } catch {}
+          // ⚠️ דוחים את onPaymentSuccess כדי למנוע unmount race —
+          // ראה הערה ב-pendingPaymentSuccessRef declaration.
+          pendingPaymentSuccessRef.current = onPaymentSuccess ?? null;
+          // ── הצגת קבלה in-page (במקום window.open שנחסם) ──
+          // ב-Cardcom הקבלה נוצרת ע"י ה-webhook, יכולה לקחת
+          // כמה שניות להגיע. ReceiptPreviewDialog מטפל ב-polling.
+          // סוגרים את דיאלוג הסליקה ופותחים את דיאלוג הקבלה
+          // עם defer קצר (אנימציית Radix ~200ms).
+          // ⚠️ קוראים מ-activePaymentIdRef ולא מ-paymentId-state — ראה הערה
+          // ב-declaration של ה-ref. בלי זה: bulk ו-additive partial לעולם
+          // לא פותחים את דיאלוג הקבלה (paymentId-state עדיין לא עודכן).
+          const pidForReceipt = activePaymentIdRef.current ?? paymentId ?? null;
+          if (pidForReceipt) {
+            setReceiptDialogPaymentId(pidForReceipt);
+            // 800ms מספיקים לבני אדם לראות את "התשלום בוצע" בלי שירגישו
+            // שתקועים — המקור היה 1500ms שהיה איטי לאחר תשלום מהיר.
+            // ⭐ receiptScheduledRef מוגדר רק *בתוך* ה-setTimeout, מיד לפני
+            // ה-onOpenChange(false). כך תרחיש cancel-during-800ms (המשתמש
+            // לחץ Esc לפני שהזמן עבר): הדגל עדיין false → flush handler
+            // ירוץ flush של pending כך שה-onPaymentSuccess לא נשאר תקוע.
+            setTimeout(() => {
+              if (gen !== generationRef.current) return;
+              receiptScheduledRef.current = true;
+              onOpenChange(false);
+              setTimeout(() => setReceiptDialogOpen(true), 220);
+            }, 800);
+          } else {
+            // אין paymentId (לא אמור לקרות) — נוהג ישן: סגירה אחרי 1.5s.
+            setTimeout(() => {
+              if (gen === generationRef.current) onOpenChange(false);
+            }, 1500);
           }
-          if (onPaymentSuccess) {
-            try {
-              await onPaymentSuccess();
-            } catch (err) {
-              console.error("onPaymentSuccess error:", err);
-            }
-          }
-          // סגירה אוטומטית אחרי 2 שניות — generation guard ב-onOpenChange
-          // ימנע closes כפולים אם המשתמש סגר ידנית בינתיים.
-          setTimeout(() => {
-            if (gen === generationRef.current) onOpenChange(false);
-          }, 2000);
           return;
         }
         if (
@@ -705,14 +787,29 @@ export function ChargeCardcomDialog({
       if (data.status === "APPROVED") {
         toast.success("התשלום אושר ב-Cardcom — סטטוס עודכן");
         setStep("success");
-        if (onPaymentSuccess) {
-          try {
-            await onPaymentSuccess();
-          } catch (err) {
-            console.error("onPaymentSuccess error:", err);
-          }
+        // ⚠️ דוחים את onPaymentSuccess עד סגירת דיאלוג הקבלה (unmount race).
+        pendingPaymentSuccessRef.current = onPaymentSuccess ?? null;
+        // ⭐ generation guard + activePaymentIdRef (ראה הערה ב-pollOnce).
+        const syncGen = generationRef.current;
+        const pidForReceipt = activePaymentIdRef.current ?? paymentId ?? null;
+        if (pidForReceipt) {
+          setReceiptDialogPaymentId(pidForReceipt);
+          // ⭐ receiptScheduledRef מוגדר רק *בתוך* ה-setTimeout (ראה הערה
+          // ב-pollOnce) — חיוני לתרחיש cancel-during-800ms.
+          setTimeout(() => {
+            if (syncGen !== generationRef.current) return;
+            receiptScheduledRef.current = true;
+            onOpenChange(false);
+            setTimeout(() => {
+              if (syncGen !== generationRef.current) return;
+              setReceiptDialogOpen(true);
+            }, 220);
+          }, 800);
+        } else {
+          setTimeout(() => {
+            if (syncGen === generationRef.current) onOpenChange(false);
+          }, 1500);
         }
-        setTimeout(() => onOpenChange(false), 2000);
       } else if (data.status === "CANCELLED") {
         toast.error("העסקה בוטלה");
         setStep("failure");
@@ -812,6 +909,7 @@ export function ChargeCardcomDialog({
 
   // ── Render ───────────────────────────────────────────────────
   return (
+    <>
     <Dialog open={open} onOpenChange={onOpenChange}>
       <DialogContent className="sm:max-w-[600px] max-h-[90vh] overflow-y-auto">
         <DialogHeader>
@@ -1298,5 +1396,38 @@ export function ChargeCardcomDialog({
         </DialogFooter>
       </DialogContent>
     </Dialog>
+
+    {/* ⚠️ ReceiptPreviewDialog הוא Dialog Root נפרד (פורטל משלו) — לכן
+        מוצב כסיבלינג של Cardcom-dialog בתוך fragment. שני Dialogs לא
+        מקוננים ויכולים להיות פתוחים אחד אחרי השני בלי קונפליקט z-index.
+
+        onClose: רוקנים את pendingPaymentSuccessRef ומריצים את ה-onSuccess
+        שנדחה. זה הרגע שאחריו ה-parent יכול להסתיים unmount בלי לפוצץ
+        את שרשרת הדיאלוגים. */}
+    <ReceiptPreviewDialog
+      open={receiptDialogOpen}
+      onOpenChange={async (next) => {
+        setReceiptDialogOpen(next);
+        if (!next) {
+          // ⭐ איפוס דגל ה-success-path אחרי שהקבלה הוצגה ונסגרה ע"י המטפל.
+          // עכשיו ה-flush handler יוכל לרוץ flush של pending אם תהיה
+          // עוד פעולה (לא צפוי, אבל נכון בכל מקרה).
+          receiptScheduledRef.current = false;
+          const pending = pendingPaymentSuccessRef.current;
+          pendingPaymentSuccessRef.current = null;
+          if (pending) {
+            try {
+              await pending();
+            } catch (err) {
+              console.error("onPaymentSuccess (deferred) error:", err);
+            }
+          }
+        }
+      }}
+      paymentId={receiptDialogPaymentId}
+      isCardcom={true}
+      title="קבלת Cardcom"
+    />
+    </>
   );
 }

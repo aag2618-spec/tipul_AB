@@ -17,7 +17,7 @@ import {
 import { Button } from "@/components/ui/button";
 import { Loader2, CreditCard, AlertCircle, Trash2 } from "lucide-react";
 import { toast } from "sonner";
-import { openReceiptInNewTab } from "@/lib/open-receipt";
+import { ReceiptPreviewDialog } from "@/components/payments/receipt-preview-dialog";
 
 interface SavedToken {
   id: string;
@@ -57,10 +57,31 @@ export function ChargeSavedCardButton({
   const [dialogOpen, setDialogOpen] = useState(false);
   const [selectedTokenId, setSelectedTokenId] = useState<string | null>(null);
   const [isCharging, setIsCharging] = useState(false);
+  // תצוגת קבלה in-page אחרי חיוב מוצלח. Cardcom חייב webhook ליצירת
+  // הקבלה — ה-Dialog עושה polling עד 30s.
+  const [receiptDialogOpen, setReceiptDialogOpen] = useState(false);
+  // ⭐ receiptPaymentId — ב-additive partial ה-API מחזיר id של child
+  // חדש; חייבים לפתוח את הדיאלוג עם ה-id הזה ולא עם ה-prop paymentId
+  // (שהוא ה-parent). אחרת polling יחזיר null ויסתיים ב-timeout.
+  const [receiptPaymentId, setReceiptPaymentId] = useState<string>(paymentId);
   // Per-token delete state (id מסומן כמתחייב מחיקה).
   const [deletingTokenId, setDeletingTokenId] = useState<string | null>(null);
   const inFlightRef = useRef<boolean>(false);
   const idempotencyKeyRef = useRef<string | null>(null);
+  // ⚠️ אותו דפוס כמו ב-ChargeCardcomDialog: דוחים את onPaymentSuccess עד
+  // סגירת דיאלוג הקבלה כדי למנוע unmount race של ה-parent בזמן שהקבלה
+  // עוד לא הופיעה.
+  const pendingPaymentSuccessRef = useRef<
+    (() => Promise<void> | void) | null
+  >(null);
+  // ⭐ דגל success-path — ראה הערה זהה ב-charge-cardcom-dialog.tsx.
+  const receiptScheduledRef = useRef<boolean>(false);
+
+  // ⭐ סנכרון receiptPaymentId כש-prop משתנה — מונע stale id אם
+  // ה-component נטען מחדש על תשלום שונה.
+  useEffect(() => {
+    setReceiptPaymentId(paymentId);
+  }, [paymentId]);
 
   // טעינת רשימת הטוקנים (פעם אחת בעת mount).
   useEffect(() => {
@@ -111,6 +132,24 @@ export function ChargeSavedCardButton({
       setIsCharging(false);
       inFlightRef.current = false;
       idempotencyKeyRef.current = null;
+      // ⚠️ flush pendingPaymentSuccessRef רק ב-cancel-path — ראה הערה
+      // ב-charge-cardcom-dialog.tsx.
+      if (
+        !receiptScheduledRef.current &&
+        !receiptDialogOpen &&
+        pendingPaymentSuccessRef.current
+      ) {
+        const pending = pendingPaymentSuccessRef.current;
+        pendingPaymentSuccessRef.current = null;
+        queueMicrotask(async () => {
+          try {
+            await pending();
+          } catch {
+            // refresh failure non-fatal
+          }
+        });
+      }
+      receiptScheduledRef.current = false;
     }
     setDialogOpen(next);
   };
@@ -180,6 +219,9 @@ export function ChargeSavedCardButton({
         message?: string;
         errorMessage?: string;
         approvalNumber?: string;
+        // ⭐ paymentId האפקטיבי שעליו נכתבה הקבלה. ב-additive partial זה
+        // child חדש שונה מ-paymentId שב-prop. חיוני ל-ReceiptPreviewDialog.
+        paymentId?: string;
       };
       if (!res.ok) {
         throw new Error(data.message ?? "חיוב נכשל");
@@ -193,21 +235,21 @@ export function ChargeSavedCardButton({
           ? `החיוב אושר (אישור ${data.approvalNumber})`
           : "החיוב אושר"
       );
-      try {
-        const receiptRes = await fetch(`/api/payments/${paymentId}`);
-        if (receiptRes.ok) {
-          const pd = await receiptRes.json();
-          openReceiptInNewTab(pd?.receiptUrl);
-        }
-      } catch {}
-      if (onPaymentSuccess) {
-        try {
-          await onPaymentSuccess();
-        } catch {
-          // refresh failure non-fatal
-        }
-      }
+      // ⚠️ דוחים את onPaymentSuccess עד סגירת דיאלוג הקבלה (unmount race).
+      pendingPaymentSuccessRef.current = onPaymentSuccess ?? null;
+      // ⭐ עדכון receiptPaymentId לפני פתיחת הדיאלוג — נופל ל-prop רק אם
+      // ה-API לא מחזיר effective id (תאימות לאחור).
+      setReceiptPaymentId(data.paymentId ?? paymentId);
+      // ⭐ דגל success-path — מונע flush מוקדם ב-handleOpen(false) שיגרום
+      // ל-onPaymentSuccess לרוץ לפני שהקבלה הופיעה (ה-parent עלול להיות
+      // unmounted לפני שהמטפל יראה את הקבלה).
+      receiptScheduledRef.current = true;
       handleOpen(false);
+      // ── הצגת קבלה in-page (במקום window.open שנחסם) ──
+      // ב-saved-card-token החיוב + הקבלה synchroni (route /charge-saved-token
+      // קורא ל-Documents API באותה תגובה). אם data.receiptUrl קיים, polling
+      // יסתיים ב-iteration ראשון; אחרת polling עד 30s לפי isCardcom.
+      setTimeout(() => setReceiptDialogOpen(true), 220);
     } catch (err) {
       toast.error(err instanceof Error ? err.message : "חיוב נכשל");
     } finally {
@@ -345,6 +387,30 @@ export function ChargeSavedCardButton({
           </DialogFooter>
         </DialogContent>
       </Dialog>
+
+      <ReceiptPreviewDialog
+        open={receiptDialogOpen}
+        onOpenChange={async (next) => {
+          setReceiptDialogOpen(next);
+          if (!next) {
+            // ⭐ איפוס דגל ה-success-path: עכשיו אם המשתמש יסגור דיאלוג
+            // נוסף לפני שקבלה תיפתח, ה-flush handler יעבוד נכון.
+            receiptScheduledRef.current = false;
+            const pending = pendingPaymentSuccessRef.current;
+            pendingPaymentSuccessRef.current = null;
+            if (pending) {
+              try {
+                await pending();
+              } catch {
+                // refresh failure non-fatal
+              }
+            }
+          }
+        }}
+        paymentId={receiptPaymentId}
+        isCardcom={true}
+        title="קבלת Cardcom"
+      />
     </>
   );
 }

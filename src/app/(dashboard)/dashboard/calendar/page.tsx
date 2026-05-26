@@ -161,6 +161,7 @@ function CalendarPageContent() {
     type: string;
     price: string;
     topic: string;
+    location?: string;
     sessions: Array<{ startTime: string; endTime: string }>;
   } | null>(null);
 
@@ -835,7 +836,11 @@ function CalendarPageContent() {
           open={calendarCardcomOpen}
           onOpenChange={(open) => {
             setCalendarCardcomOpen(open);
-            if (!open) setCalendarCardcomData(null);
+            // ⚠️ אין לאפס calendarCardcomData ב-onClose! ChargeCardcomDialog
+            // מחזיק בתוכו את ReceiptPreviewDialog שנפתח 220ms אחרי שהדיאלוג
+            // הראשי נסגר (success-path). אם נאפס את הנתונים כאן, ה-component
+            // ייעלם מה-DOM ו-receipt-dialog לעולם לא ייפתח. הנתונים מתאפסים
+            // ב-onPaymentSuccess (אחרי שהקבלה נסגרה) או דרך timeout בכוונה.
           }}
           paymentId={calendarCardcomData.paymentId}
           sessionId={calendarCardcomData.sessionId}
@@ -849,6 +854,9 @@ function CalendarPageContent() {
             // CRITICAL: לא להסתפק ב-router.refresh — useCalendarData מחזיק
             // session-state ב-React state שמתעדכן רק דרך fetchData המפורש.
             await fetchData();
+            // עכשיו שאפשר — מאפסים את הנתונים. ה-ReceiptPreviewDialog
+            // כבר נסגר (זה התרחיש שמפעיל את onPaymentSuccess הדחוי).
+            setCalendarCardcomData(null);
           }}
         />
       )}

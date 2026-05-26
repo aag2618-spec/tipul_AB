@@ -1154,15 +1154,16 @@ export default function PaymentsPage() {
           />
         )}
 
-        {/* Cardcom dialog ברמת העמוד — חי בלי תלות ב-QuickMarkPaid */}
+        {/* Cardcom dialog ברמת העמוד — חי בלי תלות ב-QuickMarkPaid.
+            ⚠️ אין לאפס cardcomData ב-onClose! הקבלה נפתחת 220ms אחרי
+            שהדיאלוג הראשי נסגר; אם ננתק את הנתונים בסגירה, ה-component
+            ייעלם וה-ReceiptPreviewDialog (שיושב בתוכו) לא יראה.
+            המידע מתאפס ב-onPaymentSuccess אחרי שהקבלה נסגרה. */}
         {cardcomData && (
           <ChargeCardcomDialog
             open={cardcomOpen}
             onOpenChange={(open) => {
               setCardcomOpen(open);
-              if (!open) {
-                setCardcomData(null);
-              }
             }}
             paymentId={cardcomData.paymentId}
             sessionId={cardcomData.sessionId}
@@ -1173,6 +1174,8 @@ export default function PaymentsPage() {
             amount={cardcomData.amount}
             onPaymentSuccess={async () => {
               fetchData();
+              // עכשיו אפשר לאפס — הקבלה נסגרה.
+              setCardcomData(null);
             }}
           />
         )}

@@ -14,7 +14,7 @@ import { Checkbox } from "@/components/ui/checkbox";
 import { toast } from "sonner";
 import { format } from "date-fns";
 import { ChargeCardcomDialog } from "@/components/payments/charge-cardcom-dialog";
-import { openReceiptInNewTab } from "@/lib/open-receipt";
+import { ReceiptPreviewDialog } from "@/components/payments/receipt-preview-dialog";
 
 interface Payment {
   id: string;
@@ -62,6 +62,10 @@ export default function MarkPaidPage({ params }: { params: Promise<{ id: string 
   // כשעוד אין תשלומים על החוב) או child חדש שנוצר ע"י prepareCardcom
   // ב-ADDITIVE mode (כשמשלימים יתרה אחרי תשלום חלקי במזומן/בנק/צ'ק).
   const [cardcomChargeOnPaymentId, setCardcomChargeOnPaymentId] = useState<string>("");
+  // תצוגת קבלה in-page אחרי תשלום מוצלח (לא-Cardcom). הניווט ל-/payments
+  // נדחה עד שהמטפל סוגר את חלון הקבלה.
+  const [receiptDialogOpen, setReceiptDialogOpen] = useState(false);
+  const [receiptDialogPaymentId, setReceiptDialogPaymentId] = useState<string | null>(null);
 
   useEffect(() => {
     const fetchPayment = async () => {
@@ -209,14 +213,7 @@ export default function MarkPaidPage({ params }: { params: Promise<{ id: string 
           throw new Error("שגיאה בעדכון");
         }
 
-        const paymentResult = await response.json();
-        try {
-          const receiptRes = await fetch(`/api/payments/${id}`);
-          if (receiptRes.ok) {
-            const pd = await receiptRes.json();
-            openReceiptInNewTab(pd?.receiptUrl);
-          }
-        } catch {}
+        const _paymentResult = await response.json();
 
         let successMessage = "";
         if (creditUsed > 0 && amountToPay > 0) {
@@ -230,6 +227,16 @@ export default function MarkPaidPage({ params }: { params: Promise<{ id: string 
         }
 
         toast.success(successMessage);
+
+        // ── הצגת קבלה in-page (במקום window.open שנחסם) ──
+        // רק אם המטפל ביקש להוציא קבלה. הניווט ל-/payments מתבצע
+        // ב-onOpenChange של הדיאלוג כשהמשתמש סוגר את הקבלה.
+        if (businessType !== "NONE" && issueReceipt) {
+          setReceiptDialogPaymentId(id);
+          setReceiptDialogOpen(true);
+          return;
+        }
+
         router.push("/dashboard/payments");
       } catch (error) {
         console.error("Update error:", error);
@@ -529,8 +536,24 @@ export default function MarkPaidPage({ params }: { params: Promise<{ id: string 
         defaultDescription="פגישה"
         onPaymentSuccess={async () => {
           toast.success("התשלום בוצע בהצלחה");
-          router.push("/dashboard/payments");
+          // ה-ChargeCardcomDialog יציג את הקבלה in-page בעצמו
+          // (יש לו את ReceiptPreviewDialog פנימי). ניווט ל-/payments
+          // נדחה — אחרי שהמטפלת תסגור את חלון הקבלה היא יכולה לחזור
+          // ידנית; אם נווט עכשיו, הקבלה תיעלם בעקבות navigation.
         }}
+      />
+
+      <ReceiptPreviewDialog
+        open={receiptDialogOpen}
+        onOpenChange={(next) => {
+          setReceiptDialogOpen(next);
+          if (!next) {
+            // הניווט נדחה לסגירה כדי שהמטפל יספיק להדפיס.
+            router.push("/dashboard/payments");
+          }
+        }}
+        paymentId={receiptDialogPaymentId}
+        isCardcom={false}
       />
     </div>
   );

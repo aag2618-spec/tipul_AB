@@ -542,3 +542,56 @@
   border: 3px solid #10B981 !important;
   z-index: 10 !important;
 }
+
+/* ─────────────────────────────────────────────────────────────────
+   Print-only stylesheet — תצוגת הקבלה (ReceiptPreviewDialog +
+   public /receipt/[id]).
+
+   הצורך: כש-window.print() נקרא, הדפדפן מדפיס את כל הדף (UI dashboard,
+   navbar, dialog chrome). כדי להדפיס רק את גוף הקבלה, המסך מחפש את
+   #mytipul-receipt-print ומסתיר הכל מסביבו.
+
+   ⚠️ scoping ב-:has() — הכלל פעיל רק בדפים שיש בהם #mytipul-receipt-print.
+   אחרת יוצרנו רגרסיה שכל Ctrl+P בדאשבורד היה מוציא דף ריק. המזהה מוסף
+   גם בדיאלוג וגם בעמוד הציבורי /receipt/[id] שעושה window.print() משלו.
+
+   החלטות מבני:
+   • visibility במקום display:none — שומר על layout השלם של הקבלה.
+   • position:fixed (לא absolute) — חיוני! הדיאלוג של Radix הוא בעצמו
+     position:fixed עם transform — absolute היה תופס את ה-modal-box ולא
+     את עמוד ההדפסה. fixed תופס את ה-page-box של הדפדפן.
+   • print-color-adjust:exact — מבטיח הדפסה של ה-gradient וצבעי הרקע.
+     בלי זה רוב הדפדפנים מדפיסים רק טקסט שחור.
+   • max-height:none + overflow:visible — overrides של max-h-[90vh]
+     ו-overflow-hidden של ה-dialog שהיו מקצצים את הקבלה בהדפסה.
+   ───────────────────────────────────────────────────────────────── */
+@media print {
+  body:has(#mytipul-receipt-print) * {
+    visibility: hidden !important;
+    overflow: visible !important;
+    max-height: none !important;
+  }
+  body:has(#mytipul-receipt-print) #mytipul-receipt-print,
+  body:has(#mytipul-receipt-print) #mytipul-receipt-print * {
+    visibility: visible !important;
+  }
+  body:has(#mytipul-receipt-print) #mytipul-receipt-print {
+    position: fixed !important;
+    inset: 0 !important;
+    margin: 0 !important;
+    padding: 0 !important;
+    box-shadow: none !important;
+    width: 100% !important;
+    max-width: 100% !important;
+    max-height: none !important;
+    overflow: visible !important;
+    -webkit-print-color-adjust: exact !important;
+    print-color-adjust: exact !important;
+    background: white !important;
+  }
+  /* Page setup — A4 portrait עם margins סבירים. */
+  @page {
+    size: A4 portrait;
+    margin: 12mm;
+  }
+}

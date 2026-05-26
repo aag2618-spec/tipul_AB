@@ -191,9 +191,13 @@ export default function PublicReceiptPage({
           </div>
         </div>
 
-        {/* Receipt card - this is what gets captured to PDF */}
+        {/* Receipt card - this is what gets captured to PDF.
+            ⚠️ id="mytipul-receipt-print" — דרוש כדי ש-@media print
+            ב-globals.css יזהה את הקבלה ויסתיר את שאר הדף בעת הדפסה.
+            אותו ID משמש גם ב-ReceiptPreviewDialog בתוך הדאשבורד. */}
         <div
           ref={receiptRef}
+          id="mytipul-receipt-print"
           className="bg-white rounded-xl shadow-lg overflow-hidden"
           style={{ fontFamily: "'Heebo', 'Segoe UI', Arial, sans-serif" }}
         >

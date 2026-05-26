@@ -557,15 +557,18 @@ export function PayClientDebts({
 
     {/* Cardcom flow — נפתח רק כשהמשתמשת בחרה אשראי. תשלום בודד => מסלול
         רגיל עם paymentId; מצרפי (≥2 או PARTIAL) => bulk endpoint יוצר
-        umbrella + CardcomTransaction בצד server. */}
-    {showCardcomDialog && (
+        umbrella + CardcomTransaction בצד server.
+        ⚠️ אין mounting conditional כאן ({showCardcomDialog && ...}) —
+        ChargeCardcomDialog חייב להישאר ב-DOM אחרי APPROVED כדי שהקבלה
+        (ReceiptPreviewDialog בתוכו) תוכל להופיע 220ms אחרי הסגירה. רק
+        ה-prop `open` מבוקר; ה-Dialog של Radix מנהל הצגה/הסתרה. */}
+    {(showCardcomDialog || cardcomAmount > 0) && (
       <ChargeCardcomDialog
         open={showCardcomDialog}
         onOpenChange={(open) => {
           setShowCardcomDialog(open);
-          if (!open) {
-            setCardcomAmount(0);
-          }
+          // ⚠️ אין לאפס cardcomAmount ב-onClose. הוא יתאפס ב-onPaymentSuccess
+          // (אחרי שהקבלה נסגרה) או בפעם הבאה שהמשתמש פותח בחירת תשלום.
         }}
         clientId={clientId}
         clientName={clientName}
@@ -585,6 +588,8 @@ export function PayClientDebts({
         onPaymentSuccess={async () => {
           if (onPaymentComplete) onPaymentComplete();
           router.refresh();
+          // עכשיו שאפשר — מאפסים את הסכום (ה-ReceiptPreviewDialog נסגר).
+          setCardcomAmount(0);
         }}
       />
     )}
