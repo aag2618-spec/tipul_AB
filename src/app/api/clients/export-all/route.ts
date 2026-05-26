@@ -19,7 +19,7 @@ export async function GET(request: NextRequest) {
   try {
     const auth = await requireAuth();
     if ("error" in auth) return auth.error;
-    const { userId } = auth;
+    const { userId, originalUserId, isImpersonating } = auth;
 
     const scopeUser = await loadScopeUser(userId);
 
@@ -114,6 +114,7 @@ export async function GET(request: NextRequest) {
         clientCount: clients.length,
         scope: scopeUser.organizationId ? "organization" : "solo",
       },
+      ...(isImpersonating ? { impersonatedBy: originalUserId } : {}),
     });
 
     const zip = new JSZip();

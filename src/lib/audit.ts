@@ -18,6 +18,7 @@
 import type { Prisma } from "@prisma/client";
 import type { Session } from "next-auth";
 import { prisma } from "@/lib/prisma";
+import { logger } from "@/lib/logger";
 
 // ─── Actor model ────────────────────────────────────────────────────────────
 
@@ -184,4 +185,84 @@ export async function withAudit<T>(
   }
 
   throw new Error("withAudit: exhausted retries without result");
+}
+
+// ─── logDelegatedCreate — מעקב יצירה בשם מטפל אחר ───────────────────────────
+//
+// Phase 2 (2026-05-26): כש-OWNER/SECRETARY יוצרים רשומה ש"שייכת" למטפל אחר
+// בקליניקה (לקוח/פגישה/התחייבות/מסמך/טופס הסכמה), חשוב שלבעלת הקליניקה
+// יהיה trail של "מי יצר מה לטובת מי". זה לא הוצאת ADMIN audit במלוא המובן
+// (לא מתעד מנהלי מערכת) אבל משתמש באותו טבלה לטובת שאילתות "מי פעל בשם
+// מי" בדשבורד הקליניקה.
+//
+// **best-effort** — לא חוסם את ה-flow אם הכתיבה נכשלה. ה-create כבר הצליח
+// בנקודה שזה נקרא, ואם ה-audit נכשל מקבלים warn ב-stderr. למקרים שדורשים
+// אטומיות מלאה (admin operations, billing) השתמש ב-withAudit.
+
+export type DelegatedRecordType =
+  | "CLIENT"
+  | "SESSION"
+  | "COMMITMENT"
+  | "DOCUMENT"
+  | "CONSENT_FORM"
+  | "ATTACHMENT";
+
+export async function logDelegatedCreate(params: {
+  /**
+   * המבצע ה-effective — ה-`userId` מתוך `requireAuth()`. במצב impersonation
+   * זהו ה-target (המתחזה כ-), בדומה לדפוס של `logDataAccess`. הזהות של
+   * ה-actor האמיתי (OWNER) נשמרת בנפרד דרך `impersonatedBy`.
+   */
+  operatorId: string;
+  /** המטפל שהרשומה נכתבה תחתיו (=`finalTherapistId`). */
+  targetTherapistId: string;
+  /** סוג הרשומה — נכתב כ-targetType ב-audit (lowercase). */
+  recordType: DelegatedRecordType;
+  /** ID של הרשומה שזה עתה נוצרה. */
+  recordId: string;
+  /** Org ID — נשמר ב-details לטובת שאילתות per-clinic. */
+  organizationId?: string | null;
+  /** clientId אופציונלי (לסשנים/sub-records) — לטראגינג צולב ב-DSAR. */
+  clientId?: string | null;
+  /**
+   * `originalUserId` כש-`isImpersonating=true`. כשמסופק, נשמר ב-details
+   * כדי שיהיה אפשר לזהות את ה-OWNER שהיה מאחורי ההתחזות. תואם לדפוס
+   * `impersonatedBy` ב-`logDataAccess`.
+   */
+  impersonatedBy?: string | null;
+}): Promise<void> {
+  // אם המבצע = היעד **ואין impersonation**, אין delegation. לא רושמים כדי לא
+  // להציף את הלוג. במקרה של impersonation אנחנו תמיד רוצים לתעד — גם אם
+  // המתחזה אליו במקרה הוא גם המטפל היעד.
+  if (params.operatorId === params.targetTherapistId && !params.impersonatedBy) {
+    return;
+  }
+
+  try {
+    await prisma.adminAuditLog.create({
+      data: {
+        adminId: params.operatorId,
+        action: "delegated_create",
+        targetType: params.recordType.toLowerCase(),
+        targetId: params.recordId,
+        details: JSON.stringify({
+          targetTherapistId: params.targetTherapistId,
+          organizationId: params.organizationId ?? null,
+          clientId: params.clientId ?? null,
+          recordType: params.recordType,
+          ...(params.impersonatedBy ? { impersonatedBy: params.impersonatedBy } : {}),
+        }),
+      },
+    });
+  } catch (err) {
+    // לא קריטי — ה-create כבר הצליח. מתעדים warn ל-stderr כדי שיהיה visible
+    // במוניטורינג בלי לשבור את ה-API.
+    logger.warn("[delegated-create-audit] persist failed", {
+      operatorId: params.operatorId,
+      targetTherapistId: params.targetTherapistId,
+      recordType: params.recordType,
+      recordId: params.recordId,
+      error: err instanceof Error ? err.message : String(err),
+    });
+  }
 }

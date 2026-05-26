@@ -27,7 +27,7 @@ export async function GET(
   try {
     const auth = await requireAuth();
     if ("error" in auth) return auth.error;
-    const { userId } = auth;
+    const { userId, originalUserId, isImpersonating } = auth;
 
     const { id } = await params;
 
@@ -85,6 +85,7 @@ export async function GET(
         hasNote: !!sessionForMeta.sessionNote,
         hasTranscription: (sessionForMeta.recordings ?? []).some((r) => !!r.transcription),
       },
+      ...(isImpersonating ? { impersonatedBy: originalUserId } : {}),
     });
 
     return NextResponse.json(serializePrisma(therapySession));
@@ -184,9 +185,12 @@ export async function PUT(
         );
       }
 
+      // Phase 2: בדיקת חפיפה ב-PUT חייבת להתבצע על יומן ה-**מטפל היעד** (existingSession.therapistId)
+      // ולא של המבצע (userId). אחרת מזכירה/בעלים שמעדכנים פגישה של מטפל אחר
+      // יקבלו "אין התנגשות" כי היומן שלהם ריק — ויכתבו double-booking ביומן המטפל.
       const conflict = await prisma.therapySession.findFirst({
         where: {
-          therapistId: userId,
+          therapistId: existingSession.therapistId,
           id: { not: id }, // exclude this session
           status: { notIn: ["CANCELLED", "COMPLETED", "NO_SHOW"] },
           OR: [

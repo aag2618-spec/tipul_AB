@@ -34,7 +34,14 @@ export type AuditAction = "READ" | "EXPORT" | "PRINT" | "DELETE" | "UPDATE" | "S
 
 export interface AuditLogParams {
   /** ID של המשתמש שביצע את הקריאה. null עבור גישה ציבורית-אנונימית
-   *  (למשל קבלה דרך קישור public token) — נשמר עם snapshot email/name=null. */
+   *  (למשל קבלה דרך קישור public token) — נשמר עם snapshot email/name=null.
+   *
+   *  Impersonation: ה-userId הוא ה-**effective** (target) — זה ה-data subject
+   *  שעל הרשומה שלו ניגשו. ה-OWNER האמיתי שביצע את הקריאה דרך החיזוי נשמר
+   *  ב-`impersonatedBy` (ראה למטה). ככה ה-audit מחזיק שני trails במקביל:
+   *    • "מה היה ה-data scope של הקריאה?" → userId
+   *    • "מי אחראי לקריאה הזו בפועל?" → meta.impersonatedBy
+   *  (תאם לדפוס ב-/api/clients/[id]/export-personal-data, החל מ-Phase 2). */
   userId: string | null;
   recordType: AuditRecordType;
   recordId: string;
@@ -45,6 +52,11 @@ export interface AuditLogParams {
   request?: NextRequest;
   /** אופציונלי: metadata נוסף (למשל skip-summary flag, accessSource) */
   meta?: Record<string, unknown>;
+  /** Phase 2 — Impersonation: ה-`originalUserId` של ה-OWNER שעשה את ה-START
+   *  ושפעולותיו עוברות תחת זהות ה-target. כשמעבירים את זה, נכתב כ-
+   *  `meta.impersonatedBy` הן ל-stdout והן ל-DB. אם undefined, הקריאה
+   *  נחשבת רגילה (לא במצב impersonation). */
+  impersonatedBy?: string | null;
 }
 
 /**
@@ -55,7 +67,7 @@ export interface AuditLogParams {
  */
 export function logDataAccess(params: AuditLogParams): void {
   try {
-    const { userId, recordType, recordId, action, clientId, request, meta } =
+    const { userId, recordType, recordId, action, clientId, request, meta, impersonatedBy } =
       params;
 
     // H10 (סבב אבטחה 14, 2026-05-19): rightmost XFF דרך getClientIp.
@@ -63,6 +75,14 @@ export function logDataAccess(params: AuditLogParams): void {
     // עם IP מזויף ופוגע ב-forensics. עכשיו: ה-IP ש-Render proxy ראה בפועל.
     const ipAddress = request ? getClientIp(request) : undefined;
     const userAgent = request?.headers.get("user-agent") || undefined;
+
+    // Phase 2: אם זו קריאה במצב impersonation, מטמיעים את ה-OWNER האמיתי
+    // ב-meta.impersonatedBy. userId נשאר ה-target (data subject), וה-meta
+    // מתעד מי באמת לחץ. הדפוס תאם ל-/api/clients/[id]/export-personal-data.
+    const finalMeta: Record<string, unknown> | undefined =
+      impersonatedBy
+        ? { ...(meta ?? {}), impersonatedBy }
+        : meta;
 
     // Format: [AUDIT] {action} {recordType} — userId={X} recordId={Y} ...
     // זה format שקל לחלץ דרך grep/regex אם צריך לסקור לוגים.
@@ -75,7 +95,7 @@ export function logDataAccess(params: AuditLogParams): void {
       clientId: clientId ?? undefined,
       ipAddress,
       userAgent: userAgent?.substring(0, 200), // limit length
-      meta,
+      meta: finalMeta,
       timestamp: new Date().toISOString(),
     });
 
@@ -89,7 +109,7 @@ export function logDataAccess(params: AuditLogParams): void {
       clientId,
       ipAddress,
       userAgent,
-      meta,
+      meta: finalMeta,
     });
   } catch (err) {
     // אסור שlogging ישבור backend

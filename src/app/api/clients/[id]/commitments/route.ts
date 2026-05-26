@@ -3,9 +3,16 @@ import prisma from "@/lib/prisma";
 import { requireAuth } from "@/lib/api-auth";
 import { logger } from "@/lib/logger";
 import { serializePrisma } from "@/lib/serialize";
+import { logDelegatedCreate } from "@/lib/audit";
 import { parseBody } from "@/lib/validations/helpers";
 import { createCommitmentSchema } from "@/lib/validations/client";
-import { loadScopeUser, buildClientWhere, isSecretary, secretaryCan } from "@/lib/scope";
+import {
+  buildClientWhere,
+  isSecretary,
+  loadScopeUser,
+  resolveTherapistIdForClientChild,
+  secretaryCan,
+} from "@/lib/scope";
 
 export const dynamic = "force-dynamic";
 
@@ -50,7 +57,7 @@ export async function POST(
 ) {
   const auth = await requireAuth();
   if ("error" in auth) return auth.error;
-  const { userId } = auth;
+  const { userId, originalUserId, isImpersonating } = auth;
 
   const { id: clientId } = await context.params;
 
@@ -65,7 +72,7 @@ export async function POST(
 
     const client = await prisma.client.findFirst({
       where: { AND: [{ id: clientId }, buildClientWhere(scopeUser)] },
-      select: { id: true },
+      select: { id: true, therapistId: true },
     });
     if (!client) {
       return NextResponse.json({ message: "מטופל לא נמצא" }, { status: 404 });
@@ -80,10 +87,14 @@ export async function POST(
       startDate, endDate, notes,
     } = parsed.data;
 
+    // Phase 2: ההתחייבות שייכת ל-**מטפל של הלקוח** ולא למבצע — כך שמזכירה
+    // שיוצרת התחייבות לא "תופסת" את הבעלות במקום המטפל.
+    const finalTherapistId = resolveTherapistIdForClientChild({ scopeUser, client });
+
     const commitment = await prisma.clientCommitment.create({
       data: {
         clientId,
-        therapistId: userId,
+        therapistId: finalTherapistId,
         commitmentNumber: commitmentNumber || null,
         form17Number: form17Number || null,
         referringDoctor: referringDoctor || null,
@@ -94,6 +105,17 @@ export async function POST(
         endDate: endDate ? new Date(endDate) : null,
         notes: notes || null,
       },
+    });
+
+    // Phase 2: audit ליצירה בשם מטפל אחר.
+    await logDelegatedCreate({
+      operatorId: userId,
+      targetTherapistId: finalTherapistId,
+      recordType: "COMMITMENT",
+      recordId: commitment.id,
+      organizationId: scopeUser.organizationId,
+      clientId,
+      ...(isImpersonating ? { impersonatedBy: originalUserId } : {}),
     });
 
     return NextResponse.json(serializePrisma(commitment), { status: 201 });

@@ -3,9 +3,10 @@ import prisma from "@/lib/prisma";
 import { Resend } from "resend";
 import storage from "@/lib/storage";
 import { logger } from "@/lib/logger";
+import { logDelegatedCreate } from "@/lib/audit";
 
 import { requireAuth } from "@/lib/api-auth";
-import { loadScopeUser, buildClientWhere } from "@/lib/scope";
+import { buildClientWhere, loadScopeUser, resolveTherapistIdForClientChild } from "@/lib/scope";
 import { parseBody, parseSearchParams } from "@/lib/validations/helpers";
 import {
   attachmentDownloadQuerySchema,
@@ -20,7 +21,7 @@ export async function GET(request: NextRequest) {
   try {
     const auth = await requireAuth();
     if ("error" in auth) return auth.error;
-    const { userId, session } = auth;
+    const { userId } = auth;
 
     const scopeUser = await loadScopeUser(userId);
     const clientWhere = buildClientWhere(scopeUser);
@@ -119,7 +120,7 @@ export async function POST(request: NextRequest) {
   try {
     const auth = await requireAuth();
     if ("error" in auth) return auth.error;
-    const { userId, session } = auth;
+    const { userId, originalUserId, isImpersonating } = auth;
 
     const scopeUser = await loadScopeUser(userId);
     const clientWhere = buildClientWhere(scopeUser);
@@ -146,7 +147,7 @@ export async function POST(request: NextRequest) {
     // Verify target client is in user's scope before linking the attachment.
     const targetClient = await prisma.client.findFirst({
       where: { AND: [{ id: clientId }, clientWhere] },
-      select: { id: true },
+      select: { id: true, therapistId: true },
     });
     if (!targetClient) {
       return NextResponse.json({ message: "מטופל לא נמצא" }, { status: 404 });
@@ -196,16 +197,33 @@ export async function POST(request: NextRequest) {
     const buffer = Buffer.from(await fileResponse.arrayBuffer());
     await storage.write(`clients/${clientId}/${uniqueFilename}`, buffer);
 
-    // Create Document record linked to client
+    // Phase 2: Document שנשמר ללקוח יישמר תחת המטפל של הלקוח (לא של המבצע) —
+    // כך שמזכירה ששומרת מייל נכנס בתיקיית מטופל לא "תופסת" את הבעלות.
+    const finalTherapistId = resolveTherapistIdForClientChild({
+      scopeUser,
+      client: targetClient,
+    });
+
     const document = await prisma.document.create({
       data: {
         name: filename || "קובץ מצורף ממייל",
         type: "OTHER",
         fileUrl: `/api/uploads/clients/${clientId}/${uniqueFilename}`,
         clientId: clientId,
-        therapistId: userId,
+        therapistId: finalTherapistId,
         organizationId: scopeUser.organizationId,
       },
+    });
+
+    // Phase 2: audit לשמירת מייל מצורף בשם מטפל אחר.
+    await logDelegatedCreate({
+      operatorId: userId,
+      targetTherapistId: finalTherapistId,
+      recordType: "ATTACHMENT",
+      recordId: document.id,
+      organizationId: scopeUser.organizationId,
+      clientId,
+      ...(isImpersonating ? { impersonatedBy: originalUserId } : {}),
     });
 
     return NextResponse.json({

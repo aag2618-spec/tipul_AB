@@ -15,7 +15,7 @@ export async function GET(
   try {
     const auth = await requireAuth();
     if ("error" in auth) return auth.error;
-    const { userId, session } = auth;
+    const { userId, session, originalUserId, isImpersonating } = auth;
     const isAdminOrManager = session.user.role === "ADMIN" || session.user.role === "MANAGER";
 
     const scopeUser = await loadScopeUser(userId);
@@ -75,6 +75,7 @@ export async function GET(
         clientId: document.clientId,
         request,
         meta: { servedFromUploads: true },
+        ...(isImpersonating ? { impersonatedBy: originalUserId } : {}),
       });
     }
     // Check if it's a client attachment (saved from email)
@@ -101,6 +102,7 @@ export async function GET(
         clientId: document.clientId,
         request,
         meta: { servedFromUploads: true, source: "client-attachment" },
+        ...(isImpersonating ? { impersonatedBy: originalUserId } : {}),
       });
     }
     else if (pathStr.startsWith("sent/")) {

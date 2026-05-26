@@ -97,9 +97,9 @@ export async function POST(
     // 7. Audit — חובה לפי תקנות הגנת הפרטיות 2017.
     //    `meta.exportType = "DSAR"` מבדיל בין שתי ה-routes ב-audit search.
     //    Impersonation: `userId` הוא ה-target (`requireAuth` חוזר על ה-target
-    //    במצב impersonation לצורך scope/data). מתעדים גם את ה-OWNER האמיתי
-    //    ב-`meta.impersonatedBy` כדי שה-audit הרגולטורי יציג את שני הצדדים —
-    //    קריטי ל-DSAR שהוא ה-endpoint החוקי המרכזי.
+    //    במצב impersonation לצורך scope/data). ה-OWNER האמיתי נשמר ב-
+    //    `meta.impersonatedBy` דרך הפרמטר הדדיקטיבי `impersonatedBy` של
+    //    logDataAccess (Phase 2) — תאם ל-audit trail בכל ה-routes הקליניים.
     logDataAccess({
       userId,
       recordType: "CLIENT_PROFILE",
@@ -109,9 +109,9 @@ export async function POST(
       request,
       meta: {
         exportType: "DSAR",
-        ...(isImpersonating ? { impersonatedBy: originalUserId } : {}),
         ...dsarCountsForAudit(payload),
       },
+      ...(isImpersonating ? { impersonatedBy: originalUserId } : {}),
     });
 
     // 8. ZIP + response.

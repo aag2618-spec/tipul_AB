@@ -11,6 +11,7 @@
 
 import { Prisma } from "@prisma/client";
 import prisma from "@/lib/prisma";
+import { logger } from "@/lib/logger";
 
 // ============================================================================
 // Types
@@ -484,4 +485,184 @@ export async function getVisibleClientWhere(userId: string): Promise<Prisma.Clie
 export async function getVisibleSessionWhere(userId: string): Promise<Prisma.TherapySessionWhereInput> {
   const user = await loadScopeUser(userId);
   return buildSessionWhere(user);
+}
+
+// ============================================================================
+// Therapist resolution helpers — מי "הבעלים" של רשומה חדשה?
+// ============================================================================
+//
+// Phase 1 (סבב 21) — חולץ ל-scope.ts ב-Phase 2 (2026-05-26) כדי שאותו דפוס
+// יישמע בכל ה-routes שיוצרים רשומות, ולא יתפזרו עותקים שיכולים להיכנס
+// out-of-sync. דפוס שימוש:
+//
+//   const resolved = await resolveTherapistIdForClient({ scopeUser, requestedTherapistId });
+//   if (!resolved.ok) return NextResponse.json({ message: resolved.message }, { status: resolved.status });
+//   const finalTherapistId = resolved.therapistId;
+//
+// עקרונות (זהים ב-client/session):
+//   • מטפל עצמאי (organizationId=null): תמיד self; ניסיון לבחור אחר → 400.
+//   • OWNER / SECRETARY בקליניקה: יכולים לציין יעד; אם לא ציינו — ברירת מחדל self
+//     (זה הזרם ההיסטורי, נשמר כדי לא לשבור UI קיים בלי בורר מטפל).
+//   • THERAPIST רגיל בקליניקה: חייב self. אסור לקבוע פגישה/לפתוח תיק לקולגה.
+//   • אם **כן** נשלח therapistId שונה מ-self: ולידציה שהוא קיים, באותו ארגון,
+//     לא חסום (isBlocked=false), ולא SECRETARY (מזכירה לא יכולה להיות מטפלת אחראית).
+
+type ResolveTherapistResult =
+  | { ok: true; therapistId: string }
+  | { ok: false; status: number; message: string };
+
+/**
+ * פותר את ה-therapistId הסופי שיוקצה לרשומת Client חדשה. ראה הערות מעלה.
+ * טיפול במזכירה שלא ציינה therapistId: לוגים warn (כי המטופל יישמר על שמה,
+ * זה הזרם ההיסטורי) אבל לא חוסם — עד שה-UI יוסיף בורר מטפל (Phase 4).
+ */
+export async function resolveTherapistIdForClient(params: {
+  scopeUser: ScopeUser;
+  requestedTherapistId?: string | null;
+}): Promise<ResolveTherapistResult> {
+  const { scopeUser, requestedTherapistId } = params;
+  const trimmed = requestedTherapistId?.trim() || "";
+
+  // מטפל עצמאי: אסור לבחור אחר.
+  if (!scopeUser.organizationId) {
+    if (trimmed && trimmed !== scopeUser.id) {
+      return { ok: false, status: 400, message: "לא ניתן לבחור מטפל אחר במצב עצמאי" };
+    }
+    return { ok: true, therapistId: scopeUser.id };
+  }
+
+  // לא נשלח therapistId — self (תאימות לאחור). מזכירה → warn לחשיפת באג היסטורי.
+  if (!trimmed) {
+    if (isSecretary(scopeUser)) {
+      logger.warn("[scope] Secretary created client without therapistId (legacy flow)", {
+        userId: scopeUser.id,
+        organizationId: scopeUser.organizationId,
+      });
+    }
+    return { ok: true, therapistId: scopeUser.id };
+  }
+
+  // נשלח therapistId שונה מ-self → role-gate: רק OWNER ו-SECRETARY מורשים.
+  if (trimmed !== scopeUser.id) {
+    if (!isClinicOwner(scopeUser) && !isSecretary(scopeUser)) {
+      return { ok: false, status: 403, message: "אין הרשאה לשייך מטופל למטפל אחר" };
+    }
+  }
+
+  // tenant + not-blocked + not-SECRETARY.
+  const target = await prisma.user.findFirst({
+    where: {
+      id: trimmed,
+      organizationId: scopeUser.organizationId,
+      isBlocked: false,
+    },
+    select: { id: true, clinicRole: true },
+  });
+  if (!target) {
+    return { ok: false, status: 400, message: "המטפל הנבחר לא נמצא בקליניקה" };
+  }
+  if (target.clinicRole === "SECRETARY") {
+    return { ok: false, status: 400, message: "לא ניתן לשייך מטופל למזכירה" };
+  }
+  return { ok: true, therapistId: target.id };
+}
+
+/**
+ * פותר את ה-therapistId הסופי שיוקצה ל-TherapySession חדשה.
+ *
+ * הבדל מ-Client: מזכירה שלא ציינה therapistId **יורשת מהלקוח**
+ * (`client.therapistId`) — תיקון לבאג ההיסטורי שבו הפגישה היתה נכתבת על שם
+ * המזכירה במקום על שם המטפל האמיתי של הלקוח. שומר על תאימות מלאה ל-UI.
+ *
+ * `client=null` תקף ל-BREAK (פגישה ללא לקוח). במצב הזה אין ממי לרשת,
+ * אז ברירת המחדל היא self (המבצע).
+ */
+export async function resolveTherapistIdForSession(params: {
+  scopeUser: ScopeUser;
+  requestedTherapistId?: string | null;
+  client: { id: string; therapistId: string } | null;
+}): Promise<ResolveTherapistResult> {
+  const { scopeUser, requestedTherapistId, client } = params;
+  const trimmed = requestedTherapistId?.trim() || "";
+  const isSelfRequest = trimmed && trimmed === scopeUser.id;
+
+  // מטפל עצמאי: אסור לקבוע למטפל אחר.
+  if (!scopeUser.organizationId) {
+    if (trimmed && !isSelfRequest) {
+      return {
+        ok: false,
+        status: 400,
+        message: "לא ניתן לקבוע פגישה למטפל אחר במצב עצמאי",
+      };
+    }
+    return { ok: true, therapistId: scopeUser.id };
+  }
+
+  let finalTherapistId: string;
+  if (trimmed && !isSelfRequest) {
+    // נבחר במפורש מטפל אחר → role-gate: רק OWNER ו-SECRETARY.
+    if (!isClinicOwner(scopeUser) && !isSecretary(scopeUser)) {
+      return {
+        ok: false,
+        status: 403,
+        message: "אין הרשאה לקבוע פגישה עבור מטפל אחר",
+      };
+    }
+    finalTherapistId = trimmed;
+  } else if (isSecretary(scopeUser) && client) {
+    // מזכירה ללא בחירה + יש לקוח → יורשת מהלקוח.
+    finalTherapistId = client.therapistId;
+    if (finalTherapistId !== scopeUser.id) {
+      logger.info(
+        "[scope] Secretary inherited therapistId from client (legacy UI)",
+        {
+          userId: scopeUser.id,
+          clientId: client.id,
+          inheritedTherapistId: finalTherapistId,
+          organizationId: scopeUser.organizationId,
+        }
+      );
+    }
+  } else {
+    // OWNER/THERAPIST ללא בחירה, או מזכירה עם BREAK ללא לקוח → ברירת מחדל self.
+    finalTherapistId = scopeUser.id;
+  }
+
+  // אם finalTherapistId שונה מהמבצע — לוודא tenant + לא חסום + לא SECRETARY.
+  if (finalTherapistId !== scopeUser.id) {
+    const target = await prisma.user.findFirst({
+      where: {
+        id: finalTherapistId,
+        organizationId: scopeUser.organizationId,
+        isBlocked: false,
+      },
+      select: { id: true, clinicRole: true },
+    });
+    if (!target) {
+      return { ok: false, status: 400, message: "המטפל הנבחר לא נמצא בקליניקה" };
+    }
+    if (target.clinicRole === "SECRETARY") {
+      return { ok: false, status: 400, message: "לא ניתן לשייך פגישה למזכירה" };
+    }
+  }
+
+  return { ok: true, therapistId: finalTherapistId };
+}
+
+/**
+ * עוזר ל-sub-records (commitment, document, consent-form, attachment).
+ * רשומה ששייכת ללקוח — ה-therapist שלה צריך להיות ה-therapist של הלקוח
+ * (לא של המבצע). זה מתקן את הבאג שמזכירה שמעלה מסמך/יוצרת התחייבות "לוקחת"
+ * את הבעלות במקום שתישאר אצל המטפל המקצועי.
+ *
+ * לרשומות template/general (ללא לקוח) — נשאר self (זה "מי יצר את התבנית").
+ *
+ * pure — לא עושה DB lookup כי ה-caller כבר אימת את scope-ownership של הלקוח.
+ */
+export function resolveTherapistIdForClientChild(params: {
+  scopeUser: ScopeUser;
+  client: { therapistId: string } | null;
+}): string {
+  if (params.client) return params.client.therapistId;
+  return params.scopeUser.id;
 }

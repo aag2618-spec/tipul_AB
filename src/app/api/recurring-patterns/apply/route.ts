@@ -121,10 +121,13 @@ export async function POST(request: NextRequest) {
 
         const itemKey = `${dateStr}_${pattern.time}_${pattern.id}`;
 
-        // Check for any overlapping session
+        // Phase 2: conflict check + create חייבים להתבצע על יומן ה-**מטפל הבעלים של התבנית**
+        // (pattern.userId), לא של המבצע. היום הם זהים (ה-query מסנן patterns לפי
+        // userId המבצע), אבל סמנטית זה ה-source-of-truth ומאפשר בעתיד למזכירה/בעלים
+        // להפעיל patterns של מטפלים אחרים מאותה קליניקה.
         const conflict = await prisma.therapySession.findFirst({
           where: {
-            therapistId: userId,
+            therapistId: pattern.userId,
             status: { not: "CANCELLED" },
             OR: [
               {
@@ -190,7 +193,7 @@ export async function POST(request: NextRequest) {
 
         // Collect session for creation (will execute in transaction)
         createOps.push({
-          therapistId: userId,
+          therapistId: pattern.userId,
           clientId: pattern.clientId,
           startTime: sessionStart,
           endTime: sessionEnd,

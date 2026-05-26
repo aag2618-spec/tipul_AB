@@ -1,9 +1,16 @@
 import { NextResponse } from "next/server";
 import prisma from "@/lib/prisma";
 import { logger } from "@/lib/logger";
+import { logDelegatedCreate } from "@/lib/audit";
 
 import { requireAuth } from "@/lib/api-auth";
-import { loadScopeUser, buildClientWhere, isSecretary, secretaryCan } from "@/lib/scope";
+import {
+  buildClientWhere,
+  isSecretary,
+  loadScopeUser,
+  resolveTherapistIdForClientChild,
+  secretaryCan,
+} from "@/lib/scope";
 import { parseBody } from "@/lib/validations/helpers";
 import { createConsentFormSchema } from "@/lib/validations/consent-form";
 
@@ -73,7 +80,7 @@ export async function POST(request: Request) {
   try {
     const auth = await requireAuth();
     if ("error" in auth) return auth.error;
-    const { userId } = auth;
+    const { userId, originalUserId, isImpersonating } = auth;
 
     const scopeUser = await loadScopeUser(userId);
     if (isSecretary(scopeUser) && !secretaryCan(scopeUser, "canViewConsentForms")) {
@@ -89,16 +96,25 @@ export async function POST(request: Request) {
     if ("error" in parsed) return parsed.error;
     const { type, title, content, isTemplate, clientId } = parsed.data;
 
-    // אם נשלח clientId — וודא שהוא בתוך ה-scope של המשתמש.
+    // אם נשלח clientId — וודא שהוא בתוך ה-scope של המשתמש + טען therapistId.
+    let clientForOwnership: { id: string; therapistId: string } | null = null;
     if (clientId) {
       const exists = await prisma.client.findFirst({
         where: { AND: [{ id: clientId }, clientWhere] },
-        select: { id: true },
+        select: { id: true, therapistId: true },
       });
       if (!exists) {
         return NextResponse.json({ message: "מטופל לא נמצא" }, { status: 404 });
       }
+      clientForOwnership = exists;
     }
+
+    // Phase 2: טופס הסכמה מצורף ללקוח יישמר תחת המטפל של הלקוח (לא המבצע) —
+    // כך שמזכירה שמכינה טופס לא "תיקח" את הבעלות. טמפלייט (ללא לקוח) נשאר תחת המבצע.
+    const finalTherapistId = resolveTherapistIdForClientChild({
+      scopeUser,
+      client: clientForOwnership,
+    });
 
     const form = await prisma.consentForm.create({
       data: {
@@ -107,7 +123,7 @@ export async function POST(request: Request) {
         content,
         isTemplate,
         clientId: clientId || null,
-        therapistId: userId,
+        therapistId: finalTherapistId,
         organizationId: scopeUser.organizationId,
       },
       include: {
@@ -118,6 +134,17 @@ export async function POST(request: Request) {
           },
         },
       },
+    });
+
+    // Phase 2: audit ליצירה בשם מטפל אחר.
+    await logDelegatedCreate({
+      operatorId: userId,
+      targetTherapistId: finalTherapistId,
+      recordType: "CONSENT_FORM",
+      recordId: form.id,
+      organizationId: scopeUser.organizationId,
+      clientId: clientId || null,
+      ...(isImpersonating ? { impersonatedBy: originalUserId } : {}),
     });
 
     return NextResponse.json(form);

@@ -64,7 +64,7 @@ export async function GET(
   try {
     const auth = await requireAuth();
     if ("error" in auth) return auth.error;
-    const { userId } = auth;
+    const { userId, originalUserId, isImpersonating } = auth;
 
     const { id } = await params;
 
@@ -163,6 +163,7 @@ export async function GET(
       action: "READ",
       clientId: id,
       request,
+      ...(isImpersonating ? { impersonatedBy: originalUserId } : {}),
     });
 
     return NextResponse.json(serializePrisma(client));
@@ -317,7 +318,7 @@ export async function DELETE(
   try {
     const auth = await requireAuth();
     if ("error" in auth) return auth.error;
-    const { userId } = auth;
+    const { userId, originalUserId, isImpersonating } = auth;
 
     const { id } = await params;
 
@@ -381,6 +382,7 @@ export async function DELETE(
       meta: {
         deletedClientName: auditDeletedName,
       },
+      ...(isImpersonating ? { impersonatedBy: originalUserId } : {}),
     });
 
     return NextResponse.json({ message: "המטופל נמחק בהצלחה" });

@@ -112,6 +112,7 @@ export async function GET(
       clientId: recording.clientId,
       request,
       meta: { signedUrlServed: true },
+      ...(auth.isImpersonating ? { impersonatedBy: auth.originalUserId } : {}),
     });
 
     // audioUrl לרוב נראה כמו "/uploads/recordings/abc/xxx.webm".

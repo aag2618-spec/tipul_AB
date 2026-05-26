@@ -56,7 +56,7 @@ export async function GET(
   try {
     const auth = await requireAuth();
     if ("error" in auth) return auth.error;
-    const { userId, session } = auth;
+    const { userId } = auth;
 
     const { id } = await params;
 
@@ -90,7 +90,7 @@ export async function PUT(
   try {
     const auth = await requireAuth();
     if ("error" in auth) return auth.error;
-    const { userId, session } = auth;
+    const { userId } = auth;
 
     const { id } = await params;
 
@@ -141,7 +141,7 @@ export async function DELETE(
   try {
     const auth = await requireAuth();
     if ("error" in auth) return auth.error;
-    const { userId, session } = auth;
+    const { userId, originalUserId, isImpersonating } = auth;
 
     const { id } = await params;
 
@@ -193,6 +193,7 @@ export async function DELETE(
       action: "DELETE",
       clientId: document.clientId,
       request,
+      ...(isImpersonating ? { impersonatedBy: originalUserId } : {}),
     });
 
     return NextResponse.json({ message: "המסמך נמחק בהצלחה" });

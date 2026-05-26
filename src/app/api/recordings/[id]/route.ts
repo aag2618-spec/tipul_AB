@@ -20,7 +20,7 @@ export async function GET(
   try {
     const auth = await requireAuth();
     if ("error" in auth) return auth.error;
-    const { userId } = auth;
+    const { userId, originalUserId, isImpersonating } = auth;
 
     const scopeUser = await loadScopeUser(userId);
     if (!canSecretaryAccessModel(scopeUser, "Recording")) {
@@ -69,6 +69,7 @@ export async function GET(
         hasTranscription: !!recording.transcription,
         hasAnalysis: !!recording.transcription?.analysis,
       },
+      ...(isImpersonating ? { impersonatedBy: originalUserId } : {}),
     });
 
     return NextResponse.json(recording);
@@ -88,7 +89,7 @@ export async function DELETE(
   try {
     const auth = await requireAuth();
     if ("error" in auth) return auth.error;
-    const { userId } = auth;
+    const { userId, originalUserId, isImpersonating } = auth;
 
     const scopeUser = await loadScopeUser(userId);
     if (!canSecretaryAccessModel(scopeUser, "Recording")) {
@@ -122,6 +123,7 @@ export async function DELETE(
       recordId: id,
       action: "DELETE",
       request,
+      ...(isImpersonating ? { impersonatedBy: originalUserId } : {}),
     });
 
     return NextResponse.json({ message: "ההקלטה נמחקה בהצלחה" });

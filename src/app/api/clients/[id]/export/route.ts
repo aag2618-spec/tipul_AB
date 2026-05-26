@@ -22,7 +22,7 @@ export async function GET(
   try {
     const auth = await requireAuth();
     if ("error" in auth) return auth.error;
-    const { userId } = auth;
+    const { userId, originalUserId, isImpersonating } = auth;
 
     const { id } = await params;
 
@@ -101,6 +101,7 @@ export async function GET(
         paymentCount: client.payments.length,
         documentCount: client.documents.length,
       },
+      ...(isImpersonating ? { impersonatedBy: originalUserId } : {}),
     });
 
     // Create ZIP file

@@ -32,7 +32,7 @@ export async function GET(request: NextRequest) {
   try {
     const auth = await requireAuth();
     if ("error" in auth) return auth.error;
-    const { userId, session } = auth;
+    const { userId, originalUserId, isImpersonating } = auth;
 
     // M13.4: rate-limit על exports — 3/שעה פר-user. מונע scraping/exfiltration.
     const rateCheck = checkRateLimit(`payments-export:${userId}`, EXPORT_RATE_LIMIT);
@@ -139,6 +139,7 @@ export async function GET(request: NextRequest) {
         endDate: endDate || null,
         statusFilter: status || "ALL",
       },
+      ...(isImpersonating ? { impersonatedBy: originalUserId } : {}),
     });
 
     if (format === "json") {

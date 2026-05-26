@@ -55,6 +55,7 @@ import {
   loadScopeUser,
   buildClientWhere,
   isSecretary,
+  secretaryCan,
   getClientSafeSelectForSecretary,
 } from "@/lib/scope";
 import type { Prisma } from "@prisma/client";
@@ -150,6 +151,7 @@ async function getClient(
   clientId: string,
   clientWhere: Prisma.ClientWhereInput,
   asSecretary: boolean,
+  canViewPayments: boolean,
 ): Promise<WideClient | null> {
   try {
     if (asSecretary) {
@@ -157,27 +159,23 @@ async function getClient(
       // ללא recordings/transcription/analysis, ללא questionnaireResponses
       // (answers = תוכן קליני), ללא intakeResponses. ה-JSX מסתיר את הסקציות
       // הקליניות עבור secretary, אבל שכבת ההגנה היא ברמת ה-query.
-      const client = await prisma.client.findFirst({
-        where: { AND: [{ id: clientId }, clientWhere] },
-        select: {
-          ...getClientSafeSelectForSecretary(),
-          recurringPatterns: {
-            where: { isActive: true },
-            orderBy: { dayOfWeek: "asc" },
-          },
-          therapySessions: {
-            take: 100,
-            orderBy: { startTime: "desc" },
-            select: {
-              id: true,
-              startTime: true,
-              endTime: true,
-              type: true,
-              status: true,
-              price: true,
-              location: true,
-              skipSummary: true,
-              cancellationReason: true,
+      //
+      // Phase 2: payments + therapySessions.payment נטענים רק אם
+      // canViewPayments=true. תאם ל-/api/clients/[id] שכבר אוכף את אותו gate
+      // — בלי זה הדף היה מציג חובות/תשלומים למזכירה גם כשבעלת הקליניקה
+      // לא נתנה לה הרשאה כזו (פער multi-tenancy).
+      const sessionSelect = {
+        id: true,
+        startTime: true,
+        endTime: true,
+        type: true,
+        status: true,
+        price: true,
+        location: true,
+        skipSummary: true,
+        cancellationReason: true,
+        ...(canViewPayments
+          ? {
               payment: {
                 select: {
                   id: true,
@@ -189,32 +187,51 @@ async function getClient(
                   paidAt: true,
                   childPayments: {
                     select: { id: true, amount: true, paidAt: true, method: true, status: true },
-                    orderBy: { paidAt: "asc" },
+                    orderBy: { paidAt: "asc" as const },
                   },
                 },
               },
-            },
+            }
+          : {}),
+      };
+
+      const client = await prisma.client.findFirst({
+        where: { AND: [{ id: clientId }, clientWhere] },
+        select: {
+          ...getClientSafeSelectForSecretary(),
+          recurringPatterns: {
+            where: { isActive: true },
+            orderBy: { dayOfWeek: "asc" },
           },
-          payments: {
+          therapySessions: {
             take: 100,
-            where: { AND: [{ parentPaymentId: null }, EXCLUDE_BULK_UMBRELLA_WHERE] },
-            orderBy: { createdAt: "desc" },
-            select: {
-              id: true,
-              amount: true,
-              expectedAmount: true,
-              method: true,
-              status: true,
-              createdAt: true,
-              paidAt: true,
-              notes: true,
-              session: { select: { id: true, startTime: true, type: true } },
-              childPayments: {
-                select: { id: true, amount: true, method: true, paidAt: true, createdAt: true },
-                orderBy: { paidAt: "asc" },
-              },
-            },
+            orderBy: { startTime: "desc" },
+            select: sessionSelect,
           },
+          ...(canViewPayments
+            ? {
+                payments: {
+                  take: 100,
+                  where: { AND: [{ parentPaymentId: null }, EXCLUDE_BULK_UMBRELLA_WHERE] },
+                  orderBy: { createdAt: "desc" as const },
+                  select: {
+                    id: true,
+                    amount: true,
+                    expectedAmount: true,
+                    method: true,
+                    status: true,
+                    createdAt: true,
+                    paidAt: true,
+                    notes: true,
+                    session: { select: { id: true, startTime: true, type: true } },
+                    childPayments: {
+                      select: { id: true, amount: true, method: true, paidAt: true, createdAt: true },
+                      orderBy: { paidAt: "asc" as const },
+                    },
+                  },
+                },
+              }
+            : {}),
           documents: {
             take: 50,
             orderBy: { createdAt: "desc" },
@@ -232,11 +249,19 @@ async function getClient(
         },
       });
       if (!client) return null;
+      // אם canViewPayments=false, ה-payments הוסר מה-select. בעת JSON-parse
+      // הוא יהיה undefined; ה-JSX קורא ל-`client.payments?` עם safe-access,
+      // אבל כדי שהקוד הקיים שמשתמש ב-`client.payments.filter(...)` לא יקרוס,
+      // אנחנו מבטיחים מערך ריק (זה גם תואם ל-/api/clients/[id] שמחזיר []).
+      const serialized = JSON.parse(JSON.stringify(client)) as Record<string, unknown>;
+      if (!canViewPayments) {
+        serialized.payments = [];
+      }
       // השדות הקליניים החסרים (notes/initialDiagnosis/intakeNotes/recordings/
       // questionnaireResponses/intakeResponses/sessionNote/sessionAnalysis וכו')
       // יהיו undefined ב-runtime; ה-cast הזה נחוץ כי TS לא יודע שה-JSX סוגר
       // אותם ב-`asSecretary` gates.
-      return JSON.parse(JSON.stringify(client)) as unknown as WideClient;
+      return serialized as unknown as WideClient;
     }
 
     const client = await prisma.client.findFirst({
@@ -283,11 +308,15 @@ export default async function ClientPage({
   
   let client;
   let asSecretary = false;
+  // Phase 2: canViewPayments — מזכירה רואה תשלומים רק אם בעלת הקליניקה נתנה הרשאה.
+  // ל-non-secretary (מטפל/בעלים) תמיד true. תאם להתנהגות /api/clients/[id].
+  let canViewPayments = true;
   try {
     const scopeUser = await loadScopeUser(session.user.id);
     asSecretary = isSecretary(scopeUser);
+    canViewPayments = secretaryCan(scopeUser, "canViewPayments");
     const clientWhere = buildClientWhere(scopeUser);
-    client = await getClient(id, clientWhere, asSecretary);
+    client = await getClient(id, clientWhere, asSecretary, canViewPayments);
   } catch (error) {
     logger.error("[ClientPage] Unexpected error loading client:", {
       clientId: id,
@@ -300,10 +329,11 @@ export default async function ClientPage({
     notFound();
   }
 
-  // הסתרת טאבים קליניים למזכירה (AI/סיכומים) + sanitize של ה-tab מה-URL.
-  const allowedTabs = asSecretary
-    ? ["sessions", "payments", "files", "profile"]
-    : ["sessions", "ai", "summaries", "payments", "files", "profile"];
+  // הסתרת טאבים קליניים למזכירה (AI/סיכומים) + הסתרת payments למזכירה ללא הרשאה
+  // + sanitize של ה-tab מה-URL.
+  const baseTabs = ["sessions", "files", "profile"];
+  if (canViewPayments) baseTabs.splice(1, 0, "payments");
+  const allowedTabs = asSecretary ? baseTabs : ["sessions", "ai", "summaries", "payments", "files", "profile"];
   const defaultTab = tab && allowedTabs.includes(tab) ? tab : "sessions";
 
   const getInitials = (name: string) => {
@@ -459,35 +489,39 @@ export default async function ClientPage({
         </Card>
 
         {/* Debt & Credit Summary Card - Clickable */}
-        <a href={`/dashboard/clients/${client.id}?tab=payments`}>
-          <Card className={`transition-all cursor-pointer hover:shadow-md hover:scale-[1.02] ${
-            totalDebt > 0 ? "border-red-200 bg-red-50/50" : "border-emerald-200 bg-emerald-50/50"
-          }`}>
-            <CardContent className="py-4">
-              <div className="flex flex-col sm:flex-row sm:items-center sm:justify-between gap-3">
-                <div className="flex items-center gap-3">
-                  <CreditCard className={`h-5 w-5 ${
-                    totalDebt > 0 ? "text-red-500" : "text-emerald-500"
-                  }`} />
-                  {totalDebt > 0 ? (
-                    <div>
-                      <p className="text-sm text-muted-foreground">חוב פתוח</p>
-                      <p className="text-xl font-bold text-red-600">₪{totalDebt}</p>
+        {/* Phase 2: כרטיס חוב/קרדיט מוסתר ממזכירה ללא canViewPayments — אחרת מציגים מידע פיננסי
+            שלא אמורה לראות (גם אם הוא 0). */}
+        {canViewPayments && (
+          <a href={`/dashboard/clients/${client.id}?tab=payments`}>
+            <Card className={`transition-all cursor-pointer hover:shadow-md hover:scale-[1.02] ${
+              totalDebt > 0 ? "border-red-200 bg-red-50/50" : "border-emerald-200 bg-emerald-50/50"
+            }`}>
+              <CardContent className="py-4">
+                <div className="flex flex-col sm:flex-row sm:items-center sm:justify-between gap-3">
+                  <div className="flex items-center gap-3">
+                    <CreditCard className={`h-5 w-5 ${
+                      totalDebt > 0 ? "text-red-500" : "text-emerald-500"
+                    }`} />
+                    {totalDebt > 0 ? (
+                      <div>
+                        <p className="text-sm text-muted-foreground">חוב פתוח</p>
+                        <p className="text-xl font-bold text-red-600">₪{totalDebt}</p>
+                      </div>
+                    ) : (
+                      <p className="text-sm font-medium text-emerald-700">אין חובות פתוחים ✓</p>
+                    )}
+                  </div>
+                  {(Number(client.creditBalance) || 0) > 0 && (
+                    <div className="text-right sm:text-left">
+                      <p className="text-sm text-muted-foreground">קרדיט</p>
+                      <p className="text-lg font-bold text-emerald-600">₪{Number(client.creditBalance) || 0}</p>
                     </div>
-                  ) : (
-                    <p className="text-sm font-medium text-emerald-700">אין חובות פתוחים ✓</p>
                   )}
                 </div>
-                {(Number(client.creditBalance) || 0) > 0 && (
-                  <div className="text-right sm:text-left">
-                    <p className="text-sm text-muted-foreground">קרדיט</p>
-                    <p className="text-lg font-bold text-emerald-600">₪{Number(client.creditBalance) || 0}</p>
-                  </div>
-                )}
-              </div>
-            </CardContent>
-          </Card>
-        </a>
+              </CardContent>
+            </Card>
+          </a>
+        )}
       </div>
 
       {/* באנר שדרוג — פונה מזדמן */}
@@ -527,10 +561,12 @@ export default async function ClientPage({
               סיכומים
             </TabsTrigger>
           )}
-          <TabsTrigger value="payments" className="flex-1 min-w-[110px] gap-2 rounded-xl py-2.5 border border-muted-foreground/10 bg-muted/40 data-[state=active]:bg-white data-[state=active]:text-primary data-[state=active]:shadow-md data-[state=active]:border-primary/30 font-medium">
-            <CreditCard className="h-4 w-4" />
-            תשלומים
-          </TabsTrigger>
+          {canViewPayments && (
+            <TabsTrigger value="payments" className="flex-1 min-w-[110px] gap-2 rounded-xl py-2.5 border border-muted-foreground/10 bg-muted/40 data-[state=active]:bg-white data-[state=active]:text-primary data-[state=active]:shadow-md data-[state=active]:border-primary/30 font-medium">
+              <CreditCard className="h-4 w-4" />
+              תשלומים
+            </TabsTrigger>
+          )}
           <TabsTrigger value="files" className="flex-1 min-w-[110px] gap-2 rounded-xl py-2.5 border border-muted-foreground/10 bg-muted/40 data-[state=active]:bg-white data-[state=active]:text-primary data-[state=active]:shadow-md data-[state=active]:border-primary/30 font-medium">
             <FolderOpen className="h-4 w-4" />
             קבצים
@@ -712,7 +748,8 @@ export default async function ClientPage({
           </Card>
         </TabsContent>
 
-        {/* Payments Tab */}
+        {/* Payments Tab — מוסתר ממזכירה ללא canViewPayments (Phase 2). */}
+        {canViewPayments && (
         <TabsContent value="payments" className="mt-6">
           <Tabs defaultValue="pending" className="w-full">
             <TabsList className="bg-muted/40 p-1 h-auto">
@@ -922,6 +959,7 @@ export default async function ClientPage({
             </TabsContent>
           </Tabs>
         </TabsContent>
+        )}
 
         {/* AI Tab — תוכן קליני, מוסתר למזכירה */}
         {!asSecretary && (

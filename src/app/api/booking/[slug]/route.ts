@@ -378,7 +378,9 @@ export async function POST(
   const settings = await prisma.bookingSettings.findUnique({
     where: { slug },
     include: {
-      therapist: { select: { id: true, name: true, email: true } },
+      // Phase 2: organizationId נדרש כדי שהמטופל/פגישה שייווצרו דרך הזימון הציבורי
+      // יקבלו את ה-FK הנכון לקליניקה (אחרת הם "יתומים" ולא יופיעו ב-scope של בעלים/מזכירה).
+      therapist: { select: { id: true, name: true, email: true, organizationId: true } },
     },
   });
 
@@ -507,6 +509,11 @@ export async function POST(
             phone: normalizedPhone || null,
             email: clientEmail ? String(clientEmail).trim().toLowerCase() : null,
             therapistId: settings.therapistId,
+            // Phase 2: שמירת organizationId של המטפל — לקוח שייווצר דרך הזימון
+            // הציבורי של מטפל בקליניקה חייב להיות בתוך הקליניקה, אחרת הוא
+            // לא יופיע ב-scope של בעלים/מזכירה (organizationId IS NULL במקום
+            // ה-clinic id).
+            organizationId: settings.therapist.organizationId,
             status: "WAITING",
             defaultSessionPrice: settings.defaultPrice,
           },
@@ -521,6 +528,9 @@ export async function POST(
       const session = await tx.therapySession.create({
         data: {
           therapistId: settings.therapistId,
+          // Phase 2: organizationId חייב להיכתב כדי שהפגישה תופיע ביומן הקליניקה
+          // (Owner/Secretary רואים לפי organizationId, לא לפי therapistId).
+          organizationId: settings.therapist.organizationId,
           clientId: foundClient.id,
           startTime,
           endTime,

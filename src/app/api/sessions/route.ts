@@ -7,12 +7,14 @@ import { createSessionSchema } from "@/lib/validations/session";
 import { logger } from "@/lib/logger";
 import { serializePrisma } from "@/lib/serialize";
 import { syncSessionToGoogleCalendar } from "@/lib/google-calendar-sync";
+import { logDelegatedCreate } from "@/lib/audit";
 import {
   buildClientWhere,
   buildSessionWhere,
   isClinicOwner,
   isSecretary,
   loadScopeUser,
+  resolveTherapistIdForSession,
   secretaryCan,
 } from "@/lib/scope";
 import { calculatePaidAmount } from "@/lib/payment-utils";
@@ -127,7 +129,7 @@ export async function POST(request: NextRequest) {
   try {
     const auth = await requireAuth();
     if ("error" in auth) return auth.error;
-    const { userId } = auth;
+    const { userId, originalUserId, isImpersonating } = auth;
 
     const parsed = await parseBody(request, createSessionSchema);
     if ("error" in parsed) return parsed.error;
@@ -149,20 +151,11 @@ export async function POST(request: NextRequest) {
       );
     }
 
-    // Phase 1 (סבב 21): פתרון מטפל היעד + ולידציית בעלות הלקוח.
-    // הסדר חשוב: קודם מאתרים את הלקוח (כי מזכירה יורשת ממנו את therapistId),
-    // אחר כך פותרים את finalTherapistId, ואז מאמתים tenant + ownership.
-    //
-    // עקרונות:
-    //   • מטפל עצמאי (organizationId=null): finalTherapistId = self תמיד.
-    //   • OWNER (clinicRole=OWNER): יכול למקד כל מטפל בקליניקה; ברירת מחדל = self.
-    //   • SECRETARY: יכולה למקד כל מטפל בקליניקה; אם לא ציינה — יורשת מהלקוח
-    //     (זה מתקן את הבאג ההיסטורי שבו הפגישה הייתה נכתבת על שמה ולא על
-    //     שם המטפל האמיתי, ושומר על תאימות מלאה ל-UI הקיים).
-    //   • THERAPIST רגיל בקליניקה: חייב self (אסור לקבוע פגישה לקולגה).
-    const trimmedRequestedTherapistId = requestedTherapistId?.trim() || "";
-    const trimmedSelfRequest =
-      trimmedRequestedTherapistId && trimmedRequestedTherapistId === userId;
+    // Phase 2 (2026-05-26): פתרון המטפל היעד דרך `resolveTherapistIdForSession`
+    // ב-`@/lib/scope`. הסדר הסמנטי שמור:
+    //   1. שולפים את הלקוח (כי המזכירה יורשת ממנו therapistId).
+    //   2. פותרים את finalTherapistId (כולל role-gate ו-tenant validation).
+    //   3. ולידציה של ownership (לקוח X משויך למטפל היעד).
 
     // Step 1: Verify client belongs to scope (skip for BREAK).
     let client: Awaited<ReturnType<typeof prisma.client.findFirst>> | null = null;
@@ -178,69 +171,16 @@ export async function POST(request: NextRequest) {
       }
     }
 
-    // Step 2: Resolve finalTherapistId.
-    let finalTherapistId: string;
-    if (!scopeUser.organizationId) {
-      // מטפל עצמאי — חייב להיות self.
-      if (trimmedRequestedTherapistId && !trimmedSelfRequest) {
-        return NextResponse.json(
-          { message: "לא ניתן לקבוע פגישה למטפל אחר במצב עצמאי" },
-          { status: 400 }
-        );
-      }
-      finalTherapistId = userId;
-    } else if (trimmedRequestedTherapistId && !trimmedSelfRequest) {
-      // נבחר מטפל אחר במפורש — H1 role gate: רק OWNER ו-SECRETARY מורשים.
-      if (!isClinicOwner(scopeUser) && !isSecretary(scopeUser)) {
-        return NextResponse.json(
-          { message: "אין הרשאה לקבוע פגישה עבור מטפל אחר" },
-          { status: 403 }
-        );
-      }
-      finalTherapistId = trimmedRequestedTherapistId;
-    } else if (isSecretary(scopeUser) && client) {
-      // מזכירה ללא בחירה מפורשת + יש לקוח: יורשת את therapistId מהלקוח.
-      // זה התיקון לבאג ההיסטורי + שומר על תאימות מלאה ל-UI הקיים.
-      finalTherapistId = client.therapistId;
-      if (finalTherapistId !== userId) {
-        logger.info(
-          "[sessions/POST] Secretary inherited therapistId from client (legacy UI)",
-          {
-            userId,
-            clientId: client.id,
-            inheritedTherapistId: finalTherapistId,
-            organizationId: scopeUser.organizationId,
-          }
-        );
-      }
-    } else {
-      // OWNER/THERAPIST ללא בחירה, או מזכירה עם BREAK ללא לקוח — ברירת מחדל self.
-      finalTherapistId = userId;
+    // Step 2-3: Resolve finalTherapistId via shared helper.
+    const resolved = await resolveTherapistIdForSession({
+      scopeUser,
+      requestedTherapistId,
+      client: client ? { id: client.id, therapistId: client.therapistId } : null,
+    });
+    if (!resolved.ok) {
+      return NextResponse.json({ message: resolved.message }, { status: resolved.status });
     }
-
-    // Step 3: אם finalTherapistId שונה מהמבצע — לוודא tenant + לא חסום + לא SECRETARY.
-    if (finalTherapistId !== userId) {
-      const target = await prisma.user.findFirst({
-        where: {
-          id: finalTherapistId,
-          organizationId: scopeUser.organizationId,
-          isBlocked: false,
-        },
-        select: { id: true, clinicRole: true },
-      });
-      if (!target) {
-        return NextResponse.json(
-          { message: "המטפל הנבחר לא נמצא בקליניקה" },
-          { status: 400 }
-        );
-      }
-      if (target.clinicRole === "SECRETARY") {
-        return NextResponse.json(
-          { message: "לא ניתן לשייך פגישה למזכירה" },
-          { status: 400 }
-        );
-      }
-    }
+    const finalTherapistId = resolved.therapistId;
 
     // Step 4: Ownership of client vs target therapist.
     // מזכירה: אסור לה לקבוע פגישה למטפל X על מטופל ששייך למטפל Y.
@@ -386,6 +326,17 @@ export async function POST(request: NextRequest) {
           },
         },
       },
+    });
+
+    // Phase 2: audit ליצירת פגישה בשם מטפל אחר (best-effort, לא חוסם).
+    await logDelegatedCreate({
+      operatorId: userId,
+      targetTherapistId: finalTherapistId,
+      recordType: "SESSION",
+      recordId: therapySession.id,
+      organizationId: scopeUser.organizationId,
+      clientId: therapySession.clientId,
+      ...(isImpersonating ? { impersonatedBy: originalUserId } : {}),
     });
 
     // Sync to Google Calendar — סנכרון תמיד מבוצע ב-Calendar של המטפל היעד

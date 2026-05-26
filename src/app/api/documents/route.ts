@@ -4,7 +4,8 @@ import prisma from "@/lib/prisma";
 import storage from "@/lib/storage";
 import { v4 as uuidv4 } from "uuid";
 import { logger } from "@/lib/logger";
-import { loadScopeUser, buildClientWhere } from "@/lib/scope";
+import { logDelegatedCreate } from "@/lib/audit";
+import { buildClientWhere, loadScopeUser, resolveTherapistIdForClientChild } from "@/lib/scope";
 import { validateFileBuffer, safeExtensionForMime, stripImageMetadata, getCategoryMaxSize } from "@/lib/file-validation";
 import { documentFormFieldsSchema } from "@/lib/validations/document";
 
@@ -61,7 +62,7 @@ export async function POST(request: NextRequest) {
   try {
     const auth = await requireAuth();
     if ("error" in auth) return auth.error;
-    const { userId } = auth;
+    const { userId, originalUserId, isImpersonating } = auth;
 
     const formData = await request.formData();
     const file = formData.get("file") as File | null;
@@ -125,14 +126,17 @@ export async function POST(request: NextRequest) {
     const scopeUser = await loadScopeUser(userId);
     const clientWhere = buildClientWhere(scopeUser);
 
-    // Verify client ownership if provided
+    // Verify client ownership if provided + load therapistId for therapist-resolution.
+    let clientForOwnership: { id: string; therapistId: string } | null = null;
     if (clientId) {
       const client = await prisma.client.findFirst({
         where: { AND: [{ id: clientId }, clientWhere] },
+        select: { id: true, therapistId: true },
       });
       if (!client) {
         return NextResponse.json({ message: "מטופל לא נמצא" }, { status: 404 });
       }
+      clientForOwnership = client;
     }
 
     // H10: extension נקבע לפי ה-MIME שאומת ע"י validateFileBuffer (magic bytes)
@@ -142,10 +146,17 @@ export async function POST(request: NextRequest) {
 
     await storage.write(`documents/${fileName}`, fileBuffer, file.type);
 
-    // Create document record
+    // Phase 2: מסמך שמצורף ללקוח יישמר תחת המטפל של אותו לקוח (לא המבצע) —
+    // כדי שמזכירה שמעלה מסמך לא "תיקח" את הבעלות. מסמך כללי (templateללא לקוח)
+    // נשאר תחת המבצע.
+    const finalTherapistId = resolveTherapistIdForClientChild({
+      scopeUser,
+      client: clientForOwnership,
+    });
+
     const document = await prisma.document.create({
       data: {
-        therapistId: userId,
+        therapistId: finalTherapistId,
         clientId: clientId || null,
         organizationId: scopeUser.organizationId,
         name,
@@ -156,6 +167,17 @@ export async function POST(request: NextRequest) {
       include: {
         client: { select: { id: true, name: true } },
       },
+    });
+
+    // Phase 2: audit ליצירה בשם מטפל אחר.
+    await logDelegatedCreate({
+      operatorId: userId,
+      targetTherapistId: finalTherapistId,
+      recordType: "DOCUMENT",
+      recordId: document.id,
+      organizationId: scopeUser.organizationId,
+      clientId: clientId || null,
+      ...(isImpersonating ? { impersonatedBy: originalUserId } : {}),
     });
 
     return NextResponse.json(document, { status: 201 });

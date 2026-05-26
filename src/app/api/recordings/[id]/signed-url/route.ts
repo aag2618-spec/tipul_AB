@@ -34,7 +34,7 @@ export async function POST(
   try {
     const auth = await requireAuth();
     if ("error" in auth) return auth.error;
-    const { userId } = auth;
+    const { userId, originalUserId, isImpersonating } = auth;
 
     const scopeUser = await loadScopeUser(userId);
     if (!canSecretaryAccessModel(scopeUser, "Recording")) {
@@ -72,6 +72,7 @@ export async function POST(
       clientId: recording.clientId,
       request,
       meta: { signedUrl: true, expiresAt: signed.expiresAt },
+      ...(isImpersonating ? { impersonatedBy: originalUserId } : {}),
     });
 
     return NextResponse.json(signed);

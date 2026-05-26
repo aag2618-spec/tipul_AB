@@ -5,7 +5,14 @@ import { parseBody } from "@/lib/validations/helpers";
 import { createClientSchema, createQuickClientSchema } from "@/lib/validations/client";
 import { logger } from "@/lib/logger";
 import { serializePrisma } from "@/lib/serialize";
-import { buildClientWhere, isClinicOwner, isSecretary, loadScopeUser, secretaryCan } from "@/lib/scope";
+import { logDelegatedCreate } from "@/lib/audit";
+import {
+  buildClientWhere,
+  isSecretary,
+  loadScopeUser,
+  resolveTherapistIdForClient,
+  secretaryCan,
+} from "@/lib/scope";
 import type { Prisma } from "@prisma/client";
 
 export const dynamic = "force-dynamic";
@@ -71,81 +78,14 @@ export async function GET(request: NextRequest) {
   }
 }
 
-// Phase 1 (סבב 21): פונקציית עזר לבחירת ה-therapistId הסופי שייכתב לרשומת
-// המטופל. עיקרון (backward-compat מלא):
-//   • מטפל עצמאי (organizationId=null): תמיד self; ניסיון לבחור אחר → 400.
-//   • בעלת קליניקה / מטפל בקליניקה / מזכירה: יכולים לציין יעד; אם לא ציינו —
-//     ברירת מחדל self (זה הזרם ההיסטורי, נשמר כדי לא לשבור UI קיים).
-//   • אם **כן** נשלח therapistId, חובה לוודא שהוא משתמש קיים, לא חסום,
-//     וב-organizationId זהה (מניעת cross-tenant write) ולא SECRETARY.
-//
-// טיפול במזכירה ללא therapistId: עד שלב 4 ב-UI לא יישלח therapistId;
-// אנחנו לוגים warn כדי שיהיה visible במוניטורינג, אבל עדיין מאפשרים את
-// היצירה (אחרת כל UI הקיים של מזכירה נשבר).
-async function resolveTherapistIdForClient(params: {
-  scopeUser: Awaited<ReturnType<typeof loadScopeUser>>;
-  requestedTherapistId?: string | null;
-}): Promise<{ ok: true; therapistId: string } | { ok: false; status: number; message: string }> {
-  const { scopeUser, requestedTherapistId } = params;
-  const trimmed = requestedTherapistId?.trim() || "";
-
-  // מטפל עצמאי: לא ניתן ליצור על שם מישהו אחר.
-  if (!scopeUser.organizationId) {
-    if (trimmed && trimmed !== scopeUser.id) {
-      return { ok: false, status: 400, message: "לא ניתן לבחור מטפל אחר במצב עצמאי" };
-    }
-    return { ok: true, therapistId: scopeUser.id };
-  }
-
-  // אם לא נשלח therapistId — self (תאימות לאחור). אם המבצע מזכירה → warn
-  // כדי שיהיה visible (המטופל יישמר על שם המזכירה כמו עד היום, עד שה-UI
-  // ישלח therapistId בשלב 4).
-  if (!trimmed) {
-    if (isSecretary(scopeUser)) {
-      logger.warn("[clients/POST] Secretary created client without therapistId (legacy flow)", {
-        userId: scopeUser.id,
-        organizationId: scopeUser.organizationId,
-      });
-    }
-    return { ok: true, therapistId: scopeUser.id };
-  }
-
-  // נשלח therapistId שונה מ-self → H1 role gate: רק OWNER ו-SECRETARY מורשים.
-  // THERAPIST רגיל בקליניקה לא יכול לשייך מטופל לקולגה.
-  if (trimmed !== scopeUser.id) {
-    if (!isClinicOwner(scopeUser) && !isSecretary(scopeUser)) {
-      return {
-        ok: false,
-        status: 403,
-        message: "אין הרשאה לשייך מטופל למטפל אחר",
-      };
-    }
-  }
-
-  // קיים therapistId מבוקש — לוודא tenant + לא חסום + clinicRole רלוונטי.
-  const target = await prisma.user.findFirst({
-    where: {
-      id: trimmed,
-      organizationId: scopeUser.organizationId,
-      isBlocked: false,
-    },
-    select: { id: true, clinicRole: true },
-  });
-  if (!target) {
-    return { ok: false, status: 400, message: "המטפל הנבחר לא נמצא בקליניקה" };
-  }
-  // SECRETARY לא יכול להיות מטפל אחראי על מטופל. OWNER ו-THERAPIST כן.
-  if (target.clinicRole === "SECRETARY") {
-    return { ok: false, status: 400, message: "לא ניתן לשייך מטופל למזכירה" };
-  }
-  return { ok: true, therapistId: target.id };
-}
+// Phase 2 (2026-05-26): `resolveTherapistIdForClient` חולץ ל-`@/lib/scope`
+// כדי שאותה לוגיקה תשמש בכל ה-routes שיוצרים רשומות (Client/Session/sub-records).
 
 export async function POST(request: NextRequest) {
   try {
     const auth = await requireAuth();
     if ("error" in auth) return auth.error;
-    const { userId } = auth;
+    const { userId, originalUserId, isImpersonating } = auth;
 
     const scopeUser = await loadScopeUser(userId);
     if (isSecretary(scopeUser) && !secretaryCan(scopeUser, "canCreateClient")) {
@@ -205,6 +145,16 @@ export async function POST(request: NextRequest) {
         },
       });
 
+      // Phase 2: audit ליצירה שמבוצעת בשם מטפל אחר (best-effort, לא חוסם).
+      await logDelegatedCreate({
+        operatorId: userId,
+        targetTherapistId: finalTherapistId,
+        recordType: "CLIENT",
+        recordId: client.id,
+        organizationId: scopeUser.organizationId,
+        ...(isImpersonating ? { impersonatedBy: originalUserId } : {}),
+      });
+
       return NextResponse.json(serializePrisma(client), { status: 201 });
     }
 
@@ -256,6 +206,16 @@ export async function POST(request: NextRequest) {
           : {}),
         healthFund: healthFund || null,
       },
+    });
+
+    // Phase 2: audit ליצירה שמבוצעת בשם מטפל אחר (best-effort, לא חוסם).
+    await logDelegatedCreate({
+      operatorId: userId,
+      targetTherapistId: finalTherapistId,
+      recordType: "CLIENT",
+      recordId: client.id,
+      organizationId: scopeUser.organizationId,
+      ...(isImpersonating ? { impersonatedBy: originalUserId } : {}),
     });
 
     return NextResponse.json(serializePrisma(client), { status: 201 });
