@@ -186,18 +186,18 @@ export function AutomatedMessagesSection({
   };
 
   const handleSmsToggle = (msgType: MessageType, checked: boolean) => {
-    setCommSettings({ ...commSettings, [msgType.smsKey]: checked });
-  };
-
-  const handleSmsMasterToggle = (checked: boolean) => {
-    setSmsSettings({ ...smsSettings, enabled: checked });
-    const allSmsKeys: Record<string, boolean> = {};
-    for (const group of MESSAGE_GROUPS) {
-      for (const t of group.types) {
-        allSmsKeys[t.smsKey] = checked;
+    const updated = { ...commSettings, [msgType.smsKey]: checked };
+    setCommSettings(updated);
+    if (checked) {
+      setSmsSettings({ ...smsSettings, enabled: true });
+    } else {
+      const anyStillOn = MESSAGE_GROUPS.some((g) =>
+        g.types.some((t) => t.smsKey !== msgType.smsKey && !!updated[t.smsKey])
+      );
+      if (!anyStillOn) {
+        setSmsSettings({ ...smsSettings, enabled: false });
       }
     }
-    setCommSettings({ ...commSettings, ...allSmsKeys });
   };
 
   return (
@@ -222,91 +222,73 @@ export function AutomatedMessagesSection({
           </p>
         </div>
 
-        {/* SMS Infrastructure */}
-        <div className="rounded-xl border-2 border-emerald-200 p-5 space-y-4 bg-emerald-50/30">
-          <div className="flex items-center justify-between">
-            <div className="flex items-center gap-2">
+        {/* SMS Quota — always visible */}
+        {smsSettings.enabled && (
+          <div className="rounded-xl border-2 border-emerald-200 p-5 space-y-4 bg-emerald-50/30">
+            <div className="flex items-center gap-2 mb-1">
               <MessageSquare className="h-5 w-5 text-emerald-600" />
-              <div className="space-y-0.5">
-                <Label className="text-base font-semibold">הפעל SMS</Label>
-                <p className="text-sm text-muted-foreground">שליחת הודעות SMS למטופלים</p>
+              <span className="text-sm font-semibold text-emerald-800">מכסת SMS חודשית</span>
+            </div>
+
+            {/* Visual example */}
+            <div className="rounded-lg border p-4 bg-white space-y-3">
+              <p className="text-sm font-medium text-gray-700">איך זה עובד? המערכת ממלאת את הפרטים אוטומטית:</p>
+              <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
+                <div className="rounded-lg bg-gray-50 border p-3 space-y-1">
+                  <p className="text-xs font-medium text-gray-500">תבנית:</p>
+                  <p className="text-sm" dir="rtl">
+                    שלום <span className="bg-amber-100 text-amber-800 px-1 rounded">{"{שם}"}</span>, תזכורת לפגישה מחר (<span className="bg-amber-100 text-amber-800 px-1 rounded">{"{יום}"}</span>) ב-<span className="bg-amber-100 text-amber-800 px-1 rounded">{"{שעה}"}</span>
+                  </p>
+                </div>
+                <div className="rounded-lg bg-gray-50 border p-3 space-y-1">
+                  <p className="text-xs font-medium text-gray-500">מה המטופל מקבל:</p>
+                  <p className="text-sm" dir="rtl">
+                    שלום <span className="bg-green-100 text-green-800 px-1 rounded">דנה</span>, תזכורת לפגישה מחר (<span className="bg-green-100 text-green-800 px-1 rounded">שלישי</span>) ב-<span className="bg-green-100 text-green-800 px-1 rounded">16:00</span>
+                  </p>
+                </div>
               </div>
             </div>
-            <Switch
-              checked={smsSettings.enabled}
-              onCheckedChange={handleSmsMasterToggle}
-              aria-label="הפעל SMS"
-            />
-          </div>
 
-          {smsSettings.enabled && (
-            <>
-              {/* Visual example */}
-              <div className="rounded-lg border p-4 bg-white space-y-3">
-                <p className="text-sm font-medium text-gray-700">איך זה עובד? המערכת ממלאת את הפרטים אוטומטית:</p>
-                <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
-                  <div className="rounded-lg bg-gray-50 border p-3 space-y-1">
-                    <p className="text-xs font-medium text-gray-500">תבנית:</p>
-                    <p className="text-sm" dir="rtl">
-                      שלום <span className="bg-amber-100 text-amber-800 px-1 rounded">{"{שם}"}</span>, תזכורת לפגישה מחר (<span className="bg-amber-100 text-amber-800 px-1 rounded">{"{יום}"}</span>) ב-<span className="bg-amber-100 text-amber-800 px-1 rounded">{"{שעה}"}</span>
-                    </p>
-                  </div>
-                  <div className="rounded-lg bg-gray-50 border p-3 space-y-1">
-                    <p className="text-xs font-medium text-gray-500">מה המטופל מקבל:</p>
-                    <p className="text-sm" dir="rtl">
-                      שלום <span className="bg-green-100 text-green-800 px-1 rounded">דנה</span>, תזכורת לפגישה מחר (<span className="bg-green-100 text-green-800 px-1 rounded">שלישי</span>) ב-<span className="bg-green-100 text-green-800 px-1 rounded">16:00</span>
-                    </p>
-                  </div>
-                </div>
+            {/* Quota bar */}
+            <div className="rounded-lg border p-4 bg-white space-y-3">
+              <div className="flex items-center justify-between">
+                <Label className="text-sm font-medium">מכסה חודשית</Label>
+                <span className="text-sm font-semibold">{usage}/{quota} ({percentUsed}%)</span>
               </div>
-
-              {/* Quota */}
-              <div className="rounded-lg border p-4 bg-white space-y-3">
-                <div className="flex items-center justify-between">
-                  <Label className="text-sm font-medium">מכסה חודשית</Label>
-                  <span className="text-sm font-semibold">{usage}/{quota} ({percentUsed}%)</span>
-                </div>
-                <div className="w-full bg-gray-200 rounded-full h-2.5">
-                  <div
-                    className={`h-2.5 rounded-full transition-all ${
-                      percentUsed >= 90 ? "bg-red-500" : percentUsed >= 70 ? "bg-amber-500" : "bg-green-500"
-                    }`}
-                    style={{ width: `${Math.min(percentUsed, 100)}%` }}
+              <div className="w-full bg-gray-200 rounded-full h-2.5">
+                <div
+                  className={`h-2.5 rounded-full transition-all ${
+                    percentUsed >= 90 ? "bg-red-500" : percentUsed >= 70 ? "bg-amber-500" : "bg-green-500"
+                  }`}
+                  style={{ width: `${Math.min(percentUsed, 100)}%` }}
+                />
+              </div>
+              <div className="flex gap-4">
+                <div className="space-y-1">
+                  <Label className="text-xs">מכסה</Label>
+                  <Input
+                    type="number"
+                    min={10}
+                    value={quota}
+                    onChange={(e) => setCommSettings({ ...commSettings, smsMonthlyQuota: parseInt(e.target.value) || 200 })}
+                    className="w-24 h-8 text-sm"
                   />
                 </div>
-                <div className="flex gap-4">
-                  <div className="space-y-1">
-                    <Label className="text-xs">מכסה</Label>
-                    <Input
-                      type="number"
-                      min={10}
-                      value={quota}
-                      onChange={(e) => setCommSettings({ ...commSettings, smsMonthlyQuota: parseInt(e.target.value) || 200 })}
-                      className="w-24 h-8 text-sm"
-                    />
-                  </div>
-                  <div className="space-y-1">
-                    <Label className="text-xs">התראה ב-%</Label>
-                    <Input
-                      type="number"
-                      min={50}
-                      max={99}
-                      value={commSettings.smsAlertAtPercent ?? 80}
-                      onChange={(e) => setCommSettings({ ...commSettings, smsAlertAtPercent: parseInt(e.target.value) || 80 })}
-                      className="w-24 h-8 text-sm"
-                    />
-                  </div>
+                <div className="space-y-1">
+                  <Label className="text-xs">התראה ב-%</Label>
+                  <Input
+                    type="number"
+                    min={50}
+                    max={99}
+                    value={commSettings.smsAlertAtPercent ?? 80}
+                    onChange={(e) => setCommSettings({ ...commSettings, smsAlertAtPercent: parseInt(e.target.value) || 80 })}
+                    className="w-24 h-8 text-sm"
+                  />
                 </div>
               </div>
-            </>
-          )}
-
-          {!smsSettings.enabled && (
-            <p className="text-sm text-muted-foreground bg-gray-50 rounded-lg p-3 border">
-              כשה-SMS כבוי, רק מיילים יישלחו. הפעל SMS כדי לשלוח גם הודעות לטלפון.
-            </p>
-          )}
-        </div>
+            </div>
+          </div>
+        )}
 
         {/* Message type groups */}
         {MESSAGE_GROUPS.map((group) => (
@@ -322,7 +304,6 @@ export function AutomatedMessagesSection({
                 const smsEnabled = !!commSettings[msgType.smsKey];
                 const isTemplateOpen = openTemplates.has(msgType.id);
                 const customTemplate = (commSettings[msgType.templateKey] as string) || "";
-                const smsGloballyOff = !smsSettings.enabled;
                 const eitherEnabled = emailEnabled || smsEnabled;
 
                 return (
@@ -345,12 +326,11 @@ export function AutomatedMessagesSection({
                           />
                         </div>
                         {/* SMS toggle */}
-                        <div className={`flex items-center gap-1.5 ${smsGloballyOff ? "opacity-40" : ""}`}>
+                        <div className="flex items-center gap-1.5">
                           <MessageSquare className="h-3.5 w-3.5 text-muted-foreground" />
                           <span className="text-xs text-muted-foreground">SMS</span>
                           <Switch
                             checked={smsEnabled}
-                            disabled={smsGloballyOff}
                             onCheckedChange={(checked) => handleSmsToggle(msgType, checked)}
                             aria-label={`${msgType.label} — SMS`}
                           />
@@ -417,7 +397,7 @@ export function AutomatedMessagesSection({
                     )}
 
                     {/* SMS template editor */}
-                    {smsEnabled && !smsGloballyOff && (
+                    {smsEnabled && (
                       <>
                         <Button
                           variant="outline"
