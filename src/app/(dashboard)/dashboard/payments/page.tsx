@@ -1,6 +1,6 @@
 "use client";
 
-import { useState, useEffect, useMemo } from "react";
+import { useState, useEffect, useMemo, useCallback } from "react";
 import { Card, CardContent } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
@@ -229,12 +229,9 @@ export default function PaymentsPage() {
           }
         }
 
-        // היסטוריית תשלומים
-        if (data.history) {
-          setPaidPayments(data.history.items || []);
-          setHasMoreHistory(data.history.hasMore ?? false);
-          setNextHistorySkip(data.history.nextSkip ?? 50);
-        }
+        // היסטוריית תשלומים — נטענת ע"י ה-effect של selectedMonth
+        // (ראה למטה). לא טוענים כאן כדי למנוע race שבו data.history
+        // ה-"all" ימחק תוצאת month-filter שכבר נטענה.
       }
     } catch (error) {
       console.error("Error fetching data:", error);
@@ -244,10 +241,57 @@ export default function PaymentsPage() {
     }
   };
 
+  // ── עוזר: בניית query string להיסטוריה ──
+  // selectedMonth נשלח ב-server-side כדי לשבור את הרגרסיה שבה ה-UI טען
+  // 50 תשלומים אחרונים בלבד וסינן בזיכרון — חודש שכל תשלומיו יותר ישנים
+  // מ-50 התשלומים החדשים ביותר היה נראה ריק. עכשיו ה-fetch מתבצע מחדש
+  // בכל שינוי של selectedMonth.
+  const buildHistoryUrl = useCallback(
+    (skip: number, take = 50): string => {
+      const params = new URLSearchParams();
+      params.set("take", String(take));
+      params.set("skip", String(skip));
+      if (selectedMonth !== "all") params.set("month", selectedMonth);
+      return `/api/payments/paid-history?${params.toString()}`;
+    },
+    [selectedMonth],
+  );
+
+  // עיגון refetch ל-selectedMonth: כשהמטפל בוחר חודש, מתבצעת
+  // קריאה חדשה לשרת שמסננת לפי החודש; הסינון בזיכרון נשאר לחיפוש שם
+  // ולתאריך ספציפי בלבד (אלה לא יוצרים בעיות scope כי הם מצמצמים
+  // את מה שכבר נטען לחודש אחד).
+  useEffect(() => {
+    let cancelled = false;
+    const fetchMonth = async (): Promise<void> => {
+      try {
+        const res = await fetch(buildHistoryUrl(0), { cache: "no-store" });
+        if (!res.ok) return;
+        const data = await res.json();
+        if (cancelled) return;
+        const items = data.items || data;
+        setPaidPayments(items);
+        setHasMoreHistory(data.hasMore ?? false);
+        setNextHistorySkip(data.nextSkip ?? 50);
+      } catch {
+        // silent — fetchData הראשי כבר טיפל ב-toast.error הראשוני.
+      }
+    };
+    // לא לשפוך תשלומים מהחודש הקודם בזמן טעינה — מאפסים.
+    setPaidPayments([]);
+    setHasMoreHistory(false);
+    setNextHistorySkip(0);
+    fetchMonth();
+    return () => {
+      cancelled = true;
+    };
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [selectedMonth]);
+
   const loadMoreHistory = async () => {
     try {
       setIsLoadingMore(true);
-      const res = await fetch(`/api/payments/paid-history?take=50&skip=${nextHistorySkip}`, { cache: "no-store" });
+      const res = await fetch(buildHistoryUrl(nextHistorySkip), { cache: "no-store" });
       if (res.ok) {
         const data = await res.json();
         const items = data.items || data;
@@ -834,14 +878,8 @@ export default function PaymentsPage() {
                 });
               }
               
-              // סינון לפי חודש
-              if (selectedMonth !== "all") {
-                filteredHistory = filteredHistory.filter(p => {
-                  const paymentDate = p.paidAt ? new Date(p.paidAt) : new Date(p.createdAt);
-                  const paymentMonth = format(paymentDate, "yyyy-MM");
-                  return paymentMonth === selectedMonth;
-                });
-              }
+              // סינון חודש מתבצע server-side (ראה useEffect על selectedMonth).
+              // לא צריך filter בזיכרון כאן — paidPayments כבר מוגבל לחודש הנבחר.
 
               if (filteredHistory.length === 0) {
                 return (

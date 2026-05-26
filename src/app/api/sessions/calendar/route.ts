@@ -6,6 +6,7 @@ import { requireAuth } from "@/lib/api-auth";
 import { buildSessionWhere, isSecretary, loadScopeUser } from "@/lib/scope";
 import { calculatePaidAmount } from "@/lib/payment-utils";
 import { serializePrisma } from "@/lib/serialize";
+import { CALENDAR_SESSION_INCLUDE } from "@/types/calendar-session";
 import type { Prisma } from "@prisma/client";
 
 export const dynamic = "force-dynamic";
@@ -52,21 +53,14 @@ export async function GET(request: NextRequest) {
       ];
     }
 
-    // payment.childPayments נדרש ל-calculatePaidAmount — זה החישוב הקנוני
-    // שמטפל בכל הזרמים (PAID / children PAID / PENDING+CC עם/בלי קבלה /
-    // PENDING+CASH). הוא יושב ב-src/lib/payment-utils.ts ומשמש גם את
-    // /api/sessions הרגיל.
-    const paymentInclude = {
-      childPayments: {
-        where: { status: "PAID" as const },
-        select: { id: true, amount: true, status: true },
-      },
-    };
-
+    // CALENDAR_SESSION_INCLUDE — source-of-truth שמיובא גם ע"י הצרכן.
+    // אם מישהו מצמצם אותו, ה-build נשבר במקום שהמסך יציג "פטור מתשלום"
+    // בשקט (ראה הערת ההיסטוריה ב-/types/calendar-session.ts).
+    //
     // מזכירה: חוק זכויות החולה — לא רואה תוכן קליני (sessionNote / topic).
     // ראה CLINICAL_FIELDS_BLOCKED_FOR_SECRETARY ב-scope.ts.
     const includeForRole = isSecretary(scopeUser)
-      ? {
+      ? ({
           client: {
             select: {
               id: true,
@@ -79,23 +73,9 @@ export async function GET(request: NextRequest) {
               isQuickClient: true,
             },
           },
-          payment: { include: paymentInclude },
-        }
-      : {
-          client: {
-            select: {
-              id: true,
-              name: true,
-              email: true,
-              phone: true,
-              creditBalance: true,
-              defaultSessionPrice: true,
-              isQuickClient: true,
-            },
-          },
-          sessionNote: true,
-          payment: { include: paymentInclude },
-        };
+          payment: CALENDAR_SESSION_INCLUDE.payment,
+        } as const satisfies Prisma.TherapySessionInclude)
+      : CALENDAR_SESSION_INCLUDE;
 
     const sessions = await prisma.therapySession.findMany({
       where: { AND: [scopeWhere, extraConditions] },

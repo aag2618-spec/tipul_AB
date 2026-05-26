@@ -21,12 +21,44 @@ export async function GET(request: NextRequest) {
     const take = Math.min(Number(url.searchParams.get("take")) || 50, 200);
     const skip = Math.max(0, Math.min(Number(url.searchParams.get("skip")) || 0, 10000));
 
+    // ── סינון חודש ב-server-side (תיקון רגרסיה מ-e8f53d72) ──
+    // לפני: ה-UI היה שולף 50 תשלומים אחרונים ומסנן בזיכרון לפי חודש,
+    // מה שגרם ל"לא נמצאו תשלומים" כשהחודש המבוקש בכלל לא נטען עדיין
+    // (יותר מ-50 תשלומים אחריו). עכשיו: ?month=YYYY-MM מסנן בשאילתה.
+    const monthParam = url.searchParams.get("month");
+    let monthRange: { gte: Date; lt: Date } | null = null;
+    if (monthParam && /^\d{4}-(0[1-9]|1[0-2])$/.test(monthParam)) {
+      const [yearStr, mStr] = monthParam.split("-");
+      const year = Number(yearStr);
+      const month = Number(mStr) - 1; // JS months are 0-indexed
+      const gte = new Date(year, month, 1);
+      const lt = new Date(year, month + 1, 1);
+      monthRange = { gte, lt };
+    }
+
     const payments = await prisma.payment.findMany({
       where: {
         AND: [
           paymentWhere,
           EXCLUDE_BULK_UMBRELLA_WHERE,
           { status: "PAID", parentPaymentId: null },
+          // paidAt עיקר ולעיתים null (legacy) — fallback ל-createdAt.
+          // משתמשים ב-OR כדי לתפוס את שניהם.
+          ...(monthRange
+            ? [
+                {
+                  OR: [
+                    { paidAt: { gte: monthRange.gte, lt: monthRange.lt } },
+                    {
+                      AND: [
+                        { paidAt: null },
+                        { createdAt: { gte: monthRange.gte, lt: monthRange.lt } },
+                      ],
+                    },
+                  ],
+                },
+              ]
+            : []),
         ],
       },
       take: take + 1,

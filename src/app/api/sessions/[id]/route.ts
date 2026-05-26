@@ -11,6 +11,7 @@ import { serializePrisma } from "@/lib/serialize";
 import { syncSessionUpdateToGoogleCalendar, syncSessionDeletionToGoogleCalendar } from "@/lib/google-calendar-sync";
 import { logDataAccess } from "@/lib/audit-logger";
 import { buildSessionWhere, isSecretary, loadScopeUser } from "@/lib/scope";
+import { calculatePaidAmount } from "@/lib/payment-utils";
 import { parseBody } from "@/lib/validations/helpers";
 import { patchSessionSchema, updateSessionSchema } from "@/lib/validations/session";
 import {
@@ -19,6 +20,15 @@ import {
 } from "@/lib/session-overlap";
 
 export const dynamic = "force-dynamic";
+
+// payment include משותף ל-GET ו-PUT — childPayments חיוני ל-calculatePaidAmount
+// (mismatch בין GET ל-PUT היה גורם לתשלום חלקי+CC להיראות שונה אחרי refresh).
+const PAYMENT_INCLUDE = {
+  childPayments: {
+    where: { status: "PAID" as const },
+    select: { id: true, amount: true, status: true },
+  },
+};
 
 export async function GET(
   request: NextRequest,
@@ -41,13 +51,13 @@ export async function GET(
           client: {
             select: { id: true, name: true, firstName: true, lastName: true, phone: true, email: true },
           },
-          payment: true,
+          payment: { include: PAYMENT_INCLUDE },
         }
       : {
           client: true,
           sessionNote: true,
           sessionAnalysis: true,
-          payment: true,
+          payment: { include: PAYMENT_INCLUDE },
           recordings: {
             include: {
               transcription: {
@@ -88,7 +98,25 @@ export async function GET(
       ...(isImpersonating ? { impersonatedBy: originalUserId } : {}),
     });
 
-    return NextResponse.json(serializePrisma(therapySession));
+    // העשרה ב-paidAmount — אותו source-of-truth של /api/sessions ו-
+    // /api/sessions/calendar. בלי זה, צרכנים שמערבבים תגובות (לדוגמה
+    // עדכון state יומן אחרי PUT) יראו remainder לא נכון בתשלום חלקי+CC.
+    const enriched = therapySession.payment
+      ? {
+          ...therapySession,
+          payment: {
+            ...therapySession.payment,
+            paidAmount: calculatePaidAmount({
+              amount: therapySession.payment.amount,
+              status: therapySession.payment.status,
+              method: therapySession.payment.method,
+              hasReceipt: therapySession.payment.hasReceipt,
+              childPayments: (therapySession.payment as { childPayments?: Array<{ amount: unknown; status: string }> }).childPayments,
+            }),
+          },
+        }
+      : therapySession;
+    return NextResponse.json(serializePrisma(enriched));
   } catch (error) {
     logger.error("Get session error:", { error: error instanceof Error ? error.message : String(error) });
     return NextResponse.json(
@@ -456,16 +484,17 @@ export async function PUT(
 
     // Fetch updated session with payment info.
     // Role-aware: secretary doesn't get full Client (clinical fields stripped).
+    // payment.childPayments — נדרש ל-paidAmount enrichment (parity עם GET).
     const finalIncludeForRole = isSecretary(scopeUser)
       ? {
           client: {
             select: { id: true, name: true, firstName: true, lastName: true, phone: true, email: true },
           },
-          payment: true,
+          payment: { include: PAYMENT_INCLUDE },
         }
       : {
           client: true,
-          payment: true,
+          payment: { include: PAYMENT_INCLUDE },
         };
 
     const updatedSession = await prisma.therapySession.findUnique({
@@ -473,7 +502,25 @@ export async function PUT(
       include: finalIncludeForRole,
     });
 
-    return NextResponse.json(serializePrisma(updatedSession));
+    // העשרה ב-paidAmount: parity עם GET ו-/api/sessions. בלי זה,
+    // page.tsx של היומן או של ה-session detail יקבלו ערך לא נכון
+    // אם הם משתמשים בתגובת PUT לעדכן state.
+    const enrichedUpdated = updatedSession?.payment
+      ? {
+          ...updatedSession,
+          payment: {
+            ...updatedSession.payment,
+            paidAmount: calculatePaidAmount({
+              amount: updatedSession.payment.amount,
+              status: updatedSession.payment.status,
+              method: updatedSession.payment.method,
+              hasReceipt: updatedSession.payment.hasReceipt,
+              childPayments: (updatedSession.payment as { childPayments?: Array<{ amount: unknown; status: string }> }).childPayments,
+            }),
+          },
+        }
+      : updatedSession;
+    return NextResponse.json(serializePrisma(enrichedUpdated));
   } catch (error) {
     logger.error("Update session error:", { error: error instanceof Error ? error.message : String(error) });
     return NextResponse.json(

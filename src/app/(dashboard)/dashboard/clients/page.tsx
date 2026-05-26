@@ -10,6 +10,7 @@ import { ExportAllClientsButton } from "@/components/clients/export-all-clients-
 import { ConsultationClientsSection } from "@/components/clients/consultation-clients-section";
 import { ClientsGridWithSearch } from "@/components/clients/clients-grid-with-search";
 import { loadScopeUser, buildClientWhere, isSecretary } from "@/lib/scope";
+import { calculatePaidAmount } from "@/lib/payment-utils";
 
 type ClientStatus = "ACTIVE" | "WAITING" | "ARCHIVED";
 
@@ -104,10 +105,25 @@ export default async function ClientsPage({ searchParams }: PageProps) {
             id: true,
             startTime: true,
             status: true,
+            price: true,
             // topic נחשב לתוכן קליני של פגישת ייעוץ (חלק מ-CLINICAL_FIELDS_BLOCKED_FOR_SECRETARY.session)
             // — לא טוענים אותו עבור מזכירה.
             ...(asSecretary ? {} : { topic: true }),
-            payment: { select: { status: true, amount: true } },
+            payment: {
+              select: {
+                status: true,
+                amount: true,
+                method: true,
+                hasReceipt: true,
+                // childPayments נדרש ל-calculatePaidAmount כדי לקבוע
+                // אם תשלום חלקי באשראי כבר התחיל להגיע (בלי זה, partial
+                // Cardcom נראה כאילו "ממתין" כשבעצם חלק כבר שולם).
+                childPayments: {
+                  where: { status: "PAID" },
+                  select: { amount: true, status: true },
+                },
+              },
+            },
           },
         },
       },
@@ -222,8 +238,28 @@ export default async function ClientsPage({ searchParams }: PageProps) {
               id: s.id,
               startTime: s.startTime.toISOString(),
               status: s.status,
-              topic: s.topic,
-              paymentStatus: s.payment?.status || null,
+              // שדה topic לא קיים ב-secretary path (CLINICAL_FIELDS_BLOCKED).
+              topic: "topic" in s ? s.topic ?? null : null,
+              // ── effective payment status ────────────────────────
+              // אי אפשר לשלוח את payment.status הגולמי: "PENDING" יכול
+              // להיות גם "ממתין לחלוטין" וגם "חלקי שכבר שולם" (Cardcom
+              // partial flow). calculatePaidAmount הוא ה-source-of-truth
+              // שמטפל בכל הזרמים. אם paid >= price → "שולם", paid > 0 →
+              // "חלקי", paid === 0 → "ממתין".
+              paymentStatus: ((): string | null => {
+                if (!s.payment) return null;
+                const paid = calculatePaidAmount({
+                  amount: s.payment.amount,
+                  status: s.payment.status,
+                  method: s.payment.method,
+                  hasReceipt: s.payment.hasReceipt,
+                  childPayments: s.payment.childPayments,
+                });
+                const price = Number(s.price) || 0;
+                if (paid >= price && price > 0) return "PAID";
+                if (paid > 0) return "PARTIAL";
+                return s.payment.status;
+              })(),
             })),
           }))}
         />

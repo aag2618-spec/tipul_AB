@@ -290,6 +290,49 @@ export function SessionDetailDialog({
       );
     }
 
+    // ── פטור מתשלום: זיהוי loud-fallback ─────────────────────────
+    // היסטוריה: ב-2026-05-26 commit a46a514b הצמצם את calendar API ולא
+    // החזיר payment, מה שגרם לכל פגישה ששולמה להיראות כ"פטור מתשלום".
+    // אסור לסמוך על "אם אין payment → פטור" כי זה אותו signature של
+    // "הקריאה לשרת לא החזירה את השדות".
+    //
+    // היוריסטיקת זיהוי: פגישה COMPLETED בלי payment ובלי sessionNote
+    // ועם price > 0 — זה כמעט בטוח רגרסיה (אם המטפל בחר "ללא תשלום"
+    // הוא לרוב נשאר על SCHEDULED, או נכתבת sessionNote). מציגים מסך
+    // שגיאה ברור עם הנחיה לרענן + dev console warning, במקום להציג
+    // "פטור מתשלום" שקרי.
+    const looksLikeRegression =
+      !payment &&
+      !session.sessionNote &&
+      price > 0 &&
+      session.status === "COMPLETED";
+    if (looksLikeRegression) {
+      if (typeof console !== "undefined" && process.env.NODE_ENV !== "production") {
+        // eslint-disable-next-line no-console
+        console.warn(
+          "[SessionDetailDialog] suspected data-shape regression: COMPLETED session with price>0 has no payment AND no sessionNote. Did the API drop `payment` from the include?",
+          { sessionId: session.id, status: session.status, price },
+        );
+      }
+      return (
+        <div className="rounded-lg p-3 bg-amber-50 dark:bg-amber-950 border border-amber-200 dark:border-amber-800 space-y-2">
+          <p className="text-sm font-semibold text-amber-800 dark:text-amber-200">
+            ⚠️ לא הצלחנו לטעון פרטי תשלום
+          </p>
+          <p className="text-xs text-amber-700 dark:text-amber-300">
+            פגישה זו הסתיימה אבל לא נטענו עבורה פרטי תשלום. נסה/י לרענן
+            את הדף. אם הבעיה ממשיכה — פנה/י לתמיכה.
+          </p>
+          <button
+            onClick={() => window.location.reload()}
+            className="text-xs underline text-amber-700 dark:text-amber-300 hover:text-amber-900"
+          >
+            רענן את הדף
+          </button>
+        </div>
+      );
+    }
+
     // פטור מתשלום (אין payment בכלל)
     // אם כבר יש סיבת אי חיוב שמורה — מציגים רק טקסט קצר, בלי textarea
     if (session.sessionNote) {

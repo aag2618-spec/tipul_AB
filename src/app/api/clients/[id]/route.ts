@@ -104,6 +104,23 @@ export async function GET(
                 clientId: true,
                 therapistId: true,
                 organizationId: true,
+                // payment per-session: נדרש לקליינט שמראה לכל פגישה אם
+                // היא שולמה (client-sessions-tab וכד'). ללא זה, מזכירה
+                // עם canViewPayments תראה payments[] ברמת הלקוח, אבל
+                // לכל פגישה נפרדת payment=undefined → "אין תשלום" שגוי.
+                // childPayments נדרש ל-calculatePaidAmount.
+                ...(canSeePayments
+                  ? {
+                      payment: {
+                        include: {
+                          childPayments: {
+                            where: { status: "PAID" as const },
+                            select: { id: true, amount: true, status: true },
+                          },
+                        },
+                      },
+                    }
+                  : {}),
               },
             },
             ...(canSeePayments

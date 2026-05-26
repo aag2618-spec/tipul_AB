@@ -140,6 +140,11 @@ export function useCalendarData() {
     fetchSecondary();
     checkOverlaps();
 
+    // Poll סשנים + overlaps כל 2 דקות. ב-e8f53d72 הוסר checkOverlaps
+    // מה-poll/focus (ביצועים), מה שגרם ל-badge "חפיפה" להיות stale עד
+    // 2 דקות אחרי עריכת פגישה — מבלבל מטפלים. /api/sessions/overlaps
+    // היא שאילתה זולה (count + group-by זמן) — אין שיקול perf אמיתי
+    // שלא לכלול אותה בפול.
     const interval = setInterval(() => {
       fetch(buildCalendarUrl())
         .then(async (res) => {
@@ -149,6 +154,7 @@ export function useCalendarData() {
           }
         })
         .catch(() => {});
+      checkOverlaps();
     }, 120_000);
 
     const onFocus = () => {
@@ -160,6 +166,7 @@ export function useCalendarData() {
           }
         })
         .catch(() => {});
+      checkOverlaps();
     };
     window.addEventListener("focus", onFocus);
 
