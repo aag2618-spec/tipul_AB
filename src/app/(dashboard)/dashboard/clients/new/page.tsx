@@ -77,7 +77,25 @@ function NewClientContent() {
 
   useEffect(() => {
     fetchDefaultQuestionnaire();
+    fetchTherapistDefault();
   }, []);
+
+  const fetchTherapistDefault = async () => {
+    try {
+      const res = await fetch("/api/user/profile");
+      if (res.ok) {
+        const profile = await res.json();
+        if (profile.defaultSessionPrice != null) {
+          setFormData((prev) => ({
+            ...prev,
+            defaultSessionPrice: prev.defaultSessionPrice || String(Number(profile.defaultSessionPrice)),
+          }));
+        }
+      }
+    } catch {
+      // נשאר ריק — ה-API ישתמש בברירת מחדל
+    }
+  };
 
   useEffect(() => {
     if (!fromQuickId) return;
@@ -92,6 +110,9 @@ function NewClientContent() {
           lastName: nameParts.slice(1).join(" ") || "",
           phone: client.phone || "",
           email: client.email || "",
+          defaultSessionPrice: client.defaultSessionPrice
+            ? String(Number(client.defaultSessionPrice))
+            : prev.defaultSessionPrice,
         }));
       })
       .catch(() => {});
@@ -456,7 +477,7 @@ function NewClientContent() {
                     type="number"
                     min="0"
                     step="1"
-                    placeholder="300"
+                    placeholder="מחיר"
                     value={formData.defaultSessionPrice}
                     onChange={handleChange}
                     disabled={isLoading}

@@ -72,12 +72,22 @@ export async function POST(request: NextRequest) {
       );
     }
 
-    // Get user's default session price from latest session
-    const latestSession = await prisma.therapySession.findFirst({
-      where: { therapistId: userId },
-      orderBy: { createdAt: "desc" },
+    // Get user's default session price from profile, fallback to latest session
+    const therapist = await prisma.user.findUnique({
+      where: { id: userId },
+      select: { defaultSessionPrice: true },
     });
-    const defaultPrice = latestSession?.price || 300;
+    let defaultPrice: number = 0;
+    if (therapist?.defaultSessionPrice) {
+      defaultPrice = Number(therapist.defaultSessionPrice);
+    } else {
+      const latestSession = await prisma.therapySession.findFirst({
+        where: { therapistId: userId },
+        orderBy: { createdAt: "desc" },
+        select: { price: true },
+      });
+      defaultPrice = latestSession?.price ? Number(latestSession.price) : 0;
+    }
 
     let skipped = 0;
     const now = new Date();
