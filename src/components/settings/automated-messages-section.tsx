@@ -224,6 +224,7 @@ export function AutomatedMessagesSection({
             <Switch
               checked={smsSettings.enabled}
               onCheckedChange={(checked) => setSmsSettings({ ...smsSettings, enabled: checked })}
+              aria-label="הפעל SMS"
             />
           </div>
 
@@ -316,7 +317,7 @@ export function AutomatedMessagesSection({
                 return (
                   <div key={msgType.id} className="rounded-lg border p-4 space-y-3">
                     {/* Header row with dual toggles */}
-                    <div className="flex items-start justify-between gap-4">
+                    <div className="flex flex-col sm:flex-row sm:items-start sm:justify-between gap-3 sm:gap-4">
                       <div className="space-y-0.5 flex-1">
                         <Label className="text-sm font-semibold">{msgType.label}</Label>
                         <p className="text-xs text-muted-foreground">{msgType.desc}</p>
@@ -329,6 +330,7 @@ export function AutomatedMessagesSection({
                           <Switch
                             checked={emailEnabled}
                             onCheckedChange={(checked) => handleEmailToggle(msgType, checked)}
+                            aria-label={`${msgType.label} — מייל`}
                           />
                         </div>
                         {/* SMS toggle */}
@@ -339,6 +341,7 @@ export function AutomatedMessagesSection({
                             checked={smsEnabled}
                             disabled={smsGloballyOff}
                             onCheckedChange={(checked) => handleSmsToggle(msgType, checked)}
+                            aria-label={`${msgType.label} — SMS`}
                           />
                         </div>
                       </div>
@@ -361,6 +364,7 @@ export function AutomatedMessagesSection({
                           value={commSettings.customReminderHours}
                           onChange={(e) => setCommSettings({ ...commSettings, customReminderHours: parseInt(e.target.value) || 2 })}
                           className="w-20"
+                          aria-label="שעות לפני הפגישה"
                         />
                         <span className="text-sm text-muted-foreground">שעות לפני הפגישה</span>
                       </div>
