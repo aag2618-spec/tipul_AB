@@ -210,7 +210,13 @@ export default function MarkPaidPage({ params }: { params: Promise<{ id: string 
         }
 
         const paymentResult = await response.json();
-        openReceiptInNewTab(paymentResult?.receiptUrl);
+        try {
+          const receiptRes = await fetch(`/api/payments/${id}`);
+          if (receiptRes.ok) {
+            const pd = await receiptRes.json();
+            openReceiptInNewTab(pd?.receiptUrl);
+          }
+        } catch {}
 
         let successMessage = "";
         if (creditUsed > 0 && amountToPay > 0) {

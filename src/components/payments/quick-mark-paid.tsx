@@ -296,7 +296,17 @@ export function QuickMarkPaid({
       }
 
       toast.success(successMessage);
-      openReceiptInNewTab(result?.receiptUrl);
+
+      const paymentId = (result as { id?: string })?.id || existingPayment?.id;
+      if (paymentId) {
+        try {
+          const receiptRes = await fetch(`/api/payments/${paymentId}`);
+          if (receiptRes.ok) {
+            const pd = await receiptRes.json();
+            openReceiptInNewTab(pd?.receiptUrl);
+          }
+        } catch {}
+      }
 
       if (result?.receiptError) {
         toast.error(`שגיאה בהפקת קבלה: ${result.receiptError}`, { duration: 8000 });

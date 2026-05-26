@@ -257,7 +257,15 @@ export function CompleteSessionDialog(props: CompleteSessionDialogProps) {
         body: JSON.stringify({ status: "COMPLETED" }),
       });
 
-      openReceiptInNewTab(paymentResult?.receiptUrl);
+      if (paymentResult?.id) {
+        try {
+          const receiptRes = await fetch(`/api/payments/${paymentResult.id}`);
+          if (receiptRes.ok) {
+            const pd = await receiptRes.json();
+            openReceiptInNewTab(pd?.receiptUrl);
+          }
+        } catch {}
+      }
       if (paymentResult?.receiptError) {
         toast.error(`שגיאה בהפקת קבלה: ${paymentResult.receiptError}`, { duration: 8000 });
       }
