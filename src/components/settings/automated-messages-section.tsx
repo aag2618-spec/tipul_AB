@@ -189,6 +189,17 @@ export function AutomatedMessagesSection({
     setCommSettings({ ...commSettings, [msgType.smsKey]: checked });
   };
 
+  const handleSmsMasterToggle = (checked: boolean) => {
+    setSmsSettings({ ...smsSettings, enabled: checked });
+    const allSmsKeys: Record<string, boolean> = {};
+    for (const group of MESSAGE_GROUPS) {
+      for (const t of group.types) {
+        allSmsKeys[t.smsKey] = checked;
+      }
+    }
+    setCommSettings({ ...commSettings, ...allSmsKeys });
+  };
+
   return (
     <AccordionItem value="automated-messages" className="border rounded-lg px-4">
       <AccordionTrigger className="hover:no-underline">
@@ -223,7 +234,7 @@ export function AutomatedMessagesSection({
             </div>
             <Switch
               checked={smsSettings.enabled}
-              onCheckedChange={(checked) => setSmsSettings({ ...smsSettings, enabled: checked })}
+              onCheckedChange={handleSmsMasterToggle}
               aria-label="הפעל SMS"
             />
           </div>
