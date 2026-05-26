@@ -295,43 +295,15 @@ export function ReceiptPreviewDialog({
     return null;
   };
 
-  // ── הדפסה של קבלת Cardcom ──────────────────────────────────
-  // Cardcom URL cross-origin עם XFO:DENY — לא נטען ב-iframe.
-  // פותחים בטאב חדש; ב-onload של החלון מנסים להפעיל print().
-  // user-gesture של הקליק על הכפתור עוזר לעבור popup-blockers.
-  const handlePrintCardcom = (): void => {
-    const url = resolveOpenUrl();
-    if (!url) return;
-    const w = window.open(url, "_blank", "noopener,noreferrer");
-    if (!w) {
-      toast.error("הדפדפן חסם פתיחת הקבלה. אפשרי/י חלונות קופצים בהגדרות.");
-      return;
-    }
-    // ניסיון best-effort להפעיל print אחרי שהמסמך נטען.
-    // cross-origin — w.onload לא תמיד נורה. הניסיון לא מזיק במקרה כשל.
-    try {
-      w.onload = () => {
-        try {
-          w.focus();
-          w.print();
-        } catch {
-          // המשתמש יכול ללחוץ Ctrl+P ידנית.
-        }
-      };
-    } catch {
-      // cross-origin — לא ניגש ל-onload. המסמך יוצג והמשתמש יכול
-      // ללחוץ Ctrl+P או על כפתור ההדפסה ב-Cardcom.
-    }
-  };
-
-  const handleOpenInNewTab = (): void => {
-    const url = resolveOpenUrl();
-    if (!url) return;
-    const w = window.open(url, "_blank", "noopener,noreferrer");
-    if (!w) {
-      toast.error("הדפדפן חסם פתיחת הקבלה. אפשרי/י חלונות קופצים בהגדרות.");
-    }
-  };
+  // ⚠️ הוסר window.open לטובת <a href target="_blank">.
+  // למה: גם בלחיצה ישירה (ללא await fetch קודם) ה-popup-blocker יכול
+  // לחסום window.open — בעיקר עם URL fragment (#t=token). בדיקות בשטח
+  // הראו שזה קרה למטפלים. <a href target="_blank"> הוא ניווט מובהק,
+  // לא popup, ואינו נחסם.
+  // לגבי הדפסה אוטומטית של Cardcom: זה היה best-effort בלבד (cross-origin
+  // SOP חוסם w.print() מהורה ברוב הדפדפנים). המשתמש לוחץ Ctrl+P בלשונית.
+  // לכן אובדן ה-onload-print הוא minimal לעומת הרווח של popup-blocker safe.
+  const externalOpenUrl = resolveOpenUrl(); // safe http/https URL או null
 
   const dialogTitle =
     title ?? (isCardcom ? "קבלת Cardcom" : "קבלה");
@@ -604,28 +576,74 @@ export function ReceiptPreviewDialog({
             על "סגור" בצד שמאל. */}
         <DialogFooter className="p-3 border-t bg-background shrink-0 gap-2 flex-row-reverse sm:justify-between">
           <div className="flex gap-2 flex-row-reverse">
-            <Button
-              onClick={isCardcom ? handlePrintCardcom : handlePrintInternal}
-              disabled={printDisabled}
-              className="gap-1.5 bg-teal-600 hover:bg-teal-700 font-bold"
-            >
-              <Printer className="h-4 w-4" />
-              הדפס
-            </Button>
-            <Button
-              variant="outline"
-              onClick={handleOpenInNewTab}
-              disabled={externalOpenDisabled}
-              className="gap-1.5"
-              title={
-                isCardcom
-                  ? "פתיחת הקבלה הרשמית ב-Cardcom"
-                  : "גיבוי אם התצוגה המובנית לא עובדת"
-              }
-            >
-              <ExternalLink className="h-4 w-4" />
-              פתח בחלון חיצוני
-            </Button>
+            {/* כפתור "הדפס": עבור קבלה פנימית — onClick שמדפיס את ה-DOM
+                המקומי. עבור Cardcom — <a href target="_blank"> שפותח את
+                ה-PDF הרשמי בלשונית; המשתמש מקיש Ctrl+P שם (cross-origin
+                SOP מנע בעבר w.print() מהורה — לא איבדנו פונקציונליות). */}
+            {isCardcom ? (
+              externalOpenUrl ? (
+                <a
+                  href={externalOpenUrl}
+                  target="_blank"
+                  rel="noopener noreferrer"
+                  className="inline-flex items-center justify-center gap-1.5 rounded-md bg-teal-600 px-4 py-2 text-sm font-bold text-white hover:bg-teal-700 transition-colors"
+                  aria-label="פתח את הקבלה הרשמית מ-Cardcom להדפסה"
+                >
+                  <Printer className="h-4 w-4" />
+                  הדפס
+                </a>
+              ) : (
+                <Button
+                  disabled
+                  className="gap-1.5 bg-teal-600 hover:bg-teal-700 font-bold"
+                >
+                  <Printer className="h-4 w-4" />
+                  הדפס
+                </Button>
+              )
+            ) : (
+              <Button
+                onClick={handlePrintInternal}
+                disabled={printDisabled}
+                className="gap-1.5 bg-teal-600 hover:bg-teal-700 font-bold"
+              >
+                <Printer className="h-4 w-4" />
+                הדפס
+              </Button>
+            )}
+            {/* כפתור "פתח בחלון חיצוני": <a href target="_blank"> בלי כל
+                onClick — popup-blocker safe. אם externalOpenUrl null
+                (URL לא חוקי), מציגים Button disabled לעקביות ויזואלית. */}
+            {externalOpenUrl ? (
+              <a
+                href={externalOpenUrl}
+                target="_blank"
+                rel="noopener noreferrer"
+                aria-disabled={externalOpenDisabled}
+                className={`inline-flex items-center justify-center gap-1.5 rounded-md border bg-background px-4 py-2 text-sm font-medium transition-colors ${
+                  externalOpenDisabled
+                    ? "opacity-50 pointer-events-none"
+                    : "hover:bg-accent hover:text-accent-foreground"
+                }`}
+                title={
+                  isCardcom
+                    ? "פתיחת הקבלה הרשמית ב-Cardcom"
+                    : "גיבוי אם התצוגה המובנית לא עובדת"
+                }
+              >
+                <ExternalLink className="h-4 w-4" />
+                פתח בחלון חיצוני
+              </a>
+            ) : (
+              <Button
+                variant="outline"
+                disabled
+                className="gap-1.5"
+              >
+                <ExternalLink className="h-4 w-4" />
+                פתח בחלון חיצוני
+              </Button>
+            )}
           </div>
           <Button
             variant="outline"

@@ -10,7 +10,7 @@ import { format } from "date-fns";
 import { toast } from "sonner";
 import { useRouter } from "next/navigation";
 import { QuickMarkPaid } from "@/components/payments/quick-mark-paid";
-import { tryOpenReceiptInNewTab } from "@/lib/receipt-utils";
+import { safeHttpUrl } from "@/lib/receipt-utils";
 import type { CalendarSession } from "@/hooks/use-calendar-data";
 
 // ── Types ──
@@ -201,25 +201,20 @@ export function SessionDetailDialog({
 
     // שולם מלא
     if (payment?.status === "PAID") {
-      // כפתור "הצג קבלה" — נחשף רק אם יש URL בפועל. תשלומים ישנים שהוצגו
-      // ב-mode "ללא קבלה" (businessType=NONE / issueReceipt=false), או
-      // payments שעדיין ב-flight ב-Cardcom webhook, יוצגו בלי הכפתור.
-      const handleShowReceipt = (): void => {
-        const url = payment.receiptUrl;
-        if (!url) {
-          toast.message("הקבלה עדיין בהפקה — בדוק/י שוב בעוד דקה.", {
-            duration: 4000,
-          });
-          return;
-        }
-        const { opened } = tryOpenReceiptInNewTab(url);
-        if (!opened) {
-          toast.error(
-            "הדפדפן חסם פתיחת לשונית. אפשרי/י popups לאתר זה.",
-            { duration: 6000 },
-          );
-        }
-      };
+      // ⭐ "הצג / הדפס קבלה" — מימוש כ-<a href target="_blank"> ולא window.open.
+      //
+      // ⚠️ למה לא window.open: גם בלחיצה ישירה (ללא async/fetch ביניים)
+      // ה-popup-blocker של הדפדפן יכול לחסום window.open — במיוחד כש-URL
+      // מכיל hash fragment (כמו /receipt/{id}#t=...). בדיקות בשטח מאששות
+      // שזה קרה למטפלים בפועל (Chrome/Edge ב-Windows). <a href target="_blank">
+      // הוא ניווט-משתמש מובהק ואינו נחסם.
+      //
+      // safeHttpUrl: אנחנו עדיין מאמתים שה-URL הוא http/https/relative
+      // לפני הצגת הכפתור — receiptUrl מגיע מ-DB ויכול תיאורטית להכיל
+      // javascript:/data: אם webhook מספק חיצוני יחזיר ערך מורעל.
+      const safeReceiptUrl = payment.receiptUrl
+        ? safeHttpUrl(payment.receiptUrl)
+        : null;
       return (
         <div className="rounded-lg p-3 bg-green-50 dark:bg-green-950 border border-green-200 dark:border-green-800 space-y-2">
           <div>
@@ -233,15 +228,16 @@ export function SessionDetailDialog({
               {payment.receiptNumber && ` • קבלה ${payment.receiptNumber}`}
             </p>
           </div>
-          {payment.hasReceipt && payment.receiptUrl && (
-            <Button
-              size="sm"
-              variant="outline"
-              onClick={handleShowReceipt}
-              className="w-full text-xs gap-2 border-green-300 hover:bg-green-100 dark:border-green-700 dark:hover:bg-green-900"
+          {payment.hasReceipt && safeReceiptUrl && (
+            <a
+              href={safeReceiptUrl}
+              target="_blank"
+              rel="noopener noreferrer"
+              className="inline-flex items-center justify-center w-full text-xs gap-2 rounded-md border border-green-300 bg-white px-3 py-2 font-medium text-green-700 hover:bg-green-100 dark:border-green-700 dark:bg-transparent dark:text-green-300 dark:hover:bg-green-900 transition-colors"
+              aria-label="הצג או הדפס את הקבלה בלשונית חדשה"
             >
               📄 הצג / הדפס קבלה
-            </Button>
+            </a>
           )}
         </div>
       );

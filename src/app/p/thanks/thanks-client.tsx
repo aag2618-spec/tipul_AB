@@ -3,7 +3,6 @@
 import { useEffect, useRef, useState } from "react";
 import { format } from "date-fns";
 import { he } from "date-fns/locale";
-import { toast } from "sonner";
 import { safeHttpUrl, parseInternalReceipt } from "@/lib/receipt-utils";
 
 interface Props {
@@ -268,33 +267,9 @@ export function ThanksClient({ transactionId }: Props) {
     setTimeout(() => window.print(), 50);
   };
 
-  // עבור Cardcom — פתיחת PDF הרשמי בלשונית חדשה. אם popup-blocker חוסם —
-  // toast עם הסבר; ה-link הסטטי <a href> תמיד גלוי כ-fallback.
-  const handleOpenReceipt = (): void => {
-    const url = safeHttpUrl(receiptUrl);
-    if (!url) {
-      toast.error("קישור הקבלה לא תקין. פנה/י למטפל.");
-      return;
-    }
-    try {
-      const w = window.open(url, "_blank", "noopener,noreferrer");
-      if (!w) {
-        toast.error(
-          "הדפדפן חסם את החלון. אפשרי/י popups לאתר זה או השתמש/י בקישור הישיר למטה.",
-          { duration: 8000 },
-        );
-        return;
-      }
-      try {
-        w.focus();
-      } catch {
-        // לא קריטי.
-      }
-    } catch {
-      toast.error("שגיאה בפתיחת הקבלה.");
-    }
-  };
-
+  // ⚠️ window.open הוסר — Cardcom לחצנים נטענים כ-<a href target="_blank">.
+  // popup-blocker חוסם window.open גם בלחיצה ישירה במיוחד ב-public landing
+  // page בלי היסטוריה של ה-domain. anchor click הוא ניווט מובהק ולא נחסם.
   const safeReceiptUrl = safeHttpUrl(receiptUrl);
   const isReady =
     receiptStatus === "ready-internal" ||
@@ -458,21 +433,17 @@ export function ThanksClient({ transactionId }: Props) {
               עותק נוסף נשלח אליך באימייל אם הזנת כתובת.
             </p>
             <div className="flex flex-col items-center gap-2">
-              <button
-                onClick={handleOpenReceipt}
-                className="inline-flex items-center justify-center rounded-md bg-teal-600 px-4 py-2 text-white text-sm font-bold hover:bg-teal-700"
-                aria-label="הדפס או צפה בקבלה"
-              >
-                הדפס / צפה בקבלה
-              </button>
-              {/* gesture-free fallback: <a href> תמיד עובד גם אם popup חסום */}
+              {/* primary action — <a href target="_blank"> במקום window.open
+                  כי popup-blocker חוסם window.open גם בלחיצה ישירה (במיוחד
+                  מ-page חיצוני בלי history של ה-domain). <a> אינו popup. */}
               <a
                 href={safeReceiptUrl}
                 target="_blank"
                 rel="noopener noreferrer"
-                className="text-xs text-blue-600 hover:underline"
+                className="inline-flex items-center justify-center rounded-md bg-teal-600 px-4 py-2 text-white text-sm font-bold hover:bg-teal-700"
+                aria-label="הדפס או צפה בקבלה בלשונית חדשה"
               >
-                או פתח/י בקישור ישיר
+                הדפס / צפה בקבלה
               </a>
             </div>
           </div>
