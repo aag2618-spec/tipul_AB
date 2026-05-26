@@ -6,6 +6,7 @@ import { serializePrisma } from "@/lib/serialize";
 import { parseBody } from "@/lib/validations/helpers";
 import { updateCommitmentSchema } from "@/lib/validations/client";
 import { loadScopeUser, buildClientWhere, isSecretary, secretaryCan } from "@/lib/scope";
+import { logDataAccess } from "@/lib/audit-logger";
 import { CommitmentStatus } from "@prisma/client";
 
 export const dynamic = "force-dynamic";
@@ -84,24 +85,40 @@ export async function PUT(
       startDate, endDate, status, notes,
     } = parsed.data;
 
-    const updated = await prisma.clientCommitment.update({
-      where: { id: commitmentId },
-      data: {
-        ...(commitmentNumber !== undefined ? { commitmentNumber: commitmentNumber || null } : {}),
-        ...(form17Number !== undefined ? { form17Number: form17Number || null } : {}),
-        ...(referringDoctor !== undefined ? { referringDoctor: referringDoctor || null } : {}),
-        ...(referralDate !== undefined ? { referralDate: referralDate ? new Date(referralDate) : null } : {}),
-        ...(approvedSessions !== undefined ? { approvedSessions: approvedSessions ?? null } : {}),
-        ...(usedSessions !== undefined ? { usedSessions } : {}),
-        ...(copaymentAmount !== undefined ? { copaymentAmount: copaymentAmount ?? null } : {}),
-        ...(startDate !== undefined ? { startDate: startDate ? new Date(startDate) : null } : {}),
-        ...(endDate !== undefined ? { endDate: endDate ? new Date(endDate) : null } : {}),
-        ...(status !== undefined ? { status: status as CommitmentStatus } : {}),
-        ...(notes !== undefined ? { notes: notes || null } : {}),
-      },
+    const updateData = {
+      ...(commitmentNumber !== undefined ? { commitmentNumber: commitmentNumber || null } : {}),
+      ...(form17Number !== undefined ? { form17Number: form17Number || null } : {}),
+      ...(referringDoctor !== undefined ? { referringDoctor: referringDoctor || null } : {}),
+      ...(referralDate !== undefined ? { referralDate: referralDate ? new Date(referralDate) : null } : {}),
+      ...(approvedSessions !== undefined ? { approvedSessions: approvedSessions ?? null } : {}),
+      ...(usedSessions !== undefined ? { usedSessions } : {}),
+      ...(copaymentAmount !== undefined ? { copaymentAmount: copaymentAmount ?? null } : {}),
+      ...(startDate !== undefined ? { startDate: startDate ? new Date(startDate) : null } : {}),
+      ...(endDate !== undefined ? { endDate: endDate ? new Date(endDate) : null } : {}),
+      ...(status !== undefined ? { status: status as CommitmentStatus } : {}),
+      ...(notes !== undefined ? { notes: notes || null } : {}),
+    };
+
+    const updated = await prisma.clientCommitment.updateMany({
+      where: { id: commitmentId, clientId },
+      data: updateData,
     });
 
-    return NextResponse.json(serializePrisma(updated));
+    if (updated.count === 0) {
+      return NextResponse.json({ message: "התחייבות לא נמצאה" }, { status: 404 });
+    }
+
+    logDataAccess({
+      userId,
+      recordType: "CLIENT_COMMITMENT",
+      recordId: commitmentId,
+      action: "UPDATE",
+      clientId,
+      request,
+    });
+
+    const refreshed = await prisma.clientCommitment.findUnique({ where: { id: commitmentId } });
+    return NextResponse.json(serializePrisma(refreshed));
   } catch (error) {
     logger.error("Update commitment error:", { error: error instanceof Error ? error.message : String(error) });
     return NextResponse.json(
@@ -112,7 +129,7 @@ export async function PUT(
 }
 
 export async function DELETE(
-  _request: NextRequest,
+  request: NextRequest,
   context: { params: Promise<{ id: string; commitmentId: string }> }
 ) {
   const auth = await requireAuth();
@@ -134,7 +151,16 @@ export async function DELETE(
       );
     }
 
-    await prisma.clientCommitment.delete({ where: { id: commitmentId } });
+    await prisma.clientCommitment.deleteMany({ where: { id: commitmentId, clientId } });
+
+    logDataAccess({
+      userId,
+      recordType: "CLIENT_COMMITMENT",
+      recordId: commitmentId,
+      action: "DELETE",
+      clientId,
+      request,
+    });
 
     return NextResponse.json({ message: "ההתחייבות נמחקה בהצלחה" });
   } catch (error) {

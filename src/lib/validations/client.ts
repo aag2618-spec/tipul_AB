@@ -98,7 +98,7 @@ const dateStringField = z.string().max(40).refine(
   (s) => !s || !Number.isNaN(Date.parse(s)), "תאריך לא תקין"
 ).optional().nullable();
 
-export const createCommitmentSchema = z.object({
+const commitmentFields = {
   commitmentNumber: z.string().max(MAX_COMMITMENT_NUMBER, "מספר התחייבות ארוך מדי").optional().nullable(),
   form17Number: z.string().max(MAX_FORM17, "מספר טופס 17 ארוך מדי").optional().nullable(),
   referringDoctor: z.string().max(MAX_DOCTOR_NAME, "שם רופא ארוך מדי").optional().nullable(),
@@ -108,11 +108,27 @@ export const createCommitmentSchema = z.object({
   startDate: dateStringField,
   endDate: dateStringField,
   notes: z.string().max(MAX_COMMITMENT_NOTES, "הערות ארוכות מדי").optional().nullable(),
-});
+};
+
+function checkDateRange(data: { startDate?: string | null; endDate?: string | null }) {
+  if (data.startDate && data.endDate) {
+    return new Date(data.endDate) >= new Date(data.startDate);
+  }
+  return true;
+}
+
+export const createCommitmentSchema = z.object(commitmentFields).refine(
+  checkDateRange,
+  { message: "תאריך סיום חייב להיות אחרי תאריך התחלה", path: ["endDate"] }
+);
 export type CreateCommitmentInput = z.infer<typeof createCommitmentSchema>;
 
-export const updateCommitmentSchema = createCommitmentSchema.extend({
+export const updateCommitmentSchema = z.object({
+  ...commitmentFields,
   usedSessions: z.number().int().min(0).max(9999).optional(),
   status: z.enum(["ACTIVE", "EXPIRED", "CANCELLED"]).optional(),
-});
+}).refine(
+  checkDateRange,
+  { message: "תאריך סיום חייב להיות אחרי תאריך התחלה", path: ["endDate"] }
+);
 export type UpdateCommitmentInput = z.infer<typeof updateCommitmentSchema>;

@@ -10,6 +10,7 @@ import { Label } from "@/components/ui/label";
 import { Textarea } from "@/components/ui/textarea";
 import { Switch } from "@/components/ui/switch";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
+import { CommitmentManagement } from "@/components/clients/commitment-management";
 import { Loader2, Save, Archive, Clock, UserCheck, Trash2, AlertTriangle, Sparkles } from "lucide-react";
 import { toast } from "sonner";
 import {
@@ -37,6 +38,7 @@ interface Client {
   intakeNotes: string | null;
   consentToAI: boolean | null;
   consentToAIAt: string | null;
+  healthFund: string | null;
 }
 
 export default function EditClientPage({ params }: { params: Promise<{ id: string }> }) {
@@ -63,6 +65,7 @@ export default function EditClientPage({ params }: { params: Promise<{ id: strin
     defaultSessionPrice: "",
     notes: "",
     initialDiagnosis: "",
+    healthFund: "",
   });
   // M1 — consentToAI ב-state נפרד כי הוא boolean (לא string כמו שאר ה-formData).
   // null = ערך מקורי לפני המיגרציה; ב-UI מציגים כ-"ברירת מחדל (מאשר)".
@@ -87,6 +90,7 @@ export default function EditClientPage({ params }: { params: Promise<{ id: strin
             defaultSessionPrice: data.defaultSessionPrice ? String(data.defaultSessionPrice) : "",
             notes: data.notes || "",
             initialDiagnosis: data.initialDiagnosis || "",
+            healthFund: data.healthFund || "",
           });
           setConsentToAI(data.consentToAI ?? null);
           setConsentToAIAt(data.consentToAIAt ?? null);
@@ -119,6 +123,7 @@ export default function EditClientPage({ params }: { params: Promise<{ id: strin
           ...formData,
           birthDate: formData.birthDate || null,
           defaultSessionPrice: formData.defaultSessionPrice ? parseFloat(formData.defaultSessionPrice) : null,
+          healthFund: formData.healthFund || null,
           consentToAI,
         }),
       });
@@ -331,8 +336,38 @@ export default function EditClientPage({ params }: { params: Promise<{ id: strin
                 המחיר ימולא אוטומטית בעת יצירת פגישה חדשה
               </p>
             </div>
+
+            <div className="space-y-2">
+              <Label htmlFor="healthFund">קופת חולים</Label>
+              <Select
+                value={formData.healthFund || "NONE"}
+                onValueChange={(value) =>
+                  setFormData({ ...formData, healthFund: value === "NONE" ? "" : value })
+                }
+              >
+                <SelectTrigger id="healthFund">
+                  <SelectValue placeholder="פרטי (ללא קופה)" />
+                </SelectTrigger>
+                <SelectContent>
+                  <SelectItem value="NONE">פרטי (ללא קופה)</SelectItem>
+                  <SelectItem value="CLALIT">כללית</SelectItem>
+                  <SelectItem value="MACCABI">מכבי</SelectItem>
+                  <SelectItem value="MEUHEDET">מאוחדת</SelectItem>
+                  <SelectItem value="LEUMIT">לאומית</SelectItem>
+                </SelectContent>
+              </Select>
+            </div>
           </CardContent>
         </Card>
+
+        {/* Health Fund Commitments */}
+        {formData.healthFund && (
+          <Card>
+            <CardContent className="pt-6">
+              <CommitmentManagement clientId={id} />
+            </CardContent>
+          </Card>
+        )}
 
         {/* Diagnosis */}
         <Card>

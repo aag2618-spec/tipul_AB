@@ -78,6 +78,9 @@ export async function GET(
           include: { template: true },
           orderBy: { completedAt: "desc" },
         },
+        commitments: {
+          orderBy: { createdAt: "desc" },
+        },
       },
     });
 
@@ -120,6 +123,7 @@ export async function GET(
 תאריך לידה: ${client.birthDate ? format(new Date(client.birthDate), "dd/MM/yyyy") : "לא צוין"}
 כתובת: ${client.address || "לא צוין"}
 מצב: ${client.status === "ACTIVE" ? "פעיל" : client.status === "WAITING" ? "ממתין" : "לא פעיל"}
+קופת חולים: ${client.healthFund ? { CLALIT: "כללית", MACCABI: "מכבי", MEUHEDET: "מאוחדת", LEUMIT: "לאומית" }[client.healthFund] || client.healthFund : "פרטי"}
 
 אבחון ראשוני:
 ${client.initialDiagnosis || "לא הוזן"}
@@ -211,6 +215,19 @@ ${i + 1}. תאריך: ${format(new Date(p.createdAt), "dd/MM/yyyy")}
 סה"כ חוב: ₪${calculateDebtFromPayments(client.payments)}
       `.trim();
       zip.file("תשלומים.txt", paymentsSummary);
+    }
+
+    if (client.commitments && client.commitments.length > 0) {
+      const commitmentsSummary = client.commitments.map((c: { commitmentNumber: string | null; form17Number: string | null; referringDoctor: string | null; usedSessions: number; approvedSessions: number | null; status: string; startDate: Date | null; endDate: Date | null; copaymentAmount: unknown }, i: number) => `
+${i + 1}. מספר התחייבות: ${c.commitmentNumber || "לא צוין"}
+   טופס 17: ${c.form17Number || "לא צוין"}
+   רופא מפנה: ${c.referringDoctor || "לא צוין"}
+   טיפולים: ${c.usedSessions}/${c.approvedSessions || "?"}
+   סטטוס: ${c.status === "ACTIVE" ? "פעילה" : c.status === "EXPIRED" ? "פגה" : "מבוטלת"}
+   תקופה: ${c.startDate ? format(new Date(c.startDate), "dd/MM/yyyy") : "?"} – ${c.endDate ? format(new Date(c.endDate), "dd/MM/yyyy") : "?"}
+   השתתפות עצמית: ${c.copaymentAmount != null ? `₪${c.copaymentAmount}` : "לא צוין"}
+`).join("\n");
+      zip.file("התחייבויות-קופת-חולים.txt", commitmentsSummary.trim());
     }
 
     // Generate ZIP with Unicode support for Hebrew filenames

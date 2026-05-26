@@ -28,7 +28,8 @@ export type AuditRecordType =
   | "SESSION_DETAIL"
   | "PAYMENT"
   | "DOCUMENT"
-  | "CONSENT_FORM";
+  | "CONSENT_FORM"
+  | "CLIENT_COMMITMENT";
 
 export type AuditAction = "READ" | "EXPORT" | "PRINT" | "DELETE" | "UPDATE" | "SIGN";
 

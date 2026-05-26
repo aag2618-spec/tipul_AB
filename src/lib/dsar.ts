@@ -46,6 +46,7 @@ export interface DsarPayload {
   emotionLogs: Record<string, unknown>[];
   clientTransferLogs: Record<string, unknown>[];
   clientDepartureChoices: Record<string, unknown>[];
+  commitments: Record<string, unknown>[];
   /** DataAccessAuditLog — מי ניגש לרשומה שלך (חוק הגנת הפרטיות §13).
    *  לא מפוענח (אין שדות מוצפנים בטבלה הזו). */
   dataAccessAuditLog: Record<string, unknown>[];
@@ -67,6 +68,7 @@ export interface DsarCounts {
   emotionLogs: number;
   transferLogs: number;
   departureChoices: number;
+  commitments: number;
   auditLogs: number;
 }
 
@@ -123,6 +125,7 @@ export async function buildDsarPayload(
       therapeuticGoals: { orderBy: { createdAt: "desc" } },
       emotionLogs: { orderBy: { recordedAt: "desc" } },
       departureChoices: { orderBy: { decidedAt: "desc" } },
+      commitments: { orderBy: { createdAt: "desc" } },
     },
   });
 
@@ -182,6 +185,7 @@ export async function buildDsarPayload(
     therapeuticGoals: Record<string, unknown>[];
     emotionLogs: Record<string, unknown>[];
     departureChoices: Record<string, unknown>[];
+    commitments: Record<string, unknown>[];
   };
 
   const {
@@ -197,6 +201,7 @@ export async function buildDsarPayload(
     therapeuticGoals,
     emotionLogs,
     departureChoices,
+    commitments,
     ...clientCore
   } = clientObj;
 
@@ -214,6 +219,7 @@ export async function buildDsarPayload(
     emotionLogs: emotionLogs.length,
     transferLogs: clientTransferLogs.length,
     departureChoices: departureChoices.length,
+    commitments: commitments.length,
     auditLogs: dataAccessAuditLog.length,
   };
 
@@ -235,6 +241,7 @@ export async function buildDsarPayload(
     emotionLogs,
     clientTransferLogs: clientTransferLogs as unknown as Record<string, unknown>[],
     clientDepartureChoices: departureChoices,
+    commitments,
     dataAccessAuditLog: dataAccessAuditLog as unknown as Record<string, unknown>[],
     counts,
   };
@@ -332,6 +339,7 @@ function buildReadme(payload: DsarPayload): string {
     `  • לוג רגשות:               ${payload.counts.emotionLogs}`,
     `  • העברות בין מטפלים:       ${payload.counts.transferLogs}`,
     `  • בחירות בעת עזיבת מטפל:   ${payload.counts.departureChoices}`,
+    `  • התחייבויות קופת חולים:    ${payload.counts.commitments}`,
     `  • לוג גישה לרשומה שלך:     ${payload.counts.auditLogs}`,
     "",
     "הערות:",
@@ -367,6 +375,7 @@ function buildClientSummary(payload: DsarPayload): string {
     `סטטוס:             ${fmt(c.status)}`,
     `יתרת קרדיט:        ${fmt(c.creditBalance)}`,
     `הסכמה לעיבוד AI:   ${fmt(c.consentToAI)}`,
+    `קופת חולים:         ${c.healthFund ? { CLALIT: "כללית", MACCABI: "מכבי", MEUHEDET: "מאוחדת", LEUMIT: "לאומית" }[c.healthFund as string] || fmt(c.healthFund) : "פרטי"}`,
     "",
     "תוכן קליני:",
     "────────────",

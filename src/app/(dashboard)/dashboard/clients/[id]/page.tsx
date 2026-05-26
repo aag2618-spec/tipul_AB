@@ -484,6 +484,26 @@ export default async function ClientPage({
                   {age ? `${age} שנים` : "לא צוין"}
                 </span>
               </div>
+
+              {/* Health Fund */}
+              {client.healthFund && (
+                <>
+                  <div className="h-4 w-px bg-border" />
+                  <div className="flex items-center gap-2">
+                    <Stethoscope className="h-4 w-4 text-muted-foreground" />
+                    <span className="text-sm font-medium">
+                      {
+                        {
+                          CLALIT: "כללית",
+                          MACCABI: "מכבי",
+                          MEUHEDET: "מאוחדת",
+                          LEUMIT: "לאומית",
+                        }[client.healthFund] || client.healthFund
+                      }
+                    </span>
+                  </div>
+                </>
+              )}
             </div>
           </CardContent>
         </Card>
