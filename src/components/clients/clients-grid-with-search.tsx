@@ -6,7 +6,7 @@ import { Badge } from "@/components/ui/badge";
 import { Avatar, AvatarFallback } from "@/components/ui/avatar";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
-import { Phone, Mail, Plus, Search } from "lucide-react";
+import { Phone, Mail, Plus, Search, Stethoscope } from "lucide-react";
 import Link from "next/link";
 import { format } from "date-fns";
 
@@ -19,6 +19,7 @@ interface ClientGridItem {
   status: string;
   birthDate: string | null;
   sessionCount: number;
+  healthFund: string | null;
 }
 
 interface ClientsGridWithSearchProps {
@@ -108,6 +109,12 @@ export function ClientsGridWithSearch({ clients }: ClientsGridWithSearchProps) {
                   </div>
                   <div className="flex items-center justify-between pt-2 border-t text-sm text-muted-foreground">
                     <span>{client.sessionCount} פגישות</span>
+                    {client.healthFund && (
+                      <span className="flex items-center gap-1">
+                        <Stethoscope className="h-3 w-3" />
+                        {{ CLALIT: "כללית", MACCABI: "מכבי", MEUHEDET: "מאוחדת", LEUMIT: "לאומית" }[client.healthFund] || client.healthFund}
+                      </span>
+                    )}
                     <span>
                       {client.birthDate
                         ? format(new Date(client.birthDate), "dd/MM/yyyy")

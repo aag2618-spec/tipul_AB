@@ -223,6 +223,7 @@ export default async function ClientsPage({ searchParams }: PageProps) {
           status: c.status,
           birthDate: c.birthDate ? c.birthDate.toISOString() : null,
           sessionCount: c._count.therapySessions,
+          healthFund: c.healthFund || null,
         }))}
       />
 
