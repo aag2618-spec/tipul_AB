@@ -14,6 +14,7 @@ import { Checkbox } from "@/components/ui/checkbox";
 import { toast } from "sonner";
 import { format } from "date-fns";
 import { ChargeCardcomDialog } from "@/components/payments/charge-cardcom-dialog";
+import { openReceiptInNewTab } from "@/lib/open-receipt";
 
 interface Payment {
   id: string;
@@ -207,6 +208,9 @@ export default function MarkPaidPage({ params }: { params: Promise<{ id: string 
         if (!response.ok) {
           throw new Error("שגיאה בעדכון");
         }
+
+        const paymentResult = await response.json();
+        openReceiptInNewTab(paymentResult?.receiptUrl);
 
         let successMessage = "";
         if (creditUsed > 0 && amountToPay > 0) {

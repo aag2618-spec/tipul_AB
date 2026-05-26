@@ -386,6 +386,7 @@ export async function PUT(
       return NextResponse.json(serializePrisma({
         ...result.payment,
         receiptError: result.receiptError,
+        receiptUrl: result.receiptUrl,
       }));
     }
 
@@ -419,6 +420,7 @@ export async function PUT(
       return NextResponse.json(serializePrisma({
         ...result.payment,
         receiptError: result.receiptError,
+        receiptUrl: result.receiptUrl,
       }));
     }
 

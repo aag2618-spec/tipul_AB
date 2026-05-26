@@ -49,6 +49,7 @@ import {
   Ban,
 } from "lucide-react";
 import { toast } from "sonner";
+import { openReceiptInNewTab } from "@/lib/open-receipt";
 
 type Step =
   | "setup"
@@ -538,6 +539,15 @@ export function ChargeCardcomDialog({
         if (data.status === "APPROVED") {
           setStep("success");
           toast.success("התשלום בוצע בהצלחה");
+          if (paymentId) {
+            try {
+              const receiptRes = await fetch(`/api/payments/${paymentId}`);
+              if (receiptRes.ok) {
+                const pd = await receiptRes.json();
+                openReceiptInNewTab(pd?.receiptUrl);
+              }
+            } catch {}
+          }
           if (onPaymentSuccess) {
             try {
               await onPaymentSuccess();

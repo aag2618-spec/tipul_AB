@@ -28,6 +28,7 @@ import { useRouter } from "next/navigation";
 import Link from "next/link";
 import { ChargeCardcomDialog } from "./charge-cardcom-dialog";
 import { ChargeSavedCardButton } from "./charge-saved-card-button";
+import { openReceiptInNewTab } from "@/lib/open-receipt";
 
 interface QuickMarkPaidProps {
   sessionId: string;
@@ -240,7 +241,7 @@ export function QuickMarkPaid({
       const creditToUse = paymentType === "CREDIT" ? Math.min(totalAmount, creditBalance) : 0;
       const cashAmount = totalAmount - creditToUse;
 
-      let result: { receiptError?: string } | undefined;
+      let result: { receiptError?: string; receiptUrl?: string } | undefined;
 
       if (existingPayment) {
         const response = await fetch(`/api/payments/${existingPayment.id}`, {
@@ -295,6 +296,7 @@ export function QuickMarkPaid({
       }
 
       toast.success(successMessage);
+      openReceiptInNewTab(result?.receiptUrl);
 
       if (result?.receiptError) {
         toast.error(`שגיאה בהפקת קבלה: ${result.receiptError}`, { duration: 8000 });

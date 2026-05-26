@@ -17,6 +17,7 @@ import {
 import { Button } from "@/components/ui/button";
 import { Loader2, CreditCard, AlertCircle, Trash2 } from "lucide-react";
 import { toast } from "sonner";
+import { openReceiptInNewTab } from "@/lib/open-receipt";
 
 interface SavedToken {
   id: string;
@@ -192,6 +193,13 @@ export function ChargeSavedCardButton({
           ? `החיוב אושר (אישור ${data.approvalNumber})`
           : "החיוב אושר"
       );
+      try {
+        const receiptRes = await fetch(`/api/payments/${paymentId}`);
+        if (receiptRes.ok) {
+          const pd = await receiptRes.json();
+          openReceiptInNewTab(pd?.receiptUrl);
+        }
+      } catch {}
       if (onPaymentSuccess) {
         try {
           await onPaymentSuccess();

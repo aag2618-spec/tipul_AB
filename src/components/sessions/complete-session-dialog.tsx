@@ -27,6 +27,7 @@ import { CheckCircle, Loader2, FileText, ChevronDown, ChevronUp, CreditCard } fr
 import { toast } from "sonner";
 import { useRouter } from "next/navigation";
 import { ChargeCardcomDialog } from "@/components/payments/charge-cardcom-dialog";
+import { openReceiptInNewTab } from "@/lib/open-receipt";
 
 // New interface with session object
 interface NewCompleteSessionDialogProps {
@@ -256,6 +257,7 @@ export function CompleteSessionDialog(props: CompleteSessionDialogProps) {
         body: JSON.stringify({ status: "COMPLETED" }),
       });
 
+      openReceiptInNewTab(paymentResult?.receiptUrl);
       if (paymentResult?.receiptError) {
         toast.error(`שגיאה בהפקת קבלה: ${paymentResult.receiptError}`, { duration: 8000 });
       }

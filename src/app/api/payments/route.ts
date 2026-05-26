@@ -295,7 +295,7 @@ export async function POST(request: NextRequest) {
     }
 
     return NextResponse.json(
-      serializePrisma({ ...result.payment, receiptError: result.receiptError }),
+      serializePrisma({ ...result.payment, receiptError: result.receiptError, receiptUrl: result.receiptUrl }),
       { status: 201 }
     );
   } catch (error) {
