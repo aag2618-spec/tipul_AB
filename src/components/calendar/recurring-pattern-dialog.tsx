@@ -417,7 +417,7 @@ export function RecurringPatternDialog({
                   <div className="text-center py-8 text-muted-foreground">
                     <Repeat className="h-12 w-12 mx-auto mb-3 opacity-50" />
                     <p>אין תבניות עדיין</p>
-                    <p className="text-sm">עבור ללשונית "תבנית חדשה" ליצירה</p>
+                    <p className="text-sm">עבור ללשונית &quot;תבנית חדשה&quot; ליצירה</p>
                   </div>
                 )}
               </TabsContent>
