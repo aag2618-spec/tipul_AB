@@ -79,11 +79,6 @@ export function useCalendarData() {
   const [overlaps, setOverlaps] = useState<SessionOverlap[]>([]);
   const [dateRange, setDateRange] = useState<{ start: string; end: string } | null>(getDefaultDateRange);
 
-  const buildInitUrl = useCallback(() => {
-    if (!dateRange) return "/api/calendar/init";
-    return `/api/calendar/init?startDate=${dateRange.start}&endDate=${dateRange.end}`;
-  }, [dateRange]);
-
   const buildSessionsUrl = useCallback(() => {
     if (!dateRange) return "/api/sessions";
     return `/api/sessions?startDate=${dateRange.start}&endDate=${dateRange.end}`;
@@ -91,16 +86,13 @@ export function useCalendarData() {
 
   const fetchData = useCallback(async () => {
     try {
-      const res = await fetch(buildInitUrl());
+      const sessionsUrl = dateRange
+        ? `/api/sessions?startDate=${dateRange.start}&endDate=${dateRange.end}`
+        : "/api/sessions";
+      const res = await fetch(sessionsUrl);
       if (res.ok) {
         const data = await res.json();
-        setSessions(mapSessions(data.sessions));
-        setClients(data.clients);
-        setRecurringPatterns(data.patterns);
-        setDefaultSessionDuration(data.profile?.defaultSessionDuration || 50);
-        const priceRaw = data.profile?.defaultSessionPrice;
-        const priceNum = priceRaw === null || priceRaw === undefined ? null : Number(priceRaw);
-        setDefaultSessionPrice(priceNum !== null && Number.isFinite(priceNum) ? priceNum : null);
+        setSessions(mapSessions(data));
       }
     } catch (error) {
       console.error("Failed to fetch data:", error);
@@ -108,7 +100,28 @@ export function useCalendarData() {
     } finally {
       setIsLoading(false);
     }
-  }, [buildInitUrl]);
+  }, [dateRange]);
+
+  const fetchSecondary = useCallback(async () => {
+    try {
+      const [clientsRes, patternsRes, profileRes] = await Promise.all([
+        fetch("/api/clients?includeQuick=true"),
+        fetch("/api/recurring-patterns"),
+        fetch("/api/user/profile"),
+      ]);
+      if (clientsRes.ok) setClients(await clientsRes.json());
+      if (patternsRes.ok) setRecurringPatterns(await patternsRes.json());
+      if (profileRes.ok) {
+        const profileData = await profileRes.json();
+        setDefaultSessionDuration(profileData.defaultSessionDuration || 50);
+        const priceRaw = profileData.defaultSessionPrice;
+        const priceNum = priceRaw === null || priceRaw === undefined ? null : Number(priceRaw);
+        setDefaultSessionPrice(priceNum !== null && Number.isFinite(priceNum) ? priceNum : null);
+      }
+    } catch {
+      // secondary data — silent fail
+    }
+  }, []);
 
   const checkOverlaps = useCallback(async () => {
     try {
@@ -124,6 +137,7 @@ export function useCalendarData() {
 
   useEffect(() => {
     fetchData();
+    fetchSecondary();
     checkOverlaps();
 
     const interval = setInterval(() => {
@@ -153,7 +167,7 @@ export function useCalendarData() {
       clearInterval(interval);
       window.removeEventListener("focus", onFocus);
     };
-  }, [fetchData, checkOverlaps, buildSessionsUrl]);
+  }, [fetchData, fetchSecondary, checkOverlaps, buildSessionsUrl]);
 
   return {
     sessions,
