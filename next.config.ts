@@ -22,7 +22,7 @@ const securityHeaders = [
   },
   {
     key: "X-DNS-Prefetch-Control",
-    value: "on",
+    value: "off",
   },
   {
     key: "Permissions-Policy",

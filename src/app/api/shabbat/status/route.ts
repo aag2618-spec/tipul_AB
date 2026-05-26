@@ -1,5 +1,7 @@
 import { NextResponse } from "next/server";
 import { getShabbatStatus } from "@/lib/shabbat";
+import { checkRateLimit, BOOKING_GET_RATE_LIMIT } from "@/lib/rate-limit";
+import { getClientIp } from "@/lib/get-client-ip";
 
 /**
  * Endpoint ציבורי (authenticated users בלבד — אין PII) שמחזיר את מצב השבת/חג הנוכחי.
@@ -11,7 +13,13 @@ import { getShabbatStatus } from "@/lib/shabbat";
 
 export const dynamic = "force-dynamic";
 
-export async function GET() {
+export async function GET(request: Request) {
+  const ip = getClientIp(request);
+  const rl = checkRateLimit(`shabbat:${ip}`, BOOKING_GET_RATE_LIMIT);
+  if (!rl.allowed) {
+    return NextResponse.json({ error: "יותר מדי בקשות" }, { status: 429 });
+  }
+
   const status = getShabbatStatus();
   return NextResponse.json(
     {
