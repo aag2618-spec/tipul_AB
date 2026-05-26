@@ -1,0 +1,60 @@
+---
+description: Multi-chat coordination, mandatory 5-agent pre-commit review, strict file scope, auto-push policy
+alwaysApply: true
+---
+
+# חוקי תיאום בין-צ'אטים, ביקורת אבטחה, ו-commit
+
+הפרויקט הזה נערך במקביל ע"י כמה צ'אטים. **חובה** להישמע לחוקים האלה כדי שלא ישברו זה את זה ולא יידחף קוד לא-בדוק.
+
+## 1. סקופ קבצים — strict
+
+- מותר לערוך **רק** קבצים שהמשתמש ביקש במפורש או קבצים נחוצים-במישרין למשימה (imports, types).
+- אסור לגעת בקבצים שמופיעים ב-`git status` עם שינויים שלא ביקשת — אלה של צ'אט אחר.
+- אם נראה שצריך לשנות קובץ מחוץ לסקופ — **עצור, ספר למשתמש, ובקש אישור** לפני נגיעה.
+- אסור לבצע `git add .` או `git add -A`. תמיד `git add <נתיב מפורש>` לכל קובץ.
+
+## 2. ביקורת לפני commit — חובה ב-100% מהמקרים
+
+לפני **כל** commit (גם תיקון של תו אחד), שלח 5 סוכנים במקביל ב-Task tool:
+
+| סוכן | subagent_type | מטרה |
+|------|---------------|------|
+| Security audit | `explore` (readonly) | IDOR, privilege escalation, info-leakage, injection |
+| Backward-compat | `explore` (readonly) | רגרסיות בזרימות קיימות, תאימות API |
+| Multi-tenancy | `explore` (readonly) | org isolation, RBAC לכל role + impersonation |
+| UX & data shape | `explore` (readonly) | TS types, RTL, Hebrew copy, חוזה UI עקבי |
+| Build pipeline | `shell` (NOT readonly) | `npx tsc --noEmit`, `npm test`, `npx eslint <files>` |
+
+**חכה שכל 5 יחזרו GREEN לפני commit.** YELLOW/RED → תקן והרץ אותו סוכן שוב, סבב הלוך-חזור עד GREEN.
+
+## 3. שמירת תאימות לאחור
+
+- אסור לשבור זרימות קיימות. אם תיקון אבטחה דורש שבירה — בקש אישור מפורש מהמשתמש לפני יישום.
+- העדף הוספת capability על פני הקשחה ש"שוברת" UI קיים. הקשחה — בשלב נפרד אחרי שה-UI מעודכן.
+- מתפלים עצמאיים (`organizationId=null`) — חובה לשמור על התנהגות זהה לחלוטין.
+
+## 4. הודעות commit + push
+
+- הודעת commit בעברית פשוטה, קצרה (1-2 משפטים), מסבירה את ה-**למה**, לא רק את ה-**מה**.
+- העבר את ההודעה דרך HEREDOC: `git commit -m "$(cat <<'EOF' ...EOF\n)"`.
+- **push אוטומטי** מיד אחרי commit מוצלח (`git push`) — אלא אם המשתמש כתב במפורש "אל תדחוף".
+- אסור `git commit --amend` על commit שכבר נדחף, אלא אם המשתמש ביקש מפורשות.
+
+## 5. סקריפטים זמניים
+
+- כל קובץ דיבאג זמני (`.tsc-*.txt`, `.vitest-*.txt`, `.eslint-*.txt`, `.next-build-*.txt`) — אל תוסיף ל-commit. ה-`.gitignore` כבר מכסה את זה; אל תפר.
+- HANDOFF docs (`HANDOFF-*.md`, `PLAN-*.md`) — בסדר ל-commit אבל בנפרד מקוד פונקציונלי.
+
+## 6. דוגמה מהירה לזרימה תקינה
+
+```
+1. אני עורך 3 קבצים שביקשת
+2. ReadLints על אותם קבצים → 0 errors
+3. שולח 5 סוכנים במקביל (Task tool)
+4. ממתין שכולם יחזרו GREEN (אם YELLOW → תיקון + סבב נוסף)
+5. git add <קובץ1> <קובץ2> <קובץ3>
+6. git commit -m "<הודעה בעברית>"
+7. git push
+8. מסכם למשתמש מה נעשה
+```
