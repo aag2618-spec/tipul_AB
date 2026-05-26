@@ -99,24 +99,15 @@ export default function PublicConsentPage({
       const h2c = html2canvasModule.default ?? html2canvasModule;
       const { jsPDF } = await import("jspdf");
 
-      const clone = contentRef.current.cloneNode(true) as HTMLElement;
-      clone.style.width = "794px";
-      clone.style.position = "absolute";
-      clone.style.left = "-9999px";
-      clone.style.top = "0";
-      document.body.appendChild(clone);
+      const el = contentRef.current;
 
-      await new Promise((r) => setTimeout(r, 200));
-
-      const canvas = await h2c(clone, {
+      const canvas = await h2c(el, {
         scale: 2,
         useCORS: true,
+        allowTaint: true,
         backgroundColor: "#ffffff",
         logging: false,
-        windowWidth: 794,
       });
-
-      document.body.removeChild(clone);
 
       const imgData = canvas.toDataURL("image/png");
       const pdf = new jsPDF("portrait", "mm", "a4");
@@ -134,7 +125,7 @@ export default function PublicConsentPage({
       document.body.removeChild(a);
       URL.revokeObjectURL(url);
     } catch {
-      alert("שגיאה ביצירת PDF. נסה שוב.");
+      window.print();
     }
   };
 
@@ -162,12 +153,13 @@ export default function PublicConsentPage({
     );
   }
 
-  if (signed) {
-    return (
-      <div className="min-h-screen bg-gray-50 py-8 px-4" dir="rtl">
-        <div className="max-w-2xl mx-auto">
+  return (
+    <div className="min-h-screen bg-gray-100 py-8 px-4" dir="rtl">
+      <div className="max-w-2xl mx-auto">
+        {/* Success banner */}
+        {signed && (
           <div
-            className="bg-white rounded-xl shadow-lg p-10 text-center"
+            className="bg-white rounded-xl shadow-lg p-8 text-center mb-6"
             style={{ fontFamily: "'Heebo', 'Segoe UI', Arial, sans-serif" }}
           >
             <div className="text-5xl mb-4">&#9989;</div>
@@ -175,35 +167,35 @@ export default function PublicConsentPage({
               הטופס נחתם בהצלחה
             </h1>
             <p className="text-gray-600 mb-4">{form.title}</p>
-            <p className="text-sm text-gray-500 mb-6">
-              {form.signedAt
-                ? `נחתם בתאריך ${format(new Date(form.signedAt), "dd/MM/yyyy בשעה HH:mm", { locale: he })}`
-                : "נחתם כרגע"}
-            </p>
-            <button
-              onClick={handleDownloadPdf}
-              className="bg-teal-600 hover:bg-teal-700 text-white px-6 py-3 rounded-lg font-medium transition-colors shadow-md"
-            >
-              הורד PDF
-            </button>
+            <p className="text-sm text-gray-500 mb-6">נחתם כרגע</p>
+            <div className="flex justify-center gap-3">
+              <button
+                onClick={handleDownloadPdf}
+                className="bg-teal-600 hover:bg-teal-700 text-white px-6 py-3 rounded-lg font-medium transition-colors shadow-md"
+              >
+                הורד PDF
+              </button>
+              <button
+                onClick={() => window.print()}
+                className="border border-gray-300 bg-white hover:bg-gray-50 text-gray-700 px-6 py-3 rounded-lg font-medium transition-colors"
+              >
+                הדפס
+              </button>
+            </div>
           </div>
-        </div>
-      </div>
-    );
-  }
+        )}
 
-  return (
-    <div className="min-h-screen bg-gray-100 py-8 px-4" dir="rtl">
-      <div className="max-w-2xl mx-auto">
         {/* Header */}
-        <div className="flex justify-between items-center mb-4">
-          <h1 className="text-lg font-semibold text-gray-700">{form.title}</h1>
-          {form.therapistName && (
-            <span className="text-sm text-gray-500">{form.therapistName}</span>
-          )}
-        </div>
+        {!signed && (
+          <div className="flex justify-between items-center mb-4">
+            <h1 className="text-lg font-semibold text-gray-700">{form.title}</h1>
+            {form.therapistName && (
+              <span className="text-sm text-gray-500">{form.therapistName}</span>
+            )}
+          </div>
+        )}
 
-        {/* Form content */}
+        {/* Form content — always in DOM so contentRef works for PDF */}
         <div
           ref={contentRef}
           className="bg-white rounded-xl shadow-lg overflow-hidden"
@@ -231,33 +223,35 @@ export default function PublicConsentPage({
         </div>
 
         {/* Sign section */}
-        <div className="mt-6">
-          {!showSignPad ? (
-            <button
-              onClick={() => setShowSignPad(true)}
-              className="w-full bg-teal-600 hover:bg-teal-700 text-white py-4 rounded-xl font-bold text-lg transition-colors shadow-md"
-            >
-              חתום/י על הטופס
-            </button>
-          ) : (
-            <div className="bg-white rounded-xl shadow-lg p-6">
-              <h3 className="text-lg font-bold text-gray-800 mb-4 text-center">
-                חתום/י כאן
-              </h3>
-              {signing ? (
-                <div className="flex items-center justify-center py-8">
-                  <div className="animate-spin rounded-full h-8 w-8 border-b-2 border-teal-600" />
-                  <span className="mr-3 text-gray-600">שומר חתימה...</span>
-                </div>
-              ) : (
-                <SignaturePad
-                  onSave={handleSign}
-                  onCancel={() => setShowSignPad(false)}
+        {!signed && (
+          <div className="mt-6">
+            {!showSignPad ? (
+              <button
+                onClick={() => setShowSignPad(true)}
+                className="w-full bg-teal-600 hover:bg-teal-700 text-white py-4 rounded-xl font-bold text-lg transition-colors shadow-md"
+              >
+                חתום/י על הטופס
+              </button>
+            ) : (
+              <div className="bg-white rounded-xl shadow-lg p-6">
+                <h3 className="text-lg font-bold text-gray-800 mb-4 text-center">
+                  חתום/י כאן
+                </h3>
+                {signing ? (
+                  <div className="flex items-center justify-center py-8">
+                    <div className="animate-spin rounded-full h-8 w-8 border-b-2 border-teal-600" />
+                    <span className="mr-3 text-gray-600">שומר חתימה...</span>
+                  </div>
+                ) : (
+                  <SignaturePad
+                    onSave={handleSign}
+                    onCancel={() => setShowSignPad(false)}
                 />
               )}
             </div>
           )}
-        </div>
+          </div>
+        )}
       </div>
     </div>
   );

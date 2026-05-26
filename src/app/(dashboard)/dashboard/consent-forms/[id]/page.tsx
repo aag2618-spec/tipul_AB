@@ -22,6 +22,7 @@ import {
   Download,
   Loader2,
   PenTool,
+  Printer,
   Send,
   Trash2,
 } from "lucide-react";
@@ -54,11 +55,10 @@ export default function ConsentFormDetailPage({
   const { id } = use(params);
   const router = useRouter();
   const contentRef = useRef<HTMLDivElement>(null);
-  const signPadRef = useRef<HTMLDivElement>(null);
 
   const [form, setForm] = useState<ConsentFormData | null>(null);
   const [isLoading, setIsLoading] = useState(true);
-  const [showSignPad, setShowSignPad] = useState(false);
+  const [showSignDialog, setShowSignDialog] = useState(false);
   const [signing, setSigning] = useState(false);
   const [showSendDialog, setShowSendDialog] = useState(false);
   const [sendChannel, setSendChannel] = useState<"sms" | "email" | "both">("sms");
@@ -94,7 +94,7 @@ export default function ConsentFormDetailPage({
 
       const updated = await res.json();
       setForm(updated);
-      setShowSignPad(false);
+      setShowSignDialog(false);
       toast.success("הטופס נחתם בהצלחה");
     } catch (error) {
       toast.error(error instanceof Error ? error.message : "שגיאה בחתימה");
@@ -132,7 +132,7 @@ export default function ConsentFormDetailPage({
       toast.error("לא ניתן למחוק טופס שנחתם");
       return;
     }
-    if (!confirm("האם אתה בטוח שברצונך למחוק טופס זה?")) return;
+    if (!confirm("האם ברצונך למחוק טופס זה?")) return;
 
     try {
       const res = await fetch(`/api/consent-forms/${id}`, { method: "DELETE" });
@@ -142,6 +142,10 @@ export default function ConsentFormDetailPage({
     } catch {
       toast.error("שגיאה במחיקת הטופס");
     }
+  };
+
+  const handlePrint = () => {
+    window.print();
   };
 
   const handleDownloadPdf = async () => {
@@ -154,24 +158,15 @@ export default function ConsentFormDetailPage({
       const h2c = html2canvasModule.default ?? html2canvasModule;
       const { jsPDF } = await import("jspdf");
 
-      const clone = contentRef.current.cloneNode(true) as HTMLElement;
-      clone.style.width = "794px";
-      clone.style.position = "absolute";
-      clone.style.left = "-9999px";
-      clone.style.top = "0";
-      document.body.appendChild(clone);
+      const el = contentRef.current;
 
-      await new Promise((r) => setTimeout(r, 200));
-
-      const canvas = await h2c(clone, {
+      const canvas = await h2c(el, {
         scale: 2,
         useCORS: true,
+        allowTaint: true,
         backgroundColor: "#ffffff",
         logging: false,
-        windowWidth: 794,
       });
-
-      document.body.removeChild(clone);
 
       const imgData = canvas.toDataURL("image/png");
       const pdf = new jsPDF("portrait", "mm", "a4");
@@ -191,7 +186,7 @@ export default function ConsentFormDetailPage({
       document.body.removeChild(a);
       URL.revokeObjectURL(url);
     } catch {
-      toast.error("שגיאה ביצירת PDF");
+      toast.error("שגיאה ביצירת PDF — נסה להדפיס במקום");
     }
   };
 
@@ -211,7 +206,7 @@ export default function ConsentFormDetailPage({
   return (
     <div className="space-y-6 animate-fade-in">
       {/* Header */}
-      <div className="flex items-center justify-between">
+      <div className="flex items-center justify-between print:hidden">
         <div className="space-y-1">
           <h1 className="text-2xl font-bold tracking-tight">{form.title}</h1>
           <div className="flex items-center gap-2 text-muted-foreground">
@@ -250,13 +245,13 @@ export default function ConsentFormDetailPage({
 
       {/* Form content */}
       <Card>
-        <CardHeader>
+        <CardHeader className="print:hidden">
           <CardTitle>תוכן הטופס</CardTitle>
         </CardHeader>
         <CardContent>
           <div
             ref={contentRef}
-            className="prose prose-sm max-w-none rtl bg-white p-6 rounded-lg border"
+            className="prose prose-sm max-w-none rtl bg-white p-6 rounded-lg border print:border-0"
             style={{ fontFamily: "'Heebo', 'Segoe UI', Arial, sans-serif" }}
           >
             <div
@@ -284,16 +279,10 @@ export default function ConsentFormDetailPage({
       </Card>
 
       {/* Actions */}
-      <div className="flex items-center gap-3 flex-wrap">
+      <div className="flex items-center gap-3 flex-wrap print:hidden">
         {!isSigned && !form.isTemplate && (
           <>
-            <Button onClick={() => {
-              const next = !showSignPad;
-              setShowSignPad(next);
-              if (next) {
-                setTimeout(() => signPadRef.current?.scrollIntoView({ behavior: "smooth", block: "center" }), 100);
-              }
-            }}>
+            <Button onClick={() => setShowSignDialog(true)}>
               <PenTool className="ml-2 h-4 w-4" />
               חתום עכשיו
             </Button>
@@ -307,10 +296,16 @@ export default function ConsentFormDetailPage({
         )}
 
         {isSigned && (
-          <Button variant="outline" onClick={handleDownloadPdf}>
-            <Download className="ml-2 h-4 w-4" />
-            הורד PDF
-          </Button>
+          <>
+            <Button variant="outline" onClick={handlePrint}>
+              <Printer className="ml-2 h-4 w-4" />
+              הדפס
+            </Button>
+            <Button variant="outline" onClick={handleDownloadPdf}>
+              <Download className="ml-2 h-4 w-4" />
+              הורד PDF
+            </Button>
+          </>
         )}
 
         {!isSigned && (
@@ -321,27 +316,28 @@ export default function ConsentFormDetailPage({
         )}
       </div>
 
-      {/* Inline signature pad */}
-      {showSignPad && !isSigned && (
-        <Card ref={signPadRef}>
-          <CardHeader>
-            <CardTitle>חתימה</CardTitle>
-          </CardHeader>
-          <CardContent>
-            {signing ? (
-              <div className="flex items-center justify-center py-8">
-                <Loader2 className="h-6 w-6 animate-spin" />
-                <span className="mr-2">שומר חתימה...</span>
-              </div>
-            ) : (
-              <SignaturePad
-                onSave={handleSign}
-                onCancel={() => setShowSignPad(false)}
-              />
-            )}
-          </CardContent>
-        </Card>
-      )}
+      {/* Sign dialog */}
+      <Dialog open={showSignDialog} onOpenChange={setShowSignDialog}>
+        <DialogContent className="sm:max-w-2xl">
+          <DialogHeader>
+            <DialogTitle>חתימה על הטופס</DialogTitle>
+            <DialogDescription>
+              חתום/י באמצעות העכבר או המגע
+            </DialogDescription>
+          </DialogHeader>
+          {signing ? (
+            <div className="flex items-center justify-center py-8">
+              <Loader2 className="h-6 w-6 animate-spin" />
+              <span className="mr-2">שומר חתימה...</span>
+            </div>
+          ) : (
+            <SignaturePad
+              onSave={handleSign}
+              onCancel={() => setShowSignDialog(false)}
+            />
+          )}
+        </DialogContent>
+      </Dialog>
 
       {/* Send link dialog */}
       <Dialog open={showSendDialog} onOpenChange={setShowSendDialog}>
