@@ -244,12 +244,24 @@ function CalendarPageContent() {
     : events;
 
   // Update date range when calendar view changes (month/week navigation)
+  // חלון רחב: 3 שבועות אחורה + 4 שבועות קדימה — כך ניווט בין שבועות לא גורם לטעינה מחדש
   const handleDatesSet = useCallback((info: DatesSetArg) => {
-    const start = info.start.toISOString().split("T")[0] + "T00:00";
-    const end = info.end.toISOString().split("T")[0] + "T23:59";
+    const visibleStart = info.start.getTime();
+    const visibleEnd = info.end.getTime();
+    const WEEK_MS = 7 * 24 * 60 * 60 * 1000;
+    const bufferStart = new Date(visibleStart - 3 * WEEK_MS);
+    const bufferEnd = new Date(visibleEnd + 4 * WEEK_MS);
+
     setDateRange(prev => {
-      if (prev && prev.start === start && prev.end === end) return prev;
-      return { start, end };
+      if (prev) {
+        const prevStart = new Date(prev.start).getTime();
+        const prevEnd = new Date(prev.end).getTime();
+        if (visibleStart >= prevStart && visibleEnd <= prevEnd) return prev;
+      }
+      return {
+        start: bufferStart.toISOString().split("T")[0] + "T00:00",
+        end: bufferEnd.toISOString().split("T")[0] + "T23:59",
+      };
     });
   }, [setDateRange]);
 
