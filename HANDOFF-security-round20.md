@@ -30,6 +30,35 @@
 
 ---
 
+## 4. Rate Limits חסרים (נמצא במיפוי 2026-05-26)
+
+| # | Endpoint | Auth | סטטוס |
+|---|----------|------|--------|
+| 4a | `/api/webhooks/meshulam` | signature verification | done — כבר היה |
+| 4b | `/api/webhooks/resend` | signature verification | done — הוספתי WEBHOOK_RATE_LIMIT |
+| 4c | `/api/webhooks/sumit` | signature verification | done — כבר היה |
+| 4d | `/api/webhooks/pulseem` | signature verification | done — הוספתי WEBHOOK_RATE_LIMIT |
+| 4e | `/api/webhooks/render` | signature verification | done — הוספתי WEBHOOK_RATE_LIMIT |
+| 4f | `/api/auth/2fa/check-required` | partial session | done — כבר היה |
+| 4g | `/api/auth/block-info` | getServerSession | done — הוספתי API_RATE_LIMIT |
+| 4h | `/api/download/logo-preview` | none | done — הוספתי API_RATE_LIMIT |
+| 4i | `/api/p/departure-choice/[token]` | token-based | done — כבר היה |
+
+## 5. Cookie Verification
+
+| # | בדיקה | סטטוס |
+|---|--------|--------|
+| 5a | אימות HttpOnly, Secure, SameSite על session cookies | pending |
+
+## 6. Render Dashboard (user action)
+
+| # | פעולה | סטטוס |
+|---|--------|--------|
+| 6a | `CARDCOM_WEBHOOK_IP_ALLOWLIST` — להגדיר | skipped — user |
+| 6b | `SETUP_ENABLED` — לוודא כבוי | skipped — user |
+
+---
+
 ## אימות
 - `npx tsc --noEmit` — נקי
 - `npx vitest run` — 34 passed, 656 tests passed, 0 failed

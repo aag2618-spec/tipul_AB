@@ -4,6 +4,8 @@ import { headers } from "next/headers";
 import { Resend } from "resend";
 import { createHash } from "node:crypto";
 import { logger } from "@/lib/logger";
+import { checkRateLimit, WEBHOOK_RATE_LIMIT } from "@/lib/rate-limit";
+import { getClientIp } from "@/lib/get-client-ip";
 
 export const dynamic = "force-dynamic";
 
@@ -22,6 +24,12 @@ function extractEmail(raw: string): string {
 // Resend webhook for incoming email replies
 export async function POST(request: NextRequest) {
   try {
+    const ip = getClientIp(request);
+    const rl = checkRateLimit(`webhook:resend:${ip}`, WEBHOOK_RATE_LIMIT);
+    if (!rl.allowed) {
+      return NextResponse.json({ error: "Too many requests" }, { status: 429 });
+    }
+
     const headersList = await headers();
     const svixId = headersList.get("svix-id");
     const svixTimestamp = headersList.get("svix-timestamp");

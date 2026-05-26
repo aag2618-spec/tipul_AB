@@ -1,6 +1,8 @@
 import { readFile } from "fs/promises";
 import path from "path";
 import { NextResponse } from "next/server";
+import { checkRateLimit, API_RATE_LIMIT } from "@/lib/rate-limit";
+import { getClientIp } from "@/lib/get-client-ip";
 
 export const dynamic = "force-dynamic";
 
@@ -9,7 +11,12 @@ const FILENAME = "mytipul-logo-preview.html";
 /**
  * Single HTML file with embedded logo (data URL) for saving to Downloads and opening offline.
  */
-export async function GET() {
+export async function GET(request: Request) {
+  const ip = getClientIp(request);
+  const rl = checkRateLimit(`download:logo:${ip}`, API_RATE_LIMIT);
+  if (!rl.allowed) {
+    return NextResponse.json({ error: "יותר מדי בקשות" }, { status: 429 });
+  }
   const root = process.cwd();
   const logoPath = path.join(root, "public", "logo.png");
   const htmlPath = path.join(root, "public", "dashboard-logo-preview.html");

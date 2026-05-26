@@ -1,11 +1,19 @@
 import { NextRequest, NextResponse } from "next/server";
 import { logger } from "@/lib/logger";
 import { bearerEquals } from "@/lib/cron-auth";
+import { checkRateLimit, WEBHOOK_RATE_LIMIT } from "@/lib/rate-limit";
+import { getClientIp } from "@/lib/get-client-ip";
 
 export const dynamic = "force-dynamic";
 
 export async function POST(req: NextRequest) {
   try {
+    const ip = getClientIp(req);
+    const rl = checkRateLimit(`webhook:render:${ip}`, WEBHOOK_RATE_LIMIT);
+    if (!rl.allowed) {
+      return NextResponse.json({ error: "Too many requests" }, { status: 429 });
+    }
+
     const webhookSecret = process.env.RENDER_WEBHOOK_SECRET;
     if (!webhookSecret) {
       return NextResponse.json({ error: "Service unavailable" }, { status: 503 });

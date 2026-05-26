@@ -3,6 +3,8 @@ import crypto from "crypto";
 import prisma from "@/lib/prisma";
 import { logger } from "@/lib/logger";
 import { bearerEquals } from "@/lib/cron-auth";
+import { checkRateLimit, WEBHOOK_RATE_LIMIT } from "@/lib/rate-limit";
+import { getClientIp } from "@/lib/get-client-ip";
 
 export const dynamic = "force-dynamic";
 
@@ -57,6 +59,12 @@ function normalizePhone(phone: string): string | null {
 
 export async function POST(request: NextRequest) {
   try {
+    const ip = getClientIp(request);
+    const rl = checkRateLimit(`webhook:pulseem:${ip}`, WEBHOOK_RATE_LIMIT);
+    if (!rl.allowed) {
+      return NextResponse.json({ error: "Too many requests" }, { status: 429 });
+    }
+
     // --- קריאת ה-body כטקסט גולמי (נחוץ לאימות HMAC) ---
     const rawBody = await request.text();
 
