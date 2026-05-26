@@ -10,6 +10,7 @@ import { format } from "date-fns";
 import { toast } from "sonner";
 import { useRouter } from "next/navigation";
 import { QuickMarkPaid } from "@/components/payments/quick-mark-paid";
+import { tryOpenReceiptInNewTab } from "@/lib/receipt-utils";
 import type { CalendarSession } from "@/hooks/use-calendar-data";
 
 // ── Types ──
@@ -200,13 +201,48 @@ export function SessionDetailDialog({
 
     // שולם מלא
     if (payment?.status === "PAID") {
+      // כפתור "הצג קבלה" — נחשף רק אם יש URL בפועל. תשלומים ישנים שהוצגו
+      // ב-mode "ללא קבלה" (businessType=NONE / issueReceipt=false), או
+      // payments שעדיין ב-flight ב-Cardcom webhook, יוצגו בלי הכפתור.
+      const handleShowReceipt = (): void => {
+        const url = payment.receiptUrl;
+        if (!url) {
+          toast.message("הקבלה עדיין בהפקה — בדוק/י שוב בעוד דקה.", {
+            duration: 4000,
+          });
+          return;
+        }
+        const { opened } = tryOpenReceiptInNewTab(url);
+        if (!opened) {
+          toast.error(
+            "הדפדפן חסם פתיחת לשונית. אפשרי/י popups לאתר זה.",
+            { duration: 6000 },
+          );
+        }
+      };
       return (
-        <div className="rounded-lg p-3 bg-green-50 dark:bg-green-950 border border-green-200 dark:border-green-800 space-y-1">
-          <p className="text-sm font-medium text-green-700 dark:text-green-300">✓ שולם ₪{paidAmount}</p>
-          <p className="text-xs text-green-600 dark:text-green-400">
-            {PAYMENT_METHOD_LABELS[payment.method || ""] || ""}
-            {payment.paidAt && ` • ${format(new Date(payment.paidAt), "d/M/yyyy")}`}
-          </p>
+        <div className="rounded-lg p-3 bg-green-50 dark:bg-green-950 border border-green-200 dark:border-green-800 space-y-2">
+          <div>
+            <p className="text-sm font-medium text-green-700 dark:text-green-300">
+              ✓ שולם ₪{paidAmount}
+            </p>
+            <p className="text-xs text-green-600 dark:text-green-400">
+              {PAYMENT_METHOD_LABELS[payment.method || ""] || ""}
+              {payment.paidAt &&
+                ` • ${format(new Date(payment.paidAt), "d/M/yyyy")}`}
+              {payment.receiptNumber && ` • קבלה ${payment.receiptNumber}`}
+            </p>
+          </div>
+          {payment.hasReceipt && payment.receiptUrl && (
+            <Button
+              size="sm"
+              variant="outline"
+              onClick={handleShowReceipt}
+              className="w-full text-xs gap-2 border-green-300 hover:bg-green-100 dark:border-green-700 dark:hover:bg-green-900"
+            >
+              📄 הצג / הדפס קבלה
+            </Button>
+          )}
         </div>
       );
     }
