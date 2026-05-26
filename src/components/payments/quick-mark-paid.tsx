@@ -29,6 +29,7 @@ import Link from "next/link";
 import { ChargeCardcomDialog } from "./charge-cardcom-dialog";
 import { ChargeSavedCardButton } from "./charge-saved-card-button";
 import { ReceiptPreviewDialog } from "./receipt-preview-dialog";
+import { tryOpenReceiptInNewTab } from "@/lib/receipt-utils";
 
 interface QuickMarkPaidProps {
   sessionId: string;
@@ -306,13 +307,38 @@ export function QuickMarkPaid({
         toast.error(`שגיאה בהפקת קבלה: ${result.receiptError}`, { duration: 8000 });
       }
 
-      // ── הצגת קבלה in-page (במקום window.open שנחסם ע"י popup-blockers) ──
-      // נפתח Dialog עם iframe + כפתור הדפס. הניווט/refresh נדחים עד
-      // שהמטפל סוגר את הקבלה (בתוך onOpenChange של הדיאלוג).
+      // ── הצגת קבלה אחרי תשלום מזומן/העברה/צ'ק/קרדיט ──────────
+      // המטפל ביקש: הקבלה תיפתח בדף אינטרנטי נפרד — לא רק בדיאלוג מודאלי.
+      // ה-click על "סיים ושלם" עדיין נחשב user-gesture אם ה-fetch סיים
+      // מהר. tryOpenReceiptInNewTab מאמת safeHttpUrl + פותח בלשונית; אם
+      // נחסם — fallback לדיאלוג כדי שהמטפל לא יישאר בלי קבלה.
+      // ⚠️ ה-API מחזיר את ה-effective payment id (יכול להיות child בתשלום
+      // חלקי additive). חיוני להעביר אותו ל-fallback dialog שמבצע polling
+      // על receiptUrl — אחרת הוא יחפש על parent ID שלא יקבל receiptUrl.
       const paymentId = (result as { id?: string })?.id || existingPayment?.id;
+      const receiptUrl = (result as { receiptUrl?: string })?.receiptUrl;
       if (paymentId && businessType !== "NONE" && issueReceipt) {
+        const { opened: popupOpened } = tryOpenReceiptInNewTab(receiptUrl);
+        if (popupOpened) {
+          // הקבלה נפתחה בלשונית נפרדת — toast מפורש כדי שהמטפל ידע.
+          toast.message("הקבלה נפתחה בלשונית חדשה — אפשר להדפיס משם", {
+            duration: 5000,
+          });
+          setIsOpen(false);
+          router.refresh();
+          return;
+        }
+        // Fallback: popup-blocker חסם או receiptUrl חסר/לא תקין.
         setReceiptDialogPaymentId(paymentId);
         setIsOpen(false);
+        if (!receiptUrl) {
+          toast.message("הקבלה תיפתח כאן ברגע שתהיה מוכנה", { duration: 4000 });
+        } else {
+          toast.message(
+            "הדפדפן חסם פתיחת לשונית. הקבלה מוצגת כאן — או אשר/י popups בהגדרות הדפדפן.",
+            { duration: 8000 },
+          );
+        }
         // אנימציית סגירת Radix ~200ms — מחכים מעט יותר.
         setTimeout(() => setReceiptDialogOpen(true), 220);
         return;

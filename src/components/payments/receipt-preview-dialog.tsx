@@ -54,6 +54,7 @@ import {
 import { format } from "date-fns";
 import { he } from "date-fns/locale";
 import { toast } from "sonner";
+import { safeHttpUrl as sharedSafeHttpUrl } from "@/lib/receipt-utils";
 
 interface ReceiptPreviewDialogProps {
   open: boolean;
@@ -71,25 +72,8 @@ const POLL_INTERVAL_MS = 2_000;
 const POLL_TIMEOUT_INTERNAL_MS = 8_000;
 const POLL_TIMEOUT_CARDCOM_MS = 30_000;
 
-/**
- * Defense-in-depth — מאמת ש-URL שעומדים לפתוח הוא http/https בלבד.
- * חיוני כי ה-receiptUrl מגיע מ-DB (יכול להיות poisoning דרך webhook
- * pwn'd) ו-window.open(javascript:...) היה רץ בקונטקסט הדף.
- *
- * relative path (כמו "/api/payments/.../cardcom-receipt-pdf") נחשב
- * תקין — נטמע ב-window.location.origin ולא יכול להיות javascript:.
- */
-function safeHttpUrl(input: string | null | undefined): string | null {
-  if (!input || typeof input !== "string") return null;
-  if (input.length > 2000) return null;
-  try {
-    const u = new URL(input, window.location.origin);
-    if (u.protocol !== "http:" && u.protocol !== "https:") return null;
-    return u.toString();
-  } catch {
-    return null;
-  }
-}
+// re-export עבור backward compat (קוד פנימי קורא ל-safeHttpUrl המקומית).
+const safeHttpUrl = sharedSafeHttpUrl;
 
 const METHOD_LABELS: Record<string, string> = {
   CASH: "מזומן",

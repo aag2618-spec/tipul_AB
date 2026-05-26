@@ -28,6 +28,7 @@ import { toast } from "sonner";
 import { useRouter } from "next/navigation";
 import { ChargeCardcomDialog } from "@/components/payments/charge-cardcom-dialog";
 import { ReceiptPreviewDialog } from "@/components/payments/receipt-preview-dialog";
+import { tryOpenReceiptInNewTab } from "@/lib/receipt-utils";
 
 // New interface with session object
 interface NewCompleteSessionDialogProps {
@@ -275,11 +276,12 @@ export function CompleteSessionDialog(props: CompleteSessionDialogProps) {
       setPaymentType("FULL");
       setPartialAmount("");
 
-      // ── הצגת קבלה מיד ב-iframe (במקום window.open שנחסם ע"י popup-blockers) ──
-      // אם יש paymentId והוא לא Cardcom (למזומן/העברה/צ'ק/קרדיט הקבלה
-      // נוצרת סינכרונית ולכן ה-receiptUrl זמין מיד), נציג Dialog פנימי
-      // עם iframe + כפתור הדפס. ה-onSuccess/router.push יידחו עד
-      // שהמטפל סוגר את חלון הקבלה — מונע ניווט חטוף.
+      // ── הצגת קבלה אחרי תשלום (מזומן/העברה/צ'ק/קרדיט/אחר) ────
+      // המטפל ביקש: הקבלה תיפתח בלשונית/דף אינטרנטי נפרד — לא רק
+      // בדיאלוג מודאלי. ה-click על "סיים מפגש" עדיין נחשב user-gesture
+      // כשה-fetch מסתיים מהר (פחות מ-1s לתשלומים שאינם Cardcom),
+      // ולכן window.open לא ייחסם ע"י popup-blockers ברוב המקרים.
+      // אם בכל זאת נחסם — fallback לדיאלוג in-page (התנהגות הקודמת).
       const navigateAfter = () => {
         if (onSuccess) {
           onSuccess();
@@ -288,12 +290,28 @@ export function CompleteSessionDialog(props: CompleteSessionDialogProps) {
         }
       };
       if (paymentResult?.id && businessType !== "NONE" && issueReceipt) {
+        const receiptUrl = (paymentResult as { receiptUrl?: string })?.receiptUrl;
+        const { opened: popupOpened } = tryOpenReceiptInNewTab(receiptUrl);
+        if (popupOpened) {
+          toast.message("הקבלה נפתחה בלשונית חדשה — אפשר להדפיס משם", {
+            duration: 5000,
+          });
+          setIsOpen(false);
+          navigateAfter();
+          return;
+        }
+        // Fallback: popup-blocker חסם או receiptUrl חסר/לא תקין.
         pendingNavigationRef.current = navigateAfter;
         setReceiptPaymentId(paymentResult.id);
         setReceiptIsCardcom(false);
-        // סוגרים את הדיאלוג הראשי תחילה כדי שלא ייפתחו 2 דיאלוגים בו-זמנית
-        // (Radix Dialog supports nested but UX מבולגן). אנימציית Radix
-        // ~200ms — מחכים מעט יותר.
+        if (!receiptUrl) {
+          toast.message("הקבלה תיפתח כאן ברגע שתהיה מוכנה", { duration: 4000 });
+        } else {
+          toast.message(
+            "הדפדפן חסם פתיחת לשונית. הקבלה מוצגת כאן — או אשר/י popups בהגדרות הדפדפן.",
+            { duration: 8000 },
+          );
+        }
         setIsOpen(false);
         setTimeout(() => setReceiptOpen(true), 220);
         return;

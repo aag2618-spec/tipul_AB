@@ -15,6 +15,7 @@ import { toast } from "sonner";
 import { format } from "date-fns";
 import { ChargeCardcomDialog } from "@/components/payments/charge-cardcom-dialog";
 import { ReceiptPreviewDialog } from "@/components/payments/receipt-preview-dialog";
+import { tryOpenReceiptInNewTab } from "@/lib/receipt-utils";
 
 interface Payment {
   id: string;
@@ -213,7 +214,15 @@ export default function MarkPaidPage({ params }: { params: Promise<{ id: string 
           throw new Error("שגיאה בעדכון");
         }
 
-        const _paymentResult = await response.json();
+        // ⚠️ בתשלום חלקי additive: ה-API מחזיר child payment id (שעליו
+        // נכתב ה-receiptUrl), לא ה-parent. ה-fallback dialog עושה polling
+        // על receiptUrl — חיוני להעביר את ה-id הנכון.
+        const paymentResult = (await response.json()) as {
+          id?: string;
+          receiptUrl?: string;
+          receiptError?: string;
+        };
+        const effectivePaymentId = paymentResult.id || id;
 
         let successMessage = "";
         if (creditUsed > 0 && amountToPay > 0) {
@@ -228,12 +237,43 @@ export default function MarkPaidPage({ params }: { params: Promise<{ id: string 
 
         toast.success(successMessage);
 
-        // ── הצגת קבלה in-page (במקום window.open שנחסם) ──
-        // רק אם המטפל ביקש להוציא קבלה. הניווט ל-/payments מתבצע
-        // ב-onOpenChange של הדיאלוג כשהמשתמש סוגר את הקבלה.
+        // עקביות עם quick-mark-paid / complete-session-dialog: surface שגיאת
+        // הפקת קבלה (ה-receipt-service לפעמים מחזיר receiptError כש-Cardcom
+        // עוד לא הספיק להגיב או חסר משהו בהגדרת העסק).
+        if (paymentResult.receiptError) {
+          toast.error(`שגיאה בהפקת קבלה: ${paymentResult.receiptError}`, {
+            duration: 8000,
+          });
+        }
+
+        // ── הצגת קבלה אחרי תשלום (כל אמצעי שאינו Cardcom) ────────
+        // המטפל ביקש: הקבלה תיפתח בלשונית/דף נפרד. tryOpenReceiptInNewTab
+        // מאמת safeHttpUrl + פותח בלשונית; אם popup נחסם — fallback דיאלוג.
+        // ⚠️ הניווט ל-/payments נדחה לסגירת הקבלה ב-fallback (אחרת המטפל
+        // עובר מסך לפני שהוא מספיק להדפיס).
         if (businessType !== "NONE" && issueReceipt) {
-          setReceiptDialogPaymentId(id);
-          setReceiptDialogOpen(true);
+          const { opened: popupOpened } = tryOpenReceiptInNewTab(
+            paymentResult.receiptUrl,
+          );
+          if (popupOpened) {
+            toast.message("הקבלה נפתחה בלשונית חדשה — אפשר להדפיס משם", {
+              duration: 5000,
+            });
+            router.push("/dashboard/payments");
+            return;
+          }
+          if (!paymentResult.receiptUrl) {
+            toast.message("הקבלה תיפתח כאן ברגע שתהיה מוכנה", { duration: 4000 });
+          } else {
+            toast.message(
+              "הדפדפן חסם פתיחת לשונית. הקבלה מוצגת כאן — או אשר/י popups בהגדרות הדפדפן.",
+              { duration: 8000 },
+            );
+          }
+          setReceiptDialogPaymentId(effectivePaymentId);
+          // 220ms — ליישור עם quick-mark-paid / complete-session-dialog
+          // (אנימציית סגירת Radix של הדיאלוג שלפני).
+          setTimeout(() => setReceiptDialogOpen(true), 220);
           return;
         }
 

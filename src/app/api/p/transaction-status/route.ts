@@ -1,14 +1,27 @@
 // src/app/api/p/transaction-status/route.ts
-// Public, no-auth endpoint that returns ONLY the status of a CardcomTransaction.
-// Used by the /p/thanks page to poll until the webhook flips PENDING → APPROVED.
+// Public, no-auth endpoint that returns the status of a CardcomTransaction
+// + the resulting receipt URL once the webhook has issued it.
+// Used by the /p/thanks page to poll until the webhook flips PENDING → APPROVED
+// and then to display/print the receipt inline.
 //
-// SECURITY:
-//  - Returns just `{ status }` — no amount, no approval number, no PII.
-//  - Transaction id is a cuid (~10^36) so guessing is hard, but URL leakage
-//    (referrers, screenshots) is realistic and the response must be useless
-//    to anyone except the polling page.
-//  - Rate-limited per IP (60/min) to bound abuse cost. The thanks page polls
-//    at most ~20 times in 60s, so 60/min is generous for legit clients.
+// SECURITY MODEL — `t` (CardcomTransaction id) is a CAPABILITY token:
+//  - cuid (~10^36) — guessing is infeasible, but URL leakage via referrers,
+//    screenshots, browser history, or shared links is realistic.
+//  - Whoever holds `t` is treated as the payer. They can:
+//    (a) see the payment status, and
+//    (b) AFTER status is APPROVED/REFUNDED, retrieve the receiptUrl + receipt
+//        number (which itself carries its own signed token — internal:
+//        128-bit HMAC fragment, external: signed Cardcom URL).
+//  - Receipt fields are gated to APPROVED/REFUNDED — a leaked `t` for a
+//    PENDING/FAILED transaction reveals only the status, never financials.
+//  - Amount / approval-number / clientName are NOT echoed by this API
+//    directly. They're reachable only via the receipt URL → /api/receipts/
+//    [id]/public (separate token check) or the Cardcom-hosted PDF.
+//  - Rate-limited per IP (60/min) — the thanks page polls ~30 times in 90s,
+//    so 60/min is generous for legit clients while bounding abuse cost.
+// NOTE: The thanks page (/p/thanks) renders the receipt inline once it's
+// available. The privacy posture is intentionally identical to the public
+// receipt page (/receipt/[id]#t=…) — meant for the payer.
 
 import { NextRequest, NextResponse } from "next/server";
 import prisma from "@/lib/prisma";
@@ -63,7 +76,20 @@ export async function GET(request: NextRequest) {
         // אם החיוב הספציפי אושר. בתשלום חלקי באשראי, העסקה APPROVED
         // אבל ה-Payment עדיין PENDING (יש יתרה). דף התודה ישתמש בזה
         // כדי להציג מסר מדויק.
-        payment: { select: { status: true, parentPaymentId: true } },
+        // ⚠️ child-aware: ב-additive partial CC, ה-CardcomTransaction מקושרת
+        // ל-child Payment שעליו נכתב receiptUrl. ה-parent עוד לא PAID.
+        // המסך משתמש ב-receiptUrl/receiptNumber/hasReceipt של ה-payment
+        // המקושר (child אם קיים) כדי להציג את הקבלה הנכונה.
+        payment: {
+          select: {
+            id: true,
+            status: true,
+            parentPaymentId: true,
+            receiptUrl: true,
+            receiptNumber: true,
+            hasReceipt: true,
+          },
+        },
       },
     });
     if (!tx) {
@@ -83,18 +109,46 @@ export async function GET(request: NextRequest) {
     // we fetch canonical state ourselves so the polling caller sees APPROVED
     // without needing the user to click "סנכרן" manually. syncCardcomTransaction
     // is idempotent and bounded — at most one Cardcom call per poll cycle.
+    // ── helper: גייט שדות קבלה ל-APPROVED/REFUNDED בלבד ────────
+    // defense-in-depth: גם אם תוקף יקרא ל-API ישירות (לא דרך thanks-client),
+    // הוא יקבל מידע פיננסי רק אחרי שהתשלום אושר. לפני זה — רק status.
+    const isFinalApproved = (s: string): boolean =>
+      s === "APPROVED" || s === "REFUNDED";
+
     if (tx.status === "PENDING" && ageMs > AUTO_SYNC_THRESHOLD_MS) {
       try {
         const result = await syncCardcomTransaction(t);
-        // אחרי sync — לטעון מחדש את ה-Payment כדי להחזיר debtFullyPaid טרי.
+        // אחרי sync — לטעון מחדש את ה-Payment כדי להחזיר debtFullyPaid טרי
+        // וגם את שדות הקבלה (אם ה-sync טריגר את webhook flow).
         const fresh = await prisma.cardcomTransaction.findUnique({
           where: { id: t },
-          select: { payment: { select: { status: true } } },
+          select: {
+            payment: {
+              select: {
+                id: true,
+                status: true,
+                receiptUrl: true,
+                receiptNumber: true,
+                hasReceipt: true,
+              },
+            },
+          },
         });
+        const includeReceipt = isFinalApproved(result.status);
         return NextResponse.json({
           status: result.status,
           debtFullyPaid:
             !fresh?.payment || fresh.payment.status === "PAID",
+          // paymentId נחשף רק עם קבלה (אין בו תועלת לקליינט אחרת,
+          // וחושף correlation id מיותר במצב PENDING/FAILED).
+          paymentId: includeReceipt ? fresh?.payment?.id ?? null : null,
+          receiptUrl: includeReceipt ? fresh?.payment?.receiptUrl ?? null : null,
+          receiptNumber: includeReceipt
+            ? fresh?.payment?.receiptNumber ?? null
+            : null,
+          hasReceipt: includeReceipt
+            ? fresh?.payment?.hasReceipt ?? false
+            : false,
         });
       } catch (err) {
         logger.warn("[p/transaction-status] auto-sync failed", {
@@ -106,9 +160,15 @@ export async function GET(request: NextRequest) {
 
     // debtFullyPaid: אם אין Payment מקושר → אין חוב בכלל (true).
     // אחרת — true רק כש-Payment.status=PAID.
+    // receiptUrl/receiptNumber/hasReceipt/paymentId: רק ב-APPROVED/REFUNDED.
+    const includeReceipt = isFinalApproved(tx.status);
     return NextResponse.json({
       status: tx.status,
       debtFullyPaid: !tx.payment || tx.payment.status === "PAID",
+      paymentId: includeReceipt ? tx.payment?.id ?? null : null,
+      receiptUrl: includeReceipt ? tx.payment?.receiptUrl ?? null : null,
+      receiptNumber: includeReceipt ? tx.payment?.receiptNumber ?? null : null,
+      hasReceipt: includeReceipt ? tx.payment?.hasReceipt ?? false : false,
     });
   } catch (err) {
     logger.warn("[p/transaction-status] DB lookup failed", {
