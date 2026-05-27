@@ -116,7 +116,14 @@ export function isEncrypted(text: string): boolean {
   return false;
 }
 
-const API_KEY_HMAC_SECRET = process.env.API_KEY_HMAC_SECRET || (() => {
+let _apiKeyHmacSecret: string | null = null;
+function getApiKeyHmacSecret(): string {
+  if (_apiKeyHmacSecret) return _apiKeyHmacSecret;
+  const fromEnv = process.env.API_KEY_HMAC_SECRET;
+  if (fromEnv) {
+    _apiKeyHmacSecret = fromEnv;
+    return _apiKeyHmacSecret;
+  }
   if (process.env.NODE_ENV === "production") {
     throw new Error("API_KEY_HMAC_SECRET must be set in production");
   }
@@ -125,12 +132,13 @@ const API_KEY_HMAC_SECRET = process.env.API_KEY_HMAC_SECRET || (() => {
     "API_KEY_HMAC_SECRET not set — using deterministic dev key (DEV ONLY). " +
     "Production REQUIRES API_KEY_HMAC_SECRET env var."
   );
-  return crypto.createHash("sha256").update(devSeed).digest("hex");
-})();
+  _apiKeyHmacSecret = crypto.createHash("sha256").update(devSeed).digest("hex");
+  return _apiKeyHmacSecret;
+}
 
 export function hashApiKey(apiKey: string): string {
   return crypto
-    .createHmac('sha256', API_KEY_HMAC_SECRET)
+    .createHmac('sha256', getApiKeyHmacSecret())
     .update(apiKey)
     .digest('hex')
     .substring(0, 16);

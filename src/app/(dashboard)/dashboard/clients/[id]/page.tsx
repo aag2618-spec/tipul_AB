@@ -311,10 +311,25 @@ export default async function ClientPage({
   // Phase 2: canViewPayments — מזכירה רואה תשלומים רק אם בעלת הקליניקה נתנה הרשאה.
   // ל-non-secretary (מטפל/בעלים) תמיד true. תאם להתנהגות /api/clients/[id].
   let canViewPayments = true;
+  // Phase 3: canSendDebtReminders — שליחת תזכורת חוב דורשת **גם** canSendReminders
+  // (לעצם השליחה) **וגם** canViewDebts (התזכורת חושפת את גובה החוב למזכירה).
+  // ה-API /api/clients/[id]/send-debt-reminder אוכף את שני התנאים; ה-UI מסתיר
+  // את הכפתור כדי שלמזכירה ללא הרשאה לא יוצג כפתור שמחזיר 403 בלחיצה.
+  let canSendDebtReminders = true;
+  // Phase 3: canExportClient — ייצוא תיק קליני (הקלטות/תמלולים/סיכומים/אבחנות)
+  // חסום קשיחות לכל מזכירה ב-/api/clients/[id]/export, בלי קשר ל-secretaryPermissions
+  // (תקנות הגנת הפרטיות). מסתירים את הכפתור כדי שלמזכירה לא יוצג "הורד תיק"
+  // שמחזיר 403 בלחיצה.
+  let canExportClient = true;
   try {
     const scopeUser = await loadScopeUser(session.user.id);
     asSecretary = isSecretary(scopeUser);
     canViewPayments = secretaryCan(scopeUser, "canViewPayments");
+    canSendDebtReminders =
+      !asSecretary ||
+      (secretaryCan(scopeUser, "canSendReminders") &&
+        secretaryCan(scopeUser, "canViewDebts"));
+    canExportClient = !asSecretary;
     const clientWhere = buildClientWhere(scopeUser);
     client = await getClient(id, clientWhere, asSecretary, canViewPayments);
   } catch (error) {
@@ -433,7 +448,9 @@ export default async function ClientPage({
           </div>
         </div>
         <div className="flex flex-wrap gap-2 w-full sm:w-auto">
-          <ExportClientButton clientId={client.id} clientName={client.name} />
+          {canExportClient && (
+            <ExportClientButton clientId={client.id} clientName={client.name} />
+          )}
           <Button variant="outline" asChild>
             <Link href={`/dashboard/clients/${client.id}/edit`}>
               <Edit className="ml-2 h-4 w-4" />
@@ -806,11 +823,13 @@ export default async function ClientPage({
                     />
                     {totalDebt > 0 && (
                       <>
-                        <SendReminderButton
-                          clientId={client.id}
-                          clientName={client.name}
-                          size="default"
-                        />
+                        {canSendDebtReminders && (
+                          <SendReminderButton
+                            clientId={client.id}
+                            clientName={client.name}
+                            size="default"
+                          />
+                        )}
                         {unpaidSessions.length > 1 && (
                           <Button asChild className="gap-2 bg-emerald-600 hover:bg-emerald-700">
                             <Link href={`/dashboard/payments/pay/${client.id}`}>
