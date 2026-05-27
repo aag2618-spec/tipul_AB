@@ -5,7 +5,7 @@ import { Button } from "@/components/ui/button";
 import { Dialog, DialogContent, DialogDescription, DialogHeader, DialogTitle, DialogFooter } from "@/components/ui/dialog";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
-import { Trash2, User, Phone, UserCheck, CalendarPlus } from "lucide-react";
+import { Trash2, User, Phone, UserCheck, CalendarPlus, Stethoscope } from "lucide-react";
 import { format } from "date-fns";
 import { toast } from "sonner";
 import { useRouter } from "next/navigation";
@@ -96,6 +96,48 @@ export function SessionDetailDialog({
       })
       .catch(() => setPreviousSessions([]));
   }, [open, isQuickClient, session?.client?.id, session?.id]);
+
+  const [activeCommitment, setActiveCommitment] = useState<{
+    copaymentAmount: number | null;
+    healthFund: string | null;
+    approvedSessions: number | null;
+    usedSessions: number;
+  } | null>(null);
+
+  useEffect(() => {
+    if (!open || !session?.client?.id) {
+      setActiveCommitment(null);
+      return;
+    }
+    fetch(`/api/clients/${session.client.id}/commitments`)
+      .then((res) => res.ok ? res.json() : [])
+      .then((commitments: Array<{ status: string; copaymentAmount: number | null; approvedSessions: number | null; usedSessions: number }>) => {
+        const active = commitments.find((c: { status: string }) => c.status === "ACTIVE");
+        if (active) {
+          fetch(`/api/clients/${session.client!.id}?fields=basic`)
+            .then((res) => res.ok ? res.json() : null)
+            .then((clientData: { healthFund?: string } | null) => {
+              setActiveCommitment({
+                copaymentAmount: active.copaymentAmount != null ? Number(active.copaymentAmount) : null,
+                healthFund: clientData?.healthFund || null,
+                approvedSessions: active.approvedSessions,
+                usedSessions: active.usedSessions,
+              });
+            })
+            .catch(() => {
+              setActiveCommitment({
+                copaymentAmount: active.copaymentAmount != null ? Number(active.copaymentAmount) : null,
+                healthFund: null,
+                approvedSessions: active.approvedSessions,
+                usedSessions: active.usedSessions,
+              });
+            });
+        } else {
+          setActiveCommitment(null);
+        }
+      })
+      .catch(() => setActiveCommitment(null));
+  }, [open, session?.client?.id]);
 
   if (!session) return null;
 
@@ -673,7 +715,25 @@ export function SessionDetailDialog({
 
             /* SCHEDULED */
             ) : session.status === "SCHEDULED" ? (
-              <><div className="border rounded-lg divide-y">
+              <>{activeCommitment && activeCommitment.copaymentAmount != null && (
+                <div className="flex items-center gap-2 p-3 mb-2 bg-blue-50 rounded-lg border border-blue-200">
+                  <Stethoscope className="h-4 w-4 text-blue-700 shrink-0" />
+                  <div className="text-sm text-blue-800">
+                    <span className="font-semibold">
+                      קופת חולים: {{ CLALIT: "כללית", MACCABI: "מכבי", MEUHEDET: "מאוחדת", LEUMIT: "לאומית" }[activeCommitment.healthFund || ""] || "לא צוינה"}
+                    </span>
+                    <span className="mx-1">|</span>
+                    <span>השתתפות עצמית: ₪{activeCommitment.copaymentAmount}</span>
+                    {activeCommitment.approvedSessions != null && (
+                      <>
+                        <span className="mx-1">|</span>
+                        <span>טיפולים: {activeCommitment.usedSessions}/{activeCommitment.approvedSessions}</span>
+                      </>
+                    )}
+                  </div>
+                </div>
+              )}
+              <div className="border rounded-lg divide-y">
                 <p className="text-sm font-medium text-center py-2 bg-muted/50">בחר פעולה:</p>
 
                 {/* 1. סיים ושלם — Phase 3: מוסתר ממזכירה ללא canViewPayments.
@@ -694,10 +754,13 @@ export function SessionDetailDialog({
                         : session.payment?.status === "PAID"
                         ? Number(session.payment?.amount || 0)
                         : 0;
+                    const effectivePrice = activeCommitment?.copaymentAmount != null
+                      ? activeCommitment.copaymentAmount
+                      : session.price;
                     onRequestPayment({
                       sessionId: session.id,
                       clientId: session.client.id,
-                      amount: session.price - paidAmount,
+                      amount: effectivePrice - paidAmount,
                       paymentId: session.payment?.id,
                       pendingSessionStatus: "COMPLETED",
                     });
