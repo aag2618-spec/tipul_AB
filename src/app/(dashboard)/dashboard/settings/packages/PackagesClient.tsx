@@ -123,6 +123,7 @@ export default function PackagesClient({
 
     return () => {
       if (pollRef.current) clearInterval(pollRef.current);
+      toast.dismiss("pkg-poll");
     };
   }, [searchParams, router, view.balances]);
 
