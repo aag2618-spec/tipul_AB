@@ -69,10 +69,24 @@ export async function processMultiSessionPayment(params: {
       };
     }
 
+    // Phase 3 (H1 defense-in-depth): כשמועבר scopeUser — מצרים את ה-findMany
+    // עם buildPaymentWhere. למזכירה ללא canViewPayments זה מחזיר
+    // `{ id: "__deny__" }` ולכן הפילטר ב-AND לא ימצא רשומות (השרת מחזיר
+    // "אין תשלומים ממתינים"). ה-route עצמו כבר מחזיר 403 לפני שמגיעים לכאן,
+    // אבל הגנה כפולה — דפוס תואם getClientDebtSummary בקובץ הזה.
+    const paymentScopeWhere: Prisma.PaymentWhereInput = scopeUser
+      ? {
+          AND: [
+            buildPaymentWhere(scopeUser),
+            { id: { in: paymentIds }, clientId, status: "PENDING" },
+          ],
+        }
+      : { id: { in: paymentIds }, clientId, status: "PENDING" };
+
     // Transaction: create child payments + update parents + credit
     const result = await prisma.$transaction(async (tx) => {
       const pendingPayments = await tx.payment.findMany({
-        where: { id: { in: paymentIds }, clientId, status: "PENDING" },
+        where: paymentScopeWhere,
         orderBy: { createdAt: "asc" },
       });
 

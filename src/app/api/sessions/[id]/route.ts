@@ -339,7 +339,15 @@ export async function PUT(
     // לעדכן את `expectedAmount` כדי ש-`calculateSessionDebt` ויתר ה-flows
     // יראו את החוב המעודכן. לא נוגעים ב-amount (שמייצג את מה ששולם בפועל),
     // וגם לא בתשלומים PAID או REFUNDED. גם לא יורדים מתחת ל-amount הקיים.
+    //
+    // Phase 3 (M2): מזכירה ללא canViewPayments — דילוג על הסנכרון.
+    // הסיבה: היא רשאית לעדכן `price` (ב-ALLOWED_FOR_SECRETARY) אבל לא לבצע
+    // מוטציות תשלום. שריון: secretaryCan מחזיר true לכל non-secretary
+    // ולמזכירה עם הרשאה — ולכן רק במצב המוגבל הסנכרון מדלג. במקרה הקצה
+    // הזה ייתכן stale `expectedAmount` עד שמי שיש לו הרשאה יערוך שוב —
+    // עדיף מ-mutation שקטה דרך מזכירה ללא הרשאה.
     if (
+      secretaryCan(scopeUser, "canViewPayments") &&
       price !== undefined &&
       finalPrice !== undefined &&
       existingSession.price !== null &&

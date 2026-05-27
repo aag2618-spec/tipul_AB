@@ -3,7 +3,7 @@ import prisma from "@/lib/prisma";
 import { logger } from "@/lib/logger";
 import { parseIsraelTime } from "@/lib/date-utils";
 import { requireAuth } from "@/lib/api-auth";
-import { buildSessionWhere, isSecretary, loadScopeUser } from "@/lib/scope";
+import { buildSessionWhere, isSecretary, loadScopeUser, secretaryCan } from "@/lib/scope";
 import { calculatePaidAmount } from "@/lib/payment-utils";
 import { serializePrisma } from "@/lib/serialize";
 import { CALENDAR_SESSION_INCLUDE } from "@/types/calendar-session";
@@ -59,6 +59,7 @@ export async function GET(request: NextRequest) {
     //
     // מזכירה: חוק זכויות החולה — לא רואה תוכן קליני (sessionNote / topic).
     // ראה CLINICAL_FIELDS_BLOCKED_FOR_SECRETARY ב-scope.ts.
+    //
     const includeForRole = isSecretary(scopeUser)
       ? ({
           client: {
@@ -97,10 +98,26 @@ export async function GET(request: NextRequest) {
       return { ...s, payment: { ...p, paidAmount } };
     });
 
+    // Phase 3 (M1): סינון `payment` מהתגובה למזכירה ללא canViewPayments.
+    // ה-relation עדיין נטען מה-DB (זניח — 1:1 ועוד child JOIN), אבל לא
+    // נשלח ללקוח. זה סוגר את שרשרת התקיפה של H1 (קריאת paymentId מתוך
+    // /api/sessions/calendar והעברתו ל-/api/payments/pay-client-debts).
+    // בחירה זאת על פני conditional include כדי לשמור על type inference
+    // אחיד של Prisma ובלי לסבך את ה-enrichment מעלה.
+    const isRestrictedSecretary =
+      isSecretary(scopeUser) && !secretaryCan(scopeUser, "canViewPayments");
+    const finalSessions = isRestrictedSecretary
+      ? enriched.map((s) => {
+          // eslint-disable-next-line @typescript-eslint/no-unused-vars
+          const { payment, ...rest } = s;
+          return rest;
+        })
+      : enriched;
+
     // serializePrisma חיוני בגלל Decimal של price/amount/creditBalance —
     // Prisma מחזיר Decimal objects שלא serialize-ים כ-JSON תקין. ראה
     // project-conventions.mdc / src/lib/serialize.ts.
-    return NextResponse.json(serializePrisma(enriched));
+    return NextResponse.json(serializePrisma(finalSessions));
   } catch (error) {
     logger.error("Calendar sessions error:", {
       error: error instanceof Error ? error.message : String(error),

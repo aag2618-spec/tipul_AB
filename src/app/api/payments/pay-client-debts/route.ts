@@ -2,7 +2,7 @@ import { NextRequest, NextResponse } from "next/server";
 import { processMultiSessionPayment } from "@/lib/payment-service";
 import { logger } from "@/lib/logger";
 import { requireAuth } from "@/lib/api-auth";
-import { loadScopeUser } from "@/lib/scope";
+import { isSecretary, loadScopeUser, secretaryCan } from "@/lib/scope";
 import { parseBody } from "@/lib/validations/helpers";
 import { payClientDebtsSchema } from "@/lib/validations/payment";
 
@@ -14,6 +14,20 @@ export async function POST(req: NextRequest) {
     if ("error" in auth) return auth.error;
     const { userId } = auth;
     const scopeUser = await loadScopeUser(userId);
+
+    // Phase 3 (H1): סגירת backdoor — מזכירה ללא canViewPayments יכלה לסמן
+    // payments PAID דרך ה-route הזה גם כש-PUT /api/sessions/[id] חוסם
+    // markAsPaid. השרשרת היתה: סמן COMPLETED → אוטו-יצירת PENDING (amount=0)
+    // → קריאת paymentId מ-/api/sessions/calendar (M1) → POST כאן → מסומן PAID.
+    // ה-gate הזה חוסם את הקצה האחרון של השרשרת; M1 (calendar) סוגר את
+    // הקצה השני. תאם ל-POST /api/payments ו-PUT /api/payments/[id] שכבר אוכפים
+    // את אותה הרשאה.
+    if (isSecretary(scopeUser) && !secretaryCan(scopeUser, "canViewPayments")) {
+      return NextResponse.json(
+        { message: "אין הרשאה לפעולות תשלום" },
+        { status: 403 }
+      );
+    }
 
     // H2: zod (strict) — אוכף סוגי שדות + מסיר שדות לא ידועים שעלולים
     // להיכנס כ-mass assignment לתוך processMultiSessionPayment.
