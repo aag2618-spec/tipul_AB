@@ -23,7 +23,7 @@ import { Textarea } from "@/components/ui/textarea";
 import { Input } from "@/components/ui/input";
 import { Badge } from "@/components/ui/badge";
 import { Checkbox } from "@/components/ui/checkbox";
-import { CheckCircle, Loader2, FileText, ChevronDown, ChevronUp, CreditCard } from "lucide-react";
+import { CheckCircle, Loader2, FileText, ChevronDown, ChevronUp, CreditCard, Stethoscope } from "lucide-react";
 import { toast } from "sonner";
 import { useRouter } from "next/navigation";
 import { ChargeCardcomDialog } from "@/components/payments/charge-cardcom-dialog";
@@ -102,6 +102,12 @@ export function CompleteSessionDialog(props: CompleteSessionDialogProps) {
   const [amount, setAmount] = useState(defaultAmount.toString());
   const [includePayment, setIncludePayment] = useState(!hasPayment);
   const [showAdvanced, setShowAdvanced] = useState(false);
+  const [activeCommitment, setActiveCommitment] = useState<{
+    copaymentAmount: number | null;
+    healthFund: string | null;
+    approvedSessions: number | null;
+    usedSessions: number;
+  } | null>(null);
   const [paymentType, setPaymentType] = useState<"FULL" | "PARTIAL" | "ADVANCE" | "CREDIT">("FULL");
   const [partialAmount, setPartialAmount] = useState<string>("");
   const [issueReceipt, setIssueReceipt] = useState<boolean>(false);
@@ -109,6 +115,10 @@ export function CompleteSessionDialog(props: CompleteSessionDialogProps) {
   const [businessType, setBusinessType] = useState<"NONE" | "EXEMPT" | "LICENSED">("NONE");
   const [externalReceiptProvider, setExternalReceiptProvider] = useState<string | null>(null);
   const router = useRouter();
+
+  const effectiveAmount = activeCommitment?.copaymentAmount != null
+    ? activeCommitment.copaymentAmount
+    : defaultAmount;
 
   useEffect(() => {
     if (isOpen) {
@@ -123,8 +133,45 @@ export function CompleteSessionDialog(props: CompleteSessionDialogProps) {
           else if (data.receiptDefaultMode === "NEVER") setIssueReceipt(false);
         })
         .catch(() => {});
+
+      if (clientId) {
+        fetch(`/api/clients/${clientId}/commitments`)
+          .then((res) => res.ok ? res.json() : [])
+          .then((commitments: Array<{ status: string; copaymentAmount: number | null; approvedSessions: number | null; usedSessions: number }>) => {
+            const active = commitments.find((c: { status: string }) => c.status === "ACTIVE");
+            if (active) {
+              fetch(`/api/clients/${clientId}?fields=basic`)
+                .then((res) => res.ok ? res.json() : null)
+                .then((clientData: { healthFund?: string } | null) => {
+                  setActiveCommitment({
+                    copaymentAmount: active.copaymentAmount != null ? Number(active.copaymentAmount) : null,
+                    healthFund: clientData?.healthFund || null,
+                    approvedSessions: active.approvedSessions,
+                    usedSessions: active.usedSessions,
+                  });
+                  if (active.copaymentAmount != null && Number(active.copaymentAmount) >= 0) {
+                    setAmount(Number(active.copaymentAmount).toString());
+                  }
+                })
+                .catch(() => {
+                  setActiveCommitment({
+                    copaymentAmount: active.copaymentAmount != null ? Number(active.copaymentAmount) : null,
+                    healthFund: null,
+                    approvedSessions: active.approvedSessions,
+                    usedSessions: active.usedSessions,
+                  });
+                  if (active.copaymentAmount != null && Number(active.copaymentAmount) >= 0) {
+                    setAmount(Number(active.copaymentAmount).toString());
+                  }
+                });
+            } else {
+              setActiveCommitment(null);
+            }
+          })
+          .catch(() => setActiveCommitment(null));
+      }
     }
-  }, [isOpen]);
+  }, [isOpen, clientId]);
 
   const handleComplete = async () => {
     // mutex סינכרוני — מונע race של שני קליקים בו-זמנית. לבדוק לפני
@@ -142,13 +189,13 @@ export function CompleteSessionDialog(props: CompleteSessionDialogProps) {
       if (paymentType === "PARTIAL") {
         actualAmount = parseFloat(partialAmount) || 0;
         actualPaymentType = "PARTIAL";
-        if (actualAmount <= 0 || actualAmount > defaultAmount) {
+        if (actualAmount <= 0 || actualAmount > effectiveAmount) {
           toast.error("סכום חלקי לא תקין");
           setIsLoading(false);
           return;
         }
       } else if (paymentType === "CREDIT") {
-        if (creditBalance < defaultAmount) {
+        if (creditBalance < effectiveAmount) {
           toast.error("אין מספיק קרדיט");
           setIsLoading(false);
           return;
@@ -197,7 +244,7 @@ export function CompleteSessionDialog(props: CompleteSessionDialogProps) {
         // כדי שהמערכת תזהה שיש יתרה. ה-webhook יחשב status=PAID רק
         // כשהסכום המצטבר >= expected. ב-FULL: expectedAmount=actualAmount.
         const expectedForPost =
-          actualPaymentType === "PARTIAL" ? defaultAmount : actualAmount;
+          actualPaymentType === "PARTIAL" ? effectiveAmount : actualAmount;
         const paymentRes = await fetch("/api/payments", {
           method: "POST",
           headers: { "Content-Type": "application/json" },
@@ -247,7 +294,7 @@ export function CompleteSessionDialog(props: CompleteSessionDialogProps) {
           clientId,
           sessionId: paymentType === "ADVANCE" ? null : sessionId,
           amount: actualAmount,
-          expectedAmount: paymentType === "PARTIAL" ? defaultAmount : undefined,
+          expectedAmount: paymentType === "PARTIAL" ? effectiveAmount : undefined,
           paymentType: actualPaymentType,
           method: paymentType === "CREDIT" ? "CREDIT" : paymentMethod,
           status: paymentType === "PARTIAL" ? undefined : "PAID",
@@ -420,6 +467,25 @@ export function CompleteSessionDialog(props: CompleteSessionDialogProps) {
                 <Label className="text-lg font-bold">סיום ותשלום 💰</Label>
               </div>
 
+              {activeCommitment && activeCommitment.copaymentAmount != null && (
+                <div className="flex items-center gap-2 p-3 bg-blue-50 rounded-lg border border-blue-200">
+                  <Stethoscope className="h-4 w-4 text-blue-700 shrink-0" />
+                  <div className="text-sm text-blue-800">
+                    <span className="font-semibold">
+                      קופת חולים: {{ CLALIT: "כללית", MACCABI: "מכבי", MEUHEDET: "מאוחדת", LEUMIT: "לאומית" }[activeCommitment.healthFund || ""] || "לא צוינה"}
+                    </span>
+                    <span className="mx-1">|</span>
+                    <span>השתתפות עצמית: ₪{activeCommitment.copaymentAmount}</span>
+                    {activeCommitment.approvedSessions != null && (
+                      <>
+                        <span className="mx-1">|</span>
+                        <span>טיפולים: {activeCommitment.usedSessions}/{activeCommitment.approvedSessions}</span>
+                      </>
+                    )}
+                  </div>
+                </div>
+              )}
+
               <div className="grid grid-cols-2 gap-3">
                 <div className="space-y-2">
                   <Label htmlFor="amount">סכום</Label>
@@ -504,10 +570,10 @@ export function CompleteSessionDialog(props: CompleteSessionDialogProps) {
                             size="sm"
                             onClick={() => setPaymentType("FULL")}
                           >
-                            תשלום מלא (₪{defaultAmount})
+                            תשלום מלא (₪{effectiveAmount})
                           </Button>
                           
-                          {creditBalance >= defaultAmount && (
+                          {creditBalance >= effectiveAmount && (
                             <Button
                               type="button"
                               variant={paymentType === "CREDIT" ? "default" : "outline"}
@@ -534,13 +600,13 @@ export function CompleteSessionDialog(props: CompleteSessionDialogProps) {
                                 placeholder="הכנס סכום"
                                 value={partialAmount}
                                 onChange={(e) => setPartialAmount(e.target.value)}
-                                max={defaultAmount}
+                                max={effectiveAmount}
                                 min={0}
                                 step="0.01"
                               />
-                              {partialAmount && parseFloat(partialAmount) < defaultAmount && (
+                              {partialAmount && parseFloat(partialAmount) < effectiveAmount && (
                                 <p className="text-xs text-muted-foreground">
-                                  נותר לתשלום: ₪{defaultAmount - parseFloat(partialAmount)}
+                                  נותר לתשלום: ₪{effectiveAmount - parseFloat(partialAmount)}
                                 </p>
                               )}
                             </div>

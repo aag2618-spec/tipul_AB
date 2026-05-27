@@ -415,7 +415,7 @@ export async function PUT(
     }
 
     // ── ספירת טיפולים אוטומטית — עדכון התחייבות פעילה ──
-    if (status === "COMPLETED" && therapySession.clientId) {
+    if (status === "COMPLETED" && existingSession.status !== "COMPLETED" && therapySession.clientId) {
       try {
         await prisma.clientCommitment.updateMany({
           where: {
