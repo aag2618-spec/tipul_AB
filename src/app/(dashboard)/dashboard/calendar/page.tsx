@@ -23,6 +23,7 @@ import { getEventColors } from "@/lib/calendar/event-colors";
 import { NewSessionDialog, DEFAULT_FORM_DATA, type SessionFormData, type RecurringPreviewItem, type PendingFormRecurring } from "@/components/calendar/new-session-dialog";
 import { RecurringPatternDialog } from "@/components/calendar/recurring-pattern-dialog";
 import { SessionDetailDialog, type PaymentRequest } from "@/components/calendar/session-detail-dialog";
+import { useMyPermissions } from "@/hooks/use-my-permissions";
 import { TimeUpdateConfirmDialog, type TimeUpdatePromptData } from "@/components/calendar/time-update-confirm-dialog";
 import { ChargeConfirmationDialog } from "@/components/calendar/charge-confirmation-dialog";
 import { CalendarEventContent } from "@/components/calendar/calendar-event-content";
@@ -103,6 +104,11 @@ function CalendarPageContent() {
     overlaps,
     setDateRange,
   } = useCalendarData();
+
+  // Phase 3: הרשאות מזכירה ל-UI gating ב-SessionDetailDialog. ל-non-secretary
+  // (OWNER/THERAPIST/independent) כל ההרשאות true. ה-default האופטימי ב-hook
+  // מבטיח שלא יופיע "flash of missing button" לבעלים בזמן הטעינה.
+  const { permissions: myPermissions } = useMyPermissions();
 
   const { updating, updateSessionWithPayment, recordSessionDebt } = useCalendarActions({ fetchData });
 
@@ -683,7 +689,16 @@ function CalendarPageContent() {
         onOpenChange={setIsSessionDialogOpen}
         session={selectedSession}
         onSessionChange={setSelectedSession}
+        canViewPayments={myPermissions.canViewPayments}
         onRequestPayment={async (data: PaymentRequest) => {
+          // Phase 3: client-side guard — מזכירה ללא canViewPayments לא צריכה
+          // להגיע לכאן (הכפתורים מוסתרים), אבל אם משתמש כן מצליח לטריגר
+          // (race condition / DevTools), חוסמים פה לפני יצירת payment. השרת
+          // יחזיר 403 בכל מקרה, אבל זה מקצר את לולאת ה-UX.
+          if (!myPermissions.canViewPayments) {
+            toast.error("אין הרשאה לפעולות תשלום");
+            return;
+          }
           // בדיקה אם למטופל יש חובות ישנים - אם כן, מעבר לדף תשלום כל החובות
           try {
             const debtRes = await fetch(`/api/payments/client-debt/${data.clientId}`);
@@ -745,6 +760,13 @@ function CalendarPageContent() {
           setPendingAction(null);
         }}
         onRequestPayment={(data) => {
+          // Phase 3: client-side guard — מזכירה ללא canViewPayments לא צריכה
+          // לפתוח דיאלוג תשלום גם מ-ChargeConfirmationDialog (handleRecordDebt
+          // עם createPayment=true). השרת חוסם אבל הסתרת UI נקייה יותר.
+          if (!myPermissions.canViewPayments) {
+            toast.error("אין הרשאה לפעולות תשלום");
+            return;
+          }
           setPaymentData(data);
           setIsPaymentDialogOpen(true);
         }}

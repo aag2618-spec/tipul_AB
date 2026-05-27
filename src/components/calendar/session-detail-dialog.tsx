@@ -51,6 +51,13 @@ interface SessionDetailDialogProps {
     newEnd: Date;
     source?: "manual" | "drag";
   }) => void;
+  /**
+   * Phase 3: שולט אם להציג מידע/פעולות תשלום. מזכירה ללא canViewPayments
+   * תקבל undefined כאן או false → renderPaymentSection מוחזר כ-null
+   * וכפתור "סיים ושלם" ב-SCHEDULED מוסתר. ברירת מחדל true לכל non-secretary
+   * וכמו גם למזכירה שיש לה ההרשאה.
+   */
+  canViewPayments?: boolean;
 }
 
 // ── Component ──
@@ -65,6 +72,7 @@ export function SessionDetailDialog({
   onOpenNewSession,
   onDataChanged,
   onRequestTimeUpdate,
+  canViewPayments = true,
 }: SessionDetailDialogProps) {
   const router = useRouter();
   const [previousSessions, setPreviousSessions] = useState<Array<{
@@ -171,6 +179,13 @@ export function SessionDetailDialog({
 
   // ── Section: Payment ──
   const renderPaymentSection = () => {
+    // Phase 3: למזכירה ללא canViewPayments — לא מציגים סקציית תשלום בכלל.
+    // ה-API /api/sessions/[id] כבר משמיט את payment עבורה (chunk 2), אז גם
+    // אילו רצינו להציג "₪{paidAmount}" — לא היה לנו ערך אמיתי. ההסתרה כאן
+    // היא ה-UI parallel ל-API gate, ומונעת מהמזכירה אפשרות ללחוץ על
+    // QuickMarkPaid (שבעצמו ייכשל ב-403 בשרת אבל יוצר UX מבלבל).
+    if (!canViewPayments) return null;
+
     const price = session.price;
     const payment = session.payment;
     // ⭐ paidAmount מחושב ע"י השרת (/api/sessions) — מטפל נכון בכל הזרמים:
@@ -661,7 +676,10 @@ export function SessionDetailDialog({
               <><div className="border rounded-lg divide-y">
                 <p className="text-sm font-medium text-center py-2 bg-muted/50">בחר פעולה:</p>
 
-                {/* 1. סיים ושלם */}
+                {/* 1. סיים ושלם — Phase 3: מוסתר ממזכירה ללא canViewPayments.
+                    היא עדיין רואה "סיים ללא תשלום" (אדמיניסטרטיבי), "אי הופעה",
+                    ו-"ביטול". סימון פעולת חיוב דורש הרשאת תשלומים. */}
+                {canViewPayments && (
                 <button
                   onClick={() => {
                     if (!session.client) return;
@@ -689,6 +707,7 @@ export function SessionDetailDialog({
                   <span className="flex items-center justify-center w-7 h-7 rounded-full bg-green-600 text-white text-sm font-bold">1</span>
                   <span className="flex-1 font-medium">✅ סיים ושלם</span>
                 </button>
+                )}
 
                 {/* 2. סיים ללא תשלום */}
                 <button
@@ -788,11 +807,16 @@ export function SessionDetailDialog({
             /* COMPLETED / NO_SHOW / CANCELLED - Structured sections */
             ) : (session.status === "COMPLETED" || session.status === "NO_SHOW" || session.status === "CANCELLED") ? (
               <div className="space-y-3">
-                {/* סקשן תשלום */}
-                <div className="space-y-1.5">
-                  <p className="text-xs font-medium text-muted-foreground">💵 תשלום</p>
-                  {renderPaymentSection()}
-                </div>
+                {/* סקשן תשלום — Phase 3: עוטפים את **כל** הבלוק (כולל הכותרת)
+                    ב-canViewPayments, כדי שלמזכירה ללא הרשאה לא תוצג כותרת
+                    "💵 תשלום" יתומה בלי תוכן. ה-API ממילא לא מחזיר את payment
+                    עבורה (chunk 2 — f0baa959). */}
+                {canViewPayments && (
+                  <div className="space-y-1.5">
+                    <p className="text-xs font-medium text-muted-foreground">💵 תשלום</p>
+                    {renderPaymentSection()}
+                  </div>
+                )}
 
                 {/* סקשן סיכום - רק ל-COMPLETED */}
                 {session.status === "COMPLETED" && (
