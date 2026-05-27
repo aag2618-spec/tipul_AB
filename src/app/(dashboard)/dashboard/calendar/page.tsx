@@ -754,6 +754,7 @@ function CalendarPageContent() {
         onOpenChange={setIsChargeDialogOpen}
         session={selectedSession}
         pendingAction={pendingAction}
+        canViewPayments={myPermissions.canViewPayments}
         onDismissAll={() => {
           setIsChargeDialogOpen(false);
           setIsSessionDialogOpen(false);
@@ -762,7 +763,8 @@ function CalendarPageContent() {
         onRequestPayment={(data) => {
           // Phase 3: client-side guard — מזכירה ללא canViewPayments לא צריכה
           // לפתוח דיאלוג תשלום גם מ-ChargeConfirmationDialog (handleRecordDebt
-          // עם createPayment=true). השרת חוסם אבל הסתרת UI נקייה יותר.
+          // עם createPayment=true). השרת חוסם דרך 403 על PUT /api/sessions/[id]
+          // ו-ChargeConfirmationDialog מסתיר את הכפתורים — זה defense-in-depth.
           if (!myPermissions.canViewPayments) {
             toast.error("אין הרשאה לפעולות תשלום");
             return;

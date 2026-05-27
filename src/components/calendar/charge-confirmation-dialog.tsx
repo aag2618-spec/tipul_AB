@@ -1,6 +1,6 @@
 "use client";
 
-import { useState } from "react";
+import { useEffect, useState } from "react";
 import { useRouter } from "next/navigation";
 import { Button } from "@/components/ui/button";
 import { Dialog, DialogContent, DialogDescription, DialogHeader, DialogTitle, DialogFooter } from "@/components/ui/dialog";
@@ -23,6 +23,15 @@ interface ChargeConfirmationDialogProps {
   }) => void;
   /** מרענן נתונים אחרי פעולה מוצלחת */
   onDataChanged: () => void;
+  /**
+   * Phase 3: שולט אם להציג מסלולי חיוב (עדכון וחייב / רשום חוב). מזכירה
+   * ללא canViewPayments תקבל false → רואה רק את מסלול "ללא חיוב". השרת
+   * חוסם את handleCharge/handleRecordDebt בלאו הכי (PUT /api/sessions/[id]
+   * מחזיר 403 על createPayment/markAsPaid), אבל הסתרת ה-UI נקייה יותר
+   * ומונעת toasts שגיאה מבלבלים. ברירת מחדל true (כל non-secretary +
+   * מזכירה עם הרשאת תשלומים).
+   */
+  canViewPayments?: boolean;
 }
 
 export function ChargeConfirmationDialog({
@@ -33,12 +42,26 @@ export function ChargeConfirmationDialog({
   onDismissAll,
   onRequestPayment,
   onDataChanged,
+  canViewPayments = true,
 }: ChargeConfirmationDialogProps) {
   const router = useRouter();
   const [isProcessing, setIsProcessing] = useState(false);
   const [reason, setReason] = useState("");
   const [noChargeReason, setNoChargeReason] = useState("");
-  const [showExemptReason, setShowExemptReason] = useState(false);
+  // Phase 3: כשהמזכירה ללא canViewPayments פותחת — אתחול ל-true כך שתראה
+  // מיד את מסלול "ללא חיוב" (textarea + "אשר ללא חיוב") במקום מסך שאלת
+  // חיוב שכפתוריו ממילא מוסתרים.
+  const [showExemptReason, setShowExemptReason] = useState(!canViewPayments);
+
+  // Race-condition guard: useMyPermissions מתחיל ב-OPTIMISTIC (true) ועובר
+  // ל-false כשהתשובה מגיעה. אם המזכירה פתחה את הדיאלוג בחלון האופטימי,
+  // showExemptReason נשאר false ודרכי החיוב היו נראות לרגע. כאשר
+  // canViewPayments הופך ל-false תוך כדי שהדיאלוג פתוח — מאלצים מצב פטור.
+  useEffect(() => {
+    if (!canViewPayments) {
+      setShowExemptReason(true);
+    }
+  }, [canViewPayments]);
 
   const isCancelled = pendingAction === "CANCELLED";
   const reasonLabel = isCancelled ? "סיבת ביטול (אופציונלי)" : "סיבת אי הופעה (אופציונלי)";
@@ -179,7 +202,10 @@ export function ChargeConfirmationDialog({
       if (!o) {
         setReason("");
         setNoChargeReason("");
-        setShowExemptReason(false);
+        // Phase 3: reset לערך ההתחלתי לפי canViewPayments — למזכירה ללא
+        // הרשאה זה true (מצב פטור קבוע). reset קשיח ל-false היה גורם
+        // למזכירה לראות מסך שאלה ריק בפתיחה הבאה (כל הכפתורים מוסתרים).
+        setShowExemptReason(!canViewPayments);
       }
       onOpenChange(o);
     }}>
@@ -187,9 +213,13 @@ export function ChargeConfirmationDialog({
         <DialogHeader>
           <DialogTitle className="text-center">{actionTitle} - {session?.client?.name}</DialogTitle>
           <DialogDescription className="text-center">
-            {isCancelled
-              ? "הפגישה בוטלה. מה לעשות עם התשלום?"
-              : "המטופל לא הגיע. מה לעשות עם התשלום?"}
+            {canViewPayments
+              ? (isCancelled
+                  ? "הפגישה בוטלה. מה לעשות עם התשלום?"
+                  : "המטופל לא הגיע. מה לעשות עם התשלום?")
+              : (isCancelled
+                  ? "הפגישה בוטלה. תיעוד הפעולה ללא חיוב."
+                  : "המטופל לא הגיע. תיעוד הפעולה ללא חיוב.")}
           </DialogDescription>
         </DialogHeader>
 
@@ -206,16 +236,19 @@ export function ChargeConfirmationDialog({
             />
           </div>
 
-          {/* כפתור פטור מתשלום */}
-          <Button
-            type="button"
-            variant="outline"
-            className="w-full font-bold text-base"
-            onClick={() => setShowExemptReason(!showExemptReason)}
-            disabled={isProcessing}
-          >
-            {isCancelled ? "ביטול ללא חיוב" : "אי הופעה ללא חיוב"}
-          </Button>
+          {/* כפתור פטור מתשלום — Phase 3: מוסתר ממזכירה ללא canViewPayments,
+              כי showExemptReason כבר מאולץ ל-true עבורה (מצב פטור קבוע). */}
+          {canViewPayments && (
+            <Button
+              type="button"
+              variant="outline"
+              className="w-full font-bold text-base"
+              onClick={() => setShowExemptReason(!showExemptReason)}
+              disabled={isProcessing}
+            >
+              {isCancelled ? "ביטול ללא חיוב" : "אי הופעה ללא חיוב"}
+            </Button>
+          )}
 
           {/* אזור פטור - מוצג רק בלחיצה */}
           {showExemptReason && (
@@ -231,8 +264,9 @@ export function ChargeConfirmationDialog({
             </div>
           )}
 
-          {/* אזור חיוב */}
-          {!showExemptReason && price > 0 && (
+          {/* אזור חיוב — Phase 3: מוסתר ממזכירה ללא הרשאה (היא ממילא במצב פטור
+              קבוע ולא תוכל ליצור payment). */}
+          {!showExemptReason && price > 0 && canViewPayments && (
             <div className="space-y-3 p-4 rounded-lg border bg-muted/30">
               <div className="text-center">
                 <p className="text-lg font-bold">
@@ -255,27 +289,42 @@ export function ChargeConfirmationDialog({
               >
                 אשר ללא חיוב
               </Button>
-              <Button variant="outline" onClick={() => setShowExemptReason(false)} disabled={isProcessing} className="flex-1">
-                חזרה לתשלום
-              </Button>
+              {/* "חזרה לתשלום" — Phase 3: מוסתר ממזכירה ללא הרשאה (אין לאן
+                  לחזור — מסלולי החיוב חסומים). מציגים במקום זה כפתור סגירה. */}
+              {canViewPayments ? (
+                <Button variant="outline" onClick={() => setShowExemptReason(false)} disabled={isProcessing} className="flex-1">
+                  חזרה לתשלום
+                </Button>
+              ) : (
+                <Button variant="ghost" onClick={() => onOpenChange(false)} disabled={isProcessing} className="flex-1">
+                  ביטול
+                </Button>
+              )}
             </>
           ) : (
             <>
-              <Button
-                onClick={handleCharge}
-                disabled={isProcessing}
-                className="flex-1 bg-emerald-600 hover:bg-emerald-700"
-              >
-                עדכון וחייב
-              </Button>
-              <Button
-                variant="outline"
-                onClick={handleRecordDebt}
-                disabled={isProcessing}
-                className="flex-1 text-orange-600 border-orange-300 hover:bg-orange-50"
-              >
-                עדכון ורשום חוב
-              </Button>
+              {/* כפתורי חיוב — Phase 3: מוסתרים ממזכירה ללא canViewPayments.
+                  השרת חוסם handleCharge/handleRecordDebt דרך 403 על PUT עם
+                  createPayment/markAsPaid, אבל הסתרה כאן מונעת UX מבלבל. */}
+              {canViewPayments && (
+                <>
+                  <Button
+                    onClick={handleCharge}
+                    disabled={isProcessing}
+                    className="flex-1 bg-emerald-600 hover:bg-emerald-700"
+                  >
+                    עדכון וחייב
+                  </Button>
+                  <Button
+                    variant="outline"
+                    onClick={handleRecordDebt}
+                    disabled={isProcessing}
+                    className="flex-1 text-orange-600 border-orange-300 hover:bg-orange-50"
+                  >
+                    עדכון ורשום חוב
+                  </Button>
+                </>
+              )}
               <Button variant="ghost" onClick={() => onOpenChange(false)} disabled={isProcessing}>
                 ביטול
               </Button>

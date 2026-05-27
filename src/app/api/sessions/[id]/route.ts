@@ -175,6 +175,24 @@ export async function PUT(
           { status: 403 }
         );
       }
+
+      // Phase 3: gate על mutation של תשלום — createPayment=true / markAsPaid=true
+      // אסורים למזכירה ללא canViewPayments. בלי זה, ChargeConfirmationDialog
+      // (handleRecordDebt/handleCharge) יכול לקרוא PUT עם createPayment=true
+      // ולעקוף את ה-UI gates שב-SessionDetailDialog. גם race window דרך
+      // QuickMarkPaid שנפתח לפני שה-permissions נטענו ייחסם כאן.
+      // הערה: אנחנו לא חוסמים את האוטו-create של payment כש-status=COMPLETED
+      // (שורה ~377 — shouldCreatePayment) — זה תהליך חשבונאי בסיסי שמייצר
+      // PENDING amount=0 (חוב), והמזכירה צריכה לסמן פגישות כהושלמו כפעולה
+      // אדמיניסטרטיבית. רק החלטות-חיוב מפורשות חסומות.
+      if (!secretaryCan(scopeUser, "canViewPayments")) {
+        if (createPayment === true || markAsPaid === true) {
+          return NextResponse.json(
+            { message: "אין הרשאה לפעולות תשלום" },
+            { status: 403 }
+          );
+        }
+      }
     }
 
     const existingSession = await prisma.therapySession.findFirst({
