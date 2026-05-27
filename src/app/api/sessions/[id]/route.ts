@@ -10,7 +10,7 @@ import { logger } from "@/lib/logger";
 import { serializePrisma } from "@/lib/serialize";
 import { syncSessionUpdateToGoogleCalendar, syncSessionDeletionToGoogleCalendar } from "@/lib/google-calendar-sync";
 import { logDataAccess } from "@/lib/audit-logger";
-import { buildSessionWhere, isSecretary, loadScopeUser } from "@/lib/scope";
+import { buildSessionWhere, isSecretary, loadScopeUser, secretaryCan } from "@/lib/scope";
 import { calculatePaidAmount } from "@/lib/payment-utils";
 import { parseBody } from "@/lib/validations/helpers";
 import { patchSessionSchema, updateSessionSchema } from "@/lib/validations/session";
@@ -43,6 +43,12 @@ export async function GET(
 
     const scopeUser = await loadScopeUser(userId);
     const sessionScopeWhere = buildSessionWhere(scopeUser);
+    // Phase 3: gate ל-payment ב-GET — מזכירה ללא canViewPayments לא צריכה
+    // לקבל את ה-payment בתשובה. תאם ל-GET /api/clients/[id] ול-Server Component
+    // של clients/[id] שכבר אוכפים את אותו gate. בלי זה, מזכירה יכולה לחלץ
+    // amount/expectedAmount/method של כל פגישה דרך קריאה ישירה לאנדפוינט הזה,
+    // גם כשהבעלים לא נתנה לה הרשאה.
+    const includeSessionPayment = !isSecretary(scopeUser) || secretaryCan(scopeUser, "canViewPayments");
 
     // Privacy: secretary must NOT receive clinical content
     // (sessionNote, sessionAnalysis, recordings/transcription).
@@ -51,7 +57,7 @@ export async function GET(
           client: {
             select: { id: true, name: true, firstName: true, lastName: true, phone: true, email: true },
           },
-          payment: { include: PAYMENT_INCLUDE },
+          ...(includeSessionPayment ? { payment: { include: PAYMENT_INCLUDE } } : {}),
         }
       : {
           client: true,
@@ -408,6 +414,27 @@ export async function PUT(
       }
     }
 
+    // ── ספירת טיפולים אוטומטית — עדכון התחייבות פעילה ──
+    if (status === "COMPLETED" && therapySession.clientId) {
+      try {
+        await prisma.clientCommitment.updateMany({
+          where: {
+            clientId: therapySession.clientId,
+            status: "ACTIVE",
+          },
+          data: {
+            usedSessions: { increment: 1 },
+          },
+        });
+      } catch (commitErr) {
+        logger.error("[sessions PUT] usedSessions increment failed", {
+          sessionId: therapySession.id,
+          clientId: therapySession.clientId,
+          error: commitErr instanceof Error ? commitErr.message : String(commitErr),
+        });
+      }
+    }
+
     // ── Send session change notification (email + SMS) when time/date changed ──
     const timeChanged = startTime && existingSession.startTime.getTime() !== therapySession.startTime.getTime();
     if (timeChanged && existingSession.status === "SCHEDULED" && therapySession.client) {
@@ -485,12 +512,16 @@ export async function PUT(
     // Fetch updated session with payment info.
     // Role-aware: secretary doesn't get full Client (clinical fields stripped).
     // payment.childPayments — נדרש ל-paidAmount enrichment (parity עם GET).
+    // Phase 3: gate ל-payment למזכירה ללא canViewPayments — parity עם GET כדי
+    // שלא תהיה דרך עקיפה דרך PUT שמחזיר payment שמוסתר ב-GET.
+    const includeFinalPayment =
+      !isSecretary(scopeUser) || secretaryCan(scopeUser, "canViewPayments");
     const finalIncludeForRole = isSecretary(scopeUser)
       ? {
           client: {
             select: { id: true, name: true, firstName: true, lastName: true, phone: true, email: true },
           },
-          payment: { include: PAYMENT_INCLUDE },
+          ...(includeFinalPayment ? { payment: { include: PAYMENT_INCLUDE } } : {}),
         }
       : {
           client: true,
