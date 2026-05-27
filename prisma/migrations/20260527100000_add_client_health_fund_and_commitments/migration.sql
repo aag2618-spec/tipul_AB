@@ -1,11 +1,15 @@
--- CreateEnum
-CREATE TYPE "CommitmentStatus" AS ENUM ('ACTIVE', 'EXPIRED', 'CANCELLED');
+-- CreateEnum (idempotent — skip if already exists from earlier manual apply)
+DO $$ BEGIN
+    CREATE TYPE "CommitmentStatus" AS ENUM ('ACTIVE', 'EXPIRED', 'CANCELLED');
+EXCEPTION
+    WHEN duplicate_object THEN null;
+END $$;
 
--- AlterTable
-ALTER TABLE "Client" ADD COLUMN "healthFund" "HealthInsurer";
+-- AlterTable (idempotent)
+ALTER TABLE "Client" ADD COLUMN IF NOT EXISTS "healthFund" "HealthInsurer";
 
--- CreateTable
-CREATE TABLE "ClientCommitment" (
+-- CreateTable (idempotent)
+CREATE TABLE IF NOT EXISTS "ClientCommitment" (
     "id" TEXT NOT NULL,
     "commitmentNumber" TEXT,
     "form17Number" TEXT,
@@ -26,17 +30,20 @@ CREATE TABLE "ClientCommitment" (
     CONSTRAINT "ClientCommitment_pkey" PRIMARY KEY ("id")
 );
 
--- CreateIndex
-CREATE INDEX "ClientCommitment_clientId_idx" ON "ClientCommitment"("clientId");
+-- CreateIndex (idempotent)
+CREATE INDEX IF NOT EXISTS "ClientCommitment_clientId_idx" ON "ClientCommitment"("clientId");
+CREATE INDEX IF NOT EXISTS "ClientCommitment_therapistId_idx" ON "ClientCommitment"("therapistId");
+CREATE INDEX IF NOT EXISTS "ClientCommitment_status_idx" ON "ClientCommitment"("status");
 
--- CreateIndex
-CREATE INDEX "ClientCommitment_therapistId_idx" ON "ClientCommitment"("therapistId");
+-- AddForeignKey (idempotent)
+DO $$ BEGIN
+    ALTER TABLE "ClientCommitment" ADD CONSTRAINT "ClientCommitment_clientId_fkey" FOREIGN KEY ("clientId") REFERENCES "Client"("id") ON DELETE CASCADE ON UPDATE CASCADE;
+EXCEPTION
+    WHEN duplicate_object THEN null;
+END $$;
 
--- CreateIndex
-CREATE INDEX "ClientCommitment_status_idx" ON "ClientCommitment"("status");
-
--- AddForeignKey
-ALTER TABLE "ClientCommitment" ADD CONSTRAINT "ClientCommitment_clientId_fkey" FOREIGN KEY ("clientId") REFERENCES "Client"("id") ON DELETE CASCADE ON UPDATE CASCADE;
-
--- AddForeignKey
-ALTER TABLE "ClientCommitment" ADD CONSTRAINT "ClientCommitment_therapistId_fkey" FOREIGN KEY ("therapistId") REFERENCES "User"("id") ON DELETE CASCADE ON UPDATE CASCADE;
+DO $$ BEGIN
+    ALTER TABLE "ClientCommitment" ADD CONSTRAINT "ClientCommitment_therapistId_fkey" FOREIGN KEY ("therapistId") REFERENCES "User"("id") ON DELETE CASCADE ON UPDATE CASCADE;
+EXCEPTION
+    WHEN duplicate_object THEN null;
+END $$;
