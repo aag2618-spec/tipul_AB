@@ -10,9 +10,10 @@ import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/com
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
 import { Checkbox } from "@/components/ui/checkbox";
 import { Switch } from "@/components/ui/switch";
-import { Loader2, Save, FileText, Sparkles } from "lucide-react";
+import { Loader2, Save, FileText, Sparkles, Users } from "lucide-react";
 import Link from "next/link";
 import { toast } from "sonner";
+import { useMyPermissions } from "@/hooks/use-my-permissions";
 
 interface Question {
   id: string;
@@ -30,6 +31,18 @@ interface IntakeQuestionnaireTemplate {
   isDefault: boolean;
   // Bug #3: שאלונים ישנים נשמרו בפורמט { questions: [...] }; חדשים שטוחים [...].
   questions: Question[] | { questions: Question[] };
+}
+
+// Phase 3: רשימת מטפלי הקליניקה ל-picker. שדות מינימליים — תואמים
+// ל-GET /api/clinic/therapists. ה-id ייכלל ב-body של POST /api/clients
+// ויעבור דרך resolveTherapistIdForClient בשרת.
+// email יכול להיות null ב-Prisma (User.email הוא String?), name גם כן.
+// ה-endpoint מסנן SECRETARY, אז נשארות רק 2 ה-roles הללו.
+interface ClinicTherapistOption {
+  id: string;
+  name: string | null;
+  email: string | null;
+  clinicRole: "OWNER" | "THERAPIST";
 }
 
 // Bug #3: normalize שאלונים בכל דרך שהם הגיעו ממאגר הנתונים.
@@ -58,6 +71,15 @@ function NewClientContent() {
   const [selectedQuestionnaire, setSelectedQuestionnaire] = useState<IntakeQuestionnaireTemplate | null>(null);
   const [skipQuestionnaire, setSkipQuestionnaire] = useState(false);
 
+  // Phase 3: ה-picker מוצג רק ל-OWNER ו-SECRETARY בקליניקה
+  // (לפי clinicRole). independent therapist ו-clinic THERAPIST לא רואים אותו
+  // — הם תמיד יוצרים על שמם, וכך גם השרת מתנהג אם לא נשלח therapistId.
+  const myPermissions = useMyPermissions();
+  const canPickTherapist =
+    myPermissions.clinicRole === "OWNER" || myPermissions.clinicRole === "SECRETARY";
+  const [clinicTherapists, setClinicTherapists] = useState<ClinicTherapistOption[]>([]);
+  const [loadingTherapists, setLoadingTherapists] = useState(false);
+
   const [formData, setFormData] = useState({
     firstName: "",
     lastName: "",
@@ -69,6 +91,9 @@ function NewClientContent() {
     status: "ACTIVE",
     defaultSessionPrice: "",
     healthFund: "",
+    // Phase 3: מטפל אחראי. ריק כברירת מחדל — ל-OWNER/SECRETARY חובה לבחור
+    // לפני submit; ל-non-picker זה נשלח ריק וה-resolver בשרת ייקח self.
+    therapistId: "",
   });
   // M1 — ברירת מחדל true: לרוב המטפל יחתים את המטופל על הסכמה כללית.
   // אפשרות לכבות כאן אם המטופל סירב במפורש כבר בפגישה הראשונה.
@@ -80,6 +105,40 @@ function NewClientContent() {
     fetchDefaultQuestionnaire();
     fetchTherapistDefault();
   }, []);
+
+  // Phase 3: טעינת רשימת המטפלים רק ל-OWNER/SECRETARY. הגנה כפולה —
+  // ה-API מחזיר 403 לתפקידים אחרים, אבל פה לא קוראים אותו בכלל.
+  // toast.error על non-OK / catch — להבדיל בין רשימה ריקה אמיתית
+  // (אין מטפלים פעילים) לבין שגיאת רשת/שרת.
+  useEffect(() => {
+    if (!canPickTherapist) return;
+    let cancelled = false;
+    setLoadingTherapists(true);
+    fetch("/api/clinic/therapists", { cache: "no-store" })
+      .then(async (res) => {
+        if (cancelled) return;
+        if (!res.ok) {
+          setClinicTherapists([]);
+          toast.error("שגיאה בטעינת רשימת המטפלים");
+          return;
+        }
+        const data = (await res.json()) as ClinicTherapistOption[];
+        if (cancelled) return;
+        setClinicTherapists(Array.isArray(data) ? data : []);
+      })
+      .catch(() => {
+        if (!cancelled) {
+          setClinicTherapists([]);
+          toast.error("שגיאה בטעינת רשימת המטפלים");
+        }
+      })
+      .finally(() => {
+        if (!cancelled) setLoadingTherapists(false);
+      });
+    return () => {
+      cancelled = true;
+    };
+  }, [canPickTherapist]);
 
   const fetchTherapistDefault = async () => {
     try {
@@ -161,6 +220,14 @@ function NewClientContent() {
       return;
     }
 
+    // Phase 3: ל-OWNER/SECRETARY חובה לבחור מטפל אחראי. ל-PUT (שדרוג פונה)
+    // ה-API לא תומך עדיין ב-therapistId — מדלגים על הוולידציה כדי לא לחסום
+    // את ה-flow הקיים. ייתכן שיתווסף בעתיד.
+    if (canPickTherapist && !fromQuickId && !formData.therapistId) {
+      toast.error("יש לבחור מטפל/ת אחראי/ת");
+      return;
+    }
+
     // Validate required questionnaire questions
     if (!skipQuestionnaire && defaultQuestionnaire) {
       // Bug #3: שאלונים ישנים נשמרו כ-{questions: [...]}; חדשים כ-[...]
@@ -176,14 +243,26 @@ function NewClientContent() {
     setIsLoading(true);
 
     try {
+      // Phase 3: ה-API מצפה ל-therapistId רק כשנשלח (resolver יקבע self אחרת).
+      // לא שולחים כשהוא ריק כדי לא לדרוס את ההתנהגות ההיסטורית של מטפל
+      // עצמאי / clinic THERAPIST.
+      const { therapistId: pickedTherapistId, ...formDataWithoutTherapist } = formData;
+      const clientBodyForCreate = {
+        ...formDataWithoutTherapist,
+        healthFund: formData.healthFund || null,
+        consentToAI,
+        ...(pickedTherapistId ? { therapistId: pickedTherapistId } : {}),
+      };
+
       // 1. Create or upgrade client
       let client;
       if (fromQuickId) {
         // שדרוג פונה מזדמן — עדכון הפונה הקיים (כולל isQuickClient: false)
+        // PUT /api/clients/[id] עוד לא תומך ב-therapistId reassignment.
         const clientResponse = await fetch(`/api/clients/${fromQuickId}`, {
           method: "PUT",
           headers: { "Content-Type": "application/json" },
-          body: JSON.stringify({ ...formData, healthFund: formData.healthFund || null, isQuickClient: false, consentToAI }),
+          body: JSON.stringify({ ...formDataWithoutTherapist, healthFund: formData.healthFund || null, isQuickClient: false, consentToAI }),
         });
         if (!clientResponse.ok) {
           const data = await clientResponse.json();
@@ -194,7 +273,7 @@ function NewClientContent() {
         const clientResponse = await fetch("/api/clients", {
           method: "POST",
           headers: { "Content-Type": "application/json" },
-          body: JSON.stringify({ ...formData, healthFund: formData.healthFund || null, consentToAI }),
+          body: JSON.stringify(clientBodyForCreate),
         });
         if (!clientResponse.ok) {
           const data = await clientResponse.json();
@@ -365,6 +444,44 @@ function NewClientContent() {
               <CardDescription>מלא את הפרטים הבסיסיים של המטופל</CardDescription>
             </CardHeader>
             <CardContent className="space-y-4">
+              {/* Phase 3 — picker מטפל אחראי (רק לבעלים/מזכירה בקליניקה).
+                  לא מוצג בשדרוג פונה כי PUT עוד לא תומך בהקצאה מחדש. */}
+              {canPickTherapist && !fromQuickId && (
+                <div className="space-y-2">
+                  <Label htmlFor="therapistId" className="flex items-center gap-2">
+                    <Users className="h-4 w-4 text-primary" />
+                    מטפל/ת אחראי/ת <span className="text-destructive">*</span>
+                  </Label>
+                  <Select
+                    value={formData.therapistId}
+                    onValueChange={(value) =>
+                      setFormData((prev) => ({ ...prev, therapistId: value }))
+                    }
+                    disabled={isLoading || loadingTherapists}
+                  >
+                    <SelectTrigger id="therapistId">
+                      <SelectValue
+                        placeholder={loadingTherapists ? "טוען..." : "בחר/י מטפל/ת..."}
+                      />
+                    </SelectTrigger>
+                    <SelectContent>
+                      {clinicTherapists.length === 0 && !loadingTherapists ? (
+                        <div className="px-2 py-1.5 text-sm text-muted-foreground">
+                          לא נמצאו מטפלים פעילים בקליניקה
+                        </div>
+                      ) : (
+                        clinicTherapists.map((t) => (
+                          <SelectItem key={t.id} value={t.id}>
+                            {t.name || t.email}
+                            {t.clinicRole === "OWNER" ? " (בעלים)" : ""}
+                          </SelectItem>
+                        ))
+                      )}
+                    </SelectContent>
+                  </Select>
+                </div>
+              )}
+
               <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
                 <div className="space-y-2">
                   <Label htmlFor="firstName">שם פרטי *</Label>
