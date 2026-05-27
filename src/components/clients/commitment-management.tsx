@@ -209,7 +209,7 @@ export function CommitmentManagement({ clientId }: { clientId: string }) {
           <FileText className="h-5 w-5" />
           התחייבויות קופת חולים
         </h3>
-        <Button onClick={openCreate} size="sm" variant="outline">
+        <Button type="button" onClick={openCreate} size="sm" variant="outline">
           <Plus className="h-4 w-4 ml-1" />
           הוסף התחייבות
         </Button>
@@ -293,6 +293,7 @@ export function CommitmentManagement({ clientId }: { clientId: string }) {
                       </Select>
                     )}
                     <Button
+                      type="button"
                       variant="ghost"
                       size="icon"
                       className="h-8 w-8"
@@ -301,6 +302,7 @@ export function CommitmentManagement({ clientId }: { clientId: string }) {
                       <Pencil className="h-3.5 w-3.5" />
                     </Button>
                     <Button
+                      type="button"
                       variant="ghost"
                       size="icon"
                       className="h-8 w-8 text-destructive"
@@ -437,10 +439,10 @@ export function CommitmentManagement({ clientId }: { clientId: string }) {
           </div>
 
           <DialogFooter>
-            <Button variant="outline" onClick={() => setDialogOpen(false)}>
+            <Button type="button" variant="outline" onClick={() => setDialogOpen(false)}>
               ביטול
             </Button>
-            <Button onClick={handleSave} disabled={isSaving}>
+            <Button type="button" onClick={handleSave} disabled={isSaving}>
               {isSaving && <Loader2 className="h-4 w-4 animate-spin ml-1" />}
               {editingId ? "עדכן" : "צור"}
             </Button>
@@ -458,10 +460,10 @@ export function CommitmentManagement({ clientId }: { clientId: string }) {
             </DialogDescription>
           </DialogHeader>
           <DialogFooter>
-            <Button variant="outline" onClick={() => setDeleteId(null)}>
+            <Button type="button" variant="outline" onClick={() => setDeleteId(null)}>
               ביטול
             </Button>
-            <Button variant="destructive" onClick={handleDelete} disabled={isDeleting}>
+            <Button type="button" variant="destructive" onClick={handleDelete} disabled={isDeleting}>
               {isDeleting && <Loader2 className="h-4 w-4 animate-spin ml-1" />}
               מחק
             </Button>
