@@ -361,7 +361,6 @@ export function SessionDetailDialog({
       session.status === "COMPLETED";
     if (looksLikeRegression) {
       if (typeof console !== "undefined" && process.env.NODE_ENV !== "production") {
-        // eslint-disable-next-line no-console
         console.warn(
           "[SessionDetailDialog] suspected data-shape regression: COMPLETED session with price>0 has no payment AND no sessionNote. Did the API drop `payment` from the include?",
           { sessionId: session.id, status: session.status, price },

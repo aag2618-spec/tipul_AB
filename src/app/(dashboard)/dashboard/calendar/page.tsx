@@ -14,13 +14,12 @@ import type { EventClickArg, DatesSetArg, EventDropArg } from "@fullcalendar/cor
 import type { DateClickArg } from "@fullcalendar/interaction";
 import { QuickMarkPaid } from "@/components/payments/quick-mark-paid";
 
-import type { SessionOverlap } from "@/types";
 import { CalendarOverlapsDialog } from "@/components/calendar/calendar-overlaps-dialog";
 import { UpdateSessionDialog, type UpdateSessionDialogParams } from "@/components/update-session-dialog";
 import { useCalendarData, type CalendarSession } from "@/hooks/use-calendar-data";
 import { useCalendarActions } from "@/hooks/use-calendar-actions";
 import { getEventColors } from "@/lib/calendar/event-colors";
-import { NewSessionDialog, DEFAULT_FORM_DATA, type SessionFormData, type RecurringPreviewItem, type PendingFormRecurring } from "@/components/calendar/new-session-dialog";
+import { NewSessionDialog, DEFAULT_FORM_DATA, type SessionFormData } from "@/components/calendar/new-session-dialog";
 import { RecurringPatternDialog } from "@/components/calendar/recurring-pattern-dialog";
 import { SessionDetailDialog, type PaymentRequest } from "@/components/calendar/session-detail-dialog";
 import { useMyPermissions } from "@/hooks/use-my-permissions";
@@ -74,7 +73,6 @@ function CalendarPageContent() {
   const timeParam = searchParams.get('time');
   const highlightParam = searchParams.get('highlight');
   const clientParam = searchParams.get('client');
-  const newParam = searchParams.get('new');
   const isMobile = useIsMobile();
   // ביומן בטלפון: יום בודד עם רשת שעות (שומר drag-and-drop). במחשב/טאבלט: שבוע מלא (כמו היום)
   const initialCalendarView =
