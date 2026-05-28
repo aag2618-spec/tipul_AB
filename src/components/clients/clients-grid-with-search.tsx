@@ -6,7 +6,7 @@ import { Badge } from "@/components/ui/badge";
 import { Avatar, AvatarFallback } from "@/components/ui/avatar";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
-import { Phone, Mail, Plus, Search, Stethoscope } from "lucide-react";
+import { Phone, Mail, Plus, Search, Stethoscope, FileCheck } from "lucide-react";
 import Link from "next/link";
 import { format } from "date-fns";
 
@@ -20,6 +20,11 @@ interface ClientGridItem {
   birthDate: string | null;
   sessionCount: number;
   healthFund: string | null;
+  activeCommitment: {
+    approvedSessions: number | null;
+    usedSessions: number;
+    copaymentAmount: number | null;
+  } | null;
 }
 
 interface ClientsGridWithSearchProps {
@@ -121,6 +126,22 @@ export function ClientsGridWithSearch({ clients }: ClientsGridWithSearchProps) {
                         : "ללא תאריך לידה"}
                     </span>
                   </div>
+                  {client.activeCommitment && (
+                    <div className="flex items-center gap-1.5 px-2 py-1 rounded-md bg-blue-50 border border-blue-200">
+                      <FileCheck className="h-3 w-3 text-blue-700 shrink-0" />
+                      <span className="text-xs text-blue-800 font-medium">
+                        התחייבות פעילה
+                        {client.activeCommitment.approvedSessions != null && (
+                          <span className="mx-1">
+                            ({client.activeCommitment.usedSessions}/{client.activeCommitment.approvedSessions})
+                          </span>
+                        )}
+                        {client.activeCommitment.copaymentAmount != null && (
+                          <span className="mx-1">• ₪{client.activeCommitment.copaymentAmount}</span>
+                        )}
+                      </span>
+                    </div>
+                  )}
                 </CardContent>
               </Card>
             </Link>

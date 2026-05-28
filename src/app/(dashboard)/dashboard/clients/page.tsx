@@ -34,10 +34,21 @@ async function getClients(
     orderBy: { lastName: "asc" },
     include: {
       _count: {
-        select: { 
-          therapySessions: { where: { type: { not: "BREAK" } } }, 
-          payments: true 
+        select: {
+          therapySessions: { where: { type: { not: "BREAK" } } },
+          payments: true
         },
+      },
+      commitments: {
+        where: { status: "ACTIVE" },
+        select: {
+          id: true,
+          approvedSessions: true,
+          usedSessions: true,
+          copaymentAmount: true,
+        },
+        orderBy: { createdAt: "desc" },
+        take: 1,
       },
     },
   });
@@ -214,17 +225,29 @@ export default async function ClientsPage({ searchParams }: PageProps) {
 
       {/* Clients Grid */}
       <ClientsGridWithSearch
-        clients={clients.map((c) => ({
-          id: c.id,
-          firstName: c.firstName,
-          lastName: c.lastName,
-          phone: c.phone,
-          email: c.email,
-          status: c.status,
-          birthDate: c.birthDate ? c.birthDate.toISOString() : null,
-          sessionCount: c._count.therapySessions,
-          healthFund: c.healthFund || null,
-        }))}
+        clients={clients.map((c) => {
+          const activeCommitment = c.commitments?.[0];
+          return {
+            id: c.id,
+            firstName: c.firstName,
+            lastName: c.lastName,
+            phone: c.phone,
+            email: c.email,
+            status: c.status,
+            birthDate: c.birthDate ? c.birthDate.toISOString() : null,
+            sessionCount: c._count.therapySessions,
+            healthFund: c.healthFund || null,
+            activeCommitment: activeCommitment
+              ? {
+                  approvedSessions: activeCommitment.approvedSessions,
+                  usedSessions: activeCommitment.usedSessions,
+                  copaymentAmount: activeCommitment.copaymentAmount != null
+                    ? Number(activeCommitment.copaymentAmount)
+                    : null,
+                }
+              : null,
+          };
+        })}
       />
 
       {/* סקשן פגישות ייעוץ */}
