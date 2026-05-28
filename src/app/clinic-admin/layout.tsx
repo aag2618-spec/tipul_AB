@@ -12,6 +12,7 @@ import {
   Building2,
   LayoutDashboard,
   Users,
+  UsersRound,
   UserPlus,
   ArrowLeftRight,
   UserMinus,
@@ -49,7 +50,11 @@ interface ClinicContext {
 // C2: הוסף "תהליכי עזיבה" — דשבורד שמרכז את כל ה-TherapistDepartures.
 const navItems = [
   { href: "/clinic-admin", label: "סקירה כללית", icon: LayoutDashboard, exact: true },
-  { href: "/clinic-admin/members", label: "חברי קליניקה", icon: Users },
+  // Phase 4 — exact: true כדי שלא יואר במקביל ל-/members/by-therapist.
+  { href: "/clinic-admin/members", label: "חברי קליניקה", icon: Users, exact: true },
+  // Phase 4 — תצוגה ייעודית: רשימת הלקוחות של כל מטפל. נמצא תחת
+  // /members/by-therapist כדי לא לבלבל עם /members שמראה תפקידים.
+  { href: "/clinic-admin/members/by-therapist", label: "מטופלים לפי מטפל", icon: UsersRound },
   { href: "/clinic-admin/invitations", label: "הזמנות פעילות", icon: UserPlus },
   { href: "/clinic-admin/transfer", label: "העברת מטופל", icon: ArrowLeftRight },
   { href: "/clinic-admin/departures", label: "תהליכי עזיבה", icon: UserMinus },
