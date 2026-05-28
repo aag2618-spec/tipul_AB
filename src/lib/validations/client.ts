@@ -62,6 +62,9 @@ export const updateClientSchema = z.object({
     .union([z.number().min(0).max(100_000), z.string().max(20), z.null()])
     .optional(),
   healthFund: z.nativeEnum(HealthInsurer).optional().nullable(),
+  // Phase 3: העברת לקוח בין מטפלים. הוולידציה הסמנטית (org, not blocked,
+  // not SECRETARY) ב-route. trim+min(1) שלא תיפול בשקט.
+  therapistId: z.string().trim().min(1).max(64).optional(),
 });
 export type UpdateClientInput = z.infer<typeof updateClientSchema>;
 

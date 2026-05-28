@@ -10,6 +10,7 @@ import { checkRateLimit } from "@/lib/rate-limit";
 import {
   buildClientWhere,
   getClientSafeSelectForSecretary,
+  isClinicOwner,
   isSecretary,
   loadScopeUser,
   secretaryCan,
@@ -55,6 +56,11 @@ const UpdateClientSchema = z.object({
   // השדה לא חסום למזכירה כי זו החלטה משפטית של המטופל מטופס שהוא חתם — לא קביעה קלינית.
   consentToAI: z.boolean().nullable().optional(),
   healthFund: z.nativeEnum(HealthInsurer).optional().nullable(),
+  // Phase 3: העברת לקוח בין מטפלים בקליניקה. OWNER/SECRETARY (עם canCreateClient)
+  // בלבד. ה-cuid באורך 25 — שמרני יותר עם cap 64. trim() כדי שמחרוזת רווחים
+  // תיכשל ב-min(1) ולא תיפול בשקט. הוולידציה הסמנטית (אותו org, לא חסום,
+  // לא SECRETARY) ב-route עצמו.
+  therapistId: z.string().trim().min(1).max(64).optional(),
 }).passthrough();
 
 export async function GET(
@@ -224,7 +230,7 @@ export async function PUT(
       );
     }
 
-    const { firstName, lastName, phone, email, birthDate, address, notes, status, initialDiagnosis, intakeNotes, defaultSessionPrice, isQuickClient, consentToAI, healthFund } = parsed.data;
+    const { firstName, lastName, phone, email, birthDate, address, notes, status, initialDiagnosis, intakeNotes, defaultSessionPrice, isQuickClient, consentToAI, healthFund, therapistId } = parsed.data;
 
     const scopeUser = await loadScopeUser(userId);
     const scopeWhere = buildClientWhere(scopeUser);
@@ -274,6 +280,48 @@ export async function PUT(
       return NextResponse.json({ message: "מטופל לא נמצא" }, { status: 404 });
     }
 
+    // Phase 3: אימות `therapistId` (העברת לקוח בין מטפלים). הוולידציה הסמנטית
+    // נעשית כאן (לא ב-zod) כי דרושה גישה ל-`scopeUser` ולקריאת DB. הסדר:
+    //   • מטפל עצמאי (organizationId=null): אין מי להעביר אליו → מתעלמים.
+    //   • THERAPIST רגיל בקליניקה: אסור (RBAC) → 403.
+    //   • OWNER + SECRETARY (עם canCreateClient שנבדק לעיל): מותר, עם ולידציה
+    //     שהמטפל החדש קיים, באותו org, לא חסום, ולא SECRETARY.
+    // חשוב: אם השדה לא נשלח כלל (`therapistId === undefined`) — אין שינוי.
+    let resolvedTherapistId: string | undefined;
+    if (therapistId !== undefined) {
+      if (!scopeUser.organizationId) {
+        // עצמאי: מתעלמים בשקט (אין מי להעביר אליו). אם הערך זהה ל-self,
+        // אין כאן בעיה. אם שונה — לא מבצעים reassignment.
+      } else if (!isClinicOwner(scopeUser) && !isSecretary(scopeUser)) {
+        return NextResponse.json(
+          { message: "אין הרשאה לשייך מטופל למטפל אחר" },
+          { status: 403 }
+        );
+      } else {
+        const target = await prisma.user.findFirst({
+          where: {
+            id: therapistId,
+            organizationId: scopeUser.organizationId,
+            isBlocked: false,
+          },
+          select: { id: true, clinicRole: true },
+        });
+        if (!target) {
+          return NextResponse.json(
+            { message: "המטפל הנבחר לא נמצא בקליניקה" },
+            { status: 400 }
+          );
+        }
+        if (target.clinicRole === "SECRETARY") {
+          return NextResponse.json(
+            { message: "לא ניתן לשייך מטופל למזכירה" },
+            { status: 400 }
+          );
+        }
+        resolvedTherapistId = target.id;
+      }
+    }
+
     // M1 — consentToAI: עדכון consentToAIAt רק כשהערך באמת משתנה, כדי לתעד מתי
     // המטופל חתם על הסכמה/סירוב. נחשב כשינוי גם המעבר null → true/false (החלטה ראשונית).
     const consentChanged =
@@ -305,6 +353,9 @@ export async function PUT(
           : {}),
         ...(healthFund !== undefined
           ? { healthFund: healthFund || null }
+          : {}),
+        ...(resolvedTherapistId !== undefined
+          ? { therapistId: resolvedTherapistId }
           : {}),
       },
     });
