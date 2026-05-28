@@ -450,7 +450,7 @@ export default function EditClientPage({ params }: { params: Promise<{ id: strin
         {/* Phase 4 — קישור מהיר ל-/clinic-admin/transfer עם preselect.
             רק בעלי קליניקה רואים את הקרד (PUT /api/clients/[id] תומך
             ב-therapistId, אבל ה-UX המתועד לעבירה מלאה כולל פגישות
-            עתידיות ואודיט נמצא ב-/clinic-admin/transfer). */}
+            עתידיות ותיעוד נמצא ב-/clinic-admin/transfer). */}
         {myPermissions.clinicRole === "OWNER" && (
           <Card>
             <CardHeader>
@@ -460,7 +460,7 @@ export default function EditClientPage({ params }: { params: Promise<{ id: strin
               </CardTitle>
               <CardDescription>
                 להעברת המטופל למטפל/ת אחר/ת בקליניקה — כולל פגישות עתידיות
-                ואודיט אוטומטי
+                ותיעוד אוטומטי ביומן ההעברות
               </CardDescription>
             </CardHeader>
             <CardContent>
