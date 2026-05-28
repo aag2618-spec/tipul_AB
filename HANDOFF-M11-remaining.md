@@ -95,7 +95,9 @@
 - ✅ F1: UX polish batch (invite page)
 
 ### Phase G — New features
-- 🔴 G1-G12 — כולם נשארו
+- ✅ **G5: Dashboard עומס מטפלים** — `/clinic-admin/caseload` + API + 19 unit tests
+  (קומיט `065c47f0`). כניסה בכרטיס "הרכב הצוות" בדף הסקירה — לא ב-sidebar.
+- 🔴 G1-G4, G6-G12 — נשארו
 
 ---
 
@@ -208,8 +210,8 @@
 
 ---
 
-### G5 — Dashboard עומס מטפלים
-**גודל:** M
+### G5 — Dashboard עומס מטפלים ✅ הושלם
+**גודל:** M · **בוצע** ב-`065c47f0`
 
 **מה זה?** הבעלים רוצה לראות בכמה מטופלים מטפל כל אחד, כמה פגישות בשבוע, כמה הכנסה — בכרטיס מהיר.
 
@@ -334,7 +336,7 @@
 ## חלק 4: סדר עבודה מומלץ
 
 1. **E3 (גדול אבל קריטי)** — לולאת התשלום של הקליניקה חייבת להיסגר
-2. **G5 (קטן, ROI גבוה)** — Dashboard עומס — שיפור UX מיידי
+2. ✅ **G5 (קטן, ROI גבוה)** — Dashboard עומס — **בוצע** ב-`065c47f0`
 3. **G3 (קטן)** — פיצול הכנסות — בקשה נפוצה
 4. **G9 (בינוני)** — גישה per-client — צורך אבטחה
 5. **G10 (בינוני)** — Audit למטופל — דרישה רגולטורית
@@ -375,14 +377,19 @@
 - E2 — `custom-contract-renewals` cron + alerts (16 unit tests)
 - F1 — UI פולישינג של דף ההזמנה (PLAN_NAMES + attemptsRemaining + inheritedAiTier)
 
-סה"כ 692 tests passing, 36 test files, אפס שגיאות tsc/eslint.
-
 קומיטים על main:
 - `6be75aac` M11.E1
 - `22094731` M11.E2
 - `eda0b604` M11.F1
 
-הצ'אט הבא ממשיך מ-E3 או מ-G5 (לפי בחירת המשתמש).
+### Phase G — קומיטים נוספים בסשן הזה
+- `f9a12449` HANDOFF M11 (תיעוד זה)
+- `065c47f0` **G5: Dashboard עומס מטפלים** — `/clinic-admin/caseload`,
+  API `/api/clinic-admin/caseload-summary`, `src/lib/clinic/caseload.ts`
+  עם 19 unit tests. סה"כ עכשיו 707 tests passing, 37 test files,
+  אפס שגיאות tsc/eslint.
+
+הצ'אט הבא ממשיך מ-E3 או מ-G3 (לפי בחירת המשתמש).
 
 ---
 
