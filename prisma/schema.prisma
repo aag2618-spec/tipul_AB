@@ -542,6 +542,14 @@ model TherapySession {
   cancelledAt             DateTime?
   cancelledBy             String? // 'CLIENT', 'THERAPIST', 'SYSTEM'
 
+  // M11.G3 (קומיט B): snapshot ש"ח של חלק המטפל/ת מההכנסה של הפגישה, מחושב
+  // בעת ש-Payment המקושר עובר למצב PAID. הערך כולל את כל ה-PAID children
+  // אם קיימים (תשלום מפוצל). null = לא בוצע snapshot עדיין (פגישה שעדיין
+  // לא שולמה במלואה, או פגישה ישנה מלפני פריסת הפיצ'ר, או מטפל/ת עצמאי/ת
+  // ללא organizationId). דוח /clinic-admin/revenue ממשיך לחשב live מההגדרות
+  // הנוכחיות; השדה הזה משמש לעקיבות חשבונאית עתידית.
+  therapistRevenueIls Decimal? @db.Decimal(10, 2)
+
   // Google Calendar sync
   googleEventId String?
 

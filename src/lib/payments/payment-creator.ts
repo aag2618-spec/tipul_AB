@@ -39,6 +39,20 @@ import {
   resolveCardcomReceiptOwner,
 } from "./receipt-service";
 import { buildClientWhere, buildPaymentWhere, type ScopeUser } from "@/lib/scope";
+import { applyRevenueShareSnapshot } from "@/lib/clinic/revenue-snapshot";
+
+// M11.G3 (קומיט B): snapshot של חלק המטפל/ת בש"ח אחרי כל update ל-Payment.
+// ה-helper פנימי מסונן: (א) מדלג אוטומטית למטפל/ת עצמאי/ת
+// (organizationId=null) — תאימות מלאה לזרימת הסולו; (ב) מדלג אם אין totalPaid
+// (לא נגרם snapshot על אפס). הקריאה ב-try-catch של ה-helper עצמו, ולעולם לא
+// זורקת ולא תשבור payment flow. נקראת גם על PENDING (כש-child PAID קיים)
+// וגם על PAID של ה-parent — ה-helper יודע לסכם את כל ה-PAID children.
+function snapshotSessionIfAny(payment: {
+  session?: { id: string } | null;
+}): Promise<void> {
+  if (!payment.session?.id) return Promise.resolve();
+  return applyRevenueShareSnapshot({ sessionId: payment.session.id });
+}
 
 // ──────────────────────────────────────────────────────────────────
 // resolveIssueReceipt — מדיניות אחידה לכל זרימות התשלום (cash/credit,
@@ -429,6 +443,8 @@ export async function createPaymentForSession(params: {
       });
     }
 
+    await snapshotSessionIfAny(payment);
+
     return {
       success: true,
       payment,
@@ -665,6 +681,8 @@ export async function addPartialPayment(params: {
       });
     }
 
+    await snapshotSessionIfAny(payment);
+
     return {
       success: true,
       payment,
@@ -869,6 +887,8 @@ export async function markFullyPaid(params: {
         paymentId: payment.id,
       });
     }
+
+    await snapshotSessionIfAny(payment);
 
     return {
       success: true,

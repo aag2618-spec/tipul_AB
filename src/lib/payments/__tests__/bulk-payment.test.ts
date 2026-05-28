@@ -15,6 +15,11 @@ const findManyMock = vi.fn();
 const createMock = vi.fn();
 const updatePaymentMock = vi.fn();
 const updateManyTaskMock = vi.fn();
+// snapshot helper קורא ל-prisma.payment.findMany מחוץ ל-tx; שומרים מימוש
+// ברירת-מחדל שמחזיר [] כך שהוא לא יזרוק או יזיק לטענות הבדיקה הקיימת.
+const snapshotFindManyMock = vi.fn<(args?: unknown) => Promise<unknown[]>>(
+  async () => []
+);
 
 type TxClient = {
   payment: {
@@ -40,7 +45,17 @@ vi.mock("@/lib/prisma", () => ({
         },
         task: { updateMany: (...a: unknown[]) => updateManyTaskMock(...a) },
       }),
+    payment: {
+      findMany: (...a: unknown[]) => snapshotFindManyMock(...a),
+    },
   },
+}));
+
+// snapshot helper (קומיט B של G3): קוראים ל-prisma מחוץ ל-tx. מאחר ש-snapshot
+// אינו רלוונטי לטענות הקיימות (receipt inheritance), משבית את ה-helper כדי
+// שלא יחפש session/therapist/organization במוק.
+vi.mock("@/lib/clinic/revenue-snapshot", () => ({
+  applyRevenueShareSnapshot: vi.fn(async () => {}),
 }));
 
 vi.mock("@/lib/logger", () => ({

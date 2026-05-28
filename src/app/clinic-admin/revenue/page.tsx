@@ -14,6 +14,7 @@ import {
   TrendingUp,
   Coins,
   PercentCircle,
+  Settings,
 } from "lucide-react";
 import { toast } from "sonner";
 import type {
@@ -137,12 +138,20 @@ export default function RevenueReportPage() {
             </p>
           </div>
         </div>
-        <Button asChild variant="outline" size="sm">
-          <Link href="/clinic-admin">
-            <ArrowRight className="ml-2 h-4 w-4" aria-hidden="true" />
-            חזרה לסקירה
-          </Link>
-        </Button>
+        <div className="flex gap-2">
+          <Button asChild variant="outline" size="sm">
+            <Link href="/clinic-admin/revenue-settings">
+              <Settings className="ml-2 h-4 w-4" aria-hidden="true" />
+              הגדרות פיצול
+            </Link>
+          </Button>
+          <Button asChild variant="outline" size="sm">
+            <Link href="/clinic-admin">
+              <ArrowRight className="ml-2 h-4 w-4" aria-hidden="true" />
+              חזרה לסקירה
+            </Link>
+          </Button>
+        </div>
       </div>
 
       <Card>

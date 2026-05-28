@@ -12,6 +12,32 @@ import {
 import { buildClientWhere, buildPaymentWhere, type ScopeUser } from "@/lib/scope";
 import { calculatePaidAmount } from "@/lib/payment-utils";
 import { withAudit, type AuditActor } from "@/lib/audit";
+import { applyRevenueShareSnapshot } from "@/lib/clinic/revenue-snapshot";
+
+// M11.G3 (קומיט B): snapshot של חלק המטפל/ת בש"ח אחרי תשלום מצרפי. ה-helper
+// בודק `session.organizationId` ומדלג לעצמאיים — תאימות מלאה לסולו.
+// CRITICAL: עטוף ב-try-catch כדי שכשל ב-snapshot (DB / מוק חסר בבדיקות) לא
+// יזרוק החוצה ויהפוך payment שהצליח ל-success:false. snapshot הוא תוסף
+// חשבונאי — אסור לו לשבור את ה-flow הראשי.
+async function snapshotForParentPayments(parentIds: string[]): Promise<void> {
+  if (parentIds.length === 0) return;
+  try {
+    const parents = await prisma.payment.findMany({
+      where: { id: { in: parentIds } },
+      select: { sessionId: true },
+    });
+    for (const p of parents) {
+      if (p.sessionId) {
+        await applyRevenueShareSnapshot({ sessionId: p.sessionId });
+      }
+    }
+  } catch (error) {
+    logger.error("[bulk-payment] snapshotForParentPayments failed", {
+      parentCount: parentIds.length,
+      error: error instanceof Error ? error.message : String(error),
+    });
+  }
+}
 
 // Re-export pure calculation helpers from payment-utils
 export { calculateDebtFromPayments } from "@/lib/payment-utils";
@@ -266,6 +292,8 @@ export async function processMultiSessionPayment(params: {
       }
     }
 
+    await snapshotForParentPayments(result.processed.map((i) => i.parentId));
+
     const message =
       paymentMode === "PARTIAL"
         ? `תשלום חלקי של ₪${totalAmount} בוצע בהצלחה`
@@ -458,6 +486,8 @@ export async function distributeBulkCardcomPayment(params: {
     { isolationLevel: Prisma.TransactionIsolationLevel.Serializable }
     );
 
+    await snapshotForParentPayments(result.processed.map((i) => i.parentId));
+
     return {
       success: true,
       processed: result.processed,
@@ -543,6 +573,8 @@ async function autoFixStuckPayments(
     },
     data: { status: "COMPLETED" },
   });
+
+  await snapshotForParentPayments(stuckIds);
 
   return stuckIds;
 }
