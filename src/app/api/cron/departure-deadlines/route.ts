@@ -1,10 +1,13 @@
 import { NextRequest, NextResponse } from "next/server";
+import { Prisma } from "@prisma/client";
 import prisma from "@/lib/prisma";
 import { logger } from "@/lib/logger";
 import { sendEmail } from "@/lib/resend";
 import { escapeHtml } from "@/lib/email-utils";
 import { checkCronAuth } from "@/lib/cron-auth";
 import { withAudit } from "@/lib/audit";
+import { computeBillingRestore } from "@/lib/clinic-invitations";
+import { invalidateJwtCache } from "@/lib/auth";
 
 export const dynamic = "force-dynamic";
 
@@ -97,7 +100,19 @@ export async function GET(req: NextRequest) {
         organizationId: true,
         departingTherapistId: true,
         organization: { select: { name: true, ownerUserId: true } },
-        departingTherapist: { select: { id: true, name: true, email: true } },
+        departingTherapist: {
+          select: {
+            id: true,
+            name: true,
+            email: true,
+            role: true,
+            billingPaidByClinic: true,
+            subscriptionPausedReason: true,
+            subscriptionStatusBeforeClinic: true,
+            trialEndsAt: true,
+            subscriptionEndsAt: true,
+          },
+        },
         choices: {
           select: { id: true, clientId: true, choice: true, decidedAt: true },
         },
@@ -115,6 +130,38 @@ export async function GET(req: NextRequest) {
 
     for (const dep of expired) {
       try {
+        // MyTipul-B: שחרור מנוי שהושעה ע"י הקליניקה (מקביל ל-DELETE
+        // /clinic-admin/members/[id]). המטפל/ת היוצא/ת חוזר/ת ל-status
+        // הקודם או ל-grace, ו-billingPaidByClinic יורד.
+        let billingReleased = false;
+        let restoreTo: string | null = null;
+        let grantedFreshTrial = false;
+        let appliedGrace = false;
+        const billingFields: Record<string, unknown> = {};
+        const dt = dep.departingTherapist;
+        if (
+          dt.billingPaidByClinic &&
+          dt.subscriptionPausedReason === "PAID_BY_CLINIC"
+        ) {
+          billingReleased = true;
+          const plan = computeBillingRestore({
+            subscriptionStatusBeforeClinic: dt.subscriptionStatusBeforeClinic,
+            trialEndsAt: dt.trialEndsAt,
+            subscriptionEndsAt: dt.subscriptionEndsAt,
+          });
+          restoreTo = plan.newStatus;
+          grantedFreshTrial = plan.grantedFreshTrial;
+          appliedGrace = plan.appliedGrace;
+
+          billingFields.subscriptionStatus = plan.newStatus;
+          billingFields.trialEndsAt = plan.newTrialEndsAt;
+          billingFields.subscriptionEndsAt = plan.newSubscriptionEndsAt;
+          billingFields.subscriptionStatusBeforeClinic = null;
+          billingFields.subscriptionPausedReason = null;
+          billingFields.subscriptionPausedAt = null;
+          billingFields.billingPaidByClinic = false;
+        }
+
         const txResult = await withAudit(
           { kind: "system", source: "CRON", externalRef: "departure-deadlines" },
           {
@@ -126,6 +173,10 @@ export async function GET(req: NextRequest) {
               departingTherapistId: dep.departingTherapistId,
               clientCount: dep.choices.length,
               completedAt: now.toISOString(),
+              billingReleased,
+              restoreTo,
+              grantedFreshTrial,
+              appliedGrace,
             },
           },
           async (tx) => {
@@ -207,14 +258,38 @@ export async function GET(req: NextRequest) {
               }
             }
 
-            // הוצאת המטפל/ת היוצא/ת מהארגון. role הגלובלי לא משתנה,
-            // אבל שייכות הקליניקה והclinicRole יורדים ל-null.
-            await tx.user.update({
-              where: { id: dep.departingTherapistId },
+            // הוצאת המטפל/ת היוצא/ת מהארגון + שחרור מנוי (אם הוקפא ע"י הקליניקה).
+            // race-safe: guard על organizationId הנוכחי דרך updateMany.
+            const userUpdate = await tx.user.updateMany({
+              where: { id: dep.departingTherapistId, organizationId: dep.organizationId },
               data: {
                 organizationId: null,
                 clinicRole: null,
+                // ניקוי הרשאות מזכירה אם בשוגג נשארו (defense-in-depth — Departure
+                // הוא בד"כ למטפל/ת, אך נוקטים בטיחות מלאה).
+                secretaryPermissions: Prisma.DbNull,
+                ...billingFields,
+                // אם בטעות clinicRole היה SECRETARY — מחזירים ל-USER הגלובלי.
+                ...(dt.role === "CLINIC_SECRETARY" && { role: "USER" }),
               },
+            });
+            if (userUpdate.count === 0) {
+              throw new Error(
+                `Departing therapist ${dep.departingTherapistId} is no longer in org ${dep.organizationId}`
+              );
+            }
+
+            // Defense-in-depth: סוגרים כל impersonation פעיל שמכוון/מבוצע ע"י
+            // המטפל/ת היוצא/ת. אסור שמישהו ימשיך להתחזות למי שכבר עזב/ה.
+            await tx.impersonationSession.updateMany({
+              where: {
+                OR: [
+                  { targetUserId: dep.departingTherapistId },
+                  { impersonatorId: dep.departingTherapistId },
+                ],
+                endedAt: null,
+              },
+              data: { endedAt: now, endedReason: "TARGET_REMOVED" },
             });
 
             return { skipped: false as const };
@@ -227,6 +302,10 @@ export async function GET(req: NextRequest) {
           });
           continue;
         }
+
+        // M10.2: clinicRole + role + subscriptionStatus עלולים להשתנות.
+        // סוגרים חלון של 30s ב-JWT cache כך שה-token הבא ייטען מחדש מה-DB.
+        invalidateJwtCache(dep.departingTherapistId);
 
         results.processed++;
 
