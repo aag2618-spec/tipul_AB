@@ -1,6 +1,7 @@
 "use client";
 
-import { useEffect, useState, useCallback } from "react";
+import { useEffect, useState, useCallback, Suspense } from "react";
+import { useSearchParams } from "next/navigation";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
@@ -49,7 +50,10 @@ interface Client {
   _count: { therapySessions: number };
 }
 
-export default function TransferClientPage() {
+function TransferClientPageInner() {
+  const searchParams = useSearchParams();
+  const preselectedClientId = searchParams.get("clientId");
+
   const [clients, setClients] = useState<Client[]>([]);
   const [members, setMembers] = useState<Member[]>([]);
   const [loading, setLoading] = useState(true);
@@ -96,9 +100,34 @@ export default function TransferClientPage() {
   useEffect(() => {
     (async () => {
       await Promise.all([fetchMembers(), fetchClients()]);
+      // Phase 4 — preselect מ-?clientId= (קישור מתוך /dashboard/clients/[id]/edit).
+      // הלקוח לא בהכרח ברשימה הראשונית (q ריק → take=100), אז fetch ייעודי
+      // לפי id דרך limit מורחב. כשלון = המשתמש בוחר ידנית, לא חוסם UX.
+      if (preselectedClientId) {
+        try {
+          const res = await fetch(
+            `/api/clinic-admin/clients?limit=500`
+          );
+          if (res.ok) {
+            const data: Client[] = await res.json();
+            const target = data.find((c) => c.id === preselectedClientId);
+            if (target) {
+              setSelectedClient(target);
+              setToTherapistId("");
+              setReason("");
+              setTransferFutureSessions(false);
+            }
+          }
+        } catch {
+          // ignore — המשתמש יבחר ידנית
+        }
+      }
       setLoading(false);
     })();
-  }, [fetchMembers, fetchClients]);
+    // הרצה פעם אחת בלבד עם ה-preselect ההתחלתי. שינוי search לא טעון
+    // re-preselect (יש useEffect נפרד לדיבאונס חיפוש).
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, []);
 
   useEffect(() => {
     const t = setTimeout(fetchClients, 250);
@@ -419,5 +448,21 @@ export default function TransferClientPage() {
       </Card>
 
     </div>
+  );
+}
+
+// Phase 4 — Suspense wrapper נדרש על ידי Next.js כש-useSearchParams בשימוש
+// בעמוד (App Router). המסך הראשון לפני שהפרמטרים זמינים = loader פשוט.
+export default function TransferClientPage() {
+  return (
+    <Suspense
+      fallback={
+        <div className="flex justify-center py-16">
+          <Loader2 className="h-8 w-8 animate-spin text-primary" />
+        </div>
+      }
+    >
+      <TransferClientPageInner />
+    </Suspense>
   );
 }

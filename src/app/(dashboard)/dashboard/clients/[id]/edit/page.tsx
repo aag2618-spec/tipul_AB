@@ -11,8 +11,9 @@ import { Textarea } from "@/components/ui/textarea";
 import { Switch } from "@/components/ui/switch";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
 import { CommitmentManagement } from "@/components/clients/commitment-management";
-import { Loader2, Save, Archive, Clock, UserCheck, Trash2, AlertTriangle, Sparkles } from "lucide-react";
+import { Loader2, Save, Archive, Clock, UserCheck, Trash2, AlertTriangle, Sparkles, ArrowLeftRight } from "lucide-react";
 import { toast } from "sonner";
+import { useMyPermissions } from "@/hooks/use-my-permissions";
 import {
   Dialog,
   DialogContent,
@@ -44,6 +45,7 @@ interface Client {
 export default function EditClientPage({ params }: { params: Promise<{ id: string }> }) {
   const { id } = use(params);
   const router = useRouter();
+  const myPermissions = useMyPermissions();
   const [client, setClient] = useState<Client | null>(null);
   const [isLoading, setIsLoading] = useState(true);
   const [isSaving, setIsSaving] = useState(false);
@@ -444,6 +446,33 @@ export default function EditClientPage({ params }: { params: Promise<{ id: strin
             )}
           </CardContent>
         </Card>
+
+        {/* Phase 4 — קישור מהיר ל-/clinic-admin/transfer עם preselect.
+            רק בעלי קליניקה רואים את הקרד (PUT /api/clients/[id] תומך
+            ב-therapistId, אבל ה-UX המתועד לעבירה מלאה כולל פגישות
+            עתידיות ואודיט נמצא ב-/clinic-admin/transfer). */}
+        {myPermissions.clinicRole === "OWNER" && (
+          <Card>
+            <CardHeader>
+              <CardTitle className="text-base flex items-center gap-2">
+                <ArrowLeftRight className="h-4 w-4 text-primary" />
+                העברת מטופל בין מטפלים
+              </CardTitle>
+              <CardDescription>
+                להעברת המטופל למטפל/ת אחר/ת בקליניקה — כולל פגישות עתידיות
+                ואודיט אוטומטי
+              </CardDescription>
+            </CardHeader>
+            <CardContent>
+              <Button asChild variant="outline">
+                <Link href={`/clinic-admin/transfer?clientId=${id}`}>
+                  <ArrowLeftRight className="ml-2 h-4 w-4" />
+                  פתח/י את מסך ההעברה
+                </Link>
+              </Button>
+            </CardContent>
+          </Card>
+        )}
 
         <div className="flex justify-end gap-3">
           <Button type="button" variant="outline" asChild>
