@@ -17,6 +17,7 @@ import {
   AlertCircle,
   Wallet,
   UserMinus,
+  Gauge,
 } from "lucide-react";
 import { toast } from "sonner";
 
@@ -345,6 +346,14 @@ export default function ClinicAdminOverviewPage() {
             ))}
             <Button asChild variant="outline" size="sm" className="w-full mt-2">
               <Link href="/clinic-admin/members">ניהול חברים</Link>
+            </Button>
+            {/* M11.G5: כניסה לדוח עומס מטפלים — לא נוסף ל-sidebar (layout.tsx
+                בסקופ של צ'אט אחר); נכנסים מכאן. */}
+            <Button asChild variant="outline" size="sm" className="w-full">
+              <Link href="/clinic-admin/caseload">
+                <Gauge className="ml-2 h-4 w-4" aria-hidden="true" />
+                דוח עומס מטפלים
+              </Link>
             </Button>
           </CardContent>
         </Card>
