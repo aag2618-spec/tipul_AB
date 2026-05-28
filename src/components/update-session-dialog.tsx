@@ -21,7 +21,7 @@ import {
   SelectTrigger,
   SelectValue,
 } from "@/components/ui/select";
-import { CheckCircle2, Ban, UserX, Loader2, ChevronDown, ChevronUp, AlertCircle, Wallet, FileText, ArrowLeft, CreditCard } from "lucide-react";
+import { CheckCircle2, Ban, UserX, Loader2, ChevronDown, ChevronUp, AlertCircle, Wallet, FileText, ArrowLeft, CreditCard, Stethoscope } from "lucide-react";
 import { Checkbox } from "@/components/ui/checkbox";
 import { ChargeCardcomDialog } from "@/components/payments/charge-cardcom-dialog";
 
@@ -117,6 +117,52 @@ export function UpdateSessionDialog({
   // ע"י Payment.sessionId @unique, אבל זה defense-in-depth ב-UI).
   const routingInFlightRef = useRef(false);
 
+  const [activeCommitment, setActiveCommitment] = useState<{
+    copaymentAmount: number | null;
+    healthFund: string | null;
+    approvedSessions: number | null;
+    usedSessions: number;
+  } | null>(null);
+
+  const effectivePrice = activeCommitment?.copaymentAmount != null
+    ? activeCommitment.copaymentAmount
+    : price;
+
+  useEffect(() => {
+    if (!open || !clientId) {
+      setActiveCommitment(null);
+      return;
+    }
+    fetch(`/api/clients/${clientId}/commitments`)
+      .then((res) => res.ok ? res.json() : [])
+      .then((commitments: Array<{ status: string; copaymentAmount: number | null; approvedSessions: number | null; usedSessions: number }>) => {
+        const active = commitments.find((c: { status: string }) => c.status === "ACTIVE");
+        if (active) {
+          fetch(`/api/clients/${clientId}?fields=basic`)
+            .then((res) => res.ok ? res.json() : null)
+            .then((clientData: { healthFund?: string } | null) => {
+              setActiveCommitment({
+                copaymentAmount: active.copaymentAmount != null ? Number(active.copaymentAmount) : null,
+                healthFund: clientData?.healthFund || null,
+                approvedSessions: active.approvedSessions,
+                usedSessions: active.usedSessions,
+              });
+            })
+            .catch(() => {
+              setActiveCommitment({
+                copaymentAmount: active.copaymentAmount != null ? Number(active.copaymentAmount) : null,
+                healthFund: null,
+                approvedSessions: active.approvedSessions,
+                usedSessions: active.usedSessions,
+              });
+            });
+        } else {
+          setActiveCommitment(null);
+        }
+      })
+      .catch(() => setActiveCommitment(null));
+  }, [open, clientId]);
+
   useEffect(() => {
     if (open && clientId) {
       fetch(`/api/payments/client-debt/${clientId}`)
@@ -151,9 +197,9 @@ export function UpdateSessionDialog({
 
   useEffect(() => {
     if (open) {
-      setPaymentAmount(price ? price.toString() : "");
+      setPaymentAmount(effectivePrice != null ? effectivePrice.toString() : "");
     }
-  }, [open, price]);
+  }, [open, effectivePrice]);
 
   const resetAndClose = () => {
     setUpdateStatus("");
@@ -178,7 +224,7 @@ export function UpdateSessionDialog({
     if (
       paymentMethod === "CREDIT_CARD" &&
       showPayment &&
-      price > 0 &&
+      effectivePrice > 0 &&
       updateStatus // סטטוס נבחר — אחרת לא נכון לפעול
     ) {
       // PARTIAL+CC נתמך: ה-webhook מודע לחלקי (ראה src/app/api/webhooks/
@@ -193,7 +239,7 @@ export function UpdateSessionDialog({
         toast.error("סכום לתשלום לא תקין");
         return;
       }
-      if (paymentType === "PARTIAL" && amt > price) {
+      if (paymentType === "PARTIAL" && amt > effectivePrice) {
         toast.error("סכום חלקי לא יכול לעלות על מחיר הפגישה");
         return;
       }
@@ -246,7 +292,7 @@ export function UpdateSessionDialog({
             clientId,
             sessionId,
             amount: amt,
-            expectedAmount: isPartialCC ? price : amt,
+            expectedAmount: isPartialCC ? effectivePrice : amt,
             paymentType: isPartialCC ? "PARTIAL" : "FULL",
             method: "CREDIT_CARD",
             status: "PENDING",
@@ -482,6 +528,25 @@ export function UpdateSessionDialog({
                     </Label>
                   </div>
 
+                  {activeCommitment && activeCommitment.copaymentAmount != null && (
+                    <div className="flex items-center gap-2 p-3 bg-blue-50 rounded-lg border border-blue-200">
+                      <Stethoscope className="h-4 w-4 text-blue-700 shrink-0" />
+                      <div className="text-sm text-blue-800">
+                        <span className="font-semibold">
+                          קופת חולים: {{ CLALIT: "כללית", MACCABI: "מכבי", MEUHEDET: "מאוחדת", LEUMIT: "לאומית" }[activeCommitment.healthFund || ""] || "לא צוינה"}
+                        </span>
+                        <span className="mx-1">|</span>
+                        <span>השתתפות עצמית: ₪{activeCommitment.copaymentAmount}</span>
+                        {activeCommitment.approvedSessions != null && (
+                          <>
+                            <span className="mx-1">|</span>
+                            <span>טיפולים: {activeCommitment.usedSessions}/{activeCommitment.approvedSessions}</span>
+                          </>
+                        )}
+                      </div>
+                    </div>
+                  )}
+
                   <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
                     <div className="space-y-2">
                       <Label htmlFor="update-amount">סכום</Label>
@@ -561,7 +626,7 @@ export function UpdateSessionDialog({
                             size="sm"
                             onClick={() => setPaymentType("FULL")}
                           >
-                            תשלום מלא (₪{price})
+                            תשלום מלא (₪{effectivePrice})
                           </Button>
                           <Button
                             type="button"
@@ -578,13 +643,13 @@ export function UpdateSessionDialog({
                                 placeholder="הכנס סכום"
                                 value={partialAmount}
                                 onChange={e => setPartialAmount(e.target.value)}
-                                max={price}
+                                max={effectivePrice}
                                 min={0}
                                 step="0.01"
                               />
-                              {partialAmount && parseFloat(partialAmount) < price && (
+                              {partialAmount && parseFloat(partialAmount) < effectivePrice && (
                                 <p className="text-xs text-muted-foreground">
-                                  נותר לתשלום: ₪{price - parseFloat(partialAmount)}
+                                  נותר לתשלום: ₪{effectivePrice - parseFloat(partialAmount)}
                                 </p>
                               )}
                             </div>
