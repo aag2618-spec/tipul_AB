@@ -12,6 +12,9 @@ import { ClientsGridWithSearch } from "@/components/clients/clients-grid-with-se
 import { loadScopeUser, buildClientWhere, isSecretary } from "@/lib/scope";
 import { calculatePaidAmount } from "@/lib/payment-utils";
 
+// מונע cache leak בין מטפלים — דף מכיל PHI scoped למשתמש
+export const dynamic = "force-dynamic";
+
 type ClientStatus = "ACTIVE" | "WAITING" | "ARCHIVED";
 
 async function getClients(

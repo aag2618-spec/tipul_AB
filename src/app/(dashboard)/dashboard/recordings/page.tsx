@@ -15,6 +15,9 @@ import {
   canSecretaryAccessModel,
 } from "@/lib/scope";
 
+// מונע cache leak בין מטפלים — דף מכיל PHI scoped למשתמש
+export const dynamic = "force-dynamic";
+
 async function getRecordings(
   clientWhere: Prisma.ClientWhereInput,
   sessionWhere: Prisma.TherapySessionWhereInput

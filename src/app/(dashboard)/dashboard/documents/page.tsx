@@ -9,6 +9,9 @@ import Link from "next/link";
 import { format } from "date-fns";
 import { loadScopeUser, buildDocumentWhere, type ScopeUser } from "@/lib/scope";
 
+// מונע cache leak בין מטפלים — דף מכיל PHI scoped למשתמש
+export const dynamic = "force-dynamic";
+
 async function getDocuments(scopeUser: ScopeUser) {
   return prisma.document.findMany({
     where: buildDocumentWhere(scopeUser),

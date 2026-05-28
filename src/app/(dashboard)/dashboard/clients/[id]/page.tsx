@@ -60,6 +60,9 @@ import {
 } from "@/lib/scope";
 import type { Prisma } from "@prisma/client";
 
+// מונע cache leak בין מטפלים — דף מכיל PHI scoped למשתמש
+export const dynamic = "force-dynamic";
+
 // Wide include for non-secretary roles. Defined as `as const` כדי לגזור את
 // ה-shape ב-TS, ולהשתמש בו גם בענף secretary לצורך type unification — שדות
 // קליניים יהיו `undefined` ב-runtime למזכירה, וה-JSX מסתיר אותם.

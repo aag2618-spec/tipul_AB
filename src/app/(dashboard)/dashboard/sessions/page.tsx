@@ -5,6 +5,9 @@ import { Prisma } from "@prisma/client";
 import { SessionsView } from "@/components/sessions/sessions-view";
 import { loadScopeUser, buildSessionWhere, isSecretary } from "@/lib/scope";
 
+// מונע cache leak בין מטפלים — דף מכיל PHI scoped למשתמש
+export const dynamic = "force-dynamic";
+
 async function getSessions(sessionWhere: Prisma.TherapySessionWhereInput, includeNote: boolean) {
   return prisma.therapySession.findMany({
     where: sessionWhere,

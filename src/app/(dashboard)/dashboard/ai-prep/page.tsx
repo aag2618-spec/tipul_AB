@@ -17,6 +17,9 @@ import {
   canSecretaryAccessModel,
 } from "@/lib/scope";
 
+// מונע cache leak בין מטפלים — דף מכיל PHI scoped למשתמש
+export const dynamic = "force-dynamic";
+
 async function getTodaysSessions(sessionWhere: Prisma.TherapySessionWhereInput) {
   const today = new Date();
   today.setHours(0, 0, 0, 0);

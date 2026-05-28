@@ -22,6 +22,9 @@ import {
   type ScopeUser,
 } from "@/lib/scope";
 
+// מונע cache leak בין מטפלים — דף מכיל PHI scoped למשתמש
+export const dynamic = "force-dynamic";
+
 function getIsraelOffsetHours(date: Date): number {
   const dateStr = date.toISOString().split("T")[0];
   const testDate = new Date(`${dateStr}T12:00:00Z`);

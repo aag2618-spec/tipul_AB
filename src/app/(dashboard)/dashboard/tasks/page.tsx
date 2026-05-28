@@ -5,6 +5,9 @@ import { Prisma } from "@prisma/client";
 import { TasksView } from "@/components/tasks/tasks-view";
 import { loadScopeUser, buildSessionWhere, isSecretary } from "@/lib/scope";
 
+// מונע cache leak בין מטפלים — דף מכיל PHI scoped למשתמש
+export const dynamic = "force-dynamic";
+
 async function getSessionsPendingSummary(sessionWhere: Prisma.TherapySessionWhereInput) {
   const thirtyDaysAgo = new Date(Date.now() - 30 * 24 * 60 * 60 * 1000);
   // Include COMPLETED without summary even if startTime is still "future" by server clock (timezone-safe).
