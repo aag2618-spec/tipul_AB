@@ -111,6 +111,8 @@ export async function POST(
             lastResentAt: new Date(),
             smsOtpHash: newOtpHash,
             smsOtpAttempts: 0,
+            // M11.A6: resend נותן הזדמנות שנייה — מאפס גם את counter הסיסמה.
+            passwordAttempts: 0,
             expiresAt: refreshedExpiresAt,
           },
         });

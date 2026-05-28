@@ -2960,6 +2960,11 @@ model ClinicInvitation {
   token          String  @unique // 32 בייטים base64url = 256 ביט
   smsOtpHash     String? // bcrypt(10) של 6 ספרות; null אם phone לא ניתן
   smsOtpAttempts Int     @default(0)
+  // M11.A6: password attempts על משתמש קיים (re-auth) שמקבל הזמנה.
+  // ה-token לבדו לא מאפשר accept — נדרשת גם סיסמה. בלי שכבה הזו, token שדלף
+  // היה מאפשר brute-force ארוך טווח (IP rate-limit הוא 10/min, distributable).
+  // אחרי INVITATION_PASSWORD_MAX_ATTEMPTS כשלים → ההזמנה REVOKED אוטומטית.
+  passwordAttempts Int @default(0)
 
   status InvitationStatus @default(PENDING)
 

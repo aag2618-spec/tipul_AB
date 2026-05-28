@@ -22,6 +22,15 @@ export const dynamic = "force-dynamic";
 // 10 attempts/min per IP — יותר מחמיר מ-GET כי כאן יש OTP brute-force surface.
 const ACCEPT_RATE_LIMIT = { maxRequests: 10, windowMs: 60 * 1000 };
 
+// M11.A6: per-invitation password limit (in-memory). שכבה ראשונה — מגביל
+// brute-force ב-window קצר גם אם תוקף מתפצל בין IPs. ה-DB counter למטה
+// אוכף את ה-cap הסופי וגם נשמר אחרי restart.
+const ACCEPT_PWD_RATE_LIMIT = { maxRequests: 5, windowMs: 15 * 60 * 1000 };
+
+// M11.A6: לאחר N כשלי סיסמה רצופים — REVOKE על ההזמנה (זהה ל-OTP).
+// 5 ניסיונות סבירים למשתמש לגיטימי ששכח/הקליד פעמיים-שלוש.
+const INVITATION_PASSWORD_MAX_ATTEMPTS = 5;
+
 const acceptSchema = z.object({
   password: z
     .string()
@@ -225,12 +234,78 @@ export async function POST(
           { status: 400 }
         );
       }
+
+      // M11.A6: in-memory rate-limit per-invitation (5 ניסיונות / 15 דקות) —
+      // שכבת הגנה ראשונה גם אם תוקף מתפצל בין IPs ועוקף את ACCEPT_RATE_LIMIT.
+      const pwdRl = checkRateLimit(
+        `clinic-invite-accept-pwd:${invitation.id}`,
+        ACCEPT_PWD_RATE_LIMIT
+      );
+      if (!pwdRl.allowed) return rateLimitResponse(pwdRl);
+
+      // M11.A6: DB-persisted counter — נשמר אחרי restart, מוביל ל-REVOKE
+      // לאחר חריגה (זהה לפטרן של OTP).
+      const invPwdState = await prisma.clinicInvitation.findUnique({
+        where: { id: invitation.id },
+        select: { passwordAttempts: true, status: true },
+      });
+      if (!invPwdState || invPwdState.status !== "PENDING") {
+        return NextResponse.json(
+          { message: "ההזמנה כבר אינה פעילה" },
+          { status: 410 }
+        );
+      }
+      if (invPwdState.passwordAttempts >= INVITATION_PASSWORD_MAX_ATTEMPTS) {
+        // defense-in-depth — לא אמור לקרות כי REVOKE קורה במסלול ה-fail למטה.
+        await prisma.clinicInvitation.updateMany({
+          where: { id: invitation.id, status: "PENDING" },
+          data: { status: "REVOKED", revokedAt: new Date() },
+        });
+        return NextResponse.json(
+          { message: "מספר ניסיונות סיסמה חרג מהמותר. בקש/י הזמנה חדשה." },
+          { status: 423 }
+        );
+      }
+
       const passOk = await bcrypt.compare(
         parsed.data.password,
         existingUser.password
       );
       if (!passOk) {
-        return NextResponse.json({ message: "סיסמה שגויה" }, { status: 400 });
+        // M11.A6: increment passwordAttempts + REVOKE אם הגענו ל-MAX.
+        // ה-update עצמו אטומי (auto-commit) — אין צורך ב-Serializable
+        // כי `increment: 1` ו-DB-row-lock מספיקים למניעת race counter.
+        const updated = await prisma.clinicInvitation.update({
+          where: { id: invitation.id },
+          data: { passwordAttempts: { increment: 1 } },
+          select: { passwordAttempts: true },
+        });
+        if (updated.passwordAttempts >= INVITATION_PASSWORD_MAX_ATTEMPTS) {
+          await prisma.clinicInvitation.updateMany({
+            where: { id: invitation.id, status: "PENDING" },
+            data: { status: "REVOKED", revokedAt: new Date() },
+          });
+          logger.warn(
+            "[clinic-invite/accept] invitation revoked after password brute-force",
+            {
+              invitationId: invitation.id,
+              email: invitation.email,
+              attempts: updated.passwordAttempts,
+            }
+          );
+          return NextResponse.json(
+            { message: "מספר ניסיונות סיסמה חרג מהמותר. ההזמנה בוטלה — בקש/י הזמנה חדשה." },
+            { status: 423 }
+          );
+        }
+        return NextResponse.json(
+          {
+            message: "סיסמה שגויה",
+            attemptsRemaining:
+              INVITATION_PASSWORD_MAX_ATTEMPTS - updated.passwordAttempts,
+          },
+          { status: 400 }
+        );
       }
       if (existingUser.organizationId) {
         return NextResponse.json(
