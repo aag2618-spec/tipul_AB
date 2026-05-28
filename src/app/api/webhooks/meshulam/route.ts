@@ -58,6 +58,7 @@ type VerifiedMeshulamUser = {
   blockReason: string | null;
   isFreeSubscription: boolean;
   meshulamCustomerId: string | null;
+  billingPaidByClinic: boolean;
 };
 
 /**
@@ -128,6 +129,11 @@ async function verifyMeshulamSubscriptionUser(
       blockReason: true,
       isFreeSubscription: true,
       meshulamCustomerId: true,
+      // B7: billingPaidByClinic = "המנוי משולם ע"י הקליניקה". כאשר true,
+      // המשתמש לא אמור לקבל אירועי תשלום אישיים ב-Meshulam — אם מתקבל
+      // payment_success מזויף (או double-charge בטעות מקליק ישן על link
+      // אישי שעוד תקף), הוא היה מסומן ACTIVE + מבטל את החיוב המוסדי.
+      billingPaidByClinic: true,
     },
   });
   if (!user) {
@@ -246,12 +252,21 @@ async function detectSuspiciousMeshulamEvent(
     return `user hard-blocked (blockReason=${user.blockReason})`;
   }
 
-  // PAUSED = billingPaidByClinic — מנוי אישי מושעה, לא יכול לקבל created/renewed פרטי.
+  // B7: כשהמנוי מושלם ע"י הקליניקה (PAUSED או דגל billingPaidByClinic=true)
+  // אסור לקבל created / renewed / payment_success אישיים. payment_success
+  // היה החסר: אילו תוקף/חיוב כפול היה מצליח, היינו מסמנים את המשתמש כ-ACTIVE
+  // ומאפסים את שיוך החיוב המוסדי בלי הקליניקה לדעת. שני הקריטריונים
+  // מתאחדים — billingPaidByClinic הוא ה-source of truth, וסטטוס PAUSED הוא
+  // הסטטוס המותאם — נחסום על שניהם defense-in-depth.
   if (
-    user.subscriptionStatus === "PAUSED" &&
-    (eventType === "created" || eventType === "renewed")
+    (user.subscriptionStatus === "PAUSED" || user.billingPaidByClinic) &&
+    (eventType === "created" ||
+      eventType === "renewed" ||
+      eventType === "payment_success")
   ) {
-    return "user PAUSED (billing paid by clinic)";
+    return user.billingPaidByClinic
+      ? "user billingPaidByClinic=true (billing managed by organization)"
+      : "user PAUSED (billing paid by clinic)";
   }
 
   if (eventType === "created") {
