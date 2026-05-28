@@ -4,6 +4,7 @@ import prisma from "@/lib/prisma";
 import { logger } from "@/lib/logger";
 import { withAudit } from "@/lib/audit";
 import { checkRateLimit } from "@/lib/rate-limit";
+import { getClientIp } from "@/lib/get-client-ip";
 
 export const dynamic = "force-dynamic";
 
@@ -20,11 +21,8 @@ const departureChoiceSchema = z.object({
 const GET_LIMIT = { maxRequests: 60, windowMs: 60_000 };
 const POST_LIMIT = { maxRequests: 10, windowMs: 60_000 };
 
-function getIp(request: NextRequest): string {
-  const xff = request.headers.get("x-forwarded-for");
-  const realIp = request.headers.get("x-real-ip");
-  return xff?.split(",")[0]?.trim() || realIp || "unknown";
-}
+// B4: שימוש ב-getClientIp המרכזי (proxy ימני מהימן) במקום getIp מקומי שלקח
+// את ה-XFF השמאלי שניתן לזיוף.
 
 function tooManyRequests(): NextResponse {
   return NextResponse.json(
@@ -40,7 +38,7 @@ export async function GET(
   { params }: { params: Promise<{ token: string }> }
 ) {
   try {
-    const ip = getIp(request);
+    const ip = getClientIp(request);
     const rl = checkRateLimit(`departure-choice:get:${ip}`, GET_LIMIT);
     if (!rl.allowed) return tooManyRequests();
 
@@ -106,7 +104,7 @@ export async function POST(
   { params }: { params: Promise<{ token: string }> }
 ) {
   try {
-    const ip = getIp(request);
+    const ip = getClientIp(request);
     const rl = checkRateLimit(`departure-choice:post:${ip}`, POST_LIMIT);
     if (!rl.allowed) return tooManyRequests();
 

@@ -186,6 +186,15 @@ export default function ClinicInvitePage({
       });
       if (!res.ok) {
         const data = await res.json().catch(() => ({}));
+        // B3: אם השרת מחזיר 401 + requiresLogin (קיים user עם ה-email אבל אין session
+        // תואם/ת) — לשלוח ל-login עם callback חזרה לקישור ההזמנה, בדומה ל-accept.
+        if (res.status === 401 && data.requiresLogin) {
+          toast.info("יש להתחבר תחילה ולחזור לקישור ההזמנה");
+          await signIn(undefined, {
+            callbackUrl: `/invite/${encodeURIComponent(token)}`,
+          });
+          return;
+        }
         toast.error(data.message || "שגיאה בדחיית ההזמנה");
         return;
       }

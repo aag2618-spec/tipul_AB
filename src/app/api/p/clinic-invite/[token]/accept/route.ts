@@ -16,6 +16,7 @@ import {
 import type { SubscriptionStatus } from "@prisma/client";
 import { TRIAL_DAYS, TRIAL_AI_TIER } from "@/lib/constants";
 import { checkLimitInTx } from "@/lib/clinic/limits";
+import { getClientIp } from "@/lib/get-client-ip";
 
 export const dynamic = "force-dynamic";
 
@@ -52,10 +53,8 @@ export async function POST(
   { params }: { params: Promise<{ token: string }> }
 ) {
   try {
-    const ip =
-      request.headers.get("x-forwarded-for") ||
-      request.headers.get("x-real-ip") ||
-      "unknown";
+    // B4: getClientIp — proxy מהימן (ימני), מונע XFF spoofing.
+    const ip = getClientIp(request);
     const rl = checkRateLimit(`clinic-invite-accept:${ip}`, ACCEPT_RATE_LIMIT);
     if (!rl.allowed) return rateLimitResponse(rl);
 

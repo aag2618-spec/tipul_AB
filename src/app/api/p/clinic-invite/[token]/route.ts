@@ -5,6 +5,7 @@ import { authOptions } from "@/lib/auth";
 import { logger } from "@/lib/logger";
 import { checkRateLimit, rateLimitResponse } from "@/lib/rate-limit";
 import { effectiveStatus, maskEmail } from "@/lib/clinic-invitations";
+import { getClientIp } from "@/lib/get-client-ip";
 
 export const dynamic = "force-dynamic";
 
@@ -20,10 +21,8 @@ export async function GET(
   { params }: { params: Promise<{ token: string }> }
 ) {
   try {
-    const ip =
-      request.headers.get("x-forwarded-for") ||
-      request.headers.get("x-real-ip") ||
-      "unknown";
+    // B4: getClientIp — proxy מהימן (ימני), מונע XFF spoofing.
+    const ip = getClientIp(request);
     const rl = checkRateLimit(`clinic-invite-get:${ip}`, PUBLIC_GET_RATE_LIMIT);
     if (!rl.allowed) return rateLimitResponse(rl);
 

@@ -1,9 +1,12 @@
 import { NextRequest, NextResponse } from "next/server";
+import { getServerSession } from "next-auth";
+import { authOptions } from "@/lib/auth";
 import prisma from "@/lib/prisma";
 import { logger } from "@/lib/logger";
 import { checkRateLimit, rateLimitResponse } from "@/lib/rate-limit";
 import { withAudit } from "@/lib/audit";
 import { isExpired } from "@/lib/clinic-invitations";
+import { getClientIp } from "@/lib/get-client-ip";
 
 export const dynamic = "force-dynamic";
 
@@ -17,10 +20,9 @@ export async function POST(
   { params }: { params: Promise<{ token: string }> }
 ) {
   try {
-    const ip =
-      request.headers.get("x-forwarded-for") ||
-      request.headers.get("x-real-ip") ||
-      "unknown";
+    // B4: getClientIp — לוקח את ה-IP הימני (proxy מהימן) ולא את השמאלי
+    // שניתן לזיוף ע"י כותרת XFF מותאמת מצד תוקף.
+    const ip = getClientIp(request);
     const rl = checkRateLimit(`clinic-invite-reject:${ip}`, REJECT_RATE_LIMIT);
     if (!rl.allowed) return rateLimitResponse(rl);
 
@@ -42,6 +44,30 @@ export async function POST(
     });
     if (!invitation) {
       return NextResponse.json({ message: "ההזמנה לא נמצאה" }, { status: 404 });
+    }
+
+    // B3: אם קיים user עם ה-email של ההזמנה, דרוש session תואמ/ת לפני reject.
+    // המטרה: למנוע מתוקף שהשיג את ה-token (דליפת מייל/SMS) לדחות הזמנה לגיטימית
+    // ולגרום לאיבוד גישה. למשתמש חדש אין למה לדרוש session — הוא לא קיים בDB.
+    const existingUser = await prisma.user.findUnique({
+      where: { email: invitation.email },
+      select: { id: true },
+    });
+    if (existingUser) {
+      const session = await getServerSession(authOptions);
+      if (
+        !session?.user?.email ||
+        session.user.email.toLowerCase() !==
+          invitation.email.toLowerCase()
+      ) {
+        return NextResponse.json(
+          {
+            message: "כדי לדחות, יש להתחבר תחילה לחשבון של הכתובת המוזמנת",
+            requiresLogin: true,
+          },
+          { status: 401 }
+        );
+      }
     }
     if (invitation.status !== "PENDING") {
       return NextResponse.json(
