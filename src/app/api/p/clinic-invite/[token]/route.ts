@@ -6,6 +6,7 @@ import { logger } from "@/lib/logger";
 import { checkRateLimit, rateLimitResponse } from "@/lib/rate-limit";
 import { effectiveStatus, maskEmail } from "@/lib/clinic-invitations";
 import { getClientIp } from "@/lib/get-client-ip";
+import { resolveOrgAiTier } from "@/lib/clinic/ai-tier-inheritance";
 
 export const dynamic = "force-dynamic";
 
@@ -41,7 +42,21 @@ export async function GET(
         status: true,
         expiresAt: true,
         smsOtpHash: true,
-        organization: { select: { name: true } },
+        organization: {
+          select: {
+            name: true,
+            // M11.F1: tier ארגוני להצגה ב-UI ("AI כלול ברמת X")
+            pricingPlan: { select: { aiTierIncluded: true } },
+            customContract: {
+              select: {
+                customAiTier: true,
+                startDate: true,
+                endDate: true,
+                autoRenew: true,
+              },
+            },
+          },
+        },
       },
     });
     if (!invitation) {
@@ -59,6 +74,14 @@ export async function GET(
     const viewerIsInvitee =
       !!sessionEmail && sessionEmail === invitation.email;
 
+    // M11.F1 + E1: ה-tier הארגוני שהמשתמש יירש (אם billingPaidByClinic=true).
+    // ה-UI מציג "תקבל/י גישה ל-AI ברמת X" כשרלוונטי. resolveOrgAiTier מתחשב
+    // ב-CustomContract פעיל (start<=now<end או autoRenew) עם fallback ל-pricingPlan.
+    const inheritedAiTier =
+      invitation.billingPaidByClinic && invitation.organization
+        ? resolveOrgAiTier(invitation.organization)
+        : null;
+
     return NextResponse.json({
       organizationName: invitation.organization.name,
       clinicRole: invitation.clinicRole,
@@ -70,6 +93,7 @@ export async function GET(
       status,
       otpRequired: !!invitation.smsOtpHash,
       viewerIsInvitee,
+      inheritedAiTier, // "ESSENTIAL" | "PRO" | "ENTERPRISE" | null
     });
   } catch (error) {
     logger.error("[p/clinic-invite/[token]] GET error:", {

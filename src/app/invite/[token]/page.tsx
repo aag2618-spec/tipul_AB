@@ -32,6 +32,9 @@ import {
   ShieldCheck,
 } from "lucide-react";
 import { toast } from "sonner";
+import { PLAN_NAMES } from "@/lib/pricing";
+
+type InheritedAiTier = "ESSENTIAL" | "PRO" | "ENTERPRISE" | null;
 
 interface InvitationInfo {
   organizationName: string;
@@ -44,12 +47,16 @@ interface InvitationInfo {
   status: "PENDING" | "ACCEPTED" | "EXPIRED" | "REVOKED" | "REJECTED";
   otpRequired: boolean;
   viewerIsInvitee: boolean;
+  inheritedAiTier?: InheritedAiTier;
 }
 
 const ROLE_LABEL: Record<InvitationInfo["clinicRole"], string> = {
   THERAPIST: "מטפל/ת",
   SECRETARY: "מזכיר/ה",
 };
+
+// M11.F1: שמות tier מ-PLAN_NAMES — מקור אמת יחיד למערכת.
+// תווי "AI כלול" מתווסף בקוד למניעת שכפול תרגום.
 
 export default function ClinicInvitePage({
   params,
@@ -158,7 +165,22 @@ export default function ClinicInvitePage({
           });
           return;
         }
-        setErrorMsg(data.message || "שגיאה באישור ההזמנה");
+        // M11.F1: ה-API מחזיר attemptsRemaining ב-otp_wrong. בעבר ה-UI לא הציג
+        // את המספר. מציגים כדי שהמשתמש ידע כמה ניסיונות נשארו לפני נעילת ההזמנה.
+        // יחיד/רבים מובחנים בעברית: "נשאר ניסיון אחד" vs "נשארו N ניסיונות".
+        const remaining =
+          typeof data.attemptsRemaining === "number"
+            ? data.attemptsRemaining
+            : null;
+        const baseMsg = data.message || "שגיאה באישור ההזמנה";
+        let suffix = "";
+        if (remaining !== null && remaining > 0) {
+          suffix =
+            remaining === 1
+              ? " — נשאר ניסיון אחד לפני נעילת ההזמנה"
+              : ` — נשארו ${remaining} ניסיונות לפני נעילת ההזמנה`;
+        }
+        setErrorMsg(`${baseMsg}${suffix}`);
         return;
       }
 
@@ -400,10 +422,20 @@ export default function ClinicInvitePage({
             )}
 
             {info.billingPaidByClinic && (
-              <div className="bg-blue-500/5 border border-blue-500/20 rounded-md p-3 text-xs text-muted-foreground">
-                <ShieldCheck className="inline h-4 w-4 ml-1 text-blue-500" />
-                המנוי שלך ב-MyTipul יהיה משולם ע״י הקליניקה. אם תעזב/י את הקליניקה
-                בעתיד, החיוב יחזור אליך.
+              <div className="bg-blue-500/5 border border-blue-500/20 rounded-md p-3 text-xs text-muted-foreground space-y-2">
+                <div>
+                  <ShieldCheck className="inline h-4 w-4 ml-1 text-blue-500" />
+                  המנוי שלך ב-MyTipul יהיה משולם ע״י הקליניקה. אם תעזב/י את הקליניקה
+                  בעתיד, החיוב יחזור אליך.
+                </div>
+                {/* M11.F1: אם הקליניקה כוללת AI ברמה ספציפית — מציגים זאת ב-UI. */}
+                {info.inheritedAiTier && (
+                  <div className="border-t border-blue-500/20 pt-2">
+                    כחבר/ה בקליניקה תקבל/י גישה למסלול{" "}
+                    <strong>{PLAN_NAMES[info.inheritedAiTier]}</strong>{" "}
+                    כחלק מההסכם של הקליניקה (לא יקטין מסלול אישי גבוה יותר).
+                  </div>
+                )}
               </div>
             )}
 
