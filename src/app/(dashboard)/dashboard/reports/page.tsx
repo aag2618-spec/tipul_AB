@@ -70,6 +70,7 @@ async function getReportData(scopeUser: ScopeUser): Promise<ReportData> {
           paidAt: true,
           createdAt: true,
           parentPaymentId: true,
+          session: { select: { startTime: true } },
           _count: { select: { childPayments: true } },
         },
       }),
@@ -123,6 +124,22 @@ async function getReportData(scopeUser: ScopeUser): Promise<ReportData> {
           (p.parentPaymentId !== null || p._count.childPayments === 0)
         )
         .reduce((sum, p) => sum + Number(p.amount), 0);
+
+      // accrual: ההכנסה משויכת לחודש שבו ניתן השירות (מועד הפגישה).
+      // אם התשלום לא קשור לפגישה (חבילה/תשלום ידני) — fallback ל-paidAt
+      // כדי לא לאבד אותו.
+      const accrualAmount = allPayments
+        .filter(p =>
+          p.status === "PAID" && p.paidAt &&
+          (p.parentPaymentId !== null || p._count.childPayments === 0)
+        )
+        .filter(p => {
+          const refDate = p.session?.startTime ?? p.paidAt;
+          if (!refDate) return false;
+          const t = refDate.getTime();
+          return t >= msStart && t <= msEnd;
+        })
+        .reduce((sum, p) => sum + Number(p.amount), 0);
       const pendingAmount = allPayments
         .filter(p => p.status === "PENDING" && p.createdAt.getTime() >= msStart && p.createdAt.getTime() <= msEnd)
         .reduce((sum, p) => sum + (Number(p.expectedAmount) || Number(p.amount)) - Number(p.amount), 0);
@@ -138,6 +155,7 @@ async function getReportData(scopeUser: ScopeUser): Promise<ReportData> {
         month: monthStart.toLocaleString("he-IL", { month: "short", timeZone: "Asia/Jerusalem" }),
         sessions: completed,
         income: paidAmount,
+        incomeAccrual: accrualAmount,
         newClients,
         cancelledSessions: cancelled,
         cancellationRate: total > 0 ? Math.round((cancelled / total) * 100) : 0,
@@ -201,7 +219,7 @@ async function getReportData(scopeUser: ScopeUser): Promise<ReportData> {
     return {
       monthlyData: Array.from({ length: 12 }, (_, i) => ({
         month: new Date(new Date().getFullYear(), i, 1).toLocaleString("he-IL", { month: "short", timeZone: "Asia/Jerusalem" }),
-        sessions: 0, income: 0, newClients: 0,
+        sessions: 0, income: 0, incomeAccrual: 0, newClients: 0,
         cancelledSessions: 0, cancellationRate: 0, collectionRate: 0,
       })),
       totals: {

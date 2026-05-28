@@ -14,6 +14,7 @@ export interface ReportData {
     month: string;
     sessions: number;
     income: number;
+    incomeAccrual: number;
     newClients: number;
     cancelledSessions: number;
     cancellationRate: number;
@@ -49,6 +50,8 @@ interface CardDef {
 
 export function ReportsView({ data }: { data: ReportData }) {
   const [activeCard, setActiveCard] = useState<CardId>("income");
+  // cash = לפי תאריך התשלום (paidAt). accrual = לפי תאריך הפגישה (session.startTime).
+  const [incomeMode, setIncomeMode] = useState<"cash" | "accrual">("cash");
 
   const mainCards: CardDef[] = [
     { id: "clients", icon: Users, label: "סה\"כ מטופלים", value: String(data.totals.clients), bgColor: "bg-primary/10", iconColor: "text-primary" },
@@ -153,11 +156,54 @@ export function ReportsView({ data }: { data: ReportData }) {
         return (
           <Card>
             <CardHeader>
-              <CardTitle>הכנסות חודשיות</CardTitle>
-              <CardDescription>סכום ההכנסות לפי חודש</CardDescription>
+              <div className="flex flex-col gap-3 sm:flex-row sm:items-start sm:justify-between">
+                <div>
+                  <CardTitle>הכנסות חודשיות</CardTitle>
+                  <CardDescription>
+                    {incomeMode === "cash"
+                      ? "לפי תאריך התשלום — מתי הכסף נכנס בפועל"
+                      : "לפי תאריך הפגישה — מתי בוצע השירות שעליו שולם"}
+                  </CardDescription>
+                </div>
+                <div className="inline-flex rounded-lg border p-1 bg-muted/30 self-start" role="tablist" aria-label="שיטת חישוב הכנסות">
+                  <button
+                    type="button"
+                    role="tab"
+                    aria-selected={incomeMode === "cash"}
+                    onClick={() => setIncomeMode("cash")}
+                    className={cn(
+                      "px-3 py-1.5 text-xs sm:text-sm rounded-md transition-colors",
+                      incomeMode === "cash"
+                        ? "bg-background shadow-sm font-medium"
+                        : "text-muted-foreground hover:text-foreground"
+                    )}
+                  >
+                    לפי תאריך תשלום
+                  </button>
+                  <button
+                    type="button"
+                    role="tab"
+                    aria-selected={incomeMode === "accrual"}
+                    onClick={() => setIncomeMode("accrual")}
+                    className={cn(
+                      "px-3 py-1.5 text-xs sm:text-sm rounded-md transition-colors",
+                      incomeMode === "accrual"
+                        ? "bg-background shadow-sm font-medium"
+                        : "text-muted-foreground hover:text-foreground"
+                    )}
+                  >
+                    לפי תאריך פגישה
+                  </button>
+                </div>
+              </div>
             </CardHeader>
             <CardContent>
-              <ReportsCharts data={data.monthlyData} dataKey="income" formatType="currency" color="hsl(142, 71%, 45%)" />
+              <ReportsCharts
+                data={data.monthlyData}
+                dataKey={incomeMode === "cash" ? "income" : "incomeAccrual"}
+                formatType="currency"
+                color="hsl(142, 71%, 45%)"
+              />
             </CardContent>
           </Card>
         );
