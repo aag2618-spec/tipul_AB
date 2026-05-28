@@ -99,6 +99,22 @@ export async function POST(request: NextRequest) {
     const rawBody = await request.clone().json();
     const isQuickClient = rawBody.isQuickClient === true;
 
+    // Phase 3: הקשחת תאימות לאחור (באישור מפורש של המשתמש) — מזכירה חייבת
+    // לציין therapistId. ה-UI כבר אוכף את זה ב-/clients/new וב-NewSessionDialog
+    // (commit-ים 9ca9a798 + c8e7d9ba), אבל בקשה ישירה (Postman/script/UI ישן)
+    // עקפה את resolveTherapistIdForClient (שנפל ל-default self = המזכירה).
+    // עכשיו 400 לפני שנוגעים בשרת. שובר תאימות במכוון: כל זרימה שיוצרת
+    // לקוח כמזכירה חייבת UI מעודכן.
+    const rawTherapistId = typeof rawBody.therapistId === "string"
+      ? rawBody.therapistId.trim()
+      : "";
+    if (isSecretary(scopeUser) && !rawTherapistId) {
+      return NextResponse.json(
+        { message: "חובה לבחור מטפל אחראי" },
+        { status: 400 }
+      );
+    }
+
     if (isQuickClient) {
       // --- פונה מהיר: שם + טלפון/מייל בלבד ---
       const parsed = await parseBody(request, createQuickClientSchema);
