@@ -137,6 +137,11 @@ export function SessionDetailDialog({
         }
       })
       .catch(() => setActiveCommitment(null));
+    // ESLint רואה ב-`session.client!.id` שימוש ב-`session.client` כ-dep. אבל
+    // ה-id הוא היחיד שמעניין אותנו (כבר ב-deps), ו-`session.client` עצמו
+    // עלול להיות אובייקט חדש בכל render של ההורה (גם עם אותו id). הוספתו
+    // ל-deps תגרום לרי-פץ' אינסופי של commitments. הסכמה: ה-deps הנוכחי נכון.
+    // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [open, session?.client?.id]);
 
   if (!session) return null;
