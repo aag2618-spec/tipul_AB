@@ -6,6 +6,7 @@ import { logger } from "@/lib/logger";
 import { requireAuth } from "@/lib/api-auth";
 import { parseBody } from "@/lib/validations/helpers";
 import { insurerReportSchema } from "@/lib/validations/misc";
+import { buildSessionWhere, isSecretary, loadScopeUser } from "@/lib/scope";
 
 // Types of health insurance companies in Israel
 enum HealthInsurer {
@@ -39,33 +40,46 @@ export async function POST(request: Request) {
     if ("error" in parsed) return parsed.error;
     const { insurer, sessionId } = parsed.data;
 
-    // Get therapist details
-    const therapist = await prisma.user.findUnique({
-      where: { id: userId },
-      select: {
-        license: true,
-        name: true,
-      },
-    });
-
-    if (!therapist?.license) {
+    // A2: דוח קופ"ח כולל תוכן קליני (sessionNote, initialDiagnosis) — חסום
+    // קשיחות למזכירה גם אם יש לה canViewPayments/canIssueReceipts.
+    const scopeUser = await loadScopeUser(userId);
+    if (isSecretary(scopeUser)) {
       return NextResponse.json(
-        { message: "נדרש מספר רישיון לשליחת דיווחים" },
-        { status: 400 }
+        { message: "אין הרשאה לתוכן קליני" },
+        { status: 403 }
       );
     }
 
-    // Get session details
-    const therapySession = await prisma.therapySession.findUnique({
-      where: { id: sessionId },
+    // A2: סקופ הפגישה דרך buildSessionWhere במקום therapistId===userId הישן.
+    // מאפשר ל-CLINIC_OWNER להגיש דוח על פגישות של מטפלים בארגון שלו, ושומר
+    // את הבידוד למטפל עצמאי ו-clinic THERAPIST (שרואה רק את עצמו). secretary
+    // כבר נחסם למעלה.
+    //
+    // include: therapist — צריכים את הרישיון של *המטפל/ת המטפל/ת בפגישה*, לא
+    // של הקורא. אחרת OWNER שמדווח על פגישת קולגה היה חותם את הדיווח ברישיון
+    // שלו (misattribution לקופת חולים).
+    const therapySession = await prisma.therapySession.findFirst({
+      where: {
+        AND: [{ id: sessionId }, buildSessionWhere(scopeUser)],
+      },
       include: {
         client: true,
         sessionNote: true,
+        therapist: {
+          select: { license: true, name: true },
+        },
       },
     });
 
-    if (!therapySession || therapySession.therapistId !== userId) {
+    if (!therapySession) {
       return NextResponse.json({ message: "פגישה לא נמצאה" }, { status: 404 });
+    }
+
+    if (!therapySession.therapist?.license) {
+      return NextResponse.json(
+        { message: "המטפל/ת בפגישה זו ללא מספר רישיון — לא ניתן להגיש דיווח" },
+        { status: 400 }
+      );
     }
 
     if (!therapySession.client) {
@@ -75,7 +89,7 @@ export async function POST(request: Request) {
       );
     }
 
-    // Generate report based on insurer
+    // Generate report based on insurer — חתום ברישיון של המטפל/ת המטפל/ת.
     const report = await generateInsurerReport({
       insurer: insurer as HealthInsurer,
       clientName: therapySession.client.name,
@@ -85,7 +99,7 @@ export async function POST(request: Request) {
       diagnosis: therapySession.client.initialDiagnosis || "",
       treatmentPlan: "",
       sessionNotes: therapySession.sessionNote?.content || therapySession.notes || "",
-      therapistLicense: therapist.license,
+      therapistLicense: therapySession.therapist.license,
     });
 
     // In production, this would send to the actual insurer API
