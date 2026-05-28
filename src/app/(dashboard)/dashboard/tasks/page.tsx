@@ -3,7 +3,7 @@ import { authOptions } from "@/lib/auth";
 import prisma from "@/lib/prisma";
 import { Prisma } from "@prisma/client";
 import { TasksView } from "@/components/tasks/tasks-view";
-import { loadScopeUser, buildSessionWhere } from "@/lib/scope";
+import { loadScopeUser, buildSessionWhere, isSecretary } from "@/lib/scope";
 
 async function getSessionsPendingSummary(sessionWhere: Prisma.TherapySessionWhereInput) {
   const thirtyDaysAgo = new Date(Date.now() - 30 * 24 * 60 * 60 * 1000);
@@ -33,8 +33,18 @@ export default async function TasksPage() {
   if (!session?.user?.id) return null;
 
   const scopeUser = await loadScopeUser(session.user.id);
-  const sessionWhere = buildSessionWhere(scopeUser);
 
+  // B6: מזכירה בקליניקה — הדף הזה הוא "פגישות ממתינות לסיכום" שזה זרימה
+  // קלינית של המטפל. buildSessionWhere למזכירה מחזיר את כל הארגון (כי היא
+  // מורשית לאדמיניסטרציה), ובלי הגייט הזה היא היתה רואה רשימה של פגישות
+  // עם שמות מטופלים של כל המטפלים בקליניקה ("כתוב סיכום – פלוני") — דליפת
+  // metadata אדמיניסטרטיבית-קלינית. הדף לא רלוונטי לתפקידה — מציגים מצב
+  // ריק (TasksView יציג "אין פגישות ממתינות לסיכום").
+  if (isSecretary(scopeUser)) {
+    return <TasksView initialTasks={[]} />;
+  }
+
+  const sessionWhere = buildSessionWhere(scopeUser);
   const pendingSessions = await getSessionsPendingSummary(sessionWhere);
 
   // Convert sessions to task-like format for TasksView
