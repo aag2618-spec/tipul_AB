@@ -14,8 +14,6 @@ import {
   Users,
   UserPlus,
   ArrowLeftRight,
-  Receipt,
-  Settings,
   Loader2,
   LogOut,
   ArrowRight,
@@ -42,13 +40,16 @@ interface ClinicContext {
   isAdmin: boolean;
 }
 
+// C1: /clinic-admin/billing ו-/clinic-admin/settings הם stubs ("דף בבנייה")
+// בלי תוכן אמיתי — הוסרו מהניווט כדי לא להציע למשתמש לחיצה שתוביל ל-"under
+// construction". פירוט החיוב כבר זמין בסקירה הראשית; הגדרות מתבצעות דרך
+// אדמין הפלטפורמה. כשתשלים E3 (org subscription payment flow) — להחזיר
+// את ה-billing. עד אז — עמודי ה-stub נשמרים כקבצים למקרה של deep-link.
 const navItems = [
   { href: "/clinic-admin", label: "סקירה כללית", icon: LayoutDashboard, exact: true },
   { href: "/clinic-admin/members", label: "חברי קליניקה", icon: Users },
   { href: "/clinic-admin/invitations", label: "הזמנות פעילות", icon: UserPlus },
   { href: "/clinic-admin/transfer", label: "העברת מטופל", icon: ArrowLeftRight },
-  { href: "/clinic-admin/billing", label: "חיוב ומחיר", icon: Receipt },
-  { href: "/clinic-admin/settings", label: "הגדרות קליניקה", icon: Settings },
 ];
 
 function ClinicAdminContent({ children }: { children: React.ReactNode }) {

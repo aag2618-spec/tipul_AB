@@ -399,10 +399,8 @@ export default function ClinicAdminOverviewPage() {
                     )}
                   </div>
                 )}
-
-                <Button asChild variant="outline" size="sm" className="w-full">
-                  <Link href="/clinic-admin/billing">פירוט מלא</Link>
-                </Button>
+                {/* C1: כפתור "פירוט מלא" הוסר — היה מפנה ל-/clinic-admin/billing
+                    שהיה stub בבנייה. כל פירוט המחיר זמין כעת בכרטיס הזה. */}
               </>
             ) : (
               <p className="text-sm text-muted-foreground">לא ניתן לחשב — חסרה תוכנית תמחור.</p>
