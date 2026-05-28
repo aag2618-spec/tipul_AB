@@ -59,8 +59,12 @@ export async function requireClinicOwner(): Promise<ClinicOwnerAuthResult> {
       error: NextResponse.json({ message: "המשתמש חסום" }, { status: 403 }),
     };
   }
+  // M10.5: ADMIN גלובלי משתמש ב-/api/admin/* בלבד. אסור bypass כאן —
+  // /api/clinic-admin/* הוא endpoint per-tenant, ה-organizationId שלו מגיע
+  // מטבלת ה-User של ה-OWNER. ADMIN שאינו בעל קליניקה בארגון מסוים אינו
+  // אמור לבצע פעולות per-tenant דרך הצינור הזה.
   const isOwner = user.role === "CLINIC_OWNER" || user.clinicRole === "OWNER";
-  if (!isOwner && user.role !== "ADMIN") {
+  if (!isOwner) {
     return {
       error: NextResponse.json(
         { message: "הפעולה זמינה לבעלי קליניקה בלבד" },

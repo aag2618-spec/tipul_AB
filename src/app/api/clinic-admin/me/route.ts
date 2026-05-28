@@ -38,11 +38,12 @@ export async function GET() {
       return NextResponse.json({ message: "המשתמש לא נמצא" }, { status: 404 });
     }
 
-    const isAdmin = user.role === "ADMIN";
+    // M10.5: ADMIN גלובלי משתמש ב-/api/admin/* בלבד; אסור bypass כאן.
+    // שמירת חוזה ה-API: isAdmin עדיין נחשף לצרכן (תמיד false עבור OWNER).
     const isClinicOwner =
       user.role === "CLINIC_OWNER" || user.clinicRole === "OWNER";
 
-    if (!isAdmin && !isClinicOwner) {
+    if (!isClinicOwner) {
       return NextResponse.json(
         { message: "הפעולה זמינה לבעלי/ות קליניקה בלבד" },
         { status: 403 }
@@ -60,7 +61,7 @@ export async function GET() {
             role: user.role,
             clinicRole: user.clinicRole,
           },
-          isAdmin,
+          isAdmin: false,
         })
       )
     );

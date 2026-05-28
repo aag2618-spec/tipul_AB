@@ -12,9 +12,10 @@ export const dynamic = "force-dynamic";
 //
 // מקור: PLAN-CLINIC-מטופלים-רב-מטפלים.md, סעיף 5 ("חישוב יתרת קרדיט").
 //
-// גישה: רק לבעלות קליניקה / אדמין. מזכירה לא רואה את האזהרה הזאת
-// (יתרת קרדיט נחשבת מידע מזהה-פיננסי הדורש אישור canViewPayments
-// + ההחלטה על "להסדיר עם המטפל/ת" היא החלטה ניהולית של הבעלים).
+// גישה: רק לבעלות קליניקה (CLINIC_OWNER / clinicRole=OWNER). מזכירה לא רואה
+// את האזהרה הזאת (יתרת קרדיט נחשבת מידע מזהה-פיננסי הדורש אישור
+// canViewPayments + ההחלטה על "להסדיר עם המטפל/ת" היא החלטה ניהולית של הבעלים).
+// ADMIN גלובלי משתמש ב-/api/admin/* בלבד.
 export async function GET() {
   try {
     const auth = await requireAuth();
@@ -30,10 +31,9 @@ export async function GET() {
       return NextResponse.json({ message: "המשתמש לא נמצא" }, { status: 404 });
     }
 
+    // M10.5: ADMIN גלובלי משתמש ב-/api/admin/* בלבד; אסור bypass כאן.
     const isOwner = user.role === "CLINIC_OWNER" || user.clinicRole === "OWNER";
-    const isAdmin = user.role === "ADMIN";
-
-    if (!isOwner && !isAdmin) {
+    if (!isOwner) {
       return NextResponse.json({ message: "אין הרשאה" }, { status: 403 });
     }
     if (!user.organizationId) {

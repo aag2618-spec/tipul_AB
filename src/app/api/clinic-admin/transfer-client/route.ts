@@ -42,8 +42,9 @@ export async function POST(request: NextRequest) {
     if (!me) {
       return NextResponse.json({ message: "המשתמש לא נמצא" }, { status: 404 });
     }
+    // M10.5: ADMIN גלובלי משתמש ב-/api/admin/* בלבד; אסור bypass כאן.
     const isOwner = me.role === "CLINIC_OWNER" || me.clinicRole === "OWNER";
-    if (!isOwner && me.role !== "ADMIN") {
+    if (!isOwner) {
       return NextResponse.json({ message: "אין הרשאה" }, { status: 403 });
     }
     if (!me.organizationId) {
