@@ -18,6 +18,9 @@ import {
   type ScopeUser,
 } from "@/lib/scope";
 
+// מונע cache leak בין מטפלים — דוח מכיל PHI scoped למשתמש
+export const dynamic = "force-dynamic";
+
 const hebrewDays = ["ראשון", "שני", "שלישי", "רביעי", "חמישי", "שישי", "שבת"];
 
 async function getReportData(scopeUser: ScopeUser): Promise<ReportData> {

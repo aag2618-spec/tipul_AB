@@ -152,7 +152,14 @@ export function ReportsView({ data }: { data: ReportData }) {
           </div>
         );
 
-      case "income":
+      case "income": {
+        // Arrow-key toggle בין שני המצבים (WAI-ARIA tablist pattern)
+        const handleTabKeyDown = (e: React.KeyboardEvent<HTMLButtonElement>) => {
+          if (e.key === "ArrowLeft" || e.key === "ArrowRight") {
+            e.preventDefault();
+            setIncomeMode(prev => prev === "cash" ? "accrual" : "cash");
+          }
+        };
         return (
           <Card>
             <CardHeader>
@@ -168,9 +175,13 @@ export function ReportsView({ data }: { data: ReportData }) {
                 <div className="inline-flex rounded-lg border p-1 bg-muted/30 self-start" role="tablist" aria-label="שיטת חישוב הכנסות">
                   <button
                     type="button"
+                    id="income-tab-cash"
                     role="tab"
                     aria-selected={incomeMode === "cash"}
+                    aria-controls="income-tabpanel"
+                    tabIndex={incomeMode === "cash" ? 0 : -1}
                     onClick={() => setIncomeMode("cash")}
+                    onKeyDown={handleTabKeyDown}
                     className={cn(
                       "px-3 py-1.5 text-xs sm:text-sm rounded-md transition-colors",
                       incomeMode === "cash"
@@ -182,9 +193,13 @@ export function ReportsView({ data }: { data: ReportData }) {
                   </button>
                   <button
                     type="button"
+                    id="income-tab-accrual"
                     role="tab"
                     aria-selected={incomeMode === "accrual"}
+                    aria-controls="income-tabpanel"
+                    tabIndex={incomeMode === "accrual" ? 0 : -1}
                     onClick={() => setIncomeMode("accrual")}
+                    onKeyDown={handleTabKeyDown}
                     className={cn(
                       "px-3 py-1.5 text-xs sm:text-sm rounded-md transition-colors",
                       incomeMode === "accrual"
@@ -198,15 +213,22 @@ export function ReportsView({ data }: { data: ReportData }) {
               </div>
             </CardHeader>
             <CardContent>
-              <ReportsCharts
-                data={data.monthlyData}
-                dataKey={incomeMode === "cash" ? "income" : "incomeAccrual"}
-                formatType="currency"
-                color="hsl(142, 71%, 45%)"
-              />
+              <div
+                id="income-tabpanel"
+                role="tabpanel"
+                aria-labelledby={incomeMode === "cash" ? "income-tab-cash" : "income-tab-accrual"}
+              >
+                <ReportsCharts
+                  data={data.monthlyData}
+                  dataKey={incomeMode === "cash" ? "income" : "incomeAccrual"}
+                  formatType="currency"
+                  color="hsl(142, 71%, 45%)"
+                />
+              </div>
             </CardContent>
           </Card>
         );
+      }
 
       case "cancellation":
         return (
