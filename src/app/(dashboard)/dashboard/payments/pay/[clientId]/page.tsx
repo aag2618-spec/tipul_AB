@@ -10,10 +10,10 @@ import { Checkbox } from "@/components/ui/checkbox";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import { RadioGroup, RadioGroupItem } from "@/components/ui/radio-group";
-import { ArrowRight, Loader2, CreditCard, Calendar, User, Hash, Banknote, Wallet } from "lucide-react";
+import { ArrowRight, Loader2, CreditCard, Calendar, Hash, Banknote, Wallet } from "lucide-react";
 import { toast } from "sonner";
 import { format } from "date-fns";
-import { calculateDebtFromPayments, calculateSessionDebt } from "@/lib/payment-utils";
+import { calculateDebtFromPayments } from "@/lib/payment-utils";
 import { he } from "date-fns/locale";
 import { PayClientDebts } from "@/components/payments/pay-client-debts";
 import { AddCreditDialog } from "@/components/clients/add-credit-dialog";
@@ -53,18 +53,13 @@ export default function PayClientPage({ params }: { params: Promise<{ clientId: 
   const [numSessions, setNumSessions] = useState<string>("1");
   const [targetAmount, setTargetAmount] = useState<string>("");
 
-  useEffect(() => {
-    fetchClientData();
-  }, [clientId]);
-
-  const fetchClientData = async () => {
+  const fetchClientData = useCallback(async () => {
     try {
       setIsLoading(true);
       const response = await fetch(`/api/payments/client-debt/${clientId}`);
       if (response.ok) {
         const data = await response.json();
         setClient(data);
-        // Start with empty selection in manual mode
         setSelectedPayments(new Set());
       } else {
         toast.error("שגיאה בטעינת נתונים");
@@ -76,7 +71,11 @@ export default function PayClientPage({ params }: { params: Promise<{ clientId: 
     } finally {
       setIsLoading(false);
     }
-  };
+  }, [clientId, router]);
+
+  useEffect(() => {
+    fetchClientData();
+  }, [fetchClientData]);
 
   const togglePayment = (paymentId: string) => {
     const newSelected = new Set(selectedPayments);
@@ -424,7 +423,7 @@ export default function PayClientPage({ params }: { params: Promise<{ clientId: 
         <CardContent>
           <div className="grid grid-cols-2 md:grid-cols-3 gap-4">
             <div className="text-center p-4 bg-gradient-to-br from-red-50 to-red-100 dark:from-red-950/30 dark:to-red-900/30 rounded-lg">
-              <p className="text-sm text-muted-foreground">סה"כ חוב</p>
+              <p className="text-sm text-muted-foreground">סה&quot;כ חוב</p>
               <p className="text-2xl font-bold text-red-600">₪{client.totalDebt.toFixed(0)}</p>
             </div>
             <div className="text-center p-4 bg-gradient-to-br from-green-50 to-green-100 dark:from-green-950/30 dark:to-green-900/30 rounded-lg">
@@ -538,7 +537,7 @@ export default function PayClientPage({ params }: { params: Promise<{ clientId: 
         <CardContent className="pt-6">
           <div className="flex items-center justify-between gap-4">
             <div>
-              <p className="text-sm text-muted-foreground">סה"כ לתשלום:</p>
+              <p className="text-sm text-muted-foreground">סה&quot;כ לתשלום:</p>
               <p className="text-3xl font-bold">₪{selectedTotal.toFixed(0)}</p>
             </div>
             <div className="flex gap-3">
