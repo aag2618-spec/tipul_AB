@@ -16,6 +16,7 @@ import {
   ChevronUp,
   Users,
   Wallet,
+  X as XIcon,
 } from "lucide-react";
 import { toast } from "sonner";
 
@@ -83,31 +84,34 @@ export default function ClinicDeparturesPage() {
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
   const [expanded, setExpanded] = useState<Set<string>>(new Set());
+  const [cancelingId, setCancelingId] = useState<string | null>(null);
+
+  async function loadDepartures() {
+    setLoading(true);
+    try {
+      const res = await fetch("/api/clinic-admin/departures");
+      if (!res.ok) {
+        if (res.status === 403) {
+          setError("הגישה לדף זה זמינה רק לבעלי/ות קליניקה.");
+          return;
+        }
+        if (res.status === 404) {
+          setError("אינך משויך/ת לקליניקה.");
+          return;
+        }
+        throw new Error();
+      }
+      const json: DeparturesResponse = await res.json();
+      setData(json);
+    } catch {
+      toast.error("שגיאה בטעינת תהליכי העזיבה");
+    } finally {
+      setLoading(false);
+    }
+  }
 
   useEffect(() => {
-    (async () => {
-      setLoading(true);
-      try {
-        const res = await fetch("/api/clinic-admin/departures");
-        if (!res.ok) {
-          if (res.status === 403) {
-            setError("הגישה לדף זה זמינה רק לבעלי/ות קליניקה.");
-            return;
-          }
-          if (res.status === 404) {
-            setError("אינך משויך/ת לקליניקה.");
-            return;
-          }
-          throw new Error();
-        }
-        const json: DeparturesResponse = await res.json();
-        setData(json);
-      } catch {
-        toast.error("שגיאה בטעינת תהליכי העזיבה");
-      } finally {
-        setLoading(false);
-      }
-    })();
+    loadDepartures();
   }, []);
 
   function toggle(id: string) {
@@ -117,6 +121,34 @@ export default function ClinicDeparturesPage() {
       else next.add(id);
       return next;
     });
+  }
+
+  // D1: בעל/ת הקליניקה יכול/ה לבטל תהליך עזיבה פעיל. הביטול מסמן את
+  // ה-departure כ-CANCELLED ב-DB ושולח refresh ל-list. confirm דיאלוג
+  // native מספיק (אין הרסניות גדולה — ה-choices נשארים לאודיט).
+  async function cancelDeparture(id: string, therapistName: string) {
+    const ok = confirm(
+      `לבטל את תהליך העזיבה של ${therapistName}?\n\nהמטופלים שכבר בחרו — הבחירות נשמרות לאודיט, אבל התהליך לא יסתיים אוטומטית בdeadline. ניתן ליזום תהליך חדש מאוחר יותר.`
+    );
+    if (!ok) return;
+    setCancelingId(id);
+    try {
+      const res = await fetch(
+        `/api/clinic-admin/departures/${encodeURIComponent(id)}`,
+        { method: "DELETE" }
+      );
+      if (!res.ok) {
+        const data = await res.json().catch(() => ({}));
+        toast.error(data.message || "שגיאה בביטול תהליך העזיבה");
+        return;
+      }
+      toast.success("תהליך העזיבה בוטל");
+      await loadDepartures();
+    } catch {
+      toast.error("שגיאת רשת");
+    } finally {
+      setCancelingId(null);
+    }
   }
 
   if (loading) {
@@ -233,9 +265,32 @@ export default function ClinicDeparturesPage() {
                       <UserMinus className="h-4 w-4 text-muted-foreground" />
                       {d.departingTherapist.name}
                     </span>
-                    <Badge className={STATUS_BADGE[d.status]}>
-                      {STATUS_LABEL[d.status]}
-                    </Badge>
+                    <span className="inline-flex items-center gap-2">
+                      <Badge className={STATUS_BADGE[d.status]}>
+                        {STATUS_LABEL[d.status]}
+                      </Badge>
+                      {d.status === "PENDING" && (
+                        <Button
+                          variant="ghost"
+                          size="sm"
+                          className="h-7 px-2 text-xs text-muted-foreground hover:text-destructive hover:bg-destructive/10"
+                          onClick={() =>
+                            cancelDeparture(d.id, d.departingTherapist.name)
+                          }
+                          disabled={cancelingId === d.id}
+                          title="בטל תהליך עזיבה"
+                        >
+                          {cancelingId === d.id ? (
+                            <Loader2 className="h-3.5 w-3.5 animate-spin" />
+                          ) : (
+                            <>
+                              <XIcon className="h-3.5 w-3.5 ms-1" />
+                              בטל
+                            </>
+                          )}
+                        </Button>
+                      )}
+                    </span>
                   </CardTitle>
                 </CardHeader>
                 <CardContent className="space-y-3">
