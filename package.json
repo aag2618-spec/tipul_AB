@@ -24,6 +24,12 @@
   "prisma": {
     "seed": "tsx prisma/seed.ts"
   },
+  "overrides": {
+    "uuid": "^14.0.0",
+    "postcss": "^8.5.10",
+    "@hono/node-server": "^1.19.13",
+    "tmp": "^0.2.6"
+  },
   "dependencies": {
     "@auth/prisma-adapter": "^2.11.1",
     "@aws-sdk/client-s3": "^3.1053.0",
