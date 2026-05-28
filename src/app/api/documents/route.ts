@@ -5,7 +5,12 @@ import storage from "@/lib/storage";
 import { v4 as uuidv4 } from "uuid";
 import { logger } from "@/lib/logger";
 import { logDelegatedCreate } from "@/lib/audit";
-import { buildClientWhere, loadScopeUser, resolveTherapistIdForClientChild } from "@/lib/scope";
+import {
+  buildClientWhere,
+  buildDocumentWhere,
+  loadScopeUser,
+  resolveTherapistIdForClientChild,
+} from "@/lib/scope";
 import { validateFileBuffer, safeExtensionForMime, stripImageMetadata, getCategoryMaxSize } from "@/lib/file-validation";
 import { documentFormFieldsSchema } from "@/lib/validations/document";
 
@@ -21,26 +26,13 @@ export async function GET(request: NextRequest) {
     const clientId = searchParams.get("clientId");
 
     const scopeUser = await loadScopeUser(userId);
-    const clientWhere = buildClientWhere(scopeUser);
-
-    // Documents may be linked to a Client (visible via clientWhere) or be
-    // "general" docs without a client — for the latter fall back to
-    // therapistId/organizationId ownership so clinic owners still see them.
-    const ownershipFilter = scopeUser.organizationId
-      ? { organizationId: scopeUser.organizationId }
-      : { therapistId: userId };
+    // B5: buildDocumentWhere מרכז את הלוגיקה. THERAPIST רואה רק
+    // טמפלייטים שלו (לא של קולגות), OWNER/SECRETARY רואים את כל הארגון.
+    const docWhere = buildDocumentWhere(scopeUser);
 
     const documents = await prisma.document.findMany({
       where: {
-        AND: [
-          {
-            OR: [
-              { client: clientWhere },
-              { AND: [{ clientId: null }, ownershipFilter] },
-            ],
-          },
-          ...(clientId ? [{ clientId }] : []),
-        ],
+        AND: [docWhere, ...(clientId ? [{ clientId }] : [])],
       },
       orderBy: { createdAt: "desc" },
       include: {

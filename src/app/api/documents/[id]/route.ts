@@ -4,7 +4,7 @@ import { logger } from "@/lib/logger";
 
 import { requireAuth } from "@/lib/api-auth";
 import { logDataAccess } from "@/lib/audit-logger";
-import { loadScopeUser, buildClientWhere } from "@/lib/scope";
+import { loadScopeUser, buildDocumentWhere } from "@/lib/scope";
 import storage from "@/lib/storage";
 import { parseBody } from "@/lib/validations/helpers";
 import { updateDocumentSchema } from "@/lib/validations/document";
@@ -31,21 +31,13 @@ function fileUrlToRelative(fileUrl: string | null | undefined): string | null {
 
 export const dynamic = "force-dynamic";
 
-// בונה filter לבעלות על Document — תומך גם במסמכים בלי clientId (general docs).
+// B5: בעלות על Document נשלפת מ-scope.ts (buildDocumentWhere). כך THERAPIST
+// בקליניקה רואה רק את הטמפלייטים שלו ולא של קולגות, וההיגיון מרוכז במקום אחד.
 async function buildDocumentOwnershipWhere(userId: string) {
   const scopeUser = await loadScopeUser(userId);
-  const clientWhere = buildClientWhere(scopeUser);
-  const ownershipFilter = scopeUser.organizationId
-    ? { organizationId: scopeUser.organizationId }
-    : { therapistId: userId };
   return {
     scopeUser,
-    where: {
-      OR: [
-        { client: clientWhere },
-        { AND: [{ clientId: null }, ownershipFilter] },
-      ],
-    },
+    where: buildDocumentWhere(scopeUser),
   };
 }
 

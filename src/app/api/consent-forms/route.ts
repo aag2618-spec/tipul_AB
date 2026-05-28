@@ -1,4 +1,5 @@
 import { NextResponse } from "next/server";
+import { Prisma } from "@prisma/client";
 import prisma from "@/lib/prisma";
 import { logger } from "@/lib/logger";
 import { logDelegatedCreate } from "@/lib/audit";
@@ -6,6 +7,7 @@ import { logDelegatedCreate } from "@/lib/audit";
 import { requireAuth } from "@/lib/api-auth";
 import {
   buildClientWhere,
+  buildConsentFormWhere,
   isSecretary,
   loadScopeUser,
   resolveTherapistIdForClientChild,
@@ -35,26 +37,16 @@ export async function GET(request: Request) {
         { status: 403 }
       );
     }
-    const clientWhere = buildClientWhere(scopeUser);
-    const ownershipFilter = scopeUser.organizationId
-      ? { organizationId: scopeUser.organizationId }
-      : { therapistId: userId };
-
-    const where: Record<string, unknown> = {
-      OR: [
-        { client: clientWhere },
-        { AND: [{ clientId: null }, ownershipFilter] },
-      ],
-    };
-    if (clientId) {
-      where.clientId = clientId;
-    }
-    if (isTemplate !== undefined) {
-      where.isTemplate = isTemplate;
-    }
+    // B5: buildConsentFormWhere מרכז את הלוגיקה. THERAPIST בקליניקה רואה
+    // רק טמפלייטים של עצמו (clientId=null + therapistId=user.id) במקום
+    // את כל הטמפלייטים של הארגון.
+    const baseWhere = buildConsentFormWhere(scopeUser);
+    const andFilters: Prisma.ConsentFormWhereInput[] = [baseWhere];
+    if (clientId) andFilters.push({ clientId });
+    if (isTemplate !== undefined) andFilters.push({ isTemplate });
 
     const forms = await prisma.consentForm.findMany({
-      where,
+      where: { AND: andFilters },
       include: {
         client: {
           select: {

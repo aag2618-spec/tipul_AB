@@ -293,6 +293,57 @@ export function buildDocumentWhere(user: ScopeUser): Prisma.DocumentWhereInput {
 }
 
 /**
+ * מחזיר Prisma where clause לטפסי הסכמה הנגישים למשתמש — מקביל בהיגיון
+ * ל-buildDocumentWhere: טפסים עם clientId יורשים את ה-scope של המטופל;
+ * טמפלייטים (clientId=null) מסוננים לפי בעלות.
+ *
+ * - מטפל עצמאי: רק טמפלייטים שלו (`therapistId=user.id`).
+ * - OWNER / SECRETARY: כל הטמפלייטים של הקליניקה.
+ * - THERAPIST בקליניקה: רק הטמפלייטים שיצר/ה — כדי שטמפלייטים פרטיים
+ *   של קולגות לא ידלפו (תיקון פער של "ראה את כל הטמפלייטים בארגון").
+ *
+ * שים לב: לא חייב להיות שימוש בכל route — בחלקם clientId נדרש ולא רלוונטי
+ * מסלול טמפלייט. אז במקרים האלה ההיגיון הזה לא משנה.
+ */
+export function buildConsentFormWhere(user: ScopeUser): Prisma.ConsentFormWhereInput {
+  const clientWhere = buildClientWhere(user);
+
+  if (!user.organizationId) {
+    return {
+      OR: [
+        { client: clientWhere },
+        { AND: [{ clientId: null }, { therapistId: user.id }] },
+      ],
+    };
+  }
+
+  if (isClinicOwner(user) || isSecretary(user)) {
+    return {
+      OR: [
+        { client: clientWhere },
+        { AND: [{ clientId: null }, { organizationId: user.organizationId }] },
+      ],
+    };
+  }
+
+  if (isClinicTherapist(user)) {
+    return {
+      OR: [
+        { client: clientWhere },
+        { AND: [{ clientId: null }, { therapistId: user.id }] },
+      ],
+    };
+  }
+
+  return {
+    OR: [
+      { client: clientWhere },
+      { AND: [{ clientId: null }, { therapistId: user.id }] },
+    ],
+  };
+}
+
+/**
  * מחזיר select-mask שבטוח למזכירה — כולל רק שדות אדמיניסטרטיביים על Client.
  * Allow-list (לא deny-list) — כל שדה חדש שייווסף לסכמה לא ייחשף אוטומטית
  * למזכירה. זה ה-source of truth של "מה מזכירה רואה על מטופל".

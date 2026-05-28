@@ -5,7 +5,7 @@ import { logger } from "@/lib/logger";
 import { requireAuth } from "@/lib/api-auth";
 import {
   loadScopeUser,
-  buildClientWhere,
+  buildConsentFormWhere,
   isSecretary,
   secretaryCan,
   type ScopeUser,
@@ -128,24 +128,11 @@ export async function POST(
   }
 }
 
+// B5: שימוש ב-buildConsentFormWhere המרכזי במקום עותק לוקאלי שהשתמש ב-
+// ownershipFilter רחב-ארגון (חשף templates של קולגות ל-THERAPIST).
 async function findScopedForm(formId: string, scopeUser: ScopeUser) {
-  const clientWhere = buildClientWhere(scopeUser);
-  const ownershipFilter = scopeUser.organizationId
-    ? { organizationId: scopeUser.organizationId }
-    : { therapistId: scopeUser.id };
-
   return prisma.consentForm.findFirst({
-    where: {
-      AND: [
-        { id: formId },
-        {
-          OR: [
-            { client: clientWhere },
-            { AND: [{ clientId: null }, ownershipFilter] },
-          ],
-        },
-      ],
-    },
+    where: { AND: [{ id: formId }, buildConsentFormWhere(scopeUser)] },
     include: {
       client: {
         select: {

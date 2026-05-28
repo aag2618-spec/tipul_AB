@@ -5,7 +5,7 @@ import { logger } from "@/lib/logger";
 import { requireAuth } from "@/lib/api-auth";
 import {
   loadScopeUser,
-  buildClientWhere,
+  buildConsentFormWhere,
   isSecretary,
   secretaryCan,
   type ScopeUser,
@@ -15,28 +15,12 @@ import { signConsentFormSchema } from "@/lib/validations/consent-form";
 
 export const dynamic = "force-dynamic";
 
-// משותף לכל ה-handlers — אותו דפוס scope/בעלות כמו ב-`consent-forms/route.ts`.
-// טפסים עם clientId מסוננים דרך ה-Client (יורש את ה-scope של המטופל), טפסים
-// בלי clientId (templates / general) מסוננים לפי בעלות (organizationId או
-// therapistId למטפל עצמאי).
+// B5: השליפה משותפת ל-GET/PATCH/DELETE — לא כופלים את ה-where logic.
+// buildConsentFormWhere מבטיח ש-THERAPIST בקליניקה לא יראה טמפלייטים
+// של קולגות (clientId=null + therapistId אחר).
 async function findScopedForm(formId: string, scopeUser: ScopeUser) {
-  const clientWhere = buildClientWhere(scopeUser);
-  const ownershipFilter = scopeUser.organizationId
-    ? { organizationId: scopeUser.organizationId }
-    : { therapistId: scopeUser.id };
-
   return prisma.consentForm.findFirst({
-    where: {
-      AND: [
-        { id: formId },
-        {
-          OR: [
-            { client: clientWhere },
-            { AND: [{ clientId: null }, ownershipFilter] },
-          ],
-        },
-      ],
-    },
+    where: { AND: [{ id: formId }, buildConsentFormWhere(scopeUser)] },
     include: {
       client: {
         select: {

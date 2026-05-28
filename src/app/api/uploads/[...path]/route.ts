@@ -3,7 +3,12 @@ import prisma from "@/lib/prisma";
 import storage from "@/lib/storage";
 import { logger } from "@/lib/logger";
 import { requireAuth } from "@/lib/api-auth";
-import { loadScopeUser, buildClientWhere, isSecretary } from "@/lib/scope";
+import {
+  loadScopeUser,
+  buildClientWhere,
+  buildDocumentWhere,
+  isSecretary,
+} from "@/lib/scope";
 import { logDataAccess } from "@/lib/audit-logger";
 
 export const dynamic = "force-dynamic";
@@ -20,6 +25,9 @@ export async function GET(
 
     const scopeUser = await loadScopeUser(userId);
     const clientWhere = buildClientWhere(scopeUser);
+    // B5: למסמכים — buildDocumentWhere מבטיח שמטפל בקליניקה לא יראה
+    // templates של קולגות (clientId=null + therapistId אחר).
+    const docWhere = buildDocumentWhere(scopeUser);
 
     const { path } = await params;
 
@@ -28,12 +36,6 @@ export async function GET(
     }
 
     const pathStr = path.join("/");
-
-    // Security: Verify file ownership
-    // בעלות מסמך/קליינט נבדקת דרך ה-scope (org-aware) במקום therapistId ישיר.
-    const orgOrTherapistOwnership = scopeUser.organizationId
-      ? { organizationId: scopeUser.organizationId }
-      : { therapistId: userId };
 
     // Secretary cannot download clinical files (documents, client attachments)
     if (isSecretary(scopeUser) && (pathStr.startsWith("documents/") || pathStr.startsWith("clients/"))) {
@@ -49,15 +51,7 @@ export async function GET(
       const fileName = path[path.length - 1];
       const document = await prisma.document.findFirst({
         where: {
-          AND: [
-            { fileUrl: { endsWith: '/' + fileName } },
-            {
-              OR: [
-                { client: clientWhere },
-                { AND: [{ clientId: null }, orgOrTherapistOwnership] },
-              ],
-            },
-          ],
+          AND: [{ fileUrl: { endsWith: '/' + fileName } }, docWhere],
         },
         select: { id: true, clientId: true },
       });
