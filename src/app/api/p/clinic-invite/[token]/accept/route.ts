@@ -401,6 +401,7 @@ export async function POST(
               customContract: {
                 select: {
                   customAiTier: true,
+                  startDate: true,
                   endDate: true,
                   autoRenew: true,
                 },
@@ -534,6 +535,7 @@ export async function POST(
                 customContract: {
                   select: {
                     customAiTier: true,
+                    startDate: true,
                     endDate: true,
                     autoRenew: true,
                   },

@@ -563,6 +563,29 @@ services:
       - key: CRON_SECRET
         sync: false
 
+  # M11.E2 — Custom contract renewals + expiry alerts.
+  # יומי 09:00 ישראל = 06:00 UTC. מקדם endDate ב-renewalMonths לחוזים עם autoRenew=true,
+  # ושולח AdminAlerts לחוזים שעומדים לפוג / פגו ללא חידוש אוטומטי.
+  # POST כי הפעולה state-changing (חידוש = עדכון endDate + מחיר חדש).
+  - type: cron
+    name: custom-contract-renewals
+    runtime: node
+    region: frankfurt
+    plan: free
+    schedule: "0 6 * * *"  # 06:00 UTC (09:00 Israel)
+    buildCommand: echo "No build needed"
+    startCommand: |
+      curl -s --max-time 120 -X POST "$RENDER_EXTERNAL_URL/api/cron/custom-contract-renewals" \
+        -H "Authorization: Bearer $CRON_SECRET"
+    envVars:
+      - key: RENDER_EXTERNAL_URL
+        fromService:
+          type: web
+          name: tipul-app
+          property: url
+      - key: CRON_SECRET
+        sync: false
+
   # Fix stuck payments — מתקן Payments שסכומם הגיע ל-expectedAmount אבל
   # markFullyPaid לא רץ. יומי 08:00 ישראל = 05:00 UTC. GET.
   - type: cron
