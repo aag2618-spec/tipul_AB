@@ -11,7 +11,11 @@ import { he } from "date-fns/locale";
 import Link from "next/link";
 import { Button } from "@/components/ui/button";
 import { SessionPrepCard } from "@/components/ai/session-prep-card";
-import { loadScopeUser, buildSessionWhere } from "@/lib/scope";
+import {
+  loadScopeUser,
+  buildSessionWhere,
+  canSecretaryAccessModel,
+} from "@/lib/scope";
 
 async function getTodaysSessions(sessionWhere: Prisma.TherapySessionWhereInput) {
   const today = new Date();
@@ -63,8 +67,22 @@ export default async function AIPrepPage() {
   }
 
   const scopeUser = await loadScopeUser(session.user.id);
-  const sessionWhere = buildSessionWhere(scopeUser);
 
+  // AI Session Prep מבוסס על תוכן קליני (SessionNote, SessionAnalysis) —
+  // חסום קשיחות למזכירה לפי blockedModels ב-scope.ts. הגייט קודם לכל query
+  // כדי לא להדליף שמות מטופלים / metadata קליני דרך ה-include של client.
+  // אותו דפוס בדיוק כמו ב-`/dashboard/recordings` ובמקבילה ב-API
+  // (/api/ai/session-prep משתמש ב-canSecretaryAccessModel("SessionAnalysis")).
+  if (!canSecretaryAccessModel(scopeUser, "SessionAnalysis")) {
+    return (
+      <div className="p-6 text-center text-gray-600" dir="rtl">
+        <h2 className="text-xl font-bold">אין הרשאה</h2>
+        <p>תוכן קליני (הכנה לפגישה) אינו זמין לתפקיד הנוכחי.</p>
+      </div>
+    );
+  }
+
+  const sessionWhere = buildSessionWhere(scopeUser);
   const user = await getUserWithTier(session.user.id);
   const sessions = await getTodaysSessions(sessionWhere);
 
