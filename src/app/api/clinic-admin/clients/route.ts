@@ -2,42 +2,30 @@ import { NextRequest, NextResponse } from "next/server";
 import { Prisma } from "@prisma/client";
 import prisma from "@/lib/prisma";
 import { logger } from "@/lib/logger";
-import { requireAuth } from "@/lib/api-auth";
+import { requireClinicAdminAccess } from "@/lib/clinic/require-clinic-owner";
 
 export const dynamic = "force-dynamic";
 
-// GET — רשימת מטופלים בקליניקה (לבעל הקליניקה).
+// GET — רשימת מטופלים בקליניקה לדפי clinic-admin.
 // תומך ב-?q=search לפי שם/טלפון/אימייל.
+//
+// Phase 4 follow-up: פתוח גם למזכיר/ה עם canTransferClient — דף ההעברה צריך
+// את הרשימה הזו כדי להציג את המטופלים לבחירה. השדות המוחזרים הם
+// אדמיניסטרטיביים בלבד (firstName/lastName/phone/email/status/therapist/_count) —
+// אין כאן תוכן קליני, כך שזה תואם לחסימת CLINICAL_FIELDS_BLOCKED_FOR_SECRETARY.
 export async function GET(request: NextRequest) {
   try {
-    const auth = await requireAuth();
-    if ("error" in auth) return auth.error;
-    const { userId } = auth;
-
-    const me = await prisma.user.findUnique({
-      where: { id: userId },
-      select: { role: true, clinicRole: true, organizationId: true },
+    const auth = await requireClinicAdminAccess({
+      allowSecretaryWith: "canTransferClient",
     });
-    if (!me) {
-      return NextResponse.json({ message: "המשתמש לא נמצא" }, { status: 404 });
-    }
-    // M10.5: ADMIN גלובלי משתמש ב-/api/admin/* בלבד; אסור bypass כאן.
-    const isOwner = me.role === "CLINIC_OWNER" || me.clinicRole === "OWNER";
-    if (!isOwner) {
-      return NextResponse.json({ message: "אין הרשאה" }, { status: 403 });
-    }
-    if (!me.organizationId) {
-      return NextResponse.json(
-        { message: "אינך משויך/ת לקליניקה" },
-        { status: 400 }
-      );
-    }
+    if ("error" in auth) return auth.error;
+    const { organizationId } = auth;
 
     const { searchParams } = new URL(request.url);
     const q = searchParams.get("q")?.trim() || undefined;
     const limit = Math.min(Number(searchParams.get("limit") || "100"), 500);
 
-    const where: Prisma.ClientWhereInput = { organizationId: me.organizationId };
+    const where: Prisma.ClientWhereInput = { organizationId };
     if (q) {
       where.OR = [
         { firstName: { contains: q, mode: "insensitive" } },

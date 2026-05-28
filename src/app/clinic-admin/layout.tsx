@@ -58,7 +58,12 @@ type NavItem = {
   secretaryWithTransfer?: boolean;
 };
 const navItems: NavItem[] = [
-  { href: "/clinic-admin", label: "סקירה כללית", icon: LayoutDashboard, exact: true, secretaryWithTransfer: true },
+  // Phase 4 follow-up: "סקירה כללית" *לא* מסומן secretaryWithTransfer כי
+  // /api/clinic-admin/overview נשאר owner-only (מציג billing/contract data).
+  // מזכיר/ה עם canTransferClient לא מגיעה לשורש /clinic-admin כלל — היא
+  // נכנסת ישירות ל-/clinic-admin/transfer דרך הקישור בעריכת לקוח, או
+  // ל-/clinic-admin/members/by-therapist דרך הנאב כשהיא כבר בלייאאוט.
+  { href: "/clinic-admin", label: "סקירה כללית", icon: LayoutDashboard, exact: true },
   // Phase 4 — exact: true כדי שלא יואר במקביל ל-/members/by-therapist.
   { href: "/clinic-admin/members", label: "חברי קליניקה", icon: Users, exact: true },
   // Phase 4 — תצוגה ייעודית: רשימת הלקוחות של כל מטפל. נמצא תחת
@@ -90,7 +95,10 @@ function ClinicAdminContent({ children }: { children: React.ReactNode }) {
         const res = await fetch("/api/clinic-admin/me");
         if (!res.ok) {
           if (res.status === 403) {
-            setError("הגישה לדף זה זמינה רק לבעלי/ות קליניקה.");
+            // Phase 4 follow-up: /api/clinic-admin/me כבר אישר גם מזכיר/ה עם
+            // canTransferClient. אם בכל זאת חזר 403 — אין למשתמש כלל הרשאה
+            // לאזור clinic-admin (לא בעלים, לא מזכירה עם הרשאת ההעברה).
+            setError("אין לך הרשאה לגשת לאזור ניהול הקליניקה.");
           } else {
             setError("שגיאה בטעינת פרטי הקליניקה.");
           }

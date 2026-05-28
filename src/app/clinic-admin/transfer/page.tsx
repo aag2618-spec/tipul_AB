@@ -30,12 +30,15 @@ import { TransferFutureSessionsDialog } from "@/components/clinic-admin/transfer
 
 type ClinicRole = "OWNER" | "THERAPIST" | "SECRETARY";
 
+// Phase 4 follow-up: נטען מ-/api/clinic/therapists (שמשרת גם מזכירה עם
+// canTransferClient) במקום /api/clinic-admin/members (owner-only). ה-endpoint
+// מחזיר רק id/name/email/clinicRole; isBlocked מוסר כי השרת ממילא
+// מסנן isBlocked=false ב-where.
 interface Member {
   id: string;
   name: string | null;
   email: string;
   clinicRole: ClinicRole | null;
-  isBlocked: boolean;
 }
 
 interface Client {
@@ -82,15 +85,14 @@ function TransferClientPageInner() {
 
   const fetchMembers = useCallback(async () => {
     try {
-      const res = await fetch("/api/clinic-admin/members");
+      // /api/clinic/therapists זמין ל-OWNER + SECRETARY (clinic.ts L17-22),
+      // מסנן בעצמו isBlocked=false ו-clinicRole IN (THERAPIST, OWNER).
+      // החלפנו את /api/clinic-admin/members כדי לא לדרוש הרחבת ההרשאה לאותו
+      // endpoint רגיש (שמחזיר billing/secretaryPermissions של חברים אחרים).
+      const res = await fetch("/api/clinic/therapists");
       if (res.ok) {
         const data = await res.json();
-        setMembers(
-          data.filter(
-            (m: Member) =>
-              !m.isBlocked && (m.clinicRole === "THERAPIST" || m.clinicRole === "OWNER")
-          )
-        );
+        setMembers(data as Member[]);
       }
     } catch {
       // ignore

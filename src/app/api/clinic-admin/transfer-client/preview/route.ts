@@ -1,7 +1,7 @@
 import { NextRequest, NextResponse } from "next/server";
 import prisma from "@/lib/prisma";
 import { logger } from "@/lib/logger";
-import { requireAuth } from "@/lib/api-auth";
+import { requireClinicAdminAccess } from "@/lib/clinic/require-clinic-owner";
 
 export const dynamic = "force-dynamic";
 
@@ -10,13 +10,17 @@ export const dynamic = "force-dynamic";
 //
 // query: ?clientId=X&toTherapistId=Y
 //
-// משמש ע"י דיאלוג "העברת פגישות עתידיות" — ה-OWNER רואה לכל פגישה
-// אם היא תיכנס נקייה למטפל היעד או דורשת אישור התנגשות.
+// משמש ע"י דיאלוג "העברת פגישות עתידיות" — ה-OWNER (או מזכיר/ה עם
+// canTransferClient) רואה לכל פגישה אם היא תיכנס נקייה למטפל היעד
+// או דורשת אישור התנגשות. Phase 4 follow-up: פתוח גם למזכירה כדי
+// שתוכל לבצע העברה מלאה (כולל פגישות עתידיות), זהה לבעלים.
 export async function GET(request: NextRequest) {
   try {
-    const auth = await requireAuth();
+    const auth = await requireClinicAdminAccess({
+      allowSecretaryWith: "canTransferClient",
+    });
     if ("error" in auth) return auth.error;
-    const { userId } = auth;
+    const { organizationId } = auth;
 
     const { searchParams } = new URL(request.url);
     const clientId = searchParams.get("clientId");
@@ -29,32 +33,11 @@ export async function GET(request: NextRequest) {
       );
     }
 
-    // אותן ולידציות כמו ב-transfer-client/route.ts
-    const me = await prisma.user.findUnique({
-      where: { id: userId },
-      select: { id: true, role: true, clinicRole: true, organizationId: true },
-    });
-    if (!me) {
-      return NextResponse.json({ message: "המשתמש לא נמצא" }, { status: 404 });
-    }
-
-    // M10.5: ADMIN גלובלי משתמש ב-/api/admin/* בלבד; אסור bypass כאן.
-    const isOwner = me.role === "CLINIC_OWNER" || me.clinicRole === "OWNER";
-    if (!isOwner) {
-      return NextResponse.json({ message: "אין הרשאה" }, { status: 403 });
-    }
-    if (!me.organizationId) {
-      return NextResponse.json(
-        { message: "אינך משויך/ת לקליניקה" },
-        { status: 400 }
-      );
-    }
-
     const client = await prisma.client.findUnique({
       where: { id: clientId },
       select: { id: true, organizationId: true, therapistId: true },
     });
-    if (!client || client.organizationId !== me.organizationId) {
+    if (!client || client.organizationId !== organizationId) {
       return NextResponse.json(
         { message: "המטופל לא נמצא בקליניקה" },
         { status: 404 }
@@ -67,7 +50,7 @@ export async function GET(request: NextRequest) {
       where: { id: toTherapistId },
       select: { id: true, organizationId: true },
     });
-    if (!toTherapist || toTherapist.organizationId !== me.organizationId) {
+    if (!toTherapist || toTherapist.organizationId !== organizationId) {
       return NextResponse.json(
         { message: "מטפל יעד לא נמצא בקליניקה" },
         { status: 404 }

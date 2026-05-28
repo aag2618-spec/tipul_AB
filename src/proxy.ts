@@ -103,6 +103,36 @@ function isAdminOnlyPath(pathname: string): boolean {
   );
 }
 
+// ========================================================================
+// Phase 4 follow-up — CLINIC_SECRETARY whitelist ל-/clinic-admin/*
+// ========================================================================
+// כברירת מחדל CLINIC_SECRETARY נחסם/ת מ-/clinic-admin/* ומ-/api/clinic-admin/*
+// (clinic ownership flows). הוספנו הרשאה גרנולרית `canTransferClient`
+// שמאפשרת למזכירה לבצע העברות מטופלים — אבל ה-JWT לא נושא את ה-flag הזה,
+// כך שהמידלוור לא יודע לאשר/לדחות פר-הרשאה.
+//
+// פתרון: רשימה מצומצמת של נתיבים שמותר ל-CLINIC_SECRETARY *להגיע* אליהם
+// (מבחינת middleware), כשהאכיפה האמיתית — האם יש לה ההרשאה הספציפית —
+// מתבצעת ב-route handler עצמו דרך requireClinicAdminAccess({ allowSecretaryWith }).
+// השאר (overview, departures, invitations, billing, settings) נשאר owner-only.
+//
+// תאימות לאחור: מזכירה ללא canTransferClient תקבל 403 ידידותי מה-route handler;
+// לא תיתקל ב-redirect מוזר ל-/dashboard.
+const SECRETARY_CLINIC_ADMIN_PATHS = [
+  "/clinic-admin/transfer",
+  "/clinic-admin/members/by-therapist",
+  "/api/clinic-admin/me",
+  "/api/clinic-admin/clients",
+  "/api/clinic-admin/clients-by-therapist",
+  "/api/clinic-admin/transfer-client",
+];
+
+function isSecretaryAllowedClinicAdminPath(pathname: string): boolean {
+  return SECRETARY_CLINIC_ADMIN_PATHS.some(
+    (p) => pathname === p || pathname.startsWith(p + "/")
+  );
+}
+
 /**
  * round18-fix: Next 16 לא מאפשר `export const config` בקובץ proxy.ts
  * ("Route segment config is not allowed in Proxy file"). המtracker
@@ -257,14 +287,21 @@ export async function proxy(request: NextRequest) {
   // Protect /clinic-admin routes — require CLINIC_OWNER or ADMIN.
   // הסשן לא מכיל clinicRole/organizationId; ה-layout עושה את הבדיקה העמוקה.
   // כאן רק חוסמים את הברורים: לא מחובר → login; CLINIC_SECRETARY/USER → dashboard.
+  // יוצא דופן: CLINIC_SECRETARY עם canTransferClient — מורשית רק לנתיבים
+  // ספציפיים (transfer, members/by-therapist + ה-APIs שלהם). ה-flag עצמו
+  // נאכף עמוק יותר ב-requireClinicAdminAccess; המידלוור רק מאפשר *הגעה*.
   if (pathname.startsWith("/clinic-admin")) {
     if (!token) {
       const loginUrl = new URL("/login", request.url);
       loginUrl.searchParams.set("callbackUrl", pathname);
       return NextResponse.redirect(loginUrl);
     }
-    // ADMIN/CLINIC_OWNER מותרים. אחרים — מועברים לדשבורד.
-    if (token.role !== "ADMIN" && token.role !== "CLINIC_OWNER") {
+    const isPrivileged =
+      token.role === "ADMIN" || token.role === "CLINIC_OWNER";
+    const isSecretaryOnWhitelist =
+      token.role === "CLINIC_SECRETARY" &&
+      isSecretaryAllowedClinicAdminPath(pathname);
+    if (!isPrivileged && !isSecretaryOnWhitelist) {
       const dashboardUrl = new URL("/dashboard", request.url);
       dashboardUrl.searchParams.set("error", "clinic_owner_only");
       return NextResponse.redirect(dashboardUrl);
@@ -272,6 +309,9 @@ export async function proxy(request: NextRequest) {
   }
 
   // Protect /api/clinic-admin routes — require CLINIC_OWNER or ADMIN.
+  // יוצא דופן זהה ל-/clinic-admin: CLINIC_SECRETARY מורשית רק ל-APIs ב-whitelist
+  // (me, clients, clients-by-therapist, transfer-client + preview). הרשאה
+  // גרנולרית canTransferClient נאכפת ב-route handler עצמו.
   if (pathname.startsWith("/api/clinic-admin")) {
     if (!token) {
       return NextResponse.json(
@@ -279,7 +319,12 @@ export async function proxy(request: NextRequest) {
         { status: 401 }
       );
     }
-    if (token.role !== "ADMIN" && token.role !== "CLINIC_OWNER") {
+    const isPrivileged =
+      token.role === "ADMIN" || token.role === "CLINIC_OWNER";
+    const isSecretaryOnWhitelist =
+      token.role === "CLINIC_SECRETARY" &&
+      isSecretaryAllowedClinicAdminPath(pathname);
+    if (!isPrivileged && !isSecretaryOnWhitelist) {
       return NextResponse.json(
         { message: "לא מורשה - הפעולה זמינה לבעלי קליניקה בלבד" },
         { status: 403 }
