@@ -135,7 +135,7 @@ async function getReportData(scopeUser: ScopeUser): Promise<ReportData> {
       const totalPayments = paidAmount + pendingAmount;
 
       return {
-        month: monthStart.toLocaleString("he-IL", { month: "short" }),
+        month: monthStart.toLocaleString("he-IL", { month: "short", timeZone: "Asia/Jerusalem" }),
         sessions: completed,
         income: paidAmount,
         newClients,
@@ -200,7 +200,7 @@ async function getReportData(scopeUser: ScopeUser): Promise<ReportData> {
     console.error("Failed to get report data:", error);
     return {
       monthlyData: Array.from({ length: 12 }, (_, i) => ({
-        month: new Date(new Date().getFullYear(), i, 1).toLocaleString("he-IL", { month: "short" }),
+        month: new Date(new Date().getFullYear(), i, 1).toLocaleString("he-IL", { month: "short", timeZone: "Asia/Jerusalem" }),
         sessions: 0, income: 0, newClients: 0,
         cancelledSessions: 0, cancellationRate: 0, collectionRate: 0,
       })),
