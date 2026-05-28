@@ -6,6 +6,10 @@ import { withAudit } from "@/lib/audit";
 import { invalidateJwtCache } from "@/lib/auth";
 import { computeBillingRestore } from "@/lib/clinic-invitations";
 import { requireClinicOwner } from "@/lib/clinic/require-clinic-owner";
+import {
+  ClinicLimitExceededError,
+  checkLimitInTx,
+} from "@/lib/clinic/limits";
 import { parseBody } from "@/lib/validations/helpers";
 import { updateMemberSchema } from "@/lib/validations/clinic-admin";
 
@@ -88,25 +92,82 @@ export async function PATCH(
       );
     }
 
-    const updated = await withAudit(
-      { kind: "user", session },
-      {
-        action: "update_clinic_member",
-        targetType: "User",
-        targetId: id,
-        details: {
-          organizationId,
-          memberEmail: member.email,
-          changes: Object.keys(updates),
+    // M11.B2: race-safe re-check של תקרת חברי הקליניקה כשמתבצע שינוי clinicRole.
+    // הקליניקה עברה ל-pricing plan עם max=N THERAPISTS. אם יש OWNER שמשנה
+    // SECRETARY ל-THERAPIST בשעה שגם invitation אחר accepts ל-THERAPIST,
+    // הרצת checkLimitInTx בתוך אותה Serializable tx מונעת חריגה.
+    const roleChange =
+      body.clinicRole !== undefined && body.clinicRole !== member.clinicRole;
+    const needsTherapistLimitCheck =
+      roleChange && body.clinicRole === "THERAPIST";
+    const needsSecretaryLimitCheck =
+      roleChange && body.clinicRole === "SECRETARY";
+
+    let updated;
+    try {
+      updated = await withAudit(
+        { kind: "user", session },
+        {
+          action: "update_clinic_member",
+          targetType: "User",
+          targetId: id,
+          details: {
+            organizationId,
+            memberEmail: member.email,
+            changes: Object.keys(updates),
+            roleChangeFrom: roleChange ? member.clinicRole : null,
+            roleChangeTo: roleChange ? body.clinicRole : null,
+          },
         },
-      },
-      async (tx) => {
-        return tx.user.update({
-          where: { id },
-          data: updates as Parameters<typeof tx.user.update>[0]["data"],
-        });
+        async (tx) => {
+          if (needsTherapistLimitCheck || needsSecretaryLimitCheck) {
+            const limit = await checkLimitInTx({
+              tx,
+              organizationId,
+              clinicRole: body.clinicRole as "THERAPIST" | "SECRETARY",
+              // לא מחריגים invitation כי זה לא flow של accept; זו המרת חבר קיים.
+              excludeInvitationId: "",
+            });
+            if (!limit.allowed) {
+              throw new ClinicLimitExceededError(
+                limit.message ?? "הגעת לתקרת המקומות בתוכנית הקליניקה",
+                limit.current,
+                limit.max
+              );
+            }
+          }
+
+          // race-safe: guard organizationId === current org (כך שב-DELETE מקביל
+          // או departure cron שעוקב, ה-PATCH לא יעדכן user שכבר עזב/ה).
+          const result = await tx.user.updateMany({
+            where: { id, organizationId },
+            data: updates as Parameters<typeof tx.user.updateMany>[0]["data"],
+          });
+          if (result.count === 0) {
+            throw new Error(
+              "החבר אינו שייך עוד לקליניקה זו (ייתכן שהוסר במקביל)"
+            );
+          }
+          // קוראים את הרשומה אחרי העדכון כדי להחזיר לצרכן (Behavior תואם
+          // ל-tx.user.update הקודם שהחזיר את האובייקט המעודכן).
+          return tx.user.findUniqueOrThrow({
+            where: { id },
+          });
+        }
+      );
+    } catch (err) {
+      if (err instanceof ClinicLimitExceededError) {
+        // shape תואם ל-/api/clinic-admin/invitations POST (limit: {current, max}).
+        return NextResponse.json(
+          {
+            message: err.message,
+            limit: { current: err.current, max: err.max },
+          },
+          { status: 403 }
+        );
       }
-    );
+      throw err;
+    }
 
     // M10.2: clinicRole + role נמצאים ב-JWT cache. סוגרים חלון של 30s —
     // אחרת הרשאות מזכירה חדשות לא יחולו עד שה-cache פג, ויש סיכון security
