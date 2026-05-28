@@ -7,10 +7,21 @@ import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
 import { Switch } from "@/components/ui/switch";
-import { Loader2, Repeat, Settings, Waves, UserPlus, ArrowRight, AlertTriangle, Search } from "lucide-react";
+import { Loader2, Repeat, Settings, Waves, UserPlus, ArrowRight, AlertTriangle, Search, Users } from "lucide-react";
 import { format, addWeeks } from "date-fns";
 import { toast } from "sonner";
 import type { CalendarClient, CalendarSession } from "@/hooks/use-calendar-data";
+import { useMyPermissions } from "@/hooks/use-my-permissions";
+
+// Phase 3: רשימת מטפלי הקליניקה ל-picker בפגישת ייעוץ (מטופל מהיר).
+// אנלוג לטיפוס ב-/dashboard/clients/new. ה-endpoint /api/clinic/therapists
+// מסנן SECRETARY, אז נשארים רק 2 ה-roles. email יכול להיות null ב-User.
+interface ClinicTherapistOption {
+  id: string;
+  name: string | null;
+  email: string | null;
+  clinicRole: "OWNER" | "THERAPIST";
+}
 
 // ── Types ──
 
@@ -147,6 +158,16 @@ export function NewSessionDialog({
   const [quickClientEmail, setQuickClientEmail] = useState("");
   const [matchedClient, setMatchedClient] = useState<CalendarClient | null>(null);
 
+  // Phase 3: picker מטפל אחראי בפגישת ייעוץ (מטופל מהיר). הוצג רק
+  // ל-OWNER/SECRETARY בקליניקה. ל-THERAPIST/עצמאי אין picker — resolver בשרת
+  // ייקח self. למזכירה זה חובה (אחרת היא הופכת ל-"מטפלת אחראית").
+  const myPermissions = useMyPermissions();
+  const canPickTherapist =
+    myPermissions.clinicRole === "OWNER" || myPermissions.clinicRole === "SECRETARY";
+  const [clinicTherapists, setClinicTherapists] = useState<ClinicTherapistOption[]>([]);
+  const [loadingTherapists, setLoadingTherapists] = useState(false);
+  const [pickedTherapistId, setPickedTherapistId] = useState<string>("");
+
   // התנגשות בפגישה בודדת — state
   const [conflictPrompt, setConflictPrompt] = useState<{
     conflicts: Array<{ id: string; clientName: string; startTime: string; endTime: string }>;
@@ -180,8 +201,43 @@ export function NewSessionDialog({
       setConflictPrompt(null);
       setConflictDecision("replace");
       setClientSearch("");
+      setPickedTherapistId("");
     }
   }, [open, initialFormData, defaultSessionDuration]);
+
+  // Phase 3: טעינת רשימת מטפלי הקליניקה רק ל-OWNER/SECRETARY (כשהדיאלוג פתוח).
+  // ה-API מחזיר 403 ל-THERAPIST/עצמאי, אז פשוט לא קוראים אותו אצלם. toast.error
+  // על non-OK / catch — להבדיל בין רשימה ריקה אמיתית (אין מטפלים פעילים)
+  // לבין כשל רשת/שרת. הגנה כפולה: ה-endpoint כבר מסונן ב-server-side.
+  useEffect(() => {
+    if (!open || !canPickTherapist) return;
+    let cancelled = false;
+    setLoadingTherapists(true);
+    fetch("/api/clinic/therapists", { cache: "no-store" })
+      .then(async (res) => {
+        if (cancelled) return;
+        if (!res.ok) {
+          setClinicTherapists([]);
+          toast.error("שגיאה בטעינת רשימת המטפלים");
+          return;
+        }
+        const data = (await res.json()) as ClinicTherapistOption[];
+        if (cancelled) return;
+        setClinicTherapists(Array.isArray(data) ? data : []);
+      })
+      .catch(() => {
+        if (!cancelled) {
+          setClinicTherapists([]);
+          toast.error("שגיאה בטעינת רשימת המטפלים");
+        }
+      })
+      .finally(() => {
+        if (!cancelled) setLoadingTherapists(false);
+      });
+    return () => {
+      cancelled = true;
+    };
+  }, [open, canPickTherapist]);
 
   // רשימת מטופלים קבועים, ממוינת לפי שם משפחה (א"ב) ומסוננת לפי החיפוש.
   // החיפוש מתאים גם בשם פרטי וגם בשם משפחה — לפי קלט כלשהו של המשתמש.
@@ -262,6 +318,18 @@ export function NewSessionDialog({
         toast.error("נא למלא את שעות הפגישה");
         return;
       }
+      // Phase 3: למזכירה חובה לבחור מטפל/ת אחראי/ת לפני יצירת מטופל מהיר —
+      // אחרת ה-resolver בשרת היה בוחר את המזכירה עצמה. ל-OWNER ה-picker
+      // אופציונלי (אם לא יבחר, ה-resolver ייקח את OWNER עצמו, וזה הגיוני).
+      // הוולידציה חלה רק כשיוצרים פונה חדש (לא כשבחרו מ-matchedClient קיים).
+      if (
+        !formData.clientId &&
+        myPermissions.clinicRole === "SECRETARY" &&
+        !pickedTherapistId
+      ) {
+        toast.error("יש לבחור מטפל/ת אחראי/ת");
+        return;
+      }
     } else if (formData.type !== "BREAK" && (!formData.clientId || !formData.startTime || !formData.endTime)) {
       toast.error("נא למלא את כל השדות");
       return;
@@ -277,7 +345,9 @@ export function NewSessionDialog({
       let clientIdToUse = formData.clientId;
 
       if (isQuickClientMode && !formData.clientId) {
-        // יצירת פונה חדש — רק אם לא נבחר פונה קיים
+        // יצירת פונה חדש — רק אם לא נבחר פונה קיים.
+        // Phase 3: כשבעלים/מזכירה בוחרים מטפל אחראי — מצרפים therapistId.
+        // ל-THERAPIST/עצמאי לא נשלח, וה-resolver בשרת ייקח self (התנהגות תאימות).
         const clientRes = await fetch("/api/clients", {
           method: "POST",
           headers: { "Content-Type": "application/json" },
@@ -287,6 +357,9 @@ export function NewSessionDialog({
             phone: quickClientPhone.trim() || undefined,
             email: quickClientEmail.trim() || undefined,
             defaultSessionPrice: parseFloat(formData.price) || undefined,
+            ...(canPickTherapist && pickedTherapistId
+              ? { therapistId: pickedTherapistId }
+              : {}),
           }),
         });
 
@@ -615,6 +688,7 @@ export function NewSessionDialog({
                     setQuickClientPhone("");
                     setQuickClientEmail("");
                     setMatchedClient(null);
+                    setPickedTherapistId("");
                     setFormData((prev) => ({ ...prev, clientId: "", topic: "" }));
                   }}
                   className="text-xs text-muted-foreground h-7 px-2"
@@ -623,6 +697,46 @@ export function NewSessionDialog({
                   חזרה לבחירת מטופל
                 </Button>
               </div>
+
+              {/* Phase 3: picker מטפל אחראי לפונה החדש — רק ל-OWNER/SECRETARY
+                  בקליניקה, ורק כשיוצרים פונה חדש (לא כשמתעדכן קיים).
+                  למזכירה זה חובה (חוסם submit); ל-OWNER אופציונלי. */}
+              {canPickTherapist && !formData.clientId && (
+                <div className="space-y-1.5">
+                  <Label htmlFor="pickedTherapistId" className="text-xs flex items-center gap-1.5">
+                    <Users className="h-3.5 w-3.5 text-blue-700" />
+                    מטפל/ת אחראי/ת
+                    {myPermissions.clinicRole === "SECRETARY" && (
+                      <span className="text-red-500">*</span>
+                    )}
+                  </Label>
+                  <Select
+                    value={pickedTherapistId}
+                    onValueChange={(value) => setPickedTherapistId(value)}
+                    disabled={isSubmitting || loadingTherapists}
+                  >
+                    <SelectTrigger id="pickedTherapistId" className="h-9 bg-white">
+                      <SelectValue
+                        placeholder={loadingTherapists ? "טוען..." : "בחר/י מטפל/ת..."}
+                      />
+                    </SelectTrigger>
+                    <SelectContent>
+                      {clinicTherapists.length === 0 && !loadingTherapists ? (
+                        <div className="px-2 py-1.5 text-sm text-muted-foreground">
+                          לא נמצאו מטפלים פעילים בקליניקה
+                        </div>
+                      ) : (
+                        clinicTherapists.map((t) => (
+                          <SelectItem key={t.id} value={t.id}>
+                            {t.name || t.email}
+                            {t.clinicRole === "OWNER" ? " (בעלים)" : ""}
+                          </SelectItem>
+                        ))
+                      )}
+                    </SelectContent>
+                  </Select>
+                </div>
+              )}
 
               <div className="space-y-2">
                 <Label htmlFor="quickName">שם <span className="text-red-500">*</span></Label>
