@@ -19,8 +19,10 @@ export const dynamic = "force-dynamic";
 // }
 //
 // transferFutureSessions=false (ברירת מחדל): פגישות עתידיות מבוטלות/נמחקות.
-// transferFutureSessions=true: פגישות עתידיות מועברות לפי הרשימות (כל פגישה
-// חייבת להיות באחת מהרשימות, אחרת היא לא מטופלת — שומרים על קוו ההיסטוריה).
+// transferFutureSessions=true: פגישות עתידיות מועברות לפי הרשימות. B1 (M11.B1):
+// כל פגישה שלא הוזכרה באחת משלוש הרשימות (transfer/override/cancel) — תבוטל
+// אוטומטית כ"יתום" כדי שלא תישאר אצל המטפל/ת היוצא/ת אחרי שה-client.therapistId
+// עבר. בעבר נשארה אצלו/ה והייתה דליפת גישה + UX מבולבל; עכשיו ניקוי אטומי.
 //
 // תמיד: היסטוריה (פגישות בעבר + COMPLETED/CANCELLED) נשארת משויכת למטפל המקורי.
 export async function POST(request: NextRequest) {
@@ -288,6 +290,45 @@ export async function POST(request: NextRequest) {
             );
             deletedSessionIds = deleted;
             cancelledSessionIds = cancelled;
+          }
+
+          // B1: ניקוי "פגישות יתומות" — פגישות עתידיות פעילות של המטופל אצל
+          // המטפל/ת המקורי/ת שה-OWNER לא הזכיר באף אחת משלוש הרשימות.
+          // בלי הניקוי הזה: ה-client.therapistId הועבר, אבל session.therapistId
+          // נשאר על המטפל/ת היוצא/ת → ה-יוצא/ת רואה עדיין פגישות עתידיות של
+          // מטופל שלא שייך לה/ו יותר (דליפת גישה + UX מבולבל). ה-default-mode
+          // (transferFutureSessions=false) עושה את זה אוטומטית; advanced mode
+          // צריך לכבד אינטנט OWNER על מה שהוזכר ולנקות את השאר באותה צורה.
+          const explicitlyHandled = new Set<string>([
+            ...sessionsToTransfer,
+            ...sessionsToTransferWithOverride,
+            ...sessionsToCancel,
+          ]);
+          const orphans = await tx.therapySession.findMany({
+            where: {
+              clientId,
+              therapistId: client.therapistId,
+              // defense-in-depth: גם clientId כבר org-validated, אבל פילטר נוסף
+              // על organizationId מאפס כל סיכוי לסיכון cross-tenant מהשהיה במידע.
+              organizationId: me.organizationId,
+              startTime: { gt: now },
+              status: {
+                in: ["SCHEDULED", "PENDING_APPROVAL", "PENDING_CANCELLATION"],
+              },
+            },
+            select: { id: true },
+          });
+          const orphanIds = orphans
+            .map((s) => s.id)
+            .filter((id) => !explicitlyHandled.has(id));
+          if (orphanIds.length > 0) {
+            const { deleted, cancelled } = await cancelOrDeleteFutureSessions(
+              tx,
+              orphanIds,
+              { transferLogId: log.id }
+            );
+            deletedSessionIds = [...deletedSessionIds, ...deleted];
+            cancelledSessionIds = [...cancelledSessionIds, ...cancelled];
           }
         } else {
           // ברירת מחדל: כל הפגישות העתידיות הפעילות מבוטלות/נמחקות
