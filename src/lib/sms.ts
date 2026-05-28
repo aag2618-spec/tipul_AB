@@ -8,6 +8,7 @@ import {
   QuotaExhaustedError,
   type ConsumeResult,
 } from "./credits";
+import { checkSmsQuota, incrementOrgSmsUsage } from "./clinic/sms-quota";
 
 /**
  * Feature flag — Stage 1.17 wire-up.
@@ -283,6 +284,50 @@ export async function sendSMS(
     return { success: false, error: "Invalid phone number" };
   }
 
+  // A3 — Org SMS quota gate (חיוב Stage CLINIC-MULTI):
+  // לקליניקה רב-מטפלים יש מכסה משותפת ב-OrgSmsUsage. ה-overview של clinic-admin
+  // מציג אותה, אבל היא לא נאכפה בשליחה. כאן בודקים את המכסה הארגונית *לפני*
+  // ניצול הקרדיט האישי, כדי שלא ננכה credits אישיים כשארגון חוסם.
+  //
+  // מסלולים:
+  // - skipQuotaCheck=true (invite OTP / system) — דולגים על שני המכסות,
+  //   כדי לא לשבור את ה-onboarding של מטפלות חדשות.
+  // - מטפל עצמאי (organizationId=null) — checkSmsQuota מחזיר source="user_individual"
+  //   ו-allowed=true בלי לגעת במכסה (תאימות מלאה אחורה).
+  // - חבר/ת קליניקה מעל המכסה — refuse לפני personal flow, log SMS=FAILED.
+  //
+  // ה-increment בפועל קורה אחרי send מוצלח (מקבילה ל-incrementUsage האישי).
+  let orgIdForUsage: string | null = null;
+  if (!options?.skipQuotaCheck) {
+    const orgCheck = await checkSmsQuota(userId);
+    if (orgCheck.source === "organization") {
+      if (!orgCheck.allowed) {
+        logger.warn("[SMS] Org quota exhausted — refusing send", {
+          userId,
+          used: orgCheck.used,
+          quota: orgCheck.quota,
+        });
+        await logSMS({
+          phone: normalizedPhone,
+          message: message.slice(0, 201),
+          status: "FAILED",
+          error: "ORG_QUOTA_EXHAUSTED",
+          userId,
+          sessionId: options?.sessionId,
+          clientId: options?.clientId,
+          type: options?.type,
+        });
+        return { success: false, error: "מכסת ה-SMS של הקליניקה נוצלה" };
+      }
+      // נטען את organizationId פעם אחת כאן כדי לא לשלוף שוב אחרי ה-send.
+      const orgUser = await prisma.user.findUnique({
+        where: { id: userId },
+        select: { organizationId: true },
+      });
+      orgIdForUsage = orgUser?.organizationId ?? null;
+    }
+  }
+
   // Check quota
   // Stage 1.17.2: שמירת ה-receipt מ-consumeSms — אם ה-send נכשל בהמשך, נריץ
   // refund כדי להחזיר את הקרדיט (monthly bucket + packages).
@@ -394,6 +439,50 @@ export async function sendSMS(
     // ב-new flow ה-deduct כבר התרחש ב-consumeSms לפני ה-send.
     if (!isNewConsumeSmsEnabled() && !options?.skipQuotaCheck) {
       await incrementUsage(userId);
+    }
+
+    // A3 — Org SMS quota increment after successful Pulseem send.
+    // מקביל ל-incrementUsage האישי אבל ברמת ארגון. fire-after-success — אם
+    // ה-send נכשל לא מגיעים לכאן ולכן המכסה הארגונית לא מתעדכנת (תואם
+    // לסמנטיקה: רק SMS שיצא בפועל סופר ב-OrgSmsUsage).
+    if (orgIdForUsage) {
+      try {
+        await incrementOrgSmsUsage(orgIdForUsage, 1);
+      } catch (err) {
+        const errMsg = err instanceof Error ? err.message : String(err);
+        logger.error("[SMS] Failed to increment org SMS usage", {
+          userId,
+          orgId: orgIdForUsage,
+          error: errMsg,
+        });
+        // Admin alert — מקביל ל-incrementUsage האישי.
+        // לא חוסם את ה-response; ה-SMS כבר נשלח בהצלחה.
+        void prisma.adminAlert
+          .create({
+            data: {
+              type: "CREDIT_CONSUMPTION_FAILED",
+              priority: "HIGH",
+              title: "כשל בעדכון מונה SMS לארגון",
+              message: `incrementOrgSmsUsage נכשל ל-org ${orgIdForUsage}. ה-SMS נשלח אבל המכסה הארגונית לא ירדה.`,
+              userId,
+              metadata: {
+                errorMessage: errMsg,
+                kind: "org_sms_increment_failed",
+                organizationId: orgIdForUsage,
+              },
+              actionRequired:
+                "תקן ידנית את OrgSmsUsage עבור הארגון לחודש הנוכחי.",
+            },
+          })
+          .catch((alertErr) => {
+            logger.error("[SMS] Also failed to create org-SMS alert", {
+              error:
+                alertErr instanceof Error
+                  ? alertErr.message
+                  : String(alertErr),
+            });
+          });
+      }
     }
 
     // Log successful send
