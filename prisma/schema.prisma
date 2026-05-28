@@ -174,6 +174,9 @@ model User {
   subscriptionPausedReason       String? // "PAID_BY_CLINIC" כעת; ערכים נוספים בעתיד.
   subscriptionPausedAt           DateTime?
   subscriptionStatusBeforeClinic SubscriptionStatus? // לשחזור בעזיבה.
+  // M11.E1: aiTier ערב הצטרפות לקליניקה — לשחזור בעזיבה. null = "לא נשמר"
+  // (לרוב כי המשתמש לא ירש tier ארגוני; aiTier הנוכחי שלו נשאר על כנו).
+  aiTierBeforeClinic             AITier? // לשחזור aiTier אם הירש tier ארגוני
 
   // שדרוג tier בתוך תקופה פעילה: שילם עבור תקופה עתידית, ה-tier יחול רק
   // אחרי שהתקופה הקודמת מסתיימת. cron יומי מקדם pendingTier→aiTier כש-now >= pendingTierEffectiveAt.

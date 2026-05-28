@@ -111,6 +111,9 @@ export async function GET(req: NextRequest) {
             subscriptionStatusBeforeClinic: true,
             trialEndsAt: true,
             subscriptionEndsAt: true,
+            // M11.E1: לשחזור aiTier אם הירש tier ארגוני בהצטרפות.
+            aiTier: true,
+            aiTierBeforeClinic: true,
           },
         },
         choices: {
@@ -162,6 +165,19 @@ export async function GET(req: NextRequest) {
           billingFields.billingPaidByClinic = false;
         }
 
+        // M11.E1: שחזור aiTier אם הירש tier ארגוני (aiTierBeforeClinic != null).
+        // מקביל לזרימה ב-DELETE /clinic-admin/members/[id] — מחזירים את ה-tier
+        // האישי שהיה לפני ההצטרפות, לפני שירש את ה-tier הארגוני.
+        let aiTierRestored: { from: string; to: string } | null = null;
+        if (dt.aiTierBeforeClinic) {
+          aiTierRestored = {
+            from: dt.aiTier,
+            to: dt.aiTierBeforeClinic,
+          };
+          billingFields.aiTier = dt.aiTierBeforeClinic;
+          billingFields.aiTierBeforeClinic = null;
+        }
+
         const txResult = await withAudit(
           { kind: "system", source: "CRON", externalRef: "departure-deadlines" },
           {
@@ -177,6 +193,8 @@ export async function GET(req: NextRequest) {
               restoreTo,
               grantedFreshTrial,
               appliedGrace,
+              // M11.E1: שחזור aiTier (אם הירש tier ארגוני).
+              aiTierRestored,
             },
           },
           async (tx) => {

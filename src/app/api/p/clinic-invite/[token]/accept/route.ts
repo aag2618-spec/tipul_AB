@@ -13,10 +13,14 @@ import {
   OTP_MAX_ATTEMPTS,
   verifyOtp,
 } from "@/lib/clinic-invitations";
-import type { SubscriptionStatus } from "@prisma/client";
+import type { AITier, SubscriptionStatus } from "@prisma/client";
 import { TRIAL_DAYS, TRIAL_AI_TIER } from "@/lib/constants";
 import { checkLimitInTx } from "@/lib/clinic/limits";
 import { getClientIp } from "@/lib/get-client-ip";
+import {
+  isOrgTierUpgrade,
+  resolveOrgAiTier,
+} from "@/lib/clinic/ai-tier-inheritance";
 
 export const dynamic = "force-dynamic";
 
@@ -205,6 +209,8 @@ export async function POST(
       subscriptionStatus: SubscriptionStatus;
       trialEndsAt: Date | null;
       subscriptionEndsAt: Date | null;
+      // M11.E1: aiTier ערב הצטרפות — לחישוב upgrade ולשחזור בעזיבה.
+      aiTier: AITier;
     } | null = null;
     let isNewUser = false;
 
@@ -323,6 +329,8 @@ export async function POST(
         subscriptionStatus: existingUser.subscriptionStatus,
         trialEndsAt: existingUser.trialEndsAt,
         subscriptionEndsAt: existingUser.subscriptionEndsAt,
+        // M11.E1: snapshot של ה-aiTier ערב הצטרפות (לחישוב upgrade + לוג audit).
+        aiTier: existingUser.aiTier,
       };
     } else {
       // ─── משתמש חדש ───
@@ -384,6 +392,26 @@ export async function POST(
             }
           }
 
+          // M11.E1: ירושת aiTier מהארגון. נקרא בתוך ה-tx ל-snapshot עקבי —
+          // מונע TOCTOU בו admin משנה את ה-pricing plan בין הקריאה לכתיבה.
+          const orgForTier = await tx.organization.findUnique({
+            where: { id: invitation.organizationId },
+            select: {
+              pricingPlan: { select: { aiTierIncluded: true } },
+              customContract: {
+                select: {
+                  customAiTier: true,
+                  endDate: true,
+                  autoRenew: true,
+                },
+              },
+            },
+          });
+          const inheritedAiTier: AITier | null =
+            invitation.billingPaidByClinic && orgForTier
+              ? resolveOrgAiTier(orgForTier)
+              : null;
+
           // race-safe limit re-check בתוך Serializable tx — מגן מפני
           // 2 invitations מקבילים שעוברים accept בו-זמנית.
           const limit = await checkLimitInTx({
@@ -408,13 +436,23 @@ export async function POST(
           // subscriptionStatusBeforeClinic נשאר null (= "אף פעם לא היה מנוי אישי"),
           // ובהסרה מהקליניקה יקבל TRIALING + 30d חדש (ראה DELETE members/[id]).
           const billingPaused = invitation.billingPaidByClinic;
+          // M11.E1: משתמש חדש יורש את ה-tier הארגוני אם קיים; אחרת TRIAL_AI_TIER.
+          // אם הירש tier ארגוני — שומרים את ברירת המחדל ב-aiTierBeforeClinic כדי
+          // שבעזיבה ה-tier ירד בחזרה ל-TRIAL_AI_TIER (אחרת המשתמש היה נשאר עם
+          // ENTERPRISE לצמיתות אחרי שעזב — דליפת entitlement; ראה M11.E1 security audit).
+          const effectiveAiTier: AITier =
+            inheritedAiTier ?? (TRIAL_AI_TIER as AITier);
+          const newUserAiTierBeforeClinic: AITier | null = inheritedAiTier
+            ? (TRIAL_AI_TIER as AITier)
+            : null;
           const newUser = await tx.user.create({
             data: {
               email: invitation.email,
               name: parsed.data.name!,
               password: passwordHash,
               phone: phoneNormalized,
-              aiTier: TRIAL_AI_TIER as "ESSENTIAL" | "PRO" | "ENTERPRISE",
+              aiTier: effectiveAiTier,
+              aiTierBeforeClinic: newUserAiTierBeforeClinic,
               subscriptionStatus: billingPaused ? "PAUSED" : "TRIALING",
               trialEndsAt: billingPaused ? null : trialEndsAt,
               userNumber: nextUserNumber,
@@ -455,6 +493,8 @@ export async function POST(
         subscriptionStatus: created.subscriptionStatus,
         trialEndsAt: created.trialEndsAt,
         subscriptionEndsAt: created.subscriptionEndsAt,
+        // M11.E1: ה-aiTier שנוצר בפועל (ירש tier ארגוני או נשאר TRIAL_AI_TIER).
+        aiTier: created.aiTier,
       };
     }
 
@@ -485,6 +525,26 @@ export async function POST(
             },
           },
           async (tx) => {
+            // M11.E1: ירושת aiTier מהארגון. נקרא בתוך ה-tx ל-snapshot עקבי
+            // (TOCTOU prevention).
+            const orgForTier = await tx.organization.findUnique({
+              where: { id: invitation.organizationId },
+              select: {
+                pricingPlan: { select: { aiTierIncluded: true } },
+                customContract: {
+                  select: {
+                    customAiTier: true,
+                    endDate: true,
+                    autoRenew: true,
+                  },
+                },
+              },
+            });
+            const inheritedAiTier: AITier | null =
+              invitation.billingPaidByClinic && orgForTier
+                ? resolveOrgAiTier(orgForTier)
+                : null;
+
             // race-safe limit re-check (זהה למסלול user חדש).
             const limit = await checkLimitInTx({
               tx,
@@ -513,6 +573,22 @@ export async function POST(
                 }
               : {};
 
+            // M11.E1: ירושת tier למשתמש קיים — רק אם זה upgrade ולא downgrade.
+            // המשתמש לא ירגיש "נפילה" באיכות אם הוא היה ב-ENTERPRISE אישי
+            // והצטרף לקליניקה עם PRO. בעזיבה (DELETE/cron) נחזיר מ-aiTierBeforeClinic.
+            // userBeforeJoin תמיד מאוכלס במסלול הזה כי הגענו ל-!isNewUser
+            // רק אחרי שעברנו ב-if(existingUser).
+            const personalAiTier = userBeforeJoin?.aiTier;
+            const aiTierFields =
+              inheritedAiTier &&
+              personalAiTier &&
+              isOrgTierUpgrade(personalAiTier, inheritedAiTier)
+                ? {
+                    aiTierBeforeClinic: personalAiTier,
+                    aiTier: inheritedAiTier,
+                  }
+                : {};
+
             // guard: organizationId still null (race-safe).
             const userUpdate = await tx.user.updateMany({
               where: { id: userId, organizationId: null },
@@ -520,6 +596,7 @@ export async function POST(
                 organizationId: invitation.organizationId,
                 clinicRole: invitation.clinicRole,
                 ...billingFields,
+                ...aiTierFields,
                 ...(invitation.clinicRole === "SECRETARY" && {
                   role: "CLINIC_SECRETARY",
                   secretaryPermissions:

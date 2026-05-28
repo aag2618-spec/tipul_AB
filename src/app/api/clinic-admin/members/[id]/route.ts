@@ -223,6 +223,11 @@ export async function DELETE(
         subscriptionStatusBeforeClinic: true,
         trialEndsAt: true,
         subscriptionEndsAt: true,
+        // M11.E1: aiTier הנוכחי (אם ירש tier ארגוני) + aiTier ערב הצטרפות
+        // (לשחזור על-תקבל). אם aiTierBeforeClinic=null — לא בוצעה ירושה
+        // ולכן aiTier הנוכחי נשאר על כנו.
+        aiTier: true,
+        aiTierBeforeClinic: true,
         _count: { select: { clients: true } },
       },
     });
@@ -281,6 +286,19 @@ export async function DELETE(
       billingFields.billingPaidByClinic = false;
     }
 
+    // M11.E1: שחזור aiTier אם הירש tier ארגוני (aiTierBeforeClinic != null).
+    // לא תלוי ב-billingReleased — ייתכן וה-aiTier ירש גם בלי billing-pause
+    // (תאורטית; ב-FLOW הנוכחי שניהם תלויים ב-billingPaidByClinic).
+    let aiTierRestored: { from: string; to: string } | null = null;
+    if (member.aiTierBeforeClinic) {
+      aiTierRestored = {
+        from: member.aiTier,
+        to: member.aiTierBeforeClinic,
+      };
+      billingFields.aiTier = member.aiTierBeforeClinic;
+      billingFields.aiTierBeforeClinic = null;
+    }
+
     await withAudit(
       { kind: "user", session },
       {
@@ -296,6 +314,8 @@ export async function DELETE(
           restoreTo,
           grantedFreshTrial,
           appliedGrace,
+          // M11.E1: שחזור aiTier (אם ירש tier ארגוני).
+          aiTierRestored,
         },
       },
       async (tx) => {
