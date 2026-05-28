@@ -25,9 +25,17 @@ export async function GET(_request: NextRequest) {
 
     const scopeUser = await loadScopeUser(userId);
 
+    // נירמול: בעלים גלובלי (role = CLINIC_OWNER) ללא clinicRole מפורש (לגאסי —
+    // לפני שהשדה clinicRole נוסף) נחזיר "OWNER" כדי שכל ה-UI שמשתמש ב-clinicRole
+    // יראה אותו עקבי (למשל ה-Card בעריכת לקוח שמוביל למסך ההעברה).
+    // ההגנה האמיתית ב-server-side ממילא בודקת גם role וגם clinicRole.
+    const effectiveClinicRole =
+      scopeUser.clinicRole ??
+      (scopeUser.role === "CLINIC_OWNER" ? "OWNER" : null);
+
     return NextResponse.json({
       isSecretary: isSecretary(scopeUser),
-      clinicRole: scopeUser.clinicRole,
+      clinicRole: effectiveClinicRole,
       permissions: {
         canViewPayments: secretaryCan(scopeUser, "canViewPayments"),
         canIssueReceipts: secretaryCan(scopeUser, "canIssueReceipts"),
