@@ -202,7 +202,7 @@ function TransferClientPageInner() {
         <div>
           <h1 className="text-2xl font-bold">העברת מטופל בין מטפלים</h1>
           <p className="text-sm text-muted-foreground">
-            העברה פנימית בקליניקה — נרשמת ב-ClientTransferLog
+            העברה פנימית בקליניקה — נרשמת ביומן ההעברות
           </p>
         </div>
       </div>
