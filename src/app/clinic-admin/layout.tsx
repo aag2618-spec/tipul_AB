@@ -14,6 +14,7 @@ import {
   Users,
   UserPlus,
   ArrowLeftRight,
+  UserMinus,
   Loader2,
   LogOut,
   ArrowRight,
@@ -45,11 +46,13 @@ interface ClinicContext {
 // construction". פירוט החיוב כבר זמין בסקירה הראשית; הגדרות מתבצעות דרך
 // אדמין הפלטפורמה. כשתשלים E3 (org subscription payment flow) — להחזיר
 // את ה-billing. עד אז — עמודי ה-stub נשמרים כקבצים למקרה של deep-link.
+// C2: הוסף "תהליכי עזיבה" — דשבורד שמרכז את כל ה-TherapistDepartures.
 const navItems = [
   { href: "/clinic-admin", label: "סקירה כללית", icon: LayoutDashboard, exact: true },
   { href: "/clinic-admin/members", label: "חברי קליניקה", icon: Users },
   { href: "/clinic-admin/invitations", label: "הזמנות פעילות", icon: UserPlus },
   { href: "/clinic-admin/transfer", label: "העברת מטופל", icon: ArrowLeftRight },
+  { href: "/clinic-admin/departures", label: "תהליכי עזיבה", icon: UserMinus },
 ];
 
 function ClinicAdminContent({ children }: { children: React.ReactNode }) {
