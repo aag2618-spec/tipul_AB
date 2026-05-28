@@ -292,10 +292,29 @@ export async function POST(request: NextRequest) {
           }
 
           if (sessionsToCancel.length > 0) {
+            // הגנת tenant: ולידציה ש-IDs ב-sessionsToCancel באמת שייכים למטופל
+            // הזה, למטפל המקור, בארגון הזה, ובעתיד. בלי זה — מזכיר/ה/בעלים
+            // יכולים להעביר IDs של פגישות מקליניקה אחרת ולגרום ל-CANCEL/DELETE
+            // שלהן (IDOR cross-tenant; cancelOrDeleteFutureSessions עצמו לא
+            // מסנן לפי tenant — רק לפי ID).
+            const validToCancel = await tx.therapySession.findMany({
+              where: {
+                id: { in: sessionsToCancel },
+                clientId,
+                therapistId: client.therapistId,
+                organizationId: me.organizationId,
+                startTime: { gt: now },
+                status: {
+                  in: ["SCHEDULED", "PENDING_APPROVAL", "PENDING_CANCELLATION"],
+                },
+              },
+              select: { id: true },
+            });
+            const validToCancelIds = validToCancel.map((s) => s.id);
             // helper מחזיר את ה-IDs האמיתיים שטופלו (deleted/cancelled)
             const { deleted, cancelled } = await cancelOrDeleteFutureSessions(
               tx,
-              sessionsToCancel,
+              validToCancelIds,
               { transferLogId: log.id }
             );
             deletedSessionIds = deleted;

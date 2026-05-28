@@ -286,8 +286,11 @@ export async function PUT(
     // נעשית כאן (לא ב-zod) כי דרושה גישה ל-`scopeUser` ולקריאת DB. הסדר:
     //   • מטפל עצמאי (organizationId=null): אין מי להעביר אליו → מתעלמים.
     //   • THERAPIST רגיל בקליניקה: אסור (RBAC) → 403.
-    //   • OWNER + SECRETARY (עם canCreateClient שנבדק לעיל): מותר, עם ולידציה
-    //     שהמטפל החדש קיים, באותו org, לא חסום, ולא SECRETARY.
+    //   • OWNER: מותר, עם ולידציה שהמטפל החדש קיים, באותו org, לא חסום, ולא SECRETARY.
+    //   • SECRETARY: דורש `canTransferClient` בפירוש (Phase 4 follow-up).
+    //     `canCreateClient` שנבדק לעיל מספיק לעדכון שדות אדמיניסטרטיביים, אבל
+    //     שינוי המטפל האחראי הוא פעולה רגישה יותר — מקבילה ל-/clinic-admin/transfer
+    //     שגם הוא דורש canTransferClient. כך אין דרך עוקפת ב-PUT לעקוף את ה-gate.
     // חשוב: אם השדה לא נשלח כלל (`therapistId === undefined`) — אין שינוי.
     let resolvedTherapistId: string | undefined;
     let resolvedTherapistName: string | null = null;
@@ -298,6 +301,13 @@ export async function PUT(
       } else if (!isClinicOwner(scopeUser) && !isSecretary(scopeUser)) {
         return NextResponse.json(
           { message: "אין הרשאה לשייך מטופל למטפל אחר" },
+          { status: 403 }
+        );
+      } else if (isSecretary(scopeUser) && !secretaryCan(scopeUser, "canTransferClient")) {
+        // Phase 4 follow-up: שינוי therapistId (העברת לקוח) דורש canTransferClient,
+        // לא רק canCreateClient. עוקף את כל ה-flow הייעודי של /clinic-admin/transfer.
+        return NextResponse.json(
+          { message: "אין הרשאה להעברת מטופל בין מטפלים" },
           { status: 403 }
         );
       } else {
