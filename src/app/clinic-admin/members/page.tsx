@@ -51,6 +51,7 @@ interface SecretaryPermissions {
   canViewDebts?: boolean;
   canViewStats?: boolean;
   canViewConsentForms?: boolean;
+  canTransferClient?: boolean;
 }
 
 interface Member {
@@ -75,6 +76,7 @@ const SECRETARY_PERMS: { key: keyof SecretaryPermissions; label: string; help: s
   { key: "canViewDebts", label: "צפייה בחובות", help: "מי לא שילם" },
   { key: "canViewStats", label: "סטטיסטיקות עסק", help: "דוחות ביצועים" },
   { key: "canViewConsentForms", label: "צפייה בטפסי הסכמה", help: "טפסי קבלה ותוכניות (אדמיניסטרטיבי)" },
+  { key: "canTransferClient", label: "העברת מטופלים בין מטפלים", help: "גישה למסכי ניהול הקליניקה הרלוונטיים (העברה, מטופלים לפי מטפל)" },
 ];
 
 const DEFAULT_SECRETARY_PERMS: SecretaryPermissions = {
@@ -85,6 +87,7 @@ const DEFAULT_SECRETARY_PERMS: SecretaryPermissions = {
   canViewDebts: false,
   canViewStats: false,
   canViewConsentForms: false,
+  canTransferClient: false,
 };
 
 function MemberRoleBadge({ role }: { role: ClinicRole | null }) {

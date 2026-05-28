@@ -2,11 +2,16 @@ import { NextResponse } from "next/server";
 import prisma from "@/lib/prisma";
 import { logger } from "@/lib/logger";
 import { requireAuth } from "@/lib/api-auth";
+import type { SecretaryPermissions } from "@/lib/scope";
 
 export const dynamic = "force-dynamic";
 
 // GET — מחזיר את ה-organization וה-clinicRole של המשתמש המחובר.
 // משמש את /clinic-admin/* כדי לדעת לאיזה ארגון להציג נתונים.
+//
+// Phase 4 follow-up: בעבר חסום רק לבעלי/ות קליניקה. עכשיו פתוח גם למזכירות
+// עם canTransferClient — הן צריכות גישה ל-/clinic-admin/transfer ול-/members/by-therapist.
+// השרת ממילא אוכף הרשאות per-route בנפרד (defense-in-depth).
 export async function GET() {
   try {
     const auth = await requireAuth();
@@ -22,6 +27,7 @@ export async function GET() {
         role: true,
         clinicRole: true,
         organizationId: true,
+        secretaryPermissions: true,
         organization: {
           select: {
             id: true,
@@ -42,10 +48,14 @@ export async function GET() {
     // שמירת חוזה ה-API: isAdmin עדיין נחשף לצרכן (תמיד false עבור OWNER).
     const isClinicOwner =
       user.role === "CLINIC_OWNER" || user.clinicRole === "OWNER";
+    const isSecretary =
+      user.clinicRole === "SECRETARY" || user.role === "CLINIC_SECRETARY";
+    const perms = (user.secretaryPermissions as SecretaryPermissions | null) ?? null;
+    const isSecretaryWithTransferAccess = isSecretary && Boolean(perms?.canTransferClient);
 
-    if (!isClinicOwner) {
+    if (!isClinicOwner && !isSecretaryWithTransferAccess) {
       return NextResponse.json(
-        { message: "הפעולה זמינה לבעלי/ות קליניקה בלבד" },
+        { message: "הפעולה זמינה לבעלי/ות קליניקה (או למזכיר/ה עם הרשאת העברה) בלבד" },
         { status: 403 }
       );
     }

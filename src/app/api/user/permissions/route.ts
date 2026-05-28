@@ -44,6 +44,7 @@ export async function GET(_request: NextRequest) {
         canViewDebts: secretaryCan(scopeUser, "canViewDebts"),
         canViewStats: secretaryCan(scopeUser, "canViewStats"),
         canViewConsentForms: secretaryCan(scopeUser, "canViewConsentForms"),
+        canTransferClient: secretaryCan(scopeUser, "canTransferClient"),
       },
     });
   } catch (error) {

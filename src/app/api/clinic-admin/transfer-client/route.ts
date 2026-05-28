@@ -39,14 +39,24 @@ export async function POST(request: NextRequest) {
         role: true,
         clinicRole: true,
         organizationId: true,
+        secretaryPermissions: true,
       },
     });
     if (!me) {
       return NextResponse.json({ message: "המשתמש לא נמצא" }, { status: 404 });
     }
     // M10.5: ADMIN גלובלי משתמש ב-/api/admin/* בלבד; אסור bypass כאן.
+    // Phase 4 follow-up: גם מזכיר/ה עם canTransferClient מורשית להעביר.
+    // ההעברה עצמה זהה לחלוטין — אותו ClientTransferLog, אותו cancel-or-delete,
+    // אותו withAudit. ה-performedById יהיה ה-userId של המזכירה.
     const isOwner = me.role === "CLINIC_OWNER" || me.clinicRole === "OWNER";
-    if (!isOwner) {
+    const isSecretary =
+      me.clinicRole === "SECRETARY" || me.role === "CLINIC_SECRETARY";
+    const secretaryPerms =
+      (me.secretaryPermissions as { canTransferClient?: boolean } | null) ?? null;
+    const isSecretaryWithTransferAccess =
+      isSecretary && Boolean(secretaryPerms?.canTransferClient);
+    if (!isOwner && !isSecretaryWithTransferAccess) {
       return NextResponse.json({ message: "אין הרשאה" }, { status: 403 });
     }
     if (!me.organizationId) {

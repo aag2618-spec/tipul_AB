@@ -48,15 +48,24 @@ interface ClinicContext {
 // אדמין הפלטפורמה. כשתשלים E3 (org subscription payment flow) — להחזיר
 // את ה-billing. עד אז — עמודי ה-stub נשמרים כקבצים למקרה של deep-link.
 // C2: הוסף "תהליכי עזיבה" — דשבורד שמרכז את כל ה-TherapistDepartures.
-const navItems = [
-  { href: "/clinic-admin", label: "סקירה כללית", icon: LayoutDashboard, exact: true },
+// Phase 4 follow-up: secretaryOnly=true → גם מזכיר/ה עם canTransferClient
+// תראה את הפריט. שאר הפריטים — owner-only.
+type NavItem = {
+  href: string;
+  label: string;
+  icon: typeof LayoutDashboard;
+  exact?: boolean;
+  secretaryWithTransfer?: boolean;
+};
+const navItems: NavItem[] = [
+  { href: "/clinic-admin", label: "סקירה כללית", icon: LayoutDashboard, exact: true, secretaryWithTransfer: true },
   // Phase 4 — exact: true כדי שלא יואר במקביל ל-/members/by-therapist.
   { href: "/clinic-admin/members", label: "חברי קליניקה", icon: Users, exact: true },
   // Phase 4 — תצוגה ייעודית: רשימת הלקוחות של כל מטפל. נמצא תחת
   // /members/by-therapist כדי לא לבלבל עם /members שמראה תפקידים.
-  { href: "/clinic-admin/members/by-therapist", label: "מטופלים לפי מטפל", icon: UsersRound },
+  { href: "/clinic-admin/members/by-therapist", label: "מטופלים לפי מטפל", icon: UsersRound, secretaryWithTransfer: true },
   { href: "/clinic-admin/invitations", label: "הזמנות פעילות", icon: UserPlus },
-  { href: "/clinic-admin/transfer", label: "העברת מטופל", icon: ArrowLeftRight },
+  { href: "/clinic-admin/transfer", label: "העברת מטופל", icon: ArrowLeftRight, secretaryWithTransfer: true },
   { href: "/clinic-admin/departures", label: "תהליכי עזיבה", icon: UserMinus },
 ];
 
@@ -173,9 +182,19 @@ function ClinicAdminContent({ children }: { children: React.ReactNode }) {
             )}
           </div>
 
-          {/* Navigation */}
+          {/* Navigation — מזכיר/ה שרואה את ה-layout (יש לה canTransferClient
+              שהשרת אישר ב-/api/clinic-admin/me) מקבלת רק פריטים שמסומנים
+              secretaryWithTransfer. בעלים — רואה הכל. */}
           <nav className="flex-1 px-3 py-4 overflow-y-auto space-y-1">
-            {navItems.map((item) => {
+            {navItems
+              .filter((item) => {
+                const isOwner =
+                  ctx.user.role === "CLINIC_OWNER" ||
+                  ctx.user.clinicRole === "OWNER";
+                if (isOwner) return true;
+                return Boolean(item.secretaryWithTransfer);
+              })
+              .map((item) => {
               const isActive = item.exact
                 ? pathname === item.href
                 : pathname === item.href || pathname.startsWith(item.href + "/");

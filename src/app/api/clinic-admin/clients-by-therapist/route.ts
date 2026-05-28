@@ -1,17 +1,19 @@
 import { NextResponse } from "next/server";
 import prisma from "@/lib/prisma";
 import { logger } from "@/lib/logger";
-import { requireClinicOwner } from "@/lib/clinic/require-clinic-owner";
+import { requireClinicAdminAccess } from "@/lib/clinic/require-clinic-owner";
 
 export const dynamic = "force-dynamic";
 
 // GET — מחזיר מטפלים בקליניקה עם רשימת הלקוחות של כל אחד (לתצוגת
-// "מטופלים לפי מטפל"). זמין רק ל-OWNER (ה-RBAC מאוכף ב-requireClinicOwner).
-// shape שונה במכוון מ-/api/clinic-admin/clients (שמחזיר flat list) כדי לא
-// לשבור את ה-transfer page הקיים.
+// "מטופלים לפי מטפל"). זמין ל-OWNER **או** למזכיר/ה עם canTransferClient
+// (Phase 4 follow-up). shape שונה במכוון מ-/api/clinic-admin/clients (flat list)
+// כדי לא לשבור את ה-transfer page הקיים.
 export async function GET() {
   try {
-    const auth = await requireClinicOwner();
+    const auth = await requireClinicAdminAccess({
+      allowSecretaryWith: "canTransferClient",
+    });
     if ("error" in auth) return auth.error;
     const { organizationId } = auth;
 

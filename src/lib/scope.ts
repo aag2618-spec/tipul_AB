@@ -45,6 +45,11 @@ export type SecretaryPermissions = {
   canViewDebts?: boolean; // צפייה בחובות
   canViewStats?: boolean; // צפייה בסטטיסטיקות עסקיות
   canViewConsentForms?: boolean; // צפייה בטפסי הסכמה (אדמיניסטרטיבי)
+  // Phase 4 follow-up: העברת מטופל בין מטפלים בקליניקה. כשהיא true,
+  // המזכירה מקבלת גישה גם ל-/clinic-admin/transfer, ל-/clinic-admin/members/by-therapist,
+  // ול-API POST /api/clinic-admin/transfer-client. ההעברה עצמה זהה לחלוטין
+  // לזו של בעלת הקליניקה (כולל יצירת ClientTransferLog).
+  canTransferClient?: boolean;
 };
 
 // ============================================================================
