@@ -3,7 +3,7 @@ import prisma from "@/lib/prisma";
 import { createPaymentForSession } from "@/lib/payment-service";
 import { logger } from "@/lib/logger";
 import { requireAuth } from "@/lib/api-auth";
-import { loadScopeUser } from "@/lib/scope";
+import { isSecretary, loadScopeUser, secretaryCan } from "@/lib/scope";
 import { parseBody } from "@/lib/validations/helpers";
 import { addCreditSchema } from "@/lib/validations/client";
 
@@ -27,6 +27,18 @@ export async function POST(
     // טען scope לפי המשתמש כדי לוודא שה-Payment החדש משויך ל-organizationId
     // הנכון (אחרת ה-Payment שנוצר בלי organizationId לא ייראה לבעלי הקליניקה).
     const scopeUser = await loadScopeUser(userId);
+
+    // Phase 3 L1: מזכירה ללא canViewPayments לא רשאית ליצור רשומת Payment
+    // (גם לא ADVANCE/קרדיט). analog ל-H1 שסגרנו ב-/api/payments/pay-client-debts:
+    // הוספת קרדיט יוצרת Payment דרך createPaymentForSession, וזו פעולה פיננסית
+    // לכל דבר. בלי הגייט הזה בקשה ישירה (Postman/script/UI ישן) יכלה לעקוף את
+    // ה-UI שכבר מסתיר את הכפתור מתחת ל-canViewPayments.
+    if (isSecretary(scopeUser) && !secretaryCan(scopeUser, "canViewPayments")) {
+      return NextResponse.json(
+        { message: "אין הרשאה לפעולות תשלום" },
+        { status: 403 }
+      );
+    }
 
     const result = await createPaymentForSession({
       userId: userId,

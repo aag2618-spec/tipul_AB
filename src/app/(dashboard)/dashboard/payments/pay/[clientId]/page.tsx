@@ -17,6 +17,7 @@ import { calculateDebtFromPayments, calculateSessionDebt } from "@/lib/payment-u
 import { he } from "date-fns/locale";
 import { PayClientDebts } from "@/components/payments/pay-client-debts";
 import { AddCreditDialog } from "@/components/clients/add-credit-dialog";
+import { useMyPermissions } from "@/hooks/use-my-permissions";
 
 interface UnpaidSession {
   paymentId: string;
@@ -41,6 +42,10 @@ type SelectionMode = "sessions" | "amount" | "manual";
 export default function PayClientPage({ params }: { params: Promise<{ clientId: string }> }) {
   const { clientId } = use(params);
   const router = useRouter();
+  // Phase 3 L1: parity ל-UI gate שכבר אוכף ב-/dashboard/clients/[id] עבור כפתורי
+  // תשלום/קרדיט. ה-API /api/clients/[id]/add-credit מחזיר 403 ממילא, אבל בלי
+  // ה-gate ב-UI מזכירה ללא canViewPayments היתה רואה כפתור שמחזיר שגיאה בלחיצה.
+  const { permissions: myPermissions } = useMyPermissions();
   const [client, setClient] = useState<ClientData | null>(null);
   const [selectedPayments, setSelectedPayments] = useState<Set<string>>(new Set());
   const [isLoading, setIsLoading] = useState(true);
@@ -230,17 +235,19 @@ export default function PayClientPage({ params }: { params: Promise<{ clientId: 
             </p>
           </div>
         </div>
-        <AddCreditDialog
-          clientId={client.id}
-          clientName={client.name}
-          currentCredit={client.creditBalance}
-          trigger={
-            <Button variant="outline" className="gap-2">
-              <Wallet className="h-4 w-4" />
-              הוסף קרדיט
-            </Button>
-          }
-        />
+        {myPermissions.canViewPayments && (
+          <AddCreditDialog
+            clientId={client.id}
+            clientName={client.name}
+            currentCredit={client.creditBalance}
+            trigger={
+              <Button variant="outline" className="gap-2">
+                <Wallet className="h-4 w-4" />
+                הוסף קרדיט
+              </Button>
+            }
+          />
+        )}
       </div>
 
       {/* Quick Payment Card - Pay All */}
