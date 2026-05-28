@@ -73,6 +73,11 @@ function CalendarPageContent() {
   const timeParam = searchParams.get('time');
   const highlightParam = searchParams.get('highlight');
   const clientParam = searchParams.get('client');
+  // Phase 3: deep-link `?new=true` מ-dashboard לפותח NewSessionDialog אוטומטית.
+  // הקישורים מ-/dashboard ל-/dashboard/calendar?new=true היו inert עד עכשיו
+  // (הפרמטר לא נקרא). useEffect למטה פותח את הדיאלוג ומנקה את ה-URL כך
+  // שרענון העמוד לא יפתח אותו שוב.
+  const newParam = searchParams.get('new');
   const isMobile = useIsMobile();
   // ביומן בטלפון: יום בודד עם רשת שעות (שומר drag-and-drop). במחשב/טאבלט: שבוע מלא (כמו היום)
   const initialCalendarView =
@@ -192,6 +197,21 @@ function CalendarPageContent() {
 
     return () => clearTimeout(timer);
   }, [timeParam, highlightParam]);
+
+  // Phase 3: deep-link מ-dashboard — `?new=true` פותח את NewSessionDialog
+  // אוטומטית עם state ריק (כמו לחיצה על "פגישה חדשה" ביומן). מנקים את
+  // הפרמטר מה-URL מיד אחרי כדי שרענון לא יפתח שוב, ובסגירת הדיאלוג
+  // ה-URL כבר נקי. תאימות לאחור: בלי `?new=true` ההתנהגות זהה ל-pre-Phase-3.
+  useEffect(() => {
+    if (newParam !== 'true') return;
+    setSelectedDate(new Date());
+    setInitialFormData(DEFAULT_FORM_DATA);
+    setIsDialogOpen(true);
+    const params = new URLSearchParams(searchParams.toString());
+    params.delete('new');
+    const qs = params.toString();
+    router.replace(qs ? `/dashboard/calendar?${qs}` : '/dashboard/calendar', { scroll: false });
+  }, [newParam, searchParams, router]);
 
   // שמירת מטופל מהכתובת - ישמש כשלוחצים על שעה ביומן
   const [preselectedClientId, setPreselectedClientId] = useState<string | null>(clientParam);
