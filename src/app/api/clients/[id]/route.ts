@@ -271,9 +271,11 @@ export async function PUT(
       }
     }
 
-    // Verify ownership / scope
+    // Verify ownership / scope. include therapist.name — נדרש ל-audit snapshot
+    // אם הבקשה משנה את ה-therapistId (יוצרים ClientTransferLog בהמשך).
     const existingClient = await prisma.client.findFirst({
       where: { AND: [{ id }, scopeWhere] },
+      include: { therapist: { select: { name: true } } },
     });
 
     if (!existingClient) {
@@ -288,6 +290,7 @@ export async function PUT(
     //     שהמטפל החדש קיים, באותו org, לא חסום, ולא SECRETARY.
     // חשוב: אם השדה לא נשלח כלל (`therapistId === undefined`) — אין שינוי.
     let resolvedTherapistId: string | undefined;
+    let resolvedTherapistName: string | null = null;
     if (therapistId !== undefined) {
       if (!scopeUser.organizationId) {
         // עצמאי: מתעלמים בשקט (אין מי להעביר אליו). אם הערך זהה ל-self,
@@ -304,7 +307,7 @@ export async function PUT(
             organizationId: scopeUser.organizationId,
             isBlocked: false,
           },
-          select: { id: true, clinicRole: true },
+          select: { id: true, clinicRole: true, name: true },
         });
         if (!target) {
           return NextResponse.json(
@@ -319,6 +322,7 @@ export async function PUT(
           );
         }
         resolvedTherapistId = target.id;
+        resolvedTherapistName = target.name;
       }
     }
 
@@ -327,38 +331,84 @@ export async function PUT(
     const consentChanged =
       consentToAI !== undefined && consentToAI !== existingClient.consentToAI;
 
-    const client = await prisma.client.update({
-      where: { id },
-      data: {
-        firstName: firstName?.trim() || existingClient.firstName || "",
-        lastName: lastName?.trim() || existingClient.lastName || "",
-        name: (firstName && lastName) ? `${firstName.trim()} ${lastName.trim()}` : existingClient.name,
-        phone: phone?.trim() || null,
-        email: email?.trim() || null,
-        birthDate: birthDate ? new Date(birthDate) : null,
-        address: address?.trim() || null,
-        notes: notes !== undefined ? (notes?.trim() || null) : existingClient.notes,
-        status: status || existingClient.status,
-        defaultSessionPrice: defaultSessionPrice !== undefined ? defaultSessionPrice : existingClient.defaultSessionPrice,
-        initialDiagnosis: initialDiagnosis !== undefined ? (initialDiagnosis?.trim() || null) : existingClient.initialDiagnosis,
-        intakeNotes: intakeNotes !== undefined ? (intakeNotes?.trim() || null) : existingClient.intakeNotes,
-        // שדרוג פונה למטופל קבוע — אוטומטי אם יש firstName+lastName, או ידני
-        ...(isQuickClient !== undefined
-          ? { isQuickClient }
-          : existingClient.isQuickClient && firstName?.trim() && lastName?.trim()
-            ? { isQuickClient: false }
-            : {}),
-        ...(consentChanged
-          ? { consentToAI, consentToAIAt: new Date() }
+    // Phase 4 follow-up: שינוי therapistId דרך עריכת לקוח נרשם ב-ClientTransferLog
+    // — בדיוק כמו מסך ההעברה הייעודי /clinic-admin/transfer. כך כל שינוי שיוך
+    // מטפל מתועד במקום אחד. **לא** מעבירים פגישות עתידיות אוטומטית — לזה
+    // המשתמש צריך את מסך ההעברה המלא. דורש organizationId (לקוח קליניקה בלבד).
+    const isTherapistTransfer =
+      resolvedTherapistId !== undefined &&
+      resolvedTherapistId !== existingClient.therapistId &&
+      scopeUser.organizationId !== null;
+
+    const updateData = {
+      firstName: firstName?.trim() || existingClient.firstName || "",
+      lastName: lastName?.trim() || existingClient.lastName || "",
+      name: (firstName && lastName) ? `${firstName.trim()} ${lastName.trim()}` : existingClient.name,
+      phone: phone?.trim() || null,
+      email: email?.trim() || null,
+      birthDate: birthDate ? new Date(birthDate) : null,
+      address: address?.trim() || null,
+      notes: notes !== undefined ? (notes?.trim() || null) : existingClient.notes,
+      status: status || existingClient.status,
+      defaultSessionPrice: defaultSessionPrice !== undefined ? defaultSessionPrice : existingClient.defaultSessionPrice,
+      initialDiagnosis: initialDiagnosis !== undefined ? (initialDiagnosis?.trim() || null) : existingClient.initialDiagnosis,
+      intakeNotes: intakeNotes !== undefined ? (intakeNotes?.trim() || null) : existingClient.intakeNotes,
+      // שדרוג פונה למטופל קבוע — אוטומטי אם יש firstName+lastName, או ידני
+      ...(isQuickClient !== undefined
+        ? { isQuickClient }
+        : existingClient.isQuickClient && firstName?.trim() && lastName?.trim()
+          ? { isQuickClient: false }
           : {}),
-        ...(healthFund !== undefined
-          ? { healthFund: healthFund || null }
-          : {}),
-        ...(resolvedTherapistId !== undefined
-          ? { therapistId: resolvedTherapistId }
-          : {}),
-      },
-    });
+      ...(consentChanged
+        ? { consentToAI, consentToAIAt: new Date() }
+        : {}),
+      ...(healthFund !== undefined
+        ? { healthFund: healthFund || null }
+        : {}),
+      ...(resolvedTherapistId !== undefined
+        ? { therapistId: resolvedTherapistId }
+        : {}),
+    };
+
+    let client;
+    if (isTherapistTransfer) {
+      // טעינת שם הperformer ל-snapshot (snapshot fields חשובים כי משתמש יכול
+      // להימחק אחרי ההעברה, ויומן ההעברות חייב להיות קריא בלי join חי).
+      const performer = await prisma.user.findUnique({
+        where: { id: userId },
+        select: { name: true },
+      });
+
+      const [updatedClient] = await prisma.$transaction([
+        prisma.client.update({ where: { id }, data: updateData }),
+        prisma.clientTransferLog.create({
+          data: {
+            organizationId: scopeUser.organizationId!,
+            clientId: id,
+            fromTherapistId: existingClient.therapistId,
+            toTherapistId: resolvedTherapistId!,
+            performedById: userId,
+            reason: "שינוי דרך עריכת מטופל (לא דרך מסך ההעברה)",
+            fromTherapistNameSnapshot: existingClient.therapist?.name || "—",
+            toTherapistNameSnapshot: resolvedTherapistName || "—",
+            performedByNameSnapshot: performer?.name || "—",
+          },
+        }),
+      ]);
+      client = updatedClient;
+
+      logger.info("[clients/PUT] therapistId changed — ClientTransferLog created", {
+        userId,
+        clientId: id,
+        fromTherapistId: existingClient.therapistId,
+        toTherapistId: resolvedTherapistId,
+      });
+    } else {
+      client = await prisma.client.update({
+        where: { id },
+        data: updateData,
+      });
+    }
 
     if (consentChanged) {
       logger.info("[clients/PUT] consentToAI updated", {
