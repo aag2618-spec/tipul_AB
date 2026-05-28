@@ -135,6 +135,13 @@ model User {
   defaultSessionDuration Int       @default(50) // משך פגישה סטנדרטית בדקות
   defaultSessionPrice    Decimal?  @db.Decimal(10, 2) // מחיר ברירת מחדל לפגישה
 
+  // M11.G3: אחוז ההכנסה שמטפל/ת מקבל/ת מפגישות שלו/ה בקליניקה רב-מטפלים.
+  // 0-100. null = יורש מ-Organization.defaultRevenueSharePct (ובהיעדרו — 100%
+  // למטפל/ת, כלומר אין פיצול). הערך לא משפיע על UI/חישוב למתפלים עצמאיים
+  // (organizationId=null) ועל זרימת Payment הקיימת — כרגע משמש רק לדוח
+  // /clinic-admin/revenue. שילוב ב-Payment flow יתבצע בקומיט נפרד (B).
+  revenueSharePct Decimal? @db.Decimal(5, 2)
+
   // AI & Billing Settings
   aiTier                AITier   @default(ESSENTIAL) // Essential, Pro, Enterprise
   therapeuticApproaches String[] @default([]) // Array of approaches: ["CBT", "Psychodynamic", etc.]
@@ -2750,6 +2757,11 @@ model Organization {
   subscriptionStatus    SubscriptionStatus @default(TRIALING)
   subscriptionStartedAt DateTime?
   subscriptionEndsAt    DateTime?
+
+  // M11.G3: אחוז ברירת-מחדל לפיצול הכנסות (0-100). מטפל/ת בקליניקה שאין
+  // לו/ה ערך מפורש ב-`User.revenueSharePct` יורש מהשדה הזה. null = ברירת
+  // מחדל אחרונה (100% למטפל/ת, כלומר אין פיצול — שומר תאימות לאחור).
+  defaultRevenueSharePct Decimal? @db.Decimal(5, 2)
 
   createdAt DateTime @default(now())
   updatedAt DateTime @updatedAt

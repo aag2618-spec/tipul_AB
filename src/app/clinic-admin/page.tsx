@@ -18,6 +18,7 @@ import {
   Wallet,
   UserMinus,
   Gauge,
+  TrendingUp,
 } from "lucide-react";
 import { toast } from "sonner";
 
@@ -414,6 +415,14 @@ export default function ClinicAdminOverviewPage() {
             ) : (
               <p className="text-sm text-muted-foreground">לא ניתן לחשב — חסרה תוכנית תמחור.</p>
             )}
+            {/* M11.G3: כניסה לדוח פיצול הכנסות — כמו G5 (caseload), לא נוסף
+                ל-sidebar (layout.tsx בסקופ של צ'אט אחר); נכנסים מכאן. */}
+            <Button asChild variant="outline" size="sm" className="w-full mt-2">
+              <Link href="/clinic-admin/revenue">
+                <TrendingUp className="ml-2 h-4 w-4" aria-hidden="true" />
+                דוח פיצול הכנסות
+              </Link>
+            </Button>
           </CardContent>
         </Card>
       </div>
