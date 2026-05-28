@@ -36,6 +36,7 @@ import {
   BookOpen,
   Headphones,
   Building2,
+  FileCheck,
 } from "lucide-react";
 
 interface AppSidebarProps {
@@ -72,6 +73,11 @@ const mainNavItems = [
     title: "תשלומים",
     href: "/dashboard/payments",
     icon: CreditCard,
+  },
+  {
+    title: "התחייבויות לקופ\"ח",
+    href: "/dashboard/commitments",
+    icon: FileCheck,
   },
   {
     title: "ממתינים לסיכום",

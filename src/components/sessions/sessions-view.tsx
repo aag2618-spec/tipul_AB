@@ -239,11 +239,13 @@ export function SessionsView({ initialSessions }: SessionsViewProps) {
     setUpdating(true);
     try {
       if (updateStatus === "COMPLETED" && showPayment && updateDialog.price > 0 && updateDialog.clientId) {
+        // paymentAmount מהדיאלוג כולל השתתפות עצמית אם יש התחייבות פעילה.
+        const effectivePrice = parseFloat(paymentAmount) || Number(updateDialog.price);
         const pmtAmount = paymentType === "PARTIAL"
           ? (parseFloat(partialAmount) || 0)
-          : Number(updateDialog.price);
+          : effectivePrice;
 
-        if (paymentType === "PARTIAL" && (pmtAmount <= 0 || pmtAmount > updateDialog.price)) {
+        if (paymentType === "PARTIAL" && (pmtAmount <= 0 || pmtAmount > effectivePrice)) {
           toast.error("סכום חלקי לא תקין");
           setUpdating(false);
           return;
@@ -256,7 +258,7 @@ export function SessionsView({ initialSessions }: SessionsViewProps) {
             clientId: updateDialog.clientId,
             sessionId: updateDialog.sessionId,
             amount: pmtAmount,
-            expectedAmount: Number(updateDialog.price),
+            expectedAmount: effectivePrice,
             paymentType: paymentType === "PARTIAL" ? "PARTIAL" : "FULL",
             method: paymentMethod,
             status: paymentType === "PARTIAL" ? "PENDING" : "PAID",
@@ -310,9 +312,11 @@ export function SessionsView({ initialSessions }: SessionsViewProps) {
       );
 
       if (showPayment) {
+        // אותה לוגיקה: paymentAmount כולל השתתפות עצמית.
+        const effectivePrice = parseFloat(paymentAmount) || Number(updateDialog.price);
         const amt = paymentType === "PARTIAL"
           ? parseFloat(partialAmount) || 0
-          : parseFloat(paymentAmount) || 0;
+          : effectivePrice;
         if (amt > 0) {
           updates.push(
             fetch("/api/payments", {
@@ -322,7 +326,7 @@ export function SessionsView({ initialSessions }: SessionsViewProps) {
                 clientId: updateDialog.clientId,
                 sessionId: updateDialog.sessionId,
                 amount: amt,
-                expectedAmount: updateDialog.price || amt,
+                expectedAmount: effectivePrice,
                 paymentType: paymentType === "PARTIAL" ? "PARTIAL" : "FULL",
                 method: paymentMethod,
                 status: paymentType === "PARTIAL" ? "PENDING" : "PAID",

@@ -5,7 +5,7 @@ import prisma from "@/lib/prisma";
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
-import { Users, Calendar, CreditCard, Clock, Plus, Brain, Shield, FileCheck, Stethoscope } from "lucide-react";
+import { Users, Calendar, CreditCard, Clock, Plus, Brain, Shield } from "lucide-react";
 import Link from "next/link";
 import { Suspense } from "react";
 import { PersonalTasksWidget } from "@/components/tasks/personal-tasks-widget";
@@ -75,7 +75,6 @@ async function getDashboardStats(scopeUser: ScopeUser) {
     pendingTasks,
     todaySessions,
     todaySessionPreps,
-    activeCommitments,
   ] = await Promise.all([
     prisma.client.count({ where: clientWhere }),
     prisma.client.count({ where: { AND: [clientWhere, { status: "ACTIVE" }] } }),
@@ -211,28 +210,6 @@ async function getDashboardStats(scopeUser: ScopeUser) {
         createdAt: true,
       },
     }),
-    // התחייבויות פעילות (קופ"ח) — סקירה מהירה בדשבורד
-    prisma.clientCommitment.findMany({
-      where: {
-        status: "ACTIVE",
-        client: clientWhere,
-      },
-      select: {
-        id: true,
-        approvedSessions: true,
-        usedSessions: true,
-        copaymentAmount: true,
-        client: {
-          select: {
-            id: true,
-            name: true,
-            healthFund: true,
-          },
-        },
-      },
-      orderBy: { createdAt: "desc" },
-      take: 5,
-    }),
   ]);
 
   // Filter sessions to only show TODAY in Israel time
@@ -278,15 +255,6 @@ async function getDashboardStats(scopeUser: ScopeUser) {
     pendingPayments,
     pendingTasks,
     todaySessions: sessionsWithPreps,
-    activeCommitments: activeCommitments.map((c) => ({
-      id: c.id,
-      approvedSessions: c.approvedSessions,
-      usedSessions: c.usedSessions,
-      copaymentAmount: c.copaymentAmount != null ? Number(c.copaymentAmount) : null,
-      clientId: c.client.id,
-      clientName: c.client.name,
-      healthFund: c.client.healthFund || null,
-    })),
   };
 }
 
@@ -604,63 +572,6 @@ export default async function DashboardPage() {
           </CardContent>
         </Card>
       </div>
-
-      {/* התחייבויות קופ"ח פעילות — סקירה מהירה */}
-      {stats.activeCommitments.length > 0 && (
-        <Card className="bg-gradient-to-br from-blue-50 to-sky-50 dark:from-blue-950/30 dark:to-sky-900/30 border-blue-200">
-          <CardHeader className="flex flex-row items-center justify-between">
-            <div>
-              <CardTitle className="flex items-center gap-2">
-                <FileCheck className="h-5 w-5 text-blue-600" />
-                התחייבויות קופ"ח פעילות
-              </CardTitle>
-              <CardDescription>
-                {stats.activeCommitments.length === 5
-                  ? "5 התחייבויות אחרונות (יתכן ויש נוספות)"
-                  : `${stats.activeCommitments.length} התחייבויות פעילות`}
-              </CardDescription>
-            </div>
-            <Button variant="outline" size="sm" asChild>
-              <Link href="/dashboard/clients">כל המטופלים</Link>
-            </Button>
-          </CardHeader>
-          <CardContent>
-            <div className="space-y-2">
-              {stats.activeCommitments.map((commitment) => (
-                <Link
-                  key={commitment.id}
-                  href={`/dashboard/clients/${commitment.clientId}`}
-                  className="flex items-center justify-between p-3 bg-white dark:bg-slate-800 rounded-lg border border-blue-100 hover:border-blue-300 transition-colors"
-                >
-                  <div className="flex items-center gap-3">
-                    <Stethoscope className="h-4 w-4 text-blue-600" />
-                    <div>
-                      <div className="font-semibold text-sm">{commitment.clientName}</div>
-                      <div className="text-xs text-muted-foreground">
-                        {commitment.healthFund
-                          ? ({ CLALIT: "כללית", MACCABI: "מכבי", MEUHEDET: "מאוחדת", LEUMIT: "לאומית" }[commitment.healthFund] || commitment.healthFund)
-                          : "ללא קופה"}
-                      </div>
-                    </div>
-                  </div>
-                  <div className="flex items-center gap-4 text-sm">
-                    {commitment.approvedSessions != null && (
-                      <span className="font-medium">
-                        {commitment.usedSessions}/{commitment.approvedSessions} טיפולים
-                      </span>
-                    )}
-                    {commitment.copaymentAmount != null && (
-                      <span className="text-blue-700 font-semibold">
-                        ₪{commitment.copaymentAmount}
-                      </span>
-                    )}
-                  </div>
-                </Link>
-              ))}
-            </div>
-          </CardContent>
-        </Card>
-      )}
 
       {/* Personal Tasks Widget */}
       <Suspense fallback={<div className="text-center py-4 text-muted-foreground">טוען משימות...</div>}>

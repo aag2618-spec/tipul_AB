@@ -413,12 +413,38 @@ export async function PUT(
         },
       });
       if (!existingPayment) {
+        // אם קיימת התחייבות קופ"ח פעילה עם השתתפות עצמית — הסכום הצפוי
+        // מהמטופל הוא הסכום הזה (לא המחיר המלא של הפגישה). שאר הסכום
+        // מכוסה ע"י הקופה ולא נרשם כחוב במערכת.
+        // try/catch כדי שכשל DB רגעי לא יפיל את יצירת התשלום — נופלים
+        // חזרה למחיר המלא כברירת מחדל בטוחה.
+        let effectiveExpected = Number(therapySession.price);
+        try {
+          const activeCommitment = await prisma.clientCommitment.findFirst({
+            where: {
+              clientId: therapySession.clientId,
+              status: "ACTIVE",
+            },
+            select: { copaymentAmount: true },
+            orderBy: { createdAt: "desc" },
+          });
+          if (activeCommitment?.copaymentAmount != null) {
+            effectiveExpected = Number(activeCommitment.copaymentAmount);
+          }
+        } catch (commitLookupErr) {
+          logger.error("[sessions PUT] commitment lookup failed — falling back to session.price", {
+            sessionId: therapySession.id,
+            clientId: therapySession.clientId,
+            error: commitLookupErr instanceof Error ? commitLookupErr.message : String(commitLookupErr),
+          });
+        }
+
         const paymentResult = await createPaymentForSession({
           userId,
           clientId: therapySession.clientId,
           sessionId: therapySession.id,
-          amount: markAsPaid ? Number(therapySession.price) : 0,
-          expectedAmount: Number(therapySession.price),
+          amount: markAsPaid ? effectiveExpected : 0,
+          expectedAmount: effectiveExpected,
           method: "CASH",
           paymentType: "FULL",
           scopeUser,

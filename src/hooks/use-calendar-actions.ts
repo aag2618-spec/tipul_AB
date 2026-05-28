@@ -28,10 +28,13 @@ export function useCalendarActions({ fetchData }: UseCalendarActionsProps) {
     try {
       // תשלום + סטטוס הושלם
       if (updateStatus === "COMPLETED" && showPayment && session.price > 0 && session.client) {
+        // paymentAmount הוא הסכום האפקטיבי מהדיאלוג (כולל השתתפות עצמית
+        // אם קיימת התחייבות פעילה). fallback ל-session.price למקרה שהשדה ריק.
+        const effectivePrice = parseFloat(paymentAmount) || Number(session.price);
         const pmtAmount = paymentType === "PARTIAL"
           ? (parseFloat(partialAmount) || 0)
-          : Number(session.price);
-        if (paymentType === "PARTIAL" && (pmtAmount <= 0 || pmtAmount > session.price)) {
+          : effectivePrice;
+        if (paymentType === "PARTIAL" && (pmtAmount <= 0 || pmtAmount > effectivePrice)) {
           toast.error("סכום חלקי לא תקין");
           return { success: false };
         }
@@ -42,7 +45,7 @@ export function useCalendarActions({ fetchData }: UseCalendarActionsProps) {
             clientId: session.client.id,
             sessionId: session.id,
             amount: pmtAmount,
-            expectedAmount: Number(session.price),
+            expectedAmount: effectivePrice,
             paymentType: paymentType === "PARTIAL" ? "PARTIAL" : "FULL",
             method: paymentMethod,
             status: paymentType === "PARTIAL" ? "PENDING" : "PAID",
@@ -85,9 +88,12 @@ export function useCalendarActions({ fetchData }: UseCalendarActionsProps) {
         })
       );
       if (showPayment && session.price > 0) {
+        // אותה לוגיקה כמו ב-COMPLETED: paymentAmount מהדיאלוג כולל
+        // השתתפות עצמית אם יש התחייבות פעילה.
+        const effectivePrice = parseFloat(paymentAmount) || Number(session.price);
         const amt = paymentType === "PARTIAL"
           ? parseFloat(partialAmount) || 0
-          : parseFloat(paymentAmount) || 0;
+          : effectivePrice;
         if (amt > 0) {
           updates.push(
             fetch("/api/payments", {
@@ -97,7 +103,7 @@ export function useCalendarActions({ fetchData }: UseCalendarActionsProps) {
                 clientId: session.client?.id,
                 sessionId: session.id,
                 amount: amt,
-                expectedAmount: session.price || amt,
+                expectedAmount: effectivePrice,
                 paymentType: paymentType === "PARTIAL" ? "PARTIAL" : "FULL",
                 method: paymentMethod,
                 status: paymentType === "PARTIAL" ? "PENDING" : "PAID",

@@ -131,11 +131,14 @@ export function TodaySessionCard({ session, context = "dashboard" }: TodaySessio
     setUpdating(true);
     try {
       if (updateStatus === "COMPLETED" && showPayment && session.price > 0 && session.client) {
+        // paymentAmount הוא הסכום האפקטיבי מהדיאלוג (כולל השתתפות עצמית
+        // אם קיימת התחייבות פעילה). fallback ל-session.price למקרה שהשדה ריק.
+        const effectivePrice = parseFloat(paymentAmount) || Number(session.price);
         const pmtAmount = paymentType === "PARTIAL"
           ? (parseFloat(partialAmount) || 0)
-          : Number(session.price);
+          : effectivePrice;
 
-        if (paymentType === "PARTIAL" && (pmtAmount <= 0 || pmtAmount > session.price)) {
+        if (paymentType === "PARTIAL" && (pmtAmount <= 0 || pmtAmount > effectivePrice)) {
           toast.error("סכום חלקי לא תקין");
           setUpdating(false);
           return;
@@ -148,7 +151,7 @@ export function TodaySessionCard({ session, context = "dashboard" }: TodaySessio
             clientId: session.client.id,
             sessionId: session.id,
             amount: pmtAmount,
-            expectedAmount: Number(session.price),
+            expectedAmount: effectivePrice,
             paymentType: paymentType === "PARTIAL" ? "PARTIAL" : "FULL",
             method: paymentMethod,
             status: paymentType === "PARTIAL" ? "PENDING" : "PAID",
@@ -198,9 +201,11 @@ export function TodaySessionCard({ session, context = "dashboard" }: TodaySessio
       );
 
       if (showPayment) {
+        // אותה לוגיקה: paymentAmount מהדיאלוג כולל השתתפות עצמית.
+        const effectivePrice = parseFloat(paymentAmount) || Number(session.price);
         const amt = paymentType === "PARTIAL"
           ? parseFloat(partialAmount) || 0
-          : parseFloat(paymentAmount) || 0;
+          : effectivePrice;
         if (amt > 0 && session.client) {
           updates.push(
             fetch("/api/payments", {
@@ -210,7 +215,7 @@ export function TodaySessionCard({ session, context = "dashboard" }: TodaySessio
                 clientId: session.client.id,
                 sessionId: session.id,
                 amount: amt,
-                expectedAmount: session.price || amt,
+                expectedAmount: effectivePrice,
                 paymentType: paymentType === "PARTIAL" ? "PARTIAL" : "FULL",
                 method: paymentMethod,
                 status: paymentType === "PARTIAL" ? "PENDING" : "PAID",
