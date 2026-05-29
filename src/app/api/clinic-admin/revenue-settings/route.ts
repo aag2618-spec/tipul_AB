@@ -138,7 +138,7 @@ export async function PUT(request: NextRequest) {
           organizationId,
           clinicRole: "THERAPIST",
         },
-        select: { id: true },
+        select: { id: true, isBlocked: true },
       });
       const validSet = new Set(validRows.map((r) => r.id));
       const invalidIds = therapistIds.filter((id) => !validSet.has(id));
@@ -147,6 +147,23 @@ export async function PUT(request: NextRequest) {
           {
             message: "אחד או יותר מהמטפלים אינם שייכים לקליניקה",
             invalidIds,
+          },
+          { status: 400 }
+        );
+      }
+
+      // B2: אסור לעדכן אחוז למטפל/ת חסום/ה. ה-GET כבר מסנן חסומים (לא
+      // מוצגים ב-UI), ולכן בקשה כזו יכולה להגיע רק במצב מרוץ (מטפל/ת נחסמ/ה
+      // אחרי טעינת הדף) או מבקשה ידנית. דוחים בהודעה ברורה במקום "אינם
+      // שייכים לקליניקה" המטעה.
+      const blockedIds = validRows
+        .filter((r) => r.isBlocked)
+        .map((r) => r.id);
+      if (blockedIds.length > 0) {
+        return NextResponse.json(
+          {
+            message: "לא ניתן לעדכן אחוז פיצול למטפל/ת חסום/ה",
+            blockedIds,
           },
           { status: 400 }
         );
@@ -166,7 +183,14 @@ export async function PUT(request: NextRequest) {
       }),
       ...therapists.map((t) =>
         prisma.user.updateMany({
-          where: { id: t.id, organizationId, clinicRole: "THERAPIST" },
+          // B2: `isBlocked: false` ב-where כ-defense-in-depth — גם אם נפתח
+          // race בין הוולידציה לעדכון, מטפל/ת חסום/ה לא ת/יעודכן.
+          where: {
+            id: t.id,
+            organizationId,
+            clinicRole: "THERAPIST",
+            isBlocked: false,
+          },
           data: { revenueSharePct: t.revenueSharePct },
         })
       ),

@@ -60,10 +60,20 @@ export async function GET() {
       );
     }
 
+    // A1: מזכיר/ה עם canTransferClient לא צריכה נתוני חיוב/מנוי של הקליניקה
+    // (aiTier / subscriptionStatus / pricingPlan) — אלה רלוונטיים רק לבעל/ת
+    // הקליניקה. מצמצמים את ה-organization שמוחזר למזכירה ל-id+name בלבד.
+    // לבעלים — נשמר החוזה המלא ללא שינוי.
+    const organizationPayload = user.organization
+      ? isClinicOwner
+        ? user.organization
+        : { id: user.organization.id, name: user.organization.name }
+      : null;
+
     return NextResponse.json(
       JSON.parse(
         JSON.stringify({
-          organization: user.organization,
+          organization: organizationPayload,
           user: {
             id: user.id,
             name: user.name,

@@ -28,9 +28,11 @@ interface ClinicContext {
   organization: {
     id: string;
     name: string;
-    aiTier: string;
-    subscriptionStatus: string;
-    pricingPlan: { name: string };
+    // A1/A4: שדות החיוב מוחזרים מ-/api/clinic-admin/me רק לבעל/ת קליניקה.
+    // למזכיר/ה עם canTransferClient הם נעדרים — לכן optional + render מותנה.
+    aiTier?: string;
+    subscriptionStatus?: string;
+    pricingPlan?: { name: string };
   } | null;
   user: {
     id: string;
@@ -179,13 +181,17 @@ function ClinicAdminContent({ children }: { children: React.ReactNode }) {
                 </p>
               </div>
             </div>
-            {ctx.organization && (
+            {ctx.organization?.pricingPlan?.name && (
               <div className="mt-3 text-xs text-muted-foreground">
                 <span className="font-medium text-foreground">
                   {ctx.organization.pricingPlan.name}
                 </span>
-                <span className="mx-2">·</span>
-                <span>{ctx.organization.subscriptionStatus}</span>
+                {ctx.organization.subscriptionStatus && (
+                  <>
+                    <span className="mx-2">·</span>
+                    <span>{ctx.organization.subscriptionStatus}</span>
+                  </>
+                )}
               </div>
             )}
           </div>

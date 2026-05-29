@@ -50,7 +50,12 @@ export default function RevenueSettingsPage() {
   const [loading, setLoading] = useState(true);
   const [saving, setSaving] = useState(false);
   const [error, setError] = useState<string | null>(null);
-  const [touched, setTouched] = useState(false);
+  // B5: ה-dirty-state נגזר מהשוואה לערכים שנטענו במקור (initial*) — ולא
+  // מ-flag דביק. כך שעריכה שחוזרת לערך המקורי מכבה את כפתור השמירה.
+  const [initialOrgDefaultRaw, setInitialOrgDefaultRaw] = useState<string>("");
+  const [initialTherapistRaw, setInitialTherapistRaw] = useState<
+    Record<string, string>
+  >({});
 
   useEffect(() => {
     let cancelled = false;
@@ -72,13 +77,15 @@ export default function RevenueSettingsPage() {
         }
         const json = (await res.json()) as SettingsResponse;
         if (!cancelled) {
-          setOrgDefaultRaw(pctToString(json.orgDefaultPct));
-          setTherapists(json.therapists);
-          setTherapistRaw(
-            Object.fromEntries(
-              json.therapists.map((t) => [t.id, pctToString(t.revenueSharePct)])
-            )
+          const orgRaw = pctToString(json.orgDefaultPct);
+          const therapistRawMap = Object.fromEntries(
+            json.therapists.map((t) => [t.id, pctToString(t.revenueSharePct)])
           );
+          setOrgDefaultRaw(orgRaw);
+          setTherapists(json.therapists);
+          setTherapistRaw(therapistRawMap);
+          setInitialOrgDefaultRaw(orgRaw);
+          setInitialTherapistRaw(therapistRawMap);
         }
       } catch {
         if (!cancelled) {
@@ -109,6 +116,26 @@ export default function RevenueSettingsPage() {
     !!orgValidation.error ||
     Object.values(therapistsValidation).some((v) => v.error);
 
+  // B5: dirty אמיתי — משווים את הערכים המספריים הנוכחיים לאלו שנטענו.
+  // החזרת שדה לערכו המקורי מבטלת את מצב ה-dirty (כפתור השמירה נכבה).
+  const isDirty = useMemo(() => {
+    if (orgValidation.value !== parsePctInput(initialOrgDefaultRaw).value) {
+      return true;
+    }
+    for (const t of therapists) {
+      const current = therapistsValidation[t.id]?.value ?? null;
+      const initial = parsePctInput(initialTherapistRaw[t.id] ?? "").value;
+      if (current !== initial) return true;
+    }
+    return false;
+  }, [
+    orgValidation.value,
+    initialOrgDefaultRaw,
+    therapists,
+    therapistsValidation,
+    initialTherapistRaw,
+  ]);
+
   async function onSave() {
     if (hasAnyError) {
       toast.error("יש שדות עם ערכים לא תקינים");
@@ -134,7 +161,9 @@ export default function RevenueSettingsPage() {
         return;
       }
       toast.success("ההגדרות נשמרו בהצלחה");
-      setTouched(false);
+      // אחרי שמירה מוצלחת — הערכים הנוכחיים הם ה"מקור" החדש (dirty מתאפס).
+      setInitialOrgDefaultRaw(orgDefaultRaw);
+      setInitialTherapistRaw(therapistRaw);
     } catch {
       toast.error("שגיאת רשת בשמירה");
     } finally {
@@ -225,7 +254,6 @@ export default function RevenueSettingsPage() {
                 value={orgDefaultRaw}
                 onChange={(e) => {
                   setOrgDefaultRaw(e.target.value);
-                  setTouched(true);
                 }}
                 placeholder="ריק = 100%"
                 className="w-40"
@@ -297,7 +325,6 @@ export default function RevenueSettingsPage() {
                           ...prev,
                           [t.id]: e.target.value,
                         }));
-                        setTouched(true);
                       }}
                       placeholder="ברירת מחדל"
                       className="w-32"
@@ -329,7 +356,7 @@ export default function RevenueSettingsPage() {
         </p>
         <Button
           onClick={onSave}
-          disabled={saving || hasAnyError || !touched}
+          disabled={saving || hasAnyError || !isDirty}
           aria-busy={saving}
         >
           {saving ? (
