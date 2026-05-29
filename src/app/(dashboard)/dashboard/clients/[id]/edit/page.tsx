@@ -506,7 +506,7 @@ export default function EditClientPage({ params }: { params: Promise<{ id: strin
           </CardTitle>
           <CardDescription>
             מחיקת מטופל היא פעולה <strong>בלתי הפיכה</strong>. כל הפגישות, התשלומים, ההקלטות, הסיכומים והמסמכים של המטופל יימחקו לצמיתות.
-            לפני מחיקה — מומלץ להעביר את המטופל ל"ארכיון" במקום (שדה הסטטוס למעלה), או לייצא תחילה את הנתונים מעמוד המטופל.
+            לפני מחיקה — מומלץ להעביר את המטופל ל&ldquo;ארכיון&rdquo; במקום (שדה הסטטוס למעלה), או לייצא תחילה את הנתונים מעמוד המטופל.
           </CardDescription>
         </CardHeader>
         <CardContent>

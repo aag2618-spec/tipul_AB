@@ -11,16 +11,26 @@ const MAX_NOTES_LEN = 2_000;
 const MAX_SESSION_IDS = 1_000; // cap על batch של פגישות בהעברה — DoS protection.
 
 // === PATCH /api/clinic-admin/members/[id] ======================================
-// secretaryPermissions: Json? בסכמה — אין שמות שדות מקובעים, אבל מצופה
-// אובייקט עם booleans (`canManageClients`, `canManageSchedule`, וכו'). מקבלים
-// אובייקט גנרי + cap על מפתחות כדי למנוע JSON storms.
-const MAX_PERMISSION_KEYS = 50;
+// D6: secretaryPermissions: Json? בסכמה. בעבר התקבל record גנרי (כל key/כל ערך),
+// מה שאיפשר לאחסן מפתחות לא-מוכרים. עכשיו allow-list מפורש של ההרשאות הידועות
+// בלבד, כל אחת boolean אופציונלי. ה-source-of-truth לרשימה הוא
+// `SecretaryPermissions` ב-`src/lib/scope.ts` — לשמור סנכרון בעת הוספת הרשאה.
+//
+// תאימות לאחור: `.strip()` (ברירת המחדל של zod) — מפתחות לא-מוכרים מנוקים
+// בשקט במקום לדחות את הבקשה. כך בקשה ישנה/עתידית עם key נוסף לא נשברת,
+// אבל רק ההרשאות המוכרות נשמרות בפועל ל-DB.
 const secretaryPermissionsSchema = z
-  .record(z.string().max(80), z.unknown())
-  .refine(
-    (obj) => Object.keys(obj).length <= MAX_PERMISSION_KEYS,
-    `יותר מדי מפתחות בהרשאות (מקסימום ${MAX_PERMISSION_KEYS})`
-  );
+  .object({
+    canViewPayments: z.boolean().optional(),
+    canIssueReceipts: z.boolean().optional(),
+    canSendReminders: z.boolean().optional(),
+    canCreateClient: z.boolean().optional(),
+    canViewDebts: z.boolean().optional(),
+    canViewStats: z.boolean().optional(),
+    canViewConsentForms: z.boolean().optional(),
+    canTransferClient: z.boolean().optional(),
+  })
+  .strip();
 
 export const updateMemberSchema = z
   .object({
