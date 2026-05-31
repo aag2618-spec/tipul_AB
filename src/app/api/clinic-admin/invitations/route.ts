@@ -19,6 +19,10 @@ import {
 } from "@/lib/email-templates";
 import { checkLimitInTx, ClinicLimitExceededError } from "@/lib/clinic/limits";
 import { requireClinicOwner } from "@/lib/clinic/require-clinic-owner";
+// D6 follow-up: סכמת הרשאות מזכירה אחת ומשותפת (כוללת canTransferClient) —
+// במקום כפילות מקומית שהשמיטה אותה וגרמה ל-drift. כך אפשר להעניק הרשאת
+// העברת מטופלים כבר בשלב ההזמנה, ולא רק בעריכת חבר אחרי הצטרפות.
+import { secretaryPermissionsSchema } from "@/lib/validations/clinic-admin";
 
 export const dynamic = "force-dynamic";
 
@@ -27,19 +31,6 @@ export const dynamic = "force-dynamic";
 const ADMIN_INVITE_RATE_LIMIT = { maxRequests: 30, windowMs: 60 * 60 * 1000 };
 
 // ─── Validation ───
-const secretaryPermissionsSchema = z
-  .object({
-    canViewPayments: z.boolean().optional(),
-    canIssueReceipts: z.boolean().optional(),
-    canSendReminders: z.boolean().optional(),
-    canCreateClient: z.boolean().optional(),
-    canViewDebts: z.boolean().optional(),
-    canViewStats: z.boolean().optional(),
-    canViewConsentForms: z.boolean().optional(),
-  })
-  .strict()
-  .partial();
-
 const createInvitationSchema = z.object({
   email: z.string().email("כתובת מייל לא תקינה"),
   phone: z.string().optional(),

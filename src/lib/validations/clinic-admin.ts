@@ -19,7 +19,10 @@ const MAX_SESSION_IDS = 1_000; // cap על batch של פגישות בהעברה 
 // תאימות לאחור: `.strip()` (ברירת המחדל של zod) — מפתחות לא-מוכרים מנוקים
 // בשקט במקום לדחות את הבקשה. כך בקשה ישנה/עתידית עם key נוסף לא נשברת,
 // אבל רק ההרשאות המוכרות נשמרות בפועל ל-DB.
-const secretaryPermissionsSchema = z
+//
+// מיוצא כדי שגם POST /api/clinic-admin/invitations ישתמש באותה סכמה
+// (במקום כפילות בת 7 מפתחות שהשמיטה את canTransferClient) — מונע drift.
+export const secretaryPermissionsSchema = z
   .object({
     canViewPayments: z.boolean().optional(),
     canIssueReceipts: z.boolean().optional(),
