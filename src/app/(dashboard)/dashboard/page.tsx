@@ -14,12 +14,14 @@ import { SecretaryHome } from "@/components/dashboard/secretary-home";
 import { SubBoxLink } from "@/components/dashboard-stat-card";
 import { calculateDebtFromPayments, calculatePaidAmount } from "@/lib/payment-utils";
 import { EXCLUDE_BULK_UMBRELLA_WHERE } from "@/lib/payments/types";
+import { redirect } from "next/navigation";
 import {
   loadScopeUser,
   buildClientWhere,
   buildSessionWhere,
   buildPaymentWhere,
   isSecretary,
+  isNonTherapistManager,
   type ScopeUser,
 } from "@/lib/scope";
 
@@ -274,6 +276,21 @@ export default async function DashboardPage() {
   // (מטפל עצמאי / בעלים / מטפל בקליניקה) — ללא שינוי.
   if (isSecretary(scopeUser)) {
     return <SecretaryHome scopeUser={scopeUser} userName={session.user.name} />;
+  }
+
+  // מנהל/ת לא-מטפל/ת (בעלים שאינו מטפל) → נחיתה ישירה בניהול הקליניקה.
+  // רשת ביטחון: מנתבים רק אם לבעלים אין אף מטופל משלו — כדי שבעלים-מטפל/ת
+  // שהדגל ownerIsTherapist שלו/ה נשאר ברירת-מחדל false (במקום true) לא
+  // ינותב/תנותב בטעות מהדשבורד הטיפולי. מנהל/ת אמיתי/ת לא-מטפל/ת אינו/ה
+  // המטפל/ת של אף מטופל, ולכן כן ינותב/תנותב — כרצוי. הניתוב חל על עמוד
+  // הבית בלבד; לכל שאר העמודים יש גישה ישירה. ראה isNonTherapistManager.
+  if (isNonTherapistManager(scopeUser) && scopeUser.organizationId) {
+    const ownClientCount = await prisma.client.count({
+      where: { organizationId: scopeUser.organizationId, therapistId: scopeUser.id },
+    });
+    if (ownClientCount === 0) {
+      redirect("/clinic-admin");
+    }
   }
 
   const stats = await getDashboardStats(scopeUser);
