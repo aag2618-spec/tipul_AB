@@ -5,7 +5,7 @@ import prisma from "@/lib/prisma";
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
-import { Users, Calendar, CreditCard, Clock, Plus, Brain, Shield } from "lucide-react";
+import { Users, Calendar, CreditCard, Clock, Plus, Brain } from "lucide-react";
 import Link from "next/link";
 import { Suspense } from "react";
 import { PersonalTasksWidget } from "@/components/tasks/personal-tasks-widget";
@@ -269,7 +269,6 @@ export default async function DashboardPage() {
 
   const scopeUser = await loadScopeUser(session.user.id);
   const stats = await getDashboardStats(scopeUser);
-  const isAdmin = session.user.role === "ADMIN" || session.user.role === "MANAGER";
 
   // Get stat cards
   const statCards = [
@@ -580,36 +579,6 @@ export default async function DashboardPage() {
       <Suspense fallback={<div className="text-center py-4 text-muted-foreground">טוען משימות...</div>}>
         <PersonalTasksWidget />
       </Suspense>
-
-      {/* כניסה למערכת ניהול — רק לאדמין/מנהל */}
-      {isAdmin && (
-        <Card className="bg-gradient-to-br from-amber-50 to-orange-50 dark:from-amber-950/30 dark:to-orange-900/30 border-amber-200 dark:border-amber-800">
-          <CardContent className="flex items-center justify-between p-6">
-            <div className="flex items-center gap-3">
-              <div className="rounded-full bg-amber-100 dark:bg-amber-900/50 p-3">
-                <Shield className="h-6 w-6 text-amber-600 dark:text-amber-400" />
-              </div>
-              <div>
-                <h3 className="font-semibold text-amber-900 dark:text-amber-100">
-                  מערכת ניהול
-                </h3>
-                <p className="text-sm text-amber-700 dark:text-amber-300">
-                  גישה לכלי ניהול המערכת — משתמשים, מנויים, חיוב, וקארדקום
-                </p>
-              </div>
-            </div>
-            <Button
-              asChild
-              className="bg-amber-600 hover:bg-amber-700 text-white"
-            >
-              <Link href="/admin">
-                <Shield className="h-4 w-4 ml-2" />
-                כניסה למערכת ניהול
-              </Link>
-            </Button>
-          </CardContent>
-        </Card>
-      )}
     </div>
   );
 }

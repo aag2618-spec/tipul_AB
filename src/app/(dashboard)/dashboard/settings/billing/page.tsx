@@ -53,14 +53,14 @@ const PLAN_META = {
     name: 'Pro',
     icon: Crown,
     color: 'bg-sky-100 text-sky-800',
-    features: ['הכל ב-Essential', 'AI עוזר חכם (GPT-4o-mini)', 'סיכומי פגישות', 'המלצות טיפוליות'],
+    features: ['הכל ב-Essential', 'AI עוזר חכם', 'סיכומי פגישות', 'המלצות טיפוליות'],
     popular: true,
   },
   ENTERPRISE: {
     name: 'Enterprise',
     icon: Building,
     color: 'bg-purple-100 text-purple-800',
-    features: ['הכל ב-Pro', 'AI מתקדם (GPT-4o)', 'אחסון ללא הגבלה', 'תמיכה עדיפותית'],
+    features: ['הכל ב-Pro', 'AI מתקדם', 'אחסון ללא הגבלה', 'תמיכה עדיפותית'],
     popular: false,
   },
 } as const;
@@ -538,6 +538,21 @@ export default function BillingPage() {
                 </div>
               )}
             </div>
+
+            {/* פירוט מה כלול במסלול הנוכחי — כדי שהמשתמש יראה בדיוק מה הוא מקבל */}
+            {(PLANS[subscription.plan]?.features ?? PLAN_META[subscription.plan]?.features)?.length ? (
+              <div className="mt-4 pt-4 border-t">
+                <div className="text-sm font-medium text-muted-foreground mb-2">מה כלול במסלול שלך</div>
+                <ul className="space-y-2 text-sm">
+                  {(PLANS[subscription.plan]?.features ?? PLAN_META[subscription.plan]?.features ?? []).map((feature, idx) => (
+                    <li key={idx} className="flex items-center gap-2">
+                      <CheckCircle className="h-4 w-4 text-green-600 shrink-0" />
+                      {feature}
+                    </li>
+                  ))}
+                </ul>
+              </div>
+            ) : null}
 
             {subscription.status === 'PAST_DUE' && (
               <div className="mt-4 p-4 bg-red-50 border border-red-200 rounded-lg">
