@@ -1,5 +1,5 @@
 import { Resend } from 'resend';
-import { escapeHtml } from './email-utils';
+import { escapeHtml, safeEmailSubject } from './email-utils';
 import { isShabbatOrYomTov } from './shabbat';
 import { logger } from './logger';
 import { stripHtmlTags } from './sanitize-html';
@@ -56,13 +56,23 @@ export async function sendEmail({ to, subject, html, text }: EmailOptions): Prom
 
   const normalizedTo = to.toLowerCase();
 
+  // הגנת defense-in-depth מפני Email Header Injection: שורת הנושא וכתובת היעד הן
+  // כותרות plaintext. שם מטפל/לקוח עם \r\n עלול להזריק כותרת (למשל Bcc נסתר) ולגרום
+  // לדליפת מידע רפואי. ניקוי מרכזי כאן מכסה את כל ה-callers בבת אחת.
+  if (/[\r\n]/.test(subject) || /[\r\n]/.test(normalizedTo)) {
+    // חשד לניסיון תקיפה — מתעדים בלי הערך עצמו (PHI/הזרקה).
+    logger.warn('[email] תווי שורה בכותרת/נמען נוקו לפני שליחה (חשד ל-header injection)');
+  }
+  const safeSubject = safeEmailSubject(subject);
+  const safeTo = normalizedTo.replace(/[\r\n\t,;]/g, '').trim();
+
   const maxAttempts = 2;
   for (let attempt = 1; attempt <= maxAttempts; attempt++) {
     try {
       const { data, error } = await resend.emails.send({
         from: process.env.EMAIL_FROM || 'Tipul App <onboarding@resend.dev>',
-        to: normalizedTo,
-        subject,
+        to: safeTo,
+        subject: safeSubject,
         html,
         text: text || stripHtmlTags(html),
         replyTo: "inbox@mytipul.com",
@@ -193,7 +203,8 @@ function getSystemRawAllowlist(): Set<string> {
 export async function sendEmailRaw(
   params: EmailOptions,
 ): Promise<{ success: boolean; error?: string }> {
-  const to = params.to.toLowerCase();
+  // ניקוי כתובת היעד (header injection) — עקבי עם sendEmail. הנמען ייבדק מול ה-allowlist.
+  const to = params.to.toLowerCase().replace(/[\r\n\t,;]/g, '').trim();
   const allowlist = getSystemRawAllowlist();
   if (!allowlist.has(to)) {
     logger.error('[sendEmailRaw] BLOCKED — recipient not in SYSTEM_RAW_RECIPIENTS allowlist', {
@@ -208,10 +219,11 @@ export async function sendEmailRaw(
   }
 
   try {
+    const safeSubject = safeEmailSubject(params.subject);
     const { error } = await resend.emails.send({
       from: process.env.EMAIL_FROM || 'Tipul App <onboarding@resend.dev>',
       to,
-      subject: `[SYSTEM] ${params.subject}`,
+      subject: `[SYSTEM] ${safeSubject}`,
       html: params.html,
       text: params.text || stripHtmlTags(params.html),
     });

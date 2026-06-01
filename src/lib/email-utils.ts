@@ -21,6 +21,14 @@ export function sanitizeEmailSubject(str: string): string {
 }
 
 /**
+ * שורת נושא בטוחה למייל: מנקה תווי שורה/טאב (מניעת Email Header Injection) ואז
+ * חותכת לאורך מרבי בצורה בטוחה-יוניקוד — לא חותכת באמצע זוג surrogate (אימוג'י).
+ */
+export function safeEmailSubject(str: string, maxLen = 200): string {
+  return [...sanitizeEmailSubject(str)].slice(0, maxLen).join("");
+}
+
+/**
  * Clean incoming email HTML — strip quoted replies, Gmail date headers, direction markers.
  * Used by communications page and correspondence tab.
  */
