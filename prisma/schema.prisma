@@ -325,6 +325,13 @@ model User {
   // M2 — Data access audit log (קריאות לנתונים רגישים).
   // SetNull: שמירת היסטוריית audit גם אחרי מחיקת המשתמש (snapshot של email/name נשמר).
   dataAccessAudits DataAccessAuditLog[] @relation("dataAuditUser")
+
+  // ==================== Team Chat (צ'אט צוות פנימי) ====================
+  // צ'אט בין בעלת הקליניקה למזכירות. Cascade: מחיקת משתמש מנקה את השיחות
+  // שיצר, את ההשתתפויות שלו, ואת ההודעות ששלח.
+  chatConversationsCreated ChatConversation[] @relation("ChatConversationCreator")
+  chatParticipations       ChatParticipant[]
+  chatMessagesSent         ChatMessage[]      @relation("ChatMessageSender")
 }
 
 // ==================== AI Tiers ====================
@@ -507,6 +514,9 @@ model Client {
   departureChoices ClientDepartureChoice[]
 
   commitments ClientCommitment[]
+
+  // Team chat — הודעות צוות שמקשרות למטופל זה (SetNull במחיקת מטופל)
+  chatMessages ChatMessage[]
 
   @@index([organizationId])
   @@index([organizationId, therapistId])
@@ -2791,6 +2801,9 @@ model Organization {
   pricingPolicies        PricingPolicy[]        @relation("PricingPolicyForOrg")
   packagePricingPolicies PackagePricingPolicy[] @relation("PackagePricingPolicyForOrg")
 
+  // Team chat — שיחות פנימיות של אנשי הצוות (cascade במחיקת הארגון)
+  chatConversations ChatConversation[]
+
   @@index([ownerUserId])
   @@index([subscriptionStatus, subscriptionEndsAt])
   @@index([pricingPlanId])
@@ -2980,14 +2993,14 @@ model ClinicInvitation {
   // Shape זהה ל-User.secretaryPermissions.
   secretaryPermissions Json?
 
-  token          String  @unique // 32 בייטים base64url = 256 ביט
-  smsOtpHash     String? // bcrypt(10) של 6 ספרות; null אם phone לא ניתן
-  smsOtpAttempts Int     @default(0)
+  token            String  @unique // 32 בייטים base64url = 256 ביט
+  smsOtpHash       String? // bcrypt(10) של 6 ספרות; null אם phone לא ניתן
+  smsOtpAttempts   Int     @default(0)
   // M11.A6: password attempts על משתמש קיים (re-auth) שמקבל הזמנה.
   // ה-token לבדו לא מאפשר accept — נדרשת גם סיסמה. בלי שכבה הזו, token שדלף
   // היה מאפשר brute-force ארוך טווח (IP rate-limit הוא 10/min, distributable).
   // אחרי INVITATION_PASSWORD_MAX_ATTEMPTS כשלים → ההזמנה REVOKED אוטומטית.
-  passwordAttempts Int @default(0)
+  passwordAttempts Int     @default(0)
 
   status InvitationStatus @default(PENDING)
 
@@ -3122,4 +3135,65 @@ model PackagePricingPolicy {
   @@index([scope, packageType, credits, validFrom, validUntil])
   @@index([organizationId, packageType])
   @@index([userId, packageType])
+}
+
+// ==================== Team Chat (צ'אט צוות פנימי) ====================
+// צ'אט פנימי בין בעלת הקליניקה (OWNER) למזכירות (SECRETARY) באותו ארגון.
+// בידוד מלא לפי organizationId — אף פעם לא חוצה-קליניקה. שיחות פרטיות (DIRECT)
+// וערוץ "כל הצוות" (GROUP). מטפל עצמאי (organizationId=null) — אין לו צ'אט.
+
+enum ChatConversationType {
+  DIRECT // שיחה פרטית 1-על-1
+  GROUP // קבוצה / ערוץ "כל הצוות"
+}
+
+model ChatConversation {
+  id             String               @id @default(cuid())
+  organizationId String
+  organization   Organization         @relation(fields: [organizationId], references: [id], onDelete: Cascade)
+  type           ChatConversationType
+  title          String? // שם הקבוצה; null לשיחה פרטית
+  isTeamChannel  Boolean              @default(false) // ערוץ "כל הצוות" הקבוע (אחד לארגון)
+  createdById    String
+  createdBy      User                 @relation("ChatConversationCreator", fields: [createdById], references: [id], onDelete: Cascade)
+  lastMessageAt  DateTime?
+  createdAt      DateTime             @default(now())
+
+  participants ChatParticipant[]
+  messages     ChatMessage[]
+
+  @@index([organizationId, lastMessageAt])
+  @@index([organizationId, isTeamChannel])
+}
+
+model ChatParticipant {
+  id             String           @id @default(cuid())
+  conversationId String
+  conversation   ChatConversation @relation(fields: [conversationId], references: [id], onDelete: Cascade)
+  userId         String
+  user           User             @relation(fields: [userId], references: [id], onDelete: Cascade)
+  lastReadAt     DateTime? // בסיס לחישוב "לא נקרא" — הודעות אחרי הזמן הזה נחשבות חדשות
+  isMuted        Boolean          @default(false)
+  joinedAt       DateTime         @default(now())
+  leftAt         DateTime? // עזב/ה את השיחה — לא רואה הודעות חדשות
+
+  @@unique([conversationId, userId])
+  @@index([userId])
+}
+
+model ChatMessage {
+  id             String           @id @default(cuid())
+  conversationId String
+  conversation   ChatConversation @relation(fields: [conversationId], references: [id], onDelete: Cascade)
+  senderId       String
+  sender         User             @relation("ChatMessageSender", fields: [senderId], references: [id], onDelete: Cascade)
+  body           String           @db.Text
+  isAnnouncement Boolean          @default(false) // "הודעה חשובה" של המנהלת — מובלטת/נעוצה
+  clientId       String? // קישור מטופל אופציונלי (מכובד-הרשאות). SetNull במחיקת מטופל.
+  client         Client?          @relation(fields: [clientId], references: [id], onDelete: SetNull)
+  createdAt      DateTime         @default(now())
+  editedAt       DateTime?
+  deletedAt      DateTime? // מחיקה רכה — ההודעה נשמרת ל-audit
+
+  @@index([conversationId, createdAt])
 }

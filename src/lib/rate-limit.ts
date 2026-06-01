@@ -144,6 +144,9 @@ export function checkRateLimit(
 /** API כללי - 100 בקשות לדקה */
 export const API_RATE_LIMIT = { maxRequests: 100, windowMs: 60 * 1000 };
 
+/** צ'אט צוות — שליחת הודעה: 30/דקה לפי משתמש. מונע spam / לולאת שליחה. */
+export const CHAT_MESSAGE_RATE_LIMIT = { maxRequests: 30, windowMs: 60 * 1000 };
+
 /** התחברות - 10 ניסיונות ל-15 דקות (משמש לפי IP) */
 export const AUTH_RATE_LIMIT = { maxRequests: 10, windowMs: 15 * 60 * 1000 };
 

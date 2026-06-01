@@ -1,5 +1,6 @@
 "use client";
 
+import { useEffect, useState } from "react";
 import Link from "next/link";
 import { usePathname } from "next/navigation";
 import { useSession } from "next-auth/react";
@@ -16,6 +17,7 @@ import {
   SidebarGroupContent,
 } from "@/components/ui/sidebar";
 import { Avatar, AvatarFallback, AvatarImage } from "@/components/ui/avatar";
+import { Badge } from "@/components/ui/badge";
 import { UserTierBadge } from "@/components/user-tier-badge";
 import { AppLogo } from "@/components/app-logo";
 import {
@@ -37,6 +39,7 @@ import {
   Headphones,
   Building2,
   FileCheck,
+  MessagesSquare,
 } from "lucide-react";
 
 interface AppSidebarProps {
@@ -172,6 +175,36 @@ export function AppSidebar({ user }: AppSidebarProps) {
     session?.user?.role === "ADMIN" ||
     session?.user?.clinicRole === "OWNER";
 
+  // צ׳אט צוות — זמין רק לחברי קליניקה (בעלת קליניקה / מזכירה).
+  const isChatMember =
+    session?.user?.clinicRole === "OWNER" ||
+    session?.user?.clinicRole === "SECRETARY" ||
+    session?.user?.role === "CLINIC_OWNER" ||
+    session?.user?.role === "CLINIC_SECRETARY";
+
+  const [chatUnread, setChatUnread] = useState(0);
+  useEffect(() => {
+    if (!isChatMember) return;
+    let active = true;
+    const fetchUnread = async () => {
+      try {
+        const res = await fetch("/api/chat/unread-count");
+        if (res.ok && active) {
+          const data = await res.json();
+          setChatUnread(data.unreadCount || 0);
+        }
+      } catch {
+        // שקט — polling
+      }
+    };
+    fetchUnread();
+    const interval = setInterval(fetchUnread, 15000);
+    return () => {
+      active = false;
+      clearInterval(interval);
+    };
+  }, [isChatMember]);
+
   const isActive = (href: string) => {
     if (href === "/dashboard") {
       return pathname === "/dashboard";
@@ -220,6 +253,30 @@ export function AppSidebar({ user }: AppSidebarProps) {
                   </SidebarMenuButton>
                 </SidebarMenuItem>
               ))}
+
+              {/* צ׳אט צוות — רק לחברי קליניקה */}
+              {isChatMember && (
+                <SidebarMenuItem>
+                  <SidebarMenuButton
+                    asChild
+                    isActive={isActive("/dashboard/team-chat")}
+                    tooltip="צ׳אט צוות"
+                  >
+                    <Link href="/dashboard/team-chat">
+                      <MessagesSquare className="h-4 w-4" />
+                      <span>צ׳אט צוות</span>
+                      {chatUnread > 0 && (
+                        <Badge
+                          variant="default"
+                          className="ms-auto h-5 min-w-5 justify-center px-1.5 text-xs group-data-[collapsible=icon]:hidden"
+                        >
+                          {chatUnread}
+                        </Badge>
+                      )}
+                    </Link>
+                  </SidebarMenuButton>
+                </SidebarMenuItem>
+              )}
             </SidebarMenu>
           </SidebarGroupContent>
         </SidebarGroup>
