@@ -8,7 +8,15 @@ export function mapSessionNote(note: unknown): string | null {
 }
 
 export function mapSessions(
-  sessions: (CalendarSession & { sessionNote?: unknown })[]
+  sessions: (CalendarSession & {
+    sessionNote?: unknown;
+    therapist?: { id: string; name: string | null } | null;
+  })[]
 ): CalendarSession[] {
-  return sessions.map(s => ({ ...s, sessionNote: mapSessionNote(s.sessionNote) }));
+  return sessions.map((s) => ({
+    ...s,
+    sessionNote: mapSessionNote(s.sessionNote),
+    // השרת מחזיר therapistId (scalar) ו-therapist:{id,name}; משטחים את השם.
+    therapistName: s.therapist?.name ?? null,
+  }));
 }

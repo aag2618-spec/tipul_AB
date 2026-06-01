@@ -74,6 +74,8 @@ export async function GET(request: NextRequest) {
               isQuickClient: true,
             },
           },
+          // יומן רב-מטפלים — שם המטפל (אדמיניסטרטיבי, לא תוכן קליני).
+          therapist: { select: { id: true, name: true } },
           payment: CALENDAR_SESSION_INCLUDE.payment,
         } as const satisfies Prisma.TherapySessionInclude)
       : CALENDAR_SESSION_INCLUDE;
@@ -104,12 +106,19 @@ export async function GET(request: NextRequest) {
     // /api/sessions/calendar והעברתו ל-/api/payments/pay-client-debts).
     // בחירה זאת על פני conditional include כדי לשמור על type inference
     // אחיד של Prisma ובלי לסבך את ה-enrichment מעלה.
-    const isRestrictedSecretary =
-      isSecretary(scopeUser) && !secretaryCan(scopeUser, "canViewPayments");
-    const finalSessions = isRestrictedSecretary
+    // מזכירה: השמטת תוכן קליני + payment לפי הרשאה.
+    // topic/notes הם scalars קליניים (CLINICAL_FIELDS_BLOCKED_FOR_SECRETARY)
+    // ש-include מחזיר אוטומטית — חוסמים אותם כאן בכל מקרה (חוק זכויות החולה).
+    // payment מוסר רק למזכירה ללא canViewPayments (כמו קודם).
+    const finalSessions = isSecretary(scopeUser)
       ? enriched.map((s) => {
           // eslint-disable-next-line @typescript-eslint/no-unused-vars
-          const { payment, ...rest } = s;
+          const { topic, notes, ...rest } = s;
+          if (!secretaryCan(scopeUser, "canViewPayments")) {
+            // eslint-disable-next-line @typescript-eslint/no-unused-vars
+            const { payment, ...noPayment } = rest;
+            return noPayment;
+          }
           return rest;
         })
       : enriched;

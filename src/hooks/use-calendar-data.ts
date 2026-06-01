@@ -48,6 +48,9 @@ export interface CalendarSession {
   cancelledBy?: string | null;
   cancelledAt?: string | null;
   topic?: string | null;
+  // יומן רב-מטפלים: המטפל האחראי לפגישה (לתצוגה/מסנן/צבע בקליניקה).
+  therapistId?: string | null;
+  therapistName?: string | null;
 }
 
 export interface RecurringPattern {

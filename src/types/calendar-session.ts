@@ -52,6 +52,14 @@ export const CALENDAR_SESSION_INCLUDE = {
       isQuickClient: true,
     },
   },
+  // יומן רב-מטפלים: שם המטפל לתצוגה/מסנן בקליניקה. ה-scalar therapistId כבר
+  // מוחזר (include מחזיר את כל ה-scalars); כאן מוסיפים רק את השם.
+  therapist: {
+    select: {
+      id: true,
+      name: true,
+    },
+  },
   sessionNote: true,
   payment: {
     include: {

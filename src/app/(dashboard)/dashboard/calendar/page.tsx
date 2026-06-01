@@ -6,8 +6,17 @@ import dynamic from "next/dynamic";
 import { Button } from "@/components/ui/button";
 import { Card, CardContent } from "@/components/ui/card";
 
-import { Plus, Loader2, Repeat, AlertTriangle, Search, X } from "lucide-react";
+import { Plus, Loader2, Repeat, AlertTriangle, Search, X, Users } from "lucide-react";
 import { Input } from "@/components/ui/input";
+import {
+  DropdownMenu,
+  DropdownMenuTrigger,
+  DropdownMenuContent,
+  DropdownMenuItem,
+  DropdownMenuCheckboxItem,
+  DropdownMenuLabel,
+  DropdownMenuSeparator,
+} from "@/components/ui/dropdown-menu";
 import { format } from "date-fns";
 import { toast } from "sonner";
 import type { EventClickArg, DatesSetArg, EventDropArg } from "@fullcalendar/core";
@@ -18,7 +27,7 @@ import { CalendarOverlapsDialog } from "@/components/calendar/calendar-overlaps-
 import { UpdateSessionDialog, type UpdateSessionDialogParams } from "@/components/update-session-dialog";
 import { useCalendarData, type CalendarSession } from "@/hooks/use-calendar-data";
 import { useCalendarActions } from "@/hooks/use-calendar-actions";
-import { getEventColors } from "@/lib/calendar/event-colors";
+import { getEventColors, getTherapistAccent } from "@/lib/calendar/event-colors";
 import { NewSessionDialog, DEFAULT_FORM_DATA, type SessionFormData } from "@/components/calendar/new-session-dialog";
 import { RecurringPatternDialog } from "@/components/calendar/recurring-pattern-dialog";
 import { SessionDetailDialog, type PaymentRequest } from "@/components/calendar/session-detail-dialog";
@@ -53,6 +62,7 @@ interface CalendarEvent {
     clientId: string;
     status: string;
     type: string;
+    therapistId: string;
   };
 }
 
@@ -219,6 +229,60 @@ function CalendarPageContent() {
   // חיפוש ביומן — שם מטופל וקפיצה לתאריך
   const [searchTerm, setSearchTerm] = useState("");
 
+  // ── יומן רב-מטפלים: מסנן לפי מטפל ──────────────────────────────
+  // הרשימה נטענת מ-/api/clinic/therapists (זמין לבעלים/מזכירה בקליניקה בלבד;
+  // 403 למטפל עצמאי). המסנן מוצג רק כשיש יותר ממטפל אחד.
+  // selectedTherapistIds = null משמעו "כל המטפלים" (אין סינון).
+  const [therapists, setTherapists] = useState<{ id: string; name: string | null }[]>([]);
+  const [selectedTherapistIds, setSelectedTherapistIds] = useState<Set<string> | null>(null);
+
+  useEffect(() => {
+    let active = true;
+    fetch("/api/clinic/therapists")
+      .then(async (res) => {
+        if (res.ok && active) {
+          const data = await res.json();
+          setTherapists(Array.isArray(data) ? data : []);
+        }
+      })
+      .catch(() => {
+        // מטפל עצמאי / שגיאה — אין מסנן, וזה תקין
+      });
+    return () => {
+      active = false;
+    };
+  }, []);
+
+  const multiTherapist = therapists.length > 1;
+  const allTherapistIds = therapists.map((t) => t.id);
+  const isTherapistSelected = (id: string) =>
+    !selectedTherapistIds || selectedTherapistIds.has(id);
+  const selectedTherapistCount = selectedTherapistIds
+    ? selectedTherapistIds.size
+    : therapists.length;
+
+  const toggleTherapist = (id: string) => {
+    setSelectedTherapistIds((prev) => {
+      const base = prev ? new Set(prev) : new Set(allTherapistIds);
+      if (base.has(id)) base.delete(id);
+      else base.add(id);
+      // כל המטפלים מסומנים → null (ללא סינון), כדי שגם מטפל חדש ייכלל אוטומטית
+      return base.size === allTherapistIds.length ? null : base;
+    });
+  };
+  const showAllTherapists = () => setSelectedTherapistIds(null);
+  const showTherapistsWithSessions = () => {
+    // רק מטפלים מהרשימה החוקית (allTherapistIds) שיש להם פגישה בטווח הטעון.
+    // סינון מול הרשימה מונע ספירה שגויה (פגישות של מזכירה/מטפל שהוסר).
+    const valid = new Set(allTherapistIds);
+    const withSessions = new Set(
+      sessions
+        .map((s) => s.therapistId)
+        .filter((x): x is string => typeof x === "string" && valid.has(x))
+    );
+    setSelectedTherapistIds(withSessions);
+  };
+
   // קפיצה לתאריך מסוים: עדכון URL כדי לטעון מחדש את היומן עם initialDate חדש
   const handleDateJump = useCallback((dateStr: string) => {
     if (!dateStr || !/^\d{4}-\d{2}-\d{2}$/.test(dateStr)) return;
@@ -256,17 +320,29 @@ function CalendarPageContent() {
           clientId: session.client?.id || "",
           status: session.status,
           type: session.type,
+          therapistId: session.therapistId || "",
         },
       };
     });
 
+  // סינון לפי מטפל (יומן רב-מטפלים). null = כל המטפלים. אירוע ללא therapistId
+  // (קצה לא צפוי) נשאר מוצג.
+  const therapistFilteredEvents: CalendarEvent[] =
+    multiTherapist && selectedTherapistIds
+      ? events.filter(
+          (e) =>
+            !e.extendedProps.therapistId ||
+            selectedTherapistIds.has(e.extendedProps.therapistId)
+        )
+      : events;
+
   // סינון אירועים לפי חיפוש לפי שם מטופל. אם השדה ריק — מחזיר את אותו reference (אין שינוי)
   const filteredEvents: CalendarEvent[] = searchTerm.trim()
-    ? events.filter((e) => {
+    ? therapistFilteredEvents.filter((e) => {
         if (e.extendedProps?.type === "BREAK") return false; // הפסקות לא תואמות לחיפוש לפי שם
         return (e.title || "").toLowerCase().includes(searchTerm.trim().toLowerCase());
       })
-    : events;
+    : therapistFilteredEvents;
 
   // Update date range when calendar view changes (month/week navigation)
   // חלון רחב: 3 שבועות אחורה + 4 שבועות קדימה — כך ניווט בין שבועות לא גורם לטעינה מחדש
@@ -558,8 +634,8 @@ function CalendarPageContent() {
         </div>
       </div>
 
-      {/* שורת חיפוש: שם מטופל + קפיצה לתאריך — בכל גודל מסך */}
-      <div className="flex flex-col sm:flex-row gap-2 sm:items-center">
+      {/* שורת חיפוש: שם מטופל + מסנן מטפל + קפיצה לתאריך — בכל גודל מסך */}
+      <div className="flex flex-col sm:flex-row sm:flex-wrap gap-2 sm:items-center">
         <div className="relative flex-1 min-w-0">
           <Search className="absolute right-3 top-1/2 -translate-y-1/2 h-4 w-4 text-muted-foreground pointer-events-none" />
           <Input
@@ -581,6 +657,41 @@ function CalendarPageContent() {
             </button>
           )}
         </div>
+        {multiTherapist && (
+          <DropdownMenu>
+            <DropdownMenuTrigger asChild>
+              <Button variant="outline" className="gap-2 whitespace-nowrap">
+                <Users className="h-4 w-4" />
+                מטפלים ({selectedTherapistCount}/{therapists.length})
+              </Button>
+            </DropdownMenuTrigger>
+            <DropdownMenuContent align="end" className="w-60">
+              <DropdownMenuLabel>סינון לפי מטפל</DropdownMenuLabel>
+              <DropdownMenuItem onClick={showAllTherapists}>הצג את כולם</DropdownMenuItem>
+              <DropdownMenuItem onClick={showTherapistsWithSessions}>
+                רק מטפלים עם פגישות
+              </DropdownMenuItem>
+              <DropdownMenuSeparator />
+              {therapists.map((t) => (
+                <DropdownMenuCheckboxItem
+                  key={t.id}
+                  checked={isTherapistSelected(t.id)}
+                  onCheckedChange={() => toggleTherapist(t.id)}
+                  onSelect={(e) => e.preventDefault()}
+                >
+                  <span className="inline-flex items-center gap-2">
+                    <span
+                      className="inline-block w-2.5 h-2.5 rounded-full shrink-0"
+                      style={{ backgroundColor: getTherapistAccent(t.id) }}
+                      aria-hidden
+                    />
+                    {t.name || "מטפל"}
+                  </span>
+                </DropdownMenuCheckboxItem>
+              ))}
+            </DropdownMenuContent>
+          </DropdownMenu>
+        )}
         <div className="flex items-center gap-2">
           <label htmlFor="calendar-date-jump" className="text-sm text-muted-foreground whitespace-nowrap">
             קפיצה לתאריך:
@@ -650,6 +761,7 @@ function CalendarPageContent() {
                 eventInfo={eventInfo}
                 sessions={sessions}
                 onAddSessionAfter={handleAddSessionAfter}
+                showTherapist={multiTherapist}
               />
             )}
             height="auto"

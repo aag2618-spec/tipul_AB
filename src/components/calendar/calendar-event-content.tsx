@@ -2,14 +2,17 @@
 
 import type { EventContentArg } from "@fullcalendar/core";
 import type { CalendarSession } from "@/hooks/use-calendar-data";
+import { getTherapistAccent } from "@/lib/calendar/event-colors";
 
 interface CalendarEventContentProps {
   eventInfo: EventContentArg;
   sessions: CalendarSession[];
   onAddSessionAfter: (session: CalendarSession) => void;
+  // יומן רב-מטפלים: כשהקליניקה כוללת כמה מטפלים, מציגים שם מטפל + נקודת צבע.
+  showTherapist?: boolean;
 }
 
-export function CalendarEventContent({ eventInfo, sessions, onAddSessionAfter }: CalendarEventContentProps) {
+export function CalendarEventContent({ eventInfo, sessions, onAddSessionAfter, showTherapist }: CalendarEventContentProps) {
   const session = sessions.find(s => s.id === eventInfo.event.id);
   if (!session) return null;
 
@@ -64,6 +67,16 @@ export function CalendarEventContent({ eventInfo, sessions, onAddSessionAfter }:
       <div className="flex-1 min-w-0 overflow-hidden">
         <div className="font-semibold text-xs leading-tight break-words">{eventInfo.event.title}</div>
         <div className="text-xs font-semibold opacity-90">{eventInfo.timeText}</div>
+        {showTherapist && session.therapistName && (
+          <div className="flex items-center gap-1 text-[10px] leading-tight opacity-90 mt-0.5 truncate">
+            <span
+              className="inline-block w-2 h-2 rounded-full shrink-0"
+              style={{ backgroundColor: getTherapistAccent(session.therapistId) }}
+              aria-hidden
+            />
+            <span className="truncate">{session.therapistName}</span>
+          </div>
+        )}
       </div>
       <button
         onClick={(e) => {
