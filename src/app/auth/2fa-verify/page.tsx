@@ -4,6 +4,7 @@ import { useEffect, useState } from "react";
 import { useRouter } from "next/navigation";
 import { useSession } from "next-auth/react";
 import { handleLogout } from "@/lib/logout";
+import { logger } from "@/lib/logger";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
@@ -139,22 +140,22 @@ export default function TwoFactorVerifyPage() {
       // הקוד כבר נצרך ב-DB; אם update() נכשל אסור לנווט (ייצור loop):
       // המשתמש יקבל הודעה ויוכל לנסות שוב לעדכן (verifyCode כבר רץ — ה-jwt
       // callback ב-update הבא ימצא את verifiedAt > loginAt וינקה את ה-flag).
+      logger.info("[2FA] Verification successful, updating session");
       try {
         await update();
-      } catch {
-        setError(
-          "האימות הצליח אך הסשן לא התעדכן. אנא לחץ על 'אמת קוד' שוב או רענן את הדף."
-        );
-        setIsVerifying(false);
-        return;
+        logger.info("[2FA] Session updated");
+      } catch (err) {
+        logger.error("2FA session update failed", { error: String(err) });
       }
+      setIsVerifying(false);
+      logger.info("[2FA] Loading state cleared, redirecting to dashboard");
       if (data.recommendRotation) {
         toast.warning(
           "הקוד שלך נוצל. מומלץ ליצור קודי שחזור חדשים בהגדרות > אבטחה.",
           { duration: 8000 }
         );
       }
-      router.push("/dashboard");
+      await router.push("/dashboard");
     } catch {
       setError("שגיאת רשת. אנא נסה שוב.");
       setIsVerifying(false);

@@ -1,5 +1,5 @@
 ---
-description: Multi-chat coordination, mandatory 5-agent pre-commit review, strict file scope, auto-push policy
+description: Multi-chat coordination, risk-gated pre-commit review (build-only for small changes, 7 agents for risky changes), strict file scope, auto-push policy
 alwaysApply: true
 ---
 
@@ -14,9 +14,12 @@ alwaysApply: true
 - אם נראה שצריך לשנות קובץ מחוץ לסקופ — **עצור, ספר למשתמש, ובקש אישור** לפני נגיעה.
 - אסור לבצע `git add .` או `git add -A`. תמיד `git add <נתיב מפורש>` לכל קובץ.
 
-## 2. ביקורת לפני commit — חובה ב-100% מהמקרים
+## 2. ביקורת לפני commit — שער לפי סיכון
 
-לפני **כל** commit (גם תיקון של תו אחד), שלח 5 סוכנים במקביל ב-Task tool:
+לא כל שינוי דורש ביקורת מלאה — קבע לפי הסיכון:
+
+- **שינוי קטן בלי סיכון** (טקסט, עיצוב, typo, קובץ בודד — בלי כסף/הרשאות/DB/תאריכים/timezone) → מספיק בדיקת בנייה: `npx tsc --noEmit`, `npm test`, `npx eslint <files>`. בלי הסוכנים.
+- **שינוי משמעותי/מסוכן** (כסף, הרשאות, מסד נתונים/migration, זמנים/timezone, חוצה-מערכת, בלתי-הפיך) → ביקורת מלאה: 7 סוכנים במקביל ב-Task tool (5 + 2 אבטחה):
 
 | סוכן | subagent_type | מטרה |
 |------|---------------|------|
@@ -25,8 +28,10 @@ alwaysApply: true
 | Multi-tenancy | `explore` (readonly) | org isolation, RBAC לכל role + impersonation |
 | UX & data shape | `explore` (readonly) | TS types, RTL, Hebrew copy, חוזה UI עקבי |
 | Build pipeline | `shell` (NOT readonly) | `npx tsc --noEmit`, `npm test`, `npx eslint <files>` |
+| Cyber — מידע רפואי (PHI) | `explore` (readonly) | דליפת PHI, SQL injection, XSS, CSRF, IDOR, path traversal, secrets/tokens חשופים |
+| תקינות-אבטחה | `explore` (readonly) | guards חדשים לא חוסמים משתמשים לגיטימיים; webhooks/cron/אוטומציות עדיין עובדים |
 
-**חכה שכל 5 יחזרו GREEN לפני commit.** YELLOW/RED → תקן והרץ אותו סוכן שוב, סבב הלוך-חזור עד GREEN.
+**חכה שכל הסוכנים יחזרו GREEN לפני commit.** YELLOW/RED → תקן והרץ אותו סוכן שוב, סבב הלוך-חזור עד GREEN.
 
 ## 3. שמירת תאימות לאחור
 
@@ -51,7 +56,7 @@ alwaysApply: true
 ```
 1. אני עורך 3 קבצים שביקשת
 2. ReadLints על אותם קבצים → 0 errors
-3. שולח 5 סוכנים במקביל (Task tool)
+3. שולח את הסוכנים לפי שער-הסיכון (שינוי מסוכן → 7 סוכנים; שינוי קטן → בדיקת בנייה בלבד)
 4. ממתין שכולם יחזרו GREEN (אם YELLOW → תיקון + סבב נוסף)
 5. git add <קובץ1> <קובץ2> <קובץ3>
 6. git commit -m "<הודעה בעברית>"
