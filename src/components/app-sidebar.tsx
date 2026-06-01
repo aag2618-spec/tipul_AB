@@ -20,6 +20,7 @@ import { Avatar, AvatarFallback, AvatarImage } from "@/components/ui/avatar";
 import { Badge } from "@/components/ui/badge";
 import { UserTierBadge } from "@/components/user-tier-badge";
 import { AppLogo } from "@/components/app-logo";
+import { useMyPermissions } from "@/hooks/use-my-permissions";
 import {
   LayoutDashboard,
   Users,
@@ -182,6 +183,39 @@ export function AppSidebar({ user }: AppSidebarProps) {
     session?.user?.role === "CLINIC_OWNER" ||
     session?.user?.role === "CLINIC_SECRETARY";
 
+  // מזכיר/ה — תפריט מותאם (front-desk) במקום תפריט המטפל. שאר התפקידים
+  // (מטפל עצמאי / בעלים / מטפל בקליניקה) — אפס שינוי.
+  const isSecretaryUser =
+    session?.user?.clinicRole === "SECRETARY" ||
+    session?.user?.role === "CLINIC_SECRETARY";
+  const { permissions, isLoading: permsLoading } = useMyPermissions();
+
+  // תפריט מצומצם למזכיר/ה — רק מה שרלוונטי. כלים קליניים/הגדרות מוסתרים.
+  // פריטים מותני-הרשאה מתווספים רק אחרי שההרשאות נטענו (fail-closed: עדיף
+  // שיופיע באיחור קל מאשר הבזק של פריט שאסור לה). מפתח ההרשאה תואם לאכיפת
+  // השרת בפועל: צפייה בתשלומים *ובקבלות* נאכפת דרך canViewPayments
+  // (buildPaymentWhere ב-GET /api/payments); canIssueReceipts נאכף רק על
+  // פעולת ההפקה עצמה ב-POST. השרת אוכף ממילא — זה UI gating בלבד.
+  const secretaryNavItems = [
+    { title: "דשבורד", href: "/dashboard", icon: LayoutDashboard },
+    { title: "יומן", href: "/dashboard/calendar", icon: Calendar },
+    { title: "מטופלים", href: "/dashboard/clients", icon: Users },
+    ...(!permsLoading && permissions.canViewPayments
+      ? [{ title: "תשלומים", href: "/dashboard/payments", icon: CreditCard }]
+      : []),
+    ...(!permsLoading && permissions.canSendReminders
+      ? [{ title: "הודעות", href: "/dashboard/communications", icon: Mail }]
+      : []),
+    ...(!permsLoading && permissions.canViewPayments
+      ? [{ title: "קבלות", href: "/dashboard/receipts", icon: FileText }]
+      : []),
+    ...(!permsLoading && permissions.canViewStats
+      ? [{ title: "דוחות", href: "/dashboard/reports", icon: BarChart3 }]
+      : []),
+  ];
+
+  const mainItems = isSecretaryUser ? secretaryNavItems : mainNavItems;
+
   const [chatUnread, setChatUnread] = useState(0);
   useEffect(() => {
     if (!isChatMember) return;
@@ -239,7 +273,7 @@ export function AppSidebar({ user }: AppSidebarProps) {
           <SidebarGroupLabel>ניווט ראשי</SidebarGroupLabel>
           <SidebarGroupContent>
             <SidebarMenu>
-              {mainNavItems.map((item) => (
+              {mainItems.map((item) => (
                 <SidebarMenuItem key={item.href}>
                   <SidebarMenuButton
                     asChild
@@ -281,74 +315,80 @@ export function AppSidebar({ user }: AppSidebarProps) {
           </SidebarGroupContent>
         </SidebarGroup>
 
-        {/* Clinical Tools */}
-        <SidebarGroup>
-          <SidebarGroupLabel>כלים קליניים</SidebarGroupLabel>
-          <SidebarGroupContent>
-            <SidebarMenu>
-              {clinicalItems.map((item) => (
-                <SidebarMenuItem key={item.href}>
-                  <SidebarMenuButton
-                    asChild
-                    isActive={isActive(item.href)}
-                    tooltip={item.title}
-                  >
-                    <Link href={item.href}>
-                      <item.icon className="h-4 w-4" />
-                      <span>{item.title}</span>
-                    </Link>
-                  </SidebarMenuButton>
-                </SidebarMenuItem>
-              ))}
-            </SidebarMenu>
-          </SidebarGroupContent>
-        </SidebarGroup>
+        {/* Clinical Tools — מוסתר ממזכיר/ה (תוכן קליני חסום לה) */}
+        {!isSecretaryUser && (
+          <SidebarGroup>
+            <SidebarGroupLabel>כלים קליניים</SidebarGroupLabel>
+            <SidebarGroupContent>
+              <SidebarMenu>
+                {clinicalItems.map((item) => (
+                  <SidebarMenuItem key={item.href}>
+                    <SidebarMenuButton
+                      asChild
+                      isActive={isActive(item.href)}
+                      tooltip={item.title}
+                    >
+                      <Link href={item.href}>
+                        <item.icon className="h-4 w-4" />
+                        <span>{item.title}</span>
+                      </Link>
+                    </SidebarMenuButton>
+                  </SidebarMenuItem>
+                ))}
+              </SidebarMenu>
+            </SidebarGroupContent>
+          </SidebarGroup>
+        )}
 
-        {/* Business Management */}
-        <SidebarGroup>
-          <SidebarGroupLabel>דוחות</SidebarGroupLabel>
-          <SidebarGroupContent>
-            <SidebarMenu>
-              {businessItems.map((item) => (
-                <SidebarMenuItem key={item.href}>
-                  <SidebarMenuButton
-                    asChild
-                    isActive={isActive(item.href)}
-                    tooltip={item.title}
-                  >
-                    <Link href={item.href}>
-                      <item.icon className="h-4 w-4" />
-                      <span>{item.title}</span>
-                    </Link>
-                  </SidebarMenuButton>
-                </SidebarMenuItem>
-              ))}
-            </SidebarMenu>
-          </SidebarGroupContent>
-        </SidebarGroup>
+        {/* Business Management — למזכיר/ה דוחות/קבלות משולבים בניווט הראשי */}
+        {!isSecretaryUser && (
+          <SidebarGroup>
+            <SidebarGroupLabel>דוחות</SidebarGroupLabel>
+            <SidebarGroupContent>
+              <SidebarMenu>
+                {businessItems.map((item) => (
+                  <SidebarMenuItem key={item.href}>
+                    <SidebarMenuButton
+                      asChild
+                      isActive={isActive(item.href)}
+                      tooltip={item.title}
+                    >
+                      <Link href={item.href}>
+                        <item.icon className="h-4 w-4" />
+                        <span>{item.title}</span>
+                      </Link>
+                    </SidebarMenuButton>
+                  </SidebarMenuItem>
+                ))}
+              </SidebarMenu>
+            </SidebarGroupContent>
+          </SidebarGroup>
+        )}
 
-        {/* Settings */}
-        <SidebarGroup>
-          <SidebarGroupLabel>הגדרות</SidebarGroupLabel>
-          <SidebarGroupContent>
-            <SidebarMenu>
-              {settingsItems.map((item) => (
-                <SidebarMenuItem key={item.href}>
-                  <SidebarMenuButton
-                    asChild
-                    isActive={isActive(item.href)}
-                    tooltip={item.title}
-                  >
-                    <Link href={item.href}>
-                      <item.icon className="h-4 w-4" />
-                      <span>{item.title}</span>
-                    </Link>
-                  </SidebarMenuButton>
-                </SidebarMenuItem>
-              ))}
-            </SidebarMenu>
-          </SidebarGroupContent>
-        </SidebarGroup>
+        {/* Settings — מוסתר ממזכיר/ה (פרופיל/סיסמה זמינים דרך הכרטיס בתחתית) */}
+        {!isSecretaryUser && (
+          <SidebarGroup>
+            <SidebarGroupLabel>הגדרות</SidebarGroupLabel>
+            <SidebarGroupContent>
+              <SidebarMenu>
+                {settingsItems.map((item) => (
+                  <SidebarMenuItem key={item.href}>
+                    <SidebarMenuButton
+                      asChild
+                      isActive={isActive(item.href)}
+                      tooltip={item.title}
+                    >
+                      <Link href={item.href}>
+                        <item.icon className="h-4 w-4" />
+                        <span>{item.title}</span>
+                      </Link>
+                    </SidebarMenuButton>
+                  </SidebarMenuItem>
+                ))}
+              </SidebarMenu>
+            </SidebarGroupContent>
+          </SidebarGroup>
+        )}
 
         {/* Support */}
         <SidebarGroup>
