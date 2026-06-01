@@ -19,6 +19,10 @@ import {
   UserMinus,
   Gauge,
   TrendingUp,
+  CalendarCheck,
+  CalendarX2,
+  ClipboardList,
+  Banknote,
 } from "lucide-react";
 import { toast } from "sonner";
 
@@ -38,6 +42,13 @@ interface OverviewData {
     clients: number;
     sessions: number;
     transfers: number;
+  };
+  // KPIs ניהוליים — "כאן ועכשיו". אופציונלי לבטיחות מול תשובה ישנה במטמון.
+  kpis?: {
+    todaySessions: number;
+    noShowsThisMonth: number;
+    pendingSummaries: number;
+    openDebtsIls: number;
   };
   effectivePrice: {
     monthlyTotalIls: number;
@@ -320,6 +331,61 @@ export default function ClinicAdminOverviewPage() {
           </CardContent>
         </Card>
       </div>
+
+      {/* מבט ניהולי — KPIs "כאן ועכשיו" */}
+      {data.kpis && (
+        <div>
+          <h2 className="text-sm font-medium text-muted-foreground mb-2">מבט ניהולי</h2>
+          <div className="grid grid-cols-2 sm:grid-cols-4 gap-3">
+            <Card>
+              <CardContent className="p-4">
+                <p className="text-xs text-muted-foreground">פגישות היום</p>
+                <p className="text-2xl font-bold mt-1 flex items-center gap-2">
+                  <CalendarCheck className="h-5 w-5 text-emerald-500" />
+                  {data.kpis.todaySessions}
+                </p>
+              </CardContent>
+            </Card>
+            <Card>
+              <CardContent className="p-4">
+                <p className="text-xs text-muted-foreground">אי-הופעות החודש</p>
+                <p
+                  className={`text-2xl font-bold mt-1 flex items-center gap-2 ${
+                    data.kpis.noShowsThisMonth > 0 ? "text-red-500" : ""
+                  }`}
+                >
+                  <CalendarX2 className="h-5 w-5 text-muted-foreground" />
+                  {data.kpis.noShowsThisMonth}
+                </p>
+              </CardContent>
+            </Card>
+            <Card>
+              <CardContent className="p-4">
+                <p className="text-xs text-muted-foreground">ממתינים לסיכום</p>
+                <p className="text-2xl font-bold mt-1 flex items-center gap-2">
+                  <ClipboardList className="h-5 w-5 text-muted-foreground" />
+                  {data.kpis.pendingSummaries}
+                </p>
+              </CardContent>
+            </Card>
+            <Card>
+              <CardContent className="p-4">
+                <p className="text-xs text-muted-foreground">חובות פתוחים</p>
+                <p
+                  className={`text-2xl font-bold mt-1 flex items-center gap-2 ${
+                    data.kpis.openDebtsIls > 0
+                      ? "text-amber-600 dark:text-amber-400"
+                      : ""
+                  }`}
+                >
+                  <Banknote className="h-5 w-5 text-muted-foreground" />
+                  ₪{data.kpis.openDebtsIls.toLocaleString("he-IL")}
+                </p>
+              </CardContent>
+            </Card>
+          </div>
+        </div>
+      )}
 
       <div className="grid grid-cols-1 lg:grid-cols-2 gap-4">
         {/* פירוט הצוות */}

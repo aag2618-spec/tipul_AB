@@ -4,6 +4,9 @@ import { logger } from "@/lib/logger";
 import { requireAuth } from "@/lib/api-auth";
 import { getEffectivePrice } from "@/lib/pricing/effective-price";
 import { getOrgMonthlySmsQuota, getOrgMonthlySmsUsage } from "@/lib/clinic/sms-quota";
+import { EXCLUDE_BULK_UMBRELLA_WHERE } from "@/lib/payments/types";
+import { calculatePaidAmount } from "@/lib/payment-utils";
+import { getIsraelDayBoundsUtc, getIsraelMonthBoundsUtc } from "@/lib/timezone";
 
 export const dynamic = "force-dynamic";
 
@@ -78,6 +81,85 @@ export async function GET() {
       transfers: transfersCount,
     };
 
+    // ── KPIs ניהוליים — נתוני "כאן ועכשיו" לבעל/ת הקליניקה (scope ארגוני) ──
+    const now = new Date();
+    const today = getIsraelDayBoundsUtc(now);
+    const month = getIsraelMonthBoundsUtc(now);
+    const thirtyDaysAgo = new Date(now.getTime() - 30 * 24 * 60 * 60 * 1000);
+
+    const [todaySessions, noShowsThisMonth, pendingSummaries, openPayments] =
+      await Promise.all([
+        // פגישות מתוכננות/פעילות היום בקליניקה (ללא ביטולים והפסקות).
+        prisma.therapySession.count({
+          where: {
+            organizationId: orgId,
+            startTime: { gte: today.start, lt: today.end },
+            status: { not: "CANCELLED" },
+            type: { not: "BREAK" },
+          },
+        }),
+        // אי-הופעות החודש.
+        prisma.therapySession.count({
+          where: {
+            organizationId: orgId,
+            startTime: { gte: month.start, lt: month.end },
+            status: "NO_SHOW",
+          },
+        }),
+        // פגישות שהושלמו וממתינות לסיכום (30 הימים האחרונים) — מצב כלל-הקליניקה.
+        prisma.therapySession.count({
+          where: {
+            organizationId: orgId,
+            startTime: { gte: thirtyDaysAgo },
+            status: "COMPLETED",
+            skipSummary: { not: true },
+            type: { not: "BREAK" },
+            sessionNote: { is: null },
+          },
+        }),
+        // תשלומים פתוחים — לחישוב סך החוב. נבחרים השדות שמזינים את
+        // calculatePaidAmount הקנוני (method/hasReceipt/children) כדי שהחישוב
+        // יהיה זהה ל-getAllClientsDebtSummary שמזין את "סך החוב" בדשבורד.
+        prisma.payment.findMany({
+          where: {
+            AND: [
+              { organizationId: orgId },
+              EXCLUDE_BULK_UMBRELLA_WHERE,
+              { status: "PENDING", parentPaymentId: null },
+            ],
+          },
+          select: {
+            amount: true,
+            expectedAmount: true,
+            status: true,
+            method: true,
+            hasReceipt: true,
+            childPayments: {
+              where: { status: "PAID" },
+              select: { amount: true, status: true },
+            },
+          },
+        }),
+      ]);
+
+    // סך חובות פתוחים — paidAmount הקנוני (calculatePaidAmount) מטפל נכון
+    // ב-placeholder של אשראי ממתין (PENDING+CC ללא קבלה = שולם 0), בדיוק כמו
+    // getAllClientsDebtSummary. בלי זה, חיוב אשראי טרי (amount===expected,
+    // hasReceipt=false) היה נושר מהספירה והחוב היה מוצג בחֶסֶר.
+    const openDebtsIls = openPayments.reduce((sum, p) => {
+      const expected = Number(p.expectedAmount) || 0;
+      if (expected <= 0) return sum;
+      const paid = calculatePaidAmount(p);
+      return paid < expected ? sum + (expected - paid) : sum;
+    }, 0);
+
+    const kpis = {
+      todaySessions,
+      noShowsThisMonth,
+      pendingSummaries,
+      openDebtsIls,
+    };
+
     const effectivePriceResult = await getEffectivePrice(orgId);
     const effectivePrice = "error" in effectivePriceResult ? null : effectivePriceResult;
 
@@ -101,6 +183,7 @@ export async function GET() {
         JSON.stringify({
           organization: org,
           counts,
+          kpis,
           effectivePrice,
           smsUsage,
         })
