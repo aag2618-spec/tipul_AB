@@ -10,6 +10,7 @@ import Link from "next/link";
 import { Suspense } from "react";
 import { PersonalTasksWidget } from "@/components/tasks/personal-tasks-widget";
 import { TodaySessionCard } from "@/components/dashboard/today-session-card";
+import { SecretaryHome } from "@/components/dashboard/secretary-home";
 import { SubBoxLink } from "@/components/dashboard-stat-card";
 import { calculateDebtFromPayments, calculatePaidAmount } from "@/lib/payment-utils";
 import { EXCLUDE_BULK_UMBRELLA_WHERE } from "@/lib/payments/types";
@@ -268,6 +269,13 @@ export default async function DashboardPage() {
   }
 
   const scopeUser = await loadScopeUser(session.user.id);
+
+  // מזכיר/ה — מסך front-desk מותאם במקום דשבורד המטפל. שאר התפקידים
+  // (מטפל עצמאי / בעלים / מטפל בקליניקה) — ללא שינוי.
+  if (isSecretary(scopeUser)) {
+    return <SecretaryHome scopeUser={scopeUser} userName={session.user.name} />;
+  }
+
   const stats = await getDashboardStats(scopeUser);
 
   // Get stat cards
