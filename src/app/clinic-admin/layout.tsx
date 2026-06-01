@@ -22,6 +22,7 @@ import {
   Menu,
   X,
   AlertCircle,
+  MessagesSquare,
 } from "lucide-react";
 
 interface ClinicContext {
@@ -74,6 +75,10 @@ const navItems: NavItem[] = [
   { href: "/clinic-admin/invitations", label: "הזמנות פעילות", icon: UserPlus },
   { href: "/clinic-admin/transfer", label: "העברת מטופל", icon: ArrowLeftRight, secretaryWithTransfer: true },
   { href: "/clinic-admin/departures", label: "תהליכי עזיבה", icon: UserMinus },
+  // צ׳אט צוות — קישור החוצה לדשבורד הצ'אט. מנהל/ת ש"חי/ה" כאן מגיע/ה לצ'אט
+  // בלי לחזור לדשבורד. secretaryWithTransfer=true → גם מזכיר/ה עם הרשאת
+  // העברה (שרואה את הלייאאוט) מקבלת אותו. תג לא-נקראות דרך polling.
+  { href: "/dashboard/team-chat", label: "צ׳אט צוות", icon: MessagesSquare, secretaryWithTransfer: true },
 ];
 
 function ClinicAdminContent({ children }: { children: React.ReactNode }) {
@@ -84,6 +89,7 @@ function ClinicAdminContent({ children }: { children: React.ReactNode }) {
   const [ctx, setCtx] = useState<ClinicContext | null>(null);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
+  const [chatUnread, setChatUnread] = useState(0);
 
   useEffect(() => {
     if (status === "loading") return;
@@ -119,6 +125,30 @@ function ClinicAdminContent({ children }: { children: React.ReactNode }) {
       }
     })();
   }, [status, router]);
+
+  // תג הודעות שלא נקראו לצ׳אט הצוות — polling כמו ב-app-sidebar. רץ רק
+  // אחרי שהמשתמש אומת (ctx קיים) — בעלים או מזכיר/ה עם הרשאה, שניהם חברי צ׳אט.
+  useEffect(() => {
+    if (!ctx) return;
+    let active = true;
+    const fetchUnread = async () => {
+      try {
+        const res = await fetch("/api/chat/unread-count");
+        if (res.ok && active) {
+          const data = await res.json();
+          setChatUnread(data.unreadCount || 0);
+        }
+      } catch {
+        // שקט — polling
+      }
+    };
+    fetchUnread();
+    const interval = setInterval(fetchUnread, 15000);
+    return () => {
+      active = false;
+      clearInterval(interval);
+    };
+  }, [ctx]);
 
   if (status === "loading" || loading) {
     return (
@@ -226,6 +256,11 @@ function ClinicAdminContent({ children }: { children: React.ReactNode }) {
                 >
                   <item.icon className="h-4 w-4" />
                   <span>{item.label}</span>
+                  {item.href === "/dashboard/team-chat" && chatUnread > 0 && (
+                    <span className="ms-auto inline-flex h-5 min-w-5 items-center justify-center rounded-full bg-primary px-1.5 text-xs font-medium text-primary-foreground">
+                      {chatUnread}
+                    </span>
+                  )}
                 </Link>
               );
             })}

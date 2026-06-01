@@ -41,6 +41,7 @@ import {
   Building2,
   FileCheck,
   MessagesSquare,
+  ArrowLeftRight,
 } from "lucide-react";
 
 interface AppSidebarProps {
@@ -431,6 +432,34 @@ export function AppSidebar({ user }: AppSidebarProps) {
                     >
                       <Building2 className="h-4 w-4" />
                       <span>הקליניקה שלי</span>
+                    </Link>
+                  </SidebarMenuButton>
+                </SidebarMenuItem>
+              </SidebarMenu>
+            </SidebarGroupContent>
+          </SidebarGroup>
+        )}
+
+        {/* ניהול קליניקה — מזכיר/ה עם הרשאת העברה: קישור גלוי מוגבל (במקום
+            deep-links נסתרים). מובילה לפעולות שמותרות לה בלבד; הסקירה המלאה
+            (כסף/חוזה) נשארת לבעל/ת הקליניקה. !permsLoading למניעת הבזק. */}
+        {isSecretaryUser && !permsLoading && permissions.canTransferClient && (
+          <SidebarGroup>
+            <SidebarGroupLabel className="text-emerald-600">ניהול קליניקה</SidebarGroupLabel>
+            <SidebarGroupContent>
+              <SidebarMenu>
+                <SidebarMenuItem>
+                  <SidebarMenuButton
+                    asChild
+                    isActive={pathname.startsWith("/clinic-admin")}
+                    tooltip="העברת מטופלים בין מטפלים"
+                  >
+                    <Link
+                      href="/clinic-admin/transfer"
+                      className="text-emerald-600 hover:text-emerald-500"
+                    >
+                      <ArrowLeftRight className="h-4 w-4" />
+                      <span>העברת מטופלים</span>
                     </Link>
                   </SidebarMenuButton>
                 </SidebarMenuItem>
