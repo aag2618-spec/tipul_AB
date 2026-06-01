@@ -12,7 +12,7 @@
  */
 
 import bcrypt from "bcryptjs";
-import { randomInt } from "node:crypto";
+import { randomInt, randomBytes } from "node:crypto";
 import type { InvitationStatus } from "@prisma/client";
 
 // ─── Constants ───────────────────────────────────────────────────────────────
@@ -23,6 +23,19 @@ export const OTP_LENGTH = 6;
 const BCRYPT_ROUNDS = 10;
 
 // ─── Token & OTP generation ─────────────────────────────────────────────────
+
+/**
+ * Generates a cryptographically-unguessable token.
+ *
+ * Format: 32 random bytes encoded as base64url = 43 chars, 256 bits of entropy.
+ * Collision probability is astronomical — no DB uniqueness check needed; the
+ * `@unique` constraint is the final safety net (P2002 → handled by caller).
+ *
+ * Used by clinic invitations AND personal booking links (BookingLink).
+ */
+export function generateSecureToken(): string {
+  return randomBytes(32).toString("base64url");
+}
 
 /**
  * 6-digit OTP. Uses crypto.randomInt for unbiased entropy

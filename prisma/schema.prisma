@@ -518,6 +518,9 @@ model Client {
   // Team chat — הודעות צוות שמקשרות למטופל זה (SetNull במחיקת מטופל)
   chatMessages ChatMessage[]
 
+  // קישורי זימון עצמי אישיים — token לכל מטופל (במקום קישור כללי). Cascade במחיקת מטופל.
+  bookingLinks BookingLink[]
+
   @@index([organizationId])
   @@index([organizationId, therapistId])
   @@index([therapistId])
@@ -2232,6 +2235,52 @@ model BookingSettings {
   updatedAt           DateTime    @updatedAt
   therapistId         String      @unique
   therapist           User        @relation(fields: [therapistId], references: [id], onDelete: Cascade)
+}
+
+// קישור זימון עצמי אישי לכל מטופל — מחליף את הקישור הכללי (slug) הפתוח לכולם.
+// דפוס דומה ל-ClinicInvitation: token חזק (256 ביט), OTP, תוקף, status.
+// הפגישה נקשרת ישירות ל-clientId — אין matching לפי שם/מייל ואין יצירת מטופל חדש.
+enum BookingLinkStatus {
+  ACTIVE // פעיל — ניתן לשימוש
+  EXPIRED // פג תוקף (expiresAt עבר)
+  REVOKED // בוטל ידנית ע"י המטפל
+  BLOCKED // נחסם אוטומטית אחרי יותר מדי כשלי OTP
+}
+
+model BookingLink {
+  id          String            @id @default(cuid())
+  token       String            @unique // 32 bytes base64url = 256 ביט
+  clientId    String
+  client      Client            @relation(fields: [clientId], references: [id], onDelete: Cascade)
+  therapistId String // == client.therapistId בעת היצירה
+  // snapshot לscope (בעלים/מזכירה רואים לפי organizationId)
+  organizationId String?
+
+  // ערוץ אימות — snapshot בעת היצירה. מתעד למה נשלח הקוד גם אם פרטי המטופל ישתנו.
+  destinationEmail String?
+  destinationPhone String?
+
+  status    BookingLinkStatus @default(ACTIVE)
+  expiresAt DateTime // now + 60 יום
+
+  // OTP per-session — נוצר מחדש בכל בקשת אימות, נמחק אחרי שימוש מוצלח.
+  otpHash         String? // bcrypt(10) של 6 ספרות
+  otpExpiresAt    DateTime? // תוקף הקוד (10 דק')
+  otpAttempts     Int       @default(0) // כשלי אימות מצטברים → BLOCKED ב-OTP_MAX_ATTEMPTS
+  otpSendCount    Int       @default(0) // מספר שליחות בחלון 24ש (cap נגד abuse)
+  otpSendWindowAt DateTime? // תחילת חלון ה-24ש לספירת השליחות
+  lastOtpSentAt   DateTime? // rate-limit 1/דקה על שליחת קוד
+  otpVerifiedAt   DateTime? // תחילת חלון מאומת (30 דק' לקביעת תור)
+
+  usageCount Int       @default(0) // כמה תורים נקבעו דרך הקישור
+  lastUsedAt DateTime?
+  lastSentAt DateTime? // מתי הקישור (חזר ו)נשלח למטופל
+
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+
+  @@index([clientId])
+  @@index([expiresAt])
 }
 
 // ==================== Feature Flags ====================

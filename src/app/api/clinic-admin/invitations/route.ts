@@ -10,6 +10,7 @@ import { checkRateLimit, rateLimitResponse } from "@/lib/rate-limit";
 import {
   computeExpiresAt,
   generateOtp,
+  generateSecureToken,
   hashOtp,
   normalizeE164,
 } from "@/lib/clinic-invitations";
@@ -109,7 +110,7 @@ export async function POST(request: NextRequest) {
     }
 
     // הכנת token + OTP אם יש phone.
-    const token = await generateInvitationToken();
+    const token = generateSecureToken();
     let otpPlain: string | null = null;
     let smsOtpHash: string | null = null;
     if (phoneNormalized) {
@@ -298,18 +299,6 @@ export async function GET() {
   }
 }
 
-// ─── Helpers ───
-
-/**
- * Generates an invitation token.
- *
- * Format: 32 random bytes encoded as base64url = 43 chars, 256 bits of entropy.
- * Cryptographically unguessable — no DB uniqueness check needed (collision
- * probability is astronomical). The `@unique` constraint provides a final safety
- * net; if a collision did occur, Prisma would throw P2002 → 500 to client.
- */
-async function generateInvitationToken(): Promise<string> {
-  const { randomBytes } = await import("node:crypto");
-  return randomBytes(32).toString("base64url");
-}
+// מחולל ה-token חולץ ל-@/lib/clinic-invitations.ts כ-generateSecureToken
+// (שימוש חוזר משותף עם BookingLink). ראה שם.
 

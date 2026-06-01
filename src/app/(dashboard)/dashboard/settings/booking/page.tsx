@@ -8,7 +8,7 @@ import { Label } from "@/components/ui/label";
 import { Switch } from "@/components/ui/switch";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
 import { toast } from "sonner";
-import { Calendar, Clock, Link2, Copy, Check, Loader2, ExternalLink, Settings, Plus, Trash2, Coffee, Send, Search } from "lucide-react";
+import { Calendar, Clock, Link2, Loader2, Settings, Plus, Trash2, Coffee, Send, Search, ShieldCheck } from "lucide-react";
 import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogFooter } from "@/components/ui/dialog";
 import { Checkbox } from "@/components/ui/checkbox";
 
@@ -56,9 +56,8 @@ export default function BookingSettingsPage() {
   const [settings, setSettings] = useState<BookingSettings>(DEFAULT_SETTINGS);
   const [loading, setLoading] = useState(true);
   const [saving, setSaving] = useState(false);
-  const [copied, setCopied] = useState(false);
   const [sendDialogOpen, setSendDialogOpen] = useState(false);
-  const [allClients, setAllClients] = useState<Array<{ id: string; name: string; email: string | null }>>([]);
+  const [allClients, setAllClients] = useState<Array<{ id: string; name: string; email: string | null; phone: string | null }>>([]);
   const [selectedClients, setSelectedClients] = useState<Set<string>>(new Set());
   const [clientSearch, setClientSearch] = useState("");
   const [customMessage, setCustomMessage] = useState("");
@@ -105,22 +104,15 @@ export default function BookingSettingsPage() {
     finally { setSaving(false); }
   }
 
-  function copyLink() {
-    if (!settings.slug) return;
-    navigator.clipboard.writeText(`${window.location.origin}/booking/${settings.slug}`);
-    setCopied(true);
-    toast.success("הקישור הועתק!");
-    setTimeout(() => setCopied(false), 2000);
-  }
-
   async function openSendDialog() {
     try {
       const res = await fetch("/api/clients?limit=500");
       const data = await res.json();
-      const clients = (data.clients || data || []).map((c: { id: string; name: string; email?: string }) => ({
+      const clients = (data.clients || data || []).map((c: { id: string; name: string; email?: string; phone?: string }) => ({
         id: c.id,
         name: c.name,
         email: c.email || null,
+        phone: c.phone || null,
       }));
       setAllClients(clients);
       setSelectedClients(new Set());
@@ -183,39 +175,39 @@ export default function BookingSettingsPage() {
 
   if (loading) return (<div className="flex items-center justify-center min-h-[400px]"><Loader2 className="h-8 w-8 animate-spin text-primary" /></div>);
 
-  const bookingUrl = settings.slug ? `${typeof window !== "undefined" ? window.location.origin : ""}/booking/${settings.slug}` : null;
-
   return (
     <div className="space-y-6 animate-fade-in max-w-3xl">
       <div>
         <h1 className="text-2xl font-bold tracking-tight">זימון עצמי</h1>
-        <p className="text-muted-foreground">אפשר למטופלים לקבוע תורים בעצמם דרך קישור ייחודי</p>
+        <p className="text-muted-foreground">אפשר למטופלים לקבוע תורים בעצמם דרך קישור אישי ומאובטח</p>
       </div>
 
       <Card>
         <CardHeader>
           <CardTitle className="flex items-center gap-2"><Link2 className="h-5 w-5 text-primary" />הפעלת זימון עצמי</CardTitle>
-          <CardDescription>כשמופעל, מטופלים יכולים לקבוע תורים דרך הקישור שלך</CardDescription>
+          <CardDescription>כשמופעל, ניתן לשלוח לכל מטופל קישור אישי לקביעת תור</CardDescription>
         </CardHeader>
         <CardContent className="space-y-4">
           <div className="flex items-center justify-between">
             <Label htmlFor="enabled" className="text-base font-medium">{settings.enabled ? "פעיל" : "לא פעיל"}</Label>
             <Switch id="enabled" checked={settings.enabled} onCheckedChange={(v) => setSettings((p) => ({ ...p, enabled: v }))} />
           </div>
-          {bookingUrl && (
-            <div className="flex items-center gap-2 bg-muted/50 rounded-lg p-3">
-              <Input value={bookingUrl} readOnly className="bg-transparent border-0 text-sm" dir="ltr" />
-              <Button variant="outline" size="icon" onClick={copyLink}>{copied ? <Check className="h-4 w-4 text-green-600" /> : <Copy className="h-4 w-4" />}</Button>
-              <Button variant="outline" size="icon" asChild><a href={bookingUrl} target="_blank" rel="noopener noreferrer"><ExternalLink className="h-4 w-4" /></a></Button>
-            </div>
+          {settings.enabled && (
+            <>
+              <div className="flex items-start gap-2 bg-muted/40 rounded-lg p-3 text-sm text-muted-foreground">
+                <ShieldCheck className="h-4 w-4 text-primary shrink-0 mt-0.5" />
+                <span>
+                  כל מטופל מקבל קישור אישי ומאובטח (תקף 60 יום). בקביעת תור נשלח אליו קוד אימות
+                  לפרטי הקשר הרשומים — כך השם והמייל נעולים ואי אפשר ליצור מטופל חדש דרך הקישור.
+                </span>
+              </div>
+              <Button variant="outline" className="w-full" onClick={openSendDialog}>
+                <Send className="h-4 w-4 ml-2" />
+                שלח קישור זימון למטופלים
+              </Button>
+            </>
           )}
-          {bookingUrl && (
-            <Button variant="outline" className="w-full" onClick={openSendDialog}>
-              <Send className="h-4 w-4 ml-2" />
-              שלח קישור זימון למטופלים
-            </Button>
-          )}
-          {!settings.slug && <p className="text-sm text-muted-foreground">שמור את ההגדרות כדי ליצור קישור זימון ייחודי</p>}
+          {!settings.enabled && <p className="text-sm text-muted-foreground">הפעל/י את הזימון העצמי ושמור/י כדי לשלוח קישורים אישיים למטופלים</p>}
         </CardContent>
       </Card>
 
@@ -392,8 +384,10 @@ export default function BookingSettingsPage() {
                             <p className="text-sm font-medium truncate">{client.name}</p>
                             {client.email ? (
                               <p className="text-xs text-muted-foreground truncate" dir="ltr">{client.email}</p>
+                            ) : client.phone ? (
+                              <p className="text-xs text-muted-foreground">יישלח ב-SMS</p>
                             ) : (
-                              <p className="text-xs text-amber-500">ללא מייל</p>
+                              <p className="text-xs text-amber-500">ללא פרטי קשר</p>
                             )}
                           </div>
                         </label>

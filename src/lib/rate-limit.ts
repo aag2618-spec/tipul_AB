@@ -177,6 +177,13 @@ export const WEBHOOK_RATE_LIMIT = { maxRequests: 50, windowMs: 60 * 1000 };
 export const BOOKING_GET_RATE_LIMIT = { maxRequests: 30, windowMs: 60 * 1000 };
 
 /**
+ * קישור זימון אישי (/api/booking/t/[token]) — POST per-IP, 20/דקה.
+ * שכבת הגנה ראשונה (in-memory) על send-otp/verify-otp/create. ה-caps האמיתיים
+ * נגד brute-force הם מבוססי-DB ב-booking-links.ts (otpAttempts, otpSendCount).
+ */
+export const BOOKING_TOKEN_POST_RATE_LIMIT = { maxRequests: 20, windowMs: 60 * 1000 };
+
+/**
  * Cardcom webhook (per-IP) — 30/דקה. הוקשח מ-100/דקה לשכבת הגנה ראשונה
  * נגד botnet שמזייפים IP של Cardcom. הצמצום אגרסיבי כי IP יחיד אמיתי
  * של Cardcom לא צריך לעבור 30/דקה בנסיבות נורמליות.

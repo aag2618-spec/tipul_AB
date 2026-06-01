@@ -11,6 +11,16 @@ export function escapeHtml(str: string): string {
 }
 
 /**
+ * מנקה מחרוזת המיועדת לשורת הנושא של מייל (plaintext header).
+ * מסיר תווי שורה/טאב (\r \n \t) כדי למנוע Email Header Injection — תוקף שיכניס
+ * "\r\nBcc: ..." בשם המטפל/לקוח עלול להזריק כותרות מייל. שורת נושא היא plaintext,
+ * לכן escapeHtml אינו מתאים כאן — צריך להסיר newlines.
+ */
+export function sanitizeEmailSubject(str: string): string {
+  return str.replace(/[\r\n\t]+/g, " ").trim();
+}
+
+/**
  * Clean incoming email HTML — strip quoted replies, Gmail date headers, direction markers.
  * Used by communications page and correspondence tab.
  */

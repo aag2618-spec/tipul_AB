@@ -1,8 +1,11 @@
 import { NextRequest, NextResponse } from "next/server";
 import { prisma } from "@/lib/prisma";
 import { sendEmail } from "@/lib/resend";
-import { escapeHtml } from "@/lib/email-utils";
+import { sendSMS } from "@/lib/sms";
+import { escapeHtml, sanitizeEmailSubject } from "@/lib/email-utils";
 import { logger } from "@/lib/logger";
+import { generateSecureToken } from "@/lib/clinic-invitations";
+import { computeBookingLinkExpiresAt } from "@/lib/booking-links";
 
 import { requireAuth } from "@/lib/api-auth";
 import {
@@ -60,7 +63,7 @@ export async function POST(request: NextRequest) {
     where: { therapistId: userId },
   });
 
-  if (!settings || !settings.slug || !settings.enabled) {
+  if (!settings || !settings.enabled) {
     return NextResponse.json(
       { message: "יש להפעיל את הזימון העצמי לפני שליחת קישורים" },
       { status: 400 }
@@ -79,63 +82,134 @@ export async function POST(request: NextRequest) {
         clientWhere,
       ],
     },
-    select: { id: true, name: true, email: true },
+    select: { id: true, name: true, email: true, phone: true },
   });
 
   const appUrl = process.env.NEXTAUTH_URL || "";
-  const bookingUrl = `${appUrl}/booking/${settings.slug}`;
   const therapistName = therapist?.name || "המטפל/ת";
+  // שורת נושא מנוקה מתווי שורה — מונע Email Header Injection דרך שם המטפל.
+  const emailSubject = sanitizeEmailSubject(`${therapistName} - קביעת תור`);
 
   let sent = 0;
   let skipped = 0;
   const errors: string[] = [];
 
   for (const client of clients) {
-    if (!client.email) {
+    // מטופל בלי מייל וגם בלי טלפון — אין דרך לשלוח קישור.
+    if (!client.email && !client.phone) {
       skipped++;
       continue;
     }
 
-    const html = `
-      <div dir="rtl" style="font-family: Arial, sans-serif; max-width: 600px; margin: 0 auto; padding: 20px; line-height: 1.6;">
-        <h2 style="color: #0f766e;">שלום ${escapeHtml(client.name)},</h2>
-        ${customMessage ? `<p>${escapeHtml(customMessage).replace(/\n/g, "<br/>")}</p>` : `<p>${escapeHtml(therapistName)} מזמין/ה אותך לקבוע תור דרך דף הזימון:</p>`}
-        <div style="text-align: center; margin: 30px 0;">
-          <a href="${bookingUrl}" style="display: inline-block; background: #0f766e; color: white; padding: 14px 32px; border-radius: 8px; text-decoration: none; font-size: 16px; font-weight: bold;">
-            קביעת תור
-          </a>
-        </div>
-        <p style="color: #666; font-size: 14px; margin-top: 30px;">בברכה,<br/>${escapeHtml(therapistName)}</p>
-        <p style="color: #999; font-size: 12px; margin-top: 20px;">מופעל על ידי MyTipul</p>
-      </div>`;
-
     try {
-      const result = await sendEmail({
-        to: client.email,
-        subject: `${therapistName} - קביעת תור`,
-        html,
+      // קישור אישי לכל מטופל — נוצר/מתעדכן (reuse אם קיים פעיל ולא-פג).
+      const now = new Date();
+      const newExpiry = computeBookingLinkExpiresAt(now);
+      const existing = await prisma.bookingLink.findFirst({
+        where: { clientId: client.id, status: "ACTIVE", expiresAt: { gt: now } },
+        orderBy: { createdAt: "desc" },
+        select: { id: true, token: true },
       });
 
-      await prisma.communicationLog.create({
-        data: {
-          type: "CUSTOM",
-          channel: "EMAIL",
-          recipient: client.email,
-          subject: `${therapistName} - קביעת תור`,
-          content: html,
-          status: result.success ? "SENT" : "FAILED",
-          errorMessage: result.success ? null : String(result.error),
-          sentAt: result.success ? new Date() : null,
+      let token: string;
+      if (existing) {
+        token = existing.token;
+        await prisma.bookingLink.update({
+          where: { id: existing.id },
+          data: {
+            expiresAt: newExpiry,
+            destinationEmail: client.email ?? null,
+            destinationPhone: client.phone ?? null,
+            lastSentAt: now,
+          },
+        });
+      } else {
+        const created = await prisma.bookingLink.create({
+          data: {
+            token: generateSecureToken(),
+            clientId: client.id,
+            therapistId: userId,
+            organizationId: scopeUser.organizationId,
+            destinationEmail: client.email ?? null,
+            destinationPhone: client.phone ?? null,
+            expiresAt: newExpiry,
+            lastSentAt: now,
+          },
+          select: { token: true },
+        });
+        token = created.token;
+      }
+
+      const bookingUrl = `${appUrl}/booking/t/${token}`;
+
+      // שליחה — מייל מועדף; אם אין מייל, SMS.
+      if (client.email) {
+        const html = `
+          <div dir="rtl" style="font-family: Arial, sans-serif; max-width: 600px; margin: 0 auto; padding: 20px; line-height: 1.6;">
+            <h2 style="color: #0f766e;">שלום ${escapeHtml(client.name)},</h2>
+            ${customMessage ? `<p>${escapeHtml(customMessage).replace(/\n/g, "<br/>")}</p>` : `<p>${escapeHtml(therapistName)} מזמין/ה אותך לקבוע תור דרך דף הזימון האישי שלך:</p>`}
+            <div style="text-align: center; margin: 30px 0;">
+              <a href="${bookingUrl}" style="display: inline-block; background: #0f766e; color: white; padding: 14px 32px; border-radius: 8px; text-decoration: none; font-size: 16px; font-weight: bold;">
+                קביעת תור
+              </a>
+            </div>
+            <p style="color: #666; font-size: 13px;">הקישור אישי ומאובטח, ותקף ל-60 יום. בקביעת תור יישלח אליך קוד אימות.</p>
+            <p style="color: #666; font-size: 14px; margin-top: 20px;">בברכה,<br/>${escapeHtml(therapistName)}</p>
+            <p style="color: #999; font-size: 12px; margin-top: 20px;">מופעל על ידי MyTipul</p>
+          </div>`;
+
+        const result = await sendEmail({
+          to: client.email,
+          subject: emailSubject,
+          html,
+        });
+
+        await prisma.communicationLog.create({
+          data: {
+            type: "CUSTOM",
+            channel: "EMAIL",
+            recipient: client.email,
+            subject: emailSubject,
+            content: html,
+            status: result.success ? "SENT" : "FAILED",
+            errorMessage: result.success ? null : String(result.error),
+            sentAt: result.success ? new Date() : null,
+            clientId: client.id,
+            userId: userId,
+            organizationId: scopeUser.organizationId,
+          },
+        });
+
+        if (result.success) sent++;
+        else errors.push(`${client.name}: שגיאה בשליחה`);
+      } else if (client.phone) {
+        const smsText = `${customMessage ? customMessage + " " : `${therapistName} מזמין/ה אותך לקבוע תור. `}קישור אישי לקביעת תור (תקף 60 יום): ${bookingUrl}`;
+        const result = await sendSMS(client.phone, smsText, userId, {
           clientId: client.id,
-          userId: userId,
-          organizationId: scopeUser.organizationId,
-        },
-      });
+          type: "BOOKING_LINK",
+        });
 
-      if (result.success) sent++;
-      else errors.push(`${client.name}: שגיאה בשליחה`);
+        await prisma.communicationLog.create({
+          data: {
+            type: "CUSTOM",
+            channel: "SMS",
+            recipient: client.phone,
+            subject: "קישור לקביעת תור",
+            content: smsText,
+            status: result.success ? "SENT" : "FAILED",
+            errorMessage: result.success ? null : String(result.error),
+            sentAt: result.success ? new Date() : null,
+            clientId: client.id,
+            userId: userId,
+            organizationId: scopeUser.organizationId,
+          },
+        });
+
+        if (result.success) sent++;
+        else errors.push(`${client.name}: ${result.shabbatBlocked ? "חסום בשבת/חג" : "שגיאה בשליחת SMS"}`);
+      }
     } catch (e) {
-      logger.error(`Failed to send booking link to ${client.email}:`, { error: e instanceof Error ? e.message : String(e) });
+      logger.error(`Failed to send booking link to client ${client.id}:`, { error: e instanceof Error ? e.message : String(e) });
       errors.push(`${client.name}: שגיאה בשליחה`);
     }
   }
@@ -144,6 +218,6 @@ export async function POST(request: NextRequest) {
     sent,
     skipped,
     errors,
-    message: `נשלחו ${sent} מיילים${skipped > 0 ? `, ${skipped} מטופלים ללא מייל` : ""}`,
+    message: `נשלחו ${sent} קישורים${skipped > 0 ? `, ${skipped} מטופלים ללא מייל וטלפון` : ""}`,
   });
 }

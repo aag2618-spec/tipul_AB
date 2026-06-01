@@ -34,3 +34,31 @@ export const bookingPostSchema = z.object({
 });
 
 export type BookingPostInput = z.infer<typeof bookingPostSchema>;
+
+// ─── קישור זימון אישי (/api/booking/t/[token]) ──────────────────────────────
+//
+// בניגוד ל-bookingPostSchema הציבורי, כאן השם/מייל/טלפון **לא** מגיעים מהמשתמש —
+// הם נקבעים מה-clientId שמקושר ל-token. הסכמה מקבלת רק תאריך/שעה/הערות.
+
+/** אימות קוד OTP — 6 ספרות בלבד. */
+export const verifyOtpSchema = z.object({
+  otp: z
+    .string()
+    .trim()
+    .regex(/^\d{6}$/, "קוד אימות חייב להיות 6 ספרות"),
+});
+
+export type VerifyOtpInput = z.infer<typeof verifyOtpSchema>;
+
+/** קביעת תור דרך קישור אישי — ללא שדות זהות (נקבעים מה-token). */
+export const tokenBookingSchema = z.object({
+  date: z.string().min(1, "תאריך חובה").max(20),
+  time: z.string().min(1, "שעה חובה").max(10),
+  notes: z
+    .string()
+    .max(1000, "הערות ארוכות מדי (מקסימום 1000 תווים)")
+    .optional()
+    .or(z.literal("")),
+});
+
+export type TokenBookingInput = z.infer<typeof tokenBookingSchema>;
