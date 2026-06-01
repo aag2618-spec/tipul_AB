@@ -23,6 +23,7 @@ import { requireClinicOwner } from "@/lib/clinic/require-clinic-owner";
 // במקום כפילות מקומית שהשמיטה אותה וגרמה ל-drift. כך אפשר להעניק הרשאת
 // העברת מטופלים כבר בשלב ההזמנה, ולא רק בעריכת חבר אחרי הצטרפות.
 import { secretaryPermissionsSchema } from "@/lib/validations/clinic-admin";
+import { DEFAULT_SECRETARY_PERMISSIONS } from "@/lib/clinic/secretary-permissions-ui";
 
 export const dynamic = "force-dynamic";
 
@@ -169,15 +170,7 @@ export async function POST(request: NextRequest) {
               billingPaidByClinic: data.billingPaidByClinic,
               secretaryPermissions:
                 data.clinicRole === "SECRETARY"
-                  ? data.secretaryPermissions ?? {
-                      canViewPayments: false,
-                      canIssueReceipts: false,
-                      canSendReminders: true,
-                      canCreateClient: true,
-                      canViewDebts: false,
-                      canViewStats: false,
-                      canViewConsentForms: false,
-                    }
+                  ? data.secretaryPermissions ?? DEFAULT_SECRETARY_PERMISSIONS
                   : undefined,
               token,
               smsOtpHash,

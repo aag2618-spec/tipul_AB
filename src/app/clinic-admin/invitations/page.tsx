@@ -53,6 +53,11 @@ import {
   AlertCircle,
 } from "lucide-react";
 import { toast } from "sonner";
+import {
+  SECRETARY_PERMS,
+  DEFAULT_SECRETARY_PERMISSIONS,
+  type SecretaryPermissions,
+} from "@/lib/clinic/secretary-permissions-ui";
 
 type ClinicRole = "THERAPIST" | "SECRETARY";
 type Status = "PENDING" | "ACCEPTED" | "EXPIRED" | "REVOKED" | "REJECTED";
@@ -113,6 +118,9 @@ export default function ClinicInvitationsPage() {
   const [formRole, setFormRole] = useState<ClinicRole>("THERAPIST");
   const [formBillingPaidByClinic, setFormBillingPaidByClinic] =
     useState<boolean>(true);
+  // הרשאות מזכירה — נקבעות כבר בשלב ההזמנה (השרת מקבל secretaryPermissions).
+  const [formSecretaryPerms, setFormSecretaryPerms] =
+    useState<SecretaryPermissions>(DEFAULT_SECRETARY_PERMISSIONS);
   const [creating, setCreating] = useState(false);
   const [createError, setCreateError] = useState<string | null>(null);
 
@@ -152,6 +160,7 @@ export default function ClinicInvitationsPage() {
     setFormName("");
     setFormRole("THERAPIST");
     setFormBillingPaidByClinic(true);
+    setFormSecretaryPerms(DEFAULT_SECRETARY_PERMISSIONS);
     setCreateError(null);
     setCreateOpen(true);
   }
@@ -174,6 +183,9 @@ export default function ClinicInvitationsPage() {
           intendedName: formName.trim() || undefined,
           clinicRole: formRole,
           billingPaidByClinic: formBillingPaidByClinic,
+          // הרשאות נשלחות רק עבור מזכיר/ה; עבור מטפל/ת — undefined.
+          secretaryPermissions:
+            formRole === "SECRETARY" ? formSecretaryPerms : undefined,
         }),
       });
       const data = await res.json();
@@ -448,9 +460,46 @@ export default function ClinicInvitationsPage() {
             )}
 
             {formRole === "SECRETARY" && (
-              <p className="text-xs text-muted-foreground bg-muted/30 p-2 rounded">
-                מזכירות תמחור נקבע לפי תוכנית הקליניקה (3 חינם / לפי תוכנית).
-              </p>
+              <div className="space-y-3 pt-3 border-t border-border">
+                <p className="text-xs text-muted-foreground bg-muted/30 p-2 rounded">
+                  מזכירות תמחור נקבע לפי תוכנית הקליניקה (3 חינם / לפי תוכנית).
+                </p>
+                <div className="space-y-1">
+                  <Label>הרשאות מזכיר/ה</Label>
+                  <p className="text-xs text-muted-foreground">
+                    גישה לתוכן קליני (סיכומים, אבחנות, ניתוחי AI, הקלטות) חסומה
+                    תמיד. ניתן לעדכן את ההרשאות גם מאוחר יותר ב&quot;חברי
+                    קליניקה&quot;.
+                  </p>
+                </div>
+                <div className="space-y-2">
+                  {SECRETARY_PERMS.map((p) => (
+                    <label
+                      key={p.key}
+                      className="flex items-start gap-3 p-2.5 bg-muted/30 rounded-md cursor-pointer hover:bg-muted/50 transition-colors"
+                    >
+                      <input
+                        type="checkbox"
+                        checked={Boolean(formSecretaryPerms[p.key])}
+                        onChange={(e) =>
+                          setFormSecretaryPerms({
+                            ...formSecretaryPerms,
+                            [p.key]: e.target.checked,
+                          })
+                        }
+                        className="mt-1"
+                        disabled={creating}
+                      />
+                      <div className="flex-1">
+                        <div className="font-medium text-sm">{p.label}</div>
+                        <div className="text-xs text-muted-foreground">
+                          {p.help}
+                        </div>
+                      </div>
+                    </label>
+                  ))}
+                </div>
+              </div>
             )}
 
             {createError && (

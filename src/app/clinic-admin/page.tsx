@@ -98,6 +98,23 @@ export default function ClinicAdminOverviewPage() {
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
 
+  // notice= מגיע מ-redirect של עמודי stub ישנים (billing/settings). מציגים
+  // toast מסביר ומנקים את ה-URL כדי שלא יחזור על רענון. נקרא דרך
+  // window.location בתוך useEffect (client-only) — נמנע מהצורך ב-Suspense.
+  useEffect(() => {
+    const notice = new URLSearchParams(window.location.search).get("notice");
+    const MESSAGES: Record<string, string> = {
+      "billing-unavailable":
+        "עמוד החיוב אינו זמין כעת — פירוט המחיר החודשי מוצג כאן בסקירה.",
+      "settings-unavailable":
+        "הגדרות הקליניקה מתבצעות כרגע דרך מנהל המערכת.",
+    };
+    if (notice && MESSAGES[notice]) {
+      toast.info(MESSAGES[notice]);
+      window.history.replaceState(null, "", "/clinic-admin");
+    }
+  }, []);
+
   useEffect(() => {
     (async () => {
       setLoading(true);

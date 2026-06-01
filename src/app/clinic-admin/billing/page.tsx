@@ -8,5 +8,7 @@ import { redirect } from "next/navigation";
 export const dynamic = "force-dynamic";
 
 export default function ClinicBillingPage(): never {
-  redirect("/clinic-admin");
+  // notice= מאפשר לעמוד הסקירה להציג toast מסביר במקום הפניה שקטה לחלוטין
+  // (משתמש שהגיע מ-bookmark ישן יבין למה הופנה).
+  redirect("/clinic-admin?notice=billing-unavailable");
 }

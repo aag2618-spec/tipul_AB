@@ -40,19 +40,13 @@ import {
 } from "lucide-react";
 import Link from "next/link";
 import { toast } from "sonner";
+import {
+  SECRETARY_PERMS,
+  DEFAULT_SECRETARY_PERMISSIONS,
+  type SecretaryPermissions,
+} from "@/lib/clinic/secretary-permissions-ui";
 
 type ClinicRole = "OWNER" | "THERAPIST" | "SECRETARY";
-
-interface SecretaryPermissions {
-  canViewPayments?: boolean;
-  canIssueReceipts?: boolean;
-  canSendReminders?: boolean;
-  canCreateClient?: boolean;
-  canViewDebts?: boolean;
-  canViewStats?: boolean;
-  canViewConsentForms?: boolean;
-  canTransferClient?: boolean;
-}
 
 interface Member {
   id: string;
@@ -67,28 +61,6 @@ interface Member {
   subscriptionPausedReason?: string | null;
   _count: { clients: number };
 }
-
-const SECRETARY_PERMS: { key: keyof SecretaryPermissions; label: string; help: string }[] = [
-  { key: "canCreateClient", label: "יצירת מטופל חדש", help: "פתיחת תיק מטופל" },
-  { key: "canSendReminders", label: "שליחת תזכורות", help: "SMS/Email לפגישות" },
-  { key: "canViewPayments", label: "צפייה בתשלומים", help: "ראייה של היסטוריית חיוב" },
-  { key: "canIssueReceipts", label: "הוצאת קבלות", help: "Cardcom — קבלה דיגיטלית" },
-  { key: "canViewDebts", label: "צפייה בחובות", help: "מי לא שילם" },
-  { key: "canViewStats", label: "סטטיסטיקות עסק", help: "דוחות ביצועים" },
-  { key: "canViewConsentForms", label: "צפייה בטפסי הסכמה", help: "טפסי קבלה ותוכניות (אדמיניסטרטיבי)" },
-  { key: "canTransferClient", label: "העברת מטופלים בין מטפלים", help: "גישה למסכי ניהול הקליניקה הרלוונטיים (העברה, מטופלים לפי מטפל)" },
-];
-
-const DEFAULT_SECRETARY_PERMS: SecretaryPermissions = {
-  canViewPayments: false,
-  canIssueReceipts: false,
-  canSendReminders: true,
-  canCreateClient: true,
-  canViewDebts: false,
-  canViewStats: false,
-  canViewConsentForms: false,
-  canTransferClient: false,
-};
 
 function MemberRoleBadge({ role }: { role: ClinicRole | null }) {
   if (role === "OWNER") {
@@ -128,7 +100,7 @@ export default function ClinicMembersPage() {
   // הרשאות
   const [permsDialogOpen, setPermsDialogOpen] = useState(false);
   const [editingMember, setEditingMember] = useState<Member | null>(null);
-  const [editPerms, setEditPerms] = useState<SecretaryPermissions>(DEFAULT_SECRETARY_PERMS);
+  const [editPerms, setEditPerms] = useState<SecretaryPermissions>(DEFAULT_SECRETARY_PERMISSIONS);
   const [savingPerms, setSavingPerms] = useState(false);
 
   // הסרה
@@ -163,7 +135,7 @@ export default function ClinicMembersPage() {
 
   function openPermsDialog(member: Member) {
     setEditingMember(member);
-    setEditPerms(member.secretaryPermissions || DEFAULT_SECRETARY_PERMS);
+    setEditPerms(member.secretaryPermissions || DEFAULT_SECRETARY_PERMISSIONS);
     setPermsDialogOpen(true);
   }
 
