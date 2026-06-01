@@ -30,20 +30,7 @@ import {
 } from "@/lib/scope";
 import { EXCLUDE_BULK_UMBRELLA_WHERE } from "@/lib/payments/types";
 import { getTherapistAccent } from "@/lib/calendar/event-colors";
-
-// היסט שעות ישראל לתאריך נתון (מטפל ב-DST) — זהה לזה שבדשבורד המטפל.
-function getIsraelOffsetHours(date: Date): number {
-  const dateStr = date.toISOString().split("T")[0];
-  const testDate = new Date(`${dateStr}T12:00:00Z`);
-  const israelHour = parseInt(
-    new Intl.DateTimeFormat("en-US", {
-      timeZone: "Asia/Jerusalem",
-      hour: "numeric",
-      hour12: false,
-    }).format(testDate)
-  );
-  return israelHour - 12;
-}
+import { getIsraelDayBoundsUtc } from "@/lib/timezone";
 
 const STATUS_LABEL: Record<string, string> = {
   SCHEDULED: "מתוכננת",
@@ -72,19 +59,13 @@ async function getSecretaryData(scopeUser: ScopeUser) {
   const sessionWhere = buildSessionWhere(scopeUser);
   const canViewPayments = secretaryCan(scopeUser, "canViewPayments");
 
-  const now = new Date();
-  // חלון רחב (אתמול עד +3 ימים) ואז סינון מדויק ל"היום בישראל" — זהה
-  // לדפוס בדשבורד המטפל, נמנע מחישובי timezone מורכבים.
-  const windowStart = new Date(now);
-  windowStart.setUTCHours(0, 0, 0, 0);
-  windowStart.setUTCDate(windowStart.getUTCDate() - 1);
-  const windowEnd = new Date(windowStart);
-  windowEnd.setUTCDate(windowEnd.getUTCDate() + 3);
+  // גבולות "היום בישראל" כ-UTC — שאילתה ישירה בלי סינון post-query.
+  const { start: todayStart, end: todayEnd } = getIsraelDayBoundsUtc(new Date());
 
-  const [rawTodaySessions, cancellationRequests, pendingPaymentsRaw] = await Promise.all([
+  const [todaySessions, cancellationRequests, pendingPaymentsRaw] = await Promise.all([
     prisma.therapySession.findMany({
       where: {
-        AND: [sessionWhere, { startTime: { gte: windowStart, lt: windowEnd } }],
+        AND: [sessionWhere, { startTime: { gte: todayStart, lt: todayEnd } }],
       },
       // select אדמיניסטרטיבי בלבד — ללא notes/topic (תוכן קליני).
       select: {
@@ -123,19 +104,6 @@ async function getSecretaryData(scopeUser: ScopeUser) {
         })
       : Promise.resolve([] as { amount: unknown; expectedAmount: unknown }[]),
   ]);
-
-  // סינון ל"היום בישראל" בלבד.
-  const nowOffsetMs = getIsraelOffsetHours(now) * 60 * 60 * 1000;
-  const nowIsrael = new Date(now.getTime() + nowOffsetMs);
-  const todaySessions = rawTodaySessions.filter((s) => {
-    const offsetMs = getIsraelOffsetHours(new Date(s.startTime)) * 60 * 60 * 1000;
-    const israel = new Date(new Date(s.startTime).getTime() + offsetMs);
-    return (
-      israel.getUTCFullYear() === nowIsrael.getUTCFullYear() &&
-      israel.getUTCMonth() === nowIsrael.getUTCMonth() &&
-      israel.getUTCDate() === nowIsrael.getUTCDate()
-    );
-  });
 
   const pendingPayments = pendingPaymentsRaw.filter((p) => {
     const paid = Number(p.amount) || 0;

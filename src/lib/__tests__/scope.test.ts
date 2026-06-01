@@ -9,6 +9,7 @@ import {
   isSecretary,
   isClinicOwner,
   isClinicTherapist,
+  isNonTherapistManager,
   isOrgMember,
   secretaryCan,
   canSecretaryAccessModel,
@@ -111,6 +112,26 @@ describe("isClinicTherapist", () => {
   it("excludes owner and secretary", () => {
     expect(isClinicTherapist(owner)).toBe(false);
     expect(isClinicTherapist(secretaryFull)).toBe(false);
+  });
+});
+
+describe("isNonTherapistManager", () => {
+  it("true only for owner with ownerIsTherapist explicitly false", () => {
+    expect(isNonTherapistManager({ ...owner, ownerIsTherapist: false })).toBe(true);
+  });
+  it("false for owner who is also a therapist (ownerIsTherapist=true)", () => {
+    expect(isNonTherapistManager({ ...owner, ownerIsTherapist: true })).toBe(false);
+  });
+  it("safe default: false when ownerIsTherapist is undefined or null", () => {
+    // בעל/ת קליניקה שהדגל לא נטען/לא ידוע — לא מסווג כמנהל/ת לא-מטפל/ת,
+    // כדי לא לנתב בטעות בעל/ת קליניקה מטפל/ת מהדשבורד הטיפולי.
+    expect(isNonTherapistManager(owner)).toBe(false); // undefined
+    expect(isNonTherapistManager({ ...owner, ownerIsTherapist: null })).toBe(false);
+  });
+  it("false for non-owners regardless of flag", () => {
+    expect(isNonTherapistManager({ ...clinicTherapist, ownerIsTherapist: false })).toBe(false);
+    expect(isNonTherapistManager({ ...secretaryFull, ownerIsTherapist: false })).toBe(false);
+    expect(isNonTherapistManager({ ...standaloneUser, ownerIsTherapist: false })).toBe(false);
   });
 });
 

@@ -28,6 +28,14 @@ export type ScopeUser = {
   organizationId: string | null;
   clinicRole: "OWNER" | "THERAPIST" | "SECRETARY" | null;
   secretaryPermissions: SecretaryPermissions | null;
+  /**
+   * האם בעל/ת הקליניקה גם מקבל/ת מטופלים (Organization.ownerIsTherapist).
+   * אופציונלי — מאוכלס ע"י loadScopeUser בלבד. צרכנים שבונים ScopeUser ידנית
+   * (טסטים, מסלולים שכבר טענו User) יכולים להשמיט. undefined/null נחשב
+   * "לא ידוע" ולכן **לא** מסווג כמנהל/ת לא-מטפל/ת (בטוח כברירת מחדל —
+   * לא מנתב בעל/ת קליניקה מטפל/ת בטעות). ראה isNonTherapistManager.
+   */
+  ownerIsTherapist?: boolean | null;
 };
 
 /**
@@ -126,6 +134,24 @@ export function isClinicOwner(user: ScopeUser): boolean {
  */
 export function isClinicTherapist(user: ScopeUser): boolean {
   return user.clinicRole === "THERAPIST" && user.organizationId !== null;
+}
+
+/**
+ * האם המשתמש הוא בעל/ת קליניקה שאינו/ה מטפל/ת (מנהל/ת בלבד)?
+ *
+ * דורש `ownerIsTherapist === false` **מפורש** — לא undefined/null. כלומר
+ * הדגל נטען בפועל (loadScopeUser) ונקבע ל-false. זה בטוח-כברירת-מחדל:
+ * בעל/ת קליניקה שהדגל שלו/ה לא ידוע (ScopeUser שנבנה ידנית בלי הדגל) או
+ * שמוגדר/ת כמטפל/ת — לא יסווג/תסווג כמנהל/ת לא-מטפל/ת, ולכן לא ינותב/תנותב
+ * בטעות מהדשבורד הטיפולי. ראה ScopeUser.ownerIsTherapist.
+ *
+ * ⚠️ שים לב: ברירת המחדל של Organization.ownerIsTherapist בסכמה היא false.
+ * לכן לפני שימוש בפונקציה הזו לניתוב (redirect), יש לוודא שהדגל מוגדר נכון
+ * לקליניקה — אחרת בעל/ת קליניקה מטפל/ת קיים/ת (עם דגל ברירת-מחדל false)
+ * יסווג/תסווג בטעות כמנהל/ת לא-מטפל/ת.
+ */
+export function isNonTherapistManager(user: ScopeUser): boolean {
+  return isClinicOwner(user) && user.ownerIsTherapist === false;
 }
 
 /**
@@ -506,6 +532,9 @@ export async function loadScopeUser(userId: string): Promise<ScopeUser> {
       organizationId: true,
       clinicRole: true,
       secretaryPermissions: true,
+      // הדגל ownerIsTherapist יושב על הארגון. join קל; null למשתמש עצמאי
+      // (ללא ארגון). משמש לזיהוי מנהל/ת לא-מטפל/ת — ראה isNonTherapistManager.
+      organization: { select: { ownerIsTherapist: true } },
     },
   });
 
@@ -523,6 +552,7 @@ export async function loadScopeUser(userId: string): Promise<ScopeUser> {
     organizationId: user.organizationId,
     clinicRole: user.clinicRole,
     secretaryPermissions: (user.secretaryPermissions as SecretaryPermissions) ?? null,
+    ownerIsTherapist: user.organization?.ownerIsTherapist ?? null,
   };
 }
 
