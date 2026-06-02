@@ -214,7 +214,7 @@ export function DashboardHeader({ user }: DashboardHeaderProps) {
 
   return (
     <>
-    <header className="sticky top-0 z-50 flex h-16 items-center gap-4 border-b bg-background/95 backdrop-blur supports-[backdrop-filter]:bg-background/60 px-6">
+    <header className="sticky top-0 z-50 flex h-16 items-center gap-4 border-b bg-background/95 backdrop-blur supports-[backdrop-filter]:bg-background/60 px-6 print:hidden">
       <SidebarTrigger className="-mr-2" />
       
       <div className="flex-1" />
@@ -364,7 +364,7 @@ export function DashboardHeader({ user }: DashboardHeaderProps) {
 
     {/* System Announcements Banner */}
     {announcements.length > 0 && (
-      <div className="space-y-0">
+      <div className="space-y-0 print:hidden">
         {announcements.map((announcement) => {
           const style = ANNOUNCEMENT_STYLES[announcement.type] || ANNOUNCEMENT_STYLES.info;
           const AnnouncementIcon = style.icon;

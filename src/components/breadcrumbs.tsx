@@ -146,7 +146,7 @@ export function Breadcrumbs() {
   if (breadcrumbs.length <= 1) return null;
 
   return (
-    <div className="flex items-center gap-1.5 px-6 pt-4 pb-1">
+    <div className="flex items-center gap-1.5 px-6 pt-4 pb-1 print:hidden">
       {/* Back button — navigates to parent page */}
       <Button
         variant="ghost"
