@@ -18,6 +18,30 @@ export function CalendarEventContent({ eventInfo, sessions, onAddSessionAfter, s
   const session = sessions.find(s => s.id === eventInfo.event.id);
   if (!session) return null;
 
+  // תצוגת רשימה (listWeek): כל פגישה היא שורה רחבה. FullCalendar כבר מציג שעה
+  // ונקודת סטטוס; כאן מוסיפים שם מטופל + שם המטפל (עם צבע) לפגישות של אחרים.
+  if (eventInfo.view.type.startsWith("list")) {
+    const isOwn = !!(
+      currentTherapistId && session.therapistId && session.therapistId === currentTherapistId
+    );
+    const showTher = !!(showTherapist && session.therapistId && !isOwn && session.therapistName);
+    return (
+      <span className="flex items-center gap-2 w-full">
+        <span className="font-medium">{eventInfo.event.title}</span>
+        {showTher && (
+          <span className="flex items-center gap-1 text-xs opacity-75">
+            <span
+              className="inline-block w-2 h-2 rounded-full shrink-0"
+              style={{ backgroundColor: getTherapistAccent(session.therapistId) }}
+              aria-hidden
+            />
+            {session.therapistName}
+          </span>
+        )}
+      </span>
+    );
+  }
+
   const isBreak = session.type === "BREAK";
 
   if (isBreak) {

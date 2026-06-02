@@ -48,6 +48,7 @@ const FullCalendar = dynamic(
 import dayGridPlugin from "@fullcalendar/daygrid";
 import timeGridPlugin from "@fullcalendar/timegrid";
 import interactionPlugin from "@fullcalendar/interaction";
+import listPlugin from "@fullcalendar/list";
 
 interface CalendarEvent {
   id: string;
@@ -741,7 +742,7 @@ function CalendarPageContent() {
               החופפת — כל שאר הפגישות נשארות ברוחב מלא. */}
           <FullCalendar
             key={`${initialDate || "today"}-${scrollTime}-${highlightParam || ""}-${isMobile ? "m" : "d"}`}
-            plugins={[dayGridPlugin, timeGridPlugin, interactionPlugin]}
+            plugins={[dayGridPlugin, timeGridPlugin, interactionPlugin, listPlugin]}
             initialView={initialCalendarView}
             initialDate={initialDate}
             locale="he"
@@ -749,17 +750,18 @@ function CalendarPageContent() {
             headerToolbar={isMobile ? {
               right: "prev,next today",
               center: "title",
-              left: "timeGridDay,timeGridWeek,dayGridMonth",
+              left: "timeGridDay,timeGridWeek,dayGridMonth,listWeek",
             } : {
               right: "prev,next today",
               center: "title",
-              left: "dayGridMonth,timeGridWeek,timeGridDay",
+              left: "dayGridMonth,timeGridWeek,timeGridDay,listWeek",
             }}
             buttonText={{
               today: "היום",
               month: "חודש",
               week: "שבוע",
               day: "יום",
+              list: "רשימה",
             }}
             buttonHints={{
               prev: "תקופה קודמת",
