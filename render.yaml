@@ -104,6 +104,21 @@ services:
       # מאומתת להקלטות PHI דרך URL ניחוש.
       - key: RECORDING_URL_SECRET
         sync: false
+      # --- אחסון קבצים בענן (Cloudflare R2 / S3) ---
+      # כש-S3_BUCKET מוגדר, כל קבצי המטופלים (מסמכים, הקלטות, צרופות) נשמרים
+      # בענן מוצפן במקום על דיסק השרת — שנמחק בכל deploy. בלי המשתנים האלה
+      # הקוד נופל חזרה לדיסק מקומי (LocalStorageProvider). הערכים מוגדרים ידנית
+      # ב-Render dashboard. מדריך הקמה: HANDOFF-cloud-storage-setup.md.
+      - key: S3_BUCKET
+        sync: false
+      - key: S3_REGION
+        sync: false
+      - key: S3_ENDPOINT
+        sync: false
+      - key: S3_ACCESS_KEY_ID
+        sync: false
+      - key: S3_SECRET_ACCESS_KEY
+        sync: false
   # Cron job for 24-hour session reminders (runs every hour)
   - type: cron
     name: session-reminders-24h
