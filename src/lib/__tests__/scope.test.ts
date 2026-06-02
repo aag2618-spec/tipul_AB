@@ -303,6 +303,67 @@ describe("buildPaymentWhere", () => {
   });
 });
 
+describe("ScopeOptions personalOnly (תצוגה אישית — opt-in)", () => {
+  it("buildClientWhere: owner with personalOnly → own clients within org", () => {
+    expect(buildClientWhere(owner, { personalOnly: true })).toEqual({
+      organizationId: "org1",
+      therapistId: "u2",
+    });
+  });
+
+  it("buildSessionWhere: owner with personalOnly → own sessions within org", () => {
+    expect(buildSessionWhere(owner, { personalOnly: true })).toEqual({
+      organizationId: "org1",
+      therapistId: "u2",
+    });
+  });
+
+  it("buildPaymentWhere: owner with personalOnly → own clients' payments within org", () => {
+    expect(buildPaymentWhere(owner, { personalOnly: true })).toEqual({
+      organizationId: "org1",
+      client: { therapistId: "u2" },
+    });
+  });
+
+  it("personalOnly:false is a no-op — identical to default (org-wide for owner)", () => {
+    expect(buildClientWhere(owner, { personalOnly: false })).toEqual({ organizationId: "org1" });
+    expect(buildSessionWhere(owner, { personalOnly: false })).toEqual({ organizationId: "org1" });
+    expect(buildPaymentWhere(owner, { personalOnly: false })).toEqual({ organizationId: "org1" });
+  });
+
+  it("default (no opts) unchanged — owner stays org-wide", () => {
+    expect(buildClientWhere(owner)).toEqual({ organizationId: "org1" });
+    expect(buildSessionWhere(owner)).toEqual({ organizationId: "org1" });
+    expect(buildPaymentWhere(owner)).toEqual({ organizationId: "org1" });
+  });
+
+  it("CRITICAL: secretary deny-guard wins over personalOnly (no payment leak)", () => {
+    // מזכירה ללא canViewPayments — גם עם personalOnly עדיין נחסמת לחלוטין.
+    expect(buildPaymentWhere(secretaryNoPerms, { personalOnly: true })).toEqual({
+      id: "__deny__",
+    });
+  });
+
+  it("independent therapist — personalOnly is a no-op (already own-only)", () => {
+    expect(buildClientWhere(standaloneUser, { personalOnly: true })).toEqual({
+      therapistId: "u1",
+    });
+    expect(buildSessionWhere(standaloneUser, { personalOnly: true })).toEqual({
+      therapistId: "u1",
+    });
+    expect(buildPaymentWhere(standaloneUser, { personalOnly: true })).toEqual({
+      client: { therapistId: "u1" },
+    });
+  });
+
+  it("clinic therapist — personalOnly matches existing own-scope (no change)", () => {
+    expect(buildClientWhere(clinicTherapist, { personalOnly: true })).toEqual({
+      organizationId: "org1",
+      therapistId: "u3",
+    });
+  });
+});
+
 describe("getClientSafeSelectForSecretary", () => {
   it("excludes all clinical fields on Client", () => {
     const sel = getClientSafeSelectForSecretary() as Record<string, unknown>;

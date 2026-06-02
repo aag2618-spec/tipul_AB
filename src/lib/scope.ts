@@ -197,6 +197,14 @@ export function canSecretaryAccessModel(
 // ============================================================================
 
 /**
+ * אפשרויות scope. `personalOnly=true` → רק הרשומות של המשתמש עצמו (therapistId),
+ * גם אם תפקידו נותן גישה ארגונית (OWNER/SECRETARY). מיועד לתצוגה האישית בדשבורד
+ * ("שלי") של בעלים שהוא גם מטפל. ברירת המחדל (undefined/false) = ההתנהגות
+ * ההיסטורית, ללא שינוי כלל. תמיד נשמר `organizationId` (תיחום tenant — הגנה לעומק).
+ */
+export type ScopeOptions = { personalOnly?: boolean };
+
+/**
  * מחזיר Prisma where clause למטופלים הנגישים למשתמש.
  *
  * החלטות לפי תפקיד:
@@ -211,9 +219,15 @@ export function canSecretaryAccessModel(
  * עצמאי יראה רק את שלו. גישת "ראה הכל" מיועדת אך ורק ל-/api/admin/* שמכריזים
  * על דריסה מפורשת ולא משתמשים ב-buildClientWhere.
  */
-export function buildClientWhere(user: ScopeUser): Prisma.ClientWhereInput {
+export function buildClientWhere(user: ScopeUser, opts?: ScopeOptions): Prisma.ClientWhereInput {
   if (!user.organizationId) {
     return { therapistId: user.id };
+  }
+
+  // תצוגה אישית (opt-in): גם בעלים/מזכירה מצטמצמים לרשומות שלהם בלבד, אך עדיין
+  // תחומים לארגון. בלי opts — אין שינוי בהתנהגות ההיסטורית. ראה ScopeOptions.
+  if (opts?.personalOnly) {
+    return { organizationId: user.organizationId, therapistId: user.id };
   }
 
   if (isClinicOwner(user) || isSecretary(user)) {
@@ -235,9 +249,14 @@ export function buildClientWhere(user: ScopeUser): Prisma.ClientWhereInput {
  * מחזיר Prisma where clause לפגישות הנגישות למשתמש.
  * מבוסס על buildClientWhere — פגישות נגזרות מהמטופל.
  */
-export function buildSessionWhere(user: ScopeUser): Prisma.TherapySessionWhereInput {
+export function buildSessionWhere(user: ScopeUser, opts?: ScopeOptions): Prisma.TherapySessionWhereInput {
   if (!user.organizationId) {
     return { therapistId: user.id };
+  }
+
+  // תצוגה אישית (opt-in) — ראה buildClientWhere/ScopeOptions.
+  if (opts?.personalOnly) {
+    return { organizationId: user.organizationId, therapistId: user.id };
   }
 
   if (isClinicOwner(user) || isSecretary(user)) {
@@ -255,7 +274,7 @@ export function buildSessionWhere(user: ScopeUser): Prisma.TherapySessionWhereIn
  * מחזיר Prisma where clause לתשלומים הנגישים למשתמש.
  * מזכירה רואה תשלומים רק אם canViewPayments=true.
  */
-export function buildPaymentWhere(user: ScopeUser): Prisma.PaymentWhereInput | { id: "__deny__" } {
+export function buildPaymentWhere(user: ScopeUser, opts?: ScopeOptions): Prisma.PaymentWhereInput | { id: "__deny__" } {
   if (isSecretary(user) && !secretaryCan(user, "canViewPayments")) {
     // מזכירה ללא הרשאת תשלומים — מחזיר filter שלא מתאים לאף רשומה
     return { id: "__deny__" };
@@ -263,6 +282,11 @@ export function buildPaymentWhere(user: ScopeUser): Prisma.PaymentWhereInput | {
 
   if (!user.organizationId) {
     return { client: { therapistId: user.id } };
+  }
+
+  // תצוגה אישית (opt-in) — אחרי guard ה-deny של מזכירה. ראה ScopeOptions.
+  if (opts?.personalOnly) {
+    return { organizationId: user.organizationId, client: { therapistId: user.id } };
   }
 
   if (isClinicOwner(user) || isSecretary(user)) {
