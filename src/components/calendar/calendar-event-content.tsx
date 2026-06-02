@@ -62,20 +62,27 @@ export function CalendarEventContent({ eventInfo, sessions, onAddSessionAfter, s
     );
   }
 
+  // יומן רב-מטפלים: מציגים פס צבע מטפל בקצה הפגישה (רק כשיש כמה מטפלים ומזוהה מטפל).
+  const showAccent = !!(showTherapist && session.therapistId);
+
   return (
-    <div className="flex items-center justify-between w-full px-1 gap-1 group">
-      <div className="flex-1 min-w-0 overflow-hidden">
+    <div className="relative flex items-center justify-between w-full h-full gap-1 group overflow-hidden">
+      {/* פס צבע לכל גובה הפגישה בקצה המוביל (ימין ב-RTL), בצבע המטפל — מחליף את
+          הנקודה הזעירה שהייתה בתחתית וכמעט לא נראתה, בולט גם בפגישה קצרה וגם כששני
+          מטפלים מוצגים יחד. קו לבן דק מפריד מהרקע כדי שהפס יבלוט גם כשצבע המטפל
+          קרוב לצבע הסטטוס (למשל ירוק על ירוק). */}
+      {showAccent && (
+        <span
+          className="absolute inset-y-0 right-0 w-1.5 shadow-[inset_2px_0_0_0_rgba(255,255,255,0.6)]"
+          style={{ backgroundColor: getTherapistAccent(session.therapistId) }}
+          aria-hidden
+        />
+      )}
+      <div className={`flex-1 min-w-0 overflow-hidden ${showAccent ? "pr-2.5 pl-0.5" : "px-1"}`}>
         <div className="font-semibold text-xs leading-tight break-words">{eventInfo.event.title}</div>
         <div className="text-xs font-semibold opacity-90">{eventInfo.timeText}</div>
         {showTherapist && session.therapistName && (
-          <div className="flex items-center gap-1 text-[10px] leading-tight opacity-90 mt-0.5 truncate">
-            <span
-              className="inline-block w-2 h-2 rounded-full shrink-0"
-              style={{ backgroundColor: getTherapistAccent(session.therapistId) }}
-              aria-hidden
-            />
-            <span className="truncate">{session.therapistName}</span>
-          </div>
+          <div className="text-[10px] leading-tight opacity-90 mt-0.5 break-words">{session.therapistName}</div>
         )}
       </div>
       <button
