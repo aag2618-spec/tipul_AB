@@ -147,15 +147,22 @@ export default function TwoFactorVerifyPage() {
       } catch (err) {
         logger.error("2FA session update failed", { error: String(err) });
       }
-      setIsVerifying(false);
-      logger.info("[2FA] Loading state cleared, redirecting to dashboard");
       if (data.recommendRotation) {
         toast.warning(
           "הקוד שלך נוצל. מומלץ ליצור קודי שחזור חדשים בהגדרות > אבטחה.",
           { duration: 8000 }
         );
       }
-      await router.push("/dashboard");
+      // ניווט "קשיח" במקום router.push. אחרי update() ה-cookie כבר מעודכן
+      // (requires2FA=false), אבל router.push הוא ניווט "רך" שעלול לקבל תוצאה
+      // ישנה מ-router cache של Next / redirect של ה-middleware שמחושב לפי הסשן
+      // הישן — ולכן הדף לא התקדם עד רענון ידני (וזו בדיוק התלונה: "לוחץ אמת →
+      // לא תקף → רענון → נכנס"). ניווט קשיח שולח את ה-cookie המעודכן ל-middleware,
+      // זהה לרענון הידני שכבר עובד, וכך הכניסה מיידית בלחיצה אחת.
+      // משאירים isVerifying=true בכוונה — הספינר נשאר עד שהדף עוזב, וזה גם מונע
+      // לחיצה כפולה שתשלח את אותו קוד שכבר נוצל ותחזיר "אין קוד פעיל".
+      logger.info("[2FA] Redirecting to dashboard (hard navigation)");
+      window.location.assign("/dashboard");
     } catch {
       setError("שגיאת רשת. אנא נסה שוב.");
       setIsVerifying(false);
