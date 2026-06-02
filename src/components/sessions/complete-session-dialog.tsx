@@ -29,6 +29,7 @@ import { useRouter } from "next/navigation";
 import { ChargeCardcomDialog } from "@/components/payments/charge-cardcom-dialog";
 import { ReceiptPreviewDialog } from "@/components/payments/receipt-preview-dialog";
 import { tryOpenReceiptInNewTab } from "@/lib/receipt-utils";
+import { copayApplies } from "@/lib/commitments";
 
 // New interface with session object
 interface NewCompleteSessionDialogProps {
@@ -116,9 +117,12 @@ export function CompleteSessionDialog(props: CompleteSessionDialogProps) {
   const [externalReceiptProvider, setExternalReceiptProvider] = useState<string | null>(null);
   const router = useRouter();
 
-  const effectiveAmount = activeCommitment?.copaymentAmount != null
-    ? activeCommitment.copaymentAmount
-    : defaultAmount;
+  // ההשתתפות העצמית חלה רק כל עוד נותרו טיפולים מאושרים בהתחייבות;
+  // מוצתה המכסה → מחיר הפגישה המלא.
+  const effectiveAmount =
+    activeCommitment?.copaymentAmount != null && copayApplies(activeCommitment)
+      ? activeCommitment.copaymentAmount
+      : defaultAmount;
 
   useEffect(() => {
     if (isOpen) {
@@ -149,9 +153,18 @@ export function CompleteSessionDialog(props: CompleteSessionDialogProps) {
                     approvedSessions: active.approvedSessions,
                     usedSessions: active.usedSessions,
                   });
-                  if (active.copaymentAmount != null && Number(active.copaymentAmount) >= 0) {
-                    setAmount(Number(active.copaymentAmount).toString());
-                  }
+                  // ממלאים מראש את ההשתתפות העצמית רק כל עוד נותרו טיפולים
+                  // מאושרים; נגמרה המכסה → ברירת המחדל היא מחיר הפגישה המלא.
+                  setAmount(
+                    copayApplies({
+                      copaymentAmount:
+                        active.copaymentAmount != null ? Number(active.copaymentAmount) : null,
+                      approvedSessions: active.approvedSessions,
+                      usedSessions: active.usedSessions,
+                    })
+                      ? Number(active.copaymentAmount).toString()
+                      : defaultAmount.toString()
+                  );
                 })
                 .catch(() => {
                   setActiveCommitment({
@@ -160,9 +173,18 @@ export function CompleteSessionDialog(props: CompleteSessionDialogProps) {
                     approvedSessions: active.approvedSessions,
                     usedSessions: active.usedSessions,
                   });
-                  if (active.copaymentAmount != null && Number(active.copaymentAmount) >= 0) {
-                    setAmount(Number(active.copaymentAmount).toString());
-                  }
+                  // ממלאים מראש את ההשתתפות העצמית רק כל עוד נותרו טיפולים
+                  // מאושרים; נגמרה המכסה → ברירת המחדל היא מחיר הפגישה המלא.
+                  setAmount(
+                    copayApplies({
+                      copaymentAmount:
+                        active.copaymentAmount != null ? Number(active.copaymentAmount) : null,
+                      approvedSessions: active.approvedSessions,
+                      usedSessions: active.usedSessions,
+                    })
+                      ? Number(active.copaymentAmount).toString()
+                      : defaultAmount.toString()
+                  );
                 });
             } else {
               setActiveCommitment(null);
@@ -171,7 +193,7 @@ export function CompleteSessionDialog(props: CompleteSessionDialogProps) {
           .catch(() => setActiveCommitment(null));
       }
     }
-  }, [isOpen, clientId]);
+  }, [isOpen, clientId, defaultAmount]);
 
   const handleComplete = async () => {
     // mutex סינכרוני — מונע race של שני קליקים בו-זמנית. לבדוק לפני
@@ -468,22 +490,33 @@ export function CompleteSessionDialog(props: CompleteSessionDialogProps) {
               </div>
 
               {activeCommitment && activeCommitment.copaymentAmount != null && (
-                <div className="flex items-center gap-2 p-3 bg-blue-50 rounded-lg border border-blue-200">
-                  <Stethoscope className="h-4 w-4 text-blue-700 shrink-0" />
-                  <div className="text-sm text-blue-800">
-                    <span className="font-semibold">
-                      קופת חולים: {{ CLALIT: "כללית", MACCABI: "מכבי", MEUHEDET: "מאוחדת", LEUMIT: "לאומית" }[activeCommitment.healthFund || ""] || "לא צוינה"}
-                    </span>
-                    <span className="mx-1">|</span>
-                    <span>השתתפות עצמית: ₪{activeCommitment.copaymentAmount}</span>
-                    {activeCommitment.approvedSessions != null && (
-                      <>
-                        <span className="mx-1">|</span>
-                        <span>טיפולים: {activeCommitment.usedSessions}/{activeCommitment.approvedSessions}</span>
-                      </>
-                    )}
+                copayApplies(activeCommitment) ? (
+                  <div className="flex items-center gap-2 p-3 bg-blue-50 rounded-lg border border-blue-200">
+                    <Stethoscope className="h-4 w-4 text-blue-700 shrink-0" />
+                    <div className="text-sm text-blue-800">
+                      <span className="font-semibold">
+                        קופת חולים: {{ CLALIT: "כללית", MACCABI: "מכבי", MEUHEDET: "מאוחדת", LEUMIT: "לאומית" }[activeCommitment.healthFund || ""] || "לא צוינה"}
+                      </span>
+                      <span className="mx-1">|</span>
+                      <span>השתתפות עצמית: ₪{activeCommitment.copaymentAmount}</span>
+                      {activeCommitment.approvedSessions != null && (
+                        <>
+                          <span className="mx-1">|</span>
+                          <span>טיפולים: {activeCommitment.usedSessions}/{activeCommitment.approvedSessions}</span>
+                        </>
+                      )}
+                    </div>
                   </div>
-                </div>
+                ) : (
+                  <div className="flex items-center gap-2 p-3 bg-amber-50 rounded-lg border border-amber-200">
+                    <Stethoscope className="h-4 w-4 text-amber-700 shrink-0" />
+                    <div className="text-sm text-amber-800">
+                      <span className="font-semibold">נוצלו כל הטיפולים בהתחייבות ({activeCommitment.usedSessions}/{activeCommitment.approvedSessions})</span>
+                      <span className="mx-1">|</span>
+                      <span>חיוב מלא: ₪{defaultAmount}</span>
+                    </div>
+                  </div>
+                )
               )}
 
               <div className="grid grid-cols-2 gap-3">

@@ -9,7 +9,7 @@ import {
   buildReceiptDescription,
   resolveCardcomReceiptOwner,
 } from "./receipt-service";
-import { buildClientWhere, buildPaymentWhere, type ScopeUser } from "@/lib/scope";
+import { buildClientWhere, buildPaymentWhere, type ScopeUser, type ScopeOptions } from "@/lib/scope";
 import { calculatePaidAmount } from "@/lib/payment-utils";
 import { withAudit, type AuditActor } from "@/lib/audit";
 import { applyRevenueShareSnapshot } from "@/lib/clinic/revenue-snapshot";
@@ -684,10 +684,13 @@ export async function getClientDebtSummary(
 
 export async function getAllClientsDebtSummary(
   userId: string,
-  scopeUser?: ScopeUser
+  scopeUser?: ScopeUser,
+  // יומן רב-מטפלים: כש-personalOnly=true (מתג "שלי") — מצמצם לחובות של המטופלים
+  // של הבעלים עצמו בלבד. ברירת מחדל undefined → התנהגות זהה לקודם.
+  opts?: ScopeOptions
 ): Promise<AllClientsDebtItem[]> {
   const clientWhere = scopeUser
-    ? buildClientWhere(scopeUser)
+    ? buildClientWhere(scopeUser, opts)
     : { therapistId: userId };
 
   // Scope-aware: על המזכירה ללא canViewPayments — buildPaymentWhere מחזיר
@@ -696,7 +699,7 @@ export async function getAllClientsDebtSummary(
   const nestedPaymentsWhere: Prisma.PaymentWhereInput = scopeUser
     ? {
         AND: [
-          buildPaymentWhere(scopeUser),
+          buildPaymentWhere(scopeUser, opts),
           EXCLUDE_BULK_UMBRELLA_WHERE,
           { status: "PENDING", parentPaymentId: null },
         ],

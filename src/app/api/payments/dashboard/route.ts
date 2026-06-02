@@ -4,6 +4,7 @@ import { logger } from "@/lib/logger";
 import { getIsraelYear, getIsraelMonth } from "@/lib/date-utils";
 import { requireAuth } from "@/lib/api-auth";
 import { buildPaymentWhere, loadScopeUser } from "@/lib/scope";
+import { shouldScopePersonal } from "@/lib/view-scope";
 import { EXCLUDE_BULK_UMBRELLA_WHERE } from "@/lib/payments/types";
 import { getAllClientsDebtSummary } from "@/lib/payment-service";
 import { calculatePaidAmount } from "@/lib/payment-utils";
@@ -17,7 +18,9 @@ export async function GET() {
     const { userId } = auth;
 
     const scopeUser = await loadScopeUser(userId);
-    const paymentWhere = buildPaymentWhere(scopeUser);
+    // היקף לפי המתג הגלובלי "שלי / כל הקליניקה" (cookie, נשלח אוטומטית בבקשה).
+    const personalOnly = await shouldScopePersonal(scopeUser);
+    const paymentWhere = buildPaymentWhere(scopeUser, { personalOnly });
 
     const monthsParam = 6;
     const windowStart = new Date();
@@ -26,7 +29,7 @@ export async function GET() {
     windowStart.setHours(0, 0, 0, 0);
 
     const [clientDebts, monthlyPayments, historyPayments] = await Promise.all([
-      getAllClientsDebtSummary(userId, scopeUser),
+      getAllClientsDebtSummary(userId, scopeUser, { personalOnly }),
 
       prisma.payment.findMany({
         where: {

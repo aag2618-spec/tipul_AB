@@ -4,6 +4,7 @@ import { logger } from "@/lib/logger";
 import { parseIsraelTime } from "@/lib/date-utils";
 import { requireAuth } from "@/lib/api-auth";
 import { buildSessionWhere, isSecretary, loadScopeUser, secretaryCan } from "@/lib/scope";
+import { shouldScopePersonal } from "@/lib/view-scope";
 import { calculatePaidAmount } from "@/lib/payment-utils";
 import { serializePrisma } from "@/lib/serialize";
 import { CALENDAR_SESSION_INCLUDE } from "@/types/calendar-session";
@@ -41,7 +42,11 @@ export async function GET(request: NextRequest) {
     const endDate = searchParams.get("endDate");
 
     const scopeUser = await loadScopeUser(userId);
-    const scopeWhere = buildSessionWhere(scopeUser);
+    // היקף לפי המתג הגלובלי "שלי / כל הקליניקה" (cookie). הבקשה מהדפדפן שולחת
+    // את ה-cookie אוטומטית (same-origin). לבעל/ת קליניקה ב"שלי" → רק הפגישות
+    // שלו/ה; לשאר התפקידים — ללא שינוי.
+    const personalOnly = await shouldScopePersonal(scopeUser);
+    const scopeWhere = buildSessionWhere(scopeUser, { personalOnly });
 
     const extraConditions: Prisma.TherapySessionWhereInput = {};
     if (startDate && endDate) {

@@ -12,6 +12,7 @@ import { syncSessionUpdateToGoogleCalendar, syncSessionDeletionToGoogleCalendar 
 import { logDataAccess } from "@/lib/audit-logger";
 import { buildSessionWhere, isSecretary, loadScopeUser, secretaryCan } from "@/lib/scope";
 import { calculatePaidAmount } from "@/lib/payment-utils";
+import { copayApplies } from "@/lib/commitments";
 import { parseBody } from "@/lib/validations/helpers";
 import { patchSessionSchema, updateSessionSchema } from "@/lib/validations/session";
 import {
@@ -425,10 +426,22 @@ export async function PUT(
               clientId: therapySession.clientId,
               status: "ACTIVE",
             },
-            select: { copaymentAmount: true },
+            select: { copaymentAmount: true, approvedSessions: true, usedSessions: true },
             orderBy: { createdAt: "desc" },
           });
-          if (activeCommitment?.copaymentAmount != null) {
+          // ההשתתפות העצמית חלה רק כל עוד נותרו טיפולים מאושרים בהתחייבות.
+          // מוצתה המכסה (usedSessions >= approvedSessions) → חיוב מלא רגיל.
+          if (
+            activeCommitment &&
+            copayApplies({
+              copaymentAmount:
+                activeCommitment.copaymentAmount != null
+                  ? Number(activeCommitment.copaymentAmount)
+                  : null,
+              approvedSessions: activeCommitment.approvedSessions,
+              usedSessions: activeCommitment.usedSessions,
+            })
+          ) {
             effectiveExpected = Number(activeCommitment.copaymentAmount);
           }
         } catch (commitLookupErr) {
@@ -467,16 +480,23 @@ export async function PUT(
     }
 
     // ── ספירת טיפולים אוטומטית — עדכון התחייבות פעילה ──
+    // סופרים +1 רק כל עוד לא מוצתה המכסה, כך שהמונה לא חורג מ-approvedSessions
+    // (לא עוד "6/4"). התחייבות ללא מכסה (approvedSessions = null) נספרת תמיד.
+    // עדכון אטומי בודד — התנאי usedSessions < approvedSessions מתבצע על העמודה
+    // עצמה בתוך ה-UPDATE, כך ששתי פגישות שמסתיימות בו-זמנית לא יכולות לחרוג
+    // מהמכסה (ה-DB מעריך את התקרה מחדש בזמן הכתיבה; אין מצב מרוץ קרא-ואז-כתוב).
     if (status === "COMPLETED" && existingSession.status !== "COMPLETED" && therapySession.clientId) {
       try {
         await prisma.clientCommitment.updateMany({
           where: {
             clientId: therapySession.clientId,
             status: "ACTIVE",
+            OR: [
+              { approvedSessions: null },
+              { usedSessions: { lt: prisma.clientCommitment.fields.approvedSessions } },
+            ],
           },
-          data: {
-            usedSessions: { increment: 1 },
-          },
+          data: { usedSessions: { increment: 1 } },
         });
       } catch (commitErr) {
         logger.error("[sessions PUT] usedSessions increment failed", {

@@ -24,6 +24,7 @@ import {
 import { CheckCircle2, Ban, UserX, Loader2, ChevronDown, ChevronUp, AlertCircle, Wallet, FileText, ArrowLeft, CreditCard, Stethoscope } from "lucide-react";
 import { Checkbox } from "@/components/ui/checkbox";
 import { ChargeCardcomDialog } from "@/components/payments/charge-cardcom-dialog";
+import { copayApplies } from "@/lib/commitments";
 
 export interface UpdateSessionDialogParams {
   updateStatus: string;
@@ -124,9 +125,12 @@ export function UpdateSessionDialog({
     usedSessions: number;
   } | null>(null);
 
-  const effectivePrice = activeCommitment?.copaymentAmount != null
-    ? activeCommitment.copaymentAmount
-    : price;
+  // ההשתתפות העצמית חלה רק כל עוד נותרו טיפולים מאושרים בהתחייבות;
+  // מוצתה המכסה → מחיר הפגישה המלא.
+  const effectivePrice =
+    activeCommitment?.copaymentAmount != null && copayApplies(activeCommitment)
+      ? activeCommitment.copaymentAmount
+      : price;
 
   useEffect(() => {
     if (!open || !clientId) {
@@ -529,22 +533,33 @@ export function UpdateSessionDialog({
                   </div>
 
                   {activeCommitment && activeCommitment.copaymentAmount != null && (
-                    <div className="flex items-center gap-2 p-3 bg-blue-50 rounded-lg border border-blue-200">
-                      <Stethoscope className="h-4 w-4 text-blue-700 shrink-0" />
-                      <div className="text-sm text-blue-800">
-                        <span className="font-semibold">
-                          קופת חולים: {{ CLALIT: "כללית", MACCABI: "מכבי", MEUHEDET: "מאוחדת", LEUMIT: "לאומית" }[activeCommitment.healthFund || ""] || "לא צוינה"}
-                        </span>
-                        <span className="mx-1">|</span>
-                        <span>השתתפות עצמית: ₪{activeCommitment.copaymentAmount}</span>
-                        {activeCommitment.approvedSessions != null && (
-                          <>
-                            <span className="mx-1">|</span>
-                            <span>טיפולים: {activeCommitment.usedSessions}/{activeCommitment.approvedSessions}</span>
-                          </>
-                        )}
+                    copayApplies(activeCommitment) ? (
+                      <div className="flex items-center gap-2 p-3 bg-blue-50 rounded-lg border border-blue-200">
+                        <Stethoscope className="h-4 w-4 text-blue-700 shrink-0" />
+                        <div className="text-sm text-blue-800">
+                          <span className="font-semibold">
+                            קופת חולים: {{ CLALIT: "כללית", MACCABI: "מכבי", MEUHEDET: "מאוחדת", LEUMIT: "לאומית" }[activeCommitment.healthFund || ""] || "לא צוינה"}
+                          </span>
+                          <span className="mx-1">|</span>
+                          <span>השתתפות עצמית: ₪{activeCommitment.copaymentAmount}</span>
+                          {activeCommitment.approvedSessions != null && (
+                            <>
+                              <span className="mx-1">|</span>
+                              <span>טיפולים: {activeCommitment.usedSessions}/{activeCommitment.approvedSessions}</span>
+                            </>
+                          )}
+                        </div>
                       </div>
-                    </div>
+                    ) : (
+                      <div className="flex items-center gap-2 p-3 bg-amber-50 rounded-lg border border-amber-200">
+                        <Stethoscope className="h-4 w-4 text-amber-700 shrink-0" />
+                        <div className="text-sm text-amber-800">
+                          <span className="font-semibold">נוצלו כל הטיפולים בהתחייבות ({activeCommitment.usedSessions}/{activeCommitment.approvedSessions})</span>
+                          <span className="mx-1">|</span>
+                          <span>חיוב מלא: ₪{price}</span>
+                        </div>
+                      </div>
+                    )
                   )}
 
                   <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">

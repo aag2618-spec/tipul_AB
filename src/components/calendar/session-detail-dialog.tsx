@@ -11,6 +11,7 @@ import { toast } from "sonner";
 import { useRouter } from "next/navigation";
 import { QuickMarkPaid } from "@/components/payments/quick-mark-paid";
 import { safeHttpUrl } from "@/lib/receipt-utils";
+import { copayApplies } from "@/lib/commitments";
 import { getTherapistAccent } from "@/lib/calendar/event-colors";
 import type { CalendarSession } from "@/hooks/use-calendar-data";
 
@@ -737,6 +738,7 @@ export function SessionDetailDialog({
             /* SCHEDULED */
             ) : session.status === "SCHEDULED" ? (
               <>{activeCommitment && activeCommitment.copaymentAmount != null && (
+                copayApplies(activeCommitment) ? (
                 <div className="flex items-center gap-2 p-3 mb-2 bg-blue-50 rounded-lg border border-blue-200">
                   <Stethoscope className="h-4 w-4 text-blue-700 shrink-0" />
                   <div className="text-sm text-blue-800">
@@ -753,6 +755,16 @@ export function SessionDetailDialog({
                     )}
                   </div>
                 </div>
+                ) : (
+                <div className="flex items-center gap-2 p-3 mb-2 bg-amber-50 rounded-lg border border-amber-200">
+                  <Stethoscope className="h-4 w-4 text-amber-700 shrink-0" />
+                  <div className="text-sm text-amber-800">
+                    <span className="font-semibold">נוצלו כל הטיפולים בהתחייבות ({activeCommitment.usedSessions}/{activeCommitment.approvedSessions})</span>
+                    <span className="mx-1">|</span>
+                    <span>חיוב מלא: ₪{session.price}</span>
+                  </div>
+                </div>
+                )
               )}
               <div className="border rounded-lg divide-y">
                 <p className="text-sm font-medium text-center py-2 bg-muted/50">בחר פעולה:</p>
@@ -775,9 +787,12 @@ export function SessionDetailDialog({
                         : session.payment?.status === "PAID"
                         ? Number(session.payment?.amount || 0)
                         : 0;
-                    const effectivePrice = activeCommitment?.copaymentAmount != null
-                      ? activeCommitment.copaymentAmount
-                      : session.price;
+                    // ההשתתפות העצמית חלה רק כל עוד נותרו טיפולים מאושרים;
+                    // מוצתה המכסה → מחיר הפגישה המלא.
+                    const effectivePrice =
+                      activeCommitment?.copaymentAmount != null && copayApplies(activeCommitment)
+                        ? activeCommitment.copaymentAmount
+                        : session.price;
                     onRequestPayment({
                       sessionId: session.id,
                       clientId: session.client.id,

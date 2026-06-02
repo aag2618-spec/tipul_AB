@@ -4,6 +4,7 @@ import { logger } from "@/lib/logger";
 
 import { requireAuth } from "@/lib/api-auth";
 import { buildPaymentWhere, loadScopeUser } from "@/lib/scope";
+import { shouldScopePersonal } from "@/lib/view-scope";
 import { EXCLUDE_BULK_UMBRELLA_WHERE } from "@/lib/payments/types";
 
 export const dynamic = "force-dynamic";
@@ -15,7 +16,8 @@ export async function GET(request: NextRequest) {
     const { userId, session } = auth;
 
     const scopeUser = await loadScopeUser(userId);
-    const paymentWhere = buildPaymentWhere(scopeUser);
+    const personalOnly = await shouldScopePersonal(scopeUser);
+    const paymentWhere = buildPaymentWhere(scopeUser, { personalOnly });
 
     const url = request.nextUrl;
     const take = Math.min(Number(url.searchParams.get("take")) || 50, 200);
