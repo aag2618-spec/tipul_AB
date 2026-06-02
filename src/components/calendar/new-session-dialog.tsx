@@ -7,7 +7,7 @@ import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
 import { Switch } from "@/components/ui/switch";
-import { Loader2, Repeat, Settings, Waves, UserPlus, ArrowRight, AlertTriangle, Search, Users } from "lucide-react";
+import { Loader2, Repeat, Settings, Waves, UserPlus, ArrowRight, AlertTriangle, Search, Users, Check } from "lucide-react";
 import { format, addWeeks } from "date-fns";
 import { toast } from "sonner";
 import type { CalendarClient, CalendarSession } from "@/hooks/use-calendar-data";
@@ -620,8 +620,7 @@ export function NewSessionDialog({
                   פגישת ייעוץ
                 </button>
               </div>
-              {/* שדה חיפוש — מסנן את הרשימה למטה. תמיד נגיש,
-                  לא דורש לפתוח את הסלקט קודם. */}
+              {/* שדה חיפוש — מסנן את רשימת המטופלים שמתחתיו בזמן אמת. */}
               <div className="relative">
                 <Search aria-hidden="true" className="absolute right-2 top-1/2 -translate-y-1/2 h-4 w-4 text-muted-foreground pointer-events-none" />
                 <Input
@@ -632,42 +631,48 @@ export function NewSessionDialog({
                   className="h-9 pr-8"
                 />
               </div>
-              <Select
-                value={formData.clientId}
-                onValueChange={(value) => {
-                  const selectedClient = clients.find((c) => c.id === value);
-                  const clientPrice = selectedClient?.defaultSessionPrice;
-                  // מחיר: עדיפות למחיר אישי של המטופל; אם אין —
-                  // משתמשים במחיר ברירת המחדל של המטפל (אם הוגדר);
-                  // אחרת — שומרים על מה שכבר היה בטופס.
-                  setFormData((prev) => ({
-                    ...prev,
-                    clientId: value,
-                    price: clientPrice
-                      ? String(clientPrice)
-                      : defaultSessionPrice != null
-                        ? String(defaultSessionPrice)
-                        : prev.price,
-                  }));
-                }}
-              >
-                <SelectTrigger>
-                  <SelectValue placeholder="בחר מטופל" />
-                </SelectTrigger>
-                <SelectContent>
-                  {sortedFilteredClients.length === 0 ? (
-                    <div className="px-3 py-6 text-center text-sm text-muted-foreground">
-                      לא נמצאו מטופלים
-                    </div>
-                  ) : (
-                    sortedFilteredClients.map((client) => (
-                      <SelectItem key={client.id} value={client.id}>
-                        {formatNameLastFirst(client.name)}
-                      </SelectItem>
-                    ))
-                  )}
-                </SelectContent>
-              </Select>
+              {/* רשימת מטופלים גלויה שמסתננת לפי תיבת החיפוש מעל. הוחלף ה-Select
+                  (Radix) ברשימה כי שם הסינון "הסתתר" עד שפתחו את הרשימה ידנית, ולא
+                  ניתן היה להקליד בזמן שהיא פתוחה — אז החיפוש הרגיש שבור. דפוס זהה
+                  ל-/clinic-admin/transfer שעובד היטב: החיפוש מסנן את הרשימה מיידית. */}
+              <div className="border border-border rounded-lg overflow-hidden max-h-48 overflow-y-auto">
+                {sortedFilteredClients.length === 0 ? (
+                  <div className="px-3 py-6 text-center text-sm text-muted-foreground">
+                    {clientSearch.trim() ? "לא נמצאו מטופלים" : "אין מטופלים"}
+                  </div>
+                ) : (
+                  sortedFilteredClients.map((client) => {
+                    const isSelected = client.id === formData.clientId;
+                    return (
+                      <button
+                        type="button"
+                        key={client.id}
+                        onClick={() => {
+                          const clientPrice = client.defaultSessionPrice;
+                          // מחיר: עדיפות למחיר אישי של המטופל; אם אין —
+                          // משתמשים במחיר ברירת המחדל של המטפל (אם הוגדר);
+                          // אחרת — שומרים על מה שכבר היה בטופס.
+                          setFormData((prev) => ({
+                            ...prev,
+                            clientId: client.id,
+                            price: clientPrice
+                              ? String(clientPrice)
+                              : defaultSessionPrice != null
+                                ? String(defaultSessionPrice)
+                                : prev.price,
+                          }));
+                        }}
+                        className={`w-full text-right px-3 py-2.5 text-sm transition-colors border-b border-border last:border-0 flex items-center justify-between gap-2 ${
+                          isSelected ? "bg-primary/10 font-medium" : "hover:bg-muted"
+                        }`}
+                      >
+                        <span className="truncate">{formatNameLastFirst(client.name)}</span>
+                        {isSelected && <Check className="h-4 w-4 text-primary shrink-0" />}
+                      </button>
+                    );
+                  })
+                )}
+              </div>
             </div>
           )}
 
