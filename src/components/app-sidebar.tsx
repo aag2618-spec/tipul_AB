@@ -20,6 +20,7 @@ import { Avatar, AvatarFallback, AvatarImage } from "@/components/ui/avatar";
 import { Badge } from "@/components/ui/badge";
 import { UserTierBadge } from "@/components/user-tier-badge";
 import { AppLogo } from "@/components/app-logo";
+import { ViewScopeToggle } from "@/components/view-scope-toggle";
 import { useMyPermissions } from "@/hooks/use-my-permissions";
 import {
   LayoutDashboard,
@@ -51,6 +52,8 @@ interface AppSidebarProps {
     email?: string | null;
     image?: string | null;
   };
+  // מצב התצוגה הגלובלי, נקרא בשרת (layout) ומועבר ל-toggle כדי למנוע אי-התאמת hydration.
+  initialViewMode?: "personal" | "clinic";
 }
 
 const mainNavItems = [
@@ -168,7 +171,7 @@ const settingsItems = [
   },
 ];
 
-export function AppSidebar({ user }: AppSidebarProps) {
+export function AppSidebar({ user, initialViewMode = "personal" }: AppSidebarProps) {
   const pathname = usePathname();
   const { data: session } = useSession();
   const isAdmin = session?.user?.role === "ADMIN" || session?.user?.role === "MANAGER";
@@ -176,6 +179,11 @@ export function AppSidebar({ user }: AppSidebarProps) {
     session?.user?.role === "CLINIC_OWNER" ||
     session?.user?.role === "ADMIN" ||
     session?.user?.clinicRole === "OWNER";
+
+  // מתג "שלי / כל הקליניקה" — רק לבעל/ת קליניקה ממש (לא ADMIN גלובלי), בהתאמה
+  // ל-isClinicOwner שבשרת (scope.ts). שאר התפקידים לא רואים את המתג.
+  const showViewToggle =
+    session?.user?.clinicRole === "OWNER" || session?.user?.role === "CLINIC_OWNER";
 
   // צ׳אט צוות — זמין רק לחברי קליניקה (בעלת קליניקה / מזכירה).
   const isChatMember =
@@ -269,6 +277,13 @@ export function AppSidebar({ user }: AppSidebarProps) {
       </SidebarHeader>
 
       <SidebarContent>
+        {/* מתג גלובלי "שלי / כל הקליניקה" — בעל/ת קליניקה בלבד. משפיע על כל המסכים. */}
+        {showViewToggle && (
+          <div className="pt-2">
+            <ViewScopeToggle initialMode={initialViewMode} />
+          </div>
+        )}
+
         {/* Main Navigation */}
         <SidebarGroup>
           <SidebarGroupLabel>ניווט ראשי</SidebarGroupLabel>

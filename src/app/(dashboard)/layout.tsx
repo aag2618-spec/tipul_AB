@@ -6,6 +6,7 @@ import { SidebarProvider } from "@/components/ui/sidebar";
 import { AppSidebar } from "@/components/app-sidebar";
 import { DashboardHeader } from "@/components/dashboard-header";
 import { Breadcrumbs } from "@/components/breadcrumbs";
+import { getViewMode } from "@/lib/view-scope";
 
 export default async function DashboardLayout({
   children,
@@ -18,10 +19,14 @@ export default async function DashboardLayout({
     redirect("/login");
   }
 
+  // מצב התצוגה הגלובלי ("שלי / כל הקליניקה") נקרא בשרת ומועבר ל-sidebar, כדי
+  // שהמתג יציג את המצב הנכון כבר ב-render הראשון (בלי הבהוב/אי-התאמת hydration).
+  const viewMode = await getViewMode();
+
   return (
     <SidebarProvider>
       <div className="flex min-h-screen w-full">
-        <AppSidebar user={session.user} />
+        <AppSidebar user={session.user} initialViewMode={viewMode} />
         <div className="flex flex-1 flex-col">
           <DashboardHeader user={session.user} />
           <Suspense><Breadcrumbs /></Suspense>

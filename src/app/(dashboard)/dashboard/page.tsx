@@ -5,7 +5,7 @@ import prisma from "@/lib/prisma";
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
-import { Users, Calendar, CreditCard, Clock, Plus, Brain, User, Building2 } from "lucide-react";
+import { Users, Calendar, CreditCard, Clock, Plus, Brain } from "lucide-react";
 import Link from "next/link";
 import { Suspense } from "react";
 import { PersonalTasksWidget } from "@/components/tasks/personal-tasks-widget";
@@ -21,10 +21,10 @@ import {
   buildSessionWhere,
   buildPaymentWhere,
   isSecretary,
-  isClinicOwner,
   isNonTherapistManager,
   type ScopeUser,
 } from "@/lib/scope";
+import { shouldScopePersonal } from "@/lib/view-scope";
 
 // מונע cache leak בין מטפלים — דף מכיל PHI scoped למשתמש
 export const dynamic = "force-dynamic";
@@ -265,11 +265,7 @@ async function getDashboardStats(scopeUser: ScopeUser, personalOnly: boolean) {
   };
 }
 
-export default async function DashboardPage({
-  searchParams,
-}: {
-  searchParams: Promise<{ view?: string }>;
-}) {
+export default async function DashboardPage() {
   const session = await getServerSession(authOptions);
   if (!session?.user?.id) {
     return <div>טוען...</div>;
@@ -283,29 +279,23 @@ export default async function DashboardPage({
     return <SecretaryHome scopeUser={scopeUser} userName={session.user.name} />;
   }
 
-  // בעלים: סופרים את המטופלים *של הבעלים עצמו* כדי (1) לנתב מנהל/ת לא-מטפל/ת
-  // לניהול הקליניקה, ו-(2) לזהות בעלים-שהוא-גם-מטפל/ת שיקבל/תקבל תצוגה אישית
-  // כברירת מחדל + מתג. זיהוי לפי קיום מטופלים אישיים יציב יותר מהדגל
-  // ownerIsTherapist (שעלול להיוותר ברירת-מחדל false). הניתוב חל על עמוד
-  // הבית בלבד; לכל שאר העמודים יש גישה ישירה. ראה isNonTherapistManager.
-  const isOwner = isClinicOwner(scopeUser);
-  let ownClientCount = 0;
-  if (isOwner && scopeUser.organizationId) {
-    ownClientCount = await prisma.client.count({
+  // מנהל/ת לא-מטפל/ת (בעלים שאינו מטפל) → נחיתה ישירה בניהול הקליניקה.
+  // מנתבים רק אם לבעלים אין אף מטופל משלו — כדי שבעלים-מטפל/ת שהדגל
+  // ownerIsTherapist שלו/ה נשאר ברירת-מחדל false לא ינותב/תנותב בטעות. הניתוב
+  // חל על עמוד הבית בלבד; לכל שאר העמודים יש גישה ישירה. ראה isNonTherapistManager.
+  if (isNonTherapistManager(scopeUser) && scopeUser.organizationId) {
+    const ownClientCount = await prisma.client.count({
       where: { organizationId: scopeUser.organizationId, therapistId: scopeUser.id },
     });
-    if (isNonTherapistManager(scopeUser) && ownClientCount === 0) {
+    if (ownClientCount === 0) {
       redirect("/clinic-admin");
     }
   }
 
-  // בעלים שהוא גם מטפל → דשבורד אישי ("שלי") כברירת מחדל, עם מתג ל"כל הקליניקה".
-  // לכל שאר התפקידים אין מתג ו-personalOnly=false (התנהגות זהה לקודם).
-  const ownerTherapist = isOwner && ownClientCount > 0;
-  const params = await searchParams;
-  const isClinicView = ownerTherapist && params.view === "clinic";
-  const personalOnly = ownerTherapist && !isClinicView;
-
+  // היקף התצוגה נקבע ע"י המתג הגלובלי "שלי / כל הקליניקה" (cookie, בתפריט הצד).
+  // לבעל/ת קליניקה: "שלי" → רק הנתונים שלו/ה; "כל הקליניקה" → כל הארגון.
+  // לכל שאר התפקידים shouldScopePersonal מחזיר false וההתנהגות זהה לקודם.
+  const personalOnly = await shouldScopePersonal(scopeUser);
   const stats = await getDashboardStats(scopeUser, personalOnly);
 
   // Get stat cards
@@ -379,39 +369,6 @@ export default async function DashboardPage({
           </Link>
         </Button>
       </div>
-
-      {/* מתג אישי/קליניקה — מוצג רק לבעל/ת קליניקה שהוא/היא גם מטפל/ת.
-          ברירת מחדל: "שלי" (אישי). מעבר ל"כל הקליניקה" דרך ?view=clinic. */}
-      {ownerTherapist && (
-        <div className="flex flex-wrap items-center gap-2">
-          <Link href="/dashboard">
-            <Badge
-              variant={!isClinicView ? "default" : "outline"}
-              className={`cursor-pointer text-sm py-2 px-4 ${!isClinicView ? "" : "hover:bg-muted"}`}
-            >
-              <User className="h-3.5 w-3.5 ml-1" />
-              שלי
-            </Badge>
-          </Link>
-          <Link href="/dashboard?view=clinic">
-            <Badge
-              variant={isClinicView ? "default" : "outline"}
-              className={`cursor-pointer text-sm py-2 px-4 ${isClinicView ? "" : "hover:bg-muted"}`}
-            >
-              <Building2 className="h-3.5 w-3.5 ml-1" />
-              כל הקליניקה
-            </Badge>
-          </Link>
-          {isClinicView && (
-            <Link
-              href="/clinic-admin"
-              className="text-sm text-muted-foreground hover:text-foreground hover:underline mr-1"
-            >
-              לניהול מלא של הקליניקה ←
-            </Link>
-          )}
-        </div>
-      )}
 
       {/* Stats Grid */}
       <div className="grid gap-6 sm:grid-cols-2 lg:grid-cols-4">
