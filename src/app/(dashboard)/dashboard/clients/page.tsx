@@ -36,6 +36,8 @@ async function getClients(
     },
     orderBy: { lastName: "asc" },
     include: {
+      // יומן/דף רב-מטפלים: שם המטפל האחראי (אדמיניסטרטיבי) לסינון+צבע בדף.
+      therapist: { select: { id: true, name: true } },
       _count: {
         select: {
           therapySessions: { where: { type: { not: "BREAK" } } },
@@ -240,6 +242,8 @@ export default async function ClientsPage({ searchParams }: PageProps) {
             birthDate: c.birthDate ? c.birthDate.toISOString() : null,
             sessionCount: c._count.therapySessions,
             healthFund: c.healthFund || null,
+            therapistId: c.therapistId ?? null,
+            therapistName: c.therapist?.name ?? null,
             activeCommitment: activeCommitment
               ? {
                   approvedSessions: activeCommitment.approvedSessions,

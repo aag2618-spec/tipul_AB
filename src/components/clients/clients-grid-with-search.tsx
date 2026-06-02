@@ -1,14 +1,25 @@
 "use client";
 
-import { useState } from "react";
+import { useState, useEffect } from "react";
+import { useSession } from "next-auth/react";
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
 import { Badge } from "@/components/ui/badge";
 import { Avatar, AvatarFallback } from "@/components/ui/avatar";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
-import { Phone, Mail, Plus, Search, Stethoscope, FileCheck } from "lucide-react";
+import {
+  DropdownMenu,
+  DropdownMenuTrigger,
+  DropdownMenuContent,
+  DropdownMenuItem,
+  DropdownMenuCheckboxItem,
+  DropdownMenuLabel,
+  DropdownMenuSeparator,
+} from "@/components/ui/dropdown-menu";
+import { Phone, Mail, Plus, Search, Stethoscope, FileCheck, Users } from "lucide-react";
 import Link from "next/link";
 import { format } from "date-fns";
+import { getTherapistAccent } from "@/lib/calendar/event-colors";
 
 interface ClientGridItem {
   id: string;
@@ -25,6 +36,9 @@ interface ClientGridItem {
     usedSessions: number;
     copaymentAmount: number | null;
   } | null;
+  // דף רב-מטפלים: המטפל/ת האחראי/ת — לסינון וצבע.
+  therapistId: string | null;
+  therapistName: string | null;
 }
 
 interface ClientsGridWithSearchProps {
@@ -54,25 +68,110 @@ const getStatusBadge = (status: string) => {
 export function ClientsGridWithSearch({ clients }: ClientsGridWithSearchProps) {
   const [search, setSearch] = useState("");
 
-  const filtered = search.trim()
-    ? clients.filter((c) => {
-        const fullName = `${c.firstName || ""} ${c.lastName || ""}`.trim();
-        return fullName.includes(search.trim());
+  // דף רב-מטפלים: מסנן לפי מטפל + צבע, בדומה ליומן. הרשימה נטענת מ-
+  // /api/clinic/therapists (זמין לבעלים/מזכירה; נכשל בשקט לאחרים → אין מסנן).
+  const { data: authSession } = useSession();
+  const currentTherapistId = authSession?.user?.id ?? null;
+  const [therapists, setTherapists] = useState<{ id: string; name: string | null }[]>([]);
+  const [selectedTherapistIds, setSelectedTherapistIds] = useState<Set<string> | null>(null);
+
+  useEffect(() => {
+    let active = true;
+    fetch("/api/clinic/therapists")
+      .then(async (res) => {
+        if (res.ok && active) {
+          const data = await res.json();
+          setTherapists(Array.isArray(data) ? data : []);
+        }
       })
-    : clients;
+      .catch(() => {
+        // מטפל עצמאי / שגיאה — אין מסנן, וזה תקין
+      });
+    return () => {
+      active = false;
+    };
+  }, []);
+
+  const multiTherapist = therapists.length > 1;
+  const allTherapistIds = therapists.map((t) => t.id);
+  const isTherapistSelected = (id: string) =>
+    !selectedTherapistIds || selectedTherapistIds.has(id);
+  const selectedTherapistCount = selectedTherapistIds
+    ? selectedTherapistIds.size
+    : therapists.length;
+  const toggleTherapist = (id: string) => {
+    setSelectedTherapistIds((prev) => {
+      const base = prev ? new Set(prev) : new Set(allTherapistIds);
+      if (base.has(id)) base.delete(id);
+      else base.add(id);
+      return base.size === allTherapistIds.length ? null : base;
+    });
+  };
+  const showAllTherapists = () => setSelectedTherapistIds(null);
+
+  const filtered = clients.filter((c) => {
+    // סינון לפי מטפל (רק בקליניקה רב-מטפלית). מטופל ללא מטפל נשאר מוצג.
+    if (
+      multiTherapist &&
+      selectedTherapistIds &&
+      c.therapistId &&
+      !selectedTherapistIds.has(c.therapistId)
+    ) {
+      return false;
+    }
+    if (search.trim()) {
+      const fullName = `${c.firstName || ""} ${c.lastName || ""}`.trim();
+      if (!fullName.includes(search.trim())) return false;
+    }
+    return true;
+  });
 
   return (
     <div className="space-y-4">
-      {/* חיפוש */}
+      {/* חיפוש + מסנן מטפל */}
       {clients.length > 0 && (
-        <div className="relative max-w-xs">
-          <Search className="absolute right-3 top-1/2 -translate-y-1/2 h-4 w-4 text-muted-foreground" />
-          <Input
-            placeholder="חיפוש לפי שם..."
-            value={search}
-            onChange={(e) => setSearch(e.target.value)}
-            className="pr-9"
-          />
+        <div className="flex flex-col sm:flex-row sm:items-center gap-2">
+          <div className="relative max-w-xs flex-1">
+            <Search className="absolute right-3 top-1/2 -translate-y-1/2 h-4 w-4 text-muted-foreground" />
+            <Input
+              placeholder="חיפוש לפי שם..."
+              value={search}
+              onChange={(e) => setSearch(e.target.value)}
+              className="pr-9"
+            />
+          </div>
+          {multiTherapist && (
+            <DropdownMenu>
+              <DropdownMenuTrigger asChild>
+                <Button variant="outline" className="gap-2 whitespace-nowrap">
+                  <Users className="h-4 w-4" />
+                  מטפלים ({selectedTherapistCount}/{therapists.length})
+                </Button>
+              </DropdownMenuTrigger>
+              <DropdownMenuContent align="end" className="w-60">
+                <DropdownMenuLabel>סינון לפי מטפל</DropdownMenuLabel>
+                <DropdownMenuItem onClick={showAllTherapists}>הצג את כולם</DropdownMenuItem>
+                <DropdownMenuSeparator />
+                {therapists.map((t) => (
+                  <DropdownMenuCheckboxItem
+                    key={t.id}
+                    checked={isTherapistSelected(t.id)}
+                    onCheckedChange={() => toggleTherapist(t.id)}
+                    onSelect={(e) => e.preventDefault()}
+                  >
+                    <span className="inline-flex items-center gap-2">
+                      <span
+                        className="inline-block w-2.5 h-2.5 rounded-full shrink-0"
+                        style={{ backgroundColor: getTherapistAccent(t.id) }}
+                        aria-hidden
+                      />
+                      {t.name || "מטפל"}
+                    </span>
+                  </DropdownMenuCheckboxItem>
+                ))}
+              </DropdownMenuContent>
+            </DropdownMenu>
+          )}
         </div>
       )}
 
@@ -94,6 +193,20 @@ export function ClientsGridWithSearch({ clients }: ClientsGridWithSearchProps) {
                         {client.firstName} {client.lastName}
                       </h3>
                       <div className="mt-1">{getStatusBadge(client.status)}</div>
+                      {/* דף רב-מטפלים: מטפל/ת אחראי/ת — רק של מטפלים אחרים (לא שלי). */}
+                      {multiTherapist &&
+                        client.therapistId &&
+                        client.therapistId !== currentTherapistId &&
+                        client.therapistName && (
+                          <div className="flex items-center gap-1 mt-1 text-xs text-muted-foreground">
+                            <span
+                              className="inline-block w-2 h-2 rounded-full shrink-0"
+                              style={{ backgroundColor: getTherapistAccent(client.therapistId) }}
+                              aria-hidden
+                            />
+                            <span className="truncate">{client.therapistName}</span>
+                          </div>
+                        )}
                     </div>
                   </div>
                 </CardHeader>
