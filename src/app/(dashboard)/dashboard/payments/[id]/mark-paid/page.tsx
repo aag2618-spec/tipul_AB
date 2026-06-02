@@ -15,7 +15,7 @@ import { toast } from "sonner";
 import { format } from "date-fns";
 import { ChargeCardcomDialog } from "@/components/payments/charge-cardcom-dialog";
 import { ReceiptPreviewDialog } from "@/components/payments/receipt-preview-dialog";
-import { tryOpenReceiptInNewTab } from "@/lib/receipt-utils";
+import { tryOpenReceiptInNewTab, resolveReceiptToShow } from "@/lib/receipt-utils";
 
 interface Payment {
   id: string;
@@ -67,6 +67,7 @@ export default function MarkPaidPage({ params }: { params: Promise<{ id: string 
   // נדחה עד שהמטפל סוגר את חלון הקבלה.
   const [receiptDialogOpen, setReceiptDialogOpen] = useState(false);
   const [receiptDialogPaymentId, setReceiptDialogPaymentId] = useState<string | null>(null);
+  const [receiptDialogIsCardcom, setReceiptDialogIsCardcom] = useState(false);
 
   useEffect(() => {
     const fetchPayment = async () => {
@@ -220,6 +221,7 @@ export default function MarkPaidPage({ params }: { params: Promise<{ id: string 
         const paymentResult = (await response.json()) as {
           id?: string;
           receiptUrl?: string;
+          receiptNumber?: string;
           receiptError?: string;
         };
         const effectivePaymentId = paymentResult.id || id;
@@ -251,7 +253,11 @@ export default function MarkPaidPage({ params }: { params: Promise<{ id: string 
         // מאמת safeHttpUrl + פותח בלשונית; אם popup נחסם — fallback דיאלוג.
         // ⚠️ הניווט ל-/payments נדחה לסגירת הקבלה ב-fallback (אחרת המטפל
         // עובר מסך לפני שהוא מספיק להדפיס).
-        if (businessType !== "NONE" && issueReceipt) {
+        // מציגים את הקבלה לפי מה שה-שרת באמת הפיק (receiptUrl/receiptNumber),
+        // ולא לפי הדגלים המקומיים businessType/issueReceipt — כך גם תשלום
+        // מזומן שעבורו Cardcom מפיק קבלה (כולל פלבק לבעל קליניקה) ייפתח מיד.
+        const shown = resolveReceiptToShow(paymentResult);
+        if (shown) {
           const { opened: popupOpened } = tryOpenReceiptInNewTab(
             paymentResult.receiptUrl,
           );
@@ -271,6 +277,7 @@ export default function MarkPaidPage({ params }: { params: Promise<{ id: string 
             );
           }
           setReceiptDialogPaymentId(effectivePaymentId);
+          setReceiptDialogIsCardcom(shown.isCardcom);
           // 220ms — ליישור עם quick-mark-paid / complete-session-dialog
           // (אנימציית סגירת Radix של הדיאלוג שלפני).
           setTimeout(() => setReceiptDialogOpen(true), 220);
@@ -593,7 +600,7 @@ export default function MarkPaidPage({ params }: { params: Promise<{ id: string 
           }
         }}
         paymentId={receiptDialogPaymentId}
-        isCardcom={false}
+        isCardcom={receiptDialogIsCardcom}
       />
     </div>
   );

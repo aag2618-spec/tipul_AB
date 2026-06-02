@@ -29,7 +29,7 @@ import Link from "next/link";
 import { ChargeCardcomDialog } from "./charge-cardcom-dialog";
 import { ChargeSavedCardButton } from "./charge-saved-card-button";
 import { ReceiptPreviewDialog } from "./receipt-preview-dialog";
-import { tryOpenReceiptInNewTab } from "@/lib/receipt-utils";
+import { tryOpenReceiptInNewTab, resolveReceiptToShow } from "@/lib/receipt-utils";
 
 interface QuickMarkPaidProps {
   sessionId: string;
@@ -118,6 +118,9 @@ export function QuickMarkPaid({
   // הדיאלוג כדי שהמטפל יספיק להדפיס.
   const [receiptDialogOpen, setReceiptDialogOpen] = useState(false);
   const [receiptDialogPaymentId, setReceiptDialogPaymentId] = useState<string | null>(null);
+  // האם הקבלה שתוצג ב-fallback היא קבלת Cardcom (מסמך cross-origin) או
+  // פנימית — נקבע דינמית לפי צורת ה-URL שהשרת החזיר.
+  const [receiptDialogIsCardcom, setReceiptDialogIsCardcom] = useState(false);
   const [showAdvanced, setShowAdvanced] = useState(false);
   const [paymentType, setPaymentType] = useState<"FULL" | "PARTIAL" | "CREDIT">("FULL");
   const [partialAmount, setPartialAmount] = useState<string>("");
@@ -316,8 +319,17 @@ export function QuickMarkPaid({
       // חלקי additive). חיוני להעביר אותו ל-fallback dialog שמבצע polling
       // על receiptUrl — אחרת הוא יחפש על parent ID שלא יקבל receiptUrl.
       const paymentId = (result as { id?: string })?.id || existingPayment?.id;
-      const receiptUrl = (result as { receiptUrl?: string })?.receiptUrl;
-      if (paymentId && businessType !== "NONE" && issueReceipt) {
+      // ── מתי מציגים את הקבלה מיד? ─────────────────────────────────
+      // לפי מה שה-שרת באמת הפיק (receiptUrl/receiptNumber), לא לפי הדגלים
+      // המקומיים businessType/issueReceipt. כש-Cardcom הוא מנפיק הקבלות
+      // (כולל פלבק לבעל הקליניקה) השרת מפיק קבלה גם כשאצל המטפל המחובר
+      // businessType=NONE / externalReceiptProvider=null — והגייט הישן הסתיר
+      // אותה עד הכניסה לטאב "קבלות". עכשיו מציגים מיד, בדיוק כמו באשראי.
+      const shown = resolveReceiptToShow(
+        result as { receiptUrl?: string | null; receiptNumber?: string | null },
+      );
+      const receiptUrl = shown?.receiptUrl ?? undefined;
+      if (paymentId && shown) {
         const { opened: popupOpened } = tryOpenReceiptInNewTab(receiptUrl);
         if (popupOpened) {
           // הקבלה נפתחה בלשונית נפרדת — toast מפורש כדי שהמטפל ידע.
@@ -330,6 +342,7 @@ export function QuickMarkPaid({
         }
         // Fallback: popup-blocker חסם או receiptUrl חסר/לא תקין.
         setReceiptDialogPaymentId(paymentId);
+        setReceiptDialogIsCardcom(shown.isCardcom);
         setIsOpen(false);
         if (!receiptUrl) {
           toast.message("הקבלה תיפתח כאן ברגע שתהיה מוכנה", { duration: 4000 });
@@ -698,7 +711,7 @@ export function QuickMarkPaid({
         }
       }}
       paymentId={receiptDialogPaymentId}
-      isCardcom={false}
+      isCardcom={receiptDialogIsCardcom}
     />
     </>
   );

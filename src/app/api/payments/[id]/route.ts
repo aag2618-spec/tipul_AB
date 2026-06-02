@@ -80,7 +80,29 @@ export async function GET(
       return NextResponse.json({ message: "תשלום לא נמצא" }, { status: 404 });
     }
 
-    return NextResponse.json(serializePrisma(payment));
+    // Child-receipt fallback — בתשלום חלקי/מצטבר הקבלה מונפקת על ה-child,
+    // בעוד שה-GET הזה מחזיר את ה-parent. כש-ReceiptPreviewDialog עושה polling
+    // לפי id ההורה (כי זה ה-id שה-API מחזיר ל-UI), בלי המיזוג הזה הוא לא
+    // מוצא receiptUrl/receiptNumber → "לא נמצאה קבלה". חושפים את קבלת ה-child
+    // האחרון שיש לו קבלה. תואם ל-paid-history/dashboard.
+    let withReceipt: typeof payment = payment;
+    if (!payment.hasReceipt) {
+      const childWithReceipt = await prisma.payment.findFirst({
+        where: { parentPaymentId: payment.id, hasReceipt: true },
+        orderBy: { createdAt: "desc" },
+        select: { hasReceipt: true, receiptUrl: true, receiptNumber: true },
+      });
+      if (childWithReceipt) {
+        withReceipt = {
+          ...payment,
+          hasReceipt: childWithReceipt.hasReceipt,
+          receiptUrl: payment.receiptUrl ?? childWithReceipt.receiptUrl,
+          receiptNumber: payment.receiptNumber ?? childWithReceipt.receiptNumber,
+        };
+      }
+    }
+
+    return NextResponse.json(serializePrisma(withReceipt));
   } catch (error) {
     logger.error("Get payment error:", { error: error instanceof Error ? error.message : String(error) });
     return NextResponse.json(
@@ -387,6 +409,9 @@ export async function PUT(
         ...result.payment,
         receiptError: result.receiptError,
         receiptUrl: result.receiptUrl,
+        // ראה הערה ב-POST /api/payments — חושפים receiptNumber טרי בלבד
+        // (null כשלא הופקה קבלה בקריאה זו) כדי שה-UI לא יציג קבלה ישנה.
+        receiptNumber: result.receiptNumber ?? null,
       }));
     }
 
@@ -421,6 +446,9 @@ export async function PUT(
         ...result.payment,
         receiptError: result.receiptError,
         receiptUrl: result.receiptUrl,
+        // ראה הערה ב-POST /api/payments — חושפים receiptNumber טרי בלבד
+        // (null כשלא הופקה קבלה בקריאה זו) כדי שה-UI לא יציג קבלה ישנה.
+        receiptNumber: result.receiptNumber ?? null,
       }));
     }
 

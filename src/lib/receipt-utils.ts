@@ -71,3 +71,27 @@ export function tryOpenReceiptInNewTab(
     return { opened: false, safeUrl: safe };
   }
 }
+
+/**
+ * מחליט אם (ואיך) להציג קבלה מיד אחרי תשלום, לפי מה שה-**שרת** באמת הפיק —
+ * ולא לפי דגלי issueReceipt/businessType בצד הלקוח. הדגלים בצד הלקוח נקבעים
+ * לפי ה-BillingProvider של המשתמש המחובר, אבל השרת מפיק קבלה גם כש-Cardcom
+ * שייך לבעל הקליניקה (פלבק) או כשהמטפל המחובר הוא NONE — ואז הגייט הישן
+ * הסתיר את הקבלה עד הכניסה לטאב "קבלות".
+ *
+ * מחזיר null כשלא הופקה קבלה (אין מה להציג). אחרת מחזיר את ה-URL (אם יש)
+ * ואת isCardcom: קבלת Cardcom (מסמך cross-origin / מספר ללא URL) מול קבלה
+ * פנימית בפורמט `/receipt/{id}#t=...` — לכל אחת מסלול הצגה אחר ב-
+ * ReceiptPreviewDialog.
+ */
+export function resolveReceiptToShow(
+  result:
+    | { receiptUrl?: string | null; receiptNumber?: string | null }
+    | null
+    | undefined,
+): { receiptUrl: string | null; isCardcom: boolean } | null {
+  const receiptUrl = result?.receiptUrl ?? null;
+  const receiptNumber = result?.receiptNumber ?? null;
+  if (!receiptUrl && !receiptNumber) return null;
+  return { receiptUrl, isCardcom: !parseInternalReceipt(receiptUrl) };
+}

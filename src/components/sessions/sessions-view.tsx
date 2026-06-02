@@ -20,6 +20,8 @@ import Link from "next/link";
 import { SessionCard, type Session } from "./session-card";
 import { CancelSessionDialog } from "./cancel-session-dialog";
 import { SessionsUpdateDialog } from "./update-session-dialog";
+import { ReceiptPreviewDialog } from "@/components/payments/receipt-preview-dialog";
+import { resolveReceiptToShow, tryOpenReceiptInNewTab } from "@/lib/receipt-utils";
 
 interface SessionsViewProps {
   initialSessions: Session[];
@@ -222,6 +224,11 @@ export function SessionsView({ initialSessions }: SessionsViewProps) {
     }
   };
 
+  // תצוגת קבלה מיד אחרי תשלום במזומן/צ'ק/העברה דרך דיאלוג "עדכן/סיים ושלם".
+  const [receiptDialogOpen, setReceiptDialogOpen] = useState(false);
+  const [receiptDialogPaymentId, setReceiptDialogPaymentId] = useState<string | null>(null);
+  const [receiptDialogIsCardcom, setReceiptDialogIsCardcom] = useState(false);
+
   const handleUpdate = async (params: {
     updateStatus: string;
     showPayment: boolean;
@@ -293,7 +300,28 @@ export function SessionsView({ initialSessions }: SessionsViewProps) {
         setSessions(prev => prev.map(s =>
           s.id === updateDialog.sessionId ? { ...s, status: "COMPLETED" } : s
         ));
+
+        // הצגת הקבלה מיד — לפי מה שהשרת באמת הפיק (כמו ביתר מסכי התשלום).
+        // מסלול "עדכן/סיים ושלם" ברשימת הפגישות — עד עכשיו הקבלה לא הוצגה כאן.
+        const shown = resolveReceiptToShow(paymentResult);
         setUpdateDialog({ open: false, sessionId: "", clientName: "", clientId: "", price: 0 });
+        if (paymentResult?.id && shown) {
+          const { opened } = tryOpenReceiptInNewTab(shown.receiptUrl);
+          if (opened) {
+            toast.message("הקבלה נפתחה בלשונית חדשה — אפשר להדפיס משם", { duration: 5000 });
+            return;
+          }
+          setReceiptDialogPaymentId(paymentResult.id);
+          setReceiptDialogIsCardcom(shown.isCardcom);
+          toast.message(
+            shown.receiptUrl
+              ? "הדפדפן חסם פתיחת לשונית. הקבלה מוצגת כאן — או אשר/י popups בהגדרות הדפדפן."
+              : "הקבלה תיפתח כאן ברגע שתהיה מוכנה",
+            { duration: shown.receiptUrl ? 8000 : 4000 },
+          );
+          setTimeout(() => setReceiptDialogOpen(true), 220);
+          return;
+        }
         return;
       }
 
@@ -680,6 +708,17 @@ export function SessionsView({ initialSessions }: SessionsViewProps) {
           hideButton={true}
         />
       )}
+
+      {/* קבלה אחרי "עדכן/סיים ושלם" במזומן/צ'ק/העברה (לא-Cardcom). */}
+      <ReceiptPreviewDialog
+        open={receiptDialogOpen}
+        onOpenChange={(next) => {
+          setReceiptDialogOpen(next);
+          if (!next) router.refresh();
+        }}
+        paymentId={receiptDialogPaymentId}
+        isCardcom={receiptDialogIsCardcom}
+      />
     </div>
   );
 }

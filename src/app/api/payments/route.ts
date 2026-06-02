@@ -295,7 +295,16 @@ export async function POST(request: NextRequest) {
     }
 
     return NextResponse.json(
-      serializePrisma({ ...result.payment, receiptError: result.receiptError, receiptUrl: result.receiptUrl }),
+      serializePrisma({
+        ...result.payment,
+        receiptError: result.receiptError,
+        receiptUrl: result.receiptUrl,
+        // חושפים את מספר הקבלה שזה עתה הופק כדי שה-UI יוכל להציג את הקבלה
+        // מיד גם כש-Cardcom מחזיר DocumentNumber ללא URL. רק המספר הטרי —
+        // null כשלא הופקה קבלה בקריאה זו, כדי שה-UI לא יציג בטעות קבלה ישנה
+        // של ה-Payment (למשל ב-PUT על תשלום שכבר היתה לו קבלה).
+        receiptNumber: result.receiptNumber ?? null,
+      }),
       { status: 201 }
     );
   } catch (error) {
