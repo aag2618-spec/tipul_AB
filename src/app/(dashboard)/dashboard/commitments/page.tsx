@@ -8,6 +8,7 @@ import { FileCheck, Stethoscope, Users, Plus } from "lucide-react";
 import Link from "next/link";
 import { format } from "date-fns";
 import { loadScopeUser, buildClientWhere } from "@/lib/scope";
+import { shouldScopePersonal } from "@/lib/view-scope";
 
 export const dynamic = "force-dynamic";
 
@@ -35,7 +36,8 @@ export default async function CommitmentsPage() {
   if (!session?.user?.id) return null;
 
   const scopeUser = await loadScopeUser(session.user.id);
-  const clientWhere = buildClientWhere(scopeUser);
+  const personalOnly = await shouldScopePersonal(scopeUser);
+  const clientWhere = buildClientWhere(scopeUser, { personalOnly });
 
   const commitments = await prisma.clientCommitment.findMany({
     where: { client: clientWhere },

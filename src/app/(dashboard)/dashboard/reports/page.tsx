@@ -17,16 +17,17 @@ import {
   secretaryCan,
   type ScopeUser,
 } from "@/lib/scope";
+import { shouldScopePersonal } from "@/lib/view-scope";
 
 // מונע cache leak בין מטפלים — דוח מכיל PHI scoped למשתמש
 export const dynamic = "force-dynamic";
 
 const hebrewDays = ["ראשון", "שני", "שלישי", "רביעי", "חמישי", "שישי", "שבת"];
 
-async function getReportData(scopeUser: ScopeUser): Promise<ReportData> {
-  const clientWhere = buildClientWhere(scopeUser);
-  const sessionWhere = buildSessionWhere(scopeUser);
-  const paymentWhere = buildPaymentWhere(scopeUser);
+async function getReportData(scopeUser: ScopeUser, personalOnly: boolean): Promise<ReportData> {
+  const clientWhere = buildClientWhere(scopeUser, { personalOnly });
+  const sessionWhere = buildSessionWhere(scopeUser, { personalOnly });
+  const paymentWhere = buildPaymentWhere(scopeUser, { personalOnly });
   try {
     // yearStart — 1 בינואר של השנה הישראלית הנוכחית, בשעון ישראל
     const now = new Date();
@@ -269,7 +270,8 @@ export default async function ReportsPage() {
     );
   }
 
-  const data = await getReportData(scopeUser);
+  const personalOnly = await shouldScopePersonal(scopeUser);
+  const data = await getReportData(scopeUser, personalOnly);
 
   return <ReportsView data={data} />;
 }

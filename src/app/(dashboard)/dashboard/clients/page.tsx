@@ -10,6 +10,7 @@ import { ExportAllClientsButton } from "@/components/clients/export-all-clients-
 import { ConsultationClientsSection } from "@/components/clients/consultation-clients-section";
 import { ClientsGridWithSearch } from "@/components/clients/clients-grid-with-search";
 import { loadScopeUser, buildClientWhere, isSecretary } from "@/lib/scope";
+import { shouldScopePersonal } from "@/lib/view-scope";
 import { calculatePaidAmount } from "@/lib/payment-utils";
 
 // מונע cache leak בין מטפלים — דף מכיל PHI scoped למשתמש
@@ -105,7 +106,10 @@ export default async function ClientsPage({ searchParams }: PageProps) {
   const activeStatus = validStatuses.includes(mappedStatus as ClientStatus) ? mappedStatus as ClientStatus : undefined;
 
   const scopeUser = await loadScopeUser(session.user.id);
-  const clientWhere = buildClientWhere(scopeUser);
+  // היקף לפי המתג הגלובלי "שלי / כל הקליניקה". לבעל/ת קליניקה ב"שלי" → רק
+  // המטופלים שלו/ה; אחרת כל הקליניקה. לשאר התפקידים — ללא שינוי.
+  const personalOnly = await shouldScopePersonal(scopeUser);
+  const clientWhere = buildClientWhere(scopeUser, { personalOnly });
   const asSecretary = isSecretary(scopeUser);
 
   const [clients, counts, quickClients] = await Promise.all([

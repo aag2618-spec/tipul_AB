@@ -4,6 +4,7 @@ import prisma from "@/lib/prisma";
 import { Prisma } from "@prisma/client";
 import { SessionsView } from "@/components/sessions/sessions-view";
 import { loadScopeUser, buildSessionWhere, isSecretary } from "@/lib/scope";
+import { shouldScopePersonal } from "@/lib/view-scope";
 
 // מונע cache leak בין מטפלים — דף מכיל PHI scoped למשתמש
 export const dynamic = "force-dynamic";
@@ -36,7 +37,8 @@ export default async function SessionsPage() {
   if (!session?.user?.id) return null;
 
   const scopeUser = await loadScopeUser(session.user.id);
-  const sessionWhere = buildSessionWhere(scopeUser);
+  const personalOnly = await shouldScopePersonal(scopeUser);
+  const sessionWhere = buildSessionWhere(scopeUser, { personalOnly });
   const includeNote = !isSecretary(scopeUser);
 
   const [sessions, prepKeys] = await Promise.all([
