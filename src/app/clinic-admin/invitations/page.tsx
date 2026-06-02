@@ -343,7 +343,7 @@ export default function ClinicInvitationsPage() {
 
       {/* יצירת הזמנה */}
       <Dialog open={createOpen} onOpenChange={setCreateOpen}>
-        <DialogContent dir="rtl" className="max-w-md">
+        <DialogContent dir="rtl" className="max-w-md max-h-[90vh] overflow-y-auto">
           <DialogHeader>
             <DialogTitle>הזמנה חדשה</DialogTitle>
             <DialogDescription>
