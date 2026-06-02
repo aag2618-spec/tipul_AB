@@ -10,9 +10,11 @@ interface CalendarEventContentProps {
   onAddSessionAfter: (session: CalendarSession) => void;
   // יומן רב-מטפלים: כשהקליניקה כוללת כמה מטפלים, מציגים שם מטפל + נקודת צבע.
   showTherapist?: boolean;
+  // מזהה המשתמש המחובר — הפגישות שלו עצמו נשארות "נקיות" (בלי שם/פס מטפל).
+  currentTherapistId?: string | null;
 }
 
-export function CalendarEventContent({ eventInfo, sessions, onAddSessionAfter, showTherapist }: CalendarEventContentProps) {
+export function CalendarEventContent({ eventInfo, sessions, onAddSessionAfter, showTherapist, currentTherapistId }: CalendarEventContentProps) {
   const session = sessions.find(s => s.id === eventInfo.event.id);
   if (!session) return null;
 
@@ -62,8 +64,19 @@ export function CalendarEventContent({ eventInfo, sessions, onAddSessionAfter, s
     );
   }
 
-  // יומן רב-מטפלים: מציגים פס צבע מטפל בקצה הפגישה (רק כשיש כמה מטפלים ומזוהה מטפל).
-  const showAccent = !!(showTherapist && session.therapistId);
+  // יומן רב-מטפלים: פס הצבע ושם המטפל מוצגים רק לפגישות של מטפלים *אחרים*.
+  // הפגישות של המשתמש עצמו נשארות "נקיות" (בלי שם/פס) — הוא ממילא יודע שהן שלו.
+  const isOwnSession = !!(
+    currentTherapistId && session.therapistId && session.therapistId === currentTherapistId
+  );
+  const isOtherTherapist = !!(showTherapist && session.therapistId && !isOwnSession);
+  // משך הפגישה בדקות. בפגישה קצרה (פחות מ-45 דק') אין מקום ל-3 שורות, אז
+  // מוותרים על שורת שם המטפל — פס הצבע עדיין מזהה אותו — כדי ששם המטופל
+  // (החשוב ביותר) לא ייחתך.
+  const durationMin =
+    (new Date(session.endTime).getTime() - new Date(session.startTime).getTime()) / 60000;
+  const showAccent = isOtherTherapist;
+  const showTherapistName = isOtherTherapist && !!session.therapistName && durationMin >= 45;
 
   return (
     <div className="relative flex items-center justify-between w-full h-full gap-1 group overflow-hidden">
@@ -81,7 +94,7 @@ export function CalendarEventContent({ eventInfo, sessions, onAddSessionAfter, s
       <div className={`flex-1 min-w-0 overflow-hidden ${showAccent ? "pr-2.5 pl-0.5" : "px-1"}`}>
         <div className="font-semibold text-xs leading-tight break-words">{eventInfo.event.title}</div>
         <div className="text-xs font-semibold opacity-90">{eventInfo.timeText}</div>
-        {showTherapist && session.therapistName && (
+        {showTherapistName && (
           <div className="text-[10px] leading-tight opacity-90 mt-0.5 break-words">{session.therapistName}</div>
         )}
       </div>

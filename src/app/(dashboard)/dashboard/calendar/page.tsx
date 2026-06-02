@@ -2,6 +2,7 @@
 
 import { Suspense, useEffect, useState, useCallback } from "react";
 import { useSearchParams, useRouter } from "next/navigation";
+import { useSession } from "next-auth/react";
 import dynamic from "next/dynamic";
 import { Button } from "@/components/ui/button";
 import { Card, CardContent } from "@/components/ui/card";
@@ -78,6 +79,9 @@ export default function CalendarPage() {
 function CalendarPageContent() {
   const router = useRouter();
   const searchParams = useSearchParams();
+  // מזהה המשתמש המחובר — כדי לא להציג את שם/צבע המטפל על הפגישות של המשתמש עצמו.
+  const { data: authSession } = useSession();
+  const currentTherapistId = authSession?.user?.id ?? null;
   const viewParam = searchParams.get('view');
   const dateParam = searchParams.get('date');
   const timeParam = searchParams.get('time');
@@ -767,6 +771,7 @@ function CalendarPageContent() {
                 sessions={sessions}
                 onAddSessionAfter={handleAddSessionAfter}
                 showTherapist={multiTherapist}
+                currentTherapistId={currentTherapistId}
               />
             )}
             height="auto"
