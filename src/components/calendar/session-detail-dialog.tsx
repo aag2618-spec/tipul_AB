@@ -11,6 +11,7 @@ import { toast } from "sonner";
 import { useRouter } from "next/navigation";
 import { QuickMarkPaid } from "@/components/payments/quick-mark-paid";
 import { safeHttpUrl } from "@/lib/receipt-utils";
+import { getTherapistAccent } from "@/lib/calendar/event-colors";
 import type { CalendarSession } from "@/hooks/use-calendar-data";
 
 // ── Types ──
@@ -58,6 +59,9 @@ interface SessionDetailDialogProps {
    * וכמו גם למזכירה שיש לה ההרשאה.
    */
   canViewPayments?: boolean;
+  // יומן רב-מטפלים: מזהה המשתמש המחובר — כדי להציג "מטפל: X" רק כשהפגישה
+  // שייכת למטפל אחר (לא מציגים למשתמש את שמו שלו).
+  currentTherapistId?: string | null;
 }
 
 // ── Component ──
@@ -73,6 +77,7 @@ export function SessionDetailDialog({
   onDataChanged,
   onRequestTimeUpdate,
   canViewPayments = true,
+  currentTherapistId,
 }: SessionDetailDialogProps) {
   const router = useRouter();
   const [previousSessions, setPreviousSessions] = useState<Array<{
@@ -496,6 +501,18 @@ export function SessionDetailDialog({
           <DialogDescription>
             {session.client?.name || "הפסקה"} • {format(new Date(session.startTime), "d/M/yyyy HH:mm")}
           </DialogDescription>
+          {/* יומן רב-מטפלים: שם המטפל/ת האחראי/ת — מוצג רק כשזו פגישה של מטפל
+              אחר (לא של המשתמש עצמו), כדי שמזכירה/מנהלת יראו מיד עם מי הפגישה. */}
+          {session.therapistName && session.therapistId !== currentTherapistId && (
+            <div className="flex items-center gap-1.5 text-sm font-medium pt-0.5">
+              <span
+                className="inline-block w-2.5 h-2.5 rounded-full shrink-0"
+                style={{ backgroundColor: getTherapistAccent(session.therapistId) }}
+                aria-hidden
+              />
+              <span>מטפל/ת: {session.therapistName}</span>
+            </div>
+          )}
         </DialogHeader>
 
         <div className="space-y-4">

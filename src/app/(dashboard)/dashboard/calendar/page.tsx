@@ -829,6 +829,7 @@ function CalendarPageContent() {
         onOpenChange={setIsSessionDialogOpen}
         session={selectedSession}
         onSessionChange={setSelectedSession}
+        currentTherapistId={currentTherapistId}
         canViewPayments={myPermissions.canViewPayments}
         onRequestPayment={async (data: PaymentRequest) => {
           // Phase 3: client-side guard — מזכירה ללא canViewPayments לא צריכה

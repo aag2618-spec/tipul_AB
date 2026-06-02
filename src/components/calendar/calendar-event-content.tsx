@@ -78,8 +78,18 @@ export function CalendarEventContent({ eventInfo, sessions, onAddSessionAfter, s
   const showAccent = isOtherTherapist;
   const showTherapistName = isOtherTherapist && !!session.therapistName && durationMin >= 45;
 
+  // tooltip בריחוף — רשת ביטחון לזיהוי מי הפגישה גם כשהפגישה צרה/קצרה והשם
+  // המלא לא נכנס (למשל הרבה פגישות באותה שעה זו לצד זו). מציג מטופל • מטפל • שעה.
+  const hoverTitle = [
+    eventInfo.event.title,
+    isOtherTherapist && session.therapistName ? `מטפל: ${session.therapistName}` : null,
+    eventInfo.timeText || null,
+  ]
+    .filter(Boolean)
+    .join(" • ");
+
   return (
-    <div className="relative flex items-center justify-between w-full h-full gap-1 group overflow-hidden">
+    <div className="relative flex items-center justify-between w-full h-full gap-1 group overflow-hidden" title={hoverTitle}>
       {/* פס צבע לכל גובה הפגישה בקצה המוביל (ימין ב-RTL), בצבע המטפל — מחליף את
           הנקודה הזעירה שהייתה בתחתית וכמעט לא נראתה, בולט גם בפגישה קצרה וגם כששני
           מטפלים מוצגים יחד. קו לבן דק מפריד מהרקע כדי שהפס יבלוט גם כשצבע המטפל
