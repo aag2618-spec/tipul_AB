@@ -1,6 +1,7 @@
 import { PrismaClient } from '@prisma/client';
 import { PrismaPg } from '@prisma/adapter-pg';
 import { Pool } from 'pg';
+import { logger } from './logger';
 import {
   ENCRYPTED_FIELDS,
   ENCRYPTED_JSON_FIELDS,
@@ -25,7 +26,33 @@ function createPrismaClient(): PrismaClient {
     throw new Error('DATABASE_URL environment variable is not set');
   }
 
-  const pool = new Pool({ connectionString });
+  // ── הגדרת ה-pool של pg ──
+  // קודם היה `new Pool({ connectionString })` בלבד — שלוש בעיות שגרמו ל"טעינה
+  // אינסופית" ולקריסות שרת מזדמנות:
+  //  1. ללא `connectionTimeoutMillis` — אם כל החיבורים תפוסים, בקשה חדשה ממתינה
+  //     *לנצח* לחיבור פנוי. בצד הלקוח זה מתבטא כגלגל טעינה שלא נגמר.
+  //  2. ללא מאזין 'error' על ה-pool — pg מחייב אותו: כשמסד-הנתונים מנתק חיבור
+  //     idle (Render ורשתות ענן עושים זאת בשקט), pg פולט 'error' על הלקוח ה-idle.
+  //     בלי מאזין, השגיאה הופכת ל-uncaughtException ש*מפיל את כל תהליך השרת* —
+  //     ואז כל הבקשות נתקעות עד שהשירות עולה מחדש (10-60ש').
+  //  3. ללא `keepAlive` — חיבורים לא-פעילים מתנתקים בשקט ע"י ה-NAT/load-balancer.
+  const pool = new Pool({
+    connectionString,
+    max: Number(process.env.DB_POOL_MAX) || 10,
+    connectionTimeoutMillis: 10_000,
+    idleTimeoutMillis: 30_000,
+    keepAlive: true,
+  });
+
+  // חובה לפי תיעוד pg: מאזין שגיאות ל-pool. רק מתעדים — pg כבר מסיר את החיבור
+  // הפגום מה-pool אוטומטית, ולכן אסור לזרוק כאן (זריקה תחזיר אותנו בדיוק לקריסה
+  // שאנחנו מונעים).
+  pool.on('error', (err) => {
+    logger.error('[prisma] שגיאה לא-צפויה בחיבור idle למסד-הנתונים', {
+      error: err instanceof Error ? err.message : String(err),
+    });
+  });
+
   const adapter = new PrismaPg(pool);
 
   const base = new PrismaClient({
