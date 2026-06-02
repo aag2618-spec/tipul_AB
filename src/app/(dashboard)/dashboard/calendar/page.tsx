@@ -1,6 +1,6 @@
 "use client";
 
-import { Suspense, useEffect, useState, useCallback } from "react";
+import { Suspense, useEffect, useState, useCallback, useRef } from "react";
 import { useSearchParams, useRouter } from "next/navigation";
 import { useSession } from "next-auth/react";
 import dynamic from "next/dynamic";
@@ -256,6 +256,21 @@ function CalendarPageContent() {
       active = false;
     };
   }, []);
+
+  // יומן רב-מטפלים: ברירת מחדל אישית. אם המשתמש המחובר הוא אחד המטפלים בקליניקה
+  // (למשל בעלים שהוא גם מטפל), היומן נפתח עם הפגישות שלו בלבד — "יומן אישי".
+  // מזכירה / מנהל לא-מטפל (שאינם ברשימת המטפלים) ממשיכים לראות את כולם.
+  // רץ פעם אחת בלבד, כך שבחירה ידנית של המשתמש אחר כך לא נדרסת.
+  const didInitTherapistFilter = useRef(false);
+  useEffect(() => {
+    if (didInitTherapistFilter.current) return;
+    if (!currentTherapistId || therapists.length === 0) return;
+    const meIsTherapist = therapists.some((t) => t.id === currentTherapistId);
+    if (meIsTherapist && therapists.length > 1) {
+      setSelectedTherapistIds(new Set([currentTherapistId]));
+    }
+    didInitTherapistFilter.current = true;
+  }, [currentTherapistId, therapists]);
 
   const multiTherapist = therapists.length > 1;
   const allTherapistIds = therapists.map((t) => t.id);
