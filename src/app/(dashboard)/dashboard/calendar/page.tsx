@@ -716,6 +716,10 @@ function CalendarPageContent() {
 
       <Card>
         <CardContent className="p-4">
+          {/* יומן רב-מטפלים: slotEventOverlap={false} גורם לפגישות שמתנגשות באותה
+              שעה להופיע אחת ליד השנייה (חצי רוחב כל אחת) במקום אחת על השנייה, כך
+              ששתיהן נראות במלואן ואף פגישה לא מסתירה את חברתה. משפיע רק על המשבצת
+              החופפת — כל שאר הפגישות נשארות ברוחב מלא. */}
           <FullCalendar
             key={`${initialDate || "today"}-${scrollTime}-${highlightParam || ""}-${isMobile ? "m" : "d"}`}
             plugins={[dayGridPlugin, timeGridPlugin, interactionPlugin]}
@@ -748,6 +752,7 @@ function CalendarPageContent() {
             slotMaxTime="24:00:00"
             allDaySlot={false}
             slotDuration="00:30:00"
+            slotEventOverlap={false}
             events={filteredEvents}
             datesSet={handleDatesSet}
             dateClick={handleDateClick}
