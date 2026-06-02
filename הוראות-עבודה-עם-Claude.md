@@ -106,6 +106,15 @@ logger.error("[FeatureName] Description:", {
 - פגישה עם `payment.status === "PENDING"` = תשלום קיים אבל עדיין לא שולם
 - **אף פעם** לא להתייחס ל-`payment: null` כחוב ב-CRON או תזכורות
 
+### טיפול בשגיאות בדפים
+- דף Server Component שטוען נתונים — לעטוף בטיפול-שגיאה ולהחזיר `null` או לזרוק ל-error boundary.
+- בכל קבוצת ראוטים שיהיה `error.tsx` שמציג את השגיאה האמיתית.
+- כשמשאב לא קיים — `notFound()` מ-`next/navigation`.
+
+### דפוסי קומפוננטות
+- `"use client"` רק כשצריך hooks או אינטראקציה.
+- **אף פעם לא להעביר אובייקט Prisma ישירות לקומפוננטת לקוח** — רק נתונים "שטוחים" (plain object אחרי `JSON.parse(JSON.stringify(...))`).
+
 ### מבנה קבצים
 - API routes: `src/app/api/[feature]/route.ts`
 - Pages: `src/app/(dashboard)/dashboard/[feature]/page.tsx`
