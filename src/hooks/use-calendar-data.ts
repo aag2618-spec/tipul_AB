@@ -138,6 +138,16 @@ export function useCalendarData() {
     }
   }, []);
 
+  // היקף תצוגה "שלי / כל הקליניקה" — נקרא מה-cookie בכל render. כשהמתג מתחלף
+  // (cookie + router.refresh), הערך משתנה והיומן נטען מחדש בהיקף הנכון. קודם
+  // היומן החזיק את הפגישות ב-state ולא הגיב למתג (התעדכן רק בניווט תאריך או
+  // ב-poll כל 2 דקות), ולכן "כל הקליניקה" הראה רק את הפגישות של הבעלים.
+  const viewScope =
+    typeof document !== "undefined" &&
+    /(?:^|;\s*)mytipul_view=clinic/.test(document.cookie)
+      ? "clinic"
+      : "personal";
+
   useEffect(() => {
     fetchData();
     fetchSecondary();
@@ -177,7 +187,7 @@ export function useCalendarData() {
       clearInterval(interval);
       window.removeEventListener("focus", onFocus);
     };
-  }, [fetchData, fetchSecondary, checkOverlaps, buildCalendarUrl]);
+  }, [fetchData, fetchSecondary, checkOverlaps, buildCalendarUrl, viewScope]);
 
   return {
     sessions,
