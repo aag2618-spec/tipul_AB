@@ -120,6 +120,69 @@ export async function getOrgChatSettings(
   return { allowTherapistChat: org?.allowTherapistChat ?? false };
 }
 
+/**
+ * אכיפת מדיניות "צ׳אט בין מטפלים" על שיחות קיימות, בעת שינוי הדגל. מופעל בתוך
+ * הטרנזקציה שמעדכנת את הדגל (אטומי).
+ *
+ * - כיבוי (enabled=false): סוגר (leftAt=now) את כל שיחות ה-DIRECT שבהן *שני*
+ *   הצדדים מטפלים — כך שהן נעלמות מהרשימה ואי אפשר עוד לקרוא/לכתוב בהן (כל
+ *   ה-routes מסננים leftAt:null). זו אכיפת הביטול: כיבוי הכפתור עוצר גם שיחות
+ *   שכבר נפתחו, לא רק חדשות. שיחות מטפל↔הנהלה לא נסגרות לעולם.
+ * - הפעלה (enabled=true): משחזר (leftAt=null) את *כל* שיחות ה-DIRECT שנסגרו.
+ *   leftAt נכתב אך ורק על-ידי הפונקציה הזו (אין פיצ׳ר "עזיבה" ידני), ולכן כל
+ *   leftAt על DIRECT בארגון הוא תוצר המדיניות — בטוח לשחזר את כולן. שחזור "עיוור"
+ *   (ולא לפי הסיווג הנוכחי) חיוני: אם צד בשיחה שינה תפקיד או הוסר מהקליניקה בין
+ *   הכיבוי להדלקה, סיווג-מחדש היה משאיר את השיחה סגורה לנצח.
+ */
+export async function applyTherapistChatPolicy(
+  tx: Prisma.TransactionClient,
+  organizationId: string,
+  enabled: boolean
+): Promise<void> {
+  if (enabled) {
+    // שחזור עיוור: כל משתתף שסומן leftAt בשיחת DIRECT בארגון — נפתח מחדש.
+    await tx.chatParticipant.updateMany({
+      where: {
+        leftAt: { not: null },
+        conversation: { organizationId, type: "DIRECT" },
+      },
+      data: { leftAt: null },
+    });
+    return;
+  }
+
+  // כיבוי: איתור שיחות DIRECT שבהן *שני* הצדדים מטפלים (אף צד אינו מנהלת/מזכירה).
+  const directConvos = await tx.chatConversation.findMany({
+    where: { organizationId, type: "DIRECT" },
+    select: {
+      id: true,
+      // בכוונה ללא סינון leftAt — הסיווג חייב לשקף את ההרכב האמיתי של השיחה.
+      // הוספת leftAt:null כאן תשבור את אבחנת "זוג-מטפלים".
+      participants: {
+        select: { user: { select: { clinicRole: true, role: true } } },
+      },
+    },
+  });
+
+  // הגנה: length>0 כדי ש-every לא יחזיר true על מערך ריק.
+  const therapistPairIds = directConvos
+    .filter(
+      (c) =>
+        c.participants.length > 0 &&
+        c.participants.every(
+          (p) => memberKind(p.user.clinicRole, p.user.role) === "THERAPIST"
+        )
+    )
+    .map((c) => c.id);
+
+  if (therapistPairIds.length === 0) return;
+
+  await tx.chatParticipant.updateMany({
+    where: { conversationId: { in: therapistPairIds }, leftAt: null },
+    data: { leftAt: new Date() },
+  });
+}
+
 // תווית תפקיד עברית לתצוגה. בעלת קליניקה מזוהה גם דרך clinicRole וגם דרך role
 // (תואם ל-chatMemberWhere ולשער ההרשאות) — אחרת מנהלת עלולה להופיע כ"מזכירה".
 export function chatRoleLabel(

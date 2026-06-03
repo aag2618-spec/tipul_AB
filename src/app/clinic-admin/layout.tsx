@@ -23,6 +23,7 @@ import {
   X,
   AlertCircle,
   MessagesSquare,
+  ShieldCheck,
 } from "lucide-react";
 
 interface ClinicContext {
@@ -79,6 +80,9 @@ const navItems: NavItem[] = [
   // בלי לחזור לדשבורד. secretaryWithTransfer=true → גם מזכיר/ה עם הרשאת
   // העברה (שרואה את הלייאאוט) מקבלת אותו. תג לא-נקראות דרך polling.
   { href: "/dashboard/team-chat", label: "צ׳אט צוות", icon: MessagesSquare, secretaryWithTransfer: true },
+  // הגדרות צ׳אט — אישור המנהלת לצ׳אט בין מטפלים. בעלת קליניקה בלבד (ללא
+  // secretaryWithTransfer) — זו החלטת מדיניות של המנהלת, לא של המזכירה.
+  { href: "/clinic-admin/chat-settings", label: "הגדרות צ׳אט", icon: ShieldCheck },
 ];
 
 function ClinicAdminContent({ children }: { children: React.ReactNode }) {
