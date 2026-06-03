@@ -3,15 +3,51 @@
 // ============================================================================
 // כל הפונקציות כאן מסננות לפי organizationId — בידוד ארגוני מלא. ה-routes
 // דקים ומאצילים לכאן את הלוגיקה (ensureTeamChannel, חברי צ׳אט, ספירת לא-נקראות).
+//
+// מודל ההרשאות (מי-עם-מי): כל אנשי הצוות (מנהלת / מזכירה / מטפל) הם חברי צ׳אט
+// ויכולים להיכנס למסך. עם זאת, מי רשאי לפתוח שיחה עם מי נקבע ב-canPairChat:
+//   • ניהול (מנהלת/מזכירה) ↔ כל אחד — תמיד מותר.
+//   • מטפל ↔ מטפל — רק אם הארגון הפעיל allowTherapistChat (אישור המנהלת).
 // ============================================================================
 
 import "server-only";
 import { Prisma } from "@prisma/client";
 import prisma from "@/lib/prisma";
 
-// חברי הצ׳אט: בעלת קליניקה (OWNER) + מזכירות (SECRETARY) באותו ארגון, לא חסומים.
-// מטפלים (THERAPIST) ומטפלים עצמאיים אינם חברי צ׳אט בשלב זה.
+// חברי הצ׳אט: כל אנשי הצוות בארגון (OWNER + SECRETARY + THERAPIST), לא חסומים.
+// מטפל עצמאי (organizationId=null) אינו חבר צ׳אט. מי-רשאי-להתכתב-עם-מי נקבע
+// בנפרד ב-canPairChat — חברוּת בצ׳אט לבדה אינה מתירה שיחה מטפל↔מטפל.
 export function chatMemberWhere(organizationId: string): Prisma.UserWhereInput {
+  return {
+    organizationId,
+    isBlocked: false,
+    OR: [
+      {
+        clinicRole: {
+          in: ["OWNER", "SECRETARY", "THERAPIST"] as (
+            | "OWNER"
+            | "SECRETARY"
+            | "THERAPIST"
+          )[],
+        },
+      },
+      {
+        role: {
+          in: ["CLINIC_OWNER", "CLINIC_SECRETARY"] as (
+            | "CLINIC_OWNER"
+            | "CLINIC_SECRETARY"
+          )[],
+        },
+      },
+    ],
+  };
+}
+
+// חברי ההנהלה בלבד (מנהלת + מזכירות) — זהה ל-chatMemberWhere ההיסטורי. משמש
+// לסנכרון ערוץ "כל הצוות" (שנשאר ערוץ הנהלה; מטפלים אינם משתתפים בו אוטומטית).
+export function managementMemberWhere(
+  organizationId: string
+): Prisma.UserWhereInput {
   return {
     organizationId,
     isBlocked: false,
@@ -46,14 +82,53 @@ export async function getChatMembers(organizationId: string): Promise<ChatMember
   return users;
 }
 
+// סיווג חבר צוות: "ניהול" (מנהלת/מזכירה) או "מטפל". הבסיס ל-canPairChat ולסינון
+// אנשי הקשר. זהה בלוגיקה ל-isClinicOwner/isSecretary שבשרת (scope.ts).
+export type MemberKind = "MANAGEMENT" | "THERAPIST";
+
+export function memberKind(
+  clinicRole: string | null,
+  role: string | null
+): MemberKind {
+  const isOwner = clinicRole === "OWNER" || role === "CLINIC_OWNER";
+  const isSecretary = clinicRole === "SECRETARY" || role === "CLINIC_SECRETARY";
+  return isOwner || isSecretary ? "MANAGEMENT" : "THERAPIST";
+}
+
+/**
+ * האם שני חברי צוות רשאים להתכתב ישירות?
+ * ניהול מעורב (לפחות צד אחד מנהלת/מזכירה) — תמיד מותר.
+ * מטפל↔מטפל — רק אם המנהלת הפעילה allowTherapistChat בארגון.
+ */
+export function canPairChat(
+  a: MemberKind,
+  b: MemberKind,
+  allowTherapistChat: boolean
+): boolean {
+  if (a === "MANAGEMENT" || b === "MANAGEMENT") return true;
+  return allowTherapistChat;
+}
+
+/** הגדרות צ׳אט ברמת הארגון. allowTherapistChat=false כברירת מחדל (deny). */
+export async function getOrgChatSettings(
+  organizationId: string
+): Promise<{ allowTherapistChat: boolean }> {
+  const org = await prisma.organization.findUnique({
+    where: { id: organizationId },
+    select: { allowTherapistChat: true },
+  });
+  return { allowTherapistChat: org?.allowTherapistChat ?? false };
+}
+
 // תווית תפקיד עברית לתצוגה. בעלת קליניקה מזוהה גם דרך clinicRole וגם דרך role
 // (תואם ל-chatMemberWhere ולשער ההרשאות) — אחרת מנהלת עלולה להופיע כ"מזכירה".
 export function chatRoleLabel(
   clinicRole: string | null,
   role: string | null
 ): string {
-  const isOwner = clinicRole === "OWNER" || role === "CLINIC_OWNER";
-  return isOwner ? "מנהלת" : "מזכירה";
+  if (clinicRole === "OWNER" || role === "CLINIC_OWNER") return "מנהלת";
+  if (clinicRole === "SECRETARY" || role === "CLINIC_SECRETARY") return "מזכירה";
+  return "מטפל/ת";
 }
 
 /** מזהה דטרמיניסטי לערוץ "כל הצוות" — מבטיח ערוץ יחיד לארגון (race-safe). */
@@ -62,12 +137,15 @@ export function teamChannelId(organizationId: string): string {
 }
 
 /**
- * מבטיח שערוץ "כל הצוות" קיים ושכל חברי הצוות הנוכחיים משתתפים בו.
+ * מבטיח שערוץ "כל הצוות" קיים ושכל חברי ההנהלה הנוכחיים משתתפים בו.
  * idempotent — אפשר לקרוא בכל טעינה. מחזיר את מזהה הערוץ.
+ *
+ * שים/י לב: הערוץ הקבוע הוא ערוץ הנהלה (מנהלת + מזכירות בלבד) — מטפלים אינם
+ * מסונכרנים אליו. תקשורת חוצת-צוות נעשית דרך שיחות פרטיות/קבוצות והודעת-לכולם.
  *
  * אופטימיזציה: מסלול מהיר (2 קריאות בלבד, ללא כתיבה) כשהערוץ כבר קיים והמשתמש
  * כבר משתתף — זה המצב הנפוץ ב-polling. סנכרון מלא (כתיבה) רץ רק כשהערוץ נוצר
- * זה עתה או כשהמשתמש עדיין לא משתתף (חבר חדש שנכנס לראשונה).
+ * זה עתה או כשהמשתמש עדיין לא משתתף (חבר הנהלה חדש שנכנס לראשונה).
  */
 export async function ensureTeamChannel(
   organizationId: string,
@@ -105,9 +183,9 @@ export async function ensureTeamChannel(
     }
   }
 
-  // מסלול איטי: סנכרון משתתפים — כל חברי הצוות הנוכחיים (מוסיף חסרים בלבד).
+  // מסלול איטי: סנכרון משתתפים — חברי ההנהלה הנוכחיים בלבד (מוסיף חסרים בלבד).
   const members = await prisma.user.findMany({
-    where: chatMemberWhere(organizationId),
+    where: managementMemberWhere(organizationId),
     select: { id: true },
   });
   if (members.length > 0) {

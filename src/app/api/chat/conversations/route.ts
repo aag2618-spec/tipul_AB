@@ -9,6 +9,9 @@ import {
   getChatMembers,
   countUnreadForParticipant,
   chatRoleLabel,
+  getOrgChatSettings,
+  memberKind,
+  canPairChat,
 } from "@/lib/chat/chat-service";
 
 export const dynamic = "force-dynamic";
@@ -18,10 +21,13 @@ export async function GET() {
   try {
     const auth = await requireChatAccess();
     if ("error" in auth) return auth.error;
-    const { userId, organizationId } = auth;
+    const { userId, organizationId, isOwner, isSecretary } = auth;
 
-    // מבטיח שערוץ "כל הצוות" קיים ושאני משתתף בו.
-    await ensureTeamChannel(organizationId, userId);
+    // ערוץ "כל הצוות" הוא ערוץ הנהלה (מנהלת + מזכירות) — מסנכרנים אותו רק עבורן.
+    // מטפלים אינם משתתפים בו, ולכן אין צורך (וגם לא רצוי) להריץ עבורם sync.
+    if (isOwner || isSecretary) {
+      await ensureTeamChannel(organizationId, userId);
+    }
 
     const participations = await prisma.chatParticipant.findMany({
       where: {
@@ -137,7 +143,7 @@ export async function POST(request: NextRequest) {
   try {
     const auth = await requireChatAccess();
     if ("error" in auth) return auth.error;
-    const { userId, organizationId } = auth;
+    const { userId, organizationId, isOwner, isSecretary } = auth;
 
     const parsed = await parseBody(request, startConversationSchema);
     if ("error" in parsed) return parsed.error;
@@ -150,13 +156,30 @@ export async function POST(request: NextRequest) {
       );
     }
 
-    // ולידציה: הנמען חייב להיות חבר צ׳אט באותו ארגון (OWNER/SECRETARY, לא חסום).
+    // ולידציה: הנמען חייב להיות חבר צ׳אט באותו ארגון, לא חסום.
     const members = await getChatMembers(organizationId);
     const recipient = members.find((m) => m.id === recipientId);
     if (!recipient) {
       return NextResponse.json(
         { message: "הנמען אינו זמין לצ׳אט" },
         { status: 404 }
+      );
+    }
+
+    // אכיפת הרשאה: ניהול↔כל אחד תמיד; מטפל↔מטפל רק אם המנהלת אישרה
+    // (allowTherapistChat). אכיפת שרת — ה-UI כבר מסנן אנשי קשר, זו שכבה שנייה.
+    const viewerKind = isOwner || isSecretary ? "MANAGEMENT" : "THERAPIST";
+    const { allowTherapistChat } = await getOrgChatSettings(organizationId);
+    if (
+      !canPairChat(
+        viewerKind,
+        memberKind(recipient.clinicRole, recipient.role),
+        allowTherapistChat
+      )
+    ) {
+      return NextResponse.json(
+        { message: "אין הרשאה לפתוח שיחה זו" },
+        { status: 403 }
       );
     }
 

@@ -26,6 +26,7 @@ export default async function TeamChatPage() {
     !user.isBlocked &&
     (user.clinicRole === "OWNER" ||
       user.clinicRole === "SECRETARY" ||
+      user.clinicRole === "THERAPIST" ||
       user.role === "CLINIC_OWNER" ||
       user.role === "CLINIC_SECRETARY");
 
@@ -39,7 +40,7 @@ export default async function TeamChatPage() {
         </div>
         <h1 className="text-xl font-semibold">צ׳אט צוות</h1>
         <p className="text-muted-foreground">
-          צ׳אט הצוות זמין לקליניקות עם מנהלת ומזכירות. כשתצרף/י אנשי צוות
+          צ׳אט הצוות זמין לחברי קליניקה (מנהלת, מזכירות ומטפלים). כשתצטרף/י
           לקליניקה, תוכלו לתקשר כאן באופן פנימי ומאובטח.
         </p>
       </div>

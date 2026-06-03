@@ -2816,6 +2816,11 @@ model Organization {
   owner            User    @relation("OrgOwner", fields: [ownerUserId], references: [id], onDelete: Restrict)
   ownerIsTherapist Boolean @default(false)
 
+  // צ'אט צוות: האם מטפלים רשאים להתכתב בינם לבין עצמם (שיחות פרטיות + קבוצות).
+  // ברירת מחדל false — מצריך אישור מפורש של המנהלת (deny-by-default). ללא קשר
+  // לדגל הזה: מטפלים תמיד יכולים להתכתב עם המנהלת/מזכירות, והמנהלת תמיד רואה הכל.
+  allowTherapistChat Boolean @default(false)
+
   // תוכנית התמחור — משויכת אוטומטית ב-default plan ביצירה.
   pricingPlanId String
   pricingPlan   ClinicPricingPlan @relation(fields: [pricingPlanId], references: [id], onDelete: Restrict)

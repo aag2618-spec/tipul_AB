@@ -185,10 +185,11 @@ export function AppSidebar({ user, initialViewMode = "personal" }: AppSidebarPro
   const showViewToggle =
     session?.user?.clinicRole === "OWNER" || session?.user?.role === "CLINIC_OWNER";
 
-  // צ׳אט צוות — זמין רק לחברי קליניקה (בעלת קליניקה / מזכירה).
+  // צ׳אט צוות — זמין לכל חברי הקליניקה (מנהלת / מזכירה / מטפל).
   const isChatMember =
     session?.user?.clinicRole === "OWNER" ||
     session?.user?.clinicRole === "SECRETARY" ||
+    session?.user?.clinicRole === "THERAPIST" ||
     session?.user?.role === "CLINIC_OWNER" ||
     session?.user?.role === "CLINIC_SECRETARY";
 

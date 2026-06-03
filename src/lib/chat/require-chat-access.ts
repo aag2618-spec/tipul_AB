@@ -1,9 +1,9 @@
 // ============================================================================
 // requireChatAccess — שער auth ל-routes של צ׳אט הצוות
 // ============================================================================
-// צ׳אט הצוות פתוח אך ורק לחברי ארגון בתפקיד OWNER או SECRETARY (החלטת מוצר:
-// מנהלת + מזכירות בלבד; מטפלים לא בשלב זה). מטפל עצמאי (organizationId=null)
-// ומטפל בקליניקה (THERAPIST) נחסמים.
+// צ׳אט הצוות פתוח לכל חברי הקליניקה: מנהלת (OWNER), מזכירות (SECRETARY)
+// ומטפלים (THERAPIST). מטפל עצמאי (organizationId=null) נחסם. מי-רשאי-להתכתב-
+// עם-מי (מטפל↔מטפל מותנה באישור המנהלת) נאכף בנפרד ב-routes דרך canPairChat.
 //
 // כל בידוד הצ׳אט מתבסס על organizationId — אסור אף פעם לאפשר גישה חוצת-ארגון.
 //
@@ -17,7 +17,7 @@ import type { Session } from "next-auth";
 import prisma from "@/lib/prisma";
 import { requireAuth } from "@/lib/api-auth";
 import type { ScopeUser, SecretaryPermissions } from "@/lib/scope";
-import { isClinicOwner, isSecretary } from "@/lib/scope";
+import { isClinicOwner, isSecretary, isClinicTherapist } from "@/lib/scope";
 
 export interface ChatAccessAuth {
   userId: string;
@@ -26,6 +26,7 @@ export interface ChatAccessAuth {
   name: string | null;
   isOwner: boolean;
   isSecretary: boolean;
+  isTherapist: boolean;
   /** ScopeUser מלא — לשימוש ב-buildClientWhere בעת קישור מטופל. */
   scopeUser: ScopeUser;
 }
@@ -86,9 +87,11 @@ export async function requireChatAccess(): Promise<ChatAccessAuthResult> {
 
   const owner = isClinicOwner(scopeUser);
   const secretary = isSecretary(scopeUser);
+  const therapist = isClinicTherapist(scopeUser);
 
-  // רק בעלת קליניקה או מזכירה — מטפל בקליניקה (THERAPIST) חסום בשלב זה.
-  if (!owner && !secretary) {
+  // חברי קליניקה בלבד (מנהלת / מזכירה / מטפל). מטפל עצמאי כבר נחסם למעלה (אין
+  // organizationId). מי-רשאי-להתכתב-עם-מי נאכף בנפרד ב-routes (canPairChat).
+  if (!owner && !secretary && !therapist) {
     return {
       error: NextResponse.json(
         { message: "אין לך גישה לצ׳אט הצוות" },
@@ -104,6 +107,7 @@ export async function requireChatAccess(): Promise<ChatAccessAuthResult> {
     name: user.name,
     isOwner: owner,
     isSecretary: secretary,
+    isTherapist: therapist,
     scopeUser,
   };
 }

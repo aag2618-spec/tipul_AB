@@ -3,7 +3,7 @@
 export type ChatContact = {
   id: string;
   name: string | null;
-  role: string; // "מנהלת" | "מזכירה"
+  role: string; // "מנהלת" | "מזכירה" | "מטפל/ת"
 };
 
 export type ConversationParticipant = {
