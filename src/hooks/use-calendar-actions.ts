@@ -11,6 +11,9 @@ interface UseCalendarActionsProps {
 
 interface UpdateResult {
   success: boolean;
+  // הקבלה שהופקה (אם בכלל) — כדי שהיומן יציג אותה מיד אחרי תשלום
+  // מזומן/צ'ק/העברה, כמו ביתר מסכי התשלום.
+  payment?: { id?: string; receiptUrl?: string | null; receiptNumber?: string | null };
 }
 
 export function useCalendarActions({ fetchData }: UseCalendarActionsProps) {
@@ -73,7 +76,14 @@ export function useCalendarActions({ fetchData }: UseCalendarActionsProps) {
           toast.error(`שגיאה בהפקת קבלה: ${paymentResult.receiptError}`, { duration: 8000 });
         }
         fetchData();
-        return { success: true };
+        return {
+          success: true,
+          payment: {
+            id: paymentResult?.id,
+            receiptUrl: paymentResult?.receiptUrl ?? null,
+            receiptNumber: paymentResult?.receiptNumber ?? null,
+          },
+        };
       }
 
       // עדכון סטטוס (ביטול/אי-הופעה) עם תשלום אופציונלי

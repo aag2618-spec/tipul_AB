@@ -28,6 +28,8 @@ import { CalendarOverlapsDialog } from "@/components/calendar/calendar-overlaps-
 import { UpdateSessionDialog, type UpdateSessionDialogParams } from "@/components/update-session-dialog";
 import { useCalendarData, type CalendarSession } from "@/hooks/use-calendar-data";
 import { useCalendarActions } from "@/hooks/use-calendar-actions";
+import { ReceiptPreviewDialog } from "@/components/payments/receipt-preview-dialog";
+import { resolveReceiptToShow, tryOpenReceiptInNewTab } from "@/lib/receipt-utils";
 import { getEventColors, getTherapistAccent } from "@/lib/calendar/event-colors";
 import { NewSessionDialog, DEFAULT_FORM_DATA, type SessionFormData } from "@/components/calendar/new-session-dialog";
 import { RecurringPatternDialog } from "@/components/calendar/recurring-pattern-dialog";
@@ -129,6 +131,10 @@ function CalendarPageContent() {
   const { permissions: myPermissions } = useMyPermissions();
 
   const { updating, updateSessionWithPayment, recordSessionDebt } = useCalendarActions({ fetchData });
+  // תצוגת קבלה מיד אחרי עדכון "הושלמה" + תשלום מזומן/צ'ק/העברה ביומן.
+  const [receiptDialogOpen, setReceiptDialogOpen] = useState(false);
+  const [receiptDialogPaymentId, setReceiptDialogPaymentId] = useState<string | null>(null);
+  const [receiptDialogIsCardcom, setReceiptDialogIsCardcom] = useState(false);
 
   const [isDialogOpen, setIsDialogOpen] = useState(false);
   const [isRecurringDialogOpen, setIsRecurringDialogOpen] = useState(false);
@@ -578,6 +584,26 @@ function CalendarPageContent() {
     if (result.success) {
       setUpdateDialogOpen(false);
       setSelectedSession(null);
+      // הצגת הקבלה מיד אחרי תשלום מזומן/צ'ק/העברה בעדכון "הושלמה" — לפי מה
+      // שהשרת באמת הפיק (כמו ביתר מסכי התשלום). עבור אשראי הקבלה מטופלת
+      // ב-ChargeCardcomDialog (onCardcomRequested), לא כאן.
+      const shown = resolveReceiptToShow(result.payment);
+      if (result.payment?.id && shown) {
+        const { opened } = tryOpenReceiptInNewTab(shown.receiptUrl);
+        if (opened) {
+          toast.message("הקבלה נפתחה בלשונית חדשה — אפשר להדפיס משם", { duration: 5000 });
+          return;
+        }
+        setReceiptDialogPaymentId(result.payment.id);
+        setReceiptDialogIsCardcom(shown.isCardcom);
+        toast.message(
+          shown.receiptUrl
+            ? "הדפדפן חסם פתיחת לשונית. הקבלה מוצגת כאן — או אשר/י popups בהגדרות הדפדפן."
+            : "הקבלה תיפתח כאן ברגע שתהיה מוכנה",
+          { duration: shown.receiptUrl ? 8000 : 4000 },
+        );
+        setTimeout(() => setReceiptDialogOpen(true), 220);
+      }
     }
   };
 
@@ -1058,6 +1084,18 @@ function CalendarPageContent() {
         setDeletingOverlap={setDeletingOverlap}
         fetchData={fetchData}
         checkOverlaps={checkOverlaps}
+      />
+
+      {/* קבלה אחרי עדכון "הושלמה" + תשלום מזומן/צ'ק/העברה ביומן (לא-Cardcom).
+          עבור אשראי, ChargeCardcomDialog למעלה מטפל בקבלה בעצמו. */}
+      <ReceiptPreviewDialog
+        open={receiptDialogOpen}
+        onOpenChange={(next) => {
+          setReceiptDialogOpen(next);
+          if (!next) fetchData();
+        }}
+        paymentId={receiptDialogPaymentId}
+        isCardcom={receiptDialogIsCardcom}
       />
 
     </div>
