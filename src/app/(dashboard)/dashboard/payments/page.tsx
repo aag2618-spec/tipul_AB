@@ -194,9 +194,18 @@ export default function PaymentsPage() {
     }));
   }, [chartMonthlyData]);
 
+  // היקף תצוגה "שלי / כל הקליניקה" — נקרא מה-cookie בכל render. כשהמתג מתחלף
+  // (cookie + router.refresh) הערך משתנה, וה-effects של טעינת הנתונים רצים מחדש
+  // ומושכים מהשרת את ההיקף הנכון. בלי זה העמוד "מצלם" את הנתונים פעם אחת בטעינה.
+  const viewScope =
+    typeof document !== "undefined" &&
+    /(?:^|;\s*)mytipul_view=clinic/.test(document.cookie)
+      ? "clinic"
+      : "personal";
+
   useEffect(() => {
     fetchData();
-  }, []);
+  }, [viewScope]);
 
   const fetchData = async () => {
     try {
@@ -286,7 +295,7 @@ export default function PaymentsPage() {
       cancelled = true;
     };
     // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [selectedMonth]);
+  }, [selectedMonth, viewScope]);
 
   const loadMoreHistory = async () => {
     try {

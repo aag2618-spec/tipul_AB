@@ -66,5 +66,13 @@ export default async function SessionsPage() {
     };
   });
 
-  return <SessionsView initialSessions={serialized} />;
+  // key לפי היקף התצוגה: כשהמתג "שלי / כל הקליניקה" מתחלף, ה-key משתנה
+  // וה-SessionsView נטען מחדש עם הרשימה המסוננת מהשרת (אחרת useState "מקפיא"
+  // את הרשימה הראשונה ולחיצה על "שלי" לא משנה כלום).
+  return (
+    <SessionsView
+      key={personalOnly ? "personal" : "clinic"}
+      initialSessions={serialized}
+    />
+  );
 }
