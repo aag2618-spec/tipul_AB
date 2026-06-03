@@ -1,11 +1,9 @@
-// H12: zod schemas שונים — cancellation, health insurers, וכו'.
+// H12: zod schemas שונים — cancellation, bulk-payment, וכו'.
 
 import { z } from "zod";
-import { zId } from "./shared";
 
 const MAX_NOTES = 2_000;
 const MAX_REASON = 500;
-const MAX_API_KEY = 1_000;
 
 // POST /api/cancellation-requests/[id]/approve — adminNotes אופציונלי.
 export const approveCancellationSchema = z.object({
@@ -31,44 +29,6 @@ export const rejectCancellationSchema = z.object({
     .nullable(),
 });
 export type RejectCancellationInput = z.infer<typeof rejectCancellationSchema>;
-
-// PUT /api/health-insurers/settings — מבנה שטוח, חברה לחברה.
-// השדות עוברים upsert ב-Prisma ולכן מוגבלים לטיפוסי DB.
-const apiKeyField = z
-  .string()
-  .max(MAX_API_KEY, "מפתח API ארוך מדי")
-  .optional()
-  .nullable();
-
-export const updateInsurerSettingsSchema = z
-  .object({
-    enabled: z.boolean().optional(),
-    autoSubmit: z.boolean().optional(),
-    clalitEnabled: z.boolean().optional(),
-    clalitApiKey: apiKeyField,
-    clalitFacilityId: z.string().max(200).optional().nullable(),
-    maccabiEnabled: z.boolean().optional(),
-    maccabiApiKey: apiKeyField,
-    maccabiProviderId: z.string().max(200).optional().nullable(),
-    meuhedetEnabled: z.boolean().optional(),
-    meuhedetUsername: z.string().max(200).optional().nullable(),
-    meuhedetPassword: z.string().max(MAX_API_KEY).optional().nullable(),
-    leumitEnabled: z.boolean().optional(),
-    leumitApiKey: apiKeyField,
-    leumitClinicCode: z.string().max(200).optional().nullable(),
-  })
-  .strict();
-export type UpdateInsurerSettingsInput = z.infer<typeof updateInsurerSettingsSchema>;
-
-// === POST /api/health-insurers/report ==========================================
-// בנייה של דיווח לקופת חולים (XML/JSON/CSV לפי הקופה). insurer enum סגור.
-export const insurerReportSchema = z.object({
-  insurer: z.enum(["CLALIT", "MACCABI", "MEUHEDET", "LEUMIT"], {
-    errorMap: () => ({ message: "קופת חולים לא תקינה" }),
-  }),
-  sessionId: zId,
-});
-export type InsurerReportInput = z.infer<typeof insurerReportSchema>;
 
 // === POST /api/clients/[id]/bulk-payment =======================================
 // תשלום מצרפי על מספר פגישות. amount חיובי בלבד, method מ-enum סגור.

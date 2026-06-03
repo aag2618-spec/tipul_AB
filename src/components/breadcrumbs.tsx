@@ -32,7 +32,6 @@ const pathNames: Record<string, string> = {
   integrations: "אינטגרציות",
   business: "עסק",
   "ai-assistant": "עוזר AI",
-  "health-insurers": "קופות חולים",
   sms: "הודעות SMS",
   communication: "תקשורת",
   upload: "העלאה",

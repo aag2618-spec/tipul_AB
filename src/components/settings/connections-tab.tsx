@@ -16,7 +16,6 @@ import {
 } from "@/components/ui/dialog";
 import { GoogleCalendarSection } from "@/components/settings/google-calendar-section";
 import { BillingProvidersSection } from "@/components/settings/billing-providers-section";
-import { HealthInsurersSection } from "@/components/settings/health-insurers-section";
 
 interface BillingProvider {
   id: string;
@@ -25,21 +24,6 @@ interface BillingProvider {
   isActive: boolean;
   isPrimary: boolean;
   lastSyncAt: string | null;
-}
-
-interface InsurerConfig {
-  enabled: boolean;
-  apiKey: string;
-  secondaryField: string;
-}
-
-interface InsurerSettings {
-  enabled: boolean;
-  clalit: InsurerConfig;
-  maccabi: InsurerConfig;
-  meuhedet: { enabled: boolean; username: string; password: string };
-  leumit: InsurerConfig;
-  autoSubmit: boolean;
 }
 
 interface ProviderInfo {
@@ -200,35 +184,14 @@ export function ConnectionsTab() {
   const [showCardcomSecret, setShowCardcomSecret] = useState(false);
   const [cardcomAlreadyConnected, setCardcomAlreadyConnected] = useState(false);
 
-  const [insurerSettings, setInsurerSettings] = useState<InsurerSettings>({
-    enabled: false,
-    clalit: { enabled: false, apiKey: "", secondaryField: "" },
-    maccabi: { enabled: false, apiKey: "", secondaryField: "" },
-    meuhedet: { enabled: false, username: "", password: "" },
-    leumit: { enabled: false, apiKey: "", secondaryField: "" },
-    autoSubmit: false,
-  });
-  const [savingInsurers, setSavingInsurers] = useState(false);
-
   useEffect(() => {
     Promise.all([
       fetch("/api/user/google-calendar").then(r => r.ok ? r.json() : { connected: false }),
       fetch("/api/integrations/billing").then(r => r.ok ? r.json() : []),
-      fetch("/api/health-insurers/settings").then(r => r.ok ? r.json() : null),
-    ]).then(([googleData, billingData, insurerData]) => {
+    ]).then(([googleData, billingData]) => {
       setGoogleConnected(googleData.connected);
       setGoogleEmail(googleData.email || null);
       setBillingProviders(billingData);
-      if (insurerData) {
-        setInsurerSettings({
-          enabled: insurerData.enabled,
-          clalit: { enabled: insurerData.clalitEnabled, apiKey: insurerData.clalitApiKey || "", secondaryField: insurerData.clalitFacilityId || "" },
-          maccabi: { enabled: insurerData.maccabiEnabled, apiKey: insurerData.maccabiApiKey || "", secondaryField: insurerData.maccabiProviderId || "" },
-          meuhedet: { enabled: insurerData.meuhedetEnabled, username: insurerData.meuhedetUsername || "", password: insurerData.meuhedetPassword || "" },
-          leumit: { enabled: insurerData.leumitEnabled, apiKey: insurerData.leumitApiKey || "", secondaryField: insurerData.leumitClinicCode || "" },
-          autoSubmit: insurerData.autoSubmit,
-        });
-      }
     }).catch(err => console.error("Failed to load:", err))
       .finally(() => setLoading(false));
   }, []);
@@ -358,24 +321,6 @@ export function ConnectionsTab() {
     } catch { toast.error("שגיאה"); }
   };
 
-  const saveInsurerSettings = async () => {
-    setSavingInsurers(true);
-    try {
-      const res = await fetch("/api/health-insurers/settings", {
-        method: "PUT", headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({
-          enabled: insurerSettings.enabled, autoSubmit: insurerSettings.autoSubmit,
-          clalitEnabled: insurerSettings.clalit.enabled, clalitApiKey: insurerSettings.clalit.apiKey, clalitFacilityId: insurerSettings.clalit.secondaryField,
-          maccabiEnabled: insurerSettings.maccabi.enabled, maccabiApiKey: insurerSettings.maccabi.apiKey, maccabiProviderId: insurerSettings.maccabi.secondaryField,
-          meuhedetEnabled: insurerSettings.meuhedet.enabled, meuhedetUsername: insurerSettings.meuhedet.username, meuhedetPassword: insurerSettings.meuhedet.password,
-          leumitEnabled: insurerSettings.leumit.enabled, leumitApiKey: insurerSettings.leumit.apiKey, leumitClinicCode: insurerSettings.leumit.secondaryField,
-        }),
-      });
-      res.ok ? toast.success("נשמר!") : toast.error("שגיאה");
-    } catch { toast.error("שגיאה"); }
-    finally { setSavingInsurers(false); }
-  };
-
   if (loading) {
     return <div className="h-[30vh] flex items-center justify-center"><Loader2 className="h-8 w-8 animate-spin text-muted-foreground" /></div>;
   }
@@ -397,13 +342,6 @@ export function ConnectionsTab() {
         testBillingConnection={testBillingConnection}
         openBillingDialog={openBillingDialog}
         disconnectBillingProvider={disconnectBillingProvider}
-      />
-
-      <HealthInsurersSection
-        insurerSettings={insurerSettings}
-        setInsurerSettings={setInsurerSettings}
-        savingInsurers={savingInsurers}
-        saveInsurerSettings={saveInsurerSettings}
       />
 
       {/* Billing Dialog */}
