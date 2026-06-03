@@ -188,10 +188,23 @@ export default function ReceiptsPage() {
   const [selectedIds, setSelectedIds] = useState<Set<string>>(new Set());
   const [isDownloading, setIsDownloading] = useState(false);
 
+  // היקף תצוגה "שלי / כל הקליניקה" — נקרא מה-cookie בכל render. כשהמתג מתחלף
+  // (cookie + router.refresh) הערך משתנה והקבלות נטענות מחדש בהיקף הנכון.
+  const viewScope =
+    typeof document !== "undefined" &&
+    /(?:^|;\s*)mytipul_view=clinic/.test(document.cookie)
+      ? "clinic"
+      : "personal";
+
+  // פרטי העסק (כותרת הקבלה) — של המשתמש הנוכחי, לא תלוי בהיקף. נטען פעם אחת.
   useEffect(() => {
-    fetchPayments();
     fetchTherapist();
   }, []);
+
+  // הקבלות — נטענות מחדש בכל החלפת היקף.
+  useEffect(() => {
+    fetchPayments();
+  }, [viewScope]);
 
   const fetchTherapist = async () => {
     try {

@@ -14,6 +14,7 @@ import {
   secretaryCan,
 } from "@/lib/scope";
 import { EXCLUDE_BULK_UMBRELLA_WHERE } from "@/lib/payments/types";
+import { shouldScopePersonal } from "@/lib/view-scope";
 
 export const dynamic = "force-dynamic";
 
@@ -24,7 +25,11 @@ export async function GET() {
     const { userId } = auth;
 
     const scopeUser = await loadScopeUser(userId);
-    const paymentWhere = buildPaymentWhere(scopeUser);
+    // היקף לפי המתג "שלי / כל הקליניקה" (cookie). קודם הקבלות הוחזרו תמיד לכל
+    // הקליניקה, כך ש"שלי" לא סינן את הקבלות של מטפלים אחרים. לבעל/ת קליניקה
+    // ב"שלי" → רק הקבלות שלו/ה; לשאר התפקידים shouldScopePersonal מחזיר false.
+    const personalOnly = await shouldScopePersonal(scopeUser);
+    const paymentWhere = buildPaymentWhere(scopeUser, { personalOnly });
 
     // EXCLUDE_BULK_UMBRELLA_WHERE — מסנן Umbrella payments של תשלום מצרפי
     // באשראי. ה-Umbrella יוצר CardcomInvoice משלו ולכן יוצג כקבלה כפולה
