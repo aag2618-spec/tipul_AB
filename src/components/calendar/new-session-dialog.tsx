@@ -148,8 +148,11 @@ export function NewSessionDialog({
   const [showDurationCustomizer, setShowDurationCustomizer] = useState(false);
   const [customDuration, setCustomDuration] = useState(defaultSessionDuration);
 
-  // חיפוש מטופל בתוך ה-Select
+  // חיפוש מטופל — מסנן את רשימת המטופלים. clientListOpen קובע אם הרשימה
+  // מוצגת (בפוקוס/הקלדה) או מכווצת (במצב הפתיחה הראשוני ואחרי בחירה),
+  // כדי לא להציג את כל המטופלים מיד עם פתיחת הדיאלוג.
   const [clientSearch, setClientSearch] = useState("");
+  const [clientListOpen, setClientListOpen] = useState(false);
 
   // פגישת ייעוץ — state
   const [isQuickClientMode, setIsQuickClientMode] = useState(false);
@@ -201,6 +204,7 @@ export function NewSessionDialog({
       setConflictPrompt(null);
       setConflictDecision("replace");
       setClientSearch("");
+      setClientListOpen(false);
       setPickedTherapistId("");
     }
   }, [open, initialFormData, defaultSessionDuration]);
@@ -270,6 +274,9 @@ export function NewSessionDialog({
     }
     return filtered;
   }, [clients, clientSearch, formData.clientId]);
+
+  // המטופל שנבחר כרגע — מוצג כשהרשימה מכווצת (במקום כל הרשימה).
+  const pickedClient = clients.find((c) => c.id === formData.clientId) ?? null;
 
   // זיהוי חזרה — כשמקלידים שם, חיפוש בפונים קיימים
   useEffect(() => {
@@ -620,59 +627,81 @@ export function NewSessionDialog({
                   פגישת ייעוץ
                 </button>
               </div>
-              {/* שדה חיפוש — מסנן את רשימת המטופלים שמתחתיו בזמן אמת. */}
+              {/* שדה חיפוש + רשימה נפתחת. הרשימה מוצגת רק כשהשדה בפוקוס/בהקלדה,
+                  כדי שלא תופיע כל רשימת המטופלים מיד עם פתיחת הדיאלוג. כשיש בחירה
+                  והרשימה סגורה — מוצג שם המטופל הנבחר במקומה (עם אפשרות שינוי).
+                  הוחלף ה-Select (Radix) שבו החיפוש "הסתתר" עד פתיחה ידנית. */}
               <div className="relative">
                 <Search aria-hidden="true" className="absolute right-2 top-1/2 -translate-y-1/2 h-4 w-4 text-muted-foreground pointer-events-none" />
                 <Input
                   aria-label="חיפוש מטופל"
                   placeholder="חיפוש מטופל..."
                   value={clientSearch}
-                  onChange={(e) => setClientSearch(e.target.value)}
+                  onChange={(e) => {
+                    setClientSearch(e.target.value);
+                    setClientListOpen(true);
+                  }}
+                  onFocus={() => setClientListOpen(true)}
+                  // השהיה קצרה לפני סגירה כדי שבחירת פריט (mousedown) תספיק להירשם
+                  // לפני שהרשימה יורדת מה-DOM בלחיצה מחוץ לשדה.
+                  onBlur={() => setTimeout(() => setClientListOpen(false), 150)}
                   className="h-9 pr-8"
                 />
               </div>
-              {/* רשימת מטופלים גלויה שמסתננת לפי תיבת החיפוש מעל. הוחלף ה-Select
-                  (Radix) ברשימה כי שם הסינון "הסתתר" עד שפתחו את הרשימה ידנית, ולא
-                  ניתן היה להקליד בזמן שהיא פתוחה — אז החיפוש הרגיש שבור. דפוס זהה
-                  ל-/clinic-admin/transfer שעובד היטב: החיפוש מסנן את הרשימה מיידית. */}
-              <div className="border border-border rounded-lg overflow-hidden max-h-48 overflow-y-auto">
-                {sortedFilteredClients.length === 0 ? (
-                  <div className="px-3 py-6 text-center text-sm text-muted-foreground">
-                    {clientSearch.trim() ? "לא נמצאו מטופלים" : "אין מטופלים"}
-                  </div>
-                ) : (
-                  sortedFilteredClients.map((client) => {
-                    const isSelected = client.id === formData.clientId;
-                    return (
-                      <button
-                        type="button"
-                        key={client.id}
-                        onClick={() => {
-                          const clientPrice = client.defaultSessionPrice;
-                          // מחיר: עדיפות למחיר אישי של המטופל; אם אין —
-                          // משתמשים במחיר ברירת המחדל של המטפל (אם הוגדר);
-                          // אחרת — שומרים על מה שכבר היה בטופס.
-                          setFormData((prev) => ({
-                            ...prev,
-                            clientId: client.id,
-                            price: clientPrice
-                              ? String(clientPrice)
-                              : defaultSessionPrice != null
-                                ? String(defaultSessionPrice)
-                                : prev.price,
-                          }));
-                        }}
-                        className={`w-full text-right px-3 py-2.5 text-sm transition-colors border-b border-border last:border-0 flex items-center justify-between gap-2 ${
-                          isSelected ? "bg-primary/10 font-medium" : "hover:bg-muted"
-                        }`}
-                      >
-                        <span className="truncate">{formatNameLastFirst(client.name)}</span>
-                        {isSelected && <Check className="h-4 w-4 text-primary shrink-0" />}
-                      </button>
-                    );
-                  })
-                )}
-              </div>
+              {clientListOpen ? (
+                <div className="border border-border rounded-lg overflow-hidden max-h-48 overflow-y-auto">
+                  {sortedFilteredClients.length === 0 ? (
+                    <div className="px-3 py-6 text-center text-sm text-muted-foreground">
+                      {clientSearch.trim() ? "לא נמצאו מטופלים" : "אין מטופלים"}
+                    </div>
+                  ) : (
+                    sortedFilteredClients.map((client) => {
+                      const isSelected = client.id === formData.clientId;
+                      return (
+                        <button
+                          type="button"
+                          key={client.id}
+                          // onMouseDown (לא onClick): רץ לפני ה-blur של שדה החיפוש,
+                          // כך שהבחירה נרשמת בוודאות גם כשה-blur סוגר את הרשימה.
+                          onMouseDown={(e) => {
+                            e.preventDefault();
+                            const clientPrice = client.defaultSessionPrice;
+                            // מחיר: עדיפות למחיר אישי; אם אין — ברירת המחדל של המטפל;
+                            // אחרת — שומרים על מה שכבר היה בטופס.
+                            setFormData((prev) => ({
+                              ...prev,
+                              clientId: client.id,
+                              price: clientPrice
+                                ? String(clientPrice)
+                                : defaultSessionPrice != null
+                                  ? String(defaultSessionPrice)
+                                  : prev.price,
+                            }));
+                            setClientSearch("");
+                            setClientListOpen(false);
+                          }}
+                          className={`w-full text-right px-3 py-2.5 text-sm transition-colors border-b border-border last:border-0 flex items-center justify-between gap-2 ${
+                            isSelected ? "bg-primary/10 font-medium" : "hover:bg-muted"
+                          }`}
+                        >
+                          <span className="truncate">{formatNameLastFirst(client.name)}</span>
+                          {isSelected && <Check className="h-4 w-4 text-primary shrink-0" />}
+                        </button>
+                      );
+                    })
+                  )}
+                </div>
+              ) : pickedClient ? (
+                <button
+                  type="button"
+                  onClick={() => setClientListOpen(true)}
+                  className="w-full flex items-center gap-2 px-3 py-2.5 rounded-lg border border-primary/30 bg-primary/5 text-sm text-right transition-colors hover:bg-primary/10"
+                >
+                  <Check className="h-4 w-4 text-primary shrink-0" />
+                  <span className="font-medium truncate">{formatNameLastFirst(pickedClient.name)}</span>
+                  <span className="text-xs text-muted-foreground mr-auto shrink-0">שינוי</span>
+                </button>
+              ) : null}
             </div>
           )}
 
