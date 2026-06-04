@@ -3,6 +3,7 @@
 import type { EventContentArg } from "@fullcalendar/core";
 import type { CalendarSession } from "@/hooks/use-calendar-data";
 import { getTherapistAccent } from "@/lib/calendar/event-colors";
+import { Tooltip, TooltipTrigger, TooltipContent } from "@/components/ui/tooltip";
 
 interface CalendarEventContentProps {
   eventInfo: EventContentArg;
@@ -102,46 +103,60 @@ export function CalendarEventContent({ eventInfo, sessions, onAddSessionAfter, s
   const showAccent = isOtherTherapist;
   const showTherapistName = isOtherTherapist && !!session.therapistName && durationMin >= 45;
 
-  // tooltip בריחוף — רשת ביטחון לזיהוי מי הפגישה גם כשהפגישה צרה/קצרה והשם
-  // המלא לא נכנס (למשל הרבה פגישות באותה שעה זו לצד זו). מציג מטופל • מטפל • שעה.
-  const hoverTitle = [
-    eventInfo.event.title,
-    isOtherTherapist && session.therapistName ? `מטפל: ${session.therapistName}` : null,
-    eventInfo.timeText || null,
-  ]
-    .filter(Boolean)
-    .join(" • ");
-
   return (
-    <div className="relative flex items-center justify-between w-full h-full gap-1 group overflow-hidden" title={hoverTitle}>
-      {/* פס צבע לכל גובה הפגישה בקצה המוביל (ימין ב-RTL), בצבע המטפל — מחליף את
-          הנקודה הזעירה שהייתה בתחתית וכמעט לא נראתה, בולט גם בפגישה קצרה וגם כששני
-          מטפלים מוצגים יחד. קו לבן דק מפריד מהרקע כדי שהפס יבלוט גם כשצבע המטפל
-          קרוב לצבע הסטטוס (למשל ירוק על ירוק). */}
-      {showAccent && (
-        <span
-          className="absolute inset-y-0 right-0 w-1.5 shadow-[inset_2px_0_0_0_rgba(255,255,255,0.6)]"
-          style={{ backgroundColor: getTherapistAccent(session.therapistId) }}
-          aria-hidden
-        />
-      )}
-      <div className={`flex-1 min-w-0 overflow-hidden ${showAccent ? "pr-2.5 pl-0.5" : "px-1"}`}>
-        <div className="font-semibold text-xs leading-tight break-words">{eventInfo.event.title}</div>
-        <div className="text-xs font-semibold opacity-90">{eventInfo.timeText}</div>
-        {showTherapistName && (
-          <div className="text-[10px] leading-tight opacity-90 mt-0.5 break-words">{session.therapistName}</div>
-        )}
-      </div>
-      <button
-        onClick={(e) => {
-          e.stopPropagation();
-          onAddSessionAfter(session);
-        }}
-        className="shrink-0 opacity-100 sm:opacity-0 sm:group-hover:opacity-100 transition-opacity bg-white hover:bg-green-50 text-green-600 rounded-full w-8 h-8 sm:w-6 sm:h-6 flex items-center justify-center text-lg font-bold shadow-sm"
-        title="הוסף פגישה מיד אחרי"
-      >
-        +
-      </button>
-    </div>
+    <Tooltip delayDuration={200}>
+      <TooltipTrigger asChild>
+        <div className="relative flex items-center justify-between w-full h-full gap-1 group overflow-hidden">
+          {/* פס צבע לכל גובה הפגישה בקצה המוביל (ימין ב-RTL), בצבע המטפל — מחליף את
+              הנקודה הזעירה שהייתה בתחתית וכמעט לא נראתה, בולט גם בפגישה קצרה וגם כששני
+              מטפלים מוצגים יחד. קו לבן דק מפריד מהרקע כדי שהפס יבלוט גם כשצבע המטפל
+              קרוב לצבע הסטטוס (למשל ירוק על ירוק). */}
+          {showAccent && (
+            <span
+              className="absolute inset-y-0 right-0 w-1.5 shadow-[inset_2px_0_0_0_rgba(255,255,255,0.6)]"
+              style={{ backgroundColor: getTherapistAccent(session.therapistId) }}
+              aria-hidden
+            />
+          )}
+          <div className={`flex-1 min-w-0 overflow-hidden ${showAccent ? "pr-2.5 pl-0.5" : "px-1"}`}>
+            <div className="font-semibold text-xs leading-tight break-words">{eventInfo.event.title}</div>
+            <div className="text-xs font-semibold opacity-90">{eventInfo.timeText}</div>
+            {showTherapistName && (
+              <div className="text-[10px] leading-tight opacity-90 mt-0.5 break-words">{session.therapistName}</div>
+            )}
+          </div>
+          <button
+            onClick={(e) => {
+              e.stopPropagation();
+              onAddSessionAfter(session);
+            }}
+            className="shrink-0 opacity-100 sm:opacity-0 sm:group-hover:opacity-100 transition-opacity bg-white hover:bg-green-50 text-green-600 rounded-full w-8 h-8 sm:w-6 sm:h-6 flex items-center justify-center text-lg font-bold shadow-sm"
+            title="הוסף פגישה מיד אחרי"
+          >
+            +
+          </button>
+        </div>
+      </TooltipTrigger>
+      {/* חלון מידע צף בריחוף — נפתח מעל המשבצת ולא נחתך ע"י overflow-hidden (מרונדר
+          ב-Portal לגוף הדף). רשת ביטחון לזיהוי הפגישה גם כשהמשבצת צרה/קצרה והטקסט
+          המלא לא נכנס (הרבה פגישות באותה שעה זו לצד זו). מציג מטופל, שעה, ושם מטפל
+          (לפגישות של מטפלים אחרים — כמו בתצוגה הרגילה, וגם כשהיא קצרה מ-45 דק'). */}
+      <TooltipContent side="top" className="max-w-[240px]">
+        <div dir="rtl" className="flex flex-col gap-0.5 text-right">
+          <span className="font-semibold">{eventInfo.event.title}</span>
+          {eventInfo.timeText && <span className="opacity-90">{eventInfo.timeText}</span>}
+          {isOtherTherapist && session.therapistName && (
+            <span className="flex items-center gap-1.5">
+              <span
+                className="inline-block w-2 h-2 rounded-full shrink-0"
+                style={{ backgroundColor: getTherapistAccent(session.therapistId) }}
+                aria-hidden
+              />
+              מטפל: {session.therapistName}
+            </span>
+          )}
+        </div>
+      </TooltipContent>
+    </Tooltip>
   );
 }
