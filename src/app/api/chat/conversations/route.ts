@@ -6,6 +6,7 @@ import { startConversationSchema } from "@/lib/validations/chat";
 import { requireChatAccess } from "@/lib/chat/require-chat-access";
 import {
   ensureTeamChannel,
+  ensureBroadcastChannel,
   getChatMembers,
   countUnreadForParticipant,
   chatRoleLabel,
@@ -30,6 +31,9 @@ export async function GET() {
       await ensureTeamChannel(organizationId, userId);
     }
 
+    // ערוץ "הודעות לצוות" — כולל את כל הצוות (גם מטפלים), אז מסנכרנים לכולם.
+    await ensureBroadcastChannel(organizationId, userId);
+
     const participations = await prisma.chatParticipant.findMany({
       where: {
         userId,
@@ -44,6 +48,7 @@ export async function GET() {
             type: true,
             title: true,
             isTeamChannel: true,
+            isBroadcast: true,
             lastMessageAt: true,
             createdAt: true,
             participants: {
@@ -81,7 +86,12 @@ export async function GET() {
         const displayTitle =
           c.type === "DIRECT"
             ? others[0]?.name || "משתמש"
-            : c.title || (c.isTeamChannel ? "כל הצוות" : "קבוצה");
+            : c.title ||
+              (c.isTeamChannel
+                ? "כל הצוות"
+                : c.isBroadcast
+                ? "הודעות לצוות"
+                : "קבוצה");
 
         const lastMsg = c.messages[0] ?? null;
         const unreadCount = await countUnreadForParticipant(
@@ -91,17 +101,24 @@ export async function GET() {
         );
 
         // "גלוי למנהלת" — שיחה בין מטפלים בלבד; הבסיס להודעת השקיפות בצד הלקוח.
-        const visibleToManager = isTherapistOnly(
-          c.participants.map((pp) => ({
-            clinicRole: pp.user.clinicRole,
-            role: pp.user.role,
-          }))
-        );
+        // הגנה: ערוצי צוות/הודעות לעולם אינם "בין מטפלים בלבד".
+        const visibleToManager =
+          !c.isTeamChannel &&
+          !c.isBroadcast &&
+          isTherapistOnly(
+            c.participants.map((pp) => ({
+              clinicRole: pp.user.clinicRole,
+              role: pp.user.role,
+            }))
+          );
 
         return {
           id: c.id,
           type: c.type,
           isTeamChannel: c.isTeamChannel,
+          isBroadcast: c.isBroadcast,
+          // ערוץ broadcast: רק מנהלת/מזכירה כותבות; אחרת כולם. נאכף גם בשרת.
+          canPost: !c.isBroadcast || isOwner || isSecretary,
           visibleToManager,
           title: displayTitle,
           participants: c.participants.map((pp) => ({
@@ -130,9 +147,11 @@ export async function GET() {
       const at = a.lastMessageAt ? Date.parse(a.lastMessageAt) : 0;
       const bt = b.lastMessageAt ? Date.parse(b.lastMessageAt) : 0;
       if (bt !== at) return bt - at;
-      // הערוץ הקבוע ראשון בשוויון
+      // ערוצים קבועים ראשונים בשוויון: כל הצוות, ואז הודעות לצוות.
       if (a.isTeamChannel) return -1;
       if (b.isTeamChannel) return 1;
+      if (a.isBroadcast) return -1;
+      if (b.isBroadcast) return 1;
       return 0;
     });
 

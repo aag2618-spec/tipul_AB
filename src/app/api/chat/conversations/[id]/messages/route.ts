@@ -55,7 +55,7 @@ async function findActiveParticipant(
       leftAt: null,
       conversation: { organizationId },
     },
-    select: { id: true },
+    select: { id: true, conversation: { select: { isBroadcast: true } } },
   });
 }
 
@@ -123,7 +123,7 @@ export async function POST(
   try {
     const auth = await requireChatAccess();
     if ("error" in auth) return auth.error;
-    const { userId, organizationId } = auth;
+    const { userId, organizationId, isOwner, isSecretary } = auth;
     const { id } = await params;
 
     // Rate limit — מונע spam / לולאת שליחה.
@@ -138,6 +138,14 @@ export async function POST(
     const participant = await findActiveParticipant(id, userId, organizationId);
     if (!participant) {
       return NextResponse.json({ message: "השיחה לא נמצאה" }, { status: 404 });
+    }
+
+    // ערוץ "הודעות לצוות" חד-כיווני — רק מנהלת/מזכירה כותבות; מטפל קורא בלבד.
+    if (participant.conversation.isBroadcast && !isOwner && !isSecretary) {
+      return NextResponse.json(
+        { message: "רק המנהלת והמזכירות יכולות לכתוב בערוץ ההודעות" },
+        { status: 403 }
+      );
     }
 
     const parsed = await parseBody(request, sendMessageSchema);

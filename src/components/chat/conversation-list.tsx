@@ -3,7 +3,7 @@
 import { Avatar, AvatarFallback } from "@/components/ui/avatar";
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
-import { Users, MessageSquarePlus } from "lucide-react";
+import { Users, MessageSquarePlus, Megaphone } from "lucide-react";
 import { format, isToday, isYesterday } from "date-fns";
 import { he } from "date-fns/locale";
 import type { ConversationSummary } from "./types";
@@ -81,6 +81,8 @@ export function ConversationList({
                     >
                       {c.isTeamChannel ? (
                         <Users className="h-5 w-5" />
+                      ) : c.isBroadcast ? (
+                        <Megaphone className="h-5 w-5" />
                       ) : (
                         getInitials(c.title)
                       )}

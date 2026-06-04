@@ -28,7 +28,8 @@ export async function GET(
     const { id } = await params;
 
     const convo = await prisma.chatConversation.findFirst({
-      where: { id, organizationId },
+      // מחריגים ערוצי צוות/הודעות — לא נגישים דרך מסך המעקב.
+      where: { id, organizationId, isTeamChannel: false, isBroadcast: false },
       select: {
         id: true,
         type: true,

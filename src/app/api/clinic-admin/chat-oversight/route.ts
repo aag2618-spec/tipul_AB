@@ -23,7 +23,8 @@ export async function GET(request: NextRequest) {
     const { organizationId, userId } = auth;
 
     const convos = await prisma.chatConversation.findMany({
-      where: { organizationId },
+      // מחריגים ערוצי צוות/הודעות מפורשות — המעקב הוא רק על שיחות בין מטפלים.
+      where: { organizationId, isTeamChannel: false, isBroadcast: false },
       orderBy: { lastMessageAt: "desc" },
       select: {
         id: true,

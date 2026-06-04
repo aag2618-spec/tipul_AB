@@ -3208,6 +3208,7 @@ model ChatConversation {
   type           ChatConversationType
   title          String? // שם הקבוצה; null לשיחה פרטית
   isTeamChannel  Boolean              @default(false) // ערוץ "כל הצוות" הקבוע (אחד לארגון)
+  isBroadcast    Boolean              @default(false) // ערוץ "הודעות לצוות" — חד-כיווני: רק מנהלת/מזכירה כותבות, כל הצוות קורא
   createdById    String
   createdBy      User                 @relation("ChatConversationCreator", fields: [createdById], references: [id], onDelete: Cascade)
   lastMessageAt  DateTime?

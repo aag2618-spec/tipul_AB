@@ -4,7 +4,7 @@ import { useEffect, useRef, useState } from "react";
 import { Avatar, AvatarFallback } from "@/components/ui/avatar";
 import { Button } from "@/components/ui/button";
 import { Textarea } from "@/components/ui/textarea";
-import { Users, Send, ArrowRight, Loader2, Eye } from "lucide-react";
+import { Users, Send, ArrowRight, Loader2, Eye, Megaphone } from "lucide-react";
 import { format } from "date-fns";
 import { he } from "date-fns/locale";
 import type { ChatMessage, ConversationSummary } from "./types";
@@ -92,6 +92,8 @@ export function MessageThread({
           >
             {conversation.isTeamChannel ? (
               <Users className="h-5 w-5" />
+            ) : conversation.isBroadcast ? (
+              <Megaphone className="h-5 w-5" />
             ) : (
               getInitials(conversation.title)
             )}
@@ -166,29 +168,35 @@ export function MessageThread({
         <div ref={endRef} />
       </div>
 
-      {/* תיבת כתיבה */}
-      <div className="p-3 border-t flex items-end gap-2">
-        <Textarea
-          value={text}
-          onChange={(e) => setText(e.target.value)}
-          onKeyDown={handleKeyDown}
-          placeholder="הקלד/י הודעה…"
-          className="min-h-[44px] max-h-32 resize-none"
-          rows={1}
-        />
-        <Button
-          size="icon"
-          onClick={handleSubmit}
-          disabled={!text.trim() || sending}
-          aria-label="שלח הודעה"
-        >
-          {sending ? (
-            <Loader2 className="h-4 w-4 animate-spin" />
-          ) : (
-            <Send className="h-4 w-4" />
-          )}
-        </Button>
-      </div>
+      {/* תיבת כתיבה — בערוץ "הודעות לצוות" חד-כיווני, מטפל רואה הערת קריאה-בלבד */}
+      {conversation.canPost ? (
+        <div className="p-3 border-t flex items-end gap-2">
+          <Textarea
+            value={text}
+            onChange={(e) => setText(e.target.value)}
+            onKeyDown={handleKeyDown}
+            placeholder="הקלד/י הודעה…"
+            className="min-h-[44px] max-h-32 resize-none"
+            rows={1}
+          />
+          <Button
+            size="icon"
+            onClick={handleSubmit}
+            disabled={!text.trim() || sending}
+            aria-label="שלח הודעה"
+          >
+            {sending ? (
+              <Loader2 className="h-4 w-4 animate-spin" />
+            ) : (
+              <Send className="h-4 w-4" />
+            )}
+          </Button>
+        </div>
+      ) : (
+        <div className="p-3 border-t text-center text-xs text-muted-foreground">
+          רק המנהלת והמזכירות יכולות לכתוב כאן — זהו ערוץ הודעות לצוות.
+        </div>
+      )}
     </div>
   );
 }

@@ -163,20 +163,22 @@ export async function applyTherapistChatPolicy(
   enabled: boolean
 ): Promise<void> {
   if (enabled) {
-    // שחזור עיוור: כל משתתף שסומן leftAt בשיחה שאינה ערוץ הצוות — נפתח מחדש.
+    // שחזור עיוור: כל משתתף שסומן leftAt בשיחה רגילה — נפתח מחדש. מחריגים
+    // מפורשות ערוצי צוות/הודעות (הגנה: שלא ייגעו לעולם בערוצים הקבועים).
     await tx.chatParticipant.updateMany({
       where: {
         leftAt: { not: null },
-        conversation: { organizationId, isTeamChannel: false },
+        conversation: { organizationId, isTeamChannel: false, isBroadcast: false },
       },
       data: { leftAt: null },
     });
     return;
   }
 
-  // כיבוי: איתור שיחות "בין מטפלים בלבד" (DIRECT או קבוצה, למעט ערוץ הצוות) וסגירתן.
+  // כיבוי: איתור שיחות "בין מטפלים בלבד" (DIRECT או קבוצה) וסגירתן. מחריגים
+  // מפורשות ערוצי צוות/הודעות כך שלא ייסגרו לעולם, ללא תלות בהרכב המשתתפים.
   const convos = await tx.chatConversation.findMany({
-    where: { organizationId, isTeamChannel: false },
+    where: { organizationId, isTeamChannel: false, isBroadcast: false },
     select: {
       id: true,
       // בכוונה ללא סינון leftAt — הסיווג חייב לשקף את ההרכב האמיתי של השיחה.
@@ -271,6 +273,66 @@ export async function ensureTeamChannel(
   // מסלול איטי: סנכרון משתתפים — חברי ההנהלה הנוכחיים בלבד (מוסיף חסרים בלבד).
   const members = await prisma.user.findMany({
     where: managementMemberWhere(organizationId),
+    select: { id: true },
+  });
+  if (members.length > 0) {
+    await prisma.chatParticipant.createMany({
+      data: members.map((m) => ({ conversationId: id, userId: m.id })),
+      skipDuplicates: true,
+    });
+  }
+
+  return id;
+}
+
+/** מזהה דטרמיניסטי לערוץ "הודעות לצוות" — ערוץ broadcast יחיד לארגון. */
+export function broadcastChannelId(organizationId: string): string {
+  return `announce_${organizationId}`;
+}
+
+/**
+ * מבטיח שערוץ "הודעות לצוות" (broadcast) קיים ושכל אנשי הצוות — כולל מטפלים —
+ * משתתפים בו. ערוץ חד-כיווני: רק מנהלת/מזכירה כותבות (נאכף ב-messages route),
+ * וכל הצוות קורא. idempotent — נקרא בכל טעינה עבור כל המשתמשים, כדי לצרף מטפלים
+ * חדשים. מסלול מהיר (קריאה בלבד) כשהמשתמש כבר משתתף — נפוץ ב-polling.
+ */
+export async function ensureBroadcastChannel(
+  organizationId: string,
+  userId: string
+): Promise<string> {
+  const id = broadcastChannelId(organizationId);
+
+  const existing = await prisma.chatConversation.findUnique({
+    where: { id },
+    select: { id: true },
+  });
+
+  if (existing) {
+    const myParticipation = await prisma.chatParticipant.findUnique({
+      where: { conversationId_userId: { conversationId: id, userId } },
+      select: { id: true },
+    });
+    if (myParticipation) return id;
+  } else {
+    try {
+      await prisma.chatConversation.create({
+        data: {
+          id,
+          organizationId,
+          type: "GROUP",
+          title: "הודעות לצוות",
+          isBroadcast: true,
+          createdById: userId,
+        },
+      });
+    } catch {
+      // נוצר במקביל (race) — ממשיכים לסנכרון המשתתפים.
+    }
+  }
+
+  // סנכרון משתתפים — כל חברי הצוות (כולל מטפלים), מוסיף חסרים בלבד.
+  const members = await prisma.user.findMany({
+    where: chatMemberWhere(organizationId),
     select: { id: true },
   });
   if (members.length > 0) {

@@ -16,6 +16,10 @@ export type ConversationSummary = {
   id: string;
   type: "DIRECT" | "GROUP";
   isTeamChannel: boolean;
+  /** ערוץ "הודעות לצוות" — חד-כיווני (רק מנהלת/מזכירה כותבות). */
+  isBroadcast: boolean;
+  /** האם המשתמש הנוכחי רשאי לכתוב בשיחה (false בערוץ broadcast למטפל). */
+  canPost: boolean;
   /** שיחה בין מטפלים בלבד — גלויה למנהלת (לצורך הודעת שקיפות). */
   visibleToManager: boolean;
   title: string;
