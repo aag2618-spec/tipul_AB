@@ -1,5 +1,6 @@
 import { NextRequest, NextResponse } from "next/server";
 import prisma from "@/lib/prisma";
+import { Prisma } from "@prisma/client";
 import { sendEmail } from "@/lib/resend";
 import { calculateDebtFromPayments } from "@/lib/payment-utils";
 import { escapeHtml } from "@/lib/email-utils";
@@ -15,6 +16,25 @@ import {
 } from "@/lib/scope";
 
 export const dynamic = "force-dynamic";
+
+// ── הגנת-כפילות אטומית להתראות ה-cron ──
+// שני triggers מפעילים את ה-cron הזה: scheduler פנימי (instrumentation.ts) +
+// cron חיצוני (render.yaml). אם שניהם רצים יחד, בדיקת ה-findFirst הקיימת היא
+// check-then-create — לא אטומית — ועלולה להחמיץ ולשלוח התראה/מייל כפול.
+// dedupeKey ייחודי ב-DB הוא הבלם האטומי: רק יצירה אחת תצליח; השנייה תיכשל ב-P2002
+// ותדולג בשקט. הבדיקות הקיימות (findFirst) נשארות — זו שכבה נוספת, לא החלפה.
+// מחזיר true אם ההתראה נוצרה (אז יש לספור/לשלוח מייל), false אם כבר קיימת.
+async function createNotificationOnce(
+  data: Prisma.NotificationUncheckedCreateInput
+): Promise<boolean> {
+  try {
+    await prisma.notification.create({ data });
+    return true;
+  } catch (e) {
+    if ((e as { code?: unknown })?.code === "P2002") return false;
+    throw e;
+  }
+}
 
 export async function GET(request: NextRequest) {
   const guard = await checkCronAuth(request);
@@ -187,19 +207,18 @@ export async function GET(request: NextRequest) {
               ? `יש לך ${realSessions.length} פגישות היום:\n${sessionsList}${paymentText}`
               : `אין פגישות היום.${paymentText}`;
 
-            await prisma.notification.create({
-              data: {
-                userId: user.id,
-                type: "MORNING_SUMMARY",
-                title,
-                content,
-                status: "PENDING",
-                scheduledFor: now,
-              },
+            const mornCreated = await createNotificationOnce({
+              userId: user.id,
+              type: "MORNING_SUMMARY",
+              title,
+              content,
+              status: "PENDING",
+              scheduledFor: now,
+              dedupeKey: `${user.id}:MORNING_SUMMARY:${israelDateStr}`,
             });
-            notificationsCreated++;
+            if (mornCreated) notificationsCreated++;
 
-            if (shouldSendEmail) {
+            if (mornCreated && shouldSendEmail) {
               const sessionsHtml = realSessions.length > 0
                 ? realSessions
                     .map(
@@ -296,17 +315,16 @@ export async function GET(request: NextRequest) {
             }
 
             // התראה בפעמון בלבד — המייל משולב בסיכום הבוקר
-            await prisma.notification.create({
-              data: {
-                userId: user.id,
-                type: "PAYMENT_REMINDER",
-                title,
-                content,
-                status: "PENDING",
-                scheduledFor: now,
-              },
+            const payCreated = await createNotificationOnce({
+              userId: user.id,
+              type: "PAYMENT_REMINDER",
+              title,
+              content,
+              status: "PENDING",
+              scheduledFor: now,
+              dedupeKey: `${user.id}:PAYMENT_REMINDER:${israelDateStr}`,
             });
-            notificationsCreated++;
+            if (payCreated) notificationsCreated++;
           }
         }
       }
@@ -496,19 +514,18 @@ export async function GET(request: NextRequest) {
             const title = `סיכום ליום מחר - ${eveTomorrow.toLocaleDateString("he-IL", { timeZone: "Asia/Jerusalem" })}`;
             const content = `פגישות מחר (${realTomorrowSessions.length}):\n${sessionsList || "אין פגישות"}${notUpdatedText}\n\nמשימות פתוחות (${openTasksCount}):\n${openTasksList || "אין משימות"}${paymentText}`;
 
-            await prisma.notification.create({
-              data: {
-                userId: user.id,
-                type: "EVENING_SUMMARY",
-                title,
-                content,
-                status: "PENDING",
-                scheduledFor: now,
-              },
+            const eveCreated = await createNotificationOnce({
+              userId: user.id,
+              type: "EVENING_SUMMARY",
+              title,
+              content,
+              status: "PENDING",
+              scheduledFor: now,
+              dedupeKey: `${user.id}:EVENING_SUMMARY:${eveTomorrow.toLocaleDateString("en-CA", { timeZone: "Asia/Jerusalem" })}`,
             });
-            notificationsCreated++;
+            if (eveCreated) notificationsCreated++;
 
-            if (shouldSendEmail) {
+            if (eveCreated && shouldSendEmail) {
               const sessionsHtml =
                 realTomorrowSessions.length > 0
                   ? realTomorrowSessions
