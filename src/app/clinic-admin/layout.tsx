@@ -24,6 +24,7 @@ import {
   AlertCircle,
   MessagesSquare,
   ShieldCheck,
+  Eye,
 } from "lucide-react";
 
 interface ClinicContext {
@@ -83,6 +84,9 @@ const navItems: NavItem[] = [
   // הגדרות צ׳אט — אישור המנהלת לצ׳אט בין מטפלים. בעלת קליניקה בלבד (ללא
   // secretaryWithTransfer) — זו החלטת מדיניות של המנהלת, לא של המזכירה.
   { href: "/clinic-admin/chat-settings", label: "הגדרות צ׳אט", icon: ShieldCheck },
+  // מעקב שיחות מטפלים — קריאה בלבד. בעלת קליניקה בלבד (החלטת מוצר: המעקב הוא
+  // של המנהלת; מזכירה לא רואה את התכתבויות המטפלים).
+  { href: "/clinic-admin/chat-oversight", label: "מעקב שיחות מטפלים", icon: Eye },
 ];
 
 function ClinicAdminContent({ children }: { children: React.ReactNode }) {

@@ -29,7 +29,9 @@ export type AuditRecordType =
   | "PAYMENT"
   | "DOCUMENT"
   | "CONSENT_FORM"
-  | "CLIENT_COMMITMENT";
+  | "CLIENT_COMMITMENT"
+  // מעקב מנהלת על התכתבויות בין מטפלים (קריאת תוכן פרטי של אנשי צוות).
+  | "THERAPIST_CHAT";
 
 export type AuditAction = "READ" | "EXPORT" | "PRINT" | "DELETE" | "UPDATE" | "SIGN";
 

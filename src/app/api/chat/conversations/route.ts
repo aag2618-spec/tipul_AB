@@ -12,6 +12,7 @@ import {
   getOrgChatSettings,
   memberKind,
   canPairChat,
+  isTherapistOnly,
 } from "@/lib/chat/chat-service";
 
 export const dynamic = "force-dynamic";
@@ -89,10 +90,19 @@ export async function GET() {
           p.lastReadAt
         );
 
+        // "גלוי למנהלת" — שיחה בין מטפלים בלבד; הבסיס להודעת השקיפות בצד הלקוח.
+        const visibleToManager = isTherapistOnly(
+          c.participants.map((pp) => ({
+            clinicRole: pp.user.clinicRole,
+            role: pp.user.role,
+          }))
+        );
+
         return {
           id: c.id,
           type: c.type,
           isTeamChannel: c.isTeamChannel,
+          visibleToManager,
           title: displayTitle,
           participants: c.participants.map((pp) => ({
             id: pp.user.id,

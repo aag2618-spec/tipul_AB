@@ -16,6 +16,8 @@ export type ConversationSummary = {
   id: string;
   type: "DIRECT" | "GROUP";
   isTeamChannel: boolean;
+  /** שיחה בין מטפלים בלבד — גלויה למנהלת (לצורך הודעת שקיפות). */
+  visibleToManager: boolean;
   title: string;
   participants: ConversationParticipant[];
   lastMessage: { body: string; senderId: string; createdAt: string } | null;

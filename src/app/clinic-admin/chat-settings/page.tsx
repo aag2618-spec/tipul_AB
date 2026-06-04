@@ -12,6 +12,7 @@ import {
   ArrowRight,
   MessagesSquare,
   Save,
+  Eye,
 } from "lucide-react";
 import { toast } from "sonner";
 
@@ -155,12 +156,27 @@ export default function ChatSettingsPage() {
             />
           </div>
 
-          <div className="rounded-lg border bg-muted/30 p-3 text-sm text-muted-foreground flex gap-2">
-            <AlertCircle className="h-4 w-4 mt-0.5 shrink-0 text-primary" aria-hidden="true" />
-            <span>
-              שים/י לב: אם תכבי את האפשרות, השיחות הקיימות בין מטפלים ייסגרו
-              ולא יהיו נגישות להם יותר.
-            </span>
+          <div className="rounded-lg border bg-muted/30 p-3 text-sm text-muted-foreground space-y-2">
+            <div className="flex gap-2">
+              <Eye className="h-4 w-4 mt-0.5 shrink-0 text-primary" aria-hidden="true" />
+              <span>
+                שקיפות: ההתכתבויות בין המטפלים גלויות לך במסך &quot;מעקב שיחות
+                מטפלים&quot;, והמטפלים רואים על כך הודעת שקיפות בצ׳אט.
+              </span>
+            </div>
+            <div className="flex gap-2">
+              <AlertCircle className="h-4 w-4 mt-0.5 shrink-0 text-primary" aria-hidden="true" />
+              <span>
+                אם תכבי את האפשרות, השיחות הקיימות בין מטפלים ייסגרו ולא יהיו
+                נגישות להם יותר.
+              </span>
+            </div>
+            <Button asChild variant="outline" size="sm" className="mt-1">
+              <Link href="/clinic-admin/chat-oversight">
+                <Eye className="ml-2 h-4 w-4" aria-hidden="true" />
+                למסך מעקב שיחות מטפלים
+              </Link>
+            </Button>
           </div>
         </CardContent>
       </Card>

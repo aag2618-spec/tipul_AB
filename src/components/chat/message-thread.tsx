@@ -4,7 +4,7 @@ import { useEffect, useRef, useState } from "react";
 import { Avatar, AvatarFallback } from "@/components/ui/avatar";
 import { Button } from "@/components/ui/button";
 import { Textarea } from "@/components/ui/textarea";
-import { Users, Send, ArrowRight, Loader2 } from "lucide-react";
+import { Users, Send, ArrowRight, Loader2, Eye } from "lucide-react";
 import { format } from "date-fns";
 import { he } from "date-fns/locale";
 import type { ChatMessage, ConversationSummary } from "./types";
@@ -107,6 +107,14 @@ export function MessageThread({
           </p>
         </div>
       </div>
+
+      {/* הודעת שקיפות — שיחה בין מטפלים גלויה למנהלת */}
+      {conversation.visibleToManager && (
+        <div className="flex items-center gap-2 px-4 py-2 text-xs bg-amber-50 text-amber-800 border-b border-amber-100 dark:bg-amber-950/30 dark:text-amber-200">
+          <Eye className="h-3.5 w-3.5 shrink-0" aria-hidden="true" />
+          <span>ההתכתבות בין המטפלים גלויה למנהלת הקליניקה.</span>
+        </div>
+      )}
 
       {/* הודעות */}
       <div className="flex-1 overflow-y-auto p-4 space-y-3 bg-muted/20">

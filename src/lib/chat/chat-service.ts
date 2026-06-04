@@ -109,6 +109,23 @@ export function canPairChat(
   return allowTherapistChat;
 }
 
+/**
+ * האם שיחה היא "בין מטפלים בלבד" — כלומר לכל המשתתפים memberKind === "THERAPIST"
+ * (אף צד אינו מנהלת/מזכירה). זה הבסיס גם להודעת השקיפות (הצ׳אט גלוי למנהלת) וגם
+ * למסך המעקב של המנהלת. הגנה: length>0 כדי ש-every לא יחזיר true על מערך ריק.
+ * הערוץ "כל הצוות" (GROUP עם משתתפי הנהלה) אינו "בין מטפלים בלבד".
+ */
+export function isTherapistOnly(
+  participants: { clinicRole: string | null; role: string | null }[]
+): boolean {
+  return (
+    participants.length > 0 &&
+    participants.every(
+      (p) => memberKind(p.clinicRole, p.role) === "THERAPIST"
+    )
+  );
+}
+
 /** הגדרות צ׳אט ברמת הארגון. allowTherapistChat=false כברירת מחדל (deny). */
 export async function getOrgChatSettings(
   organizationId: string

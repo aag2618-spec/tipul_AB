@@ -8,6 +8,7 @@ import {
   teamChannelId,
   memberKind,
   canPairChat,
+  isTherapistOnly,
 } from "@/lib/chat/chat-service";
 
 describe("chat-service — פונקציות טהורות", () => {
@@ -108,6 +109,48 @@ describe("chat-service — פונקציות טהורות", () => {
       expect(canPairChat("THERAPIST", "MANAGEMENT", false)).toBe(
         canPairChat("MANAGEMENT", "THERAPIST", false)
       );
+    });
+  });
+
+  describe("isTherapistOnly — שיחה בין מטפלים בלבד (שקיפות + מעקב)", () => {
+    it("שני מטפלים → true", () => {
+      expect(
+        isTherapistOnly([
+          { clinicRole: "THERAPIST", role: "USER" },
+          { clinicRole: "THERAPIST", role: "USER" },
+        ])
+      ).toBe(true);
+    });
+
+    it("מטפל + מנהלת → false", () => {
+      expect(
+        isTherapistOnly([
+          { clinicRole: "THERAPIST", role: "USER" },
+          { clinicRole: "OWNER", role: "USER" },
+        ])
+      ).toBe(false);
+    });
+
+    it("מטפל + מזכירה → false", () => {
+      expect(
+        isTherapistOnly([
+          { clinicRole: "THERAPIST", role: "USER" },
+          { clinicRole: "SECRETARY", role: "USER" },
+        ])
+      ).toBe(false);
+    });
+
+    it("מנהלת לפי role גלובלי (clinicRole=null) → false", () => {
+      expect(
+        isTherapistOnly([
+          { clinicRole: "THERAPIST", role: "USER" },
+          { clinicRole: null, role: "CLINIC_OWNER" },
+        ])
+      ).toBe(false);
+    });
+
+    it("מערך ריק → false (הגנה מפני every על ריק)", () => {
+      expect(isTherapistOnly([])).toBe(false);
     });
   });
 });
