@@ -43,7 +43,9 @@ export default async function SessionsPage() {
   const sessionWhere = buildSessionWhere(scopeUser, { personalOnly });
   const includeNote = !isSecretary(scopeUser);
   // סימון מטפל (צבע + שם) על הכרטיסים — רק לבעל/ת הקליניקה במצב "כל הקליניקה".
-  const showTherapist = isClinicOwner(scopeUser) && !personalOnly;
+  // סימון מטפל: בעל/ת קליניקה במצב "כל הקליניקה", או מזכירה (שתמיד רואה את כל
+  // הקליניקה ולכן צריכה לדעת של איזה מטפל כל פגישה). מטפל רגיל רואה רק את שלו.
+  const showTherapist = (isClinicOwner(scopeUser) && !personalOnly) || isSecretary(scopeUser);
 
   const [sessions, prepKeys] = await Promise.all([
     getSessions(sessionWhere, includeNote),

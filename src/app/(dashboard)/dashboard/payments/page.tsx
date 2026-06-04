@@ -1,6 +1,7 @@
 "use client";
 
 import { useState, useEffect, useMemo, useCallback } from "react";
+import { useSession } from "next-auth/react";
 import { Card, CardContent } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
@@ -207,6 +208,16 @@ export default function PaymentsPage() {
     /(?:^|;\s*)mytipul_view=clinic/.test(document.cookie)
       ? "clinic"
       : "personal";
+
+  // סימון המטפל מוצג גם למזכירה: היא רואה את כל הקליניקה (אין לה מתג
+  // "שלי / כל הקליניקה"), ולכן צריכה לדעת של איזה מטפל כל תשלום. הנתון (שם
+  // המטפל) כבר נשלח אליה מהשרת — כאן רק מבטלים הסתרה. הזיהוי זהה ל-isSecretary
+  // בשרת (clinicRole, או role הישן CLINIC_SECRETARY) — שניהם מגיעים ב-session.
+  const { data: authSession } = useSession();
+  const isSecretary =
+    authSession?.user?.clinicRole === "SECRETARY" ||
+    authSession?.user?.role === "CLINIC_SECRETARY";
+  const showTherapistMarker = viewScope === "clinic" || isSecretary;
 
   useEffect(() => {
     fetchData();
@@ -698,7 +709,7 @@ export default function PaymentsPage() {
                         )}
                         
                         <h3 className="font-semibold text-lg mb-3">{client.fullName}</h3>
-                        {viewScope === "clinic" && client.therapistName && (
+                        {showTherapistMarker && client.therapistName && (
                           <div className="flex items-center gap-1.5 -mt-2 mb-3">
                             <span
                               className="inline-block h-3 w-3 rounded-full shrink-0"
@@ -931,7 +942,7 @@ export default function PaymentsPage() {
                           <Badge variant="outline" className="font-medium">
                             {payment.clientName}
                           </Badge>
-                          {viewScope === "clinic" && payment.therapistName && (
+                          {showTherapistMarker && payment.therapistName && (
                             <span className="flex items-center gap-1.5 min-w-0">
                               <span
                                 className="inline-block h-3 w-3 rounded-full shrink-0"

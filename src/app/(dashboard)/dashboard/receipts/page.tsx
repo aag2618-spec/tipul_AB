@@ -1,6 +1,7 @@
 "use client";
 
 import { useState, useEffect, useMemo } from "react";
+import { useSession } from "next-auth/react";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Badge } from "@/components/ui/badge";
@@ -197,6 +198,16 @@ export default function ReceiptsPage() {
     /(?:^|;\s*)mytipul_view=clinic/.test(document.cookie)
       ? "clinic"
       : "personal";
+
+  // סימון המטפל מוצג גם למזכירה: היא רואה את כל הקליניקה (אין לה מתג
+  // "שלי / כל הקליניקה"), ולכן צריכה לדעת של איזה מטפל כל קבלה. הנתון (שם
+  // המטפל) כבר נשלח אליה מהשרת — כאן רק מבטלים הסתרה. הזיהוי זהה ל-isSecretary
+  // בשרת (clinicRole, או role הישן CLINIC_SECRETARY) — שניהם מגיעים ב-session.
+  const { data: authSession } = useSession();
+  const isSecretary =
+    authSession?.user?.clinicRole === "SECRETARY" ||
+    authSession?.user?.role === "CLINIC_SECRETARY";
+  const showTherapistMarker = viewScope === "clinic" || isSecretary;
 
   // פרטי העסק (כותרת הקבלה) — של המשתמש הנוכחי, לא תלוי בהיקף. נטען פעם אחת.
   useEffect(() => {
@@ -711,7 +722,7 @@ export default function ReceiptsPage() {
                   </td>
                   <td className="py-3 px-4 text-sm font-medium">
                     {payment.client.name}
-                    {viewScope === "clinic" && payment.client.therapist && (
+                    {showTherapistMarker && payment.client.therapist && (
                       <span className="flex items-center gap-1.5 mt-1">
                         <span
                           className="inline-block h-3 w-3 rounded-full shrink-0"
