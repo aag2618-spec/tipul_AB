@@ -1,0 +1,29 @@
+# Snyk (https://snyk.io) policy file, patches or ignores known vulnerabilities.
+version: v1.25.0
+# Accepted, low-risk issues that currently have NO upstream fix available.
+# Each ignore has an expiry so the decision is re-reviewed once a year.
+ignore:
+  # inflight 1.0.6 - "Missing Release of Resource after Effective Lifetime" (CWE-772).
+  # Pulled in transitively: exceljs -> archiver/zip-stream/archiver-utils/fstream -> glob@7 -> inflight.
+  # The inflight package is permanently deprecated; there is no fixed version.
+  # Not reachable by remote/untrusted input - only used by Excel-export tooling. Low real-world risk.
+  SNYK-JS-INFLIGHT-6095116:
+    - '*':
+        reason: >-
+          No fix available (package permanently deprecated). Transitive only via
+          exceljs's archiver/glob@7 chain, used only for Excel export. Not
+          reachable by untrusted or remote input. Re-review when exceljs ships a
+          fix or is replaced with a maintained library.
+        expires: 2027-06-04T00:00:00.000Z
+  # postcss-selector-parser - "Uncontrolled Recursion" (CWE-674).
+  # Pulled in transitively via @tailwindcss/typography.
+  # No fixed version exists (every version through the latest, 7.1.1, is affected).
+  # Runs only at build time on our own CSS - there is no attacker-controlled input. Low real-world risk.
+  SNYK-JS-POSTCSSSELECTORPARSER-16873882:
+    - '*':
+        reason: >-
+          No fixed version exists (all versions through latest 7.1.1 affected).
+          Build-time only via @tailwindcss/typography; parses our own CSS with no
+          attacker-controlled input. Re-review when an upstream fix is released.
+        expires: 2027-06-04T00:00:00.000Z
+patch: {}
