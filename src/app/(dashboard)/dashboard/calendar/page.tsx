@@ -264,20 +264,33 @@ function CalendarPageContent() {
     };
   }, []);
 
-  // יומן רב-מטפלים: ברירת מחדל אישית. אם המשתמש המחובר הוא אחד המטפלים בקליניקה
-  // (למשל בעלים שהוא גם מטפל), היומן נפתח עם הפגישות שלו בלבד — "יומן אישי".
-  // מזכירה / מנהל לא-מטפל (שאינם ברשימת המטפלים) ממשיכים לראות את כולם.
-  // רץ פעם אחת בלבד, כך שבחירה ידנית של המשתמש אחר כך לא נדרסת.
-  const didInitTherapistFilter = useRef(false);
+  // ── יומן רב-מטפלים: ברירת מחדל למסנן + סנכרון עם המתג "שלי / כל הקליניקה" ──
+  // viewScope נקרא מה-cookie בכל render (אותו דפוס כמו ב-useCalendarData). המתג
+  // כותב cookie + router.refresh, ולכן הערך מתעדכן בהחלפה. מאפסים את מסנן
+  // המטפלים רק כשההיקף באמת משתנה (או בטעינה הראשונה), בלי לדרוס בחירה ידנית
+  // של המשתמש בתוך אותו היקף (useRef עוקב אחרי ההיקף הקודם):
+  //   • "כל הקליניקה" → כל המטפלים (null = ללא סינון, כולל מטפל חדש).
+  //   • "שלי" → רק אני, אם אני מטפל בקליניקה (בעלים-שהוא-מטפל). מזכירה / מנהל
+  //     לא-מטפל אינם ברשימת המטפלים — וממשיכים לראות את כולם.
+  // זה מתקן גם כניסה ישירה ליומן כשהמתג כבר על "כל הקליניקה" (היה מציג בעלים בלבד).
+  const viewScope =
+    typeof document !== "undefined" &&
+    /(?:^|;\s*)mytipul_view=clinic/.test(document.cookie)
+      ? "clinic"
+      : "personal";
+  const prevViewScopeRef = useRef<string | null>(null);
   useEffect(() => {
-    if (didInitTherapistFilter.current) return;
     if (!currentTherapistId || therapists.length === 0) return;
+    const prev = prevViewScopeRef.current;
+    if (prev === viewScope) return; // אותו היקף — לא דורסים בחירה ידנית של המשתמש
+    prevViewScopeRef.current = viewScope;
     const meIsTherapist = therapists.some((t) => t.id === currentTherapistId);
-    if (meIsTherapist && therapists.length > 1) {
+    if (viewScope === "personal" && meIsTherapist && therapists.length > 1) {
       setSelectedTherapistIds(new Set([currentTherapistId]));
+    } else {
+      setSelectedTherapistIds(null);
     }
-    didInitTherapistFilter.current = true;
-  }, [currentTherapistId, therapists]);
+  }, [viewScope, therapists, currentTherapistId]);
 
   const multiTherapist = therapists.length > 1;
   const allTherapistIds = therapists.map((t) => t.id);
