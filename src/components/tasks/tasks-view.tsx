@@ -9,6 +9,7 @@ import { format } from "date-fns";
 import { he } from "date-fns/locale";
 import { toast } from "sonner";
 import Link from "next/link";
+import { getTherapistAccent } from "@/lib/calendar/event-colors";
 
 interface Task {
   id: string;
@@ -21,10 +22,14 @@ interface Task {
   relatedEntityId: string | null;
   relatedEntity: string | null;
   createdAt: Date | string;
+  therapistId?: string | null;
+  therapistName?: string | null;
 }
 
 interface TasksViewProps {
   initialTasks: Task[];
+  // יומן רב-מטפלים: כשבעל/ת קליניקה במצב "כל הקליניקה" — מציגים נקודת-צבע + שם מטפל.
+  showTherapist?: boolean;
 }
 
 function extractClientName(title: string): string {
@@ -55,7 +60,7 @@ function getTimeGroup(date: Date | string | null): string {
 
 const GROUP_ORDER = ["שבוע אחרון", "חודש אחרון", "חודש נוסף", "ישנים", "ללא תאריך"];
 
-export function TasksView({ initialTasks }: TasksViewProps) {
+export function TasksView({ initialTasks, showTherapist = false }: TasksViewProps) {
   const [tasks, setTasks] = useState<Task[]>(initialTasks);
   const [dismissingIds, setDismissingIds] = useState<Set<string>>(new Set());
   const [searchTerm, setSearchTerm] = useState("");
@@ -179,6 +184,17 @@ export function TasksView({ initialTasks }: TasksViewProps) {
                       >
                         <div>
                           <p className="font-bold text-base truncate">{clientName}</p>
+                          {showTherapist && task.therapistName && (
+                            <div className="flex items-center gap-1.5 mt-1">
+                              <span
+                                className="inline-block h-3 w-3 rounded-full shrink-0"
+                                style={{ backgroundColor: getTherapistAccent(task.therapistId ?? null) }}
+                              />
+                              <span className="text-sm font-semibold text-foreground truncate">
+                                {task.therapistName}
+                              </span>
+                            </div>
+                          )}
                           {dateStr && (
                             <p className="text-sm text-muted-foreground mt-0.5">{dateStr}</p>
                           )}

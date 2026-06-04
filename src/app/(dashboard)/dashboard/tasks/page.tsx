@@ -3,7 +3,8 @@ import { authOptions } from "@/lib/auth";
 import prisma from "@/lib/prisma";
 import { Prisma } from "@prisma/client";
 import { TasksView } from "@/components/tasks/tasks-view";
-import { loadScopeUser, buildSessionWhere, isSecretary } from "@/lib/scope";
+import { loadScopeUser, buildSessionWhere, isSecretary, isClinicOwner } from "@/lib/scope";
+import { shouldScopePersonal } from "@/lib/view-scope";
 
 // מונע cache leak בין מטפלים — דף מכיל PHI scoped למשתמש
 export const dynamic = "force-dynamic";
@@ -26,6 +27,7 @@ async function getSessionsPendingSummary(sessionWhere: Prisma.TherapySessionWher
     },
     include: {
       client: { select: { id: true, name: true } },
+      therapist: { select: { id: true, name: true } },
     },
     orderBy: { startTime: "desc" },
   });
@@ -47,8 +49,14 @@ export default async function TasksPage() {
     return <TasksView initialTasks={[]} />;
   }
 
-  const sessionWhere = buildSessionWhere(scopeUser);
+  // היקף לפי המתג "שלי / כל הקליניקה". לבעל/ת קליניקה ב"שלי" → רק הפגישות שלו/ה
+  // שממתינות לסיכום; ב"כל הקליניקה" → של כל המטפלים. לשאר התפקידים — ללא שינוי.
+  const personalOnly = await shouldScopePersonal(scopeUser);
+  const sessionWhere = buildSessionWhere(scopeUser, { personalOnly });
   const pendingSessions = await getSessionsPendingSummary(sessionWhere);
+
+  // נקודת-צבע + שם מטפל מוצגים רק לבעל/ת קליניקה במצב "כל הקליניקה".
+  const showTherapist = isClinicOwner(scopeUser) && !personalOnly;
 
   // Convert sessions to task-like format for TasksView
   const tasks = pendingSessions.map((s) => ({
@@ -63,10 +71,18 @@ export default async function TasksPage() {
     updatedAt: s.updatedAt.toISOString(),
     userId: session.user.id,
     clientName: s.client?.name,
+    therapistId: s.therapist?.id ?? null,
+    therapistName: s.therapist?.name ?? null,
     sessionId: s.id,
     relatedEntityId: s.id,
     relatedEntity: "SESSION" as const,
   }));
 
-  return <TasksView initialTasks={tasks} />;
+  return (
+    <TasksView
+      key={personalOnly ? "personal" : "clinic"}
+      initialTasks={tasks}
+      showTherapist={showTherapist}
+    />
+  );
 }
