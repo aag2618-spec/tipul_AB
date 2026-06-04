@@ -29,7 +29,8 @@ WHERE schemaname = 'public'
       'CardcomTransaction_status_lowProfileId_createdAt_idx',
       'AdminAlert_type_userId_status_idx',
       'ConsentForm_organizationId_isTemplate_createdAt_idx',
-      'CardcomInvoice_paymentId_idx'
+      'CardcomInvoice_paymentId_idx',
+      'idx_chatmessage_attachmentpath'
     )
   )
 GROUP BY tablename

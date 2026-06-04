@@ -9,7 +9,7 @@
     "dev": "next dev",
     "build": "rm -rf .next && prisma generate && node --max-old-space-size=4096 ./node_modules/.bin/next build",
     "db:push": "prisma db push",
-    "start:prod": "prisma db push && (prisma db execute --file=prisma/sql/session-time-constraint.sql --schema=prisma/schema.prisma || true) && next start",
+    "start:prod": "prisma db push && (prisma db execute --file=prisma/sql/session-time-constraint.sql || true) && (prisma db execute --file=prisma/sql/chat-attachment-path-index.sql || true) && next start",
     "start": "next start",
     "lint": "eslint",
     "db:migrate": "prisma migrate deploy",

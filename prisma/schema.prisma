@@ -3258,4 +3258,14 @@ model ChatMessage {
   attachmentSize Int? // גודל בבייטים
 
   @@index([conversationId, createdAt])
+  // אינדקס חלקי על attachmentPath — *לא* מוצהר כאן בכוונה. נוצר out-of-band עם
+  // CREATE INDEX CONCURRENTLY דרך prisma/sql/chat-attachment-path-index.sql
+  // (מחווט ל-start:prod / render.yaml אחרי `prisma db push`) כדי לזרז את שאילתת
+  // ה-cron chat-attachment-orphan-cleanup: `attachmentPath IN (...)`.
+  // אין להוסיף @@index([attachmentPath]): db push היה בונה אותו לא-CONCURRENTLY
+  // (נעילת כתיבה על טבלה חמה), ואינדקס חלקי דורש את ה-preview feature
+  // `partialIndexes` (כבוי). כיוון שהוא כבוי, Prisma לא מנהל אינדקסים חלקיים →
+  // db push לא יוצר ולא מוחק את האינדקס (אין drift), כמו ה-CHECK constraint
+  // ב-session-time-constraint.sql. בעת מעבר ל-prisma migrate deploy יש להסדיר
+  // את האינדקס (ראה OPERATIONAL NOTES בקובץ ה-SQL).
 }

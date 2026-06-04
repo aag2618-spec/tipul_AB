@@ -9,7 +9,11 @@ services:
     # יתקיים schema drift Prisma יעצור עם שגיאה במקום למחוק עמודות PHI בשקט.
     # מעבר מלא ל-`prisma migrate deploy` ידרוש baseline ידני (`migrate resolve
     # --applied`) — לא בוצע בסבב הזה כדי לא לשבור deploy. ל-HANDOFF הבא.
-    startCommand: npx prisma db push && (npx prisma db execute --file=prisma/sql/session-time-constraint.sql --schema=prisma/schema.prisma || true) && npm start
+    # הערה (Prisma 7): ל-`prisma db execute` אין יותר דגל `--schema` — מקור ה-
+    # datasource הוא prisma.config.ts (DATABASE_URL). אסור להוסיף `--schema`: זו
+    # שגיאת "unknown option" שתיכשל, וה-`|| true` ידלג בשקט על שלב ה-SQL (כך שלב
+    # ה-session-time היה כושל בשקט מאז שדרוג Prisma 6→7 עד שתוקן כאן).
+    startCommand: npx prisma db push && (npx prisma db execute --file=prisma/sql/session-time-constraint.sql || true) && (npx prisma db execute --file=prisma/sql/chat-attachment-path-index.sql || true) && npm start
     envVars:
       - key: NODE_ENV
         value: production

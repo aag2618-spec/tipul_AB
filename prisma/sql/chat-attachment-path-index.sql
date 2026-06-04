@@ -1,0 +1,54 @@
+-- Idempotent partial index for the chat-attachment-orphan-cleanup cron lookup.
+--
+-- Why: src/app/api/cron/chat-attachment-orphan-cleanup/route.ts runs, once per
+-- page (<=1000 keys), `ChatMessage.findMany({ where: { attachmentPath: { in: keys } } })`.
+-- ChatMessage is one of the highest-volume tables in the app; without an index
+-- on attachmentPath that lookup is a full sequential scan every night, getting
+-- worse as the table grows.
+--
+-- PARTIAL (WHERE "attachmentPath" IS NOT NULL): almost every ChatMessage is a
+-- plain text message with attachmentPath = NULL. Indexing only the rows that
+-- actually carry an attachment keeps the index tiny and the per-insert write
+-- overhead on the hot path near zero. The cron query is `attachmentPath IN (keys)`
+-- where keys are always non-null object paths, so the planner can use this
+-- partial index fully (IN (...) implies IS NOT NULL).
+--
+-- CONCURRENTLY: builds the index without taking a write-blocking lock on the
+-- live ChatMessage table -- the same reason the production index playbook in
+-- HANDOFF-db-indexes.md uses CONCURRENTLY. CONCURRENTLY cannot run inside a
+-- transaction block, so this file MUST contain exactly ONE statement (no DO
+-- block, no second statement): `prisma db execute` only wraps a *multi*-statement
+-- script in a transaction. It is invoked as its own `db execute` step in
+-- render.yaml + package.json `start:prod`, AFTER `prisma db push`, with `|| true`
+-- so a failure never blocks app startup.
+--
+-- Why NOT a Prisma `@@index([attachmentPath])` in schema.prisma:
+--   * A plain @@index would push as a NON-concurrent CREATE INDEX during
+--     `prisma db push` on deploy -> write-blocking lock on this hot table.
+--   * A partial @@index([...], where: ...) needs the `partialIndexes` preview
+--     feature (NOT enabled here) and would still push non-concurrently.
+-- Because the `partialIndexes` preview feature is OFF, Prisma's schema engine
+-- does not manage partial indexes, so `db push` neither creates nor drops this
+-- one -- no drift -- exactly like the TherapySession CHECK constraint in
+-- session-time-constraint.sql. Running it AFTER db push (every deploy, IF NOT
+-- EXISTS) also makes it self-healing if anything ever did remove it.
+--
+-- Safe to run on every deploy: IF NOT EXISTS -> no-op once the index exists.
+--
+-- OPERATIONAL NOTES:
+--  * Invocation is bare `prisma db execute --file=prisma/sql/chat-attachment-path-index.sql`
+--    with NO --schema flag: Prisma 7 removed --schema from `db execute`, and the
+--    datasource URL is read from prisma.config.ts (DATABASE_URL). Passing --schema
+--    errors with "unknown option" -> the `|| true` step then silently skips.
+--  * INVALID-index recovery: if a CONCURRENTLY build is interrupted, Postgres
+--    leaves an INVALID index and `IF NOT EXISTS` will NOT rebuild it. Recover with
+--    `DROP INDEX CONCURRENTLY IF EXISTS idx_chatmessage_attachmentpath;` then
+--    redeploy. Detect: SELECT indisvalid FROM pg_index
+--    WHERE indexrelid = 'idx_chatmessage_attachmentpath'::regclass;
+--  * Moving off `db push` to `prisma migrate deploy`: reconcile this out-of-band
+--    index (declare it via the `partialIndexes` preview feature, or add a
+--    baselined migration) or the diff engine will treat it as drift.
+
+CREATE INDEX CONCURRENTLY IF NOT EXISTS idx_chatmessage_attachmentpath
+  ON "ChatMessage" ("attachmentPath")
+  WHERE "attachmentPath" IS NOT NULL;
