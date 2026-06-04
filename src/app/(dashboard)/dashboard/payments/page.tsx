@@ -699,10 +699,10 @@ export default function PaymentsPage() {
                         {viewScope === "clinic" && client.therapistName && (
                           <div className="flex items-center gap-1.5 -mt-2 mb-3">
                             <span
-                              className="inline-block h-2.5 w-2.5 rounded-full shrink-0"
+                              className="inline-block h-3 w-3 rounded-full shrink-0"
                               style={{ backgroundColor: getTherapistAccent(client.therapistId) }}
                             />
-                            <span className="text-xs text-muted-foreground truncate">
+                            <span className="text-sm font-semibold text-foreground truncate">
                               {client.therapistName}
                             </span>
                           </div>
