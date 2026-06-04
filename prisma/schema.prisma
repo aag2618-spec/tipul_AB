@@ -3250,5 +3250,12 @@ model ChatMessage {
   editedAt       DateTime?
   deletedAt      DateTime? // מחיקה רכה — ההודעה נשמרת ל-audit
 
+  // קובץ מצורף (אופציונלי). attachmentPath = נתיב אחסון פנימי (R2/דיסק) ואינו
+  // נחשף ללקוח; ההורדה עוברת דרך endpoint מאומת-משתתפים בלבד.
+  attachmentPath String?
+  attachmentName String? // שם הקובץ המקורי (לתצוגה/הורדה)
+  attachmentType String? // MIME מאומת (magic-bytes)
+  attachmentSize Int? // גודל בבייטים
+
   @@index([conversationId, createdAt])
 }

@@ -4,7 +4,17 @@ import { useEffect, useRef, useState } from "react";
 import { Avatar, AvatarFallback } from "@/components/ui/avatar";
 import { Button } from "@/components/ui/button";
 import { Textarea } from "@/components/ui/textarea";
-import { Users, Send, ArrowRight, Loader2, Eye, Megaphone } from "lucide-react";
+import {
+  Users,
+  Send,
+  ArrowRight,
+  Loader2,
+  Eye,
+  Megaphone,
+  Paperclip,
+  FileText,
+  Download,
+} from "lucide-react";
 import { format } from "date-fns";
 import { he } from "date-fns/locale";
 import type { ChatMessage, ConversationSummary } from "./types";
@@ -18,11 +28,73 @@ function getInitials(name: string | null): string {
     .slice(0, 2);
 }
 
+function formatFileSize(bytes: number): string {
+  if (bytes < 1024) return `${bytes} B`;
+  if (bytes < 1024 * 1024) return `${Math.round(bytes / 1024)} KB`;
+  return `${(bytes / (1024 * 1024)).toFixed(1)} MB`;
+}
+
+// תצוגת קובץ מצורף בהודעה — תמונה כתצוגה מקדימה, אחר כקלף הורדה. ההורדה עוברת
+// דרך endpoint מאומת-משתתפים (לא נתיב אחסון ישיר).
+function AttachmentView({
+  conversationId,
+  message,
+  mine,
+}: {
+  conversationId: string;
+  message: ChatMessage;
+  mine: boolean;
+}) {
+  const att = message.attachment;
+  if (!att) return null;
+  const url = `/api/chat/conversations/${conversationId}/attachment/${message.id}`;
+  const isImage = att.type.startsWith("image/");
+
+  if (isImage) {
+    return (
+      <a
+        href={url}
+        target="_blank"
+        rel="noopener noreferrer"
+        className="block mb-1"
+      >
+        {/* eslint-disable-next-line @next/next/no-img-element */}
+        <img
+          src={url}
+          alt={att.name}
+          className="max-h-48 max-w-full rounded-lg object-cover"
+        />
+      </a>
+    );
+  }
+
+  return (
+    <a
+      href={url}
+      target="_blank"
+      rel="noopener noreferrer"
+      className={`flex items-center gap-2 mb-1 rounded-lg p-2 ${
+        mine ? "bg-primary-foreground/15" : "bg-muted"
+      }`}
+    >
+      <FileText className="h-5 w-5 shrink-0" aria-hidden="true" />
+      <span className="min-w-0 flex-1">
+        <span className="block text-xs font-medium truncate">{att.name}</span>
+        <span className="block text-[10px] opacity-70">
+          {formatFileSize(att.size)}
+        </span>
+      </span>
+      <Download className="h-4 w-4 shrink-0 opacity-70" aria-hidden="true" />
+    </a>
+  );
+}
+
 interface MessageThreadProps {
   conversation: ConversationSummary | null;
   messages: ChatMessage[];
   currentUserId: string;
   onSend: (body: string) => void;
+  onSendAttachment: (file: File, caption: string) => void;
   sending: boolean;
   loading: boolean;
   onBack: () => void;
@@ -33,12 +105,14 @@ export function MessageThread({
   messages,
   currentUserId,
   onSend,
+  onSendAttachment,
   sending,
   loading,
   onBack,
 }: MessageThreadProps) {
   const [text, setText] = useState("");
   const endRef = useRef<HTMLDivElement>(null);
+  const fileInputRef = useRef<HTMLInputElement>(null);
 
   // גלילה אוטומטית לתחתית כשמגיעות הודעות חדשות.
   useEffect(() => {
@@ -67,6 +141,14 @@ export function MessageThread({
       e.preventDefault();
       handleSubmit();
     }
+  };
+
+  const handleFileChange = (e: React.ChangeEvent<HTMLInputElement>) => {
+    const f = e.target.files?.[0];
+    e.target.value = ""; // איפוס כדי לאפשר בחירה חוזרת של אותו קובץ
+    if (!f || sending) return;
+    onSendAttachment(f, text.trim());
+    setText("");
   };
 
   return (
@@ -148,9 +230,18 @@ export function MessageThread({
                       {m.senderName || "משתמש"}
                     </p>
                   )}
-                  <p className="text-sm whitespace-pre-wrap break-words">
-                    {m.body}
-                  </p>
+                  {m.attachment && (
+                    <AttachmentView
+                      conversationId={conversation.id}
+                      message={m}
+                      mine={mine}
+                    />
+                  )}
+                  {m.body && (
+                    <p className="text-sm whitespace-pre-wrap break-words">
+                      {m.body}
+                    </p>
+                  )}
                   <p
                     className={`text-[10px] mt-1 ${
                       mine
@@ -171,6 +262,23 @@ export function MessageThread({
       {/* תיבת כתיבה — בערוץ "הודעות לצוות" חד-כיווני, מטפל רואה הערת קריאה-בלבד */}
       {conversation.canPost ? (
         <div className="p-3 border-t flex items-end gap-2">
+          <input
+            ref={fileInputRef}
+            type="file"
+            accept="image/*,.pdf,.doc,.docx,.xls,.xlsx"
+            className="hidden"
+            onChange={handleFileChange}
+          />
+          <Button
+            size="icon"
+            variant="ghost"
+            onClick={() => fileInputRef.current?.click()}
+            disabled={sending}
+            aria-label="צרף קובץ"
+            className="shrink-0"
+          >
+            <Paperclip className="h-4 w-4" />
+          </Button>
           <Textarea
             value={text}
             onChange={(e) => setText(e.target.value)}

@@ -5,42 +5,13 @@ import { parseBody, parseSearchParams } from "@/lib/validations/helpers";
 import { sendMessageSchema, messagesQuerySchema } from "@/lib/validations/chat";
 import { requireChatAccess } from "@/lib/chat/require-chat-access";
 import { checkRateLimit, CHAT_MESSAGE_RATE_LIMIT } from "@/lib/rate-limit";
+import {
+  MESSAGE_SELECT,
+  serializeMessage,
+  type RawMessage,
+} from "@/lib/chat/message-serialize";
 
 export const dynamic = "force-dynamic";
-
-const MESSAGE_SELECT = {
-  id: true,
-  body: true,
-  senderId: true,
-  isAnnouncement: true,
-  clientId: true,
-  createdAt: true,
-  editedAt: true,
-  sender: { select: { id: true, name: true, clinicRole: true } },
-} as const;
-
-type RawMessage = {
-  id: string;
-  body: string;
-  senderId: string;
-  isAnnouncement: boolean;
-  clientId: string | null;
-  createdAt: Date;
-  editedAt: Date | null;
-  sender: { id: string; name: string | null; clinicRole: string | null };
-};
-
-function serializeMessage(m: RawMessage) {
-  return {
-    id: m.id,
-    body: m.body,
-    senderId: m.senderId,
-    senderName: m.sender.name,
-    isAnnouncement: m.isAnnouncement,
-    createdAt: m.createdAt.toISOString(),
-    editedAt: m.editedAt ? m.editedAt.toISOString() : null,
-  };
-}
 
 // בדיקת השתתפות: השיחה שייכת לארגון שלי ואני משתתף פעיל בה. ה-IDOR guard.
 async function findActiveParticipant(

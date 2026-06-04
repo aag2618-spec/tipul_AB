@@ -15,7 +15,11 @@
 // אנחנו לא מתקינים file-type package — magic-bytes ידני מספיק לסוגי
 // קבצים שאנחנו תומכים בהם, ופחות תלות = פחות attack surface.
 
-export type FileCategory = "document" | "recording" | "attachment";
+export type FileCategory =
+  | "document"
+  | "recording"
+  | "attachment"
+  | "chatAttachment";
 
 interface CategoryConfig {
   maxSizeBytes: number;
@@ -93,6 +97,33 @@ const CONFIG: Record<FileCategory, CategoryConfig> = {
       { mime: "application/pdf", prefix: [0x25, 0x50, 0x44, 0x46] },
       { mime: "application/msword", prefix: [0xd0, 0xcf, 0x11, 0xe0] },
       { mime: "application/vnd.openxmlformats-officedocument.wordprocessingml.document", prefix: [0x50, 0x4b, 0x03, 0x04] },
+    ],
+  },
+  // צ'אט צוות: תמונות + PDF + Word + Excel, עד 10MB. magic-bytes: docx/xlsx הם
+  // PK(zip), doc/xls הם OLE — הבדיקה מוודאת מיכל office/zip תקין (לא exe/script).
+  chatAttachment: {
+    maxSizeBytes: 10 * 1024 * 1024, // 10MB
+    allowedMimes: [
+      "image/jpeg",
+      "image/png",
+      "image/gif",
+      "image/webp",
+      "application/pdf",
+      "application/msword",
+      "application/vnd.openxmlformats-officedocument.wordprocessingml.document",
+      "application/vnd.ms-excel",
+      "application/vnd.openxmlformats-officedocument.spreadsheetml.sheet",
+    ],
+    magicBytes: [
+      { mime: "image/jpeg", prefix: [0xff, 0xd8, 0xff] },
+      { mime: "image/png", prefix: [0x89, 0x50, 0x4e, 0x47] },
+      { mime: "image/gif", prefix: [0x47, 0x49, 0x46, 0x38] },
+      { mime: "image/webp", prefix: [0x57, 0x45, 0x42, 0x50], offset: 8 },
+      { mime: "application/pdf", prefix: [0x25, 0x50, 0x44, 0x46] },
+      { mime: "application/msword", prefix: [0xd0, 0xcf, 0x11, 0xe0] },
+      { mime: "application/vnd.openxmlformats-officedocument.wordprocessingml.document", prefix: [0x50, 0x4b, 0x03, 0x04] },
+      { mime: "application/vnd.ms-excel", prefix: [0xd0, 0xcf, 0x11, 0xe0] }, // OLE
+      { mime: "application/vnd.openxmlformats-officedocument.spreadsheetml.sheet", prefix: [0x50, 0x4b, 0x03, 0x04] }, // PK (zip)
     ],
   },
 };
@@ -197,6 +228,8 @@ const MIME_TO_EXT: Record<string, string> = {
   "image/png": "png",
   "image/gif": "gif",
   "image/webp": "webp",
+  "application/vnd.ms-excel": "xls",
+  "application/vnd.openxmlformats-officedocument.spreadsheetml.sheet": "xlsx",
   "audio/webm": "webm",
   "audio/ogg": "ogg",
   "audio/mpeg": "mp3",

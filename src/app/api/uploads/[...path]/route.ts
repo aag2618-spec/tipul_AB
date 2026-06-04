@@ -150,6 +150,19 @@ export async function GET(
         { status: 410 }
       );
     }
+    // קבצי צ׳אט מוגשים אך ורק דרך /api/chat/conversations/[id]/attachment/[messageId]
+    // (עם בדיקת השתתפות בשיחה). חוסמים כאן כדי שלא ייחשפו דרך ניחוש נתיב ע"י
+    // חבר קליניקה שאינו משתתף בשיחה.
+    else if (pathStr.startsWith("chat/")) {
+      logger.warn("[uploads] chat attachment path blocked — use chat endpoint", {
+        userId,
+        pathStr,
+      });
+      return NextResponse.json(
+        { message: "אין הרשאה לקובץ זה" },
+        { status: 403 }
+      );
+    }
 
     const fileExists = await storage.exists(pathStr);
     if (!fileExists) {

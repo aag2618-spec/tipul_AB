@@ -29,6 +29,12 @@ export type ConversationSummary = {
   unreadCount: number;
 };
 
+export type ChatAttachment = {
+  name: string;
+  type: string; // MIME
+  size: number; // bytes
+};
+
 export type ChatMessage = {
   id: string;
   body: string;
@@ -37,4 +43,5 @@ export type ChatMessage = {
   isAnnouncement: boolean;
   createdAt: string;
   editedAt: string | null;
+  attachment: ChatAttachment | null;
 };

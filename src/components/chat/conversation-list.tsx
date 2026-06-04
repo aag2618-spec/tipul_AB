@@ -100,7 +100,9 @@ export function ConversationList({
                     </div>
                     <div className="flex items-center justify-between gap-2 mt-0.5">
                       <span className="text-xs text-muted-foreground truncate">
-                        {c.lastMessage?.body || "אין הודעות עדיין"}
+                        {c.lastMessage
+                          ? c.lastMessage.body || "📎 קובץ מצורף"
+                          : "אין הודעות עדיין"}
                       </span>
                       {c.unreadCount > 0 && (
                         <Badge

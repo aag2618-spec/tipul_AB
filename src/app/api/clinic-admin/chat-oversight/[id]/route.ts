@@ -69,6 +69,10 @@ export async function GET(
         body: true,
         senderId: true,
         createdAt: true,
+        attachmentPath: true,
+        attachmentName: true,
+        attachmentType: true,
+        attachmentSize: true,
         sender: { select: { name: true } },
       },
     });
@@ -107,6 +111,13 @@ export async function GET(
         senderId: m.senderId,
         senderName: m.sender.name,
         createdAt: m.createdAt.toISOString(),
+        attachment: m.attachmentPath
+          ? {
+              name: m.attachmentName ?? "קובץ",
+              type: m.attachmentType ?? "application/octet-stream",
+              size: m.attachmentSize ?? 0,
+            }
+          : null,
       })),
     });
   } catch (error) {

@@ -11,6 +11,8 @@ import {
   ArrowRight,
   Eye,
   Users,
+  FileText,
+  Download,
 } from "lucide-react";
 import { format } from "date-fns";
 import { he } from "date-fns/locale";
@@ -31,7 +33,14 @@ type OversightMessage = {
   senderId: string;
   senderName: string | null;
   createdAt: string;
+  attachment: { name: string; type: string; size: number } | null;
 };
+
+function formatFileSize(bytes: number): string {
+  if (bytes < 1024) return `${bytes} B`;
+  if (bytes < 1024 * 1024) return `${Math.round(bytes / 1024)} KB`;
+  return `${(bytes / (1024 * 1024)).toFixed(1)} MB`;
+}
 
 function getInitials(name: string | null): string {
   if (!name) return "?";
@@ -209,9 +218,51 @@ export default function ChatOversightPage() {
                           <p className="text-xs font-semibold text-primary mb-0.5">
                             {m.senderName || "מטפל/ת"}
                           </p>
-                          <p className="text-sm whitespace-pre-wrap break-words">
-                            {m.body}
-                          </p>
+                          {m.attachment &&
+                            (m.attachment.type.startsWith("image/") ? (
+                              <a
+                                href={`/api/clinic-admin/chat-oversight/${selected.id}/attachment/${m.id}`}
+                                target="_blank"
+                                rel="noopener noreferrer"
+                                className="block mb-1"
+                              >
+                                {/* eslint-disable-next-line @next/next/no-img-element */}
+                                <img
+                                  src={`/api/clinic-admin/chat-oversight/${selected.id}/attachment/${m.id}`}
+                                  alt={m.attachment.name}
+                                  className="max-h-48 max-w-full rounded-lg object-cover"
+                                />
+                              </a>
+                            ) : (
+                              <a
+                                href={`/api/clinic-admin/chat-oversight/${selected.id}/attachment/${m.id}`}
+                                target="_blank"
+                                rel="noopener noreferrer"
+                                className="flex items-center gap-2 mb-1 rounded-lg p-2 bg-muted"
+                              >
+                                <FileText
+                                  className="h-5 w-5 shrink-0"
+                                  aria-hidden="true"
+                                />
+                                <span className="min-w-0 flex-1">
+                                  <span className="block text-xs font-medium truncate">
+                                    {m.attachment.name}
+                                  </span>
+                                  <span className="block text-[10px] opacity-70">
+                                    {formatFileSize(m.attachment.size)}
+                                  </span>
+                                </span>
+                                <Download
+                                  className="h-4 w-4 shrink-0 opacity-70"
+                                  aria-hidden="true"
+                                />
+                              </a>
+                            ))}
+                          {m.body && (
+                            <p className="text-sm whitespace-pre-wrap break-words">
+                              {m.body}
+                            </p>
+                          )}
                           <p className="text-[10px] mt-1 text-muted-foreground">
                             {format(new Date(m.createdAt), "dd/MM HH:mm", {
                               locale: he,

@@ -154,6 +154,45 @@ export function TeamChatView({ currentUserId }: { currentUserId: string }) {
     [fetchConversations]
   );
 
+  const handleSendAttachment = useCallback(
+    async (file: File, caption: string) => {
+      const id = selectedIdRef.current;
+      if (!id) return;
+      // בדיקת גודל בצד הלקוח (UX) — השרת אוכף שוב (10MB).
+      if (file.size > 10 * 1024 * 1024) {
+        toast.error("הקובץ גדול מדי (מקסימום 10MB)");
+        return;
+      }
+      setSending(true);
+      try {
+        const form = new FormData();
+        form.append("file", file);
+        if (caption) form.append("body", caption);
+        const res = await fetch(`/api/chat/conversations/${id}/attachment`, {
+          method: "POST",
+          body: form,
+        });
+        if (res.ok) {
+          const data = await res.json();
+          const msg: ChatMessage = data.message;
+          setMessages((prev) =>
+            prev.some((m) => m.id === msg.id) ? prev : [...prev, msg]
+          );
+          sinceRef.current = msg.createdAt;
+          fetchConversations();
+        } else {
+          const data = await res.json().catch(() => ({}));
+          toast.error(data.message || "שגיאה בשליחת הקובץ");
+        }
+      } catch {
+        toast.error("שגיאה בשליחת הקובץ");
+      } finally {
+        setSending(false);
+      }
+    },
+    [fetchConversations]
+  );
+
   const handleOpenNewChat = useCallback(async () => {
     setDialogKey((k) => k + 1); // remount החלון → בחירה נקייה בכל פתיחה
     setDialogOpen(true);
@@ -257,6 +296,7 @@ export function TeamChatView({ currentUserId }: { currentUserId: string }) {
             messages={messages}
             currentUserId={currentUserId}
             onSend={handleSend}
+            onSendAttachment={handleSendAttachment}
             sending={sending}
             loading={loadingMessages}
             onBack={() => setMobileView("list")}
