@@ -1,11 +1,12 @@
-import { readFile, writeFile, unlink, stat, mkdir } from "fs/promises";
-import { join, resolve, dirname } from "path";
+import { readFile, writeFile, unlink, stat, mkdir, readdir } from "fs/promises";
+import { join, resolve, dirname, relative, sep } from "path";
 import {
   S3Client,
   GetObjectCommand,
   PutObjectCommand,
   DeleteObjectCommand,
   HeadObjectCommand,
+  ListObjectsV2Command,
 } from "@aws-sdk/client-s3";
 import { getSignedUrl as awsGetSignedUrl } from "@aws-sdk/s3-request-presigner";
 import { logger } from "@/lib/logger";
@@ -19,6 +20,19 @@ export interface FileStat {
   lastModified: Date;
 }
 
+export interface StorageListItem {
+  /** הנתיב היחסי (key) — זהה למה שנמסר ל-write() ולמה ששמור ב-attachmentPath/audioUrl. */
+  path: string;
+  size: number;
+  lastModified: Date;
+}
+
+export interface StorageListPage {
+  items: StorageListItem[];
+  /** token לעמוד הבא (S3). undefined = אין עוד עמודים. */
+  nextToken?: string;
+}
+
 export interface StorageProvider {
   read(relativePath: string): Promise<Buffer>;
   write(relativePath: string, data: Buffer, contentType?: string): Promise<void>;
@@ -26,6 +40,16 @@ export interface StorageProvider {
   exists(relativePath: string): Promise<boolean>;
   stat(relativePath: string): Promise<FileStat>;
   getSignedUrl(relativePath: string, expiresInSeconds?: number): Promise<string>;
+  /**
+   * מחזיר עמוד של אובייקטים שה-key שלהם מתחיל ב-prefix.
+   * S3: עד maxKeys לעמוד + nextToken להמשך pagination.
+   * Local (dev): כל הקבצים תחת התיקייה בעמוד אחד (ללא token).
+   */
+  list(
+    prefix: string,
+    continuationToken?: string,
+    maxKeys?: number
+  ): Promise<StorageListPage>;
 }
 
 // ---------------------------------------------------------------------------
@@ -79,6 +103,37 @@ export class LocalStorageProvider implements StorageProvider {
 
   async getSignedUrl(relativePath: string): Promise<string> {
     return `/api/uploads/${relativePath}`;
+  }
+
+  async list(prefix: string): Promise<StorageListPage> {
+    const root = this.resolvePath(prefix);
+    const items: StorageListItem[] = [];
+
+    const walk = async (dir: string): Promise<void> => {
+      let entries;
+      try {
+        entries = await readdir(dir, { withFileTypes: true });
+      } catch (err) {
+        // התיקייה לא קיימת עדיין (אין קבצים) — אין מה לסרוק.
+        if ((err as NodeJS.ErrnoException)?.code === "ENOENT") return;
+        throw err;
+      }
+      for (const entry of entries) {
+        const full = join(dir, entry.name);
+        if (entry.isDirectory()) {
+          await walk(full);
+        } else if (entry.isFile()) {
+          const s = await stat(full);
+          // path יחסי ל-baseDir עם "/" — תואם בדיוק לערך השמור ב-attachmentPath.
+          const rel = relative(this.baseDir, full).split(sep).join("/");
+          items.push({ path: rel, size: s.size, lastModified: s.mtime });
+        }
+      }
+    };
+
+    await walk(root);
+    // אחסון מקומי (dev בלבד) — מחזיר הכל בעמוד אחד, ללא pagination.
+    return { items };
   }
 }
 
@@ -181,6 +236,37 @@ export class S3StorageProvider implements StorageProvider {
       }),
       { expiresIn: expiresInSeconds }
     );
+  }
+
+  async list(
+    prefix: string,
+    continuationToken?: string,
+    maxKeys = 1000
+  ): Promise<StorageListPage> {
+    const resp = await this.client.send(
+      new ListObjectsV2Command({
+        Bucket: this.bucket,
+        Prefix: this.key(prefix),
+        ContinuationToken: continuationToken,
+        MaxKeys: maxKeys,
+      })
+    );
+
+    const items: StorageListItem[] = [];
+    for (const obj of resp.Contents ?? []) {
+      if (!obj.Key) continue;
+      items.push({
+        path: obj.Key,
+        size: obj.Size ?? 0,
+        lastModified: obj.LastModified ?? new Date(),
+      });
+    }
+
+    return {
+      items,
+      // NextContinuationToken מוגדר רק כש-IsTruncated=true.
+      nextToken: resp.IsTruncated ? resp.NextContinuationToken : undefined,
+    };
   }
 }
 

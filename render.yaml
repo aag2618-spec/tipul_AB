@@ -645,3 +645,29 @@ services:
           property: url
       - key: CRON_SECRET
         sync: false
+
+  # Chat attachment orphan cleanup — מוחק צרופות צ'אט יתומות באחסון (R2/דיסק).
+  # סורק את אובייקטי `chat/` ומוחק קבצים שאין להם ChatMessage חיה (deletedAt=null)
+  # שמצביעה אליהם, או שההודעה מחוקה-רך מעבר ל-90 ימים. תופס יתומים מ-cascade
+  # delete (שמחק את שורת ה-DB) ויתומים היסטוריים. עקרון "צמצום מידע" (חוק הגנת
+  # הפרטיות + תקנות 2017 על PHI) + חיסכון אחסון. אח של recording-orphan-cleanup.
+  # יומי 02:25 UTC (05:25 ישראל) — off-peak, נפרד מ-recording-orphan-cleanup
+  # (01:30) ו-cleanup-idempotency (01:00) כדי לא להעמיס DB/אחסון בו-זמנית.
+  - type: cron
+    name: chat-attachment-orphan-cleanup
+    runtime: node
+    region: frankfurt
+    plan: free
+    schedule: "25 2 * * *"  # 02:25 UTC (05:25 Israel)
+    buildCommand: echo "No build needed"
+    startCommand: |
+      curl -s --max-time 300 -X GET "$RENDER_EXTERNAL_URL/api/cron/chat-attachment-orphan-cleanup" \
+        -H "Authorization: Bearer $CRON_SECRET"
+    envVars:
+      - key: RENDER_EXTERNAL_URL
+        fromService:
+          type: web
+          name: tipul-app
+          property: url
+      - key: CRON_SECRET
+        sync: false
