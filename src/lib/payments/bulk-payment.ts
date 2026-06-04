@@ -714,6 +714,7 @@ export async function getAllClientsDebtSummary(
       lastName: true,
       name: true,
       creditBalance: true,
+      therapist: { select: { id: true, name: true } },
       payments: {
         where: nestedPaymentsWhere,
         select: {
@@ -776,6 +777,8 @@ export async function getAllClientsDebtSummary(
           client.firstName && client.lastName
             ? `${client.firstName} ${client.lastName}`
             : client.name,
+        therapistId: client.therapist?.id ?? null,
+        therapistName: client.therapist?.name ?? null,
         totalDebt,
         creditBalance: Number(client.creditBalance),
         unpaidSessionsCount: unpaid.length,

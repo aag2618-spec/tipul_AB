@@ -89,6 +89,9 @@ export interface AllClientsDebtItem {
   firstName: string;
   lastName: string;
   fullName: string;
+  // יומן רב-מטפלים: המטפל/ת של המטופל/ת — להצגת נקודת-צבע + שם במצב "כל הקליניקה".
+  therapistId: string | null;
+  therapistName: string | null;
   totalDebt: number;
   creditBalance: number;
   unpaidSessionsCount: number;

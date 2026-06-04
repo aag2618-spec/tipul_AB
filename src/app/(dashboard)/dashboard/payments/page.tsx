@@ -54,6 +54,7 @@ import {
   exportDetailedPDF,
   type PaymentExportData,
 } from "@/lib/export-utils";
+import { getTherapistAccent } from "@/lib/calendar/event-colors";
 import { format, startOfMonth, endOfMonth, subMonths } from "date-fns";
 import { he } from "date-fns/locale";
 import Link from "next/link";
@@ -105,6 +106,8 @@ interface PaidPayment {
 interface ClientDebt {
   id: string;
   fullName: string;
+  therapistId: string | null;
+  therapistName: string | null;
   totalDebt: number;
   creditBalance: number;
   unpaidSessionsCount: number;
@@ -693,6 +696,17 @@ export default function PaymentsPage() {
                         )}
                         
                         <h3 className="font-semibold text-lg mb-3">{client.fullName}</h3>
+                        {viewScope === "clinic" && client.therapistName && (
+                          <div className="flex items-center gap-1.5 -mt-2 mb-3">
+                            <span
+                              className="inline-block h-2.5 w-2.5 rounded-full shrink-0"
+                              style={{ backgroundColor: getTherapistAccent(client.therapistId) }}
+                            />
+                            <span className="text-xs text-muted-foreground truncate">
+                              {client.therapistName}
+                            </span>
+                          </div>
+                        )}
                         
                         <div className="space-y-2">
                           {client.totalDebt > 0 && (
