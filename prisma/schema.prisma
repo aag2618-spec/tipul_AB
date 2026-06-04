@@ -848,9 +848,16 @@ model Notification {
   readAt       DateTime?
   createdAt    DateTime           @default(now())
 
+  // מפתח dedupe אטומי לסיכומי בוקר/ערב/תזכורת-תשלום שנוצרים ע"י ה-cron.
+  // ערך: `${userId}:${type}:${date}`. ה-@@unique מבטיח יצירה אחת בלבד גם כש-
+  // שני ה-schedulers (פנימי + cron חיצוני) רצים יחד. null לכל מקור התראות אחר
+  // (Postgres מתיר ריבוי NULL ב-unique → לא משפיע על התראות קיימות/אחרות).
+  dedupeKey    String?
+
   userId String
   user   User   @relation(fields: [userId], references: [id], onDelete: Cascade)
 
+  @@unique([dedupeKey])
   @@index([userId, status, createdAt])
   @@index([userId, createdAt])
   @@index([type, status, createdAt])
