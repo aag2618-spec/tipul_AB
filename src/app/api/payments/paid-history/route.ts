@@ -72,6 +72,7 @@ export async function GET(request: NextRequest) {
             name: true,
             firstName: true,
             lastName: true,
+            therapist: { select: { id: true, name: true } },
           },
         },
         session: {
@@ -122,6 +123,8 @@ export async function GET(request: NextRequest) {
         clientName: payment.client.firstName && payment.client.lastName
           ? `${payment.client.firstName} ${payment.client.lastName}`
           : payment.client.name,
+        therapistId: payment.client.therapist?.id ?? null,
+        therapistName: payment.client.therapist?.name ?? null,
         amount: Number(payment.amount),
         expectedAmount: payment.expectedAmount ? Number(payment.expectedAmount) : Number(payment.amount),
         method: payment.method,

@@ -89,6 +89,8 @@ interface PaidPayment {
   id: string;
   clientId: string;
   clientName: string;
+  therapistId: string | null;
+  therapistName: string | null;
   amount: number;
   expectedAmount: number;
   method: string;
@@ -929,6 +931,17 @@ export default function PaymentsPage() {
                           <Badge variant="outline" className="font-medium">
                             {payment.clientName}
                           </Badge>
+                          {viewScope === "clinic" && payment.therapistName && (
+                            <span className="flex items-center gap-1.5 min-w-0">
+                              <span
+                                className="inline-block h-3 w-3 rounded-full shrink-0"
+                                style={{ backgroundColor: getTherapistAccent(payment.therapistId) }}
+                              />
+                              <span className="text-sm font-semibold text-foreground truncate">
+                                {payment.therapistName}
+                              </span>
+                            </span>
+                          )}
                         </div>
                         {/* פרטי התשלום */}
                         <PaymentHistoryItem
