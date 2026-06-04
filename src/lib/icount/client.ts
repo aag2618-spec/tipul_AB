@@ -43,6 +43,8 @@ export class ICountClient {
         method: 'POST',
         headers: { 'Content-Type': 'application/x-www-form-urlencoded' },
         body: params.toString(),
+        // timeout 15ש' — קריאה תקועה לספק לא תתפוס חיבור שרת לנצח (הגנה תחת עומס)
+        signal: AbortSignal.timeout(15_000),
       });
       const result = await response.json();
       if (result.status && result.sid) {
@@ -86,6 +88,8 @@ export class ICountClient {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify(jsonBody),
+        // timeout 15ש' — קריאה תקועה לספק לא תתפוס חיבור שרת לנצח (הגנה תחת עומס)
+        signal: AbortSignal.timeout(15_000),
       });
 
       const result = await response.json();

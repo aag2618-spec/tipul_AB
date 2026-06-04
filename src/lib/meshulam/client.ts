@@ -56,6 +56,8 @@ export class MeshulamClient {
       const response = await fetch(`${this.baseUrl}/${endpoint}`, {
         method: 'POST',
         body: formData,
+        // timeout 15ש' — קריאה תקועה לספק לא תתפוס חיבור שרת לנצח (הגנה תחת עומס)
+        signal: AbortSignal.timeout(15_000),
       });
 
       const result = await response.json();

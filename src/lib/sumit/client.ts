@@ -55,6 +55,8 @@ export class SumitClient {
           'Content-Type': 'application/json',
         },
         body: JSON.stringify(requestData),
+        // timeout 15ש' — קריאה תקועה לספק לא תתפוס חיבור שרת לנצח (הגנה תחת עומס)
+        signal: AbortSignal.timeout(15_000),
       });
 
       const result = await response.json();

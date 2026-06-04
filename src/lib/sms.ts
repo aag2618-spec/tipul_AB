@@ -386,6 +386,8 @@ export async function sendSMS(
           textList: [truncatedMessage],
         },
       }),
+      // timeout 15ש' — קריאה תקועה ל-Pulseem לא תתפוס חיבור שרת לנצח
+      signal: AbortSignal.timeout(15_000),
     });
 
     if (!response.ok) {

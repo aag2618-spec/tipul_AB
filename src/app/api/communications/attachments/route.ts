@@ -88,7 +88,10 @@ export async function GET(request: NextRequest) {
     }
 
     // Download the file from Resend signed URL
-    const fileResponse = await fetch(downloadUrl);
+    const fileResponse = await fetch(downloadUrl, {
+      // timeout 30ש' — הורדת קובץ תקועה מ-Resend לא תיתקע לנצח
+      signal: AbortSignal.timeout(30_000),
+    });
     if (!fileResponse.ok) {
       return NextResponse.json({ message: "שגיאה בהורדת הקובץ מ-Resend" }, { status: 500 });
     }
@@ -185,7 +188,10 @@ export async function POST(request: NextRequest) {
     }
 
     // Download file from Resend signed URL
-    const fileResponse = await fetch(downloadUrl2);
+    const fileResponse = await fetch(downloadUrl2, {
+      // timeout 30ש' — הורדת קובץ תקועה מ-Resend לא תיתקע לנצח
+      signal: AbortSignal.timeout(30_000),
+    });
     if (!fileResponse.ok) {
       return NextResponse.json({ message: "שגיאה בהורדת הקובץ מ-Resend" }, { status: 500 });
     }

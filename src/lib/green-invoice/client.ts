@@ -49,6 +49,8 @@ export class GreenInvoiceClient {
           id: this.apiKey,
           secret: this.apiSecret,
         }),
+        // timeout 15ש' — קריאה תקועה לספק לא תתפוס חיבור שרת לנצח (הגנה תחת עומס)
+        signal: AbortSignal.timeout(15_000),
       });
 
       const result = await response.json();
@@ -92,6 +94,8 @@ export class GreenInvoiceClient {
           'Authorization': `Bearer ${token}`,
         },
         body: data ? JSON.stringify(data) : undefined,
+        // timeout 15ש' — קריאה תקועה לספק לא תתפוס חיבור שרת לנצח (הגנה תחת עומס)
+        signal: AbortSignal.timeout(15_000),
       });
 
       const result = await response.json();
