@@ -217,11 +217,69 @@ function AdminLayoutContent({ children }: { children: React.ReactNode }) {
   const { data: session, status } = useSession();
   const isAdmin = session?.user?.role === "ADMIN";
 
+  // אם בדיקת ההתחברות "נתקעת" (status נשאר "loading" יותר מדי) — סביר שהשרת
+  // מתאתחל (deploy). במקום ספינר אינסופי: מציגים הודעה מרגיעה ובודקים ברקע אם
+  // השרת חזר. הערה: update() של next-auth *לא* מרענן כש-status==="loading"
+  // (הוא מוותר מיד), לכן בודקים ישירות את /api/auth/session — וברגע שהוא עונה
+  // (השרת חזר), טוענים מחדש כדי שה-SessionProvider יתאתחל והדף ייפתח לבד.
+  const [serverWaking, setServerWaking] = useState(false);
+
+  useEffect(() => {
+    if (status !== "loading") {
+      setServerWaking(false);
+      return;
+    }
+    let cancelled = false;
+    let timer: ReturnType<typeof setTimeout> | undefined;
+    let attempts = 0;
+
+    const slowTimer = setTimeout(() => {
+      if (!cancelled) setServerWaking(true);
+    }, 9000);
+
+    const probe = async () => {
+      try {
+        const res = await fetch("/api/auth/session", {
+          signal: AbortSignal.timeout(8000),
+          cache: "no-store",
+        });
+        if (!cancelled && res.ok) {
+          window.location.reload(); // השרת חזר — טעינה מחדש תאתחל את ה-session.
+          return;
+        }
+      } catch {
+        // השרת עדיין למטה — נשארים עם ההודעה המרגיעה ומנסים שוב עם backoff.
+      }
+      if (cancelled) return;
+      attempts += 1;
+      const delay = Math.min(6000 * 2 ** attempts, 15000); // 12ש'→15ש'→15ש'...
+      timer = setTimeout(probe, delay);
+    };
+
+    timer = setTimeout(probe, 6000);
+
+    return () => {
+      cancelled = true;
+      clearTimeout(slowTimer);
+      if (timer) clearTimeout(timer);
+    };
+  }, [status]);
+
   // Show loading while checking session
   if (status === "loading") {
     return (
-      <div className="min-h-screen bg-background flex items-center justify-center">
+      <div className="min-h-screen bg-background flex flex-col items-center justify-center gap-4 p-6" dir="rtl">
         <Loader2 className="h-8 w-8 animate-spin text-primary" />
+        {serverWaking && (
+          <div className="text-center space-y-3 max-w-xs">
+            <p className="text-sm text-muted-foreground">
+              מתחבר לשרת... ייתכן שמתבצע עדכון למערכת. הדף ייפתח אוטומטית עוד רגע.
+            </p>
+            <Button variant="outline" size="sm" onClick={() => window.location.reload()}>
+              נסה עכשיו
+            </Button>
+          </div>
+        )}
       </div>
     );
   }

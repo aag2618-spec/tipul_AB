@@ -97,6 +97,10 @@ function ClinicAdminContent({ children }: { children: React.ReactNode }) {
   const [ctx, setCtx] = useState<ClinicContext | null>(null);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
+  // reconnecting=true → השרת לא ענה בזמן (כנראה אתחול/deploy). במקום ספינר
+  // אינסופי מציגים הודעה מרגיעה ומנסים שוב אוטומטית עד שהשרת חוזר.
+  const [reconnecting, setReconnecting] = useState(false);
+  const [retryTick, setRetryTick] = useState(0);
   const [chatUnread, setChatUnread] = useState(0);
 
   useEffect(() => {
@@ -106,33 +110,57 @@ function ClinicAdminContent({ children }: { children: React.ReactNode }) {
       return;
     }
 
+    let cancelled = false;
+    let retryTimer: ReturnType<typeof setTimeout> | undefined;
+
     (async () => {
       try {
-        const res = await fetch("/api/clinic-admin/me");
-        if (!res.ok) {
-          if (res.status === 403) {
-            // Phase 4 follow-up: /api/clinic-admin/me כבר אישר גם מזכיר/ה עם
-            // canTransferClient. אם בכל זאת חזר 403 — אין למשתמש כלל הרשאה
-            // לאזור clinic-admin (לא בעלים, לא מזכירה עם הרשאת ההעברה).
-            setError("אין לך הרשאה לגשת לאזור ניהול הקליניקה.");
-          } else {
-            setError("שגיאה בטעינת פרטי הקליניקה.");
-          }
+        // timeout של 12ש': בלי זה, בקשה לשרת שמתאתחל (deploy) נתקעת לנצח —
+        // וזה בדיוק הגלגל-טעינה-האינסופי שאילץ סגירה+פתיחה של הדפדפן.
+        const res = await fetch("/api/clinic-admin/me", {
+          signal: AbortSignal.timeout(12000),
+        });
+        if (cancelled) return;
+        if (res.status === 401) {
+          router.push("/login");
           return;
         }
+        if (res.status === 403) {
+          // Phase 4 follow-up: /api/clinic-admin/me כבר אישר גם מזכיר/ה עם
+          // canTransferClient. אם בכל זאת חזר 403 — אין למשתמש כלל הרשאה
+          // לאזור clinic-admin (לא בעלים, לא מזכירה עם הרשאת ההעברה).
+          setError("אין לך הרשאה לגשת לאזור ניהול הקליניקה.");
+          setLoading(false);
+          return;
+        }
+        // 5xx / שגיאת שרת אחרת → מתייחסים כאל אתחול זמני ומנסים שוב.
+        if (!res.ok) throw new Error("server-unavailable");
         const data: ClinicContext = await res.json();
+        if (cancelled) return;
         if (!data.organization && !data.isAdmin) {
           setError("אינך משויך/ת לקליניקה. אם זו טעות, פנה/י לאדמין.");
+          setLoading(false);
           return;
         }
         setCtx(data);
-      } catch {
-        setError("שגיאת רשת בטעינת פרטי הקליניקה.");
-      } finally {
+        setReconnecting(false);
         setLoading(false);
+      } catch {
+        if (cancelled) return;
+        // timeout / שגיאת רשת / 5xx — סביר שהשרת מתאתחל. לא נתקעים: מציגים
+        // "מתחבר מחדש" ומנסים שוב עם backoff (5ש'→10ש'→15ש') כדי לא להעמיס
+        // על שרת שבאמת תקול. כשהשרת חוזר — הדף נטען לבד.
+        setReconnecting(true);
+        const delay = Math.min(5000 * 2 ** retryTick, 15000);
+        retryTimer = setTimeout(() => setRetryTick((n) => n + 1), delay);
       }
     })();
-  }, [status, router]);
+
+    return () => {
+      cancelled = true;
+      if (retryTimer) clearTimeout(retryTimer);
+    };
+  }, [status, router, retryTick]);
 
   // תג הודעות שלא נקראו לצ׳אט הצוות — polling כמו ב-app-sidebar. רץ רק
   // אחרי שהמשתמש אומת (ctx קיים) — בעלים או מזכיר/ה עם הרשאה, שניהם חברי צ׳אט.
@@ -160,8 +188,18 @@ function ClinicAdminContent({ children }: { children: React.ReactNode }) {
 
   if (status === "loading" || loading) {
     return (
-      <div className="min-h-screen bg-background flex items-center justify-center">
+      <div className="min-h-screen bg-background flex flex-col items-center justify-center gap-4 p-6" dir="rtl">
         <Loader2 className="h-8 w-8 animate-spin text-primary" />
+        {reconnecting && (
+          <div className="text-center space-y-3 max-w-xs">
+            <p className="text-sm text-muted-foreground">
+              מתחבר לשרת... ייתכן שמתבצע עדכון למערכת. הדף ייפתח אוטומטית עוד רגע.
+            </p>
+            <Button variant="outline" size="sm" onClick={() => window.location.reload()}>
+              נסה עכשיו
+            </Button>
+          </div>
+        )}
       </div>
     );
   }
