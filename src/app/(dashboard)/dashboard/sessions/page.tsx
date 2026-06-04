@@ -3,7 +3,7 @@ import { authOptions } from "@/lib/auth";
 import prisma from "@/lib/prisma";
 import { Prisma } from "@prisma/client";
 import { SessionsView } from "@/components/sessions/sessions-view";
-import { loadScopeUser, buildSessionWhere, isSecretary } from "@/lib/scope";
+import { loadScopeUser, buildSessionWhere, isSecretary, isClinicOwner } from "@/lib/scope";
 import { shouldScopePersonal } from "@/lib/view-scope";
 
 // מונע cache leak בין מטפלים — דף מכיל PHI scoped למשתמש
@@ -16,6 +16,8 @@ async function getSessions(sessionWhere: Prisma.TherapySessionWhereInput, includ
     // No limit - load all sessions
     include: {
       client: { select: { id: true, name: true, isQuickClient: true } },
+      // דף רב-מטפלים: שם המטפל/ת של הפגישה — לסימון (צבע + שם) במצב "כל הקליניקה".
+      therapist: { select: { id: true, name: true } },
       // Privacy: secretary must NOT receive clinical note content.
       ...(includeNote ? { sessionNote: { select: { content: true } } } : {}),
       payment: { select: { id: true, status: true, amount: true, expectedAmount: true } },
@@ -40,6 +42,8 @@ export default async function SessionsPage() {
   const personalOnly = await shouldScopePersonal(scopeUser);
   const sessionWhere = buildSessionWhere(scopeUser, { personalOnly });
   const includeNote = !isSecretary(scopeUser);
+  // סימון מטפל (צבע + שם) על הכרטיסים — רק לבעל/ת הקליניקה במצב "כל הקליניקה".
+  const showTherapist = isClinicOwner(scopeUser) && !personalOnly;
 
   const [sessions, prepKeys] = await Promise.all([
     getSessions(sessionWhere, includeNote),
@@ -62,6 +66,8 @@ export default async function SessionsPage() {
       sessionNote: includeNote ? (s.sessionNote?.content || null) : null,
       payment: s.payment ? { id: s.payment.id, status: s.payment.status, amount: Number(s.payment.amount), expectedAmount: Number(s.payment.expectedAmount) } : null,
       client: s.client ? { id: s.client.id, name: s.client.name, isQuickClient: s.client.isQuickClient } : null,
+      therapistId: s.therapistId ?? null,
+      therapistName: s.therapist?.name ?? null,
       hasPrepReady: prepKeys.has(sessionDateKey),
     };
   });
@@ -73,6 +79,7 @@ export default async function SessionsPage() {
     <SessionsView
       key={personalOnly ? "personal" : "clinic"}
       initialSessions={serialized}
+      showTherapist={showTherapist}
     />
   );
 }

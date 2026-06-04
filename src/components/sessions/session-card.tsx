@@ -16,6 +16,7 @@ import { format } from "date-fns";
 import { he } from "date-fns/locale";
 import { toast } from "sonner";
 import Link from "next/link";
+import { getTherapistAccent } from "@/lib/calendar/event-colors";
 
 interface Session {
   id: string;
@@ -36,6 +37,9 @@ interface Session {
     isQuickClient?: boolean;
     creditBalance?: number | null;
   } | null;
+  // דף רב-מטפלים: שם המטפל/ת של הפגישה — לסימון (צבע + שם) במצב "כל הקליניקה".
+  therapistId?: string | null;
+  therapistName?: string | null;
 }
 
 const STATUS_LABELS: Record<string, string> = {
@@ -73,6 +77,7 @@ const STATUS_ICONS: Record<string, React.ReactNode> = {
 interface SessionCardProps {
   session: Session;
   showCancel: boolean;
+  showTherapist?: boolean;
   now: Date;
   isWithinWeek: (dateStr: string) => boolean;
   onCancelClick: (session: Session) => void;
@@ -93,6 +98,7 @@ function getCardBg(s: Session, now: Date) {
 export function SessionCard({
   session: s,
   showCancel,
+  showTherapist = false,
   now,
   isWithinWeek,
   onCancelClick,
@@ -138,6 +144,18 @@ export function SessionCard({
             </Badge>
           ) : null}
         </div>
+        {showTherapist && s.therapistName && (
+          <div className="flex items-center gap-1.5 mb-1">
+            <span
+              className="inline-block h-3 w-3 rounded-full shrink-0"
+              style={{ backgroundColor: getTherapistAccent(s.therapistId) }}
+              aria-hidden
+            />
+            <span className="text-sm font-semibold text-foreground truncate">
+              {s.therapistName}
+            </span>
+          </div>
+        )}
         <div className="flex items-center gap-1.5 text-muted-foreground/70">
           <CalendarIcon className="h-3.5 w-3.5 shrink-0" />
           <span className="text-sm">

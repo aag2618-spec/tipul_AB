@@ -25,6 +25,7 @@ import { resolveReceiptToShow, tryOpenReceiptInNewTab } from "@/lib/receipt-util
 
 interface SessionsViewProps {
   initialSessions: Session[];
+  showTherapist?: boolean;
 }
 
 const UPCOMING_GROUPS = ["היום", "מחר", "השבוע", "החודש", "בהמשך"] as const;
@@ -66,7 +67,7 @@ function getHistoryGroup(dateStr: string): string {
   return "ישנים";
 }
 
-export function SessionsView({ initialSessions }: SessionsViewProps) {
+export function SessionsView({ initialSessions, showTherapist = false }: SessionsViewProps) {
   const router = useRouter();
   const [sessions, setSessions] = useState<Session[]>(initialSessions);
   const [searchTerm, setSearchTerm] = useState("");
@@ -499,6 +500,7 @@ export function SessionsView({ initialSessions }: SessionsViewProps) {
                     key={s.id}
                     session={s}
                     showCancel={showCancel}
+                    showTherapist={showTherapist}
                     now={now}
                     isWithinWeek={isWithinWeek}
                     onCancelClick={(sess) => {
