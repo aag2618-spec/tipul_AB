@@ -496,19 +496,43 @@ export async function GET(request: NextRequest) {
             const title = `סיכום ליום מחר - ${eveTomorrow.toLocaleDateString("he-IL", { timeZone: "Asia/Jerusalem" })}`;
             const content = `פגישות מחר (${realTomorrowSessions.length}):\n${sessionsList || "אין פגישות"}${notUpdatedText}\n\nמשימות פתוחות (${openTasksCount}):\n${openTasksList || "אין משימות"}${paymentText}`;
 
-            await prisma.notification.create({
-              data: {
-                userId: user.id,
-                type: "EVENING_SUMMARY",
-                title,
-                content,
-                status: "PENDING",
-                scheduledFor: now,
-              },
+            // ── מנעול אטומי נגד שליחה כפולה של סיכום הערב ──
+            // שני schedulers (פנימי ב-instrumentation.ts + cron חיצוני ב-render.yaml)
+            // יכולים לרוץ כמעט באותו רגע בערב. בדיקת ה-findFirst למעלה אינה אטומית
+            // (check-then-create), אז שניהם עלולים "לראות שעוד לא נשלח" ולשלוח —
+            // ומכאן המייל הכפול. כאן נועלים את שורת המשתמש בתוך טרנזקציה
+            // (SELECT ... FOR UPDATE — אותו דפוס מוכח כמו ב-subscription/route.ts
+            // ו-credits.ts), בודקים שוב *בתוך הנעילה*, ויוצרים רק אם עדיין אין.
+            // כך רק ריצה אחת יוצרת ושולחת; השנייה ממתינה, רואה שכבר קיים, ומדלגת.
+            // המייל נשלח מחוץ לטרנזקציה ורק אם ריצה זו היא שיצרה (eveCreated).
+            let eveCreated = false;
+            await prisma.$transaction(async (tx) => {
+              await tx.$executeRaw`SELECT 1 FROM "User" WHERE "id" = ${user.id} FOR UPDATE`;
+              const dupEvening = await tx.notification.findFirst({
+                where: {
+                  userId: user.id,
+                  type: "EVENING_SUMMARY",
+                  createdAt: { gte: eveToday },
+                  title: { contains: eveTomorrowStr },
+                },
+              });
+              if (dupEvening) return;
+              await tx.notification.create({
+                data: {
+                  userId: user.id,
+                  type: "EVENING_SUMMARY",
+                  title,
+                  content,
+                  status: "PENDING",
+                  scheduledFor: now,
+                },
+              });
+              eveCreated = true;
             });
-            notificationsCreated++;
 
-            if (shouldSendEmail) {
+            if (eveCreated) notificationsCreated++;
+
+            if (eveCreated && shouldSendEmail) {
               const sessionsHtml =
                 realTomorrowSessions.length > 0
                   ? realTomorrowSessions
