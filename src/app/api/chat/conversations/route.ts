@@ -81,7 +81,7 @@ export async function GET() {
         const displayTitle =
           c.type === "DIRECT"
             ? others[0]?.name || "משתמש"
-            : c.title || "כל הצוות";
+            : c.title || (c.isTeamChannel ? "כל הצוות" : "קבוצה");
 
         const lastMsg = c.messages[0] ?? null;
         const unreadCount = await countUnreadForParticipant(

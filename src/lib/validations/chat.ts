@@ -36,3 +36,19 @@ export const messagesQuerySchema = z.object({
     .optional(),
 });
 export type MessagesQueryInput = z.infer<typeof messagesQuerySchema>;
+
+// POST /api/chat/conversations/group — יצירת קבוצה עם מספר משתתפים.
+const MAX_GROUP_TITLE = 100;
+const MAX_GROUP_PARTICIPANTS = 50;
+export const createGroupSchema = z.object({
+  title: z
+    .string()
+    .trim()
+    .min(1, "חסר שם לקבוצה")
+    .max(MAX_GROUP_TITLE, `שם הקבוצה ארוך מדי (מקסימום ${MAX_GROUP_TITLE} תווים)`),
+  participantIds: z
+    .array(z.string().trim().min(1).max(MAX_ID))
+    .min(2, "בחרו לפחות שני אנשי צוות לקבוצה")
+    .max(MAX_GROUP_PARTICIPANTS, "יותר מדי משתתפים בקבוצה"),
+});
+export type CreateGroupInput = z.infer<typeof createGroupSchema>;

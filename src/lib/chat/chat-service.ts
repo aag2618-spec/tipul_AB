@@ -141,15 +141,21 @@ export async function getOrgChatSettings(
  * אכיפת מדיניות "צ׳אט בין מטפלים" על שיחות קיימות, בעת שינוי הדגל. מופעל בתוך
  * הטרנזקציה שמעדכנת את הדגל (אטומי).
  *
- * - כיבוי (enabled=false): סוגר (leftAt=now) את כל שיחות ה-DIRECT שבהן *שני*
- *   הצדדים מטפלים — כך שהן נעלמות מהרשימה ואי אפשר עוד לקרוא/לכתוב בהן (כל
- *   ה-routes מסננים leftAt:null). זו אכיפת הביטול: כיבוי הכפתור עוצר גם שיחות
- *   שכבר נפתחו, לא רק חדשות. שיחות מטפל↔הנהלה לא נסגרות לעולם.
- * - הפעלה (enabled=true): משחזר (leftAt=null) את *כל* שיחות ה-DIRECT שנסגרו.
- *   leftAt נכתב אך ורק על-ידי הפונקציה הזו (אין פיצ׳ר "עזיבה" ידני), ולכן כל
- *   leftAt על DIRECT בארגון הוא תוצר המדיניות — בטוח לשחזר את כולן. שחזור "עיוור"
- *   (ולא לפי הסיווג הנוכחי) חיוני: אם צד בשיחה שינה תפקיד או הוסר מהקליניקה בין
- *   הכיבוי להדלקה, סיווג-מחדש היה משאיר את השיחה סגורה לנצח.
+ * חל על שיחות "בין מטפלים בלבד" — גם פרטיות (DIRECT) וגם קבוצות (GROUP) — למעט
+ * ערוץ "כל הצוות" (isTeamChannel), שהוא ערוץ הנהלה ואינו מושפע לעולם.
+ *
+ * - כיבוי (enabled=false): סוגר (leftAt=now) את כל השיחות שבהן כל המשתתפים מטפלים
+ *   — כך שהן נעלמות מהרשימה ואי אפשר עוד לקרוא/לכתוב בהן (כל ה-routes מסננים
+ *   leftAt:null). זו אכיפת הביטול: כיבוי הכפתור עוצר גם שיחות וקבוצות שכבר נפתחו,
+ *   לא רק חדשות. שיחות שיש בהן צד ניהולי (מנהלת/מזכירה) לא נסגרות לעולם.
+ * - הפעלה (enabled=true): משחזר (leftAt=null) את כל השיחות (שאינן ערוץ הצוות) שנסגרו.
+ *   leftAt נכתב אך ורק על-ידי הפונקציה הזו (אין פיצ׳ר "עזיבה" ידני), ולכן כל leftAt
+ *   על שיחה שאינה ערוץ הצוות הוא תוצר המדיניות — בטוח לשחזר באופן עיוור. שחזור עיוור
+ *   (ולא לפי הסיווג הנוכחי) חיוני: אם צד שינה תפקיד או הוסר מהקליניקה בין הכיבוי
+ *   להדלקה, סיווג-מחדש היה משאיר את השיחה סגורה לנצח.
+ *
+ * ⚠️ אם יתווסף בעתיד פיצ׳ר "עזיבת קבוצה" ידני (שכותב leftAt) — יש לעדכן את השחזור
+ *   העיוור, אחרת חבר שעזב ייאלץ לחזור בהדלקה הבאה.
  */
 export async function applyTherapistChatPolicy(
   tx: Prisma.TransactionClient,
@@ -157,45 +163,44 @@ export async function applyTherapistChatPolicy(
   enabled: boolean
 ): Promise<void> {
   if (enabled) {
-    // שחזור עיוור: כל משתתף שסומן leftAt בשיחת DIRECT בארגון — נפתח מחדש.
+    // שחזור עיוור: כל משתתף שסומן leftAt בשיחה שאינה ערוץ הצוות — נפתח מחדש.
     await tx.chatParticipant.updateMany({
       where: {
         leftAt: { not: null },
-        conversation: { organizationId, type: "DIRECT" },
+        conversation: { organizationId, isTeamChannel: false },
       },
       data: { leftAt: null },
     });
     return;
   }
 
-  // כיבוי: איתור שיחות DIRECT שבהן *שני* הצדדים מטפלים (אף צד אינו מנהלת/מזכירה).
-  const directConvos = await tx.chatConversation.findMany({
-    where: { organizationId, type: "DIRECT" },
+  // כיבוי: איתור שיחות "בין מטפלים בלבד" (DIRECT או קבוצה, למעט ערוץ הצוות) וסגירתן.
+  const convos = await tx.chatConversation.findMany({
+    where: { organizationId, isTeamChannel: false },
     select: {
       id: true,
       // בכוונה ללא סינון leftAt — הסיווג חייב לשקף את ההרכב האמיתי של השיחה.
-      // הוספת leftAt:null כאן תשבור את אבחנת "זוג-מטפלים".
       participants: {
         select: { user: { select: { clinicRole: true, role: true } } },
       },
     },
   });
 
-  // הגנה: length>0 כדי ש-every לא יחזיר true על מערך ריק.
-  const therapistPairIds = directConvos
-    .filter(
-      (c) =>
-        c.participants.length > 0 &&
-        c.participants.every(
-          (p) => memberKind(p.user.clinicRole, p.user.role) === "THERAPIST"
-        )
+  const therapistOnlyIds = convos
+    .filter((c) =>
+      isTherapistOnly(
+        c.participants.map((p) => ({
+          clinicRole: p.user.clinicRole,
+          role: p.user.role,
+        }))
+      )
     )
     .map((c) => c.id);
 
-  if (therapistPairIds.length === 0) return;
+  if (therapistOnlyIds.length === 0) return;
 
   await tx.chatParticipant.updateMany({
-    where: { conversationId: { in: therapistPairIds }, leftAt: null },
+    where: { conversationId: { in: therapistOnlyIds }, leftAt: null },
     data: { leftAt: new Date() },
   });
 }

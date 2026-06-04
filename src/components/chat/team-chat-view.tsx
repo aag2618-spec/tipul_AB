@@ -20,6 +20,8 @@ export function TeamChatView({ currentUserId }: { currentUserId: string }) {
   const [loadingContacts, setLoadingContacts] = useState(false);
   const [sending, setSending] = useState(false);
   const [dialogOpen, setDialogOpen] = useState(false);
+  const [dialogKey, setDialogKey] = useState(0);
+  const [creatingChat, setCreatingChat] = useState(false);
   const [mobileView, setMobileView] = useState<"list" | "thread">("list");
 
   const selectedIdRef = useRef<string | null>(null);
@@ -153,6 +155,7 @@ export function TeamChatView({ currentUserId }: { currentUserId: string }) {
   );
 
   const handleOpenNewChat = useCallback(async () => {
+    setDialogKey((k) => k + 1); // remount החלון → בחירה נקייה בכל פתיחה
     setDialogOpen(true);
     setLoadingContacts(true);
     try {
@@ -170,6 +173,7 @@ export function TeamChatView({ currentUserId }: { currentUserId: string }) {
 
   const handlePickContact = useCallback(
     async (contactId: string) => {
+      setCreatingChat(true);
       try {
         const res = await fetch("/api/chat/conversations", {
           method: "POST",
@@ -187,6 +191,35 @@ export function TeamChatView({ currentUserId }: { currentUserId: string }) {
         }
       } catch {
         toast.error("שגיאה בפתיחת השיחה");
+      } finally {
+        setCreatingChat(false);
+      }
+    },
+    [fetchConversations, openConversation]
+  );
+
+  const handleCreateGroup = useCallback(
+    async (title: string, ids: string[]) => {
+      setCreatingChat(true);
+      try {
+        const res = await fetch("/api/chat/conversations/group", {
+          method: "POST",
+          headers: { "Content-Type": "application/json" },
+          body: JSON.stringify({ title, participantIds: ids }),
+        });
+        if (res.ok) {
+          const data = await res.json();
+          setDialogOpen(false);
+          await fetchConversations();
+          openConversation(data.conversationId);
+        } else {
+          const data = await res.json().catch(() => ({}));
+          toast.error(data.message || "שגיאה ביצירת הקבוצה");
+        }
+      } catch {
+        toast.error("שגיאה ביצירת הקבוצה");
+      } finally {
+        setCreatingChat(false);
       }
     },
     [fetchConversations, openConversation]
@@ -232,11 +265,14 @@ export function TeamChatView({ currentUserId }: { currentUserId: string }) {
       </div>
 
       <NewChatDialog
+        key={dialogKey}
         open={dialogOpen}
         onOpenChange={setDialogOpen}
         contacts={contacts}
         loading={loadingContacts}
-        onPick={handlePickContact}
+        creating={creatingChat}
+        onCreateDirect={handlePickContact}
+        onCreateGroup={handleCreateGroup}
       />
     </div>
   );
