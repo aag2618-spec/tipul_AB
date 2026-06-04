@@ -74,14 +74,14 @@ export async function GET() {
       },
       orderBy: { createdAt: "desc" },
       include: {
-        client: { select: { id: true, name: true } },
+        client: { select: { id: true, name: true, therapist: { select: { id: true, name: true } } } },
         session: { select: { id: true, startTime: true } },
         // Parent reference — children of partial-cash flows don't have their
         // own session/client (they hang off a parent that does). The merge
         // below copies these onto the child for display purposes.
         parentPayment: {
           select: {
-            client: { select: { id: true, name: true } },
+            client: { select: { id: true, name: true, therapist: { select: { id: true, name: true } } } },
             session: { select: { id: true, startTime: true } },
           },
         },

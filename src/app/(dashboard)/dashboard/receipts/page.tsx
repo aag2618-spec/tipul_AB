@@ -27,6 +27,7 @@ import {
   exportAccountantReport,
   type ReceiptExportData,
 } from "@/lib/export-utils";
+import { getTherapistAccent } from "@/lib/calendar/event-colors";
 import {
   DropdownMenu,
   DropdownMenuContent,
@@ -59,6 +60,7 @@ interface ReceiptPayment {
   client: {
     id: string;
     name: string;
+    therapist?: { id: string; name: string } | null;
   };
   session: {
     id: string;
@@ -709,6 +711,17 @@ export default function ReceiptsPage() {
                   </td>
                   <td className="py-3 px-4 text-sm font-medium">
                     {payment.client.name}
+                    {viewScope === "clinic" && payment.client.therapist && (
+                      <span className="flex items-center gap-1.5 mt-1">
+                        <span
+                          className="inline-block h-3 w-3 rounded-full shrink-0"
+                          style={{ backgroundColor: getTherapistAccent(payment.client.therapist.id) }}
+                        />
+                        <span className="text-sm font-semibold text-foreground truncate">
+                          {payment.client.therapist.name}
+                        </span>
+                      </span>
+                    )}
                     {payment.mergedSessionsCount && payment.mergedSessionsCount > 1 && (
                       <span className="block text-xs text-muted-foreground mt-0.5">
                         תשלום מצרפי על {payment.mergedSessionsCount} פגישות
