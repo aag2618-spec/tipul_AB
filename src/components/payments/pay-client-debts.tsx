@@ -78,6 +78,9 @@ export function PayClientDebts({
   const [useCredit, setUseCredit] = useState(false);
   const [showAdvanced, setShowAdvanced] = useState(false);
   const [issueReceipt, setIssueReceipt] = useState<boolean>(false);
+  // קבלה אחת מאוחדת על כל הפגישות (במקום קבלה לכל פגישה) + טקסט חופשי לקבלה.
+  const [combinedReceipt, setCombinedReceipt] = useState<boolean>(false);
+  const [combinedReceiptDescription, setCombinedReceiptDescription] = useState<string>("");
   const [receiptMode, setReceiptMode] = useState<"ALWAYS" | "ASK" | "NEVER">("ASK");
   const [businessType, setBusinessType] = useState<"NONE" | "EXEMPT" | "LICENSED">("NONE");
   const [externalReceiptProvider, setExternalReceiptProvider] = useState<string | null>(null);
@@ -123,6 +126,8 @@ export function PayClientDebts({
       setUseCredit(false);
       setShowAdvanced(false);
       setIssueReceipt(false);
+      setCombinedReceipt(false);
+      setCombinedReceiptDescription("");
     }
   };
 
@@ -216,6 +221,14 @@ export function PayClientDebts({
           paymentMode,
           creditUsed, // Amount paid from credit
           issueReceipt: businessType !== "NONE" && issueReceipt,
+          // קבלה אחת מאוחדת — מגדרים ב-canOfferCombinedReceipt כדי שה-payload
+          // יתאים ל-UI (אם האופציה הוסתרה כי כיבו "הוצא קבלה", לא נשלח true).
+          // השרת מגדר שוב (useCombinedReceipt) כהגנה כפולה.
+          combinedReceipt: canOfferCombinedReceipt && combinedReceipt,
+          combinedReceiptDescription:
+            canOfferCombinedReceipt && combinedReceipt && combinedReceiptDescription.trim()
+              ? combinedReceiptDescription.trim()
+              : undefined,
         }),
       });
 
@@ -253,6 +266,13 @@ export function PayClientDebts({
 
   const safeDebt = Number(totalDebt) || 0;
   const safeCredit = Number(creditBalance) || 0;
+
+  // קבלה מאוחדת מוצעת רק כשיש יותר מפגישה אחת וכשבכלל מפיקים קבלה (Cardcom
+  // אוטומטי או שסומן "הוצא קבלה"). אחרת אין משמעות ל"קבלה אחת".
+  const willIssueReceipt =
+    businessType !== "NONE" &&
+    (externalReceiptProvider === "CARDCOM" || issueReceipt);
+  const canOfferCombinedReceipt = unpaidPayments.length > 1 && willIssueReceipt;
 
   // אם החוב התאפס (לדוגמה אחרי תשלום מצליח שהפעיל router.refresh) אבל
   // ChargeCardcomDialog עדיין פתוח — לא להחזיר null. אחרת ChargeCardcomDialog
@@ -368,6 +388,54 @@ export function PayClientDebts({
                     </Label>
                   </div>
                 )
+              )}
+
+              {/* קבלה אחת מאוחדת — רק כשיש כמה פגישות וכשמפיקים קבלה */}
+              {canOfferCombinedReceipt && (
+                <div className="space-y-2">
+                  <div
+                    className="flex items-center gap-3 py-2 px-3 bg-teal-50 rounded-lg border border-teal-200"
+                    onClick={(e) => e.stopPropagation()}
+                    onPointerDown={(e) => e.stopPropagation()}
+                    onMouseDown={(e) => e.stopPropagation()}
+                  >
+                    <Checkbox
+                      id="combined-receipt-debts"
+                      checked={combinedReceipt}
+                      onCheckedChange={(checked) => setCombinedReceipt(checked === true)}
+                    />
+                    <Label
+                      htmlFor="combined-receipt-debts"
+                      className="cursor-pointer flex items-center gap-2 text-teal-800"
+                    >
+                      <FileText className="h-4 w-4" />
+                      הפק קבלה אחת מאוחדת (לקופ&quot;ח / ביטוח)
+                    </Label>
+                  </div>
+                  {combinedReceipt && (
+                    <div
+                      className="space-y-1 pr-3"
+                      onClick={(e) => e.stopPropagation()}
+                      onPointerDown={(e) => e.stopPropagation()}
+                      onMouseDown={(e) => e.stopPropagation()}
+                    >
+                      <Label
+                        htmlFor="combined-receipt-desc"
+                        className="text-sm text-teal-800"
+                      >
+                        מה לכתוב על הקבלה (אופציונלי)
+                      </Label>
+                      <Input
+                        id="combined-receipt-desc"
+                        value={combinedReceiptDescription}
+                        onChange={(e) => setCombinedReceiptDescription(e.target.value)}
+                        placeholder="אם תשאירו ריק — יופיעו תאריכי כל הפגישות אוטומטית"
+                        maxLength={500}
+                        className="bg-white"
+                      />
+                    </div>
+                  )}
+                </div>
               )}
 
               {/* כפתור אופציות מתקדמות */}

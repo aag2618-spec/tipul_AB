@@ -911,3 +911,27 @@ export function buildReceiptDescription(
   }
   return desc;
 }
+
+// ================================================================
+// buildCombinedReceiptDescription — תיאור לקבלה אחת מאוחדת (תשלום מצרפי)
+// ================================================================
+// כשמפיקים קבלה אחת על כמה פגישות (combinedReceipt), בונים תיאור שמפרט שורה
+// לכל פגישה (תאריך: ₪סכום) + סה"כ — מתאים להחזרים מקופ"ח/ביטוח. משמש כברירת
+// מחדל כשהמשתמש/ת לא הקליד/ה תיאור משלו. שורות מופרדות ב-\n; דף הקבלה הפנימי
+// מציג עם white-space: pre-line, ול-Cardcom/iCount זה עובר כתיאור המסמך.
+export function buildCombinedReceiptDescription(
+  lines: Array<{ date: Date | null; amount: number }>
+): string {
+  const count = lines.length;
+  const total = lines.reduce((sum, l) => sum + l.amount, 0);
+  const header = `תשלום מצרפי עבור ${count} פגישות`;
+  const items = lines.map((l) => {
+    const dateStr = l.date
+      ? new Date(l.date).toLocaleDateString("he-IL", {
+          timeZone: "Asia/Jerusalem",
+        })
+      : "פגישה";
+    return `${dateStr}: ₪${l.amount.toLocaleString("he-IL")}`;
+  });
+  return `${header}\n${items.join("\n")}\nסה"כ: ₪${total.toLocaleString("he-IL")}`;
+}

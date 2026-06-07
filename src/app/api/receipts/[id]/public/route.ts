@@ -5,6 +5,7 @@ import { logger } from "@/lib/logger";
 import { logDataAccess } from "@/lib/audit-logger";
 import { checkRateLimit, RECEIPT_PUBLIC_RATE_LIMIT, rateLimitResponse } from "@/lib/rate-limit";
 import { getClientIp } from "@/lib/get-client-ip";
+import { BULK_UMBRELLA_NOTES_PREFIX } from "@/lib/payments/types";
 
 export const dynamic = "force-dynamic";
 
@@ -125,9 +126,23 @@ export async function GET(
 
     const isPartial = remaining > 0;
 
-    const sessionDate = payment.session?.startTime 
-      || payment.parentPayment?.session?.startTime 
+    const sessionDate = payment.session?.startTime
+      || payment.parentPayment?.session?.startTime
       || null;
+
+    // קבלה מאוחדת (תשלום מצרפי): ה-umbrella נושא את תיאור הקבלה ב-notes אחרי
+    // הקידומת [BULK_UMBRELLA]. מחזירים אותו כ-description כדי שדף הקבלה יציג את
+    // פירוט הפגישות. קבלה רגילה לא מושפעת (description נשאר undefined ולא נכלל).
+    const notes = payment.notes;
+    const isCombinedUmbrella =
+      !payment.sessionId &&
+      typeof notes === "string" &&
+      notes.startsWith(BULK_UMBRELLA_NOTES_PREFIX) &&
+      !!payment.receiptNumber;
+    const combinedDescription =
+      isCombinedUmbrella && typeof notes === "string"
+        ? notes.slice(BULK_UMBRELLA_NOTES_PREFIX.length).trim()
+        : undefined;
 
     return NextResponse.json({
       receiptNumber: payment.receiptNumber,
@@ -141,6 +156,7 @@ export async function GET(
       receiptUrl: payment.receiptUrl,
       isPartial,
       remaining,
+      ...(combinedDescription ? { description: combinedDescription } : {}),
       therapist: {
         name: therapist?.name || "",
         businessName: therapist?.businessName || "",

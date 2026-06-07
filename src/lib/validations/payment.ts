@@ -52,6 +52,11 @@ export const payClientDebtsSchema = z
     paymentMode: z.enum(VALID_PAYMENT_MODES).optional(),
     creditUsed: z.number().finite().nonnegative().optional(),
     issueReceipt: z.boolean().optional(),
+    // קבלה אחת מאוחדת על כל הפגישות (במקום קבלה לכל פגישה) — opt-in, כבוי
+    // כברירת מחדל. combinedReceiptDescription = טקסט חופשי שמופיע על הקבלה;
+    // אם ריק, השרת בונה תיאור עם רשימת הפגישות והתאריכים.
+    combinedReceipt: z.boolean().optional(),
+    combinedReceiptDescription: z.string().max(500).optional(),
   })
   .strict();
 

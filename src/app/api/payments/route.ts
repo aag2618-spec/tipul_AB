@@ -61,9 +61,17 @@ export async function GET() {
                   { parentPaymentId: { not: null } },
                   { hasReceipt: true },
                   {
+                    // מסתירים ילדי-מטריה (Cardcom מצרפי או "מאוחד" ידני) — הם
+                    // מוצגים דרך merge של ה-parent (שורה אחת לכל פגישה). שאר
+                    // ה-children (partial-cash, notes=null) מוצגים בעצמם.
                     OR: [
                       { notes: null },
-                      { notes: { not: { contains: "Bulk Cardcom distribution" } } },
+                      {
+                        AND: [
+                          { notes: { not: { contains: "Bulk Cardcom distribution" } } },
+                          { notes: { not: { contains: "Bulk combined distribution" } } },
+                        ],
+                      },
                     ],
                   },
                 ],
@@ -165,7 +173,8 @@ export async function GET() {
         if (!c.hasReceipt) return false;
         const isBulkDistChild =
           typeof c.notes === "string" &&
-          c.notes.includes("Bulk Cardcom distribution");
+          (c.notes.includes("Bulk Cardcom distribution") ||
+            c.notes.includes("Bulk combined distribution"));
         return isBulkDistChild;
       });
       if (!inheritableChild) return p;

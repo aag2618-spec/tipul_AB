@@ -390,6 +390,17 @@ export default function ReceiptsPage() {
   };
 
   const downloadReceiptPdf = async (payment: ReceiptPayment) => {
+    // קבלה מצרפית (מאוחדת): buildReceiptHtml מרנדר שורה גנרית אחת בלבד ולא יודע
+    // לפרט את הפגישות. הקבלה המפורטת היא בעמוד הציבורי (umbrella) — פותחים אותו
+    // לצפייה/הורדה, בדיוק כמו "צפה", במקום לייצר PDF חסר-פירוט.
+    const isCombined = !!payment.mergedSessionsCount && payment.mergedSessionsCount > 1;
+    const isProviderDoc =
+      !!payment.cardcomInvoices?.length || !!payment.receiptUrl?.includes("icount");
+    if (isCombined && !isProviderDoc && payment.receiptUrl) {
+      window.open(payment.receiptUrl, "_blank");
+      toast.info("קבלה מצרפית נפתחה לצפייה/הורדה");
+      return;
+    }
     const receiptNum = payment.receiptNumber || `R-${payment.id.slice(0, 8).toUpperCase()}`;
     toast.loading("מכין PDF...", { id: "pdf-dl" });
     try {
@@ -430,11 +441,15 @@ export default function ReceiptsPage() {
     // המסמך הרשמי הוא של הספק (מספר הקבלה רשום במערך חשבוניות ישראל),
     // ויצירת PDF פנימי עם אותו מספר היא הטעיה. מסננים אותם בשקט.
     const selected = allSelected.filter(
-      (p) => !p.cardcomInvoices?.length && !p.receiptUrl?.includes("icount"),
+      (p) =>
+        !p.cardcomInvoices?.length &&
+        !p.receiptUrl?.includes("icount") &&
+        // קבלות מצרפיות מפורטות רק בעמוד הציבורי — מדלגים (כמו Cardcom/iCount).
+        !(p.mergedSessionsCount && p.mergedSessionsCount > 1),
     );
     if (selected.length === 0) {
       toast.error(
-        "הקבלות שנבחרו הופקו ע\"י Cardcom/iCount — לחצי \"צפה\" כדי לפתוח את המסמך הרשמי",
+        "הקבלות שנבחרו הופקו ע\"י Cardcom/iCount או שהן מצרפיות — לחצי \"צפה\" כדי לפתוח את הקבלה",
       );
       return;
     }

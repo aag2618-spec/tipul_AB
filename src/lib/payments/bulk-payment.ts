@@ -2,11 +2,12 @@ import prisma from "@/lib/prisma";
 import { Prisma } from "@prisma/client";
 import { logger } from "@/lib/logger";
 import type { PaymentMethod, BulkPaymentResult, ClientDebtSummary, AllClientsDebtItem } from "./types";
-import { EXCLUDE_BULK_UMBRELLA_WHERE } from "./types";
+import { EXCLUDE_BULK_UMBRELLA_WHERE, BULK_UMBRELLA_NOTES_PREFIX } from "./types";
 import {
   issueReceipt,
   sendPaymentReceiptEmail,
   buildReceiptDescription,
+  buildCombinedReceiptDescription,
   resolveCardcomReceiptOwner,
 } from "./receipt-service";
 import { buildClientWhere, buildPaymentWhere, type ScopeUser, type ScopeOptions } from "@/lib/scope";
@@ -43,6 +44,125 @@ async function snapshotForParentPayments(parentIds: string[]): Promise<void> {
 export { calculateDebtFromPayments } from "@/lib/payment-utils";
 
 // ================================================================
+// issueCombinedReceipt — קבלה אחת מאוחדת על כל הפגישות (תשלום מצרפי)
+// ================================================================
+// נקרא מ-processMultiSessionPayment כש-combinedReceipt=true, במקום הלולאה
+// שמפיקה קבלה לכל ילד. הדפוס זהה ל-distributeBulkCardcomPayment: יוצרים
+// Payment "מטה" (umbrella) אחד על ה-total, מפיקים עליו קבלה אחת דרך
+// issueReceipt (שלא משתנה — נשמרת הנעילה האטומית והניתוב לכל ספק:
+// Cardcom/iCount/Green Invoice/מספור פנימי), ומעתיקים את הקבלה לכל הילדים
+// כדי שדף הקבלות ימזג אותם לשורה אחת.
+//
+// CRITICAL: עטוף ב-try/catch כמו הלולאה הקיימת — הילדים כבר PAID בתוך
+// ה-transaction, וכשל בהפקת קבלה/מייל אסור לו לזרוק החוצה ולהפוך תשלום
+// שהצליח ל-success:false.
+async function issueCombinedReceipt(params: {
+  userId: string;
+  client: { id: string; name: string; email: string | null; phone: string | null };
+  method: PaymentMethod;
+  processed: Array<{ parentId: string; childId: string; amountPaid: number; isFullyPaid: boolean }>;
+  organizationId: string | null;
+  description?: string;
+}): Promise<void> {
+  const { userId, client, method, processed, organizationId, description } = params;
+  try {
+    const items = processed.filter((i) => i.amountPaid > 0);
+    if (items.length === 0) return;
+    const total = items.reduce((sum, i) => sum + i.amountPaid, 0);
+
+    // טוענים את ה-parents (עם session) לקבלת תאריכי הפגישות לתיאור ברירת המחדל.
+    const parents = await prisma.payment.findMany({
+      where: { id: { in: items.map((i) => i.parentId) } },
+      include: { session: { select: { startTime: true } } },
+    });
+    const sessionStartByParentId = new Map<string, Date | null>(
+      parents.map((p) => [p.id, p.session?.startTime ?? null]),
+    );
+
+    // תיאור הקבלה: הטקסט שהוקלד (אם יש), אחרת ברירת מחדל עם רשימת הפגישות + סה"כ.
+    const trimmedDescription = description?.trim();
+    const finalDescription =
+      trimmedDescription && trimmedDescription.length > 0
+        ? trimmedDescription
+        : buildCombinedReceiptDescription(
+            items.map((i) => ({
+              date: sessionStartByParentId.get(i.parentId) ?? null,
+              amount: i.amountPaid,
+            })),
+          );
+
+    // 1) Umbrella אחד — מסומן [BULK_UMBRELLA] (מוסתר מחישובי חוב/תצוגות ע"י
+    // EXCLUDE_BULK_UMBRELLA_WHERE), amount=total, ללא sessionId, PAID. ה-notes
+    // נושא גם את תיאור הקבלה כדי שדף הקבלה הפנימי (עוסק פטור) יציג אותו.
+    const umbrella = await prisma.payment.create({
+      data: {
+        clientId: client.id,
+        amount: total,
+        expectedAmount: total,
+        method,
+        status: "PAID",
+        paidAt: new Date(),
+        paymentType: "FULL",
+        organizationId: organizationId ?? null,
+        notes: `${BULK_UMBRELLA_NOTES_PREFIX} ${finalDescription}`,
+      },
+    });
+
+    // 2) קבלה אחת — issueReceipt פעם אחת על ה-umbrella. לא נוגעים ב-issueReceipt:
+    // הנעילה האטומית נשמרת, והוא מנתב לבד לפי הספק (Cardcom/iCount/פנימי).
+    const receiptResult = await issueReceipt({
+      userId,
+      paymentId: umbrella.id,
+      amount: total,
+      clientName: client.name,
+      clientEmail: client.email || undefined,
+      clientPhone: client.phone || undefined,
+      description: finalDescription,
+      method,
+    });
+
+    // 3) העתקת הקבלה לכל הילדים (כמו דפוס ה-inheritance ב-distributeBulkCardcomPayment)
+    // כדי שדף הקבלות ימזג אותם לשורה אחת לפי receiptNumber. הסימון
+    // "Bulk combined distribution" מזוהה ב-api/payments/route.ts: מסתיר את הילד
+    // מהתצוגה הישירה וגורם ל-parent לרשת את הקבלה.
+    if (receiptResult.hasReceipt && receiptResult.receiptNumber) {
+      await prisma.payment.updateMany({
+        where: { id: { in: items.map((i) => i.childId) } },
+        data: {
+          hasReceipt: true,
+          receiptNumber: receiptResult.receiptNumber,
+          receiptUrl: receiptResult.receiptUrl,
+          notes: `Bulk combined distribution — receipt:${receiptResult.receiptNumber}`,
+        },
+      });
+    }
+
+    // 4) מייל אחד מאוחד — על ה-umbrella, עם הסה"כ.
+    await sendPaymentReceiptEmail({
+      userId,
+      clientId: client.id,
+      amountPaid: total,
+      expectedAmount: total,
+      method,
+      paidAt: new Date(),
+      session: null,
+      receiptUrl: receiptResult.receiptUrl ?? null,
+      receiptNumber: receiptResult.receiptNumber ?? null,
+      sessionRemainingAfterPayment: 0,
+      paymentId: umbrella.id,
+    });
+  } catch (combinedError) {
+    logger.error("Error issuing combined receipt", {
+      clientId: params.client.id,
+      error:
+        combinedError instanceof Error
+          ? combinedError.message
+          : String(combinedError),
+    });
+  }
+}
+
+// ================================================================
 // processMultiSessionPayment
 // ================================================================
 
@@ -55,6 +175,12 @@ export async function processMultiSessionPayment(params: {
   paymentMode: "FULL" | "PARTIAL";
   creditUsed?: number;
   issueReceipt?: boolean;
+  // קבלה אחת מאוחדת על כל הפגישות (opt-in). כש-true: מדלגים על לולאת הקבלה
+  // לכל ילד ומפיקים קבלה אחת על ה-total דרך issueCombinedReceipt.
+  // combinedReceiptDescription = טקסט חופשי שמופיע על הקבלה (ריק → ברירת מחדל
+  // עם רשימת הפגישות).
+  combinedReceipt?: boolean;
+  combinedReceiptDescription?: string;
   // Clinic multi-tenancy. אופציונלי לשמירה על תאימות. כשיש scopeUser
   // ownership נקבע דרך buildClientWhere ו-organizationId נכתב לתשלומים
   // החדשים שנוצרים בתוך ה-transaction.
@@ -71,6 +197,8 @@ export async function processMultiSessionPayment(params: {
       paymentMode,
       creditUsed = 0,
       issueReceipt: shouldIssueReceipt = true,
+      combinedReceipt = false,
+      combinedReceiptDescription,
       scopeUser,
       organizationId: explicitOrganizationId,
     } = params;
@@ -208,8 +336,31 @@ export async function processMultiSessionPayment(params: {
       };
     });
 
-    // After transaction: receipts + emails for each processed payment
+    // After transaction: receipts + emails for each processed payment.
+    // combinedReceipt ON ושמפיקים קבלה → קבלה אחת מאוחדת על הסה"כ במקום קבלה
+    // לכל ילד, ואז מדלגים על הלולאה שמתחת. אם בכלל לא מפיקים קבלה (businessType
+    // NONE / לא נבחרה קבלה ואין Cardcom) → נופלים ללולאה הרגילה שמטפלת ב-emails
+    // ללא קבלה. OFF → התנהגות קיימת ללא שינוי. הגייט זהה ל-effectiveIssueReceipt
+    // שבלולאה כדי לא להפיק קבלה מאוחדת כשהמשתמש/ת ביקש/ה לא להפיק קבלה.
+    const combinedCardcomOwner = combinedReceipt
+      ? await resolveCardcomReceiptOwner(userId, organizationId)
+      : null;
+    const useCombinedReceipt =
+      combinedReceipt &&
+      (!!combinedCardcomOwner || shouldIssueReceipt !== false);
+    if (useCombinedReceipt) {
+      await issueCombinedReceipt({
+        userId,
+        client,
+        method,
+        processed: result.processed,
+        organizationId,
+        description: combinedReceiptDescription,
+      });
+    }
+
     for (const item of result.processed) {
+      if (useCombinedReceipt) break;
       if (item.amountPaid <= 0) continue;
 
       try {

@@ -41,6 +41,8 @@ export async function POST(req: NextRequest) {
       paymentMode,
       creditUsed = 0,
       issueReceipt = true,
+      combinedReceipt = false,
+      combinedReceiptDescription,
     } = parsed.data;
 
     // CREDIT_CARD חייב לעבור דרך /api/payments/charge-cardcom-bulk (יוצר
@@ -66,6 +68,8 @@ export async function POST(req: NextRequest) {
       paymentMode: paymentMode || "FULL",
       creditUsed: Number(creditUsed) || undefined,
       issueReceipt,
+      combinedReceipt,
+      combinedReceiptDescription,
       scopeUser,
     });
 

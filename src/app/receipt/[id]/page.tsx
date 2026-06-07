@@ -25,6 +25,8 @@ interface ReceiptData {
   receiptUrl: string | null;
   isPartial: boolean;
   remaining: number;
+  // קבלה מאוחדת (תשלום מצרפי): תיאור רב-שורתי עם פירוט הפגישות. קבלה רגילה: undefined.
+  description?: string;
   therapist: {
     name: string;
     businessName: string;
@@ -254,8 +256,13 @@ export default function PublicReceiptPage({
               </thead>
               <tbody>
                 <tr>
-                  <td className="py-4 px-4 text-sm text-gray-800 border-b">
-                    פגישה טיפולית{sessionDateStr ? ` - ${sessionDateStr}` : ""}
+                  <td
+                    className="py-4 px-4 text-sm text-gray-800 border-b"
+                    style={{ whiteSpace: "pre-line" }}
+                  >
+                    {receipt.description
+                      ? receipt.description
+                      : `פגישה טיפולית${sessionDateStr ? ` - ${sessionDateStr}` : ""}`}
                   </td>
                   <td className="py-4 px-4 text-sm text-gray-800 text-center border-b">
                     {methodLabel}
