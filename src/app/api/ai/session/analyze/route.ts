@@ -33,17 +33,38 @@ function isNewConsumeAiEnabled(): boolean {
   return process.env.USE_NEW_CONSUME_AI === "true";
 }
 
-// שימוש ב-Gemini Pro לכל הניתוחים
+// מודלים: Gemini 2.5 Flash לניתוח תמציתי (מהיר+זול), Gemini 2.5 Pro לניתוח מפורט
+// (עומק קליני). שניהם החליפו את gemini-2.0-flash שהוסר משירות ע"י Google ב-2026.
 const genAI = new GoogleGenerativeAI(process.env.GOOGLE_AI_API_KEY || "");
-const DEFAULT_MODEL = "gemini-2.0-flash";
+const CONCISE_MODEL = "gemini-2.5-flash";
+const DETAILED_MODEL = "gemini-2.5-pro";
 
-// עלויות למיליון טוקנים
-const COSTS_PER_1M_TOKENS = {
-  "gemini-2.0-flash": {
-    input: 0.10,   // $0.10 per 1M input tokens
-    output: 0.40   // $0.40 per 1M output tokens
+// עלויות למיליון טוקנים — מפתח לפי שם המודל בפועל.
+const COSTS_PER_1M_TOKENS: Record<string, { input: number; output: number }> = {
+  "gemini-2.5-flash": {
+    input: 0.30,   // $0.30 per 1M input tokens
+    output: 2.50   // $2.50 per 1M output tokens
+  },
+  "gemini-2.5-pro": {
+    input: 1.25,   // $1.25 per 1M input tokens (≤200K context)
+    output: 10.00  // $10.00 per 1M output tokens (≤200K context)
   }
 };
+
+// timeout לקריאת Gemini בראוט זה. 2.5-pro (מפורט) הוא מודל "חשיבה" ואיטי יותר —
+// שומרים מתחת ל-timeout של ה-proxy (~100s) כדי להחזיר שגיאה נקייה (+refund) במקום
+// חיבור תקוע ו-spinner קפוא. timeout שזורק נתפס ב-catch הראשי שמריץ refund.
+const AI_ANALYZE_TIMEOUT_MS = 90_000;
+
+function withAiTimeout<T>(promise: Promise<T>, ms: number): Promise<T> {
+  let timer: ReturnType<typeof setTimeout> | undefined;
+  const timeout = new Promise<never>((_, reject) => {
+    timer = setTimeout(() => reject(new Error("AI_TIMEOUT")), ms);
+  });
+  return Promise.race([promise, timeout]).finally(() => {
+    if (timer) clearTimeout(timer);
+  });
+}
 
 /**
  * POST /api/ai/session/analyze
@@ -349,23 +370,31 @@ export async function POST(req: NextRequest) {
       );
     }
 
-    // קריאה ל-Gemini 2.0 Flash
+    // קריאה ל-Gemini (Flash לתמציתי, Pro למפורט — נבחר ב-selectedModel)
     // R3 (סבב 17c, 2026-05-20): redactPii על ה-prompt לפני שליחה — מסיר ת"ז,
     // טלפונים, אימיילים, כרטיסי אשראי שעלולים להופיע בטקסט חופשי של המטפל
     // (sessionNote.content, culturalContext, approachNotes). minimization
     // principle של חוק הגנת הפרטיות + GDPR.
     const safePrompt = redactPii(prompt);
-    const model = genAI.getGenerativeModel({ model: DEFAULT_MODEL });
-    const result = await model.generateContent(safePrompt);
+    // בחירת מודל לפי סוג הניתוח: מפורט → Pro (עומק קליני), תמציתי → Flash (מהיר+זול).
+    const selectedModel = analysisType === "DETAILED" ? DETAILED_MODEL : CONCISE_MODEL;
+    const model = genAI.getGenerativeModel({ model: selectedModel });
+    // timeout safety net (חשוב במיוחד ל-2.5-pro האיטי) — בקשה תקועה תיזרק ותרוץ refund.
+    const result = await withAiTimeout(model.generateContent(safePrompt), AI_ANALYZE_TIMEOUT_MS);
     // M3: ניקוי HTML hallucination מתשובת Gemini
     const analysis = sanitizeAiText(result.response.text());
+    if (!analysis || !analysis.trim()) {
+      // הגנה: 2.5-pro thinking עלול לסיים ב-MAX_TOKENS עם פלט ריק. לא שומרים ניתוח ריק
+      // כ"הצלחה" — זורקים כדי שירוץ refund ויוחזר 500, והמטפל ינסה שוב.
+      throw new Error("Empty AI analysis result");
+    }
 
     // חישוב עלויות
     const estimatedInputTokens = Math.round(prompt.length / 4);
     const estimatedOutputTokens = Math.round(analysis.length / 4);
     const totalTokens = estimatedInputTokens + estimatedOutputTokens;
-    
-    const cost = calculateCost(estimatedInputTokens, estimatedOutputTokens);
+
+    const cost = calculateCost(estimatedInputTokens, estimatedOutputTokens, selectedModel);
 
     // שמירת הניתוח
     const savedAnalysis = await prisma.sessionAnalysis.upsert({
@@ -375,14 +404,14 @@ export async function POST(req: NextRequest) {
         sessionId: sessionId,
         analysisType: analysisType,
         content: analysis,
-        aiModel: DEFAULT_MODEL,
+        aiModel: selectedModel,
         tokensUsed: totalTokens,
         cost: cost,
       },
       update: {
         analysisType: analysisType,
         content: analysis,
-        aiModel: DEFAULT_MODEL,
+        aiModel: selectedModel,
         tokensUsed: totalTokens,
         cost: cost,
       },
@@ -445,7 +474,7 @@ export async function POST(req: NextRequest) {
       success: true,
       analysis: savedAnalysis,
       cached: false,
-      model: DEFAULT_MODEL,
+      model: selectedModel,
       tokens: totalTokens,
       cost: cost,
     });
@@ -518,8 +547,9 @@ async function refundConsumedAi(
 /**
  * חישוב עלות לפי טוקנים
  */
-function calculateCost(inputTokens: number, outputTokens: number): number {
-  const costs = COSTS_PER_1M_TOKENS[DEFAULT_MODEL];
+function calculateCost(inputTokens: number, outputTokens: number, model: string): number {
+  // fallback ל-flash אם המודל לא נמצא במפה — מונע קריסה (כפי שקרה כשהמפתח לא תאם).
+  const costs = COSTS_PER_1M_TOKENS[model] || COSTS_PER_1M_TOKENS["gemini-2.5-flash"];
   const inputCost = (inputTokens / 1_000_000) * costs.input;
   const outputCost = (outputTokens / 1_000_000) * costs.output;
   return inputCost + outputCost;

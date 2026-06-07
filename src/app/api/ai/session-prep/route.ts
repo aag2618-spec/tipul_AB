@@ -22,14 +22,14 @@ import { aiSessionPrepSchema } from "@/lib/validations/ai";
 import { requireAiConsent } from "@/lib/ai-consent";
 import { sanitizeAiText } from "@/lib/sanitize-html";
 
-// שימוש ב-Gemini 2.0 Flash בלבד
+// שימוש ב-Gemini 2.5 Flash (החליף את gemini-2.0-flash שהוסר משירות ע"י Google ב-2026)
 const genAI = new GoogleGenerativeAI(process.env.GOOGLE_AI_API_KEY || "");
-const GEMINI_MODEL = "gemini-2.0-flash";
+const GEMINI_MODEL = "gemini-2.5-flash";
 
-// עלויות למיליון טוקנים
+// עלויות למיליון טוקנים (תעריפי gemini-2.5-flash)
 const COSTS_PER_1M_TOKENS = {
-  input: 0.10,
-  output: 0.40
+  input: 0.30,
+  output: 2.50
 };
 
 /**

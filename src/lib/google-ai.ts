@@ -17,8 +17,8 @@ function getGenAI(): GoogleGenerativeAI {
   return genAI;
 }
 
-// Updated model to Gemini 2.0 Flash (33x cheaper than Gemini 3 Pro!)
-const DEFAULT_MODEL = 'gemini-2.0-flash';
+// Gemini 2.5 Flash — מהיר וזול. החליף את gemini-2.0-flash שהוסר משירות ע"י Google ב-2026.
+const DEFAULT_MODEL = 'gemini-2.5-flash';
 
 // M2 (2026-05-17): מגבלות עלות + timeout על קריאות AI.
 //   • AI_TIMEOUT_MS = 30s — מעבר לזה מבטלים. timeout מונע worker תקוע.

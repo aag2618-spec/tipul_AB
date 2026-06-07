@@ -142,7 +142,7 @@ ${approachPrompts}
 `;
     }
 
-    const model = getGenAI().getGenerativeModel({ model: "gemini-2.0-flash" });
+    const model = getGenAI().getGenerativeModel({ model: "gemini-2.5-flash" });
 
     // בניית prompt מותאם לפי רמת הפירוט
     const isEnterprise = user.aiTier === 'ENTERPRISE' && therapeuticApproaches.length > 0;
