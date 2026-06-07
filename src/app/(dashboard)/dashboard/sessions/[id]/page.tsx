@@ -175,6 +175,9 @@ export default function SessionDetailPage({
           const data = await response.json();
           setSession(data);
           setNoteContent(data.sessionNote?.content || "");
+          // אתחול מצב השמירה: מסמן את התוכן הטעון כ"שמור" כדי שלא תוצג תווית
+          // "שינויים לא שמורים" מיד עם פתיחת פגישה שכבר שמורה (תיקון תזמון effect).
+          lastSavedContent.current = data.sessionNote?.content || "";
           setStatus(data.status);
           // Load saved AI analysis if exists (from sessionAnalysis table or legacy aiAnalysis field)
           if (data.sessionAnalysis?.content) {
