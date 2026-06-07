@@ -100,17 +100,25 @@ export async function resolveCardcomBilling(
   intendedUserId: string,
   organizationId?: string | null,
 ): Promise<ResolvedCardcomBilling | null> {
-  // טוענים את מצב הסליקה של המטפל/ת + השיוך לארגון. נשמרות ברירות מחדל בטוחות
-  // (CLINIC / ה-organizationId שהועבר) אם השליפה נכשלת — לא מפילים את הקריאה.
+  // טוענים את מצב הסליקה של המטפל/ת + השיוך לארגון.
   // mode: "OWN" | "CLINIC" | null. null = legacy (טרם הוגדר במפורש) → מעדיף
   // מסוף פרטי, אחרת מסוף הבעלים (התנהגות מקורית, ללא שינוי לנתונים קיימים).
+  //
+  // ⚠ כשל בשליפת המשתמש = fail-closed (ראו הבדיקה מתחת ל-try): אם findUnique
+  // נכשל איננו יודעים את mode, ובפרט לא נוכל להבדיל בין legacy לבין מטפל/ת
+  // שהוגדר/ה CLINIC. המשך ל-branch ה-legacy היה עלול לנתב כסף למסוף הפרטי של
+  // מטפל/ת שמצב/ה האמיתי הוא CLINIC — בדיוק מה ש-CLINIC נועד למנוע. לכן בכשל
+  // מחזירים null (חוסמים): מסלול הגבייה מציג הודעה ברורה והפעולה ניתנת לחזרה.
+  // זו אותה מדיניות כמו isCardcomPrimary ("lookup failed → assuming false").
   let mode: string | null = null;
   let userOrgId: string | null = null;
+  let userLookupOk = false;
   try {
     const user = await prisma.user.findUnique({
       where: { id: intendedUserId },
       select: { clinicBillingMode: true, organizationId: true },
     });
+    userLookupOk = true;
     if (user) {
       mode = user.clinicBillingMode ?? null;
       userOrgId = user.organizationId;
@@ -122,9 +130,26 @@ export async function resolveCardcomBilling(
     });
   }
 
-  // ה-organizationId המועבר (מרשומת ה-Payment/Client) סמכותי; נופלים ל-
-  // organizationId של המשתמש רק אם לא הועבר.
-  const orgId = organizationId ?? userOrgId ?? null;
+  // כשל בשליפת המשתמש → חסימה (fail-closed). בלי mode ודאי אי-אפשר לנתב כסף
+  // בבטחה. שים/י לב: user === null (משתמש לא נמצא, ללא חריגה) אינו כשל — הוא
+  // נחשב legacy וממשיך כרגיל, בדיוק כמו ה-resolver המקורי שלא שלף משתמש כלל.
+  if (!userLookupOk) {
+    logger.warn("[billing-resolver] no Cardcom resolved", {
+      intendedUserId,
+      organizationId: organizationId ?? "unknown",
+      reason: "user_lookup_failed_fail_closed",
+    });
+    return null;
+  }
+
+  // ה-organizationId המועבר (מרשומת ה-Payment/Client) סמכותי. רק במצב מפורש
+  // (OWN/CLINIC) מותר ליפול ל-User.organizationId. ב-legacy (mode === null)
+  // משתמשים אך ורק ב-organizationId שהועבר — בדיוק כמו ה-resolver המקורי —
+  // אחרת חיוב legacy עם organizationId=null (שפעם נחסם במסלול solo → null) היה
+  // מנותב למסוף בעל הקליניקה. ב-CLINIC הפלבק הכרחי כדי לכבד "תמיד בעל הקליניקה"
+  // גם כשתשלום legacy נשמר עם organizationId=null.
+  const orgFallback = mode === null ? null : userOrgId;
+  const orgId = organizationId ?? orgFallback ?? null;
 
   // ── מטפל/ת עצמאי/ת (לא בקליניקה) — התנהגות קיימת, ללא שינוי: מסוף עצמי או null.
   if (!orgId) {
