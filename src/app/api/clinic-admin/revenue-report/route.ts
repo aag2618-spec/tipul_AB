@@ -32,6 +32,7 @@ import {
   monthRangeIsraelToUtc,
   sortByRevenue,
 } from "@/lib/clinic/revenue-share";
+import { effectiveBillingMode } from "@/lib/clinic/billing-mode";
 
 export const dynamic = "force-dynamic";
 
@@ -82,7 +83,7 @@ export async function GET(request: NextRequest) {
     const [orgRow, therapists, payments] = await Promise.all([
       prisma.organization.findUnique({
         where: { id: organizationId },
-        select: { defaultRevenueSharePct: true },
+        select: { defaultRevenueSharePct: true, therapistDebtTracking: true },
       }),
       prisma.user.findMany({
         where: {
@@ -95,6 +96,7 @@ export async function GET(request: NextRequest) {
           name: true,
           email: true,
           revenueSharePct: true,
+          clinicBillingMode: true,
         },
         orderBy: [{ name: "asc" }],
       }),
@@ -168,6 +170,26 @@ export async function GET(request: NextRequest) {
       monthEndUtc,
     });
 
+    // מצב הסליקה לכל מטפל/ת — כדי שהדוח יסמן שעבור מטפל/ת ב-OWN, clinicRevenueIls
+    // הוא סכום שהמטפל/ת *חייב/ת להעביר* לקליניקה (גבה לחשבונו/ה), בעוד שב-CLINIC
+    // הכסף כבר אצל הקליניקה. תצוגה בלבד — לא משנה את החישוב. null (legacy) נגזר
+    // לפי קיום מסוף פרטי פעיל, בעקביות עם resolveCardcomBilling ומסך המנהלת.
+    const therapistIds = therapists.map((t) => t.id);
+    const activeCardcom = therapistIds.length
+      ? await prisma.billingProvider.findMany({
+          where: {
+            userId: { in: therapistIds },
+            provider: "CARDCOM",
+            isActive: true,
+          },
+          select: { userId: true },
+        })
+      : [];
+    const connectedSet = new Set(activeCardcom.map((r) => r.userId));
+    const rawModeById = new Map(
+      therapists.map((t) => [t.id, t.clinicBillingMode])
+    );
+
     return NextResponse.json(
       JSON.parse(
         JSON.stringify({
@@ -175,7 +197,14 @@ export async function GET(request: NextRequest) {
           monthStartUtc: monthStartUtc.toISOString(),
           monthEndUtc: monthEndUtc.toISOString(),
           orgDefaultPct,
-          items: sortByRevenue(report.therapists),
+          therapistDebtTracking: orgRow?.therapistDebtTracking ?? false,
+          items: sortByRevenue(report.therapists).map((r) => ({
+            ...r,
+            clinicBillingMode: effectiveBillingMode(
+              rawModeById.get(r.therapistId),
+              connectedSet.has(r.therapistId)
+            ),
+          })),
           totals: report.totals,
           generatedAt: new Date().toISOString(),
         })

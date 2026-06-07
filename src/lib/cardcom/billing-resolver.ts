@@ -75,27 +75,66 @@ async function hasInactiveCardcom(userId: string): Promise<boolean> {
 /**
  * Resolve which userId's Cardcom merchant should handle this charge/receipt.
  *
+ * MODE-AWARE (per-therapist control via `User.clinicBillingMode`):
+ *   • SOLO (no organization)  → the therapist's own terminal, or null.
+ *   • OWN  → the therapist's own terminal; if none active → null (BLOCK, no
+ *            fallback to the clinic — product decision D). The charge route
+ *            turns this null into a clear "connect your terminal" message.
+ *   • CLINIC (explicit) → ALWAYS the clinic owner's terminal, even if the
+ *            therapist happens to have a personal terminal connected. This is
+ *            what gives the owner real control over where patient money goes.
+ *   • null (legacy, never set) → original behavior: prefer the therapist's own
+ *            terminal, else the clinic owner's. Preserves existing data with no
+ *            backfill — only an explicit OWN/CLINIC choice changes routing.
+ *
+ * NOTE: a `null` return is the same shape used by the receipt path
+ * (`resolveCardcomReceiptOwner`), so an OWN-without-terminal therapist simply
+ * has no Cardcom receipt — money is never routed to the wrong merchant.
+ *
  * @param intendedUserId   The userId we'd LIKE to charge under (typically
  *                         `client.therapistId`).
- * @param organizationId   Optional organizationId of the client/payment.
- *                         When provided and the intended user has no Cardcom,
- *                         the resolver falls back to the org owner's Cardcom.
+ * @param organizationId   Optional organizationId of the client/payment
+ *                         (authoritative when provided).
  */
 export async function resolveCardcomBilling(
   intendedUserId: string,
   organizationId?: string | null,
 ): Promise<ResolvedCardcomBilling | null> {
-  if (await hasActiveCardcom(intendedUserId)) {
-    return {
-      cardcomOwnerUserId: intendedUserId,
+  // טוענים את מצב הסליקה של המטפל/ת + השיוך לארגון. נשמרות ברירות מחדל בטוחות
+  // (CLINIC / ה-organizationId שהועבר) אם השליפה נכשלת — לא מפילים את הקריאה.
+  // mode: "OWN" | "CLINIC" | null. null = legacy (טרם הוגדר במפורש) → מעדיף
+  // מסוף פרטי, אחרת מסוף הבעלים (התנהגות מקורית, ללא שינוי לנתונים קיימים).
+  let mode: string | null = null;
+  let userOrgId: string | null = null;
+  try {
+    const user = await prisma.user.findUnique({
+      where: { id: intendedUserId },
+      select: { clinicBillingMode: true, organizationId: true },
+    });
+    if (user) {
+      mode = user.clinicBillingMode ?? null;
+      userOrgId = user.organizationId;
+    }
+  } catch (err) {
+    logger.error("[billing-resolver] user lookup failed", {
       intendedUserId,
-      fellbackToOrgOwner: false,
-    };
+      error: err instanceof Error ? err.message : String(err),
+    });
   }
 
-  if (!organizationId) {
-    // אבחון — מסביר ב-logs האם המטפל מחק/השעה את ה-Cardcom שלו במקום
-    // שמעולם לא חיבר. עוזר לסגור פניות תמיכה מהר.
+  // ה-organizationId המועבר (מרשומת ה-Payment/Client) סמכותי; נופלים ל-
+  // organizationId של המשתמש רק אם לא הועבר.
+  const orgId = organizationId ?? userOrgId ?? null;
+
+  // ── מטפל/ת עצמאי/ת (לא בקליניקה) — התנהגות קיימת, ללא שינוי: מסוף עצמי או null.
+  if (!orgId) {
+    if (await hasActiveCardcom(intendedUserId)) {
+      return {
+        cardcomOwnerUserId: intendedUserId,
+        intendedUserId,
+        fellbackToOrgOwner: false,
+      };
+    }
     const intendedHasInactive = await hasInactiveCardcom(intendedUserId);
     logger.warn("[billing-resolver] no Cardcom resolved", {
       intendedUserId,
@@ -106,18 +145,47 @@ export async function resolveCardcomBilling(
     return null;
   }
 
-  // Fall back to the clinic owner's Cardcom. Only same-org owners — never
-  // cross-org. We trust the caller passed a valid organizationId from the
-  // patient/payment record (which already enforces clinic membership).
+  // ── מצב OWN: גובים לחשבון העצמאי של המטפל/ת. מסוף פעיל → דרכו; אין מסוף →
+  // null (חסימה), בלי fallback לקליניקה (החלטת מוצר D).
+  if (mode === "OWN") {
+    if (await hasActiveCardcom(intendedUserId)) {
+      return {
+        cardcomOwnerUserId: intendedUserId,
+        intendedUserId,
+        fellbackToOrgOwner: false,
+      };
+    }
+    const intendedHasInactive = await hasInactiveCardcom(intendedUserId);
+    logger.warn("[billing-resolver] OWN mode but no active Cardcom → blocked", {
+      intendedUserId,
+      organizationId: orgId,
+      reason: "own_mode_no_active_cardcom",
+      intendedHasInactiveCardcom: intendedHasInactive,
+    });
+    return null;
+  }
+
+  // ── מצב null (legacy — טרם הוגדר במפורש): מעדיפים מסוף פרטי אם קיים; אחרת
+  // נופלים למסוף הבעלים בהמשך. שומר התנהגות זהה לחלוטין לנתונים קיימים.
+  if (mode === null && (await hasActiveCardcom(intendedUserId))) {
+    return {
+      cardcomOwnerUserId: intendedUserId,
+      intendedUserId,
+      fellbackToOrgOwner: false,
+    };
+  }
+
+  // ── מצב CLINIC (מפורש) או null-בלי-מסוף-פרטי: דרך מסוף הבעלים. ב-CLINIC זה
+  // נכון תמיד — גם אם למטפל/ת יש מסוף פרטי (הבעלים שולט/ת). רק same-org owner.
   let org;
   try {
     org = await prisma.organization.findUnique({
-      where: { id: organizationId },
+      where: { id: orgId },
       select: { ownerUserId: true },
     });
   } catch (err) {
     logger.error("[billing-resolver] organization lookup failed", {
-      organizationId,
+      organizationId: orgId,
       error: err instanceof Error ? err.message : String(err),
     });
     return null;
@@ -126,47 +194,40 @@ export async function resolveCardcomBilling(
   if (!org) {
     logger.warn("[billing-resolver] no Cardcom resolved", {
       intendedUserId,
-      organizationId,
+      organizationId: orgId,
       reason: "organization_not_found",
     });
     return null;
   }
 
-  if (org.ownerUserId === intendedUserId) {
-    // The intended user IS the owner — they already failed the active check.
-    const intendedHasInactive = await hasInactiveCardcom(intendedUserId);
-    logger.warn("[billing-resolver] no Cardcom resolved", {
-      intendedUserId,
-      organizationId,
-      reason: "owner_same_as_intended_no_active_cardcom",
-      intendedHasInactiveCardcom: intendedHasInactive,
-    });
-    return null;
-  }
-
   if (await hasActiveCardcom(org.ownerUserId)) {
-    logger.info("[billing-resolver] using org owner Cardcom fallback", {
-      intendedUserId,
-      organizationId,
-      ownerUserId: org.ownerUserId,
-    });
+    if (org.ownerUserId !== intendedUserId) {
+      logger.info("[billing-resolver] using clinic owner Cardcom", {
+        intendedUserId,
+        organizationId: orgId,
+        ownerUserId: org.ownerUserId,
+        mode: mode ?? "legacy",
+      });
+    }
     return {
       cardcomOwnerUserId: org.ownerUserId,
       intendedUserId,
-      fellbackToOrgOwner: true,
+      // true רק כשהמסוף בפועל אינו של המטפל/ת המיועד/ת (audit trail).
+      fellbackToOrgOwner: org.ownerUserId !== intendedUserId,
     };
   }
 
-  // Both intended user AND org owner have no active Cardcom.
+  // הבעלים ללא מסוף פעיל — אין דרך לגבות בקליניקה.
   const [intendedHasInactive, ownerHasInactive] = await Promise.all([
     hasInactiveCardcom(intendedUserId),
     hasInactiveCardcom(org.ownerUserId),
   ]);
   logger.warn("[billing-resolver] no Cardcom resolved", {
     intendedUserId,
-    organizationId,
+    organizationId: orgId,
     ownerUserId: org.ownerUserId,
-    reason: "no_active_cardcom_for_intended_or_owner",
+    reason: "clinic_or_legacy_owner_no_active_cardcom",
+    mode: mode ?? "legacy",
     intendedHasInactiveCardcom: intendedHasInactive,
     ownerHasInactiveCardcom: ownerHasInactive,
   });

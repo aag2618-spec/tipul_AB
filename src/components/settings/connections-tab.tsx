@@ -184,14 +184,22 @@ export function ConnectionsTab() {
   const [showCardcomSecret, setShowCardcomSecret] = useState(false);
   const [cardcomAlreadyConnected, setCardcomAlreadyConnected] = useState(false);
 
+  // הקליניקה הגדירה את המטפל/ת ל"חשבון עצמאי" (clinicBillingMode=OWN) — מציגים
+  // באנר שמנחה לחבר מסוף סליקה. נוגע רק לסליקת המטופלים, לא למנוי התוכנה.
+  const [clinicOwnMode, setClinicOwnMode] = useState(false);
+  const [clinicCardcomConnected, setClinicCardcomConnected] = useState(false);
+
   useEffect(() => {
     Promise.all([
       fetch("/api/user/google-calendar").then(r => r.ok ? r.json() : { connected: false }),
       fetch("/api/integrations/billing").then(r => r.ok ? r.json() : []),
-    ]).then(([googleData, billingData]) => {
+      fetch("/api/user/clinic-billing-status").then(r => r.ok ? r.json() : { inClinic: false, clinicBillingMode: "CLINIC", cardcomConnected: false }),
+    ]).then(([googleData, billingData, clinicStatus]) => {
       setGoogleConnected(googleData.connected);
       setGoogleEmail(googleData.email || null);
       setBillingProviders(billingData);
+      setClinicOwnMode(!!clinicStatus.inClinic && clinicStatus.clinicBillingMode === "OWN");
+      setClinicCardcomConnected(!!clinicStatus.cardcomConnected);
     }).catch(err => console.error("Failed to load:", err))
       .finally(() => setLoading(false));
   }, []);
@@ -304,6 +312,11 @@ export function ConnectionsTab() {
         setShowBillingDialog(false);
         const data = await fetch("/api/integrations/billing").then(r => r.json());
         setBillingProviders(data);
+        // עדכון מיידי של מצב הבאנר (OWN) בלי לרענן את הדף.
+        setClinicCardcomConnected(
+          Array.isArray(data) &&
+            data.some((p: BillingProvider) => p.provider === "CARDCOM" && p.isActive)
+        );
       } else {
         const err = await res.json().catch(() => ({}));
         toast.error(err.message || err.error || "שגיאה");
@@ -316,7 +329,15 @@ export function ConnectionsTab() {
     if (!confirm("האם אתה בטוח?")) return;
     try {
       const res = await fetch(`/api/integrations/billing/${id}`, { method: "DELETE" });
-      if (res.ok) { toast.success("נותק"); const data = await fetch("/api/integrations/billing").then(r => r.json()); setBillingProviders(data); }
+      if (res.ok) {
+        toast.success("נותק");
+        const data = await fetch("/api/integrations/billing").then(r => r.json());
+        setBillingProviders(data);
+        setClinicCardcomConnected(
+          Array.isArray(data) &&
+            data.some((p: BillingProvider) => p.provider === "CARDCOM" && p.isActive)
+        );
+      }
       else toast.error("שגיאה");
     } catch { toast.error("שגיאה"); }
   };
@@ -327,6 +348,44 @@ export function ConnectionsTab() {
 
   return (
     <div className="space-y-6">
+      {/* באנר "חשבון עצמאי" — הקליניקה הגדירה את המטפל/ת לגבות לחשבונו/ה. */}
+      {clinicOwnMode && !clinicCardcomConnected && (
+        <div className="rounded-lg border border-blue-200 bg-blue-50 p-4 dark:border-blue-900/50 dark:bg-blue-950/30">
+          <div className="flex items-start gap-3">
+            <CreditCard className="h-5 w-5 shrink-0 text-blue-600 dark:text-blue-400 mt-0.5" />
+            <div className="space-y-1">
+              <p className="text-sm font-medium text-blue-900 dark:text-blue-200">
+                הקליניקה הגדירה אותך לגבות לחשבון הסליקה הפרטי שלך
+              </p>
+              <p className="text-xs text-blue-800/80 dark:text-blue-300/80">
+                כדי שתוכל/י לגבות תשלומים ממטופלים, חבר/י כאן את מסוף הסליקה
+                (Cardcom) שלך. עד שתחבר/י — לא ניתן יהיה לגבות. הכסף ייכנס לחשבון
+                שלך והקבלה תונפק על שמך.
+              </p>
+              <Button
+                size="sm"
+                className="mt-1"
+                onClick={() => openBillingDialog("CARDCOM")}
+              >
+                <CreditCard className="ml-2 h-4 w-4" />
+                חבר/י את הסליקה שלי
+              </Button>
+            </div>
+          </div>
+        </div>
+      )}
+      {clinicOwnMode && clinicCardcomConnected && (
+        <div className="rounded-lg border border-emerald-200 bg-emerald-50 p-3 dark:border-emerald-900/50 dark:bg-emerald-950/30">
+          <div className="flex items-center gap-2">
+            <Shield className="h-4 w-4 shrink-0 text-emerald-600 dark:text-emerald-400" />
+            <p className="text-xs text-emerald-800 dark:text-emerald-300">
+              הקליניקה הגדירה אותך לגבות לחשבון הפרטי שלך, והסליקה שלך מחוברת ✓
+              תשלומי המטופלים נגבים למסוף שלך והקבלה מונפקת על שמך.
+            </p>
+          </div>
+        </div>
+      )}
+
       <GoogleCalendarSection
         googleConnected={googleConnected}
         googleEmail={googleEmail}

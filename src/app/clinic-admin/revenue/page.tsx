@@ -24,13 +24,20 @@ import type {
 
 // ה-route עוטף את התוצאה של computeMonthlyRevenueReport במעטפת עם
 // metadata של החודש. שומרים יישור 1:1 עם ה-helper (TherapistRevenueRow
-// + RevenueReportSummary.totals) כדי שלא ייווצר drift.
+// + RevenueReportSummary.totals) כדי שלא ייווצר drift. ה-route מוסיף לכל
+// item את clinicBillingMode (תצוגה בלבד — מצב הסליקה של המטפל/ת).
+type RevenueItem = TherapistRevenueRow & {
+  clinicBillingMode?: "CLINIC" | "OWN";
+};
+
 interface RevenueResponse {
   month: string;
   monthStartUtc: string;
   monthEndUtc: string;
   orgDefaultPct: number | null;
-  items: TherapistRevenueRow[];
+  // האם להציג עבור מטפל/ת ב-OWN את "חלק הקליניקה" כסכום שעליו/ה להעביר.
+  therapistDebtTracking: boolean;
+  items: RevenueItem[];
   totals: RevenueReportSummary["totals"];
   generatedAt: string;
 }
@@ -265,6 +272,10 @@ export default function RevenueReportPage() {
                 const displayName =
                   item.name?.trim() || item.email || "מטפל/ת ללא שם";
                 const sharePct = item.sharePct;
+                const isOwn = item.clinicBillingMode === "OWN";
+                // מטפל/ת ב-OWN גבה/תה את הכסף לחשבונו/ה — "חלק הקליניקה" הוא
+                // סכום שעליו/ה להעביר לקליניקה. מדגישים זאת רק כשהמעקב פעיל.
+                const showOwed = data.therapistDebtTracking && isOwn;
                 return (
                   <Card key={item.therapistId}>
                     <CardHeader className="pb-3">
@@ -279,9 +290,16 @@ export default function RevenueReportPage() {
                             </p>
                           )}
                         </div>
-                        <Badge className="bg-primary/15 text-primary">
-                          {sharePct}% למטפל/ת
-                        </Badge>
+                        <div className="flex items-center gap-2">
+                          {isOwn && (
+                            <Badge className="bg-amber-100 text-amber-800 dark:bg-amber-900/40 dark:text-amber-300">
+                              חשבון עצמאי
+                            </Badge>
+                          )}
+                          <Badge className="bg-primary/15 text-primary">
+                            {sharePct}% למטפל/ת
+                          </Badge>
+                        </div>
                       </div>
                     </CardHeader>
                     <CardContent className="pt-0">
@@ -302,12 +320,21 @@ export default function RevenueReportPage() {
                           value={formatIls(item.therapistRevenueIls)}
                           valueClass="text-blue-600 dark:text-blue-400"
                         />
-                        <Stat
-                          icon={Wallet}
-                          label="חלק הקליניקה"
-                          value={formatIls(item.clinicRevenueIls)}
-                          valueClass="text-emerald-600 dark:text-emerald-400"
-                        />
+                        {showOwed ? (
+                          <Stat
+                            icon={Wallet}
+                            label="להעברה לקליניקה"
+                            value={formatIls(item.clinicRevenueIls)}
+                            valueClass="text-amber-600 dark:text-amber-400"
+                          />
+                        ) : (
+                          <Stat
+                            icon={Wallet}
+                            label="חלק הקליניקה"
+                            value={formatIls(item.clinicRevenueIls)}
+                            valueClass="text-emerald-600 dark:text-emerald-400"
+                          />
+                        )}
                       </div>
                     </CardContent>
                   </Card>
@@ -320,6 +347,13 @@ export default function RevenueReportPage() {
             עודכן: {generatedLabel}. החישוב לפי תאריך התשלום בפועל בזמן ישראל;
             אם אין מוגדר אחוז פיצול פר-מטפל/ת — ברירת המחדל הארגונית תקפה
             (ובהיעדרה — 100% למטפל/ת).
+            {data.therapistDebtTracking && (
+              <>
+                {" "}
+                מטפל/ת המסומן/ת <strong>״חשבון עצמאי״</strong> גובה/ת את הכסף
+                לחשבונו/ה — ״להעברה לקליניקה״ הוא הסכום שעליו/ה להעביר.
+              </>
+            )}
           </p>
         </>
       )}

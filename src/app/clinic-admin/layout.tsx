@@ -25,6 +25,7 @@ import {
   MessagesSquare,
   ShieldCheck,
   Eye,
+  CreditCard,
 } from "lucide-react";
 
 interface ClinicContext {
@@ -77,6 +78,9 @@ const navItems: NavItem[] = [
   { href: "/clinic-admin/invitations", label: "הזמנות פעילות", icon: UserPlus },
   { href: "/clinic-admin/transfer", label: "העברת מטופל", icon: ArrowLeftRight, secretaryWithTransfer: true },
   { href: "/clinic-admin/departures", label: "תהליכי עזיבה", icon: UserMinus },
+  // סליקה למטפלים — הסדר מסוף הסליקה לכל מטפל/ת (חשבון הקליניקה / חשבון עצמאי).
+  // בעלת קליניקה בלבד (החלטת מדיניות/כסף — לא מזכירה), כמו "הגדרות צ׳אט".
+  { href: "/clinic-admin/payments", label: "סליקה למטפלים", icon: CreditCard },
   // צ׳אט צוות — קישור החוצה לדשבורד הצ'אט. מנהל/ת ש"חי/ה" כאן מגיע/ה לצ'אט
   // בלי לחזור לדשבורד. secretaryWithTransfer=true → גם מזכיר/ה עם הרשאת
   // העברה (שרואה את הלייאאוט) מקבלת אותו. תג לא-נקראות דרך polling.

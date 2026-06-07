@@ -115,14 +115,29 @@ export async function POST(
     payment.organizationId,
   );
   if (!resolved) {
+    // מצב OWN בלי מסוף תקין → חסימה עם הודעה ייעודית (החלטת מוצר D), במקום
+    // ההודעה הגנרית. כש-resolved=null ו-clinicBillingMode=OWN, הסיבה תמיד היא
+    // היעדר מסוף פעיל אצל המטפל/ת (ולא נפילה לקליניקה — שלא קורית ב-OWN).
+    const intendedTherapist = await prisma.user.findUnique({
+      where: { id: intendedTherapistId },
+      select: { clinicBillingMode: true, organizationId: true },
+    });
+    const isOwnModeInClinic =
+      !!intendedTherapist?.organizationId &&
+      intendedTherapist.clinicBillingMode === "OWN";
     logger.warn("[payments/charge-cardcom] no Cardcom resolved → 400", {
       paymentId,
       intendedTherapistId,
       organizationId: payment.organizationId,
       actorUserId: userId,
+      ownModeInClinic: isOwnModeInClinic,
     });
     return NextResponse.json(
-      { message: "לא הוגדר מסוף Cardcom — יש לחבר אותו בהגדרות אינטגרציות חיוב" },
+      {
+        message: isOwnModeInClinic
+          ? "המטפל/ת מוגדר/ת לגבות לחשבון העצמאי שלו/ה אך טרם חיבר/ה מסוף סליקה תקין. יש לחבר אותו בהגדרות ← חיבורים (או לפנות למנהל/ת הקליניקה)."
+          : "לא הוגדר מסוף Cardcom — יש לחבר אותו בהגדרות אינטגרציות חיוב",
+      },
       { status: 400 }
     );
   }
