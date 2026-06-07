@@ -148,8 +148,28 @@ export async function resolveCardcomBilling(
   // אחרת חיוב legacy עם organizationId=null (שפעם נחסם במסלול solo → null) היה
   // מנותב למסוף בעל הקליניקה. ב-CLINIC הפלבק הכרחי כדי לכבד "תמיד בעל הקליניקה"
   // גם כשתשלום legacy נשמר עם organizationId=null.
+  // ה-organizationId המועבר עשוי תיאורטית להגיע כמחרוזת ריקה (לא קורה היום — כל
+  // הקוראים מעבירים organizationId מסוג Prisma String? שהוא null או cuid).
+  // מנרמלים "" → null כך ש-`??` לא יתפוס "" כארגון אמיתי, וה-guard של solo
+  // (`if (!orgId)`) לא ינתב מטפל/ת CLINIC למסוף הפרטי שלו/ה. (ניתוב כסף — fail-closed)
+  const passedOrgId = organizationId === "" ? null : organizationId;
   const orgFallback = mode === null ? null : userOrgId;
-  const orgId = organizationId ?? orgFallback ?? null;
+  const orgId = passedOrgId ?? orgFallback ?? null;
+
+  // CLINIC חייב תמיד לנתב לבעל הקליניקה. אם איכשהו לא נותר orgId (נתון פגום/יתום:
+  // clinicBillingMode=CLINIC אך גם ה-org שהועבר וגם User.organizationId הם null —
+  // שיוך הקליניקה נותק), אסור ליפול ל-branch ה-solo שמנתב למסוף הפרטי. לא קורה דרך
+  // המוצר (הכותב ב-clinic-admin/therapist-payments מגדיר mode רק על מטפל/ת ששייכ/ת
+  // כבר לארגון — updateMany עם WHERE על organizationId תואם), אך מקשיחים הגנתית:
+  // fail-closed → null (חסימה), לעולם לא מסוף פרטי.
+  if (mode === "CLINIC" && !orgId) {
+    logger.warn("[billing-resolver] no Cardcom resolved", {
+      intendedUserId,
+      organizationId: "none",
+      reason: "clinic_mode_no_resolvable_org_fail_closed",
+    });
+    return null;
+  }
 
   // ── מטפל/ת עצמאי/ת (לא בקליניקה) — התנהגות קיימת, ללא שינוי: מסוף עצמי או null.
   if (!orgId) {

@@ -283,6 +283,48 @@ describe("CLINIC", () => {
   });
 });
 
+// ─── CLINIC — הקשחות fail-closed כשלא ניתן לפתור org ─────────────────────────
+// שני corner-case שאינם נגישים היום דרך המוצר (הכותב ב-clinic-admin/
+// therapist-payments קובע mode+org יחד בטרנזקציה), אך מוקשחים הגנתית: ניתוב כסף
+// חייב fail-closed, ו-CLINIC לעולם לא יגיע למסוף הפרטי של המטפל/ת.
+describe("CLINIC — fail-closed כש-org לא ניתן לפתרון", () => {
+  it("ISSUE 1 — organizationId='' (מחרוזת ריקה) לא נחשב solo → לא מנותב למסוף הפרטי", async () => {
+    // "" אינו נתפס ע"י `??`; ללא הנרמול orgId היה "" וה-guard של solo (!orgId)
+    // היה מנתב את t1 (שיש לו מסוף!) למסוף הפרטי. כאן User.organizationId=null,
+    // ולכן אחרי הנרמול אין org → CLINIC fail-closed → null (לא t1).
+    installWorld({
+      users: { t1: { clinicBillingMode: "CLINIC", organizationId: null } },
+      activeTerminals: ["t1"], // למטפל/ת יש מסוף — אסור שישתמשו בו
+    });
+    expect(await resolveCardcomBilling("t1", "")).toBeNull();
+  });
+
+  it("ISSUE 1 — organizationId='' עם User.organizationId קיים → בעל הקליניקה (לא המסוף הפרטי)", async () => {
+    // ההוכחה הישירה לנרמול "": "" → null → נופל ל-User.organizationId=org1 →
+    // CLINIC → owner1. ללא הנרמול orgId היה "" → solo → t1 (שגם לו מסוף).
+    installWorld({
+      users: { t1: { clinicBillingMode: "CLINIC", organizationId: "org1" } },
+      activeTerminals: ["t1", "owner1"],
+      orgs: { org1: { ownerUserId: "owner1" } },
+    });
+    expect(await resolveCardcomBilling("t1", "")).toEqual({
+      cardcomOwnerUserId: "owner1",
+      intendedUserId: "t1",
+      fellbackToOrgOwner: true,
+    });
+  });
+
+  it("ISSUE 2 — org מועבר null + User.organizationId null → null (נחסם, לא המסוף הפרטי)", async () => {
+    // נתון פגום/יתום: CLINIC אך שיוך הקליניקה נותק לגמרי (שני המקורות null).
+    // אסור ליפול ל-solo ולנתב ל-t1 (שיש לו מסוף). fail-closed → null.
+    installWorld({
+      users: { t1: { clinicBillingMode: "CLINIC", organizationId: null } },
+      activeTerminals: ["t1"], // יש מסוף פרטי — אסור שישתמשו בו
+    });
+    expect(await resolveCardcomBilling("t1", null)).toBeNull();
+  });
+});
+
 // ─── fail-closed בשליפת הארגון (כשל DB / ארגון לא קיים) ──────────────────────
 // הגעה לשליפת הארגון קורית רק אחרי שבדיקת המסוף הפרטי של המטפל/ת נכשלה
 // (legacy ללא מסוף, או CLINIC). בשני מצבי הכשל מחזירים null — לא מנחשים מסוף.
