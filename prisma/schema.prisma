@@ -61,6 +61,16 @@ enum ClinicRole {
   SECRETARY
 }
 
+// מצב סליקת המטופלים של מטפל/ת בקליניקה רב-מטפלים — קובע דרך איזה מסוף Cardcom
+// נגבים תשלומי המטופלים שלו/ה. CLINIC (ברירת מחדל) = דרך מסוף הבעלים/הקליניקה.
+// OWN = דרך המסוף הפרטי של המטפל/ת (כסף לחשבונו/ה, קבלה על שמו/ה). רלוונטי רק
+// כש-organizationId != null; למטפל/ת עצמאי/ת השדה מתעלם. נשלט ע"י הבעלים במסך
+// "סליקה למטפלים". ⚠ לא קשור למנוי התוכנה (ראה User.billingPaidByClinic).
+enum ClinicBillingMode {
+  CLINIC
+  OWN
+}
+
 enum DepartureStatus {
   PENDING
   COMPLETED
@@ -204,6 +214,14 @@ model User {
   // Shape: { canViewPayments, canIssueReceipts, canSendReminders, canCreateClient, canViewDebts, canViewStats }
   // NOTE: גישה לתוכן קליני (סיכומים/אבחנות/AI/הקלטות) חסומה קשיחות בקוד — לא ניתנת לעריכה דרך השדה הזה.
   secretaryPermissions Json?
+
+  // מצב סליקת המטופלים בקליניקה — CLINIC (דרך מסוף הבעלים) או OWN (דרך המסוף
+  // הפרטי של המטפל/ת). null = "טרם הוגדר במפורש" → התנהגות מורשת (legacy):
+  // מעדיף מסוף פרטי אם קיים, אחרת מסוף הבעלים. כך אין שינוי התנהגות לנתונים
+  // קיימים ואין צורך ב-backfill. נשלט ע"י הבעלים ב-/clinic-admin/payments
+  // ונקרא ב-resolveCardcomBilling. רלוונטי רק כש-organizationId != null.
+  // ⚠ נפרד לחלוטין ממנוי התוכנה (billingPaidByClinic) — נוגע רק לכסף המטופלים.
+  clinicBillingMode ClinicBillingMode?
 
   // Business & Receipt Settings (הגדרות עסק וקבלות)
   businessType       BusinessType     @default(NONE) // סוג עסק
@@ -2834,6 +2852,11 @@ model Organization {
   // לו/ה ערך מפורש ב-`User.revenueSharePct` יורש מהשדה הזה. null = ברירת
   // מחדל אחרונה (100% למטפל/ת, כלומר אין פיצול — שומר תאימות לאחור).
   defaultRevenueSharePct Decimal? @db.Decimal(5, 2)
+
+  // M-Billing: האם המערכת מחשבת ומציגה לבעלים כמה כל מטפל/ת ב-OWN צריך/ה
+  // להעביר לקליניקה (לפי revenueSharePct). false (ברירת מחדל) = ניהול ידני
+  // מחוץ למערכת. נשלט ע"י הבעלים ב-/clinic-admin/payments, ניתן לשנות תמיד.
+  therapistDebtTracking Boolean @default(false)
 
   createdAt DateTime @default(now())
   updatedAt DateTime @updatedAt
