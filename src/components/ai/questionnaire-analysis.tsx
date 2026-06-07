@@ -29,6 +29,7 @@ import {
 import { toast } from "sonner";
 import { format } from "date-fns";
 import { he } from "date-fns/locale";
+import { AiAnalysisContent } from "@/components/ai/ai-analysis-content";
 
 interface QuestionnaireAnalysisProps {
   clientId: string;
@@ -420,12 +421,31 @@ export function QuestionnaireAnalysis({
       <Dialog open={dialogOpen} onOpenChange={setDialogOpen}>
         <DialogContent className="max-w-4xl max-h-[80vh] overflow-y-auto">
           <DialogHeader>
-            <DialogTitle>
-              {analysisType === "single" && "ניתוח שאלון"}
-              {analysisType === "combined" && "ניתוח משולב - כל השאלונים"}
-              {analysisType === "progress" && "דו\"ח התקדמות"}
+            <DialogTitle className="flex items-center gap-3">
+              <span
+                className={`flex h-10 w-10 shrink-0 items-center justify-center rounded-full text-white shadow-sm ${
+                  analysisType === "progress"
+                    ? "bg-gradient-to-br from-emerald-500 to-teal-600"
+                    : analysisType === "combined"
+                      ? "bg-gradient-to-br from-indigo-500 to-purple-600"
+                      : "bg-gradient-to-br from-sky-500 to-blue-600"
+                }`}
+              >
+                {analysisType === "progress" ? (
+                  <TrendingUp className="h-5 w-5" />
+                ) : analysisType === "combined" ? (
+                  <BarChart3 className="h-5 w-5" />
+                ) : (
+                  <FileText className="h-5 w-5" />
+                )}
+              </span>
+              <span className="text-lg font-bold">
+                {analysisType === "single" && "ניתוח שאלון"}
+                {analysisType === "combined" && "ניתוח משולב - כל השאלונים"}
+                {analysisType === "progress" && "דו\"ח התקדמות"}
+              </span>
             </DialogTitle>
-            <DialogDescription>
+            <DialogDescription className="pr-[52px] text-right">
               {analysisType === "single" && "פירוש מקצועי של תוצאות השאלון"}
               {analysisType === "combined" &&
                 "מבט רוחב על כל השאלונים ותמונה קלינית"}
@@ -434,13 +454,8 @@ export function QuestionnaireAnalysis({
             </DialogDescription>
           </DialogHeader>
 
-          <div className="prose prose-sm max-w-none mt-4">
-            <div
-              className="whitespace-pre-wrap text-right"
-              style={{ direction: "rtl" }}
-            >
-              {analysisResult}
-            </div>
+          <div className="mt-4">
+            <AiAnalysisContent text={analysisResult || ""} />
           </div>
 
           <div className="flex justify-end gap-2 mt-4">

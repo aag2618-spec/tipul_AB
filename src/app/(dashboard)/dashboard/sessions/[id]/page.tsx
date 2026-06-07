@@ -26,6 +26,7 @@ import { RichTextEditor } from "@/components/rich-text-editor";
 import { CompleteSessionDialog } from "@/components/sessions/complete-session-dialog";
 import { SessionPrepCard } from "@/components/ai/session-prep-card";
 import { SessionAnalysisButtons } from "@/components/ai/session-analysis-buttons";
+import { AiAnalysisContent } from "@/components/ai/ai-analysis-content";
 
 interface NoteAnalysis {
   // Plain text analysis (from SessionAnalysis model)
@@ -294,6 +295,13 @@ export default function SessionDetailPage({
         const data = await response.json();
         setSession(data);
         setStatus(data.status);
+        // אחרי ניתוח חדש: עדכון לוח ה-AI מיד, כדי שהניתוח יופיע על הלוח
+        // ויישאר שם גם לאחר סגירת החלון הקופץ (ולא רק אחרי רענון דף).
+        if (data.sessionAnalysis?.content) {
+          setNoteAnalysis({ content: data.sessionAnalysis.content, analysisType: data.sessionAnalysis.analysisType });
+        } else if (data.sessionNote?.aiAnalysis) {
+          setNoteAnalysis(data.sessionNote.aiAnalysis);
+        }
       }
     } catch {
       toast.error("שגיאה ברענון הפגישה");
@@ -520,11 +528,7 @@ export default function SessionDetailPage({
                   <CardContent className="space-y-4 max-h-[600px] overflow-y-auto">
                     {/* Plain text content (new format) */}
                     {noteAnalysis.content ? (
-                      <div className="prose prose-sm max-w-none">
-                        <div className="whitespace-pre-wrap text-sm leading-relaxed">
-                          {noteAnalysis.content}
-                        </div>
-                      </div>
+                      <AiAnalysisContent text={noteAnalysis.content} />
                     ) : (
                       /* Structured format (legacy) */
                       <>

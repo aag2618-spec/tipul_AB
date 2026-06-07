@@ -12,6 +12,7 @@ import {
 import { Badge } from "@/components/ui/badge";
 import { FileText, BookOpen, Loader2, Sparkles, RefreshCw } from "lucide-react";
 import { toast } from "sonner";
+import { AiAnalysisContent } from "@/components/ai/ai-analysis-content";
 
 interface SessionAnalysisButtonsProps {
   sessionId: string;
@@ -125,36 +126,36 @@ export function SessionAnalysisButtons({
       <Dialog open={dialogOpen} onOpenChange={setDialogOpen}>
         <DialogContent className="max-w-4xl max-h-[80vh] overflow-y-auto">
           <DialogHeader>
-            <DialogTitle className="flex items-center gap-2">
+            <DialogTitle className="flex items-center gap-3">
               {analysisType === "CONCISE" ? (
                 <>
-                  <FileText className="h-5 w-5" />
-                  ניתוח תמציתי
+                  <span className="flex h-10 w-10 shrink-0 items-center justify-center rounded-full bg-gradient-to-br from-blue-500 to-indigo-600 text-white shadow-sm">
+                    <FileText className="h-5 w-5" />
+                  </span>
+                  <span className="text-lg font-bold">ניתוח תמציתי</span>
                 </>
               ) : (
                 <>
-                  <BookOpen className="h-5 w-5" />
-                  ניתוח מפורט
-                  <Badge variant="secondary" className="mr-2">
+                  <span className="flex h-10 w-10 shrink-0 items-center justify-center rounded-full bg-gradient-to-br from-purple-600 to-pink-600 text-white shadow-sm">
+                    <BookOpen className="h-5 w-5" />
+                  </span>
+                  <span className="text-lg font-bold">ניתוח מפורט</span>
+                  <Badge variant="secondary" className="mr-1">
+                    <Sparkles className="ml-1 h-3 w-3" />
                     AI מתקדם
                   </Badge>
                 </>
               )}
             </DialogTitle>
-            <DialogDescription>
+            <DialogDescription className="pr-[52px] text-right">
               {analysisType === "CONCISE"
                 ? "סיכום מקצועי וממוקד של הפגישה"
                 : "ניתוח מעמיק ברמה אקדמית"}
             </DialogDescription>
           </DialogHeader>
 
-          <div className="prose prose-sm max-w-none mt-4">
-            <div
-              className="whitespace-pre-wrap text-right"
-              style={{ direction: "rtl" }}
-            >
-              {analysisResult}
-            </div>
+          <div className="mt-4">
+            <AiAnalysisContent text={analysisResult || ""} />
           </div>
 
           <div className="flex justify-end gap-2 mt-4">
