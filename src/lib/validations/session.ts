@@ -114,6 +114,8 @@ const aiAnalysisField = z
     },
     { message: "ניתוח AI גדול מדי" }
   )
+  // מקבל גם null — כפתור "שמור" שולח aiAnalysis:null כשאין ניתוח. השרת ממיר null ל-undefined.
+  .nullable()
   .optional()
   .or(z.literal(""));
 
