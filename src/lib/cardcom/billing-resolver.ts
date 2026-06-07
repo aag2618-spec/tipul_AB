@@ -21,6 +21,8 @@
 //   חשבוניות ישראל). The audit trail records both `intendedUserId` (the
 //   patient's therapist) and `cardcomOwnerUserId` (the actual issuer).
 
+import type { ClinicBillingMode } from "@prisma/client";
+
 import prisma from "@/lib/prisma";
 import { logger } from "@/lib/logger";
 
@@ -110,7 +112,7 @@ export async function resolveCardcomBilling(
   // מטפל/ת שמצב/ה האמיתי הוא CLINIC — בדיוק מה ש-CLINIC נועד למנוע. לכן בכשל
   // מחזירים null (חוסמים): מסלול הגבייה מציג הודעה ברורה והפעולה ניתנת לחזרה.
   // זו אותה מדיניות כמו isCardcomPrimary ("lookup failed → assuming false").
-  let mode: string | null = null;
+  let mode: ClinicBillingMode | null = null;
   let userOrgId: string | null = null;
   let userLookupOk = false;
   try {
