@@ -13,12 +13,19 @@
 //   מחמיר ב-regex לפני שמשמש לחישוב גבולות.
 // - הקריאה היא read-only.
 //
-// סינון תשלומים (חשוב — תאם ל-/api/payments/monthly-total):
+// סינון תשלומים:
 //  1. `EXCLUDE_BULK_UMBRELLA_WHERE` — מדלג על payments של Cardcom bulk umbrella.
-//  2. `parentPaymentId not null OR childPayments none` — מדלג על parent של
-//     תשלום מפוצל (אחרת נספור פעם על ה-parent + פעם על ה-children).
+//  2. `parentPaymentId = null` — סופרים רק תשלומי-אב. תשלום-משנה (ילד) של
+//     תשלום מפוצל/חלקי אינו נושא sessionId, ולכן אי-אפשר לשייכו למטפל/ת;
+//     הסכום שלו ממילא מגולגל ב-parent.amount (כולל חלק האשראי בתשלום מפוצל).
+//     לתשלום-אב ששולם, parent.amount = סך ההכנסה המלא לפגישה (נטו אחרי החזר).
 //  3. `session.isNot null` — תשלום בלי session אין לו therapistId.
 //  4. `status="PAID"` ו-`paidAt` בחלון החודש (Asia/Jerusalem boundaries).
+//  שיוך-חודש: לתשלום-אב מגלגל (מפוצל/מרובה-פעימות) הסכום המלא משויך לחודש
+//  של parent.paidAt (מועד השלמת התשלום). תשלום מפוצל אשראי+מזומן נעשה ברוב
+//  המקרים באותו יום ⇒ מדויק. פעימות מזומן שחוצות גבול-חודש ירוכזו בחודש
+//  ההשלמה — עדיין מדויק יותר מהקודם, שהשמיט אותן מהדוח לחלוטין (לילד אין
+//  session ולכן לא ניתן לפזרו לפי החודש שלו תוך שיוך למטפל/ת).
 // ============================================================================
 
 import { NextRequest, NextResponse } from "next/server";
@@ -110,11 +117,10 @@ export async function GET(request: NextRequest) {
             EXCLUDE_BULK_UMBRELLA_WHERE,
             {
               status: "PAID",
-              // דלג על parent של תשלום מפוצל — נספור את ה-children בלבד.
-              OR: [
-                { parentPaymentId: { not: null } },
-                { parentPaymentId: null, childPayments: { none: {} } },
-              ],
+              // רק תשלומי-אב. ילד לא נושא sessionId ⇒ לא ניתן לשייכו למטפל/ת,
+              // והסכום שלו כבר מגולגל ב-parent.amount. ספירת ילדים בנפרד
+              // הפילה מהדוח כל פגישה ששולמה בכמה פעימות (כולל אשראי+מזומן מפוצל).
+              parentPaymentId: null,
             },
             {
               paidAt: { gte: monthStartUtc, lt: monthEndUtc },
