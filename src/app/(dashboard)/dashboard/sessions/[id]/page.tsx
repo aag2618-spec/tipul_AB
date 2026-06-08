@@ -133,6 +133,11 @@ interface SessionData {
     content: string;
     analysisType: string;
     createdAt: string;
+    // שני הסוגים נשמרים יחד תחת insights (תמציתי + מפורט).
+    insights?: {
+      CONCISE?: { content?: string } | null;
+      DETAILED?: { content?: string } | null;
+    } | null;
   } | null;
   recordings: {
     id: string;
@@ -147,6 +152,25 @@ interface SessionData {
       } | null;
     } | null;
   }[];
+}
+
+type AnalysisByType = { CONCISE?: string; DETAILED?: string };
+
+// חילוץ שני סוגי הניתוח (תמציתי/מפורט) מתוך הרשומה השמורה.
+function extractAnalyses(sa: SessionData["sessionAnalysis"]): AnalysisByType {
+  const out: AnalysisByType = {};
+  if (!sa) return out;
+  if (sa.insights?.CONCISE?.content) out.CONCISE = sa.insights.CONCISE.content;
+  if (sa.insights?.DETAILED?.content) out.DETAILED = sa.insights.DETAILED.content;
+  // תאימות לאחור: רשומות ישנות עם content בודד.
+  if (
+    sa.content &&
+    (sa.analysisType === "CONCISE" || sa.analysisType === "DETAILED") &&
+    !out[sa.analysisType]
+  ) {
+    out[sa.analysisType] = sa.content;
+  }
+  return out;
 }
 
 export default function SessionDetailPage({
@@ -164,6 +188,8 @@ export default function SessionDetailPage({
   const [noteAnalysis, setNoteAnalysis] = useState<NoteAnalysis | null>(null);
   const [isAnalyzing, setIsAnalyzing] = useState(false);
   const [isRegenerating, setIsRegenerating] = useState(false);
+  const [analysesByType, setAnalysesByType] = useState<AnalysisByType>({});
+  const [viewType, setViewType] = useState<"CONCISE" | "DETAILED">("CONCISE");
   const [userTier, setUserTier] = useState<'ESSENTIAL' | 'PRO' | 'ENTERPRISE'>('ESSENTIAL');
   const [autoSaveStatus, setAutoSaveStatus] = useState<'saved' | 'unsaved' | 'saving' | 'idle'>('idle');
   const autoSaveTimer = useRef<ReturnType<typeof setTimeout> | null>(null);
@@ -181,9 +207,12 @@ export default function SessionDetailPage({
           // "שינויים לא שמורים" מיד עם פתיחת פגישה שכבר שמורה (תיקון תזמון effect).
           lastSavedContent.current = data.sessionNote?.content || "";
           setStatus(data.status);
-          // Load saved AI analysis if exists (from sessionAnalysis table or legacy aiAnalysis field)
+          // טעינת ניתוחי AI שמורים. שני הסוגים (תמציתי/מפורט) נטענים יחד כדי לאפשר מעבר ביניהם.
           if (data.sessionAnalysis?.content) {
             setNoteAnalysis({ content: data.sessionAnalysis.content, analysisType: data.sessionAnalysis.analysisType });
+            const byType = extractAnalyses(data.sessionAnalysis);
+            setAnalysesByType(byType);
+            setViewType(data.sessionAnalysis.analysisType === "DETAILED" ? "DETAILED" : "CONCISE");
           } else if (data.sessionNote?.aiAnalysis) {
             setNoteAnalysis(data.sessionNote.aiAnalysis);
           }
@@ -296,10 +325,13 @@ export default function SessionDetailPage({
         const data = await response.json();
         setSession(data);
         setStatus(data.status);
-        // אחרי ניתוח חדש: עדכון לוח ה-AI מיד, כדי שהניתוח יופיע על הלוח
-        // ויישאר שם גם לאחר סגירת החלון הקופץ (ולא רק אחרי רענון דף).
+        // אחרי ניתוח חדש: עדכון מיידי של שני הסוגים על הלוח (כדי שיישארו גם אחרי סגירת החלון).
         if (data.sessionAnalysis?.content) {
           setNoteAnalysis({ content: data.sessionAnalysis.content, analysisType: data.sessionAnalysis.analysisType });
+          const byType = extractAnalyses(data.sessionAnalysis);
+          setAnalysesByType(byType);
+          const lastType = data.sessionAnalysis.analysisType;
+          if (lastType === "DETAILED" || lastType === "CONCISE") setViewType(lastType);
         } else if (data.sessionNote?.aiAnalysis) {
           setNoteAnalysis(data.sessionNote.aiAnalysis);
         }
@@ -377,28 +409,30 @@ export default function SessionDetailPage({
     }
   };
 
-  // העתקת תוכן הניתוח ללוח — זמין ישירות מלוח ה-AI
+  // העתקת תוכן הניתוח המוצג כעת ללוח — זמין ישירות מלוח ה-AI
   const handleCopyAnalysis = () => {
-    if (!noteAnalysis?.content) return;
-    navigator.clipboard.writeText(noteAnalysis.content);
+    const text = analysesByType[viewType] ?? noteAnalysis?.content;
+    if (!text) return;
+    navigator.clipboard.writeText(text);
     toast.success("הועתק ללוח");
   };
 
-  // יצירת הניתוח מחדש (אותו סוג) ישירות מהלוח. המגבלות נאכפות בצד השרת.
+  // יצירת הניתוח המוצג כעת מחדש (אותו סוג) ישירות מהלוח. המגבלות נאכפות בצד השרת.
   const handleRegenerateAnalysis = async () => {
-    const type = noteAnalysis?.analysisType === "DETAILED" ? "DETAILED" : "CONCISE";
     setIsRegenerating(true);
     try {
       const response = await fetch("/api/ai/session/analyze", {
         method: "POST",
         headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ sessionId: id, analysisType: type, force: true }),
+        body: JSON.stringify({ sessionId: id, analysisType: viewType, force: true }),
       });
       const data = await response.json().catch(() => ({}));
       if (!response.ok) {
         throw new Error(data?.message || data?.error || "שגיאה בניתוח");
       }
-      setNoteAnalysis({ content: data.analysis.content, analysisType: data.analysis.analysisType });
+      const newContent = data.analysis?.content ?? "";
+      setAnalysesByType((prev) => ({ ...prev, [viewType]: newContent }));
+      setNoteAnalysis({ content: newContent, analysisType: viewType });
       toast.success("הניתוח נוצר מחדש");
     } catch (error: unknown) {
       toast.error(error instanceof Error ? error.message : "שגיאה בניתוח");
@@ -420,6 +454,7 @@ export default function SessionDetailPage({
   const hasTranscription = session.recordings?.some(r => r.transcription);
   const analysis = session.recordings?.[0]?.transcription?.analysis;
   const isFutureSession = new Date(session.startTime) > new Date() && (session.status === "SCHEDULED" || session.status === "PENDING_APPROVAL");
+  const hasBothAnalyses = !!(analysesByType.CONCISE && analysesByType.DETAILED);
 
   return (
     <div className="space-y-6 animate-fade-in">
@@ -542,11 +577,6 @@ export default function SessionDetailPage({
                       <CardTitle className="flex items-center gap-2">
                         <Brain className="h-5 w-5 text-primary" />
                         ניתוח AI
-                        {noteAnalysis.analysisType && (
-                          <Badge variant="outline" className="text-xs">
-                            {noteAnalysis.analysisType === 'CONCISE' ? 'תמציתי' : 'מפורט'}
-                          </Badge>
-                        )}
                       </CardTitle>
                       <SessionAnalysisButtons
                         sessionId={session.id}
@@ -557,9 +587,41 @@ export default function SessionDetailPage({
                     <CardDescription>ניתוח אוטומטי של סיכום הפגישה</CardDescription>
                   </CardHeader>
                   <CardContent className="space-y-4 max-h-[600px] overflow-y-auto">
-                    {/* Plain text content (new format) */}
+                    {/* תוכן הניתוח (פורמט חדש) — תמציתי/מפורט עם מעבר ביניהם */}
                     {noteAnalysis.content ? (
                       <div className="space-y-3">
+                        {/* בורר בין תמציתי למפורט — מוצג כששני הניתוחים קיימים */}
+                        {hasBothAnalyses ? (
+                          <div className="grid grid-cols-2 gap-1 rounded-lg bg-muted p-1">
+                            <button
+                              type="button"
+                              onClick={() => setViewType("CONCISE")}
+                              className={`rounded-md px-3 py-1.5 text-sm font-medium transition ${
+                                viewType === "CONCISE"
+                                  ? "bg-background text-foreground shadow-sm"
+                                  : "text-muted-foreground hover:text-foreground"
+                              }`}
+                            >
+                              📄 תמציתי
+                            </button>
+                            <button
+                              type="button"
+                              onClick={() => setViewType("DETAILED")}
+                              className={`rounded-md px-3 py-1.5 text-sm font-medium transition ${
+                                viewType === "DETAILED"
+                                  ? "bg-background text-foreground shadow-sm"
+                                  : "text-muted-foreground hover:text-foreground"
+                              }`}
+                            >
+                              📚 מפורט
+                            </button>
+                          </div>
+                        ) : (
+                          <Badge variant="outline" className="text-xs">
+                            {viewType === "CONCISE" ? "תמציתי" : "מפורט"}
+                          </Badge>
+                        )}
+
                         {/* פעולות על הניתוח — זמינות גם על הלוח, לא רק בחלון הקופץ */}
                         <div className="flex justify-end gap-2">
                           <Button variant="outline" size="sm" onClick={handleCopyAnalysis}>
@@ -580,7 +642,8 @@ export default function SessionDetailPage({
                             צור מחדש
                           </Button>
                         </div>
-                        <AiAnalysisContent text={noteAnalysis.content} />
+
+                        <AiAnalysisContent text={analysesByType[viewType] || noteAnalysis.content || ""} />
                       </div>
                     ) : (
                       /* Structured format (legacy) */

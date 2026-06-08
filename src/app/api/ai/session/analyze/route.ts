@@ -1,5 +1,6 @@
 import { NextRequest, NextResponse } from "next/server";
 import { prisma } from "@/lib/prisma";
+import { Prisma } from "@prisma/client";
 import { GoogleGenerativeAI } from "@google/generative-ai";
 import { getApproachPrompts, getApproachById, buildIntegrationSection, getScalesPrompt, getUniversalPrompts } from "@/lib/therapeutic-approaches";
 import { checkTrialAiLimit, updateTrialAiCost } from "@/lib/trial-limits";
@@ -307,16 +308,28 @@ export async function POST(req: NextRequest) {
       return consent.response;
     }
 
-    // בדיקה אם כבר קיים ניתוח מאותו סוג (אלא אם ביקשו יצירה מחדש)
+    // בדיקה אם כבר קיים ניתוח מאותו סוג (אלא אם ביקשו יצירה מחדש).
+    // שני הסוגים (תמציתי/מפורט) נשמרים יחד תחת `insights`, כך שאחד לא דורס את השני.
     const existingAnalysis = await prisma.sessionAnalysis.findUnique({
       where: { sessionId: sessionId },
     });
 
-    if (!force && existingAnalysis && existingAnalysis.analysisType === analysisType) {
+    const existingInsights = (existingAnalysis?.insights ?? null) as Record<
+      string,
+      { content?: string }
+    > | null;
+    // האם כבר קיים ניתוח *מאותו הסוג* המבוקש? (ב-insights, או בשדה הלגאסי content)
+    const cachedContent =
+      existingInsights?.[analysisType]?.content ??
+      (existingAnalysis && existingAnalysis.analysisType === analysisType
+        ? existingAnalysis.content
+        : undefined);
+
+    if (!force && cachedContent) {
       await issueRefund();
       return NextResponse.json({
         success: true,
-        analysis: existingAnalysis,
+        analysis: { ...existingAnalysis, analysisType, content: cachedContent },
         cached: true,
       });
     }
@@ -396,6 +409,50 @@ export async function POST(req: NextRequest) {
 
     const cost = calculateCost(estimatedInputTokens, estimatedOutputTokens, selectedModel);
 
+    // מיזוג שני סוגי הניתוח לתוך `insights` — כדי שיצירת סוג אחד לא תמחק את השני.
+    // שדה content/analysisType נשאר עם הסוג שנוצר אחרון (תאימות לאחור).
+    const nowIso = new Date().toISOString();
+    const prevInsights = (existingAnalysis?.insights ?? {}) as Record<
+      string,
+      { content?: string; createdAt?: string; aiModel?: string }
+    >;
+    const mergedInsights: Record<
+      string,
+      { content: string; createdAt: string; aiModel: string }
+    > = {};
+    // מיגרציה: רשומה ישנה ששמרה רק content בודד — נשמר אותו תחת הסוג שלה.
+    if (
+      existingAnalysis?.content &&
+      (existingAnalysis.analysisType === "CONCISE" || existingAnalysis.analysisType === "DETAILED") &&
+      !prevInsights[existingAnalysis.analysisType]
+    ) {
+      mergedInsights[existingAnalysis.analysisType] = {
+        content: existingAnalysis.content,
+        createdAt:
+          existingAnalysis.createdAt instanceof Date
+            ? existingAnalysis.createdAt.toISOString()
+            : nowIso,
+        aiModel: existingAnalysis.aiModel,
+      };
+    }
+    // שמירת ניתוחים קיימים מ-insights.
+    for (const key of ["CONCISE", "DETAILED"] as const) {
+      const entry = prevInsights[key];
+      if (entry?.content) {
+        mergedInsights[key] = {
+          content: entry.content,
+          createdAt: entry.createdAt ?? nowIso,
+          aiModel: entry.aiModel ?? existingAnalysis?.aiModel ?? selectedModel,
+        };
+      }
+    }
+    // הסוג שנוצר כעת — דורס רק את אותו הסוג.
+    mergedInsights[analysisType] = {
+      content: analysis,
+      createdAt: nowIso,
+      aiModel: selectedModel,
+    };
+
     // שמירת הניתוח
     const savedAnalysis = await prisma.sessionAnalysis.upsert({
       where: { sessionId: sessionId },
@@ -404,6 +461,7 @@ export async function POST(req: NextRequest) {
         sessionId: sessionId,
         analysisType: analysisType,
         content: analysis,
+        insights: mergedInsights as Prisma.InputJsonValue,
         aiModel: selectedModel,
         tokensUsed: totalTokens,
         cost: cost,
@@ -411,6 +469,7 @@ export async function POST(req: NextRequest) {
       update: {
         analysisType: analysisType,
         content: analysis,
+        insights: mergedInsights as Prisma.InputJsonValue,
         aiModel: selectedModel,
         tokensUsed: totalTokens,
         cost: cost,
