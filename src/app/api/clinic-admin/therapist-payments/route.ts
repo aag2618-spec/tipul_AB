@@ -61,6 +61,7 @@ export async function GET() {
           email: true,
           clinicBillingMode: true,
           revenueSharePct: true,
+          businessType: true,
         },
         orderBy: [{ name: "asc" }],
       }),
@@ -118,6 +119,9 @@ export async function GET() {
                 t.clinicBillingMode,
                 cc.connected
               ),
+              // סוג העסק — כדי שהמסך יבחין בין עוסק פטור (קבלה פנימית, לא צריך
+              // מסוף) למטפל/ת שצריך/ה לחבר מסוף לאשראי. תצוגה בלבד.
+              businessType: t.businessType,
               revenueSharePct:
                 t.revenueSharePct === null || t.revenueSharePct === undefined
                   ? null

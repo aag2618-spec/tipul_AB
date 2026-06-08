@@ -25,6 +25,7 @@ interface TherapistRow {
   name: string | null;
   email: string;
   clinicBillingMode: BillingMode;
+  businessType: "NONE" | "EXEMPT" | "LICENSED";
   revenueSharePct: number | null;
   cardcom: { connected: boolean; mode: "sandbox" | "production" | null };
 }
@@ -277,8 +278,20 @@ export default function TherapistPaymentsPage() {
                       </p>
                     )}
                     <div className="mt-1">
-                      <StatusBadge mode={mode} cardcom={t.cardcom} />
+                      <StatusBadge
+                        mode={mode}
+                        cardcom={t.cardcom}
+                        businessType={t.businessType}
+                      />
                     </div>
+                    {mode === "OWN" &&
+                      !t.cardcom.connected &&
+                      t.businessType === "EXEMPT" && (
+                        <p className="text-xs text-muted-foreground mt-1">
+                          מזומן/צ׳ק/העברה — קבלה פנימית על שמה. לסליקת אשראי יש
+                          לחבר מסוף (לא חובה).
+                        </p>
+                      )}
                     {debtTracking && mode === "OWN" && (
                       <p className="text-xs text-muted-foreground mt-1">
                         להעברה לקליניקה: {cPct}% מהנגבה ·{" "}
@@ -322,8 +335,9 @@ export default function TherapistPaymentsPage() {
 
       <div className="flex flex-wrap items-center justify-between gap-3">
         <p className="text-xs text-muted-foreground max-w-xl">
-          השינוי חל על חיובים עתידיים בלבד. מטפל/ת ב״חשבון עצמאי״ שעדיין לא חיבר/ה
-          מסוף — לא יוכל/תוכל לגבות עד שיחבר/תחבר אותו ב״הגדרות ← חיבורים״.
+          השינוי חל על חיובים עתידיים בלבד. עוסק/ת פטור/ה ב״חשבון עצמאי״ מפיק/ה
+          קבלה פנימית על שמו/ה — גובה/ת מזומן/צ׳ק/העברה גם בלי מסוף. לסליקת אשראי
+          (וכן עוסק/ת מורשה/ת) יש לחבר מסוף ב״הגדרות ← חיבורים״.
         </p>
         <Button onClick={onSave} disabled={saving || !isDirty} aria-busy={saving}>
           {saving ? (
@@ -346,9 +360,11 @@ export default function TherapistPaymentsPage() {
 function StatusBadge({
   mode,
   cardcom,
+  businessType,
 }: {
   mode: BillingMode;
   cardcom: { connected: boolean; mode: "sandbox" | "production" | null };
+  businessType: "NONE" | "EXEMPT" | "LICENSED";
 }) {
   const base =
     "inline-flex items-center gap-1 rounded-full px-2 py-0.5 text-[11px] font-medium";
@@ -364,6 +380,18 @@ function StatusBadge({
 
   // mode === OWN
   if (!cardcom.connected) {
+    // עוסק/ת פטור/ה מפיק/ה קבלה פנימית על שמו/ה — מזומן/צ׳ק/העברה עובדים בלי
+    // מסוף סליקה, ולכן "פעיל", לא "ממתין". מסוף נדרש רק לסליקת אשראי.
+    if (businessType === "EXEMPT") {
+      return (
+        <span
+          className={`${base} bg-emerald-100 text-emerald-800 dark:bg-emerald-900/40 dark:text-emerald-300`}
+        >
+          <CheckCircle2 className="h-3 w-3" aria-hidden="true" />
+          פעיל — קבלות פנימיות (מסוף לא חובה)
+        </span>
+      );
+    }
     return (
       <span
         className={`${base} bg-amber-100 text-amber-800 dark:bg-amber-900/40 dark:text-amber-300`}
