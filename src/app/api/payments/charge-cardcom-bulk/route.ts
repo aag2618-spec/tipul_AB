@@ -216,14 +216,34 @@ export async function POST(request: NextRequest) {
     sharedOrganizationId,
   );
   if (!resolved) {
+    // מצב OWN בלי מסוף תקין → הודעה ייעודית (זהה למסלול charge-cardcom היחיד,
+    // החלטת מוצר D). העטיפה ב-try/catch כי זה מסלול-כשל — שגיאת DB נדירה לא
+    // תהפוך 400 ידידותי ל-500.
+    let isOwnModeInClinic = false;
+    try {
+      const intendedTherapist = await prisma.user.findUnique({
+        where: { id: intendedTherapistId },
+        select: { clinicBillingMode: true, organizationId: true },
+      });
+      isOwnModeInClinic =
+        !!intendedTherapist?.organizationId &&
+        intendedTherapist.clinicBillingMode === "OWN";
+    } catch {
+      isOwnModeInClinic = false;
+    }
     logger.warn("[payments/charge-cardcom-bulk] no Cardcom resolved → 400", {
       clientId,
       intendedTherapistId,
       organizationId: sharedOrganizationId,
       actorUserId: userId,
+      ownModeInClinic: isOwnModeInClinic,
     });
     return NextResponse.json(
-      { message: "לא הוגדר מסוף Cardcom — יש לחבר אותו בהגדרות אינטגרציות חיוב" },
+      {
+        message: isOwnModeInClinic
+          ? "המטפל/ת מוגדר/ת לגבות לחשבון העצמאי שלו/ה אך טרם חיבר/ה מסוף סליקה תקין. יש לחבר אותו בהגדרות ← חיבורים (או לפנות למנהל/ת הקליניקה)."
+          : "לא הוגדר מסוף Cardcom — יש לחבר אותו בהגדרות אינטגרציות חיוב",
+      },
       { status: 400 }
     );
   }

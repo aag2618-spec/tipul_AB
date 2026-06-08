@@ -115,10 +115,18 @@ export default function TherapistPaymentsPage() {
     try {
       const body = {
         therapistDebtTracking: debtTracking,
-        therapists: therapists.map((t) => ({
-          id: t.id,
-          clinicBillingMode: modes[t.id] ?? "CLINIC",
-        })),
+        // שולחים רק מטפלים שמצבם *השתנה* בפועל — כדי לא "לנעול" מטפל/ת במצב
+        // legacy (null) למצב מפורש בלי שהמנהלת בחרה בכך. מטפל/ת שלא נגעו בו/ה
+        // נשאר/ת כפי שהוא/היא ב-DB (וממשיך/ה בהתנהגות האוטומטית/legacy).
+        therapists: therapists
+          .filter(
+            (t) =>
+              (modes[t.id] ?? "CLINIC") !== (initialModes[t.id] ?? "CLINIC")
+          )
+          .map((t) => ({
+            id: t.id,
+            clinicBillingMode: modes[t.id] ?? "CLINIC",
+          })),
       };
       const res = await fetch("/api/clinic-admin/therapist-payments", {
         method: "PUT",
