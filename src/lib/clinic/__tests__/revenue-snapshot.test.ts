@@ -177,7 +177,9 @@ describe("applyRevenueShareSnapshot — totalPaid computation", () => {
     });
   });
 
-  it("sums only PAID children when children are present (ignores parent.amount)", async () => {
+  it("split credit+cash (PAID parent): adds parent own-portion on top of PAID children", async () => {
+    // תשלום מפוצל: מזומן 248 כ-child + אשראי 52 שנבלע ב-parent.amount (300).
+    // totalPaid = 248 (child) + 52 (own-portion) = 300 ⇒ 300×50% = 150.
     findUniqueMock.mockResolvedValue({
       id: "s1",
       organizationId: "org1",
@@ -185,6 +187,52 @@ describe("applyRevenueShareSnapshot — totalPaid computation", () => {
       organization: { defaultRevenueSharePct: null },
       payment: {
         status: "PAID",
+        amount: 300,
+        childPayments: [
+          { status: "PAID", amount: 248 },
+        ],
+      },
+    });
+    await applyRevenueShareSnapshot({ sessionId: "s1" });
+    expect(updateMock).toHaveBeenCalledWith({
+      where: { id: "s1" },
+      data: { therapistRevenueIls: 150 },
+    });
+  });
+
+  it("full installments (PAID parent, children sum to total): own-portion is 0, no double-count", async () => {
+    // children 150+150=300 == parent.amount ⇒ own-portion 0 ⇒ totalPaid 300 ⇒ 150.
+    findUniqueMock.mockResolvedValue({
+      id: "s1",
+      organizationId: "org1",
+      therapist: { revenueSharePct: 50 },
+      organization: { defaultRevenueSharePct: null },
+      payment: {
+        status: "PAID",
+        amount: 300,
+        childPayments: [
+          { status: "PAID", amount: 150 },
+          { status: "PAID", amount: 150 },
+        ],
+      },
+    });
+    await applyRevenueShareSnapshot({ sessionId: "s1" });
+    expect(updateMock).toHaveBeenCalledWith({
+      where: { id: "s1" },
+      data: { therapistRevenueIls: 150 },
+    });
+  });
+
+  it("PENDING parent: sums only PAID children, ignores unpaid debt AND own-portion", async () => {
+    // אב PENDING (טרם סולק) ⇒ ה-own-portion לא מתווסף; ילד PENDING (700) לא נספר.
+    // רק 100+200=300 נספרים ⇒ 300×50% = 150. שומר-הסף parent.status==="PAID".
+    findUniqueMock.mockResolvedValue({
+      id: "s1",
+      organizationId: "org1",
+      therapist: { revenueSharePct: 50 },
+      organization: { defaultRevenueSharePct: null },
+      payment: {
+        status: "PENDING",
         amount: 999,
         childPayments: [
           { status: "PAID", amount: 100 },

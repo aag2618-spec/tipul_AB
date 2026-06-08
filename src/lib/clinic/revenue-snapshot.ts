@@ -21,6 +21,7 @@ import "server-only";
 import prisma from "@/lib/prisma";
 import { logger } from "@/lib/logger";
 import { resolveRevenueSharePct } from "@/lib/clinic/revenue-share";
+import { calculateParentOwnPortion } from "@/lib/payment-utils";
 
 function toNullableNumber(input: unknown): number | null {
   if (input === null || input === undefined) return null;
@@ -94,6 +95,12 @@ export async function applyRevenueShareSnapshot(args: {
         if (c.status === "PAID") {
           totalPaid += Number(c.amount) || 0;
         }
+      }
+      // "חלק-האב": אשראי בתשלום מפוצל שנבלע ב-parent.amount ולא תועד כ-child.
+      // מתווסף רק כשההורה PAID (הפגישה סולקה במלואה) — אחרת ה-ownPortion עלול
+      // לכלול חוב שטרם שולם. עקבי עם paymentRevenueContribution בצד הדוחות.
+      if (parent.status === "PAID") {
+        totalPaid += calculateParentOwnPortion(parent);
       }
     } else if (parent.status === "PAID") {
       totalPaid = Number(parent.amount) || 0;
