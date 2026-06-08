@@ -92,10 +92,20 @@ export async function GET(request: NextRequest) {
             startTime: true,
           },
         },
+        // כל הילדים (לא רק עם קבלה) — צריך amount+method לזיהוי תווית אמצעי
+        // התשלום בתשלום מפוצל/מרובה-פעימות. childReceipt למטה מסנן hasReceipt.
         childPayments: {
-          where: { hasReceipt: true },
-          select: { receiptNumber: true, receiptUrl: true },
+          select: { amount: true, method: true, status: true, hasReceipt: true, receiptNumber: true, receiptUrl: true },
+        },
+        // חלק-אב באשראי: בתשלום מפוצל credit-first ה-Cardcom יושב על האב
+        // ו-parent.method נדרס ל-CASH. עסקת Cardcom מאושרת/מוחזרת על האב ⇒
+        // חלק-האב אשראי. משתמשים ב-CardcomTransaction (ולא ב-CardcomInvoice) כי
+        // אישור עשוי לסמן 'שולם' בלי מסמך (מסמך מושהה / LICENSED בלי ח.פ) —
+        // עקבי עם /api/payments/[id]/cardcom-transaction שעליו ה-UI מסתמך.
+        cardcomTransactions: {
+          where: { tenant: "USER", status: { in: ["APPROVED", "REFUNDED"] } },
           take: 1,
+          select: { id: true },
         },
       },
     });
@@ -108,6 +118,32 @@ export async function GET(request: NextRequest) {
       CHECK: "צ'ק",
       CREDIT: "קרדיט",
       OTHER: "אחר",
+    };
+
+    // תווית אמצעי-תשלום מודעת-פיצול: רשומת-אב יכולה לגלגל כמה אמצעים (אשראי
+    // על האב + מזומן כ-child, או להפך). אוספים את האמצעים בפועל: חלק-האב
+    // (cardcomInvoices ⇒ אשראי, אחרת parent.method) + ה-method של כל ילד.
+    // מחזירים תווית בודדת, או "אשראי + מזומן" לתשלום מעורב. לא משנה סכומים.
+    const resolveMethodLabel = (p: {
+      amount: unknown;
+      method: string;
+      cardcomTransactions?: { id: string }[];
+      childPayments?: { amount: unknown; method: string; status: string }[];
+    }): string => {
+      // רק ילדים ששולמו (PAID) מרכיבים את parent.amount; ילד אשראי-ממתין או
+      // מוחזר לא תרם לסכום המוצג ולכן לא קובע את התווית.
+      const paidChildren = (p.childPayments ?? []).filter((c) => c.status === "PAID");
+      const childSum = paidChildren.reduce((s, c) => s + Number(c.amount || 0), 0);
+      const ownPortion = Number(p.amount) - childSum;
+      const methods = new Set<string>();
+      if (ownPortion > 0.005) {
+        methods.add(p.cardcomTransactions?.length ? "CREDIT_CARD" : p.method);
+      }
+      for (const c of paidChildren) {
+        if (Number(c.amount) > 0.005) methods.add(c.method);
+      }
+      if (methods.size === 0) methods.add(p.method);
+      return [...methods].map((m) => methodNames[m] || m).join(" + ");
     };
 
     const statusNames: Record<string, string> = {
@@ -144,13 +180,13 @@ export async function GET(request: NextRequest) {
 
     if (format === "json") {
       const data = payments.map((p) => {
-        const childReceipt = p.childPayments?.[0];
+        const childReceipt = p.childPayments?.find((c) => c.hasReceipt);
         return {
           תאריך: p.paidAt ? new Date(p.paidAt).toLocaleDateString("he-IL", { timeZone: "Asia/Jerusalem" }) : new Date(p.createdAt).toLocaleDateString("he-IL", { timeZone: "Asia/Jerusalem" }),
           שם_מטופל: p.client.name,
           סכום: Number(p.amount),
           סכום_צפוי: Number(p.expectedAmount || p.amount),
-          שיטת_תשלום: methodNames[p.method] || p.method,
+          שיטת_תשלום: resolveMethodLabel(p),
           סוג: typeNames[p.paymentType] || p.paymentType,
           סטטוס: statusNames[p.status] || p.status,
           מספר_קבלה: p.receiptNumber || childReceipt?.receiptNumber || "-",
@@ -180,7 +216,7 @@ export async function GET(request: NextRequest) {
     ];
 
     const rows = payments.map((p) => {
-      const childReceipt = p.childPayments?.[0];
+      const childReceipt = p.childPayments?.find((c) => c.hasReceipt);
       return [
         p.paidAt ? new Date(p.paidAt).toLocaleDateString("he-IL", { timeZone: "Asia/Jerusalem" }) : new Date(p.createdAt).toLocaleDateString("he-IL", { timeZone: "Asia/Jerusalem" }),
         p.client.name,
@@ -188,7 +224,7 @@ export async function GET(request: NextRequest) {
         p.client.phone || "-",
         Number(p.amount).toFixed(2),
         Number(p.expectedAmount || p.amount).toFixed(2),
-        methodNames[p.method] || p.method,
+        resolveMethodLabel(p),
         typeNames[p.paymentType] || p.paymentType,
         statusNames[p.status] || p.status,
         p.receiptNumber || childReceipt?.receiptNumber || "-",
