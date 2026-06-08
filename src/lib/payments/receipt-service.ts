@@ -282,7 +282,21 @@ export async function issueReceipt(params: {
     return { receiptNumber: null, receiptUrl: null, hasReceipt: false };
   }
 
-  if (cardcomIsPrimary && cardcomOwner) {
+  // ──────────────────────────────────────────────────────────────────
+  // עוסק פטור (EXEMPT) עם מסוף Cardcom *משלו* → קבלה פנימית, לא Cardcom.
+  // ──────────────────────────────────────────────────────────────────
+  // עוסק פטור הוא המנפיק החוקי של הקבלות שלו, ומספור רץ פנימי תקף ואינו דורש
+  // ספק מוסמך. לכן הגדרת המטפל גוברת על נוכחות Cardcom — Cardcom נשאר מחובר
+  // לסליקת אשראי בלבד (מסמך האשראי נוצר במסלול charge-cardcom, לא כאן). זו גם
+  // ההתנהגות שהייתה עם iCount; הכפייה ל-Cardcom (commit 79c139de/372e550a)
+  // הוחלה רק על Cardcom. מגבילים ל-מסוף *של המטפל עצמו* (ownerUserId===userId)
+  // כדי לא לשבור קליניקות שבהן עוסק פטור ללא מסוף גובה דרך מסוף בעל הקליניקה —
+  // שם ה-fallback של resolveCardcomReceiptOwner נשמר כמו שהיה.
+  const exemptSelfIssuer =
+    therapist.businessType === "EXEMPT" &&
+    cardcomOwner?.ownerUserId === params.userId;
+
+  if (cardcomIsPrimary && cardcomOwner && !exemptSelfIssuer) {
     if (cardcomOwner.fellbackToOrgOwner) {
       logger.info("[issueReceipt] using clinic-owner Cardcom for receipt", {
         paymentId: params.paymentId,

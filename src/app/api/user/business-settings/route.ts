@@ -46,7 +46,12 @@ export async function GET() {
       businessAddress: user.businessAddress || "",
       nextReceiptNumber: user.nextReceiptNumber || 1,
       receiptDefaultMode: user.receiptDefaultMode || "ASK",
-      externalReceiptProvider: hasActiveCardcom > 0 ? "CARDCOM" : null,
+      // עוסק פטור (EXEMPT) מנפיק קבלות פנימיות עם מספור רץ — תקף בלי ספק מוסמך —
+      // לכן לא כופים עליו את מסלול Cardcom גם כשמחובר מסוף משלו (Cardcom נשאר
+      // לסליקת אשראי). רק LICENSED חייב לנתב ל-Cardcom כמנפיק חשבונית-מס מוסמך.
+      // עקבי עם issueReceipt ב-receipt-service.ts וההתנהגות ההיסטורית עם iCount.
+      externalReceiptProvider:
+        hasActiveCardcom > 0 && user.businessType !== "EXEMPT" ? "CARDCOM" : null,
     });
   } catch (error) {
     logger.error("Get business settings error:", { error: error instanceof Error ? error.message : String(error) });
