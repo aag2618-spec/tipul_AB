@@ -8,6 +8,7 @@ import { Button } from "@/components/ui/button";
 import { Lock } from "lucide-react";
 import { getIsraelYear, parseIsraelTime } from "@/lib/date-utils";
 import { EXCLUDE_BULK_UMBRELLA_WHERE } from "@/lib/payments/types";
+import { paymentRevenueContribution } from "@/lib/payment-utils";
 import {
   loadScopeUser,
   buildClientWhere,
@@ -75,7 +76,7 @@ async function getReportData(scopeUser: ScopeUser, personalOnly: boolean): Promi
           createdAt: true,
           parentPaymentId: true,
           session: { select: { startTime: true } },
-          _count: { select: { childPayments: true } },
+          childPayments: { select: { amount: true, status: true } },
         },
       }),
       prisma.client.findMany({
@@ -120,30 +121,27 @@ async function getReportData(scopeUser: ScopeUser, personalOnly: boolean): Promi
       const cancelled = monthSessions.filter(s => s.status === "CANCELLED").length;
       const total = monthSessions.length;
 
-      // ספירת תשלומים אמיתיים בלבד: ילדים (חלקיים) + הורים ללא ילדים (מלאים)
-      // מונע כפילות: הורה עם ילדים לא נספר כי הילדים כבר נספרים
+      // סכום ההכנסה בפועל לחודש. paymentRevenueContribution נותן: לילד/הורה-
+      // ללא-ילדים → amount; להורה-מגלגל → רק "חלק-האב" (האשראי בתשלום מפוצל
+      // שנבלע ב-parent.amount). כך אין כפילות ולא מאבדים את חלק האשראי.
       const paidAmount = allPayments
         .filter(p =>
-          p.status === "PAID" && p.paidAt && p.paidAt.getTime() >= msStart && p.paidAt.getTime() <= msEnd &&
-          (p.parentPaymentId !== null || p._count.childPayments === 0)
+          p.status === "PAID" && p.paidAt && p.paidAt.getTime() >= msStart && p.paidAt.getTime() <= msEnd
         )
-        .reduce((sum, p) => sum + Number(p.amount), 0);
+        .reduce((sum, p) => sum + paymentRevenueContribution(p), 0);
 
       // accrual: ההכנסה משויכת לחודש שבו ניתן השירות (מועד הפגישה).
       // אם התשלום לא קשור לפגישה (חבילה/תשלום ידני) — fallback ל-paidAt
-      // כדי לא לאבד אותו.
+      // כדי לא לאבד אותו. paymentRevenueContribution מטפל בהורה-מגלגל (חלק-אב).
       const accrualAmount = allPayments
-        .filter(p =>
-          p.status === "PAID" && p.paidAt &&
-          (p.parentPaymentId !== null || p._count.childPayments === 0)
-        )
+        .filter(p => p.status === "PAID" && p.paidAt)
         .filter(p => {
           const refDate = p.session?.startTime ?? p.paidAt;
           if (!refDate) return false;
           const t = refDate.getTime();
           return t >= msStart && t <= msEnd;
         })
-        .reduce((sum, p) => sum + Number(p.amount), 0);
+        .reduce((sum, p) => sum + paymentRevenueContribution(p), 0);
       const pendingAmount = allPayments
         .filter(p => p.status === "PENDING" && p.createdAt.getTime() >= msStart && p.createdAt.getTime() <= msEnd)
         .reduce((sum, p) => sum + (Number(p.expectedAmount) || Number(p.amount)) - Number(p.amount), 0);
@@ -171,7 +169,7 @@ async function getReportData(scopeUser: ScopeUser, personalOnly: boolean): Promi
     const completedTotal = allSessions.filter(s => s.status === "COMPLETED").length;
     const cancelledTotal = allSessions.filter(s => s.status === "CANCELLED").length;
     const totalSessionsAll = allSessions.length;
-    const paidTotal = allPayments.filter(p => p.status === "PAID" && (p.parentPaymentId !== null || p._count.childPayments === 0)).reduce((sum, p) => sum + Number(p.amount), 0);
+    const paidTotal = allPayments.filter(p => p.status === "PAID").reduce((sum, p) => sum + paymentRevenueContribution(p), 0);
     const pendingTotal = allPayments.filter(p => p.status === "PENDING").reduce((sum, p) => sum + (Number(p.expectedAmount) || Number(p.amount)) - Number(p.amount), 0);
     const allPaymentsTotal = paidTotal + pendingTotal;
 
