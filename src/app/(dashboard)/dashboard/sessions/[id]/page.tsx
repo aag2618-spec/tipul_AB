@@ -18,7 +18,7 @@ import {
   AlertDialogHeader,
   AlertDialogTitle,
 } from "@/components/ui/alert-dialog";
-import { Calendar, Clock, User, Mic, FileText, Save, Loader2, Sparkles, Brain, TrendingUp, TrendingDown, Minus, AlertTriangle, MessageCircleQuestion, Lightbulb, Shield, Target, Users } from "lucide-react";
+import { Calendar, Clock, User, Mic, FileText, Save, Loader2, Sparkles, Brain, TrendingUp, TrendingDown, Minus, AlertTriangle, MessageCircleQuestion, Lightbulb, Shield, Target, Users, RefreshCw } from "lucide-react";
 import { format } from "date-fns";
 import { he } from "date-fns/locale";
 import { toast } from "sonner";
@@ -163,6 +163,7 @@ export default function SessionDetailPage({
   const [status, setStatus] = useState("");
   const [noteAnalysis, setNoteAnalysis] = useState<NoteAnalysis | null>(null);
   const [isAnalyzing, setIsAnalyzing] = useState(false);
+  const [isRegenerating, setIsRegenerating] = useState(false);
   const [userTier, setUserTier] = useState<'ESSENTIAL' | 'PRO' | 'ENTERPRISE'>('ESSENTIAL');
   const [autoSaveStatus, setAutoSaveStatus] = useState<'saved' | 'unsaved' | 'saving' | 'idle'>('idle');
   const autoSaveTimer = useRef<ReturnType<typeof setTimeout> | null>(null);
@@ -376,6 +377,36 @@ export default function SessionDetailPage({
     }
   };
 
+  // העתקת תוכן הניתוח ללוח — זמין ישירות מלוח ה-AI
+  const handleCopyAnalysis = () => {
+    if (!noteAnalysis?.content) return;
+    navigator.clipboard.writeText(noteAnalysis.content);
+    toast.success("הועתק ללוח");
+  };
+
+  // יצירת הניתוח מחדש (אותו סוג) ישירות מהלוח. המגבלות נאכפות בצד השרת.
+  const handleRegenerateAnalysis = async () => {
+    const type = noteAnalysis?.analysisType === "DETAILED" ? "DETAILED" : "CONCISE";
+    setIsRegenerating(true);
+    try {
+      const response = await fetch("/api/ai/session/analyze", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ sessionId: id, analysisType: type, force: true }),
+      });
+      const data = await response.json().catch(() => ({}));
+      if (!response.ok) {
+        throw new Error(data?.message || data?.error || "שגיאה בניתוח");
+      }
+      setNoteAnalysis({ content: data.analysis.content, analysisType: data.analysis.analysisType });
+      toast.success("הניתוח נוצר מחדש");
+    } catch (error: unknown) {
+      toast.error(error instanceof Error ? error.message : "שגיאה בניתוח");
+    } finally {
+      setIsRegenerating(false);
+    }
+  };
+
   if (isLoading) {
     return (
       <div className="h-[50vh] flex items-center justify-center">
@@ -528,7 +559,29 @@ export default function SessionDetailPage({
                   <CardContent className="space-y-4 max-h-[600px] overflow-y-auto">
                     {/* Plain text content (new format) */}
                     {noteAnalysis.content ? (
-                      <AiAnalysisContent text={noteAnalysis.content} />
+                      <div className="space-y-3">
+                        {/* פעולות על הניתוח — זמינות גם על הלוח, לא רק בחלון הקופץ */}
+                        <div className="flex justify-end gap-2">
+                          <Button variant="outline" size="sm" onClick={handleCopyAnalysis}>
+                            📋 העתק
+                          </Button>
+                          <Button
+                            variant="outline"
+                            size="sm"
+                            onClick={handleRegenerateAnalysis}
+                            disabled={isRegenerating}
+                            className="gap-2"
+                          >
+                            {isRegenerating ? (
+                              <Loader2 className="h-4 w-4 animate-spin" />
+                            ) : (
+                              <RefreshCw className="h-4 w-4" />
+                            )}
+                            צור מחדש
+                          </Button>
+                        </div>
+                        <AiAnalysisContent text={noteAnalysis.content} />
+                      </div>
                     ) : (
                       /* Structured format (legacy) */
                       <>
