@@ -203,7 +203,7 @@ export function exportAccountantPDF(
   quarter?: number
 ) {
   // Filter by year/quarter — Israel calendar
-  let filtered = payments.filter((p) => {
+  const filtered = payments.filter((p) => {
     if (!p.paidAt) return false;
     const paidDate = new Date(p.paidAt);
     if (getIsraelYear(paidDate) !== year) return false;
@@ -404,6 +404,9 @@ export function exportSummariesDocument(
 // ============ ACCOUNTANT REPORT (from Receipts page) ============
 function getReceiptSource(url: string | null): string {
   if (!url) return "פנימית";
+  // Cardcom — כתובת ישירה (secure.cardcom...) או נתיב ה-PDF הדינמי שלנו
+  // (.../cardcom-receipt-pdf). שניהם מסמך Cardcom חוקי.
+  if (url.toLowerCase().includes("cardcom")) return "Cardcom";
   if (url.startsWith("/")) return "פנימית";
   try {
     const hostname = new URL(url).hostname.toLowerCase();

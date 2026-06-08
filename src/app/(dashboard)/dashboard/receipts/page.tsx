@@ -68,6 +68,9 @@ interface ReceiptPayment {
     startTime: string;
   } | null;
   cardcomInvoices?: CardcomInvoiceRef[];
+  /** עסקת חיוב Cardcom מאושרת/מוחזרת — קיימת רק לאשראי אמיתי, לא למזומן
+   * (גם כשמונפקת על המזומן קבלת Cardcom). סימן אמין ל"חלק-אב = אשראי". */
+  cardcomTransactions?: { id: string }[];
   /** כש-2+ payments התאחדו לקבלה אחת (תשלום מצרפי) — IDs המקוריים. */
   mergedFromIds?: string[];
   /** מספר הפגישות המצרפיות המאוחדות בקבלה (1 = רגיל, 2+ = מצרפי). */
@@ -157,25 +160,44 @@ function buildReceiptExportData(payments: ReceiptPayment[]): ReceiptExportData[]
     let displayAmount = rawAmount;
     // legacy children-subtraction (ל-payments שלא עברו merge — בעיקר
     // partial-cash כש-parent כולל את ה-roll-up של children).
+    // isCreditOwnPortion: חלק-האב בפיצול שה-method שלו נדרס ל-CASH ע"י פעימת
+    // המזומן, אך באמת חויב באשראי. הסימן האמין = עסקת חיוב Cardcom מאושרת על
+    // האב. (cardcomInvoices לא מתאים — מונפקת קבלת Cardcom גם על מזומן.)
+    let isCreditOwnPortion = false;
     if (!p.parentPaymentId && (!p.mergedSessionsCount || p.mergedSessionsCount <= 1)) {
       const kids = payments.filter((c) => c.parentPaymentId === p.id);
       if (kids.length > 0) {
         const kSum = kids.reduce((s, c) => s + Number(c.amount), 0);
         const orig = rawAmount - kSum;
-        displayAmount = orig > 0 ? orig : rawAmount;
+        if (orig > 0) {
+          displayAmount = orig;
+          isCreditOwnPortion =
+            !!p.cardcomTransactions?.length && p.method !== "CREDIT_CARD";
+        }
       }
     }
     const bulkPart: ReceiptExportData["bulkPart"] =
       p.mergedSessionsCount && p.mergedSessionsCount > 1
         ? { index: 1, total: p.mergedSessionsCount, totalAmount: rawAmount }
         : null;
+    // מקור/קישור: כשהקבלה הופקה ב-Cardcom (cardcomInvoices) מספקים קישור
+    // Cardcom — viewUrl/pdfUrl, או נתיב ה-PDF הדינמי שלנו — כדי שלא יוצג
+    // "פנימית" בלי קישור. getReceiptSource מזהה "cardcom" בכתובת ומתייג "Cardcom".
+    const cardcomInv = p.cardcomInvoices?.[0];
+    const origin =
+      typeof window !== "undefined" ? window.location.origin : "https://mytipul.com";
+    const cardcomUrl = cardcomInv
+      ? cardcomInv.viewUrl ||
+        cardcomInv.pdfUrl ||
+        `${origin}/api/payments/${p.id}/cardcom-receipt-pdf`
+      : null;
     return {
       amount: displayAmount,
-      method: p.method,
+      method: isCreditOwnPortion ? "CREDIT_CARD" : p.method,
       paidAt: p.paidAt,
       createdAt: p.createdAt,
       receiptNumber: p.receiptNumber,
-      receiptUrl: p.receiptUrl,
+      receiptUrl: p.receiptUrl || cardcomUrl,
       clientName: p.client.name,
       bulkPart,
     };

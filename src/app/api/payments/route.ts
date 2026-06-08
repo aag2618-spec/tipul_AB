@@ -141,6 +141,16 @@ export async function GET() {
             viewUrl: true,
           },
         },
+        // האם יש עסקת חיוב Cardcom מאושרת/מוחזרת על התשלום — סימן אמין לאשראי.
+        // להבדיל מ-cardcomInvoices: כשמטפל/ת מחובר/ת ל-Cardcom בלי קבלות
+        // פנימיות, מונפקת קבלת Cardcom גם על מזומן (⇒ invoice קיים), אבל עסקת
+        // חיוב נוצרת רק כשבאמת חויב כרטיס. משמש את דוח הרו"ח לתייג נכון את
+        // חלק-האב המפוצל שה-method שלו נדרס ל-CASH.
+        cardcomTransactions: {
+          where: { tenant: "USER", status: { in: ["APPROVED", "REFUNDED"] } },
+          take: 1,
+          select: { id: true },
+        },
       },
     });
 
