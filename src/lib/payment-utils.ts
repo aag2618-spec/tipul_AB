@@ -74,3 +74,60 @@ export function calculatePaidAmount(payment: {
   }
   return amount;
 }
+
+/**
+ * האם רשומת-אב שמגלגלת תחתיה תשלומי-ילדים (parentPaymentId===null ויש לפחות
+ * ילד אחד). דוחות הכנסה סופרים כל ילד בנפרד, ולכן עבור הורה כזה אסור לספור
+ * את amount המלא שלו (כפילות) — סופרים רק את "חלק-האב" (calculateParentOwnPortion).
+ */
+export function isRollupParentPayment(payment: {
+  parentPaymentId?: string | null;
+  childPayments?: Array<unknown> | null;
+}): boolean {
+  return (
+    (payment.parentPaymentId ?? null) === null &&
+    (payment.childPayments?.length ?? 0) > 0
+  );
+}
+
+/**
+ * "חלק-האב" בתשלום מפוצל — הסכום ששולם ישירות על רשומת-האב ולא תועד כשורת-ילד.
+ * המקרה הקלאסי: אשראי (Cardcom) שחויב על האב לפני שנוספו תשלומי מזומן כ-children;
+ * האשראי נבלע ב-amount של האב ואינו מופיע כ-child, ולכן דוחות שסוכמים רק ילדים
+ * מאבדים אותו. השווי = amount של האב פחות סכום הילדים ששולמו.
+ *   • תשלום רגיל (הילדים מסתכמים ל-amount)        → 0
+ *   • תשלום ללא ילדים                              → 0 (נספר ישירות ע"י amount)
+ *   • תשלום מפוצל אשראי+מזומן (₪52 על האב)         → 52
+ * תמיד אי-שלילי.
+ */
+export function calculateParentOwnPortion(payment: {
+  amount: unknown;
+  childPayments?: Array<{ amount: unknown; status?: string }> | null;
+}): number {
+  const children = payment.childPayments ?? [];
+  if (children.length === 0) return 0;
+  const amount = Number(payment.amount) || 0;
+  // רק ילדים ב-PAID (עקבי עם calculatePaidAmount). זה הנכון מול זרימת ההחזר:
+  // החזר ילד-אשראי מקזז את parent.amount (un-bump), והחזר אשראי-על-האב מסמן
+  // את ההורה REFUNDED — כך amount תמיד נטו וחלק-האב לא מנופח.
+  const childrenPaidSum = children
+    .filter((c) => c.status === "PAID")
+    .reduce((sum, c) => sum + (Number(c.amount) || 0), 0);
+  return Math.max(0, Math.round((amount - childrenPaidSum) * 100) / 100);
+}
+
+/**
+ * תרומת רשומת תשלום בודדת לסך ההכנסה, כשסוכמים רשימה שכוללת גם ילדים, גם
+ * הורים-ללא-ילדים וגם הורים-מגלגלים. לילד / הורה-ללא-ילדים → amount. להורה
+ * מגלגל → רק חלק-האב (הילדים נספרים בנפרד). כך אין כפילות ואין החסרה של
+ * חלק האשראי בתשלום מפוצל. שימוש: reduce((s,p) => s + paymentRevenueContribution(p), 0).
+ */
+export function paymentRevenueContribution(payment: {
+  amount: unknown;
+  parentPaymentId?: string | null;
+  childPayments?: Array<{ amount: unknown; status?: string }> | null;
+}): number {
+  return isRollupParentPayment(payment)
+    ? calculateParentOwnPortion(payment)
+    : Number(payment.amount) || 0;
+}

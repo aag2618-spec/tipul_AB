@@ -6,6 +6,7 @@ import { getIsraelYear, getIsraelMonth } from "@/lib/date-utils";
 import { requireAuth } from "@/lib/api-auth";
 import { buildPaymentWhere, loadScopeUser } from "@/lib/scope";
 import { EXCLUDE_BULK_UMBRELLA_WHERE } from "@/lib/payments/types";
+import { paymentRevenueContribution, isRollupParentPayment } from "@/lib/payment-utils";
 
 export const dynamic = "force-dynamic";
 
@@ -35,6 +36,9 @@ export async function GET(request: NextRequest) {
             OR: [
               { parentPaymentId: { not: null } },
               { parentPaymentId: null, childPayments: { none: {} } },
+              // הורים-מגלגלים נכללים כדי לתפוס "חלק-אב" בתשלום מפוצל (אשראי
+              // שחויב על האב לפני שנוספו תשלומי מזומן). נספר רק ה-ownPortion.
+              { parentPaymentId: null, childPayments: { some: {} } },
             ],
           },
           {
@@ -49,6 +53,8 @@ export async function GET(request: NextRequest) {
         amount: true,
         paidAt: true,
         createdAt: true,
+        parentPaymentId: true,
+        childPayments: { select: { amount: true, status: true } },
       },
     });
 
@@ -66,7 +72,10 @@ export async function GET(request: NextRequest) {
       );
     });
 
-    const total = thisMonthPaid.reduce((sum, p) => sum + Number(p.amount), 0);
+    // sum: לילד/הורה-ללא-ילדים → amount; להורה-מגלגל → רק חלק-האב (האשראי
+    // המפוצל). count: בלי הורים-מגלגלים (הילדים שלהם כבר נספרים) — נשאר כשהיה.
+    const total = thisMonthPaid.reduce((sum, p) => sum + paymentRevenueContribution(p), 0);
+    const thisMonthCount = thisMonthPaid.filter((p) => !isRollupParentPayment(p)).length;
 
     // פירוט לפי חודשים (לגרף) - אם מבקשים months > 1
     if (monthsParam > 1) {
@@ -87,17 +96,18 @@ export async function GET(request: NextRequest) {
           );
         });
 
-        const monthTotal = monthPaid.reduce((sum, p) => sum + Number(p.amount), 0);
+        const monthTotal = monthPaid.reduce((sum, p) => sum + paymentRevenueContribution(p), 0);
         const key = `${tYear}-${String(tMonth1to12).padStart(2, "0")}`;
-        breakdown.push({ month: key, total: monthTotal, count: monthPaid.length });
+        const monthCount = monthPaid.filter((p) => !isRollupParentPayment(p)).length;
+        breakdown.push({ month: key, total: monthTotal, count: monthCount });
       }
 
-      return NextResponse.json({ total, count: thisMonthPaid.length, breakdown });
+      return NextResponse.json({ total, count: thisMonthCount, breakdown });
     }
 
     return NextResponse.json({
       total,
-      count: thisMonthPaid.length,
+      count: thisMonthCount,
     });
   } catch (error) {
     logger.error("Get monthly total error:", { error: error instanceof Error ? error.message : String(error) });

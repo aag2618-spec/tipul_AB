@@ -4,6 +4,9 @@ import {
   calculateSessionDebt,
   calculateDebtFromSessions,
   calculatePaidAmount,
+  isRollupParentPayment,
+  calculateParentOwnPortion,
+  paymentRevenueContribution,
 } from '@/lib/payment-utils';
 
 describe('calculateDebtFromPayments', () => {
@@ -139,5 +142,123 @@ describe('calculatePaidAmount', () => {
         ],
       })
     ).toBe(75);
+  });
+});
+
+describe('isRollupParentPayment', () => {
+  it('parent with children → true', () => {
+    expect(
+      isRollupParentPayment({ parentPaymentId: null, childPayments: [{}] })
+    ).toBe(true);
+  });
+
+  it('childless parent → false', () => {
+    expect(
+      isRollupParentPayment({ parentPaymentId: null, childPayments: [] })
+    ).toBe(false);
+    expect(isRollupParentPayment({ parentPaymentId: null })).toBe(false);
+  });
+
+  it('child row → false', () => {
+    expect(
+      isRollupParentPayment({ parentPaymentId: 'p1', childPayments: [] })
+    ).toBe(false);
+  });
+});
+
+describe('calculateParentOwnPortion', () => {
+  it('split payment (credit on parent + cash child) → the parent slice', () => {
+    // ₪52 אשראי על האב + ₪248 מזומן כ-child, סה"כ ₪300 → חלק-אב 52
+    expect(
+      calculateParentOwnPortion({
+        amount: 300,
+        childPayments: [{ amount: 248, status: 'PAID' }],
+      })
+    ).toBe(52);
+  });
+
+  it('normal installments summing to parent → 0', () => {
+    expect(
+      calculateParentOwnPortion({
+        amount: 300,
+        childPayments: [
+          { amount: 150, status: 'PAID' },
+          { amount: 150, status: 'PAID' },
+        ],
+      })
+    ).toBe(0);
+  });
+
+  it('no children → 0 (counted directly via amount elsewhere)', () => {
+    expect(calculateParentOwnPortion({ amount: 300 })).toBe(0);
+    expect(calculateParentOwnPortion({ amount: 300, childPayments: [] })).toBe(0);
+  });
+
+  it('non-PAID children are excluded from the children sum', () => {
+    expect(
+      calculateParentOwnPortion({
+        amount: 300,
+        childPayments: [
+          { amount: 200, status: 'PAID' },
+          { amount: 100, status: 'PENDING' },
+        ],
+      })
+    ).toBe(100);
+  });
+
+  it('never negative (children exceed parent — defensive)', () => {
+    expect(
+      calculateParentOwnPortion({
+        amount: 100,
+        childPayments: [{ amount: 150, status: 'PAID' }],
+      })
+    ).toBe(0);
+  });
+
+  it('handles fractional amounts without float dust', () => {
+    expect(
+      calculateParentOwnPortion({
+        amount: 99.99,
+        childPayments: [{ amount: 50, status: 'PAID' }],
+      })
+    ).toBe(49.99);
+  });
+});
+
+describe('paymentRevenueContribution', () => {
+  it('child row → its own amount', () => {
+    expect(
+      paymentRevenueContribution({ amount: 248, parentPaymentId: 'p1' })
+    ).toBe(248);
+  });
+
+  it('childless parent → full amount', () => {
+    expect(
+      paymentRevenueContribution({ amount: 300, parentPaymentId: null })
+    ).toBe(300);
+  });
+
+  it('rollup parent of a split payment → only the parent slice (no double count)', () => {
+    // הילד (248) נספר בנפרד; ההורה תורם רק את ה-52 → סה"כ 300, בלי כפילות
+    expect(
+      paymentRevenueContribution({
+        amount: 300,
+        parentPaymentId: null,
+        childPayments: [{ amount: 248, status: 'PAID' }],
+      })
+    ).toBe(52);
+  });
+
+  it('rollup parent of normal installments → 0 (children carry the full amount)', () => {
+    expect(
+      paymentRevenueContribution({
+        amount: 300,
+        parentPaymentId: null,
+        childPayments: [
+          { amount: 150, status: 'PAID' },
+          { amount: 150, status: 'PAID' },
+        ],
+      })
+    ).toBe(0);
   });
 });

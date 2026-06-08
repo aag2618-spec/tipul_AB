@@ -7,7 +7,7 @@ import { buildPaymentWhere, loadScopeUser } from "@/lib/scope";
 import { shouldScopePersonal } from "@/lib/view-scope";
 import { EXCLUDE_BULK_UMBRELLA_WHERE } from "@/lib/payments/types";
 import { getAllClientsDebtSummary } from "@/lib/payment-service";
-import { calculatePaidAmount } from "@/lib/payment-utils";
+import { paymentRevenueContribution, isRollupParentPayment } from "@/lib/payment-utils";
 
 export const dynamic = "force-dynamic";
 
@@ -41,6 +41,8 @@ export async function GET() {
               OR: [
                 { parentPaymentId: { not: null } },
                 { parentPaymentId: null, childPayments: { none: {} } },
+                // הורים-מגלגלים: לתפוס "חלק-אב" בתשלום מפוצל (אשראי על האב).
+                { parentPaymentId: null, childPayments: { some: {} } },
               ],
             },
             {
@@ -51,7 +53,7 @@ export async function GET() {
             },
           ],
         },
-        select: { amount: true, paidAt: true, createdAt: true },
+        select: { amount: true, paidAt: true, createdAt: true, parentPaymentId: true, childPayments: { select: { amount: true, status: true } } },
       }),
 
       prisma.payment.findMany({
@@ -84,7 +86,10 @@ export async function GET() {
       const d = p.paidAt || p.createdAt;
       return getIsraelYear(d) === israelYear && getIsraelMonth(d) === israelMonth;
     });
-    const monthlyTotal = thisMonthPaid.reduce((sum, p) => sum + Number(p.amount), 0);
+    // sum: הורה-מגלגל → רק חלק-האב (האשראי המפוצל); אחרת amount. count: בלי
+    // הורים-מגלגלים (הילדים נספרים בנפרד) — נשאר זהה להתנהגות הקודמת.
+    const monthlyTotal = thisMonthPaid.reduce((sum, p) => sum + paymentRevenueContribution(p), 0);
+    const thisMonthCount = thisMonthPaid.filter((p) => !isRollupParentPayment(p)).length;
 
     const breakdown = [];
     for (let i = monthsParam - 1; i >= 0; i--) {
@@ -96,7 +101,7 @@ export async function GET() {
         const d = p.paidAt || p.createdAt;
         return getIsraelYear(d) === tYear && getIsraelMonth(d) === tMonth;
       });
-      breakdown.push({ month: `${tYear}-${String(tMonth).padStart(2, "0")}`, total: mp.reduce((s, p) => s + Number(p.amount), 0), count: mp.length });
+      breakdown.push({ month: `${tYear}-${String(tMonth).padStart(2, "0")}`, total: mp.reduce((s, p) => s + paymentRevenueContribution(p), 0), count: mp.filter((p) => !isRollupParentPayment(p)).length });
     }
 
     // --- History ---
@@ -135,7 +140,7 @@ export async function GET() {
 
     return NextResponse.json({
       debts: clientDebts,
-      monthly: { total: monthlyTotal, count: thisMonthPaid.length, breakdown },
+      monthly: { total: monthlyTotal, count: thisMonthCount, breakdown },
       history: { items: historyItems, hasMore, nextSkip: trimmed.length },
     });
   } catch (error) {
