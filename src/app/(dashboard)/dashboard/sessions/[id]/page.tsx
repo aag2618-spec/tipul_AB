@@ -455,6 +455,10 @@ export default function SessionDetailPage({
   const analysis = session.recordings?.[0]?.transcription?.analysis;
   const isFutureSession = new Date(session.startTime) > new Date() && (session.status === "SCHEDULED" || session.status === "PENDING_APPROVAL");
   const hasBothAnalyses = !!(analysesByType.CONCISE && analysesByType.DETAILED);
+  const existingAnalysisTypes = [
+    ...(analysesByType.CONCISE ? (["CONCISE"] as const) : []),
+    ...(analysesByType.DETAILED ? (["DETAILED"] as const) : []),
+  ] as ("CONCISE" | "DETAILED")[];
 
   return (
     <div className="space-y-6 animate-fade-in">
@@ -581,6 +585,7 @@ export default function SessionDetailPage({
                       <SessionAnalysisButtons
                         sessionId={session.id}
                         userTier={userTier}
+                        existingTypes={existingAnalysisTypes}
                         onAnalysisComplete={() => refreshSession()}
                       />
                     </div>

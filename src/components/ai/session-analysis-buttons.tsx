@@ -18,12 +18,15 @@ interface SessionAnalysisButtonsProps {
   sessionId: string;
   userTier: "ESSENTIAL" | "PRO" | "ENTERPRISE";
   onAnalysisComplete?: () => void;
+  // סוגי ניתוח שכבר קיימים — כדי להציג כפתור יצירה רק למה שעדיין חסר.
+  existingTypes?: ("CONCISE" | "DETAILED")[];
 }
 
 export function SessionAnalysisButtons({
   sessionId,
   userTier,
   onAnalysisComplete,
+  existingTypes = [],
 }: SessionAnalysisButtonsProps) {
   const [loading, setLoading] = useState(false);
   const [analysisType, setAnalysisType] = useState<"CONCISE" | "DETAILED" | null>(null);
@@ -75,26 +78,38 @@ export function SessionAnalysisButtons({
     return null; // No AI for Essential
   }
 
+  // "חכם — רק מה שחסר": מציגים כפתור יצירה רק לסוג שעדיין לא נותח.
+  const addMode = existingTypes.length > 0; // כבר קיים לפחות ניתוח אחד
+  const showConcise = !existingTypes.includes("CONCISE");
+  const showDetailed = userTier === "ENTERPRISE" && !existingTypes.includes("DETAILED");
+
+  // אין מה ליצור (שני הסוגים קיימים, או PRO שכבר יש לו תמציתי) — לא מציגים כלום.
+  if (!showConcise && !showDetailed) {
+    return null;
+  }
+
   return (
     <>
       <div className="flex gap-2 items-center">
-        {/* Concise Analysis */}
-        <Button
-          onClick={() => handleAnalyze("CONCISE")}
-          disabled={loading}
-          variant="outline"
-          className="gap-2"
-        >
-          {loading && analysisType === "CONCISE" ? (
-            <Loader2 className="h-4 w-4 animate-spin" />
-          ) : (
-            <FileText className="h-4 w-4" />
-          )}
-          📄 ניתוח תמציתי
-        </Button>
+        {/* ניתוח תמציתי — מוצג רק אם עדיין לא נותח */}
+        {showConcise && (
+          <Button
+            onClick={() => handleAnalyze("CONCISE")}
+            disabled={loading}
+            variant="outline"
+            className="gap-2"
+          >
+            {loading && analysisType === "CONCISE" ? (
+              <Loader2 className="h-4 w-4 animate-spin" />
+            ) : (
+              <FileText className="h-4 w-4" />
+            )}
+            {addMode ? "➕ הוסף ניתוח תמציתי" : "📄 ניתוח תמציתי"}
+          </Button>
+        )}
 
-        {/* Detailed Analysis - Enterprise only */}
-        {userTier === "ENTERPRISE" && (
+        {/* ניתוח מפורט — Enterprise בלבד, ומוצג רק אם עדיין לא נותח */}
+        {showDetailed && (
           <Button
             onClick={() => handleAnalyze("DETAILED")}
             disabled={loading}
@@ -105,7 +120,7 @@ export function SessionAnalysisButtons({
             ) : (
               <BookOpen className="h-4 w-4" />
             )}
-            📚 ניתוח מפורט
+            {addMode ? "➕ הוסף ניתוח מפורט" : "📚 ניתוח מפורט"}
             <Badge variant="secondary" className="mr-2">
               <Sparkles className="h-3 w-3 ml-1" />
               AI מתקדם
@@ -113,13 +128,15 @@ export function SessionAnalysisButtons({
           </Button>
         )}
 
-        {/* Info tooltips */}
-        <div className="text-xs text-muted-foreground">
-          <div>תמציתי: חצי עמוד, ללא הגבלה</div>
-          {userTier === "ENTERPRISE" && (
-            <div>מפורט: 2-3 עמודים ברמה אקדמית, 10/חודש</div>
-          )}
-        </div>
+        {/* מידע על הסוגים — רק במצב ההתחלתי (לפני הניתוח הראשון) */}
+        {!addMode && (
+          <div className="text-xs text-muted-foreground">
+            <div>תמציתי: חצי עמוד, ללא הגבלה</div>
+            {userTier === "ENTERPRISE" && (
+              <div>מפורט: 2-3 עמודים ברמה אקדמית, 10/חודש</div>
+            )}
+          </div>
+        )}
       </div>
 
       {/* Analysis Dialog */}
