@@ -402,13 +402,26 @@ export function PaymentHistoryItem({ payment, onRefundSuccess }: PaymentHistoryI
               </div>
             ) : null}
 
-            {/* Cardcom transaction details — נטען רק כששיטת התשלום אשראי. */}
+            {/* Cardcom — חלק-אב: תשלום אשראי מלא, או split credit-first שבו
+                האשראי חויב ישירות על האב (העסקה על payment.id). */}
             {(payment.method === 'CREDIT_CARD' || hasParentPortion) && (
               <CardcomTransactionPanel
                 paymentId={payment.id}
                 onRefundSuccess={onRefundSuccess}
               />
             )}
+            {/* Cardcom — חלק-ילד: split cash-first שבו האשראי נוסף כתשלום-משנה.
+                העסקה (וה-ביטול/זיכוי) יושבת על ה-child ולכן הפאנל חייב למקד
+                אליו ולא לאב — אחרת כפתור הביטול נעלם בסדר מזומן→אשראי. */}
+            {childPayments
+              .filter((c) => c.method === 'CREDIT_CARD')
+              .map((c) => (
+                <CardcomTransactionPanel
+                  key={c.id}
+                  paymentId={c.id}
+                  onRefundSuccess={onRefundSuccess}
+                />
+              ))}
           </div>
         )}
       </div>
