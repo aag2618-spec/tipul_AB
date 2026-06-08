@@ -28,7 +28,7 @@ import { toast } from "sonner";
 import { useRouter } from "next/navigation";
 import { ChargeCardcomDialog } from "@/components/payments/charge-cardcom-dialog";
 import { ReceiptPreviewDialog } from "@/components/payments/receipt-preview-dialog";
-import { tryOpenReceiptInNewTab } from "@/lib/receipt-utils";
+import { tryOpenReceiptInNewTab, resolveReceiptToShow } from "@/lib/receipt-utils";
 import { copayApplies } from "@/lib/commitments";
 
 // New interface with session object
@@ -358,8 +358,20 @@ export function CompleteSessionDialog(props: CompleteSessionDialogProps) {
           router.push(`/dashboard/sessions/${sessionId}`);
         }
       };
-      if (paymentResult?.id && businessType !== "NONE" && issueReceipt) {
-        const receiptUrl = (paymentResult as { receiptUrl?: string })?.receiptUrl;
+      // ── מתי מציגים את הקבלה מיד? ─────────────────────────────────
+      // לפי מה שה-שרת באמת הפיק (receiptUrl/receiptNumber), ולא לפי הדגלים
+      // המקומיים businessType/issueReceipt. כש-Cardcom/פלבק-קליניקה מנפיק את
+      // הקבלה (או EXEMPT עם הפקה אוטומטית) השרת מפיק קבלה גם כשהדגל המקומי
+      // כבוי — והגייט הישן הסתיר אותה עד הכניסה לטאב "קבלות". כעת מציגים
+      // מיד, בדיוק כמו ב-quick-mark-paid ובתשלום חלקי.
+      const shown = resolveReceiptToShow(
+        paymentResult as {
+          receiptUrl?: string | null;
+          receiptNumber?: string | null;
+        },
+      );
+      const receiptUrl = shown?.receiptUrl ?? undefined;
+      if (paymentResult?.id && shown) {
         const { opened: popupOpened } = tryOpenReceiptInNewTab(receiptUrl);
         if (popupOpened) {
           toast.message("הקבלה נפתחה בלשונית חדשה — אפשר להדפיס משם", {
@@ -372,7 +384,7 @@ export function CompleteSessionDialog(props: CompleteSessionDialogProps) {
         // Fallback: popup-blocker חסם או receiptUrl חסר/לא תקין.
         pendingNavigationRef.current = navigateAfter;
         setReceiptPaymentId(paymentResult.id);
-        setReceiptIsCardcom(false);
+        setReceiptIsCardcom(shown.isCardcom);
         if (!receiptUrl) {
           toast.message("הקבלה תיפתח כאן ברגע שתהיה מוכנה", { duration: 4000 });
         } else {
