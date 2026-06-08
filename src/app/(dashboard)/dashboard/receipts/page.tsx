@@ -169,16 +169,9 @@ function buildReceiptExportData(payments: ReceiptPayment[]): ReceiptExportData[]
       p.mergedSessionsCount && p.mergedSessionsCount > 1
         ? { index: 1, total: p.mergedSessionsCount, totalAmount: rawAmount }
         : null;
-    // קבלת Cardcom = אשראי. בתשלום מפוצל credit-first, חלק-האב (displayAmount =
-    // parent.amount − children) הוא האשראי, אבל p.method נדרס ל-CASH ע"י פעימת
-    // המזומן. cardcomInvoices קיים כש-Cardcom הנפיק את הקבלה ⇒ התווית הנכונה
-    // היא "אשראי". (cash-first: האשראי הוא child עם method=CREDIT_CARD משלו והאב
-    // נשאר מזומן בלי cardcomInvoices — ללא שינוי. הירושה ל-parent קורית רק
-    // בתשלום מצרפי-Cardcom, שגם הוא אשראי ⇒ נכון.)
-    const methodForExport = p.cardcomInvoices?.length ? "CREDIT_CARD" : p.method;
     return {
       amount: displayAmount,
-      method: methodForExport,
+      method: p.method,
       paidAt: p.paidAt,
       createdAt: p.createdAt,
       receiptNumber: p.receiptNumber,
