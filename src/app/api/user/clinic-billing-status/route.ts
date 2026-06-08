@@ -18,7 +18,11 @@ export async function GET() {
   const [user, cardcom] = await Promise.all([
     prisma.user.findUnique({
       where: { id: userId },
-      select: { organizationId: true, clinicBillingMode: true },
+      select: {
+        organizationId: true,
+        clinicBillingMode: true,
+        businessType: true,
+      },
     }),
     prisma.billingProvider.findFirst({
       where: { userId, provider: "CARDCOM", isActive: true },
@@ -29,6 +33,9 @@ export async function GET() {
   const cardcomConnected = !!cardcom;
   return NextResponse.json({
     inClinic: !!user?.organizationId,
+    // סוג העסק — עוסק פטור יכול/ה לגבות מזומן/צ׳ק/העברה עם קבלה פנימית בלי מסוף;
+    // הבאנר בלשונית החיבורים משתמש בזה כדי לא להציג "לא ניתן לגבות" בטעות.
+    businessType: user?.businessType ?? "NONE",
     // מצב אפקטיבי (null=legacy נגזר לפי קיום מסוף פרטי) כדי שהבאנר בלשונית
     // החיבורים יתאים בדיוק לניתוב בפועל של resolveCardcomBilling.
     clinicBillingMode: effectiveBillingMode(

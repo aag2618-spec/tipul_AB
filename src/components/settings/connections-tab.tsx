@@ -188,6 +188,11 @@ export function ConnectionsTab() {
   // באנר שמנחה לחבר מסוף סליקה. נוגע רק לסליקת המטופלים, לא למנוי התוכנה.
   const [clinicOwnMode, setClinicOwnMode] = useState(false);
   const [clinicCardcomConnected, setClinicCardcomConnected] = useState(false);
+  // סוג העסק — עוסק/ת פטור/ה גובה/ת מזומן/צ׳ק/העברה עם קבלה פנימית בלי מסוף;
+  // לכן הבאנר שונה (מרגיע, לא "חוסם") מאשר למי שצריך/ה מסוף לאשראי/עוסק מורשה.
+  const [clinicBusinessType, setClinicBusinessType] = useState<
+    "NONE" | "EXEMPT" | "LICENSED"
+  >("NONE");
 
   useEffect(() => {
     Promise.all([
@@ -200,6 +205,7 @@ export function ConnectionsTab() {
       setBillingProviders(billingData);
       setClinicOwnMode(!!clinicStatus.inClinic && clinicStatus.clinicBillingMode === "OWN");
       setClinicCardcomConnected(!!clinicStatus.cardcomConnected);
+      setClinicBusinessType(clinicStatus.businessType ?? "NONE");
     }).catch(err => console.error("Failed to load:", err))
       .finally(() => setLoading(false));
   }, []);
@@ -349,7 +355,35 @@ export function ConnectionsTab() {
   return (
     <div className="space-y-6">
       {/* באנר "חשבון עצמאי" — הקליניקה הגדירה את המטפל/ת לגבות לחשבונו/ה. */}
-      {clinicOwnMode && !clinicCardcomConnected && (
+      {/* עוסק/ת פטור/ה: כבר יכול/ה לגבות מזומן/צ׳ק/העברה (קבלה פנימית על שמו/ה);
+          מסוף נדרש רק אם תרצה/י לקבל גם אשראי. באנר מרגיע, לא "חוסם". */}
+      {clinicOwnMode && !clinicCardcomConnected && clinicBusinessType === "EXEMPT" && (
+        <div className="rounded-lg border border-emerald-200 bg-emerald-50 p-4 dark:border-emerald-900/50 dark:bg-emerald-950/30">
+          <div className="flex items-start gap-3">
+            <FileText className="h-5 w-5 shrink-0 text-emerald-600 dark:text-emerald-400 mt-0.5" />
+            <div className="space-y-1">
+              <p className="text-sm font-medium text-emerald-900 dark:text-emerald-200">
+                הקליניקה הגדירה אותך לגבות לחשבון הפרטי שלך — את/ה כבר מסודר/ת ✓
+              </p>
+              <p className="text-xs text-emerald-800/80 dark:text-emerald-300/80">
+                תשלומי מזומן / צ׳ק / העברה נגבים אליך, והקבלה מונפקת פנימית על שמך
+                (עוסק פטור) — אין צורך לחבר מסוף. רק אם תרצה/י לקבל גם תשלומי{" "}
+                <strong>אשראי</strong>, אפשר לחבר מסוף סליקה (Cardcom) — לא חובה.
+              </p>
+              <Button
+                variant="outline"
+                size="sm"
+                className="mt-1"
+                onClick={() => openBillingDialog("CARDCOM")}
+              >
+                <CreditCard className="ml-2 h-4 w-4" />
+                חבר/י מסוף לאשראי (לא חובה)
+              </Button>
+            </div>
+          </div>
+        </div>
+      )}
+      {clinicOwnMode && !clinicCardcomConnected && clinicBusinessType !== "EXEMPT" && (
         <div className="rounded-lg border border-blue-200 bg-blue-50 p-4 dark:border-blue-900/50 dark:bg-blue-950/30">
           <div className="flex items-start gap-3">
             <CreditCard className="h-5 w-5 shrink-0 text-blue-600 dark:text-blue-400 mt-0.5" />
