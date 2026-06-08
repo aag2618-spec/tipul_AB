@@ -1,6 +1,6 @@
 'use client';
 
-import { useState } from 'react';
+import { useState, useEffect } from 'react';
 import { format } from 'date-fns';
 import { he } from 'date-fns/locale';
 import { Badge } from '@/components/ui/badge';
@@ -39,6 +39,14 @@ interface PaymentHistoryItemProps {
 
 export function PaymentHistoryItem({ payment, onRefundSuccess }: PaymentHistoryItemProps) {
   const [showDetails, setShowDetails] = useState(false);
+  // עסקת Cardcom של רשומת-האב — לתיוג שורת "חלק-האב" בתשלום מפוצל (אשראי
+  // שחויב ישירות על האב לפני שנוספו תשלומי מזומן). נטענת בהמשך (lazy).
+  const [parentTx, setParentTx] = useState<{
+    forId: string;
+    status: string;
+    completedAt: string | null;
+    createdAt: string | null;
+  } | null>(null);
 
   const amount = typeof payment.amount === 'number' 
     ? payment.amount 
@@ -54,10 +62,53 @@ export function PaymentHistoryItem({ payment, onRefundSuccess }: PaymentHistoryI
   const hasMultiplePayments = childPayments.length > 0;
   const totalPaid = amount;
 
+  // תשלום מפוצל: כשחלק שולם ישירות על רשומת-האב (למשל אשראי שחויב לפני
+  // שנוספו תשלומי מזומן) הוא לא תועד כשורת-"ילד" אלא נבלע ב-amount של האב.
+  // מזהים אותו כהפרש בין amount של האב לסכום הילדים ומציגים כשורה ראשונה.
+  const childSum = childPayments.reduce((sum, c) => {
+    const a = typeof c.amount === 'number' ? c.amount : c.amount.toNumber();
+    return sum + a;
+  }, 0);
+  const parentOwnPortion = Math.round((amount - childSum) * 100) / 100;
+  const hasParentPortion = hasMultiplePayments && parentOwnPortion > 0.005;
+
   const isPartial = totalPaid < expectedAmount;
   const remaining = expectedAmount - totalPaid;
   const isCompleted = payment.status === 'PAID' && !isPartial;
-  const paymentCount = hasMultiplePayments ? childPayments.length : 1;
+  const paymentCount =
+    (hasMultiplePayments ? childPayments.length : 1) + (hasParentPortion ? 1 : 0);
+
+  // טוענים את עסקת ה-Cardcom של האב רק כשצריך לתייג חלק-אב מפוצל
+  // (lazy — רק כשהפרטים פתוחים). משמש כדי לתייג את שורת חלק-האב כ"אשראי".
+  useEffect(() => {
+    if (!showDetails || !hasParentPortion) return;
+    let cancelled = false;
+    fetch(`/api/payments/${payment.id}/cardcom-transaction`)
+      .then((r) => (r.ok ? r.json() : null))
+      .then((d) => {
+        if (cancelled) return;
+        const tx = d?.tx ?? null;
+        // שומרים את payment.id שעבורו נטענה העסקה (forId) — כדי שאם React
+        // ימחזר את אותו instance לתשלום אחר, לא נשתמש בתיוג ישן ומטעה.
+        setParentTx({
+          forId: payment.id,
+          status: tx?.status ?? 'NONE',
+          completedAt: tx?.completedAt ?? null,
+          createdAt: tx?.createdAt ?? null,
+        });
+      })
+      .catch(() => {});
+    return () => {
+      cancelled = true;
+    };
+  }, [showDetails, hasParentPortion, payment.id]);
+
+  // משתמשים ב-parentTx רק אם נטען עבור התשלום הנוכחי (ראה forId).
+  const txForThis = parentTx && parentTx.forId === payment.id ? parentTx : null;
+  const parentPortionIsCredit =
+    !!txForThis && (txForThis.status === 'APPROVED' || txForThis.status === 'REFUNDED');
+  const parentPortionMethod = parentPortionIsCredit ? 'CREDIT_CARD' : payment.method;
+  const parentPortionDate = txForThis?.completedAt || txForThis?.createdAt || null;
 
   const getMethodText = (method: string) => {
     switch (method) {
@@ -256,6 +307,33 @@ export function PaymentHistoryItem({ payment, onRefundSuccess }: PaymentHistoryI
                   פירוט תשלומים ({paymentCount} תשלומים)
                 </p>
                 <div className="space-y-2">
+                  {hasParentPortion && (
+                    <div className="flex items-center justify-between text-sm bg-white rounded p-2">
+                      <div className="flex items-center gap-2">
+                        <span className="bg-yellow-50 text-yellow-900 border border-yellow-200 font-semibold px-2 py-0.5 rounded text-xs">
+                          #1
+                        </span>
+                        <span className="text-yellow-700">
+                          {format(
+                            parentPortionDate ? new Date(parentPortionDate) : getPaymentDate(payment),
+                            'dd/MM/yyyy',
+                          )}
+                        </span>
+                        <span className="text-muted-foreground">•</span>
+                        <span className="font-semibold">₪{parentOwnPortion}</span>
+                        <span className="text-muted-foreground">•</span>
+                        <span className="text-xs text-muted-foreground inline-flex items-center gap-1">
+                          {parentPortionMethod === 'CREDIT_CARD' && (
+                            <CreditCard className="h-3 w-3 text-blue-600" />
+                          )}
+                          {getMethodText(parentPortionMethod)}
+                        </span>
+                      </div>
+                      <span className="text-xs font-medium text-sky-600">
+                        {getPercentage(parentOwnPortion)}%
+                      </span>
+                    </div>
+                  )}
                   {childPayments.map((child, index) => {
                     const childAmount = typeof child.amount === 'number' 
                       ? child.amount 
@@ -266,7 +344,7 @@ export function PaymentHistoryItem({ payment, onRefundSuccess }: PaymentHistoryI
                       <div key={child.id} className="flex items-center justify-between text-sm bg-white rounded p-2">
                         <div className="flex items-center gap-2">
                           <span className={`${isLast && isCompleted ? 'bg-green-50 text-green-900 border border-green-200' : 'bg-yellow-50 text-yellow-900 border border-yellow-200'} font-semibold px-2 py-0.5 rounded text-xs`}>
-                            #{index + 1}
+                            #{index + 1 + (hasParentPortion ? 1 : 0)}
                           </span>
                           <span className={isLast && isCompleted ? 'text-green-700' : 'text-yellow-700'}>
                             {format(getPaymentDate(child), 'dd/MM/yyyy')}
@@ -325,7 +403,7 @@ export function PaymentHistoryItem({ payment, onRefundSuccess }: PaymentHistoryI
             ) : null}
 
             {/* Cardcom transaction details — נטען רק כששיטת התשלום אשראי. */}
-            {payment.method === 'CREDIT_CARD' && (
+            {(payment.method === 'CREDIT_CARD' || hasParentPortion) && (
               <CardcomTransactionPanel
                 paymentId={payment.id}
                 onRefundSuccess={onRefundSuccess}
