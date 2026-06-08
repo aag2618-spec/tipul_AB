@@ -37,7 +37,7 @@ vi.mock("@/lib/cardcom/billing-resolver", () => ({
 }));
 
 const createReceiptMock = vi.fn();
-const createBillingServiceMock = vi.fn(() => ({ createReceipt: createReceiptMock }));
+const createBillingServiceMock = vi.fn((..._args: unknown[]) => ({ createReceipt: createReceiptMock }));
 vi.mock("@/lib/billing", () => ({
   createBillingService: (...a: unknown[]) => createBillingServiceMock(...a),
 }));
