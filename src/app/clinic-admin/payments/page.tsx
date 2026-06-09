@@ -372,7 +372,7 @@ function StatusBadge({
         className={`${base} bg-blue-50 text-blue-700 dark:bg-blue-950/40 dark:text-blue-300`}
       >
         <CreditCard className="h-3 w-3" aria-hidden="true" />
-        חשבון עצמאי — ללא מסוף סליקה
+        מסוף עצמאי שאינו מחובר לחשבון הקליניקה
       </span>
     );
   }
