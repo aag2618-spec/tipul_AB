@@ -31,6 +31,11 @@ export function SessionPrepCard({ session, userTier }: SessionPrepCardProps) {
   const [prep, setPrep] = useState<any>(null);
   const [isExpanded, setIsExpanded] = useState(false);
 
+  // ISO יציב לתאריך הפגישה. חשוב: אסור להעביר Date גולמי ל-URL — ה-toString שלו
+  // מכיל "+0300" (אזור זמן), וה-"+" הופך לרווח בפענוח ה-query, כך שהשרת מחפש תאריך
+  // שגוי ולא מוצא את ההכנה השמורה (ולכן נוצרה הכנה חדשה כל פעם). ISO (עם Z) נקי מ-"+".
+  const sessionDateIso = new Date(session.startTime).toISOString();
+
   // טעינת הכנה קיימת
   useEffect(() => {
     if (userTier === 'ESSENTIAL') {
@@ -44,7 +49,7 @@ export function SessionPrepCard({ session, userTier }: SessionPrepCardProps) {
       const timer = setTimeout(() => controller.abort(), 15000);
       try {
         const response = await fetch(
-          `/api/ai/session-prep?clientId=${session.clientId}&sessionDate=${session.startTime}`,
+          `/api/ai/session-prep?clientId=${encodeURIComponent(session.clientId)}&sessionDate=${encodeURIComponent(sessionDateIso)}`,
           { signal: controller.signal }
         );
 
@@ -63,7 +68,7 @@ export function SessionPrepCard({ session, userTier }: SessionPrepCardProps) {
     };
 
     loadExistingPrep();
-  }, [session.clientId, session.startTime, userTier]);
+  }, [session.clientId, sessionDateIso, userTier]);
 
   const handleGenerate = async () => {
     if (userTier === 'ESSENTIAL') {
@@ -81,7 +86,7 @@ export function SessionPrepCard({ session, userTier }: SessionPrepCardProps) {
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({
           clientId: session.clientId,
-          sessionDate: session.startTime,
+          sessionDate: sessionDateIso,
         }),
         signal: controller.signal,
       });
