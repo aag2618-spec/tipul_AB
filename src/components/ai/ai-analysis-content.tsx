@@ -281,24 +281,24 @@ export function AiAnalysisContent({
 // סגנונות inline (צבעי hex) כדי שהעיצוב יישמר בהדבקה ל-Word / מייל.
 
 const COLORS_BY_KEYWORD: Array<[RegExp, { text: string; bg: string }]> = [
-  [/סיכון|אובדנ|התאבד|פגיעה עצמית|מסוכ/, { text: "#b91c1c", bg: "#fef2f2" }],
-  [/עיוור|נקודות עיוורון/, { text: "#c2410c", bg: "#fff7ed" }],
-  [/המלצ|המשך|מפגש הבא|פגישה הבא|כיוון טיפול|התערבו/, { text: "#047857", bg: "#ecfdf5" }],
-  [/רגש/, { text: "#be123c", bg: "#fff1f2" }],
-  [/העברה/, { text: "#0369a1", bg: "#f0f9ff" }],
-  [/הגנה|מנגנון/, { text: "#b45309", bg: "#fffbeb" }],
-  [/גישה|ויניקוט|תיאורי|אקלקט/, { text: "#7e22ce", bg: "#faf5ff" }],
-  [/רגע|מכונן/, { text: "#0f766e", bg: "#f0fdfa" }],
-  [/נושא/, { text: "#4338ca", bg: "#eef2ff" }],
-  [/הערכה|כמות|סולם|ציון|מדד/, { text: "#0e7490", bg: "#ecfeff" }],
-  [/סיכום|תמצית|תוכן/, { text: "#1d4ed8", bg: "#eff6ff" }],
+  [/סיכון|אובדנ|התאבד|פגיעה עצמית|מסוכ/, { text: "#b91c1c", bg: "#fee2e2" }],
+  [/עיוור|נקודות עיוורון/, { text: "#c2410c", bg: "#ffedd5" }],
+  [/המלצ|המשך|מפגש הבא|פגישה הבא|כיוון טיפול|התערבו/, { text: "#047857", bg: "#d1fae5" }],
+  [/רגש/, { text: "#be123c", bg: "#ffe4e6" }],
+  [/העברה/, { text: "#0369a1", bg: "#e0f2fe" }],
+  [/הגנה|מנגנון/, { text: "#b45309", bg: "#fef3c7" }],
+  [/גישה|ויניקוט|תיאורי|אקלקט/, { text: "#7e22ce", bg: "#f3e8ff" }],
+  [/רגע|מכונן/, { text: "#0f766e", bg: "#ccfbf1" }],
+  [/נושא/, { text: "#4338ca", bg: "#e0e7ff" }],
+  [/הערכה|כמות|סולם|ציון|מדד/, { text: "#0e7490", bg: "#cffafe" }],
+  [/סיכום|תמצית|תוכן/, { text: "#1d4ed8", bg: "#dbeafe" }],
 ];
 
 function headingColors(heading: string): { text: string; bg: string } {
   for (const [re, c] of COLORS_BY_KEYWORD) {
     if (re.test(heading)) return c;
   }
-  return { text: "#334155", bg: "#f1f5f9" };
+  return { text: "#334155", bg: "#e2e8f0" };
 }
 
 function escapeHtml(s: string): string {
@@ -348,10 +348,11 @@ export function analysisToHtml(text: string): string {
       continue;
     }
     const c = headingColors(sec.heading);
+    // background-color (לא קיצור 'background') + font-weight:bold — נתמך אמין יותר ב-Word/Gmail.
     parts.push(
       `<div style="margin:0 0 16px;">` +
-        `<div style="background:${c.bg};border-radius:8px;padding:7px 11px;margin:0 0 8px;">` +
-          `<span style="font-weight:700;color:${c.text};font-size:15px;">${escapeHtml(sec.heading)}</span>` +
+        `<div style="background-color:${c.bg};border-radius:8px;padding:8px 12px;margin:0 0 8px;">` +
+          `<span style="font-weight:bold;color:${c.text};font-size:15px;">${escapeHtml(sec.heading)}</span>` +
         `</div>` +
         bodyToHtml(body) +
         `</div>`
