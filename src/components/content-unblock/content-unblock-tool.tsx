@@ -28,7 +28,7 @@ import {
   DialogTitle,
 } from "@/components/ui/dialog";
 import {
-  Unlock,
+  Eraser,
   Loader2,
   Trash2,
   AlertTriangle,
@@ -201,7 +201,7 @@ export function ContentUnblockTool() {
         toast.error(data.message || "המחיקה נכשלה");
         return;
       }
-      toast.success("הפריט נמחק. אם התיק עדיין חסום, מחק/י פריטים נוספים ונסה/י שוב.");
+      toast.success("התוכן נמחק. אם הגישה לתיק עדיין חסומה, ייתכן שיש תוכן לא־תואם נוסף למחיקה.");
       setPending(null);
       if (selectedId) void loadInventory(selectedId);
     } catch {
@@ -231,13 +231,14 @@ export function ContentUnblockTool() {
     <div className="space-y-4" dir="rtl">
       <div>
         <h1 className="flex items-center gap-2 text-2xl font-bold">
-          <Unlock className="h-6 w-6" />
-          שחרור תיק חסום
+          <Eraser className="h-6 w-6" />
+          ניקוי תוכן לא־תואם
         </h1>
         <p className="mt-1 text-sm text-muted-foreground">
-          אם תיק מטופל לא נפתח בגלל סינון תוכן (נטפרי/אתרוג), כאן אפשר למחוק
-          סיכום, ניתוח AI או תוכן אחר של פגישה ספציפית — מבלי להיכנס לתיק.
-          הדף מציג רק תאריכים ותוויות, אף פעם לא את התוכן עצמו.
+          אם דף של תיק מטופל אינו נטען בשירות הסינון שלך, ייתכן שנכתב בו תוכן
+          שאינו תואם את מדיניות התוכן של השירות. כאן אפשר למחוק את התוכן
+          הלא־תואם (סיכום, ניתוח AI ועוד) של פגישה ספציפית, כדי להחזיר את הגישה
+          לתיק. הדף מציג רק פרטים (שם, תאריך) — לעולם לא את התוכן עצמו.
         </p>
       </div>
 
@@ -245,8 +246,8 @@ export function ContentUnblockTool() {
         <div className="flex items-start gap-2">
           <AlertTriangle className="mt-0.5 h-4 w-4 shrink-0" />
           <span>
-            המחיקה היא <strong>לצמיתות ואינה הפיכה</strong>. בדרך כלל הסיכום
-            שחוסם הוא האחרון שנכתב — מומלץ למחוק מהחדש לישן ולבדוק אם התיק נפתח.
+            המחיקה היא <strong>לצמיתות ואינה הפיכה</strong>. מומלץ למחוק פריט
+            אחר פריט (מהחדש לישן) עד שהגישה לתיק מתאפשרת שוב.
           </span>
         </div>
       </div>
@@ -304,7 +305,7 @@ export function ContentUnblockTool() {
             </CardTitle>
             <CardDescription>
               {selectedId
-                ? "לחיצה על מחיקה תסיר את הפריט לצמיתות."
+                ? "לחיצה על מחיקה תמחק את הפריט לצמיתות."
                 : "בחר/י מטופל מהרשימה."}
             </CardDescription>
           </CardHeader>

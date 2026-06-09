@@ -9,6 +9,7 @@
 
 import { useEffect, useState } from "react";
 import Image from "next/image";
+import Link from "next/link";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
@@ -28,7 +29,7 @@ import {
   DialogHeader,
   DialogTitle,
 } from "@/components/ui/dialog";
-import { Shield, Loader2, ShieldCheck, AlertTriangle, Key, Copy, Download, RefreshCw, Unlock } from "lucide-react";
+import { Shield, Loader2, ShieldCheck, AlertTriangle, Key, Copy, Download, RefreshCw, Eraser } from "lucide-react";
 import { toast } from "sonner";
 import { useSession } from "next-auth/react";
 
@@ -263,13 +264,9 @@ export function SecurityTab() {
         toast.error(data.message || "שמירה נכשלה");
         return;
       }
-      // מעדכן את סרגל הצד בזמן אמת (הטאב מופיע/נעלם בלי רענון דף).
-      window.dispatchEvent(
-        new CustomEvent("content-filter-changed", { detail: next })
-      );
       toast.success(
         next
-          ? 'מצב סינון תוכן הופעל — הכלי "שחרור תיק חסום" יופיע בתפריט'
+          ? 'מצב סינון תוכן הופעל — הכלי "ניקוי תוכן לא־תואם" זמין כאן למטה'
           : "מצב סינון תוכן כובה"
       );
     } catch {
@@ -373,27 +370,28 @@ export function SecurityTab() {
         </CardContent>
       </Card>
 
-      {/* כלי "שחרור תיק חסום" — סינון תוכן (נטפרי/אתרוג) */}
+      {/* כלי "ניקוי תוכן לא־תואם" — שירות סינון תוכן (נטפרי/אתרוג) */}
       <Card>
         <CardHeader>
           <CardTitle className="flex items-center gap-2">
-            <Unlock className="h-5 w-5" />
-            סינון תוכן (נטפרי / אתרוג)
+            <Eraser className="h-5 w-5" />
+            ניקוי תוכן לא־תואם
           </CardTitle>
           <CardDescription>
-            אם את/ה משתמש/ת בסינון תוכן שעלול לחסום תיק מטופל בגלל מילים שנכתבו
-            בסיכום, הפעלת המצב הזה תוסיף לתפריט את הכלי &quot;שחרור תיק חסום&quot; —
-            שמאפשר למחוק סיכום וניתוח AI של פגישה ספציפית מבלי להיכנס לתיק.
+            אם את/ה משתמש/ת בשירות סינון תוכן (כגון נטפרי/אתרוג) ודף מסוים אינו
+            נטען — ייתכן שנכתב בו תוכן שאינו תואם את מדיניות התוכן של השירות.
+            הפעלת מצב זה מוסיפה כאן כלי לאיתור ומחיקה של התוכן הלא־תואם, כדי
+            להחזיר את הגישה לתיק.
           </CardDescription>
         </CardHeader>
-        <CardContent>
+        <CardContent className="space-y-3">
           <div className="flex items-center justify-between gap-4 rounded-md border p-3">
             <div className="space-y-0.5">
               <Label htmlFor="content-filter-switch">
                 אני משתמש/ת בסינון תוכן (נטפרי/אתרוג)
               </Label>
               <p className="text-xs text-muted-foreground">
-                מציג בתפריט את הכלי &quot;שחרור תיק חסום&quot;.
+                מפעיל כאן את הכלי &quot;ניקוי תוכן לא־תואם&quot;.
               </p>
             </div>
             <div className="flex items-center gap-2">
@@ -408,6 +406,14 @@ export function SecurityTab() {
               />
             </div>
           </div>
+          {usesContentFilter && (
+            <Button asChild variant="outline" className="w-full">
+              <Link href="/dashboard/content-unblock">
+                <Eraser className="ml-2 h-4 w-4" />
+                פתח/י את הכלי &quot;ניקוי תוכן לא־תואם&quot;
+              </Link>
+            </Button>
+          )}
         </CardContent>
       </Card>
 
