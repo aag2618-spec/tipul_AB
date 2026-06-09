@@ -48,9 +48,9 @@ interface ProviderInfo {
 const providerInfo: Record<string, ProviderInfo> = {
   ICOUNT: {
     name: "iCount",
-    description: "הנפקת קבלות (15 יום ניסיון חינם)",
+    description: "הנפקת קבלות",
     icon: FileText,
-    features: ["קבלות מקצועיות", "דוחות", "15 יום ניסיון חינם"],
+    features: ["קבלות מקצועיות", "דוחות"],
     fields: {
       apiKeyLabel: "מזהה חברה (Company ID)",
       apiKeyPlaceholder: 'למשל: MYTIPUL (שם באנגלית שבחרת בהרשמה)',
@@ -62,7 +62,7 @@ const providerInfo: Record<string, ProviderInfo> = {
       extraFieldIsPassword: true,
     },
     instructions: [
-      "אם עוד אין לך חשבון - הירשם באתר icount.co.il (15 יום ניסיון חינם, אח״כ בתשלום)",
+      "אם עוד אין לך חשבון - הירשם באתר icount.co.il",
       'מזהה החברה: השם באנגלית שבחרת בהרשמה. נמצא ב: מערכת ← הגדרות ← \"החברה שלי\"',
       "כתובת מייל: המייל שאיתו נכנסת ל-iCount",
       "סיסמה: הסיסמה שאיתה נכנסת ל-iCount",
