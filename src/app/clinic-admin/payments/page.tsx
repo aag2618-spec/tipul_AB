@@ -12,7 +12,6 @@ import {
   CreditCard,
   Save,
   CheckCircle2,
-  Clock,
   Building2,
   FlaskConical,
 } from "lucide-react";
@@ -278,20 +277,8 @@ export default function TherapistPaymentsPage() {
                       </p>
                     )}
                     <div className="mt-1">
-                      <StatusBadge
-                        mode={mode}
-                        cardcom={t.cardcom}
-                        businessType={t.businessType}
-                      />
+                      <StatusBadge mode={mode} cardcom={t.cardcom} />
                     </div>
-                    {mode === "OWN" &&
-                      !t.cardcom.connected &&
-                      t.businessType === "EXEMPT" && (
-                        <p className="text-xs text-muted-foreground mt-1">
-                          מזומן/צ׳ק/העברה — קבלה פנימית על שמה. לסליקת אשראי יש
-                          לחבר מסוף (לא חובה).
-                        </p>
-                      )}
                     {debtTracking && mode === "OWN" && (
                       <p className="text-xs text-muted-foreground mt-1">
                         להעברה לקליניקה: {cPct}% מהנגבה ·{" "}
@@ -360,11 +347,9 @@ export default function TherapistPaymentsPage() {
 function StatusBadge({
   mode,
   cardcom,
-  businessType,
 }: {
   mode: BillingMode;
   cardcom: { connected: boolean; mode: "sandbox" | "production" | null };
-  businessType: "NONE" | "EXEMPT" | "LICENSED";
 }) {
   const base =
     "inline-flex items-center gap-1 rounded-full px-2 py-0.5 text-[11px] font-medium";
@@ -378,26 +363,16 @@ function StatusBadge({
     );
   }
 
-  // mode === OWN
+  // mode === OWN, מסוף לא מחובר — נייטרלי: המטפל/ת מנהל/ת את הגבייה בעצמו/ה
+  // (עוסק פטור → קבלה פנימית בלי מסוף; אשראי/עוסק מורשה → צריך/ה מסוף). לא
+  // "ממתין" ולא הנחה על סוג העסק.
   if (!cardcom.connected) {
-    // עוסק/ת פטור/ה מפיק/ה קבלה פנימית על שמו/ה — מזומן/צ׳ק/העברה עובדים בלי
-    // מסוף סליקה, ולכן "פעיל", לא "ממתין". מסוף נדרש רק לסליקת אשראי.
-    if (businessType === "EXEMPT") {
-      return (
-        <span
-          className={`${base} bg-emerald-100 text-emerald-800 dark:bg-emerald-900/40 dark:text-emerald-300`}
-        >
-          <CheckCircle2 className="h-3 w-3" aria-hidden="true" />
-          פעיל — קבלות פנימיות (מסוף לא חובה)
-        </span>
-      );
-    }
     return (
       <span
-        className={`${base} bg-amber-100 text-amber-800 dark:bg-amber-900/40 dark:text-amber-300`}
+        className={`${base} bg-blue-50 text-blue-700 dark:bg-blue-950/40 dark:text-blue-300`}
       >
-        <Clock className="h-3 w-3" aria-hidden="true" />
-        ממתין — על המטפל/ת לחבר סליקה בהגדרות שלו/ה
+        <CreditCard className="h-3 w-3" aria-hidden="true" />
+        חשבון עצמאי — ללא מסוף סליקה
       </span>
     );
   }
