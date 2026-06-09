@@ -46,30 +46,11 @@ interface ProviderInfo {
 }
 
 const providerInfo: Record<string, ProviderInfo> = {
-  MESHULAM: {
-    name: "Meshulam",
-    description: "סליקת אשראי + הנפקת קבלות",
-    icon: CreditCard,
-    features: ["סליקת אשראי", "קבלות אוטומטיות", "תשלום בקישור"],
-    fields: {
-      apiKeyLabel: "Page Code (קוד דף)",
-      apiKeyPlaceholder: "קוד שקיבלת מ-Meshulam/Grow, למשל: f6a3c7d0ed02",
-      apiSecretLabel: "API Secret (אופציונלי)",
-      apiSecretPlaceholder: "לאימות Webhooks - לא חובה",
-    },
-    instructions: [
-      "אם עוד אין לך חשבון - פתח חשבון ב-Grow (grow.business), הפלטפורמה החדשה של Meshulam",
-      "לאחר פתיחת חשבון, פנה לתמיכה של Grow (דרך הצ׳אט באתר או במייל) ובקש Page Code לחיבור API",
-      "תקבל מהם קוד (Page Code) - העתק אותו והדבק בשדה ״קוד דף״ למטה",
-      "שדה ה-API Secret אופציונלי - משמש לאימות Webhooks בלבד, אפשר להשאיר ריק",
-    ],
-    signupUrl: "https://grow.business",
-  },
   ICOUNT: {
     name: "iCount",
-    description: "הנפקת קבלות (תוכנית חינמית!)",
+    description: "הנפקת קבלות (15 יום ניסיון חינם)",
     icon: FileText,
-    features: ["קבלות מקצועיות", "דוחות", "חינמי עד 25/חודש"],
+    features: ["קבלות מקצועיות", "דוחות", "15 יום ניסיון חינם"],
     fields: {
       apiKeyLabel: "מזהה חברה (Company ID)",
       apiKeyPlaceholder: 'למשל: MYTIPUL (שם באנגלית שבחרת בהרשמה)',
@@ -81,58 +62,13 @@ const providerInfo: Record<string, ProviderInfo> = {
       extraFieldIsPassword: true,
     },
     instructions: [
-      "אם עוד אין לך חשבון - הירשם באתר icount.co.il (יש תוכנית חינמית!)",
+      "אם עוד אין לך חשבון - הירשם באתר icount.co.il (15 יום ניסיון חינם, אח״כ בתשלום)",
       'מזהה החברה: השם באנגלית שבחרת בהרשמה. נמצא ב: מערכת ← הגדרות ← \"החברה שלי\"',
       "כתובת מייל: המייל שאיתו נכנסת ל-iCount",
       "סיסמה: הסיסמה שאיתה נכנסת ל-iCount",
       "ה-API זמין אוטומטית לכל חשבון - אין צורך להפעיל מודול נפרד",
     ],
     signupUrl: "https://www.icount.co.il",
-  },
-  GREEN_INVOICE: {
-    name: "חשבונית ירוקה",
-    description: "הנפקת קבלות (ממשק יפה)",
-    icon: FileText,
-    features: ["קבלות מעוצבות", "ממשק נוח"],
-    fields: {
-      apiKeyLabel: "מפתח API (API Key ID)",
-      apiKeyPlaceholder: "המפתח שנוצר בכלי הפיתוח",
-      apiSecretLabel: "סוד API (API Secret)",
-      apiSecretPlaceholder: "הסוד שהוצג בעת יצירת המפתח",
-      apiSecretRequired: true,
-    },
-    instructions: [
-      "אם עוד אין לך חשבון - הירשם באתר greeninvoice.co.il",
-      "חשוב: נדרש מסלול Best ומעלה (ה-API לא זמין במסלול הבסיסי!)",
-      "היכנס לחשבון שלך באתר",
-      "לחץ על שם המשתמש שלך (בפינה העליונה) ← כלי פיתוח ← מפתחות API",
-      "לחץ על כפתור ה-+ כדי ליצור מפתח חדש, תן לו שם (למשל: MyTipul), ולחץ שמור",
-      "העתק את מפתח ה-API (API Key ID) והדבק בשדה הראשון למטה",
-      "העתק את הסוד (API Secret) והדבק בשדה השני - שים לב: הסוד מוצג רק פעם אחת!",
-    ],
-    signupUrl: "https://www.greeninvoice.co.il",
-  },
-  SUMIT: {
-    name: "Sumit",
-    description: "קבלות + סליקה",
-    icon: CreditCard,
-    features: ["סליקה", "קבלות", "Developer Friendly"],
-    fields: {
-      apiKeyLabel: "מפתח API (API Key)",
-      apiKeyPlaceholder: "המפתח ממסך ה-API",
-      apiSecretLabel: "מזהה חברה (Company ID)",
-      apiSecretPlaceholder: "מזהה החברה שלך ב-Sumit",
-      apiSecretRequired: true,
-    },
-    instructions: [
-      "אם עוד אין לך חשבון - הירשם באתר sumit.co.il",
-      "היכנס לחשבון שלך באתר",
-      "בתפריט הצד, לחץ על API (דורש הרשאות מנהל מערכת)",
-      "יופיעו מזהה החברה (Company ID) ומפתח ה-API (API Key)",
-      "העתק את מפתח ה-API והדבק בשדה ״מפתח API״ למטה",
-      "העתק את מזהה החברה והדבק בשדה ״מזהה חברה״ למטה",
-    ],
-    signupUrl: "https://www.sumit.co.il",
   },
   CARDCOM: {
     name: "Cardcom",
