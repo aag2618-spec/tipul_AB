@@ -26,7 +26,7 @@ import { RichTextEditor } from "@/components/rich-text-editor";
 import { CompleteSessionDialog } from "@/components/sessions/complete-session-dialog";
 import { SessionPrepCard } from "@/components/ai/session-prep-card";
 import { SessionAnalysisButtons } from "@/components/ai/session-analysis-buttons";
-import { AiAnalysisContent } from "@/components/ai/ai-analysis-content";
+import { AiAnalysisContent, copyAnalysisRich } from "@/components/ai/ai-analysis-content";
 
 interface NoteAnalysis {
   // Plain text analysis (from SessionAnalysis model)
@@ -413,8 +413,9 @@ export default function SessionDetailPage({
   const handleCopyAnalysis = () => {
     const text = analysesByType[viewType] ?? noteAnalysis?.content;
     if (!text) return;
-    navigator.clipboard.writeText(text);
-    toast.success("הועתק ללוח");
+    copyAnalysisRich(text)
+      .then(() => toast.success("הועתק ללוח (עם עיצוב)"))
+      .catch(() => toast.error("שגיאה בהעתקה"));
   };
 
   // יצירת הניתוח המוצג כעת מחדש (אותו סוג) ישירות מהלוח. המגבלות נאכפות בצד השרת.

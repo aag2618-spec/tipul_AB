@@ -29,7 +29,7 @@ import {
 import { toast } from "sonner";
 import { format } from "date-fns";
 import { he } from "date-fns/locale";
-import { AiAnalysisContent } from "@/components/ai/ai-analysis-content";
+import { AiAnalysisContent, copyAnalysisRich } from "@/components/ai/ai-analysis-content";
 
 interface QuestionnaireAnalysisProps {
   clientId: string;
@@ -462,8 +462,9 @@ export function QuestionnaireAnalysis({
             <Button
               variant="outline"
               onClick={() => {
-                navigator.clipboard.writeText(analysisResult || "");
-                toast.success("הועתק ללוח");
+                copyAnalysisRich(analysisResult || "")
+                  .then(() => toast.success("הועתק ללוח (עם עיצוב)"))
+                  .catch(() => toast.error("שגיאה בהעתקה"));
               }}
             >
               📋 העתק

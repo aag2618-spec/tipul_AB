@@ -12,7 +12,7 @@ import {
 import { Badge } from "@/components/ui/badge";
 import { FileText, BookOpen, Loader2, Sparkles, RefreshCw } from "lucide-react";
 import { toast } from "sonner";
-import { AiAnalysisContent } from "@/components/ai/ai-analysis-content";
+import { AiAnalysisContent, copyAnalysisRich } from "@/components/ai/ai-analysis-content";
 
 interface SessionAnalysisButtonsProps {
   sessionId: string;
@@ -179,8 +179,9 @@ export function SessionAnalysisButtons({
             <Button
               variant="outline"
               onClick={() => {
-                navigator.clipboard.writeText(analysisResult || "");
-                toast.success("הועתק ללוח");
+                copyAnalysisRich(analysisResult || "")
+                  .then(() => toast.success("הועתק ללוח (עם עיצוב)"))
+                  .catch(() => toast.error("שגיאה בהעתקה"));
               }}
             >
               📋 העתק

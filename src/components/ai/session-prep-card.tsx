@@ -6,6 +6,7 @@ import { Button } from "@/components/ui/button";
 import { Badge } from "@/components/ui/badge";
 import { Brain, Loader2, RefreshCw, Sparkles, Lock } from "lucide-react";
 import { toast } from "sonner";
+import { AiAnalysisContent, copyAnalysisRich } from "@/components/ai/ai-analysis-content";
 
 interface SessionPrepCardProps {
   session: {
@@ -210,36 +211,35 @@ export function SessionPrepCard({ session, userTier }: SessionPrepCardProps) {
         {/* תוצאת ההכנה */}
         {prep && (
           <div className="space-y-4">
-            <div 
-              className={`prose prose-sm max-w-none ${!isExpanded ? 'line-clamp-6' : ''}`}
-              style={{ direction: 'rtl', textAlign: 'right' }}
-            >
-              <div className="whitespace-pre-wrap">{prep.content}</div>
+            <div className={!isExpanded ? "max-h-72 overflow-hidden" : ""}>
+              <AiAnalysisContent text={prep.content} />
             </div>
-            
-            {/* כפתור הרחבה */}
-            {!isExpanded && prep.content.length > 300 && (
-              <Button 
-                variant="ghost" 
-                size="sm" 
-                onClick={() => setIsExpanded(true)}
-                className="w-full"
+
+            {/* פעולות: הרחבה/כיווץ + העתקה */}
+            <div className="flex items-center justify-between gap-2">
+              {!isExpanded && prep.content.length > 300 ? (
+                <Button variant="ghost" size="sm" onClick={() => setIsExpanded(true)}>
+                  הצג עוד...
+                </Button>
+              ) : isExpanded ? (
+                <Button variant="ghost" size="sm" onClick={() => setIsExpanded(false)}>
+                  הצג פחות
+                </Button>
+              ) : (
+                <span />
+              )}
+              <Button
+                variant="outline"
+                size="sm"
+                onClick={() => {
+                  copyAnalysisRich(prep.content)
+                    .then(() => toast.success("הועתק ללוח (עם עיצוב)"))
+                    .catch(() => toast.error("שגיאה בהעתקה"));
+                }}
               >
-                הצג עוד...
+                📋 העתק
               </Button>
-            )}
-            
-            {/* כפתור כיווץ */}
-            {isExpanded && (
-              <Button 
-                variant="ghost" 
-                size="sm" 
-                onClick={() => setIsExpanded(false)}
-                className="w-full"
-              >
-                הצג פחות
-              </Button>
-            )}
+            </div>
 
             {/* פרטי שימוש */}
             <div className="flex items-center justify-between pt-3 border-t text-xs text-muted-foreground">

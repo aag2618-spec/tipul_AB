@@ -275,3 +275,107 @@ export function AiAnalysisContent({
     </div>
   );
 }
+
+// ===== ייצוא ל-HTML מעוצב (להעתקה "עם עיצוב", לא שחור-לבן) =====
+// משתמש באותה לוגיקת פירוק (parseSections/parseBody) אך מייצר HTML עם
+// סגנונות inline (צבעי hex) כדי שהעיצוב יישמר בהדבקה ל-Word / מייל.
+
+const HEX_BY_KEYWORD: Array<[RegExp, string]> = [
+  [/סיכון|אובדנ|התאבד|פגיעה עצמית|מסוכ/, "#b91c1c"],
+  [/עיוור|נקודות עיוורון/, "#c2410c"],
+  [/המלצ|המשך|מפגש הבא|פגישה הבא|כיוון טיפול|התערבו/, "#047857"],
+  [/רגש/, "#be123c"],
+  [/העברה/, "#0369a1"],
+  [/הגנה|מנגנון/, "#b45309"],
+  [/גישה|ויניקוט|תיאורי|אקלקט/, "#7e22ce"],
+  [/רגע|מכונן/, "#0f766e"],
+  [/נושא/, "#4338ca"],
+  [/הערכה|כמות|סולם|ציון|מדד/, "#0e7490"],
+  [/סיכום|תמצית|תוכן/, "#1d4ed8"],
+];
+
+function headingHex(heading: string): string {
+  for (const [re, hex] of HEX_BY_KEYWORD) {
+    if (re.test(heading)) return hex;
+  }
+  return "#334155";
+}
+
+function escapeHtml(s: string): string {
+  return s.replace(/&/g, "&amp;").replace(/</g, "&lt;").replace(/>/g, "&gt;");
+}
+
+function inlineToHtml(text: string): string {
+  return text
+    .split(/(\*\*[^*]+\*\*)/g)
+    .map((p) => {
+      const m = /^\*\*([^*]+)\*\*$/.exec(p);
+      return m ? `<strong>${escapeHtml(m[1])}</strong>` : escapeHtml(p);
+    })
+    .join("");
+}
+
+function bulletToHtml(text: string): string {
+  const m = /^([^:：]{2,40})[:：]\s+(.+)$/.exec(text);
+  if (m) return `<strong>${escapeHtml(m[1])}:</strong> ${inlineToHtml(m[2])}`;
+  return inlineToHtml(text);
+}
+
+function bodyToHtml(body: BodyItem[]): string {
+  return body
+    .map((it) => {
+      if (it.type === "p") {
+        return `<p style="margin:0 0 8px;">${inlineToHtml(it.text)}</p>`;
+      }
+      const lis = it.items
+        .map((b) => `<li style="margin:0 0 4px;">${bulletToHtml(b)}</li>`)
+        .join("");
+      return `<ul style="margin:0 0 10px;padding-right:18px;padding-left:0;">${lis}</ul>`;
+    })
+    .join("");
+}
+
+/** ממיר את טקסט ה-AI ל-HTML מעוצב (כותרות צבעוניות + תבליטים) להעתקה. */
+export function analysisToHtml(text: string): string {
+  if (!text?.trim()) return "";
+  const sections = parseSections(text);
+  const parts: string[] = [];
+  for (const sec of sections) {
+    const body = parseBody(sec.lines);
+    if (!sec.heading && body.length === 0) continue;
+    if (!sec.heading) {
+      parts.push(bodyToHtml(body));
+      continue;
+    }
+    const hex = headingHex(sec.heading);
+    parts.push(
+      `<div style="margin:0 0 16px;">` +
+        `<div style="font-weight:700;color:${hex};font-size:15px;margin:0 0 6px;">${escapeHtml(sec.heading)}</div>` +
+        bodyToHtml(body) +
+        `</div>`
+    );
+  }
+  return (
+    `<div dir="rtl" style="text-align:right;font-family:Arial,Helvetica,sans-serif;` +
+    `font-size:14px;line-height:1.6;color:#334155;">${parts.join("")}</div>`
+  );
+}
+
+/** מעתיק את הניתוח ללוח עם עיצוב (HTML) + נפילה חזרה לטקסט רגיל אם אין תמיכה. */
+export async function copyAnalysisRich(text: string): Promise<void> {
+  const plain = text ?? "";
+  try {
+    if (typeof ClipboardItem !== "undefined" && navigator.clipboard?.write) {
+      const html = analysisToHtml(plain);
+      const item = new ClipboardItem({
+        "text/html": new Blob([html], { type: "text/html" }),
+        "text/plain": new Blob([plain], { type: "text/plain" }),
+      });
+      await navigator.clipboard.write([item]);
+      return;
+    }
+  } catch {
+    // נפילה חזרה לטקסט רגיל
+  }
+  await navigator.clipboard.writeText(plain);
+}
