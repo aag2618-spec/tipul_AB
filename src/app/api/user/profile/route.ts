@@ -25,6 +25,7 @@ export async function GET() {
         image: true,
         defaultSessionDuration: true,
         defaultSessionPrice: true,
+        usesContentFilter: true,
         // H4: 2FA status — נצרך ע"י SecurityTab. twoFactorSecret לעולם לא
         // נחזר ל-client.
         twoFactorEnabled: true,
@@ -57,7 +58,7 @@ export async function PUT(request: NextRequest) {
     // H12: zod אוכף types + caps + ranges. phone עוד נורמל ידנית אחרי schema.
     const parsed = await parseBody(request, updateProfileSchema);
     if ("error" in parsed) return parsed.error;
-    const { name, phone, license, defaultSessionDuration, defaultSessionPrice } = parsed.data;
+    const { name, phone, license, defaultSessionDuration, defaultSessionPrice, usesContentFilter } = parsed.data;
 
     // phone normalization — מסיר רווחים/מקפים ואז אוכף PHONE_RE_IL.
     let phoneNormalized: string | null | undefined = undefined;
@@ -102,6 +103,8 @@ export async function PUT(request: NextRequest) {
         license: license !== undefined ? ((license as string | null) || null) : undefined,
         defaultSessionDuration: durationNum,
         defaultSessionPrice: priceNum,
+        usesContentFilter:
+          usesContentFilter !== undefined ? usesContentFilter : undefined,
       },
       select: {
         id: true,
@@ -111,6 +114,7 @@ export async function PUT(request: NextRequest) {
         license: true,
         defaultSessionDuration: true,
         defaultSessionPrice: true,
+        usesContentFilter: true,
       },
     });
 

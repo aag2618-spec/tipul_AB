@@ -54,6 +54,8 @@ export const updateProfileSchema = z.object({
     .optional(),
   defaultSessionDuration: durationField,
   defaultSessionPrice: priceField,
+  // כלי "שחרור תיק חסום" — טוגל אישי (נטפרי/אתרוג).
+  usesContentFilter: z.boolean().optional(),
 });
 
 export type UpdateProfileInput = z.infer<typeof updateProfileSchema>;

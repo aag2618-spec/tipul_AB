@@ -43,6 +43,7 @@ import {
   FileCheck,
   MessagesSquare,
   ArrowLeftRight,
+  Unlock,
 } from "lucide-react";
 
 interface AppSidebarProps {
@@ -249,6 +250,37 @@ export function AppSidebar({ user, initialViewMode = "personal" }: AppSidebarPro
     };
   }, [isChatMember]);
 
+  // כלי "שחרור תיק חסום" — מוצג רק למשתמש/ת שהדליק/ה את הטוגל בהגדרות (נטפרי/
+  // אתרוג). נקרא דרך fetch קטן (לא דרך ה-JWT) כדי לא לחייב התחברות-מחדש.
+  const [usesContentFilter, setUsesContentFilter] = useState(false);
+  useEffect(() => {
+    if (isSecretaryUser) return; // כלי קליני — חסום למזכיר/ה
+    let active = true;
+    (async () => {
+      try {
+        const res = await fetch("/api/user/profile");
+        if (res.ok && active) {
+          const data = await res.json();
+          setUsesContentFilter(!!data.usesContentFilter);
+        }
+      } catch {
+        // שקט — לא קריטי
+      }
+    })();
+    return () => {
+      active = false;
+    };
+  }, [isSecretaryUser]);
+
+  // עדכון חי כשהמשתמש/ת מדליק/ה את הטוגל בהגדרות — בלי צורך ברענון דף.
+  useEffect(() => {
+    const handler = (e: Event) => {
+      setUsesContentFilter(!!(e as CustomEvent).detail);
+    };
+    window.addEventListener("content-filter-changed", handler);
+    return () => window.removeEventListener("content-filter-changed", handler);
+  }, []);
+
   const isActive = (href: string) => {
     if (href === "/dashboard") {
       return pathname === "/dashboard";
@@ -352,6 +384,22 @@ export function AppSidebar({ user, initialViewMode = "personal" }: AppSidebarPro
                     </SidebarMenuButton>
                   </SidebarMenuItem>
                 ))}
+
+                {/* שחרור תיק חסום — רק למשתמשי סינון תוכן (נטפרי/אתרוג) */}
+                {usesContentFilter && (
+                  <SidebarMenuItem>
+                    <SidebarMenuButton
+                      asChild
+                      isActive={isActive("/dashboard/content-unblock")}
+                      tooltip="שחרור תיק חסום"
+                    >
+                      <Link href="/dashboard/content-unblock">
+                        <Unlock className="h-4 w-4" />
+                        <span>שחרור תיק חסום</span>
+                      </Link>
+                    </SidebarMenuButton>
+                  </SidebarMenuItem>
+                )}
               </SidebarMenu>
             </SidebarGroupContent>
           </SidebarGroup>

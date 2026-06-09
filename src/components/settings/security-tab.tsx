@@ -12,6 +12,7 @@ import Image from "next/image";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
+import { Switch } from "@/components/ui/switch";
 import {
   Card,
   CardContent,
@@ -27,7 +28,7 @@ import {
   DialogHeader,
   DialogTitle,
 } from "@/components/ui/dialog";
-import { Shield, Loader2, ShieldCheck, AlertTriangle, Key, Copy, Download, RefreshCw } from "lucide-react";
+import { Shield, Loader2, ShieldCheck, AlertTriangle, Key, Copy, Download, RefreshCw, Unlock } from "lucide-react";
 import { toast } from "sonner";
 import { useSession } from "next-auth/react";
 
@@ -53,6 +54,9 @@ export function SecurityTab() {
   const [regenOpen, setRegenOpen] = useState(false);
   const [regenCode, setRegenCode] = useState("");
   const [regenBusy, setRegenBusy] = useState(false);
+  // כלי "שחרור תיק חסום" — טוגל אישי (נטפרי/אתרוג).
+  const [usesContentFilter, setUsesContentFilter] = useState(false);
+  const [filterSaving, setFilterSaving] = useState(false);
 
   // טעינת הסטטוס הנוכחי מ-/api/user/profile (existing endpoint)
   useEffect(() => {
@@ -69,6 +73,7 @@ export function SecurityTab() {
         if (data.twoFactorMethod === "TOTP") setStatus("totp");
         else if (data.twoFactorEnabled) setStatus("otp");
         else setStatus("off");
+        setUsesContentFilter(!!data.usesContentFilter);
       } catch {
         if (!cancelled) setStatus("off");
       }
@@ -242,6 +247,39 @@ export function SecurityTab() {
     }
   }
 
+  // טוגל "אני משתמש/ת בסינון תוכן" — שמירה אופטימית ל-/api/user/profile.
+  async function toggleContentFilter(next: boolean) {
+    setFilterSaving(true);
+    setUsesContentFilter(next);
+    try {
+      const res = await fetch("/api/user/profile", {
+        method: "PUT",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ usesContentFilter: next }),
+      });
+      if (!res.ok) {
+        setUsesContentFilter(!next);
+        const data = await res.json().catch(() => ({}));
+        toast.error(data.message || "שמירה נכשלה");
+        return;
+      }
+      // מעדכן את סרגל הצד בזמן אמת (הטאב מופיע/נעלם בלי רענון דף).
+      window.dispatchEvent(
+        new CustomEvent("content-filter-changed", { detail: next })
+      );
+      toast.success(
+        next
+          ? 'מצב סינון תוכן הופעל — הכלי "שחרור תיק חסום" יופיע בתפריט'
+          : "מצב סינון תוכן כובה"
+      );
+    } catch {
+      setUsesContentFilter(!next);
+      toast.error("שגיאת רשת");
+    } finally {
+      setFilterSaving(false);
+    }
+  }
+
   return (
     <div className="space-y-4">
       <Card>
@@ -332,6 +370,44 @@ export function SecurityTab() {
               </Button>
             </div>
           )}
+        </CardContent>
+      </Card>
+
+      {/* כלי "שחרור תיק חסום" — סינון תוכן (נטפרי/אתרוג) */}
+      <Card>
+        <CardHeader>
+          <CardTitle className="flex items-center gap-2">
+            <Unlock className="h-5 w-5" />
+            סינון תוכן (נטפרי / אתרוג)
+          </CardTitle>
+          <CardDescription>
+            אם את/ה משתמש/ת בסינון תוכן שעלול לחסום תיק מטופל בגלל מילים שנכתבו
+            בסיכום, הפעלת המצב הזה תוסיף לתפריט את הכלי &quot;שחרור תיק חסום&quot; —
+            שמאפשר למחוק סיכום וניתוח AI של פגישה ספציפית מבלי להיכנס לתיק.
+          </CardDescription>
+        </CardHeader>
+        <CardContent>
+          <div className="flex items-center justify-between gap-4 rounded-md border p-3">
+            <div className="space-y-0.5">
+              <Label htmlFor="content-filter-switch">
+                אני משתמש/ת בסינון תוכן (נטפרי/אתרוג)
+              </Label>
+              <p className="text-xs text-muted-foreground">
+                מציג בתפריט את הכלי &quot;שחרור תיק חסום&quot;.
+              </p>
+            </div>
+            <div className="flex items-center gap-2">
+              {filterSaving && (
+                <Loader2 className="h-4 w-4 animate-spin text-muted-foreground" />
+              )}
+              <Switch
+                id="content-filter-switch"
+                checked={usesContentFilter}
+                onCheckedChange={toggleContentFilter}
+                disabled={filterSaving}
+              />
+            </div>
+          </div>
         </CardContent>
       </Card>
 
