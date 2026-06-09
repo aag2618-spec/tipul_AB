@@ -53,6 +53,25 @@ function createPrismaClient(): PrismaClient {
     });
   });
 
+  // ── Keep-alive ping: שמירה על חיבור "חם" ומניעת חיבורים מתים ──
+  // בלי זה, אחרי תקופת חוסר-פעילות החיבורים נסגרים (idleTimeoutMillis=30ש') או
+  // מתנתקים בשקט ע"י ה-NAT — והבקשה הראשונה אחרי הפסקה משלמת מחיר "התנעה קרה"
+  // (פתיחת חיבור חדש) או נתקעת על חיבור-מת עד timeout. זה בדיוק מה שגורם
+  // ל"איטיות/תקיעה אחרי זמן שלא נכנסתי". ping קליל (SELECT 1) כל 20ש':
+  //   • משאיר לפחות חיבור אחד חם → הבקשה הראשונה אחרי הפסקה מהירה.
+  //   • "מפעיל" חיבורים בקביעות כך שחיבור-מת מתגלה ומפונה (ע"י ה-error listener)
+  //     לפני שבקשת משתמש נופלת עליו.
+  // עטוף ב-catch — לעולם לא זורק (DB לא-זמין רגעית בזמן deploy/אתחול לא יפיל את
+  // התהליך). unref() — לא חוסם יציאת תהליך נקייה (סקריפטים/טסטים).
+  const keepAliveTimer = setInterval(() => {
+    pool.query('SELECT 1').catch(() => {
+      // שקט — DB לא-זמין רגעית; ה-ping הבא יחמם מחדש.
+    });
+  }, 20_000);
+  // unref כדי שה-timer לא יחזיק תהליך קצר-חיים (סקריפט/טסט) מלהסתיים.
+  // cast בטוח: בסביבת Node מוחזר Timeout עם unref; ב-DOM lib מוחזר number.
+  (keepAliveTimer as unknown as { unref?: () => void }).unref?.();
+
   const adapter = new PrismaPg(pool);
 
   const base = new PrismaClient({
