@@ -414,7 +414,7 @@ export default function SessionDetailPage({
     const text = analysesByType[viewType] ?? noteAnalysis?.content;
     if (!text) return;
     copyAnalysisRich(text)
-      .then(() => toast.success("הועתק ללוח (עם עיצוב)"))
+      .then(() => toast.success("הועתק ללוח"))
       .catch(() => toast.error("שגיאה בהעתקה"));
   };
 

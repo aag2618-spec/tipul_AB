@@ -39,11 +39,15 @@ export function SessionPrepCard({ session, userTier }: SessionPrepCardProps) {
     }
 
     const loadExistingPrep = async () => {
+      // timeout כדי שטעינת ההכנה לא תיתקע על ספינר אינסופי (למשל בזמן deploy-restart).
+      const controller = new AbortController();
+      const timer = setTimeout(() => controller.abort(), 15000);
       try {
         const response = await fetch(
-          `/api/ai/session-prep?clientId=${session.clientId}&sessionDate=${session.startTime}`
+          `/api/ai/session-prep?clientId=${session.clientId}&sessionDate=${session.startTime}`,
+          { signal: controller.signal }
         );
-        
+
         if (response.ok) {
           const data = await response.json();
           if (data.content) {
@@ -53,6 +57,7 @@ export function SessionPrepCard({ session, userTier }: SessionPrepCardProps) {
       } catch (error) {
         console.error('שגיאה בטעינת הכנה קיימת:', error);
       } finally {
+        clearTimeout(timer);
         setIsLoadingExisting(false);
       }
     };
@@ -67,6 +72,9 @@ export function SessionPrepCard({ session, userTier }: SessionPrepCardProps) {
     }
 
     setIsLoading(true);
+    // timeout (יצירה איטית — עד ~100 שניות) כדי שלא ייתקע ספינר לנצח אם השרת איטי/מתאתחל.
+    const controller = new AbortController();
+    const timer = setTimeout(() => controller.abort(), 100000);
     try {
       const response = await fetch('/api/ai/session-prep', {
         method: 'POST',
@@ -75,6 +83,7 @@ export function SessionPrepCard({ session, userTier }: SessionPrepCardProps) {
           clientId: session.clientId,
           sessionDate: session.startTime,
         }),
+        signal: controller.signal,
       });
 
       if (!response.ok) {
@@ -83,7 +92,7 @@ export function SessionPrepCard({ session, userTier }: SessionPrepCardProps) {
       }
 
       const data = await response.json();
-      
+
       if (!data.content) {
         toast.info(data.message || 'אין מספיק נתונים ליצירת הכנה');
         return;
@@ -94,8 +103,12 @@ export function SessionPrepCard({ session, userTier }: SessionPrepCardProps) {
       toast.success('ההכנה לפגישה נוצרה בהצלחה!');
     } catch (error: unknown) {
       console.error('שגיאה בהכנה לפגישה:', error);
-      toast.error(error instanceof Error ? error.message : 'שגיאה ביצירת הכנה לפגישה');
+      const msg = error instanceof Error && error.name === 'AbortError'
+        ? 'היצירה ארכה יותר מדי. נסה שוב.'
+        : error instanceof Error ? error.message : 'שגיאה ביצירת הכנה לפגישה';
+      toast.error(msg);
     } finally {
+      clearTimeout(timer);
       setIsLoading(false);
     }
   };
@@ -233,7 +246,7 @@ export function SessionPrepCard({ session, userTier }: SessionPrepCardProps) {
                 size="sm"
                 onClick={() => {
                   copyAnalysisRich(prep.content)
-                    .then(() => toast.success("הועתק ללוח (עם עיצוב)"))
+                    .then(() => toast.success("הועתק ללוח"))
                     .catch(() => toast.error("שגיאה בהעתקה"));
                 }}
               >

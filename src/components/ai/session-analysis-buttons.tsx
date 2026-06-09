@@ -180,7 +180,7 @@ export function SessionAnalysisButtons({
               variant="outline"
               onClick={() => {
                 copyAnalysisRich(analysisResult || "")
-                  .then(() => toast.success("הועתק ללוח (עם עיצוב)"))
+                  .then(() => toast.success("הועתק ללוח"))
                   .catch(() => toast.error("שגיאה בהעתקה"));
               }}
             >

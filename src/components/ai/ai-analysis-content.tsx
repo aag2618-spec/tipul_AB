@@ -280,25 +280,25 @@ export function AiAnalysisContent({
 // משתמש באותה לוגיקת פירוק (parseSections/parseBody) אך מייצר HTML עם
 // סגנונות inline (צבעי hex) כדי שהעיצוב יישמר בהדבקה ל-Word / מייל.
 
-const HEX_BY_KEYWORD: Array<[RegExp, string]> = [
-  [/סיכון|אובדנ|התאבד|פגיעה עצמית|מסוכ/, "#b91c1c"],
-  [/עיוור|נקודות עיוורון/, "#c2410c"],
-  [/המלצ|המשך|מפגש הבא|פגישה הבא|כיוון טיפול|התערבו/, "#047857"],
-  [/רגש/, "#be123c"],
-  [/העברה/, "#0369a1"],
-  [/הגנה|מנגנון/, "#b45309"],
-  [/גישה|ויניקוט|תיאורי|אקלקט/, "#7e22ce"],
-  [/רגע|מכונן/, "#0f766e"],
-  [/נושא/, "#4338ca"],
-  [/הערכה|כמות|סולם|ציון|מדד/, "#0e7490"],
-  [/סיכום|תמצית|תוכן/, "#1d4ed8"],
+const COLORS_BY_KEYWORD: Array<[RegExp, { text: string; bg: string }]> = [
+  [/סיכון|אובדנ|התאבד|פגיעה עצמית|מסוכ/, { text: "#b91c1c", bg: "#fef2f2" }],
+  [/עיוור|נקודות עיוורון/, { text: "#c2410c", bg: "#fff7ed" }],
+  [/המלצ|המשך|מפגש הבא|פגישה הבא|כיוון טיפול|התערבו/, { text: "#047857", bg: "#ecfdf5" }],
+  [/רגש/, { text: "#be123c", bg: "#fff1f2" }],
+  [/העברה/, { text: "#0369a1", bg: "#f0f9ff" }],
+  [/הגנה|מנגנון/, { text: "#b45309", bg: "#fffbeb" }],
+  [/גישה|ויניקוט|תיאורי|אקלקט/, { text: "#7e22ce", bg: "#faf5ff" }],
+  [/רגע|מכונן/, { text: "#0f766e", bg: "#f0fdfa" }],
+  [/נושא/, { text: "#4338ca", bg: "#eef2ff" }],
+  [/הערכה|כמות|סולם|ציון|מדד/, { text: "#0e7490", bg: "#ecfeff" }],
+  [/סיכום|תמצית|תוכן/, { text: "#1d4ed8", bg: "#eff6ff" }],
 ];
 
-function headingHex(heading: string): string {
-  for (const [re, hex] of HEX_BY_KEYWORD) {
-    if (re.test(heading)) return hex;
+function headingColors(heading: string): { text: string; bg: string } {
+  for (const [re, c] of COLORS_BY_KEYWORD) {
+    if (re.test(heading)) return c;
   }
-  return "#334155";
+  return { text: "#334155", bg: "#f1f5f9" };
 }
 
 function escapeHtml(s: string): string {
@@ -347,10 +347,12 @@ export function analysisToHtml(text: string): string {
       parts.push(bodyToHtml(body));
       continue;
     }
-    const hex = headingHex(sec.heading);
+    const c = headingColors(sec.heading);
     parts.push(
       `<div style="margin:0 0 16px;">` +
-        `<div style="font-weight:700;color:${hex};font-size:15px;margin:0 0 6px;">${escapeHtml(sec.heading)}</div>` +
+        `<div style="background:${c.bg};border-radius:8px;padding:7px 11px;margin:0 0 8px;">` +
+          `<span style="font-weight:700;color:${c.text};font-size:15px;">${escapeHtml(sec.heading)}</span>` +
+        `</div>` +
         bodyToHtml(body) +
         `</div>`
     );
