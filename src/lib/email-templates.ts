@@ -94,8 +94,8 @@ export function createSessionConfirmationEmail(data: EmailTemplateData) {
       <div style="background: #f5f5f5; padding: 20px; border-radius: 8px; margin: 20px 0;">
         <p style="margin: 8px 0;"><strong>📅 תאריך:</strong> ${data.date}</p>
         <p style="margin: 8px 0;"><strong>🕐 שעה:</strong> ${data.time}</p>
-        <p style="margin: 8px 0;"><strong>👤 מטפל/ת:</strong> ${data.therapistName}</p>
-        ${data.address ? `<p style="margin: 8px 0;"><strong>📍 כתובת:</strong> ${data.address}</p>` : ''}
+        <p style="margin: 8px 0;"><strong>👤 מטפל/ת:</strong> ${escapeHtml(data.therapistName)}</p>
+        ${data.address ? `<p style="margin: 8px 0;"><strong>📍 כתובת:</strong> ${escapeHtml(data.address)}</p>` : ''}
       </div>
       <p>לביטול או שינוי תור, נא ליצור קשר לפחות 24 שעות מראש.</p>
       ${getFooter(data.therapistName, data.customization)}
@@ -130,7 +130,7 @@ export function create2HourReminderEmail(data: EmailTemplateData) {
       <p>תור בעוד שעתיים!</p>
       <div style="background: #e8f5e9; padding: 20px; border-radius: 8px; margin: 20px 0;">
         <p style="margin: 8px 0;"><strong>🕐 היום בשעה:</strong> ${data.time}</p>
-        ${data.address ? `<p style="margin: 8px 0;"><strong>📍 כתובת:</strong> ${data.address}</p>` : ''}
+        ${data.address ? `<p style="margin: 8px 0;"><strong>📍 כתובת:</strong> ${escapeHtml(data.address)}</p>` : ''}
       </div>
       <p>נתראה בקרוב!</p>
       ${getFooter(data.therapistName, data.customization)}
@@ -223,7 +223,7 @@ export function createCancellationRejectedEmail(data: EmailTemplateData) {
       </div>
       ${data.rejectionReason ? `
         <div style="background: #f5f5f5; padding: 15px; border-radius: 8px; margin: 20px 0;">
-          <p style="margin: 0;"><strong>💬 סיבה:</strong> ${data.rejectionReason}</p>
+          <p style="margin: 0;"><strong>💬 סיבה:</strong> ${escapeHtml(data.rejectionReason)}</p>
         </div>
       ` : ''}
       <p>לשאלות נוספות, ניתן ליצור קשר.</p>
