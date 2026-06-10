@@ -26,8 +26,13 @@ interface LogEntry {
 // vat דורש word-boundary כדי לא ללכוד "private" (priVATe), "innovate", "elevator".
 // `\bvat` עם flag /i מכסה vat, VAT, vatId, vatRate, vat_id — אבל לא private/innovate.
 // tax(?!onomy) חוסם tax/taxId/taxRate אבל לא taxonomy.
+// 2026-06-10 עדכון: הוספת `recipient` + `toNumber` + `to` (מעוגן `(^|_)to$` כדי
+// לא ללכוד total/history/token/automatic). תחת המפתחות האלה נכתבו טלפונים/אימיילים
+// של מטופלים גלוי ל-Render logs (למשל sms.ts `{ to: phone }`, cron/notifications
+// ו-debt-reminders `{ recipient: client.email }`). הרגקס משפיע רק על פלט ה-logger,
+// לא על שדות DB (CommunicationLog) ולא על הפרמטר `to` של sendEmail.
 const SENSITIVE_KEY_REGEX =
-  /password|secret|token|notes?|content|transcription|nationalId|phone|email|signature|access_token|refresh_token|id_token|otp|codeHash|verificationCode|twoFaCode|recoveryCodes|twoFactorSecret|apiKey|api_key|cardcomToken|creditCard|cvv|pan|iban|swift|authorization|cookie|sessionId|sessionToken|emotionalMarkers|keyTopics|medicalHistory|aiAnalysis|recommendations|intakeNotes|initialDiagnosis|approachNotes|culturalContext|comprehensiveAnalysis|prompt|summary|transcript|description|freeText|firstName|lastName|address|birthDate|dob|dateOfBirth|idNumber|tax(?!onomy)|\bvat|salary|income|passport/i;
+  /password|secret|token|notes?|content|transcription|nationalId|phone|email|recipient|toNumber|(^|_)to$|signature|access_token|refresh_token|id_token|otp|codeHash|verificationCode|twoFaCode|recoveryCodes|twoFactorSecret|apiKey|api_key|cardcomToken|creditCard|cvv|pan|iban|swift|authorization|cookie|sessionId|sessionToken|emotionalMarkers|keyTopics|medicalHistory|aiAnalysis|recommendations|intakeNotes|initialDiagnosis|approachNotes|culturalContext|comprehensiveAnalysis|prompt|summary|transcript|description|freeText|firstName|lastName|address|birthDate|dob|dateOfBirth|idNumber|tax(?!onomy)|\bvat|salary|income|passport/i;
 
 // M11.M1: filename keys מקבלים hash במקום redact מלא, כדי לאפשר debug של
 // "אותו קובץ עלה פעמיים" בלי לחשוף PII (שם מטופל בקובץ "שרה כהן_פגישה.pdf").
