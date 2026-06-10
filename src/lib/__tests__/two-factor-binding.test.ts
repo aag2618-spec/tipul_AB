@@ -14,11 +14,11 @@ describe("isTwoFactorVerifiedForLogin — קשירת אימות 2FA ל-login ה�
     // תרחיש: תוקף שיודע את הסיסמה התחבר ב-T1 (loginAt=1000) ומחזיק cookie חצי-מאומת.
     // אחר כך הקורבן התחבר ועבר 2FA ב-T3 → twoFactorVerifiedForLoginAt=3000n.
     // התוקף מפעיל update() על ה-cookie הישן שלו (loginAt=1000) — אסור שישתחרר:
-    expect(isTwoFactorVerifiedForLogin(BigInt(3000), 1000)).toBe(false);
+    expect(isTwoFactorVerifiedForLogin(new Date(3000), 1000)).toBe(false);
   });
 
   it("מאפשר login לגיטימי: אימות עבור אותו login (שוויון מדויק) משחרר", () => {
-    expect(isTwoFactorVerifiedForLogin(BigInt(1000), 1000)).toBe(true);
+    expect(isTwoFactorVerifiedForLogin(new Date(1000), 1000)).toBe(true);
   });
 
   it("fail-secure: null/undefined (לא בוצע אימות) → לא משחרר", () => {
@@ -26,9 +26,9 @@ describe("isTwoFactorVerifiedForLogin — קשירת אימות 2FA ל-login ה�
     expect(isTwoFactorVerifiedForLogin(undefined, 1000)).toBe(false);
   });
 
-  it("שוויון מדויק על ערכי epoch-ms אמיתיים (round-trip של BigInt)", () => {
+  it("שוויון מדויק על ערכי epoch-ms אמיתיים (round-trip של DateTime ברמת ms)", () => {
     const loginAt = 1749567890123; // epoch-ms ריאלי
-    expect(isTwoFactorVerifiedForLogin(BigInt(loginAt), loginAt)).toBe(true);
-    expect(isTwoFactorVerifiedForLogin(BigInt(loginAt + 1), loginAt)).toBe(false);
+    expect(isTwoFactorVerifiedForLogin(new Date(loginAt), loginAt)).toBe(true);
+    expect(isTwoFactorVerifiedForLogin(new Date(loginAt + 1), loginAt)).toBe(false);
   });
 });

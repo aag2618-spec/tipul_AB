@@ -83,11 +83,11 @@ export function hashCode(code: string): string {
 // שוויון מדויק, לא ">", כך ש-verify שבוצע ל-login אחר (למשל login לגיטימי של הקורבן)
 // לא משחרר token חצי-מאומת ישן של תוקף שמחזיק את הסיסמה.
 export function isTwoFactorVerifiedForLogin(
-  verifiedForLoginAt: bigint | null | undefined,
+  verifiedForLoginAt: Date | null | undefined,
   tokenLoginAt: number,
 ): boolean {
   if (verifiedForLoginAt == null) return false;
-  return Number(verifiedForLoginAt) === tokenLoginAt;
+  return verifiedForLoginAt.getTime() === tokenLoginAt;
 }
 
 // 2FA נדרש רק לאנשי צוות (USER/MANAGER/ADMIN/CLINIC_OWNER/CLINIC_SECRETARY),
@@ -264,7 +264,7 @@ async function verifyTotp(userId: string, inputCode: string, loginAt: number): P
   const now = new Date();
   await prisma.user.update({
     where: { id: userId },
-    data: { lastLoginAt: now, lastActivityAt: now, twoFactorVerifiedForLoginAt: BigInt(loginAt) },
+    data: { lastLoginAt: now, lastActivityAt: now, twoFactorVerifiedForLoginAt: new Date(loginAt) },
   });
   return { success: true };
 }
@@ -350,7 +350,7 @@ export async function verifyCode(userId: string, inputCode: string, loginAt: num
     const now = new Date();
     await tx.user.update({
       where: { id: userId },
-      data: { lastLoginAt: now, lastActivityAt: now, twoFactorVerifiedForLoginAt: BigInt(loginAt) },
+      data: { lastLoginAt: now, lastActivityAt: now, twoFactorVerifiedForLoginAt: new Date(loginAt) },
     });
 
     return { success: true };
@@ -464,7 +464,7 @@ export async function verifyAndConsumeRecoveryCode(
       twoFactorRecoveryCodes: newJson,
       lastLoginAt: now,
       lastActivityAt: now,
-      twoFactorVerifiedForLoginAt: BigInt(loginAt),
+      twoFactorVerifiedForLoginAt: new Date(loginAt),
     },
   });
 

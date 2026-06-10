@@ -65,7 +65,7 @@ export class GreenInvoiceClient {
 
       logger.error('[GreenInvoice] failed to get token', {
         errorCode: result.errorCode,
-        message: result.message,
+        providerMessage: result.message,
       });
       return null;
     } catch (error) {

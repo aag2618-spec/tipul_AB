@@ -141,11 +141,12 @@ model User {
   // null עד הפעלת TOTP. ריק (מערך עם [] שווה ערך ל-null) = המשתמש ניצל את כולם.
   twoFactorRecoveryCodes String?   @db.Text
   lastLoginAt            DateTime?
-  // Anti-2FA-bypass (2026-06-10): epoch-ms של ה-loginAt שעבורו בוצע אימות 2FA מוצלח
-  // אחרון. ה-jwt callback מנקה requires2FA רק אם token.loginAt === הערך הזה (שוויון
-  // מדויק, לא ">"), כך שאימות שבוצע ל-login אחר לא משחרר token חצי-מאומת ישן של תוקף.
+  // Anti-2FA-bypass (2026-06-10): ה-loginAt שעבורו בוצע אימות 2FA מוצלח אחרון,
+  // נשמר כ-DateTime (JSON-safe — לא BigInt שזורק ב-JSON.stringify). ה-jwt callback
+  // מנקה requires2FA רק אם token.loginAt === getTime() של הערך הזה (שוויון מדויק,
+  // לא ">"), כך שאימות שבוצע ל-login אחר לא משחרר token חצי-מאומת ישן של תוקף.
   // nullable ללא default → בטוח ל-`prisma db push` בלי --accept-data-loss.
-  twoFactorVerifiedForLoginAt BigInt?
+  twoFactorVerifiedForLoginAt DateTime?
   lastActivityAt         DateTime? // מתי הייתה הפעולה האחרונה — בסיס לחישוב 3 שעות חוסר פעילות
   defaultSessionDuration Int       @default(50) // משך פגישה סטנדרטית בדקות
   defaultSessionPrice    Decimal?  @db.Decimal(10, 2) // מחיר ברירת מחדל לפגישה

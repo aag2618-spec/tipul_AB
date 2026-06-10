@@ -215,9 +215,9 @@ export const authOptions: NextAuthOptions = {
           lastActivityAt: user.lastActivityAt,
         });
 
-        // loginAt = רגע ההתחברות. נשמר ב-token, וב-update flow נשווה
-        // verifiedAt > loginAt — מבטיח שה-flag נמחק רק ע"י verify טרי
-        // שקרה אחרי הlogin הזה (ולא מ-verifyים קודמים).
+        // loginAt = רגע ההתחברות (epoch ms). נשמר ב-token; ב-update flow ה-jwt
+        // callback מנקה requires2FA רק אם twoFactorVerifiedForLoginAt === loginAt
+        // (שוויון מדויק) — הדגל נמחק רק ע"י אימות 2FA שבוצע עבור ה-login הזה.
         return {
           id: user.id,
           email: user.email,
@@ -532,9 +532,7 @@ export const authOptions: NextAuthOptions = {
       }
 
       // אחרי 2FA verify מוצלח, ה-frontend קורא ל-update() של NextAuth →
-      // trigger === "update". בודקים שיש TwoFactorCode עם verifiedAt **אחרי**
-      // ה-loginAt של ה-token הנוכחי. ככה הflag נמחק רק על ידי verify טרי
-      // שקרה אחרי הlogin הזה (ולא מ-verifyים קודמים, login קודם, וכו').
+      // trigger === "update". הניקוי עצמו (שוויון מדויק ל-loginAt) מתואר בבלוק.
       if (trigger === "update" && token.id && token.requires2FA && typeof token.loginAt === "number") {
         // Anti-2FA-bypass (2026-06-10): מנקים requires2FA רק אם בוצע אימות 2FA מוצלח
         // *בדיוק* עבור ה-login הזה (token.loginAt). שוויון מדויק (===), לא ">", סוגר
@@ -551,7 +549,6 @@ export const authOptions: NextAuthOptions = {
           logger.warn("[jwt] 2FA update בלי אימות תואם ל-login הזה", { userId: token.id });
         }
       }
-
 
       // עדכון lastActivityAt (debounced) — בסיס ל-2FA inactivity check.
       // לא מעדכנים אם הטוקן עדיין דורש 2FA (כדי לא ליצור חלון פטור מ-2FA לפני verify).
