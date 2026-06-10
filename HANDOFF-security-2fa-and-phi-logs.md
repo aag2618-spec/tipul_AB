@@ -48,7 +48,7 @@
 **סטטוס: ✅ done — tsc נקי, 879 בדיקות עוברות (כולל two-factor-binding), build עובר**
 
 `src/lib/auth.ts:538-570` (jwt callback) מנקה `requires2FA` לפי `verifiedAt/lastLoginAt > token.loginAt` (טווח) במקום שיוך מדויק ל-login. תוקף עם הסיסמה יכול "להחנות" session ולחכות שהקורבן יעבור 2FA → לשדרג את ה-session שלו.
-- **תיקון (Option B מאומת ע"י סוכן Plan):** שדה חדש `User.twoFactorVerifiedForLoginAt BigInt?`; ה-verify endpoint נעשה session-aware (`getToken`, דורש `requires2FA` + email תואם), חותם את `token.loginAt`; ה-callback מנקה רק על **שוויון מדויק** (`===`). מכסה TOTP + email-OTP + recovery.
+- **תיקון (Option B מאומת ע"י סוכן Plan):** שדה חדש `User.twoFactorVerifiedForLoginAt DateTime?` (הומר מ-BigInt אחרי ביקורת — JSON-safe); ה-verify endpoint נעשה session-aware (`getToken`, דורש `requires2FA` + email תואם), חותם את `token.loginAt`; ה-callback מנקה רק על **שוויון מדויק** (`===`). מכסה TOTP + email-OTP + recovery.
 - קבצים: `prisma/schema.prisma`, `src/lib/two-factor.ts`, `src/app/api/auth/2fa/verify/route.ts`, `src/lib/auth.ts`. בדיקות: `src/lib/__tests__/two-factor-binding.test.ts`.
 - schema: שדה nullable → `prisma db push` בטוח, בלי data loss.
 

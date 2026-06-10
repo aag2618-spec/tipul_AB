@@ -12,7 +12,7 @@ import { isTwoFactorVerifiedForLogin } from "@/lib/two-factor";
 describe("isTwoFactorVerifiedForLogin — קשירת אימות 2FA ל-login הספציפי", () => {
   it("חוסם את העקיפה: אימות שבוצע ל-login אחר (T3) לא משחרר token ישן (T1)", () => {
     // תרחיש: תוקף שיודע את הסיסמה התחבר ב-T1 (loginAt=1000) ומחזיק cookie חצי-מאומת.
-    // אחר כך הקורבן התחבר ועבר 2FA ב-T3 → twoFactorVerifiedForLoginAt=3000n.
+    // אחר כך הקורבן התחבר ועבר 2FA ב-T3 → twoFactorVerifiedForLoginAt=Date(3000).
     // התוקף מפעיל update() על ה-cookie הישן שלו (loginAt=1000) — אסור שישתחרר:
     expect(isTwoFactorVerifiedForLogin(new Date(3000), 1000)).toBe(false);
   });
