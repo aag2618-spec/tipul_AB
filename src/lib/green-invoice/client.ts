@@ -9,6 +9,7 @@ import {
   GreenInvoiceDocType,
   GreenInvoicePaymentType,
 } from './types';
+import { logger } from '../logger';
 
 const GREEN_INVOICE_API_BASE = 'https://api.greeninvoice.co.il/api/v1';
 
@@ -62,10 +63,15 @@ export class GreenInvoiceClient {
         return this.accessToken;
       }
 
-      console.error('Failed to get Green Invoice token:', result);
+      logger.error('[GreenInvoice] failed to get token', {
+        errorCode: result.errorCode,
+        message: result.message,
+      });
       return null;
     } catch (error) {
-      console.error('Green Invoice token error:', error);
+      logger.error('[GreenInvoice] token error', {
+        errorMessage: error instanceof Error ? error.message : String(error),
+      });
       return null;
     }
   }
@@ -113,7 +119,9 @@ export class GreenInvoiceClient {
         data: result as T,
       };
     } catch (error) {
-      console.error('Green Invoice request error:', error);
+      logger.error('[GreenInvoice] request error', {
+        errorMessage: error instanceof Error ? error.message : String(error),
+      });
       return {
         success: false,
         errorMessage: error instanceof Error ? error.message : 'שגיאה לא ידועה',

@@ -3,6 +3,7 @@
 
 import prisma from "@/lib/prisma";
 import { sanitizeChargebackPayload } from "@/lib/cardcom/sanitize";
+import { logger } from "@/lib/logger";
 
 export interface FailedWebhook {
   provider: string;
@@ -52,7 +53,7 @@ export async function saveFailedWebhook(webhook: FailedWebhook): Promise<void> {
       },
     });
   } catch (err) {
-    console.error("Failed to save webhook for retry:", err);
+    logger.error("[webhook-retry] failed to save webhook for retry", { errorMessage: err instanceof Error ? err.message : String(err) });
   }
 }
 
@@ -70,7 +71,7 @@ export async function withWebhookRetry(
     return { success: true };
   } catch (error) {
     const errorMessage = error instanceof Error ? error.message : "Unknown error";
-    console.error(`Webhook handler failed [${provider}/${eventType}]:`, errorMessage);
+    logger.error("[webhook-retry] webhook handler failed", { provider, eventType, errorMessage });
     
     // שמירה לניסיון חוזר
     await saveFailedWebhook({

@@ -305,9 +305,9 @@ export async function processMultiSessionPayment(params: {
       }
 
       if (paymentMode === "FULL" && remainingAmount > 0.001) {
-        console.warn(
-          `Warning: Full payment had remaining amount: ${remainingAmount}`
-        );
+        logger.warn("[bulk-payment] full payment had remaining amount", {
+          remainingAmount,
+        });
       }
 
       // Credit deduction inside transaction (atomic check + decrement)

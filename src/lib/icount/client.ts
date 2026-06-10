@@ -8,6 +8,7 @@ import {
   ICountSettings,
   ICountRawDocResponse,
 } from './types';
+import { logger } from '../logger';
 
 const ICOUNT_API_BASE = 'https://api.icount.co.il/api/v3.php';
 
@@ -51,10 +52,14 @@ export class ICountClient {
         this.sid = result.sid;
         return true;
       }
-      console.error('iCount login failed:', result.error_description || result.reason || JSON.stringify(result));
+      logger.error('[iCount] login failed', {
+        reason: result.error_description || result.reason || 'unknown',
+      });
       return false;
     } catch (err) {
-      console.error('iCount login error:', err);
+      logger.error('[iCount] login error', {
+        errorMessage: err instanceof Error ? err.message : String(err),
+      });
       return false;
     }
   }
@@ -98,7 +103,10 @@ export class ICountClient {
       }
 
       if (!result.status) {
-        console.error('iCount API Error:', result);
+        logger.error('[iCount] API error', {
+          errorCode: result.errorcode || 'UNKNOWN',
+          reason: result.error_description || result.reason,
+        });
         return {
           success: false,
           message: result.error_description || result.reason || result.message || 'שגיאה בתקשורת עם iCount',
@@ -115,7 +123,9 @@ export class ICountClient {
         data: result as T,
       };
     } catch (error) {
-      console.error('iCount request error:', error);
+      logger.error('[iCount] request error', {
+        errorMessage: error instanceof Error ? error.message : String(error),
+      });
       return {
         success: false,
         message: error instanceof Error ? error.message : 'שגיאה לא ידועה',
@@ -172,7 +182,9 @@ export class ICountClient {
       availableTypes = await this.getAvailableDocTypes();
       if (isDev) console.log('iCount available doc types:', JSON.stringify(availableTypes));
     } catch (e) {
-      console.error('Failed to fetch doc types:', e);
+      logger.error('[iCount] failed to fetch doc types', {
+        errorMessage: e instanceof Error ? e.message : String(e),
+      });
     }
 
     // Use types from doc/types API if available, otherwise try common ones

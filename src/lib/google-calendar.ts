@@ -1,5 +1,6 @@
 import { google, calendar_v3 } from 'googleapis';
 import prisma from './prisma';
+import { logger } from './logger';
 
 const oauth2Client = new google.auth.OAuth2(
   process.env.GOOGLE_CLIENT_ID,
@@ -97,7 +98,7 @@ export async function addToGoogleCalendar(
 
     return response.data.id || null;
   } catch (error) {
-    console.error('Error adding to Google Calendar:', error);
+    logger.error('[google-calendar] error adding event', { errorMessage: error instanceof Error ? error.message : String(error) });
     return null;
   }
 }
@@ -140,7 +141,7 @@ export async function updateGoogleCalendarEvent(
 
     return true;
   } catch (error) {
-    console.error('Error updating Google Calendar event:', error);
+    logger.error('[google-calendar] error updating event', { errorMessage: error instanceof Error ? error.message : String(error) });
     return false;
   }
 }
@@ -163,7 +164,7 @@ export async function deleteGoogleCalendarEvent(
 
     return true;
   } catch (error) {
-    console.error('Error deleting Google Calendar event:', error);
+    logger.error('[google-calendar] error deleting event', { errorMessage: error instanceof Error ? error.message : String(error) });
     return false;
   }
 }
@@ -209,7 +210,7 @@ export async function getUpcomingGoogleEvents(
       location: event.location || undefined,
     }));
   } catch (error) {
-    console.error('Error fetching Google Calendar events:', error);
+    logger.error('[google-calendar] error fetching events', { errorMessage: error instanceof Error ? error.message : String(error) });
     return [];
   }
 }

@@ -273,14 +273,14 @@ export async function sendSMS(
 
   const apiKey = getApiKey();
   if (!apiKey) {
-    console.warn("[SMS] PULSEEM_API_KEY not set, skipping SMS");
+    logger.warn("[SMS] PULSEEM_API_KEY not set, skipping SMS");
     return { success: false, error: "API key not configured" };
   }
 
   // Validate phone
   const normalizedPhone = normalizePhone(phone);
   if (!normalizedPhone) {
-    console.warn("[SMS] Invalid phone number format");
+    logger.warn("[SMS] Invalid phone number format");
     return { success: false, error: "Invalid phone number" };
   }
 
@@ -361,7 +361,7 @@ export async function sendSMS(
       // Legacy flow: check בלבד; deduction ב-incrementUsage אחרי send מוצלח.
       const { allowed } = await checkAndUpdateQuota(userId);
       if (!allowed) {
-        console.warn("[SMS] Quota exceeded for user:", userId);
+        logger.warn("[SMS] Quota exceeded for user", { userId });
         return { success: false, error: "SMS quota exceeded" };
       }
     }
@@ -638,7 +638,7 @@ async function logSMS(params: {
       },
     });
   } catch (error) {
-    console.error("[SMS] Failed to log SMS:", error);
+    logger.error("[SMS] Failed to log SMS", { errorMessage: error instanceof Error ? error.message : String(error) });
   }
 }
 

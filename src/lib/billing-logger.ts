@@ -3,6 +3,7 @@
 
 import prisma from "@/lib/prisma";
 import type { BillingProviderType } from "@/lib/billing/types";
+import { logger } from "@/lib/logger";
 
 export interface BillingLogEntry {
   userId?: string;
@@ -35,7 +36,7 @@ export async function logBillingApiCall(entry: BillingLogEntry): Promise<void> {
     });
   } catch (err) {
     // לא נכשיל את הקריאה הראשית אם הלוג נכשל
-    console.error("Failed to log billing API call:", err);
+    logger.error("[billing-logger] failed to log billing API call", { errorMessage: err instanceof Error ? err.message : String(err) });
   }
 }
 

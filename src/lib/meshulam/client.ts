@@ -12,6 +12,7 @@ import {
   MeshulamTransaction,
   MeshulamSettings,
 } from './types';
+import { logger } from '../logger';
 
 const MESHULAM_API_BASE = 'https://secure.meshulam.co.il/api/light/server/1.0';
 const MESHULAM_SANDBOX_BASE = 'https://sandbox.meshulam.co.il/api/light/server/1.0';
@@ -63,7 +64,10 @@ export class MeshulamClient {
       const result = await response.json();
       
       if (result.status !== 1) {
-        console.error('Meshulam API Error:', result);
+        logger.error('[Meshulam] API error', {
+          status: result.status,
+          errorMessage: result.err?.message,
+        });
         return {
           status: result.status || 0,
           message: result.err?.message || 'שגיאה בתקשורת עם Meshulam',
@@ -77,7 +81,9 @@ export class MeshulamClient {
         data: result.data as T,
       };
     } catch (error) {
-      console.error('Meshulam request error:', error);
+      logger.error('[Meshulam] request error', {
+        errorMessage: error instanceof Error ? error.message : String(error),
+      });
       return {
         status: 0,
         message: error instanceof Error ? error.message : 'שגיאה לא ידועה',

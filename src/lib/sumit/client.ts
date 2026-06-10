@@ -11,6 +11,7 @@ import {
   SumitDocumentType,
   SumitPaymentMethod,
 } from './types';
+import { logger } from '../logger';
 
 const SUMIT_API_BASE = 'https://api.sumit.co.il/v1';
 
@@ -62,7 +63,10 @@ export class SumitClient {
       const result = await response.json();
 
       if (!result.Success) {
-        console.error('Sumit API Error:', result);
+        logger.error('[Sumit] API error', {
+          errorCode: result.ErrorCode,
+          errorMessage: result.ErrorMessage,
+        });
         return {
           Success: false,
           ErrorMessage: result.ErrorMessage || 'שגיאה בתקשורת עם Sumit',
@@ -75,7 +79,9 @@ export class SumitClient {
         Data: result.Data as T,
       };
     } catch (error) {
-      console.error('Sumit request error:', error);
+      logger.error('[Sumit] request error', {
+        errorMessage: error instanceof Error ? error.message : String(error),
+      });
       return {
         Success: false,
         ErrorMessage: error instanceof Error ? error.message : 'שגיאה לא ידועה',
