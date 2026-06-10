@@ -78,6 +78,18 @@ export function hashCode(code: string): string {
   return crypto.createHash("sha256").update(code).digest("hex");
 }
 
+// Anti-2FA-bypass (2026-06-10): סוגר עקיפת 2FA בין sessions. ה-jwt callback מנקה
+// את requires2FA רק אם האימות בוצע *בדיוק* עבור ה-login הנוכחי (token.loginAt) —
+// שוויון מדויק, לא ">", כך ש-verify שבוצע ל-login אחר (למשל login לגיטימי של הקורבן)
+// לא משחרר token חצי-מאומת ישן של תוקף שמחזיק את הסיסמה.
+export function isTwoFactorVerifiedForLogin(
+  verifiedForLoginAt: bigint | null | undefined,
+  tokenLoginAt: number,
+): boolean {
+  if (verifiedForLoginAt == null) return false;
+  return Number(verifiedForLoginAt) === tokenLoginAt;
+}
+
 // 2FA נדרש רק לאנשי צוות (USER/MANAGER/ADMIN/CLINIC_OWNER/CLINIC_SECRETARY),
 // כשהפעילות האחרונה הייתה לפני יותר מ-3 שעות או שאין פעילות בכלל (כניסה ראשונה).
 //
@@ -221,11 +233,11 @@ export type VerifyCodeResult =
 // H18: אם הקוד נראה כמו recovery code (10 תווים אלפא-נומריים, לא 6 ספרות),
 // עובר ל-verifyAndConsumeRecoveryCode במקום TOTP. זה מאפשר למשתמש שאיבד
 // טלפון להיכנס בעזרת קוד שחזור.
-async function verifyTotp(userId: string, inputCode: string): Promise<VerifyCodeResult> {
+async function verifyTotp(userId: string, inputCode: string, loginAt: number): Promise<VerifyCodeResult> {
   // H18: אם נראה כמו recovery code — ננתב אליו.
   if (looksLikeRecoveryCode(inputCode)) {
     try {
-      return await verifyAndConsumeRecoveryCode(userId, inputCode);
+      return await verifyAndConsumeRecoveryCode(userId, inputCode, loginAt);
     } catch (err) {
       if (err instanceof Error && err.message === "RECOVERY_RACE") {
         return { success: false, error: "קוד שחזור כבר בשימוש. אנא נסה/י קוד אחר." };
@@ -252,7 +264,7 @@ async function verifyTotp(userId: string, inputCode: string): Promise<VerifyCode
   const now = new Date();
   await prisma.user.update({
     where: { id: userId },
-    data: { lastLoginAt: now, lastActivityAt: now },
+    data: { lastLoginAt: now, lastActivityAt: now, twoFactorVerifiedForLoginAt: BigInt(loginAt) },
   });
   return { success: true };
 }
@@ -264,14 +276,14 @@ async function verifyTotp(userId: string, inputCode: string): Promise<VerifyCode
 //
 // H4: אם המשתמש בחר twoFactorMethod="TOTP", פונקציה זו עוברת לנתיב TOTP
 // (אימות מול secret במקום קוד שנשלח). אחרת — נתיב OTP-by-email/SMS (legacy).
-export async function verifyCode(userId: string, inputCode: string): Promise<VerifyCodeResult> {
+export async function verifyCode(userId: string, inputCode: string, loginAt: number): Promise<VerifyCodeResult> {
   // בדוק שיטה תחילה — אם TOTP, לא נוגעים ב-TwoFactorCode בכלל.
   const u = await prisma.user.findUnique({
     where: { id: userId },
     select: { twoFactorMethod: true },
   });
   if (u?.twoFactorMethod === "TOTP") {
-    return verifyTotp(userId, inputCode);
+    return verifyTotp(userId, inputCode, loginAt);
   }
 
   const inputHash = hashCode(inputCode);
@@ -338,7 +350,7 @@ export async function verifyCode(userId: string, inputCode: string): Promise<Ver
     const now = new Date();
     await tx.user.update({
       where: { id: userId },
-      data: { lastLoginAt: now, lastActivityAt: now },
+      data: { lastLoginAt: now, lastActivityAt: now, twoFactorVerifiedForLoginAt: BigInt(loginAt) },
     });
 
     return { success: true };
@@ -391,6 +403,7 @@ export function looksLikeRecoveryCode(input: string): boolean {
 export async function verifyAndConsumeRecoveryCode(
   userId: string,
   inputCode: string,
+  loginAt: number,
 ): Promise<VerifyCodeResult> {
   const normalized = normalizeRecoveryCode(inputCode);
   if (!looksLikeRecoveryCode(normalized)) {
@@ -451,6 +464,7 @@ export async function verifyAndConsumeRecoveryCode(
       twoFactorRecoveryCodes: newJson,
       lastLoginAt: now,
       lastActivityAt: now,
+      twoFactorVerifiedForLoginAt: BigInt(loginAt),
     },
   });
 

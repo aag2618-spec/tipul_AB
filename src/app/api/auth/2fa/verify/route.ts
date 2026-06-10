@@ -1,6 +1,7 @@
 import { NextRequest, NextResponse } from "next/server";
 import prisma from "@/lib/prisma";
 import { verifyCode, looksLikeRecoveryCode } from "@/lib/two-factor";
+import { getToken } from "next-auth/jwt";
 import {
   checkRateLimit,
   LOGIN_EMAIL_RATE_LIMIT,
@@ -60,6 +61,21 @@ export async function POST(req: NextRequest) {
       }
     }
 
+    // Session-binding (anti-2FA-bypass): קוראים את ה-token של *המבקש* (לא מה-body),
+    // כדי שרק ה-session החצי-מאומת עצמו יוכל לבצע את האימות (getToken כמו ב-proxy).
+    const token = await getToken({
+      req,
+      secret: process.env.NEXTAUTH_SECRET,
+      secureCookie: process.env.NODE_ENV === "production",
+    });
+    if (!token || token.requires2FA !== true || typeof token.loginAt !== "number") {
+      return NextResponse.json(
+        { error: "אין בקשת אימות פעילה. התחבר/י מחדש." },
+        { status: 401 }
+      );
+    }
+    const tokenLoginAt = token.loginAt;
+
     const user = await prisma.user.findFirst({
       where: { email: { equals: email, mode: "insensitive" } },
       select: { id: true },
@@ -71,7 +87,14 @@ export async function POST(req: NextRequest) {
       return NextResponse.json({ error: "קוד שגוי" }, { status: 400 });
     }
 
-    const result = await verifyCode(user.id, code);
+    // ה-email שנשלח חייב להיות של בעל ה-session החצי-מאומת (token.id). אחרת תוקף
+    // עם session משלו יכול "לאמת" עבור email של קורבן. timing parity כמו במקרה !user.
+    if (user.id !== token.id) {
+      await new Promise((r) => setTimeout(r, 200 + Math.random() * 300));
+      return NextResponse.json({ error: "קוד שגוי" }, { status: 400 });
+    }
+
+    const result = await verifyCode(user.id, code, tokenLoginAt);
 
     // M10.4: audit trail עבור 2FA verify (success + failed). חיוני לזיהוי
     // ניסיונות brute-force ולחקירת חשבונות שנפרצו. fire-and-forget — לא

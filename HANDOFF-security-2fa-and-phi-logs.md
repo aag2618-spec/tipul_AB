@@ -16,7 +16,7 @@
 ## ה-Checklist
 
 ### 🔴 פריט 1 — דליפת PHI/PII ללוגים (חמור; תיקון בטוח ומכני)
-**סטטוס: in_progress**
+**סטטוס: ✅ done — commits cadc68a6 (regex+test) + 35ebbf20 (console→logger)**
 
 שני חלקים:
 
@@ -36,7 +36,7 @@
 ---
 
 ### 🟡 פריט 2 — חוסר escapeHtml ב-3 תבניות מייל (בינוני; תיקון זעיר)
-**סטטוס: pending**
+**סטטוס: ✅ done — commit 9e9a9b6d**
 
 `src/lib/email-templates.ts`: 4 הזרקות לא-מנוקות → `:97` `therapistName`, `:98` ו-`:133` `address`, `:226` `rejectionReason`. מטפל זדוני/פרוץ יכול להזריק HTML (פישינג/tracking) למייל של המטופל.
 - **תיקון:** לעטוף כל אחת ב-`escapeHtml(...)` (קיים בקובץ, בשימוש כבר במקומות אחרים).
@@ -45,7 +45,7 @@
 ---
 
 ### 🔴 פריט 3 — עקיפת 2FA בין-sessions (חמור; עדין — נוגע בהתחברות)
-**סטטוס: pending — אחרון, עם TDD מלא**
+**סטטוס: ✅ done — tsc נקי, 879 בדיקות עוברות (כולל two-factor-binding), build עובר**
 
 `src/lib/auth.ts:538-570` (jwt callback) מנקה `requires2FA` לפי `verifiedAt/lastLoginAt > token.loginAt` (טווח) במקום שיוך מדויק ל-login. תוקף עם הסיסמה יכול "להחנות" session ולחכות שהקורבן יעבור 2FA → לשדרג את ה-session שלו.
 - **תיקון (Option B מאומת ע"י סוכן Plan):** שדה חדש `User.twoFactorVerifiedForLoginAt BigInt?`; ה-verify endpoint נעשה session-aware (`getToken`, דורש `requires2FA` + email תואם), חותם את `token.loginAt`; ה-callback מנקה רק על **שוויון מדויק** (`===`). מכסה TOTP + email-OTP + recovery.

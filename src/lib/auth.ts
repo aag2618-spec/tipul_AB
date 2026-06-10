@@ -5,7 +5,7 @@ import { PrismaAdapter } from "@auth/prisma-adapter";
 import bcrypt from "bcryptjs";
 import prisma from "./prisma";
 import { checkRateLimit, resetRateLimit, AUTH_RATE_LIMIT, LOGIN_EMAIL_RATE_LIMIT } from "./rate-limit";
-import { requires2FA } from "./two-factor";
+import { requires2FA, isTwoFactorVerifiedForLogin } from "./two-factor";
 import { loadVerifiedImpersonation, type JwtActingAs } from "./impersonation";
 import { sendEmail } from "./resend";
 import { logger } from "./logger";
@@ -535,37 +535,20 @@ export const authOptions: NextAuthOptions = {
       // trigger === "update". בודקים שיש TwoFactorCode עם verifiedAt **אחרי**
       // ה-loginAt של ה-token הנוכחי. ככה הflag נמחק רק על ידי verify טרי
       // שקרה אחרי הlogin הזה (ולא מ-verifyים קודמים, login קודם, וכו').
-      if (trigger === "update" && token.id && token.requires2FA && token.loginAt) {
-        const loginAtDate = new Date(token.loginAt);
-        const dbUserTotp = await prisma.user.findUnique({
+      if (trigger === "update" && token.id && token.requires2FA && typeof token.loginAt === "number") {
+        // Anti-2FA-bypass (2026-06-10): מנקים requires2FA רק אם בוצע אימות 2FA מוצלח
+        // *בדיוק* עבור ה-login הזה (token.loginAt). שוויון מדויק (===), לא ">", סוגר
+        // את העקיפה שבה verify שבוצע ל-login אחר (login לגיטימי של הקורבן) שיחרר token
+        // חצי-מאומת ישן של תוקף. אותו check לכל 3 הנתיבים (TOTP/email-OTP/recovery) —
+        // כולם חותמים את twoFactorVerifiedForLoginAt דרך verifyCode.
+        const dbUser = await prisma.user.findUnique({
           where: { id: token.id as string },
-          select: { twoFactorMethod: true, lastLoginAt: true },
+          select: { twoFactorVerifiedForLoginAt: true },
         });
-        if (dbUserTotp?.twoFactorMethod === "TOTP") {
-          if (dbUserTotp.lastLoginAt && dbUserTotp.lastLoginAt > loginAtDate) {
-            token.requires2FA = false;
-          }
+        if (isTwoFactorVerifiedForLogin(dbUser?.twoFactorVerifiedForLoginAt, token.loginAt)) {
+          token.requires2FA = false;
         } else {
-          const recentlyVerified = await prisma.twoFactorCode.findFirst({
-            where: {
-              userId: token.id as string,
-              verifiedAt: { not: null, gt: loginAtDate },
-            },
-            orderBy: { verifiedAt: "desc" },
-            select: { verifiedAt: true },
-          });
-          if (recentlyVerified) {
-            token.requires2FA = false;
-            logger.info("[jwt] 2FA verified via email code", {
-              userId: token.id,
-              verifiedAt: recentlyVerified.verifiedAt,
-            });
-          } else {
-            logger.warn("[jwt] 2FA update called but no verified code found", {
-              userId: token.id,
-              loginAt: loginAtDate.toISOString(),
-            });
-          }
+          logger.warn("[jwt] 2FA update בלי אימות תואם ל-login הזה", { userId: token.id });
         }
       }
 
