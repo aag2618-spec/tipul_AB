@@ -14,7 +14,7 @@ import { checkCronAuth } from "@/lib/cron-auth";
 import { withAudit } from "@/lib/audit";
 import { invalidateJwtCache } from "@/lib/auth";
 import { sendAccountBlockedEmail } from "@/lib/emails/dunning";
-import type { AITier } from "@prisma/client";
+import type { AITier, CommunicationType } from "@prisma/client";
 
 // ========================================
 // הגדרות
@@ -121,8 +121,17 @@ export async function GET(req: NextRequest) {
     for (const user of expiringIn7Days) {
       if (!user.email) continue;
       try {
+        if (await reminderAlreadySent(user.id, "SUBSCRIPTION_REMINDER_7D", now)) continue;
         const price = resolveUserMonthlyPrice(priceResolver, user, now);
         await sendSubscriptionReminderEmail(user, 7, price);
+        await markReminderSent({
+          userId: user.id,
+          email: user.email,
+          organizationId: user.organizationId,
+          type: "SUBSCRIPTION_REMINDER_7D",
+          subject: "⏰ תוקף המנוי שלך מסתיים בעוד 7 ימים - חדש עכשיו",
+          now,
+        });
         results.reminders7days++;
       } catch (err) {
         results.errors.push(`7-day reminder failed for ${user.email}: ${err}`);
@@ -160,8 +169,17 @@ export async function GET(req: NextRequest) {
     for (const user of expiringIn3Days) {
       if (!user.email) continue;
       try {
+        if (await reminderAlreadySent(user.id, "SUBSCRIPTION_REMINDER_3D", now)) continue;
         const price = resolveUserMonthlyPrice(priceResolver, user, now);
         await sendSubscriptionReminderEmail(user, 3, price);
+        await markReminderSent({
+          userId: user.id,
+          email: user.email,
+          organizationId: user.organizationId,
+          type: "SUBSCRIPTION_REMINDER_3D",
+          subject: "⏰ תוקף המנוי שלך מסתיים בעוד 3 ימים - חדש עכשיו",
+          now,
+        });
         results.reminders3days++;
       } catch (err) {
         results.errors.push(`3-day reminder failed for ${user.email}: ${err}`);
@@ -198,8 +216,17 @@ export async function GET(req: NextRequest) {
     for (const user of expiringTomorrow) {
       if (!user.email) continue;
       try {
+        if (await reminderAlreadySent(user.id, "SUBSCRIPTION_REMINDER_1D", now)) continue;
         const price = resolveUserMonthlyPrice(priceResolver, user, now);
         await sendLastDayReminderEmail(user, price);
+        await markReminderSent({
+          userId: user.id,
+          email: user.email,
+          organizationId: user.organizationId,
+          type: "SUBSCRIPTION_REMINDER_1D",
+          subject: "🚨 תוקף המנוי שלך מסתיים היום! חדש עכשיו",
+          now,
+        });
         results.reminders1day++;
       } catch (err) {
         results.errors.push(`Last day reminder failed for ${user.email}: ${err}`);
@@ -243,10 +270,22 @@ export async function GET(req: NextRequest) {
       // שולחים תזכורת ביום 1, 3, 5, 7 של תקופת החסד
       if ([1, 3, 5, 7].includes(daysSinceExpiry)) {
         try {
+          if (await reminderAlreadySent(user.id, "SUBSCRIPTION_GRACE", now)) continue;
           const daysLeft = GRACE_PERIOD_DAYS - daysSinceExpiry;
           const price = resolveUserMonthlyPrice(priceResolver, user, now);
           await sendGracePeriodEmail(user, daysLeft, price);
           results.gracePeriodReminders++;
+
+          // רושמים מיד אחרי מייל הלקוח — כך כשל בהודעת האדמין לא יגרום
+          // לשליחה חוזרת של מייל הלקוח בריצה הבאה.
+          await markReminderSent({
+            userId: user.id,
+            email: user.email,
+            organizationId: user.organizationId,
+            type: "SUBSCRIPTION_GRACE",
+            subject: "🚨 המנוי שלך פג — תזכורת תקופת חסד",
+            now,
+          });
 
           // שולחים גם הודעה לאדמין
           if (ADMIN_EMAIL) {
@@ -456,12 +495,13 @@ export async function GET(req: NextRequest) {
         // consistency עם בלוקי תזכורות אחרים — defense in depth.
         billingPaidByClinic: false,
       },
-      select: { id: true, name: true, email: true, aiTier: true, trialEndsAt: true },
+      select: { id: true, name: true, email: true, aiTier: true, organizationId: true, trialEndsAt: true },
     });
 
     for (const user of trialReminder7) {
       try {
         if (user.email) {
+          if (await reminderAlreadySent(user.id, "TRIAL_REMINDER_7D", now)) continue;
           await sendEmail({
             to: user.email,
             subject: "נותרו לך 7 ימים בתקופת הניסיון - Tipul",
@@ -479,6 +519,14 @@ export async function GET(req: NextRequest) {
                 <p style="color: #64748b; font-size: 13px;">כל הנתונים שלך שמורים - המעבר חלק ומיידי.</p>
               </div>
             `,
+          });
+          await markReminderSent({
+            userId: user.id,
+            email: user.email,
+            organizationId: user.organizationId,
+            type: "TRIAL_REMINDER_7D",
+            subject: "נותרו לך 7 ימים בתקופת הניסיון - Tipul",
+            now,
           });
         }
       } catch (err) {
@@ -502,12 +550,13 @@ export async function GET(req: NextRequest) {
         // consistency עם בלוקי תזכורות אחרים — defense in depth.
         billingPaidByClinic: false,
       },
-      select: { id: true, name: true, email: true, aiTier: true, trialEndsAt: true },
+      select: { id: true, name: true, email: true, aiTier: true, organizationId: true, trialEndsAt: true },
     });
 
     for (const user of trialReminder2) {
       try {
         if (user.email) {
+          if (await reminderAlreadySent(user.id, "TRIAL_REMINDER_2D", now)) continue;
           await sendEmail({
             to: user.email,
             subject: "נותרו יומיים לסיום תקופת הניסיון! - Tipul",
@@ -525,6 +574,14 @@ export async function GET(req: NextRequest) {
                 <p style="color: #64748b; font-size: 13px;">לאחר סיום הניסיון, תהיה לך תקופת חסד של 7 ימים. לאחר מכן הגישה תוגבל.</p>
               </div>
             `,
+          });
+          await markReminderSent({
+            userId: user.id,
+            email: user.email,
+            organizationId: user.organizationId,
+            type: "TRIAL_REMINDER_2D",
+            subject: "נותרו יומיים לסיום תקופת הניסיון! - Tipul",
+            now,
           });
         }
       } catch (err) {
@@ -687,6 +744,60 @@ export async function GET(req: NextRequest) {
       { status: 500 }
     );
   }
+}
+
+// ========================================
+// מניעת כפילויות — כל תזכורת לכל היותר פעם ביום
+// ========================================
+// לפני התיקון: כל ריצת cron שלחה את אותה תזכורת מחדש — הבלוקים למעלה רק שואלים
+// "למי המנוי נגמר בעוד X ימים?" ושולחים, בלי לבדוק אם כבר נשלח. כך המתזמן
+// הפנימי (scheduler.ts, כל 15 דק' בין 08:00-10:00) וגם כל טריגר חיצוני הפכו
+// את התזכורת לספאם. כעת אותו דפוס כמו reminders-2h: CommunicationLog משמש
+// כ-ledger ל-dedup (לפי userId+type+SENT בחלון זמן).
+//
+// בחירת החלון — חייב להיות בין 24 ל-48 שעות:
+//   • ≥ 24ש' — תזכורת עלולה ליפול על משתמש בשני ימי-cron רצופים (מקרה גבול:
+//     היום endsAt ב-7.0 ימים, מחר ב-6.0 — שניהם בטווח [6,7]). 24ש' חוסמות
+//     את החזרה הזו ומבטיחות מייל אחד לכל שלב.
+//   • < 48ש' — תזכורות תקופת החסד נשלחות בימים 1/3/5/7 (כל 48ש'). חלון ≥48ש'
+//     היה חוסם בטעות את התזכורת הבאה. שלבים שונים (7→3→1) הם type שונה ממילא,
+//     והמחזור הבא (חודש קדימה) רחוק משמעותית — אז אין חסימת-שווא.
+const REMINDER_DEDUP_WINDOW_HOURS = 30;
+
+async function reminderAlreadySent(
+  userId: string,
+  type: CommunicationType,
+  now: Date
+): Promise<boolean> {
+  const since = new Date(now.getTime() - REMINDER_DEDUP_WINDOW_HOURS * 60 * 60 * 1000);
+  const existing = await prisma.communicationLog.findFirst({
+    where: { userId, type, channel: "EMAIL", status: "SENT", createdAt: { gte: since } },
+    select: { id: true },
+  });
+  return existing !== null;
+}
+
+async function markReminderSent(params: {
+  userId: string;
+  email: string;
+  organizationId?: string | null;
+  type: CommunicationType;
+  subject: string;
+  now: Date;
+}): Promise<void> {
+  await prisma.communicationLog.create({
+    data: {
+      type: params.type,
+      channel: "EMAIL",
+      recipient: params.email,
+      subject: params.subject,
+      content: params.subject, // מספיק ל-audit; ה-dedup מתבסס על type+status+זמן
+      status: "SENT",
+      sentAt: params.now,
+      userId: params.userId,
+      organizationId: params.organizationId ?? null,
+    },
+  });
 }
 
 // ========================================
