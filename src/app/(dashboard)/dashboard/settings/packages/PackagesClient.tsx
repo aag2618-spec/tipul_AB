@@ -156,6 +156,9 @@ export default function PackagesClient({
     ),
   };
 
+  // פיצ'ר ה-AI הוסר — מציגים רק SMS. AI_DETAILED_ANALYSIS נשאר ב-enum/DB אך מוסתר מה-UI.
+  const visibleTypes: PackageType[] = ["SMS"];
+
   const noPackagesAvailable = view.packages.length === 0;
   const blockedTitle = isBlocked ? "החשבון חסום — פנה/י לתמיכה" : undefined;
 
@@ -164,7 +167,7 @@ export default function PackagesClient({
       <div>
         <h1 className="text-2xl font-bold tracking-tight">חבילות נוספות</h1>
         <p className="text-muted-foreground">
-          רכישת חבילות חד-פעמיות של SMS וניתוחי AI מתקדמים. הרכישה מתבצעת דרך
+          רכישת חבילות חד-פעמיות של SMS. הרכישה מתבצעת דרך
           Cardcom והקרדיטים נכנסים מיידית לחשבון.
         </p>
       </div>
@@ -201,7 +204,7 @@ export default function PackagesClient({
         </CardHeader>
         <CardContent>
           <div className="grid gap-3 sm:grid-cols-2">
-            {(Object.keys(grouped) as PackageType[]).map((type) => {
+            {visibleTypes.map((type) => {
               const Icon = TYPE_ICONS[type];
               const label =
                 type === "SMS" ? "הודעות SMS" : "ניתוחי AI מתקדם";
@@ -234,7 +237,7 @@ export default function PackagesClient({
       )}
 
       {/* קטלוג */}
-      {(Object.keys(grouped) as PackageType[]).map((type) => {
+      {visibleTypes.map((type) => {
         const Icon = TYPE_ICONS[type];
         const packages = grouped[type];
         if (packages.length === 0) return null;

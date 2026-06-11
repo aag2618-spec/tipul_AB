@@ -4,19 +4,12 @@ import { useState, useEffect } from "react";
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
-import { Badge } from "@/components/ui/badge";
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
 import {
   Settings,
   RefreshCw,
   Save,
   RotateCcw,
-  Check,
-  X,
-  Sparkles,
-  FileText,
-  BarChart3,
-  Brain,
   Percent,
 } from "lucide-react";
 import { toast } from "sonner";
@@ -28,12 +21,6 @@ interface TierLimit {
   displayNameEn: string;
   priceMonthly: number;
   description: string | null;
-  sessionPrepLimit: number;
-  conciseAnalysisLimit: number;
-  detailedAnalysisLimit: number;
-  singleQuestionnaireLimit: number;
-  combinedQuestionnaireLimit: number;
-  progressReportLimit: number;
   discountQuarterly: number;
   discountSemiAnnual: number;
   discountAnnual: number;
@@ -128,7 +115,7 @@ export default function TierSettingsPage() {
 
   const handleReset = async () => {
     const confirmMsg =
-      "פעולה הרסנית: כל ההתאמות האישיות של מחירים ומכסות יימחקו.\n" +
+      "פעולה הרסנית: כל ההתאמות האישיות של מחירים והנחות יימחקו.\n" +
       "כדי לאשר, הקלד בדיוק: RESET_TIER_LIMITS";
     const input = window.prompt(confirmMsg);
     if (input !== "RESET_TIER_LIMITS") {
@@ -158,45 +145,6 @@ export default function TierSettingsPage() {
     }
   };
 
-  const renderLimitInput = (
-    limit: TierLimit,
-    field: keyof TierLimit,
-    label: string,
-    description: string
-  ) => {
-    const value = getValue(limit, field) as number;
-    const isBlocked = value === -1;
-    const isUnlimited = value === 0;
-
-    return (
-      <div className="flex items-center justify-between py-3 border-b border-border last:border-0">
-        <div className="flex-1">
-          <p className="text-foreground font-medium">{label}</p>
-          <p className="text-xs text-muted-foreground">{description}</p>
-        </div>
-        <div className="flex items-center gap-2">
-          {isBlocked ? (
-            <Badge variant="destructive" className="ml-2">
-              <X className="h-3 w-3 ml-1" />
-              חסום
-            </Badge>
-          ) : isUnlimited ? (
-            <Badge variant="secondary" className="ml-2 bg-green-500/20 text-green-400">
-              <Check className="h-3 w-3 ml-1" />
-              ללא הגבלה
-            </Badge>
-          ) : null}
-          <Input
-            type="number"
-            value={value}
-            onChange={(e) => handleChange(limit.tier, field, parseInt(e.target.value) || 0)}
-            className="w-24 text-center"
-          />
-        </div>
-      </div>
-    );
-  };
-
   if (loading) {
     return (
       <div className="flex items-center justify-center min-h-[50vh]">
@@ -214,7 +162,7 @@ export default function TierSettingsPage() {
             <Settings className="h-8 w-8 text-primary" />
             הגדרות תוכניות
           </h1>
-          <p className="text-muted-foreground mt-1">ניהול מכסות ומחירים לכל תוכנית</p>
+          <p className="text-muted-foreground mt-1">ניהול מחירים והנחות לכל תוכנית</p>
         </div>
 
         <Button variant="outline" onClick={handleReset} disabled={saving} className="border-red-500 text-red-500">
@@ -222,26 +170,6 @@ export default function TierSettingsPage() {
           אפס לברירת מחדל
         </Button>
       </div>
-
-      {/* Legend */}
-      <Card>
-        <CardContent className="pt-6">
-          <div className="flex gap-6 flex-wrap text-sm">
-            <div className="flex items-center gap-2">
-              <Badge variant="destructive" className="text-xs">-1</Badge>
-              <span className="text-muted-foreground">= חסום (לא זמין בתוכנית)</span>
-            </div>
-            <div className="flex items-center gap-2">
-              <Badge variant="secondary" className="text-xs bg-green-500/20 text-green-400">0</Badge>
-              <span className="text-muted-foreground">= ללא הגבלה</span>
-            </div>
-            <div className="flex items-center gap-2">
-              <Badge variant="outline" className="text-xs">N</Badge>
-              <span className="text-muted-foreground">= מספר מקסימלי לחודש</span>
-            </div>
-          </div>
-        </CardContent>
-      </Card>
 
       {/* Tier Tabs */}
       <Tabs defaultValue="ESSENTIAL" className="w-full">
@@ -361,78 +289,6 @@ export default function TierSettingsPage() {
                       <span className="text-muted-foreground text-sm">%</span>
                     </div>
                   </div>
-                </CardContent>
-              </Card>
-
-              {/* Session Prep Limits */}
-              <Card>
-                <CardHeader>
-                  <CardTitle className="flex items-center gap-2">
-                    <Brain className="h-5 w-5 text-purple-400" />
-                    הכנה לפגישות
-                  </CardTitle>
-                </CardHeader>
-                <CardContent>
-                  {renderLimitInput(
-                    limit,
-                    "sessionPrepLimit",
-                    "הכנות לפגישה",
-                    "הכנת AI לפני פגישה עם סיכום מהפגישות הקודמות"
-                  )}
-                </CardContent>
-              </Card>
-
-              {/* Session Analysis Limits */}
-              <Card>
-                <CardHeader>
-                  <CardTitle className="flex items-center gap-2">
-                    <FileText className="h-5 w-5 text-sky-400" />
-                    ניתוחי פגישות
-                  </CardTitle>
-                </CardHeader>
-                <CardContent>
-                  {renderLimitInput(
-                    limit,
-                    "conciseAnalysisLimit",
-                    "ניתוח תמציתי",
-                    "ניתוח קצר של פגישה (סיכום, נושאים, המלצות)"
-                  )}
-                  {renderLimitInput(
-                    limit,
-                    "detailedAnalysisLimit",
-                    "ניתוח מפורט",
-                    "ניתוח מעמיק לפי גישה טיפולית (2-3 עמודים)"
-                  )}
-                </CardContent>
-              </Card>
-
-              {/* Questionnaire Limits */}
-              <Card>
-                <CardHeader>
-                  <CardTitle className="flex items-center gap-2">
-                    <BarChart3 className="h-5 w-5 text-green-400" />
-                    ניתוחי שאלונים
-                  </CardTitle>
-                </CardHeader>
-                <CardContent>
-                  {renderLimitInput(
-                    limit,
-                    "singleQuestionnaireLimit",
-                    "ניתוח שאלון בודד",
-                    "ניתוח AI של תוצאות שאלון אחד"
-                  )}
-                  {renderLimitInput(
-                    limit,
-                    "combinedQuestionnaireLimit",
-                    "ניתוח משולב",
-                    "ניתוח של כל השאלונים של מטופל"
-                  )}
-                  {renderLimitInput(
-                    limit,
-                    "progressReportLimit",
-                    "דוח התקדמות",
-                    "דוח משולב של שאלונים + פגישות"
-                  )}
                 </CardContent>
               </Card>
             </div>

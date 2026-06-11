@@ -6,13 +6,10 @@ import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
 import Link from "next/link";
 import { 
-  Loader2, 
-  Users, 
-  Activity, 
-  CreditCard, 
-  HardDrive, 
-  TrendingUp, 
-  TrendingDown,
+  Loader2,
+  Users,
+  CreditCard,
+  HardDrive,
   Bell,
   AlertCircle,
   Clock,
@@ -27,8 +24,6 @@ interface DashboardStats {
   totalUsers: number;
   activeUsers: number;
   newUsersThisMonth: number;
-  totalApiCalls: number;
-  apiCallsToday: number;
   totalRevenue: number;
   pendingPayments: number;
   totalStorageGB: number;
@@ -84,14 +79,6 @@ export default function AdminDashboardPage() {
       icon: Users,
       color: "text-sky-500",
       bgColor: "bg-sky-500/20",
-    },
-    {
-      title: "קריאות API",
-      value: stats?.totalApiCalls || 0,
-      description: `${stats?.apiCallsToday || 0} היום`,
-      icon: Activity,
-      color: "text-green-500",
-      bgColor: "bg-green-500/20",
     },
     {
       title: "הכנסות",
@@ -154,7 +141,7 @@ export default function AdminDashboardPage() {
       </div>
 
       {/* Stats Grid */}
-      <div className="grid gap-6 md:grid-cols-2 lg:grid-cols-4">
+      <div className="grid gap-6 md:grid-cols-2 lg:grid-cols-3">
         {statCards.map((card) => (
           <Card key={card.title}>
             <CardHeader className="flex flex-row items-center justify-between pb-2">
@@ -247,7 +234,7 @@ export default function AdminDashboardPage() {
       <PendingAlerts />
 
       {/* Recent Activity */}
-      <div className="grid gap-6 lg:grid-cols-2">
+      <div className="grid gap-6">
         <Card>
           <CardHeader>
             <CardTitle>משתמשים אחרונים</CardTitle>
@@ -255,16 +242,6 @@ export default function AdminDashboardPage() {
           </CardHeader>
           <CardContent>
             <RecentUsers />
-          </CardContent>
-        </Card>
-
-        <Card>
-          <CardHeader>
-            <CardTitle>פעילות API אחרונה</CardTitle>
-            <CardDescription>קריאות API אחרונות במערכת</CardDescription>
-          </CardHeader>
-          <CardContent>
-            <RecentApiCalls />
           </CardContent>
         </Card>
       </div>
@@ -439,59 +416,6 @@ function RecentUsers() {
           </div>
           <span className="text-xs text-muted-foreground">
             {new Date(user.createdAt).toLocaleDateString("he-IL")}
-          </span>
-        </div>
-      ))}
-    </div>
-  );
-}
-
-function RecentApiCalls() {
-  const [calls, setCalls] = useState<Array<{id: string; endpoint: string; user: {name: string}; createdAt: string; success: boolean}>>([]);
-  const [isLoading, setIsLoading] = useState(true);
-
-  useEffect(() => {
-    const fetchCalls = async () => {
-      try {
-        const response = await fetch("/api/admin/api-usage?limit=5");
-        if (response.ok) {
-          const data = await response.json();
-          setCalls(data.logs || []);
-        }
-      } catch (error) {
-        console.error("Failed to fetch API calls:", error);
-      } finally {
-        setIsLoading(false);
-      }
-    };
-    fetchCalls();
-  }, []);
-
-  if (isLoading) {
-    return <div className="flex justify-center py-4"><Loader2 className="h-6 w-6 animate-spin text-muted-foreground" /></div>;
-  }
-
-  if (calls.length === 0) {
-    return <p className="text-muted-foreground text-center py-4">אין קריאות API</p>;
-  }
-
-  return (
-    <div className="space-y-3">
-      {calls.map((call) => (
-        <div key={call.id} className="flex items-center justify-between py-2 border-b border-border last:border-0">
-          <div className="flex items-center gap-2">
-            {call.success ? (
-              <TrendingUp className="h-4 w-4 text-green-500" />
-            ) : (
-              <TrendingDown className="h-4 w-4 text-red-500" />
-            )}
-            <div>
-              <p className="font-medium text-sm">{call.endpoint}</p>
-              <p className="text-xs text-muted-foreground">{call.user?.name || "משתמש"}</p>
-            </div>
-          </div>
-          <span className="text-xs text-muted-foreground">
-            {new Date(call.createdAt).toLocaleTimeString("he-IL")}
           </span>
         </div>
       ))}

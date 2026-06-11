@@ -5,32 +5,12 @@
  * בשני מקומות (prisma/seed.ts + lazy-init ב-GET handlers), מה שגרם
  * ל-drift risk — שינוי באחד לא מתורגם לשני.
  *
- * כל הקוד שמאתחל FeatureFlag או GlobalAISettings חייב לייבא מכאן.
+ * כל הקוד שמאתחל FeatureFlag חייב לייבא מכאן.
  *
  * צרכנים:
  *   - prisma/seed.ts                                  (CLI seed)
- *   - src/app/api/admin/ai-settings/route.ts          (GET lazy-init fallback)
  *   - src/app/api/admin/feature-flags/route.ts        (GET lazy-init fallback)
  */
-
-/**
- * ברירות מחדל ל-GlobalAISettings. singleton עם id קבוע.
- * שינויים פה ישפיעו גם על seed וגם על lazy-init.
- */
-export const DEFAULT_AI_SETTINGS = {
-  dailyLimitEssential: 0,
-  dailyLimitPro: 30,
-  dailyLimitEnterprise: 100,
-  monthlyLimitEssential: 0,
-  monthlyLimitPro: 600,
-  monthlyLimitEnterprise: 2000,
-  maxMonthlyCostBudget: 5000,
-  alertThreshold: 4000,
-  blockOnExceed: false,
-  alertAdminOnExceed: true,
-  enableCache: true,
-  compressPrompts: true,
-} as const;
 
 /**
  * 6 feature flags ראשוניים לאתחול. נוצרים עם isEnabled=true.
@@ -73,9 +53,3 @@ export const DEFAULT_FEATURE_FLAGS = [
     tiers: ["ENTERPRISE"],
   },
 ] as const;
-
-/**
- * id הקבוע ל-GlobalAISettings (singleton). לא ב-Prisma default (cuid) כדי
- * לוודא שתמיד רק רשומה אחת קיימת, וניתן לאתר אותה בקלות.
- */
-export const GLOBAL_AI_SETTINGS_ID = "default";

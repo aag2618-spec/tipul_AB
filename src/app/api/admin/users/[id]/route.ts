@@ -11,8 +11,45 @@ import { escapeHtml } from "@/lib/email-utils";
 import { requirePermission, requireHighestPermission } from "@/lib/api-auth";
 import type { Permission } from "@/lib/permissions";
 import { invalidateJwtCache } from "@/lib/auth";
+import type { Prisma } from "@prisma/client";
 
 export const dynamic = "force-dynamic";
+
+/**
+ * Select בטוח-ל-JSON להחזרת שורת המשתמש מ-PUT/PATCH.
+ *
+ * חובה select מפורש: שורת User המלאה כוללת את twoFactorVerifiedForLoginAt (BigInt),
+ * ו-JSON.stringify זורק "Do not know how to serialize a BigInt" אחרי שה-update כבר
+ * נכתב ל-DB → האדמין מקבל 500 מטעה ("שגיאה בעדכון המשתמש") למרות שהשינוי הוחל.
+ * השדה נעשה non-null לכל איש צוות אחרי אימות 2FA (ה-CLINIC_OWNER בכל login).
+ *
+ * בנוסף, אסור להחזיר ל-UI שדות רגישים (password, twoFactorSecret,
+ * twoFactorRecoveryCodes). השדות כאן זהים ל-basic select של GET, כך שצורת התשובה
+ * תואמת את מה שה-frontend כבר יודע לקרוא, ו-email/name/aiTier זמינים לשליחת
+ * מיילי ה-PATCH (grant_free / block / unblock / revoke_free).
+ */
+const USER_UPDATE_RESPONSE_SELECT = {
+  id: true,
+  name: true,
+  email: true,
+  phone: true,
+  role: true,
+  isBlocked: true,
+  blockReason: true,
+  blockedAt: true,
+  blockedBy: true,
+  aiTier: true,
+  pendingTier: true,
+  pendingTierEffectiveAt: true,
+  subscriptionStatus: true,
+  subscriptionStartedAt: true,
+  subscriptionEndsAt: true,
+  trialEndsAt: true,
+  isFreeSubscription: true,
+  freeSubscriptionNote: true,
+  userNumber: true,
+  createdAt: true,
+} satisfies Prisma.UserSelect;
 
 /**
  * Infer audit action name from PATCH/PUT body.
@@ -33,9 +70,9 @@ function inferAuditAction(body: Record<string, unknown>): string {
 
 // GET — פרופיל משתמש.
 // Stage 2.0 hardening: סינון שדות לפי role.
-//   - ADMIN: כל הפרופיל המלא (כולל subscriptionPayments, supportTickets, AI stats)
+//   - ADMIN: כל הפרופיל המלא (כולל subscriptionPayments, supportTickets)
 //   - MANAGER (וכל role אחר): רק שדות זיהוי וסטטוס בסיסי. אין subscriptionPayments,
-//     אין AI cost data, אין supportTickets (PII רגיש של לקוחות פנייה).
+//     אין supportTickets (PII רגיש של לקוחות פנייה).
 //
 // המוטיבציה: ל-MANAGER יש users.view (רואה את הרשימה ובסיס), אבל אין סיבה
 // שיראה את כל היסטוריית התשלומים והעלויות הפרטיות של כל משתמש במערכת.
@@ -52,7 +89,7 @@ export async function GET(
     const isAdmin = session.user.role === "ADMIN";
 
     // Stage 2.0 — שדות בסיסיים (מותר לכל role עם users.view).
-    // _count תמיד כולל את אותם השדות (כולל apiUsageLogs) כדי שה-UI לא יקרוס
+    // _count תמיד כולל את אותם השדות כדי שה-UI לא יקרוס
     // אצל MANAGER. ל-MANAGER פשוט "לא מציגים" subscriptionPayments/supportTickets
     // (מחזירים [] במקום undefined כדי לשמור על compat).
     const select = {
@@ -82,20 +119,10 @@ export async function GET(
           therapySessions: true,
           documents: true,
           supportTickets: true,
-          apiUsageLogs: true,
         },
       },
       ...(isAdmin
         ? {
-            aiUsageStats: {
-              select: {
-                currentMonthCalls: true,
-                currentMonthCost: true,
-                totalCalls: true,
-                totalCost: true,
-                dailyCalls: true,
-              },
-            },
             subscriptionPayments: {
               orderBy: { createdAt: "desc" } as const,
               take: 10,
@@ -133,7 +160,7 @@ export async function GET(
     }
 
     // Defense-in-depth ל-UI: גם אם המשתמש אינו ADMIN (אין subscriptionPayments/
-    // supportTickets/aiUsageStats בתוצאה), מחזירים arrays ריקים + null במקום
+    // supportTickets בתוצאה), מחזירים arrays ריקים במקום
     // undefined כדי שה-UI לא יקרוס על `.length` ללא optional chaining.
     const userResponse = {
       ...user,
@@ -142,7 +169,6 @@ export async function GET(
         : {
             subscriptionPayments: [],
             supportTickets: [],
-            aiUsageStats: null,
           }),
     };
 
@@ -274,6 +300,7 @@ export async function PUT(
         return tx.user.update({
           where: { id },
           data: updateData,
+          select: USER_UPDATE_RESPONSE_SELECT,
         });
       }
     );
@@ -285,7 +312,7 @@ export async function PUT(
 
     return NextResponse.json({
       message: "המשתמש עודכן בהצלחה",
-      user: { ...updatedUser, password: undefined },
+      user: updatedUser,
     });
   } catch (error) {
     logger.error('Error updating user:', { error: error instanceof Error ? error.message : String(error) });
@@ -574,6 +601,7 @@ export async function PATCH(
         return tx.user.update({
           where: { id },
           data: updateData,
+          select: USER_UPDATE_RESPONSE_SELECT,
         });
       }
     );

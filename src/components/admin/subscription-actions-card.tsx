@@ -459,9 +459,6 @@ export function SubscriptionActionsCard({
                 </SelectTrigger>
                 <SelectContent>
                   <SelectItem value="SMS">SMS</SelectItem>
-                  <SelectItem value="AI_DETAILED_ANALYSIS">
-                    ניתוחי AI מתקדם
-                  </SelectItem>
                 </SelectContent>
               </Select>
             </div>

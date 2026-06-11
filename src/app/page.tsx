@@ -5,8 +5,8 @@ import { Button } from "@/components/ui/button";
 import { AppLogo } from "@/components/app-logo";
 import { SiteFooter } from "@/components/site-footer";
 import {
-  Calendar, Users, Brain, ClipboardList, CreditCard,
-  FileCheck, Sparkles, Shield, Lock, Star, CheckCircle, Zap,
+  Calendar, Users, Bell, ClipboardList, CreditCard,
+  FileCheck, Shield, Lock, Star, Zap,
 } from "lucide-react";
 import Link from "next/link";
 
@@ -31,9 +31,9 @@ export default async function HomePage() {
       description: "לוח שנה אינטואיטיבי עם ניהול פגישות, תזמון אוטומטי ותצוגות מגוונות",
     },
     {
-      icon: Brain,
-      title: "AI עוזר טיפולי",
-      description: "הכנה חכמה לפגישות, ניתוח אוטומטי ותובנות מבוססות בינה מלאכותית",
+      icon: Bell,
+      title: "תזכורות אוטומטיות",
+      description: "תזכורות SMS ומייל למטופלים — לפגישות, חובות וחידוש מנוי, אוטומטית וללא מאמץ",
     },
     {
       icon: ClipboardList,
@@ -52,35 +52,6 @@ export default async function HomePage() {
     },
   ];
 
-  const aiFeatures = [
-    {
-      title: "הכנה חכמה לפגישה",
-      description: "כל בוקר תקבלו תקציר מותאם לפגישות היום - סיכום הפגישה הקודמת, נושאים מרכזיים, תובנות על דפוסים רגשיים והמלצות ממוקדות",
-    },
-    {
-      title: "ניתוח פגישות אוטומטי",
-      description: "ניתוח מעמיק של כל פגישה - זיהוי רגשות דומיננטיים, דפוסים חוזרים והמלצות מקצועיות למפגש הבא",
-    },
-    {
-      title: "ניתוח שאלונים מקצועי",
-      description: "פירוש אוטומטי של תוצאות שאלונים, השוואה לנורמה, זיהוי דפוסים ותמונה קלינית מקיפה",
-    },
-    {
-      title: "דוחות התקדמות",
-      description: "מעקב אוטומטי אחר התקדמות המטופל לאורך זמן - ניתוח מגמות, מדדי שיפור והמלצות לטיפול",
-    },
-  ];
-
-  const approaches = [
-    "בק - טיפול קוגניטיבי-התנהגותי (CBT)",
-    "מאהלר - הפרדה-אינדיבידואציה",
-    "ויניקוט - החזקה ואובייקט מעברי",
-    "בולבי - תיאוריית ההתקשרות",
-    "קליין - יחסי אובייקט",
-    "קוהוט - פסיכולוגיית העצמי",
-    "יאלום - טיפול אקזיסטנציאלי",
-  ];
-
   const securityItems = [
     { icon: Lock, title: "הצפנת מידע", desc: "הצפנת נתונים ברמת AES-256 לכל המידע הרגיש במערכת" },
     { icon: Shield, title: "הגנת סיסמאות", desc: "הסיסמאות מוצפנות ולעולם לא נשמרות בטקסט גלוי" },
@@ -93,14 +64,6 @@ export default async function HomePage() {
       {/* Hero */}
       <div className="container mx-auto px-4 py-16 md:py-24">
         <div className="landing-centered max-w-3xl mx-auto">
-          {/* AI badge - first thing visitors see */}
-          <div className="landing-centered mb-6">
-            <span className="inline-flex items-center gap-2 bg-primary text-primary-foreground rounded-full px-5 py-2.5 text-sm font-bold ai-badge-pulse shadow-lg">
-              <Sparkles className="h-4 w-4" />
-              מערכת ניהול טיפולית מונעת AI
-            </span>
-          </div>
-
           <div className="landing-centered mb-6">
             <AppLogo className="mx-auto w-[280px] sm:w-[360px] md:w-[440px] h-auto" priority />
           </div>
@@ -114,8 +77,8 @@ export default async function HomePage() {
           </p>
           <p className="text-lg text-muted-foreground mb-8 leading-relaxed max-w-2xl mx-auto landing-centered">
             נהלו מטופלים, פגישות, תשלומים ושאלונים במקום אחד -
-            {" "}עם{" "}<strong className="text-primary font-bold">AI מתקדם</strong>{" "}
-            שחוסך לכם <strong className="text-foreground">שעות עבודה בכל חודש</strong>.
+            {" "}מערכת אחת חכמה{" "}
+            שחוסכת לכם <strong className="text-foreground">שעות עבודה בכל חודש</strong>.
           </p>
 
           <div className="landing-centered mb-8">
@@ -157,62 +120,6 @@ export default async function HomePage() {
                 <p className="text-muted-foreground text-sm leading-relaxed">{feature.description}</p>
               </div>
             ))}
-          </div>
-        </div>
-
-        {/* AI Feature Highlight - prominent section */}
-        <div className="mt-28 max-w-5xl mx-auto">
-          <div className="landing-centered mb-12">
-            <span className="inline-flex items-center gap-2 bg-primary text-primary-foreground rounded-full px-5 py-2 text-sm font-bold ai-badge-pulse mb-4">
-              <Sparkles className="h-4 w-4" />
-              בינה מלאכותית מתקדמת
-            </span>
-            <h2 className="text-2xl md:text-3xl font-bold mb-4 landing-centered">
-              AI שעובד בשבילכם - כך שתוכלו להתמקד בטיפול
-            </h2>
-            <p className="text-muted-foreground max-w-2xl mx-auto leading-relaxed landing-centered">
-              טכנולוגיית AI מהמתקדמות בעולם שמנתחת, מסכמת וממליצה -
-              {" "}חוסכת לכם 5-10 שעות עבודה בחודש ומגלה דפוסים שקשה לזהות בעין אנושית
-            </p>
-          </div>
-
-          <div className="p-1 rounded-3xl bg-gradient-to-br from-primary/30 via-primary/10 to-accent/30 ai-section-glow">
-            <div className="bg-card rounded-[calc(1.5rem-4px)] p-6 md:p-8">
-              <div className="grid gap-6 md:grid-cols-2">
-                {aiFeatures.map((feature) => (
-                  <div key={feature.title} className="p-5 rounded-2xl bg-gradient-to-br from-primary/5 to-accent/10 border border-primary/20">
-                    <div className="flex items-start gap-3">
-                      <CheckCircle className="w-5 h-5 text-primary mt-0.5 flex-shrink-0" />
-                      <div>
-                        <h3 className="font-semibold mb-2">{feature.title}</h3>
-                        <p className="text-sm text-muted-foreground leading-relaxed">{feature.description}</p>
-                      </div>
-                    </div>
-                  </div>
-                ))}
-              </div>
-
-              {/* Therapeutic approaches */}
-              <div className="mt-6 p-5 rounded-2xl bg-primary/5 border border-primary/20">
-                <div className="flex items-start gap-3 mb-4">
-                  <Brain className="w-5 h-5 text-primary mt-0.5 flex-shrink-0" />
-                  <div>
-                    <h3 className="font-semibold mb-1">גישות טיפוליות מותאמות</h3>
-                    <p className="text-sm text-muted-foreground">
-                      ה-AI מתאים את הניתוח וההמלצות לגישה הטיפולית שבחרתם -
-                      {" "}ניתוחים מדויקים ורלוונטיים לשפה המקצועית שלכם
-                    </p>
-                  </div>
-                </div>
-                <div className="flex flex-wrap gap-2 mt-4">
-                  {approaches.map((approach) => (
-                    <span key={approach} className="inline-flex items-center px-3 py-1.5 rounded-full bg-primary/15 text-primary text-xs font-medium border border-primary/20">
-                      {approach}
-                    </span>
-                  ))}
-                </div>
-              </div>
-            </div>
           </div>
         </div>
 

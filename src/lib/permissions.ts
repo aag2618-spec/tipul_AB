@@ -3,7 +3,7 @@
  *
  * 40 closed-type permissions (26 MANAGER + 14 ADMIN-only) + PERMISSION_RANK
  * for "highest wins" combo logic.
- * Built in Stage 1.1; extended in Stages 1.9 (reports.view_ai, payments.view_all,
+ * Built in Stage 1.1; extended in Stages 1.9 (payments.view_all,
  * alerts.manage, payments.delete, announcements.delete) and 1.10 (alerts.view).
  *
  * Key ideas:
@@ -25,7 +25,6 @@ export type Permission =
   | "audit.view_per_user"
 
   // קריאה מורחבת (MANAGER)
-  | "reports.view_ai" // דשבורדי AI + api-usage
   | "payments.view_all" // צפייה בכל התשלומים
   | "alerts.view" // צפייה בהתראות מנהל (קריאה בלבד — רישום/עדכון הוא alerts.manage)
 
@@ -90,7 +89,6 @@ export const PERMISSIONS_BY_ROLE: Record<Role, Permission[]> = {
     "users.view",
     "users.update_basic",
     "audit.view_per_user",
-    "reports.view_ai",
     "payments.view_all",
     "alerts.view",
     "users.block",
@@ -131,7 +129,6 @@ export const PERMISSION_RANK: Record<Permission, number> = {
   "users.view": 0,
   "audit.view_per_user": 0,
   "support.view_all": 0,
-  "reports.view_ai": 1,
   "payments.view_all": 1,
   "alerts.view": 0,
   "users.update_basic": 1,

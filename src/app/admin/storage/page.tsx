@@ -12,23 +12,20 @@ import {
   TableRow,
 } from "@/components/ui/table";
 import { Progress } from "@/components/ui/progress";
-import { Loader2, HardDrive, FileText, Mic, Database } from "lucide-react";
+import { Loader2, HardDrive, FileText, Database } from "lucide-react";
 
 interface StorageUser {
   id: string;
   name: string | null;
   email: string | null;
   documentsCount: number;
-  recordingsCount: number;
   documentsStorageMB: number;
-  recordingsStorageMB: number;
   totalStorageMB: number;
   totalStorageGB: number;
 }
 
 interface StorageTotals {
   totalDocuments: number;
-  totalRecordings: number;
   totalStorageMB: number;
   totalStorageGB: number;
 }
@@ -75,7 +72,7 @@ export default function AdminStoragePage() {
       </div>
 
       {/* Stats Cards */}
-      <div className="grid gap-4 md:grid-cols-4">
+      <div className="grid gap-4 md:grid-cols-3">
         <Card>
           <CardHeader className="flex flex-row items-center justify-between pb-2">
             <CardTitle className="text-sm font-medium text-muted-foreground">סה"כ אחסון</CardTitle>
@@ -101,19 +98,6 @@ export default function AdminStoragePage() {
               {totals?.totalDocuments || 0}
             </div>
             <p className="text-xs text-muted-foreground mt-1">קבצים</p>
-          </CardContent>
-        </Card>
-
-        <Card>
-          <CardHeader className="flex flex-row items-center justify-between pb-2">
-            <CardTitle className="text-sm font-medium text-muted-foreground">הקלטות</CardTitle>
-            <Mic className="h-4 w-4 text-green-500" />
-          </CardHeader>
-          <CardContent>
-            <div className="text-2xl font-bold">
-              {totals?.totalRecordings || 0}
-            </div>
-            <p className="text-xs text-muted-foreground mt-1">קבצי אודיו</p>
           </CardContent>
         </Card>
 
@@ -152,7 +136,6 @@ export default function AdminStoragePage() {
                 <TableRow className="border-border">
                   <TableHead className="text-muted-foreground">משתמש</TableHead>
                   <TableHead className="text-muted-foreground">מסמכים</TableHead>
-                  <TableHead className="text-muted-foreground">הקלטות</TableHead>
                   <TableHead className="text-muted-foreground w-[300px]">שימוש באחסון</TableHead>
                   <TableHead className="text-muted-foreground">סה"כ</TableHead>
                 </TableRow>
@@ -160,10 +143,7 @@ export default function AdminStoragePage() {
               <TableBody>
                 {users.map((user) => {
                   const percentage = (user.totalStorageMB / maxStorageMB) * 100;
-                  const docPercentage = user.totalStorageMB > 0 
-                    ? (user.documentsStorageMB / user.totalStorageMB) * 100 
-                    : 0;
-                  
+
                   return (
                     <TableRow key={user.id} className="border-border">
                       <TableCell>
@@ -182,39 +162,11 @@ export default function AdminStoragePage() {
                         </div>
                       </TableCell>
                       <TableCell>
-                        <div className="flex items-center gap-2">
-                          <Mic className="h-4 w-4 text-green-500" />
-                          <span>{user.recordingsCount}</span>
-                          <span className="text-xs text-muted-foreground">
-                            ({user.recordingsStorageMB.toFixed(1)} MB)
-                          </span>
-                        </div>
-                      </TableCell>
-                      <TableCell>
-                        <div className="space-y-1">
-                          <div className="h-2 bg-muted rounded-full overflow-hidden relative">
-                            <div 
-                              className="absolute h-full bg-sky-500 rounded-full"
-                              style={{ width: `${(docPercentage / 100) * percentage}%` }}
-                            />
-                            <div 
-                              className="absolute h-full bg-green-500 rounded-full"
-                              style={{ 
-                                width: `${((100 - docPercentage) / 100) * percentage}%`,
-                                left: `${(docPercentage / 100) * percentage}%`
-                              }}
-                            />
-                          </div>
-                          <div className="flex justify-between text-xs text-muted-foreground">
-                            <span className="flex items-center gap-1">
-                              <span className="w-2 h-2 rounded-full bg-sky-500" />
-                              מסמכים
-                            </span>
-                            <span className="flex items-center gap-1">
-                              <span className="w-2 h-2 rounded-full bg-green-500" />
-                              הקלטות
-                            </span>
-                          </div>
+                        <div className="h-2 bg-muted rounded-full overflow-hidden">
+                          <div
+                            className="h-full bg-sky-500 rounded-full"
+                            style={{ width: `${percentage}%` }}
+                          />
                         </div>
                       </TableCell>
                       <TableCell>

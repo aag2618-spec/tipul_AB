@@ -35,12 +35,6 @@ export async function GET(request: NextRequest) {
   try {
     const auth = await requirePermission("users.view");
     if ("error" in auth) return auth.error;
-    const { session } = auth;
-
-    // M13.8: data minimization ל-MANAGER (consistent עם admin/users/[id] GET).
-    // ADMIN רואה aiUsageStats (עלויות AI פר-משתמש). MANAGER מקבל רק שדות בסיסיים
-    // לצורכי תמיכה — אין סיבה שיראה עלויות AI של כל המשתמשים במערכת.
-    const isAdmin = session.user.role === "ADMIN";
 
     // Get search param
     const searchParams = request.nextUrl.searchParams;
@@ -78,27 +72,13 @@ export async function GET(request: NextRequest) {
         select: {
           clients: true,
           therapySessions: true,
-          apiUsageLogs: true,
         }
       }
     } as const;
 
     const users = await prisma.user.findMany({
       where,
-      select: {
-        ...baseSelect,
-        ...(isAdmin
-          ? {
-              aiUsageStats: {
-                select: {
-                  currentMonthCalls: true,
-                  currentMonthCost: true,
-                  dailyCalls: true,
-                },
-              },
-            }
-          : {}),
-      },
+      select: baseSelect,
       orderBy: {
         createdAt: 'desc'
       }

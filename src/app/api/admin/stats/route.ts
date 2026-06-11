@@ -1,7 +1,7 @@
 import { NextResponse } from "next/server";
 import prisma from "@/lib/prisma";
 import { logger } from "@/lib/logger";
-import { getIsraelMidnight, getIsraelMonth, getIsraelYear, parseIsraelTime } from "@/lib/date-utils";
+import { getIsraelMonth, getIsraelYear, parseIsraelTime } from "@/lib/date-utils";
 
 import { requirePermission } from "@/lib/api-auth";
 
@@ -18,9 +18,8 @@ export async function GET() {
     const auth = await requirePermission("users.view");
     if ("error" in auth) return auth.error;
 
-    // start-of-month / start-of-day — לפי שעון ישראל (DST-aware)
+    // start-of-month — לפי שעון ישראל (DST-aware)
     const now = new Date();
-    const startOfDay = getIsraelMidnight(now);
     // תחילת חודש: 1.X.YYYY 00:00 בשעון ישראל (parseIsraelTime מטפל ב-DST אוטומטית)
     const monthStr = String(getIsraelMonth(now)).padStart(2, "0");
     const yearStr = String(getIsraelYear(now));
@@ -30,8 +29,6 @@ export async function GET() {
       totalUsers,
       activeUsers,
       newUsersThisMonth,
-      totalApiCalls,
-      apiCallsToday,
       paidPayments,
       pendingPayments,
       documentsCount,
@@ -47,8 +44,6 @@ export async function GET() {
       prisma.user.count(),
       prisma.user.count({ where: { isBlocked: false } }),
       prisma.user.count({ where: { createdAt: { gte: startOfMonth } } }),
-      prisma.apiUsageLog.count(),
-      prisma.apiUsageLog.count({ where: { createdAt: { gte: startOfDay } } }),
       prisma.subscriptionPayment.aggregate({
         where: { status: "PAID" },
         _sum: { amount: true },
@@ -102,8 +97,6 @@ export async function GET() {
       totalUsers,
       activeUsers,
       newUsersThisMonth,
-      totalApiCalls,
-      apiCallsToday,
       totalRevenue: Number(paidPayments._sum.amount) || 0,
       pendingPayments,
       totalStorageGB,

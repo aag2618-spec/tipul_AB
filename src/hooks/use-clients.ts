@@ -26,7 +26,6 @@ interface ClientDetail extends Client {
   intakeNotes: string | null;
   therapySessions?: unknown[];
   payments?: unknown[];
-  recordings?: unknown[];
   documents?: unknown[];
 }
 

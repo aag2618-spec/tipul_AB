@@ -60,8 +60,6 @@ export async function GET(req: NextRequest) {
         emailVerified: true,
         isBlocked: true,
         isFreeSubscription: true,
-        trialAiUsedCost: true,
-        trialAiCostLimit: true,
         createdAt: true,
         subscriptionStartedAt: true,
       },

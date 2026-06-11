@@ -10,7 +10,6 @@ import {
   ArrowRight,
   Users,
   Calendar,
-  Brain,
   CreditCard,
   FileText,
   Headphones,
@@ -45,19 +44,11 @@ interface UserProfile {
   freeSubscriptionNote: string | null;
   userNumber: number | null;
   createdAt: string;
-  aiUsageStats: {
-    currentMonthCalls: number;
-    currentMonthCost: number;
-    totalCalls: number;
-    totalCost: number;
-    dailyCalls: number;
-  } | null;
   _count: {
     clients: number;
     therapySessions: number;
     documents: number;
     supportTickets: number;
-    apiUsageLogs: number;
   };
   subscriptionPayments: Array<{
     id: string;
@@ -220,8 +211,8 @@ export default function UserProfilePage() {
         onConfirm={handleBlockConfirm}
       />
 
-      {/* שורה ראשונה — פרטים + מנוי */}
-      <div className="grid gap-6 lg:grid-cols-2">
+      {/* שורה ראשונה — פרטים אישיים */}
+      <div className="grid gap-6">
         <Card>
           <CardHeader>
             <CardTitle className="text-base flex items-center gap-2">
@@ -248,35 +239,6 @@ export default function UserProfilePage() {
             <div className="flex justify-between">
               <span className="text-muted-foreground">נרשם</span>
               <span>{new Date(user.createdAt).toLocaleDateString("he-IL")}</span>
-            </div>
-          </CardContent>
-        </Card>
-
-        <Card>
-          <CardHeader>
-            <CardTitle className="text-base flex items-center gap-2">
-              <Brain className="h-4 w-4" />
-              שימוש בינה מלאכותית
-            </CardTitle>
-          </CardHeader>
-          <CardContent>
-            <div className="grid grid-cols-2 gap-4">
-              <div className="p-3 bg-muted rounded-lg text-center">
-                <p className="text-2xl font-bold">{user.aiUsageStats?.currentMonthCalls || 0}</p>
-                <p className="text-xs text-muted-foreground">קריאות החודש</p>
-              </div>
-              <div className="p-3 bg-muted rounded-lg text-center">
-                <p className="text-2xl font-bold">₪{Number(user.aiUsageStats?.currentMonthCost || 0).toFixed(2)}</p>
-                <p className="text-xs text-muted-foreground">עלות החודש</p>
-              </div>
-              <div className="p-3 bg-muted rounded-lg text-center">
-                <p className="text-2xl font-bold">{user.aiUsageStats?.totalCalls || 0}</p>
-                <p className="text-xs text-muted-foreground">סה"כ קריאות</p>
-              </div>
-              <div className="p-3 bg-muted rounded-lg text-center">
-                <p className="text-2xl font-bold">₪{Number(user.aiUsageStats?.totalCost || 0).toFixed(2)}</p>
-                <p className="text-xs text-muted-foreground">סה"כ עלות</p>
-              </div>
             </div>
           </CardContent>
         </Card>
@@ -380,7 +342,7 @@ export default function UserProfilePage() {
       <SubscriptionAdminCard userId={user.id} />
 
       {/* שורה שניה — סטטיסטיקות */}
-      <div className="grid gap-4 md:grid-cols-3 lg:grid-cols-5">
+      <div className="grid gap-4 md:grid-cols-2 lg:grid-cols-4">
         <Card>
           <CardContent className="py-4 text-center">
             <Users className="h-5 w-5 mx-auto mb-1 text-muted-foreground" />
@@ -407,13 +369,6 @@ export default function UserProfilePage() {
             <Headphones className="h-5 w-5 mx-auto mb-1 text-muted-foreground" />
             <p className="text-2xl font-bold">{user._count.supportTickets}</p>
             <p className="text-xs text-muted-foreground">פניות</p>
-          </CardContent>
-        </Card>
-        <Card>
-          <CardContent className="py-4 text-center">
-            <Brain className="h-5 w-5 mx-auto mb-1 text-muted-foreground" />
-            <p className="text-2xl font-bold">{user._count.apiUsageLogs}</p>
-            <p className="text-xs text-muted-foreground">קריאות API</p>
           </CardContent>
         </Card>
       </div>

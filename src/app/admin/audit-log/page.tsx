@@ -38,7 +38,6 @@ const ACTION_LABELS: Record<string, string> = {
   create_announcement: "יצירת הודעה",
   update_announcement: "עדכון הודעה",
   delete_announcement: "מחיקת הודעה",
-  update_ai_settings: "עדכון הגדרות AI",
   reset_password: "איפוס סיסמה",
   create_user: "יצירת משתמש",
   delete_user: "מחיקת משתמש",

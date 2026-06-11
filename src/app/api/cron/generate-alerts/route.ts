@@ -159,77 +159,7 @@ export async function GET(req: NextRequest) {
       }
     }
 
-    // 4. Check for high AI usage (over 80% of limit)
-    const israelDateParts = now.toLocaleDateString('en-CA', { timeZone: 'Asia/Jerusalem' }).split('-');
-    const currentYear = parseInt(israelDateParts[0]);
-    const currentMonth = parseInt(israelDateParts[1]);
-
-    const highUsageUsers = await prisma.monthlyUsage.findMany({
-      where: {
-        month: currentMonth,
-        year: currentYear,
-      },
-      include: {
-        user: {
-          select: { id: true, name: true, email: true, aiTier: true },
-        },
-      },
-    });
-
-    // Check against tier limits
-    const tierLimits = await prisma.tierLimits.findMany();
-    const limitsMap = Object.fromEntries(tierLimits.map((l) => [l.tier, l]));
-
-    for (const usage of highUsageUsers) {
-      const limits = limitsMap[usage.user.aiTier];
-      if (!limits) continue;
-
-      // Check each feature for high usage
-      const features = [
-        { name: "sessionPrep", used: usage.sessionPrepCount, limit: limits.sessionPrepLimit },
-        { name: "conciseAnalysis", used: usage.conciseAnalysisCount, limit: limits.conciseAnalysisLimit },
-        { name: "detailedAnalysis", used: usage.detailedAnalysisCount, limit: limits.detailedAnalysisLimit },
-      ];
-
-      for (const feature of features) {
-        if (feature.limit <= 0) continue; // Skip blocked or unlimited
-
-        const percentage = (feature.used / feature.limit) * 100;
-        
-        if (percentage >= 80) {
-          const existingAlert = await prisma.adminAlert.findFirst({
-            where: {
-              type: "HIGH_AI_USAGE",
-              userId: usage.userId,
-              status: { in: ["PENDING", "IN_PROGRESS"] },
-              metadata: {
-                path: ["feature"],
-                equals: feature.name,
-              },
-            },
-          });
-
-          if (!existingAlert) {
-            alerts.push({
-              type: AdminAlertType.HIGH_AI_USAGE,
-              priority: percentage >= 95 ? AlertPriority.HIGH : AlertPriority.MEDIUM,
-              title: `שימוש גבוה ב-AI - ${usage.user.name || usage.user.email}`,
-              message: `המשתמש הגיע ל-${Math.round(percentage)}% מהמכסה החודשית (${feature.name}).`,
-              userId: usage.userId,
-              actionRequired: percentage >= 95 ? "לשקול שדרוג תוכנית" : undefined,
-              metadata: {
-                feature: feature.name,
-                used: feature.used,
-                limit: feature.limit,
-                percentage: Math.round(percentage),
-              },
-            });
-          }
-        }
-      }
-    }
-
-    // 5. Check for new users in last 24 hours
+    // 4. Check for new users in last 24 hours
     const newUsers = await prisma.user.findMany({
       where: {
         createdAt: {
@@ -282,7 +212,6 @@ export async function GET(req: NextRequest) {
         overduePayments: overduePayments.length,
         expiringSubscriptions: expiringUsers.length,
         expiredSubscriptions: expiredUsers.length,
-        highUsage: alerts.filter((a) => a.type === "HIGH_AI_USAGE").length,
         newUsers: newUsers.length,
       },
     });

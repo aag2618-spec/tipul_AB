@@ -111,7 +111,9 @@ async function loadUser(userId: string) {
 
 async function loadPackages() {
   return prisma.package.findMany({
-    where: { isActive: true },
+    // פיצ'ר ה-AI הוסר — מציגים לרכישה רק חבילות SMS. חבילות AI_DETAILED_ANALYSIS
+    // נשארות ב-DB אך אינן מוצעות לרכישה.
+    where: { isActive: true, type: "SMS" },
     orderBy: [{ type: "asc" }, { credits: "asc" }],
     select: {
       id: true,

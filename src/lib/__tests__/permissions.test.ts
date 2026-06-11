@@ -128,9 +128,10 @@ describe("PERMISSIONS_BY_ROLE consistency", () => {
     expect(PERMISSIONS_BY_ROLE.USER).toEqual([]);
   });
 
-  it("MANAGER has 30 permissions", () => {
-    // 26 base + 4 Cardcom (view_transactions, charge_subscriber, receipts.view, receipts.resend).
-    expect(PERMISSIONS_BY_ROLE.MANAGER.length).toBe(30);
+  it("MANAGER has 29 permissions", () => {
+    // 25 base + 4 Cardcom (view_transactions, charge_subscriber, receipts.view, receipts.resend).
+    // (reports.view_ai הוסר עם הסרת פיצ'ר ה-AI)
+    expect(PERMISSIONS_BY_ROLE.MANAGER.length).toBe(29);
   });
 });
 
@@ -143,7 +144,6 @@ const ALL_PERMISSIONS = [
   "audit.view_all",
   "audit.view_per_user",
   // קריאה מורחבת (MANAGER)
-  "reports.view_ai",
   "payments.view_all",
   "alerts.view",
   // כתיבה רגילה (MANAGER)
@@ -208,8 +208,8 @@ describe("permission completeness (Stage 1.9 hardening)", () => {
   });
 
   it("ALL_PERMISSIONS count matches expected total", () => {
-    // 30 MANAGER (26 base + 4 Cardcom) + 17 ADMIN-only (14 base + receipts.void + extend_subscription + disable_2fa) = 47
-    expect(ALL_PERMISSIONS.length).toBe(47);
+    // 29 MANAGER (25 base + 4 Cardcom) + 17 ADMIN-only (14 base + receipts.void + extend_subscription + disable_2fa) = 46
+    expect(ALL_PERMISSIONS.length).toBe(46);
   });
 
   it("ADMIN has every permission via hasPermission", () => {

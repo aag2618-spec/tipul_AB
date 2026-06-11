@@ -353,7 +353,7 @@ export default function ClinicMembersPage() {
               {editingMember?.name || editingMember?.email}
               <br />
               <span className="text-xs">
-                גישה לתוכן קליני (סיכומים, אבחנות, ניתוחי AI, הקלטות) חסומה תמיד —
+                גישה לתוכן קליני (סיכומים, אבחנות) חסומה תמיד —
                 לא ניתנת לשינוי.
               </span>
             </DialogDescription>

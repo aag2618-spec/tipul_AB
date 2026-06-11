@@ -58,15 +58,8 @@ interface TrialUser {
   emailVerified: string | null;
   isBlocked: boolean;
   isFreeSubscription: boolean;
-  trialAiUsedCost: string;
-  trialAiCostLimit: string;
   createdAt: string;
   subscriptionStartedAt: string | null;
-  aiUsageStats: {
-    totalCalls: number;
-    totalCost: string;
-    currentMonthCalls: number;
-  } | null;
 }
 
 interface Stats {
@@ -153,13 +146,6 @@ export default function AdminTrialsPage() {
     if (user.subscriptionStatus === "PAST_DUE") return <Badge className="bg-amber-600">חסד</Badge>;
     if (user.subscriptionStatus === "CANCELLED") return <Badge variant="destructive">בוטל</Badge>;
     return <Badge variant="outline">{user.subscriptionStatus}</Badge>;
-  };
-
-  const getAiUsage = (user: TrialUser) => {
-    const used = parseFloat(user.trialAiUsedCost || "0");
-    const limit = parseFloat(user.trialAiCostLimit || "5");
-    const percent = limit > 0 ? Math.min((used / limit) * 100, 100) : 0;
-    return { used, limit, percent };
   };
 
   return (
@@ -290,14 +276,12 @@ export default function AdminTrialsPage() {
                     <TableHead className="text-right">שם</TableHead>
                     <TableHead className="text-right">מייל</TableHead>
                     <TableHead className="text-right">סטטוס</TableHead>
-                    <TableHead className="text-right">שימוש AI</TableHead>
                     <TableHead className="text-right">נרשם</TableHead>
                     <TableHead className="text-right">פעולות</TableHead>
                   </TableRow>
                 </TableHeader>
                 <TableBody>
                   {users.map((user) => {
-                    const ai = getAiUsage(user);
                     return (
                       <TableRow key={user.id}>
                         <TableCell className="font-medium">
@@ -314,27 +298,6 @@ export default function AdminTrialsPage() {
                         </TableCell>
                         <TableCell className="text-sm">{user.email || "-"}</TableCell>
                         <TableCell>{getStatusBadge(user)}</TableCell>
-                        <TableCell>
-                          <div className="w-24">
-                            <div className="flex justify-between text-xs mb-1">
-                              <span>₪{ai.used.toFixed(2)}</span>
-                              <span className="text-muted-foreground">/ ₪{ai.limit}</span>
-                            </div>
-                            <div className="h-1.5 bg-muted rounded-full overflow-hidden">
-                              <div 
-                                className={`h-full rounded-full transition-all ${
-                                  ai.percent >= 90 ? "bg-red-500" : ai.percent >= 70 ? "bg-amber-500" : "bg-green-500"
-                                }`}
-                                style={{ width: `${ai.percent}%` }}
-                              />
-                            </div>
-                            {user.aiUsageStats && (
-                              <div className="text-xs text-muted-foreground mt-0.5">
-                                {user.aiUsageStats.totalCalls} שיחות
-                              </div>
-                            )}
-                          </div>
-                        </TableCell>
                         <TableCell className="text-sm text-muted-foreground">
                           {new Date(user.createdAt).toLocaleDateString("he-IL")}
                         </TableCell>

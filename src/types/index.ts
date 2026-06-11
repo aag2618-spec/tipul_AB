@@ -48,7 +48,6 @@ export interface TherapySession {
   client?: Client;
   sessionNote?: SessionNote;
   payment?: Payment;
-  recordings?: Recording[];
 }
 
 export type SessionStatus = 'SCHEDULED' | 'COMPLETED' | 'CANCELLED' | 'NO_SHOW' | 'PENDING_CANCELLATION' | 'PENDING_APPROVAL';
@@ -80,59 +79,6 @@ export interface SessionNote {
   createdAt: Date;
   updatedAt: Date;
   sessionId: string;
-}
-
-export interface Recording {
-  id: string;
-  audioUrl: string;
-  durationSeconds: number;
-  type: RecordingType;
-  status: RecordingStatus;
-  createdAt: Date;
-  updatedAt: Date;
-  clientId: string | null;
-  sessionId: string | null;
-  transcription?: Transcription;
-}
-
-export type RecordingType = 'INTAKE' | 'SESSION';
-export type RecordingStatus = 'PENDING' | 'TRANSCRIBING' | 'TRANSCRIBED' | 'ANALYZED' | 'ERROR';
-
-export interface Transcription {
-  id: string;
-  content: string;
-  language: string;
-  confidence: number | null;
-  timestamps: TranscriptSegment[] | null;
-  createdAt: Date;
-  updatedAt: Date;
-  recordingId: string;
-  analysis?: Analysis;
-}
-
-export interface TranscriptSegment {
-  start: number;
-  end: number;
-  text: string;
-  speaker?: string;
-}
-
-export interface Analysis {
-  id: string;
-  summary: string;
-  keyTopics: string[] | null;
-  emotionalMarkers: EmotionalMarker[] | null;
-  recommendations: string[] | null;
-  nextSessionNotes: string | null;
-  createdAt: Date;
-  updatedAt: Date;
-  transcriptionId: string;
-}
-
-export interface EmotionalMarker {
-  emotion: string;
-  intensity: 'low' | 'medium' | 'high';
-  context: string;
 }
 
 export interface Payment {
@@ -257,7 +203,6 @@ export interface DashboardStats {
   pendingPayments: number;
   pendingTasks: number;
   upcomingToday: TherapySession[];
-  recentRecordings: Recording[];
 }
 
 

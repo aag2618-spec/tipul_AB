@@ -53,7 +53,6 @@ import {
   Users,
   Shield,
   User as UserIcon,
-  Brain,
   CreditCard,
   UserX,
   RefreshCw,
@@ -76,15 +75,9 @@ interface User {
   blockReason: string | null;
   userNumber: number | null;
   createdAt: string;
-  aiUsageStats: {
-    currentMonthCalls: number;
-    currentMonthCost: number;
-    dailyCalls: number;
-  } | null;
   _count: {
     clients: number;
     therapySessions: number;
-    apiUsageLogs: number;
   };
 }
 
@@ -167,8 +160,7 @@ export default function AdminUsersPage() {
       PRO: users.filter(u => u.aiTier === "PRO").length,
       ENTERPRISE: users.filter(u => u.aiTier === "ENTERPRISE").length,
     };
-    const totalAiCalls = users.reduce((sum, u) => sum + (u.aiUsageStats?.currentMonthCalls || 0), 0);
-    return { total: users.length, blocked, byTier, totalAiCalls };
+    return { total: users.length, blocked, byTier };
   }, [users]);
 
   const handleSubmit = async () => {
@@ -309,7 +301,6 @@ export default function AdminUsersPage() {
       tier: TIER_LABELS[u.aiTier] || u.aiTier,
       status: u.isBlocked ? "חסום" : "פעיל",
       clients: u._count.clients,
-      aiCalls: u.aiUsageStats?.currentMonthCalls || 0,
       createdAt: new Date(u.createdAt).toLocaleDateString("he-IL"),
     }));
     exportToCSV(data, [
@@ -321,7 +312,6 @@ export default function AdminUsersPage() {
       { key: "tier", label: "תוכנית" },
       { key: "status", label: "סטטוס" },
       { key: "clients", label: "מטופלים" },
-      { key: "aiCalls", label: "קריאות AI" },
       { key: "createdAt", label: "תאריך הרשמה" },
     ], "משתמשים");
     toast.success("הקובץ הורד בהצלחה");
@@ -451,14 +441,6 @@ export default function AdminUsersPage() {
                         <p className="text-xs text-muted-foreground">פגישות</p>
                         <p className="text-lg font-bold">{editingUser._count.therapySessions}</p>
                       </div>
-                      <div className="p-3 bg-muted rounded-lg">
-                        <p className="text-xs text-muted-foreground">קריאות AI החודש</p>
-                        <p className="text-lg font-bold">{editingUser.aiUsageStats?.currentMonthCalls || 0}</p>
-                      </div>
-                      <div className="p-3 bg-muted rounded-lg">
-                        <p className="text-xs text-muted-foreground">עלות AI החודש</p>
-                        <p className="text-lg font-bold">₪{Number(editingUser.aiUsageStats?.currentMonthCost || 0).toFixed(2)}</p>
-                      </div>
                     </div>
                     <div className="text-xs text-muted-foreground">
                       נרשם: {new Date(editingUser.createdAt).toLocaleDateString("he-IL")}
@@ -511,7 +493,7 @@ export default function AdminUsersPage() {
       </div>
 
       {/* כרטיסי סטטיסטיקה */}
-      <div className="grid gap-4 md:grid-cols-2 lg:grid-cols-4">
+      <div className="grid gap-4 md:grid-cols-3">
         <Card>
           <CardHeader className="flex flex-row items-center justify-between pb-2">
             <CardTitle className="text-sm font-medium text-muted-foreground">סה"כ משתמשים</CardTitle>
@@ -534,19 +516,6 @@ export default function AdminUsersPage() {
             <div className="text-2xl font-bold">{stats.total - stats.blocked} / {stats.blocked}</div>
             <p className="text-xs text-muted-foreground mt-1">
               {stats.blocked > 0 ? `${stats.blocked} משתמשים חסומים` : "אין משתמשים חסומים"}
-            </p>
-          </CardContent>
-        </Card>
-
-        <Card>
-          <CardHeader className="flex flex-row items-center justify-between pb-2">
-            <CardTitle className="text-sm font-medium text-muted-foreground">קריאות AI החודש</CardTitle>
-            <Brain className="h-4 w-4 text-muted-foreground" />
-          </CardHeader>
-          <CardContent>
-            <div className="text-2xl font-bold">{stats.totalAiCalls.toLocaleString()}</div>
-            <p className="text-xs text-muted-foreground mt-1">
-              ממוצע: {stats.total > 0 ? Math.round(stats.totalAiCalls / stats.total) : 0} למשתמש
             </p>
           </CardContent>
         </Card>
@@ -634,7 +603,6 @@ export default function AdminUsersPage() {
                   <TableHead className="text-muted-foreground">תוכנית</TableHead>
                   <TableHead className="text-muted-foreground">סטטוס</TableHead>
                   <TableHead className="text-muted-foreground">מטופלים</TableHead>
-                  <TableHead className="text-muted-foreground">שימוש AI</TableHead>
                   <TableHead className="text-muted-foreground">נוצר</TableHead>
                   <TableHead className="text-muted-foreground">פעולות</TableHead>
                 </TableRow>
@@ -711,12 +679,6 @@ export default function AdminUsersPage() {
                       </Badge>
                     </TableCell>
                     <TableCell>{user._count.clients}</TableCell>
-                    <TableCell>
-                      <div className="text-sm">
-                        {user.aiUsageStats?.currentMonthCalls || 0}
-                        <span className="text-xs text-muted-foreground mr-1">קריאות</span>
-                      </div>
-                    </TableCell>
                     <TableCell className="text-muted-foreground text-sm">
                       {new Date(user.createdAt).toLocaleDateString("he-IL")}
                     </TableCell>

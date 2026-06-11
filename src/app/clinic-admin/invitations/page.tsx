@@ -467,7 +467,7 @@ export default function ClinicInvitationsPage() {
                 <div className="space-y-1">
                   <Label>הרשאות מזכיר/ה</Label>
                   <p className="text-xs text-muted-foreground">
-                    גישה לתוכן קליני (סיכומים, אבחנות, ניתוחי AI, הקלטות) חסומה
+                    גישה לתוכן קליני (סיכומים, אבחנות) חסומה
                     תמיד. ניתן לעדכן את ההרשאות גם מאוחר יותר ב&quot;חברי
                     קליניקה&quot;.
                   </p>

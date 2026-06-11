@@ -9,8 +9,7 @@ import { Textarea } from "@/components/ui/textarea";
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
 import { Checkbox } from "@/components/ui/checkbox";
-import { Switch } from "@/components/ui/switch";
-import { Loader2, Save, FileText, Sparkles, Users } from "lucide-react";
+import { Loader2, Save, FileText, Users } from "lucide-react";
 import Link from "next/link";
 import { toast } from "sonner";
 import { useMyPermissions } from "@/hooks/use-my-permissions";
@@ -95,9 +94,6 @@ function NewClientContent() {
     // לפני submit; ל-non-picker זה נשלח ריק וה-resolver בשרת ייקח self.
     therapistId: "",
   });
-  // M1 — ברירת מחדל true: לרוב המטפל יחתים את המטופל על הסכמה כללית.
-  // אפשרות לכבות כאן אם המטופל סירב במפורש כבר בפגישה הראשונה.
-  const [consentToAI, setConsentToAI] = useState(true);
   
   const [questionnaireResponses, setQuestionnaireResponses] = useState<Record<string, string>>({});
 
@@ -250,7 +246,6 @@ function NewClientContent() {
       const clientBodyForCreate = {
         ...formDataWithoutTherapist,
         healthFund: formData.healthFund || null,
-        consentToAI,
         ...(pickedTherapistId ? { therapistId: pickedTherapistId } : {}),
       };
 
@@ -262,7 +257,7 @@ function NewClientContent() {
         const clientResponse = await fetch(`/api/clients/${fromQuickId}`, {
           method: "PUT",
           headers: { "Content-Type": "application/json" },
-          body: JSON.stringify({ ...formDataWithoutTherapist, healthFund: formData.healthFund || null, isQuickClient: false, consentToAI }),
+          body: JSON.stringify({ ...formDataWithoutTherapist, healthFund: formData.healthFund || null, isQuickClient: false }),
         });
         if (!clientResponse.ok) {
           const data = await clientResponse.json();
@@ -637,27 +632,6 @@ function NewClientContent() {
                   onChange={handleChange}
                   disabled={isLoading}
                   rows={4}
-                />
-              </div>
-
-              {/* M1 — הסכמה לעיבוד AI (חוק הגנת הפרטיות §13) */}
-              <div className="flex items-start justify-between gap-4 p-4 rounded-lg border bg-muted/30">
-                <div className="space-y-1 flex-1">
-                  <Label htmlFor="consentToAI" className="text-sm font-medium cursor-pointer flex items-center gap-2">
-                    <Sparkles className="h-4 w-4 text-primary" />
-                    הסכמה לעיבוד נתונים ב-AI
-                  </Label>
-                  <p className="text-xs text-muted-foreground">
-                    {consentToAI
-                      ? "המטופל מאשר ניתוח שאלונים, סיכומים ותמלולים ב-AI."
-                      : "המטופל סירב — פעולות AI על נתוניו יחסמו."}
-                  </p>
-                </div>
-                <Switch
-                  id="consentToAI"
-                  checked={consentToAI}
-                  onCheckedChange={setConsentToAI}
-                  disabled={isLoading}
                 />
               </div>
             </CardContent>
