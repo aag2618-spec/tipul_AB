@@ -68,15 +68,17 @@ function createDebtReminderEmail(
 
       return `
         <div style="background: #ffffff; border: 1px solid #e5e7eb; border-radius: 8px; padding: 16px; margin-bottom: 12px;">
-          <div style="display: flex; justify-content: space-between; align-items: start; margin-bottom: 8px;">
-            <div style="flex: 1;">
-              <p style="margin: 0; font-weight: 600; color: #111827; font-size: 15px;">${dateStr}</p>
-              <p style="margin: 4px 0 0 0; color: #6b7280; font-size: 13px;">סוג: ${typeLabel}</p>
-            </div>
-            <div style="text-align: left;">
-              <p style="margin: 0; font-weight: 700; color: #dc2626; font-size: 18px;">₪${session.debt}</p>
-            </div>
-          </div>
+          <table role="presentation" width="100%" cellpadding="0" cellspacing="0" style="margin-bottom: 8px;">
+            <tr>
+              <td width="100%" style="vertical-align: middle; text-align: right;">
+                <p style="margin: 0; font-weight: 600; color: #111827; font-size: 15px;">${dateStr}</p>
+                <p style="margin: 4px 0 0 0; color: #6b7280; font-size: 13px;">סוג: ${typeLabel}</p>
+              </td>
+              <td style="vertical-align: middle; text-align: left; white-space: nowrap; padding-right: 16px;">
+                <p style="margin: 0; font-weight: 700; color: #dc2626; font-size: 18px;">₪${session.debt}</p>
+              </td>
+            </tr>
+          </table>
           <div style="padding: 8px 12px; background: ${statusColor}10; border-radius: 6px; margin-top: 8px;">
             <p style="margin: 0; color: ${statusColor}; font-size: 13px; font-weight: 500;">${statusLabel}</p>
           </div>
@@ -124,9 +126,7 @@ function createDebtReminderEmail(
           <!-- Payment Info -->
           <div style="background: #f0fdf4; border: 1px solid #86efac; border-radius: 10px; padding: 20px; margin-top: 30px;">
             <p style="margin: 0; color: #166534; font-weight: 600; font-size: 15px;">💳 אפשרויות תשלום</p>
-            <p style="margin: 8px 0 0 0; color: #15803d; font-size: 14px; line-height: 1.6; white-space: pre-wrap;">
-              ${customization?.paymentInstructions ? escapeHtml(customization.paymentInstructions) : `ניתן לשלם באמצעות העברה בנקאית, אשראי, מזומן או צ'ק.\nלתיאום תשלום, נא ליצור קשר.`}
-            </p>
+            <p style="margin: 8px 0 0 0; color: #15803d; font-size: 14px; line-height: 1.6; white-space: pre-wrap; text-align: right;">${customization?.paymentInstructions ? escapeHtml(customization.paymentInstructions) : `ניתן לשלם באמצעות העברה בנקאית, אשראי, מזומן או צ'ק.\nלתיאום תשלום, נא ליצור קשר.`}</p>
           </div>
 
           <!-- Note -->
@@ -141,10 +141,7 @@ function createDebtReminderEmail(
             <p style="color: #6b7280; font-size: 14px; line-height: 1.6; margin: 0;">
               במידה ויש שאלות או צורך לתיאום תשלום, אנא פנה אליי ישירות.
             </p>
-            <p style="color: #374151; font-size: 15px; margin: 20px 0 0 0; white-space: pre-wrap;">
-              ${escapeHtml(customization?.customClosing || "בברכה")},<br/>
-              <strong>${escapeHtml(customization?.emailSignature || therapistName)}</strong>
-            </p>
+            <p style="color: #374151; font-size: 15px; margin: 20px 0 0 0; white-space: pre-wrap; text-align: right;">${escapeHtml(customization?.customClosing || "בברכה")},<br/><strong>${escapeHtml(customization?.emailSignature || therapistName)}</strong></p>
             ${customization?.businessHours ? `<p style="color: #9ca3af; font-size: 12px; margin-top: 12px;">⏰ ${escapeHtml(customization.businessHours)}</p>` : ''}
           </div>
         </div>

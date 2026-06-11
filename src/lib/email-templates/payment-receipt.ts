@@ -28,6 +28,28 @@ function formatIsraelDateTime(date: Date, includeWeekday = false): string {
   return new Intl.DateTimeFormat("he-IL", options).format(date);
 }
 
+// שורת "תווית : ערך" בטוחה למייל — טבלה במקום flex (Gmail מתעלם מ-flex).
+// התווית נצמדת לימין, הערך לשמאל — תצוגה אחידה בכל קליינט.
+function kvRow(
+  label: string,
+  value: string,
+  opts: { labelColor?: string; valueColor?: string; valueWeight?: number; marginBottom?: number } = {}
+): string {
+  const {
+    labelColor = "#6b7280",
+    valueColor = "#111827",
+    valueWeight = 600,
+    marginBottom = 12,
+  } = opts;
+  return `
+            <table role="presentation" width="100%" cellpadding="0" cellspacing="0" style="margin-bottom: ${marginBottom}px;">
+              <tr>
+                <td style="text-align: right; color: ${labelColor}; font-size: 14px;">${label}</td>
+                <td style="text-align: left; color: ${valueColor}; font-size: 14px; font-weight: ${valueWeight}; white-space: nowrap;">${value}</td>
+              </tr>
+            </table>`;
+}
+
 interface PaymentReceiptEmailProps {
   clientName: string;
   therapistName: string;
@@ -138,31 +160,14 @@ export function createPaymentReceiptEmail({
 
           <!-- Payment Details -->
           <div style="background: #f9fafb; border: 1px solid #e5e7eb; border-radius: 8px; padding: 20px; margin: 20px 0;">
-            ${payment.receiptNumber ? `
-            <div style="display: flex; justify-content: space-between; margin-bottom: 12px;">
-              <span style="color: #6b7280; font-size: 14px;">מספר קבלה:</span>
-              <span style="color: #111827; font-size: 14px; font-weight: 600;">${payment.receiptNumber}</span>
-            </div>
-            ` : ''}
-            <div style="display: flex; justify-content: space-between; margin-bottom: 12px;">
-              <span style="color: #6b7280; font-size: 14px;">תאריך תשלום:</span>
-              <span style="color: #111827; font-size: 14px; font-weight: 600;">${paymentDate}</span>
-            </div>
-            <div style="display: flex; justify-content: space-between; margin-bottom: 12px;">
-              <span style="color: #6b7280; font-size: 14px;">אמצעי תשלום:</span>
-              <span style="color: #111827; font-size: 14px; font-weight: 600;">${methodLabel}</span>
-            </div>
+            ${payment.receiptNumber ? kvRow("מספר קבלה:", payment.receiptNumber) : ''}
+            ${kvRow("תאריך תשלום:", paymentDate)}
+            ${kvRow("אמצעי תשלום:", methodLabel)}
             ${
               isPartial
                 ? `
-            <div style="display: flex; justify-content: space-between; margin-bottom: 12px;">
-              <span style="color: #6b7280; font-size: 14px;">סכום מלא:</span>
-              <span style="color: #111827; font-size: 14px; font-weight: 600;">₪${payment.expectedAmount}</span>
-            </div>
-            <div style="display: flex; justify-content: space-between;">
-              <span style="color: #6b7280; font-size: 14px;">נותר לתשלום:</span>
-              <span style="color: #dc2626; font-size: 14px; font-weight: 700;">₪${remaining}</span>
-            </div>
+            ${kvRow("סכום מלא:", `₪${payment.expectedAmount}`)}
+            ${kvRow("נותר לתשלום:", `₪${remaining}`, { valueColor: "#dc2626", valueWeight: 700, marginBottom: 0 })}
             `
                 : ""
             }
@@ -201,20 +206,14 @@ export function createPaymentReceiptEmail({
             ${
               clientBalance.remainingDebt > 0
                 ? `
-            <div style="display: flex; justify-content: space-between; margin-bottom: 8px;">
-              <span style="color: #0369a1; font-size: 14px;">יתרת חוב:</span>
-              <span style="color: #dc2626; font-size: 14px; font-weight: 700;">₪${clientBalance.remainingDebt}</span>
-            </div>
+            ${kvRow("יתרת חוב:", `₪${clientBalance.remainingDebt}`, { labelColor: "#0369a1", valueColor: "#dc2626", valueWeight: 700, marginBottom: 8 })}
             `
                 : ""
             }
             ${
               clientBalance.credit > 0
                 ? `
-            <div style="display: flex; justify-content: space-between;">
-              <span style="color: #0369a1; font-size: 14px;">קרדיט זמין:</span>
-              <span style="color: #10b981; font-size: 14px; font-weight: 700;">₪${clientBalance.credit}</span>
-            </div>
+            ${kvRow("קרדיט זמין:", `₪${clientBalance.credit}`, { labelColor: "#0369a1", valueColor: "#10b981", valueWeight: 700, marginBottom: 0 })}
             `
                 : ""
             }
@@ -274,10 +273,7 @@ export function createPaymentReceiptEmail({
             <p style="color: #6b7280; font-size: 14px; line-height: 1.6; margin: 0;">
               קבלה זו נשלחה אוטומטית. במידה ויש שאלות או בעיות, אנא פנה אליי ישירות.
             </p>
-            <p style="color: #374151; font-size: 15px; margin: 20px 0 0 0; white-space: pre-wrap;">
-              ${closing},<br/>
-              <strong>${signature}</strong>${therapistPhone ? `<br/><span style="color: #6b7280; font-size: 13px;">טל: ${escapeHtml(therapistPhone)}</span>` : ""}
-            </p>
+            <p style="color: #374151; font-size: 15px; margin: 20px 0 0 0; white-space: pre-wrap; text-align: right;">${closing},<br/><strong>${signature}</strong>${therapistPhone ? `<br/><span style="color: #6b7280; font-size: 13px;">טל: ${escapeHtml(therapistPhone)}</span>` : ""}</p>
           </div>
         </div>
         

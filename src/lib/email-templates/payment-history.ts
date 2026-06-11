@@ -188,10 +188,7 @@ export function createPaymentHistoryEmail({
             <p style="color: #6b7280; font-size: 14px; line-height: 1.6; margin: 0;">
               סיכום זה נשלח לבקשתך. במידה ויש שאלות או אי התאמות, אנא פנה אליי ישירות.
             </p>
-            <p style="color: #374151; font-size: 15px; margin: 20px 0 0 0; white-space: pre-wrap;">
-              ${closing},<br/>
-              <strong>${signature}</strong>
-            </p>
+            <p style="color: #374151; font-size: 15px; margin: 20px 0 0 0; white-space: pre-wrap; text-align: right;">${closing},<br/><strong>${signature}</strong></p>
           </div>
         </div>
         
