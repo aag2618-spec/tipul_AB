@@ -13,7 +13,10 @@ services:
     # datasource הוא prisma.config.ts (DATABASE_URL). אסור להוסיף `--schema`: זו
     # שגיאת "unknown option" שתיכשל, וה-`|| true` ידלג בשקט על שלב ה-SQL (כך שלב
     # ה-session-time היה כושל בשקט מאז שדרוג Prisma 6→7 עד שתוקן כאן).
-    startCommand: npx prisma db push && (npx prisma db execute --file=prisma/sql/session-time-constraint.sql || true) && (npx prisma db execute --file=prisma/sql/chat-attachment-path-index.sql || true) && npm start
+    # drop-ai-tables.sql רץ לפני db push: מוחק במפורש את טבלאות/עמודות ה-AI
+    # שהוסרו מהסכמה (idempotent, IF EXISTS), כך ש-db push לא יזהה drift ולא
+    # ידרוש --accept-data-loss (שהוסר בכוונה למעלה מסיבת אבטחה).
+    startCommand: npx prisma db execute --file=prisma/sql/drop-ai-tables.sql && npx prisma db push && (npx prisma db execute --file=prisma/sql/session-time-constraint.sql || true) && (npx prisma db execute --file=prisma/sql/chat-attachment-path-index.sql || true) && npm start
     envVars:
       - key: NODE_ENV
         value: production
@@ -626,37 +629,13 @@ services:
       - key: CRON_SECRET
         sync: false
 
-  # M13.6 (סבב אבטחה 13) — Recording orphan cleanup.
-  # מוחק הקלטות יתומות (clientId=null AND sessionId=null) שעברו 90 ימים.
-  # כולל מחיקת audio file מ-disk + DB row. עקרון "צמצום מידע" (חוק הגנת
-  # הפרטיות + תקנות 2017 על PHI). יומי 04:00 ישראל = 01:00 UTC, נפרד
-  # משאר retention crons כדי לא להעמיס DB.
-  - type: cron
-    name: recording-orphan-cleanup
-    runtime: node
-    region: frankfurt
-    plan: free
-    schedule: "30 1 * * *"  # 01:30 UTC (04:30 Israel). הוסט מ-01:00 ל-01:30 כדי לא להתנגש עם cleanup-idempotency (סוכן 14a, 2026-05-19).
-    buildCommand: echo "No build needed"
-    startCommand: |
-      curl -s --max-time 300 -X GET "$RENDER_EXTERNAL_URL/api/cron/recording-orphan-cleanup" \
-        -H "Authorization: Bearer $CRON_SECRET"
-    envVars:
-      - key: RENDER_EXTERNAL_URL
-        fromService:
-          type: web
-          name: tipul-app
-          property: url
-      - key: CRON_SECRET
-        sync: false
-
   # Chat attachment orphan cleanup — מוחק צרופות צ'אט יתומות באחסון (R2/דיסק).
   # סורק את אובייקטי `chat/` ומוחק קבצים שאין להם ChatMessage חיה (deletedAt=null)
   # שמצביעה אליהם, או שההודעה מחוקה-רך מעבר ל-90 ימים. תופס יתומים מ-cascade
   # delete (שמחק את שורת ה-DB) ויתומים היסטוריים. עקרון "צמצום מידע" (חוק הגנת
-  # הפרטיות + תקנות 2017 על PHI) + חיסכון אחסון. אח של recording-orphan-cleanup.
-  # יומי 02:25 UTC (05:25 ישראל) — off-peak, נפרד מ-recording-orphan-cleanup
-  # (01:30) ו-cleanup-idempotency (01:00) כדי לא להעמיס DB/אחסון בו-זמנית.
+  # הפרטיות + תקנות 2017 על PHI) + חיסכון אחסון.
+  # יומי 02:25 UTC (05:25 ישראל) — off-peak, נפרד מ-cleanup-idempotency
+  # (01:00) כדי לא להעמיס DB/אחסון בו-זמנית.
   - type: cron
     name: chat-attachment-orphan-cleanup
     runtime: node
