@@ -160,7 +160,7 @@ export function createPaymentReceiptEmail({
 
           <!-- Payment Details -->
           <div style="background: #f9fafb; border: 1px solid #e5e7eb; border-radius: 8px; padding: 20px; margin: 20px 0;">
-            ${payment.receiptNumber ? kvRow("מספר קבלה:", payment.receiptNumber) : ''}
+            ${payment.receiptNumber ? kvRow("מספר קבלה:", escapeHtml(payment.receiptNumber)) : ''}
             ${kvRow("תאריך תשלום:", paymentDate)}
             ${kvRow("אמצעי תשלום:", methodLabel)}
             ${
@@ -175,14 +175,20 @@ export function createPaymentReceiptEmail({
 
           ${sessionHtml}
 
-          ${payment.receiptUrl ? `
+          ${(() => {
+            // M-XSS-1: ולידציית URL ב-render time גם ל-receiptUrl — רשומות ישנות/ספק עלולות
+            // להכיל scheme לא בטוח (javascript:/data:). אם לא תקין — מסתירים את הכפתור.
+            const safeReceiptUrl = safeHttpUrl(payment.receiptUrl ?? null);
+            if (!safeReceiptUrl) return "";
+            return `
           <!-- Receipt Link -->
           <div style="text-align: center; margin: 20px 0;">
-            <a href="${payment.receiptUrl}" target="_blank" style="display: inline-block; background: #10b981; color: #ffffff; padding: 12px 28px; border-radius: 8px; text-decoration: none; font-weight: 600; font-size: 15px;">
+            <a href="${escapeHtml(safeReceiptUrl)}" target="_blank" style="display: inline-block; background: #10b981; color: #ffffff; padding: 12px 28px; border-radius: 8px; text-decoration: none; font-weight: 600; font-size: 15px;">
               📄 צפה בקבלה
             </a>
           </div>
-          ` : ''}
+          `;
+          })()}
 
           ${
             isPartial
