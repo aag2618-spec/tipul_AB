@@ -1,5 +1,3 @@
-FORCE REBUILD - 2026-01-29 01:28:00
+FORCE REBUILD - 2026-06-11
 This file forces Render to ignore all caches and rebuild from scratch.
-Build timestamp: 20260129012800
-Previous builds had TypeScript cache issues.
-Latest commit should include clientId variable extraction for null safety.
+Trigger: redeploy after AI removal (commits 8ceb780b + a202f9bf) — DB drop SQL + deploy fix.
