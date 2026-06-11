@@ -1243,6 +1243,20 @@ async function handleSubscriptionCancelled(
 // Email HTML Templates
 // ========================================
 
+// M-XSS-1: ולידציית URL ב-render time (כמו ב-payment-receipt.ts) — חוסם scheme לא בטוח
+// (javascript:/data:/file:) בכתובות שמגיעות מ-webhook/DB לפני הזרקה ל-href.
+function safeHttpUrl(input: string | null | undefined): string | null {
+  if (!input) return null;
+  if (input.length > 2000) return null;
+  try {
+    const u = new URL(input);
+    if (u.protocol !== "http:" && u.protocol !== "https:") return null;
+    return u.toString();
+  } catch {
+    return null;
+  }
+}
+
 function createSubscriptionConfirmHtml(
   name: string,
   amount: number,
@@ -1250,8 +1264,9 @@ function createSubscriptionConfirmHtml(
   receiptUrl?: string
 ): string {
   const planName = PLAN_NAMES[tier] || tier;
-  const receiptLink = receiptUrl
-    ? `<p style="text-align: center; margin-top: 15px;"><a href="${receiptUrl}" style="color: #4f46e5;">📄 הורד קבלה</a></p>`
+  const safeReceiptUrl = safeHttpUrl(receiptUrl);
+  const receiptLink = safeReceiptUrl
+    ? `<p style="text-align: center; margin-top: 15px;"><a href="${escapeHtml(safeReceiptUrl)}" style="color: #4f46e5;">📄 הורד קבלה</a></p>`
     : "";
 
   return `
@@ -1260,7 +1275,7 @@ function createSubscriptionConfirmHtml(
         <h1 style="color: white; margin: 0; font-size: 24px;">✅ המנוי פעיל!</h1>
       </div>
       <div style="background: #fff; padding: 30px; border: 1px solid #e5e7eb; border-top: none; border-radius: 0 0 12px 12px;">
-        <h2 style="color: #333; margin-top: 0;">שלום ${name},</h2>
+        <h2 style="color: #333; margin-top: 0;">שלום ${escapeHtml(name)},</h2>
         <p style="color: #555; font-size: 16px; line-height: 1.6;">
           התשלום התקבל בהצלחה. המנוי שלך פעיל ומוכן לשימוש!
         </p>
