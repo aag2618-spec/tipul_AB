@@ -84,12 +84,6 @@ export async function GET(request: NextRequest) {
           },
           orderBy: { createdAt: "desc" },
         },
-        recordings: {
-          include: {
-            transcription: true,
-          },
-          orderBy: { createdAt: "desc" },
-        },
       },
       orderBy: { name: "asc" },
     });
@@ -170,27 +164,6 @@ ${session.sessionNote?.content ? `\nסיכום:\n${session.sessionNote.content}`
         sessionsFolder?.file("סיכום-כל-הפגישות.txt", allSessionsSummary);
       }
 
-      // Transcriptions
-      if (client.recordings.length > 0) {
-        const transcFolder = clientFolder.folder("תמלולים");
-        
-        client.recordings.forEach((recording) => {
-          if (recording.transcription) {
-            transcFolder?.file(
-              `תמלול-${format(new Date(recording.transcription.createdAt), "yyyy-MM-dd-HHmm")}.txt`,
-              `תמלול הקלטה
-תאריך: ${format(new Date(recording.transcription.createdAt), "dd/MM/yyyy HH:mm")}
-סוג: ${recording.type}
-סטטוס: ${recording.status}
-
-תוכן:
-${recording.transcription.content}
-`
-            );
-          }
-        });
-      }
-
       // Questionnaires
       if (client.questionnaireResponses.length > 0) {
         const questFolder = clientFolder.folder("שאלונים");
@@ -203,8 +176,6 @@ ${response.totalScore !== null ? `ציון: ${response.totalScore}` : ""}
 
 תשובות:
 ${JSON.stringify(response.answers, null, 2)}
-
-${response.aiAnalysis ? `\nניתוח AI:\n${response.aiAnalysis}` : ""}
 `;
           
           questFolder?.file(

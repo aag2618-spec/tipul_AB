@@ -61,7 +61,7 @@ export async function GET(request: NextRequest) {
       role: u.role,
       aiTier: u.aiTier,
       isBlocked: u.isBlocked,
-      href: `/admin/ai-dashboard?user=${u.id}`,
+      href: `/admin/users?user=${u.id}`,
     }));
 
     return NextResponse.json({ results });

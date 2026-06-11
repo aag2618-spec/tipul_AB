@@ -5,7 +5,7 @@ import prisma from "@/lib/prisma";
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
-import { Users, Calendar, CreditCard, Clock, Plus, Brain } from "lucide-react";
+import { Users, Calendar, CreditCard, Clock, Plus } from "lucide-react";
 import Link from "next/link";
 import { Suspense } from "react";
 import { PersonalTasksWidget } from "@/components/tasks/personal-tasks-widget";
@@ -81,7 +81,6 @@ async function getDashboardStats(scopeUser: ScopeUser, personalOnly: boolean) {
     pendingPaymentsRaw,
     pendingTasks,
     todaySessions,
-    todaySessionPreps,
   ] = await Promise.all([
     prisma.client.count({ where: clientWhere }),
     prisma.client.count({ where: { AND: [clientWhere, { status: "ACTIVE" }] } }),
@@ -205,18 +204,6 @@ async function getDashboardStats(scopeUser: ScopeUser, personalOnly: boolean) {
       },
       orderBy: { startTime: "asc" },
     }),
-    // הכנות לפגישות שנוצרו היום
-    prisma.sessionPrep.findMany({
-      where: {
-        userId: scopeUser.id,
-        createdAt: { gte: today, lt: tomorrow },
-      },
-      select: {
-        id: true,
-        clientId: true,
-        createdAt: true,
-      },
-    }),
   ]);
 
   // Filter sessions to only show TODAY in Israel time
@@ -235,17 +222,6 @@ async function getDashboardStats(scopeUser: ScopeUser, personalOnly: boolean) {
     );
   });
 
-  // יצירת מפת הכנות לפי clientId
-  const prepsByClientId = new Map(
-    todaySessionPreps.map(prep => [prep.clientId, prep])
-  );
-
-  // הוספת מידע על הכנות לפגישות
-  const sessionsWithPreps = filteredTodaySessions.map(session => ({
-    ...session,
-    hasPrep: session.client ? prepsByClientId.has(session.client.id) : false,
-  }));
-
   const pendingPayments = pendingPaymentsRaw.filter((p) => {
     const paid = Number(p.amount);
     const expected = Number(p.expectedAmount) || 0;
@@ -261,7 +237,7 @@ async function getDashboardStats(scopeUser: ScopeUser, personalOnly: boolean) {
     sessionsThisMonth,
     pendingPayments,
     pendingTasks,
-    todaySessions: sessionsWithPreps,
+    todaySessions: filteredTodaySessions,
   };
 }
 
@@ -490,117 +466,6 @@ export default async function DashboardPage() {
           </CardContent>
         </Card>
 
-        {/* AI Session Prep - What to work on today */}
-        <Card className="bg-gradient-to-br from-purple-50 to-sky-50 dark:from-purple-950/30 dark:to-sky-900/30 border-purple-200">
-          <CardHeader className="flex flex-row items-center justify-between">
-            <div>
-              <CardTitle className="flex items-center gap-2">
-                <Brain className="h-5 w-5 text-purple-600" />
-                AI - מה לעבוד היום
-              </CardTitle>
-              <CardDescription>הכנה חכמה לפגישות שלך</CardDescription>
-            </div>
-            <Button variant="outline" size="sm" asChild>
-              <Link href="/dashboard/ai-prep">פרטים מלאים</Link>
-            </Button>
-          </CardHeader>
-          <CardContent>
-            {stats.todaySessions.length > 0 ? (
-              <div className="space-y-4">
-                {stats.todaySessions
-                  .filter(s => s.client) // Only sessions with clients
-                  .slice(0, 3) // Show max 3
-                  .map((session) => {
-                    const hasPrep = session.hasPrep;
-                    return (
-                      <div 
-                        key={session.id}
-                        className={`p-4 bg-white dark:bg-slate-800 rounded-lg border ${
-                          hasPrep 
-                            ? 'border-green-200 dark:border-green-800' 
-                            : 'border-purple-100 dark:border-purple-800'
-                        }`}
-                      >
-                        <div className="flex items-center justify-between mb-2">
-                          <h4 className="font-semibold text-sm">
-                            {session.client?.name}
-                          </h4>
-                          <div className="flex items-center gap-2">
-                            {hasPrep && (
-                              <Badge variant="secondary" className="text-xs bg-green-100 text-green-700">
-                                ✓ הכנה מוכנה
-                              </Badge>
-                            )}
-                            <Badge variant="outline" className="text-xs">
-                              {new Date(session.startTime).toLocaleTimeString('he-IL', { 
-                                hour: '2-digit', 
-                                minute: '2-digit',
-                                timeZone: 'Asia/Jerusalem'
-                              })}
-                            </Badge>
-                          </div>
-                        </div>
-                        {hasPrep ? (
-                          <div className="space-y-2 text-sm text-muted-foreground">
-                            <div className="flex items-start gap-2">
-                              <span className="text-green-600">✓</span>
-                              <span>הכנה מוכנה לפגישה עם {session.client?.name}</span>
-                            </div>
-                            <div className="flex items-start gap-2">
-                              <span className="text-green-600">📋</span>
-                              <span>לחץ לצפייה בהמלצות ושאלות</span>
-                            </div>
-                          </div>
-                        ) : (
-                          <div className="space-y-2 text-sm text-muted-foreground">
-                            <div className="flex items-start gap-2">
-                              <span className="text-purple-600">🧠</span>
-                              <span>הכנה חכמה לפגישה עם {session.client?.name}</span>
-                            </div>
-                            <div className="flex items-start gap-2">
-                              <span className="text-sky-600">📋</span>
-                              <span>ניתוח הפגישות האחרונות וזיהוי דפוסים</span>
-                            </div>
-                            <div className="flex items-start gap-2">
-                              <span className="text-green-600">💡</span>
-                              <span>המלצות ושאלות מותאמות לפגישה</span>
-                            </div>
-                          </div>
-                        )}
-                        <Button 
-                          variant="default" 
-                          size="sm" 
-                          className={`mt-3 ${
-                            hasPrep 
-                              ? 'bg-green-600 hover:bg-green-700' 
-                              : 'bg-purple-600 hover:bg-purple-700'
-                          }`}
-                          asChild
-                        >
-                          <Link href={`/dashboard/sessions/${session.id}`}>
-                            {hasPrep ? '📖 הצג הכנה לפגישה' : '🤖 צור הכנה לפגישה'}
-                          </Link>
-                        </Button>
-                      </div>
-                    );
-                  })}
-                {stats.todaySessions.filter(s => s.client).length > 3 && (
-                  <Button variant="outline" size="sm" className="w-full" asChild>
-                    <Link href="/dashboard/ai-prep">
-                      עוד {stats.todaySessions.filter(s => s.client).length - 3} פגישות →
-                    </Link>
-                  </Button>
-                )}
-              </div>
-            ) : (
-              <div className="text-center py-8 text-muted-foreground">
-                <Brain className="mx-auto h-12 w-12 mb-3 opacity-50" />
-                <p>אין פגישות מתוכננות להיום</p>
-                <p className="text-xs mt-2">כשיהיו פגישות, תראה כאן המלצות AI מותאמות אישית</p>
-              </div>
-            )}
-          </CardContent>
-        </Card>
       </div>
 
       {/* Personal Tasks Widget */}

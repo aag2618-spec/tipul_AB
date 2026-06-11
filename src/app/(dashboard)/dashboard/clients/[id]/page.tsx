@@ -26,9 +26,6 @@ import {
   Repeat,
   Clock,
   User as UserIcon,
-  Lock,
-  Sparkles,
-  Brain,
   UserCheck,
   Send,
 } from "lucide-react";
@@ -36,7 +33,6 @@ import Link from "next/link";
 import { QuickMarkPaid } from "@/components/payments/quick-mark-paid";
 import { ExportClientButton } from "@/components/clients/export-client-button";
 import { SummariesTab } from "@/components/clients/summaries-tab";
-import { ClientApproachEditor } from "@/components/clients/client-approach-editor";
 import { DocumentItem } from "@/components/clients/document-item";
 import { SendReminderButton } from "@/components/clients/send-reminder-button";
 import { SendPaymentHistoryButton } from "@/components/clients/send-payment-history-button";
@@ -45,8 +41,6 @@ import { TodaySessionCard } from "@/components/dashboard/today-session-card";
 import { SessionHistoryGrid } from "@/components/clients/session-history-grid";
 import { AddCreditDialog } from "@/components/clients/add-credit-dialog";
 import { PaymentHistoryGrid } from "@/components/payments/payment-history-grid";
-import { QuestionnaireAnalysis } from "@/components/ai/questionnaire-analysis";
-import { SessionPrepCard } from "@/components/ai/session-prep-card";
 import { format } from "date-fns";
 import { he } from "date-fns/locale";
 import { calculateDebtFromPayments } from "@/lib/payment-utils";
@@ -76,7 +70,6 @@ const WIDE_CLIENT_INCLUDE = {
     orderBy: { startTime: "desc" },
     include: {
       sessionNote: { select: { content: true } },
-      sessionAnalysis: { select: { id: true } },
       payment: {
         select: {
           id: true,
@@ -108,14 +101,6 @@ const WIDE_CLIENT_INCLUDE = {
       },
     },
   },
-  recordings: {
-    orderBy: { createdAt: "desc" },
-    take: 5,
-    select: {
-      id: true, type: true, status: true, durationSeconds: true, createdAt: true,
-      transcription: { select: { id: true, analysis: { select: { id: true } } } },
-    },
-  },
   documents: {
     take: 50,
     orderBy: { createdAt: "desc" },
@@ -141,7 +126,6 @@ const WIDE_CLIENT_INCLUDE = {
     select: {
       therapySessions: { where: { type: { not: "BREAK" } } },
       payments: true,
-      recordings: true,
       questionnaireResponses: true,
       intakeResponses: true,
     },
@@ -244,7 +228,6 @@ async function getClient(
             select: {
               therapySessions: { where: { type: { not: "BREAK" } } },
               payments: true,
-              recordings: true,
               questionnaireResponses: true,
               intakeResponses: true,
             },
@@ -295,20 +278,7 @@ export default async function ClientPage({
   const { id } = await params;
   const { tab, upgrade } = await searchParams;
   const showUpgradeBanner = upgrade === "true";
-  
-  let user: { aiTier: string } | null = null;
-  try {
-    user = await prisma.user.findUnique({
-      where: { id: session.user.id },
-      select: { aiTier: true }
-    });
-  } catch (error) {
-    logger.error("[ClientPage] Failed to load user:", {
-      userId: session.user.id,
-      error: error instanceof Error ? error.message : String(error),
-    });
-  }
-  
+
   let client;
   let asSecretary = false;
   // Phase 2: canViewPayments — מזכירה רואה תשלומים רק אם בעלת הקליניקה נתנה הרשאה.
@@ -351,7 +321,7 @@ export default async function ClientPage({
   // + sanitize של ה-tab מה-URL.
   const baseTabs = ["sessions", "files", "profile"];
   if (canViewPayments) baseTabs.splice(1, 0, "payments");
-  const allowedTabs = asSecretary ? baseTabs : ["sessions", "ai", "summaries", "payments", "files", "profile"];
+  const allowedTabs = asSecretary ? baseTabs : ["sessions", "summaries", "payments", "files", "profile"];
   const defaultTab = tab && allowedTabs.includes(tab) ? tab : "sessions";
 
   const getInitials = (name: string) => {
@@ -371,15 +341,6 @@ export default async function ClientPage({
 
   const pendingPayments = client.payments?.filter((p) => p.status === "PENDING") || [];
   const totalDebt = calculateDebtFromPayments(pendingPayments);
-
-  // AI tab data
-  const futureSessions = (client.therapySessions || []).filter(
-    (s) => new Date(s.startTime) > new Date() && s.type !== "BREAK"
-  );
-  const nextUpcomingSession = futureSessions.length > 0 
-    ? futureSessions[futureSessions.length - 1] 
-    : null;
-  const summarizedSessionsCount = (client.therapySessions || []).filter(s => s.sessionNote).length;
 
   // Get unpaid sessions for the Payments tab (exclude cancelled sessions).
   // ⭐ paidAmount קנוני — אם payment הוא PENDING+CC ללא קבלה, calculatePaidAmount
@@ -431,18 +392,6 @@ export default async function ClientPage({
                   ? "ממתין"
                   : "ארכיון"}
               </Badge>
-              {/* M1 — מציגים badge רק כשהמטופל סירב במפורש (false), כדי להזהיר
-                  את המטפל ש-AI חסום. ערכים true/null = ברירת מחדל שקטה. */}
-              {client.consentToAI === false && (
-                <Badge
-                  variant="outline"
-                  className="bg-red-50 text-red-900 font-semibold border border-red-200"
-                  title="המטופל סירב לעיבוד נתוניו ב-AI. ניתן לעדכן בעריכת המטופל."
-                >
-                  <Lock className="ml-1 h-3 w-3" />
-                  AI חסום
-                </Badge>
-              )}
             </div>
             <p className="text-muted-foreground">
               {client._count.therapySessions} פגישות | מטופל מאז{" "}
@@ -589,12 +538,6 @@ export default async function ClientPage({
             <Calendar className="h-4 w-4" />
             פגישות
           </TabsTrigger>
-          {!asSecretary && (
-            <TabsTrigger value="ai" className="flex-1 min-w-[110px] gap-2 rounded-xl py-2.5 border border-muted-foreground/10 bg-muted/40 data-[state=active]:bg-primary/10 data-[state=active]:text-primary data-[state=active]:shadow-md data-[state=active]:border-primary/30 font-medium">
-              <Sparkles className="h-4 w-4" />
-              AI · ניתוח
-            </TabsTrigger>
-          )}
           {!asSecretary && (
             <TabsTrigger value="summaries" className="flex-1 min-w-[110px] gap-2 rounded-xl py-2.5 border border-muted-foreground/10 bg-muted/40 data-[state=active]:bg-white data-[state=active]:text-primary data-[state=active]:shadow-md data-[state=active]:border-primary/30 font-medium">
               <FileText className="h-4 w-4" />
@@ -1003,118 +946,6 @@ export default async function ClientPage({
         </TabsContent>
         )}
 
-        {/* AI Tab — תוכן קליני, מוסתר למזכירה */}
-        {!asSecretary && (
-        <TabsContent value="ai" className="mt-6">
-          <div className="space-y-6">
-            {/* הכנה לפגישה הקרובה */}
-            {nextUpcomingSession ? (
-              <SessionPrepCard
-                session={{
-                  id: nextUpcomingSession.id,
-                  clientId: client.id,
-                  clientName: client.name,
-                  startTime: nextUpcomingSession.startTime?.toString() || "",
-                }}
-                userTier={(user?.aiTier as "ESSENTIAL" | "PRO" | "ENTERPRISE") || "ESSENTIAL"}
-              />
-            ) : (
-              <Card className="border-dashed">
-                <CardContent className="py-8 text-center text-muted-foreground">
-                  <Calendar className="mx-auto h-10 w-10 mb-3 opacity-40" />
-                  <p className="font-medium">אין פגישות קרובות</p>
-                  <p className="text-sm mt-1">קבע פגישה כדי ליצור הכנת AI</p>
-                </CardContent>
-              </Card>
-            )}
-
-            {/* ניתוח מקיף של כל הסיכומים */}
-            <Card className="border-primary/20 bg-primary/5">
-              <CardHeader>
-                <CardTitle className="flex items-center gap-2">
-                  <Brain className="h-5 w-5 text-primary" />
-                  ניתוח מקיף
-                </CardTitle>
-                <CardDescription>
-                  ניתוח AI שמשלב את כל סיכומי הפגישות ומזהה דפוסים, התקדמות ותובנות
-                </CardDescription>
-              </CardHeader>
-              <CardContent>
-                {summarizedSessionsCount > 0 ? (
-                  <Button asChild className="bg-primary/10 text-primary border border-primary/20 hover:bg-primary/15 shadow-none">
-                    <Link href={`/dashboard/clients/${client.id}/summaries/all`}>
-                      <Sparkles className="ml-2 h-4 w-4" />
-                      התחל ניתוח מקיף ({summarizedSessionsCount} סיכומים)
-                    </Link>
-                  </Button>
-                ) : (
-                  <p className="text-sm text-muted-foreground">אין סיכומים עדיין - סכם פגישות כדי להפעיל ניתוח מקיף</p>
-                )}
-              </CardContent>
-            </Card>
-
-            {/* ניתוח שאלונים */}
-            {client.questionnaireResponses && client.questionnaireResponses.length > 0 ? (
-              <QuestionnaireAnalysis
-                clientId={client.id}
-                clientName={client.name}
-                questionnaires={client.questionnaireResponses}
-                userTier={(user?.aiTier as "ESSENTIAL" | "PRO" | "ENTERPRISE") || "ESSENTIAL"}
-              />
-            ) : (
-              <Card className="border-dashed">
-                <CardContent className="py-8 text-center text-muted-foreground">
-                  <ClipboardList className="mx-auto h-10 w-10 mb-3 opacity-40" />
-                  <p className="font-medium">אין שאלונים לניתוח</p>
-                  <p className="text-sm mt-1">מלא שאלונים כדי לקבל ניתוח AI</p>
-                  <Button variant="link" asChild className="mt-2">
-                    <Link href={`/dashboard/questionnaires/new?client=${client.id}`}>
-                      <Plus className="ml-1 h-4 w-4" />
-                      מלא שאלון
-                    </Link>
-                  </Button>
-                </CardContent>
-              </Card>
-            )}
-
-            {/* גישה טיפולית למטופל */}
-            <Card className={user?.aiTier !== 'ENTERPRISE' ? 'border-dashed border-amber-300/50' : ''}>
-              <CardHeader>
-                <div className="flex items-center justify-between">
-                  <div>
-                    <CardTitle className="flex items-center gap-2">
-                      <Stethoscope className="h-5 w-5" />
-                      גישה טיפולית למטופל
-                      {user?.aiTier !== 'ENTERPRISE' && <Lock className="h-4 w-4 text-amber-500" />}
-                    </CardTitle>
-                    <CardDescription>
-                      {user?.aiTier === 'ENTERPRISE' 
-                        ? 'הגדר גישות טיפוליות ספציפיות למטופל זה'
-                        : 'שדרג לארגוני כדי להפעיל ניתוח מותאם אישית'}
-                    </CardDescription>
-                  </div>
-                  {user?.aiTier !== 'ENTERPRISE' && (
-                    <Badge className="bg-gradient-to-r from-amber-400 to-orange-400 text-white border-0 text-xs">
-                      ENTERPRISE
-                    </Badge>
-                  )}
-                </div>
-              </CardHeader>
-              <CardContent>
-                <ClientApproachEditor
-                  clientId={client.id}
-                  clientName={client.name}
-                  currentApproaches={client.therapeuticApproaches || []}
-                  currentNotes={client.approachNotes}
-                  currentCulturalContext={client.culturalContext}
-                  disabled={user?.aiTier !== 'ENTERPRISE'}
-                />
-              </CardContent>
-            </Card>
-          </div>
-        </TabsContent>
-        )}
-
         {!asSecretary && (
         <TabsContent value="summaries" className="mt-6">
           <SummariesTab clientId={client.id} sessions={client.therapySessions.map((s) => ({
@@ -1125,7 +956,6 @@ export default async function ClientPage({
             status: s.status as string,
             skipSummary: s.skipSummary,
             sessionNote: s.sessionNote ? { content: s.sessionNote.content } : null,
-            hasAiAnalysis: !!s.sessionAnalysis,
           }))} />
         </TabsContent>
         )}
@@ -1485,17 +1315,6 @@ export default async function ClientPage({
                     )}
                   </CardContent>
                 </Card>
-
-                {/* ניתוח AI לשאלונים */}
-                {client.questionnaireResponses && client.questionnaireResponses.length > 0 && (
-                  <QuestionnaireAnalysis
-                    clientId={client.id}
-                    clientName={client.name}
-                    questionnaires={client.questionnaireResponses}
-                    userTier={(user?.aiTier as "ESSENTIAL" | "PRO" | "ENTERPRISE") || "ESSENTIAL"}
-                    compact
-                  />
-                )}
 
                 {/* אבחון והערות */}
                 <div className="grid gap-6 lg:grid-cols-2">

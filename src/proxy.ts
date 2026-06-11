@@ -74,7 +74,6 @@ const ADMIN_ONLY_PATHS = [
   "/admin/tier-settings",
   "/admin/terms",
   "/admin/coupons",
-  "/admin/ai-usage/settings",
   // Cardcom — Stage Cardcom (ADMIN בלבד: הגדרות מסוף, פרטי עסק)
   "/admin/billing/cardcom-setup",
   "/admin/billing/business-settings",
@@ -83,7 +82,6 @@ const ADMIN_ONLY_PATHS = [
   "/api/admin/backfill-user-numbers",
   "/api/admin/tier-limits",
   "/api/admin/feature-flags",
-  "/api/admin/ai-settings",
   "/api/admin/terms",
   "/api/admin/coupons",
   "/admin/promotions",

@@ -63,15 +63,7 @@ export async function GET(
       : {
           client: true,
           sessionNote: true,
-          sessionAnalysis: true,
           payment: { include: PAYMENT_INCLUDE },
-          recordings: {
-            include: {
-              transcription: {
-                include: { analysis: true },
-              },
-            },
-          },
         };
 
     const therapySession = await prisma.therapySession.findFirst({
@@ -89,7 +81,6 @@ export async function GET(
     // a structural type just for meta extraction.
     const sessionForMeta = therapySession as unknown as {
       sessionNote?: unknown;
-      recordings?: Array<{ transcription?: unknown }>;
     };
     logDataAccess({
       userId,
@@ -100,7 +91,6 @@ export async function GET(
       request,
       meta: {
         hasNote: !!sessionForMeta.sessionNote,
-        hasTranscription: (sessionForMeta.recordings ?? []).some((r) => !!r.transcription),
       },
       ...(isImpersonating ? { impersonatedBy: originalUserId } : {}),
     });

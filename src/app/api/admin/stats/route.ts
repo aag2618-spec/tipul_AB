@@ -35,7 +35,6 @@ export async function GET() {
       paidPayments,
       pendingPayments,
       documentsCount,
-      recordingsCount,
       tierLimits,
       activePayingByTier,
       cancelledCount,
@@ -56,7 +55,6 @@ export async function GET() {
       }),
       prisma.subscriptionPayment.count({ where: { status: "PENDING" } }),
       prisma.document.count(),
-      prisma.recording.count(),
       prisma.tierLimits.findMany(),
       prisma.user.groupBy({
         by: ["aiTier"],
@@ -98,8 +96,7 @@ export async function GET() {
       : 0;
 
     const estimatedDocumentStorageGB = (documentsCount * 5) / 1024;
-    const estimatedRecordingStorageGB = (recordingsCount * 10) / 1024;
-    const totalStorageGB = estimatedDocumentStorageGB + estimatedRecordingStorageGB;
+    const totalStorageGB = estimatedDocumentStorageGB;
 
     return NextResponse.json({
       totalUsers,

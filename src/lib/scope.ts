@@ -83,8 +83,6 @@ export const CLINICAL_FIELDS_BLOCKED_FOR_SECRETARY = {
     "therapeuticApproaches",
     "approachNotes",
     "culturalContext",
-    "comprehensiveAnalysis",
-    "comprehensiveAnalysisAt",
   ] as const,
   // שדות קליניים על TherapySession — `notes` הוא סיכום חופשי של המטפל.
   // `topic` (נושא הפגישה) גם נחשב תוכן קליני ומוחרג ב-safe select.
@@ -95,12 +93,7 @@ export const CLINICAL_FIELDS_BLOCKED_FOR_SECRETARY = {
   // דרך helper ייעודי ולא דרך קריאה ישירה למודל.
   blockedModels: [
     "SessionNote",
-    "SessionAnalysis",
-    "QuestionnaireAnalysis",
     "QuestionnaireResponse",
-    "Recording",
-    "Transcription",
-    "AIInsight",
   ] as const,
 };
 
@@ -491,14 +484,6 @@ export function getSessionIncludeForRole(
   return {
     client: true,
     sessionNote: true,
-    sessionAnalysis: true,
-    recordings: {
-      include: {
-        transcription: {
-          include: { analysis: true },
-        },
-      },
-    },
   };
 }
 

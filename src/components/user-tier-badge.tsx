@@ -47,7 +47,7 @@ export function UserTierBadge() {
   const tierDisplay = getTierDisplay();
 
   return (
-    <Link href="/dashboard/settings/ai-assistant">
+    <Link href="/dashboard/settings/billing">
       <Badge variant={tierDisplay.variant} className="text-xs cursor-pointer hover:opacity-80">
         {tierDisplay.label}
       </Badge>

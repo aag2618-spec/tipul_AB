@@ -167,10 +167,6 @@ model User {
   // AI & Billing Settings
   aiTier                AITier   @default(ESSENTIAL) // Essential, Pro, Enterprise
   therapeuticApproaches String[] @default([]) // Array of approaches: ["CBT", "Psychodynamic", etc.]
-  approachDescription   String?  @db.Text // Custom description for eclectic approach
-  analysisStyle         String   @default("professional") // professional, practical, emotional
-  aiTone                String   @default("formal") // formal, warm, direct
-  customAIInstructions  String?  @db.Text // Custom instructions for AI
 
   // Billing
   stripeCustomerId      String?            @unique // Stripe customer ID
@@ -277,22 +273,12 @@ model User {
   insurerReports         InsurerReport[]
   clientCommitments      ClientCommitment[]
   billingProviders       BillingProvider[]
-  aiUsageStats           AIUsageStats?
-  sessionPreps           SessionPrep[]
 
   // Online Booking
   bookingSettings BookingSettings?
 
-  // AI Insights Relations
-  aiInsights       AIInsight[]
-  therapeuticGoals TherapeuticGoal[]
-  emotionLogs      EmotionLog[]
   termsAcceptances TermsAcceptance[]
-
-  // AI Analysis Relations
-  questionnaireAnalyses QuestionnaireAnalysis[]
-  sessionAnalyses       SessionAnalysis[]
-  monthlyUsages         MonthlyUsage[]
+  monthlyUsages    MonthlyUsage[]
   adminAuditLogs        AdminAuditLog[]         @relation("auditAdmin")
 
   // Support Tickets (פניות ותמיכה)
@@ -491,10 +477,6 @@ model Client {
   approachNotes         String?  @db.Text // Special notes about therapeutic approach for this client
   culturalContext       String?  @db.Text // Cultural context for AI analysis sensitivity
 
-  // Comprehensive AI analysis (saved from "all summaries" page)
-  comprehensiveAnalysis   String?   @db.Text
-  comprehensiveAnalysisAt DateTime?
-
   // M1 (2026-05-17): הסכמת מטופל לעיבוד נתוניו בכלי AI חיצוניים (Gemini).
   // ברירת מחדל true — לא רוצים לשבור AI למטופלים קיימים. UI בעתיד יאפשר
   // למטפל לסמן false למטופל שמסרב במפורש. השדה נבדק ב-requireAiConsent
@@ -518,21 +500,12 @@ model Client {
   therapySessions        TherapySession[]
   payments               Payment[]
   documents              Document[]
-  recordings             Recording[]
   recurringPatterns      RecurringPattern[]
   cancellationRequests   CancellationRequest[]
   communicationLogs      CommunicationLog[]
   questionnaireResponses QuestionnaireResponse[]
   intakeResponses        IntakeResponse[]        @relation("intakeResponses")
   consentForms           ConsentForm[]
-
-  // AI Analysis Relations
-  questionnaireAnalyses QuestionnaireAnalysis[]
-
-  // AI Insights Relations
-  aiInsights       AIInsight[]
-  therapeuticGoals TherapeuticGoal[]
-  emotionLogs      EmotionLog[]
 
   // Cardcom — saved tokens for recurring billing
   savedCardTokens SavedCardToken[]
@@ -612,15 +585,10 @@ model TherapySession {
 
   sessionNote          SessionNote?
   payment              Payment?
-  recordings           Recording[]
   cancellationRequests CancellationRequest[]
   communicationLogs    CommunicationLog[]
   smsReminders         SMSReminder[]
   insurerReports       InsurerReport[]
-
-  // AI Analysis
-  sessionAnalysis SessionAnalysis?
-  emotionLogs     EmotionLog[]
 
   // Clinic multi-tenancy
   organizationId String?
@@ -654,74 +622,11 @@ model SessionNote {
   id         String   @id @default(cuid())
   content    String   @db.Text
   isPrivate  Boolean  @default(false)
-  aiAnalysis Json? // Stores AI analysis of the note
   createdAt  DateTime @default(now())
   updatedAt  DateTime @updatedAt
 
   sessionId String         @unique
   session   TherapySession @relation(fields: [sessionId], references: [id], onDelete: Cascade)
-}
-
-// ==================== Recording & AI ====================
-
-model Recording {
-  id              String          @id @default(cuid())
-  audioUrl        String
-  durationSeconds Int
-  type            RecordingType
-  status          RecordingStatus @default(PENDING)
-  createdAt       DateTime        @default(now())
-  updatedAt       DateTime        @updatedAt
-
-  clientId String?
-  client   Client? @relation(fields: [clientId], references: [id], onDelete: SetNull)
-
-  sessionId String?
-  session   TherapySession? @relation(fields: [sessionId], references: [id], onDelete: SetNull)
-
-  transcription Transcription?
-}
-
-enum RecordingType {
-  INTAKE
-  SESSION
-}
-
-enum RecordingStatus {
-  PENDING
-  TRANSCRIBING
-  TRANSCRIBED
-  ANALYZED
-  ERROR
-}
-
-model Transcription {
-  id         String   @id @default(cuid())
-  content    String   @db.Text
-  language   String   @default("he")
-  confidence Float?
-  timestamps Json?
-  createdAt  DateTime @default(now())
-  updatedAt  DateTime @updatedAt
-
-  recordingId String    @unique
-  recording   Recording @relation(fields: [recordingId], references: [id], onDelete: Cascade)
-
-  analysis Analysis?
-}
-
-model Analysis {
-  id               String   @id @default(cuid())
-  summary          String   @db.Text
-  keyTopics        Json?
-  emotionalMarkers Json?
-  recommendations  Json?
-  nextSessionNotes String?  @db.Text
-  createdAt        DateTime @default(now())
-  updatedAt        DateTime @updatedAt
-
-  transcriptionId String        @unique
-  transcription   Transcription @relation(fields: [transcriptionId], references: [id], onDelete: Cascade)
 }
 
 // ==================== Payments ====================
@@ -1418,7 +1323,6 @@ model QuestionnaireResponse {
   answers     Json // Array of answers
   totalScore  Int? // Calculated total score
   subscores   Json? // Category/criterion scores
-  aiAnalysis  String?             @db.Text // AI analysis of results
   status      QuestionnaireStatus @default(IN_PROGRESS)
   startedAt   DateTime            @default(now())
   completedAt DateTime?
@@ -1433,9 +1337,6 @@ model QuestionnaireResponse {
 
   therapistId String
   therapist   User   @relation(fields: [therapistId], references: [id], onDelete: Cascade)
-
-  // AI Analysis Relations
-  questionnaireAnalyses QuestionnaireAnalysis[]
 
   // Clinic multi-tenancy — FK bareback. null = מטפל עצמאי.
   organizationId String?
@@ -1673,279 +1574,6 @@ model ClientCommitment {
   @@index([clientId])
   @@index([therapistId])
   @@index([status])
-}
-
-// ==================== AI Usage Tracking ====================
-
-model AIUsageStats {
-  id     String @id @default(cuid())
-  userId String @unique
-  user   User   @relation(fields: [userId], references: [id], onDelete: Cascade)
-
-  // Current month stats
-  currentMonthCalls  Int     @default(0)
-  currentMonthTokens Int     @default(0)
-  currentMonthCost   Decimal @default(0) @db.Decimal(10, 4)
-
-  // Daily stats (reset every day)
-  dailyCalls    Int      @default(0)
-  lastResetDate DateTime @default(now())
-
-  // All-time stats
-  totalCalls Int     @default(0)
-  totalCost  Decimal @default(0) @db.Decimal(10, 4)
-
-  createdAt DateTime @default(now())
-  updatedAt DateTime @updatedAt
-
-  @@index([userId])
-}
-
-model SessionPrep {
-  id     String @id @default(cuid())
-  userId String
-  user   User   @relation(fields: [userId], references: [id], onDelete: Cascade)
-
-  clientId    String
-  sessionDate DateTime
-
-  // AI Analysis content
-  content         String @db.Text
-  insights        Json? // Structured insights
-  recommendations Json? // Structured recommendations
-
-  // Metadata
-  aiModel     String // "gpt-4o", "gpt-4o-mini", "gemini-1.5-flash"
-  tokensUsed  Int
-  cost        Decimal  @db.Decimal(10, 4)
-  generatedAt DateTime @default(now())
-
-  createdAt DateTime @default(now())
-
-  @@index([userId, sessionDate])
-  @@index([clientId])
-}
-
-// ==================== Admin Global Settings ====================
-
-model GlobalAISettings {
-  id String @id @default(cuid())
-
-  // Rate limits
-  dailyLimitEssential  Int @default(0) // 0 = no AI
-  dailyLimitPro        Int @default(30) // 30 calls/day
-  dailyLimitEnterprise Int @default(100) // 100 calls/day
-
-  monthlyLimitEssential  Int @default(0) // 0 = no AI
-  monthlyLimitPro        Int @default(600) // 600 calls/month
-  monthlyLimitEnterprise Int @default(2000) // 2000 calls/month
-
-  // Cost controls
-  maxMonthlyCostBudget Decimal @default(5000) @db.Decimal(10, 2) // Total budget cap
-  alertThreshold       Decimal @default(4000) @db.Decimal(10, 2) // Alert at 80%
-
-  // Behavior on limit exceed
-  blockOnExceed      Boolean @default(false) // Block user or just alert
-  alertAdminOnExceed Boolean @default(true)
-
-  // Feature flags
-  enableCache     Boolean @default(true) // Cache identical requests
-  compressPrompts Boolean @default(true) // Compress long prompts
-
-  updatedAt DateTime @updatedAt
-
-  @@map("global_ai_settings")
-}
-
-// ==================== AI Insights System ====================
-
-model AIInsight {
-  id       String @id @default(cuid())
-  userId   String
-  user     User   @relation(fields: [userId], references: [id], onDelete: Cascade)
-  clientId String
-  client   Client @relation(fields: [clientId], references: [id], onDelete: Cascade)
-
-  type       InsightType // Type of insight
-  title      String // Short title
-  content    String      @db.Text // Full content
-  confidence Float // 0-1, how confident the AI is
-
-  metadata Json? // Additional structured data
-
-  // Caching and validity
-  validUntil DateTime // When this insight expires
-  isStale    Boolean  @default(false)
-
-  createdAt DateTime @default(now())
-  updatedAt DateTime @updatedAt
-
-  @@index([clientId, type])
-  @@index([userId, createdAt])
-  @@index([validUntil])
-}
-
-enum InsightType {
-  PATTERN // Behavioral patterns
-  EMOTION_TREND // Emotional tracking
-  GOAL_PROGRESS // Goal achievement
-  TECHNIQUE_REC // Technique recommendations
-  OPEN_ISSUE // Unresolved topics
-  RELATIONSHIP_MAP // Key relationships
-  RISK_FLAG // Warning signs
-}
-
-model TherapeuticGoal {
-  id       String @id @default(cuid())
-  userId   String
-  user     User   @relation(fields: [userId], references: [id], onDelete: Cascade)
-  clientId String
-  client   Client @relation(fields: [clientId], references: [id], onDelete: Cascade)
-
-  title    String // Goal description
-  category String? // e.g., "anxiety", "depression", "relationships"
-
-  // Progress tracking
-  startValue   Int // Initial score (e.g., 8/10)
-  targetValue  Int // Target score (e.g., 3/10)
-  currentValue Int // Current score
-  unit         String @default("scale") // "scale", "frequency", "percentage"
-
-  // Calculated
-  progress Float // Percentage progress (0-100)
-  trend    String // "improving", "stable", "declining"
-
-  // Timeline
-  startDate   DateTime   @default(now())
-  targetDate  DateTime?
-  lastUpdated DateTime   @updatedAt
-  status      GoalStatus @default(ACTIVE)
-
-  createdAt DateTime @default(now())
-
-  @@index([clientId, status])
-  @@index([userId])
-}
-
-enum GoalStatus {
-  ACTIVE
-  COMPLETED
-  PAUSED
-  ABANDONED
-}
-
-model EmotionLog {
-  id        String          @id @default(cuid())
-  userId    String
-  user      User            @relation(fields: [userId], references: [id], onDelete: Cascade)
-  clientId  String
-  client    Client          @relation(fields: [clientId], references: [id], onDelete: Cascade)
-  sessionId String?
-  session   TherapySession? @relation(fields: [sessionId], references: [id], onDelete: Cascade)
-
-  // Emotion data
-  emotion   String // Primary emotion detected
-  intensity Int // 1-10
-  valence   String // "positive", "negative", "neutral"
-
-  // Context
-  context  String? @db.Text
-  triggers Json? // Array of trigger keywords
-
-  // Source
-  source String @default("ai_analysis") // "ai_analysis", "manual", "questionnaire"
-
-  recordedAt DateTime @default(now())
-
-  @@index([clientId, recordedAt])
-  @@index([userId])
-}
-
-// ==================== Questionnaire Analysis ====================
-
-model QuestionnaireAnalysis {
-  id       String @id @default(cuid())
-  userId   String
-  user     User   @relation(fields: [userId], references: [id], onDelete: Cascade)
-  clientId String
-  client   Client @relation(fields: [clientId], references: [id], onDelete: Cascade)
-
-  // Analysis type
-  analysisType QuestionnaireAnalysisType
-
-  // Single questionnaire analysis
-  responseId String?
-  response   QuestionnaireResponse? @relation(fields: [responseId], references: [id], onDelete: Cascade)
-
-  // Combined analysis - multiple questionnaires
-  responseIds String[] // Array of response IDs if combined analysis
-
-  // Progress report - questionnaires + session summaries
-  sessionIds String[] // Array of session IDs if progress report
-  dateFrom   DateTime?
-  dateTo     DateTime?
-
-  // Analysis content
-  content         String @db.Text
-  insights        Json? // Structured insights
-  recommendations Json? // Structured recommendations
-
-  // Metadata
-  aiModel    String // "gpt-4o", "gpt-4o-mini", "gemini-1.5-flash"
-  tokensUsed Int
-  cost       Decimal @db.Decimal(10, 4)
-
-  createdAt DateTime @default(now())
-
-  // Clinic multi-tenancy — FK bareback. null = מטפל עצמאי.
-  organizationId String?
-
-  @@index([userId, clientId])
-  @@index([clientId, createdAt])
-  @@index([analysisType])
-  @@index([organizationId])
-}
-
-enum QuestionnaireAnalysisType {
-  SINGLE // Single questionnaire
-  COMBINED // All questionnaires for a client
-  PROGRESS_REPORT // Questionnaires + session summaries over time
-}
-
-// ==================== Session Analysis (Detailed/Concise) ====================
-
-model SessionAnalysis {
-  id        String         @id @default(cuid())
-  userId    String
-  user      User           @relation(fields: [userId], references: [id], onDelete: Cascade)
-  sessionId String         @unique
-  session   TherapySession @relation(fields: [sessionId], references: [id], onDelete: Cascade)
-
-  // Analysis type
-  analysisType AnalysisType
-
-  // Content
-  content  String @db.Text
-  insights Json? // Structured insights
-
-  // Metadata
-  aiModel    String // "gpt-4o", "gemini-1.5-flash"
-  tokensUsed Int
-  cost       Decimal @db.Decimal(10, 4)
-
-  createdAt DateTime @default(now())
-
-  // Clinic multi-tenancy — FK bareback. null = מטפל עצמאי.
-  organizationId String?
-
-  @@index([userId, sessionId])
-  @@index([analysisType])
-  @@index([organizationId])
-}
-
-enum AnalysisType {
-  CONCISE // Short analysis (0.5 pages)
-  DETAILED // Detailed analysis (2-3 pages)
 }
 
 // ==================== Tier Usage Limits ====================

@@ -19,8 +19,7 @@ export async function GET(
 
     const scopeUser = await loadScopeUser(userId);
 
-    // סיכומי טיפול = תוכן קליני טהור (sessionNote.content + comprehensiveAnalysis).
-    // מזכירה חסומה לחלוטין.
+    // סיכומי טיפול = תוכן קליני טהור (sessionNote.content). מזכירה חסומה לחלוטין.
     if (isSecretary(scopeUser)) {
       logger.warn("[clients/summaries] Secretary attempted clinical access", {
         userId,
@@ -40,8 +39,6 @@ export async function GET(
         id: true,
         firstName: true,
         lastName: true,
-        comprehensiveAnalysis: true,
-        comprehensiveAnalysisAt: true,
         therapySessions: {
           where: {
             sessionNote: { isNot: null },

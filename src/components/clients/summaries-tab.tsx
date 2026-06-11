@@ -9,7 +9,6 @@ import { Input } from "@/components/ui/input";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
 import {
-  Brain,
   Calendar,
   CheckCircle,
   Clock,
@@ -35,7 +34,6 @@ interface Session {
   sessionNote: {
     content: string;
   } | null;
-  hasAiAnalysis?: boolean;
 }
 
 interface SummariesTabProps {
@@ -295,11 +293,6 @@ export function SummariesTab({ clientId, sessions }: SummariesTabProps) {
                         <span className="text-sm">
                           {format(new Date(session.startTime), "EEEE, d/M", { locale: he })}
                         </span>
-                        {session.hasAiAnalysis && (
-                          <span title="יש ניתוח AI">
-                            <Brain className="h-3.5 w-3.5 text-purple-500" />
-                          </span>
-                        )}
                       </div>
                       <p className="text-sm text-muted-foreground/60">
                         {format(new Date(session.startTime), "HH:mm")} - {format(new Date(session.endTime), "HH:mm")}

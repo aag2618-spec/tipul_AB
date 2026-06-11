@@ -7,10 +7,9 @@ import { Button } from "@/components/ui/button";
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
 import { Label } from "@/components/ui/label";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
-import { Loader2, Save, FileText, Mic } from "lucide-react";
+import { Loader2, Save, FileText } from "lucide-react";
 import { toast } from "sonner";
 import { RichTextEditor } from "@/components/rich-text-editor";
-import { AudioRecorder } from "@/components/recordings/audio-recorder";
 
 interface Client {
   id: string;
@@ -33,8 +32,6 @@ function NewSessionNoteContent() {
   const [noteContent, setNoteContent] = useState("");
   const [isLoading, setIsLoading] = useState(true);
   const [isSaving, setIsSaving] = useState(false);
-  const [isTranscribing, setIsTranscribing] = useState(false);
-  const [showRecorder, setShowRecorder] = useState(false);
 
   useEffect(() => {
     const fetchData = async () => {
@@ -64,43 +61,6 @@ function NewSessionNoteContent() {
   const filteredSessions = selectedClient
     ? sessions.filter((s) => s.client?.id === selectedClient)
     : sessions;
-
-  const handleRecordingComplete = async (blob: Blob, duration: number) => {
-    setIsTranscribing(true);
-    try {
-      // Upload audio for transcription
-      const formData = new FormData();
-      formData.append("audio", blob, "recording.webm");
-
-      const response = await fetch("/api/transcribe", {
-        method: "POST",
-        body: formData,
-      });
-
-      const data = await response.json().catch(() => ({}));
-
-      if (!response.ok) {
-        // M9.3: AI routes מחזירים `message` (consent). חשוב להציג את ההוראה המלאה.
-        throw new Error(data?.message || data?.error || "שגיאה בתמלול");
-      }
-
-      const transcript = data.transcript;
-
-      // Append transcription to existing content
-      setNoteContent((prev) => {
-        const newContent = prev ? `${prev}\n\n${transcript}` : transcript;
-        return newContent;
-      });
-
-      toast.success("התמלול הושלם בהצלחה");
-      setShowRecorder(false);
-    } catch (error: unknown) {
-      console.error("Transcription error:", error);
-      toast.error(error instanceof Error ? error.message : "אירעה שגיאה בתמלול");
-    } finally {
-      setIsTranscribing(false);
-    }
-  };
 
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
@@ -218,35 +178,6 @@ function NewSessionNoteContent() {
             <CardDescription>תעד את מהלך הפגישה והנקודות העיקריות</CardDescription>
           </CardHeader>
           <CardContent className="space-y-4">
-            {!showRecorder ? (
-              <div className="flex gap-2 mb-4">
-                <Button
-                  type="button"
-                  variant="outline"
-                  onClick={() => setShowRecorder(true)}
-                  className="gap-2"
-                >
-                  <Mic className="h-4 w-4" />
-                  הקלט סיכום
-                </Button>
-              </div>
-            ) : (
-              <div className="mb-4">
-                <AudioRecorder
-                  onRecordingComplete={handleRecordingComplete}
-                  isUploading={isTranscribing}
-                />
-                <Button
-                  type="button"
-                  variant="ghost"
-                  size="sm"
-                  onClick={() => setShowRecorder(false)}
-                  className="mt-2"
-                >
-                  ביטול הקלטה
-                </Button>
-              </div>
-            )}
             <RichTextEditor
               content={noteContent}
               onChange={setNoteContent}

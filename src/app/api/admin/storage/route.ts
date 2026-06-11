@@ -26,39 +26,23 @@ export async function GET(request: NextRequest) {
             documents: true,
           },
         },
-        clients: {
-          select: {
-            _count: {
-              select: {
-                recordings: true,
-              },
-            },
-          },
-        },
       },
     });
 
     // Calculate storage per user (estimates)
     const storageByUser = users.map((user) => {
       const documentsCount = user._count.documents;
-      const recordingsCount = user.clients.reduce(
-        (sum, client) => sum + client._count.recordings,
-        0
-      );
 
-      // Estimates: avg 5MB per document, 10MB per recording
+      // Estimates: avg 5MB per document
       const documentsStorageMB = documentsCount * 5;
-      const recordingsStorageMB = recordingsCount * 10;
-      const totalStorageMB = documentsStorageMB + recordingsStorageMB;
+      const totalStorageMB = documentsStorageMB;
 
       return {
         id: user.id,
         name: user.name,
         email: user.email,
         documentsCount,
-        recordingsCount,
         documentsStorageMB,
-        recordingsStorageMB,
         totalStorageMB,
         totalStorageGB: totalStorageMB / 1024,
       };
@@ -69,14 +53,12 @@ export async function GET(request: NextRequest) {
 
     // Calculate totals
     const totalDocuments = storageByUser.reduce((sum, u) => sum + u.documentsCount, 0);
-    const totalRecordings = storageByUser.reduce((sum, u) => sum + u.recordingsCount, 0);
     const totalStorageMB = storageByUser.reduce((sum, u) => sum + u.totalStorageMB, 0);
 
     return NextResponse.json({
       users: storageByUser,
       totals: {
         totalDocuments,
-        totalRecordings,
         totalStorageMB,
         totalStorageGB: totalStorageMB / 1024,
       },

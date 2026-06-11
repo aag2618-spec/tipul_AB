@@ -177,14 +177,12 @@ describe("secretaryCan", () => {
 describe("canSecretaryAccessModel", () => {
   it("non-secretary can access all models", () => {
     expect(canSecretaryAccessModel(owner, "SessionNote")).toBe(true);
-    expect(canSecretaryAccessModel(clinicTherapist, "SessionAnalysis")).toBe(true);
+    expect(canSecretaryAccessModel(clinicTherapist, "QuestionnaireResponse")).toBe(true);
   });
 
   it("secretary blocked from clinical models — hard-coded", () => {
     expect(canSecretaryAccessModel(secretaryFull, "SessionNote")).toBe(false);
-    expect(canSecretaryAccessModel(secretaryFull, "SessionAnalysis")).toBe(false);
-    expect(canSecretaryAccessModel(secretaryFull, "Recording")).toBe(false);
-    expect(canSecretaryAccessModel(secretaryFull, "AIInsight")).toBe(false);
+    expect(canSecretaryAccessModel(secretaryFull, "QuestionnaireResponse")).toBe(false);
   });
 
   it("secretary CAN access non-clinical models", () => {
@@ -448,26 +446,20 @@ describe("getSessionIncludeForRole", () => {
     expect(include.client?.select?.firstName).toBe(true);
   });
 
-  it("therapist — includes clinical relations (sessionNote, sessionAnalysis, recordings)", () => {
+  it("therapist — includes clinical relations (sessionNote)", () => {
     const include = getSessionIncludeForRole(clinicTherapist) as Record<string, unknown>;
     expect(include.sessionNote).toBe(true);
-    expect(include.sessionAnalysis).toBe(true);
-    expect(include.recordings).toBeDefined();
     expect(include.client).toBe(true);
   });
 
   it("owner — includes clinical relations", () => {
     const include = getSessionIncludeForRole(owner) as Record<string, unknown>;
     expect(include.sessionNote).toBe(true);
-    expect(include.sessionAnalysis).toBe(true);
-    expect(include.recordings).toBeDefined();
   });
 
   it("standalone user — includes clinical relations", () => {
     const include = getSessionIncludeForRole(standaloneUser) as Record<string, unknown>;
     expect(include.sessionNote).toBe(true);
-    expect(include.sessionAnalysis).toBe(true);
-    expect(include.recordings).toBeDefined();
   });
 });
 
@@ -510,13 +502,6 @@ describe("isSecretaryClinicalDenied", () => {
 
   it("secretary without permissions is denied all clinical models", () => {
     expect(isSecretaryClinicalDenied(secretaryNoPerms, "SessionNote")).toBe(true);
-    expect(isSecretaryClinicalDenied(secretaryNoPerms, "SessionAnalysis")).toBe(true);
-    expect(isSecretaryClinicalDenied(secretaryNoPerms, "Recording")).toBe(true);
-    expect(isSecretaryClinicalDenied(secretaryNoPerms, "Transcription")).toBe(true);
-    expect(isSecretaryClinicalDenied(secretaryNoPerms, "AIInsight")).toBe(true);
-    expect(isSecretaryClinicalDenied(secretaryNoPerms, "QuestionnaireAnalysis")).toBe(
-      true
-    );
     expect(isSecretaryClinicalDenied(secretaryNoPerms, "QuestionnaireResponse")).toBe(
       true
     );
@@ -524,16 +509,10 @@ describe("isSecretaryClinicalDenied", () => {
 
   it("therapist is never denied (returns false)", () => {
     expect(isSecretaryClinicalDenied(clinicTherapist, "SessionNote")).toBe(false);
-    expect(isSecretaryClinicalDenied(clinicTherapist, "SessionAnalysis")).toBe(false);
-    expect(isSecretaryClinicalDenied(clinicTherapist, "Recording")).toBe(false);
-    expect(isSecretaryClinicalDenied(clinicTherapist, "AIInsight")).toBe(false);
   });
 
   it("clinic owner is never denied (returns false)", () => {
     expect(isSecretaryClinicalDenied(owner, "SessionNote")).toBe(false);
-    expect(isSecretaryClinicalDenied(owner, "SessionAnalysis")).toBe(false);
-    expect(isSecretaryClinicalDenied(owner, "Recording")).toBe(false);
-    expect(isSecretaryClinicalDenied(owner, "AIInsight")).toBe(false);
   });
 
   it("standalone user / admin are never denied", () => {
@@ -549,7 +528,6 @@ describe("CLINICAL_FIELDS_BLOCKED_FOR_SECRETARY", () => {
     expect(clientBlocked).toContain("intakeNotes");
     expect(clientBlocked).toContain("notes");
     expect(clientBlocked).toContain("medicalHistory");
-    expect(clientBlocked).toContain("comprehensiveAnalysis");
     expect(clientBlocked).toContain("approachNotes");
     expect(clientBlocked).toContain("culturalContext");
   });
@@ -559,15 +537,10 @@ describe("CLINICAL_FIELDS_BLOCKED_FOR_SECRETARY", () => {
     expect(sessionBlocked).toContain("notes");
   });
 
-  it("blocks Recording, AI, and analysis models (including QuestionnaireResponse)", () => {
+  it("blocks clinical models (SessionNote, QuestionnaireResponse)", () => {
     const blocked = CLINICAL_FIELDS_BLOCKED_FOR_SECRETARY.blockedModels as readonly string[];
     expect(blocked).toContain("SessionNote");
-    expect(blocked).toContain("SessionAnalysis");
-    expect(blocked).toContain("QuestionnaireAnalysis");
     expect(blocked).toContain("QuestionnaireResponse");
-    expect(blocked).toContain("Recording");
-    expect(blocked).toContain("Transcription");
-    expect(blocked).toContain("AIInsight");
   });
 
   it("blocked fields on Client safe select are never present", () => {

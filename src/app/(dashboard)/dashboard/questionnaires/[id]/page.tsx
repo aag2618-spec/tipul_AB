@@ -8,8 +8,7 @@ import { Badge } from "@/components/ui/badge";
 import { Progress } from "@/components/ui/progress";
 import { Separator } from "@/components/ui/separator";
 import { 
-  ChevronRight, 
-  Brain,
+  ChevronRight,
   FileText,
   Download,
   Loader2,
@@ -19,7 +18,6 @@ import {
   ArrowRight
 } from "lucide-react";
 import { toast } from "sonner";
-import ReactMarkdown from "react-markdown";
 
 interface Question {
   id: number;
@@ -51,7 +49,6 @@ interface Response {
   answers: any[];
   totalScore: number | null;
   subscores: Record<string, number> | null;
-  aiAnalysis: string | null;
   status: string;
   startedAt: string;
   completedAt: string | null;
@@ -70,7 +67,6 @@ export default function QuestionnaireResultsPage() {
 
   const [response, setResponse] = useState<Response | null>(null);
   const [loading, setLoading] = useState(true);
-  const [analyzing, setAnalyzing] = useState(false);
 
   useEffect(() => {
     fetchResponse();
@@ -91,37 +87,6 @@ export default function QuestionnaireResultsPage() {
       toast.error("שגיאה בטעינת השאלון");
     } finally {
       setLoading(false);
-    }
-  };
-
-  const analyzeWithAI = async () => {
-    if (!response) return;
-    
-    setAnalyzing(true);
-    try {
-      const res = await fetch(`/api/questionnaires/responses/${responseId}/analyze`, {
-        method: "POST",
-      });
-
-      if (res.ok) {
-        const data = await res.json();
-        setResponse(prev => prev ? {
-          ...prev,
-          aiAnalysis: data.analysis,
-          status: "ANALYZED"
-        } : null);
-        toast.success("הניתוח הושלם בהצלחה!");
-      } else {
-        // M1 + סבב 8: AI routes מחזירים `message` (לא `error`). הודעת consent
-        // כוללת הנחיה למטפל איך לעדכן את ההסכמה בכרטיס המטופל.
-        const data = await res.json();
-        toast.error(data.message || data.error || "שגיאה בניתוח");
-      }
-    } catch (error) {
-      console.error("Error analyzing:", error);
-      toast.error("שגיאה בניתוח");
-    } finally {
-      setAnalyzing(false);
     }
   };
 
@@ -292,85 +257,6 @@ export default function QuestionnaireResultsPage() {
             </CardContent>
           </Card>
 
-          {/* AI Analysis Card */}
-          <Card>
-            <CardHeader>
-              <CardTitle className="flex items-center gap-2">
-                <Brain className="h-5 w-5" />
-                ניתוח בינה מלאכותית
-              </CardTitle>
-              <CardDescription>
-                ניתוח מקצועי של תוצאות השאלון על ידי AI
-              </CardDescription>
-            </CardHeader>
-            <CardContent>
-              {response.aiAnalysis ? (
-                <div className="prose prose-sm max-w-none dark:prose-invert">
-                  {/* M12: urlTransform חוסם javascript:/data:/vbscript: בלינקים שמגיעים מתוצר AI */}
-                  <ReactMarkdown
-                    urlTransform={(url) => {
-                      const lower = (url || "").trim().toLowerCase();
-                      if (lower.startsWith("javascript:") || lower.startsWith("data:") || lower.startsWith("vbscript:")) {
-                        return "";
-                      }
-                      return url;
-                    }}
-                  >
-                    {response.aiAnalysis}
-                  </ReactMarkdown>
-                </div>
-              ) : (
-                <div className="text-center py-8 space-y-4">
-                  <Brain className="h-16 w-16 mx-auto text-muted-foreground" />
-                  <div>
-                    <p className="font-medium">עדיין לא בוצע ניתוח AI</p>
-                    <p className="text-sm text-muted-foreground">
-                      לחץ על הכפתור למטה לקבלת ניתוח מקצועי של התוצאות
-                    </p>
-                  </div>
-                  <Button 
-                    onClick={analyzeWithAI} 
-                    disabled={analyzing || response.status === "IN_PROGRESS"}
-                    size="lg"
-                    className="mt-4"
-                  >
-                    {analyzing ? (
-                      <>
-                        <Loader2 className="h-4 w-4 ml-2 animate-spin" />
-                        מנתח...
-                      </>
-                    ) : (
-                      <>
-                        <Brain className="h-4 w-4 ml-2" />
-                        נתח עם בינה מלאכותית
-                      </>
-                    )}
-                  </Button>
-                </div>
-              )}
-            </CardContent>
-            {response.aiAnalysis && (
-              <CardFooter className="justify-end">
-                <Button 
-                  onClick={analyzeWithAI} 
-                  disabled={analyzing}
-                  variant="outline"
-                >
-                  {analyzing ? (
-                    <>
-                      <Loader2 className="h-4 w-4 ml-2 animate-spin" />
-                      מנתח...
-                    </>
-                  ) : (
-                    <>
-                      <Brain className="h-4 w-4 ml-2" />
-                      נתח מחדש
-                    </>
-                  )}
-                </Button>
-              </CardFooter>
-            )}
-          </Card>
         </div>
 
         {/* Sidebar */}

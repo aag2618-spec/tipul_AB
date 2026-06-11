@@ -25,15 +25,6 @@ async function getSessions(sessionWhere: Prisma.TherapySessionWhereInput, includ
   });
 }
 
-async function getPreparedSessionKeys(userId: string): Promise<Set<string>> {
-  const preps = await prisma.sessionPrep.findMany({
-    where: { userId },
-    select: { clientId: true, sessionDate: true },
-  });
-  // יוצר מפתח ייחודי: clientId + תאריך (בלי שעה)
-  return new Set(preps.map(p => `${p.clientId}_${p.sessionDate.toISOString().slice(0, 10)}`));
-}
-
 export default async function SessionsPage() {
   const session = await getServerSession(authOptions);
   if (!session?.user?.id) return null;
@@ -47,13 +38,9 @@ export default async function SessionsPage() {
   // הקליניקה ולכן צריכה לדעת של איזה מטפל כל פגישה). מטפל רגיל רואה רק את שלו.
   const showTherapist = (isClinicOwner(scopeUser) && !personalOnly) || isSecretary(scopeUser);
 
-  const [sessions, prepKeys] = await Promise.all([
-    getSessions(sessionWhere, includeNote),
-    getPreparedSessionKeys(session.user.id),
-  ]);
+  const sessions = await getSessions(sessionWhere, includeNote);
 
   const serialized = sessions.map(s => {
-    const sessionDateKey = s.client ? `${s.client.id}_${s.startTime.toISOString().slice(0, 10)}` : "";
     return {
       id: s.id,
       startTime: s.startTime.toISOString(),
@@ -70,7 +57,6 @@ export default async function SessionsPage() {
       client: s.client ? { id: s.client.id, name: s.client.name, isQuickClient: s.client.isQuickClient } : null,
       therapistId: s.therapistId ?? null,
       therapistName: s.therapist?.name ?? null,
-      hasPrepReady: prepKeys.has(sessionDateKey),
     };
   });
 

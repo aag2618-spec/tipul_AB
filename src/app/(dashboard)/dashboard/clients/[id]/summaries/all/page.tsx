@@ -5,15 +5,11 @@ import { useParams } from "next/navigation";
 import { Card, CardContent, CardHeader, CardTitle, CardDescription } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
 import { Badge } from "@/components/ui/badge";
-import { Separator } from "@/components/ui/separator";
 import { Input } from "@/components/ui/input";
 import {
-  Calendar,
   Download,
-  Sparkles,
   Loader2,
   FileText,
-  Brain,
   Search
 } from "lucide-react";
 import { format } from "date-fns";
@@ -41,18 +37,14 @@ interface Client {
   firstName: string;
   lastName: string;
   therapySessions: Session[];
-  comprehensiveAnalysis: string | null;
-  comprehensiveAnalysisAt: string | null;
 }
 
 export default function AllSummariesPage() {
   const params = useParams();
   const clientId = params.id as string;
-  
+
   const [client, setClient] = useState<Client | null>(null);
   const [isLoading, setIsLoading] = useState(true);
-  const [isAnalyzing, setIsAnalyzing] = useState(false);
-  const [aiAnalysis, setAiAnalysis] = useState<string | null>(null);
   const [searchQuery, setSearchQuery] = useState("");
 
   useEffect(() => {
@@ -65,10 +57,6 @@ export default function AllSummariesPage() {
       if (response.ok) {
         const data = await response.json();
         setClient(data);
-        // טעינת ניתוח שמור אם קיים
-        if (data.comprehensiveAnalysis) {
-          setAiAnalysis(data.comprehensiveAnalysis);
-        }
       } else {
         toast.error("שגיאה בטעינת הנתונים");
       }
@@ -77,52 +65,6 @@ export default function AllSummariesPage() {
       toast.error("שגיאה בטעינת הנתונים");
     } finally {
       setIsLoading(false);
-    }
-  };
-
-  const handleAIAnalysis = async () => {
-    if (!client) return;
-
-    // אישור לפני דריסת ניתוח קיים
-    if (aiAnalysis && !confirm("ניתוח קיים ייחלף בניתוח חדש. להמשיך?")) {
-      return;
-    }
-
-    setIsAnalyzing(true);
-    try {
-      // Get all session notes content
-      const summaries = client.therapySessions
-        .filter(s => s.sessionNote)
-        .map(s => ({
-          date: format(new Date(s.startTime), "d/M/yyyy"),
-          content: s.sessionNote!.content
-        }));
-
-      const response = await fetch("/api/analyze/summary", {
-        method: "POST",
-        headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({
-          summaries,
-          clientName: `${client.firstName} ${client.lastName}`,
-          clientId: client.id,
-          analysisType: "comprehensive"
-        }),
-      });
-
-      const data = await response.json().catch(() => ({}));
-
-      if (response.ok) {
-        setAiAnalysis(data.analysis);
-        toast.success("הניתוח הושלם בהצלחה");
-      } else {
-        // M9.3: AI routes מחזירים `message` (consent). חשוב להציג את ההוראה המלאה.
-        toast.error(data?.message || data?.error || "שגיאה בביצוע הניתוח");
-      }
-    } catch (error) {
-      console.error("Error analyzing summaries:", error);
-      toast.error("שגיאה בביצוע הניתוח");
-    } finally {
-      setIsAnalyzing(false);
     }
   };
 
@@ -155,8 +97,7 @@ export default function AllSummariesPage() {
 
     exportSummariesDocument(
       summaries,
-      `${client.firstName} ${client.lastName}`,
-      client.comprehensiveAnalysis
+      `${client.firstName} ${client.lastName}`
     );
     toast.success("הקובץ הורד בהצלחה");
   };
@@ -164,7 +105,7 @@ export default function AllSummariesPage() {
   const allSessionsWithNotes = client.therapySessions
     .filter(s => s.sessionNote)
     .sort((a, b) => new Date(a.startTime).getTime() - new Date(b.startTime).getTime());
-  
+
   // Filter by search query
   const sessionsWithNotes = searchQuery.trim()
     ? allSessionsWithNotes.filter(s => {
@@ -188,9 +129,8 @@ export default function AllSummariesPage() {
             {searchQuery && ` (מוצגות ${sessionsWithNotes.length})`}
           </p>
         </div>
-        
+
         {allSessionsWithNotes.length > 0 && (
-          <div className="flex items-center gap-2">
           <Button
             onClick={handleExport}
             variant="outline"
@@ -200,30 +140,6 @@ export default function AllSummariesPage() {
             <Download className="h-5 w-5" />
             ייצוא סיכומים
           </Button>
-          <Button
-            onClick={handleAIAnalysis}
-            disabled={isAnalyzing}
-            size="lg"
-            className="gap-2 bg-gradient-to-r from-purple-600 to-sky-600 hover:from-purple-700 hover:to-sky-700"
-          >
-            {isAnalyzing ? (
-              <>
-                <Loader2 className="h-5 w-5 animate-spin" />
-                מנתח...
-              </>
-            ) : aiAnalysis ? (
-              <>
-                <Brain className="h-5 w-5" />
-                צור ניתוח חדש
-              </>
-            ) : (
-              <>
-                <Brain className="h-5 w-5" />
-                ניתוח AI מעמיק
-              </>
-            )}
-          </Button>
-          </div>
         )}
       </div>
 
@@ -244,81 +160,49 @@ export default function AllSummariesPage() {
       {/* All Summaries in Sequence */}
       <div className="space-y-6">
         {sessionsWithNotes.length > 0 ? (
-          <>
-            {sessionsWithNotes.map((session, index) => (
-              <Card key={session.id} className="border-2">
-                <CardHeader className="bg-slate-50/50">
-                  <div className="flex items-center justify-between">
-                    <div className="flex items-center gap-3">
-                      <Badge variant="outline" className="text-lg px-3 py-1">
-                        #{index + 1}
-                      </Badge>
-                      <div>
-                        <CardTitle className="text-lg">
-                          {format(new Date(session.startTime), "EEEE, d בMMMM yyyy", { locale: he })}
-                        </CardTitle>
-                        <CardDescription>
-                          {format(new Date(session.startTime), "HH:mm")} - {format(new Date(session.endTime), "HH:mm")}
-                        </CardDescription>
-                      </div>
-                    </div>
-                    <Button variant="ghost" size="sm" asChild>
-                      <Link href={`/dashboard/sessions/${session.id}`}>
-                        <FileText className="h-4 w-4 ml-2" />
-                        ערוך
-                      </Link>
-                    </Button>
-                  </div>
-                </CardHeader>
-                <CardContent className="pt-6">
-                  <div className="prose prose-slate max-w-none">
-                    <div className="whitespace-pre-wrap text-base leading-relaxed">
-                      {session.sessionNote?.content}
+          sessionsWithNotes.map((session, index) => (
+            <Card key={session.id} className="border-2">
+              <CardHeader className="bg-slate-50/50">
+                <div className="flex items-center justify-between">
+                  <div className="flex items-center gap-3">
+                    <Badge variant="outline" className="text-lg px-3 py-1">
+                      #{index + 1}
+                    </Badge>
+                    <div>
+                      <CardTitle className="text-lg">
+                        {format(new Date(session.startTime), "EEEE, d בMMMM yyyy", { locale: he })}
+                      </CardTitle>
+                      <CardDescription>
+                        {format(new Date(session.startTime), "HH:mm")} - {format(new Date(session.endTime), "HH:mm")}
+                      </CardDescription>
                     </div>
                   </div>
-                </CardContent>
-              </Card>
-            ))}
-
-            {/* Separator before AI Analysis */}
-            {aiAnalysis && (
-              <>
-                <Separator className="my-8" />
-                
-                {/* AI Analysis Section */}
-                <Card className="border-2 border-purple-200 bg-gradient-to-br from-purple-50 to-sky-50">
-                  <CardHeader>
-                    <CardTitle className="flex items-center gap-2 text-2xl">
-                      <Brain className="h-7 w-7 text-purple-600" />
-                      ניתוח AI מעמיק של כל הטיפול
-                    </CardTitle>
-                    <CardDescription>
-                      ניתוח כולל של {sessionsWithNotes.length} פגישות טיפוליות
-                      {client?.comprehensiveAnalysisAt && (
-                        <> | עודכן לאחרונה: {format(new Date(client.comprehensiveAnalysisAt), "d/M/yyyy HH:mm", { locale: he })}</>
-                      )}
-                    </CardDescription>
-                  </CardHeader>
-                  <CardContent>
-                    <div className="prose prose-slate max-w-none bg-white rounded-lg p-6 shadow-sm">
-                      <div className="whitespace-pre-wrap text-base leading-relaxed">
-                        {aiAnalysis}
-                      </div>
-                    </div>
-                  </CardContent>
-                </Card>
-              </>
-            )}
-          </>
+                  <Button variant="ghost" size="sm" asChild>
+                    <Link href={`/dashboard/sessions/${session.id}`}>
+                      <FileText className="h-4 w-4 ml-2" />
+                      ערוך
+                    </Link>
+                  </Button>
+                </div>
+              </CardHeader>
+              <CardContent className="pt-6">
+                <div className="prose prose-slate max-w-none">
+                  <div className="whitespace-pre-wrap text-base leading-relaxed">
+                    {session.sessionNote?.content}
+                  </div>
+                </div>
+              </CardContent>
+            </Card>
+          ))
         ) : (
           <Card>
             <CardContent className="py-12 text-center">
               {searchQuery ? (
                 <>
                   <Search className="mx-auto h-16 w-16 text-muted-foreground mb-4 opacity-50" />
-                  <p className="text-lg text-muted-foreground">לא נמצאו תוצאות עבור "{searchQuery}"</p>
-                  <Button 
-                    variant="outline" 
+                  <p className="text-lg text-muted-foreground">לא נמצאו תוצאות עבור &quot;{searchQuery}&quot;</p>
+                  <Button
+                    variant="outline"
                     className="mt-4"
                     onClick={() => setSearchQuery("")}
                   >

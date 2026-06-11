@@ -28,8 +28,6 @@ export async function GET() {
         id: true,
         name: true,
         status: true,
-        // comprehensiveAnalysisAt הוא חותמת זמן (לא מוצפן) — בטוח כמטה-דאטה.
-        comprehensiveAnalysisAt: true,
         _count: { select: { therapySessions: true, questionnaireResponses: true } },
       },
       orderBy: { name: "asc" },
@@ -40,7 +38,6 @@ export async function GET() {
         id: c.id,
         name: c.name,
         status: c.status,
-        hasComprehensive: c.comprehensiveAnalysisAt != null,
         sessionsCount: c._count.therapySessions,
         questionnairesCount: c._count.questionnaireResponses,
       })),

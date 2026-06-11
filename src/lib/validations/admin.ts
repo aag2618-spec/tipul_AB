@@ -280,27 +280,6 @@ export const resetTierLimitsSchema = z
   .strict();
 export type ResetTierLimitsInput = z.infer<typeof resetTierLimitsSchema>;
 
-// === POST /api/admin/ai-settings ==============================================
-// allowlist: רק 12 השדות האלה — שאר השדות (id, updatedAt) נדחים. zod strict
-// מחזק את ALLOWED_FIELDS שכבר קיים ב-route.
-export const updateAiSettingsSchema = z
-  .object({
-    dailyLimitEssential: limitInt,
-    dailyLimitPro: limitInt,
-    dailyLimitEnterprise: limitInt,
-    monthlyLimitEssential: limitInt,
-    monthlyLimitPro: limitInt,
-    monthlyLimitEnterprise: limitInt,
-    maxMonthlyCostBudget: z.coerce.number().min(0).max(1_000_000).optional(),
-    alertThreshold: z.coerce.number().min(0).max(100).optional(),
-    blockOnExceed: z.boolean().optional(),
-    alertAdminOnExceed: z.boolean().optional(),
-    enableCache: z.boolean().optional(),
-    compressPrompts: z.boolean().optional(),
-  })
-  .strict();
-export type UpdateAiSettingsInput = z.infer<typeof updateAiSettingsSchema>;
-
 // === POST /api/admin/business-settings ========================================
 // SiteSetting upsert per field. cap על אורכים, vatRate 0..100.
 const MAX_BUSINESS_TEXT = 500;

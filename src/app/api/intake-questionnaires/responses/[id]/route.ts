@@ -22,7 +22,7 @@ export async function GET(
     const { userId } = auth;
 
     const scopeUser = await loadScopeUser(userId);
-    if (!canSecretaryAccessModel(scopeUser, "QuestionnaireAnalysis")) {
+    if (!canSecretaryAccessModel(scopeUser, "QuestionnaireResponse")) {
       return NextResponse.json(
         { message: "אין הרשאה לתוכן קליני" },
         { status: 403 }

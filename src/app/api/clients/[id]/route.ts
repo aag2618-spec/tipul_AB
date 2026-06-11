@@ -162,11 +162,6 @@ export async function GET(
               orderBy: { createdAt: "desc" },
               take: 10,
             },
-            recordings: {
-              orderBy: { createdAt: "desc" },
-              take: 5,
-              include: { transcription: { include: { analysis: true } } },
-            },
             documents: {
               orderBy: { createdAt: "desc" },
             },
@@ -252,8 +247,6 @@ export async function PUT(
         "therapeuticApproaches",
         "approachNotes",
         "culturalContext",
-        "comprehensiveAnalysis",
-        "comprehensiveAnalysisAt",
       ];
       const sentClinicalKeys = CLINICAL_KEYS_BLOCKED.filter(
         (k) => k in body && body[k] !== undefined

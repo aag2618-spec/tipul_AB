@@ -25,10 +25,8 @@ import { logger } from "@/lib/logger";
  * השדות הם רשימת string field names ב-model.
  */
 export const ENCRYPTED_FIELDS: Record<string, readonly string[]> = {
-  client: ["notes", "initialDiagnosis", "intakeNotes", "approachNotes", "culturalContext", "comprehensiveAnalysis"],
+  client: ["notes", "initialDiagnosis", "intakeNotes", "approachNotes", "culturalContext"],
   sessionNote: ["content"],
-  transcription: ["content"],
-  analysis: ["summary", "nextSessionNotes"],
   therapySession: ["topic", "notes"],
   // OAuth tokens של Google (Calendar). access_token יכול לקרוא/לכתוב אירועים
   // ביומן של המשתמש; refresh_token מאפשר לחדש את access_token לתמיד עד
@@ -63,10 +61,6 @@ export const ENCRYPTED_FIELDS: Record<string, readonly string[]> = {
   // מוצפנים מההתחלה; ה-legacy backfill code שמחפש `tokenHash: null` יסונן
   // החוצה אוטומטית כי records חדשים מקבלים hash מלא).
   savedCardToken: ["token"],
-  // H13 (סבב אבטחה 14, 2026-05-19): aiAnalysis של QuestionnaireResponse —
-  // ניתוח AI על תשובות הלקוח לשאלון (PHI קליני רגיש). הוא String @db.Text,
-  // לא Json, ולכן הולך כאן ולא ב-ENCRYPTED_JSON_FIELDS.
-  questionnaireResponse: ["aiAnalysis"],
   // M16.9 (סבב אבטחה 16f, 2026-05-20): CommunicationLog body fields.
   // מיילים/SMS שמטפל שולח/מקבל למטופל עלולים להכיל PHI: "תזכורת לפגישה
   // לגבי הסוגיה ש...", "נא להביא את התרופה X", subject "תוצאות אבחון".
@@ -79,15 +73,7 @@ export const ENCRYPTED_FIELDS: Record<string, readonly string[]> = {
   // errorMessage: לרוב Resend/Pulseem error strings (לא PHI), אבל יכול
   // להכיל data מהbody — מצפינים defensively.
   communicationLog: ["content", "subject", "errorMessage"],
-  // R18f (סבב אבטחה 18, 2026-05-25): מודלים קליניים / AI שנמצאו בביקורת GPT.
-  // כל השדות @db.Text שמכילים ניתוחים קליניים, תובנות, חתימות, נתוני דוח.
-  // אף שדה לא משמש ב-WHERE clause — אימות grep. dual-read מטפל ב-plaintext ישן.
-  sessionAnalysis: ["content"],
-  questionnaireAnalysis: ["content"],
-  sessionPrep: ["content"],
-  aIInsight: ["content"],
-  aiInsight: ["content"], // alias: decryptDeep recursion uses pluralToSingular("aiInsights")→"aiInsight"
-  emotionLog: ["context"],
+  // R18f (סבב אבטחה 18, 2026-05-25): מודלים קליניים @db.Text. dual-read מטפל ב-plaintext ישן.
   consentForm: ["content", "signatureData"],
   insurerReport: ["reportData", "errorMessage"],
 } as const;
@@ -112,8 +98,6 @@ export const ENCRYPTED_FIELDS: Record<string, readonly string[]> = {
  */
 export const ENCRYPTED_JSON_FIELDS: Record<string, readonly string[]> = {
   client: ["medicalHistory"],
-  sessionNote: ["aiAnalysis"],
-  analysis: ["keyTopics", "emotionalMarkers", "recommendations"],
   // H13 (סבב אבטחה 14, 2026-05-19): answers של שאלוני הערכה (התשובות הקליניות
   // עצמן של הלקוח). dual-read: `maybeDecryptJson` (line 167-186) מטפל ב-legacy
   // plaintext אוטומטית — records ישנים ממשיכים לעבוד.
@@ -121,13 +105,6 @@ export const ENCRYPTED_JSON_FIELDS: Record<string, readonly string[]> = {
   // H13: responses של intake (שאלון קבלה קליני). מכיל מידע אישי, רקע, וכל
   // מה שהמטופל ענה ב-onboarding. dual-read.
   intakeResponse: ["responses"],
-  // R18f: שדות Json של מודלים קליניים / AI. dual-read.
-  sessionAnalysis: ["insights"],
-  questionnaireAnalysis: ["insights", "recommendations"],
-  sessionPrep: ["insights", "recommendations"],
-  aIInsight: ["metadata"],
-  aiInsight: ["metadata"], // alias: decryptDeep recursion
-  emotionLog: ["triggers"],
 } as const;
 
 const JSON_ENC_MARKER = "__enc__";

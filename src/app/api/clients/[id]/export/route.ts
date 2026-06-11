@@ -63,14 +63,6 @@ export async function GET(
         payments: {
           orderBy: { createdAt: "desc" },
         },
-        recordings: {
-          include: {
-            transcription: {
-              include: { analysis: true },
-            },
-          },
-          orderBy: { createdAt: "desc" },
-        },
         documents: {
           orderBy: { createdAt: "desc" },
         },
@@ -99,7 +91,6 @@ export async function GET(
       request,
       meta: {
         sessionCount: client.therapySessions.length,
-        recordingCount: client.recordings.length,
         questionnaireCount: client.questionnaireResponses.length,
         paymentCount: client.payments.length,
         documentCount: client.documents.length,
@@ -162,27 +153,6 @@ ${"=".repeat(50)}
       zip.file("פגישות/סיכום-כל-הפגישות.txt", sessionsSummary);
     }
 
-    // Add transcriptions
-    for (const recording of client.recordings) {
-      if (recording.transcription) {
-        const fileName = `תמלולים/תמלול-${format(new Date(recording.createdAt), "yyyy-MM-dd-HHmm")}.txt`;
-        const content = `
-תמלול הקלטה
-תאריך: ${format(new Date(recording.createdAt), "dd/MM/yyyy HH:mm")}
-משך: ${Math.floor(recording.durationSeconds / 60)} דקות
-
-${recording.transcription.content}
-
-${recording.transcription.analysis ? `
-ניתוח:
--------
-${recording.transcription.analysis.summary}
-` : ""}
-        `.trim();
-        zip.file(fileName, content);
-      }
-    }
-
     // Add questionnaires
     for (const response of client.questionnaireResponses) {
       const fileName = `שאלונים/${response.template.name}-${format(new Date(response.completedAt || response.createdAt), "yyyy-MM-dd")}.txt`;
@@ -191,8 +161,6 @@ ${recording.transcription.analysis.summary}
 תאריך: ${format(new Date(response.completedAt || response.createdAt), "dd/MM/yyyy")}
 מצב: ${response.status === "COMPLETED" ? "הושלם" : response.status === "ANALYZED" ? "נותח" : "בתהליך"}
 ${response.totalScore !== null ? `ציון כולל: ${response.totalScore}` : ""}
-
-${response.aiAnalysis || "אין ניתוח"}
       `.trim();
       zip.file(fileName, content);
     }

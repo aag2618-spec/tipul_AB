@@ -64,13 +64,6 @@ export async function GET(req: NextRequest) {
         trialAiCostLimit: true,
         createdAt: true,
         subscriptionStartedAt: true,
-        aiUsageStats: {
-          select: {
-            totalCalls: true,
-            totalCost: true,
-            currentMonthCalls: true,
-          },
-        },
       },
       orderBy: { createdAt: "desc" },
       take: 200,

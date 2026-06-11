@@ -6,7 +6,6 @@ import {
   FileText, Mail, Send, Plus, Stethoscope, ClipboardList, ArrowRight,
 } from "lucide-react";
 import Link from "next/link";
-import { QuestionnaireAnalysis } from "@/components/ai/questionnaire-analysis";
 import { format } from "date-fns";
 
 interface QuestionnaireResponse {
@@ -25,7 +24,6 @@ interface IntakeResponse {
 
 interface ClientProfileTabProps {
   clientId: string;
-  clientName: string;
   clientEmail: string | null;
   address: string | null;
   notes: string | null;
@@ -35,12 +33,10 @@ interface ClientProfileTabProps {
   intakeResponses: IntakeResponse[];
   intakeResponsesCount: number;
   questionnaireResponsesCount: number;
-  userAiTier: string;
 }
 
 export function ClientProfileTab({
   clientId,
-  clientName,
   clientEmail,
   address,
   notes,
@@ -50,7 +46,6 @@ export function ClientProfileTab({
   intakeResponses,
   intakeResponsesCount,
   questionnaireResponsesCount,
-  userAiTier,
 }: ClientProfileTabProps) {
   return (
     <Tabs defaultValue="details" className="w-full">
@@ -253,17 +248,6 @@ export function ClientProfileTab({
               )}
             </CardContent>
           </Card>
-
-          {/* ניתוח AI לשאלונים */}
-          {questionnaireResponses && questionnaireResponses.length > 0 && (
-            <QuestionnaireAnalysis
-              clientId={clientId}
-              clientName={clientName}
-              questionnaires={questionnaireResponses}
-              userTier={(userAiTier as "ESSENTIAL" | "PRO" | "ENTERPRISE") || "ESSENTIAL"}
-              compact
-            />
-          )}
 
           {/* אבחון והערות */}
           <div className="grid gap-6 lg:grid-cols-2">

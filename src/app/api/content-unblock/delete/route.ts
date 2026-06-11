@@ -15,13 +15,7 @@ export const dynamic = "force-dynamic";
 // חוסמים מזכירות, מאמתים שמצב סינון התוכן פעיל, ורושמים אירוע ביקורת (בלי תוכן).
 const deleteSchema = z.object({
   type: z.enum([
-    "session", // SessionNote + SessionAnalysis יחד
-    "comprehensive", // Client.comprehensiveAnalysis (איפוס שדה)
-    "questionnaireAnalysis", // שורת QuestionnaireAnalysis
-    "questionnaireResponseAi", // QuestionnaireResponse.aiAnalysis (איפוס שדה)
-    "recordingAnalysis", // Analysis (ניתוח הקלטה)
-    "aiInsights", // כל ה-AIInsight של המטופל
-    "sessionPrep", // הכנת פגישה AI (SessionPrep)
+    "session", // SessionNote (סיכום הפגישה)
     "clinicalProfile", // Client notes/initialDiagnosis/intakeNotes/approachNotes/culturalContext (איפוס)
   ]),
   clientId: z.string().min(1),
@@ -85,108 +79,9 @@ export async function POST(request: NextRequest) {
         if (!s) {
           return NextResponse.json({ message: "פגישה לא נמצאה" }, { status: 404 });
         }
-        // סיכום ידני + ניתוח ה-AI שלו יחד, בטרנזקציה. deleteMany כדי לא לזרוק
-        // אם אחד מהם חסר. מוחקים לפי ה-id שאומת (s.id).
-        await prisma.$transaction([
-          prisma.sessionAnalysis.deleteMany({ where: { sessionId: s.id } }),
-          prisma.sessionNote.deleteMany({ where: { sessionId: s.id } }),
-        ]);
-        audit("SESSION_NOTE", s.id, { deleted: ["sessionNote", "sessionAnalysis"] });
-        break;
-      }
-
-      case "comprehensive": {
-        const r = await prisma.client.updateMany({
-          where: { AND: [{ id: clientId }, clientWhere] },
-          data: { comprehensiveAnalysis: null, comprehensiveAnalysisAt: null },
-        });
-        if (r.count === 0) {
-          return NextResponse.json({ message: "אין ניתוח מקיף למחיקה" }, { status: 404 });
-        }
-        audit("CLIENT_PROFILE", clientId, { field: "comprehensiveAnalysis" });
-        break;
-      }
-
-      case "questionnaireAnalysis": {
-        if (!itemId) {
-          return NextResponse.json({ message: "חסר מזהה" }, { status: 400 });
-        }
-        // deleteMany מוקשח-scope — אטומי, ולא זורק במצב מרוץ (sessions מקבילים).
-        const r = await prisma.questionnaireAnalysis.deleteMany({
-          where: { AND: [{ id: itemId }, { clientId }, { client: clientWhere }] },
-        });
-        if (r.count === 0) {
-          return NextResponse.json({ message: "ניתוח שאלון לא נמצא" }, { status: 404 });
-        }
-        audit("ANALYSIS", itemId, { kind: "questionnaireAnalysis" });
-        break;
-      }
-
-      case "questionnaireResponseAi": {
-        if (!itemId) {
-          return NextResponse.json({ message: "חסר מזהה" }, { status: 400 });
-        }
-        const r = await prisma.questionnaireResponse.updateMany({
-          where: { AND: [{ id: itemId }, { clientId }, { client: clientWhere }] },
-          data: { aiAnalysis: null },
-        });
-        if (r.count === 0) {
-          return NextResponse.json({ message: "ניתוח לא נמצא" }, { status: 404 });
-        }
-        audit("ANALYSIS", itemId, { kind: "questionnaireResponseAi" });
-        break;
-      }
-
-      case "recordingAnalysis": {
-        if (!itemId) {
-          return NextResponse.json({ message: "חסר מזהה" }, { status: 400 });
-        }
-        // מוחק רק את ה-Analysis (לא את ההקלטה/תמלול — FK הם onDelete: Cascade).
-        // scoped deleteMany — אטומי ולא זורק במצב מרוץ (sessions מקבילים).
-        const r = await prisma.analysis.deleteMany({
-          where: {
-            id: itemId,
-            transcription: {
-              recording: {
-                OR: [
-                  { clientId, client: clientWhere },
-                  { session: { clientId, AND: [sessionWhere] } },
-                ],
-              },
-            },
-          },
-        });
-        if (r.count === 0) {
-          return NextResponse.json({ message: "ניתוח הקלטה לא נמצא" }, { status: 404 });
-        }
-        audit("ANALYSIS", itemId, { kind: "recordingAnalysis" });
-        break;
-      }
-
-      case "aiInsights": {
-        // כל תובנות ה-AI השמורות של המטופל (cache קליני; ניתן להפקה מחדש).
-        const r = await prisma.aIInsight.deleteMany({
-          where: { clientId, client: clientWhere },
-        });
-        if (r.count === 0) {
-          return NextResponse.json({ message: "אין תובנות AI למחיקה" }, { status: 404 });
-        }
-        audit("ANALYSIS", clientId, { kind: "aiInsights", count: r.count });
-        break;
-      }
-
-      case "sessionPrep": {
-        if (!itemId) {
-          return NextResponse.json({ message: "חסר מזהה" }, { status: 400 });
-        }
-        // clientId אומת ב-scope למעלה; ה-prep חייב להשתייך לאותו מטופל (IDOR-safe).
-        const r = await prisma.sessionPrep.deleteMany({
-          where: { id: itemId, clientId },
-        });
-        if (r.count === 0) {
-          return NextResponse.json({ message: "הכנת פגישה לא נמצאה" }, { status: 404 });
-        }
-        audit("ANALYSIS", itemId, { kind: "sessionPrep" });
+        // מחיקת סיכום הפגישה. deleteMany כדי לא לזרוק אם הסיכום חסר.
+        await prisma.sessionNote.deleteMany({ where: { sessionId: s.id } });
+        audit("SESSION_NOTE", s.id, { deleted: ["sessionNote"] });
         break;
       }
 

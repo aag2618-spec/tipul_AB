@@ -330,8 +330,7 @@ export interface SummaryExportData {
 
 export function exportSummariesDocument(
   summaries: SummaryExportData[],
-  clientName: string,
-  comprehensiveAnalysis?: string | null
+  clientName: string
 ) {
   const dateStr = format(new Date(), "dd/MM/yyyy");
 
@@ -358,13 +357,6 @@ export function exportSummariesDocument(
   `;
   }).join('');
 
-  const analysisHtml = comprehensiveAnalysis ? `
-    <div style="margin-top:40px;page-break-before:always;">
-      <h2 style="color:#7c3aed;font-size:18px;margin-bottom:12px;">ניתוח AI מקיף</h2>
-      <div style="font-size:13px;line-height:1.8;white-space:pre-wrap;background:#f5f3ff;padding:16px;border-radius:8px;border:1px solid #ddd6fe;">${esc(comprehensiveAnalysis)}</div>
-    </div>
-  ` : '';
-
   const html = `<!DOCTYPE html>
 <html dir="rtl" lang="he">
 <head>
@@ -383,7 +375,6 @@ export function exportSummariesDocument(
   <h1 style="font-size:22px;margin-bottom:4px;">סיכומי טיפול - ${safeName}</h1>
   <p style="color:#6b7280;font-size:13px;margin-bottom:24px;">תאריך הפקה: ${dateStr} | ${summaries.length} פגישות</p>
   ${summariesHtml}
-  ${analysisHtml}
   <div style="text-align:center;color:#9ca3af;font-size:11px;margin-top:40px;border-top:1px solid #e5e7eb;padding-top:12px;">
     &copy; MyTipul — כל הזכויות שמורות | mytipul.com
   </div>

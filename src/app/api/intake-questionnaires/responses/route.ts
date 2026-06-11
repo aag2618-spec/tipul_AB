@@ -22,7 +22,7 @@ export async function POST(req: NextRequest) {
 
     const scopeUser = await loadScopeUser(userId);
     // תשובות גולמיות של intake הן תוכן קליני — חסום למזכירה
-    if (!canSecretaryAccessModel(scopeUser, "QuestionnaireAnalysis")) {
+    if (!canSecretaryAccessModel(scopeUser, "QuestionnaireResponse")) {
       return NextResponse.json(
         { message: "אין הרשאה לתוכן קליני" },
         { status: 403 }
@@ -88,7 +88,7 @@ export async function GET(req: NextRequest) {
     const { userId } = auth;
 
     const scopeUser = await loadScopeUser(userId);
-    if (!canSecretaryAccessModel(scopeUser, "QuestionnaireAnalysis")) {
+    if (!canSecretaryAccessModel(scopeUser, "QuestionnaireResponse")) {
       return NextResponse.json(
         { message: "אין הרשאה לתוכן קליני" },
         { status: 403 }

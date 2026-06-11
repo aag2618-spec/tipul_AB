@@ -25,7 +25,7 @@ export async function GET(
     const { userId } = auth;
 
     const scopeUser = await loadScopeUser(userId);
-    if (!canSecretaryAccessModel(scopeUser, "QuestionnaireAnalysis")) {
+    if (!canSecretaryAccessModel(scopeUser, "QuestionnaireResponse")) {
       return NextResponse.json(
         { message: "אין הרשאה לתוכן קליני" },
         { status: 403 }
@@ -77,7 +77,7 @@ export async function PATCH(
     const { userId } = auth;
 
     const scopeUser = await loadScopeUser(userId);
-    if (!canSecretaryAccessModel(scopeUser, "QuestionnaireAnalysis")) {
+    if (!canSecretaryAccessModel(scopeUser, "QuestionnaireResponse")) {
       return NextResponse.json(
         { message: "אין הרשאה לתוכן קליני" },
         { status: 403 }
@@ -160,7 +160,7 @@ export async function DELETE(
     const { userId } = auth;
 
     const scopeUser = await loadScopeUser(userId);
-    if (!canSecretaryAccessModel(scopeUser, "QuestionnaireAnalysis")) {
+    if (!canSecretaryAccessModel(scopeUser, "QuestionnaireResponse")) {
       return NextResponse.json(
         { message: "אין הרשאה לתוכן קליני" },
         { status: 403 }

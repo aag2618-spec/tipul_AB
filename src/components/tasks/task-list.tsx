@@ -82,12 +82,6 @@ export function TaskList({ initialTasks }: TaskListProps) {
       }
       return `/dashboard/calendar`;
     }
-    if (task.type === "REVIEW_TRANSCRIPTION") {
-      if (task.relatedEntityId) {
-        return `/dashboard/recordings/${task.relatedEntityId}`;
-      }
-      return `/dashboard/recordings`;
-    }
     if (task.type === "FOLLOW_UP") {
       return `/dashboard/clients`;
     }

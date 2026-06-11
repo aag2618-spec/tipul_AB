@@ -34,16 +34,12 @@ export interface DsarPayload {
   client: Record<string, unknown>;
   /** רשומות נלוות — array per relation */
   therapySessions: Record<string, unknown>[];
-  recordings: Record<string, unknown>[];
   payments: Record<string, unknown>[];
   documents: Record<string, unknown>[];
   communicationLogs: Record<string, unknown>[];
   questionnaireResponses: Record<string, unknown>[];
   intakeResponses: Record<string, unknown>[];
   consentForms: Record<string, unknown>[];
-  aiInsights: Record<string, unknown>[];
-  therapeuticGoals: Record<string, unknown>[];
-  emotionLogs: Record<string, unknown>[];
   clientTransferLogs: Record<string, unknown>[];
   clientDepartureChoices: Record<string, unknown>[];
   commitments: Record<string, unknown>[];
@@ -56,16 +52,12 @@ export interface DsarPayload {
 
 export interface DsarCounts {
   sessions: number;
-  recordings: number;
   payments: number;
   documents: number;
   communications: number;
   questionnaires: number;
   intakes: number;
   consentForms: number;
-  aiInsights: number;
-  goals: number;
-  emotionLogs: number;
   transferLogs: number;
   departureChoices: number;
   commitments: number;
@@ -101,14 +93,6 @@ export async function buildDsarPayload(
         },
         orderBy: { startTime: "desc" },
       },
-      recordings: {
-        include: {
-          transcription: {
-            include: { analysis: true },
-          },
-        },
-        orderBy: { createdAt: "desc" },
-      },
       payments: { orderBy: { createdAt: "desc" } },
       documents: { orderBy: { createdAt: "desc" } },
       communicationLogs: { orderBy: { createdAt: "desc" } },
@@ -121,9 +105,6 @@ export async function buildDsarPayload(
         orderBy: { filledAt: "desc" },
       },
       consentForms: { orderBy: { createdAt: "desc" } },
-      aiInsights: { orderBy: { createdAt: "desc" } },
-      therapeuticGoals: { orderBy: { createdAt: "desc" } },
-      emotionLogs: { orderBy: { recordedAt: "desc" } },
       departureChoices: { orderBy: { decidedAt: "desc" } },
       commitments: { orderBy: { createdAt: "desc" } },
     },
@@ -174,32 +155,24 @@ export async function buildDsarPayload(
   // הפרדה של ה-relations החוצה מהאובייקט המרכזי כדי לאפשר UI/JSON נקי.
   const clientObj = client as Record<string, unknown> & {
     therapySessions: Record<string, unknown>[];
-    recordings: Record<string, unknown>[];
     payments: Record<string, unknown>[];
     documents: Record<string, unknown>[];
     communicationLogs: Record<string, unknown>[];
     questionnaireResponses: Record<string, unknown>[];
     intakeResponses: Record<string, unknown>[];
     consentForms: Record<string, unknown>[];
-    aiInsights: Record<string, unknown>[];
-    therapeuticGoals: Record<string, unknown>[];
-    emotionLogs: Record<string, unknown>[];
     departureChoices: Record<string, unknown>[];
     commitments: Record<string, unknown>[];
   };
 
   const {
     therapySessions,
-    recordings,
     payments,
     documents,
     communicationLogs,
     questionnaireResponses,
     intakeResponses,
     consentForms,
-    aiInsights,
-    therapeuticGoals,
-    emotionLogs,
     departureChoices,
     commitments,
     ...clientCore
@@ -207,16 +180,12 @@ export async function buildDsarPayload(
 
   const counts: DsarCounts = {
     sessions: therapySessions.length,
-    recordings: recordings.length,
     payments: payments.length,
     documents: documents.length,
     communications: communicationLogs.length,
     questionnaires: questionnaireResponses.length,
     intakes: intakeResponses.length,
     consentForms: consentForms.length,
-    aiInsights: aiInsights.length,
-    goals: therapeuticGoals.length,
-    emotionLogs: emotionLogs.length,
     transferLogs: clientTransferLogs.length,
     departureChoices: departureChoices.length,
     commitments: commitments.length,
@@ -229,16 +198,12 @@ export async function buildDsarPayload(
     exportedByUserId: scopeUser.id,
     client: clientCore,
     therapySessions,
-    recordings,
     payments,
     documents,
     communicationLogs,
     questionnaireResponses,
     intakeResponses,
     consentForms,
-    aiInsights,
-    therapeuticGoals,
-    emotionLogs,
     clientTransferLogs: clientTransferLogs as unknown as Record<string, unknown>[],
     clientDepartureChoices: departureChoices,
     commitments,
@@ -327,16 +292,12 @@ function buildReadme(payload: DsarPayload): string {
     "סיכום כמותי:",
     "─────────────",
     `  • פגישות טיפול:           ${payload.counts.sessions}`,
-    `  • הקלטות:                 ${payload.counts.recordings}`,
     `  • תשלומים:                ${payload.counts.payments}`,
     `  • מסמכים:                 ${payload.counts.documents}`,
     `  • תקשורת (מייל/SMS):       ${payload.counts.communications}`,
     `  • שאלוני הערכה:            ${payload.counts.questionnaires}`,
     `  • שאלוני אינטייק:          ${payload.counts.intakes}`,
     `  • טפסי הסכמה:              ${payload.counts.consentForms}`,
-    `  • תובנות AI:               ${payload.counts.aiInsights}`,
-    `  • מטרות טיפוליות:          ${payload.counts.goals}`,
-    `  • לוג רגשות:               ${payload.counts.emotionLogs}`,
     `  • העברות בין מטפלים:       ${payload.counts.transferLogs}`,
     `  • בחירות בעת עזיבת מטפל:   ${payload.counts.departureChoices}`,
     `  • התחייבויות קופת חולים:    ${payload.counts.commitments}`,
@@ -393,9 +354,6 @@ function buildClientSummary(payload: DsarPayload): string {
     "",
     "הקשר תרבותי:",
     fmt(c.culturalContext),
-    "",
-    "ניתוח מקיף:",
-    fmt(c.comprehensiveAnalysis),
     "",
     "היסטוריה רפואית:",
     fmt(c.medicalHistory),

@@ -8,9 +8,8 @@ import { requireContentFilterEnabled } from "@/lib/content-unblock";
 export const dynamic = "force-dynamic";
 
 // מצאי תוכן קליני של מטופל מסוים — מטה-דאטה + דגלי "יש תוכן" בלבד.
-// עיקרון קריטי: אף עמודה קלינית/מוצפנת (content/notes/aiAnalysis/insights/
-// summary/answers) לא נבחרת. דגלים מחושבים דרך קיום relation (select id) /
-// count. כך הדף הזה לעולם לא מציג תוכן ולכן לעולם לא ייחסם ע"י סינון.
+// עיקרון קריטי: אף עמודה קלינית/מוצפנת (content/notes) לא נבחרת. דגלים
+// מחושבים דרך קיום relation (select id) / count. כך הדף לעולם לא מציג תוכן.
 export async function GET(
   _request: NextRequest,
   { params }: { params: Promise<{ id: string }> }
@@ -34,86 +33,39 @@ export async function GET(
     // בעלות: המטופל חייב להיות ב-scope של המשתמש.
     const client = await prisma.client.findFirst({
       where: { AND: [{ id }, clientWhere] },
-      select: { id: true, name: true, comprehensiveAnalysisAt: true },
+      select: { id: true, name: true },
     });
     if (!client) {
       return NextResponse.json({ message: "מטופל לא נמצא" }, { status: 404 });
     }
 
-    // ניתוחי הקלטה — scope דרך ה-recording (client או session של המשתמש).
-    const recScopeWhere = {
-      transcription: {
-        recording: {
+    // שאילתות במקביל (אחרי אימות בעלות). אף אחת לא בוחרת תוכן קליני.
+    const [sessionsRaw, profileCount] = await Promise.all([
+      prisma.therapySession.findMany({
+        where: { AND: [{ clientId: id }, sessionWhere] },
+        select: {
+          id: true,
+          startTime: true,
+          type: true,
+          status: true,
+          skipSummary: true,
+          sessionNote: { select: { id: true } },
+        },
+        orderBy: { startTime: "desc" },
+      }),
+      prisma.client.count({
+        where: {
+          id,
           OR: [
-            { clientId: id, client: clientWhere },
-            { session: { clientId: id, AND: [sessionWhere] } },
+            { notes: { not: null } },
+            { initialDiagnosis: { not: null } },
+            { intakeNotes: { not: null } },
+            { approachNotes: { not: null } },
+            { culturalContext: { not: null } },
           ],
         },
-      },
-    };
-
-    // כל השאילתות במקביל (אחרי אימות בעלות). אף אחת לא בוחרת תוכן קליני.
-    const [sessionsRaw, qAnalyses, qRespAi, recAnalyses, aiInsightsCount, profileCount, sessionPreps] =
-      await Promise.all([
-        prisma.therapySession.findMany({
-          where: { AND: [{ clientId: id }, sessionWhere] },
-          select: {
-            id: true,
-            startTime: true,
-            type: true,
-            status: true,
-            skipSummary: true,
-            sessionNote: { select: { id: true } },
-            sessionAnalysis: { select: { id: true } },
-          },
-          orderBy: { startTime: "desc" },
-        }),
-        prisma.questionnaireAnalysis.findMany({
-          where: { clientId: id, client: clientWhere },
-          select: {
-            id: true,
-            analysisType: true,
-            createdAt: true,
-            response: { select: { template: { select: { name: true } } } },
-          },
-          orderBy: { createdAt: "desc" },
-        }),
-        prisma.questionnaireResponse.findMany({
-          where: { clientId: id, client: clientWhere, aiAnalysis: { not: null } },
-          select: {
-            id: true,
-            createdAt: true,
-            completedAt: true,
-            template: { select: { name: true } },
-          },
-          orderBy: { createdAt: "desc" },
-        }),
-        prisma.analysis.findMany({
-          where: recScopeWhere,
-          select: { id: true, createdAt: true },
-          orderBy: { createdAt: "desc" },
-        }),
-        prisma.aIInsight.count({ where: { clientId: id, client: clientWhere } }),
-        prisma.client.count({
-          where: {
-            id,
-            OR: [
-              { notes: { not: null } },
-              { initialDiagnosis: { not: null } },
-              { intakeNotes: { not: null } },
-              { approachNotes: { not: null } },
-              { culturalContext: { not: null } },
-            ],
-          },
-        }),
-        // הכנות פגישה AI (SessionPrep). אין relation ל-client במודל; scope דרך
-        // clientId שכבר אומת ב-scope למעלה. נבחר רק מטה-דאטה (לא content/insights).
-        prisma.sessionPrep.findMany({
-          where: { clientId: id },
-          select: { id: true, sessionDate: true, createdAt: true },
-          orderBy: { sessionDate: "desc" },
-        }),
-      ]);
+      }),
+    ]);
 
     const sessions = sessionsRaw
       .map((s) => ({
@@ -123,36 +75,12 @@ export async function GET(
         status: s.status,
         skipSummary: s.skipSummary,
         hasNote: s.sessionNote != null,
-        hasAnalysis: s.sessionAnalysis != null,
       }))
-      .filter((s) => s.hasNote || s.hasAnalysis);
+      .filter((s) => s.hasNote);
 
     return NextResponse.json({
       client: { id: client.id, name: client.name },
       sessions,
-      comprehensive: {
-        has: client.comprehensiveAnalysisAt != null,
-        at: client.comprehensiveAnalysisAt,
-      },
-      questionnaireAnalyses: qAnalyses.map((q) => ({
-        id: q.id,
-        analysisType: q.analysisType,
-        createdAt: q.createdAt,
-        templateName: q.response?.template?.name ?? null,
-      })),
-      questionnaireResponseAi: qRespAi.map((q) => ({
-        id: q.id,
-        createdAt: q.createdAt,
-        completedAt: q.completedAt,
-        templateName: q.template?.name ?? null,
-      })),
-      recordingAnalyses: recAnalyses.map((a) => ({ id: a.id, createdAt: a.createdAt })),
-      sessionPreps: sessionPreps.map((p) => ({
-        id: p.id,
-        sessionDate: p.sessionDate,
-        createdAt: p.createdAt,
-      })),
-      aiInsights: { count: aiInsightsCount },
       clinicalProfile: { has: profileCount > 0 },
     });
   } catch (error) {

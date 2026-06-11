@@ -39,8 +39,6 @@ async function cloneClinicalFile(
       therapeuticApproaches: true,
       approachNotes: true,
       culturalContext: true,
-      comprehensiveAnalysis: true,
-      comprehensiveAnalysisAt: true,
     },
   });
 
@@ -63,10 +61,8 @@ async function cloneClinicalFile(
       therapeuticApproaches: orig.therapeuticApproaches,
       approachNotes: orig.approachNotes,
       culturalContext: orig.culturalContext,
-      comprehensiveAnalysis: orig.comprehensiveAnalysis,
-      comprehensiveAnalysisAt: orig.comprehensiveAnalysisAt,
       // לא מעתיקים: creditBalance (יוצא ל-0 כברירת מחדל), defaultSessionPrice,
-      // therapeuticGoals, sessions, payments, receipts, savedCardTokens.
+      // sessions, payments, receipts, savedCardTokens.
       therapistId: newTherapistId,
       organizationId: null,
     },

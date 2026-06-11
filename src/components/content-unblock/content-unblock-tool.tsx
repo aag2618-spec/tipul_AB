@@ -2,9 +2,9 @@
 
 // כלי "שחרור תיק חסום" (נטפרי/אתרוג).
 //
-// עיקרון קריטי: הרכיב מציג אך ורק מטה-דאטה (שם מטופל, תאריך, סוג, תוויות
-// "יש סיכום"/"יש ניתוח") — לעולם לא את תוכן הסיכום/הניתוח. כך הדף עצמו לא
-// ייחסם ע"י סינון התוכן, וניתן להגיע אליו גם כשתיק המטופל חסום.
+// עיקרון קריטי: הרכיב מציג אך ורק מטה-דאטה (שם מטופל, תאריך, סוג, תווית
+// "יש סיכום") — לעולם לא את תוכן הסיכום. כך הדף עצמו לא ייחסם ע"י סינון
+// התוכן, וניתן להגיע אליו גם כשתיק המטופל חסום.
 //
 // זרימה: בחירת מטופל → מצאי פריטים (ממוין מהחדש לישן) → אישור → מחיקה לצמיתות.
 
@@ -34,11 +34,7 @@ import {
   AlertTriangle,
   Search,
   FileText,
-  Brain,
-  ClipboardList,
-  Mic,
   ChevronRight,
-  Sparkles,
 } from "lucide-react";
 import { toast } from "sonner";
 
@@ -46,7 +42,6 @@ type ClientRow = {
   id: string;
   name: string;
   status: string;
-  hasComprehensive: boolean;
   sessionsCount: number;
   questionnairesCount: number;
 };
@@ -58,40 +53,15 @@ type SessionItem = {
   status: string;
   skipSummary: boolean;
   hasNote: boolean;
-  hasAnalysis: boolean;
 };
 
 type Inventory = {
   client: { id: string; name: string };
   sessions: SessionItem[];
-  comprehensive: { has: boolean; at: string | null };
-  questionnaireAnalyses: {
-    id: string;
-    analysisType: string;
-    createdAt: string;
-    templateName: string | null;
-  }[];
-  questionnaireResponseAi: {
-    id: string;
-    createdAt: string;
-    completedAt: string | null;
-    templateName: string | null;
-  }[];
-  recordingAnalyses: { id: string; createdAt: string }[];
-  sessionPreps: { id: string; sessionDate: string; createdAt: string }[];
-  aiInsights: { count: number };
   clinicalProfile: { has: boolean };
 };
 
-type DeleteType =
-  | "session"
-  | "comprehensive"
-  | "questionnaireAnalysis"
-  | "questionnaireResponseAi"
-  | "recordingAnalysis"
-  | "aiInsights"
-  | "sessionPrep"
-  | "clinicalProfile";
+type DeleteType = "session" | "clinicalProfile";
 
 type Pending = {
   type: DeleteType;
@@ -108,10 +78,6 @@ const SESSION_TYPE_HE: Record<string, string> = {
   BREAK: "הפסקה",
 };
 
-function fmtDate(s: string | null): string {
-  if (!s) return "";
-  return new Date(s).toLocaleDateString("he-IL");
-}
 function fmtDateTime(s: string | null): string {
   if (!s) return "";
   return new Date(s).toLocaleString("he-IL", {
@@ -216,16 +182,7 @@ export function ContentUnblockTool() {
   );
 
   const inv = inventory;
-  const isEmpty =
-    inv &&
-    inv.sessions.length === 0 &&
-    !inv.comprehensive.has &&
-    inv.questionnaireAnalyses.length === 0 &&
-    inv.questionnaireResponseAi.length === 0 &&
-    inv.recordingAnalyses.length === 0 &&
-    inv.sessionPreps.length === 0 &&
-    inv.aiInsights.count === 0 &&
-    !inv.clinicalProfile.has;
+  const isEmpty = inv && inv.sessions.length === 0 && !inv.clinicalProfile.has;
 
   return (
     <div className="space-y-4" dir="rtl">
@@ -237,8 +194,8 @@ export function ContentUnblockTool() {
         <p className="mt-1 text-sm text-muted-foreground">
           אם דף של תיק מטופל אינו נטען בשירות הסינון שלך, ייתכן שנכתב בו תוכן
           שאינו תואם את מדיניות התוכן של השירות. כאן אפשר למחוק את התוכן
-          הלא־תואם (סיכום, ניתוח AI ועוד) של פגישה ספציפית, כדי להחזיר את הגישה
-          לתיק. הדף מציג רק פרטים (שם, תאריך) — לעולם לא את התוכן עצמו.
+          הלא־תואם (סיכום פגישה ועוד) כדי להחזיר את הגישה לתיק. הדף מציג רק
+          פרטים (שם, תאריך) — לעולם לא את התוכן עצמו.
         </p>
       </div>
 
@@ -331,174 +288,31 @@ export function ContentUnblockTool() {
 
             {!invLoading && inv && !isEmpty && (
               <>
-                {/* פגישות: סיכום + ניתוח AI */}
+                {/* סיכומי פגישות */}
                 {inv.sessions.length > 0 && (
                   <Section
                     icon={<FileText className="h-4 w-4" />}
-                    title="סיכומי פגישות וניתוחי AI"
+                    title="סיכומי פגישות"
                   >
-                    {inv.sessions.map((s) => {
-                      const parts: string[] = [];
-                      if (s.hasNote) parts.push("סיכום");
-                      if (s.hasAnalysis) parts.push("ניתוח AI");
-                      return (
-                        <ItemRow
-                          key={s.id}
-                          title={`${SESSION_TYPE_HE[s.type] ?? "פגישה"} — ${fmtDateTime(
-                            s.startTime
-                          )}`}
-                          badges={
-                            <>
-                              {s.hasNote && <Badge variant="secondary">סיכום</Badge>}
-                              {s.hasAnalysis && (
-                                <Badge variant="secondary">ניתוח AI</Badge>
-                              )}
-                            </>
-                          }
-                          onDelete={() =>
-                            setPending({
-                              type: "session",
-                              clientId: inv.client.id,
-                              itemId: s.id,
-                              label: `${
-                                SESSION_TYPE_HE[s.type] ?? "פגישה"
-                              } מ-${fmtDateTime(s.startTime)} (${parts.join(" + ")})`,
-                            })
-                          }
-                        />
-                      );
-                    })}
-                  </Section>
-                )}
-
-                {/* ניתוח מקיף ללקוח */}
-                {inv.comprehensive.has && (
-                  <Section
-                    icon={<Brain className="h-4 w-4" />}
-                    title="ניתוח מקיף ללקוח"
-                  >
-                    <ItemRow
-                      title={`ניתוח מקיף${
-                        inv.comprehensive.at
-                          ? ` — ${fmtDate(inv.comprehensive.at)}`
-                          : ""
-                      }`}
-                      onDelete={() =>
-                        setPending({
-                          type: "comprehensive",
-                          clientId: inv.client.id,
-                          label: "הניתוח המקיף של הלקוח",
-                        })
-                      }
-                    />
-                  </Section>
-                )}
-
-                {/* ניתוחי שאלונים */}
-                {(inv.questionnaireAnalyses.length > 0 ||
-                  inv.questionnaireResponseAi.length > 0) && (
-                  <Section
-                    icon={<ClipboardList className="h-4 w-4" />}
-                    title="ניתוחי שאלונים (AI)"
-                  >
-                    {inv.questionnaireAnalyses.map((q) => (
+                    {inv.sessions.map((s) => (
                       <ItemRow
-                        key={q.id}
-                        title={`ניתוח שאלון${
-                          q.templateName ? `: ${q.templateName}` : ""
-                        } — ${fmtDate(q.createdAt)}`}
+                        key={s.id}
+                        title={`${SESSION_TYPE_HE[s.type] ?? "פגישה"} — ${fmtDateTime(
+                          s.startTime
+                        )}`}
+                        badges={<Badge variant="secondary">סיכום</Badge>}
                         onDelete={() =>
                           setPending({
-                            type: "questionnaireAnalysis",
+                            type: "session",
                             clientId: inv.client.id,
-                            itemId: q.id,
-                            label: `ניתוח שאלון${
-                              q.templateName ? `: ${q.templateName}` : ""
-                            } מ-${fmtDate(q.createdAt)}`,
+                            itemId: s.id,
+                            label: `${
+                              SESSION_TYPE_HE[s.type] ?? "פגישה"
+                            } מ-${fmtDateTime(s.startTime)} (סיכום)`,
                           })
                         }
                       />
                     ))}
-                    {inv.questionnaireResponseAi.map((q) => (
-                      <ItemRow
-                        key={q.id}
-                        title={`ניתוח AI על שאלון${
-                          q.templateName ? `: ${q.templateName}` : ""
-                        } — ${fmtDate(q.createdAt)}`}
-                        onDelete={() =>
-                          setPending({
-                            type: "questionnaireResponseAi",
-                            clientId: inv.client.id,
-                            itemId: q.id,
-                            label: `ניתוח ה-AI על השאלון${
-                              q.templateName ? `: ${q.templateName}` : ""
-                            } מ-${fmtDate(q.createdAt)}`,
-                          })
-                        }
-                      />
-                    ))}
-                  </Section>
-                )}
-
-                {/* ניתוחי הקלטות */}
-                {inv.recordingAnalyses.length > 0 && (
-                  <Section icon={<Mic className="h-4 w-4" />} title="ניתוחי הקלטות">
-                    {inv.recordingAnalyses.map((a) => (
-                      <ItemRow
-                        key={a.id}
-                        title={`ניתוח הקלטה — ${fmtDate(a.createdAt)}`}
-                        onDelete={() =>
-                          setPending({
-                            type: "recordingAnalysis",
-                            clientId: inv.client.id,
-                            itemId: a.id,
-                            label: `ניתוח הקלטה מ-${fmtDate(a.createdAt)}`,
-                          })
-                        }
-                      />
-                    ))}
-                  </Section>
-                )}
-
-                {/* הכנות פגישה AI */}
-                {inv.sessionPreps.length > 0 && (
-                  <Section
-                    icon={<Brain className="h-4 w-4" />}
-                    title="הכנות לפגישה (AI)"
-                  >
-                    {inv.sessionPreps.map((p) => (
-                      <ItemRow
-                        key={p.id}
-                        title={`הכנה לפגישה — ${fmtDate(p.sessionDate)}`}
-                        onDelete={() =>
-                          setPending({
-                            type: "sessionPrep",
-                            clientId: inv.client.id,
-                            itemId: p.id,
-                            label: `הכנת ה-AI לפגישה מ-${fmtDate(p.sessionDate)}`,
-                          })
-                        }
-                      />
-                    ))}
-                  </Section>
-                )}
-
-                {/* תובנות AI שמורות */}
-                {inv.aiInsights.count > 0 && (
-                  <Section
-                    icon={<Sparkles className="h-4 w-4" />}
-                    title="תובנות AI שמורות"
-                  >
-                    <ItemRow
-                      title={`תובנות AI (${inv.aiInsights.count})`}
-                      onDelete={() =>
-                        setPending({
-                          type: "aiInsights",
-                          clientId: inv.client.id,
-                          label: `כל תובנות ה-AI השמורות (${inv.aiInsights.count})`,
-                        })
-                      }
-                    />
                   </Section>
                 )}
 

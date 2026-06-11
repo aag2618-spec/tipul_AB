@@ -39,7 +39,6 @@ export async function cancelOrDeleteFutureSessions(
     select: {
       id: true,
       payment: { select: { id: true } },
-      recordings: { select: { id: true }, take: 1 },
     },
   });
 
@@ -48,8 +47,7 @@ export async function cancelOrDeleteFutureSessions(
   const cancelIds: string[] = [];
   for (const s of sessions) {
     const hasFinancialRecords = !!s.payment;
-    const hasRecording = s.recordings.length > 0;
-    if (hasFinancialRecords || hasRecording) {
+    if (hasFinancialRecords) {
       cancelIds.push(s.id);
     } else {
       deleteIds.push(s.id);

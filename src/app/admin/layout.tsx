@@ -25,7 +25,6 @@ import {
   Ticket,
   Megaphone,
   ClipboardList,
-  Brain,
   Bell,
   Settings,
   Search,
@@ -69,14 +68,6 @@ const adminNavGroups = [
       { href: "/admin/tier-settings", label: "תוכניות ומחירים", icon: Settings, adminOnly: true },
       { href: "/admin/coupons", label: "קופונים", icon: Ticket, adminOnly: true },
       { href: "/admin/promotions", label: "מבצעים", icon: Megaphone, adminOnly: true },
-    ],
-  },
-  {
-    label: "בינה מלאכותית",
-    items: [
-      { href: "/admin/ai-usage", label: "סקירת שימוש", icon: Brain, exact: true },
-      { href: "/admin/ai-usage/settings", label: "הגדרות", icon: Settings, adminOnly: true },
-      { href: "/admin/ai-usage/reports", label: "דוחות ואנליטיקס", icon: BarChart3 },
     ],
   },
   {
@@ -352,7 +343,7 @@ function AdminLayoutContent({ children }: { children: React.ReactNode }) {
                 </p>
                 <div className="space-y-1">
                   {visibleItems.map((item) => {
-                    const isActive = item.exact
+                    const isActive = (item as { exact?: boolean }).exact
                       ? pathname === item.href
                       : pathname === item.href ||
                         (item.href !== "/admin" && pathname.startsWith(item.href));

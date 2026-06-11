@@ -94,35 +94,9 @@ export type SessionStatusInput = z.infer<typeof sessionStatusSchema>;
 // POST/PUT של [id]/note/route.ts — sessionNote (תוכן קליני).
 // content הוא HTML מ-TipTap. cap גדול (50K) כי סיכומים יכולים להיות ארוכים,
 // אבל לא בלתי מוגבל.
-// aiAnalysis ב-Prisma הוא Json field — מקבל גם string (LLM raw output) וגם
-// object מובנה (NoteAnalysis interface ב-/api/analyze/note). cap נאכף ע"י
-// גודל ה-JSON המסוריאליז כדי למנוע DoS דרך אובייקטים ענקיים.
-const aiAnalysisField = z
-  .union([
-    z.string().max(20_000, "ניתוח AI ארוך מדי"),
-    z.record(z.unknown()),
-    z.array(z.unknown()),
-  ])
-  .refine(
-    (v) => {
-      if (typeof v === "string") return true; // כבר נאכף ב-max למעלה
-      try {
-        return JSON.stringify(v).length <= 50_000;
-      } catch {
-        return false;
-      }
-    },
-    { message: "ניתוח AI גדול מדי" }
-  )
-  // מקבל גם null — כפתור "שמור" שולח aiAnalysis:null כשאין ניתוח. השרת ממיר null ל-undefined.
-  .nullable()
-  .optional()
-  .or(z.literal(""));
-
 export const sessionNoteSchema = z.object({
   content: z.string().max(50_000, "תוכן הסיכום ארוך מדי (מקסימום 50,000 תווים)"),
   isPrivate: z.boolean().optional(),
-  aiAnalysis: aiAnalysisField,
 });
 export type SessionNoteInput = z.infer<typeof sessionNoteSchema>;
 

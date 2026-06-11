@@ -35,7 +35,6 @@ import {
   ClipboardList,
   FileSignature,
   Mail,
-  Brain,
   CreditCard,
   BookOpen,
   Headphones,
@@ -101,11 +100,6 @@ const mainNavItems = [
 
 const clinicalItems = [
   {
-    title: "הכנה לפגישה AI",
-    href: "/dashboard/ai-prep",
-    icon: Brain,
-  },
-  {
     title: "שאלונים",
     href: "/dashboard/questionnaires",
     icon: ClipboardList,
@@ -149,11 +143,6 @@ const supportItems = [
 ];
 
 const settingsItems = [
-  {
-    title: "הגדרות AI",
-    href: "/dashboard/settings/ai-assistant",
-    icon: Brain,
-  },
   {
     title: "זימון עצמי",
     href: "/dashboard/settings/booking",
