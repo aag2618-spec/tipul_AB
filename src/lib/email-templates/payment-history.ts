@@ -1,6 +1,6 @@
 import { format } from "date-fns";
 import { he } from "date-fns/locale";
-import { escapeHtml } from "../email-utils";
+import { escapeHtml, safeHttpUrl } from "../email-utils";
 
 interface PaymentHistoryItem {
   id: string;
@@ -103,11 +103,13 @@ export function createPaymentHistoryEmail({
       <div dir="rtl" style="font-family: 'Segoe UI', Tahoma, Geneva, Verdana, sans-serif; max-width: 700px; margin: 0 auto; padding: 20px; background: #f9fafb;">
         <!-- Header -->
         <div style="background: linear-gradient(135deg, #0ea5e9 0%, #0284c7 100%); padding: 30px 20px; border-radius: 12px 12px 0 0; text-align: center;">
-          ${
-            customization?.logoUrl
-              ? `<img src="${customization.logoUrl}" alt="Logo" style="max-width: 120px; max-height: 60px; margin-bottom: 15px;" />`
-              : ""
-          }
+          ${(() => {
+            // M-XSS-1: ולידציית URL ב-render time. logoUrl owner-controlled — חוסם
+            // data:/scheme לא תקין; אם לא תקין מסתירים את הלוגו במקום src זדוני.
+            const safeLogoUrl = safeHttpUrl(customization?.logoUrl ?? null);
+            if (!safeLogoUrl) return "";
+            return `<img src="${escapeHtml(safeLogoUrl)}" alt="Logo" style="max-width: 120px; max-height: 60px; margin-bottom: 15px;" />`;
+          })()}
           <div style="font-size: 48px; margin-bottom: 10px;">📊</div>
           <h1 style="color: #ffffff; margin: 0; font-size: 26px; font-weight: 700;">סיכום תשלומים</h1>
           <p style="color: #e0f2fe; margin: 8px 0 0 0; font-size: 15px;">${fromDate} - ${toDate}</p>
@@ -145,19 +147,21 @@ export function createPaymentHistoryEmail({
             </table>
           </div>
 
-          ${
-            customization?.paymentLink
-              ? `
+          ${(() => {
+            // M-XSS-1: validate URL ב-render time. אם לא תקין — מסתירים את הכפתור
+            // לגמרי במקום ליצור href זדוני (javascript:/data:).
+            const safeLink = safeHttpUrl(customization?.paymentLink ?? null);
+            if (!safeLink) return "";
+            return `
           <!-- Payment Link -->
           <div style="background: #f0f9ff; border: 1px solid #bae6fd; border-radius: 8px; padding: 20px; margin: 20px 0; text-align: center;">
             <p style="margin: 0 0 12px 0; color: #075985; font-weight: 600; font-size: 15px;">💳 תשלום מהיר</p>
-            <a href="${customization.paymentLink}" style="display: inline-block; background: #0ea5e9; color: #ffffff; padding: 12px 24px; border-radius: 6px; text-decoration: none; font-weight: 600; font-size: 14px;">
+            <a href="${escapeHtml(safeLink)}" style="display: inline-block; background: #0ea5e9; color: #ffffff; padding: 12px 24px; border-radius: 6px; text-decoration: none; font-weight: 600; font-size: 14px;">
               שלם עכשיו בקליק
             </a>
           </div>
-          `
-              : ""
-          }
+          `;
+          })()}
 
           ${
             customization?.paymentInstructions
