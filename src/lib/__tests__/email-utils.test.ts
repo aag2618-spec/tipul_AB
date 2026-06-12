@@ -1,5 +1,5 @@
 import { describe, it, expect } from "vitest";
-import { escapeHtml, sanitizeEmailSubject, safeEmailSubject } from "@/lib/email-utils";
+import { escapeHtml, sanitizeEmailSubject, safeEmailSubject, safeHttpUrl } from "@/lib/email-utils";
 
 describe("escapeHtml", () => {
   it("escapes HTML-significant characters", () => {
@@ -36,5 +36,27 @@ describe("safeEmailSubject", () => {
     const res = safeEmailSubject("a".repeat(199) + "📬", 200);
     expect([...res].length).toBe(200);
     expect(res.endsWith("📬")).toBe(true);
+  });
+});
+
+describe("safeHttpUrl", () => {
+  it("מחזיר URL תקין של http/https", () => {
+    expect(safeHttpUrl("https://pay.example.com/abc")).toBe(
+      "https://pay.example.com/abc"
+    );
+    expect(safeHttpUrl("http://example.com")).toBe("http://example.com/");
+  });
+  it("חוסם scheme לא בטוח (javascript:/data:/file:)", () => {
+    expect(safeHttpUrl("javascript:alert(1)")).toBeNull();
+    expect(safeHttpUrl("JavaScript:alert(1)")).toBeNull();
+    expect(safeHttpUrl("data:text/html,<script>alert(1)</script>")).toBeNull();
+    expect(safeHttpUrl("file:///etc/passwd")).toBeNull();
+  });
+  it("מחזיר null לקלט ריק/לא תקין/ארוך מדי", () => {
+    expect(safeHttpUrl(null)).toBeNull();
+    expect(safeHttpUrl(undefined)).toBeNull();
+    expect(safeHttpUrl("")).toBeNull();
+    expect(safeHttpUrl("לא-כתובת")).toBeNull();
+    expect(safeHttpUrl("https://example.com/" + "a".repeat(2000))).toBeNull();
   });
 });

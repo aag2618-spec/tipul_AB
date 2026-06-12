@@ -11,6 +11,25 @@ export function escapeHtml(str: string): string {
 }
 
 /**
+ * M-XSS-1 defense-in-depth: ולידציית URL ב-render time לפני הזרקה ל-href/src במייל.
+ * חוסם scheme לא בטוח (javascript:/data:/file:) שעלול להגיע מ-DB/webhook/הגדרות
+ * (גם אם ה-PUT עושה validation, רשומות ישנות עלולות להכיל scheme זדוני).
+ * מחזיר את ה-URL המנורמל אם הוא http/https תקין, אחרת null (הקורא מסתיר את האלמנט).
+ * שים לב: התוצאה עדיין צריכה לעבור escapeHtml לפני הזרקה ל-attribute.
+ */
+export function safeHttpUrl(input: string | null | undefined): string | null {
+  if (!input) return null;
+  if (input.length > 2000) return null;
+  try {
+    const u = new URL(input);
+    if (u.protocol !== "http:" && u.protocol !== "https:") return null;
+    return u.toString();
+  } catch {
+    return null;
+  }
+}
+
+/**
  * מנקה מחרוזת המיועדת לשורת הנושא של מייל (plaintext header).
  * מסיר תווי שורה/טאב (\r \n \t) כדי למנוע Email Header Injection — תוקף שיכניס
  * "\r\nBcc: ..." בשם המטפל/לקוח עלול להזריק כותרות מייל. שורת נושא היא plaintext,
