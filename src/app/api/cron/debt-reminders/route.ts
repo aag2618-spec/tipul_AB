@@ -2,7 +2,7 @@ import { NextRequest, NextResponse } from "next/server";
 import prisma from "@/lib/prisma";
 import { sendEmail } from "@/lib/resend";
 import { calculateSessionDebt } from "@/lib/payment-utils";
-import { escapeHtml } from "@/lib/email-utils";
+import { escapeHtml, safeHttpUrl } from "@/lib/email-utils";
 import { sendSMSIfEnabled } from "@/lib/sms";
 import { logger } from "@/lib/logger";
 import { isShabbatOrYomTov } from "@/lib/shabbat";
@@ -115,13 +115,19 @@ function createDebtReminderEmail(
           
           ${sessionsHtml}
 
-          ${customization?.paymentLink ? `
+          ${(() => {
+            // M-XSS-1: validate URL ב-render time. אם לא תקין — מסתירים את הכפתור
+            // לגמרי במקום ליצור href זדוני (javascript:/data:).
+            const safeLink = safeHttpUrl(customization?.paymentLink ?? null);
+            if (!safeLink) return "";
+            return `
           <div style="background: #f0f9ff; border: 1px solid #bae6fd; border-radius: 8px; padding: 20px; margin-top: 30px; text-align: center;">
             <p style="margin: 0 0 12px 0; color: #075985; font-weight: 600; font-size: 15px;">💳 תשלום מהיר</p>
-            <a href="${customization.paymentLink}" style="display: inline-block; background: #0ea5e9; color: #ffffff; padding: 12px 24px; border-radius: 6px; text-decoration: none; font-weight: 600; font-size: 14px;">
+            <a href="${escapeHtml(safeLink)}" style="display: inline-block; background: #0ea5e9; color: #ffffff; padding: 12px 24px; border-radius: 6px; text-decoration: none; font-weight: 600; font-size: 14px;">
               שלם עכשיו בקליק
             </a>
-          </div>` : ''}
+          </div>`;
+          })()}
 
           <!-- Payment Info -->
           <div style="background: #f0fdf4; border: 1px solid #86efac; border-radius: 10px; padding: 20px; margin-top: 30px;">
