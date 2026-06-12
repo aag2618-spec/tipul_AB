@@ -1,19 +1,4 @@
-import { escapeHtml } from "../email-utils";
-
-// M-XSS-1 defense-in-depth: render-time URL guard.
-// גם אם communication-settings PUT מקבל validation, רשומות ישנות ב-DB
-// עלולות להכיל javascript:/data:/file: schemes. נחסום גם בעת הרינדור.
-function safeHttpUrl(input: string | null | undefined): string | null {
-  if (!input) return null;
-  if (input.length > 2000) return null;
-  try {
-    const u = new URL(input);
-    if (u.protocol !== "http:" && u.protocol !== "https:") return null;
-    return u.toString();
-  } catch {
-    return null;
-  }
-}
+import { escapeHtml, safeHttpUrl } from "../email-utils";
 
 function formatIsraelDateTime(date: Date, includeWeekday = false): string {
   const options: Intl.DateTimeFormatOptions = {

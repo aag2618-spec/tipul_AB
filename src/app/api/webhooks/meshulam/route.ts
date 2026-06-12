@@ -17,7 +17,7 @@ import {
   getPriceForPeriod,
   type SubscriptionPeriodMonths,
 } from "@/lib/pricing/resolve";
-import { escapeHtml } from "@/lib/email-utils";
+import { escapeHtml, safeHttpUrl } from "@/lib/email-utils";
 import { logger } from "@/lib/logger";
 import { invalidateJwtCache } from "@/lib/auth";
 import { completeWebhookPayment } from "@/lib/payments/receipt-service";
@@ -1242,20 +1242,6 @@ async function handleSubscriptionCancelled(
 // ========================================
 // Email HTML Templates
 // ========================================
-
-// M-XSS-1: ולידציית URL ב-render time (כמו ב-payment-receipt.ts) — חוסם scheme לא בטוח
-// (javascript:/data:/file:) בכתובות שמגיעות מ-webhook/DB לפני הזרקה ל-href.
-function safeHttpUrl(input: string | null | undefined): string | null {
-  if (!input) return null;
-  if (input.length > 2000) return null;
-  try {
-    const u = new URL(input);
-    if (u.protocol !== "http:" && u.protocol !== "https:") return null;
-    return u.toString();
-  } catch {
-    return null;
-  }
-}
 
 function createSubscriptionConfirmHtml(
   name: string,

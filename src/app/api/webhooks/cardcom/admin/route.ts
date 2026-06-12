@@ -50,7 +50,7 @@ import { hashCardcomToken } from "@/lib/cardcom/token-hash";
 import { resolveUpdateCardWebhookOutcome } from "@/lib/payments/subscription-settings";
 import { resolvePackagePurchaseWebhookOutcome } from "@/lib/payments/package-purchase";
 import { sendEmail } from "@/lib/resend";
-import { escapeHtml } from "@/lib/email-utils";
+import { escapeHtml, safeHttpUrl } from "@/lib/email-utils";
 import type { CardcomWebhookPayload } from "@/lib/cardcom/types";
 
 export const dynamic = "force-dynamic";
@@ -1266,15 +1266,7 @@ async function processPackagePurchaseWebhook(
     const safeUser = escapeHtml(emailData.userName || "משתמש/ת");
     const safePkg = escapeHtml(emailData.packageName);
     const amountStr = `₪${emailData.amount.toLocaleString("he-IL")}`;
-    let safeReceiptUrl: string | null = null;
-    if (emailData.receiptUrl) {
-      try {
-        const u = new URL(emailData.receiptUrl);
-        if (u.protocol === "http:" || u.protocol === "https:") {
-          safeReceiptUrl = u.toString();
-        }
-      } catch { /* invalid URL — skip */ }
-    }
+    const safeReceiptUrl = safeHttpUrl(emailData.receiptUrl ?? null);
     const receiptHtml = safeReceiptUrl
       ? `<a href="${escapeHtml(safeReceiptUrl)}" style="display:inline-block;background:#10b981;color:#fff;padding:10px 24px;border-radius:6px;text-decoration:none;font-weight:600;margin-top:16px;">צפה בקבלה</a>`
       : emailData.receiptNumber
