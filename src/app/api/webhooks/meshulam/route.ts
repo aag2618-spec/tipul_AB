@@ -1319,11 +1319,11 @@ function createAdminPaymentHtml(
       </div>
       <div style="background: #fff; padding: 25px; border: 1px solid #e2e8f0; border-top: none;">
         <div style="background: ${c.bg}; border-right: 4px solid ${c.border}; padding: 16px; border-radius: 4px; margin-bottom: 16px;">
-          <p style="margin: 0; font-size: 15px; color: #1e293b;">${message}</p>
+          <p style="margin: 0; font-size: 15px; color: #1e293b;">${escapeHtml(message)}</p>
         </div>
         <table style="width: 100%; border-collapse: collapse; font-size: 14px;">
-          <tr><td style="padding: 8px 0; color: #64748b;">שם:</td><td style="padding: 8px 0;"><strong>${userName}</strong></td></tr>
-          <tr><td style="padding: 8px 0; color: #64748b;">מייל:</td><td style="padding: 8px 0;">${userEmail}</td></tr>
+          <tr><td style="padding: 8px 0; color: #64748b;">שם:</td><td style="padding: 8px 0;"><strong>${escapeHtml(userName)}</strong></td></tr>
+          <tr><td style="padding: 8px 0; color: #64748b;">מייל:</td><td style="padding: 8px 0;">${escapeHtml(userEmail)}</td></tr>
           <tr><td style="padding: 8px 0; color: #64748b;">מסלול:</td><td style="padding: 8px 0;">${planName}</td></tr>
           ${amount > 0 ? `<tr><td style="padding: 8px 0; color: #64748b;">סכום:</td><td style="padding: 8px 0;"><strong>₪${amount}</strong></td></tr>` : ""}
         </table>
