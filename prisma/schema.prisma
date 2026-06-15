@@ -594,12 +594,20 @@ model TherapySession {
   organizationId String?
   organization   Organization? @relation(fields: [organizationId], references: [id], onDelete: SetNull)
 
+  // שלב 2 (חדרים): שיוך הפגישה לחדר מנוהל בקליניקה. nullable — `location`
+  // (טקסט חופשי) נשאר לתאימות ולמטפל עצמאי. כשקיים roomId, בדיקת חפיפת
+  // החדר מדויקת (FK) במקום התאמת מחרוזת. onDelete: SetNull — מחיקת חדר לא
+  // מוחקת פגישות, רק מנתקת את השיוך.
+  roomId String?
+  room   ClinicRoom? @relation(fields: [roomId], references: [id], onDelete: SetNull)
+
   @@index([organizationId])
   @@index([organizationId, startTime])
   @@index([therapistId, startTime])
   @@index([therapistId, status, startTime])
   @@index([clientId, startTime(sort: Desc)])
   @@index([organizationId, status, startTime])
+  @@index([roomId, startTime])
 }
 
 enum SessionStatus {
@@ -2515,6 +2523,9 @@ model Organization {
   therapySessions TherapySession[]
   payments        Payment[]
 
+  // שלב 2 (חדרים): חדרי הטיפול של הקליניקה (cascade במחיקת הארגון)
+  rooms ClinicRoom[]
+
   // Pricing — קליניקה יכולה להחזיק policies מותאמות (cascade במחיקה)
   pricingPolicies        PricingPolicy[]        @relation("PricingPolicyForOrg")
   packagePricingPolicies PackagePricingPolicy[] @relation("PackagePricingPolicyForOrg")
@@ -2525,6 +2536,26 @@ model Organization {
   @@index([ownerUserId])
   @@index([subscriptionStatus, subscriptionEndsAt])
   @@index([pricingPlanId])
+}
+
+// שלב 2 (חדרים): חדר טיפול מנוהל בקליניקה רב-מטפלית. מאפשר בחירת חדר בקביעת
+// פגישה ובדיקת חפיפת חדר מדויקת (FK) בין מטפלים. רלוונטי רק לקליניקה
+// (organizationId). מטפל עצמאי ממשיך עם `TherapySession.location` (טקסט חופשי).
+// אין מחיקה קשיחה ב-UI — משביתים עם isActive=false כדי לשמר היסטוריית פגישות.
+model ClinicRoom {
+  id        String   @id @default(cuid())
+  name      String // "חדר 1", "חדר שקט", "אונליין"...
+  isActive  Boolean  @default(true) // false = מושבת (לא מוצג בבורר, נשמר להיסטוריה)
+  sortOrder Int      @default(0) // סדר תצוגה בבורר ובניהול
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+
+  organizationId String
+  organization   Organization @relation(fields: [organizationId], references: [id], onDelete: Cascade)
+
+  sessions TherapySession[]
+
+  @@index([organizationId, isActive, sortOrder])
 }
 
 // תוכנית תמחור לקליניקה — אדמין יוצר ועורך מ-/admin/pricing/clinic-plans.

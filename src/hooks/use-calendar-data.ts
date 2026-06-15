@@ -54,6 +54,8 @@ export interface CalendarSession {
   // יומן רב-מטפלים: המטפל האחראי לפגישה (לתצוגה/מסנן/צבע בקליניקה).
   therapistId?: string | null;
   therapistName?: string | null;
+  // שלב 2 (חדרים): מזהה החדר (אם שויך). משמש לבדיקת חפיפת חדר בצד-לקוח.
+  roomId?: string | null;
 }
 
 export interface RecurringPattern {

@@ -24,6 +24,9 @@ export const createSessionSchema = z.object({
   // trim() כדי שמחרוזת רווחים תיכשל ב-min(1) ולא תיפול בשקט ל-fallback.
   // הוולידציה הסמנטית (אותה קליניקה, role-gate, ownership) ב-route.
   therapistId: z.string().trim().min(1).max(64).optional(),
+  // שלב 2 (חדרים): חדר טיפול נבחר. הוולידציה הסמנטית (החדר שייך לקליניקה)
+  // ב-route. ריק/undefined → אין חדר (location טקסט חופשי כמו קודם).
+  roomId: z.string().trim().min(1).max(64).optional(),
 }).refine(
   (data) => {
     if (data.type !== "BREAK" && !data.clientId) {

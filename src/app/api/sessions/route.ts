@@ -133,7 +133,7 @@ export async function POST(request: NextRequest) {
 
     const parsed = await parseBody(request, createSessionSchema);
     if ("error" in parsed) return parsed.error;
-    const { clientId, startTime, endTime, type, price, location, notes, topic, isRecurring, allowOverlap, therapistId: requestedTherapistId } = parsed.data;
+    const { clientId, startTime, endTime, type, price, location, notes, topic, isRecurring, allowOverlap, therapistId: requestedTherapistId, roomId } = parsed.data;
 
     const scopeUser = await loadScopeUser(userId);
     const clientScopeWhere = buildClientWhere(scopeUser);
@@ -240,6 +240,31 @@ export async function POST(request: NextRequest) {
       );
     }
 
+    // שלב 2 (חדרים): אם נבחר חדר — לוודא שהוא שייך לקליניקה של המבצע (ולא
+    // חדר מארגון אחר או מזהה מזויף). מטפל עצמאי (ללא org) אינו אמור לשלוח
+    // roomId כלל — אם שלח, נדחה. החדר נשמר גם כ-roomId (FK) וגם דרך location
+    // (שם החדר) לתאימות עם תצוגות/סנכרון יומן שמסתמכים על location.
+    let finalRoomId: string | null = null;
+    if (roomId) {
+      if (!scopeUser.organizationId) {
+        return NextResponse.json(
+          { message: "בחירת חדר זמינה רק בקליניקה" },
+          { status: 400 }
+        );
+      }
+      const room = await prisma.clinicRoom.findFirst({
+        where: { id: roomId, organizationId: scopeUser.organizationId },
+        select: { id: true },
+      });
+      if (!room) {
+        return NextResponse.json(
+          { message: "החדר הנבחר לא נמצא בקליניקה" },
+          { status: 400 }
+        );
+      }
+      finalRoomId = room.id;
+    }
+
     // Check for conflicts on the **target therapist's** calendar — not the
     // operator's. לפני התיקון, מזכירה שקבעה למטפל X לא היתה מקבלת אזהרת
     // double-booking (כי היומן שלה ריק); עכשיו הבדיקה רצה על המטפל היעד.
@@ -298,6 +323,7 @@ export async function POST(request: NextRequest) {
       const clinicConflict = await findClinicLocationConflict({
         organizationId: scopeUser.organizationId,
         location: location || null,
+        roomId: finalRoomId,
         startTime: parsedStartTime,
         endTime: parsedEndTime,
       });
@@ -320,6 +346,7 @@ export async function POST(request: NextRequest) {
         price: type === "BREAK" ? 0 : (price || clientDefaultPrice),
         topic: topic || null,
         location: location || null,
+        roomId: finalRoomId,
         notes: notes || null,
         isRecurring: isRecurring || false,
       },

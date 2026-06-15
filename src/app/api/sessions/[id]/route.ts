@@ -280,6 +280,9 @@ export async function PUT(
         const clinicConflict = await findClinicLocationConflict({
           organizationId: existingSession.organizationId,
           location: effectiveLocation,
+          // שלב 2 (חדרים): עריכת זמן/גרירה שומרת על אותו חדר — בדיקת חפיפת
+          // החדר לפי ה-FK המדויק (לא רק התאמת location), בעקביות עם POST.
+          roomId: existingSession.roomId,
           startTime: newStart,
           endTime: newEnd,
           excludeSessionId: id,

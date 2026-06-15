@@ -207,6 +207,8 @@ export function RecurringPatternDialog({
               // יומן רב-מטפלים: המטפל/ת היעד לסדרה (אם נבחר/ה בבורר). ריק → השרת
               // פותר לפי המטופל (התנהגות קיימת).
               therapistId: pendingFormRecurring.therapistId || undefined,
+              // שלב 2 (חדרים): החדר היעד לסדרה (אם נבחר/ה בבורר). ריק → ללא חדר.
+              roomId: pendingFormRecurring.roomId || undefined,
               isRecurring: true,
               allowOverlap: isOverlapAllowed || undefined,
             }),

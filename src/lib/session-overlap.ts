@@ -21,6 +21,12 @@ interface ClinicLocationConflictParams {
   endTime: Date;
   /** מזהה הפגישה הנוכחית (PUT) — לא להחזיר את עצמה כקונפליקט. */
   excludeSessionId?: string | null;
+  /**
+   * שלב 2 (חדרים): כשקיים roomId, החפיפה נבדקת לפי החדר (FK מדויק) במקום
+   * התאמת מחרוזת location. מדויק יותר — שני חדרים בשם זהה לא יתבלבלו, ושינוי
+   * שם חדר לא ישבור היסטוריה. אם אין roomId — נופלים להתאמת location כמו קודם.
+   */
+  roomId?: string | null;
 }
 
 export interface ClinicLocationConflict {
@@ -42,18 +48,24 @@ export interface ClinicLocationConflict {
 export async function findClinicLocationConflict(
   params: ClinicLocationConflictParams
 ): Promise<ClinicLocationConflict | null> {
-  const { organizationId, location, startTime, endTime, excludeSessionId } = params;
+  const { organizationId, location, startTime, endTime, excludeSessionId, roomId } = params;
 
   if (!organizationId) return null;
+  const normalizedRoomId = (roomId ?? "").trim();
+  const hasRoom = normalizedRoomId.length > 0;
   const normalized = (location ?? "").trim();
-  if (normalized.length === 0) return null;
+  // בלי roomId ובלי location — אין על מה לבדוק חפיפת חדר.
+  if (!hasRoom && normalized.length === 0) return null;
 
   try {
     const conflict = await prisma.therapySession.findFirst({
       where: {
         organizationId,
-        // case-insensitive match על location. PostgreSQL ילך ל-ILIKE עם `mode`.
-        location: { equals: normalized, mode: "insensitive" },
+        // עם roomId — התאמת FK מדויקת; אחרת התאמת location case-insensitive
+        // (PostgreSQL ILIKE עם `mode`).
+        ...(hasRoom
+          ? { roomId: normalizedRoomId }
+          : { location: { equals: normalized, mode: "insensitive" } }),
         status: { notIn: ["CANCELLED", "COMPLETED", "NO_SHOW"] },
         ...(excludeSessionId ? { id: { not: excludeSessionId } } : {}),
         OR: [

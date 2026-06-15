@@ -194,6 +194,8 @@ function CalendarPageContent() {
     location?: string;
     // יומן רב-מטפלים: המטפל/ת היעד לסדרה החוזרת (מבורר המטפל ב-NewSessionDialog).
     therapistId?: string;
+    // שלב 2 (חדרים): החדר היעד לסדרה החוזרת (מבורר החדר ב-NewSessionDialog).
+    roomId?: string;
     sessions: Array<{ startTime: string; endTime: string }>;
   } | null>(null);
 

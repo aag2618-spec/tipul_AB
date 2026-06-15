@@ -26,6 +26,7 @@ import {
   ShieldCheck,
   Eye,
   CreditCard,
+  DoorOpen,
 } from "lucide-react";
 
 interface ClinicContext {
@@ -76,6 +77,8 @@ const navItems: NavItem[] = [
   // /members/by-therapist כדי לא לבלבל עם /members שמראה תפקידים.
   { href: "/clinic-admin/members/by-therapist", label: "מטופלים לפי מטפל", icon: UsersRound, secretaryWithTransfer: true },
   { href: "/clinic-admin/invitations", label: "הזמנות פעילות", icon: UserPlus },
+  // ניהול חדרי טיפול (שלב 2) — בעלת קליניקה בלבד (תשתית/קונפיגורציה).
+  { href: "/clinic-admin/rooms", label: "ניהול חדרים", icon: DoorOpen },
   { href: "/clinic-admin/transfer", label: "העברת מטופל", icon: ArrowLeftRight, secretaryWithTransfer: true },
   { href: "/clinic-admin/departures", label: "תהליכי עזיבה", icon: UserMinus },
   // סליקה למטפלים — הסדר מסוף הסליקה לכל מטפל/ת (חשבון הקליניקה / חשבון עצמאי).

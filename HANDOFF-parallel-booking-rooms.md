@@ -75,18 +75,42 @@
 לתעד את ההחלטה במדיניות הקליניקה. מעקב לסבב נפרד: לוודא ש-routes קליניים
 (sessionNote/מסמכים/התחייבויות) תחומים על `Client.therapistId` ולא נגזרים מקיום פגישה.
 
-## שלב 2 — חדרים (DB) + "חדר פנוי"
+## שלב 2 — חדרים (DB) + "חדר פנוי" ✅ קוד הושלם 2026-06-15
 
-- **2a.** מודל `ClinicRoom` (`id, organizationId, name, isActive, sortOrder, timestamps`)
-  + `roomId String?` ב-`TherapySession` (`location` נשאר לתאימות). `prisma generate` +
-  `db push` (הערת פריסה — להריץ על Render).
-- **2b.** API ניהול חדרים `/api/clinic/rooms` (OWNER: CRUD; SECRETARY: GET).
-- **2c.** עמוד ניהול חדרים תחת `/clinic-admin` (לבעלים).
-- **2d.** בורר חדר ב-`NewSessionDialog` (clinic only) לצד/במקום הטקסט החופשי. מטפל יחיד
-  נשאר עם השדה החופשי כמו היום.
-- **2e.** התנגשות מודעת-חדר: הרחבת `findClinicLocationConflict` לתמוך ב-`roomId`;
-  בצד-לקוח לכלול חפיפת חדר. אזהרה: "החדר תפוס ע"י X".
-- **2f.** build + בדיקה.
+- **2a.** ✅ מודל `ClinicRoom` (`id, organizationId, name, isActive, sortOrder, timestamps`)
+  + `roomId String?` + relation `room` ב-`TherapySession` (`location` נשאר לתאימות) +
+  `rooms` ב-Organization + אינדקסים. `prisma generate` רץ. ⚠️ **`db push` עדיין לא רץ**.
+- **2b.** ✅ API: `GET /api/clinic/rooms` (כל חבר קליניקה; [] לעצמאי) + `POST` (בעלים);
+  `PUT/DELETE /api/clinic/rooms/[id]` (בעלים). zod ב-`validations/clinic-room.ts`.
+  DELETE חוסם חדר עם פגישות (409 → להשבית). מניעת כפילות שם (case-insensitive).
+- **2c.** ✅ עמוד `/clinic-admin/rooms` (CRUD + השבתה + עריכת-שם inline + אישור מחיקה)
+  + קישור ניווט בעלים-בלבד ב-layout.
+- **2d.** ✅ בורר חדר ב-`NewSessionDialog` (clinic only, `activeRooms.length > 0`).
+  "ללא חדר" חושף שדה טקסט חופשי. מטפל עצמאי → שדה חופשי כמו היום (ללא שינוי).
+  שולח `roomId` + `location=שם החדר`. יחיד + סדרה חוזרת.
+- **2e.** ✅ התנגשות מודעת-חדר: `findClinicLocationConflict` תומך ב-`roomId` (FK מדויק,
+  נפילה ל-location). צד-לקוח: מטפל אחר *באותו חדר* = התנגשות; חדר אחר = לא. חיווי
+  "⚠ החדר תפוס" בדיאלוג. הוחל גם על PUT (עריכה/גרירה) עם roomId הקיים.
+- **2f.** ✅ tsc + eslint + Next build נקיים. ⏳ בדיקה ידנית (דורש db push).
+
+### סבב ביקורת 2 (4 סוכנים: סייבר רב-דיירת / רגרסיה / נכונות / UI) — 2026-06-15
+**אבטחה: בטוח לחלוטין** — בידוד רב-דיירת מוצק (findUnique+השוואה + updateMany/deleteMany
+עם organizationId), אין IDOR, אין injection, אין דליפת PHI. **רגרסיה: נקי** (עצמאי/יחיד
+לא משתנה). תוקנו:
+- **(בינוני, נכונות)** PUT (עריכה/גרירה) לא העביר `roomId` לבדיקת חפיפה → תוקן.
+- **(בינוני-גבוה, UI)** מחיקת חדר ללא אישור → נוסף `AlertDialog` אישור.
+
+**נדחה לסבב נפרד (מחוץ לסקופ "קביעה מקבילה"):**
+- עריכת/החלפת חדר בדיאלוג פרטי פגישה (כיום roomId נשמר בעריכה אך לא ניתן לשינוי).
+- חיווי "חדר תפוס" בתצוגה המקדימה של סדרה חוזרת (הזיהוי עובד; חסר רק החיווי).
+- snapshot של `location` בשם החדר — שינוי שם חדר לא מעדכן location בפגישות עבר
+  (ה-FK `roomId` הוא מקור-אמת; trade-off מודע).
+
+### ⚠️⚠️ הערת פריסה קריטית — db push
+`roomId` הוא scalar חדש ב-TherapySession. **כל שאילתת פגישות תשלוף אותו** — אם הקוד
+ירוץ לפני `prisma db push`, **כל היומן ייפול בריצה** ("column roomId does not exist").
+לכן: **`npx prisma db push` חייב לרוץ בלוקסטפ עם הפריסה** (לפני/יחד, לא אחרי).
+השינוי additive בלבד (טבלה חדשה + עמודה nullable) — לא הרסני.
 
 ## שלב 3 — סגירה
 

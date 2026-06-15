@@ -23,6 +23,14 @@ interface ClinicTherapistOption {
   clinicRole: "OWNER" | "THERAPIST";
 }
 
+// שלב 2 (חדרים): אפשרות חדר לבורר. מגיע מ-/api/clinic/rooms (ריק למטפל/ת עצמאי/ת).
+interface ClinicRoomOption {
+  id: string;
+  name: string;
+  isActive: boolean;
+  sortOrder: number;
+}
+
 // ── Types ──
 
 export interface SessionFormData {
@@ -63,6 +71,8 @@ export interface PendingFormRecurring {
   // שהסדרה תיווצר אצל המטפל שנבחר (לא אצל המטפל הקבוע של המטופל). ריק/undefined
   // → השרת פותר לפי המטופל (התנהגות קיימת).
   therapistId?: string;
+  // שלב 2 (חדרים): החדר היעד לכל הסדרה (FK). ריק → ללא חדר.
+  roomId?: string;
   sessions: Array<{ startTime: string; endTime: string }>;
 }
 
@@ -175,9 +185,14 @@ export function NewSessionDialog({
   const [loadingTherapists, setLoadingTherapists] = useState(false);
   const [pickedTherapistId, setPickedTherapistId] = useState<string>("");
 
+  // שלב 2 (חדרים): רשימת חדרי הקליניקה + החדר הנבחר. ה-GET מחזיר [] למטפל/ת
+  // עצמאי/ת, ולכן הבורר לא יוצג והשדה הטקסטואלי (location) נשאר כמו היום.
+  const [clinicRooms, setClinicRooms] = useState<ClinicRoomOption[]>([]);
+  const [pickedRoomId, setPickedRoomId] = useState<string>("");
+
   // התנגשות בפגישה בודדת — state
   const [conflictPrompt, setConflictPrompt] = useState<{
-    conflicts: Array<{ id: string; clientName: string; startTime: string; endTime: string; therapistName?: string | null }>;
+    conflicts: Array<{ id: string; clientName: string; startTime: string; endTime: string; therapistName?: string | null; roomName?: string | null }>;
     pendingPayload: {
       clientId: string;
       startTime: string;
@@ -192,6 +207,9 @@ export function NewSessionDialog({
       // יומן רב-מטפלים: המטפל היעד. נשמר ב-payload כדי שבחירת replace/allowOverlap
       // תיצור את הפגישה אצל המטפל הנכון.
       therapistId: string | undefined;
+      // שלב 2 (חדרים): מזהה החדר הנבחר — נשמר כדי ש-replace/allowOverlap ייצרו
+      // את הפגישה באותו חדר.
+      roomId: string | undefined;
     };
   } | null>(null);
   const [conflictDecision, setConflictDecision] = useState<"replace" | "create">("replace");
@@ -220,6 +238,9 @@ export function NewSessionDialog({
       setClientSearch("");
       setClientListOpen(false);
       setPickedTherapistId(initialClientTherapistId);
+      // שלב 2 (חדרים): פותחים תמיד ללא חדר נבחר — גם ב"קבע במקביל" המשתמש
+      // בוחר את החדר הפנוי במפורש.
+      setPickedRoomId("");
     }
   }, [open, initialFormData, defaultSessionDuration, initialClientTherapistId]);
 
@@ -256,6 +277,25 @@ export function NewSessionDialog({
       cancelled = true;
     };
   }, [open, canPickTherapist]);
+
+  // שלב 2 (חדרים): טעינת חדרי הקליניקה כשהדיאלוג נפתח. נגיש לכל חבר/ת קליניקה;
+  // למטפל/ת עצמאי/ת מוחזר [] (אין קליניקה) ולכן הבורר פשוט לא יוצג.
+  useEffect(() => {
+    if (!open) return;
+    let cancelled = false;
+    fetch("/api/clinic/rooms", { cache: "no-store" })
+      .then(async (res) => {
+        if (cancelled || !res.ok) return;
+        const data = await res.json();
+        if (!cancelled) setClinicRooms(Array.isArray(data) ? data : []);
+      })
+      .catch(() => {
+        // שקט — בלי חדרים הבורר לא יוצג, השדה הטקסטואלי נשאר.
+      });
+    return () => {
+      cancelled = true;
+    };
+  }, [open]);
 
   // רשימת מטופלים קבועים, ממוינת לפי שם משפחה (א"ב) ומסוננת לפי החיפוש.
   // החיפוש מתאים גם בשם פרטי וגם בשם משפחה — לפי קלט כלשהו של המשתמש.
@@ -305,6 +345,12 @@ export function NewSessionDialog({
   // שם המטפל/ת הקבוע/ה של המטופל הנבחר — לחיווי "ממלא מקום" כשבוחרים מטפל אחר.
   const clientPrimaryTherapistName =
     clinicTherapists.find((t) => t.id === pickedClient?.therapistId)?.name ?? null;
+
+  // שלב 2 (חדרים): רק חדרים פעילים בבורר; החדר הנבחר; ומזהה החדר היעד לבדיקת
+  // חפיפת חדר (לא בהפסקה).
+  const activeRooms = clinicRooms.filter((r) => r.isActive);
+  const pickedRoom = activeRooms.find((r) => r.id === pickedRoomId) ?? null;
+  const targetRoomId = formData.type === "BREAK" ? null : pickedRoomId || null;
 
   // זיהוי חזרה — כשמקלידים שם, חיפוש בפונים קיימים
   useEffect(() => {
@@ -456,14 +502,16 @@ export function NewSessionDialog({
           const key = `form_${dateStr}_${timeStr}_${idx}`;
           const overlap = rangeSessions.find((s: CalendarSession) => {
             if (s.status === "CANCELLED") return false;
-            // יומן רב-מטפלים: פגישת מטפל/ת אחר/ת אינה התנגשות (כמו בפגישה בודדת).
+            // יומן רב-מטפלים: פגישת מטפל/ת אחר/ת אינה התנגשות — אלא אם היא
+            // באותו חדר (שלב 2). מטפל/ת פנוי/ה בחדר אחר = אין התנגשות.
             if (
               isMultiTherapistClinic &&
               targetTherapistId &&
               s.therapistId &&
               s.therapistId !== targetTherapistId
             ) {
-              return false;
+              const sameRoom = !!(targetRoomId && s.roomId && s.roomId === targetRoomId);
+              if (!sameRoom) return false;
             }
             const sStart = new Date(s.startTime);
             const sEnd = new Date(s.endTime);
@@ -501,12 +549,16 @@ export function NewSessionDialog({
             type: formData.type,
             price: formData.price,
             topic: formData.topic.trim(),
-            location: formData.location.trim() || undefined,
+            // שלב 2 (חדרים): שם החדר הנבחר כ-location (לתאימות), אחרת טקסט חופשי.
+            location: pickedRoom ? pickedRoom.name : formData.location.trim() || undefined,
             // יומן רב-מטפלים: המטפל/ת היעד לסדרה כולה (אם נבחר/ה). לא להפסקה.
             therapistId:
               formData.type !== "BREAK" && canPickTherapist && pickedTherapistId
                 ? pickedTherapistId
                 : undefined,
+            // שלב 2 (חדרים): החדר היעד לסדרה כולה (לא בהפסקה).
+            roomId:
+              formData.type !== "BREAK" && pickedRoomId ? pickedRoomId : undefined,
             sessions: planned.map((p) => ({ startTime: p.startLocal, endTime: p.endLocal })),
           }
         );
@@ -533,13 +585,16 @@ export function NewSessionDialog({
         // יכול/ה לקבל מטופל באותה שעה. מסננים אותה החוצה רק כשידוע מי המטפל היעד
         // וזו קליניקה רב-מטפלית. למטפל יחיד / עצמאי, targetTherapistId הוא הוא עצמו
         // וכל הפגישות שלו ממילא נכללות — אז ההתנהגות זהה לקודם (אין רגרסיה).
+        // שלב 2 (חדרים): חריג — פגישת מטפל/ת אחר/ת *באותו חדר* כן התנגשות
+        // (אי אפשר לאכלס חדר אחד בשתי פגישות במקביל).
         if (
           isMultiTherapistClinic &&
           targetTherapistId &&
           s.therapistId &&
           s.therapistId !== targetTherapistId
         ) {
-          return false;
+          const sameRoom = !!(targetRoomId && s.roomId && s.roomId === targetRoomId);
+          if (!sameRoom) return false;
         }
         const sStart = new Date(s.startTime);
         const sEnd = new Date(s.endTime);
@@ -553,9 +608,9 @@ export function NewSessionDialog({
         type: formData.type,
         price: parseFloat(formData.price) || 0,
         topic: formData.topic.trim() || undefined,
-        // Phase 1 (סבב 21): שולחים location לשרת כדי שבדיקת חפיפת חדר
-        // (findClinicLocationConflict) תרוץ. ריק → undefined → השרת לא יבדוק.
-        location: formData.location.trim() || undefined,
+        // location: שם החדר הנבחר אם יש (שלב 2), אחרת טקסט חופשי. נשלח גם
+        // כשיש roomId, לתאימות עם תצוגות/סנכרון יומן שמסתמכים על location.
+        location: pickedRoom ? pickedRoom.name : formData.location.trim() || undefined,
         // יומן רב-מטפלים: שולחים את המטפל/ת שנבחר/ה. ריק → undefined → השרת פותר
         // לפי המטפל/ת הקבוע/ה של המטופל (התנהגות קיימת למטפל יחיד / ללא בורר).
         // בהפסקה לא שולחים מטפל יעד — הפסקה תמיד שייכת למבצע (לא ל"מטפל הנבחר").
@@ -563,6 +618,9 @@ export function NewSessionDialog({
           formData.type !== "BREAK" && canPickTherapist && pickedTherapistId
             ? pickedTherapistId
             : undefined,
+        // שלב 2 (חדרים): מזהה החדר הנבחר. לא בהפסקה. ריק → undefined → ללא חדר.
+        roomId:
+          formData.type !== "BREAK" && pickedRoomId ? pickedRoomId : undefined,
       };
 
       if (conflicts.length > 0) {
@@ -574,8 +632,12 @@ export function NewSessionDialog({
             startTime: typeof c.startTime === "string" ? c.startTime : new Date(c.startTime).toISOString(),
             endTime: typeof c.endTime === "string" ? c.endTime : new Date(c.endTime).toISOString(),
             // יומן רב-מטפלים: שם המטפל/ת של הפגישה החופפת — להבחין בין התנגשות
-            // אצל אותו מטפל (חמורה) לבין משבצת משותפת (אם תוצג בשלב חדרים).
+            // אצל אותו מטפל (חמורה) לבין משבצת משותפת.
             therapistName: c.therapistName ?? null,
+            // שלב 2 (חדרים): אם ההתנגשות היא על החדר שנבחר — שם החדר (כדי
+            // להבהיר "החדר תפוס" כשהמטפל/ת שונה/ים).
+            roomName:
+              targetRoomId && c.roomId === targetRoomId ? pickedRoom?.name ?? null : null,
           })),
           pendingPayload: payload,
         });
@@ -601,6 +663,7 @@ export function NewSessionDialog({
       topic: string | undefined;
       location: string | undefined;
       therapistId: string | undefined;
+      roomId: string | undefined;
     },
     options?: { allowOverlap?: boolean; replaceSessionIds?: string[] }
   ) => {
@@ -1094,21 +1157,57 @@ export function NewSessionDialog({
             </div>
           </div>
 
-          {/* Phase 1 (סבב 21): שדה מיקום/חדר. בקליניקה זה משמש לבדיקת חפיפת
-              חדר ברמת ה-organizationId. שדה אופציונלי — מטפל עצמאי שלא רושם
-              location ימשיך לעבוד כמו קודם. */}
+          {/* מיקום / חדר. שלב 2: בקליניקה עם חדרים מוגדרים — בורר חדר (roomId
+              מדויק + בדיקת חפיפת חדר). "ללא חדר" חושף שדה טקסט חופשי (אונליין/
+              כתובת). מטפל/ת עצמאי/ת (אין חדרים) → שדה טקסט כמו קודם, ללא שינוי. */}
           {formData.type !== "BREAK" && (
             <div className="space-y-2">
-              <Label htmlFor="location">מיקום / חדר (אופציונלי)</Label>
-              <Input
-                id="location"
-                placeholder="למשל: חדר 1, אונליין, כתובת מלאה"
-                value={formData.location}
-                onChange={(e) =>
-                  setFormData((prev) => ({ ...prev, location: e.target.value }))
-                }
-                maxLength={500}
-              />
+              {activeRooms.length > 0 ? (
+                <>
+                  <Label htmlFor="roomId">חדר</Label>
+                  <Select
+                    value={pickedRoomId || "__none__"}
+                    onValueChange={(v) => setPickedRoomId(v === "__none__" ? "" : v)}
+                  >
+                    <SelectTrigger id="roomId">
+                      <SelectValue placeholder="בחר/י חדר..." />
+                    </SelectTrigger>
+                    <SelectContent>
+                      <SelectItem value="__none__">ללא חדר</SelectItem>
+                      {activeRooms.map((r) => (
+                        <SelectItem key={r.id} value={r.id}>
+                          {r.name}
+                        </SelectItem>
+                      ))}
+                    </SelectContent>
+                  </Select>
+                  {/* כשלא נבחר חדר — שדה מיקום חופשי (אונליין / כתובת) */}
+                  {!pickedRoomId && (
+                    <Input
+                      id="location"
+                      placeholder="או מיקום אחר (אונליין, כתובת)"
+                      value={formData.location}
+                      onChange={(e) =>
+                        setFormData((prev) => ({ ...prev, location: e.target.value }))
+                      }
+                      maxLength={500}
+                    />
+                  )}
+                </>
+              ) : (
+                <>
+                  <Label htmlFor="location">מיקום / חדר (אופציונלי)</Label>
+                  <Input
+                    id="location"
+                    placeholder="למשל: חדר 1, אונליין, כתובת מלאה"
+                    value={formData.location}
+                    onChange={(e) =>
+                      setFormData((prev) => ({ ...prev, location: e.target.value }))
+                    }
+                    maxLength={500}
+                  />
+                </>
+              )}
             </div>
           )}
 
@@ -1223,6 +1322,12 @@ export function NewSessionDialog({
                       {/* יומן רב-מטפלים: מי המטפל/ת של הפגישה החופפת. */}
                       {isMultiTherapistClinic && c.therapistName && (
                         <span className="block mt-0.5 opacity-80">מטפל/ת: {c.therapistName}</span>
+                      )}
+                      {/* שלב 2 (חדרים): אם ההתנגשות היא על אותו חדר — מבהירים. */}
+                      {c.roomName && (
+                        <span className="block mt-0.5 font-medium text-amber-900">
+                          ⚠ החדר &quot;{c.roomName}&quot; תפוס בשעה זו
+                        </span>
                       )}
                     </div>
                   ))}
