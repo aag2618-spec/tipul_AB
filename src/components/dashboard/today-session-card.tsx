@@ -12,7 +12,7 @@ import {
   DropdownMenuTrigger,
   DropdownMenuSeparator,
 } from "@/components/ui/dropdown-menu";
-import { CheckCircle, ClipboardList, Clock, MoreVertical, User } from "lucide-react";
+import { CheckCircle, ClipboardList, Clock, MoreVertical, NotebookPen, User } from "lucide-react";
 import { QuickMarkPaid } from "@/components/payments/quick-mark-paid";
 import { toast } from "sonner";
 import { ChargeConfirmDialog } from "./charge-confirm-dialog";
@@ -508,6 +508,17 @@ export function TodaySessionCard({ session, context = "dashboard" }: TodaySessio
                       <Link href={`/dashboard/clients/${session.client.id}`} className="cursor-pointer">
                         <User className="h-4 w-4 ml-2" />
                         תיקית מטופל
+                      </Link>
+                    </DropdownMenuItem>
+                  )}
+
+                  {/* הכנה לפגישה — תוכן קליני, רק בדשבורד המטפל (מזכירה מקבלת
+                      SecretaryHome ולא רכיב זה; הדף עצמו חוסם מזכירה כשכבת הגנה). */}
+                  {context === "dashboard" && (
+                    <DropdownMenuItem asChild>
+                      <Link href={`/dashboard/clients/${session.client.id}/prep`} className="cursor-pointer">
+                        <NotebookPen className="h-4 w-4 ml-2" />
+                        הכנה לפגישה
                       </Link>
                     </DropdownMenuItem>
                   )}

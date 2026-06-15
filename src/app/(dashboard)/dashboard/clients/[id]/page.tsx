@@ -28,6 +28,7 @@ import {
   User as UserIcon,
   UserCheck,
   Send,
+  NotebookPen,
 } from "lucide-react";
 import Link from "next/link";
 import { QuickMarkPaid } from "@/components/payments/quick-mark-paid";
@@ -400,6 +401,15 @@ export default async function ClientPage({
           </div>
         </div>
         <div className="flex flex-wrap gap-2 w-full sm:w-auto">
+          {/* הכנה לפגישה — תוכן קליני, מטפל בלבד (מזכירה חסומה גם ברמת הדף). */}
+          {!asSecretary && (
+            <Button variant="outline" asChild>
+              <Link href={`/dashboard/clients/${client.id}/prep`}>
+                <NotebookPen className="ml-2 h-4 w-4" />
+                הכנה לפגישה
+              </Link>
+            </Button>
+          )}
           {canExportClient && (
             <ExportClientButton clientId={client.id} clientName={client.name} />
           )}
