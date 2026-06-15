@@ -139,7 +139,7 @@ export async function PUT(
     // ALLOWED_FOR_SECRETARY בודק אילו שדות הועברו ב-body — ה-passthrough של
     // ה-schema שומר אותם ב-parsed.data. מכאן לוקחים גם את ה-keys לבדיקה.
     const body = parsed.data as Record<string, unknown>;
-    const { startTime, endTime, type, price, location, notes, topic, status, createPayment, markAsPaid, cancellationReason, allowOverlap } = parsed.data;
+    const { startTime, endTime, type, price, location, notes, topic, status, createPayment, markAsPaid, cancellationReason, allowOverlap, roomId } = parsed.data;
 
     const scopeUser = await loadScopeUser(userId);
     const sessionScopeWhere = buildSessionWhere(scopeUser);
@@ -154,6 +154,9 @@ export async function PUT(
         "status",
         "price",
         "location",
+        // שלב 2 (חדרים): מזכירה/מנהלת היא המשתמשת העיקרית של שיוך חדרים
+        // (front-desk) — מותר לה לשנות חדר לפגישה. שיוך חדר אינו תוכן קליני.
+        "roomId",
         "cancellationReason",
         "createPayment",
         "markAsPaid",
@@ -208,11 +211,45 @@ export async function PUT(
           ? Number(existingSession.client.defaultSessionPrice)
           : undefined);
 
+    // שלב 2 (חדרים): שינוי/הסרת חדר לפגישה קיימת. כשנשלח roomId — מאמתים שייכות
+    // לקליניקה וגוזרים location=שם החדר (snapshot עקבי עם POST). roomId ריק/null
+    // → הסרת חדר (location מתאפס). roomData נשאר {} כשלא נשלח roomId — לא נוגעים.
+    let roomData: { roomId?: string | null; location?: string | null } = {};
+    let roomChanging = false;
+    if (roomId !== undefined) {
+      const trimmedRoomId = (roomId ?? "").trim();
+      if (trimmedRoomId === "") {
+        roomData = { roomId: null, location: null };
+        roomChanging = (existingSession.roomId ?? null) !== null;
+      } else {
+        if (!existingSession.organizationId) {
+          return NextResponse.json(
+            { message: "בחירת חדר זמינה רק בקליניקה" },
+            { status: 400 }
+          );
+        }
+        const room = await prisma.clinicRoom.findFirst({
+          where: { id: trimmedRoomId, organizationId: existingSession.organizationId },
+          select: { id: true, name: true },
+        });
+        if (!room) {
+          return NextResponse.json(
+            { message: "החדר הנבחר לא נמצא בקליניקה" },
+            { status: 400 }
+          );
+        }
+        roomData = { roomId: room.id, location: room.name };
+        roomChanging = existingSession.roomId !== room.id;
+      }
+    }
+
+    // newStart/newEnd נגזרים תמיד — נחוצים גם לבדיקת חפיפת חדר בשינוי חדר בלבד
+    // (ללא שינוי זמן). כשהזמן לא משתנה הם פשוט שווים לערכים הקיימים.
+    const newStart = startTime ? parseIsraelTime(startTime) : existingSession.startTime;
+    const newEnd = endTime ? parseIsraelTime(endTime) : existingSession.endTime;
+
     // Check for overlaps when changing time
     if (startTime || endTime) {
-      const newStart = startTime ? parseIsraelTime(startTime) : existingSession.startTime;
-      const newEnd = endTime ? parseIsraelTime(endTime) : existingSession.endTime;
-
       // Same sanity guard as POST — see /api/sessions/route.ts.
       if (newEnd.getTime() <= newStart.getTime()) {
         return NextResponse.json(
@@ -231,6 +268,7 @@ export async function PUT(
       // Phase 2: בדיקת חפיפה ב-PUT חייבת להתבצע על יומן ה-**מטפל היעד** (existingSession.therapistId)
       // ולא של המבצע (userId). אחרת מזכירה/בעלים שמעדכנים פגישה של מטפל אחר
       // יקבלו "אין התנגשות" כי היומן שלהם ריק — ויכתבו double-booking ביומן המטפל.
+      // רץ רק כשהזמן משתנה — שינוי חדר בלבד לא נוגע ביומן המטפל.
       const conflict = await prisma.therapySession.findFirst({
         where: {
           therapistId: existingSession.therapistId,
@@ -271,28 +309,34 @@ export async function PUT(
           { status: 409 }
         );
       }
+    }
 
-      // M5/M11: cross-therapist conflict ברמת הארגון על אותו location.
-      // location החדש (אם נשלח) או הקיים. excludeSessionId — לא להחזיר את עצמה.
-      if (!allowOverlap) {
-        const effectiveLocation =
-          location !== undefined ? location : existingSession.location;
-        const clinicConflict = await findClinicLocationConflict({
-          organizationId: existingSession.organizationId,
-          location: effectiveLocation,
-          // שלב 2 (חדרים): עריכת זמן/גרירה שומרת על אותו חדר — בדיקת חפיפת
-          // החדר לפי ה-FK המדויק (לא רק התאמת location), בעקביות עם POST.
-          roomId: existingSession.roomId,
-          startTime: newStart,
-          endTime: newEnd,
-          excludeSessionId: id,
-        });
-        if (clinicConflict) {
-          return NextResponse.json(
-            { message: buildClinicConflictMessage(clinicConflict) },
-            { status: 409 }
-          );
-        }
+    // M5/M11 + שלב 2 (חדרים): cross-therapist conflict ברמת הארגון על אותו חדר.
+    // רץ כששינוי הזמן **או** שינוי החדר — שינוי חדר בלבד (בלי זמן) עלול ליצור
+    // double-booking על חדר תפוס ולכן חייב להיבדק. משתמשים בחדר/location ה**חדשים**
+    // אם נשלחו, אחרת בקיימים. excludeSessionId — לא להחזיר את הפגישה עצמה.
+    if (!allowOverlap && (startTime || endTime || roomChanging)) {
+      const effectiveRoomId =
+        roomData.roomId !== undefined ? roomData.roomId : existingSession.roomId;
+      const effectiveLocation =
+        roomData.location !== undefined
+          ? roomData.location
+          : location !== undefined
+          ? location
+          : existingSession.location;
+      const clinicConflict = await findClinicLocationConflict({
+        organizationId: existingSession.organizationId,
+        location: effectiveLocation,
+        roomId: effectiveRoomId,
+        startTime: newStart,
+        endTime: newEnd,
+        excludeSessionId: id,
+      });
+      if (clinicConflict) {
+        return NextResponse.json(
+          { message: buildClinicConflictMessage(clinicConflict) },
+          { status: 409 }
+        );
       }
     }
 
@@ -315,7 +359,15 @@ export async function PUT(
         type: type || undefined,
         price: finalPrice,
         topic: topic !== undefined ? topic : undefined,
-        location: location !== undefined ? location : undefined,
+        // שלב 2 (חדרים): כשנשלח roomId — location נגזר משם החדר (או null בהסרה),
+        // וגובר על location שנשלח ב-body. אחרת — location מה-body (טקסט חופשי) כקודם.
+        location:
+          roomData.location !== undefined
+            ? roomData.location
+            : location !== undefined
+            ? location
+            : undefined,
+        ...(roomData.roomId !== undefined ? { roomId: roomData.roomId } : {}),
         notes: notes !== undefined ? notes : undefined,
         status: status || undefined,
         // שמירת פרטי ביטול/אי הופעה
@@ -382,7 +434,8 @@ export async function PUT(
       if (status === "CANCELLED" || status === "NO_SHOW") {
         syncSessionDeletionToGoogleCalendar(userId, therapySession.id, existingSession.googleEventId)
           .catch((err) => logger.error("[GoogleCalendarSync] Delete error:", { error: err instanceof Error ? err.message : String(err) }));
-      } else if (startTime || endTime || location) {
+      } else if (startTime || endTime || location || roomChanging) {
+        // roomChanging — שינוי חדר משנה את location, ולכן צריך לדחוף עדכון ליומן.
         syncSessionUpdateToGoogleCalendar(userId, {
           clientName: therapySession.client?.name || null,
           startTime: therapySession.startTime,

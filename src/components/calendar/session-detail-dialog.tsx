@@ -5,6 +5,7 @@ import { Button } from "@/components/ui/button";
 import { Dialog, DialogContent, DialogDescription, DialogHeader, DialogTitle, DialogFooter } from "@/components/ui/dialog";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
+import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
 import { Trash2, User, Phone, UserCheck, CalendarPlus, Stethoscope, Columns2 } from "lucide-react";
 import { format } from "date-fns";
 import { toast } from "sonner";
@@ -31,6 +32,15 @@ export interface PaymentRequest {
    * would create cascading child PAID rows and corrupt status.
    */
   paymentId?: string;
+}
+
+// שלב 2 (חדרים): אפשרות חדר לבורר "החלפת חדר". מגיע מ-/api/clinic/rooms
+// (ריק למטפל/ת עצמאי/ת — אז הבורר לא יוצג).
+interface ClinicRoomOption {
+  id: string;
+  name: string;
+  isActive: boolean;
+  sortOrder: number;
 }
 
 // ── Props ──
@@ -154,7 +164,68 @@ export function SessionDetailDialog({
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [open, session?.client?.id]);
 
+  // שלב 2 (חדרים): טעינת חדרי הקליניקה לבורר "החלפת חדר". ה-GET מחזיר [] למטפל/ת
+  // עצמאי/ת (אין קליניקה) → הבורר פשוט לא יוצג והדיאלוג זהה לקודם (אילוץ קדוש).
+  const [clinicRooms, setClinicRooms] = useState<ClinicRoomOption[]>([]);
+  const [savingRoom, setSavingRoom] = useState(false);
+
+  useEffect(() => {
+    if (!open) return;
+    let cancelled = false;
+    fetch("/api/clinic/rooms", { cache: "no-store" })
+      .then(async (res) => {
+        if (cancelled || !res.ok) return;
+        const data = await res.json();
+        if (!cancelled) setClinicRooms(Array.isArray(data) ? data : []);
+      })
+      .catch(() => {
+        // שקט — בלי חדרים הבורר פשוט לא יוצג, השדה הטקסטואלי הקיים לא מושפע.
+      });
+    return () => {
+      cancelled = true;
+    };
+  }, [open]);
+
   if (!session) return null;
+
+  // רק חדרים פעילים בבורר. למטפל/ת עצמאי/ת — מערך ריק → הבורר לא יוצג.
+  const activeRooms = clinicRooms.filter((r) => r.isActive);
+  // אם החדר המשויך כרגע הושבת — עדיין מציגים אותו בבורר (עם סימון "לא פעיל"),
+  // כדי שהמשתמש יראה מה משויך ולא placeholder ריק.
+  const currentRoom = session.roomId
+    ? clinicRooms.find((r) => r.id === session.roomId) ?? null
+    : null;
+  const roomOptions =
+    currentRoom && !currentRoom.isActive ? [currentRoom, ...activeRooms] : activeRooms;
+
+  // החלפת/הסרת חדר לפגישה קיימת. שולח PUT עם roomId; השרת גוזר location=שם החדר
+  // ובודק חפיפת חדר. בהצלחה — מעדכן את ה-session המוצג (onSessionChange) דרך תשובת
+  // ה-PUT כדי שהבורר ישקף מיד את החדר החדש, ומרענן את היומן. בכישלון (למשל "החדר
+  // תפוס") — toast עם הודעת השרת, והבורר חוזר אוטומטית לחדר הקודם (value נגזר מה-session).
+  const handleRoomChange = async (value: string) => {
+    const newRoomId = value === "__none__" ? "" : value;
+    if ((session.roomId || "") === newRoomId) return; // ללא שינוי
+    setSavingRoom(true);
+    try {
+      const res = await fetch(`/api/sessions/${session.id}`, {
+        method: "PUT",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ roomId: newRoomId }),
+      });
+      if (!res.ok) {
+        const errData = await res.json().catch(() => null);
+        throw new Error(errData?.message || "שגיאה בעדכון החדר");
+      }
+      const updated = await res.json().catch(() => null);
+      if (updated) onSessionChange(updated);
+      toast.success(newRoomId ? "החדר עודכן" : "החדר הוסר");
+      onDataChanged();
+    } catch (err) {
+      toast.error(err instanceof Error ? err.message : "שגיאה בעדכון החדר");
+    } finally {
+      setSavingRoom(false);
+    }
+  };
 
   const handleDeleteSession = async () => {
     if (!confirm("האם אתה בטוח שברצונך למחוק את הפגישה?")) return;
@@ -648,6 +719,36 @@ export function SessionDetailDialog({
               </div>
             </div>
           )}
+
+          {/* שלב 2 (חדרים): החלפת/הסרת חדר לפגישה עתידית. מגודר ב-roomOptions.length>0 —
+              למטפל/ת עצמאי/ת אין חדרים והבלוק לא מוצג כלל (אילוץ קדוש: התנהגות זהה).
+              השרת גוזר location=שם החדר ובודק חפיפת חדר; "החדר תפוס" יחזור כ-toast. */}
+          {session.status === "SCHEDULED" &&
+            new Date(session.startTime) > new Date() &&
+            session.type !== "BREAK" &&
+            roomOptions.length > 0 && (
+              <div className="border rounded-lg p-4 bg-slate-50 space-y-2">
+                <Label htmlFor="edit-room" className="text-sm font-medium">חדר</Label>
+                <Select
+                  value={session.roomId || "__none__"}
+                  onValueChange={handleRoomChange}
+                  disabled={savingRoom}
+                >
+                  <SelectTrigger id="edit-room" className="text-sm">
+                    <SelectValue placeholder="בחר/י חדר..." />
+                  </SelectTrigger>
+                  <SelectContent>
+                    <SelectItem value="__none__">ללא חדר</SelectItem>
+                    {roomOptions.map((r) => (
+                      <SelectItem key={r.id} value={r.id}>
+                        {r.name}
+                        {!r.isActive ? " (לא פעיל)" : ""}
+                      </SelectItem>
+                    ))}
+                  </SelectContent>
+                </Select>
+              </div>
+            )}
 
           {/* Delete Button - Show for future sessions (but not for breaks) */}
           {session.status === "SCHEDULED" && new Date(session.startTime) > new Date() && session.type !== "BREAK" && (

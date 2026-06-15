@@ -76,6 +76,10 @@ export const updateSessionSchema = z
     markAsPaid: z.boolean().optional(),
     cancellationReason: z.string().max(500).optional().nullable(),
     allowOverlap: z.boolean().optional(),
+    // שלב 2 (חדרים): שינוי/הסרת חדר לפגישה קיימת. מחרוזת ריקה או null → הסרת
+    // החדר. הוולידציה הסמנטית (החדר שייך לקליניקה) + גזירת location=שם החדר
+    // ב-handler. ללא min(1) — בניגוד ל-createSessionSchema — כדי לאפשר "הסרת חדר".
+    roomId: z.string().trim().max(64).optional().nullable(),
   })
   .passthrough();
 export type UpdateSessionInput = z.infer<typeof updateSessionSchema>;
