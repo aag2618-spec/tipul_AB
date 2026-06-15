@@ -5,6 +5,8 @@ import { useRouter } from "next/navigation";
 import Link from "next/link";
 import { Button } from "@/components/ui/button";
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
+import { Input } from "@/components/ui/input";
+import { Label } from "@/components/ui/label";
 import { Calendar, Clock, User, Save, Loader2 } from "lucide-react";
 import { format } from "date-fns";
 import { he } from "date-fns/locale";
@@ -20,6 +22,7 @@ interface SessionData {
   type: string;
   price: number;
   notes: string | null;
+  topic: string | null;
   client: {
     id: string;
     name: string;
@@ -42,9 +45,11 @@ export default function SessionDetailPage({
   const [isLoading, setIsLoading] = useState(true);
   const [isSaving, setIsSaving] = useState(false);
   const [noteContent, setNoteContent] = useState("");
+  const [topic, setTopic] = useState("");
   const [autoSaveStatus, setAutoSaveStatus] = useState<'saved' | 'unsaved' | 'saving' | 'idle'>('idle');
   const autoSaveTimer = useRef<ReturnType<typeof setTimeout> | null>(null);
   const lastSavedContent = useRef<string>("");
+  const lastSavedTopic = useRef<string>("");
 
   useEffect(() => {
     const fetchSession = async () => {
@@ -54,9 +59,11 @@ export default function SessionDetailPage({
           const data = await response.json();
           setSession(data);
           setNoteContent(data.sessionNote?.content || "");
-          // אתחול מצב השמירה: מסמן את התוכן הטעון כ"שמור" כדי שלא תוצג תווית
-          // "שינויים לא שמורים" מיד עם פתיחת פגישה שכבר שמורה.
+          setTopic(data.topic || "");
+          // אתחול מצב השמירה: מסמן את התוכן/הנושא הטעון כ"שמור" כדי שלא תוצג
+          // תווית "שינויים לא שמורים" מיד עם פתיחת פגישה שכבר שמורה.
           lastSavedContent.current = data.sessionNote?.content || "";
+          lastSavedTopic.current = data.topic || "";
         } else {
           toast.error("פגישה לא נמצאה");
           router.push("/dashboard/sessions");
@@ -112,34 +119,75 @@ export default function SessionDetailPage({
   }, [session?.sessionNote?.content]);
 
   const handleSaveNote = async () => {
-    if (!noteContent.trim()) {
-      toast.error("נא להזין תוכן לסיכום");
+    const trimmedNote = noteContent.trim();
+    const trimmedTopic = topic.trim();
+
+    if (!trimmedNote && !trimmedTopic) {
+      toast.error("נא להזין נושא או סיכום");
       return;
     }
 
     setIsSaving(true);
 
     try {
-      const response = await fetch(`/api/sessions/${id}/note`, {
-        method: session?.sessionNote ? "PUT" : "POST",
-        headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ content: noteContent }),
-      });
+      // שמירת הנושא (אם השתנה) דרך PATCH הקליל — לא PUT, שדורס price ב-default.
+      // משווים מול lastSavedTopic (ולא session.topic) כדי שלא תישלח PATCH כפול
+      // אם onBlur כבר שמר את אותו ערך רגע לפני הלחיצה על "שמור".
+      if (trimmedTopic !== lastSavedTopic.current) {
+        const topicRes = await fetch(`/api/sessions/${id}`, {
+          method: "PATCH",
+          headers: { "Content-Type": "application/json" },
+          body: JSON.stringify({ topic: trimmedTopic }),
+        });
+        if (!topicRes.ok) throw new Error();
+        lastSavedTopic.current = trimmedTopic;
+      }
 
-      if (!response.ok) throw new Error();
+      // שמירת הסיכום — רק אם יש תוכן, כדי שאפשר יהיה לשמור נושא לבדו.
+      if (trimmedNote) {
+        const response = await fetch(`/api/sessions/${id}/note`, {
+          method: session?.sessionNote ? "PUT" : "POST",
+          headers: { "Content-Type": "application/json" },
+          body: JSON.stringify({ content: noteContent }),
+        });
+        if (!response.ok) throw new Error();
+        lastSavedContent.current = noteContent;
+      }
 
-      lastSavedContent.current = noteContent;
       setAutoSaveStatus('saved');
       if (autoSaveTimer.current) clearTimeout(autoSaveTimer.current);
-      toast.success("הסיכום נשמר בהצלחה");
+      toast.success("נשמר בהצלחה");
 
       // Refresh session data
       const updatedSession = await fetch(`/api/sessions/${id}`).then(r => r.json());
       setSession(updatedSession);
+      setTopic(updatedSession.topic ?? "");
+      lastSavedTopic.current = updatedSession.topic ?? "";
     } catch {
-      toast.error("שגיאה בשמירת הסיכום");
+      toast.error("שגיאה בשמירה");
     } finally {
       setIsSaving(false);
+    }
+  };
+
+  // שמירת הנושא ברגע שיוצאים מהשדה (onBlur), בנפרד מהסיכום. כך הנושא לא נאבד
+  // אם ה-auto-save של הסיכום ירוץ ויסמן "נשמר" לפני שהמשתמש לחץ "שמור".
+  // PATCH הקליל (לא PUT, שדורס price). שקט — שגיאה תיתפס שוב בלחיצת "שמור".
+  const saveTopicOnBlur = async () => {
+    const trimmedTopic = topic.trim();
+    if (trimmedTopic === lastSavedTopic.current) return;
+    try {
+      const res = await fetch(`/api/sessions/${id}`, {
+        method: "PATCH",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ topic: trimmedTopic }),
+      });
+      if (!res.ok) throw new Error();
+      lastSavedTopic.current = trimmedTopic;
+      setSession((prev) => (prev ? { ...prev, topic: trimmedTopic } : prev));
+      toast.success("הנושא נשמר");
+    } catch {
+      toast.error("שמירת הנושא נכשלה — לחץ שמור או נסה שוב");
     }
   };
 
@@ -248,6 +296,20 @@ export default function SessionDetailPage({
               </div>
             </CardHeader>
             <CardContent>
+              <div className="space-y-2 mb-4">
+                <Label htmlFor="session-topic">נושא הפגישה</Label>
+                <Input
+                  id="session-topic"
+                  placeholder="מילה־שתיים שמתייגות את הפגישה — למשל: מעקב חרדה, יחסים עם ההורים"
+                  value={topic}
+                  maxLength={500}
+                  onChange={(e) => setTopic(e.target.value)}
+                  onBlur={saveTopicOnBlur}
+                />
+                <p className="text-xs text-muted-foreground">
+                  הנושא משמש לזיהוי נושאים חוזרים לאורך הטיפול. הסיכום המלא נכתב למטה.
+                </p>
+              </div>
               <RichTextEditor
                 content={noteContent}
                 onChange={setNoteContent}

@@ -39,9 +39,13 @@ export const createSessionSchema = z.object({
 
 export type CreateSessionInput = z.infer<typeof createSessionSchema>;
 
-// PATCH של [id]/route.ts — רק שדה skipSummary.
+// PATCH של [id]/route.ts — עדכונים נקודתיים קלים: skipSummary (אדמיניסטרטיבי)
+// + topic (נושא הפגישה, תוכן קליני). topic נשמר כאן ולא ב-PUT הכבד כי PUT
+// דורס price ב-default של הלקוח כשהוא נשלח בלי price. חסימת המזכירה מ-topic
+// נאכפת ב-handler (parity עם PUT).
 export const patchSessionSchema = z.object({
   skipSummary: z.boolean().optional(),
+  topic: z.string().max(MAX_TOPIC, "נושא ארוך מדי").optional().nullable(),
 });
 export type PatchSessionInput = z.infer<typeof patchSessionSchema>;
 

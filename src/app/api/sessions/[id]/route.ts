@@ -639,9 +639,20 @@ export async function PATCH(
     // H12: zod אוכף שה-skipSummary הוא boolean (לא truthy של כל ערך).
     const parsed = await parseBody(request, patchSessionSchema);
     if ("error" in parsed) return parsed.error;
-    const { skipSummary } = parsed.data;
+    const { skipSummary, topic } = parsed.data;
 
     const scopeUser = await loadScopeUser(userId);
+
+    // Privacy: topic הוא תוכן קליני (נושא הפגישה). מזכירה חסומה — parity עם
+    // ALLOWED_FOR_SECRETARY ב-PUT, ששם notes/topic נחסמים. skipSummary נשאר
+    // מותר למזכירה (פעולה אדמיניסטרטיבית).
+    if (topic !== undefined && isSecretary(scopeUser)) {
+      return NextResponse.json(
+        { message: "מזכירה לא יכולה לעדכן נושא פגישה" },
+        { status: 403 }
+      );
+    }
+
     const sessionScopeWhere = buildSessionWhere(scopeUser);
 
     const existingSession = await prisma.therapySession.findFirst({
@@ -656,6 +667,7 @@ export async function PATCH(
       where: { id },
       data: {
         skipSummary: skipSummary !== undefined ? skipSummary : undefined,
+        topic: topic !== undefined ? topic : undefined,
       },
     });
 
