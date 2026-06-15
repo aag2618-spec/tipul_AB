@@ -1,6 +1,7 @@
 "use client";
 
 import type { EventContentArg } from "@fullcalendar/core";
+import { Columns2 } from "lucide-react";
 import type { CalendarSession } from "@/hooks/use-calendar-data";
 import { getTherapistAccent } from "@/lib/calendar/event-colors";
 import { Tooltip, TooltipTrigger, TooltipContent } from "@/components/ui/tooltip";
@@ -9,13 +10,16 @@ interface CalendarEventContentProps {
   eventInfo: EventContentArg;
   sessions: CalendarSession[];
   onAddSessionAfter: (session: CalendarSession) => void;
+  // יומן רב-מטפלים: קביעת פגישה *במקביל* על אותה משבצת (מטפל/חדר אחר). מסופק
+  // רק במצב רב-מטפלים; בלעדיו הכפתור לא מוצג והכרטיס מתנהג כמו במטפל יחיד.
+  onAddSessionParallel?: (session: CalendarSession) => void;
   // יומן רב-מטפלים: כשהקליניקה כוללת כמה מטפלים, מציגים שם מטפל + נקודת צבע.
   showTherapist?: boolean;
   // מזהה המשתמש המחובר — הפגישות שלו עצמו נשארות "נקיות" (בלי שם/פס מטפל).
   currentTherapistId?: string | null;
 }
 
-export function CalendarEventContent({ eventInfo, sessions, onAddSessionAfter, showTherapist, currentTherapistId }: CalendarEventContentProps) {
+export function CalendarEventContent({ eventInfo, sessions, onAddSessionAfter, onAddSessionParallel, showTherapist, currentTherapistId }: CalendarEventContentProps) {
   const session = sessions.find(s => s.id === eventInfo.event.id);
   if (!session) return null;
 
@@ -125,16 +129,36 @@ export function CalendarEventContent({ eventInfo, sessions, onAddSessionAfter, s
               <div className="text-[10px] leading-tight opacity-90 mt-0.5 break-words">{session.therapistName}</div>
             )}
           </div>
-          <button
-            onClick={(e) => {
-              e.stopPropagation();
-              onAddSessionAfter(session);
-            }}
-            className="shrink-0 opacity-100 sm:opacity-0 sm:group-hover:opacity-100 transition-opacity bg-white hover:bg-green-50 text-green-600 rounded-full w-8 h-8 sm:w-6 sm:h-6 flex items-center justify-center text-lg font-bold shadow-sm"
-            title="הוסף פגישה מיד אחרי"
-          >
-            +
-          </button>
+          <div className="shrink-0 flex items-center gap-1">
+            {/* יומן רב-מטפלים: "קבע במקביל" — פגישה נוספת על אותה משבצת (מטפל/חדר
+                אחר), בשונה מ-"+" שמוסיף *אחרי*. מוצג רק כשמסופק onAddSessionParallel
+                (כלומר במצב רב-מטפלים), אז יומן מטפל יחיד נשאר עם כפתור "+" בלבד. */}
+            {showTherapist && onAddSessionParallel && (
+              <button
+                onClick={(e) => {
+                  e.stopPropagation();
+                  onAddSessionParallel(session);
+                }}
+                // מוסתר במובייל (hidden) כדי לא לדחוס כרטיסים צרים זה-לצד-זה; שם
+                // נקודת הכניסה היא הכפתור בדיאלוג הפרטים. בדסקטופ מופיע בריחוף בלבד.
+                className="hidden sm:flex items-center justify-center w-6 h-6 sm:opacity-0 sm:group-hover:opacity-100 transition-opacity bg-white hover:bg-indigo-50 text-indigo-600 rounded-full shadow-sm"
+                title="קבע פגישה במקביל (מטפל/חדר אחר, אותה שעה)"
+                aria-label="קבע פגישה במקביל"
+              >
+                <Columns2 className="h-3.5 w-3.5" />
+              </button>
+            )}
+            <button
+              onClick={(e) => {
+                e.stopPropagation();
+                onAddSessionAfter(session);
+              }}
+              className="opacity-100 sm:opacity-0 sm:group-hover:opacity-100 transition-opacity bg-white hover:bg-green-50 text-green-600 rounded-full w-8 h-8 sm:w-6 sm:h-6 flex items-center justify-center text-lg font-bold shadow-sm"
+              title="הוסף פגישה מיד אחרי"
+            >
+              +
+            </button>
+          </div>
         </div>
       </TooltipTrigger>
       {/* חלון מידע צף בריחוף — נפתח מעל המשבצת ולא נחתך ע"י overflow-hidden (מרונדר

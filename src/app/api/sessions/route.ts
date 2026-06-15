@@ -183,14 +183,21 @@ export async function POST(request: NextRequest) {
     const finalTherapistId = resolved.therapistId;
 
     // Step 4: Ownership of client vs target therapist.
-    // מזכירה: אסור לה לקבוע פגישה למטפל X על מטופל ששייך למטפל Y.
-    // OWNER: יכול לקבוע לכל לקוח בקליניקה (בעלים = הרשאת-על).
+    // שיוך חופשי בקליניקה (2026-06-15): בעלים *ומזכירה* רשאים לקבוע פגישה
+    // למטופל אצל מטפל/ת אחר/ת בקליניקה (ממלא מקום / מטפל/ת פנוי/ה), גם אם
+    // המטופל משויך בקביעות למטפל/ת אחר/ת. המטפל היעד כבר אומת ב-
+    // resolveTherapistIdForSession: אותו organizationId, לא חסום, ולא מזכירה —
+    // כך שאין דליפה חוצה-ארגון. מטפל/ת רגיל/ה בקליניקה עדיין חסום/ה מלשייך
+    // מטופל של מטפל/ת אחר/ת. השיוך הקבוע של המטופל אינו משתנה — רק הפגישה
+    // הבודדת נרשמת אצל המטפל/ת שנבחר/ה. (גודר תחת secretaryCan(canCreateClient)
+    // שנבדק בראש ה-POST.)
     let clientDefaultPrice = 0;
     if (type !== "BREAK" && client) {
       if (
         scopeUser.organizationId &&
         client.therapistId !== finalTherapistId &&
-        !isClinicOwner(scopeUser)
+        !isClinicOwner(scopeUser) &&
+        !isSecretary(scopeUser)
       ) {
         return NextResponse.json(
           { message: "המטופל אינו משויך למטפל הנבחר" },

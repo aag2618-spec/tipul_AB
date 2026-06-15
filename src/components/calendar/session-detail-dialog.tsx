@@ -5,7 +5,7 @@ import { Button } from "@/components/ui/button";
 import { Dialog, DialogContent, DialogDescription, DialogHeader, DialogTitle, DialogFooter } from "@/components/ui/dialog";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
-import { Trash2, User, Phone, UserCheck, CalendarPlus, Stethoscope } from "lucide-react";
+import { Trash2, User, Phone, UserCheck, CalendarPlus, Stethoscope, Columns2 } from "lucide-react";
 import { format } from "date-fns";
 import { toast } from "sonner";
 import { useRouter } from "next/navigation";
@@ -63,6 +63,9 @@ interface SessionDetailDialogProps {
   // יומן רב-מטפלים: מזהה המשתמש המחובר — כדי להציג "מטפל: X" רק כשהפגישה
   // שייכת למטפל אחר (לא מציגים למשתמש את שמו שלו).
   currentTherapistId?: string | null;
+  // יומן רב-מטפלים: האם להציג "קבע פגישה במקביל" (קליניקה עם יותר ממטפל אחד).
+  // למטפל יחיד / עצמאי לא מועבר → הכפתור לא מוצג והדיאלוג זהה לקודם.
+  multiTherapist?: boolean;
 }
 
 // ── Component ──
@@ -79,6 +82,7 @@ export function SessionDetailDialog({
   onRequestTimeUpdate,
   canViewPayments = true,
   currentTherapistId,
+  multiTherapist = false,
 }: SessionDetailDialogProps) {
   const router = useRouter();
   const [previousSessions, setPreviousSessions] = useState<Array<{
@@ -542,6 +546,27 @@ export function SessionDetailDialog({
                 : "🕐 מתוכנן"}
             </span>
           </div>
+
+          {/* יומן רב-מטפלים: קביעת פגישה נוספת על *אותה* משבצת (מטפל/חדר אחר).
+              זמין בכל סטטוס — כך אפשר למלא שעה תפוסה בקיבולת פנויה של הקליניקה.
+              מוצג רק במצב רב-מטפלים ולא להפסקה (להפסקה יש כפתור ייעודי למטה). */}
+          {multiTherapist && session.type !== "BREAK" && (
+            <Button
+              variant="outline"
+              className="w-full gap-2 border-indigo-300 text-indigo-700 hover:bg-indigo-50"
+              onClick={() => {
+                onOpenChange(false);
+                onOpenNewSession({
+                  startTime: format(new Date(session.startTime), "yyyy-MM-dd'T'HH:mm"),
+                  endTime: format(new Date(session.endTime), "yyyy-MM-dd'T'HH:mm"),
+                  type: "IN_PERSON",
+                });
+              }}
+            >
+              <Columns2 className="h-4 w-4" />
+              קבע פגישה במקביל (אותה שעה)
+            </Button>
+          )}
 
           {/* נושא הפגישה */}
           {session.topic && (

@@ -192,6 +192,8 @@ function CalendarPageContent() {
     price: string;
     topic: string;
     location?: string;
+    // יומן רב-מטפלים: המטפל/ת היעד לסדרה החוזרת (מבורר המטפל ב-NewSessionDialog).
+    therapistId?: string;
     sessions: Array<{ startTime: string; endTime: string }>;
   } | null>(null);
 
@@ -636,7 +638,7 @@ function CalendarPageContent() {
     const timeStr = format(endTime, "HH:mm");
     const newEndTime = new Date(endTime);
     newEndTime.setMinutes(newEndTime.getMinutes() + defaultSessionDuration);
-    
+
     setInitialFormData({
       clientId: session.client?.id || "",
       startTime: `${dateStr}T${timeStr}`,
@@ -649,6 +651,27 @@ function CalendarPageContent() {
       // Phase 1 (סבב 21): location ריק כברירת מחדל. אם נרצה בעתיד למלא
       // אותו אוטומטית מהפגישה הקודמת — צריך להוסיף `location` ל-CalendarSession
       // ב-use-calendar-data.ts.
+      location: "",
+    });
+    setIsDialogOpen(true);
+  };
+
+  // יומן רב-מטפלים: פתיחת דיאלוג פגישה חדשה על *אותה* משבצת (במקביל) — למטפל/חדר
+  // אחר. בשונה מ-handleAddSessionAfter (שמתחיל בסיום הפגישה), כאן שומרים את אותן
+  // שעת התחלה/סיום ומשאירים את המטופל/מטפל לבחירה בטופס. מחובר רק במצב רב-מטפלים.
+  const handleAddSessionParallel = (session: CalendarSession) => {
+    const startTime = new Date(session.startTime);
+    const endTime = new Date(session.endTime);
+    setSelectedDate(startTime);
+    setInitialFormData({
+      clientId: "",
+      startTime: format(startTime, "yyyy-MM-dd'T'HH:mm"),
+      endTime: format(endTime, "yyyy-MM-dd'T'HH:mm"),
+      type: "IN_PERSON",
+      price: defaultSessionPrice != null ? String(defaultSessionPrice) : "",
+      topic: "",
+      isRecurring: false,
+      weeksToRepeat: 4,
       location: "",
     });
     setIsDialogOpen(true);
@@ -826,6 +849,7 @@ function CalendarPageContent() {
                 eventInfo={eventInfo}
                 sessions={sessions}
                 onAddSessionAfter={handleAddSessionAfter}
+                onAddSessionParallel={handleAddSessionParallel}
                 showTherapist={multiTherapist}
                 currentTherapistId={currentTherapistId}
               />
@@ -887,6 +911,7 @@ function CalendarPageContent() {
         onSessionChange={setSelectedSession}
         currentTherapistId={currentTherapistId}
         canViewPayments={myPermissions.canViewPayments}
+        multiTherapist={multiTherapist}
         onRequestPayment={async (data: PaymentRequest) => {
           // Phase 3: client-side guard — מזכירה ללא canViewPayments לא צריכה
           // להגיע לכאן (הכפתורים מוסתרים), אבל אם משתמש כן מצליח לטריגר

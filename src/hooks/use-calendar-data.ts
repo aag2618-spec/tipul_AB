@@ -13,6 +13,9 @@ export interface CalendarClient {
   defaultSessionPrice?: number | null;
   creditBalance?: number | null;
   isQuickClient?: boolean;
+  // יומן רב-מטפלים: המטפל הקבוע של המטופל. משמש לברירת-מחדל של בורר המטפל
+  // בטופס פגישה ולסינון התנגשות מול המטפל הנכון. אופציונלי לתאימות לאחור.
+  therapistId?: string | null;
 }
 
 export interface CalendarSession {

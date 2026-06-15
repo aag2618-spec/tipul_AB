@@ -53,6 +53,10 @@ export async function GET(request: NextRequest) {
         status: true,
         isQuickClient: true,
         defaultSessionPrice: true,
+        // יומן רב-מטפלים: המטפל הקבוע של המטופל. נצרך בצד-לקוח כדי לברירת-מחדל
+        // את בורר המטפל בטופס פגישה ולסנן התנגשות מול המטפל הנכון. שדה תפעולי
+        // (לא PHI). למטפל יחיד/עצמאי תמיד = הוא עצמו.
+        therapistId: true,
         createdAt: true,
         _count: {
           select: {

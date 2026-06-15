@@ -204,6 +204,9 @@ export function RecurringPatternDialog({
               // Phase 1 (סבב 21): location נשלח לסדרה חוזרת כדי שבדיקת חפיפת
               // חדר תרוץ גם פר-פגישה. אופציונלי לתאימות לאחור.
               location: pendingFormRecurring.location || undefined,
+              // יומן רב-מטפלים: המטפל/ת היעד לסדרה (אם נבחר/ה בבורר). ריק → השרת
+              // פותר לפי המטופל (התנהגות קיימת).
+              therapistId: pendingFormRecurring.therapistId || undefined,
               isRecurring: true,
               allowOverlap: isOverlapAllowed || undefined,
             }),

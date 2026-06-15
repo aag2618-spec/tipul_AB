@@ -59,6 +59,10 @@ export interface PendingFormRecurring {
   // Phase 1 (סבב 21): מיקום משותף לכל הפגישות בסדרה החוזרת — נשלח ל-/api/sessions
   // POST כדי שבדיקת חפיפת חדר תרוץ. אופציונלי לתאימות לאחור.
   location?: string;
+  // יומן רב-מטפלים: המטפל היעד לכל הסדרה. נשלח ל-/api/sessions POST כדי
+  // שהסדרה תיווצר אצל המטפל שנבחר (לא אצל המטפל הקבוע של המטופל). ריק/undefined
+  // → השרת פותר לפי המטופל (התנהגות קיימת).
+  therapistId?: string;
   sessions: Array<{ startTime: string; endTime: string }>;
 }
 
@@ -173,7 +177,7 @@ export function NewSessionDialog({
 
   // התנגשות בפגישה בודדת — state
   const [conflictPrompt, setConflictPrompt] = useState<{
-    conflicts: Array<{ id: string; clientName: string; startTime: string; endTime: string }>;
+    conflicts: Array<{ id: string; clientName: string; startTime: string; endTime: string; therapistName?: string | null }>;
     pendingPayload: {
       clientId: string;
       startTime: string;
@@ -185,9 +189,19 @@ export function NewSessionDialog({
       // ל-submitSingleSession בעת replace/allowOverlap. במציאות תמיד
       // נשלח (כי ה-payload המקורי כולל אותו) — זו רק התאמת טיפוס.
       location: string | undefined;
+      // יומן רב-מטפלים: המטפל היעד. נשמר ב-payload כדי שבחירת replace/allowOverlap
+      // תיצור את הפגישה אצל המטפל הנכון.
+      therapistId: string | undefined;
     };
   } | null>(null);
   const [conflictDecision, setConflictDecision] = useState<"replace" | "create">("replace");
+
+  // בורר מטפל (יומן רב-מטפלים): ברירת מחדל למטפל הקבוע של המטופל שכבר נבחר
+  // ב-initialFormData (פתיחה מ"קבע במקביל" / מדף מטופל). נגזר כ**מחרוזת יציבה**
+  // ולא דרך reference של מערך `clients`, כדי שרענון רשימת המטופלים תוך כדי
+  // שהדיאלוג פתוח לא יפעיל את אפקט האיפוס וידרוס את הטופס בעריכה.
+  const initialClientTherapistId =
+    clients.find((c) => c.id === initialFormData.clientId)?.therapistId || "";
 
   // Reset internal state when dialog opens with new initial data
   useEffect(() => {
@@ -205,9 +219,9 @@ export function NewSessionDialog({
       setConflictDecision("replace");
       setClientSearch("");
       setClientListOpen(false);
-      setPickedTherapistId("");
+      setPickedTherapistId(initialClientTherapistId);
     }
-  }, [open, initialFormData, defaultSessionDuration]);
+  }, [open, initialFormData, defaultSessionDuration, initialClientTherapistId]);
 
   // Phase 3: טעינת רשימת מטפלי הקליניקה רק ל-OWNER/SECRETARY (כשהדיאלוג פתוח).
   // ה-API מחזיר 403 ל-THERAPIST/עצמאי, אז פשוט לא קוראים אותו אצלם. toast.error
@@ -277,6 +291,20 @@ export function NewSessionDialog({
 
   // המטופל שנבחר כרגע — מוצג כשהרשימה מכווצת (במקום כל הרשימה).
   const pickedClient = clients.find((c) => c.id === formData.clientId) ?? null;
+
+  // יומן רב-מטפלים: בורר מטפל בטופס הרגיל מוצג רק לבעלים/מזכירה בקליניקה עם
+  // יותר ממטפל אחד. למטפל יחיד / עצמאי אין picker — והכל מתנהג כמו היום.
+  const isMultiTherapistClinic = clinicTherapists.length > 1;
+  // המטפל היעד של הפגישה: בחירה מפורשת בבורר > המטפל הקבוע של המטופל. null אם לא ידוע.
+  // בהפסקה (BREAK) אין מטפל יעד נבחר — מתעלמים מהבורר ונופלים להתנהגות הקיימת
+  // (בדיקת חפיפה מול כל הפגישות הטעונות), כך שהפסקה לא "תיגנב" למטפל אחר.
+  const targetTherapistId =
+    formData.type === "BREAK"
+      ? null
+      : (canPickTherapist && pickedTherapistId) || pickedClient?.therapistId || null;
+  // שם המטפל/ת הקבוע/ה של המטופל הנבחר — לחיווי "ממלא מקום" כשבוחרים מטפל אחר.
+  const clientPrimaryTherapistName =
+    clinicTherapists.find((t) => t.id === pickedClient?.therapistId)?.name ?? null;
 
   // זיהוי חזרה — כשמקלידים שם, חיפוש בפונים קיימים
   useEffect(() => {
@@ -428,6 +456,15 @@ export function NewSessionDialog({
           const key = `form_${dateStr}_${timeStr}_${idx}`;
           const overlap = rangeSessions.find((s: CalendarSession) => {
             if (s.status === "CANCELLED") return false;
+            // יומן רב-מטפלים: פגישת מטפל/ת אחר/ת אינה התנגשות (כמו בפגישה בודדת).
+            if (
+              isMultiTherapistClinic &&
+              targetTherapistId &&
+              s.therapistId &&
+              s.therapistId !== targetTherapistId
+            ) {
+              return false;
+            }
             const sStart = new Date(s.startTime);
             const sEnd = new Date(s.endTime);
             return p.start < sEnd && p.end > sStart;
@@ -465,6 +502,11 @@ export function NewSessionDialog({
             price: formData.price,
             topic: formData.topic.trim(),
             location: formData.location.trim() || undefined,
+            // יומן רב-מטפלים: המטפל/ת היעד לסדרה כולה (אם נבחר/ה). לא להפסקה.
+            therapistId:
+              formData.type !== "BREAK" && canPickTherapist && pickedTherapistId
+                ? pickedTherapistId
+                : undefined,
             sessions: planned.map((p) => ({ startTime: p.startLocal, endTime: p.endLocal })),
           }
         );
@@ -487,6 +529,18 @@ export function NewSessionDialog({
       // מבטלת רק אחת ומשאירה את האחרות, וזה יוצר חפיפה חדשה.
       const conflicts = sessions.filter((s) => {
         if (s.status === "CANCELLED" || s.status === "COMPLETED" || s.status === "NO_SHOW") return false;
+        // יומן רב-מטפלים: פגישה של מטפל/ת *אחר/ת* אינה התנגשות — מטפל/ת פנוי/ה
+        // יכול/ה לקבל מטופל באותה שעה. מסננים אותה החוצה רק כשידוע מי המטפל היעד
+        // וזו קליניקה רב-מטפלית. למטפל יחיד / עצמאי, targetTherapistId הוא הוא עצמו
+        // וכל הפגישות שלו ממילא נכללות — אז ההתנהגות זהה לקודם (אין רגרסיה).
+        if (
+          isMultiTherapistClinic &&
+          targetTherapistId &&
+          s.therapistId &&
+          s.therapistId !== targetTherapistId
+        ) {
+          return false;
+        }
         const sStart = new Date(s.startTime);
         const sEnd = new Date(s.endTime);
         return newStart < sEnd && newEnd > sStart;
@@ -502,6 +556,13 @@ export function NewSessionDialog({
         // Phase 1 (סבב 21): שולחים location לשרת כדי שבדיקת חפיפת חדר
         // (findClinicLocationConflict) תרוץ. ריק → undefined → השרת לא יבדוק.
         location: formData.location.trim() || undefined,
+        // יומן רב-מטפלים: שולחים את המטפל/ת שנבחר/ה. ריק → undefined → השרת פותר
+        // לפי המטפל/ת הקבוע/ה של המטופל (התנהגות קיימת למטפל יחיד / ללא בורר).
+        // בהפסקה לא שולחים מטפל יעד — הפסקה תמיד שייכת למבצע (לא ל"מטפל הנבחר").
+        therapistId:
+          formData.type !== "BREAK" && canPickTherapist && pickedTherapistId
+            ? pickedTherapistId
+            : undefined,
       };
 
       if (conflicts.length > 0) {
@@ -512,6 +573,9 @@ export function NewSessionDialog({
             clientName: c.client?.name || (c.type === "BREAK" ? "הפסקה" : "ללא שם"),
             startTime: typeof c.startTime === "string" ? c.startTime : new Date(c.startTime).toISOString(),
             endTime: typeof c.endTime === "string" ? c.endTime : new Date(c.endTime).toISOString(),
+            // יומן רב-מטפלים: שם המטפל/ת של הפגישה החופפת — להבחין בין התנגשות
+            // אצל אותו מטפל (חמורה) לבין משבצת משותפת (אם תוצג בשלב חדרים).
+            therapistName: c.therapistName ?? null,
           })),
           pendingPayload: payload,
         });
@@ -536,6 +600,7 @@ export function NewSessionDialog({
       price: number;
       topic: string | undefined;
       location: string | undefined;
+      therapistId: string | undefined;
     },
     options?: { allowOverlap?: boolean; replaceSessionIds?: string[] }
   ) => {
@@ -679,6 +744,11 @@ export function NewSessionDialog({
                             }));
                             setClientSearch("");
                             setClientListOpen(false);
+                            // בורר מטפל (יומן רב-מטפלים): ברירת מחדל למטפל הקבוע של
+                            // המטופל שנבחר. ניתן לשינוי ידני אחר כך (ממלא מקום / מטפל פנוי).
+                            if (canPickTherapist && client.therapistId) {
+                              setPickedTherapistId(client.therapistId);
+                            }
                           }}
                           className={`w-full text-right px-3 py-2.5 text-sm transition-colors border-b border-border last:border-0 flex items-center justify-between gap-2 ${
                             isSelected ? "bg-primary/10 font-medium" : "hover:bg-muted"
@@ -702,6 +772,46 @@ export function NewSessionDialog({
                   <span className="text-xs text-muted-foreground mr-auto shrink-0">שינוי</span>
                 </button>
               ) : null}
+            </div>
+          )}
+
+          {/* יומן רב-מטפלים: בורר מטפל/ת לפגישה (טופס רגיל). מאפשר לבעלים/מזכירה
+              לקבוע פגישה אצל מטפל/ת פנוי/ה — גם על משבצת תפוסה אצל מטפל אחר, וגם
+              למטופל ששייך בקביעות למטפל אחר (ממלא מקום). מוצג רק בקליניקה עם יותר
+              ממטפל אחד; למטפל יחיד / עצמאי לא קיים כלל, אז היומן הרגיל לא משתנה. */}
+          {formData.type !== "BREAK" && !isQuickClientMode && canPickTherapist && isMultiTherapistClinic && (
+            <div className="space-y-1.5">
+              <Label htmlFor="sessionTherapistId" className="flex items-center gap-1.5">
+                <Users className="h-3.5 w-3.5 text-muted-foreground" />
+                מטפל/ת לפגישה
+              </Label>
+              <Select
+                value={pickedTherapistId}
+                onValueChange={(value) => setPickedTherapistId(value)}
+                disabled={isSubmitting || loadingTherapists}
+              >
+                <SelectTrigger id="sessionTherapistId" className="h-9">
+                  <SelectValue placeholder={loadingTherapists ? "טוען..." : "בחר/י מטפל/ת..."} />
+                </SelectTrigger>
+                <SelectContent>
+                  {clinicTherapists.map((t) => (
+                    <SelectItem key={t.id} value={t.id}>
+                      {t.name || t.email}
+                      {t.clinicRole === "OWNER" ? " (בעלים)" : ""}
+                    </SelectItem>
+                  ))}
+                </SelectContent>
+              </Select>
+              {/* חיווי "ממלא מקום" — כשנבחר מטפל/ת שונה מהמטפל/ת הקבוע/ה של המטופל. */}
+              {pickedClient?.therapistId &&
+                pickedTherapistId &&
+                pickedTherapistId !== pickedClient.therapistId && (
+                  <p className="text-xs text-amber-700 bg-amber-50 border border-amber-200 rounded px-2 py-1.5">
+                    שים/י לב: המטופל/ת משויך/ת בקביעות{" "}
+                    {clientPrimaryTherapistName ? `ל־${clientPrimaryTherapistName}` : "למטפל/ת אחר/ת"}.
+                    הפגישה הזו תיווצר אצל המטפל/ת שנבחר/ה כאן בלבד — השיוך הקבוע לא ישתנה.
+                  </p>
+                )}
             </div>
           )}
 
@@ -1110,6 +1220,10 @@ export function NewSessionDialog({
                       {new Date(c.startTime).toLocaleTimeString("he-IL", { hour: "2-digit", minute: "2-digit", timeZone: "Asia/Jerusalem" })}
                       {" - "}
                       {new Date(c.endTime).toLocaleTimeString("he-IL", { hour: "2-digit", minute: "2-digit", timeZone: "Asia/Jerusalem" })}
+                      {/* יומן רב-מטפלים: מי המטפל/ת של הפגישה החופפת. */}
+                      {isMultiTherapistClinic && c.therapistName && (
+                        <span className="block mt-0.5 opacity-80">מטפל/ת: {c.therapistName}</span>
+                      )}
                     </div>
                   ))}
                 </div>
