@@ -113,6 +113,18 @@ export async function GET(
           },
         }
       : therapySession;
+
+    // Privacy (חוק זכויות החולה): topic/notes הם scalars קליניים
+    // (CLINICAL_FIELDS_BLOCKED_FOR_SECRETARY.session ב-scope.ts) ש-Prisma
+    // `include` מחזיר אוטומטית. הם לא מוצגים ב-UI אך נשלחים ב-JSON וניתנים
+    // לחילוץ דרך DevTools — לכן מסננים מהתגובה למזכירה. parity עם
+    // /api/sessions/calendar. roomId/location נשמרים (אדמיניסטרטיביים —
+    // נדרשים לבורר החדר ולזיהוי חפיפת חדר).
+    if (isSecretary(scopeUser)) {
+      // eslint-disable-next-line @typescript-eslint/no-unused-vars
+      const { topic, notes, ...rest } = enriched as unknown as Record<string, unknown>;
+      return NextResponse.json(serializePrisma(rest));
+    }
     return NextResponse.json(serializePrisma(enriched));
   } catch (error) {
     logger.error("Get session error:", { error: error instanceof Error ? error.message : String(error) });
@@ -669,6 +681,16 @@ export async function PUT(
           },
         }
       : updatedSession;
+
+    // Privacy (חוק זכויות החולה): כמו ב-GET — ה-include הדו-צורתי מחזיר את כל
+    // ה-scalars כולל topic/notes (תוכן קליני). מסננים מהתגובה למזכירה.
+    // roomId/location נשמרים (נדרשים לבורר החדר/חפיפת חדר). parity עם calendar.
+    // rename ל-_topic/_notes כי topic/notes כבר ב-scope (parsed.data למעלה).
+    if (enrichedUpdated && isSecretary(scopeUser)) {
+      // eslint-disable-next-line @typescript-eslint/no-unused-vars
+      const { topic: _topic, notes: _notes, ...rest } = enrichedUpdated as unknown as Record<string, unknown>;
+      return NextResponse.json(serializePrisma(rest));
+    }
     return NextResponse.json(serializePrisma(enrichedUpdated));
   } catch (error) {
     logger.error("Update session error:", { error: error instanceof Error ? error.message : String(error) });
@@ -726,6 +748,14 @@ export async function PATCH(
 
     // WRITE_SUMMARY tasks no longer used - skipSummary flag on session is the source of truth
 
+    // Privacy (חוק זכויות החולה): prisma.update מחזיר את כל ה-scalars, כולל
+    // topic/notes הקיימים. מזכירה (שמותר לה skipSummary בלבד — topic בקלט
+    // כבר חסום ב-403 למעלה) לא תקבל תוכן קליני בתגובה. parity עם GET/PUT.
+    if (isSecretary(scopeUser)) {
+      // eslint-disable-next-line @typescript-eslint/no-unused-vars
+      const { topic: _topic, notes: _notes, ...rest } = updatedSession as unknown as Record<string, unknown>;
+      return NextResponse.json(serializePrisma(rest));
+    }
     return NextResponse.json(serializePrisma(updatedSession));
   } catch (error) {
     logger.error("Patch session error:", { error: error instanceof Error ? error.message : String(error) });
