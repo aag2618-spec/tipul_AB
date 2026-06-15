@@ -303,6 +303,12 @@ export function RecurringPatternDialog({
                         {" - "}
                         {new Date(item.conflictWith.endTime).toLocaleTimeString("he-IL", { hour: "2-digit", minute: "2-digit" })}
                       </div>
+                      {/* שלב 2 (חדרים): סיבת ההתנגשות כשהיא על החדר שנבחר — כמו בפגישה בודדת. */}
+                      {item.conflictWith.roomName && (
+                        <div className="text-xs font-medium text-amber-900 bg-amber-100 rounded px-2 py-1">
+                          ⚠ החדר &quot;{item.conflictWith.roomName}&quot; תפוס בשעה זו
+                        </div>
+                      )}
                       <div className="flex flex-col gap-1.5">
                         <label className="flex items-center gap-2 text-sm cursor-pointer">
                           <input

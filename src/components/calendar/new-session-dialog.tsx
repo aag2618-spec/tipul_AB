@@ -56,7 +56,9 @@ export interface RecurringPreviewItem {
   clientId: string;
   patternId: string;
   status: "ok" | "conflict";
-  conflictWith?: { id: string; clientName: string; startTime: string; endTime: string };
+  // שלב 2 (חדרים): roomName מצוין רק כשההתנגשות היא על *החדר שנבחר* (אותו roomId),
+  // כדי שהתצוגה המקדימה של הסדרה תבהיר "החדר תפוס" בדיוק כמו בפגישה בודדת.
+  conflictWith?: { id: string; clientName: string; startTime: string; endTime: string; roomName?: string | null };
 }
 
 export interface PendingFormRecurring {
@@ -531,6 +533,11 @@ export function NewSessionDialog({
                   clientName: overlap.client?.name || (overlap.type === "BREAK" ? "הפסקה" : "ללא שם"),
                   startTime: overlap.startTime,
                   endTime: overlap.endTime,
+                  // שלב 2 (חדרים): סיבת ההתנגשות — שם החדר, רק כשהיא על החדר שנבחר.
+                  roomName:
+                    targetRoomId && overlap.roomId === targetRoomId
+                      ? pickedRoom?.name ?? null
+                      : null,
                 }
               : undefined,
           };
