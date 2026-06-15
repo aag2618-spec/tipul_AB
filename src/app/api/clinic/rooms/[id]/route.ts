@@ -26,10 +26,11 @@ export async function PUT(
     if ("error" in parsed) return parsed.error;
     const { name, isActive, sortOrder } = parsed.data;
 
-    // אימות tenant — החדר חייב להיות של הקליניקה של הבעלים.
+    // אימות tenant — החדר חייב להיות של הקליניקה של הבעלים. name נשלף כדי
+    // להחליט אם צריך לסנכרן את ה-location בפגישות (רק כששם החדר באמת השתנה).
     const room = await prisma.clinicRoom.findUnique({
       where: { id },
-      select: { id: true, organizationId: true },
+      select: { id: true, organizationId: true, name: true },
     });
     if (!room || room.organizationId !== organizationId) {
       return NextResponse.json({ message: "החדר לא נמצא" }, { status: 404 });
@@ -63,6 +64,33 @@ export async function PUT(
         ...(sortOrder !== undefined ? { sortOrder } : {}),
       },
     });
+
+    // עקביות שם חדר (שלב 2): location בפגישה הוא snapshot של שם החדר בעת היצירה.
+    // בשינוי שם — מסנכרנים את location בכל הפגישות המשויכות לחדר (לפי ה-FK roomId),
+    // כדי שתזכורות מייל, הודעות חפיפה ("החדר X תפוס") וסנכרון עתידי ליומן יציגו
+    // את השם המעודכן. roomId נשאר מקור-האמת — זו רק רענון של ה-cache הדה-נורמלי.
+    // מוגבל ל-organizationId להגנת tenant. הערה מודעת: אירועי Google שכבר נדחפו
+    // לא מתעדכנים עד העריכה הבאה של הפגישה (re-push המוני אינו פרופורציונלי).
+    if (name !== undefined && name !== room.name) {
+      try {
+        const synced = await prisma.therapySession.updateMany({
+          where: { roomId: id, organizationId },
+          data: { location: name },
+        });
+        logger.info("[clinic/rooms/[id]] room renamed — synced session location", {
+          organizationId,
+          roomId: id,
+          updatedSessions: synced.count,
+        });
+      } catch (propErr) {
+        // לא חוסם — שינוי השם עצמו הצליח; סנכרון ה-location הוא best-effort.
+        logger.error("[clinic/rooms/[id]] session location sync failed after rename", {
+          organizationId,
+          roomId: id,
+          error: propErr instanceof Error ? propErr.message : String(propErr),
+        });
+      }
+    }
 
     const updated = await prisma.clinicRoom.findUnique({
       where: { id },
