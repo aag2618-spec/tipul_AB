@@ -213,6 +213,13 @@ export default function ClinicRoomsPage() {
               )}
             </Button>
           </div>
+          {/* רמז: הכפתור מושבת כל עוד השדה ריק. מוצג רק במצב הזה כדי להבהיר
+              שהטקסט האפור הוא דוגמה (placeholder) ולא ערך אמיתי. */}
+          {!newName.trim() && !creating && (
+            <p className="text-xs text-muted-foreground mt-2">
+              הקלד/י שם חדר כדי להפעיל את כפתור ההוספה.
+            </p>
+          )}
         </CardContent>
       </Card>
 
