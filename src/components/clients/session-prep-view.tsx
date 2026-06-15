@@ -205,7 +205,7 @@ export function SessionPrepView({
                 >
                   <Tag className="h-3.5 w-3.5 text-muted-foreground" />
                   {topic}
-                  <span className="inline-flex items-center justify-center min-w-5 h-5 px-1 rounded-full bg-primary/15 text-primary text-xs font-semibold">
+                  <span className="inline-flex items-center justify-center min-w-5 h-5 px-1 rounded-full bg-primary/10 text-primary text-xs font-semibold">
                     {count}
                   </span>
                 </Badge>
@@ -216,8 +216,8 @@ export function SessionPrepView({
               <Tag className="mx-auto h-10 w-10 mb-2 opacity-40" />
               <p>עדיין לא תויגו נושאים</p>
               <p className="text-sm">
-                מלא/י את שדה &quot;נושא הפגישה&quot; במסך הסיכום כדי לראות כאן נושאים
-                חוזרים
+                כשממלאים את שדה &quot;נושא הפגישה&quot; במסך הסיכום, הנושאים החוזרים
+                יופיעו כאן
               </p>
             </div>
           )}
@@ -254,7 +254,7 @@ export function SessionPrepView({
 
           {range === "custom" && (
             <div className="flex items-end gap-3 pt-3 flex-wrap">
-              <div className="space-y-1">
+              <div className="space-y-1 flex-1 sm:flex-none">
                 <Label htmlFor="prep-from" className="text-xs">
                   מתאריך
                 </Label>
@@ -263,10 +263,10 @@ export function SessionPrepView({
                   type="date"
                   value={fromDate}
                   onChange={(e) => setFromDate(e.target.value)}
-                  className="w-[160px]"
+                  className="w-full sm:w-[160px]"
                 />
               </div>
-              <div className="space-y-1">
+              <div className="space-y-1 flex-1 sm:flex-none">
                 <Label htmlFor="prep-to" className="text-xs">
                   עד תאריך
                 </Label>
@@ -275,7 +275,7 @@ export function SessionPrepView({
                   type="date"
                   value={toDate}
                   onChange={(e) => setToDate(e.target.value)}
-                  className="w-[160px]"
+                  className="w-full sm:w-[160px]"
                 />
               </div>
             </div>
@@ -287,7 +287,7 @@ export function SessionPrepView({
               <div key={s.id} className="rounded-xl border bg-card">
                 <div className="flex items-center justify-between gap-3 border-b bg-muted/30 px-4 py-2.5 rounded-t-xl">
                   <div className="flex items-center gap-2.5 flex-wrap">
-                    <span className="inline-flex items-center justify-center h-6 min-w-6 px-1.5 rounded-md bg-emerald-50 text-emerald-700 text-xs font-semibold border border-emerald-100">
+                    <span className="inline-flex items-center justify-center h-6 min-w-6 px-1.5 rounded-md bg-emerald-50 text-emerald-600 text-xs font-semibold">
                       #{numberById.get(s.id)}
                     </span>
                     <span className="text-sm font-medium">
