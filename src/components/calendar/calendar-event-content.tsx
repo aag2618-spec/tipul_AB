@@ -28,12 +28,15 @@ export function CalendarEventContent({ eventInfo, sessions, onAddSessionAfter, o
   if (!session) return null;
 
   // תצוגת רשימה (listWeek): כל פגישה היא שורה רחבה. FullCalendar כבר מציג שעה
-  // ונקודת סטטוס; כאן מוסיפים שם מטופל + שם המטפל (עם צבע) לפגישות של אחרים.
+  // ונקודת סטטוס; כאן מוסיפים שם מטופל + שם המטפל (עם צבע). ביומן הקליניקה —
+  // לכל הפגישות (כולל של הצופה, כמו פס הצבע); מחוץ לו — רק לפגישות של אחרים.
   if (eventInfo.view.type.startsWith("list")) {
     const isOwn = !!(
       currentTherapistId && session.therapistId && session.therapistId === currentTherapistId
     );
-    const showTher = !!(showTherapist && session.therapistId && !isOwn && session.therapistName);
+    const showTher = isClinicCalendar
+      ? !!(showTherapist && session.therapistId && session.therapistName)
+      : !!(showTherapist && session.therapistId && !isOwn && session.therapistName);
     return (
       <span className="flex items-center gap-2 w-full">
         <span className="font-medium">{eventInfo.event.title}</span>
@@ -105,7 +108,14 @@ export function CalendarEventContent({ eventInfo, sessions, onAddSessionAfter, o
   const isOtherTherapist = !!(showTherapist && session.therapistId && !isOwnSession);
   // פס הצבע מזהה את המטפל. שם המטפל עצמו אינו מוצג בכרטיס (היה נחתך ומיותר) —
   // הוא זמין בחלון הריחוף ובתצוגת הרשימה.
-  const showAccent = isOtherTherapist;
+  // ביומן הקליניקה מציגים את פס הצבע (ושם המטפל בריחוף) לכל פגישה שיש לה מטפל,
+  // *כולל* הפגישות של הצופה עצמו — כך שגם המנהל רואה את הצבע הקבוע שלו, בדיוק
+  // כמו שהמזכירה רואה אותו. מחוץ ליומן הקליניקה ("שלי"/עצמאי) — רק לפגישות של
+  // מטפלים אחרים (התנהגות קודמת, "שלי" לא משתנה).
+  const showTherapistIdentity = isClinicCalendar
+    ? !!(showTherapist && session.therapistId)
+    : isOtherTherapist;
+  const showAccent = showTherapistIdentity;
 
   return (
     <Tooltip delayDuration={200}>
@@ -172,7 +182,7 @@ export function CalendarEventContent({ eventInfo, sessions, onAddSessionAfter, o
         <div dir="rtl" className="flex flex-col gap-0.5 text-right">
           <span className="font-semibold">{eventInfo.event.title}</span>
           {eventInfo.timeText && <span className="opacity-90">{eventInfo.timeText}</span>}
-          {isOtherTherapist && session.therapistName && (
+          {showTherapistIdentity && session.therapistName && (
             <span className="flex items-center gap-1.5">
               <span
                 className="inline-block w-2 h-2 rounded-full shrink-0"
