@@ -123,11 +123,11 @@ export default function QuestionnaireResultsPage() {
     }
   };
 
-  // בונה HTML עצמאי לדו"ח עם צבעים קשיחים (hex). חובה: ערכת הצבעים של האתר
-  // היא oklch, ו-html2canvas@1.4.1 לא יודע לפענח oklch — ולכן אי-אפשר לצלם
-  // ישירות את ה-DOM הממוסגר. זה בדיוק הדפוס של ייצוא הקבלות (receipts/page.tsx).
-  // כל נתון מהמשתמש עובר escapeHtml למניעת הזרקת HTML.
-  const buildReportHtml = () => {
+  // בונה מסמך HTML עצמאי ומדפיס אותו דרך iframe מבודד (window.print).
+  // למה הדפסה ולא צילום (html2canvas)? כי הדפדפן מפרק לעמודים נקיים עם שוליים
+  // ולא חותך טקסט באמצע, מטפל בעברית/RTL מצוין, ולא נשבר על ערכת הצבעים oklch.
+  // צבעי hex קשיחים בלבד; כל נתון מהמשתמש עובר escapeHtml למניעת הזרקת HTML.
+  const buildPrintHtml = () => {
     if (!response) return "";
     const tmpl = response.template;
     const level = getScoreLevel();
@@ -141,36 +141,28 @@ export default function QuestionnaireResultsPage() {
     });
 
     const levelHex = (label: string | undefined) => {
-      switch (label) {
-        case "מינימלי":
-        case "תקין/מינימלי":
-        case "מתחת לסף":
-          return "#22c55e";
-        case "קל":
-          return "#eab308";
-        case "בינוני":
-          return "#f97316";
-        case "חמור":
-        case "מעל הסף":
-          return "#ef4444";
-        default:
-          return "#64748b";
-      }
+      const l = label || "";
+      if (l.includes("חמור") || l.includes("מעל הסף")) return "#ef4444";
+      if (l.includes("בינוני")) return "#f97316";
+      if (l.includes("קל")) return "#eab308";
+      if (l.includes("מינימלי") || l.includes("תקין") || l.includes("מתחת"))
+        return "#22c55e";
+      return "#64748b";
     };
 
     const subscoresHtml =
       response.subscores && Object.keys(response.subscores).length > 0
-        ? `<div style="margin-top:24px;">
-             <div style="font-weight:700;font-size:16px;margin-bottom:12px;color:#0f172a;">ציונים לפי קטגוריות</div>
-             <div>${Object.entries(response.subscores)
+        ? `<div class="block">
+             <div class="section-title">ציונים לפי קטגוריות</div>
+             <table class="subscores"><tbody>${Object.entries(response.subscores)
                .map(([key, value]) => {
                  const sub = tmpl.scoring?.subscales?.[key];
-                 return `<div style="display:inline-block;width:46%;margin:0 0 12px 2%;vertical-align:top;background:#f1f5f9;border-radius:8px;padding:12px 16px;box-sizing:border-box;">
-                   <div style="font-size:13px;color:#64748b;">${escapeHtml(sub?.name || key)}</div>
-                   <div style="font-size:20px;font-weight:600;color:#0f172a;">${escapeHtml(String(value))}</div>
-                 </div>`;
+                 return `<tr>
+                   <td class="sub-name">${escapeHtml(sub?.name || key)}</td>
+                   <td class="sub-val">${escapeHtml(String(value))}</td>
+                 </tr>`;
                })
-               .join("")}</div>
+               .join("")}</tbody></table>
            </div>`
         : "";
 
@@ -180,34 +172,70 @@ export default function QuestionnaireResultsPage() {
         const opt = q.options?.find((o) => o.value === ans?.value);
         const text = opt?.text ?? ans?.value ?? "-";
         return `<tr>
-          <td style="padding:8px 0;border-bottom:1px solid #f1f5f9;font-size:13px;color:#1e293b;vertical-align:top;text-align:right;"><span style="font-weight:600;">${i + 1}.</span> ${escapeHtml(q.title)}</td>
-          <td style="padding:8px 0;border-bottom:1px solid #f1f5f9;text-align:left;vertical-align:top;white-space:nowrap;"><span style="border:1px solid #cbd5e1;border-radius:6px;padding:2px 8px;color:#475569;font-size:12px;">${escapeHtml(String(text))}</span></td>
+          <td class="q"><span class="qnum">${i + 1}.</span> ${escapeHtml(q.title)}</td>
+          <td class="a"><span class="badge">${escapeHtml(String(text))}</span></td>
         </tr>`;
       })
       .join("");
 
-    return `
-      <div style="width:794px;padding:48px 56px;color:#1e293b;direction:rtl;text-align:right;background:#ffffff;box-sizing:border-box;">
-        <div style="border-bottom:3px solid #0f766e;padding-bottom:16px;margin-bottom:28px;">
-          <div style="font-size:24px;font-weight:800;color:#0f766e;">${escapeHtml(tmpl.name)}</div>
-          <div style="font-size:14px;color:#64748b;margin-top:6px;">${escapeHtml(response.client.name)} • ${escapeHtml(dateStr)}</div>
+    const levelBlock = level
+      ? `<div class="level-wrap"><span class="level" style="background:${levelHex(
+          level.label
+        )}">${escapeHtml(level.label || "")}</span></div>
+         <div class="level-desc">${escapeHtml(level.description || "")}</div>`
+      : "";
+
+    return `<!DOCTYPE html><html dir="rtl" lang="he"><head>
+      <meta charset="utf-8"/>
+      <title>${escapeHtml(`${tmpl.name} - ${response.client.name}`)}</title>
+      <style>
+        * { margin:0; padding:0; box-sizing:border-box; }
+        @page { size:A4; margin:14mm 16mm; }
+        body { font-family:'Segoe UI','Heebo',Arial,sans-serif; color:#1e293b; direction:rtl; text-align:right; -webkit-print-color-adjust:exact; print-color-adjust:exact; }
+        .header { display:flex; align-items:center; justify-content:space-between; gap:24px; border-bottom:3px solid #0f766e; padding-bottom:16px; margin-bottom:26px; }
+        .header .title { font-size:23px; font-weight:800; color:#0f766e; }
+        .header .meta { font-size:14px; color:#64748b; margin-top:6px; }
+        .header .logo { max-height:58px; max-width:185px; width:auto; height:auto; flex-shrink:0; }
+        .score { text-align:center; margin-bottom:26px; }
+        .score .num { font-size:50px; font-weight:800; color:#0f172a; }
+        .score .num small { font-size:22px; color:#94a3b8; font-weight:600; }
+        .level-wrap { margin-top:14px; }
+        .level { display:inline-block; padding:6px 22px; border-radius:999px; color:#fff; font-size:16px; font-weight:700; }
+        .level-desc { color:#64748b; margin-top:10px; font-size:14px; }
+        .block { margin-top:26px; }
+        .section-title { font-weight:700; font-size:16px; margin-bottom:12px; color:#0f172a; page-break-after:avoid; }
+        table.subscores { width:100%; border-collapse:collapse; }
+        table.subscores td { padding:10px 14px; background:#f1f5f9; border-bottom:3px solid #fff; }
+        table.subscores .sub-name { font-size:14px; color:#334155; }
+        table.subscores .sub-val { font-size:18px; font-weight:700; color:#0f172a; text-align:left; width:90px; }
+        table.answers { width:100%; border-collapse:collapse; }
+        table.answers tr { page-break-inside:avoid; }
+        table.answers td { padding:9px 0; border-bottom:1px solid #e2e8f0; font-size:13px; vertical-align:top; }
+        table.answers td.q { color:#1e293b; text-align:right; }
+        table.answers .qnum { color:#0f766e; font-weight:700; }
+        table.answers td.a { text-align:left; white-space:nowrap; width:1%; padding-right:14px; }
+        table.answers .badge { display:inline-block; background:#f0fdfa; border:1px solid #99f6e4; border-radius:6px; padding:3px 12px; color:#0f766e; font-size:12px; font-weight:600; }
+        .footer { margin-top:32px; padding-top:14px; border-top:1px solid #e2e8f0; font-size:11px; color:#94a3b8; text-align:center; }
+      </style>
+    </head><body>
+      <div class="header">
+        <div>
+          <div class="title">${escapeHtml(tmpl.name)}</div>
+          <div class="meta">${escapeHtml(response.client.name)} • ${escapeHtml(dateStr)}</div>
         </div>
-        <div style="text-align:center;margin-bottom:28px;">
-          <div style="font-size:56px;font-weight:800;color:#0f172a;line-height:1;">${response.totalScore ?? "-"}<span style="font-size:24px;color:#94a3b8;font-weight:600;">/${escapeHtml(String(max))}</span></div>
-          ${
-            level
-              ? `<div style="display:inline-block;margin-top:12px;padding:6px 20px;border-radius:999px;background:${levelHex(level.label)};color:#ffffff;font-size:16px;font-weight:700;">${escapeHtml(level.label)}</div>
-                 <div style="color:#64748b;margin-top:10px;font-size:14px;">${escapeHtml(level.description)}</div>`
-              : ""
-          }
-        </div>
-        ${subscoresHtml}
-        <div style="margin-top:28px;">
-          <div style="font-weight:700;font-size:16px;margin-bottom:8px;color:#0f172a;">סיכום תשובות</div>
-          <table style="width:100%;border-collapse:collapse;">${answersHtml}</table>
-        </div>
-        <div style="margin-top:36px;padding-top:14px;border-top:1px solid #e2e8f0;font-size:11px;color:#94a3b8;text-align:center;">הופק על ידי MyTipul • ${escapeHtml(dateStr)}</div>
-      </div>`;
+        <img class="logo" src="/worksheets/mytipul-logo.png" alt="MyTipul" onerror="this.style.display='none'"/>
+      </div>
+      <div class="score">
+        <div class="num">${response.totalScore ?? "-"}<small> / ${escapeHtml(String(max))}</small></div>
+        ${levelBlock}
+      </div>
+      ${subscoresHtml}
+      <div class="block">
+        <div class="section-title">סיכום תשובות</div>
+        <table class="answers"><tbody>${answersHtml}</tbody></table>
+      </div>
+      <div class="footer">הופק על ידי MyTipul • ${escapeHtml(dateStr)}</div>
+    </body></html>`;
   };
 
   const handleDownloadPdf = async () => {
@@ -215,91 +243,61 @@ export default function QuestionnaireResultsPage() {
 
     setDownloadingPdf(true);
     let iframe: HTMLIFrameElement | null = null;
+    const cleanup = () => {
+      if (iframe && iframe.parentNode) {
+        document.body.removeChild(iframe);
+        iframe = null;
+      }
+    };
     try {
-      await document.fonts.ready;
-      const h2cModule = await import("html2canvas");
-      const h2c = h2cModule.default ?? h2cModule;
-      const { jsPDF } = await import("jspdf");
-
-      // מרנדרים את ה-HTML ב-iframe מבודד עם reset וצבעי hex בלבד (ללא oklch).
       iframe = document.createElement("iframe");
       iframe.style.position = "fixed";
       iframe.style.left = "-9999px";
       iframe.style.top = "0";
-      iframe.style.width = "794px";
-      iframe.style.height = "1200px";
-      iframe.style.border = "none";
+      iframe.style.width = "0";
+      iframe.style.height = "0";
+      iframe.style.border = "0";
       document.body.appendChild(iframe);
 
       const iDoc = iframe.contentDocument || iframe.contentWindow?.document;
       if (!iDoc) throw new Error("Cannot access iframe document");
 
       iDoc.open();
-      iDoc.write(
-        `<!DOCTYPE html><html dir="rtl"><head>` +
-          `<link href="https://fonts.googleapis.com/css2?family=Heebo:wght@300;400;500;600;700&display=swap" rel="stylesheet"/>` +
-          `<style>*{margin:0;padding:0;box-sizing:border-box;font-family:'Heebo',sans-serif;}</style>` +
-          `</head><body style="background:white;">${buildReportHtml()}</body></html>`
-      );
+      iDoc.write(buildPrintHtml());
       iDoc.close();
 
-      await new Promise((r) => setTimeout(r, 500));
-      if (iDoc.fonts) await iDoc.fonts.ready;
-
-      // מתאימים את גובה ה-iframe לתוכן המלא כדי ששאלון ארוך לא ייחתך בצילום.
-      const target = (iDoc.body.firstElementChild as HTMLElement) || iDoc.body;
-      const fullHeight = Math.max(target.scrollHeight, target.offsetHeight);
-      iframe.style.height = `${fullHeight + 60}px`;
-      await new Promise((r) => setTimeout(r, 50));
-
-      const canvas = await h2c(target, {
-        scale: 1.5,
-        useCORS: true,
-        backgroundColor: "#ffffff",
-        logging: false,
-        windowWidth: 794,
+      // ממתינים לטעינת הלוגו לפני ההדפסה (אחרת הוא עלול לא להופיע)
+      await new Promise<void>((resolve) => {
+        const imgs = Array.from(iDoc.images || []);
+        if (imgs.length === 0) return resolve();
+        let pending = imgs.length;
+        const done = () => {
+          pending -= 1;
+          if (pending <= 0) resolve();
+        };
+        imgs.forEach((img) => {
+          if (img.complete) done();
+          else {
+            img.addEventListener("load", done);
+            img.addEventListener("error", done);
+          }
+        });
+        setTimeout(resolve, 3000);
       });
 
-      const imgData = canvas.toDataURL("image/png");
-      const pdf = new jsPDF("portrait", "mm", "a4");
-      const pageWidth = 210;
-      const pageHeight = 297;
-      const imgHeight = (canvas.height * pageWidth) / canvas.width;
+      const win = iframe.contentWindow;
+      if (!win) throw new Error("Cannot access iframe window");
 
-      // תוכן ארוך נפרס על פני כמה עמודים
-      let heightLeft = imgHeight;
-      let position = 0;
-      pdf.addImage(imgData, "PNG", 0, position, pageWidth, imgHeight);
-      heightLeft -= pageHeight;
-      while (heightLeft > 0) {
-        position -= pageHeight;
-        pdf.addPage();
-        pdf.addImage(imgData, "PNG", 0, position, pageWidth, imgHeight);
-        heightLeft -= pageHeight;
-      }
-
-      const fileDate = new Date(response.completedAt || response.startedAt)
-        .toLocaleDateString("he-IL")
-        .replace(/\//g, "-");
-      const safeName = `${response.template.name}_${response.client.name}_${fileDate}`.replace(
-        /[\\/:*?"<>|]/g,
-        "-"
-      );
-
-      const blob = pdf.output("blob");
-      const url = URL.createObjectURL(blob);
-      const a = document.createElement("a");
-      a.href = url;
-      a.download = `${safeName}.pdf`;
-      document.body.appendChild(a);
-      a.click();
-      document.body.removeChild(a);
-      URL.revokeObjectURL(url);
+      // ניקוי ה-iframe אחרי שדיאלוג ההדפסה נסגר (+ רשת ביטחון)
+      win.onafterprint = cleanup;
+      win.focus();
+      win.print();
+      setTimeout(cleanup, 60000);
     } catch (err) {
-      console.error("PDF generation error:", err);
-      toast.error("שגיאה ביצירת PDF. נסה שוב מאוחר יותר.");
+      console.error("PDF print error:", err);
+      toast.error('שגיאה בהכנת הדו"ח. נסה שוב מאוחר יותר.');
+      cleanup();
     } finally {
-      if (iframe && iframe.parentNode) document.body.removeChild(iframe);
       setDownloadingPdf(false);
     }
   };
