@@ -184,8 +184,8 @@ export async function SecretaryHome({
                 {clientSessions.length === 0
                   ? "לוח הפגישות של כל המטפלים"
                   : clientSessions.length === 1
-                    ? "פגישה אחת מתוכננת היום"
-                    : `${clientSessions.length} פגישות מתוכננות היום`}
+                    ? "פגישה אחת בלוח היום"
+                    : `${clientSessions.length} פגישות בלוח היום`}
               </CardDescription>
             </div>
             <Button variant="outline" size="sm" asChild>
