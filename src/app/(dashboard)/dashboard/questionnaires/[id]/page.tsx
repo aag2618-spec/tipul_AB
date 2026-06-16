@@ -190,8 +190,10 @@ export default function QuestionnaireResultsPage() {
       <title>${escapeHtml(`${tmpl.name} - ${response.client.name}`)}</title>
       <style>
         * { margin:0; padding:0; box-sizing:border-box; }
-        @page { size:A4 portrait; margin:18mm 20mm; }
-        body { font-family:'Segoe UI','Heebo',Arial,sans-serif; color:#1e293b; direction:rtl; text-align:right; -webkit-print-color-adjust:exact; print-color-adjust:exact; }
+        @page { size:A4 portrait; margin:12mm; }
+        /* padding על ה-body = שוליים שהדפדפן לא יכול לבטל (גם אם הגדרת
+           "שוליים" בדיאלוג היא "ללא"), כך שהתוכן לעולם לא נוגע בקצה. */
+        body { font-family:'Segoe UI','Heebo',Arial,sans-serif; color:#1e293b; direction:rtl; text-align:right; padding:0 10mm; -webkit-print-color-adjust:exact; print-color-adjust:exact; }
         .header { display:flex; align-items:center; justify-content:space-between; gap:24px; border-bottom:3px solid #0f766e; padding-bottom:16px; margin-bottom:26px; }
         .header .title { font-size:23px; font-weight:800; color:#0f766e; }
         .header .meta { font-size:14px; color:#64748b; margin-top:6px; }
