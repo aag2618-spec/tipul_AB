@@ -17,9 +17,13 @@ interface CalendarEventContentProps {
   showTherapist?: boolean;
   // מזהה המשתמש המחובר — הפגישות שלו עצמו נשארות "נקיות" (בלי שם/פס מטפל).
   currentTherapistId?: string | null;
+  // יומן הקליניקה בלבד (תצוגת מזכירה / "כל הקליניקה"): מקטין מעט את כפתורי
+  // הפעולה ומצמצם את הרווח ביניהם, כך שה-"+" לא נחתך בכרטיס צר (חצי-רוחב
+  // בפגישות מקבילות). ב"שלי" / מטפל עצמאי הדגל false והכפתורים נשארים כמו קודם.
+  isClinicCalendar?: boolean;
 }
 
-export function CalendarEventContent({ eventInfo, sessions, onAddSessionAfter, onAddSessionParallel, showTherapist, currentTherapistId }: CalendarEventContentProps) {
+export function CalendarEventContent({ eventInfo, sessions, onAddSessionAfter, onAddSessionParallel, showTherapist, currentTherapistId, isClinicCalendar }: CalendarEventContentProps) {
   const session = sessions.find(s => s.id === eventInfo.event.id);
   if (!session) return null;
 
@@ -93,19 +97,15 @@ export function CalendarEventContent({ eventInfo, sessions, onAddSessionAfter, o
     );
   }
 
-  // יומן רב-מטפלים: פס הצבע ושם המטפל מוצגים רק לפגישות של מטפלים *אחרים*.
-  // הפגישות של המשתמש עצמו נשארות "נקיות" (בלי שם/פס) — הוא ממילא יודע שהן שלו.
+  // יומן רב-מטפלים: פס הצבע מוצג רק לפגישות של מטפלים *אחרים*. הפגישות של
+  // המשתמש עצמו נשארות "נקיות" (בלי פס) — הוא ממילא יודע שהן שלו.
   const isOwnSession = !!(
     currentTherapistId && session.therapistId && session.therapistId === currentTherapistId
   );
   const isOtherTherapist = !!(showTherapist && session.therapistId && !isOwnSession);
-  // משך הפגישה בדקות. בפגישה קצרה (פחות מ-45 דק') אין מקום ל-3 שורות, אז
-  // מוותרים על שורת שם המטפל — פס הצבע עדיין מזהה אותו — כדי ששם המטופל
-  // (החשוב ביותר) לא ייחתך.
-  const durationMin =
-    (new Date(session.endTime).getTime() - new Date(session.startTime).getTime()) / 60000;
+  // פס הצבע מזהה את המטפל. שם המטפל עצמו אינו מוצג בכרטיס (היה נחתך ומיותר) —
+  // הוא זמין בחלון הריחוף ובתצוגת הרשימה.
   const showAccent = isOtherTherapist;
-  const showTherapistName = isOtherTherapist && !!session.therapistName && durationMin >= 45;
 
   return (
     <Tooltip delayDuration={200}>
@@ -125,11 +125,14 @@ export function CalendarEventContent({ eventInfo, sessions, onAddSessionAfter, o
           <div className={`flex-1 min-w-0 overflow-hidden ${showAccent ? "pr-2.5 pl-0.5" : "px-1"}`}>
             <div className="font-semibold text-xs leading-tight break-words">{eventInfo.event.title}</div>
             <div className="text-xs font-semibold opacity-90">{eventInfo.timeText}</div>
-            {showTherapistName && (
-              <div className="text-[10px] leading-tight opacity-90 mt-0.5 break-words">{session.therapistName}</div>
-            )}
           </div>
-          <div className="shrink-0 flex items-center gap-1">
+          {/* יומן הקליניקה: בכרטיס צר (חצי-רוחב בפגישות מקבילות) שני הכפתורים
+              ברוחב מלא (w-6) + רווח רגיל לא נכנסים, וה-"+" (בקצה) נחתך ע"י
+              overflow-hidden — לכן נשאר רק "במקביל". התיקון: ביומן הקליניקה
+              מקטינים מעט את הכפתורים (sm:w-5) ומצמצמים את הרווח (sm:gap-0.5),
+              כך ששניהם נכנסים בחצי-רוחב. נשארים אופקיים (לא ערימה אנכית, שהייתה
+              נחתכת אנכית בכרטיס נמוך/פגישה קצרה). ב"שלי"/עצמאי — בדיוק כמו קודם. */}
+          <div className={`shrink-0 flex items-center gap-1 ${isClinicCalendar ? "sm:gap-0.5" : ""}`}>
             {/* יומן רב-מטפלים: "קבע במקביל" — פגישה נוספת על אותה משבצת (מטפל/חדר
                 אחר), בשונה מ-"+" שמוסיף *אחרי*. מוצג רק כשמסופק onAddSessionParallel
                 (כלומר במצב רב-מטפלים), אז יומן מטפל יחיד נשאר עם כפתור "+" בלבד. */}
@@ -141,7 +144,7 @@ export function CalendarEventContent({ eventInfo, sessions, onAddSessionAfter, o
                 }}
                 // מוסתר במובייל (hidden) כדי לא לדחוס כרטיסים צרים זה-לצד-זה; שם
                 // נקודת הכניסה היא הכפתור בדיאלוג הפרטים. בדסקטופ מופיע בריחוף בלבד.
-                className="hidden sm:flex items-center justify-center w-6 h-6 sm:opacity-0 sm:group-hover:opacity-100 transition-opacity bg-white hover:bg-indigo-50 text-indigo-600 rounded-full shadow-sm"
+                className={`hidden sm:flex items-center justify-center w-6 h-6 ${isClinicCalendar ? "sm:w-5 sm:h-5" : ""} sm:opacity-0 sm:group-hover:opacity-100 transition-opacity bg-white hover:bg-indigo-50 text-indigo-600 rounded-full shadow-sm`}
                 title="קבע פגישה במקביל (מטפל/חדר אחר, אותה שעה)"
                 aria-label="קבע פגישה במקביל"
               >
@@ -153,7 +156,7 @@ export function CalendarEventContent({ eventInfo, sessions, onAddSessionAfter, o
                 e.stopPropagation();
                 onAddSessionAfter(session);
               }}
-              className="opacity-100 sm:opacity-0 sm:group-hover:opacity-100 transition-opacity bg-white hover:bg-green-50 text-green-600 rounded-full w-8 h-8 sm:w-6 sm:h-6 flex items-center justify-center text-lg font-bold shadow-sm"
+              className={`opacity-100 sm:opacity-0 sm:group-hover:opacity-100 transition-opacity bg-white hover:bg-green-50 text-green-600 rounded-full w-8 h-8 ${isClinicCalendar ? "sm:w-5 sm:h-5" : "sm:w-6 sm:h-6"} flex items-center justify-center text-lg font-bold shadow-sm`}
               title="הוסף פגישה מיד אחרי"
             >
               +

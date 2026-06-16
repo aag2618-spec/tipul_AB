@@ -336,6 +336,17 @@
   line-height: 1.15;
 }
 
+/* יומן הקליניקה בלבד (.clinic-cal): הפרדה ויזואלית בין פגישות חופפות/צמודות.
+   טבעת דקה בצבע הרקע (var(--background)) דרך box-shadow — ולא border, כדי לא
+   להתנגש עם .fc-event-pending-pulse / .fc-event-highlighted שמשתמשות ב-border
+   !important. שימוש ב-var(--background) (ולא #fff קשיח) תואם מצב כהה ומתלכד
+   בדיוק עם רקע היומן, כך שכרטיס בודד נראה רגיל ובין כרטיסים צמודים/חופפים
+   נוצר קו הפרדה. לא חל על "שלי"/מטפל עצמאי — שם אין את המחלקה .clinic-cal. */
+.clinic-cal .fc-timegrid-event {
+  box-shadow: 0 0 0 1.5px var(--background);
+  border-radius: 5px;
+}
+
 /* התאמות מובייל ליומן */
 @media (max-width: 768px) {
   /* Toolbar במובייל — flex-wrap וכפתורים גדולים */

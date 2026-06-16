@@ -31,6 +31,7 @@ import { useCalendarActions } from "@/hooks/use-calendar-actions";
 import { ReceiptPreviewDialog } from "@/components/payments/receipt-preview-dialog";
 import { resolveReceiptToShow, tryOpenReceiptInNewTab } from "@/lib/receipt-utils";
 import { getEventColors, getTherapistAccent } from "@/lib/calendar/event-colors";
+import { isClinicCalendarView } from "@/lib/calendar/clinic-view";
 import { NewSessionDialog, DEFAULT_FORM_DATA, type SessionFormData } from "@/components/calendar/new-session-dialog";
 import { RecurringPatternDialog } from "@/components/calendar/recurring-pattern-dialog";
 import { SessionDetailDialog, type PaymentRequest } from "@/components/calendar/session-detail-dialog";
@@ -128,7 +129,7 @@ function CalendarPageContent() {
   // Phase 3: הרשאות מזכירה ל-UI gating ב-SessionDetailDialog. ל-non-secretary
   // (OWNER/THERAPIST/independent) כל ההרשאות true. ה-default האופטימי ב-hook
   // מבטיח שלא יופיע "flash of missing button" לבעלים בזמן הטעינה.
-  const { permissions: myPermissions } = useMyPermissions();
+  const { permissions: myPermissions, isSecretary } = useMyPermissions();
 
   const { updating, updateSessionWithPayment, recordSessionDebt } = useCalendarActions({ fetchData });
   // תצוגת קבלה מיד אחרי עדכון "הושלמה" + תשלום מזומן/צ'ק/העברה ביומן.
@@ -297,6 +298,13 @@ function CalendarPageContent() {
   }, [viewScope, therapists, currentTherapistId]);
 
   const multiTherapist = therapists.length > 1;
+  // יומן הקליניקה (תצוגה רב-מטפלית) מול היומן הרגיל. שיפורי התצוגה (הסרת שם
+  // מטפל מהכרטיס, פריסת כפתורים אנכית, navLinks, הפרדת box-shadow) חלים *רק*
+  // כאן — "שלי" של הבעלים ומטפל עצמאי נשארים בדיוק כמו קודם.
+  //   • מזכירה: תמיד רואה את כל הקליניקה → true.
+  //   • בעלים: רק כשבחר "כל הקליניקה" (viewScope==="clinic").
+  //   • מטפל עצמאי: multiTherapist=false → false.
+  const isClinicCalendar = isClinicCalendarView({ multiTherapist, viewMode: viewScope, isSecretary });
   const allTherapistIds = therapists.map((t) => t.id);
   const isTherapistSelected = (id: string) =>
     !selectedTherapistIds || selectedTherapistIds.has(id);
@@ -799,7 +807,9 @@ function CalendarPageContent() {
       )}
 
       <Card>
-        <CardContent className="p-4">
+        {/* clinic-cal: עוגן ל-CSS של הפרדת הפגישות (box-shadow) — מתווסף רק
+            ביומן הקליניקה, כך שהיומן הרגיל ("שלי"/עצמאי) לא מושפע. */}
+        <CardContent className={`p-4 ${isClinicCalendar ? "clinic-cal" : ""}`}>
           {/* יומן רב-מטפלים: slotEventOverlap={false} גורם לפגישות שמתנגשות באותה
               שעה להופיע אחת ליד השנייה (חצי רוחב כל אחת) במקום אחת על השנייה, כך
               ששתיהן נראות במלואן ואף פגישה לא מסתירה את חברתה. משפיע רק על המשבצת
@@ -838,6 +848,10 @@ function CalendarPageContent() {
             allDaySlot={false}
             slotDuration="00:30:00"
             slotEventOverlap={false}
+            // יומן הקליניקה בלבד: לחיצה על כותרת היום (בשבוע/חודש) עוברת לתצוגה
+            // היומית הברורה. ב"שלי"/עצמאי navLinks=false — כותרות לא לחיצות, כמו קודם.
+            navLinks={isClinicCalendar}
+            navLinkDayClick="timeGridDay"
             events={filteredEvents}
             datesSet={handleDatesSet}
             dateClick={handleDateClick}
@@ -854,6 +868,7 @@ function CalendarPageContent() {
                 onAddSessionParallel={handleAddSessionParallel}
                 showTherapist={multiTherapist}
                 currentTherapistId={currentTherapistId}
+                isClinicCalendar={isClinicCalendar}
               />
             )}
             height="auto"
