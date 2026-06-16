@@ -134,6 +134,10 @@ export async function SecretaryHome({
     timeZone: "Asia/Jerusalem",
   });
 
+  // "עכשיו" לזיהוי פגישות שעבר זמנן (SCHEDULED שה-endTime שלהן בעבר) —
+  // אינדיקציית "לא עודכן", במקביל לכרטיס "פגישות היום" של המטפל.
+  const now = new Date();
+
   // פגישות הלקוחות (ללא הפסקות) הן הליבה של המוקד.
   const clientSessions = todaySessions.filter((s) => s.type !== "BREAK");
 
@@ -198,6 +202,10 @@ export async function SecretaryHome({
                     minute: "2-digit",
                     timeZone: "Asia/Jerusalem",
                   });
+                  // פגישה שעבר זמנה ועדיין SCHEDULED = לא עודכנה (לא הושלמה/בוטלה).
+                  // אינדיקציה בלבד — למזכיר/ה אין כאן פעולת עדכון; רק הסטטוס משתנה.
+                  const isPastUnupdated =
+                    s.status === "SCHEDULED" && new Date(s.endTime) < now;
                   return (
                     <div
                       key={s.id}
@@ -241,8 +249,14 @@ export async function SecretaryHome({
                             בקשת ביטול
                           </Badge>
                         )}
-                        <Badge className={STATUS_BADGE[s.status] || STATUS_BADGE.SCHEDULED}>
-                          {STATUS_LABEL[s.status] || s.status}
+                        <Badge
+                          className={
+                            isPastUnupdated
+                              ? "bg-orange-100 text-orange-700 dark:bg-orange-900/40 dark:text-orange-300"
+                              : STATUS_BADGE[s.status] || STATUS_BADGE.SCHEDULED
+                          }
+                        >
+                          {isPastUnupdated ? "⚠ לא עודכן" : STATUS_LABEL[s.status] || s.status}
                         </Badge>
                       </div>
                     </div>
