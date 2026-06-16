@@ -10,7 +10,7 @@ import { Separator } from "@/components/ui/separator";
 import { 
   ChevronRight,
   FileText,
-  Download,
+  Printer,
   Loader2,
   CheckCircle,
   AlertTriangle,
@@ -190,7 +190,7 @@ export default function QuestionnaireResultsPage() {
       <title>${escapeHtml(`${tmpl.name} - ${response.client.name}`)}</title>
       <style>
         * { margin:0; padding:0; box-sizing:border-box; }
-        @page { size:A4; margin:14mm 16mm; }
+        @page { size:A4 portrait; margin:18mm 20mm; }
         body { font-family:'Segoe UI','Heebo',Arial,sans-serif; color:#1e293b; direction:rtl; text-align:right; -webkit-print-color-adjust:exact; print-color-adjust:exact; }
         .header { display:flex; align-items:center; justify-content:space-between; gap:24px; border-bottom:3px solid #0f766e; padding-bottom:16px; margin-bottom:26px; }
         .header .title { font-size:23px; font-weight:800; color:#0f766e; }
@@ -204,17 +204,17 @@ export default function QuestionnaireResultsPage() {
         .level-desc { color:#64748b; margin-top:10px; font-size:14px; }
         .block { margin-top:26px; }
         .section-title { font-weight:700; font-size:16px; margin-bottom:12px; color:#0f172a; page-break-after:avoid; }
-        table.subscores { width:100%; border-collapse:collapse; }
+        table.subscores { width:100%; border-collapse:collapse; table-layout:fixed; }
         table.subscores td { padding:10px 14px; background:#f1f5f9; border-bottom:3px solid #fff; }
-        table.subscores .sub-name { font-size:14px; color:#334155; }
+        table.subscores .sub-name { font-size:14px; color:#334155; word-wrap:break-word; overflow-wrap:break-word; }
         table.subscores .sub-val { font-size:18px; font-weight:700; color:#0f172a; text-align:left; width:90px; }
-        table.answers { width:100%; border-collapse:collapse; }
+        table.answers { width:100%; border-collapse:collapse; table-layout:fixed; }
         table.answers tr { page-break-inside:avoid; }
-        table.answers td { padding:9px 0; border-bottom:1px solid #e2e8f0; font-size:13px; vertical-align:top; }
-        table.answers td.q { color:#1e293b; text-align:right; }
+        table.answers td { padding:9px 0; border-bottom:1px solid #e2e8f0; font-size:13px; vertical-align:top; word-wrap:break-word; overflow-wrap:break-word; }
+        table.answers td.q { color:#1e293b; text-align:right; width:64%; }
         table.answers .qnum { color:#0f766e; font-weight:700; }
-        table.answers td.a { text-align:left; white-space:nowrap; width:1%; padding-right:14px; }
-        table.answers .badge { display:inline-block; background:#f0fdfa; border:1px solid #99f6e4; border-radius:6px; padding:3px 12px; color:#0f766e; font-size:12px; font-weight:600; }
+        table.answers td.a { text-align:left; width:36%; padding-right:12px; }
+        table.answers .badge { display:inline-block; background:#f0fdfa; border:1px solid #99f6e4; border-radius:6px; padding:3px 12px; color:#0f766e; font-size:12px; font-weight:600; white-space:normal; }
         .footer { margin-top:32px; padding-top:14px; border-top:1px solid #e2e8f0; font-size:11px; color:#94a3b8; text-align:center; }
       </style>
     </head><body>
@@ -512,9 +512,9 @@ export default function QuestionnaireResultsPage() {
                 {downloadingPdf ? (
                   <Loader2 className="h-4 w-4 ml-2 animate-spin" />
                 ) : (
-                  <Download className="h-4 w-4 ml-2" />
+                  <Printer className="h-4 w-4 ml-2" />
                 )}
-                {downloadingPdf ? "מכין PDF..." : 'הורדת דו"ח PDF'}
+                {downloadingPdf ? "מכין..." : "הדפסה / שמירה כ-PDF"}
               </Button>
               
               <Button 
