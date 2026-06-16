@@ -78,6 +78,8 @@ interface SessionCardProps {
   session: Session;
   showCancel: boolean;
   showTherapist?: boolean;
+  /** האם להציג את כפתור "התכונן" (קישור לדף ההכנה הקליני). מזכירה חסומה — false. */
+  canPrepare?: boolean;
   now: Date;
   isWithinWeek: (dateStr: string) => boolean;
   onCancelClick: (session: Session) => void;
@@ -99,6 +101,7 @@ export function SessionCard({
   session: s,
   showCancel,
   showTherapist = false,
+  canPrepare = false,
   now,
   isWithinWeek,
   onCancelClick,
@@ -221,17 +224,21 @@ export function SessionCard({
         ) : showCancel ? (
           /* פגישות קרובות — "התכונן" + "תיק מטופל" + "ביטול" */
           <>
-            <Button
-              variant="outline"
-              size="sm"
-              className="flex-1 h-8 text-xs border-muted-foreground/10 hover:bg-muted/30"
-              asChild
-            >
-              <Link href={`/dashboard/sessions/${s.id}`}>
-                <BookOpen className="h-3 w-3 ml-1" />
-                התכונן
-              </Link>
-            </Button>
+            {/* "התכונן" → דף ההכנה הקליני של המטופל (נושאים חוזרים + סיכומים),
+                לא לדף הפגישה הבודדת שריק לפגישה עתידית. מזכירה חסומה (canPrepare=false). */}
+            {canPrepare && s.client && (
+              <Button
+                variant="outline"
+                size="sm"
+                className="flex-1 h-8 text-xs border-muted-foreground/10 hover:bg-muted/30"
+                asChild
+              >
+                <Link href={`/dashboard/clients/${s.client.id}/prep`}>
+                  <BookOpen className="h-3 w-3 ml-1" />
+                  התכונן
+                </Link>
+              </Button>
+            )}
             {s.client && (
               <Button
                 variant="outline"

@@ -68,6 +68,8 @@ export default async function SessionsPage() {
       key={personalOnly ? "personal" : "clinic"}
       initialSessions={serialized}
       showTherapist={showTherapist}
+      // כפתור "התכונן" מקשר לדף ההכנה הקליני שחוסם מזכירה (404). מירור מדויק של אותו guard.
+      canPrepare={!isSecretary(scopeUser)}
     />
   );
 }
