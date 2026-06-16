@@ -115,7 +115,19 @@ export async function GET(request: NextRequest) {
       return { ...s, payment: { ...p, paidAmount } };
     });
 
-    return NextResponse.json(serializePrisma(enriched));
+    // Privacy (חוק זכויות החולה): topic/notes הם scalars קליניים
+    // (CLINICAL_FIELDS_BLOCKED_FOR_SECRETARY.session) ש-Prisma `include` מחזיר
+    // אוטומטית. מסננים מהתגובה למזכירה — parity עם /api/sessions/calendar
+    // ו-/api/sessions/[id]. roomId/location/payment נשמרים (אדמיניסטרטיביים).
+    const finalSessions = isSecretary(scopeUser)
+      ? enriched.map((s) => {
+          // eslint-disable-next-line @typescript-eslint/no-unused-vars
+          const { topic, notes, ...rest } = s as unknown as Record<string, unknown>;
+          return rest;
+        })
+      : enriched;
+
+    return NextResponse.json(serializePrisma(finalSessions));
   } catch (error) {
     logger.error("Get sessions error:", { error: error instanceof Error ? error.message : String(error) });
     return NextResponse.json(
