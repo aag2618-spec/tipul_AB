@@ -439,6 +439,12 @@ export default function ClinicAdminOverviewPage() {
                 דוח עומס מטפלים
               </Link>
             </Button>
+            <Button asChild variant="outline" size="sm" className="w-full">
+              <Link href="/clinic-admin/analytics">
+                <TrendingUp className="ml-2 h-4 w-4" aria-hidden="true" />
+                מגמות ואי-הגעות
+              </Link>
+            </Button>
           </CardContent>
         </Card>
 
