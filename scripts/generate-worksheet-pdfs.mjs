@@ -39,13 +39,15 @@ const FOOTER = `<div style="font-size:8.5px; width:100%; text-align:center; dire
   <a href="https://mytipul.com" style="color:#ea580c; text-decoration:none;">mytipul.com</a>
 </div>`;
 
-// CSS שמוזרק לפני ההמרה: מבטל @page margin (Puppeteer שולט בשוליים) ואת ה-.footer
-// הרגיל (שמופיע פעם בסוף כל חלק). משאיר את ה-.print-footer (position:fixed) — הוא
-// מופיע בכל עמוד והקישור בו נשמר לחיץ ב-PDF.
+// מבטל רק את ה-.footer הרגיל (שמופיע פעם בסוף כל חלק). משאיר את ה-@page margin
+// וה-.sheet כפי שמוגדרים ב-@media print של ה-HTML (שוליים אמיתיים 10mm + buffer) —
+// כדי שה-PDF לא יהיה full-bleed (שגורם לכרום להזיז בהדפסה). ה-.print-footer (position:fixed)
+// נשאר → פוטר לחיץ בכל עמוד.
+// מסיר את ה-buffer האופקי (8mm) שנחוץ רק להדפסת דפדפן — ב-PDF נשארים שולי ה-@page (10mm)
+// שמספיקים. כך הדף לא full-bleed (ממורכז עם שוליים) אך גם לא צר מדי.
 const RESET_CSS = `
-  @page { margin: 0 !important; }
   .footer { display: none !important; }
-  .sheet { padding: 0 !important; margin: 0 !important; max-width: none !important; }
+  .sheet { padding-left: 0 !important; padding-right: 0 !important; }
 `;
 
 function resolveDownloadsDir() {
@@ -103,12 +105,13 @@ for (const file of files) {
   const outPath = path.join(outDir, file.replace(/\.html$/, ".pdf"));
   await page.pdf({
     path: outPath,
-    format: "A4",
     printBackground: true,
     // ללא footerTemplate — Chrome לא שומר בו קישורים לחיצים.
     // הפוטר מגיע מ-.print-footer (position:fixed) של ה-HTML — מופיע בכל עמוד והקישור נשמר.
     displayHeaderFooter: false,
-    margin: { top: "8mm", bottom: "18mm", left: "10mm", right: "10mm" },
+    // משתמש ב-@page (size A4 + margins 8mm 10mm 18mm) של ה-HTML — שוליים אמיתיים,
+    // לא full-bleed. מונע הזזה כשמדפיסים את ה-PDF דרך הדפדפן.
+    preferCSSPageSize: true,
   });
   await page.close();
   console.log(`  ✓ ${path.basename(outPath)}`);
