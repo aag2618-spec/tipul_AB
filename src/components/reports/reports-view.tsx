@@ -2,7 +2,7 @@
 
 import { useState } from "react";
 import { Card, CardContent, CardHeader, CardTitle, CardDescription } from "@/components/ui/card";
-import { ReportsCharts } from "@/components/reports-charts";
+import { ReportsCharts, ReportsDonut, type ColorToken } from "@/components/reports-charts";
 import {
   Users, Calendar, TrendingUp, XCircle,
   Percent, Clock, Shield,
@@ -35,6 +35,12 @@ export interface ReportData {
   clientStatus: { status: string; count: number }[];
   dayDistribution: { day: string; count: number }[];
 }
+
+// צבעי פלחים סמנטיים לגרפי הטבעת (תואמים את פלטת ה-theme, בלי אדום).
+const statusColorToken = (status: string): ColorToken =>
+  status === "פעילים" ? "chart-1" : status === "ממתינים" ? "chart-4" : "neutral";
+const sessionTypeColorToken = (type: string): ColorToken =>
+  type === "פרונטלי" ? "chart-1" : type === "אונליין" ? "chart-2" : "chart-4";
 
 type CardId = "clients" | "sessions" | "income" | "cancellation" | "collection" | "busiest" | "retention";
 
@@ -101,7 +107,7 @@ export function ReportsView({ data }: { data: ReportData }) {
                 <CardDescription>מטופלים חדשים לפי חודש</CardDescription>
               </CardHeader>
               <CardContent>
-                <ReportsCharts data={data.monthlyData} dataKey="newClients" color="hsl(var(--primary))" />
+                <ReportsCharts data={data.monthlyData} dataKey="newClients" colorToken="chart-1" />
               </CardContent>
             </Card>
             <Card>
@@ -109,14 +115,11 @@ export function ReportsView({ data }: { data: ReportData }) {
                 <CardTitle>התפלגות סטטוס מטופלים</CardTitle>
               </CardHeader>
               <CardContent>
-                <div className="space-y-4 pt-4">
-                  {data.clientStatus.map(item => (
-                    <div key={item.status} className="flex items-center justify-between p-3 rounded-lg bg-muted/40">
-                      <span className="font-medium">{item.status}</span>
-                      <span className="font-bold text-lg">{item.count}</span>
-                    </div>
-                  ))}
-                </div>
+                <ReportsDonut
+                  data={data.clientStatus.map(item => ({ name: item.status, value: item.count }))}
+                  colorTokens={data.clientStatus.map(item => statusColorToken(item.status))}
+                  centerLabel="מטופלים"
+                />
               </CardContent>
             </Card>
           </div>
@@ -131,7 +134,7 @@ export function ReportsView({ data }: { data: ReportData }) {
                 <CardDescription>מספר פגישות שהושלמו לפי חודש</CardDescription>
               </CardHeader>
               <CardContent>
-                <ReportsCharts data={data.monthlyData} dataKey="sessions" color="hsl(200, 95%, 45%)" />
+                <ReportsCharts data={data.monthlyData} dataKey="sessions" colorToken="chart-3" />
               </CardContent>
             </Card>
             <Card>
@@ -139,14 +142,11 @@ export function ReportsView({ data }: { data: ReportData }) {
                 <CardTitle>התפלגות סוגי פגישות</CardTitle>
               </CardHeader>
               <CardContent>
-                <div className="space-y-4 pt-4">
-                  {data.sessionTypes.map(item => (
-                    <div key={item.type} className="flex items-center justify-between p-3 rounded-lg bg-muted/40">
-                      <span className="font-medium">{item.type}</span>
-                      <span className="font-bold text-lg">{item.count}</span>
-                    </div>
-                  ))}
-                </div>
+                <ReportsDonut
+                  data={data.sessionTypes.map(item => ({ name: item.type, value: item.count }))}
+                  colorTokens={data.sessionTypes.map(item => sessionTypeColorToken(item.type))}
+                  centerLabel="פגישות"
+                />
               </CardContent>
             </Card>
           </div>
@@ -222,7 +222,7 @@ export function ReportsView({ data }: { data: ReportData }) {
                   data={data.monthlyData}
                   dataKey={incomeMode === "cash" ? "income" : "incomeAccrual"}
                   formatType="currency"
-                  color="hsl(142, 71%, 45%)"
+                  colorToken="chart-2"
                 />
               </div>
             </CardContent>
@@ -239,7 +239,7 @@ export function ReportsView({ data }: { data: ReportData }) {
                 <CardDescription>מספר פגישות שבוטלו לפי חודש</CardDescription>
               </CardHeader>
               <CardContent>
-                <ReportsCharts data={data.monthlyData} dataKey="cancelledSessions" color="hsl(0, 84%, 60%)" />
+                <ReportsCharts data={data.monthlyData} dataKey="cancelledSessions" colorToken="destructive" />
               </CardContent>
             </Card>
             <Card>
@@ -248,7 +248,7 @@ export function ReportsView({ data }: { data: ReportData }) {
                 <CardDescription>אחוז הביטולים מתוך סה״כ פגישות</CardDescription>
               </CardHeader>
               <CardContent>
-                <ReportsCharts data={data.monthlyData} dataKey="cancellationRate" formatType="percentage" color="hsl(0, 84%, 60%)" />
+                <ReportsCharts data={data.monthlyData} dataKey="cancellationRate" formatType="percentage" colorToken="destructive" />
               </CardContent>
             </Card>
           </div>
@@ -263,7 +263,7 @@ export function ReportsView({ data }: { data: ReportData }) {
                 <CardDescription>אחוז הגבייה מתוך סה״כ תשלומים</CardDescription>
               </CardHeader>
               <CardContent>
-                <ReportsCharts data={data.monthlyData} dataKey="collectionRate" formatType="percentage" color="hsl(45, 93%, 47%)" />
+                <ReportsCharts data={data.monthlyData} dataKey="collectionRate" formatType="percentage" colorToken="chart-4" />
               </CardContent>
             </Card>
             <Card>
@@ -302,7 +302,8 @@ export function ReportsView({ data }: { data: ReportData }) {
                 data={data.dayDistribution}
                 dataKey="count"
                 xAxisKey="day"
-                color="hsl(270, 60%, 55%)"
+                type="bar"
+                colorToken="chart-1"
               />
             </CardContent>
           </Card>
