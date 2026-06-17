@@ -38,7 +38,6 @@
     }
 
     * { box-sizing: border-box; margin: 0; padding: 0; }
-    html { scrollbar-gutter: stable both-edges; }
     body {
       font-family: 'Heebo', 'Segoe UI', system-ui, sans-serif;
       background: #e5e7eb;
@@ -206,7 +205,7 @@
     @page { size: A4; margin: 8mm 10mm 18mm 10mm; }
     @media print {
       html, body { background: #fff; font-size: 15px; margin: 0; padding: 0; }
-      .sheet { max-width: none; padding: 0; margin: 0; }
+      .sheet { max-width: none; padding: 0 8mm; margin: 0; }
       .therapist-section, .worksheet-body, .example-section { box-shadow: none; padding: 0; margin-bottom: 0; border-radius: 0; }
       .header, .header-badge, .section-number,
       .scale-row, .scale-dot, .grounding-box, .compassion-box,
@@ -248,7 +247,7 @@
       .therapist-section { break-after: always; page-break-after: always; }
       .example-section { break-before: always; page-break-before: always; }
     }
-    @media (max-width: 640px) {
+    @media screen and (max-width: 640px) {
       .header { flex-direction: column-reverse; text-align: center; padding: 18px; }
       .header-logo { margin: 0 auto 8px; } .header-logo img { height: 120px; }
       .header-meta { justify-content: center; }
