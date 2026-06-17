@@ -119,6 +119,11 @@ function isAdminOnlyPath(pathname: string): boolean {
 const SECRETARY_CLINIC_ADMIN_PATHS = [
   "/clinic-admin/transfer",
   "/clinic-admin/members/by-therapist",
+  // צ׳אט צוות בתוך לייאאוט הקליניקה — לא owner-only: זהו פיצ'ר לכל חבר/ת
+  // קליניקה (הדף אוכף isMember). מזכיר/ה עם הרשאת העברה רואה את הקישור ב-sidebar
+  // הקליניקה; בלי הנתיב כאן ה-middleware היה מפנה אותה ל-/dashboard. ה-API של
+  // הצ'אט (/api/chat/*) אינו תחת /api/clinic-admin ולכן לא דורש whitelist.
+  "/clinic-admin/team-chat",
   "/api/clinic-admin/me",
   "/api/clinic-admin/clients",
   "/api/clinic-admin/clients-by-therapist",

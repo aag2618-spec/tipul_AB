@@ -84,10 +84,11 @@ const navItems: NavItem[] = [
   // סליקה למטפלים — הסדר מסוף הסליקה לכל מטפל/ת (חשבון הקליניקה / חשבון עצמאי).
   // בעלת קליניקה בלבד (החלטת מדיניות/כסף — לא מזכירה), כמו "הגדרות צ׳אט".
   { href: "/clinic-admin/payments", label: "סליקה למטפלים", icon: CreditCard },
-  // צ׳אט צוות — קישור החוצה לדשבורד הצ'אט. מנהל/ת ש"חי/ה" כאן מגיע/ה לצ'אט
-  // בלי לחזור לדשבורד. secretaryWithTransfer=true → גם מזכיר/ה עם הרשאת
-  // העברה (שרואה את הלייאאוט) מקבלת אותו. תג לא-נקראות דרך polling.
-  { href: "/dashboard/team-chat", label: "צ׳אט צוות", icon: MessagesSquare, secretaryWithTransfer: true },
+  // צ׳אט צוות — דף *בתוך* לייאאוט הקליניקה (/clinic-admin/team-chat), לא קישור
+  // החוצה לדשבורד. כך מנהל/ת או מזכיר/ה שנמצא/ת כאן לא "נזרק/ת" לדשבורד המטפל.
+  // secretaryWithTransfer=true → גם מזכיר/ה עם הרשאת העברה (שרואה את הלייאאוט)
+  // מקבלת אותו. תג לא-נקראות דרך polling.
+  { href: "/clinic-admin/team-chat", label: "צ׳אט צוות", icon: MessagesSquare, secretaryWithTransfer: true },
   // הגדרות צ׳אט — אישור המנהלת לצ׳אט בין מטפלים. בעלת קליניקה בלבד (ללא
   // secretaryWithTransfer) — זו החלטת מדיניות של המנהלת, לא של המזכירה.
   { href: "/clinic-admin/chat-settings", label: "הגדרות צ׳אט", icon: ShieldCheck },
@@ -309,7 +310,7 @@ function ClinicAdminContent({ children }: { children: React.ReactNode }) {
                 >
                   <item.icon className="h-4 w-4" />
                   <span>{item.label}</span>
-                  {item.href === "/dashboard/team-chat" && chatUnread > 0 && (
+                  {item.href === "/clinic-admin/team-chat" && chatUnread > 0 && (
                     <span className="ms-auto inline-flex h-5 min-w-5 items-center justify-center rounded-full bg-primary px-1.5 text-xs font-medium text-primary-foreground">
                       {chatUnread}
                     </span>
