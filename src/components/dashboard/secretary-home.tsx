@@ -1,9 +1,10 @@
 // SecretaryHome — מסך נחיתה מותאם למזכיר/ה (front-desk).
 //
 // במקום דשבורד המטפל (כותרת "הפעילות שלך", כרטיס AI, "ממתינים לסיכום"),
-// המזכיר/ה מקבל/ת מוקד יומי: פגישות היום של כל הקליניקה + "מה דורש טיפול" +
-// פעולות מהירות לפי הרשאות. שום תוכן קליני אינו נטען כאן —
-// ה-select מצומצם לשדות אדמיניסטרטיביים בלבד (שם/שעה/מטפל/סטטוס).
+// המזכיר/ה מקבל/ת מוקד יומי: פגישות היום + מחר של כל הקליניקה +
+// "מה דורש טיפול" (רשימות מפורטות, לא רק מספרים) + פעולות מהירות לפי הרשאות.
+// שום תוכן קליני אינו נטען כאן — ה-select מצומצם לשדות אדמיניסטרטיביים
+// בלבד (שם/שעה/מטפל/סטטוס).
 //
 // בידוד: buildSessionWhere/buildPaymentWhere מחזירים scope ארגוני למזכירה,
 // ו-buildPaymentWhere מחזיר deny-filter כשאין canViewPayments. Server Component.
@@ -13,8 +14,10 @@ import { Button } from "@/components/ui/button";
 import { Badge } from "@/components/ui/badge";
 import {
   Calendar,
+  CalendarClock,
   CalendarPlus,
   UserPlus,
+  Users,
   CreditCard,
   CalendarX2,
   CheckCircle2,
@@ -55,14 +58,100 @@ const TYPE_LABEL: Record<string, string> = {
   BREAK: "הפסקה",
 };
 
+// שורת פגישה אדמיניסטרטיבית — ללא שדות קליניים. משותפת ל"היום" ול"מחר".
+type AdminSessionRow = {
+  id: string;
+  startTime: Date;
+  endTime: Date;
+  type: string;
+  status: string;
+  cancellationRequestedAt: Date | null;
+  client: { id: string; name: string | null } | null;
+  therapist: { id: string; name: string | null } | null;
+};
+
+// פגישה שעבר זמנה ועדיין SCHEDULED = לא עודכנה (לא הושלמה/בוטלה). אינדיקציה
+// בלבד — למזכיר/ה אין כאן פעולת עדכון; רק הסטטוס משתנה. (תמיד false ל"מחר".)
+function SessionRow({ s, now }: { s: AdminSessionRow; now: Date }) {
+  const accent = getTherapistAccent(s.therapist?.id);
+  const time = new Date(s.startTime).toLocaleTimeString("he-IL", {
+    hour: "2-digit",
+    minute: "2-digit",
+    timeZone: "Asia/Jerusalem",
+  });
+  const isPastUnupdated = s.status === "SCHEDULED" && new Date(s.endTime) < now;
+  return (
+    <div className="flex items-center gap-3 rounded-lg border p-3 hover:bg-muted/40 transition-colors">
+      {/* פס צבע מטפל */}
+      <span
+        className="h-9 w-1.5 rounded-full shrink-0"
+        style={{ backgroundColor: accent }}
+        aria-hidden="true"
+      />
+      <div className="flex flex-col items-center justify-center w-14 shrink-0">
+        <span className="text-sm font-bold">{time}</span>
+        <span className="text-[10px] text-muted-foreground">
+          {TYPE_LABEL[s.type] || "פרונטלי"}
+        </span>
+      </div>
+      <div className="min-w-0 flex-1">
+        {s.client ? (
+          <Link
+            href={`/dashboard/clients/${s.client.id}`}
+            className="font-medium truncate hover:text-primary hover:underline inline-block max-w-full"
+          >
+            {s.client.name || "מטופל/ת"}
+          </Link>
+        ) : (
+          <span className="font-medium text-muted-foreground">ללא מטופל</span>
+        )}
+        <p className="text-xs text-muted-foreground truncate flex items-center gap-1">
+          <span
+            className="inline-block h-2 w-2 rounded-full shrink-0"
+            style={{ backgroundColor: accent }}
+            aria-hidden="true"
+          />
+          {s.therapist?.name || "מטפל/ת"}
+        </p>
+      </div>
+      <div className="flex items-center gap-2 shrink-0">
+        {s.cancellationRequestedAt && s.status === "SCHEDULED" && (
+          <Badge className="bg-amber-100 text-amber-700 dark:bg-amber-900/40 dark:text-amber-300">
+            בקשת ביטול
+          </Badge>
+        )}
+        <Badge
+          className={
+            isPastUnupdated
+              ? "bg-orange-100 text-orange-700 dark:bg-orange-900/40 dark:text-orange-300"
+              : STATUS_BADGE[s.status] || STATUS_BADGE.SCHEDULED
+          }
+        >
+          {isPastUnupdated ? "⚠ לא עודכן" : STATUS_LABEL[s.status] || s.status}
+        </Badge>
+      </div>
+    </div>
+  );
+}
+
 async function getSecretaryData(scopeUser: ScopeUser) {
   const sessionWhere = buildSessionWhere(scopeUser);
   const canViewPayments = secretaryCan(scopeUser, "canViewPayments");
 
-  // גבולות "היום בישראל" כ-UTC — שאילתה ישירה בלי סינון post-query.
-  const { start: todayStart, end: todayEnd } = getIsraelDayBoundsUtc(new Date());
+  // גבולות "היום" ו"מחר" בישראל כ-UTC — שאילתה ישירה בלי סינון post-query.
+  const now = new Date();
+  const { start: todayStart, end: todayEnd } = getIsraelDayBoundsUtc(now);
+  const tomorrowRef = new Date(now);
+  tomorrowRef.setDate(tomorrowRef.getDate() + 1);
+  const { start: tomorrowStart, end: tomorrowEnd } = getIsraelDayBoundsUtc(tomorrowRef);
 
-  const [todaySessions, cancellationRequests, pendingPaymentsRaw] = await Promise.all([
+  const [
+    todaySessions,
+    tomorrowSessions,
+    cancellationRequests,
+    cancellationList,
+    pendingPaymentsRaw,
+  ] = await Promise.all([
     prisma.therapySession.findMany({
       where: {
         AND: [sessionWhere, { startTime: { gte: todayStart, lt: todayEnd } }],
@@ -80,7 +169,24 @@ async function getSecretaryData(scopeUser: ScopeUser) {
       },
       orderBy: { startTime: "asc" },
     }),
-    // בקשות ביטול שממתינות לטיפול — פגישות עם בקשה שעדיין מתוכננות.
+    prisma.therapySession.findMany({
+      where: {
+        AND: [sessionWhere, { startTime: { gte: tomorrowStart, lt: tomorrowEnd } }],
+      },
+      // select אדמיניסטרטיבי בלבד — ללא notes/topic (תוכן קליני).
+      select: {
+        id: true,
+        startTime: true,
+        endTime: true,
+        type: true,
+        status: true,
+        cancellationRequestedAt: true,
+        client: { select: { id: true, name: true } },
+        therapist: { select: { id: true, name: true } },
+      },
+      orderBy: { startTime: "asc" },
+    }),
+    // בקשות ביטול שממתינות לטיפול — פגישות עם בקשה שעדיין מתוכננות (כל תאריך).
     prisma.therapySession.count({
       where: {
         AND: [
@@ -88,6 +194,23 @@ async function getSecretaryData(scopeUser: ScopeUser) {
           { cancellationRequestedAt: { not: null }, status: "SCHEDULED" },
         ],
       },
+    }),
+    // הרשימה עצמה (לא רק מספר) — 5 הקרובות, להצגה בכרטיס "מה דורש טיפול".
+    prisma.therapySession.findMany({
+      where: {
+        AND: [
+          sessionWhere,
+          { cancellationRequestedAt: { not: null }, status: "SCHEDULED" },
+        ],
+      },
+      select: {
+        id: true,
+        startTime: true,
+        client: { select: { id: true, name: true } },
+        therapist: { select: { name: true } },
+      },
+      orderBy: { startTime: "asc" },
+      take: 5,
     }),
     // תשלומים פתוחים — רק אם למזכירה יש canViewPayments (אחרת deny-filter
     // מחזיר ריק ממילא, אבל נמנעים מהשאילתה).
@@ -100,18 +223,42 @@ async function getSecretaryData(scopeUser: ScopeUser) {
               { status: "PENDING", parentPaymentId: null },
             ],
           },
-          select: { amount: true, expectedAmount: true },
+          select: {
+            id: true,
+            amount: true,
+            expectedAmount: true,
+            client: { select: { id: true, name: true } },
+          },
         })
-      : Promise.resolve([] as { amount: unknown; expectedAmount: unknown }[]),
+      : Promise.resolve(
+          [] as {
+            id: string;
+            amount: unknown;
+            expectedAmount: unknown;
+            client: { id: string; name: string | null } | null;
+          }[]
+        ),
   ]);
 
-  const pendingPayments = pendingPaymentsRaw.filter((p) => {
-    const paid = Number(p.amount) || 0;
-    const expected = Number(p.expectedAmount) || 0;
-    return expected > 0 && paid < expected;
-  }).length;
+  // יתרה פתוחה לכל תשלום + סינון לאלו שבאמת חייבים, מהגדול לקטן.
+  const openPayments = pendingPaymentsRaw
+    .map((p) => ({
+      id: p.id,
+      client: p.client,
+      remaining: (Number(p.expectedAmount) || 0) - (Number(p.amount) || 0),
+    }))
+    .filter((p) => p.remaining > 0)
+    .sort((a, b) => b.remaining - a.remaining);
 
-  return { todaySessions, cancellationRequests, pendingPayments, canViewPayments };
+  return {
+    todaySessions,
+    tomorrowSessions,
+    cancellationRequests,
+    cancellationList,
+    pendingPayments: openPayments.length,
+    pendingPaymentsList: openPayments.slice(0, 5),
+    canViewPayments,
+  };
 }
 
 export async function SecretaryHome({
@@ -121,8 +268,15 @@ export async function SecretaryHome({
   scopeUser: ScopeUser;
   userName?: string | null;
 }) {
-  const { todaySessions, cancellationRequests, pendingPayments, canViewPayments } =
-    await getSecretaryData(scopeUser);
+  const {
+    todaySessions,
+    tomorrowSessions,
+    cancellationRequests,
+    cancellationList,
+    pendingPayments,
+    pendingPaymentsList,
+    canViewPayments,
+  } = await getSecretaryData(scopeUser);
 
   const canCreateClient = secretaryCan(scopeUser, "canCreateClient");
   const canSendReminders = secretaryCan(scopeUser, "canSendReminders");
@@ -134,12 +288,25 @@ export async function SecretaryHome({
     timeZone: "Asia/Jerusalem",
   });
 
-  // "עכשיו" לזיהוי פגישות שעבר זמנן (SCHEDULED שה-endTime שלהן בעבר) —
-  // אינדיקציית "לא עודכן", במקביל לכרטיס "פגישות היום" של המטפל.
+  // "עכשיו" לזיהוי פגישות שעבר זמנן — מועבר ל-SessionRow.
   const now = new Date();
+
+  // תאריך מחר (YYYY-MM-DD בישראל) — לקישור "ליומן" שקופץ ליום מחר.
+  const tomorrowRef = new Date(now);
+  tomorrowRef.setDate(tomorrowRef.getDate() + 1);
+  const tomorrowParam = tomorrowRef.toLocaleDateString("en-CA", {
+    timeZone: "Asia/Jerusalem",
+  });
+  const tomorrowLabel = tomorrowRef.toLocaleDateString("he-IL", {
+    weekday: "long",
+    day: "numeric",
+    month: "long",
+    timeZone: "Asia/Jerusalem",
+  });
 
   // פגישות הלקוחות (ללא הפסקות) הן הליבה של המוקד.
   const clientSessions = todaySessions.filter((s) => s.type !== "BREAK");
+  const tomorrowClientSessions = tomorrowSessions.filter((s) => s.type !== "BREAK");
 
   const hasExceptions = cancellationRequests > 0 || (canViewPayments && pendingPayments > 0);
 
@@ -172,108 +339,81 @@ export async function SecretaryHome({
       </div>
 
       <div className="grid gap-6 lg:grid-cols-3">
-        {/* פגישות היום בקליניקה */}
-        <Card className="lg:col-span-2">
-          <CardHeader className="flex flex-row items-center justify-between">
-            <div>
-              <CardTitle className="flex items-center gap-2">
-                <Calendar className="h-5 w-5 text-primary" />
-                פגישות היום בקליניקה
-              </CardTitle>
-              <CardDescription>
-                {clientSessions.length === 0
-                  ? "לוח הפגישות של כל המטפלים"
-                  : clientSessions.length === 1
-                    ? "פגישה אחת בלוח היום"
-                    : `${clientSessions.length} פגישות בלוח היום`}
-              </CardDescription>
-            </div>
-            <Button variant="outline" size="sm" asChild>
-              <Link href="/dashboard/calendar">ליומן</Link>
-            </Button>
-          </CardHeader>
-          <CardContent>
-            {clientSessions.length > 0 ? (
-              <div className="space-y-2">
-                {clientSessions.map((s) => {
-                  const accent = getTherapistAccent(s.therapist?.id);
-                  const time = new Date(s.startTime).toLocaleTimeString("he-IL", {
-                    hour: "2-digit",
-                    minute: "2-digit",
-                    timeZone: "Asia/Jerusalem",
-                  });
-                  // פגישה שעבר זמנה ועדיין SCHEDULED = לא עודכנה (לא הושלמה/בוטלה).
-                  // אינדיקציה בלבד — למזכיר/ה אין כאן פעולת עדכון; רק הסטטוס משתנה.
-                  const isPastUnupdated =
-                    s.status === "SCHEDULED" && new Date(s.endTime) < now;
-                  return (
-                    <div
-                      key={s.id}
-                      className="flex items-center gap-3 rounded-lg border p-3 hover:bg-muted/40 transition-colors"
-                    >
-                      {/* פס צבע מטפל */}
-                      <span
-                        className="h-9 w-1.5 rounded-full shrink-0"
-                        style={{ backgroundColor: accent }}
-                        aria-hidden="true"
-                      />
-                      <div className="flex flex-col items-center justify-center w-14 shrink-0">
-                        <span className="text-sm font-bold">{time}</span>
-                        <span className="text-[10px] text-muted-foreground">
-                          {TYPE_LABEL[s.type] || "פרונטלי"}
-                        </span>
-                      </div>
-                      <div className="min-w-0 flex-1">
-                        {s.client ? (
-                          <Link
-                            href={`/dashboard/clients/${s.client.id}`}
-                            className="font-medium truncate hover:text-primary hover:underline inline-block max-w-full"
-                          >
-                            {s.client.name}
-                          </Link>
-                        ) : (
-                          <span className="font-medium text-muted-foreground">ללא מטופל</span>
-                        )}
-                        <p className="text-xs text-muted-foreground truncate flex items-center gap-1">
-                          <span
-                            className="inline-block h-2 w-2 rounded-full shrink-0"
-                            style={{ backgroundColor: accent }}
-                            aria-hidden="true"
-                          />
-                          {s.therapist?.name || "מטפל/ת"}
-                        </p>
-                      </div>
-                      <div className="flex items-center gap-2 shrink-0">
-                        {s.cancellationRequestedAt && s.status === "SCHEDULED" && (
-                          <Badge className="bg-amber-100 text-amber-700 dark:bg-amber-900/40 dark:text-amber-300">
-                            בקשת ביטול
-                          </Badge>
-                        )}
-                        <Badge
-                          className={
-                            isPastUnupdated
-                              ? "bg-orange-100 text-orange-700 dark:bg-orange-900/40 dark:text-orange-300"
-                              : STATUS_BADGE[s.status] || STATUS_BADGE.SCHEDULED
-                          }
-                        >
-                          {isPastUnupdated ? "⚠ לא עודכן" : STATUS_LABEL[s.status] || s.status}
-                        </Badge>
-                      </div>
-                    </div>
-                  );
-                })}
+        {/* עמודה שמאלית: פגישות היום + מחר */}
+        <div className="lg:col-span-2 space-y-6">
+          {/* פגישות היום בקליניקה */}
+          <Card>
+            <CardHeader className="flex flex-row items-center justify-between">
+              <div>
+                <CardTitle className="flex items-center gap-2">
+                  <Calendar className="h-5 w-5 text-primary" />
+                  פגישות היום בקליניקה
+                </CardTitle>
+                <CardDescription>
+                  {clientSessions.length === 0
+                    ? "לוח הפגישות של כל המטפלים"
+                    : clientSessions.length === 1
+                      ? "פגישה אחת בלוח היום"
+                      : `${clientSessions.length} פגישות בלוח היום`}
+                </CardDescription>
               </div>
-            ) : (
-              <div className="text-center py-10 text-muted-foreground">
-                <Calendar className="mx-auto h-12 w-12 mb-3 opacity-50" />
-                <p>אין פגישות מתוכננות להיום</p>
-                <Button variant="link" asChild className="mt-2">
-                  <Link href="/dashboard/calendar?new=true">קביעת פגישה חדשה</Link>
-                </Button>
+              <Button variant="outline" size="sm" asChild>
+                <Link href="/dashboard/calendar">ליומן</Link>
+              </Button>
+            </CardHeader>
+            <CardContent>
+              {clientSessions.length > 0 ? (
+                <div className="space-y-2">
+                  {clientSessions.map((s) => (
+                    <SessionRow key={s.id} s={s} now={now} />
+                  ))}
+                </div>
+              ) : (
+                <div className="text-center py-10 text-muted-foreground">
+                  <Calendar className="mx-auto h-12 w-12 mb-3 opacity-50" />
+                  <p>אין פגישות מתוכננות להיום</p>
+                  <Button variant="link" asChild className="mt-2">
+                    <Link href="/dashboard/calendar?new=true">קביעת פגישה חדשה</Link>
+                  </Button>
+                </div>
+              )}
+            </CardContent>
+          </Card>
+
+          {/* פגישות מחר — להיערכות מוקדמת */}
+          <Card>
+            <CardHeader className="flex flex-row items-center justify-between">
+              <div>
+                <CardTitle className="flex items-center gap-2 text-base">
+                  <CalendarClock className="h-5 w-5 text-primary" />
+                  פגישות מחר
+                </CardTitle>
+                <CardDescription>
+                  {tomorrowClientSessions.length === 0
+                    ? tomorrowLabel
+                    : `${tomorrowLabel} · ${tomorrowClientSessions.length} פגישות`}
+                </CardDescription>
               </div>
-            )}
-          </CardContent>
-        </Card>
+              <Button variant="outline" size="sm" asChild>
+                <Link href={`/dashboard/calendar?date=${tomorrowParam}`}>ליומן</Link>
+              </Button>
+            </CardHeader>
+            <CardContent>
+              {tomorrowClientSessions.length > 0 ? (
+                <div className="space-y-2">
+                  {tomorrowClientSessions.map((s) => (
+                    <SessionRow key={s.id} s={s} now={now} />
+                  ))}
+                </div>
+              ) : (
+                <div className="flex items-center gap-2 text-sm text-muted-foreground py-3">
+                  <CheckCircle2 className="h-4 w-4 text-emerald-600" />
+                  אין פגישות מתוכננות למחר
+                </div>
+              )}
+            </CardContent>
+          </Card>
+        </div>
 
         {/* מה דורש טיפול + פעולות מהירות */}
         <div className="space-y-6">
@@ -282,34 +422,85 @@ export async function SecretaryHome({
               <CardTitle className="text-base">מה דורש טיפול</CardTitle>
               <CardDescription>חריגים שכדאי לטפל בהם</CardDescription>
             </CardHeader>
-            <CardContent className="space-y-3">
+            <CardContent className="space-y-4">
               {cancellationRequests > 0 && (
-                <Link
-                  href="/dashboard/calendar"
-                  className="flex items-center justify-between rounded-lg border border-amber-200 bg-amber-50/60 dark:bg-amber-900/20 p-3 hover:bg-amber-100/60 transition-colors"
-                >
-                  <span className="flex items-center gap-2 text-sm">
-                    <CalendarX2 className="h-4 w-4 text-amber-600" />
-                    בקשות ביטול
-                  </span>
-                  <Badge className="bg-amber-500/20 text-amber-700 dark:text-amber-300">
-                    {cancellationRequests}
-                  </Badge>
-                </Link>
+                <div className="space-y-1.5">
+                  <div className="flex items-center justify-between">
+                    <span className="flex items-center gap-2 text-sm font-medium">
+                      <CalendarX2 className="h-4 w-4 text-amber-600" />
+                      בקשות ביטול
+                    </span>
+                    <Badge className="bg-amber-500/20 text-amber-700 dark:text-amber-300">
+                      {cancellationRequests}
+                    </Badge>
+                  </div>
+                  {cancellationList.map((c) => {
+                    const d = new Date(c.startTime);
+                    const dateParam = d.toLocaleDateString("en-CA", {
+                      timeZone: "Asia/Jerusalem",
+                    });
+                    const when = `${d.toLocaleDateString("he-IL", {
+                      day: "2-digit",
+                      month: "2-digit",
+                      timeZone: "Asia/Jerusalem",
+                    })} ${d.toLocaleTimeString("he-IL", {
+                      hour: "2-digit",
+                      minute: "2-digit",
+                      timeZone: "Asia/Jerusalem",
+                    })}`;
+                    return (
+                      <Link
+                        key={c.id}
+                        href={`/dashboard/calendar?date=${dateParam}&highlight=${c.id}`}
+                        className="flex items-center justify-between gap-2 rounded-md border border-amber-200 bg-amber-50/60 dark:bg-amber-900/20 px-3 py-2 hover:bg-amber-100/60 transition-colors"
+                      >
+                        <span className="text-sm truncate">{c.client?.name || "מטופל/ת"}</span>
+                        <span className="text-xs text-muted-foreground shrink-0">{when}</span>
+                      </Link>
+                    );
+                  })}
+                  {cancellationRequests > cancellationList.length && (
+                    <Link
+                      href="/dashboard/calendar"
+                      className="block px-1 text-xs text-muted-foreground hover:text-primary"
+                    >
+                      + עוד {cancellationRequests - cancellationList.length} בקשות — ליומן
+                    </Link>
+                  )}
+                </div>
               )}
               {canViewPayments && pendingPayments > 0 && (
-                <Link
-                  href="/dashboard/payments"
-                  className="flex items-center justify-between rounded-lg border border-orange-200 bg-orange-50/60 dark:bg-orange-900/20 p-3 hover:bg-orange-100/60 transition-colors"
-                >
-                  <span className="flex items-center gap-2 text-sm">
-                    <CreditCard className="h-4 w-4 text-orange-600" />
-                    תשלומים פתוחים
-                  </span>
-                  <Badge className="bg-orange-500/20 text-orange-700 dark:text-orange-300">
-                    {pendingPayments}
-                  </Badge>
-                </Link>
+                <div className="space-y-1.5">
+                  <div className="flex items-center justify-between">
+                    <span className="flex items-center gap-2 text-sm font-medium">
+                      <CreditCard className="h-4 w-4 text-orange-600" />
+                      תשלומים פתוחים
+                    </span>
+                    <Badge className="bg-orange-500/20 text-orange-700 dark:text-orange-300">
+                      {pendingPayments}
+                    </Badge>
+                  </div>
+                  {pendingPaymentsList.map((p) => (
+                    <Link
+                      key={p.id}
+                      href="/dashboard/payments"
+                      className="flex items-center justify-between gap-2 rounded-md border border-orange-200 bg-orange-50/60 dark:bg-orange-900/20 px-3 py-2 hover:bg-orange-100/60 transition-colors"
+                    >
+                      <span className="text-sm truncate">{p.client?.name || "מטופל/ת"}</span>
+                      <span className="text-xs font-medium shrink-0">
+                        ₪{Math.round(p.remaining).toLocaleString("he-IL")}
+                      </span>
+                    </Link>
+                  ))}
+                  {pendingPayments > pendingPaymentsList.length && (
+                    <Link
+                      href="/dashboard/payments"
+                      className="block px-1 text-xs text-muted-foreground hover:text-primary"
+                    >
+                      + עוד {pendingPayments - pendingPaymentsList.length} — לתשלומים
+                    </Link>
+                  )}
+                </div>
               )}
               {!hasExceptions && (
                 <div className="flex items-center gap-2 text-sm text-muted-foreground py-2">
@@ -329,6 +520,12 @@ export async function SecretaryHome({
                 <Link href="/dashboard/calendar">
                   <Calendar className="h-4 w-4 ml-2" />
                   יומן הקליניקה
+                </Link>
+              </Button>
+              <Button asChild variant="outline" className="w-full justify-start">
+                <Link href="/dashboard/clients">
+                  <Users className="h-4 w-4 ml-2" />
+                  מטופלים
                 </Link>
               </Button>
               {canSendReminders && (
