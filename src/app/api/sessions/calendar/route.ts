@@ -91,9 +91,31 @@ export async function GET(request: NextRequest) {
       include: includeForRole,
     });
 
-    // העשרה ב-paidAmount — מקור-אמת אחד; מונע חישוב חוזר בכל קומפוננטה.
+    // חיווי "תזכורת נשלחה" ביומן — שאילתה אחת מקובצת (לא N+1) שמסמנת אילו
+    // פגישות כבר קיבלו תזכורת 24ש'/שעתיים שנשלחה בהצלחה (EMAIL או SMS).
+    // מידע אדמיניסטרטיבי (לא קליני) — מותר גם למזכירה.
+    const sessionIds = sessions.map((s) => s.id);
+    const remindedRows = sessionIds.length
+      ? await prisma.communicationLog.findMany({
+          where: {
+            sessionId: { in: sessionIds },
+            type: { in: ["REMINDER_24H", "REMINDER_2H"] },
+            status: "SENT",
+          },
+          select: { sessionId: true },
+          distinct: ["sessionId"],
+        })
+      : [];
+    const remindedSet = new Set(
+      remindedRows
+        .map((r) => r.sessionId)
+        .filter((id): id is string => !!id),
+    );
+
+    // העשרה ב-paidAmount + reminderSent — מקור-אמת אחד; מונע חישוב חוזר בכל קומפוננטה.
     const enriched = sessions.map((s) => {
-      if (!s.payment) return s;
+      const reminderSent = remindedSet.has(s.id);
+      if (!s.payment) return { ...s, reminderSent };
       const p = s.payment;
       const paidAmount = calculatePaidAmount({
         amount: p.amount,
@@ -102,7 +124,7 @@ export async function GET(request: NextRequest) {
         hasReceipt: p.hasReceipt,
         childPayments: p.childPayments,
       });
-      return { ...s, payment: { ...p, paidAmount } };
+      return { ...s, reminderSent, payment: { ...p, paidAmount } };
     });
 
     // Phase 3 (M1): סינון `payment` מהתגובה למזכירה ללא canViewPayments.

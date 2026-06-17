@@ -56,6 +56,11 @@ export interface CalendarSession {
   therapistName?: string | null;
   // שלב 2 (חדרים): מזהה החדר (אם שויך). משמש לבדיקת חפיפת חדר בצד-לקוח.
   roomId?: string | null;
+  // שם החדר (snapshot ב-location) — להצגה בחיווי המהיר/ריחוף ביומן.
+  location?: string | null;
+  // חיווי מהיר ביומן: האם נשלחה תזכורת 24ש'/שעתיים בהצלחה (מחושב בשרת,
+  // /api/sessions/calendar). אדמיניסטרטיבי — לא PHI.
+  reminderSent?: boolean;
 }
 
 export interface RecurringPattern {

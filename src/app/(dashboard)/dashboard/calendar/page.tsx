@@ -846,6 +846,9 @@ function CalendarPageContent() {
             slotMinTime="00:00:00"
             slotMaxTime="24:00:00"
             allDaySlot={false}
+            // קו "עכשיו" — קו אופקי שמראה את השעה הנוכחית בתצוגת יום/שבוע, כדי
+            // שהמזכירה תזהה במבט אחד איפה אנחנו ביום (FullCalendar מרענן אותו לבד).
+            nowIndicator
             slotDuration="00:30:00"
             slotEventOverlap={false}
             // יומן הקליניקה בלבד: לחיצה על כותרת היום (בשבוע/חודש) עוברת לתצוגה

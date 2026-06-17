@@ -1,7 +1,7 @@
 "use client";
 
 import type { EventContentArg } from "@fullcalendar/core";
-import { Columns2 } from "lucide-react";
+import { Columns2, DoorOpen, BellRing, BadgeCheck } from "lucide-react";
 import type { CalendarSession } from "@/hooks/use-calendar-data";
 import { getTherapistAccent } from "@/lib/calendar/event-colors";
 import { Tooltip, TooltipTrigger, TooltipContent } from "@/components/ui/tooltip";
@@ -27,6 +27,27 @@ export function CalendarEventContent({ eventInfo, sessions, onAddSessionAfter, o
   const session = sessions.find(s => s.id === eventInfo.event.id);
   if (!session) return null;
 
+  // חיווי-סטטוס מהיר (מבט אחד, בלי ללחוץ) — שלושה אייקונים זעירים: חדר משויך,
+  // תזכורת שנשלחה, ותשלום ששולם. כולם מידע *אדמיניסטרטיבי* (לא PHI). ה"שולם"
+  // מבוסס על session.payment שכבר מסונן בשרת למזכירה ללא הרשאת תשלומים — ולכן
+  // לא יוצג לה כלל. צבע currentColor + opacity כדי להשתלב בכל רקע-סטטוס בלי לבלוט.
+  const hasRoom = !!session.roomId;
+  const reminderSent = !!session.reminderSent;
+  const isPaid =
+    !!session.payment &&
+    (session.payment.status === "PAID" ||
+      (typeof session.payment.paidAmount === "number" &&
+        session.payment.paidAmount > 0 &&
+        session.payment.paidAmount >= session.price));
+  const hasStatusIcons = hasRoom || reminderSent || isPaid;
+  const statusIcons = hasStatusIcons ? (
+    <span className="flex items-center gap-1 shrink-0">
+      {hasRoom && <DoorOpen className="h-3 w-3 opacity-70" aria-label="חדר משויך" />}
+      {reminderSent && <BellRing className="h-3 w-3 opacity-70" aria-label="תזכורת נשלחה" />}
+      {isPaid && <BadgeCheck className="h-3 w-3 opacity-80" aria-label="שולם" />}
+    </span>
+  ) : null;
+
   // תצוגת רשימה (listWeek): כל פגישה היא שורה רחבה. FullCalendar כבר מציג שעה
   // ונקודת סטטוס; כאן מוסיפים שם מטופל + שם המטפל (עם צבע). ביומן הקליניקה —
   // לכל הפגישות (כולל של הצופה, כמו פס הצבע); מחוץ לו — רק לפגישות של אחרים.
@@ -40,6 +61,7 @@ export function CalendarEventContent({ eventInfo, sessions, onAddSessionAfter, o
     return (
       <span className="flex items-center gap-2 w-full">
         <span className="font-medium">{eventInfo.event.title}</span>
+        {statusIcons}
         {showTher && (
           <span className="flex items-center gap-1 text-xs opacity-75">
             <span
@@ -134,7 +156,13 @@ export function CalendarEventContent({ eventInfo, sessions, onAddSessionAfter, o
           )}
           <div className={`flex-1 min-w-0 overflow-hidden ${showAccent ? "pr-2.5 pl-0.5" : "px-1"}`}>
             <div className="font-semibold text-xs leading-tight break-words">{eventInfo.event.title}</div>
-            <div className="text-xs font-semibold opacity-90">{eventInfo.timeText}</div>
+            {/* שעה + אייקוני חיווי מהיר באותה שורה — חוסך גובה בכרטיס קצר (30 דק').
+                האייקונים נחתכים בעדינות ע"י overflow-hidden בכרטיס צר — המידע
+                המלא תמיד זמין בחלון הריחוף למטה. */}
+            <div className="flex items-center gap-1 overflow-hidden">
+              <span className="text-xs font-semibold opacity-90">{eventInfo.timeText}</span>
+              {statusIcons}
+            </div>
           </div>
           {/* יומן הקליניקה: בכרטיס צר (חצי-רוחב בפגישות מקבילות) שני הכפתורים
               ברוחב מלא (w-6) + רווח רגיל לא נכנסים, וה-"+" (בקצה) נחתך ע"י
@@ -190,6 +218,25 @@ export function CalendarEventContent({ eventInfo, sessions, onAddSessionAfter, o
                 aria-hidden
               />
               מטפל: {session.therapistName}
+            </span>
+          )}
+          {/* חיווי-סטטוס מלא בטקסט — תמיד זמין כאן גם כשהאייקונים בכרטיס נחתכים. */}
+          {hasRoom && (
+            <span className="flex items-center gap-1.5">
+              <DoorOpen className="h-3.5 w-3.5 shrink-0" aria-hidden />
+              {session.location ? `חדר: ${session.location}` : "חדר משויך"}
+            </span>
+          )}
+          {reminderSent && (
+            <span className="flex items-center gap-1.5">
+              <BellRing className="h-3.5 w-3.5 shrink-0" aria-hidden />
+              תזכורת נשלחה
+            </span>
+          )}
+          {isPaid && (
+            <span className="flex items-center gap-1.5">
+              <BadgeCheck className="h-3.5 w-3.5 shrink-0" aria-hidden />
+              שולם
             </span>
           )}
         </div>
