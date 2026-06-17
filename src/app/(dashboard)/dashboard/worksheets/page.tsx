@@ -594,17 +594,24 @@ export default function WorksheetsPage() {
   const [openCategory, setOpenCategory] = useState<string | null>(null);
   const [openWorksheet, setOpenWorksheet] = useState<string | null>(null);
 
+  // ההורדה וההדפסה מגישות PDF מוכן מ-/worksheets/pdf/ במקום ה-HTML — פוטר "כל הזכויות
+  // שמורות" + קישור לחיץ בכל עמוד, שוליים קבועים. כך הפלט זהה תמיד, ללא תלות בהגדרות
+  // הדפסת הדפדפן (שוליים/scaling). ה-PDFs נוצרים ע"י: npm run worksheets:pdf all public
+  const toPdf = (file: string) =>
+    file.replace("/worksheets/", "/worksheets/pdf/").replace(/\.html$/, ".pdf");
+
   const handleDownload = (file: string) => {
+    const pdf = toPdf(file);
     const link = document.createElement("a");
-    link.href = file;
-    link.download = file.split("/").pop() || "worksheet.html";
+    link.href = pdf;
+    link.download = pdf.split("/").pop() || "worksheet.pdf";
     document.body.appendChild(link);
     link.click();
     document.body.removeChild(link);
   };
 
   const handlePrint = (file: string) => {
-    window.open(file, "_blank");
+    window.open(toPdf(file), "_blank");
   };
 
   const toggleCategory = (catId: string) => {

@@ -19,7 +19,8 @@
     "save-logo-preview": "node scripts/save-logo-preview-to-downloads.mjs",
     "save-work-demo-cbt": "node scripts/save-cbt-work-demo-to-downloads.mjs",
     "export-work-pages": "node scripts/export-work-pages-to-downloads.mjs",
-    "save-act-worksheet": "node scripts/save-act-worksheet-to-downloads.mjs"
+    "save-act-worksheet": "node scripts/save-act-worksheet-to-downloads.mjs",
+    "worksheets:pdf": "node scripts/generate-worksheet-pdfs.mjs"
   },
   "prisma": {
     "seed": "tsx prisma/seed.ts"
@@ -113,6 +114,7 @@
     "eslint": "^9",
     "eslint-config-next": "16.2.6",
     "eslint-plugin-security": "^4.0.0",
+    "puppeteer-core": "^25.1.0",
     "sharp": "^0.34.5",
     "tailwindcss": "^4.3.0",
     "tsx": "^4.22.4",
