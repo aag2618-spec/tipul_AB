@@ -46,6 +46,11 @@ export interface SessionFormData {
   // findClinicLocationConflict לאיתור double-booking על אותו חדר.
   // אם השדה ריק — לא נבדקת חפיפת חדר (התנהגות תאימות).
   location: string;
+  // "מצא משבצת פנויה": בחירה-מראש של מטפל/חדר מהמשבצת שנבחרה. אופציונלי —
+  // שאר נקודות-הכניסה (DEFAULT / קבע-אחרי / במקביל) משאירות undefined,
+  // ואז המטפל נגזר מהמטופל כמו קודם והחדר נפתח ריק (תאימות לאחור).
+  therapistId?: string;
+  roomId?: string;
 }
 
 export interface RecurringPreviewItem {
@@ -239,10 +244,11 @@ export function NewSessionDialog({
       setConflictDecision("replace");
       setClientSearch("");
       setClientListOpen(false);
-      setPickedTherapistId(initialClientTherapistId);
-      // שלב 2 (חדרים): פותחים תמיד ללא חדר נבחר — גם ב"קבע במקביל" המשתמש
-      // בוחר את החדר הפנוי במפורש.
-      setPickedRoomId("");
+      // "מצא משבצת פנויה" יכול להעביר מטפל/חדר מהמשבצת שנבחרה; אחרת ברירת
+      // המחדל היא המטפל הקבוע של המטופל (כמו קודם).
+      setPickedTherapistId(initialFormData.therapistId || initialClientTherapistId);
+      // שלב 2 (חדרים): ברירת מחדל ללא חדר — אלא אם "מצא משבצת" העביר חדר ספציפי.
+      setPickedRoomId(initialFormData.roomId || "");
     }
   }, [open, initialFormData, defaultSessionDuration, initialClientTherapistId]);
 

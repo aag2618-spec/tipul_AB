@@ -7,7 +7,7 @@ import dynamic from "next/dynamic";
 import { Button } from "@/components/ui/button";
 import { Card, CardContent } from "@/components/ui/card";
 
-import { Plus, Loader2, Repeat, AlertTriangle, Search, X, Users } from "lucide-react";
+import { Plus, Loader2, Repeat, AlertTriangle, Search, X, Users, CalendarSearch } from "lucide-react";
 import { Input } from "@/components/ui/input";
 import {
   DropdownMenu,
@@ -33,6 +33,7 @@ import { resolveReceiptToShow, tryOpenReceiptInNewTab } from "@/lib/receipt-util
 import { getEventColors, getTherapistAccent } from "@/lib/calendar/event-colors";
 import { isClinicCalendarView } from "@/lib/calendar/clinic-view";
 import { NewSessionDialog, DEFAULT_FORM_DATA, type SessionFormData } from "@/components/calendar/new-session-dialog";
+import { FindSlotDialog, type AvailableSlot } from "@/components/calendar/find-slot-dialog";
 import { RecurringPatternDialog } from "@/components/calendar/recurring-pattern-dialog";
 import { SessionDetailDialog, type PaymentRequest } from "@/components/calendar/session-detail-dialog";
 import { useMyPermissions } from "@/hooks/use-my-permissions";
@@ -139,6 +140,8 @@ function CalendarPageContent() {
 
   const [isDialogOpen, setIsDialogOpen] = useState(false);
   const [isRecurringDialogOpen, setIsRecurringDialogOpen] = useState(false);
+  // "מצא משבצת פנויה" — דיאלוג זימון מהיר (למשל בשיחת טלפון עם מטופל).
+  const [isFindSlotOpen, setIsFindSlotOpen] = useState(false);
   const [isSessionDialogOpen, setIsSessionDialogOpen] = useState(false);
   const [selectedSession, setSelectedSession] = useState<CalendarSession | null>(null);
   const [isChargeDialogOpen, setIsChargeDialogOpen] = useState(false);
@@ -687,6 +690,43 @@ function CalendarPageContent() {
     setIsDialogOpen(true);
   };
 
+  // "מצא משבצת פנויה" → בחירת משבצת פותחת את טופס הפגישה החדשה ממולא (מטפל/חדר/
+  // זמן). המרת ISO לזמן-קיר ישראלי בפורמט הטופס, ללא תלות ב-timezone של הדפדפן.
+  const handlePickSlot = (
+    slot: AvailableSlot,
+    ctx: { duration: number; type: string; roomId: string },
+  ) => {
+    const toLocal = (iso: string) => {
+      const parts = new Intl.DateTimeFormat("en-CA", {
+        timeZone: "Asia/Jerusalem",
+        year: "numeric",
+        month: "2-digit",
+        day: "2-digit",
+        hour: "2-digit",
+        minute: "2-digit",
+        hourCycle: "h23",
+      }).formatToParts(new Date(iso));
+      const get = (t: string) => parts.find((p) => p.type === t)?.value ?? "";
+      return `${get("year")}-${get("month")}-${get("day")}T${get("hour")}:${get("minute")}`;
+    };
+    setIsFindSlotOpen(false);
+    setSelectedDate(new Date(slot.startISO));
+    setInitialFormData({
+      clientId: "",
+      startTime: toLocal(slot.startISO),
+      endTime: toLocal(slot.endISO),
+      type: ctx.type,
+      price: defaultSessionPrice != null ? String(defaultSessionPrice) : "",
+      topic: "",
+      isRecurring: false,
+      weeksToRepeat: 4,
+      location: "",
+      therapistId: slot.therapistId,
+      roomId: ctx.roomId || undefined,
+    });
+    setIsDialogOpen(true);
+  };
+
   if (isLoading) {
     return (
       <div className="h-[calc(100vh-200px)] flex items-center justify-center">
@@ -714,6 +754,10 @@ function CalendarPageContent() {
           <Button variant="outline" onClick={() => setIsRecurringDialogOpen(true)}>
             <Repeat className="ml-2 h-4 w-4" />
             תבנית שבועית
+          </Button>
+          <Button variant="outline" onClick={() => setIsFindSlotOpen(true)}>
+            <CalendarSearch className="ml-2 h-4 w-4" />
+            מצא משבצת פנויה
           </Button>
           <Button onClick={() => {
             setSelectedDate(new Date());
@@ -905,6 +949,15 @@ function CalendarPageContent() {
           setConflictDecisions(decisions);
           setPendingFormRecurring(pendingRecurring);
         }}
+      />
+
+      {/* Find Slot Dialog — "מצא משבצת פנויה" */}
+      <FindSlotDialog
+        open={isFindSlotOpen}
+        onOpenChange={setIsFindSlotOpen}
+        multiTherapist={multiTherapist}
+        defaultSessionDuration={defaultSessionDuration}
+        onPick={handlePickSlot}
       />
 
       {/* Recurring Pattern Dialog */}
