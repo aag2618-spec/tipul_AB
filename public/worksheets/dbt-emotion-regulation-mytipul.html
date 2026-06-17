@@ -21,6 +21,7 @@
     }
 
     * { box-sizing: border-box; margin: 0; padding: 0; }
+    html { scrollbar-gutter: stable both-edges; }
     body { font-family: 'Heebo','Segoe UI',system-ui,sans-serif; background: #e5e7eb; color: var(--slate-800); line-height: 1.6; font-size: 15px; overflow-x: hidden; }
     .sheet { max-width: 860px; margin: 0 auto; padding: 20px; }
 
@@ -110,7 +111,7 @@
       .header { box-shadow: none; padding: 16px 20px; margin-bottom: 14px; }
       .header-logo img { height: 150px !important; visibility: visible !important; display: block !important; -webkit-print-color-adjust: exact !important; print-color-adjust: exact !important; max-width: 350px; }
       .summary-box, .grounding-box, .compassion-box, .pattern-box, .example-banner, .header,
-      .section-header, .instruction-box, .why-box { break-inside: avoid; }
+      .section, .section-header, .instruction-box, .why-box { break-inside: avoid; }
       .section { box-shadow: none; margin-bottom: 8px; }
       .section-header { padding: 8px 14px; } .section-body { padding: 10px 14px; }
       .write-area { min-height: 40px; } .write-area-sm { min-height: 32px; } .write-area-xs { min-height: 28px; }

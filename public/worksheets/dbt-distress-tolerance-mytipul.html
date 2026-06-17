@@ -38,6 +38,7 @@
     }
 
     * { box-sizing: border-box; margin: 0; padding: 0; }
+    html { scrollbar-gutter: stable both-edges; }
     body {
       font-family: 'Heebo', 'Segoe UI', system-ui, sans-serif;
       background: #e5e7eb;
@@ -213,7 +214,7 @@
       .header-logo img { height: 150px !important; visibility: visible !important; display: block !important; -webkit-print-color-adjust: exact !important; print-color-adjust: exact !important; max-width: 350px; }
       .summary-box, .grounding-box,
       .compassion-box, .pattern-box, .example-banner, .header,
-      .section-header { break-inside: avoid; }
+      .section, .section-header { break-inside: avoid; }
       .footer { display: none !important; }
       .print-footer {
         display: flex !important; position: fixed; bottom: 0; left: 0; right: 0;

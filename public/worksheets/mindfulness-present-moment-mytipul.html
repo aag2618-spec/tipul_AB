@@ -38,6 +38,7 @@
     }
 
     * { box-sizing: border-box; margin: 0; padding: 0; }
+    html { scrollbar-gutter: stable both-edges; }
     body {
       font-family: 'Heebo', 'Segoe UI', system-ui, sans-serif;
       background: #e5e7eb;
@@ -279,6 +280,7 @@
       .compassion-box, .pattern-box, .example-banner, .header,
       .section-header, .stop-row, .sense-row, .body-zone-row,
       .instruction-box, .why-box { break-inside: avoid; }
+      .section-header { break-after: avoid; }
       .footer { display: none !important; }
       .print-footer {
         display: flex !important; position: fixed; bottom: 0; left: 0; right: 0;
