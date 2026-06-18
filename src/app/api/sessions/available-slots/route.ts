@@ -176,8 +176,9 @@ export async function GET(request: NextRequest) {
       roomBusy = await prisma.therapySession.findMany({
         where: {
           roomId,
-          startTime: { gte: rangeStart },
-          endTime: { lte: rangeEnd },
+          // חצי-פתוח (כמו ב-calendar route) — תופס גם פגישה שחוצה את גבול הטווח.
+          startTime: { lt: rangeEnd },
+          endTime: { gt: rangeStart },
           status: { notIn: ["CANCELLED"] },
         },
         select: { startTime: true, endTime: true },
@@ -188,8 +189,9 @@ export async function GET(request: NextRequest) {
     const busyRows = await prisma.therapySession.findMany({
       where: {
         therapistId: { in: therapistIds },
-        startTime: { gte: rangeStart },
-        endTime: { lte: rangeEnd },
+        // חצי-פתוח — תופס גם פגישה שמתחילה לפני הטווח ונמשכת לתוכו.
+        startTime: { lt: rangeEnd },
+        endTime: { gt: rangeStart },
         status: { notIn: ["CANCELLED"] },
       },
       select: { therapistId: true, startTime: true, endTime: true },

@@ -77,6 +77,14 @@ interface SessionDetailDialogProps {
   // יומן רב-מטפלים: האם להציג "קבע פגישה במקביל" (קליניקה עם יותר ממטפל אחד).
   // למטפל יחיד / עצמאי לא מועבר → הכפתור לא מוצג והדיאלוג זהה לקודם.
   multiTherapist?: boolean;
+  // מילוי-בביטול: פתיחת טופס פגישה חדשה עם מטופל מרשימת ההמתנה, בדיוק במשבצת
+  // שהתפנתה (אותו מטפל/זמן). מסופק ע"י דף היומן. אופציונלי — בלעדיו הפאנל לא מוצג.
+  onFillFromWaitlist?: (
+    clientId: string,
+    startISO: string,
+    endISO: string,
+    therapistId?: string,
+  ) => void;
 }
 
 // ── Component ──
@@ -94,6 +102,7 @@ export function SessionDetailDialog({
   canViewPayments = true,
   currentTherapistId,
   multiTherapist = false,
+  onFillFromWaitlist,
 }: SessionDetailDialogProps) {
   const router = useRouter();
   const [previousSessions, setPreviousSessions] = useState<Array<{
@@ -1061,12 +1070,19 @@ export function SessionDetailDialog({
 
                 {/* מילוי-בביטול: ממתינים מרשימת ההמתנה שמתאימים למשבצת שהתפנתה.
                     מוצג רק לפגישה שבוטלה (לא אי-הגעה — שם המשבצת כבר עברה). */}
-                {session.status === "CANCELLED" && session.type !== "BREAK" && (
+                {session.status === "CANCELLED" && session.type !== "BREAK" && onFillFromWaitlist && (
                   <WaitlistMatchPanel
                     key={session.id}
                     sessionId={session.id}
-                    sessionStartISO={session.startTime}
-                    onNavigate={() => onOpenChange(false)}
+                    onFill={(clientId) => {
+                      onOpenChange(false);
+                      onFillFromWaitlist(
+                        clientId,
+                        session.startTime,
+                        session.endTime,
+                        session.therapistId ?? undefined,
+                      );
+                    }}
                   />
                 )}
 

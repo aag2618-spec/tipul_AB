@@ -72,6 +72,22 @@ interface CalendarEvent {
   };
 }
 
+// המרת זמן ISO לזמן-קיר ישראלי בפורמט של טופס datetime-local
+// (yyyy-MM-dd'T'HH:mm), ללא תלות ב-timezone של הדפדפן. משמש לבחירת משבצת
+// ("מצא משבצת פנויה" ומילוי-בביטול מרשימת ההמתנה).
+function isoToIsraelLocalInput(iso: string): string {
+  const parts = new Intl.DateTimeFormat("en-CA", {
+    timeZone: "Asia/Jerusalem",
+    year: "numeric",
+    month: "2-digit",
+    day: "2-digit",
+    hour: "2-digit",
+    minute: "2-digit",
+    hourCycle: "h23",
+  }).formatToParts(new Date(iso));
+  const get = (t: string) => parts.find((p) => p.type === t)?.value ?? "";
+  return `${get("year")}-${get("month")}-${get("day")}T${get("hour")}:${get("minute")}`;
+}
 
 export default function CalendarPage() {
   return (
@@ -696,25 +712,12 @@ function CalendarPageContent() {
     slot: AvailableSlot,
     ctx: { duration: number; type: string; roomId: string },
   ) => {
-    const toLocal = (iso: string) => {
-      const parts = new Intl.DateTimeFormat("en-CA", {
-        timeZone: "Asia/Jerusalem",
-        year: "numeric",
-        month: "2-digit",
-        day: "2-digit",
-        hour: "2-digit",
-        minute: "2-digit",
-        hourCycle: "h23",
-      }).formatToParts(new Date(iso));
-      const get = (t: string) => parts.find((p) => p.type === t)?.value ?? "";
-      return `${get("year")}-${get("month")}-${get("day")}T${get("hour")}:${get("minute")}`;
-    };
     setIsFindSlotOpen(false);
     setSelectedDate(new Date(slot.startISO));
     setInitialFormData({
       clientId: "",
-      startTime: toLocal(slot.startISO),
-      endTime: toLocal(slot.endISO),
+      startTime: isoToIsraelLocalInput(slot.startISO),
+      endTime: isoToIsraelLocalInput(slot.endISO),
       type: ctx.type,
       price: defaultSessionPrice != null ? String(defaultSessionPrice) : "",
       topic: "",
@@ -723,6 +726,38 @@ function CalendarPageContent() {
       location: "",
       therapistId: slot.therapistId,
       roomId: ctx.roomId || undefined,
+    });
+    setIsDialogOpen(true);
+  };
+
+  // מילוי-בביטול: פתיחת טופס פגישה חדשה עם מטופל מרשימת ההמתנה, בדיוק במשבצת
+  // שהתפנתה (אותו מטפל + אותו זמן). המחיר נגזר מהמטופל אם ידוע, אחרת ברירת-המחדל.
+  const handleFillFromWaitlist = (
+    clientId: string,
+    startISO: string,
+    endISO: string,
+    therapistId?: string,
+  ) => {
+    const client = clients.find((c) => c.id === clientId);
+    const price =
+      client?.defaultSessionPrice != null
+        ? String(client.defaultSessionPrice)
+        : defaultSessionPrice != null
+          ? String(defaultSessionPrice)
+          : "";
+    setIsSessionDialogOpen(false);
+    setSelectedDate(new Date(startISO));
+    setInitialFormData({
+      clientId,
+      startTime: isoToIsraelLocalInput(startISO),
+      endTime: isoToIsraelLocalInput(endISO),
+      type: "IN_PERSON",
+      price,
+      topic: "",
+      isRecurring: false,
+      weeksToRepeat: 4,
+      location: "",
+      therapistId: therapistId || undefined,
     });
     setIsDialogOpen(true);
   };
@@ -985,6 +1020,7 @@ function CalendarPageContent() {
         currentTherapistId={currentTherapistId}
         canViewPayments={myPermissions.canViewPayments}
         multiTherapist={multiTherapist}
+        onFillFromWaitlist={handleFillFromWaitlist}
         onRequestPayment={async (data: PaymentRequest) => {
           // Phase 3: client-side guard — מזכירה ללא canViewPayments לא צריכה
           // להגיע לכאן (הכפתורים מוסתרים), אבל אם משתמש כן מצליח לטריגר

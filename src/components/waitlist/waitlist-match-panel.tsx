@@ -1,7 +1,6 @@
 "use client";
 
 import { useEffect, useState } from "react";
-import { useRouter } from "next/navigation";
 import { Phone, Users } from "lucide-react";
 import { Button } from "@/components/ui/button";
 
@@ -16,32 +15,22 @@ interface Match {
 
 interface WaitlistMatchPanelProps {
   sessionId: string;
-  /** זמן ההתחלה של המשבצת שהתפנתה (ISO) — לחישוב התאריך לקישור הזימון. */
-  sessionStartISO: string;
-  /** נקרא לפני ניווט (לסגירת הדיאלוג). */
-  onNavigate?: () => void;
-}
-
-/** YYYY-MM-DD של תאריך לפי שעון ישראל. */
-function israelDate(iso: string): string {
-  return new Intl.DateTimeFormat("en-CA", {
-    timeZone: "Asia/Jerusalem",
-  }).format(new Date(iso));
+  /** נקרא בלחיצה על "קבע" — האב פותח טופס פגישה חדשה ממולא (מטופל + המשבצת שהתפנתה). */
+  onFill: (clientId: string) => void;
 }
 
 /**
  * מילוי-בביטול: כשפגישה בוטלה, מציג את הממתינים מרשימת ההמתנה שמתאימים למשבצת
- * שהתפנתה — שם + טלפון להתקשרות, וכפתור "קבע" שמעביר ליומן עם המטופל בחור.
- * מידע אדמיניסטרטיבי בלבד (אין תוכן קליני). אם אין התאמות — לא מציג כלום.
+ * שהתפנתה — שם + טלפון להתקשרות, וכפתור "קבע" שפותח טופס פגישה חדשה עם המטופל
+ * בדיוק במשבצת שהתפנתה. מידע אדמיניסטרטיבי בלבד (אין תוכן קליני). אם אין
+ * התאמות — לא מציג כלום.
  */
 export function WaitlistMatchPanel({
   sessionId,
-  sessionStartISO,
-  onNavigate,
+  onFill,
 }: WaitlistMatchPanelProps) {
   const [matches, setMatches] = useState<Match[]>([]);
   const [loading, setLoading] = useState(true);
-  const router = useRouter();
 
   useEffect(() => {
     // loading מאותחל ל-true; הפאנל ממונה מחדש לכל פגישה (key במקום הקורא),
@@ -66,8 +55,6 @@ export function WaitlistMatchPanel({
   }, [sessionId]);
 
   if (loading || matches.length === 0) return null;
-
-  const date = israelDate(sessionStartISO);
 
   return (
     <div className="space-y-1.5">
@@ -100,12 +87,7 @@ export function WaitlistMatchPanel({
               size="sm"
               variant="outline"
               className="shrink-0"
-              onClick={() => {
-                onNavigate?.();
-                router.push(
-                  `/dashboard/calendar?client=${m.clientId}&date=${date}&new=true`,
-                );
-              }}
+              onClick={() => onFill(m.clientId)}
             >
               קבע
             </Button>

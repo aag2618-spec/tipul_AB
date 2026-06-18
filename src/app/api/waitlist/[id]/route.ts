@@ -3,7 +3,12 @@ import { z } from "zod";
 import prisma from "@/lib/prisma";
 import { logger } from "@/lib/logger";
 import { requireAuth } from "@/lib/api-auth";
-import { isSecretary, loadScopeUser, secretaryCan } from "@/lib/scope";
+import {
+  buildSessionWhere,
+  isSecretary,
+  loadScopeUser,
+  secretaryCan,
+} from "@/lib/scope";
 import { waitlistScope } from "@/lib/waitlist-scope";
 import { serializePrisma } from "@/lib/serialize";
 
@@ -63,6 +68,20 @@ export async function PATCH(
       );
     }
     const d = parsed.data;
+
+    // בידוד: placedSessionId חייב להצביע על פגישה ב-scope של המשתמש (לא חוצה ארגון).
+    if (d.placedSessionId) {
+      const okSession = await prisma.therapySession.findFirst({
+        where: { AND: [{ id: d.placedSessionId }, buildSessionWhere(scopeUser)] },
+        select: { id: true },
+      });
+      if (!okSession) {
+        return NextResponse.json(
+          { message: "הפגישה לא נמצאה" },
+          { status: 400 },
+        );
+      }
+    }
 
     const updated = await prisma.waitlistEntry.update({
       where: { id },
