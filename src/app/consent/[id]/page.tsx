@@ -124,7 +124,10 @@ export default function PublicConsentPage({
 
     tokenRef.current = token;
 
-    fetch(`/api/consent-forms/${id}/public?t=${encodeURIComponent(token)}`)
+    // הטוקן נשלח ב-header (לא ב-URL) כדי שלא יופיע ביומני-שרת/Referer.
+    fetch(`/api/consent-forms/${id}/public`, {
+      headers: { "x-consent-token": token },
+    })
       .then((res) => {
         if (!res.ok) throw new Error("not found");
         return res.json();
@@ -143,10 +146,13 @@ export default function PublicConsentPage({
 
     try {
       const res = await fetch(
-        `/api/consent-forms/${id}/public?t=${encodeURIComponent(tokenRef.current)}`,
+        `/api/consent-forms/${id}/public`,
         {
           method: "PATCH",
-          headers: { "Content-Type": "application/json" },
+          headers: {
+            "Content-Type": "application/json",
+            "x-consent-token": tokenRef.current,
+          },
           body: JSON.stringify({ signatureData }),
         }
       );
