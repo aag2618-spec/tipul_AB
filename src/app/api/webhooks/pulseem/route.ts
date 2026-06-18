@@ -109,7 +109,13 @@ export async function POST(request: NextRequest) {
       logger.error("[Pulseem Webhook] Invalid JSON body");
       return NextResponse.json({ message: "Invalid JSON" }, { status: 400 });
     }
-    logger.info("[Pulseem Webhook] Received:", { data: body });
+    // אבטחה (סבב 2026-06-18): אסור לרשום את ה-body הגולמי — הוא מכיל את תוכן
+    // ה-SMS של המטופל (body.text/body.body/body.message) ואת מספר הטלפון שלו
+    // (body.from/sender/originator). מפתחות אלה *אינם* נתפסים ב-SENSITIVE_KEY_REGEX
+    // של ה-logger (להבדיל מ-phone/content/recipient/to שכן), ולכן היו נכתבים
+    // בגלוי ל-Render logs. רושמים breadcrumb בלבד; פרטי עיבוד בטוחים (id-ים)
+    // נרשמים בהמשך.
+    logger.info("[Pulseem Webhook] Received incoming SMS payload");
 
     // --- חילוץ שדות (תמיכה במספר פורמטים) ---
     // Stage 1.20 — coerce to string + bound length to prevent DoS via large payloads.
