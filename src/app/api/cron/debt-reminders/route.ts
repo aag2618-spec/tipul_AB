@@ -340,20 +340,38 @@ export async function GET(request: NextRequest) {
         }
 
         // Send SMS debt reminder (independent from email)
-        const smsResult = await sendSMSIfEnabled({
-          userId: therapist.id,
-          phone: client.phone,
-          template: setting.templateDebtReminderSMS,
-          defaultTemplate: "שלום {שם}, יש יתרה פתוחה של {סכום}. פרטים נשלחו במייל",
-          placeholders: {
-            שם: client.firstName || client.name,
-            סכום: `₪${totalDebt}`,
+        // ⭐ dedup ל-SMS (סבב אבטחה 2026-06-18): סימטרי ל-dedup של המייל למעלה.
+        //    קודם לכן רק EMAIL נבדק (subject "תזכורת תשלום"); אם אין מייל ללקוח
+        //    (רק טלפון), או אם כתיבת ה-EMAIL-log נכשלת, ה-SMS היה נשלח שוב בכל
+        //    ריצה של ה-cron — SMS כפול למטופל + בזבוז קרדיט (כסף). sendSMS כותב
+        //    CommunicationLog(type:"DEBT_REMINDER", channel:"SMS", status:"SENT")
+        //    עם clientId+userId, כך שבדיקה זו בחלון החודש מונעת את הכפילות.
+        const existingDebtSms = await prisma.communicationLog.findFirst({
+          where: {
+            userId: therapist.id,
+            clientId: client.id,
+            type: "DEBT_REMINDER",
+            channel: "SMS",
+            status: "SENT",
+            createdAt: { gte: monthStart },
           },
-          settingKey: "sendDebtReminderSMS",
-          clientId: client.id,
-          type: "DEBT_REMINDER",
         });
-        if (smsResult.success) totalSmsSent++;
+        if (!existingDebtSms) {
+          const smsResult = await sendSMSIfEnabled({
+            userId: therapist.id,
+            phone: client.phone,
+            template: setting.templateDebtReminderSMS,
+            defaultTemplate: "שלום {שם}, יש יתרה פתוחה של {סכום}. פרטים נשלחו במייל",
+            placeholders: {
+              שם: client.firstName || client.name,
+              סכום: `₪${totalDebt}`,
+            },
+            settingKey: "sendDebtReminderSMS",
+            clientId: client.id,
+            type: "DEBT_REMINDER",
+          });
+          if (smsResult.success) totalSmsSent++;
+        }
       }
     }
 
