@@ -84,7 +84,20 @@ export async function GET(
 
     let client;
     if (fields === "basic") {
-      client = await prisma.client.findFirst({ where: whereClause });
+      // אבטחה (סבב 2026-06-18): ענף ה-basic נבדק *לפני* isSecretary, ו-findFirst
+      // ללא select החזיר את כל ה-scalars — כולל השדות הקליניים החסומים למזכירה
+      // (CLINICAL_FIELDS_BLOCKED_FOR_SECRETARY: notes/intakeNotes/initialDiagnosis/
+      // medicalHistory/therapeuticApproaches/approachNotes/culturalContext). מזכירה
+      // יכלה לשלוף אותם ישירות דרך ?fields=basic. כעת: למזכירה מחילים את ה-safe
+      // select (ללא תוכן קליני); מטפל/בעלים מקבלים את כל שדות הבסיס כרגיל (מורשים,
+      // ודף העריכה צריך גם את notes/initialDiagnosis/intakeNotes). ה-PUT ממילא
+      // חוסם כתיבת שדות קליניים ממזכירה (ראה למטה), כך שאין רגרסיה בשמירה.
+      client = await prisma.client.findFirst({
+        where: whereClause,
+        ...(isSecretary(scopeUser)
+          ? { select: getClientSafeSelectForSecretary() }
+          : {}),
+      });
     } else if (isSecretary(scopeUser)) {
       // הגנה על תוכן קליני: מזכירה מקבלת select מצומצם בלבד (ללא sessionNote/recordings/transcription/analysis).
       // Phase 1 (סבב 21): payments נחשפו תמיד למזכירה גם בלי canViewPayments —
