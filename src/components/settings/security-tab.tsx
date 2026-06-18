@@ -58,6 +58,11 @@ export function SecurityTab() {
   // כלי "שחרור תיק חסום" — טוגל אישי (נטפרי/אתרוג).
   const [usesContentFilter, setUsesContentFilter] = useState(false);
   const [filterSaving, setFilterSaving] = useState(false);
+  // הפעלה/כיבוי 2FA במייל/SMS (בלי אפליקציה/QR) — למי שאין סמארטפון עם סורק קוד.
+  const [emailSetupOpen, setEmailSetupOpen] = useState(false);
+  const [emailSetupMode, setEmailSetupMode] = useState<"enable" | "disable">("enable");
+  const [emailSetupCode, setEmailSetupCode] = useState("");
+  const [emailSetupBusy, setEmailSetupBusy] = useState(false);
 
   // טעינת הסטטוס הנוכחי מ-/api/user/profile (existing endpoint)
   useEffect(() => {
@@ -248,6 +253,62 @@ export function SecurityTab() {
     }
   }
 
+  // שליחת קוד למייל/SMS לקראת הפעלה/כיבוי 2FA (בלי אפליקציה).
+  async function startEmailSetup(mode: "enable" | "disable") {
+    setEmailSetupBusy(true);
+    setEmailSetupCode("");
+    setEmailSetupMode(mode);
+    try {
+      const res = await fetch("/api/auth/2fa/email-setup", { method: "POST" });
+      const data = await res.json();
+      if (!res.ok) {
+        toast.error(data.message || "שגיאה בשליחת הקוד");
+        return;
+      }
+      setEmailSetupOpen(true);
+      toast.success("קוד אימות נשלח אליך למייל (וגם ב-SMS אם יש טלפון שמור)");
+    } catch {
+      toast.error("שגיאת רשת");
+    } finally {
+      setEmailSetupBusy(false);
+    }
+  }
+
+  // אישור הקוד והפעלה (PATCH) או כיבוי (DELETE) של 2FA במייל/SMS.
+  async function confirmEmailSetup() {
+    if (emailSetupCode.length !== 6) {
+      toast.error("הזן/י קוד בן 6 ספרות");
+      return;
+    }
+    setEmailSetupBusy(true);
+    try {
+      const res = await fetch("/api/auth/2fa/email-setup", {
+        method: emailSetupMode === "enable" ? "PATCH" : "DELETE",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ code: emailSetupCode }),
+      });
+      const data = await res.json();
+      if (!res.ok) {
+        toast.error(data.message || "קוד שגוי");
+        return;
+      }
+      if (emailSetupMode === "enable") {
+        toast.success("אימות דו-שלבי במייל/SMS הופעל");
+        setStatus("otp");
+      } else {
+        toast.success("אימות דו-שלבי כובה");
+        setStatus("off");
+      }
+      setEmailSetupOpen(false);
+      setEmailSetupCode("");
+      await update();
+    } catch {
+      toast.error("שגיאת רשת");
+    } finally {
+      setEmailSetupBusy(false);
+    }
+  }
+
   // טוגל "אני משתמש/ת בסינון תוכן" — שמירה אופטימית ל-/api/user/profile.
   async function toggleContentFilter(next: boolean) {
     setFilterSaving(true);
@@ -345,26 +406,81 @@ export function SecurityTab() {
             </div>
           )}
 
-          {(status === "otp" || status === "off") && (
+          {status === "off" && (
             <div className="space-y-3">
               <div className="flex items-start gap-2 rounded-md bg-amber-50 dark:bg-amber-900/20 p-3 text-amber-700 dark:text-amber-300">
                 <AlertTriangle className="h-5 w-5 shrink-0 mt-0.5" />
                 <div className="text-sm">
-                  {status === "otp"
-                    ? "כרגע: קודי אימות נשלחים במייל/SMS. אפליקציית Authenticator (כמו Google Authenticator) מאובטחת יותר ופועלת גם בלי קליטה."
-                    : "אימות דו-שלבי לא פעיל. מומלץ להפעיל TOTP כדי להגן על החשבון."}
+                  אימות דו-שלבי לא פעיל. מומלץ מאוד להפעיל — במייל/SMS (בלי אפליקציה) או דרך אפליקציית Authenticator.
                 </div>
               </div>
-              <Button onClick={startSetup} disabled={setupBusy}>
-                {setupBusy ? (
-                  <>
-                    <Loader2 className="ml-2 h-4 w-4 animate-spin" />
-                    טוען...
-                  </>
-                ) : (
-                  "הפעל אפליקציית Authenticator"
-                )}
-              </Button>
+              <div className="flex flex-col gap-2 sm:flex-row">
+                <Button onClick={() => startEmailSetup("enable")} disabled={emailSetupBusy}>
+                  {emailSetupBusy ? (
+                    <>
+                      <Loader2 className="ml-2 h-4 w-4 animate-spin" />
+                      שולח קוד...
+                    </>
+                  ) : (
+                    "הפעל אימות במייל/SMS"
+                  )}
+                </Button>
+                <Button variant="outline" onClick={startSetup} disabled={setupBusy}>
+                  {setupBusy ? (
+                    <>
+                      <Loader2 className="ml-2 h-4 w-4 animate-spin" />
+                      טוען...
+                    </>
+                  ) : (
+                    "הפעל אפליקציית Authenticator"
+                  )}
+                </Button>
+              </div>
+              <p className="text-xs text-muted-foreground">
+                אין לך סמארטפון עם סורק קוד? בחר/י &quot;הפעל אימות במייל/SMS&quot; — קוד בן 6 ספרות יישלח אליך למייל וגם ב-SMS בכל כניסה.
+              </p>
+            </div>
+          )}
+
+          {status === "otp" && (
+            <div className="space-y-3">
+              <div className="flex items-center gap-2 rounded-md bg-emerald-50 dark:bg-emerald-900/20 p-3 text-emerald-700 dark:text-emerald-300">
+                <ShieldCheck className="h-5 w-5" />
+                <div>
+                  <div className="font-semibold">אימות דו-שלבי פעיל (מייל/SMS)</div>
+                  <div className="text-sm">
+                    בכל כניסה יישלח אליך קוד בן 6 ספרות למייל וגם ב-SMS.
+                  </div>
+                </div>
+              </div>
+              <div className="flex items-start gap-2 rounded-md bg-amber-50 dark:bg-amber-900/20 p-3 text-amber-700 dark:text-amber-300">
+                <AlertTriangle className="h-5 w-5 shrink-0 mt-0.5" />
+                <div className="text-sm">
+                  אפשר לשדרג לאפליקציית Authenticator — מאובטחת יותר ופועלת גם בלי קליטה (דורשת סמארטפון עם סורק QR).
+                </div>
+              </div>
+              <div className="flex flex-col gap-2 sm:flex-row">
+                <Button variant="outline" onClick={startSetup} disabled={setupBusy}>
+                  {setupBusy ? (
+                    <>
+                      <Loader2 className="ml-2 h-4 w-4 animate-spin" />
+                      טוען...
+                    </>
+                  ) : (
+                    "שדרג לאפליקציית Authenticator"
+                  )}
+                </Button>
+                <Button variant="ghost" onClick={() => startEmailSetup("disable")} disabled={emailSetupBusy}>
+                  {emailSetupBusy ? (
+                    <>
+                      <Loader2 className="ml-2 h-4 w-4 animate-spin" />
+                      שולח קוד...
+                    </>
+                  ) : (
+                    "כבה אימות דו-שלבי"
+                  )}
+                </Button>
+              </div>
             </div>
           )}
         </CardContent>
@@ -632,6 +748,70 @@ export function SecurityTab() {
                 </>
               ) : (
                 "כבה TOTP"
+              )}
+            </Button>
+          </DialogFooter>
+        </DialogContent>
+      </Dialog>
+
+      {/* Email/SMS 2FA setup dialog — הזנת הקוד שנשלח, להפעלה/כיבוי */}
+      <Dialog open={emailSetupOpen} onOpenChange={(o) => !emailSetupBusy && setEmailSetupOpen(o)}>
+        <DialogContent dir="rtl">
+          <DialogHeader>
+            <DialogTitle>
+              {emailSetupMode === "enable"
+                ? "הפעלת אימות דו-שלבי במייל/SMS"
+                : "כיבוי אימות דו-שלבי"}
+            </DialogTitle>
+            <DialogDescription>
+              שלחנו קוד בן 6 ספרות למייל שלך (וגם ב-SMS, אם יש טלפון נייד שמור).
+              הזן/י אותו כאן לאישור.
+            </DialogDescription>
+          </DialogHeader>
+          <div className="space-y-2">
+            <Label htmlFor="email-setup-code">קוד בן 6 ספרות</Label>
+            <Input
+              id="email-setup-code"
+              inputMode="numeric"
+              maxLength={6}
+              value={emailSetupCode}
+              onChange={(e) =>
+                setEmailSetupCode(e.target.value.replace(/\D/g, "").slice(0, 6))
+              }
+              placeholder="123456"
+              autoComplete="one-time-code"
+            />
+            <button
+              type="button"
+              className="text-xs text-muted-foreground underline disabled:opacity-50"
+              onClick={() => startEmailSetup(emailSetupMode)}
+              disabled={emailSetupBusy}
+            >
+              לא קיבלת? שלח/י קוד חדש
+            </button>
+          </div>
+          <DialogFooter>
+            <Button
+              variant="ghost"
+              onClick={() => setEmailSetupOpen(false)}
+              disabled={emailSetupBusy}
+            >
+              ביטול
+            </Button>
+            <Button
+              onClick={confirmEmailSetup}
+              disabled={emailSetupBusy || emailSetupCode.length !== 6}
+              variant={emailSetupMode === "disable" ? "destructive" : "default"}
+            >
+              {emailSetupBusy ? (
+                <>
+                  <Loader2 className="ml-2 h-4 w-4 animate-spin" />
+                  מאמת...
+                </>
+              ) : emailSetupMode === "enable" ? (
+                "הפעל"
+              ) : (
+                "כבה"
               )}
             </Button>
           </DialogFooter>

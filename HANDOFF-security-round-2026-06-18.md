@@ -10,7 +10,7 @@
 | 1 | 🔴 High | מזכירה מקבלת שדות קליניים דרך `GET /api/clients/[id]?fields=basic` | `src/app/api/clients/[id]/route.ts:86` | ✅ **done** (commit + push) |
 | 2 | 🟠 Med | תזכורות 24h/2h שולחות SMS חוזר כל 15 דק' בלי dedup ל-SMS | `src/app/api/cron/reminders/route.ts:71` + `reminders-2h` | ✅ **done** (5 סוכנים, 6 טסטים) |
 | 3 | 🟠 Med | Pulseem webhook רושם body גולמי (תוכן SMS + טלפון) ללוגים | `src/app/api/webhooks/pulseem/route.ts:112` | ✅ **done** (5 סוכנים, טסט) |
-| 4 | 🟠 Med | ADMIN/CLINIC_OWNER יכולים להתחבר בלי 2FA (אין force-enrollment) | `src/lib/two-factor.ts:121` | pending |
+| 4 | 🟠 Med | ADMIN/CLINIC_OWNER יכולים להתחבר בלי 2FA (אין force-enrollment) | `src/lib/two-factor.ts:121` | 🟡 **חלקי** — נוסף כפתור הפעלת 2FA במייל/SMS (5 סוכנים, 8 טסטים). **אכיפה (force) נדחתה לבחירת המשתמש.** |
 | 5 | 🟡 Low | `error: String(error)` בתגובת 3 endpoints | `webhooks/resend:261`, `pulseem:245`, `cron/generate-alerts:221` | pending |
 | 6 | 🟡 Low | Meshulam webhook סומך על `amount` מהלקוח (defense-in-depth) | `webhooks/meshulam/route.ts:647` | pending |
 | 7 | 🟡 Low | CSP בדפים ציבוריים מתיר `unsafe-inline` ללא nonce | `next.config.ts:8` | pending |

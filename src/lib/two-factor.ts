@@ -357,6 +357,48 @@ export async function verifyCode(userId: string, inputCode: string, loginAt: num
   });
 }
 
+// הפעלת/כיבוי 2FA במייל/SMS (setup): מאמת קוד OTP שנשלח דרך sendCode, **בלי**
+// תופעות-הלוואי של login (לא נוגע ב-lastLoginAt/twoFactorVerifiedForLoginAt) —
+// בניגוד ל-verifyCode שמיועד לזרימת ההתחברות. מחזיר boolean. אטומי: הבדיקה,
+// הגדלת attempts, וה-mark-as-verified עטופים בטרנזקציה (כמו ב-verifyCode), כדי
+// שניסיונות מקבילים לא יעקפו את MAX_ATTEMPTS ושאותו קוד לא ינוצל פעמיים.
+export async function confirmTwoFactorCodeForSetup(
+  userId: string,
+  inputCode: string,
+): Promise<boolean> {
+  const clean = (inputCode || "").replace(/\s+/g, "").trim();
+  if (!/^\d{6}$/.test(clean)) return false;
+  const inputHash = hashCode(clean);
+
+  return await prisma.$transaction(async (tx) => {
+    const code = await tx.twoFactorCode.findFirst({
+      where: { userId, verifiedAt: null, expiresAt: { gt: new Date() } },
+      orderBy: [{ createdAt: "desc" }, { id: "desc" }],
+    });
+    if (!code) return false;
+    if (code.attempts >= MAX_ATTEMPTS) return false;
+
+    const expectedBuf = Buffer.from(code.codeHash, "hex");
+    const inputBuf = Buffer.from(inputHash, "hex");
+    const isValid =
+      expectedBuf.length === inputBuf.length && crypto.timingSafeEqual(expectedBuf, inputBuf);
+
+    if (!isValid) {
+      await tx.twoFactorCode.updateMany({
+        where: { id: code.id, attempts: { lt: MAX_ATTEMPTS } },
+        data: { attempts: { increment: 1 } },
+      });
+      return false;
+    }
+
+    const consumed = await tx.twoFactorCode.updateMany({
+      where: { id: code.id, verifiedAt: null, attempts: { lt: MAX_ATTEMPTS } },
+      data: { verifiedAt: new Date() },
+    });
+    return consumed.count > 0;
+  });
+}
+
 // H18: יוצר 10 קודי שחזור חד-פעמיים. הקודים עצמם מוחזרים פעם אחת בלבד
 // (frontend מציג אותם למשתמש להורדה/הדפסה). ב-DB נשמרים רק bcrypt hashes.
 //
