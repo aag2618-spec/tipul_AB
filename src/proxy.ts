@@ -11,6 +11,7 @@ import {
   getAdminRateLimitKey,
   ADMIN_RATE_LIMIT_BY_TIER,
 } from "@/lib/rate-limit";
+import { isCrossOriginMutation } from "@/lib/csrf";
 
 // Next 16 proxy: rate-limit משתמש ב-Map in-memory. ב-Next 16 proxy תמיד
 // רץ ב-Node.js runtime (לפי docs — "Proxy always runs on Node.js runtime"),
@@ -173,6 +174,37 @@ export async function proxy(request: NextRequest) {
   // round18-fix: matcher inline (אסור export const config ב-Next 16 proxy.ts)
   if (!pathShouldRunProxy(pathname)) {
     return NextResponse.next();
+  }
+
+  // CSRF — שכבת הגנה נוספת (defense-in-depth) מעבר ל-SameSite=Lax בעוגיית הסשן.
+  // חוסם מוטציות (POST/PUT/PATCH/DELETE) חוצות-מקור לנתיבי /api/* בלבד.
+  // וובהוקים (/api/webhooks/*), cron (/api/cron/*) ו-NextAuth (/api/auth/*) מוחרגים
+  // כבר ב-pathShouldRunProxy, כך שספקי תשלום/OAuth החיצוניים לא מושפעים. Server
+  // Actions (POST לדפים) מוגנים-CSRF נייטיבית ע"י Next.js ולכן אינם כלולים כאן.
+  if (
+    pathname.startsWith("/api/") &&
+    isCrossOriginMutation(
+      request.method,
+      request.headers,
+      request.headers.get("host") ?? request.nextUrl.host
+    )
+  ) {
+    // לוג קליל (ללא PHI — רק מטא של הבקשה) לזיהוי תקיפות *וגם* false-positive
+    // בפרודקשן: אם משתמש אמיתי נחסם בטעות, זו הדרך היחידה לראות זאת.
+    console.warn(
+      JSON.stringify({
+        level: "warn",
+        msg: "[csrf] blocked cross-origin mutation",
+        method: request.method,
+        pathname,
+        origin: request.headers.get("origin"),
+        secFetchSite: request.headers.get("sec-fetch-site"),
+      })
+    );
+    return NextResponse.json(
+      { message: "הבקשה נחסמה: מקור לא מורשה." },
+      { status: 403 }
+    );
   }
 
   // H16.4: ייצור nonce per-request ל-CSP nonce-based. base64 (לא hex) כי
