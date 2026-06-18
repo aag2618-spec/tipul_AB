@@ -138,23 +138,37 @@ export async function GET(request: NextRequest) {
         }
 
         // Send SMS reminder (independent from email)
-        const smsResult = await sendSMSIfEnabled({
-          userId: session.therapistId,
-          phone: session.client.phone,
-          template: settings?.templateReminderCustomSMS,
-          defaultTemplate: "שלום {שם}, פגישה בעוד {שעות} שעות ב-{שעה}",
-          placeholders: {
-            שם: session.client.firstName || session.client.name,
-            תאריך: date,
-            שעה: time,
-            שעות: String(reminderHours),
+        // ⭐ dedup ל-SMS (סבב אבטחה 2026-06-18): סימטרי ל-dedup של המייל למעלה.
+        //    בלי זה, כשל מייל חוזר (FAILED) גרם לשליחת SMS תזכורת נוסף בכל ריצה
+        //    (כל 15 דק') — הצפת המטופל + בזבוז קרדיט. ראה reminders/route.ts.
+        const existingSmsLog = await prisma.communicationLog.findFirst({
+          where: {
+            sessionId: session.id,
+            type: "REMINDER_2H",
+            channel: "SMS",
+            status: "SENT",
           },
-          settingKey: "sendReminderCustomSMS",
-          sessionId: session.id,
-          clientId: session.clientId || undefined,
-          type: "REMINDER_2H",
         });
-        if (smsResult.success) smsSent++;
+
+        if (!existingSmsLog) {
+          const smsResult = await sendSMSIfEnabled({
+            userId: session.therapistId,
+            phone: session.client.phone,
+            template: settings?.templateReminderCustomSMS,
+            defaultTemplate: "שלום {שם}, פגישה בעוד {שעות} שעות ב-{שעה}",
+            placeholders: {
+              שם: session.client.firstName || session.client.name,
+              תאריך: date,
+              שעה: time,
+              שעות: String(reminderHours),
+            },
+            settingKey: "sendReminderCustomSMS",
+            sessionId: session.id,
+            clientId: session.clientId || undefined,
+            type: "REMINDER_2H",
+          });
+          if (smsResult.success) smsSent++;
+        }
       }
     }
 

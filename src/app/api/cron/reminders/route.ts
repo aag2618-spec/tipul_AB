@@ -125,24 +125,40 @@ export async function GET(request: NextRequest) {
       }
 
       // Send SMS reminder (independent from email)
-      const dayName = session.startTime.toLocaleDateString("he-IL", { weekday: "long", timeZone: "Asia/Jerusalem" });
-      const smsResult = await sendSMSIfEnabled({
-        userId: session.therapistId,
-        phone: session.client.phone,
-        template: settings?.templateReminder24hSMS,
-        defaultTemplate: "שלום {שם}, תזכורת לפגישה מחר ({יום}) ב-{שעה}",
-        placeholders: {
-          שם: session.client.firstName || session.client.name,
-          תאריך: date,
-          שעה: time,
-          יום: dayName,
+      // ⭐ dedup ל-SMS (סבב אבטחה 2026-06-18): סימטרי ל-dedup של המייל למעלה.
+      //    קודם לכן רק EMAIL נבדק; אם המייל נכשל (FAILED) — בכל ריצה של המתזמן
+      //    (כל 15 דק') נשלח SMS תזכורת *נוסף*: הצפת המטופל (PHI: מטפל+מועד) +
+      //    בזבוז קרדיט SMS אמיתי בכל שליחה. sendSMS כותב CommunicationLog
+      //    (channel:"SMS", status:"SENT"), כך שבדיקה זו מונעת את הכפילות.
+      const existingSmsLog = await prisma.communicationLog.findFirst({
+        where: {
+          sessionId: session.id,
+          type: "REMINDER_24H",
+          channel: "SMS",
+          status: "SENT",
         },
-        settingKey: "sendReminder24hSMS",
-        sessionId: session.id,
-        clientId: session.clientId || undefined,
-        type: "REMINDER_24H",
       });
-      if (smsResult.success) smsSent++;
+
+      if (!existingSmsLog) {
+        const dayName = session.startTime.toLocaleDateString("he-IL", { weekday: "long", timeZone: "Asia/Jerusalem" });
+        const smsResult = await sendSMSIfEnabled({
+          userId: session.therapistId,
+          phone: session.client.phone,
+          template: settings?.templateReminder24hSMS,
+          defaultTemplate: "שלום {שם}, תזכורת לפגישה מחר ({יום}) ב-{שעה}",
+          placeholders: {
+            שם: session.client.firstName || session.client.name,
+            תאריך: date,
+            שעה: time,
+            יום: dayName,
+          },
+          settingKey: "sendReminder24hSMS",
+          sessionId: session.id,
+          clientId: session.clientId || undefined,
+          type: "REMINDER_24H",
+        });
+        if (smsResult.success) smsSent++;
+      }
     }
 
     return NextResponse.json({

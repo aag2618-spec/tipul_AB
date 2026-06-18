@@ -8,7 +8,7 @@
 | # | חומרה | ממצא | קובץ | סטטוס |
 |---|--------|------|------|--------|
 | 1 | 🔴 High | מזכירה מקבלת שדות קליניים דרך `GET /api/clients/[id]?fields=basic` | `src/app/api/clients/[id]/route.ts:86` | ✅ **done** (commit + push) |
-| 2 | 🟠 Med | תזכורות 24h/2h שולחות SMS חוזר כל 15 דק' בלי dedup ל-SMS | `src/app/api/cron/reminders/route.ts:71` + `reminders-2h` | pending |
+| 2 | 🟠 Med | תזכורות 24h/2h שולחות SMS חוזר כל 15 דק' בלי dedup ל-SMS | `src/app/api/cron/reminders/route.ts:71` + `reminders-2h` | ✅ **done** (5 סוכנים, 6 טסטים) |
 | 3 | 🟠 Med | Pulseem webhook רושם body גולמי (תוכן SMS + טלפון) ללוגים | `src/app/api/webhooks/pulseem/route.ts:112` | pending |
 | 4 | 🟠 Med | ADMIN/CLINIC_OWNER יכולים להתחבר בלי 2FA (אין force-enrollment) | `src/lib/two-factor.ts:121` | pending |
 | 5 | 🟡 Low | `error: String(error)` בתגובת 3 endpoints | `webhooks/resend:261`, `pulseem:245`, `cron/generate-alerts:221` | pending |
@@ -19,6 +19,9 @@
 | 10 | 🟡 Low | MANAGER יכול לאפס סיסמת ADMIN — נחסם רק ב-handler | `src/lib/permissions.ts:94` | pending |
 | 11 | 🟡 Low | proxy `/api/admin` משתמש ב-`includes()` (substring רחב מדי) | `src/proxy.ts:365` | pending |
 | 12-17 | ⚪ Info | refund idempotency key, CSRF Lax-only, CSP img-src https:, proxy-only enforcement, impersonation step-up + (✅ אין IDOR) | שונים | פתוח לשיקול |
+
+## ממצאים נוספים שהתגלו תוך כדי תיקון
+- **debt-reminders חסר dedup ל-SMS** (`src/app/api/cron/debt-reminders/route.ts:344-358`): שולח `sendSMSIfEnabled(type:"DEBT_REMINDER")` ללא בדיקת SMS-SENT לפני (ה-dedup היחיד הוא על המייל). רץ פעם ביום אז ההצפה מוגבלת, אך אותו דפוס כמו #2. (התגלה ע"י סוכן הסייבר בסבב #2.) → מעקב נפרד.
 
 ## פערי כיסוי (מבקר) — לסבב המשך נפרד
 - **Race/TOCTOU** ב-`/api/sessions` POST (אין $transaction Serializable כמו בנתיב הציבורי `/api/booking/t/[token]`) — double-booking.
