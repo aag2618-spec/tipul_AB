@@ -43,6 +43,7 @@ import {
   MessagesSquare,
   ArrowLeftRight,
   Clock,
+  CalendarDays,
 } from "lucide-react";
 
 interface AppSidebarProps {
@@ -66,6 +67,11 @@ const mainNavItems = [
     title: "יומן",
     href: "/dashboard/calendar",
     icon: Calendar,
+  },
+  {
+    title: "סדר יום",
+    href: "/dashboard/agenda",
+    icon: CalendarDays,
   },
   {
     title: "מטופלים",
@@ -204,6 +210,7 @@ export function AppSidebar({ user, initialViewMode = "personal" }: AppSidebarPro
   const secretaryNavItems = [
     { title: "דשבורד", href: "/dashboard", icon: LayoutDashboard },
     { title: "יומן", href: "/dashboard/calendar", icon: Calendar },
+    { title: "סדר יום", href: "/dashboard/agenda", icon: CalendarDays },
     { title: "מטופלים", href: "/dashboard/clients", icon: Users },
     ...(!permsLoading && permissions.canCreateClient
       ? [{ title: "רשימת המתנה", href: "/dashboard/waitlist", icon: Clock }]

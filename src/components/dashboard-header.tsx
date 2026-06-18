@@ -19,6 +19,7 @@ import { Badge } from "@/components/ui/badge";
 import { Bell, LogOut, Settings, User, XCircle, Mail, Calendar, X, ListTodo, Sun, Moon, CreditCard, Info, AlertTriangle, CheckCircle, Sparkles, Building2, Shield } from "lucide-react";
 import Link from "next/link";
 import { getNotificationIconInfo, extractBookingInfo as extractBookingInfoUtil } from "@/lib/notification-utils";
+import { GlobalSearch } from "@/components/global-search";
 
 interface Notification {
   id: string;
@@ -216,9 +217,11 @@ export function DashboardHeader({ user }: DashboardHeaderProps) {
     <>
     <header className="sticky top-0 z-50 flex h-16 items-center gap-4 border-b bg-background/95 backdrop-blur supports-[backdrop-filter]:bg-background/60 px-6 print:hidden">
       <SidebarTrigger className="-mr-2" />
-      
+
+      <GlobalSearch />
+
       <div className="flex-1" />
-      
+
       <div className="flex items-center gap-2">
         {/* Notifications Dropdown */}
         <DropdownMenu>
