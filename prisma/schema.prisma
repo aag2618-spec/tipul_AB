@@ -524,6 +524,9 @@ model Client {
   // קישורי זימון עצמי אישיים — token לכל מטופל (במקום קישור כללי). Cascade במחיקת מטופל.
   bookingLinks BookingLink[]
 
+  // רשימת המתנה — מטופל שממתין למשבצת מוקדמת/פנויה. Cascade במחיקת מטופל.
+  waitlistEntries WaitlistEntry[]
+
   @@index([organizationId])
   @@index([organizationId, therapistId])
   @@index([therapistId])
@@ -1948,6 +1951,39 @@ model BookingLink {
 
   @@index([clientId])
   @@index([expiresAt])
+}
+
+// ==================== רשימת המתנה ====================
+// מטופל שממתין למשבצת פנויה/מוקדמת. כשפגישה מתבטלת, המזכירה מקבלת התאמות
+// מדורגות למילוי החור. therapistId/organizationId נשמרים כ-scalars (כמו
+// BookingLink) — בידוד tenant בלי קשרים נוספים ל-User/Organization.
+enum WaitlistStatus {
+  ACTIVE // ממתין פעיל
+  PLACED // שובץ לפגישה (מולא חור)
+  CANCELLED // ירד מהרשימה
+}
+
+model WaitlistEntry {
+  id                   String         @id @default(cuid())
+  clientId             String
+  client               Client         @relation(fields: [clientId], references: [id], onDelete: Cascade)
+  therapistId          String // המטפל ה"בעלים" של הרשומה (לסקופ/בידוד)
+  organizationId       String? // snapshot לסקופ רב-ארגוני (null = מטפל עצמאי)
+  preferredTherapistId String? // null = כל מטפל בקליניקה מתאים
+  durationMinutes      Int            @default(50)
+  preferredDays        Json? // מערך ימים [0..6] או null = כל יום
+  preferredTimeFrom    String? // "HH:mm" חלון מועדף, או null = כל שעה
+  preferredTimeTo      String?
+  priority             Int            @default(0) // גבוה יותר = קודם
+  status               WaitlistStatus @default(ACTIVE)
+  note                 String?        @db.Text // אדמיניסטרטיבי בלבד — לא תוכן קליני
+  placedSessionId      String? // הפגישה שמילאה את החור (כשמשבצים)
+  createdAt            DateTime       @default(now())
+  updatedAt            DateTime       @updatedAt
+
+  @@index([organizationId, status])
+  @@index([therapistId, status])
+  @@index([clientId])
 }
 
 // ==================== Feature Flags ====================

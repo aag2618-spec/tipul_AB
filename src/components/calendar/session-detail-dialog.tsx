@@ -14,6 +14,7 @@ import { QuickMarkPaid } from "@/components/payments/quick-mark-paid";
 import { safeHttpUrl } from "@/lib/receipt-utils";
 import { copayApplies } from "@/lib/commitments";
 import { getTherapistAccent } from "@/lib/calendar/event-colors";
+import { WaitlistMatchPanel } from "@/components/waitlist/waitlist-match-panel";
 import type { CalendarSession } from "@/hooks/use-calendar-data";
 
 // ── Types ──
@@ -1056,6 +1057,17 @@ export function SessionDetailDialog({
                   <div className="space-y-1.5">
                     {renderCancellationSection()}
                   </div>
+                )}
+
+                {/* מילוי-בביטול: ממתינים מרשימת ההמתנה שמתאימים למשבצת שהתפנתה.
+                    מוצג רק לפגישה שבוטלה (לא אי-הגעה — שם המשבצת כבר עברה). */}
+                {session.status === "CANCELLED" && session.type !== "BREAK" && (
+                  <WaitlistMatchPanel
+                    key={session.id}
+                    sessionId={session.id}
+                    sessionStartISO={session.startTime}
+                    onNavigate={() => onOpenChange(false)}
+                  />
                 )}
 
                 {/* כפתורים לפונה (פגישת ייעוץ) */}
