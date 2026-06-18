@@ -23,6 +23,9 @@ import {
   CheckCircle2,
   MessagesSquare,
   Bell,
+  DoorOpen,
+  BellRing,
+  BadgeCheck,
 } from "lucide-react";
 import prisma from "@/lib/prisma";
 import {
@@ -34,6 +37,9 @@ import {
 import { EXCLUDE_BULK_UMBRELLA_WHERE } from "@/lib/payments/types";
 import { getTherapistAccent } from "@/lib/calendar/event-colors";
 import { getIsraelDayBoundsUtc } from "@/lib/timezone";
+import { calculatePaidAmount } from "@/lib/payment-utils";
+import { ContactActions } from "@/components/contact-actions";
+import type { Prisma } from "@prisma/client";
 
 const STATUS_LABEL: Record<string, string> = {
   SCHEDULED: "מתוכננת",
@@ -59,6 +65,8 @@ const TYPE_LABEL: Record<string, string> = {
 };
 
 // שורת פגישה אדמיניסטרטיבית — ללא שדות קליניים. משותפת ל"היום" ול"מחר".
+// מועשרת בחיווי-דלפק: טלפון (לחיוג/WhatsApp), חדר, אם נשלחה תזכורת, ותווית
+// תשלום (רק כשלמזכירה יש canViewPayments — מחושב בשרת, payment לא נשלח ללקוח).
 type AdminSessionRow = {
   id: string;
   startTime: Date;
@@ -66,7 +74,10 @@ type AdminSessionRow = {
   type: string;
   status: string;
   cancellationRequestedAt: Date | null;
-  client: { id: string; name: string | null } | null;
+  location: string | null;
+  reminderSent: boolean;
+  paymentLabel: { text: string; cls: string } | null;
+  client: { id: string; name: string | null; phone: string | null } | null;
   therapist: { id: string; name: string | null } | null;
 };
 
@@ -105,14 +116,34 @@ function SessionRow({ s, now }: { s: AdminSessionRow; now: Date }) {
         ) : (
           <span className="font-medium text-muted-foreground">ללא מטופל</span>
         )}
-        <p className="text-xs text-muted-foreground truncate flex items-center gap-1">
-          <span
-            className="inline-block h-2 w-2 rounded-full shrink-0"
-            style={{ backgroundColor: accent }}
-            aria-hidden="true"
-          />
-          {s.therapist?.name || "מטפל/ת"}
-        </p>
+        <div className="text-xs text-muted-foreground flex items-center gap-2 flex-wrap">
+          <span className="flex items-center gap-1">
+            <span
+              className="inline-block h-2 w-2 rounded-full shrink-0"
+              style={{ backgroundColor: accent }}
+              aria-hidden="true"
+            />
+            {s.therapist?.name || "מטפל/ת"}
+          </span>
+          {s.location && (
+            <span className="flex items-center gap-0.5">
+              <DoorOpen className="h-3 w-3" aria-hidden />
+              {s.location}
+            </span>
+          )}
+          {s.reminderSent && (
+            <span className="flex items-center gap-0.5" title="תזכורת נשלחה">
+              <BellRing className="h-3 w-3" aria-hidden />
+              תזכורת
+            </span>
+          )}
+          {s.paymentLabel && (
+            <span className={`flex items-center gap-0.5 ${s.paymentLabel.cls}`}>
+              <BadgeCheck className="h-3 w-3" aria-hidden />
+              {s.paymentLabel.text}
+            </span>
+          )}
+        </div>
       </div>
       <div className="flex items-center gap-2 shrink-0">
         {s.cancellationRequestedAt && s.status === "SCHEDULED" && (
@@ -129,10 +160,38 @@ function SessionRow({ s, now }: { s: AdminSessionRow; now: Date }) {
         >
           {isPastUnupdated ? "⚠ לא עודכן" : STATUS_LABEL[s.status] || s.status}
         </Badge>
+        <ContactActions phone={s.client?.phone} />
       </div>
     </div>
   );
 }
+
+// select אדמיניסטרטיבי מועשר לשורות "היום"/"מחר" — בלי notes/topic (תוכן קליני).
+// payment נטען לחישוב סטטוס-תשלום בשרת בלבד (לא נשלח ללקוח; מוצג רק עם הרשאה).
+const SESSION_SELECT = {
+  id: true,
+  startTime: true,
+  endTime: true,
+  type: true,
+  status: true,
+  price: true,
+  location: true,
+  cancellationRequestedAt: true,
+  client: { select: { id: true, name: true, phone: true } },
+  therapist: { select: { id: true, name: true } },
+  payment: {
+    select: {
+      status: true,
+      amount: true,
+      method: true,
+      hasReceipt: true,
+      childPayments: {
+        where: { status: "PAID" as const },
+        select: { amount: true, status: true },
+      },
+    },
+  },
+} satisfies Prisma.TherapySessionSelect;
 
 async function getSecretaryData(scopeUser: ScopeUser) {
   const sessionWhere = buildSessionWhere(scopeUser);
@@ -156,34 +215,14 @@ async function getSecretaryData(scopeUser: ScopeUser) {
       where: {
         AND: [sessionWhere, { startTime: { gte: todayStart, lt: todayEnd } }],
       },
-      // select אדמיניסטרטיבי בלבד — ללא notes/topic (תוכן קליני).
-      select: {
-        id: true,
-        startTime: true,
-        endTime: true,
-        type: true,
-        status: true,
-        cancellationRequestedAt: true,
-        client: { select: { id: true, name: true } },
-        therapist: { select: { id: true, name: true } },
-      },
+      select: SESSION_SELECT,
       orderBy: { startTime: "asc" },
     }),
     prisma.therapySession.findMany({
       where: {
         AND: [sessionWhere, { startTime: { gte: tomorrowStart, lt: tomorrowEnd } }],
       },
-      // select אדמיניסטרטיבי בלבד — ללא notes/topic (תוכן קליני).
-      select: {
-        id: true,
-        startTime: true,
-        endTime: true,
-        type: true,
-        status: true,
-        cancellationRequestedAt: true,
-        client: { select: { id: true, name: true } },
-        therapist: { select: { id: true, name: true } },
-      },
+      select: SESSION_SELECT,
       orderBy: { startTime: "asc" },
     }),
     // בקשות ביטול שממתינות לטיפול — פגישות עם בקשה שעדיין מתוכננות (כל תאריך).
@@ -250,9 +289,62 @@ async function getSecretaryData(scopeUser: ScopeUser) {
     .filter((p) => p.remaining > 0)
     .sort((a, b) => b.remaining - a.remaining);
 
+  // חיווי "תזכורת נשלחה" לשורות היום/מחר — שאילתה אחת מקובצת (לא N+1).
+  const dayIds = [...todaySessions, ...tomorrowSessions].map((s) => s.id);
+  const remindedRows = dayIds.length
+    ? await prisma.communicationLog.findMany({
+        where: {
+          sessionId: { in: dayIds },
+          type: { in: ["REMINDER_24H", "REMINDER_2H"] },
+          status: "SENT",
+        },
+        select: { sessionId: true },
+        distinct: ["sessionId"],
+      })
+    : [];
+  const remindedSet = new Set(
+    remindedRows.map((r) => r.sessionId).filter((id): id is string => !!id),
+  );
+
+  // מיפוי לשורה אדמיניסטרטיבית מועשרת. תווית התשלום מחושבת בשרת ורק עם
+  // canViewPayments; אובייקט ה-payment עצמו לא עובר ל-SessionRow (אין דליפה).
+  const mapRow = (s: (typeof todaySessions)[number]): AdminSessionRow => {
+    let paymentLabel: AdminSessionRow["paymentLabel"] = null;
+    if (canViewPayments && s.payment) {
+      const paid = calculatePaidAmount({
+        amount: s.payment.amount,
+        status: s.payment.status,
+        method: s.payment.method,
+        hasReceipt: s.payment.hasReceipt,
+        childPayments: s.payment.childPayments,
+      });
+      const priceNum = Number(s.price) || 0;
+      if (s.payment.status === "PAID" || (paid > 0 && priceNum > 0 && paid >= priceNum)) {
+        paymentLabel = { text: "שולם", cls: "text-emerald-600" };
+      } else if (paid > 0) {
+        paymentLabel = { text: "שולם חלקית", cls: "text-amber-600" };
+      } else {
+        paymentLabel = { text: "ממתין לתשלום", cls: "text-muted-foreground" };
+      }
+    }
+    return {
+      id: s.id,
+      startTime: s.startTime,
+      endTime: s.endTime,
+      type: s.type,
+      status: s.status,
+      cancellationRequestedAt: s.cancellationRequestedAt,
+      location: s.location,
+      reminderSent: remindedSet.has(s.id),
+      paymentLabel,
+      client: s.client,
+      therapist: s.therapist,
+    };
+  };
+
   return {
-    todaySessions,
-    tomorrowSessions,
+    todaySessions: todaySessions.map(mapRow),
+    tomorrowSessions: tomorrowSessions.map(mapRow),
     cancellationRequests,
     cancellationList,
     pendingPayments: openPayments.length,
