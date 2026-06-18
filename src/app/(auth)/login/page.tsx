@@ -166,6 +166,15 @@ function LoginForm() {
             </div>
           )}
 
+          {/* H6: sessionVersion bump (שינוי הגדרות 2FA / חסימת אדמין) — הסשן הקודם
+              בוטל ומטעמי אבטחה נדרשת התחברות מחדש. בלי הבלוק הזה הקוד הגולמי הוצג. */}
+          {tokenError === "session_invalidated" && (
+            <div className="p-3 rounded-lg bg-sky-50 dark:bg-sky-900/20 text-sky-700 dark:text-sky-300 text-sm text-center animate-fade-in flex items-center justify-center gap-2">
+              <AlertTriangle className="h-4 w-4" />
+              ההגדרות שלך עודכנו. מטעמי אבטחה יש להתחבר מחדש.
+            </div>
+          )}
+
           {error && (
             <div className="p-3 rounded-lg bg-destructive/10 text-destructive text-sm text-center animate-fade-in">
               {error}
