@@ -52,7 +52,8 @@ export default function PublicIntakePage({
     }
     tokenRef.current = token;
 
-    fetch(`/api/p/intake/${id}?t=${encodeURIComponent(token)}`)
+    // הטוקן נשלח ב-header (לא ב-URL) כדי שלא יופיע ביומני-שרת/Referer.
+    fetch(`/api/p/intake/${id}`, { headers: { "x-intake-token": token } })
       .then((res) => {
         if (!res.ok) throw new Error("not ok");
         return res.json();
@@ -81,14 +82,14 @@ export default function PublicIntakePage({
     setFormError("");
     setSubmitting(true);
     try {
-      const res = await fetch(
-        `/api/p/intake/${id}?t=${encodeURIComponent(tokenRef.current)}`,
-        {
-          method: "POST",
-          headers: { "Content-Type": "application/json" },
-          body: JSON.stringify({ responses: answers }),
-        }
-      );
+      const res = await fetch(`/api/p/intake/${id}`, {
+        method: "POST",
+        headers: {
+          "Content-Type": "application/json",
+          "x-intake-token": tokenRef.current,
+        },
+        body: JSON.stringify({ responses: answers }),
+      });
       if (!res.ok) {
         const e = await res.json().catch(() => ({}));
         throw new Error(e.message || "שגיאה בשליחה");

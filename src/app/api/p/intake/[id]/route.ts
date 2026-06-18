@@ -57,7 +57,8 @@ export async function GET(
     if (!rl.allowed) return rateLimitResponse(rl);
 
     const { id } = await params;
-    const token = request.nextUrl.searchParams.get("t");
+    // הטוקן ב-header (x-intake-token) ולא ב-query — לא דולף ליומני-שרת/Referer.
+    const token = request.headers.get("x-intake-token");
 
     if (!token || !/^[0-9a-f]{32}$/.test(token)) {
       return UNIFORM_DENY;
@@ -121,7 +122,8 @@ export async function POST(
     if (!rl.allowed) return rateLimitResponse(rl);
 
     const { id } = await params;
-    const token = request.nextUrl.searchParams.get("t");
+    // הטוקן ב-header (x-intake-token) ולא ב-query — לא דולף ליומני-שרת/Referer.
+    const token = request.headers.get("x-intake-token");
 
     if (!token || !/^[0-9a-f]{32}$/.test(token)) {
       return UNIFORM_DENY;
