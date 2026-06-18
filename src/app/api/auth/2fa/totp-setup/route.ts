@@ -140,7 +140,14 @@ export async function PATCH(request: NextRequest) {
   return NextResponse.json({ success: true, recoveryCodes });
 }
 
-// DELETE — מבטל TOTP וחוזר ל-OTP-by-email. דורש קוד תקף תחילה.
+// DELETE — מכבה את האימות הדו-שלבי לגמרי (מסיר את ה-TOTP). דורש קוד תקף תחילה.
+//
+// 2026-06-19: בעבר נשאר twoFactorEnabled=true ("נפילה" שקטה ל-OTP-מייל). זה לכד
+// משתמשים — בעיקר בעלי קליניקה (תפקיד בכיר שחייב 2FA בכל כניסה) שהסירו את
+// האפליקציה אבל לא קיבלו את קוד המייל (סינון תוכן/שבת/דחיית מייל): הם ננעלו
+// החוצה בלי דרך עצמית לכבות (גם הכיבוי דורש קוד שלא הגיע). עכשיו הסרת TOTP
+// מכבה 2FA במלואו; מי שרוצה אימות במייל/SMS מפעיל אותו מחדש במפורש (וכך גם
+// מאשר שהוא אכן מקבל קוד) דרך /api/auth/2fa/email-setup.
 export async function DELETE(request: NextRequest) {
   const auth = await requireAuth({ disallowImpersonation: true });
   if ("error" in auth) return auth.error;
@@ -183,16 +190,18 @@ export async function DELETE(request: NextRequest) {
   await prisma.user.update({
     where: { id: userId },
     data: {
+      // 2026-06-19: כיבוי מלא — לא משאירים 2FA דלוק בלי שיטה (ראה הערת ה-DELETE
+      // למעלה). מונע את מלכוד הנעילה של בעלי קליניקה שהסירו את האפליקציה.
+      twoFactorEnabled: false,
       twoFactorMethod: null,
       twoFactorSecret: null,
-      // H18: מנקים גם את קודי השחזור — לא רלוונטיים ל-OTP במייל.
+      // H18: מנקים גם את קודי השחזור.
       twoFactorRecoveryCodes: null,
-      // twoFactorEnabled נשאר true — המשתמש עדיין רוצה 2FA, חוזר ל-OTP-email.
       sessionVersion: { increment: 1 },
     },
   });
   invalidateJwtCache(userId);
 
-  logger.info("[2fa/totp-setup] TOTP disabled", { userId });
+  logger.info("[2fa/totp-setup] 2FA fully disabled (TOTP removed)", { userId });
   return NextResponse.json({ success: true });
 }

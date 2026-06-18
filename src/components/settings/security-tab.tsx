@@ -241,10 +241,10 @@ export function SecurityTab() {
         toast.error(data.message || "קוד שגוי");
         return;
       }
-      toast.success("TOTP בוטל. חזרת ל-2FA במייל.");
+      toast.success("האימות הדו-שלבי כובה.");
       setDisableOpen(false);
       setDisableCode("");
-      setStatus("otp");
+      setStatus("off");
       await update();
     } catch {
       toast.error("שגיאת רשת");
@@ -401,7 +401,7 @@ export function SecurityTab() {
                 variant="outline"
                 onClick={() => setDisableOpen(true)}
               >
-                כבה TOTP
+                כבה אימות דו-שלבי
               </Button>
             </div>
           )}
@@ -709,9 +709,10 @@ export function SecurityTab() {
       <Dialog open={disableOpen} onOpenChange={(o) => !disableBusy && setDisableOpen(o)}>
         <DialogContent dir="rtl">
           <DialogHeader>
-            <DialogTitle>כיבוי TOTP</DialogTitle>
+            <DialogTitle>כיבוי אימות דו-שלבי</DialogTitle>
             <DialogDescription>
-              לאישור, הזן/י קוד תקף מאפליקציית האימות. לאחר הכיבוי תחזור/י ל-2FA במייל.
+              לאישור, הזן/י קוד תקף מאפליקציית האימות. לאחר הכיבוי האימות הדו-שלבי
+              יכבה לגמרי. תוכל/י להפעיל אותו מחדש בכל עת (אפליקציה או מייל/SMS).
             </DialogDescription>
           </DialogHeader>
           <div className="space-y-2">
@@ -747,7 +748,7 @@ export function SecurityTab() {
                   מאמת...
                 </>
               ) : (
-                "כבה TOTP"
+                "כבה אימות דו-שלבי"
               )}
             </Button>
           </DialogFooter>
