@@ -269,6 +269,7 @@ model User {
   passwordResets         PasswordReset[]
   smsSettings            SMSSettings?
   consentForms           ConsentForm[]
+  intakeInvites          IntakeInvite[]          @relation("userIntakeInvites")
   insurerSettings        InsurerSettings?
   insurerReports         InsurerReport[]
   clientCommitments      ClientCommitment[]
@@ -505,6 +506,7 @@ model Client {
   communicationLogs      CommunicationLog[]
   questionnaireResponses QuestionnaireResponse[]
   intakeResponses        IntakeResponse[]        @relation("intakeResponses")
+  intakeInvites          IntakeInvite[]          @relation("clientIntakeInvites")
   consentForms           ConsentForm[]
 
   // Cardcom — saved tokens for recurring billing
@@ -1378,6 +1380,7 @@ model IntakeQuestionnaire {
   updatedAt DateTime @updatedAt
 
   responses IntakeResponse[]
+  invites   IntakeInvite[]   @relation("templateIntakeInvites")
 
   @@index([userId])
   @@index([userId, isDefault])
@@ -1399,6 +1402,38 @@ model IntakeResponse {
 
   @@index([clientId])
   @@index([templateId])
+  @@index([organizationId])
+}
+
+// ==================== Intake Invites (public fill links) ====================
+
+model IntakeInvite {
+  id     String @id @default(cuid())
+  userId String
+  user   User   @relation("userIntakeInvites", fields: [userId], references: [id], onDelete: Cascade)
+
+  clientId String
+  client   Client @relation("clientIntakeInvites", fields: [clientId], references: [id], onDelete: Cascade)
+
+  templateId String
+  template   IntakeQuestionnaire @relation("templateIntakeInvites", fields: [templateId], references: [id], onDelete: Cascade)
+
+  // טוקן ציבורי לקישור המילוי. 16 בייטים hex = 32 תווים. null אחרי מילוי (חד-פעמי).
+  token          String?   @unique @db.VarChar(32)
+  tokenExpiresAt DateTime?
+  status         String    @default("PENDING") // PENDING | COMPLETED
+  responseId     String? // IntakeResponse שנוצר במילוי
+  sentAt         DateTime?
+  completedAt    DateTime?
+
+  // Clinic multi-tenancy — FK bareback. null = מטפל עצמאי.
+  organizationId String?
+
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+
+  @@index([clientId])
+  @@index([userId])
   @@index([organizationId])
 }
 

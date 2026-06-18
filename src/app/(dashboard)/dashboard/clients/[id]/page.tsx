@@ -37,6 +37,7 @@ import { DocumentItem } from "@/components/clients/document-item";
 import { SendReminderButton } from "@/components/clients/send-reminder-button";
 import { SendPaymentHistoryButton } from "@/components/clients/send-payment-history-button";
 import { SendBookingLinkButton } from "@/components/clients/send-booking-link-button";
+import { SendIntakeLinkButton } from "@/components/clients/send-intake-link-button";
 import { TodaySessionCard } from "@/components/dashboard/today-session-card";
 import { SessionHistoryGrid } from "@/components/clients/session-history-grid";
 import { AddCreditDialog } from "@/components/clients/add-credit-dialog";
@@ -1194,6 +1195,7 @@ export default async function ClientPage({
                           {client._count.intakeResponses} שאלונים ממולאים
                         </CardDescription>
                       </div>
+                      <SendIntakeLinkButton clientId={client.id} />
                     </div>
                   </CardHeader>
                   <CardContent>

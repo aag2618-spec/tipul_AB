@@ -296,6 +296,12 @@ export const CONSENT_PUBLIC_RATE_LIMIT = { maxRequests: 30, windowMs: 60 * 1000 
 
 export const CONSENT_SEND_LINK_RATE_LIMIT = { maxRequests: 30, windowMs: 60 * 60 * 1000 };
 
+// תשאול ראשוני — קישור מילוי ציבורי (GET/POST אנונימי, לפי IP)
+export const INTAKE_PUBLIC_RATE_LIMIT = { maxRequests: 30, windowMs: 60 * 1000 };
+
+// תשאול ראשוני — יצירת/שליחת קישור ע"י המטפל (לפי userId)
+export const INTAKE_SEND_LINK_RATE_LIMIT = { maxRequests: 30, windowMs: 60 * 60 * 1000 };
+
 /**
  * החזרת שכבת rate limit מתאימה ל-endpoint של admin.
  *   - רגיש (5/דקה): add-package, manual-payment, set-admin, delete-user,
