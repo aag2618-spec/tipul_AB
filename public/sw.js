@@ -1,11 +1,16 @@
-// v3: API responses are never cached (PHI must not persist in browser cache after logout)
-const CACHE_NAME = 'tipul-v3';
+// v4 (2026-06-19): תיקון "ספינר תקוע אחרי פריסה".
+// השינוי המרכזי: בקשות ניווט (HTML) עוברות ל-network-first במקום cache-first.
+// בעבר ה-SW הגיש HTML ישן מה-cache שהצביע על chunks של build קודם — אחרי
+// פריסה ה-chunks האלה נמחקים מהשרת, טעינת ה-JS נכשלת, והדף נתקע על ספינר.
+// network-first מבטיח שה-HTML תמיד טרי ומצביע על ה-chunks הנוכחיים.
+// בנוסף: API לא נשמר ב-cache (PHI לא נשאר בדפדפן אחרי התנתקות), ודפי HTML
+// (שעלולים להכיל PHI) כבר לא נשמרים ב-cache כלל.
+const CACHE_NAME = 'tipul-v4';
 const OFFLINE_URL = '/offline.html';
 
-// Assets to cache on install
+// Assets to cache on install — נכסים סטטיים בלבד (לא דפי HTML עם PHI).
+// '/' ו-'/dashboard' הוסרו: ניווט הוא עכשיו network-first, ו-/dashboard מכיל PHI.
 const CACHE_ASSETS = [
-  '/',
-  '/dashboard',
   '/offline.html',
   '/icon-192.png',
   '/icon-512.png',
@@ -50,7 +55,30 @@ self.addEventListener('fetch', (event) => {
     return;
   }
 
-  // Other requests - cache first, network fallback
+  // ניווט (מסמכי HTML): network-first. תמיד מביא HTML טרי שמצביע על ה-chunks
+  // הנוכחיים — מונע את באג ה"ספינר התקוע" אחרי פריסה. לא נשמר ב-cache (גם
+  // למניעת השארת PHI בדפדפן). נפילה לדף offline רק אם הרשת נכשלה לגמרי.
+  if (event.request.mode === 'navigate') {
+    event.respondWith(
+      fetch(event.request).catch(() => caches.match(OFFLINE_URL))
+    );
+    return;
+  }
+
+  // RSC — ניווט "רך" של Next App Router (לחיצה על קישור) שולח fetch עם header
+  // RSC ו-?_rsc=. אלה *לא* mode:'navigate', אז בלי הטיפול הזה הם היו נופלים
+  // ל-cache-first ומגישים מטען ישן אחרי פריסה (אותו באג, בניווט רך) + שומרים
+  // PHI ב-cache. network-only פותר את שניהם — תמיד טרי, אף פעם לא נשמר.
+  if (
+    event.request.headers.get('RSC') === '1' ||
+    new URL(event.request.url).searchParams.has('_rsc')
+  ) {
+    event.respondWith(fetch(event.request));
+    return;
+  }
+
+  // נכסים סטטיים (chunks עם hash, אייקונים) — cache first, network fallback.
+  // ה-chunks הם immutable (שם הקובץ מכיל hash) אז cache-first בטוח להם.
   event.respondWith(
     caches.match(event.request).then((response) => {
       if (response) {
@@ -72,10 +100,8 @@ self.addEventListener('fetch', (event) => {
           return response;
         })
         .catch(() => {
-          // Return offline page for navigation requests
-          if (event.request.mode === 'navigate') {
-            return caches.match(OFFLINE_URL);
-          }
+          // נכס סטטי שלא ב-cache ואין רשת — אין מה להחזיר (ניווט מטופל למעלה).
+          return undefined;
         });
     })
   );

@@ -34,8 +34,14 @@ export function usePWA() {
           console.error("Service Worker registration failed:", error);
         });
 
-      // Listen for controller change (new SW activated)
+      // Listen for controller change (new SW activated) → רענון חד-פעמי.
+      // ⚠️ הגנת refreshing קריטית: בלעדיה, אם controllerchange נורה יותר מפעם
+      // אחת במהלך מעבר ה-SW (skipWaiting + clients.claim), נוצרת לולאת reload
+      // אינסופית — הדף "מהבהב ונתקע". הדגל מבטיח reload אחד בלבד.
+      let refreshing = false;
       navigator.serviceWorker.addEventListener("controllerchange", () => {
+        if (refreshing) return;
+        refreshing = true;
         window.location.reload();
       });
     }
