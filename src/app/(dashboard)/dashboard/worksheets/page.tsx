@@ -95,6 +95,45 @@ const colorMap: Record<
     tabActiveBorder: "data-[state=active]:border-emerald-600",
     tabActiveText: "data-[state=active]:text-emerald-700",
   },
+  rose: {
+    bg: "bg-rose-50",
+    border: "border-rose-200",
+    text: "text-rose-800",
+    badge: "bg-rose-100",
+    badgeText: "text-rose-700",
+    accent: "bg-rose-600",
+    ring: "ring-rose-300",
+    hoverBg: "hover:bg-rose-50",
+    hoverBorder: "hover:border-rose-200",
+    tabActiveBorder: "data-[state=active]:border-rose-600",
+    tabActiveText: "data-[state=active]:text-rose-700",
+  },
+  sky: {
+    bg: "bg-sky-50",
+    border: "border-sky-200",
+    text: "text-sky-800",
+    badge: "bg-sky-100",
+    badgeText: "text-sky-700",
+    accent: "bg-sky-600",
+    ring: "ring-sky-300",
+    hoverBg: "hover:bg-sky-50",
+    hoverBorder: "hover:border-sky-200",
+    tabActiveBorder: "data-[state=active]:border-sky-600",
+    tabActiveText: "data-[state=active]:text-sky-700",
+  },
+  indigo: {
+    bg: "bg-indigo-50",
+    border: "border-indigo-200",
+    text: "text-indigo-800",
+    badge: "bg-indigo-100",
+    badgeText: "text-indigo-700",
+    accent: "bg-indigo-600",
+    ring: "ring-indigo-300",
+    hoverBg: "hover:bg-indigo-50",
+    hoverBorder: "hover:border-indigo-200",
+    tabActiveBorder: "data-[state=active]:border-indigo-600",
+    tabActiveText: "data-[state=active]:text-indigo-700",
+  },
 };
 
 /* ═══ תוכן TIPP ═══ */
@@ -442,6 +481,436 @@ const actExamplePreview = (
   </div>
 );
 
+/* ═══ תוכן CBT — הפעלה התנהגותית ═══ */
+
+const baTherapistInstructions = (
+  <div className="space-y-4 text-sm leading-relaxed">
+    <p>
+      <strong>מהי הפעלה התנהגותית?</strong> כלי מרכזי ב-CBT לטיפול בדכדוך ובמצב רוח ירוד.
+      כשאנחנו עצובים אנחנו נוטים להפסיק לעשות דברים שעושים לנו טוב — וזה דווקא מעמיק את הדכדוך.
+      הדף עוזר לחזור בהדרגה לפעילות שמביאה הנאה ומשמעות.
+    </p>
+    <p>
+      <strong>המנגנון:</strong> לא מחכים להרגיש מוטיבציה כדי לפעול — פועלים קודם, והמוטיבציה
+      מגיעה אחרי. פעולה קטנה אחת משנה את מצב הרוח, וזה מצטבר.
+    </p>
+    <div>
+      <strong>מתי להשתמש:</strong>
+      <ul className="mt-1 list-disc pr-5 space-y-1">
+        <li>דכדוך ומצב רוח ירוד (&quot;אין לי כוח לכלום&quot;)</li>
+        <li>נסיגה והימנעות — הפסקת תחביבים ומפגשים</li>
+        <li>תחושת ריקנות וחוסר עניין</li>
+        <li>שגרה תקועה שבה הימים מטשטשים</li>
+      </ul>
+    </div>
+    <p>
+      <strong>טיפים למטפל:</strong> התחילו קטן מאוד — פעולה של חמש דקות עדיפה על תוכנית גדולה
+      שלא תקרה. הבחינו בין פעילות שמביאה <strong>הנאה</strong> (כיף) לבין כזו שמביאה{" "}
+      <strong>משמעות</strong> (סיפוק) — צריך משני הסוגים. תכננו לזמן מסוים ביומן, לא &quot;מתישהו&quot;.
+    </p>
+    <p>
+      <strong>שימו לב:</strong> אל תעמיסו — שתיים-שלוש פעילויות בשבוע זו התחלה מצוינת.
+      בדכדוך עמוק או מחשבות אובדניות — עדיפות לבטיחות והפניה מתאימה.
+    </p>
+  </div>
+);
+
+const baWorksheetPreview = (
+  <div className="space-y-4 text-sm">
+    <div className="rounded-lg bg-teal-50 border border-teal-200 p-3 text-center">
+      <strong className="text-teal-800">⏸ עצור, נשום 3 נשימות, והתחילו.</strong>{" "}
+      <span className="text-gray-600">לא מחכים להרגיש כוח — פעולה קטנה אחת כבר מזיזה משהו.</span>
+    </div>
+    {[
+      { n: "1", title: "איך אני מרגיש עכשיו?", hint: "מצב הרוח היום במילה או שתיים + דירוג 0–10" },
+      { n: "2", title: "מה הפסקתי לעשות?", hint: "דברים שעשו לי טוב פעם, והפסקתי לאחרונה" },
+      { n: "3", title: "רשימת פעילויות", hint: "פעילויות קטנות + דירוג הנאה ומשמעות (0–10)" },
+      { n: "4", title: "תכנון השבוע", hint: "3 פעילויות, ומתי בדיוק אעשה כל אחת" },
+      { n: "5", title: "מכשולים ופתרונות", hint: "מה עלול להפריע, ומה הפתרון הקטן לכל מכשול" },
+    ].map((row) => (
+      <div key={row.title} className="rounded-lg border border-gray-200 bg-white">
+        <div className="flex items-center gap-2 border-b border-gray-100 bg-teal-50 px-3 py-2">
+          <span className="flex h-7 w-7 items-center justify-center rounded-lg bg-teal-600 text-xs font-bold text-white">
+            {row.n}
+          </span>
+          <span className="font-bold text-gray-800">{row.title}</span>
+        </div>
+        <div className="px-3 py-2">
+          <p className="text-xs text-gray-500 mb-2">{row.hint}</p>
+          <div className="min-h-10 rounded border border-dashed border-gray-300 bg-gray-50" />
+        </div>
+      </div>
+    ))}
+    <div className="rounded-lg border-2 border-teal-200 bg-teal-50/90 p-3">
+      <strong className="text-teal-800">📝 סיכום</strong>
+      <p className="text-xs text-gray-600 mt-1">אחרי שביצעתי פעילות אחת — איך השתנה מצב הרוח? מה למדתי?</p>
+    </div>
+    <div className="rounded-lg bg-amber-50 border border-amber-300 p-3">
+      <strong className="text-amber-700">🔄 מעקב דפוסים:</strong>{" "}
+      <span className="text-gray-600">כשאני בדכדוך — אני נוטה להפסיק פעילויות? כן / לא</span>
+    </div>
+    <div className="rounded-lg bg-rose-50 border border-rose-200 p-3 text-center">
+      <strong className="text-rose-600">💜 רגע של חמלה עצמית</strong>
+      <br />
+      <span className="text-gray-600">גם כשקשה לזוז — עצם זה שאתם מתכננים צעד קטן זו גבורה. צעד אחד מספיק.</span>
+    </div>
+  </div>
+);
+
+const baExamplePreview = (
+  <div className="space-y-4 text-sm">
+    <div className="rounded-lg bg-amber-50 border-2 border-amber-400 p-4 text-center">
+      <h3 className="text-lg font-extrabold text-amber-700">📝 דוגמה ממולאת</h3>
+      <p className="text-sm text-amber-600">הדגמה ללמידה — לא דוגמה אמיתית</p>
+    </div>
+    <div className="rounded-lg border border-gray-200 bg-white p-4">
+      <p className="font-bold text-gray-700 mb-1">איך אני מרגיש?</p>
+      <p className="italic text-gray-500">כבד, חסר חשק. כבר שבועיים שאני בעיקר בבית ולא עושה כלום מעבר להכרחי.</p>
+      <p className="mt-2 text-xs">
+        <strong>מצב רוח לפני:</strong>{" "}
+        <span className="inline-flex h-6 w-6 items-center justify-center rounded-full bg-teal-500 text-white text-xs font-bold">3</span>/10
+      </p>
+    </div>
+    <div className="rounded-lg border border-gray-200 bg-white p-3">
+      <p className="font-bold text-gray-700 mb-1">תכנון השבוע</p>
+      <p className="italic text-gray-500">הליכה 15 דק׳ (ראשון, אחרי ארוחת ערב) · שיחה עם חבר ותיק (שלישי 20:00) · שיעור בבוקר (חמישי 06:45).</p>
+    </div>
+    <div className="rounded-lg border-2 border-teal-200 bg-teal-50/90 p-3">
+      <p>
+        <strong>מצב רוח אחרי:</strong>{" "}
+        <span className="inline-flex h-6 w-6 items-center justify-center rounded-full bg-teal-500 text-white text-xs font-bold">6</span>/10
+      </p>
+      <p className="italic text-gray-500 mt-1">
+        <strong>מה למדתי:</strong> לא צריך לחכות שיהיה לי חשק — דווקא הפעולה היא שמחזירה את החשק.
+      </p>
+    </div>
+  </div>
+);
+
+/* ═══ תוכן CFT — חמלה עצמית ═══ */
+
+const cftTherapistInstructions = (
+  <div className="space-y-4 text-sm leading-relaxed">
+    <p>
+      <strong>מהו &quot;הקול החומל&quot;?</strong> דף עבודה מגישת CFT (טיפול ממוקד חמלה) שעוזר
+      לזהות את הקול הביקורתי הפנימי, ולהחליף אותו בקול חומל — כזה שהיה מדבר אל חבר יקר.
+      רבים מתייחסים לעצמם בקשיחות שלא היו מעלים בדעתם כלפי אדם אחר.
+    </p>
+    <p>
+      <strong>המנגנון:</strong> ביקורת עצמית מפעילה את מערכת האיום במוח ומגבירה מתח ובושה.
+      חמלה עצמית מפעילה את מערכת ההרגעה — ומאפשרת ללמוד מטעות בלי להישבר.
+    </p>
+    <div>
+      <strong>מתי להשתמש:</strong>
+      <ul className="mt-1 list-disc pr-5 space-y-1">
+        <li>אחרי טעות או כישלון (&quot;איך לא חשבתי? אני מטומטם&quot;)</li>
+        <li>ביקורת עצמית כרונית (&quot;אני אף פעם לא מספיק טוב&quot;)</li>
+        <li>בושה ואשמה</li>
+        <li>פרפקציוניזם</li>
+      </ul>
+    </div>
+    <p>
+      <strong>טיפים למטפל:</strong> חמלה עצמית <strong>אינה</strong> ויתור או פינוק — היא דרך
+      נבונה יותר להתמודד עם קושי. השאלה המרכזית: &quot;מה היית אומר לחבר יקר במצב הזה?&quot;.
+      עבדו גם על טון הקול הפנימי, לא רק על המילים.
+    </p>
+    <p>
+      <strong>שימו לב:</strong> חלק מהמטופלים חוששים מחמלה עצמית (&quot;אם לא אהיה קשוח לא
+      אתקדם&quot;) — תנו מקום לחשש. בבושה עמוקה התקדמו לאט ובעדינות. מתאים מגיל 12 ומעלה.
+    </p>
+  </div>
+);
+
+const cftWorksheetPreview = (
+  <div className="space-y-4 text-sm">
+    <div className="rounded-lg bg-rose-50 border border-rose-200 p-3 text-center">
+      <strong className="text-rose-800">⏸ עצור, נשום 3 נשימות, והתחילו.</strong>{" "}
+      <span className="text-gray-600">הניחו יד על הלב. דברו אל עצמכם כמו אל חבר יקר.</span>
+    </div>
+    {[
+      { n: "1", title: "מה קרה?", hint: "מצב שבו הייתם קשוחים עם עצמכם" },
+      { n: "2", title: "הקול הביקורתי", hint: "מה הקול הקשוח אמר? + דירוג כאב 0–10" },
+      { n: "3", title: "מה הייתי אומר לחבר?", hint: "דמיינו חבר יקר במצב הזה — מה ובאיזה טון?" },
+      { n: "4", title: "הקול החומל", hint: "נסחו מחדש לעצמכם — באותה חמלה" },
+      { n: "5", title: "המשותף לכולם", hint: "טעויות וקשיים הם חלק מלהיות אדם" },
+    ].map((row) => (
+      <div key={row.title} className="rounded-lg border border-gray-200 bg-white">
+        <div className="flex items-center gap-2 border-b border-gray-100 bg-rose-50 px-3 py-2">
+          <span className="flex h-7 w-7 items-center justify-center rounded-full bg-rose-600 text-xs font-bold text-white">
+            {row.n}
+          </span>
+          <span className="font-bold text-gray-800">{row.title}</span>
+        </div>
+        <div className="px-3 py-2">
+          <p className="text-xs text-gray-500 mb-2">{row.hint}</p>
+          <div className="min-h-10 rounded border border-dashed border-gray-300 bg-gray-50" />
+        </div>
+      </div>
+    ))}
+    <div className="rounded-lg border-2 border-rose-200 bg-rose-50/90 p-3">
+      <strong className="text-rose-800">📝 סיכום</strong>
+      <p className="text-xs text-gray-600 mt-1">איך הרגשתי כשדיברתי אל עצמי בחמלה? מה אקח מהתרגיל?</p>
+    </div>
+    <div className="rounded-lg bg-amber-50 border border-amber-300 p-3">
+      <strong className="text-amber-700">🔄 מעקב דפוסים:</strong>{" "}
+      <span className="text-gray-600">הקול הביקורתי הזה חוזר? באילו מצבים הוא מופיע הכי הרבה?</span>
+    </div>
+    <div className="rounded-lg bg-rose-50 border border-rose-200 p-3 text-center">
+      <strong className="text-rose-600">💜 רגע של חמלה עצמית</strong>
+      <br />
+      <span className="text-gray-600">עצם זה שאתם מתאמנים לדבר אל עצמכם ברכות — זו מתנה גדולה. מגיע לכם אותה כמו לכל אדם.</span>
+    </div>
+  </div>
+);
+
+const cftExamplePreview = (
+  <div className="space-y-4 text-sm">
+    <div className="rounded-lg bg-amber-50 border-2 border-amber-400 p-4 text-center">
+      <h3 className="text-lg font-extrabold text-amber-700">📝 דוגמה ממולאת</h3>
+      <p className="text-sm text-amber-600">הדגמה ללמידה — לא דוגמה אמיתית</p>
+    </div>
+    <div className="rounded-lg border border-gray-200 bg-white p-4">
+      <p className="font-bold text-gray-700 mb-1">הקול הביקורתי</p>
+      <p className="italic text-gray-500">&quot;איך שכחת? את אף פעם לא זוכרת כלום. את פשוט לא מתפקדת, וכולם רואים את זה.&quot;</p>
+      <p className="mt-2 text-xs">
+        <strong>כמה זה כאב:</strong>{" "}
+        <span className="inline-flex h-6 w-6 items-center justify-center rounded-full bg-rose-500 text-white text-xs font-bold">8</span>/10
+      </p>
+    </div>
+    <div className="rounded-lg border border-gray-200 bg-white p-3">
+      <p className="font-bold text-gray-700 mb-1">הקול החומל</p>
+      <p className="italic text-gray-500">
+        &quot;מרים, שכחת דבר אחד מתוך עשרות שכן זכרת. את אדם עסוק ומסור, וטעות קטנה לא מבטלת את כל מה שאת כן עושה. מותר לך לטעות.&quot;
+      </p>
+    </div>
+    <div className="rounded-lg border-2 border-rose-200 bg-rose-50/90 p-3">
+      <p>
+        <strong>כמה זה כואב עכשיו:</strong>{" "}
+        <span className="inline-flex h-6 w-6 items-center justify-center rounded-full bg-rose-500 text-white text-xs font-bold">3</span>/10
+      </p>
+      <p className="italic text-gray-500 mt-1">
+        <strong>מה למדתי:</strong> אני הרבה יותר קשוחה עם עצמי מאשר עם כל אדם אחר. מגיע לי אותה רכות.
+      </p>
+    </div>
+  </div>
+);
+
+/* ═══ תוכן פסיכולוגיה חיובית — הכרת טובה ═══ */
+
+const gratTherapistInstructions = (
+  <div className="space-y-4 text-sm leading-relaxed">
+    <p>
+      <strong>מהי הכרת טובה?</strong> דף עבודה מהפסיכולוגיה החיובית שמאמן את תשומת הלב לזהות
+      את הטוב שכבר קיים בחיים. תרגול קבוע נמצא במחקרים כמשפר מצב רוח, שינה ותחושת רווחה.
+    </p>
+    <p>
+      <strong>המנגנון:</strong> המוח מטבעו &quot;נצמד&quot; לשלילי (הטיית שליליות). תרגול הכרת טובה
+      מאמן את המוח לשים לב גם לטוב — וכך מאזן את התמונה.
+    </p>
+    <div>
+      <strong>מתי להשתמש:</strong>
+      <ul className="mt-1 list-disc pr-5 space-y-1">
+        <li>מצב רוח ירוד קל</li>
+        <li>נטייה לראות רק את החסר</li>
+        <li>שחיקה ותחושת ריקנות</li>
+        <li>תרגול שגרתי לחיזוק החוסן</li>
+      </ul>
+    </div>
+    <p>
+      <strong>טיפים למטפל:</strong> עודדו <strong>ספציפיות</strong> — לא &quot;המשפחה שלי&quot; אלא
+      &quot;שהבן חיבק אותי הבוקר&quot;. גם דברים קטנים נחשבים. השאלה &quot;למה זה קרה?&quot; מחזקת
+      תחושת השפעה. מומלץ כתרגול יומי, עדיף לפני השינה.
+    </p>
+    <p>
+      <strong>שימו לב:</strong> בדכדוך עמוק התרגיל עלול להרגיש מאולץ — התחילו מדבר קטן אחד.
+      אם המטופל אומר &quot;אין לי על מה להודות&quot; — קבלו זאת בלי ויכוח, וחפשו יחד דבר זעיר אחד.
+    </p>
+  </div>
+);
+
+const gratWorksheetPreview = (
+  <div className="space-y-4 text-sm">
+    <div className="rounded-lg bg-sky-50 border border-sky-200 p-3 text-center">
+      <strong className="text-sky-800">⏸ עצור, נשום 3 נשימות, והתחילו.</strong>{" "}
+      <span className="text-gray-600">אין תשובות נכונות או שגויות — גם הדבר הכי קטן נחשב.</span>
+    </div>
+    {[
+      { n: "1", title: "שלושה דברים טובים מהיום", hint: "שלושה דברים שקרו היום ושאתם אסירי תודה עליהם — ספציפי" },
+      { n: "2", title: "למה כל אחד קרה?", hint: "מה גרם לזה? מה החלק שלכם או של אחרים בזה?" },
+      { n: "3", title: "אדם שאני אסיר תודה לו", hint: "מי עזר או שאתם מעריכים? על מה בדיוק?" },
+      { n: "4", title: "דבר שאני מעריך בעצמי", hint: "תכונה, מעשה או מאמץ שלכם מהיום" },
+    ].map((row) => (
+      <div key={row.title} className="rounded-lg border border-gray-200 bg-white">
+        <div className="flex items-center gap-2 border-b border-gray-100 bg-sky-50 px-3 py-2">
+          <span className="flex h-7 w-7 items-center justify-center rounded-lg bg-sky-600 text-xs font-bold text-white">
+            {row.n}
+          </span>
+          <span className="font-bold text-gray-800">{row.title}</span>
+        </div>
+        <div className="px-3 py-2">
+          <p className="text-xs text-gray-500 mb-2">{row.hint}</p>
+          <div className="min-h-10 rounded border border-dashed border-gray-300 bg-gray-50" />
+        </div>
+      </div>
+    ))}
+    <div className="rounded-lg border-2 border-sky-200 bg-sky-50/90 p-3">
+      <strong className="text-sky-800">📝 סיכום</strong>
+      <p className="text-xs text-gray-600 mt-1">איך הרגשתי אחרי שכתבתי? מה שמתי לב אליו שלא שמתי לב קודם?</p>
+    </div>
+    <div className="rounded-lg bg-amber-50 border border-amber-300 p-3">
+      <strong className="text-amber-700">🔄 מעקב דפוסים:</strong>{" "}
+      <span className="text-gray-600">על אילו דברים אני מודה הכי הרבה? (אנשים / בריאות / רגעים קטנים / הישגים)</span>
+    </div>
+    <div className="rounded-lg bg-rose-50 border border-rose-200 p-3 text-center">
+      <strong className="text-rose-600">💜 רגע של חמלה עצמית</strong>
+      <br />
+      <span className="text-gray-600">גם ביום קשה הצלחתם למצוא טוב — זו לא קלילות, זו חוזק. עין שמחפשת את הטוב היא מתנה.</span>
+    </div>
+  </div>
+);
+
+const gratExamplePreview = (
+  <div className="space-y-4 text-sm">
+    <div className="rounded-lg bg-amber-50 border-2 border-amber-400 p-4 text-center">
+      <h3 className="text-lg font-extrabold text-amber-700">📝 דוגמה ממולאת</h3>
+      <p className="text-sm text-amber-600">הדגמה ללמידה — לא דוגמה אמיתית</p>
+    </div>
+    <div className="rounded-lg border border-gray-200 bg-white p-4">
+      <p className="font-bold text-gray-700 mb-1">שלושה דברים טובים מהיום</p>
+      <p className="italic text-gray-500">1. השכנה הביאה לי עוגה חמה בלי שביקשתי.</p>
+      <p className="italic text-gray-500">2. הספקתי לסיים את הכביסה לפני שהילדים חזרו — והרגשתי רגועה.</p>
+      <p className="italic text-gray-500">3. ראיתי שקיעה יפה מהמרפסת.</p>
+    </div>
+    <div className="rounded-lg border border-gray-200 bg-white p-3">
+      <p className="font-bold text-gray-700 mb-1">דבר שאני מעריכה בעצמי</p>
+      <p className="italic text-gray-500">שלמרות שהייתי עייפה, התאזרתי בסבלנות ולא הרמתי את הקול על הילדים. אני גאה בזה.</p>
+    </div>
+    <div className="rounded-lg border-2 border-sky-200 bg-sky-50/90 p-3">
+      <p>
+        <strong>מצב רוח עכשיו:</strong>{" "}
+        <span className="inline-flex h-6 w-6 items-center justify-center rounded-full bg-sky-500 text-white text-xs font-bold">8</span>/10
+      </p>
+      <p className="italic text-gray-500 mt-1">
+        <strong>מה שמתי לב אליו:</strong> חשבתי שהיה יום אפור ורגיל, אבל ככל שכתבתי גיליתי הרבה דברים טובים קטנים שלא עצרתי לשים לב אליהם.
+      </p>
+    </div>
+  </div>
+);
+
+/* ═══ תוכן SFBT — שאלת הנס וסולם ההתקדמות ═══ */
+
+const sfbtTherapistInstructions = (
+  <div className="space-y-4 text-sm leading-relaxed">
+    <p>
+      <strong>מהם שאלת הנס וסולם ההתקדמות?</strong> שני כלים מרכזיים מהגישה הממוקדת בפתרון
+      (SFBT): &quot;שאלת הנס&quot; שעוזרת לדמיין את העתיד הרצוי בפירוט, ו&quot;סולם ההתקדמות&quot; שממקם
+      את המטופל ביחס למטרה ומזהה את הצעד הקטן הבא. הגישה מתמקדת בפתרונות ובחוזקות — לא בניתוח הבעיה.
+    </p>
+    <p>
+      <strong>המנגנון:</strong> כשמדמיינים את הפתרון בפירוט, הוא הופך מוחשי ובר-השגה. וכשמזהים
+      מה <strong>כבר עובד</strong> — אפשר לעשות יותר מזה.
+    </p>
+    <div>
+      <strong>מתי להשתמש:</strong>
+      <ul className="mt-1 list-disc pr-5 space-y-1">
+        <li>תחושת תקיעות</li>
+        <li>קושי להגדיר מטרה</li>
+        <li>התמקדות יתר בבעיה</li>
+        <li>תחילת תהליך טיפולי</li>
+      </ul>
+    </div>
+    <p>
+      <strong>טיפים למטפל:</strong> שאלת הנס — &quot;נניח שבלילה קרה נס והקושי נפתר, אבל לא ידעת.
+      מה הסימן הראשון מחר בבוקר?&quot;. חפשו תיאורים ספציפיים והתנהגותיים. בסולם, אחרי שהמטופל
+      נותן מספר, שאלו &quot;איך הגעת ל-X ולא ל-0?&quot; — זה חושף חוזקות. הצעד הבא תמיד קטן.
+    </p>
+    <p>
+      <strong>שימו לב:</strong> אל &quot;תתקנו&quot; תשובות — כל תיאור תקף. אם קשה לדמיין נס — שאלו
+      על &quot;יום קצת יותר טוב&quot;. בכאב נפשי חריף — תנו מקום קודם, ורק אז עברו לכלי הפתרון.
+    </p>
+  </div>
+);
+
+const sfbtWorksheetPreview = (
+  <div className="space-y-4 text-sm">
+    <div className="rounded-lg bg-indigo-50 border border-indigo-200 p-3 text-center">
+      <strong className="text-indigo-800">⏸ עצור, נשום 3 נשימות, והתחילו.</strong>{" "}
+      <span className="text-gray-600">אין תשובות נכונות — רק העתיד שאתם רוצים, והצעד הקרוב אליו.</span>
+    </div>
+    {[
+      { n: "1", title: "המטרה שלי", hint: "מה הייתי רוצה שיהיה שונה? נסחו כמטרה, לא כבעיה" },
+      { n: "2", title: "שאלת הנס", hint: "אם בלילה נפתר הקושי — מה הסימן הראשון בבוקר? מי ישים לב?" },
+      { n: "3", title: "סולם ההתקדמות", hint: "0 = הכי רחוק, 10 = הנס התגשם. איפה אני היום?" },
+      { n: "4", title: "מה כבר עובד?", hint: "איך הגעתי למספר הזה ולא ל-0? מה כבר עוזר?" },
+      { n: "5", title: "הצעד הקטן הבא", hint: "מה יקדם אותי נקודה אחת בסולם (לא עד 10)" },
+    ].map((row) => (
+      <div key={row.title} className="rounded-lg border border-gray-200 bg-white">
+        <div className="flex items-center gap-2 border-b border-gray-100 bg-indigo-50 px-3 py-2">
+          <span className="flex h-7 w-7 items-center justify-center rounded-lg bg-indigo-600 text-xs font-bold text-white">
+            {row.n}
+          </span>
+          <span className="font-bold text-gray-800">{row.title}</span>
+        </div>
+        <div className="px-3 py-2">
+          <p className="text-xs text-gray-500 mb-2">{row.hint}</p>
+          {row.n === "3" ? (
+            <div className="flex flex-wrap gap-1.5 justify-center py-1">
+              {Array.from({ length: 11 }).map((_, i) => (
+                <span key={i} className="flex h-6 w-6 items-center justify-center rounded-full border border-indigo-200 text-[10px] font-semibold text-indigo-700">
+                  {i}
+                </span>
+              ))}
+            </div>
+          ) : (
+            <div className="min-h-10 rounded border border-dashed border-gray-300 bg-gray-50" />
+          )}
+        </div>
+      </div>
+    ))}
+    <div className="rounded-lg border-2 border-indigo-200 bg-indigo-50/90 p-3">
+      <strong className="text-indigo-800">📝 סיכום</strong>
+      <p className="text-xs text-gray-600 mt-1">מה גיליתי על עצמי בתרגיל הזה? מה אני לוקח איתי?</p>
+    </div>
+    <div className="rounded-lg bg-amber-50 border border-amber-300 p-3">
+      <strong className="text-amber-700">🔄 מעקב דפוסים:</strong>{" "}
+      <span className="text-gray-600">מתי בשבוע האחרון הייתי נקודה אחת גבוה יותר? מה היה שונה אז?</span>
+    </div>
+    <div className="rounded-lg bg-rose-50 border border-rose-200 p-3 text-center">
+      <strong className="text-rose-600">💜 רגע של חמלה עצמית</strong>
+      <br />
+      <span className="text-gray-600">עצם זה שאתם כבר לא ב-0 אומר שיש בכם כוחות שעבדו עד היום. אתם לא מתחילים מאפס.</span>
+    </div>
+  </div>
+);
+
+const sfbtExamplePreview = (
+  <div className="space-y-4 text-sm">
+    <div className="rounded-lg bg-amber-50 border-2 border-amber-400 p-4 text-center">
+      <h3 className="text-lg font-extrabold text-amber-700">📝 דוגמה ממולאת</h3>
+      <p className="text-sm text-amber-600">הדגמה ללמידה — לא דוגמה אמיתית</p>
+    </div>
+    <div className="rounded-lg border border-gray-200 bg-white p-4">
+      <p className="font-bold text-gray-700 mb-1">שאלת הנס</p>
+      <p className="italic text-gray-500">
+        הייתי קם בלי לדחות שוב ושוב, שותה כוס מים, מתלבש מיד ויוצא לשיעור בבוקר. אשתי הייתה שמה לב שאני רגוע יותר ולא רץ ברגע האחרון.
+      </p>
+    </div>
+    <div className="rounded-lg border border-gray-200 bg-white p-3">
+      <p className="font-bold text-gray-700 mb-1">סולם ההתקדמות</p>
+      <p className="text-xs">
+        היום אני ב-<span className="inline-flex h-6 w-6 items-center justify-center rounded-full bg-indigo-500 text-white text-xs font-bold">4</span> מתוך 10
+      </p>
+      <p className="italic text-gray-500 mt-1">הגעתי ל-4 כי בימים שאני מכין בגדים מראש בערב — הבוקר הרבה יותר קל.</p>
+    </div>
+    <div className="rounded-lg border-2 border-indigo-200 bg-indigo-50/90 p-3">
+      <p className="font-bold text-gray-700">הצעד הקטן הבא</p>
+      <p className="italic text-gray-500 mt-1">
+        לקדם מ-4 ל-5: השבוע אכין בגדים בערב לפחות שלוש פעמים, ואשים את הטלפון לטעינה רחוק מהמיטה.
+      </p>
+    </div>
+  </div>
+);
+
 /* ═══ Placeholder לדפים חדשים ═══ */
 
 const simplePlaceholder = (title: string, desc: string) => (
@@ -527,6 +996,19 @@ const categories: ApproachCategory[] = [
         worksheetPreview: cbtWorksheetPreview,
         examplePreview: cbtExamplePreview,
       },
+      {
+        id: "cbt-behavioral-activation",
+        title: "הפעלה התנהגותית",
+        titleEn: "Behavioral Activation",
+        approach: "CBT",
+        approachHe: "טיפול קוגניטיבי־התנהגותי",
+        description: "כלי נגד דכדוך: לחזור בהדרגה לפעילויות שמביאות הנאה ומשמעות — לא לחכות למוטיבציה, אלא לפעול וליצור אותה.",
+        color: "teal",
+        file: "/worksheets/cbt-behavioral-activation-mytipul.html",
+        therapistInstructions: baTherapistInstructions,
+        worksheetPreview: baWorksheetPreview,
+        examplePreview: baExamplePreview,
+      },
     ],
   },
   {
@@ -583,6 +1065,72 @@ const categories: ApproachCategory[] = [
         therapistInstructions: simplePlaceholder("הוראות למטפל — נוכחות ברגע", "שלוש טכניקות קשיבות: STOP (עצירה מודעת עם נשימה 4-2-6), חמשת החושים (הארקה 5-4-3-2-1), וסריקת גוף (5 אזורים). כולל טבלת טכניקות, התאמות לגיל ואזהרות."),
         worksheetPreview: simplePlaceholder("דף עבודה — נוכחות ברגע", "3 תרגילים עם תיבות \"איך עושים\" ו\"למה זה עובד\", הנחיות נשימה מדויקות, וסריקת גוף ב-5 אזורים."),
         examplePreview: simplePlaceholder("דוגמה ממולאת — נוכחות ברגע", "יוסי בן 11, לחץ לפני מבחן. עשה STOP עם נשימות 4-2-6, חמשת החושים בכיתה, וסריקת גוף — הכתפיים ירדו, הנשימה התעמקה."),
+      },
+    ],
+  },
+  {
+    id: "cft",
+    approach: "CFT",
+    approachHe: "טיפול ממוקד חמלה",
+    description: "כלים להחלפת הקול הביקורתי הפנימי בקול חומל יותר — כזה שמדבר אל עצמנו כמו אל חבר יקר.",
+    color: "rose",
+    worksheets: [
+      {
+        id: "cft-self-compassion",
+        title: "הקול החומל",
+        titleEn: "Self-Compassion",
+        approach: "CFT",
+        approachHe: "טיפול ממוקד חמלה",
+        description: "דף עבודה לזיהוי הקול הביקורתי הפנימי ולהחלפתו בקול חומל — דרך נבונה יותר להתמודד עם טעות וקושי.",
+        color: "rose",
+        file: "/worksheets/cft-self-compassion-mytipul.html",
+        therapistInstructions: cftTherapistInstructions,
+        worksheetPreview: cftWorksheetPreview,
+        examplePreview: cftExamplePreview,
+      },
+    ],
+  },
+  {
+    id: "positive",
+    approach: "פסיכולוגיה חיובית",
+    approachHe: "פסיכולוגיה חיובית",
+    description: "תרגול הכרת טובה וזיהוי הטוב הקיים — לאיזון הנטייה הטבעית להתמקד בחסר.",
+    color: "sky",
+    worksheets: [
+      {
+        id: "positive-gratitude",
+        title: "הכרת טובה",
+        titleEn: "Gratitude",
+        approach: "פסיכולוגיה חיובית",
+        approachHe: "פסיכולוגיה חיובית",
+        description: "דף עבודה לתרגול הכרת טובה: שלושה דברים טובים, אדם שאני מודה לו, ודבר שאני מעריך בעצמי — לאיזון הטיית השליליות.",
+        color: "sky",
+        file: "/worksheets/positive-gratitude-mytipul.html",
+        therapistInstructions: gratTherapistInstructions,
+        worksheetPreview: gratWorksheetPreview,
+        examplePreview: gratExamplePreview,
+      },
+    ],
+  },
+  {
+    id: "sfbt",
+    approach: "SFBT",
+    approachHe: "טיפול ממוקד פתרון",
+    description: "כלים שמתמקדים בעתיד הרצוי ובחוזקות הקיימות — שאלת הנס וסולם ההתקדמות.",
+    color: "indigo",
+    worksheets: [
+      {
+        id: "sfbt-miracle-question",
+        title: "שאלת הנס וסולם ההתקדמות",
+        titleEn: "Miracle Question & Scaling",
+        approach: "SFBT",
+        approachHe: "טיפול ממוקד פתרון",
+        description: "שני כלים ממוקדי פתרון: לדמיין את העתיד הרצוי בפירוט, ולמקם את עצמי על סולם 0–10 כדי לזהות את הצעד הקטן הבא.",
+        color: "indigo",
+        file: "/worksheets/sfbt-miracle-question-mytipul.html",
+        therapistInstructions: sfbtTherapistInstructions,
+        worksheetPreview: sfbtWorksheetPreview,
+        examplePreview: sfbtExamplePreview,
       },
     ],
   },
