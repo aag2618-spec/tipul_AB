@@ -102,7 +102,8 @@ function header(ws, variant) {
   } else {
     meta = `<div class="header-meta"><label>שם: <span class="meta-line"></span></label><label>תאריך: <span class="meta-line"></span></label><label>גיל: <span class="meta-line"></span></label></div>`;
   }
-  return `<header class="header"><div class="header-content"><div class="header-badge">${esc(ws.approach)} • ${esc(ws.approachHe)}</div><h1>${esc(ws.title)}</h1><p class="subtitle">${sub}</p>${meta}</div><div class="header-logo"><a href="https://mytipul.com" target="_blank" rel="noopener"><img src="${logo}" alt="MyTipul" /></a></div></header>`;
+  const badge = ws.approachHe && ws.approachHe !== ws.approach ? `${esc(ws.approach)} • ${esc(ws.approachHe)}` : esc(ws.approach || ws.approachHe || "");
+  return `<header class="header"><div class="header-content"><div class="header-badge">${badge}</div><h1>${esc(ws.title)}</h1><p class="subtitle">${sub}</p>${meta}</div><div class="header-logo"><a href="https://mytipul.com" target="_blank" rel="noopener"><img src="${logo}" alt="MyTipul" /></a></div></header>`;
 }
 
 function exampleItem(it) {
@@ -285,7 +286,11 @@ function buildHtml(ws) {
 </html>`;
 }
 
-const all = worksheetsContent.categories.flatMap((c) => c.worksheets);
+// שם הגישה (approach / approachHe) מוגדר ברמת הקטגוריה — מצרפים אותו לכל דף
+// כדי שהתג העליון יציג את שם הגישה ולא רק נקודה ריקה.
+const all = worksheetsContent.categories.flatMap((c) =>
+  c.worksheets.map((w) => ({ approach: c.approach, approachHe: c.approachHe, ...w }))
+);
 for (const ws of all) {
   const out = path.join(wsDir, `${ws.slug}-mytipul.html`);
   await writeFile(out, buildHtml(ws), "utf8");
