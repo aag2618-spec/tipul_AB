@@ -9,21 +9,24 @@ import {
 } from "@/components/ui/dialog";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
-import { Search, User, CalendarPlus, Loader2 } from "lucide-react";
+import { Search, User, CalendarPlus, CalendarClock, Loader2 } from "lucide-react";
 import { ContactActions } from "@/components/contact-actions";
+import { ClientSessionsDialog } from "@/components/clients/client-sessions-dialog";
 
 interface ClientLite {
   id: string;
   name: string;
   phone?: string | null;
+  email?: string | null;
 }
 
 const MAX_RESULTS = 8;
 
 /**
  * חיפוש מהיר גלובלי (Ctrl+K / ⌘K) — מטופל מתקשר → מקלידים שם או טלפון → קופצים
- * לכרטיס / קובעים פגישה / מתקשרים. נטען עצלן בפתיחה הראשונה (כל המטופלים ב-scope,
- * /api/clients מסנן לפי הרשאות). מידע אדמיניסטרטיבי בלבד (שם + טלפון).
+ * לכרטיס / קובעים פגישה / יוצרים קשר (SMS/אימייל). נטען עצלן בפתיחה הראשונה (כל
+ * המטופלים ב-scope, /api/clients מסנן לפי הרשאות). מידע אדמיניסטרטיבי בלבד
+ * (שם + טלפון + אימייל).
  */
 export function GlobalSearch() {
   const router = useRouter();
@@ -47,6 +50,7 @@ export function GlobalSearch() {
                 id: c.id,
                 name: c.name,
                 phone: c.phone,
+                email: c.email,
               }))
             : [],
         );
@@ -113,6 +117,18 @@ export function GlobalSearch() {
     },
     [router],
   );
+
+  // דיאלוג "כל הפגישות" — נפתח מהחיפוש (סוגר את החיפוש כדי לא לקנן דיאלוגים).
+  const [sessionsDialog, setSessionsDialog] = useState<{
+    open: boolean;
+    clientId: string | null;
+    clientName: string;
+  }>({ open: false, clientId: null, clientName: "" });
+
+  const viewSessions = useCallback((id: string, name: string) => {
+    setOpen(false);
+    setSessionsDialog({ open: true, clientId: id, clientName: name });
+  }, []);
 
   const onInputKeyDown = (e: React.KeyboardEvent<HTMLInputElement>) => {
     if (e.key === "ArrowDown") {
@@ -202,7 +218,25 @@ export function GlobalSearch() {
                     </div>
                   </div>
                   <div className="flex items-center gap-1 shrink-0">
-                    <ContactActions phone={c.phone} />
+                    <ContactActions
+                      clientId={c.id}
+                      clientName={c.name}
+                      phone={c.phone}
+                      email={c.email}
+                    />
+                    <Button
+                      size="icon"
+                      variant="ghost"
+                      className="h-7 w-7 text-muted-foreground"
+                      title="כל הפגישות וביטול"
+                      aria-label="כל הפגישות וביטול"
+                      onClick={(e) => {
+                        e.stopPropagation();
+                        viewSessions(c.id, c.name);
+                      }}
+                    >
+                      <CalendarClock className="h-4 w-4" />
+                    </Button>
                     <Button
                       size="icon"
                       variant="ghost"
@@ -223,6 +257,15 @@ export function GlobalSearch() {
           </div>
         </DialogContent>
       </Dialog>
+
+      <ClientSessionsDialog
+        open={sessionsDialog.open}
+        onOpenChange={(o) =>
+          setSessionsDialog((prev) => ({ ...prev, open: o }))
+        }
+        clientId={sessionsDialog.clientId}
+        clientName={sessionsDialog.clientName}
+      />
     </>
   );
 }

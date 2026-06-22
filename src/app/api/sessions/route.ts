@@ -36,6 +36,10 @@ export async function GET(request: NextRequest) {
     const clientId = searchParams.get("clientId");
     const startDate = searchParams.get("startDate");
     const endDate = searchParams.get("endDate");
+    // includePolicy: לצרף לכל פגישה את מדיניות הביטול של המטפל
+    // (minCancellationHours). additive בלבד — בלי הפרמטר התגובה זהה byte-for-byte
+    // לכל הקוראים הקיימים (יומן, פגישות קודמות וכו'). משמש את דיאלוג "כל הפגישות".
+    const includePolicy = searchParams.get("includePolicy") === "true";
 
     const scopeUser = await loadScopeUser(userId);
     const scopeWhere = buildSessionWhere(scopeUser);
@@ -78,12 +82,20 @@ export async function GET(request: NextRequest) {
         select: { id: true, amount: true, status: true },
       },
     };
+    // policyInclude: רק כש-includePolicy=true מצרפים את הגדרת הביטול של המטפל.
+    // מומר לשדה scalar `minCancellationHours` ב-enrich למטה, וה-therapist מוסר
+    // מהתגובה (לא מחזירים פרטי מטפל).
+    const policyInclude = includePolicy
+      ? { therapist: { select: { communicationSetting: { select: { minCancellationHours: true } } } } }
+      : {};
+
     const includeForRole = isSecretary(scopeUser)
       ? {
           client: {
             select: { id: true, name: true, firstName: true, lastName: true, phone: true, email: true },
           },
           payment: { include: paymentInclude },
+          ...policyInclude,
         }
       : {
           client: {
@@ -91,6 +103,7 @@ export async function GET(request: NextRequest) {
           },
           sessionNote: true,
           payment: { include: paymentInclude },
+          ...policyInclude,
         };
 
     const sessions = await prisma.therapySession.findMany({
@@ -115,17 +128,37 @@ export async function GET(request: NextRequest) {
       return { ...s, payment: { ...p, paidAmount } };
     });
 
+    // includePolicy: גוזרים את minCancellationHours לשדה scalar בכל פגישה, ומסירים
+    // את אובייקט ה-therapist מהתגובה (נכלל רק לצורך שליפת המדיניות — לא מחזירים
+    // פרטי מטפל ל-client). ברירת מחדל 24 כש-communicationSetting חסר.
+    const withPolicy = includePolicy
+      ? enriched.map((s) => {
+          const therapist = (s as unknown as {
+            therapist?: { communicationSetting?: { minCancellationHours?: number } | null };
+          }).therapist;
+          // eslint-disable-next-line @typescript-eslint/no-unused-vars
+          const { therapist: _omitTherapist, ...rest } = s as Record<string, unknown> & {
+            therapist?: unknown;
+          };
+          return {
+            ...rest,
+            minCancellationHours:
+              therapist?.communicationSetting?.minCancellationHours ?? 24,
+          };
+        })
+      : enriched;
+
     // Privacy (חוק זכויות החולה): topic/notes הם scalars קליניים
     // (CLINICAL_FIELDS_BLOCKED_FOR_SECRETARY.session) ש-Prisma `include` מחזיר
     // אוטומטית. מסננים מהתגובה למזכירה — parity עם /api/sessions/calendar
     // ו-/api/sessions/[id]. roomId/location/payment נשמרים (אדמיניסטרטיביים).
     const finalSessions = isSecretary(scopeUser)
-      ? enriched.map((s) => {
+      ? withPolicy.map((s) => {
           // eslint-disable-next-line @typescript-eslint/no-unused-vars
           const { topic, notes, ...rest } = s as unknown as Record<string, unknown>;
           return rest;
         })
-      : enriched;
+      : withPolicy;
 
     return NextResponse.json(serializePrisma(finalSessions));
   } catch (error) {
@@ -452,9 +485,9 @@ export async function POST(request: NextRequest) {
 
             // Log result
             if (result.success) {
-              logger.info(`Confirmation email sent to ${clientEmail}`);
+              logger.info("Confirmation email sent", { clientId: therapySession.clientId });
             } else {
-              logger.error(`Failed to send confirmation to ${clientEmail}:`, { error: result.error });
+              logger.error("Failed to send confirmation", { clientId: therapySession.clientId, error: result.error });
             }
           })
           .catch((err) => logger.error("Failed to send confirmation:", { error: err instanceof Error ? err.message : String(err) }));
