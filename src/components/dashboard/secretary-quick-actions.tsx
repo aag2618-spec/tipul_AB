@@ -1,13 +1,16 @@
 "use client";
 
 // פעולות מהירות בדשבורד המזכירה — פעולות *אמיתיות* שחוסכות עבודה (לא קישורי
-// ניווט שכבר קיימים בתפריט הצד). שלב 1: שליחת תזכורות לפגישות מחר/בעוד יומיים,
-// בבחירה פרטנית. (שלב 2 — שליחת קישור זימון עצמי — יתווסף בהמשך.)
+// ניווט שכבר קיימים בתפריט הצד):
+//   1. שליחת תזכורות לפגישות מחר/בעוד יומיים, בבחירה פרטנית.
+//   2. שליחת קישור זימון-עצמי אישי למטופלים (בשם המטפל של כל מטופל).
 import { useState } from "react";
 import { useRouter } from "next/navigation";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
 import { Checkbox } from "@/components/ui/checkbox";
+import { Input } from "@/components/ui/input";
+import { Textarea } from "@/components/ui/textarea";
 import {
   Dialog,
   DialogContent,
@@ -18,7 +21,15 @@ import {
   DialogTrigger,
 } from "@/components/ui/dialog";
 import { Tabs, TabsList, TabsTrigger } from "@/components/ui/tabs";
-import { Bell, BellRing, Loader2, Send, CheckCircle2 } from "lucide-react";
+import {
+  Bell,
+  BellRing,
+  Loader2,
+  Send,
+  CheckCircle2,
+  Link2,
+  Search,
+} from "lucide-react";
 import { toast } from "sonner";
 import { useShabbat } from "@/hooks/useShabbat";
 
@@ -54,6 +65,17 @@ export function SecretaryQuickActions({
   const [activeDay, setActiveDay] = useState<DayKey>("tomorrow");
   const [selectedIds, setSelectedIds] = useState<Set<string>>(new Set());
   const [sending, setSending] = useState(false);
+
+  // ── דיאלוג שליחת קישור זימון עצמי ──
+  const [bookingOpen, setBookingOpen] = useState(false);
+  const [clients, setClients] = useState<
+    { id: string; name: string; hasContact: boolean }[]
+  >([]);
+  const [loadingClients, setLoadingClients] = useState(false);
+  const [selectedClients, setSelectedClients] = useState<Set<string>>(new Set());
+  const [clientSearch, setClientSearch] = useState("");
+  const [customMessage, setCustomMessage] = useState("");
+  const [sendingLinks, setSendingLinks] = useState(false);
 
   const sessionsByDay: Record<DayKey, QuickActionSession[]> = {
     tomorrow: tomorrowSessions,
@@ -136,7 +158,96 @@ export function SecretaryQuickActions({
     }
   }
 
-  // שלב 1: הכרטיס מציג רק תזכורות. אם אין הרשאה — אין מה להציג עדיין.
+  // ── דיאלוג זימון עצמי ──
+  function handleBookingOpenChange(next: boolean) {
+    setBookingOpen(next);
+    if (next) void loadClients();
+  }
+
+  async function loadClients() {
+    setLoadingClients(true);
+    setSelectedClients(new Set());
+    setClientSearch("");
+    setCustomMessage("");
+    try {
+      const res = await fetch("/api/clients?limit=500");
+      const data = await res.json().catch(() => ({}));
+      if (!res.ok) {
+        toast.error("שגיאה בטעינת רשימת מטופלים");
+        return;
+      }
+      const raw: { id: string; name?: string; email?: string; phone?: string }[] =
+        data.clients || data || [];
+      setClients(
+        raw.map((c) => ({
+          id: c.id,
+          name: c.name || "מטופל/ת",
+          hasContact: !!(c.email || c.phone),
+        })),
+      );
+    } catch {
+      toast.error("שגיאה בטעינת רשימת מטופלים");
+    } finally {
+      setLoadingClients(false);
+    }
+  }
+
+  const filteredClients = clients.filter((c) =>
+    c.name.toLowerCase().includes(clientSearch.trim().toLowerCase()),
+  );
+  const selectableFiltered = filteredClients.filter((c) => c.hasContact);
+  const allFilteredSelected =
+    selectableFiltered.length > 0 &&
+    selectableFiltered.every((c) => selectedClients.has(c.id));
+
+  function toggleClient(id: string) {
+    setSelectedClients((prev) => {
+      const next = new Set(prev);
+      if (next.has(id)) next.delete(id);
+      else next.add(id);
+      return next;
+    });
+  }
+
+  function toggleAllFiltered() {
+    setSelectedClients((prev) => {
+      const next = new Set(prev);
+      if (allFilteredSelected)
+        selectableFiltered.forEach((c) => next.delete(c.id));
+      else selectableFiltered.forEach((c) => next.add(c.id));
+      return next;
+    });
+  }
+
+  async function handleSendLinks() {
+    if (selectedClients.size === 0) return;
+    setSendingLinks(true);
+    try {
+      const res = await fetch("/api/user/booking-settings/send-link", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({
+          clientIds: Array.from(selectedClients),
+          customMessage: customMessage.trim() || undefined,
+        }),
+      });
+      const data = await res.json().catch(() => ({}));
+      if (!res.ok) {
+        toast.error(data.message || data.error || "שגיאה בשליחת הקישורים");
+        return;
+      }
+      const msg = data.message || `נשלחו ${data.sent ?? 0} קישורים`;
+      if ((data.sent ?? 0) > 0) toast.success(msg);
+      else toast.message(msg);
+      setBookingOpen(false);
+    } catch {
+      toast.error("שגיאה בשליחת הקישורים");
+    } finally {
+      setSendingLinks(false);
+    }
+  }
+
+  // אם אין הרשאת שליחה — אין פעולות מהירות להציג.
   if (!canSendReminders) return null;
 
   return (
@@ -254,6 +365,140 @@ export function SecretaryQuickActions({
                     : selectedCount > 0
                       ? `שלח ל-${selectedCount} פגישות`
                       : "בחר/י פגישות"}
+                </Button>
+              </DialogFooter>
+            </DialogContent>
+          </Dialog>
+        </div>
+
+        {/* ── שליחת קישור זימון עצמי ── */}
+        <div className="rounded-lg border p-3">
+          <div className="flex items-center gap-2 text-sm font-medium">
+            <Link2 className="h-4 w-4 text-primary" />
+            קישור לזימון עצמי
+          </div>
+          <p className="text-xs text-muted-foreground mt-1">
+            שליחת קישור אישי למטופל/ת לקביעת תור עצמאית
+          </p>
+          <Dialog open={bookingOpen} onOpenChange={handleBookingOpenChange}>
+            <DialogTrigger asChild>
+              <Button
+                variant="outline"
+                size="sm"
+                className="w-full justify-start mt-2"
+                disabled={isShabbat}
+                title={isShabbat ? tooltip ?? undefined : undefined}
+              >
+                <Send className="h-4 w-4 ml-2" />
+                שלח קישור זימון
+              </Button>
+            </DialogTrigger>
+            <DialogContent className="max-w-md">
+              <DialogHeader>
+                <DialogTitle>שליחת קישור זימון עצמי</DialogTitle>
+                <DialogDescription>
+                  בחר/י מטופלים שיקבלו קישור אישי לקביעת תור. הקישור נשלח בשם
+                  המטפל/ת של כל מטופל/ת ותקף ל-60 יום.
+                </DialogDescription>
+              </DialogHeader>
+
+              <div className="relative">
+                <Search
+                  className="absolute right-2.5 top-2.5 h-4 w-4 text-muted-foreground"
+                  aria-hidden
+                />
+                <Input
+                  value={clientSearch}
+                  onChange={(e) => setClientSearch(e.target.value)}
+                  placeholder="חיפוש מטופל..."
+                  aria-label="חיפוש מטופל"
+                  className="pr-9"
+                />
+              </div>
+
+              {!loadingClients && filteredClients.length > 0 && (
+                <div className="flex items-center justify-between text-xs">
+                  <button
+                    type="button"
+                    onClick={toggleAllFiltered}
+                    className="text-primary hover:underline"
+                  >
+                    {allFilteredSelected ? "בטל הכל" : "בחר הכל"} (
+                    {selectableFiltered.length})
+                  </button>
+                  {selectedClients.size > 0 && (
+                    <span className="text-muted-foreground">
+                      {selectedClients.size} נבחרו
+                    </span>
+                  )}
+                </div>
+              )}
+
+              <div className="max-h-[45vh] overflow-y-auto space-y-1.5 pl-1">
+                {loadingClients ? (
+                  <div className="flex items-center justify-center py-8 text-muted-foreground">
+                    <Loader2 className="h-5 w-5 animate-spin ml-2" />
+                    טוען מטופלים...
+                  </div>
+                ) : filteredClients.length === 0 ? (
+                  <div className="py-6 text-center text-sm text-muted-foreground">
+                    לא נמצאו מטופלים
+                  </div>
+                ) : (
+                  filteredClients.map((c) => (
+                    <label
+                      key={c.id}
+                      htmlFor={`bl-${c.id}`}
+                      className={`flex items-center gap-3 rounded-md border p-2.5 transition-colors ${
+                        c.hasContact
+                          ? "cursor-pointer hover:bg-muted/40"
+                          : "opacity-60 cursor-not-allowed"
+                      }`}
+                    >
+                      <Checkbox
+                        id={`bl-${c.id}`}
+                        checked={selectedClients.has(c.id)}
+                        onCheckedChange={() => toggleClient(c.id)}
+                        disabled={!c.hasContact}
+                      />
+                      <span className="min-w-0 flex-1 truncate font-medium">
+                        {c.name}
+                      </span>
+                      {!c.hasContact && (
+                        <span className="shrink-0 text-xs text-muted-foreground">
+                          אין פרטי קשר
+                        </span>
+                      )}
+                    </label>
+                  ))
+                )}
+              </div>
+
+              <Textarea
+                value={customMessage}
+                onChange={(e) => setCustomMessage(e.target.value)}
+                placeholder="הודעה אישית (לא חובה)"
+                aria-label="הודעה אישית למטופל"
+                rows={2}
+                className="resize-none"
+              />
+
+              <DialogFooter>
+                <Button
+                  onClick={handleSendLinks}
+                  disabled={selectedClients.size === 0 || sendingLinks || isShabbat}
+                  title={isShabbat ? tooltip ?? undefined : undefined}
+                >
+                  {sendingLinks ? (
+                    <Loader2 className="h-4 w-4 ml-2 animate-spin" />
+                  ) : (
+                    <Send className="h-4 w-4 ml-2" />
+                  )}
+                  {sendingLinks
+                    ? "שולח..."
+                    : selectedClients.size > 0
+                      ? `שלח ל-${selectedClients.size} מטופלים`
+                      : "בחר/י מטופלים"}
                 </Button>
               </DialogFooter>
             </DialogContent>

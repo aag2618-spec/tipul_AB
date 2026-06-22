@@ -23,7 +23,7 @@ export const dynamic = "force-dynamic";
 export async function POST(request: NextRequest) {
   const auth = await requireAuth();
   if ("error" in auth) return auth.error;
-  const { userId, session } = auth;
+  const { userId } = auth;
 
   // Stage 2.0 — rate limit לפי userId: 30 קריאות/שעה.
   // עם cap של 50 נמענים בקריאה, מקסימום 1500 מיילים/שעה — סביר לשימוש לגיטימי
@@ -59,22 +59,6 @@ export async function POST(request: NextRequest) {
   if ("error" in parsed) return parsed.error;
   const { clientIds, customMessage } = parsed.data;
 
-  const settings = await prisma.bookingSettings.findUnique({
-    where: { therapistId: userId },
-  });
-
-  if (!settings || !settings.enabled) {
-    return NextResponse.json(
-      { message: "יש להפעיל את הזימון העצמי לפני שליחת קישורים" },
-      { status: 400 }
-    );
-  }
-
-  const therapist = await prisma.user.findUnique({
-    where: { id: userId },
-    select: { name: true, email: true },
-  });
-
   const clients = await prisma.client.findMany({
     where: {
       AND: [
@@ -82,24 +66,82 @@ export async function POST(request: NextRequest) {
         clientWhere,
       ],
     },
-    select: { id: true, name: true, email: true, phone: true },
+    select: { id: true, name: true, email: true, phone: true, therapistId: true },
   });
 
+  // מי "הבעלים" של הקישור: מטפל/בעלים שולח/ת בשם עצמו/ה (התנהגות קיימת);
+  // מזכיר/ה שולחת בשם המטפל של כל מטופל — BookingLink.therapistId == client.therapistId,
+  // וההגדרות + מכסת ה-SMS נלקחות מאותו מטפל (ולא מהמזכירה, שאין לה כאלה).
+  const sendsOnBehalf = isSecretary(scopeUser);
+
+  // מיפוי therapistId → { name, enabled } לכל המטפלים הרלוונטיים.
+  const therapistInfo = new Map<string, { name: string; enabled: boolean }>();
+  if (sendsOnBehalf) {
+    const therapistIds = [...new Set(clients.map((c) => c.therapistId))];
+    const therapists = await prisma.user.findMany({
+      // הגנת-עומק: גם תיחום לארגון (ה-therapistIds כבר נגזרים ממטופלים מתוחמים).
+      where: {
+        id: { in: therapistIds },
+        ...(scopeUser.organizationId
+          ? { organizationId: scopeUser.organizationId }
+          : {}),
+      },
+      select: {
+        id: true,
+        name: true,
+        bookingSettings: { select: { enabled: true } },
+      },
+    });
+    for (const t of therapists) {
+      therapistInfo.set(t.id, {
+        name: t.name || "המטפל/ת",
+        enabled: !!t.bookingSettings?.enabled,
+      });
+    }
+  } else {
+    // מטפל/בעלים — שולח/ת בשם עצמו/ה. הזימון העצמי חייב להיות מופעל אצלו/ה.
+    const settings = await prisma.bookingSettings.findUnique({
+      where: { therapistId: userId },
+    });
+    if (!settings || !settings.enabled) {
+      return NextResponse.json(
+        { message: "יש להפעיל את הזימון העצמי לפני שליחת קישורים" },
+        { status: 400 }
+      );
+    }
+    const me = await prisma.user.findUnique({
+      where: { id: userId },
+      select: { name: true },
+    });
+    therapistInfo.set(userId, { name: me?.name || "המטפל/ת", enabled: true });
+  }
+
   const appUrl = process.env.NEXTAUTH_URL || "";
-  const therapistName = therapist?.name || "המטפל/ת";
-  // שורת נושא מנוקה מתווי שורה — מונע Email Header Injection דרך שם המטפל.
-  const emailSubject = sanitizeEmailSubject(`${therapistName} - קביעת תור`);
 
   let sent = 0;
   let skipped = 0;
   const errors: string[] = [];
 
   for (const client of clients) {
+    // בעל/ת הקישור לכל מטופל + ההגדרות הרלוונטיות.
+    const linkTherapistId = sendsOnBehalf ? client.therapistId : userId;
+    const info = therapistInfo.get(linkTherapistId);
+
+    // מזכיר/ה: אם הזימון העצמי כבוי אצל המטפל של המטופל — אי אפשר לשלוח בשמו.
+    if (sendsOnBehalf && (!info || !info.enabled)) {
+      skipped++;
+      continue;
+    }
+
     // מטופל בלי מייל וגם בלי טלפון — אין דרך לשלוח קישור.
     if (!client.email && !client.phone) {
       skipped++;
       continue;
     }
+
+    const therapistName = info?.name || "המטפל/ת";
+    // שורת נושא מנוקה מתווי שורה — מונע Email Header Injection דרך שם המטפל.
+    const emailSubject = sanitizeEmailSubject(`${therapistName} - קביעת תור`);
 
     try {
       // קישור אישי לכל מטופל — נוצר/מתעדכן (reuse אם קיים פעיל ולא-פג).
@@ -128,7 +170,7 @@ export async function POST(request: NextRequest) {
           data: {
             token: generateSecureToken(),
             clientId: client.id,
-            therapistId: userId,
+            therapistId: linkTherapistId,
             organizationId: scopeUser.organizationId,
             destinationEmail: client.email ?? null,
             destinationPhone: client.phone ?? null,
@@ -175,7 +217,7 @@ export async function POST(request: NextRequest) {
             errorMessage: result.success ? null : String(result.error),
             sentAt: result.success ? new Date() : null,
             clientId: client.id,
-            userId: userId,
+            userId: linkTherapistId,
             organizationId: scopeUser.organizationId,
           },
         });
@@ -184,7 +226,7 @@ export async function POST(request: NextRequest) {
         else errors.push(`${client.name}: שגיאה בשליחה`);
       } else if (client.phone) {
         const smsText = `${customMessage ? customMessage + " " : `${therapistName} מזמין/ה אותך לקבוע תור. `}קישור אישי לקביעת תור (תקף 60 יום): ${bookingUrl}`;
-        const result = await sendSMS(client.phone, smsText, userId, {
+        const result = await sendSMS(client.phone, smsText, linkTherapistId, {
           clientId: client.id,
           type: "BOOKING_LINK",
         });
@@ -200,7 +242,7 @@ export async function POST(request: NextRequest) {
             errorMessage: result.success ? null : String(result.error),
             sentAt: result.success ? new Date() : null,
             clientId: client.id,
-            userId: userId,
+            userId: linkTherapistId,
             organizationId: scopeUser.organizationId,
           },
         });
@@ -218,6 +260,6 @@ export async function POST(request: NextRequest) {
     sent,
     skipped,
     errors,
-    message: `נשלחו ${sent} קישורים${skipped > 0 ? `, ${skipped} מטופלים ללא מייל וטלפון` : ""}`,
+    message: `נשלחו ${sent} קישורים${skipped > 0 ? `, ${skipped} דולגו` : ""}`,
   });
 }
