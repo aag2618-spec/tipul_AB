@@ -11,6 +11,7 @@ import {
   DialogFooter,
 } from "@/components/ui/dialog";
 import { Ban, Loader2 } from "lucide-react";
+import { shouldChargeCancellation, hoursUntil } from "@/lib/cancellation";
 
 interface CancelSessionDialogProps {
   open: boolean;
@@ -18,6 +19,12 @@ interface CancelSessionDialogProps {
   clientName: string;
   startTime: string;
   price: number;
+  /**
+   * סף החיוב על ביטול מאוחר (שעות) של המטפל/ת — מ-communicationSetting,
+   * ברירת מחדל 24. מציעים חיוב דמי ביטול רק כשנותרו פחות מ-X שעות עד הפגישה
+   * ויש מחיר חיובי. מקור-אמת אחד עם שאר המערכת (shouldChargeCancellation).
+   */
+  minCancellationHours: number;
   cancelling: boolean;
   onCancel: (charge: boolean, reason: string) => void;
   onClose: () => void;
@@ -29,6 +36,7 @@ export function CancelSessionDialog({
   clientName,
   startTime,
   price,
+  minCancellationHours,
   cancelling,
   onCancel,
   onClose,
@@ -36,11 +44,14 @@ export function CancelSessionDialog({
   const [cancelReason, setCancelReason] = useState("");
   const [cancelCharge, setCancelCharge] = useState<"ask" | "charge" | "free">("ask");
 
-  const isWithin24h = (st: string) => {
-    const sessionTime = new Date(st).getTime();
-    const nowTime = Date.now();
-    return sessionTime - nowTime <= 24 * 60 * 60 * 1000;
-  };
+  // איחוד מדיניות הביטול: מציעים חיוב דמי ביטול לפי הסף האמיתי של המטפל/ת
+  // (minCancellationHours) דרך shouldChargeCancellation — לא מספר קבוע. ההלפר
+  // כולל בתוכו את הבדיקה price > 0, ומחזיר false בדיוק על הסף.
+  const offerCharge = shouldChargeCancellation(
+    hoursUntil(startTime, new Date()),
+    minCancellationHours,
+    price,
+  );
 
   const handleClose = () => {
     setCancelReason("");
@@ -73,10 +84,10 @@ export function CancelSessionDialog({
             />
           </div>
 
-          {isWithin24h(startTime) && price > 0 && cancelCharge === "ask" && (
+          {offerCharge && cancelCharge === "ask" && (
             <div className="p-3 rounded-lg border bg-amber-50 border-amber-200">
               <p className="text-sm font-semibold text-amber-800 mb-2">
-                הפגישה תוך 24 שעות - האם לחייב דמי ביטול?
+                הפגישה תוך {minCancellationHours} שעות - האם לחייב דמי ביטול?
               </p>
               <p className="text-xs text-amber-700 mb-3">
                 סכום: ₪{price}
@@ -128,7 +139,7 @@ export function CancelSessionDialog({
           <Button
             variant="destructive"
             onClick={() => onCancel(cancelCharge === "charge", cancelReason)}
-            disabled={cancelling || (isWithin24h(startTime) && price > 0 && cancelCharge === "ask")}
+            disabled={cancelling || (offerCharge && cancelCharge === "ask")}
             className="bg-red-500 hover:bg-red-600"
           >
             {cancelling ? <Loader2 className="h-4 w-4 animate-spin ml-1" /> : <Ban className="h-4 w-4 ml-1" />}

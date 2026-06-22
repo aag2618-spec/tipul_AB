@@ -40,6 +40,9 @@ interface Session {
   // דף רב-מטפלים: שם המטפל/ת של הפגישה — לסימון (צבע + שם) במצב "כל הקליניקה".
   therapistId?: string | null;
   therapistName?: string | null;
+  // מדיניות הביטול של המטפל/ת האחראי/ת (minCancellationHours, ברירת מחדל 24).
+  // מועבר לדיאלוג הביטול כדי להציע חיוב דמי ביטול לפי הסף האמיתי, לא מספר קבוע.
+  minCancellationHours?: number;
 }
 
 const STATUS_LABELS: Record<string, string> = {

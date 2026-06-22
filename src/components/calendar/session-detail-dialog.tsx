@@ -14,6 +14,7 @@ import { QuickMarkPaid } from "@/components/payments/quick-mark-paid";
 import { safeHttpUrl } from "@/lib/receipt-utils";
 import { copayApplies } from "@/lib/commitments";
 import { getTherapistAccent } from "@/lib/calendar/event-colors";
+import { shouldChargeCancellation, hoursUntil } from "@/lib/cancellation";
 import { WaitlistMatchPanel } from "@/components/waitlist/waitlist-match-panel";
 import { ContactActions } from "@/components/contact-actions";
 import type { CalendarSession } from "@/hooks/use-calendar-data";
@@ -1002,10 +1003,19 @@ export function SessionDetailDialog({
                 {/* 4. ביטול */}
                 <button
                   onClick={async () => {
-                    const sessionStart = new Date(session.startTime);
-                    const hoursUntil = (sessionStart.getTime() - Date.now()) / (1000 * 60 * 60);
+                    // איחוד מדיניות הביטול: מציעים חיוב דמי ביטול לפי הסף
+                    // האמיתי של המטפל/ת (minCancellationHours, ברירת מחדל 24)
+                    // דרך shouldChargeCancellation — לא מספר קבוע. מחוץ לחלון
+                    // או מחיר 0 → ביטול פשוט ללא חיוב; בתוך החלון עם מחיר →
+                    // ChargeConfirmationDialog (דרך onRequestCharge).
+                    const minHours = session.minCancellationHours ?? 24;
+                    const offerCharge = shouldChargeCancellation(
+                      hoursUntil(session.startTime, new Date()),
+                      minHours,
+                      session.price,
+                    );
 
-                    if (hoursUntil > 48) {
+                    if (!offerCharge) {
                       const cancelReason = prompt("סיבת ביטול (אופציונלי):");
                       if (cancelReason === null) return; // לחץ ביטול
                       try {

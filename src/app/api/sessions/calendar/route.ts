@@ -112,10 +112,36 @@ export async function GET(request: NextRequest) {
         .filter((id): id is string => !!id),
     );
 
-    // העשרה ב-paidAmount + reminderSent — מקור-אמת אחד; מונע חישוב חוזר בכל קומפוננטה.
+    // מדיניות ביטול per-therapist (minCancellationHours) — שאילתה אחת מקובצת
+    // (לא N+1, אותו דפוס כמו remindedRows). משמשת את כפתור הביטול ב-
+    // SessionDetailDialog כדי להחליט אם *להציע* חיוב דמי ביטול לפי הסף האמיתי
+    // של המטפל (ברירת מחדל 24), במקום מספר קבוע. אדמיניסטרטיבי — לא תוכן קליני,
+    // ולכן נכלל גם עבור מזכירה. אין אכיפה בשרת — ההחלטה היא ב-UI בלבד.
+    const therapistIds = [
+      ...new Set(
+        sessions
+          .map((s) => s.therapistId)
+          .filter((id): id is string => !!id),
+      ),
+    ];
+    const policyRows = therapistIds.length
+      ? await prisma.communicationSetting.findMany({
+          where: { userId: { in: therapistIds } },
+          select: { userId: true, minCancellationHours: true },
+        })
+      : [];
+    const minHoursByTherapist = new Map(
+      policyRows.map((r) => [r.userId, r.minCancellationHours]),
+    );
+
+    // העשרה ב-paidAmount + reminderSent + minCancellationHours — מקור-אמת אחד;
+    // מונע חישוב חוזר בכל קומפוננטה.
     const enriched = sessions.map((s) => {
       const reminderSent = remindedSet.has(s.id);
-      if (!s.payment) return { ...s, reminderSent };
+      const minCancellationHours = s.therapistId
+        ? minHoursByTherapist.get(s.therapistId) ?? 24
+        : 24;
+      if (!s.payment) return { ...s, reminderSent, minCancellationHours };
       const p = s.payment;
       const paidAmount = calculatePaidAmount({
         amount: p.amount,
@@ -124,7 +150,7 @@ export async function GET(request: NextRequest) {
         hasReceipt: p.hasReceipt,
         childPayments: p.childPayments,
       });
-      return { ...s, reminderSent, payment: { ...p, paidAmount } };
+      return { ...s, reminderSent, minCancellationHours, payment: { ...p, paidAmount } };
     });
 
     // Phase 3 (M1): סינון `payment` מהתגובה למזכירה ללא canViewPayments.

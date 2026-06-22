@@ -85,9 +85,9 @@ export function SessionsView({ initialSessions, showTherapist = false, canPrepar
   });
   const [cancelDialog, setCancelDialog] = useState<{
     open: boolean; sessionId: string; clientName: string;
-    clientId: string; startTime: string; price: number;
+    clientId: string; startTime: string; price: number; minCancellationHours: number;
   }>({
-    open: false, sessionId: "", clientName: "", clientId: "", startTime: "", price: 0,
+    open: false, sessionId: "", clientName: "", clientId: "", startTime: "", price: 0, minCancellationHours: 24,
   });
   const [cancelling, setCancelling] = useState(false);
 
@@ -218,7 +218,7 @@ export function SessionsView({ initialSessions, showTherapist = false, canPrepar
           )
         );
         toast.success(charge ? "הפגישה בוטלה - נוצר חיוב" : "הפגישה בוטלה ללא חיוב");
-        setCancelDialog({ open: false, sessionId: "", clientName: "", clientId: "", startTime: "", price: 0 });
+        setCancelDialog({ open: false, sessionId: "", clientName: "", clientId: "", startTime: "", price: 0, minCancellationHours: 24 });
       }
     } catch {
       toast.error("שגיאה בביטול הפגישה");
@@ -510,6 +510,7 @@ export function SessionsView({ initialSessions, showTherapist = false, canPrepar
                       setCancelDialog({
                         open: true, sessionId: sess.id, clientName: sess.client?.name || "",
                         clientId: sess.client?.id || "", startTime: sess.startTime, price: sess.price || 0,
+                        minCancellationHours: sess.minCancellationHours ?? 24,
                       });
                     }}
                     onUpdateClick={(sess) => {
@@ -671,10 +672,11 @@ export function SessionsView({ initialSessions, showTherapist = false, canPrepar
         clientName={cancelDialog.clientName}
         startTime={cancelDialog.startTime}
         price={cancelDialog.price}
+        minCancellationHours={cancelDialog.minCancellationHours}
         cancelling={cancelling}
         onCancel={handleCancel}
         onClose={() => {
-          setCancelDialog({ open: false, sessionId: "", clientName: "", clientId: "", startTime: "", price: 0 });
+          setCancelDialog({ open: false, sessionId: "", clientName: "", clientId: "", startTime: "", price: 0, minCancellationHours: 24 });
         }}
       />
 

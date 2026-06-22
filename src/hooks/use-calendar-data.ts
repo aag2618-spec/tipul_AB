@@ -61,6 +61,11 @@ export interface CalendarSession {
   // חיווי מהיר ביומן: האם נשלחה תזכורת 24ש'/שעתיים בהצלחה (מחושב בשרת,
   // /api/sessions/calendar). אדמיניסטרטיבי — לא PHI.
   reminderSent?: boolean;
+  // מדיניות ביטול של המטפל/ת האחראי/ת לפגישה (minCancellationHours,
+  // ברירת מחדל 24). מחושב בשרת ב-/api/sessions/calendar (per-therapist).
+  // משמש את כפתור הביטול ב-SessionDetailDialog כדי להחליט אם *להציע* חיוב
+  // דמי ביטול, לפי הסף האמיתי במקום מספר קבוע. אדמיניסטרטיבי — לא PHI.
+  minCancellationHours?: number;
 }
 
 export interface RecurringPattern {

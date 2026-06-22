@@ -17,7 +17,16 @@ async function getSessions(sessionWhere: Prisma.TherapySessionWhereInput, includ
     include: {
       client: { select: { id: true, name: true, isQuickClient: true } },
       // דף רב-מטפלים: שם המטפל/ת של הפגישה — לסימון (צבע + שם) במצב "כל הקליניקה".
-      therapist: { select: { id: true, name: true } },
+      // communicationSetting.minCancellationHours — מדיניות הביטול per-therapist
+      // (ברירת מחדל 24), לדיאלוג הביטול (CancelSessionDialog) כדי להציע חיוב דמי
+      // ביטול לפי הסף האמיתי. אדמיניסטרטיבי — לא תוכן קליני.
+      therapist: {
+        select: {
+          id: true,
+          name: true,
+          communicationSetting: { select: { minCancellationHours: true } },
+        },
+      },
       // Privacy: secretary must NOT receive clinical note content.
       ...(includeNote ? { sessionNote: { select: { content: true } } } : {}),
       payment: { select: { id: true, status: true, amount: true, expectedAmount: true } },
@@ -57,6 +66,8 @@ export default async function SessionsPage() {
       client: s.client ? { id: s.client.id, name: s.client.name, isQuickClient: s.client.isQuickClient } : null,
       therapistId: s.therapistId ?? null,
       therapistName: s.therapist?.name ?? null,
+      // מדיניות ביטול של המטפל/ת האחראי/ת (ברירת מחדל 24) — לדיאלוג הביטול.
+      minCancellationHours: s.therapist?.communicationSetting?.minCancellationHours ?? 24,
     };
   });
 
