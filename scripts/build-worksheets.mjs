@@ -29,6 +29,12 @@ const PALETTES = {
   indigo: { s: [ "#eef2ff","#e0e7ff","#c7d2fe","#a5b4fc","#818cf8","#6366f1","#4f46e5","#4338ca","#3730a3" ], rgb: "79,70,229" },
   cyan: { s: [ "#ecfeff","#cffafe","#a5f3fc","#67e8f9","#22d3ee","#06b6d4","#0891b2","#0e7490","#155e75" ], rgb: "8,145,178" },
   amber: { s: [ "#fffbeb","#fef3c7","#fde68a","#fcd34d","#fbbf24","#f59e0b","#d97706","#b45309","#92400e" ], rgb: "217,119,6" },
+  blue: { s: [ "#eff6ff","#dbeafe","#bfdbfe","#93c5fd","#60a5fa","#3b82f6","#2563eb","#1d4ed8","#1e40af" ], rgb: "37,99,235" },
+  green: { s: [ "#f0fdf4","#dcfce7","#bbf7d0","#86efac","#4ade80","#22c55e","#16a34a","#15803d","#166534" ], rgb: "22,163,74" },
+  fuchsia: { s: [ "#fdf4ff","#fae8ff","#f5d0fe","#f0abfc","#e879f9","#d946ef","#c026d3","#a21caf","#86198f" ], rgb: "192,38,211" },
+  purple: { s: [ "#faf5ff","#f3e8ff","#e9d5ff","#d8b4fe","#c084fc","#a855f7","#9333ea","#7e22ce","#6b21a8" ], rgb: "147,51,234" },
+  lime: { s: [ "#f7fee7","#ecfccb","#d9f99d","#bef264","#a3e635","#84cc16","#65a30d","#4d7c0f","#3f6212" ], rgb: "101,163,13" },
+  pink: { s: [ "#fdf2f8","#fce7f3","#fbcfe8","#f9a8d4","#f472b6","#ec4899","#db2777","#be185d","#9d174b" ], rgb: "219,39,119" },
 };
 
 const esc = (s = "") => String(s).replace(/&/g, "&amp;").replace(/</g, "&lt;").replace(/>/g, "&gt;");
@@ -64,6 +70,11 @@ function section(s) {
 }
 
 function therapistBox(t) {
+  let bg = "";
+  if (t.background) {
+    const story = (t.background.story || []).map((p) => `<p>${esc(p)}</p>`).join("");
+    bg = `<div class="background-box"><h2>📖 על הגישה והיוצר</h2><p class="founder"><strong>${esc(t.background.founder)}</strong></p>${story}</div>`;
+  }
   const purpose = (t.purpose || []).map((p) => `<p>${esc(p)}</p>`).join("");
   let whenTbl = "";
   if (t.when) {
@@ -73,7 +84,7 @@ function therapistBox(t) {
   }
   const tips = (t.tips || []).map((x) => `<li>${esc(x)}</li>`).join("");
   const cautions = (t.cautions || []).map((x) => `<li>${esc(x)}</li>`).join("");
-  return `<div class="therapist-box"><h2>📚 מטרת הכלי</h2>${purpose}${whenTbl}<h2 style="margin-top:14px;">🎓 טיפים למטפל</h2><ul>${tips}</ul><h2 style="margin-top:14px;">⚠️ שימו לב</h2><ul>${cautions}</ul></div>`;
+  return `${bg}<div class="therapist-box"><h2>📚 מטרת הכלי</h2>${purpose}${whenTbl}<h2 style="margin-top:14px;">🎓 טיפים למטפל</h2><ul>${tips}</ul><h2 style="margin-top:14px;">⚠️ שימו לב</h2><ul>${cautions}</ul></div>`;
 }
 
 function header(ws, variant) {
@@ -150,6 +161,11 @@ function buildHtml(ws) {
     .therapist-table { width:100%; border-collapse:collapse; margin:12px 0; font-size:0.82rem; }
     .therapist-table th,.therapist-table td { border:1px solid var(--slate-200); padding:8px 10px; text-align:right; }
     .therapist-table th { background:var(--amber-100); color:var(--amber-700); font-weight:700; }
+    .background-box { background:linear-gradient(135deg,var(--th-50) 0%,#ffffff 100%); border:1.5px solid var(--th-200); border-right:4px solid var(--th-500); border-radius:var(--radius); padding:16px 20px; margin-bottom:20px; }
+    .background-box h2 { font-size:0.95rem; font-weight:700; color:var(--th-800); margin-bottom:8px; display:flex; align-items:center; gap:8px; }
+    .background-box p { font-size:0.85rem; color:var(--slate-700); line-height:1.7; margin-bottom:8px; }
+    .background-box p:last-child { margin-bottom:0; }
+    .background-box .founder { color:var(--th-800); }
     .grounding-box { background:linear-gradient(135deg,var(--th-50) 0%,#ffffff 100%); border:1.5px solid var(--th-200); border-radius:var(--radius); padding:14px 18px; margin-bottom:20px; text-align:center; font-size:0.95rem; }
     .grounding-box strong { color:var(--th-800); }
     .section { background:#fff; border:1.5px solid var(--slate-200); border-radius:var(--radius); margin-bottom:16px; box-shadow:0 1px 4px rgba(0,0,0,0.04); }
@@ -195,7 +211,7 @@ function buildHtml(ws) {
       html,body { background:#fff; font-size:15px; margin:0; padding:0; }
       .sheet { max-width:none; padding:0 8mm; margin:0; }
       .therapist-section,.worksheet-body,.example-section { box-shadow:none; padding:0; margin-bottom:0; border-radius:0; }
-      .header,.header-badge,.section-number,.scale-row,.scale-dot,.grounding-box,.compassion-box,.pattern-box,.therapist-box,.summary-box,.example-banner,.header-logo,.numbered-line .num { -webkit-print-color-adjust:exact !important; print-color-adjust:exact !important; }
+      .header,.header-badge,.section-number,.scale-row,.scale-dot,.grounding-box,.compassion-box,.pattern-box,.therapist-box,.background-box,.summary-box,.example-banner,.header-logo,.numbered-line .num { -webkit-print-color-adjust:exact !important; print-color-adjust:exact !important; }
       .header { box-shadow:none; padding:16px 20px; margin-bottom:14px; }
       .header-logo img { height:150px !important; visibility:visible !important; display:block !important; -webkit-print-color-adjust:exact !important; print-color-adjust:exact !important; max-width:350px; }
       .summary-box,.grounding-box,.compassion-box,.pattern-box,.example-banner,.header,.section,.section-header { break-inside:avoid; }

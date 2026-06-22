@@ -36,6 +36,11 @@
     .therapist-table { width:100%; border-collapse:collapse; margin:12px 0; font-size:0.82rem; }
     .therapist-table th,.therapist-table td { border:1px solid var(--slate-200); padding:8px 10px; text-align:right; }
     .therapist-table th { background:var(--amber-100); color:var(--amber-700); font-weight:700; }
+    .background-box { background:linear-gradient(135deg,var(--th-50) 0%,#ffffff 100%); border:1.5px solid var(--th-200); border-right:4px solid var(--th-500); border-radius:var(--radius); padding:16px 20px; margin-bottom:20px; }
+    .background-box h2 { font-size:0.95rem; font-weight:700; color:var(--th-800); margin-bottom:8px; display:flex; align-items:center; gap:8px; }
+    .background-box p { font-size:0.85rem; color:var(--slate-700); line-height:1.7; margin-bottom:8px; }
+    .background-box p:last-child { margin-bottom:0; }
+    .background-box .founder { color:var(--th-800); }
     .grounding-box { background:linear-gradient(135deg,var(--th-50) 0%,#ffffff 100%); border:1.5px solid var(--th-200); border-radius:var(--radius); padding:14px 18px; margin-bottom:20px; text-align:center; font-size:0.95rem; }
     .grounding-box strong { color:var(--th-800); }
     .section { background:#fff; border:1.5px solid var(--slate-200); border-radius:var(--radius); margin-bottom:16px; box-shadow:0 1px 4px rgba(0,0,0,0.04); }
@@ -81,7 +86,7 @@
       html,body { background:#fff; font-size:15px; margin:0; padding:0; }
       .sheet { max-width:none; padding:0 8mm; margin:0; }
       .therapist-section,.worksheet-body,.example-section { box-shadow:none; padding:0; margin-bottom:0; border-radius:0; }
-      .header,.header-badge,.section-number,.scale-row,.scale-dot,.grounding-box,.compassion-box,.pattern-box,.therapist-box,.summary-box,.example-banner,.header-logo,.numbered-line .num { -webkit-print-color-adjust:exact !important; print-color-adjust:exact !important; }
+      .header,.header-badge,.section-number,.scale-row,.scale-dot,.grounding-box,.compassion-box,.pattern-box,.therapist-box,.background-box,.summary-box,.example-banner,.header-logo,.numbered-line .num { -webkit-print-color-adjust:exact !important; print-color-adjust:exact !important; }
       .header { box-shadow:none; padding:16px 20px; margin-bottom:14px; }
       .header-logo img { height:150px !important; visibility:visible !important; display:block !important; -webkit-print-color-adjust:exact !important; print-color-adjust:exact !important; max-width:350px; }
       .summary-box,.grounding-box,.compassion-box,.pattern-box,.example-banner,.header,.section,.section-header { break-inside:avoid; }

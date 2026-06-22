@@ -161,6 +161,84 @@ const colorMap: Record<
     tabActiveBorder: "data-[state=active]:border-amber-600",
     tabActiveText: "data-[state=active]:text-amber-700",
   },
+  blue: {
+    bg: "bg-blue-50",
+    border: "border-blue-200",
+    text: "text-blue-800",
+    badge: "bg-blue-100",
+    badgeText: "text-blue-700",
+    accent: "bg-blue-600",
+    ring: "ring-blue-300",
+    hoverBg: "hover:bg-blue-50",
+    hoverBorder: "hover:border-blue-200",
+    tabActiveBorder: "data-[state=active]:border-blue-600",
+    tabActiveText: "data-[state=active]:text-blue-700",
+  },
+  green: {
+    bg: "bg-green-50",
+    border: "border-green-200",
+    text: "text-green-800",
+    badge: "bg-green-100",
+    badgeText: "text-green-700",
+    accent: "bg-green-600",
+    ring: "ring-green-300",
+    hoverBg: "hover:bg-green-50",
+    hoverBorder: "hover:border-green-200",
+    tabActiveBorder: "data-[state=active]:border-green-600",
+    tabActiveText: "data-[state=active]:text-green-700",
+  },
+  fuchsia: {
+    bg: "bg-fuchsia-50",
+    border: "border-fuchsia-200",
+    text: "text-fuchsia-800",
+    badge: "bg-fuchsia-100",
+    badgeText: "text-fuchsia-700",
+    accent: "bg-fuchsia-600",
+    ring: "ring-fuchsia-300",
+    hoverBg: "hover:bg-fuchsia-50",
+    hoverBorder: "hover:border-fuchsia-200",
+    tabActiveBorder: "data-[state=active]:border-fuchsia-600",
+    tabActiveText: "data-[state=active]:text-fuchsia-700",
+  },
+  purple: {
+    bg: "bg-purple-50",
+    border: "border-purple-200",
+    text: "text-purple-800",
+    badge: "bg-purple-100",
+    badgeText: "text-purple-700",
+    accent: "bg-purple-600",
+    ring: "ring-purple-300",
+    hoverBg: "hover:bg-purple-50",
+    hoverBorder: "hover:border-purple-200",
+    tabActiveBorder: "data-[state=active]:border-purple-600",
+    tabActiveText: "data-[state=active]:text-purple-700",
+  },
+  lime: {
+    bg: "bg-lime-50",
+    border: "border-lime-200",
+    text: "text-lime-800",
+    badge: "bg-lime-100",
+    badgeText: "text-lime-700",
+    accent: "bg-lime-600",
+    ring: "ring-lime-300",
+    hoverBg: "hover:bg-lime-50",
+    hoverBorder: "hover:border-lime-200",
+    tabActiveBorder: "data-[state=active]:border-lime-600",
+    tabActiveText: "data-[state=active]:text-lime-700",
+  },
+  pink: {
+    bg: "bg-pink-50",
+    border: "border-pink-200",
+    text: "text-pink-800",
+    badge: "bg-pink-100",
+    badgeText: "text-pink-700",
+    accent: "bg-pink-600",
+    ring: "ring-pink-300",
+    hoverBg: "hover:bg-pink-50",
+    hoverBorder: "hover:border-pink-200",
+    tabActiveBorder: "data-[state=active]:border-pink-600",
+    tabActiveText: "data-[state=active]:text-pink-700",
+  },
 };
 
 /* ═══ תוכן TIPP ═══ */
@@ -983,6 +1061,7 @@ interface WCWorksheet {
   color: string;
   grounding: string;
   therapist: {
+    background?: { founder: string; story: string[] };
     purpose: string[];
     when?: { headers: string[]; rows: string[][] };
     tips: string[];
@@ -1041,6 +1120,12 @@ const pc: Record<
   indigo: { soft: "bg-indigo-50", border: "border-indigo-200", text: "text-indigo-800", num: "bg-indigo-600", dot: "bg-indigo-500", dotBorder: "border-indigo-200", dotText: "text-indigo-700", numBg: "bg-indigo-100", numText: "text-indigo-700", summaryBg: "bg-indigo-50/90" },
   cyan: { soft: "bg-cyan-50", border: "border-cyan-200", text: "text-cyan-800", num: "bg-cyan-600", dot: "bg-cyan-500", dotBorder: "border-cyan-200", dotText: "text-cyan-700", numBg: "bg-cyan-100", numText: "text-cyan-700", summaryBg: "bg-cyan-50/90" },
   amber: { soft: "bg-amber-50", border: "border-amber-200", text: "text-amber-800", num: "bg-amber-600", dot: "bg-amber-500", dotBorder: "border-amber-200", dotText: "text-amber-700", numBg: "bg-amber-100", numText: "text-amber-700", summaryBg: "bg-amber-50/90" },
+  blue: { soft: "bg-blue-50", border: "border-blue-200", text: "text-blue-800", num: "bg-blue-600", dot: "bg-blue-500", dotBorder: "border-blue-200", dotText: "text-blue-700", numBg: "bg-blue-100", numText: "text-blue-700", summaryBg: "bg-blue-50/90" },
+  green: { soft: "bg-green-50", border: "border-green-200", text: "text-green-800", num: "bg-green-600", dot: "bg-green-500", dotBorder: "border-green-200", dotText: "text-green-700", numBg: "bg-green-100", numText: "text-green-700", summaryBg: "bg-green-50/90" },
+  fuchsia: { soft: "bg-fuchsia-50", border: "border-fuchsia-200", text: "text-fuchsia-800", num: "bg-fuchsia-600", dot: "bg-fuchsia-500", dotBorder: "border-fuchsia-200", dotText: "text-fuchsia-700", numBg: "bg-fuchsia-100", numText: "text-fuchsia-700", summaryBg: "bg-fuchsia-50/90" },
+  purple: { soft: "bg-purple-50", border: "border-purple-200", text: "text-purple-800", num: "bg-purple-600", dot: "bg-purple-500", dotBorder: "border-purple-200", dotText: "text-purple-700", numBg: "bg-purple-100", numText: "text-purple-700", summaryBg: "bg-purple-50/90" },
+  lime: { soft: "bg-lime-50", border: "border-lime-200", text: "text-lime-800", num: "bg-lime-600", dot: "bg-lime-500", dotBorder: "border-lime-200", dotText: "text-lime-700", numBg: "bg-lime-100", numText: "text-lime-700", summaryBg: "bg-lime-50/90" },
+  pink: { soft: "bg-pink-50", border: "border-pink-200", text: "text-pink-800", num: "bg-pink-600", dot: "bg-pink-500", dotBorder: "border-pink-200", dotText: "text-pink-700", numBg: "bg-pink-100", numText: "text-pink-700", summaryBg: "bg-pink-50/90" },
 };
 
 function renderScale(label: string, color: string, value?: number) {
@@ -1118,8 +1203,18 @@ function renderSectionBody(s: WCSection, color: string) {
 
 function renderTherapist(w: WCWorksheet) {
   const t = w.therapist;
+  const p = pc[w.color] ?? pc.teal;
   return (
     <div className="space-y-4 text-sm leading-relaxed">
+      {t.background && (
+        <div className={`rounded-lg border ${p.border} border-r-4 ${p.soft} p-3`}>
+          <strong className={p.text}>📖 על הגישה והיוצר</strong>
+          <p className={`mt-1 font-semibold ${p.text}`}>{t.background.founder}</p>
+          {t.background.story.map((para, i) => (
+            <p key={i} className="mt-1 text-gray-600">{para}</p>
+          ))}
+        </div>
+      )}
       {t.purpose.map((para, i) => (
         <p key={i}>{para}</p>
       ))}
