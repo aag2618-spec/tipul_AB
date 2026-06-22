@@ -473,7 +473,7 @@ export async function SecretaryHome({
             </Button>
           )}
           <Button asChild>
-            <Link href="/dashboard/calendar?new=true">
+            <Link href="/dashboard/calendar?new=true&scope=clinic">
               <CalendarPlus className="h-4 w-4 ml-2" />
               פגישה חדשה
             </Link>
@@ -516,7 +516,7 @@ export async function SecretaryHome({
                   <Calendar className="mx-auto h-12 w-12 mb-3 opacity-50" />
                   <p>אין פגישות מתוכננות להיום</p>
                   <Button variant="link" asChild className="mt-2">
-                    <Link href="/dashboard/calendar?new=true">קביעת פגישה חדשה</Link>
+                    <Link href="/dashboard/calendar?new=true&scope=clinic">קביעת פגישה חדשה</Link>
                   </Button>
                 </div>
               )}

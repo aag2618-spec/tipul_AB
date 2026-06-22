@@ -113,6 +113,10 @@ function CalendarPageContent() {
   // (הפרמטר לא נקרא). useEffect למטה פותח את הדיאלוג ומנקה את ה-URL כך
   // שרענון העמוד לא יפתח אותו שוב.
   const newParam = searchParams.get('new');
+  // כניסה מאזור ניהול הקליניקה (מוקד היום / מבט ניהולי) מסמנת `scope=clinic`,
+  // כדי שטופס "פגישה חדשה" ייפתח במצב קליניקה (בורר מטפל + כל מטופלי הקליניקה)
+  // בלי תלות במתג "שלי / כל הקליניקה" — ראה forceClinicScope למטה.
+  const scopeParam = searchParams.get('scope');
   const isMobile = useIsMobile();
   // ביומן בטלפון: יום בודד עם רשת שעות (שומר drag-and-drop). במחשב/טאבלט: שבוע מלא (כמו היום)
   const initialCalendarView =
@@ -155,6 +159,9 @@ function CalendarPageContent() {
   const [receiptDialogIsCardcom, setReceiptDialogIsCardcom] = useState(false);
 
   const [isDialogOpen, setIsDialogOpen] = useState(false);
+  // "פגישה חדשה" שנפתחה מאזור הניהול (scope=clinic) — מאלץ מצב קליניקה בטופס
+  // (בורר מטפל + כל מטופלי הקליניקה) גם כשהמתג הגלובלי על "שלי". מתאפס בסגירה.
+  const [forceClinicScope, setForceClinicScope] = useState(false);
   const [isRecurringDialogOpen, setIsRecurringDialogOpen] = useState(false);
   // "מצא משבצת פנויה" — דיאלוג זימון מהיר (למשל בשיחת טלפון עם מטופל).
   const [isFindSlotOpen, setIsFindSlotOpen] = useState(false);
@@ -251,12 +258,16 @@ function CalendarPageContent() {
     if (newParam !== 'true') return;
     setSelectedDate(new Date());
     setInitialFormData(DEFAULT_FORM_DATA);
+    // כניסה מאזור הניהול → מצב קליניקה לטופס זה בלבד (בורר מטפל גלוי), בלי
+    // לשנות את המתג הגלובלי. כניסה רגילה (בלי scope) שומרת על מצב המתג.
+    setForceClinicScope(scopeParam === 'clinic');
     setIsDialogOpen(true);
     const params = new URLSearchParams(searchParams.toString());
     params.delete('new');
+    params.delete('scope');
     const qs = params.toString();
     router.replace(qs ? `/dashboard/calendar?${qs}` : '/dashboard/calendar', { scroll: false });
-  }, [newParam, searchParams, router]);
+  }, [newParam, scopeParam, searchParams, router]);
 
   // שמירת מטופל מהכתובת - ישמש כשלוחצים על שעה ביומן
   const [preselectedClientId, setPreselectedClientId] = useState<string | null>(clientParam);
@@ -976,7 +987,12 @@ function CalendarPageContent() {
       {/* New Session Dialog */}
       <NewSessionDialog
         open={isDialogOpen}
-        onOpenChange={setIsDialogOpen}
+        onOpenChange={(open) => {
+          setIsDialogOpen(open);
+          // בסגירת הטופס מאפסים את אילוץ מצב הניהול, כדי שפתיחה הבאה
+          // (מכפתור "פגישה חדשה" שביומן) תכבד שוב את מתג "שלי / כל הקליניקה".
+          if (!open) setForceClinicScope(false);
+        }}
         clients={clients}
         defaultSessionDuration={defaultSessionDuration}
         defaultSessionPrice={defaultSessionPrice}
@@ -985,7 +1001,9 @@ function CalendarPageContent() {
         sessions={sessions}
         // תצוגת "שלי" מול "כל הקליניקה": ב"שלי" הטופס מסתיר את בורר המטפל
         // ומסנן את רשימת המטופלים למטופלים שלי בלבד (כמו מטפל יחיד).
-        isOwnPersonalView={isOwnPersonalView}
+        // forceClinicScope: כניסה מאזור הניהול מאלצת מצב קליניקה (בורר מטפל גלוי)
+        // גם כשהמתג על "שלי" — בדיוק כמו אצל המזכירה.
+        isOwnPersonalView={isOwnPersonalView && !forceClinicScope}
         currentTherapistId={currentTherapistId}
         onSessionCreated={() => fetchData()}
         onShowRecurringPreview={(preview, decisions, pendingRecurring) => {

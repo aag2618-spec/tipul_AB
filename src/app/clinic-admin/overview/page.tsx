@@ -237,7 +237,7 @@ export default function ClinicAdminOverviewPage() {
             </Link>
           </Button>
           <Button asChild size="sm">
-            <Link href="/dashboard/calendar?new=true">
+            <Link href="/dashboard/calendar?new=true&scope=clinic">
               <CalendarPlus className="ml-2 h-4 w-4" aria-hidden="true" />
               פגישה חדשה
             </Link>
