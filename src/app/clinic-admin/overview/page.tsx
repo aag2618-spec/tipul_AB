@@ -131,7 +131,7 @@ export default function ClinicAdminOverviewPage() {
     const notice = new URLSearchParams(window.location.search).get("notice");
     const MESSAGES: Record<string, string> = {
       "billing-unavailable":
-        "עמוד החיוב אינו זמין כעת — פירוט המחיר החודשי מוצג כאן בסקירה.",
+        "עמוד החיוב אינו זמין כעת — פירוט המחיר החודשי מוצג כאן במבט הניהולי.",
       "settings-unavailable":
         "הגדרות הקליניקה מתבצעות כרגע דרך מנהל המערכת.",
     };
@@ -147,6 +147,12 @@ export default function ClinicAdminOverviewPage() {
       try {
         const res = await fetch("/api/clinic-admin/overview");
         if (!res.ok) {
+          // 403 — מזכיר/ה עם canTransferClient שניווט/ה ידנית לכאן (owner-only).
+          // הודעה ידידותית במקום toast גנרי; ה-API חוסם ממילא (אין דליפה).
+          if (res.status === 403) {
+            setError("אזור זה מיועד לבעלי קליניקה.");
+            return;
+          }
           if (res.status === 404) {
             setError("אינך משויך/ת לקליניקה.");
             return;
@@ -156,7 +162,7 @@ export default function ClinicAdminOverviewPage() {
         const data = await res.json();
         setData(data);
       } catch {
-        toast.error("שגיאה בטעינת הסקירה");
+        toast.error("שגיאה בטעינת המבט הניהולי");
       } finally {
         setLoading(false);
       }
