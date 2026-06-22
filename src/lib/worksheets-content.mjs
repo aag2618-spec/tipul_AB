@@ -4,6 +4,7 @@
 // קטגוריה עם id חדש (polyvagal, anger) — נוספת כקטגוריה חדשה.
 
 import { extraCategories } from "./worksheets-content-extra.mjs";
+import { extraCategories2 } from "./worksheets-content-extra2.mjs";
 
 export const worksheetsContent = {
   categories: [
@@ -1250,5 +1251,6 @@ export const worksheetsContent = {
   ],
 },
   ...extraCategories,
+  ...extraCategories2,
   ],
 };
