@@ -11,6 +11,7 @@ import { ClientOnly } from "@/components/client-only";
 import {
   Building2,
   LayoutDashboard,
+  BarChart3,
   Users,
   UsersRound,
   UserPlus,
@@ -68,12 +69,15 @@ type NavItem = {
   secretaryWithTransfer?: boolean;
 };
 const navItems: NavItem[] = [
-  // Phase 4 follow-up: "סקירה כללית" *לא* מסומן secretaryWithTransfer כי
-  // /api/clinic-admin/overview נשאר owner-only (מציג billing/contract data).
-  // מזכיר/ה עם canTransferClient לא מגיעה לשורש /clinic-admin כלל — היא
-  // נכנסת ישירות ל-/clinic-admin/transfer דרך הקישור בעריכת לקוח, או
-  // ל-/clinic-admin/members/by-therapist דרך הנאב כשהיא כבר בלייאאוט.
-  { href: "/clinic-admin", label: "סקירה כללית", icon: LayoutDashboard, exact: true },
+  // "מוקד היום" (שורש /clinic-admin) ו"מבט ניהולי" (/clinic-admin/overview) —
+  // שניהם owner-only (לא secretaryWithTransfer): המוקד מציג את פגישות כל
+  // הקליניקה, והמבט הניהולי מציג billing/contract. מזכיר/ה עם canTransferClient
+  // לא מגיעה לשורש /clinic-admin — היא נכנסת ישירות ל-/clinic-admin/transfer
+  // דרך עריכת לקוח, או ל-/members/by-therapist מהנאב כשהיא כבר בלייאאוט.
+  { href: "/clinic-admin", label: "מוקד היום", icon: LayoutDashboard, exact: true },
+  // מבט ניהולי — לוח-המחוונים שהיה "סקירה כללית": KPIs, תמחור, SMS, הרכב צוות,
+  // אזהרת קרדיט-בעזיבה. exact:true כדי לא להיות active במקביל לתת-מסלולים.
+  { href: "/clinic-admin/overview", label: "מבט ניהולי", icon: BarChart3, exact: true },
   // Phase 4 — exact: true כדי שלא יואר במקביל ל-/members/by-therapist.
   { href: "/clinic-admin/members", label: "חברי קליניקה", icon: Users, exact: true },
   // Phase 4 — תצוגה ייעודית: רשימת הלקוחות של כל מטפל. נמצא תחת

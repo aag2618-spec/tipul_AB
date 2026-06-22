@@ -153,9 +153,9 @@ export default function RevenueReportPage() {
             </Link>
           </Button>
           <Button asChild variant="outline" size="sm">
-            <Link href="/clinic-admin">
+            <Link href="/clinic-admin/overview">
               <ArrowRight className="ml-2 h-4 w-4" aria-hidden="true" />
-              חזרה לסקירה
+              חזרה למבט ניהולי
             </Link>
           </Button>
         </div>
@@ -210,9 +210,9 @@ export default function RevenueReportPage() {
             />
             <p className="font-medium">{error || "לא נטענו נתונים"}</p>
             <Button asChild variant="outline">
-              <Link href="/clinic-admin">
+              <Link href="/clinic-admin/overview">
                 <ArrowRight className="ml-2 h-4 w-4" aria-hidden="true" />
-                חזרה לסקירה
+                חזרה למבט ניהולי
               </Link>
             </Button>
           </CardContent>

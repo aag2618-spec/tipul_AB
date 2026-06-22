@@ -167,7 +167,7 @@ export default function ClinicDeparturesPage() {
             <AlertCircle className="h-10 w-10 text-amber-500 mx-auto" />
             <p className="font-medium">{error || "לא נטענו נתונים"}</p>
             <Button asChild variant="outline" size="sm">
-              <Link href="/clinic-admin">חזרה לסקירה</Link>
+              <Link href="/clinic-admin/overview">חזרה למבט ניהולי</Link>
             </Button>
           </CardContent>
         </Card>

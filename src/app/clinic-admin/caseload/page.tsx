@@ -117,9 +117,9 @@ export default function CaseloadPage() {
             <AlertCircle className="h-10 w-10 text-amber-500 mx-auto" aria-hidden="true" />
             <p className="font-medium">{error || "לא נטענו נתונים"}</p>
             <Button asChild variant="outline">
-              <Link href="/clinic-admin">
+              <Link href="/clinic-admin/overview">
                 <ArrowRight className="ml-2 h-4 w-4" aria-hidden="true" />
-                חזרה לסקירה
+                חזרה למבט ניהולי
               </Link>
             </Button>
           </CardContent>
@@ -157,9 +157,9 @@ export default function CaseloadPage() {
           </div>
         </div>
         <Button asChild variant="outline" size="sm">
-          <Link href="/clinic-admin">
+          <Link href="/clinic-admin/overview">
             <ArrowRight className="ml-2 h-4 w-4" aria-hidden="true" />
-            חזרה לסקירה
+            חזרה למבט ניהולי
           </Link>
         </Button>
       </div>

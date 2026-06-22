@@ -199,9 +199,9 @@ export default function RevenueSettingsPage() {
             />
             <p className="font-medium">{error}</p>
             <Button asChild variant="outline">
-              <Link href="/clinic-admin">
+              <Link href="/clinic-admin/overview">
                 <ArrowRight className="ml-2 h-4 w-4" aria-hidden="true" />
-                חזרה לסקירה
+                חזרה למבט ניהולי
               </Link>
             </Button>
           </CardContent>
