@@ -16,6 +16,7 @@ import {
   AlertDialogTitle,
 } from '@/components/ui/alert-dialog';
 import { Textarea } from '@/components/ui/textarea';
+import { ContactActions } from '@/components/contact-actions';
 import { toast } from 'sonner';
 import { format } from 'date-fns';
 import { he } from 'date-fns/locale';
@@ -255,18 +256,23 @@ export default function CancellationRequestsPage() {
                         {request.clientEmail && (
                           <div className="flex items-center gap-2 text-sm">
                             <Mail className="h-4 w-4 text-muted-foreground" />
-                            <a href={`mailto:${request.clientEmail}`} className="text-primary hover:underline">
-                              {request.clientEmail}
-                            </a>
+                            <span dir="ltr" className="truncate">{request.clientEmail}</span>
                           </div>
                         )}
                         {request.clientPhone && (
                           <div className="flex items-center gap-2 text-sm">
                             <Phone className="h-4 w-4 text-muted-foreground" />
-                            <a href={`tel:${request.clientPhone}`} className="text-primary hover:underline">
-                              {request.clientPhone}
-                            </a>
+                            <span dir="ltr">{request.clientPhone}</span>
                           </div>
+                        )}
+                        {(request.clientPhone || request.clientEmail) && (
+                          <ContactActions
+                            clientId={request.clientId}
+                            clientName={request.clientName}
+                            phone={request.clientPhone}
+                            email={request.clientEmail}
+                            size="md"
+                          />
                         )}
                       </div>
                     </div>
@@ -309,14 +315,6 @@ export default function CancellationRequestsPage() {
                           <X className="h-4 w-4" />
                           דחה בקשה
                         </Button>
-                        {request.clientEmail && (
-                          <Button variant="outline" asChild>
-                            <a href={`mailto:${request.clientEmail}`}>
-                              <Mail className="h-4 w-4 ml-2" />
-                              צור קשר
-                            </a>
-                          </Button>
-                        )}
                       </div>
                     )}
 

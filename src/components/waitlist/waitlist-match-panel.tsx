@@ -3,12 +3,14 @@
 import { useEffect, useState } from "react";
 import { Phone, Users } from "lucide-react";
 import { Button } from "@/components/ui/button";
+import { ContactActions } from "@/components/contact-actions";
 
 interface Match {
   id: string;
   clientId: string;
   clientName: string | null;
   clientPhone: string | null;
+  clientEmail: string | null;
   durationMinutes: number;
   priority: number;
 }
@@ -66,31 +68,37 @@ export function WaitlistMatchPanel({
         {matches.map((m) => (
           <div
             key={m.id}
-            className="flex items-center justify-between rounded-md border bg-background px-2.5 py-1.5 text-sm"
+            className="flex items-center justify-between gap-2 rounded-md border bg-background px-2.5 py-1.5 text-sm"
           >
             <div className="flex flex-col min-w-0">
               <span className="font-medium truncate">
                 {m.clientName || "מטופל/ת"}
               </span>
               {m.clientPhone && (
-                <a
-                  href={`tel:${m.clientPhone}`}
+                <span
                   dir="ltr"
-                  className="text-xs text-muted-foreground flex items-center gap-1 hover:underline"
+                  className="text-xs text-muted-foreground flex items-center gap-1"
                 >
                   <Phone className="h-3 w-3" aria-hidden />
                   {m.clientPhone}
-                </a>
+                </span>
               )}
             </div>
-            <Button
-              size="sm"
-              variant="outline"
-              className="shrink-0"
-              onClick={() => onFill(m.clientId)}
-            >
-              קבע
-            </Button>
+            <div className="flex items-center gap-1.5 shrink-0">
+              <ContactActions
+                clientId={m.clientId}
+                clientName={m.clientName}
+                phone={m.clientPhone}
+                email={m.clientEmail}
+              />
+              <Button
+                size="sm"
+                variant="outline"
+                onClick={() => onFill(m.clientId)}
+              >
+                קבע
+              </Button>
+            </div>
           </div>
         ))}
       </div>

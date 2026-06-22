@@ -15,6 +15,7 @@ import { safeHttpUrl } from "@/lib/receipt-utils";
 import { copayApplies } from "@/lib/commitments";
 import { getTherapistAccent } from "@/lib/calendar/event-colors";
 import { WaitlistMatchPanel } from "@/components/waitlist/waitlist-match-panel";
+import { ContactActions } from "@/components/contact-actions";
 import type { CalendarSession } from "@/hooks/use-calendar-data";
 
 // ── Types ──
@@ -663,15 +664,25 @@ export function SessionDetailDialog({
             </div>
           )}
 
-          {/* פרטי פונה — טלפון */}
-          {isQuickClient && session.client?.phone && (
-            <a
-              href={`tel:${session.client.phone}`}
-              className="flex items-center gap-2 rounded-lg p-2 bg-muted/50 border hover:bg-muted transition-colors"
-            >
-              <Phone className="h-4 w-4 text-green-600" />
-              <span className="text-sm" dir="ltr">{session.client.phone}</span>
-            </a>
+          {/* פרטי פונה — טלפון + יצירת קשר (SMS/אימייל) */}
+          {isQuickClient && session.client && (session.client.phone || session.client.email) && (
+            <div className="flex items-center justify-between gap-2 rounded-lg p-2 bg-muted/50 border">
+              {session.client.phone ? (
+                <span className="flex items-center gap-2 text-sm min-w-0" dir="ltr">
+                  <Phone className="h-4 w-4 text-green-600 shrink-0" />
+                  {session.client.phone}
+                </span>
+              ) : (
+                <span className="text-sm text-muted-foreground">יצירת קשר</span>
+              )}
+              <ContactActions
+                clientId={session.client.id}
+                clientName={session.client.name}
+                phone={session.client.phone}
+                email={session.client.email}
+                size="md"
+              />
+            </div>
           )}
 
           {/* פגישות קודמות — רק לפונה */}
@@ -822,14 +833,21 @@ export function SessionDetailDialog({
             ) : session.status === "PENDING_APPROVAL" ? (
               <div className="bg-amber-50 border border-amber-200 rounded-lg p-4 space-y-3">
                 <p className="text-sm font-medium text-amber-800 text-center">פגישה זו נקבעה דרך זימון עצמי וממתינה לאישורך</p>
-                {(session.client?.email || session.client?.phone) && (
+                {session.client && (session.client.email || session.client.phone) && (
                   <div className="text-sm text-amber-700 space-y-1 border-t border-amber-200 pt-2">
                     {session.client.phone && (
-                      <p><strong>טלפון:</strong> <a href={`tel:${session.client.phone}`} className="underline">{session.client.phone}</a></p>
+                      <p><strong>טלפון:</strong> <span dir="ltr">{session.client.phone}</span></p>
                     )}
                     {session.client.email && (
-                      <p><strong>מייל:</strong> <a href={`mailto:${session.client.email}`} className="underline">{session.client.email}</a></p>
+                      <p><strong>מייל:</strong> <span dir="ltr">{session.client.email}</span></p>
                     )}
+                    <ContactActions
+                      clientId={session.client.id}
+                      clientName={session.client.name}
+                      phone={session.client.phone}
+                      email={session.client.email}
+                      size="md"
+                    />
                   </div>
                 )}
                 <div className="flex gap-2">

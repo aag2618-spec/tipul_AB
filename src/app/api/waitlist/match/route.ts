@@ -74,13 +74,14 @@ export async function GET(request: NextRequest) {
         ],
       },
       include: {
-        client: { select: { id: true, name: true, phone: true } },
+        client: { select: { id: true, name: true, phone: true, email: true } },
       },
     });
 
     const candidates: (WaitlistCandidate & {
       clientName: string | null;
       clientPhone: string | null;
+      clientEmail: string | null;
     })[] = entries.map((e) => ({
       id: e.id,
       clientId: e.clientId,
@@ -95,6 +96,7 @@ export async function GET(request: NextRequest) {
       createdAt: e.createdAt,
       clientName: e.client?.name ?? null,
       clientPhone: e.client?.phone ?? null,
+      clientEmail: e.client?.email ?? null,
     }));
 
     const ranked = rankWaitlistMatches(candidates, {
@@ -110,6 +112,7 @@ export async function GET(request: NextRequest) {
         clientId: m.clientId,
         clientName: m.clientName,
         clientPhone: m.clientPhone,
+        clientEmail: m.clientEmail,
         preferredTherapistId: m.preferredTherapistId,
         durationMinutes: m.durationMinutes,
         priority: m.priority,
