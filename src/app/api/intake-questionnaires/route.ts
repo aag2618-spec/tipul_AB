@@ -4,6 +4,7 @@ import { Prisma } from "@prisma/client";
 import { logger } from "@/lib/logger";
 
 import { requireAuth } from "@/lib/api-auth";
+import { loadScopeUser } from "@/lib/scope";
 import { parseBody } from "@/lib/validations/helpers";
 import { createQuestionnaireSchema } from "@/lib/validations/intake-questionnaire";
 
@@ -14,13 +15,17 @@ export async function GET() {
   try {
     const auth = await requireAuth();
     if ("error" in auth) return auth.error;
-    const { userId, session } = auth;
+    const { userId } = auth;
+
+    // בקליניקה: כל שאלוני הארגון (כדי שמטפל/מזכירה יוכלו לבחור לשליחה).
+    // מטפל עצמאי (organizationId=null): רק שלו — התנהגות קיימת.
+    const scopeUser = await loadScopeUser(userId);
+    const where: Prisma.IntakeQuestionnaireWhereInput = scopeUser.organizationId
+      ? { isActive: true, user: { organizationId: scopeUser.organizationId } }
+      : { userId, isActive: true };
 
     const templates = await prisma.intakeQuestionnaire.findMany({
-      where: {
-        userId: userId,
-        isActive: true,
-      },
+      where,
       orderBy: [
         { isDefault: "desc" },
         { createdAt: "desc" },

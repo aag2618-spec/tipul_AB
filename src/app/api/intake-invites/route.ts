@@ -6,7 +6,8 @@ import { requireAuth } from "@/lib/api-auth";
 import {
   loadScopeUser,
   buildClientWhere,
-  canSecretaryAccessModel,
+  isSecretary,
+  secretaryCan,
 } from "@/lib/scope";
 import { parseBody } from "@/lib/validations/helpers";
 import { createIntakeInviteSchema } from "@/lib/validations/intake-invite";
@@ -39,10 +40,11 @@ export async function POST(request: NextRequest) {
     if (!rl.allowed) return rateLimitResponse(rl);
 
     const scopeUser = await loadScopeUser(userId);
-    // יצירת/שליחת תשאול ראשוני = תוכן קליני — חסום למזכירה (כמו שמירת תשובות).
-    if (!canSecretaryAccessModel(scopeUser, "QuestionnaireResponse")) {
+    // שליחת קישור תשאול = פעולה מנהלתית (כמו שליחת קישור זימון): מזכירה מורשית
+    // אם יש לה canSendReminders. *צפייה בתשובות* נשארת חסומה ב-endpoint נפרד.
+    if (isSecretary(scopeUser) && !secretaryCan(scopeUser, "canSendReminders")) {
       return NextResponse.json(
-        { message: "אין הרשאה לתוכן קליני" },
+        { message: "אין הרשאה לשליחת קישורי תשאול" },
         { status: 403 }
       );
     }
@@ -61,6 +63,7 @@ export async function POST(request: NextRequest) {
         phone: true,
         email: true,
         organizationId: true,
+        therapistId: true,
       },
     });
     if (!client) {
@@ -102,9 +105,12 @@ export async function POST(request: NextRequest) {
       Date.now() + TOKEN_EXPIRY_DAYS * 24 * 60 * 60 * 1000
     );
 
+    // בעל הקישור = המטפל האחראי של המטופל (כמו BookingLink). מזכירה רק משדרת.
+    const inviteOwnerId = isSecretary(scopeUser) ? client.therapistId : userId;
+
     const invite = await prisma.intakeInvite.create({
       data: {
-        userId,
+        userId: inviteOwnerId,
         clientId: client.id,
         templateId: template.id,
         token,
@@ -125,7 +131,7 @@ export async function POST(request: NextRequest) {
     if (channel === "sms" || channel === "both") {
       if (client.phone) {
         const message = `שלום ${firstName}, לפני הפגישה נשמח שתמלא/י שאלון קצר: ${publicUrl}`;
-        const smsResult = await sendSMS(client.phone, message, userId, {
+        const smsResult = await sendSMS(client.phone, message, inviteOwnerId, {
           clientId: client.id,
           type: "INTAKE_FORM_LINK",
         });

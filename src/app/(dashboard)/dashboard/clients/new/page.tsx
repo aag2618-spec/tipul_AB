@@ -1,7 +1,7 @@
 "use client";
 
 import { useState, useEffect, Suspense } from "react";
-import { useRouter, useSearchParams } from "next/navigation";
+import { useSearchParams } from "next/navigation";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
@@ -13,6 +13,7 @@ import { Loader2, Save, FileText, Users } from "lucide-react";
 import Link from "next/link";
 import { toast } from "sonner";
 import { useMyPermissions } from "@/hooks/use-my-permissions";
+import { SendIntakeLinkButton } from "@/components/clients/send-intake-link-button";
 
 interface Question {
   id: string;
@@ -60,7 +61,6 @@ export default function NewClientPage() {
 }
 
 function NewClientContent() {
-  const router = useRouter();
   const searchParams = useSearchParams();
   const fromQuickId = searchParams.get("fromQuick");
   const [isLoading, setIsLoading] = useState(false);
@@ -96,6 +96,8 @@ function NewClientContent() {
   });
   
   const [questionnaireResponses, setQuestionnaireResponses] = useState<Record<string, string>>({});
+  // אחרי שמירה — מציעים לשלוח שאלון פנייה במקום לקפוץ ישר לתיק.
+  const [createdClient, setCreatedClient] = useState<{ id: string; name: string } | null>(null);
 
   useEffect(() => {
     fetchDefaultQuestionnaire();
@@ -291,7 +293,8 @@ function NewClientContent() {
       }
 
       toast.success(fromQuickId ? "הפונה שודרג למטופל קבוע" : "המטופל נוסף בהצלחה");
-      router.push(`/dashboard/clients/${client.id}`);
+      // הרגע הטבעי לשלוח שאלון פנייה — מציגים פאנל הצעה (במקום קפיצה ישר לתיק).
+      setCreatedClient({ id: client.id, name: client.name ?? "" });
     } catch (error) {
       toast.error(error instanceof Error ? error.message : "אירעה שגיאה");
     } finally {
@@ -348,6 +351,29 @@ function NewClientContent() {
         return null;
     }
   };
+
+  if (createdClient) {
+    return (
+      <div className="space-y-6 animate-fade-in max-w-2xl">
+        <Card>
+          <CardHeader>
+            <CardTitle>המטופל נוסף בהצלחה ✓</CardTitle>
+            <CardDescription>
+              רוצה לשלוח {createdClient.name ? `ל${createdClient.name}` : "למטופל"} שאלון פנייה למילוי לפני הפגישה?
+            </CardDescription>
+          </CardHeader>
+          <CardContent className="flex flex-wrap items-center gap-3">
+            <SendIntakeLinkButton clientId={createdClient.id} />
+            <Button asChild variant="outline">
+              <Link href={`/dashboard/clients/${createdClient.id}`}>
+                המשך לתיק המטופל
+              </Link>
+            </Button>
+          </CardContent>
+        </Card>
+      </div>
+    );
+  }
 
   return (
     <div className="space-y-6 animate-fade-in">
