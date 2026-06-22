@@ -37,6 +37,9 @@ interface ClinicContext {
     // למזכיר/ה עם canTransferClient הם נעדרים — לכן optional + render מותנה.
     aiTier?: string;
     subscriptionStatus?: string;
+    // ownerIsTherapist=false → בעלים מנהל-בלבד (לא מטפל). משמש להסתרת הקישור
+    // "לדשבורד הטיפולים" שמנתב אותו/ה חזרה לכאן ונתקע. נעדר למזכיר/ה.
+    ownerIsTherapist?: boolean | null;
     pricingPlan?: { name: string };
   } | null;
   user: {
@@ -228,6 +231,15 @@ function ClinicAdminContent({ children }: { children: React.ReactNode }) {
 
   if (!ctx) return null;
 
+  // בעלים מנהל-בלבד (לא מטפל/ת): /dashboard מנתב אותו/ה חזרה ל-/clinic-admin
+  // (ראה dashboard/page.tsx → isNonTherapistManager). לכן הקישור "לדשבורד
+  // הטיפולים" יוצר round-trip מיותר שנתקע בגלגל-טעינה — מסתירים אותו.
+  // בעלים-מטפל/ת, מזכיר/ה (חוזר/ת ל-front-desk) ו-ADMIN — מקבלים אותו כרגיל.
+  const isOwnerRole =
+    ctx.user.role === "CLINIC_OWNER" || ctx.user.clinicRole === "OWNER";
+  const isNonTherapistOwner =
+    isOwnerRole && ctx.organization?.ownerIsTherapist === false;
+
   return (
     <div className="min-h-screen bg-muted/30 text-foreground" dir="rtl">
       {/* Mobile menu button */}
@@ -329,17 +341,19 @@ function ClinicAdminContent({ children }: { children: React.ReactNode }) {
               </p>
             </div>
             <div className="flex flex-col gap-2">
-              <Button
-                variant="ghost"
-                size="sm"
-                asChild
-                className="justify-start text-muted-foreground hover:text-foreground hover:bg-muted"
-              >
-                <Link href="/dashboard">
-                  <ArrowRight className="ml-2 h-4 w-4" />
-                  לדשבורד הטיפולים
-                </Link>
-              </Button>
+              {!isNonTherapistOwner && (
+                <Button
+                  variant="ghost"
+                  size="sm"
+                  asChild
+                  className="justify-start text-muted-foreground hover:text-foreground hover:bg-muted"
+                >
+                  <Link href="/dashboard">
+                    <ArrowRight className="ml-2 h-4 w-4" />
+                    לדשבורד הטיפולים
+                  </Link>
+                </Button>
+              )}
               <Button
                 variant="ghost"
                 size="sm"

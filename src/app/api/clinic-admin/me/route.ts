@@ -16,7 +16,7 @@ export async function GET() {
   try {
     const auth = await requireAuth();
     if ("error" in auth) return auth.error;
-    const { userId, session } = auth;
+    const { userId } = auth;
 
     const user = await prisma.user.findUnique({
       where: { id: userId },
@@ -34,6 +34,10 @@ export async function GET() {
             name: true,
             aiTier: true,
             subscriptionStatus: true,
+            // ownerIsTherapist: דרוש ל-layout כדי לדעת אם הבעלים הוא מנהל-בלבד
+            // (לא מטפל). בעלים-לא-מטפל מנותב/ת מ-/dashboard חזרה ל-/clinic-admin,
+            // ולכן לא מציגים לו/לה את הקישור "לדשבורד הטיפולים" (round-trip תקוע).
+            ownerIsTherapist: true,
             pricingPlan: { select: { name: true } },
           },
         },
