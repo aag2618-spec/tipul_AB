@@ -309,7 +309,7 @@ export default function ClientsByTherapistPage() {
                             <Link
                               key={c.id}
                               href={`/dashboard/clients/${c.id}`}
-                              className={`block px-4 py-2.5 hover:bg-muted transition-colors ${
+                              className={`block px-4 py-2 hover:bg-muted transition-colors ${
                                 idx !== t.clients.length - 1
                                   ? "border-b border-border"
                                   : ""
@@ -317,7 +317,7 @@ export default function ClientsByTherapistPage() {
                             >
                               <div className="flex flex-wrap items-center justify-between gap-2">
                                 <div className="flex items-center gap-2 min-w-0 flex-1">
-                                  <span className="font-medium truncate">
+                                  <span className="font-medium text-sm truncate">
                                     {clientDisplayName(c)}
                                   </span>
                                   {c.isQuickClient && (
