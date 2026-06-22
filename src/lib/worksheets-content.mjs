@@ -3,6 +3,8 @@
 // קטגוריה עם id שכבר קיים בדף הקטלוג — הדפים שלה מתווספים לקטגוריה הקיימת.
 // קטגוריה עם id חדש (polyvagal, anger) — נוספת כקטגוריה חדשה.
 
+import { extraCategories } from "./worksheets-content-extra.mjs";
+
 export const worksheetsContent = {
   categories: [
 {
@@ -1247,5 +1249,6 @@ export const worksheetsContent = {
     },
   ],
 },
+  ...extraCategories,
   ],
 };
