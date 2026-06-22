@@ -12,6 +12,13 @@ import {
   CollapsibleContent,
 } from "@/components/ui/collapsible";
 import {
+  Select,
+  SelectTrigger,
+  SelectValue,
+  SelectContent,
+  SelectItem,
+} from "@/components/ui/select";
+import {
   Users,
   Loader2,
   Crown,
@@ -21,6 +28,8 @@ import {
   ChevronLeft,
   ArrowLeftRight,
   Zap,
+  ChevronsUpDown,
+  ChevronsDownUp,
 } from "lucide-react";
 import { toast } from "sonner";
 
@@ -62,6 +71,8 @@ export default function ClientsByTherapistPage() {
   const [therapists, setTherapists] = useState<TherapistWithClients[]>([]);
   const [loading, setLoading] = useState(true);
   const [search, setSearch] = useState("");
+  // בורר מטפל: "all" = כל המטפלים, אחרת מזהה מטפל ספציפי.
+  const [therapistFilter, setTherapistFilter] = useState<string>("all");
   // open per-therapist; ברירת מחדל פתוח כדי שבעלים יראה הכל בלי קליק נוסף.
   const [openIds, setOpenIds] = useState<Record<string, boolean>>({});
 
@@ -97,37 +108,69 @@ export default function ClientsByTherapistPage() {
   const normalizedQuery = search.trim().toLowerCase();
 
   const filtered = useMemo(() => {
-    if (!normalizedQuery) return therapists;
-    // סינון פר-לקוח (שם/טלפון/אימייל). מטפל בלי לקוחות שעוברים את הפילטר —
-    // לא יוצג כשיש חיפוש פעיל (אחרת התוצאה רועשת). ללא חיפוש — כל המטפלים
-    // מוצגים גם בלי לקוחות, כי בעלים רוצה לראות שיש מטפל פנוי.
     return therapists
-      .map((t) => ({
-        ...t,
-        clients: t.clients.filter((c) => {
-          const name = clientDisplayName(c).toLowerCase();
-          const phone = (c.phone || "").toLowerCase();
-          const email = (c.email || "").toLowerCase();
-          return (
-            name.includes(normalizedQuery) ||
-            phone.includes(normalizedQuery) ||
-            email.includes(normalizedQuery)
-          );
-        }),
-      }))
-      .filter((t) => t.clients.length > 0);
-  }, [therapists, normalizedQuery]);
+      // בורר מטפל: כשנבחר מטפל ספציפי — מציגים רק אותו.
+      .filter((t) => therapistFilter === "all" || t.id === therapistFilter)
+      .map((t) => {
+        if (!normalizedQuery) return t;
+        // אם שם המטפל תואם לחיפוש — מציגים את כל המטופלים שלו (לא מסננים).
+        if (therapistDisplayName(t).toLowerCase().includes(normalizedQuery)) {
+          return t;
+        }
+        // אחרת — סינון פר-מטופל (שם/טלפון/אימייל).
+        return {
+          ...t,
+          clients: t.clients.filter((c) => {
+            const name = clientDisplayName(c).toLowerCase();
+            const phone = (c.phone || "").toLowerCase();
+            const email = (c.email || "").toLowerCase();
+            return (
+              name.includes(normalizedQuery) ||
+              phone.includes(normalizedQuery) ||
+              email.includes(normalizedQuery)
+            );
+          }),
+        };
+      })
+      .filter((t) => {
+        // מטפל שנבחר מפורשות בבורר — תמיד מוצג (גם בלי מטופלים תואמים).
+        if (therapistFilter !== "all") return true;
+        // ללא חיפוש — כל המטפלים מוצגים, כדי שבעלים יראה גם מטפל פנוי.
+        if (!normalizedQuery) return true;
+        // עם חיפוש — מציגים מטפל שהשם שלו תואם, או שיש לו מטופלים תואמים.
+        return (
+          therapistDisplayName(t).toLowerCase().includes(normalizedQuery) ||
+          t.clients.length > 0
+        );
+      });
+  }, [therapists, normalizedQuery, therapistFilter]);
 
   const totalClients = therapists.reduce((sum, t) => sum + t.clients.length, 0);
+
+  // האם כל המטפלים המוצגים פתוחים — קובע אם הכפתור פותח או סוגר את הכל.
+  const allOpen =
+    filtered.length > 0 && filtered.every((t) => openIds[t.id] ?? true);
 
   function toggleOpen(id: string) {
     setOpenIds((prev) => ({ ...prev, [id]: !prev[id] }));
   }
 
   function expandAll(open: boolean) {
-    const next: Record<string, boolean> = {};
-    for (const t of therapists) next[t.id] = open;
-    setOpenIds(next);
+    // פועל רק על המטפלים המוצגים (filtered), בעקביות עם חישוב allOpen —
+    // כדי לא לדרוס בשוגג את מצב הכרטיסים שמוסתרים ע"י חיפוש/בורר מטפל.
+    setOpenIds((prev) => {
+      const next = { ...prev };
+      for (const t of filtered) next[t.id] = open;
+      return next;
+    });
+  }
+
+  function selectTherapist(value: string) {
+    setTherapistFilter(value);
+    // בחירת מטפל ספציפי → פותחים אותו אוטומטית כדי לראות מיד את המטופלים.
+    if (value !== "all") {
+      setOpenIds((prev) => ({ ...prev, [value]: true }));
+    }
   }
 
   if (loading) {
@@ -153,11 +196,22 @@ export default function ClientsByTherapistPage() {
           </div>
         </div>
         <div className="flex gap-2">
-          <Button variant="outline" size="sm" onClick={() => expandAll(true)}>
-            פתח/י הכל
-          </Button>
-          <Button variant="outline" size="sm" onClick={() => expandAll(false)}>
-            סגור/י הכל
+          <Button
+            variant="outline"
+            size="sm"
+            onClick={() => expandAll(!allOpen)}
+          >
+            {allOpen ? (
+              <>
+                <ChevronsDownUp className="ml-2 h-4 w-4" />
+                סגור הכל
+              </>
+            ) : (
+              <>
+                <ChevronsUpDown className="ml-2 h-4 w-4" />
+                פתח הכל
+              </>
+            )}
           </Button>
           <Button asChild size="sm">
             <Link href="/clinic-admin/transfer">
@@ -168,26 +222,43 @@ export default function ClientsByTherapistPage() {
         </div>
       </div>
 
-      <div className="relative max-w-md">
-        <Search className="absolute right-3 top-1/2 -translate-y-1/2 h-4 w-4 text-muted-foreground" />
-        <Input
-          value={search}
-          onChange={(e) => setSearch(e.target.value)}
-          placeholder="חיפוש מטופל לפי שם/טלפון/אימייל..."
-          className="pr-9"
-        />
+      <div className="flex flex-col sm:flex-row sm:items-center gap-2">
+        <div className="relative flex-1 max-w-md">
+          <Search className="absolute right-3 top-1/2 -translate-y-1/2 h-4 w-4 text-muted-foreground" />
+          <Input
+            value={search}
+            onChange={(e) => setSearch(e.target.value)}
+            placeholder="חיפוש לפי מטופל או מטפל (שם/טלפון/אימייל)..."
+            className="pr-9"
+          />
+        </div>
+        {therapists.length > 1 && (
+          <Select value={therapistFilter} onValueChange={selectTherapist}>
+            <SelectTrigger className="w-full sm:w-60">
+              <SelectValue placeholder="בחר מטפל" />
+            </SelectTrigger>
+            <SelectContent>
+              <SelectItem value="all">כל המטפלים</SelectItem>
+              {therapists.map((t) => (
+                <SelectItem key={t.id} value={t.id}>
+                  {therapistDisplayName(t)} ({t.clients.length})
+                </SelectItem>
+              ))}
+            </SelectContent>
+          </Select>
+        )}
       </div>
 
       {filtered.length === 0 ? (
         <Card>
           <CardContent className="py-12 text-center text-sm text-muted-foreground">
-            {normalizedQuery
-              ? "לא נמצאו מטופלים תואמים את החיפוש"
+            {normalizedQuery || therapistFilter !== "all"
+              ? "לא נמצאו תוצאות תואמות"
               : "אין מטפלים פעילים בקליניקה"}
           </CardContent>
         </Card>
       ) : (
-        <div className="space-y-3">
+        <div className="space-y-2.5">
           {filtered.map((t) => {
             const isOpen = openIds[t.id] ?? true;
             const Icon = t.clinicRole === "OWNER" ? Crown : Stethoscope;
@@ -199,12 +270,12 @@ export default function ClientsByTherapistPage() {
                 open={isOpen}
                 onOpenChange={() => toggleOpen(t.id)}
               >
-                <Card>
-                  <CardHeader className="pb-3">
+                <Card className="py-0 gap-0 overflow-hidden">
+                  <CardHeader className="p-0">
                     <CollapsibleTrigger asChild>
                       <button
                         type="button"
-                        className="w-full text-right flex items-center justify-between gap-3"
+                        className="w-full text-right flex items-center justify-between gap-3 px-4 py-3 hover:bg-muted/50 transition-colors"
                       >
                         <CardTitle className="text-base flex items-center gap-2">
                           <Icon className={`h-4 w-4 ${iconColor}`} />
@@ -219,17 +290,17 @@ export default function ClientsByTherapistPage() {
                           </span>
                         </CardTitle>
                         {isOpen ? (
-                          <ChevronDown className="h-4 w-4 text-muted-foreground" />
+                          <ChevronDown className="h-4 w-4 text-muted-foreground shrink-0" />
                         ) : (
-                          <ChevronLeft className="h-4 w-4 text-muted-foreground" />
+                          <ChevronLeft className="h-4 w-4 text-muted-foreground shrink-0" />
                         )}
                       </button>
                     </CollapsibleTrigger>
                   </CardHeader>
                   <CollapsibleContent>
-                    <CardContent>
+                    <CardContent className="px-3 pb-3 pt-0">
                       {t.clients.length === 0 ? (
-                        <p className="text-sm text-muted-foreground py-4 text-center">
+                        <p className="text-sm text-muted-foreground py-3 text-center">
                           אין מטופלים פעילים אצל מטפל/ת זה/זו
                         </p>
                       ) : (
@@ -238,7 +309,7 @@ export default function ClientsByTherapistPage() {
                             <Link
                               key={c.id}
                               href={`/dashboard/clients/${c.id}`}
-                              className={`block px-4 py-3 hover:bg-muted transition-colors ${
+                              className={`block px-4 py-2.5 hover:bg-muted transition-colors ${
                                 idx !== t.clients.length - 1
                                   ? "border-b border-border"
                                   : ""
