@@ -121,6 +121,29 @@ export function create24HourReminderEmail(data: EmailTemplateData) {
   };
 }
 
+// ==================== Manual Session Reminder (ידני) ====================
+// תזכורת שנשלחת ידנית ע"י מזכיר/ה מהדשבורד — למחר או בעוד יומיים. בשונה
+// מ-create24HourReminderEmail, אינה מקודדת את המילה "מחר": מציגה את התאריך
+// המלא (כולל שם היום, דרך formatSessionDateTime) כדי להתאים גם לשליחה
+// יומיים מראש. כל ערכי ה-data מקורם בשרת או עוברים escape ב-getGreeting/getFooter.
+export function createManualSessionReminderEmail(data: EmailTemplateData) {
+  return {
+    subject: `תזכורת לתור הקרוב`,
+    html: wrapInEmailTemplate(`
+      <h2 style="color: #333;">${getGreeting(data.clientName, data.customization)},</h2>
+      <p>מזכירים לך שיש לך תור קרוב:</p>
+      <div style="background: #f5f5f5; padding: 20px; border-radius: 8px; margin: 20px 0;">
+        <p style="margin: 8px 0;"><strong>📅 תאריך:</strong> ${data.date}</p>
+        <p style="margin: 8px 0;"><strong>🕐 שעה:</strong> ${data.time}</p>
+        ${data.address ? `<p style="margin: 8px 0;"><strong>📍 כתובת:</strong> ${escapeHtml(data.address)}</p>` : ''}
+      </div>
+      <p>נשמח לראותך!</p>
+      <p>לביטול, נא ליצור קשר בהקדם.</p>
+      ${getFooter(data.therapistName, data.customization)}
+    `),
+  };
+}
+
 // ==================== 2 Hour Reminder ====================
 export function create2HourReminderEmail(data: EmailTemplateData) {
   return {

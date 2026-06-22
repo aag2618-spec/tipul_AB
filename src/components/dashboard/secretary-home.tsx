@@ -17,12 +17,9 @@ import {
   CalendarClock,
   CalendarPlus,
   UserPlus,
-  Users,
   CreditCard,
   CalendarX2,
   CheckCircle2,
-  MessagesSquare,
-  Bell,
   DoorOpen,
   BellRing,
   BadgeCheck,
@@ -39,6 +36,10 @@ import { getTherapistAccent } from "@/lib/calendar/event-colors";
 import { getIsraelDayBoundsUtc } from "@/lib/timezone";
 import { calculatePaidAmount } from "@/lib/payment-utils";
 import { ContactActions } from "@/components/contact-actions";
+import {
+  SecretaryQuickActions,
+  type QuickActionSession,
+} from "@/components/dashboard/secretary-quick-actions";
 import type { Prisma } from "@prisma/client";
 
 const STATUS_LABEL: Record<string, string> = {
@@ -65,7 +66,7 @@ const TYPE_LABEL: Record<string, string> = {
 };
 
 // שורת פגישה אדמיניסטרטיבית — ללא שדות קליניים. משותפת ל"היום" ול"מחר".
-// מועשרת בחיווי-דלפק: טלפון (לחיוג/WhatsApp), חדר, אם נשלחה תזכורת, ותווית
+// מועשרת בחיווי-דלפק: יצירת קשר (SMS/אימייל), חדר, אם נשלחה תזכורת, ותווית
 // תשלום (רק כשלמזכירה יש canViewPayments — מחושב בשרת, payment לא נשלח ללקוח).
 type AdminSessionRow = {
   id: string;
@@ -77,7 +78,7 @@ type AdminSessionRow = {
   location: string | null;
   reminderSent: boolean;
   paymentLabel: { text: string; cls: string } | null;
-  client: { id: string; name: string | null; phone: string | null } | null;
+  client: { id: string; name: string | null; phone: string | null; email: string | null } | null;
   therapist: { id: string; name: string | null } | null;
 };
 
@@ -160,7 +161,14 @@ function SessionRow({ s, now }: { s: AdminSessionRow; now: Date }) {
         >
           {isPastUnupdated ? "⚠ לא עודכן" : STATUS_LABEL[s.status] || s.status}
         </Badge>
-        <ContactActions phone={s.client?.phone} />
+        {s.client && (
+          <ContactActions
+            clientId={s.client.id}
+            clientName={s.client.name}
+            phone={s.client.phone}
+            email={s.client.email}
+          />
+        )}
       </div>
     </div>
   );
@@ -177,7 +185,7 @@ const SESSION_SELECT = {
   price: true,
   location: true,
   cancellationRequestedAt: true,
-  client: { select: { id: true, name: true, phone: true } },
+  client: { select: { id: true, name: true, phone: true, email: true } },
   therapist: { select: { id: true, name: true } },
   payment: {
     select: {
@@ -203,10 +211,15 @@ async function getSecretaryData(scopeUser: ScopeUser) {
   const tomorrowRef = new Date(now);
   tomorrowRef.setDate(tomorrowRef.getDate() + 1);
   const { start: tomorrowStart, end: tomorrowEnd } = getIsraelDayBoundsUtc(tomorrowRef);
+  // "בעוד יומיים" — עבור בורר התזכורות בכרטיס הפעולות המהירות.
+  const dayAfterRef = new Date(now);
+  dayAfterRef.setDate(dayAfterRef.getDate() + 2);
+  const { start: dayAfterStart, end: dayAfterEnd } = getIsraelDayBoundsUtc(dayAfterRef);
 
   const [
     todaySessions,
     tomorrowSessions,
+    dayAfterSessions,
     cancellationRequests,
     cancellationList,
     pendingPaymentsRaw,
@@ -221,6 +234,13 @@ async function getSecretaryData(scopeUser: ScopeUser) {
     prisma.therapySession.findMany({
       where: {
         AND: [sessionWhere, { startTime: { gte: tomorrowStart, lt: tomorrowEnd } }],
+      },
+      select: SESSION_SELECT,
+      orderBy: { startTime: "asc" },
+    }),
+    prisma.therapySession.findMany({
+      where: {
+        AND: [sessionWhere, { startTime: { gte: dayAfterStart, lt: dayAfterEnd } }],
       },
       select: SESSION_SELECT,
       orderBy: { startTime: "asc" },
@@ -289,8 +309,10 @@ async function getSecretaryData(scopeUser: ScopeUser) {
     .filter((p) => p.remaining > 0)
     .sort((a, b) => b.remaining - a.remaining);
 
-  // חיווי "תזכורת נשלחה" לשורות היום/מחר — שאילתה אחת מקובצת (לא N+1).
-  const dayIds = [...todaySessions, ...tomorrowSessions].map((s) => s.id);
+  // חיווי "תזכורת נשלחה" לשורות היום/מחר/יומיים — שאילתה אחת מקובצת (לא N+1).
+  const dayIds = [...todaySessions, ...tomorrowSessions, ...dayAfterSessions].map(
+    (s) => s.id,
+  );
   const remindedRows = dayIds.length
     ? await prisma.communicationLog.findMany({
         where: {
@@ -345,6 +367,7 @@ async function getSecretaryData(scopeUser: ScopeUser) {
   return {
     todaySessions: todaySessions.map(mapRow),
     tomorrowSessions: tomorrowSessions.map(mapRow),
+    dayAfterSessions: dayAfterSessions.map(mapRow),
     cancellationRequests,
     cancellationList,
     pendingPayments: openPayments.length,
@@ -363,6 +386,7 @@ export async function SecretaryHome({
   const {
     todaySessions,
     tomorrowSessions,
+    dayAfterSessions,
     cancellationRequests,
     cancellationList,
     pendingPayments,
@@ -401,6 +425,33 @@ export async function SecretaryHome({
   const tomorrowClientSessions = tomorrowSessions.filter((s) => s.type !== "BREAK");
 
   const hasExceptions = cancellationRequests > 0 || (canViewPayments && pendingPayments > 0);
+
+  // תווית "בעוד יומיים" + נתוני פגישות לכרטיס הפעולות המהירות (שליחת תזכורות).
+  // hasContact נגזר בשרת בלבד — טלפון/מייל אינם נשלחים ל-client (צמצום PHI).
+  const dayAfterRef = new Date(now);
+  dayAfterRef.setDate(dayAfterRef.getDate() + 2);
+  const dayAfterLabel = dayAfterRef.toLocaleDateString("he-IL", {
+    weekday: "long",
+    day: "numeric",
+    month: "long",
+    timeZone: "Asia/Jerusalem",
+  });
+  const toQuickAction = (s: AdminSessionRow): QuickActionSession => ({
+    id: s.id,
+    time: new Date(s.startTime).toLocaleTimeString("he-IL", {
+      hour: "2-digit",
+      minute: "2-digit",
+      timeZone: "Asia/Jerusalem",
+    }),
+    clientName: s.client?.name || "מטופל/ת",
+    therapistName: s.therapist?.name || "מטפל/ת",
+    reminderSent: s.reminderSent,
+    hasContact: !!(s.client?.phone || s.client?.email),
+  });
+  const tomorrowReminderRows = tomorrowClientSessions.map(toQuickAction);
+  const dayAfterReminderRows = dayAfterSessions
+    .filter((s) => s.type !== "BREAK")
+    .map(toQuickAction);
 
   return (
     <div className="space-y-6">
@@ -603,47 +654,15 @@ export async function SecretaryHome({
             </CardContent>
           </Card>
 
-          <Card>
-            <CardHeader>
-              <CardTitle className="text-base">פעולות מהירות</CardTitle>
-            </CardHeader>
-            <CardContent className="space-y-2">
-              <Button asChild variant="outline" className="w-full justify-start">
-                <Link href="/dashboard/calendar">
-                  <Calendar className="h-4 w-4 ml-2" />
-                  יומן הקליניקה
-                </Link>
-              </Button>
-              <Button asChild variant="outline" className="w-full justify-start">
-                <Link href="/dashboard/clients">
-                  <Users className="h-4 w-4 ml-2" />
-                  מטופלים
-                </Link>
-              </Button>
-              {canSendReminders && (
-                <Button asChild variant="outline" className="w-full justify-start">
-                  <Link href="/dashboard/communications">
-                    <Bell className="h-4 w-4 ml-2" />
-                    שליחת תזכורות
-                  </Link>
-                </Button>
-              )}
-              {canViewPayments && (
-                <Button asChild variant="outline" className="w-full justify-start">
-                  <Link href="/dashboard/payments">
-                    <CreditCard className="h-4 w-4 ml-2" />
-                    תשלומים
-                  </Link>
-                </Button>
-              )}
-              <Button asChild variant="outline" className="w-full justify-start">
-                <Link href="/dashboard/team-chat">
-                  <MessagesSquare className="h-4 w-4 ml-2" />
-                  צ׳אט צוות
-                </Link>
-              </Button>
-            </CardContent>
-          </Card>
+          {/* פעולות מהירות אמיתיות (לא קישורי ניווט שכבר בתפריט הצד).
+              שלב 1: שליחת תזכורות מחר/יומיים בבחירה פרטנית. */}
+          <SecretaryQuickActions
+            tomorrowLabel={tomorrowLabel}
+            dayAfterLabel={dayAfterLabel}
+            tomorrowSessions={tomorrowReminderRows}
+            dayAfterSessions={dayAfterReminderRows}
+            canSendReminders={canSendReminders}
+          />
         </div>
       </div>
     </div>

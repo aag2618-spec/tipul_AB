@@ -114,3 +114,18 @@ export type SessionNoteInput = z.infer<typeof sessionNoteSchema>;
 // PUT (partial) — content אופציונלי בעדכון.
 export const sessionNoteUpdateSchema = sessionNoteSchema.partial();
 export type SessionNoteUpdateInput = z.infer<typeof sessionNoteUpdateSchema>;
+
+// POST /api/sessions/send-reminders — שליחת תזכורת ידנית לפגישות נבחרות
+// (פעולה מהירה בדשבורד המזכירה: מחר / בעוד יומיים, בחירה פרטנית).
+// ה-route אוכף scope (buildSessionWhere), dedup מול CommunicationLog והרשאות.
+const MAX_REMINDER_BATCH = 50;
+export const sendRemindersSchema = z.object({
+  sessionIds: z
+    .array(z.string().max(64))
+    .min(1, "יש לבחור לפחות פגישה אחת")
+    .max(
+      MAX_REMINDER_BATCH,
+      `ניתן לשלוח עד ${MAX_REMINDER_BATCH} תזכורות בפעם אחת`
+    ),
+});
+export type SendRemindersInput = z.infer<typeof sendRemindersSchema>;
