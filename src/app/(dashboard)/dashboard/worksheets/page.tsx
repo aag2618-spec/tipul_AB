@@ -3,6 +3,7 @@
 import { useState } from "react";
 import { Download, Eye, BookOpen, Printer, FileText, ClipboardList, ChevronDown, ChevronUp } from "lucide-react";
 import { Tabs, TabsList, TabsTrigger, TabsContent } from "@/components/ui/tabs";
+import { worksheetsContent } from "@/lib/worksheets-content.mjs";
 
 interface WorksheetData {
   id: string;
@@ -133,6 +134,32 @@ const colorMap: Record<
     hoverBorder: "hover:border-indigo-200",
     tabActiveBorder: "data-[state=active]:border-indigo-600",
     tabActiveText: "data-[state=active]:text-indigo-700",
+  },
+  cyan: {
+    bg: "bg-cyan-50",
+    border: "border-cyan-200",
+    text: "text-cyan-800",
+    badge: "bg-cyan-100",
+    badgeText: "text-cyan-700",
+    accent: "bg-cyan-600",
+    ring: "ring-cyan-300",
+    hoverBg: "hover:bg-cyan-50",
+    hoverBorder: "hover:border-cyan-200",
+    tabActiveBorder: "data-[state=active]:border-cyan-600",
+    tabActiveText: "data-[state=active]:text-cyan-700",
+  },
+  amber: {
+    bg: "bg-amber-50",
+    border: "border-amber-200",
+    text: "text-amber-800",
+    badge: "bg-amber-100",
+    badgeText: "text-amber-700",
+    accent: "bg-amber-600",
+    ring: "ring-amber-300",
+    hoverBg: "hover:bg-amber-50",
+    hoverBorder: "hover:border-amber-200",
+    tabActiveBorder: "data-[state=active]:border-amber-600",
+    tabActiveText: "data-[state=active]:text-amber-700",
   },
 };
 
@@ -925,9 +952,326 @@ const simplePlaceholder = (title: string, desc: string) => (
   </div>
 );
 
+/* ═══ תצוגה מבוססת-נתונים ל-10 הדפים המורחבים ═══ */
+/* התוכן נשמר פעם אחת ב-src/lib/worksheets-content.mjs ומשמש גם את מחולל ה-HTML.
+   כאן ממירים אותו לתצוגות (הוראות / דף / דוגמה) זהות בעיצובן לדפים שכבר באתר. */
+
+interface WCSection {
+  n: string | number;
+  title: string;
+  titleEn?: string;
+  hint?: string;
+  type: "write" | "write-scale" | "scale" | "table" | "numbered";
+  icon?: string;
+  scaleLabel?: string;
+  headers?: string[];
+  rows?: number;
+  count?: number;
+}
+interface WCExampleItem {
+  n?: string | number;
+  title?: string;
+  text: string;
+  scale?: { label: string; value: number };
+}
+interface WCWorksheet {
+  slug: string;
+  title: string;
+  titleEn: string;
+  subtitle: string;
+  description: string;
+  color: string;
+  grounding: string;
+  therapist: {
+    purpose: string[];
+    when?: { headers: string[]; rows: string[][] };
+    tips: string[];
+    cautions: string[];
+  };
+  sections: WCSection[];
+  summary?: { hint: string; scaleLabel?: string };
+  pattern?: string;
+  compassion?: string;
+  example: {
+    name: string;
+    date: string;
+    grounding?: string;
+    items: WCExampleItem[];
+    summary?: string;
+    pattern?: string;
+    compassion?: string;
+  };
+}
+interface WCCategory {
+  id: string;
+  approach: string;
+  approachHe: string;
+  description: string;
+  color: string;
+  worksheets: WCWorksheet[];
+}
+interface WCContent {
+  categories: WCCategory[];
+}
+
+const wc = worksheetsContent as unknown as WCContent;
+
+// מחלקות Tailwind מלאות לכל צבע (Tailwind לא תופס מחלקות דינמיות, לכן מפורשות).
+const pc: Record<
+  string,
+  {
+    soft: string;
+    border: string;
+    text: string;
+    num: string;
+    dot: string;
+    dotBorder: string;
+    dotText: string;
+    numBg: string;
+    numText: string;
+    summaryBg: string;
+  }
+> = {
+  teal: { soft: "bg-teal-50", border: "border-teal-200", text: "text-teal-800", num: "bg-teal-600", dot: "bg-teal-500", dotBorder: "border-teal-200", dotText: "text-teal-700", numBg: "bg-teal-100", numText: "text-teal-700", summaryBg: "bg-teal-50/90" },
+  violet: { soft: "bg-violet-50", border: "border-violet-200", text: "text-violet-800", num: "bg-violet-600", dot: "bg-violet-500", dotBorder: "border-violet-200", dotText: "text-violet-700", numBg: "bg-violet-100", numText: "text-violet-700", summaryBg: "bg-violet-50/90" },
+  orange: { soft: "bg-orange-50", border: "border-orange-200", text: "text-orange-800", num: "bg-orange-600", dot: "bg-orange-500", dotBorder: "border-orange-200", dotText: "text-orange-700", numBg: "bg-orange-100", numText: "text-orange-700", summaryBg: "bg-orange-50/90" },
+  emerald: { soft: "bg-emerald-50", border: "border-emerald-200", text: "text-emerald-800", num: "bg-emerald-600", dot: "bg-emerald-500", dotBorder: "border-emerald-200", dotText: "text-emerald-700", numBg: "bg-emerald-100", numText: "text-emerald-700", summaryBg: "bg-emerald-50/90" },
+  rose: { soft: "bg-rose-50", border: "border-rose-200", text: "text-rose-800", num: "bg-rose-600", dot: "bg-rose-500", dotBorder: "border-rose-200", dotText: "text-rose-700", numBg: "bg-rose-100", numText: "text-rose-700", summaryBg: "bg-rose-50/90" },
+  sky: { soft: "bg-sky-50", border: "border-sky-200", text: "text-sky-800", num: "bg-sky-600", dot: "bg-sky-500", dotBorder: "border-sky-200", dotText: "text-sky-700", numBg: "bg-sky-100", numText: "text-sky-700", summaryBg: "bg-sky-50/90" },
+  indigo: { soft: "bg-indigo-50", border: "border-indigo-200", text: "text-indigo-800", num: "bg-indigo-600", dot: "bg-indigo-500", dotBorder: "border-indigo-200", dotText: "text-indigo-700", numBg: "bg-indigo-100", numText: "text-indigo-700", summaryBg: "bg-indigo-50/90" },
+  cyan: { soft: "bg-cyan-50", border: "border-cyan-200", text: "text-cyan-800", num: "bg-cyan-600", dot: "bg-cyan-500", dotBorder: "border-cyan-200", dotText: "text-cyan-700", numBg: "bg-cyan-100", numText: "text-cyan-700", summaryBg: "bg-cyan-50/90" },
+  amber: { soft: "bg-amber-50", border: "border-amber-200", text: "text-amber-800", num: "bg-amber-600", dot: "bg-amber-500", dotBorder: "border-amber-200", dotText: "text-amber-700", numBg: "bg-amber-100", numText: "text-amber-700", summaryBg: "bg-amber-50/90" },
+};
+
+function renderScale(label: string, color: string, value?: number) {
+  const p = pc[color] ?? pc.teal;
+  return (
+    <div className={`mt-2 flex flex-wrap items-center gap-2 rounded-lg border ${p.border} ${p.soft} px-3 py-2`}>
+      <span className={`text-xs font-semibold ${p.text} whitespace-nowrap`}>{label}</span>
+      <div className="flex flex-1 flex-wrap justify-center gap-1.5">
+        {Array.from({ length: 11 }).map((_, i) => (
+          <span
+            key={i}
+            className={
+              value === i
+                ? `flex h-6 w-6 items-center justify-center rounded-full ${p.dot} text-[10px] font-bold text-white`
+                : `flex h-6 w-6 items-center justify-center rounded-full border ${p.dotBorder} bg-white text-[10px] font-semibold ${p.dotText}`
+            }
+          >
+            {i}
+          </span>
+        ))}
+      </div>
+    </div>
+  );
+}
+
+function renderSectionBody(s: WCSection, color: string) {
+  if (s.type === "scale") return renderScale(s.scaleLabel || "דרגו 0–10:", color);
+  if (s.type === "write-scale")
+    return (
+      <>
+        <div className="min-h-10 rounded border border-dashed border-gray-300 bg-gray-50" />
+        {renderScale(s.scaleLabel || "דרגו 0–10:", color)}
+      </>
+    );
+  if (s.type === "table") {
+    const headers = s.headers || [];
+    return (
+      <div className="overflow-x-auto">
+        <table className="w-full border-collapse text-xs">
+          <thead>
+            <tr className={pc[color]?.soft ?? pc.teal.soft}>
+              {headers.map((h, i) => (
+                <th key={i} className={`border border-gray-200 p-2 text-right font-bold ${pc[color]?.text ?? pc.teal.text}`}>{h}</th>
+              ))}
+            </tr>
+          </thead>
+          <tbody>
+            {Array.from({ length: s.rows || 4 }).map((_, r) => (
+              <tr key={r}>
+                {headers.map((_, ci) => (
+                  <td key={ci} className="border border-gray-200 p-2 h-9" />
+                ))}
+              </tr>
+            ))}
+          </tbody>
+        </table>
+      </div>
+    );
+  }
+  if (s.type === "numbered") {
+    const p = pc[color] ?? pc.teal;
+    return (
+      <div className="space-y-2">
+        {Array.from({ length: s.count || 3 }).map((_, i) => (
+          <div key={i} className="flex items-center gap-2">
+            <span className={`flex h-6 w-6 shrink-0 items-center justify-center rounded-full ${p.numBg} text-xs font-bold ${p.numText}`}>{i + 1}</span>
+            <div className="min-h-9 flex-1 rounded border border-dashed border-gray-300 bg-gray-50" />
+          </div>
+        ))}
+      </div>
+    );
+  }
+  return <div className="min-h-10 rounded border border-dashed border-gray-300 bg-gray-50" />;
+}
+
+function renderTherapist(w: WCWorksheet) {
+  const t = w.therapist;
+  return (
+    <div className="space-y-4 text-sm leading-relaxed">
+      {t.purpose.map((para, i) => (
+        <p key={i}>{para}</p>
+      ))}
+      {t.when && (
+        <div className="overflow-x-auto">
+          <strong>🛠 מתי להשתמש:</strong>
+          <table className="mt-1 w-full border-collapse text-xs">
+            <thead>
+              <tr className="bg-amber-50">
+                {t.when.headers.map((h, i) => (
+                  <th key={i} className="border border-gray-200 p-2 text-right font-bold text-amber-700">{h}</th>
+                ))}
+              </tr>
+            </thead>
+            <tbody>
+              {t.when.rows.map((row, ri) => (
+                <tr key={ri}>
+                  {row.map((cell, ci) => (
+                    <td key={ci} className="border border-gray-200 p-2">{cell}</td>
+                  ))}
+                </tr>
+              ))}
+            </tbody>
+          </table>
+        </div>
+      )}
+      <div>
+        <strong>🎓 טיפים למטפל:</strong>
+        <ul className="mt-1 list-disc pr-5 space-y-1">
+          {t.tips.map((x, i) => (
+            <li key={i}>{x}</li>
+          ))}
+        </ul>
+      </div>
+      <div>
+        <strong>⚠️ שימו לב:</strong>
+        <ul className="mt-1 list-disc pr-5 space-y-1">
+          {t.cautions.map((x, i) => (
+            <li key={i}>{x}</li>
+          ))}
+        </ul>
+      </div>
+    </div>
+  );
+}
+
+function renderSheet(w: WCWorksheet) {
+  const p = pc[w.color] ?? pc.teal;
+  return (
+    <div className="space-y-4 text-sm">
+      <div className={`rounded-lg border ${p.border} ${p.soft} p-3 text-center`}>
+        <strong className={p.text}>⏸ {w.grounding}</strong>
+      </div>
+      {w.sections.map((s, i) => (
+        <div key={i} className="rounded-lg border border-gray-200 bg-white">
+          <div className={`flex items-center gap-2 border-b border-gray-100 ${p.soft} px-3 py-2`}>
+            <span className={`flex h-7 w-7 items-center justify-center rounded-lg ${p.num} text-xs font-bold text-white`}>{s.n}</span>
+            <span className="font-bold text-gray-800">{s.title}</span>
+            {s.titleEn && <span className="text-[10px] text-gray-400">{s.titleEn}</span>}
+          </div>
+          <div className="px-3 py-2">
+            {s.hint && <p className="mb-2 text-xs text-gray-500">{s.hint}</p>}
+            {renderSectionBody(s, w.color)}
+          </div>
+        </div>
+      ))}
+      {w.summary && (
+        <div className={`rounded-lg border-2 ${p.border} ${p.summaryBg} p-3`}>
+          <strong className={p.text}>📝 סיכום</strong>
+          {w.summary.scaleLabel && renderScale(w.summary.scaleLabel, w.color)}
+          <p className="mt-1 text-xs text-gray-600">{w.summary.hint}</p>
+        </div>
+      )}
+      {w.pattern && (
+        <div className="rounded-lg border border-amber-300 bg-amber-50 p-3">
+          <strong className="text-amber-700">🔄 מעקב דפוסים:</strong> <span className="text-gray-600">{w.pattern}</span>
+        </div>
+      )}
+      {w.compassion && (
+        <div className="rounded-lg border border-rose-200 bg-rose-50 p-3 text-center">
+          <strong className="text-rose-600">💜 רגע של חמלה עצמית</strong>
+          <br />
+          <span className="text-gray-600">{w.compassion}</span>
+        </div>
+      )}
+    </div>
+  );
+}
+
+function renderExample(w: WCWorksheet) {
+  const p = pc[w.color] ?? pc.teal;
+  const ex = w.example;
+  return (
+    <div className="space-y-4 text-sm">
+      <div className="rounded-lg border-2 border-amber-400 bg-amber-50 p-4 text-center">
+        <h3 className="text-lg font-extrabold text-amber-700">📝 דוגמה ממולאת</h3>
+        <p className="text-sm text-amber-600">הדגמה ללמידה — לא דוגמה אמיתית</p>
+      </div>
+      <p className="text-xs text-gray-500">
+        <strong className="text-gray-600">{ex.name}</strong> · {ex.date}
+      </p>
+      {ex.items.map((it, i) => (
+        <div key={i} className="rounded-lg border border-gray-200 bg-white p-3">
+          {it.title && (
+            <div className="mb-1 flex items-center gap-2">
+              <span className={`flex h-6 w-6 items-center justify-center rounded ${p.num} text-xs font-bold text-white`}>{it.n ?? "•"}</span>
+              <span className="font-bold text-gray-700">{it.title}</span>
+            </div>
+          )}
+          <p className="italic text-gray-500">{it.text}</p>
+          {it.scale && renderScale(it.scale.label, w.color, it.scale.value)}
+        </div>
+      ))}
+      {ex.summary && (
+        <div className={`rounded-lg border-2 ${p.border} ${p.summaryBg} p-3`}>
+          <strong className={p.text}>📝 סיכום</strong>
+          <p className="mt-1 italic text-gray-500">{ex.summary}</p>
+        </div>
+      )}
+      {ex.pattern && (
+        <div className="rounded-lg border border-amber-300 bg-amber-50 p-3">
+          <strong className="text-amber-700">🔄 דפוס:</strong> <span className="text-gray-600">{ex.pattern}</span>
+        </div>
+      )}
+      {ex.compassion && (
+        <div className="rounded-lg border border-rose-200 bg-rose-50 p-3 text-center">
+          <strong className="text-rose-600">💜</strong> <span className="text-gray-600">{ex.compassion}</span>
+        </div>
+      )}
+    </div>
+  );
+}
+
+function toWorksheetData(w: WCWorksheet, cat: WCCategory): WorksheetData {
+  return {
+    id: w.slug,
+    title: w.title,
+    titleEn: w.titleEn,
+    approach: cat.approach,
+    approachHe: cat.approachHe,
+    description: w.description,
+    color: w.color,
+    file: `/worksheets/${w.slug}-mytipul.html`,
+    therapistInstructions: renderTherapist(w),
+    worksheetPreview: renderSheet(w),
+    examplePreview: renderExample(w),
+  };
+}
+
 /* ═══ רשימת קטגוריות ודפי עבודה ═══ */
 
-const categories: ApproachCategory[] = [
+const baseCategories: ApproachCategory[] = [
   {
     id: "dbt",
     approach: "DBT",
@@ -1135,6 +1479,29 @@ const categories: ApproachCategory[] = [
     ],
   },
 ];
+
+// מיזוג: דפים חדשים מ-worksheets-content מתווספים לקטגוריה קיימת (לפי id),
+// וקטגוריות חדשות (polyvagal, anger) נוספות בסוף.
+const categories: ApproachCategory[] = (() => {
+  const merged: ApproachCategory[] = baseCategories.map((c) => ({ ...c, worksheets: [...c.worksheets] }));
+  for (const dc of wc.categories) {
+    const list = dc.worksheets.map((w) => toWorksheetData(w, dc));
+    const existing = merged.find((c) => c.id === dc.id);
+    if (existing) {
+      existing.worksheets.push(...list);
+    } else {
+      merged.push({
+        id: dc.id,
+        approach: dc.approach,
+        approachHe: dc.approachHe,
+        description: dc.description,
+        color: dc.color,
+        worksheets: list,
+      });
+    }
+  }
+  return merged;
+})();
 
 /* ═══ קומפוננטה ═══ */
 
