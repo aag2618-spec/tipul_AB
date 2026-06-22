@@ -1,7 +1,6 @@
 import { NextResponse } from "next/server";
 import type { NextRequest } from "next/server";
 import { getToken } from "next-auth/jwt";
-import { randomBytes } from "node:crypto";
 // M3 — מאלץ הרצת validateEnv() ב-startup (env.ts קורא לזה ב-import time).
 // בלי import זה, ה-validation היה dead code.
 import "@/lib/env";
@@ -18,19 +17,24 @@ import { isCrossOriginMutation } from "@/lib/csrf";
 // אז ה-Map נשמר בין בקשות. ב-middleware הישן צריך היה `export const runtime`
 // כדי לעקוף Edge — ב-proxy זה אסור ("Route segment config is not allowed").
 
-// H16.4 (סבב 16h): CSP nonce-based — בדפדפנים מודרניים, 'strict-dynamic' עם
-// nonce ייחודי לכל בקשה מבטל את 'unsafe-inline' ומבטל גם את הצורך ב-allowlists
-// (scripts שנטענים ע"י script עם nonce תקף יורשים את ה-trust).
-// 'unsafe-inline' נשמר כ-fallback ל-browsers שלא תומכים ב-CSP3 (יתעלמו מ-
-// strict-dynamic ויכבדו unsafe-inline).
+// CSP — תאימות ל-NetFree (סינון אינטרנט נפוץ בקהל היעד החרדי).
 //
-// ה-CSP הסטטי ב-next.config.ts נשאר כ-fallback ל-routes שאינם ב-matcher של
-// המידלוור (כמו /login, /register, /). middleware עוקף עם CSP חזק יותר עבור
-// routes מוגנים שעוברים דרכו.
-function buildCspWithNonce(nonce: string, isDev: boolean): string {
+// רקע: סבב 16h הציג CSP nonce-based עם 'strict-dynamic'. אבל NetFree הוא
+// פרוקסי שמפענח HTTPS, משכתב את ה-HTML, ומזריק scripts משלו
+// (netfree.link/injection-script/*). 'strict-dynamic' מבטל host-allowlist
+// ומחייב nonce תקף לכל script — וה-nonce של ה-scripts של Next.js "נשבר"
+// בשכתוב של NetFree. התוצאה: כל ה-scripts (כולל של המערכת) נחסמים, ה-JS לא
+// רץ, ודפי clinic-admin/admin (העטופים ב-ClientOnly) נתקעים בגלגל-טעינה לנצח.
+// אומת ב-DevTools console אצל משתמש מאחורי NetFree (21 הפרות CSP, 2026-06-22).
+//
+// פתרון: script-src ללא nonce/strict-dynamic — 'self' + 'unsafe-inline' (זהה
+// ל-CSP הסטטי ב-next.config.ts שעובד עם NetFree). NetFree מוסיף את ה-origins
+// שלו ל-allowlist בעצמו (כפי שהוא עושה לדפים הסטטיים). שאר ה-directives
+// (frame-ancestors/object-src/base-uri) נשמרים מחמירים.
+function buildCsp(isDev: boolean): string {
   const scriptSrc = isDev
-    ? `script-src 'self' 'nonce-${nonce}' 'strict-dynamic' 'unsafe-inline' 'unsafe-eval'`
-    : `script-src 'self' 'nonce-${nonce}' 'strict-dynamic' 'unsafe-inline'`;
+    ? `script-src 'self' 'unsafe-inline' 'unsafe-eval'`
+    : `script-src 'self' 'unsafe-inline'`;
   return [
     "default-src 'self'",
     scriptSrc,
@@ -47,8 +51,8 @@ function buildCspWithNonce(nonce: string, isDev: boolean): string {
   ].join("; ");
 }
 
-function applyCspNonce(response: NextResponse, csp: string): NextResponse {
-  // override ה-CSP הסטטי מ-next.config.ts עם הגרסה nonce-based.
+function applyCsp(response: NextResponse, csp: string): NextResponse {
+  // override ה-CSP הסטטי מ-next.config.ts (זהה לו, פרט ל-script-src תואם-NetFree).
   response.headers.set("Content-Security-Policy", csp);
   return response;
 }
@@ -207,16 +211,12 @@ export async function proxy(request: NextRequest) {
     );
   }
 
-  // H16.4: ייצור nonce per-request ל-CSP nonce-based. base64 (לא hex) כי
-  // CSP-spec דורש token של letter/digit/-/_/+//= (base64 charset).
-  // העברה ל-request headers (Next.js מצרף ל-inline scripts אוטומטית) +
-  // ל-response headers (CSP override על הגרסה הסטטית).
-  const nonce = randomBytes(16).toString("base64");
+  // CSP תואם-NetFree (ראה buildCsp). אין nonce per-request: NetFree שובר
+  // nonces בשכתוב ה-HTML, לכן ה-CSP מסתמך על 'self' + 'unsafe-inline'.
   const isDev = process.env.NODE_ENV !== "production";
-  const cspHeader = buildCspWithNonce(nonce, isDev);
+  const cspHeader = buildCsp(isDev);
 
   const requestHeaders = new Headers(request.headers);
-  requestHeaders.set("x-nonce", nonce);
 
   // Get the token from the request
   const token = await getToken({
@@ -452,7 +452,7 @@ export async function proxy(request: NextRequest) {
   if (pathname.startsWith("/dashboard") && token) {
     // מנהלים (ADMIN) לא נחסמים על ידי בדיקת מנוי
     if (token.role === "ADMIN") {
-      return applyCspNonce(
+      return applyCsp(
         NextResponse.next({ request: { headers: requestHeaders } }),
         cspHeader
       );
@@ -490,12 +490,12 @@ export async function proxy(request: NextRequest) {
         if (gracePeriodEndsAt) {
           response.headers.set("x-grace-period-ends", gracePeriodEndsAt);
         }
-        return applyCspNonce(response, cspHeader);
+        return applyCsp(response, cspHeader);
       }
     }
   }
 
-  return applyCspNonce(
+  return applyCsp(
     NextResponse.next({ request: { headers: requestHeaders } }),
     cspHeader
   );
