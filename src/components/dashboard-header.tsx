@@ -129,18 +129,27 @@ export function DashboardHeader({ user }: DashboardHeaderProps) {
       // Remove from local state immediately for instant UI feedback
       setNotifications(prev => prev.filter(n => n.id !== id));
       setUnreadCount(prev => Math.max(0, prev - 1));
+      // סנכרון הווידג'ט בדשבורד (סימון נקראה / הפסקת הבהוב)
+      window.dispatchEvent(new CustomEvent("notification-read"));
     } catch (error) {
       console.error("Error marking as read:", error);
     }
   };
 
-  const dismissNotification = async (e: React.MouseEvent, id: string) => {
+  const dismissNotification = async (e: React.MouseEvent, notification: Notification) => {
     e.stopPropagation(); // Don't trigger the parent click (navigation)
+    const { id, type } = notification;
     try {
       await fetch(`/api/notifications/${id}`, { method: "DELETE" });
       // Remove from local state immediately
       setNotifications(prev => prev.filter(n => n.id !== id));
       setUnreadCount(prev => Math.max(0, prev - 1));
+      // סנכרון עם ווידג'ט "מטלות ותזכורות" בדשבורד: שההתראה תוסר גם משם מיד.
+      // לתזכורות בוקר/ערב — גם אנימציית עידוד, בדיוק כמו הסרה מתוך הווידג'ט.
+      const isSummary = type === "MORNING_SUMMARY" || type === "EVENING_SUMMARY";
+      window.dispatchEvent(
+        new CustomEvent("reminder-dismissed", { detail: { id, celebrate: isSummary } })
+      );
     } catch (error) {
       console.error("Error dismissing notification:", error);
     }
@@ -151,6 +160,8 @@ export function DashboardHeader({ user }: DashboardHeaderProps) {
       await fetch("/api/notifications/mark-all-read", { method: "POST" });
       setNotifications([]);
       setUnreadCount(0);
+      // סנכרון הווידג'ט בדשבורד (סימון נקראו / הפסקת הבהוב)
+      window.dispatchEvent(new CustomEvent("notification-read"));
     } catch (error) {
       console.error("Error marking all as read:", error);
     }
@@ -269,7 +280,7 @@ export function DashboardHeader({ user }: DashboardHeaderProps) {
                       </p>
                     </div>
                     <button
-                      onClick={(e) => dismissNotification(e, notification.id)}
+                      onClick={(e) => dismissNotification(e, notification)}
                       className="p-1 rounded-full hover:bg-muted text-muted-foreground hover:text-foreground flex-shrink-0"
                       title="מחק התראה"
                     >

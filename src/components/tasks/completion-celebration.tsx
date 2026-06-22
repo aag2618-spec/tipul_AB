@@ -1,6 +1,6 @@
 "use client";
 
-import { useEffect, useState } from "react";
+import { useCallback, useEffect, useState } from "react";
 
 const REGULAR_MESSAGES = [
   "יופי! 🌸",
@@ -84,7 +84,7 @@ interface CelebrationData {
 export function useCompletionCelebration() {
   const [celebration, setCelebration] = useState<CelebrationData | null>(null);
 
-  const trigger = () => {
+  const trigger = useCallback(() => {
     const count = bumpDailyCounter();
     let message: string;
     let intensity: "normal" | "big" | "huge" = "normal";
@@ -101,9 +101,11 @@ export function useCompletionCelebration() {
     }
 
     setCelebration({ id: Date.now(), message, intensity });
-  };
+  }, []);
 
-  return { celebration, trigger, dismiss: () => setCelebration(null) };
+  const dismiss = useCallback(() => setCelebration(null), []);
+
+  return { celebration, trigger, dismiss };
 }
 
 interface ConfettiPiece {

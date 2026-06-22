@@ -274,6 +274,24 @@ export function PersonalTasksWidget() {
 
   const { isShabbat: isShabbatMode, tooltip: shabbatTooltip } = useShabbat();
 
+  // כשמסירים תזכורת בוקר/ערב מהפעמון (header) — להסיר אותה גם מהווידג'ט מיד
+  // ולהפעיל את אנימציית העידוד, בדיוק כמו הסרה מתוך הווידג'ט עצמו (אחידות).
+  // ⭐ בשבת/חג — לא מפעילים עידוד (קונפטי), עקבי עם שאר התנהגות השבת בווידג'ט.
+  useEffect(() => {
+    const handler = (e: Event) => {
+      const detail = (e as CustomEvent).detail as { id?: string; celebrate?: boolean } | undefined;
+      if (detail?.id) {
+        // מסירים רק אם התזכורת באמת ברשימה — מונע re-render מיותר בהתראות שאינן תזכורת בוקר/ערב.
+        setReminders(prev => (prev.some(r => r.id === detail.id) ? prev.filter(r => r.id !== detail.id) : prev));
+      }
+      if (detail?.celebrate && !isShabbatMode) {
+        triggerCelebration();
+      }
+    };
+    window.addEventListener("reminder-dismissed", handler);
+    return () => window.removeEventListener("reminder-dismissed", handler);
+  }, [triggerCelebration, isShabbatMode]);
+
   useEffect(() => {
     const checkReminders = () => {
       // בשבת/חג — לא להבהב, לא להציג toast, לא להפעיל Notification API.
