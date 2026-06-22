@@ -70,21 +70,26 @@ function section(s) {
 }
 
 function therapistBox(t) {
+  // כל נושא בכרטיס נפרד — כדי שמעבר-עמוד בהדפסה יקרה בצורה נקייה בין כרטיסים שלמים
+  // ולא יחתוך תיבה אחת גדולה באמצע.
   let bg = "";
   if (t.background) {
     const story = (t.background.story || []).map((p) => `<p>${esc(p)}</p>`).join("");
     bg = `<div class="background-box"><h2>📖 על הגישה והיוצר</h2><p class="founder"><strong>${esc(t.background.founder)}</strong></p>${story}</div>`;
   }
   const purpose = (t.purpose || []).map((p) => `<p>${esc(p)}</p>`).join("");
-  let whenTbl = "";
+  const purposeCard = `<div class="therapist-box"><h2>📚 מטרת הכלי</h2>${purpose}</div>`;
+  let whenCard = "";
   if (t.when) {
     const heads = t.when.headers.map((h) => `<th>${esc(h)}</th>`).join("");
     const rows = t.when.rows.map((r) => `<tr>${r.map((c) => `<td>${esc(c)}</td>`).join("")}</tr>`).join("");
-    whenTbl = `<h2 style="margin-top:14px;">🛠 מתי להשתמש</h2><table class="therapist-table"><thead><tr>${heads}</tr></thead><tbody>${rows}</tbody></table>`;
+    whenCard = `<div class="therapist-box"><h2>🛠 מתי להשתמש</h2><table class="therapist-table"><thead><tr>${heads}</tr></thead><tbody>${rows}</tbody></table></div>`;
   }
   const tips = (t.tips || []).map((x) => `<li>${esc(x)}</li>`).join("");
   const cautions = (t.cautions || []).map((x) => `<li>${esc(x)}</li>`).join("");
-  return `${bg}<div class="therapist-box"><h2>📚 מטרת הכלי</h2>${purpose}${whenTbl}<h2 style="margin-top:14px;">🎓 טיפים למטפל</h2><ul>${tips}</ul><h2 style="margin-top:14px;">⚠️ שימו לב</h2><ul>${cautions}</ul></div>`;
+  const tipsCard = `<div class="therapist-box"><h2>🎓 טיפים למטפל</h2><ul>${tips}</ul></div>`;
+  const cautionsCard = `<div class="therapist-box"><h2>⚠️ שימו לב</h2><ul>${cautions}</ul></div>`;
+  return `${bg}${purposeCard}${whenCard}${tipsCard}${cautionsCard}`;
 }
 
 function header(ws, variant) {
@@ -214,7 +219,9 @@ function buildHtml(ws) {
       .header,.header-badge,.section-number,.scale-row,.scale-dot,.grounding-box,.compassion-box,.pattern-box,.therapist-box,.background-box,.summary-box,.example-banner,.header-logo,.numbered-line .num { -webkit-print-color-adjust:exact !important; print-color-adjust:exact !important; }
       .header { box-shadow:none; padding:16px 20px; margin-bottom:14px; }
       .header-logo img { height:150px !important; visibility:visible !important; display:block !important; -webkit-print-color-adjust:exact !important; print-color-adjust:exact !important; max-width:350px; }
-      .summary-box,.grounding-box,.compassion-box,.pattern-box,.example-banner,.header,.section,.section-header { break-inside:avoid; }
+      .summary-box,.grounding-box,.compassion-box,.pattern-box,.example-banner,.header,.section,.section-header,.therapist-box,.background-box,.therapist-table { break-inside:avoid; page-break-inside:avoid; }
+      .therapist-box h2,.background-box h2 { break-after:avoid; page-break-after:avoid; }
+      .therapist-box ul,.therapist-box li { break-inside:avoid; page-break-inside:avoid; }
       .footer { display:none !important; }
       .print-footer { display:flex !important; position:fixed; bottom:0; left:0; right:0; align-items:center; justify-content:space-between; font-size:0.78rem; color:var(--slate-700); font-weight:500; padding:4px 10mm; border-top:1px solid var(--slate-200); background:#fff; z-index:9999; }
       .section { box-shadow:none; margin-bottom:8px; }
