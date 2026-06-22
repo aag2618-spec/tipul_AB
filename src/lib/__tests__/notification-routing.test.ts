@@ -9,8 +9,8 @@ import { getNotificationRoute, extractBookingInfo, NOTIFICATION_TYPES } from "@/
  */
 
 describe("Notification routing", () => {
-  it("MORNING_SUMMARY routes to /dashboard/calendar", () => {
-    expect(getNotificationRoute("MORNING_SUMMARY")).toBe("/dashboard/calendar");
+  it("MORNING_SUMMARY routes to /dashboard?scrollTo=personal-tasks", () => {
+    expect(getNotificationRoute("MORNING_SUMMARY")).toBe("/dashboard?scrollTo=personal-tasks");
   });
 
   it("EVENING_SUMMARY routes to /dashboard?scrollTo=personal-tasks", () => {

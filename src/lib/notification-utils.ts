@@ -100,8 +100,8 @@ export function getNotificationRoute(type: string): string {
   switch (type) {
     case "BOOKING_REQUEST":
     case "CANCELLATION_REQUEST":
-    case "MORNING_SUMMARY":
       return "/dashboard/calendar";
+    case "MORNING_SUMMARY":
     case "EVENING_SUMMARY":
     case "PENDING_TASKS":
       return "/dashboard?scrollTo=personal-tasks";

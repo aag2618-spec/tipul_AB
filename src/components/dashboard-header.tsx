@@ -204,10 +204,13 @@ export function DashboardHeader({ user }: DashboardHeaderProps) {
       if (info.sessionId) params.set("highlight", info.sessionId);
       const qs = params.toString();
       router.push(`/dashboard/calendar${qs ? `?${qs}` : ""}`);
-    } else if (notification.type === "MORNING_SUMMARY") {
-      markAsRead(notification.id);
-      router.push("/dashboard/calendar");
-    } else if (notification.type === "EVENING_SUMMARY") {
+    } else if (
+      notification.type === "MORNING_SUMMARY" ||
+      notification.type === "EVENING_SUMMARY"
+    ) {
+      // תזכורת בוקר/ערב היא סיכום — פותחים את חלון התזכורת ברשימת "מטלות
+      // ותזכורות" בדשבורד (בדיוק כמו לחיצה על התזכורת מתוך הווידג'ט), במקום
+      // לנווט ליומן ולפתוח בטעות את טופס "פגישה חדשה".
       markAsRead(notification.id);
       router.push(`/dashboard?scrollTo=personal-tasks&notificationId=${notification.id}`);
     } else if (notification.type === "PENDING_TASKS") {
