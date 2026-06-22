@@ -116,6 +116,22 @@ interface NewSessionDialogProps {
     decisions: Record<string, "skip" | "replace" | "create">,
     pendingRecurring: PendingFormRecurring
   ) => void;
+  /**
+   * תצוגת "שלי" של מטפל/ת (לא מזכירה) הצופה ביומן האישי שלו/ה.
+   *   • true  → הטופס מתנהג כמו אצל מטפל/ת יחיד/ה: בורר "מטפל/ת לפגישה" מוסתר,
+   *     ורשימת המטופלים מסוננת למטופלים של המשתמש המחובר בלבד.
+   *   • false → "כל הקליניקה" / מזכירה: כלים רב-מטפליים מלאים (בורר מטפל + כל
+   *     מטופלי הקליניקה). זו גם ברירת המחדל — שומרת על ההתנהגות הקודמת אם
+   *     ה-caller לא מעביר את הדגל.
+   * מחושב בדף היומן כ-`!isSecretary && viewMode === "personal"` — מזכירה לעולם
+   * אינה ב"שלי" (אין לה יומן אישי), ולכן אצלה הדגל תמיד false.
+   */
+  isOwnPersonalView?: boolean;
+  /**
+   * מזהה המשתמש המחובר — משמש לסינון רשימת המטופלים ל"שלי" בלבד
+   * (מוצגים רק מטופלים ש-therapistId שלהם הוא המשתמש). null = ללא סינון.
+   */
+  currentTherapistId?: string | null;
 }
 
 // שם משפחה = המילה האחרונה אחרי רווח. אם השם הוא מילה אחת — היא תשמש כשם משפחה.
@@ -163,6 +179,9 @@ export function NewSessionDialog({
   sessions,
   onSessionCreated,
   onShowRecurringPreview,
+  // ברירת מחדל false = התנהגות קודמת (כל הכלים הרב-מטפליים) אם לא הועבר דגל.
+  isOwnPersonalView = false,
+  currentTherapistId = null,
 }: NewSessionDialogProps) {
   const [formData, setFormData] = useState<SessionFormData>(initialFormData);
   const [isSubmitting, setIsSubmitting] = useState(false);
@@ -309,7 +328,14 @@ export function NewSessionDialog({
   // החיפוש מתאים גם בשם פרטי וגם בשם משפחה — לפי קלט כלשהו של המשתמש.
   // המטופל הנבחר נשאר ברשימה תמיד — אחרת Radix Select יציג placeholder.
   const sortedFilteredClients = useMemo(() => {
-    const regular = clients.filter((c) => !c.isQuickClient);
+    // תצוגת "שלי" (isOwnPersonalView): מציגים רק את המטופלים של המשתמש המחובר —
+    // מטופל/ת של מטפל/ת אחר/ת לא מופיע/ה ברשימה כלל. ב"כל הקליניקה" / מזכירה —
+    // כל מטופלי הקליניקה. למטפל/ת עצמאי/ת זה no-op (כל המטופלים שלו/ה ממילא).
+    const scoped =
+      isOwnPersonalView && currentTherapistId
+        ? clients.filter((c) => c.therapistId === currentTherapistId)
+        : clients;
+    const regular = scoped.filter((c) => !c.isQuickClient);
     const collator = new Intl.Collator("he", { sensitivity: "base", numeric: true });
     const sorted = [...regular].sort((a, b) => {
       const lastA = getLastName(a.name);
@@ -335,7 +361,7 @@ export function NewSessionDialog({
       if (selected) return [selected, ...filtered];
     }
     return filtered;
-  }, [clients, clientSearch, formData.clientId]);
+  }, [clients, clientSearch, formData.clientId, isOwnPersonalView, currentTherapistId]);
 
   // המטופל שנבחר כרגע — מוצג כשהרשימה מכווצת (במקום כל הרשימה).
   const pickedClient = clients.find((c) => c.id === formData.clientId) ?? null;
@@ -854,8 +880,11 @@ export function NewSessionDialog({
           {/* יומן רב-מטפלים: בורר מטפל/ת לפגישה (טופס רגיל). מאפשר לבעלים/מזכירה
               לקבוע פגישה אצל מטפל/ת פנוי/ה — גם על משבצת תפוסה אצל מטפל אחר, וגם
               למטופל ששייך בקביעות למטפל אחר (ממלא מקום). מוצג רק בקליניקה עם יותר
-              ממטפל אחד; למטפל יחיד / עצמאי לא קיים כלל, אז היומן הרגיל לא משתנה. */}
-          {formData.type !== "BREAK" && !isQuickClientMode && canPickTherapist && isMultiTherapistClinic && (
+              ממטפל אחד; למטפל יחיד / עצמאי לא קיים כלל, אז היומן הרגיל לא משתנה.
+              גם בתצוגת "שלי" (isOwnPersonalView) הבורר מוסתר — שם המטפל קובע
+              לעצמו בלבד ואין אפשרות לבחור מטפל/ת אחר/ת. מוצג רק ב"כל הקליניקה"
+              / אצל מזכירה. */}
+          {formData.type !== "BREAK" && !isQuickClientMode && canPickTherapist && isMultiTherapistClinic && !isOwnPersonalView && (
             <div className="space-y-1.5">
               <Label htmlFor="sessionTherapistId" className="flex items-center gap-1.5">
                 <Users className="h-3.5 w-3.5 text-muted-foreground" />
@@ -920,8 +949,11 @@ export function NewSessionDialog({
 
               {/* Phase 3: picker מטפל אחראי לפונה החדש — רק ל-OWNER/SECRETARY
                   בקליניקה, ורק כשיוצרים פונה חדש (לא כשמתעדכן קיים).
-                  למזכירה זה חובה (חוסם submit); ל-OWNER אופציונלי. */}
-              {canPickTherapist && !formData.clientId && (
+                  למזכירה זה חובה (חוסם submit); ל-OWNER אופציונלי.
+                  מוסתר בתצוגת "שלי" (isOwnPersonalView) — שם המשתמש אחראי לעצמו
+                  והשרת פותר self. למזכירה isOwnPersonalView תמיד false (היא רואה
+                  את כל הקליניקה), אז הבורר נשאר ונשארת גם חובת הבחירה. */}
+              {canPickTherapist && !formData.clientId && !isOwnPersonalView && (
                 <div className="space-y-1.5">
                   <Label htmlFor="pickedTherapistId" className="text-xs flex items-center gap-1.5">
                     <Users className="h-3.5 w-3.5 text-blue-700" />

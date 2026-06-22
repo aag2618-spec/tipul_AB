@@ -324,6 +324,11 @@ function CalendarPageContent() {
   //   • בעלים: רק כשבחר "כל הקליניקה" (viewScope==="clinic").
   //   • מטפל עצמאי: multiTherapist=false → false.
   const isClinicCalendar = isClinicCalendarView({ multiTherapist, viewMode: viewScope, isSecretary });
+  // תצוגת "שלי" אמיתית: מטפל/ת (לא מזכירה) הצופה ביומן האישי שלו/ה. כאן הטופס
+  // "פגישה חדשה" מתנהג כמו אצל מטפל/ת יחיד/ה — מסנן את רשימת המטופלים למטופלים
+  // שלי בלבד ומסתיר את בורר "מטפל/ת לפגישה". מזכירה לעולם אינה ב"שלי" (אין לה
+  // יומן אישי) → תמיד false → היא ממשיכה לראות את כל הקליניקה ואת הבורר.
+  const isOwnPersonalView = !isSecretary && viewScope === "personal";
   const allTherapistIds = therapists.map((t) => t.id);
   const isTherapistSelected = (id: string) =>
     !selectedTherapistIds || selectedTherapistIds.has(id);
@@ -978,6 +983,10 @@ function CalendarPageContent() {
         selectedDate={selectedDate}
         initialFormData={initialFormData}
         sessions={sessions}
+        // תצוגת "שלי" מול "כל הקליניקה": ב"שלי" הטופס מסתיר את בורר המטפל
+        // ומסנן את רשימת המטופלים למטופלים שלי בלבד (כמו מטפל יחיד).
+        isOwnPersonalView={isOwnPersonalView}
+        currentTherapistId={currentTherapistId}
         onSessionCreated={() => fetchData()}
         onShowRecurringPreview={(preview, decisions, pendingRecurring) => {
           setApplyPreview(preview);
@@ -992,6 +1001,9 @@ function CalendarPageContent() {
         onOpenChange={setIsFindSlotOpen}
         multiTherapist={multiTherapist}
         defaultSessionDuration={defaultSessionDuration}
+        // ב"שלי" מחפשים משבצות פנויות שלי בלבד (בלי בורר מטפל ובלי משבצות זרות).
+        isOwnPersonalView={isOwnPersonalView}
+        currentTherapistId={currentTherapistId}
         onPick={handlePickSlot}
       />
 
@@ -1009,6 +1021,9 @@ function CalendarPageContent() {
         onConflictDecisionsChange={setConflictDecisions}
         onPendingFormRecurringChange={setPendingFormRecurring}
         onDataChanged={() => { fetchData(); checkOverlaps(); }}
+        // ב"שלי" בורר המטופל בתבנית השבועית מציג רק את המטופלים שלי.
+        isOwnPersonalView={isOwnPersonalView}
+        currentTherapistId={currentTherapistId}
       />
 
       {/* Session Detail Dialog */}
@@ -1020,6 +1035,8 @@ function CalendarPageContent() {
         currentTherapistId={currentTherapistId}
         canViewPayments={myPermissions.canViewPayments}
         multiTherapist={multiTherapist}
+        // ב"שלי" מסתירים את "קבע פגישה במקביל" (כמו בכרטיס היומן).
+        isOwnPersonalView={isOwnPersonalView}
         onFillFromWaitlist={handleFillFromWaitlist}
         onRequestPayment={async (data: PaymentRequest) => {
           // Phase 3: client-side guard — מזכירה ללא canViewPayments לא צריכה

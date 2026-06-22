@@ -77,6 +77,9 @@ interface SessionDetailDialogProps {
   // יומן רב-מטפלים: האם להציג "קבע פגישה במקביל" (קליניקה עם יותר ממטפל אחד).
   // למטפל יחיד / עצמאי לא מועבר → הכפתור לא מוצג והדיאלוג זהה לקודם.
   multiTherapist?: boolean;
+  // תצוגת "שלי" של מטפל/ת (לא מזכירה): מסתיר את "קבע פגישה במקביל" — קביעה
+  // מקבילה אצל מטפל/ת אחר/ת היא פעולת "כל הקליניקה" בלבד. מזכירה: תמיד false.
+  isOwnPersonalView?: boolean;
   // מילוי-בביטול: פתיחת טופס פגישה חדשה עם מטופל מרשימת ההמתנה, בדיוק במשבצת
   // שהתפנתה (אותו מטפל/זמן). מסופק ע"י דף היומן. אופציונלי — בלעדיו הפאנל לא מוצג.
   onFillFromWaitlist?: (
@@ -102,6 +105,7 @@ export function SessionDetailDialog({
   canViewPayments = true,
   currentTherapistId,
   multiTherapist = false,
+  isOwnPersonalView = false,
   onFillFromWaitlist,
 }: SessionDetailDialogProps) {
   const router = useRouter();
@@ -630,8 +634,10 @@ export function SessionDetailDialog({
 
           {/* יומן רב-מטפלים: קביעת פגישה נוספת על *אותה* משבצת (מטפל/חדר אחר).
               זמין בכל סטטוס — כך אפשר למלא שעה תפוסה בקיבולת פנויה של הקליניקה.
-              מוצג רק במצב רב-מטפלים ולא להפסקה (להפסקה יש כפתור ייעודי למטה). */}
-          {multiTherapist && session.type !== "BREAK" && (
+              מוצג רק במצב רב-מטפלים, לא להפסקה (להפסקה יש כפתור ייעודי למטה),
+              ולא בתצוגת "שלי" (isOwnPersonalView) — שם זו פעולה לא רלוונטית,
+              בדיוק כמו כפתור ה-Columns2 בכרטיס היומן. */}
+          {multiTherapist && !isOwnPersonalView && session.type !== "BREAK" && (
             <Button
               variant="outline"
               className="w-full gap-2 border-indigo-300 text-indigo-700 hover:bg-indigo-50"

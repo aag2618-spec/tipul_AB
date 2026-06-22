@@ -172,9 +172,11 @@ export function CalendarEventContent({ eventInfo, sessions, onAddSessionAfter, o
               נחתכת אנכית בכרטיס נמוך/פגישה קצרה). ב"שלי"/עצמאי — בדיוק כמו קודם. */}
           <div className={`shrink-0 flex items-center gap-1 ${isClinicCalendar ? "sm:gap-0.5" : ""}`}>
             {/* יומן רב-מטפלים: "קבע במקביל" — פגישה נוספת על אותה משבצת (מטפל/חדר
-                אחר), בשונה מ-"+" שמוסיף *אחרי*. מוצג רק כשמסופק onAddSessionParallel
-                (כלומר במצב רב-מטפלים), אז יומן מטפל יחיד נשאר עם כפתור "+" בלבד. */}
-            {showTherapist && onAddSessionParallel && (
+                אחר), בשונה מ-"+" שמוסיף *אחרי*. מוצג רק ב*יומן הקליניקה* (תצוגת
+                "כל הקליניקה" / מזכירה) — שם באמת מקבעים פגישות אצל כמה מטפלים על
+                אותה שעה. בתצוגת "שלי" (isClinicCalendar=false) זו פעולה לא רלוונטית
+                (המטפל קובע לעצמו בלבד), ולכן הכפתור מוסתר ונשאר רק "+". */}
+            {showTherapist && onAddSessionParallel && isClinicCalendar && (
               <button
                 onClick={(e) => {
                   e.stopPropagation();

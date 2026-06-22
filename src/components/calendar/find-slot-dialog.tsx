@@ -47,6 +47,11 @@ interface FindSlotDialogProps {
   multiTherapist: boolean;
   defaultSessionDuration: number;
   defaultSessionType?: string;
+  // תצוגת "שלי" של מטפל/ת (לא מזכירה): מחפשים משבצות פנויות של המטפל/ת המחובר/ת
+  // בלבד — בורר המטפל מוסתר והחיפוש מקובע ל-currentTherapistId, כמו אצל מטפל
+  // יחיד. ב"כל הקליניקה" / מזכירה — חיפוש על פני כל המטפלים (כמו היום).
+  isOwnPersonalView?: boolean;
+  currentTherapistId?: string | null;
   // נקרא כשבוחרים משבצת — האב פותח את טופס הפגישה החדשה ממולא.
   onPick: (
     slot: AvailableSlot,
@@ -82,8 +87,12 @@ export function FindSlotDialog({
   multiTherapist,
   defaultSessionDuration,
   defaultSessionType = "IN_PERSON",
+  isOwnPersonalView = false,
+  currentTherapistId = null,
   onPick,
 }: FindSlotDialogProps) {
+  // בתצוגת "שלי" מתנהגים כמו מטפל יחיד: בלי בורר מטפל, והחיפוש מקובע לעצמי.
+  const showTherapistPicker = multiTherapist && !isOwnPersonalView;
   const [duration, setDuration] = useState(defaultSessionDuration);
   const [type, setType] = useState(defaultSessionType);
   const [fromDate, setFromDate] = useState(todayIsrael);
@@ -132,6 +141,10 @@ export function FindSlotDialog({
   }, [open, multiTherapist, defaultSessionDuration, defaultSessionType]);
 
   const handleSearch = useCallback(async () => {
+    // הגנת-עומק: בתצוגת "שלי" חייבים לדעת מי המטפל/ת המחובר/ת לפני חיפוש —
+    // אחרת החיפוש היה נופל ל"כל המטפלים" ומחזיר משבצות זרות. אם עדיין לא נטען
+    // (חלון טעינת session), לא מחפשים (הכפתור גם מושבת במצב זה).
+    if (isOwnPersonalView && !currentTherapistId) return;
     setLoading(true);
     setSearched(true);
     try {
@@ -142,7 +155,12 @@ export function FindSlotDialog({
         dayStart,
         dayEnd,
       });
-      if (therapistId) params.set("therapistId", therapistId);
+      // בתצוגת "שלי" מקבעים את החיפוש למטפל/ת המחובר/ת בלבד — כך לא מוחזרות
+      // משבצות (ולא נקבעות פגישות) אצל מטפל/ת אחר/ת. אחרת — לפי בורר המטפל.
+      const effectiveTherapistId = isOwnPersonalView
+        ? currentTherapistId ?? ""
+        : therapistId;
+      if (effectiveTherapistId) params.set("therapistId", effectiveTherapistId);
       if (roomId) params.set("roomId", roomId);
       const res = await fetch(`/api/sessions/available-slots?${params.toString()}`);
       if (!res.ok) {
@@ -159,7 +177,7 @@ export function FindSlotDialog({
     } finally {
       setLoading(false);
     }
-  }, [duration, fromDate, toDate, dayStart, dayEnd, therapistId, roomId]);
+  }, [duration, fromDate, toDate, dayStart, dayEnd, therapistId, roomId, isOwnPersonalView, currentTherapistId]);
 
   const grouped = useMemo(() => {
     const map = new Map<string, AvailableSlot[]>();
@@ -265,10 +283,10 @@ export function FindSlotDialog({
             </div>
           </div>
 
-          {/* מטפל (רק בקליניקה רב-מטפלית) + חדר (אם יש) */}
-          {(multiTherapist && therapists.length > 0) || activeRooms.length > 0 ? (
+          {/* מטפל (רק בקליניקה רב-מטפלית, ולא בתצוגת "שלי") + חדר (אם יש) */}
+          {(showTherapistPicker && therapists.length > 0) || activeRooms.length > 0 ? (
             <div className="grid grid-cols-2 gap-3">
-              {multiTherapist && therapists.length > 0 && (
+              {showTherapistPicker && therapists.length > 0 && (
                 <div className="space-y-1">
                   <Label htmlFor="find-therapist">מטפל</Label>
                   <Select
@@ -313,7 +331,11 @@ export function FindSlotDialog({
             </div>
           ) : null}
 
-          <Button onClick={handleSearch} disabled={loading} className="w-full">
+          <Button
+            onClick={handleSearch}
+            disabled={loading || (isOwnPersonalView && !currentTherapistId)}
+            className="w-full"
+          >
             {loading ? (
               <Loader2 className="ml-2 h-4 w-4 animate-spin" />
             ) : (
@@ -350,14 +372,14 @@ export function FindSlotDialog({
                         onClick={() => onPick(slot, { duration, type, roomId })}
                         className="flex items-center gap-1.5 rounded-md border bg-card px-2.5 py-1.5 text-sm hover:bg-accent hover:border-primary transition-colors"
                         title={
-                          multiTherapist && slot.therapistName
+                          showTherapistPicker && slot.therapistName
                             ? `${slot.time} · ${slot.therapistName}`
                             : slot.time
                         }
                       >
                         <Clock className="h-3.5 w-3.5 opacity-60" aria-hidden />
                         <span className="font-medium">{slot.time}</span>
-                        {multiTherapist && slot.therapistName && (
+                        {showTherapistPicker && slot.therapistName && (
                           <span className="flex items-center gap-1 text-xs opacity-75">
                             <span
                               className="inline-block w-2 h-2 rounded-full shrink-0"

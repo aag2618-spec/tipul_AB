@@ -59,6 +59,10 @@ interface RecurringPatternDialogProps {
   onPendingFormRecurringChange: (pending: PendingFormRecurring | null) => void;
   // Callbacks
   onDataChanged: () => void;
+  // תצוגת "שלי" של מטפל/ת (לא מזכירה): בורר המטופל בתבנית מציג רק את המטופלים
+  // של המשתמש המחובר (currentTherapistId). ב"כל הקליניקה" / מזכירה — כל המטופלים.
+  isOwnPersonalView?: boolean;
+  currentTherapistId?: string | null;
 }
 
 // ── Component ──
@@ -76,7 +80,15 @@ export function RecurringPatternDialog({
   onConflictDecisionsChange,
   onPendingFormRecurringChange,
   onDataChanged,
+  isOwnPersonalView = false,
+  currentTherapistId = null,
 }: RecurringPatternDialogProps) {
+  // תצוגת "שלי": רק המטופלים של המשתמש המחובר ברשימת התבנית. למטפל/ת עצמאי/ת
+  // זה no-op (כל המטופלים שלו/ה). מזכירה: isOwnPersonalView תמיד false → כולם.
+  const visibleClients =
+    isOwnPersonalView && currentTherapistId
+      ? clients.filter((c) => c.therapistId === currentTherapistId)
+      : clients;
   const [recurringFormData, setRecurringFormData] = useState({
     dayOfWeek: 0,
     time: "09:00",
@@ -514,7 +526,7 @@ export function RecurringPatternDialog({
                         </SelectTrigger>
                         <SelectContent>
                           <SelectItem value="">ללא</SelectItem>
-                          {clients.map((client) => (
+                          {visibleClients.map((client) => (
                             <SelectItem key={client.id} value={client.id}>
                               {client.name}
                             </SelectItem>
