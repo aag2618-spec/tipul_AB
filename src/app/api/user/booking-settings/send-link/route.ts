@@ -69,51 +69,44 @@ export async function POST(request: NextRequest) {
     select: { id: true, name: true, email: true, phone: true, therapistId: true },
   });
 
-  // מי "הבעלים" של הקישור: מטפל/בעלים שולח/ת בשם עצמו/ה (התנהגות קיימת);
-  // מזכיר/ה שולחת בשם המטפל של כל מטופל — BookingLink.therapistId == client.therapistId,
-  // וההגדרות + מכסת ה-SMS נלקחות מאותו מטפל (ולא מהמזכירה, שאין לה כאלה).
-  const sendsOnBehalf = isSecretary(scopeUser);
-
-  // מיפוי therapistId → { name, enabled } לכל המטפלים הרלוונטיים.
+  // בעל/ת הקישור לכל מטופל = המטפל/ת האחראי/ת של אותו מטופל
+  // (BookingLink.therapistId == client.therapistId, כפי שהסכמה דורשת). ההגדרות
+  // (enabled), שם המטפל לגוף ההודעה ומכסת ה-SMS נלקחים מאותו מטפל — כך בעלים/מזכירה
+  // ששולחים בשם מטפל אחר אינם "גונבים" את הבעלות, וה-SMS מנוכה מחבילת המטפל הנכון.
+  // מטפל ששולח למטופל שלו → linkTherapistId == userId (התנהגות זהה לקודם).
+  const therapistIds = [...new Set(clients.map((c) => c.therapistId))];
+  const therapists = await prisma.user.findMany({
+    // הגנת-עומק: תיחום לארגון (ה-therapistIds כבר נגזרים ממטופלים מתוחמים).
+    where: {
+      id: { in: therapistIds },
+      ...(scopeUser.organizationId
+        ? { organizationId: scopeUser.organizationId }
+        : {}),
+    },
+    select: {
+      id: true,
+      name: true,
+      bookingSettings: { select: { enabled: true } },
+    },
+  });
   const therapistInfo = new Map<string, { name: string; enabled: boolean }>();
-  if (sendsOnBehalf) {
-    const therapistIds = [...new Set(clients.map((c) => c.therapistId))];
-    const therapists = await prisma.user.findMany({
-      // הגנת-עומק: גם תיחום לארגון (ה-therapistIds כבר נגזרים ממטופלים מתוחמים).
-      where: {
-        id: { in: therapistIds },
-        ...(scopeUser.organizationId
-          ? { organizationId: scopeUser.organizationId }
-          : {}),
-      },
-      select: {
-        id: true,
-        name: true,
-        bookingSettings: { select: { enabled: true } },
-      },
+  for (const t of therapists) {
+    therapistInfo.set(t.id, {
+      name: t.name || "המטפל/ת",
+      enabled: !!t.bookingSettings?.enabled,
     });
-    for (const t of therapists) {
-      therapistInfo.set(t.id, {
-        name: t.name || "המטפל/ת",
-        enabled: !!t.bookingSettings?.enabled,
-      });
-    }
-  } else {
-    // מטפל/בעלים — שולח/ת בשם עצמו/ה. הזימון העצמי חייב להיות מופעל אצלו/ה.
-    const settings = await prisma.bookingSettings.findUnique({
-      where: { therapistId: userId },
-    });
-    if (!settings || !settings.enabled) {
-      return NextResponse.json(
-        { message: "יש להפעיל את הזימון העצמי לפני שליחת קישורים" },
-        { status: 400 }
-      );
-    }
-    const me = await prisma.user.findUnique({
-      where: { id: userId },
-      select: { name: true },
-    });
-    therapistInfo.set(userId, { name: me?.name || "המטפל/ת", enabled: true });
+  }
+
+  // 400 (כל הבקשה נכשלת) רק כשהקורא/ת שולח/ת לעצמו/ה (כרטיס מטופל שלו/דף ההגדרות)
+  // והזימון העצמי שלו/ה כבוי — כדי לשמור על המשוב הברור של כפתור "שלח קישור זימון"
+  // ("יש להפעיל את הזימון") במקום skip שקט שהכפתור היה מציג כ"נשלח". כשהקורא/ת
+  // שולח/ת בשם מטפל אחר (בעלים/מזכירה), כיבוי אצל אותו מטפל → skip per-client בלולאה.
+  const sendingToSelf = clients.some((c) => c.therapistId === userId);
+  if (sendingToSelf && !therapistInfo.get(userId)?.enabled) {
+    return NextResponse.json(
+      { message: "יש להפעיל את הזימון העצמי לפני שליחת קישורים" },
+      { status: 400 }
+    );
   }
 
   const appUrl = process.env.NEXTAUTH_URL || "";
@@ -123,12 +116,13 @@ export async function POST(request: NextRequest) {
   const errors: string[] = [];
 
   for (const client of clients) {
-    // בעל/ת הקישור לכל מטופל + ההגדרות הרלוונטיות.
-    const linkTherapistId = sendsOnBehalf ? client.therapistId : userId;
+    // בעל/ת הקישור = המטפל/ת של המטופל + ההגדרות הרלוונטיות.
+    const linkTherapistId = client.therapistId;
     const info = therapistInfo.get(linkTherapistId);
 
-    // מזכיר/ה: אם הזימון העצמי כבוי אצל המטפל של המטופל — אי אפשר לשלוח בשמו.
-    if (sendsOnBehalf && (!info || !info.enabled)) {
+    // הזימון העצמי כבוי אצל המטפל/ת של המטופל/ת — אי אפשר לשלוח בשמו/ה. (המקרה של
+    // הקורא/ת ששולח/ת לעצמו/ה עם זימון כבוי כבר נחסם ב-400 למעלה; כאן זה מטפל אחר.)
+    if (!info || !info.enabled) {
       skipped++;
       continue;
     }
@@ -159,6 +153,11 @@ export async function POST(request: NextRequest) {
         await prisma.bookingLink.update({
           where: { id: existing.id },
           data: {
+            // יישור הבעלות ל-client.therapistId הנוכחי גם ב-reuse — מרפא קישורים
+            // שנוצרו עם therapistId שגוי (הבאג הישן: בעלים ששלח בשם עצמו) או אחרי
+            // העברת מטופל בין מטפלים. אחרת פגישות שיקבעו דרך הקישור ירוצו תחת המטפל הלא-נכון.
+            therapistId: linkTherapistId,
+            organizationId: scopeUser.organizationId,
             expiresAt: newExpiry,
             destinationEmail: client.email ?? null,
             destinationPhone: client.phone ?? null,

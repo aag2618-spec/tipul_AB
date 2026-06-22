@@ -28,9 +28,15 @@ export function SendBookingLinkButton({ clientId, clientName }: SendBookingLinkB
         toast.error(data.message || data.error || "שגיאה בשליחה");
         return;
       }
-      // גם ב-200 שרת עלול להחזיר success: false (למשל בשבת)
-      if (data.success === false) {
-        toast.error(data.message || "הקישור לא נשלח");
+      // 200 אך לא נשלח (sent === 0): בעל/ת קליניקה או מזכיר/ה ששולח/ת בשם מטפל
+      // אחר שהזימון העצמי שלו כבוי → השרת מדלג (skip) ומחזיר 200. אסור להציג
+      // "נשלח" כוזב. (כשהמטופל/ת שייך/ת לקורא/ת והזימון כבוי השרת מחזיר 400.)
+      if ((data.sent ?? 0) === 0) {
+        if ((data.skipped ?? 0) > 0) {
+          toast.error("הקישור לא נשלח — הזימון העצמי כבוי אצל המטפל/ת של המטופל/ת");
+        } else {
+          toast.error(data.errors?.[0] || data.message || "שגיאה בשליחת הקישור");
+        }
         return;
       }
       toast.success(`קישור זימון נשלח ל-${clientName}`);

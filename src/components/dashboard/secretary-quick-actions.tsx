@@ -237,7 +237,10 @@ export function SecretaryQuickActions({
         return;
       }
       const msg = data.message || `נשלחו ${data.sent ?? 0} קישורים`;
+      // כשל-שליחה אמיתי (errors) מוצג כשגיאה; דילוג שקט (זימון כבוי אצל המטפל /
+      // אין פרטי קשר) — הודעה ניטרלית. עקבי עם כרטיס המטופל ודף ההגדרות.
       if ((data.sent ?? 0) > 0) toast.success(msg);
+      else if (data.errors?.length) toast.error(data.errors[0]);
       else toast.message(msg);
       setBookingOpen(false);
     } catch {

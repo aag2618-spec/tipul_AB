@@ -157,10 +157,15 @@ export default function BookingSettingsPage() {
       });
       const data = await res.json();
       if (res.ok) {
-        toast.success(data.message);
+        // הבחנה בין נשלח / כשל-שליחה אמיתי / דילוג שקט: sent>0 → הצלחה; errors →
+        // כשל (אדום); אחרת דילוג (זימון כבוי אצל מטפל אחר / אין פרטי קשר) עם הודעה
+        // ניטרלית. ה-message מהשרת מסביר ("נשלחו 0 קישורים, X דולגו").
+        if ((data.sent ?? 0) > 0) toast.success(data.message);
+        else if (data.errors?.length) toast.error(data.errors[0]);
+        else toast.message(data.message || "לא נשלחו קישורים");
         setSendDialogOpen(false);
       } else {
-        toast.error(data.error || "שגיאה בשליחה");
+        toast.error(data.message || data.error || "שגיאה בשליחה");
       }
     } catch {
       toast.error("שגיאה בשליחה");
