@@ -194,6 +194,27 @@ export async function POST(request: NextRequest) {
           data: { therapistId: toTherapistId },
         });
 
+        // 2.5. ביטול קישורי הזימון העצמי הפעילים של המטופל.
+        // ה-BookingLink הוא snapshot של הקשר עם המטפל/ת היוצא/ת: therapistId,
+        // גוף ההודעה שכבר נשלחה ("X מזמין/ה אותך"), ופרטי היעד. אחרי ההעברה הוא
+        // לא תואם עוד. בלי הביטול, מטופל שייכנס לקישור הישן יקבע תור אצל המטפל/ת
+        // הקודמ/ת — booking/t/[token] (handleCreate) יוצר את ה-TherapySession לפי
+        // link.therapistId (וטוען bookingSettings לפיו), בסתירה לכוונת ההעברה.
+        //
+        // בוחרים ביטול (ולא יישור ל-toTherapistId) כדי להישאר עקביים עם ברירת
+        // המחדל של ההעברה — ניתוק נקי. שליחה הבאה דרך send-link לא תמצא קישור
+        // ACTIVE ותיצור קישור חדש ונכון בשם המטפל/ת החדש/ה (therapistId, org,
+        // פרטי יעד וגוף הודעה מעודכנים). evaluateBookingLinkAccess כבר מחזיר 410
+        // לקישור REVOKED, כך שמטופל עם הקישור הישן יקבל הודעה תקנית.
+        //
+        // הסינון לפי clientId בלבד (שכבר אומת לארגון של המבצע/ת דרך client +
+        // race-guard) — לא לפי organizationId, כי הוא nullable ב-BookingLink
+        // ועלול להחמיץ קישורים ישנים עם org=null ולהשאירם פעילים אצל המטפל/ת הישן/ה.
+        const revokedLinks = await tx.bookingLink.updateMany({
+          where: { clientId, status: "ACTIVE" },
+          data: { status: "REVOKED" },
+        });
+
         // 3. טיפול בפגישות עתידיות
         const now = new Date();
         let transferredSessionIds: string[] = [];
@@ -391,6 +412,7 @@ export async function POST(request: NextRequest) {
           summaryParts.push(`נמחקו ${deletedSessionIds.length}`);
         if (cancelledSessionIds.length)
           summaryParts.push(`בוטלו ${cancelledSessionIds.length}`);
+        if (revokedLinks.count > 0) summaryParts.push("בוטל קישור זימון");
 
         if (summaryParts.length > 0) {
           const baseReason = reason?.trim() || "";
@@ -410,6 +432,7 @@ export async function POST(request: NextRequest) {
           overriddenSessionIds,
           deletedSessionIds,
           cancelledSessionIds,
+          revokedBookingLinkCount: revokedLinks.count,
         };
       }
     );
