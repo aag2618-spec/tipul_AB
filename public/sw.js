@@ -1,3 +1,7 @@
+// v5 (2026-06-23): אייקון אפליקציה חדש (מוח+לב על גרדיאנט) במקום ה-fallback "M".
+// העלאת CACHE_NAME מאלצת activate למחוק את ה-cache הישן (icon-192/512 + manifest.json
+// הישנים שנשמרו cache-first) ולטעון מחדש את הנכסים הטריים. כלל: כל שינוי בנכס שנמצא
+// ב-CACHE_ASSETS או ב-manifest מחייב bump לגרסה כאן.
 // v4 (2026-06-19): תיקון "ספינר תקוע אחרי פריסה".
 // השינוי המרכזי: בקשות ניווט (HTML) עוברות ל-network-first במקום cache-first.
 // בעבר ה-SW הגיש HTML ישן מה-cache שהצביע על chunks של build קודם — אחרי
@@ -5,7 +9,7 @@
 // network-first מבטיח שה-HTML תמיד טרי ומצביע על ה-chunks הנוכחיים.
 // בנוסף: API לא נשמר ב-cache (PHI לא נשאר בדפדפן אחרי התנתקות), ודפי HTML
 // (שעלולים להכיל PHI) כבר לא נשמרים ב-cache כלל.
-const CACHE_NAME = 'tipul-v4';
+const CACHE_NAME = 'tipul-v5';
 const OFFLINE_URL = '/offline.html';
 
 // Assets to cache on install — נכסים סטטיים בלבד (לא דפי HTML עם PHI).

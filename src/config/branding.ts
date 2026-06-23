@@ -15,3 +15,14 @@ export const APP_LOGO = {
   width: 1376,
   height: 768,
 } as const;
+
+/**
+ * Square app icon (PWA install, apple-touch, favicon). Distinct from APP_LOGO — that is the
+ * wide horizontal logo used inside the app UI. Generated from public/icon.svg + icon-maskable.svg
+ * via `node scripts/generate-app-icons.mjs` (sharp). Update the SVGs then re-run the script.
+ */
+export const APP_ICON = {
+  svg: "/icon.svg",
+  favicon32: "/favicon-32.png",
+  apple: "/apple-touch-icon.png",
+} as const;

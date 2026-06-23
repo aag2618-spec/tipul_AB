@@ -1,7 +1,7 @@
 import type { Metadata } from "next";
 import { Toaster } from "@/components/ui/sonner";
 import { Providers } from "@/components/providers";
-import { APP_LOGO } from "@/config/branding";
+import { APP_ICON } from "@/config/branding";
 import "./globals.css";
 
 export const metadata: Metadata = {
@@ -9,8 +9,11 @@ export const metadata: Metadata = {
   description: "מערכת מודרנית לניהול פרקטיקה של מטפלים רגשיים - ניהול מטופלים, יומן, סיכומי טיפול ועוד",
   manifest: "/manifest.json",
   icons: {
-    icon: APP_LOGO.src,
-    apple: APP_LOGO.src,
+    icon: [
+      { url: APP_ICON.svg, type: "image/svg+xml" },
+      { url: APP_ICON.favicon32, sizes: "32x32", type: "image/png" },
+    ],
+    apple: APP_ICON.apple,
   },
   appleWebApp: {
     capable: true,

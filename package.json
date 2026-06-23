@@ -20,7 +20,8 @@
     "save-work-demo-cbt": "node scripts/save-cbt-work-demo-to-downloads.mjs",
     "export-work-pages": "node scripts/export-work-pages-to-downloads.mjs",
     "save-act-worksheet": "node scripts/save-act-worksheet-to-downloads.mjs",
-    "worksheets:pdf": "node scripts/generate-worksheet-pdfs.mjs"
+    "worksheets:pdf": "node scripts/generate-worksheet-pdfs.mjs",
+    "icons:generate": "node scripts/generate-app-icons.mjs"
   },
   "prisma": {
     "seed": "tsx prisma/seed.ts"
