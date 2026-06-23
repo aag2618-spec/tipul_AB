@@ -10,6 +10,7 @@ import {
   secretaryCan,
 } from "@/lib/scope";
 import { waitlistScope } from "@/lib/waitlist-scope";
+import { shouldScopePersonal } from "@/lib/view-scope";
 import { serializePrisma } from "@/lib/serialize";
 
 export const dynamic = "force-dynamic";
@@ -37,8 +38,13 @@ export async function GET() {
     const { userId } = auth;
 
     const scopeUser = await loadScopeUser(userId);
+    // תצוגת "שלי / כל הקליניקה" — בדיוק כמו ביומן: בעלים-שהוא-מטפל ב"שלי" רואה רק
+    // את הממתינים שלו. מסנן תצוגה בלבד (לא משפיע על מחיקה/עדכון/התאמה).
+    const personalOnly = await shouldScopePersonal(scopeUser);
     const entries = await prisma.waitlistEntry.findMany({
-      where: { AND: [{ status: "ACTIVE" }, waitlistScope(scopeUser, userId)] },
+      where: {
+        AND: [{ status: "ACTIVE" }, waitlistScope(scopeUser, userId, { personalOnly })],
+      },
       orderBy: [{ priority: "desc" }, { createdAt: "asc" }],
       include: {
         client: { select: { id: true, name: true, phone: true } },

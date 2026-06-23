@@ -52,7 +52,11 @@ interface TherapistOption {
   name: string | null;
 }
 
-export function WaitlistView() {
+export function WaitlistView({
+  isOwnPersonalView = false,
+}: {
+  isOwnPersonalView?: boolean;
+}) {
   const [entries, setEntries] = useState<WaitlistEntry[]>([]);
   const [loading, setLoading] = useState(true);
   const [addOpen, setAddOpen] = useState(false);
@@ -112,7 +116,9 @@ export function WaitlistView() {
     }
   };
 
-  const multiTherapist = therapists.length > 1;
+  // בורר/תווית "מטפל מועדף" מוצגים רק בקליניקה רב-מטפלית *ולא* בתצוגת "שלי".
+  // ב"שלי" הרשימה מתנהגת כמו אצל מטפל/ת יחיד/ה — בלי בחירת מטפל (כמו ביומן).
+  const showTherapist = therapists.length > 1 && !isOwnPersonalView;
 
   return (
     <div className="space-y-6 animate-fade-in">
@@ -164,7 +170,7 @@ export function WaitlistView() {
                     <span dir="ltr">{entry.client.phone}</span>
                   </div>
                 )}
-                {multiTherapist && (
+                {showTherapist && (
                   <div className="flex items-center gap-1.5">
                     <UserPlus className="h-3.5 w-3.5" aria-hidden />
                     {therapistName(entry.preferredTherapistId)}
@@ -203,7 +209,7 @@ export function WaitlistView() {
         onOpenChange={setAddOpen}
         clients={clients}
         therapists={therapists}
-        multiTherapist={multiTherapist}
+        showTherapistPicker={showTherapist}
         onAdded={() => {
           setAddOpen(false);
           fetchEntries();
@@ -219,14 +225,14 @@ function AddWaitlistDialog({
   onOpenChange,
   clients,
   therapists,
-  multiTherapist,
+  showTherapistPicker,
   onAdded,
 }: {
   open: boolean;
   onOpenChange: (open: boolean) => void;
   clients: ClientOption[];
   therapists: TherapistOption[];
-  multiTherapist: boolean;
+  showTherapistPicker: boolean;
   onAdded: () => void;
 }) {
   const [clientId, setClientId] = useState("");
@@ -365,7 +371,7 @@ function AddWaitlistDialog({
           </div>
 
           {/* מטפל מועדף (רק בקליניקה רב-מטפלית) */}
-          {multiTherapist && therapists.length > 0 && (
+          {showTherapistPicker && therapists.length > 0 && (
             <div className="space-y-1">
               <Label htmlFor="wl-therapist">מטפל מועדף</Label>
               <Select
