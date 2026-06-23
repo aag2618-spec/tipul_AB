@@ -93,6 +93,21 @@ async function runAllTasks() {
     );
   }
 
+  // מטלות צוות: יצירת מטלות חוזרות + תזכורות איחור — 06:00-08:00 שעון ישראל
+  // (פעם ביום). לשניהם dedup פנימי (recurring: חלון 20h; reminders: overdueReminderAt).
+  if (israelHour >= 6 && israelHour <= 8) {
+    await callEndpoint(
+      `${baseUrl}/api/cron/recurring-tasks`,
+      headers,
+      "recurring-tasks"
+    );
+    await callEndpoint(
+      `${baseUrl}/api/cron/task-reminders`,
+      headers,
+      "task-reminders"
+    );
+  }
+
   logger.info("[Scheduler] Tick complete");
 }
 

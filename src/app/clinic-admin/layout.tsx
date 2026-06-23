@@ -28,6 +28,7 @@ import {
   Eye,
   CreditCard,
   DoorOpen,
+  ClipboardList,
 } from "lucide-react";
 
 interface ClinicContext {
@@ -49,6 +50,9 @@ interface ClinicContext {
     email: string;
     role: string;
     clinicRole: string | null;
+    // דגלי הרשאת מזכירה — מ-/api/clinic-admin/me, לסינון פריטי התפריט.
+    canTransferClient?: boolean;
+    canAssignTasks?: boolean;
   };
   isAdmin: boolean;
 }
@@ -67,6 +71,8 @@ type NavItem = {
   icon: typeof LayoutDashboard;
   exact?: boolean;
   secretaryWithTransfer?: boolean;
+  // נגיש למזכיר/ה עם canAssignTasks (מטלות צוות), במקביל ל-secretaryWithTransfer.
+  secretaryWithAssign?: boolean;
 };
 const navItems: NavItem[] = [
   // "מוקד היום" (שורש /clinic-admin) ו"מבט ניהולי" (/clinic-admin/overview) —
@@ -83,6 +89,9 @@ const navItems: NavItem[] = [
   // Phase 4 — תצוגה ייעודית: רשימת הלקוחות של כל מטפל. נמצא תחת
   // /members/by-therapist כדי לא לבלבל עם /members שמראה תפקידים.
   { href: "/clinic-admin/members/by-therapist", label: "מטופלים לפי מטפל", icon: UsersRound, secretaryWithTransfer: true },
+  // מטלות צוות — הקצאת מטלות לעובדים ומעקב ביצוע. נגיש לבעלים, ולמזכיר/ה עם
+  // canAssignTasks (secretaryWithAssign). השרת אוכף את ההרשאה ב-/api/clinic-admin/tasks.
+  { href: "/clinic-admin/tasks", label: "מטלות צוות", icon: ClipboardList, secretaryWithAssign: true },
   { href: "/clinic-admin/invitations", label: "הזמנות פעילות", icon: UserPlus },
   // ניהול חדרי טיפול (שלב 2) — בעלת קליניקה בלבד (תשתית/קונפיגורציה).
   { href: "/clinic-admin/rooms", label: "ניהול חדרים", icon: DoorOpen },
@@ -306,7 +315,12 @@ function ClinicAdminContent({ children }: { children: React.ReactNode }) {
                   ctx.user.role === "CLINIC_OWNER" ||
                   ctx.user.clinicRole === "OWNER";
                 if (isOwner) return true;
-                return Boolean(item.secretaryWithTransfer);
+                // מזכיר/ה — רק פריטים שההרשאה הספציפית שלה מתירה.
+                if (item.secretaryWithTransfer && ctx.user.canTransferClient)
+                  return true;
+                if (item.secretaryWithAssign && ctx.user.canAssignTasks)
+                  return true;
+                return false;
               })
               .map((item) => {
               const isActive = item.exact

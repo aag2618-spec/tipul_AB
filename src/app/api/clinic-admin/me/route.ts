@@ -55,11 +55,16 @@ export async function GET() {
     const isSecretary =
       user.clinicRole === "SECRETARY" || user.role === "CLINIC_SECRETARY";
     const perms = (user.secretaryPermissions as SecretaryPermissions | null) ?? null;
-    const isSecretaryWithTransferAccess = isSecretary && Boolean(perms?.canTransferClient);
+    const canTransferClient = isSecretary && Boolean(perms?.canTransferClient);
+    const canAssignTasks = isSecretary && Boolean(perms?.canAssignTasks);
+    // מזכיר/ה מקבל/ת גישה ללייאאוט אם יש לה לפחות אחת מהרשאות ה-clinic-admin
+    // (העברת מטופל או ניהול מטלות צוות). הסינון לפריטים הספציפיים נעשה ב-layout
+    // לפי הדגלים שמוחזרים למטה, והשרת אוכף per-route בנפרד (defense-in-depth).
+    const isSecretaryWithClinicAccess = canTransferClient || canAssignTasks;
 
-    if (!isClinicOwner && !isSecretaryWithTransferAccess) {
+    if (!isClinicOwner && !isSecretaryWithClinicAccess) {
       return NextResponse.json(
-        { message: "הפעולה זמינה לבעלי/ות קליניקה (או למזכיר/ה עם הרשאת העברה) בלבד" },
+        { message: "הפעולה זמינה לבעלי/ות קליניקה (או למזכיר/ה עם הרשאה מתאימה) בלבד" },
         { status: 403 }
       );
     }
@@ -84,6 +89,10 @@ export async function GET() {
             email: user.email,
             role: user.role,
             clinicRole: user.clinicRole,
+            // דגלי הרשאת מזכירה — לסינון פריטי התפריט ב-layout. לבעלים: false
+            // (רואה הכל ממילא דרך isOwner). undefined→false ב-JSON — ברירת מחדל בטוחה.
+            canTransferClient,
+            canAssignTasks,
           },
           isAdmin: false,
         })

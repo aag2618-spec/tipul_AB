@@ -254,7 +254,10 @@ model User {
   therapySessions        TherapySession[]
   documents              Document[]
   notifications          Notification[]
-  tasks                  Task[]
+  tasks                  Task[]                @relation("TaskOwner")
+  // מטלות צוות שהמשתמש/ת (מנהלת/מזכירה) הקצה/תה לעובדים אחרים.
+  tasksAssignedByMe      Task[]                @relation("TaskAssignedBy")
+  taskTemplatesCreated   TaskTemplate[]        @relation("TaskTemplateCreator")
   notificationSettings   NotificationSetting[]
   recurringPatterns      RecurringPattern[]
   intakeTemplates        IntakeTemplate[]
@@ -838,12 +841,35 @@ model Task {
   createdAt       DateTime   @default(now())
   updatedAt       DateTime   @updatedAt
 
+  // userId = העובד שמחזיק/מבצע את המטלה (במשימה אישית — היוצר עצמו; במטלת
+  // צוות — העובד שאליו הוקצתה). כך הווידג'ט הקיים (GET userId=self) מציג גם
+  // מטלות צוות בלי שינוי, ומשימות אישיות ישנות נשארות תקינות. relation נקרא
+  // "TaskOwner" כי יש כעת יותר מ-relation אחד בין Task ל-User.
   userId String
-  user   User   @relation(fields: [userId], references: [id], onDelete: Cascade)
+  user   User   @relation("TaskOwner", fields: [userId], references: [id], onDelete: Cascade)
+
+  // ==================== מטלות צוות (מנהלת/מזכירה → עובד) ====================
+  // assignedById = מי הקצה את המטלה. null = משימה אישית (נוצרה עצמית); ערך =
+  // מטלת צוות מהמנהלת/מזכירה (מבדיל גם את התג "מהמנהלת" בווידג'ט). SetNull —
+  // מחיקת המקצה לא מוחקת את המטלה (רק מאבדת את שם השולח).
+  assignedById   String?
+  assignedBy     User?         @relation("TaskAssignedBy", fields: [assignedById], references: [id], onDelete: SetNull)
+  // בידוד ארגוני — לסינון לוח המעקב של המנהלת. null = משימה אישית של מטפל
+  // עצמאי. Cascade עם הארגון (עקבי עם ChatConversation).
+  organizationId String?
+  organization   Organization? @relation(fields: [organizationId], references: [id], onDelete: Cascade)
+  completionNote String?       @db.Text  // "מה ביצעתי ואיך" (אופציונלי)
+  completedAt    DateTime?
+  seenAt         DateTime?     // אישור צפייה — מתי העובד פתח את המטלה לראשונה
+  batchId        String?       // מקבץ fan-out — "מטלה אחת" שנשלחה לכמה עובדים
+  templateId     String?       // אם נוצרה מתבנית/מטלה חוזרת (TaskTemplate.id)
+  overdueReminderAt DateTime?  // מתי נשלחה תזכורת איחור (dedup — פעם אחת בלבד)
 
   @@index([userId, status, type])
   @@index([userId, relatedEntityId, type, status])
   @@index([userId, dueDate])
+  @@index([organizationId, batchId])
+  @@index([organizationId, assignedById, status])
 }
 
 enum TaskType {
@@ -854,6 +880,7 @@ enum TaskType {
   REVIEW_TRANSCRIPTION
   FOLLOW_UP
   CUSTOM
+  STAFF_TASK // מטלה שהוקצתה ע"י מנהלת/מזכירה לעובד (assignedById != null)
 }
 
 enum TaskStatus {
@@ -869,6 +896,51 @@ enum Priority {
   MEDIUM
   HIGH
   URGENT
+}
+
+// ==================== תבניות מטלות צוות ====================
+// תבנית שהמנהלת/מזכירה שומרת פעם אחת ושולחת שוב ושוב (recurrence=NONE), או
+// מטלה חוזרת שה-cron מייצר ממנה מופעים אוטומטית (DAILY/WEEKLY/MONTHLY).
+// שייכת תמיד לארגון (Cascade). assigneeIds/assignMode קובעים מי מקבל בחזרה.
+model TaskTemplate {
+  id             String       @id @default(cuid())
+  organizationId String
+  organization   Organization @relation(fields: [organizationId], references: [id], onDelete: Cascade)
+  createdById    String
+  createdBy      User         @relation("TaskTemplateCreator", fields: [createdById], references: [id], onDelete: Cascade)
+  title          String
+  description    String?      @db.Text
+  priority       Priority     @default(MEDIUM)
+
+  // חזרתיות: NONE = תבנית לשליחה ידנית בלבד; אחרת cron יוצר מופעים.
+  recurrence         TaskRecurrence @default(NONE)
+  recurrenceWeekday  Int? // 0=ראשון .. 6=שבת, ל-WEEKLY
+  recurrenceMonthday Int? // 1-31, ל-MONTHLY
+  dueTimeMinutes     Int? // שעת יעד ביום (דקות מחצות), אופציונלי
+  active             Boolean        @default(true) // השהיית מטלה חוזרת בלי למחוק
+
+  // שיוך ברירת-מחדל בעת חזרה/שליחה — מי מקבל.
+  assignMode  TaskAssignMode @default(SPECIFIC)
+  assigneeIds Json? // מערך userId כש-assignMode=SPECIFIC
+
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+
+  @@index([organizationId, active, recurrence])
+}
+
+enum TaskRecurrence {
+  NONE
+  DAILY
+  WEEKLY
+  MONTHLY
+}
+
+enum TaskAssignMode {
+  SPECIFIC // לפי assigneeIds
+  ALL_THERAPISTS // כל המטפלים בקליניקה
+  ALL_SECRETARIES // כל המזכירות
+  ALL_STAFF // כל הצוות (מטפלים + מזכירות)
 }
 
 model NotificationSetting {
@@ -2593,6 +2665,10 @@ model Organization {
   clients         Client[]
   therapySessions TherapySession[]
   payments        Payment[]
+
+  // מטלות צוות + תבניות מטלות (cascade במחיקת הארגון)
+  tasks         Task[]
+  taskTemplates TaskTemplate[]
 
   // שלב 2 (חדרים): חדרי הטיפול של הקליניקה (cascade במחיקת הארגון)
   rooms ClinicRoom[]

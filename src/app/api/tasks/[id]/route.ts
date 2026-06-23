@@ -50,9 +50,10 @@ export async function PATCH(
     // H12: zod אוכף caps + enum על status/priority. כל השדות אופציונליים (PATCH).
     const parsed = await parseBody(request, updateTaskSchema);
     if ("error" in parsed) return parsed.error;
-    const { title, description, status, priority, dueDate, reminderAt } = parsed.data;
+    const { title, description, status, priority, dueDate, reminderAt, completionNote, markSeen } = parsed.data;
 
-    // Verify task belongs to user
+    // Verify task belongs to user — userId הוא הבעלים/assignee, כך שרק העובד
+    // שאליו הוקצתה המטלה יכול לסמן "בוצע" / לכתוב הערת ביצוע / לסמן "נצפה".
     const existingTask = await prisma.task.findFirst({
       where: { id, userId: userId },
     });
@@ -61,6 +62,7 @@ export async function PATCH(
       return NextResponse.json({ message: "משימה לא נמצאה" }, { status: 404 });
     }
 
+    const nowDate = new Date();
     const task = await prisma.task.update({
       where: { id },
       data: {
@@ -70,6 +72,15 @@ export async function PATCH(
         priority: priority !== undefined ? priority : existingTask.priority,
         dueDate: dueDate !== undefined ? (dueDate ? new Date(dueDate) : null) : existingTask.dueDate,
         reminderAt: reminderAt !== undefined ? (reminderAt ? new Date(reminderAt) : null) : existingTask.reminderAt,
+        // מטלות צוות: "מה ביצעתי ואיך" (אופציונלי), חותמת השלמה, ואישור צפייה.
+        completionNote: completionNote !== undefined ? completionNote : existingTask.completionNote,
+        completedAt:
+          status === "COMPLETED"
+            ? existingTask.completedAt ?? nowDate
+            : status !== undefined
+              ? null
+              : existingTask.completedAt,
+        seenAt: markSeen && !existingTask.seenAt ? nowDate : existingTask.seenAt,
       },
     });
 

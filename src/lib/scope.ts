@@ -58,6 +58,11 @@ export type SecretaryPermissions = {
   // ול-API POST /api/clinic-admin/transfer-client. ההעברה עצמה זהה לחלוטין
   // לזו של בעלת הקליניקה (כולל יצירת ClientTransferLog).
   canTransferClient?: boolean;
+  // מטלות צוות: יצירה והקצאה של מטלות לעובדים אחרים (מטפלים/מזכירות) וגישה
+  // ללוח המעקב ב-/clinic-admin/tasks. בלי ההרשאה — מזכירה יכולה ליצור מטלה
+  // לעצמה בלבד (כמו AddCustomTask), אך לא להקצות לאחרים. נבדק דרך
+  // secretaryCan(user, "canAssignTasks").
+  canAssignTasks?: boolean;
 };
 
 // ============================================================================
@@ -169,6 +174,18 @@ export function secretaryCan(
 ): boolean {
   if (!isSecretary(user)) return true;
   return Boolean(user.secretaryPermissions?.[permission]);
+}
+
+/**
+ * הרשאה לניהול מטלות צוות — יצירה/הקצאה לעובדים, לוח מעקב, ותבניות.
+ * בעלים, או מזכירה עם canAssignTasks. מטפל רגיל בקליניקה — לא (יוצר/ת מטלות
+ * לעצמו/ה בלבד דרך /api/tasks). מקור אמת יחיד ל-/api/clinic-admin/{tasks,staff,task-templates}.
+ */
+export function canManageStaffTasks(user: ScopeUser): boolean {
+  return (
+    isClinicOwner(user) ||
+    (isSecretary(user) && secretaryCan(user, "canAssignTasks"))
+  );
 }
 
 /**

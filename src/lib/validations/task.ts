@@ -60,5 +60,12 @@ export const updateTaskSchema = z.object({
   priority: ALLOWED_PRIORITIES.optional(),
   dueDate: z.string().max(64).optional().nullable(),
   reminderAt: z.string().max(64).optional().nullable(),
+  // מטלות צוות: הערת ביצוע אופציונלית ("מה ביצעתי ואיך") + סימון "נצפה".
+  completionNote: z
+    .string()
+    .max(MAX_DESCRIPTION, `הערה ארוכה מדי (מקסימום ${MAX_DESCRIPTION} תווים)`)
+    .optional()
+    .nullable(),
+  markSeen: z.boolean().optional(),
 });
 export type UpdateTaskInput = z.infer<typeof updateTaskSchema>;

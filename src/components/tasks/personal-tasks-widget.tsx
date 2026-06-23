@@ -46,6 +46,11 @@ interface Task {
   reminderAt: string | null;
   createdAt: string;
   updatedAt?: string;
+  // מטלות צוות (STAFF_TASK): מי הקצה, אישור צפייה, והערת ביצוע.
+  assignedById?: string | null;
+  assignedBy?: { id: string; name: string | null } | null;
+  seenAt?: string | null;
+  completionNote?: string | null;
 }
 
 interface Reminder {
@@ -84,13 +89,17 @@ export function PersonalTasksWidget() {
   const [readReminders, setReadReminders] = useState<Set<string>>(new Set());
   const processedNotificationRef = useRef<string | null>(null);
   const { celebration, trigger: triggerCelebration, dismiss: dismissCelebration } = useCompletionCelebration();
+  // מטלת צוות בתהליך סימון "בוצע" — פותח דיאלוג עם הערת ביצוע אופציונלית.
+  const [completingTask, setCompletingTask] = useState<Task | null>(null);
+  const [completionNote, setCompletionNote] = useState("");
 
   const fetchTasks = useCallback(async () => {
     try {
       const response = await fetch("/api/tasks?status=PENDING");
       if (response.ok) {
         const data = await response.json();
-        setTasks(data.filter((t: Task) => t.type === "CUSTOM"));
+        // CUSTOM = משימה אישית; STAFF_TASK = מטלה שהוקצתה ע"י המנהלת/מזכירה.
+        setTasks(data.filter((t: Task) => t.type === "CUSTOM" || t.type === "STAFF_TASK"));
       }
     } catch (error) {
       console.error("Failed to fetch tasks:", error);
@@ -331,9 +340,13 @@ export function PersonalTasksWidget() {
     return () => clearInterval(interval);
   }, [tasks, isShabbatMode]);
 
-  const handleComplete = async (taskId: string) => {
+  const handleComplete = async (taskId: string, note?: string) => {
     try {
-      const res = await fetch(`/api/tasks/${taskId}`, { method: "PATCH", headers: { "Content-Type": "application/json" }, body: JSON.stringify({ status: "COMPLETED" }) });
+      const res = await fetch(`/api/tasks/${taskId}`, {
+        method: "PATCH",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ status: "COMPLETED", ...(note ? { completionNote: note } : {}) }),
+      });
       if (res.ok) {
         setTasks(prev => prev.filter(t => t.id !== taskId));
         triggerCelebration();
@@ -368,6 +381,15 @@ export function PersonalTasksWidget() {
     setSelectedTask(task);
     setEditForm({ title: task.title, description: task.description || "" });
     setIsEditing(false);
+    // מטלת צוות שטרם נצפתה — רישום אישור צפייה (לא חוסם UI; עדכון אופטימי מקומי).
+    if (task.type === "STAFF_TASK" && !task.seenAt) {
+      fetch(`/api/tasks/${task.id}`, {
+        method: "PATCH",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ markSeen: true }),
+      }).catch(() => {});
+      setTasks(prev => prev.map(t => t.id === task.id ? { ...t, seenAt: new Date().toISOString() } : t));
+    }
   };
 
   if (isLoading) {
@@ -548,13 +570,29 @@ export function PersonalTasksWidget() {
                   >
                     <button
                       type="button"
-                      onClick={(e) => { e.stopPropagation(); handleComplete(task.id); }}
+                      onClick={(e) => {
+                        e.stopPropagation();
+                        // מטלת צוות → דיאלוג עם הערת ביצוע אופציונלית; אישית → סימון מיידי.
+                        if (task.type === "STAFF_TASK") {
+                          setCompletingTask(task);
+                          setCompletionNote("");
+                        } else {
+                          handleComplete(task.id);
+                        }
+                      }}
                       className="shrink-0 h-8 w-8 rounded-full bg-emerald-500 hover:bg-emerald-600 hover:scale-110 flex items-center justify-center shadow-md transition-all"
                       title="סמן כהושלם"
                     >
                       <CheckCircle2 className="h-5 w-5 text-white" />
                     </button>
-                    <span className="text-sm flex-1 truncate">{task.title}</span>
+                    <span className="text-sm flex-1 truncate">
+                      {task.title}
+                      {task.type === "STAFF_TASK" && (
+                        <span className="ms-1.5 inline-flex items-center rounded-full bg-primary/10 px-1.5 py-0.5 text-[10px] font-medium text-primary align-middle">
+                          מהקליניקה
+                        </span>
+                      )}
+                    </span>
                     {task.reminderAt && <Bell className="h-3 w-3 text-amber-500 shrink-0" />}
                     {task.dueDate && (
                       <span className="text-[11px] text-muted-foreground shrink-0">
@@ -600,6 +638,13 @@ export function PersonalTasksWidget() {
                 <div>
                   <Label className="text-xs text-muted-foreground">תיאור</Label>
                   <p className="text-sm mt-1 whitespace-pre-wrap bg-muted/30 p-3 rounded-lg">{selectedTask.description}</p>
+                </div>
+              )}
+
+              {selectedTask.type === "STAFF_TASK" && (
+                <div>
+                  <Label className="text-xs text-muted-foreground">נשלח ע״י</Label>
+                  <p className="text-sm mt-1">{selectedTask.assignedBy?.name || "הקליניקה"}</p>
                 </div>
               )}
 
@@ -675,8 +720,15 @@ export function PersonalTasksWidget() {
                   size="sm"
                   className="gap-1 bg-emerald-600 hover:bg-emerald-700"
                   onClick={() => {
-                    handleComplete(selectedTask.id);
-                    setSelectedTask(null);
+                    // מטלת צוות → דיאלוג הערת ביצוע; אישית → סימון מיידי.
+                    if (selectedTask.type === "STAFF_TASK") {
+                      setCompletingTask(selectedTask);
+                      setCompletionNote("");
+                      setSelectedTask(null);
+                    } else {
+                      handleComplete(selectedTask.id);
+                      setSelectedTask(null);
+                    }
                   }}
                 >
                   <CheckCircle2 className="h-3.5 w-3.5" />
@@ -748,6 +800,47 @@ export function PersonalTasksWidget() {
             >
               <CheckCircle2 className="h-3.5 w-3.5" />
               הסר מהרשימה
+            </Button>
+          </DialogFooter>
+        </DialogContent>
+      </Dialog>
+
+      {/* דיאלוג השלמת מטלת צוות — הערת "מה ביצעתי ואיך" אופציונלית */}
+      <Dialog open={!!completingTask} onOpenChange={(o) => { if (!o) setCompletingTask(null); }}>
+        <DialogContent className="sm:max-w-md" dir="rtl">
+          <DialogHeader>
+            <DialogTitle className="flex items-center gap-2">
+              <CheckCircle2 className="h-5 w-5 text-emerald-600" />
+              סימון מטלה כבוצעה
+            </DialogTitle>
+          </DialogHeader>
+          <div className="space-y-3 py-2">
+            <p className="text-sm font-medium">{completingTask?.title}</p>
+            <div className="space-y-2">
+              <Label className="text-sm">מה ביצעת ואיך? (אופציונלי)</Label>
+              <Textarea
+                value={completionNote}
+                onChange={(e) => setCompletionNote(e.target.value)}
+                rows={3}
+                className="resize-none"
+                placeholder="אפשר להוסיף פירוט קצר על מה שעשית..."
+              />
+            </div>
+          </div>
+          <DialogFooter className="gap-2 sm:gap-0">
+            <Button variant="outline" size="sm" onClick={() => setCompletingTask(null)}>
+              ביטול
+            </Button>
+            <Button
+              size="sm"
+              className="gap-1 bg-emerald-600 hover:bg-emerald-700"
+              onClick={() => {
+                if (completingTask) handleComplete(completingTask.id, completionNote.trim() || undefined);
+                setCompletingTask(null);
+              }}
+            >
+              <CheckCircle2 className="h-3.5 w-3.5" />
+              סמן כבוצע
             </Button>
           </DialogFooter>
         </DialogContent>

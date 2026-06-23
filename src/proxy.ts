@@ -133,6 +133,12 @@ const SECRETARY_CLINIC_ADMIN_PATHS = [
   "/api/clinic-admin/clients",
   "/api/clinic-admin/clients-by-therapist",
   "/api/clinic-admin/transfer-client",
+  // מטלות צוות — נגיש למזכיר/ה עם canAssignTasks. ה-handlers אוכפים
+  // canManageStaffTasks per-request (מזכירה בלי ההרשאה מקבלת 403 מה-handler).
+  // בלי הנתיבים כאן, מזכירה מורשית היתה נחסמת ע"י ה-proxy והפיצ'ר לא היה זמין לה.
+  "/clinic-admin/tasks",
+  "/api/clinic-admin/tasks",
+  "/api/clinic-admin/staff",
 ];
 
 function isSecretaryAllowedClinicAdminPath(pathname: string): boolean {

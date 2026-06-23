@@ -67,6 +67,8 @@ export async function GET(request: NextRequest) {
         { priority: "desc" },
         { createdAt: "desc" },
       ],
+      // assignedBy — שם המקצה, להצגת תג "מהמנהלת" בווידג'ט (מטלות STAFF_TASK).
+      include: { assignedBy: { select: { id: true, name: true } } },
     });
 
     return NextResponse.json(tasks);
