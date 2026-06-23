@@ -12,6 +12,7 @@ import { format, addWeeks } from "date-fns";
 import { toast } from "sonner";
 import type { CalendarClient, CalendarSession } from "@/hooks/use-calendar-data";
 import { useMyPermissions } from "@/hooks/use-my-permissions";
+import { SendIntakeLinkButton } from "@/components/clients/send-intake-link-button";
 
 // Phase 3: רשימת מטפלי הקליניקה ל-picker בפגישת ייעוץ (מטופל מהיר).
 // אנלוג לטיפוס ב-/dashboard/clients/new. ה-endpoint /api/clinic/therapists
@@ -196,6 +197,8 @@ export function NewSessionDialog({
 
   // פגישת ייעוץ — state
   const [isQuickClientMode, setIsQuickClientMode] = useState(false);
+  // פגישת ייעוץ (פונה חדש): אחרי הקביעה פותחים דיאלוג שליחת שאלון פנייה.
+  const [intakeClientId, setIntakeClientId] = useState<string | null>(null);
   const [quickClientName, setQuickClientName] = useState("");
   const [quickClientPhone, setQuickClientPhone] = useState("");
   const [quickClientEmail, setQuickClientEmail] = useState("");
@@ -759,6 +762,10 @@ export function NewSessionDialog({
       setConflictPrompt(null);
       onOpenChange(false);
       onSessionCreated();
+      // פגישת ייעוץ (פונה מהיר/חדש): מציעים לשלוח שאלון פנייה אחרי הקביעה.
+      if (isQuickClientMode && payload.clientId) {
+        setIntakeClientId(payload.clientId);
+      }
     } catch (err) {
       toast.error(err instanceof Error ? err.message : "שגיאה ביצירת הפגישה");
     } finally {
@@ -1321,6 +1328,16 @@ export function NewSessionDialog({
         </form>
       </DialogContent>
     </Dialog>
+
+      {/* פגישת ייעוץ (פונה חדש): אחרי הקביעה — דיאלוג שליחת שאלון פנייה */}
+      <SendIntakeLinkButton
+        clientId={intakeClientId ?? ""}
+        open={intakeClientId !== null}
+        onOpenChange={(o) => {
+          if (!o) setIntakeClientId(null);
+        }}
+        showTrigger={false}
+      />
 
       {/* דיאלוג התנגשות — פגישה בודדת */}
       <Dialog

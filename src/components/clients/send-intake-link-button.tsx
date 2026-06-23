@@ -1,6 +1,6 @@
 "use client";
 
-import { useState } from "react";
+import { useState, useEffect } from "react";
 import Link from "next/link";
 import { Button } from "@/components/ui/button";
 import {
@@ -30,8 +30,26 @@ interface Template {
 
 type Channel = "link" | "sms" | "email" | "both";
 
-export function SendIntakeLinkButton({ clientId }: { clientId: string }) {
-  const [open, setOpen] = useState(false);
+export function SendIntakeLinkButton({
+  clientId,
+  open: controlledOpen,
+  onOpenChange: onControlledOpenChange,
+  showTrigger = true,
+}: {
+  clientId: string;
+  open?: boolean;
+  onOpenChange?: (open: boolean) => void;
+  showTrigger?: boolean;
+}) {
+  // תמיכה גם במצב uncontrolled (כפתור עצמאי) וגם controlled (נפתח חיצונית,
+  // למשל אחרי קביעת פגישת ייעוץ ביומן).
+  const [internalOpen, setInternalOpen] = useState(false);
+  const isControlled = controlledOpen !== undefined;
+  const open = isControlled ? controlledOpen : internalOpen;
+  const setOpen = (next: boolean) => {
+    if (isControlled) onControlledOpenChange?.(next);
+    else setInternalOpen(next);
+  };
   const [templates, setTemplates] = useState<Template[]>([]);
   const [loadingTemplates, setLoadingTemplates] = useState(false);
   const [templateId, setTemplateId] = useState("");
@@ -58,13 +76,14 @@ export function SendIntakeLinkButton({ clientId }: { clientId: string }) {
     }
   };
 
-  const handleOpenChange = (next: boolean) => {
-    setOpen(next);
-    if (next) {
+  // טעינת השאלונים + איפוס בכל פתיחה (גם כשנפתח חיצונית במצב controlled).
+  useEffect(() => {
+    if (open) {
       setCreatedUrl("");
       if (templates.length === 0) loadTemplates();
     }
-  };
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [open]);
 
   const handleSend = async () => {
     if (!templateId) {
@@ -116,13 +135,15 @@ export function SendIntakeLinkButton({ clientId }: { clientId: string }) {
   };
 
   return (
-    <Dialog open={open} onOpenChange={handleOpenChange}>
-      <DialogTrigger asChild>
-        <Button variant="outline" size="sm">
-          <Send className="ml-2 h-4 w-4" />
-          שלח קישור למילוי
-        </Button>
-      </DialogTrigger>
+    <Dialog open={open} onOpenChange={setOpen}>
+      {showTrigger && (
+        <DialogTrigger asChild>
+          <Button variant="outline" size="sm">
+            <Send className="ml-2 h-4 w-4" />
+            שלח קישור למילוי
+          </Button>
+        </DialogTrigger>
+      )}
       <DialogContent dir="rtl">
         <DialogHeader>
           <DialogTitle>שליחת שאלון פנייה למילוי</DialogTitle>
