@@ -1,6 +1,7 @@
 'use client';
 
 import { useState, useEffect, useMemo } from 'react';
+import { useSession } from 'next-auth/react';
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/components/ui/card';
 import { Button } from '@/components/ui/button';
 import { Badge } from '@/components/ui/badge';
@@ -10,20 +11,16 @@ import {
   CreditCard,
   CheckCircle,
   AlertCircle,
-  Calendar,
   Download,
   Loader2,
   RefreshCw,
-  Crown,
-  Zap,
-  Building,
   XCircle,
   ArrowUpCircle,
-  ArrowDownCircle,
   Info,
   Shield,
-  FileText,
   Megaphone,
+  Building2,
+  Calendar,
 } from 'lucide-react';
 import {
   AlertDialog,
@@ -35,66 +32,41 @@ import {
   AlertDialogHeader,
   AlertDialogTitle,
 } from '@/components/ui/alert-dialog';
+import { SmsPackagesCard } from '@/components/billing/sms-packages-card';
+import { ClinicUpgradeCard } from '@/components/billing/clinic-upgrade-card';
 
 // ========================================
-// הגדרות תמחור — meta-data של תוכניות
-// המחירים עצמם מגיעים דינמית מ-/api/subscription/tiers (מותאם אישית לפי PricingPolicy/TierLimits).
+// תוכנית אחת — MyTipul
+// פיצ'ר ה-AI הוסר; אין עוד מסלולי Essential/Pro/Enterprise בתצוגה.
+// המחיר עצמו מגיע דינמית מ-/api/subscription/status (נשלט מהניהול:
+// admin/tier-settings + PricingPolicy). השם המוצג אחיד לכולם — MyTipul.
 // ========================================
 
-const PLAN_META = {
-  ESSENTIAL: {
-    name: 'Essential',
-    icon: Zap,
-    color: 'bg-slate-100 text-slate-800',
-    features: ['ניהול מטופלים', 'יומן פגישות', 'תשלומים וקבלות', 'תזכורות אוטומטיות'],
-    popular: false,
-  },
-  PRO: {
-    name: 'Pro',
-    icon: Crown,
-    color: 'bg-sky-100 text-sky-800',
-    features: ['הכל ב-Essential', 'AI עוזר חכם', 'סיכומי פגישות', 'המלצות טיפוליות'],
-    popular: true,
-  },
-  ENTERPRISE: {
-    name: 'Enterprise',
-    icon: Building,
-    color: 'bg-purple-100 text-purple-800',
-    features: ['הכל ב-Pro', 'AI מתקדם', 'אחסון ללא הגבלה', 'תמיכה עדיפותית'],
-    popular: false,
-  },
-} as const;
+const PLAN_DISPLAY_NAME = 'MyTipul';
 
-type PlanKey = keyof typeof PLAN_META;
-
-interface TierPricing {
-  tier: PlanKey;
-  name: string;
-  priceMonthly: number;
-  pricing: { 1: number; 3: number; 6: number; 12: number };
-  originalPricing: { 1: number; 3: number; 6: number; 12: number } | null;
-}
-
-type PlanData = (typeof PLAN_META)[PlanKey] & {
-  pricing: { 1: number; 3: number; 6: number; 12: number };
-  originalPricing: { 1: number; 3: number; 6: number; 12: number } | null;
-};
-
-type BillingMonths = 1 | 3 | 6 | 12;
-
-const PERIOD_OPTIONS: { months: BillingMonths; label: string }[] = [
-  { months: 1,  label: 'חודשי' },
-  { months: 3,  label: '3 חודשים' },
-  { months: 6,  label: 'חצי שנה' },
-  { months: 12, label: 'שנתי' },
+// היכולות האמיתיות של התוכנית (ללא AI) — מוצגות תחת "מה כלול בתוכנית".
+const MYTIPUL_FEATURES = [
+  'ניהול מטופלים ותיק מלא',
+  'יומן ופגישות',
+  'רשימת המתנה',
+  'תשלומים, קבלות וחשבוניות',
+  'התחייבויות לקופות חולים',
+  'תזכורות אוטומטיות (SMS ומייל)',
+  'זימון עצמי למטופלים',
+  'הכנה לפגישה וסיכומים',
+  'שאלונים וטפסי הסכמה דיגיטליים',
+  'מסמכים ודפי עבודה טיפוליים',
+  'דוחות והכנסות אישיים',
+  'שמירת מידע רפואי מאובטחת',
 ];
 
 // ========================================
-// חישוב מחיר הוגן לביטול מוקדם
+// חישוב מחיר הוגן לביטול מוקדם (נשמר עבור מנויים רב-חודשיים קיימים).
 // ========================================
-// הלוגיקה: אם מנוי שנתי מבטל אחרי 5 חודשים,
-// הוא משלם לפי המחיר הטוב ביותר שמתאים לשימוש שלו.
-// (3 חודשים בחבילת 3 + 2 חודשים במחיר חודשי)
+type PlanData = {
+  pricing: { 1: number; 3: number; 6: number; 12: number };
+  originalPricing: { 1: number; 3: number; 6: number; 12: number } | null;
+};
 
 function calculateFairPrice(
   plans: Record<string, PlanData>,
@@ -126,6 +98,12 @@ function calculateCancellationAdjustment(
 
 // ========================================
 
+interface TierPricing {
+  tier: 'ESSENTIAL' | 'PRO' | 'ENTERPRISE';
+  pricing: { 1: number; 3: number; 6: number; 12: number };
+  originalPricing: { 1: number; 3: number; 6: number; 12: number } | null;
+}
+
 interface SubscriptionStatus {
   plan: 'ESSENTIAL' | 'PRO' | 'ENTERPRISE';
   status: 'ACTIVE' | 'TRIALING' | 'PAST_DUE' | 'CANCELLED' | 'PAUSED';
@@ -151,20 +129,16 @@ interface SubscriptionStatus {
 }
 
 export default function BillingPage() {
+  const { data: session } = useSession();
   const [subscription, setSubscription] = useState<SubscriptionStatus | null>(null);
   const [tiers, setTiers] = useState<TierPricing[] | null>(null);
-  const [tiersError, setTiersError] = useState(false);
   const [subscriptionError, setSubscriptionError] = useState(false);
-  const [retryingTiers, setRetryingTiers] = useState(false);
   const [loading, setLoading] = useState(true);
-  const [upgrading, setUpgrading] = useState(false);
-  const [selectedPlan, setSelectedPlan] = useState<string | null>(null);
-  const [billingMonths, setBillingMonths] = useState<BillingMonths>(1);
   const [showCancelDialog, setShowCancelDialog] = useState(false);
   const [cancelling, setCancelling] = useState(false);
+  const [showSubscribeDialog, setShowSubscribeDialog] = useState(false);
+  const [subscribing, setSubscribing] = useState(false);
   const [termsAccepted, setTermsAccepted] = useState(false);
-  const [showTermsDetail, setShowTermsDetail] = useState(false);
-  const [showUpgradeDialog, setShowUpgradeDialog] = useState<string | null>(null);
   const [activePromotion, setActivePromotion] = useState<{
     title: string;
     description: string | null;
@@ -194,24 +168,15 @@ export default function BillingPage() {
     }
   };
 
+  // נטען עבור חישוב התאמת הביטול של מנויים רב-חודשיים קיימים. בלי תצוגת מסלולים.
   const fetchTiers = async () => {
-    setTiersError(false);
-    setRetryingTiers(true);
     try {
       const res = await fetch('/api/subscription/tiers');
-      if (!res.ok) {
-        setTiersError(true);
-        toast.error('שגיאה בטעינת מחירי מסלולים');
-        return;
-      }
+      if (!res.ok) return;
       const data = await res.json();
       setTiers(data.tiers);
     } catch (error) {
       console.error('Error fetching tiers:', error);
-      setTiersError(true);
-      toast.error('שגיאה בטעינת מחירי מסלולים');
-    } finally {
-      setRetryingTiers(false);
     }
   };
 
@@ -229,37 +194,24 @@ export default function BillingPage() {
     }
   };
 
-  // מאחד את ה-meta של כל מסלול עם המחיר המותאם אישית מ-DB.
-  // מוצג במקום PLANS hardcoded — כל שינוי ב-/admin/tier-settings או PricingPolicy יופיע מיד.
+  // מחירים מותאמים אישית לפי מסלול (מ-DB) — לחישוב התאמת הביטול בלבד.
   const PLANS = useMemo<Record<string, PlanData>>(() => {
     if (!tiers) return {};
     const map: Record<string, PlanData> = {};
     for (const t of tiers) {
-      map[t.tier] = {
-        ...PLAN_META[t.tier],
-        pricing: t.pricing,
-        originalPricing: t.originalPricing ?? null,
-      };
+      map[t.tier] = { pricing: t.pricing, originalPricing: t.originalPricing ?? null };
     }
     return map;
   }, [tiers]);
 
-  const isMaxTier = useMemo(() => {
-    if (!subscription || !PLANS[subscription.plan]) return false;
-    const currentPrice = PLANS[subscription.plan].pricing[1];
-    return Object.values(PLANS).every(p => p.pricing[1] <= currentPrice);
-  }, [subscription, PLANS]);
-
-  const handleUpgrade = async (plan: string) => {
-    if (upgrading) return;
-    setUpgrading(true);
-    setSelectedPlan(plan);
-    
+  const handleSubscribe = async () => {
+    if (subscribing || !subscription) return;
+    setSubscribing(true);
     try {
       const res = await fetch('/api/subscription/create', {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ plan, billingMonths, termsAccepted: true }),
+        body: JSON.stringify({ plan: subscription.plan, billingMonths: 1, termsAccepted: true }),
       });
 
       if (res.ok) {
@@ -273,8 +225,7 @@ export default function BillingPage() {
       console.error('Error creating subscription:', error);
       toast.error('שגיאה ביצירת מנוי');
     } finally {
-      setUpgrading(false);
-      setSelectedPlan(null);
+      setSubscribing(false);
     }
   };
 
@@ -298,32 +249,7 @@ export default function BillingPage() {
     }
   };
 
-  // חישובים
-  const getTotalPrice = (planKey: string) => {
-    const plan = PLANS[planKey];
-    return plan ? plan.pricing[billingMonths] : 0;
-  };
-
-  const getMonthlyPrice = (planKey: string) => {
-    return Math.round(getTotalPrice(planKey) / billingMonths);
-  };
-
-  const getDiscount = (planKey: string) => {
-    const plan = PLANS[planKey];
-    if (!plan || billingMonths === 1) return 0;
-    const fullPrice = plan.pricing[1] * billingMonths;
-    const actualPrice = plan.pricing[billingMonths];
-    if (fullPrice === 0) return 0;
-    return Math.round(((fullPrice - actualPrice) / fullPrice) * 100);
-  };
-
-  const getSaving = (planKey: string) => {
-    const plan = PLANS[planKey];
-    if (!plan || billingMonths === 1) return 0;
-    return plan.pricing[1] * billingMonths - plan.pricing[billingMonths];
-  };
-
-  // חישוב עלות ביטול מוקדם
+  // חישוב עלות ביטול מוקדם — רלוונטי רק למנוי רב-חודשי קיים עם הנחה.
   const cancellationInfo = useMemo(() => {
     if (!subscription?.subscriptionStartedAt || !subscription?.subscriptionEndsAt) return null;
     if (!tiers) return null;
@@ -335,10 +261,8 @@ export default function BillingPage() {
     const totalMonths = Math.round((end.getTime() - start.getTime()) / (30 * 24 * 60 * 60 * 1000));
     const monthsUsed = Math.max(1, Math.ceil((now.getTime() - start.getTime()) / (30 * 24 * 60 * 60 * 1000)));
 
-    // רק רלוונטי למנוי עם הנחה (תקופה > 1 חודש)
     if (totalMonths <= 1) return null;
 
-    // חישוב הסכום ששולם
     const lastPayment = subscription.recentPayments[0];
     const totalPaid = lastPayment ? Number(lastPayment.amount) : 0;
 
@@ -386,6 +310,13 @@ export default function BillingPage() {
     return new Date(date).toLocaleDateString('he-IL');
   };
 
+  // האם להציג את בלוק השדרוג לקליניקה — רק למטפל/ת עצמאי/ת (לא חבר/ת קליניקה).
+  const isClinicMember =
+    !!session?.user?.clinicRole ||
+    session?.user?.role === 'CLINIC_OWNER' ||
+    session?.user?.role === 'CLINIC_SECRETARY';
+  const showClinicUpsell = !subscription?.billingPaidByClinic && !isClinicMember;
+
   if (loading) {
     return (
       <div className="flex items-center justify-center py-12">
@@ -396,28 +327,10 @@ export default function BillingPage() {
 
   return (
     <div className="space-y-6 animate-fade-in max-w-5xl mx-auto">
-      {/* ========================================
-          כותרת הדף
-          ======================================== */}
+      {/* כותרת הדף */}
       <div>
         <h1 className="text-2xl font-bold tracking-tight">ניהול מנוי וחיוב</h1>
-        <p className="text-muted-foreground">צפייה, שדרוג, שינוי ותנאי המנוי שלך - הכל במקום אחד</p>
-        <div className="flex flex-wrap gap-x-4 gap-y-1 mt-2">
-          <a
-            href="/dashboard/settings/subscription"
-            className="inline-flex items-center gap-1 text-sm text-primary hover:underline"
-          >
-            <CreditCard className="h-3 w-3" />
-            ניהול תשלום שוטף, כרטיס שמור והיסטוריית חיובים
-          </a>
-          <a
-            href="/dashboard/settings/packages"
-            className="inline-flex items-center gap-1 text-sm text-primary hover:underline"
-          >
-            <FileText className="h-3 w-3" />
-            רכישת חבילות SMS / AI נוספות
-          </a>
-        </div>
+        <p className="text-muted-foreground">התוכנית שלך, יתרת ה-SMS והחיובים — הכל במקום אחד</p>
       </div>
 
       {/* באנר מבצע פעיל */}
@@ -449,7 +362,7 @@ export default function BillingPage() {
         </Card>
       )}
 
-      {/* טיפול בכשלון טעינת פרטי מנוי — באנר מתמיד שלא נעלם כמו toast */}
+      {/* כשלון טעינת פרטי מנוי */}
       {subscriptionError && (
         <Card className="border-amber-300 bg-amber-50 dark:bg-amber-950/20">
           <CardContent className="pt-6">
@@ -477,14 +390,13 @@ export default function BillingPage() {
         </Card>
       )}
 
-      {/* MyTipul-B: באנר "המנוי משולם ע״י הקליניקה" — מוצג למשתמש PAUSED שזה PAID_BY_CLINIC.
-          אינדיקציה ברורה למה לא ניתן לקנות מנוי ולמה לא יורד חיוב. */}
+      {/* באנר "המנוי משולם ע״י הקליניקה" */}
       {subscription?.billingPaidByClinic &&
         subscription?.subscriptionPausedReason === 'PAID_BY_CLINIC' && (
           <Card className="border-blue-500/40 bg-blue-500/5">
             <CardHeader>
               <CardTitle className="flex items-center gap-2 text-blue-700 dark:text-blue-400">
-                <Building className="h-5 w-5" />
+                <Building2 className="h-5 w-5" />
                 המנוי שלך משולם ע״י הקליניקה
               </CardTitle>
               <CardDescription>
@@ -500,23 +412,22 @@ export default function BillingPage() {
         )}
 
       {/* ========================================
-          סעיף 1: המנוי הנוכחי שלי
+          התוכנית שלי
           ======================================== */}
       {subscription && (
         <Card>
           <CardHeader>
             <div className="flex items-center justify-between flex-wrap gap-4">
               <div>
-                <CardTitle className="flex items-center gap-2">
-                  המנוי הנוכחי שלי
+                <CardTitle className="flex items-center gap-2 flex-wrap">
+                  התוכנית שלי
+                  <Badge variant="secondary" className="font-semibold tracking-wide">{PLAN_DISPLAY_NAME}</Badge>
                   {getStatusBadge(subscription.status)}
                 </CardTitle>
-                <CardDescription>
-                  מסלול {PLANS[subscription.plan]?.name ?? PLAN_META[subscription.plan]?.name ?? subscription.plan}
-                </CardDescription>
+                <CardDescription>כל היכולות של {PLAN_DISPLAY_NAME} במסלול אחד</CardDescription>
               </div>
               <div className="text-left">
-                <div className="text-2xl font-bold">₪{subscription.monthlyPrice}</div>
+                <div className="text-2xl font-bold">₪{Math.round(subscription.monthlyPrice)}</div>
                 <div className="text-sm text-muted-foreground">לחודש</div>
               </div>
             </div>
@@ -539,20 +450,18 @@ export default function BillingPage() {
               )}
             </div>
 
-            {/* פירוט מה כלול במסלול הנוכחי — כדי שהמשתמש יראה בדיוק מה הוא מקבל */}
-            {(PLANS[subscription.plan]?.features ?? PLAN_META[subscription.plan]?.features)?.length ? (
-              <div className="mt-4 pt-4 border-t">
-                <div className="text-sm font-medium text-muted-foreground mb-2">מה כלול במסלול שלך</div>
-                <ul className="space-y-2 text-sm">
-                  {(PLANS[subscription.plan]?.features ?? PLAN_META[subscription.plan]?.features ?? []).map((feature, idx) => (
-                    <li key={idx} className="flex items-center gap-2">
-                      <CheckCircle className="h-4 w-4 text-green-600 shrink-0" />
-                      {feature}
-                    </li>
-                  ))}
-                </ul>
-              </div>
-            ) : null}
+            {/* מה כלול בתוכנית */}
+            <div className="mt-4 pt-4 border-t">
+              <div className="text-sm font-medium text-muted-foreground mb-2">מה כלול בתוכנית</div>
+              <ul className="grid sm:grid-cols-2 gap-x-6 gap-y-2 text-sm">
+                {MYTIPUL_FEATURES.map((feature, idx) => (
+                  <li key={idx} className="flex items-center gap-2">
+                    <CheckCircle className="h-4 w-4 text-green-600 shrink-0" />
+                    {feature}
+                  </li>
+                ))}
+              </ul>
+            </div>
 
             {subscription.status === 'PAST_DUE' && (
               <div className="mt-4 p-4 bg-red-50 border border-red-200 rounded-lg">
@@ -573,7 +482,7 @@ export default function BillingPage() {
                   <div>
                     <p className="font-medium text-amber-800">המנוי בוטל</p>
                     <p className="text-sm text-amber-700">
-                      עדיין יש לך גישה מלאה עד {formatDate(subscription.subscriptionEndsAt)}. 
+                      עדיין יש לך גישה מלאה עד {formatDate(subscription.subscriptionEndsAt)}.
                       תוכל לחדש בכל עת.
                     </p>
                   </div>
@@ -586,12 +495,28 @@ export default function BillingPage() {
                 <div className="flex gap-2 items-start">
                   <Info className="h-5 w-5 text-sky-600 mt-0.5" />
                   <div>
-                    <p className="font-medium text-sky-800">
-                      שינוי מסלול מתוכנן
-                    </p>
+                    <p className="font-medium text-sky-800">שינוי מתוכנן במנוי</p>
                     <p className="text-sm text-sky-700">
-                      המסלול שלך ישתנה ל-{PLAN_META[subscription.pendingTier]?.name ?? subscription.pendingTier} בתאריך {formatDate(subscription.pendingTierEffectiveAt)}.
-                      החיוב הבא יתעדכן אוטומטית למחיר המסלול החדש.
+                      עדכון למנוי שלך ייכנס לתוקף בתאריך {formatDate(subscription.pendingTierEffectiveAt)}.
+                      החיוב הבא יתעדכן אוטומטית.
+                    </p>
+                  </div>
+                </div>
+              </div>
+            )}
+
+            {/* רשת ביטחון: מנוי "מושהה" שאינו "הקליניקה משלמת" (יש לו באנר נפרד למעלה)
+                — שלא יישאר משתמש בלי הסבר ובלי דרך פעולה. */}
+            {subscription.status === 'PAUSED' &&
+              subscription.subscriptionPausedReason !== 'PAID_BY_CLINIC' && (
+              <div className="mt-4 p-4 bg-amber-50 border border-amber-200 rounded-lg">
+                <div className="flex gap-2 items-start">
+                  <Info className="h-5 w-5 text-amber-600 mt-0.5" />
+                  <div>
+                    <p className="font-medium text-amber-800">המנוי מושהה</p>
+                    <p className="text-sm text-amber-700">
+                      לפרטים או לחידוש המנוי, פנה/י לתמיכה ב-{' '}
+                      <a href="mailto:support@mytipul.com" className="underline font-medium">support@mytipul.com</a>
                     </p>
                   </div>
                 </div>
@@ -600,30 +525,17 @@ export default function BillingPage() {
 
             {/* כפתורי פעולה */}
             <div className="mt-4 pt-4 border-t flex flex-wrap gap-2">
-              {subscription.status === 'CANCELLED' && (
-                <Button variant="default" size="sm" onClick={() => {
-                  const plansSection = document.getElementById('plans-section');
-                  plansSection?.scrollIntoView({ behavior: 'smooth' });
-                }}>
-                  <ArrowUpCircle className="h-4 w-4 ml-1" />
-                  חדש מנוי
-                </Button>
-              )}
               {(subscription.status === 'ACTIVE' || subscription.status === 'TRIALING') && (
                 <>
-                  <Button variant="outline" size="sm" onClick={() => {
-                    const plansSection = document.getElementById('plans-section');
-                    plansSection?.scrollIntoView({ behavior: 'smooth' });
-                  }}>
-                    {isMaxTier ? (
-                      <><RefreshCw className="h-4 w-4 ml-1" />שנה מסלול</>
-                    ) : (
-                      <><ArrowUpCircle className="h-4 w-4 ml-1" />שדרג מסלול</>
-                    )}
+                  <Button variant="outline" size="sm" asChild>
+                    <a href="/dashboard/settings/subscription">
+                      <CreditCard className="h-4 w-4 ml-1" />
+                      ניהול תשלום וכרטיס שמור
+                    </a>
                   </Button>
-                  <Button 
-                    variant="ghost" 
-                    size="sm" 
+                  <Button
+                    variant="ghost"
+                    size="sm"
                     className="text-muted-foreground hover:text-destructive"
                     onClick={() => setShowCancelDialog(true)}
                   >
@@ -632,311 +544,41 @@ export default function BillingPage() {
                   </Button>
                 </>
               )}
+              {subscription.status === 'CANCELLED' && (
+                <Button
+                  variant="default"
+                  size="sm"
+                  onClick={() => { setTermsAccepted(false); setShowSubscribeDialog(true); }}
+                >
+                  <ArrowUpCircle className="h-4 w-4 ml-1" />
+                  חדש מנוי
+                </Button>
+              )}
+              {subscription.status === 'PAST_DUE' && (
+                <Button variant="outline" size="sm" asChild>
+                  <a href="/dashboard/settings/subscription">
+                    <CreditCard className="h-4 w-4 ml-1" />
+                    עדכן אמצעי תשלום
+                  </a>
+                </Button>
+              )}
             </div>
           </CardContent>
         </Card>
       )}
 
       {/* ========================================
-          סעיף 2: בחירת מסלול (שדרוג / רכישה)
+          חבילות SMS
           ======================================== */}
-      <div id="plans-section" className="space-y-4 scroll-mt-6">
-        <div className="flex items-center justify-between flex-wrap gap-2">
-          <div>
-            <h2 className="text-xl font-semibold">
-              {!subscription?.isActive
-                ? 'בחר מסלול'
-                : isMaxTier
-                  ? 'שנה את המסלול שלך'
-                  : 'שדרג את המסלול שלך'}
-            </h2>
-            <p className="text-sm text-muted-foreground">כל המסלולים כוללים 14 ימי ניסיון חינם</p>
-          </div>
-        </div>
-
-        {/* טיפול בכשלון טעינת מסלולים — מסך שגיאה במקום אזור ריק שקט */}
-        {tiersError && (
-          <Card className="border-red-300 bg-red-50 dark:bg-red-950/20">
-            <CardContent className="pt-6">
-              <div className="flex flex-col items-center gap-3 text-center py-6">
-                <AlertCircle className="h-10 w-10 text-red-500" />
-                <div>
-                  <p className="font-semibold text-red-900 dark:text-red-300">
-                    לא הצלחנו לטעון את מחירי המסלולים
-                  </p>
-                  <p className="text-sm text-red-700 dark:text-red-400 mt-1">
-                    בדוק את החיבור לאינטרנט או נסה שוב בעוד מספר רגעים
-                  </p>
-                </div>
-                <Button
-                  variant="outline"
-                  onClick={() => { void fetchTiers(); }}
-                  disabled={retryingTiers}
-                  className="border-red-400 text-red-700 hover:bg-red-100"
-                >
-                  {retryingTiers ? (
-                    <Loader2 className="h-4 w-4 ml-1 animate-spin" />
-                  ) : (
-                    <RefreshCw className="h-4 w-4 ml-1" />
-                  )}
-                  {retryingTiers ? 'מנסה שוב…' : 'נסה שוב'}
-                </Button>
-              </div>
-            </CardContent>
-          </Card>
-        )}
-
-        {/* בחירת תקופה */}
-        <div className="space-y-2">
-          <div className="flex justify-center">
-            <div className="inline-flex items-center bg-muted rounded-lg p-1 gap-1">
-              {PERIOD_OPTIONS.map((option) => {
-                const isActive = billingMonths === option.months;
-                const disc = option.months > 1 && PLANS.PRO ? (() => {
-                  const proMonthly = PLANS.PRO.pricing[1];
-                  const proTotal = PLANS.PRO.pricing[option.months];
-                  if (!proMonthly) return 0;
-                  return Math.round(((proMonthly * option.months - proTotal) / (proMonthly * option.months)) * 100);
-                })() : 0;
-                
-                return (
-                  <button
-                    key={option.months}
-                    onClick={() => setBillingMonths(option.months)}
-                    className={`px-4 py-2.5 rounded-md text-sm font-medium transition-all relative ${
-                      isActive 
-                        ? 'bg-background shadow-sm text-foreground' 
-                        : 'text-muted-foreground hover:text-foreground'
-                    }`}
-                  >
-                    {option.label}
-                    {disc > 0 && (
-                      <span className="absolute -top-2 -left-1 bg-green-500 text-white text-[10px] px-1.5 py-0.5 rounded-full font-bold">
-                        -{disc}%
-                      </span>
-                    )}
-                  </button>
-                );
-              })}
-            </div>
-          </div>
-          <p className="text-center text-xs text-muted-foreground">
-            {billingMonths === 1 && 'מתחדש אוטומטית כל חודש. ניתן לבטל בכל עת.'}
-            {billingMonths === 3 && 'מתחדש כל 3 חודשים. חיסכון עם התחייבות קצרה.'}
-            {billingMonths === 6 && 'מתחדש כל חצי שנה. חיסכון משמעותי.'}
-            {billingMonths === 12 && 'מתחדש כל שנה. החיסכון הכי גדול!'}
-          </p>
-        </div>
-
-        {/* כרטיסי מסלולים */}
-        <div className={`grid gap-4 sm:grid-cols-2 ${isMaxTier ? '' : 'lg:grid-cols-3'}`}>
-          {Object.entries(PLANS).filter(([key]) => !(isMaxTier && subscription?.plan === key)).map(([key, plan]) => {
-            const Icon = plan.icon;
-            const isCurrent = subscription?.plan === key;
-            const discount = getDiscount(key);
-            const monthlyAvg = getMonthlyPrice(key);
-            const saving = getSaving(key);
-            const isUpgrade = subscription?.plan &&
-              (PLANS[subscription.plan]?.pricing[1] ?? 0) < plan.pricing[1];
-            
-            return (
-              <Card key={key} className={`relative ${isCurrent ? 'border-primary border-2' : ''} ${'popular' in plan && plan.popular && !isCurrent ? 'border-sky-300 border-2' : ''}`}>
-                {'popular' in plan && plan.popular && !isCurrent && (
-                  <div className="absolute -top-3 right-4">
-                    <Badge className="bg-primary">הכי פופולרי</Badge>
-                  </div>
-                )}
-                {isCurrent && (
-                  <div className="absolute -top-3 left-4">
-                    <Badge className="bg-green-600">המסלול שלך</Badge>
-                  </div>
-                )}
-                <CardHeader className="pb-3">
-                  <div className="flex items-center gap-3">
-                    <div className={`h-10 w-10 rounded-lg ${plan.color} flex items-center justify-center`}>
-                      <Icon className="h-5 w-5" />
-                    </div>
-                    <div>
-                      <CardTitle className="text-lg">{plan.name}</CardTitle>
-                      <div className="flex items-baseline gap-1">
-                        {plan.originalPricing && (
-                          <span className="text-lg text-muted-foreground line-through">₪{Math.round(plan.originalPricing[billingMonths] / billingMonths)}</span>
-                        )}
-                        <span className="text-2xl font-bold">₪{monthlyAvg}</span>
-                        <span className="text-sm text-muted-foreground">/חודש</span>
-                      </div>
-                    </div>
-                  </div>
-                </CardHeader>
-                <CardContent>
-                  {/* פרטי מחיר ותקופה */}
-                  {billingMonths > 1 && (
-                    <div className="mb-3 p-2.5 bg-green-50 dark:bg-green-950/20 border border-green-200 dark:border-green-800 rounded-md">
-                      <p className="text-xs text-green-700 dark:text-green-400 font-medium">
-                        {plan.originalPricing && (
-                          <span className="line-through text-muted-foreground ml-1">₪{plan.originalPricing[billingMonths]}</span>
-                        )}
-                        {' '}₪{getTotalPrice(key)} לתקופה של {billingMonths} חודשים
-                      </p>
-                      {discount > 0 && (
-                        <p className="text-xs text-green-600 dark:text-green-500">
-                          חיסכון של ₪{saving} ({discount}% הנחה) לעומת חודשי
-                        </p>
-                      )}
-                    </div>
-                  )}
-
-                  {/* פיצ'רים */}
-                  <ul className="space-y-2 text-sm mb-4">
-                    {plan.features.map((feature, idx) => (
-                      <li key={idx} className="flex items-center gap-2">
-                        <CheckCircle className="h-4 w-4 text-green-600 shrink-0" />
-                        {feature}
-                      </li>
-                    ))}
-                  </ul>
-                  
-                  {/* כפתור פעולה - שדרוג, הורדה, או נוכחי */}
-                  {isCurrent ? (
-                    <Button variant="outline" className="w-full" disabled>
-                      <CheckCircle className="h-4 w-4 ml-1" />
-                      המסלול הנוכחי
-                    </Button>
-                  ) : isUpgrade ? (
-                    <Button 
-                      className="w-full bg-gradient-to-r from-blue-600 to-purple-600 hover:from-blue-700 hover:to-purple-700"
-                      onClick={() => { setTermsAccepted(false); setShowTermsDetail(false); setShowUpgradeDialog(key); }}
-                      disabled={upgrading}
-                    >
-                      <ArrowUpCircle className="h-4 w-4 ml-1" />שדרג עכשיו
-                    </Button>
-                  ) : (
-                    <Button 
-                      variant="outline"
-                      className="w-full"
-                      onClick={() => { setTermsAccepted(false); setShowTermsDetail(false); setShowUpgradeDialog(key); }}
-                      disabled={upgrading}
-                    >
-                      <ArrowDownCircle className="h-4 w-4 ml-1" />עבור למסלול זה
-                    </Button>
-                  )}
-                </CardContent>
-              </Card>
-            );
-          })}
-        </div>
-      </div>
+      <SmsPackagesCard />
 
       {/* ========================================
-          דיאלוג אישור שדרוג + תנאי שימוש
+          שדרוג לקליניקה — MyTipul Extra (מטפל עצמאי בלבד)
           ======================================== */}
-      <AlertDialog open={!!showUpgradeDialog} onOpenChange={(open) => { if (!open) setShowUpgradeDialog(null); }}>
-        <AlertDialogContent className="max-w-lg">
-          <AlertDialogHeader>
-            <AlertDialogTitle className="flex items-center gap-2">
-              {showUpgradeDialog && PLANS[showUpgradeDialog] && (() => {
-                const plan = PLANS[showUpgradeDialog];
-                const Icon = plan.icon;
-                const isSelectedUpgrade = subscription?.plan &&
-                  (PLANS[subscription.plan]?.pricing[1] ?? 0) < plan.pricing[1];
-                const actionLabel = !subscription?.isActive
-                  ? 'רכישת'
-                  : isSelectedUpgrade
-                    ? 'שדרוג'
-                    : 'שינוי';
-                return <><Icon className="h-5 w-5" />{actionLabel} מסלול {plan.name}</>;
-              })()}
-            </AlertDialogTitle>
-            <AlertDialogDescription asChild>
-              <div className="space-y-4 text-right">
-                {/* סיכום מחיר */}
-                {showUpgradeDialog && (
-                  <div className="bg-slate-50 dark:bg-slate-900/50 rounded-lg p-4 border">
-                    <div className="flex justify-between items-center mb-2">
-                      <span className="text-sm text-muted-foreground">מסלול</span>
-                      <span className="font-semibold text-foreground">{PLANS[showUpgradeDialog]?.name}</span>
-                    </div>
-                    <div className="flex justify-between items-center mb-2">
-                      <span className="text-sm text-muted-foreground">תקופה</span>
-                      <span className="font-medium text-foreground">{PERIOD_OPTIONS.find(p => p.months === billingMonths)?.label}</span>
-                    </div>
-                    <div className="flex justify-between items-center mb-2">
-                      <span className="text-sm text-muted-foreground">מחיר לחודש</span>
-                      <span className="font-medium text-foreground">₪{getMonthlyPrice(showUpgradeDialog)}</span>
-                    </div>
-                    <div className="flex justify-between items-center pt-2 border-t">
-                      <span className="text-sm font-medium text-foreground">סה&quot;כ לתשלום</span>
-                      <span className="text-lg font-bold text-foreground">₪{getTotalPrice(showUpgradeDialog)}</span>
-                    </div>
-                    {getDiscount(showUpgradeDialog) > 0 && (
-                      <div className="mt-2 text-xs text-green-600 text-left">
-                        חיסכון של ₪{getSaving(showUpgradeDialog)} ({getDiscount(showUpgradeDialog)}% הנחה)
-                      </div>
-                    )}
-                  </div>
-                )}
-
-                {/* תנאים */}
-                <div className="space-y-2 text-sm text-muted-foreground">
-                  <p className="flex items-start gap-2">
-                    <Shield className="h-4 w-4 text-green-600 mt-0.5 shrink-0" />
-                    <span><strong className="text-foreground">חידוש אוטומטי:</strong> המנוי מתחדש אוטומטית בסוף כל תקופה. ניתן לבטל בכל עת.</span>
-                  </p>
-                  <p className="flex items-start gap-2">
-                    <Shield className="h-4 w-4 text-green-600 mt-0.5 shrink-0" />
-                    <span><strong className="text-foreground">ניסיון חינם:</strong> 14 ימי ניסיון ללא התחייבות. ניתן לבטל ללא חיוב.</span>
-                  </p>
-                  {billingMonths > 1 && (
-                    <p className="flex items-start gap-2">
-                      <Shield className="h-4 w-4 text-sky-600 mt-0.5 shrink-0" />
-                      <span><strong className="text-foreground">הנחה תקופתית:</strong> בביטול מוקדם, ההנחה תחושב מחדש לפי תקופת השימוש בפועל - תמיד לפי המחיר הטוב ביותר.</span>
-                    </p>
-                  )}
-                  <p className="flex items-start gap-2">
-                    <Shield className="h-4 w-4 text-green-600 mt-0.5 shrink-0" />
-                    <span><strong className="text-foreground">הנתונים שלך:</strong> גם לאחר ביטול, הנתונים נשמרים ותוכל לגשת אליהם בכל עת.</span>
-                  </p>
-                </div>
-
-                {/* Checkbox */}
-                <div className="flex items-start gap-3 pt-2 border-t">
-                  <Checkbox 
-                    id="terms-dialog"
-                    checked={termsAccepted}
-                    onCheckedChange={(checked) => setTermsAccepted(checked === true)}
-                    className="mt-1"
-                  />
-                  <label htmlFor="terms-dialog" className="text-sm leading-relaxed cursor-pointer text-foreground">
-                    <span className="font-medium">קראתי ואני מאשר/ת את תנאי המנוי והשימוש</span>
-                  </label>
-                </div>
-              </div>
-            </AlertDialogDescription>
-          </AlertDialogHeader>
-          <AlertDialogFooter className="flex-row-reverse gap-2 sm:flex-row-reverse">
-            <AlertDialogAction
-              disabled={!termsAccepted || upgrading}
-              onClick={() => {
-                if (showUpgradeDialog) {
-                  handleUpgrade(showUpgradeDialog);
-                  setShowUpgradeDialog(null);
-                }
-              }}
-              className="bg-gradient-to-r from-blue-600 to-purple-600 hover:from-blue-700 hover:to-purple-700"
-            >
-              {upgrading ? (
-                <><Loader2 className="h-4 w-4 ml-2 animate-spin" />מעבד...</>
-              ) : (
-                <>אשר ועבור לתשלום</>
-              )}
-            </AlertDialogAction>
-            <AlertDialogCancel>ביטול</AlertDialogCancel>
-          </AlertDialogFooter>
-        </AlertDialogContent>
-      </AlertDialog>
+      {showClinicUpsell && <ClinicUpgradeCard />}
 
       {/* ========================================
-          סעיף 4: היסטוריית תשלומים
+          היסטוריית תשלומים
           ======================================== */}
       {subscription?.recentPayments && subscription.recentPayments.length > 0 && (
         <Card>
@@ -950,7 +592,7 @@ export default function BillingPage() {
           <CardContent>
             <div className="space-y-3">
               {subscription.recentPayments.map((payment) => (
-                <div 
+                <div
                   key={payment.id}
                   className="flex items-center justify-between p-3 bg-muted/50 rounded-lg"
                 >
@@ -992,7 +634,7 @@ export default function BillingPage() {
       )}
 
       {/* ========================================
-          סעיף 5: עזרה ותמיכה
+          עזרה ותמיכה
           ======================================== */}
       <Card className="bg-sky-50 dark:bg-sky-950/20 border-sky-200 dark:border-sky-800">
         <CardContent className="pt-6">
@@ -1001,13 +643,77 @@ export default function BillingPage() {
             <div className="text-sm space-y-1">
               <p className="font-semibold text-sky-900 dark:text-sky-300">צריך עזרה?</p>
               <p className="text-sky-800 dark:text-sky-400">
-                שאלות לגבי המנוי, שדרוגים או חיובים? פנה אלינו ב-{' '}
+                שאלות לגבי המנוי, חיובים או חבילות? פנה אלינו ב-{' '}
                 <a href="mailto:support@mytipul.com" className="underline font-medium">support@mytipul.com</a>
               </p>
             </div>
           </div>
         </CardContent>
       </Card>
+
+      {/* ========================================
+          דיאלוג חידוש מנוי
+          ======================================== */}
+      <AlertDialog open={showSubscribeDialog} onOpenChange={setShowSubscribeDialog}>
+        <AlertDialogContent className="max-w-lg">
+          <AlertDialogHeader>
+            <AlertDialogTitle className="flex items-center gap-2">
+              <CreditCard className="h-5 w-5" />
+              חידוש מנוי {PLAN_DISPLAY_NAME}
+            </AlertDialogTitle>
+            <AlertDialogDescription asChild>
+              <div className="space-y-4 text-right">
+                <div className="bg-slate-50 dark:bg-slate-900/50 rounded-lg p-4 border">
+                  <div className="flex justify-between items-center mb-2">
+                    <span className="text-sm text-muted-foreground">תוכנית</span>
+                    <span className="font-semibold text-foreground">{PLAN_DISPLAY_NAME}</span>
+                  </div>
+                  <div className="flex justify-between items-center pt-2 border-t">
+                    <span className="text-sm font-medium text-foreground">מחיר חודשי</span>
+                    <span className="text-lg font-bold text-foreground">₪{Math.round(subscription?.monthlyPrice ?? 0)}</span>
+                  </div>
+                </div>
+
+                <div className="space-y-2 text-sm text-muted-foreground">
+                  <p className="flex items-start gap-2">
+                    <Shield className="h-4 w-4 text-green-600 mt-0.5 shrink-0" />
+                    <span><strong className="text-foreground">חידוש אוטומטי:</strong> המנוי מתחדש כל חודש. ניתן לבטל בכל עת.</span>
+                  </p>
+                  <p className="flex items-start gap-2">
+                    <Shield className="h-4 w-4 text-green-600 mt-0.5 shrink-0" />
+                    <span><strong className="text-foreground">הנתונים שלך:</strong> נשמרים במלואם, גם לאחר ביטול.</span>
+                  </p>
+                </div>
+
+                <div className="flex items-start gap-3 pt-2 border-t">
+                  <Checkbox
+                    id="terms-subscribe"
+                    checked={termsAccepted}
+                    onCheckedChange={(checked) => setTermsAccepted(checked === true)}
+                    className="mt-1"
+                  />
+                  <label htmlFor="terms-subscribe" className="text-sm leading-relaxed cursor-pointer text-foreground">
+                    <span className="font-medium">קראתי ואני מאשר/ת את תנאי המנוי והשימוש</span>
+                  </label>
+                </div>
+              </div>
+            </AlertDialogDescription>
+          </AlertDialogHeader>
+          <AlertDialogFooter className="flex-row-reverse gap-2 sm:flex-row-reverse">
+            <AlertDialogAction
+              disabled={!termsAccepted || subscribing}
+              onClick={() => { void handleSubscribe(); }}
+            >
+              {subscribing ? (
+                <><Loader2 className="h-4 w-4 ml-2 animate-spin" />מעבד...</>
+              ) : (
+                <>אשר ועבור לתשלום</>
+              )}
+            </AlertDialogAction>
+            <AlertDialogCancel>ביטול</AlertDialogCancel>
+          </AlertDialogFooter>
+        </AlertDialogContent>
+      </AlertDialog>
 
       {/* ========================================
           דיאלוג ביטול מנוי (עם חישוב הנחה)
@@ -1019,7 +725,7 @@ export default function BillingPage() {
             <AlertDialogDescription asChild>
               <div className="space-y-3">
                 <p>האם אתה בטוח שברצונך לבטל את המנוי?</p>
-                
+
                 <div className="p-3 bg-sky-50 dark:bg-sky-950/30 border border-sky-200 dark:border-sky-800 rounded-lg space-y-2">
                   <p className="text-sm font-medium text-sky-900 dark:text-sky-300 flex items-center gap-1">
                     <CheckCircle className="h-4 w-4" />
@@ -1032,7 +738,6 @@ export default function BillingPage() {
                   </ul>
                 </div>
 
-                {/* חישוב התאמת הנחה */}
                 {cancellationInfo?.hasAdjustment && (
                   <div className="p-3 bg-amber-50 dark:bg-amber-950/30 border border-amber-200 dark:border-amber-800 rounded-lg space-y-2">
                     <p className="text-sm font-medium text-amber-900 dark:text-amber-300 flex items-center gap-1">
@@ -1040,8 +745,8 @@ export default function BillingPage() {
                       התאמת הנחה
                     </p>
                     <p className="text-sm text-amber-800 dark:text-amber-400">
-                      רכשת מנוי ל-{cancellationInfo.totalMonths} חודשים עם הנחה. 
-                      מאחר שהשתמשת {cancellationInfo.monthsUsed} חודשים, ההנחה תחושב מחדש 
+                      רכשת מנוי ל-{cancellationInfo.totalMonths} חודשים עם הנחה.
+                      מאחר שהשתמשת {cancellationInfo.monthsUsed} חודשים, ההנחה תחושב מחדש
                       לפי תקופת השימוש בפועל.
                     </p>
                     <div className="bg-white dark:bg-slate-900 rounded-md p-2 text-xs space-y-1">
