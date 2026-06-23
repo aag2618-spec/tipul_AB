@@ -554,7 +554,9 @@ export function PersonalTasksWidget() {
                     className={`flex items-center gap-2 py-2 px-3 rounded-lg group cursor-pointer transition-all ${
                       activeReminders.has(task.id)
                         ? "animate-pulse bg-amber-100 border border-amber-300 shadow-sm"
-                        : "bg-sky-100/60 hover:bg-sky-100 border border-sky-200"
+                        : task.type === "STAFF_TASK"
+                          ? "bg-violet-100/70 hover:bg-violet-100 border border-violet-300 dark:bg-violet-900/20 dark:border-violet-800"
+                          : "bg-sky-100/60 hover:bg-sky-100 border border-sky-200"
                     }`}
                     onClick={() => {
                       if (activeReminders.has(task.id)) {
@@ -588,8 +590,8 @@ export function PersonalTasksWidget() {
                     <span className="text-sm flex-1 truncate">
                       {task.title}
                       {task.type === "STAFF_TASK" && (
-                        <span className="ms-1.5 inline-flex items-center rounded-full bg-primary/10 px-1.5 py-0.5 text-[10px] font-medium text-primary align-middle">
-                          מהקליניקה
+                        <span className="ms-1.5 inline-flex items-center rounded-full bg-violet-200 px-1.5 py-0.5 text-[10px] font-medium text-violet-700 align-middle dark:bg-violet-900/40 dark:text-violet-300">
+                          מהנהלת הקליניקה
                         </span>
                       )}
                     </span>

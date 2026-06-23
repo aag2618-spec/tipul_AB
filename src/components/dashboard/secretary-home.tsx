@@ -9,6 +9,7 @@
 // בידוד: buildSessionWhere/buildPaymentWhere מחזירים scope ארגוני למזכירה,
 // ו-buildPaymentWhere מחזיר deny-filter כשאין canViewPayments. Server Component.
 import Link from "next/link";
+import { Suspense } from "react";
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
 import { Badge } from "@/components/ui/badge";
@@ -40,6 +41,7 @@ import {
   SecretaryQuickActions,
   type QuickActionSession,
 } from "@/components/dashboard/secretary-quick-actions";
+import { PersonalTasksWidget } from "@/components/tasks/personal-tasks-widget";
 import type { Prisma } from "@prisma/client";
 
 const STATUS_LABEL: Record<string, string> = {
@@ -560,6 +562,12 @@ export async function SecretaryHome({
 
         {/* מה דורש טיפול + פעולות מהירות */}
         <div className="space-y-6">
+          {/* מטלות מהמנהל/ת + משימות אישיות — אותו ווידג'ט כמו בדשבורד המטפל.
+              כך מזכיר/ה (ובעל/ת קליניקה ב-front-desk) רואה מטלות שהוקצו לו/ה,
+              מסמן/ת "בוצע", מוסיף/ה הערת ביצוע, ורישום הצפייה (seenAt) נשמר. */}
+          <Suspense fallback={null}>
+            <PersonalTasksWidget />
+          </Suspense>
           <Card>
             <CardHeader>
               <CardTitle className="text-base">מה דורש טיפול</CardTitle>
