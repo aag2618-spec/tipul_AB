@@ -1,8 +1,9 @@
 "use client";
 
-import { useState, useEffect, useRef, use } from "react";
+import { useState, useEffect, use } from "react";
 import { format } from "date-fns";
 import { he } from "date-fns/locale";
+import { escapeHtml } from "@/lib/email-utils";
 
 const METHOD_LABELS: Record<string, string> = {
   CASH: "מזומן",
@@ -35,6 +36,98 @@ interface ReceiptData {
   };
 }
 
+// בונה את הקבלה כמחרוזת HTML עם צבעי hex inline בלבד (ללא class-ים של
+// Tailwind v4 שהם oklch — html2canvas 1.4.1 נכשל עליהם). זהו אותו דפוס
+// המשמש בדף הקבלות הראשי (dashboard/receipts/page.tsx) שעובד באמינות.
+// כל נתון שמקורו במשתמש עובר escapeHtml — הקבלה מורצת ב-iframe (document.write)
+// שמריץ קוד, ולכן חובה הגנת XSS.
+function buildReceiptHtml(receipt: ReceiptData, fallbackId: string): string {
+  const businessName = escapeHtml(
+    receipt.therapist.businessName || receipt.therapist.name || "MyTipul"
+  );
+  const dateStr = format(
+    new Date(receipt.paidAt || receipt.createdAt),
+    "dd בMMMM yyyy",
+    { locale: he }
+  );
+  const methodLabel = escapeHtml(METHOD_LABELS[receipt.method] || receipt.method);
+  const receiptNum = escapeHtml(
+    receipt.receiptNumber || `R-${fallbackId.slice(0, 8).toUpperCase()}`
+  );
+  const sessionDateStr = receipt.sessionDate
+    ? format(new Date(receipt.sessionDate), "dd/MM/yyyy")
+    : null;
+  // קבלה מאוחדת: description רב-שורתי (escape + white-space:pre-line). אחרת — שורה גנרית.
+  const descriptionHtml = receipt.description
+    ? escapeHtml(receipt.description)
+    : `פגישה טיפולית${sessionDateStr ? ` - ${sessionDateStr}` : ""}`;
+  const phone = receipt.therapist.phone ? escapeHtml(receipt.therapist.phone) : "";
+  const address = receipt.therapist.address
+    ? escapeHtml(receipt.therapist.address)
+    : "";
+  const clientName = escapeHtml(receipt.clientName);
+  const footerDate = format(
+    new Date(receipt.paidAt || receipt.createdAt),
+    "dd/MM/yyyy"
+  );
+
+  return `
+    <div style="padding: 40px; direction: rtl; font-family: 'Heebo', 'Segoe UI', Arial, sans-serif; color: #1a1a1a; width: 714px;">
+      <div style="background: #0f766e; padding: 30px; text-align: center; color: white; border-radius: 8px 8px 0 0;">
+        <h1 style="margin: 0; font-size: 30px; font-weight: 700;">קבלה</h1>
+        <p style="margin: 10px 0 0; font-size: 16px; opacity: 0.9;">${businessName}</p>
+      </div>
+      <table style="width: 100%; border-collapse: collapse; border: 1px solid #e5e7eb; border-top: none;">
+        <tr>
+          <td style="padding: 16px 25px; font-size: 13px; color: #6b7280; vertical-align: top;">
+            ${phone ? `<p style="margin: 0 0 4px;">טלפון: ${phone}</p>` : ""}
+            ${address ? `<p style="margin: 0;">כתובת: ${address}</p>` : ""}
+          </td>
+          <td style="padding: 16px 25px; font-size: 13px; color: #6b7280; text-align: left; vertical-align: top;">
+            <p style="margin: 0 0 4px;">קבלה מס׳: ${receiptNum}</p>
+            <p style="margin: 0;">תאריך: ${dateStr}</p>
+          </td>
+        </tr>
+      </table>
+      <div style="border: 1px solid #e5e7eb; border-top: none; padding: 18px 25px;">
+        <p style="margin: 0 0 4px; font-size: 12px; color: #0f766e; font-weight: 600;">התקבל מאת:</p>
+        <p style="margin: 0; font-size: 17px; font-weight: 600;">${clientName}</p>
+      </div>
+      <table style="width: 100%; border-collapse: collapse; border: 1px solid #e5e7eb; border-top: none;">
+        <thead><tr style="background: #f3f4f6;">
+          <th style="padding: 12px 16px; text-align: right; font-size: 13px; color: #6b7280; font-weight: 600; border-bottom: 1px solid #e5e7eb;">תיאור</th>
+          <th style="padding: 12px 16px; text-align: center; font-size: 13px; color: #6b7280; font-weight: 600; border-bottom: 1px solid #e5e7eb;">אמצעי תשלום</th>
+          <th style="padding: 12px 16px; text-align: left; font-size: 13px; color: #6b7280; font-weight: 600; border-bottom: 1px solid #e5e7eb;">סכום</th>
+        </tr></thead>
+        <tbody><tr>
+          <td style="padding: 14px 16px; font-size: 14px; border-bottom: 1px solid #e5e7eb; white-space: pre-line;">${descriptionHtml}</td>
+          <td style="padding: 14px 16px; font-size: 14px; text-align: center; border-bottom: 1px solid #e5e7eb;">${methodLabel}</td>
+          <td style="padding: 14px 16px; font-size: 14px; text-align: left; font-weight: 600; border-bottom: 1px solid #e5e7eb;">₪${receipt.amount.toLocaleString()}</td>
+        </tr></tbody>
+      </table>
+      <div style="border: 1px solid #e5e7eb; border-top: 2px solid #0f766e; padding: 16px 25px; background: #f9fafb; border-radius: 0 0 ${receipt.isPartial ? "0 0" : "8px 8px"};">
+        <span style="font-size: 20px; font-weight: 700; color: #0f766e;">סה״כ שולם: ₪${receipt.amount.toLocaleString()}</span>
+      </div>
+      ${receipt.isPartial ? `
+      <div style="border: 1px solid #e5e7eb; border-top: none; padding: 14px 25px; background: #fffbeb; border-radius: 0 0 8px 8px;">
+        <p style="margin: 0 0 6px; font-size: 13px; color: #92400e; font-weight: 600;">* תשלום חלקי</p>
+        <table style="width: 100%; font-size: 13px;">
+          <tr style="color: #78716c;">
+            <td style="padding: 2px 0;">סכום מלא לפגישה:</td>
+            <td style="padding: 2px 0; text-align: left; font-weight: 600;">₪${receipt.expectedAmount.toLocaleString()}</td>
+          </tr>
+          <tr style="color: #ea580c;">
+            <td style="padding: 2px 0;">נותר לתשלום:</td>
+            <td style="padding: 2px 0; text-align: left; font-weight: 600;">₪${receipt.remaining.toLocaleString()}</td>
+          </tr>
+        </table>
+      </div>` : ""}
+      <div style="text-align: center; margin-top: 35px; padding-top: 15px; border-top: 1px solid #e5e7eb;">
+        <p style="margin: 0; font-size: 11px; color: #9ca3af;">הופק על ידי MyTipul | ${footerDate}</p>
+      </div>
+    </div>`;
+}
+
 export default function PublicReceiptPage({
   params,
 }: {
@@ -44,7 +137,6 @@ export default function PublicReceiptPage({
   const [receipt, setReceipt] = useState<ReceiptData | null>(null);
   const [error, setError] = useState("");
   const [loading, setLoading] = useState(true);
-  const receiptRef = useRef<HTMLDivElement>(null);
 
   useEffect(() => {
     // M9.2: ה-token מגיע ב-URL fragment (#t=...) כדי שלא ידלוף ב-Referer header
@@ -79,33 +171,47 @@ export default function PublicReceiptPage({
   }, [id]);
 
   const handleDownloadPdf = async () => {
-    if (!receiptRef.current || !receipt) return;
+    if (!receipt) return;
 
+    // מרנדרים את הקבלה ב-iframe מבודד מ-HTML מבוסס-hex (ראה buildReceiptHtml)
+    // במקום לצלם את ה-DOM החי — שמכיל class-ים של Tailwind v4 בצבעי oklch
+    // ש-html2canvas 1.4.1 לא יודע לפענח. iframe נקי = שליטה מלאה בצבעים.
+    let iframe: HTMLIFrameElement | null = null;
     try {
-      await document.fonts.ready;
-
       const html2canvasModule = await import("html2canvas");
       const h2c = html2canvasModule.default ?? html2canvasModule;
       const { jsPDF } = await import("jspdf");
 
-      const clone = receiptRef.current.cloneNode(true) as HTMLElement;
-      clone.style.width = "794px";
-      clone.style.position = "absolute";
-      clone.style.left = "-9999px";
-      clone.style.top = "0";
-      document.body.appendChild(clone);
+      iframe = document.createElement("iframe");
+      iframe.style.position = "fixed";
+      iframe.style.left = "-9999px";
+      iframe.style.top = "0";
+      iframe.style.width = "794px";
+      iframe.style.height = "1200px";
+      iframe.style.border = "none";
+      document.body.appendChild(iframe);
 
-      await new Promise((r) => setTimeout(r, 200));
+      const iDoc = iframe.contentDocument || iframe.contentWindow?.document;
+      if (!iDoc) throw new Error("Cannot access iframe document");
 
-      const canvas = await h2c(clone, {
+      iDoc.open();
+      iDoc.write(`<!DOCTYPE html><html dir="rtl"><head>
+        <link href="https://fonts.googleapis.com/css2?family=Heebo:wght@300;400;500;600;700&display=swap" rel="stylesheet"/>
+        <style>*{margin:0;padding:0;box-sizing:border-box;font-family:'Heebo',sans-serif;}</style>
+      </head><body style="background:white;">${buildReceiptHtml(receipt, id)}</body></html>`);
+      iDoc.close();
+
+      await new Promise((r) => setTimeout(r, 500));
+      if (iDoc.fonts) await iDoc.fonts.ready;
+
+      const target = (iDoc.body.firstElementChild as HTMLElement) || iDoc.body;
+      const canvas = await h2c(target, {
         scale: 2,
         useCORS: true,
         backgroundColor: "#ffffff",
         logging: false,
         windowWidth: 794,
       });
-
-      document.body.removeChild(clone);
 
       const imgData = canvas.toDataURL("image/png");
       const pdf = new jsPDF("portrait", "mm", "a4");
@@ -129,6 +235,8 @@ export default function PublicReceiptPage({
     } catch (err) {
       console.error("PDF generation error:", err);
       alert("שגיאה ביצירת PDF. נסה שוב או השתמש בכפתור ההדפסה.");
+    } finally {
+      if (iframe) document.body.removeChild(iframe);
     }
   };
 
@@ -198,7 +306,6 @@ export default function PublicReceiptPage({
             ב-globals.css יזהה את הקבלה ויסתיר את שאר הדף בעת הדפסה.
             אותו ID משמש גם ב-ReceiptPreviewDialog בתוך הדאשבורד. */}
         <div
-          ref={receiptRef}
           id="mytipul-receipt-print"
           className="bg-white rounded-xl shadow-lg overflow-hidden"
           style={{ fontFamily: "'Heebo', 'Segoe UI', Arial, sans-serif" }}
