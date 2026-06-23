@@ -9,6 +9,7 @@ import { serializePrisma } from "@/lib/serialize";
 import {
   buildClientWhere,
   buildPaymentWhere,
+  getPaymentIncludeForRole,
   isSecretary,
   loadScopeUser,
   secretaryCan,
@@ -318,9 +319,21 @@ export async function POST(request: NextRequest) {
       return NextResponse.json({ message: result.error }, { status: 400 });
     }
 
+    // ⚠️ מיסוך PHI: createPaymentForSession מחזיר את ה-Payment עם client/session
+    // מלאים, ותוסף decryptDeep ב-prisma.ts מפענח שדות קליניים מקוננים
+    // (client.notes/medicalHistory/... ו-session.topic/notes). מזכירה עם
+    // canViewPayments אסור שתראה תוכן קליני בתשובה. re-fetch עם include
+    // role-aware (safe-select למזכירה, full למטפל/בעלים) לפני ההחזרה — תואם
+    // ל-GET של אותם נתיבים. result.payment.id הוא ה-Payment שזה עתה נוצר/עודכן
+    // (או ה-child בזרם Cardcom חלקי).
+    const maskedPayment = await prisma.payment.findUnique({
+      where: { id: result.payment.id },
+      include: getPaymentIncludeForRole(scopeUser),
+    });
+
     return NextResponse.json(
       serializePrisma({
-        ...result.payment,
+        ...maskedPayment,
         receiptError: result.receiptError,
         receiptUrl: result.receiptUrl,
         // חושפים את מספר הקבלה שזה עתה הופק כדי שה-UI יוכל להציג את הקבלה

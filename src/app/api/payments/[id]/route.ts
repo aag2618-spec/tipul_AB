@@ -9,6 +9,7 @@ import { serializePrisma } from "@/lib/serialize";
 import {
   buildPaymentWhere,
   getClientSafeSelectForSecretary,
+  getPaymentIncludeForRole,
   isSecretary,
   loadScopeUser,
   secretaryCan,
@@ -214,9 +215,11 @@ export async function PUT(
         existing.method === "CREDIT_CARD" &&
         Math.abs(Number(existing.amount) - Number(amount)) < 0.001
       ) {
+        // ⚠️ מיסוך PHI — include role-aware (safe-select למזכירה). ראה
+        // POST /api/payments. בלי זה decryptDeep מחזיר תוכן קליני למזכירה.
         const updated = await prisma.payment.findUnique({
           where: { id },
-          include: { client: true, session: true },
+          include: getPaymentIncludeForRole(scopeUser),
         });
         return NextResponse.json(serializePrisma(updated));
       }
@@ -274,6 +277,9 @@ export async function PUT(
                     : "CHARGE_IN_PROGRESS"
                 );
               }
+              // אין include כאן — את ה-client/session הממוסכים טוענים אחרי
+              // ה-tx דרך re-fetch role-aware (ראה למטה), כדי לא להחזיר PHI
+              // למזכירה. משתמשים רק ב-child.id.
               return tx.payment.create({
                 data: {
                   parentPaymentId: id,
@@ -287,13 +293,19 @@ export async function PUT(
                   notes: existing.notes,
                   organizationId: existing.organizationId,
                 },
-                include: { client: true, session: true },
               });
             },
             { isolationLevel: Prisma.TransactionIsolationLevel.Serializable }
           );
+          // ⚠️ מיסוך PHI — re-fetch עם include role-aware (safe-select
+          // למזכירה) לפני ההחזרה. ה-child נוצר ב-tx בלי relations; כאן
+          // טוענים client/session ממוסכים. ראה POST /api/payments.
+          const maskedChild = await prisma.payment.findUnique({
+            where: { id: child.id },
+            include: getPaymentIncludeForRole(scopeUser),
+          });
           return NextResponse.json(
-            serializePrisma({ ...child, _additiveCompletion: true })
+            serializePrisma({ ...maskedChild, _additiveCompletion: true })
           );
         } catch (txErr) {
           const msg = txErr instanceof Error ? txErr.message : String(txErr);
@@ -366,9 +378,11 @@ export async function PUT(
           { status: 404 }
         );
       }
+      // ⚠️ מיסוך PHI — include role-aware (safe-select למזכירה). ראה
+      // POST /api/payments. בלי זה decryptDeep מחזיר תוכן קליני למזכירה.
       const updated = await prisma.payment.findUnique({
         where: { id },
-        include: { client: true, session: true },
+        include: getPaymentIncludeForRole(scopeUser),
       });
       return NextResponse.json(serializePrisma(updated));
     }
@@ -405,8 +419,16 @@ export async function PUT(
         });
       }
 
+      // ⚠️ מיסוך PHI — ה-service מחזיר client/session מלאים (decryptDeep
+      // מפענח תוכן קליני מקונן). re-fetch עם include role-aware לפני ההחזרה
+      // כדי שמזכירה לא תראה topic/notes/medicalHistory. id הוא ה-parent
+      // בשני הזרמים (addPartialPayment / markFullyPaid). ראה POST /api/payments.
+      const maskedPayment = await prisma.payment.findUnique({
+        where: { id },
+        include: getPaymentIncludeForRole(scopeUser),
+      });
       return NextResponse.json(serializePrisma({
-        ...result.payment,
+        ...maskedPayment,
         receiptError: result.receiptError,
         receiptUrl: result.receiptUrl,
         // ראה הערה ב-POST /api/payments — חושפים receiptNumber טרי בלבד
@@ -442,8 +464,16 @@ export async function PUT(
         });
       }
 
+      // ⚠️ מיסוך PHI — ה-service מחזיר client/session מלאים (decryptDeep
+      // מפענח תוכן קליני מקונן). re-fetch עם include role-aware לפני ההחזרה
+      // כדי שמזכירה לא תראה topic/notes/medicalHistory. id הוא ה-parent
+      // בשני הזרמים (addPartialPayment / markFullyPaid). ראה POST /api/payments.
+      const maskedPayment = await prisma.payment.findUnique({
+        where: { id },
+        include: getPaymentIncludeForRole(scopeUser),
+      });
       return NextResponse.json(serializePrisma({
-        ...result.payment,
+        ...maskedPayment,
         receiptError: result.receiptError,
         receiptUrl: result.receiptUrl,
         // ראה הערה ב-POST /api/payments — חושפים receiptNumber טרי בלבד
@@ -467,10 +497,12 @@ export async function PUT(
       return NextResponse.json({ message: "תשלום לא נמצא" }, { status: 404 });
     }
 
-    // include client + session לשמור על תאימות עם ה-frontend
+    // include client + session לשמור על תאימות עם ה-frontend.
+    // ⚠️ מיסוך PHI — include role-aware (safe-select למזכירה). ראה
+    // POST /api/payments. בלי זה decryptDeep מחזיר תוכן קליני למזכירה.
     const payment = await prisma.payment.findUnique({
       where: { id },
-      include: { client: true, session: true },
+      include: getPaymentIncludeForRole(scopeUser),
     });
     return NextResponse.json(serializePrisma(payment));
   } catch (error) {
