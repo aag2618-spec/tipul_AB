@@ -77,6 +77,9 @@ if (arg2 === "public") {
 let files;
 if (arg1 === "all") {
   files = (await readdir(wsDir)).filter((f) => f.endsWith("-mytipul.html"));
+} else if (arg1 === "kids") {
+  // רק דפי הילדים — {slug}-kids-mytipul.html
+  files = (await readdir(wsDir)).filter((f) => f.endsWith("-kids-mytipul.html"));
 } else {
   files = [arg1.endsWith(".html") ? arg1 : `${arg1}.html`];
 }

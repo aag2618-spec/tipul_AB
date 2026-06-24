@@ -7,9 +7,9 @@
 // אחרי הריצה יש להריץ את מחולל ה-PDF:
 //   node scripts/generate-worksheet-pdfs.mjs <slug> public
 
-import { readFile, writeFile } from "fs/promises";
+import { readFile, writeFile, readdir } from "fs/promises";
 import path from "path";
-import { fileURLToPath } from "url";
+import { fileURLToPath, pathToFileURL } from "url";
 import { worksheetsContent } from "../src/lib/worksheets-content.mjs";
 
 const __dirname = path.dirname(fileURLToPath(import.meta.url));
@@ -118,6 +118,15 @@ function buildHtml(ws) {
   const footer = `<footer class="footer"><div>© MyTipul — כל הזכויות שמורות</div><a href="https://mytipul.com" target="_blank" rel="noopener">mytipul.com</a></footer>`;
 
   const sheetSections = ws.sections.map(section).join("\n");
+  const psychoed = ws.psychoed && ws.psychoed.length ? `<div class="psychoed-box"><h2>💡 למה זה עובד</h2>${ws.psychoed.map((p) => `<p>${esc(p)}</p>`).join("")}</div>` : "";
+  const deepening = ws.deepening && ws.deepening.length ? `<div class="deepening-header"><span>🔱</span><span>העמקה — לרדת רובד אחד פנימה</span></div>${ws.deepening.map(section).join("\n")}` : "";
+  const tracking = ws.tracking ? (() => {
+    const tr = ws.tracking;
+    const heads = (tr.headers || []).map((h) => `<th>${esc(h)}</th>`).join("");
+    const cols = (tr.headers || []).length || 1;
+    const trow = `<tr>${Array.from({ length: cols }, () => "<td></td>").join("")}</tr>`;
+    return `<div class="tracking-box"><h2>📅 ${esc(tr.title || "מעקב שבועי")}</h2>${tr.hint ? `<p class="tracking-hint">${esc(tr.hint)}</p>` : ""}<table class="activity-table"><thead><tr>${heads}</tr></thead><tbody>${Array.from({ length: tr.rows || 7 }, () => trow).join("")}</tbody></table></div>`;
+  })() : "";
   const summaryScale = ws.summary && ws.summary.scaleLabel ? `<div style="margin-bottom:12px;">${scaleRow(ws.summary.scaleLabel)}</div>` : "";
   const summary = ws.summary ? `<div class="summary-box"><h2><span>📝</span> סיכום</h2>${summaryScale}<p class="summary-hint">${esc(ws.summary.hint)}</p><div class="write-area"></div></div>` : "";
   const pattern = ws.pattern ? `<div class="pattern-box"><strong>🔄 מעקב דפוסים:</strong> ${esc(ws.pattern)}<div class="write-area"></div></div>` : "";
@@ -204,6 +213,14 @@ function buildHtml(ws) {
     .summary-hint { font-size:0.82rem; color:var(--th-700); margin-bottom:10px; }
     .compassion-box { background:linear-gradient(135deg,var(--rose-50) 0%,#fff5f7 100%); border:1.5px solid var(--rose-100); border-radius:var(--radius); padding:14px 18px; margin-bottom:16px; text-align:center; font-size:0.93rem; line-height:1.7; }
     .compassion-box strong { color:var(--rose-600); }
+    .psychoed-box { background:linear-gradient(135deg,#eff6ff 0%,#ffffff 100%); border:1.5px solid #bfdbfe; border-right:4px solid #3b82f6; border-radius:var(--radius); padding:14px 18px; margin-bottom:18px; }
+    .psychoed-box h2 { font-size:0.92rem; font-weight:700; color:#1d4ed8; margin-bottom:8px; display:flex; align-items:center; gap:8px; }
+    .psychoed-box p { font-size:0.85rem; color:var(--slate-700); line-height:1.7; margin-bottom:6px; }
+    .psychoed-box p:last-child { margin-bottom:0; }
+    .deepening-header { display:flex; align-items:center; gap:8px; font-size:1.02rem; font-weight:800; color:var(--th-800); margin:24px 0 14px; padding-bottom:8px; border-bottom:2px solid var(--th-200); }
+    .tracking-box { background:linear-gradient(135deg,var(--th-50) 0%,#ffffff 100%); border:1.5px solid var(--th-200); border-radius:var(--radius); padding:16px 18px; margin-bottom:16px; }
+    .tracking-box h2 { font-size:0.95rem; font-weight:700; color:var(--th-800); margin-bottom:6px; display:flex; align-items:center; gap:8px; }
+    .tracking-hint { font-size:0.82rem; color:var(--th-700); margin-bottom:10px; }
     .footer { padding:10px 0; border-top:1.5px solid var(--slate-200); display:flex; align-items:center; justify-content:space-between; font-size:0.82rem; color:var(--slate-700); margin-top:12px; font-weight:500; }
     .footer a { color:var(--th-600); text-decoration:none; font-weight:600; }
     .example-banner { background:linear-gradient(135deg,var(--amber-50) 0%,var(--amber-100) 100%); border:2.5px solid var(--amber-400); border-radius:var(--radius); padding:20px 24px; margin-bottom:20px; text-align:center; }
@@ -217,10 +234,10 @@ function buildHtml(ws) {
       html,body { background:#fff; font-size:15px; margin:0; padding:0; }
       .sheet { max-width:none; padding:0 8mm; margin:0; }
       .therapist-section,.worksheet-body,.example-section { box-shadow:none; padding:0; margin-bottom:0; border-radius:0; }
-      .header,.header-badge,.section-number,.scale-row,.scale-dot,.grounding-box,.compassion-box,.pattern-box,.therapist-box,.background-box,.summary-box,.example-banner,.header-logo,.numbered-line .num { -webkit-print-color-adjust:exact !important; print-color-adjust:exact !important; }
+      .header,.header-badge,.section-number,.scale-row,.scale-dot,.grounding-box,.compassion-box,.pattern-box,.therapist-box,.background-box,.psychoed-box,.tracking-box,.deepening-header,.summary-box,.example-banner,.header-logo,.numbered-line .num { -webkit-print-color-adjust:exact !important; print-color-adjust:exact !important; }
       .header { box-shadow:none; padding:16px 20px; margin-bottom:14px; }
       .header-logo img { height:150px !important; visibility:visible !important; display:block !important; -webkit-print-color-adjust:exact !important; print-color-adjust:exact !important; max-width:350px; }
-      .summary-box,.grounding-box,.compassion-box,.pattern-box,.example-banner,.header,.section,.section-header,.therapist-box,.background-box,.therapist-table { break-inside:avoid; page-break-inside:avoid; }
+      .summary-box,.grounding-box,.compassion-box,.pattern-box,.example-banner,.header,.section,.section-header,.therapist-box,.background-box,.psychoed-box,.tracking-box,.therapist-table { break-inside:avoid; page-break-inside:avoid; }
       .therapist-box h2,.background-box h2 { break-after:avoid; page-break-after:avoid; }
       .therapist-box ul,.therapist-box li { break-inside:avoid; page-break-inside:avoid; }
       .footer { display:none !important; }
@@ -261,7 +278,10 @@ function buildHtml(ws) {
     <div class="worksheet-body">
       ${header(ws, "sheet")}
       <div class="grounding-box"><strong>⏸ ${esc(ws.grounding)}</strong></div>
+      ${psychoed}
       ${sheetSections}
+      ${deepening}
+      ${tracking}
       ${summary}
       ${pattern}
       ${compassion}
@@ -286,14 +306,240 @@ function buildHtml(ws) {
 </html>`;
 }
 
+// ===================== גרסת ילדים =====================
+// כשלנושא יש שדה `kids` — מייצרים קובץ שני, {slug}-kids-mytipul.html, עם תבנית
+// משחקית ומותאמת-גיל: דמות מלווה, סולם פרצופים, אזורי ציור, ובחירות להקפה.
+
+const FACES = [
+  { e: "😌", label: "רגוע" },
+  { e: "🙂", label: "קצת" },
+  { e: "😐", label: "בינוני" },
+  { e: "😠", label: "כועס" },
+  { e: "😡", label: "רותח!" },
+];
+
+function kidsFaces() {
+  const items = FACES.map((f) => `<div class="kface"><div class="kface-circle">${f.e}</div><div class="kface-label">${f.label}</div></div>`).join("");
+  return `<div class="kids-faces">${items}</div>`;
+}
+
+function kidsSection(s) {
+  const icon = s.icon ? `<span class="ksec-icon">${s.icon}</span>` : "";
+  const hint = s.hint ? `<div class="ksec-hint">${esc(s.hint)}</div>` : "";
+  let body = "";
+  if (s.type === "faces") {
+    body = kidsFaces();
+  } else if (s.type === "choice") {
+    body = `<div class="kids-choices">${(s.choices || []).map((c) => `<div class="kchoice"><span class="kchoice-circle"></span><span class="kchoice-text">${esc(c)}</span></div>`).join("")}</div>`;
+  } else {
+    // draw / write — אזור גדול לציור או לכתיבה
+    body = `<div class="kids-draw"><span class="kids-draw-tag">✏️ כאן מציירים או כותבים</span></div>`;
+  }
+  return `<div class="ksection"><div class="ksection-head"><div class="ksection-num">${esc(s.n)}</div><div class="ksection-title">${icon}<span>${esc(s.title)}</span></div></div><div class="ksection-body">${hint}${body}</div></div>`;
+}
+
+function kidsExampleItem(it) {
+  return `<div class="ksection"><div class="ksection-head"><div class="ksection-num">${esc(it.n || "•")}</div><div class="ksection-title"><span>${esc(it.title)}</span></div></div><div class="ksection-body"><div class="kfilled">${esc(it.text)}</div></div>`;
+}
+
+function buildKidsHtml(ws) {
+  const pal = PALETTES[ws.color] || PALETTES.amber;
+  const [c50, c100, c200, c300, c400, c500, c600, c700, c800] = pal.s;
+  const k = ws.kids;
+  const comp = k.companion || { emoji: "🌟", name: "", tagline: "" };
+  const footer = `<footer class="footer"><div>© MyTipul — כל הזכויות שמורות</div><a href="https://mytipul.com" target="_blank" rel="noopener">mytipul.com</a></footer>`;
+
+  const kheader = (variant) => {
+    const sub = variant === "parent" ? "דף לילדים · להורה ולמטפל" : variant === "example" ? "דף לילדים · דוגמה ממולאת" : `דף לילדים · ${esc(k.ageRange || "")}`;
+    const mascot = `<div class="kheader-mascot"><div class="kmascot-emoji">${comp.emoji}</div>${comp.name ? `<div class="kmascot-name">${esc(comp.name)}</div>` : ""}</div>`;
+    return `<header class="kheader"><div class="kheader-content"><div class="kheader-badge">🧒 ${esc(ws.approach || "")}</div><h1>${esc(ws.title)}</h1><p class="ksubtitle">${sub}</p></div>${mascot}<div class="header-logo"><a href="https://mytipul.com" target="_blank" rel="noopener"><img src="${logo}" alt="MyTipul" /></a></div></header>`;
+  };
+
+  const parentGuide = (k.parentGuide || []).map((p) => `<li>${esc(p)}</li>`).join("");
+  const ksections = (k.sections || []).map(kidsSection).join("\n");
+  const ksummary = k.summary ? `<div class="ksummary"><div class="ksummary-title">⭐ ${esc(k.summary.hint)}</div><div class="kids-draw"><span class="kids-draw-tag">✏️</span></div></div>` : "";
+  const kcompassion = k.compassion ? `<div class="kcompassion"><span>💜</span> ${esc(k.compassion)}</div>` : "";
+
+  const ex = k.example;
+  const exItems = ex ? ex.items.map(kidsExampleItem).join("\n") : "";
+  const exIntro = ex && ex.intro ? `<div class="kids-story"><div class="kstory-text"><p>${esc(ex.intro)}</p></div></div>` : "";
+  const exCompassion = ex && ex.compassion ? `<div class="kcompassion"><span>💜</span> ${esc(ex.compassion)}</div>` : "";
+  const exTitle = ex ? `ככה ${esc(ex.name)} מילא/ה את הדף` : "דוגמה ממולאת";
+
+  return `<!DOCTYPE html>
+<html lang="he" dir="rtl">
+<head>
+  <meta charset="utf-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1" />
+  <title>${esc(ws.title)} — דף לילדים | ${esc(ws.approach)} | MyTipul</title>
+  <style>
+    @import url('https://fonts.googleapis.com/css2?family=Heebo:wght@400;500;600;700;800;900&display=swap');
+    :root {
+      --th-50:${c50};--th-100:${c100};--th-200:${c200};--th-300:${c300};--th-400:${c400};--th-500:${c500};--th-600:${c600};--th-700:${c700};--th-800:${c800};--th-shadow:${pal.rgb};
+      --slate-500:#64748b;--slate-600:#475569;--slate-700:#334155;--slate-800:#1e293b;
+      --rose-500:#f43f5e;--rose-600:#e11d48;--kradius:18px;
+    }
+    * { box-sizing:border-box; margin:0; padding:0; }
+    body { font-family:'Heebo','Segoe UI',system-ui,sans-serif; background:#fdf6ec; color:var(--slate-800); line-height:1.65; font-size:16.5px; }
+    .ksheet { max-width:860px; margin:0 auto; padding:20px; }
+    .kids-parent-section,.kids-worksheet-section,.kids-example-section { background:#fff; box-shadow:0 2px 12px rgba(0,0,0,0.08); border-radius:var(--kradius); padding:26px 22px; margin-bottom:30px; }
+    .kheader { background:linear-gradient(120deg,var(--th-400) 0%,var(--th-600) 100%); border-radius:var(--kradius); padding:22px 26px; margin-bottom:20px; display:flex; align-items:center; gap:16px; box-shadow:0 6px 22px rgba(var(--th-shadow),0.3); }
+    .kheader-content { flex:1; }
+    .kheader-badge { display:inline-block; background:rgba(255,255,255,0.22); color:#fff; font-size:0.8rem; font-weight:700; padding:4px 14px; border-radius:999px; margin-bottom:8px; }
+    .kheader h1 { color:#fff; font-size:1.7rem; font-weight:900; margin-bottom:3px; text-shadow:0 1px 3px rgba(0,0,0,0.2); }
+    .ksubtitle { color:rgba(255,255,255,0.95); font-size:0.95rem; font-weight:600; }
+    .kheader-mascot { flex-shrink:0; text-align:center; background:rgba(255,255,255,0.92); border-radius:16px; padding:8px 12px; }
+    .kmascot-emoji { font-size:2.6rem; line-height:1; }
+    .kmascot-name { font-size:0.78rem; font-weight:800; color:var(--th-700); margin-top:2px; }
+    .header-logo { flex-shrink:0; }
+    .header-logo img { height:130px; width:auto; max-width:280px; object-fit:contain; display:block; }
+    .header-logo a { display:block; text-decoration:none; }
+    .parent-box { background:linear-gradient(135deg,#fffbeb 0%,#fff8f0 100%); border:2px solid #fcd34d; border-radius:var(--kradius); padding:18px 22px; }
+    .parent-box h2 { font-size:1.05rem; font-weight:800; color:#b45309; margin-bottom:12px; display:flex; align-items:center; gap:8px; }
+    .parent-box ul { padding-right:22px; line-height:1.9; color:var(--slate-700); font-size:0.95rem; }
+    .parent-box li { margin-bottom:6px; }
+    .kids-story { background:linear-gradient(135deg,var(--th-50) 0%,#ffffff 100%); border:2.5px solid var(--th-300); border-radius:var(--kradius); padding:18px 20px; margin-bottom:20px; display:flex; align-items:center; gap:16px; }
+    .kstory-mascot { font-size:3.4rem; flex-shrink:0; line-height:1; }
+    .kstory-text strong { display:block; color:var(--th-800); font-size:1.05rem; font-weight:800; margin-bottom:5px; }
+    .kstory-text p { color:var(--slate-700); font-size:0.97rem; line-height:1.7; }
+    .kgrounding { background:#fff7ed; border:2px dashed var(--th-400); border-radius:var(--kradius); padding:14px 18px; margin-bottom:22px; text-align:center; font-size:1rem; font-weight:600; color:var(--th-800); }
+    .ksection { background:#fff; border:2.5px solid var(--th-200); border-radius:var(--kradius); margin-bottom:18px; overflow:hidden; }
+    .ksection-head { display:flex; align-items:center; gap:12px; padding:13px 18px; background:var(--th-50); border-bottom:2px solid var(--th-100); }
+    .ksection-num { width:38px; height:38px; flex-shrink:0; background:linear-gradient(135deg,var(--th-600),var(--th-400)); color:#fff; border-radius:50%; display:flex; align-items:center; justify-content:center; font-weight:800; font-size:1.1rem; box-shadow:0 2px 6px rgba(var(--th-shadow),0.35); }
+    .ksection-title { font-size:1.12rem; font-weight:800; color:var(--slate-800); display:flex; align-items:center; gap:8px; }
+    .ksec-icon { font-size:1.3rem; }
+    .ksection-body { padding:16px 18px; }
+    .ksec-hint { font-size:0.95rem; color:var(--slate-600); margin-bottom:12px; line-height:1.6; }
+    .kids-draw { min-height:120px; border:2.5px dashed var(--th-300); border-radius:14px; background:repeating-linear-gradient(45deg,#fff,#fff 12px,var(--th-50) 12px,var(--th-50) 13px); display:flex; align-items:flex-start; padding:10px 14px; }
+    .kids-draw-tag { font-size:0.85rem; font-weight:600; color:var(--th-600); background:#fff; padding:2px 10px; border-radius:999px; border:1.5px solid var(--th-200); }
+    .kids-faces { display:flex; justify-content:space-between; gap:8px; padding:6px 0; }
+    .kface { text-align:center; flex:1; }
+    .kface-circle { width:62px; height:62px; margin:0 auto 6px; border:3px solid var(--th-300); border-radius:50%; display:flex; align-items:center; justify-content:center; font-size:2rem; background:#fff; }
+    .kface-label { font-size:0.82rem; font-weight:700; color:var(--th-700); }
+    .kids-choices { display:flex; flex-direction:column; gap:11px; }
+    .kchoice { display:flex; align-items:center; gap:12px; background:var(--th-50); border:2px solid var(--th-200); border-radius:12px; padding:11px 16px; }
+    .kchoice-circle { width:26px; height:26px; flex-shrink:0; border:2.5px solid var(--th-400); border-radius:50%; background:#fff; }
+    .kchoice-text { font-size:1.05rem; font-weight:600; color:var(--slate-700); }
+    .ksummary { background:linear-gradient(135deg,var(--th-50) 0%,#fff 100%); border:2.5px solid var(--th-300); border-radius:var(--kradius); padding:18px 20px; margin-bottom:18px; }
+    .ksummary-title { font-size:1.1rem; font-weight:800; color:var(--th-800); margin-bottom:12px; }
+    .kcompassion { background:linear-gradient(135deg,#fff1f2 0%,#fff5f7 100%); border:2.5px solid #fecdd3; border-radius:var(--kradius); padding:16px 20px; margin-bottom:16px; text-align:center; font-size:1.05rem; font-weight:600; color:var(--rose-600); line-height:1.65; }
+    .kfilled { background:var(--th-50); border:2px solid var(--th-200); border-radius:12px; padding:12px 16px; font-size:1rem; color:var(--slate-700); line-height:1.7; }
+    .kexample-banner { background:linear-gradient(135deg,#fef3c7 0%,#fde68a 100%); border:3px solid #fcd34d; border-radius:var(--kradius); padding:18px 24px; margin-bottom:20px; text-align:center; font-size:1.3rem; font-weight:900; color:#b45309; }
+    .footer { padding:10px 0; border-top:2px solid var(--th-100); display:flex; align-items:center; justify-content:space-between; font-size:0.85rem; color:var(--slate-700); margin-top:14px; font-weight:600; }
+    .footer a { color:var(--th-600); text-decoration:none; font-weight:700; }
+    @media screen { .print-footer { display:none; } }
+    @page { size:A4; margin:8mm 10mm 18mm 10mm; }
+    @media print {
+      html,body { background:#fff; font-size:15.5px; margin:0; padding:0; }
+      .ksheet { max-width:none; padding:0 6mm; margin:0; }
+      .kids-parent-section,.kids-worksheet-section,.kids-example-section { box-shadow:none; padding:0; margin-bottom:0; border-radius:0; }
+      .kheader,.kheader-badge,.kheader-mascot,.kmascot-emoji,.ksection-num,.kface-circle,.kchoice,.kgrounding,.kids-story,.parent-box,.ksummary,.kcompassion,.kexample-banner,.kids-draw,.header-logo,.kids-faces { -webkit-print-color-adjust:exact !important; print-color-adjust:exact !important; }
+      .kheader { box-shadow:none; padding:16px 20px; margin-bottom:14px; }
+      .header-logo img { height:110px !important; visibility:visible !important; display:block !important; max-width:260px; -webkit-print-color-adjust:exact !important; print-color-adjust:exact !important; }
+      .ksection,.ksection-head,.kids-story,.parent-box,.ksummary,.kcompassion,.kexample-banner,.kgrounding,.kids-draw,.kchoice,.kface { break-inside:avoid; page-break-inside:avoid; }
+      .ksection { box-shadow:none; margin-bottom:12px; }
+      .kids-draw { min-height:90px; }
+      .footer { display:none !important; }
+      .print-footer { display:flex !important; position:fixed; bottom:0; left:0; right:0; align-items:center; justify-content:space-between; font-size:0.78rem; color:var(--slate-700); font-weight:600; padding:4px 10mm; border-top:1px solid var(--th-200); background:#fff; z-index:9999; }
+      .print-footer a { color:var(--th-600); text-decoration:none; font-weight:700; }
+      p,li { orphans:3; widows:3; }
+      .kids-parent-section { break-after:always; page-break-after:always; }
+      .kids-example-section { break-before:always; page-break-before:always; }
+    }
+    @media screen and (max-width:640px) {
+      .kheader { flex-direction:column; text-align:center; }
+      .kids-faces { flex-wrap:wrap; }
+      .kface-circle { width:54px; height:54px; font-size:1.7rem; }
+    }
+  </style>
+</head>
+<body>
+  <div class="ksheet">
+    <div class="kids-parent-section">
+      ${kheader("parent")}
+      <div class="parent-box"><h2>👨‍👩‍👧 להורה ולמטפל</h2><ul>${parentGuide}</ul></div>
+      ${footer}
+    </div>
+    <div class="kids-worksheet-section">
+      ${kheader("kid")}
+      <div class="kids-story"><div class="kstory-mascot">${comp.emoji}</div><div class="kstory-text">${comp.name ? `<strong>${esc(comp.name)}${comp.tagline ? " — " + esc(comp.tagline) : ""}</strong>` : ""}<p>${esc(k.story || "")}</p></div></div>
+      ${k.grounding ? `<div class="kgrounding">${comp.emoji} ${esc(k.grounding)}</div>` : ""}
+      ${ksections}
+      ${ksummary}
+      ${kcompassion}
+      ${footer}
+    </div>
+    <div class="kids-example-section">
+      <div class="kexample-banner">📝 ${exTitle}</div>
+      ${kheader("example")}
+      ${exIntro}
+      ${exItems}
+      ${exCompassion}
+      ${footer}
+    </div>
+  </div>
+<div class="print-footer">
+  <span>© MyTipul — כל הזכויות שמורות</span>
+  <a href="https://mytipul.com">mytipul.com</a>
+</div>
+</body>
+</html>`;
+}
+
 // שם הגישה (approach / approachHe) מוגדר ברמת הקטגוריה — מצרפים אותו לכל דף
 // כדי שהתג העליון יציג את שם הגישה ולא רק נקודה ריקה.
 const all = worksheetsContent.categories.flatMap((c) =>
   c.worksheets.map((w) => ({ approach: c.approach, approachHe: c.approachHe, ...w }))
 );
+
+// ===================== טעינת קובצי ההעשרה (enrichment) =====================
+// שכבת התוכן החדשה (background / psychoed / deepening / tracking / kids) יושבת
+// בקובץ נפרד לכל נושא: src/lib/worksheets-enrichment/{slug}.mjs.
+// כך אפשר לעבוד על נושאים שונים במקביל בלי להתנגש על אותו קובץ.
+const enrichDir = path.join(root, "src", "lib", "worksheets-enrichment");
+const enrichMap = {};
+let enrichFiles = [];
+try {
+  enrichFiles = (await readdir(enrichDir)).filter((f) => f.endsWith(".mjs"));
+} catch { /* התיקייה עדיין לא קיימת — מתעלמים */ }
+for (const f of enrichFiles) {
+  const mod = await import(pathToFileURL(path.join(enrichDir, f)).href);
+  const e = mod.default;
+  if (e && e.slug) enrichMap[e.slug] = e;
+}
+
+function mergeEnrichment(ws) {
+  const enr = enrichMap[ws.slug];
+  if (!enr) return ws;
+  // background משלים רק אם הנושא עדיין לא כולל אחד (לא דורסים את 13 הקיימים)
+  if (enr.background && !(ws.therapist && ws.therapist.background)) {
+    ws.therapist = { ...(ws.therapist || {}), background: enr.background };
+  }
+  if (enr.psychoed) ws.psychoed = enr.psychoed;
+  if (enr.deepening) ws.deepening = enr.deepening;
+  if (enr.tracking) ws.tracking = enr.tracking;
+  if (enr.kids) ws.kids = enr.kids;
+  return ws;
+}
+
+let kidsCount = 0;
+const kidsSlugs = [];
 for (const ws of all) {
+  mergeEnrichment(ws);
   const out = path.join(wsDir, `${ws.slug}-mytipul.html`);
   await writeFile(out, buildHtml(ws), "utf8");
   console.log(`  ✓ ${ws.slug}-mytipul.html`);
+  if (ws.kids) {
+    const kout = path.join(wsDir, `${ws.slug}-kids-mytipul.html`);
+    await writeFile(kout, buildKidsHtml(ws), "utf8");
+    kidsCount++;
+    kidsSlugs.push(ws.slug);
+    console.log(`  ✓ ${ws.slug}-kids-mytipul.html  (גרסת ילדים)`);
+  }
 }
-console.log(`\nהושלם. ${all.length} דפים נוצרו ב-${wsDir}\n`);
+
+// manifest של דפי הילדים — דף הקטלוג (UI) קורא אותו כדי לדעת לאילו נושאים יש
+// גרסת ילדים, ולהציג קישור "גרסת ילדים" רק להם. מתעדכן אוטומטית בכל בנייה.
+await writeFile(path.join(wsDir, "kids-manifest.json"), JSON.stringify(kidsSlugs.sort()), "utf8");
+
+console.log(`\nהושלם. ${all.length} דפי מבוגרים + ${kidsCount} דפי ילדים נוצרו ב-${wsDir}\n`);

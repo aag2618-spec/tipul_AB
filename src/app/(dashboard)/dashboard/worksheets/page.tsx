@@ -1,7 +1,7 @@
 "use client";
 
-import { useState } from "react";
-import { Download, Eye, BookOpen, Printer, FileText, ClipboardList, ChevronDown, ChevronUp } from "lucide-react";
+import { useState, useEffect } from "react";
+import { Download, Eye, BookOpen, Printer, FileText, ClipboardList, ChevronDown, ChevronUp, Baby } from "lucide-react";
 import { Tabs, TabsList, TabsTrigger, TabsContent } from "@/components/ui/tabs";
 import { worksheetsContent } from "@/lib/worksheets-content.mjs";
 
@@ -1603,6 +1603,15 @@ const categories: ApproachCategory[] = (() => {
 export default function WorksheetsPage() {
   const [openCategory, setOpenCategory] = useState<string | null>(null);
   const [openWorksheet, setOpenWorksheet] = useState<string | null>(null);
+  // רשימת הנושאים שיש להם גרסת ילדים — נטענת מ-manifest שנוצר ע"י build-worksheets.mjs.
+  // כך כפתור "גרסת ילדים" מופיע רק לדפים שבאמת קיימת להם גרסה כזו.
+  const [kidsSlugs, setKidsSlugs] = useState<string[]>([]);
+  useEffect(() => {
+    fetch("/worksheets/kids-manifest.json")
+      .then((r) => (r.ok ? r.json() : []))
+      .then((data) => { if (Array.isArray(data)) setKidsSlugs(data); })
+      .catch(() => {});
+  }, []);
 
   // ההורדה וההדפסה מגישות PDF מוכן מ-/worksheets/pdf/ במקום ה-HTML — פוטר "כל הזכויות
   // שמורות" + קישור לחיץ בכל עמוד, שוליים קבועים. כך הפלט זהה תמיד, ללא תלות בהגדרות
@@ -1781,6 +1790,16 @@ export default function WorksheetsPage() {
                       <Printer className="h-3.5 w-3.5" />
                       הדפסה
                     </button>
+                    {kidsSlugs.includes(activeWs.id) && (
+                      <button
+                        onClick={() => handlePrint(activeWs.file.replace("-mytipul.html", "-kids-mytipul.html"))}
+                        className="flex items-center gap-1.5 rounded-lg border border-amber-300 bg-amber-100 px-3 py-1.5 text-xs font-semibold text-amber-700 transition-opacity hover:opacity-80"
+                        title="גרסת ילדים — דף משחקי עם סיפור וחיה מהתנ״ך"
+                      >
+                        <Baby className="h-3.5 w-3.5" />
+                        גרסת ילדים
+                      </button>
+                    )}
                   </div>
                 </div>
 
