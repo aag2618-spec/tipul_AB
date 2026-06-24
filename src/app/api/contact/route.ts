@@ -52,48 +52,107 @@ export async function POST(request: NextRequest) {
       select: { id: true },
     });
 
-    // מייל ל-admin — best-effort. כשל/שבת לא מכשילים (הליד כבר נשמר ב-DB).
+    // פניית תמיכה (SupportTicket) — כדי שהפנייה תופיע במסך "פניות ותמיכה"
+    // מודגשת בסגול (category=landing_lead). משויכת ל-ADMIN (הבעלים) כי הפונה
+    // אנונימי; הפרטים בגוף הפנייה. best-effort — לא מכשיל (הליד כבר נשמר ב-DB).
+    let ticketCreated = false;
     try {
-      const adminEmail =
-        (await getSiteSetting<string>("admin_business_email")) ||
-        process.env.ADMIN_EMAIL ||
-        "";
-      if (adminEmail) {
-        const safe = {
-          name: escapeHtml(name),
-          email: escapeHtml(email),
-          phone: escapeHtml(phone?.trim() || "—"),
-          organization: escapeHtml(organization?.trim() || "—"),
-          message: escapeHtml(message),
-        };
-        await sendEmail({
-          to: adminEmail,
-          subject: `פנייה חדשה מדף הנחיתה — ${name}`,
-          html: `
-            <div dir="rtl" style="font-family: Arial, sans-serif; max-width: 600px; margin: 0 auto; padding: 20px;">
-              <h2 style="color: #333;">פנייה חדשה מטופס "צרו קשר"</h2>
-              <div style="background: #f5f5f5; padding: 20px; border-radius: 8px; margin: 20px 0;">
-                <p><strong>שם:</strong> ${safe.name}</p>
-                <p><strong>אימייל:</strong> ${safe.email}</p>
-                <p><strong>טלפון:</strong> ${safe.phone}</p>
-                <p><strong>ארגון:</strong> ${safe.organization}</p>
-                <p><strong>הודעה:</strong></p>
-                <p style="white-space: pre-wrap;">${safe.message}</p>
-              </div>
-              <p style="color: #666; font-size: 13px;">מזהה פנייה: ${lead.id}</p>
-            </div>
-          `,
+      const admin = await prisma.user.findFirst({
+        where: { role: "ADMIN" },
+        orderBy: { createdAt: "asc" },
+        select: { id: true },
+      });
+      if (admin) {
+        const details = [
+          `שם: ${name}`,
+          `אימייל: ${email}`,
+          phone?.trim() ? `טלפון: ${phone.trim()}` : null,
+          organization?.trim() ? `ארגון: ${organization.trim()}` : null,
+          "",
+          "הודעה:",
+          message,
+        ]
+          .filter((line) => line !== null)
+          .join("\n");
+        await prisma.$transaction(async (tx) => {
+          const maxResult = await tx.supportTicket.aggregate({
+            _max: { ticketNumber: true },
+          });
+          const nextNumber = (maxResult._max.ticketNumber ?? 5000) + 1;
+          await tx.supportTicket.create({
+            data: {
+              ticketNumber: nextNumber,
+              userId: admin.id,
+              subject: `פנייה מדף הנחיתה: ${name}`,
+              message: details,
+              category: "landing_lead",
+              priority: "HIGH",
+            },
+          });
+          await tx.adminAlert.create({
+            data: {
+              type: "SUPPORT_TICKET",
+              priority: "MEDIUM",
+              title: `פנייה חדשה מדף הנחיתה: ${name}`,
+              message: message.substring(0, 200),
+              userId: admin.id,
+            },
+          });
         });
-      } else {
-        logger.warn("[contact] no admin email configured — lead saved, email skipped", {
+        ticketCreated = true;
+      }
+    } catch (ticketErr) {
+      logger.error("[contact] failed to create support ticket (lead saved)", {
+        leadId: lead.id,
+        error: ticketErr instanceof Error ? ticketErr.message : String(ticketErr),
+      });
+    }
+
+    // מייל — רק כגיבוי אם לא נוצרה פניית תמיכה (אין ADMIN / שגיאה), כדי שהפנייה
+    // לא תאבד. best-effort — כשל/שבת לא מכשילים (הליד כבר נשמר ב-DB).
+    if (!ticketCreated) {
+      try {
+        const adminEmail =
+          (await getSiteSetting<string>("admin_business_email")) ||
+          process.env.ADMIN_EMAIL ||
+          "";
+        if (adminEmail) {
+          const safe = {
+            name: escapeHtml(name),
+            email: escapeHtml(email),
+            phone: escapeHtml(phone?.trim() || "—"),
+            organization: escapeHtml(organization?.trim() || "—"),
+            message: escapeHtml(message),
+          };
+          await sendEmail({
+            to: adminEmail,
+            subject: `פנייה חדשה מדף הנחיתה — ${name}`,
+            html: `
+              <div dir="rtl" style="font-family: Arial, sans-serif; max-width: 600px; margin: 0 auto; padding: 20px;">
+                <h2 style="color: #333;">פנייה חדשה מטופס "צרו קשר"</h2>
+                <div style="background: #f5f5f5; padding: 20px; border-radius: 8px; margin: 20px 0;">
+                  <p><strong>שם:</strong> ${safe.name}</p>
+                  <p><strong>אימייל:</strong> ${safe.email}</p>
+                  <p><strong>טלפון:</strong> ${safe.phone}</p>
+                  <p><strong>ארגון:</strong> ${safe.organization}</p>
+                  <p><strong>הודעה:</strong></p>
+                  <p style="white-space: pre-wrap;">${safe.message}</p>
+                </div>
+                <p style="color: #666; font-size: 13px;">מזהה פנייה: ${lead.id}</p>
+              </div>
+            `,
+          });
+        } else {
+          logger.warn("[contact] no admin email configured — lead saved, email skipped", {
+            leadId: lead.id,
+          });
+        }
+      } catch (mailErr) {
+        logger.error("[contact] email send failed (lead saved)", {
           leadId: lead.id,
+          error: mailErr instanceof Error ? mailErr.message : String(mailErr),
         });
       }
-    } catch (mailErr) {
-      logger.error("[contact] email send failed (lead saved)", {
-        leadId: lead.id,
-        error: mailErr instanceof Error ? mailErr.message : String(mailErr),
-      });
     }
 
     return NextResponse.json({ success: true });

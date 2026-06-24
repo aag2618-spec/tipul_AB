@@ -295,6 +295,22 @@
   text-align: center !important;
 }
 
+/* דף הנחיתה — ממרכז גם את צאצאי הבלוק (כותרות/פסקאות/כרטיסים), כי כלל ה-RTL
+   הגלובלי (p, div, span... { text-align: right }) גובר אחרת על הירושה מההורה. */
+.landing-centered h1,
+.landing-centered h2,
+.landing-centered h3,
+.landing-centered h4,
+.landing-centered h5,
+.landing-centered p,
+.landing-centered span,
+.landing-centered div,
+.landing-centered ul,
+.landing-centered li,
+.landing-centered a {
+  text-align: center !important;
+}
+
 /* Recording indicator */
 .recording-indicator {
   @apply inline-flex items-center gap-2;

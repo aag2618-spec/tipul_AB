@@ -82,6 +82,7 @@ const CATEGORY_MAP: Record<string, string> = {
   technical: "תמיכה טכנית",
   billing: "חשבון ותשלומים",
   other: "אחר",
+  landing_lead: "פנייה מדף הנחיתה",
 };
 
 export default function AdminSupportPage() {
@@ -214,6 +215,7 @@ export default function AdminSupportPage() {
                 <SelectItem value="technical">תמיכה טכנית</SelectItem>
                 <SelectItem value="billing">חשבון ותשלומים</SelectItem>
                 <SelectItem value="other">אחר</SelectItem>
+                <SelectItem value="landing_lead">פנייה מדף הנחיתה</SelectItem>
               </SelectContent>
             </Select>
           </div>
@@ -253,8 +255,16 @@ export default function AdminSupportPage() {
                 {tickets.map((ticket) => {
                   const statusInfo = STATUS_MAP[ticket.status] || STATUS_MAP.OPEN;
                   const priorityInfo = PRIORITY_MAP[ticket.priority] || PRIORITY_MAP.MEDIUM;
+                  const isLandingLead = ticket.category === "landing_lead";
                   return (
-                    <TableRow key={ticket.id} className="border-border">
+                    <TableRow
+                      key={ticket.id}
+                      className={
+                        isLandingLead
+                          ? "border-border bg-purple-50 dark:bg-purple-950/20"
+                          : "border-border"
+                      }
+                    >
                       <TableCell>
                         <Link href={`/admin/support/${ticket.id}`} className="font-mono text-sm text-primary hover:underline">
                           #{ticket.ticketNumber}
@@ -279,7 +289,14 @@ export default function AdminSupportPage() {
                         </Link>
                       </TableCell>
                       <TableCell>
-                        <Badge variant="outline" className="text-xs">
+                        <Badge
+                          variant="outline"
+                          className={
+                            isLandingLead
+                              ? "text-xs bg-purple-100 text-purple-700 border-purple-300"
+                              : "text-xs"
+                          }
+                        >
                           {CATEGORY_MAP[ticket.category] || ticket.category}
                         </Badge>
                       </TableCell>

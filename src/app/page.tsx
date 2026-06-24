@@ -47,7 +47,7 @@ export default async function HomePage() {
 
         {/* רצועת אמון */}
         <section className="border-y bg-card/50">
-          <div className="container mx-auto px-4 py-8 grid grid-cols-2 md:grid-cols-4 gap-6 text-center">
+          <div className="container mx-auto px-4 py-8 grid grid-cols-2 md:grid-cols-4 gap-6 landing-centered">
             {TRUST_STATS.map((item) => (
               <div key={item.label}>
                 <div className="text-2xl md:text-3xl font-bold text-primary">{item.stat}</div>
@@ -70,7 +70,7 @@ export default async function HomePage() {
         {/* צרו קשר */}
         <section id="contact" className="py-20">
           <div className="container mx-auto px-4 max-w-2xl">
-            <Reveal className="text-center mb-10">
+            <Reveal className="landing-centered mb-10">
               <h2 className="text-3xl md:text-4xl font-bold mb-4">מנהלים קליניקה? דברו איתנו</h2>
               <p className="text-muted-foreground text-lg">
                 השאירו פרטים ונחזור אליכם להתאמת מסלול אישי לפי גודל הקליניקה והצרכים שלכם.
@@ -85,7 +85,7 @@ export default async function HomePage() {
         {/* CTA סופי */}
         <section className="py-20">
           <div className="container mx-auto px-4">
-            <Reveal className="max-w-3xl mx-auto text-center rounded-3xl bg-gradient-to-br from-primary to-primary/80 text-primary-foreground p-10 md:p-14">
+            <Reveal className="max-w-3xl mx-auto landing-centered rounded-3xl bg-gradient-to-br from-primary to-primary/80 text-primary-foreground p-10 md:p-14">
               <h2 className="text-2xl md:text-4xl font-bold mb-4">
                 מוכנים לנהל את הפרקטיקה בצורה חכמה יותר?
               </h2>

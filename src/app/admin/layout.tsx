@@ -55,6 +55,7 @@ const adminNavGroups = [
       { href: "/admin/users", label: "משתמשים", icon: Users },
       { href: "/admin/trials", label: "תקופות ניסיון", icon: Activity },
       { href: "/admin/support", label: "פניות ותמיכה", icon: Headphones },
+      { href: "/admin/leads", label: "פניות מדף הנחיתה", icon: Building2, adminOnly: true },
     ],
   },
   {

@@ -33,7 +33,7 @@ export function WorksheetsShowcase() {
   return (
     <section id="worksheets" className="py-20 bg-gradient-to-b from-secondary/30 to-background">
       <div className="container mx-auto px-4">
-        <Reveal className="text-center max-w-3xl mx-auto">
+        <Reveal className="landing-centered max-w-3xl mx-auto">
           <span className="inline-block text-sm font-medium bg-primary/10 text-primary rounded-full px-4 py-1.5 mb-4">
             בלעדי ל-MyTipul
           </span>
@@ -48,7 +48,7 @@ export function WorksheetsShowcase() {
 
         <Reveal className="mt-12 grid gap-6 md:grid-cols-3 max-w-4xl mx-auto" delay={100}>
           {PARTS.map((part) => (
-            <div key={part.title} className="p-6 rounded-2xl bg-card border shadow-sm text-center">
+            <div key={part.title} className="p-6 rounded-2xl bg-card border shadow-sm landing-centered">
               <div className="w-12 h-12 rounded-xl bg-primary/10 flex items-center justify-center mx-auto mb-4">
                 <part.icon className="w-6 h-6 text-primary" />
               </div>
@@ -58,7 +58,7 @@ export function WorksheetsShowcase() {
           ))}
         </Reveal>
 
-        <Reveal className="mt-14 text-center" delay={150}>
+        <Reveal className="mt-14 landing-centered" delay={150}>
           <div className="inline-flex items-center gap-2 text-sm text-muted-foreground mb-5">
             <Layers className="w-4 h-4" />
             18 גישות טיפוליות — וכל הזמן מתווספות עוד

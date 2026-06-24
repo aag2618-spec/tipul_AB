@@ -14,7 +14,7 @@ export function LandingHero() {
         <div className="absolute top-1/3 -end-24 h-80 w-80 rounded-full bg-accent/20 blur-3xl" />
       </div>
 
-      <div className="container mx-auto px-4 pt-28 pb-16 md:pt-36 md:pb-24 text-center">
+      <div className="container mx-auto px-4 pt-28 pb-16 md:pt-36 md:pb-24 landing-centered">
         <div className="max-w-3xl mx-auto animate-fade-in">
           <AppLogo className="mx-auto w-[220px] sm:w-[300px] md:w-[360px] h-auto" priority />
 

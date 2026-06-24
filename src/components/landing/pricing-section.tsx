@@ -31,7 +31,7 @@ export function PricingSection({ privatePrice, priceNote, priceVisible }: Pricin
   return (
     <section id="pricing" className="py-20">
       <div className="container mx-auto px-4">
-        <Reveal className="text-center max-w-2xl mx-auto mb-12">
+        <Reveal className="landing-centered max-w-2xl mx-auto mb-12">
           <h2 className="text-3xl md:text-4xl font-bold mb-4">בחרו את המסלול שלכם</h2>
           <p className="text-muted-foreground text-lg">
             מטפל פרטי או קליניקה עם צוות — לכל אחד מה שהוא צריך

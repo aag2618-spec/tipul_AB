@@ -7,7 +7,7 @@ export function ClinicFeatures() {
   return (
     <section id="clinic" className="py-20 bg-gradient-to-b from-background to-secondary/30">
       <div className="container mx-auto px-4">
-        <Reveal className="text-center max-w-2xl mx-auto mb-12">
+        <Reveal className="landing-centered max-w-2xl mx-auto mb-12">
           <span className="inline-flex items-center gap-2 text-sm font-medium bg-primary/10 text-primary rounded-full px-4 py-1.5 mb-4">
             <Building2 className="w-4 h-4" />
             לקליניקות ומרכזים טיפוליים
