@@ -312,6 +312,21 @@ export type UpdateAdminBusinessSettingsInput = z.infer<
   typeof updateAdminBusinessSettingsSchema
 >;
 
+// === POST /api/admin/landing-settings =========================================
+// הגדרות המחיר והטקסט של מסלול "מטפל פרטי" שמוצגים בדף הנחיתה הציבורי.
+// SiteSetting upsert per field. הכול אופציונלי — שולחים רק מה שמשתנה.
+export const updateLandingSettingsSchema = z
+  .object({
+    privatePrice: z.string().max(50).optional(),
+    priceNote: z.string().max(200).optional(),
+    priceVisible: z.boolean().optional(),
+  })
+  .strict()
+  .refine((data) => Object.keys(data).length > 0, {
+    message: "אין שדות לעדכון",
+  });
+export type UpdateLandingSettingsInput = z.infer<typeof updateLandingSettingsSchema>;
+
 // === GET /api/admin/terms (search params) =====================================
 export const termsQuerySchema = z.object({
   userId: zId.optional().nullable(),

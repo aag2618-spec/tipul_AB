@@ -199,4 +199,11 @@ export type SiteSettingKey =
   // Country-wide VAT rate (Israel). Used for USER-tenant tax invoices and
   // ADMIN-tenant receipts when the issuer is LICENSED. Stored centrally so a
   // legislated rate change (e.g. 18→17) becomes a single DB update, no deploy.
-  | 'country_vat_rate';
+  | 'country_vat_rate'
+  // === דף הנחיתה הציבורי (נשלט מפאנל הניהול) ===
+  // מחיר מסלול "מטפל פרטי" שמוצג בדף הנחיתה + טקסט מבצע + מתג ניראות.
+  // מאוחסנים כאן (ולא ב-pricing.ts/TierLimits) כי זו תצוגה שיווקית בלבד —
+  // מנותקת מהחיוב בפועל. ברירת מחדל: visible=false → "פנו לפרטים".
+  | 'landing_private_price'
+  | 'landing_price_note'
+  | 'landing_price_visible';

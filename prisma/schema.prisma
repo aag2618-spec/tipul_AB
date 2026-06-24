@@ -2106,6 +2106,24 @@ model FeatureFlag {
   updatedAt   DateTime @updatedAt
 }
 
+// ==================== Leads (פניות "צרו קשר" מדף הנחיתה) ====================
+// פניות ציבוריות אנונימיות מטופס "צרו קשר" (בעיקר קליניקות). ללא PHI, ללא FK
+// למשתמש (הפונה עדיין לא רשום). נשמר ב-DB כדי שפנייה שתגיע בשבת או כשמייל נכשל
+// לא תאבד. במקביל נשלח מייל ל-admin_business_email.
+model Lead {
+  id           String   @id @default(cuid())
+  name         String
+  email        String
+  phone        String?
+  organization String?
+  message      String   @db.Text
+  source       String   @default("landing_contact") // מקור הפנייה
+  status       String   @default("NEW") // NEW, CONTACTED, CLOSED
+  createdAt    DateTime @default(now())
+
+  @@index([status, createdAt])
+}
+
 // ==================== Support Tickets (פניות ותמיכה) ====================
 
 model SupportTicket {

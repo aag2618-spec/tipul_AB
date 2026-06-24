@@ -306,6 +306,20 @@ export const INTAKE_PUBLIC_RATE_LIMIT = { maxRequests: 30, windowMs: 60 * 1000 }
 export const INTAKE_SEND_LINK_RATE_LIMIT = { maxRequests: 30, windowMs: 60 * 60 * 1000 };
 
 /**
+ * טופס "צרו קשר" ציבורי בדף הנחיתה (POST per-IP) — 5/שעה.
+ * endpoint אנונימי שיוצר Lead ושולח מייל. מגביל spam והצפת DB+מיילים.
+ * מבקר לגיטימי לא צריך לשלוח יותר מ-5 פניות בשעה.
+ */
+export const CONTACT_RATE_LIMIT = { maxRequests: 5, windowMs: 60 * 60 * 1000 };
+
+/**
+ * "צרו קשר" — תקרה גלובלית (כל ה-instance) של 50/שעה. שכבה שנייה מעל
+ * CONTACT_RATE_LIMIT (per-IP): גם תוקף שמתפצל על IPs רבים לא יציף את טבלת Lead.
+ * 50/שעה גבוה בהרבה מעומס legit סביר של דף נחיתה.
+ */
+export const CONTACT_GLOBAL_RATE_LIMIT = { maxRequests: 50, windowMs: 60 * 60 * 1000 };
+
+/**
  * החזרת שכבת rate limit מתאימה ל-endpoint של admin.
  *   - רגיש (5/דקה): add-package, manual-payment, set-admin, delete-user,
  *     idempotency clear, grantFree (PATCH), role change.

@@ -65,6 +65,7 @@ const adminNavGroups = [
       { href: "/admin/receipts", label: "קבלות", icon: ClipboardList },
       { href: "/admin/chargebacks", label: "החזרות חיוב", icon: AlertTriangle },
       { href: "/admin/billing/business-settings", label: "הגדרות עסק שלי", icon: Settings, adminOnly: true },
+      { href: "/admin/billing/landing-settings", label: "דף הנחיתה (מחיר)", icon: Settings, adminOnly: true },
       { href: "/admin/tier-settings", label: "תוכניות ומחירים", icon: Settings, adminOnly: true },
       { href: "/admin/coupons", label: "קופונים", icon: Ticket, adminOnly: true },
       { href: "/admin/promotions", label: "מבצעים", icon: Megaphone, adminOnly: true },
