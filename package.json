@@ -112,7 +112,7 @@
     "@types/react": "^19",
     "@types/react-dom": "^19",
     "@types/react-signature-canvas": "^1.0.5",
-    "eslint": "^9",
+    "eslint": "^10",
     "eslint-config-next": "16.2.6",
     "eslint-plugin-security": "^4.0.0",
     "puppeteer-core": "^25.1.0",
