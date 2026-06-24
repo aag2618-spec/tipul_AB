@@ -17,6 +17,14 @@ const root = path.join(__dirname, "..");
 const wsDir = path.join(root, "public", "worksheets");
 
 const logo = (await readFile(path.join(wsDir, "_logo-base64.txt"), "utf8")).trim();
+// קוד QR ל-mytipul.com (זהה בכל הדפים) — לסריקה מדף מודפס. נוצר ע"י qrcode (npm).
+const qrSvg = await readFile(path.join(wsDir, "_qr-mytipul.svg"), "utf8").catch(() => "");
+const SITE_URL = "https://mytipul.com";
+// באנר קריאה-לפעולה — מוטמע בתחתית דף העבודה בכל הדפים (קישור + QR לסריקה בהדפסה).
+function ctaBanner() {
+  const qr = qrSvg ? `<a class="cta-qr" href="${SITE_URL}" target="_blank" rel="noopener" aria-label="QR לאתר MyTipul">${qrSvg}</a>` : "";
+  return `<div class="cta-box">${qr}<div class="cta-text"><strong>אהבתם את הדף? יש עוד עשרות — חינם</strong><span>דפי עבודה טיפוליים נוספים ב-MyTipul · סרקו את הקוד או היכנסו</span></div><a class="cta-btn" href="${SITE_URL}" target="_blank" rel="noopener">לכל הדפים ←</a></div>`;
+}
 
 // פלטות צבע (Tailwind) — 50..800 + rgb לצל
 const PALETTES = {
@@ -103,7 +111,7 @@ function header(ws, variant) {
     meta = `<div class="header-meta"><label>שם: <span class="meta-line"></span></label><label>תאריך: <span class="meta-line"></span></label><label>גיל: <span class="meta-line"></span></label></div>`;
   }
   const badge = ws.approachHe && ws.approachHe !== ws.approach ? `${esc(ws.approach)} • ${esc(ws.approachHe)}` : esc(ws.approach || ws.approachHe || "");
-  return `<header class="header"><div class="header-content"><div class="header-badge">${badge}</div><h1>${esc(ws.title)}</h1><p class="subtitle">${sub}</p>${meta}</div><div class="header-logo"><a href="https://mytipul.com" target="_blank" rel="noopener"><img src="${logo}" alt="MyTipul" /></a></div></header>`;
+  return `<header class="header"><div class="header-content"><a href="https://mytipul.com" target="_blank" rel="noopener" style="text-decoration:none;"><div class="header-badge">${badge}</div></a><h1>${esc(ws.title)}</h1><p class="subtitle">${sub}</p>${meta}</div><div class="header-logo"><a href="https://mytipul.com" target="_blank" rel="noopener"><img src="${logo}" alt="MyTipul" /></a></div></header>`;
 }
 
 function exampleItem(it) {
@@ -115,7 +123,7 @@ function exampleItem(it) {
 function buildHtml(ws) {
   const pal = PALETTES[ws.color] || PALETTES.teal;
   const [c50, c100, c200, c300, c400, c500, c600, c700, c800] = pal.s;
-  const footer = `<footer class="footer"><div>© MyTipul — כל הזכויות שמורות</div><a href="https://mytipul.com" target="_blank" rel="noopener">mytipul.com</a></footer>`;
+  const footer = `<footer class="footer"><a href="https://mytipul.com" target="_blank" rel="noopener" style="color:inherit;text-decoration:none;">© MyTipul — כל הזכויות שמורות</a><a href="https://mytipul.com" target="_blank" rel="noopener">mytipul.com</a></footer>`;
 
   const sheetSections = ws.sections.map(section).join("\n");
   const psychoed = ws.psychoed && ws.psychoed.length ? `<div class="psychoed-box"><h2>💡 למה זה עובד</h2>${ws.psychoed.map((p) => `<p>${esc(p)}</p>`).join("")}</div>` : "";
@@ -227,6 +235,13 @@ function buildHtml(ws) {
     .example-banner h2 { font-size:1.5rem; font-weight:800; color:var(--amber-700); margin-bottom:6px; }
     .example-banner p { font-size:0.95rem; color:var(--amber-600); font-weight:500; }
     .filled { background:#fff; border:1.5px solid var(--slate-200); border-radius:8px; padding:10px 14px; margin-top:6px; font-size:0.88rem; color:var(--slate-700); line-height:1.7; font-style:italic; }
+    .cta-box { display:flex; align-items:center; gap:14px; background:linear-gradient(135deg,var(--th-50) 0%,#ffffff 100%); border:2px solid var(--th-300); border-radius:var(--radius); padding:14px 18px; margin-bottom:16px; }
+    .cta-qr { flex-shrink:0; display:block; line-height:0; }
+    .cta-qr svg { width:62px; height:62px; display:block; }
+    .cta-text { flex:1; min-width:0; }
+    .cta-text strong { display:block; color:var(--th-800); font-size:0.95rem; margin-bottom:2px; }
+    .cta-text span { font-size:0.8rem; color:var(--slate-600); }
+    .cta-btn { flex-shrink:0; background:var(--th-600); color:#fff; padding:9px 16px; border-radius:8px; font-weight:700; font-size:0.85rem; text-decoration:none; white-space:nowrap; }
     @media screen { .print-footer { display:none; } }
     .print-footer a { color:var(--th-600); text-decoration:none; font-weight:600; }
     @page { size:A4; margin:8mm 10mm 18mm 10mm; }
@@ -234,10 +249,10 @@ function buildHtml(ws) {
       html,body { background:#fff; font-size:15px; margin:0; padding:0; }
       .sheet { max-width:none; padding:0 8mm; margin:0; }
       .therapist-section,.worksheet-body,.example-section { box-shadow:none; padding:0; margin-bottom:0; border-radius:0; }
-      .header,.header-badge,.section-number,.scale-row,.scale-dot,.grounding-box,.compassion-box,.pattern-box,.therapist-box,.background-box,.psychoed-box,.tracking-box,.deepening-header,.summary-box,.example-banner,.header-logo,.numbered-line .num { -webkit-print-color-adjust:exact !important; print-color-adjust:exact !important; }
+      .header,.header-badge,.section-number,.scale-row,.scale-dot,.grounding-box,.compassion-box,.pattern-box,.therapist-box,.background-box,.psychoed-box,.tracking-box,.deepening-header,.summary-box,.example-banner,.header-logo,.numbered-line .num,.cta-box,.cta-btn,.cta-qr svg { -webkit-print-color-adjust:exact !important; print-color-adjust:exact !important; }
       .header { box-shadow:none; padding:16px 20px; margin-bottom:14px; }
       .header-logo img { height:150px !important; visibility:visible !important; display:block !important; -webkit-print-color-adjust:exact !important; print-color-adjust:exact !important; max-width:350px; }
-      .summary-box,.grounding-box,.compassion-box,.pattern-box,.example-banner,.header,.section,.section-header,.therapist-box,.background-box,.psychoed-box,.tracking-box,.therapist-table { break-inside:avoid; page-break-inside:avoid; }
+      .summary-box,.grounding-box,.compassion-box,.pattern-box,.example-banner,.header,.section,.section-header,.therapist-box,.background-box,.psychoed-box,.tracking-box,.therapist-table,.cta-box { break-inside:avoid; page-break-inside:avoid; }
       .therapist-box h2,.background-box h2 { break-after:avoid; page-break-after:avoid; }
       .therapist-box ul,.therapist-box li { break-inside:avoid; page-break-inside:avoid; }
       .footer { display:none !important; }
@@ -285,6 +300,7 @@ function buildHtml(ws) {
       ${summary}
       ${pattern}
       ${compassion}
+      ${ctaBanner()}
       ${footer}
     </div>
     <div class="example-section">
@@ -299,7 +315,7 @@ function buildHtml(ws) {
     </div>
   </div>
 <div class="print-footer">
-  <span>© MyTipul — כל הזכויות שמורות</span>
+  <a href="https://mytipul.com" style="color:inherit;text-decoration:none;">© MyTipul — כל הזכויות שמורות</a>
   <a href="https://mytipul.com">mytipul.com</a>
 </div>
 </body>
@@ -347,12 +363,12 @@ function buildKidsHtml(ws) {
   const [c50, c100, c200, c300, c400, c500, c600, c700, c800] = pal.s;
   const k = ws.kids;
   const comp = k.companion || { emoji: "🌟", name: "", tagline: "" };
-  const footer = `<footer class="footer"><div>© MyTipul — כל הזכויות שמורות</div><a href="https://mytipul.com" target="_blank" rel="noopener">mytipul.com</a></footer>`;
+  const footer = `<footer class="footer"><a href="https://mytipul.com" target="_blank" rel="noopener" style="color:inherit;text-decoration:none;">© MyTipul — כל הזכויות שמורות</a><a href="https://mytipul.com" target="_blank" rel="noopener">mytipul.com</a></footer>`;
 
   const kheader = (variant) => {
     const sub = variant === "parent" ? "דף לילדים · להורה ולמטפל" : variant === "example" ? "דף לילדים · דוגמה ממולאת" : `דף לילדים · ${esc(k.ageRange || "")}`;
     const mascot = `<div class="kheader-mascot"><div class="kmascot-emoji">${comp.emoji}</div>${comp.name ? `<div class="kmascot-name">${esc(comp.name)}</div>` : ""}</div>`;
-    return `<header class="kheader"><div class="kheader-content"><div class="kheader-badge">🧒 ${esc(ws.approach || "")}</div><h1>${esc(ws.title)}</h1><p class="ksubtitle">${sub}</p></div>${mascot}<div class="header-logo"><a href="https://mytipul.com" target="_blank" rel="noopener"><img src="${logo}" alt="MyTipul" /></a></div></header>`;
+    return `<header class="kheader"><div class="kheader-content"><a href="https://mytipul.com" target="_blank" rel="noopener" style="text-decoration:none;"><div class="kheader-badge">🧒 ${esc(ws.approach || "")}</div></a><h1>${esc(ws.title)}</h1><p class="ksubtitle">${sub}</p></div>${mascot}<div class="header-logo"><a href="https://mytipul.com" target="_blank" rel="noopener"><img src="${logo}" alt="MyTipul" /></a></div></header>`;
   };
 
   const parentGuide = (k.parentGuide || []).map((p) => `<li>${esc(p)}</li>`).join("");
@@ -427,16 +443,23 @@ function buildKidsHtml(ws) {
     .kexample-banner { background:linear-gradient(135deg,#fef3c7 0%,#fde68a 100%); border:3px solid #fcd34d; border-radius:var(--kradius); padding:18px 24px; margin-bottom:20px; text-align:center; font-size:1.3rem; font-weight:900; color:#b45309; }
     .footer { padding:10px 0; border-top:2px solid var(--th-100); display:flex; align-items:center; justify-content:space-between; font-size:0.85rem; color:var(--slate-700); margin-top:14px; font-weight:600; }
     .footer a { color:var(--th-600); text-decoration:none; font-weight:700; }
+    .cta-box { display:flex; align-items:center; gap:14px; background:linear-gradient(135deg,var(--th-50) 0%,#ffffff 100%); border:2.5px solid var(--th-300); border-radius:var(--kradius); padding:14px 18px; margin-bottom:16px; }
+    .cta-qr { flex-shrink:0; display:block; line-height:0; }
+    .cta-qr svg { width:66px; height:66px; display:block; }
+    .cta-text { flex:1; min-width:0; }
+    .cta-text strong { display:block; color:var(--th-800); font-size:1rem; margin-bottom:2px; }
+    .cta-text span { font-size:0.85rem; color:var(--slate-600); }
+    .cta-btn { flex-shrink:0; background:var(--th-600); color:#fff; padding:10px 18px; border-radius:12px; font-weight:800; font-size:0.9rem; text-decoration:none; white-space:nowrap; }
     @media screen { .print-footer { display:none; } }
     @page { size:A4; margin:8mm 10mm 18mm 10mm; }
     @media print {
       html,body { background:#fff; font-size:15.5px; margin:0; padding:0; }
       .ksheet { max-width:none; padding:0 6mm; margin:0; }
       .kids-parent-section,.kids-worksheet-section,.kids-example-section { box-shadow:none; padding:0; margin-bottom:0; border-radius:0; }
-      .kheader,.kheader-badge,.kheader-mascot,.kmascot-emoji,.ksection-num,.kface-circle,.kchoice,.kgrounding,.kids-story,.parent-box,.ksummary,.kcompassion,.kexample-banner,.kids-draw,.header-logo,.kids-faces { -webkit-print-color-adjust:exact !important; print-color-adjust:exact !important; }
+      .kheader,.kheader-badge,.kheader-mascot,.kmascot-emoji,.ksection-num,.kface-circle,.kchoice,.kgrounding,.kids-story,.parent-box,.ksummary,.kcompassion,.kexample-banner,.kids-draw,.header-logo,.kids-faces,.cta-box,.cta-btn,.cta-qr svg { -webkit-print-color-adjust:exact !important; print-color-adjust:exact !important; }
       .kheader { box-shadow:none; padding:16px 20px; margin-bottom:14px; }
       .header-logo img { height:110px !important; visibility:visible !important; display:block !important; max-width:260px; -webkit-print-color-adjust:exact !important; print-color-adjust:exact !important; }
-      .ksection,.ksection-head,.kids-story,.parent-box,.ksummary,.kcompassion,.kexample-banner,.kgrounding,.kids-draw,.kchoice,.kface { break-inside:avoid; page-break-inside:avoid; }
+      .ksection,.ksection-head,.kids-story,.parent-box,.ksummary,.kcompassion,.kexample-banner,.kgrounding,.kids-draw,.kchoice,.kface,.cta-box { break-inside:avoid; page-break-inside:avoid; }
       .ksection { box-shadow:none; margin-bottom:12px; }
       .kids-draw { min-height:90px; }
       .footer { display:none !important; }
@@ -467,6 +490,7 @@ function buildKidsHtml(ws) {
       ${ksections}
       ${ksummary}
       ${kcompassion}
+      ${ctaBanner()}
       ${footer}
     </div>
     <div class="kids-example-section">
@@ -479,7 +503,7 @@ function buildKidsHtml(ws) {
     </div>
   </div>
 <div class="print-footer">
-  <span>© MyTipul — כל הזכויות שמורות</span>
+  <a href="https://mytipul.com" style="color:inherit;text-decoration:none;">© MyTipul — כל הזכויות שמורות</a>
   <a href="https://mytipul.com">mytipul.com</a>
 </div>
 </body>
