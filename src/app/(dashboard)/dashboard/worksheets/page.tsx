@@ -1578,7 +1578,12 @@ const baseCategories: ApproachCategory[] = [
 // מיזוג: דפים חדשים מ-worksheets-content מתווספים לקטגוריה קיימת (לפי id),
 // וקטגוריות חדשות (polyvagal, anger) נוספות בסוף.
 const categories: ApproachCategory[] = (() => {
-  const merged: ApproachCategory[] = baseCategories.map((c) => ({ ...c, worksheets: [...c.worksheets] }));
+  // דפי legacy שהומרו למערכת המאוחדת (worksheets-content) — מסננים אותם מ-baseCategories
+  // לפי slug, כדי שלא יופיעו פעמיים בקטלוג. דף legacy שטרם הומר נשאר כרגיל.
+  const contentSlugs = new Set(wc.categories.flatMap((c) => c.worksheets.map((w) => w.slug)));
+  const merged: ApproachCategory[] = baseCategories
+    .map((c) => ({ ...c, worksheets: c.worksheets.filter((w) => !contentSlugs.has(w.id)) }))
+    .filter((c) => c.worksheets.length > 0);
   for (const dc of wc.categories) {
     const list = dc.worksheets.map((w) => toWorksheetData(w, dc));
     const existing = merged.find((c) => c.id === dc.id);

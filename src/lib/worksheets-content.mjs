@@ -5,6 +5,7 @@
 
 import { extraCategories } from "./worksheets-content-extra.mjs";
 import { extraCategories2 } from "./worksheets-content-extra2.mjs";
+import { extraCategories3 } from "./worksheets-content-extra3.mjs";
 
 export const worksheetsContent = {
   categories: [
@@ -709,7 +710,7 @@ export const worksheetsContent = {
           'ציירו מדחום מ-0 (רגוע) עד 10 (התפרצות) ועזרו למטופל לסמן שלבים אישיים.',
           'התמקדו ב״נקודת האין-חזור״ — באיזו דרגה כבר קשה לעצור, וכיצד לזהות לפניה.',
           'חברו כל דרגה לסימנים גופניים (לסת קפוצה, חום, אגרוף) — אלה מערכת ההתרעה המוקדמת.',
-          'הבחינו בין הרגש (לגיטימי) להתנהגות (ניתנת לבחירה). כועסים — מותר; פוגעים — לא.',
+          'הבחינו בין הרגש (מכירים ומשקפים) להתנהגות (ניתנת לבחירה). את הכעס משקפים ומקבלים; את הפגיעה מגבילים.',
           'בנו ״ערכת חירום״ של כלים זמינים: יציאה, נשימה, מים, ספירה, פסק-זמן.',
         ],
         cautions: [
@@ -1252,5 +1253,6 @@ export const worksheetsContent = {
 },
   ...extraCategories,
   ...extraCategories2,
+  ...extraCategories3,
   ],
 };
