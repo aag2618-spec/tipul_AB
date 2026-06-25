@@ -67,9 +67,10 @@ vi.mock("@/lib/prisma", () => ({
   },
 }));
 
-// issueReceipt / sendPaymentReceiptEmail / resolveCardcomReceiptOwner are the
-// integration points we assert on. buildReceiptDescription /
-// buildCombinedReceiptDescription are pure string helpers — stubbed.
+// issueReceipt / sendPaymentReceiptEmail are the integration points we assert
+// on. buildReceiptDescription / buildCombinedReceiptDescription are pure string
+// helpers — stubbed. resolveCardcomReceiptOwner נשאר ב-mock אף שאינו בשימוש
+// יותר ב-bulk-payment (אינו מזיק).
 const issueReceiptMock = vi.fn();
 const sendPaymentReceiptEmailMock = vi.fn();
 const resolveCardcomReceiptOwnerMock = vi.fn();

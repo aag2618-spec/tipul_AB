@@ -36,7 +36,6 @@ import {
   issueReceipt,
   sendPaymentReceiptEmail,
   buildReceiptDescription,
-  resolveCardcomReceiptOwner,
 } from "./receipt-service";
 import { buildClientWhere, buildPaymentWhere, type ScopeUser } from "@/lib/scope";
 import { applyRevenueShareSnapshot } from "@/lib/clinic/revenue-snapshot";
@@ -55,25 +54,17 @@ function snapshotSessionIfAny(payment: {
 }
 
 // ──────────────────────────────────────────────────────────────────
-// resolveIssueReceipt — מדיניות אחידה לכל זרימות התשלום (cash/credit,
-// FULL/PARTIAL, completing existing/new):
-//   • Cardcom פעיל ⇒ TRUE (override של ה-checkbox; Cardcom חייב להפיק
-//     קבלה רשמית — זה החוק).
-//   • אחרת ⇒ ערך ה-checkbox (true/false). undefined מתקבל כ-true (תאימות
-//     לאחור — זרימות שלא מעבירות את השדה צריכות לקבל קבלה כברירת מחדל).
+// resolveIssueReceipt — מדיניות אחידה לכל המשתמשים (החלטת מוצר 2026-06-25):
+//   • תשלום שאינו עובר בקארדקום (מזומן/העברה/צ'ק/אשראי-ידני) ⇒ לפי בחירת
+//     המשתמש (ה-checkbox / receiptDefaultMode). undefined = true (תאימות
+//     לאחור — זרימות שלא מעבירות את השדה מקבלות קבלה כברירת מחדל).
+//   • תשלום אשראי דרך קארדקום אינו מגיע לכאן: הקבלה מופקת אוטומטית בסליקה
+//     (ה-webhook), ו-createPaymentForSession מדלג דרך isCardcomPendingFlow.
 //
-// "Cardcom פעיל" כולל את הפלבק לבעל הקליניקה — חשוב במיוחד למזומן בקליניקה
-// שבה רק ה-OWNER חיבר Cardcom. בלי זה תשלום מזומן היה נשמר בלי קבלת Cardcom
-// כי isCardcomPrimary(therapistId) היה מחזיר false (ל-therapist הזה אין
-// BillingProvider משלו אפילו שלקליניקה יש).
+// אין יותר כפיית קבלה לפי סוג עסק/ספק — כל מטפל/ת בוחר/ת במזומן, בכל סוג
+// עסק. (עוסק מורשה מחויב חוקית בקבלה על כל תקבול — האחריות עליו, לא המערכת.)
 // ──────────────────────────────────────────────────────────────────
-async function resolveIssueReceipt(
-  userId: string,
-  organizationId: string | null,
-  shouldIssueReceipt: boolean | undefined,
-): Promise<boolean> {
-  const cardcomOwner = await resolveCardcomReceiptOwner(userId, organizationId);
-  if (cardcomOwner) return true;
+function resolveIssueReceipt(shouldIssueReceipt: boolean | undefined): boolean {
   return shouldIssueReceipt !== false;
 }
 
@@ -388,8 +379,8 @@ export async function createPaymentForSession(params: {
     }
 
     // Receipt — issue for any actual payment (not just when parent is PAID).
-    // resolveIssueReceipt forces TRUE כש-Cardcom primary, גם אם המשתמש לא
-    // סימן "הוצא קבלה" — Cardcom חייב להפיק את המסמך הרשמי.
+    // resolveIssueReceipt מכבד את בחירת המשתמש (issueReceipt) — אין יותר כפיית
+    // קבלה לפי ספק/סוג עסק (מדיניות אחידה 2026-06-25; אשראי מטופל בנפרד למטה).
     //
     // EXCEPTION: כש-method=CREDIT_CARD + status=PENDING — לא להפיק כעת.
     // ה-LowProfile של Cardcom יפיק Document אוטומטית בעת אישור הסליקה
@@ -397,8 +388,7 @@ export async function createPaymentForSession(params: {
     const isCardcomPendingFlow =
       method === "CREDIT_CARD" && payment.status === "PENDING";
     const effectiveIssueReceipt =
-      !isCardcomPendingFlow &&
-      (await resolveIssueReceipt(userId, organizationId, shouldIssueReceipt));
+      !isCardcomPendingFlow && resolveIssueReceipt(shouldIssueReceipt);
     let receiptResult: ReceiptResult | null = null;
     if (amount > 0 && effectiveIssueReceipt) {
       const receiptPaymentId = childPayment ? childPayment.id : payment.id;
@@ -633,16 +623,8 @@ export async function addPartialPayment(params: {
       }
     }
 
-    // Receipt on child payment — Cardcom override (see resolveIssueReceipt).
-    // organizationId נורש מה-existingPayment אם לא הועבר ב-params (תאימות
-    // ל-callers ישנים שלא יודעים על clinic context).
-    const receiptOrganizationId =
-      organizationId ?? existingPayment.organizationId ?? null;
-    const effectiveIssueReceipt = await resolveIssueReceipt(
-      userId,
-      receiptOrganizationId,
-      shouldIssueReceipt,
-    );
+    // Receipt on child payment — לפי בחירת המשתמש (מדיניות אחידה).
+    const effectiveIssueReceipt = resolveIssueReceipt(shouldIssueReceipt);
     let receiptResult: ReceiptResult | null = null;
     if (effectiveIssueReceipt) {
       const isStillPartial = newTotal < expectedAmount;
@@ -842,14 +824,7 @@ export async function markFullyPaid(params: {
       }
     }
 
-    // ראה הערה ב-addPartialPayment על receiptOrganizationId.
-    const receiptOrganizationId =
-      organizationId ?? existingPayment.organizationId ?? null;
-    const effectiveIssueReceipt = await resolveIssueReceipt(
-      userId,
-      receiptOrganizationId,
-      shouldIssueReceipt,
-    );
+    const effectiveIssueReceipt = resolveIssueReceipt(shouldIssueReceipt);
     let receiptResult: ReceiptResult | null = null;
     if (effectiveIssueReceipt) {
       const receiptPaymentId = childPayment ? childPayment.id : paymentId;

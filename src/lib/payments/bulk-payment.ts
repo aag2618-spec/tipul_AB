@@ -8,7 +8,6 @@ import {
   sendPaymentReceiptEmail,
   buildReceiptDescription,
   buildCombinedReceiptDescription,
-  resolveCardcomReceiptOwner,
 } from "./receipt-service";
 import { buildClientWhere, buildPaymentWhere, type ScopeUser, type ScopeOptions } from "@/lib/scope";
 import { calculatePaidAmount } from "@/lib/payment-utils";
@@ -342,12 +341,7 @@ export async function processMultiSessionPayment(params: {
     // NONE / לא נבחרה קבלה ואין Cardcom) → נופלים ללולאה הרגילה שמטפלת ב-emails
     // ללא קבלה. OFF → התנהגות קיימת ללא שינוי. הגייט זהה ל-effectiveIssueReceipt
     // שבלולאה כדי לא להפיק קבלה מאוחדת כשהמשתמש/ת ביקש/ה לא להפיק קבלה.
-    const combinedCardcomOwner = combinedReceipt
-      ? await resolveCardcomReceiptOwner(userId, organizationId)
-      : null;
-    const useCombinedReceipt =
-      combinedReceipt &&
-      (!!combinedCardcomOwner || shouldIssueReceipt !== false);
+    const useCombinedReceipt = combinedReceipt && shouldIssueReceipt !== false;
     if (useCombinedReceipt) {
       await issueCombinedReceipt({
         userId,
@@ -373,18 +367,12 @@ export async function processMultiSessionPayment(params: {
         const expAmt = Number(paymentWithSession.expectedAmount) || 0;
         const isStillPartial = !item.isFullyPaid;
 
-        // הוצאת קבלה - לפי המדיניות. כש-Cardcom primary: אילוץ הפקה תמיד
-        // (זה החוק — Cardcom חייבת להפיק מסמך רשמי). אחרת: לפי checkbox.
-        // resolveCardcomReceiptOwner מכליל את הפלבק לבעל הקליניקה — הכרחי
-        // ל-bulk payment בקליניקה שבה רק ה-OWNER חיבר Cardcom.
+        // הוצאת קבלה - לפי בחירת המשתמש (מדיניות אחידה לכל סוגי העסק). תשלום
+        // מצרפי הוא תמיד מזומן/העברה/צ'ק (אשראי עובר ב-startCardcomFlow), אז
+        // הקבלה לעולם לא נכפית כאן.
         let receiptUrl: string | null = null;
         let receiptNumber: string | null = null;
-        const cardcomReceiptOwner = await resolveCardcomReceiptOwner(
-          userId,
-          paymentWithSession.organizationId ?? null,
-        );
-        const effectiveIssueReceipt =
-          !!cardcomReceiptOwner || shouldIssueReceipt !== false;
+        const effectiveIssueReceipt = shouldIssueReceipt !== false;
         if (effectiveIssueReceipt) {
           const receiptResult = await issueReceipt({
             userId,

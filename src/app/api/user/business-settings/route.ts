@@ -52,6 +52,10 @@ export async function GET() {
       // עקבי עם issueReceipt ב-receipt-service.ts וההתנהגות ההיסטורית עם iCount.
       externalReceiptProvider:
         hasActiveCardcom > 0 && user.businessType !== "EXEMPT" ? "CARDCOM" : null,
+      // האם יש מסוף Cardcom פעיל — גם לעוסק פטור (ששם externalReceiptProvider=null
+      // כי קבלותיו פנימיות). ה-UI צריך זאת כדי להציג "קבלה תופק דרך קארדקום"
+      // כשבוחרים אשראי: אז הכסף עובר בקארדקום והוא מפיק את המסמך, בכל סוג עסק.
+      hasActiveCardcom: hasActiveCardcom > 0,
     });
   } catch (error) {
     logger.error("Get business settings error:", { error: error instanceof Error ? error.message : String(error) });
