@@ -29,10 +29,27 @@ export function ContactForm() {
   const handleSubmit = async (e: FormEvent) => {
     e.preventDefault();
     if (submitting) return;
-    if (form.phone.trim().length < 9) {
-      toast.error("נא להזין מספר טלפון תקין");
+
+    // ולידציה בצד הלקוח — הודעה ממוקדת שמפרטת בדיוק אילו שדות חובה חסרים,
+    // לפני שליחה לשרת (שאחרת מחזיר "נתונים לא תקינים" כללי בלי לציין מה חסר).
+    const missing: string[] = [];
+    if (!form.name.trim()) missing.push("שם מלא");
+    if (!form.email.trim()) missing.push("אימייל");
+    if (!form.phone.trim()) missing.push("טלפון");
+    if (!form.message.trim()) missing.push("איך נוכל לעזור?");
+    if (missing.length > 0) {
+      toast.error(`יש למלא את השדות הבאים: ${missing.join(", ")}`);
       return;
     }
+    if (!/^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(form.email.trim())) {
+      toast.error("כתובת האימייל אינה תקינה");
+      return;
+    }
+    if (form.phone.trim().length < 9) {
+      toast.error("מספר הטלפון קצר מדי — יש להזין מספר תקין");
+      return;
+    }
+
     setSubmitting(true);
     try {
       const res = await fetch("/api/contact", {
@@ -56,6 +73,7 @@ export function ContactForm() {
   return (
     <form
       onSubmit={handleSubmit}
+      noValidate
       className="space-y-4 bg-card border rounded-2xl p-6 md:p-8 shadow-sm"
     >
       {/* honeypot — נסתר מבני אדם, בוטים ממלאים */}
