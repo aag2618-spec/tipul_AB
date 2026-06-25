@@ -1655,6 +1655,9 @@ export default function WorksheetsPage() {
   const [topicsOpen, setTopicsOpen] = useState(false);
   // ref לאזור הקטגוריה שנפתחת — לגלילה אוטומטית אליו.
   const expandedRef = useRef<HTMLDivElement | null>(null);
+  // ref לפאנל התצוגה (הוראות/דף/דוגמה) שנפתח בתחתית — לגלילה אוטומטית אליו
+  // כשבוחרים דף עבודה ספציפי. רלוונטי גם לתצוגה הרגילה וגם לתצוגת הסינון.
+  const previewRef = useRef<HTMLDivElement | null>(null);
 
   const isFiltering =
     searchText.trim().length > 0 ||
@@ -1684,6 +1687,18 @@ export default function WorksheetsPage() {
       return () => clearTimeout(t);
     }
   }, [openCategory, isFiltering]);
+
+  // גלילה אוטומטית לפאנל התצוגה כשבוחרים דף עבודה ספציפי — הפאנל נפתח בתחתית
+  // הדף ובלעדי הגלילה המשתמש לא רואה שמשהו קרה. אותו דפוס setTimeout כמו הגלילה
+  // לקטגוריה (אמין יותר מ-rAF כשהטאב אינו פעיל).
+  useEffect(() => {
+    if (openWorksheet && previewRef.current) {
+      const t = setTimeout(() => {
+        previewRef.current?.scrollIntoView({ behavior: "smooth", block: "start" });
+      }, 50);
+      return () => clearTimeout(t);
+    }
+  }, [openWorksheet]);
 
   // ההורדה וההדפסה מגישות PDF מוכן מ-/worksheets/pdf/ במקום ה-HTML — פוטר "כל הזכויות
   // שמורות" + קישור לחיץ בכל עמוד, שוליים קבועים. כך הפלט זהה תמיד, ללא תלות בהגדרות
@@ -2022,7 +2037,7 @@ export default function WorksheetsPage() {
 
       {/* Tabs Preview Panel — משותף לתצוגה הרגילה ולתצוגת הסינון השטוחה */}
       {activeWs && activeColor && (
-        <div ref={isFiltering ? expandedRef : undefined} className="scroll-mt-24 rounded-xl border border-gray-200 bg-white shadow-lg overflow-hidden animate-in slide-in-from-top-2 duration-200">
+        <div ref={previewRef} className="scroll-mt-24 rounded-xl border border-gray-200 bg-white shadow-lg overflow-hidden animate-in slide-in-from-top-2 duration-200">
           <p className="border-b border-amber-100 bg-amber-50/60 px-4 py-2 text-xs text-muted-foreground print:hidden">
             טיפ להדפסה: בחלון ההדפסה כבו &quot;כותרת ותחתית&quot; (Headers and footers) כדי שלא
             יודפסו כתובת הקובץ ומספרי עמודים בשוליים.
