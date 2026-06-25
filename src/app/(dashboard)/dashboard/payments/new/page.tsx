@@ -9,7 +9,8 @@ import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import { Textarea } from "@/components/ui/textarea";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
-import { Loader2, CreditCard } from "lucide-react";
+import { Loader2, CreditCard, FileText } from "lucide-react";
+import { Checkbox } from "@/components/ui/checkbox";
 import { toast } from "sonner";
 import { ChargeCardcomDialog } from "@/components/payments/charge-cardcom-dialog";
 
@@ -32,6 +33,13 @@ function NewPaymentContent() {
     notes: "",
     status: "PENDING", // Default to pending (debt)
   });
+  // ── מצב הפקת קבלה (מודל אחיד) ──────────────────────────────
+  // אשראי + מסוף קארדקום פעיל → הקבלה מופקת אוטומטית בסליקה (הודעה, לא בחירה).
+  // מזומן/העברה/צ'ק → המטפל/ת בוחר/ת לפי receiptDefaultMode שבהגדרות העסק.
+  const [businessType, setBusinessType] = useState<"NONE" | "EXEMPT" | "LICENSED">("NONE");
+  const [receiptMode, setReceiptMode] = useState<"ALWAYS" | "ASK" | "NEVER">("ASK");
+  const [hasActiveCardcom, setHasActiveCardcom] = useState(false);
+  const [issueReceipt, setIssueReceipt] = useState(false);
   // ── Cardcom flow state ────────────────────────────────────
   const [cardcomOpen, setCardcomOpen] = useState(false);
   const [cardcomPaymentId, setCardcomPaymentId] = useState<string | undefined>(undefined);
@@ -54,6 +62,20 @@ function NewPaymentContent() {
     };
 
     fetchClients();
+  }, []);
+
+  // טעינת הגדרות העסק לצורך הפקת קבלה (זהה למסכי התשלום האחרים).
+  useEffect(() => {
+    fetch("/api/user/business-settings")
+      .then((res) => res.json())
+      .then((data) => {
+        if (data.businessType) setBusinessType(data.businessType);
+        if (data.receiptDefaultMode) setReceiptMode(data.receiptDefaultMode);
+        setHasActiveCardcom(data.hasActiveCardcom === true);
+        if (data.receiptDefaultMode === "ALWAYS") setIssueReceipt(true);
+        else if (data.receiptDefaultMode === "NEVER") setIssueReceipt(false);
+      })
+      .catch(() => {});
   }, []);
 
   const handleSubmit = async (e: React.FormEvent) => {
@@ -127,7 +149,7 @@ function NewPaymentContent() {
           notes: formData.notes,
           status: formData.status,
           paidAt: formData.status === "PAID" ? new Date().toISOString() : null,
-          issueReceipt: formData.status === "PAID",
+          issueReceipt: formData.status === "PAID" && businessType !== "NONE" && issueReceipt,
         }),
       });
 
@@ -239,6 +261,36 @@ function NewPaymentContent() {
                 </Select>
               </div>
             </div>
+
+            {/* הוצאת קבלה — מוצג רק כש"שולם" וכשסוג העסק מאפשר. באשראי + מסוף
+                קארדקום פעיל הקבלה מופקת אוטומטית בסליקה; אחרת המטפל/ת בוחר/ת.
+                בחוב (PENDING) אין תשלום בפועל ולכן הבלוק מוסתר. */}
+            {formData.status === "PAID" && businessType !== "NONE" && (
+              formData.method === "CREDIT_CARD" && hasActiveCardcom ? (
+                <div className="flex items-center gap-3 py-2 px-3 bg-green-50 rounded-lg border border-green-200">
+                  <FileText className="h-4 w-4 text-green-700" />
+                  <span className="text-sm text-green-800">
+                    קבלה תופק אוטומטית דרך קארדקום
+                  </span>
+                </div>
+              ) : receiptMode === "NEVER" ? null : (
+                <div className="flex items-center gap-3 py-2 px-3 bg-sky-50 rounded-lg border border-sky-200">
+                  <Checkbox
+                    id="issue-receipt"
+                    checked={issueReceipt}
+                    onCheckedChange={(checked) => setIssueReceipt(checked === true)}
+                    disabled={receiptMode === "ALWAYS"}
+                  />
+                  <Label htmlFor="issue-receipt" className="cursor-pointer flex items-center gap-2 text-sky-800">
+                    <FileText className="h-4 w-4" />
+                    הוצא קבלה
+                    {receiptMode === "ALWAYS" && (
+                      <span className="text-xs text-sky-600">(ברירת מחדל)</span>
+                    )}
+                  </Label>
+                </div>
+              )
+            )}
 
             <div className="space-y-2">
               <Label htmlFor="notes">הערות</Label>
