@@ -9,7 +9,11 @@
 // network-first מבטיח שה-HTML תמיד טרי ומצביע על ה-chunks הנוכחיים.
 // בנוסף: API לא נשמר ב-cache (PHI לא נשאר בדפדפן אחרי התנתקות), ודפי HTML
 // (שעלולים להכיל PHI) כבר לא נשמרים ב-cache כלל.
-const CACHE_NAME = 'tipul-v5';
+// v6 (2026-06-25): /worksheets/ (manifest + HTML + PDF) עבר ל-network-first — בעבר
+// היה cache-first, אז עדכוני תוכן (הוספת גרסאות ילדים, הדרכה מורחבת) לא הגיעו
+// למשתמשים עם cache ישן: manifest ישן הציג כפתור "גרסת ילדים" רק לחלק מהדפים.
+// bump הגרסה מוחק את ה-cache הישן (כולל manifest/דפים ישנים) ב-activate.
+const CACHE_NAME = 'tipul-v6';
 const OFFLINE_URL = '/offline.html';
 
 // Assets to cache on install — נכסים סטטיים בלבד (לא דפי HTML עם PHI).
@@ -78,6 +82,25 @@ self.addEventListener('fetch', (event) => {
     new URL(event.request.url).searchParams.has('_rsc')
   ) {
     event.respondWith(fetch(event.request));
+    return;
+  }
+
+  // דפי עבודה (manifest/HTML/PDF) — network-first. הקבצים האלה מתעדכנים עם כל סבב
+  // תוכן (גרסאות ילדים, הדרכה מורחבת), ושמם קבוע (ללא hash), אז cache-first הגיש
+  // רשימה ודפים ישנים. network-first מבטיח תמיד טרי; שמירה ב-cache רק כ-fallback
+  // ל-offline. לא PHI — בטוח לשמור.
+  if (event.request.url.includes('/worksheets/')) {
+    event.respondWith(
+      fetch(event.request)
+        .then((response) => {
+          if (response && response.status === 200 && response.type !== 'error') {
+            const clone = response.clone();
+            caches.open(CACHE_NAME).then((cache) => cache.put(event.request, clone));
+          }
+          return response;
+        })
+        .catch(() => caches.match(event.request))
+    );
     return;
   }
 
