@@ -51,6 +51,11 @@ export function BusinessTab() {
         businessPhone: bizData.businessPhone || "",
         businessAddress: bizData.businessAddress || "",
         nextReceiptNumber: bizData.nextReceiptNumber || 1,
+        // "NEVER" הוסר כאפשרות נבחרת (מוזג ל"ללא הפקת קבלות במערכת" בסוג העסק).
+        // ⚠️ שומרים את הערך הגולמי ב-state (כולל NEVER ישן) — לא ממפים כאן — כדי
+        // שלא נדרוס בשקט את העדפת משתמש קיים בשמירה הבאה. המיפוי ל-ASK לתצוגה
+        // נעשה רק על ה-value של ה-RadioGroup למטה. ה-enum ב-DB ובמסכי התשלום לא
+        // שונה — תאימות מלאה לאחור.
         receiptDefaultMode: bizData.receiptDefaultMode || "ASK",
       });
       if (commData?.settings) {
@@ -132,8 +137,8 @@ export function BusinessTab() {
             <div className="flex items-start gap-3 p-3 border rounded-lg hover:bg-slate-50 transition-colors">
               <RadioGroupItem value="NONE" id="none" />
               <div className="flex-1">
-                <Label htmlFor="none" className="font-semibold cursor-pointer">לא רוצה קבלות</Label>
-                <p className="text-sm text-muted-foreground">רק תיעוד תשלומים פנימי במערכת, ללא הפקת קבלות.</p>
+                <Label htmlFor="none" className="font-semibold cursor-pointer">ללא הפקת קבלות במערכת</Label>
+                <p className="text-sm text-muted-foreground">התשלומים יתועדו במערכת לצורכי מעקב בלבד. הפקת הקבלות מתבצעת באופן עצמאי.</p>
               </div>
             </div>
           </RadioGroup>
@@ -201,34 +206,27 @@ export function BusinessTab() {
       {settings.businessType !== "NONE" && (
         <Card>
           <CardHeader>
-            <CardTitle>ברירת מחדל בתשלום</CardTitle>
-            <CardDescription>מה יקרה כשתרשום תשלום של מטופל?</CardDescription>
+            <CardTitle>ברירת מחדל להפקת קבלה</CardTitle>
+            <CardDescription>הגדרה זו חלה על תשלומים במזומן, בהעברה בנקאית או בצ&apos;ק. כאשר מחובר מסוף סליקה, תשלום בכרטיס אשראי עובר דרכו והקבלה מופקת עבורו באופן אוטומטי.</CardDescription>
           </CardHeader>
           <CardContent>
             <RadioGroup
-              value={settings.receiptDefaultMode}
+              value={settings.receiptDefaultMode === "NEVER" ? "ASK" : settings.receiptDefaultMode}
               onValueChange={(value) => setSettings({ ...settings, receiptDefaultMode: value as BusinessSettings["receiptDefaultMode"] })}
               className="space-y-2"
             >
               <div className="flex items-start gap-3 p-2">
                 <RadioGroupItem value="ALWAYS" id="always" />
                 <div>
-                  <Label htmlFor="always" className="cursor-pointer">תמיד להוציא קבלה</Label>
-                  <p className="text-xs text-muted-foreground">בכל תשלום שתרשום, קבלה תופק אוטומטית ללא שאלות</p>
+                  <Label htmlFor="always" className="cursor-pointer">הפקה אוטומטית בכל תשלום</Label>
+                  <p className="text-xs text-muted-foreground">עבור כל תשלום שיירשם, המערכת תפיק קבלה באופן אוטומטי.</p>
                 </div>
               </div>
               <div className="flex items-start gap-3 p-2">
                 <RadioGroupItem value="ASK" id="ask" />
                 <div>
-                  <Label htmlFor="ask" className="cursor-pointer">לשאול בכל תשלום (מומלץ)</Label>
-                  <p className="text-xs text-muted-foreground">בכל תשלום תישאל האם להפיק קבלה - מאפשר גמישות</p>
-                </div>
-              </div>
-              <div className="flex items-start gap-3 p-2">
-                <RadioGroupItem value="NEVER" id="never" />
-                <div>
-                  <Label htmlFor="never" className="cursor-pointer">לא להוציא קבלה</Label>
-                  <p className="text-xs text-muted-foreground">תשלומים יתועדו במערכת בלבד, ללא הפקת קבלות</p>
+                  <Label htmlFor="ask" className="cursor-pointer">בחירה בעת רישום התשלום</Label>
+                  <p className="text-xs text-muted-foreground">בכל תשלום תוכל להחליט אם להפיק את הקבלה דרך המערכת או להפיקה בערוץ אחר. אפשרות זו מתאימה למי שמנהל קבלות גם במערכות נוספות.</p>
                 </div>
               </div>
             </RadioGroup>
