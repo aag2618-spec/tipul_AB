@@ -25,6 +25,7 @@ export type MyPermissions = {
   canViewStats: boolean;
   canViewConsentForms: boolean;
   canTransferClient: boolean;
+  canAssignTasks: boolean;
 };
 
 export type MyPermissionsResponse = {
@@ -45,6 +46,7 @@ const OPTIMISTIC_DEFAULT: MyPermissionsResponse = {
     canViewStats: true,
     canViewConsentForms: true,
     canTransferClient: true,
+    canAssignTasks: true,
   },
 };
 
@@ -64,6 +66,7 @@ const FAIL_CLOSED: MyPermissionsResponse = {
     canViewStats: false,
     canViewConsentForms: false,
     canTransferClient: false,
+    canAssignTasks: false,
   },
 };
 

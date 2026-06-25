@@ -30,6 +30,7 @@ import {
   buildSessionWhere,
   buildPaymentWhere,
   secretaryCan,
+  canManageStaffTasks,
   type ScopeUser,
 } from "@/lib/scope";
 import { EXCLUDE_BULK_UMBRELLA_WHERE } from "@/lib/payments/types";
@@ -399,6 +400,10 @@ export async function SecretaryHome({
 
   const canCreateClient = secretaryCan(scopeUser, "canCreateClient");
   const canSendReminders = secretaryCan(scopeUser, "canSendReminders");
+  // המלבן "מה דורש את תשומת ליבך" מיועד למקצה מטלות (בעלים / מזכירה עם הרשאת
+  // הקצאה) — מי שמקבלת תגובות עובדים. מזכירה רגילה רואה את הצ׳אט דרך תפריט הצד,
+  // ולכן לא צריכה את המלבן (מונע כפילות).
+  const canSeeAttentionInbox = canManageStaffTasks(scopeUser);
 
   const todayLabel = new Date().toLocaleDateString("he-IL", {
     weekday: "long",
@@ -566,11 +571,14 @@ export async function SecretaryHome({
           {/* מטלות מהמנהל/ת + משימות אישיות — אותו ווידג'ט כמו בדשבורד המטפל.
               כך מזכיר/ה (ובעל/ת קליניקה ב-front-desk) רואה מטלות שהוקצו לו/ה,
               מסמן/ת "בוצע", מוסיף/ה הערת ביצוע, ורישום הצפייה (seenAt) נשמר. */}
-          {/* מלבן "מה דורש את תשומת ליבך" — תגובות חדשות ממטלות+צ׳אט (מוסתר
-              כשאין מה לטפל בו). מעל המטלות כי זה דורש פעולה מיידית. */}
-          <Suspense fallback={null}>
-            <AttentionInbox />
-          </Suspense>
+          {/* מלבן "מה דורש את תשומת ליבך" — תגובות חדשות ממטלות+צ׳אט. מוצג רק
+              למי שמקצה מטלות (בעלים / מזכירה עם הרשאת הקצאה); מזכירה רגילה לא
+              צריכה אותו (הצ׳אט זמין בתפריט). מעל המטלות — דורש פעולה מיידית. */}
+          {canSeeAttentionInbox && (
+            <Suspense fallback={null}>
+              <AttentionInbox />
+            </Suspense>
+          )}
           <Suspense fallback={null}>
             <PersonalTasksWidget />
           </Suspense>

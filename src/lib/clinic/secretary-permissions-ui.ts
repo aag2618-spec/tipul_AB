@@ -16,7 +16,8 @@ export type SecretaryPermissionKey =
   | "canViewDebts"
   | "canViewStats"
   | "canViewConsentForms"
-  | "canTransferClient";
+  | "canTransferClient"
+  | "canAssignTasks";
 
 export type SecretaryPermissions = Partial<Record<SecretaryPermissionKey, boolean>>;
 
@@ -45,11 +46,16 @@ export const SECRETARY_PERMS: {
     label: "העברת מטופלים בין מטפלים",
     help: "גישה למסכי ניהול הקליניקה הרלוונטיים (העברה, מטופלים לפי מטפל)",
   },
+  {
+    key: "canAssignTasks",
+    label: "הקצאת מטלות צוות",
+    help: "יצירת מטלות לעובדים ומעקב אחר הביצוע",
+  },
 ];
 
 /**
  * ברירת המחדל להרשאות מזכירה — deny by default, פרט להרשאות תפעוליות בסיסיות
- * (שליחת תזכורות + יצירת מטופל) שמזכירה כמעט תמיד צריכה. כולל את כל 8 השדות
+ * (שליחת תזכורות + יצירת מטופל) שמזכירה כמעט תמיד צריכה. כולל את כל 9 השדות
  * במפורש כדי שלא יישמט אף אחד (source-of-truth אחד ל-frontend ול-backend).
  */
 export const DEFAULT_SECRETARY_PERMISSIONS: Required<
@@ -63,4 +69,5 @@ export const DEFAULT_SECRETARY_PERMISSIONS: Required<
   canViewStats: false,
   canViewConsentForms: false,
   canTransferClient: false,
+  canAssignTasks: false,
 };

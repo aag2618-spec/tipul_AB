@@ -32,6 +32,7 @@ export const secretaryPermissionsSchema = z
     canViewStats: z.boolean().optional(),
     canViewConsentForms: z.boolean().optional(),
     canTransferClient: z.boolean().optional(),
+    canAssignTasks: z.boolean().optional(),
   })
   .strip();
 
