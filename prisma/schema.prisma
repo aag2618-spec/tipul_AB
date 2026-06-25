@@ -2201,7 +2201,9 @@ model SupportTicket {
   externalName           String?
   // טוקן סודי (256 ביט) לעמוד השיחה הציבורי /support/t/[token] — מאפשר למתעניין
   // האנונימי לראות את השיחה ולהשיב בלי חשבון. נוצר עם הפנייה (landing_lead). null לרגילות.
-  externalToken          String?             @unique
+  // לא @unique (db push חוסם הוספת אילוץ ייחודי בלי --accept-data-loss); 256 ביט אקראי
+  // = ייחודי בפועל, והשאילתה היא findFirst. @@index בלבד לשמירת מהירות החיפוש.
+  externalToken          String?
   notes                  SupportTicketNote[]
 
   @@index([userId])
@@ -2209,6 +2211,7 @@ model SupportTicket {
   @@index([ticketNumber])
   @@index([status, lastReplyAt]) // לסינון SLA breaches
   @@index([assignedToId, status]) // "פניות שלי" ב-dashboard של מזכיר
+  @@index([externalToken]) // חיפוש מהיר בעמוד השיחה הציבורי (/support/t/[token])
 }
 
 model SupportResponse {
