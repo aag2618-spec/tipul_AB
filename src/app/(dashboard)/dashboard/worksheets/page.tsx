@@ -1,9 +1,13 @@
 "use client";
 
-import { useState, useEffect } from "react";
-import { Download, Eye, BookOpen, Printer, FileText, ClipboardList, ChevronDown, ChevronUp, Baby } from "lucide-react";
+import { useState, useEffect, useRef, useMemo } from "react";
+import { Download, Eye, BookOpen, Printer, FileText, ClipboardList, ChevronDown, ChevronUp, Baby, Search, Filter, X } from "lucide-react";
 import { Tabs, TabsList, TabsTrigger, TabsContent } from "@/components/ui/tabs";
+import { Button } from "@/components/ui/button";
+import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
 import { worksheetsContent } from "@/lib/worksheets-content.mjs";
+import { worksheetsMeta } from "@/lib/worksheets-meta.mjs";
+import { worksheetTopics } from "@/lib/worksheets-topics.mjs";
 
 interface WorksheetData {
   id: string;
@@ -17,6 +21,8 @@ interface WorksheetData {
   therapistInstructions: React.ReactNode;
   worksheetPreview: React.ReactNode;
   examplePreview: React.ReactNode;
+  addedAt?: string;
+  topics?: string[];
 }
 
 interface ApproachCategory {
@@ -1600,14 +1606,62 @@ const categories: ApproachCategory[] = (() => {
       });
     }
   }
+  // העשרה: מזריקים תאריך הוספה (addedAt) ונושאים (topics) מקובץ המטא-דאטה הצדדי,
+  // לפי ה-id (=slug) של כל דף. לא נוגעים בלוגיקת המיזוג עצמה.
+  for (const cat of merged) {
+    for (const ws of cat.worksheets) {
+      const m = (worksheetsMeta as Record<string, { addedAt?: string; topics?: string[] }>)[ws.id];
+      if (m) {
+        ws.addedAt = m.addedAt;
+        ws.topics = m.topics;
+      }
+    }
+  }
   return merged;
 })();
+
+/* ═══ נושאים ועזרי סינון ═══ */
+
+// מיפוי slug → תווית עברית של נושא (לתגיות ולשורת הסינון). נבנה פעם אחת.
+const topicLabelMap = new Map(worksheetTopics.map((t) => [t.slug, t.label]));
+const topicLabel = (slug: string) => topicLabelMap.get(slug) ?? slug;
+
+// טווחי "לפי תקופה" — מצטברים (עד N ימים), בדיוק כפי שביקש המשתמש.
+const recencyOptions = [
+  { value: "7", label: "שבוע אחרון" },
+  { value: "14", label: "שבועיים אחרונים" },
+  { value: "21", label: "שלושה שבועות" },
+  { value: "30", label: "חודש אחרון" },
+  { value: "older", label: "ישנים יותר" },
+];
+
+// מספר הימים שחלפו מאז הוספת הדף; null אם אין תאריך.
+function recencyDays(addedAt?: string): number | null {
+  if (!addedAt) return null;
+  const ms = Date.now() - new Date(addedAt + "T00:00:00").getTime();
+  return Math.floor(ms / 86400000);
+}
 
 /* ═══ קומפוננטה ═══ */
 
 export default function WorksheetsPage() {
   const [openCategory, setOpenCategory] = useState<string | null>(null);
   const [openWorksheet, setOpenWorksheet] = useState<string | null>(null);
+  // ── חיפוש וסינון ──
+  const [searchText, setSearchText] = useState("");
+  const [selectedApproaches, setSelectedApproaches] = useState<Set<string>>(new Set());
+  const [selectedTopics, setSelectedTopics] = useState<Set<string>>(new Set());
+  const [selectedRecency, setSelectedRecency] = useState<string | null>(null);
+  const [topicsOpen, setTopicsOpen] = useState(false);
+  // ref לאזור הקטגוריה שנפתחת — לגלילה אוטומטית אליו.
+  const expandedRef = useRef<HTMLDivElement | null>(null);
+
+  const isFiltering =
+    searchText.trim().length > 0 ||
+    selectedApproaches.size > 0 ||
+    selectedTopics.size > 0 ||
+    selectedRecency !== null;
+
   // רשימת הנושאים שיש להם גרסת ילדים — נטענת מ-manifest שנוצר ע"י build-worksheets.mjs.
   // כך כפתור "גרסת ילדים" מופיע רק לדפים שבאמת קיימת להם גרסה כזו.
   const [kidsSlugs, setKidsSlugs] = useState<string[]>([]);
@@ -1617,6 +1671,19 @@ export default function WorksheetsPage() {
       .then((data) => { if (Array.isArray(data)) setKidsSlugs(data); })
       .catch(() => {});
   }, []);
+
+  // גלילה אוטומטית לתוכן שנפתח כשבוחרים קטגוריה (רק במצב הרגיל — בזמן סינון אין
+  // בלוק קטגוריה לגלול אליו). setTimeout (ולא requestAnimationFrame) — אמין יותר:
+  // rAF נחנק כשהטאב אינו פעיל ואז הגלילה לא מתבצעת. ה-delay הקצר נותן ל-DOM
+  // להתייצב אחרי פתיחת הבלוק.
+  useEffect(() => {
+    if (!isFiltering && openCategory && expandedRef.current) {
+      const t = setTimeout(() => {
+        expandedRef.current?.scrollIntoView({ behavior: "smooth", block: "start" });
+      }, 50);
+      return () => clearTimeout(t);
+    }
+  }, [openCategory, isFiltering]);
 
   // ההורדה וההדפסה מגישות PDF מוכן מ-/worksheets/pdf/ במקום ה-HTML — פוטר "כל הזכויות
   // שמורות" + קישור לחיץ בכל עמוד, שוליים קבועים. כך הפלט זהה תמיד, ללא תלות בהגדרות
@@ -1638,6 +1705,50 @@ export default function WorksheetsPage() {
     window.open(toPdf(file), "_blank");
   };
 
+  // רשימה שטוחה של כל הדפים שתואמים לסינון. כל ממד עובד לבד; שילובם הוא חיתוך (AND),
+  // ובתוך כל ממד — איחוד (OR). מוצגת רק כשיש סינון פעיל.
+  const filteredWorksheets = useMemo(() => {
+    const all = categories.flatMap((cat) => cat.worksheets.map((ws) => ({ ws, cat })));
+    const term = searchText.trim().toLowerCase();
+    return all.filter(({ ws, cat }) => {
+      if (selectedApproaches.size > 0 && !selectedApproaches.has(cat.id)) return false;
+      if (selectedTopics.size > 0 && !(ws.topics ?? []).some((t) => selectedTopics.has(t))) return false;
+      if (selectedRecency) {
+        const d = recencyDays(ws.addedAt);
+        if (selectedRecency === "older") {
+          if (d !== null && d <= 30) return false;
+        } else if (d === null || d > Number(selectedRecency)) {
+          return false;
+        }
+      }
+      if (term) {
+        const hay = `${ws.title} ${ws.titleEn} ${ws.description} ${cat.approachHe} ${cat.approach}`.toLowerCase();
+        if (!hay.includes(term)) return false;
+      }
+      return true;
+    });
+  }, [searchText, selectedApproaches, selectedTopics, selectedRecency]);
+
+  // החלפת ערך ב-Set (הוספה/הסרה) — לבחירה מרובה של גישות ונושאים.
+  const toggleInSet = (
+    setter: React.Dispatch<React.SetStateAction<Set<string>>>,
+    value: string,
+  ) =>
+    setter((prev) => {
+      const next = new Set(prev);
+      if (next.has(value)) next.delete(value);
+      else next.add(value);
+      return next;
+    });
+
+  const clearFilters = () => {
+    setSearchText("");
+    setSelectedApproaches(new Set());
+    setSelectedTopics(new Set());
+    setSelectedRecency(null);
+    setOpenWorksheet(null);
+  };
+
   const toggleCategory = (catId: string) => {
     if (openCategory === catId) {
       setOpenCategory(null);
@@ -1649,7 +1760,10 @@ export default function WorksheetsPage() {
   };
 
   const activeCat = categories.find((cat) => cat.id === openCategory);
-  const activeWs = activeCat?.worksheets.find((ws) => ws.id === openWorksheet);
+  // activeWs מחושב מכל הדפים (לא רק מהקטגוריה הפתוחה) — כדי שפאנל התצוגה יעבוד
+  // גם בתצוגת הסינון השטוחה, שבה אין activeCat.
+  const allWorksheetsFlat = categories.flatMap((cat) => cat.worksheets);
+  const activeWs = allWorksheetsFlat.find((ws) => ws.id === openWorksheet) ?? null;
   const activeColor = activeWs ? colorMap[activeWs.color] : null;
 
   return (
@@ -1667,6 +1781,161 @@ export default function WorksheetsPage() {
         </div>
       </div>
 
+      {/* ── שורת חיפוש וסינון ── */}
+      <div className="space-y-3 rounded-xl border bg-card p-3 shadow-sm">
+        {/* חיפוש חופשי + תקופה + ניקוי */}
+        <div className="flex flex-col gap-2 sm:flex-row sm:items-center">
+          <div className="relative flex-1 sm:max-w-xs">
+            <Search className="pointer-events-none absolute right-3 top-1/2 h-4 w-4 -translate-y-1/2 text-muted-foreground" />
+            <input
+              type="text"
+              value={searchText}
+              onChange={(e) => { setSearchText(e.target.value); setOpenCategory(null); }}
+              placeholder="חיפוש דף לפי שם או מילה…"
+              className="w-full rounded-lg border border-input bg-background py-2 pr-9 pl-8 text-sm outline-none focus:ring-2 focus:ring-ring"
+            />
+            {searchText && (
+              <button
+                onClick={() => setSearchText("")}
+                className="absolute left-2 top-1/2 -translate-y-1/2 text-muted-foreground hover:text-foreground"
+                title="ניקוי החיפוש"
+              >
+                <X className="h-4 w-4" />
+              </button>
+            )}
+          </div>
+          <Select
+            value={selectedRecency ?? "all"}
+            onValueChange={(v) => { setSelectedRecency(v === "all" ? null : v); setOpenCategory(null); }}
+          >
+            <SelectTrigger className="sm:w-[180px]">
+              <SelectValue placeholder="כל הזמן" />
+            </SelectTrigger>
+            <SelectContent>
+              <SelectItem value="all">כל הזמן</SelectItem>
+              {recencyOptions.map((o) => (
+                <SelectItem key={o.value} value={o.value}>{o.label}</SelectItem>
+              ))}
+            </SelectContent>
+          </Select>
+          {isFiltering && (
+            <Button variant="ghost" size="sm" onClick={clearFilters} className="gap-1.5">
+              <X className="h-4 w-4" />
+              ניקוי סינון
+            </Button>
+          )}
+        </div>
+
+        {/* גישות — בחירה מרובה */}
+        <div className="flex flex-wrap gap-1.5">
+          {categories.map((cat) => {
+            const active = selectedApproaches.has(cat.id);
+            return (
+              <Button
+                key={cat.id}
+                type="button"
+                size="sm"
+                variant={active ? "default" : "outline"}
+                onClick={() => { toggleInSet(setSelectedApproaches, cat.id); setOpenCategory(null); }}
+                className="h-7 gap-1.5 rounded-full px-3 text-xs"
+              >
+                <span className={`inline-block h-2 w-2 rounded-full ${colorMap[cat.color]?.accent ?? "bg-gray-400"}`} aria-hidden />
+                {cat.approachHe}
+              </Button>
+            );
+          })}
+        </div>
+
+        {/* נושאים — מתקפל */}
+        <div>
+          <button
+            type="button"
+            onClick={() => setTopicsOpen((o) => !o)}
+            className="flex items-center gap-1 text-xs font-medium text-muted-foreground hover:text-foreground"
+          >
+            <Filter className="h-3.5 w-3.5" />
+            סינון לפי נושא
+            {selectedTopics.size > 0 && (
+              <span className="rounded-full bg-primary/10 px-1.5 text-[10px] font-bold text-primary">{selectedTopics.size}</span>
+            )}
+            {topicsOpen ? <ChevronUp className="h-3.5 w-3.5" /> : <ChevronDown className="h-3.5 w-3.5" />}
+          </button>
+          {topicsOpen && (
+            <div className="mt-2 flex flex-wrap gap-1.5">
+              {worksheetTopics.map((t) => {
+                const active = selectedTopics.has(t.slug);
+                return (
+                  <Button
+                    key={t.slug}
+                    type="button"
+                    size="sm"
+                    variant={active ? "default" : "outline"}
+                    onClick={() => { toggleInSet(setSelectedTopics, t.slug); setOpenCategory(null); }}
+                    className="h-7 rounded-full px-3 text-xs"
+                  >
+                    {t.label}
+                  </Button>
+                );
+              })}
+            </div>
+          )}
+        </div>
+      </div>
+
+      {isFiltering ? (
+        /* ── תצוגת סינון: רשת שטוחה של דפים תואמים ── */
+        <div className="space-y-4">
+          <p className="text-sm text-muted-foreground">
+            נמצאו {filteredWorksheets.length} {filteredWorksheets.length === 1 ? "דף עבודה" : "דפי עבודה"}
+          </p>
+          {filteredWorksheets.length === 0 ? (
+            <div className="py-16 text-center text-muted-foreground">
+              <Search className="mx-auto mb-3 h-10 w-10 opacity-30" />
+              <p>לא נמצאו דפי עבודה תואמים</p>
+              <button onClick={clearFilters} className="mt-2 text-sm text-primary hover:underline">
+                ניקוי הסינון
+              </button>
+            </div>
+          ) : (
+            <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-3">
+              {filteredWorksheets.map(({ ws, cat }) => {
+                const c = colorMap[ws.color];
+                const isSelected = openWorksheet === ws.id;
+                return (
+                  <button
+                    key={ws.id}
+                    onClick={() => setOpenWorksheet(isSelected ? null : ws.id)}
+                    className={`text-right rounded-lg border-2 p-3 transition-all duration-150 cursor-pointer ${
+                      isSelected
+                        ? `${c.border} ${c.bg} shadow-md ring-1 ring-offset-1 ${c.ring}`
+                        : `border-gray-200 bg-white ${c.hoverBg} ${c.hoverBorder} hover:shadow-sm`
+                    }`}
+                  >
+                    <div className="mb-1.5 flex flex-wrap items-center gap-1">
+                      <span className={`rounded-full px-2 py-0.5 text-[10px] font-bold ${c.badge} ${c.badgeText}`}>
+                        {cat.approach}
+                      </span>
+                      {(ws.topics ?? []).map((tp) => (
+                        <span key={tp} className="rounded-full bg-gray-100 px-2 py-0.5 text-[10px] text-gray-600">
+                          {topicLabel(tp)}
+                        </span>
+                      ))}
+                    </div>
+                    <h4 className={`text-sm font-bold ${c.text}`}>{ws.title}</h4>
+                    <p className="text-[10px] text-muted-foreground mb-1">{ws.titleEn}</p>
+                    <p className="text-xs text-muted-foreground line-clamp-2">{ws.description}</p>
+                    <div className={`mt-2 flex items-center gap-1 text-[10px] font-medium ${isSelected ? c.badgeText : "text-gray-400"}`}>
+                      <Eye className="h-3 w-3" />
+                      {isSelected ? "תצוגה פתוחה" : "לחצו לתצוגה"}
+                    </div>
+                  </button>
+                );
+              })}
+            </div>
+          )}
+        </div>
+      ) : (
+      <>
       {/* Category Cards Grid */}
       <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-4">
         {categories.map((cat) => {
@@ -1709,7 +1978,7 @@ export default function WorksheetsPage() {
 
       {/* Expanded Category */}
       {activeCat && (
-        <div className="space-y-4 animate-in slide-in-from-top-2 duration-200">
+        <div ref={expandedRef} className="scroll-mt-24 space-y-4 animate-in slide-in-from-top-2 duration-200">
           {/* Category Header */}
           <div className="flex items-center gap-2">
             <span className={`inline-flex items-center rounded-full px-3 py-1 text-xs font-bold ${colorMap[activeCat.color].badge} ${colorMap[activeCat.color].badgeText}`}>
@@ -1746,76 +2015,79 @@ export default function WorksheetsPage() {
             })}
           </div>
 
-          {/* Tabs Preview Panel */}
-          {activeWs && activeColor && (
-            <div className="rounded-xl border border-gray-200 bg-white shadow-lg overflow-hidden animate-in slide-in-from-top-2 duration-200">
-              <p className="border-b border-amber-100 bg-amber-50/60 px-4 py-2 text-xs text-muted-foreground print:hidden">
-                טיפ להדפסה: בחלון ההדפסה כבו &quot;כותרת ותחתית&quot; (Headers and footers) כדי שלא
-                יודפסו כתובת הקובץ ומספרי עמודים בשוליים.
-              </p>
-              <Tabs key={activeWs.id} defaultValue="instructions" dir="rtl">
-                <div className="flex items-center justify-between border-b bg-gray-50 px-1">
-                  <TabsList className="flex-1 justify-start rounded-none border-b-0 bg-transparent p-0 h-auto">
-                    <TabsTrigger
-                      value="instructions"
-                      className={`flex-1 gap-2 rounded-none border-b-2 border-transparent py-3 data-[state=active]:bg-white data-[state=active]:shadow-none ${activeColor.tabActiveBorder} ${activeColor.tabActiveText}`}
-                    >
-                      <ClipboardList className="h-4 w-4" />
-                      הוראות למטפל
-                    </TabsTrigger>
-                    <TabsTrigger
-                      value="worksheet"
-                      className={`flex-1 gap-2 rounded-none border-b-2 border-transparent py-3 data-[state=active]:bg-white data-[state=active]:shadow-none ${activeColor.tabActiveBorder} ${activeColor.tabActiveText}`}
-                    >
-                      <FileText className="h-4 w-4" />
-                      דף עבודה
-                    </TabsTrigger>
-                    <TabsTrigger
-                      value="example"
-                      className={`flex-1 gap-2 rounded-none border-b-2 border-transparent py-3 data-[state=active]:bg-white data-[state=active]:shadow-none ${activeColor.tabActiveBorder} ${activeColor.tabActiveText}`}
-                    >
-                      <BookOpen className="h-4 w-4" />
-                      דוגמה ממולאת
-                    </TabsTrigger>
-                  </TabsList>
-                  <div className="flex items-center gap-1 px-2">
-                    <button
-                      onClick={() => handleDownload(activeWs.file)}
-                      className={`flex items-center gap-1.5 rounded-lg px-3 py-1.5 text-xs font-semibold transition-opacity hover:opacity-80 ${activeColor.badge} ${activeColor.badgeText}`}
-                      title="הורדה"
-                    >
-                      <Download className="h-3.5 w-3.5" />
-                      הורדה
-                    </button>
-                    <button
-                      onClick={() => handlePrint(activeWs.file)}
-                      className={`flex items-center gap-1.5 rounded-lg px-3 py-1.5 text-xs font-semibold transition-opacity hover:opacity-80 ${activeColor.badge} ${activeColor.badgeText}`}
-                      title="הדפסה"
-                    >
-                      <Printer className="h-3.5 w-3.5" />
-                      הדפסה
-                    </button>
-                    {kidsSlugs.includes(activeWs.id) && (
-                      <button
-                        onClick={() => handlePrint(activeWs.file.replace("-mytipul.html", "-kids-mytipul.html"))}
-                        className="flex items-center gap-1.5 rounded-lg border border-amber-300 bg-amber-100 px-3 py-1.5 text-xs font-semibold text-amber-700 transition-opacity hover:opacity-80"
-                        title="גרסת ילדים — דף משחקי עם סיפור וחיה מהתנ״ך"
-                      >
-                        <Baby className="h-3.5 w-3.5" />
-                        גרסת ילדים
-                      </button>
-                    )}
-                  </div>
-                </div>
+        </div>
+      )}
+      </>
+      )}
 
-                <div className="max-h-[600px] overflow-y-auto p-5">
-                  <TabsContent value="instructions">{activeWs.therapistInstructions}</TabsContent>
-                  <TabsContent value="worksheet">{activeWs.worksheetPreview}</TabsContent>
-                  <TabsContent value="example">{activeWs.examplePreview}</TabsContent>
-                </div>
-              </Tabs>
+      {/* Tabs Preview Panel — משותף לתצוגה הרגילה ולתצוגת הסינון השטוחה */}
+      {activeWs && activeColor && (
+        <div ref={isFiltering ? expandedRef : undefined} className="scroll-mt-24 rounded-xl border border-gray-200 bg-white shadow-lg overflow-hidden animate-in slide-in-from-top-2 duration-200">
+          <p className="border-b border-amber-100 bg-amber-50/60 px-4 py-2 text-xs text-muted-foreground print:hidden">
+            טיפ להדפסה: בחלון ההדפסה כבו &quot;כותרת ותחתית&quot; (Headers and footers) כדי שלא
+            יודפסו כתובת הקובץ ומספרי עמודים בשוליים.
+          </p>
+          <Tabs key={activeWs.id} defaultValue="instructions" dir="rtl">
+            <div className="flex items-center justify-between border-b bg-gray-50 px-1">
+              <TabsList className="flex-1 justify-start rounded-none border-b-0 bg-transparent p-0 h-auto">
+                <TabsTrigger
+                  value="instructions"
+                  className={`flex-1 gap-2 rounded-none border-b-2 border-transparent py-3 data-[state=active]:bg-white data-[state=active]:shadow-none ${activeColor.tabActiveBorder} ${activeColor.tabActiveText}`}
+                >
+                  <ClipboardList className="h-4 w-4" />
+                  הוראות למטפל
+                </TabsTrigger>
+                <TabsTrigger
+                  value="worksheet"
+                  className={`flex-1 gap-2 rounded-none border-b-2 border-transparent py-3 data-[state=active]:bg-white data-[state=active]:shadow-none ${activeColor.tabActiveBorder} ${activeColor.tabActiveText}`}
+                >
+                  <FileText className="h-4 w-4" />
+                  דף עבודה
+                </TabsTrigger>
+                <TabsTrigger
+                  value="example"
+                  className={`flex-1 gap-2 rounded-none border-b-2 border-transparent py-3 data-[state=active]:bg-white data-[state=active]:shadow-none ${activeColor.tabActiveBorder} ${activeColor.tabActiveText}`}
+                >
+                  <BookOpen className="h-4 w-4" />
+                  דוגמה ממולאת
+                </TabsTrigger>
+              </TabsList>
+              <div className="flex items-center gap-1 px-2">
+                <button
+                  onClick={() => handleDownload(activeWs.file)}
+                  className={`flex items-center gap-1.5 rounded-lg px-3 py-1.5 text-xs font-semibold transition-opacity hover:opacity-80 ${activeColor.badge} ${activeColor.badgeText}`}
+                  title="הורדה"
+                >
+                  <Download className="h-3.5 w-3.5" />
+                  הורדה
+                </button>
+                <button
+                  onClick={() => handlePrint(activeWs.file)}
+                  className={`flex items-center gap-1.5 rounded-lg px-3 py-1.5 text-xs font-semibold transition-opacity hover:opacity-80 ${activeColor.badge} ${activeColor.badgeText}`}
+                  title="הדפסה"
+                >
+                  <Printer className="h-3.5 w-3.5" />
+                  הדפסה
+                </button>
+                {kidsSlugs.includes(activeWs.id) && (
+                  <button
+                    onClick={() => handlePrint(activeWs.file.replace("-mytipul.html", "-kids-mytipul.html"))}
+                    className="flex items-center gap-1.5 rounded-lg border border-amber-300 bg-amber-100 px-3 py-1.5 text-xs font-semibold text-amber-700 transition-opacity hover:opacity-80"
+                    title="גרסת ילדים — דף משחקי עם סיפור וחיה מהתנ״ך"
+                  >
+                    <Baby className="h-3.5 w-3.5" />
+                    גרסת ילדים
+                  </button>
+                )}
+              </div>
             </div>
-          )}
+
+            <div className="max-h-[600px] overflow-y-auto p-5">
+              <TabsContent value="instructions">{activeWs.therapistInstructions}</TabsContent>
+              <TabsContent value="worksheet">{activeWs.worksheetPreview}</TabsContent>
+              <TabsContent value="example">{activeWs.examplePreview}</TabsContent>
+            </div>
+          </Tabs>
         </div>
       )}
     </div>
