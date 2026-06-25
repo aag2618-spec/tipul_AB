@@ -14,6 +14,11 @@ import {
   updateSupportTicketSchema,
   supportReplySchema,
 } from "@/lib/validations/admin";
+import { sendEmail } from "@/lib/resend";
+import {
+  createSupportReplyToLeadEmail,
+  createSupportReplyNotificationEmail,
+} from "@/lib/email-templates";
 
 export const dynamic = "force-dynamic";
 
@@ -216,6 +221,53 @@ export async function POST(
         return created;
       }
     );
+
+    // מייל יוצא — best-effort, מחוץ ל-transaction (כשל מייל לא מבטל את התגובה
+    // שכבר נשמרה). שבת/חג נחסמים אוטומטית בתוך sendEmail.
+    try {
+      const ticketInfo = await prisma.supportTicket.findUnique({
+        where: { id },
+        select: {
+          ticketNumber: true,
+          externalEmail: true,
+          externalName: true,
+          user: { select: { name: true, email: true } },
+        },
+      });
+      let mailTarget: { to: string; subject: string; html: string } | null = null;
+      if (ticketInfo?.externalEmail) {
+        // מתעניין אנונימי מדף הנחיתה — אין לו פורטל, שולחים את גוף התגובה.
+        const mail = createSupportReplyToLeadEmail({
+          name: ticketInfo.externalName,
+          replyMessage: message.trim(),
+        });
+        mailTarget = { to: ticketInfo.externalEmail, subject: mail.subject, html: mail.html };
+      } else if (ticketInfo?.user?.email) {
+        // משתמש רשום — התראה בלבד + קישור לפורטל (הגנת PHI; התוכן רק בפורטל).
+        const baseUrl = process.env.NEXTAUTH_URL || "http://localhost:3000";
+        const mail = createSupportReplyNotificationEmail({
+          name: ticketInfo.user.name,
+          ticketNumber: ticketInfo.ticketNumber,
+          portalUrl: `${baseUrl}/dashboard/support`,
+        });
+        mailTarget = { to: ticketInfo.user.email, subject: mail.subject, html: mail.html };
+      }
+      if (mailTarget) {
+        const result = await sendEmail(mailTarget);
+        // ניטור תפעולי — כשל אמיתי (לא שבת/חג) ראוי ללוג, כדי שתגובות לא "ייעלמו".
+        if (!result?.success && !result?.shabbatBlocked) {
+          logger.warn("[Support] reply notification email not delivered", {
+            ticketId: id,
+            reason: result?.error || "unknown",
+          });
+        }
+      }
+    } catch (mailErr) {
+      logger.error("[Support] admin reply notification email failed", {
+        ticketId: id,
+        error: mailErr instanceof Error ? mailErr.message : String(mailErr),
+      });
+    }
 
     return NextResponse.json({ response }, { status: 201 });
   } catch (error) {

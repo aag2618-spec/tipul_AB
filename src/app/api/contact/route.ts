@@ -87,6 +87,9 @@ export async function POST(request: NextRequest) {
               message: details,
               category: "landing_lead",
               priority: "HIGH",
+              // פרטי המתעניין האנונימי — כדי שתגובת אדמין תישלח אליו במייל.
+              externalEmail: email,
+              externalName: name,
             },
           });
           await tx.adminAlert.create({

@@ -258,6 +258,7 @@ model User {
   // מטלות צוות שהמשתמש/ת (מנהלת/מזכירה) הקצה/תה לעובדים אחרים.
   tasksAssignedByMe      Task[]                @relation("TaskAssignedBy")
   taskTemplatesCreated   TaskTemplate[]        @relation("TaskTemplateCreator")
+  taskComments           TaskComment[]         @relation("TaskCommentAuthor")
   notificationSettings   NotificationSetting[]
   recurringPatterns      RecurringPattern[]
   intakeTemplates        IntakeTemplate[]
@@ -277,6 +278,8 @@ model User {
   insurerReports         InsurerReport[]
   clientCommitments      ClientCommitment[]
   billingProviders       BillingProvider[]
+  // סימוני "אל תתריע על החפיפה הזו שוב" — פר-משתמש (ראה model DismissedOverlap).
+  dismissedOverlaps      DismissedOverlap[]
 
   // Online Booking
   bookingSettings BookingSettings?
@@ -786,6 +789,22 @@ enum DocumentType {
   OTHER
 }
 
+// סימוני "אל תתריע על החפיפה הזו שוב" — פר-משתמש. כל שורה = זוג פגישות חופפות
+// שהמשתמש/ת בחר/ה להסתיר ידנית (כפתור ה-X בדיאלוג "פגישות חופפות"). הסימון
+// פרטי למשתמש/ת המחובר/ת בלבד (userId) — בעלים, מטפל/ת ומזכירה כל אחד/ת לעצמו/ה,
+// בלי ערבוב בין תצוגה אישית לתצוגת קליניקה. pairKey = שני מזהי הפגישות ממוינים
+// ומחוברים ב-"|" (זהה למפתח החפיפה שמחושב ב-/api/sessions/overlaps).
+model DismissedOverlap {
+  id        String   @id @default(cuid())
+  userId    String
+  user      User     @relation(fields: [userId], references: [id], onDelete: Cascade)
+  pairKey   String
+  createdAt DateTime @default(now())
+
+  @@unique([userId, pairKey])
+  @@index([userId])
+}
+
 // ==================== Notifications & Tasks ====================
 
 model Notification {
@@ -865,11 +884,38 @@ model Task {
   templateId     String?       // אם נוצרה מתבנית/מטלה חוזרת (TaskTemplate.id)
   overdueReminderAt DateTime?  // מתי נשלחה תזכורת איחור (dedup — פעם אחת בלבד)
 
+  // שרשור הערות דו-כיווני על המטלה (דו-שיח עובד↔מקצה). cascade במחיקת המטלה.
+  comments TaskComment[]
+
   @@index([userId, status, type])
   @@index([userId, relatedEntityId, type, status])
   @@index([userId, dueDate])
   @@index([organizationId, batchId])
   @@index([organizationId, assignedById, status])
+}
+
+/// שרשור הערות (דו-שיח) על מטלת צוות — תגובות בין העובד למקצה בלי לדרוס את
+/// ההגדרה המקורית. ההרשאה נאכפת ב-API דרך canAccessTaskThread (scope.ts).
+model TaskComment {
+  id        String   @id @default(cuid())
+  body      String   @db.Text
+  createdAt DateTime @default(now())
+
+  taskId String
+  task   Task   @relation(fields: [taskId], references: [id], onDelete: Cascade)
+
+  // onDelete: Cascade — מחיקת משתמש מוחקת את הערותיו (עקבי עם Notification.userId
+  // ועם דפוס יחסי User במערכת). שונה במכוון מ-Task.assignedById (SetNull): מחיקת
+  // User נדירה (הנורמה היא isBlocked). אם בעתיד יידרש לשמר audit מלא של הדו-שיח
+  // גם אחרי מחיקת מקצה — להפוך ל-SetNull + authorId String? (ה-API מטפל ב-author null).
+  authorId String
+  author   User   @relation("TaskCommentAuthor", fields: [authorId], references: [id], onDelete: Cascade)
+
+  // בידוד ארגוני (defense-in-depth). מאוכלס מ-task.organizationId ביצירה.
+  organizationId String?
+  organization   Organization? @relation(fields: [organizationId], references: [id], onDelete: Cascade)
+
+  @@index([taskId, createdAt])
 }
 
 enum TaskType {
@@ -2149,6 +2195,10 @@ model SupportTicket {
   assignedToNameSnapshot String?
   assignedTo             User?               @relation("ticketAssigned", fields: [assignedToId], references: [id], onDelete: SetNull)
   lastReplyAt            DateTime?
+  // פנייה מ"צרו קשר" של מתעניין אנונימי (category=landing_lead): השם והמייל
+  // שהשאיר, כדי שתגובת אדמין תישלח אליו במייל (אין לו חשבון/פורטל). null לפניות רגילות.
+  externalEmail          String?
+  externalName           String?
   notes                  SupportTicketNote[]
 
   @@index([userId])
@@ -2687,6 +2737,7 @@ model Organization {
   // מטלות צוות + תבניות מטלות (cascade במחיקת הארגון)
   tasks         Task[]
   taskTemplates TaskTemplate[]
+  taskComments  TaskComment[]
 
   // שלב 2 (חדרים): חדרי הטיפול של הקליניקה (cascade במחיקת הארגון)
   rooms ClinicRoom[]

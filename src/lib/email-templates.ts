@@ -1,6 +1,6 @@
 // Email templates for cancellation requests and session communications
 
-import { escapeHtml } from "./email-utils";
+import { escapeHtml, safeHttpUrl } from "./email-utils";
 
 export interface EmailCustomization {
   customGreeting?: string | null;
@@ -567,4 +567,73 @@ export function createClinicInviteSmsText(params: {
 }): string {
   const safeOrg = params.organizationName.replace(/[\r\n]/g, " ").slice(0, 40);
   return `קוד אימות להצטרפות לקליניקת ${safeOrg}: ${params.otp}. בדוק/י את המייל לקישור האישור. תקף 48ש'. MyTipul`;
+}
+
+// ==================== Support — תשובת אדמין למתעניין מדף הנחיתה ====================
+// מתעניין אנונימי (category=landing_lead) אין לו חשבון/פורטל, לכן תגובת האדמין
+// נשלחת אליו במלואה במייל. replyMessage נכתב ע"י האדמין (תוכן שיווקי, לא PHI)
+// ועובר escapeHtml לפני הזרקה ל-HTML.
+export function createSupportReplyToLeadEmail(params: {
+  name: string | null;
+  replyMessage: string;
+}): { subject: string; html: string } {
+  const safeName = escapeHtml((params.name || "").trim());
+  const greeting = safeName ? `שלום ${safeName},` : "שלום,";
+  return {
+    subject: "תשובה לפנייתך — MyTipul",
+    html: wrapInEmailTemplate(`
+      <div style="text-align: center; margin-bottom: 24px;">
+        <h1 style="color: #16a34a; font-size: 26px; margin: 0;">MyTipul</h1>
+      </div>
+      <h2 style="color: #1e293b; font-size: 19px; margin-top: 0;">${greeting}</h2>
+      <p style="color: #475569;">תודה על פנייתך אלינו. הנה התשובה שלנו:</p>
+      <div style="background: #f8fafc; padding: 20px; border-radius: 8px; margin: 16px 0; border-right: 4px solid #0ea5e9;">
+        <p style="margin: 0; white-space: pre-wrap; color: #1e293b;">${escapeHtml(params.replyMessage)}</p>
+      </div>
+      <p style="color: #475569;">לכל שאלה נוספת אפשר להשיב ישירות למייל זה, ונשמח לסייע.</p>
+      <div style="text-align: center; margin-top: 24px; color: #94a3b8; font-size: 12px;">
+        <p>© MyTipul ${new Date().getFullYear()}</p>
+      </div>
+    `),
+  };
+}
+
+// ==================== Support — התראת תגובה למשתמש רשום ====================
+// משתמש רשום מקבל התראה בלבד + קישור לפורטל. תוכן התגובה עצמו לא נשלח במייל
+// (הגנת פרטיות — נחשף רק אחרי כניסה למערכת). portalUrl עובר safeHttpUrl.
+export function createSupportReplyNotificationEmail(params: {
+  name: string | null;
+  ticketNumber: number;
+  portalUrl: string;
+}): { subject: string; html: string } {
+  const safeName = escapeHtml((params.name || "").trim());
+  const greeting = safeName ? `שלום ${safeName},` : "שלום,";
+  const safeUrl = safeHttpUrl(params.portalUrl);
+  return {
+    subject: `יש תגובה חדשה לפנייה שלך #${params.ticketNumber}`,
+    html: wrapInEmailTemplate(`
+      <div style="text-align: center; margin-bottom: 24px;">
+        <h1 style="color: #16a34a; font-size: 26px; margin: 0;">MyTipul</h1>
+      </div>
+      <h2 style="color: #1e293b; font-size: 19px; margin-top: 0;">${greeting}</h2>
+      <p style="color: #475569;">
+        צוות התמיכה הגיב לפנייה שלך (<strong>#${params.ticketNumber}</strong>).
+      </p>
+      ${safeUrl ? `
+        <div style="text-align: center; margin: 28px 0;">
+          <a href="${escapeHtml(safeUrl)}"
+             style="display: inline-block; background: linear-gradient(135deg, #0284c7, #7c3aed); color: white;
+                    padding: 14px 40px; border-radius: 8px; text-decoration: none; font-weight: bold; font-size: 16px;">
+            צפייה בתגובה
+          </a>
+        </div>
+      ` : ""}
+      <p style="color: #64748b; font-size: 13px;">
+        מטעמי פרטיות, תוכן התגובה זמין רק לאחר כניסה למערכת.
+      </p>
+      <div style="text-align: center; margin-top: 24px; color: #94a3b8; font-size: 12px;">
+        <p>© MyTipul ${new Date().getFullYear()}</p>
+      </div>
+    `),
+  };
 }
