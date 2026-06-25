@@ -28,6 +28,7 @@ type AssigneeRow = {
   completedAt: Date | null;
   completionNote: string | null;
   overdue: boolean;
+  commentCount: number;
 };
 type TaskGroup = {
   batchId: string;
@@ -138,6 +139,8 @@ export async function GET() {
       include: {
         user: { select: { id: true, name: true } },
         assignedBy: { select: { id: true, name: true } },
+        // מונה הערות לכל מטלה — להצגת "הערות (N)" בלוח בלי fetch מקדים לכל שורה.
+        _count: { select: { comments: true } },
       },
     });
 
@@ -176,6 +179,7 @@ export async function GET() {
         completedAt: t.completedAt,
         completionNote: t.completionNote,
         overdue: isOverdue,
+        commentCount: t._count.comments,
       });
       g.counts.total += 1;
       if (isCompleted) g.counts.completed += 1;

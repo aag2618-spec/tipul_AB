@@ -129,3 +129,12 @@ export const sendRemindersSchema = z.object({
     ),
 });
 export type SendRemindersInput = z.infer<typeof sendRemindersSchema>;
+
+// POST /api/sessions/overlaps/dismiss — הסתרת התראת חפיפה ("אל תתריע שוב").
+// שני מזהי הפגישות בזוג החופף. ה-route מאמת scope (שתי הפגישות שלי, או שתיהן
+// באותו ארגון) — הוולידציה כאן רק מבטיחה טיפוסים וגדלים סבירים.
+export const dismissOverlapSchema = z.object({
+  session1Id: z.string().min(1).max(64),
+  session2Id: z.string().min(1).max(64),
+});
+export type DismissOverlapInput = z.infer<typeof dismissOverlapSchema>;

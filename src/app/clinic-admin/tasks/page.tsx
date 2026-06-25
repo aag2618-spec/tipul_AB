@@ -14,6 +14,9 @@ import {
   Repeat,
   Pencil,
   Trash2,
+  MessageCircle,
+  ChevronDown,
+  ChevronUp,
 } from "lucide-react";
 import { format } from "date-fns";
 import { he } from "date-fns/locale";
@@ -23,6 +26,7 @@ import {
   TemplateDialog,
   type TaskTemplateData,
 } from "@/components/clinic-admin/template-dialog";
+import { TaskCommentsThread } from "@/components/tasks/task-comments-thread";
 
 type Assignee = {
   taskId: string;
@@ -33,6 +37,7 @@ type Assignee = {
   completedAt: string | null;
   completionNote: string | null;
   overdue: boolean;
+  commentCount: number;
 };
 type TaskGroup = {
   batchId: string;
@@ -92,6 +97,8 @@ export default function ClinicTasksPage() {
   const [tplDialogOpen, setTplDialogOpen] = useState(false);
   const [editingTemplate, setEditingTemplate] =
     useState<TaskTemplateData | null>(null);
+  // איזו מטלה פתוחה כרגע לתצוגת שרשור ההערות (collapse — אחת בכל פעם).
+  const [openThreadTaskId, setOpenThreadTaskId] = useState<string | null>(null);
 
   const fetchTasks = useCallback(async () => {
     try {
@@ -290,6 +297,53 @@ export default function ClinicTasksPage() {
                             <p className="text-xs text-foreground/80 mt-1 whitespace-pre-wrap bg-background rounded p-1.5 border">
                               {a.completionNote}
                             </p>
+                          )}
+
+                          {/* שקיפות דו-כיוונית — כפתור "הערות (N)" + שרשור (collapse).
+                              המנהל/מזכירה רואה את התכתבות העובד ועונה לו ישירות. */}
+                          <button
+                            type="button"
+                            onClick={() =>
+                              setOpenThreadTaskId(
+                                openThreadTaskId === a.taskId ? null : a.taskId
+                              )
+                            }
+                            className={`mt-1 inline-flex items-center gap-1 text-[11px] ${
+                              a.commentCount > 0
+                                ? "text-primary font-medium"
+                                : "text-muted-foreground hover:text-foreground"
+                            }`}
+                          >
+                            <MessageCircle className="h-3 w-3" />
+                            הערות
+                            {a.commentCount > 0 ? ` (${a.commentCount})` : ""}
+                            {openThreadTaskId === a.taskId ? (
+                              <ChevronUp className="h-3 w-3" />
+                            ) : (
+                              <ChevronDown className="h-3 w-3" />
+                            )}
+                          </button>
+                          {openThreadTaskId === a.taskId && (
+                            <TaskCommentsThread
+                              taskId={a.taskId}
+                              canPost
+                              onPosted={() =>
+                                setGroups((prev) =>
+                                  prev.map((grp) => ({
+                                    ...grp,
+                                    assignees: grp.assignees.map((x) =>
+                                      x.taskId === a.taskId
+                                        ? {
+                                            ...x,
+                                            commentCount: x.commentCount + 1,
+                                          }
+                                        : x
+                                    ),
+                                  }))
+                                )
+                              }
+                              className="mt-2"
+                            />
                           )}
                         </div>
                       </div>

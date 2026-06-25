@@ -62,15 +62,28 @@ export async function PATCH(
       return NextResponse.json({ message: "משימה לא נמצאה" }, { status: 404 });
     }
 
+    // מטלת צוות: title/description/priority/dueDate "שייכים" למקצה (המנהלת/מזכירה)
+    // ונעולים לעובד — מתעלמים בשקט מניסיון לשנותם (אותו PATCH משמש גם ל-status/
+    // markSeen הנשלחים לבד, אז 400 היה שובר אותם). מטלה אישית (CUSTOM) נשארת
+    // עריכה מלאה ע"י הבעלים. reminderAt נשאר פתוח — זו תזכורת אישית של העובד.
+    const isStaffTask = existingTask.type === "STAFF_TASK";
     const nowDate = new Date();
     const task = await prisma.task.update({
       where: { id },
       data: {
-        title: title !== undefined ? title : existingTask.title,
-        description: description !== undefined ? description : existingTask.description,
+        title: isStaffTask
+          ? existingTask.title
+          : title !== undefined ? title : existingTask.title,
+        description: isStaffTask
+          ? existingTask.description
+          : description !== undefined ? description : existingTask.description,
         status: status !== undefined ? status : existingTask.status,
-        priority: priority !== undefined ? priority : existingTask.priority,
-        dueDate: dueDate !== undefined ? (dueDate ? new Date(dueDate) : null) : existingTask.dueDate,
+        priority: isStaffTask
+          ? existingTask.priority
+          : priority !== undefined ? priority : existingTask.priority,
+        dueDate: isStaffTask
+          ? existingTask.dueDate
+          : dueDate !== undefined ? (dueDate ? new Date(dueDate) : null) : existingTask.dueDate,
         reminderAt: reminderAt !== undefined ? (reminderAt ? new Date(reminderAt) : null) : existingTask.reminderAt,
         // מטלות צוות: "מה ביצעתי ואיך" (אופציונלי), חותמת השלמה, ואישור צפייה.
         completionNote: completionNote !== undefined ? completionNote : existingTask.completionNote,

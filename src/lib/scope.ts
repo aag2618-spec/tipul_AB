@@ -189,6 +189,36 @@ export function canManageStaffTasks(user: ScopeUser): boolean {
 }
 
 /**
+ * הרשאת גישה לשרשור ההערות של מטלה (קריאה **וגם** כתיבה — gate אחיד). דו-שיח
+ * בין העובד המחזיק (task.userId) למי שהקצה (task.assignedById).
+ *
+ * גידור PHI — זהה בעקרון לסינון לוח המעקב (api/clinic-admin/tasks: assignedById):
+ *   • העובד המחזיק — תמיד.
+ *   • המקצה — רק מטלות ש**הוא** הקצה (מזכירה אחת לא רואה מטלות של מזכירה אחרת).
+ *   • בעל/ת קליניקה — כל מטלה, אך **רק בארגון שלו** (organizationId חייב להתאים —
+ *     בלעדיו בעל קליניקה אחת מגיע למטלה בארגון אחר ע"י ניחוש taskId).
+ *   • כל השאר — deny by default.
+ *
+ * ה-task נשלף **בלי** סינון userId (כדי שהמקצה/בעלים יגיעו), ולכן הפונקציה הזו
+ * היא ה-gate היחיד — אסור להחזיר את ה-task או הערותיו לפני שעבר אותה.
+ */
+export function canAccessTaskThread(
+  user: ScopeUser,
+  task: { userId: string; assignedById: string | null; organizationId: string | null }
+): boolean {
+  if (task.userId === user.id) return true;
+  if (task.assignedById && task.assignedById === user.id) return true;
+  if (
+    isClinicOwner(user) &&
+    task.organizationId &&
+    task.organizationId === user.organizationId
+  ) {
+    return true;
+  }
+  return false;
+}
+
+/**
  * חוסם בקוד גישה למודלים קליניים — בלי קשר ל-secretaryPermissions.
  * זה ה-hard-stop. אסור לשנות בלי ייעוץ משפטי.
  */

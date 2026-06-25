@@ -69,3 +69,14 @@ export const updateTaskSchema = z.object({
   markSeen: z.boolean().optional(),
 });
 export type UpdateTaskInput = z.infer<typeof updateTaskSchema>;
+
+// שרשור הערות (דו-שיח) על מטלת צוות — POST /api/tasks/[id]/comments.
+const MAX_COMMENT = 2000;
+export const createTaskCommentSchema = z.object({
+  body: z
+    .string()
+    .trim()
+    .min(1, "ההערה לא יכולה להיות ריקה")
+    .max(MAX_COMMENT, `הערה ארוכה מדי (מקסימום ${MAX_COMMENT} תווים)`),
+});
+export type CreateTaskCommentInput = z.infer<typeof createTaskCommentSchema>;

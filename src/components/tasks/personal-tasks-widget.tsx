@@ -32,6 +32,7 @@ import { format } from "date-fns";
 import { he } from "date-fns/locale";
 import { toast } from "sonner";
 import { AddCustomTask } from "./add-custom-task";
+import { TaskCommentsThread } from "./task-comments-thread";
 import { CompletionCelebration, useCompletionCelebration } from "./completion-celebration";
 import { useShabbat } from "@/hooks/useShabbat";
 
@@ -681,6 +682,16 @@ export function PersonalTasksWidget() {
                 <Label className="text-xs text-muted-foreground">נוצרה</Label>
                 <p className="text-sm mt-1">{format(new Date(selectedTask.createdAt), "d/M/yyyy HH:mm", { locale: he })}</p>
               </div>
+
+              {/* שרשור הערות דו-כיווני — מטלת צוות בלבד. העובד מגיב/שואל בלי לדרוס
+                  את הטקסט שהמנהלת כתבה; המנהלת רואה ועונה בלוח /clinic-admin/tasks. */}
+              {selectedTask.type === "STAFF_TASK" && (
+                <TaskCommentsThread
+                  taskId={selectedTask.id}
+                  canPost
+                  className="border-t pt-3"
+                />
+              )}
             </div>
           )}
 
@@ -709,15 +720,19 @@ export function PersonalTasksWidget() {
           <DialogFooter className="gap-2 sm:gap-0">
             {selectedTask?.status === "PENDING" && !isEditing && (
               <>
-                <Button
-                  variant="outline"
-                  size="sm"
-                  className="gap-1"
-                  onClick={() => setIsEditing(true)}
-                >
-                  <Pencil className="h-3.5 w-3.5" />
-                  ערוך
-                </Button>
+                {/* מטלת צוות נעולה לעריכה אצל העובד — הוא מגיב בהערות, לא דורס.
+                    משימה אישית (CUSTOM) נשארת ניתנת לעריכה ע"י הבעלים. */}
+                {selectedTask.type !== "STAFF_TASK" && (
+                  <Button
+                    variant="outline"
+                    size="sm"
+                    className="gap-1"
+                    onClick={() => setIsEditing(true)}
+                  >
+                    <Pencil className="h-3.5 w-3.5" />
+                    ערוך
+                  </Button>
+                )}
                 <Button
                   size="sm"
                   className="gap-1 bg-emerald-600 hover:bg-emerald-700"
