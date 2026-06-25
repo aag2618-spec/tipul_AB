@@ -576,9 +576,24 @@ export function createClinicInviteSmsText(params: {
 export function createSupportReplyToLeadEmail(params: {
   name: string | null;
   replyMessage: string;
+  conversationUrl?: string;
 }): { subject: string; html: string } {
   const safeName = escapeHtml((params.name || "").trim());
   const greeting = safeName ? `שלום ${safeName},` : "שלום,";
+  const safeUrl = params.conversationUrl ? safeHttpUrl(params.conversationUrl) : "";
+  // כפתור לעמוד השיחה — כך שתגובת המתעניין תיכנס חזרה למערכת (ולא תתפזר במייל).
+  const conversationBlock = safeUrl
+    ? `
+      <div style="text-align: center; margin: 24px 0;">
+        <a href="${escapeHtml(safeUrl)}"
+           style="display: inline-block; background: linear-gradient(135deg, #16a34a, #0ea5e9); color: white;
+                  padding: 14px 40px; border-radius: 8px; text-decoration: none; font-weight: bold; font-size: 16px;">
+          למעבר לשיחה ולמענה
+        </a>
+      </div>
+      <p style="color: #64748b; font-size: 13px;">הכפתור פותח את השיחה המלאה, ושם אפשר להשיב לנו ישירות.</p>
+    `
+    : `<p style="color: #475569;">לכל שאלה נוספת אפשר להשיב ישירות למייל זה, ונשמח לסייע.</p>`;
   return {
     subject: "תשובה לפנייתך — MyTipul",
     html: wrapInEmailTemplate(`
@@ -590,7 +605,7 @@ export function createSupportReplyToLeadEmail(params: {
       <div style="background: #f8fafc; padding: 20px; border-radius: 8px; margin: 16px 0; border-right: 4px solid #0ea5e9;">
         <p style="margin: 0; white-space: pre-wrap; color: #1e293b;">${escapeHtml(params.replyMessage)}</p>
       </div>
-      <p style="color: #475569;">לכל שאלה נוספת אפשר להשיב ישירות למייל זה, ונשמח לסייע.</p>
+      ${conversationBlock}
       <div style="text-align: center; margin-top: 24px; color: #94a3b8; font-size: 12px;">
         <p>© MyTipul ${new Date().getFullYear()}</p>
       </div>

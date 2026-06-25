@@ -2199,6 +2199,9 @@ model SupportTicket {
   // שהשאיר, כדי שתגובת אדמין תישלח אליו במייל (אין לו חשבון/פורטל). null לפניות רגילות.
   externalEmail          String?
   externalName           String?
+  // טוקן סודי (256 ביט) לעמוד השיחה הציבורי /support/t/[token] — מאפשר למתעניין
+  // האנונימי לראות את השיחה ולהשיב בלי חשבון. נוצר עם הפנייה (landing_lead). null לרגילות.
+  externalToken          String?             @unique
   notes                  SupportTicketNote[]
 
   @@index([userId])
@@ -2212,8 +2215,10 @@ model SupportResponse {
   id          String        @id @default(cuid())
   ticketId    String
   ticket      SupportTicket @relation(fields: [ticketId], references: [id], onDelete: Cascade)
-  authorId    String // מי כתב (משתמש או אדמין)
-  author      User          @relation(fields: [authorId], references: [id], onDelete: Cascade)
+  // nullable — תגובת מתעניין אנונימי (דרך הקישור הציבורי) אין לה משתמש רשום.
+  // SetNull גם משמר היסטוריית שיחה אם משתמש נמחק (במקום למחוק תגובות).
+  authorId    String? // מי כתב (משתמש/אדמין; null = מתעניין אנונימי דרך הקישור)
+  author      User?         @relation(fields: [authorId], references: [id], onDelete: SetNull)
   message     String        @db.Text
   attachments Json? // [{id, filename, contentType, size, fileUrl, uploadedAt}] — צירופים בתגובה
   isAdmin     Boolean       @default(false) // האם זו תגובת אדמין

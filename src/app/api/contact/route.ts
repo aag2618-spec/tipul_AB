@@ -19,6 +19,7 @@ import { contactLeadSchema } from "@/lib/validations/contact";
 import { getSiteSetting } from "@/lib/site-settings";
 import { sendEmail } from "@/lib/resend";
 import { escapeHtml } from "@/lib/email-utils";
+import { generateSecureToken } from "@/lib/clinic-invitations";
 
 export const dynamic = "force-dynamic";
 
@@ -90,6 +91,8 @@ export async function POST(request: NextRequest) {
               // פרטי המתעניין האנונימי — כדי שתגובת אדמין תישלח אליו במייל.
               externalEmail: email,
               externalName: name,
+              // טוקן סודי לעמוד השיחה הציבורי (/support/t/[token]) — מאפשר שיחה דו-כיוונית.
+              externalToken: generateSecureToken(),
             },
           });
           await tx.adminAlert.create({

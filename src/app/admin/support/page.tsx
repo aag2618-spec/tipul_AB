@@ -50,6 +50,9 @@ interface Ticket {
   priority: string;
   status: string;
   createdAt: string;
+  // ליד מדף נחיתה — פרטי המתעניין (user מצביע על ה-ADMIN המשויך).
+  externalEmail: string | null;
+  externalName: string | null;
   user: TicketUser;
   _count: { responses: number };
 }
@@ -271,17 +274,28 @@ export default function AdminSupportPage() {
                         </Link>
                       </TableCell>
                       <TableCell>
-                        <div>
-                          <div className="font-medium text-sm flex items-center gap-1">
-                            {ticket.user.name || "ללא שם"}
-                            {ticket.user.userNumber && (
-                              <Badge variant="outline" className="font-mono text-xs bg-sky-500/10 text-sky-400 border-sky-500/30">
-                                #{ticket.user.userNumber}
-                              </Badge>
-                            )}
+                        {isLandingLead ? (
+                          <div>
+                            <div className="font-medium text-sm">
+                              {ticket.externalName || ticket.user.name || "ללא שם"}
+                            </div>
+                            <p className="text-xs text-muted-foreground break-all">
+                              {ticket.externalEmail || ticket.user.email}
+                            </p>
                           </div>
-                          <p className="text-xs text-muted-foreground">{ticket.user.email}</p>
-                        </div>
+                        ) : (
+                          <div>
+                            <div className="font-medium text-sm flex items-center gap-1">
+                              {ticket.user.name || "ללא שם"}
+                              {ticket.user.userNumber && (
+                                <Badge variant="outline" className="font-mono text-xs bg-sky-500/10 text-sky-400 border-sky-500/30">
+                                  #{ticket.user.userNumber}
+                                </Badge>
+                              )}
+                            </div>
+                            <p className="text-xs text-muted-foreground">{ticket.user.email}</p>
+                          </div>
+                        )}
                       </TableCell>
                       <TableCell>
                         <Link href={`/admin/support/${ticket.id}`} className="text-sm hover:underline">

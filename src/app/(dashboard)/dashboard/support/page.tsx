@@ -43,7 +43,8 @@ interface TicketResponse {
   attachments?: SupportAttachment[] | null;
   isAdmin: boolean;
   createdAt: string;
-  author: { name: string | null };
+  // author=null = תגובת מתעניין אנונימי דרך הקישור הציבורי (מוצג כ"את/ה").
+  author: { name: string | null } | null;
 }
 
 interface Ticket {
@@ -372,7 +373,7 @@ export default function SupportPage() {
           <CardContent className="py-12 text-center">
             <MessageCircle className="h-12 w-12 mx-auto mb-4 text-muted-foreground opacity-50" />
             <p className="text-muted-foreground">אין פניות עדיין</p>
-            <p className="text-sm text-muted-foreground mt-1">לחץ על "פנייה חדשה" כדי ליצור פנייה ראשונה</p>
+            <p className="text-sm text-muted-foreground mt-1">לחץ על &quot;פנייה חדשה&quot; כדי ליצור פנייה ראשונה</p>
           </CardContent>
         </Card>
       ) : (

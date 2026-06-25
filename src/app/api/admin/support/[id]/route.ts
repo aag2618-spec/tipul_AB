@@ -19,6 +19,7 @@ import {
   createSupportReplyToLeadEmail,
   createSupportReplyNotificationEmail,
 } from "@/lib/email-templates";
+import { generateSecureToken } from "@/lib/clinic-invitations";
 
 export const dynamic = "force-dynamic";
 
@@ -231,20 +232,42 @@ export async function POST(
           ticketNumber: true,
           externalEmail: true,
           externalName: true,
+          externalToken: true,
           user: { select: { name: true, email: true } },
         },
       });
+      const baseUrl = process.env.NEXTAUTH_URL || "http://localhost:3000";
       let mailTarget: { to: string; subject: string; html: string } | null = null;
       if (ticketInfo?.externalEmail) {
-        // מתעניין אנונימי מדף הנחיתה — אין לו פורטל, שולחים את גוף התגובה.
+        // מתעניין אנונימי מדף הנחיתה — אין לו פורטל. שולחים את גוף התגובה + קישור
+        // אישי לעמוד השיחה, כדי שתגובתו תחזור למערכת. מבטיחים שקיים טוקן (גם לפניות
+        // ישנות שנוצרו לפני הפיצ'ר) — מייצרים ושומרים פעם אחת.
+        let token = ticketInfo.externalToken;
+        if (!token) {
+          // יצירת טוקן לפניות ישנות שקדמו לפיצ'ר. אם השמירה נכשלת — שולחים מייל
+          // בלי קישור שיחה (עדיף מקישור שבור לטוקן שלא נשמר).
+          const newToken = generateSecureToken();
+          try {
+            await prisma.supportTicket.update({
+              where: { id },
+              data: { externalToken: newToken },
+            });
+            token = newToken;
+          } catch (tokenErr) {
+            logger.warn("[Support] failed to persist conversation token (reply saved)", {
+              ticketId: id,
+              error: tokenErr instanceof Error ? tokenErr.message : String(tokenErr),
+            });
+          }
+        }
         const mail = createSupportReplyToLeadEmail({
           name: ticketInfo.externalName,
           replyMessage: message.trim(),
+          conversationUrl: token ? `${baseUrl}/support/t/${token}` : undefined,
         });
         mailTarget = { to: ticketInfo.externalEmail, subject: mail.subject, html: mail.html };
       } else if (ticketInfo?.user?.email) {
         // משתמש רשום — התראה בלבד + קישור לפורטל (הגנת PHI; התוכן רק בפורטל).
-        const baseUrl = process.env.NEXTAUTH_URL || "http://localhost:3000";
         const mail = createSupportReplyNotificationEmail({
           name: ticketInfo.user.name,
           ticketNumber: ticketInfo.ticketNumber,

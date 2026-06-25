@@ -34,7 +34,8 @@ interface TicketResponse {
   attachments?: SupportAttachment[] | null;
   isAdmin: boolean;
   createdAt: string;
-  author: { name: string | null; role: string };
+  // author=null = תגובת מתעניין אנונימי דרך הקישור הציבורי.
+  author: { name: string | null; role: string } | null;
 }
 
 interface TicketUser {
@@ -60,6 +61,9 @@ interface Ticket {
   createdAt: string;
   updatedAt: string;
   resolvedAt: string | null;
+  // פנייה מדף הנחיתה — פרטי המתעניין האנונימי (אין לו חשבון; user מצביע על ה-ADMIN).
+  externalEmail: string | null;
+  externalName: string | null;
   user: TicketUser;
   responses: TicketResponse[];
 }
@@ -269,7 +273,9 @@ export default function AdminTicketDetailPage() {
                         <User className="h-4 w-4 text-muted-foreground" />
                       )}
                       <span className="font-medium">
-                        {r.isAdmin ? `${r.author?.name || "אדמין"} (צוות)` : r.author?.name || "משתמש"}
+                        {r.isAdmin
+                          ? `${r.author?.name || "אדמין"} (צוות)`
+                          : r.author?.name || ticket.externalName || "משתמש"}
                       </span>
                     </div>
                     <span className="text-xs text-muted-foreground flex items-center gap-1">
@@ -293,10 +299,15 @@ export default function AdminTicketDetailPage() {
               </CardTitle>
             </CardHeader>
             <CardContent className="space-y-3">
+              {ticket.externalEmail && (
+                <p className="text-xs text-muted-foreground bg-muted/50 rounded-md px-3 py-2">
+                  התגובה תישלח במייל למתעניין עם קישור לשיחה — וכל תגובה שלו תחזור לכאן, לשרשור הפנייה.
+                </p>
+              )}
               <Textarea
                 value={replyText}
                 onChange={(e) => setReplyText(e.target.value)}
-                placeholder="כתוב תגובה למשתמש..."
+                placeholder={ticket.externalEmail ? "כתוב תגובה למתעניין..." : "כתוב תגובה למשתמש..."}
                 className="min-h-[100px]"
               />
               <AttachmentPicker
@@ -316,31 +327,48 @@ export default function AdminTicketDetailPage() {
 
         {/* עמודה צדדית — פרטי משתמש + הערות */}
         <div className="space-y-4">
-          {/* פרטי משתמש */}
-          <Card>
-            <CardHeader className="pb-2">
-              <CardTitle className="text-sm">פרטי הפונה</CardTitle>
-            </CardHeader>
-            <CardContent className="space-y-2 text-sm">
-              <div className="flex items-center gap-2">
-                <span className="font-medium">{ticket.user.name || "ללא שם"}</span>
-                {ticket.user.userNumber && (
-                  <Badge variant="outline" className="font-mono text-xs bg-sky-500/10 text-sky-400 border-sky-500/30">
-                    #{ticket.user.userNumber}
-                  </Badge>
+          {/* פרטי הפונה — ליד מדף נחיתה מציג את פרטי המתעניין (externalEmail),
+              לא את ה-ADMIN שאליו הפנייה משויכת טכנית. */}
+          {ticket.externalEmail ? (
+            <Card>
+              <CardHeader className="pb-2">
+                <CardTitle className="text-sm">פרטי המתעניין</CardTitle>
+                <CardDescription className="text-xs">פנייה מדף הנחיתה — ללא חשבון במערכת</CardDescription>
+              </CardHeader>
+              <CardContent className="space-y-2 text-sm">
+                <p className="font-medium">{ticket.externalName || "ללא שם"}</p>
+                <p className="text-muted-foreground break-all">{ticket.externalEmail}</p>
+                <p className="text-xs text-muted-foreground pt-1">
+                  פרטים מלאים (טלפון / ארגון) מופיעים בגוף הפנייה למעלה.
+                </p>
+              </CardContent>
+            </Card>
+          ) : (
+            <Card>
+              <CardHeader className="pb-2">
+                <CardTitle className="text-sm">פרטי הפונה</CardTitle>
+              </CardHeader>
+              <CardContent className="space-y-2 text-sm">
+                <div className="flex items-center gap-2">
+                  <span className="font-medium">{ticket.user.name || "ללא שם"}</span>
+                  {ticket.user.userNumber && (
+                    <Badge variant="outline" className="font-mono text-xs bg-sky-500/10 text-sky-400 border-sky-500/30">
+                      #{ticket.user.userNumber}
+                    </Badge>
+                  )}
+                </div>
+                {ticket.user.email && (
+                  <p className="text-muted-foreground">{ticket.user.email}</p>
                 )}
-              </div>
-              {ticket.user.email && (
-                <p className="text-muted-foreground">{ticket.user.email}</p>
-              )}
-              {ticket.user.phone && (
-                <p className="text-muted-foreground">{ticket.user.phone}</p>
-              )}
-              <div className="flex gap-2 pt-1">
-                <Badge variant="outline">{TIER_LABELS[ticket.user.aiTier] || ticket.user.aiTier}</Badge>
-              </div>
-            </CardContent>
-          </Card>
+                {ticket.user.phone && (
+                  <p className="text-muted-foreground">{ticket.user.phone}</p>
+                )}
+                <div className="flex gap-2 pt-1">
+                  <Badge variant="outline">{TIER_LABELS[ticket.user.aiTier] || ticket.user.aiTier}</Badge>
+                </div>
+              </CardContent>
+            </Card>
+          )}
 
           {/* הערות פנימיות */}
           <Card>
