@@ -45,6 +45,22 @@ export async function POST(req: NextRequest) {
       combinedReceiptDescription,
     } = parsed.data;
 
+    // הוצאת קבלה (issueReceipt=true) מחייבת canIssueReceipts אצל מזכירה.
+    // כאן ברירת-המחדל של issueReceipt היא true (למעלה), ולכן בלי השער הזה
+    // מזכירה עם canViewPayments אך בלי canIssueReceipts היתה מנפיקה קבלות
+    // דרך תשלום-חובות-מרוכז — עוקפת את ההרשאה שנאכפת בכל שאר נקודות
+    // הכניסה לתשלום. תואם ל-POST /api/payments ו-PUT /api/payments/[id].
+    if (
+      issueReceipt &&
+      isSecretary(scopeUser) &&
+      !secretaryCan(scopeUser, "canIssueReceipts")
+    ) {
+      return NextResponse.json(
+        { message: "אין הרשאה להוצאת קבלות" },
+        { status: 403 }
+      );
+    }
+
     // CREDIT_CARD חייב לעבור דרך /api/payments/charge-cardcom-bulk (יוצר
     // umbrella Payment + CardcomTransaction ומפעיל סליקה אמיתית). ה-route
     // הזה רושם PAID ידנית בלי לעבור דרך Cardcom, ולכן אסור לקבל פה
