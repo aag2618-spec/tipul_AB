@@ -89,6 +89,12 @@ export default function RegisterPage() {
       return;
     }
 
+    const phoneTrimmed = formData.phone.trim();
+    if (phoneTrimmed.length < 9 || phoneTrimmed.length > 20) {
+      setError("נא להזין מספר טלפון תקין");
+      return;
+    }
+
     setIsLoading(true);
 
     try {
@@ -249,7 +255,9 @@ export default function RegisterPage() {
             
             <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
               <div className="space-y-2">
-                <Label htmlFor="phone">טלפון (אופציונלי)</Label>
+                <Label htmlFor="phone">
+                  טלפון <span className="text-destructive">*</span>
+                </Label>
                 <Input
                   id="phone"
                   name="phone"
@@ -257,6 +265,7 @@ export default function RegisterPage() {
                   placeholder="050-1234567"
                   value={formData.phone}
                   onChange={handleChange}
+                  required
                   disabled={isLoading}
                   className="text-left"
                   dir="ltr"

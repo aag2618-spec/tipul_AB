@@ -2,7 +2,7 @@ import { z } from "zod";
 import {
   zEmail,
   zPassword,
-  zPhoneOptional,
+  zPhone,
   zSecretToken,
   zTwoFactorCode,
 } from "./shared";
@@ -11,7 +11,8 @@ export const registerSchema = z.object({
   name: z.string().trim().min(1, "שם הוא שדה חובה").max(80, "שם ארוך מדי"),
   email: zEmail,
   password: zPassword,
-  phone: zPhoneOptional,
+  // טלפון חובה בהרשמה — נדרש ליצירת קשר ושחזור.
+  phone: zPhone,
   license: z.string().trim().max(100, "מספר רישיון ארוך מדי").optional().or(z.literal("")),
   couponCode: z.string().trim().max(64, "קוד קופון לא תקין").optional().or(z.literal("")),
 });

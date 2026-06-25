@@ -29,6 +29,10 @@ export function ContactForm() {
   const handleSubmit = async (e: FormEvent) => {
     e.preventDefault();
     if (submitting) return;
+    if (form.phone.trim().length < 9) {
+      toast.error("נא להזין מספר טלפון תקין");
+      return;
+    }
     setSubmitting(true);
     try {
       const res = await fetch("/api/contact", {
@@ -89,8 +93,10 @@ export function ContactForm() {
           />
         </div>
         <div className="space-y-1.5">
-          <Label htmlFor="c-phone">טלפון</Label>
-          <Input id="c-phone" type="tel" value={form.phone} onChange={set("phone")} placeholder="050-1234567" />
+          <Label htmlFor="c-phone">
+            טלפון <span className="text-destructive">*</span>
+          </Label>
+          <Input id="c-phone" type="tel" required value={form.phone} onChange={set("phone")} placeholder="050-1234567" />
         </div>
         <div className="space-y-1.5">
           <Label htmlFor="c-org">שם הקליניקה / ארגון</Label>
