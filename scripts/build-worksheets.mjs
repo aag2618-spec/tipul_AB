@@ -358,6 +358,34 @@ function kidsExampleItem(it) {
   return `<div class="ksection"><div class="ksection-head"><div class="ksection-num">${esc(it.n || "•")}</div><div class="ksection-title"><span>${esc(it.title)}</span></div></div><div class="ksection-body"><div class="kfilled">${esc(it.text)}</div></div>`;
 }
 
+// הדרכה מקצועית מלאה לעמוד "להורה ולמטפל" בגרסת הילדים — נשאבת מ-ws.therapist
+// (אותו מקור של דף המבוגרים): על הגישה והיוצר, מטרת הכלי, מתי להשתמש, טיפים, וממה
+// להיזהר. כך גם דף הילדים נותן למבוגר את אותו רקע מקצועי שיש בדף המבוגרים.
+function kidsTherapistGuide(ws) {
+  const t = ws.therapist || {};
+  let bg = "";
+  if (t.background && t.background.founder) {
+    const story = (t.background.story || []).map((p) => `<p>${esc(p)}</p>`).join("");
+    bg = `<div class="kguide-box kguide-bg"><h3>📖 על הגישה והיוצר</h3><p class="kguide-founder"><strong>${esc(t.background.founder)}</strong></p>${story}</div>`;
+  }
+  const purpose = (t.purpose || []).length
+    ? `<div class="kguide-box"><h3>📚 מטרת הכלי</h3>${t.purpose.map((p) => `<p>${esc(p)}</p>`).join("")}</div>`
+    : "";
+  let when = "";
+  if (t.when && t.when.rows && t.when.rows.length) {
+    const heads = t.when.headers.map((h) => `<th>${esc(h)}</th>`).join("");
+    const rows = t.when.rows.map((r) => `<tr>${r.map((c) => `<td>${esc(c)}</td>`).join("")}</tr>`).join("");
+    when = `<div class="kguide-box"><h3>🛠 מתי להשתמש</h3><table class="kguide-table"><thead><tr>${heads}</tr></thead><tbody>${rows}</tbody></table></div>`;
+  }
+  const tips = (t.tips || []).length
+    ? `<div class="kguide-box"><h3>🎓 טיפים למטפל ולהורה</h3><ul>${t.tips.map((x) => `<li>${esc(x)}</li>`).join("")}</ul></div>`
+    : "";
+  const cautions = (t.cautions || []).length
+    ? `<div class="kguide-box kguide-caution"><h3>⚠️ ממה להיזהר</h3><ul>${t.cautions.map((x) => `<li>${esc(x)}</li>`).join("")}</ul></div>`
+    : "";
+  return `${bg}${purpose}${when}${tips}${cautions}`;
+}
+
 function buildKidsHtml(ws) {
   const pal = PALETTES[ws.color] || PALETTES.amber;
   const [c50, c100, c200, c300, c400, c500, c600, c700, c800] = pal.s;
@@ -371,7 +399,10 @@ function buildKidsHtml(ws) {
     return `<header class="kheader"><div class="kheader-content"><a href="https://mytipul.com" target="_blank" rel="noopener" style="text-decoration:none;"><div class="kheader-badge">🧒 ${esc(ws.approach || "")}</div></a><h1>${esc(ws.title)}</h1><p class="ksubtitle">${sub}</p></div>${mascot}<div class="header-logo"><a href="https://mytipul.com" target="_blank" rel="noopener"><img src="${logo}" alt="MyTipul" /></a></div></header>`;
   };
 
-  const parentGuide = (k.parentGuide || []).map((p) => `<li>${esc(p)}</li>`).join("");
+  // ההכוונה המעשית: תומכת בכותרת מודגשת בתחילת שורה דרך **...** (תואם-לאחור —
+  // שורות בלי ** נשארות כפי שהן). מאפשר מבנה עשיר: "**לפני שמתחילים:** ...".
+  const fmtGuide = (p) => esc(p).replace(/\*\*(.+?)\*\*/g, "<strong>$1</strong>");
+  const parentGuide = (k.parentGuide || []).map((p) => `<li>${fmtGuide(p)}</li>`).join("");
   const ksections = (k.sections || []).map(kidsSection).join("\n");
   const ksummary = k.summary ? `<div class="ksummary"><div class="ksummary-title">⭐ ${esc(k.summary.hint)}</div><div class="kids-draw"><span class="kids-draw-tag">✏️</span></div></div>` : "";
   const kcompassion = k.compassion ? `<div class="kcompassion"><span>💜</span> ${esc(k.compassion)}</div>` : "";
@@ -414,6 +445,19 @@ function buildKidsHtml(ws) {
     .parent-box h2 { font-size:1.05rem; font-weight:800; color:#b45309; margin-bottom:12px; display:flex; align-items:center; gap:8px; }
     .parent-box ul { padding-right:22px; line-height:1.9; color:var(--slate-700); font-size:0.95rem; }
     .parent-box li { margin-bottom:6px; }
+    .kguide-box { background:#fff; border:2px solid var(--th-200); border-radius:var(--kradius); padding:16px 20px; margin-bottom:14px; }
+    .kguide-box h3 { font-size:1.02rem; font-weight:800; color:var(--th-800); margin-bottom:9px; display:flex; align-items:center; gap:8px; }
+    .kguide-box p { font-size:0.92rem; color:var(--slate-700); line-height:1.75; margin-bottom:7px; }
+    .kguide-box p:last-child { margin-bottom:0; }
+    .kguide-box ul { padding-right:22px; line-height:1.8; color:var(--slate-700); font-size:0.92rem; }
+    .kguide-box li { margin-bottom:6px; }
+    .kguide-bg { border-right:5px solid var(--th-500); background:linear-gradient(135deg,var(--th-50) 0%,#fff 100%); }
+    .kguide-founder { color:var(--th-800); margin-bottom:7px; }
+    .kguide-caution { border-color:#fca5a5; background:linear-gradient(135deg,#fff1f2 0%,#fff 100%); }
+    .kguide-caution h3 { color:#dc2626; }
+    .kguide-table { width:100%; border-collapse:collapse; margin-top:8px; font-size:0.86rem; }
+    .kguide-table th,.kguide-table td { border:1px solid var(--th-200); padding:7px 10px; text-align:right; }
+    .kguide-table th { background:var(--th-50); color:var(--th-800); font-weight:700; }
     .kids-story { background:linear-gradient(135deg,var(--th-50) 0%,#ffffff 100%); border:2.5px solid var(--th-300); border-radius:var(--kradius); padding:18px 20px; margin-bottom:20px; display:flex; align-items:center; gap:16px; }
     .kstory-mascot { font-size:3.4rem; flex-shrink:0; line-height:1; }
     .kstory-text strong { display:block; color:var(--th-800); font-size:1.05rem; font-weight:800; margin-bottom:5px; }
@@ -460,6 +504,8 @@ function buildKidsHtml(ws) {
       .kheader { box-shadow:none; padding:16px 20px; margin-bottom:14px; }
       .header-logo img { height:110px !important; visibility:visible !important; display:block !important; max-width:260px; -webkit-print-color-adjust:exact !important; print-color-adjust:exact !important; }
       .ksection,.ksection-head,.kids-story,.parent-box,.ksummary,.kcompassion,.kexample-banner,.kgrounding,.kids-draw,.kchoice,.kface,.cta-box { break-inside:avoid; page-break-inside:avoid; }
+      .kguide-box,.kguide-box li,.kguide-table { break-inside:avoid; page-break-inside:avoid; }
+      .kguide-box h3 { break-after:avoid; page-break-after:avoid; }
       .ksection { box-shadow:none; margin-bottom:12px; }
       .kids-draw { min-height:90px; }
       .footer { display:none !important; }
@@ -480,7 +526,8 @@ function buildKidsHtml(ws) {
   <div class="ksheet">
     <div class="kids-parent-section">
       ${kheader("parent")}
-      <div class="parent-box"><h2>👨‍👩‍👧 להורה ולמטפל</h2><ul>${parentGuide}</ul></div>
+      ${kidsTherapistGuide(ws)}
+      <div class="parent-box"><h2>👨‍👩‍👧 הכוונה מעשית — איך מעבירים את הדף</h2><ul>${parentGuide}</ul></div>
       ${footer}
     </div>
     <div class="kids-worksheet-section">
