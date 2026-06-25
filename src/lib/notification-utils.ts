@@ -14,6 +14,8 @@ export const NOTIFICATION_TYPES = [
   "CANCELLATION_REQUEST",
   "BOOKING_REQUEST",
   "CUSTOM",
+  "STAFF_TASK_COMMENT",
+  "STAFF_TASK_DONE",
 ] as const;
 
 export type NotificationType = (typeof NOTIFICATION_TYPES)[number];
@@ -21,7 +23,7 @@ export type NotificationType = (typeof NOTIFICATION_TYPES)[number];
 // ── מיפוי אייקונים לפי סוג התראה ──
 // כל סוג מקבל שם אייקון וצבע. הרנדור עצמו נעשה בקומפוננטות.
 export interface NotificationIconInfo {
-  icon: "sun" | "moon" | "list-todo" | "credit-card" | "calendar" | "mail" | "x-circle" | "bell";
+  icon: "sun" | "moon" | "list-todo" | "credit-card" | "calendar" | "mail" | "x-circle" | "bell" | "check-circle" | "eye";
   color: string;
 }
 
@@ -34,6 +36,10 @@ export function getNotificationIconInfo(type: string): NotificationIconInfo {
     case "PENDING_TASKS":
     case "CUSTOM":
       return { icon: "list-todo", color: "text-amber-500" };
+    case "STAFF_TASK_COMMENT":
+      return { icon: "eye", color: "text-sky-500" };
+    case "STAFF_TASK_DONE":
+      return { icon: "check-circle", color: "text-emerald-500" };
     case "PAYMENT_REMINDER":
       return { icon: "credit-card", color: "text-red-500" };
     case "SESSION_REMINDER":
@@ -95,6 +101,20 @@ export function extractBookingInfo(content: string): {
   return { date: null, time: null, sessionId: null };
 }
 
+// ── חילוץ מזהה מטלה מתוך content של התראת מטלת-צוות (תבנית [task:<id>]) ──
+// מאפשר ניווט ממוקד מהמלבן/הפעמון לדף /clinic-admin/tasks?task=<id>. עוגן לסוף
+// המחרוזת בלבד: ה-ref האמיתי תמיד מוסף בסוף, כך שטקסט הערה שהעובד הזין ובו
+// "[task:..]" באמצע לא יטעה את החילוץ. id של Prisma (cuid) — אותיות/ספרות.
+export function extractTaskRef(content: string): string | null {
+  const match = content.match(/\[task:([a-z0-9]+)\]\s*$/i);
+  return match ? match[1] : null;
+}
+
+// ── ניקוי כל מופעי [task:<id>] מה-content להצגה נקייה (global) ──
+export function stripTaskRef(content: string): string {
+  return content.replace(/\s*\[task:[a-z0-9]+\]\s*/gi, " ").trim();
+}
+
 // ── ניתוב לפי סוג התראה ──
 export function getNotificationRoute(type: string): string {
   switch (type) {
@@ -105,6 +125,10 @@ export function getNotificationRoute(type: string): string {
     case "EVENING_SUMMARY":
     case "PENDING_TASKS":
       return "/dashboard?scrollTo=personal-tasks";
+    case "STAFF_TASK_COMMENT":
+    case "STAFF_TASK_DONE":
+      // חיווי למקצה (מנהלת/מזכירה) — לדף ניהול המטלות, לא לדשבורד המטפל.
+      return "/clinic-admin/tasks";
     case "PAYMENT_REMINDER":
       return "/dashboard/payments";
     default:

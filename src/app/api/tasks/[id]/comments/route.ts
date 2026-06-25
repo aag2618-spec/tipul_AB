@@ -148,16 +148,25 @@ export async function POST(
     // ⚠️ PHI: title+content של ההתראה עלולים להכיל מידע מטופל, ו-Notification
     // אינו עובר שכבת scope/מיסוך. הבטיחות נשענת על כך שהנמען כאן הוא תמיד צד
     // מורשה ב-thread (העובד או המקצה). שינוי לוגיקת הנמען = סיכון דליפת PHI.
-    const recipientId =
-      userId === task.userId ? task.assignedById : task.userId;
+    // isFromAssignee = הכותב הוא העובד המחזיק (userId === task.userId) → היעד
+    // הוא המקצה (מנהלת/מזכירה). אחרת המקצה/בעלים הגיב → היעד הוא העובד.
+    const isFromAssignee = userId === task.userId;
+    const recipientId = isFromAssignee ? task.assignedById : task.userId;
     if (recipientId && recipientId !== userId) {
       try {
         await prisma.notification.create({
           data: {
             userId: recipientId,
-            type: "PENDING_TASKS",
+            // הערת עובד→מקצה: סוג ייעודי שמנותב ל-/clinic-admin/tasks ומקודד
+            // [task:id] לניווט ממוקד. תגובת מקצה→עובד: PENDING_TASKS כקודם
+            // (מנותב ל-/dashboard של העובד), content נקי.
+            type: isFromAssignee ? "STAFF_TASK_COMMENT" : "PENDING_TASKS",
             title: `הערה חדשה על מטלה: ${task.title}`,
-            content: body.slice(0, 200),
+            // לכיוון המקצה: "שם העובד: <הערה> [task:id]" — כך המלבן בדשבורד מציג
+            // מי הגיב + תצוגה מקדימה + ניווט ממוקד. שם צוות אינו PHI של מטופל.
+            content: isFromAssignee
+              ? `${comment.author?.name ? comment.author.name + ": " : ""}${body.slice(0, 160)} [task:${id}]`
+              : body.slice(0, 200),
             status: "PENDING",
             sentAt: new Date(),
           },

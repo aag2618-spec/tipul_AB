@@ -837,6 +837,11 @@ enum NotificationType {
   CANCELLATION_REQUEST
   BOOKING_REQUEST
   CUSTOM
+  // מטלות צוות — חיווי למקצה (מנהלת/מזכירה) כשהעובד הגיב/ביצע. מנותב
+  // ל-/clinic-admin/tasks (ולא ל-/dashboard כמו PENDING_TASKS). ה-content
+  // מקודד [task:<id>] לניווט ממוקד. ⚠️ ללא PHI (completionNote) ב-content.
+  STAFF_TASK_COMMENT
+  STAFF_TASK_DONE
 }
 
 enum NotificationStatus {

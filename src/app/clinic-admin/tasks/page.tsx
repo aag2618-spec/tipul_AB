@@ -1,8 +1,15 @@
 "use client";
 
-import { useCallback, useEffect, useState } from "react";
+import { Suspense, useCallback, useEffect, useState } from "react";
+import { useSearchParams } from "next/navigation";
 import { Button } from "@/components/ui/button";
-import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
+import { Card, CardContent } from "@/components/ui/card";
+import {
+  Accordion,
+  AccordionItem,
+  AccordionTrigger,
+  AccordionContent,
+} from "@/components/ui/accordion";
 import {
   Loader2,
   Plus,
@@ -88,7 +95,8 @@ function recurrenceLabel(t: TaskTemplateData): string {
   return "שליחה ידנית";
 }
 
-export default function ClinicTasksPage() {
+function ClinicTasksPageInner() {
+  const searchParams = useSearchParams();
   const [groups, setGroups] = useState<TaskGroup[]>([]);
   const [loading, setLoading] = useState(true);
   const [dialogOpen, setDialogOpen] = useState(false);
@@ -99,6 +107,11 @@ export default function ClinicTasksPage() {
     useState<TaskTemplateData | null>(null);
   // איזו מטלה פתוחה כרגע לתצוגת שרשור ההערות (collapse — אחת בכל פעם).
   const [openThreadTaskId, setOpenThreadTaskId] = useState<string | null>(null);
+  // אילו מטלות פתוחות ב-Accordion (controlled — לפתיחה אוטומטית לפי ?task=).
+  const [openItems, setOpenItems] = useState<string[]>([]);
+  // צילום-מצב של מטלות עם פעילות חדשה שלא נקראה (הערה/ביצוע), נשלף בכניסה.
+  // נשמר בנפרד מה-badge: גם אחרי סימון-נקרא, החיווי "חדש" נשאר גלוי עד רענון.
+  const [newTaskIds, setNewTaskIds] = useState<Set<string>>(new Set());
 
   const fetchTasks = useCallback(async () => {
     try {
@@ -130,6 +143,59 @@ export default function ClinicTasksPage() {
     fetchTasks();
     fetchTemplates();
   }, [fetchTasks, fetchTemplates]);
+
+  // צילום-מצב חיוויי "חדש" בכניסה + סימון נקרא (מאפס את ה-badge בטאב). מקור
+  // האמת הוא ה-inbox (אותו endpoint של ה-badge), כך ש"חדש" עקבי עם המספר.
+  useEffect(() => {
+    let active = true;
+    (async () => {
+      try {
+        const res = await fetch("/api/clinic-admin/tasks/inbox", {
+          cache: "no-store",
+        });
+        if (!res.ok || !active) return;
+        const data = await res.json();
+        const refs: string[] = (data.items || [])
+          .map((it: { taskRef: string | null }) => it.taskRef)
+          .filter((r: string | null): r is string => !!r);
+        if (refs.length > 0) setNewTaskIds(new Set(refs));
+        if ((data.unreadCount || 0) > 0) {
+          // best-effort — מסמן את כל חיוויי המטלות כנקראו (גוף ריק).
+          fetch("/api/clinic-admin/tasks/inbox", { method: "POST" }).catch(
+            () => {}
+          );
+        }
+      } catch {
+        // שקט
+      }
+    })();
+    return () => {
+      active = false;
+    };
+  }, []);
+
+  // פתיחה אוטומטית + גלילה למטלה ספציפית (מלחיצה במלבן/פעמון: ?task=<id>).
+  useEffect(() => {
+    const taskId = searchParams.get("task");
+    if (!taskId || groups.length === 0) return;
+    const g = groups.find((grp) =>
+      grp.assignees.some((a) => a.taskId === taskId)
+    );
+    if (!g) return;
+    setView("tasks");
+    setOpenItems((prev) =>
+      prev.includes(g.batchId) ? prev : [...prev, g.batchId]
+    );
+    const t = setTimeout(() => {
+      document
+        .getElementById(`tg-${g.batchId}`)
+        ?.scrollIntoView({ behavior: "smooth", block: "center" });
+    }, 150);
+    return () => clearTimeout(t);
+  }, [searchParams, groups]);
+
+  const groupHasNew = (g: TaskGroup) =>
+    g.assignees.some((a) => newTaskIds.has(a.taskId));
 
   const handleDeleteTemplate = async (id: string) => {
     if (!confirm("למחוק את התבנית?")) return;
@@ -197,7 +263,7 @@ export default function ClinicTasksPage() {
         </button>
       </div>
 
-      {/* ===== תצוגת מטלות ===== */}
+      {/* ===== תצוגת מטלות — רשימה מתקפלת (Accordion) ===== */}
       {view === "tasks" &&
         (loading ? (
           <div className="flex justify-center py-12">
@@ -212,147 +278,168 @@ export default function ClinicTasksPage() {
             </CardContent>
           </Card>
         ) : (
-          <div className="space-y-4">
-            {groups.map((g) => (
-              <Card key={g.batchId}>
-                <CardHeader className="pb-3">
-                  <div className="flex items-start justify-between gap-3">
-                    <div className="min-w-0">
-                      <CardTitle className="text-base">{g.title}</CardTitle>
-                      {g.description && (
-                        <p className="text-sm text-muted-foreground mt-1 whitespace-pre-wrap">
-                          {g.description}
-                        </p>
-                      )}
-                      <div className="flex flex-wrap items-center gap-x-3 gap-y-1 mt-2 text-xs text-muted-foreground">
-                        <span className={PRIORITY_COLORS[g.priority]}>
-                          עדיפות: {PRIORITY_LABELS[g.priority] || g.priority}
-                        </span>
-                        {g.dueDate && (
-                          <span className="flex items-center gap-1">
-                            <Clock className="h-3 w-3" />
-                            יעד:{" "}
-                            {format(new Date(g.dueDate), "d/M/yyyy", {
-                              locale: he,
-                            })}
+          <Card>
+            <CardContent className="p-0">
+              <Accordion
+                type="multiple"
+                value={openItems}
+                onValueChange={setOpenItems}
+              >
+                {groups.map((g) => (
+                  <AccordionItem
+                    key={g.batchId}
+                    value={g.batchId}
+                    id={`tg-${g.batchId}`}
+                    className="px-4"
+                  >
+                    <AccordionTrigger className="hover:no-underline py-3">
+                      {/* שורה מקופלת: כותרת + עדיפות/יעד + חיווי "חדש" + מונה */}
+                      <div className="flex items-center gap-2.5 min-w-0 flex-1">
+                        {groupHasNew(g) && (
+                          <span className="shrink-0 inline-flex items-center rounded-full bg-sky-100 text-sky-700 dark:bg-sky-900/40 dark:text-sky-300 px-2 py-0.5 text-[10px] font-medium">
+                            חדש
                           </span>
                         )}
-                        {g.assignedByName && (
-                          <span>נשלח ע&quot;י {g.assignedByName}</span>
-                        )}
-                      </div>
-                    </div>
-                    <div className="text-center shrink-0">
-                      <p className="text-lg font-semibold text-emerald-600 leading-none">
-                        {g.counts.completed}
-                        <span className="text-sm text-muted-foreground">
-                          /{g.counts.total}
-                        </span>
-                      </p>
-                      <p className="text-[11px] text-muted-foreground mt-1">
-                        בוצעו
-                      </p>
-                      {g.counts.overdue > 0 && (
-                        <p className="text-[11px] text-red-500 mt-0.5">
-                          {g.counts.overdue} באיחור
-                        </p>
-                      )}
-                    </div>
-                  </div>
-                </CardHeader>
-                <CardContent className="pt-0">
-                  <div className="space-y-1.5">
-                    {g.assignees.map((a) => (
-                      <div
-                        key={a.taskId}
-                        className="flex items-start gap-2 py-1.5 px-2 rounded-md bg-muted/30"
-                      >
-                        {a.status === "COMPLETED" ? (
-                          <CheckCircle2 className="h-4 w-4 text-emerald-500 shrink-0 mt-0.5" />
-                        ) : a.overdue ? (
-                          <AlertTriangle className="h-4 w-4 text-red-500 shrink-0 mt-0.5" />
-                        ) : a.seenAt ? (
-                          <Eye className="h-4 w-4 text-sky-500 shrink-0 mt-0.5" />
-                        ) : (
-                          <Clock className="h-4 w-4 text-muted-foreground shrink-0 mt-0.5" />
-                        )}
-                        <div className="flex-1 min-w-0">
-                          <div className="flex items-center gap-2 flex-wrap">
-                            <span className="text-sm font-medium">
-                              {a.name || "ללא שם"}
+                        <div className="min-w-0">
+                          <div className="font-medium truncate">{g.title}</div>
+                          <div className="flex flex-wrap items-center gap-x-2 gap-y-0.5 mt-0.5 text-[11px] font-normal text-muted-foreground">
+                            <span className={PRIORITY_COLORS[g.priority]}>
+                              {PRIORITY_LABELS[g.priority] || g.priority}
                             </span>
-                            <span className="text-xs text-muted-foreground">
-                              {a.status === "COMPLETED"
-                                ? "בוצע"
-                                : a.overdue
-                                  ? "באיחור"
-                                  : a.seenAt
-                                    ? "נצפה"
-                                    : "ממתין"}
-                              {a.completedAt &&
-                                ` · ${format(new Date(a.completedAt), "d/M HH:mm", { locale: he })}`}
-                            </span>
-                          </div>
-                          {a.completionNote && (
-                            <p className="text-xs text-foreground/80 mt-1 whitespace-pre-wrap bg-background rounded p-1.5 border">
-                              {a.completionNote}
-                            </p>
-                          )}
-
-                          {/* שקיפות דו-כיוונית — כפתור "הערות (N)" + שרשור (collapse).
-                              המנהל/מזכירה רואה את התכתבות העובד ועונה לו ישירות. */}
-                          <button
-                            type="button"
-                            onClick={() =>
-                              setOpenThreadTaskId(
-                                openThreadTaskId === a.taskId ? null : a.taskId
-                              )
-                            }
-                            className={`mt-1 inline-flex items-center gap-1 text-[11px] ${
-                              a.commentCount > 0
-                                ? "text-primary font-medium"
-                                : "text-muted-foreground hover:text-foreground"
-                            }`}
-                          >
-                            <MessageCircle className="h-3 w-3" />
-                            הערות
-                            {a.commentCount > 0 ? ` (${a.commentCount})` : ""}
-                            {openThreadTaskId === a.taskId ? (
-                              <ChevronUp className="h-3 w-3" />
-                            ) : (
-                              <ChevronDown className="h-3 w-3" />
+                            {g.dueDate && (
+                              <span className="flex items-center gap-1">
+                                <Clock className="h-3 w-3" />
+                                {format(new Date(g.dueDate), "d/M", {
+                                  locale: he,
+                                })}
+                              </span>
                             )}
-                          </button>
-                          {openThreadTaskId === a.taskId && (
-                            <TaskCommentsThread
-                              taskId={a.taskId}
-                              canPost
-                              onPosted={() =>
-                                setGroups((prev) =>
-                                  prev.map((grp) => ({
-                                    ...grp,
-                                    assignees: grp.assignees.map((x) =>
-                                      x.taskId === a.taskId
-                                        ? {
-                                            ...x,
-                                            commentCount: x.commentCount + 1,
-                                          }
-                                        : x
-                                    ),
-                                  }))
-                                )
-                              }
-                              className="mt-2"
-                            />
+                          </div>
+                        </div>
+                      </div>
+                      <div className="flex items-center shrink-0 me-2 text-center leading-none">
+                        <div>
+                          <span className="text-base font-semibold text-emerald-600">
+                            {g.counts.completed}
+                          </span>
+                          <span className="text-xs text-muted-foreground">
+                            /{g.counts.total}
+                          </span>
+                          {g.counts.overdue > 0 && (
+                            <div className="text-[10px] text-red-500 mt-0.5 font-normal">
+                              {g.counts.overdue} באיחור
+                            </div>
                           )}
                         </div>
                       </div>
-                    ))}
-                  </div>
-                </CardContent>
-              </Card>
-            ))}
-          </div>
+                    </AccordionTrigger>
+                    <AccordionContent>
+                      {g.description && (
+                        <p className="text-sm text-muted-foreground mb-2 whitespace-pre-wrap">
+                          {g.description}
+                        </p>
+                      )}
+                      {g.assignedByName && (
+                        <p className="text-[11px] text-muted-foreground mb-2">
+                          נשלח ע&quot;י {g.assignedByName}
+                        </p>
+                      )}
+                      <div className="space-y-1.5">
+                        {g.assignees.map((a) => (
+                          <div
+                            key={a.taskId}
+                            className="flex items-start gap-2 py-1.5 px-2 rounded-md bg-muted/30"
+                          >
+                            {a.status === "COMPLETED" ? (
+                              <CheckCircle2 className="h-4 w-4 text-emerald-500 shrink-0 mt-0.5" />
+                            ) : a.overdue ? (
+                              <AlertTriangle className="h-4 w-4 text-red-500 shrink-0 mt-0.5" />
+                            ) : a.seenAt ? (
+                              <Eye className="h-4 w-4 text-sky-500 shrink-0 mt-0.5" />
+                            ) : (
+                              <Clock className="h-4 w-4 text-muted-foreground shrink-0 mt-0.5" />
+                            )}
+                            <div className="flex-1 min-w-0">
+                              <div className="flex items-center gap-2 flex-wrap">
+                                <span className="text-sm font-medium">
+                                  {a.name || "ללא שם"}
+                                </span>
+                                <span className="text-xs text-muted-foreground">
+                                  {a.status === "COMPLETED"
+                                    ? "בוצע"
+                                    : a.overdue
+                                      ? "באיחור"
+                                      : a.seenAt
+                                        ? "נצפה"
+                                        : "ממתין"}
+                                  {a.completedAt &&
+                                    ` · ${format(new Date(a.completedAt), "d/M HH:mm", { locale: he })}`}
+                                </span>
+                              </div>
+                              {a.completionNote && (
+                                <p className="text-xs text-foreground/80 mt-1 whitespace-pre-wrap bg-background rounded p-1.5 border">
+                                  {a.completionNote}
+                                </p>
+                              )}
+
+                              {/* שקיפות דו-כיוונית — כפתור "הערות (N)" + שרשור (collapse).
+                                  המנהל/מזכירה רואה את התכתבות העובד ועונה לו ישירות. */}
+                              <button
+                                type="button"
+                                onClick={() =>
+                                  setOpenThreadTaskId(
+                                    openThreadTaskId === a.taskId
+                                      ? null
+                                      : a.taskId
+                                  )
+                                }
+                                className={`mt-1 inline-flex items-center gap-1 text-[11px] ${
+                                  a.commentCount > 0
+                                    ? "text-primary font-medium"
+                                    : "text-muted-foreground hover:text-foreground"
+                                }`}
+                              >
+                                <MessageCircle className="h-3 w-3" />
+                                הערות
+                                {a.commentCount > 0 ? ` (${a.commentCount})` : ""}
+                                {openThreadTaskId === a.taskId ? (
+                                  <ChevronUp className="h-3 w-3" />
+                                ) : (
+                                  <ChevronDown className="h-3 w-3" />
+                                )}
+                              </button>
+                              {openThreadTaskId === a.taskId && (
+                                <TaskCommentsThread
+                                  taskId={a.taskId}
+                                  canPost
+                                  onPosted={() =>
+                                    setGroups((prev) =>
+                                      prev.map((grp) => ({
+                                        ...grp,
+                                        assignees: grp.assignees.map((x) =>
+                                          x.taskId === a.taskId
+                                            ? {
+                                                ...x,
+                                                commentCount: x.commentCount + 1,
+                                              }
+                                            : x
+                                        ),
+                                      }))
+                                    )
+                                  }
+                                  className="mt-2"
+                                />
+                              )}
+                            </div>
+                          </div>
+                        ))}
+                      </div>
+                    </AccordionContent>
+                  </AccordionItem>
+                ))}
+              </Accordion>
+            </CardContent>
+          </Card>
         ))}
 
       {/* ===== תצוגת תבניות ===== */}
@@ -433,5 +520,20 @@ export default function ClinicTasksPage() {
         template={editingTemplate}
       />
     </div>
+  );
+}
+
+export default function ClinicTasksPage() {
+  // useSearchParams דורש גבול Suspense ב-App Router.
+  return (
+    <Suspense
+      fallback={
+        <div className="flex justify-center py-12">
+          <Loader2 className="h-6 w-6 animate-spin text-muted-foreground" />
+        </div>
+      }
+    >
+      <ClinicTasksPageInner />
+    </Suspense>
   );
 }

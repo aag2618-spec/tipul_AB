@@ -5,7 +5,7 @@ import {
 } from "@/lib/notification-utils";
 
 describe("getNotificationIconInfo — מיפוי אייקונים", () => {
-  it("כל 10 סוגי ההתראות מכוסים עם אייקון שאינו ברירת מחדל", () => {
+  it("כל 12 סוגי ההתראות מכוסים עם אייקון שאינו ברירת מחדל", () => {
     for (const type of NOTIFICATION_TYPES) {
       const info = getNotificationIconInfo(type);
       // CUSTOM ו-PENDING_TASKS מקבלים list-todo, לא bell (ברירת מחדל)

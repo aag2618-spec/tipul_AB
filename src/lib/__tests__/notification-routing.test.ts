@@ -49,10 +49,19 @@ describe("Notification routing", () => {
     expect(getNotificationRoute("CUSTOM")).toBe("/dashboard/communications");
   });
 
-  it("כל 10 הסוגים מחזירים נתיב תקף", () => {
+  it("STAFF_TASK_COMMENT routes to /clinic-admin/tasks", () => {
+    expect(getNotificationRoute("STAFF_TASK_COMMENT")).toBe("/clinic-admin/tasks");
+  });
+
+  it("STAFF_TASK_DONE routes to /clinic-admin/tasks", () => {
+    expect(getNotificationRoute("STAFF_TASK_DONE")).toBe("/clinic-admin/tasks");
+  });
+
+  it("כל 12 הסוגים מחזירים נתיב תקף", () => {
     for (const type of NOTIFICATION_TYPES) {
       const route = getNotificationRoute(type);
-      expect(route).toMatch(/^\/dashboard/);
+      // חיוויי מטלות-צוות מנותבים לאזור הניהול; כל השאר לדשבורד.
+      expect(route).toMatch(/^\/(dashboard|clinic-admin)/);
     }
   });
 });

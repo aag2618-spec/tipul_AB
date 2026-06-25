@@ -56,6 +56,8 @@ export async function PATCH(
     // שאליו הוקצתה המטלה יכול לסמן "בוצע" / לכתוב הערת ביצוע / לסמן "נצפה".
     const existingTask = await prisma.task.findFirst({
       where: { id, userId: userId },
+      // שם העובד — לתוכן התראת "בוצע" למקצה (A4). userId=המבצע ⇒ user=המבצע.
+      include: { user: { select: { name: true } } },
     });
 
     if (!existingTask) {
@@ -96,6 +98,37 @@ export async function PATCH(
         seenAt: markSeen && !existingTask.seenAt ? nowDate : existingTask.seenAt,
       },
     });
+
+    // חיווי "בוצע" למקצה — רק במעבר הראשון ל-COMPLETED של מטלת-צוות (התנאי
+    // existingTask.status !== "COMPLETED" מונע כפילות ב-PATCH חוזר). best-effort.
+    // ⚠️ ללא completionNote (PHI) ב-content — הפרטים זמינים בדף עם ה-gate.
+    if (
+      isStaffTask &&
+      status === "COMPLETED" &&
+      existingTask.status !== "COMPLETED" &&
+      existingTask.assignedById &&
+      existingTask.assignedById !== userId
+    ) {
+      try {
+        await prisma.notification.create({
+          data: {
+            userId: existingTask.assignedById,
+            type: "STAFF_TASK_DONE",
+            title: `מטלה בוצעה: ${existingTask.title}`,
+            content: `${existingTask.user?.name || "עובד/ת"} סימן/ה את המטלה כבוצעה [task:${id}]`,
+            status: "PENDING",
+            sentAt: new Date(),
+          },
+        });
+      } catch (notifyError) {
+        logger.error("Staff task done notification failed:", {
+          error:
+            notifyError instanceof Error
+              ? notifyError.message
+              : String(notifyError),
+        });
+      }
+    }
 
     return NextResponse.json(task);
   } catch (error) {

@@ -16,9 +16,9 @@ import {
 } from "@/components/ui/dropdown-menu";
 import { Avatar, AvatarFallback, AvatarImage } from "@/components/ui/avatar";
 import { Badge } from "@/components/ui/badge";
-import { Bell, LogOut, Settings, User, XCircle, Mail, Calendar, X, ListTodo, Sun, Moon, CreditCard, Info, AlertTriangle, CheckCircle, Sparkles, Building2, Shield } from "lucide-react";
+import { Bell, LogOut, Settings, User, XCircle, Mail, Calendar, X, ListTodo, Sun, Moon, CreditCard, Info, AlertTriangle, CheckCircle, Eye, Sparkles, Building2, Shield } from "lucide-react";
 import Link from "next/link";
-import { getNotificationIconInfo, extractBookingInfo as extractBookingInfoUtil } from "@/lib/notification-utils";
+import { getNotificationIconInfo, extractBookingInfo as extractBookingInfoUtil, extractTaskRef, stripTaskRef } from "@/lib/notification-utils";
 import { GlobalSearch } from "@/components/global-search";
 
 interface Notification {
@@ -184,6 +184,8 @@ export function DashboardHeader({ user }: DashboardHeaderProps) {
     calendar: <Calendar className="h-4 w-4" />,
     mail: <Mail className="h-4 w-4" />,
     "x-circle": <XCircle className="h-4 w-4" />,
+    "check-circle": <CheckCircle className="h-4 w-4" />,
+    eye: <Eye className="h-4 w-4" />,
     bell: <Bell className="h-4 w-4" />,
   };
 
@@ -219,6 +221,15 @@ export function DashboardHeader({ user }: DashboardHeaderProps) {
     } else if (notification.type === "PAYMENT_REMINDER") {
       markAsRead(notification.id);
       router.push("/dashboard/payments");
+    } else if (
+      notification.type === "STAFF_TASK_COMMENT" ||
+      notification.type === "STAFF_TASK_DONE"
+    ) {
+      // חיווי מטלת-צוות למקצה — ניווט ממוקד לדף ניהול המטלות (?task=<id>),
+      // לא ל-/dashboard/communications. ה-ref מקודד בסוף ה-content.
+      markAsRead(notification.id);
+      const ref = extractTaskRef(notification.content);
+      router.push(ref ? `/clinic-admin/tasks?task=${ref}` : "/clinic-admin/tasks");
     } else {
       markAsRead(notification.id);
       router.push("/dashboard/communications");
@@ -279,7 +290,7 @@ export function DashboardHeader({ user }: DashboardHeaderProps) {
                         {notification.title}
                       </p>
                       <p className="text-xs text-muted-foreground line-clamp-2">
-                        {notification.content}
+                        {stripTaskRef(notification.content)}
                       </p>
                     </div>
                     <button

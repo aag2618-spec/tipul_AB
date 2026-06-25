@@ -126,6 +126,7 @@ function ClinicAdminContent({ children }: { children: React.ReactNode }) {
   const [reconnecting, setReconnecting] = useState(false);
   const [retryTick, setRetryTick] = useState(0);
   const [chatUnread, setChatUnread] = useState(0);
+  const [tasksUnread, setTasksUnread] = useState(0);
 
   useEffect(() => {
     if (status === "loading") return;
@@ -186,10 +187,15 @@ function ClinicAdminContent({ children }: { children: React.ReactNode }) {
     };
   }, [status, router, retryTick]);
 
-  // תג הודעות שלא נקראו לצ׳אט הצוות — polling כמו ב-app-sidebar. רץ רק
-  // אחרי שהמשתמש אומת (ctx קיים) — בעלים או מזכיר/ה עם הרשאה, שניהם חברי צ׳אט.
+  // תג הודעות שלא נקראו — צ׳אט צוות + חיוויי מטלות-צוות (הערות/ביצוע). polling
+  // כמו ב-app-sidebar. רץ רק אחרי אימות (ctx). חיוויי המטלות נשלפים רק למי
+  // שמנהל מטלות (בעלים / מזכיר-ה עם canAssignTasks) — אחרת ה-inbox מחזיר 403.
   useEffect(() => {
     if (!ctx) return;
+    const canManageTasks =
+      ctx.user.role === "CLINIC_OWNER" ||
+      ctx.user.clinicRole === "OWNER" ||
+      !!ctx.user.canAssignTasks;
     let active = true;
     const fetchUnread = async () => {
       try {
@@ -197,6 +203,16 @@ function ClinicAdminContent({ children }: { children: React.ReactNode }) {
         if (res.ok && active) {
           const data = await res.json();
           setChatUnread(data.unreadCount || 0);
+        }
+      } catch {
+        // שקט — polling
+      }
+      if (!canManageTasks) return;
+      try {
+        const res = await fetch("/api/clinic-admin/tasks/inbox");
+        if (res.ok && active) {
+          const data = await res.json();
+          setTasksUnread(data.unreadCount || 0);
         }
       } catch {
         // שקט — polling
@@ -343,6 +359,11 @@ function ClinicAdminContent({ children }: { children: React.ReactNode }) {
                   {item.href === "/clinic-admin/team-chat" && chatUnread > 0 && (
                     <span className="ms-auto inline-flex h-5 min-w-5 items-center justify-center rounded-full bg-primary px-1.5 text-xs font-medium text-primary-foreground">
                       {chatUnread}
+                    </span>
+                  )}
+                  {item.href === "/clinic-admin/tasks" && tasksUnread > 0 && (
+                    <span className="ms-auto inline-flex h-5 min-w-5 items-center justify-center rounded-full bg-primary px-1.5 text-xs font-medium text-primary-foreground">
+                      {tasksUnread}
                     </span>
                   )}
                 </Link>

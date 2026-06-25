@@ -42,6 +42,7 @@ import {
   type QuickActionSession,
 } from "@/components/dashboard/secretary-quick-actions";
 import { PersonalTasksWidget } from "@/components/tasks/personal-tasks-widget";
+import { AttentionInbox } from "@/components/dashboard/attention-inbox";
 import type { Prisma } from "@prisma/client";
 
 const STATUS_LABEL: Record<string, string> = {
@@ -565,6 +566,11 @@ export async function SecretaryHome({
           {/* מטלות מהמנהל/ת + משימות אישיות — אותו ווידג'ט כמו בדשבורד המטפל.
               כך מזכיר/ה (ובעל/ת קליניקה ב-front-desk) רואה מטלות שהוקצו לו/ה,
               מסמן/ת "בוצע", מוסיף/ה הערת ביצוע, ורישום הצפייה (seenAt) נשמר. */}
+          {/* מלבן "מה דורש את תשומת ליבך" — תגובות חדשות ממטלות+צ׳אט (מוסתר
+              כשאין מה לטפל בו). מעל המטלות כי זה דורש פעולה מיידית. */}
+          <Suspense fallback={null}>
+            <AttentionInbox />
+          </Suspense>
           <Suspense fallback={null}>
             <PersonalTasksWidget />
           </Suspense>

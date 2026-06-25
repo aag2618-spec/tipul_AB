@@ -17,8 +17,10 @@ import {
   Moon,
   ListTodo,
   CreditCard,
+  CheckCircle,
+  Eye,
 } from "lucide-react";
-import { formatRelativeDate, getNotificationIconInfo } from "@/lib/notification-utils";
+import { formatRelativeDate, getNotificationIconInfo, stripTaskRef } from "@/lib/notification-utils";
 
 interface Notification {
   id: string;
@@ -90,6 +92,8 @@ export default function NotificationsPage() {
     calendar: <Calendar className="h-5 w-5" />,
     mail: <Mail className="h-5 w-5" />,
     "x-circle": <XCircle className="h-5 w-5" />,
+    "check-circle": <CheckCircle className="h-5 w-5" />,
+    eye: <Eye className="h-5 w-5" />,
     bell: <Bell className="h-5 w-5" />,
   };
 
@@ -176,7 +180,7 @@ export default function NotificationsPage() {
                         )}
                       </div>
                       <p className="text-sm text-muted-foreground mt-1">
-                        {notification.content}
+                        {stripTaskRef(notification.content)}
                       </p>
                       <p className="text-xs text-muted-foreground mt-2">
                         {formatDate(notification.createdAt)}
