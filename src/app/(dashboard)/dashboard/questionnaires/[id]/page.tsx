@@ -1,6 +1,6 @@
 "use client";
 
-import { useState, useEffect } from "react";
+import { useState, useEffect, useMemo } from "react";
 import { useRouter, useParams } from "next/navigation";
 import { Card, CardContent, CardDescription, CardHeader, CardTitle, CardFooter } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
@@ -15,10 +15,17 @@ import {
   CheckCircle,
   AlertTriangle,
   BarChart3,
-  ArrowRight
+  ArrowRight,
+  Stethoscope
 } from "lucide-react";
 import { toast } from "sonner";
 import { escapeHtml } from "@/lib/email-utils";
+import { AnalysisView } from "@/components/questionnaires/analysis-view";
+import {
+  interpretResponse,
+  type TemplateLike,
+  type ResponseLike,
+} from "@/lib/questionnaire-interpreter";
 
 interface Question {
   id: number;
@@ -69,10 +76,42 @@ export default function QuestionnaireResultsPage() {
   const [response, setResponse] = useState<Response | null>(null);
   const [loading, setLoading] = useState(true);
   const [downloadingPdf, setDownloadingPdf] = useState(false);
+  const [showAnalysis, setShowAnalysis] = useState(false);
 
   useEffect(() => {
     fetchResponse();
   }, [responseId]);
+
+  // אם השאלון כבר נותח בעבר — מציגים את הניתוח אוטומטית.
+  useEffect(() => {
+    if (response?.status === "ANALYZED") setShowAnalysis(true);
+  }, [response?.status]);
+
+  // ניתוח מובנה מהמנוע (טהור, ללא AI). מחושב מהתבנית והתשובות.
+  const interpretation = useMemo(() => {
+    if (!response) return null;
+    return interpretResponse(
+      response.template as unknown as TemplateLike,
+      response as unknown as ResponseLike
+    );
+  }, [response]);
+
+  // לחיצה על "נתח": מציג את הניתוח ומסמן ANALYZED (best-effort).
+  const handleAnalyze = async () => {
+    setShowAnalysis(true);
+    if (response && response.status !== "ANALYZED") {
+      try {
+        await fetch(`/api/questionnaires/responses/${responseId}`, {
+          method: "PATCH",
+          headers: { "Content-Type": "application/json" },
+          body: JSON.stringify({ status: "ANALYZED" }),
+        });
+        setResponse({ ...response, status: "ANALYZED" });
+      } catch {
+        // לא חוסם את התצוגה — הניתוח מוצג בכל מקרה.
+      }
+    }
+  };
 
   const fetchResponse = async () => {
     try {
@@ -357,6 +396,28 @@ export default function QuestionnaireResultsPage() {
       <div className="grid grid-cols-1 lg:grid-cols-3 gap-6">
         {/* Main Results */}
         <div className="lg:col-span-2 space-y-6">
+          {/* ניתוח מובנה — כפתור "נתח" / תצוגת הניתוח העשיר */}
+          {showAnalysis && interpretation ? (
+            <AnalysisView interpretation={interpretation} />
+          ) : (
+            <Card className="border-primary/30 bg-primary/5">
+              <CardContent className="flex flex-col items-center gap-3 py-8 text-center">
+                <Stethoscope className="h-8 w-8 text-primary" />
+                <div>
+                  <p className="font-semibold">ניתוח התוצאה</p>
+                  <p className="text-sm text-muted-foreground">
+                    לחיצה אחת — והמערכת מציגה ניתוח מובנה: רמה, פירוט לפי תחומים,
+                    דגלי סיכון והמלצות. ללא צורך בכלי חיצוני.
+                  </p>
+                </div>
+                <Button onClick={handleAnalyze} size="lg">
+                  <Stethoscope className="h-4 w-4 ml-2" />
+                  נתח את התוצאה
+                </Button>
+              </CardContent>
+            </Card>
+          )}
+
           {/* Score Card */}
           <Card>
             <CardHeader>
@@ -375,9 +436,9 @@ export default function QuestionnaireResultsPage() {
                   </span>
                 </div>
                 
-                {scoreLevel && (
+                {!showAnalysis && scoreLevel && (
                   <div className="flex flex-col items-center gap-2">
-                    <Badge 
+                    <Badge
                       className={`text-lg px-4 py-1 ${getScoreColor(scoreLevel.label)} text-white`}
                     >
                       {scoreLevel.label}
@@ -496,8 +557,17 @@ export default function QuestionnaireResultsPage() {
               <CardTitle className="text-lg">פעולות</CardTitle>
             </CardHeader>
             <CardContent className="space-y-2">
-              <Button 
-                variant="outline" 
+              <Button
+                variant={showAnalysis ? "outline" : "default"}
+                className="w-full justify-start"
+                onClick={handleAnalyze}
+              >
+                <Stethoscope className="h-4 w-4 ml-2" />
+                {showAnalysis ? "רענן ניתוח" : "נתח את התוצאה"}
+              </Button>
+
+              <Button
+                variant="outline"
                 className="w-full justify-start"
                 onClick={() => router.push(`/dashboard/questionnaires/${responseId}/fill`)}
               >
@@ -530,8 +600,8 @@ export default function QuestionnaireResultsPage() {
             </CardContent>
           </Card>
 
-          {/* Warning Card for critical scores */}
-          {scoreLevel && (scoreLevel.label === "חמור" || scoreLevel.label === "מעל הסף") && (
+          {/* Warning Card for critical scores — מוצג רק לפני הניתוח העשיר */}
+          {!showAnalysis && scoreLevel && (scoreLevel.label === "חמור" || scoreLevel.label === "מעל הסף") && (
             <Card className="border-orange-500 bg-orange-50 dark:bg-orange-950">
               <CardHeader>
                 <CardTitle className="text-lg flex items-center gap-2 text-orange-600">

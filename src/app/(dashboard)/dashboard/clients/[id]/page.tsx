@@ -38,6 +38,7 @@ import { SendReminderButton } from "@/components/clients/send-reminder-button";
 import { SendPaymentHistoryButton } from "@/components/clients/send-payment-history-button";
 import { SendBookingLinkButton } from "@/components/clients/send-booking-link-button";
 import { SendIntakeLinkButton } from "@/components/clients/send-intake-link-button";
+import { CombinedAnalysis } from "@/components/questionnaires/combined-analysis";
 import { TodaySessionCard } from "@/components/dashboard/today-session-card";
 import { SessionHistoryGrid } from "@/components/clients/session-history-grid";
 import { AddCreditDialog } from "@/components/clients/add-credit-dialog";
@@ -1317,6 +1318,9 @@ export default async function ClientPage({
                     )}
                   </CardContent>
                 </Card>
+
+                {/* ניתוח משולב חוצה-שאלונים (מוצג כשיש 2+ שאלונים שהושלמו) */}
+                <CombinedAnalysis clientId={client.id} clientName={client.name} />
 
                 {/* אבחון והערות */}
                 <div className="grid gap-6 lg:grid-cols-2">

@@ -5,7 +5,7 @@ import { z } from "zod";
 
 const zId = z.string().min(1).max(64);
 
-const RESPONSE_STATUS = z.enum(["IN_PROGRESS", "COMPLETED"]);
+const RESPONSE_STATUS = z.enum(["IN_PROGRESS", "COMPLETED", "ANALYZED"]);
 
 const MAX_JSON_SIZE = 200_000;
 

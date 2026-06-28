@@ -128,6 +128,9 @@ export async function GET(request: NextRequest) {
             code: true,
             name: true,
             category: true,
+            // scoring + questions נדרשים לניתוח המשולב (מנוע הפרשנות).
+            scoring: true,
+            questions: true,
           },
         },
         client: {
