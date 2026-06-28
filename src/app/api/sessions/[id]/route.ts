@@ -13,6 +13,7 @@ import { logDataAccess } from "@/lib/audit-logger";
 import { buildSessionWhere, isSecretary, loadScopeUser, secretaryCan } from "@/lib/scope";
 import { calculatePaidAmount } from "@/lib/payment-utils";
 import { copayApplies } from "@/lib/commitments";
+import { applyCommitmentUsageOnStatusChange } from "@/lib/commitment-usage";
 import { parseBody } from "@/lib/validations/helpers";
 import { patchSessionSchema, updateSessionSchema } from "@/lib/validations/session";
 import {
@@ -537,33 +538,15 @@ export async function PUT(
       }
     }
 
-    // ── ספירת טיפולים אוטומטית — עדכון התחייבות פעילה ──
-    // סופרים +1 רק כל עוד לא מוצתה המכסה, כך שהמונה לא חורג מ-approvedSessions
-    // (לא עוד "6/4"). התחייבות ללא מכסה (approvedSessions = null) נספרת תמיד.
-    // עדכון אטומי בודד — התנאי usedSessions < approvedSessions מתבצע על העמודה
-    // עצמה בתוך ה-UPDATE, כך ששתי פגישות שמסתיימות בו-זמנית לא יכולות לחרוג
-    // מהמכסה (ה-DB מעריך את התקרה מחדש בזמן הכתיבה; אין מצב מרוץ קרא-ואז-כתוב).
-    if (status === "COMPLETED" && existingSession.status !== "COMPLETED" && therapySession.clientId) {
-      try {
-        await prisma.clientCommitment.updateMany({
-          where: {
-            clientId: therapySession.clientId,
-            status: "ACTIVE",
-            OR: [
-              { approvedSessions: null },
-              { usedSessions: { lt: prisma.clientCommitment.fields.approvedSessions } },
-            ],
-          },
-          data: { usedSessions: { increment: 1 } },
-        });
-      } catch (commitErr) {
-        logger.error("[sessions PUT] usedSessions increment failed", {
-          sessionId: therapySession.id,
-          clientId: therapySession.clientId,
-          error: commitErr instanceof Error ? commitErr.message : String(commitErr),
-        });
-      }
-    }
+    // ── ספירת טיפולים אוטומטית + שיוך אמיתי פגישה→התחייבות ──
+    // מקור אמת יחיד (משותף עם PATCH /status) — ראה applyCommitmentUsageOnStatusChange.
+    await applyCommitmentUsageOnStatusChange({
+      sessionId: id,
+      clientId: therapySession.clientId,
+      previousStatus: existingSession.status,
+      newStatus: status,
+      existingCommitmentId: existingSession.commitmentId,
+    });
 
     // ── Send session change notification (email + SMS) when time/date changed ──
     const timeChanged = startTime && existingSession.startTime.getTime() !== therapySession.startTime.getTime();
@@ -809,6 +792,16 @@ export async function DELETE(
         cancelledAt: now,
         cancelledBy: "THERAPIST",
       },
+    });
+
+    // אם בוטלה פגישה שכבר היתה COMPLETED ומקושרת להתחייבות — לשחרר את הניצול
+    // (decrement + ניתוק) כדי שהמונה והשיוך יישארו עקביים. פגישה שלא הושלמה — no-op.
+    await applyCommitmentUsageOnStatusChange({
+      sessionId: id,
+      clientId: existingSession.clientId,
+      previousStatus: existingSession.status,
+      newStatus: "CANCELLED",
+      existingCommitmentId: existingSession.commitmentId,
     });
 
     // Google Calendar sync — delete event (non-blocking)

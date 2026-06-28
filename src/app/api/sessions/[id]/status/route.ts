@@ -10,6 +10,7 @@ import { syncSessionToGoogleCalendar, syncSessionDeletionToGoogleCalendar } from
 import { buildSessionWhere, loadScopeUser } from "@/lib/scope";
 import { parseBody } from "@/lib/validations/helpers";
 import { sessionStatusSchema } from "@/lib/validations/session";
+import { applyCommitmentUsageOnStatusChange } from "@/lib/commitment-usage";
 
 export const dynamic = "force-dynamic";
 
@@ -102,6 +103,17 @@ export async function PATCH(
     const updatedSession = await prisma.therapySession.update({
       where: { id: sessionId },
       data: updateData,
+    });
+
+    // ── ספירת ניצול התחייבות קופ"ח + שיוך פגישה→התחייבות ──
+    // מסלול זה משלים פגישות גם "ללא חיוב" / price=0, ולכן חייב לספור ולשייך
+    // בדיוק כמו PUT — אחרת ניצול הקופה לא נרשם. מקור אמת יחיד משותף.
+    await applyCommitmentUsageOnStatusChange({
+      sessionId,
+      clientId: therapySession.clientId,
+      previousStatus: currentStatus,
+      newStatus: status,
+      existingCommitmentId: therapySession.commitmentId,
     });
 
     // Google Calendar sync (non-blocking)

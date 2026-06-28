@@ -2,11 +2,8 @@
 
 import { useState, useEffect, useCallback } from "react";
 import { Button } from "@/components/ui/button";
-import { Input } from "@/components/ui/input";
-import { Label } from "@/components/ui/label";
-import { Textarea } from "@/components/ui/textarea";
 import { Badge } from "@/components/ui/badge";
-import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
+import { Card, CardContent } from "@/components/ui/card";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
 import {
   Dialog,
@@ -19,6 +16,12 @@ import {
 import { Plus, Pencil, Trash2, Loader2, FileText } from "lucide-react";
 import { toast } from "sonner";
 import { Progress } from "@/components/ui/progress";
+import {
+  CommitmentFormFields,
+  EMPTY_COMMITMENT_FORM,
+  buildCommitmentBody,
+  type CommitmentFormData,
+} from "./commitment-form-fields";
 
 interface Commitment {
   id: string;
@@ -35,30 +38,6 @@ interface Commitment {
   notes: string | null;
   createdAt: string;
 }
-
-interface CommitmentFormData {
-  commitmentNumber: string;
-  form17Number: string;
-  referringDoctor: string;
-  referralDate: string;
-  approvedSessions: string;
-  copaymentAmount: string;
-  startDate: string;
-  endDate: string;
-  notes: string;
-}
-
-const EMPTY_FORM: CommitmentFormData = {
-  commitmentNumber: "",
-  form17Number: "",
-  referringDoctor: "",
-  referralDate: "",
-  approvedSessions: "",
-  copaymentAmount: "",
-  startDate: "",
-  endDate: "",
-  notes: "",
-};
 
 const STATUS_LABELS: Record<string, string> = {
   ACTIVE: "פעילה",
@@ -80,7 +59,7 @@ export function CommitmentManagement({ clientId }: { clientId: string }) {
   const [isSaving, setIsSaving] = useState(false);
   const [deleteId, setDeleteId] = useState<string | null>(null);
   const [isDeleting, setIsDeleting] = useState(false);
-  const [formData, setFormData] = useState<CommitmentFormData>(EMPTY_FORM);
+  const [formData, setFormData] = useState<CommitmentFormData>(EMPTY_COMMITMENT_FORM);
 
   const fetchCommitments = useCallback(async () => {
     try {
@@ -101,7 +80,7 @@ export function CommitmentManagement({ clientId }: { clientId: string }) {
 
   const openCreate = () => {
     setEditingId(null);
-    setFormData(EMPTY_FORM);
+    setFormData(EMPTY_COMMITMENT_FORM);
     setDialogOpen(true);
   };
 
@@ -124,17 +103,7 @@ export function CommitmentManagement({ clientId }: { clientId: string }) {
   const handleSave = async () => {
     setIsSaving(true);
     try {
-      const body: Record<string, unknown> = {
-        commitmentNumber: formData.commitmentNumber || null,
-        form17Number: formData.form17Number || null,
-        referringDoctor: formData.referringDoctor || null,
-        referralDate: formData.referralDate || null,
-        approvedSessions: formData.approvedSessions ? parseInt(formData.approvedSessions) : null,
-        copaymentAmount: formData.copaymentAmount !== "" ? parseFloat(formData.copaymentAmount) : null,
-        startDate: formData.startDate || null,
-        endDate: formData.endDate || null,
-        notes: formData.notes || null,
-      };
+      const body = buildCommitmentBody(formData);
 
       const url = editingId
         ? `/api/clients/${clientId}/commitments/${editingId}`
@@ -330,113 +299,7 @@ export function CommitmentManagement({ clientId }: { clientId: string }) {
             </DialogDescription>
           </DialogHeader>
 
-          <div className="grid gap-4 py-2">
-            <div className="grid grid-cols-2 gap-3">
-              <div className="space-y-1">
-                <Label htmlFor="commitmentNumber">מספר התחייבות</Label>
-                <Input
-                  id="commitmentNumber"
-                  value={formData.commitmentNumber}
-                  onChange={(e) => setFormData({ ...formData, commitmentNumber: e.target.value })}
-                  dir="ltr"
-                  className="text-left"
-                />
-              </div>
-              <div className="space-y-1">
-                <Label htmlFor="form17Number">מספר טופס 17</Label>
-                <Input
-                  id="form17Number"
-                  value={formData.form17Number}
-                  onChange={(e) => setFormData({ ...formData, form17Number: e.target.value })}
-                  dir="ltr"
-                  className="text-left"
-                />
-              </div>
-            </div>
-
-            <div className="space-y-1">
-              <Label htmlFor="referringDoctor">רופא מפנה</Label>
-              <Input
-                id="referringDoctor"
-                value={formData.referringDoctor}
-                onChange={(e) => setFormData({ ...formData, referringDoctor: e.target.value })}
-              />
-            </div>
-
-            <div className="grid grid-cols-2 gap-3">
-              <div className="space-y-1">
-                <Label htmlFor="approvedSessions">טיפולים מאושרים</Label>
-                <Input
-                  id="approvedSessions"
-                  type="number"
-                  min="1"
-                  value={formData.approvedSessions}
-                  onChange={(e) => setFormData({ ...formData, approvedSessions: e.target.value })}
-                  dir="ltr"
-                  className="text-left"
-                />
-              </div>
-              <div className="space-y-1">
-                <Label htmlFor="copaymentAmount">השתתפות עצמית (₪)</Label>
-                <Input
-                  id="copaymentAmount"
-                  type="number"
-                  min="0"
-                  step="1"
-                  value={formData.copaymentAmount}
-                  onChange={(e) => setFormData({ ...formData, copaymentAmount: e.target.value })}
-                  dir="ltr"
-                  className="text-left"
-                />
-              </div>
-            </div>
-
-            <div className="grid grid-cols-1 sm:grid-cols-3 gap-3">
-              <div className="space-y-1">
-                <Label htmlFor="referralDate">תאריך הפניה</Label>
-                <Input
-                  id="referralDate"
-                  type="date"
-                  value={formData.referralDate}
-                  onChange={(e) => setFormData({ ...formData, referralDate: e.target.value })}
-                  dir="ltr"
-                  className="text-left"
-                />
-              </div>
-              <div className="space-y-1">
-                <Label htmlFor="startDate">תחילת תקופה</Label>
-                <Input
-                  id="startDate"
-                  type="date"
-                  value={formData.startDate}
-                  onChange={(e) => setFormData({ ...formData, startDate: e.target.value })}
-                  dir="ltr"
-                  className="text-left"
-                />
-              </div>
-              <div className="space-y-1">
-                <Label htmlFor="endDate">סוף תקופה</Label>
-                <Input
-                  id="endDate"
-                  type="date"
-                  value={formData.endDate}
-                  onChange={(e) => setFormData({ ...formData, endDate: e.target.value })}
-                  dir="ltr"
-                  className="text-left"
-                />
-              </div>
-            </div>
-
-            <div className="space-y-1">
-              <Label htmlFor="commitmentNotes">הערות</Label>
-              <Textarea
-                id="commitmentNotes"
-                value={formData.notes}
-                onChange={(e) => setFormData({ ...formData, notes: e.target.value })}
-                rows={2}
-              />
-            </div>
-          </div>
+          <CommitmentFormFields formData={formData} onChange={setFormData} />
 
           <DialogFooter>
             <Button type="button" variant="outline" onClick={() => setDialogOpen(false)}>

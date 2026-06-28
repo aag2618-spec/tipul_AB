@@ -612,6 +612,12 @@ model TherapySession {
   roomId String?
   room   ClinicRoom? @relation(fields: [roomId], references: [id], onDelete: SetNull)
 
+  // שיוך הפגישה להתחייבות קופ"ח שנוצלה עבורה (M:1). מאוכלס אוטומטית כשפגישה
+  // עוברת ל-COMPLETED והתחייבות פעילה עם מכסה פנויה נוצלה (ראה api/sessions/[id]).
+  // onDelete: SetNull — מחיקת התחייבות מנתקת את השיוך בלי למחוק את הפגישה.
+  commitmentId String?
+  commitment   ClientCommitment? @relation(fields: [commitmentId], references: [id], onDelete: SetNull)
+
   @@index([organizationId])
   @@index([organizationId, startTime])
   @@index([therapistId, startTime])
@@ -619,6 +625,7 @@ model TherapySession {
   @@index([clientId, startTime(sort: Desc)])
   @@index([organizationId, status, startTime])
   @@index([roomId, startTime])
+  @@index([commitmentId])
 }
 
 enum SessionStatus {
@@ -1739,6 +1746,9 @@ model ClientCommitment {
 
   therapistId String
   therapist   User   @relation(fields: [therapistId], references: [id], onDelete: Cascade)
+
+  // הפגישות שנוצלו כנגד התחייבות זו (שיוך אמיתי, לא רק מונה usedSessions).
+  sessions TherapySession[]
 
   @@index([clientId])
   @@index([therapistId])
