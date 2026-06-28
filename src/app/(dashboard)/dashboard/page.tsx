@@ -10,6 +10,7 @@ import Link from "next/link";
 import { Suspense } from "react";
 import { PersonalTasksWidget } from "@/components/tasks/personal-tasks-widget";
 import { TodaySessionCard } from "@/components/dashboard/today-session-card";
+import { TodayPrepCard } from "@/components/dashboard/today-prep-card";
 import { SecretaryHome } from "@/components/dashboard/secretary-home";
 import { SubBoxLink } from "@/components/dashboard-stat-card";
 import { calculateDebtFromPayments, calculatePaidAmount } from "@/lib/payment-utils";
@@ -274,6 +275,18 @@ export default async function DashboardPage() {
   const personalOnly = await shouldScopePersonal(scopeUser);
   const stats = await getDashboardStats(scopeUser, personalOnly);
 
+  // פגישות היום שכדאי להתכונן אליהן: יש מטופל, ולא בוטלו / לא דווחה אי-הופעה.
+  // הנושאים החוזרים והסיכומים נטענים בלחיצה ("הכנה") דרך /api/clients/[id]/prep —
+  // כך הדשבורד נשאר קליל ולא נושא PHI קליני שלא נדרש בטעינה.
+  const prepData = stats.todaySessions
+    .filter((s) => s.client && s.status !== "CANCELLED" && s.status !== "NO_SHOW")
+    .map((s) => ({
+      sessionId: s.id,
+      startTime: s.startTime.toISOString(),
+      clientId: s.client!.id,
+      clientName: s.client!.name,
+    }));
+
   // Get stat cards
   const statCards = [
     {
@@ -465,6 +478,10 @@ export default async function DashboardPage() {
             )}
           </CardContent>
         </Card>
+
+        {/* הכנה לפגישה — כרטיס מקביל ל"פגישות היום". לכל פגישה שורה עם כפתור
+            "הכנה" שפותח inline את הסיכום האחרון (גליל + הגדלה) וקישור לכל הסיכומים. */}
+        <TodayPrepCard sessions={prepData} />
 
       </div>
 
