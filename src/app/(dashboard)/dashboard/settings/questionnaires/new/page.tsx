@@ -44,31 +44,53 @@ export default function NewQuestionnairePage() {
   const [questions, setQuestions] = useState<Question[]>([
     {
       id: crypto.randomUUID(),
-      text: "מה הביא אותך לפנות לטיפול עכשיו?",
+      text: "מה הביא אותך לפנות עכשיו? מה הכי מציק לך בתקופה האחרונה?",
       type: "TEXTAREA",
       required: false,
       order: 1,
     },
     {
       id: crypto.randomUUID(),
-      text: "תאר/י את הבעיה המרכזית שאת/ה חווה",
+      text: "איך זה משפיע על היומיום שלך? (בית ומשפחה, עבודה/לימודים, שינה, מצב רוח)",
       type: "TEXTAREA",
       required: false,
       order: 2,
     },
     {
       id: crypto.randomUUID(),
-      text: "מתי הבעיה התחילה?",
-      type: "TEXT",
+      text: "עד כמה זה מפריע לך ביומיום?",
+      type: "SELECT",
+      options: ["קל", "בינוני", "קשה מאוד"],
       required: false,
       order: 3,
     },
     {
       id: crypto.randomUUID(),
-      text: "האם קיבלת טיפול בעבר? אם כן, איזה סוג?",
+      text: "האם יש מחשבות שקשה איתן — ייאוש, תחושה שאין טעם, או מחשבות לפגוע בעצמך?",
       type: "TEXTAREA",
       required: false,
       order: 4,
+    },
+    {
+      id: crypto.randomUUID(),
+      text: "האם קיבלת טיפול נפשי בעבר? אם כן — איזה, ומה עזר או לא עזר?",
+      type: "TEXTAREA",
+      required: false,
+      order: 5,
+    },
+    {
+      id: crypto.randomUUID(),
+      text: "האם את/ה נוטל/ת כיום תרופות כלשהן (כולל פסיכיאטריות)?",
+      type: "TEXT",
+      required: false,
+      order: 6,
+    },
+    {
+      id: crypto.randomUUID(),
+      text: "מה היית רוצה שישתפר בעקבות הטיפול?",
+      type: "TEXTAREA",
+      required: false,
+      order: 7,
     },
   ]);
 

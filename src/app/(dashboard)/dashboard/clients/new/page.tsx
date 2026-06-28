@@ -9,7 +9,7 @@ import { Textarea } from "@/components/ui/textarea";
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
 import { Checkbox } from "@/components/ui/checkbox";
-import { Loader2, Save, FileText, Users } from "lucide-react";
+import { Loader2, Save, FileText, Users, Pencil } from "lucide-react";
 import Link from "next/link";
 import { toast } from "sonner";
 import { useMyPermissions } from "@/hooks/use-my-permissions";
@@ -401,16 +401,29 @@ function NewClientContent() {
                   </CardTitle>
                 </div>
                 {defaultQuestionnaire && (
-                  <div className="flex items-center gap-2">
-                    <Checkbox
-                      id="skipQuestionnaire"
-                      checked={skipQuestionnaire}
-                      onCheckedChange={(checked) => setSkipQuestionnaire(checked as boolean)}
-                      disabled={isLoading}
-                    />
-                    <Label htmlFor="skipQuestionnaire" className="cursor-pointer text-sm">
-                      דלג
-                    </Label>
+                  <div className="flex items-center gap-4">
+                    <Button
+                      variant="link"
+                      size="sm"
+                      asChild
+                      className="h-auto p-0 gap-1 text-xs text-muted-foreground hover:text-primary"
+                    >
+                      <Link href="/dashboard/settings/questionnaires">
+                        <Pencil className="h-3 w-3" />
+                        ערוך שאלון
+                      </Link>
+                    </Button>
+                    <div className="flex items-center gap-2">
+                      <Checkbox
+                        id="skipQuestionnaire"
+                        checked={skipQuestionnaire}
+                        onCheckedChange={(checked) => setSkipQuestionnaire(checked as boolean)}
+                        disabled={isLoading}
+                      />
+                      <Label htmlFor="skipQuestionnaire" className="cursor-pointer text-sm">
+                        דלג
+                      </Label>
+                    </div>
                   </div>
                 )}
               </div>
