@@ -36,7 +36,11 @@ interface Question {
   description?: string;
   section?: string;
   sectionName?: string;
-  options?: { value: number; text: string }[];
+  // value = מזהה ייחודי של האפשרות (לבחירה/תצוגה). score = הניקוד בפועל.
+  // score אופציונלי: שאלונים שבהם הניקוד שווה ל-value (רוב הכלים) משמיטים אותו,
+  // וה-fallback ב-calculateScore לוקח את value. נחוץ לכלים כמו AQ שבהם כמה
+  // אפשרויות שונות חולקות אותו ניקוד (מסכים מאוד / מסכים מעט = נקודה אחת).
+  options?: { value: number; text: string; score?: number }[];
   isCritical?: boolean;
   fields?: { name: string; type: string; label: string; options?: string[] }[];
   phase?: string;
@@ -241,10 +245,12 @@ export default function FillQuestionnairePage() {
     Object.entries(answers).forEach(([index, answer]) => {
       const question = questions[parseInt(index)];
       if (answer?.value !== undefined) {
-        total += answer.value;
-        
+        // score גובר על value אם נשמר (כלים עם ניקוד נפרד כמו AQ); אחרת value.
+        const points = answer.score ?? answer.value;
+        total += points;
+
         if (question?.section) {
-          subscores[question.section] = (subscores[question.section] || 0) + answer.value;
+          subscores[question.section] = (subscores[question.section] || 0) + points;
         }
       }
     });
@@ -365,9 +371,11 @@ export default function FillQuestionnairePage() {
               onValueChange={(value: string) => {
                 const numValue = parseInt(value);
                 const option = currentQuestion.options?.find(o => o.value === numValue);
-                handleAnswer(currentIndex, { 
-                  value: numValue, 
-                  text: option?.text 
+                handleAnswer(currentIndex, {
+                  value: numValue,
+                  text: option?.text,
+                  // נשמר רק כשהאפשרות מגדירה ניקוד נפרד מה-value (למשל AQ).
+                  ...(option?.score !== undefined ? { score: option.score } : {}),
                 });
               }}
               className="space-y-3"
@@ -382,11 +390,15 @@ export default function FillQuestionnairePage() {
                   }`}
                 >
                   <RadioGroupItem value={option.value.toString()} id={`option-${option.value}`} />
-                  <Label 
-                    htmlFor={`option-${option.value}`} 
+                  <Label
+                    htmlFor={`option-${option.value}`}
                     className="flex-1 cursor-pointer"
                   >
-                    <span className="font-medium ml-2">{option.value}</span>
+                    {/* המספר מוצג רק כשהוא משמעותי (value=ניקוד). בכלים עם score
+                        נפרד (AQ) ה-value הוא מזהה טכני ולא ניקוד — לא מציגים אותו. */}
+                    {option.score === undefined && (
+                      <span className="font-medium ml-2">{option.value}</span>
+                    )}
                     {option.text}
                   </Label>
                 </div>

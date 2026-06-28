@@ -1,4 +1,5 @@
 import { additionalQuestionnaires } from "@/lib/additional-questionnaires";
+import { asdQuestionnaires } from "@/lib/asd-questionnaires";
 
 export const questionnaires = [
   {
@@ -1355,6 +1356,9 @@ export const questionnaires = [
   },
   
   // ==================== ADDITIONAL QUESTIONNAIRES ====================
-  ...additionalQuestionnaires
+  ...additionalQuestionnaires,
+
+  // ==================== ASD SCREENING (Autism Spectrum) ====================
+  ...asdQuestionnaires
 ];
 

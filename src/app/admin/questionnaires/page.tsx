@@ -170,7 +170,7 @@ export default function AdminQuestionnairesPage() {
                           שאלונים קיימים
                         </p>
                         <p className="text-xs text-green-600 mt-2">
-                          השאלונים החדשים זמינים כעת למילוי וסיכום AI אוטומטי!
+                          השאלונים החדשים זמינים כעת למילוי.
                         </p>
                       </div>
                     )}
@@ -192,7 +192,6 @@ export default function AdminQuestionnairesPage() {
                 <li>הפעולה בטוחה - לא תמחק שאלונים קיימים</li>
                 <li>שאלונים חדשים יווספו אוטומטית</li>
                 <li>שאלונים קיימים יעודכנו אם השתנו בקוד</li>
-                <li>כל השאלונים החדשים יכללו סיכום AI אוטומטי</li>
               </ul>
             </div>
           </CardContent>
@@ -202,7 +201,7 @@ export default function AdminQuestionnairesPage() {
           <CardHeader>
             <CardTitle>שאלונים חדשים במערכת</CardTitle>
             <CardDescription>
-              15+ שאלונים קליניים שנוספו למערכת
+              20+ שאלונים קליניים שנוספו למערכת
             </CardDescription>
           </CardHeader>
           <CardContent>
@@ -256,6 +255,18 @@ export default function AdminQuestionnairesPage() {
                   <li>• WEMWBS - רווחה נפשית</li>
                   <li>• WHODAS 2.0 - הערכת תפקוד</li>
                 </ul>
+              </div>
+
+              <div>
+                <h4 className="font-semibold mb-2">🧩 ספקטרום אוטיסטי (ASD):</h4>
+                <ul className="mr-4 space-y-1 text-muted-foreground">
+                  <li>• AQ - מנת הספקטרום האוטיסטי (מבוגרים / נוער / ילדים)</li>
+                  <li>• RAADS-14 - סקר רגיש למבוגרים בתפקוד גבוה</li>
+                  <li>• CAT-Q - שאלון הסוואת תכונות אוטיסטיות</li>
+                </ul>
+                <p className="text-xs text-muted-foreground mt-1">
+                  כלי סקר בלבד — אינם תחליף לאבחון מקצועי.
+                </p>
               </div>
             </div>
           </CardContent>
