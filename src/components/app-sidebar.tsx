@@ -21,7 +21,9 @@ import { Badge } from "@/components/ui/badge";
 import { UserTierBadge } from "@/components/user-tier-badge";
 import { AppLogo } from "@/components/app-logo";
 import { ViewScopeToggle } from "@/components/view-scope-toggle";
+import { Collapsible, CollapsibleTrigger, CollapsibleContent } from "@/components/ui/collapsible";
 import { useMyPermissions } from "@/hooks/use-my-permissions";
+import { cn } from "@/lib/utils";
 import {
   LayoutDashboard,
   Users,
@@ -43,6 +45,9 @@ import {
   MessagesSquare,
   ArrowLeftRight,
   Clock,
+  Receipt,
+  ChevronDown,
+  type LucideIcon,
 } from "lucide-react";
 
 interface AppSidebarProps {
@@ -56,114 +61,68 @@ interface AppSidebarProps {
   initialViewMode?: "personal" | "clinic";
 }
 
-const mainNavItems = [
-  {
-    title: "דשבורד",
-    href: "/dashboard",
-    icon: LayoutDashboard,
-  },
-  {
-    title: "יומן",
-    href: "/dashboard/calendar",
-    icon: Calendar,
-  },
-  {
-    title: "מטופלים",
-    href: "/dashboard/clients",
-    icon: Users,
-  },
-  {
-    title: "רשימת המתנה",
-    href: "/dashboard/waitlist",
-    icon: Clock,
-  },
-  {
-    title: "פגישות",
-    href: "/dashboard/sessions",
-    icon: FileText,
-  },
-  {
-    title: "תשלומים",
-    href: "/dashboard/payments",
-    icon: CreditCard,
-  },
-  {
-    title: "התחייבויות לקופ\"ח",
-    href: "/dashboard/commitments",
-    icon: FileCheck,
-  },
-  {
-    title: "ממתינים לסיכום",
-    href: "/dashboard/tasks",
-    icon: ListTodo,
-  },
-  {
-    title: "הודעות",
-    href: "/dashboard/communications",
-    icon: Mail,
-  },
+type NavItem = {
+  title: string;
+  href: string;
+  icon: LucideIcon;
+  // ספירת badge (למשל הודעות שלא נקראו בצ׳אט צוות). 0/undefined = ללא badge.
+  badge?: number;
+};
+
+type NavGroup = {
+  key: string;
+  // כותרת הקבוצה. ללא כותרת = קבוצת העוגנים העליונה.
+  label?: string;
+  // האם הקבוצה מתקפלת (אקורדיון) — מקופלת כברירת מחדל, נפתחת בלחיצה.
+  collapsible?: boolean;
+  items: NavItem[];
+};
+
+// עוגנים — שלוש הכניסות השכיחות ביותר. ללא כותרת קבוצה: הן ה"בית" וצריכות
+// להיות תמיד בהישג יד מיידי.
+const anchorItems: NavItem[] = [
+  { title: "דשבורד", href: "/dashboard", icon: LayoutDashboard },
+  { title: "יומן", href: "/dashboard/calendar", icon: Calendar },
+  { title: "מטופלים", href: "/dashboard/clients", icon: Users },
 ];
 
-const clinicalItems = [
-  {
-    title: "שאלונים",
-    href: "/dashboard/questionnaires",
-    icon: ClipboardList,
-  },
-  {
-    title: "טפסי הסכמה",
-    href: "/dashboard/consent-forms",
-    icon: FileSignature,
-  },
-  {
-    title: "מסמכים",
-    href: "/dashboard/documents",
-    icon: FolderOpen,
-  },
-  {
-    title: "דפי עבודה",
-    href: "/dashboard/worksheets",
-    icon: BookOpen,
-  },
+// ניהול קליני — כל מה שסובב את הפגישה עצמה (העבודה היומיומית במטופלים קיימים).
+const clinicalFlowItems: NavItem[] = [
+  { title: "פגישות", href: "/dashboard/sessions", icon: FileText },
+  { title: "פגישות לסיכום", href: "/dashboard/tasks", icon: ListTodo },
+  { title: "דפי עבודה", href: "/dashboard/worksheets", icon: BookOpen },
+  { title: "שאלונים", href: "/dashboard/questionnaires", icon: ClipboardList },
+  { title: "מסמכים", href: "/dashboard/documents", icon: FolderOpen },
 ];
 
-const businessItems = [
-  {
-    title: "דוחות",
-    href: "/dashboard/reports",
-    icon: BarChart3,
-  },
-  {
-    title: "קבלות",
-    href: "/dashboard/receipts",
-    icon: FileText,
-  },
+// כספים וגבייה — כל הכסף במקום אחד.
+const financeItems: NavItem[] = [
+  { title: "תשלומים", href: "/dashboard/payments", icon: CreditCard },
+  { title: "קבלות", href: "/dashboard/receipts", icon: Receipt },
+  { title: "התחייבויות קופ\"ח", href: "/dashboard/commitments", icon: FileCheck },
 ];
 
-const supportItems = [
-  {
-    title: "פניות ותמיכה",
-    href: "/dashboard/support",
-    icon: Headphones,
-  },
+// קליטת מטופלים — אירוע נדיר יחסית, לכן מקופל כברירת מחדל.
+const intakeItems: NavItem[] = [
+  { title: "רשימת המתנה", href: "/dashboard/waitlist", icon: Clock },
+  { title: "טפסי הסכמה", href: "/dashboard/consent-forms", icon: FileSignature },
 ];
 
-const settingsItems = [
-  {
-    title: "זימון עצמי",
-    href: "/dashboard/settings/booking",
-    icon: Calendar,
-  },
-  {
-    title: "מנוי וחיוב",
-    href: "/dashboard/settings/billing",
-    icon: CreditCard,
-  },
-  {
-    title: "הגדרות כלליות",
-    href: "/dashboard/settings",
-    icon: Settings,
-  },
+// דוחות ובקרה — מקופל.
+const reportsItems: NavItem[] = [
+  { title: "דוחות", href: "/dashboard/reports", icon: BarChart3 },
+];
+
+// הגדרות מערכת — מקופל.
+const settingsItems: NavItem[] = [
+  { title: "זימון עצמי", href: "/dashboard/settings/booking", icon: Calendar },
+  { title: "מנוי וחיוב", href: "/dashboard/settings/billing", icon: CreditCard },
+  { title: "הגדרות כלליות", href: "/dashboard/settings", icon: Settings },
+];
+
+// תמיכה ושירות — מקופל.
+const supportItems: NavItem[] = [
+  { title: "פניות ותמיכה", href: "/dashboard/support", icon: Headphones },
 ];
 
 export function AppSidebar({ user, initialViewMode = "personal" }: AppSidebarProps) {
@@ -194,35 +153,6 @@ export function AppSidebar({ user, initialViewMode = "personal" }: AppSidebarPro
     session?.user?.clinicRole === "SECRETARY" ||
     session?.user?.role === "CLINIC_SECRETARY";
   const { permissions, isLoading: permsLoading } = useMyPermissions();
-
-  // תפריט מצומצם למזכיר/ה — רק מה שרלוונטי. כלים קליניים/הגדרות מוסתרים.
-  // פריטים מותני-הרשאה מתווספים רק אחרי שההרשאות נטענו (fail-closed: עדיף
-  // שיופיע באיחור קל מאשר הבזק של פריט שאסור לה). מפתח ההרשאה תואם לאכיפת
-  // השרת בפועל: צפייה בתשלומים *ובקבלות* נאכפת דרך canViewPayments
-  // (buildPaymentWhere ב-GET /api/payments); canIssueReceipts נאכף רק על
-  // פעולת ההפקה עצמה ב-POST. השרת אוכף ממילא — זה UI gating בלבד.
-  const secretaryNavItems = [
-    { title: "דשבורד", href: "/dashboard", icon: LayoutDashboard },
-    { title: "יומן", href: "/dashboard/calendar", icon: Calendar },
-    { title: "מטופלים", href: "/dashboard/clients", icon: Users },
-    ...(!permsLoading && permissions.canCreateClient
-      ? [{ title: "רשימת המתנה", href: "/dashboard/waitlist", icon: Clock }]
-      : []),
-    ...(!permsLoading && permissions.canViewPayments
-      ? [{ title: "תשלומים", href: "/dashboard/payments", icon: CreditCard }]
-      : []),
-    ...(!permsLoading && permissions.canSendReminders
-      ? [{ title: "הודעות", href: "/dashboard/communications", icon: Mail }]
-      : []),
-    ...(!permsLoading && permissions.canViewPayments
-      ? [{ title: "קבלות", href: "/dashboard/receipts", icon: FileText }]
-      : []),
-    ...(!permsLoading && permissions.canViewStats
-      ? [{ title: "דוחות", href: "/dashboard/reports", icon: BarChart3 }]
-      : []),
-  ];
-
-  const mainItems = isSecretaryUser ? secretaryNavItems : mainNavItems;
 
   const [chatUnread, setChatUnread] = useState(0);
   useEffect(() => {
@@ -263,6 +193,109 @@ export function AppSidebar({ user, initialViewMode = "personal" }: AppSidebarPro
       .slice(0, 2);
   };
 
+  // מצב פתיחה של הקבוצות המתקפלות. ברירת מחדל סגור (העדר מפתח = false) — קבוע
+  // ולא תלוי-client, כדי שלא תהיה אי-התאמת hydration.
+  const [openGroups, setOpenGroups] = useState<Record<string, boolean>>({});
+
+  // צ׳אט צוות — פריט עם badge של הודעות שלא נקראו. נכלל בקבוצת "תקשורת" רק
+  // לחברי קליניקה; לעצמאי הכותרת תהיה "תקשורת" (בלי "וצוות").
+  const teamChatItem: NavItem = {
+    title: "צ׳אט צוות",
+    href: "/dashboard/team-chat",
+    icon: MessagesSquare,
+    badge: chatUnread > 0 ? chatUnread : undefined,
+  };
+
+  // gating מותנה-הרשאה למזכיר/ה (fail-closed עד שההרשאות נטענו). תואם לאכיפת
+  // השרת: תשלומים+קבלות דרך canViewPayments; הודעות דרך canSendReminders;
+  // רשימת המתנה דרך canCreateClient; דוחות דרך canViewStats. UI gating בלבד.
+  const can = (perm: boolean) => !permsLoading && perm;
+
+  // קבוצת "תקשורת": הודעות (למזכיר/ה לפי canSendReminders) + צ׳אט צוות (חבר/ת קליניקה).
+  const messagesItem: NavItem = {
+    title: "הודעות ותזכורות",
+    href: "/dashboard/communications",
+    icon: Mail,
+  };
+  const communicationItems: NavItem[] = [
+    ...(isSecretaryUser ? (can(permissions.canSendReminders) ? [messagesItem] : []) : [messagesItem]),
+    ...(isChatMember ? [teamChatItem] : []),
+  ];
+
+  // הקבוצות לפי תפקיד. סדר לפי העבודה היומיומית; קבלה/דוחות/הגדרות/תמיכה מקופלים.
+  // קבוצה ריקה (כל פריטיה מסוננים בהרשאה) לא תרונדר.
+  const navGroups: NavGroup[] = isSecretaryUser
+    ? [
+        { key: "anchors", items: anchorItems },
+        {
+          key: "finance",
+          label: "כספים וגבייה",
+          items: can(permissions.canViewPayments)
+            ? [
+                { title: "תשלומים", href: "/dashboard/payments", icon: CreditCard },
+                { title: "קבלות", href: "/dashboard/receipts", icon: Receipt },
+              ]
+            : [],
+        },
+        {
+          key: "communication",
+          label: isChatMember ? "תקשורת וצוות" : "תקשורת",
+          items: communicationItems,
+        },
+        {
+          key: "intake",
+          label: "קליטת מטופלים",
+          collapsible: true,
+          items: can(permissions.canCreateClient)
+            ? [{ title: "רשימת המתנה", href: "/dashboard/waitlist", icon: Clock }]
+            : [],
+        },
+        {
+          key: "reports",
+          label: "דוחות ובקרה",
+          collapsible: true,
+          items: can(permissions.canViewStats) ? reportsItems : [],
+        },
+        { key: "support", label: "תמיכה ושירות", collapsible: true, items: supportItems },
+      ]
+    : [
+        { key: "anchors", items: anchorItems },
+        { key: "clinical", label: "ניהול קליני", items: clinicalFlowItems },
+        { key: "finance", label: "כספים וגבייה", items: financeItems },
+        {
+          key: "communication",
+          label: isChatMember ? "תקשורת וצוות" : "תקשורת",
+          items: communicationItems,
+        },
+        { key: "intake", label: "קליטת מטופלים", collapsible: true, items: intakeItems },
+        { key: "reports", label: "דוחות ובקרה", collapsible: true, items: reportsItems },
+        { key: "settings", label: "הגדרות מערכת", collapsible: true, items: settingsItems },
+        { key: "support", label: "תמיכה ושירות", collapsible: true, items: supportItems },
+      ];
+
+  const renderMenu = (items: NavItem[]) => (
+    <SidebarMenu>
+      {items.map((item) => (
+        <SidebarMenuItem key={item.href}>
+          <SidebarMenuButton asChild isActive={isActive(item.href)} tooltip={item.title}>
+            <Link href={item.href}>
+              <item.icon className="h-4 w-4" />
+              <span>{item.title}</span>
+              {item.badge ? (
+                <Badge
+                  variant="default"
+                  className="ms-auto h-5 min-w-5 justify-center px-1.5 text-xs group-data-[collapsible=icon]:hidden"
+                >
+                  {item.badge}
+                </Badge>
+              ) : null}
+            </Link>
+          </SidebarMenuButton>
+        </SidebarMenuItem>
+      ))}
+    </SidebarMenu>
+  );
+
   return (
     <Sidebar side="right" collapsible="icon">
       <SidebarHeader className="border-b border-sidebar-border">
@@ -283,150 +316,53 @@ export function AppSidebar({ user, initialViewMode = "personal" }: AppSidebarPro
           </div>
         )}
 
-        {/* Main Navigation */}
-        <SidebarGroup>
-          <SidebarGroupLabel>ניווט ראשי</SidebarGroupLabel>
-          <SidebarGroupContent>
-            <SidebarMenu>
-              {mainItems.map((item) => (
-                <SidebarMenuItem key={item.href}>
-                  <SidebarMenuButton
-                    asChild
-                    isActive={isActive(item.href)}
-                    tooltip={item.title}
-                  >
-                    <Link href={item.href}>
-                      <item.icon className="h-4 w-4" />
-                      <span>{item.title}</span>
-                    </Link>
-                  </SidebarMenuButton>
-                </SidebarMenuItem>
-              ))}
+        {/* ניווט מסודר לפי הזרימה היומיומית. קבוצות פתוחות לעבודה השוטפת,
+            קבוצות נדירות מתקפלות (collapsible). קבוצה ריקה לא מרונדרת. */}
+        {navGroups.map((group) => {
+          if (group.items.length === 0) return null;
 
-              {/* צ׳אט צוות — רק לחברי קליניקה */}
-              {isChatMember && (
-                <SidebarMenuItem>
-                  <SidebarMenuButton
-                    asChild
-                    isActive={isActive("/dashboard/team-chat")}
-                    tooltip="צ׳אט צוות"
-                  >
-                    <Link href="/dashboard/team-chat">
-                      <MessagesSquare className="h-4 w-4" />
-                      <span>צ׳אט צוות</span>
-                      {chatUnread > 0 && (
-                        <Badge
-                          variant="default"
-                          className="ms-auto h-5 min-w-5 justify-center px-1.5 text-xs group-data-[collapsible=icon]:hidden"
-                        >
-                          {chatUnread}
-                        </Badge>
-                      )}
-                    </Link>
-                  </SidebarMenuButton>
-                </SidebarMenuItem>
-              )}
-            </SidebarMenu>
-          </SidebarGroupContent>
-        </SidebarGroup>
+          if (group.collapsible) {
+            const isOpen = !!openGroups[group.key];
+            return (
+              <Collapsible
+                key={group.key}
+                open={isOpen}
+                onOpenChange={(o) =>
+                  setOpenGroups((prev) => ({ ...prev, [group.key]: o }))
+                }
+              >
+                <SidebarGroup>
+                  <CollapsibleTrigger asChild>
+                    <SidebarGroupLabel asChild>
+                      <button
+                        type="button"
+                        className="flex w-full items-center justify-between cursor-pointer hover:text-sidebar-foreground"
+                      >
+                        <span>{group.label}</span>
+                        <ChevronDown
+                          className={cn(
+                            "h-4 w-4 shrink-0 transition-transform",
+                            isOpen && "rotate-180"
+                          )}
+                        />
+                      </button>
+                    </SidebarGroupLabel>
+                  </CollapsibleTrigger>
+                  <CollapsibleContent>
+                    <SidebarGroupContent>{renderMenu(group.items)}</SidebarGroupContent>
+                  </CollapsibleContent>
+                </SidebarGroup>
+              </Collapsible>
+            );
+          }
 
-        {/* Clinical Tools — מוסתר ממזכיר/ה (תוכן קליני חסום לה) */}
-        {!isSecretaryUser && (
-          <SidebarGroup>
-            <SidebarGroupLabel>כלים קליניים</SidebarGroupLabel>
-            <SidebarGroupContent>
-              <SidebarMenu>
-                {clinicalItems.map((item) => (
-                  <SidebarMenuItem key={item.href}>
-                    <SidebarMenuButton
-                      asChild
-                      isActive={isActive(item.href)}
-                      tooltip={item.title}
-                    >
-                      <Link href={item.href}>
-                        <item.icon className="h-4 w-4" />
-                        <span>{item.title}</span>
-                      </Link>
-                    </SidebarMenuButton>
-                  </SidebarMenuItem>
-                ))}
-              </SidebarMenu>
-            </SidebarGroupContent>
-          </SidebarGroup>
-        )}
-
-        {/* Business Management — למזכיר/ה דוחות/קבלות משולבים בניווט הראשי */}
-        {!isSecretaryUser && (
-          <SidebarGroup>
-            <SidebarGroupLabel>דוחות</SidebarGroupLabel>
-            <SidebarGroupContent>
-              <SidebarMenu>
-                {businessItems.map((item) => (
-                  <SidebarMenuItem key={item.href}>
-                    <SidebarMenuButton
-                      asChild
-                      isActive={isActive(item.href)}
-                      tooltip={item.title}
-                    >
-                      <Link href={item.href}>
-                        <item.icon className="h-4 w-4" />
-                        <span>{item.title}</span>
-                      </Link>
-                    </SidebarMenuButton>
-                  </SidebarMenuItem>
-                ))}
-              </SidebarMenu>
-            </SidebarGroupContent>
-          </SidebarGroup>
-        )}
-
-        {/* Settings — מוסתר ממזכיר/ה (פרופיל/סיסמה זמינים דרך הכרטיס בתחתית) */}
-        {!isSecretaryUser && (
-          <SidebarGroup>
-            <SidebarGroupLabel>הגדרות</SidebarGroupLabel>
-            <SidebarGroupContent>
-              <SidebarMenu>
-                {settingsItems.map((item) => (
-                  <SidebarMenuItem key={item.href}>
-                    <SidebarMenuButton
-                      asChild
-                      isActive={isActive(item.href)}
-                      tooltip={item.title}
-                    >
-                      <Link href={item.href}>
-                        <item.icon className="h-4 w-4" />
-                        <span>{item.title}</span>
-                      </Link>
-                    </SidebarMenuButton>
-                  </SidebarMenuItem>
-                ))}
-              </SidebarMenu>
-            </SidebarGroupContent>
-          </SidebarGroup>
-        )}
-
-        {/* Support */}
-        <SidebarGroup>
-          <SidebarGroupLabel>תמיכה</SidebarGroupLabel>
-          <SidebarGroupContent>
-            <SidebarMenu>
-              {supportItems.map((item) => (
-                <SidebarMenuItem key={item.href}>
-                  <SidebarMenuButton
-                    asChild
-                    isActive={isActive(item.href)}
-                    tooltip={item.title}
-                  >
-                    <Link href={item.href}>
-                      <item.icon className="h-4 w-4" />
-                      <span>{item.title}</span>
-                    </Link>
-                  </SidebarMenuButton>
-                </SidebarMenuItem>
-              ))}
-            </SidebarMenu>
-          </SidebarGroupContent>
-        </SidebarGroup>
+          return (
+            <SidebarGroup key={group.key}>
+              {group.label ? <SidebarGroupLabel>{group.label}</SidebarGroupLabel> : null}
+              <SidebarGroupContent>{renderMenu(group.items)}</SidebarGroupContent>
+            </SidebarGroup>
+          );
+        })}
 
         {/* Clinic Admin Section — בעלי קליניקה (וגם ADMIN לבדיקות) */}
         {isClinicOwner && (
