@@ -256,7 +256,7 @@ export function AppSidebar({ user, initialViewMode = "personal" }: AppSidebarPro
           collapsible: true,
           items: can(permissions.canViewStats) ? reportsItems : [],
         },
-        { key: "support", label: "תמיכה ושירות", collapsible: true, items: supportItems },
+        { key: "support", label: "תמיכה ושירות", items: supportItems },
       ]
     : [
         { key: "anchors", items: anchorItems },
@@ -270,7 +270,7 @@ export function AppSidebar({ user, initialViewMode = "personal" }: AppSidebarPro
         { key: "intake", label: "קליטת מטופלים", collapsible: true, items: intakeItems },
         { key: "reports", label: "דוחות ובקרה", collapsible: true, items: reportsItems },
         { key: "settings", label: "הגדרות מערכת", collapsible: true, items: settingsItems },
-        { key: "support", label: "תמיכה ושירות", collapsible: true, items: supportItems },
+        { key: "support", label: "תמיכה ושירות", items: supportItems },
       ];
 
   const renderMenu = (items: NavItem[]) => (
