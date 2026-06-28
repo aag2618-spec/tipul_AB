@@ -1824,10 +1824,10 @@ export default function WorksheetsPage() {
             onValueChange={(v) => { setSelectedRecency(v === "all" ? null : v); setOpenCategory(null); }}
           >
             <SelectTrigger className="sm:w-[180px]">
-              <SelectValue placeholder="כל הזמן" />
+              <SelectValue placeholder="כל התקופות" />
             </SelectTrigger>
             <SelectContent>
-              <SelectItem value="all">כל הזמן</SelectItem>
+              <SelectItem value="all">כל התקופות</SelectItem>
               {recencyOptions.map((o) => (
                 <SelectItem key={o.value} value={o.value}>{o.label}</SelectItem>
               ))}
