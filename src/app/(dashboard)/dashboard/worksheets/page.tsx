@@ -1866,14 +1866,14 @@ export default function WorksheetsPage() {
           <button
             type="button"
             onClick={() => setTopicsOpen((o) => !o)}
-            className="flex items-center gap-1 text-xs font-medium text-muted-foreground hover:text-foreground"
+            className="flex items-center gap-1.5 rounded-full border border-primary/30 bg-primary/5 px-4 py-2 text-sm font-semibold text-primary shadow-sm transition-colors hover:bg-primary/10"
           >
-            <Filter className="h-3.5 w-3.5" />
+            <Filter className="h-4 w-4" />
             סינון לפי נושא
             {selectedTopics.size > 0 && (
-              <span className="rounded-full bg-primary/10 px-1.5 text-[10px] font-bold text-primary">{selectedTopics.size}</span>
+              <span className="rounded-full bg-primary px-1.5 text-[10px] font-bold text-primary-foreground">{selectedTopics.size}</span>
             )}
-            {topicsOpen ? <ChevronUp className="h-3.5 w-3.5" /> : <ChevronDown className="h-3.5 w-3.5" />}
+            {topicsOpen ? <ChevronUp className="h-4 w-4" /> : <ChevronDown className="h-4 w-4" />}
           </button>
           {topicsOpen && (
             <div className="mt-2 flex flex-wrap gap-1.5">
@@ -2087,10 +2087,10 @@ export default function WorksheetsPage() {
                 {kidsSlugs.includes(activeWs.id) && (
                   <button
                     onClick={() => handlePrint(activeWs.file.replace("-mytipul.html", "-kids-mytipul.html"))}
-                    className="flex items-center gap-1.5 rounded-lg border border-amber-300 bg-amber-100 px-3 py-1.5 text-xs font-semibold text-amber-700 transition-opacity hover:opacity-80"
+                    className="flex items-center gap-2 rounded-lg border-2 border-amber-400 bg-amber-200 px-4 py-2 text-sm font-bold text-amber-800 shadow-sm transition-opacity hover:opacity-80"
                     title="גרסת ילדים — דף משחקי עם סיפור וחיה מהתנ״ך"
                   >
-                    <Baby className="h-3.5 w-3.5" />
+                    <Baby className="h-4 w-4" />
                     גרסת ילדים
                   </button>
                 )}
