@@ -156,6 +156,10 @@ export const TASK_COMMENT_RATE_LIMIT = { maxRequests: 30, windowMs: 60 * 1000 };
 /** התחברות - 10 ניסיונות ל-15 דקות (משמש לפי IP) */
 export const AUTH_RATE_LIMIT = { maxRequests: 10, windowMs: 15 * 60 * 1000 };
 
+/** התנתקות (per-user) - 20/דקה. ביטול ה-session בצד השרת (bump ל-sessionVersion)
+ *  כרוך בכתיבת DB; ההגבלה מונעת הצפת כתיבות. משתמש לגיטימי לא מתנתק יותר מכמה פעמים בדקה. */
+export const LOGOUT_RATE_LIMIT = { maxRequests: 20, windowMs: 60 * 1000 };
+
 /** התחברות לפי email — 5 ניסיונות ל-5 דקות.
  *  חלון קצר יותר מ-AUTH_RATE_LIMIT כדי למזער DoS על משתמש לגיטימי שתוקף יודע את ה-email שלו. */
 export const LOGIN_EMAIL_RATE_LIMIT = { maxRequests: 5, windowMs: 5 * 60 * 1000 };

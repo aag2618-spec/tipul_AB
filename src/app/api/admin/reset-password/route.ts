@@ -117,7 +117,14 @@ export async function POST(request: NextRequest) {
     // הסיסמה והגנבים מאבדים את הגישה מיד (גם אם יש להם cookie פעיל).
     await prisma.user.update({
       where: { id: user.id },
-      data: { password: hashedPassword, passwordChangedAt: new Date() },
+      // H6 defense-in-depth (2026-06-29): bump sessionVersion בנוסף ל-passwordChangedAt.
+      // passwordChangedAt נשען על השוואת token.iat שמתחדש ב-updateAge (כל שעה) —
+      // sessionVersion נקבע פעם אחת ב-login ואינו מתחדש, ולכן אות ביטול חסין יותר.
+      data: {
+        password: hashedPassword,
+        passwordChangedAt: new Date(),
+        sessionVersion: { increment: 1 },
+      },
     });
     // C7: סגירת חלון 30s של JWT cache.
     invalidateJwtCache(user.id);
