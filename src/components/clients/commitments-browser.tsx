@@ -6,8 +6,12 @@ import { Card, CardContent } from "@/components/ui/card";
 import { Badge } from "@/components/ui/badge";
 import { Input } from "@/components/ui/input";
 import { Button } from "@/components/ui/button";
-import { Stethoscope, Search, Plus } from "lucide-react";
+import { Stethoscope, Search, Plus, UserRound, FileCheck } from "lucide-react";
 import { AddCommitmentDialog } from "./add-commitment-dialog";
+import {
+  AddCommitmentPickerDialog,
+  type ClientPickerItem,
+} from "./add-commitment-picker-dialog";
 
 const HEALTH_FUND_LABELS: Record<string, string> = {
   CLALIT: "כללית",
@@ -37,6 +41,7 @@ export interface CommitmentListItem {
   startDate: string | null;
   endDate: string | null;
   commitmentNumber: string | null;
+  therapistName: string | null;
   client: {
     id: string;
     name: string;
@@ -51,7 +56,13 @@ function formatDate(value: string | null): string | null {
   return d.toLocaleDateString("he-IL");
 }
 
-function CommitmentCard({ c }: { c: CommitmentListItem }) {
+function CommitmentCard({
+  c,
+  showTherapist,
+}: {
+  c: CommitmentListItem;
+  showTherapist: boolean;
+}) {
   const copayment = c.copaymentAmount != null ? Number(c.copaymentAmount) : null;
   const progress =
     c.approvedSessions && c.approvedSessions > 0
@@ -60,7 +71,7 @@ function CommitmentCard({ c }: { c: CommitmentListItem }) {
   const endDate = formatDate(c.endDate);
 
   return (
-    <Card className="relative hover:shadow-md hover:border-primary/50 transition-all h-full">
+    <Card className="relative h-full border transition-colors hover:border-primary/40 hover:bg-primary/[0.03]">
       {/* כפתור הוספת התחייבות נוספת למטופל — מחוץ ל-Link כדי שלא יפעיל ניווט */}
       <div className="absolute top-2 left-2 z-10">
         <AddCommitmentDialog
@@ -71,7 +82,7 @@ function CommitmentCard({ c }: { c: CommitmentListItem }) {
               variant="ghost"
               size="icon"
               className="h-7 w-7 text-muted-foreground hover:text-primary"
-              title="הוסף התחייבות נוספת למטופל"
+              aria-label="הוסף התחייבות נוספת למטופל"
             >
               <Plus className="h-4 w-4" />
             </Button>
@@ -95,6 +106,13 @@ function CommitmentCard({ c }: { c: CommitmentListItem }) {
               {STATUS_LABELS[c.status] || c.status}
             </Badge>
           </div>
+
+          {showTherapist && c.therapistName && (
+            <div className="flex items-center gap-1 text-xs text-primary/90 bg-primary/5 rounded px-2 py-1 w-fit">
+              <UserRound className="h-3 w-3 shrink-0" />
+              מטפל/ת: <span className="font-medium">{c.therapistName}</span>
+            </div>
+          )}
 
           {c.commitmentNumber && (
             <div className="text-xs text-muted-foreground">
@@ -133,7 +151,15 @@ function CommitmentCard({ c }: { c: CommitmentListItem }) {
   );
 }
 
-export function CommitmentsBrowser({ commitments }: { commitments: CommitmentListItem[] }) {
+export function CommitmentsBrowser({
+  commitments,
+  clients,
+  showTherapist,
+}: {
+  commitments: CommitmentListItem[];
+  clients: ClientPickerItem[];
+  showTherapist: boolean;
+}) {
   const [query, setQuery] = useState("");
 
   const filtered = useMemo(() => {
@@ -154,7 +180,7 @@ export function CommitmentsBrowser({ commitments }: { commitments: CommitmentLis
         </h2>
         <div className="grid gap-3 sm:grid-cols-2 lg:grid-cols-3 xl:grid-cols-4">
           {items.map((c) => (
-            <CommitmentCard key={c.id} c={c} />
+            <CommitmentCard key={c.id} c={c} showTherapist={showTherapist} />
           ))}
         </div>
       </section>
@@ -162,18 +188,33 @@ export function CommitmentsBrowser({ commitments }: { commitments: CommitmentLis
 
   return (
     <div className="space-y-6">
-      <div className="relative max-w-sm">
-        <Search className="absolute right-3 top-1/2 -translate-y-1/2 h-4 w-4 text-muted-foreground" />
-        <Input
-          type="search"
-          value={query}
-          onChange={(e) => setQuery(e.target.value)}
-          placeholder="חיפוש לפי שם מטופל..."
-          className="pr-9"
-        />
+      <div className="flex flex-col sm:flex-row sm:items-center gap-3 sm:justify-between">
+        <div className="relative w-full sm:max-w-sm">
+          <Search className="absolute right-3 top-1/2 -translate-y-1/2 h-4 w-4 text-muted-foreground" />
+          <Input
+            type="search"
+            value={query}
+            onChange={(e) => setQuery(e.target.value)}
+            placeholder="חיפוש לפי שם מטופל..."
+            className="pr-9"
+          />
+        </div>
+        <AddCommitmentPickerDialog clients={clients} showTherapist={showTherapist} />
       </div>
 
-      {filtered.length === 0 ? (
+      {commitments.length === 0 ? (
+        <Card>
+          <CardContent className="flex flex-col items-center justify-center py-12 text-center">
+            <div className="rounded-full bg-muted p-4 mb-4">
+              <FileCheck className="h-8 w-8 text-muted-foreground" />
+            </div>
+            <h3 className="font-semibold mb-2">אין התחייבויות עדיין</h3>
+            <p className="text-sm text-muted-foreground">
+              לחצ/י על &quot;הוספת התחייבות למטופל&quot; כדי להוסיף התחייבות ראשונה
+            </p>
+          </CardContent>
+        </Card>
+      ) : filtered.length === 0 ? (
         <p className="text-sm text-muted-foreground text-center py-10">
           לא נמצאו התחייבויות התואמות לחיפוש
         </p>
