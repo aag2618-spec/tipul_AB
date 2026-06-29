@@ -43,6 +43,10 @@ import {
   LARGE_PAYMENT_CONFIRM_THRESHOLD,
 } from "@/lib/payment-methods";
 import { ReceiptToggle } from "@/components/payments/receipt-toggle";
+import {
+  MultiReceiptPreviewDialog,
+  type MultiReceiptItem,
+} from "@/components/payments/multi-receipt-preview-dialog";
 
 interface PayClientDebtsProps {
   clientId: string;
@@ -90,6 +94,11 @@ export function PayClientDebts({
   // מחליט על מסלול בודד / מצרפי לפי `bulkPaymentIds`.
   const [showCardcomDialog, setShowCardcomDialog] = useState(false);
   const [cardcomAmount, setCardcomAmount] = useState<number>(0);
+  // הצגת הקבלות אחרי תשלום מזומן/העברה/צ'ק (כמו בפגישה בודדת). הדיאלוג
+  // מטפל גם בקבלה אחת וגם בכמה — עם "הדפס הכל". באשראי אין שימוש כאן —
+  // ChargeCardcomDialog מציג את הקבלה בעצמו.
+  const [multiReceiptOpen, setMultiReceiptOpen] = useState(false);
+  const [multiReceipts, setMultiReceipts] = useState<MultiReceiptItem[]>([]);
   const router = useRouter();
 
   // Fetch business settings for receipt handling
@@ -235,6 +244,10 @@ export function PayClientDebts({
         throw new Error(error.message || "Failed to process payment");
       }
 
+      const result = (await response.json()) as {
+        receipts?: MultiReceiptItem[];
+      };
+
       let successMessage = "";
       if (creditUsed > 0 && amountToPay > 0) {
         successMessage = `בוצע תשלום של ₪${amountToPay.toFixed(0)} + קרדיט ₪${creditUsed.toFixed(0)}`;
@@ -248,11 +261,24 @@ export function PayClientDebts({
       
       toast.success(successMessage);
       setIsOpen(false);
-      
+
+      // ── הצגת קבלה אחרי תשלום מזומן/העברה/צ'ק ─────────────────────
+      // השרת מחזיר את הקבלות שהופקו בפועל. אם הופקה קבלה (אחת או כמה) —
+      // פותחים את דיאלוג הקבלות (תצוגה על המסך + "הדפס הכל"), בדיוק כמו
+      // בפגישה בודדת. גם onPaymentComplete (שעלול לנווט מהדף — router.push
+      // בדף "שלם את כל החוב") וגם router.refresh נדחים לסגירת הדיאלוג, כדי
+      // שהמטפל יספיק לראות ולהדפיס לפני שהדף מתחלף/מתרענן. אם לא הופקה
+      // קבלה — משלימים מיד כמו קודם.
+      const receipts = Array.isArray(result?.receipts) ? result.receipts : [];
+      if (receipts.length > 0) {
+        setMultiReceipts(receipts);
+        setMultiReceiptOpen(true);
+        return;
+      }
+
       if (onPaymentComplete) {
         onPaymentComplete();
       }
-      
       router.refresh();
     } catch (error) {
       toast.error(error instanceof Error ? error.message : "שגיאה בעיבוד התשלום");
@@ -273,9 +299,9 @@ export function PayClientDebts({
   const canOfferCombinedReceipt = unpaidPayments.length > 1 && willIssueReceipt;
 
   // אם החוב התאפס (לדוגמה אחרי תשלום מצליח שהפעיל router.refresh) אבל
-  // ChargeCardcomDialog עדיין פתוח — לא להחזיר null. אחרת ChargeCardcomDialog
-  // מסומלץ unmount באמצע הזרימה ונראה למשתמש כ"דיאלוג שנעלם בלי אזהרה".
-  if (safeDebt <= 0 && !showCardcomDialog) {
+  // ChargeCardcomDialog או דיאלוג הקבלות עדיין פתוחים — לא להחזיר null. אחרת
+  // הדיאלוג מסומלץ unmount באמצע הזרימה ונראה למשתמש כ"דיאלוג שנעלם בלי אזהרה".
+  if (safeDebt <= 0 && !showCardcomDialog && !multiReceiptOpen) {
     return null;
   }
 
@@ -634,6 +660,21 @@ export function PayClientDebts({
         }}
       />
     )}
+
+    {/* דיאלוג הצגת הקבלות אחרי תשלום מזומן/העברה/צ'ק. ההשלמה (onPaymentComplete
+        + router.refresh) נדחית לסגירה כדי שהמטפל יספיק לצפות/להדפיס לפני
+        שהדף מתחלף (router.push בדף "שלם את כל החוב") או מתרענן. */}
+    <MultiReceiptPreviewDialog
+      open={multiReceiptOpen}
+      onOpenChange={(next) => {
+        setMultiReceiptOpen(next);
+        if (!next) {
+          if (onPaymentComplete) onPaymentComplete();
+          router.refresh();
+        }
+      }}
+      receipts={multiReceipts}
+    />
     </>
   );
 }

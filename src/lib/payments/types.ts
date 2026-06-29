@@ -43,11 +43,21 @@ export interface PaymentResult {
   success: boolean;
   // eslint-disable-next-line @typescript-eslint/no-explicit-any -- Prisma model with many fields
   payment?: any;
+  // eslint-disable-next-line @typescript-eslint/no-explicit-any -- Prisma model with many fields
   childPayment?: any;
   receiptNumber?: string | null;
   receiptUrl?: string | null;
   receiptError?: string;
   error?: string;
+}
+
+// קבלה בודדת שהופקה בתשלום מצרפי — מוחזרת ל-UI כדי להציג/להדפיס אותה מיד
+// אחרי התשלום (כמו בתשלום פגישה בודדת). paymentId הוא ה-child שעליו נשמרה
+// הקבלה (קבלה לכל פגישה) או ה-umbrella (קבלה אחת מאוחדת).
+export interface BulkReceiptItem {
+  paymentId: string;
+  receiptNumber: string | null;
+  receiptUrl: string | null;
 }
 
 export interface BulkPaymentResult {
@@ -57,6 +67,9 @@ export interface BulkPaymentResult {
   remainingAmount: number;
   message: string;
   error?: string;
+  // קבלות שהופקו בפועל (ריק כשלא הופקה קבלה — businessType NONE / לא נבחרה
+  // קבלה). ה-UI מציג קבלה אחת ישירות, וכמה קבלות בדיאלוג ריבוי-קבלות.
+  receipts?: BulkReceiptItem[];
 }
 
 export interface ReceiptResult {

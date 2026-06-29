@@ -1,7 +1,7 @@
 import prisma from "@/lib/prisma";
 import { Prisma } from "@prisma/client";
 import { logger } from "@/lib/logger";
-import type { PaymentMethod, BulkPaymentResult, ClientDebtSummary, AllClientsDebtItem } from "./types";
+import type { PaymentMethod, BulkPaymentResult, BulkReceiptItem, ClientDebtSummary, AllClientsDebtItem } from "./types";
 import { EXCLUDE_BULK_UMBRELLA_WHERE, BULK_UMBRELLA_NOTES_PREFIX } from "./types";
 import {
   issueReceipt,
@@ -62,11 +62,11 @@ async function issueCombinedReceipt(params: {
   processed: Array<{ parentId: string; childId: string; amountPaid: number; isFullyPaid: boolean }>;
   organizationId: string | null;
   description?: string;
-}): Promise<void> {
+}): Promise<BulkReceiptItem | null> {
   const { userId, client, method, processed, organizationId, description } = params;
   try {
     const items = processed.filter((i) => i.amountPaid > 0);
-    if (items.length === 0) return;
+    if (items.length === 0) return null;
     const total = items.reduce((sum, i) => sum + i.amountPaid, 0);
 
     // טוענים את ה-parents (עם session) לקבלת תאריכי הפגישות לתיאור ברירת המחדל.
@@ -150,6 +150,20 @@ async function issueCombinedReceipt(params: {
       sessionRemainingAfterPayment: 0,
       paymentId: umbrella.id,
     });
+
+    // הקבלה המאוחדת מוצגת ל-UI דרך ה-umbrella (נושא receiptUrl + התיאור
+    // המאוחד). מחזירים רק כשבאמת הופקה קבלה — אחרת ה-UI לא ינסה להציג כלום.
+    if (
+      receiptResult.hasReceipt &&
+      (receiptResult.receiptNumber || receiptResult.receiptUrl)
+    ) {
+      return {
+        paymentId: umbrella.id,
+        receiptNumber: receiptResult.receiptNumber ?? null,
+        receiptUrl: receiptResult.receiptUrl ?? null,
+      };
+    }
+    return null;
   } catch (combinedError) {
     logger.error("Error issuing combined receipt", {
       clientId: params.client.id,
@@ -158,6 +172,7 @@ async function issueCombinedReceipt(params: {
           ? combinedError.message
           : String(combinedError),
     });
+    return null;
   }
 }
 
@@ -341,9 +356,12 @@ export async function processMultiSessionPayment(params: {
     // NONE / לא נבחרה קבלה ואין Cardcom) → נופלים ללולאה הרגילה שמטפלת ב-emails
     // ללא קבלה. OFF → התנהגות קיימת ללא שינוי. הגייט זהה ל-effectiveIssueReceipt
     // שבלולאה כדי לא להפיק קבלה מאוחדת כשהמשתמש/ת ביקש/ה לא להפיק קבלה.
+    // קבלות שהופקו — מוחזרות ל-UI להצגה/הדפסה מיד אחרי התשלום.
+    const receipts: BulkReceiptItem[] = [];
+
     const useCombinedReceipt = combinedReceipt && shouldIssueReceipt !== false;
     if (useCombinedReceipt) {
-      await issueCombinedReceipt({
+      const combined = await issueCombinedReceipt({
         userId,
         client,
         method,
@@ -351,6 +369,7 @@ export async function processMultiSessionPayment(params: {
         organizationId,
         description: combinedReceiptDescription,
       });
+      if (combined) receipts.push(combined);
     }
 
     for (const item of result.processed) {
@@ -391,6 +410,10 @@ export async function processMultiSessionPayment(params: {
           });
           receiptUrl = receiptResult.receiptUrl;
           receiptNumber = receiptResult.receiptNumber;
+          // אוספים את הקבלה (לכל פגישה) להצגה/הדפסה מיד אחרי התשלום.
+          if (receiptResult.hasReceipt && (receiptNumber || receiptUrl)) {
+            receipts.push({ paymentId: item.childId, receiptNumber, receiptUrl });
+          }
         }
 
         // שליחת מייל - תמיד לפי הגדרות התקשורת של המשתמש
@@ -444,6 +467,7 @@ export async function processMultiSessionPayment(params: {
       totalPaid: result.totalPaid,
       remainingAmount: result.remainingAmount,
       message,
+      receipts,
     };
   } catch (error) {
     logger.error("processMultiSessionPayment error", { error: error instanceof Error ? error.message : String(error) });

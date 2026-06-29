@@ -606,6 +606,36 @@
 }
 
 /* ─────────────────────────────────────────────────────────────────
+   Print — ריבוי קבלות (תשלום מצרפי על כמה פגישות עם קבלה לכל פגישה).
+
+   שונה מהכלל של קבלה בודדת (#mytipul-receipt-print) בשתי נקודות מהותיות:
+   • position: static (לא fixed) — fixed חוזר על כל עמוד בהדפסה במקום
+     לזלוג, ולכן לא מתאים לתוכן רב-עמודי. static מאפשר זרימה טבעית כך שכל
+     קבלה נופלת לעמוד נפרד דרך break-after.
+   • display:none על האחים (לא visibility:hidden) — אפשרי כי ה-container
+     הוא Portal ישיר ב-document.body, אז הסתרת האחים לא נוגעת בקבלות.
+   ───────────────────────────────────────────────────────────────── */
+@media print {
+  body:has(#mytipul-receipts-print) > *:not(#mytipul-receipts-print) {
+    display: none !important;
+  }
+  #mytipul-receipts-print {
+    display: block !important;
+    position: static !important;
+    -webkit-print-color-adjust: exact !important;
+    print-color-adjust: exact !important;
+  }
+  /* כל קבלה בעמוד נפרד; break-inside:avoid מונע חיתוך קבלה באמצע. */
+  #mytipul-receipts-print .mytipul-receipt-page {
+    break-after: page;
+    break-inside: avoid;
+  }
+  #mytipul-receipts-print .mytipul-receipt-page:last-child {
+    break-after: auto;
+  }
+}
+
+/* ─────────────────────────────────────────────────────────────────
    Print — הסתרת תפריט הצד של הדאשבורד בכל הדפסה.
 
    הצורך: בעמודים כמו טופס הסכמה חתום, window.print() הדפיס גם את תפריט

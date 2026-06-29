@@ -2,7 +2,7 @@ import { NextRequest, NextResponse } from "next/server";
 import { processMultiSessionPayment } from "@/lib/payment-service";
 import { logger } from "@/lib/logger";
 import { requireAuth } from "@/lib/api-auth";
-import { isSecretary, loadScopeUser, secretaryCan } from "@/lib/scope";
+import { isSecretary, secretaryCan } from "@/lib/scope";
 import { loadScopeUserWithMode } from "@/lib/secretary-mode";
 import { parseBody } from "@/lib/validations/helpers";
 import { payClientDebtsSchema } from "@/lib/validations/payment";
@@ -99,6 +99,8 @@ export async function POST(req: NextRequest) {
       message: result.message,
       updatedPayments: result.updatedPayments,
       totalPaid: result.totalPaid,
+      // קבלות שהופקו — ל-UI להציג/להדפיס מיד אחרי התשלום (כמו פגישה בודדת).
+      receipts: result.receipts ?? [],
     });
   } catch (error) {
     logger.error("Pay client debts error:", { error: error instanceof Error ? error.message : String(error) });
