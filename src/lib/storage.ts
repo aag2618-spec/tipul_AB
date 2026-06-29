@@ -67,7 +67,9 @@ export class LocalStorageProvider implements StorageProvider {
 
   private resolvePath(relativePath: string): string {
     const full = resolve(this.baseDir, relativePath);
-    if (!full.startsWith(this.baseDir)) {
+    // בדיקת startsWith לבדה חשופה לדמיון-תחילית (למשל baseDir="…/uploads"
+    // וספרייה אחות "…/uploads-evil"). דרישת מפריד-נתיב אחרי baseDir חוסמת זאת.
+    if (full !== this.baseDir && !full.startsWith(this.baseDir + sep)) {
       throw new Error("Path traversal detected");
     }
     return full;
