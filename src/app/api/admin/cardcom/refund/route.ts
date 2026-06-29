@@ -123,15 +123,25 @@ export async function POST(request: NextRequest) {
   // avoid float-precision mismatches (e.g. 0.1 + 0.2 = 0.30000000000000004
   // would fail to match the value we wrote earlier in raw Number form).
   const expectedAlreadyDec = new Prisma.Decimal(transaction.refundedAmount);
+  // זיכוי-מלא: היתרה מעוגלת ל-2 ספרות עשרוניות *כלפי מטה* (ROUND_DOWN). זה
+  // מחליף את הסבילות שהייתה בתקרה (.plus(0.01)): עיגול כלפי מטה מנקה זנב float
+  // אפשרי בלי אף פעם להגדיל את הסכום, כך ש-claimedNewTotal לעולם לא חורג מהמקור.
   const provisionalRefundDec = requestedAmount !== undefined
     ? new Prisma.Decimal(requestedAmount)
-    : new Prisma.Decimal(originalAmount).minus(expectedAlreadyDec);
+    : new Prisma.Decimal(originalAmount)
+        .minus(expectedAlreadyDec)
+        .toDecimalPlaces(2, Prisma.Decimal.ROUND_DOWN);
 
   if (provisionalRefundDec.lte(0)) {
     return NextResponse.json({ message: "אין יתרה לזיכוי" }, { status: 409 });
   }
   const claimedNewTotalDec = expectedAlreadyDec.plus(provisionalRefundDec);
-  if (claimedNewTotalDec.gt(new Prisma.Decimal(originalAmount).plus(0.01))) {
+  // התקרה היא הסכום המקורי בדיוק — אין סבילות חיובית. סבילות של אגורה כלפי
+  // מעלה הייתה מאפשרת over-refund (סך מצטבר של 100.01 על עסקה של 100.00).
+  // מקרה זיכוי-מלא אינו זקוק לסבילות: היתרה מעוגלת כלפי מטה ל-2 ספרות
+  // (provisionalRefundDec לעיל) כך ש-claimedNewTotal לעולם לא חורג מהמקור,
+  // בלי פער float שיגרום לדחיית זיכוי-מלא לגיטימי.
+  if (claimedNewTotalDec.gt(new Prisma.Decimal(originalAmount))) {
     return NextResponse.json(
       { message: "סכום הזיכוי חורג מהסכום המקורי" },
       { status: 409 }
@@ -159,7 +169,11 @@ export async function POST(request: NextRequest) {
   const expectedAlready = expectedAlreadyDec.toNumber();
   const newRefundedTotal = claimedNewTotalDec.toNumber();
   const claimedNewTotal = newRefundedTotal;
-  const isPartial = claimedNewTotalDec.lt(new Prisma.Decimal(originalAmount).minus(0.01));
+  // "חלקי" = נותרה יתרה כלשהי לזיכוי. השוואה מדויקת ל-originalAmount, סימטרית
+  // לתקרה העליונה (ללא סבילות תחתונה של אגורה שהייתה מסמנת REFUNDED בעוד 0.01
+  // נותר לא-מזוכה). זיכוי-מלא תמיד מגיע ל-claimed === original בדיוק (היתרה
+  // מעוגלת כלפי מטה), כך שהוא נופל נכון לצד הלא-חלקי.
+  const isPartial = claimedNewTotalDec.lt(new Prisma.Decimal(originalAmount));
 
   // Helper to release the claimed slice on failure (Decimal-equal where).
   const releaseClaim = async () => {

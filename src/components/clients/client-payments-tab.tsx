@@ -155,7 +155,7 @@ export function ClientPaymentsTab({
                   : Number(session.price) || 0;
 
                 const cardContent = (
-                  <Card className="cursor-pointer hover:shadow-lg transition-all hover:scale-[1.02] h-full">
+                  <Card className="cursor-pointer hover:shadow-md transition-all h-full">
                     <CardContent className="p-4">
                       <div className="flex items-center gap-2 mb-3">
                         <Calendar className="h-4 w-4 text-muted-foreground" />

@@ -40,6 +40,7 @@ import { ChargeCardcomDialog } from "@/components/payments/charge-cardcom-dialog
 import {
   getPaymentMethodLabel,
   PAYMENT_METHOD_SELECT_OPTIONS,
+  LARGE_PAYMENT_CONFIRM_THRESHOLD,
 } from "@/lib/payment-methods";
 import { ReceiptToggle } from "@/components/payments/receipt-toggle";
 
@@ -154,8 +155,8 @@ export function PayClientDebts({
       return;
     }
 
-    // אישור לתשלום מעל 500 שח
-    if (totalAmount > 500) {
+    // אישור לתשלום גדול (סף אחיד לכל מסכי התשלום)
+    if (totalAmount > LARGE_PAYMENT_CONFIRM_THRESHOLD) {
       setShowConfirmDialog(true);
       return;
     }

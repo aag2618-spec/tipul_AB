@@ -30,6 +30,11 @@ export function getPaymentMethodLabel(method: string | null | undefined): string
   return PAYMENT_METHOD_LABELS[method as PaymentMethod] ?? method;
 }
 
+// סף אחיד (₪) להצגת חלון אישור "אתה בטוח?" לפני רישום תשלום גדול. מעל הסף
+// כל מסכי התשלום מציגים אישור (בכל אמצעי תשלום), דרך AlertDialog מעוצב אחיד —
+// כדי למנוע טעויות הקלדה בסכומים גבוהים. שינוי הסף נעשה כאן בלבד.
+export const LARGE_PAYMENT_CONFIRM_THRESHOLD = 1000;
+
 // אמצעי התשלום שניתן לבחור ידנית ב-dropdowns של רישום תשלום. CREDIT אינו
 // כאן במכוון — יתרת הקרדיט מנוהלת דרך checkbox "השתמש בקרדיט" ולא כאמצעי.
 // הסדר כאן הוא הסדר שיוצג בכל המסכים.

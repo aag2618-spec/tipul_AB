@@ -5,7 +5,7 @@ import { PrismaAdapter } from "@auth/prisma-adapter";
 import bcrypt from "bcryptjs";
 import prisma from "./prisma";
 import { checkRateLimit, resetRateLimit, AUTH_RATE_LIMIT, LOGIN_EMAIL_RATE_LIMIT } from "./rate-limit";
-import { requires2FA, isTwoFactorVerifiedForLogin } from "./two-factor";
+import { requires2FA, requires2FASetup, isTwoFactorVerifiedForLogin } from "./two-factor";
 import { loadVerifiedImpersonation, type JwtActingAs } from "./impersonation";
 import { sendEmail } from "./resend";
 import { logger } from "./logger";
@@ -26,6 +26,9 @@ interface JwtUserData {
   // H6 (סבב אבטחה 14): מונה bump'ים שהוגדל ב-2FA enable/disable או admin block.
   // ה-jwt callback משווה ל-token.sv ומסמן sessionStale אם גדול.
   sessionVersion: number;
+  // force-setup gate (2026-06-29): משמש לניקוי token.requires2FASetup ברגע
+  // שה-2FA מופעל (רשת ביטחון מעבר ל-sessionStale).
+  twoFactorEnabled: boolean;
 }
 const jwtUserCache = new Map<string, { data: JwtUserData; timestamp: number }>();
 
@@ -215,6 +218,13 @@ export const authOptions: NextAuthOptions = {
           lastActivityAt: user.lastActivityAt,
         });
 
+        // force-setup gate (2026-06-29): מי שאין לו 2FA מופעל יופנה לדף הקמה
+        // ייעודי לפני גישה מלאה. בלעדי ל-needs2FA (שמחייב 2FA מופעל).
+        const needs2FASetup = requires2FASetup({
+          role: user.role,
+          twoFactorEnabled: user.twoFactorEnabled,
+        });
+
         // loginAt = רגע ההתחברות (epoch ms). נשמר ב-token; ב-update flow ה-jwt
         // callback מנקה requires2FA רק אם twoFactorVerifiedForLoginAt === loginAt
         // (שוויון מדויק) — הדגל נמחק רק ע"י אימות 2FA שבוצע עבור ה-login הזה.
@@ -225,6 +235,7 @@ export const authOptions: NextAuthOptions = {
           image: user.image,
           role: user.role,
           requires2FA: needs2FA,
+          requires2FASetup: needs2FASetup,
           loginAt: Date.now(),
           // H6 (סבב אבטחה 14): שומרים את sessionVersion ברגע ה-login.
           // כל פעולה רגישה (2FA enable/disable, password change, admin block)
@@ -429,9 +440,14 @@ export const authOptions: NextAuthOptions = {
         token.role = user.role;
         // העברת flag של 2FA אל token. אם המשתמש דורש 2FA, ה-middleware
         // ימנע ממנו גישה ל-dashboard עד שיאמת קוד ב-/auth/2fa-verify.
-        const u = user as { requires2FA?: boolean; loginAt?: number; sessionVersion?: number };
+        const u = user as { requires2FA?: boolean; requires2FASetup?: boolean; loginAt?: number; sessionVersion?: number };
         if (u.requires2FA) {
           token.requires2FA = true;
+        }
+        // force-setup gate: מי שאין לו 2FA מסומן כדורש הקמה. ה-proxy יפנה
+        // ל-/auth/2fa-setup עד שיפעיל. הניקוי קורה בבלוק רענון-ה-DB למטה.
+        if (u.requires2FASetup) {
+          token.requires2FASetup = true;
         }
         if (typeof u.loginAt === "number") {
           token.loginAt = u.loginAt;
@@ -452,6 +468,10 @@ export const authOptions: NextAuthOptions = {
           });
           if (dbUser && requires2FA(dbUser)) {
             token.requires2FA = true;
+          }
+          // force-setup gate גם ל-staff שמתחברים דרך Google בלי 2FA מופעל.
+          if (dbUser && requires2FASetup(dbUser)) {
+            token.requires2FASetup = true;
           }
           token.loginAt = Date.now();
           // H6: גם ל-OAuth שומרים sessionVersion ברגע ה-login.
@@ -589,6 +609,7 @@ export const authOptions: NextAuthOptions = {
               trialEndsAt: true,
               passwordChangedAt: true,
               sessionVersion: true,
+              twoFactorEnabled: true,
             },
           });
           if (dbUser) {
@@ -626,6 +647,14 @@ export const authOptions: NextAuthOptions = {
           } else if (token.sessionStale) {
             // המקרה היחיד שזה מתאפס: token חדש (login מחדש) שמביא sv עדכני.
             delete token.sessionStale;
+          }
+
+          // force-setup gate: ברגע שה-2FA מופעל (המשתמש סיים הקמה), מנקים את
+          // הדגל כדי שהשער ייפתח. ה-cache מנוקה ע"י invalidateJwtCache ב-setup
+          // routes, כך שהקריאה כאן רואה את המצב המעודכן. רשת ביטחון מעבר ל-
+          // sessionStale (שגם הוא נדלק בהפעלת 2FA ומאלץ login מחדש).
+          if (token.requires2FASetup && dbUser.twoFactorEnabled) {
+            delete token.requires2FASetup;
           }
 
           token.role = dbUser.role;
@@ -700,6 +729,7 @@ export const authOptions: NextAuthOptions = {
         session.user.role = token.role as "USER" | "MANAGER" | "ADMIN" | "CLINIC_OWNER" | "CLINIC_SECRETARY";
         session.user.clinicRole = (token.clinicRole as "OWNER" | "THERAPIST" | "SECRETARY" | null | undefined) ?? null;
         session.user.requires2FA = token.requires2FA === true;
+        session.user.requires2FASetup = token.requires2FASetup === true;
         session.user.passwordStale = token.passwordStale === true;
         session.user.sessionStale = token.sessionStale === true;
         session.user.sessionExpired = token.sessionExpired === true;
@@ -726,6 +756,7 @@ declare module "next-auth" {
   interface User {
     role?: "USER" | "MANAGER" | "ADMIN" | "CLINIC_OWNER" | "CLINIC_SECRETARY";
     requires2FA?: boolean;
+    requires2FASetup?: boolean; // force-setup gate: חייב להקים 2FA לפני גישה
     loginAt?: number;
     sessionVersion?: number; // H6 (סבב 14): נשמר ב-token.sv בעת login
   }
@@ -739,6 +770,7 @@ declare module "next-auth" {
       role: "USER" | "MANAGER" | "ADMIN" | "CLINIC_OWNER" | "CLINIC_SECRETARY";
       clinicRole: "OWNER" | "THERAPIST" | "SECRETARY" | null;
       requires2FA?: boolean;
+      requires2FASetup?: boolean; // force-setup gate: חייב להקים 2FA לפני גישה
       passwordStale?: boolean; // C7: token הונפק לפני שינוי סיסמה
       sessionStale?: boolean; // H6 (סבב 14): bump של sessionVersion (2FA/admin block) → token פסול
       sessionExpired?: boolean; // C9: סשן חצה max-lifetime של 30 ימים
@@ -760,6 +792,9 @@ declare module "next-auth/jwt" {
     isBlocked?: boolean;
     gracePeriodEndsAt?: string; // ISO date string - מתי נגמרת תקופת החסד
     requires2FA?: boolean;
+    // force-setup gate (2026-06-29): המשתמש חייב להקים 2FA לפני גישה מלאה.
+    // ה-proxy מפנה ל-/auth/2fa-setup (דפים) או 403 (API) עד שיופעל.
+    requires2FASetup?: boolean;
     loginAt?: number; // epoch ms — login timestamp; משמש לשיוך verify ל-token
     actingAs?: JwtActingAs; // null/undefined = לא מתחזה
     // C7: token הונפק לפני שינוי סיסמה — אסור להשתמש בו.

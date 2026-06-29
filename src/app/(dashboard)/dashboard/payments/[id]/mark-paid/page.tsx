@@ -9,8 +9,18 @@ import { Label } from "@/components/ui/label";
 import { Input } from "@/components/ui/input";
 import { Badge } from "@/components/ui/badge";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
-import { PAYMENT_METHOD_SELECT_OPTIONS } from "@/lib/payment-methods";
+import { PAYMENT_METHOD_SELECT_OPTIONS, LARGE_PAYMENT_CONFIRM_THRESHOLD } from "@/lib/payment-methods";
 import { ReceiptToggle } from "@/components/payments/receipt-toggle";
+import {
+  AlertDialog,
+  AlertDialogAction,
+  AlertDialogCancel,
+  AlertDialogContent,
+  AlertDialogDescription,
+  AlertDialogFooter,
+  AlertDialogHeader,
+  AlertDialogTitle,
+} from "@/components/ui/alert-dialog";
 import { Loader2, Check, ChevronDown, CreditCard, Wallet } from "lucide-react";
 import { toast } from "sonner";
 import { format } from "date-fns";
@@ -53,6 +63,7 @@ export default function MarkPaidPage({ params }: { params: Promise<{ id: string 
   const [partialAmount, setPartialAmount] = useState<string>("");
   const [useCredit, setUseCredit] = useState(false);
   const [showAdvanced, setShowAdvanced] = useState(false);
+  const [showLargeConfirm, setShowLargeConfirm] = useState(false);
   const [issueReceipt, setIssueReceipt] = useState(false);
   const [receiptMode, setReceiptMode] = useState<string>("ASK");
   const [businessType, setBusinessType] = useState<string>("NONE");
@@ -188,15 +199,8 @@ export default function MarkPaidPage({ params }: { params: Promise<{ id: string 
         return;
       }
 
-      if (amountToPay > 1000 && method === "CASH") {
-        const confirmed = window.confirm(
-          `האם אתה בטוח שברצונך לרשום תשלום של ₪${amountToPay.toFixed(0)} במזומן?`
-        );
-        if (!confirmed) {
-          return;
-        }
-      }
-
+      // אישור לתשלום גדול עבר ל-onSubmitClick (AlertDialog מעוצב אחיד) — כאן
+      // כבר אחרי האישור.
       setIsSaving(true);
       try {
         const response = await fetch(`/api/payments/${id}`, {
@@ -299,6 +303,26 @@ export default function MarkPaidPage({ params }: { params: Promise<{ id: string 
       // שפתחנו אותו, מותר לשחרר; הוא ישמור על ה-flow שלו.
       inFlightRef.current = false;
     }
+  };
+
+  // עטיפת לחיצת "סיים ושלם": מעל סף הסכום (כל אמצעי שאינו אשראי) פותחים
+  // אישור מעוצב לפני הרישום. אשראי עובר לסליקת Cardcom ולכן לא נכנס לאישור הזה.
+  const onSubmitClick = () => {
+    if (!payment) return;
+    if (method !== "CREDIT_CARD") {
+      const debt = Number(payment.expectedAmount) - Number(payment.amount);
+      const gross = paymentMode === "FULL" ? debt : parseFloat(partialAmount) || 0;
+      const credit =
+        useCredit && Number(payment.client.creditBalance) > 0
+          ? Math.min(gross, Number(payment.client.creditBalance))
+          : 0;
+      const netCash = gross - credit;
+      if (netCash > LARGE_PAYMENT_CONFIRM_THRESHOLD) {
+        setShowLargeConfirm(true);
+        return;
+      }
+    }
+    void handleMarkPaid();
   };
 
   if (isLoading) {
@@ -500,8 +524,8 @@ export default function MarkPaidPage({ params }: { params: Promise<{ id: string 
             <Button variant="outline" asChild disabled={isSaving}>
               <Link href="/dashboard/payments">ביטול</Link>
             </Button>
-            <Button 
-              onClick={handleMarkPaid} 
+            <Button
+              onClick={onSubmitClick}
               disabled={isSaving || (paymentMode === "PARTIAL" && (!partialAmount || parseFloat(partialAmount) <= 0))}
               className="flex-1 gap-2 bg-green-600 hover:bg-green-700"
             >
@@ -589,6 +613,40 @@ export default function MarkPaidPage({ params }: { params: Promise<{ id: string 
         paymentId={receiptDialogPaymentId}
         isCardcom={receiptDialogIsCardcom}
       />
+
+      <AlertDialog open={showLargeConfirm} onOpenChange={setShowLargeConfirm}>
+        <AlertDialogContent>
+          <AlertDialogHeader>
+            <AlertDialogTitle>אישור תשלום</AlertDialogTitle>
+            <AlertDialogDescription>
+              האם לרשום תשלום של ₪
+              {(() => {
+                const debt = Number(payment.expectedAmount) - Number(payment.amount);
+                const gross = paymentMode === "FULL" ? debt : parseFloat(partialAmount) || 0;
+                const credit =
+                  useCredit && Number(payment.client.creditBalance) > 0
+                    ? Math.min(gross, Number(payment.client.creditBalance))
+                    : 0;
+                return (gross - credit).toFixed(0);
+              })()}
+              ? סכום זה גבוה מהרגיל — כדאי לוודא שהוא נכון.
+            </AlertDialogDescription>
+          </AlertDialogHeader>
+          <AlertDialogFooter>
+            <AlertDialogCancel disabled={isSaving}>ביטול</AlertDialogCancel>
+            <AlertDialogAction
+              onClick={() => {
+                setShowLargeConfirm(false);
+                void handleMarkPaid();
+              }}
+              disabled={isSaving}
+              className="bg-green-600 hover:bg-green-700"
+            >
+              אישור תשלום
+            </AlertDialogAction>
+          </AlertDialogFooter>
+        </AlertDialogContent>
+      </AlertDialog>
     </div>
   );
 }

@@ -246,7 +246,7 @@ export function PaymentClientsView({
                 return (
                   <Card
                     key={client.id}
-                    className="cursor-pointer bg-gradient-to-br from-rose-50/80 to-orange-50/50 border-rose-100 hover:shadow-lg hover:scale-[1.02] transition-all duration-200 rounded-xl"
+                    className="cursor-pointer bg-gradient-to-br from-rose-50/80 to-orange-50/50 border-rose-100 hover:shadow-md transition-all duration-200 rounded-xl"
                     onClick={() => onSelectClient(client)}
                   >
                     <CardContent className="p-4">

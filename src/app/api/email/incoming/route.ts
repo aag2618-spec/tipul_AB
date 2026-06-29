@@ -4,6 +4,7 @@ import { logger } from "@/lib/logger";
 
 import { requireAuth } from "@/lib/api-auth";
 import { bearerEquals } from "@/lib/cron-auth";
+import { safeEmailSubject } from "@/lib/email-utils";
 
 export const dynamic = "force-dynamic";
 
@@ -103,10 +104,15 @@ export async function POST(request: NextRequest) {
       }
     }
 
+    // Email Header Injection (מקור-אמת נקי): subject מגיע גלם מ-webhook. מנקים
+    // תווי שורה/טאב + חיתוך אורך לפני אחסון, כך שלא יזלוג לכותרת מייל בתשובה
+    // (reply route מנקה שוב — הגנה-לעומק). String() למקרה ש-JSON שלח לא-מחרוזת.
+    const cleanSubject = safeEmailSubject(String(subject));
+
     // Normalize subject — don't add RE: if already present
-    const normalizedSubject = /^(Re:|RE:|השב:|הע:|Fwd:|FWD:)\s*/i.test(subject)
-      ? subject
-      : `RE: ${subject}`;
+    const normalizedSubject = /^(Re:|RE:|השב:|הע:|Fwd:|FWD:)\s*/i.test(cleanSubject)
+      ? cleanSubject
+      : `RE: ${cleanSubject}`;
 
     // Create incoming email log
     const incomingLog = await prisma.communicationLog.create({
@@ -130,7 +136,7 @@ export async function POST(request: NextRequest) {
         userId: client.therapistId,
         type: "EMAIL_RECEIVED",
         title: `📬 תגובה מ-${client.name}`,
-        content: `נושא: ${subject}`,
+        content: `נושא: ${cleanSubject}`,
         status: "PENDING",
       },
     });

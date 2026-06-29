@@ -9,6 +9,7 @@ import { loadScopeUserWithMode } from "@/lib/secretary-mode";
 import { isShabbatOrYomTov } from "@/lib/shabbat";
 import { validateFileBuffer, stripImageMetadata, getCategoryMaxSize } from "@/lib/file-validation";
 import { checkRateLimit, EMAIL_SEND_USER_RATE_LIMIT } from "@/lib/rate-limit";
+import { safeEmailSubject, sanitizeEmailSubject } from "@/lib/email-utils";
 
 const MAX_ATTACHMENTS_PER_REPLY = 5;
 
@@ -177,9 +178,13 @@ export async function POST(request: NextRequest) {
     });
 
     // Build reply subject — handle Hebrew prefixes too
-    const replySubject = /^(Re:|RE:|השב:|הע:|Fwd:|FWD:)\s*/i.test(originalLog.subject || "")
-      ? originalLog.subject
+    const rawReplySubject = /^(Re:|RE:|השב:|הע:|Fwd:|FWD:)\s*/i.test(originalLog.subject || "")
+      ? (originalLog.subject || "")
       : `Re: ${originalLog.subject || "ללא נושא"}`;
+    // Email Header Injection (הגנה-לעומק): originalLog.subject נשמר גלם מ-webhook
+    // (INCOMING_EMAIL) בלי ניקוי CRLF. מנקים תווי שורה/טאב + חיתוך אורך לפני
+    // ההעברה ל-resend.emails.send — אותו דפוס כמו sendEmail המרכזי (resend.ts).
+    const replySubject = safeEmailSubject(rawReplySubject);
 
     // Escape user content to prevent XSS
     const escapeHtml = (str: string) =>
@@ -203,13 +208,15 @@ export async function POST(request: NextRequest) {
       </div>
     `;
 
-    // Build threading headers
+    // Build threading headers — messageId/inReplyTo נשמרים גלם מ-webhook, לכן
+    // מנקים תווי שורה/טאב לפני הזרקה לכותרות (מניעת Email Header Injection).
     const emailHeaders: Record<string, string> = {};
     if (originalLog.messageId) {
-      emailHeaders["In-Reply-To"] = originalLog.messageId;
+      const cleanMessageId = sanitizeEmailSubject(originalLog.messageId);
+      emailHeaders["In-Reply-To"] = cleanMessageId;
       const previousRefs = originalLog.inReplyTo
-        ? `${originalLog.inReplyTo} ${originalLog.messageId}`
-        : originalLog.messageId;
+        ? `${sanitizeEmailSubject(originalLog.inReplyTo)} ${cleanMessageId}`
+        : cleanMessageId;
       emailHeaders["References"] = previousRefs;
     }
 
@@ -227,7 +234,7 @@ export async function POST(request: NextRequest) {
     const { data: sendResult, error: sendError } = await resend.emails.send({
       from: process.env.EMAIL_FROM || "Tipul App <onboarding@resend.dev>",
       to: [originalLog.client.email.toLowerCase()],
-      subject: replySubject ?? "",
+      subject: replySubject,
       html: replyHtml,
       replyTo: "inbox@mytipul.com",
       headers: emailHeaders,

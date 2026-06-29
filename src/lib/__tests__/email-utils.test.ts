@@ -23,6 +23,13 @@ describe("sanitizeEmailSubject", () => {
   it("מחרוזת תקינה נשארת כמות שהיא", () => {
     expect(sanitizeEmailSubject("אישור תור - ד״ר כהן")).toBe("אישור תור - ד״ר כהן");
   });
+  it("מסיר גם תווי קו-מפריד נדירים (\\v \\f NEL U+2028 U+2029)", () => {
+    expect(sanitizeEmailSubject("a\vb")).toBe("a b"); // vertical tab
+    expect(sanitizeEmailSubject("a\fb")).toBe("a b"); // form feed
+    expect(sanitizeEmailSubject("a\u0085b")).toBe("a b"); // NEL
+    expect(sanitizeEmailSubject("a\u2028b")).toBe("a b"); // line separator
+    expect(sanitizeEmailSubject("a\u2029b")).toBe("a b"); // paragraph separator
+  });
 });
 
 describe("safeEmailSubject", () => {
