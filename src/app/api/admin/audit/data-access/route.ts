@@ -58,6 +58,9 @@ export async function GET(request: NextRequest) {
       prisma.dataAccessAuditLog.count({ where }),
       prisma.dataAccessAuditLog.findMany({
         where,
+        // H4: לא להחזיר את עמודות השרשרת (seq הוא BigInt — ישבור JSON.stringify;
+        // prevHash/rowHash הם פנימיים ולא רלוונטיים לתצוגה).
+        omit: { seq: true, prevHash: true, rowHash: true },
         orderBy: { createdAt: "desc" },
         skip: (page - 1) * size,
         take: size,

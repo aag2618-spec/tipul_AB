@@ -1940,6 +1940,13 @@ model AdminAuditLog {
   revertedBy    User?     @relation("auditReverted", fields: [revertedById], references: [id], onDelete: SetNull)
   createdAt     DateTime  @default(now())
 
+  // H4 (tamper-evident): שרשרת hash מחושבת ע"י BEFORE INSERT trigger ב-DB
+  // (prisma/sql/audit-chain.sql). אדיטיבי + nullable — לא נכתב מקוד האפליקציה.
+  // seq=סדר השרשרת, prevHash/rowHash=חוליות. שורות legacy (לפני התוספת)=NULL.
+  seq      BigInt?
+  prevHash String?
+  rowHash  String?
+
   @@index([adminId])
   @@index([targetType, targetId])
   @@index([createdAt])
@@ -1979,12 +1986,31 @@ model DataAccessAuditLog {
   meta       String?  @db.Text // JSON metadata
   createdAt  DateTime @default(now())
 
+  // H4 (tamper-evident): שרשרת hash מחושבת ע"י BEFORE INSERT trigger ב-DB
+  // (prisma/sql/audit-chain.sql). אדיטיבי + nullable — לא נכתב מקוד האפליקציה.
+  seq      BigInt?
+  prevHash String?
+  rowHash  String?
+
   // אינדקסים לשליפת audit:
   @@index([userId, createdAt]) // "מה X עשה לאורך זמן"
   @@index([recordType, recordId]) // "מי ניגש ל-X"
   @@index([clientId, createdAt]) // "מי ניגש לנתוני לקוח Y"
   @@index([createdAt]) // לcron retention + dashboards לאורך זמן
   @@index([action, createdAt]) // לדשבורדים לפי סוג פעולה
+}
+
+// ==================== Audit Chain Head (H4 — tamper-evident) ====================
+//
+// ראש שרשרת ה-hash לכל טבלת audit. שורה אחת פר-שרשרת ("admin"/"dataaccess").
+// מתוחזק *אך ורק* ע"י ה-BEFORE INSERT trigger ב-DB (prisma/sql/audit-chain.sql)
+// — קוד האפליקציה לא כותב לכאן. lastHash = ה-rowHash האחרון בשרשרת, מאפשר
+// גילוי מחיקת-זנב (verifier משווה את השורה האחרונה ל-lastHash).
+model AuditChainHead {
+  chainKey  String   @id // "admin" | "dataaccess"
+  lastSeq   BigInt   @default(0)
+  lastHash  String   @default("GENESIS")
+  updatedAt DateTime @default(now())
 }
 
 // ==================== Breach Incident Log (R5, סבב 17e) ====================

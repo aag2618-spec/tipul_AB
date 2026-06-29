@@ -11,7 +11,11 @@
  *
  * Retry policy (inside withAudit):
  *  - Isolation level Serializable by default
- *  - Retries on 40001 (serialization failure) + 40P01 (deadlock)
+ *  - Retries on 40001 (serialization failure) + 40P01 (deadlock) + P2034
+ *    (Prisma עוטף serialization/deadlock בתוך $transaction כ-P2034 — וזה הקוד
+ *    שחוזר בפועל ברוב המקרים; ראה את אותו דפוס ב-charge-token/charge-saved-token
+ *    ועוד. בלי P2034 ה-retry לא היה תופס conflicts אמיתיים, כולל RAISE 40001
+ *    מטריגר ה-audit-chain).
  *  - 3 attempts with jittered backoff (50/150/400ms ± 25%)
  */
 
@@ -32,7 +36,7 @@ export type AuditActor =
 
 // ─── Retry helpers ──────────────────────────────────────────────────────────
 
-const RETRY_CODES = ["40001", "40P01"] as const;
+const RETRY_CODES = ["40001", "40P01", "P2034"] as const;
 const DELAYS_MS = [50, 150, 400];
 const MAX_RETRIES = 3;
 

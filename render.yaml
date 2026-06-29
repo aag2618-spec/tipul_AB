@@ -366,6 +366,27 @@ services:
       - key: CRON_SECRET
         sync: false
 
+  # H4 (tamper-evident audit) — אימות שרשרת ה-hash של טבלאות ה-audit. יומי,
+  # 02:00 UTC (05:00 ישראל). מרים AdminAlert URGENT אם השרשרת נשברה (חשד לזיוף/מחיקה).
+  - type: cron
+    name: audit-chain-verify
+    runtime: node
+    region: frankfurt
+    plan: free
+    schedule: "0 2 * * *"  # Every day at 02:00 UTC (05:00 Israel)
+    buildCommand: echo "No build needed"
+    startCommand: |
+      curl -s --max-time 120 -X GET "$RENDER_EXTERNAL_URL/api/cron/audit-chain-verify" \
+        -H "Authorization: Bearer $CRON_SECRET"
+    envVars:
+      - key: RENDER_EXTERNAL_URL
+        fromService:
+          type: web
+          name: tipul-app
+          property: url
+      - key: CRON_SECRET
+        sync: false
+
   # R6 (סבב אבטחה 17f) — Data Retention: מחיקת CommunicationLog INCOMING > 7y
   # ו-Notification > 90d. שבועי, יום שני 01:00 UTC (04:00 Israel).
   # אחרי audit-log-retention (יום ראשון 00:00-00:30) — לא חופף.
